@@ -1,0 +1,15 @@
+#!/bin/bash -e
+
+export GOPATH=${PWD}/Godeps/_workspace
+export GOBIN=${PWD}/bin
+
+rm -rf $GOPATH/src/github.com/coreos/dex
+mkdir -p $GOPATH/src/github.com/coreos/
+ln -s ${PWD} $GOPATH/src/github.com/coreos/dex
+
+LD_FLAGS="-X main.version $(git rev-parse HEAD)"
+go build -o bin/dex-worker -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dex-worker
+go build -o bin/dexctl github.com/coreos/dex/cmd/dexctl
+go build -o bin/dex-overlord -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dex-overlord
+go build -o bin/example-app github.com/coreos/dex/examples/app
+go build -o bin/example-cli github.com/coreos/dex/examples/cli

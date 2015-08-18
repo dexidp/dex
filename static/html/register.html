@@ -1,0 +1,35 @@
+<html>
+
+  <body>
+    {{ if .Error }}
+    <div>
+      {{ .Message }}
+    </div>
+    {{ else }}
+
+    <ul>
+    {{ range $fe := .FormErrors }}
+       <li>{{ $fe.Field }}: {{ $fe.Error }} </li>
+    {{ end }}
+    </ul>
+    
+    <h2>Please Register </h2>
+    <form id="registerForm" method="POST" action="/register">
+      <label for="email">Email</label>
+      <input type="text" name="email" value="{{.Email}}" />
+      <br>
+
+      <!-- The client side should be responsible for making sure password is entered correctly twice -->
+      {{ if .Local }}
+        <label for="password">Password</label>
+        <input type="text" name="password" value="{{.Password}}" />
+        <br>
+      {{ end }}
+
+      <input type="hidden" name="code" value="{{.Code}}"/>
+      <input type="hidden" name="validate" value="1"/>
+      <button>Submit</submit>
+    </form>
+    {{ end }}
+  </body>
+</html>

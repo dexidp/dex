@@ -1,0 +1,15 @@
+[Service]
+ExecStartPre=-/usr/bin/docker rm %n
+ExecStart=/usr/bin/docker run \
+--name %n \
+--volume /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt \
+--publish 5556:5556 \
+--env DEX_WORKER_ISSUER=https://auth.update.core-os.net \
+--env DEX_WORKER_DB_URL=${DEX_WORKER_DB_URL} \
+--env DEX_WORKER_KEY_SECRET=${DEX_WORKER_KEY_SECRET} \
+quay.io/coreos/dex /opt/dex/bin/dex-worker
+
+ExecStop=/usr/bin/docker kill %n
+
+[X-Fleet]
+Global=true

@@ -1,0 +1,18 @@
+#!/bin/bash -e
+
+registry=quay.io
+repo=$registry/coreos/dex
+
+if [ -v $DOCKER_USER ] || [ -v $DOCKER_PASSWORD ]; then
+    echo "env variables not set: DOCKER_USER, DOCKER_PASSWORD. skipping login, assuming creds in .dockercfg"
+else
+    echo logging in as $DOCKER_USER
+    docker login --username="$DOCKER_USER" --password="$DOCKER_PASSWORD" --email="docker.login@coreos.com" $registry
+fi
+
+git_sha=$(git rev-parse HEAD)
+
+docker build -q --rm=true -t $repo:$git_sha .
+docker tag -f $repo:$git_sha $repo:latest
+docker push $repo:$git_sha
+docker push $repo:latest

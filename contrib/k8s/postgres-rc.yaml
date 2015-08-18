@@ -1,0 +1,25 @@
+apiVersion: v1beta3
+kind: ReplicationController
+metadata:
+  labels:
+    app: postgres
+  name: auth-postgres
+spec:
+  replicas: 1
+  selector:
+    app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+          - image: quay.io/sym3tri/postgres-dev:9.4
+            name: auth-postgres
+            env:
+            - name: DATABASES
+              key: DATABASES
+              value: auth
+            ports:
+            - containerPort: 5432
+              name: postgres-port

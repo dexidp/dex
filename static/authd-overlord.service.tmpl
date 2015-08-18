@@ -1,0 +1,9 @@
+[Service]
+ExecStartPre=-/usr/bin/docker rm %n
+ExecStart=/usr/bin/docker run \
+--name %n \
+--env DEX_OVERLORD_DB_URL=${DEX_OVERLORD_DB_URL} \
+--env DEX_OVERLORD_KEY_SECRET=${DEX_OVERLORD_KEY_SECRET} \
+quay.io/coreos/dex /opt/dex/bin/dex-overlord
+
+ExecStop=/usr/bin/docker kill %n

@@ -1,0 +1,13 @@
+apiVersion: v1beta3
+kind: Service
+metadata:
+  labels:
+    app: dex
+    role: overlord
+  name: dex-overlord
+spec:
+  ports:
+    - port: 5557
+  selector:
+    app: dex
+    role: overlord
