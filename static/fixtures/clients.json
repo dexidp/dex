@@ -1,0 +1,12 @@
+[
+  {
+    "id": "XXX",
+    "secret": "secrete",
+    "redirectURLs": ["http://127.0.0.1:5555/callback"]
+  },
+  {
+    "id": "core-update",
+    "secret": "secrete",
+    "redirectURLs": ["http://127.0.0.1:8000/admin/v1/oauth/login"]
+  }
+]

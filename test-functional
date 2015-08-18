@@ -1,0 +1,4 @@
+#!/bin/bash -e
+
+source ./build
+go test $@ github.com/coreos/dex/functional

@@ -1,0 +1,21 @@
+#!/bin/bash -e
+#
+# USAGE:
+#
+# With env vars:
+#   MYVAR=foo OTHERVAR=bar DOCKER_ENV=MYVAR,OTHERVAR ./go-docker ./my-script --my-script-arg1 --my-script-arg2
+#
+# Without env vars:
+#   ./go-docker ./my-script --my-script-arg1 --my-script-arg2
+
+
+REPO=github.com/coreos/dex
+
+# forward whitelisted env variables to docker
+ENV_STR=""
+for VAR in ${DOCKER_ENV//,/ }; do
+    ENV_STR="$ENV_STR -e $VAR=${!VAR}"
+done
+
+echo "running with docker, might take a while to pull the image..."
+docker run $ENV_STR --rm --net=host -v `pwd`:/go/src/$REPO -w /go/src/$REPO quay.io/coreos/go-builder:1.3.3 $@

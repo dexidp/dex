@@ -1,0 +1,120 @@
+{
+	"ImportPath": "github.com/coreos-inc/auth",
+	"GoVersion": "go1.4.2",
+	"Packages": [
+		"./..."
+	],
+	"Deps": [
+		{
+			"ImportPath": "code.google.com/p/go-uuid/uuid",
+			"Comment": "null-15",
+			"Rev": "35bc42037350f0078e3c974c6ea690f1926603ab"
+		},
+		{
+			"ImportPath": "github.com/PuerkitoBio/goquery",
+			"Comment": "v0.3.2-79-gb444041",
+			"Rev": "b4440419d81240f8451a505b2f806c853bc2befc"
+		},
+		{
+			"ImportPath": "github.com/andybalholm/cascadia",
+			"Rev": "6122e68c2642b7b75c538a63b15168c6c80fb757"
+		},
+		{
+			"ImportPath": "github.com/coopernurse/gorp",
+			"Comment": "v1.7",
+			"Rev": "5d19ebd22fdcf3b9fb1c8cbfcf1d4e78e102f1e0"
+		},
+		{
+			"ImportPath": "github.com/coreos/go-oidc/http",
+			"Rev": "ee7cb1fb480df22f7d8c4c90199e438e454ca3b6"
+		},
+		{
+			"ImportPath": "github.com/coreos/go-oidc/jose",
+			"Rev": "ee7cb1fb480df22f7d8c4c90199e438e454ca3b6"
+		},
+		{
+			"ImportPath": "github.com/coreos/go-oidc/key",
+			"Rev": "ee7cb1fb480df22f7d8c4c90199e438e454ca3b6"
+		},
+		{
+			"ImportPath": "github.com/coreos/go-oidc/oauth2",
+			"Rev": "ee7cb1fb480df22f7d8c4c90199e438e454ca3b6"
+		},
+		{
+			"ImportPath": "github.com/coreos/go-oidc/oidc",
+			"Rev": "ee7cb1fb480df22f7d8c4c90199e438e454ca3b6"
+		},
+		{
+			"ImportPath": "github.com/coreos/pkg/capnslog",
+			"Rev": "fa94270d4bac0d8ae5dc6b71894e251aada93f74"
+		},
+		{
+			"ImportPath": "github.com/coreos/pkg/flagutil",
+			"Rev": "fa94270d4bac0d8ae5dc6b71894e251aada93f74"
+		},
+		{
+			"ImportPath": "github.com/coreos/pkg/health",
+			"Rev": "fa94270d4bac0d8ae5dc6b71894e251aada93f74"
+		},
+		{
+			"ImportPath": "github.com/coreos/pkg/httputil",
+			"Rev": "fa94270d4bac0d8ae5dc6b71894e251aada93f74"
+		},
+		{
+			"ImportPath": "github.com/coreos/pkg/timeutil",
+			"Rev": "fa94270d4bac0d8ae5dc6b71894e251aada93f74"
+		},
+		{
+			"ImportPath": "github.com/gorilla/handlers",
+			"Rev": "60c7bfde3e33c201519a200a4507a158cc03a17b"
+		},
+		{
+			"ImportPath": "github.com/jonboulle/clockwork",
+			"Rev": "3f831b65b61282ba6bece21b91beea2edc4c887a"
+		},
+		{
+			"ImportPath": "github.com/julienschmidt/httprouter",
+			"Rev": "8c199fb6259ffc1af525cc3ad52ee60ba8359669"
+		},
+		{
+			"ImportPath": "github.com/kylelemons/godebug/diff",
+			"Rev": "808ac284003ce2b08ef590da08f95379e8a06936"
+		},
+		{
+			"ImportPath": "github.com/kylelemons/godebug/pretty",
+			"Rev": "808ac284003ce2b08ef590da08f95379e8a06936"
+		},
+		{
+			"ImportPath": "github.com/lib/pq",
+			"Rev": "7175accbed18058468c07811f76440d6e8d7cf19"
+		},
+		{
+			"ImportPath": "github.com/mailgun/mailgun-go",
+			"Rev": "9578dc67692294bb7e2a6f4b15dd18c97af19440"
+		},
+		{
+			"ImportPath": "github.com/mbanzon/simplehttp",
+			"Rev": "04c542e7ac706a25820090f274ea6a4f39a63326"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/bcrypt",
+			"Rev": "1fbbd62cfec66bd39d91e97749579579d4d3037e"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/blowfish",
+			"Rev": "1fbbd62cfec66bd39d91e97749579579d4d3037e"
+		},
+		{
+			"ImportPath": "golang.org/x/net/html",
+			"Rev": "dfe268fd2bb5c793f4c083803609fce9806c6f80"
+		},
+		{
+			"ImportPath": "google.golang.org/api/google-api-go-generator",
+			"Rev": "d3edb0282bde692467788c50070a9211afe75cf3"
+		},
+		{
+			"ImportPath": "google.golang.org/api/googleapi",
+			"Rev": "d3edb0282bde692467788c50070a9211afe75cf3"
+		}
+	]
+}
