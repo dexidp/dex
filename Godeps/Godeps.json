@@ -1,5 +1,5 @@
 {
-	"ImportPath": "github.com/coreos-inc/auth",
+	"ImportPath": "github.com/coreos/dex",
 	"GoVersion": "go1.4.2",
 	"Packages": [
 		"./..."
@@ -97,6 +97,10 @@
 			"Rev": "04c542e7ac706a25820090f274ea6a4f39a63326"
 		},
 		{
+			"ImportPath": "github.com/rubenv/sql-migrate",
+			"Rev": "53184e1edfb4f9655b0fa8dd2c23e7763f452bda"
+		},
+		{
 			"ImportPath": "golang.org/x/crypto/bcrypt",
 			"Rev": "1fbbd62cfec66bd39d91e97749579579d4d3037e"
 		},
@@ -115,6 +119,11 @@
 		{
 			"ImportPath": "google.golang.org/api/googleapi",
 			"Rev": "d3edb0282bde692467788c50070a9211afe75cf3"
+		},
+		{
+			"ImportPath": "gopkg.in/gorp.v1",
+			"Comment": "v1.7.1",
+			"Rev": "c87af80f3cc5036b55b83d77171e156791085e2e"
 		}
 	]
 }
