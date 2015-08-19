@@ -15,6 +15,7 @@ import (
 	"github.com/coreos/dex/db"
 	pflag "github.com/coreos/dex/pkg/flag"
 	"github.com/coreos/dex/pkg/log"
+	ptime "github.com/coreos/dex/pkg/time"
 	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/user"
 )
@@ -29,14 +30,17 @@ func main() {
 	fs := flag.NewFlagSet("dex-overlord", flag.ExitOnError)
 	secret := fs.String("key-secret", "", "symmetric key used to encrypt/decrypt signing key data in DB")
 	dbURL := fs.String("db-url", "", "DSN-formatted database connection string")
+
+	dbMigrate := fs.Bool("db-migrate", true, "perform database migrations when starting up overlord. This includes the initial DB objects creation.")
+
 	keyPeriod := fs.Duration("key-period", 24*time.Hour, "length of time for-which a given key will be valid")
 	gcInterval := fs.Duration("gc-interval", time.Hour, "length of time between garbage collection runs")
 
 	adminListen := fs.String("admin-listen", "http://0.0.0.0:5557", "scheme, host and port for listening for administrative operation requests ")
 
+	localConnectorID := fs.String("local-connector", "local", "ID of the local connector")
 	logDebug := fs.Bool("log-debug", false, "log debug-level information")
 	logTimestamps := fs.Bool("log-timestamps", false, "prefix log lines with timestamps")
-	localConnectorID := fs.String("local-connector", "local", "ID of the local connector")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
@@ -72,6 +76,19 @@ func main() {
 	dbc, err := db.NewConnection(dbCfg)
 	if err != nil {
 		log.Fatalf(err.Error())
+	}
+
+	if *dbMigrate {
+		var sleep time.Duration
+		for {
+			if migrations, err := db.MigrateToLatest(dbc); err == nil {
+				log.Infof("Performed %d db migrations", migrations)
+				break
+			}
+			sleep = ptime.ExpBackoff(sleep, time.Minute)
+			log.Errorf("Unable to migrate database, retrying in %v: %v", sleep, err)
+			time.Sleep(sleep)
+		}
 	}
 
 	userRepo := db.NewUserRepo(dbc)
