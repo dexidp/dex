@@ -5,13 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/coopernurse/gorp"
 	_ "github.com/lib/pq"
 
 	"github.com/coreos/dex/pkg/log"
-	ptime "github.com/coreos/dex/pkg/time"
 	"github.com/coreos/dex/repo"
 )
 
@@ -71,16 +69,6 @@ func NewConnection(cfg Config) (*gorp.DbMap, error) {
 			}
 			cm.SetUnique(true)
 		}
-	}
-
-	var sleep time.Duration
-	for {
-		if err = dbm.CreateTablesIfNotExists(); err == nil {
-			break
-		}
-		sleep = ptime.ExpBackoff(sleep, time.Minute)
-		log.Errorf("Unable to initialize database, retrying in %v: %v", sleep, err)
-		time.Sleep(sleep)
 	}
 
 	return &dbm, nil

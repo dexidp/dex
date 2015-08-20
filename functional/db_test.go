@@ -40,9 +40,11 @@ func connect(t *testing.T) *gorp.DbMap {
 		t.Fatalf("Unable to drop database tables: %v", err)
 	}
 
-	if err = c.CreateTablesIfNotExists(); err != nil {
-		t.Fatalf("Unable to create database tables: %v", err)
+	if err = db.DropMigrationsTable(c); err != nil {
+		panic(fmt.Sprintf("Unable to drop migration table: %v", err))
 	}
+
+	db.MigrateToLatest(c)
 
 	return c
 }

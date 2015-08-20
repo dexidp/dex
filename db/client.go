@@ -66,7 +66,7 @@ type clientIdentityModel struct {
 	ID       string `db:"id"`
 	Secret   []byte `db:"secret"`
 	Metadata string `db:"metadata"`
-	DexAdmin bool   `db:"dexAdmin"`
+	DexAdmin bool   `db:"dex_admin"`
 }
 
 func newClientMetadataJSON(cm *oidc.ClientMetadata) *clientMetadataJSON {

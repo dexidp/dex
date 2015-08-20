@@ -14,7 +14,10 @@ import (
 )
 
 const (
-	userTableName                  = "dex_user"
+	// This table is named authd_user for historical reasons; namely, that the
+	// original name of the project was authd, and there are existing tables out
+	// there that we don't want to have to rename in production.
+	userTableName                  = "authd_user"
 	remoteIdentityMappingTableName = "remote_identity_mapping"
 )
 

@@ -18,8 +18,10 @@ func initDB(dsn string) *gorp.DbMap {
 		panic(fmt.Sprintf("Unable to drop database tables: %v", err))
 	}
 
-	if err = c.CreateTablesIfNotExists(); err != nil {
-		panic(fmt.Sprintf("Unable to create database tables: %v", err))
+	if err = db.DropMigrationsTable(c); err != nil {
+		panic(fmt.Sprintf("Unable to drop migration table: %v", err))
 	}
+
+	db.MigrateToLatest(c)
 	return c
 }
