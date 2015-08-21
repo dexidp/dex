@@ -1,8 +1,7 @@
 dex
 =====
 
-[![Build Status](https://semaphoreci.com/api/v1/projects/52d56c45-8487-42ac-b124-056df1630122/411983/badge.svg)](https://semaphoreci.com/coreos/dex)
-[![Docker Repository on Quay.io](https://quay.io/repository/coreos/dex/status?token=64f952fa-9aa9-4f8e-ab8d-93bfbe770d25 "Docker Repository on Quay.io")](https://quay.io/repository/coreos/dex)
+[![Docker Repository on Quay.io](https://quay.io/repository/coreos/dex/status?token=5a9732e4-53d6-4419-b56b-9f784f7f9233 "Docker Repository on Quay.io")](https://quay.io/repository/coreos/dex)
 
 
 dex is a federated identity management service.
