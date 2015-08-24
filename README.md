@@ -31,7 +31,7 @@ A typical dex deployment consists of N dex-workers behind a load balanacer, and 
 The dex-workers directly handle user requests, so the loss of all workers can result in service downtime.
 The single dex-overlord runs its tasks periodically, so it does not need to maintain 100% uptime.
 
-## Who Should Use AuthD?
+## Who Should Use Dex?
 
     **TODO**
 

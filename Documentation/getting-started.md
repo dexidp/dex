@@ -14,7 +14,7 @@ We'll also start the example web app, so we can try registering and logging in.
 Before continuing, you must have the following installed on your system:
 
 * Go 1.4 or greater
-* Postgres 9.0 or greater
+* Postgres 9.0 or greater (this guide also assumes that Postgres is up and running)
 
 In addition, if you wish to try out authenticating against Google's OIDC backend, you must have a new client registered with Google:
 
@@ -42,11 +42,13 @@ dex needs a 32 byte base64-encoded key which will be used to encrypt the private
 
 `DEX_KEY_SECRET=$(dd if=/dev/random bs=1 count=32 2>/dev/null | base64)`
 
+The dex overlord and workers allow multiple key secrets (separated by commas) to be passed but only the first will be used to encrypt data; the rest are there for decryption only; this scheme allows for the rotation of keys without downtime (assuming a rolling restart of workers).
+
 # Start the overlord
 
 The overlord is responsible for creating and rotating keys and some other adminsitrative tasks. In addition, the overlord is responsible for creating the necessary database tables (and when you update, performing schema migrations), so it must be started before we do anything else. Debug logging is turned on so we can see more of what's going on. Start it up. 
 
-`./bin/dex-overlord --db-url=$DEX_DB_URL --key-secret=$DEX_KEY_SECRET --log-debug=true &`
+`./bin/dex-overlord --db-url=$DEX_DB_URL --key-secrets=$DEX_KEY_SECRET --log-debug=true &`
 
 ## Environment Variables.
 
