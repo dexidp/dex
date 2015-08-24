@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/coopernurse/gorp"
+	"github.com/go-gorp/gorp"
 	"github.com/jonboulle/clockwork"
 	"github.com/lib/pq"
 

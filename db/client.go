@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/coopernurse/gorp"
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/go-gorp/gorp"
 	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 

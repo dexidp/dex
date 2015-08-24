@@ -4,10 +4,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/coopernurse/gorp"
-
 	"github.com/coreos/dex/repo"
 	"github.com/coreos/dex/user"
+	"github.com/go-gorp/gorp"
 )
 
 const (

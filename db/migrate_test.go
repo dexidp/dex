@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/coopernurse/gorp"
+	"github.com/go-gorp/gorp"
 )
 
 func initDB(dsn string) *gorp.DbMap {

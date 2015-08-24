@@ -3,7 +3,7 @@ package db
 import (
 	"time"
 
-	"github.com/coopernurse/gorp"
+	"github.com/go-gorp/gorp"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/coreos/dex/pkg/log"

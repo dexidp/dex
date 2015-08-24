@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/coopernurse/gorp"
 	"github.com/coreos/dex/refresh"
+	"github.com/go-gorp/gorp"
 	"golang.org/x/crypto/bcrypt"
 )
 
