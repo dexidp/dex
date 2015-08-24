@@ -45,7 +45,7 @@ func runNewClient(args []string) int {
 	stdout("DEX_APP_CLIENT_ID=%s", cc.ID)
 	stdout("DEX_APP_CLIENT_SECRET=%s", cc.Secret)
 	for i, u := range redirectURLs {
-		stdout(" DEX_APP_REDIRECTURL_%d=%s", i, u.String())
+		stdout("DEX_APP_REDIRECTURL_%d=%s", i, u.String())
 	}
 
 	return 0
