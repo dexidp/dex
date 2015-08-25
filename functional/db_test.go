@@ -114,33 +114,75 @@ func TestDBSessionRepoCreateUpdate(t *testing.T) {
 }
 
 func TestDBPrivateKeySetRepoSetGet(t *testing.T) {
-	r, err := db.NewPrivateKeySetRepo(connect(t), "roflroflroflroflroflroflroflrofl")
-	if err != nil {
-		t.Fatalf(err.Error())
+	s1 := []byte("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+	s2 := []byte("oooooooooooooooooooooooooooooooo")
+	s3 := []byte("wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww")
+
+	keys := []*key.PrivateKey{}
+	for i := 0; i < 2; i++ {
+		k, err := key.GeneratePrivateKey()
+		if err != nil {
+			t.Fatalf("Unable to generate RSA key: %v", err)
+		}
+		keys = append(keys, k)
 	}
 
-	k1, err := key.GeneratePrivateKey()
-	if err != nil {
-		t.Fatalf("Unable to generate RSA key: %v", err)
+	ks := key.NewPrivateKeySet(
+		[]*key.PrivateKey{keys[0], keys[1]}, time.Now().Add(time.Minute))
+
+	tests := []struct {
+		setSecrets [][]byte
+		getSecrets [][]byte
+		wantErr    bool
+	}{
+		{
+			// same secrets used to encrypt, decrypt
+			setSecrets: [][]byte{s1, s2},
+			getSecrets: [][]byte{s1, s2},
+		},
+		{
+			// setSecrets got rotated, but getSecrets didn't yet.
+			setSecrets: [][]byte{s2, s3},
+			getSecrets: [][]byte{s1, s2},
+		},
+		{
+			// getSecrets doesn't have s3
+			setSecrets: [][]byte{s3},
+			getSecrets: [][]byte{s1, s2},
+			wantErr:    true,
+		},
 	}
 
-	k2, err := key.GeneratePrivateKey()
-	if err != nil {
-		t.Fatalf("Unable to generate RSA key: %v", err)
-	}
+	for i, tt := range tests {
+		setRepo, err := db.NewPrivateKeySetRepo(connect(t), tt.setSecrets...)
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
 
-	ks := key.NewPrivateKeySet([]*key.PrivateKey{k1, k2}, time.Now().Add(time.Minute))
-	if err := r.Set(ks); err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+		getRepo, err := db.NewPrivateKeySetRepo(connect(t), tt.getSecrets...)
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
 
-	got, err := r.Get()
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+		if err := setRepo.Set(ks); err != nil {
+			t.Fatalf("case %d: Unexpected error: %v", i, err)
+		}
 
-	if diff := pretty.Compare(ks, got); diff != "" {
-		t.Fatalf("Retrieved incorrect KeySet: Compare(want,got): %v", diff)
+		got, err := getRepo.Get()
+		if tt.wantErr {
+			if err == nil {
+				t.Errorf("case %d: want err, got nil", i)
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatalf("case %d: Unexpected error: %v", i, err)
+		}
+
+		if diff := pretty.Compare(ks, got); diff != "" {
+			t.Fatalf("case %d:Retrieved incorrect KeySet: Compare(want,got): %v", i, diff)
+		}
+
 	}
 }
 
