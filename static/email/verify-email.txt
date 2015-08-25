@@ -1,9 +1,5 @@
 Hello!
 
-Welcome to Tectonic! Please verify that your email is {{ .email }} by clicking here:
+Please verify that your email is {{ .email }} by clicking here:
 
 {{ .link }}
-
-Love,
-
-Your Pals at CoreOS
