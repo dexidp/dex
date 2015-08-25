@@ -84,11 +84,13 @@ func AESDecrypt(ciphertext, key []byte) ([]byte, error) {
 	}
 
 	mode := cipher.NewCBCDecrypter(block, iv)
-	mode.CryptBlocks(ciphertext, ciphertext)
 
-	if len(ciphertext)%aes.BlockSize != 0 {
+	plaintext := make([]byte, len(ciphertext))
+	mode.CryptBlocks(plaintext, ciphertext)
+
+	if len(plaintext)%aes.BlockSize != 0 {
 		return nil, errors.New("ciphertext is not a multiple of the block size")
 	}
 
-	return unpad(ciphertext)
+	return unpad(plaintext)
 }
