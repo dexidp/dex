@@ -41,7 +41,10 @@ func main() {
 
 	// ignored if --no-db is set
 	dbURL := fs.String("db-url", "", "DSN-formatted database connection string")
-	keySecret := fs.String("key-secret", "", "symmetric key used to encrypt/decrypt signing key data in DB")
+
+	keySecrets := pflag.NewBase64List(32)
+	fs.Var(keySecrets, "key-secrets", "A comma-separated list of base64 encoded 32 byte strings used as symmetric keys used to encrypt/decrypt signing key data in DB. The first key is considered the active key and used for encryption, while the others are used to decrypt.")
+
 	dbMaxIdleConns := fs.Int("db-max-idle-conns", 0, "maximum number of connections in the idle connection pool")
 	dbMaxOpenConns := fs.Int("db-max-open-conns", 0, "maximum number of open connections to the database")
 
@@ -109,7 +112,7 @@ func main() {
 			MaxOpenConnections: *dbMaxOpenConns,
 		}
 		scfg.StateConfig = &server.MultiServerConfig{
-			KeySecret:      *keySecret,
+			KeySecrets:     keySecrets.BytesSlice(),
 			DatabaseConfig: dbCfg,
 		}
 	}
