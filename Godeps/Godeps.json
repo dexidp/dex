@@ -20,11 +20,6 @@
 			"Rev": "6122e68c2642b7b75c538a63b15168c6c80fb757"
 		},
 		{
-			"ImportPath": "github.com/coopernurse/gorp",
-			"Comment": "v1.7",
-			"Rev": "5d19ebd22fdcf3b9fb1c8cbfcf1d4e78e102f1e0"
-		},
-		{
 			"ImportPath": "github.com/coreos/go-oidc/http",
 			"Rev": "ee7cb1fb480df22f7d8c4c90199e438e454ca3b6"
 		},
@@ -63,6 +58,11 @@
 		{
 			"ImportPath": "github.com/coreos/pkg/timeutil",
 			"Rev": "fa94270d4bac0d8ae5dc6b71894e251aada93f74"
+		},
+		{
+			"ImportPath": "github.com/go-gorp/gorp",
+			"Comment": "v1.7-138-gc44345f",
+			"Rev": "c44345f52fc81d27c47e6b592dedaf8c28a972eb"
 		},
 		{
 			"ImportPath": "github.com/gorilla/handlers",

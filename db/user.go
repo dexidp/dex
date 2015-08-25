@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coopernurse/gorp"
+	"github.com/go-gorp/gorp"
 	"github.com/lib/pq"
 
 	"github.com/coreos/dex/repo"

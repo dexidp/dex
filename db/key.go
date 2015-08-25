@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coopernurse/gorp"
+	"github.com/go-gorp/gorp"
 	"github.com/lib/pq"
 
 	pcrypto "github.com/coreos/dex/pkg/crypto"

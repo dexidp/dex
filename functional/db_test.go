@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coopernurse/gorp"
 	"github.com/coreos/go-oidc/key"
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/go-gorp/gorp"
 	"github.com/kylelemons/godebug/pretty"
 
 	"github.com/coreos/dex/client"

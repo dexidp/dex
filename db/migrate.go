@@ -3,7 +3,7 @@ package db
 import (
 	"fmt"
 
-	"github.com/coopernurse/gorp"
+	"github.com/go-gorp/gorp"
 	"github.com/lib/pq"
 	migrate "github.com/rubenv/sql-migrate"
 

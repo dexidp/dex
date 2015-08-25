@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/coopernurse/gorp"
+	"github.com/go-gorp/gorp"
 	_ "github.com/lib/pq"
 
 	"github.com/coreos/dex/pkg/log"

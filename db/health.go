@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/coopernurse/gorp"
+	"github.com/go-gorp/gorp"
 )
 
 func NewHealthChecker(dbm *gorp.DbMap) *healthChecker {

@@ -3,9 +3,8 @@ package repo
 import (
 	"fmt"
 
-	"github.com/coopernurse/gorp"
-
 	"github.com/coreos/dex/db"
+	"github.com/go-gorp/gorp"
 )
 
 func initDB(dsn string) *gorp.DbMap {
