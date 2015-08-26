@@ -24,6 +24,20 @@ export DEX_WORKER_DB_URL=$DEX_DB_URL
 # Delete/create DB
 dropdb $DEX_DB; createdb $DEX_DB
 
+
+DEX_KEY_SECRET=$(dd if=/dev/random bs=1 count=32 2>/dev/null | base64)
+
+# Start the overlord
+export DEX_OVERLORD_DB_URL=$DEX_DB_URL
+export DEX_OVERLORD_KEY_SECRETS=$DEX_KEY_SECRET
+export DEX_OVERLORD_KEY_PERIOD=1h
+./bin/dex-overlord &
+echo "Waiting for overlord to start..."
+until $(curl --output /dev/null --silent --fail http://localhost:5557/health); do
+    printf '.'
+    sleep 1
+done
+
 # Create a client 
 eval "$(./bin/dexctl -db-url=$DEX_DB_URL new-client http://127.0.0.1:5555/callback)"
 
@@ -49,17 +63,17 @@ EOF
 
 ./bin/dexctl -db-url=$DEX_DB_URL set-connector-configs $DEX_CONNECTORS_FILE
 
-# Start the overlord
-export DEX_OVERLORD_DB_URL=$DEX_DB_URL
-export DEX_OVERLORD_KEY_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-export DEX_OVERLORD_KEY_PERIOD=1h
-./bin/dex-overlord &
 
 # Start the worker
 export DEX_WORKER_DB_URL=$DEX_DB_URL
-export DEX_WORKER_KEY_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+export DEX_WORKER_KEY_SECRETS=$DEX_KEY_SECRET
 export DEX_WORKER_LOG_DEBUG=1
 ./bin/dex-worker &
+echo "Waiting for worker to start..."
+until $(curl --output /dev/null --silent --fail http://localhost:5556/health); do
+    printf '.'
+    sleep 1
+done
 
 # Start the app
 ./bin/example-app --client-id=$DEX_APP_CLIENT_ID --client-secret=$DEX_APP_CLIENT_SECRET --discovery=http://127.0.0.1:5556 &

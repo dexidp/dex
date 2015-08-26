@@ -3,34 +3,48 @@ dex
 
 [![Docker Repository on Quay.io](https://quay.io/repository/coreos/dex/status?token=5a9732e4-53d6-4419-b56b-9f784f7f9233 "Docker Repository on Quay.io")](https://quay.io/repository/coreos/dex)
 
-dex is a federated identity management service.
-It provides OpenID Connect (OIDC) to users, while it proxies to multiple remote identity providers (IdP) to drive actual authentication.
+dex is a federated identity management service. It provides OpenID Connect (OIDC) to users, and can proxy to multiple remote identity providers (IdP) to drive actual authentication, as well as managing local username/password credentials.
+
 We named the project 'dex' beceause it is a central index of users that other pieces of software can authenticate against.
+
 
 ## Architecture
 
 dex consists of multiple components:
 
 - **dex-worker** is the primary server component of dex
-	- host a user-facing API that drives the OIDC protocol
+    - host a user-facing API that drives the OIDC protocol
 	- proxy to remote identity providers via "connectors"
+    - provides an API for administrators to manage users.
 - **dex-overlord** is an auxiliary process responsible for two things:
 	- rotation of keys used by the workers to sign identity tokens
 	- garbage collection of stale data in the database
+    - provides an API for bootstrapping the system.
 - **dexctl** is CLI tool used to manage an dex deployment
 	- configure identity provider connectors
 	- administer OIDC client identities
+- **database**; a database is used to for persistent storage for keys, users,
+  OAuth sessions and other data. Currently Postgres is the only supported
+  database.
 
 A typical dex deployment consists of N dex-workers behind a load balanacer, and one dex-overlord.
 The dex-workers directly handle user requests, so the loss of all workers can result in service downtime.
 The single dex-overlord runs its tasks periodically, so it does not need to maintain 100% uptime.
 
+## Who Should Use Dex?
+
+    **TODO**
+
+## Similar Software
+
+    **TODO**
+
 ## Connectors
 
-Remote IdPs could implement any auth-N protocol.
-*connectors* contain protocol-specific logic and are used to communicate with remote IdPs.
-Possible examples of connectors could be: OIDC, LDAP, Local Memory, Basic Auth, etc.
-dex ships with an OIDC connector, and a basic "local" connector for in-memory testing purposes.
+Remote IdPs could implement any auth-N protocol. *Connectors* contain protocol-specific logic and are used to communicate with remote IdPs. Possible examples of connectors could be: OIDC, LDAP, Local credentials, Basic Auth, etc.
+
+dex ships with an OIDC connector, useful for authenticating with services like Google and Salesforce (or even other dex instances!) and a "local" connector, in which dex itself presents a UI for users to authenticate via dex-stored credentials.
+
 Future connectors can be developed and added as future interoperability requirements emerge.
 
 ## Relevant Specifications
@@ -52,100 +66,14 @@ OpenID Connect (OIDC) is broken up into several specifications. The following (a
 - https://accounts.google.com/.well-known/openid-configuration
 - https://login.salesforce.com/.well-known/openid-configuration
 
-# Building
+# Next steps:
 
-## With Host Go Environment
+If you want to try out dex quickly with a single process and no database (do *not* run this way in production!) take a look at the [dev guide][dev-guide].
 
-`./build`
+For running the full stack check out the [getting started guide][getting-started].
 
-## With Docker
-
-`./go-docker ./build`
-
-## Docker Build and Push
-
-Binaries must be compiled first.
-Builds a docker image and pushes it to the quay repo.
-The image is tagged with the git sha and 'latest'.
-
-```
-export QUAY_USER=xxx
-export QUAY_PASSWORD=yyy
-./build-docker-push
-```
-
-## Rebuild API from JSON schema
-
-Go API bindings are generated from a JSON Discovery file.
-To regenerate run:
-
-```
-./schema/generator
-```
-
-For updating generator dependencies see docs in: `schema/generator_import.go`.
-
-## Runing Tests
-
-Run all tests: `./test`
-
-Single package only: `PKG=<pkgname> ./test`
-
-Functional tests: `./test-functional`
-
-Run with docker:
-
-```
-./go-docker ./test
-./go-docker ./test-functional
-```
-
-# Running
-
-Run the main dex server:
-
-After building, run `./bin/dex` and provider the required arguments.
-Additionally start `./bin/dex-overlord` for key rotation and database garbage collection.
-
-# Deploying
-
-Generate systemd unit files by injecting secrets into the unit file templates located in: `./static/...`.
-
-```
-source <path-to-secure>/prod/dex.env.txt
-./build-units
-```
-
-Resulting unit files are output to: `./deploy`
-
-# Registering Clients
-
-Like all OAuth2 servers clients must be registered with a callback url.
-New clients can be registered with the dexctl CLI tool:
-```
-dexctl --db-url=postgres://localhost/auth?sslmode=disable new-client http://example.com/auth/callback
-```
-
-The tool will print the `client-id` and `client-secret` to stdout; you must save these for use in your client application. The output of this command is "KEY=VALUE" format, so If you `eval` it in your shell, the relevant variables are available to use.
-
-Note that for the initial invocation of `dexctl` you need to provide a DSN URL to create a new-client. Once you have created this initial client, you can use its client-id and client-secret as credentials to dexctl, and make requests via the HTTP API instead of the DB:
-
-```
-dexctl --endpoint=http://your-issuer-url --client-id=your_client_id --client-secret=your_client_secret new-client
-```
-
-or, if you want to go the eval route:
-```
-eval "$(dexctl --endpoint=http://your-issuer-url --client-id=your_client_id --client-secret=your_client_secret new-client)"
-```
-
-The latter form makes the variables `DEX_APP_CLIENT_ID`, `DEX_APP_CLIENT_SECRET` and `DEX_APP_REDIRECTURL_0` available to your shell.
-
-This will allow you to create new clients from machines that cannot hit the database.
-
-# Standup Dev Script
-
-A script which will create a database, create a client, start an overlord and a worker and start the example app exists at `contrib/standup-db.sh`.
+[getting-started]: https://github.com/coreos/dex/blob/master/Documentation/getting-started.md
+[dev-guide]: https://github.com/coreos/dex/blob/master/Documentation/dev-guide.md
 
 # Coming Soon
 
