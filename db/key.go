@@ -18,6 +18,10 @@ const (
 	keyTableName = "key"
 )
 
+var (
+	ErrorCannotDecryptKeys = errors.New("Cannot Decrypt Keys")
+)
+
 func init() {
 	register(table{
 		name:    keyTableName,
@@ -85,23 +89,24 @@ type privateKeySetBlob struct {
 	Value []byte `db:"value"`
 }
 
-func NewPrivateKeySetRepo(dbm *gorp.DbMap, secret string) (*PrivateKeySetRepo, error) {
-	bsecret := []byte(secret)
-	if len(bsecret) != 32 {
-		return nil, errors.New("expected 32-byte secret")
+func NewPrivateKeySetRepo(dbm *gorp.DbMap, secrets ...[]byte) (*PrivateKeySetRepo, error) {
+	for i, secret := range secrets {
+		if len(secret) != 32 {
+			return nil, fmt.Errorf("key secret %d: expected 32-byte secret", i)
+		}
 	}
 
 	r := &PrivateKeySetRepo{
-		dbMap:  dbm,
-		secret: []byte(secret),
+		dbMap:   dbm,
+		secrets: secrets,
 	}
 
 	return r, nil
 }
 
 type PrivateKeySetRepo struct {
-	dbMap  *gorp.DbMap
-	secret []byte
+	dbMap   *gorp.DbMap
+	secrets [][]byte
 }
 
 func (r *PrivateKeySetRepo) Set(ks key.KeySet) error {
@@ -126,7 +131,7 @@ func (r *PrivateKeySetRepo) Set(ks key.KeySet) error {
 		return err
 	}
 
-	v, err := pcrypto.AESEncrypt(j, r.secret)
+	v, err := pcrypto.AESEncrypt(j, r.active())
 	if err != nil {
 		return err
 	}
@@ -151,20 +156,32 @@ func (r *PrivateKeySetRepo) Get() (key.KeySet, error) {
 		return nil, errors.New("unable to cast to KeySet")
 	}
 
-	j, err := pcrypto.AESDecrypt(b.Value, r.secret)
+	var pks *key.PrivateKeySet
+	for _, secret := range r.secrets {
+		var j []byte
+		j, err = pcrypto.AESDecrypt(b.Value, secret)
+		if err != nil {
+			continue
+		}
+
+		var m privateKeySetModel
+		if err = json.Unmarshal(j, &m); err != nil {
+			continue
+		}
+
+		pks, err = m.PrivateKeySet()
+		if err != nil {
+			continue
+		}
+		break
+	}
+
 	if err != nil {
-		return nil, errors.New("unable to decrypt key set")
+		return nil, ErrorCannotDecryptKeys
 	}
-
-	var m privateKeySetModel
-	if err := json.Unmarshal(j, &m); err != nil {
-		return nil, err
-	}
-
-	pks, err := m.PrivateKeySet()
-	if err != nil {
-		return nil, err
-	}
-
 	return key.KeySet(pks), nil
+}
+
+func (r *PrivateKeySetRepo) active() []byte {
+	return r.secrets[0]
 }

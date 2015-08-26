@@ -44,7 +44,7 @@ type SingleServerConfig struct {
 }
 
 type MultiServerConfig struct {
-	KeySecret      string
+	KeySecrets     [][]byte
 	DatabaseConfig db.Config
 }
 
@@ -141,7 +141,7 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 }
 
 func (cfg *MultiServerConfig) Configure(srv *Server) error {
-	if cfg.KeySecret == "" {
+	if len(cfg.KeySecrets) == 0 {
 		return errors.New("missing key secret")
 	}
 
@@ -154,7 +154,7 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 		return fmt.Errorf("unable to initialize database connection: %v", err)
 	}
 
-	kRepo, err := db.NewPrivateKeySetRepo(dbc, cfg.KeySecret)
+	kRepo, err := db.NewPrivateKeySetRepo(dbc, cfg.KeySecrets...)
 	if err != nil {
 		return fmt.Errorf("unable to create PrivateKeySetRepo: %v", err)
 	}
