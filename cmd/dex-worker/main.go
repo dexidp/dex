@@ -27,8 +27,11 @@ func init() {
 
 func main() {
 	fs := flag.NewFlagSet("dex-worker", flag.ExitOnError)
-	listen := fs.String("listen", "http://0.0.0.0:5556", "")
-	issuer := fs.String("issuer", "http://127.0.0.1:5556", "")
+	listen := fs.String("listen", "http://127.0.0.1:5556", "the address that the server will listen on")
+	issuer := fs.String("issuer", "http://127.0.0.1:5556", "the issuer's location")
+	certFile := fs.String("tls-cert-file", "", "the server's certificate file for TLS connection")
+	keyFile := fs.String("tls-key-file", "", "the server's private key file for TLS connection")
+
 	templates := fs.String("html-assets", "./static/html", "directory of html template files")
 
 	emailTemplateDirs := flagutil.StringSliceFlag{"./static/email"}
@@ -75,13 +78,30 @@ func main() {
 		log.EnableTimestamps()
 	}
 
+	// Validate listen address.
 	lu, err := url.Parse(*listen)
 	if err != nil {
-		log.Fatalf("Unable to use --listen flag: %v", err)
+		log.Fatalf("Invalid listen address %q: %v", *listen, err)
 	}
 
-	if lu.Scheme != "http" {
-		log.Fatalf("Unable to listen using scheme %s", lu.Scheme)
+	switch lu.Scheme {
+	case "http":
+	case "https":
+		if *certFile == "" || *keyFile == "" {
+			log.Fatalf("Must provide certificate file and private key file")
+		}
+	default:
+		log.Fatalf("Only 'http' and 'https' schemes are supported")
+	}
+
+	// Validate issuer address.
+	iu, err := url.Parse(*issuer)
+	if err != nil {
+		log.Fatalf("Invalid issuer URL %q: %v", *issuer, err)
+	}
+
+	if iu.Scheme != "http" && iu.Scheme != "https" {
+		log.Fatalf("Only 'http' and 'https' schemes are supported")
 	}
 
 	scfg := server.ServerConfig{
@@ -145,7 +165,11 @@ func main() {
 
 	log.Infof("Binding to %s...", httpsrv.Addr)
 	go func() {
-		log.Fatal(httpsrv.ListenAndServe())
+		if lu.Scheme == "http" {
+			log.Fatal(httpsrv.ListenAndServe())
+		} else {
+			log.Fatal(httpsrv.ListenAndServeTLS(*certFile, *keyFile))
+		}
 	}()
 
 	<-srv.Run()

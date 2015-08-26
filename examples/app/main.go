@@ -2,9 +2,12 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -27,6 +30,8 @@ func main() {
 	redirectURL := fs.String("redirect-url", "http://127.0.0.1:5555/callback", "")
 	clientID := fs.String("client-id", "", "")
 	clientSecret := fs.String("client-secret", "", "")
+	caFile := fs.String("ca-file", "", "the TLS CA file, if empty then the host's root CA will be used")
+
 	discovery := fs.String("discovery", "https://accounts.google.com", "")
 	logDebug := fs.Bool("log-debug", false, "log debug-level information")
 	logTimestamps := fs.Bool("log-timestamps", false, "prefix log lines with timestamps")
@@ -71,9 +76,22 @@ func main() {
 		Secret: *clientSecret,
 	}
 
+	var tlsConfig tls.Config
+	if *caFile != "" {
+		roots := x509.NewCertPool()
+		pemBlock, err := ioutil.ReadFile(*caFile)
+		if err != nil {
+			log.Fatalf("Unable to read ca file: %v", err)
+		}
+		roots.AppendCertsFromPEM(pemBlock)
+		tlsConfig.RootCAs = roots
+	}
+
+	httpClient := &http.Client{Transport: &http.Transport{TLSClientConfig: &tlsConfig}}
+
 	var cfg oidc.ProviderConfig
 	for {
-		cfg, err = oidc.FetchProviderConfig(http.DefaultClient, *discovery)
+		cfg, err = oidc.FetchProviderConfig(httpClient, *discovery)
 		if err == nil {
 			break
 		}
@@ -86,6 +104,7 @@ func main() {
 	log.Infof("Fetched provider config from %s: %#v", *discovery, cfg)
 
 	ccfg := oidc.ClientConfig{
+		HTTPClient:     httpClient,
 		ProviderConfig: cfg,
 		Credentials:    cc,
 		RedirectURL:    *redirectURL,
