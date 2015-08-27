@@ -30,7 +30,7 @@ func main() {
 	redirectURL := fs.String("redirect-url", "http://127.0.0.1:5555/callback", "")
 	clientID := fs.String("client-id", "", "")
 	clientSecret := fs.String("client-secret", "", "")
-	caFile := fs.String("ca-file", "", "the TLS CA file, if empty then the host's root CA will be used")
+	caFile := fs.String("trusted-ca-file", "", "the TLS CA file, if empty then the host's root CA will be used")
 
 	discovery := fs.String("discovery", "https://accounts.google.com", "")
 	logDebug := fs.Bool("log-debug", false, "log debug-level information")
@@ -245,9 +245,9 @@ func handleCallbackFunc(c *oidc.Client) http.HandlerFunc {
 			return
 		}
 
-		s := fmt.Sprintf(`<html><body>Claims: %v <br>
+		s := fmt.Sprintf(`<html><body><p>Token: %v</p><p>Claims: %v </p>
         <a href="/resend?jwt=%s">Resend Verification Email</a>
-</body></html>`, claims, tok.Encode())
+</body></html>`, tok.Encode(), claims, tok.Encode())
 		w.Write([]byte(s))
 	}
 }
