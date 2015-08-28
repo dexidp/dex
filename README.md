@@ -1,7 +1,7 @@
 dex
 =====
 
-[![Docker Repository on Quay.io](https://quay.io/repository/coreos/dex/status?token=5a9732e4-53d6-4419-b56b-9f784f7f9233 "Docker Repository on Quay.io")](https://quay.io/repository/coreos/dex)
+[![Docker Repository on Quay.io](https://quay.io/repository/coreos/dex/status?token=2e772caf-ea17-45d5-8455-8fcf39dae6e1 "Docker Repository on Quay.io")](https://quay.io/repository/coreos/dex)
 
 dex is a federated identity management service. It provides OpenID Connect (OIDC) to users, and can proxy to multiple remote identity providers (IdP) to drive actual authentication, as well as managing local username/password credentials.
 
