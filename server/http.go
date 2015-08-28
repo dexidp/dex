@@ -332,7 +332,7 @@ func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.T
 
 		nonce := q.Get("nonce")
 
-		key, err := srv.NewSession(connectorID, acr.ClientID, acr.State, redirectURL, nonce, register)
+		key, err := srv.NewSession(connectorID, acr.ClientID, acr.State, redirectURL, nonce, register, acr.Scope)
 		if err != nil {
 			log.Errorf("Error creating new session: %v: ", err)
 			redirectAuthError(w, err, acr.State, redirectURL)

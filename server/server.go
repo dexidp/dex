@@ -39,7 +39,7 @@ const (
 
 type OIDCServer interface {
 	ClientMetadata(string) (*oidc.ClientMetadata, error)
-	NewSession(connectorID, clientID, clientState string, redirectURL url.URL, nonce string, register bool) (string, error)
+	NewSession(connectorID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error)
 	Login(oidc.Identity, string) (string, error)
 	// CodeToken exchanges a code for an ID token and a refresh token string on success.
 	CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jose.JWT, string, error)
@@ -263,8 +263,8 @@ func (s *Server) ClientMetadata(clientID string) (*oidc.ClientMetadata, error) {
 	return s.ClientIdentityRepo.Metadata(clientID)
 }
 
-func (s *Server) NewSession(ipdcID, clientID, clientState string, redirectURL url.URL, nonce string, register bool) (string, error) {
-	sessionID, err := s.SessionManager.NewSession(ipdcID, clientID, clientState, redirectURL, nonce, register)
+func (s *Server) NewSession(ipdcID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error) {
+	sessionID, err := s.SessionManager.NewSession(ipdcID, clientID, clientState, redirectURL, nonce, register, scope)
 	if err != nil {
 		return "", err
 	}

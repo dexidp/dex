@@ -48,6 +48,9 @@ type Session struct {
 
 	// Nonce is optionally provided in the initial authorization request, and propogated in such cases to the generated claims.
 	Nonce string
+
+	// Scope is the 'scope' field in the authentication request. Example scopes are 'openid', 'email', 'offline', etc.
+	Scope []string
 }
 
 // Claims returns a new set of Claims for the current session.
