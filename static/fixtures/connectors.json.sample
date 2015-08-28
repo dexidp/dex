@@ -9,8 +9,6 @@
 			},
 			{
 				"userId":"penny",
-				"name":"Penny",
-				"email":"penny@example.com",
 				"passwordPlaintext": "kibble"
 			}
 		]
