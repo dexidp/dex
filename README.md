@@ -33,11 +33,13 @@ The single dex-overlord runs its tasks periodically, so it does not need to main
 
 ## Who Should Use Dex?
 
-    **TODO**
+A non-exhaustive list of those who would benfit from using dex:
 
-## Similar Software
-
-    **TODO**
+- Those who want a language/framework-agnostic way to manage authentication.
+- Those who want to federate authentication from mutiple providers of differing types.
+- Those who want to manage user credentials (eg. username and password) and perform authentication locally
+- Those who want to create an OIDC Identity Provider for multiple clients to authenticate against.
+- Those who want any or all of the above in a Free and Open Source project.
 
 ## Connectors
 
@@ -80,3 +82,21 @@ For running the full stack check out the [getting started guide][getting-started
 - Multiple backing Identity Providers
 - Identity Management
 - Authorization
+
+## Similar Software
+
+### [CloudFoundry UAA](https://github.com/cloudfoundry/uaa)
+
+>The UAA is a multi tenant identity management service, used in Cloud Foundry, but also available as a stand alone OAuth2 server.
+
+### [OmniAuth](https://github.com/intridea/omniauth)
+
+OmniAuth provides authentication federation at the language (Ruby) level, with a [wide range of integrations](https://github.com/intridea/omniauth/wiki/List-of-Strategies) available.
+
+### [Okta](http://developer.okta.com/product/)
+Okta is a commercial product which is similar to dex in that for it too, identity federation is a key feature. It connects to many more authentication providers than dex, and also does the federation in the oppposite direction - it can be used as a SSO to other identity providers.
+
+### [Shibboleth](https://shibboleth.net/)
+
+Shibboleth is an open source system implementing the [SAML](https://www.oasis-open.org/standards#samlv2.0) standard, and can federate from a variety of backends, most notably LDAP. 
+
