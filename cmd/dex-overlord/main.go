@@ -39,7 +39,7 @@ func main() {
 	keyPeriod := fs.Duration("key-period", 24*time.Hour, "length of time for-which a given key will be valid")
 	gcInterval := fs.Duration("gc-interval", time.Hour, "length of time between garbage collection runs")
 
-	adminListen := fs.String("admin-listen", "http://0.0.0.0:5557", "scheme, host and port for listening for administrative operation requests ")
+	adminListen := fs.String("admin-listen", "http://127.0.0.1:5557", "scheme, host and port for listening for administrative operation requests ")
 
 	localConnectorID := fs.String("local-connector", "local", "ID of the local connector")
 	logDebug := fs.Bool("log-debug", false, "log debug-level information")
