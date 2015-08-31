@@ -197,7 +197,7 @@ func TestHandleRegister(t *testing.T) {
 			t.Fatalf("case %d: could not make test fixtures: %v", i, err)
 		}
 
-		key, err := f.srv.NewSession(tt.connID, "XXX", "", f.redirectURL, "", true)
+		key, err := f.srv.NewSession(tt.connID, "XXX", "", f.redirectURL, "", true, []string{"openid"})
 		t.Logf("case %d: key for NewSession: %v", i, key)
 
 		if tt.attachRemote {

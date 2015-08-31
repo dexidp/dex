@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-gorp/gorp"
@@ -42,6 +43,7 @@ type sessionModel struct {
 	UserID      string `db:"user_id"`
 	Register    bool   `db:"register"`
 	Nonce       string `db:"nonce"`
+	Scope       string `db:"scope"`
 }
 
 func (s *sessionModel) session() (*session.Session, error) {
@@ -71,6 +73,7 @@ func (s *sessionModel) session() (*session.Session, error) {
 		UserID:      s.UserID,
 		Register:    s.Register,
 		Nonce:       s.Nonce,
+		Scope:       strings.Fields(s.Scope),
 	}
 
 	if s.CreatedAt != 0 {
@@ -101,6 +104,7 @@ func newSessionModel(s *session.Session) (*sessionModel, error) {
 		UserID:      s.UserID,
 		Register:    s.Register,
 		Nonce:       s.Nonce,
+		Scope:       strings.Join(s.Scope, " "),
 	}
 
 	if !s.CreatedAt.IsZero() {

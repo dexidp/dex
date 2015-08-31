@@ -39,7 +39,7 @@ const (
 
 type OIDCServer interface {
 	ClientMetadata(string) (*oidc.ClientMetadata, error)
-	NewSession(connectorID, clientID, clientState string, redirectURL url.URL, nonce string, register bool) (string, error)
+	NewSession(connectorID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error)
 	Login(oidc.Identity, string) (string, error)
 	// CodeToken exchanges a code for an ID token and a refresh token string on success.
 	CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jose.JWT, string, error)
@@ -263,8 +263,8 @@ func (s *Server) ClientMetadata(clientID string) (*oidc.ClientMetadata, error) {
 	return s.ClientIdentityRepo.Metadata(clientID)
 }
 
-func (s *Server) NewSession(ipdcID, clientID, clientState string, redirectURL url.URL, nonce string, register bool) (string, error) {
-	sessionID, err := s.SessionManager.NewSession(ipdcID, clientID, clientState, redirectURL, nonce, register)
+func (s *Server) NewSession(ipdcID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error) {
+	sessionID, err := s.SessionManager.NewSession(ipdcID, clientID, clientState, redirectURL, nonce, register, scope)
 	if err != nil {
 		return "", err
 	}
@@ -422,20 +422,26 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 		return nil, "", oauth2.NewError(oauth2.ErrorServerError)
 	}
 
-	log.Infof("Session %s token sent: clientID=%s", sessionID, creds.ID)
+	// Generate refresh token when 'scope' contains 'offline_access'.
+	var refreshToken string
 
-	// Generate refresh token.
-	//
-	// TODO(yifan): Return refresh token only when 'access_type == offline',
-	// or 'scope' == 'offline_access'.
-	refreshToken, err := s.RefreshTokenRepo.Create(ses.UserID, creds.ID)
-	switch err {
-	case nil:
-		break
-	default:
-		log.Errorf("Failed to generate refresh token: %v", err)
-		return nil, "", oauth2.NewError(oauth2.ErrorServerError)
+	for _, scope := range ses.Scope {
+		if scope == "offline_access" {
+			log.Infof("Session %s requests offline access, will generate refresh token", sessionID)
+
+			refreshToken, err = s.RefreshTokenRepo.Create(ses.UserID, creds.ID)
+			switch err {
+			case nil:
+				break
+			default:
+				log.Errorf("Failed to generate refresh token: %v", err)
+				return nil, "", oauth2.NewError(oauth2.ErrorServerError)
+			}
+			break
+		}
 	}
+
+	log.Infof("Session %s token sent: clientID=%s", sessionID, creds.ID)
 	return jwt, refreshToken, nil
 }
 
@@ -487,7 +493,7 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose
 		return nil, oauth2.NewError(oauth2.ErrorServerError)
 	}
 
-	log.Infof("Token refreshed sent: clientID=%s", creds.ID)
+	log.Infof("New token sent: clientID=%s", creds.ID)
 
 	return jwt, nil
 }

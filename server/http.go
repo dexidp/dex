@@ -330,9 +330,37 @@ func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.T
 			return
 		}
 
+		// Check scopes.
+		var scopes []string
+		foundOpenIDScope := false
+		for _, scope := range acr.Scope {
+			switch scope {
+			case "openid":
+				foundOpenIDScope = true
+				scopes = append(scopes, scope)
+			case "offline_access":
+				// According to the spec, for offline_access scope, the client must
+				// use a response_type value that would result in an Authorization Code.
+				// Currently oauth2.ResponseTypeCode is the only supported response type,
+				// and it's been checked above, so we don't need to check it again here.
+				//
+				// TODO(yifan): Verify that 'consent' should be in 'prompt'.
+				scopes = append(scopes, scope)
+			default:
+				// Pass all other scopes.
+				scopes = append(scopes, scope)
+			}
+		}
+
+		if !foundOpenIDScope {
+			log.Errorf("Invalid auth request: missing 'openid' in 'scope'")
+			writeAuthError(w, oauth2.NewError(oauth2.ErrorInvalidRequest), acr.State)
+			return
+		}
+
 		nonce := q.Get("nonce")
 
-		key, err := srv.NewSession(connectorID, acr.ClientID, acr.State, redirectURL, nonce, register)
+		key, err := srv.NewSession(connectorID, acr.ClientID, acr.State, redirectURL, nonce, register, acr.Scope)
 		if err != nil {
 			log.Errorf("Error creating new session: %v: ", err)
 			redirectAuthError(w, err, acr.State, redirectURL)

@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"reflect"
 	"testing"
@@ -139,7 +140,7 @@ func TestServerNewSession(t *testing.T) {
 		},
 	}
 
-	key, err := srv.NewSession("bogus_idpc", ci.Credentials.ID, state, ci.Metadata.RedirectURLs[0], nonce, false)
+	key, err := srv.NewSession("bogus_idpc", ci.Credentials.ID, state, ci.Metadata.RedirectURLs[0], nonce, false, []string{"openid"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -195,7 +196,7 @@ func TestServerLogin(t *testing.T) {
 
 	sm := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
 	sm.GenerateCode = staticGenerateCodeFunc("fakecode")
-	sessionID, err := sm.NewSession("test_connector_id", ci.Credentials.ID, "bogus", ci.Metadata.RedirectURLs[0], "", false)
+	sessionID, err := sm.NewSession("test_connector_id", ci.Credentials.ID, "bogus", ci.Metadata.RedirectURLs[0], "", false, []string{"openid"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -292,34 +293,52 @@ func TestServerCodeToken(t *testing.T) {
 		RefreshTokenRepo:   refreshTokenRepo,
 	}
 
-	sessionID, err := sm.NewSession("bogus_idpc", ci.Credentials.ID, "bogus", url.URL{}, "", false)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	_, err = sm.AttachRemoteIdentity(sessionID, oidc.Identity{})
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	_, err = sm.AttachUser(sessionID, "testid-1")
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	key, err := sm.NewSessionKey(sessionID)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
+	tests := []struct {
+		scope        []string
+		refreshToken string
+	}{
+		// No 'offline_access' in scope, should get empty refresh token.
+		{
+			scope:        []string{"openid"},
+			refreshToken: "",
+		},
+		// Have 'offline_access' in scope, should get non-empty refresh token.
+		{
+			scope:        []string{"openid", "offline_access"},
+			refreshToken: "0/refresh-1",
+		},
 	}
 
-	jwt, token, err := srv.CodeToken(ci.Credentials, key)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	if jwt == nil {
-		t.Fatalf("Expected non-nil jwt")
-	}
-	if token == "" {
-		t.Fatalf("Expected non-empty refresh token")
+	for i, tt := range tests {
+		sessionID, err := sm.NewSession("bogus_idpc", ci.Credentials.ID, "bogus", url.URL{}, "", false, tt.scope)
+		if err != nil {
+			t.Fatalf("case %d: unexpected error: %v", i, err)
+		}
+		_, err = sm.AttachRemoteIdentity(sessionID, oidc.Identity{})
+		if err != nil {
+			t.Fatalf("case %d: unexpected error: %v", i, err)
+		}
+
+		_, err = sm.AttachUser(sessionID, "testid-1")
+		if err != nil {
+			t.Fatalf("case %d: unexpected error: %v", i, err)
+		}
+
+		key, err := sm.NewSessionKey(sessionID)
+		if err != nil {
+			t.Fatalf("case %d: unexpected error: %v", i, err)
+		}
+
+		jwt, token, err := srv.CodeToken(ci.Credentials, key)
+		if err != nil {
+			t.Fatalf("case %d: unexpected error: %v", i, err)
+		}
+		if jwt == nil {
+			t.Fatalf("case %d: expect non-nil jwt", i)
+		}
+		if token != tt.refreshToken {
+			t.Fatalf("case %d: expect refresh token %q, got %q", i, tt.refreshToken, token)
+		}
 	}
 }
 
@@ -343,7 +362,7 @@ func TestServerTokenUnrecognizedKey(t *testing.T) {
 		ClientIdentityRepo: ciRepo,
 	}
 
-	sessionID, err := sm.NewSession("connector_id", ci.Credentials.ID, "bogus", url.URL{}, "", false)
+	sessionID, err := sm.NewSession("connector_id", ci.Credentials.ID, "bogus", url.URL{}, "", false, []string{"openid", "offline_access"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -375,16 +394,28 @@ func TestServerTokenFail(t *testing.T) {
 	signerFixture := &StaticSigner{sig: []byte("beer"), err: nil}
 
 	tests := []struct {
-		signer jose.Signer
-		argCC  oidc.ClientCredentials
-		argKey string
-		err    string
+		signer       jose.Signer
+		argCC        oidc.ClientCredentials
+		argKey       string
+		err          string
+		scope        []string
+		refreshToken string
 	}{
 		// control test case to make sure fixtures check out
+		{
+			signer:       signerFixture,
+			argCC:        ccFixture,
+			argKey:       keyFixture,
+			scope:        []string{"openid", "offline_access"},
+			refreshToken: "0/refresh-1",
+		},
+
+		// no 'offline_access' in 'scope', should get empty refresh token
 		{
 			signer: signerFixture,
 			argCC:  ccFixture,
 			argKey: keyFixture,
+			scope:  []string{"openid"},
 		},
 
 		// unrecognized key
@@ -393,6 +424,7 @@ func TestServerTokenFail(t *testing.T) {
 			argCC:  ccFixture,
 			argKey: "foo",
 			err:    oauth2.ErrorInvalidGrant,
+			scope:  []string{"openid", "offline_access"},
 		},
 
 		// unrecognized client
@@ -401,6 +433,7 @@ func TestServerTokenFail(t *testing.T) {
 			argCC:  oidc.ClientCredentials{ID: "YYY"},
 			argKey: keyFixture,
 			err:    oauth2.ErrorInvalidClient,
+			scope:  []string{"openid", "offline_access"},
 		},
 
 		// signing operation fails
@@ -409,6 +442,7 @@ func TestServerTokenFail(t *testing.T) {
 			argCC:  ccFixture,
 			argKey: keyFixture,
 			err:    oauth2.ErrorServerError,
+			scope:  []string{"openid", "offline_access"},
 		},
 	}
 
@@ -416,7 +450,7 @@ func TestServerTokenFail(t *testing.T) {
 		sm := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
 		sm.GenerateCode = func() (string, error) { return keyFixture, nil }
 
-		sessionID, err := sm.NewSession("connector_id", ccFixture.ID, "bogus", url.URL{}, "", false)
+		sessionID, err := sm.NewSession("connector_id", ccFixture.ID, "bogus", url.URL{}, "", false, tt.scope)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -435,7 +469,7 @@ func TestServerTokenFail(t *testing.T) {
 
 		_, err = sm.AttachUser(sessionID, "testid-1")
 		if err != nil {
-			t.Fatalf("case %d: Unexpected error: %v", i, err)
+			t.Fatalf("case %d: unexpected error: %v", i, err)
 		}
 
 		userRepo, err := makeNewUserRepo()
@@ -463,22 +497,22 @@ func TestServerTokenFail(t *testing.T) {
 		}
 
 		jwt, token, err := srv.CodeToken(tt.argCC, tt.argKey)
+		if token != tt.refreshToken {
+			fmt.Printf("case %d: expect refresh token %q, got %q\n", i, tt.refreshToken, token)
+			t.Fatalf("case %d: expect refresh token %q, got %q", i, tt.refreshToken, token)
+			panic("")
+		}
 		if tt.err == "" {
 			if err != nil {
 				t.Errorf("case %d: got non-nil error: %v", i, err)
 			} else if jwt == nil {
 				t.Errorf("case %d: got nil JWT", i)
-			} else if token == "" {
-				t.Errorf("case %d: got empty refresh token", i)
 			}
-
 		} else {
 			if err.Error() != tt.err {
 				t.Errorf("case %d: want err %q, got %q", i, tt.err, err.Error())
 			} else if jwt != nil {
 				t.Errorf("case %d: got non-nil JWT", i)
-			} else if token != "" {
-				t.Errorf("case %d: got non-empty refresh token", i)
 			}
 		}
 	}
