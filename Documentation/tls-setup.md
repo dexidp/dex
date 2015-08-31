@@ -1,4 +1,4 @@
-# Security Guide
+# TLS Setup
 
 According to the [OpenID Connect Spec](http://openid.net/specs/openid-connect-core-1_0.html),
 TLS [is required](http://openid.net/specs/openid-connect-core-1_0.html#TLSRequirements) for connection between the client and the dex server.
