@@ -26,6 +26,8 @@ import (
 
 type ServerConfig struct {
 	IssuerURL         string
+	IssuerName        string
+	IssuerLogoURL     string
 	TemplateDir       string
 	EmailTemplateDirs []string
 	EmailFromAddress  string
@@ -54,7 +56,7 @@ func (cfg *ServerConfig) Server() (*Server, error) {
 		return nil, err
 	}
 
-	tpl, err := getTemplates(cfg.TemplateDir)
+	tpl, err := getTemplates(cfg.IssuerName, cfg.IssuerLogoURL, cfg.TemplateDir)
 	if err != nil {
 		return nil, err
 	}
@@ -181,8 +183,17 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 	return nil
 }
 
-func getTemplates(dir string) (*template.Template, error) {
-	return template.ParseGlob(dir + "/*.html")
+func getTemplates(issuerName, issuerLogoURL string, dir string) (*template.Template, error) {
+	tpl := template.New("").Funcs(map[string]interface{}{
+		"issuerName": func() string {
+			return issuerName
+		},
+		"issuerLogoURL": func() string {
+			return issuerLogoURL
+		},
+	})
+
+	return tpl.ParseGlob(dir + "/*.html")
 }
 
 func setTemplates(srv *Server, tpls *template.Template) error {
