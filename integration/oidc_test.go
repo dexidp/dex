@@ -196,7 +196,7 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 
 	// this will actually happen due to some interaction between the
 	// end-user and a remote identity provider
-	sessionID, err := sm.NewSession("bogus_idpc", ci.Credentials.ID, "bogus", url.URL{}, "", false, nil)
+	sessionID, err := sm.NewSession("bogus_idpc", ci.Credentials.ID, "bogus", url.URL{}, "", false, []string{"openid", "offline_access"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
