@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strconv"
@@ -31,7 +32,7 @@ type refreshTokenRepo struct {
 
 type refreshTokenModel struct {
 	ID          int64  `db:"id"`
-	PayloadHash string `db:"payload_hash"`
+	PayloadHash []byte `db:"payload_hash"`
 	// TODO(yifan): Use some sort of foreign key to manage database level
 	// data integrity.
 	UserID   string `db:"user_id"`
@@ -39,25 +40,29 @@ type refreshTokenModel struct {
 }
 
 // buildToken combines the token ID and token payload to create a new token.
-func buildToken(tokenID int64, tokenPayload string) string {
-	return fmt.Sprintf("%d%s%s", tokenID, refresh.TokenDelimer, tokenPayload)
+func buildToken(tokenID int64, tokenPayload []byte) string {
+	return fmt.Sprintf("%d%s%s", tokenID, refresh.TokenDelimer, base64.URLEncoding.EncodeToString(tokenPayload))
 }
 
 // parseToken parses a token and returns the token ID and token payload.
-func parseToken(token string) (int64, string, error) {
+func parseToken(token string) (int64, []byte, error) {
 	parts := strings.SplitN(token, refresh.TokenDelimer, 2)
 	if len(parts) != 2 {
-		return -1, "", refresh.ErrorInvalidToken
+		return -1, nil, refresh.ErrorInvalidToken
 	}
 	id, err := strconv.ParseInt(parts[0], 0, 64)
 	if err != nil {
-		return -1, "", refresh.ErrorInvalidToken
+		return -1, nil, refresh.ErrorInvalidToken
 	}
-	return id, parts[1], nil
+	tokenPayload, err := base64.URLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return -1, nil, refresh.ErrorInvalidToken
+	}
+	return id, tokenPayload, nil
 }
 
-func checkTokenPayload(payloadHash, payload string) error {
-	if err := bcrypt.CompareHashAndPassword([]byte(payloadHash), []byte(payload)); err != nil {
+func checkTokenPayload(payloadHash, payload []byte) error {
+	if err := bcrypt.CompareHashAndPassword(payloadHash, payload); err != nil {
 		switch err {
 		case bcrypt.ErrMismatchedHashAndPassword:
 			return refresh.ErrorInvalidToken
@@ -89,13 +94,13 @@ func (r *refreshTokenRepo) Create(userID, clientID string) (string, error) {
 		return "", err
 	}
 
-	payloadHash, err := bcrypt.GenerateFromPassword([]byte(tokenPayload), bcrypt.DefaultCost)
+	payloadHash, err := bcrypt.GenerateFromPassword(tokenPayload, bcrypt.DefaultCost)
 	if err != nil {
 		return "", err
 	}
 
 	record := &refreshTokenModel{
-		PayloadHash: string(payloadHash),
+		PayloadHash: payloadHash,
 		UserID:      userID,
 		ClientID:    clientID,
 	}
@@ -109,6 +114,7 @@ func (r *refreshTokenRepo) Create(userID, clientID string) (string, error) {
 
 func (r *refreshTokenRepo) Verify(clientID, token string) (string, error) {
 	tokenID, tokenPayload, err := parseToken(token)
+
 	if err != nil {
 		return "", err
 	}

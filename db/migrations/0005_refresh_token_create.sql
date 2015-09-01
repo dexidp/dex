@@ -1,7 +1,7 @@
 -- +migrate Up
 CREATE TABLE refresh_token (
     id bigint NOT NULL,
-    payload_hash text,
+    payload_hash bytea,
     user_id text,
     client_id text
 );

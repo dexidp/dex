@@ -1,8 +1,8 @@
 package refresh
 
 import (
+	"bytes"
 	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"strconv"
@@ -17,25 +17,26 @@ const (
 var (
 	ErrorInvalidUserID   = errors.New("invalid user ID")
 	ErrorInvalidClientID = errors.New("invalid client ID")
-	ErrorInvalidToken    = errors.New("invalid token")
+
+	ErrorInvalidToken = errors.New("invalid token")
 )
 
-type RefreshTokenGenerator func() (string, error)
+type RefreshTokenGenerator func() ([]byte, error)
 
-func (g RefreshTokenGenerator) Generate() (string, error) {
+func (g RefreshTokenGenerator) Generate() ([]byte, error) {
 	return g()
 }
 
-func DefaultRefreshTokenGenerator() (string, error) {
+func DefaultRefreshTokenGenerator() ([]byte, error) {
 	// TODO(yifan) Remove this duplicated token generate function.
 	b := make([]byte, DefaultRefreshTokenPayloadLength)
 	n, err := rand.Read(b)
 	if err != nil {
-		return "", err
+		return nil, err
 	} else if n != DefaultRefreshTokenPayloadLength {
-		return "", errors.New("unable to read enough random bytes")
+		return nil, errors.New("unable to read enough random bytes")
 	}
-	return base64.URLEncoding.EncodeToString(b), nil
+	return b, nil
 }
 
 type RefreshTokenRepo interface {
@@ -52,7 +53,7 @@ type RefreshTokenRepo interface {
 }
 
 type refreshToken struct {
-	payload  string
+	payload  []byte
 	userID   string
 	clientID string
 }
@@ -63,21 +64,21 @@ type memRefreshTokenRepo struct {
 }
 
 // buildToken combines the token ID and token payload to create a new token.
-func buildToken(tokenID int, tokenPayload string) string {
+func buildToken(tokenID int, tokenPayload []byte) string {
 	return fmt.Sprintf("%d%s%s", tokenID, TokenDelimer, tokenPayload)
 }
 
 // parseToken parses a token and returns the token ID and token payload.
-func parseToken(token string) (int, string, error) {
+func parseToken(token string) (int, []byte, error) {
 	parts := strings.SplitN(token, TokenDelimer, 2)
 	if len(parts) != 2 {
-		return -1, "", ErrorInvalidToken
+		return -1, nil, ErrorInvalidToken
 	}
 	id, err := strconv.Atoi(parts[0])
 	if err != nil {
-		return -1, "", ErrorInvalidToken
+		return -1, nil, ErrorInvalidToken
 	}
-	return id, parts[1], nil
+	return id, []byte(parts[1]), nil
 }
 
 // NewRefreshTokenRepo returns an in-memory RefreshTokenRepo useful for development.
@@ -131,7 +132,7 @@ func (r *memRefreshTokenRepo) Verify(clientID, token string) (string, error) {
 		return "", ErrorInvalidToken
 	}
 
-	if record.payload != tokenPayload {
+	if !bytes.Equal(record.payload, tokenPayload) {
 		return "", ErrorInvalidToken
 	}
 
@@ -153,7 +154,7 @@ func (r *memRefreshTokenRepo) Revoke(userID, token string) error {
 		return ErrorInvalidToken
 	}
 
-	if record.payload != tokenPayload {
+	if !bytes.Equal(record.payload, tokenPayload) {
 		return ErrorInvalidToken
 	}
 

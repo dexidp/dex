@@ -1,6 +1,7 @@
 package functional
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"os"
@@ -342,6 +343,12 @@ func TestDBClientIdentityAll(t *testing.T) {
 	}
 }
 
+// buildRefreshToken combines the token ID and token payload to create a new token.
+// used in the tests to created a refresh token.
+func buildRefreshToken(tokenID int64, tokenPayload []byte) string {
+	return fmt.Sprintf("%d%s%s", tokenID, refresh.TokenDelimer, base64.URLEncoding.EncodeToString(tokenPayload))
+}
+
 func TestDBRefreshRepoCreate(t *testing.T) {
 	r := db.NewRefreshTokenRepo(connect(t))
 
@@ -383,6 +390,13 @@ func TestDBRefreshRepoVerify(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
+	badTokenPayload, err := refresh.DefaultRefreshTokenGenerator()
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	tokenWithBadID := "404" + token[1:]
+	tokenWithBadPayload := buildRefreshToken(1, badTokenPayload)
+
 	tests := []struct {
 		token    string
 		creds    oidc.ClientCredentials
@@ -390,7 +404,39 @@ func TestDBRefreshRepoVerify(t *testing.T) {
 		expected string
 	}{
 		{
-			"invalid-token-foo",
+			"invalid-token-format",
+			oidc.ClientCredentials{ID: "client-foo", Secret: "secret-foo"},
+			refresh.ErrorInvalidToken,
+			"",
+		},
+		{
+			"b/invalid-base64-encoded-format",
+			oidc.ClientCredentials{ID: "client-foo", Secret: "secret-foo"},
+			refresh.ErrorInvalidToken,
+			"",
+		},
+		{
+			"1/invalid-base64-encoded-format",
+			oidc.ClientCredentials{ID: "client-foo", Secret: "secret-foo"},
+			refresh.ErrorInvalidToken,
+			"",
+		},
+		{
+			token + "corrupted-token-payload",
+			oidc.ClientCredentials{ID: "client-foo", Secret: "secret-foo"},
+			refresh.ErrorInvalidToken,
+			"",
+		},
+		{
+			// The token's ID content is invalid.
+			tokenWithBadID,
+			oidc.ClientCredentials{ID: "client-foo", Secret: "secret-foo"},
+			refresh.ErrorInvalidToken,
+			"",
+		},
+		{
+			// The token's payload content is invalid.
+			tokenWithBadPayload,
 			oidc.ClientCredentials{ID: "client-foo", Secret: "secret-foo"},
 			refresh.ErrorInvalidToken,
 			"",
@@ -428,13 +474,42 @@ func TestDBRefreshRepoRevoke(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
+	badTokenPayload, err := refresh.DefaultRefreshTokenGenerator()
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	tokenWithBadID := "404" + token[1:]
+	tokenWithBadPayload := buildRefreshToken(1, badTokenPayload)
+
 	tests := []struct {
 		token  string
 		userID string
 		err    error
 	}{
 		{
-			"invalid-token-foo",
+			"invalid-token-format",
+			"user-foo",
+			refresh.ErrorInvalidToken,
+		},
+		{
+			"1/invalid-base64-encoded-format",
+			"user-foo",
+			refresh.ErrorInvalidToken,
+		},
+		{
+			token + "corrupted-token-payload",
+			"user-foo",
+			refresh.ErrorInvalidToken,
+		},
+		{
+			// The token's ID is invalid.
+			tokenWithBadID,
+			"user-foo",
+			refresh.ErrorInvalidToken,
+		},
+		{
+			// The token's payload is invalid.
+			tokenWithBadPayload,
 			"user-foo",
 			refresh.ErrorInvalidToken,
 		},
