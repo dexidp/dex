@@ -80,7 +80,9 @@ func main() {
 	if *dbMigrate {
 		var sleep time.Duration
 		for {
-			if migrations, err := db.MigrateToLatest(dbc); err == nil {
+			var err error
+			var migrations int
+			if migrations, err = db.MigrateToLatest(dbc); err == nil {
 				log.Infof("Performed %d db migrations", migrations)
 				break
 			}
