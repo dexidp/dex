@@ -397,7 +397,7 @@ func TestServerTokenFail(t *testing.T) {
 		signer       jose.Signer
 		argCC        oidc.ClientCredentials
 		argKey       string
-		err          string
+		err          error
 		scope        []string
 		refreshToken string
 	}{
@@ -423,7 +423,7 @@ func TestServerTokenFail(t *testing.T) {
 			signer: signerFixture,
 			argCC:  ccFixture,
 			argKey: "foo",
-			err:    oauth2.ErrorInvalidGrant,
+			err:    oauth2.NewError(oauth2.ErrorInvalidGrant),
 			scope:  []string{"openid", "offline_access"},
 		},
 
@@ -432,7 +432,7 @@ func TestServerTokenFail(t *testing.T) {
 			signer: signerFixture,
 			argCC:  oidc.ClientCredentials{ID: "YYY"},
 			argKey: keyFixture,
-			err:    oauth2.ErrorInvalidClient,
+			err:    oauth2.NewError(oauth2.ErrorInvalidClient),
 			scope:  []string{"openid", "offline_access"},
 		},
 
@@ -441,7 +441,7 @@ func TestServerTokenFail(t *testing.T) {
 			signer: &StaticSigner{sig: nil, err: errors.New("fail")},
 			argCC:  ccFixture,
 			argKey: keyFixture,
-			err:    oauth2.ErrorServerError,
+			err:    oauth2.NewError(oauth2.ErrorServerError),
 			scope:  []string{"openid", "offline_access"},
 		},
 	}
@@ -502,18 +502,14 @@ func TestServerTokenFail(t *testing.T) {
 			t.Fatalf("case %d: expect refresh token %q, got %q", i, tt.refreshToken, token)
 			panic("")
 		}
-		if tt.err == "" {
-			if err != nil {
-				t.Errorf("case %d: got non-nil error: %v", i, err)
-			} else if jwt == nil {
-				t.Errorf("case %d: got nil JWT", i)
-			}
-		} else {
-			if err.Error() != tt.err {
-				t.Errorf("case %d: want err %q, got %q", i, tt.err, err.Error())
-			} else if jwt != nil {
-				t.Errorf("case %d: got non-nil JWT", i)
-			}
+		if !reflect.DeepEqual(err, tt.err) {
+			t.Errorf("case %d: expect %v, got %v", i, tt.err, err)
+		}
+		if err == nil && jwt == nil {
+			t.Errorf("case %d: got nil JWT", i)
+		}
+		if err != nil && jwt != nil {
+			t.Errorf("case %d: got non-nil JWT %v", i, jwt)
 		}
 	}
 }
@@ -537,7 +533,7 @@ func TestServerRefreshToken(t *testing.T) {
 		clientID string // The client that associates with the token.
 		creds    oidc.ClientCredentials
 		signer   jose.Signer
-		err      string
+		err      error
 	}{
 		// Everything is good.
 		{
@@ -545,7 +541,7 @@ func TestServerRefreshToken(t *testing.T) {
 			"XXX",
 			credXXX,
 			signerFixture,
-			"",
+			nil,
 		},
 		// Invalid refresh token(malformatted).
 		{
@@ -553,15 +549,23 @@ func TestServerRefreshToken(t *testing.T) {
 			"XXX",
 			credXXX,
 			signerFixture,
-			oauth2.ErrorInvalidRequest,
+			oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
-		// Invalid refresh token.
+		// Invalid refresh token(invalid payload content).
 		{
-			"0/refresh-1",
+			"0/refresh-2",
 			"XXX",
 			credXXX,
 			signerFixture,
-			oauth2.ErrorInvalidRequest,
+			oauth2.NewError(oauth2.ErrorInvalidRequest),
+		},
+		// Invalid refresh token(invalid ID content).
+		{
+			"1/refresh-2",
+			"XXX",
+			credXXX,
+			signerFixture,
+			oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 		// Invalid client(client is not associated with the token).
 		{
@@ -569,7 +573,7 @@ func TestServerRefreshToken(t *testing.T) {
 			"XXX",
 			credYYY,
 			signerFixture,
-			oauth2.ErrorInvalidClient,
+			oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(no client ID).
 		{
@@ -577,7 +581,7 @@ func TestServerRefreshToken(t *testing.T) {
 			"XXX",
 			oidc.ClientCredentials{ID: "", Secret: "aaa"},
 			signerFixture,
-			oauth2.ErrorInvalidClient,
+			oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(no such client).
 		{
@@ -585,7 +589,7 @@ func TestServerRefreshToken(t *testing.T) {
 			"XXX",
 			oidc.ClientCredentials{ID: "AAA", Secret: "aaa"},
 			signerFixture,
-			oauth2.ErrorInvalidClient,
+			oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(no secrets).
 		{
@@ -593,7 +597,7 @@ func TestServerRefreshToken(t *testing.T) {
 			"XXX",
 			oidc.ClientCredentials{ID: "XXX"},
 			signerFixture,
-			oauth2.ErrorInvalidClient,
+			oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(invalid secret).
 		{
@@ -601,7 +605,7 @@ func TestServerRefreshToken(t *testing.T) {
 			"XXX",
 			oidc.ClientCredentials{ID: "XXX", Secret: "bad-secret"},
 			signerFixture,
-			oauth2.ErrorInvalidClient,
+			oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Signing operation fails.
 		{
@@ -609,7 +613,7 @@ func TestServerRefreshToken(t *testing.T) {
 			"XXX",
 			credXXX,
 			&StaticSigner{sig: nil, err: errors.New("fail")},
-			oauth2.ErrorServerError,
+			oauth2.NewError(oauth2.ErrorServerError),
 		},
 	}
 
@@ -646,10 +650,8 @@ func TestServerRefreshToken(t *testing.T) {
 		}
 
 		jwt, err := srv.RefreshToken(tt.creds, tt.token)
-		if err != nil {
-			if err.Error() != tt.err {
-				t.Errorf("Case %d: expect: %v, got: %v", i, tt.err, err)
-			}
+		if !reflect.DeepEqual(err, tt.err) {
+			t.Errorf("Case %d: expect: %v, got: %v", i, tt.err, err)
 		}
 
 		if jwt != nil {
@@ -715,7 +717,7 @@ func TestServerRefreshToken(t *testing.T) {
 	srv.UserRepo = userRepo
 
 	_, err = srv.RefreshToken(credXXX, "0/refresh-1")
-	if err == nil || err.Error() != oauth2.ErrorServerError {
-		t.Errorf("Expect: %v, got: %v", oauth2.ErrorServerError, err)
+	if !reflect.DeepEqual(err, oauth2.NewError(oauth2.ErrorServerError)) {
+		t.Errorf("Expect: %v, got: %v", oauth2.NewError(oauth2.ErrorServerError), err)
 	}
 }
