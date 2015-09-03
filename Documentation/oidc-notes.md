@@ -14,9 +14,6 @@ Sec. 2. [ID Token](http://openid.net/specs/openid-connect-core-1_0.html#IDToken)
 Sec. 3. [Authentication](http://openid.net/specs/openid-connect-core-1_0.html#Authentication)
 - Only the authorization code flow (where `response_type` is `code`) is supported.
 
-Sec. 3.1.2. [Authorization Endpoint](http://openid.net/specs/openid-connect-core-1_0.html#AuthorizationEndpoint)
-- In a production system TLS is required but the dex web-server only supports HTTP right now - it is expected that until HTTPS is supported, TLS termination will be handled outside of dex.
-
 Sec. 3.1.2.1. [Authentication Request](http://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
 - max_age not implemented; it's OPTIONAL in the spec, but if it's present servers MUST include auth_time, which dex does not.
 - None of the other OPTIONAL parameters are implemented with the exception of:
