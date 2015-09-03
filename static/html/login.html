@@ -9,10 +9,10 @@
     <h2 class="heading">{{ .Message }}</h2>
   {{ else }}
     {{ if and .Register (eq .MsgCode "") }}
-      <h2 class="heading">Create Your Account</h2>
+      <h2 class="heading">Create Your {{ issuerName }} Account</h2>
       <div class="explain">Verify using either option below</div>
     {{ else }}
-      <h2 class="heading">Log in to Your Account</h2>
+      <h2 class="heading">Log in to {{ issuerName }} </h2>
     {{ end}}
   {{ end }}
 

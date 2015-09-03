@@ -28,7 +28,9 @@ func init() {
 func main() {
 	fs := flag.NewFlagSet("dex-worker", flag.ExitOnError)
 	listen := fs.String("listen", "http://127.0.0.1:5556", "the address that the server will listen on")
+
 	issuer := fs.String("issuer", "http://127.0.0.1:5556", "the issuer's location")
+
 	certFile := fs.String("tls-cert-file", "", "the server's certificate file for TLS connection")
 	keyFile := fs.String("tls-key-file", "", "the server's private key file for TLS connection")
 
@@ -41,6 +43,10 @@ func main() {
 	emailConfig := fs.String("email-cfg", "./static/fixtures/emailer.json", "configures emailer.")
 
 	noDB := fs.Bool("no-db", false, "manage entities in-process w/o any encryption, used only for single-node testing")
+
+	// UI-related:
+	issuerName := fs.String("issuer-name", "dex", "The name of this dex installation; will appear on most pages.")
+	issuerLogoURL := fs.String("issuer-logo-url", "https://coreos.com/assets/images/brand/coreos-wordmark-135x40px.png", "URL of an image representing the issuer")
 
 	// ignored if --no-db is set
 	dbURL := fs.String("db-url", "", "DSN-formatted database connection string")
@@ -110,6 +116,8 @@ func main() {
 		EmailTemplateDirs: emailTemplateDirs,
 		EmailFromAddress:  *emailFrom,
 		EmailerConfigFile: *emailConfig,
+		IssuerName:        *issuerName,
+		IssuerLogoURL:     *issuerLogoURL,
 	}
 
 	if *noDB {
