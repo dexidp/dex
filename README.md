@@ -5,7 +5,7 @@ dex
 
 dex is a federated identity management service. It provides OpenID Connect (OIDC) to users, and can proxy to multiple remote identity providers (IdP) to drive actual authentication, as well as managing local username/password credentials.
 
-We named the project 'dex' beceause it is a central index of users that other pieces of software can authenticate against.
+We named the project 'dex' because it is a central index of users that other pieces of software can authenticate against.
 
 
 ## Architecture
@@ -16,11 +16,11 @@ dex consists of multiple components:
     - host a user-facing API that drives the OIDC protocol
 	- proxy to remote identity providers via "connectors"
     - provides an API for administrators to manage users.
-- **dex-overlord** is an auxiliary process responsible for two things:
+- **dex-overlord** is an auxiliary process responsible for various administrative tasks:
 	- rotation of keys used by the workers to sign identity tokens
 	- garbage collection of stale data in the database
     - provides an API for bootstrapping the system.
-- **dexctl** is CLI tool used to manage an dex deployment
+- **dexctl** is a CLI tool used to manage a dex deployment
 	- configure identity provider connectors
 	- administer OIDC client identities
 - **database**; a database is used to for persistent storage for keys, users,
