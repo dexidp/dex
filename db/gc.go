@@ -66,11 +66,11 @@ func (gc *GarbageCollector) Run() chan struct{} {
 						next = ptime.ExpBackoff(next, time.Minute)
 					}
 					log.Errorf("Failed garbage collection, retrying in %v", next)
-				} else {
-					failing = false
-					next = gc.interval
-					log.Infof("Garbage collection complete, running again in %v", next)
+					break
 				}
+				failing = false
+				next = gc.interval
+				log.Infof("Garbage collection complete, running again in %v", next)
 			case <-stop:
 				return
 			}

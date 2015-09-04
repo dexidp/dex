@@ -20,7 +20,8 @@ func DefaultGenerateCode() (string, error) {
 	n, err := rand.Read(b)
 	if err != nil {
 		return "", err
-	} else if n != 8 {
+	}
+	if n != 8 {
 		return "", errors.New("unable to read enough random bytes")
 	}
 	return base64.URLEncoding.EncodeToString(b), nil

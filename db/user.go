@@ -76,12 +76,11 @@ func (r *userRepo) Create(tx repo.Transaction, usr user.User) (err error) {
 	}
 
 	_, err = r.get(tx, usr.ID)
-	if err != nil {
-		if err != user.ErrorNotFound {
-			return err
-		}
-	} else {
+	if err == nil {
 		return user.ErrorDuplicateID
+	}
+	if err != user.ErrorNotFound {
+		return err
 	}
 
 	if !user.ValidEmail(usr.Email) {
@@ -90,12 +89,11 @@ func (r *userRepo) Create(tx repo.Transaction, usr user.User) (err error) {
 
 	// make sure there's no other user with the same Email
 	_, err = r.getByEmail(tx, usr.Email)
-	if err != nil {
-		if err != user.ErrorNotFound {
-			return err
-		}
-	} else {
+	if err == nil {
 		return user.ErrorDuplicateEmail
+	}
+	if err != user.ErrorNotFound {
+		return err
 	}
 
 	err = r.insert(tx, usr)

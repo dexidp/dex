@@ -49,12 +49,11 @@ func (r *passwordInfoRepo) Create(tx repo.Transaction, pw user.PasswordInfo) (er
 	}
 
 	_, err = r.get(tx, pw.UserID)
-	if err != nil {
-		if err != user.ErrorNotFound {
-			return err
-		}
-	} else {
+	if err == nil {
 		return user.ErrorDuplicateID
+	}
+	if err != user.ErrorNotFound {
+		return err
 	}
 
 	err = r.insert(tx, pw)

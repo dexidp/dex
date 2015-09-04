@@ -351,7 +351,8 @@ func (s *Server) ClientCredsToken(creds oidc.ClientCredentials) (*jose.JWT, erro
 	if err != nil {
 		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
 		return nil, oauth2.NewError(oauth2.ErrorServerError)
-	} else if !ok {
+	}
+	if !ok {
 		return nil, oauth2.NewError(oauth2.ErrorInvalidClient)
 	}
 
@@ -382,7 +383,8 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 	if err != nil {
 		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
 		return nil, "", oauth2.NewError(oauth2.ErrorServerError)
-	} else if !ok {
+	}
+	if !ok {
 		log.Errorf("Failed to Authenticate client %s", creds.ID)
 		return nil, "", oauth2.NewError(oauth2.ErrorInvalidClient)
 	}
@@ -450,7 +452,8 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose
 	if err != nil {
 		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
 		return nil, oauth2.NewError(oauth2.ErrorServerError)
-	} else if !ok {
+	}
+	if !ok {
 		log.Errorf("Failed to Authenticate client %s", creds.ID)
 		return nil, oauth2.NewError(oauth2.ErrorInvalidClient)
 	}

@@ -185,7 +185,8 @@ func renderLoginPage(w http.ResponseWriter, r *http.Request, srv OIDCServer, idp
 		td.Message = "Server Error"
 		execTemplate(w, tpl, td)
 		return
-	} else if cm == nil {
+	}
+	if cm == nil {
 		td.Error = true
 		td.Message = "Authentication Error"
 		td.Detail = "Invalid client ID"

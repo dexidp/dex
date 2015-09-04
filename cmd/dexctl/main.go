@@ -103,14 +103,14 @@ func getDriver() (drv driver) {
 	case len(global.endpoint) > 0:
 		if len(global.creds.ID) == 0 || len(global.creds.Secret) == 0 {
 			err = errors.New("--client-id/--client-secret flags unset")
-		} else {
-			pcfg, err := oidc.FetchProviderConfig(http.DefaultClient, global.endpoint)
-			if err != nil {
-				stderr("Unable to fetch provider config: %v", err)
-				os.Exit(1)
-			}
-			drv, err = newAPIDriver(pcfg, global.creds)
+			break
 		}
+		pcfg, err := oidc.FetchProviderConfig(http.DefaultClient, global.endpoint)
+		if err != nil {
+			stderr("Unable to fetch provider config: %v", err)
+			os.Exit(1)
+		}
+		drv, err = newAPIDriver(pcfg, global.creds)
 	default:
 		err = errors.New("--endpoint/--db-url flags unset")
 	}

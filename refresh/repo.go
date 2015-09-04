@@ -33,7 +33,8 @@ func DefaultRefreshTokenGenerator() ([]byte, error) {
 	n, err := rand.Read(b)
 	if err != nil {
 		return nil, err
-	} else if n != DefaultRefreshTokenPayloadLength {
+	}
+	if n != DefaultRefreshTokenPayloadLength {
 		return nil, errors.New("unable to read enough random bytes")
 	}
 	return b, nil

@@ -169,12 +169,13 @@ func (u *PasswordInfo) UnmarshalJSON(data []byte) error {
 			return ErrorInvalidPassword
 		}
 		u.Password = Password(dec.PasswordHash)
-	} else if dec.PasswordPlaintext != "" {
+		return nil
+	}
+	if dec.PasswordPlaintext != "" {
 		u.Password, err = NewPasswordFromPlaintext(dec.PasswordPlaintext)
 		if err != nil {
 			return err
 		}
-
 	}
 	return nil
 }

@@ -56,7 +56,8 @@ func (c *clientTokenMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request
 		writeAPIError(w, http.StatusUnauthorized, newAPIError(errorAccessDenied, ""))
 		respondError()
 		return
-	} else if len(keys) == 0 {
+	}
+	if len(keys) == 0 {
 		log.Error("No keys available for verification in client token middleware")
 		writeAPIError(w, http.StatusUnauthorized, newAPIError(errorAccessDenied, ""))
 		respondError()
@@ -68,7 +69,8 @@ func (c *clientTokenMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request
 		log.Errorf("Failed to verify signature: %v", err)
 		respondError()
 		return
-	} else if !ok {
+	}
+	if !ok {
 		log.Info("Invalid token")
 		respondError()
 		return
@@ -112,7 +114,8 @@ func getClientIDFromAuthorizedRequest(r *http.Request) (string, error) {
 	sub, ok, err := claims.StringClaim("sub")
 	if err != nil {
 		return "", fmt.Errorf("failed to parse 'sub' claim: %v", err)
-	} else if !ok || sub == "" {
+	}
+	if !ok || sub == "" {
 		return "", errors.New("missing required 'sub' claim")
 	}
 

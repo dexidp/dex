@@ -39,7 +39,8 @@ func (rr *RequestRecorder) Do(req *http.Request) (*http.Response, error) {
 
 	if rr.Response == nil && rr.Error == nil {
 		panic("RequestRecorder Response and Error cannot both be nil")
-	} else if rr.Response != nil && rr.Error != nil {
+	}
+	if rr.Response != nil && rr.Error != nil {
 		panic("RequestRecorder Response and Error cannot both be non-nil")
 	}
 
