@@ -183,14 +183,13 @@ func handleRegisterFunc(s *Server) http.HandlerFunc {
 				data.FormErrors = formErrors
 				execTemplate(w, tpl, data)
 				return
-			} else {
-				if err == user.ErrorDuplicateRemoteIdentity {
-					errPage(w, "You already registered an account with this identity", "", http.StatusConflict)
-					return
-				}
-				internalError(w, err)
+			}
+			if err == user.ErrorDuplicateRemoteIdentity {
+				errPage(w, "You already registered an account with this identity", "", http.StatusConflict)
 				return
 			}
+			internalError(w, err)
+			return
 		}
 		ses, err = s.SessionManager.AttachUser(sessionID, userID)
 		if err != nil {
