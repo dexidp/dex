@@ -1,4 +1,4 @@
-apiVersion: v1beta3
+apiVersion: v1
 kind: ReplicationController
 metadata:
   labels:
@@ -19,7 +19,7 @@ spec:
       containers:
           - image: quay.io/coreos/dex
             name: dex-worker
-            command: ["/opt/dex/bin/dex-worker", "-issuer", "http://dex-worker.default.tectonic.local:5556", "-key-secret", "XXXXXXXXXXX", "-db-url", "postgres://postgres@auth-postgres.default.tectonic.local:5432/auth?sslmode=disable"]
+            command: ["/opt/dex/bin/dex-worker", "-issuer", "http://dex-worker.default:5556", "-key-secrets", "eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=", "-db-url", "postgres://postgres@dex-postgres.default:5432/postgres?sslmode=disable", "-email-cfg", "/opt/dex/email/emailer.json", "-listen", "http://0.0.0.0:5556"]
             ports:
             - containerPort: 5556
               name: worker-port
