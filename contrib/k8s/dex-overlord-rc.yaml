@@ -19,7 +19,15 @@ spec:
       containers:
           - image: quay.io/coreos/dex
             name: dex-overlord
-            command: ["/opt/dex/bin/dex-overlord", "-key-secrets", "eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=", "-db-url", "postgres://postgres@dex-postgres.default:5432/postgres?sslmode=disable"]
+            env:
+              - name: DEX_OVERLORD_DB_URL
+                value: postgres://postgres@dex-postgres.default:5432/postgres?sslmode=disable
+              - name: DEX_OVERLORD_ADMIN_LISTEN
+                value: http://0.0.0.0:5557
+            command:
+              - "sh"
+              - "-c"
+              - "/opt/dex/bin/dex-overlord  --key-secrets=$(cat /etc/dex/key-secrets)"
             ports:
             - containerPort: 5557
               name: overlord-port
@@ -29,3 +37,11 @@ spec:
                 port: 5557
               initialDelaySeconds: 15
               timeoutSeconds: 1
+            volumeMounts:
+              - name: dex
+                mountPath: "/etc/dex"
+                readOnly: true
+      volumes:
+        - name: dex
+          secret:
+            secretName: "dex"
