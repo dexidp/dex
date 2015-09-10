@@ -21,7 +21,7 @@ spec:
             name: dex-worker
             env:
               - name: DEX_WORKER_ISSUER
-                value: http://dex-worker.default:5556
+                value: http://172.17.4.99:30556
               - name: DEX_WORKER_DB_URL
                 value: postgres://postgres@dex-postgres.default:5432/postgres?sslmode=disable
               - name: DEX_WORKER_EMAIL_CFG
