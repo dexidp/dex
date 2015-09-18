@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  labels:
+    app: dex
+    role: worker
+  name: dex-worker
+spec:
+  replicas: 1
+  selector:
+    app: dex
+    role: worker
+  template:
+    metadata:
+      labels:
+        app: dex
+        role: worker
+    spec:
+      containers:
+          - image: quay.io/coreos/dex
+            name: dex-worker
+            env:
+              - name: DEX_WORKER_ISSUER
+                value: http://172.17.4.99:30556
+              - name: DEX_WORKER_DB_URL
+                value: postgres://postgres@dex-postgres.default:5432/postgres?sslmode=disable
+              - name: DEX_WORKER_EMAIL_CFG
+                value: /opt/dex/email/emailer.json
+              - name: DEX_WORKER_LISTEN
+                value: http://0.0.0.0:5556
+            command:
+              - "sh"
+              - "-c"
+              - "/opt/dex/bin/dex-worker --key-secrets=$(cat /etc/dex/key-secrets)"
+            ports:
+            - containerPort: 5556
+              name: worker-port
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: 5556
+              initialDelaySeconds: 15
+              timeoutSeconds: 1
+            volumeMounts:
+              - name: dex
+                mountPath: "/etc/dex"
+                readOnly: true
+      volumes:
+        - name: dex
+          secret:
+            secretName: "dex"
