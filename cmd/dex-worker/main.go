@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/coreos/pkg/flagutil"
 	"github.com/gorilla/handlers"
 
 	"github.com/coreos/dex/connector"
@@ -17,7 +18,6 @@ import (
 	"github.com/coreos/dex/pkg/log"
 	ptime "github.com/coreos/dex/pkg/time"
 	"github.com/coreos/dex/server"
-	"github.com/coreos/pkg/flagutil"
 )
 
 var version = "DEV"
