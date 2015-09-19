@@ -7,15 +7,17 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"time"
 
+	"github.com/coreos/pkg/flagutil"
 	"github.com/gorilla/handlers"
 
+	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	pflag "github.com/coreos/dex/pkg/flag"
 	"github.com/coreos/dex/pkg/log"
+	ptime "github.com/coreos/dex/pkg/time"
 	"github.com/coreos/dex/server"
-
-	"github.com/coreos/pkg/flagutil"
 )
 
 var version = "DEV"
@@ -150,9 +152,21 @@ func main() {
 		log.Fatalf("Unable to build Server: %v", err)
 	}
 
-	cfgs, err := srv.ConnectorConfigRepo.All()
-	if err != nil {
-		log.Fatalf("Unable to fetch connector configs from repo: %v", err)
+	var cfgs []connector.ConnectorConfig
+	var sleep time.Duration
+	for {
+		var err error
+		cfgs, err = srv.ConnectorConfigRepo.All()
+		if len(cfgs) > 0 && err == nil {
+			break
+		}
+		sleep = ptime.ExpBackoff(sleep, time.Minute)
+		if err != nil {
+			log.Errorf("Unable to load connectors, retrying in %v: %v", sleep, err)
+		} else {
+			log.Errorf("No connectors, will wait. Retrying in %v.", sleep)
+		}
+		time.Sleep(sleep)
 	}
 
 	for _, cfg := range cfgs {
