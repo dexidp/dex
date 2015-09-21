@@ -46,7 +46,7 @@ The dex overlord and workers allow multiple key secrets (separated by commas) to
 
 # Start the overlord
 
-The overlord is responsible for creating and rotating keys and some other adminsitrative tasks. In addition, the overlord is responsible for creating the necessary database tables (and when you update, performing schema migrations), so it must be started before we do anything else. Debug logging is turned on so we can see more of what's going on. Start it up. 
+The overlord is responsible for creating and rotating keys and some other adminsitrative tasks. In addition, the overlord is responsible for creating the necessary database tables (and when you update, performing schema migrations), so it must be started before we do anything else. Debug logging is turned on so we can see more of what's going on. Start it up.
 
 `./bin/dex-overlord --db-url=$DEX_DB_URL --key-secrets=$DEX_KEY_SECRET --log-debug=true &`
 
@@ -63,7 +63,12 @@ export DEX_OVERLORD_LOG_DEBUG=true
 
 # Start the dex-worker
 
-Now start the worker:
+Before starting `dex-worker` you should determine how you want verification emails to be delivered to the user.
+If you just want to test dex out, you can just use the provided sample config in `static/fixtures/emailer.json.sample`.
+Please review [email-configuration](https://github.com/coreos/dex/blob/master/Documentation/email-configuration.md) for details
+(make sure you point `--email-cfg` to your newly configured file).
+
+Once you have setup your email config run `dex-worker`:
 
 `./bin/dex-worker --db-url=$DEX_DB_URL --key-secrets=$DEX_KEY_SECRET --email-cfg=static/fixtures/emailer.json.sample --log-debug=true &`
 
@@ -75,7 +80,7 @@ Note: the issuer URL MUST have an `https` scheme in production to meet spec comp
 
 The worker and overlord are up and running, but we need to tell dex what connectors we want to use to authenticate. For this case we'll set up a local connector, where dex manages credentials and provides a UI for authentication, and a Google OIDC connector.
 
-If you prefer to use the Google OIDC Identity Provider (IdP), just omit the second entry in the JSON connector list. Note that you must replace DEX_GOOGLE_CLIENT_{ID,SECRET} with the client ID and client Secret you got when you registered your project with the Google developer console. 
+If you prefer to use the Google OIDC Identity Provider (IdP), just omit the second entry in the JSON connector list. Note that you must replace DEX_GOOGLE_CLIENT_{ID,SECRET} with the client ID and client Secret you got when you registered your project with the Google developer console.
 ```
 cat << EOF > /tmp/dex_connectors.json
 [
