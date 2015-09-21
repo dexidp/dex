@@ -3,7 +3,6 @@ package email
 import (
 	"encoding/json"
 	"errors"
-	"expvar"
 
 	"github.com/coreos/dex/pkg/log"
 	mailgun "github.com/mailgun/mailgun-go"
@@ -11,10 +10,6 @@ import (
 
 const (
 	MailgunEmailerType = "mailgun"
-)
-
-var (
-	counterEmailSendErr = expvar.NewInt("mailgun.send.err")
 )
 
 func init() {
