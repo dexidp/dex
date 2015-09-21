@@ -65,7 +65,6 @@ func NewEmailerConfigFromFile(loc string) (EmailerConfig, error) {
 }
 
 type FakeEmailerConfig struct {
-	ID string `json:"id"`
 }
 
 func (cfg FakeEmailerConfig) EmailerType() string {
@@ -73,7 +72,7 @@ func (cfg FakeEmailerConfig) EmailerType() string {
 }
 
 func (cfg FakeEmailerConfig) EmailerID() string {
-	return cfg.ID
+	return FakeEmailerType
 }
 
 func (cfg FakeEmailerConfig) Emailer() (Emailer, error) {

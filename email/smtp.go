@@ -16,7 +16,6 @@ func init() {
 }
 
 type SmtpEmailerConfig struct {
-	ID       string `json:"id"`
 	Host     string `json:"host"`
 	Port     int    `json:"port"`
 	Auth     string `json:"auth"`
@@ -29,7 +28,7 @@ func (cfg SmtpEmailerConfig) EmailerType() string {
 }
 
 func (cfg SmtpEmailerConfig) EmailerID() string {
-	return cfg.ID
+	return SmtpEmailerType
 }
 
 func (cfg SmtpEmailerConfig) Emailer() (Emailer, error) {

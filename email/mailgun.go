@@ -17,7 +17,6 @@ func init() {
 }
 
 type MailgunEmailerConfig struct {
-	ID            string `json:"id"`
 	PrivateAPIKey string `json:"privateAPIKey"`
 	PublicAPIKey  string `json:"publicAPIKey"`
 	Domain        string `json:"domain"`
@@ -28,7 +27,7 @@ func (cfg MailgunEmailerConfig) EmailerType() string {
 }
 
 func (cfg MailgunEmailerConfig) EmailerID() string {
-	return cfg.ID
+	return MailgunEmailerType
 }
 
 func (cfg MailgunEmailerConfig) Emailer() (Emailer, error) {
