@@ -3,7 +3,6 @@ package email
 import (
 	"encoding/json"
 	"errors"
-	"expvar"
 
 	"github.com/coreos/dex/pkg/log"
 	mailgun "github.com/mailgun/mailgun-go"
@@ -13,16 +12,11 @@ const (
 	MailgunEmailerType = "mailgun"
 )
 
-var (
-	counterEmailSendErr = expvar.NewInt("mailgun.send.err")
-)
-
 func init() {
 	RegisterEmailerConfigType(MailgunEmailerType, func() EmailerConfig { return &MailgunEmailerConfig{} })
 }
 
 type MailgunEmailerConfig struct {
-	ID            string `json:"id"`
 	PrivateAPIKey string `json:"privateAPIKey"`
 	PublicAPIKey  string `json:"publicAPIKey"`
 	Domain        string `json:"domain"`
@@ -33,7 +27,7 @@ func (cfg MailgunEmailerConfig) EmailerType() string {
 }
 
 func (cfg MailgunEmailerConfig) EmailerID() string {
-	return cfg.ID
+	return MailgunEmailerType
 }
 
 func (cfg MailgunEmailerConfig) Emailer() (Emailer, error) {

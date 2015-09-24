@@ -3,6 +3,7 @@ package email
 import (
 	"encoding/json"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
 	"os"
@@ -14,7 +15,8 @@ const (
 )
 
 var (
-	ErrorNoTemplate = errors.New("No HTML or Text template found for template name.")
+	counterEmailSendErr = expvar.NewInt("email.send.err")
+	ErrorNoTemplate     = errors.New("No HTML or Text template found for template name.")
 )
 
 func init() {
@@ -63,7 +65,6 @@ func NewEmailerConfigFromFile(loc string) (EmailerConfig, error) {
 }
 
 type FakeEmailerConfig struct {
-	ID string `json:"id"`
 }
 
 func (cfg FakeEmailerConfig) EmailerType() string {
@@ -71,7 +72,7 @@ func (cfg FakeEmailerConfig) EmailerType() string {
 }
 
 func (cfg FakeEmailerConfig) EmailerID() string {
-	return cfg.ID
+	return FakeEmailerType
 }
 
 func (cfg FakeEmailerConfig) Emailer() (Emailer, error) {

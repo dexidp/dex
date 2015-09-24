@@ -121,6 +121,11 @@
 			"Rev": "d3edb0282bde692467788c50070a9211afe75cf3"
 		},
 		{
+			"ImportPath": "gopkg.in/gomail.v2",
+			"Comment": "2.0.0-2-gb1e5552",
+			"Rev": "b1e55520bf557d8a614f1e1f493ce892c1b5e97e"
+		},
+		{
 			"ImportPath": "gopkg.in/gorp.v1",
 			"Comment": "v1.7.1",
 			"Rev": "c87af80f3cc5036b55b83d77171e156791085e2e"
