@@ -25,7 +25,7 @@ const (
 var (
 	UsersSubTree        = "/users"
 	UsersListEndpoint   = addBasePath(UsersSubTree) + "/"
-	UsersCreateEndooint = addBasePath(UsersSubTree)
+	UsersCreateEndpoint = addBasePath(UsersSubTree) + "/"
 	UsersGetEndpoint    = addBasePath(UsersSubTree + "/:id")
 )
 
@@ -48,7 +48,7 @@ func NewUserMgmtServer(userMgmtAPI *api.UsersAPI, jwtvFactory JWTVerifierFactory
 func (s *UserMgmtServer) HTTPHandler() http.Handler {
 	r := httprouter.New()
 	r.GET(UsersListEndpoint, s.listUsers)
-	r.POST(UsersCreateEndooint, s.createUser)
+	r.POST(UsersCreateEndpoint, s.createUser)
 	r.GET(UsersGetEndpoint, s.getUser)
 	return r
 }
