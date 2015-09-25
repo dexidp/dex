@@ -417,6 +417,7 @@ type userModel struct {
 	Email         string `db:"email"`
 	EmailVerified bool   `db:"email_verified"`
 	DisplayName   string `db:"display_name"`
+	Disabled      bool   `db:"disabled"`
 	Admin         bool   `db:"admin"`
 	CreatedAt     int64  `db:"created_at"`
 }
@@ -428,6 +429,7 @@ func (u *userModel) user() (user.User, error) {
 		Email:         u.Email,
 		EmailVerified: u.EmailVerified,
 		Admin:         u.Admin,
+		Disabled:      u.Disabled,
 	}
 
 	if u.CreatedAt != 0 {
@@ -444,6 +446,7 @@ func newUserModel(u *user.User) (*userModel, error) {
 		Email:         u.Email,
 		EmailVerified: u.EmailVerified,
 		Admin:         u.Admin,
+		Disabled:      u.Disabled,
 	}
 
 	if !u.CreatedAt.IsZero() {

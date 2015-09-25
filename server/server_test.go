@@ -261,6 +261,74 @@ func TestServerLoginUnrecognizedSessionKey(t *testing.T) {
 	}
 }
 
+func TestServerLoginDisabledUser(t *testing.T) {
+	ci := oidc.ClientIdentity{
+		Credentials: oidc.ClientCredentials{
+			ID:     "XXX",
+			Secret: "secrete",
+		},
+		Metadata: oidc.ClientMetadata{
+			RedirectURLs: []url.URL{
+				url.URL{
+					Scheme: "http",
+					Host:   "client.example.com",
+					Path:   "/callback",
+				},
+			},
+		},
+	}
+	ciRepo := client.NewClientIdentityRepo([]oidc.ClientIdentity{ci})
+
+	km := &StaticKeyManager{
+		signer: &StaticSigner{sig: []byte("beer"), err: nil},
+	}
+
+	sm := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
+	sm.GenerateCode = staticGenerateCodeFunc("fakecode")
+	sessionID, err := sm.NewSession("test_connector_id", ci.Credentials.ID, "bogus", ci.Metadata.RedirectURLs[0], "", false, []string{"openid"})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	userRepo, err := makeNewUserRepo()
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	err = userRepo.Create(nil, user.User{
+		ID:       "disabled-1",
+		Email:    "disabled@example.com",
+		Disabled: true,
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	err = userRepo.AddRemoteIdentity(nil, "disabled-1", user.RemoteIdentity{
+		ConnectorID: "test_connector_id",
+		ID:          "disabled-connector-id",
+	})
+
+	srv := &Server{
+		IssuerURL:          url.URL{Scheme: "http", Host: "server.example.com"},
+		KeyManager:         km,
+		SessionManager:     sm,
+		ClientIdentityRepo: ciRepo,
+		UserRepo:           userRepo,
+	}
+
+	ident := oidc.Identity{ID: "disabled-connector-id", Name: "elroy", Email: "elroy@example.com"}
+	key, err := sm.NewSessionKey(sessionID)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	_, err = srv.Login(ident, key)
+	if err == nil {
+		t.Errorf("disabled user was allowed to log in")
+	}
+}
+
 func TestServerCodeToken(t *testing.T) {
 	ci := oidc.ClientIdentity{
 		Credentials: oidc.ClientCredentials{
