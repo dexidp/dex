@@ -57,7 +57,7 @@ func (cfg *SmtpEmailerConfig) UnmarshalJSON(data []byte) error {
 	if smtpCfg.Host == "" {
 		return errors.New("must set SMTP host")
 	}
-	if smtpCfg.Port == "" {
+	if smtpCfg.Port == 0 {
 		return errors.New("must set SMTP port")
 	}
 	*cfg = SmtpEmailerConfig(smtpCfg)
