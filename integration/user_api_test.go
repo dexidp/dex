@@ -53,11 +53,23 @@ var (
 				Email: "Email-3@example.com",
 			},
 		},
+		{
+			User: user.User{
+				ID:       "ID-4",
+				Email:    "Email-4@example.com",
+				Admin:    true,
+				Disabled: true,
+			},
+		},
 	}
 
 	userPasswords = []user.PasswordInfo{
 		{
 			UserID:   "ID-1",
+			Password: []byte("hi."),
+		},
+		{
+			UserID:   "ID-4",
 			Password: []byte("hi."),
 		},
 	}
@@ -75,6 +87,9 @@ var (
 
 	userBadTokenExpired = makeUserToken(testIssuerURL,
 		"ID-1", testClientID, time.Hour*-1, testPrivKey)
+
+	userBadTokenDisabled = makeUserToken(testIssuerURL,
+		"ID-4", testClientID, time.Hour*1, testPrivKey)
 )
 
 func makeUserAPITestFixtures() *userAPITestFixtures {
@@ -166,6 +181,11 @@ func TestGetUser(t *testing.T) {
 		}, {
 			id: "ID-1",
 
+			token:   userBadTokenDisabled,
+			errCode: http.StatusUnauthorized, // TODO test with custom err before merge
+		}, {
+			id: "ID-1",
+
 			token:   "",
 			errCode: http.StatusUnauthorized,
 		}, {
@@ -229,20 +249,28 @@ func TestListUsers(t *testing.T) {
 		wantIDs  [][]string
 	}{
 		{
-			pages:      3,
+			pages:      4,
 			maxResults: 1,
 
 			token: userGoodToken,
 
-			wantIDs: [][]string{{"ID-1"}, {"ID-2"}, {"ID-3"}},
+			wantIDs: [][]string{{"ID-1"}, {"ID-2"}, {"ID-3"}, {"ID-4"}},
 		},
 		{
 			pages: 1,
 
 			token: userGoodToken,
 
-			maxResults: 3,
-			wantIDs:    [][]string{{"ID-1", "ID-2", "ID-3"}},
+			maxResults: 4,
+			wantIDs:    [][]string{{"ID-1", "ID-2", "ID-3", "ID-4"}},
+		},
+		{
+			pages: 1,
+
+			token: userBadTokenDisabled,
+
+			maxResults: 1,
+			wantCode:   http.StatusUnauthorized, // TODO don't merge until you're sure this is covering what you expect
 		},
 		{
 			pages: 3,
@@ -416,6 +444,22 @@ func TestCreateUser(t *testing.T) {
 			// make sure that the endpoint is protected, but don't exhaustively
 			// try every variation like in TestGetUser
 			token: userBadTokenExpired,
+
+			wantCode: http.StatusUnauthorized,
+		},
+		{
+			req: schema.UserCreateRequest{
+				User: &schema.User{
+					Email:         "newuser@example.com",
+					DisplayName:   "New User",
+					EmailVerified: true,
+					Admin:         false,
+					CreatedAt:     clock.Now().Format(time.RFC3339),
+				},
+				RedirectURL: testRedirectURL.String(),
+			},
+
+			token: userBadTokenDisabled,
 
 			wantCode: http.StatusUnauthorized,
 		},

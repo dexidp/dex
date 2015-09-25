@@ -52,6 +52,15 @@ var (
 		},
 	}
 
+	disabledCreds = Creds{
+		User: user.User{
+			ID:       "ID-1",
+			Admin:    true,
+			Disabled: true,
+		},
+		ClientID: "XXX",
+	}
+
 	resetPasswordURL = url.URL{
 		Host: "dex.example.com",
 		Path: "resetPassword",
