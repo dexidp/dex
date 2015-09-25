@@ -238,7 +238,7 @@ func TestCreateUser(t *testing.T) {
 		{
 			creds: goodCreds,
 			usr: schema.User{
-				Email:         "newuser@example.com",
+				Email:         "newuser01@example.com",
 				DisplayName:   "New User",
 				EmailVerified: true,
 				Admin:         false,
@@ -248,7 +248,7 @@ func TestCreateUser(t *testing.T) {
 			wantResponse: schema.UserCreateResponse{
 				EmailSent: true,
 				User: &schema.User{
-					Email:         "newuser@example.com",
+					Email:         "newuser01@example.com",
 					DisplayName:   "New User",
 					EmailVerified: true,
 					Admin:         false,
@@ -259,7 +259,7 @@ func TestCreateUser(t *testing.T) {
 		{
 			creds: goodCreds,
 			usr: schema.User{
-				Email:         "newuser@example.com",
+				Email:         "newuser02@example.com",
 				DisplayName:   "New User",
 				EmailVerified: true,
 				Admin:         false,
@@ -269,7 +269,7 @@ func TestCreateUser(t *testing.T) {
 
 			wantResponse: schema.UserCreateResponse{
 				User: &schema.User{
-					Email:         "newuser@example.com",
+					Email:         "newuser02@example.com",
 					DisplayName:   "New User",
 					EmailVerified: true,
 					Admin:         false,
@@ -281,7 +281,7 @@ func TestCreateUser(t *testing.T) {
 		{
 			creds: goodCreds,
 			usr: schema.User{
-				Email:         "newuser@example.com",
+				Email:         "newuser03@example.com",
 				DisplayName:   "New User",
 				EmailVerified: true,
 				Admin:         false,
@@ -293,7 +293,7 @@ func TestCreateUser(t *testing.T) {
 		{
 			creds: badCreds,
 			usr: schema.User{
-				Email:         "newuser@example.com",
+				Email:         "newuser04@example.com",
 				DisplayName:   "New User",
 				EmailVerified: true,
 				Admin:         false,
@@ -313,6 +313,24 @@ func TestCreateUser(t *testing.T) {
 			if err != tt.wantErr {
 				t.Errorf("case %d: want=%q, got=%q", i, tt.wantErr, err)
 			}
+
+			tok := ""
+			for {
+				list, tok, err := api.ListUsers(goodCreds, 100, tok)
+				if err != nil {
+					t.Fatalf("case %d: unexpected error: %v", i, err)
+					break
+				}
+				for _, u := range list {
+					if u.Email == tt.usr.Email {
+						t.Errorf("case %d: got an error but user was still created", i)
+					}
+				}
+				if tok == "" {
+					break
+				}
+			}
+
 			continue
 		}
 		if err != nil {
