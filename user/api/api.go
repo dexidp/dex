@@ -132,6 +132,16 @@ func (u *UsersAPI) CreateUser(creds Creds, usr schema.User, redirURL url.URL) (s
 		return schema.UserCreateResponse{}, mapError(err)
 	}
 
+	metadata, err := u.clientIdentityRepo.Metadata(creds.ClientID)
+	if err != nil {
+		return schema.UserCreateResponse{}, mapError(err)
+	}
+
+	validRedirURL, err := client.ValidRedirectURL(&redirURL, metadata.RedirectURLs)
+	if err != nil {
+		return schema.UserCreateResponse{}, ErrorInvalidRedirectURL
+	}
+
 	id, err := u.manager.CreateUser(schemaUserToUser(usr), user.Password(hash), u.localConnectorID)
 	if err != nil {
 		return schema.UserCreateResponse{}, mapError(err)
@@ -143,16 +153,6 @@ func (u *UsersAPI) CreateUser(creds Creds, usr schema.User, redirURL url.URL) (s
 	}
 
 	usr = userToSchemaUser(userUser)
-
-	metadata, err := u.clientIdentityRepo.Metadata(creds.ClientID)
-	if err != nil {
-		return schema.UserCreateResponse{}, mapError(err)
-	}
-	validRedirURL, err := client.ValidRedirectURL(&redirURL, metadata.RedirectURLs)
-
-	if err != nil {
-		return schema.UserCreateResponse{}, ErrorInvalidRedirectURL
-	}
 
 	url, err := u.emailer.SendResetPasswordEmail(usr.Email, validRedirURL, creds.ClientID)
 
