@@ -197,7 +197,7 @@ func (u *UsersAPI) ListUsers(creds Creds, maxResults int, nextPageToken string) 
 }
 
 func (u *UsersAPI) Authorize(creds Creds) bool {
-	return creds.User.Admin
+	return creds.User.Admin && !creds.User.Disabled
 }
 
 func userToSchemaUser(usr user.User) schema.User {

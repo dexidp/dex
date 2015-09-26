@@ -200,10 +200,6 @@ func (s *UserMgmtServer) getCreds(r *http.Request) (api.Creds, error) {
 		return api.Creds{}, err
 	}
 
-	if usr.Disabled {
-		return api.Creds{}, api.ErrorUnauthorized
-	}
-
 	isAdmin, err := s.cir.IsDexAdmin(clientID)
 	if err != nil {
 		log.Errorf("userMgmtServer: GetCreds err: %q", err)

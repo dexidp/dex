@@ -182,7 +182,7 @@ func TestGetUser(t *testing.T) {
 			id: "ID-1",
 
 			token:   userBadTokenDisabled,
-			errCode: http.StatusUnauthorized, // TODO test with custom err before merge
+			errCode: http.StatusUnauthorized,
 		}, {
 			id: "ID-1",
 
