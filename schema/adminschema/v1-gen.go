@@ -4,7 +4,7 @@
 //
 // Usage example:
 //
-//   import "github.com/coreos/dex/Godeps/_workspace/src/google.golang.org/api/adminschema/v1"
+//   import "google.golang.org/api/adminschema/v1"
 //   ...
 //   adminschemaService, err := adminschema.New(oauthHttpClient)
 package adminschema

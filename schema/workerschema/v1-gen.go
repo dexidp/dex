@@ -134,6 +134,15 @@ type UserCreateResponse struct {
 type UserCreateResponseUser struct {
 }
 
+type UserDisableRequest struct {
+	// Disable: If true, disable this user, if false, enable them
+	Disable bool `json:"disable,omitempty"`
+}
+
+type UserDisableResponse struct {
+	Ok bool `json:"ok,omitempty"`
+}
+
 type UserResponse struct {
 	User *User `json:"user,omitempty"`
 }
@@ -355,6 +364,89 @@ func (c *UsersCreateCall) Do() (*UserCreateResponse, error) {
 
 }
 
+// method id "dex.User.Disable":
+
+type UsersDisableCall struct {
+	s                  *Service
+	id                 string
+	userdisablerequest *UserDisableRequest
+	opt_               map[string]interface{}
+}
+
+// Disable: Enable or disable a user.
+func (r *UsersService) Disable(id string, userdisablerequest *UserDisableRequest) *UsersDisableCall {
+	c := &UsersDisableCall{s: r.s, opt_: make(map[string]interface{})}
+	c.id = id
+	c.userdisablerequest = userdisablerequest
+	return c
+}
+
+// Fields allows partial responses to be retrieved.
+// See https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *UsersDisableCall) Fields(s ...googleapi.Field) *UsersDisableCall {
+	c.opt_["fields"] = googleapi.CombineFields(s)
+	return c
+}
+
+func (c *UsersDisableCall) Do() (*UserDisableResponse, error) {
+	var body io.Reader = nil
+	body, err := googleapi.WithoutDataWrapper.JSONReader(c.userdisablerequest)
+	if err != nil {
+		return nil, err
+	}
+	ctype := "application/json"
+	params := make(url.Values)
+	params.Set("alt", "json")
+	if v, ok := c.opt_["fields"]; ok {
+		params.Set("fields", fmt.Sprintf("%v", v))
+	}
+	urls := googleapi.ResolveRelative(c.s.BasePath, "users/{id}/disable")
+	urls += "?" + params.Encode()
+	req, _ := http.NewRequest("POST", urls, body)
+	googleapi.Expand(req.URL, map[string]string{
+		"id": c.id,
+	})
+	req.Header.Set("Content-Type", ctype)
+	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	res, err := c.s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	var ret *UserDisableResponse
+	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Enable or disable a user.",
+	//   "httpMethod": "POST",
+	//   "id": "dex.User.Disable",
+	//   "parameterOrder": [
+	//     "id"
+	//   ],
+	//   "parameters": {
+	//     "id": {
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     }
+	//   },
+	//   "path": "users/{id}/disable",
+	//   "request": {
+	//     "$ref": "UserDisableRequest"
+	//   },
+	//   "response": {
+	//     "$ref": "UserDisableResponse"
+	//   }
+	// }
+
+}
+
 // method id "dex.User.Get":
 
 type UsersGetCall struct {
@@ -363,7 +455,7 @@ type UsersGetCall struct {
 	opt_ map[string]interface{}
 }
 
-// Get: Get a single use object.
+// Get: Get a single User object by id.
 func (r *UsersService) Get(id string) *UsersGetCall {
 	c := &UsersGetCall{s: r.s, opt_: make(map[string]interface{})}
 	c.id = id
@@ -406,7 +498,7 @@ func (c *UsersGetCall) Do() (*UserResponse, error) {
 	}
 	return ret, nil
 	// {
-	//   "description": "Get a single use object.",
+	//   "description": "Get a single User object by id.",
 	//   "httpMethod": "GET",
 	//   "id": "dex.User.Get",
 	//   "parameterOrder": [
