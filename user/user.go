@@ -41,6 +41,8 @@ type User struct {
 
 	Admin bool
 
+	Disabled bool
+
 	CreatedAt time.Time
 }
 

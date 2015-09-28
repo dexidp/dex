@@ -326,6 +326,10 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 		return "", err
 	}
 
+	if usr.Disabled {
+		return "", user.ErrorNotFound
+	}
+
 	ses, err = s.SessionManager.AttachUser(sessionID, usr.ID)
 	if err != nil {
 		return "", err
