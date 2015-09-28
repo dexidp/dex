@@ -244,7 +244,11 @@ func (s *Server) HTTPHandler() http.Handler {
 	mux.Handle(path.Join(apiBasePath, clientPath), s.NewClientTokenAuthHandler(clientHandler))
 
 	usersAPI := usersapi.NewUsersAPI(s.UserManager, s.ClientIdentityRepo, s.UserEmailer, s.localConnectorID)
-	mux.Handle(path.Join(apiBasePath, UsersSubTree), NewUserMgmtServer(usersAPI, s.JWTVerifierFactory(), s.UserManager, s.ClientIdentityRepo).HTTPHandler())
+	handler := NewUserMgmtServer(usersAPI, s.JWTVerifierFactory(), s.UserManager, s.ClientIdentityRepo).HTTPHandler()
+	path := path.Join(apiBasePath, UsersSubTree)
+
+	mux.Handle(path, handler)
+	mux.Handle(path+"/", handler)
 
 	return http.Handler(mux)
 }

@@ -97,8 +97,23 @@ func (r *userRepo) Create(tx repo.Transaction, usr user.User) (err error) {
 	}
 
 	err = r.insert(tx, usr)
+	return err
+}
+
+func (r *userRepo) Disable(tx repo.Transaction, userID string, disable bool) error {
+	if userID == "" {
+		return user.ErrorInvalidID
+	}
+
+	qt := pq.QuoteIdentifier(userTableName)
+	ex := r.executor(tx)
+	result, err := ex.Exec(fmt.Sprintf("UPDATE %s SET disabled = $2 WHERE id = $1", qt), userID, disable)
 	if err != nil {
 		return err
+	}
+
+	if ct, err := result.RowsAffected(); err == nil && ct == 0 {
+		return user.ErrorInvalidID
 	}
 
 	return nil

@@ -121,6 +121,21 @@ func (u *UsersAPI) GetUser(creds Creds, id string) (schema.User, error) {
 	return userToSchemaUser(usr), nil
 }
 
+func (u *UsersAPI) DisableUser(creds Creds, userID string, disable bool) (schema.UserDisableResponse, error) {
+	log.Infof("userAPI: DisableUser")
+	if !u.Authorize(creds) {
+		return schema.UserDisableResponse{}, ErrorUnauthorized
+	}
+
+	if err := u.manager.Disable(userID, disable); err != nil {
+		return schema.UserDisableResponse{}, mapError(err)
+	}
+
+	return schema.UserDisableResponse{
+		Ok: true,
+	}, nil
+}
+
 func (u *UsersAPI) CreateUser(creds Creds, usr schema.User, redirURL url.URL) (schema.UserCreateResponse, error) {
 	log.Infof("userAPI: CreateUser")
 	if !u.Authorize(creds) {
@@ -207,6 +222,7 @@ func userToSchemaUser(usr user.User) schema.User {
 		EmailVerified: usr.EmailVerified,
 		DisplayName:   usr.DisplayName,
 		Admin:         usr.Admin,
+		Disabled:      usr.Disabled,
 		CreatedAt:     usr.CreatedAt.UTC().Format(time.RFC3339),
 	}
 }
@@ -218,6 +234,7 @@ func schemaUserToUser(usr schema.User) user.User {
 		EmailVerified: usr.EmailVerified,
 		DisplayName:   usr.DisplayName,
 		Admin:         usr.Admin,
+		Disabled:      usr.Disabled,
 	}
 }
 

@@ -141,6 +141,7 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 
 	f.trans = &tokenHandlerTransport{
 		Handler: usrSrv.HTTPHandler(),
+		Token:   userGoodToken,
 	}
 	hc := &http.Client{
 		Transport: f.trans,
@@ -527,6 +528,48 @@ func TestCreateUser(t *testing.T) {
 			}
 
 		}()
+	}
+}
+
+func TestDisableUser(t *testing.T) {
+	tests := []struct {
+		id      string
+		disable bool
+	}{
+		{
+			id:      "ID-2",
+			disable: true,
+		},
+		{
+			id:      "ID-4",
+			disable: false,
+		},
+	}
+
+	for i, tt := range tests {
+		f := makeUserAPITestFixtures()
+
+		usr, err := f.client.Users.Get(tt.id).Do()
+		if err != nil {
+			t.Fatalf("case %v: unexpected error: %v", i, err)
+		}
+		if usr.User.Disabled == tt.disable {
+			t.Fatalf("case %v: misconfigured test, initial disabled state should be %v but was %v", i, !tt.disable, usr.User.Disabled)
+		}
+
+		_, err = f.client.Users.Disable(tt.id, &schema.UserDisableRequest{
+			Disable: tt.disable,
+		}).Do()
+		if err != nil {
+			t.Fatalf("case %v: unexpected error: %v", i, err)
+		}
+		usr, err = f.client.Users.Get(tt.id).Do()
+		if err != nil {
+			t.Fatalf("case %v: unexpected error: %v", i, err)
+		}
+		if usr.User.Disabled != tt.disable {
+			t.Errorf("case %v: user disabled state incorrect. wanted: %v found: %v", i, tt.disable, usr.User.Disabled)
+		}
 	}
 }
 

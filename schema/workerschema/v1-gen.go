@@ -108,6 +108,8 @@ type User struct {
 
 	CreatedAt string `json:"createdAt,omitempty"`
 
+	Disabled bool `json:"disabled,omitempty"`
+
 	DisplayName string `json:"displayName,omitempty"`
 
 	Email string `json:"email,omitempty"`

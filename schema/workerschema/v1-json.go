@@ -108,6 +108,9 @@ const DiscoveryJSON = `{
         "admin": {
           "type": "boolean"
         },
+        "disabled": {
+          "type": "boolean"
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time"

@@ -102,6 +102,22 @@ func (m *Manager) CreateUser(user User, hashedPassword Password, connID string) 
 	return user.ID, nil
 }
 
+func (m *Manager) Disable(userID string, disabled bool) error {
+	tx, err := m.begin()
+
+	if err = m.userRepo.Disable(tx, userID, disabled); err != nil {
+		rollback(tx)
+		return err
+	}
+
+	if err = tx.Commit(); err != nil {
+		rollback(tx)
+		return err
+	}
+
+	return nil
+}
+
 // RegisterWithRemoteIdentity creates new user and attaches the given remote identity.
 func (m *Manager) RegisterWithRemoteIdentity(email string, emailVerified bool, rid RemoteIdentity) (string, error) {
 	tx, err := m.begin()
