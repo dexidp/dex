@@ -112,8 +112,12 @@ func (r *userRepo) Disable(tx repo.Transaction, userID string, disable bool) err
 		return err
 	}
 
-	if ct, err := result.RowsAffected(); err == nil && ct == 0 {
-		return user.ErrorInvalidID
+	ct, err := result.RowsAffected()
+	switch {
+	case err != nil:
+		return err
+	case ct == 0:
+		return user.ErrorNotFound
 	}
 
 	return nil

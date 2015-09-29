@@ -257,6 +257,9 @@ func (r *memUserRepo) Update(_ repo.Transaction, user User) error {
 }
 
 func (r *memUserRepo) Disable(_ repo.Transaction, id string, disable bool) error {
+	if id == "" {
+		return ErrorInvalidID
+	}
 	user, ok := r.usersByID[id]
 	if !ok {
 		return ErrorNotFound
