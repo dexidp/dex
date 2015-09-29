@@ -94,6 +94,13 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 				Email:     "id3@example.com",
 				CreatedAt: clock.Now(),
 			},
+		}, {
+			User: user.User{
+				ID:        "ID-4",
+				Email:     "id4@example.com",
+				CreatedAt: clock.Now(),
+				Disabled:  true,
+			},
 		},
 	})
 	pwr := user.NewPasswordInfoRepoFromPasswordInfos([]user.PasswordInfo{
@@ -366,6 +373,47 @@ func TestCreateUser(t *testing.T) {
 		if diff := pretty.Compare(wantEmalier, emailer); diff != "" {
 			t.Errorf("case %d: Compare(want, got) = %v", i,
 				diff)
+		}
+	}
+}
+
+func TestDisableUsers(t *testing.T) {
+	tests := []struct {
+		id      string
+		disable bool
+	}{
+		{
+			id:      "ID-1",
+			disable: true,
+		},
+		{
+			id:      "ID-1",
+			disable: false,
+		},
+		{
+			id:      "ID-4",
+			disable: true,
+		},
+		{
+			id:      "ID-4",
+			disable: false,
+		},
+	}
+
+	for i, tt := range tests {
+		api, _ := makeTestFixtures()
+		_, err := api.DisableUser(goodCreds, tt.id, tt.disable)
+		if err != nil {
+			t.Fatalf("case %d: unexpected error: %v", i, err)
+		}
+
+		usr, err := api.GetUser(goodCreds, tt.id)
+		if err != nil {
+			t.Fatalf("case %d: unexpected error: %v", i, err)
+		}
+
+		if usr.Disabled != tt.disable {
+			t.Errorf("case %d: user disable state wrong. wanted: %v got: %v", i, tt.disable, usr.Disabled)
 		}
 	}
 }

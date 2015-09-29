@@ -80,6 +80,8 @@ type UserRepo interface {
 
 	GetByEmail(tx repo.Transaction, email string) (User, error)
 
+	Disable(tx repo.Transaction, id string, disabled bool) error
+
 	Update(repo.Transaction, User) error
 
 	GetByRemoteIdentity(repo.Transaction, RemoteIdentity) (User, error)
@@ -250,6 +252,19 @@ func (r *memUserRepo) Update(_ repo.Transaction, user User) error {
 		return ErrorDuplicateEmail
 	}
 
+	r.set(user)
+	return nil
+}
+
+func (r *memUserRepo) Disable(_ repo.Transaction, id string, disable bool) error {
+	if id == "" {
+		return ErrorInvalidID
+	}
+	user, ok := r.usersByID[id]
+	if !ok {
+		return ErrorNotFound
+	}
+	user.Disabled = disable
 	r.set(user)
 	return nil
 }

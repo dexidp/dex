@@ -102,6 +102,9 @@
         "admin": {
           "type": "boolean"
         },
+        "disabled": {
+          "type": "boolean"
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time"
@@ -157,6 +160,25 @@
           "type": "string"
         },
         "emailSent": {
+          "type": "boolean"
+        }
+      }
+    },
+    "UserDisableRequest": {
+      "id": "UserDisableRequest",
+      "type": "object",
+      "properties": {
+        "disable": {
+          "type": "boolean",
+          "description": "If true, disable this user, if false, enable them. No error is signaled if the user state doesn't change."
+        }
+      }
+    },
+    "UserDisableResponse": {
+      "id": "UserDisableResponse",
+      "type": "object",
+      "properties": {
+        "ok": {
           "type": "boolean"
         }
       }
@@ -217,7 +239,7 @@
         },
         "Get": {
           "id": "dex.User.Get",
-          "description": "Get a single use object.",
+          "description": "Get a single User object by id.",
           "httpMethod": "GET",
           "path": "users/{id}",
           "parameters": {
@@ -244,6 +266,28 @@
           },
           "response": {
             "$ref": "UserCreateResponse"
+          }
+        },
+        "Disable": {
+          "id": "dex.User.Disable",
+          "description": "Enable or disable a user.",
+          "httpMethod": "POST",
+          "path": "users/{id}/disable",
+          "parameters": {
+            "id": {
+              "type": "string",
+              "required": true,
+              "location": "path"
+            }
+          },
+          "parameterOrder": [
+            "id"
+          ],
+          "request": {
+            "$ref": "UserDisableRequest"
+          },
+          "response": {
+            "$ref": "UserDisableResponse"
           }
         }
       }

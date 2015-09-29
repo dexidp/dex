@@ -35,6 +35,7 @@ var (
 				ID:        "ID-2",
 				Email:     "Email-2@example.com",
 				CreatedAt: time.Now(),
+				Disabled:  true,
 			},
 			RemoteIdentities: []user.RemoteIdentity{
 				{
@@ -227,6 +228,61 @@ func TestUpdateUser(t *testing.T) {
 			if diff := pretty.Compare(tt.user, gotUser); diff != "" {
 				t.Errorf("case %d: Compare(want, got) = %v", i,
 					diff)
+			}
+		}
+	}
+}
+
+func TestDisableUser(t *testing.T) {
+	tests := []struct {
+		id      string
+		disable bool
+		err     error
+	}{
+		{
+			id: "ID-1",
+		},
+		{
+			id:      "ID-1",
+			disable: true,
+		},
+		{
+			id: "ID-2",
+		},
+		{
+			id:      "ID-2",
+			disable: true,
+		},
+		{
+			id:  "NO SUCH ID",
+			err: user.ErrorNotFound,
+		},
+		{
+			id:      "NO SUCH ID",
+			err:     user.ErrorNotFound,
+			disable: true,
+		},
+		{
+			id:  "",
+			err: user.ErrorInvalidID,
+		},
+	}
+
+	for i, tt := range tests {
+		repo := makeTestUserRepo()
+		err := repo.Disable(nil, tt.id, tt.disable)
+		switch {
+		case err != tt.err:
+			t.Errorf("case %d: want=%q, got=%q", i, tt.err, err)
+		case tt.err == nil:
+			gotUser, err := repo.Get(nil, tt.id)
+			if err != nil {
+				t.Fatalf("case %d: want nil err, got %q", i, err)
+			}
+
+			if gotUser.Disabled != tt.disable {
+				t.Errorf("case %d: disabled status want=%v got=%v",
+					i, tt.disable, gotUser.Disabled)
 			}
 		}
 	}
