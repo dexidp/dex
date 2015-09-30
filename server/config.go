@@ -25,14 +25,15 @@ import (
 )
 
 type ServerConfig struct {
-	IssuerURL         string
-	IssuerName        string
-	IssuerLogoURL     string
-	TemplateDir       string
-	EmailTemplateDirs []string
-	EmailFromAddress  string
-	EmailerConfigFile string
-	StateConfig       StateConfigurer
+	IssuerURL          string
+	IssuerName         string
+	IssuerLogoURL      string
+	TemplateDir        string
+	EmailTemplateDirs  []string
+	EmailFromAddress   string
+	EmailerConfigFile  string
+	StateConfig        StateConfigurer
+	EnableRegistration bool
 }
 
 type StateConfigurer interface {
@@ -56,7 +57,7 @@ func (cfg *ServerConfig) Server() (*Server, error) {
 		return nil, err
 	}
 
-	tpl, err := getTemplates(cfg.IssuerName, cfg.IssuerLogoURL, cfg.TemplateDir)
+	tpl, err := getTemplates(cfg.IssuerName, cfg.IssuerLogoURL, cfg.EnableRegistration, cfg.TemplateDir)
 	if err != nil {
 		return nil, err
 	}
@@ -69,6 +70,8 @@ func (cfg *ServerConfig) Server() (*Server, error) {
 
 		HealthChecks: []health.Checkable{km},
 		Connectors:   []connector.Connector{},
+
+		EnableRegistration: cfg.EnableRegistration,
 	}
 
 	err = cfg.StateConfig.Configure(&srv)
@@ -183,13 +186,17 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 	return nil
 }
 
-func getTemplates(issuerName, issuerLogoURL string, dir string) (*template.Template, error) {
+func getTemplates(issuerName,
+	issuerLogoURL string, enableRegister bool, dir string) (*template.Template, error) {
 	tpl := template.New("").Funcs(map[string]interface{}{
 		"issuerName": func() string {
 			return issuerName
 		},
 		"issuerLogoURL": func() string {
 			return issuerLogoURL
+		},
+		"enableRegister": func() bool {
+			return enableRegister
 		},
 	})
 

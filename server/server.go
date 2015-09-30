@@ -72,6 +72,7 @@ type Server struct {
 	PasswordInfoRepo               user.PasswordInfoRepo
 	RefreshTokenRepo               refresh.RefreshTokenRepo
 	UserEmailer                    *useremail.UserEmailer
+	EnableRegistration             bool
 
 	localConnectorID string
 }
@@ -198,11 +199,15 @@ func (s *Server) HTTPHandler() http.Handler {
 	clock := clockwork.NewRealClock()
 	mux := http.NewServeMux()
 	mux.HandleFunc(httpPathDiscovery, handleDiscoveryFunc(s.ProviderConfig()))
-	mux.HandleFunc(httpPathAuth, handleAuthFunc(s, s.Connectors, s.LoginTemplate))
+	mux.HandleFunc(httpPathAuth, handleAuthFunc(s, s.Connectors, s.LoginTemplate, s.EnableRegistration))
 	mux.HandleFunc(httpPathToken, handleTokenFunc(s))
 	mux.HandleFunc(httpPathKeys, handleKeysFunc(s.KeyManager, clock))
 	mux.Handle(httpPathHealth, makeHealthHandler(checks))
-	mux.HandleFunc(httpPathRegister, handleRegisterFunc(s))
+
+	if s.EnableRegistration {
+		mux.HandleFunc(httpPathRegister, handleRegisterFunc(s))
+	}
+
 	mux.HandleFunc(httpPathEmailVerify, handleEmailVerifyFunc(s.VerifyEmailTemplate,
 		s.IssuerURL, s.KeyManager.PublicKeys, s.UserManager))
 

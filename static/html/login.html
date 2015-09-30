@@ -68,9 +68,11 @@
 {{ if not .Error }}
   <div class="footer subtle-text">
     {{ if .Register }}
-      Already have an account? <a href="{{ .RegisterOrLoginURL }}">Log in</a>
+        Already have an account? <a href="{{ .RegisterOrLoginURL }}">Log in</a>
     {{ else }}
-      Don't have an account yet? <a href="{{ .RegisterOrLoginURL }}">Register</a>
+      {{ if enableRegister }}
+        Don't have an account yet? <a href="{{ .RegisterOrLoginURL }}">Register</a>
+      {{ end }}
     {{ end }}
   </div>
 {{ end }}
