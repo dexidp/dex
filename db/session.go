@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"reflect"
 	"strings"
 	"time"
 
@@ -137,8 +138,13 @@ func (r *SessionRepo) Get(sessionID string) (*session.Session, error) {
 		return nil, err
 	}
 
+	if m == nil {
+		return nil, errors.New("session does not exist")
+	}
+
 	sm, ok := m.(*sessionModel)
 	if !ok {
+		log.Errorf("expected sessionModel but found %v", reflect.TypeOf(m))
 		return nil, errors.New("unrecognized model")
 	}
 

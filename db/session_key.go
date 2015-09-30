@@ -3,6 +3,7 @@ package db
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/go-gorp/gorp"
@@ -62,8 +63,13 @@ func (r *SessionKeyRepo) Pop(key string) (string, error) {
 		return "", err
 	}
 
+	if m == nil {
+		return "", errors.New("session key does not exist")
+	}
+
 	skm, ok := m.(*sessionKeyModel)
 	if !ok {
+		log.Errorf("expected sessionKeyModel but found %v", reflect.TypeOf(m))
 		return "", errors.New("unrecognized model")
 	}
 
