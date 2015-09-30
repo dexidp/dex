@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"reflect"
 
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/go-gorp/gorp"
@@ -163,6 +164,7 @@ func (r *clientIdentityRepo) Metadata(clientID string) (*oidc.ClientMetadata, er
 
 	cim, ok := m.(*clientIdentityModel)
 	if !ok {
+		log.Errorf("expected clientIdentityModel but found %v", reflect.TypeOf(m))
 		return nil, errors.New("unrecognized model")
 	}
 
@@ -182,6 +184,7 @@ func (r *clientIdentityRepo) IsDexAdmin(clientID string) (bool, error) {
 
 	cim, ok := m.(*clientIdentityModel)
 	if !ok {
+		log.Errorf("expected clientIdentityModel but found %v", reflect.TypeOf(m))
 		return false, errors.New("unrecognized model")
 	}
 
@@ -203,6 +206,7 @@ func (r *clientIdentityRepo) SetDexAdmin(clientID string, isAdmin bool) error {
 	cim, ok := m.(*clientIdentityModel)
 	if !ok {
 		rollback(tx)
+		log.Errorf("expected clientIdentityModel but found %v", reflect.TypeOf(m))
 		return errors.New("unrecognized model")
 	}
 
@@ -230,6 +234,7 @@ func (r *clientIdentityRepo) Authenticate(creds oidc.ClientCredentials) (bool, e
 
 	cim, ok := m.(*clientIdentityModel)
 	if !ok {
+		log.Errorf("expected clientIdentityModel but found %v", reflect.TypeOf(m))
 		return false, errors.New("unrecognized model")
 	}
 

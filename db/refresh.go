@@ -4,9 +4,11 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
+	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/refresh"
 	"github.com/go-gorp/gorp"
 	"golang.org/x/crypto/bcrypt"
@@ -185,6 +187,7 @@ func (r *refreshTokenRepo) get(tx *gorp.Transaction, tokenID int64) (*refreshTok
 
 	record, ok := result.(*refreshTokenModel)
 	if !ok {
+		log.Errorf("expected refreshTokenModel but found %v", reflect.TypeOf(result))
 		return nil, errors.New("unrecognized model")
 	}
 	return record, nil

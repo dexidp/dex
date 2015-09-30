@@ -4,11 +4,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/go-gorp/gorp"
 	"github.com/lib/pq"
 
+	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/repo"
 	"github.com/coreos/dex/user"
 )
@@ -257,6 +259,7 @@ func (r *userRepo) GetRemoteIdentities(tx repo.Transaction, userID string) ([]us
 	for _, m := range rims {
 		rim, ok := m.(*remoteIdentityMappingModel)
 		if !ok {
+			log.Errorf("expected remoteIdentityMappingModel but found %v", reflect.TypeOf(m))
 			return nil, errors.New("unrecognized model")
 		}
 
@@ -313,6 +316,7 @@ func (r *userRepo) List(tx repo.Transaction, filter user.UserFilter, maxResults 
 	for i := 0; i < numUsers; i++ {
 		um, ok := ums[i].(*userModel)
 		if !ok {
+			log.Errorf("expected userModel but found %v", reflect.TypeOf(ums[i]))
 			return nil, "", errors.New("unrecognized model")
 		}
 		usr, err := um.user()
@@ -379,6 +383,7 @@ func (r *userRepo) get(tx repo.Transaction, userID string) (user.User, error) {
 
 	um, ok := m.(*userModel)
 	if !ok {
+		log.Errorf("expected userModel but found %v", reflect.TypeOf(m))
 		return user.User{}, errors.New("unrecognized model")
 	}
 
@@ -399,6 +404,7 @@ func (r *userRepo) getUserIDForRemoteIdentity(tx repo.Transaction, ri user.Remot
 
 	rim, ok := m.(*remoteIdentityMappingModel)
 	if !ok {
+		log.Errorf("expected remoteIdentityMappingModel but found %v", reflect.TypeOf(m))
 		return "", errors.New("unrecognized model")
 	}
 

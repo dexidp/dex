@@ -2,8 +2,10 @@ package db
 
 import (
 	"errors"
+	"reflect"
 	"time"
 
+	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/repo"
 	"github.com/coreos/dex/user"
 	"github.com/go-gorp/gorp"
@@ -113,6 +115,7 @@ func (r *passwordInfoRepo) get(tx repo.Transaction, id string) (user.PasswordInf
 
 	pwm, ok := m.(*passwordInfoModel)
 	if !ok {
+		log.Errorf("expected passwordInfoModel but found %v", reflect.TypeOf(m))
 		return user.PasswordInfo{}, errors.New("unrecognized model")
 	}
 
