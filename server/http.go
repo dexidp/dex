@@ -254,7 +254,7 @@ func renderLoginPage(w http.ResponseWriter, r *http.Request, srv OIDCServer, idp
 	execTemplate(w, tpl, td)
 }
 
-func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.Template) http.HandlerFunc {
+func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.Template, registrationEnabled bool) http.HandlerFunc {
 	idx := makeConnectorMap(idpcs)
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
@@ -264,7 +264,7 @@ func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.T
 		}
 
 		q := r.URL.Query()
-		register := q.Get("register") == "1"
+		register := q.Get("register") == "1" && registrationEnabled
 		e := q.Get("error")
 		if e != "" {
 			sessionKey := q.Get("state")
