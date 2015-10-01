@@ -44,7 +44,7 @@ func main() {
 	emailFrom := fs.String("email-from", "no-reply@coreos.com", "emails sent from dex will come from this address")
 	emailConfig := fs.String("email-cfg", "./static/fixtures/emailer.json", "configures emailer.")
 
-	enableRegistration := fs.Bool("enable-registration", true, "Allows users to self-register")
+	enableRegistration := fs.Bool("enable-registration", false, "Allows users to self-register")
 
 	noDB := fs.Bool("no-db", false, "manage entities in-process w/o any encryption, used only for single-node testing")
 

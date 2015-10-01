@@ -186,8 +186,8 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 	return nil
 }
 
-func getTemplates(issuerName,
-	issuerLogoURL string, enableRegister bool, dir string) (*template.Template, error) {
+func getTemplates(issuerName, issuerLogoURL string,
+	enableRegister bool, dir string) (*template.Template, error) {
 	tpl := template.New("").Funcs(map[string]interface{}{
 		"issuerName": func() string {
 			return issuerName
