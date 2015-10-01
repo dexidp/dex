@@ -45,17 +45,24 @@ dex needs a 32 byte base64-encoded key which will be used to encrypt the private
 
 The dex overlord and workers allow multiple key secrets (separated by commas) to be passed but only the first will be used to encrypt data; the rest are there for decryption only; this scheme allows for the rotation of keys without downtime (assuming a rolling restart of workers).
 
+# Generate an Admin API Secret
+
+The dex overlord has a an API which is very powerful - you can create Admin users with it, so it needs to be protected somehow. This is accomplished by requiring that a secret is passed via the Authorization header of each request. This secret is 128 bytes base64 encoded, and should be sufficiently random so as to make guessing impractical:
+
+`DEX_OVERLORD_ADMIN_API_SECRET=$(dd if=/dev/random bs=1 count=128 2>/dev/null | base64)`
+
 # Start the overlord
 
 The overlord is responsible for creating and rotating keys and some other adminsitrative tasks. In addition, the overlord is responsible for creating the necessary database tables (and when you update, performing schema migrations), so it must be started before we do anything else. Debug logging is turned on so we can see more of what's going on. Start it up.
 
-`./bin/dex-overlord --db-url=$DEX_DB_URL --key-secrets=$DEX_KEY_SECRET --log-debug=true &`
+`./bin/dex-overlord --admin-api-secret=$DEX_OVERLORD_ADMIN_API_SECRET --db-url=$DEX_DB_URL --key-secrets=$DEX_KEY_SECRET --log-debug=true &`
 
 ## Environment Variables.
 
 Note that parameters can be passed as flags or environment variables to dex components; an equivalent start with environment variables would be:
 
 ```
+export DEX_OVERLORD_ADMIN_API_SECRET=$DEX_OVERLORD_ADMIN_API_SECRET
 export DEX_OVERLORD_DB_URL=$DEX_DB_URL
 export DEX_OVERLORD_KEY_SECRETS=$DEX_KEY_SECRET
 export DEX_OVERLORD_LOG_DEBUG=true

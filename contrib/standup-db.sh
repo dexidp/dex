@@ -31,6 +31,7 @@ DEX_KEY_SECRET=$(dd if=/dev/random bs=1 count=32 2>/dev/null | base64)
 export DEX_OVERLORD_DB_URL=$DEX_DB_URL
 export DEX_OVERLORD_KEY_SECRETS=$DEX_KEY_SECRET
 export DEX_OVERLORD_KEY_PERIOD=1h
+export DEX_OVERLORD_ADMIN_API_SECRET=$(dd if=/dev/random bs=1 count=128 2>/dev/null | base64)
 ./bin/dex-overlord &
 echo "Waiting for overlord to start..."
 until $(curl --output /dev/null --silent --fail http://localhost:5557/health); do
@@ -79,5 +80,5 @@ done
 ./bin/example-app --client-id=$DEX_APP_CLIENT_ID --client-secret=$DEX_APP_CLIENT_SECRET --discovery=http://127.0.0.1:5556 &
 
 # Create Admin User - the password is a hash of the word "password"
-curl -X POST --data '{"email":"admin@example.com","password":"$2a$04$J54iz31fhYfXIRVglUMmpufY6TKf/vvwc9pv8zWog7X/LFrFfkNQe" }' http://127.0.0.1:5557/api/v1/admin
+curl -X POST --data '{"email":"admin@example.com","password":"$2a$04$J54iz31fhYfXIRVglUMmpufY6TKf/vvwc9pv8zWog7X/LFrFfkNQe" }' --header "Authorization: $DEX_OVERLORD_ADMIN_API_SECRET" http://127.0.0.1:5557/api/v1/admin
 
