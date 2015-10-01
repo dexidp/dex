@@ -14,6 +14,10 @@ import (
 	"github.com/coreos/dex/user"
 )
 
+const (
+	adminAPITestSecret = "admin_secret"
+)
+
 type adminAPITestFixtures struct {
 	ur       user.UserRepo
 	pwr      user.PasswordInfoRepo
@@ -58,6 +62,15 @@ var (
 	}
 )
 
+type adminAPITransport struct {
+	secret string
+}
+
+func (a *adminAPITransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	r.Header.Set("Authorization", a.secret)
+	return http.DefaultTransport.RoundTrip(r)
+}
+
 func makeAdminAPITestFixtures() *adminAPITestFixtures {
 	f := &adminAPITestFixtures{}
 
@@ -65,9 +78,13 @@ func makeAdminAPITestFixtures() *adminAPITestFixtures {
 	f.ur = ur
 	f.pwr = pwr
 	f.adAPI = admin.NewAdminAPI(um, f.ur, f.pwr, "local")
-	f.adSrv = server.NewAdminServer(f.adAPI, nil)
+	f.adSrv = server.NewAdminServer(f.adAPI, nil, adminAPITestSecret)
 	f.hSrv = httptest.NewServer(f.adSrv.HTTPHandler())
-	f.hc = &http.Client{}
+	f.hc = &http.Client{
+		Transport: &adminAPITransport{
+			secret: adminAPITestSecret,
+		},
+	}
 	f.adClient, _ = adminschema.NewWithBasePath(f.hc, f.hSrv.URL)
 
 	return f
@@ -129,6 +146,7 @@ func TestCreateAdmin(t *testing.T) {
 	tests := []struct {
 		admn    *adminschema.Admin
 		errCode int
+		secret  string
 	}{
 		{
 			admn: &adminschema.Admin{
@@ -136,6 +154,14 @@ func TestCreateAdmin(t *testing.T) {
 				Password: "foopass",
 			},
 			errCode: -1,
+		},
+		{
+			admn: &adminschema.Admin{
+				Email:    "foo@example.com",
+				Password: "foopass",
+			},
+			errCode: http.StatusUnauthorized,
+			secret:  "bad_secret",
 		},
 		{
 			// duplicate Email
@@ -156,6 +182,11 @@ func TestCreateAdmin(t *testing.T) {
 	for i, tt := range tests {
 		func() {
 			f := makeAdminAPITestFixtures()
+			if tt.secret != "" {
+				f.hc.Transport = &adminAPITransport{
+					secret: tt.secret,
+				}
+			}
 			defer f.close()
 
 			admn, err := f.adClient.Admin.Create(tt.admn).Do()

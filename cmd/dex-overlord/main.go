@@ -41,6 +41,9 @@ func main() {
 
 	adminListen := fs.String("admin-listen", "http://127.0.0.1:5557", "scheme, host and port for listening for administrative operation requests ")
 
+	adminAPISecret := pflag.NewBase64(server.AdminAPISecretLength)
+	fs.Var(adminAPISecret, "admin-api-secret", fmt.Sprintf("A base64-encoded %d byte string which is used to protect the Admin API.", server.AdminAPISecretLength))
+
 	localConnectorID := fs.String("local-connector", "local", "ID of the local connector")
 	logDebug := fs.Bool("log-debug", false, "log debug-level information")
 	logTimestamps := fs.Bool("log-timestamps", false, "prefix log lines with timestamps")
@@ -124,7 +127,7 @@ func main() {
 	}
 
 	krot := key.NewPrivateKeyRotator(kRepo, *keyPeriod)
-	s := server.NewAdminServer(adminAPI, krot)
+	s := server.NewAdminServer(adminAPI, krot, adminAPISecret.String())
 	h := s.HTTPHandler()
 	httpsrv := &http.Server{
 		Addr:    adminURL.Host,

@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	AdminAPIVersion = "v1"
+	AdminAPIVersion      = "v1"
+	AdminAPISecretLength = 128
 )
 
 var (
@@ -28,9 +29,10 @@ var (
 type AdminServer struct {
 	adminAPI *admin.AdminAPI
 	checker  health.Checker
+	secret   string
 }
 
-func NewAdminServer(adminAPI *admin.AdminAPI, rotator *key.PrivateKeyRotator) *AdminServer {
+func NewAdminServer(adminAPI *admin.AdminAPI, rotator *key.PrivateKeyRotator, secret string) *AdminServer {
 	return &AdminServer{
 		adminAPI: adminAPI,
 		checker: health.Checker{
@@ -38,6 +40,7 @@ func NewAdminServer(adminAPI *admin.AdminAPI, rotator *key.PrivateKeyRotator) *A
 				rotator,
 			},
 		},
+		secret: secret,
 	}
 }
 
@@ -48,7 +51,25 @@ func (s *AdminServer) HTTPHandler() http.Handler {
 	r.GET(AdminGetStateEndpoint, s.getState)
 	r.Handler("GET", httpPathHealth, s.checker)
 	r.HandlerFunc("GET", httpPathDebugVars, health.ExpvarHandler)
-	return r
+
+	return authorizer(r, s.secret, httpPathHealth, httpPathDebugVars)
+}
+
+func authorizer(h http.Handler, secret string, public ...string) http.Handler {
+	publicSet := map[string]struct{}{}
+	for _, p := range public {
+		publicSet[p] = struct{}{}
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, isPublicPath := publicSet[r.URL.Path]
+
+		if !isPublicPath && r.Header.Get("Authorization") != secret {
+			writeAPIError(w, http.StatusUnauthorized, newAPIError(errorAccessDenied, ""))
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 func (s *AdminServer) getAdmin(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
