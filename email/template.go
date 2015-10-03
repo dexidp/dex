@@ -24,6 +24,9 @@ func NewTemplatizedEmailerFromGlobs(textGlob, htmlGlob string, emailer Emailer) 
 
 // NewTemplatizedEmailerFromTemplates creates a new TemplatizedEmailer, given root text and html templates.
 func NewTemplatizedEmailerFromTemplates(textTemplates *template.Template, htmlTemplates *htmltemplate.Template, emailer Emailer) *TemplatizedEmailer {
+	if emailer == nil {
+		return nil
+	}
 	return &TemplatizedEmailer{
 		emailer:       emailer,
 		textTemplates: textTemplates,
