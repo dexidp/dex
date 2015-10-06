@@ -418,7 +418,7 @@ func handleTokenFunc(srv OIDCServer) http.HandlerFunc {
 
 		state := r.PostForm.Get("state")
 
-		user, password, ok := phttp.BasicAuth(r)
+		user, password, ok := r.BasicAuth()
 		if !ok {
 			log.Errorf("error parsing basic auth")
 			writeTokenError(w, oauth2.NewError(oauth2.ErrorInvalidClient), state)
