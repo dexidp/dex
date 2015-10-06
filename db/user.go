@@ -103,13 +103,22 @@ func (r *userRepo) Create(tx repo.Transaction, usr user.User) (err error) {
 }
 
 func (r *userRepo) Disable(tx repo.Transaction, userID string, disable bool) error {
+	return r.setUserField("disabled", tx, userID, disable)
+}
+
+func (r *userRepo) SetAdmin(tx repo.Transaction, userID string, setAdmin bool) error {
+	return r.setUserField("admin", tx, userID, setAdmin)
+}
+
+func (r *userRepo) setUserField(fieldName string, tx repo.Transaction, userID string, fieldValue interface{}) error {
 	if userID == "" {
 		return user.ErrorInvalidID
 	}
 
-	qt := pq.QuoteIdentifier(userTableName)
+	table := pq.QuoteIdentifier(userTableName)
+	field := pq.QuoteIdentifier(fieldName)
 	ex := r.executor(tx)
-	result, err := ex.Exec(fmt.Sprintf("UPDATE %s SET disabled = $2 WHERE id = $1", qt), userID, disable)
+	result, err := ex.Exec(fmt.Sprintf("UPDATE %s SET %s = $2 WHERE id = $1", table, field), userID, fieldValue)
 	if err != nil {
 		return err
 	}

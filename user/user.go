@@ -82,6 +82,8 @@ type UserRepo interface {
 
 	Disable(tx repo.Transaction, id string, disabled bool) error
 
+	SetAdmin(tx repo.Transaction, id string, admin bool) error
+
 	Update(repo.Transaction, User) error
 
 	GetByRemoteIdentity(repo.Transaction, RemoteIdentity) (User, error)
@@ -265,6 +267,19 @@ func (r *memUserRepo) Disable(_ repo.Transaction, id string, disable bool) error
 		return ErrorNotFound
 	}
 	user.Disabled = disable
+	r.set(user)
+	return nil
+}
+
+func (r *memUserRepo) SetAdmin(_ repo.Transaction, id string, admin bool) error {
+	if id == "" {
+		return ErrorInvalidID
+	}
+	user, ok := r.usersByID[id]
+	if !ok {
+		return ErrorNotFound
+	}
+	user.Admin = admin
 	r.set(user)
 	return nil
 }
