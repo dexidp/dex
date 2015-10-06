@@ -23,11 +23,12 @@ const (
 )
 
 var (
-	UsersSubTree         = "/users"
-	UsersListEndpoint    = addBasePath(UsersSubTree)
-	UsersCreateEndpoint  = addBasePath(UsersSubTree)
-	UsersGetEndpoint     = addBasePath(UsersSubTree + "/:id")
-	UsersDisableEndpoint = addBasePath(UsersSubTree + "/:id/disable")
+	UsersSubTree          = "/users"
+	UsersListEndpoint     = addBasePath(UsersSubTree)
+	UsersCreateEndpoint   = addBasePath(UsersSubTree)
+	UsersGetEndpoint      = addBasePath(UsersSubTree + "/:id")
+	UsersDisableEndpoint  = addBasePath(UsersSubTree + "/:id/disable")
+	UsersSetAdminEndpoint = addBasePath(UsersSubTree + "/:id/admin")
 )
 
 type UserMgmtServer struct {
@@ -53,6 +54,7 @@ func (s *UserMgmtServer) HTTPHandler() http.Handler {
 	r.GET(UsersListEndpoint, s.listUsers)
 	r.POST(UsersCreateEndpoint, s.createUser)
 	r.POST(UsersDisableEndpoint, s.disableUser)
+	r.POST(UsersSetAdminEndpoint, s.setAdmin)
 	r.GET(UsersGetEndpoint, s.getUser)
 	return r
 }
@@ -163,6 +165,35 @@ func (s *UserMgmtServer) disableUser(w http.ResponseWriter, r *http.Request, ps 
 	}
 
 	resp, err := s.api.DisableUser(creds, id, disableReq.Disable)
+	if err != nil {
+		s.writeError(w, err)
+		return
+	}
+
+	writeResponseWithBody(w, http.StatusOK, resp)
+}
+
+func (s *UserMgmtServer) setAdmin(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	creds, err := s.getCreds(r)
+	if err != nil {
+		s.writeError(w, err)
+		return
+	}
+
+	id := ps.ByName("id")
+	if id == "" {
+		writeAPIError(w, http.StatusBadRequest,
+			newAPIError(errorInvalidRequest, "id is required"))
+		return
+	}
+
+	setAdminRequest := schema.UserSetAdminRequest{}
+	err = json.NewDecoder(r.Body).Decode(&setAdminRequest)
+	if err != nil {
+		writeInvalidRequest(w, "cannot parse JSON body")
+	}
+
+	resp, err := s.api.SetAdmin(creds, id, setAdminRequest.Admin)
 	if err != nil {
 		s.writeError(w, err)
 		return

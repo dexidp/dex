@@ -118,6 +118,22 @@ func (m *Manager) Disable(userID string, disabled bool) error {
 	return nil
 }
 
+func (m *Manager) SetAdmin(userID string, setAdmin bool) error {
+	tx, err := m.begin()
+
+	if err = m.userRepo.SetAdmin(tx, userID, setAdmin); err != nil {
+		rollback(tx)
+		return err
+	}
+
+	if err = tx.Commit(); err != nil {
+		rollback(tx)
+		return err
+	}
+
+	return nil
+}
+
 // RegisterWithRemoteIdentity creates new user and attaches the given remote identity.
 func (m *Manager) RegisterWithRemoteIdentity(email string, emailVerified bool, rid RemoteIdentity) (string, error) {
 	tx, err := m.begin()

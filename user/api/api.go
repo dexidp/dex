@@ -136,6 +136,21 @@ func (u *UsersAPI) DisableUser(creds Creds, userID string, disable bool) (schema
 	}, nil
 }
 
+func (u *UsersAPI) SetAdmin(creds Creds, userID string, setAdmin bool) (schema.UserSetAdminResponse, error) {
+	log.Infof("userAPI: SetAdmin")
+	if !u.Authorize(creds) {
+		return schema.UserSetAdminResponse{}, ErrorUnauthorized
+	}
+
+	if err := u.manager.SetAdmin(userID, setAdmin); err != nil {
+		return schema.UserSetAdminResponse{}, mapError(err)
+	}
+
+	return schema.UserSetAdminResponse{
+		Ok: true,
+	}, nil
+}
+
 func (u *UsersAPI) CreateUser(creds Creds, usr schema.User, redirURL url.URL) (schema.UserCreateResponse, error) {
 	log.Infof("userAPI: CreateUser")
 	if !u.Authorize(creds) {
