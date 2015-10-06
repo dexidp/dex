@@ -573,6 +573,48 @@ func TestDisableUser(t *testing.T) {
 	}
 }
 
+func TestSetAdminUser(t *testing.T) {
+	tests := []struct {
+		id    string
+		admin bool
+	}{
+		{
+			id:    "ID-2",
+			admin: true,
+		},
+		{
+			id:    "ID-4",
+			admin: false,
+		},
+	}
+
+	for i, tt := range tests {
+		f := makeUserAPITestFixtures()
+
+		usr, err := f.client.Users.Get(tt.id).Do()
+		if err != nil {
+			t.Fatalf("case %v: unexpected error: %v", i, err)
+		}
+		if usr.User.Admin == tt.admin {
+			t.Fatalf("case %v: misconfigured test, initial admin state should be %v but was %v", i, !tt.admin, usr.User.Admin)
+		}
+
+		_, err = f.client.Users.SetAdmin(tt.id, &schema.UserSetAdminRequest{
+			Admin: tt.admin,
+		}).Do()
+		if err != nil {
+			t.Fatalf("case %v: unexpected error: %v", i, err)
+		}
+		usr, err = f.client.Users.Get(tt.id).Do()
+		if err != nil {
+			t.Fatalf("case %v: unexpected error: %v", i, err)
+		}
+		if usr.User.Admin != tt.admin {
+			t.Errorf("case %v: user admin state incorrect. wanted: %v found: %v", i, tt.admin, usr.User.Admin)
+		}
+	}
+}
+
 type testEmailer struct {
 	cantEmail       bool
 	lastEmail       string

@@ -176,12 +176,31 @@ const DiscoveryJSON = `{
       "properties": {
         "disable": {
           "type": "boolean",
-          "description": "If true, disable this user, if false, enable them"
+          "description": "If true, disable this user, if false, enable them. No error is signaled if the user state doesn't change."
         }
       }
     },
     "UserDisableResponse": {
       "id": "UserDisableResponse",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        }
+      }
+    },
+    "UserSetAdminRequest": {
+      "id": "UserSetAdminRequest",
+      "type": "object",
+      "properties": {
+        "admin": {
+          "type": "boolean",
+          "description": "If true, grant admin status to user, if false, revoke admin status from them. No error is signaled if the user admin status doesn't change."
+        }
+      }
+    },
+    "UserSetAdminResponse": {
+      "id": "UserSetAdminResponse",
       "type": "object",
       "properties": {
         "ok": {
@@ -294,6 +313,28 @@ const DiscoveryJSON = `{
           },
           "response": {
             "$ref": "UserDisableResponse"
+          }
+        },
+        "SetAdmin": {
+          "id": "dex.User.SetAdmin",
+          "description": "Grant or revoke administrator status.",
+          "httpMethod": "POST",
+          "path": "users/{id}/admin",
+          "parameters": {
+            "id": {
+              "type": "string",
+              "required": true,
+              "location": "path"
+            }
+          },
+          "parameterOrder": [
+            "id"
+          ],
+          "request": {
+            "$ref": "UserSetAdminRequest"
+          },
+          "response": {
+            "$ref": "UserSetAdminResponse"
           }
         }
       }
