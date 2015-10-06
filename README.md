@@ -85,6 +85,12 @@ For running the full stack check out the [getting started guide][getting-started
 
 ## Similar Software
 
+### [Auth0](https://auth0.com)
+
+Auth0 is a commercial product which implements the OpenID Connect protocol and [JWT](http://jwt.io). It comes with built-in support for 30+ social providers (and provide extenibility points to add customs); enterprise providers like ADFS, SiteMinder, Ping, Tivoli, or any SAML provider; LDAP/AD connectors that can be run behind firewalls via [an open source agent/connector](https://github.com/auth0/ad-ldap-connector); built-in user/password stores with email and phone verification; legacy user/password stores running Mongo, PG, MySQL, SQL Server among others; multi-factor auth; passwordless support; custom extensibility of the auth pipeline through node.js and many other things.
+
+You could chain dex with Auth0, dex as RP and Auth0 as OpenId Connect Provider, and bring to dex all the providers that comes in Auth0 plus the user management capabilities. 
+
 ### [CloudFoundry UAA](https://github.com/cloudfoundry/uaa)
 
 >The UAA is a multi tenant identity management service, used in Cloud Foundry, but also available as a stand alone OAuth2 server.
