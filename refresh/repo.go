@@ -3,6 +3,7 @@ package refresh
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strconv"
@@ -66,7 +67,7 @@ type memRefreshTokenRepo struct {
 
 // buildToken combines the token ID and token payload to create a new token.
 func buildToken(tokenID int, tokenPayload []byte) string {
-	return fmt.Sprintf("%d%s%s", tokenID, TokenDelimer, tokenPayload)
+	return fmt.Sprintf("%d%s%s", tokenID, TokenDelimer, base64.URLEncoding.EncodeToString(tokenPayload))
 }
 
 // parseToken parses a token and returns the token ID and token payload.
@@ -79,7 +80,11 @@ func parseToken(token string) (int, []byte, error) {
 	if err != nil {
 		return -1, nil, ErrorInvalidToken
 	}
-	return id, []byte(parts[1]), nil
+	tokenPayload, err := base64.URLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return -1, nil, ErrorInvalidToken
+	}
+	return id, tokenPayload, nil
 }
 
 // NewRefreshTokenRepo returns an in-memory RefreshTokenRepo useful for development.
