@@ -144,9 +144,10 @@ func TestGetAdmin(t *testing.T) {
 
 func TestCreateAdmin(t *testing.T) {
 	tests := []struct {
-		admn    *adminschema.Admin
-		errCode int
-		secret  string
+		admn     *adminschema.Admin
+		errCode  int
+		secret   string
+		noSecret bool
 	}{
 		{
 			admn: &adminschema.Admin{
@@ -162,6 +163,14 @@ func TestCreateAdmin(t *testing.T) {
 			},
 			errCode: http.StatusUnauthorized,
 			secret:  "bad_secret",
+		},
+		{
+			admn: &adminschema.Admin{
+				Email:    "foo@example.com",
+				Password: "foopass",
+			},
+			errCode:  http.StatusUnauthorized,
+			noSecret: true,
 		},
 		{
 			// duplicate Email
@@ -186,6 +195,9 @@ func TestCreateAdmin(t *testing.T) {
 				f.hc.Transport = &adminAPITransport{
 					secret: tt.secret,
 				}
+			}
+			if tt.noSecret {
+				f.hc.Transport = http.DefaultTransport
 			}
 			defer f.close()
 
