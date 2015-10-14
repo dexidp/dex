@@ -49,13 +49,17 @@ func NewUserEmailer(ur user.UserRepo,
 	}
 }
 
-// SendResetPasswordEmail sends a password reset email to the user specified by the email addresss, containing a link with a signed token which can be visitied to initiate the password change/reset process.
-// This method DOES NOT check for client ID, redirect URL validity - it is expected that upstream users have already done so.
-// If there is no emailer is configured, the URL of the aforementioned link is returned, otherwise nil is returned.
+// SendResetPasswordEmail sends a password reset email to the user
+// specified by the email addresss, containing a link with a signed
+// token which can be visitied to initiate the password change/reset
+// process.  This method DOES NOT check for client ID, redirect URL
+// validity - it is expected that upstream users have already done so.
+// If there is no emailer is configured, the URL of the aforementioned
+// link is returned, otherwise nil is returned.
 func (u *UserEmailer) SendResetPasswordEmail(email string, redirectURL url.URL, clientID string) (*url.URL, error) {
 	usr, err := u.ur.GetByEmail(nil, email)
 	if err == user.ErrorNotFound {
-		log.Errorf("No Such user for email: %q", email)
+		log.Errorf("No such user for email: %q", email)
 		return nil, err
 	}
 	if err != nil {
@@ -63,13 +67,29 @@ func (u *UserEmailer) SendResetPasswordEmail(email string, redirectURL url.URL, 
 		return nil, err
 	}
 
-	pwi, err := u.pwi.Get(nil, usr.ID)
-	if err == user.ErrorNotFound {
-		// TODO(bobbyrullo): In this case, maybe send a different email explaining that
-		// they don't have a local password.
-		log.Errorf("No Password for userID: %q", usr.ID)
+	resetURL, err := u.buildPasswordResetURL(usr, redirectURL, clientID)
+	if err != nil {
+		log.Errorf("Error getting password reset URL: %q", err)
 		return nil, err
 	}
+
+	if u.emailer != nil {
+		err = u.emailer.SendMail(u.fromAddress, "Reset your password.", "password-reset",
+			map[string]interface{}{
+				"email": usr.Email,
+				"link":  resetURL.String(),
+			}, usr.Email)
+		if err != nil {
+			log.Errorf("error sending password reset email %v: ", err)
+		}
+		return nil, err
+	}
+	return resetURL, nil
+}
+
+func (u *UserEmailer) buildPasswordResetURL(usr user.User, redirectURL url.URL, clientID string) (*url.URL, error) {
+	pwi, err := u.pwi.Get(nil, usr.ID)
+
 	if err != nil {
 		log.Errorf("Error getting password: %q", err)
 		return nil, err
@@ -89,27 +109,19 @@ func (u *UserEmailer) SendResetPasswordEmail(email string, redirectURL url.URL, 
 		return nil, err
 	}
 
-	resetURL := u.passwordResetURL
-	q := resetURL.Query()
+	ret := u.passwordResetURL
+	q := ret.Query()
 	q.Set("token", token)
-	resetURL.RawQuery = q.Encode()
+	ret.RawQuery = q.Encode()
 
-	if u.emailer != nil {
-		err = u.emailer.SendMail(u.fromAddress, "Reset your password.", "password-reset",
-			map[string]interface{}{
-				"email": usr.Email,
-				"link":  resetURL.String(),
-			}, usr.Email)
-		if err != nil {
-			log.Errorf("error sending password reset email %v: ", err)
-		}
-		return nil, err
-	}
-	return &resetURL, nil
+	return &ret, nil
 }
 
-// SendEmailVerification sends an email to the user with the given userID containing a link which when visited marks the user as having had their email verified.
-// If there is no emailer is configured, the URL of the aforementioned link is returned, otherwise nil is returned.
+// SendEmailVerification sends an email to the user with the given
+// userID containing a link which when visited marks the user as
+// having had their email verified.  If there is no emailer is
+// configured, the URL of the aforementioned link is returned,
+// otherwise nil is returned.
 func (u *UserEmailer) SendEmailVerification(userID, clientID string, redirectURL url.URL) (*url.URL, error) {
 	usr, err := u.ur.Get(nil, userID)
 	if err == user.ErrorNotFound {
@@ -140,6 +152,7 @@ func (u *UserEmailer) SendEmailVerification(userID, clientID string, redirectURL
 	verifyURL.RawQuery = q.Encode()
 
 	if u.emailer != nil {
+		// TODO is this the right subject line/message template?
 		err = u.emailer.SendMail(u.fromAddress, "Please verify your email address.", "verify-email",
 			map[string]interface{}{
 				"email": usr.Email,
@@ -152,6 +165,24 @@ func (u *UserEmailer) SendEmailVerification(userID, clientID string, redirectURL
 
 	}
 	return &verifyURL, nil
+}
+
+func (u *UserEmailer) SendInvitation(email, clientID string, redirectURL url.URL) (*url.URL, error) {
+	usr, err := u.ur.GetByEmail(nil, email)
+	if err == user.ErrorNotFound {
+		log.Errorf("No such user for email: %q", email)
+		return nil, err
+	}
+	if err != nil {
+		log.Errorf("Error getting user: %q", err)
+		return nil, err
+	}
+
+	passwordURL, err := u.buildPasswordResetURL(usr, redirectURL, clientID)
+	if err != nil {
+		return nil, err // TODO deal if this system doesn't use passwords, and just send redirectURL
+	}
+	return u.SendEmailVerification(usr.ID, clientID, *passwordURL)
 }
 
 func (u *UserEmailer) SetEmailer(emailer *email.TemplatizedEmailer) {

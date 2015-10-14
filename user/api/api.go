@@ -88,7 +88,7 @@ type UsersAPI struct {
 }
 
 type Emailer interface {
-	SendResetPasswordEmail(string, url.URL, string) (*url.URL, error)
+	SendInvitation(string, string, url.URL) (*url.URL, error)
 }
 
 type Creds struct {
@@ -169,7 +169,7 @@ func (u *UsersAPI) CreateUser(creds Creds, usr schema.User, redirURL url.URL) (s
 
 	usr = userToSchemaUser(userUser)
 
-	url, err := u.emailer.SendResetPasswordEmail(usr.Email, validRedirURL, creds.ClientID)
+	url, err := u.emailer.SendInvitation(usr.Email, creds.ClientID, validRedirURL)
 
 	// An email is sent only if we don't get a link and there's no error.
 	emailSent := err == nil && url == nil

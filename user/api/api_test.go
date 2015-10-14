@@ -22,8 +22,8 @@ type testEmailer struct {
 	lastRedirectURL url.URL
 }
 
-// SendResetPasswordEmail returns resetPasswordURL when it can't email, mimicking the behavior of the real UserEmailer.
-func (t *testEmailer) SendResetPasswordEmail(email string, redirectURL url.URL, clientID string) (*url.URL, error) {
+// SendInvitation returns an email verification url when it can't email, mimicking the behavior of the real UserEmailer.
+func (t *testEmailer) SendInvitation(email string, clientID string, redirectURL url.URL) (*url.URL, error) {
 	t.lastEmail = email
 	t.lastRedirectURL = redirectURL
 	t.lastClientID = clientID
