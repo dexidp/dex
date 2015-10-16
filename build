@@ -20,6 +20,8 @@ fi
 
 rm -rf $GOPATH/src/github.com/coreos/dex
 mkdir -p $GOPATH/src/github.com/coreos/
+
+# Only attempt to link dex into godeps if it isn't already there
 [ -d $GOPATH/src/github.com/coreos/dex ] || ln -s ${PWD} $GOPATH/src/github.com/coreos/dex
 
 LD_FLAGS="-X main.version=$(git rev-parse HEAD)"
