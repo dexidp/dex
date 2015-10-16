@@ -66,31 +66,49 @@ func (h *SendResetPasswordEmailHandler) handleGET(w http.ResponseWriter, r *http
 		log.Errorf("could not exchange sessionKey: %v", err)
 	}
 	data := sendResetPasswordEmailData{}
-	h.fillData(r, &data)
+	if err := h.fillData(r, &data); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err)
+	}
+
+	if data.ClientID == "" {
+		writeAPIError(w, http.StatusBadRequest, newAPIError(errorInvalidRequest,
+			"missing required parameters"))
+		return
+	}
+
 	execTemplate(w, h.tpl, data)
 }
 
-func (h *SendResetPasswordEmailHandler) fillData(r *http.Request, data *sendResetPasswordEmailData) {
+func (h *SendResetPasswordEmailHandler) fillData(r *http.Request, data *sendResetPasswordEmailData) *apiError {
 	data.Email = r.FormValue("email")
-	clientID := r.FormValue("client_id")
+	data.ClientID = r.FormValue("client_id")
 	redirectURL := r.FormValue("redirect_uri")
 
-	if redirectURL != "" && clientID != "" {
-		if parsed, ok := h.validateRedirectURL(clientID, redirectURL); ok {
-			data.ClientID = clientID
+	if redirectURL != "" && data.ClientID != "" {
+		if parsed, ok := h.validateRedirectURL(data.ClientID, redirectURL); ok {
 			data.RedirectURL = redirectURL
 			data.RedirectURLParsed = parsed
+		} else {
+			return newAPIError(errorInvalidRequest, "invalid redirect url")
 		}
 	}
 
+	return nil
 }
 
 func (h *SendResetPasswordEmailHandler) handlePOST(w http.ResponseWriter, r *http.Request) {
 	data := sendResetPasswordEmailData{}
-	h.fillData(r, &data)
+	if err := h.fillData(r, &data); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err)
+	}
+
+	if data.ClientID == "" {
+		writeAPIError(w, http.StatusBadRequest, newAPIError(errorInvalidRequest, "client id missing"))
+		return
+	}
 
 	if !user.ValidEmail(data.Email) {
-		h.errPage(w, "Please supply a valid email addresss.", http.StatusBadRequest, &data)
+		h.errPage(w, "Please supply a valid email address.", http.StatusBadRequest, &data)
 		return
 	}
 

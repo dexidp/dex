@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"net/mail"
+	"net/url"
 	"os"
 	"sort"
 
@@ -15,10 +16,30 @@ import (
 
 	"github.com/coreos/dex/repo"
 	"github.com/coreos/go-oidc/jose"
+	"github.com/coreos/go-oidc/key"
+	"github.com/coreos/go-oidc/oidc"
 )
 
 const (
 	MaxEmailLength = 200
+
+	// ClaimPasswordResetPassword represents the hash of the password to be
+	// reset; in other words, the old password
+	ClaimPasswordResetPassword = "http://coreos.com/password/old-hash"
+
+	// ClaimEmailVerificationEmail represents the email to be verified. Note
+	// that we are intentionally not using the "email" claim for this purpose.
+	ClaimEmailVerificationEmail = "http://coreos.com/email/verificationEmail"
+
+	// ClaimPasswordResetCallback represents where a user should be sent after
+	// resetting their password.
+	ClaimPasswordResetCallback = "http://coreos.com/password/reset-callback"
+
+	// Claim representing where a user should be sent after verifying their email address.
+	ClaimEmailVerificationCallback = "http://coreos.com/email/verification-callback"
+
+	// Claim representing where a user should be sent after responding to an invitation
+	ClaimInvitationCallback = "http://coreos.com/invitation/callback"
 )
 
 type UserIDGenerator func() (string, error)
@@ -421,4 +442,49 @@ func (u *RemoteIdentity) UnmarshalJSON(data []byte) error {
 	u.ConnectorID = dec.ConnectorID
 
 	return nil
+}
+
+type TokenClaims struct {
+	Claims jose.Claims
+}
+
+func parseAndVerifyTokenClaims(token string, issuer url.URL, keys []key.PublicKey) (TokenClaims, error) {
+	jwt, err := jose.ParseJWT(token)
+	if err != nil {
+		return TokenClaims{}, err
+	}
+
+	claims, err := jwt.Claims()
+	if err != nil {
+		return TokenClaims{}, err
+	}
+
+	clientID, ok, err := claims.StringClaim("aud")
+	if err != nil {
+		return TokenClaims{}, err
+	}
+	if !ok || clientID == "" {
+		return TokenClaims{}, errors.New("no aud(client ID) claim")
+	}
+
+	sub, ok, err := claims.StringClaim("sub")
+	if err != nil {
+		return TokenClaims{}, err
+	}
+	if !ok || sub == "" {
+		return TokenClaims{}, errors.New("no sub claim")
+	}
+
+	noop := func() error { return nil }
+
+	keysFunc := func() []key.PublicKey {
+		return keys
+	}
+
+	verifier := oidc.NewJWTVerifier(issuer.String(), clientID, noop, keysFunc)
+	if err := verifier.Verify(jwt); err != nil {
+		return TokenClaims{}, err
+	}
+
+	return TokenClaims{claims}, nil
 }

@@ -48,7 +48,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 		wantPRPassword  string
 	}{
 		// First we'll test all the requests for happy path #1:
-		{
+		{ // Case 0
 
 			// STEP 1.1 - User clicks on link from local-login page and has a
 			// session_key, which will prompt a redirect to page which has
@@ -69,7 +69,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 				}.Encode(),
 			},
 		},
-		{
+		{ // Case 1
 
 			// STEP 1.2 - This is the request that happens as a result of the
 			// redirect. The client_id and redirect_uri should be in the form on
@@ -87,7 +87,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 				"email":        str(""),
 			},
 		},
-		{
+		{ // Case 2
 			// STEP 1.3 - User enters a valid email, gets success page.  The
 			// values from the GET redirect are resent in the form POST along
 			// with the email.
@@ -109,25 +109,28 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			wantPRPassword: "password",
 		},
 
-		// Happy Path #2 - same as above but without session_key
-		{
+		// Happy Path #2 - no email or redirect
+		{ // Case 3
 
-			// STEP 2.1 - user somehow ends up on reset page without a session_key
-			query:  url.Values{},
+			// STEP 2.1 - user somehow ends up on reset page with nothing but a client id
+			query: url.Values{
+				"client_id": str(testClientID),
+			},
 			method: "GET",
 
 			wantCode: http.StatusOK,
 			wantFormValues: &url.Values{
-				"client_id":    str(""),
+				"client_id":    str(testClientID),
 				"redirect_uri": str(""),
 				"email":        str(""),
 			},
 		},
-		{
+		{ // Case 4
 
 			// STEP 2.3 - There is no STEP 2 because we don't have the redirect.
 			query: url.Values{
-				"email": str("Email-1@example.com"),
+				"email":     str("Email-1@example.com"),
+				"client_id": str(testClientID),
 			},
 			method: "POST",
 
@@ -142,7 +145,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 		},
 
 		// Some error conditions:
-		{
+		{ // Case 5
 			// STEP 1.3.1 - User enters an invalid email, gets form again.
 			query: url.Values{
 				"client_id":    str(testClientID),
@@ -158,7 +161,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 				"email":        str(""),
 			},
 		},
-		{
+		{ // Case 6
 			// STEP 1.3.2 - User enters a valid email but for a user not in the
 			// system. They still get the success page, but no email is sent.
 			query: url.Values{
@@ -170,55 +173,32 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 
 			wantCode: http.StatusOK,
 		},
-		{
-			// STEP 1.3.3 - User enters a valid email but for a user not in the
-			// system. They still get the success page, but no email is sent.
-			query: url.Values{
-				"client_id":    str(testClientID),
-				"redirect_uri": str(testRedirectURL.String()),
-				"email":        str("NOSUCHUSER@example.com"),
-			},
-			method: "POST",
-
-			wantCode: http.StatusOK,
-		}, {
+		{ // Case 7
 
 			// STEP 1.1.1 - User clicks on link from local-login page and has a
-			// session_key, but it is not-recognized. There is no redirect, the
-			// user goes right to the form which has no client_id or
-			// redirect_uri
+			// session_key, but it is not-recognized.
 			query: url.Values{
 				"session_key": str("code-UNKNOWN"),
 			},
 			method: "GET",
 
-			wantCode: http.StatusOK,
-			wantFormValues: &url.Values{
-				"client_id":    str(""),
-				"redirect_uri": str(""),
-				"email":        str(""),
-			},
-		}, {
+			wantCode: http.StatusBadRequest,
+		},
+		{ // Case 8
 
 			// STEP 1.2.1 - Someone trying to replace a valid redirect_url with
-			// an invalid one; in this case we just give them the form but
-			// ignore client_id and redirect_uri.
+			// an invalid one.
 			query: url.Values{
 				"client_id":    str(testClientID),
 				"redirect_uri": str("http://evilhackers.example.com"),
 			},
 			method: "GET",
 
-			wantCode: http.StatusOK,
-			wantFormValues: &url.Values{
-				"client_id":    str(""),
-				"redirect_uri": str(""),
-				"email":        str(""),
-			},
-		}, {
+			wantCode: http.StatusBadRequest,
+		},
+		{ // Case 9
 			// STEP 1.3.4 - User enters a valid email for a user in the system,
-			// but with an invalid redirect_uri. They still get an email, but
-			// with no redirect url.
+			// but with an invalid redirect_uri.
 			query: url.Values{
 				"client_id":    str(testClientID),
 				"redirect_uri": str("http://evilhackers.example.com"),
@@ -226,15 +206,43 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			},
 			method: "POST",
 
-			wantCode: http.StatusOK,
-			wantEmailer: &testEmailer{
-				to:      str("Email-1@example.com"),
-				from:    "noreply@example.com",
-				subject: "Reset your password.",
+			wantCode: http.StatusBadRequest,
+		},
+		{ // Case 10
+
+			// User hits the page with a valid email but no client id
+			query: url.Values{
+				"email": str("Email-1@example.com"),
 			},
-			wantPRPassword: "password",
-			wantPRUserID:   "ID-1",
-			wantPRRedirect: nil,
+			method: "GET",
+
+			wantCode: http.StatusBadRequest,
+		},
+		{ // Case 10
+
+			// Don't send an email without a client id
+			query: url.Values{
+				"email": str("Email-1@example.com"),
+			},
+			method: "POST",
+
+			wantCode: http.StatusBadRequest,
+		},
+		{ // Case 11
+
+			// Empty requests lack a client id
+			query:  url.Values{},
+			method: "GET",
+
+			wantCode: http.StatusBadRequest,
+		},
+		{ // Case 12
+
+			// Empty requests lack a client id
+			query:  url.Values{},
+			method: "POST",
+
+			wantCode: http.StatusBadRequest,
 		},
 	}
 
@@ -348,23 +356,19 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 }
 
 func TestResetPasswordHandler(t *testing.T) {
-	makeToken := func(userID, password string, callback url.URL, expires time.Duration, signer jose.Signer) string {
-		var clientID string
-		if callback.String() == "" {
-			clientID = ""
-		} else {
-			clientID = testClientID
-		}
+	makeToken := func(userID, password, clientID string, callback url.URL, expires time.Duration, signer jose.Signer) string {
 		pr := user.NewPasswordReset(user.User{ID: "ID-1"},
 			user.Password(password),
 			testIssuerURL,
 			clientID,
 			callback,
 			expires)
-		token, err := pr.Token(signer)
+
+		jwt, err := jose.NewSignedJWT(pr.Claims, signer)
 		if err != nil {
 			t.Fatalf("couldn't make token: %q", err)
 		}
+		token := jwt.Encode()
 		return token
 	}
 	goodSigner := key.NewPrivateKeySet([]*key.PrivateKey{testPrivKey},
@@ -398,24 +402,24 @@ func TestResetPasswordHandler(t *testing.T) {
 		wantPassword   string
 	}{
 		// Scenario 1: Happy Path
-		{
+		{ // Case 0
 			// Step 1.1 - User clicks link in email, has valid token.
 			query: url.Values{
-				"token": str(makeToken("ID-1", "password", testRedirectURL, time.Hour*1, goodSigner)),
+				"token": str(makeToken("ID-1", "password", testClientID, testRedirectURL, time.Hour*1, goodSigner)),
 			},
 			method: "GET",
 
 			wantCode: http.StatusOK,
 			wantFormValues: &url.Values{
 				"password": str(""),
-				"token":    str(makeToken("ID-1", "password", testRedirectURL, time.Hour*1, goodSigner)),
+				"token":    str(makeToken("ID-1", "password", testClientID, testRedirectURL, time.Hour*1, goodSigner)),
 			},
 			wantPassword: "password",
 		},
-		{
+		{ // Case 1
 			// Step 1.2 - User enters in new valid password, password is changed, user is redirected.
 			query: url.Values{
-				"token":    str(makeToken("ID-1", "password", testRedirectURL, time.Hour*1, goodSigner)),
+				"token":    str(makeToken("ID-1", "password", testClientID, testRedirectURL, time.Hour*1, goodSigner)),
 				"password": str("new_password"),
 			},
 			method: "POST",
@@ -424,26 +428,25 @@ func TestResetPasswordHandler(t *testing.T) {
 			wantFormValues: &url.Values{},
 			wantPassword:   "NEW_PASSWORD",
 		},
-
 		// Scenario 2: Happy Path, but without redirect.
-		{
+		{ // Case 2
 			// Step 2.1 - User clicks link in email, has valid token.
 			query: url.Values{
-				"token": str(makeToken("ID-1", "password", url.URL{}, time.Hour*1, goodSigner)),
+				"token": str(makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, goodSigner)),
 			},
 			method: "GET",
 
 			wantCode: http.StatusOK,
 			wantFormValues: &url.Values{
 				"password": str(""),
-				"token":    str(makeToken("ID-1", "password", url.URL{}, time.Hour*1, goodSigner)),
+				"token":    str(makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, goodSigner)),
 			},
 			wantPassword: "password",
 		},
-		{
+		{ // Case 3
 			// Step 2.2 - User enters in new valid password, password is changed, user is redirected.
 			query: url.Values{
-				"token":    str(makeToken("ID-1", "password", url.URL{}, time.Hour*1, goodSigner)),
+				"token":    str(makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, goodSigner)),
 				"password": str("new_password"),
 			},
 			method: "POST",
@@ -454,10 +457,10 @@ func TestResetPasswordHandler(t *testing.T) {
 			wantPassword:   "NEW_PASSWORD",
 		},
 		// Errors
-		{
+		{ // Case 4
 			// Step 1.1.1 - User clicks link in email, has invalid token.
 			query: url.Values{
-				"token": str(makeToken("ID-1", "password", testRedirectURL, time.Hour*1, badSigner)),
+				"token": str(makeToken("ID-1", "password", testClientID, testRedirectURL, time.Hour*1, badSigner)),
 			},
 			method: "GET",
 
@@ -466,10 +469,10 @@ func TestResetPasswordHandler(t *testing.T) {
 			wantPassword:   "password",
 		},
 
-		{
-			// Step 2.2.1 - User enters in new valid password, password is changed, user is redirected.
+		{ // Case 5
+			// Step 2.2.1 - User enters in new valid password, password is changed, no redirect
 			query: url.Values{
-				"token":    str(makeToken("ID-1", "password", url.URL{}, time.Hour*1, goodSigner)),
+				"token":    str(makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, goodSigner)),
 				"password": str("shrt"),
 			},
 			method: "POST",
@@ -478,14 +481,14 @@ func TestResetPasswordHandler(t *testing.T) {
 			wantCode: http.StatusBadRequest,
 			wantFormValues: &url.Values{
 				"password": str(""),
-				"token":    str(makeToken("ID-1", "password", url.URL{}, time.Hour*1, goodSigner)),
+				"token":    str(makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, goodSigner)),
 			},
 			wantPassword: "password",
 		},
-		{
+		{ // Case 6
 			// Step 2.2.2 - User enters in new valid password, with suspicious token.
 			query: url.Values{
-				"token":    str(makeToken("ID-1", "password", url.URL{}, time.Hour*1, badSigner)),
+				"token":    str(makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, badSigner)),
 				"password": str("shrt"),
 			},
 			method: "POST",
@@ -494,6 +497,28 @@ func TestResetPasswordHandler(t *testing.T) {
 			wantCode:       http.StatusBadRequest,
 			wantFormValues: &url.Values{},
 			wantPassword:   "password",
+		},
+		{ // Case 7
+			// Token lacking client id
+			query: url.Values{
+				"token":    str(makeToken("ID-1", "password", "", url.URL{}, time.Hour*1, goodSigner)),
+				"password": str("shrt"),
+			},
+			method: "GET",
+
+			wantCode:     http.StatusBadRequest,
+			wantPassword: "password",
+		},
+		{ // Case 8
+			// Token lacking client id
+			query: url.Values{
+				"token":    str(makeToken("ID-1", "password", "", url.URL{}, time.Hour*1, goodSigner)),
+				"password": str("shrt"),
+			},
+			method: "POST",
+
+			wantCode:     http.StatusBadRequest,
+			wantPassword: "password",
 		},
 	}
 	for i, tt := range tests {
