@@ -124,7 +124,7 @@ func TestNewPasswordReset(t *testing.T) {
 		}
 		ev := NewPasswordReset(tt.user, tt.password, tt.issuer, tt.clientID, *cbURL, tt.expires)
 
-		if diff := pretty.Compare(tt.want, ev.claims); diff != "" {
+		if diff := pretty.Compare(tt.want, ev.Claims); diff != "" {
 			t.Errorf("case %d: Compare(want, got): %v", i, diff)
 		}
 
@@ -145,12 +145,13 @@ func TestPasswordResetParseAndVerify(t *testing.T) {
 	password := Password("passy")
 
 	goodPR := NewPasswordReset(user, password, *issuer, client, *callback, expires)
-	goodPRNoCB := NewPasswordReset(user, password, *issuer, "", url.URL{}, expires)
+	goodPRNoCB := NewPasswordReset(user, password, *issuer, client, url.URL{}, expires)
 	expiredPR := NewPasswordReset(user, password, *issuer, client, *callback, -expires)
 	wrongIssuerPR := NewPasswordReset(user, password, *otherIssuer, client, *callback, expires)
 	noSubPR := NewPasswordReset(User{}, password, *issuer, client, *callback, expires)
 	noPWPR := NewPasswordReset(user, Password(""), *issuer, client, *callback, expires)
 	noClientPR := NewPasswordReset(user, password, *issuer, "", *callback, expires)
+	noClientNoCBPR := NewPasswordReset(user, password, *issuer, "", url.URL{}, expires)
 
 	privKey, err := key.GeneratePrivateKey()
 	if err != nil {
@@ -211,14 +212,22 @@ func TestPasswordResetParseAndVerify(t *testing.T) {
 			signer:  signer,
 			wantErr: true,
 		},
+		{
+			ev:      noClientNoCBPR,
+			signer:  signer,
+			wantErr: true,
+		},
 	}
 
 	for i, tt := range tests {
 
-		token, err := tt.ev.Token(tt.signer)
+		t.Logf("TODO claims are %v", tt.ev.Claims)
+
+		jwt, err := jose.NewSignedJWT(tt.ev.Claims, tt.signer)
 		if err != nil {
-			t.Errorf("case %d: non-nil error creating token: %v", i, err)
+			t.Fatalf("Failed to generate JWT, error=%v", err)
 		}
+		token := jwt.Encode()
 
 		ev, err := ParseAndVerifyPasswordResetToken(token, *issuer,
 			[]key.PublicKey{*key.NewPublicKey(privKey.JWK())})
@@ -236,7 +245,7 @@ func TestPasswordResetParseAndVerify(t *testing.T) {
 
 		}
 
-		if diff := pretty.Compare(tt.ev.claims, ev.claims); diff != "" {
+		if diff := pretty.Compare(tt.ev.Claims, ev.Claims); diff != "" {
 			t.Errorf("case %d: Compare(want, got): %v", i, diff)
 		}
 	}

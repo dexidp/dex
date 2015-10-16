@@ -59,7 +59,7 @@ func TestNewEmailVerification(t *testing.T) {
 		}
 		ev := NewEmailVerification(tt.user, tt.clientID, tt.issuer, *cbURL, tt.expires)
 
-		if diff := pretty.Compare(tt.want, ev.claims); diff != "" {
+		if diff := pretty.Compare(tt.want, ev.Claims); diff != "" {
 			t.Errorf("case %d: Compare(want, got): %v", i, diff)
 		}
 
@@ -127,10 +127,11 @@ func TestEmailVerificationParseAndVerify(t *testing.T) {
 
 	for i, tt := range tests {
 
-		token, err := tt.ev.Token(tt.signer)
+		jwt, err := jose.NewSignedJWT(tt.ev.Claims, tt.signer)
 		if err != nil {
-			t.Errorf("case %d: non-nil error creating token: %v", i, err)
+			t.Fatalf("Failed to generate JWT, error=%v", err)
 		}
+		token := jwt.Encode()
 
 		ev, err := ParseAndVerifyEmailVerificationToken(token, *issuer,
 			[]key.PublicKey{*key.NewPublicKey(privKey.JWK())})
@@ -148,7 +149,7 @@ func TestEmailVerificationParseAndVerify(t *testing.T) {
 
 		}
 
-		if diff := pretty.Compare(tt.ev.claims, ev.claims); diff != "" {
+		if diff := pretty.Compare(tt.ev.Claims, ev.Claims); diff != "" {
 			t.Errorf("case %d: Compare(want, got): %v", i, diff)
 		}
 	}
