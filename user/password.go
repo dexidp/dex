@@ -286,7 +286,7 @@ func (e PasswordReset) Callback() *url.URL {
 
 	cbURL, err := url.Parse(cb)
 	if err != nil {
-		panic("EmailVerificaiton: can't parse callback. This should be impossible.")
+		panic("PasswordReset: can't parse callback. This should be impossible.")
 	}
 	return cbURL
 }

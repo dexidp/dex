@@ -21,7 +21,7 @@ import (
 // This handler is meant to be wrapped in clientTokenMiddleware, so a valid
 // bearer token for the client is expected to be present.
 // The user's JWT should be in the "token" parameter and the redirect URL should
-// be in the "redirect_uri" param. Note that this re
+// be in the "redirect_uri" param.
 func handleVerifyEmailResendFunc(
 	issuerURL url.URL,
 	srvKeysFunc func() ([]key.PublicKey, error),
@@ -200,7 +200,7 @@ func handleEmailVerifyFunc(verifiedTpl *template.Template, issuer url.URL, keysF
 		if err != nil {
 			execTemplateWithStatus(w, verifiedTpl, emailVerifiedTemplateData{
 				Error:   "There's been an error processing your request.",
-				Message: "Plesae try again later.",
+				Message: "Please try again later.",
 			}, http.StatusInternalServerError)
 			return
 		}
