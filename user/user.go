@@ -448,6 +448,11 @@ type TokenClaims struct {
 	Claims jose.Claims
 }
 
+// Returns TokenClaims if and only if
+// - the given token string is an appropriately formatted JWT
+// - the JWT contains nonempty "aud" and "sub" claims
+// - the JWT can be verified for the client associated with the "aud" claim
+//   using the given keys
 func parseAndVerifyTokenClaims(token string, issuer url.URL, keys []key.PublicKey) (TokenClaims, error) {
 	jwt, err := jose.ParseJWT(token)
 	if err != nil {
