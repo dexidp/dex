@@ -20,7 +20,7 @@ fi
 
 rm -rf $GOPATH/src/github.com/coreos/dex
 mkdir -p $GOPATH/src/github.com/coreos/
-ln -s ${PWD} $GOPATH/src/github.com/coreos/dex
+[ -d $GOPATH/src/github.com/coreos/dex ] || ln -s ${PWD} $GOPATH/src/github.com/coreos/dex
 
 LD_FLAGS="-X main.version=$(git rev-parse HEAD)"
 go build -o bin/dex-worker -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dex-worker
