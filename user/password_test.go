@@ -221,8 +221,6 @@ func TestPasswordResetParseAndVerify(t *testing.T) {
 
 	for i, tt := range tests {
 
-		t.Logf("TODO claims are %v", tt.ev.Claims)
-
 		jwt, err := jose.NewSignedJWT(tt.ev.Claims, tt.signer)
 		if err != nil {
 			t.Fatalf("Failed to generate JWT, error=%v", err)
