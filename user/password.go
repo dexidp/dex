@@ -26,14 +26,6 @@ const (
 	// since the bcrypt library will silently ignore portions of
 	// a password past the first 72 characters.
 	maxSecretLength = 72
-
-	// ClaimPasswordResetCallback represents where a user should be sent after
-	// resetting their password.
-	ClaimPasswordResetCallback = "http://coreos.com/password/reset-callback"
-
-	// ClaimPasswordResetPassword represents the hash of the password to be
-	// reset; in other words, the old password.
-	ClaimPasswordResetPassword = "http://coreos.com/password/old-hash"
 )
 
 var (
@@ -224,56 +216,22 @@ func NewPasswordInfoRepoFromFile(loc string) (PasswordInfoRepo, error) {
 
 func NewPasswordReset(user User, password Password, issuer url.URL, clientID string, callback url.URL, expires time.Duration) PasswordReset {
 	claims := oidc.NewClaims(issuer.String(), user.ID, clientID, clock.Now(), clock.Now().Add(expires))
-	claims.Add(ClaimPasswordResetCallback, callback.String())
 	claims.Add(ClaimPasswordResetPassword, string(password))
+	claims.Add(ClaimPasswordResetCallback, callback.String())
 	return PasswordReset{claims}
 }
 
 type PasswordReset struct {
-	claims jose.Claims
+	Claims jose.Claims
 }
 
-// Token serializes the PasswordReset into a signed JWT.
-func (e PasswordReset) Token(signer jose.Signer) (string, error) {
-	if signer == nil {
-		return "", errors.New("no signer")
-	}
-
-	jwt, err := jose.NewSignedJWT(e.claims, signer)
-	if err != nil {
-		return "", err
-	}
-
-	return jwt.Encode(), nil
-}
-
-// ParseAndVerifyPasswordResetToken parses a string into a an PasswordReset, verifies the signature, and ensures that required claims are present.
-// In addition to the usual claims required by the OIDC spec, "aud" and "sub" must be present as well as ClaimPasswordResetCallback, ClaimPasswordResetEmail and ClaimPasswordResetPassword.
-func ParseAndVerifyPasswordResetToken(token string, issuer url.URL, keys []key.PublicKey) (PasswordReset, error) {
-	jwt, err := jose.ParseJWT(token)
-	if err != nil {
-		return PasswordReset{}, err
-	}
-
-	claims, err := jwt.Claims()
-	if err != nil {
-		return PasswordReset{}, err
-	}
-
+// Assumes that parseAndVerifyTokenClaims has already been called on claims
+func verifyPasswordResetClaims(claims jose.Claims) (PasswordReset, error) {
 	cb, ok, err := claims.StringClaim(ClaimPasswordResetCallback)
 	if err != nil {
 		return PasswordReset{}, err
 	}
-	var clientID string
-	if ok && cb != "" {
-		clientID, ok, err = claims.StringClaim("aud")
-		if err != nil {
-			return PasswordReset{}, err
-		}
-		if !ok || clientID == "" {
-			return PasswordReset{}, errors.New("no aud(client ID) claim")
-		}
-	}
+
 	if _, err := url.Parse(cb); err != nil {
 		return PasswordReset{}, fmt.Errorf("callback URL not parseable: %v", cb)
 	}
@@ -282,37 +240,26 @@ func ParseAndVerifyPasswordResetToken(token string, issuer url.URL, keys []key.P
 	if err != nil {
 		return PasswordReset{}, err
 	}
-	if pw == "" {
+	if !ok || pw == "" {
 		return PasswordReset{}, fmt.Errorf("no %q claim", ClaimPasswordResetPassword)
 	}
 
-	sub, ok, err := claims.StringClaim("sub")
+	return PasswordReset{claims}, nil
+}
+
+// ParseAndVerifyPasswordResetToken parses a string into a an PasswordReset, verifies the signature, and ensures that required claims are present.
+// In addition to the usual claims required by the OIDC spec, "aud" and "sub" must be present as well as ClaimPasswordResetCallback, ClaimPasswordResetEmail and ClaimPasswordResetPassword.
+func ParseAndVerifyPasswordResetToken(token string, issuer url.URL, keys []key.PublicKey) (PasswordReset, error) {
+	tokenClaims, err := parseAndVerifyTokenClaims(token, issuer, keys)
 	if err != nil {
 		return PasswordReset{}, err
 	}
-	if sub == "" {
-		return PasswordReset{}, errors.New("no sub claim")
-	}
 
-	noop := func() error { return nil }
-
-	keysFunc := func() []key.PublicKey {
-		return keys
-	}
-
-	verifier := oidc.NewJWTVerifier(issuer.String(), clientID, noop, keysFunc)
-	if err := verifier.Verify(jwt); err != nil {
-		return PasswordReset{}, err
-	}
-
-	return PasswordReset{
-		claims: claims,
-	}, nil
-
+	return verifyPasswordResetClaims(tokenClaims.Claims)
 }
 
 func (e PasswordReset) UserID() string {
-	uid, ok, err := e.claims.StringClaim("sub")
+	uid, ok, err := e.Claims.StringClaim("sub")
 	if !ok || err != nil {
 		panic("PasswordReset: no sub claim. This should be impossible.")
 	}
@@ -320,7 +267,7 @@ func (e PasswordReset) UserID() string {
 }
 
 func (e PasswordReset) Password() Password {
-	pw, ok, err := e.claims.StringClaim(ClaimPasswordResetPassword)
+	pw, ok, err := e.Claims.StringClaim(ClaimPasswordResetPassword)
 	if !ok || err != nil {
 		panic("PasswordReset: no password claim. This should be impossible.")
 	}
@@ -328,7 +275,7 @@ func (e PasswordReset) Password() Password {
 }
 
 func (e PasswordReset) Callback() *url.URL {
-	cb, ok, err := e.claims.StringClaim(ClaimPasswordResetCallback)
+	cb, ok, err := e.Claims.StringClaim(ClaimPasswordResetCallback)
 	if err != nil {
 		panic("PasswordReset: error getting string claim. This should be impossible.")
 	}

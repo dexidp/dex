@@ -76,18 +76,19 @@ func (u *UserEmailer) SendResetPasswordEmail(email string, redirectURL url.URL, 
 	}
 
 	signer, err := u.signerFn()
-	if err != nil {
-		log.Errorf("error getting signer: %v", err)
+	if err != nil || signer == nil {
+		log.Errorf("error getting signer: %v (%v)", err, signer)
 		return nil, err
 	}
 
 	passwordReset := user.NewPasswordReset(usr, pwi.Password, u.issuerURL,
 		clientID, redirectURL, u.tokenValidityWindow)
-	token, err := passwordReset.Token(signer)
+	jwt, err := jose.NewSignedJWT(passwordReset.Claims, signer)
 	if err != nil {
-		log.Errorf("error getting tokenizing PasswordReset: %v", err)
+		log.Errorf("error constructing or signing PasswordReset JWT: %v", err)
 		return nil, err
 	}
+	token := jwt.Encode()
 
 	resetURL := u.passwordResetURL
 	q := resetURL.Query()
@@ -124,15 +125,17 @@ func (u *UserEmailer) SendEmailVerification(userID, clientID string, redirectURL
 	ev := user.NewEmailVerification(usr, clientID, u.issuerURL, redirectURL, u.tokenValidityWindow)
 
 	signer, err := u.signerFn()
-	if err != nil {
-		log.Errorf("error getting signer: %v", err)
+	if err != nil || signer == nil {
+		log.Errorf("error getting signer: %v (signer: %v)", err, signer)
 		return nil, err
 	}
 
-	token, err := ev.Token(signer)
+	jwt, err := jose.NewSignedJWT(ev.Claims, signer)
 	if err != nil {
+		log.Errorf("error constructing or signing EmailVerification JWT: %v", err)
 		return nil, err
 	}
+	token := jwt.Encode()
 
 	verifyURL := u.verifyEmailURL
 	q := verifyURL.Query()
