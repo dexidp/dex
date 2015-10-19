@@ -225,9 +225,26 @@ type PasswordReset struct {
 	Claims jose.Claims
 }
 
-// Assumes that parseAndVerifyTokenClaims has already been called on claims
-func verifyPasswordResetClaims(claims jose.Claims) (PasswordReset, error) {
-	cb, ok, err := claims.StringClaim(ClaimPasswordResetCallback)
+// ParseAndVerifyPasswordResetToken parses a string into a an
+// PasswordReset, verifies the signature, and ensures that required
+// claims are present.  In addition to the usual claims required by
+// the OIDC spec, "aud" and "sub" must be present as well as
+// ClaimPasswordResetCallback and ClaimPasswordResetPassword.
+func ParseAndVerifyPasswordResetToken(token string, issuer url.URL, keys []key.PublicKey) (PasswordReset, error) {
+	tokenClaims, err := parseAndVerifyTokenClaims(token, issuer, keys)
+	if err != nil {
+		return PasswordReset{}, err
+	}
+
+	pw, ok, err := tokenClaims.Claims.StringClaim(ClaimPasswordResetPassword)
+	if err != nil {
+		return PasswordReset{}, err
+	}
+	if !ok || pw == "" {
+		return PasswordReset{}, fmt.Errorf("no %q claim", ClaimPasswordResetPassword)
+	}
+
+	cb, ok, err := tokenClaims.Claims.StringClaim(ClaimPasswordResetCallback)
 	if err != nil {
 		return PasswordReset{}, err
 	}
@@ -236,26 +253,7 @@ func verifyPasswordResetClaims(claims jose.Claims) (PasswordReset, error) {
 		return PasswordReset{}, fmt.Errorf("callback URL not parseable: %v", cb)
 	}
 
-	pw, ok, err := claims.StringClaim(ClaimPasswordResetPassword)
-	if err != nil {
-		return PasswordReset{}, err
-	}
-	if !ok || pw == "" {
-		return PasswordReset{}, fmt.Errorf("no %q claim", ClaimPasswordResetPassword)
-	}
-
-	return PasswordReset{claims}, nil
-}
-
-// ParseAndVerifyPasswordResetToken parses a string into a an PasswordReset, verifies the signature, and ensures that required claims are present.
-// In addition to the usual claims required by the OIDC spec, "aud" and "sub" must be present as well as ClaimPasswordResetCallback, ClaimPasswordResetEmail and ClaimPasswordResetPassword.
-func ParseAndVerifyPasswordResetToken(token string, issuer url.URL, keys []key.PublicKey) (PasswordReset, error) {
-	tokenClaims, err := parseAndVerifyTokenClaims(token, issuer, keys)
-	if err != nil {
-		return PasswordReset{}, err
-	}
-
-	return verifyPasswordResetClaims(tokenClaims.Claims)
+	return PasswordReset{tokenClaims.Claims}, nil
 }
 
 func (e PasswordReset) UserID() string {
