@@ -13,13 +13,13 @@ We named the project 'dex' because it is a central index of users that other pie
 dex consists of multiple components:
 
 - **dex-worker** is the primary server component of dex
-    - host a user-facing API that drives the OIDC protocol
+	- host a user-facing API that drives the OIDC protocol
 	- proxy to remote identity providers via "connectors"
-    - provides an API for administrators to manage users.
+	- provides an API for administrators to manage users.
 - **dex-overlord** is an auxiliary process responsible for various administrative tasks:
 	- rotation of keys used by the workers to sign identity tokens
 	- garbage collection of stale data in the database
-    - provides an API for bootstrapping the system.
+	- provides an API for bootstrapping the system.
 - **dexctl** is a CLI tool used to manage a dex deployment
 	- configure identity provider connectors
 	- administer OIDC client identities
