@@ -88,7 +88,8 @@ Note: the issuer URL MUST have an `https` scheme in production to meet spec comp
 
 The worker and overlord are up and running, but we need to tell dex what connectors we want to use to authenticate. For this case we'll set up a local connector, where dex manages credentials and provides a UI for authentication, and a Google OIDC connector.
 
-If you prefer to use the Google OIDC Identity Provider (IdP), just omit the second entry in the JSON connector list. Note that you must replace DEX_GOOGLE_CLIENT_{ID,SECRET} with the client ID and client Secret you got when you registered your project with the Google developer console.
+If you prefer to use the Google OIDC Identity Provider (IdP), just omit the second entry in the JSON connector list. Note that you must replace `DEX_GOOGLE_CLIENT_SECRET` and `DEX_GOOGLE_CLIENT_ID` with the client secret and client ID you got when you registered your project with the Google developer console.
+
 ```
 cat << EOF > /tmp/dex_connectors.json
 [
@@ -116,6 +117,7 @@ One thing to note here that's a bit confusing here is that in the case of the Go
 Like all OAuth2/OIDC IdPs, clients must be registered with the IdP (dex), along with their valid redirect URLS.
 
 New clients can be registered with the dexctl CLI tool:
+
 ```
 eval "$(./bin/dexctl -db-url=$DEX_DB_URL new-client http://127.0.0.1:5555/callback)"
 ```
