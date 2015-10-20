@@ -16,6 +16,7 @@ if command -v go-bindata &>/dev/null; then
     gofmt -w ./db/migrations/assets.go
 else
     echo "Could not find go-bindata in path, will not generate migrations"
+    echo "Install go-bindata with: go get -u github.com/jteeuwen/go-bindata/..."
 fi
 
 rm -rf $GOPATH/src/github.com/coreos/dex
