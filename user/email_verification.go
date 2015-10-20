@@ -65,30 +65,13 @@ func ParseAndVerifyEmailVerificationToken(token string, issuer url.URL, keys []k
 }
 
 func (e EmailVerification) UserID() string {
-	uid, ok, err := e.Claims.StringClaim("sub")
-	if !ok || err != nil {
-		panic("EmailVerification: no sub claim. This should be impossible.")
-	}
-	return uid
+	return assertStringClaim(e.Claims, "sub")
 }
 
 func (e EmailVerification) Email() string {
-	email, ok, err := e.Claims.StringClaim(ClaimEmailVerificationEmail)
-	if !ok || err != nil {
-		panic("EmailVerification: no email claim. This should be impossible.")
-	}
-	return email
+	return assertStringClaim(e.Claims, ClaimEmailVerificationEmail)
 }
 
 func (e EmailVerification) Callback() *url.URL {
-	cb, ok, err := e.Claims.StringClaim(ClaimEmailVerificationCallback)
-	if !ok || err != nil {
-		panic("EmailVerification: no callback claim. This should be impossible.")
-	}
-
-	cbURL, err := url.Parse(cb)
-	if err != nil {
-		panic("EmailVerificaiton: can't parse callback. This should be impossible.")
-	}
-	return cbURL
+	return assertURLClaim(e.Claims, ClaimEmailVerificationCallback)
 }

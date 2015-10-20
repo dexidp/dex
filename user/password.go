@@ -257,18 +257,11 @@ func ParseAndVerifyPasswordResetToken(token string, issuer url.URL, keys []key.P
 }
 
 func (e PasswordReset) UserID() string {
-	uid, ok, err := e.Claims.StringClaim("sub")
-	if !ok || err != nil {
-		panic("PasswordReset: no sub claim. This should be impossible.")
-	}
-	return uid
+	return assertStringClaim(e.Claims, "sub")
 }
 
 func (e PasswordReset) Password() Password {
-	pw, ok, err := e.Claims.StringClaim(ClaimPasswordResetPassword)
-	if !ok || err != nil {
-		panic("PasswordReset: no password claim. This should be impossible.")
-	}
+	pw := assertStringClaim(e.Claims, ClaimPasswordResetPassword)
 	return Password(pw)
 }
 

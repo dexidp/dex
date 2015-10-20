@@ -57,3 +57,24 @@ func ParseAndVerifyInvitationToken(token string, issuer url.URL, keys []key.Publ
 
 	return Invitation{tokenClaims.Claims}, nil
 }
+
+func (iv Invitation) UserID() string {
+	return assertStringClaim(iv.Claims, "sub")
+}
+
+func (iv Invitation) Password() Password {
+	pw := assertStringClaim(iv.Claims, ClaimPasswordResetPassword)
+	return Password(pw)
+}
+
+func (iv Invitation) Email() string {
+	return assertStringClaim(iv.Claims, ClaimEmailVerificationEmail)
+}
+
+func (iv Invitation) ClientID() string {
+	return assertStringClaim(iv.Claims, "aud")
+}
+
+func (iv Invitation) Callback() *url.URL {
+	return assertURLClaim(iv.Claims, ClaimInvitationCallback)
+}
