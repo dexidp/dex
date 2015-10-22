@@ -7,6 +7,6 @@ ADD bin/dexctl /opt/dex/bin/dexctl
 ENV DEX_WORKER_HTML_ASSETS /opt/dex/html/
 ADD static/html/* $DEX_WORKER_HTML_ASSETS
 
-ENV DEX_WORKER_EMAIL_ASSETS /opt/dex/email/
-ADD static/email/* $DEX_WORKER_EMAIL_ASSETS
-ADD static/fixtures/emailer.json.sample $DEX_WORKER_EMAIL_ASSETS/emailer.json
+ENV DEX_WORKER_EMAIL_TEMPLATES /opt/dex/email/
+ADD static/email/* $DEX_WORKER_EMAIL_TEMPLATES
+ADD static/fixtures/emailer.json.sample $DEX_WORKER_EMAIL_TEMPLATES/emailer.json
