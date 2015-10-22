@@ -23,4 +23,4 @@ for VAR in ${DOCKER_LINKS//,/ }; do
 done
 
 echo "running with docker, might take a while to pull the image..."
-docker run $LINKS_STR $ENV_STR --rm  -v `pwd`:/go/src/$REPO -w /go/src/$REPO quay.io/coreos/go-builder:1.3.3 $@
+docker run $LINKS_STR $ENV_STR --rm  -v `pwd`:/go/src/$REPO -w /go/src/$REPO quay.io/coreos/dex-builder:1.4 $@
