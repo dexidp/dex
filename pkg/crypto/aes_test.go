@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 )
@@ -89,5 +90,39 @@ func TestAESDecryptWrongKey(t *testing.T) {
 	decrypted, _ := AESDecrypt(ciphertext, wrongKey)
 	if reflect.DeepEqual(message, decrypted) {
 		t.Fatalf("Data decrypted with different key matches original payload")
+	}
+}
+
+func TestEncryptDecryptGCM(t *testing.T) {
+	gcmTests := []struct {
+		plaintext []byte
+		key       []byte
+	}{
+		{
+			plaintext: []byte("Hello, world!"),
+			key:       append([]byte("shark"), make([]byte, 27)...),
+		},
+	}
+
+	for _, tt := range gcmTests {
+		ciphertext, err := Encrypt(tt.plaintext, tt.key)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		plaintext, err := Decrypt(ciphertext, tt.key)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Equal(plaintext, tt.plaintext) {
+			t.Errorf("plaintexts don't match")
+		}
+
+		ciphertext[0] ^= 0xff
+		plaintext, err = Decrypt(ciphertext, tt.key)
+		if err == nil {
+			t.Errorf("gcmOpen should not have worked, but did")
+		}
 	}
 }

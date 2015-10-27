@@ -7,6 +7,8 @@ import (
 	"errors"
 )
 
+const aesKeySize = 32 // force 256-bit AES
+
 // pad uses the PKCS#7 padding scheme to align the a payload to a specific block size
 func pad(plaintext []byte, bsize int) ([]byte, error) {
 	if bsize >= 256 {
@@ -33,7 +35,7 @@ func unpad(paddedtext []byte) ([]byte, error) {
 	return paddedtext[:length-(pad)], nil
 }
 
-// AESEncrypt encrypts a payloaded with an AES cipher.
+// **DEPRECATED** AESEncrypt encrypts a payloaded with an AES cipher.
 // The returned ciphertext has three notable properties:
 // 1. ciphertext is aligned to the standard AES block size
 // 2. ciphertext is padded using PKCS#7
@@ -61,7 +63,7 @@ func AESEncrypt(plaintext, key []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
-// AESDecrypt decrypts an encrypted payload with an AES cipher.
+// **DEPRECATED** AESDecrypt decrypts an encrypted payload with an AES cipher.
 // The decryption algorithm makes three assumptions:
 // 1. ciphertext is aligned to the standard AES block size
 // 2. ciphertext is padded using PKCS#7
@@ -93,4 +95,50 @@ func AESDecrypt(ciphertext, key []byte) ([]byte, error) {
 	}
 
 	return unpad(plaintext)
+}
+
+// Takes plaintext and a key, returns ciphertext or error
+// Output takes the form nonce|ciphertext|tag where '|' indicates concatenation
+func Encrypt(plaintext, key []byte) (ciphertext []byte, err error) {
+	if len(key) != aesKeySize {
+		return nil, aes.KeySizeError(len(key))
+	}
+
+	aes, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	gcm, err := cipher.NewGCM(aes)
+	if err != nil {
+		return nil, err
+	}
+
+	nonce, err := RandBytes(gcm.NonceSize())
+	if err != nil {
+		return nil, err
+	}
+
+	return gcm.Seal(nonce, nonce, plaintext, nil), nil
+}
+
+// Takes ciphertext and a key, returns plaintext or error
+// Expects input form nonce|ciphertext|tag where '|' indicates concatenation
+func Decrypt(ciphertext, key []byte) (plaintext []byte, err error) {
+	if len(key) != aesKeySize {
+		return nil, aes.KeySizeError(len(key))
+	}
+
+	aes, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	gcm, err := cipher.NewGCM(aes)
+	if err != nil {
+		return nil, err
+	}
+
+	return gcm.Open(nil, ciphertext[:gcm.NonceSize()],
+		ciphertext[gcm.NonceSize():], nil)
 }
