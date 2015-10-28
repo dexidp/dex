@@ -49,6 +49,7 @@ type SingleServerConfig struct {
 type MultiServerConfig struct {
 	KeySecrets     [][]byte
 	DatabaseConfig db.Config
+	UseOldFormat   bool
 }
 
 func (cfg *ServerConfig) Server() (*Server, error) {
@@ -159,7 +160,7 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 		return fmt.Errorf("unable to initialize database connection: %v", err)
 	}
 
-	kRepo, err := db.NewPrivateKeySetRepo(dbc, cfg.KeySecrets...)
+	kRepo, err := db.NewPrivateKeySetRepo(dbc, cfg.UseOldFormat, cfg.KeySecrets...)
 	if err != nil {
 		return fmt.Errorf("unable to create PrivateKeySetRepo: %v", err)
 	}

@@ -155,12 +155,12 @@ func TestDBPrivateKeySetRepoSetGet(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		setRepo, err := db.NewPrivateKeySetRepo(connect(t), tt.setSecrets...)
+		setRepo, err := db.NewPrivateKeySetRepo(connect(t), false, tt.setSecrets...)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 
-		getRepo, err := db.NewPrivateKeySetRepo(connect(t), tt.getSecrets...)
+		getRepo, err := db.NewPrivateKeySetRepo(connect(t), false, tt.getSecrets...)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}

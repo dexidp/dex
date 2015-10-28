@@ -89,7 +89,7 @@ type privateKeySetBlob struct {
 	Value []byte `db:"value"`
 }
 
-func NewPrivateKeySetRepo(dbm *gorp.DbMap, secrets ...[]byte) (*PrivateKeySetRepo, error) {
+func NewPrivateKeySetRepo(dbm *gorp.DbMap, useOldFormat bool, secrets ...[]byte) (*PrivateKeySetRepo, error) {
 	for i, secret := range secrets {
 		if len(secret) != 32 {
 			return nil, fmt.Errorf("key secret %d: expected 32-byte secret", i)
@@ -97,16 +97,18 @@ func NewPrivateKeySetRepo(dbm *gorp.DbMap, secrets ...[]byte) (*PrivateKeySetRep
 	}
 
 	r := &PrivateKeySetRepo{
-		dbMap:   dbm,
-		secrets: secrets,
+		dbMap:        dbm,
+		useOldFormat: useOldFormat,
+		secrets:      secrets,
 	}
 
 	return r, nil
 }
 
 type PrivateKeySetRepo struct {
-	dbMap   *gorp.DbMap
-	secrets [][]byte
+	dbMap        *gorp.DbMap
+	useOldFormat bool
+	secrets      [][]byte
 }
 
 func (r *PrivateKeySetRepo) Set(ks key.KeySet) error {
@@ -131,7 +133,14 @@ func (r *PrivateKeySetRepo) Set(ks key.KeySet) error {
 		return err
 	}
 
-	v, err := pcrypto.AESEncrypt(j, r.active())
+	var v []byte
+
+	if r.useOldFormat {
+		v, err = pcrypto.AESEncrypt(j, r.active())
+	} else {
+		v, err = pcrypto.Encrypt(j, r.active())
+	}
+
 	if err != nil {
 		return err
 	}
@@ -159,7 +168,13 @@ func (r *PrivateKeySetRepo) Get() (key.KeySet, error) {
 	var pks *key.PrivateKeySet
 	for _, secret := range r.secrets {
 		var j []byte
-		j, err = pcrypto.AESDecrypt(b.Value, secret)
+
+		if r.useOldFormat {
+			j, err = pcrypto.AESDecrypt(b.Value, secret)
+		} else {
+			j, err = pcrypto.Decrypt(b.Value, secret)
+		}
+
 		if err != nil {
 			continue
 		}

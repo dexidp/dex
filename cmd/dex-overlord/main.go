@@ -32,6 +32,8 @@ func main() {
 	keySecrets := pflag.NewBase64List(32)
 	fs.Var(keySecrets, "key-secrets", "A comma-separated list of base64 encoded 32 byte strings used as symmetric keys used to encrypt/decrypt signing key data in DB. The first key is considered the active key and used for encryption, while the others are used to decrypt.")
 
+	useOldFormat := fs.Bool("use-deprecated-secret-format", false, "In prior releases, the database used AES-CBC to encrypt keys. New deployments should use the default AES-GCM encryption.")
+
 	dbURL := fs.String("db-url", "", "DSN-formatted database connection string")
 
 	dbMigrate := fs.Bool("db-migrate", true, "perform database migrations when starting up overlord. This includes the initial DB objects creation.")
@@ -100,7 +102,7 @@ func main() {
 	userManager := user.NewManager(userRepo,
 		pwiRepo, db.TransactionFactory(dbc), user.ManagerOptions{})
 	adminAPI := admin.NewAdminAPI(userManager, userRepo, pwiRepo, *localConnectorID)
-	kRepo, err := db.NewPrivateKeySetRepo(dbc, keySecrets.BytesSlice()...)
+	kRepo, err := db.NewPrivateKeySetRepo(dbc, *useOldFormat, keySecrets.BytesSlice()...)
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
