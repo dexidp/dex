@@ -85,7 +85,7 @@ func (cfg *ServerConfig) Server() (*Server, error) {
 		return nil, err
 	}
 
-	err = setEmailer(&srv, cfg.EmailFromAddress, cfg.EmailerConfigFile, cfg.EmailTemplateDirs)
+	err = setEmailer(&srv, cfg.IssuerName, cfg.EmailFromAddress, cfg.EmailerConfigFile, cfg.EmailTemplateDirs)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +238,7 @@ func setTemplates(srv *Server, tpls *template.Template) error {
 	return nil
 }
 
-func setEmailer(srv *Server, fromAddress, emailerConfigFile string, emailTemplateDirs []string) error {
+func setEmailer(srv *Server, issuerName, fromAddress, emailerConfigFile string, emailTemplateDirs []string) error {
 
 	cfg, err := email.NewEmailerConfigFromFile(emailerConfigFile)
 	if err != nil {
@@ -290,6 +290,9 @@ func setEmailer(srv *Server, fromAddress, emailerConfigFile string, emailTemplat
 		}
 	}
 	tMailer := email.NewTemplatizedEmailerFromTemplates(textTemplates, htmlTemplates, emailer)
+	tMailer.SetGlobalContext(map[string]interface{}{
+		"issuer_name": issuerName,
+	})
 
 	ue := useremail.NewUserEmailer(srv.UserRepo,
 		srv.PasswordInfoRepo,
