@@ -102,7 +102,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			wantEmailer: &testEmailer{
 				to:      str("Email-1@example.com"),
 				from:    "noreply@example.com",
-				subject: "Reset your password.",
+				subject: "Reset Your Password",
 			},
 			wantPRUserID:   "ID-1",
 			wantPRRedirect: &testRedirectURL,
@@ -138,7 +138,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			wantEmailer: &testEmailer{
 				to:      str("Email-1@example.com"),
 				from:    "noreply@example.com",
-				subject: "Reset your password.",
+				subject: "Reset Your Password",
 			},
 			wantPRPassword: "password",
 			wantPRUserID:   "ID-1",

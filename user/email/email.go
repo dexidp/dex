@@ -53,6 +53,16 @@ func NewUserEmailer(ur user.UserRepo,
 // This method DOES NOT check for client ID, redirect URL validity - it is expected that upstream users have already done so.
 // If there is no emailer is configured, the URL of the aforementioned link is returned, otherwise nil is returned.
 func (u *UserEmailer) SendResetPasswordEmail(email string, redirectURL url.URL, clientID string) (*url.URL, error) {
+	return u.sendResetPasswordOrInviteEmail(email, redirectURL, clientID, false)
+}
+
+// SendInviteEmail is exactly the same as SendResetPasswordEmail, except that it uses the invite template and subject name.
+// In the near future, invite emails might diverge further.
+func (u *UserEmailer) SendInviteEmail(email string, redirectURL url.URL, clientID string) (*url.URL, error) {
+	return u.sendResetPasswordOrInviteEmail(email, redirectURL, clientID, true)
+}
+
+func (u *UserEmailer) sendResetPasswordOrInviteEmail(email string, redirectURL url.URL, clientID string, invite bool) (*url.URL, error) {
 	usr, err := u.ur.GetByEmail(nil, email)
 	if err == user.ErrorNotFound {
 		log.Errorf("No Such user for email: %q", email)
@@ -95,8 +105,17 @@ func (u *UserEmailer) SendResetPasswordEmail(email string, redirectURL url.URL, 
 	q.Set("token", token)
 	resetURL.RawQuery = q.Encode()
 
+	var tmplName, subj string
+	if invite {
+		tmplName = "invite"
+		subj = "Activate Your Account"
+	} else {
+		tmplName = "password-reset"
+		subj = "Reset Your Password"
+	}
+
 	if u.emailer != nil {
-		err = u.emailer.SendMail(u.fromAddress, "Reset your password.", "password-reset",
+		err = u.emailer.SendMail(u.fromAddress, subj, tmplName,
 			map[string]interface{}{
 				"email": usr.Email,
 				"link":  resetURL.String(),
@@ -107,6 +126,7 @@ func (u *UserEmailer) SendResetPasswordEmail(email string, redirectURL url.URL, 
 		return nil, err
 	}
 	return &resetURL, nil
+
 }
 
 // SendEmailVerification sends an email to the user with the given userID containing a link which when visited marks the user as having had their email verified.

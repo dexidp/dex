@@ -20,13 +20,23 @@ type testEmailer struct {
 	lastEmail       string
 	lastClientID    string
 	lastRedirectURL url.URL
+	lastWasInvite   bool
 }
 
 // SendResetPasswordEmail returns resetPasswordURL when it can't email, mimicking the behavior of the real UserEmailer.
 func (t *testEmailer) SendResetPasswordEmail(email string, redirectURL url.URL, clientID string) (*url.URL, error) {
+	return t.sendEmail(email, redirectURL, clientID, false)
+}
+
+func (t *testEmailer) SendInviteEmail(email string, redirectURL url.URL, clientID string) (*url.URL, error) {
+	return t.sendEmail(email, redirectURL, clientID, true)
+}
+
+func (t *testEmailer) sendEmail(email string, redirectURL url.URL, clientID string, invite bool) (*url.URL, error) {
 	t.lastEmail = email
 	t.lastRedirectURL = redirectURL
 	t.lastClientID = clientID
+	t.lastWasInvite = invite
 
 	var retURL *url.URL
 	if t.cantEmail {
@@ -369,6 +379,7 @@ func TestCreateUser(t *testing.T) {
 			lastEmail:       tt.usr.Email,
 			lastClientID:    tt.creds.ClientID,
 			lastRedirectURL: tt.redirURL,
+			lastWasInvite:   true,
 		}
 		if diff := pretty.Compare(wantEmalier, emailer); diff != "" {
 			t.Errorf("case %d: Compare(want, got) = %v", i,
