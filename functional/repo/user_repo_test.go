@@ -288,6 +288,79 @@ func TestDisableUser(t *testing.T) {
 	}
 }
 
+func TestSetAdminUser(t *testing.T) {
+
+	tests := []struct {
+		id    string
+		admin bool
+		err   error
+	}{
+		{
+			id: "WasAdmin",
+		},
+		{
+			id:    "WasAdmin",
+			admin: true,
+		},
+		{
+			id: "WasntAdmin",
+		},
+		{
+			id:    "WasntAdmin",
+			admin: true,
+		},
+		{
+			id:  "NO SUCH ID",
+			err: user.ErrorNotFound,
+		},
+		{
+			id:    "NO SUCH ID",
+			err:   user.ErrorNotFound,
+			admin: true,
+		},
+		{
+			id:  "",
+			err: user.ErrorInvalidID,
+		},
+	}
+
+	for i, tt := range tests {
+		repo := makeTestUserRepo()
+		err := repo.Create(nil, user.User{
+			ID:    "WasAdmin",
+			Email: "WasAdmin@example.com",
+			Admin: true,
+		})
+		if err != nil {
+			t.Fatalf("case %d: couldn't add user: %q", i, err)
+		}
+
+		err = repo.Create(nil, user.User{
+			ID:    "WasntAdmin",
+			Email: "WasntAdmin@example.com",
+		})
+		if err != nil {
+			t.Fatalf("case %d: couldn't add user: %q", i, err)
+		}
+
+		err = repo.SetAdmin(nil, tt.id, tt.admin)
+		switch {
+		case err != tt.err:
+			t.Errorf("case %d: want=%q, got=%q", i, tt.err, err)
+		case tt.err == nil:
+			gotUser, err := repo.Get(nil, tt.id)
+			if err != nil {
+				t.Fatalf("case %d: want nil err, got %q", i, err)
+			}
+
+			if gotUser.Admin != tt.admin {
+				t.Errorf("case %d: admin status want=%v got=%v",
+					i, tt.admin, gotUser.Admin)
+			}
+		}
+	}
+}
+
 func TestAttachRemoteIdentity(t *testing.T) {
 	tests := []struct {
 		id  string

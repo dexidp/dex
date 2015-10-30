@@ -137,7 +137,8 @@ type UserCreateResponseUser struct {
 }
 
 type UserDisableRequest struct {
-	// Disable: If true, disable this user, if false, enable them
+	// Disable: If true, disable this user, if false, enable them. No error
+	// is signaled if the user state doesn't change.
 	Disable bool `json:"disable,omitempty"`
 }
 
@@ -147,6 +148,17 @@ type UserDisableResponse struct {
 
 type UserResponse struct {
 	User *User `json:"user,omitempty"`
+}
+
+type UserSetAdminRequest struct {
+	// Admin: If true, grant admin status to user, if false, revoke admin
+	// status from them. No error is signaled if the user admin status
+	// doesn't change.
+	Admin bool `json:"admin,omitempty"`
+}
+
+type UserSetAdminResponse struct {
+	Ok bool `json:"ok,omitempty"`
 }
 
 type UsersResponse struct {
@@ -602,6 +614,89 @@ func (c *UsersListCall) Do() (*UsersResponse, error) {
 	//   "path": "users",
 	//   "response": {
 	//     "$ref": "UsersResponse"
+	//   }
+	// }
+
+}
+
+// method id "dex.User.SetAdmin":
+
+type UsersSetAdminCall struct {
+	s                   *Service
+	id                  string
+	usersetadminrequest *UserSetAdminRequest
+	opt_                map[string]interface{}
+}
+
+// SetAdmin: Grant or revoke administrator status.
+func (r *UsersService) SetAdmin(id string, usersetadminrequest *UserSetAdminRequest) *UsersSetAdminCall {
+	c := &UsersSetAdminCall{s: r.s, opt_: make(map[string]interface{})}
+	c.id = id
+	c.usersetadminrequest = usersetadminrequest
+	return c
+}
+
+// Fields allows partial responses to be retrieved.
+// See https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *UsersSetAdminCall) Fields(s ...googleapi.Field) *UsersSetAdminCall {
+	c.opt_["fields"] = googleapi.CombineFields(s)
+	return c
+}
+
+func (c *UsersSetAdminCall) Do() (*UserSetAdminResponse, error) {
+	var body io.Reader = nil
+	body, err := googleapi.WithoutDataWrapper.JSONReader(c.usersetadminrequest)
+	if err != nil {
+		return nil, err
+	}
+	ctype := "application/json"
+	params := make(url.Values)
+	params.Set("alt", "json")
+	if v, ok := c.opt_["fields"]; ok {
+		params.Set("fields", fmt.Sprintf("%v", v))
+	}
+	urls := googleapi.ResolveRelative(c.s.BasePath, "users/{id}/admin")
+	urls += "?" + params.Encode()
+	req, _ := http.NewRequest("POST", urls, body)
+	googleapi.Expand(req.URL, map[string]string{
+		"id": c.id,
+	})
+	req.Header.Set("Content-Type", ctype)
+	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	res, err := c.s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	var ret *UserSetAdminResponse
+	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Grant or revoke administrator status.",
+	//   "httpMethod": "POST",
+	//   "id": "dex.User.SetAdmin",
+	//   "parameterOrder": [
+	//     "id"
+	//   ],
+	//   "parameters": {
+	//     "id": {
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     }
+	//   },
+	//   "path": "users/{id}/admin",
+	//   "request": {
+	//     "$ref": "UserSetAdminRequest"
+	//   },
+	//   "response": {
+	//     "$ref": "UserSetAdminResponse"
 	//   }
 	// }
 

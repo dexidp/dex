@@ -182,6 +182,25 @@
           "type": "boolean"
         }
       }
+    },
+    "UserSetAdminRequest": {
+      "id": "UserSetAdminRequest",
+      "type": "object",
+      "properties": {
+        "admin": {
+          "type": "boolean",
+          "description": "If true, grant admin status to user, if false, revoke admin status from them. No error is signaled if the user admin status doesn't change."
+        }
+      }
+    },
+    "UserSetAdminResponse": {
+      "id": "UserSetAdminResponse",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        }
+      }
     }
   },
   "resources": {
@@ -288,6 +307,28 @@
           },
           "response": {
             "$ref": "UserDisableResponse"
+          }
+        },
+        "SetAdmin": {
+          "id": "dex.User.SetAdmin",
+          "description": "Grant or revoke administrator status.",
+          "httpMethod": "POST",
+          "path": "users/{id}/admin",
+          "parameters": {
+            "id": {
+              "type": "string",
+              "required": true,
+              "location": "path"
+            }
+          },
+          "parameterOrder": [
+            "id"
+          ],
+          "request": {
+            "$ref": "UserSetAdminRequest"
+          },
+          "response": {
+            "$ref": "UserSetAdminResponse"
           }
         }
       }
