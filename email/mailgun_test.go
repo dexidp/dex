@@ -16,7 +16,6 @@ func TestNewEmailConfigFromReader(t *testing.T) {
 		{
 			json: `{"type":"mailgun","id":"mg","privateAPIKey":"private","publicAPIKey":"public","domain":"example.com"}`,
 			want: MailgunEmailerConfig{
-				ID:            "mg",
 				PrivateAPIKey: "private",
 				PublicAPIKey:  "public",
 				Domain:        "example.com",

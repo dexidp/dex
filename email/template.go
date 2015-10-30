@@ -36,6 +36,11 @@ type TemplatizedEmailer struct {
 	textTemplates *template.Template
 	htmlTemplates *htmltemplate.Template
 	emailer       Emailer
+	globalCtx     map[string]interface{}
+}
+
+func (t *TemplatizedEmailer) SetGlobalContext(ctx map[string]interface{}) {
+	t.globalCtx = ctx
 }
 
 // SendMail queues an email to be sent to a recipient.
@@ -58,6 +63,10 @@ func (t *TemplatizedEmailer) SendMail(from, subject, tplName string, data map[st
 	data["to"] = to
 	data["from"] = from
 	data["subject"] = subject
+
+	for k, v := range t.globalCtx {
+		data[k] = v
+	}
 
 	var textBuffer bytes.Buffer
 	if textTpl != nil {

@@ -9,9 +9,11 @@ import (
 const (
 	textTemplateString = `{{define "T1.txt"}}{{.gift}} from {{.from}} to {{.to}}.{{end}}
 {{define "T3.txt"}}Hello there, {{.name}}!{{end}}
+{{define "T4.txt"}}Hello there, {{.name}}! Welcome to {{.planet}}!{{end}}
 `
 	htmlTemplateString = `{{define "T1.html"}}<html><body>{{.gift}} from {{.from}} to {{.to}}.</body></html>{{end}}
 {{define "T2.html"}}<html><body>Hello, {{.name}}!</body></html>{{end}}
+{{define "T4.html"}}<html><body>Hello there, {{.name}}! Welcome to {{.planet}}!</body></html>{{end}}
 `
 )
 
@@ -51,6 +53,7 @@ func TestTemplatizedEmailSendMail(t *testing.T) {
 		wantText          string
 		wantHtml          string
 		wantErr           bool
+		ctx               map[string]interface{}
 	}{
 		{
 			tplName: "T1",
@@ -97,11 +100,29 @@ func TestTemplatizedEmailSendMail(t *testing.T) {
 			wantText: "",
 			wantHtml: htmlStart + "Hello, Alice&lt;script&gt;alert(&#39;hacked!&#39;)&lt;/script&gt;!" + htmlEnd,
 		},
+		{
+			tplName: "T4",
+			from:    "bob@example.com",
+			to:      "alice@example.com",
+			subject: "hello there",
+			data: map[string]interface{}{
+				"name": "Alice",
+			},
+			wantText: "Hello there, Alice! Welcome to Mars!",
+			ctx: map[string]interface{}{
+				"planet": "Mars",
+			},
+			wantHtml: "<html><body>Hello there, Alice! Welcome to Mars!</body></html>",
+		},
 	}
 
 	for i, tt := range tests {
 		emailer := &testEmailer{}
 		templatizer := NewTemplatizedEmailerFromTemplates(textTemplates, htmlTemplates, emailer)
+		if tt.ctx != nil {
+			templatizer.SetGlobalContext(tt.ctx)
+		}
+
 		err := templatizer.SendMail(tt.from, tt.subject, tt.tplName, tt.data, tt.to)
 		if tt.wantErr {
 			if err == nil {
