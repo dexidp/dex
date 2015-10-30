@@ -11,7 +11,9 @@ import (
 )
 
 const (
-	FakeEmailerType = "fake"
+	FakeEmailerType    = "fake"
+	FailingEmailerType = "fail"
+	NoEmailerType      = "none"
 )
 
 var (
@@ -21,6 +23,8 @@ var (
 
 func init() {
 	RegisterEmailerConfigType(FakeEmailerType, func() EmailerConfig { return &FakeEmailerConfig{} })
+	RegisterEmailerConfigType(FailingEmailerType, func() EmailerConfig { return &FailingEmailerConfig{} })
+	RegisterEmailerConfigType(NoEmailerType, func() EmailerConfig { return &NoEmailerConfig{} })
 }
 
 // Emailer is an object that sends emails.
@@ -64,8 +68,7 @@ func NewEmailerConfigFromFile(loc string) (EmailerConfig, error) {
 	return cfg, nil
 }
 
-type FakeEmailerConfig struct {
-}
+type FakeEmailerConfig struct{}
 
 func (cfg FakeEmailerConfig) EmailerType() string {
 	return FakeEmailerType
@@ -89,4 +92,40 @@ func (f FakeEmailer) SendMail(from, subject, text, html string, to ...string) er
 	fmt.Printf("Body(text): %v\n", text)
 	fmt.Printf("Body(html): %v\n", html)
 	return nil
+}
+
+type FailingEmailerConfig struct{}
+
+func (cfg FailingEmailerConfig) EmailerType() string {
+	return FailingEmailerType
+}
+
+func (cfg FailingEmailerConfig) EmailerID() string {
+	return FailingEmailerType
+}
+
+func (cfg FailingEmailerConfig) Emailer() (Emailer, error) {
+	return FailingEmailer{}, nil
+}
+
+// FailingEmailer is an Emailer that always reports an error.
+type FailingEmailer struct{}
+
+func (f FailingEmailer) SendMail(_, _, _, _ string, _ ...string) error {
+	return errors.New("FailingEmailer always returns an error when attempting to send email")
+}
+
+// NoEmailer is an emailer that is not present, for dex installs that can't send email by themselves
+type NoEmailerConfig struct{}
+
+func (cfg NoEmailerConfig) EmailerType() string {
+	return FakeEmailerType
+}
+
+func (cfg NoEmailerConfig) EmailerID() string {
+	return FakeEmailerType
+}
+
+func (cfg NoEmailerConfig) Emailer() (Emailer, error) {
+	return nil, nil
 }
