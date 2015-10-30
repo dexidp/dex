@@ -1,0 +1,4 @@
+Welcome to Dex! Click below to set your password:
+
+Link:
+{{ .link }}
