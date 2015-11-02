@@ -10,6 +10,8 @@ In this mode you provide the binary with paths to files to connectors and users 
 
 *Do not use this flag in production* - it's not thread safe and data is destroyed when the process dies. In addition, there is no key rotation.
 
+Note: If you want to test out the registration flow, you need to enable that feature by passing `--enable-registration=true` as well.
+
 ## Building
 
 To build using the go binary on your host, use the `./build` script.
