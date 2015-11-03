@@ -33,7 +33,7 @@ The single dex-overlord runs its tasks periodically, so it does not need to main
 
 ## Who Should Use Dex?
 
-A non-exhaustive list of those who would benfit from using dex:
+A non-exhaustive list of those who would benefit from using dex:
 
 - Those who want a language/framework-agnostic way to manage authentication.
 - Those who want to federate authentication from mutiple providers of differing types.
