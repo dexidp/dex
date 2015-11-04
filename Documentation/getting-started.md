@@ -5,7 +5,7 @@
 
 In this document we'll stand up the full dex stack on a single machine. This should demonstrate all the moving parts involved in a dex installation, but is not appropriate for production deployment. Please see the [deployment guide][deployment-guide] for information on production dex setups.
 
-[deployment-guide]: https://github.com/coreos/dex/blob/master/Documentation/deployment-guide.md
+[deployment-guide]: https://github.com/coreos/dex/blob/master/Documentation/deploy-guide.md
 
 We'll also start the example web app, so we can try registering and logging in.
 
