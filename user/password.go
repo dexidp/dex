@@ -214,8 +214,8 @@ func NewPasswordInfoRepoFromFile(loc string) (PasswordInfoRepo, error) {
 	return NewPasswordInfoRepoFromPasswordInfos(pws), nil
 }
 
-func NewPasswordReset(user User, password Password, issuer url.URL, clientID string, callback url.URL, expires time.Duration) PasswordReset {
-	claims := oidc.NewClaims(issuer.String(), user.ID, clientID, clock.Now(), clock.Now().Add(expires))
+func NewPasswordReset(userID string, password Password, issuer url.URL, clientID string, callback url.URL, expires time.Duration) PasswordReset {
+	claims := oidc.NewClaims(issuer.String(), userID, clientID, clock.Now(), clock.Now().Add(expires))
 	claims.Add(ClaimPasswordResetPassword, string(password))
 	claims.Add(ClaimPasswordResetCallback, callback.String())
 	return PasswordReset{claims}

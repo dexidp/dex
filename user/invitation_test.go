@@ -23,63 +23,53 @@ func TestInvitationParseAndVerify(t *testing.T) {
 	signer := privKey.Signer()
 	publicKeys := []key.PublicKey{*key.NewPublicKey(privKey.JWK())}
 
-	goodInvitation := NewInvitation(user, password, *issuer, client, *callback, expires)
-	goodNoCB := NewInvitation(user, password, *issuer, client, *callback, expires)
-	expired := NewInvitation(user, password, *issuer, client, *callback, -expires)
-	wrongIssuer := NewInvitation(user, password, *notIssuer, client, *callback, expires)
-	noSub := NewInvitation(User{Email: "noid@noid.com"}, password, *issuer, client, *callback, expires)
-	noEmail := NewInvitation(User{ID: "JONNY_NO_EMAIL"}, password, *issuer, client, *callback, expires)
-	noPassword := NewInvitation(user, Password(""), *issuer, client, *callback, expires)
-	noClient := NewInvitation(user, password, *issuer, "", *callback, expires)
-	noClientNoCB := NewInvitation(user, password, *issuer, "", url.URL{}, expires)
-
 	tests := []struct {
 		invite  Invitation
 		wantErr bool
 		signer  jose.Signer
 	}{
 		{
-			invite:  goodInvitation,
+			invite:  NewInvitation(user, password, *issuer, client, *callback, expires),
 			signer:  signer,
 			wantErr: false,
 		},
 		{
-			invite:  goodNoCB,
+			invite:  NewInvitation(user, password, *issuer, client, *callback, expires),
 			signer:  signer,
 			wantErr: false,
 		},
 		{
-			invite:  expired,
+			invite:  NewInvitation(user, password, *issuer, client, *callback, -expires),
 			signer:  signer,
 			wantErr: true,
 		},
 		{
-			invite:  wrongIssuer,
+			invite:  NewInvitation(user, password, *notIssuer, client, *callback, expires),
 			signer:  signer,
 			wantErr: true,
 		},
 		{
-			invite:  noSub,
+			invite:  NewInvitation(User{Email: "noid@noid.com"}, password, *issuer, client, *callback, expires),
 			signer:  signer,
 			wantErr: true,
 		},
 		{
-			invite:  noEmail,
+			invite:  NewInvitation(User{ID: "JONNY_NO_EMAIL"}, password, *issuer, client, *callback, expires),
 			signer:  signer,
 			wantErr: true,
 		},
 		{
-			invite:  noPassword,
+			invite:  NewInvitation(user, Password(""), *issuer, client, *callback, expires),
 			signer:  signer,
 			wantErr: true,
 		},
 		{
-			invite:  noClient,
+			invite:  NewInvitation(user, password, *issuer, "", *callback, expires),
 			signer:  signer,
 			wantErr: true,
 		},
 		{
-			invite:  noClientNoCB,
+			invite:  NewInvitation(user, password, *issuer, "", url.URL{}, expires),
 			signer:  signer,
 			wantErr: true,
 		},

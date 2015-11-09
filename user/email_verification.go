@@ -5,19 +5,13 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/jonboulle/clockwork"
-
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/key"
 	"github.com/coreos/go-oidc/oidc"
 )
 
-var (
-	clock = clockwork.NewRealClock()
-)
-
 // NewEmailVerification creates an object which can be sent to a user
-// in serialized form to verify that they control an email addwress.
+// in serialized form to verify that they control an email address.
 // The clientID is the ID of the registering user. The callback is
 // where a user should land after verifying their email.
 func NewEmailVerification(user User, clientID string, issuer url.URL, callback url.URL, expires time.Duration) EmailVerification {
