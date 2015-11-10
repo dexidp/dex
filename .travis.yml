@@ -10,15 +10,23 @@ go:
 
 env:
   - DEX_TEST_DSN="postgres://postgres@127.0.0.1:15432/postgres?sslmode=disable" ISOLATED=true
+    DEX_TEST_LDAP_URI="ldap://tlstest.local:1389/????bindname=cn%3Dadmin%2Cdc%3Dexample%2Cdc%3Dorg,X-BINDPW=admin"
 
 install:
   - go get golang.org/x/tools/cmd/cover
   - go get golang.org/x/tools/cmd/vet
   - docker pull quay.io/coreos/postgres
+  - docker pull osixia/openldap
 
 script:
   - docker run -d -p 127.0.0.1:15432:5432 quay.io/coreos/postgres
+  - LDAPCONTAINER=`docker run -e LDAP_TLS_PROTOCOL_MIN=3.0 -e LDAP_TLS_CIPHER_SUITE=NORMAL -d -p 127.0.0.1:1389:389 -p 127.0.0.1:1636:636 -h tlstest.local osixia/openldap`
   - ./test
+  - docker cp ${LDAPCONTAINER}:container/service/:cfssl/assets/default-ca/default-ca.pem /tmp/openldap-ca.pem
+  - docker cp ${LDAPCONTAINER}:container/service/slapd/assets/certs/ldap.key /tmp/ldap.key
+  - chmod 644 /tmp/ldap.key
+  - docker cp ${LDAPCONTAINER}:container/service/slapd/assets/certs/ldap.crt /tmp/ldap.crt
+  - sudo sh -c 'echo "127.0.0.1 tlstest.local" >> /etc/hosts'
   - ./test-functional
 
 deploy:

@@ -1,0 +1,30 @@
+{{ template "header.html" }}
+
+<div class="panel">
+  <h2 class="heading">Log in to Your Account</h2>
+  <form method="post" action="{{.PostURL}}">
+    <div class="form-row">
+      LDAP
+      <div class="input-desc">
+        <label for="userid">Username</label>
+      </div>
+      <input tabindex="1" required id="userid" name="userid" type="text" class="input-box" placeholder="username" autofocus/>
+    </div>
+    <div class="form-row">
+      <div class="input-desc">
+        <label for="password">Password</label>
+        <span class="subtle-text input-label-right">Forgot? <a href="/send-reset-password?session_key={{ .SessionKey }}">Reset Password</a></span>
+      </div>
+      <input tabindex="2" required id="password" name="password" type="password" class="input-box" placeholder="password"/>
+    </div>
+
+    {{ if .Error }}
+      <div class="error-box">{{ .Message }}</div>
+    {{ end }}
+
+    <button tabindex="3" type="submit" class="btn btn-primary">Login</button>
+
+  </form>
+</div>
+
+{{ template "footer.html" }}
