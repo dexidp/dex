@@ -5,8 +5,18 @@
     "redirectURLs": ["http://127.0.0.1:5555/callback"]
   },
   {
-    "id": "core-update",
-    "secret": "secrete",
+    "id": "example-app",
+    "secret": "example-app-secret",
+    "redirectURLs": ["http://127.0.0.1:5555/callback"]
+  },
+  {
+    "id": "example-cli",
+    "secret": "example-cli-secret",
     "redirectURLs": ["http://127.0.0.1:8000/admin/v1/oauth/login"]
+  },
+  {
+    "id": "oauth2_proxy",
+    "secret": "proxy",
+    "redirectURLs": ["http://127.0.0.1:4180/oauth2/callback"]
   }
 ]
