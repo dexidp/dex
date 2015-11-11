@@ -8,7 +8,7 @@ The document assumes that you already have a cluster with at least one worker up
 
 The other assumption is that your Kubernetes cluster will be routable on `172.17.4.99`  (which is what it will be if you use [coreos-kubernetes single node][coreos-kubernetes-single-node], and the issuer URL for your dex installation is `http://172.17.4.99:30556`; in production installations you will need to make sure that you are serving on https and you will likely want to use a hostname rather than an IP address.
 
-[coreos-kubernetes-single-node][https://github.com/coreos/coreos-kubernetes/blob/master/single-node/README.md]
+[coreos-kubernetes-single-node](https://github.com/coreos/coreos-kubernetes/blob/master/single-node/README.md)
 
 ## Start Postgres
 
