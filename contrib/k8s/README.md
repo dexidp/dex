@@ -1,6 +1,6 @@
 # Deploying dex on Kubernetes
 
-This document will allow you to set up dex in your Kubernetes cluster ;the example configuration files are generally useful, but will need to be modified to meet the needs of your deployment. The places that are likely to need modification will be called out as often as possible in this document.
+This document will allow you to set up dex in your Kubernetes cluster; the example configuration files are generally useful, but will need to be modified to meet the needs of your deployment. The places that are likely to need modification will be called out as often as possible in this document.
 
 ## Prerequisites and Assumptions
 
