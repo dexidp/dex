@@ -357,7 +357,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 
 func TestResetPasswordHandler(t *testing.T) {
 	makeToken := func(userID, password, clientID string, callback url.URL, expires time.Duration, signer jose.Signer) string {
-		pr := user.NewPasswordReset(user.User{ID: "ID-1"},
+		pr := user.NewPasswordReset("ID-1",
 			user.Password(password),
 			testIssuerURL,
 			clientID,

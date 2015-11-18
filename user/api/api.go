@@ -88,7 +88,6 @@ type UsersAPI struct {
 }
 
 type Emailer interface {
-	SendResetPasswordEmail(string, url.URL, string) (*url.URL, error)
 	SendInviteEmail(string, url.URL, string) (*url.URL, error)
 }
 

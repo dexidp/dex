@@ -42,11 +42,28 @@ var (
 				},
 			},
 		},
+		{
+			User: user.User{
+				ID:            "ID-Verified",
+				Email:         "Email-Verified@example.com",
+				EmailVerified: true,
+			},
+			RemoteIdentities: []user.RemoteIdentity{
+				{
+					ConnectorID: "IDPC-1",
+					ID:          "RID-2",
+				},
+			},
+		},
 	}
 
 	testPasswordInfos = []user.PasswordInfo{
 		{
 			UserID:   "ID-1",
+			Password: []byte("password"),
+		},
+		{
+			UserID:   "ID-Verified",
 			Password: []byte("password"),
 		},
 	}
@@ -162,7 +179,9 @@ func makeTestFixtures() (*testFixtures, error) {
 		emailer,
 		"noreply@example.com",
 		srv.absURL(httpPathResetPassword),
-		srv.absURL(httpPathEmailVerify))
+		srv.absURL(httpPathEmailVerify),
+		srv.absURL(httpPathAcceptInvitation),
+	)
 
 	return &testFixtures{
 		srv:                srv,

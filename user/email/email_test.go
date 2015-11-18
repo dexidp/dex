@@ -17,13 +17,14 @@ import (
 )
 
 var (
-	validityWindow   = time.Hour * 1
-	issuerURL        = url.URL{Host: "dex.example.com"}
-	fromAddress      = "dex@example.com"
-	passwordResetURL = url.URL{Host: "dex.example.com", Path: "passwordReset"}
-	verifyEmailURL   = url.URL{Host: "dex.example.com", Path: "verifyEmail"}
-	redirURL         = url.URL{Host: "client.example.com", Path: "/redirURL"}
-	clientID         = "XXX"
+	validityWindow      = time.Hour * 1
+	issuerURL           = url.URL{Host: "dex.example.com"}
+	fromAddress         = "dex@example.com"
+	passwordResetURL    = url.URL{Host: "dex.example.com", Path: "passwordReset"}
+	verifyEmailURL      = url.URL{Host: "dex.example.com", Path: "verifyEmail"}
+	acceptInvitationURL = url.URL{Host: "dex.example.com", Path: "acceptInvitation"}
+	redirURL            = url.URL{Host: "client.example.com", Path: "/redirURL"}
+	clientID            = "XXX"
 )
 
 type testEmailer struct {
@@ -98,7 +99,7 @@ func makeTestFixtures() (*UserEmailer, *testEmailer, *key.PublicKey) {
 	emailer := &testEmailer{}
 	tEmailer := email.NewTemplatizedEmailerFromTemplates(textTemplates, htmlTemplates, emailer)
 
-	userEmailer := NewUserEmailer(ur, pwr, signerFn, validityWindow, issuerURL, tEmailer, fromAddress, passwordResetURL, verifyEmailURL)
+	userEmailer := NewUserEmailer(ur, pwr, signerFn, validityWindow, issuerURL, tEmailer, fromAddress, passwordResetURL, verifyEmailURL, acceptInvitationURL)
 
 	return userEmailer, emailer, publicKey
 }

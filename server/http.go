@@ -39,6 +39,7 @@ var (
 	httpPathVerifyEmailResend = "/resend-verify-email"
 	httpPathSendResetPassword = "/send-reset-password"
 	httpPathResetPassword     = "/reset-password"
+	httpPathAcceptInvitation  = "/accept-invitation"
 	httpPathDebugVars         = "/debug/vars"
 
 	cookieLastSeen                 = "LastSeen"

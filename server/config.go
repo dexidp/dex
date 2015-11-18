@@ -302,7 +302,9 @@ func setEmailer(srv *Server, issuerName, fromAddress, emailerConfigFile string, 
 		tMailer,
 		fromAddress,
 		srv.absURL(httpPathResetPassword),
-		srv.absURL(httpPathEmailVerify))
+		srv.absURL(httpPathEmailVerify),
+		srv.absURL(httpPathAcceptInvitation),
+	)
 
 	srv.UserEmailer = ue
 	return nil

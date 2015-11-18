@@ -205,6 +205,12 @@ func (m *Manager) RegisterWithPassword(email, plaintext, connID string) (string,
 	return user.ID, nil
 }
 
+type EmailVerifiable interface {
+	UserID() string
+	Email() string
+	Callback() *url.URL
+}
+
 // VerifyEmail sets EmailVerified to true for the user for the given EmailVerification.
 // The email in the EmailVerification must match the User's email in the
 // repository, and it must not already be verified.
@@ -212,7 +218,7 @@ func (m *Manager) RegisterWithPassword(email, plaintext, connID string) (string,
 // create it, ensuring that the token was signed and that the JWT was not
 // expired.
 // The callback url (i.e. where to send the user after the verification) is returned.
-func (m *Manager) VerifyEmail(ev EmailVerification) (*url.URL, error) {
+func (m *Manager) VerifyEmail(ev EmailVerifiable) (*url.URL, error) {
 	tx, err := m.begin()
 	if err != nil {
 		return nil, err
@@ -250,7 +256,13 @@ func (m *Manager) VerifyEmail(ev EmailVerification) (*url.URL, error) {
 	return ev.Callback(), nil
 }
 
-func (m *Manager) ChangePassword(pwr PasswordReset, plaintext string) (*url.URL, error) {
+type PasswordChangeable interface {
+	UserID() string
+	Password() Password
+	Callback() *url.URL
+}
+
+func (m *Manager) ChangePassword(pwr PasswordChangeable, plaintext string) (*url.URL, error) {
 	tx, err := m.begin()
 	if err != nil {
 		return nil, err

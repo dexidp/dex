@@ -250,11 +250,10 @@ func (r *resetPasswordRequest) handlePOST() {
 			return
 		default:
 			r.data.Error = "Error Processing Request"
-			r.data.Message = "Plesae try again later."
+			r.data.Message = "Please try again later."
 			execTemplateWithStatus(r.w, r.h.tpl, r.data, http.StatusInternalServerError)
 			return
 		}
-
 	}
 	if cbURL == nil {
 		r.data.Success = true

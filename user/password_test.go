@@ -122,7 +122,7 @@ func TestNewPasswordReset(t *testing.T) {
 		if err != nil {
 			t.Fatalf("case %d: non-nil err: %q", i, err)
 		}
-		ev := NewPasswordReset(tt.user, tt.password, tt.issuer, tt.clientID, *cbURL, tt.expires)
+		ev := NewPasswordReset(tt.user.ID, tt.password, tt.issuer, tt.clientID, *cbURL, tt.expires)
 
 		if diff := pretty.Compare(tt.want, ev.Claims); diff != "" {
 			t.Errorf("case %d: Compare(want, got): %v", i, diff)
@@ -143,15 +143,16 @@ func TestPasswordResetParseAndVerify(t *testing.T) {
 	callback, _ := url.Parse("http://client.example.com")
 	expires := time.Hour * 3
 	password := Password("passy")
+	userID := user.ID
 
-	goodPR := NewPasswordReset(user, password, *issuer, client, *callback, expires)
-	goodPRNoCB := NewPasswordReset(user, password, *issuer, client, url.URL{}, expires)
-	expiredPR := NewPasswordReset(user, password, *issuer, client, *callback, -expires)
-	wrongIssuerPR := NewPasswordReset(user, password, *otherIssuer, client, *callback, expires)
-	noSubPR := NewPasswordReset(User{}, password, *issuer, client, *callback, expires)
-	noPWPR := NewPasswordReset(user, Password(""), *issuer, client, *callback, expires)
-	noClientPR := NewPasswordReset(user, password, *issuer, "", *callback, expires)
-	noClientNoCBPR := NewPasswordReset(user, password, *issuer, "", url.URL{}, expires)
+	goodPR := NewPasswordReset(userID, password, *issuer, client, *callback, expires)
+	goodPRNoCB := NewPasswordReset(userID, password, *issuer, client, url.URL{}, expires)
+	expiredPR := NewPasswordReset(userID, password, *issuer, client, *callback, -expires)
+	wrongIssuerPR := NewPasswordReset(userID, password, *otherIssuer, client, *callback, expires)
+	noSubPR := NewPasswordReset("", password, *issuer, client, *callback, expires)
+	noPWPR := NewPasswordReset(userID, Password(""), *issuer, client, *callback, expires)
+	noClientPR := NewPasswordReset(userID, password, *issuer, "", *callback, expires)
+	noClientNoCBPR := NewPasswordReset(userID, password, *issuer, "", url.URL{}, expires)
 
 	privKey, err := key.GeneratePrivateKey()
 	if err != nil {

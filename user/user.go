@@ -13,6 +13,7 @@ import (
 	"sort"
 
 	"code.google.com/p/go-uuid/uuid"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/coreos/dex/repo"
 	"github.com/coreos/go-oidc/jose"
@@ -41,6 +42,27 @@ const (
 	// Claim representing where a user should be sent after responding to an invitation
 	ClaimInvitationCallback = "http://coreos.com/invitation/callback"
 )
+
+var (
+	clock = clockwork.NewRealClock()
+)
+
+func assertStringClaim(claims jose.Claims, k string) string {
+	s, ok, err := claims.StringClaim(k)
+	if !ok || err != nil {
+		panic(fmt.Sprintf("claims were not validated correctly, missing or wrong claim: %v", k))
+	}
+	return s
+}
+
+func assertURLClaim(claims jose.Claims, k string) *url.URL {
+	ustring := assertStringClaim(claims, k)
+	ret, err := url.Parse(ustring)
+	if err != nil {
+		panic(fmt.Sprintf("url claim was not validated correctly: %v", k))
+	}
+	return ret
+}
 
 type UserIDGenerator func() (string, error)
 
