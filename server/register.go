@@ -296,6 +296,9 @@ func newLoginURLFromSession(issuer url.URL, ses *session.Session, register bool,
 	if msgCode != "" {
 		v.Set("msg_code", msgCode)
 	}
+	if len(ses.Scope) > 0 {
+		v.Set("scope", strings.Join(ses.Scope, " "))
+	}
 
 	loginURL.RawQuery = v.Encode()
 	return &loginURL
