@@ -104,7 +104,7 @@ func handleRegisterFunc(s *Server) http.HandlerFunc {
 		trustedEmail := ses.Identity.Email != "" && idpc.TrustedEmailProvider()
 		validate := r.Form.Get("validate") == "1"
 		formErrors := []formError{}
-		email := r.Form.Get("email")
+		email := strings.TrimSpace(r.Form.Get("email"))
 
 		// only auto-populate the first time the page is GETted, not on
 		// subsequent POSTs
@@ -114,7 +114,7 @@ func handleRegisterFunc(s *Server) http.HandlerFunc {
 
 		password := r.Form.Get("password")
 		if validate {
-			if email == "" {
+			if email == "" || !user.ValidEmail(email) {
 				formErrors = append(formErrors, formError{"email", "Please supply a valid email"})
 			}
 			if local && password == "" {
