@@ -147,6 +147,37 @@ func TestHandleRegister(t *testing.T) {
 			wantUserCreated: true,
 		},
 		{
+			// User comes in with spaces in their email, having submitted the
+			// form. The email is trimmed and the user is created.
+			query: url.Values{
+				"code":     []string{"code-2"},
+				"validate": []string{"1"},
+				"email":    str("\t\ntest@example.com "),
+				"password": str("password"),
+			},
+			connID:          "local",
+			wantStatus:      http.StatusSeeOther,
+			wantUserCreated: true,
+		},
+		{
+			// User comes in with an invalid email, having submitted the form.
+			// The email is rejected and the user is not created.
+			query: url.Values{
+				"code":     []string{"code-2"},
+				"validate": []string{"1"},
+				"email":    str("aninvalidemail"),
+				"password": str("password"),
+			},
+			connID:     "local",
+			wantStatus: http.StatusBadRequest,
+			wantFormValues: url.Values{
+				"code":     str("code-3"),
+				"email":    str("aninvalidemail"),
+				"password": str("password"),
+				"validate": str("1"),
+			},
+		},
+		{
 			// User comes in with a valid code, having submitted the form, but
 			// there's no password.
 			query: url.Values{
