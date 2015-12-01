@@ -163,10 +163,9 @@ func ValidEmail(email string) bool {
 		return false
 	}
 
-	if address.Name != "" || address.Address == "" {
-		return false
-	}
-	return true
+	// Has mail.ParseAddress parsed the entire string and only found a single
+	// address without a name?
+	return address.Address == email
 }
 
 func ValidPassword(plaintext string) bool {
