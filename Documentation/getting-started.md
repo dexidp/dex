@@ -25,11 +25,19 @@ In addition, if you wish to try out authenticating against Google's OIDC backend
 
 # Create Database
 
-`createdb dex_db`
+On the PostgreSQL server, login as a user with appropriate permissions and create a database and user for dex to use. These can be named arbitrarily, but are called `dex_db` and `dex`, respectively, in this example.
 
-Let's store the connection string in a shell variable:
+```sql
+CREATE DATABASE dex_db;
+CREATE USER dex WITH PASSWORD 'dex_pass';
+GRANT ALL PRIVILEGES ON DATABASE dex_db TO dex;
+```
 
-`DEX_DB_URL=postgres://localhost/dex_db?sslmode=disable`
+Store the [connection string](http://www.postgresql.org/docs/9.4/static/libpq-connect.html#LIBPQ-CONNSTRING) for the dex database in an environment variable:
+
+```
+DEX_DB_URL=postgres://dex:dex_pass@localhost/dex_db?sslmode=disable
+```
 
 # Building
 
