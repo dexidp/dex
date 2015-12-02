@@ -25,13 +25,13 @@ export DEX_WORKER_DB_URL=$DEX_DB_URL
 dropdb $DEX_DB; createdb $DEX_DB
 
 
-DEX_KEY_SECRET=$(dd if=/dev/random bs=1 count=32 2>/dev/null | base64)
+DEX_KEY_SECRET=$(dd if=/dev/random bs=1 count=32 2>/dev/null | base64 | tr -d '\n')
 
 # Start the overlord
 export DEX_OVERLORD_DB_URL=$DEX_DB_URL
 export DEX_OVERLORD_KEY_SECRETS=$DEX_KEY_SECRET
 export DEX_OVERLORD_KEY_PERIOD=1h
-export DEX_OVERLORD_ADMIN_API_SECRET=$(dd if=/dev/random bs=1 count=128 2>/dev/null | base64)
+export DEX_OVERLORD_ADMIN_API_SECRET=$(dd if=/dev/random bs=1 count=128 2>/dev/null | base64 | tr -d '\n')
 ./bin/dex-overlord &
 echo "Waiting for overlord to start..."
 until $(curl --output /dev/null --silent --fail http://localhost:5557/health); do

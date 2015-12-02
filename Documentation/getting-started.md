@@ -41,7 +41,7 @@ The build script will build all dex components.
 
 dex needs a 32 byte base64-encoded key which will be used to encrypt the private keys in the database. A good way to generate the key is to read from /dev/random:
 
-`DEX_KEY_SECRET=$(dd if=/dev/random bs=1 count=32 2>/dev/null | base64)`
+`DEX_KEY_SECRET=$(dd if=/dev/random bs=1 count=32 2>/dev/null | base64 | tr -d '\n')`
 
 The dex overlord and workers allow multiple key secrets (separated by commas) to be passed but only the first will be used to encrypt data; the rest are there for decryption only; this scheme allows for the rotation of keys without downtime (assuming a rolling restart of workers).
 
@@ -49,7 +49,7 @@ The dex overlord and workers allow multiple key secrets (separated by commas) to
 
 The dex overlord has a an API which is very powerful - you can create Admin users with it, so it needs to be protected somehow. This is accomplished by requiring that a secret is passed via the Authorization header of each request. This secret is 128 bytes base64 encoded, and should be sufficiently random so as to make guessing impractical:
 
-`DEX_OVERLORD_ADMIN_API_SECRET=$(dd if=/dev/random bs=1 count=128 2>/dev/null | base64)`
+`DEX_OVERLORD_ADMIN_API_SECRET=$(dd if=/dev/random bs=1 count=128 2>/dev/null | base64 | tr -d '\n')`
 
 # Start the overlord
 
