@@ -125,6 +125,7 @@ type templateData struct {
 var connectorDisplayNameMap = map[string]string{
 	"google": "Google",
 	"local":  "Email",
+	"github": "GitHub",
 }
 
 func execTemplate(w http.ResponseWriter, tpl *template.Template, data interface{}) {
