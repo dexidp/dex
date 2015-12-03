@@ -41,7 +41,7 @@ func main() {
 	emailTemplateDirs := flagutil.StringSliceFlag{"./static/email"}
 	fs.Var(&emailTemplateDirs, "email-templates", "comma separated list of directories of email template files")
 
-	emailFrom := fs.String("email-from", "no-reply@coreos.com", "emails sent from dex will come from this address")
+	emailFrom := fs.String("email-from", "no-reply@example.com", "emails sent from dex will come from this address")
 	emailConfig := fs.String("email-cfg", "./static/fixtures/emailer.json", "configures emailer.")
 
 	enableRegistration := fs.Bool("enable-registration", false, "Allows users to self-register")
