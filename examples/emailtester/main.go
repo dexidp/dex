@@ -54,7 +54,7 @@ func main() {
 	log.EnableDebug()
 
 	emailTemplates := flag.String("templates-dir", "./static/email", "directory of email template files")
-	emailFrom := flag.String("from", "no-reply@coreos.com", "")
+	emailFrom := flag.String("from", "no-reply@example.com", "")
 	emailTo := flag.String("to", "", "")
 	emailConfig := flag.String("cfg", "./static/fixtures/emailer.json", "configures emailer.")
 	tplName := flag.String("template", "verify-email", "which email template to use.")
