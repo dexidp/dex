@@ -48,7 +48,7 @@ func validateIdentityPass(id *oidc.Identity) error {
 
 func validateIdentityDomainFunc(want string) validateIdentityFunc {
 	return func(ident *oidc.Identity) error {
-		got, err := parseEmailDomain(ident)
+		got, err := parseEmailDomain(ident.Email)
 		if err != nil {
 			return err
 		} else if want != got {
@@ -58,17 +58,17 @@ func validateIdentityDomainFunc(want string) validateIdentityFunc {
 	}
 }
 
-func parseEmailDomain(ident *oidc.Identity) (string, error) {
+func parseEmailDomain(email string) (string, error) {
 	// minimum viable email address is a@b
-	if len(ident.Email) < 3 {
+	if len(email) < 3 {
 		return "", errors.New("invalid email address")
 	}
 	// assert that an @ is found, and it isn't the first or last character
-	idx := strings.LastIndex(ident.Email, "@")
-	if idx < 1 || idx == len(ident.Email)-1 {
+	idx := strings.LastIndex(email, "@")
+	if idx < 1 || idx == len(email)-1 {
 		return "", errors.New("invalid email address")
 	}
-	return ident.Email[idx+1:], nil
+	return email[idx+1:], nil
 }
 
 type OIDCConnector struct {

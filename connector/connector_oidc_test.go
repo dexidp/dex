@@ -152,7 +152,7 @@ func TestParseEmailDomainSuccess(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		got, err := parseEmailDomain(&oidc.Identity{Email: tt.email})
+		got, err := parseEmailDomain(tt.email)
 		if err != nil {
 			t.Errorf("case %d: unexpected error: %v", i, err)
 			continue
@@ -171,7 +171,7 @@ func TestParseEmailDomainFailure(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		_, err := parseEmailDomain(&oidc.Identity{Email: tt})
+		_, err := parseEmailDomain(tt)
 		if err == nil {
 			t.Errorf("case %d: expected error, got nil", i)
 		}
