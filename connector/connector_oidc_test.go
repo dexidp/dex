@@ -142,3 +142,59 @@ func TestRedirectError(t *testing.T) {
 		t.Errorf("Incorrect Location header: want=%s got=%s", wantLoc, gotLoc)
 	}
 }
+
+func TestParseEmailDomainSuccess(t *testing.T) {
+	tests := []struct {
+		email string
+		want  string
+	}{
+		{"foo@example.com", "example.com"},
+	}
+
+	for i, tt := range tests {
+		got, err := parseEmailDomain(&oidc.Identity{Email: tt.email})
+		if err != nil {
+			t.Errorf("case %d: unexpected error: %v", i, err)
+			continue
+		}
+		if tt.want != got {
+			t.Errorf("case %d: want=%v got=%v", i, tt.want, got)
+		}
+	}
+}
+
+func TestParseEmailDomainFailure(t *testing.T) {
+	tests := []string{
+		"example.com",
+		"@example.com",
+		"foo@",
+	}
+
+	for i, tt := range tests {
+		_, err := parseEmailDomain(&oidc.Identity{Email: tt})
+		if err == nil {
+			t.Errorf("case %d: expected error, got nil", i)
+		}
+	}
+}
+
+func TestValidateIdentityDomainFunc(t *testing.T) {
+	vif := validateIdentityDomainFunc("bar.example.com")
+
+	ident := oidc.Identity{Email: "foo@bar.example.com"}
+	if err := vif(&ident); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// incorrect domain
+	ident = oidc.Identity{Email: "foo@baz.example.com"}
+	if err := vif(&ident); err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+
+	// invalid email address
+	ident = oidc.Identity{Email: "pants"}
+	if err := vif(&ident); err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+}

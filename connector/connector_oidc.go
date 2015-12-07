@@ -1,10 +1,12 @@
 package connector
 
 import (
+	"errors"
 	"html/template"
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 
 	phttp "github.com/coreos/dex/pkg/http"
 	"github.com/coreos/dex/pkg/log"
@@ -27,6 +29,7 @@ type OIDCConnectorConfig struct {
 	ClientID             string `json:"clientID"`
 	ClientSecret         string `json:"clientSecret"`
 	TrustedEmailProvider bool   `json:"trustedEmailProvider"`
+	Domain               string `json:"domain"`
 }
 
 func (cfg *OIDCConnectorConfig) ConnectorID() string {
@@ -37,6 +40,37 @@ func (cfg *OIDCConnectorConfig) ConnectorType() string {
 	return OIDCConnectorType
 }
 
+type validateIdentityFunc func(id *oidc.Identity) error
+
+func validateIdentityPass(id *oidc.Identity) error {
+	return nil
+}
+
+func validateIdentityDomainFunc(want string) validateIdentityFunc {
+	return func(ident *oidc.Identity) error {
+		got, err := parseEmailDomain(ident)
+		if err != nil {
+			return err
+		} else if want != got {
+			return errors.New("domain mismatch")
+		}
+		return nil
+	}
+}
+
+func parseEmailDomain(ident *oidc.Identity) (string, error) {
+	// minimum viable email address is a@b
+	if len(ident.Email) < 3 {
+		return "", errors.New("invalid email address")
+	}
+	// assert that an @ is found, and it isn't the first or last character
+	idx := strings.LastIndex(ident.Email, "@")
+	if idx < 1 || idx == len(ident.Email)-1 {
+		return "", errors.New("invalid email address")
+	}
+	return ident.Email[idx+1:], nil
+}
+
 type OIDCConnector struct {
 	id                   string
 	issuerURL            string
@@ -44,6 +78,7 @@ type OIDCConnector struct {
 	loginFunc            oidc.LoginFunc
 	client               *oidc.Client
 	trustedEmailProvider bool
+	validateIdentity     validateIdentityFunc
 }
 
 func (cfg *OIDCConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *template.Template) (Connector, error) {
@@ -62,6 +97,13 @@ func (cfg *OIDCConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *t
 		return nil, err
 	}
 
+	var vif validateIdentityFunc
+	if cfg.Domain != "" {
+		vif = validateIdentityDomainFunc(cfg.Domain)
+	} else {
+		vif = validateIdentityPass
+	}
+
 	idpc := &OIDCConnector{
 		id:                   cfg.ID,
 		issuerURL:            cfg.IssuerURL,
@@ -69,7 +111,9 @@ func (cfg *OIDCConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *t
 		loginFunc:            lf,
 		client:               cl,
 		trustedEmailProvider: cfg.TrustedEmailProvider,
+		validateIdentity:     vif,
 	}
+
 	return idpc, nil
 }
 
@@ -149,6 +193,14 @@ func (c *OIDCConnector) handleCallbackFunc(lf oidc.LoginFunc, errorURL url.URL) 
 			log.Errorf("Failed parsing claims from remote provider: %v", err)
 			q.Set("error", oauth2.ErrorUnsupportedResponseType)
 			q.Set("error_description", "unable to convert claims to identity")
+			redirectError(w, errorURL, q)
+			return
+		}
+
+		if err := c.validateIdentity(ident); err != nil {
+			log.Infof("Identity validation failed: %v", err)
+			q.Set("error", oauth2.ErrorAccessDenied)
+			q.Set("error_description", "invalid identity")
 			redirectError(w, errorURL, q)
 			return
 		}
