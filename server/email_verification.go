@@ -15,6 +15,7 @@ import (
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/user"
 	useremail "github.com/coreos/dex/user/email"
+	"github.com/coreos/dex/user/manager"
 )
 
 // handleVerifyEmailResendFunc will resend an email-verification email given a valid JWT for the user and a redirect URL.
@@ -190,7 +191,7 @@ type emailVerifiedTemplateData struct {
 }
 
 func handleEmailVerifyFunc(verifiedTpl *template.Template, issuer url.URL, keysFunc func() ([]key.PublicKey,
-	error), userManager *user.Manager) http.HandlerFunc {
+	error), userManager *manager.UserManager) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
@@ -217,12 +218,12 @@ func handleEmailVerifyFunc(verifiedTpl *template.Template, issuer url.URL, keysF
 		cbURL, err := userManager.VerifyEmail(ev)
 		if err != nil {
 			switch err {
-			case user.ErrorEmailAlreadyVerified:
+			case manager.ErrorEmailAlreadyVerified:
 				execTemplateWithStatus(w, verifiedTpl, emailVerifiedTemplateData{
 					Error:   "Invalid Verification Link",
 					Message: "Your email link has expired or has already been verified.",
 				}, http.StatusBadRequest)
-			case user.ErrorEVEmailDoesntMatch:
+			case manager.ErrorEVEmailDoesntMatch:
 				execTemplateWithStatus(w, verifiedTpl, emailVerifiedTemplateData{
 					Error:   "Invalid Verification Link",
 					Message: "Your email link does not match the email address on file. Perhaps you have a more recent verification link?",

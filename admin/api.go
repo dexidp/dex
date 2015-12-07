@@ -6,17 +6,18 @@ import (
 
 	"github.com/coreos/dex/schema/adminschema"
 	"github.com/coreos/dex/user"
+	"github.com/coreos/dex/user/manager"
 )
 
 // AdminAPI provides the logic necessary to implement the Admin API.
 type AdminAPI struct {
-	userManager      *user.Manager
+	userManager      *manager.UserManager
 	userRepo         user.UserRepo
 	passwordInfoRepo user.PasswordInfoRepo
 	localConnectorID string
 }
 
-func NewAdminAPI(userManager *user.Manager, userRepo user.UserRepo, pwiRepo user.PasswordInfoRepo, localConnectorID string) *AdminAPI {
+func NewAdminAPI(userManager *manager.UserManager, userRepo user.UserRepo, pwiRepo user.PasswordInfoRepo, localConnectorID string) *AdminAPI {
 	if localConnectorID == "" {
 		panic("must specify non-blank localConnectorID")
 	}

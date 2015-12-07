@@ -7,6 +7,7 @@ import (
 
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/user"
+	"github.com/coreos/dex/user/manager"
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/key"
 )
@@ -18,7 +19,7 @@ type invitationTemplateData struct {
 type InvitationHandler struct {
 	issuerURL              url.URL
 	passwordResetURL       url.URL
-	um                     *user.Manager
+	um                     *manager.UserManager
 	keysFunc               func() ([]key.PublicKey, error)
 	signerFunc             func() (jose.Signer, error)
 	redirectValidityWindow time.Duration
@@ -55,13 +56,13 @@ func (h *InvitationHandler) handleGET(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = h.um.VerifyEmail(invite)
-	if err != nil && err != user.ErrorEmailAlreadyVerified {
+	if err != nil && err != manager.ErrorEmailAlreadyVerified {
 		// Allow AlreadyVerified folks to pass through- otherwise
 		// folks who encounter an error after passing this point will
 		// never be able to set their passwords.
 		log.Debugf("error attempting to verify email: %v", err)
 		switch err {
-		case user.ErrorEVEmailDoesntMatch:
+		case manager.ErrorEVEmailDoesntMatch:
 			writeAPIError(w, http.StatusBadRequest, newAPIError(errorInvalidRequest,
 				"Your email does not match the email address on file"))
 			return

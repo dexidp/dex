@@ -1,4 +1,4 @@
-package user
+package manager
 
 import (
 	"net/url"
@@ -10,12 +10,13 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 
 	"github.com/coreos/dex/repo"
+	"github.com/coreos/dex/user"
 )
 
 type testFixtures struct {
-	ur    UserRepo
-	pwr   PasswordInfoRepo
-	mgr   *Manager
+	ur    user.UserRepo
+	pwr   user.PasswordInfoRepo
+	mgr   *UserManager
 	clock clockwork.Clock
 }
 
@@ -23,25 +24,25 @@ func makeTestFixtures() *testFixtures {
 	f := &testFixtures{}
 	f.clock = clockwork.NewFakeClock()
 
-	f.ur = NewUserRepoFromUsers([]UserWithRemoteIdentities{
+	f.ur = user.NewUserRepoFromUsers([]user.UserWithRemoteIdentities{
 		{
-			User: User{
+			User: user.User{
 				ID:    "ID-1",
 				Email: "Email-1@example.com",
 			},
-			RemoteIdentities: []RemoteIdentity{
+			RemoteIdentities: []user.RemoteIdentity{
 				{
 					ConnectorID: "local",
 					ID:          "1",
 				},
 			},
 		}, {
-			User: User{
+			User: user.User{
 				ID:            "ID-2",
 				Email:         "Email-2@example.com",
 				EmailVerified: true,
 			},
-			RemoteIdentities: []RemoteIdentity{
+			RemoteIdentities: []user.RemoteIdentity{
 				{
 					ConnectorID: "local",
 					ID:          "2",
@@ -49,7 +50,7 @@ func makeTestFixtures() *testFixtures {
 			},
 		},
 	})
-	f.pwr = NewPasswordInfoRepoFromPasswordInfos([]PasswordInfo{
+	f.pwr = user.NewPasswordInfoRepoFromPasswordInfos([]user.PasswordInfo{
 		{
 			UserID:   "ID-1",
 			Password: []byte("password-1"),
@@ -59,7 +60,7 @@ func makeTestFixtures() *testFixtures {
 			Password: []byte("password-2"),
 		},
 	})
-	f.mgr = NewManager(f.ur, f.pwr, repo.InMemTransactionFactory, ManagerOptions{})
+	f.mgr = NewUserManager(f.ur, f.pwr, repo.InMemTransactionFactory, ManagerOptions{})
 	f.mgr.Clock = f.clock
 	return f
 }
@@ -68,13 +69,13 @@ func TestRegisterWithRemoteIdentity(t *testing.T) {
 	tests := []struct {
 		email         string
 		emailVerified bool
-		rid           RemoteIdentity
+		rid           user.RemoteIdentity
 		err           error
 	}{
 		{
 			email:         "email@example.com",
 			emailVerified: false,
-			rid: RemoteIdentity{
+			rid: user.RemoteIdentity{
 				ConnectorID: "local",
 				ID:          "1234",
 			},
@@ -82,20 +83,20 @@ func TestRegisterWithRemoteIdentity(t *testing.T) {
 		},
 		{
 			emailVerified: false,
-			rid: RemoteIdentity{
+			rid: user.RemoteIdentity{
 				ConnectorID: "local",
 				ID:          "1234",
 			},
-			err: ErrorInvalidEmail,
+			err: user.ErrorInvalidEmail,
 		},
 		{
 			email:         "email@example.com",
 			emailVerified: false,
-			rid: RemoteIdentity{
+			rid: user.RemoteIdentity{
 				ConnectorID: "local",
 				ID:          "1",
 			},
-			err: ErrorDuplicateRemoteIdentity,
+			err: user.ErrorDuplicateRemoteIdentity,
 		},
 	}
 
@@ -148,11 +149,11 @@ func TestRegisterWithPassword(t *testing.T) {
 		},
 		{
 			plaintext: "secretpassword123",
-			err:       ErrorInvalidEmail,
+			err:       user.ErrorInvalidEmail,
 		},
 		{
 			email: "email@example.com",
-			err:   ErrorInvalidPassword,
+			err:   user.ErrorInvalidPassword,
 		},
 	}
 
@@ -183,7 +184,7 @@ func TestRegisterWithPassword(t *testing.T) {
 			t.Errorf("case %d: user.EmailVerified: want=%v, got=%v", i, false, usr.EmailVerified)
 		}
 
-		ridUSR, err := f.ur.GetByRemoteIdentity(nil, RemoteIdentity{
+		ridUSR, err := f.ur.GetByRemoteIdentity(nil, user.RemoteIdentity{
 			ID:          userID,
 			ConnectorID: connID,
 		})
@@ -220,12 +221,12 @@ func TestVerifyEmail(t *testing.T) {
 	callback := "http://client.example.com/callback"
 	expires := time.Hour * 3
 
-	makeClaims := func(usr User) jose.Claims {
+	makeClaims := func(usr user.User) jose.Claims {
 		return map[string]interface{}{
 			"iss": issuer.String(),
 			"aud": clientID,
-			ClaimEmailVerificationCallback: callback,
-			ClaimEmailVerificationEmail:    usr.Email,
+			user.ClaimEmailVerificationCallback: callback,
+			user.ClaimEmailVerificationEmail:    usr.Email,
 			"exp": float64(now.Add(expires).Unix()),
 			"sub": usr.ID,
 			"iat": float64(now.Unix()),
@@ -238,28 +239,28 @@ func TestVerifyEmail(t *testing.T) {
 	}{
 		{
 			// happy path
-			evClaims: makeClaims(User{ID: "ID-1", Email: "Email-1@example.com"}),
+			evClaims: makeClaims(user.User{ID: "ID-1", Email: "Email-1@example.com"}),
 		},
 		{
 			// non-matching email
-			evClaims: makeClaims(User{ID: "ID-1", Email: "Email-2@example.com"}),
+			evClaims: makeClaims(user.User{ID: "ID-1", Email: "Email-2@example.com"}),
 			wantErr:  true,
 		},
 		{
 			// already verified email
-			evClaims: makeClaims(User{ID: "ID-2", Email: "Email-2@example.com"}),
+			evClaims: makeClaims(user.User{ID: "ID-2", Email: "Email-2@example.com"}),
 			wantErr:  true,
 		},
 		{
 			// non-existent user.
-			evClaims: makeClaims(User{ID: "ID-UNKNOWN", Email: "noone@example.com"}),
+			evClaims: makeClaims(user.User{ID: "ID-UNKNOWN", Email: "noone@example.com"}),
 			wantErr:  true,
 		},
 	}
 
 	for i, tt := range tests {
 		f := makeTestFixtures()
-		cb, err := f.mgr.VerifyEmail(EmailVerification{tt.evClaims})
+		cb, err := f.mgr.VerifyEmail(user.EmailVerification{tt.evClaims})
 		if tt.wantErr {
 			if err == nil {
 				t.Errorf("case %d: want non-nil err", i)
@@ -271,9 +272,9 @@ func TestVerifyEmail(t *testing.T) {
 			t.Errorf("case %d: want err=nil got=%q", i, err)
 		}
 
-		if cb.String() != tt.evClaims[ClaimEmailVerificationCallback] {
+		if cb.String() != tt.evClaims[user.ClaimEmailVerificationCallback] {
 			t.Errorf("case %d: want=%q, got=%q", i, cb.String(),
-				tt.evClaims[ClaimEmailVerificationCallback])
+				tt.evClaims[user.ClaimEmailVerificationCallback])
 		}
 	}
 }
@@ -290,8 +291,8 @@ func TestChangePassword(t *testing.T) {
 		return map[string]interface{}{
 			"iss": issuer.String(),
 			"aud": clientID,
-			ClaimPasswordResetCallback: callback,
-			ClaimPasswordResetPassword: password,
+			user.ClaimPasswordResetCallback: callback,
+			user.ClaimPasswordResetPassword: password,
 			"exp": float64(now.Add(expires).Unix()),
 			"sub": usrID,
 			"iat": float64(now.Unix()),
@@ -329,7 +330,7 @@ func TestChangePassword(t *testing.T) {
 
 	for i, tt := range tests {
 		f := makeTestFixtures()
-		cb, err := f.mgr.ChangePassword(PasswordReset{tt.pwrClaims}, tt.newPassword)
+		cb, err := f.mgr.ChangePassword(user.PasswordReset{tt.pwrClaims}, tt.newPassword)
 		if tt.wantErr {
 			if err == nil {
 				t.Errorf("case %d: want non-nil err", i)
@@ -346,40 +347,40 @@ func TestChangePassword(t *testing.T) {
 		if cb != nil {
 			cbString = cb.String()
 		}
-		if cbString != tt.pwrClaims[ClaimPasswordResetCallback] {
+		if cbString != tt.pwrClaims[user.ClaimPasswordResetCallback] {
 			t.Errorf("case %d: want=%q, got=%q", i, cb.String(),
-				tt.pwrClaims[ClaimPasswordResetCallback])
+				tt.pwrClaims[user.ClaimPasswordResetCallback])
 		}
 	}
 }
 
 func TestCreateUser(t *testing.T) {
 	tests := []struct {
-		usr      User
-		hashedPW Password
+		usr      user.User
+		hashedPW user.Password
 
 		wantErr bool
 	}{
 		{
-			usr: User{
+			usr: user.User{
 				DisplayName: "Bob Exampleson",
 				Email:       "bob@example.com",
 			},
-			hashedPW: Password("I am a hash"),
+			hashedPW: user.Password("I am a hash"),
 		},
 		{
-			usr: User{
+			usr: user.User{
 				DisplayName: "Al Adminson",
 				Email:       "al@example.com",
 				Admin:       true,
 			},
-			hashedPW: Password("I am a hash"),
+			hashedPW: user.Password("I am a hash"),
 		},
 		{
-			usr: User{
+			usr: user.User{
 				DisplayName: "Ed Emailless",
 			},
-			hashedPW: Password("I am a hash"),
+			hashedPW: user.Password("I am a hash"),
 			wantErr:  true,
 		},
 	}
@@ -422,7 +423,7 @@ func TestCreateUser(t *testing.T) {
 			t.Errorf("case %d: want=%q, got=%q", i, tt.hashedPW, pwi.Password)
 		}
 
-		ridUser, err := f.ur.GetByRemoteIdentity(nil, RemoteIdentity{
+		ridUser, err := f.ur.GetByRemoteIdentity(nil, user.RemoteIdentity{
 			ID:          id,
 			ConnectorID: "local",
 		})

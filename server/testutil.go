@@ -15,6 +15,7 @@ import (
 	"github.com/coreos/dex/session"
 	"github.com/coreos/dex/user"
 	useremail "github.com/coreos/dex/user/email"
+	"github.com/coreos/dex/user/manager"
 )
 
 const (
@@ -91,7 +92,7 @@ func sequentialGenerateCodeFunc() session.GenerateCodeFunc {
 func makeTestFixtures() (*testFixtures, error) {
 	userRepo := user.NewUserRepoFromUsers(testUsers)
 	pwRepo := user.NewPasswordInfoRepoFromPasswordInfos(testPasswordInfos)
-	manager := user.NewManager(userRepo, pwRepo, repo.InMemTransactionFactory, user.ManagerOptions{})
+	manager := manager.NewUserManager(userRepo, pwRepo, repo.InMemTransactionFactory, manager.ManagerOptions{})
 
 	connConfigs := []connector.ConnectorConfig{
 		&connector.OIDCConnectorConfig{

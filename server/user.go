@@ -16,6 +16,7 @@ import (
 	schema "github.com/coreos/dex/schema/workerschema"
 	"github.com/coreos/dex/user"
 	"github.com/coreos/dex/user/api"
+	"github.com/coreos/dex/user/manager"
 )
 
 const (
@@ -33,11 +34,11 @@ var (
 type UserMgmtServer struct {
 	api         *api.UsersAPI
 	jwtvFactory JWTVerifierFactory
-	um          *user.Manager
+	um          *manager.UserManager
 	cir         client.ClientIdentityRepo
 }
 
-func NewUserMgmtServer(userMgmtAPI *api.UsersAPI, jwtvFactory JWTVerifierFactory, um *user.Manager, cir client.ClientIdentityRepo) *UserMgmtServer {
+func NewUserMgmtServer(userMgmtAPI *api.UsersAPI, jwtvFactory JWTVerifierFactory, um *manager.UserManager, cir client.ClientIdentityRepo) *UserMgmtServer {
 	return &UserMgmtServer{
 		api:         userMgmtAPI,
 		jwtvFactory: jwtvFactory,

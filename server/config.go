@@ -22,6 +22,7 @@ import (
 	"github.com/coreos/dex/session"
 	"github.com/coreos/dex/user"
 	useremail "github.com/coreos/dex/user/email"
+	"github.com/coreos/dex/user/manager"
 )
 
 type ServerConfig struct {
@@ -133,7 +134,7 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	refTokRepo := refresh.NewRefreshTokenRepo()
 
 	txnFactory := repo.InMemTransactionFactory
-	userManager := user.NewManager(userRepo, pwiRepo, txnFactory, user.ManagerOptions{})
+	userManager := manager.NewUserManager(userRepo, pwiRepo, txnFactory, manager.ManagerOptions{})
 	srv.ClientIdentityRepo = ciRepo
 	srv.KeySetRepo = kRepo
 	srv.ConnectorConfigRepo = cfgRepo
@@ -171,7 +172,7 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 	cfgRepo := db.NewConnectorConfigRepo(dbc)
 	userRepo := db.NewUserRepo(dbc)
 	pwiRepo := db.NewPasswordInfoRepo(dbc)
-	userManager := user.NewManager(userRepo, pwiRepo, db.TransactionFactory(dbc), user.ManagerOptions{})
+	userManager := manager.NewUserManager(userRepo, pwiRepo, db.TransactionFactory(dbc), manager.ManagerOptions{})
 	refreshTokenRepo := db.NewRefreshTokenRepo(dbc)
 
 	sm := session.NewSessionManager(sRepo, skRepo)

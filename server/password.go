@@ -12,6 +12,7 @@ import (
 	"github.com/coreos/dex/session"
 	"github.com/coreos/dex/user"
 	useremail "github.com/coreos/dex/user/email"
+	"github.com/coreos/dex/user/manager"
 )
 
 type sendResetPasswordEmailData struct {
@@ -181,7 +182,7 @@ type resetPasswordTemplateData struct {
 type ResetPasswordHandler struct {
 	tpl       *template.Template
 	issuerURL url.URL
-	um        *user.Manager
+	um        *manager.UserManager
 	keysFunc  func() ([]key.PublicKey, error)
 }
 
@@ -237,7 +238,7 @@ func (r *resetPasswordRequest) handlePOST() {
 	cbURL, err := r.h.um.ChangePassword(r.pwReset, plaintext)
 	if err != nil {
 		switch err {
-		case user.ErrorPasswordAlreadyChanged:
+		case manager.ErrorPasswordAlreadyChanged:
 			r.data.Error = "Link Expired"
 			r.data.Message = "The link in your email is no longer valid. If you need to change your password, generate a new email."
 			r.data.DontShowForm = true
