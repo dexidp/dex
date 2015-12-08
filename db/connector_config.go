@@ -101,6 +101,7 @@ func (r *ConnectorConfigRepo) GetConnectorByID(tx repo.Transaction, id string) (
 		if err == sql.ErrNoRows {
 			return nil, connector.ErrorNotFound
 		}
+		return nil, err
 	}
 	return c.ConnectorConfig()
 }
