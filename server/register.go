@@ -11,6 +11,7 @@ import (
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/session"
 	"github.com/coreos/dex/user"
+	"github.com/coreos/dex/user/manager"
 	"github.com/coreos/go-oidc/oidc"
 )
 
@@ -222,7 +223,7 @@ func handleRegisterFunc(s *Server) http.HandlerFunc {
 	}
 }
 
-func registerFromLocalConnector(userManager *user.Manager, sessionManager *session.SessionManager, ses *session.Session, email, password string) (string, error) {
+func registerFromLocalConnector(userManager *manager.UserManager, sessionManager *session.SessionManager, ses *session.Session, email, password string) (string, error) {
 	userID, err := userManager.RegisterWithPassword(email, password, ses.ConnectorID)
 	if err != nil {
 		return "", err
@@ -237,7 +238,7 @@ func registerFromLocalConnector(userManager *user.Manager, sessionManager *sessi
 	return userID, nil
 }
 
-func registerFromRemoteConnector(userManager *user.Manager, ses *session.Session, email string, emailVerified bool) (string, error) {
+func registerFromRemoteConnector(userManager *manager.UserManager, ses *session.Session, email string, emailVerified bool) (string, error) {
 	if ses.Identity.ID == "" {
 		return "", errors.New("No Identity found in session.")
 	}

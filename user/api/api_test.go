@@ -10,9 +10,11 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 
 	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/repo"
 	schema "github.com/coreos/dex/schema/workerschema"
 	"github.com/coreos/dex/user"
+	"github.com/coreos/dex/user/manager"
 )
 
 type testEmailer struct {
@@ -123,7 +125,10 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 			Password: []byte("password-2"),
 		},
 	})
-	mgr := user.NewManager(ur, pwr, repo.InMemTransactionFactory, user.ManagerOptions{})
+	ccr := connector.NewConnectorConfigRepoFromConfigs([]connector.ConnectorConfig{
+		&connector.LocalConnectorConfig{ID: "local"},
+	})
+	mgr := manager.NewUserManager(ur, pwr, ccr, repo.InMemTransactionFactory, manager.ManagerOptions{})
 	mgr.Clock = clock
 	ci := oidc.ClientIdentity{
 		Credentials: oidc.ClientCredentials{

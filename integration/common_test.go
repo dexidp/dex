@@ -10,8 +10,10 @@ import (
 	"github.com/coreos/go-oidc/key"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/repo"
 	"github.com/coreos/dex/user"
+	"github.com/coreos/dex/user/manager"
 )
 
 var (
@@ -42,11 +44,14 @@ func (t *tokenHandlerTransport) RoundTrip(r *http.Request) (*http.Response, erro
 	return &resp, nil
 }
 
-func makeUserObjects(users []user.UserWithRemoteIdentities, passwords []user.PasswordInfo) (user.UserRepo, user.PasswordInfoRepo, *user.Manager) {
+func makeUserObjects(users []user.UserWithRemoteIdentities, passwords []user.PasswordInfo) (user.UserRepo, user.PasswordInfoRepo, *manager.UserManager) {
 	ur := user.NewUserRepoFromUsers(users)
 	pwr := user.NewPasswordInfoRepoFromPasswordInfos(passwords)
 
-	um := user.NewManager(ur, pwr, repo.InMemTransactionFactory, user.ManagerOptions{})
+	ccr := connector.NewConnectorConfigRepoFromConfigs(
+		[]connector.ConnectorConfig{&connector.LocalConnectorConfig{ID: "local"}},
+	)
+	um := manager.NewUserManager(ur, pwr, ccr, repo.InMemTransactionFactory, manager.ManagerOptions{})
 	um.Clock = clock
 	return ur, pwr, um
 }

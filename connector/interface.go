@@ -1,13 +1,17 @@
 package connector
 
 import (
+	"errors"
 	"html/template"
 	"net/http"
 	"net/url"
 
+	"github.com/coreos/dex/repo"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/coreos/pkg/health"
 )
+
+var ErrorNotFound = errors.New("connector not found in repository")
 
 type Connector interface {
 	ID() string
@@ -34,4 +38,5 @@ type ConnectorConfig interface {
 
 type ConnectorConfigRepo interface {
 	All() ([]ConnectorConfig, error)
+	GetConnectorByID(repo.Transaction, string) (ConnectorConfig, error)
 }

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+
+	"github.com/coreos/dex/repo"
 )
 
 func newConnectorConfigsFromReader(r io.Reader) ([]ConnectorConfig, error) {
@@ -41,6 +43,19 @@ type memConnectorConfigRepo struct {
 	configs []ConnectorConfig
 }
 
+func NewConnectorConfigRepoFromConfigs(cfgs []ConnectorConfig) ConnectorConfigRepo {
+	return &memConnectorConfigRepo{configs: cfgs}
+}
+
 func (r *memConnectorConfigRepo) All() ([]ConnectorConfig, error) {
 	return r.configs, nil
+}
+
+func (r *memConnectorConfigRepo) GetConnectorByID(_ repo.Transaction, id string) (ConnectorConfig, error) {
+	for _, cfg := range r.configs {
+		if cfg.ConnectorID() == id {
+			return cfg, nil
+		}
+	}
+	return nil, ErrorNotFound
 }

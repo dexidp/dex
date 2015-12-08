@@ -1,4 +1,4 @@
-package user
+package manager
 
 import (
 	"errors"
@@ -6,8 +6,10 @@ import (
 
 	"github.com/jonboulle/clockwork"
 
+	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/repo"
+	"github.com/coreos/dex/user"
 )
 
 var (
@@ -19,13 +21,14 @@ var (
 
 // Manager performs user-related "business-logic" functions on user and related objects.
 // This is in contrast to the Repos which perform little more than CRUD operations.
-type Manager struct {
+type UserManager struct {
 	Clock clockwork.Clock
 
-	userRepo        UserRepo
-	pwRepo          PasswordInfoRepo
+	userRepo        user.UserRepo
+	pwRepo          user.PasswordInfoRepo
+	connCfgRepo     connector.ConnectorConfigRepo
 	begin           repo.TransactionFactory
-	userIDGenerator UserIDGenerator
+	userIDGenerator user.UserIDGenerator
 }
 
 type ManagerOptions struct {
@@ -34,58 +37,59 @@ type ManagerOptions struct {
 	// variable policies
 }
 
-func NewManager(userRepo UserRepo, pwRepo PasswordInfoRepo, txnFactory repo.TransactionFactory, options ManagerOptions) *Manager {
-	return &Manager{
+func NewUserManager(userRepo user.UserRepo, pwRepo user.PasswordInfoRepo, connCfgRepo connector.ConnectorConfigRepo, txnFactory repo.TransactionFactory, options ManagerOptions) *UserManager {
+	return &UserManager{
 		Clock: clockwork.NewRealClock(),
 
 		userRepo:        userRepo,
 		pwRepo:          pwRepo,
+		connCfgRepo:     connCfgRepo,
 		begin:           txnFactory,
-		userIDGenerator: DefaultUserIDGenerator,
+		userIDGenerator: user.DefaultUserIDGenerator,
 	}
 }
 
-func (m *Manager) Get(id string) (User, error) {
+func (m *UserManager) Get(id string) (user.User, error) {
 	return m.userRepo.Get(nil, id)
 }
 
-func (m *Manager) List(filter UserFilter, maxResults int, nextPageToken string) ([]User, string, error) {
+func (m *UserManager) List(filter user.UserFilter, maxResults int, nextPageToken string) ([]user.User, string, error) {
 	return m.userRepo.List(nil, filter, maxResults, nextPageToken)
 }
 
 // CreateUser creates a new user with the given hashedPassword; the connID should be the ID of the local connector.
 // The userID of the created user is returned as the first argument.
-func (m *Manager) CreateUser(user User, hashedPassword Password, connID string) (string, error) {
+func (m *UserManager) CreateUser(usr user.User, hashedPassword user.Password, connID string) (string, error) {
 	tx, err := m.begin()
 	if err != nil {
 		return "", err
 	}
 
-	insertedUser, err := m.insertNewUser(tx, user.Email, user.EmailVerified)
+	insertedUser, err := m.insertNewUser(tx, usr.Email, usr.EmailVerified)
 	if err != nil {
 		rollback(tx)
 		return "", err
 	}
 
-	user.ID = insertedUser.ID
-	user.CreatedAt = insertedUser.CreatedAt
-	err = m.userRepo.Update(tx, user)
+	usr.ID = insertedUser.ID
+	usr.CreatedAt = insertedUser.CreatedAt
+	err = m.userRepo.Update(tx, usr)
 	if err != nil {
 		rollback(tx)
 		return "", err
 	}
 
-	rid := RemoteIdentity{
+	rid := user.RemoteIdentity{
 		ConnectorID: connID,
-		ID:          user.ID,
+		ID:          usr.ID,
 	}
-	if err := m.userRepo.AddRemoteIdentity(tx, user.ID, rid); err != nil {
+	if err := m.addRemoteIdentity(tx, usr.ID, rid); err != nil {
 		rollback(tx)
 		return "", err
 	}
 
-	pwi := PasswordInfo{
-		UserID:   user.ID,
+	pwi := user.PasswordInfo{
+		UserID:   usr.ID,
 		Password: hashedPassword,
 	}
 	err = m.pwRepo.Create(tx, pwi)
@@ -99,10 +103,10 @@ func (m *Manager) CreateUser(user User, hashedPassword Password, connID string) 
 		rollback(tx)
 		return "", err
 	}
-	return user.ID, nil
+	return usr.ID, nil
 }
 
-func (m *Manager) Disable(userID string, disabled bool) error {
+func (m *UserManager) Disable(userID string, disabled bool) error {
 	tx, err := m.begin()
 
 	if err = m.userRepo.Disable(tx, userID, disabled); err != nil {
@@ -119,7 +123,7 @@ func (m *Manager) Disable(userID string, disabled bool) error {
 }
 
 // RegisterWithRemoteIdentity creates new user and attaches the given remote identity.
-func (m *Manager) RegisterWithRemoteIdentity(email string, emailVerified bool, rid RemoteIdentity) (string, error) {
+func (m *UserManager) RegisterWithRemoteIdentity(email string, emailVerified bool, rid user.RemoteIdentity) (string, error) {
 	tx, err := m.begin()
 	if err != nil {
 		return "", err
@@ -127,20 +131,20 @@ func (m *Manager) RegisterWithRemoteIdentity(email string, emailVerified bool, r
 
 	if _, err = m.userRepo.GetByRemoteIdentity(tx, rid); err == nil {
 		rollback(tx)
-		return "", ErrorDuplicateRemoteIdentity
+		return "", user.ErrorDuplicateRemoteIdentity
 	}
-	if err != ErrorNotFound {
+	if err != user.ErrorNotFound {
 		rollback(tx)
 		return "", err
 	}
 
-	user, err := m.insertNewUser(tx, email, emailVerified)
+	usr, err := m.insertNewUser(tx, email, emailVerified)
 	if err != nil {
 		rollback(tx)
 		return "", err
 	}
 
-	if err := m.userRepo.AddRemoteIdentity(tx, user.ID, rid); err != nil {
+	if err := m.addRemoteIdentity(tx, usr.ID, rid); err != nil {
 		rollback(tx)
 		return "", err
 	}
@@ -150,44 +154,44 @@ func (m *Manager) RegisterWithRemoteIdentity(email string, emailVerified bool, r
 		rollback(tx)
 		return "", err
 	}
-	return user.ID, nil
+	return usr.ID, nil
 }
 
 // RegisterWithPassword creates a new user with the given name and password.
 // connID is the connector ID of the ConnectorLocal connector.
-func (m *Manager) RegisterWithPassword(email, plaintext, connID string) (string, error) {
+func (m *UserManager) RegisterWithPassword(email, plaintext, connID string) (string, error) {
 	tx, err := m.begin()
 	if err != nil {
 		return "", err
 	}
 
-	if !ValidPassword(plaintext) {
+	if !user.ValidPassword(plaintext) {
 		rollback(tx)
-		return "", ErrorInvalidPassword
+		return "", user.ErrorInvalidPassword
 	}
 
-	user, err := m.insertNewUser(tx, email, false)
+	usr, err := m.insertNewUser(tx, email, false)
 	if err != nil {
 		rollback(tx)
 		return "", err
 	}
 
-	rid := RemoteIdentity{
+	rid := user.RemoteIdentity{
 		ConnectorID: connID,
-		ID:          user.ID,
+		ID:          usr.ID,
 	}
-	if err := m.userRepo.AddRemoteIdentity(tx, user.ID, rid); err != nil {
+	if err := m.addRemoteIdentity(tx, usr.ID, rid); err != nil {
 		rollback(tx)
 		return "", err
 	}
 
-	password, err := NewPasswordFromPlaintext(plaintext)
+	password, err := user.NewPasswordFromPlaintext(plaintext)
 	if err != nil {
 		rollback(tx)
 		return "", err
 	}
-	pwi := PasswordInfo{
-		UserID:   user.ID,
+	pwi := user.PasswordInfo{
+		UserID:   usr.ID,
 		Password: password,
 	}
 
@@ -202,7 +206,7 @@ func (m *Manager) RegisterWithPassword(email, plaintext, connID string) (string,
 		rollback(tx)
 		return "", err
 	}
-	return user.ID, nil
+	return usr.ID, nil
 }
 
 type EmailVerifiable interface {
@@ -218,31 +222,31 @@ type EmailVerifiable interface {
 // create it, ensuring that the token was signed and that the JWT was not
 // expired.
 // The callback url (i.e. where to send the user after the verification) is returned.
-func (m *Manager) VerifyEmail(ev EmailVerifiable) (*url.URL, error) {
+func (m *UserManager) VerifyEmail(ev EmailVerifiable) (*url.URL, error) {
 	tx, err := m.begin()
 	if err != nil {
 		return nil, err
 	}
 
-	user, err := m.userRepo.Get(tx, ev.UserID())
+	usr, err := m.userRepo.Get(tx, ev.UserID())
 	if err != nil {
 		rollback(tx)
 		return nil, err
 	}
 
-	if user.Email != ev.Email() {
+	if usr.Email != ev.Email() {
 		rollback(tx)
 		return nil, ErrorEVEmailDoesntMatch
 	}
 
-	if user.EmailVerified {
+	if usr.EmailVerified {
 		rollback(tx)
 		return nil, ErrorEmailAlreadyVerified
 	}
 
-	user.EmailVerified = true
+	usr.EmailVerified = true
 
-	err = m.userRepo.Update(tx, user)
+	err = m.userRepo.Update(tx, usr)
 	if err != nil {
 		rollback(tx)
 		return nil, err
@@ -258,19 +262,19 @@ func (m *Manager) VerifyEmail(ev EmailVerifiable) (*url.URL, error) {
 
 type PasswordChangeable interface {
 	UserID() string
-	Password() Password
+	Password() user.Password
 	Callback() *url.URL
 }
 
-func (m *Manager) ChangePassword(pwr PasswordChangeable, plaintext string) (*url.URL, error) {
+func (m *UserManager) ChangePassword(pwr PasswordChangeable, plaintext string) (*url.URL, error) {
 	tx, err := m.begin()
 	if err != nil {
 		return nil, err
 	}
 
-	if !ValidPassword(plaintext) {
+	if !user.ValidPassword(plaintext) {
 		rollback(tx)
-		return nil, ErrorInvalidPassword
+		return nil, user.ErrorInvalidPassword
 	}
 
 	pwi, err := m.pwRepo.Get(tx, pwr.UserID())
@@ -284,7 +288,7 @@ func (m *Manager) ChangePassword(pwr PasswordChangeable, plaintext string) (*url
 		return nil, ErrorPasswordAlreadyChanged
 	}
 
-	newPass, err := NewPasswordFromPlaintext(plaintext)
+	newPass, err := user.NewPasswordFromPlaintext(plaintext)
 	if err != nil {
 		rollback(tx)
 		return nil, err
@@ -305,36 +309,46 @@ func (m *Manager) ChangePassword(pwr PasswordChangeable, plaintext string) (*url
 	return pwr.Callback(), nil
 }
 
-func (m *Manager) insertNewUser(tx repo.Transaction, email string, emailVerified bool) (User, error) {
-	if !ValidEmail(email) {
-		return User{}, ErrorInvalidEmail
+func (m *UserManager) insertNewUser(tx repo.Transaction, email string, emailVerified bool) (user.User, error) {
+	if !user.ValidEmail(email) {
+		return user.User{}, user.ErrorInvalidEmail
 	}
 
 	var err error
 	if _, err = m.userRepo.GetByEmail(tx, email); err == nil {
-		return User{}, ErrorDuplicateEmail
+		return user.User{}, user.ErrorDuplicateEmail
 	}
-	if err != ErrorNotFound {
-		return User{}, err
+	if err != user.ErrorNotFound {
+		return user.User{}, err
 	}
 
 	userID, err := m.userIDGenerator()
 	if err != nil {
-		return User{}, err
+		return user.User{}, err
 	}
 
-	user := User{
+	usr := user.User{
 		ID:            userID,
 		Email:         email,
 		EmailVerified: emailVerified,
 		CreatedAt:     m.Clock.Now(),
 	}
 
-	err = m.userRepo.Create(tx, user)
+	err = m.userRepo.Create(tx, usr)
 	if err != nil {
-		return User{}, err
+		return user.User{}, err
 	}
-	return user, nil
+	return usr, nil
+}
+
+func (m *UserManager) addRemoteIdentity(tx repo.Transaction, userID string, rid user.RemoteIdentity) error {
+	if _, err := m.connCfgRepo.GetConnectorByID(tx, rid.ConnectorID); err != nil {
+		return err
+	}
+	if err := m.userRepo.AddRemoteIdentity(tx, userID, rid); err != nil {
+		return err
+	}
+	return nil
 }
 
 func rollback(tx repo.Transaction) {

@@ -25,6 +25,7 @@ import (
 	"github.com/coreos/dex/user"
 	usersapi "github.com/coreos/dex/user/api"
 	useremail "github.com/coreos/dex/user/email"
+	"github.com/coreos/dex/user/manager"
 )
 
 const (
@@ -68,7 +69,7 @@ type Server struct {
 	HealthChecks                   []health.Checkable
 	Connectors                     []connector.Connector
 	UserRepo                       user.UserRepo
-	UserManager                    *user.Manager
+	UserManager                    *manager.UserManager
 	PasswordInfoRepo               user.PasswordInfoRepo
 	RefreshTokenRepo               refresh.RefreshTokenRepo
 	UserEmailer                    *useremail.UserEmailer

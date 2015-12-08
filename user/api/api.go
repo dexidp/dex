@@ -13,6 +13,7 @@ import (
 	"github.com/coreos/dex/pkg/log"
 	schema "github.com/coreos/dex/schema/workerschema"
 	"github.com/coreos/dex/user"
+	"github.com/coreos/dex/user/manager"
 )
 
 var (
@@ -81,7 +82,7 @@ func (e Error) Error() string {
 // calling User. It is assumed that the clientID has already validated as an
 // admin app before calling.
 type UsersAPI struct {
-	manager            *user.Manager
+	manager            *manager.UserManager
 	localConnectorID   string
 	clientIdentityRepo client.ClientIdentityRepo
 	emailer            Emailer
@@ -96,7 +97,7 @@ type Creds struct {
 	User     user.User
 }
 
-func NewUsersAPI(manager *user.Manager, cir client.ClientIdentityRepo, emailer Emailer, localConnectorID string) *UsersAPI {
+func NewUsersAPI(manager *manager.UserManager, cir client.ClientIdentityRepo, emailer Emailer, localConnectorID string) *UsersAPI {
 	return &UsersAPI{
 		manager:            manager,
 		clientIdentityRepo: cir,
