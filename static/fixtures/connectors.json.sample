@@ -19,5 +19,17 @@
 		"issuerURL": "https://accounts.google.com",
 		"clientID": "${CLIENT_ID}",
 		"clientSecret": "${CLIENT_SECRET}"
+	},
+	{
+		"type": "github",
+		"id": "github",
+		"clientID": "${CLIENT_ID}",
+		"clientSecret": "${CLIENT_SECRET}"
+	},
+	{
+		"type": "bitbucket",
+		"id": "bitbucket",
+		"clientID": "${CLIENT_ID}",
+		"clientSecret": "${CLIENT_SECRET}"
 	}
 ]
