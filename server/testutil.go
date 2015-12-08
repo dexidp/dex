@@ -92,7 +92,6 @@ func sequentialGenerateCodeFunc() session.GenerateCodeFunc {
 func makeTestFixtures() (*testFixtures, error) {
 	userRepo := user.NewUserRepoFromUsers(testUsers)
 	pwRepo := user.NewPasswordInfoRepoFromPasswordInfos(testPasswordInfos)
-	manager := manager.NewUserManager(userRepo, pwRepo, repo.InMemTransactionFactory, manager.ManagerOptions{})
 
 	connConfigs := []connector.ConnectorConfig{
 		&connector.OIDCConnectorConfig{
@@ -112,6 +111,9 @@ func makeTestFixtures() (*testFixtures, error) {
 			ID: "local",
 		},
 	}
+	connCfgRepo := connector.NewConnectorConfigRepoFromConfigs(connConfigs)
+
+	manager := manager.NewUserManager(userRepo, pwRepo, connCfgRepo, repo.InMemTransactionFactory, manager.ManagerOptions{})
 
 	sessionManager := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
 	sessionManager.GenerateCode = sequentialGenerateCodeFunc()

@@ -6,6 +6,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 
+	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/repo"
 	"github.com/coreos/dex/user"
@@ -25,6 +26,7 @@ type UserManager struct {
 
 	userRepo        user.UserRepo
 	pwRepo          user.PasswordInfoRepo
+	connCfgRepo     connector.ConnectorConfigRepo
 	begin           repo.TransactionFactory
 	userIDGenerator user.UserIDGenerator
 }
@@ -35,12 +37,13 @@ type ManagerOptions struct {
 	// variable policies
 }
 
-func NewUserManager(userRepo user.UserRepo, pwRepo user.PasswordInfoRepo, txnFactory repo.TransactionFactory, options ManagerOptions) *UserManager {
+func NewUserManager(userRepo user.UserRepo, pwRepo user.PasswordInfoRepo, connCfgRepo connector.ConnectorConfigRepo, txnFactory repo.TransactionFactory, options ManagerOptions) *UserManager {
 	return &UserManager{
 		Clock: clockwork.NewRealClock(),
 
 		userRepo:        userRepo,
 		pwRepo:          pwRepo,
+		connCfgRepo:     connCfgRepo,
 		begin:           txnFactory,
 		userIDGenerator: user.DefaultUserIDGenerator,
 	}
@@ -80,7 +83,7 @@ func (m *UserManager) CreateUser(usr user.User, hashedPassword user.Password, co
 		ConnectorID: connID,
 		ID:          usr.ID,
 	}
-	if err := m.userRepo.AddRemoteIdentity(tx, usr.ID, rid); err != nil {
+	if err := m.addRemoteIdentity(tx, usr.ID, rid); err != nil {
 		rollback(tx)
 		return "", err
 	}
@@ -141,7 +144,7 @@ func (m *UserManager) RegisterWithRemoteIdentity(email string, emailVerified boo
 		return "", err
 	}
 
-	if err := m.userRepo.AddRemoteIdentity(tx, usr.ID, rid); err != nil {
+	if err := m.addRemoteIdentity(tx, usr.ID, rid); err != nil {
 		rollback(tx)
 		return "", err
 	}
@@ -177,7 +180,7 @@ func (m *UserManager) RegisterWithPassword(email, plaintext, connID string) (str
 		ConnectorID: connID,
 		ID:          usr.ID,
 	}
-	if err := m.userRepo.AddRemoteIdentity(tx, usr.ID, rid); err != nil {
+	if err := m.addRemoteIdentity(tx, usr.ID, rid); err != nil {
 		rollback(tx)
 		return "", err
 	}
@@ -336,6 +339,16 @@ func (m *UserManager) insertNewUser(tx repo.Transaction, email string, emailVeri
 		return user.User{}, err
 	}
 	return usr, nil
+}
+
+func (m *UserManager) addRemoteIdentity(tx repo.Transaction, userID string, rid user.RemoteIdentity) error {
+	if _, err := m.connCfgRepo.GetConnectorByID(tx, rid.ConnectorID); err != nil {
+		return err
+	}
+	if err := m.userRepo.AddRemoteIdentity(tx, userID, rid); err != nil {
+		return err
+	}
+	return nil
 }
 
 func rollback(tx repo.Transaction) {

@@ -10,6 +10,7 @@ import (
 	"github.com/coreos/go-oidc/key"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/repo"
 	"github.com/coreos/dex/user"
 	"github.com/coreos/dex/user/manager"
@@ -47,7 +48,10 @@ func makeUserObjects(users []user.UserWithRemoteIdentities, passwords []user.Pas
 	ur := user.NewUserRepoFromUsers(users)
 	pwr := user.NewPasswordInfoRepoFromPasswordInfos(passwords)
 
-	um := manager.NewUserManager(ur, pwr, repo.InMemTransactionFactory, manager.ManagerOptions{})
+	ccr := connector.NewConnectorConfigRepoFromConfigs(
+		[]connector.ConnectorConfig{&connector.LocalConnectorConfig{ID: "local"}},
+	)
+	um := manager.NewUserManager(ur, pwr, ccr, repo.InMemTransactionFactory, manager.ManagerOptions{})
 	um.Clock = clock
 	return ur, pwr, um
 }

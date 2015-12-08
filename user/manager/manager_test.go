@@ -9,6 +9,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/kylelemons/godebug/pretty"
 
+	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/repo"
 	"github.com/coreos/dex/user"
 )
@@ -16,6 +17,7 @@ import (
 type testFixtures struct {
 	ur    user.UserRepo
 	pwr   user.PasswordInfoRepo
+	ccr   connector.ConnectorConfigRepo
 	mgr   *UserManager
 	clock clockwork.Clock
 }
@@ -60,7 +62,10 @@ func makeTestFixtures() *testFixtures {
 			Password: []byte("password-2"),
 		},
 	})
-	f.mgr = NewUserManager(f.ur, f.pwr, repo.InMemTransactionFactory, ManagerOptions{})
+	f.ccr = connector.NewConnectorConfigRepoFromConfigs([]connector.ConnectorConfig{
+		&connector.LocalConnectorConfig{ID: "local"},
+	})
+	f.mgr = NewUserManager(f.ur, f.pwr, f.ccr, repo.InMemTransactionFactory, ManagerOptions{})
 	f.mgr.Clock = f.clock
 	return f
 }
@@ -97,6 +102,15 @@ func TestRegisterWithRemoteIdentity(t *testing.T) {
 				ID:          "1",
 			},
 			err: user.ErrorDuplicateRemoteIdentity,
+		},
+		{
+			email:         "anotheremail@example.com",
+			emailVerified: false,
+			rid: user.RemoteIdentity{
+				ConnectorID: "idonotexist",
+				ID:          "1",
+			},
+			err: connector.ErrorNotFound,
 		},
 	}
 
@@ -159,7 +173,7 @@ func TestRegisterWithPassword(t *testing.T) {
 
 	for i, tt := range tests {
 		f := makeTestFixtures()
-		connID := "connID"
+		connID := "local"
 		userID, err := f.mgr.RegisterWithPassword(
 			tt.email,
 			tt.plaintext,
@@ -358,6 +372,7 @@ func TestCreateUser(t *testing.T) {
 	tests := []struct {
 		usr      user.User
 		hashedPW user.Password
+		localID  string // defaults to "local"
 
 		wantErr bool
 	}{
@@ -383,11 +398,24 @@ func TestCreateUser(t *testing.T) {
 			hashedPW: user.Password("I am a hash"),
 			wantErr:  true,
 		},
+		{
+			usr: user.User{
+				DisplayName: "Eric Exampleson",
+				Email:       "eric@example.com",
+			},
+			hashedPW: user.Password("I am a hash"),
+			localID:  "abadlocalid",
+			wantErr:  true,
+		},
 	}
 
 	for i, tt := range tests {
 		f := makeTestFixtures()
-		id, err := f.mgr.CreateUser(tt.usr, tt.hashedPW, "local")
+		localID := "local"
+		if tt.localID != "" {
+			localID = tt.localID
+		}
+		id, err := f.mgr.CreateUser(tt.usr, tt.hashedPW, localID)
 		if tt.wantErr {
 			if err == nil {
 				t.Errorf("case %d: want non-nil err", i)

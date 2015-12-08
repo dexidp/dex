@@ -134,7 +134,7 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	refTokRepo := refresh.NewRefreshTokenRepo()
 
 	txnFactory := repo.InMemTransactionFactory
-	userManager := manager.NewUserManager(userRepo, pwiRepo, txnFactory, manager.ManagerOptions{})
+	userManager := manager.NewUserManager(userRepo, pwiRepo, cfgRepo, txnFactory, manager.ManagerOptions{})
 	srv.ClientIdentityRepo = ciRepo
 	srv.KeySetRepo = kRepo
 	srv.ConnectorConfigRepo = cfgRepo
@@ -172,7 +172,7 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 	cfgRepo := db.NewConnectorConfigRepo(dbc)
 	userRepo := db.NewUserRepo(dbc)
 	pwiRepo := db.NewPasswordInfoRepo(dbc)
-	userManager := manager.NewUserManager(userRepo, pwiRepo, db.TransactionFactory(dbc), manager.ManagerOptions{})
+	userManager := manager.NewUserManager(userRepo, pwiRepo, cfgRepo, db.TransactionFactory(dbc), manager.ManagerOptions{})
 	refreshTokenRepo := db.NewRefreshTokenRepo(dbc)
 
 	sm := session.NewSessionManager(sRepo, skRepo)

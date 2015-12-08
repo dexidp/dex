@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/coreos/dex/connector"
+	"github.com/coreos/dex/repo"
 )
 
 const (
@@ -91,6 +93,18 @@ func (r *ConnectorConfigRepo) All() ([]connector.ConnectorConfig, error) {
 	return cfgs, nil
 }
 
+func (r *ConnectorConfigRepo) GetConnectorByID(tx repo.Transaction, id string) (connector.ConnectorConfig, error) {
+	qt := pq.QuoteIdentifier(connectorConfigTableName)
+	q := fmt.Sprintf("SELECT * FROM %s WHERE id = $1", qt)
+	var c connectorConfigModel
+	if err := r.executor(tx).SelectOne(&c, q, id); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, connector.ErrorNotFound
+		}
+	}
+	return c.ConnectorConfig()
+}
+
 func (r *ConnectorConfigRepo) Set(cfgs []connector.ConnectorConfig) error {
 	insert := make([]interface{}, len(cfgs))
 	for i, cfg := range cfgs {
@@ -118,4 +132,16 @@ func (r *ConnectorConfigRepo) Set(cfgs []connector.ConnectorConfig) error {
 	}
 
 	return tx.Commit()
+}
+
+func (r *ConnectorConfigRepo) executor(tx repo.Transaction) gorp.SqlExecutor {
+	if tx == nil {
+		return r.dbMap
+	}
+
+	gorpTx, ok := tx.(*gorp.Transaction)
+	if !ok {
+		panic("wrong kind of transaction passed to a DB repo")
+	}
+	return gorpTx
 }
