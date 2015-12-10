@@ -52,7 +52,7 @@ func parseToken(token string) (int64, []byte, error) {
 	if len(parts) != 2 {
 		return -1, nil, refresh.ErrorInvalidToken
 	}
-	id, err := strconv.ParseInt(parts[0], 0, 64)
+	id, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
 		return -1, nil, refresh.ErrorInvalidToken
 	}
