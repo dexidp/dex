@@ -21,23 +21,23 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/go-oidc/http",
-			"Rev": "faf70c34f9c411f234eb96d23c518c087cd96d79"
+			"Rev": "024cdeee09d02fb439eb55bc422e582ac115615b"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-oidc/jose",
-			"Rev": "faf70c34f9c411f234eb96d23c518c087cd96d79"
+			"Rev": "024cdeee09d02fb439eb55bc422e582ac115615b"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-oidc/key",
-			"Rev": "faf70c34f9c411f234eb96d23c518c087cd96d79"
+			"Rev": "024cdeee09d02fb439eb55bc422e582ac115615b"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-oidc/oauth2",
-			"Rev": "faf70c34f9c411f234eb96d23c518c087cd96d79"
+			"Rev": "024cdeee09d02fb439eb55bc422e582ac115615b"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-oidc/oidc",
-			"Rev": "faf70c34f9c411f234eb96d23c518c087cd96d79"
+			"Rev": "024cdeee09d02fb439eb55bc422e582ac115615b"
 		},
 		{
 			"ImportPath": "github.com/coreos/pkg/capnslog",
