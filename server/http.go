@@ -123,8 +123,10 @@ type templateData struct {
 
 // TODO(sym3tri): store this with the connector config
 var connectorDisplayNameMap = map[string]string{
-	"google": "Google",
-	"local":  "Email",
+	"google":    "Google",
+	"local":     "Email",
+	"github":    "GitHub",
+	"bitbucket": "Bitbucket",
 }
 
 func execTemplate(w http.ResponseWriter, tpl *template.Template, data interface{}) {

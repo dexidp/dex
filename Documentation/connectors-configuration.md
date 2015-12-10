@@ -75,6 +75,65 @@ Here's what a `oidc` connector looks like configured for authenticating with Goo
     }
 ```
 
+### `github` connector
+
+This connector config lets users authenticate through [GitHub](https://github.com/). In addition to `id` and `type`, the `github` connector takes the following additional fields:
+
+* clientID: a `string`. The GitHub OAuth application client ID.
+
+* clientSecret: a `string`. The GitHub OAuth application client secret.
+
+To begin, register an OAuth application with GitHub through your, or your organization's [account settings](ttps://github.com/settings/applications/new). To register dex as a client of your GitHub application, enter dex's redirect URL under 'Authorization callback URL':
+
+```
+https://$DEX_HOST:$DEX_PORT/auth/$CONNECTOR_ID/callback
+```
+
+`$DEX_HOST` and `$DEX_PORT` are the host and port of your dex installation. `$CONNECTOR_ID` is the `id` field of the connector.
+
+Here's an example of a `github` connector; the clientID and clientSecret should be replaced by values provided by GitHub.
+
+```
+    {
+        "type": "github",
+        "id": "github",
+        "clientID": "$DEX_GITHUB_CLIENT_ID",
+        "clientSecret": "$DEX_GITHUB_CLIENT_SECRET"
+    }
+```
+
+The `github` connector requests read only access to user's email through the [`user:email` scope](https://developer.github.com/v3/oauth/#scopes).
+
+### `bitbucket` connector
+
+This connector config lets users authenticate through [Bitbucket](https://bitbucket.org/). In addition to `id` and `type`, the `bitbucket` connector takes the following additional fields:
+
+* clientID: a `string`. The Bitbucket OAuth consumer client ID.
+
+* clientSecret: a `string`. The Bitbucket OAuth consumer client secret.
+
+To begin, register an OAuth consumer with Bitbucket through your, or your teams's management page. Follow the documentation at their [developer site](https://confluence.atlassian.com/bitbucket/oauth-on-bitbucket-cloud-238027431.html). 
+__NOTE:__ When configuring a consumer through Bitbucket you _must_ configure read email permissions.
+
+To register dex as a client of your Bitbucket consumer, enter dex's redirect URL under 'Callback URL':
+
+```
+https://$DEX_HOST:$DEX_PORT/auth/$CONNECTOR_ID/callback
+```
+
+`$DEX_HOST` and `$DEX_PORT` are the host and port of your dex installation. `$CONNECTOR_ID` is the `id` field of the connector.
+
+Here's an example of a `bitbucket` connector; the clientID and clientSecret should be replaced by values provided by Bitbucket.
+
+```
+    {
+        "type": "bitbucket",
+        "id": "bitbucket",
+        "clientID": "$DEX_BITBUCKET_CLIENT_ID",
+        "clientSecret": "$DEX_BITBUCKET_CLIENT_SECRET"
+    }
+```
+
 ## Setting the Configuration
 
 To set a connectors configuration in dex, put it in some temporary file, then use the dexctl command to upload it to dex:
