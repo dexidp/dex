@@ -74,8 +74,8 @@ docker run --name dex_postgres -d postgres
 export DEX_TEST_DSN=postgres://postgres@postgres/postgres?sslmode=disable
 
 # Run the test container, linking it to the Postgres container.
-DOCKER_LINKS=dex_postgres:postgres DOCKER_ENV=DEX_TEST_DSN ./go-docker ./test-functional docker
+DOCKER_LINKS=dex_postgres:postgres DOCKER_ENV=DEX_TEST_DSN ./go-docker ./test-functional
 
 # Remove the container after the tests are run.
-rm -f dex_postgres
+docker rm -f dex_postgres
 ```
