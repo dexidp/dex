@@ -213,9 +213,12 @@ func (c *OIDCConnector) validateRemoteIdentity(ident *oidc.Identity) (bool, erro
 	got, err := parseEmailDomain(ident.Email)
 	if err != nil {
 		return false, err
-	} else if c.domain != got {
+	}
+
+	if c.domain != "" && c.domain != got {
 		log.Debug("Remote identity invalid: unrecognized domain")
 		return false, nil
 	}
+
 	return true, nil
 }
