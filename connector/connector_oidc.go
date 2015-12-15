@@ -40,24 +40,6 @@ func (cfg *OIDCConnectorConfig) ConnectorType() string {
 	return OIDCConnectorType
 }
 
-type validateIdentityFunc func(id *oidc.Identity) error
-
-func validateIdentityPass(id *oidc.Identity) error {
-	return nil
-}
-
-func validateIdentityDomainFunc(want string) validateIdentityFunc {
-	return func(ident *oidc.Identity) error {
-		got, err := parseEmailDomain(ident.Email)
-		if err != nil {
-			return err
-		} else if want != got {
-			return errors.New("domain mismatch")
-		}
-		return nil
-	}
-}
-
 func parseEmailDomain(email string) (string, error) {
 	// minimum viable email address is a@b
 	if len(email) < 3 {
@@ -78,7 +60,7 @@ type OIDCConnector struct {
 	loginFunc            oidc.LoginFunc
 	client               *oidc.Client
 	trustedEmailProvider bool
-	validateIdentity     validateIdentityFunc
+	domain               string
 }
 
 func (cfg *OIDCConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *template.Template) (Connector, error) {
@@ -97,13 +79,6 @@ func (cfg *OIDCConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *t
 		return nil, err
 	}
 
-	var vif validateIdentityFunc
-	if cfg.Domain != "" {
-		vif = validateIdentityDomainFunc(cfg.Domain)
-	} else {
-		vif = validateIdentityPass
-	}
-
 	idpc := &OIDCConnector{
 		id:                   cfg.ID,
 		issuerURL:            cfg.IssuerURL,
@@ -111,7 +86,7 @@ func (cfg *OIDCConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *t
 		loginFunc:            lf,
 		client:               cl,
 		trustedEmailProvider: cfg.TrustedEmailProvider,
-		validateIdentity:     vif,
+		domain:               cfg.Domain,
 	}
 
 	return idpc, nil
@@ -197,10 +172,16 @@ func (c *OIDCConnector) handleCallbackFunc(lf oidc.LoginFunc, errorURL url.URL) 
 			return
 		}
 
-		if err := c.validateIdentity(ident); err != nil {
-			log.Infof("Identity validation failed: %v", err)
+		ok, err := c.validateRemoteIdentity(ident)
+		if !ok {
 			q.Set("error", oauth2.ErrorAccessDenied)
-			q.Set("error_description", "invalid identity")
+			q.Set("error_description", "invalid remote identity")
+			redirectError(w, errorURL, q)
+			return
+		} else if err != nil {
+			log.Errorf("Identity validation failed: %v", err)
+			q.Set("error", oauth2.ErrorServerError)
+			q.Set("error_description", "identity validation failed")
 			redirectError(w, errorURL, q)
 			return
 		}
@@ -226,4 +207,15 @@ func (c *OIDCConnector) handleCallbackFunc(lf oidc.LoginFunc, errorURL url.URL) 
 		w.WriteHeader(http.StatusTemporaryRedirect)
 		return
 	}
+}
+
+func (c *OIDCConnector) validateRemoteIdentity(ident *oidc.Identity) (bool, error) {
+	got, err := parseEmailDomain(ident.Email)
+	if err != nil {
+		return false, err
+	} else if c.domain != got {
+		log.Debug("Remote identity invalid: unrecognized domain")
+		return false, nil
+	}
+	return true, nil
 }

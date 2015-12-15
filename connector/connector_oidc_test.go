@@ -178,23 +178,32 @@ func TestParseEmailDomainFailure(t *testing.T) {
 	}
 }
 
-func TestValidateIdentityDomainFunc(t *testing.T) {
-	vif := validateIdentityDomainFunc("bar.example.com")
+func TestOIDCConnectorValidateRemoteIdentity(t *testing.T) {
+	oc := &OIDCConnector{domain: "bar.example.com"}
 
 	ident := oidc.Identity{Email: "foo@bar.example.com"}
-	if err := vif(&ident); err != nil {
+	ok, err := oc.validateRemoteIdentity(&ident)
+	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	} else if !ok {
+		t.Fatal("expected ok")
 	}
 
 	// incorrect domain
 	ident = oidc.Identity{Email: "foo@baz.example.com"}
-	if err := vif(&ident); err == nil {
-		t.Fatalf("expected error, got nil")
+	ok, err = oc.validateRemoteIdentity(&ident)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	} else if ok {
+		t.Fatal("expected not ok")
 	}
 
 	// invalid email address
 	ident = oidc.Identity{Email: "pants"}
-	if err := vif(&ident); err == nil {
-		t.Fatalf("expected error, got nil")
+	ok, err = oc.validateRemoteIdentity(&ident)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	} else if ok {
+		t.Fatal("expected not ok")
 	}
 }
