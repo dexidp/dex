@@ -1,0 +1,21 @@
+#!/bin/bash -e
+
+VERSION=$(./git-version)
+
+GOARCH=amd64
+OSS=( "darwin" "linux" )
+
+for GOOS in ${OSS[@]}; do
+	name=dex-$VERSION-$GOOS-$GOARCH
+
+	rm -fr $name.tar.gz $name/
+	mkdir $name
+
+	GOOS=$GOOS GOARCH=$GOARCH ./build
+	cp bin/dexctl $name/
+
+	tar -czf $name.tar.gz $name/
+	echo "Created ${name}.tar.gz"
+
+	rm -fr $name/
+done
