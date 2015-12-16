@@ -165,6 +165,10 @@ func (r *PrivateKeySetRepo) Get() (key.KeySet, error) {
 		return nil, errors.New("unable to cast to KeySet")
 	}
 
+	if len(r.secrets) == 0 {
+		return nil, errors.New("no secrets available to decrypt keys")
+	}
+
 	var pks *key.PrivateKeySet
 	for _, secret := range r.secrets {
 		var j []byte
