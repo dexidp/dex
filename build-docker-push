@@ -12,9 +12,9 @@ else
     docker login --username="$DOCKER_USER" --password="$DOCKER_PASSWORD" --email="dex@example.com" $DOCKER_REGISTRY
 fi
 
-git_sha=$(git rev-parse HEAD)
+version=$(./git-version)
 
-docker build -q --rm=true -t $repo:$git_sha .
-docker tag -f $repo:$git_sha $repo:latest
-docker push $repo:$git_sha
+docker build -q --rm=true -t $repo:$version .
+docker tag -f $repo:$version $repo:latest
+docker push $repo:$version
 docker push $repo:latest

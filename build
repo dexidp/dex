@@ -25,7 +25,7 @@ mkdir -p $GOPATH/src/github.com/coreos/
 # Only attempt to link dex into godeps if it isn't already there
 [ -d $GOPATH/src/github.com/coreos/dex ] || ln -s ${PWD} $GOPATH/src/github.com/coreos/dex
 
-LD_FLAGS="-X main.version=$(git rev-parse HEAD)"
+LD_FLAGS="-X main.version=$(./git-version)"
 go build -o bin/dex-worker -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dex-worker
 go build -o bin/dexctl github.com/coreos/dex/cmd/dexctl
 go build -o bin/dex-overlord -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dex-overlord
