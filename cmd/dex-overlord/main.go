@@ -72,6 +72,10 @@ func main() {
 		log.Fatalf("Unable to use --admin-listen flag: %v", err)
 	}
 
+	if len(keySecrets.BytesSlice()) == 0 {
+		log.Fatalf("Must specify at least one key secret")
+	}
+
 	dbCfg := db.Config{
 		DSN:                *dbURL,
 		MaxIdleConnections: 1,
