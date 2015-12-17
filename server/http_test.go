@@ -402,7 +402,7 @@ func TestHandleDiscoveryFunc(t *testing.T) {
 		t.Fatalf("Incorrect Cache-Control header: want=%q, got=%q", wantCC, gotCC)
 	}
 
-	wantBody := `{"issuer":"http://server.example.com","authorization_endpoint":"http://server.example.com/auth","token_endpoint":"http://server.example.com/token","jwks_uri":"http://server.example.com/keys","response_types_supported":["code"],"grant_types_supported":["authorization_code"],"subject_types_supported":["public"],"id_token_alg_values_supported":["RS256"],"token_endpoint_auth_methods_supported":["client_secret_basic"]}`
+	wantBody := `{"issuer":"http://server.example.com","authorization_endpoint":"http://server.example.com/auth","token_endpoint":"http://server.example.com/token","jwks_uri":"http://server.example.com/keys","response_types_supported":["code"],"grant_types_supported":["authorization_code"],"subject_types_supported":["public"],"id_token_signing_alg_values_supported":["RS256"],"token_endpoint_auth_methods_supported":["client_secret_basic"]}`
 	gotBody := w.Body.String()
 	if wantBody != gotBody {
 		t.Fatalf("Incorrect body: want=%s got=%s", wantBody, gotBody)
