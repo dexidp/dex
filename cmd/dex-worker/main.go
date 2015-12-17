@@ -135,6 +135,9 @@ func main() {
 			UsersFile:      *users,
 		}
 	} else {
+		if len(keySecrets.BytesSlice()) == 0 {
+			log.Fatalf("Must specify at least one key secret")
+		}
 		if *dbMaxIdleConns == 0 {
 			log.Warning("Running with no limit on: database idle connections")
 		}

@@ -90,6 +90,9 @@ type privateKeySetBlob struct {
 }
 
 func NewPrivateKeySetRepo(dbm *gorp.DbMap, useOldFormat bool, secrets ...[]byte) (*PrivateKeySetRepo, error) {
+	if len(secrets) == 0 {
+		return nil, errors.New("must provide at least one key secret")
+	}
 	for i, secret := range secrets {
 		if len(secret) != 32 {
 			return nil, fmt.Errorf("key secret %d: expected 32-byte secret", i)
