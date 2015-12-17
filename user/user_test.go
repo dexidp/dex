@@ -140,3 +140,43 @@ func TestEncodeDecodeNextPageToken(t *testing.T) {
 		}
 	}
 }
+
+// Ensure the default user id generator is uuidv4 compliant
+func TestDefaultUserIDGenerator(t *testing.T) {
+	tests := []func(string){
+		func(s string) {
+			if len(s) != 36 {
+				t.Errorf("uuid must be 36 characters, got %d", len(s))
+			}
+		},
+		func(s string) {
+			parts := strings.Split(s, "-")
+			if len(parts) != 5 {
+				t.Errorf("expected 5 dash separated parts, got %d", len(parts))
+				return
+			}
+			for i, exp := range []int{8, 4, 4, 4, 12} {
+				if n := len(parts[i]); n != exp {
+					t.Errorf("expected part %d to be of length %d, got %d", i, exp, n)
+				}
+			}
+		},
+		func(s string) {
+			if len(s) < 15 || s[14] != '4' {
+				t.Errorf("the 15th character of a uuidv4 must be '4'")
+			}
+			if len(s) < 20 || !strings.ContainsRune("89ab", rune(s[19])) {
+				t.Errorf("the 20th character of a uuidv4 must be '8', '9', 'a' or 'b'")
+			}
+		},
+	}
+	for i := 0; i < 10; i++ {
+		uuid, err := DefaultUserIDGenerator()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, test := range tests {
+			test(uuid)
+		}
+	}
+}

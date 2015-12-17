@@ -1,6 +1,7 @@
 package user
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,7 +13,6 @@ import (
 	"os"
 	"sort"
 
-	"code.google.com/p/go-uuid/uuid"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/coreos/dex/repo"
@@ -67,7 +67,14 @@ func assertURLClaim(claims jose.Claims, k string) *url.URL {
 type UserIDGenerator func() (string, error)
 
 func DefaultUserIDGenerator() (string, error) {
-	return uuid.New(), nil
+	b := make([]byte, 16)
+	if _, err := io.ReadFull(rand.Reader, b); err != nil {
+		return "", err
+	}
+	// Set the appropriate bits to indicate this is a UUIDv4
+	b[8] = (b[8] | 0x80) & 0xBF
+	b[6] = (b[6] | 0x40) & 0x4F
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:]), nil
 }
 
 type User struct {
