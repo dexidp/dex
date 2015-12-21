@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/coreos/pkg/capnslog"
@@ -75,6 +76,9 @@ type ProviderConfigSyncer struct {
 	from  ProviderConfigGetter
 	to    ProviderConfigSetter
 	clock clockwork.Clock
+
+	initialSyncDone bool
+	initialSyncWait sync.WaitGroup
 }
 
 func NewProviderConfigSyncer(from ProviderConfigGetter, to ProviderConfigSetter) *ProviderConfigSyncer {
@@ -91,6 +95,7 @@ func (s *ProviderConfigSyncer) Run() chan struct{} {
 	var next pcsStepper
 	next = &pcsStepNext{aft: time.Duration(0)}
 
+	s.initialSyncWait.Add(1)
 	go func() {
 		for {
 			select {
@@ -105,6 +110,10 @@ func (s *ProviderConfigSyncer) Run() chan struct{} {
 	return stop
 }
 
+func (s *ProviderConfigSyncer) WaitUntilInitialSync() {
+	s.initialSyncWait.Wait()
+}
+
 func (s *ProviderConfigSyncer) sync() (time.Duration, error) {
 	cfg, err := s.from.Get()
 	if err != nil {
@@ -113,6 +122,11 @@ func (s *ProviderConfigSyncer) sync() (time.Duration, error) {
 
 	if err = s.to.Set(cfg); err != nil {
 		return 0, fmt.Errorf("error setting provider config: %v", err)
+	}
+
+	if !s.initialSyncDone {
+		s.initialSyncWait.Done()
+		s.initialSyncDone = true
 	}
 
 	log.Infof("Updating provider config: config=%#v", cfg)
