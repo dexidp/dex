@@ -1,6 +1,7 @@
 # dex
 
 
+[![Build Status](https://travis-ci.org/coreos/dex.png?branch=master)](https://travis-ci.org/coreos/dex)
 [![Docker Repository on Quay.io](https://quay.io/repository/coreos/dex/status?token=2e772caf-ea17-45d5-8455-8fcf39dae6e1 "Docker Repository on Quay.io")](https://quay.io/repository/coreos/dex)
 [![GoDoc](https://godoc.org/github.com/coreos/dex?status.svg)](https://godoc.org/github.com/coreos/dex)
 

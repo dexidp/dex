@@ -1,0 +1,17 @@
+language: go
+matrix:
+  include:
+    - go: 1.4.3
+      install:
+        - go get golang.org/x/tools/cmd/cover
+        - go get golang.org/x/tools/cmd/vet
+    - go: 1.5.2
+      install: true
+
+script:
+ - ./test
+
+notifications:
+  email: false
+
+sudo: false
