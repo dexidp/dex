@@ -3,22 +3,6 @@
 export GOPATH=${PWD}/Godeps/_workspace
 export GOBIN=${PWD}/bin
 
-if command -v go-bindata &>/dev/null; then
-    DEX_MIGRATE_FROM_DISK=${DEX_MIGRATE_FROM_DISK:=false}
-
-    echo "Turning migrations into ./db/migrations/assets.go"
-    if [ "$DEX_MIGRATE_FROM_DISK" = true ]; then
-        echo "Compiling migrations.go: will read migrations from disk."
-    else
-        echo "Compiling migrations into migrations.go"
-    fi
-    go-bindata -debug=$DEX_MIGRATE_FROM_DISK -modtime=1 -pkg migrations -o ./db/migrations/assets.go ./db/migrations
-    gofmt -w ./db/migrations/assets.go
-else
-    echo "Could not find go-bindata in path, will not generate migrations"
-    echo "Install go-bindata with: go get -u github.com/jteeuwen/go-bindata/..."
-fi
-
 rm -rf $GOPATH/src/github.com/coreos/dex
 mkdir -p $GOPATH/src/github.com/coreos/
 
