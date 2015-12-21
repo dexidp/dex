@@ -1,17 +1,23 @@
+sudo: required
+services:
+  - docker 
+
 language: go
-matrix:
-  include:
-    - go: 1.4.3
-      install:
-        - go get golang.org/x/tools/cmd/cover
-        - go get golang.org/x/tools/cmd/vet
-    - go: 1.5.2
-      install: true
+go:
+ - 1.4.3
+ - 1.5.2
+
+env:
+  - DEX_TEST_DSN="postgres://postgres@127.0.0.1:15432/postgres?sslmode=disable" ISOLATED=true
+
+install:
+ - go get golang.org/x/tools/cmd/cover
+ - go get golang.org/x/tools/cmd/vet
+ - docker pull quay.io/ericchiang/postgres
 
 script:
+ - docker run -d -p 127.0.0.1:15432:5432 quay.io/ericchiang/postgres
  - ./test
 
 notifications:
   email: false
-
-sudo: false
