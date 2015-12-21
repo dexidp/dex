@@ -13,10 +13,10 @@ env:
 install:
  - go get golang.org/x/tools/cmd/cover
  - go get golang.org/x/tools/cmd/vet
- - docker pull quay.io/ericchiang/postgres
+ - docker pull quay.io/coreos/postgres
 
 script:
- - docker run -d -p 127.0.0.1:15432:5432 quay.io/ericchiang/postgres
+ - docker run -d -p 127.0.0.1:15432:5432 quay.io/coreos/postgres
  - ./test
 
 notifications:
