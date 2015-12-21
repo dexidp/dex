@@ -101,32 +101,10 @@ type Client struct {
 	redirectURL    string
 	scope          []string
 	keySet         key.PublicKeySet
+	providerSyncer *ProviderConfigSyncer
 
 	keySetSyncMutex sync.RWMutex
 	lastKeySetSync  time.Time
-}
-
-type providerConfigRepo struct {
-	mu     sync.RWMutex
-	config ProviderConfig // do not access directly, use Get()
-}
-
-func newProviderConfigRepo(pc ProviderConfig) *providerConfigRepo {
-	return &providerConfigRepo{sync.RWMutex{}, pc}
-}
-
-// returns an error to implement ProviderConfigSetter
-func (r *providerConfigRepo) Set(cfg ProviderConfig) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.config = cfg
-	return nil
-}
-
-func (r *providerConfigRepo) Get() ProviderConfig {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.config
 }
 
 func (c *Client) Healthy() error {
@@ -178,9 +156,13 @@ func chooseAuthMethod(cfg ProviderConfig) (string, error) {
 	return "", errors.New("no supported auth methods")
 }
 
+// SyncProviderConfig starts the provider config syncer
 func (c *Client) SyncProviderConfig(discoveryURL string) chan struct{} {
 	r := NewHTTPProviderConfigGetter(c.httpClient, discoveryURL)
-	return NewProviderConfigSyncer(r, c.providerConfig).Run()
+	s := NewProviderConfigSyncer(r, c.providerConfig)
+	stop := s.Run()
+	s.WaitUntilInitialSync()
+	return stop
 }
 
 func (c *Client) maybeSyncKeys() error {
@@ -339,4 +321,27 @@ func (c *Client) keysFuncAll() func() []key.PublicKey {
 
 		return c.keySet.Keys()
 	}
+}
+
+type providerConfigRepo struct {
+	mu     sync.RWMutex
+	config ProviderConfig // do not access directly, use Get()
+}
+
+func newProviderConfigRepo(pc ProviderConfig) *providerConfigRepo {
+	return &providerConfigRepo{sync.RWMutex{}, pc}
+}
+
+// returns an error to implement ProviderConfigSetter
+func (r *providerConfigRepo) Set(cfg ProviderConfig) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.config = cfg
+	return nil
+}
+
+func (r *providerConfigRepo) Get() ProviderConfig {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.config
 }
