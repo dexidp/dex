@@ -322,26 +322,22 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 		ConnectorID: ses.ConnectorID,
 		ID:          ses.Identity.ID,
 	})
-	if err != nil {
-		if err == user.ErrorNotFound {
-			// If has authenticated via a connector, but no local identity there
-			// are a couple of possibilities:
-
-			// * Maybe they are using the wrong connector:
-			if ses.Identity.Email != "" {
-				if connID, err := getConnectorForUserByEmail(s.UserRepo,
-					ses.Identity.Email); err == nil {
-
-					return newLoginURLFromSession(s.IssuerURL,
-						ses, true, []string{connID},
-						"wrong-connector").String(), nil
-				}
+	if err == user.ErrorNotFound {
+		// Does the user have an existing account with a different connector?
+		if ses.Identity.Email != "" {
+			connID, err := getConnectorForUserByEmail(s.UserRepo, ses.Identity.Email)
+			if err == nil {
+				// Ask user to sign in through existing account.
+				u := newLoginURLFromSession(s.IssuerURL, ses, false, []string{connID}, "wrong-connector")
+				return u.String(), nil
 			}
-
-			// * User needs to register
-			return newLoginURLFromSession(s.IssuerURL,
-				ses, true, []string{ses.ConnectorID}, "register-maybe").String(), nil
 		}
+
+		// User doesn't have an existing account. Ask them to register.
+		u := newLoginURLFromSession(s.IssuerURL, ses, true, []string{ses.ConnectorID}, "register-maybe")
+		return u.String(), nil
+	}
+	if err != nil {
 		return "", err
 	}
 
