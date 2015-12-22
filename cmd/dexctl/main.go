@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"io/ioutil"
 	"net/http"
 	"os"
 
@@ -13,7 +14,7 @@ import (
 
 var (
 	cliName        = "dexctl"
-	cliDescription = "???"
+	cliDescription = "A tool for interacting with the dex system"
 
 	commands []*command
 	globalFS = flag.NewFlagSet(cliName, flag.ExitOnError)
@@ -59,8 +60,14 @@ func main() {
 	for _, c := range commands {
 		if c.Name == args[0] {
 			cmd = c
+			// Don't print the default help message.
+			c.Flags.SetOutput(ioutil.Discard)
 			if err := c.Flags.Parse(args[1:]); err != nil {
-				stderr("%v", err)
+				if err == flag.ErrHelp {
+					printCommandUsage(c)
+				} else {
+					stderr("%v", err)
+				}
 				os.Exit(2)
 			}
 			break
