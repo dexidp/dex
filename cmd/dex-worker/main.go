@@ -169,7 +169,7 @@ func main() {
 		if len(cfgs) > 0 && err == nil {
 			break
 		}
-		sleep = ptime.ExpBackoff(sleep, time.Minute)
+		sleep = ptime.ExpBackoff(sleep, 8*time.Second)
 		if err != nil {
 			log.Errorf("Unable to load connectors, retrying in %v: %v", sleep, err)
 		} else {
