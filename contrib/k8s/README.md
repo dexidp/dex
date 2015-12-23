@@ -53,7 +53,7 @@ The other hacky thing is that this needs to happen before the workers start beca
 
 First, start a shell session on the overlord pod.
 ```
-DEX_OVERLORD_POD=$(kubectl get pod -l=app=dex,role=overlord -o template -t "{{ (index .items 0).metadata.name }}")
+DEX_OVERLORD_POD=$(kubectl get pod -l=app=dex,role=overlord -o template --template "{{ (index .items 0).metadata.name }}")
 
 kubectl exec -ti $DEX_OVERLORD_POD -- sh
 ```
@@ -116,7 +116,7 @@ Now you can register and log-in to your example app: Go to http://127.0.0.1:5555
 
 Here's how to get psql session.
 ```
-DEX_PSQL_POD=$(kubectl get pod -l=app=postgres -o template -t "{{ (index .items 0).metadata.name }}")
+DEX_PSQL_POD=$(kubectl get pod -l=app=postgres -o template --template "{{ (index .items 0).metadata.name }}")
 kubectl exec $DEX_PSQL_POD -ti  -- psql postgres://postgres@dex-postgres.default:5432/postgres?sslmode=disable
 ```
 
