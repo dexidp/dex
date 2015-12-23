@@ -20,14 +20,21 @@ type formError struct {
 	Error string
 }
 
+type remoteExistsData struct {
+	Login string
+
+	Register string
+}
+
 type registerTemplateData struct {
-	Error      bool
-	FormErrors []formError
-	Message    string
-	Email      string
-	Code       string
-	Password   string
-	Local      bool
+	Error        bool
+	FormErrors   []formError
+	Message      string
+	Email        string
+	Code         string
+	Password     string
+	Local        bool
+	RemoteExists *remoteExistsData
 }
 
 var (
@@ -47,8 +54,7 @@ var (
 	}
 )
 
-func handleRegisterFunc(s *Server) http.HandlerFunc {
-	tpl := s.RegisterTemplate
+func handleRegisterFunc(s *Server, tpl Template) http.HandlerFunc {
 
 	errPage := func(w http.ResponseWriter, msg string, code string, status int) {
 		data := registerTemplateData{
@@ -89,6 +95,46 @@ func handleRegisterFunc(s *Server) http.HandlerFunc {
 		}
 		ses, err := s.SessionManager.Get(sessionID)
 		if err != nil || ses == nil {
+			return
+		}
+
+		var exists bool
+		exists, err = remoteIdentityExists(s.UserRepo, ses.ConnectorID, ses.Identity.ID)
+		if err != nil {
+			internalError(w, err)
+			return
+		}
+
+		if exists {
+			// we have to create a new session to be able to run the server.Login function
+			newSessionKey, err := s.NewSession(ses.ConnectorID, ses.ClientID,
+				ses.ClientState, ses.RedirectURL, ses.Nonce, false, ses.Scope)
+			if err != nil {
+				internalError(w, err)
+				return
+			}
+			// make sure to clean up the old session
+			if err = s.KillSession(code); err != nil {
+				internalError(w, err)
+			}
+
+			// finally, we can create a valid redirect URL for them.
+			redirURL, err := s.Login(ses.Identity, newSessionKey)
+			if err != nil {
+				internalError(w, err)
+				return
+			}
+
+			registerURL := newLoginURLFromSession(
+				s.IssuerURL, ses, true, []string{}, "")
+
+			execTemplate(w, tpl, registerTemplateData{
+				RemoteExists: &remoteExistsData{
+					Login:    redirURL,
+					Register: registerURL.String(),
+				},
+			})
+
 			return
 		}
 
@@ -175,7 +221,7 @@ func handleRegisterFunc(s *Server) http.HandlerFunc {
 				log.Errorf("Error killing session: %v", err)
 			}
 			http.Redirect(w, r, loginURL.String(), http.StatusSeeOther)
-
+			return
 		}
 
 		if err != nil {
@@ -212,15 +258,20 @@ func handleRegisterFunc(s *Server) http.HandlerFunc {
 			}
 		}
 
-		ru := ses.RedirectURL
-		q := ru.Query()
-		q.Set("code", code)
-		q.Set("state", ses.ClientState)
-		ru.RawQuery = q.Encode()
-		w.Header().Set("Location", ru.String())
+		w.Header().Set("Location", makeClientRedirectURL(
+			ses.RedirectURL, code, ses.ClientState).String())
 		w.WriteHeader(http.StatusSeeOther)
 		return
 	}
+}
+
+func makeClientRedirectURL(baseRedirURL url.URL, code, clientState string) *url.URL {
+	ru := baseRedirURL
+	q := ru.Query()
+	q.Set("code", code)
+	q.Set("state", clientState)
+	ru.RawQuery = q.Encode()
+	return &ru
 }
 
 func registerFromLocalConnector(userManager *manager.UserManager, sessionManager *session.SessionManager, ses *session.Session, email, password string) (string, error) {
@@ -303,4 +354,21 @@ func newLoginURLFromSession(issuer url.URL, ses *session.Session, register bool,
 
 	loginURL.RawQuery = v.Encode()
 	return &loginURL
+}
+
+func remoteIdentityExists(ur user.UserRepo, connectorID, id string) (bool, error) {
+	_, err := ur.GetByRemoteIdentity(nil, user.RemoteIdentity{
+		ConnectorID: connectorID,
+		ID:          id,
+	})
+
+	if err == user.ErrorNotFound {
+		return false, nil
+	}
+
+	if err == nil {
+		return true, nil
+	}
+
+	return false, err
 }

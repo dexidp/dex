@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -129,11 +130,15 @@ var connectorDisplayNameMap = map[string]string{
 	"bitbucket": "Bitbucket",
 }
 
-func execTemplate(w http.ResponseWriter, tpl *template.Template, data interface{}) {
+type Template interface {
+	Execute(io.Writer, interface{}) error
+}
+
+func execTemplate(w http.ResponseWriter, tpl Template, data interface{}) {
 	execTemplateWithStatus(w, tpl, data, http.StatusOK)
 }
 
-func execTemplateWithStatus(w http.ResponseWriter, tpl *template.Template, data interface{}, status int) {
+func execTemplateWithStatus(w http.ResponseWriter, tpl Template, data interface{}, status int) {
 	w.WriteHeader(status)
 	if err := tpl.Execute(w, data); err != nil {
 		log.Errorf("Error loading page: %q", err)

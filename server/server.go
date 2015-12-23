@@ -206,7 +206,7 @@ func (s *Server) HTTPHandler() http.Handler {
 	mux.Handle(httpPathHealth, makeHealthHandler(checks))
 
 	if s.EnableRegistration {
-		mux.HandleFunc(httpPathRegister, handleRegisterFunc(s))
+		mux.HandleFunc(httpPathRegister, handleRegisterFunc(s, s.RegisterTemplate))
 	}
 
 	mux.HandleFunc(httpPathEmailVerify, handleEmailVerifyFunc(s.VerifyEmailTemplate,
