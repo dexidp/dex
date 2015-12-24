@@ -4,7 +4,32 @@
   <h2 class="heading">Create Your Account</h2>
 
   {{ if .Error }}
-    <div class="error-box">{{ .Message }}</div>
+  <div class="error-box">{{ .Message }}</div>
+  {{ else if .RemoteExists }}
+     {{ with .RemoteExists }}
+     <div class="instruction-block">
+       This account is already registered.
+       If you'd like to login with that account, click here:
+     </div>
+      <div>
+        <a href="{{ .Login }}" target="_self">
+          <button class="btn btn-provider">
+            <span class="btn-text">Login</span>
+          </button>
+        </a>
+      </div>
+      <div class="instruction-block">
+        If you would like to register with a different account, click here:
+      </div>
+      <div>
+        <a href="{{ .Register }}" target="_self">
+          <button class="btn btn-provider">
+            <span class="btn-text">Register</span>
+          </button>
+        </a>
+      </div>
+     {{ end }}
+
   {{ else }}
 
     <form id="registerForm" method="POST" action="/register">

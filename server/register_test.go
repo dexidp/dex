@@ -1,6 +1,8 @@
 package server
 
 import (
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,7 +16,25 @@ import (
 	"github.com/coreos/go-oidc/oidc"
 )
 
+type testTemplate struct {
+	tpl Template
+
+	data registerTemplateData
+}
+
+func (t *testTemplate) Execute(w io.Writer, data interface{}) error {
+	dataMap, ok := data.(registerTemplateData)
+	if !ok {
+		return errors.New("could not cast to registerTemplateData")
+	}
+	t.data = dataMap
+	return t.tpl.Execute(w, data)
+}
+
 func TestHandleRegister(t *testing.T) {
+
+	testIssuerAuth := testIssuerURL
+	testIssuerAuth.Path = "/auth"
 
 	str := func(s string) []string {
 		return []string{s}
@@ -25,11 +45,14 @@ func TestHandleRegister(t *testing.T) {
 		connID              string
 		attachRemote        bool
 		remoteIdentityEmail string
+		remoteAlreadyExists bool
 
 		// want
-		wantStatus      int
-		wantFormValues  url.Values
-		wantUserCreated bool
+		wantStatus               int
+		wantFormValues           url.Values
+		wantUserExists           bool
+		wantRedirectURL          url.URL
+		wantRegisterTemplateData *registerTemplateData
 	}{
 		{
 			// User comes in with a valid code, redirected from the connector,
@@ -58,8 +81,38 @@ func TestHandleRegister(t *testing.T) {
 			remoteIdentityEmail: "test@example.com",
 			attachRemote:        true,
 
-			wantStatus:      http.StatusSeeOther,
-			wantUserCreated: true,
+			wantStatus:     http.StatusSeeOther,
+			wantUserExists: true,
+		},
+		{
+			// User comes in with a valid code, redirected from the connector.
+			// User is redirected to dex page with msg_code "login-maybe",
+			// because the remote identity already exists.
+			query: url.Values{
+				"code": []string{"code-3"},
+			},
+			connID:              "oidc-trusted",
+			remoteIdentityEmail: "test@example.com",
+			attachRemote:        true,
+			remoteAlreadyExists: true,
+
+			wantStatus:     http.StatusOK,
+			wantUserExists: true,
+			wantRegisterTemplateData: &registerTemplateData{
+				RemoteExists: &remoteExistsData{
+					Login: newURLWithParams(testRedirectURL, url.Values{
+						"code":  []string{"code-7"},
+						"state": []string{""},
+					}).String(),
+					Register: newURLWithParams(testIssuerAuth, url.Values{
+						"client_id":    []string{testClientID},
+						"redirect_uri": []string{testRedirectURL.String()},
+						"register":     []string{"1"},
+						"scope":        []string{"openid"},
+						"state":        []string{""},
+					}).String(),
+				},
+			},
 		},
 		{
 			// User comes in with a valid code, redirected from the connector,
@@ -74,8 +127,8 @@ func TestHandleRegister(t *testing.T) {
 			remoteIdentityEmail: "test@example.com",
 			attachRemote:        true,
 
-			wantStatus:      http.StatusSeeOther,
-			wantUserCreated: true,
+			wantStatus:     http.StatusSeeOther,
+			wantUserExists: true,
 		},
 		{
 			// User comes in with a valid code, redirected from the connector,
@@ -88,8 +141,8 @@ func TestHandleRegister(t *testing.T) {
 			remoteIdentityEmail: "",
 			attachRemote:        true,
 
-			wantStatus:      http.StatusOK,
-			wantUserCreated: false,
+			wantStatus:     http.StatusOK,
+			wantUserExists: false,
 			wantFormValues: url.Values{
 				"code":     str("code-4"),
 				"email":    str(""),
@@ -107,8 +160,8 @@ func TestHandleRegister(t *testing.T) {
 			remoteIdentityEmail: "notanemail",
 			attachRemote:        true,
 
-			wantStatus:      http.StatusOK,
-			wantUserCreated: false,
+			wantStatus:     http.StatusOK,
+			wantUserExists: false,
 			wantFormValues: url.Values{
 				"code":     str("code-4"),
 				"email":    str(""),
@@ -142,9 +195,9 @@ func TestHandleRegister(t *testing.T) {
 				"email":    str("test@example.com"),
 				"password": str("password"),
 			},
-			connID:          "local",
-			wantStatus:      http.StatusSeeOther,
-			wantUserCreated: true,
+			connID:         "local",
+			wantStatus:     http.StatusSeeOther,
+			wantUserExists: true,
 		},
 		{
 			// User comes in with spaces in their email, having submitted the
@@ -155,9 +208,9 @@ func TestHandleRegister(t *testing.T) {
 				"email":    str("\t\ntest@example.com "),
 				"password": str("password"),
 			},
-			connID:          "local",
-			wantStatus:      http.StatusSeeOther,
-			wantUserCreated: true,
+			connID:         "local",
+			wantStatus:     http.StatusSeeOther,
+			wantUserExists: true,
 		},
 		{
 			// User comes in with an invalid email, having submitted the form.
@@ -185,9 +238,9 @@ func TestHandleRegister(t *testing.T) {
 				"validate": []string{"1"},
 				"email":    str("test@example.com"),
 			},
-			connID:          "local",
-			wantStatus:      http.StatusBadRequest,
-			wantUserCreated: false,
+			connID:         "local",
+			wantStatus:     http.StatusBadRequest,
+			wantUserExists: false,
 			wantFormValues: url.Values{
 				"code":     str("code-3"),
 				"email":    str("test@example.com"),
@@ -204,10 +257,10 @@ func TestHandleRegister(t *testing.T) {
 				"validate": []string{"1"},
 				"email":    str("test@example.com"),
 			},
-			connID:          "oidc",
-			attachRemote:    true,
-			wantStatus:      http.StatusSeeOther,
-			wantUserCreated: true,
+			connID:         "oidc",
+			attachRemote:   true,
+			wantStatus:     http.StatusSeeOther,
+			wantUserExists: true,
 		},
 		{
 			// Same as before, but missing a code.
@@ -215,10 +268,10 @@ func TestHandleRegister(t *testing.T) {
 				"validate": []string{"1"},
 				"email":    str("test@example.com"),
 			},
-			connID:          "oidc",
-			attachRemote:    true,
-			wantStatus:      http.StatusUnauthorized,
-			wantUserCreated: false,
+			connID:         "oidc",
+			attachRemote:   true,
+			wantStatus:     http.StatusUnauthorized,
+			wantUserExists: false,
 		},
 	}
 
@@ -226,6 +279,20 @@ func TestHandleRegister(t *testing.T) {
 		f, err := makeTestFixtures()
 		if err != nil {
 			t.Fatalf("case %d: could not make test fixtures: %v", i, err)
+		}
+
+		if tt.remoteAlreadyExists {
+			f.userRepo.Create(nil, user.User{
+				ID:            "register-test-new-user",
+				Email:         tt.remoteIdentityEmail,
+				EmailVerified: true,
+			})
+
+			f.userRepo.AddRemoteIdentity(nil, "register-test-new-user",
+				user.RemoteIdentity{
+					ID:          "remoteID",
+					ConnectorID: tt.connID,
+				})
 		}
 
 		key, err := f.srv.NewSession(tt.connID, "XXX", "", f.redirectURL, "", true, []string{"openid"})
@@ -251,10 +318,10 @@ func TestHandleRegister(t *testing.T) {
 				t.Fatalf("case %d: expected non-nil error: %v", i, err)
 			}
 			t.Logf("case %d: key for NewSession: %v", i, key)
-
 		}
 
-		hdlr := handleRegisterFunc(f.srv)
+		tpl := &testTemplate{tpl: f.srv.RegisterTemplate}
+		hdlr := handleRegisterFunc(f.srv, tpl)
 
 		w := httptest.NewRecorder()
 		u := "http://server.example.com"
@@ -266,12 +333,25 @@ func TestHandleRegister(t *testing.T) {
 		}
 
 		hdlr.ServeHTTP(w, req)
+
+		if tt.wantRedirectURL.String() != "" {
+			locationHdr := w.HeaderMap.Get("Location")
+			redirURL, err := url.Parse(locationHdr)
+			if err != nil {
+				t.Errorf("case %d: unexpected error parsing url %q: %q", i, locationHdr, err)
+			} else {
+				if diff := pretty.Compare(*redirURL, tt.wantRedirectURL); diff != "" {
+					t.Errorf("case %d: Compare(redirURL, tt.wantRedirectURL) = %v", i, diff)
+				}
+			}
+		}
+
 		if tt.wantStatus != w.Code {
 			t.Errorf("case %d: wantStatus=%v, got=%v", i, tt.wantStatus, w.Code)
 		}
 
 		_, err = f.userRepo.GetByEmail(nil, "test@example.com")
-		if tt.wantUserCreated {
+		if tt.wantUserExists {
 			if err != nil {
 				t.Errorf("case %d: user not created: %v", i, err)
 			}
@@ -288,5 +368,17 @@ func TestHandleRegister(t *testing.T) {
 			t.Errorf("case %d: Compare(want, got) = %v", i, diff)
 		}
 
+		if tt.wantRegisterTemplateData != nil {
+			if diff := pretty.Compare(*tt.wantRegisterTemplateData, tpl.data); diff != "" {
+				t.Errorf("case %d: Compare(tt.wantRegisterTemplateData, tpl.data) = %v",
+					i, diff)
+			}
+		}
 	}
+}
+
+func newURLWithParams(u url.URL, values url.Values) *url.URL {
+	newU := u
+	newU.RawQuery = values.Encode()
+	return &newU
 }
