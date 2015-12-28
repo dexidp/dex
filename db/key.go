@@ -27,7 +27,6 @@ func init() {
 		name:    keyTableName,
 		model:   privateKeySetBlob{},
 		autoinc: false,
-		pkey:    []string{"value"},
 	})
 }
 
