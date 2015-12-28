@@ -19,6 +19,7 @@ install:
 script:
  - docker run -d -p 127.0.0.1:15432:5432 quay.io/coreos/postgres
  - ./test
+ - ./test-functional
 
 after_success:
   - if [[ "$TRAVIS_GO_VERSION" == "1.5.2" && "$TRAVIS_PULL_REQUEST" == "false" && "$TRAVIS_BRANCH" == "master"  ]]; then ./build-docker-push ;fi
