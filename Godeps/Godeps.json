@@ -69,6 +69,10 @@
 			"Rev": "60c7bfde3e33c201519a200a4507a158cc03a17b"
 		},
 		{
+			"ImportPath": "github.com/inconshreveable/mousetrap",
+			"Rev": "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
+		},
+		{
 			"ImportPath": "github.com/jonboulle/clockwork",
 			"Rev": "3f831b65b61282ba6bece21b91beea2edc4c887a"
 		},
@@ -99,6 +103,14 @@
 		{
 			"ImportPath": "github.com/rubenv/sql-migrate",
 			"Rev": "53184e1edfb4f9655b0fa8dd2c23e7763f452bda"
+		},
+		{
+			"ImportPath": "github.com/spf13/cobra",
+			"Rev": "b3f29e98e63a3618988a231fd02b45c1e6369d4f"
+		},
+		{
+			"ImportPath": "github.com/spf13/pflag",
+			"Rev": "7f60f83a2c81bc3c3c0d5297f61ddfa68da9d3b7"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/bcrypt",
