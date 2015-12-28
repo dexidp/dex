@@ -2,21 +2,46 @@ package main
 
 import (
 	"errors"
-	"flag"
 	"net/http"
 	"os"
+	"strings"
 
-	pflag "github.com/coreos/dex/pkg/flag"
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 var (
-	cliName        = "dexctl"
-	cliDescription = "???"
+	rootCmd = &cobra.Command{
+		Use:   "dexctl",
+		Short: "A command line tool for interacting with the dex system",
+		Long:  "",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// initialize flags from environment
+			fs := cmd.Flags()
 
-	commands []*command
-	globalFS = flag.NewFlagSet(cliName, flag.ExitOnError)
+			// don't override flags set by command line flags
+			alreadySet := make(map[string]bool)
+			fs.Visit(func(f *pflag.Flag) { alreadySet[f.Name] = true })
+
+			var err error
+			fs.VisitAll(func(f *pflag.Flag) {
+				if err != nil || alreadySet[f.Name] {
+					return
+				}
+				key := "DEXCTL_" + strings.ToUpper(strings.Replace(f.Name, "-", "_", -1))
+				if val := os.Getenv(key); val != "" {
+					err = fs.Set(f.Name, val)
+				}
+			})
+			return err
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Help()
+			os.Exit(2)
+		},
+	}
 
 	global struct {
 		endpoint string
@@ -30,69 +55,23 @@ var (
 func init() {
 	log.EnableTimestamps()
 
-	globalFS.StringVar(&global.endpoint, "endpoint", "", "URL of dex API")
-	globalFS.StringVar(&global.creds.ID, "client-id", "", "dex API user ID")
-	globalFS.StringVar(&global.creds.Secret, "client-secret", "", "dex API user password")
-	globalFS.StringVar(&global.dbURL, "db-url", "", "DSN-formatted database connection string")
-	globalFS.BoolVar(&global.help, "help", false, "Print usage information and exit")
-	globalFS.BoolVar(&global.help, "h", false, "Print usage information and exit")
-	globalFS.BoolVar(&global.logDebug, "log-debug", false, "Log debug-level information")
+	rootCmd.PersistentFlags().StringVar(&global.endpoint, "endpoint", "", "URL of dex API")
+	rootCmd.PersistentFlags().StringVar(&global.creds.ID, "client-id", "", "dex API user ID")
+	rootCmd.PersistentFlags().StringVar(&global.creds.Secret, "client-secret", "", "dex API user password")
+	rootCmd.PersistentFlags().StringVar(&global.dbURL, "db-url", "", "DSN-formatted database connection string")
+	rootCmd.PersistentFlags().BoolVar(&global.logDebug, "log-debug", false, "Log debug-level information")
 }
 
 func main() {
-	err := parseFlags()
-	if err != nil {
-		stderr(err.Error())
+	if err := rootCmd.Execute(); err != nil {
 		os.Exit(2)
 	}
-
-	if global.logDebug {
-		log.EnableDebug()
-	}
-
-	args := globalFS.Args()
-	if len(args) < 1 || global.help {
-		args = []string{"help"}
-	}
-
-	var cmd *command
-	for _, c := range commands {
-		if c.Name == args[0] {
-			cmd = c
-			if err := c.Flags.Parse(args[1:]); err != nil {
-				stderr("%v", err)
-				os.Exit(2)
-			}
-			break
-		}
-	}
-
-	if cmd == nil {
-		stderr("%v: unknown subcommand: %q", cliName, args[0])
-		stderr("Run '%v help' for usage.", cliName)
-		os.Exit(2)
-	}
-
-	os.Exit(cmd.Run(cmd.Flags.Args()))
 }
 
-type command struct {
-	Name        string       // Name of the command and the string to use to invoke it
-	Summary     string       // One-sentence summary of what the command does
-	Usage       string       // Usage options/arguments
-	Description string       // Detailed description of command
-	Flags       flag.FlagSet // Set of flags associated with this command
-
-	Run func(args []string) int // Run a command with the given arguments, return exit status
-
-}
-
-func parseFlags() error {
-	if err := globalFS.Parse(os.Args[1:]); err != nil {
-		return err
+func wrapRun(run func(cmd *cobra.Command, args []string) int) func(cmd *cobra.Command, args []string) {
+	return func(cmd *cobra.Command, args []string) {
+		os.Exit(run(cmd, args))
 	}
-
-	return pflag.SetFlagsFromEnv(globalFS, "DEXCTL")
 }
 
 func getDriver() (drv driver) {
