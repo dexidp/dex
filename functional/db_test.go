@@ -45,7 +45,9 @@ func connect(t *testing.T) *gorp.DbMap {
 		panic(fmt.Sprintf("Unable to drop migration table: %v", err))
 	}
 
-	db.MigrateToLatest(c)
+	if _, err = db.MigrateToLatest(c); err != nil {
+		panic(fmt.Sprintf("Unable to migrate: %v", err))
+	}
 
 	return c
 }
