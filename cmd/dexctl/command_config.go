@@ -4,30 +4,33 @@ import (
 	"fmt"
 
 	"github.com/coreos/dex/connector"
+	"github.com/spf13/cobra"
 )
 
 var (
-	cmdGetConnectorConfigs = &command{
-		Name:    "get-connector-configs",
-		Summary: "Enumerate current IdP connector configs.",
-		Usage:   "",
-		Run:     runGetConnectorConfigs,
+	cmdGetConnectorConfigs = &cobra.Command{
+		Use:     "get-connector-configs",
+		Short:   "Enumerate current IdP connector configs.",
+		Long:    "Enumerate current IdP connector configs.",
+		Example: `  dexctl get-connector-configs --db-url=${DB_URL}`,
+		Run:     wrapRun(runGetConnectorConfigs),
 	}
 
-	cmdSetConnectorConfigs = &command{
-		Name:    "set-connector-configs",
-		Summary: "Overwrite the current IdP connector configs with those from a local file.",
-		Usage:   "<FILE>",
-		Run:     runSetConnectorConfigs,
+	cmdSetConnectorConfigs = &cobra.Command{
+		Use:     "set-connector-configs",
+		Short:   "Overwrite the current IdP connector configs with those from a local file.",
+		Long:    "Overwrite the current IdP connector configs with those from a local file.",
+		Example: `  dexctl set-connector-configs --db-url=${DB_URL} ./static/conn_conf.json`,
+		Run:     wrapRun(runSetConnectorConfigs),
 	}
 )
 
 func init() {
-	commands = append(commands, cmdSetConnectorConfigs)
-	commands = append(commands, cmdGetConnectorConfigs)
+	rootCmd.AddCommand(cmdGetConnectorConfigs)
+	rootCmd.AddCommand(cmdSetConnectorConfigs)
 }
 
-func runSetConnectorConfigs(args []string) int {
+func runSetConnectorConfigs(cmd *cobra.Command, args []string) int {
 	if len(args) != 1 {
 		stderr("Provide a single argument.")
 		return 2
@@ -55,7 +58,7 @@ func runSetConnectorConfigs(args []string) int {
 	return 0
 }
 
-func runGetConnectorConfigs(args []string) int {
+func runGetConnectorConfigs(cmd *cobra.Command, args []string) int {
 	if len(args) != 0 {
 		stderr("Provide zero arguments.")
 		return 2

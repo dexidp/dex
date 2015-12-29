@@ -4,22 +4,24 @@ import (
 	"net/url"
 
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/spf13/cobra"
 )
 
 var (
-	cmdNewClient = &command{
-		Name:    "new-client",
-		Summary: "Create a new client with the provided redirect URL(s)",
-		Usage:   "<URL>...",
-		Run:     runNewClient,
+	cmdNewClient = &cobra.Command{
+		Use:     "new-client",
+		Short:   "Create a new client with one or more redirect URLs.",
+		Long:    "Create a new client with one or more redirect URLs,",
+		Example: `  dexctl new-client --db-url=${DB_URL} 'https://example.com/callback'`,
+		Run:     wrapRun(runNewClient),
 	}
 )
 
 func init() {
-	commands = append(commands, cmdNewClient)
+	rootCmd.AddCommand(cmdNewClient)
 }
 
-func runNewClient(args []string) int {
+func runNewClient(cmd *cobra.Command, args []string) int {
 	if len(args) < 1 {
 		stderr("Provide at least one redirect URL.")
 		return 2

@@ -11,7 +11,7 @@ mkdir -p $GOPATH/src/github.com/coreos/
 
 LD_FLAGS="-X main.version=$(./git-version)"
 go build -o bin/dex-worker -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dex-worker
-go build -o bin/dexctl github.com/coreos/dex/cmd/dexctl
+go build -o bin/dexctl -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dexctl
 go build -o bin/dex-overlord -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dex-overlord
 go build -o bin/example-app github.com/coreos/dex/examples/app
 go build -o bin/example-cli github.com/coreos/dex/examples/cli
