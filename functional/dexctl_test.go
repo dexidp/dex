@@ -45,17 +45,17 @@ func TestDexctlCommands(t *testing.T) {
 	}{
 		{
 			args: []string{"new-client", "https://example.com/callback"},
-			env:  []string{"DEXCTL_DB_URL=" + dsn},
+			env:  []string{"DEXCTL_DB_URL=" + dsn, "DEXCTL_DB=" + storage},
 		},
 		{
-			args: []string{"new-client", "--db-url", dsn, "https://example.com/callback"},
+			args: []string{"new-client", "--db", storage, "--db-url", dsn, "https://example.com/callback"},
 		},
 		{
 			args: []string{"set-connector-configs", connConfig},
-			env:  []string{"DEXCTL_DB_URL=" + dsn},
+			env:  []string{"DEXCTL_DB_URL=" + dsn, "DEXCTL_DB=" + storage},
 		},
 		{
-			args: []string{"set-connector-configs", "--db-url", dsn, connConfig},
+			args: []string{"set-connector-configs", "--db", storage, "--db-url", dsn, connConfig},
 		},
 	}
 
