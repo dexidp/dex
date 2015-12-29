@@ -46,6 +46,7 @@ var (
 	global struct {
 		endpoint string
 		creds    oidc.ClientCredentials
+		db       string
 		dbURL    string
 		help     bool
 		logDebug bool
@@ -58,6 +59,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&global.endpoint, "endpoint", "", "URL of dex API")
 	rootCmd.PersistentFlags().StringVar(&global.creds.ID, "client-id", "", "dex API user ID")
 	rootCmd.PersistentFlags().StringVar(&global.creds.Secret, "client-secret", "", "dex API user password")
+	rootCmd.PersistentFlags().StringVar(&global.db, "db", "postgresql", "Database to connect")
 	rootCmd.PersistentFlags().StringVar(&global.dbURL, "db-url", "", "DSN-formatted database connection string")
 	rootCmd.PersistentFlags().BoolVar(&global.logDebug, "log-debug", false, "Log debug-level information")
 }
@@ -78,7 +80,7 @@ func getDriver() (drv driver) {
 	var err error
 	switch {
 	case len(global.dbURL) > 0:
-		drv, err = newDBDriver(global.dbURL)
+		drv, err = newDBDriver(global.db, global.dbURL)
 	case len(global.endpoint) > 0:
 		if len(global.creds.ID) == 0 || len(global.creds.Secret) == 0 {
 			err = errors.New("--client-id/--client-secret flags unset")

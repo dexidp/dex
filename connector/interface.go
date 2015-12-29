@@ -63,4 +63,5 @@ type ConnectorConfig interface {
 type ConnectorConfigRepo interface {
 	All() ([]ConnectorConfig, error)
 	GetConnectorByID(repo.Transaction, string) (ConnectorConfig, error)
+	Set([]ConnectorConfig) error
 }

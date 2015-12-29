@@ -2,15 +2,12 @@ package repo
 
 import (
 	"fmt"
+	"github.com/coreos/dex/user"
+	"github.com/kylelemons/godebug/pretty"
 	"os"
 	"reflect"
 	"testing"
 	"time"
-
-	"github.com/kylelemons/godebug/pretty"
-
-	"github.com/coreos/dex/db"
-	"github.com/coreos/dex/user"
 )
 
 var makeTestUserRepoFromUsers func(users []user.UserWithRemoteIdentities) user.UserRepo
@@ -64,7 +61,7 @@ func makeTestUserRepoDB(dsn string) func([]user.UserWithRemoteIdentities) user.U
 	return func(users []user.UserWithRemoteIdentities) user.UserRepo {
 		c := initDB(dsn)
 
-		repo, err := db.NewUserRepoFromUsers(c, users)
+		repo, err := c.NewUserRepoFromUsers(users)
 		if err != nil {
 			panic(fmt.Sprintf("Unable to add users: %v", err))
 		}

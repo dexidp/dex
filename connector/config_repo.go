@@ -59,3 +59,8 @@ func (r *memConnectorConfigRepo) GetConnectorByID(_ repo.Transaction, id string)
 	}
 	return nil, ErrorNotFound
 }
+
+func (r *memConnectorConfigRepo) Set(cfgs []ConnectorConfig) error {
+	r.configs = cfgs
+	return nil
+}

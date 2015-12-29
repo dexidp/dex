@@ -11,8 +11,11 @@ import (
 
 	"github.com/coreos/go-oidc/key"
 
+	"strings"
+
 	"github.com/coreos/dex/admin"
 	"github.com/coreos/dex/db"
+	_ "github.com/coreos/dex/db/postgresql"
 	pflag "github.com/coreos/dex/pkg/flag"
 	"github.com/coreos/dex/pkg/log"
 	ptime "github.com/coreos/dex/pkg/time"
@@ -34,7 +37,11 @@ func main() {
 
 	useOldFormat := fs.Bool("use-deprecated-secret-format", false, "In prior releases, the database used AES-CBC to encrypt keys. New deployments should use the default AES-GCM encryption.")
 
-	dbURL := fs.String("db-url", "", "DSN-formatted database connection string")
+	dnames := db.GetDriverNames()
+	dbName := fs.String("db", "memory", fmt.Sprintf("The database. Available drivers: %s", strings.Join(dnames, ", ")))
+	for _, d := range dnames {
+		db.GetDriver(d).InitFlags(fs)
+	}
 
 	dbMigrate := fs.Bool("db-migrate", true, "perform database migrations when starting up overlord. This includes the initial DB objects creation.")
 
@@ -60,6 +67,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	rd := db.GetDriver(*dbName)
+	if rd == nil {
+		fmt.Fprintf(os.Stderr, "there is no '%s' named db driver\n", *dbName)
+		os.Exit(1)
+	}
+
 	if *logDebug {
 		log.EnableDebug()
 	}
@@ -76,14 +89,9 @@ func main() {
 		log.Fatalf("Must specify at least one key secret")
 	}
 
-	dbCfg := db.Config{
-		DSN:                *dbURL,
-		MaxIdleConnections: 1,
-		MaxOpenConnections: 1,
-	}
-	dbc, err := db.NewConnection(dbCfg)
+	dbDriver, err := rd.New()
 	if err != nil {
-		log.Fatalf(err.Error())
+		log.Fatalf("Error while initializing db %v", err)
 	}
 
 	if *dbMigrate {
@@ -91,7 +99,7 @@ func main() {
 		for {
 			var err error
 			var migrations int
-			if migrations, err = db.MigrateToLatest(dbc); err == nil {
+			if migrations, err = dbDriver.MigrateToLatest(); err == nil {
 				log.Infof("Performed %d db migrations", migrations)
 				break
 			}
@@ -101,13 +109,13 @@ func main() {
 		}
 	}
 
-	userRepo := db.NewUserRepo(dbc)
-	pwiRepo := db.NewPasswordInfoRepo(dbc)
-	connCfgRepo := db.NewConnectorConfigRepo(dbc)
+	userRepo := dbDriver.NewUserRepo()
+	pwiRepo := dbDriver.NewPasswordInfoRepo()
+	connCfgRepo := dbDriver.NewConnectorConfigRepo()
 	userManager := manager.NewUserManager(userRepo,
-		pwiRepo, connCfgRepo, db.TransactionFactory(dbc), manager.ManagerOptions{})
+		pwiRepo, connCfgRepo, dbDriver.GetTransactionFactory(), manager.ManagerOptions{})
 	adminAPI := admin.NewAdminAPI(userManager, userRepo, pwiRepo, *localConnectorID)
-	kRepo, err := db.NewPrivateKeySetRepo(dbc, *useOldFormat, keySecrets.BytesSlice()...)
+	kRepo, err := dbDriver.NewPrivateKeySetRepo(*useOldFormat, keySecrets.BytesSlice()...)
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
@@ -141,13 +149,17 @@ func main() {
 		Handler: h,
 	}
 
-	gc := db.NewGarbageCollector(dbc, *gcInterval)
+	if dbDriver.DoesNeedGarbageCollecting() {
+		gc := dbDriver.NewGarbageCollector(*gcInterval)
 
-	log.Infof("Binding to %s...", httpsrv.Addr)
-	go func() {
-		log.Fatal(httpsrv.ListenAndServe())
-	}()
+		log.Infof("Binding to %s...", httpsrv.Addr)
+		go func() {
+			log.Fatal(httpsrv.ListenAndServe())
+		}()
 
-	gc.Run()
-	<-krot.Run()
+		gc.Run()
+		<-krot.Run()
+	} else {
+		krot.Run()
+	}
 }

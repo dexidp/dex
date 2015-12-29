@@ -7,13 +7,13 @@ import (
 	"github.com/lib/pq"
 	migrate "github.com/rubenv/sql-migrate"
 
-	"github.com/coreos/dex/db/migrations"
+	"github.com/coreos/dex/db/postgresql/migrations"
 )
 
 const (
 	migrationDialect = "postgres"
 	migrationTable   = "dex_migrations"
-	migrationDir     = "db/migrations"
+	migrationDir     = "db/postgresql/migrations"
 )
 
 func init() {
