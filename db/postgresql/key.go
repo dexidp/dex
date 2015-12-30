@@ -10,9 +10,9 @@ import (
 	"github.com/go-gorp/gorp"
 	"github.com/lib/pq"
 
+	"github.com/coreos/dex/db"
 	pcrypto "github.com/coreos/dex/pkg/crypto"
 	"github.com/coreos/go-oidc/key"
-	"github.com/coreos/dex/db"
 )
 
 const (
