@@ -12,8 +12,8 @@ import (
 	"os"
 	"sort"
 
-	"code.google.com/p/go-uuid/uuid"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 
 	"github.com/coreos/dex/repo"
 	"github.com/coreos/go-oidc/jose"
