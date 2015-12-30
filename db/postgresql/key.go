@@ -12,14 +12,11 @@ import (
 
 	pcrypto "github.com/coreos/dex/pkg/crypto"
 	"github.com/coreos/go-oidc/key"
+	"github.com/coreos/dex/db"
 )
 
 const (
 	keyTableName = "key"
-)
-
-var (
-	ErrorCannotDecryptKeys = errors.New("Cannot Decrypt Keys")
 )
 
 func init() {
@@ -194,7 +191,7 @@ func (r *PrivateKeySetRepo) Get() (key.KeySet, error) {
 	}
 
 	if err != nil {
-		return nil, ErrorCannotDecryptKeys
+		return nil, db.ErrorCannotDecryptKeys
 	}
 	return key.KeySet(pks), nil
 }

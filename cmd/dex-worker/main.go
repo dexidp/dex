@@ -49,7 +49,7 @@ func main() {
 	enableRegistration := fs.Bool("enable-registration", false, "Allows users to self-register")
 
 	dnames := db.GetDriverNames()
-	dbName := fs.String("db", "memory", fmt.Sprintf("The database. Available drivers: %s", strings.Join(dnames, ", ")))
+	dbName := fs.String("db", "postgresql", fmt.Sprintf("The database. Available drivers: %s", strings.Join(dnames, ", ")))
 	for _, d := range dnames {
 		db.GetDriver(d).InitFlags(fs)
 	}
