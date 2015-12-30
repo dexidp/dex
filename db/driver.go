@@ -17,8 +17,11 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
+//Driver is interface for backend storages
 type Driver interface {
+	//Name returns name of driver
 	Name() string
+	//DoesNeedGarbageCollecting returns whether this driver needs garbage collecting
 	DoesNeedGarbageCollecting() bool
 
 	NewConnectorConfigRepo() connector.ConnectorConfigRepo
@@ -39,6 +42,7 @@ type Driver interface {
 	DropTablesIfExists() error
 	DropMigrationsTable() error
 	MigrateToLatest() (int, error)
+	//NewGarbageCollector returns a GarbageCollector instance if driver needs garbage collecting
 	NewGarbageCollector(interval time.Duration) GarbageCollector
 }
 
@@ -57,6 +61,7 @@ func init() {
 	drivers = make(map[string]*RegisteredDriver)
 }
 
+//Register a driver
 func Register(name string, rd *RegisteredDriver) error {
 	if _, ext := drivers[name]; ext {
 		return fmt.Errorf("Name already registered %s", name)
@@ -65,8 +70,9 @@ func Register(name string, rd *RegisteredDriver) error {
 	return nil
 }
 
+//GetDriverNames returns all registered driver names
 func GetDriverNames() []string {
-	drives := make([]string, 0)
+	var drives []string
 
 	for name, _ := range drivers {
 		drives = append(drives, name)
@@ -74,6 +80,7 @@ func GetDriverNames() []string {
 	return drives
 }
 
+//GetDriver returns  with given name
 func GetDriver(name string) *RegisteredDriver {
 	return drivers[name]
 }
