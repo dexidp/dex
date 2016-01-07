@@ -6,11 +6,6 @@
 	],
 	"Deps": [
 		{
-			"ImportPath": "code.google.com/p/go-uuid/uuid",
-			"Comment": "null-15",
-			"Rev": "35bc42037350f0078e3c974c6ea690f1926603ab"
-		},
-		{
 			"ImportPath": "github.com/PuerkitoBio/goquery",
 			"Comment": "v0.3.2-79-gb444041",
 			"Rev": "b4440419d81240f8451a505b2f806c853bc2befc"
@@ -99,6 +94,10 @@
 		{
 			"ImportPath": "github.com/mbanzon/simplehttp",
 			"Rev": "04c542e7ac706a25820090f274ea6a4f39a63326"
+		},
+		{
+			"ImportPath": "github.com/pborman/uuid",
+			"Rev": "ca53cad383cad2479bbba7f7a1a05797ec1386e4"
 		},
 		{
 			"ImportPath": "github.com/rubenv/sql-migrate",
