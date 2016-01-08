@@ -31,7 +31,7 @@ func (f *Base64) Set(s string) error {
 	}
 
 	if len(b) != f.len {
-		return fmt.Errorf("expected %d-byte secret", f.len)
+		return fmt.Errorf("expected %d-byte secret, got %d-byte secret", f.len, len(b))
 	}
 
 	f.val = b
@@ -62,11 +62,15 @@ func (f *Base64List) Set(ss string) error {
 	if ss == "" {
 		return nil
 	}
-	for i, s := range strings.Split(ss, ",") {
+	splits := strings.Split(ss, ",")
+	for i, s := range splits {
 		b64 := NewBase64(f.len)
 		err := b64.Set(s)
 		if err != nil {
-			return fmt.Errorf("error decoding string %d: %q", i, err)
+			if len(splits) == 1 {
+				return err
+			}
+			return fmt.Errorf("error decoding string %d: %v", i, err)
 		}
 		f.val = append(f.val, b64.Bytes())
 	}
