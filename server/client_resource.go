@@ -89,7 +89,7 @@ func (c *clientResource) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clientID, err := oidc.GenClientID(ci.Metadata.RedirectURLs[0].Host)
+	clientID, err := oidc.GenClientID(ci.Metadata.RedirectURIs[0].Host)
 	if err != nil {
 		log.Errorf("Failed generating ID for new client: %v", err)
 		writeAPIError(w, http.StatusInternalServerError, newAPIError(errorServerError, "unable to generate client ID"))

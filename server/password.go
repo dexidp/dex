@@ -134,7 +134,7 @@ func (h *SendResetPasswordEmailHandler) validateRedirectURL(clientID string, red
 		return url.URL{}, false
 	}
 
-	validURL, err := client.ValidRedirectURL(parsed, cm.RedirectURLs)
+	validURL, err := client.ValidRedirectURL(parsed, cm.RedirectURIs)
 	if err != nil {
 		log.Errorf("Invalid redirectURL for clientID: redirectURL:%q, clientID:%q", redirectURL, clientID)
 		return url.URL{}, false

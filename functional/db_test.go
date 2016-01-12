@@ -193,9 +193,9 @@ func TestDBClientIdentityRepoMetadata(t *testing.T) {
 	r := db.NewClientIdentityRepo(connect(t))
 
 	cm := oidc.ClientMetadata{
-		RedirectURLs: []url.URL{
-			url.URL{Scheme: "http", Host: "127.0.0.1:5556", Path: "/cb"},
-			url.URL{Scheme: "https", Host: "example.com", Path: "/callback"},
+		RedirectURIs: []*url.URL{
+			&url.URL{Scheme: "http", Host: "127.0.0.1:5556", Path: "/cb"},
+			&url.URL{Scheme: "https", Host: "example.com", Path: "/callback"},
 		},
 	}
 
@@ -230,8 +230,8 @@ func TestDBClientIdentityRepoNewDuplicate(t *testing.T) {
 	r := db.NewClientIdentityRepo(connect(t))
 
 	meta1 := oidc.ClientMetadata{
-		RedirectURLs: []url.URL{
-			url.URL{Scheme: "http", Host: "foo.example.com"},
+		RedirectURIs: []*url.URL{
+			&url.URL{Scheme: "http", Host: "foo.example.com"},
 		},
 	}
 
@@ -240,8 +240,8 @@ func TestDBClientIdentityRepoNewDuplicate(t *testing.T) {
 	}
 
 	meta2 := oidc.ClientMetadata{
-		RedirectURLs: []url.URL{
-			url.URL{Scheme: "http", Host: "bar.example.com"},
+		RedirectURIs: []*url.URL{
+			&url.URL{Scheme: "http", Host: "bar.example.com"},
 		},
 	}
 
@@ -254,8 +254,8 @@ func TestDBClientIdentityRepoAuthenticate(t *testing.T) {
 	r := db.NewClientIdentityRepo(connect(t))
 
 	cm := oidc.ClientMetadata{
-		RedirectURLs: []url.URL{
-			url.URL{Scheme: "http", Host: "127.0.0.1:5556", Path: "/cb"},
+		RedirectURIs: []*url.URL{
+			&url.URL{Scheme: "http", Host: "127.0.0.1:5556", Path: "/cb"},
 		},
 	}
 
@@ -302,8 +302,8 @@ func TestDBClientIdentityAll(t *testing.T) {
 	r := db.NewClientIdentityRepo(connect(t))
 
 	cm := oidc.ClientMetadata{
-		RedirectURLs: []url.URL{
-			url.URL{Scheme: "http", Host: "127.0.0.1:5556", Path: "/cb"},
+		RedirectURIs: []*url.URL{
+			&url.URL{Scheme: "http", Host: "127.0.0.1:5556", Path: "/cb"},
 		},
 	}
 
@@ -326,8 +326,8 @@ func TestDBClientIdentityAll(t *testing.T) {
 	}
 
 	cm = oidc.ClientMetadata{
-		RedirectURLs: []url.URL{
-			url.URL{Scheme: "http", Host: "foo.com", Path: "/cb"},
+		RedirectURIs: []*url.URL{
+			&url.URL{Scheme: "http", Host: "foo.com", Path: "/cb"},
 		},
 	}
 	_, err = r.New("bar", cm)

@@ -18,7 +18,7 @@ func TestMemClientIdentityRepoNew(t *testing.T) {
 		{
 			id: "foo",
 			meta: oidc.ClientMetadata{
-				RedirectURLs: []url.URL{
+				RedirectURIs: []url.URL{
 					url.URL{
 						Scheme: "https",
 						Host:   "example.com",
@@ -29,7 +29,7 @@ func TestMemClientIdentityRepoNew(t *testing.T) {
 		{
 			id: "bar",
 			meta: oidc.ClientMetadata{
-				RedirectURLs: []url.URL{
+				RedirectURIs: []url.URL{
 					url.URL{Scheme: "https", Host: "example.com/foo"},
 					url.URL{Scheme: "https", Host: "example.com/bar"},
 				},
@@ -60,8 +60,8 @@ func TestMemClientIdentityRepoNew(t *testing.T) {
 			t.Errorf("case %d: expected repo to contain newly created Client", i)
 		}
 
-		wantURLs := tt.meta.RedirectURLs
-		gotURLs := all[0].Metadata.RedirectURLs
+		wantURLs := tt.meta.RedirectURIs
+		gotURLs := all[0].Metadata.RedirectURIs
 		if !reflect.DeepEqual(wantURLs, gotURLs) {
 			t.Errorf("case %d: redirect url mismatch, want=%v, got=%v", i, wantURLs, gotURLs)
 		}
@@ -72,7 +72,7 @@ func TestMemClientIdentityRepoNewDuplicate(t *testing.T) {
 	cr := NewClientIdentityRepo(nil)
 
 	meta1 := oidc.ClientMetadata{
-		RedirectURLs: []url.URL{
+		RedirectURIs: []url.URL{
 			url.URL{Scheme: "https", Host: "foo.example.com"},
 		},
 	}
@@ -82,7 +82,7 @@ func TestMemClientIdentityRepoNewDuplicate(t *testing.T) {
 	}
 
 	meta2 := oidc.ClientMetadata{
-		RedirectURLs: []url.URL{
+		RedirectURIs: []url.URL{
 			url.URL{Scheme: "https", Host: "bar.example.com"},
 		},
 	}
@@ -174,7 +174,7 @@ func TestClientIdentityUnmarshalJSON(t *testing.T) {
 		sort.Strings(expectedURLs)
 
 		actualURLs := make([]string, 0)
-		for _, u := range actual.Metadata.RedirectURLs {
+		for _, u := range actual.Metadata.RedirectURIs {
 			actualURLs = append(actualURLs, u.String())
 		}
 		sort.Strings(actualURLs)

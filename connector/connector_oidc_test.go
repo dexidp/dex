@@ -89,8 +89,8 @@ func TestLoginURL(t *testing.T) {
 			Credentials: oidc.ClientCredentials{ID: tt.cid, Secret: "fake-client-secret"},
 			RedirectURL: tt.redir,
 			ProviderConfig: oidc.ProviderConfig{
-				AuthEndpoint:  "http://example.com/authorize",
-				TokenEndpoint: "http://example.com/token",
+				AuthEndpoint:  &url.URL{Scheme: "http", Host: "example.com", Path: "/authorize"},
+				TokenEndpoint: &url.URL{Scheme: "http", Host: "example.com", Path: "/token"},
 			},
 			Scope: tt.scope,
 		}

@@ -110,19 +110,26 @@ func (s *Server) KillSession(sessionKey string) error {
 	return err
 }
 
+func (s *Server) pathURL(path string) *url.URL {
+	u := s.IssuerURL
+	u.Path = path
+	return &u
+}
+
 func (s *Server) ProviderConfig() oidc.ProviderConfig {
-	iss := s.IssuerURL.String()
 	cfg := oidc.ProviderConfig{
-		Issuer: iss,
+		Issuer: &s.IssuerURL,
 
-		AuthEndpoint:  iss + httpPathAuth,
-		TokenEndpoint: iss + httpPathToken,
-		KeysEndpoint:  iss + httpPathKeys,
+		AuthEndpoint:  s.pathURL(httpPathAuth),
+		TokenEndpoint: s.pathURL(httpPathToken),
+		KeysEndpoint:  s.pathURL(httpPathKeys),
 
-		GrantTypesSupported:               []string{oauth2.GrantTypeAuthCode, oauth2.GrantTypeClientCreds},
-		ResponseTypesSupported:            []string{"code"},
-		SubjectTypesSupported:             []string{"public"},
-		IDTokenAlgValuesSupported:         []string{"RS256"},
+		GrantTypesSupported:    []string{oauth2.GrantTypeAuthCode, oauth2.GrantTypeClientCreds},
+		ResponseTypesSupported: []string{"code"},
+		SubjectTypesSupported:  []string{"public"},
+		IDTokenOptions: oidc.JWAValuesSupported{
+			SigningAlgs: []string{"RS256"},
+		},
 		TokenEndpointAuthMethodsSupported: []string{"client_secret_basic"},
 	}
 

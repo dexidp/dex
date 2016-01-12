@@ -136,8 +136,8 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 			Secret: "secrete",
 		},
 		Metadata: oidc.ClientMetadata{
-			RedirectURLs: []url.URL{
-				validRedirURL,
+			RedirectURIs: []*url.URL{
+				&validRedirURL,
 			},
 		},
 	}

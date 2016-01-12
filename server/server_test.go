@@ -100,14 +100,16 @@ func TestServerProviderConfig(t *testing.T) {
 	srv := &Server{IssuerURL: url.URL{Scheme: "http", Host: "server.example.com"}}
 
 	want := oidc.ProviderConfig{
-		Issuer:                            "http://server.example.com",
-		AuthEndpoint:                      "http://server.example.com/auth",
-		TokenEndpoint:                     "http://server.example.com/token",
-		KeysEndpoint:                      "http://server.example.com/keys",
-		GrantTypesSupported:               []string{oauth2.GrantTypeAuthCode, oauth2.GrantTypeClientCreds},
-		ResponseTypesSupported:            []string{"code"},
-		SubjectTypesSupported:             []string{"public"},
-		IDTokenAlgValuesSupported:         []string{"RS256"},
+		Issuer:                 &url.URL{Scheme: "http", Host: "server.example.com"},
+		AuthEndpoint:           &url.URL{Scheme: "http", Host: "server.example.com", Path: "/auth"},
+		TokenEndpoint:          &url.URL{Scheme: "http", Host: "server.example.com", Path: "/token"},
+		KeysEndpoint:           &url.URL{Scheme: "http", Host: "server.example.com", Path: "/keys"},
+		GrantTypesSupported:    []string{oauth2.GrantTypeAuthCode, oauth2.GrantTypeClientCreds},
+		ResponseTypesSupported: []string{"code"},
+		SubjectTypesSupported:  []string{"public"},
+		IDTokenOptions: oidc.JWAValuesSupported{
+			SigningAlgs: []string{"RS256"},
+		},
 		TokenEndpointAuthMethodsSupported: []string{"client_secret_basic"},
 	}
 	got := srv.ProviderConfig()
@@ -131,8 +133,8 @@ func TestServerNewSession(t *testing.T) {
 			Secret: "secrete",
 		},
 		Metadata: oidc.ClientMetadata{
-			RedirectURLs: []url.URL{
-				url.URL{
+			RedirectURIs: []*url.URL{
+				&url.URL{
 					Scheme: "http",
 					Host:   "client.example.com",
 					Path:   "/callback",
@@ -141,7 +143,7 @@ func TestServerNewSession(t *testing.T) {
 		},
 	}
 
-	key, err := srv.NewSession("bogus_idpc", ci.Credentials.ID, state, ci.Metadata.RedirectURLs[0], nonce, false, []string{"openid"})
+	key, err := srv.NewSession("bogus_idpc", ci.Credentials.ID, state, *ci.Metadata.RedirectURIs[0], nonce, false, []string{"openid"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -156,8 +158,8 @@ func TestServerNewSession(t *testing.T) {
 		t.Fatalf("Unable to add Identity to Session: %v", err)
 	}
 
-	if !reflect.DeepEqual(ci.Metadata.RedirectURLs[0], ses.RedirectURL) {
-		t.Fatalf("Session created with incorrect RedirectURL: want=%#v got=%#v", ci.Metadata.RedirectURLs[0], ses.RedirectURL)
+	if ci.Metadata.RedirectURIs[0].String() != ses.RedirectURL.String() {
+		t.Fatalf("Session created with incorrect RedirectURL: want=%#v got=%#v", ci.Metadata.RedirectURIs[0], ses.RedirectURL)
 	}
 
 	if ci.Credentials.ID != ses.ClientID {
@@ -180,8 +182,8 @@ func TestServerLogin(t *testing.T) {
 			Secret: "secrete",
 		},
 		Metadata: oidc.ClientMetadata{
-			RedirectURLs: []url.URL{
-				url.URL{
+			RedirectURIs: []*url.URL{
+				&url.URL{
 					Scheme: "http",
 					Host:   "client.example.com",
 					Path:   "/callback",
@@ -197,7 +199,7 @@ func TestServerLogin(t *testing.T) {
 
 	sm := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
 	sm.GenerateCode = staticGenerateCodeFunc("fakecode")
-	sessionID, err := sm.NewSession("test_connector_id", ci.Credentials.ID, "bogus", ci.Metadata.RedirectURLs[0], "", false, []string{"openid"})
+	sessionID, err := sm.NewSession("test_connector_id", ci.Credentials.ID, "bogus", *ci.Metadata.RedirectURIs[0], "", false, []string{"openid"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -269,8 +271,8 @@ func TestServerLoginDisabledUser(t *testing.T) {
 			Secret: "secrete",
 		},
 		Metadata: oidc.ClientMetadata{
-			RedirectURLs: []url.URL{
-				url.URL{
+			RedirectURIs: []*url.URL{
+				&url.URL{
 					Scheme: "http",
 					Host:   "client.example.com",
 					Path:   "/callback",
@@ -286,7 +288,7 @@ func TestServerLoginDisabledUser(t *testing.T) {
 
 	sm := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
 	sm.GenerateCode = staticGenerateCodeFunc("fakecode")
-	sessionID, err := sm.NewSession("test_connector_id", ci.Credentials.ID, "bogus", ci.Metadata.RedirectURLs[0], "", false, []string{"openid"})
+	sessionID, err := sm.NewSession("test_connector_id", ci.Credentials.ID, "bogus", *ci.Metadata.RedirectURIs[0], "", false, []string{"openid"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
