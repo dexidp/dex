@@ -26,7 +26,7 @@ dex consists of multiple components:
 	- configure identity provider connectors
 	- administer OIDC client identities
 - **database**; a database is used to for persistent storage for keys, users,
-  OAuth sessions and other data. Currently Postgres is the only supported
+  OAuth sessions and other data. Currently Postgres (9.4+) is the only supported
   database.
 
 A typical dex deployment consists of N dex-workers behind a load balanacer, and one dex-overlord.
