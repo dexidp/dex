@@ -27,17 +27,17 @@ func runNewClient(cmd *cobra.Command, args []string) int {
 		return 2
 	}
 
-	redirectURLs := make([]url.URL, len(args))
+	redirectURLs := make([]*url.URL, len(args))
 	for i, ua := range args {
 		u, err := url.Parse(ua)
 		if err != nil {
 			stderr("Malformed URL %q: %v", ua, err)
 			return 1
 		}
-		redirectURLs[i] = *u
+		redirectURLs[i] = u
 	}
 
-	cc, err := getDriver().NewClient(oidc.ClientMetadata{RedirectURLs: redirectURLs})
+	cc, err := getDriver().NewClient(oidc.ClientMetadata{RedirectURIs: redirectURLs})
 	if err != nil {
 		stderr("Failed creating new client: %v", err)
 		return 1

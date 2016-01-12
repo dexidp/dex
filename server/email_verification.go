@@ -158,7 +158,7 @@ func handleVerifyEmailResendFunc(
 			return
 		}
 
-		*redirectURL, err = client.ValidRedirectURL(redirectURL, cm.RedirectURLs)
+		*redirectURL, err = client.ValidRedirectURL(redirectURL, cm.RedirectURIs)
 		if err != nil {
 			switch err {
 			case (client.ErrorInvalidRedirectURL):

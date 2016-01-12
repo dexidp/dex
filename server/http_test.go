@@ -83,8 +83,8 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 					Secret: "secrete",
 				},
 				Metadata: oidc.ClientMetadata{
-					RedirectURLs: []url.URL{
-						url.URL{Scheme: "http", Host: "client.example.com", Path: "/callback"},
+					RedirectURIs: []*url.URL{
+						&url.URL{Scheme: "http", Host: "client.example.com", Path: "/callback"},
 					},
 				},
 			},
@@ -206,9 +206,9 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 					Secret: "secrete",
 				},
 				Metadata: oidc.ClientMetadata{
-					RedirectURLs: []url.URL{
-						url.URL{Scheme: "http", Host: "foo.example.com", Path: "/callback"},
-						url.URL{Scheme: "http", Host: "bar.example.com", Path: "/callback"},
+					RedirectURIs: []*url.URL{
+						&url.URL{Scheme: "http", Host: "foo.example.com", Path: "/callback"},
+						&url.URL{Scheme: "http", Host: "bar.example.com", Path: "/callback"},
 					},
 				},
 			},
@@ -363,17 +363,23 @@ func TestHandleDiscoveryFuncMethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleDiscoveryFunc(t *testing.T) {
-	u := "http://server.example.com"
+	issuerURL := url.URL{Scheme: "http", Host: "server.example.com"}
+	pathURL := func(u url.URL, path string) *url.URL {
+		u.Path = path
+		return &u
+	}
 	cfg := oidc.ProviderConfig{
-		Issuer:        u,
-		AuthEndpoint:  u + httpPathAuth,
-		TokenEndpoint: u + httpPathToken,
-		KeysEndpoint:  u + httpPathKeys,
+		Issuer:        &issuerURL,
+		AuthEndpoint:  pathURL(issuerURL, httpPathAuth),
+		TokenEndpoint: pathURL(issuerURL, httpPathToken),
+		KeysEndpoint:  pathURL(issuerURL, httpPathKeys),
 
-		GrantTypesSupported:               []string{oauth2.GrantTypeAuthCode},
-		ResponseTypesSupported:            []string{"code"},
-		SubjectTypesSupported:             []string{"public"},
-		IDTokenAlgValuesSupported:         []string{"RS256"},
+		GrantTypesSupported:    []string{oauth2.GrantTypeAuthCode},
+		ResponseTypesSupported: []string{"code"},
+		SubjectTypesSupported:  []string{"public"},
+		IDTokenOptions: oidc.JWAValuesSupported{
+			SigningAlgs: []string{"RS256"},
+		},
 		TokenEndpointAuthMethodsSupported: []string{"client_secret_basic"},
 	}
 

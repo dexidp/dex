@@ -172,7 +172,7 @@ func (ci *clientIdentity) UnmarshalJSON(data []byte) error {
 		Secret: c.Secret,
 	}
 	ci.Metadata = oidc.ClientMetadata{
-		RedirectURLs: make([]url.URL, len(c.RedirectURLs)),
+		RedirectURIs: make([]*url.URL, len(c.RedirectURLs)),
 	}
 
 	for i, us := range c.RedirectURLs {
@@ -180,7 +180,7 @@ func (ci *clientIdentity) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return err
 		}
-		ci.Metadata.RedirectURLs[i] = *up
+		ci.Metadata.RedirectURIs[i] = up
 	}
 
 	return nil
@@ -190,7 +190,7 @@ func (ci *clientIdentity) UnmarshalJSON(data []byte) error {
 // If nil is passed in as the rURL and there is only one URL in redirectURLs,
 // that URL will be returned. If nil is passed but theres >1 URL in the slice,
 // then an error is returned.
-func ValidRedirectURL(rURL *url.URL, redirectURLs []url.URL) (url.URL, error) {
+func ValidRedirectURL(rURL *url.URL, redirectURLs []*url.URL) (url.URL, error) {
 	if len(redirectURLs) == 0 {
 		return url.URL{}, ErrorNoValidRedirectURLs
 	}
@@ -200,12 +200,12 @@ func ValidRedirectURL(rURL *url.URL, redirectURLs []url.URL) (url.URL, error) {
 			return url.URL{}, ErrorCantChooseRedirectURL
 		}
 
-		return redirectURLs[0], nil
+		return *redirectURLs[0], nil
 	}
 
 	for _, ru := range redirectURLs {
-		if reflect.DeepEqual(ru, *rURL) {
-			return ru, nil
+		if reflect.DeepEqual(ru, rURL) {
+			return *ru, nil
 		}
 	}
 	return url.URL{}, ErrorInvalidRedirectURL

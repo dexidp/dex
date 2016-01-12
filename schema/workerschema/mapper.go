@@ -13,7 +13,7 @@ func MapSchemaClientToClientIdentity(sc Client) (oidc.ClientIdentity, error) {
 			ID: sc.Id,
 		},
 		Metadata: oidc.ClientMetadata{
-			RedirectURLs: make([]url.URL, len(sc.RedirectURIs)),
+			RedirectURIs: make([]*url.URL, len(sc.RedirectURIs)),
 		},
 	}
 
@@ -27,7 +27,7 @@ func MapSchemaClientToClientIdentity(sc Client) (oidc.ClientIdentity, error) {
 			return oidc.ClientIdentity{}, errors.New("redirect URL invalid")
 		}
 
-		ci.Metadata.RedirectURLs[i] = *u
+		ci.Metadata.RedirectURIs[i] = u
 	}
 
 	return ci, nil
@@ -36,9 +36,9 @@ func MapSchemaClientToClientIdentity(sc Client) (oidc.ClientIdentity, error) {
 func MapClientIdentityToSchemaClient(c oidc.ClientIdentity) Client {
 	cl := Client{
 		Id:           c.Credentials.ID,
-		RedirectURIs: make([]string, len(c.Metadata.RedirectURLs)),
+		RedirectURIs: make([]string, len(c.Metadata.RedirectURIs)),
 	}
-	for i, u := range c.Metadata.RedirectURLs {
+	for i, u := range c.Metadata.RedirectURIs {
 		cl.RedirectURIs[i] = u.String()
 	}
 	return cl
@@ -48,9 +48,9 @@ func MapClientIdentityToSchemaClientWithSecret(c oidc.ClientIdentity) ClientWith
 	cl := ClientWithSecret{
 		Id:           c.Credentials.ID,
 		Secret:       c.Credentials.Secret,
-		RedirectURIs: make([]string, len(c.Metadata.RedirectURLs)),
+		RedirectURIs: make([]string, len(c.Metadata.RedirectURIs)),
 	}
-	for i, u := range c.Metadata.RedirectURLs {
+	for i, u := range c.Metadata.RedirectURIs {
 		cl.RedirectURIs[i] = u.String()
 	}
 	return cl

@@ -104,8 +104,8 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 				Secret: testClientSecret,
 			},
 			Metadata: oidc.ClientMetadata{
-				RedirectURLs: []url.URL{
-					testRedirectURL,
+				RedirectURIs: []*url.URL{
+					&testRedirectURL,
 				},
 			},
 		},
@@ -115,8 +115,8 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 				Secret: "secret",
 			},
 			Metadata: oidc.ClientMetadata{
-				RedirectURLs: []url.URL{
-					testRedirectURL,
+				RedirectURIs: []*url.URL{
+					&testRedirectURL,
 				},
 			},
 		},
