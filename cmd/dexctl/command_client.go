@@ -37,7 +37,7 @@ func runNewClient(cmd *cobra.Command, args []string) int {
 		redirectURLs[i] = *u
 	}
 
-	cc, err := getDriver().NewClient(oidc.ClientMetadata{RedirectURLs: redirectURLs})
+	cc, err := getDriver().NewClient(oidc.ClientMetadata{RedirectURIs: redirectURLs})
 	if err != nil {
 		stderr("Failed creating new client: %v", err)
 		return 1

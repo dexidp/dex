@@ -72,8 +72,8 @@ func TestClientCreate(t *testing.T) {
 		t.Error("Expected new client to exist in repo")
 	}
 
-	gotURLs := make([]string, len(meta.RedirectURLs))
-	for i, u := range meta.RedirectURLs {
+	gotURLs := make([]string, len(meta.RedirectURIs))
+	for i, u := range meta.RedirectURIs {
 		gotURLs[i] = u.String()
 	}
 	if !reflect.DeepEqual(newClientInput.RedirectURIs, gotURLs) {

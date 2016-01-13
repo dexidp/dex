@@ -21,13 +21,13 @@ func newAPIDriver(pcfg oidc.ProviderConfig, creds oidc.ClientCredentials) (drive
 
 	trans := &oidc.AuthenticatedTransport{
 		TokenRefresher: &oidc.ClientCredsTokenRefresher{
-			Issuer:     pcfg.Issuer,
+			Issuer:     pcfg.Issuer.String(),
 			OIDCClient: oc,
 		},
 		RoundTripper: http.DefaultTransport,
 	}
 	hc := &http.Client{Transport: trans}
-	svc, err := schema.NewWithBasePath(hc, pcfg.Issuer)
+	svc, err := schema.NewWithBasePath(hc, pcfg.Issuer.String())
 	if err != nil {
 		return nil, err
 	}
@@ -41,10 +41,10 @@ type apiDriver struct {
 
 func (d *apiDriver) NewClient(meta oidc.ClientMetadata) (*oidc.ClientCredentials, error) {
 	sc := &schema.Client{
-		RedirectURIs: make([]string, len(meta.RedirectURLs)),
+		RedirectURIs: make([]string, len(meta.RedirectURIs)),
 	}
 
-	for i, u := range meta.RedirectURLs {
+	for i, u := range meta.RedirectURIs {
 		sc.RedirectURIs[i] = u.String()
 	}
 

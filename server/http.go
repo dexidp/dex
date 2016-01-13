@@ -55,7 +55,7 @@ func handleDiscoveryFunc(cfg oidc.ProviderConfig) http.HandlerFunc {
 			return
 		}
 
-		b, err := json.Marshal(cfg)
+		b, err := json.Marshal(&cfg)
 		if err != nil {
 			log.Errorf("Unable to marshal %#v to JSON: %v", cfg, err)
 		}
@@ -309,13 +309,13 @@ func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.T
 			return
 		}
 
-		if len(cm.RedirectURLs) == 0 {
+		if len(cm.RedirectURIs) == 0 {
 			log.Errorf("Client %q has no redirect URLs", acr.ClientID)
 			writeAuthError(w, oauth2.NewError(oauth2.ErrorServerError), acr.State)
 			return
 		}
 
-		redirectURL, err := client.ValidRedirectURL(acr.RedirectURL, cm.RedirectURLs)
+		redirectURL, err := client.ValidRedirectURL(acr.RedirectURL, cm.RedirectURIs)
 		if err != nil {
 			switch err {
 			case (client.ErrorCantChooseRedirectURL):

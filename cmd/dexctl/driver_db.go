@@ -31,7 +31,7 @@ func (d *dbDriver) NewClient(meta oidc.ClientMetadata) (*oidc.ClientCredentials,
 		return nil, err
 	}
 
-	clientID, err := oidc.GenClientID(meta.RedirectURLs[0].Host)
+	clientID, err := oidc.GenClientID(meta.RedirectURIs[0].Host)
 	if err != nil {
 		return nil, err
 	}

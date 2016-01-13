@@ -172,7 +172,7 @@ func (ci *clientIdentity) UnmarshalJSON(data []byte) error {
 		Secret: c.Secret,
 	}
 	ci.Metadata = oidc.ClientMetadata{
-		RedirectURLs: make([]url.URL, len(c.RedirectURLs)),
+		RedirectURIs: make([]url.URL, len(c.RedirectURLs)),
 	}
 
 	for i, us := range c.RedirectURLs {
@@ -180,7 +180,7 @@ func (ci *clientIdentity) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return err
 		}
-		ci.Metadata.RedirectURLs[i] = *up
+		ci.Metadata.RedirectURIs[i] = *up
 	}
 
 	return nil
