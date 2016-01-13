@@ -8,14 +8,49 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 
 	phttp "github.com/coreos/go-oidc/http"
 )
 
+// ResponseTypesEqual compares two response_type values. If either
+// contains a space, it is treated as an unordered list. For example,
+// comparing "code id_token" and "id_token code" would evaluate to true.
+func ResponseTypesEqual(r1, r2 string) bool {
+	if !strings.Contains(r1, " ") || !strings.Contains(r2, " ") {
+		// fast route, no split needed
+		return r1 == r2
+	}
+
+	// split, sort, and compare
+	r1Fields := strings.Fields(r1)
+	r2Fields := strings.Fields(r2)
+	if len(r1Fields) != len(r2Fields) {
+		return false
+	}
+	sort.Strings(r1Fields)
+	sort.Strings(r2Fields)
+	for i, r1Field := range r1Fields {
+		if r1Field != r2Fields[i] {
+			return false
+		}
+	}
+	return true
+}
+
 const (
-	ResponseTypeCode = "code"
+	// OAuth2.0 response types registered by OIDC.
+	//
+	// See: https://openid.net/specs/oauth-v2-multiple-response-types-1_0.html#RegistryContents
+	ResponseTypeCode             = "code"
+	ResponseTypeCodeIDToken      = "code id_token"
+	ResponseTypeCodeIDTokenToken = "code id_token token"
+	ResponseTypeIDToken          = "id_token"
+	ResponseTypeIDTokenToken     = "id_token token"
+	ResponseTypeToken            = "token"
+	ResponseTypeNone             = "none"
 )
 
 const (
