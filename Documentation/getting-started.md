@@ -14,7 +14,7 @@ We'll also start the example web app, so we can try registering and logging in.
 Before continuing, you must have the following installed on your system:
 
 * Go 1.4 or greater
-* Postgres 9.0 or greater (this guide also assumes that Postgres is up and running)
+* Postgres 9.4 or greater (this guide also assumes that Postgres is up and running)
 
 In addition, if you wish to try out authenticating against Google's OIDC backend, you must have a new client registered with Google:
 

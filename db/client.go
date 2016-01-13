@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"reflect"
 
 	"github.com/coreos/go-oidc/oidc"
@@ -49,7 +48,7 @@ func newClientIdentityModel(id string, secret []byte, meta *oidc.ClientMetadata)
 		return nil, err
 	}
 
-	bmeta, err := json.Marshal(newClientMetadataJSON(meta))
+	bmeta, err := json.Marshal(meta)
 	if err != nil {
 		return nil, err
 	}
@@ -70,38 +69,6 @@ type clientIdentityModel struct {
 	DexAdmin bool   `db:"dex_admin"`
 }
 
-func newClientMetadataJSON(cm *oidc.ClientMetadata) *clientMetadataJSON {
-	cmj := clientMetadataJSON{
-		RedirectURLs: make([]string, len(cm.RedirectURLs)),
-	}
-
-	for i, u := range cm.RedirectURLs {
-		cmj.RedirectURLs[i] = (&u).String()
-	}
-
-	return &cmj
-}
-
-type clientMetadataJSON struct {
-	RedirectURLs []string `json:"redirectURLs"`
-}
-
-func (cmj clientMetadataJSON) ClientMetadata() (*oidc.ClientMetadata, error) {
-	cm := oidc.ClientMetadata{
-		RedirectURLs: make([]url.URL, len(cmj.RedirectURLs)),
-	}
-
-	for i, us := range cmj.RedirectURLs {
-		up, err := url.Parse(us)
-		if err != nil {
-			return nil, err
-		}
-		cm.RedirectURLs[i] = *up
-	}
-
-	return &cm, nil
-}
-
 func (m *clientIdentityModel) ClientIdentity() (*oidc.ClientIdentity, error) {
 	ci := oidc.ClientIdentity{
 		Credentials: oidc.ClientCredentials{
@@ -110,18 +77,10 @@ func (m *clientIdentityModel) ClientIdentity() (*oidc.ClientIdentity, error) {
 		},
 	}
 
-	var cmj clientMetadataJSON
-	err := json.Unmarshal([]byte(m.Metadata), &cmj)
-	if err != nil {
+	if err := json.Unmarshal([]byte(m.Metadata), &ci.Metadata); err != nil {
 		return nil, err
 	}
 
-	cm, err := cmj.ClientMetadata()
-	if err != nil {
-		return nil, err
-	}
-
-	ci.Metadata = *cm
 	return &ci, nil
 }
 
