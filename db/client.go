@@ -240,7 +240,7 @@ func (r *clientIdentityRepo) Authenticate(creds oidc.ClientCredentials) (bool, e
 
 	dec, err := base64.URLEncoding.DecodeString(creds.Secret)
 	if err != nil {
-		log.Errorf("error Decoding client creds ")
+		log.Errorf("error Decoding client creds: %v", err)
 		return false, nil
 	}
 
