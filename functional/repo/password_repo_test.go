@@ -2,14 +2,11 @@ package repo
 
 import (
 	"fmt"
+	"github.com/coreos/dex/user"
+	"github.com/kylelemons/godebug/pretty"
 	"os"
 	"testing"
 	"time"
-
-	"github.com/kylelemons/godebug/pretty"
-
-	"github.com/coreos/dex/db"
-	"github.com/coreos/dex/user"
 )
 
 var makeTestPasswordInfoRepo func() user.PasswordInfoRepo
@@ -40,7 +37,7 @@ func makeTestPasswordInfoRepoDB(dsn string) func() user.PasswordInfoRepo {
 	return func() user.PasswordInfoRepo {
 		c := initDB(dsn)
 
-		repo := db.NewPasswordInfoRepo(c)
+		repo := c.NewPasswordInfoRepo()
 		err := user.LoadPasswordInfos(repo, testPWs)
 		if err != nil {
 			panic(fmt.Sprintf("Unable to add passwordInfos: %v", err))

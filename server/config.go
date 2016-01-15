@@ -1,28 +1,20 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"html/template"
 	"net/url"
-	"os"
 	"path/filepath"
 	texttemplate "text/template"
-	"time"
 
-	"github.com/coreos/go-oidc/key"
-	"github.com/coreos/pkg/health"
-
-	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/email"
-	"github.com/coreos/dex/refresh"
-	"github.com/coreos/dex/repo"
 	"github.com/coreos/dex/session"
-	"github.com/coreos/dex/user"
 	useremail "github.com/coreos/dex/user/email"
 	"github.com/coreos/dex/user/manager"
+	"github.com/coreos/go-oidc/key"
+	"github.com/coreos/pkg/health"
 )
 
 type ServerConfig struct {
@@ -33,24 +25,10 @@ type ServerConfig struct {
 	EmailTemplateDirs  []string
 	EmailFromAddress   string
 	EmailerConfigFile  string
-	StateConfig        StateConfigurer
 	EnableRegistration bool
-}
-
-type StateConfigurer interface {
-	Configure(*Server) error
-}
-
-type SingleServerConfig struct {
-	ClientsFile    string
-	ConnectorsFile string
-	UsersFile      string
-}
-
-type MultiServerConfig struct {
-	KeySecrets     [][]byte
-	DatabaseConfig db.Config
-	UseOldFormat   bool
+	KeySecrets         [][]byte
+	UseOldFormat       bool
+	DB                 db.Driver
 }
 
 func (cfg *ServerConfig) Server() (*Server, error) {
@@ -76,7 +54,7 @@ func (cfg *ServerConfig) Server() (*Server, error) {
 		EnableRegistration: cfg.EnableRegistration,
 	}
 
-	err = cfg.StateConfig.Configure(&srv)
+	err = cfg.Configure(&srv)
 	if err != nil {
 		return nil, err
 	}
@@ -93,48 +71,24 @@ func (cfg *ServerConfig) Server() (*Server, error) {
 	return &srv, nil
 }
 
-func (cfg *SingleServerConfig) Configure(srv *Server) error {
-	k, err := key.GeneratePrivateKey()
+func (cfg *ServerConfig) Configure(srv *Server) error {
+	kRepo, err := cfg.DB.NewPrivateKeySetRepo(cfg.UseOldFormat, cfg.KeySecrets...)
 	if err != nil {
 		return err
 	}
+	ciRepo := cfg.DB.NewClientIdentityRepo()
+	cfgRepo := cfg.DB.NewConnectorConfigRepo()
+	sRepo := cfg.DB.NewSessionRepo()
+	skRepo := cfg.DB.NewSessionKeyRepo()
+	userRepo := cfg.DB.NewUserRepo()
+	pwiRepo := cfg.DB.NewPasswordInfoRepo()
+	refTokRepo := cfg.DB.NewRefreshTokenRepo()
 
-	ks := key.NewPrivateKeySet([]*key.PrivateKey{k}, time.Now().Add(24*time.Hour))
-	kRepo := key.NewPrivateKeySetRepo()
-	if err = kRepo.Set(ks); err != nil {
-		return err
-	}
-
-	cf, err := os.Open(cfg.ClientsFile)
-	if err != nil {
-		return fmt.Errorf("unable to read clients from file %s: %v", cfg.ClientsFile, err)
-	}
-	defer cf.Close()
-	ciRepo, err := client.NewClientIdentityRepoFromReader(cf)
-	if err != nil {
-		return fmt.Errorf("unable to read client identities from file %s: %v", cfg.ClientsFile, err)
-	}
-
-	cfgRepo, err := connector.NewConnectorConfigRepoFromFile(cfg.ConnectorsFile)
-	if err != nil {
-		return fmt.Errorf("unable to create ConnectorConfigRepo: %v", err)
-	}
-
-	sRepo := session.NewSessionRepo()
-	skRepo := session.NewSessionKeyRepo()
 	sm := session.NewSessionManager(sRepo, skRepo)
 
-	userRepo, err := user.NewUserRepoFromFile(cfg.UsersFile)
-	if err != nil {
-		return fmt.Errorf("unable to read users from file: %v", err)
-	}
-
-	pwiRepo := user.NewPasswordInfoRepo()
-
-	refTokRepo := refresh.NewRefreshTokenRepo()
-
-	txnFactory := repo.InMemTransactionFactory
+	txnFactory := cfg.DB.GetTransactionFactory()
 	userManager := manager.NewUserManager(userRepo, pwiRepo, cfgRepo, txnFactory, manager.ManagerOptions{})
+
 	srv.ClientIdentityRepo = ciRepo
 	srv.KeySetRepo = kRepo
 	srv.ConnectorConfigRepo = cfgRepo
@@ -143,48 +97,6 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	srv.PasswordInfoRepo = pwiRepo
 	srv.SessionManager = sm
 	srv.RefreshTokenRepo = refTokRepo
-	return nil
-
-}
-
-func (cfg *MultiServerConfig) Configure(srv *Server) error {
-	if len(cfg.KeySecrets) == 0 {
-		return errors.New("missing key secret")
-	}
-
-	if cfg.DatabaseConfig.DSN == "" {
-		return errors.New("missing database connection string")
-	}
-
-	dbc, err := db.NewConnection(cfg.DatabaseConfig)
-	if err != nil {
-		return fmt.Errorf("unable to initialize database connection: %v", err)
-	}
-
-	kRepo, err := db.NewPrivateKeySetRepo(dbc, cfg.UseOldFormat, cfg.KeySecrets...)
-	if err != nil {
-		return fmt.Errorf("unable to create PrivateKeySetRepo: %v", err)
-	}
-
-	ciRepo := db.NewClientIdentityRepo(dbc)
-	sRepo := db.NewSessionRepo(dbc)
-	skRepo := db.NewSessionKeyRepo(dbc)
-	cfgRepo := db.NewConnectorConfigRepo(dbc)
-	userRepo := db.NewUserRepo(dbc)
-	pwiRepo := db.NewPasswordInfoRepo(dbc)
-	userManager := manager.NewUserManager(userRepo, pwiRepo, cfgRepo, db.TransactionFactory(dbc), manager.ManagerOptions{})
-	refreshTokenRepo := db.NewRefreshTokenRepo(dbc)
-
-	sm := session.NewSessionManager(sRepo, skRepo)
-
-	srv.ClientIdentityRepo = ciRepo
-	srv.KeySetRepo = kRepo
-	srv.ConnectorConfigRepo = cfgRepo
-	srv.UserRepo = userRepo
-	srv.UserManager = userManager
-	srv.PasswordInfoRepo = pwiRepo
-	srv.SessionManager = sm
-	srv.RefreshTokenRepo = refreshTokenRepo
 	return nil
 }
 

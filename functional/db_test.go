@@ -8,19 +8,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/go-oidc/key"
-	"github.com/coreos/go-oidc/oidc"
-	"github.com/go-gorp/gorp"
-	"github.com/kylelemons/godebug/pretty"
-
 	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/db"
+	_ "github.com/coreos/dex/db/postgresql"
 	"github.com/coreos/dex/refresh"
 	"github.com/coreos/dex/session"
+	"github.com/coreos/go-oidc/key"
+	"github.com/coreos/go-oidc/oidc"
+	"github.com/kylelemons/godebug/pretty"
 )
 
 var (
-	dsn string
+	dsn     string
+	storage string = "postgresql"
 )
 
 func init() {
@@ -29,10 +29,18 @@ func init() {
 		fmt.Println("Unable to proceed with empty env var DEX_TEST_DSN")
 		os.Exit(1)
 	}
+	s := os.Getenv("DEX_TEST_STORAGE")
+	if len(s) > 0 {
+		storage = s
+	}
 }
 
-func connect(t *testing.T) *gorp.DbMap {
-	c, err := db.NewConnection(db.Config{DSN: dsn})
+func connect(t *testing.T) db.Driver {
+	d := db.GetDriver(storage)
+	if d == nil {
+		t.Fatalf("storage driver not found: %v", storage)
+	}
+	c, err := d.NewWithMap(map[string]interface{}{"url": dsn})
 	if err != nil {
 		t.Fatalf("Unable to connect to database: %v", err)
 	}
@@ -41,19 +49,15 @@ func connect(t *testing.T) *gorp.DbMap {
 		t.Fatalf("Unable to drop database tables: %v", err)
 	}
 
-	if err = db.DropMigrationsTable(c); err != nil {
+	if err = c.DropMigrationsTable(); err != nil {
 		panic(fmt.Sprintf("Unable to drop migration table: %v", err))
 	}
-
-	if _, err = db.MigrateToLatest(c); err != nil {
-		panic(fmt.Sprintf("Unable to migrate: %v", err))
-	}
-
+	c.MigrateToLatest()
 	return c
 }
 
 func TestDBSessionKeyRepoPushPop(t *testing.T) {
-	r := db.NewSessionKeyRepo(connect(t))
+	r := connect(t).NewSessionKeyRepo()
 
 	key := "123"
 	sessionID := "456"
@@ -75,7 +79,7 @@ func TestDBSessionKeyRepoPushPop(t *testing.T) {
 }
 
 func TestDBSessionRepoCreateUpdate(t *testing.T) {
-	r := db.NewSessionRepo(connect(t))
+	r := connect(t).NewSessionRepo()
 
 	// postgres stores its time type with a lower precision
 	// than we generate here. Stripping off nanoseconds gives
@@ -157,12 +161,12 @@ func TestDBPrivateKeySetRepoSetGet(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		setRepo, err := db.NewPrivateKeySetRepo(connect(t), false, tt.setSecrets...)
+		setRepo, err := connect(t).NewPrivateKeySetRepo(false, tt.setSecrets...)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 
-		getRepo, err := db.NewPrivateKeySetRepo(connect(t), false, tt.getSecrets...)
+		getRepo, err := connect(t).NewPrivateKeySetRepo(false, tt.getSecrets...)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
@@ -190,7 +194,7 @@ func TestDBPrivateKeySetRepoSetGet(t *testing.T) {
 }
 
 func TestDBClientIdentityRepoMetadata(t *testing.T) {
-	r := db.NewClientIdentityRepo(connect(t))
+	r := connect(t).NewClientIdentityRepo()
 
 	cm := oidc.ClientMetadata{
 		RedirectURLs: []url.URL{
@@ -215,7 +219,7 @@ func TestDBClientIdentityRepoMetadata(t *testing.T) {
 }
 
 func TestDBClientIdentityRepoMetadataNoExist(t *testing.T) {
-	r := db.NewClientIdentityRepo(connect(t))
+	r := connect(t).NewClientIdentityRepo()
 
 	got, err := r.Metadata("noexist")
 	if err != client.ErrorNotFound {
@@ -227,7 +231,7 @@ func TestDBClientIdentityRepoMetadataNoExist(t *testing.T) {
 }
 
 func TestDBClientIdentityRepoNewDuplicate(t *testing.T) {
-	r := db.NewClientIdentityRepo(connect(t))
+	r := connect(t).NewClientIdentityRepo()
 
 	meta1 := oidc.ClientMetadata{
 		RedirectURLs: []url.URL{
@@ -251,7 +255,7 @@ func TestDBClientIdentityRepoNewDuplicate(t *testing.T) {
 }
 
 func TestDBClientIdentityRepoAuthenticate(t *testing.T) {
-	r := db.NewClientIdentityRepo(connect(t))
+	r := connect(t).NewClientIdentityRepo()
 
 	cm := oidc.ClientMetadata{
 		RedirectURLs: []url.URL{
@@ -299,7 +303,7 @@ func TestDBClientIdentityRepoAuthenticate(t *testing.T) {
 }
 
 func TestDBClientIdentityAll(t *testing.T) {
-	r := db.NewClientIdentityRepo(connect(t))
+	r := connect(t).NewClientIdentityRepo()
 
 	cm := oidc.ClientMetadata{
 		RedirectURLs: []url.URL{
@@ -352,7 +356,7 @@ func buildRefreshToken(tokenID int64, tokenPayload []byte) string {
 }
 
 func TestDBRefreshRepoCreate(t *testing.T) {
-	r := db.NewRefreshTokenRepo(connect(t))
+	r := connect(t).NewRefreshTokenRepo()
 
 	tests := []struct {
 		userID   string
@@ -385,7 +389,7 @@ func TestDBRefreshRepoCreate(t *testing.T) {
 }
 
 func TestDBRefreshRepoVerify(t *testing.T) {
-	r := db.NewRefreshTokenRepo(connect(t))
+	r := connect(t).NewRefreshTokenRepo()
 
 	token, err := r.Create("user-foo", "client-foo")
 	if err != nil {
@@ -469,7 +473,7 @@ func TestDBRefreshRepoVerify(t *testing.T) {
 }
 
 func TestDBRefreshRepoRevoke(t *testing.T) {
-	r := db.NewRefreshTokenRepo(connect(t))
+	r := connect(t).NewRefreshTokenRepo()
 
 	token, err := r.Create("user-foo", "client-foo")
 	if err != nil {

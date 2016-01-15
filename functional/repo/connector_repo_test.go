@@ -2,11 +2,9 @@ package repo
 
 import (
 	"fmt"
+	"github.com/coreos/dex/connector"
 	"os"
 	"testing"
-
-	"github.com/coreos/dex/connector"
-	"github.com/coreos/dex/db"
 )
 
 type connectorConfigRepoFactory func(cfgs []connector.ConnectorConfig) connector.ConnectorConfigRepo
@@ -25,7 +23,7 @@ func makeTestConnectorConfigRepoMem(dsn string) connectorConfigRepoFactory {
 	return func(cfgs []connector.ConnectorConfig) connector.ConnectorConfigRepo {
 		dbMap := initDB(dsn)
 
-		repo := db.NewConnectorConfigRepo(dbMap)
+		repo := dbMap.NewConnectorConfigRepo()
 		if err := repo.Set(cfgs); err != nil {
 			panic(fmt.Sprintf("Unable to set connector configs: %v", err))
 		}

@@ -1,21 +1,28 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
+	_ "github.com/coreos/dex/db/postgresql"
 	"github.com/coreos/go-oidc/oidc"
 )
 
-func newDBDriver(dsn string) (driver, error) {
-	dbc, err := db.NewConnection(db.Config{DSN: dsn})
+func newDBDriver(storage, dsn string) (driver, error) {
+	rd := db.GetDriver(storage)
+	if rd == nil {
+		return nil, fmt.Errorf("Storage driver not found")
+	}
+	dbc, err := rd.NewWithMap(map[string]interface{}{"url": dsn})
 	if err != nil {
 		return nil, err
 	}
 
 	drv := &dbDriver{
-		ciRepo:  db.NewClientIdentityRepo(dbc),
-		cfgRepo: db.NewConnectorConfigRepo(dbc),
+		ciRepo:  dbc.NewClientIdentityRepo(),
+		cfgRepo: dbc.NewConnectorConfigRepo(),
 	}
 
 	return drv, nil
@@ -23,7 +30,7 @@ func newDBDriver(dsn string) (driver, error) {
 
 type dbDriver struct {
 	ciRepo  client.ClientIdentityRepo
-	cfgRepo *db.ConnectorConfigRepo
+	cfgRepo connector.ConnectorConfigRepo
 }
 
 func (d *dbDriver) NewClient(meta oidc.ClientMetadata) (*oidc.ClientCredentials, error) {

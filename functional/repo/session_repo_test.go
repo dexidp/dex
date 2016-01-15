@@ -1,15 +1,12 @@
 package repo
 
 import (
+	"github.com/coreos/dex/session"
+	"github.com/jonboulle/clockwork"
+	"github.com/kylelemons/godebug/pretty"
 	"os"
 	"testing"
 	"time"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/kylelemons/godebug/pretty"
-
-	"github.com/coreos/dex/db"
-	"github.com/coreos/dex/session"
 )
 
 var makeTestSessionRepo func() (session.SessionRepo, clockwork.FakeClock)
@@ -35,7 +32,7 @@ func makeTestSessionRepoDB(dsn string) func() (session.SessionRepo, clockwork.Fa
 	return func() (session.SessionRepo, clockwork.FakeClock) {
 		c := initDB(dsn)
 		fc := clockwork.NewFakeClock()
-		return db.NewSessionRepoWithClock(c, fc), fc
+		return c.NewSessionRepoWithClock(fc), fc
 	}
 }
 
@@ -48,7 +45,7 @@ func makeTestSessionKeyRepoDB(dsn string) func() (session.SessionKeyRepo, clockw
 	return func() (session.SessionKeyRepo, clockwork.FakeClock) {
 		c := initDB(dsn)
 		fc := clockwork.NewFakeClock()
-		return db.NewSessionKeyRepoWithClock(c, fc), fc
+		return c.NewSessionKeyRepoWithClock(fc), fc
 	}
 }
 

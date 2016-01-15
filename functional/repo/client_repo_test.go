@@ -6,10 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/coreos/go-oidc/oidc"
-
 	"github.com/coreos/dex/client"
-	"github.com/coreos/dex/db"
+	"github.com/coreos/go-oidc/oidc"
 )
 
 var makeTestClientIdentityRepoFromClients func(clients []oidc.ClientIdentity) client.ClientIdentityRepo
@@ -64,7 +62,7 @@ func makeTestClientIdentityRepoDB(dsn string) func([]oidc.ClientIdentity) client
 	return func(clients []oidc.ClientIdentity) client.ClientIdentityRepo {
 		c := initDB(dsn)
 
-		repo, err := db.NewClientIdentityRepoFromClients(c, clients)
+		repo, err := c.NewClientIdentityRepoFromClients(clients)
 		if err != nil {
 			panic(fmt.Sprintf("Unable to add clients: %v", err))
 		}
