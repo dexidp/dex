@@ -5,24 +5,30 @@ services:
 language: go
 
 go:
- - 1.4.3
- - 1.5.3
+  - 1.4.3
+  - 1.5.3
 
 env:
   - DEX_TEST_DSN="postgres://postgres@127.0.0.1:15432/postgres?sslmode=disable" ISOLATED=true
 
 install:
- - go get golang.org/x/tools/cmd/cover
- - go get golang.org/x/tools/cmd/vet
- - docker pull quay.io/coreos/postgres
+  - go get golang.org/x/tools/cmd/cover
+  - go get golang.org/x/tools/cmd/vet
+  - docker pull quay.io/coreos/postgres
 
 script:
- - docker run -d -p 127.0.0.1:15432:5432 quay.io/coreos/postgres
- - ./test
- - ./test-functional
+  - docker run -d -p 127.0.0.1:15432:5432 quay.io/coreos/postgres
+  - ./test
+  - ./test-functional
 
-after_success:
-  - if [[ "$TRAVIS_GO_VERSION" == "1.5.3" && "$TRAVIS_PULL_REQUEST" == "false" && "$TRAVIS_BRANCH" == "master"  ]]; then ./build-docker-push ;fi
+deploy:
+  provider: script
+  script: build-docker-push
+  skip_cleanup: true
+  on:
+    branch: master
+    go: '1.5.3'
+    condition: "$TRAVIS_PULL_REQUEST = false"
 
 notifications:
   email: false
