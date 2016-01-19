@@ -31,7 +31,8 @@ var (
 	ErrorDuplicateEmail   = newError("duplicate_email", "Email already in use.", http.StatusBadRequest)
 	ErrorResourceNotFound = newError("resource_not_found", "Resource could not be found.", http.StatusNotFound)
 
-	ErrorUnauthorized = newError("unauthorized", "The given user and client are not authorized to make this request.", http.StatusUnauthorized)
+	ErrorUnauthorized = newError("unauthorized", "Necessary credentials not provided.", http.StatusUnauthorized)
+	ErrorForbidden    = newError("forbidden", "The given user and client are not authorized to make this request.", http.StatusForbidden)
 
 	ErrorMaxResultsTooHigh = newError("max_results_too_high", fmt.Sprintf("The max number of results per page is %d", maxUsersPerPage), http.StatusBadRequest)
 
