@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"os"
 
 	"github.com/coreos/dex/connector"
 	"github.com/spf13/cobra"
@@ -18,8 +20,8 @@ var (
 
 	cmdSetConnectorConfigs = &cobra.Command{
 		Use:     "set-connector-configs",
-		Short:   "Overwrite the current IdP connector configs with those from a local file.",
-		Long:    "Overwrite the current IdP connector configs with those from a local file.",
+		Short:   "Overwrite the current IdP connector configs with those from a local file. Provide the argument '-' to read from stdin.",
+		Long:    "Overwrite the current IdP connector configs with those from a local file. Provide the argument '-' to read from stdin.",
 		Example: `  dexctl set-connector-configs --db-url=${DB_URL} ./static/conn_conf.json`,
 		Run:     wrapRun(runSetConnectorConfigs),
 	}
@@ -36,15 +38,22 @@ func runSetConnectorConfigs(cmd *cobra.Command, args []string) int {
 		return 2
 	}
 
-	rf, err := connector.NewConnectorConfigRepoFromFile(args[0])
-	if err != nil {
-		stderr("Unable to retrieve connector configs from file: %v", err)
-		return 1
+	var r io.Reader
+	if from := args[0]; from == "-" {
+		r = os.Stdin
+	} else {
+		f, err := os.Open(from)
+		if err != nil {
+			stderr("Unable to open specified file: %v", err)
+			return 1
+		}
+		defer f.Close()
+		r = f
 	}
 
-	cfgs, err := rf.All()
+	cfgs, err := connector.ReadConfigs(r)
 	if err != nil {
-		stderr("Unable to retrieve connector configs from file: %v", err)
+		stderr("Unable to decode connector configs: %v", err)
 		return 1
 	}
 
@@ -54,7 +63,6 @@ func runSetConnectorConfigs(cmd *cobra.Command, args []string) int {
 	}
 
 	fmt.Printf("Saved %d connector config(s)\n", len(cfgs))
-
 	return 0
 }
 

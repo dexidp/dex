@@ -1,6 +1,8 @@
 package functional
 
 import (
+	"bytes"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -42,6 +44,7 @@ func TestDexctlCommands(t *testing.T) {
 		args   []string
 		env    []string
 		expErr bool
+		stdin  io.Reader
 	}{
 		{
 			args: []string{"new-client", "https://example.com/callback"},
@@ -57,10 +60,20 @@ func TestDexctlCommands(t *testing.T) {
 		{
 			args: []string{"set-connector-configs", "--db-url", dsn, connConfig},
 		},
+		{
+			args:  []string{"set-connector-configs", "--db-url", dsn, "-"},
+			stdin: bytes.NewReader(connConfigExample),
+		},
+		{
+			args:  []string{"set-connector-configs", "-"},
+			env:   []string{"DEXCTL_DB_URL=" + dsn},
+			stdin: bytes.NewReader(connConfigExample),
+		},
 	}
 
 	for _, tt := range tests {
 		cmd := exec.Command("../bin/dexctl", tt.args...)
+		cmd.Stdin = tt.stdin
 		cmd.Env = tt.env
 		out, err := cmd.CombinedOutput()
 		if !tt.expErr && err != nil {

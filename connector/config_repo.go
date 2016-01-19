@@ -3,12 +3,11 @@ package connector
 import (
 	"encoding/json"
 	"io"
-	"os"
 
 	"github.com/coreos/dex/repo"
 )
 
-func newConnectorConfigsFromReader(r io.Reader) ([]ConnectorConfig, error) {
+func ReadConfigs(r io.Reader) ([]ConnectorConfig, error) {
 	var ms []map[string]interface{}
 	if err := json.NewDecoder(r).Decode(&ms); err != nil {
 		return nil, err
@@ -22,21 +21,6 @@ func newConnectorConfigsFromReader(r io.Reader) ([]ConnectorConfig, error) {
 		cfgs[i] = cfg
 	}
 	return cfgs, nil
-}
-
-func NewConnectorConfigRepoFromFile(loc string) (ConnectorConfigRepo, error) {
-	cf, err := os.Open(loc)
-	if err != nil {
-		return nil, err
-	}
-	defer cf.Close()
-
-	cfgs, err := newConnectorConfigsFromReader(cf)
-	if err != nil {
-		return nil, err
-	}
-
-	return &memConnectorConfigRepo{configs: cfgs}, nil
 }
 
 type memConnectorConfigRepo struct {
