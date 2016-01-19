@@ -115,10 +115,16 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 		return fmt.Errorf("unable to read client identities from file %s: %v", cfg.ClientsFile, err)
 	}
 
-	cfgRepo, err := connector.NewConnectorConfigRepoFromFile(cfg.ConnectorsFile)
+	f, err := os.Open(cfg.ConnectorsFile)
 	if err != nil {
-		return fmt.Errorf("unable to create ConnectorConfigRepo: %v", err)
+		return fmt.Errorf("opening connectors file: %v", err)
 	}
+	defer f.Close()
+	cfgs, err := connector.ReadConfigs(f)
+	if err != nil {
+		return fmt.Errorf("decoding connector configs: %v", err)
+	}
+	cfgRepo := connector.NewConnectorConfigRepoFromConfigs(cfgs)
 
 	sRepo := session.NewSessionRepo()
 	skRepo := session.NewSessionKeyRepo()
