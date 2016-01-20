@@ -23,7 +23,7 @@ script:
 
 deploy:
   provider: script
-  script: build-docker-push
+  script: "./build-docker-push"
   skip_cleanup: true
   on:
     branch: master
