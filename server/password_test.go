@@ -392,6 +392,12 @@ func TestResetPasswordHandler(t *testing.T) {
 		user.PasswordHasher = user.DefaultPasswordHasher
 	}()
 
+	tokenForCase := map[int]string{
+		0: makeToken("ID-1", "password", testClientID, testRedirectURL, time.Hour*1, goodSigner),
+		2: makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, goodSigner),
+		5: makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, goodSigner),
+	}
+
 	tests := []struct {
 		query url.Values
 
@@ -405,14 +411,14 @@ func TestResetPasswordHandler(t *testing.T) {
 		{ // Case 0
 			// Step 1.1 - User clicks link in email, has valid token.
 			query: url.Values{
-				"token": str(makeToken("ID-1", "password", testClientID, testRedirectURL, time.Hour*1, goodSigner)),
+				"token": str(tokenForCase[0]),
 			},
 			method: "GET",
 
 			wantCode: http.StatusOK,
 			wantFormValues: &url.Values{
 				"password": str(""),
-				"token":    str(makeToken("ID-1", "password", testClientID, testRedirectURL, time.Hour*1, goodSigner)),
+				"token":    str(tokenForCase[0]),
 			},
 			wantPassword: "password",
 		},
@@ -432,14 +438,14 @@ func TestResetPasswordHandler(t *testing.T) {
 		{ // Case 2
 			// Step 2.1 - User clicks link in email, has valid token.
 			query: url.Values{
-				"token": str(makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, goodSigner)),
+				"token": str(tokenForCase[2]),
 			},
 			method: "GET",
 
 			wantCode: http.StatusOK,
 			wantFormValues: &url.Values{
 				"password": str(""),
-				"token":    str(makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, goodSigner)),
+				"token":    str(tokenForCase[2]),
 			},
 			wantPassword: "password",
 		},
@@ -472,7 +478,7 @@ func TestResetPasswordHandler(t *testing.T) {
 		{ // Case 5
 			// Step 2.2.1 - User enters in new valid password, password is changed, no redirect
 			query: url.Values{
-				"token":    str(makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, goodSigner)),
+				"token":    str(tokenForCase[5]),
 				"password": str("shrt"),
 			},
 			method: "POST",
@@ -481,7 +487,7 @@ func TestResetPasswordHandler(t *testing.T) {
 			wantCode: http.StatusBadRequest,
 			wantFormValues: &url.Values{
 				"password": str(""),
-				"token":    str(makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, goodSigner)),
+				"token":    str(tokenForCase[5]),
 			},
 			wantPassword: "password",
 		},
@@ -553,7 +559,6 @@ func TestResetPasswordHandler(t *testing.T) {
 
 		if tt.wantCode != w.Code {
 			t.Errorf("case %d: wantCode=%v, got=%v", i, tt.wantCode, w.Code)
-			t.Logf("case %d: Body: %v ", i, w.Body)
 			continue
 		}
 
@@ -565,7 +570,6 @@ func TestResetPasswordHandler(t *testing.T) {
 		if tt.wantFormValues != nil {
 			if diff := pretty.Compare(*tt.wantFormValues, values); diff != "" {
 				t.Errorf("case %d: Compare(wantFormValues, got) = %v", i, diff)
-				t.Logf("case %d: Body: %v ", i, w.Body)
 			}
 		}
 		pwi, err := f.srv.PasswordInfoRepo.Get(nil, "ID-1")
