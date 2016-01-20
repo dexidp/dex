@@ -11,76 +11,106 @@ const (
 	calldepth = 2
 )
 
-var (
-	logger = log.New(os.Stderr, "", 0)
-	debug  = false
+type Level int
+
+const (
+	// Log level in order of precidence from lowest to highest.
+	LevelDebug   Level = iota
+	LevelInfo    Level = iota
+	LevelWarning Level = iota
+	LevelError   Level = iota
+	LevelFatal   Level = iota
+	LevelOff     Level = iota // do not print any logs
 )
+
+var levelStr = map[Level]string{
+	LevelDebug:   "DEBUG",
+	LevelInfo:    "INFO",
+	LevelWarning: "WARN",
+	LevelError:   "ERROR",
+	LevelFatal:   "FATAL",
+}
+
+var (
+	logger   = log.New(os.Stderr, "", 0)
+	minLevel = LevelInfo
+)
+
+func output(lvl Level, v ...interface{}) {
+	if minLevel > lvl {
+		return
+	}
+	logger.Output(calldepth, levelStr[lvl]+" "+fmt.Sprint(v...))
+}
+
+func outputf(lvl Level, format string, v ...interface{}) {
+	if minLevel > lvl {
+		return
+	}
+	logger.Output(calldepth, levelStr[lvl]+" "+fmt.Sprintf(format, v...))
+}
 
 func EnableTimestamps() {
 	logger.SetFlags(logger.Flags() | log.Ldate | log.Ltime)
 }
 
 func EnableDebug() {
-	debug = true
+	SetLevel(LevelDebug)
 }
 
-func Debug(v ...interface{}) {
-	if debug {
-		logger.Output(calldepth, header("DEBUG", fmt.Sprint(v...)))
-	}
+// SetLevel sets the minimum log precidence. Log statements below this
+// precidence will not be displayed.
+func SetLevel(lvl Level) {
+	minLevel = lvl
 }
+
+func Debug(v ...interface{}) { output(LevelDebug, v...) }
 
 func Debugf(format string, v ...interface{}) {
-	if debug {
-		logger.Output(calldepth, header("DEBUG", fmt.Sprintf(format, v...)))
-	}
+	outputf(LevelDebug, format, v...)
 }
 
 func Info(v ...interface{}) {
-	logger.Output(calldepth, header("INFO", fmt.Sprint(v...)))
+	output(LevelInfo, v...)
 }
 
 func Infof(format string, v ...interface{}) {
-	logger.Output(calldepth, header("INFO", fmt.Sprintf(format, v...)))
+	outputf(LevelInfo, format, v...)
 }
 
 func Error(v ...interface{}) {
-	logger.Output(calldepth, header("ERROR", fmt.Sprint(v...)))
+	output(LevelError, v...)
 }
 
 func Errorf(format string, v ...interface{}) {
-	logger.Output(calldepth, header("ERROR", fmt.Sprintf(format, v...)))
+	outputf(LevelError, format, v...)
 }
 
 func Warning(v ...interface{}) {
-	logger.Output(calldepth, header("WARN", fmt.Sprint(v...)))
+	output(LevelWarning, v...)
 }
 
 func Warningf(format string, v ...interface{}) {
-	logger.Output(calldepth, header("WARN", fmt.Sprintf(format, v...)))
+	outputf(LevelWarning, format, v...)
 }
 
 func Fatal(v ...interface{}) {
-	logger.Output(calldepth, header("FATAL", fmt.Sprint(v...)))
+	output(LevelFatal, v...)
 	os.Exit(1)
 }
 
 func Fatalf(format string, v ...interface{}) {
-	logger.Output(calldepth, header("FATAL", fmt.Sprintf(format, v...)))
+	outputf(LevelFatal, format, v...)
 	os.Exit(1)
 }
 
-func header(lvl, msg string) string {
-	return fmt.Sprintf("%s: %s", lvl, msg)
-}
-
-type logWriter string
+type logWriter Level
 
 func (l logWriter) Write(p []byte) (n int, err error) {
-	logger.Output(calldepth, header(string(l), string(p)))
+	output(Level(l), string(p))
 	return len(p), nil
 }
 
 func InfoWriter() io.Writer {
-	return logWriter("INFO")
+	return logWriter(LevelInfo)
 }
