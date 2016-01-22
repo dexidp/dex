@@ -45,6 +45,7 @@ func main() {
 	emailConfig := fs.String("email-cfg", "./static/fixtures/emailer.json", "configures emailer.")
 
 	enableRegistration := fs.Bool("enable-registration", false, "Allows users to self-register")
+	enableClientRegistration := fs.Bool("enable-client-registration", false, "Allow dynamic registration of clients")
 
 	noDB := fs.Bool("no-db", false, "manage entities in-process w/o any encryption, used only for single-node testing")
 
@@ -117,14 +118,15 @@ func main() {
 	}
 
 	scfg := server.ServerConfig{
-		IssuerURL:          *issuer,
-		TemplateDir:        *templates,
-		EmailTemplateDirs:  emailTemplateDirs,
-		EmailFromAddress:   *emailFrom,
-		EmailerConfigFile:  *emailConfig,
-		IssuerName:         *issuerName,
-		IssuerLogoURL:      *issuerLogoURL,
-		EnableRegistration: *enableRegistration,
+		IssuerURL:                *issuer,
+		TemplateDir:              *templates,
+		EmailTemplateDirs:        emailTemplateDirs,
+		EmailFromAddress:         *emailFrom,
+		EmailerConfigFile:        *emailConfig,
+		IssuerName:               *issuerName,
+		IssuerLogoURL:            *issuerLogoURL,
+		EnableRegistration:       *enableRegistration,
+		EnableClientRegistration: *enableClientRegistration,
 	}
 
 	if *noDB {
