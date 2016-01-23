@@ -171,7 +171,7 @@ func (c *OIDCConnector) handleCallbackFunc(lf oidc.LoginFunc, errorURL url.URL) 
 		}
 
 		w.Header().Set("Location", redirectURL)
-		w.WriteHeader(http.StatusTemporaryRedirect)
+		w.WriteHeader(http.StatusFound)
 		return
 	}
 }

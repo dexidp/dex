@@ -383,7 +383,7 @@ func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.T
 				q.Set("code", key)
 				ru := httpPathRegister + "?" + q.Encode()
 				w.Header().Set("Location", ru)
-				w.WriteHeader(http.StatusTemporaryRedirect)
+				w.WriteHeader(http.StatusFound)
 				return
 			}
 		}
@@ -404,7 +404,7 @@ func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.T
 
 		http.SetCookie(w, createLastSeenCookie())
 		w.Header().Set("Location", lu)
-		w.WriteHeader(http.StatusTemporaryRedirect)
+		w.WriteHeader(http.StatusFound)
 		return
 	}
 }
