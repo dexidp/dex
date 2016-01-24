@@ -211,7 +211,7 @@ func TestWriteAuthError(t *testing.T) {
 }
 
 func TestRedirectAuthError(t *testing.T) {
-	wantCode := http.StatusTemporaryRedirect
+	wantCode := http.StatusFound
 
 	tests := []struct {
 		err         error

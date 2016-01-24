@@ -170,7 +170,7 @@ func handleLoginFunc(lf oidc.LoginFunc, tpl *template.Template, idp *LocalIdenti
 		}
 
 		w.Header().Set("Location", redirectURL)
-		w.WriteHeader(http.StatusTemporaryRedirect)
+		w.WriteHeader(http.StatusFound)
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {

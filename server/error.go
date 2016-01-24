@@ -81,5 +81,5 @@ func redirectAuthError(w http.ResponseWriter, err error, state string, redirectU
 	redirectURL.RawQuery = q.Encode()
 
 	w.Header().Set("Location", redirectURL.String())
-	w.WriteHeader(http.StatusTemporaryRedirect)
+	w.WriteHeader(http.StatusFound)
 }

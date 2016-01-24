@@ -104,7 +104,7 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 				"connector_id":  []string{"fake"},
 				"scope":         []string{"openid"},
 			},
-			wantCode:     http.StatusTemporaryRedirect,
+			wantCode:     http.StatusFound,
 			wantLocation: "http://fake.example.com",
 		},
 
@@ -117,7 +117,7 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 				"connector_id":  []string{"fake"},
 				"scope":         []string{"openid"},
 			},
-			wantCode:     http.StatusTemporaryRedirect,
+			wantCode:     http.StatusFound,
 			wantLocation: "http://fake.example.com",
 		},
 
@@ -153,7 +153,7 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 				"connector_id":  []string{"fake"},
 				"scope":         []string{"openid"},
 			},
-			wantCode:     http.StatusTemporaryRedirect,
+			wantCode:     http.StatusFound,
 			wantLocation: "http://client.example.com/callback?error=unsupported_response_type&state=",
 		},
 
@@ -229,7 +229,7 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 				"connector_id":  []string{"fake"},
 				"scope":         []string{"openid"},
 			},
-			wantCode:     http.StatusTemporaryRedirect,
+			wantCode:     http.StatusFound,
 			wantLocation: "http://fake.example.com",
 		},
 
@@ -242,7 +242,7 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 				"connector_id":  []string{"fake"},
 				"scope":         []string{"openid"},
 			},
-			wantCode:     http.StatusTemporaryRedirect,
+			wantCode:     http.StatusFound,
 			wantLocation: "http://fake.example.com",
 		},
 
