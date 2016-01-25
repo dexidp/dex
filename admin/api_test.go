@@ -1,14 +1,13 @@
-// NOTE: These tests are begin updated so they compile (see #257). Until then ignore.
-// +build ignore
-
 package admin
 
 import (
-	"net/http"
 	"testing"
 
+	"github.com/coreos/dex/connector"
+	"github.com/coreos/dex/repo"
 	"github.com/coreos/dex/schema/adminschema"
 	"github.com/coreos/dex/user"
+	"github.com/coreos/dex/user/manager"
 
 	"github.com/kylelemons/godebug/pretty"
 )
@@ -16,6 +15,7 @@ import (
 type testFixtures struct {
 	ur    user.UserRepo
 	pwr   user.PasswordInfoRepo
+	mgr   *manager.UserManager
 	adAPI *AdminAPI
 }
 
@@ -25,8 +25,16 @@ func makeTestFixtures() *testFixtures {
 	f.ur = user.NewUserRepoFromUsers([]user.UserWithRemoteIdentities{
 		{
 			User: user.User{
-				ID:   "ID-1",
-				Name: "Name-1",
+				ID:          "ID-1",
+				Email:       "email-1@example.com",
+				DisplayName: "Name-1",
+			},
+		},
+		{
+			User: user.User{
+				ID:          "ID-2",
+				Email:       "email-2@example.com",
+				DisplayName: "Name-2",
 			},
 		},
 	})
@@ -36,8 +44,11 @@ func makeTestFixtures() *testFixtures {
 			Password: []byte("hi."),
 		},
 	})
-
-	f.adAPI = NewAdminAPI(f.ur, f.pwr)
+	ccr := connector.NewConnectorConfigRepoFromConfigs([]connector.ConnectorConfig{
+		&connector.LocalConnectorConfig{ID: "local"},
+	})
+	f.mgr = manager.NewUserManager(f.ur, f.pwr, ccr, repo.InMemTransactionFactory, manager.ManagerOptions{})
+	f.adAPI = NewAdminAPI(f.mgr, f.ur, f.pwr, "local")
 
 	return f
 }
@@ -45,15 +56,15 @@ func makeTestFixtures() *testFixtures {
 func TestGetAdmin(t *testing.T) {
 	tests := []struct {
 		id      string
-		errCode int
+		wantErr error
 	}{
 		{
-			id:      "ID-1",
-			errCode: -1,
+			id: "ID-1",
 		},
 		{
-			id:      "ID-2",
-			errCode: http.StatusNotFound,
+			// Not found
+			id:      "ID-3",
+			wantErr: user.ErrorNotFound,
 		},
 	}
 
@@ -61,7 +72,7 @@ func TestGetAdmin(t *testing.T) {
 		f := makeTestFixtures()
 
 		admn, err := f.adAPI.GetAdmin(tt.id)
-		if tt.errCode != -1 {
+		if tt.wantErr != nil {
 			if err == nil {
 				t.Errorf("case %d: err was nil", i)
 				continue
@@ -72,15 +83,15 @@ func TestGetAdmin(t *testing.T) {
 				continue
 			}
 
-			if aErr.Code != tt.errCode {
-				t.Errorf("case %d: want=%d, got=%d", i, tt.errCode, aErr.Code)
+			if aErr.Internal != tt.wantErr {
+				t.Errorf("case %d: want=%q, got=%q", i, tt.wantErr, aErr.Internal)
 				continue
 			}
 		} else {
 			if err != nil {
 				t.Errorf("case %d: err != nil: %q", i, err)
+				continue
 			}
-			continue
 
 			if admn.Id != "ID-1" {
 				t.Errorf("case %d: want=%q, got=%q", i, tt.id, admn.Id)
@@ -92,38 +103,54 @@ func TestGetAdmin(t *testing.T) {
 }
 
 func TestCreateAdmin(t *testing.T) {
+	hashedPassword, _ := user.NewPasswordFromPlaintext("foopass")
 	tests := []struct {
 		admn    adminschema.Admin
-		errCode int
+		wantErr error
 	}{
 		{
+			//hashed password
 			admn: adminschema.Admin{
-				Name:         "foo",
-				PasswordHash: user.Password([]byte("foopass")).EncodeBase64(),
+				Email:    "goodemail@example.com",
+				Password: string(hashedPassword),
 			},
-			errCode: -1,
 		},
 		{
-			// duplicate Name
+			//plaintext password
 			admn: adminschema.Admin{
-				Name:         "Name-1",
-				PasswordHash: user.Password([]byte("foopass")).EncodeBase64(),
+				Email:    "goodemail@example.com",
+				Password: "foopass",
 			},
-			errCode: http.StatusBadRequest,
 		},
 		{
-			// missing Name
+			// duplicate Email
 			admn: adminschema.Admin{
-				PasswordHash: user.Password([]byte("foopass")).EncodeBase64(),
+				Email:    "email-2@example.com",
+				Password: "foopass",
 			},
-			errCode: http.StatusBadRequest,
+			wantErr: user.ErrorDuplicateEmail,
+		},
+		{
+			// bad email
+			admn: adminschema.Admin{
+				Email:    "badEmailexample",
+				Password: "foopass",
+			},
+			wantErr: user.ErrorInvalidEmail,
+		},
+		{
+			// missing Email
+			admn: adminschema.Admin{
+				Password: "foopass",
+			},
+			wantErr: user.ErrorInvalidEmail,
 		},
 	}
 	for i, tt := range tests {
 		f := makeTestFixtures()
 
 		id, err := f.adAPI.CreateAdmin(tt.admn)
-		if tt.errCode != -1 {
+		if tt.wantErr != nil {
 			if err == nil {
 				t.Errorf("case %d: err was nil", i)
 				continue
@@ -134,8 +161,8 @@ func TestCreateAdmin(t *testing.T) {
 				continue
 			}
 
-			if aErr.Code != tt.errCode {
-				t.Errorf("case %d: want=%d, got=%d", i, tt.errCode, aErr.Code)
+			if aErr.Internal != tt.wantErr {
+				t.Errorf("case %d: want=%q, got=%q", i, tt.wantErr, aErr.Internal)
 				continue
 			}
 		} else {
@@ -164,8 +191,10 @@ func TestGetState(t *testing.T) {
 		{
 			addUsers: []user.User{
 				user.User{
-					Name:  "Admin",
-					Admin: true,
+					ID:          "ID-3",
+					Email:       "email-3@example.com",
+					DisplayName: "Admin",
+					Admin:       true,
 				},
 			},
 			want: adminschema.State{
@@ -181,15 +210,15 @@ func TestGetState(t *testing.T) {
 	for i, tt := range tests {
 		f := makeTestFixtures()
 		for _, usr := range tt.addUsers {
-			_, err := f.ur.Create(usr)
+			_, err := f.mgr.CreateUser(usr, user.Password("foopass"), f.adAPI.localConnectorID)
 			if err != nil {
-				t.Fatalf("case %d: err != nil", i, err)
+				t.Fatalf("case %d: err != nil: %q", i, err)
 			}
 		}
 
 		got, err := f.adAPI.GetState()
 		if err != nil {
-			t.Errorf("case %d: err != nil", i, err)
+			t.Errorf("case %d: err != nil: %q", i, err)
 		}
 
 		if diff := pretty.Compare(tt.want, got); diff != "" {
