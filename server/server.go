@@ -136,6 +136,7 @@ func (s *Server) absURL(paths ...string) url.URL {
 	return url
 }
 
+// AddConnector configures callbacks and database access to be used by a connector.
 func (s *Server) AddConnector(cfg connector.ConnectorConfig) error {
 	connectorID := cfg.ConnectorID()
 	ns := s.IssuerURL
@@ -170,19 +171,6 @@ func (s *Server) AddConnector(cfg connector.ConnectorConfig) error {
 			UserRepo:         s.UserRepo,
 			PasswordInfoRepo: s.PasswordInfoRepo,
 		})
-
-		localCfg, ok := cfg.(*connector.LocalConnectorConfig)
-		if !ok {
-			return errors.New("config for LocalConnector not a LocalConnectorConfig?")
-		}
-
-		if len(localCfg.PasswordInfos) > 0 {
-			err := user.LoadPasswordInfos(s.PasswordInfoRepo,
-				localCfg.PasswordInfos)
-			if err != nil {
-				return err
-			}
-		}
 	}
 
 	log.Infof("Loaded IdP connector: id=%s type=%s", connectorID, cfg.ConnectorType())
