@@ -79,3 +79,74 @@ DOCKER_LINKS=dex_postgres:postgres DOCKER_ENV=DEX_TEST_DSN ./go-docker ./test-fu
 # Remove the container after the tests are run.
 docker rm -f dex_postgres
 ```
+
+## Vendoring dependencies
+
+dex uses [godep](https://github.com/tools/godep) for vendoring external dependencies. This section details how to add and update those dependencies.
+
+Before continuing, please ensure you have the **latest version** of godep available in your PATH.
+
+```
+go get -u github.com/tools/godep
+```
+
+### Preparing your GOPATH
+
+Godep assumes code uses the [standard Go directory layout](https://golang.org/doc/code.html#Organization) with the GOPATH environment variable. Developers who use a different workflow (for instance, prefer working from `~/src/dex`) should see [rkt's documentation](https://github.com/coreos/rkt/blob/master/Documentation/hacking.md#having-the-right-directory-layout-ie-gopath) for workarounds.
+
+Godep determines depdencies using the GOPATH, not the vendored code in the Godeps directory. The first step is to "restore" your GOPATH to match the vendored state of dex. From dex's top level directory run:
+
+```
+godep restore -v
+```
+
+Next, continue to either *Adding a new package* or *Updating an existing package*.
+
+### Adding a new package
+
+After adding a new `import` to dex source, godep will automatically detect it and update the vendored code. Once code changes are finalized, bring the dependency into your GOPATH and save the state:
+
+```
+go get github.com/mavricknz/ldap # Replace with your dependency.
+godep save ./...
+```
+
+Note that dex does **not** rewrite import paths like other CoreOS projects.
+
+## Updating an existing package
+
+After restoring your GOPATH, update the dependency in your GOPATH to the version you wish to check in.
+
+```
+cd $GOPATH/src/github.com/lib/pq # Replace with your dependency.
+git checkout origin master
+```
+
+Then, move to dex's top level directory and run:
+
+```
+godep update github.com/lib/pq
+```
+
+To update a group of packages, use the `...` notation.
+
+```
+godep update github.com/coreos/go-oidc/...
+```
+
+## Finalizing your change
+
+Use git to ensure the Godeps directory has updated only your target packages.
+
+Changes to the Godeps directory should be added as a separate commit from other changes for readability:
+
+```
+git status      # make sure things look reasonable
+git add Godeps
+git commit -m "Godeps: updated postgres driver"
+
+# continue working
+
+git add .
+git commit -m "dirname: this is my actual change"
+```
