@@ -115,7 +115,7 @@ cat << EOF > /tmp/dex_connectors.json
 	}
 ]
 EOF
-./bin/dexctl -db-url=$DEX_DB_URL set-connector-configs /tmp/dex_connectors.json
+./bin/dexctl --db-url=$DEX_DB_URL set-connector-configs /tmp/dex_connectors.json
 ```
 
 One thing to note here that's a bit confusing here is that in the case of the Google OIDC connector, dex is the client and Google is the IdP, but when you're dealing with your own apps that want to authenticate against dex, your app is the client and dex is the IdP.
@@ -127,7 +127,7 @@ Like all OAuth2/OIDC IdPs, clients must be registered with the IdP (dex), along 
 New clients can be registered with the dexctl CLI tool:
 
 ```
-eval "$(./bin/dexctl -db-url=$DEX_DB_URL new-client http://127.0.0.1:5555/callback)"
+eval "$(./bin/dexctl --db-url=$DEX_DB_URL new-client http://127.0.0.1:5555/callback)"
 ```
 
 The output of this command is eval'able if you are in bash, and sets the following shell variables:
