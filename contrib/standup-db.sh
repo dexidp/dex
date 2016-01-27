@@ -40,7 +40,7 @@ until $(curl --output /dev/null --silent --fail http://localhost:5557/health); d
 done
 
 # Create a client 
-eval "$(./bin/dexctl -db-url=$DEX_DB_URL new-client http://127.0.0.1:5555/callback)"
+eval "$(./bin/dexctl --db-url=$DEX_DB_URL new-client http://127.0.0.1:5555/callback)"
 
 # Set up connectors
 DEX_CONNECTORS_FILE=$(mktemp  /tmp/dex-conn.XXXXX)
@@ -62,7 +62,7 @@ cat << EOF > $DEX_CONNECTORS_FILE
 ]
 EOF
 
-./bin/dexctl -db-url=$DEX_DB_URL set-connector-configs $DEX_CONNECTORS_FILE
+./bin/dexctl --db-url=$DEX_DB_URL set-connector-configs $DEX_CONNECTORS_FILE
 
 
 # Start the worker
