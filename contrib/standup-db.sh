@@ -69,6 +69,8 @@ EOF
 export DEX_WORKER_DB_URL=$DEX_DB_URL
 export DEX_WORKER_KEY_SECRETS=$DEX_KEY_SECRET
 export DEX_WORKER_LOG_DEBUG=1
+export DEX_WORKER_EMAIL_CFG=static/fixtures/emailer.json.sample
+export DEX_WORKER_ENABLE_REGISTRATION=true
 ./bin/dex-worker &
 echo "Waiting for worker to start..."
 until $(curl --output /dev/null --silent --fail http://localhost:5556/health); do
