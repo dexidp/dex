@@ -176,7 +176,7 @@ const DiscoveryJSON = `{
       "properties": {
         "disable": {
           "type": "boolean",
-          "description": "If true, disable this user, if false, enable them"
+          "description": "If true, disable this user, if false, enable them. No error is signaled if the user state doesn't change."
         }
       }
     },
