@@ -137,7 +137,8 @@ type UserCreateResponseUser struct {
 }
 
 type UserDisableRequest struct {
-	// Disable: If true, disable this user, if false, enable them
+	// Disable: If true, disable this user, if false, enable them. No error
+	// is signaled if the user state doesn't change.
 	Disable bool `json:"disable,omitempty"`
 }
 

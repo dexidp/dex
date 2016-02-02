@@ -11,16 +11,27 @@ if [ $SCHEMA = "worker" ]; then
     IN="schema/workerschema/v1.json"
     OUT="schema/workerschema/v1-json.go"
     GEN="schema/workerschema/v1-gen.go"
+    DOC="schema/workerschema/README.md"
     GOPKG="workerschema"
 elif [ $SCHEMA = 'admin' ]; then
     IN="schema/adminschema/v1.json"
     OUT="schema/adminschema/v1-json.go"
     GEN="schema/adminschema/v1-gen.go"
+    DOC="schema/adminschema/README.md"
     GOPKG="adminschema"
 else
     echo "Usage: generator [worker|admin]"
     exit 1
 fi
+
+GENDOC=bin/gendoc
+
+if [ ! -f $GENDOC ]; then
+    echo "gendoc command line tool not found. please run build script at the top level of this repo"
+    exit 1
+fi
+
+$GENDOC --f $IN --o $DOC
 
 # See schema/generator_import.go for instructions on updating the dependency
 PKG="google.golang.org/api/google-api-go-generator"
@@ -52,5 +63,4 @@ GOPATH=${PWD}/gopath ./bin/google-api-go-generator \
     -output "${GEN}"
 
 # Finally, fix the import in the bindings to refer to the vendored google-api package
-sed -i '' -e "s%google.golang.org%github.com/coreos/dex/Godeps/_workspace/src/google.golang.org%" "${GEN}"
 goimports -w ${GEN}
