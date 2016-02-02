@@ -22,7 +22,7 @@ var (
 				Secret: "secret-1",
 			},
 			Metadata: oidc.ClientMetadata{
-				RedirectURLs: []url.URL{
+				RedirectURIs: []url.URL{
 					url.URL{
 						Scheme: "https",
 						Host:   "client1.example.com/callback",
@@ -36,7 +36,7 @@ var (
 				Secret: "secret-2",
 			},
 			Metadata: oidc.ClientMetadata{
-				RedirectURLs: []url.URL{
+				RedirectURIs: []url.URL{
 					url.URL{
 						Scheme: "https",
 						Host:   "client2.example.com/callback",

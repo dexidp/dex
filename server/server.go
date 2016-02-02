@@ -74,6 +74,7 @@ type Server struct {
 	RefreshTokenRepo               refresh.RefreshTokenRepo
 	UserEmailer                    *useremail.UserEmailer
 	EnableRegistration             bool
+	EnableClientRegistration       bool
 
 	localConnectorID string
 }
@@ -111,19 +112,25 @@ func (s *Server) KillSession(sessionKey string) error {
 }
 
 func (s *Server) ProviderConfig() oidc.ProviderConfig {
-	iss := s.IssuerURL.String()
+	authEndpoint := s.absURL(httpPathAuth)
+	tokenEndpoint := s.absURL(httpPathToken)
+	keysEndpoint := s.absURL(httpPathKeys)
 	cfg := oidc.ProviderConfig{
-		Issuer: iss,
-
-		AuthEndpoint:  iss + httpPathAuth,
-		TokenEndpoint: iss + httpPathToken,
-		KeysEndpoint:  iss + httpPathKeys,
+		Issuer:        &s.IssuerURL,
+		AuthEndpoint:  &authEndpoint,
+		TokenEndpoint: &tokenEndpoint,
+		KeysEndpoint:  &keysEndpoint,
 
 		GrantTypesSupported:               []string{oauth2.GrantTypeAuthCode, oauth2.GrantTypeClientCreds},
 		ResponseTypesSupported:            []string{"code"},
 		SubjectTypesSupported:             []string{"public"},
-		IDTokenAlgValuesSupported:         []string{"RS256"},
+		IDTokenSigningAlgValues:           []string{"RS256"},
 		TokenEndpointAuthMethodsSupported: []string{"client_secret_basic"},
+	}
+
+	if s.EnableClientRegistration {
+		regEndpoint := s.absURL(httpPathClientRegistration)
+		cfg.RegistrationEndpoint = &regEndpoint
 	}
 
 	return cfg
@@ -240,6 +247,10 @@ func (s *Server) HTTPHandler() http.Handler {
 		signerFunc:             s.KeyManager.Signer,
 		redirectValidityWindow: s.SessionManager.ValidityWindow,
 	})
+
+	if s.EnableClientRegistration {
+		mux.HandleFunc(httpPathClientRegistration, s.handleClientRegistration)
+	}
 
 	mux.HandleFunc(httpPathDebugVars, health.ExpvarHandler)
 

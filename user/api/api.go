@@ -154,7 +154,7 @@ func (u *UsersAPI) CreateUser(creds Creds, usr schema.User, redirURL url.URL) (s
 		return schema.UserCreateResponse{}, mapError(err)
 	}
 
-	validRedirURL, err := client.ValidRedirectURL(&redirURL, metadata.RedirectURLs)
+	validRedirURL, err := client.ValidRedirectURL(&redirURL, metadata.RedirectURIs)
 	if err != nil {
 		return schema.UserCreateResponse{}, ErrorInvalidRedirectURL
 	}

@@ -9,6 +9,7 @@
 // 0007_session_scope.sql
 // 0008_users_active_or_inactive.sql
 // 0009_key_not_primary_key.sql
+// 0010_client_metadata_field_changed.sql
 // DO NOT EDIT!
 
 package migrations
@@ -91,7 +92,7 @@ func dbMigrations0001_initial_migrationSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "db/migrations/0001_initial_migration.sql", size: 1388, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
+	info := bindataFileInfo{name: "db/migrations/0001_initial_migration.sql", size: 1388, mode: os.FileMode(436), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -111,7 +112,7 @@ func dbMigrations0002_dex_adminSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "db/migrations/0002_dex_admin.sql", size: 126, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
+	info := bindataFileInfo{name: "db/migrations/0002_dex_admin.sql", size: 126, mode: os.FileMode(436), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -131,7 +132,7 @@ func dbMigrations0003_user_created_atSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "db/migrations/0003_user_created_at.sql", size: 111, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
+	info := bindataFileInfo{name: "db/migrations/0003_user_created_at.sql", size: 111, mode: os.FileMode(436), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -151,7 +152,7 @@ func dbMigrations0004_session_nonceSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "db/migrations/0004_session_nonce.sql", size: 60, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
+	info := bindataFileInfo{name: "db/migrations/0004_session_nonce.sql", size: 60, mode: os.FileMode(436), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -171,7 +172,7 @@ func dbMigrations0005_refresh_token_createSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "db/migrations/0005_refresh_token_create.sql", size: 506, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
+	info := bindataFileInfo{name: "db/migrations/0005_refresh_token_create.sql", size: 506, mode: os.FileMode(436), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -191,7 +192,7 @@ func dbMigrations0006_user_email_uniqueSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "db/migrations/0006_user_email_unique.sql", size: 99, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
+	info := bindataFileInfo{name: "db/migrations/0006_user_email_unique.sql", size: 99, mode: os.FileMode(436), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -211,7 +212,7 @@ func dbMigrations0007_session_scopeSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "db/migrations/0007_session_scope.sql", size: 60, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
+	info := bindataFileInfo{name: "db/migrations/0007_session_scope.sql", size: 60, mode: os.FileMode(436), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -231,7 +232,7 @@ func dbMigrations0008_users_active_or_inactiveSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "db/migrations/0008_users_active_or_inactive.sql", size: 110, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
+	info := bindataFileInfo{name: "db/migrations/0008_users_active_or_inactive.sql", size: 110, mode: os.FileMode(436), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -251,7 +252,27 @@ func dbMigrations0009_key_not_primary_keySql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "db/migrations/0009_key_not_primary_key.sql", size: 182, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
+	info := bindataFileInfo{name: "db/migrations/0009_key_not_primary_key.sql", size: 182, mode: os.FileMode(436), modTime: time.Unix(1, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _dbMigrations0010_client_metadata_field_changedSql = []byte("\x1f\x8b\x08\x00\x00\x09\x6e\x88\x00\xff\xd2\xd5\x55\xd0\xce\xcd\x4c\x2f\x4a\x2c\x49\x55\x08\x2d\xe0\x0a\x0d\x70\x71\x0c\x71\x55\x48\xce\xc9\x4c\xcd\x2b\x89\xcf\x4c\x01\x92\x99\x25\x95\x5c\xc1\xae\x21\x0a\xb9\xa9\x25\x89\x29\x89\x25\x89\x0a\xb6\x0a\x25\xa9\x15\x25\x1a\x5c\x0a\x40\x90\x55\x9c\x9f\x17\x9f\x54\x9a\x99\x93\x12\x9f\x9f\x94\x95\x9a\x0c\x15\x06\x01\xf5\xa2\xd4\x94\xcc\x22\xa0\x50\x68\x90\x4f\xb1\xba\x0e\x58\xa9\x06\x98\x80\x99\xa4\xa9\x6b\x67\x87\xaa\x4a\x53\x07\x53\x7b\x7c\x69\x51\x26\xd1\xfa\xc1\xda\x81\xa4\x26\x57\xb8\x87\x6b\x90\xab\x02\x1e\x0d\x10\x73\x35\x15\x3c\x83\x15\xfc\x42\x7d\x7c\xac\xb9\x00\x01\x00\x00\xff\xff\xeb\xe6\x9a\x19\x0b\x01\x00\x00")
+
+func dbMigrations0010_client_metadata_field_changedSqlBytes() ([]byte, error) {
+	return bindataRead(
+		_dbMigrations0010_client_metadata_field_changedSql,
+		"db/migrations/0010_client_metadata_field_changed.sql",
+	)
+}
+
+func dbMigrations0010_client_metadata_field_changedSql() (*asset, error) {
+	bytes, err := dbMigrations0010_client_metadata_field_changedSqlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "db/migrations/0010_client_metadata_field_changed.sql", size: 267, mode: os.FileMode(436), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -308,15 +329,16 @@ func AssetNames() []string {
 
 // _bindata is a table, holding each asset generator, mapped to its name.
 var _bindata = map[string]func() (*asset, error){
-	"db/migrations/0001_initial_migration.sql":        dbMigrations0001_initial_migrationSql,
-	"db/migrations/0002_dex_admin.sql":                dbMigrations0002_dex_adminSql,
-	"db/migrations/0003_user_created_at.sql":          dbMigrations0003_user_created_atSql,
-	"db/migrations/0004_session_nonce.sql":            dbMigrations0004_session_nonceSql,
-	"db/migrations/0005_refresh_token_create.sql":     dbMigrations0005_refresh_token_createSql,
-	"db/migrations/0006_user_email_unique.sql":        dbMigrations0006_user_email_uniqueSql,
-	"db/migrations/0007_session_scope.sql":            dbMigrations0007_session_scopeSql,
-	"db/migrations/0008_users_active_or_inactive.sql": dbMigrations0008_users_active_or_inactiveSql,
-	"db/migrations/0009_key_not_primary_key.sql":      dbMigrations0009_key_not_primary_keySql,
+	"db/migrations/0001_initial_migration.sql":             dbMigrations0001_initial_migrationSql,
+	"db/migrations/0002_dex_admin.sql":                     dbMigrations0002_dex_adminSql,
+	"db/migrations/0003_user_created_at.sql":               dbMigrations0003_user_created_atSql,
+	"db/migrations/0004_session_nonce.sql":                 dbMigrations0004_session_nonceSql,
+	"db/migrations/0005_refresh_token_create.sql":          dbMigrations0005_refresh_token_createSql,
+	"db/migrations/0006_user_email_unique.sql":             dbMigrations0006_user_email_uniqueSql,
+	"db/migrations/0007_session_scope.sql":                 dbMigrations0007_session_scopeSql,
+	"db/migrations/0008_users_active_or_inactive.sql":      dbMigrations0008_users_active_or_inactiveSql,
+	"db/migrations/0009_key_not_primary_key.sql":           dbMigrations0009_key_not_primary_keySql,
+	"db/migrations/0010_client_metadata_field_changed.sql": dbMigrations0010_client_metadata_field_changedSql,
 }
 
 // AssetDir returns the file names below a certain
@@ -362,15 +384,16 @@ type bintree struct {
 var _bintree = &bintree{nil, map[string]*bintree{
 	"db": &bintree{nil, map[string]*bintree{
 		"migrations": &bintree{nil, map[string]*bintree{
-			"0001_initial_migration.sql":        &bintree{dbMigrations0001_initial_migrationSql, map[string]*bintree{}},
-			"0002_dex_admin.sql":                &bintree{dbMigrations0002_dex_adminSql, map[string]*bintree{}},
-			"0003_user_created_at.sql":          &bintree{dbMigrations0003_user_created_atSql, map[string]*bintree{}},
-			"0004_session_nonce.sql":            &bintree{dbMigrations0004_session_nonceSql, map[string]*bintree{}},
-			"0005_refresh_token_create.sql":     &bintree{dbMigrations0005_refresh_token_createSql, map[string]*bintree{}},
-			"0006_user_email_unique.sql":        &bintree{dbMigrations0006_user_email_uniqueSql, map[string]*bintree{}},
-			"0007_session_scope.sql":            &bintree{dbMigrations0007_session_scopeSql, map[string]*bintree{}},
-			"0008_users_active_or_inactive.sql": &bintree{dbMigrations0008_users_active_or_inactiveSql, map[string]*bintree{}},
-			"0009_key_not_primary_key.sql":      &bintree{dbMigrations0009_key_not_primary_keySql, map[string]*bintree{}},
+			"0001_initial_migration.sql":             &bintree{dbMigrations0001_initial_migrationSql, map[string]*bintree{}},
+			"0002_dex_admin.sql":                     &bintree{dbMigrations0002_dex_adminSql, map[string]*bintree{}},
+			"0003_user_created_at.sql":               &bintree{dbMigrations0003_user_created_atSql, map[string]*bintree{}},
+			"0004_session_nonce.sql":                 &bintree{dbMigrations0004_session_nonceSql, map[string]*bintree{}},
+			"0005_refresh_token_create.sql":          &bintree{dbMigrations0005_refresh_token_createSql, map[string]*bintree{}},
+			"0006_user_email_unique.sql":             &bintree{dbMigrations0006_user_email_uniqueSql, map[string]*bintree{}},
+			"0007_session_scope.sql":                 &bintree{dbMigrations0007_session_scopeSql, map[string]*bintree{}},
+			"0008_users_active_or_inactive.sql":      &bintree{dbMigrations0008_users_active_or_inactiveSql, map[string]*bintree{}},
+			"0009_key_not_primary_key.sql":           &bintree{dbMigrations0009_key_not_primary_keySql, map[string]*bintree{}},
+			"0010_client_metadata_field_changed.sql": &bintree{dbMigrations0010_client_metadata_field_changedSql, map[string]*bintree{}},
 		}},
 	}},
 }}

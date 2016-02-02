@@ -89,13 +89,13 @@ func TestCreateInvalidRequest(t *testing.T) {
 		{
 			req:      &http.Request{Method: "POST", URL: u, Header: h, Body: makeBody(`{"redirectURIs":["asdf.com"]}`)},
 			wantCode: http.StatusBadRequest,
-			wantBody: `{"error":"invalid_client_metadata","error_description":"invalid redirect URL: scheme not http/https"}`,
+			wantBody: `{"error":"invalid_client_metadata","error_description":"no host for uri field redirect_uris"}`,
 		},
 		// uri missing host
 		{
 			req:      &http.Request{Method: "POST", URL: u, Header: h, Body: makeBody(`{"redirectURIs":["http://"]}`)},
 			wantCode: http.StatusBadRequest,
-			wantBody: `{"error":"invalid_client_metadata","error_description":"invalid redirect URL: host empty"}`,
+			wantBody: `{"error":"invalid_client_metadata","error_description":"no host for uri field redirect_uris"}`,
 		},
 	}
 
@@ -183,7 +183,7 @@ func TestList(t *testing.T) {
 				oidc.ClientIdentity{
 					Credentials: oidc.ClientCredentials{ID: "foo", Secret: "bar"},
 					Metadata: oidc.ClientMetadata{
-						RedirectURLs: []url.URL{
+						RedirectURIs: []url.URL{
 							url.URL{Scheme: "http", Host: "example.com"},
 						},
 					},
@@ -202,7 +202,7 @@ func TestList(t *testing.T) {
 				oidc.ClientIdentity{
 					Credentials: oidc.ClientCredentials{ID: "foo", Secret: "bar"},
 					Metadata: oidc.ClientMetadata{
-						RedirectURLs: []url.URL{
+						RedirectURIs: []url.URL{
 							url.URL{Scheme: "http", Host: "example.com"},
 						},
 					},
@@ -210,7 +210,7 @@ func TestList(t *testing.T) {
 				oidc.ClientIdentity{
 					Credentials: oidc.ClientCredentials{ID: "biz", Secret: "bang"},
 					Metadata: oidc.ClientMetadata{
-						RedirectURLs: []url.URL{
+						RedirectURIs: []url.URL{
 							url.URL{Scheme: "https", Host: "example.com", Path: "one/two/three"},
 						},
 					},

@@ -29,19 +29,20 @@ const (
 )
 
 var (
-	httpPathDiscovery         = "/.well-known/openid-configuration"
-	httpPathToken             = "/token"
-	httpPathKeys              = "/keys"
-	httpPathAuth              = "/auth"
-	httpPathHealth            = "/health"
-	httpPathAPI               = "/api"
-	httpPathRegister          = "/register"
-	httpPathEmailVerify       = "/verify-email"
-	httpPathVerifyEmailResend = "/resend-verify-email"
-	httpPathSendResetPassword = "/send-reset-password"
-	httpPathResetPassword     = "/reset-password"
-	httpPathAcceptInvitation  = "/accept-invitation"
-	httpPathDebugVars         = "/debug/vars"
+	httpPathDiscovery          = "/.well-known/openid-configuration"
+	httpPathToken              = "/token"
+	httpPathKeys               = "/keys"
+	httpPathAuth               = "/auth"
+	httpPathHealth             = "/health"
+	httpPathAPI                = "/api"
+	httpPathRegister           = "/register"
+	httpPathEmailVerify        = "/verify-email"
+	httpPathVerifyEmailResend  = "/resend-verify-email"
+	httpPathSendResetPassword  = "/send-reset-password"
+	httpPathResetPassword      = "/reset-password"
+	httpPathAcceptInvitation   = "/accept-invitation"
+	httpPathDebugVars          = "/debug/vars"
+	httpPathClientRegistration = "/registration"
 
 	cookieLastSeen                 = "LastSeen"
 	cookieShowEmailVerifiedMessage = "ShowEmailVerifiedMessage"
@@ -55,7 +56,7 @@ func handleDiscoveryFunc(cfg oidc.ProviderConfig) http.HandlerFunc {
 			return
 		}
 
-		b, err := json.Marshal(cfg)
+		b, err := json.Marshal(&cfg)
 		if err != nil {
 			log.Errorf("Unable to marshal %#v to JSON: %v", cfg, err)
 		}
@@ -309,13 +310,13 @@ func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.T
 			return
 		}
 
-		if len(cm.RedirectURLs) == 0 {
+		if len(cm.RedirectURIs) == 0 {
 			log.Errorf("Client %q has no redirect URLs", acr.ClientID)
 			writeAuthError(w, oauth2.NewError(oauth2.ErrorServerError), acr.State)
 			return
 		}
 
-		redirectURL, err := client.ValidRedirectURL(acr.RedirectURL, cm.RedirectURLs)
+		redirectURL, err := client.ValidRedirectURL(acr.RedirectURL, cm.RedirectURIs)
 		if err != nil {
 			switch err {
 			case (client.ErrorCantChooseRedirectURL):

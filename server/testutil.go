@@ -133,7 +133,7 @@ func makeTestFixtures() (*testFixtures, error) {
 				Secret: testClientSecret,
 			},
 			Metadata: oidc.ClientMetadata{
-				RedirectURLs: []url.URL{
+				RedirectURIs: []url.URL{
 					testRedirectURL,
 				},
 			},
