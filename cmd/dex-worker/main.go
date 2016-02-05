@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/coreos/pkg/flagutil"
@@ -63,6 +65,7 @@ func main() {
 
 	dbMaxIdleConns := fs.Int("db-max-idle-conns", 0, "maximum number of connections in the idle connection pool")
 	dbMaxOpenConns := fs.Int("db-max-open-conns", 0, "maximum number of open connections to the database")
+	printVersion := fs.Bool("version", false, "Print the version and exit")
 
 	// used only if --no-db is set
 	connectors := fs.String("connectors", "./static/fixtures/connectors.json", "JSON file containg set of IDPC configs")
@@ -80,6 +83,11 @@ func main() {
 	if err := pflag.SetFlagsFromEnv(fs, "DEX_WORKER"); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
+	}
+
+	if *printVersion {
+		fmt.Printf("dex version %s\ngo version %s\n", strings.TrimPrefix(version, "v"), strings.TrimPrefix(runtime.Version(), "go"))
+		os.Exit(0)
 	}
 
 	if *logDebug {

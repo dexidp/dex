@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/key"
@@ -50,6 +52,8 @@ func main() {
 	logDebug := fs.Bool("log-debug", false, "log debug-level information")
 	logTimestamps := fs.Bool("log-timestamps", false, "prefix log lines with timestamps")
 
+	printVersion := fs.Bool("version", false, "Print the version and exit")
+
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
@@ -58,6 +62,11 @@ func main() {
 	if err := pflag.SetFlagsFromEnv(fs, "DEX_OVERLORD"); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
+	}
+
+	if *printVersion {
+		fmt.Printf("dex version %s\ngo version %s\n", strings.TrimPrefix(version, "v"), strings.TrimPrefix(runtime.Version(), "go"))
+		os.Exit(0)
 	}
 
 	if *logDebug {
