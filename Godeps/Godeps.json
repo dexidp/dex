@@ -136,6 +136,11 @@
 			"Rev": "2caba252f4dc53eaf6b553000885530023f54623"
 		},
 		{
+			"ImportPath": "gopkg.in/asn1-ber.v1",
+			"Comment": "v1.1",
+			"Rev": "4e86f4367175e39f69d9358a5f17b4dda270378d"
+		},
+		{
 			"ImportPath": "gopkg.in/gomail.v2",
 			"Comment": "2.0.0-2-gb1e5552",
 			"Rev": "b1e55520bf557d8a614f1e1f493ce892c1b5e97e"
@@ -144,6 +149,11 @@
 			"ImportPath": "gopkg.in/gorp.v1",
 			"Comment": "v1.7.1",
 			"Rev": "c87af80f3cc5036b55b83d77171e156791085e2e"
+		},
+		{
+			"ImportPath": "gopkg.in/ldap.v2",
+			"Comment": "v2.2",
+			"Rev": "e9a325d64989e2844be629682cb085d2c58eef8d"
 		}
 	]
 }
