@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -17,7 +18,6 @@ import (
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/email"
-	"github.com/coreos/dex/repo"
 	sessionmanager "github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
 	useremail "github.com/coreos/dex/user/email"
@@ -100,6 +100,8 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 		return err
 	}
 
+	dbMap := db.NewMemDB()
+
 	ks := key.NewPrivateKeySet([]*key.PrivateKey{k}, time.Now().Add(24*time.Hour))
 	kRepo := key.NewPrivateKeySetRepo()
 	if err = kRepo.Set(ks); err != nil {
@@ -127,20 +129,24 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	}
 	cfgRepo := connector.NewConnectorConfigRepoFromConfigs(cfgs)
 
-	sRepo := db.NewSessionRepo(db.NewMemDB())
-	skRepo := db.NewSessionKeyRepo(db.NewMemDB())
+	sRepo := db.NewSessionRepo(dbMap)
+	skRepo := db.NewSessionKeyRepo(dbMap)
 	sm := sessionmanager.NewSessionManager(sRepo, skRepo)
 
-	userRepo, err := user.NewUserRepoFromFile(cfg.UsersFile)
+	users, err := loadUsers(cfg.UsersFile)
 	if err != nil {
 		return fmt.Errorf("unable to read users from file: %v", err)
+	}
+	userRepo, err := db.NewUserRepoFromUsers(dbMap, users)
+	if err != nil {
+		return err
 	}
 
 	pwiRepo := user.NewPasswordInfoRepo()
 
-	refTokRepo := db.NewRefreshTokenRepo(db.NewMemDB())
+	refTokRepo := db.NewRefreshTokenRepo(dbMap)
 
-	txnFactory := repo.InMemTransactionFactory
+	txnFactory := db.TransactionFactory(dbMap)
 	userManager := usermanager.NewUserManager(userRepo, pwiRepo, cfgRepo, txnFactory, usermanager.ManagerOptions{})
 	srv.ClientIdentityRepo = ciRepo
 	srv.KeySetRepo = kRepo
@@ -152,6 +158,16 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	srv.RefreshTokenRepo = refTokRepo
 	return nil
 
+}
+
+func loadUsers(filepath string) (users []user.UserWithRemoteIdentities, err error) {
+	f, err := os.Open(filepath)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	err = json.NewDecoder(f).Decode(&users)
+	return
 }
 
 func (cfg *MultiServerConfig) Configure(srv *Server) error {

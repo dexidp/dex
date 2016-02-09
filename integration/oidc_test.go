@@ -139,7 +139,7 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 		Email:       "testemail@example.com",
 		DisplayName: "displayname",
 	}
-	userRepo := user.NewUserRepo()
+	userRepo := db.NewUserRepo(db.NewMemDB())
 	if err := userRepo.Create(nil, usr); err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

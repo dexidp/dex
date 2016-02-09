@@ -12,6 +12,7 @@ import (
 	"github.com/coreos/go-oidc/key"
 	"github.com/kylelemons/godebug/pretty"
 
+	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/email"
 	"github.com/coreos/dex/user"
 )
@@ -45,25 +46,32 @@ func (t *testEmailer) SendMail(from, subject, text, html string, to ...string) e
 }
 
 func makeTestFixtures() (*UserEmailer, *testEmailer, *key.PublicKey) {
-	ur := user.NewUserRepoFromUsers([]user.UserWithRemoteIdentities{
-		{
-			User: user.User{
-				ID:    "ID-1",
-				Email: "id1@example.com",
-				Admin: true,
+	ur := func() user.UserRepo {
+		repo, err := db.NewUserRepoFromUsers(db.NewMemDB(), []user.UserWithRemoteIdentities{
+			{
+				User: user.User{
+					ID:    "ID-1",
+					Email: "id1@example.com",
+					Admin: true,
+				},
+			}, {
+				User: user.User{
+					ID:    "ID-2",
+					Email: "id2@example.com",
+				},
+			}, {
+				User: user.User{
+					ID:    "ID-3",
+					Email: "id3@example.com",
+				},
 			},
-		}, {
-			User: user.User{
-				ID:    "ID-2",
-				Email: "id2@example.com",
-			},
-		}, {
-			User: user.User{
-				ID:    "ID-3",
-				Email: "id3@example.com",
-			},
-		},
-	})
+		})
+		if err != nil {
+			panic("Failed to create user repo: " + err.Error())
+		}
+		return repo
+	}()
+
 	pwr := user.NewPasswordInfoRepoFromPasswordInfos([]user.PasswordInfo{
 		{
 			UserID:   "ID-1",

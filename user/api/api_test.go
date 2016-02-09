@@ -11,7 +11,7 @@ import (
 
 	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
-	"github.com/coreos/dex/repo"
+	"github.com/coreos/dex/db"
 	schema "github.com/coreos/dex/schema/workerschema"
 	"github.com/coreos/dex/user"
 	"github.com/coreos/dex/user/manager"
@@ -86,35 +86,43 @@ var (
 )
 
 func makeTestFixtures() (*UsersAPI, *testEmailer) {
-	ur := user.NewUserRepoFromUsers([]user.UserWithRemoteIdentities{
-		{
-			User: user.User{
-				ID:        "ID-1",
-				Email:     "id1@example.com",
-				Admin:     true,
-				CreatedAt: clock.Now(),
+	dbMap := db.NewMemDB()
+	ur := func() user.UserRepo {
+		repo, err := db.NewUserRepoFromUsers(dbMap, []user.UserWithRemoteIdentities{
+			{
+				User: user.User{
+					ID:        "ID-1",
+					Email:     "id1@example.com",
+					Admin:     true,
+					CreatedAt: clock.Now(),
+				},
+			}, {
+				User: user.User{
+					ID:        "ID-2",
+					Email:     "id2@example.com",
+					CreatedAt: clock.Now(),
+				},
+			}, {
+				User: user.User{
+					ID:        "ID-3",
+					Email:     "id3@example.com",
+					CreatedAt: clock.Now(),
+				},
+			}, {
+				User: user.User{
+					ID:        "ID-4",
+					Email:     "id4@example.com",
+					CreatedAt: clock.Now(),
+					Disabled:  true,
+				},
 			},
-		}, {
-			User: user.User{
-				ID:        "ID-2",
-				Email:     "id2@example.com",
-				CreatedAt: clock.Now(),
-			},
-		}, {
-			User: user.User{
-				ID:        "ID-3",
-				Email:     "id3@example.com",
-				CreatedAt: clock.Now(),
-			},
-		}, {
-			User: user.User{
-				ID:        "ID-4",
-				Email:     "id4@example.com",
-				CreatedAt: clock.Now(),
-				Disabled:  true,
-			},
-		},
-	})
+		})
+		if err != nil {
+			panic("Failed to create user repo: " + err.Error())
+		}
+		return repo
+	}()
+
 	pwr := user.NewPasswordInfoRepoFromPasswordInfos([]user.PasswordInfo{
 		{
 			UserID:   "ID-1",
@@ -128,7 +136,7 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 	ccr := connector.NewConnectorConfigRepoFromConfigs([]connector.ConnectorConfig{
 		&connector.LocalConnectorConfig{ID: "local"},
 	})
-	mgr := manager.NewUserManager(ur, pwr, ccr, repo.InMemTransactionFactory, manager.ManagerOptions{})
+	mgr := manager.NewUserManager(ur, pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
 	mgr.Clock = clock
 	ci := oidc.ClientIdentity{
 		Credentials: oidc.ClientCredentials{

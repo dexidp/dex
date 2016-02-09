@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/coreos/dex/connector"
-	"github.com/coreos/dex/repo"
+	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/schema/adminschema"
 	"github.com/coreos/dex/user"
 	"github.com/coreos/dex/user/manager"
@@ -22,22 +22,30 @@ type testFixtures struct {
 func makeTestFixtures() *testFixtures {
 	f := &testFixtures{}
 
-	f.ur = user.NewUserRepoFromUsers([]user.UserWithRemoteIdentities{
-		{
-			User: user.User{
-				ID:          "ID-1",
-				Email:       "email-1@example.com",
-				DisplayName: "Name-1",
+	dbMap := db.NewMemDB()
+	f.ur = func() user.UserRepo {
+		repo, err := db.NewUserRepoFromUsers(dbMap, []user.UserWithRemoteIdentities{
+			{
+				User: user.User{
+					ID:          "ID-1",
+					Email:       "email-1@example.com",
+					DisplayName: "Name-1",
+				},
 			},
-		},
-		{
-			User: user.User{
-				ID:          "ID-2",
-				Email:       "email-2@example.com",
-				DisplayName: "Name-2",
+			{
+				User: user.User{
+					ID:          "ID-2",
+					Email:       "email-2@example.com",
+					DisplayName: "Name-2",
+				},
 			},
-		},
-	})
+		})
+		if err != nil {
+			panic("Failed to create user repo: " + err.Error())
+		}
+		return repo
+	}()
+
 	f.pwr = user.NewPasswordInfoRepoFromPasswordInfos([]user.PasswordInfo{
 		{
 			UserID:   "ID-1",
@@ -47,7 +55,7 @@ func makeTestFixtures() *testFixtures {
 	ccr := connector.NewConnectorConfigRepoFromConfigs([]connector.ConnectorConfig{
 		&connector.LocalConnectorConfig{ID: "local"},
 	})
-	f.mgr = manager.NewUserManager(f.ur, f.pwr, ccr, repo.InMemTransactionFactory, manager.ManagerOptions{})
+	f.mgr = manager.NewUserManager(f.ur, f.pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
 	f.adAPI = NewAdminAPI(f.mgr, f.ur, f.pwr, "local")
 
 	return f

@@ -11,7 +11,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/coreos/dex/connector"
-	"github.com/coreos/dex/repo"
+	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/user"
 	"github.com/coreos/dex/user/manager"
 )
@@ -45,13 +45,20 @@ func (t *tokenHandlerTransport) RoundTrip(r *http.Request) (*http.Response, erro
 }
 
 func makeUserObjects(users []user.UserWithRemoteIdentities, passwords []user.PasswordInfo) (user.UserRepo, user.PasswordInfoRepo, *manager.UserManager) {
-	ur := user.NewUserRepoFromUsers(users)
+	dbMap := db.NewMemDB()
+	ur := func() user.UserRepo {
+		repo, err := db.NewUserRepoFromUsers(dbMap, users)
+		if err != nil {
+			panic("Failed to create user repo: " + err.Error())
+		}
+		return repo
+	}()
 	pwr := user.NewPasswordInfoRepoFromPasswordInfos(passwords)
 
 	ccr := connector.NewConnectorConfigRepoFromConfigs(
 		[]connector.ConnectorConfig{&connector.LocalConnectorConfig{ID: "local"}},
 	)
-	um := manager.NewUserManager(ur, pwr, ccr, repo.InMemTransactionFactory, manager.ManagerOptions{})
+	um := manager.NewUserManager(ur, pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
 	um.Clock = clock
 	return ur, pwr, um
 }

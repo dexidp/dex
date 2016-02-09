@@ -12,7 +12,6 @@ import (
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/email"
-	"github.com/coreos/dex/repo"
 	sessionmanager "github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
 	useremail "github.com/coreos/dex/user/email"
@@ -91,7 +90,11 @@ func sequentialGenerateCodeFunc() sessionmanager.GenerateCodeFunc {
 }
 
 func makeTestFixtures() (*testFixtures, error) {
-	userRepo := user.NewUserRepoFromUsers(testUsers)
+	dbMap := db.NewMemDB()
+	userRepo, err := db.NewUserRepoFromUsers(dbMap, testUsers)
+	if err != nil {
+		return nil, err
+	}
 	pwRepo := user.NewPasswordInfoRepoFromPasswordInfos(testPasswordInfos)
 
 	connConfigs := []connector.ConnectorConfig{
@@ -114,7 +117,7 @@ func makeTestFixtures() (*testFixtures, error) {
 	}
 	connCfgRepo := connector.NewConnectorConfigRepoFromConfigs(connConfigs)
 
-	manager := usermanager.NewUserManager(userRepo, pwRepo, connCfgRepo, repo.InMemTransactionFactory, usermanager.ManagerOptions{})
+	manager := usermanager.NewUserManager(userRepo, pwRepo, connCfgRepo, db.TransactionFactory(dbMap), usermanager.ManagerOptions{})
 
 	sessionManager := sessionmanager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 	sessionManager.GenerateCode = sequentialGenerateCodeFunc()

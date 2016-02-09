@@ -10,7 +10,7 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 
 	"github.com/coreos/dex/connector"
-	"github.com/coreos/dex/repo"
+	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/user"
 )
 
@@ -26,32 +26,40 @@ func makeTestFixtures() *testFixtures {
 	f := &testFixtures{}
 	f.clock = clockwork.NewFakeClock()
 
-	f.ur = user.NewUserRepoFromUsers([]user.UserWithRemoteIdentities{
-		{
-			User: user.User{
-				ID:    "ID-1",
-				Email: "Email-1@example.com",
-			},
-			RemoteIdentities: []user.RemoteIdentity{
-				{
-					ConnectorID: "local",
-					ID:          "1",
+	dbMap := db.NewMemDB()
+	f.ur = func() user.UserRepo {
+		repo, err := db.NewUserRepoFromUsers(dbMap, []user.UserWithRemoteIdentities{
+			{
+				User: user.User{
+					ID:    "ID-1",
+					Email: "Email-1@example.com",
+				},
+				RemoteIdentities: []user.RemoteIdentity{
+					{
+						ConnectorID: "local",
+						ID:          "1",
+					},
+				},
+			}, {
+				User: user.User{
+					ID:            "ID-2",
+					Email:         "Email-2@example.com",
+					EmailVerified: true,
+				},
+				RemoteIdentities: []user.RemoteIdentity{
+					{
+						ConnectorID: "local",
+						ID:          "2",
+					},
 				},
 			},
-		}, {
-			User: user.User{
-				ID:            "ID-2",
-				Email:         "Email-2@example.com",
-				EmailVerified: true,
-			},
-			RemoteIdentities: []user.RemoteIdentity{
-				{
-					ConnectorID: "local",
-					ID:          "2",
-				},
-			},
-		},
-	})
+		})
+		if err != nil {
+			panic("Failed to create user repo: " + err.Error())
+		}
+		return repo
+	}()
+
 	f.pwr = user.NewPasswordInfoRepoFromPasswordInfos([]user.PasswordInfo{
 		{
 			UserID:   "ID-1",
@@ -65,7 +73,7 @@ func makeTestFixtures() *testFixtures {
 	f.ccr = connector.NewConnectorConfigRepoFromConfigs([]connector.ConnectorConfig{
 		&connector.LocalConnectorConfig{ID: "local"},
 	})
-	f.mgr = NewUserManager(f.ur, f.pwr, f.ccr, repo.InMemTransactionFactory, ManagerOptions{})
+	f.mgr = NewUserManager(f.ur, f.pwr, f.ccr, db.TransactionFactory(dbMap), ManagerOptions{})
 	f.mgr.Clock = f.clock
 	return f
 }

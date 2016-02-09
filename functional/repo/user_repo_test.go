@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-gorp/gorp"
 	"github.com/kylelemons/godebug/pretty"
 
 	"github.com/coreos/dex/db"
@@ -49,10 +50,12 @@ func newUserRepo(t *testing.T, users []user.UserWithRemoteIdentities) user.UserR
 	if users == nil {
 		users = []user.UserWithRemoteIdentities{}
 	}
+	var dbMap *gorp.DbMap
 	if os.Getenv("DEX_TEST_DSN") == "" {
-		return user.NewUserRepoFromUsers(users)
+		dbMap = db.NewMemDB()
+	} else {
+		dbMap = connect(t)
 	}
-	dbMap := connect(t)
 	repo, err := db.NewUserRepoFromUsers(dbMap, users)
 	if err != nil {
 		t.Fatalf("Unable to add users: %v", err)
@@ -414,59 +417,6 @@ func findRemoteIdentity(rids []user.RemoteIdentity, rid user.RemoteIdentity) int
 		}
 	}
 	return -1
-}
-
-func TestNewUserRepoFromUsers(t *testing.T) {
-	tests := []struct {
-		users []user.UserWithRemoteIdentities
-	}{
-		{
-			users: []user.UserWithRemoteIdentities{
-				{
-					User: user.User{
-						ID:    "123",
-						Email: "email123@example.com",
-					},
-					RemoteIdentities: []user.RemoteIdentity{},
-				},
-				{
-					User: user.User{
-						ID:    "456",
-						Email: "email456@example.com",
-					},
-					RemoteIdentities: []user.RemoteIdentity{
-						{
-							ID:          "remoteID",
-							ConnectorID: "connID",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	for i, tt := range tests {
-		repo := user.NewUserRepoFromUsers(tt.users)
-		for _, want := range tt.users {
-			gotUser, err := repo.Get(nil, want.User.ID)
-			if err != nil {
-				t.Errorf("case %d: want nil err: %v", i, err)
-			}
-
-			gotRIDs, err := repo.GetRemoteIdentities(nil, want.User.ID)
-			if err != nil {
-				t.Errorf("case %d: want nil err: %v", i, err)
-			}
-
-			if !reflect.DeepEqual(want.User, gotUser) {
-				t.Errorf("case %d: want=%#v got=%#v", i, want.User, gotUser)
-			}
-
-			if !reflect.DeepEqual(want.RemoteIdentities, gotRIDs) {
-				t.Errorf("case %d: want=%#v got=%#v", i, want.RemoteIdentities, gotRIDs)
-			}
-		}
-	}
 }
 
 func TestGetByEmail(t *testing.T) {

@@ -76,7 +76,7 @@ func staticGenerateCodeFunc(code string) manager.GenerateCodeFunc {
 }
 
 func makeNewUserRepo() (user.UserRepo, error) {
-	userRepo := user.NewUserRepo()
+	userRepo := db.NewUserRepo(db.NewMemDB())
 
 	id := "testid-1"
 	err := userRepo.Create(nil, user.User{
