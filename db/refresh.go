@@ -8,10 +8,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/coreos/dex/pkg/log"
-	"github.com/coreos/dex/refresh"
 	"github.com/go-gorp/gorp"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/coreos/dex/pkg/log"
+	"github.com/coreos/dex/refresh"
 )
 
 const (
@@ -166,16 +167,8 @@ func (r *refreshTokenRepo) Revoke(userID, token string) error {
 
 	return nil
 }
-
-func (r *refreshTokenRepo) executor(tx *gorp.Transaction) gorp.SqlExecutor {
-	if tx == nil {
-		return r.dbMap
-	}
-	return tx
-}
-
 func (r *refreshTokenRepo) get(tx *gorp.Transaction, tokenID int64) (*refreshTokenModel, error) {
-	ex := r.executor(tx)
+	ex := executor(r.dbMap, tx)
 	result, err := ex.Get(refreshTokenModel{}, tokenID)
 	if err != nil {
 		return nil, err

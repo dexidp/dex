@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-gorp/gorp"
-	"github.com/lib/pq"
 
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/repo"
@@ -107,9 +106,9 @@ func (r *userRepo) Disable(tx repo.Transaction, userID string, disable bool) err
 		return user.ErrorInvalidID
 	}
 
-	qt := pq.QuoteIdentifier(userTableName)
-	ex := r.executor(tx)
-	result, err := ex.Exec(fmt.Sprintf("UPDATE %s SET disabled = $2 WHERE id = $1", qt), userID, disable)
+	qt := r.dbMap.Dialect.QuotedTableForQuery("", userTableName)
+	ex := executor(r.dbMap, tx)
+	result, err := ex.Exec(fmt.Sprintf("UPDATE %s SET disabled = $1 WHERE id = $2;", qt), disable, userID)
 	if err != nil {
 		return err
 	}
@@ -221,7 +220,7 @@ func (r *userRepo) RemoveRemoteIdentity(tx repo.Transaction, userID string, rid 
 		return err
 	}
 
-	ex := r.executor(tx)
+	ex := executor(r.dbMap, tx)
 	deleted, err := ex.Delete(rim)
 
 	if err != nil {
@@ -236,14 +235,13 @@ func (r *userRepo) RemoveRemoteIdentity(tx repo.Transaction, userID string, rid 
 }
 
 func (r *userRepo) GetRemoteIdentities(tx repo.Transaction, userID string) ([]user.RemoteIdentity, error) {
-	ex := r.executor(tx)
+	ex := executor(r.dbMap, tx)
 	if userID == "" {
 		return nil, user.ErrorInvalidID
 	}
 
-	qt := pq.QuoteIdentifier(remoteIdentityMappingTableName)
-	rims, err := ex.Select(&remoteIdentityMappingModel{},
-		fmt.Sprintf("select * from %s where user_id = $1", qt), userID)
+	qt := r.dbMap.Dialect.QuotedTableForQuery("", remoteIdentityMappingTableName)
+	rims, err := ex.Select(&remoteIdentityMappingModel{}, fmt.Sprintf("SELECT * FROM %s WHERE user_id = $1", qt), userID)
 
 	if err != nil {
 		if err != sql.ErrNoRows {
@@ -273,9 +271,9 @@ func (r *userRepo) GetRemoteIdentities(tx repo.Transaction, userID string) ([]us
 }
 
 func (r *userRepo) GetAdminCount(tx repo.Transaction) (int, error) {
-	qt := pq.QuoteIdentifier(userTableName)
-	ex := r.executor(tx)
-	i, err := ex.SelectInt(fmt.Sprintf("SELECT count(*) FROM %s where admin=true", qt))
+	qt := r.dbMap.Dialect.QuotedTableForQuery("", userTableName)
+	ex := executor(r.dbMap, tx)
+	i, err := ex.SelectInt(fmt.Sprintf("SELECT count(*) FROM %s WHERE admin=true;", qt))
 	return int(i), err
 }
 
@@ -288,14 +286,13 @@ func (r *userRepo) List(tx repo.Transaction, filter user.UserFilter, maxResults 
 	if err != nil {
 		return nil, "", err
 	}
-	ex := r.executor(tx)
+	ex := executor(r.dbMap, tx)
 
-	qt := pq.QuoteIdentifier(userTableName)
+	qt := r.dbMap.Dialect.QuotedTableForQuery("", userTableName)
 
 	// Ask for one more than needed so we know if there's more results, and
 	// hence, whether a nextPageToken is necessary.
-	ums, err := ex.Select(&userModel{},
-		fmt.Sprintf("SELECT * FROM %s ORDER BY email LIMIT $1 OFFSET $2 ", qt), maxResults+1, offset)
+	ums, err := ex.Select(&userModel{}, fmt.Sprintf("SELECT * FROM %s ORDER BY email LIMIT $1 OFFSET $2", qt), maxResults+1, offset)
 	if err != nil {
 		return nil, "", err
 	}
@@ -338,20 +335,8 @@ func (r *userRepo) List(tx repo.Transaction, filter user.UserFilter, maxResults 
 
 }
 
-func (r *userRepo) executor(tx repo.Transaction) gorp.SqlExecutor {
-	if tx == nil {
-		return r.dbMap
-	}
-
-	gorpTx, ok := tx.(*gorp.Transaction)
-	if !ok {
-		panic("wrong kind of transaction passed to a DB repo")
-	}
-	return gorpTx
-}
-
 func (r *userRepo) insert(tx repo.Transaction, usr user.User) error {
-	ex := r.executor(tx)
+	ex := executor(r.dbMap, tx)
 	um, err := newUserModel(&usr)
 	if err != nil {
 		return err
@@ -360,7 +345,7 @@ func (r *userRepo) insert(tx repo.Transaction, usr user.User) error {
 }
 
 func (r *userRepo) update(tx repo.Transaction, usr user.User) error {
-	ex := r.executor(tx)
+	ex := executor(r.dbMap, tx)
 	um, err := newUserModel(&usr)
 	if err != nil {
 		return err
@@ -370,7 +355,7 @@ func (r *userRepo) update(tx repo.Transaction, usr user.User) error {
 }
 
 func (r *userRepo) get(tx repo.Transaction, userID string) (user.User, error) {
-	ex := r.executor(tx)
+	ex := executor(r.dbMap, tx)
 
 	m, err := ex.Get(userModel{}, userID)
 	if err != nil {
@@ -391,7 +376,7 @@ func (r *userRepo) get(tx repo.Transaction, userID string) (user.User, error) {
 }
 
 func (r *userRepo) getUserIDForRemoteIdentity(tx repo.Transaction, ri user.RemoteIdentity) (string, error) {
-	ex := r.executor(tx)
+	ex := executor(r.dbMap, tx)
 
 	m, err := ex.Get(remoteIdentityMappingModel{}, ri.ConnectorID, ri.ID)
 	if err != nil {
@@ -412,8 +397,8 @@ func (r *userRepo) getUserIDForRemoteIdentity(tx repo.Transaction, ri user.Remot
 }
 
 func (r *userRepo) getByEmail(tx repo.Transaction, email string) (user.User, error) {
-	qt := pq.QuoteIdentifier(userTableName)
-	ex := r.executor(tx)
+	qt := r.dbMap.Dialect.QuotedTableForQuery("", userTableName)
+	ex := executor(r.dbMap, tx)
 	var um userModel
 	err := ex.SelectOne(&um, fmt.Sprintf("select * from %s where email = $1", qt), email)
 
@@ -427,7 +412,7 @@ func (r *userRepo) getByEmail(tx repo.Transaction, email string) (user.User, err
 }
 
 func (r *userRepo) insertRemoteIdentity(tx repo.Transaction, userID string, ri user.RemoteIdentity) error {
-	ex := r.executor(tx)
+	ex := executor(r.dbMap, tx)
 	rim, err := newRemoteIdentityMappingModel(userID, ri)
 	if err != nil {
 

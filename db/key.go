@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-gorp/gorp"
-	"github.com/lib/pq"
 
 	pcrypto "github.com/coreos/dex/pkg/crypto"
 	"github.com/coreos/go-oidc/key"
@@ -114,7 +113,7 @@ type PrivateKeySetRepo struct {
 }
 
 func (r *PrivateKeySetRepo) Set(ks key.KeySet) error {
-	qt := pq.QuoteIdentifier(keyTableName)
+	qt := r.dbMap.Dialect.QuotedTableForQuery("", keyTableName)
 	_, err := r.dbMap.Exec(fmt.Sprintf("DELETE FROM %s", qt))
 	if err != nil {
 		return err
@@ -152,7 +151,7 @@ func (r *PrivateKeySetRepo) Set(ks key.KeySet) error {
 }
 
 func (r *PrivateKeySetRepo) Get() (key.KeySet, error) {
-	qt := pq.QuoteIdentifier(keyTableName)
+	qt := r.dbMap.Dialect.QuotedTableForQuery("", keyTableName)
 	objs, err := r.dbMap.Select(&privateKeySetBlob{}, fmt.Sprintf("SELECT * FROM %s", qt))
 	if err != nil {
 		return nil, err

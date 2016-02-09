@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-gorp/gorp"
 	"github.com/jonboulle/clockwork"
-	"github.com/lib/pq"
 
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/session"
@@ -77,9 +76,9 @@ func (r *SessionKeyRepo) Pop(key string) (string, error) {
 		return "", errors.New("invalid session key")
 	}
 
-	qt := pq.QuoteIdentifier(sessionKeyTableName)
+	qt := r.dbMap.Dialect.QuotedTableForQuery("", sessionKeyTableName)
 	q := fmt.Sprintf("UPDATE %s SET stale=$1 WHERE key=$2 AND stale=$3", qt)
-	res, err := r.dbMap.Exec(q, true, key, false)
+	res, err := executor(r.dbMap, nil).Exec(q, true, key, false)
 	if err != nil {
 		return "", err
 	}
@@ -95,9 +94,9 @@ func (r *SessionKeyRepo) Pop(key string) (string, error) {
 }
 
 func (r *SessionKeyRepo) purge() error {
-	qt := pq.QuoteIdentifier(sessionKeyTableName)
+	qt := r.dbMap.Dialect.QuotedTableForQuery("", sessionKeyTableName)
 	q := fmt.Sprintf("DELETE FROM %s WHERE stale = $1 OR expires_at < $2", qt)
-	res, err := r.dbMap.Exec(q, true, r.clock.Now().Unix())
+	res, err := executor(r.dbMap, nil).Exec(q, true, r.clock.Now().Unix())
 	if err != nil {
 		return err
 	}

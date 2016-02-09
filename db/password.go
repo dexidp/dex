@@ -5,10 +5,11 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/go-gorp/gorp"
+
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/repo"
 	"github.com/coreos/dex/user"
-	"github.com/go-gorp/gorp"
 )
 
 const (
@@ -89,20 +90,8 @@ func (r *passwordInfoRepo) Update(tx repo.Transaction, pw user.PasswordInfo) err
 	return nil
 }
 
-func (r *passwordInfoRepo) executor(tx repo.Transaction) gorp.SqlExecutor {
-	if tx == nil {
-		return r.dbMap
-	}
-
-	gorpTx, ok := tx.(*gorp.Transaction)
-	if !ok {
-		panic("wrong kind of transaction passed to a DB repo")
-	}
-	return gorpTx
-}
-
 func (r *passwordInfoRepo) get(tx repo.Transaction, id string) (user.PasswordInfo, error) {
-	ex := r.executor(tx)
+	ex := executor(r.dbMap, tx)
 
 	m, err := ex.Get(passwordInfoModel{}, id)
 	if err != nil {
@@ -123,7 +112,7 @@ func (r *passwordInfoRepo) get(tx repo.Transaction, id string) (user.PasswordInf
 }
 
 func (r *passwordInfoRepo) insert(tx repo.Transaction, pw user.PasswordInfo) error {
-	ex := r.executor(tx)
+	ex := executor(r.dbMap, tx)
 	pm, err := newPasswordInfoModel(&pw)
 	if err != nil {
 		return err
@@ -132,7 +121,7 @@ func (r *passwordInfoRepo) insert(tx repo.Transaction, pw user.PasswordInfo) err
 }
 
 func (r *passwordInfoRepo) update(tx repo.Transaction, pw user.PasswordInfo) error {
-	ex := r.executor(tx)
+	ex := executor(r.dbMap, tx)
 	pm, err := newPasswordInfoModel(&pw)
 	if err != nil {
 		return err

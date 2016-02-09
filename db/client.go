@@ -11,6 +11,7 @@ import (
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/go-gorp/gorp"
 	"github.com/lib/pq"
+	"github.com/mattn/go-sqlite3"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/coreos/dex/client"
@@ -89,23 +90,29 @@ func NewClientIdentityRepo(dbm *gorp.DbMap) client.ClientIdentityRepo {
 }
 
 func NewClientIdentityRepoFromClients(dbm *gorp.DbMap, clients []oidc.ClientIdentity) (client.ClientIdentityRepo, error) {
-	repo := NewClientIdentityRepo(dbm).(*clientIdentityRepo)
+	tx, err := dbm.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
 	for _, c := range clients {
 		dec, err := base64.URLEncoding.DecodeString(c.Credentials.Secret)
 		if err != nil {
 			return nil, err
 		}
-
 		cm, err := newClientIdentityModel(c.Credentials.ID, dec, &c.Metadata)
 		if err != nil {
 			return nil, err
 		}
-		err = repo.dbMap.Insert(cm)
+		err = tx.Insert(cm)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return repo, nil
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return NewClientIdentityRepo(dbm), nil
 }
 
 type clientIdentityRepo struct {
@@ -155,8 +162,9 @@ func (r *clientIdentityRepo) SetDexAdmin(clientID string, isAdmin bool) error {
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback()
 
-	m, err := r.dbMap.Get(clientIdentityModel{}, clientID)
+	m, err := tx.Get(clientIdentityModel{}, clientID)
 	if m == nil || err != nil {
 		rollback(tx)
 		return err
@@ -164,25 +172,17 @@ func (r *clientIdentityRepo) SetDexAdmin(clientID string, isAdmin bool) error {
 
 	cim, ok := m.(*clientIdentityModel)
 	if !ok {
-		rollback(tx)
 		log.Errorf("expected clientIdentityModel but found %v", reflect.TypeOf(m))
 		return errors.New("unrecognized model")
 	}
 
 	cim.DexAdmin = isAdmin
-	_, err = r.dbMap.Update(cim)
+	_, err = tx.Update(cim)
 	if err != nil {
-		rollback(tx)
 		return err
 	}
 
-	err = tx.Commit()
-	if err != nil {
-		rollback(tx)
-		return err
-	}
-
-	return nil
+	return tx.Commit()
 }
 
 func (r *clientIdentityRepo) Authenticate(creds oidc.ClientCredentials) (bool, error) {
@@ -223,8 +223,15 @@ func (r *clientIdentityRepo) New(id string, meta oidc.ClientMetadata) (*oidc.Cli
 	}
 
 	if err := r.dbMap.Insert(cim); err != nil {
-		if perr, ok := err.(*pq.Error); ok && perr.Code == pgErrorCodeUniqueViolation {
-			err = errors.New("client ID already exists")
+		switch sqlErr := err.(type) {
+		case *pq.Error:
+			if sqlErr.Code == pgErrorCodeUniqueViolation {
+				err = errors.New("client ID already exists")
+			}
+		case *sqlite3.Error:
+			if sqlErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+				err = errors.New("client ID already exists")
+			}
 		}
 
 		return nil, err
@@ -239,7 +246,7 @@ func (r *clientIdentityRepo) New(id string, meta oidc.ClientMetadata) (*oidc.Cli
 }
 
 func (r *clientIdentityRepo) All() ([]oidc.ClientIdentity, error) {
-	qt := pq.QuoteIdentifier(clientIdentityTableName)
+	qt := r.dbMap.Dialect.QuotedTableForQuery("", clientIdentityTableName)
 	q := fmt.Sprintf("SELECT * FROM %s", qt)
 	objs, err := r.dbMap.Select(&clientIdentityModel{}, q)
 	if err != nil {

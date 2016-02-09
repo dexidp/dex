@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/go-gorp/gorp"
-	"github.com/lib/pq"
 
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/repo"
@@ -69,7 +68,7 @@ type ConnectorConfigRepo struct {
 }
 
 func (r *ConnectorConfigRepo) All() ([]connector.ConnectorConfig, error) {
-	qt := pq.QuoteIdentifier(connectorConfigTableName)
+	qt := r.dbMap.Dialect.QuotedTableForQuery("", connectorConfigTableName)
 	q := fmt.Sprintf("SELECT * FROM %s", qt)
 	objs, err := r.dbMap.Select(&connectorConfigModel{}, q)
 	if err != nil {
@@ -94,10 +93,10 @@ func (r *ConnectorConfigRepo) All() ([]connector.ConnectorConfig, error) {
 }
 
 func (r *ConnectorConfigRepo) GetConnectorByID(tx repo.Transaction, id string) (connector.ConnectorConfig, error) {
-	qt := pq.QuoteIdentifier(connectorConfigTableName)
+	qt := r.dbMap.Dialect.QuotedTableForQuery("", connectorConfigTableName)
 	q := fmt.Sprintf("SELECT * FROM %s WHERE id = $1", qt)
 	var c connectorConfigModel
-	if err := r.executor(tx).SelectOne(&c, q, id); err != nil {
+	if err := executor(r.dbMap, tx).SelectOne(&c, q, id); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, connector.ErrorNotFound
 		}
@@ -121,28 +120,17 @@ func (r *ConnectorConfigRepo) Set(cfgs []connector.ConnectorConfig) error {
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback()
 
-	qt := pq.QuoteIdentifier(connectorConfigTableName)
+	qt := r.dbMap.Dialect.QuotedTableForQuery("", connectorConfigTableName)
 	q := fmt.Sprintf("DELETE FROM %s", qt)
-	if _, err = r.dbMap.Exec(q); err != nil {
+	if _, err = tx.Exec(q); err != nil {
 		return err
 	}
 
-	if err = r.dbMap.Insert(insert...); err != nil {
+	if err = tx.Insert(insert...); err != nil {
 		return fmt.Errorf("DB insert failed %#v: %v", insert, err)
 	}
 
 	return tx.Commit()
-}
-
-func (r *ConnectorConfigRepo) executor(tx repo.Transaction) gorp.SqlExecutor {
-	if tx == nil {
-		return r.dbMap
-	}
-
-	gorpTx, ok := tx.(*gorp.Transaction)
-	if !ok {
-		panic("wrong kind of transaction passed to a DB repo")
-	}
-	return gorpTx
 }

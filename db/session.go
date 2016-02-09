@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-gorp/gorp"
 	"github.com/jonboulle/clockwork"
-	"github.com/lib/pq"
 
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/session"
@@ -183,9 +182,9 @@ func (r *SessionRepo) Update(s session.Session) error {
 }
 
 func (r *SessionRepo) purge() error {
-	qt := pq.QuoteIdentifier(sessionTableName)
+	qt := r.dbMap.Dialect.QuotedTableForQuery("", sessionTableName)
 	q := fmt.Sprintf("DELETE FROM %s WHERE expires_at < $1 OR state = $2", qt)
-	res, err := r.dbMap.Exec(q, r.clock.Now().Unix(), string(session.SessionStateDead))
+	res, err := executor(r.dbMap, nil).Exec(q, r.clock.Now().Unix(), string(session.SessionStateDead))
 	if err != nil {
 		return err
 	}
