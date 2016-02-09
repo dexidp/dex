@@ -28,6 +28,7 @@ script:
   - docker cp ${LDAPCONTAINER}:container/service/slapd/assets/certs/ldap.crt /tmp/ldap.crt
   - sudo sh -c 'echo "127.0.0.1 tlstest.local" >> /etc/hosts'
   - ./test-functional
+  - DEX_TEST_DSN="sqlite3://:memory:" ./test-functional
 
 deploy:
   provider: script

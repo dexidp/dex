@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -12,8 +11,6 @@ import (
 	"github.com/coreos/dex/user"
 )
 
-var makeTestPasswordInfoRepo func() user.PasswordInfoRepo
-
 var (
 	testPWs = []user.PasswordInfo{
 		{
@@ -23,30 +20,16 @@ var (
 	}
 )
 
-func init() {
-	dsn := os.Getenv("DEX_TEST_DSN")
-	if dsn == "" {
-		makeTestPasswordInfoRepo = makeTestPasswordInfoRepoMem
-	} else {
-		makeTestPasswordInfoRepo = makeTestPasswordInfoRepoDB(dsn)
+func newPasswordInfoRepo(t *testing.T) user.PasswordInfoRepo {
+	if os.Getenv("DEX_TEST_DSN") == "" {
+		return user.NewPasswordInfoRepoFromPasswordInfos(testPWs)
 	}
-}
-
-func makeTestPasswordInfoRepoMem() user.PasswordInfoRepo {
-	return user.NewPasswordInfoRepoFromPasswordInfos(testPWs)
-}
-
-func makeTestPasswordInfoRepoDB(dsn string) func() user.PasswordInfoRepo {
-	return func() user.PasswordInfoRepo {
-		c := initDB(dsn)
-
-		repo := db.NewPasswordInfoRepo(c)
-		err := user.LoadPasswordInfos(repo, testPWs)
-		if err != nil {
-			panic(fmt.Sprintf("Unable to add passwordInfos: %v", err))
-		}
-		return repo
+	dbMap := connect(t)
+	repo := db.NewPasswordInfoRepo(dbMap)
+	if err := user.LoadPasswordInfos(repo, testPWs); err != nil {
+		t.Fatalf("Unable to add password infos: %v", err)
 	}
+	return repo
 }
 
 func TestCreatePasswordInfo(t *testing.T) {
@@ -87,7 +70,7 @@ func TestCreatePasswordInfo(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestPasswordInfoRepo()
+		repo := newPasswordInfoRepo(t)
 		err := repo.Create(nil, tt.pw)
 		if tt.err != nil {
 			if err != tt.err {
@@ -142,7 +125,7 @@ func TestUpdatePasswordInfo(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestPasswordInfoRepo()
+		repo := newPasswordInfoRepo(t)
 		err := repo.Update(nil, tt.pw)
 		if tt.err != nil {
 			if err != tt.err {

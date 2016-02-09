@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
@@ -9,28 +8,16 @@ import (
 	"github.com/coreos/dex/db"
 )
 
-type connectorConfigRepoFactory func(cfgs []connector.ConnectorConfig) connector.ConnectorConfigRepo
-
-var makeTestConnectorConfigRepoFromConfigs connectorConfigRepoFactory
-
-func init() {
-	if dsn := os.Getenv("DEX_TEST_DSN"); dsn == "" {
-		makeTestConnectorConfigRepoFromConfigs = connector.NewConnectorConfigRepoFromConfigs
-	} else {
-		makeTestConnectorConfigRepoFromConfigs = makeTestConnectorConfigRepoMem(dsn)
+func newConnectorConfigRepo(t *testing.T, configs []connector.ConnectorConfig) connector.ConnectorConfigRepo {
+	if os.Getenv("DEX_TEST_DSN") == "" {
+		return connector.NewConnectorConfigRepoFromConfigs(configs)
 	}
-}
-
-func makeTestConnectorConfigRepoMem(dsn string) connectorConfigRepoFactory {
-	return func(cfgs []connector.ConnectorConfig) connector.ConnectorConfigRepo {
-		dbMap := initDB(dsn)
-
-		repo := db.NewConnectorConfigRepo(dbMap)
-		if err := repo.Set(cfgs); err != nil {
-			panic(fmt.Sprintf("Unable to set connector configs: %v", err))
-		}
-		return repo
+	dbMap := connect(t)
+	repo := db.NewConnectorConfigRepo(dbMap)
+	if err := repo.Set(configs); err != nil {
+		t.Fatalf("Unable to set connector configs: %v", err)
 	}
+	return repo
 }
 
 func TestConnectorConfigRepoGetByID(t *testing.T) {
@@ -63,7 +50,7 @@ func TestConnectorConfigRepoGetByID(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestConnectorConfigRepoFromConfigs(tt.cfgs)
+		repo := newConnectorConfigRepo(t, tt.cfgs)
 		if _, err := repo.GetConnectorByID(nil, tt.id); err != tt.err {
 			t.Errorf("case %d: want=%v, got=%v", i, tt.err, err)
 		}

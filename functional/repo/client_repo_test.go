@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"fmt"
 	"net/url"
 	"os"
 	"testing"
@@ -11,8 +10,6 @@ import (
 	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/db"
 )
-
-var makeTestClientIdentityRepoFromClients func(clients []oidc.ClientIdentity) client.ClientIdentityRepo
 
 var (
 	testClients = []oidc.ClientIdentity{
@@ -47,34 +44,17 @@ var (
 	}
 )
 
-func init() {
+func newClientIdentityRepo(t *testing.T) client.ClientIdentityRepo {
 	dsn := os.Getenv("DEX_TEST_DSN")
 	if dsn == "" {
-		makeTestClientIdentityRepoFromClients = makeTestClientIdentityRepoMem
-	} else {
-		makeTestClientIdentityRepoFromClients = makeTestClientIdentityRepoDB(dsn)
+		return client.NewClientIdentityRepo(testClients)
 	}
-}
-
-func makeTestClientIdentityRepoMem(clients []oidc.ClientIdentity) client.ClientIdentityRepo {
-	return client.NewClientIdentityRepo(clients)
-}
-
-func makeTestClientIdentityRepoDB(dsn string) func([]oidc.ClientIdentity) client.ClientIdentityRepo {
-	return func(clients []oidc.ClientIdentity) client.ClientIdentityRepo {
-		c := initDB(dsn)
-
-		repo, err := db.NewClientIdentityRepoFromClients(c, clients)
-		if err != nil {
-			panic(fmt.Sprintf("Unable to add clients: %v", err))
-		}
-		return repo
+	dbMap := connect(t)
+	repo, err := db.NewClientIdentityRepoFromClients(dbMap, testClients)
+	if err != nil {
+		t.Fatalf("failed to create client repo from clients: %v", err)
 	}
-
-}
-
-func makeTestClientIdentityRepo() client.ClientIdentityRepo {
-	return makeTestClientIdentityRepoFromClients(testClients)
+	return repo
 }
 
 func TestGetSetAdminClient(t *testing.T) {
@@ -113,12 +93,14 @@ func TestGetSetAdminClient(t *testing.T) {
 		},
 	}
 
+Tests:
 	for i, tt := range tests {
-		repo := makeTestClientIdentityRepo()
+		repo := newClientIdentityRepo(t)
 		for _, cid := range startAdmins {
 			err := repo.SetDexAdmin(cid, true)
 			if err != nil {
-				t.Fatalf("case %d: unexpected error: %v", i, err)
+				t.Errorf("case %d: failed to set dex admin: %v", i, err)
+				continue Tests
 			}
 		}
 
@@ -130,7 +112,7 @@ func TestGetSetAdminClient(t *testing.T) {
 			continue
 		}
 		if err != nil {
-			t.Fatalf("case %d: unexpected error: %v", i, err)
+			t.Errorf("case %d: unexpected error: %v", i, err)
 		}
 		if gotAdmin != tt.wantAdmin {
 			t.Errorf("case %d: want=%v, got=%v", i, tt.wantAdmin, gotAdmin)
@@ -138,12 +120,12 @@ func TestGetSetAdminClient(t *testing.T) {
 
 		err = repo.SetDexAdmin(tt.cid, tt.setAdmin)
 		if err != nil {
-			t.Fatalf("case %d: unexpected error: %v", i, err)
+			t.Errorf("case %d: unexpected error: %v", i, err)
 		}
 
 		gotAdmin, err = repo.IsDexAdmin(tt.cid)
 		if err != nil {
-			t.Fatalf("case %d: unexpected error: %v", i, err)
+			t.Errorf("case %d: unexpected error: %v", i, err)
 		}
 		if gotAdmin != tt.setAdmin {
 			t.Errorf("case %d: want=%v, got=%v", i, tt.setAdmin, gotAdmin)

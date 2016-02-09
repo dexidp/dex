@@ -12,48 +12,26 @@ import (
 	"github.com/coreos/dex/session"
 )
 
-var makeTestSessionRepo func() (session.SessionRepo, clockwork.FakeClock)
-var makeTestSessionKeyRepo func() (session.SessionKeyRepo, clockwork.FakeClock)
-
-func init() {
-	dsn := os.Getenv("DEX_TEST_DSN")
-	if dsn == "" {
-		makeTestSessionRepo = makeTestSessionRepoMem
-		makeTestSessionKeyRepo = makeTestSessionKeyRepoMem
-	} else {
-		makeTestSessionRepo = makeTestSessionRepoDB(dsn)
-		makeTestSessionKeyRepo = makeTestSessionKeyRepoDB(dsn)
+func newSessionRepo(t *testing.T) (session.SessionRepo, clockwork.FakeClock) {
+	clock := clockwork.NewFakeClock()
+	if os.Getenv("DEX_TEST_DSN") == "" {
+		return session.NewSessionRepoWithClock(clock), clock
 	}
+	dbMap := connect(t)
+	return db.NewSessionRepoWithClock(dbMap, clock), clock
 }
 
-func makeTestSessionRepoMem() (session.SessionRepo, clockwork.FakeClock) {
-	fc := clockwork.NewFakeClock()
-	return session.NewSessionRepoWithClock(fc), fc
-}
-
-func makeTestSessionRepoDB(dsn string) func() (session.SessionRepo, clockwork.FakeClock) {
-	return func() (session.SessionRepo, clockwork.FakeClock) {
-		c := initDB(dsn)
-		fc := clockwork.NewFakeClock()
-		return db.NewSessionRepoWithClock(c, fc), fc
+func newSessionKeyRepo(t *testing.T) (session.SessionKeyRepo, clockwork.FakeClock) {
+	clock := clockwork.NewFakeClock()
+	if os.Getenv("DEX_TEST_DSN") == "" {
+		return session.NewSessionKeyRepoWithClock(clock), clock
 	}
-}
-
-func makeTestSessionKeyRepoMem() (session.SessionKeyRepo, clockwork.FakeClock) {
-	fc := clockwork.NewFakeClock()
-	return session.NewSessionKeyRepoWithClock(fc), fc
-}
-
-func makeTestSessionKeyRepoDB(dsn string) func() (session.SessionKeyRepo, clockwork.FakeClock) {
-	return func() (session.SessionKeyRepo, clockwork.FakeClock) {
-		c := initDB(dsn)
-		fc := clockwork.NewFakeClock()
-		return db.NewSessionKeyRepoWithClock(c, fc), fc
-	}
+	dbMap := connect(t)
+	return db.NewSessionKeyRepoWithClock(dbMap, clock), clock
 }
 
 func TestSessionKeyRepoPopNoExist(t *testing.T) {
-	r, _ := makeTestSessionKeyRepo()
+	r, _ := newSessionKeyRepo(t)
 
 	_, err := r.Pop("123")
 	if err == nil {
@@ -62,7 +40,7 @@ func TestSessionKeyRepoPopNoExist(t *testing.T) {
 }
 
 func TestSessionKeyRepoPushPop(t *testing.T) {
-	r, _ := makeTestSessionKeyRepo()
+	r, _ := newSessionKeyRepo(t)
 
 	key := "123"
 	sessionID := "456"
@@ -80,7 +58,7 @@ func TestSessionKeyRepoPushPop(t *testing.T) {
 }
 
 func TestSessionKeyRepoExpired(t *testing.T) {
-	r, fc := makeTestSessionKeyRepo()
+	r, fc := newSessionKeyRepo(t)
 
 	key := "123"
 	sessionID := "456"
@@ -96,7 +74,7 @@ func TestSessionKeyRepoExpired(t *testing.T) {
 }
 
 func TestSessionRepoGetNoExist(t *testing.T) {
-	r, _ := makeTestSessionRepo()
+	r, _ := newSessionRepo(t)
 
 	ses, err := r.Get("123")
 	if ses != nil {
@@ -129,7 +107,7 @@ func TestSessionRepoCreateGet(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		r, _ := makeTestSessionRepo()
+		r, _ := newSessionRepo(t)
 
 		r.Create(tt)
 
@@ -166,7 +144,7 @@ func TestSessionRepoCreateUpdate(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		r, _ := makeTestSessionRepo()
+		r, _ := newSessionRepo(t)
 		r.Create(tt.initial)
 
 		ses, _ := r.Get(tt.initial.ID)
@@ -186,7 +164,7 @@ func TestSessionRepoCreateUpdate(t *testing.T) {
 }
 
 func TestSessionRepoUpdateNoExist(t *testing.T) {
-	r, _ := makeTestSessionRepo()
+	r, _ := newSessionRepo(t)
 
 	err := r.Update(session.Session{ID: "123", ClientState: "boom"})
 	if err == nil {

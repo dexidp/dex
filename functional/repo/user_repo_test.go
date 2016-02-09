@@ -13,8 +13,6 @@ import (
 	"github.com/coreos/dex/user"
 )
 
-var makeTestUserRepoFromUsers func(users []user.UserWithRemoteIdentities) user.UserRepo
-
 var (
 	testUsers = []user.UserWithRemoteIdentities{
 		{
@@ -47,34 +45,19 @@ var (
 	}
 )
 
-func init() {
-	dsn := os.Getenv("DEX_TEST_DSN")
-	if dsn == "" {
-		makeTestUserRepoFromUsers = makeTestUserRepoMem
-	} else {
-		makeTestUserRepoFromUsers = makeTestUserRepoDB(dsn)
+func newUserRepo(t *testing.T, users []user.UserWithRemoteIdentities) user.UserRepo {
+	if users == nil {
+		users = []user.UserWithRemoteIdentities{}
 	}
-}
-
-func makeTestUserRepoMem(users []user.UserWithRemoteIdentities) user.UserRepo {
-	return user.NewUserRepoFromUsers(users)
-}
-
-func makeTestUserRepoDB(dsn string) func([]user.UserWithRemoteIdentities) user.UserRepo {
-	return func(users []user.UserWithRemoteIdentities) user.UserRepo {
-		c := initDB(dsn)
-
-		repo, err := db.NewUserRepoFromUsers(c, users)
-		if err != nil {
-			panic(fmt.Sprintf("Unable to add users: %v", err))
-		}
-		return repo
+	if os.Getenv("DEX_TEST_DSN") == "" {
+		return user.NewUserRepoFromUsers(users)
 	}
-
-}
-
-func makeTestUserRepo() user.UserRepo {
-	return makeTestUserRepoFromUsers(testUsers)
+	dbMap := connect(t)
+	repo, err := db.NewUserRepoFromUsers(dbMap, users)
+	if err != nil {
+		t.Fatalf("Unable to add users: %v", err)
+	}
+	return repo
 }
 
 func TestNewUser(t *testing.T) {
@@ -137,7 +120,7 @@ func TestNewUser(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestUserRepo()
+		repo := newUserRepo(t, testUsers)
 		err := repo.Create(nil, tt.user)
 		if tt.err != nil {
 			if err != tt.err {
@@ -209,7 +192,7 @@ func TestUpdateUser(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestUserRepo()
+		repo := newUserRepo(t, testUsers)
 		err := repo.Update(nil, tt.user)
 		if tt.err != nil {
 			if err != tt.err {
@@ -269,7 +252,7 @@ func TestDisableUser(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestUserRepo()
+		repo := newUserRepo(t, testUsers)
 		err := repo.Disable(nil, tt.id, tt.disable)
 		switch {
 		case err != tt.err:
@@ -320,7 +303,7 @@ func TestAttachRemoteIdentity(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestUserRepo()
+		repo := newUserRepo(t, testUsers)
 		err := repo.AddRemoteIdentity(nil, tt.id, tt.rid)
 		if tt.err != nil {
 			if err != tt.err {
@@ -390,7 +373,7 @@ func TestRemoveRemoteIdentity(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestUserRepo()
+		repo := newUserRepo(t, testUsers)
 		err := repo.RemoveRemoteIdentity(nil, tt.id, tt.rid)
 		if tt.err != nil {
 			if err != tt.err {
@@ -502,7 +485,7 @@ func TestGetByEmail(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestUserRepo()
+		repo := newUserRepo(t, testUsers)
 		gotUser, gotErr := repo.GetByEmail(nil, tt.email)
 		if tt.wantErr != nil {
 			if tt.wantErr != gotErr {
@@ -566,7 +549,7 @@ func TestGetAdminCount(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestUserRepo()
+		repo := newUserRepo(t, testUsers)
 		for _, addUser := range tt.addUsers {
 			err := repo.Create(nil, addUser)
 			if err != nil {
@@ -621,7 +604,7 @@ func TestList(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestUserRepoFromUsers(repoUsers)
+		repo := newUserRepo(t, repoUsers)
 		var tok string
 		gotIDs := [][]string{}
 		done := false
@@ -651,7 +634,7 @@ func TestList(t *testing.T) {
 }
 
 func TestListErrorNotFound(t *testing.T) {
-	repo := makeTestUserRepoFromUsers(nil)
+	repo := newUserRepo(t, nil)
 	_, _, err := repo.List(nil, user.UserFilter{}, 10, "")
 	if err != user.ErrorNotFound {
 		t.Errorf("want=%q, got=%q", user.ErrorNotFound, err)
