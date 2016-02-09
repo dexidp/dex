@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 	"google.golang.org/api/googleapi"
 
 	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/db"
 	schema "github.com/coreos/dex/schema/workerschema"
 	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/user"
@@ -97,30 +99,36 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 
 	_, _, um := makeUserObjects(userUsers, userPasswords)
 
-	cir := client.NewClientIdentityRepo([]oidc.ClientIdentity{
-		oidc.ClientIdentity{
-			Credentials: oidc.ClientCredentials{
-				ID:     testClientID,
-				Secret: testClientSecret,
-			},
-			Metadata: oidc.ClientMetadata{
-				RedirectURIs: []url.URL{
-					testRedirectURL,
+	cir := func() client.ClientIdentityRepo {
+		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
+			oidc.ClientIdentity{
+				Credentials: oidc.ClientCredentials{
+					ID:     testClientID,
+					Secret: testClientSecret,
+				},
+				Metadata: oidc.ClientMetadata{
+					RedirectURIs: []url.URL{
+						testRedirectURL,
+					},
 				},
 			},
-		},
-		oidc.ClientIdentity{
-			Credentials: oidc.ClientCredentials{
-				ID:     userBadClientID,
-				Secret: "secret",
-			},
-			Metadata: oidc.ClientMetadata{
-				RedirectURIs: []url.URL{
-					testRedirectURL,
+			oidc.ClientIdentity{
+				Credentials: oidc.ClientCredentials{
+					ID:     userBadClientID,
+					Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
+				},
+				Metadata: oidc.ClientMetadata{
+					RedirectURIs: []url.URL{
+						testRedirectURL,
+					},
 				},
 			},
-		},
-	})
+		})
+		if err != nil {
+			panic("Failed to create client identity repo: " + err.Error())
+		}
+		return repo
+	}()
 
 	cir.SetDexAdmin(testClientID, true)
 

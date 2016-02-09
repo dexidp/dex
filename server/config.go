@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/key"
+	"github.com/coreos/go-oidc/oidc"
 	"github.com/coreos/pkg/health"
 
-	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/email"
@@ -113,9 +113,13 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 		return fmt.Errorf("unable to read clients from file %s: %v", cfg.ClientsFile, err)
 	}
 	defer cf.Close()
-	ciRepo, err := client.NewClientIdentityRepoFromReader(cf)
-	if err != nil {
+	var clients []oidc.ClientIdentity
+	if err := json.NewDecoder(cf).Decode(&clients); err != nil {
 		return fmt.Errorf("unable to read client identities from file %s: %v", cfg.ClientsFile, err)
+	}
+	ciRepo, err := db.NewClientIdentityRepoFromClients(dbMap, clients)
+	if err != nil {
+		return fmt.Errorf("failed to create client identity repo: %v", err)
 	}
 
 	f, err := os.Open(cfg.ConnectorsFile)

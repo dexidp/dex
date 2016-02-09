@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"time"
@@ -24,9 +25,8 @@ const (
 )
 
 var (
-	testIssuerURL    = url.URL{Scheme: "http", Host: "server.example.com"}
-	testClientID     = "XXX"
-	testClientSecret = "secrete"
+	testIssuerURL = url.URL{Scheme: "http", Host: "server.example.com"}
+	testClientID  = "XXX"
 
 	testRedirectURL = url.URL{Scheme: "http", Host: "client.example.com", Path: "/callback"}
 
@@ -133,11 +133,11 @@ func makeTestFixtures() (*testFixtures, error) {
 		return nil, err
 	}
 
-	clientIdentityRepo := client.NewClientIdentityRepo([]oidc.ClientIdentity{
+	clientIdentityRepo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
 		oidc.ClientIdentity{
 			Credentials: oidc.ClientCredentials{
 				ID:     "XXX",
-				Secret: testClientSecret,
+				Secret: base64.URLEncoding.EncodeToString([]byte("secrete")),
 			},
 			Metadata: oidc.ClientMetadata{
 				RedirectURIs: []url.URL{
@@ -146,6 +146,9 @@ func makeTestFixtures() (*testFixtures, error) {
 			},
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	km := key.NewPrivateKeyManager()
 	err = km.Set(key.NewPrivateKeySet([]*key.PrivateKey{testPrivKey}, time.Now().Add(time.Minute)))

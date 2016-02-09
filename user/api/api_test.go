@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"net/url"
 	"testing"
 	"time"
@@ -148,7 +149,7 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 	ci := oidc.ClientIdentity{
 		Credentials: oidc.ClientCredentials{
 			ID:     "XXX",
-			Secret: "secrete",
+			Secret: base64.URLEncoding.EncodeToString([]byte("secrete")),
 		},
 		Metadata: oidc.ClientMetadata{
 			RedirectURIs: []url.URL{
@@ -156,7 +157,13 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 			},
 		},
 	}
-	cir := client.NewClientIdentityRepo([]oidc.ClientIdentity{ci})
+	cir := func() client.ClientIdentityRepo {
+		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{ci})
+		if err != nil {
+			panic("Failed to create client identity repo: " + err.Error())
+		}
+		return repo
+	}()
 
 	emailer := &testEmailer{}
 	api := NewUsersAPI(mgr, cir, emailer, "local")

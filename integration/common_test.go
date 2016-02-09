@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -21,7 +22,7 @@ var (
 
 	testIssuerURL        = url.URL{Scheme: "https", Host: "auth.example.com"}
 	testClientID         = "XXX"
-	testClientSecret     = "yyy"
+	testClientSecret     = base64.URLEncoding.EncodeToString([]byte("yyy"))
 	testRedirectURL      = url.URL{Scheme: "https", Host: "client.example.com", Path: "/redirect"}
 	testResetPasswordURL = url.URL{Scheme: "https", Host: "auth.example.com", Path: "/resetPassword"}
 	testPrivKey, _       = key.GeneratePrivateKey()

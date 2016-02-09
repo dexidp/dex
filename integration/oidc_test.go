@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"encoding/base64"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -8,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	phttp "github.com/coreos/dex/pkg/http"
@@ -23,6 +23,7 @@ import (
 )
 
 func mockServer(cis []oidc.ClientIdentity) (*server.Server, error) {
+	dbMap := db.NewMemDB()
 	k, err := key.GeneratePrivateKey()
 	if err != nil {
 		return nil, fmt.Errorf("Unable to generate private key: %v", err)
@@ -33,12 +34,16 @@ func mockServer(cis []oidc.ClientIdentity) (*server.Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	clientIdentityRepo, err := db.NewClientIdentityRepoFromClients(dbMap, cis)
+	if err != nil {
+		return nil, err
+	}
 
-	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
+	sm := manager.NewSessionManager(db.NewSessionRepo(dbMap), db.NewSessionKeyRepo(dbMap))
 	srv := &server.Server{
 		IssuerURL:          url.URL{Scheme: "http", Host: "server.example.com"},
 		KeyManager:         km,
-		ClientIdentityRepo: client.NewClientIdentityRepo(cis),
+		ClientIdentityRepo: clientIdentityRepo,
 		SessionManager:     sm,
 	}
 
@@ -114,14 +119,18 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 	ci := oidc.ClientIdentity{
 		Credentials: oidc.ClientCredentials{
 			ID:     "72de74a9",
-			Secret: "XXX",
+			Secret: base64.URLEncoding.EncodeToString([]byte("XXX")),
 		},
 	}
 
-	cir := client.NewClientIdentityRepo([]oidc.ClientIdentity{ci})
+	dbMap := db.NewMemDB()
+	cir, err := db.NewClientIdentityRepoFromClients(dbMap, []oidc.ClientIdentity{ci})
+	if err != nil {
+		t.Fatalf("Failed to create client identity repo: " + err.Error())
+	}
 
 	issuerURL := url.URL{Scheme: "http", Host: "server.example.com"}
-	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
+	sm := manager.NewSessionManager(db.NewSessionRepo(dbMap), db.NewSessionKeyRepo(dbMap))
 
 	k, err := key.GeneratePrivateKey()
 	if err != nil {
@@ -253,7 +262,7 @@ func TestHTTPClientCredsToken(t *testing.T) {
 	ci := oidc.ClientIdentity{
 		Credentials: oidc.ClientCredentials{
 			ID:     "72de74a9",
-			Secret: "XXX",
+			Secret: base64.URLEncoding.EncodeToString([]byte("XXX")),
 		},
 	}
 	cis := []oidc.ClientIdentity{ci}

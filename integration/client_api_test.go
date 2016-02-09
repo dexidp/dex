@@ -1,7 +1,9 @@
 package integration
 
 import (
+	"encoding/base64"
 	"net/http"
+	"net/url"
 	"reflect"
 	"testing"
 
@@ -13,7 +15,12 @@ func TestClientCreate(t *testing.T) {
 	ci := oidc.ClientIdentity{
 		Credentials: oidc.ClientCredentials{
 			ID:     "72de74a9",
-			Secret: "XXX",
+			Secret: base64.URLEncoding.EncodeToString([]byte("XXX")),
+		},
+		Metadata: oidc.ClientMetadata{
+			RedirectURIs: []url.URL{
+				{Scheme: "https://", Host: "authn.example.com", Path: "/callback"},
+			},
 		},
 	}
 	cis := []oidc.ClientIdentity{ci}
@@ -54,7 +61,7 @@ func TestClientCreate(t *testing.T) {
 	call := svc.Clients.Create(newClientInput)
 	newClient, err := call.Do()
 	if err != nil {
-		t.Errorf("Call to create client API failed: %v", err)
+		t.Fatalf("Call to create client API failed: %v", err)
 	}
 
 	if newClient.Id == "" {

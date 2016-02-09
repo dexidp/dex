@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -77,19 +78,25 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 	srv := &Server{
 		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
 		SessionManager: manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB())),
-		ClientIdentityRepo: client.NewClientIdentityRepo([]oidc.ClientIdentity{
-			oidc.ClientIdentity{
-				Credentials: oidc.ClientCredentials{
-					ID:     "XXX",
-					Secret: "secrete",
-				},
-				Metadata: oidc.ClientMetadata{
-					RedirectURIs: []url.URL{
-						url.URL{Scheme: "http", Host: "client.example.com", Path: "/callback"},
+		ClientIdentityRepo: func() client.ClientIdentityRepo {
+			repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
+				oidc.ClientIdentity{
+					Credentials: oidc.ClientCredentials{
+						ID:     "XXX",
+						Secret: base64.URLEncoding.EncodeToString([]byte("secrete")),
+					},
+					Metadata: oidc.ClientMetadata{
+						RedirectURIs: []url.URL{
+							url.URL{Scheme: "http", Host: "client.example.com", Path: "/callback"},
+						},
 					},
 				},
-			},
-		}),
+			})
+			if err != nil {
+				t.Fatalf("Failed to create client identity repo: %v", err)
+			}
+			return repo
+		}(),
 	}
 
 	tests := []struct {
@@ -200,20 +207,26 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 	srv := &Server{
 		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
 		SessionManager: manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB())),
-		ClientIdentityRepo: client.NewClientIdentityRepo([]oidc.ClientIdentity{
-			oidc.ClientIdentity{
-				Credentials: oidc.ClientCredentials{
-					ID:     "XXX",
-					Secret: "secrete",
-				},
-				Metadata: oidc.ClientMetadata{
-					RedirectURIs: []url.URL{
-						url.URL{Scheme: "http", Host: "foo.example.com", Path: "/callback"},
-						url.URL{Scheme: "http", Host: "bar.example.com", Path: "/callback"},
+		ClientIdentityRepo: func() client.ClientIdentityRepo {
+			repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
+				oidc.ClientIdentity{
+					Credentials: oidc.ClientCredentials{
+						ID:     "XXX",
+						Secret: base64.URLEncoding.EncodeToString([]byte("secrete")),
+					},
+					Metadata: oidc.ClientMetadata{
+						RedirectURIs: []url.URL{
+							url.URL{Scheme: "http", Host: "foo.example.com", Path: "/callback"},
+							url.URL{Scheme: "http", Host: "bar.example.com", Path: "/callback"},
+						},
 					},
 				},
-			},
-		}),
+			})
+			if err != nil {
+				t.Fatalf("Failed to create client identity repo: %v", err)
+			}
+			return repo
+		}(),
 	}
 
 	tests := []struct {

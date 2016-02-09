@@ -1,13 +1,16 @@
 package server
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/db"
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/key"
 	"github.com/coreos/go-oidc/oidc"
@@ -25,10 +28,19 @@ func TestClientToken(t *testing.T) {
 	validClientID := "valid-client"
 	ci := oidc.ClientIdentity{
 		Credentials: oidc.ClientCredentials{
-			ID: validClientID,
+			ID:     validClientID,
+			Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
+		},
+		Metadata: oidc.ClientMetadata{
+			RedirectURIs: []url.URL{
+				{Scheme: "https", Host: "authn.example.com", Path: "/callback"},
+			},
 		},
 	}
-	repo := client.NewClientIdentityRepo([]oidc.ClientIdentity{ci})
+	repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{ci})
+	if err != nil {
+		t.Fatalf("Failed to create client identity repo: %v", err)
+	}
 
 	privKey, err := key.GeneratePrivateKey()
 	if err != nil {
@@ -102,7 +114,7 @@ func TestClientToken(t *testing.T) {
 		// empty repo
 		{
 			keys:     []key.PublicKey{pubKey},
-			repo:     client.NewClientIdentityRepo(nil),
+			repo:     db.NewClientIdentityRepo(db.NewMemDB()),
 			header:   fmt.Sprintf("BEARER %s", validJWT),
 			wantCode: http.StatusUnauthorized,
 		},

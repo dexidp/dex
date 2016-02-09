@@ -1,11 +1,13 @@
 package repo
 
 import (
+	"encoding/base64"
 	"net/url"
 	"os"
 	"testing"
 
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/go-gorp/gorp"
 
 	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/db"
@@ -16,7 +18,7 @@ var (
 		oidc.ClientIdentity{
 			Credentials: oidc.ClientCredentials{
 				ID:     "client1",
-				Secret: "secret-1",
+				Secret: base64.URLEncoding.EncodeToString([]byte("secret-1")),
 			},
 			Metadata: oidc.ClientMetadata{
 				RedirectURIs: []url.URL{
@@ -30,7 +32,7 @@ var (
 		oidc.ClientIdentity{
 			Credentials: oidc.ClientCredentials{
 				ID:     "client2",
-				Secret: "secret-2",
+				Secret: base64.URLEncoding.EncodeToString([]byte("secret-2")),
 			},
 			Metadata: oidc.ClientMetadata{
 				RedirectURIs: []url.URL{
@@ -46,10 +48,12 @@ var (
 
 func newClientIdentityRepo(t *testing.T) client.ClientIdentityRepo {
 	dsn := os.Getenv("DEX_TEST_DSN")
+	var dbMap *gorp.DbMap
 	if dsn == "" {
-		return client.NewClientIdentityRepo(testClients)
+		dbMap = db.NewMemDB()
+	} else {
+		dbMap = connect(t)
 	}
-	dbMap := connect(t)
 	repo, err := db.NewClientIdentityRepoFromClients(dbMap, testClients)
 	if err != nil {
 		t.Fatalf("failed to create client repo from clients: %v", err)
