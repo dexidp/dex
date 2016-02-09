@@ -38,6 +38,16 @@ func NewPasswordInfoRepo(dbm *gorp.DbMap) user.PasswordInfoRepo {
 	}
 }
 
+func NewPasswordInfoRepoFromPasswordInfos(dbm *gorp.DbMap, infos []user.PasswordInfo) (user.PasswordInfoRepo, error) {
+	repo := NewPasswordInfoRepo(dbm)
+	for _, info := range infos {
+		if err := repo.Create(nil, info); err != nil {
+			return nil, err
+		}
+	}
+	return repo, nil
+}
+
 type passwordInfoRepo struct {
 	dbMap *gorp.DbMap
 }

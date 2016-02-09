@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-gorp/gorp"
 	"github.com/kylelemons/godebug/pretty"
 
 	"github.com/coreos/dex/db"
@@ -21,12 +22,14 @@ var (
 )
 
 func newPasswordInfoRepo(t *testing.T) user.PasswordInfoRepo {
+	var dbMap *gorp.DbMap
 	if os.Getenv("DEX_TEST_DSN") == "" {
-		return user.NewPasswordInfoRepoFromPasswordInfos(testPWs)
+		dbMap = db.NewMemDB()
+	} else {
+		dbMap = connect(t)
 	}
-	dbMap := connect(t)
-	repo := db.NewPasswordInfoRepo(dbMap)
-	if err := user.LoadPasswordInfos(repo, testPWs); err != nil {
+	repo, err := db.NewPasswordInfoRepoFromPasswordInfos(dbMap, testPWs)
+	if err != nil {
 		t.Fatalf("Unable to add password infos: %v", err)
 	}
 	return repo

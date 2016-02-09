@@ -60,16 +60,23 @@ func makeTestFixtures() *testFixtures {
 		return repo
 	}()
 
-	f.pwr = user.NewPasswordInfoRepoFromPasswordInfos([]user.PasswordInfo{
-		{
-			UserID:   "ID-1",
-			Password: []byte("password-1"),
-		},
-		{
-			UserID:   "ID-2",
-			Password: []byte("password-2"),
-		},
-	})
+	f.pwr = func() user.PasswordInfoRepo {
+		repo, err := db.NewPasswordInfoRepoFromPasswordInfos(dbMap, []user.PasswordInfo{
+			{
+				UserID:   "ID-1",
+				Password: []byte("password-1"),
+			},
+			{
+				UserID:   "ID-2",
+				Password: []byte("password-2"),
+			},
+		})
+		if err != nil {
+			panic("Failed to create user repo: " + err.Error())
+		}
+		return repo
+	}()
+
 	f.ccr = connector.NewConnectorConfigRepoFromConfigs([]connector.ConnectorConfig{
 		&connector.LocalConnectorConfig{ID: "local"},
 	})
@@ -215,18 +222,22 @@ func TestRegisterWithPassword(t *testing.T) {
 		}
 		if diff := pretty.Compare(usr, ridUSR); diff != "" {
 			t.Errorf("case %d: Compare(want, got) = %v", i, diff)
+			continue
 		}
 
 		pwi, err := f.pwr.Get(nil, userID)
 		if err != nil {
 			t.Errorf("case %d: err != nil: %q", i, err)
+			continue
 		}
 		ident, err := pwi.Authenticate(tt.plaintext)
 		if err != nil {
 			t.Errorf("case %d: err != nil: %q", i, err)
+			continue
 		}
 		if ident.ID != userID {
 			t.Errorf("case %d: ident.ID: want=%q, got=%q", i, userID, ident.ID)
+			continue
 		}
 
 		_, err = pwi.Authenticate(tt.plaintext + "WRONG")

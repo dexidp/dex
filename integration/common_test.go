@@ -53,7 +53,13 @@ func makeUserObjects(users []user.UserWithRemoteIdentities, passwords []user.Pas
 		}
 		return repo
 	}()
-	pwr := user.NewPasswordInfoRepoFromPasswordInfos(passwords)
+	pwr := func() user.PasswordInfoRepo {
+		repo, err := db.NewPasswordInfoRepoFromPasswordInfos(dbMap, passwords)
+		if err != nil {
+			panic("Failed to create password info repo: " + err.Error())
+		}
+		return repo
+	}()
 
 	ccr := connector.NewConnectorConfigRepoFromConfigs(
 		[]connector.ConnectorConfig{&connector.LocalConnectorConfig{ID: "local"}},

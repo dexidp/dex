@@ -142,7 +142,7 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 		return err
 	}
 
-	pwiRepo := user.NewPasswordInfoRepo()
+	pwiRepo := db.NewPasswordInfoRepo(dbMap)
 
 	refTokRepo := db.NewRefreshTokenRepo(dbMap)
 

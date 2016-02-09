@@ -95,7 +95,10 @@ func makeTestFixtures() (*testFixtures, error) {
 	if err != nil {
 		return nil, err
 	}
-	pwRepo := user.NewPasswordInfoRepoFromPasswordInfos(testPasswordInfos)
+	pwRepo, err := db.NewPasswordInfoRepoFromPasswordInfos(dbMap, testPasswordInfos)
+	if err != nil {
+		return nil, err
+	}
 
 	connConfigs := []connector.ConnectorConfig{
 		&connector.OIDCConnectorConfig{

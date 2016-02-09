@@ -144,7 +144,7 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	passwordInfoRepo := user.NewPasswordInfoRepo()
+	passwordInfoRepo := db.NewPasswordInfoRepo(db.NewMemDB())
 	refreshTokenRepo := refreshtest.NewTestRefreshTokenRepo()
 
 	srv := &server.Server{

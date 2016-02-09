@@ -123,16 +123,23 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 		return repo
 	}()
 
-	pwr := user.NewPasswordInfoRepoFromPasswordInfos([]user.PasswordInfo{
-		{
-			UserID:   "ID-1",
-			Password: []byte("password-1"),
-		},
-		{
-			UserID:   "ID-2",
-			Password: []byte("password-2"),
-		},
-	})
+	pwr := func() user.PasswordInfoRepo {
+		repo, err := db.NewPasswordInfoRepoFromPasswordInfos(dbMap, []user.PasswordInfo{
+			{
+				UserID:   "ID-1",
+				Password: []byte("password-1"),
+			},
+			{
+				UserID:   "ID-2",
+				Password: []byte("password-2"),
+			},
+		})
+		if err != nil {
+			panic("Failed to create user repo: " + err.Error())
+		}
+		return repo
+	}()
+
 	ccr := connector.NewConnectorConfigRepoFromConfigs([]connector.ConnectorConfig{
 		&connector.LocalConnectorConfig{ID: "local"},
 	})

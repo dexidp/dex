@@ -46,12 +46,19 @@ func makeTestFixtures() *testFixtures {
 		return repo
 	}()
 
-	f.pwr = user.NewPasswordInfoRepoFromPasswordInfos([]user.PasswordInfo{
-		{
-			UserID:   "ID-1",
-			Password: []byte("hi."),
-		},
-	})
+	f.pwr = func() user.PasswordInfoRepo {
+		repo, err := db.NewPasswordInfoRepoFromPasswordInfos(dbMap, []user.PasswordInfo{
+			{
+				UserID:   "ID-1",
+				Password: []byte("hi."),
+			},
+		})
+		if err != nil {
+			panic("Failed to create user repo: " + err.Error())
+		}
+		return repo
+	}()
+
 	ccr := connector.NewConnectorConfigRepoFromConfigs([]connector.ConnectorConfig{
 		&connector.LocalConnectorConfig{ID: "local"},
 	})
