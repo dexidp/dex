@@ -83,6 +83,13 @@ func NewRefreshTokenRepo(dbm *gorp.DbMap) refresh.RefreshTokenRepo {
 	}
 }
 
+func NewRefreshTokenRepoWithGenerator(dbm *gorp.DbMap, gen refresh.RefreshTokenGenerator) refresh.RefreshTokenRepo {
+	return &refreshTokenRepo{
+		dbMap:          dbm,
+		tokenGenerator: gen,
+	}
+}
+
 func (r *refreshTokenRepo) Create(userID, clientID string) (string, error) {
 	if userID == "" {
 		return "", refresh.ErrorInvalidUserID

@@ -351,10 +351,7 @@ func TestServerCodeToken(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	refreshTokenRepo, err := refreshtest.NewTestRefreshTokenRepo()
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+	refreshTokenRepo := refreshtest.NewTestRefreshTokenRepo()
 
 	srv := &Server{
 		IssuerURL:          url.URL{Scheme: "http", Host: "server.example.com"},
@@ -376,8 +373,10 @@ func TestServerCodeToken(t *testing.T) {
 		},
 		// Have 'offline_access' in scope, should get non-empty refresh token.
 		{
+			// NOTE(ericchiang): This test assumes that the database ID of the first
+			// refresh token will be "1".
 			scope:        []string{"openid", "offline_access"},
-			refreshToken: fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			refreshToken: fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
 		},
 	}
 
@@ -475,11 +474,13 @@ func TestServerTokenFail(t *testing.T) {
 	}{
 		// control test case to make sure fixtures check out
 		{
+			// NOTE(ericchiang): This test assumes that the database ID of the first
+			// refresh token will be "1".
 			signer:       signerFixture,
 			argCC:        ccFixture,
 			argKey:       keyFixture,
 			scope:        []string{"openid", "offline_access"},
-			refreshToken: fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			refreshToken: fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
 		},
 
 		// no 'offline_access' in 'scope', should get empty refresh token
@@ -549,10 +550,7 @@ func TestServerTokenFail(t *testing.T) {
 			t.Fatalf("Unexpected error: %v", err)
 		}
 
-		refreshTokenRepo, err := refreshtest.NewTestRefreshTokenRepo()
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
-		}
+		refreshTokenRepo := refreshtest.NewTestRefreshTokenRepo()
 
 		srv := &Server{
 			IssuerURL:          issuerURL,
@@ -600,6 +598,8 @@ func TestServerRefreshToken(t *testing.T) {
 
 	signerFixture := &StaticSigner{sig: []byte("beer"), err: nil}
 
+	// NOTE(ericchiang): These tests assume that the database ID of the first
+	// refresh token will be "1".
 	tests := []struct {
 		token    string
 		clientID string // The client that associates with the token.
@@ -609,7 +609,7 @@ func TestServerRefreshToken(t *testing.T) {
 	}{
 		// Everything is good.
 		{
-			fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
 			"XXX",
 			credXXX,
 			signerFixture,
@@ -625,7 +625,7 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Invalid refresh token(invalid payload content).
 		{
-			fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-2"))),
+			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-2"))),
 			"XXX",
 			credXXX,
 			signerFixture,
@@ -633,7 +633,7 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Invalid refresh token(invalid ID content).
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
 			"XXX",
 			credXXX,
 			signerFixture,
@@ -641,7 +641,7 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Invalid client(client is not associated with the token).
 		{
-			fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
 			"XXX",
 			credYYY,
 			signerFixture,
@@ -649,7 +649,7 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Invalid client(no client ID).
 		{
-			fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
 			"XXX",
 			oidc.ClientCredentials{ID: "", Secret: "aaa"},
 			signerFixture,
@@ -657,7 +657,7 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Invalid client(no such client).
 		{
-			fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
 			"XXX",
 			oidc.ClientCredentials{ID: "AAA", Secret: "aaa"},
 			signerFixture,
@@ -665,7 +665,7 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Invalid client(no secrets).
 		{
-			fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
 			"XXX",
 			oidc.ClientCredentials{ID: "XXX"},
 			signerFixture,
@@ -673,7 +673,7 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Invalid client(invalid secret).
 		{
-			fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
 			"XXX",
 			oidc.ClientCredentials{ID: "XXX", Secret: "bad-secret"},
 			signerFixture,
@@ -681,7 +681,7 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Signing operation fails.
 		{
-			fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
 			"XXX",
 			credXXX,
 			&StaticSigner{sig: nil, err: errors.New("fail")},
@@ -704,10 +704,7 @@ func TestServerRefreshToken(t *testing.T) {
 			t.Fatalf("Unexpected error: %v", err)
 		}
 
-		refreshTokenRepo, err := refreshtest.NewTestRefreshTokenRepo()
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
-		}
+		refreshTokenRepo := refreshtest.NewTestRefreshTokenRepo()
 
 		srv := &Server{
 			IssuerURL:          issuerURL,
@@ -764,10 +761,7 @@ func TestServerRefreshToken(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	refreshTokenRepo, err := refreshtest.NewTestRefreshTokenRepo()
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+	refreshTokenRepo := refreshtest.NewTestRefreshTokenRepo()
 
 	srv := &Server{
 		IssuerURL:          issuerURL,
@@ -788,7 +782,7 @@ func TestServerRefreshToken(t *testing.T) {
 	}
 	srv.UserRepo = userRepo
 
-	_, err = srv.RefreshToken(credXXX, fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))))
+	_, err = srv.RefreshToken(credXXX, fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))))
 	if !reflect.DeepEqual(err, oauth2.NewError(oauth2.ErrorServerError)) {
 		t.Errorf("Expect: %v, got: %v", oauth2.NewError(oauth2.ErrorServerError), err)
 	}

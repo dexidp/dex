@@ -17,7 +17,6 @@ import (
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/email"
-	"github.com/coreos/dex/refresh"
 	"github.com/coreos/dex/repo"
 	sessionmanager "github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
@@ -139,7 +138,7 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 
 	pwiRepo := user.NewPasswordInfoRepo()
 
-	refTokRepo := refresh.NewRefreshTokenRepo()
+	refTokRepo := db.NewRefreshTokenRepo(db.NewMemDB())
 
 	txnFactory := repo.InMemTransactionFactory
 	userManager := usermanager.NewUserManager(userRepo, pwiRepo, cfgRepo, txnFactory, usermanager.ManagerOptions{})
