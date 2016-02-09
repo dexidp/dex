@@ -19,10 +19,10 @@ import (
 	"github.com/coreos/dex/email"
 	"github.com/coreos/dex/refresh"
 	"github.com/coreos/dex/repo"
-	"github.com/coreos/dex/session"
+	sessionmanager "github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
 	useremail "github.com/coreos/dex/user/email"
-	"github.com/coreos/dex/user/manager"
+	usermanager "github.com/coreos/dex/user/manager"
 )
 
 type ServerConfig struct {
@@ -128,9 +128,9 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	}
 	cfgRepo := connector.NewConnectorConfigRepoFromConfigs(cfgs)
 
-	sRepo := session.NewSessionRepo()
-	skRepo := session.NewSessionKeyRepo()
-	sm := session.NewSessionManager(sRepo, skRepo)
+	sRepo := db.NewSessionRepo(db.NewMemDB())
+	skRepo := db.NewSessionKeyRepo(db.NewMemDB())
+	sm := sessionmanager.NewSessionManager(sRepo, skRepo)
 
 	userRepo, err := user.NewUserRepoFromFile(cfg.UsersFile)
 	if err != nil {
@@ -142,7 +142,7 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	refTokRepo := refresh.NewRefreshTokenRepo()
 
 	txnFactory := repo.InMemTransactionFactory
-	userManager := manager.NewUserManager(userRepo, pwiRepo, cfgRepo, txnFactory, manager.ManagerOptions{})
+	userManager := usermanager.NewUserManager(userRepo, pwiRepo, cfgRepo, txnFactory, usermanager.ManagerOptions{})
 	srv.ClientIdentityRepo = ciRepo
 	srv.KeySetRepo = kRepo
 	srv.ConnectorConfigRepo = cfgRepo
@@ -180,10 +180,10 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 	cfgRepo := db.NewConnectorConfigRepo(dbc)
 	userRepo := db.NewUserRepo(dbc)
 	pwiRepo := db.NewPasswordInfoRepo(dbc)
-	userManager := manager.NewUserManager(userRepo, pwiRepo, cfgRepo, db.TransactionFactory(dbc), manager.ManagerOptions{})
+	userManager := usermanager.NewUserManager(userRepo, pwiRepo, cfgRepo, db.TransactionFactory(dbc), usermanager.ManagerOptions{})
 	refreshTokenRepo := db.NewRefreshTokenRepo(dbc)
 
-	sm := session.NewSessionManager(sRepo, skRepo)
+	sm := sessionmanager.NewSessionManager(sRepo, skRepo)
 
 	srv.ClientIdentityRepo = ciRepo
 	srv.KeySetRepo = kRepo

@@ -10,12 +10,13 @@ import (
 
 	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
+	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/email"
 	"github.com/coreos/dex/repo"
-	"github.com/coreos/dex/session"
+	sessionmanager "github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
 	useremail "github.com/coreos/dex/user/email"
-	"github.com/coreos/dex/user/manager"
+	usermanager "github.com/coreos/dex/user/manager"
 )
 
 const (
@@ -75,13 +76,13 @@ var (
 type testFixtures struct {
 	srv                *Server
 	userRepo           user.UserRepo
-	sessionManager     *session.SessionManager
+	sessionManager     *sessionmanager.SessionManager
 	emailer            *email.TemplatizedEmailer
 	redirectURL        url.URL
 	clientIdentityRepo client.ClientIdentityRepo
 }
 
-func sequentialGenerateCodeFunc() session.GenerateCodeFunc {
+func sequentialGenerateCodeFunc() sessionmanager.GenerateCodeFunc {
 	x := 0
 	return func() (string, error) {
 		x += 1
@@ -113,9 +114,9 @@ func makeTestFixtures() (*testFixtures, error) {
 	}
 	connCfgRepo := connector.NewConnectorConfigRepoFromConfigs(connConfigs)
 
-	manager := manager.NewUserManager(userRepo, pwRepo, connCfgRepo, repo.InMemTransactionFactory, manager.ManagerOptions{})
+	manager := usermanager.NewUserManager(userRepo, pwRepo, connCfgRepo, repo.InMemTransactionFactory, usermanager.ManagerOptions{})
 
-	sessionManager := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
+	sessionManager := sessionmanager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 	sessionManager.GenerateCode = sequentialGenerateCodeFunc()
 
 	emailer, err := email.NewTemplatizedEmailerFromGlobs(

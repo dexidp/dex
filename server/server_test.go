@@ -10,8 +10,9 @@ import (
 	"time"
 
 	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/refresh/refreshtest"
-	"github.com/coreos/dex/session"
+	"github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/key"
@@ -68,7 +69,7 @@ func (ss *StaticSigner) JWK() jose.JWK {
 	return jose.JWK{}
 }
 
-func staticGenerateCodeFunc(code string) session.GenerateCodeFunc {
+func staticGenerateCodeFunc(code string) manager.GenerateCodeFunc {
 	return func() (string, error) {
 		return code, nil
 	}
@@ -120,7 +121,7 @@ func TestServerProviderConfig(t *testing.T) {
 }
 
 func TestServerNewSession(t *testing.T) {
-	sm := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
+	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 	srv := &Server{
 		SessionManager: sm,
 	}
@@ -197,7 +198,7 @@ func TestServerLogin(t *testing.T) {
 		signer: &StaticSigner{sig: []byte("beer"), err: nil},
 	}
 
-	sm := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
+	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 	sm.GenerateCode = staticGenerateCodeFunc("fakecode")
 	sessionID, err := sm.NewSession("test_connector_id", ci.Credentials.ID, "bogus", ci.Metadata.RedirectURIs[0], "", false, []string{"openid"})
 	if err != nil {
@@ -245,7 +246,7 @@ func TestServerLoginUnrecognizedSessionKey(t *testing.T) {
 	km := &StaticKeyManager{
 		signer: &StaticSigner{sig: nil, err: errors.New("fail")},
 	}
-	sm := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
+	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 	srv := &Server{
 		IssuerURL:          url.URL{Scheme: "http", Host: "server.example.com"},
 		KeyManager:         km,
@@ -286,7 +287,7 @@ func TestServerLoginDisabledUser(t *testing.T) {
 		signer: &StaticSigner{sig: []byte("beer"), err: nil},
 	}
 
-	sm := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
+	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 	sm.GenerateCode = staticGenerateCodeFunc("fakecode")
 	sessionID, err := sm.NewSession("test_connector_id", ci.Credentials.ID, "bogus", ci.Metadata.RedirectURIs[0], "", false, []string{"openid"})
 	if err != nil {
@@ -343,7 +344,7 @@ func TestServerCodeToken(t *testing.T) {
 	km := &StaticKeyManager{
 		signer: &StaticSigner{sig: []byte("beer"), err: nil},
 	}
-	sm := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
+	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 
 	userRepo, err := makeNewUserRepo()
 	if err != nil {
@@ -424,7 +425,7 @@ func TestServerTokenUnrecognizedKey(t *testing.T) {
 	km := &StaticKeyManager{
 		signer: &StaticSigner{sig: []byte("beer"), err: nil},
 	}
-	sm := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
+	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 
 	srv := &Server{
 		IssuerURL:          url.URL{Scheme: "http", Host: "server.example.com"},
@@ -518,7 +519,7 @@ func TestServerTokenFail(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		sm := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
+		sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 		sm.GenerateCode = func() (string, error) { return keyFixture, nil }
 
 		sessionID, err := sm.NewSession("connector_id", ccFixture.ID, "bogus", url.URL{}, "", false, tt.scope)

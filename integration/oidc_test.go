@@ -10,10 +10,11 @@ import (
 
 	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
+	"github.com/coreos/dex/db"
 	phttp "github.com/coreos/dex/pkg/http"
 	"github.com/coreos/dex/refresh/refreshtest"
 	"github.com/coreos/dex/server"
-	"github.com/coreos/dex/session"
+	"github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/key"
@@ -33,7 +34,7 @@ func mockServer(cis []oidc.ClientIdentity) (*server.Server, error) {
 		return nil, err
 	}
 
-	sm := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
+	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 	srv := &server.Server{
 		IssuerURL:          url.URL{Scheme: "http", Host: "server.example.com"},
 		KeyManager:         km,
@@ -120,7 +121,7 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 	cir := client.NewClientIdentityRepo([]oidc.ClientIdentity{ci})
 
 	issuerURL := url.URL{Scheme: "http", Host: "server.example.com"}
-	sm := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
+	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 
 	k, err := key.GeneratePrivateKey()
 	if err != nil {

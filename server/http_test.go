@@ -17,7 +17,8 @@ import (
 
 	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
-	"github.com/coreos/dex/session"
+	"github.com/coreos/dex/db"
+	"github.com/coreos/dex/session/manager"
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
@@ -75,7 +76,7 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 	}
 	srv := &Server{
 		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
-		SessionManager: session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo()),
+		SessionManager: manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB())),
 		ClientIdentityRepo: client.NewClientIdentityRepo([]oidc.ClientIdentity{
 			oidc.ClientIdentity{
 				Credentials: oidc.ClientCredentials{
@@ -198,7 +199,7 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 	}
 	srv := &Server{
 		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
-		SessionManager: session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo()),
+		SessionManager: manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB())),
 		ClientIdentityRepo: client.NewClientIdentityRepo([]oidc.ClientIdentity{
 			oidc.ClientIdentity{
 				Credentials: oidc.ClientCredentials{

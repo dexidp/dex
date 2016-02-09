@@ -101,3 +101,15 @@ func rollback(tx *gorp.Transaction) {
 		log.Errorf("unable to rollback: %v", err)
 	}
 }
+
+// NewMemDB creates a new in memory sqlite3 database.
+func NewMemDB() *gorp.DbMap {
+	dbMap, err := NewConnection(Config{DSN: "sqlite3://:memory:"})
+	if err != nil {
+		panic("Failed to create in memory database: " + err.Error())
+	}
+	if _, err := MigrateToLatest(dbMap); err != nil {
+		panic("In memory database migration failed: " + err.Error())
+	}
+	return dbMap
+}

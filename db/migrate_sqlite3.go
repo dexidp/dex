@@ -65,7 +65,7 @@ CREATE TABLE session (
 );
 
 CREATE TABLE session_key (
-    key text NOT NULL UNIQUE,
+    key text NOT NULL,
     session_id text,
     expires_at bigint,
     stale integer

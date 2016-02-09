@@ -15,7 +15,7 @@ import (
 func newSessionRepo(t *testing.T) (session.SessionRepo, clockwork.FakeClock) {
 	clock := clockwork.NewFakeClock()
 	if os.Getenv("DEX_TEST_DSN") == "" {
-		return session.NewSessionRepoWithClock(clock), clock
+		return db.NewSessionRepoWithClock(db.NewMemDB(), clock), clock
 	}
 	dbMap := connect(t)
 	return db.NewSessionRepoWithClock(dbMap, clock), clock
@@ -24,7 +24,7 @@ func newSessionRepo(t *testing.T) (session.SessionRepo, clockwork.FakeClock) {
 func newSessionKeyRepo(t *testing.T) (session.SessionKeyRepo, clockwork.FakeClock) {
 	clock := clockwork.NewFakeClock()
 	if os.Getenv("DEX_TEST_DSN") == "" {
-		return session.NewSessionKeyRepoWithClock(clock), clock
+		return db.NewSessionKeyRepoWithClock(db.NewMemDB(), clock), clock
 	}
 	dbMap := connect(t)
 	return db.NewSessionKeyRepoWithClock(dbMap, clock), clock

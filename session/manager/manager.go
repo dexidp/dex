@@ -1,4 +1,4 @@
-package session
+package manager
 
 import (
 	"crypto/rand"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 
+	"github.com/coreos/dex/session"
 	"github.com/coreos/go-oidc/oidc"
 )
 
@@ -27,11 +28,11 @@ func DefaultGenerateCode() (string, error) {
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
-func NewSessionManager(sRepo SessionRepo, skRepo SessionKeyRepo) *SessionManager {
+func NewSessionManager(sRepo session.SessionRepo, skRepo session.SessionKeyRepo) *SessionManager {
 	return &SessionManager{
 		GenerateCode:   DefaultGenerateCode,
 		Clock:          clockwork.NewRealClock(),
-		ValidityWindow: DefaultSessionValidityWindow,
+		ValidityWindow: session.DefaultSessionValidityWindow,
 		sessions:       sRepo,
 		keys:           skRepo,
 	}
@@ -41,8 +42,8 @@ type SessionManager struct {
 	GenerateCode   GenerateCodeFunc
 	Clock          clockwork.Clock
 	ValidityWindow time.Duration
-	sessions       SessionRepo
-	keys           SessionKeyRepo
+	sessions       session.SessionRepo
+	keys           session.SessionKeyRepo
 }
 
 func (m *SessionManager) NewSession(connectorID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error) {
@@ -52,10 +53,10 @@ func (m *SessionManager) NewSession(connectorID, clientID, clientState string, r
 	}
 
 	now := m.Clock.Now()
-	s := Session{
+	s := session.Session{
 		ConnectorID: connectorID,
 		ID:          sID,
-		State:       SessionStateNew,
+		State:       session.SessionStateNew,
 		CreatedAt:   now,
 		ExpiresAt:   now.Add(m.ValidityWindow),
 		ClientID:    clientID,
@@ -80,11 +81,12 @@ func (m *SessionManager) NewSessionKey(sessionID string) (string, error) {
 		return "", err
 	}
 
-	k := SessionKey{
+	k := session.SessionKey{
 		Key:       key,
 		SessionID: sessionID,
 	}
 
+	sessionKeyValidityWindow := 10 * time.Minute //RFC6749
 	err = m.keys.Push(k, sessionKeyValidityWindow)
 	if err != nil {
 		return "", err
@@ -97,7 +99,7 @@ func (m *SessionManager) ExchangeKey(key string) (string, error) {
 	return m.keys.Pop(key)
 }
 
-func (m *SessionManager) getSessionInState(sessionID string, state SessionState) (*Session, error) {
+func (m *SessionManager) getSessionInState(sessionID string, state session.SessionState) (*session.Session, error) {
 	s, err := m.sessions.Get(sessionID)
 	if err != nil {
 		return nil, err
@@ -110,14 +112,14 @@ func (m *SessionManager) getSessionInState(sessionID string, state SessionState)
 	return s, nil
 }
 
-func (m *SessionManager) AttachRemoteIdentity(sessionID string, ident oidc.Identity) (*Session, error) {
-	s, err := m.getSessionInState(sessionID, SessionStateNew)
+func (m *SessionManager) AttachRemoteIdentity(sessionID string, ident oidc.Identity) (*session.Session, error) {
+	s, err := m.getSessionInState(sessionID, session.SessionStateNew)
 	if err != nil {
 		return nil, err
 	}
 
 	s.Identity = ident
-	s.State = SessionStateRemoteAttached
+	s.State = session.SessionStateRemoteAttached
 
 	if err = m.sessions.Update(*s); err != nil {
 		return nil, err
@@ -126,14 +128,14 @@ func (m *SessionManager) AttachRemoteIdentity(sessionID string, ident oidc.Ident
 	return s, nil
 }
 
-func (m *SessionManager) AttachUser(sessionID string, userID string) (*Session, error) {
-	s, err := m.getSessionInState(sessionID, SessionStateRemoteAttached)
+func (m *SessionManager) AttachUser(sessionID string, userID string) (*session.Session, error) {
+	s, err := m.getSessionInState(sessionID, session.SessionStateRemoteAttached)
 	if err != nil {
 		return nil, err
 	}
 
 	s.UserID = userID
-	s.State = SessionStateIdentified
+	s.State = session.SessionStateIdentified
 
 	if err = m.sessions.Update(*s); err != nil {
 		return nil, err
@@ -142,13 +144,13 @@ func (m *SessionManager) AttachUser(sessionID string, userID string) (*Session, 
 	return s, nil
 }
 
-func (m *SessionManager) Kill(sessionID string) (*Session, error) {
+func (m *SessionManager) Kill(sessionID string) (*session.Session, error) {
 	s, err := m.sessions.Get(sessionID)
 	if err != nil {
 		return nil, err
 	}
 
-	s.State = SessionStateDead
+	s.State = session.SessionStateDead
 
 	if err = m.sessions.Update(*s); err != nil {
 		return nil, err
@@ -157,6 +159,6 @@ func (m *SessionManager) Kill(sessionID string) (*Session, error) {
 	return s, nil
 }
 
-func (m *SessionManager) Get(sessionID string) (*Session, error) {
+func (m *SessionManager) Get(sessionID string) (*session.Session, error) {
 	return m.sessions.Get(sessionID)
 }
