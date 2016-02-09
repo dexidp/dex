@@ -77,9 +77,17 @@ func makeTestFixtures() *testFixtures {
 		return repo
 	}()
 
-	f.ccr = connector.NewConnectorConfigRepoFromConfigs([]connector.ConnectorConfig{
-		&connector.LocalConnectorConfig{ID: "local"},
-	})
+	f.ccr = func() connector.ConnectorConfigRepo {
+		repo := db.NewConnectorConfigRepo(dbMap)
+		c := []connector.ConnectorConfig{
+			&connector.LocalConnectorConfig{ID: "local"},
+		}
+		if err := repo.Set(c); err != nil {
+			panic(err)
+		}
+		return repo
+	}()
+
 	f.mgr = NewUserManager(f.ur, f.pwr, f.ccr, db.TransactionFactory(dbMap), ManagerOptions{})
 	f.mgr.Clock = f.clock
 	return f

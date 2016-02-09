@@ -4,15 +4,19 @@ import (
 	"os"
 	"testing"
 
+	"github.com/go-gorp/gorp"
+
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 )
 
 func newConnectorConfigRepo(t *testing.T, configs []connector.ConnectorConfig) connector.ConnectorConfigRepo {
+	var dbMap *gorp.DbMap
 	if os.Getenv("DEX_TEST_DSN") == "" {
-		return connector.NewConnectorConfigRepoFromConfigs(configs)
+		dbMap = db.NewMemDB()
+	} else {
+		dbMap = connect(t)
 	}
-	dbMap := connect(t)
 	repo := db.NewConnectorConfigRepo(dbMap)
 	if err := repo.Set(configs); err != nil {
 		t.Fatalf("Unable to set connector configs: %v", err)

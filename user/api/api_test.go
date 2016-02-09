@@ -141,9 +141,17 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 		return repo
 	}()
 
-	ccr := connector.NewConnectorConfigRepoFromConfigs([]connector.ConnectorConfig{
-		&connector.LocalConnectorConfig{ID: "local"},
-	})
+	ccr := func() connector.ConnectorConfigRepo {
+		repo := db.NewConnectorConfigRepo(dbMap)
+		c := []connector.ConnectorConfig{
+			&connector.LocalConnectorConfig{ID: "local"},
+		}
+		if err := repo.Set(c); err != nil {
+			panic(err)
+		}
+		return repo
+	}()
+
 	mgr := manager.NewUserManager(ur, pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
 	mgr.Clock = clock
 	ci := oidc.ClientIdentity{

@@ -62,9 +62,15 @@ func makeUserObjects(users []user.UserWithRemoteIdentities, passwords []user.Pas
 		return repo
 	}()
 
-	ccr := connector.NewConnectorConfigRepoFromConfigs(
-		[]connector.ConnectorConfig{&connector.LocalConnectorConfig{ID: "local"}},
-	)
+	ccr := func() connector.ConnectorConfigRepo {
+		repo := db.NewConnectorConfigRepo(dbMap)
+		c := []connector.ConnectorConfig{&connector.LocalConnectorConfig{ID: "local"}}
+		if err := repo.Set(c); err != nil {
+			panic(err)
+		}
+		return repo
+	}()
+
 	um := manager.NewUserManager(ur, pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
 	um.Clock = clock
 	return ur, pwr, um

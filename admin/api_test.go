@@ -59,9 +59,15 @@ func makeTestFixtures() *testFixtures {
 		return repo
 	}()
 
-	ccr := connector.NewConnectorConfigRepoFromConfigs([]connector.ConnectorConfig{
-		&connector.LocalConnectorConfig{ID: "local"},
-	})
+	ccr := func() connector.ConnectorConfigRepo {
+		c := []connector.ConnectorConfig{&connector.LocalConnectorConfig{ID: "local"}}
+		repo := db.NewConnectorConfigRepo(dbMap)
+		if err := repo.Set(c); err != nil {
+			panic(err)
+		}
+		return repo
+	}()
+
 	f.mgr = manager.NewUserManager(f.ur, f.pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
 	f.adAPI = NewAdminAPI(f.mgr, f.ur, f.pwr, "local")
 

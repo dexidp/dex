@@ -131,7 +131,10 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	if err != nil {
 		return fmt.Errorf("decoding connector configs: %v", err)
 	}
-	cfgRepo := connector.NewConnectorConfigRepoFromConfigs(cfgs)
+	cfgRepo := db.NewConnectorConfigRepo(dbMap)
+	if err := cfgRepo.Set(cfgs); err != nil {
+		return fmt.Errorf("failed to set connectors: %v", err)
+	}
 
 	sRepo := db.NewSessionRepo(dbMap)
 	skRepo := db.NewSessionKeyRepo(dbMap)

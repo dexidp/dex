@@ -118,7 +118,10 @@ func makeTestFixtures() (*testFixtures, error) {
 			ID: "local",
 		},
 	}
-	connCfgRepo := connector.NewConnectorConfigRepoFromConfigs(connConfigs)
+	connCfgRepo := db.NewConnectorConfigRepo(dbMap)
+	if err := connCfgRepo.Set(connConfigs); err != nil {
+		return nil, err
+	}
 
 	manager := usermanager.NewUserManager(userRepo, pwRepo, connCfgRepo, db.TransactionFactory(dbMap), usermanager.ManagerOptions{})
 
