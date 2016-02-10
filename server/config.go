@@ -108,14 +108,9 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 		return err
 	}
 
-	cf, err := os.Open(cfg.ClientsFile)
+	clients, err := loadClients(cfg.ClientsFile)
 	if err != nil {
 		return fmt.Errorf("unable to read clients from file %s: %v", cfg.ClientsFile, err)
-	}
-	defer cf.Close()
-	var clients []oidc.ClientIdentity
-	if err := json.NewDecoder(cf).Decode(&clients); err != nil {
-		return fmt.Errorf("unable to read client identities from file %s: %v", cfg.ClientsFile, err)
 	}
 	ciRepo, err := db.NewClientIdentityRepoFromClients(dbMap, clients)
 	if err != nil {
@@ -164,7 +159,6 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	srv.SessionManager = sm
 	srv.RefreshTokenRepo = refTokRepo
 	return nil
-
 }
 
 func loadUsers(filepath string) (users []user.UserWithRemoteIdentities, err error) {
@@ -175,6 +169,44 @@ func loadUsers(filepath string) (users []user.UserWithRemoteIdentities, err erro
 	defer f.Close()
 	err = json.NewDecoder(f).Decode(&users)
 	return
+}
+
+func loadClients(filepath string) ([]oidc.ClientIdentity, error) {
+	f, err := os.Open(filepath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	var c []struct {
+		ID           string   `json:"id"`
+		Secret       string   `json:"secret"`
+		RedirectURLs []string `json:"redirectURLs"`
+	}
+	if err := json.NewDecoder(f).Decode(&c); err != nil {
+		return nil, err
+	}
+	clients := make([]oidc.ClientIdentity, len(c))
+	for i, client := range c {
+		redirectURIs := make([]url.URL, len(client.RedirectURLs))
+		for j, u := range client.RedirectURLs {
+			uri, err := url.Parse(u)
+			if err != nil {
+				return nil, err
+			}
+			redirectURIs[j] = *uri
+		}
+
+		clients[i] = oidc.ClientIdentity{
+			Credentials: oidc.ClientCredentials{
+				ID:     client.ID,
+				Secret: client.Secret,
+			},
+			Metadata: oidc.ClientMetadata{
+				RedirectURIs: redirectURIs,
+			},
+		}
+	}
+	return clients, nil
 }
 
 func (cfg *MultiServerConfig) Configure(srv *Server) error {
