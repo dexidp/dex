@@ -14,6 +14,7 @@ import (
 	"github.com/coreos/go-oidc/key"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/coreos/pkg/health"
+	"github.com/go-gorp/gorp"
 
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
@@ -221,6 +222,9 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 	dbc, err := db.NewConnection(cfg.DatabaseConfig)
 	if err != nil {
 		return fmt.Errorf("unable to initialize database connection: %v", err)
+	}
+	if _, ok := dbc.Dialect.(gorp.PostgresDialect); !ok {
+		return errors.New("only postgres backend supported for multi server configurations")
 	}
 
 	kRepo, err := db.NewPrivateKeySetRepo(dbc, cfg.UseOldFormat, cfg.KeySecrets...)

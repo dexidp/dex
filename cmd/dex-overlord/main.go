@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/key"
+	"github.com/go-gorp/gorp"
 
 	"github.com/coreos/dex/admin"
 	"github.com/coreos/dex/db"
@@ -93,6 +94,9 @@ func main() {
 	dbc, err := db.NewConnection(dbCfg)
 	if err != nil {
 		log.Fatalf(err.Error())
+	}
+	if _, ok := dbc.Dialect.(gorp.PostgresDialect); !ok {
+		log.Fatal("only postgres backend supported for multi server configurations")
 	}
 
 	if *dbMigrate {
