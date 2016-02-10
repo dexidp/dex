@@ -43,6 +43,12 @@ A non-exhaustive list of those who would benefit from using dex:
 - Those who want to create an OIDC Identity Provider for multiple clients to authenticate against.
 - Those who want any or all of the above in a Free and Open Source project.
 
+## Getting help with dex
+
+* For bugs and feature requests (including documentation!), file an [issue](https://github.com/coreos/dex/issues).
+* For general discussion about both using and developing dex, join the [dex-dev](https://groups.google.com/forum/#!forum/dex-dev) mailing list.
+* For more details on dex development plans, check out the [roadmap](https://github.com/coreos/dex/blob/master/Documentation/roadmap.md).
+
 ## Connectors
 
 Remote IdPs could implement any auth-N protocol. *Connectors* contain protocol-specific logic and are used to communicate with remote IdPs. Possible examples of connectors could be: OIDC, LDAP, Local credentials, Basic Auth, etc.
