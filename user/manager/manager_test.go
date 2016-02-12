@@ -301,7 +301,7 @@ func TestVerifyEmail(t *testing.T) {
 
 	for i, tt := range tests {
 		f := makeTestFixtures()
-		cb, err := f.mgr.VerifyEmail(user.EmailVerification{tt.evClaims})
+		cb, err := f.mgr.VerifyEmail(user.EmailVerification{Claims: tt.evClaims})
 		if tt.wantErr {
 			if err == nil {
 				t.Errorf("case %d: want non-nil err", i)
@@ -371,7 +371,7 @@ func TestChangePassword(t *testing.T) {
 
 	for i, tt := range tests {
 		f := makeTestFixtures()
-		cb, err := f.mgr.ChangePassword(user.PasswordReset{tt.pwrClaims}, tt.newPassword)
+		cb, err := f.mgr.ChangePassword(user.PasswordReset{Claims: tt.pwrClaims}, tt.newPassword)
 		if tt.wantErr {
 			if err == nil {
 				t.Errorf("case %d: want non-nil err", i)

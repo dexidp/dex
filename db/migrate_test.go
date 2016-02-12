@@ -105,7 +105,7 @@ func TestMigrateClientMetadata(t *testing.T) {
 		id := strconv.Itoa(i)
 		m, err := dbMap.Get(clientIdentityModel{}, id)
 		if err != nil {
-			t.Errorf("case %d: failed to get model: %err", i, err)
+			t.Errorf("case %d: failed to get model: %v", i, err)
 			continue
 		}
 		cim, ok := m.(*clientIdentityModel)
