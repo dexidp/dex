@@ -274,7 +274,7 @@ func TestVerifyEmail(t *testing.T) {
 
 	for i, tt := range tests {
 		f := makeTestFixtures()
-		cb, err := f.mgr.VerifyEmail(user.EmailVerification{tt.evClaims})
+		cb, err := f.mgr.VerifyEmail(user.EmailVerification{Claims: tt.evClaims})
 		if tt.wantErr {
 			if err == nil {
 				t.Errorf("case %d: want non-nil err", i)
@@ -344,7 +344,7 @@ func TestChangePassword(t *testing.T) {
 
 	for i, tt := range tests {
 		f := makeTestFixtures()
-		cb, err := f.mgr.ChangePassword(user.PasswordReset{tt.pwrClaims}, tt.newPassword)
+		cb, err := f.mgr.ChangePassword(user.PasswordReset{Claims: tt.pwrClaims}, tt.newPassword)
 		if tt.wantErr {
 			if err == nil {
 				t.Errorf("case %d: want non-nil err", i)
@@ -459,6 +459,43 @@ func TestCreateUser(t *testing.T) {
 			t.Errorf("case %d: err != nil: %q", i, err)
 		}
 		if diff := pretty.Compare(gotUsr, ridUser); diff != "" {
+			t.Errorf("case %d: Compare(want, got) = %v", i, diff)
+		}
+	}
+}
+
+func TestGetByEmail(t *testing.T) {
+	tests := []struct {
+		usr user.User
+
+		wantErr error
+	}{
+		{
+			usr: user.User{
+				ID:    "ID-1",
+				Email: "Email-1@example.com",
+			},
+		},
+		{
+			usr: user.User{
+				DisplayName: "Bob Exampleson",
+				Email:       "bob@example.com",
+			},
+			wantErr: user.ErrorNotFound,
+		},
+	}
+
+	for i, tt := range tests {
+		f := makeTestFixtures()
+		usr, err := f.mgr.GetByEmail(tt.usr.Email)
+		if tt.wantErr != nil {
+			if err != tt.wantErr {
+				t.Errorf("case %d: want non-nil err", i)
+			}
+			continue
+		}
+
+		if diff := pretty.Compare(tt.usr, usr); diff != "" {
 			t.Errorf("case %d: Compare(want, got) = %v", i, diff)
 		}
 	}

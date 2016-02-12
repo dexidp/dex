@@ -89,10 +89,11 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 	ur := user.NewUserRepoFromUsers([]user.UserWithRemoteIdentities{
 		{
 			User: user.User{
-				ID:        "ID-1",
-				Email:     "id1@example.com",
-				Admin:     true,
-				CreatedAt: clock.Now(),
+				ID:            "ID-1",
+				Email:         "id1@example.com",
+				Admin:         true,
+				EmailVerified: true,
+				CreatedAt:     clock.Now(),
 			},
 		}, {
 			User: user.User{
@@ -333,6 +334,36 @@ func TestCreateUser(t *testing.T) {
 
 			wantErr: ErrorUnauthorized,
 		},
+		{
+			creds: goodCreds,
+			usr: schema.User{
+				Email: "id2@example.com",
+			},
+			redirURL: validRedirURL,
+
+			wantResponse: schema.UserCreateResponse{
+				EmailSent: true,
+				User: &schema.User{
+					Email:         "id2@example.com",
+					DisplayName:   "",
+					EmailVerified: false,
+					Admin:         false,
+					CreatedAt:     clock.Now().Format(time.RFC3339),
+				},
+			},
+		},
+		{
+			creds: goodCreds,
+			usr: schema.User{
+				Email:         "id1@example.com",
+				DisplayName:   "New User",
+				EmailVerified: true,
+				Admin:         false,
+			},
+			redirURL: validRedirURL,
+
+			wantErr: ErrorDuplicateEmail,
+		},
 	}
 
 	for i, tt := range tests {
@@ -354,7 +385,9 @@ func TestCreateUser(t *testing.T) {
 				}
 				for _, u := range list {
 					if u.Email == tt.usr.Email {
-						t.Errorf("case %d: got an error but user was still created", i)
+						if tt.wantErr != ErrorDuplicateEmail {
+							t.Errorf("case %d: got an error but user was still created", i)
+						}
 					}
 				}
 				if tok == "" {

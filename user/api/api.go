@@ -144,11 +144,6 @@ func (u *UsersAPI) CreateUser(creds Creds, usr schema.User, redirURL url.URL) (s
 		return schema.UserCreateResponse{}, ErrorUnauthorized
 	}
 
-	hash, err := generateTempHash()
-	if err != nil {
-		return schema.UserCreateResponse{}, mapError(err)
-	}
-
 	metadata, err := u.clientIdentityRepo.Metadata(creds.ClientID)
 	if err != nil {
 		return schema.UserCreateResponse{}, mapError(err)
@@ -159,13 +154,34 @@ func (u *UsersAPI) CreateUser(creds Creds, usr schema.User, redirURL url.URL) (s
 		return schema.UserCreateResponse{}, ErrorInvalidRedirectURL
 	}
 
-	id, err := u.manager.CreateUser(schemaUserToUser(usr), user.Password(hash), u.localConnectorID)
-	if err != nil {
-		return schema.UserCreateResponse{}, mapError(err)
-	}
+	// Retrieve user to check if it's already created
+	userUser, err := u.manager.GetByEmail(usr.Email)
 
-	userUser, err := u.manager.Get(id)
-	if err != nil {
+	if err == nil {
+		// Check if email is verified
+		if userUser.EmailVerified {
+			return schema.UserCreateResponse{}, ErrorDuplicateEmail
+		}
+	} else if err == user.ErrorNotFound {
+		// If email doesn't exist we can create the new user
+		hash, err := generateTempHash()
+		if err != nil {
+			return schema.UserCreateResponse{}, mapError(err)
+		}
+
+		id, err := u.manager.CreateUser(schemaUserToUser(usr), user.Password(hash), u.localConnectorID)
+		if err != nil {
+			return schema.UserCreateResponse{}, mapError(err)
+		}
+
+		newUser, err := u.manager.Get(id)
+		if err != nil {
+			return schema.UserCreateResponse{}, mapError(err)
+		}
+
+		userUser = newUser
+
+	} else {
 		return schema.UserCreateResponse{}, mapError(err)
 	}
 
