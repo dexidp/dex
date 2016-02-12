@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/coreos/dex/connector"
+	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/repo"
 	"github.com/coreos/go-oidc/oidc"
 	"gopkg.in/ldap.v2"
@@ -93,13 +94,17 @@ func TestConnectorLDAPConnectFail(t *testing.T) {
 
 	templates := template.New(connector.LDAPLoginPageTemplateName)
 
-	ccr := connector.NewConnectorConfigRepoFromConfigs(
+	ccr := db.NewConnectorConfigRepo(db.NewMemDB())
+	err := ccr.Set(
 		[]connector.ConnectorConfig{&connector.LDAPConnectorConfig{
 			ID:         "ldap",
 			ServerHost: ldapHost,
 			ServerPort: ldapPort + 1,
 		}},
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cc, err := ccr.GetConnectorByID(tx, "ldap")
 	if err != nil {
 		t.Fatal(err)
@@ -121,13 +126,17 @@ func TestConnectorLDAPConnectSuccess(t *testing.T) {
 
 	templates := template.New(connector.LDAPLoginPageTemplateName)
 
-	ccr := connector.NewConnectorConfigRepoFromConfigs(
+	ccr := db.NewConnectorConfigRepo(db.NewMemDB())
+	err := ccr.Set(
 		[]connector.ConnectorConfig{&connector.LDAPConnectorConfig{
 			ID:         "ldap",
 			ServerHost: ldapHost,
 			ServerPort: ldapPort,
 		}},
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cc, err := ccr.GetConnectorByID(tx, "ldap")
 	if err != nil {
 		t.Fatal(err)
@@ -149,7 +158,8 @@ func TestConnectorLDAPcaFilecertFileConnectTLS(t *testing.T) {
 
 	templates := template.New(connector.LDAPLoginPageTemplateName)
 
-	ccr := connector.NewConnectorConfigRepoFromConfigs(
+	ccr := db.NewConnectorConfigRepo(db.NewMemDB())
+	err := ccr.Set(
 		[]connector.ConnectorConfig{&connector.LDAPConnectorConfig{
 			ID:         "ldap",
 			ServerHost: ldapHost,
@@ -160,6 +170,9 @@ func TestConnectorLDAPcaFilecertFileConnectTLS(t *testing.T) {
 			CaFile:     "/tmp/openldap-ca.pem",
 		}},
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cc, err := ccr.GetConnectorByID(tx, "ldap")
 	if err != nil {
 		t.Fatal(err)
@@ -181,7 +194,8 @@ func TestConnectorLDAPcaFilecertFileConnectSSL(t *testing.T) {
 
 	templates := template.New(connector.LDAPLoginPageTemplateName)
 
-	ccr := connector.NewConnectorConfigRepoFromConfigs(
+	ccr := db.NewConnectorConfigRepo(db.NewMemDB())
+	err := ccr.Set(
 		[]connector.ConnectorConfig{&connector.LDAPConnectorConfig{
 			ID:         "ldap",
 			ServerHost: ldapHost,
@@ -192,6 +206,9 @@ func TestConnectorLDAPcaFilecertFileConnectSSL(t *testing.T) {
 			CaFile:     "/tmp/openldap-ca.pem",
 		}},
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cc, err := ccr.GetConnectorByID(tx, "ldap")
 	if err != nil {
 		t.Fatal(err)
