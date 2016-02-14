@@ -288,7 +288,6 @@ func (m *LDAPIdentityProvider) Identity(username, password string) (*oidc.Identi
 		filter := m.ParseString(m.searchFilter, username)
 
 		attributes := []string{
-			"entryDN",
 			m.nameAttribute,
 			m.emailAttribute,
 		}
@@ -304,7 +303,7 @@ func (m *LDAPIdentityProvider) Identity(username, password string) (*oidc.Identi
 			return nil, err
 		}
 
-		bindDN = sr.Entries[0].GetAttributeValue("entryDN")
+		bindDN = sr.Entries[0].DN
 		ldapName = sr.Entries[0].GetAttributeValue(m.nameAttribute)
 		ldapEmail = sr.Entries[0].GetAttributeValue(m.emailAttribute)
 
