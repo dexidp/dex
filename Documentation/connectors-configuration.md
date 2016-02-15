@@ -167,6 +167,8 @@ In addition to `id` and `type`, the `ldap` connector takes the following additio
 
 * skipCertVerification: a `boolean`. Skip server certificate chain verification.
 
+* maxIdleConn: a `integer`. Maximum number of idle LDAP Connections to keep in connection pool. Default: `5`
+
 * baseDN: a `string`. Base DN from which Bind DN is built and searches are based.
 
 * nameAttribute: a `string`. Attribute to map to Name. Default: `cn`
