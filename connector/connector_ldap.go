@@ -76,6 +76,12 @@ func (cfg *LDAPConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *t
 		return nil, fmt.Errorf("unable to find necessary HTML template")
 	}
 
+	// defaults
+	const defaultNameAttribute = "cn"
+	const defaultEmailAttribute = "mail"
+	const defaultBindTemplate = "uid=%u,%b"
+	const defaultSearchScope = ldap.ScopeWholeSubtree
+
 	if cfg.UseTLS && cfg.UseSSL {
 		return nil, fmt.Errorf("Invalid configuration. useTLS and useSSL are mutual exclusive.")
 	}
@@ -84,29 +90,25 @@ func (cfg *LDAPConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *t
 		return nil, fmt.Errorf("Invalid configuration. Both certFile and keyFile must be specified.")
 	}
 
-	var nameAttribute, emailAttribute, bindTemplate string
+	nameAttribute := defaultNameAttribute
 	if len(cfg.NameAttribute) > 0 {
 		nameAttribute = cfg.NameAttribute
-	} else {
-		nameAttribute = "cn"
 	}
 
+	emailAttribute := defaultEmailAttribute
 	if len(cfg.EmailAttribute) > 0 {
 		emailAttribute = cfg.EmailAttribute
-	} else {
-		emailAttribute = "mail"
 	}
 
+	bindTemplate := defaultBindTemplate
 	if len(cfg.BindTemplate) > 0 {
 		if cfg.SearchBeforeAuth {
 			log.Warningf("bindTemplate not used when searchBeforeAuth specified.")
 		}
 		bindTemplate = cfg.BindTemplate
-	} else {
-		bindTemplate = "uid=%u,%b"
 	}
 
-	var searchScope int
+	searchScope := defaultSearchScope
 	if len(cfg.SearchScope) > 0 {
 		switch {
 		case strings.EqualFold(cfg.SearchScope, "BASE"):
@@ -118,8 +120,6 @@ func (cfg *LDAPConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *t
 		default:
 			return nil, fmt.Errorf("Invalid value for searchScope: '%v'. Must be one of 'base', 'one' or 'sub'.", cfg.SearchScope)
 		}
-	} else {
-		searchScope = ldap.ScopeSingleLevel
 	}
 
 	if cfg.Timeout != 0 {
