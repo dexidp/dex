@@ -15,13 +15,13 @@ func staticGenerateCodeFunc(code string) GenerateCodeFunc {
 	}
 }
 
-func newManager(t *testing.T) *SessionManager {
+func newManager() *SessionManager {
 	dbMap := db.NewMemDB()
 	return NewSessionManager(db.NewSessionRepo(dbMap), db.NewSessionKeyRepo(dbMap))
 }
 
 func TestSessionManagerNewSession(t *testing.T) {
-	sm := newManager(t)
+	sm := newManager()
 	sm.GenerateCode = staticGenerateCodeFunc("boo")
 	got, err := sm.NewSession("bogus_idpc", "XXX", "bogus", url.URL{}, "", false, []string{"openid"})
 	if err != nil {
@@ -33,7 +33,7 @@ func TestSessionManagerNewSession(t *testing.T) {
 }
 
 func TestSessionAttachRemoteIdentityTwice(t *testing.T) {
-	sm := newManager(t)
+	sm := newManager()
 	sessionID, err := sm.NewSession("bogus_idpc", "XXX", "bogus", url.URL{}, "", false, []string{"openid"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -50,7 +50,7 @@ func TestSessionAttachRemoteIdentityTwice(t *testing.T) {
 }
 
 func TestSessionManagerExchangeKey(t *testing.T) {
-	sm := newManager(t)
+	sm := newManager()
 	sessionID, err := sm.NewSession("connector_id", "XXX", "bogus", url.URL{}, "", false, []string{"openid"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -75,7 +75,7 @@ func TestSessionManagerExchangeKey(t *testing.T) {
 }
 
 func TestSessionManagerGetSessionInStateNoExist(t *testing.T) {
-	sm := newManager(t)
+	sm := newManager()
 	ses, err := sm.getSessionInState("123", session.SessionStateNew)
 	if err == nil {
 		t.Errorf("Expected non-nil error")
@@ -86,7 +86,7 @@ func TestSessionManagerGetSessionInStateNoExist(t *testing.T) {
 }
 
 func TestSessionManagerGetSessionInStateWrongState(t *testing.T) {
-	sm := newManager(t)
+	sm := newManager()
 	sessionID, err := sm.NewSession("connector_id", "XXX", "bogus", url.URL{}, "", false, []string{"openid"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -101,7 +101,7 @@ func TestSessionManagerGetSessionInStateWrongState(t *testing.T) {
 }
 
 func TestSessionManagerKill(t *testing.T) {
-	sm := newManager(t)
+	sm := newManager()
 	sessionID, err := sm.NewSession("connector_id", "XXX", "bogus", url.URL{}, "", false, []string{"openid"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
