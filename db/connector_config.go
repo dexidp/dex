@@ -60,17 +60,17 @@ func (m *connectorConfigModel) ConnectorConfig() (connector.ConnectorConfig, err
 }
 
 func NewConnectorConfigRepo(dbm *gorp.DbMap) *ConnectorConfigRepo {
-	return &ConnectorConfigRepo{dbMap: dbm}
+	return &ConnectorConfigRepo{&db{dbm}}
 }
 
 type ConnectorConfigRepo struct {
-	dbMap *gorp.DbMap
+	*db
 }
 
 func (r *ConnectorConfigRepo) All() ([]connector.ConnectorConfig, error) {
-	qt := r.dbMap.Dialect.QuotedTableForQuery("", connectorConfigTableName)
+	qt := r.quote(connectorConfigTableName)
 	q := fmt.Sprintf("SELECT * FROM %s", qt)
-	objs, err := r.dbMap.Select(&connectorConfigModel{}, q)
+	objs, err := r.executor(nil).Select(&connectorConfigModel{}, q)
 	if err != nil {
 		return nil, err
 	}
@@ -93,10 +93,10 @@ func (r *ConnectorConfigRepo) All() ([]connector.ConnectorConfig, error) {
 }
 
 func (r *ConnectorConfigRepo) GetConnectorByID(tx repo.Transaction, id string) (connector.ConnectorConfig, error) {
-	qt := r.dbMap.Dialect.QuotedTableForQuery("", connectorConfigTableName)
+	qt := r.quote(connectorConfigTableName)
 	q := fmt.Sprintf("SELECT * FROM %s WHERE id = $1", qt)
 	var c connectorConfigModel
-	if err := executor(r.dbMap, tx).SelectOne(&c, q, id); err != nil {
+	if err := r.executor(tx).SelectOne(&c, q, id); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, connector.ErrorNotFound
 		}
@@ -116,19 +116,20 @@ func (r *ConnectorConfigRepo) Set(cfgs []connector.ConnectorConfig) error {
 		insert[i] = m
 	}
 
-	tx, err := r.dbMap.Begin()
+	tx, err := r.begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+	exec := r.executor(tx)
 
-	qt := r.dbMap.Dialect.QuotedTableForQuery("", connectorConfigTableName)
+	qt := r.quote(connectorConfigTableName)
 	q := fmt.Sprintf("DELETE FROM %s", qt)
-	if _, err = tx.Exec(q); err != nil {
+	if _, err = exec.Exec(q); err != nil {
 		return err
 	}
 
-	if err = tx.Insert(insert...); err != nil {
+	if err = exec.Insert(insert...); err != nil {
 		return fmt.Errorf("DB insert failed %#v: %v", insert, err)
 	}
 

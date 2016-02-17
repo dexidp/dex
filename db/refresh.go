@@ -13,6 +13,7 @@ import (
 
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/refresh"
+	"github.com/coreos/dex/repo"
 )
 
 const (
@@ -29,7 +30,7 @@ func init() {
 }
 
 type refreshTokenRepo struct {
-	dbMap          *gorp.DbMap
+	*db
 	tokenGenerator refresh.RefreshTokenGenerator
 }
 
@@ -77,15 +78,12 @@ func checkTokenPayload(payloadHash, payload []byte) error {
 }
 
 func NewRefreshTokenRepo(dbm *gorp.DbMap) refresh.RefreshTokenRepo {
-	return &refreshTokenRepo{
-		dbMap:          dbm,
-		tokenGenerator: refresh.DefaultRefreshTokenGenerator,
-	}
+	return NewRefreshTokenRepoWithGenerator(dbm, refresh.DefaultRefreshTokenGenerator)
 }
 
 func NewRefreshTokenRepoWithGenerator(dbm *gorp.DbMap, gen refresh.RefreshTokenGenerator) refresh.RefreshTokenRepo {
 	return &refreshTokenRepo{
-		dbMap:          dbm,
+		db:             &db{dbm},
 		tokenGenerator: gen,
 	}
 }
@@ -115,7 +113,7 @@ func (r *refreshTokenRepo) Create(userID, clientID string) (string, error) {
 		ClientID:    clientID,
 	}
 
-	if err := r.dbMap.Insert(record); err != nil {
+	if err := r.executor(nil).Insert(record); err != nil {
 		return "", err
 	}
 
@@ -151,7 +149,13 @@ func (r *refreshTokenRepo) Revoke(userID, token string) error {
 		return err
 	}
 
-	record, err := r.get(nil, tokenID)
+	tx, err := r.begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	exec := r.executor(tx)
+	record, err := r.get(tx, tokenID)
 	if err != nil {
 		return err
 	}
@@ -164,7 +168,7 @@ func (r *refreshTokenRepo) Revoke(userID, token string) error {
 		return err
 	}
 
-	deleted, err := r.dbMap.Delete(record)
+	deleted, err := exec.Delete(record)
 	if err != nil {
 		return err
 	}
@@ -172,10 +176,11 @@ func (r *refreshTokenRepo) Revoke(userID, token string) error {
 		return refresh.ErrorInvalidToken
 	}
 
-	return nil
+	return tx.Commit()
 }
-func (r *refreshTokenRepo) get(tx *gorp.Transaction, tokenID int64) (*refreshTokenModel, error) {
-	ex := executor(r.dbMap, tx)
+
+func (r *refreshTokenRepo) get(tx repo.Transaction, tokenID int64) (*refreshTokenModel, error) {
+	ex := r.executor(tx)
 	result, err := ex.Get(refreshTokenModel{}, tokenID)
 	if err != nil {
 		return nil, err

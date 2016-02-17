@@ -86,15 +86,21 @@ func (m *clientIdentityModel) ClientIdentity() (*oidc.ClientIdentity, error) {
 }
 
 func NewClientIdentityRepo(dbm *gorp.DbMap) client.ClientIdentityRepo {
-	return &clientIdentityRepo{dbMap: dbm}
+	return newClientIdentityRepo(dbm)
+}
+
+func newClientIdentityRepo(dbm *gorp.DbMap) *clientIdentityRepo {
+	return &clientIdentityRepo{db: &db{dbm}}
 }
 
 func NewClientIdentityRepoFromClients(dbm *gorp.DbMap, clients []oidc.ClientIdentity) (client.ClientIdentityRepo, error) {
-	tx, err := dbm.Begin()
+	repo := newClientIdentityRepo(dbm)
+	tx, err := repo.begin()
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
+	exec := repo.executor(tx)
 	for _, c := range clients {
 		dec, err := base64.URLEncoding.DecodeString(c.Credentials.Secret)
 		if err != nil {
@@ -104,7 +110,7 @@ func NewClientIdentityRepoFromClients(dbm *gorp.DbMap, clients []oidc.ClientIden
 		if err != nil {
 			return nil, err
 		}
-		err = tx.Insert(cm)
+		err = exec.Insert(cm)
 		if err != nil {
 			return nil, err
 		}
@@ -112,15 +118,15 @@ func NewClientIdentityRepoFromClients(dbm *gorp.DbMap, clients []oidc.ClientIden
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	return NewClientIdentityRepo(dbm), nil
+	return repo, nil
 }
 
 type clientIdentityRepo struct {
-	dbMap *gorp.DbMap
+	*db
 }
 
 func (r *clientIdentityRepo) Metadata(clientID string) (*oidc.ClientMetadata, error) {
-	m, err := r.dbMap.Get(clientIdentityModel{}, clientID)
+	m, err := r.executor(nil).Get(clientIdentityModel{}, clientID)
 	if err == sql.ErrNoRows || m == nil {
 		return nil, client.ErrorNotFound
 	}
@@ -143,7 +149,7 @@ func (r *clientIdentityRepo) Metadata(clientID string) (*oidc.ClientMetadata, er
 }
 
 func (r *clientIdentityRepo) IsDexAdmin(clientID string) (bool, error) {
-	m, err := r.dbMap.Get(clientIdentityModel{}, clientID)
+	m, err := r.executor(nil).Get(clientIdentityModel{}, clientID)
 	if m == nil || err != nil {
 		return false, err
 	}
@@ -158,15 +164,15 @@ func (r *clientIdentityRepo) IsDexAdmin(clientID string) (bool, error) {
 }
 
 func (r *clientIdentityRepo) SetDexAdmin(clientID string, isAdmin bool) error {
-	tx, err := r.dbMap.Begin()
+	tx, err := r.begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+	exec := r.executor(tx)
 
-	m, err := tx.Get(clientIdentityModel{}, clientID)
+	m, err := exec.Get(clientIdentityModel{}, clientID)
 	if m == nil || err != nil {
-		rollback(tx)
 		return err
 	}
 
@@ -177,7 +183,7 @@ func (r *clientIdentityRepo) SetDexAdmin(clientID string, isAdmin bool) error {
 	}
 
 	cim.DexAdmin = isAdmin
-	_, err = tx.Update(cim)
+	_, err = exec.Update(cim)
 	if err != nil {
 		return err
 	}
@@ -186,7 +192,7 @@ func (r *clientIdentityRepo) SetDexAdmin(clientID string, isAdmin bool) error {
 }
 
 func (r *clientIdentityRepo) Authenticate(creds oidc.ClientCredentials) (bool, error) {
-	m, err := r.dbMap.Get(clientIdentityModel{}, creds.ID)
+	m, err := r.executor(nil).Get(clientIdentityModel{}, creds.ID)
 	if m == nil || err != nil {
 		return false, err
 	}
@@ -222,7 +228,7 @@ func (r *clientIdentityRepo) New(id string, meta oidc.ClientMetadata) (*oidc.Cli
 		return nil, err
 	}
 
-	if err := r.dbMap.Insert(cim); err != nil {
+	if err := r.executor(nil).Insert(cim); err != nil {
 		switch sqlErr := err.(type) {
 		case *pq.Error:
 			if sqlErr.Code == pgErrorCodeUniqueViolation {
@@ -246,9 +252,9 @@ func (r *clientIdentityRepo) New(id string, meta oidc.ClientMetadata) (*oidc.Cli
 }
 
 func (r *clientIdentityRepo) All() ([]oidc.ClientIdentity, error) {
-	qt := r.dbMap.Dialect.QuotedTableForQuery("", clientIdentityTableName)
+	qt := r.quote(clientIdentityTableName)
 	q := fmt.Sprintf("SELECT * FROM %s", qt)
-	objs, err := r.dbMap.Select(&clientIdentityModel{}, q)
+	objs, err := r.executor(nil).Select(&clientIdentityModel{}, q)
 	if err != nil {
 		return nil, err
 	}

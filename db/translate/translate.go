@@ -15,14 +15,18 @@ var (
 	trueRegexp = regexp.MustCompile(`\btrue\b`)
 )
 
-// PostgresToSQLite implements translation of the pq driver to sqlite3.
+// PostgresToSQLite translates github.com/lib/pq flavored SQL quries to github.com/mattn/go-sqlite3's flavor.
+//
+// It assumes that possitional bind arguements ($1, $2, etc.) are unqiue and in sequential order.
 func PostgresToSQLite(query string) string {
 	query = bindRegexp.ReplaceAllString(query, "?")
 	query = trueRegexp.ReplaceAllString(query, "1")
 	return query
 }
 
-func NewExecutor(exec gorp.SqlExecutor, translate func(string) string) gorp.SqlExecutor {
+// NewTranslatingExecutor returns an executor wrapping the existing executor. All query strings passed to
+// the executor will be run through the translate function before begin passed to the driver.
+func NewTranslatingExecutor(exec gorp.SqlExecutor, translate func(string) string) gorp.SqlExecutor {
 	return &executor{exec, translate}
 }
 

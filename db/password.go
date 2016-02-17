@@ -34,7 +34,7 @@ type passwordInfoModel struct {
 
 func NewPasswordInfoRepo(dbm *gorp.DbMap) user.PasswordInfoRepo {
 	return &passwordInfoRepo{
-		dbMap: dbm,
+		db: &db{dbm},
 	}
 }
 
@@ -49,7 +49,7 @@ func NewPasswordInfoRepoFromPasswordInfos(dbm *gorp.DbMap, infos []user.Password
 }
 
 type passwordInfoRepo struct {
-	dbMap *gorp.DbMap
+	*db
 }
 
 func (r *passwordInfoRepo) Get(tx repo.Transaction, userID string) (user.PasswordInfo, error) {
@@ -101,7 +101,7 @@ func (r *passwordInfoRepo) Update(tx repo.Transaction, pw user.PasswordInfo) err
 }
 
 func (r *passwordInfoRepo) get(tx repo.Transaction, id string) (user.PasswordInfo, error) {
-	ex := executor(r.dbMap, tx)
+	ex := r.executor(tx)
 
 	m, err := ex.Get(passwordInfoModel{}, id)
 	if err != nil {
@@ -122,7 +122,7 @@ func (r *passwordInfoRepo) get(tx repo.Transaction, id string) (user.PasswordInf
 }
 
 func (r *passwordInfoRepo) insert(tx repo.Transaction, pw user.PasswordInfo) error {
-	ex := executor(r.dbMap, tx)
+	ex := r.executor(tx)
 	pm, err := newPasswordInfoModel(&pw)
 	if err != nil {
 		return err
@@ -131,7 +131,7 @@ func (r *passwordInfoRepo) insert(tx repo.Transaction, pw user.PasswordInfo) err
 }
 
 func (r *passwordInfoRepo) update(tx repo.Transaction, pw user.PasswordInfo) error {
-	ex := executor(r.dbMap, tx)
+	ex := r.executor(tx)
 	pm, err := newPasswordInfoModel(&pw)
 	if err != nil {
 		return err

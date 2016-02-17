@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-gorp/gorp"
 
-	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/repo"
 
 	// Import database drivers
@@ -92,13 +91,6 @@ func NewConnection(cfg Config) (*gorp.DbMap, error) {
 func TransactionFactory(conn *gorp.DbMap) repo.TransactionFactory {
 	return func() (repo.Transaction, error) {
 		return conn.Begin()
-	}
-}
-
-func rollback(tx *gorp.Transaction) {
-	err := tx.Rollback()
-	if err != nil {
-		log.Errorf("unable to rollback: %v", err)
 	}
 }
 

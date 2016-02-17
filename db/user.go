@@ -41,7 +41,7 @@ func init() {
 
 func NewUserRepo(dbm *gorp.DbMap) user.UserRepo {
 	return &userRepo{
-		dbMap: dbm,
+		db: &db{dbm},
 	}
 }
 
@@ -52,7 +52,7 @@ func NewUserRepoFromUsers(dbm *gorp.DbMap, us []user.UserWithRemoteIdentities) (
 		if err != nil {
 			return nil, err
 		}
-		err = repo.dbMap.Insert(um)
+		err = repo.executor(nil).Insert(um)
 		for _, ri := range u.RemoteIdentities {
 			err = repo.AddRemoteIdentity(nil, u.User.ID, ri)
 			if err != nil {
@@ -64,7 +64,7 @@ func NewUserRepoFromUsers(dbm *gorp.DbMap, us []user.UserWithRemoteIdentities) (
 }
 
 type userRepo struct {
-	dbMap *gorp.DbMap
+	*db
 }
 
 func (r *userRepo) Get(tx repo.Transaction, userID string) (user.User, error) {
@@ -106,8 +106,8 @@ func (r *userRepo) Disable(tx repo.Transaction, userID string, disable bool) err
 		return user.ErrorInvalidID
 	}
 
-	qt := r.dbMap.Dialect.QuotedTableForQuery("", userTableName)
-	ex := executor(r.dbMap, tx)
+	qt := r.quote(userTableName)
+	ex := r.executor(tx)
 	result, err := ex.Exec(fmt.Sprintf("UPDATE %s SET disabled = $1 WHERE id = $2;", qt), disable, userID)
 	if err != nil {
 		return err
@@ -220,7 +220,7 @@ func (r *userRepo) RemoveRemoteIdentity(tx repo.Transaction, userID string, rid 
 		return err
 	}
 
-	ex := executor(r.dbMap, tx)
+	ex := r.executor(tx)
 	deleted, err := ex.Delete(rim)
 
 	if err != nil {
@@ -235,12 +235,12 @@ func (r *userRepo) RemoveRemoteIdentity(tx repo.Transaction, userID string, rid 
 }
 
 func (r *userRepo) GetRemoteIdentities(tx repo.Transaction, userID string) ([]user.RemoteIdentity, error) {
-	ex := executor(r.dbMap, tx)
+	ex := r.executor(tx)
 	if userID == "" {
 		return nil, user.ErrorInvalidID
 	}
 
-	qt := r.dbMap.Dialect.QuotedTableForQuery("", remoteIdentityMappingTableName)
+	qt := r.quote(remoteIdentityMappingTableName)
 	rims, err := ex.Select(&remoteIdentityMappingModel{}, fmt.Sprintf("SELECT * FROM %s WHERE user_id = $1", qt), userID)
 
 	if err != nil {
@@ -271,8 +271,8 @@ func (r *userRepo) GetRemoteIdentities(tx repo.Transaction, userID string) ([]us
 }
 
 func (r *userRepo) GetAdminCount(tx repo.Transaction) (int, error) {
-	qt := r.dbMap.Dialect.QuotedTableForQuery("", userTableName)
-	ex := executor(r.dbMap, tx)
+	qt := r.quote(userTableName)
+	ex := r.executor(tx)
 	i, err := ex.SelectInt(fmt.Sprintf("SELECT count(*) FROM %s WHERE admin=true;", qt))
 	return int(i), err
 }
@@ -286,9 +286,9 @@ func (r *userRepo) List(tx repo.Transaction, filter user.UserFilter, maxResults 
 	if err != nil {
 		return nil, "", err
 	}
-	ex := executor(r.dbMap, tx)
+	ex := r.executor(tx)
 
-	qt := r.dbMap.Dialect.QuotedTableForQuery("", userTableName)
+	qt := r.quote(userTableName)
 
 	// Ask for one more than needed so we know if there's more results, and
 	// hence, whether a nextPageToken is necessary.
@@ -336,7 +336,7 @@ func (r *userRepo) List(tx repo.Transaction, filter user.UserFilter, maxResults 
 }
 
 func (r *userRepo) insert(tx repo.Transaction, usr user.User) error {
-	ex := executor(r.dbMap, tx)
+	ex := r.executor(tx)
 	um, err := newUserModel(&usr)
 	if err != nil {
 		return err
@@ -345,7 +345,7 @@ func (r *userRepo) insert(tx repo.Transaction, usr user.User) error {
 }
 
 func (r *userRepo) update(tx repo.Transaction, usr user.User) error {
-	ex := executor(r.dbMap, tx)
+	ex := r.executor(tx)
 	um, err := newUserModel(&usr)
 	if err != nil {
 		return err
@@ -355,7 +355,7 @@ func (r *userRepo) update(tx repo.Transaction, usr user.User) error {
 }
 
 func (r *userRepo) get(tx repo.Transaction, userID string) (user.User, error) {
-	ex := executor(r.dbMap, tx)
+	ex := r.executor(tx)
 
 	m, err := ex.Get(userModel{}, userID)
 	if err != nil {
@@ -376,7 +376,7 @@ func (r *userRepo) get(tx repo.Transaction, userID string) (user.User, error) {
 }
 
 func (r *userRepo) getUserIDForRemoteIdentity(tx repo.Transaction, ri user.RemoteIdentity) (string, error) {
-	ex := executor(r.dbMap, tx)
+	ex := r.executor(tx)
 
 	m, err := ex.Get(remoteIdentityMappingModel{}, ri.ConnectorID, ri.ID)
 	if err != nil {
@@ -397,8 +397,8 @@ func (r *userRepo) getUserIDForRemoteIdentity(tx repo.Transaction, ri user.Remot
 }
 
 func (r *userRepo) getByEmail(tx repo.Transaction, email string) (user.User, error) {
-	qt := r.dbMap.Dialect.QuotedTableForQuery("", userTableName)
-	ex := executor(r.dbMap, tx)
+	qt := r.quote(userTableName)
+	ex := r.executor(tx)
 	var um userModel
 	err := ex.SelectOne(&um, fmt.Sprintf("select * from %s where email = $1", qt), email)
 
@@ -412,7 +412,7 @@ func (r *userRepo) getByEmail(tx repo.Transaction, email string) (user.User, err
 }
 
 func (r *userRepo) insertRemoteIdentity(tx repo.Transaction, userID string, ri user.RemoteIdentity) error {
-	ex := executor(r.dbMap, tx)
+	ex := r.executor(tx)
 	rim, err := newRemoteIdentityMappingModel(userID, ri)
 	if err != nil {
 
