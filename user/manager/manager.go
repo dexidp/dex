@@ -53,6 +53,10 @@ func (m *UserManager) Get(id string) (user.User, error) {
 	return m.userRepo.Get(nil, id)
 }
 
+func (m *UserManager) GetByEmail(email string) (user.User, error) {
+	return m.userRepo.GetByEmail(nil, email)
+}
+
 func (m *UserManager) List(filter user.UserFilter, maxResults int, nextPageToken string) ([]user.User, string, error) {
 	return m.userRepo.List(nil, filter, maxResults, nextPageToken)
 }
