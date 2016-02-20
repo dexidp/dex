@@ -10,7 +10,7 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 
 	"github.com/coreos/dex/connector"
-	"github.com/coreos/dex/repo"
+	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/user"
 )
 
@@ -26,46 +26,69 @@ func makeTestFixtures() *testFixtures {
 	f := &testFixtures{}
 	f.clock = clockwork.NewFakeClock()
 
-	f.ur = user.NewUserRepoFromUsers([]user.UserWithRemoteIdentities{
-		{
-			User: user.User{
-				ID:    "ID-1",
-				Email: "Email-1@example.com",
-			},
-			RemoteIdentities: []user.RemoteIdentity{
-				{
-					ConnectorID: "local",
-					ID:          "1",
+	dbMap := db.NewMemDB()
+	f.ur = func() user.UserRepo {
+		repo, err := db.NewUserRepoFromUsers(dbMap, []user.UserWithRemoteIdentities{
+			{
+				User: user.User{
+					ID:    "ID-1",
+					Email: "Email-1@example.com",
+				},
+				RemoteIdentities: []user.RemoteIdentity{
+					{
+						ConnectorID: "local",
+						ID:          "1",
+					},
+				},
+			}, {
+				User: user.User{
+					ID:            "ID-2",
+					Email:         "Email-2@example.com",
+					EmailVerified: true,
+				},
+				RemoteIdentities: []user.RemoteIdentity{
+					{
+						ConnectorID: "local",
+						ID:          "2",
+					},
 				},
 			},
-		}, {
-			User: user.User{
-				ID:            "ID-2",
-				Email:         "Email-2@example.com",
-				EmailVerified: true,
+		})
+		if err != nil {
+			panic("Failed to create user repo: " + err.Error())
+		}
+		return repo
+	}()
+
+	f.pwr = func() user.PasswordInfoRepo {
+		repo, err := db.NewPasswordInfoRepoFromPasswordInfos(dbMap, []user.PasswordInfo{
+			{
+				UserID:   "ID-1",
+				Password: []byte("password-1"),
 			},
-			RemoteIdentities: []user.RemoteIdentity{
-				{
-					ConnectorID: "local",
-					ID:          "2",
-				},
+			{
+				UserID:   "ID-2",
+				Password: []byte("password-2"),
 			},
-		},
-	})
-	f.pwr = user.NewPasswordInfoRepoFromPasswordInfos([]user.PasswordInfo{
-		{
-			UserID:   "ID-1",
-			Password: []byte("password-1"),
-		},
-		{
-			UserID:   "ID-2",
-			Password: []byte("password-2"),
-		},
-	})
-	f.ccr = connector.NewConnectorConfigRepoFromConfigs([]connector.ConnectorConfig{
-		&connector.LocalConnectorConfig{ID: "local"},
-	})
-	f.mgr = NewUserManager(f.ur, f.pwr, f.ccr, repo.InMemTransactionFactory, ManagerOptions{})
+		})
+		if err != nil {
+			panic("Failed to create user repo: " + err.Error())
+		}
+		return repo
+	}()
+
+	f.ccr = func() connector.ConnectorConfigRepo {
+		repo := db.NewConnectorConfigRepo(dbMap)
+		c := []connector.ConnectorConfig{
+			&connector.LocalConnectorConfig{ID: "local"},
+		}
+		if err := repo.Set(c); err != nil {
+			panic(err)
+		}
+		return repo
+	}()
+
+	f.mgr = NewUserManager(f.ur, f.pwr, f.ccr, db.TransactionFactory(dbMap), ManagerOptions{})
 	f.mgr.Clock = f.clock
 	return f
 }
@@ -207,18 +230,22 @@ func TestRegisterWithPassword(t *testing.T) {
 		}
 		if diff := pretty.Compare(usr, ridUSR); diff != "" {
 			t.Errorf("case %d: Compare(want, got) = %v", i, diff)
+			continue
 		}
 
 		pwi, err := f.pwr.Get(nil, userID)
 		if err != nil {
 			t.Errorf("case %d: err != nil: %q", i, err)
+			continue
 		}
 		ident, err := pwi.Authenticate(tt.plaintext)
 		if err != nil {
 			t.Errorf("case %d: err != nil: %q", i, err)
+			continue
 		}
 		if ident.ID != userID {
 			t.Errorf("case %d: ident.ID: want=%q, got=%q", i, userID, ident.ID)
+			continue
 		}
 
 		_, err = pwi.Authenticate(tt.plaintext + "WRONG")
@@ -274,7 +301,7 @@ func TestVerifyEmail(t *testing.T) {
 
 	for i, tt := range tests {
 		f := makeTestFixtures()
-		cb, err := f.mgr.VerifyEmail(user.EmailVerification{tt.evClaims})
+		cb, err := f.mgr.VerifyEmail(user.EmailVerification{Claims: tt.evClaims})
 		if tt.wantErr {
 			if err == nil {
 				t.Errorf("case %d: want non-nil err", i)
@@ -344,7 +371,7 @@ func TestChangePassword(t *testing.T) {
 
 	for i, tt := range tests {
 		f := makeTestFixtures()
-		cb, err := f.mgr.ChangePassword(user.PasswordReset{tt.pwrClaims}, tt.newPassword)
+		cb, err := f.mgr.ChangePassword(user.PasswordReset{Claims: tt.pwrClaims}, tt.newPassword)
 		if tt.wantErr {
 			if err == nil {
 				t.Errorf("case %d: want non-nil err", i)

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"time"
@@ -10,12 +11,12 @@ import (
 
 	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
+	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/email"
-	"github.com/coreos/dex/repo"
-	"github.com/coreos/dex/session"
+	sessionmanager "github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
 	useremail "github.com/coreos/dex/user/email"
-	"github.com/coreos/dex/user/manager"
+	usermanager "github.com/coreos/dex/user/manager"
 )
 
 const (
@@ -24,9 +25,8 @@ const (
 )
 
 var (
-	testIssuerURL    = url.URL{Scheme: "http", Host: "server.example.com"}
-	testClientID     = "XXX"
-	testClientSecret = "secrete"
+	testIssuerURL = url.URL{Scheme: "http", Host: "server.example.com"}
+	testClientID  = "XXX"
 
 	testRedirectURL = url.URL{Scheme: "http", Host: "client.example.com", Path: "/callback"}
 
@@ -75,13 +75,13 @@ var (
 type testFixtures struct {
 	srv                *Server
 	userRepo           user.UserRepo
-	sessionManager     *session.SessionManager
+	sessionManager     *sessionmanager.SessionManager
 	emailer            *email.TemplatizedEmailer
 	redirectURL        url.URL
 	clientIdentityRepo client.ClientIdentityRepo
 }
 
-func sequentialGenerateCodeFunc() session.GenerateCodeFunc {
+func sequentialGenerateCodeFunc() sessionmanager.GenerateCodeFunc {
 	x := 0
 	return func() (string, error) {
 		x += 1
@@ -90,8 +90,15 @@ func sequentialGenerateCodeFunc() session.GenerateCodeFunc {
 }
 
 func makeTestFixtures() (*testFixtures, error) {
-	userRepo := user.NewUserRepoFromUsers(testUsers)
-	pwRepo := user.NewPasswordInfoRepoFromPasswordInfos(testPasswordInfos)
+	dbMap := db.NewMemDB()
+	userRepo, err := db.NewUserRepoFromUsers(dbMap, testUsers)
+	if err != nil {
+		return nil, err
+	}
+	pwRepo, err := db.NewPasswordInfoRepoFromPasswordInfos(dbMap, testPasswordInfos)
+	if err != nil {
+		return nil, err
+	}
 
 	connConfigs := []connector.ConnectorConfig{
 		&connector.OIDCConnectorConfig{
@@ -111,11 +118,14 @@ func makeTestFixtures() (*testFixtures, error) {
 			ID: "local",
 		},
 	}
-	connCfgRepo := connector.NewConnectorConfigRepoFromConfigs(connConfigs)
+	connCfgRepo := db.NewConnectorConfigRepo(dbMap)
+	if err := connCfgRepo.Set(connConfigs); err != nil {
+		return nil, err
+	}
 
-	manager := manager.NewUserManager(userRepo, pwRepo, connCfgRepo, repo.InMemTransactionFactory, manager.ManagerOptions{})
+	manager := usermanager.NewUserManager(userRepo, pwRepo, connCfgRepo, db.TransactionFactory(dbMap), usermanager.ManagerOptions{})
 
-	sessionManager := session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo())
+	sessionManager := sessionmanager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 	sessionManager.GenerateCode = sequentialGenerateCodeFunc()
 
 	emailer, err := email.NewTemplatizedEmailerFromGlobs(
@@ -126,11 +136,11 @@ func makeTestFixtures() (*testFixtures, error) {
 		return nil, err
 	}
 
-	clientIdentityRepo := client.NewClientIdentityRepo([]oidc.ClientIdentity{
+	clientIdentityRepo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
 		oidc.ClientIdentity{
 			Credentials: oidc.ClientCredentials{
 				ID:     "XXX",
-				Secret: testClientSecret,
+				Secret: base64.URLEncoding.EncodeToString([]byte("secrete")),
 			},
 			Metadata: oidc.ClientMetadata{
 				RedirectURIs: []url.URL{
@@ -139,6 +149,9 @@ func makeTestFixtures() (*testFixtures, error) {
 			},
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	km := key.NewPrivateKeyManager()
 	err = km.Set(key.NewPrivateKeySet([]*key.PrivateKey{testPrivKey}, time.Now().Add(time.Minute)))

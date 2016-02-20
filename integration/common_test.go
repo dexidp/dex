@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -11,7 +12,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/coreos/dex/connector"
-	"github.com/coreos/dex/repo"
+	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/user"
 	"github.com/coreos/dex/user/manager"
 )
@@ -21,7 +22,7 @@ var (
 
 	testIssuerURL        = url.URL{Scheme: "https", Host: "auth.example.com"}
 	testClientID         = "XXX"
-	testClientSecret     = "yyy"
+	testClientSecret     = base64.URLEncoding.EncodeToString([]byte("yyy"))
 	testRedirectURL      = url.URL{Scheme: "https", Host: "client.example.com", Path: "/redirect"}
 	testResetPasswordURL = url.URL{Scheme: "https", Host: "auth.example.com", Path: "/resetPassword"}
 	testPrivKey, _       = key.GeneratePrivateKey()
@@ -45,13 +46,32 @@ func (t *tokenHandlerTransport) RoundTrip(r *http.Request) (*http.Response, erro
 }
 
 func makeUserObjects(users []user.UserWithRemoteIdentities, passwords []user.PasswordInfo) (user.UserRepo, user.PasswordInfoRepo, *manager.UserManager) {
-	ur := user.NewUserRepoFromUsers(users)
-	pwr := user.NewPasswordInfoRepoFromPasswordInfos(passwords)
+	dbMap := db.NewMemDB()
+	ur := func() user.UserRepo {
+		repo, err := db.NewUserRepoFromUsers(dbMap, users)
+		if err != nil {
+			panic("Failed to create user repo: " + err.Error())
+		}
+		return repo
+	}()
+	pwr := func() user.PasswordInfoRepo {
+		repo, err := db.NewPasswordInfoRepoFromPasswordInfos(dbMap, passwords)
+		if err != nil {
+			panic("Failed to create password info repo: " + err.Error())
+		}
+		return repo
+	}()
 
-	ccr := connector.NewConnectorConfigRepoFromConfigs(
-		[]connector.ConnectorConfig{&connector.LocalConnectorConfig{ID: "local"}},
-	)
-	um := manager.NewUserManager(ur, pwr, ccr, repo.InMemTransactionFactory, manager.ManagerOptions{})
+	ccr := func() connector.ConnectorConfigRepo {
+		repo := db.NewConnectorConfigRepo(dbMap)
+		c := []connector.ConnectorConfig{&connector.LocalConnectorConfig{ID: "local"}}
+		if err := repo.Set(c); err != nil {
+			panic(err)
+		}
+		return repo
+	}()
+
+	um := manager.NewUserManager(ur, pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
 	um.Clock = clock
 	return ur, pwr, um
 }

@@ -4,13 +4,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
+	"net/url"
 
 	"github.com/go-gorp/gorp"
-	_ "github.com/lib/pq"
 
-	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/repo"
+
+	// Import database drivers
+	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type table struct {
@@ -43,22 +45,35 @@ type Config struct {
 }
 
 func NewConnection(cfg Config) (*gorp.DbMap, error) {
-	if !strings.HasPrefix(cfg.DSN, "postgres://") {
+	u, err := url.Parse(cfg.DSN)
+	if err != nil {
+		return nil, fmt.Errorf("parse DSN: %v", err)
+	}
+	var (
+		db      *sql.DB
+		dialect gorp.Dialect
+	)
+	switch u.Scheme {
+	case "postgres":
+		db, err = sql.Open("postgres", cfg.DSN)
+		if err != nil {
+			return nil, err
+		}
+		db.SetMaxIdleConns(cfg.MaxIdleConnections)
+		db.SetMaxOpenConns(cfg.MaxOpenConnections)
+		dialect = gorp.PostgresDialect{}
+	case "sqlite3":
+		db, err = sql.Open("sqlite3", u.Host)
+		if err != nil {
+			return nil, err
+		}
+		// NOTE(ericchiang): sqlite does NOT work with SetMaxIdleConns.
+		dialect = gorp.SqliteDialect{}
+	default:
 		return nil, errors.New("unrecognized database driver")
 	}
 
-	db, err := sql.Open("postgres", cfg.DSN)
-	if err != nil {
-		return nil, err
-	}
-
-	db.SetMaxIdleConns(cfg.MaxIdleConnections)
-	db.SetMaxOpenConns(cfg.MaxOpenConnections)
-
-	dbm := gorp.DbMap{
-		Db:      db,
-		Dialect: gorp.PostgresDialect{},
-	}
+	dbm := gorp.DbMap{Db: db, Dialect: dialect}
 
 	for _, t := range tables {
 		tm := dbm.AddTableWithName(t.model, t.name).SetKeys(t.autoinc, t.pkey...)
@@ -70,7 +85,6 @@ func NewConnection(cfg Config) (*gorp.DbMap, error) {
 			cm.SetUnique(true)
 		}
 	}
-
 	return &dbm, nil
 }
 
@@ -80,9 +94,14 @@ func TransactionFactory(conn *gorp.DbMap) repo.TransactionFactory {
 	}
 }
 
-func rollback(tx *gorp.Transaction) {
-	err := tx.Rollback()
+// NewMemDB creates a new in memory sqlite3 database.
+func NewMemDB() *gorp.DbMap {
+	dbMap, err := NewConnection(Config{DSN: "sqlite3://:memory:"})
 	if err != nil {
-		log.Errorf("unable to rollback: %v", err)
+		panic("Failed to create in memory database: " + err.Error())
 	}
+	if _, err := MigrateToLatest(dbMap); err != nil {
+		panic("In memory database migration failed: " + err.Error())
+	}
+	return dbMap
 }

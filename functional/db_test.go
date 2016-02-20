@@ -36,17 +36,16 @@ func connect(t *testing.T) *gorp.DbMap {
 	if err != nil {
 		t.Fatalf("Unable to connect to database: %v", err)
 	}
-
 	if err = c.DropTablesIfExists(); err != nil {
 		t.Fatalf("Unable to drop database tables: %v", err)
 	}
 
 	if err = db.DropMigrationsTable(c); err != nil {
-		panic(fmt.Sprintf("Unable to drop migration table: %v", err))
+		t.Fatalf("Unable to drop migration table: %v", err)
 	}
 
 	if _, err = db.MigrateToLatest(c); err != nil {
-		panic(fmt.Sprintf("Unable to migrate: %v", err))
+		t.Fatalf("Unable to migrate: %v", err)
 	}
 
 	return c
@@ -157,12 +156,13 @@ func TestDBPrivateKeySetRepoSetGet(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		setRepo, err := db.NewPrivateKeySetRepo(connect(t), false, tt.setSecrets...)
+		dbMap := connect(t)
+		setRepo, err := db.NewPrivateKeySetRepo(dbMap, false, tt.setSecrets...)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 
-		getRepo, err := db.NewPrivateKeySetRepo(connect(t), false, tt.getSecrets...)
+		getRepo, err := db.NewPrivateKeySetRepo(dbMap, false, tt.getSecrets...)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
@@ -377,9 +377,24 @@ func TestDBRefreshRepoCreate(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		_, err := r.Create(tt.userID, tt.clientID)
-		if err != tt.err {
-			t.Errorf("Case #%d: expected: %v, got: %v", i, tt.err, err)
+		token, err := r.Create(tt.userID, tt.clientID)
+		if err != nil {
+			if tt.err == nil {
+				t.Errorf("case %d: create failed: %v", i, err)
+			}
+			continue
+		}
+		if tt.err != nil {
+			t.Errorf("case %d: expected error, didn't get one", i)
+			continue
+		}
+		userID, err := r.Verify(tt.clientID, token)
+		if err != nil {
+			t.Errorf("case %d: failed to verify good token: %v", i, err)
+			continue
+		}
+		if userID != tt.userID {
+			t.Errorf("case %d: want userID=%s, got userID=%s", i, tt.userID, userID)
 		}
 	}
 }

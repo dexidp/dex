@@ -28,6 +28,9 @@ var connConfigExample = []byte(`[
 ]`)
 
 func TestDexctlCommands(t *testing.T) {
+	if strings.HasPrefix(dsn, "sqlite3://") {
+		t.Skip("only test dexctl conmand with postgres")
+	}
 	tempFile, err := ioutil.TempFile("", "dexctl_functional_tests_")
 	if err != nil {
 		t.Fatal(err)

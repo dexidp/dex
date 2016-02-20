@@ -1,18 +1,10 @@
 #!/bin/bash -e
 
-export GOPATH=${PWD}/Godeps/_workspace
-export GOBIN=${PWD}/bin
+source ./env
 
-rm -rf $GOPATH/src/github.com/coreos/dex
-mkdir -p $GOPATH/src/github.com/coreos/
-
-# Only attempt to link dex into godeps if it isn't already there
-[ -d $GOPATH/src/github.com/coreos/dex ] || ln -s ${PWD} $GOPATH/src/github.com/coreos/dex
-
-LD_FLAGS="-X main.version=$(./git-version)"
-go build -o bin/dex-worker -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dex-worker
-go build -o bin/dexctl -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dexctl
-go build -o bin/dex-overlord -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dex-overlord
+go install -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dex-worker
+go install -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dexctl
+go install -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dex-overlord
 go build -o bin/example-app github.com/coreos/dex/examples/app
 go build -o bin/example-cli github.com/coreos/dex/examples/cli
-go build -o bin/gendoc github.com/coreos/dex/cmd/gendoc
+go install github.com/coreos/dex/cmd/gendoc

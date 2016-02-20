@@ -7,13 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-gorp/gorp"
 	"github.com/kylelemons/godebug/pretty"
 
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/user"
 )
-
-var makeTestUserRepoFromUsers func(users []user.UserWithRemoteIdentities) user.UserRepo
 
 var (
 	testUsers = []user.UserWithRemoteIdentities{
@@ -47,34 +46,21 @@ var (
 	}
 )
 
-func init() {
-	dsn := os.Getenv("DEX_TEST_DSN")
-	if dsn == "" {
-		makeTestUserRepoFromUsers = makeTestUserRepoMem
+func newUserRepo(t *testing.T, users []user.UserWithRemoteIdentities) user.UserRepo {
+	if users == nil {
+		users = []user.UserWithRemoteIdentities{}
+	}
+	var dbMap *gorp.DbMap
+	if os.Getenv("DEX_TEST_DSN") == "" {
+		dbMap = db.NewMemDB()
 	} else {
-		makeTestUserRepoFromUsers = makeTestUserRepoDB(dsn)
+		dbMap = connect(t)
 	}
-}
-
-func makeTestUserRepoMem(users []user.UserWithRemoteIdentities) user.UserRepo {
-	return user.NewUserRepoFromUsers(users)
-}
-
-func makeTestUserRepoDB(dsn string) func([]user.UserWithRemoteIdentities) user.UserRepo {
-	return func(users []user.UserWithRemoteIdentities) user.UserRepo {
-		c := initDB(dsn)
-
-		repo, err := db.NewUserRepoFromUsers(c, users)
-		if err != nil {
-			panic(fmt.Sprintf("Unable to add users: %v", err))
-		}
-		return repo
+	repo, err := db.NewUserRepoFromUsers(dbMap, users)
+	if err != nil {
+		t.Fatalf("Unable to add users: %v", err)
 	}
-
-}
-
-func makeTestUserRepo() user.UserRepo {
-	return makeTestUserRepoFromUsers(testUsers)
+	return repo
 }
 
 func TestNewUser(t *testing.T) {
@@ -137,7 +123,7 @@ func TestNewUser(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestUserRepo()
+		repo := newUserRepo(t, testUsers)
 		err := repo.Create(nil, tt.user)
 		if tt.err != nil {
 			if err != tt.err {
@@ -209,7 +195,7 @@ func TestUpdateUser(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestUserRepo()
+		repo := newUserRepo(t, testUsers)
 		err := repo.Update(nil, tt.user)
 		if tt.err != nil {
 			if err != tt.err {
@@ -269,7 +255,7 @@ func TestDisableUser(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestUserRepo()
+		repo := newUserRepo(t, testUsers)
 		err := repo.Disable(nil, tt.id, tt.disable)
 		switch {
 		case err != tt.err:
@@ -320,7 +306,7 @@ func TestAttachRemoteIdentity(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestUserRepo()
+		repo := newUserRepo(t, testUsers)
 		err := repo.AddRemoteIdentity(nil, tt.id, tt.rid)
 		if tt.err != nil {
 			if err != tt.err {
@@ -390,7 +376,7 @@ func TestRemoveRemoteIdentity(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestUserRepo()
+		repo := newUserRepo(t, testUsers)
 		err := repo.RemoveRemoteIdentity(nil, tt.id, tt.rid)
 		if tt.err != nil {
 			if err != tt.err {
@@ -433,59 +419,6 @@ func findRemoteIdentity(rids []user.RemoteIdentity, rid user.RemoteIdentity) int
 	return -1
 }
 
-func TestNewUserRepoFromUsers(t *testing.T) {
-	tests := []struct {
-		users []user.UserWithRemoteIdentities
-	}{
-		{
-			users: []user.UserWithRemoteIdentities{
-				{
-					User: user.User{
-						ID:    "123",
-						Email: "email123@example.com",
-					},
-					RemoteIdentities: []user.RemoteIdentity{},
-				},
-				{
-					User: user.User{
-						ID:    "456",
-						Email: "email456@example.com",
-					},
-					RemoteIdentities: []user.RemoteIdentity{
-						{
-							ID:          "remoteID",
-							ConnectorID: "connID",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	for i, tt := range tests {
-		repo := user.NewUserRepoFromUsers(tt.users)
-		for _, want := range tt.users {
-			gotUser, err := repo.Get(nil, want.User.ID)
-			if err != nil {
-				t.Errorf("case %d: want nil err: %v", i, err)
-			}
-
-			gotRIDs, err := repo.GetRemoteIdentities(nil, want.User.ID)
-			if err != nil {
-				t.Errorf("case %d: want nil err: %v", i, err)
-			}
-
-			if !reflect.DeepEqual(want.User, gotUser) {
-				t.Errorf("case %d: want=%#v got=%#v", i, want.User, gotUser)
-			}
-
-			if !reflect.DeepEqual(want.RemoteIdentities, gotRIDs) {
-				t.Errorf("case %d: want=%#v got=%#v", i, want.RemoteIdentities, gotRIDs)
-			}
-		}
-	}
-}
-
 func TestGetByEmail(t *testing.T) {
 	tests := []struct {
 		email   string
@@ -502,7 +435,7 @@ func TestGetByEmail(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestUserRepo()
+		repo := newUserRepo(t, testUsers)
 		gotUser, gotErr := repo.GetByEmail(nil, tt.email)
 		if tt.wantErr != nil {
 			if tt.wantErr != gotErr {
@@ -566,7 +499,7 @@ func TestGetAdminCount(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestUserRepo()
+		repo := newUserRepo(t, testUsers)
 		for _, addUser := range tt.addUsers {
 			err := repo.Create(nil, addUser)
 			if err != nil {
@@ -621,7 +554,7 @@ func TestList(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := makeTestUserRepoFromUsers(repoUsers)
+		repo := newUserRepo(t, repoUsers)
 		var tok string
 		gotIDs := [][]string{}
 		done := false
@@ -651,7 +584,7 @@ func TestList(t *testing.T) {
 }
 
 func TestListErrorNotFound(t *testing.T) {
-	repo := makeTestUserRepoFromUsers(nil)
+	repo := newUserRepo(t, nil)
 	_, _, err := repo.List(nil, user.UserFilter{}, 10, "")
 	if err != user.ErrorNotFound {
 		t.Errorf("want=%q, got=%q", user.ErrorNotFound, err)

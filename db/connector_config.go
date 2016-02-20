@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/go-gorp/gorp"
-	"github.com/lib/pq"
 
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/repo"
@@ -61,17 +60,17 @@ func (m *connectorConfigModel) ConnectorConfig() (connector.ConnectorConfig, err
 }
 
 func NewConnectorConfigRepo(dbm *gorp.DbMap) *ConnectorConfigRepo {
-	return &ConnectorConfigRepo{dbMap: dbm}
+	return &ConnectorConfigRepo{&db{dbm}}
 }
 
 type ConnectorConfigRepo struct {
-	dbMap *gorp.DbMap
+	*db
 }
 
 func (r *ConnectorConfigRepo) All() ([]connector.ConnectorConfig, error) {
-	qt := pq.QuoteIdentifier(connectorConfigTableName)
+	qt := r.quote(connectorConfigTableName)
 	q := fmt.Sprintf("SELECT * FROM %s", qt)
-	objs, err := r.dbMap.Select(&connectorConfigModel{}, q)
+	objs, err := r.executor(nil).Select(&connectorConfigModel{}, q)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +93,7 @@ func (r *ConnectorConfigRepo) All() ([]connector.ConnectorConfig, error) {
 }
 
 func (r *ConnectorConfigRepo) GetConnectorByID(tx repo.Transaction, id string) (connector.ConnectorConfig, error) {
-	qt := pq.QuoteIdentifier(connectorConfigTableName)
+	qt := r.quote(connectorConfigTableName)
 	q := fmt.Sprintf("SELECT * FROM %s WHERE id = $1", qt)
 	var c connectorConfigModel
 	if err := r.executor(tx).SelectOne(&c, q, id); err != nil {
@@ -117,32 +116,22 @@ func (r *ConnectorConfigRepo) Set(cfgs []connector.ConnectorConfig) error {
 		insert[i] = m
 	}
 
-	tx, err := r.dbMap.Begin()
+	tx, err := r.begin()
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback()
+	exec := r.executor(tx)
 
-	qt := pq.QuoteIdentifier(connectorConfigTableName)
+	qt := r.quote(connectorConfigTableName)
 	q := fmt.Sprintf("DELETE FROM %s", qt)
-	if _, err = r.dbMap.Exec(q); err != nil {
+	if _, err = exec.Exec(q); err != nil {
 		return err
 	}
 
-	if err = r.dbMap.Insert(insert...); err != nil {
+	if err = exec.Insert(insert...); err != nil {
 		return fmt.Errorf("DB insert failed %#v: %v", insert, err)
 	}
 
 	return tx.Commit()
-}
-
-func (r *ConnectorConfigRepo) executor(tx repo.Transaction) gorp.SqlExecutor {
-	if tx == nil {
-		return r.dbMap
-	}
-
-	gorpTx, ok := tx.(*gorp.Transaction)
-	if !ok {
-		panic("wrong kind of transaction passed to a DB repo")
-	}
-	return gorpTx
 }

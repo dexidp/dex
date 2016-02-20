@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,7 +18,8 @@ import (
 
 	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
-	"github.com/coreos/dex/session"
+	"github.com/coreos/dex/db"
+	"github.com/coreos/dex/session/manager"
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
@@ -75,20 +77,26 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 	}
 	srv := &Server{
 		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
-		SessionManager: session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo()),
-		ClientIdentityRepo: client.NewClientIdentityRepo([]oidc.ClientIdentity{
-			oidc.ClientIdentity{
-				Credentials: oidc.ClientCredentials{
-					ID:     "XXX",
-					Secret: "secrete",
-				},
-				Metadata: oidc.ClientMetadata{
-					RedirectURIs: []url.URL{
-						url.URL{Scheme: "http", Host: "client.example.com", Path: "/callback"},
+		SessionManager: manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB())),
+		ClientIdentityRepo: func() client.ClientIdentityRepo {
+			repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
+				oidc.ClientIdentity{
+					Credentials: oidc.ClientCredentials{
+						ID:     "XXX",
+						Secret: base64.URLEncoding.EncodeToString([]byte("secrete")),
+					},
+					Metadata: oidc.ClientMetadata{
+						RedirectURIs: []url.URL{
+							url.URL{Scheme: "http", Host: "client.example.com", Path: "/callback"},
+						},
 					},
 				},
-			},
-		}),
+			})
+			if err != nil {
+				t.Fatalf("Failed to create client identity repo: %v", err)
+			}
+			return repo
+		}(),
 	}
 
 	tests := []struct {
@@ -198,21 +206,27 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 	}
 	srv := &Server{
 		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
-		SessionManager: session.NewSessionManager(session.NewSessionRepo(), session.NewSessionKeyRepo()),
-		ClientIdentityRepo: client.NewClientIdentityRepo([]oidc.ClientIdentity{
-			oidc.ClientIdentity{
-				Credentials: oidc.ClientCredentials{
-					ID:     "XXX",
-					Secret: "secrete",
-				},
-				Metadata: oidc.ClientMetadata{
-					RedirectURIs: []url.URL{
-						url.URL{Scheme: "http", Host: "foo.example.com", Path: "/callback"},
-						url.URL{Scheme: "http", Host: "bar.example.com", Path: "/callback"},
+		SessionManager: manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB())),
+		ClientIdentityRepo: func() client.ClientIdentityRepo {
+			repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
+				oidc.ClientIdentity{
+					Credentials: oidc.ClientCredentials{
+						ID:     "XXX",
+						Secret: base64.URLEncoding.EncodeToString([]byte("secrete")),
+					},
+					Metadata: oidc.ClientMetadata{
+						RedirectURIs: []url.URL{
+							url.URL{Scheme: "http", Host: "foo.example.com", Path: "/callback"},
+							url.URL{Scheme: "http", Host: "bar.example.com", Path: "/callback"},
+						},
 					},
 				},
-			},
-		}),
+			})
+			if err != nil {
+				t.Fatalf("Failed to create client identity repo: %v", err)
+			}
+			return repo
+		}(),
 	}
 
 	tests := []struct {

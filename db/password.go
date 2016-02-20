@@ -5,10 +5,11 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/go-gorp/gorp"
+
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/repo"
 	"github.com/coreos/dex/user"
-	"github.com/go-gorp/gorp"
 )
 
 const (
@@ -33,12 +34,22 @@ type passwordInfoModel struct {
 
 func NewPasswordInfoRepo(dbm *gorp.DbMap) user.PasswordInfoRepo {
 	return &passwordInfoRepo{
-		dbMap: dbm,
+		db: &db{dbm},
 	}
 }
 
+func NewPasswordInfoRepoFromPasswordInfos(dbm *gorp.DbMap, infos []user.PasswordInfo) (user.PasswordInfoRepo, error) {
+	repo := NewPasswordInfoRepo(dbm)
+	for _, info := range infos {
+		if err := repo.Create(nil, info); err != nil {
+			return nil, err
+		}
+	}
+	return repo, nil
+}
+
 type passwordInfoRepo struct {
-	dbMap *gorp.DbMap
+	*db
 }
 
 func (r *passwordInfoRepo) Get(tx repo.Transaction, userID string) (user.PasswordInfo, error) {
@@ -87,18 +98,6 @@ func (r *passwordInfoRepo) Update(tx repo.Transaction, pw user.PasswordInfo) err
 	}
 
 	return nil
-}
-
-func (r *passwordInfoRepo) executor(tx repo.Transaction) gorp.SqlExecutor {
-	if tx == nil {
-		return r.dbMap
-	}
-
-	gorpTx, ok := tx.(*gorp.Transaction)
-	if !ok {
-		panic("wrong kind of transaction passed to a DB repo")
-	}
-	return gorpTx
 }
 
 func (r *passwordInfoRepo) get(tx repo.Transaction, id string) (user.PasswordInfo, error) {

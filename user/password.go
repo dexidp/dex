@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/url"
-	"os"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -85,60 +83,6 @@ type PasswordInfoRepo interface {
 	Create(repo.Transaction, PasswordInfo) error
 }
 
-func NewPasswordInfoRepo() PasswordInfoRepo {
-	return &memPasswordInfoRepo{
-		pws: make(map[string]PasswordInfo),
-	}
-}
-
-type memPasswordInfoRepo struct {
-	pws map[string]PasswordInfo
-}
-
-func (m *memPasswordInfoRepo) Get(_ repo.Transaction, id string) (PasswordInfo, error) {
-	pw, ok := m.pws[id]
-	if !ok {
-		return PasswordInfo{}, ErrorNotFound
-	}
-	return pw, nil
-}
-
-func (m *memPasswordInfoRepo) Create(_ repo.Transaction, pw PasswordInfo) error {
-	_, ok := m.pws[pw.UserID]
-	if ok {
-		return ErrorDuplicateID
-	}
-
-	if pw.UserID == "" {
-		return ErrorInvalidID
-	}
-
-	if len(pw.Password) == 0 {
-		return ErrorInvalidPassword
-	}
-
-	m.pws[pw.UserID] = pw
-	return nil
-}
-
-func (m *memPasswordInfoRepo) Update(_ repo.Transaction, pw PasswordInfo) error {
-	if pw.UserID == "" {
-		return ErrorInvalidID
-	}
-
-	_, ok := m.pws[pw.UserID]
-	if !ok {
-		return ErrorNotFound
-	}
-
-	if len(pw.Password) == 0 {
-		return ErrorInvalidPassword
-	}
-
-	m.pws[pw.UserID] = pw
-	return nil
-}
-
 func (u *PasswordInfo) UnmarshalJSON(data []byte) error {
 	var dec struct {
 		UserID            string    `json:"userId"`
@@ -172,21 +116,6 @@ func (u *PasswordInfo) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func newPasswordInfosFromReader(r io.Reader) ([]PasswordInfo, error) {
-	var pws []PasswordInfo
-	err := json.NewDecoder(r).Decode(&pws)
-	return pws, err
-}
-
-func readPasswordInfosFromFile(loc string) ([]PasswordInfo, error) {
-	pwf, err := os.Open(loc)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read password info from file %q: %v", loc, err)
-	}
-
-	return newPasswordInfosFromReader(pwf)
-}
-
 func LoadPasswordInfos(repo PasswordInfoRepo, pws []PasswordInfo) error {
 	for i, pw := range pws {
 		err := repo.Create(nil, pw)
@@ -195,23 +124,6 @@ func LoadPasswordInfos(repo PasswordInfoRepo, pws []PasswordInfo) error {
 		}
 	}
 	return nil
-}
-
-func NewPasswordInfoRepoFromPasswordInfos(pws []PasswordInfo) PasswordInfoRepo {
-	memRepo := NewPasswordInfoRepo().(*memPasswordInfoRepo)
-	for _, pw := range pws {
-		memRepo.pws[pw.UserID] = pw
-	}
-	return memRepo
-}
-
-func NewPasswordInfoRepoFromFile(loc string) (PasswordInfoRepo, error) {
-	pws, err := readPasswordInfosFromFile(loc)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewPasswordInfoRepoFromPasswordInfos(pws), nil
 }
 
 func NewPasswordReset(userID string, password Password, issuer url.URL, clientID string, callback url.URL, expires time.Duration) PasswordReset {

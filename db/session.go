@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-gorp/gorp"
 	"github.com/jonboulle/clockwork"
-	"github.com/lib/pq"
 
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/session"
@@ -124,16 +123,16 @@ func NewSessionRepo(dbm *gorp.DbMap) *SessionRepo {
 }
 
 func NewSessionRepoWithClock(dbm *gorp.DbMap, clock clockwork.Clock) *SessionRepo {
-	return &SessionRepo{dbMap: dbm, clock: clock}
+	return &SessionRepo{db: &db{dbm}, clock: clock}
 }
 
 type SessionRepo struct {
-	dbMap *gorp.DbMap
+	*db
 	clock clockwork.Clock
 }
 
 func (r *SessionRepo) Get(sessionID string) (*session.Session, error) {
-	m, err := r.dbMap.Get(sessionModel{}, sessionID)
+	m, err := r.executor(nil).Get(sessionModel{}, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +163,7 @@ func (r *SessionRepo) Create(s session.Session) error {
 	if err != nil {
 		return err
 	}
-	return r.dbMap.Insert(sm)
+	return r.executor(nil).Insert(sm)
 }
 
 func (r *SessionRepo) Update(s session.Session) error {
@@ -172,7 +171,7 @@ func (r *SessionRepo) Update(s session.Session) error {
 	if err != nil {
 		return err
 	}
-	n, err := r.dbMap.Update(sm)
+	n, err := r.executor(nil).Update(sm)
 	if err != nil {
 		return err
 	}
@@ -183,9 +182,9 @@ func (r *SessionRepo) Update(s session.Session) error {
 }
 
 func (r *SessionRepo) purge() error {
-	qt := pq.QuoteIdentifier(sessionTableName)
+	qt := r.quote(sessionTableName)
 	q := fmt.Sprintf("DELETE FROM %s WHERE expires_at < $1 OR state = $2", qt)
-	res, err := r.dbMap.Exec(q, r.clock.Now().Unix(), string(session.SessionStateDead))
+	res, err := r.executor(nil).Exec(q, r.clock.Now().Unix(), string(session.SessionStateDead))
 	if err != nil {
 		return err
 	}

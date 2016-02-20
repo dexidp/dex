@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -11,18 +12,17 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/key"
+	"github.com/coreos/go-oidc/oidc"
 	"github.com/coreos/pkg/health"
+	"github.com/go-gorp/gorp"
 
-	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/email"
-	"github.com/coreos/dex/refresh"
-	"github.com/coreos/dex/repo"
-	"github.com/coreos/dex/session"
+	sessionmanager "github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
 	useremail "github.com/coreos/dex/user/email"
-	"github.com/coreos/dex/user/manager"
+	usermanager "github.com/coreos/dex/user/manager"
 )
 
 type ServerConfig struct {
@@ -101,20 +101,21 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 		return err
 	}
 
+	dbMap := db.NewMemDB()
+
 	ks := key.NewPrivateKeySet([]*key.PrivateKey{k}, time.Now().Add(24*time.Hour))
 	kRepo := key.NewPrivateKeySetRepo()
 	if err = kRepo.Set(ks); err != nil {
 		return err
 	}
 
-	cf, err := os.Open(cfg.ClientsFile)
+	clients, err := loadClients(cfg.ClientsFile)
 	if err != nil {
 		return fmt.Errorf("unable to read clients from file %s: %v", cfg.ClientsFile, err)
 	}
-	defer cf.Close()
-	ciRepo, err := client.NewClientIdentityRepoFromReader(cf)
+	ciRepo, err := db.NewClientIdentityRepoFromClients(dbMap, clients)
 	if err != nil {
-		return fmt.Errorf("unable to read client identities from file %s: %v", cfg.ClientsFile, err)
+		return fmt.Errorf("failed to create client identity repo: %v", err)
 	}
 
 	f, err := os.Open(cfg.ConnectorsFile)
@@ -126,23 +127,30 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	if err != nil {
 		return fmt.Errorf("decoding connector configs: %v", err)
 	}
-	cfgRepo := connector.NewConnectorConfigRepoFromConfigs(cfgs)
+	cfgRepo := db.NewConnectorConfigRepo(dbMap)
+	if err := cfgRepo.Set(cfgs); err != nil {
+		return fmt.Errorf("failed to set connectors: %v", err)
+	}
 
-	sRepo := session.NewSessionRepo()
-	skRepo := session.NewSessionKeyRepo()
-	sm := session.NewSessionManager(sRepo, skRepo)
+	sRepo := db.NewSessionRepo(dbMap)
+	skRepo := db.NewSessionKeyRepo(dbMap)
+	sm := sessionmanager.NewSessionManager(sRepo, skRepo)
 
-	userRepo, err := user.NewUserRepoFromFile(cfg.UsersFile)
+	users, err := loadUsers(cfg.UsersFile)
 	if err != nil {
 		return fmt.Errorf("unable to read users from file: %v", err)
 	}
+	userRepo, err := db.NewUserRepoFromUsers(dbMap, users)
+	if err != nil {
+		return err
+	}
 
-	pwiRepo := user.NewPasswordInfoRepo()
+	pwiRepo := db.NewPasswordInfoRepo(dbMap)
 
-	refTokRepo := refresh.NewRefreshTokenRepo()
+	refTokRepo := db.NewRefreshTokenRepo(dbMap)
 
-	txnFactory := repo.InMemTransactionFactory
-	userManager := manager.NewUserManager(userRepo, pwiRepo, cfgRepo, txnFactory, manager.ManagerOptions{})
+	txnFactory := db.TransactionFactory(dbMap)
+	userManager := usermanager.NewUserManager(userRepo, pwiRepo, cfgRepo, txnFactory, usermanager.ManagerOptions{})
 	srv.ClientIdentityRepo = ciRepo
 	srv.KeySetRepo = kRepo
 	srv.ConnectorConfigRepo = cfgRepo
@@ -152,7 +160,54 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	srv.SessionManager = sm
 	srv.RefreshTokenRepo = refTokRepo
 	return nil
+}
 
+func loadUsers(filepath string) (users []user.UserWithRemoteIdentities, err error) {
+	f, err := os.Open(filepath)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	err = json.NewDecoder(f).Decode(&users)
+	return
+}
+
+func loadClients(filepath string) ([]oidc.ClientIdentity, error) {
+	f, err := os.Open(filepath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	var c []struct {
+		ID           string   `json:"id"`
+		Secret       string   `json:"secret"`
+		RedirectURLs []string `json:"redirectURLs"`
+	}
+	if err := json.NewDecoder(f).Decode(&c); err != nil {
+		return nil, err
+	}
+	clients := make([]oidc.ClientIdentity, len(c))
+	for i, client := range c {
+		redirectURIs := make([]url.URL, len(client.RedirectURLs))
+		for j, u := range client.RedirectURLs {
+			uri, err := url.Parse(u)
+			if err != nil {
+				return nil, err
+			}
+			redirectURIs[j] = *uri
+		}
+
+		clients[i] = oidc.ClientIdentity{
+			Credentials: oidc.ClientCredentials{
+				ID:     client.ID,
+				Secret: client.Secret,
+			},
+			Metadata: oidc.ClientMetadata{
+				RedirectURIs: redirectURIs,
+			},
+		}
+	}
+	return clients, nil
 }
 
 func (cfg *MultiServerConfig) Configure(srv *Server) error {
@@ -168,6 +223,9 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 	if err != nil {
 		return fmt.Errorf("unable to initialize database connection: %v", err)
 	}
+	if _, ok := dbc.Dialect.(gorp.PostgresDialect); !ok {
+		return errors.New("only postgres backend supported for multi server configurations")
+	}
 
 	kRepo, err := db.NewPrivateKeySetRepo(dbc, cfg.UseOldFormat, cfg.KeySecrets...)
 	if err != nil {
@@ -180,10 +238,10 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 	cfgRepo := db.NewConnectorConfigRepo(dbc)
 	userRepo := db.NewUserRepo(dbc)
 	pwiRepo := db.NewPasswordInfoRepo(dbc)
-	userManager := manager.NewUserManager(userRepo, pwiRepo, cfgRepo, db.TransactionFactory(dbc), manager.ManagerOptions{})
+	userManager := usermanager.NewUserManager(userRepo, pwiRepo, cfgRepo, db.TransactionFactory(dbc), usermanager.ManagerOptions{})
 	refreshTokenRepo := db.NewRefreshTokenRepo(dbc)
 
-	sm := session.NewSessionManager(sRepo, skRepo)
+	sm := sessionmanager.NewSessionManager(sRepo, skRepo)
 
 	srv.ClientIdentityRepo = ciRepo
 	srv.KeySetRepo = kRepo

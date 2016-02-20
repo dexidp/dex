@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-gorp/gorp"
-	"github.com/lib/pq"
 
 	pcrypto "github.com/coreos/dex/pkg/crypto"
 	"github.com/coreos/go-oidc/key"
@@ -99,7 +98,7 @@ func NewPrivateKeySetRepo(dbm *gorp.DbMap, useOldFormat bool, secrets ...[]byte)
 	}
 
 	r := &PrivateKeySetRepo{
-		dbMap:        dbm,
+		db:           &db{dbm},
 		useOldFormat: useOldFormat,
 		secrets:      secrets,
 	}
@@ -108,15 +107,20 @@ func NewPrivateKeySetRepo(dbm *gorp.DbMap, useOldFormat bool, secrets ...[]byte)
 }
 
 type PrivateKeySetRepo struct {
-	dbMap        *gorp.DbMap
+	*db
 	useOldFormat bool
 	secrets      [][]byte
 }
 
 func (r *PrivateKeySetRepo) Set(ks key.KeySet) error {
-	qt := pq.QuoteIdentifier(keyTableName)
-	_, err := r.dbMap.Exec(fmt.Sprintf("DELETE FROM %s", qt))
+	qt := r.quote(keyTableName)
+	tx, err := r.begin()
 	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	exec := r.executor(tx)
+	if _, err := exec.Exec(fmt.Sprintf("DELETE FROM %s", qt)); err != nil {
 		return err
 	}
 
@@ -148,12 +152,15 @@ func (r *PrivateKeySetRepo) Set(ks key.KeySet) error {
 	}
 
 	b := &privateKeySetBlob{Value: v}
-	return r.dbMap.Insert(b)
+	if err := exec.Insert(b); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (r *PrivateKeySetRepo) Get() (key.KeySet, error) {
-	qt := pq.QuoteIdentifier(keyTableName)
-	objs, err := r.dbMap.Select(&privateKeySetBlob{}, fmt.Sprintf("SELECT * FROM %s", qt))
+	qt := r.quote(keyTableName)
+	objs, err := r.executor(nil).Select(&privateKeySetBlob{}, fmt.Sprintf("SELECT * FROM %s", qt))
 	if err != nil {
 		return nil, err
 	}

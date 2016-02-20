@@ -1,4 +1,6 @@
 #!/bin/bash -e
-source ./build
+
+source ./env
+
 go test $@ github.com/coreos/dex/functional
 go test $@ github.com/coreos/dex/functional/repo

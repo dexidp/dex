@@ -11,6 +11,7 @@ import (
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/go-gorp/gorp"
 	"github.com/lib/pq"
+	"github.com/mattn/go-sqlite3"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/coreos/dex/client"
@@ -85,35 +86,47 @@ func (m *clientIdentityModel) ClientIdentity() (*oidc.ClientIdentity, error) {
 }
 
 func NewClientIdentityRepo(dbm *gorp.DbMap) client.ClientIdentityRepo {
-	return &clientIdentityRepo{dbMap: dbm}
+	return newClientIdentityRepo(dbm)
+}
+
+func newClientIdentityRepo(dbm *gorp.DbMap) *clientIdentityRepo {
+	return &clientIdentityRepo{db: &db{dbm}}
 }
 
 func NewClientIdentityRepoFromClients(dbm *gorp.DbMap, clients []oidc.ClientIdentity) (client.ClientIdentityRepo, error) {
-	repo := NewClientIdentityRepo(dbm).(*clientIdentityRepo)
+	repo := newClientIdentityRepo(dbm)
+	tx, err := repo.begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	exec := repo.executor(tx)
 	for _, c := range clients {
 		dec, err := base64.URLEncoding.DecodeString(c.Credentials.Secret)
 		if err != nil {
 			return nil, err
 		}
-
 		cm, err := newClientIdentityModel(c.Credentials.ID, dec, &c.Metadata)
 		if err != nil {
 			return nil, err
 		}
-		err = repo.dbMap.Insert(cm)
+		err = exec.Insert(cm)
 		if err != nil {
 			return nil, err
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
 	}
 	return repo, nil
 }
 
 type clientIdentityRepo struct {
-	dbMap *gorp.DbMap
+	*db
 }
 
 func (r *clientIdentityRepo) Metadata(clientID string) (*oidc.ClientMetadata, error) {
-	m, err := r.dbMap.Get(clientIdentityModel{}, clientID)
+	m, err := r.executor(nil).Get(clientIdentityModel{}, clientID)
 	if err == sql.ErrNoRows || m == nil {
 		return nil, client.ErrorNotFound
 	}
@@ -136,7 +149,7 @@ func (r *clientIdentityRepo) Metadata(clientID string) (*oidc.ClientMetadata, er
 }
 
 func (r *clientIdentityRepo) IsDexAdmin(clientID string) (bool, error) {
-	m, err := r.dbMap.Get(clientIdentityModel{}, clientID)
+	m, err := r.executor(nil).Get(clientIdentityModel{}, clientID)
 	if m == nil || err != nil {
 		return false, err
 	}
@@ -151,42 +164,35 @@ func (r *clientIdentityRepo) IsDexAdmin(clientID string) (bool, error) {
 }
 
 func (r *clientIdentityRepo) SetDexAdmin(clientID string, isAdmin bool) error {
-	tx, err := r.dbMap.Begin()
+	tx, err := r.begin()
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback()
+	exec := r.executor(tx)
 
-	m, err := r.dbMap.Get(clientIdentityModel{}, clientID)
+	m, err := exec.Get(clientIdentityModel{}, clientID)
 	if m == nil || err != nil {
-		rollback(tx)
 		return err
 	}
 
 	cim, ok := m.(*clientIdentityModel)
 	if !ok {
-		rollback(tx)
 		log.Errorf("expected clientIdentityModel but found %v", reflect.TypeOf(m))
 		return errors.New("unrecognized model")
 	}
 
 	cim.DexAdmin = isAdmin
-	_, err = r.dbMap.Update(cim)
+	_, err = exec.Update(cim)
 	if err != nil {
-		rollback(tx)
 		return err
 	}
 
-	err = tx.Commit()
-	if err != nil {
-		rollback(tx)
-		return err
-	}
-
-	return nil
+	return tx.Commit()
 }
 
 func (r *clientIdentityRepo) Authenticate(creds oidc.ClientCredentials) (bool, error) {
-	m, err := r.dbMap.Get(clientIdentityModel{}, creds.ID)
+	m, err := r.executor(nil).Get(clientIdentityModel{}, creds.ID)
 	if m == nil || err != nil {
 		return false, err
 	}
@@ -222,9 +228,16 @@ func (r *clientIdentityRepo) New(id string, meta oidc.ClientMetadata) (*oidc.Cli
 		return nil, err
 	}
 
-	if err := r.dbMap.Insert(cim); err != nil {
-		if perr, ok := err.(*pq.Error); ok && perr.Code == pgErrorCodeUniqueViolation {
-			err = errors.New("client ID already exists")
+	if err := r.executor(nil).Insert(cim); err != nil {
+		switch sqlErr := err.(type) {
+		case *pq.Error:
+			if sqlErr.Code == pgErrorCodeUniqueViolation {
+				err = errors.New("client ID already exists")
+			}
+		case *sqlite3.Error:
+			if sqlErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+				err = errors.New("client ID already exists")
+			}
 		}
 
 		return nil, err
@@ -239,9 +252,9 @@ func (r *clientIdentityRepo) New(id string, meta oidc.ClientMetadata) (*oidc.Cli
 }
 
 func (r *clientIdentityRepo) All() ([]oidc.ClientIdentity, error) {
-	qt := pq.QuoteIdentifier(clientIdentityTableName)
+	qt := r.quote(clientIdentityTableName)
 	q := fmt.Sprintf("SELECT * FROM %s", qt)
-	objs, err := r.dbMap.Select(&clientIdentityModel{}, q)
+	objs, err := r.executor(nil).Select(&clientIdentityModel{}, q)
 	if err != nil {
 		return nil, err
 	}

@@ -1,22 +1,22 @@
 [
   {
     "id": "XXX",
-    "secret": "secrete",
+    "secret": "c2VjcmV0ZQ==",
     "redirectURLs": ["http://127.0.0.1:5555/callback"]
   },
   {
     "id": "example-app",
-    "secret": "example-app-secret",
+    "secret": "ZXhhbXBsZS1hcHAtc2VjcmV0",
     "redirectURLs": ["http://127.0.0.1:5555/callback"]
   },
   {
     "id": "example-cli",
-    "secret": "example-cli-secret",
+    "secret": "ZXhhbXBsZS1jbGktc2VjcmV0",
     "redirectURLs": ["http://127.0.0.1:8000/admin/v1/oauth/login"]
   },
   {
     "id": "oauth2_proxy",
-    "secret": "proxy",
+    "secret": "cHJveHk=",
     "redirectURLs": ["http://127.0.0.1:4180/oauth2/callback"]
   }
 ]

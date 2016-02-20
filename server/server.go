@@ -22,10 +22,11 @@ import (
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/refresh"
 	"github.com/coreos/dex/session"
+	sessionmanager "github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
 	usersapi "github.com/coreos/dex/user/api"
 	useremail "github.com/coreos/dex/user/email"
-	"github.com/coreos/dex/user/manager"
+	usermanager "github.com/coreos/dex/user/manager"
 )
 
 const (
@@ -57,7 +58,7 @@ type Server struct {
 	IssuerURL                      url.URL
 	KeyManager                     key.PrivateKeyManager
 	KeySetRepo                     key.PrivateKeySetRepo
-	SessionManager                 *session.SessionManager
+	SessionManager                 *sessionmanager.SessionManager
 	ClientIdentityRepo             client.ClientIdentityRepo
 	ConnectorConfigRepo            connector.ConnectorConfigRepo
 	Templates                      *template.Template
@@ -69,7 +70,7 @@ type Server struct {
 	HealthChecks                   []health.Checkable
 	Connectors                     []connector.Connector
 	UserRepo                       user.UserRepo
-	UserManager                    *manager.UserManager
+	UserManager                    *usermanager.UserManager
 	PasswordInfoRepo               user.PasswordInfoRepo
 	RefreshTokenRepo               refresh.RefreshTokenRepo
 	UserEmailer                    *useremail.UserEmailer

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,12 +10,14 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
-	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/db"
 	schema "github.com/coreos/dex/schema/workerschema"
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/kylelemons/godebug/pretty"
 )
 
 func makeBody(s string) io.ReadCloser {
@@ -24,7 +27,7 @@ func makeBody(s string) io.ReadCloser {
 func TestCreateInvalidRequest(t *testing.T) {
 	u := &url.URL{Scheme: "http", Host: "example.com", Path: "clients"}
 	h := http.Header{"Content-Type": []string{"application/json"}}
-	repo := client.NewClientIdentityRepo(nil)
+	repo := db.NewClientIdentityRepo(db.NewMemDB())
 	res := &clientResource{repo: repo}
 	tests := []struct {
 		req      *http.Request
@@ -115,7 +118,7 @@ func TestCreateInvalidRequest(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	repo := client.NewClientIdentityRepo(nil)
+	repo := db.NewClientIdentityRepo(db.NewMemDB())
 	res := &clientResource{repo: repo}
 	tests := [][]string{
 		[]string{"http://example.com"},
@@ -168,6 +171,11 @@ func TestCreate(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
+
+	b64Encode := func(s string) string {
+		return base64.URLEncoding.EncodeToString([]byte(s))
+	}
+
 	tests := []struct {
 		cs   []oidc.ClientIdentity
 		want []*schema.Client
@@ -181,7 +189,7 @@ func TestList(t *testing.T) {
 		{
 			cs: []oidc.ClientIdentity{
 				oidc.ClientIdentity{
-					Credentials: oidc.ClientCredentials{ID: "foo", Secret: "bar"},
+					Credentials: oidc.ClientCredentials{ID: "foo", Secret: b64Encode("bar")},
 					Metadata: oidc.ClientMetadata{
 						RedirectURIs: []url.URL{
 							url.URL{Scheme: "http", Host: "example.com"},
@@ -200,7 +208,7 @@ func TestList(t *testing.T) {
 		{
 			cs: []oidc.ClientIdentity{
 				oidc.ClientIdentity{
-					Credentials: oidc.ClientCredentials{ID: "foo", Secret: "bar"},
+					Credentials: oidc.ClientCredentials{ID: "foo", Secret: b64Encode("bar")},
 					Metadata: oidc.ClientMetadata{
 						RedirectURIs: []url.URL{
 							url.URL{Scheme: "http", Host: "example.com"},
@@ -208,7 +216,7 @@ func TestList(t *testing.T) {
 					},
 				},
 				oidc.ClientIdentity{
-					Credentials: oidc.ClientCredentials{ID: "biz", Secret: "bang"},
+					Credentials: oidc.ClientCredentials{ID: "biz", Secret: b64Encode("bang")},
 					Metadata: oidc.ClientMetadata{
 						RedirectURIs: []url.URL{
 							url.URL{Scheme: "https", Host: "example.com", Path: "one/two/three"},
@@ -230,7 +238,11 @@ func TestList(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo := client.NewClientIdentityRepo(tt.cs)
+		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), tt.cs)
+		if err != nil {
+			t.Errorf("case %d: failed to create client identity repo: %v", i, err)
+			continue
+		}
 		res := &clientResource{repo: repo}
 
 		r, err := http.NewRequest("GET", "http://example.com/clients", nil)
@@ -248,9 +260,17 @@ func TestList(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Errorf("case %d: unexpected error=%v", i, err)
 		}
+		sort.Sort(byClientId(tt.want))
+		sort.Sort(byClientId(resp.Clients))
 
-		if !reflect.DeepEqual(tt.want, resp.Clients) {
-			t.Errorf("case %d: invalid response body, want=%#v, got=%#v", i, tt.want, resp.Clients)
+		if diff := pretty.Compare(tt.want, resp.Clients); diff != "" {
+			t.Errorf("case %d: invalid response body: %s", i, diff)
 		}
 	}
 }
+
+type byClientId []*schema.Client
+
+func (b byClientId) Len() int           { return len(b) }
+func (b byClientId) Less(i, j int) bool { return b[i].Id < b[j].Id }
+func (b byClientId) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }

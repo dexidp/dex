@@ -2,51 +2,12 @@ package user
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/kylelemons/godebug/pretty"
 
 	"github.com/coreos/go-oidc/jose"
 )
-
-func TestNewUsersFromReader(t *testing.T) {
-	tests := []struct {
-		json string
-		want []UserWithRemoteIdentities
-	}{
-		{
-			json: `[{"user":{"id":"12345", "displayName": "Elroy Canis", "email":"elroy23@example.com"}, "remoteIdentities":[{"connectorID":"google", "id":"elroy@example.com"}] }]`,
-			want: []UserWithRemoteIdentities{
-				{
-					User: User{
-						ID:          "12345",
-						DisplayName: "Elroy Canis",
-						Email:       "elroy23@example.com",
-					},
-					RemoteIdentities: []RemoteIdentity{
-						{
-							ConnectorID: "google",
-							ID:          "elroy@example.com",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	for i, tt := range tests {
-		r := strings.NewReader(tt.json)
-		us, err := newUsersFromReader(r)
-		if err != nil {
-			t.Errorf("case %d: want nil err: %v", i, err)
-			continue
-		}
-		if diff := pretty.Compare(tt.want, us); diff != "" {
-			t.Errorf("case %d: Compare(want, got): %v", i, diff)
-		}
-	}
-}
 
 func TestAddToClaims(t *testing.T) {
 	tests := []struct {
