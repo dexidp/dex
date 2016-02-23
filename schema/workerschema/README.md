@@ -59,6 +59,27 @@ __Version:__ v1
 }
 ```
 
+### ResendEmailInvitationRequest
+
+
+
+```
+{
+    redirectURL: string
+}
+```
+
+### ResendEmailInvitationResponse
+
+
+
+```
+{
+    emailSent: boolean,
+    resetPasswordLink: string
+}
+```
+
 ### User
 
 
@@ -300,6 +321,33 @@ __Version:__ v1
 > |Code|Description|Type|
 |:-----|:-----|:-----|
 | 200 |  | [UserDisableResponse](#userdisableresponse) |
+| default | Unexpected error |  |
+
+
+### POST /users/{id}/resend-invitation
+
+> __Summary__
+
+> ResendEmailInvitation Users
+
+> __Description__
+
+> Resend invitation email to an existing user with unverified email.
+
+
+> __Parameters__
+
+> |Name|Located in|Description|Required|Type|
+|:-----|:-----|:-----|:-----|:-----|
+| id | path |  | Yes | string | 
+|  | body |  | Yes | [ResendEmailInvitationRequest](#resendemailinvitationrequest) | 
+
+
+> __Responses__
+
+> |Code|Description|Type|
+|:-----|:-----|:-----|
+| 200 |  | [ResendEmailInvitationResponse](#resendemailinvitationresponse) |
 | default | Unexpected error |  |
 
 

@@ -188,6 +188,28 @@ const DiscoveryJSON = `{
           "type": "boolean"
         }
       }
+    },
+    "ResendEmailInvitationRequest": {
+      "id": "UserDisableRequest",
+      "type": "object",
+      "properties": {
+        "redirectURL": {
+          "type": "string",
+          "format": "url"
+        }
+      }
+    },
+    "ResendEmailInvitationResponse": {
+      "id": "UserDisableResponse",
+      "type": "object",
+      "properties": {
+        "resetPasswordLink": {
+          "type": "string"
+        },
+        "emailSent": {
+          "type": "boolean"
+        }
+      }
     }
   },
   "resources": {
@@ -294,6 +316,28 @@ const DiscoveryJSON = `{
           },
           "response": {
             "$ref": "UserDisableResponse"
+          }
+        },
+        "ResendEmailInvitation": {
+          "id": "dex.User.ResendEmailInvitation",
+          "description": "Resend invitation email to an existing user with unverified email.",
+          "httpMethod": "POST",
+          "path": "users/{id}/resend-invitation",
+          "parameters": {
+            "id": {
+              "type": "string",
+              "required": true,
+              "location": "path"
+            }
+          },
+          "parameterOrder": [
+            "id"
+          ],
+          "request": {
+            "$ref": "ResendEmailInvitationRequest"
+          },
+          "response": {
+            "$ref": "ResendEmailInvitationResponse"
           }
         }
       }

@@ -24,7 +24,8 @@ var (
 		client.ErrorNotFound:     ErrorInvalidClient,
 	}
 
-	ErrorInvalidEmail = newError("invalid_email", "invalid email.", http.StatusBadRequest)
+	ErrorInvalidEmail  = newError("invalid_email", "invalid email.", http.StatusBadRequest)
+	ErrorVerifiedEmail = newError("verified_email", "Email already verified.", http.StatusBadRequest)
 
 	ErrorInvalidClient = newError("invalid_client", "invalid email.", http.StatusBadRequest)
 
@@ -183,6 +184,50 @@ func (u *UsersAPI) CreateUser(creds Creds, usr schema.User, redirURL url.URL) (s
 
 	return schema.UserCreateResponse{
 		User:              &usr,
+		EmailSent:         emailSent,
+		ResetPasswordLink: resetLink,
+	}, nil
+}
+
+func (u *UsersAPI) ResendEmailInvitation(creds Creds, userID string, redirURL url.URL) (schema.ResendEmailInvitationResponse, error) {
+	log.Infof("userAPI: ResendEmailInvitation")
+	if !u.Authorize(creds) {
+		return schema.ResendEmailInvitationResponse{}, ErrorUnauthorized
+	}
+
+	metadata, err := u.clientIdentityRepo.Metadata(creds.ClientID)
+	if err != nil {
+		return schema.ResendEmailInvitationResponse{}, mapError(err)
+	}
+
+	validRedirURL, err := client.ValidRedirectURL(&redirURL, metadata.RedirectURIs)
+	if err != nil {
+		return schema.ResendEmailInvitationResponse{}, ErrorInvalidRedirectURL
+	}
+
+	// Retrieve user to check if it's already created
+	userUser, err := u.manager.Get(userID)
+	if err != nil {
+		return schema.ResendEmailInvitationResponse{}, mapError(err)
+	}
+
+	// Check if email is verified
+	if userUser.EmailVerified {
+		return schema.ResendEmailInvitationResponse{}, ErrorVerifiedEmail
+	}
+
+	url, err := u.emailer.SendInviteEmail(userUser.Email, validRedirURL, creds.ClientID)
+
+	// An email is sent only if we don't get a link and there's no error.
+	emailSent := err == nil && url == nil
+
+	// If email is not sent a reset link will be generated
+	var resetLink string
+	if url != nil {
+		resetLink = url.String()
+	}
+
+	return schema.ResendEmailInvitationResponse{
 		EmailSent:         emailSent,
 		ResetPasswordLink: resetLink,
 	}, nil

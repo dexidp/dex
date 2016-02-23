@@ -24,11 +24,12 @@ const (
 )
 
 var (
-	UsersSubTree         = "/users"
-	UsersListEndpoint    = addBasePath(UsersSubTree)
-	UsersCreateEndpoint  = addBasePath(UsersSubTree)
-	UsersGetEndpoint     = addBasePath(UsersSubTree + "/:id")
-	UsersDisableEndpoint = addBasePath(UsersSubTree + "/:id/disable")
+	UsersSubTree                  = "/users"
+	UsersListEndpoint             = addBasePath(UsersSubTree)
+	UsersCreateEndpoint           = addBasePath(UsersSubTree)
+	UsersGetEndpoint              = addBasePath(UsersSubTree + "/:id")
+	UsersDisableEndpoint          = addBasePath(UsersSubTree + "/:id/disable")
+	UsersResendInvitationEndpoint = addBasePath(UsersSubTree + "/:id/resend-invitation")
 )
 
 type UserMgmtServer struct {
@@ -55,6 +56,7 @@ func (s *UserMgmtServer) HTTPHandler() http.Handler {
 	r.POST(UsersCreateEndpoint, s.authAPIHandle(s.createUser))
 	r.POST(UsersDisableEndpoint, s.authAPIHandle(s.disableUser))
 	r.GET(UsersGetEndpoint, s.authAPIHandle(s.getUser))
+	r.POST(UsersResendInvitationEndpoint, s.authAPIHandle(s.resendInvitationEmail))
 	return r
 }
 
@@ -159,6 +161,34 @@ func (s *UserMgmtServer) disableUser(w http.ResponseWriter, r *http.Request, ps 
 	}
 
 	writeResponseWithBody(w, http.StatusOK, resp)
+}
+
+func (s *UserMgmtServer) resendInvitationEmail(w http.ResponseWriter, r *http.Request, ps httprouter.Params, creds api.Creds) {
+	id := ps.ByName("id")
+	if id == "" {
+		writeAPIError(w, http.StatusBadRequest, newAPIError(errorInvalidRequest, "id is required"))
+		return
+	}
+	resendEmailInvitationReq := schema.ResendEmailInvitationRequest{}
+	if err := json.NewDecoder(r.Body).Decode(&resendEmailInvitationReq); err != nil {
+		writeInvalidRequest(w, "cannot parse JSON body")
+		return
+	}
+
+	redirURL, err := url.Parse(resendEmailInvitationReq.RedirectURL)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest,
+			newAPIError(errorInvalidRequest, "redirectURL must be a valid URL"))
+		return
+	}
+
+	resendEmailInvitationResponse, err := s.api.ResendEmailInvitation(creds, id, *redirURL)
+	if err != nil {
+		s.writeError(w, err)
+		return
+	}
+
+	writeResponseWithBody(w, http.StatusOK, resendEmailInvitationResponse)
 }
 
 func (s *UserMgmtServer) writeError(w http.ResponseWriter, err error) {
