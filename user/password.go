@@ -53,9 +53,9 @@ func NewPasswordFromPlaintext(plaintext string) (Password, error) {
 type PasswordInfo struct {
 	UserID string
 
-	Password Password
+	Password Password `json:"passwordHash"`
 
-	PasswordExpires time.Time
+	PasswordExpires time.Time `json:"passwordExpires"`
 }
 
 func (p PasswordInfo) Authenticate(plaintext string) (*oidc.Identity, error) {
@@ -86,7 +86,7 @@ type PasswordInfoRepo interface {
 func (u *PasswordInfo) UnmarshalJSON(data []byte) error {
 	var dec struct {
 		UserID            string    `json:"userId"`
-		PasswordHash      string    `json:"passwordHash"`
+		PasswordHash      []byte    `json:"passwordHash"`
 		PasswordPlaintext string    `json:"passwordPlaintext"`
 		PasswordExpires   time.Time `json:"passwordExpires"`
 	}
@@ -98,7 +98,9 @@ func (u *PasswordInfo) UnmarshalJSON(data []byte) error {
 
 	u.UserID = dec.UserID
 
-	u.PasswordExpires = dec.PasswordExpires
+	if !dec.PasswordExpires.IsZero() {
+		u.PasswordExpires = dec.PasswordExpires
+	}
 
 	if len(dec.PasswordHash) != 0 {
 		if dec.PasswordPlaintext != "" {

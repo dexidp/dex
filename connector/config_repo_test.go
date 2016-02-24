@@ -61,7 +61,7 @@ func TestNewConnectorConfigFromMap(t *testing.T) {
 				"type": "local",
 				"id":   "foo",
 				"passwordInfos": []map[string]string{
-					{"userId": "abc", "passwordHash": "PING"},
+					{"userId": "abc", "passwordHash": "UElORw=="}, // []byte is base64 encoded when using json.Marshasl
 					{"userId": "271", "passwordPlaintext": "pong"},
 				},
 			},

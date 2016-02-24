@@ -1,6 +1,7 @@
 package user
 
 import (
+	"encoding/json"
 	"net/url"
 	"testing"
 	"time"
@@ -12,6 +13,44 @@ import (
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/key"
 )
+
+func TestPasswordMarshaling(t *testing.T) {
+	hashPassword := func(s string) []byte {
+		data, err := DefaultPasswordHasher(s)
+		if err != nil {
+			t.Fatalf("Failed to hash password: %v", err)
+		}
+		return data
+	}
+
+	tests := []PasswordInfo{
+		{
+			UserID:   "mrpink",
+			Password: hashPassword("mrpinks-password"),
+		},
+		{
+			UserID:          "mrorange",
+			Password:        hashPassword("mroranges-password"),
+			PasswordExpires: time.Now().Add(time.Hour),
+		},
+	}
+	for i, tt := range tests {
+		data, err := json.Marshal(tt)
+		if err != nil {
+			t.Errorf("case %d: failed to marshal password info: %v", i, err)
+			continue
+		}
+		var p PasswordInfo
+		if err := json.Unmarshal(data, &p); err != nil {
+			t.Errorf("case %d: failed to unmarshal password info: %v", i, err)
+			continue
+		}
+		if diff := pretty.Compare(tt, p); diff != "" {
+			t.Errorf("case %d: password info did not survive JSON marshal round trip: %s", i, diff)
+		}
+	}
+
+}
 
 func TestNewPasswordFromHash(t *testing.T) {
 	tests := []string{
