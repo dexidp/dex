@@ -11,7 +11,9 @@ go:
 
 env:
   - DEX_TEST_DSN="postgres://postgres@127.0.0.1:15432/postgres?sslmode=disable" ISOLATED=true
-    DEX_TEST_LDAP_URI="ldap://tlstest.local:1389/????bindname=cn%3Dadmin%2Cdc%3Dexample%2Cdc%3Dorg,X-BINDPW=admin"
+    DEX_TEST_LDAP_HOST="tlstest.local:1389"
+    DEX_TEST_LDAP_BINDNAME="cn=admin,dc=example,dc=org"
+    DEX_TEST_LDAP_BINDPASS="admin"
 
 install:
   - go get golang.org/x/tools/cmd/cover

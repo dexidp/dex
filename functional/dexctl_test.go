@@ -28,6 +28,10 @@ var connConfigExample = []byte(`[
 ]`)
 
 func TestDexctlCommands(t *testing.T) {
+	dsn := os.Getenv("DEX_TEST_DSN")
+	if dsn == "" {
+		t.Fatal("Unable to proceed with empty env var DEX_TEST_DSN")
+	}
 	if strings.HasPrefix(dsn, "sqlite3://") {
 		t.Skip("only test dexctl conmand with postgres")
 	}

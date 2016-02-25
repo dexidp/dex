@@ -19,19 +19,11 @@ import (
 	"github.com/coreos/dex/session"
 )
 
-var (
-	dsn string
-)
-
-func init() {
-	dsn = os.Getenv("DEX_TEST_DSN")
-	if dsn == "" {
-		fmt.Println("Unable to proceed with empty env var DEX_TEST_DSN")
-		os.Exit(1)
-	}
-}
-
 func connect(t *testing.T) *gorp.DbMap {
+	dsn := os.Getenv("DEX_TEST_DSN")
+	if dsn == "" {
+		t.Fatal("Unable to proceed with empty env var DEX_TEST_DSN")
+	}
 	c, err := db.NewConnection(db.Config{DSN: dsn})
 	if err != nil {
 		t.Fatalf("Unable to connect to database: %v", err)
