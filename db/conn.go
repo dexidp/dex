@@ -67,7 +67,14 @@ func NewConnection(cfg Config) (*gorp.DbMap, error) {
 		if err != nil {
 			return nil, err
 		}
-		// NOTE(ericchiang): sqlite does NOT work with SetMaxIdleConns.
+		if u.Host == ":memory:" {
+			// NOTE(ericchiang): sqlite3 coordinates concurrent clients through file locks.
+			// In memory databases do not support concurrent calls. Limit the number of
+			// open connections to 1.
+			//
+			// See: https://www.sqlite.org/faq.html#q5
+			db.SetMaxOpenConns(1)
+		}
 		dialect = gorp.SqliteDialect{}
 	default:
 		return nil, errors.New("unrecognized database driver")
