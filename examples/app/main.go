@@ -28,11 +28,11 @@ func main() {
 	fs := flag.NewFlagSet("oidc-app", flag.ExitOnError)
 	listen := fs.String("listen", "http://127.0.0.1:5555", "")
 	redirectURL := fs.String("redirect-url", "http://127.0.0.1:5555/callback", "")
-	clientID := fs.String("client-id", "", "")
-	clientSecret := fs.String("client-secret", "", "")
+	clientID := fs.String("client-id", "example-app", "")
+	clientSecret := fs.String("client-secret", "ZXhhbXBsZS1hcHAtc2VjcmV0", "")
 	caFile := fs.String("trusted-ca-file", "", "the TLS CA file, if empty then the host's root CA will be used")
 
-	discovery := fs.String("discovery", "https://accounts.google.com", "")
+	discovery := fs.String("discovery", "http://127.0.0.1:5556", "")
 	logDebug := fs.Bool("log-debug", false, "log debug-level information")
 	logTimestamps := fs.Bool("log-timestamps", false, "prefix log lines with timestamps")
 
