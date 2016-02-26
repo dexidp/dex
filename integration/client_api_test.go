@@ -12,7 +12,7 @@ import (
 )
 
 func TestClientCreate(t *testing.T) {
-	ci := oidc.ClientIdentity{
+	server_ci := oidc.ClientIdentity{
 		Credentials: oidc.ClientCredentials{
 			ID:     "72de74a9",
 			Secret: base64.URLEncoding.EncodeToString([]byte("XXX")),
@@ -23,14 +23,25 @@ func TestClientCreate(t *testing.T) {
 			},
 		},
 	}
-	cis := []oidc.ClientIdentity{ci}
+	client_ci := oidc.ClientIdentity{
+		Credentials: oidc.ClientCredentials{
+			ID:     "72de74a9",
+			Secret: "XXX",
+		},
+		Metadata: oidc.ClientMetadata{
+			RedirectURIs: []url.URL{
+				{Scheme: "https://", Host: "authn.example.com", Path: "/callback"},
+			},
+		},
+	}
+	cis := []oidc.ClientIdentity{server_ci}
 
 	srv, err := mockServer(cis)
 	if err != nil {
 		t.Fatalf("Unexpected error setting up server: %v", err)
 	}
 
-	oidcClient, err := mockClient(srv, ci)
+	oidcClient, err := mockClient(srv, client_ci)
 	if err != nil {
 		t.Fatalf("Unexpected error setting up OIDC client: %v", err)
 	}

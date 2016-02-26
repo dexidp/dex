@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -434,7 +435,7 @@ func handleTokenFunc(srv OIDCServer) http.HandlerFunc {
 			return
 		}
 
-		creds := oidc.ClientCredentials{ID: user, Secret: password}
+		creds := oidc.ClientCredentials{ID: user, Secret: base64.URLEncoding.EncodeToString([]byte(password))}
 
 		var jwt *jose.JWT
 		var refreshToken string

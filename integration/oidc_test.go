@@ -116,15 +116,22 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 		PasswordInfos: []user.PasswordInfo{passwordInfo},
 	}
 
-	ci := oidc.ClientIdentity{
+	server_ci := oidc.ClientIdentity{
 		Credentials: oidc.ClientCredentials{
 			ID:     "72de74a9",
 			Secret: base64.URLEncoding.EncodeToString([]byte("XXX")),
 		},
 	}
 
+	client_ci := oidc.ClientIdentity{
+		Credentials: oidc.ClientCredentials{
+			ID:     "72de74a9",
+			Secret: "XXX",
+		},
+	}
+
 	dbMap := db.NewMemDB()
-	cir, err := db.NewClientIdentityRepoFromClients(dbMap, []oidc.ClientIdentity{ci})
+	cir, err := db.NewClientIdentityRepoFromClients(dbMap, []oidc.ClientIdentity{server_ci})
 	if err != nil {
 		t.Fatalf("Failed to create client identity repo: " + err.Error())
 	}
@@ -183,7 +190,7 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 	ccfg := oidc.ClientConfig{
 		HTTPClient:     sClient,
 		ProviderConfig: pcfg,
-		Credentials:    ci.Credentials,
+		Credentials:    client_ci.Credentials,
 		RedirectURL:    "http://client.example.com",
 		KeySet:         *ks,
 	}
@@ -203,7 +210,7 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 
 	// this will actually happen due to some interaction between the
 	// end-user and a remote identity provider
-	sessionID, err := sm.NewSession("bogus_idpc", ci.Credentials.ID, "bogus", url.URL{}, "", false, []string{"openid", "offline_access"})
+	sessionID, err := sm.NewSession("bogus_idpc", client_ci.Credentials.ID, "bogus", url.URL{}, "", false, []string{"openid", "offline_access"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -230,7 +237,7 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 		t.Fatalf("Failed resolving HTTP requests against /callback: %v", err)
 	}
 
-	if err := verifyUserClaims(claims, &ci, &usr, issuerURL); err != nil {
+	if err := verifyUserClaims(claims, &server_ci, &usr, issuerURL); err != nil {
 		t.Fatalf("Failed to verify claims: %v", err)
 	}
 
@@ -253,26 +260,32 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 		t.Fatalf("Failed parsing claims from client token: %v", err)
 	}
 
-	if err := verifyUserClaims(claims, &ci, &usr, issuerURL); err != nil {
+	if err := verifyUserClaims(claims, &server_ci, &usr, issuerURL); err != nil {
 		t.Fatalf("Failed to verify claims: %v", err)
 	}
 }
 
 func TestHTTPClientCredsToken(t *testing.T) {
-	ci := oidc.ClientIdentity{
+	server_ci := oidc.ClientIdentity{
 		Credentials: oidc.ClientCredentials{
 			ID:     "72de74a9",
 			Secret: base64.URLEncoding.EncodeToString([]byte("XXX")),
 		},
 	}
-	cis := []oidc.ClientIdentity{ci}
+	cis := []oidc.ClientIdentity{server_ci}
 
 	srv, err := mockServer(cis)
 	if err != nil {
 		t.Fatalf("Unexpected error setting up server: %v", err)
 	}
 
-	cl, err := mockClient(srv, ci)
+	client_ci := oidc.ClientIdentity{
+		Credentials: oidc.ClientCredentials{
+			ID:     "72de74a9",
+			Secret: "XXX",
+		},
+	}
+	cl, err := mockClient(srv, client_ci)
 	if err != nil {
 		t.Fatalf("Unexpected error setting up OIDC client: %v", err)
 	}
@@ -287,7 +300,7 @@ func TestHTTPClientCredsToken(t *testing.T) {
 		t.Fatalf("Failed parsing claims from client token: %v", err)
 	}
 
-	if err := verifyUserClaims(claims, &ci, nil, srv.IssuerURL); err != nil {
+	if err := verifyUserClaims(claims, &server_ci, nil, srv.IssuerURL); err != nil {
 		t.Fatalf("Failed to verify claims: %v", err)
 	}
 }
