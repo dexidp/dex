@@ -2,13 +2,9 @@ package http
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/url"
 	"path"
-	"strconv"
-	"strings"
-	"time"
 
 	"github.com/coreos/dex/pkg/log"
 )
@@ -26,73 +22,6 @@ func WriteError(w http.ResponseWriter, code int, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	w.Write(b)
-}
-
-func cacheControlMaxAge(hdr string) (time.Duration, bool, error) {
-	for _, field := range strings.Split(hdr, ",") {
-		parts := strings.SplitN(strings.TrimSpace(field), "=", 2)
-		k := strings.ToLower(strings.TrimSpace(parts[0]))
-		if k != "max-age" {
-			continue
-		}
-
-		if len(parts) == 1 {
-			return 0, false, errors.New("max-age has no value")
-		}
-
-		v := strings.TrimSpace(parts[1])
-		if v == "" {
-			return 0, false, errors.New("max-age has empty value")
-		}
-
-		age, err := strconv.Atoi(v)
-		if err != nil {
-			return 0, false, err
-		}
-
-		if age <= 0 {
-			return 0, false, nil
-		}
-
-		return time.Duration(age) * time.Second, true, nil
-	}
-
-	return 0, false, nil
-}
-
-func expires(date, expires string) (time.Duration, bool, error) {
-	if date == "" || expires == "" {
-		return 0, false, nil
-	}
-
-	te, err := time.Parse(time.RFC1123, expires)
-	if err != nil {
-		return 0, false, err
-	}
-
-	td, err := time.Parse(time.RFC1123, date)
-	if err != nil {
-		return 0, false, err
-	}
-
-	ttl := te.Sub(td)
-
-	// headers indicate data already expired, caller should not
-	// have to care about this case
-	if ttl <= 0 {
-		return 0, false, nil
-	}
-
-	return ttl, true, nil
-}
-
-func Cacheable(hdr http.Header) (time.Duration, bool, error) {
-	ttl, ok, err := cacheControlMaxAge(hdr.Get("Cache-Control"))
-	if err != nil || ok {
-		return ttl, ok, err
-	}
-
-	return expires(hdr.Get("Date"), hdr.Get("Expires"))
 }
 
 // MergeQuery appends additional query values to an existing URL.
@@ -115,16 +44,4 @@ func NewResourceLocation(reqURL *url.URL, id string) string {
 	u.RawQuery = ""
 	u.Fragment = ""
 	return u.String()
-}
-
-// CopyRequest returns a clone of the provided *http.Request.
-// The returned object is a shallow copy of the struct and a
-// deep copy of its Header field.
-func CopyRequest(r *http.Request) *http.Request {
-	r2 := *r
-	r2.Header = make(http.Header)
-	for k, s := range r.Header {
-		r2.Header[k] = s
-	}
-	return &r2
 }

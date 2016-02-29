@@ -149,12 +149,6 @@ func (h *SendResetPasswordEmailHandler) errPage(w http.ResponseWriter, msg strin
 	execTemplateWithStatus(w, h.tpl, data, status)
 }
 
-func (h *SendResetPasswordEmailHandler) internalError(w http.ResponseWriter, err error) {
-	log.Errorf("Internal Error during sending password reset email: %v", err)
-	h.errPage(w, "There was a problem processing your request.", http.StatusInternalServerError,
-		&sendResetPasswordEmailData{})
-}
-
 func (h *SendResetPasswordEmailHandler) exchangeKeyForClientAndRedirect(key string) (string, url.URL, error) {
 	id, err := h.sm.ExchangeKey(key)
 	if err != nil {
