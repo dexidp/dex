@@ -159,6 +159,7 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	srv.PasswordInfoRepo = pwiRepo
 	srv.SessionManager = sm
 	srv.RefreshTokenRepo = refTokRepo
+	srv.HealthChecks = append(srv.HealthChecks, db.NewHealthChecker(dbMap))
 	return nil
 }
 
@@ -251,6 +252,7 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 	srv.PasswordInfoRepo = pwiRepo
 	srv.SessionManager = sm
 	srv.RefreshTokenRepo = refreshTokenRepo
+	srv.HealthChecks = append(srv.HealthChecks, db.NewHealthChecker(dbc))
 	return nil
 }
 
