@@ -105,6 +105,7 @@ func (u *User) AddToClaims(claims jose.Claims) {
 // UserRepo implementations maintain a persistent set of users.
 // The following invariants must be maintained:
 //  * Users must have a unique Email and ID
+//  * Emails are case insensitive.
 //  * No other Users may have the same RemoteIdentity as one of the
 //    users. (This constraint may be relaxed in the future)
 type UserRepo interface {
