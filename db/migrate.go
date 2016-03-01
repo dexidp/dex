@@ -53,12 +53,7 @@ func DropMigrationsTable(dbMap *gorp.DbMap) error {
 func migrationSource(dbMap *gorp.DbMap) (src migrate.MigrationSource, dialect string, err error) {
 	switch dbMap.Dialect.(type) {
 	case gorp.PostgresDialect:
-		src = &migrate.AssetMigrationSource{
-			Dir:      migrationDir,
-			Asset:    migrations.Asset,
-			AssetDir: migrations.AssetDir,
-		}
-		return src, "postgres", nil
+		return migrations.PostgresMigrations, "postgres", nil
 	case gorp.SqliteDialect:
 		src = &migrate.MemoryMigrationSource{
 			Migrations: []*migrate.Migration{
