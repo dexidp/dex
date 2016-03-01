@@ -106,6 +106,15 @@ func TestNewUser(t *testing.T) {
 		},
 		{
 			user: user.User{
+				ID:          "ID-same",
+				Email:       "email-1@example.com",
+				DisplayName: "A lower case version of the original email",
+				CreatedAt:   now,
+			},
+			err: user.ErrorDuplicateEmail,
+		},
+		{
+			user: user.User{
 				Email:       "AnotherEmail@example.com",
 				DisplayName: "Can't set your own ID!",
 				CreatedAt:   now,
@@ -421,12 +430,19 @@ func findRemoteIdentity(rids []user.RemoteIdentity, rid user.RemoteIdentity) int
 
 func TestGetByEmail(t *testing.T) {
 	tests := []struct {
-		email   string
-		wantErr error
+		email     string
+		wantEmail string
+		wantErr   error
 	}{
 		{
-			email:   "Email-1@example.com",
-			wantErr: nil,
+			email:     "Email-1@example.com",
+			wantEmail: "Email-1@example.com",
+			wantErr:   nil,
+		},
+		{
+			email:     "EMAIL-1@example.com", // Emails should be case insensitive.
+			wantEmail: "Email-1@example.com",
+			wantErr:   nil,
 		},
 		{
 			email:   "NoSuchEmail@example.com",
@@ -446,9 +462,10 @@ func TestGetByEmail(t *testing.T) {
 
 		if gotErr != nil {
 			t.Errorf("case %d: want nil err:% q", i, gotErr)
+			continue
 		}
 
-		if tt.email != gotUser.Email {
+		if tt.wantEmail != gotUser.Email {
 			t.Errorf("case %d: want=%q, got=%q", i, tt.email, gotUser.Email)
 		}
 	}
