@@ -4,6 +4,11 @@ package admin
 import (
 	"net/http"
 
+	"github.com/coreos/go-oidc/oidc"
+	"github.com/go-gorp/gorp"
+
+	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/schema/adminschema"
 	"github.com/coreos/dex/user"
 	"github.com/coreos/dex/user/manager"
@@ -11,22 +16,32 @@ import (
 
 // AdminAPI provides the logic necessary to implement the Admin API.
 type AdminAPI struct {
-	userManager      *manager.UserManager
-	userRepo         user.UserRepo
-	passwordInfoRepo user.PasswordInfoRepo
-	localConnectorID string
+	userManager        *manager.UserManager
+	userRepo           user.UserRepo
+	passwordInfoRepo   user.PasswordInfoRepo
+	clientIdentityRepo client.ClientIdentityRepo
+	localConnectorID   string
 }
 
-func NewAdminAPI(userManager *manager.UserManager, userRepo user.UserRepo, pwiRepo user.PasswordInfoRepo, localConnectorID string) *AdminAPI {
+// TODO(ericchiang): Swap the DbMap for a storage interface. See #278
+
+func NewAdminAPI(dbMap *gorp.DbMap, localConnectorID string) *AdminAPI {
 	if localConnectorID == "" {
 		panic("must specify non-blank localConnectorID")
 	}
 
+	userRepo := db.NewUserRepo(dbMap)
+	passwordInfoRepo := db.NewPasswordInfoRepo(dbMap)
+	connectorConfigRepo := db.NewConnectorConfigRepo(dbMap)
+	txFactory := db.TransactionFactory(dbMap)
+	opts := manager.ManagerOptions{}
+	userManager := manager.NewUserManager(userRepo, passwordInfoRepo, connectorConfigRepo, txFactory, opts)
 	return &AdminAPI{
-		userManager:      userManager,
-		userRepo:         userRepo,
-		passwordInfoRepo: pwiRepo,
-		localConnectorID: localConnectorID,
+		userManager:        userManager,
+		userRepo:           userRepo,
+		passwordInfoRepo:   passwordInfoRepo,
+		clientIdentityRepo: db.NewClientIdentityRepo(dbMap),
+		localConnectorID:   localConnectorID,
 	}
 }
 
@@ -106,6 +121,33 @@ func (a *AdminAPI) GetState() (adminschema.State, error) {
 	state.AdminUserCreated = admins > 0
 
 	return state, nil
+}
+
+type ClientRegistrationRequest struct {
+	IsAdmin bool                `json:"isAdmin"`
+	Client  oidc.ClientMetadata `json:"client"`
+}
+
+func (a *AdminAPI) CreateClient(req ClientRegistrationRequest) (oidc.ClientRegistrationResponse, error) {
+	if err := req.Client.Valid(); err != nil {
+		return oidc.ClientRegistrationResponse{}, mapError(err)
+	}
+	// metadata is guarenteed to have at least one redirect_uri by earlier validation.
+	id, err := oidc.GenClientID(req.Client.RedirectURIs[0].Host)
+	if err != nil {
+		return oidc.ClientRegistrationResponse{}, mapError(err)
+	}
+	c, err := a.clientIdentityRepo.New(id, req.Client)
+	if err != nil {
+		return oidc.ClientRegistrationResponse{}, mapError(err)
+	}
+	if req.IsAdmin {
+		// TODO(ericchiang): Put this in a transaction
+		if err := a.clientIdentityRepo.SetDexAdmin(c.ID, req.IsAdmin); err != nil {
+			return oidc.ClientRegistrationResponse{}, mapError(err)
+		}
+	}
+	return oidc.ClientRegistrationResponse{ClientID: c.ID, ClientSecret: c.Secret, ClientMetadata: req.Client}, nil
 }
 
 func mapError(e error) error {
