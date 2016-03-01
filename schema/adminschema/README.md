@@ -20,6 +20,27 @@ __Version:__ v1
 }
 ```
 
+### ClientCreateRequest
+
+'client' field is a client registration request as defined by the OpenID Connect dynamic registration spec, and holds fields such as redirect URLs, prefered algorithms, etc. For brevity field names and types of that object have been omitted.
+
+```
+{
+    client: {
+    },
+    isAdmin: boolean
+}
+```
+
+### ClientRegistrationResponse
+
+This object is a client registration respones as defined by the OpenID Connect dynamic registration spec. For brevity field names and types have been omitted.
+
+```
+{
+}
+```
+
 ### State
 
 
@@ -49,7 +70,7 @@ __Version:__ v1
 
 > |Name|Located in|Description|Required|Type|
 |:-----|:-----|:-----|:-----|:-----|
-|  | body |  | Yes | [Admin](#admin) | 
+|  | body |  | Yes | [Admin](#admin) |
 
 
 > __Responses__
@@ -75,7 +96,7 @@ __Version:__ v1
 
 > |Name|Located in|Description|Required|Type|
 |:-----|:-----|:-----|:-----|:-----|
-| id | path |  | Yes | string | 
+| id | path |  | Yes | string |
 
 
 > __Responses__
@@ -83,6 +104,32 @@ __Version:__ v1
 > |Code|Description|Type|
 |:-----|:-----|:-----|
 | 200 |  | [Admin](#admin) |
+| default | Unexpected error |  |
+
+
+### POST /client
+
+> __Summary__
+
+> Create Client
+
+> __Description__
+
+> Register an OpenID Connect client.
+
+
+> __Parameters__
+
+> |Name|Located in|Description|Required|Type|
+|:-----|:-----|:-----|:-----|:-----|
+|  | body |  | Yes | [ClientCreateRequest](#clientcreaterequest) |
+
+
+> __Responses__
+
+> |Code|Description|Type|
+|:-----|:-----|:-----|
+| 200 |  | [ClientRegistrationResponse](#clientregistrationresponse) |
 | default | Unexpected error |  |
 
 

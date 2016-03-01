@@ -50,7 +50,26 @@ const DiscoveryJSON = `{
                   "type": "boolean"
               }
           }
-      }
+      },
+      "ClientCreateRequest": {
+          "id": "ClientCreateRequest",
+          "type": "object",
+	      "description": "'client' field is a client registration request as defined by the OpenID Connect dynamic registration spec, and holds fields such as redirect URLs, prefered algorithms, etc. For brevity field names and types of that object have been omitted.",
+          "properties": {
+              "isAdmin": {
+                  "type": "boolean"
+              },
+              "client": {
+                  "type": "object"
+              }
+          }
+      },
+	  "ClientRegistrationResponse": {
+		  "id": "ClientRegistrationResponse",
+		  "type": "object",
+		  "description": "This object is a client registration respones as defined by the OpenID Connect dynamic registration spec. For brevity field names and types have been omitted.",
+		  "properties": {}
+	  }
   },
   "resources": {
       "Admin": {
@@ -98,6 +117,22 @@ const DiscoveryJSON = `{
                   "path": "state",
                   "response": {
                       "$ref": "State"
+                  }
+              }
+          }
+      },
+      "Client": {
+          "methods": {
+              "Create": {
+                  "id": "dex.admin.Client.Create",
+                  "description": "Register an OpenID Connect client.",
+                  "httpMethod": "POST",
+                  "path": "client",
+                  "request": {
+                      "$ref": "ClientCreateRequest"
+                  },
+                  "response": {
+                      "$ref": "ClientRegistrationResponse"
                   }
               }
           }
