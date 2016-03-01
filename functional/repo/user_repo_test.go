@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -220,6 +221,7 @@ func TestUpdateUser(t *testing.T) {
 				t.Errorf("case %d: want nil err, got %q", i, err)
 			}
 
+			tt.user.Email = strings.ToLower(tt.user.Email)
 			if diff := pretty.Compare(tt.user, gotUser); diff != "" {
 				t.Errorf("case %d: Compare(want, got) = %v", i,
 					diff)
@@ -436,12 +438,12 @@ func TestGetByEmail(t *testing.T) {
 	}{
 		{
 			email:     "Email-1@example.com",
-			wantEmail: "Email-1@example.com",
+			wantEmail: "email-1@example.com",
 			wantErr:   nil,
 		},
 		{
 			email:     "EMAIL-1@example.com", // Emails should be case insensitive.
-			wantEmail: "Email-1@example.com",
+			wantEmail: "email-1@example.com",
 			wantErr:   nil,
 		},
 		{

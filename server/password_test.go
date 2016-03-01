@@ -100,7 +100,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 
 			wantCode: http.StatusOK,
 			wantEmailer: &testEmailer{
-				to:      str("Email-1@example.com"),
+				to:      str("email-1@example.com"),
 				from:    "noreply@example.com",
 				subject: "Reset Your Password",
 			},
@@ -136,7 +136,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 
 			wantCode: http.StatusOK,
 			wantEmailer: &testEmailer{
-				to:      str("Email-1@example.com"),
+				to:      str("email-1@example.com"),
 				from:    "noreply@example.com",
 				subject: "Reset Your Password",
 			},

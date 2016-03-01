@@ -223,7 +223,7 @@ func handleEmailVerifyFunc(verifiedTpl *template.Template, issuer url.URL, keysF
 					Error:   "Invalid Verification Link",
 					Message: "Your email link has expired or has already been verified.",
 				}, http.StatusBadRequest)
-			case manager.ErrorEVEmailDoesntMatch:
+			case user.ErrorNotFound:
 				execTemplateWithStatus(w, verifiedTpl, emailVerifiedTemplateData{
 					Error:   "Invalid Verification Link",
 					Message: "Your email link does not match the email address on file. Perhaps you have a more recent verification link?",

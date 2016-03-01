@@ -13,9 +13,7 @@ import (
 )
 
 var (
-	ErrorEVEmailDoesntMatch   = errors.New("email in EV doesn't match user email")
-	ErrorEmailAlreadyVerified = errors.New("email already verified")
-
+	ErrorEmailAlreadyVerified   = errors.New("email already verified")
 	ErrorPasswordAlreadyChanged = errors.New("password has already been changed")
 )
 
@@ -228,15 +226,15 @@ func (m *UserManager) VerifyEmail(ev EmailVerifiable) (*url.URL, error) {
 		return nil, err
 	}
 
-	usr, err := m.userRepo.Get(tx, ev.UserID())
+	usr, err := m.userRepo.GetByEmail(tx, ev.Email())
 	if err != nil {
 		rollback(tx)
 		return nil, err
 	}
 
-	if usr.Email != ev.Email() {
+	if usr.ID != ev.UserID() {
 		rollback(tx)
-		return nil, ErrorEVEmailDoesntMatch
+		return nil, user.ErrorNotFound
 	}
 
 	if usr.EmailVerified {

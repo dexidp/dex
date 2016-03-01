@@ -311,6 +311,7 @@ func TestVerifyEmail(t *testing.T) {
 
 		if err != nil {
 			t.Errorf("case %d: want err=nil got=%q", i, err)
+			continue
 		}
 
 		if cb.String() != tt.evClaims[user.ClaimEmailVerificationCallback] {
