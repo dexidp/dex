@@ -69,7 +69,7 @@ var PostgresMigrations migrate.MigrationSource = &migrate.MemoryMigrationSource{
 		{
 			Id: "0011_case_insensitive_emails.sql",
 			Up: []string{
-				"-- +migrate Up\n\nCREATE OR REPLACE FUNCTION raise_exp() RETURNS VOID AS $$\nBEGIN\n     RAISE EXCEPTION 'Found duplicate emails when using case insensitive comparision, cannot perform migration.';\nEND;\n$$ LANGUAGE plpgsql;\n\nSELECT LOWER(email),\n    COUNT(email),\n    CASE\n        WHEN COUNT(email) > 1 THEN raise_exp()\n        ELSE NULL\n    END\nFROM authd_user\nGROUP BY LOWER(email);\n\nUPDATE authd_user SET email = LOWER(email);\n",
+				"-- +migrate Up\n\n-- This migration is a fix for a bug that allowed duplicate emails if they used different cases (see #338).\n-- When migrating, dex will not take the liberty of deleting rows for duplicate cases. Instead it will\n-- raise an exception and call for an admin to remove duplicates manually.\n\nCREATE OR REPLACE FUNCTION raise_exp() RETURNS VOID AS $$\nBEGIN\n     RAISE EXCEPTION 'Found duplicate emails when using case insensitive comparision, cannot perform migration.';\nEND;\n$$ LANGUAGE plpgsql;\n\nSELECT LOWER(email),\n    COUNT(email),\n    CASE\n        WHEN COUNT(email) > 1 THEN raise_exp()\n        ELSE NULL\n    END\nFROM authd_user\nGROUP BY LOWER(email);\n\nUPDATE authd_user SET email = LOWER(email);\n",
 			},
 		},
 	},
