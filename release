@@ -1,9 +1,16 @@
 #!/bin/bash -e
 
-VERSION=$(./git-version)
-
 GOARCH=amd64
 OSS=( "darwin" "linux" )
+
+
+source ./env
+
+# cannot cross compile when GOBIN is set.
+# See:
+#   https://golang.org/issue/9769
+#   https://golang.org/issue/11778
+unset GOBIN 
 
 for GOOS in ${OSS[@]}; do
 	name=dex-$VERSION-$GOOS-$GOARCH
@@ -11,8 +18,7 @@ for GOOS in ${OSS[@]}; do
 	rm -fr $name.tar.gz $name/
 	mkdir $name
 
-	GOOS=$GOOS GOARCH=$GOARCH ./build
-	cp bin/dexctl $name/
+	GOOS=$GOOS GOARCH=$GOARCH go build -o $name/dexctl -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dexctl
 
 	tar -czf $name.tar.gz $name/
 	echo "Created ${name}.tar.gz"

@@ -9,10 +9,6 @@ import (
 	"github.com/go-gorp/gorp"
 
 	"github.com/coreos/dex/repo"
-
-	// Import database drivers
-	_ "github.com/lib/pq"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 type table struct {
