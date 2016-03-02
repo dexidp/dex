@@ -209,7 +209,7 @@ func (s *Server) HTTPHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc(httpPathDiscovery, handleDiscoveryFunc(s.ProviderConfig()))
 	mux.HandleFunc(httpPathAuth, handleAuthFunc(s, s.Connectors, s.LoginTemplate, s.EnableRegistration))
-	mux.HandleFunc(httpPathToken, handleTokenFunc(s))
+	mux.HandleFunc(httpPathToken, handleTokenFunc(s, s.ClientIdentityRepo))
 	mux.HandleFunc(httpPathKeys, handleKeysFunc(s.KeyManager, clock))
 	mux.Handle(httpPathHealth, makeHealthHandler(checks))
 

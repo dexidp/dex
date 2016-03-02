@@ -410,7 +410,7 @@ func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.T
 	}
 }
 
-func handleTokenFunc(srv OIDCServer) http.HandlerFunc {
+func handleTokenFunc(srv OIDCServer, clientIdentityRepo client.ClientIdentityRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			w.Header().Set("Allow", "POST")
@@ -434,12 +434,36 @@ func handleTokenFunc(srv OIDCServer) http.HandlerFunc {
 			return
 		}
 
-		creds := oidc.ClientCredentials{ID: user, Secret: password}
+		decodedUser, err := url.QueryUnescape(user)
+		if err != nil {
+			log.Errorf("error decoding user: %v", err)
+			writeTokenError(w, oauth2.NewError(oauth2.ErrorInvalidClient), state)
+			return
+		}
+
+		decodedPassword, err := url.QueryUnescape(password)
+		if err != nil {
+			log.Errorf("error decoding password: %v", err)
+			writeTokenError(w, oauth2.NewError(oauth2.ErrorInvalidClient), state)
+			return
+		}
+
+		creds := oidc.ClientCredentials{ID: decodedUser, Secret: decodedPassword}
+
+		ok, err = clientIdentityRepo.Authenticate(creds)
+		if err != nil {
+			log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
+			writeTokenError(w, oauth2.NewError(oauth2.ErrorServerError), state)
+			return
+		}
+		if !ok {
+			// TODO: Remove support for deprecated encoding later
+			creds = oidc.ClientCredentials{ID: user, Secret: password}
+		}
 
 		var jwt *jose.JWT
 		var refreshToken string
 		grantType := r.PostForm.Get("grant_type")
-
 		switch grantType {
 		case oauth2.GrantTypeAuthCode:
 			code := r.PostForm.Get("code")
