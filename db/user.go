@@ -425,7 +425,7 @@ func (r *userRepo) insertRemoteIdentity(tx repo.Transaction, userID string, ri u
 
 type userModel struct {
 	ID            string `db:"id"`
-	Email         string `db:"email"` // NOTE(ericchiang): When making comparisions emails are case insensitive.
+	Email         string `db:"email"`
 	EmailVerified bool   `db:"email_verified"`
 	DisplayName   string `db:"display_name"`
 	Disabled      bool   `db:"disabled"`
