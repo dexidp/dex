@@ -2,9 +2,18 @@
 
 source ./env
 
-go install -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dex-worker
-go install -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dexctl
-go install -ldflags="$LD_FLAGS" github.com/coreos/dex/cmd/dex-overlord
+CMDS=( "dex-worker" "dexctl" "dex-overlord" "gendoc")
+FORMAT='{{ range $i, $dep := .Deps }}{{ $dep }} {{ end }}'
+
+for CMD in ${CMDS[@]}; do
+	TARGET="github.com/coreos/dex/cmd/$CMD"
+	# Install command dependencies. This caches package builds and speeds
+	# up successive builds a lot.
+	go list -f="$FORMAT" $TARGET | xargs go install -ldflags="$LD_FLAGS"
+
+	# Build the actual command.
+	go build -o="bin/$CMD" -ldflags="$LD_FLAGS" $TARGET
+done
+
 go build -o bin/example-app github.com/coreos/dex/examples/app
 go build -o bin/example-cli github.com/coreos/dex/examples/cli
-go install github.com/coreos/dex/cmd/gendoc
