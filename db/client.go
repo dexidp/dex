@@ -10,8 +10,6 @@ import (
 
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/go-gorp/gorp"
-	"github.com/lib/pq"
-	"github.com/mattn/go-sqlite3"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/coreos/dex/client"
@@ -217,6 +215,25 @@ func (r *clientIdentityRepo) Authenticate(creds oidc.ClientCredentials) (bool, e
 	return ok, nil
 }
 
+var alreadyExistsCheckers []func(err error) bool
+
+func registerAlreadyExistsChecker(f func(err error) bool) {
+	alreadyExistsCheckers = append(alreadyExistsCheckers, f)
+}
+
+// isAlreadyExistsErr detects database error codes for failing a unique constraint.
+//
+// Because database drivers are optionally compiled, use registerAlreadyExistsChecker to
+// register driver specific implementations.
+func isAlreadyExistsErr(err error) bool {
+	for _, checker := range alreadyExistsCheckers {
+		if checker(err) {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *clientIdentityRepo) New(id string, meta oidc.ClientMetadata) (*oidc.ClientCredentials, error) {
 	secret, err := pcrypto.RandBytes(maxSecretLength)
 	if err != nil {
@@ -229,17 +246,9 @@ func (r *clientIdentityRepo) New(id string, meta oidc.ClientMetadata) (*oidc.Cli
 	}
 
 	if err := r.executor(nil).Insert(cim); err != nil {
-		switch sqlErr := err.(type) {
-		case *pq.Error:
-			if sqlErr.Code == pgErrorCodeUniqueViolation {
-				err = errors.New("client ID already exists")
-			}
-		case *sqlite3.Error:
-			if sqlErr.ExtendedCode == sqlite3.ErrConstraintUnique {
-				err = errors.New("client ID already exists")
-			}
+		if isAlreadyExistsErr(err) {
+			err = errors.New("client ID already exists")
 		}
-
 		return nil, err
 	}
 
