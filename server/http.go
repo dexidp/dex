@@ -434,7 +434,21 @@ func handleTokenFunc(srv OIDCServer) http.HandlerFunc {
 			return
 		}
 
-		creds := oidc.ClientCredentials{ID: user, Secret: password}
+		decodedUser, err := url.QueryUnescape(user)
+		if err != nil {
+			log.Errorf("error decoding user: %v", err)
+			writeTokenError(w, oauth2.NewError(oauth2.ErrorInvalidClient), state)
+			return
+		}
+
+		decodedPassword, err := url.QueryUnescape(password)
+		if err != nil {
+			log.Errorf("error decoding password: %v", err)
+			writeTokenError(w, oauth2.NewError(oauth2.ErrorInvalidClient), state)
+			return
+		}
+
+		creds := oidc.ClientCredentials{ID: decodedUser, Secret: decodedPassword}
 
 		var jwt *jose.JWT
 		var refreshToken string
