@@ -45,8 +45,9 @@ var (
 		},
 		{
 			User: user.User{
-				ID:    "ID-2",
-				Email: "Email-2@example.com",
+				ID:            "ID-2",
+				Email:         "Email-2@example.com",
+				EmailVerified: true,
 			},
 		},
 		{
@@ -579,6 +580,184 @@ func TestDisableUser(t *testing.T) {
 		if usr.User.Disabled != tt.disable {
 			t.Errorf("case %v: user disabled state incorrect. wanted: %v found: %v", i, tt.disable, usr.User.Disabled)
 		}
+	}
+}
+
+func TestResendEmailInvitation(t *testing.T) {
+	tests := []struct {
+		req       schema.ResendEmailInvitationRequest
+		cantEmail bool
+		userID    string
+		email     string
+		token     string
+
+		wantResponse schema.ResendEmailInvitationResponse
+		wantCode     int
+	}{
+		{
+
+			req: schema.ResendEmailInvitationRequest{
+				RedirectURL: testRedirectURL.String(),
+			},
+
+			userID: "ID-3",
+			email:  "Email-3@example.com",
+			token:  userGoodToken,
+
+			wantResponse: schema.ResendEmailInvitationResponse{
+				EmailSent: true,
+			},
+		},
+		{
+
+			req: schema.ResendEmailInvitationRequest{
+				RedirectURL: testRedirectURL.String(),
+			},
+
+			userID:    "ID-3",
+			email:     "Email-3@example.com",
+			cantEmail: true,
+			token:     userGoodToken,
+
+			wantResponse: schema.ResendEmailInvitationResponse{
+				ResetPasswordLink: testResetPasswordURL.String(),
+			},
+		},
+		{
+
+			req: schema.ResendEmailInvitationRequest{
+				RedirectURL: "http://scammers.com",
+			},
+
+			userID: "ID-3",
+			email:  "Email-3@example.com",
+			token:  userGoodToken,
+
+			wantCode: http.StatusBadRequest,
+		},
+		{
+
+			req: schema.ResendEmailInvitationRequest{
+				RedirectURL: testRedirectURL.String(),
+			},
+
+			userID: "ID-2",
+			email:  "Email-2@example.com",
+			token:  userGoodToken,
+
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			req: schema.ResendEmailInvitationRequest{
+				RedirectURL: testRedirectURL.String(),
+			},
+
+			userID: "ID-3",
+			email:  "Email-3@example.com",
+			token:  userBadTokenClientNotAdmin,
+
+			wantCode: http.StatusForbidden,
+		},
+		{
+			req: schema.ResendEmailInvitationRequest{
+				RedirectURL: testRedirectURL.String(),
+			},
+
+			userID: "ID-3",
+			email:  "Email-3@example.com",
+			token:  userBadClientID,
+
+			wantCode: http.StatusUnauthorized,
+		},
+		{
+			req: schema.ResendEmailInvitationRequest{
+				RedirectURL: testRedirectURL.String(),
+			},
+
+			userID: "ID-3",
+			email:  "Email-3@example.com",
+			token:  userBadTokenExpired,
+
+			wantCode: http.StatusUnauthorized,
+		},
+		{
+			req: schema.ResendEmailInvitationRequest{
+				RedirectURL: testRedirectURL.String(),
+			},
+
+			userID: "ID-3",
+			email:  "Email-3@example.com",
+			token:  userBadTokenDisabled,
+
+			wantCode: http.StatusUnauthorized,
+		},
+		{
+			req: schema.ResendEmailInvitationRequest{
+				RedirectURL: testRedirectURL.String(),
+			},
+
+			userID: "ID-3",
+			email:  "Email-3@example.com",
+			token:  userBadTokenNotAdmin,
+
+			wantCode: http.StatusUnauthorized,
+		},
+	}
+	for i, tt := range tests {
+		func() {
+			f := makeUserAPITestFixtures()
+			defer f.close()
+			f.trans.Token = tt.token
+			f.emailer.cantEmail = tt.cantEmail
+
+			page, err := f.client.Users.ResendEmailInvitation(tt.userID, &tt.req).Do()
+			if tt.wantCode != 0 {
+				if err == nil {
+					t.Errorf("case %d: err was nil", i)
+					return
+				}
+				gErr, ok := err.(*googleapi.Error)
+				if !ok {
+					t.Errorf("case %d: not a googleapi Error: %q", i, err)
+					return
+				}
+
+				if gErr.Code != tt.wantCode {
+					t.Errorf("case %d: want=%d, got=%d", i, tt.wantCode, gErr.Code)
+					return
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("case %d: want nil err, got: %v %T ", i, err, err)
+				return
+			}
+
+			if diff := pretty.Compare(tt.wantResponse, page); diff != "" {
+				t.Errorf("case %d: Compare(want, got) = %v", i, diff)
+				return
+			}
+
+			urlParsed, err := url.Parse(tt.req.RedirectURL)
+			if err != nil {
+				t.Errorf("case %d unexpected err: %v", i, err)
+				return
+			}
+
+			wantEmalier := testEmailer{
+				cantEmail:       tt.cantEmail,
+				lastEmail:       tt.email,
+				lastClientID:    "XXX",
+				lastWasInvite:   true,
+				lastRedirectURL: *urlParsed,
+			}
+			if diff := pretty.Compare(wantEmalier, f.emailer); diff != "" {
+				t.Errorf("case %d: Compare(want, got) = %v", i, diff)
+				return
+			}
+
+		}()
 	}
 }
 

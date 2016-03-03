@@ -14,13 +14,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"google.golang.org/api/googleapi"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
-
-	"google.golang.org/api/googleapi"
 )
 
 // Always reference these packages, just in case the auto-generated code
@@ -101,6 +100,16 @@ type Error struct {
 	Error string `json:"error,omitempty"`
 
 	Error_description string `json:"error_description,omitempty"`
+}
+
+type ResendEmailInvitationRequest struct {
+	RedirectURL string `json:"redirectURL,omitempty"`
+}
+
+type ResendEmailInvitationResponse struct {
+	EmailSent bool `json:"emailSent,omitempty"`
+
+	ResetPasswordLink string `json:"resetPasswordLink,omitempty"`
 }
 
 type User struct {
@@ -603,6 +612,90 @@ func (c *UsersListCall) Do() (*UsersResponse, error) {
 	//   "path": "users",
 	//   "response": {
 	//     "$ref": "UsersResponse"
+	//   }
+	// }
+
+}
+
+// method id "dex.User.ResendEmailInvitation":
+
+type UsersResendEmailInvitationCall struct {
+	s                            *Service
+	id                           string
+	resendemailinvitationrequest *ResendEmailInvitationRequest
+	opt_                         map[string]interface{}
+}
+
+// ResendEmailInvitation: Resend invitation email to an existing user
+// with unverified email.
+func (r *UsersService) ResendEmailInvitation(id string, resendemailinvitationrequest *ResendEmailInvitationRequest) *UsersResendEmailInvitationCall {
+	c := &UsersResendEmailInvitationCall{s: r.s, opt_: make(map[string]interface{})}
+	c.id = id
+	c.resendemailinvitationrequest = resendemailinvitationrequest
+	return c
+}
+
+// Fields allows partial responses to be retrieved.
+// See https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *UsersResendEmailInvitationCall) Fields(s ...googleapi.Field) *UsersResendEmailInvitationCall {
+	c.opt_["fields"] = googleapi.CombineFields(s)
+	return c
+}
+
+func (c *UsersResendEmailInvitationCall) Do() (*ResendEmailInvitationResponse, error) {
+	var body io.Reader = nil
+	body, err := googleapi.WithoutDataWrapper.JSONReader(c.resendemailinvitationrequest)
+	if err != nil {
+		return nil, err
+	}
+	ctype := "application/json"
+	params := make(url.Values)
+	params.Set("alt", "json")
+	if v, ok := c.opt_["fields"]; ok {
+		params.Set("fields", fmt.Sprintf("%v", v))
+	}
+	urls := googleapi.ResolveRelative(c.s.BasePath, "users/{id}/resend-invitation")
+	urls += "?" + params.Encode()
+	req, _ := http.NewRequest("POST", urls, body)
+	googleapi.Expand(req.URL, map[string]string{
+		"id": c.id,
+	})
+	req.Header.Set("Content-Type", ctype)
+	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	res, err := c.s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	var ret *ResendEmailInvitationResponse
+	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Resend invitation email to an existing user with unverified email.",
+	//   "httpMethod": "POST",
+	//   "id": "dex.User.ResendEmailInvitation",
+	//   "parameterOrder": [
+	//     "id"
+	//   ],
+	//   "parameters": {
+	//     "id": {
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     }
+	//   },
+	//   "path": "users/{id}/resend-invitation",
+	//   "request": {
+	//     "$ref": "ResendEmailInvitationRequest"
+	//   },
+	//   "response": {
+	//     "$ref": "ResendEmailInvitationResponse"
 	//   }
 	// }
 

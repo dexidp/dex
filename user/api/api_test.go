@@ -99,9 +99,10 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 				},
 			}, {
 				User: user.User{
-					ID:        "ID-2",
-					Email:     "id2@example.com",
-					CreatedAt: clock.Now(),
+					ID:            "ID-2",
+					Email:         "id2@example.com",
+					EmailVerified: true,
+					CreatedAt:     clock.Now(),
 				},
 			}, {
 				User: user.User{
@@ -460,6 +461,104 @@ func TestDisableUsers(t *testing.T) {
 
 		if usr.Disabled != tt.disable {
 			t.Errorf("case %d: user disable state wrong. wanted: %v got: %v", i, tt.disable, usr.Disabled)
+		}
+	}
+}
+func TestResendEmailInvitation(t *testing.T) {
+	tests := []struct {
+		creds     Creds
+		userID    string
+		email     string
+		redirURL  url.URL
+		cantEmail bool
+
+		wantResponse schema.ResendEmailInvitationResponse
+		wantErr      error
+	}{
+		{
+			creds:    goodCreds,
+			userID:   "ID-1",
+			email:    "id1@example.com",
+			redirURL: validRedirURL,
+
+			wantResponse: schema.ResendEmailInvitationResponse{
+				EmailSent: true,
+			},
+		},
+		{
+			creds:     goodCreds,
+			userID:    "ID-1",
+			email:     "id1@example.com",
+			redirURL:  validRedirURL,
+			cantEmail: true,
+
+			wantResponse: schema.ResendEmailInvitationResponse{
+				EmailSent:         false,
+				ResetPasswordLink: resetPasswordURL.String(),
+			},
+		},
+		{
+			creds:    badCreds,
+			userID:   "ID-1",
+			email:    "id1@example.com",
+			redirURL: validRedirURL,
+
+			wantErr: ErrorUnauthorized,
+		},
+		{
+			creds:    goodCreds,
+			userID:   "ID-1",
+			email:    "id1@example.com",
+			redirURL: url.URL{Host: "scammers.com"},
+
+			wantErr: ErrorInvalidRedirectURL,
+		},
+		{
+			creds:    goodCreds,
+			userID:   "ID-2",
+			email:    "id2@example.com",
+			redirURL: validRedirURL,
+
+			wantErr: ErrorVerifiedEmail,
+		},
+		{
+			creds:    goodCreds,
+			userID:   "non-existent",
+			email:    "non-existent@example.com",
+			redirURL: validRedirURL,
+
+			wantErr: ErrorResourceNotFound,
+		},
+	}
+
+	for i, tt := range tests {
+		api, emailer := makeTestFixtures()
+		emailer.cantEmail = tt.cantEmail
+
+		response, err := api.ResendEmailInvitation(tt.creds, tt.userID, tt.redirURL)
+		if tt.wantErr != nil {
+			if err != tt.wantErr {
+				t.Errorf("case %d: want=%q, got=%q", i, tt.wantErr, err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("case %d: want nil err, got: %q ", i, err)
+		}
+
+		if diff := pretty.Compare(tt.wantResponse, response); diff != "" {
+			t.Errorf("case %d: Compare(want, got) = %v", i, diff)
+		}
+
+		wantEmailer := testEmailer{
+			cantEmail:       tt.cantEmail,
+			lastEmail:       tt.email,
+			lastClientID:    tt.creds.ClientID,
+			lastRedirectURL: tt.redirURL,
+			lastWasInvite:   true,
+		}
+		if diff := pretty.Compare(wantEmailer, emailer); diff != "" {
+			t.Errorf("case %d: Compare(want, got) = %v", i, diff)
 		}
 	}
 }
