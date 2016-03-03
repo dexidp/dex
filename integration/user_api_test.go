@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -747,7 +748,7 @@ func TestResendEmailInvitation(t *testing.T) {
 
 			wantEmalier := testEmailer{
 				cantEmail:       tt.cantEmail,
-				lastEmail:       tt.email,
+				lastEmail:       strings.ToLower(tt.email),
 				lastClientID:    "XXX",
 				lastWasInvite:   true,
 				lastRedirectURL: *urlParsed,
