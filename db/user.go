@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/go-gorp/gorp"
@@ -400,7 +401,7 @@ func (r *userRepo) getByEmail(tx repo.Transaction, email string) (user.User, err
 	qt := r.quote(userTableName)
 	ex := r.executor(tx)
 	var um userModel
-	err := ex.SelectOne(&um, fmt.Sprintf("select * from %s where email = $1", qt), email)
+	err := ex.SelectOne(&um, fmt.Sprintf("select * from %s where email = $1", qt), strings.ToLower(email))
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -453,7 +454,7 @@ func newUserModel(u *user.User) (*userModel, error) {
 	um := userModel{
 		ID:            u.ID,
 		DisplayName:   u.DisplayName,
-		Email:         u.Email,
+		Email:         strings.ToLower(u.Email),
 		EmailVerified: u.EmailVerified,
 		Admin:         u.Admin,
 		Disabled:      u.Disabled,

@@ -62,7 +62,7 @@ func (h *InvitationHandler) handleGET(w http.ResponseWriter, r *http.Request) {
 		// never be able to set their passwords.
 		log.Debugf("error attempting to verify email: %v", err)
 		switch err {
-		case manager.ErrorEVEmailDoesntMatch:
+		case user.ErrorNotFound:
 			writeAPIError(w, http.StatusBadRequest, newAPIError(errorInvalidRequest,
 				"Your email does not match the email address on file"))
 			return
