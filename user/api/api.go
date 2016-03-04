@@ -9,8 +9,14 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/coreos/go-oidc/oidc"
+	"github.com/go-gorp/gorp"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/pkg/log"
+	"github.com/coreos/dex/refresh"
 	schema "github.com/coreos/dex/schema/workerschema"
 	"github.com/coreos/dex/user"
 	"github.com/coreos/dex/user/manager"
@@ -87,6 +93,7 @@ type UsersAPI struct {
 	manager            *manager.UserManager
 	localConnectorID   string
 	clientIdentityRepo client.ClientIdentityRepo
+	refreshRepo        refresh.RefreshTokenRepo
 	emailer            Emailer
 }
 
@@ -99,10 +106,23 @@ type Creds struct {
 	User     user.User
 }
 
-func NewUsersAPI(manager *manager.UserManager, cir client.ClientIdentityRepo, emailer Emailer, localConnectorID string) *UsersAPI {
+func NewUsersAPI(dbMap *gorp.DbMap, emailer Emailer, localConnectorID string) *UsersAPI {
+	return NewUsersAPIWithClock(dbMap, emailer, localConnectorID, clockwork.NewRealClock())
+}
+
+func NewUsersAPIWithClock(dbMap *gorp.DbMap, emailer Emailer, localConnectorID string, clock clockwork.Clock) *UsersAPI {
+
+	userRepo := db.NewUserRepo(dbMap)
+	passwordInfoRepo := db.NewPasswordInfoRepo(dbMap)
+	connectorConfigRepo := db.NewConnectorConfigRepo(dbMap)
+	txFactory := db.TransactionFactory(dbMap)
+	opts := manager.ManagerOptions{}
+	userManager := manager.NewUserManager(userRepo, passwordInfoRepo, connectorConfigRepo, txFactory, opts)
+	userManager.Clock = clock
 	return &UsersAPI{
-		manager:            manager,
-		clientIdentityRepo: cir,
+		manager:            userManager,
+		refreshRepo:        db.NewRefreshTokenRepo(dbMap),
+		clientIdentityRepo: db.NewClientIdentityRepo(dbMap),
 		localConnectorID:   localConnectorID,
 		emailer:            emailer,
 	}
@@ -256,6 +276,18 @@ func (u *UsersAPI) ListUsers(creds Creds, maxResults int, nextPageToken string) 
 	}
 
 	return list, tok, nil
+}
+
+// ListClientsWithRefreshTokens returns all clients issued refresh tokens
+// for the authenticated user.
+func (u *UsersAPI) ListClientsWithRefreshTokens(creds Creds) ([]oidc.ClientIdentity, error) {
+	return u.refreshRepo.ClientsWithRefreshTokens(creds.User.ID)
+}
+
+// RevokeClient revokes all refresh tokens issued to this client for the
+// authenticiated user.
+func (u *UsersAPI) RevokeRefreshTokensForClient(creds Creds, clientID string) error {
+	return u.refreshRepo.RevokeTokensForClient(creds.User.ID, clientID)
 }
 
 func (u *UsersAPI) Authorize(creds Creds) bool {

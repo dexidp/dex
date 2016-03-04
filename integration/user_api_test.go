@@ -99,10 +99,10 @@ var (
 func makeUserAPITestFixtures() *userAPITestFixtures {
 	f := &userAPITestFixtures{}
 
-	_, _, um := makeUserObjects(userUsers, userPasswords)
+	dbMap, _, _, um := makeUserObjects(userUsers, userPasswords)
 
 	cir := func() client.ClientIdentityRepo {
-		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
+		repo, err := db.NewClientIdentityRepoFromClients(dbMap, []oidc.ClientIdentity{
 			oidc.ClientIdentity{
 				Credentials: oidc.ClientCredentials{
 					ID:     testClientID,
@@ -145,7 +145,7 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 	}
 
 	f.emailer = &testEmailer{}
-	api := api.NewUsersAPI(um, cir, f.emailer, "local")
+	api := api.NewUsersAPIWithClock(dbMap, f.emailer, "local", clock)
 	usrSrv := server.NewUserMgmtServer(api, jwtvFactory, um, cir)
 	f.hSrv = httptest.NewServer(usrSrv.HTTPHandler())
 

@@ -15,6 +15,7 @@ import (
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/coreos/pkg/health"
+	"github.com/go-gorp/gorp"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/coreos/dex/client"
@@ -77,6 +78,7 @@ type Server struct {
 	EnableRegistration             bool
 	EnableClientRegistration       bool
 
+	dbMap            *gorp.DbMap
 	localConnectorID string
 }
 
@@ -270,12 +272,10 @@ func (s *Server) HTTPHandler() http.Handler {
 	clientPath, clientHandler := registerClientResource(apiBasePath, s.ClientIdentityRepo)
 	mux.Handle(path.Join(apiBasePath, clientPath), s.NewClientTokenAuthHandler(clientHandler))
 
-	usersAPI := usersapi.NewUsersAPI(s.UserManager, s.ClientIdentityRepo, s.UserEmailer, s.localConnectorID)
+	usersAPI := usersapi.NewUsersAPI(s.dbMap, s.UserEmailer, s.localConnectorID)
 	handler := NewUserMgmtServer(usersAPI, s.JWTVerifierFactory(), s.UserManager, s.ClientIdentityRepo).HTTPHandler()
-	path := path.Join(apiBasePath, UsersSubTree)
 
-	mux.Handle(path, handler)
-	mux.Handle(path+"/", handler)
+	mux.Handle(apiBasePath+"/", handler)
 
 	return http.Handler(mux)
 }

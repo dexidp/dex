@@ -74,7 +74,7 @@ func (a *adminAPITransport) RoundTrip(r *http.Request) (*http.Response, error) {
 func makeAdminAPITestFixtures() *adminAPITestFixtures {
 	f := &adminAPITestFixtures{}
 
-	ur, pwr, um := makeUserObjects(adminUsers, adminPasswords)
+	_, ur, pwr, um := makeUserObjects(adminUsers, adminPasswords)
 	f.ur = ur
 	f.pwr = pwr
 	f.adAPI = admin.NewAdminAPI(um, f.ur, f.pwr, "local")

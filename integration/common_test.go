@@ -9,6 +9,7 @@ import (
 	"net/url"
 
 	"github.com/coreos/go-oidc/key"
+	"github.com/go-gorp/gorp"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/coreos/dex/connector"
@@ -45,7 +46,7 @@ func (t *tokenHandlerTransport) RoundTrip(r *http.Request) (*http.Response, erro
 	return &resp, nil
 }
 
-func makeUserObjects(users []user.UserWithRemoteIdentities, passwords []user.PasswordInfo) (user.UserRepo, user.PasswordInfoRepo, *manager.UserManager) {
+func makeUserObjects(users []user.UserWithRemoteIdentities, passwords []user.PasswordInfo) (*gorp.DbMap, user.UserRepo, user.PasswordInfoRepo, *manager.UserManager) {
 	dbMap := db.NewMemDB()
 	ur := func() user.UserRepo {
 		repo, err := db.NewUserRepoFromUsers(dbMap, users)
@@ -73,5 +74,5 @@ func makeUserObjects(users []user.UserWithRemoteIdentities, passwords []user.Pas
 
 	um := manager.NewUserManager(ur, pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
 	um.Clock = clock
-	return ur, pwr, um
+	return dbMap, ur, pwr, um
 }
