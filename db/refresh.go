@@ -14,6 +14,7 @@ import (
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/refresh"
 	"github.com/coreos/dex/repo"
+	"github.com/coreos/go-oidc/oidc"
 )
 
 const (
@@ -177,6 +178,35 @@ func (r *refreshTokenRepo) Revoke(userID, token string) error {
 	}
 
 	return tx.Commit()
+}
+
+func (r *refreshTokenRepo) RevokeTokensForClient(userID, clientID string) error {
+	q := fmt.Sprintf("DELETE FROM %s WHERE user_id = $1 AND client_id = $2", r.quote(refreshTokenTableName))
+	_, err := r.executor(nil).Exec(q, userID, clientID)
+	return err
+}
+
+func (r *refreshTokenRepo) ClientsWithRefreshTokens(userID string) ([]oidc.ClientIdentity, error) {
+	q := `SELECT c.* FROM %s as c
+	INNER JOIN %s as r ON c.id = r.client_id WHERE r.user_id = $1;`
+	q = fmt.Sprintf(q, r.quote(clientIdentityTableName), r.quote(refreshTokenTableName))
+
+	var clients []clientIdentityModel
+	if _, err := r.executor(nil).Select(&clients, q, userID); err != nil {
+		return nil, err
+	}
+
+	c := make([]oidc.ClientIdentity, len(clients))
+	for i, client := range clients {
+		ident, err := client.ClientIdentity()
+		if err != nil {
+			return nil, err
+		}
+		c[i] = *ident
+		// Do not share the secret.
+		c[i].Credentials.Secret = ""
+	}
+	return c, nil
 }
 
 func (r *refreshTokenRepo) get(tx repo.Transaction, tokenID int64) (*refreshTokenModel, error) {
