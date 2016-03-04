@@ -14,12 +14,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"google.golang.org/api/googleapi"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"google.golang.org/api/googleapi"
 )
 
 // Always reference these packages, just in case the auto-generated code
@@ -44,6 +45,7 @@ func New(client *http.Client) (*Service, error) {
 		return nil, errors.New("client is nil")
 	}
 	s := &Service{client: client, BasePath: basePath}
+	s.Client = NewClientService(s)
 	s.Clients = NewClientsService(s)
 	s.Users = NewUsersService(s)
 	return s, nil
@@ -53,9 +55,20 @@ type Service struct {
 	client   *http.Client
 	BasePath string // API endpoint base URL
 
+	Client *ClientService
+
 	Clients *ClientsService
 
 	Users *UsersService
+}
+
+func NewClientService(s *Service) *ClientService {
+	rs := &ClientService{s: s}
+	return rs
+}
+
+type ClientService struct {
+	s *Service
 }
 
 func NewClientsService(s *Service) *ClientsService {
@@ -86,6 +99,19 @@ type ClientPage struct {
 	Clients []*Client `json:"clients,omitempty"`
 
 	NextPageToken string `json:"nextPageToken,omitempty"`
+}
+
+type ClientWithMetadata struct {
+	Credentials *ClientWithMetadataCredentials `json:"Credentials,omitempty"`
+
+	Metadata *ClientWithMetadataMetadata `json:"Metadata,omitempty"`
+}
+
+type ClientWithMetadataCredentials struct {
+	ID string `json:"ID,omitempty"`
+}
+
+type ClientWithMetadataMetadata struct {
 }
 
 type ClientWithSecret struct {
@@ -163,6 +189,123 @@ type UsersResponse struct {
 	NextPageToken string `json:"nextPageToken,omitempty"`
 
 	Users []*User `json:"users,omitempty"`
+}
+
+// method id "dex.Client.List":
+
+type ClientListCall struct {
+	s    *Service
+	opt_ map[string]interface{}
+}
+
+// List: List all clients that hold refresh tokens for the authenticated
+// user.
+func (r *ClientService) List() *ClientListCall {
+	c := &ClientListCall{s: r.s, opt_: make(map[string]interface{})}
+	return c
+}
+
+// Fields allows partial responses to be retrieved.
+// See https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *ClientListCall) Fields(s ...googleapi.Field) *ClientListCall {
+	c.opt_["fields"] = googleapi.CombineFields(s)
+	return c
+}
+
+func (c *ClientListCall) Do() error {
+	var body io.Reader = nil
+	params := make(url.Values)
+	params.Set("alt", "json")
+	if v, ok := c.opt_["fields"]; ok {
+		params.Set("fields", fmt.Sprintf("%v", v))
+	}
+	urls := googleapi.ResolveRelative(c.s.BasePath, "/account/refresh/clients")
+	urls += "?" + params.Encode()
+	req, _ := http.NewRequest("GET", urls, body)
+	googleapi.SetOpaque(req.URL)
+	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	res, err := c.s.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return err
+	}
+	return nil
+	// {
+	//   "description": "List all clients that hold refresh tokens for the authenticated user.",
+	//   "httpMethod": "GET",
+	//   "id": "dex.Client.List",
+	//   "path": "/account/refresh/clients",
+	//   "response": {
+	//     "items": {
+	//       "$ref": "ClientWithMetadata"
+	//     },
+	//     "type": "array"
+	//   }
+	// }
+
+}
+
+// method id "dex.Client.Revoke":
+
+type ClientRevoketCall struct {
+	s    *Service
+	opt_ map[string]interface{}
+}
+
+// Revoket: Revoke all refresh tokens issues to the client for the
+// authenticated user.
+func (r *ClientService) Revoket() *ClientRevoketCall {
+	c := &ClientRevoketCall{s: r.s, opt_: make(map[string]interface{})}
+	return c
+}
+
+// Fields allows partial responses to be retrieved.
+// See https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *ClientRevoketCall) Fields(s ...googleapi.Field) *ClientRevoketCall {
+	c.opt_["fields"] = googleapi.CombineFields(s)
+	return c
+}
+
+func (c *ClientRevoketCall) Do() error {
+	var body io.Reader = nil
+	params := make(url.Values)
+	params.Set("alt", "json")
+	if v, ok := c.opt_["fields"]; ok {
+		params.Set("fields", fmt.Sprintf("%v", v))
+	}
+	urls := googleapi.ResolveRelative(c.s.BasePath, "/account/refresh/revoke/{clientid}")
+	urls += "?" + params.Encode()
+	req, _ := http.NewRequest("POST", urls, body)
+	googleapi.SetOpaque(req.URL)
+	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	res, err := c.s.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return err
+	}
+	return nil
+	// {
+	//   "description": "Revoke all refresh tokens issues to the client for the authenticated user.",
+	//   "httpMethod": "POST",
+	//   "id": "dex.Client.Revoke",
+	//   "parameters": {
+	//     "clientid": {
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     }
+	//   },
+	//   "path": "/account/refresh/revoke/{clientid}"
+	// }
+
 }
 
 // method id "dex.Client.Create":

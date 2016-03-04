@@ -34,6 +34,20 @@ __Version:__ v1
 }
 ```
 
+### ClientWithMetadata
+
+A client with associated metadata. The value of the metadata field is the OpenID Connect dynamic registration Client Metadata object. The definition of that object been omitted here for brevity.
+
+```
+{
+    Credentials: {
+        ID: string
+    },
+    Metadata: {
+    }
+}
+```
+
 ### ClientWithSecret
 
 
@@ -164,6 +178,50 @@ __Version:__ v1
 
 
 ## Paths
+
+
+### GET /account/refresh/clients
+
+> __Summary__
+
+> List Client
+
+> __Description__
+
+> List all clients that hold refresh tokens for the authenticated user.
+
+
+> __Responses__
+
+> |Code|Description|Type|
+|:-----|:-----|:-----|
+| 200 |  |  |
+| default | Unexpected error |  |
+
+
+### POST /account/refresh/revoke/{clientid}
+
+> __Summary__
+
+> Revoket Client
+
+> __Description__
+
+> Revoke all refresh tokens issues to the client for the authenticated user.
+
+
+> __Parameters__
+
+> |Name|Located in|Description|Required|Type|
+|:-----|:-----|:-----|:-----|:-----|
+| clientid | path |  | Yes | string | 
+
+
+> __Responses__
+
+> |Code|Description|Type|
+|:-----|:-----|:-----|
+| default | Unexpected error |  |
 
 
 ### GET /clients
