@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/coreos/dex",
-	"GoVersion": "go1.5",
+	"GoVersion": "go1.6",
 	"Packages": [
 		"./..."
 	],
@@ -73,6 +73,7 @@
 		},
 		{
 			"ImportPath": "github.com/julienschmidt/httprouter",
+			"Comment": "v1.1",
 			"Rev": "8c199fb6259ffc1af525cc3ad52ee60ba8359669"
 		},
 		{
