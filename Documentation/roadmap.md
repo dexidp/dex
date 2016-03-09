@@ -22,14 +22,6 @@ Deprecating dexctl’s --db-url flag. Achieve feature parity between existing co
 * Add client registration to bootstrapping API (#326)
 * Set connector configs through bootstrapping API (#360)
 
-## Review UX
-
-Review the current UX around registration, login, invite emails, etc. and present assets to the CoreOS design team for feedback.
-
-* Easier registration on first login (#310)
-* Not correctly handling expired tokens (#355)
-* Draft website wireframes for dex (#361)
-
 ## Further server side cleanups
 
 Establish idioms for handling HTTP requests, create a storage interface for backends, and continue to improve --no-db mode.
