@@ -135,7 +135,6 @@ The output of this command is eval'able if you are in bash, and sets the followi
 ```
 DEX_APP_CLIENT_ID
 DEX_APP_CLIENT_SECRET
-DEX_APP_REDIRECTURL
 ```
 
 # Start the Example Web App
