@@ -1,11 +1,14 @@
-export GOPATH=${PWD}/Godeps/_workspace
+GOVERSION=$( go version | grep -o 'go1\.[0-9]')
 
-rm -rf $GOPATH/src/github.com/coreos/dex
-mkdir -p $GOPATH/src/github.com/coreos/
+UNSUPPORTED=( "go1.0" "go1.1" "go1.2" "go1.3" "go1.4" )
 
-# Only attempt to link dex into godeps if it isn't already there
-[ -d $GOPATH/src/github.com/coreos/dex ] || ln -s ${PWD} $GOPATH/src/github.com/coreos/dex
+for V in "${UNSUPPORTED[@]}"; do
+    if [ "$V" = "$GOVERSION" ]; then
+        echo "dex requires go version 1.5+. Please update your go version."
+        exit 2
+    fi
+done
 
+export GO15VENDOREXPERIMENT=1
 export VERSION=$(./git-version)
-
 LD_FLAGS="-X main.version=${VERSION}"
