@@ -1,11 +1,26 @@
-export GOPATH=${PWD}/Godeps/_workspace
+MAJOR_GOVERSION=$( go version | grep -o 'go1\.[0-9]')
+FULL_GOVERSION=$( go version| grep -o 'go1\.[0-9|\.]*' )
 
-rm -rf $GOPATH/src/github.com/coreos/dex
-mkdir -p $GOPATH/src/github.com/coreos/
+# The list of unsupported major go versions.
+UNSUPPORTED=( "go1.0" "go1.1" "go1.2" "go1.3" "go1.4" )
 
-# Only attempt to link dex into godeps if it isn't already there
-[ -d $GOPATH/src/github.com/coreos/dex ] || ln -s ${PWD} $GOPATH/src/github.com/coreos/dex
+# Minor go verisons which have known security vulnerabilities. Refuse to build with these.
+KNOWN_INSECURE=( "go1.5" "go1.5.1" "go1.5.2" )
 
+for V in "${UNSUPPORTED[@]}"; do
+    if [ "$V" = "$MAJOR_GOVERSION" ]; then
+        echo "dex requires Go version 1.5.3+. Please update your Go version."
+        exit 2
+    fi
+done
+
+for V in "${KNOWN_INSECURE[@]}"; do
+    if [ "$V" = "$FULL_GOVERSION" ]; then
+        echo "Go version ${V} has known security vulnerabilities which impact dex. Plesae update your Go verison."
+        exit 2
+    fi
+done
+
+export GO15VENDOREXPERIMENT=1
 export VERSION=$(./git-version)
-
 LD_FLAGS="-X main.version=${VERSION}"
