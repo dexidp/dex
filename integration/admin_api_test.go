@@ -1,8 +1,14 @@
 package integration
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/kylelemons/godebug/pretty"
@@ -12,6 +18,7 @@ import (
 	"github.com/coreos/dex/schema/adminschema"
 	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/user"
+	"github.com/coreos/go-oidc/oidc"
 )
 
 const (
@@ -74,10 +81,10 @@ func (a *adminAPITransport) RoundTrip(r *http.Request) (*http.Response, error) {
 func makeAdminAPITestFixtures() *adminAPITestFixtures {
 	f := &adminAPITestFixtures{}
 
-	ur, pwr, um := makeUserObjects(adminUsers, adminPasswords)
+	dbMap, ur, pwr, _ := makeUserObjects(adminUsers, adminPasswords)
 	f.ur = ur
 	f.pwr = pwr
-	f.adAPI = admin.NewAdminAPI(um, f.ur, f.pwr, "local")
+	f.adAPI = admin.NewAdminAPI(dbMap, "local")
 	f.adSrv = server.NewAdminServer(f.adAPI, nil, adminAPITestSecret)
 	f.hSrv = httptest.NewServer(f.adSrv.HTTPHandler())
 	f.hc = &http.Client{
@@ -249,6 +256,73 @@ func TestCreateAdmin(t *testing.T) {
 
 			}
 		}()
+	}
+}
+
+func TestCreateClient(t *testing.T) {
+	tests := []struct {
+		client    oidc.ClientMetadata
+		wantError bool
+	}{
+		{
+			client:    oidc.ClientMetadata{},
+			wantError: true,
+		},
+		{
+			client: oidc.ClientMetadata{
+				RedirectURIs: []url.URL{
+					{Scheme: "https", Host: "auth.example.com", Path: "/"},
+				},
+			},
+		},
+	}
+
+	for i, tt := range tests {
+		err := func() error {
+			f := makeAdminAPITestFixtures()
+			s := httptest.NewServer(f.adSrv.HTTPHandler())
+			defer s.Close()
+
+			req := struct {
+				Client  oidc.ClientMetadata `json:"client"`
+				IsAdmin bool                `json:"isAdmin"`
+			}{tt.client, true}
+
+			data, err := json.Marshal(&req)
+			if err != nil {
+				return err
+			}
+			resp, err := f.hc.Post(s.URL+"/api/v1/client", "application/json", bytes.NewReader(data))
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				return fmt.Errorf("failed to read body: %v", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				if tt.wantError {
+					return nil
+				}
+				return fmt.Errorf("expected status 200 got %d: %s", resp.StatusCode, body)
+			}
+			if tt.wantError {
+				return errors.New("expected non nil error when creating client")
+			}
+
+			var clientResponse oidc.ClientRegistrationResponse
+			if err := json.Unmarshal(body, &clientResponse); err != nil {
+				return fmt.Errorf("failed to decode registration response: %v", err)
+			}
+			if diff := pretty.Compare(clientResponse.ClientMetadata, tt.client); diff != "" {
+				return errors.New(diff)
+			}
+			return nil
+		}()
+		if err != nil {
+			t.Errorf("case %d: %v", i, err)
+		}
 	}
 }
 

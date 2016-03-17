@@ -60,7 +60,7 @@ __Version:__ {{ .Version }}
 
 > |Name|Located in|Description|Required|Type|
 |:-----|:-----|:-----|:-----|:-----|
-{{ range $i, $p := $path.Parameters }}| {{ $p.Name }} | {{ $p.LocatedIn }} | {{ $p.Description }} | {{ if $p.Required }}Yes{{ else }}No{{ end }} | {{ $p.Type | toLink }} | 
+{{ range $i, $p := $path.Parameters }}| {{ $p.Name }} | {{ $p.LocatedIn }} | {{ $p.Description }} | {{ if $p.Required }}Yes{{ else }}No{{ end }} | {{ $p.Type | toLink }} |
 {{ end }}
 {{ end }}
 > __Responses__

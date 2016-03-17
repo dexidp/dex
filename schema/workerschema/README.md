@@ -181,7 +181,7 @@ __Version:__ v1
 
 > |Name|Located in|Description|Required|Type|
 |:-----|:-----|:-----|:-----|:-----|
-| nextPageToken | query |  | No | string | 
+| nextPageToken | query |  | No | string |
 
 
 > __Responses__
@@ -207,7 +207,7 @@ __Version:__ v1
 
 > |Name|Located in|Description|Required|Type|
 |:-----|:-----|:-----|:-----|:-----|
-|  | body |  | Yes | [Client](#client) | 
+|  | body |  | Yes | [Client](#client) |
 
 
 > __Responses__
@@ -233,8 +233,8 @@ __Version:__ v1
 
 > |Name|Located in|Description|Required|Type|
 |:-----|:-----|:-----|:-----|:-----|
-| nextPageToken | query |  | No | string | 
-| maxResults | query |  | No | integer | 
+| nextPageToken | query |  | No | string |
+| maxResults | query |  | No | integer |
 
 
 > __Responses__
@@ -260,7 +260,7 @@ __Version:__ v1
 
 > |Name|Located in|Description|Required|Type|
 |:-----|:-----|:-----|:-----|:-----|
-|  | body |  | Yes | [UserCreateRequest](#usercreaterequest) | 
+|  | body |  | Yes | [UserCreateRequest](#usercreaterequest) |
 
 
 > __Responses__
@@ -286,7 +286,7 @@ __Version:__ v1
 
 > |Name|Located in|Description|Required|Type|
 |:-----|:-----|:-----|:-----|:-----|
-| id | path |  | Yes | string | 
+| id | path |  | Yes | string |
 
 
 > __Responses__
@@ -312,8 +312,8 @@ __Version:__ v1
 
 > |Name|Located in|Description|Required|Type|
 |:-----|:-----|:-----|:-----|:-----|
-| id | path |  | Yes | string | 
-|  | body |  | Yes | [UserDisableRequest](#userdisablerequest) | 
+| id | path |  | Yes | string |
+|  | body |  | Yes | [UserDisableRequest](#userdisablerequest) |
 
 
 > __Responses__

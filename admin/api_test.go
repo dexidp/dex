@@ -69,7 +69,7 @@ func makeTestFixtures() *testFixtures {
 	}()
 
 	f.mgr = manager.NewUserManager(f.ur, f.pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
-	f.adAPI = NewAdminAPI(f.mgr, f.ur, f.pwr, "local")
+	f.adAPI = NewAdminAPI(dbMap, "local")
 
 	return f
 }

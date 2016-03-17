@@ -46,6 +46,7 @@ func New(client *http.Client) (*Service, error) {
 	}
 	s := &Service{client: client, BasePath: basePath}
 	s.Admin = NewAdminService(s)
+	s.Client = NewClientService(s)
 	s.State = NewStateService(s)
 	return s, nil
 }
@@ -56,6 +57,8 @@ type Service struct {
 
 	Admin *AdminService
 
+	Client *ClientService
+
 	State *StateService
 }
 
@@ -65,6 +68,15 @@ func NewAdminService(s *Service) *AdminService {
 }
 
 type AdminService struct {
+	s *Service
+}
+
+func NewClientService(s *Service) *ClientService {
+	rs := &ClientService{s: s}
+	return rs
+}
+
+type ClientService struct {
 	s *Service
 }
 
@@ -83,6 +95,18 @@ type Admin struct {
 	Id string `json:"id,omitempty"`
 
 	Password string `json:"password,omitempty"`
+}
+
+type ClientCreateRequest struct {
+	Client *ClientCreateRequestClient `json:"client,omitempty"`
+
+	IsAdmin bool `json:"isAdmin,omitempty"`
+}
+
+type ClientCreateRequestClient struct {
+}
+
+type ClientRegistrationResponse struct {
 }
 
 type State struct {
@@ -225,6 +249,75 @@ func (c *AdminGetCall) Do() (*Admin, error) {
 	//   "path": "admin/{id}",
 	//   "response": {
 	//     "$ref": "Admin"
+	//   }
+	// }
+
+}
+
+// method id "dex.admin.Client.Create":
+
+type ClientCreateCall struct {
+	s                   *Service
+	clientcreaterequest *ClientCreateRequest
+	opt_                map[string]interface{}
+}
+
+// Create: Register an OpenID Connect client.
+func (r *ClientService) Create(clientcreaterequest *ClientCreateRequest) *ClientCreateCall {
+	c := &ClientCreateCall{s: r.s, opt_: make(map[string]interface{})}
+	c.clientcreaterequest = clientcreaterequest
+	return c
+}
+
+// Fields allows partial responses to be retrieved.
+// See https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *ClientCreateCall) Fields(s ...googleapi.Field) *ClientCreateCall {
+	c.opt_["fields"] = googleapi.CombineFields(s)
+	return c
+}
+
+func (c *ClientCreateCall) Do() (*ClientRegistrationResponse, error) {
+	var body io.Reader = nil
+	body, err := googleapi.WithoutDataWrapper.JSONReader(c.clientcreaterequest)
+	if err != nil {
+		return nil, err
+	}
+	ctype := "application/json"
+	params := make(url.Values)
+	params.Set("alt", "json")
+	if v, ok := c.opt_["fields"]; ok {
+		params.Set("fields", fmt.Sprintf("%v", v))
+	}
+	urls := googleapi.ResolveRelative(c.s.BasePath, "client")
+	urls += "?" + params.Encode()
+	req, _ := http.NewRequest("POST", urls, body)
+	googleapi.SetOpaque(req.URL)
+	req.Header.Set("Content-Type", ctype)
+	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	res, err := c.s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	var ret *ClientRegistrationResponse
+	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Register an OpenID Connect client.",
+	//   "httpMethod": "POST",
+	//   "id": "dex.admin.Client.Create",
+	//   "path": "client",
+	//   "request": {
+	//     "$ref": "ClientCreateRequest"
+	//   },
+	//   "response": {
+	//     "$ref": "ClientRegistrationResponse"
 	//   }
 	// }
 

@@ -20,7 +20,6 @@ import (
 	"github.com/coreos/dex/pkg/log"
 	ptime "github.com/coreos/dex/pkg/time"
 	"github.com/coreos/dex/server"
-	"github.com/coreos/dex/user/manager"
 )
 
 var version = "DEV"
@@ -114,12 +113,7 @@ func main() {
 		}
 	}
 
-	userRepo := db.NewUserRepo(dbc)
-	pwiRepo := db.NewPasswordInfoRepo(dbc)
-	connCfgRepo := db.NewConnectorConfigRepo(dbc)
-	userManager := manager.NewUserManager(userRepo,
-		pwiRepo, connCfgRepo, db.TransactionFactory(dbc), manager.ManagerOptions{})
-	adminAPI := admin.NewAdminAPI(userManager, userRepo, pwiRepo, *localConnectorID)
+	adminAPI := admin.NewAdminAPI(dbc, *localConnectorID)
 	kRepo, err := db.NewPrivateKeySetRepo(dbc, *useOldFormat, keySecrets.BytesSlice()...)
 	if err != nil {
 		log.Fatalf(err.Error())
