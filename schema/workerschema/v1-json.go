@@ -55,22 +55,22 @@ const DiscoveryJSON = `{
         }
       }
     },
-	"ClientWithMetadata": {
+	"RefreshClient": {
       "id": "Client",
       "type": "object",
-	  "description": "A client with associated metadata. The value of the metadata field is the OpenID Connect dynamic registration Client Metadata object. The definition of that object been omitted here for brevity.",
+	  "description": "A client with associated public metadata.",
       "properties": {
-        "Credentials": {
-          "type": "object",
-          "properties": {
-            "ID": {
-              "type": "string"
-			}
-          }
-        },
-		"Metadata": {
-          "type": "object",
-          "properties": {}
+		"clientID": {
+			"type": "string"
+		},
+		"clientName": {
+			"type": "string"
+		},
+		"logoURI": {
+			"type": "string"
+		},
+		"clientURI": {
+			"type": "string"
 		}
       }
 	},
@@ -361,7 +361,7 @@ const DiscoveryJSON = `{
         }
       }
     },
-    "Client": {
+    "RefreshClient": {
       "methods": {
         "List": {
           "id": "dex.Client.List",
@@ -371,11 +371,11 @@ const DiscoveryJSON = `{
           "response": {
             "type": "array",
             "items": {
-              "$ref": "ClientWithMetadata"
+              "$ref": "RefreshClient"
             }
           }
         },
-        "Revoket": {
+        "Revoke": {
           "id": "dex.Client.Revoke",
           "description": "Revoke all refresh tokens issues to the client for the authenticated user.",
           "httpMethod": "POST",

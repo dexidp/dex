@@ -34,20 +34,6 @@ __Version:__ v1
 }
 ```
 
-### ClientWithMetadata
-
-A client with associated metadata. The value of the metadata field is the OpenID Connect dynamic registration Client Metadata object. The definition of that object been omitted here for brevity.
-
-```
-{
-    Credentials: {
-        ID: string
-    },
-    Metadata: {
-    }
-}
-```
-
 ### ClientWithSecret
 
 
@@ -70,6 +56,19 @@ A client with associated metadata. The value of the metadata field is the OpenID
 {
     error: string,
     error_description: string
+}
+```
+
+### RefreshClient
+
+A client with associated public metadata.
+
+```
+{
+    clientID: string,
+    clientName: string,
+    clientURI: string,
+    logoURI: string
 }
 ```
 
@@ -184,7 +183,7 @@ A client with associated metadata. The value of the metadata field is the OpenID
 
 > __Summary__
 
-> List Client
+> List RefreshClient
 
 > __Description__
 
@@ -203,7 +202,7 @@ A client with associated metadata. The value of the metadata field is the OpenID
 
 > __Summary__
 
-> Revoket Client
+> Revoke RefreshClient
 
 > __Description__
 
