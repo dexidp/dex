@@ -49,6 +49,25 @@
         }
       }
     },
+	"RefreshClient": {
+      "id": "Client",
+      "type": "object",
+	  "description": "A client with associated public metadata.",
+      "properties": {
+		"clientID": {
+			"type": "string"
+		},
+		"clientName": {
+			"type": "string"
+		},
+		"logoURI": {
+			"type": "string"
+		},
+		"clientURI": {
+			"type": "string"
+		}
+      }
+	},
     "ClientWithSecret": {
       "id": "Client",
       "type": "object",
@@ -235,6 +254,19 @@
           "response": {
             "$ref": "ClientWithSecret"
           }
+        },
+        "Revoke": {
+          "id": "dex.Client.Revoke",
+          "description": "Revoke all refresh tokens issues to the client for the authenticated user.",
+          "httpMethod": "DELETE",
+          "path": "client/refresh/{clientid}/revoke",
+          "parameters": {
+            "clientid": {
+              "type": "string",
+              "required": true,
+              "location": "path"
+            }
+          }
         }
       }
     },
@@ -334,6 +366,22 @@
             "$ref": "ResendEmailInvitationResponse"
           }
         }
+      }
+    },
+    "RefreshClient": {
+      "methods": {
+        "List": {
+          "id": "dex.Client.List",
+          "description": "List all clients that hold refresh tokens for the authenticated user.",
+          "httpMethod": "GET",
+          "path": "/account/refresh/clients",
+          "response": {
+            "type": "array",
+            "items": {
+              "$ref": "RefreshClient"
+            }
+          }
+        },
       }
     }
   }

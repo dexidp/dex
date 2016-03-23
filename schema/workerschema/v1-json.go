@@ -55,6 +55,25 @@ const DiscoveryJSON = `{
         }
       }
     },
+	"RefreshClient": {
+      "id": "Client",
+      "type": "object",
+	  "description": "A client with associated public metadata.",
+      "properties": {
+		"clientID": {
+			"type": "string"
+		},
+		"clientName": {
+			"type": "string"
+		},
+		"logoURI": {
+			"type": "string"
+		},
+		"clientURI": {
+			"type": "string"
+		}
+      }
+	},
     "ClientWithSecret": {
       "id": "Client",
       "type": "object",
@@ -338,6 +357,35 @@ const DiscoveryJSON = `{
           },
           "response": {
             "$ref": "ResendEmailInvitationResponse"
+          }
+        }
+      }
+    },
+    "RefreshClient": {
+      "methods": {
+        "List": {
+          "id": "dex.Client.List",
+          "description": "List all clients that hold refresh tokens for the authenticated user.",
+          "httpMethod": "GET",
+          "path": "/account/refresh/clients",
+          "response": {
+            "type": "array",
+            "items": {
+              "$ref": "RefreshClient"
+            }
+          }
+        },
+        "Revoke": {
+          "id": "dex.Client.Revoke",
+          "description": "Revoke all refresh tokens issues to the client for the authenticated user.",
+          "httpMethod": "POST",
+          "path": "/account/refresh/revoke/{clientid}",
+          "parameters": {
+            "clientid": {
+              "type": "string",
+              "required": true,
+              "location": "path"
+            }
           }
         }
       }

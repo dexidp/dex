@@ -30,6 +30,10 @@ var (
 	UsersGetEndpoint              = addBasePath(UsersSubTree + "/:id")
 	UsersDisableEndpoint          = addBasePath(UsersSubTree + "/:id/disable")
 	UsersResendInvitationEndpoint = addBasePath(UsersSubTree + "/:id/resend-invitation")
+	AccountSubTree                = "/account"
+	AccountListRefreshTokens      = addBasePath(AccountSubTree + "/refresh/:userid/clients")
+	ClientSubTree                 = "/client"
+	ClientRevokeRefreshToken      = addBasePath(ClientSubTree + "/refresh/:clientid/revoke")
 )
 
 type UserMgmtServer struct {
@@ -52,12 +56,25 @@ func (s *UserMgmtServer) HTTPHandler() http.Handler {
 	r := httprouter.New()
 	r.RedirectTrailingSlash = false
 	r.RedirectFixedPath = false
-	r.GET(UsersListEndpoint, s.authAPIHandle(s.listUsers))
-	r.POST(UsersCreateEndpoint, s.authAPIHandle(s.createUser))
-	r.POST(UsersDisableEndpoint, s.authAPIHandle(s.disableUser))
-	r.GET(UsersGetEndpoint, s.authAPIHandle(s.getUser))
-	r.POST(UsersResendInvitationEndpoint, s.authAPIHandle(s.resendInvitationEmail))
+
+	r.GET(UsersListEndpoint, s.authAdminUser(s.listUsers))
+	r.POST(UsersCreateEndpoint, s.authAdminUser(s.createUser))
+	r.POST(UsersDisableEndpoint, s.authAdminUser(s.disableUser))
+	r.GET(UsersGetEndpoint, s.authAdminUser(s.getUser))
+	r.POST(UsersResendInvitationEndpoint, s.authAdminUser(s.resendInvitationEmail))
+
+	r.GET(AccountListRefreshTokens, s.authAccount(s.listClientsWithRefreshTokens))
+
+	r.DELETE(ClientRevokeRefreshToken, s.authAccount(s.revokeRefreshTokensForClient))
 	return r
+}
+
+func (s *UserMgmtServer) authAdminUser(handle authedHandle) httprouter.Handle {
+	return s.authAPIHandle(handle, true)
+}
+
+func (s *UserMgmtServer) authAccount(handle authedHandle) httprouter.Handle {
+	return s.authAPIHandle(handle, false)
 }
 
 // authedHandle is an HTTP handle which requires requests to be authenticated as an admin user.
@@ -65,11 +82,21 @@ type authedHandle func(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 
 // authAPIHandle is a middleware function with authenticates an HTTP request before passing
 // it along to the authedHandle.
-func (s *UserMgmtServer) authAPIHandle(handle authedHandle) httprouter.Handle {
+//
+// The authorization checks for an ID token bearer token in the request header, requiring the
+// audience (aud claim) be a client ID of an admin client.
+//
+// If requiresAdmin is true, the subject identifier (sub claim) of the ID token provided must be
+// that of an admin user.
+func (s *UserMgmtServer) authAPIHandle(handle authedHandle, requiresAdmin bool) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		creds, err := s.getCreds(r)
 		if err != nil {
 			s.writeError(w, err)
+			return
+		}
+		if creds.User.Disabled || (requiresAdmin && !creds.User.Admin) {
+			s.writeError(w, api.ErrorUnauthorized)
 			return
 		}
 		handle(w, r, ps, creds)
@@ -189,6 +216,23 @@ func (s *UserMgmtServer) resendInvitationEmail(w http.ResponseWriter, r *http.Re
 	}
 
 	writeResponseWithBody(w, http.StatusOK, resendEmailInvitationResponse)
+}
+
+func (s *UserMgmtServer) listClientsWithRefreshTokens(w http.ResponseWriter, r *http.Request, ps httprouter.Params, creds api.Creds) {
+	clients, err := s.api.ListClientsWithRefreshTokens(creds, ps.ByName("userid"))
+	if err != nil {
+		s.writeError(w, err)
+		return
+	}
+	writeResponseWithBody(w, http.StatusOK, clients)
+}
+
+func (s *UserMgmtServer) revokeRefreshTokensForClient(w http.ResponseWriter, r *http.Request, ps httprouter.Params, creds api.Creds) {
+	if err := s.api.RevokeRefreshTokensForClient(creds, ps.ByName("clientid")); err != nil {
+		s.writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusOK) // NOTE (ericchiang): http.StatusNoContent or return an empty JSON object?
 }
 
 func (s *UserMgmtServer) writeError(w http.ResponseWriter, err error) {

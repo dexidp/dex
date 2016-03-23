@@ -10,12 +10,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/kylelemons/godebug/pretty"
 
-	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	schema "github.com/coreos/dex/schema/workerschema"
 	"github.com/coreos/dex/user"
-	"github.com/coreos/dex/user/manager"
 )
 
 type testEmailer struct {
@@ -88,73 +86,62 @@ var (
 
 func makeTestFixtures() (*UsersAPI, *testEmailer) {
 	dbMap := db.NewMemDB()
-	ur := func() user.UserRepo {
-		repo, err := db.NewUserRepoFromUsers(dbMap, []user.UserWithRemoteIdentities{
-			{
-				User: user.User{
-					ID:        "ID-1",
-					Email:     "id1@example.com",
-					Admin:     true,
-					CreatedAt: clock.Now(),
-				},
-			}, {
-				User: user.User{
-					ID:            "ID-2",
-					Email:         "id2@example.com",
-					EmailVerified: true,
-					CreatedAt:     clock.Now(),
-				},
-			}, {
-				User: user.User{
-					ID:        "ID-3",
-					Email:     "id3@example.com",
-					CreatedAt: clock.Now(),
-				},
-			}, {
-				User: user.User{
-					ID:        "ID-4",
-					Email:     "id4@example.com",
-					CreatedAt: clock.Now(),
-					Disabled:  true,
-				},
+	_, err := db.NewUserRepoFromUsers(dbMap, []user.UserWithRemoteIdentities{
+		{
+			User: user.User{
+				ID:        "ID-1",
+				Email:     "id1@example.com",
+				Admin:     true,
+				CreatedAt: clock.Now(),
 			},
-		})
-		if err != nil {
-			panic("Failed to create user repo: " + err.Error())
-		}
-		return repo
-	}()
-
-	pwr := func() user.PasswordInfoRepo {
-		repo, err := db.NewPasswordInfoRepoFromPasswordInfos(dbMap, []user.PasswordInfo{
-			{
-				UserID:   "ID-1",
-				Password: []byte("password-1"),
+		}, {
+			User: user.User{
+				ID:            "ID-2",
+				Email:         "id2@example.com",
+				EmailVerified: true,
+				CreatedAt:     clock.Now(),
 			},
-			{
-				UserID:   "ID-2",
-				Password: []byte("password-2"),
+		}, {
+			User: user.User{
+				ID:        "ID-3",
+				Email:     "id3@example.com",
+				CreatedAt: clock.Now(),
 			},
-		})
-		if err != nil {
-			panic("Failed to create user repo: " + err.Error())
-		}
-		return repo
-	}()
+		}, {
+			User: user.User{
+				ID:        "ID-4",
+				Email:     "id4@example.com",
+				CreatedAt: clock.Now(),
+				Disabled:  true,
+			},
+		},
+	})
+	if err != nil {
+		panic("Failed to create user repo: " + err.Error())
+	}
 
-	ccr := func() connector.ConnectorConfigRepo {
-		repo := db.NewConnectorConfigRepo(dbMap)
-		c := []connector.ConnectorConfig{
-			&connector.LocalConnectorConfig{ID: "local"},
-		}
-		if err := repo.Set(c); err != nil {
-			panic(err)
-		}
-		return repo
-	}()
+	_, err = db.NewPasswordInfoRepoFromPasswordInfos(dbMap, []user.PasswordInfo{
+		{
+			UserID:   "ID-1",
+			Password: []byte("password-1"),
+		},
+		{
+			UserID:   "ID-2",
+			Password: []byte("password-2"),
+		},
+	})
+	if err != nil {
+		panic("Failed to create user repo: " + err.Error())
+	}
 
-	mgr := manager.NewUserManager(ur, pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
-	mgr.Clock = clock
+	repo := db.NewConnectorConfigRepo(dbMap)
+	c := []connector.ConnectorConfig{
+		&connector.LocalConnectorConfig{ID: "local"},
+	}
+	if err := repo.Set(c); err != nil {
+		panic(err)
+	}
+
 	ci := oidc.ClientIdentity{
 		Credentials: oidc.ClientCredentials{
 			ID:     "XXX",
@@ -166,16 +153,12 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 			},
 		},
 	}
-	cir := func() client.ClientIdentityRepo {
-		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{ci})
-		if err != nil {
-			panic("Failed to create client identity repo: " + err.Error())
-		}
-		return repo
-	}()
+	if _, err := db.NewClientIdentityRepoFromClients(dbMap, []oidc.ClientIdentity{ci}); err != nil {
+		panic("Failed to create client identity repo: " + err.Error())
+	}
 
 	emailer := &testEmailer{}
-	api := NewUsersAPI(mgr, cir, emailer, "local")
+	api := NewUsersAPIWithClock(dbMap, emailer, "local", clock)
 	return api, emailer
 
 }

@@ -59,6 +59,19 @@ __Version:__ v1
 }
 ```
 
+### RefreshClient
+
+A client with associated public metadata.
+
+```
+{
+    clientID: string,
+    clientName: string,
+    clientURI: string,
+    logoURI: string
+}
+```
+
 ### ResendEmailInvitationRequest
 
 
@@ -164,6 +177,50 @@ __Version:__ v1
 
 
 ## Paths
+
+
+### GET /account/refresh/clients
+
+> __Summary__
+
+> List RefreshClient
+
+> __Description__
+
+> List all clients that hold refresh tokens for the authenticated user.
+
+
+> __Responses__
+
+> |Code|Description|Type|
+|:-----|:-----|:-----|
+| 200 |  |  |
+| default | Unexpected error |  |
+
+
+### POST /account/refresh/revoke/{clientid}
+
+> __Summary__
+
+> Revoke RefreshClient
+
+> __Description__
+
+> Revoke all refresh tokens issues to the client for the authenticated user.
+
+
+> __Parameters__
+
+> |Name|Located in|Description|Required|Type|
+|:-----|:-----|:-----|:-----|:-----|
+| clientid | path |  | Yes | string | 
+
+
+> __Responses__
+
+> |Code|Description|Type|
+|:-----|:-----|:-----|
+| default | Unexpected error |  |
 
 
 ### GET /clients

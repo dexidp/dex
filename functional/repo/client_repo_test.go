@@ -24,7 +24,8 @@ var (
 				RedirectURIs: []url.URL{
 					url.URL{
 						Scheme: "https",
-						Host:   "client1.example.com/callback",
+						Host:   "client1.example.com",
+						Path:   "/callback",
 					},
 				},
 			},
@@ -38,7 +39,8 @@ var (
 				RedirectURIs: []url.URL{
 					url.URL{
 						Scheme: "https",
-						Host:   "client2.example.com/callback",
+						Host:   "client2.example.com",
+						Path:   "/callback",
 					},
 				},
 			},
