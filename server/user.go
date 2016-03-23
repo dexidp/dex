@@ -31,8 +31,9 @@ var (
 	UsersDisableEndpoint          = addBasePath(UsersSubTree + "/:id/disable")
 	UsersResendInvitationEndpoint = addBasePath(UsersSubTree + "/:id/resend-invitation")
 	AccountSubTree                = "/account"
-	AccountListRefreshTokens      = addBasePath(AccountSubTree + "/refresh/clients")
-	AccountRevokeRefreshToken     = addBasePath(AccountSubTree + "/refresh/revoke/:clientid")
+	AccountListRefreshTokens      = addBasePath(AccountSubTree + "/refresh/:userid/clients")
+	ClientSubTree                 = "/client"
+	ClientRevokeRefreshToken      = addBasePath(ClientSubTree + "/refresh/:clientid/revoke")
 )
 
 type UserMgmtServer struct {
@@ -63,7 +64,8 @@ func (s *UserMgmtServer) HTTPHandler() http.Handler {
 	r.POST(UsersResendInvitationEndpoint, s.authAdminUser(s.resendInvitationEmail))
 
 	r.GET(AccountListRefreshTokens, s.authAccount(s.listClientsWithRefreshTokens))
-	r.POST(AccountRevokeRefreshToken, s.authAccount(s.revokeRefreshTokensForClient))
+
+	r.DELETE(ClientRevokeRefreshToken, s.authAccount(s.revokeRefreshTokensForClient))
 	return r
 }
 
@@ -217,7 +219,7 @@ func (s *UserMgmtServer) resendInvitationEmail(w http.ResponseWriter, r *http.Re
 }
 
 func (s *UserMgmtServer) listClientsWithRefreshTokens(w http.ResponseWriter, r *http.Request, ps httprouter.Params, creds api.Creds) {
-	clients, err := s.api.ListClientsWithRefreshTokens(creds)
+	clients, err := s.api.ListClientsWithRefreshTokens(creds, ps.ByName("userid"))
 	if err != nil {
 		s.writeError(w, err)
 		return

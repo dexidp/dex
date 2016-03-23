@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/coreos/go-oidc/oidc"
 	"github.com/go-gorp/gorp"
 	"github.com/jonboulle/clockwork"
 
@@ -280,8 +279,25 @@ func (u *UsersAPI) ListUsers(creds Creds, maxResults int, nextPageToken string) 
 
 // ListClientsWithRefreshTokens returns all clients issued refresh tokens
 // for the authenticated user.
-func (u *UsersAPI) ListClientsWithRefreshTokens(creds Creds) ([]oidc.ClientIdentity, error) {
-	return u.refreshRepo.ClientsWithRefreshTokens(creds.User.ID)
+func (u *UsersAPI) ListClientsWithRefreshTokens(creds Creds, userID string) ([]*schema.RefreshClient, error) {
+	// Users must either be an admin or be requesting data associated with their own account.
+	if !creds.User.Admin && (creds.User.ID != userID) {
+		return nil, ErrorUnauthorized
+	}
+	clientIdentities, err := u.refreshRepo.ClientsWithRefreshTokens(userID)
+	if err != nil {
+		return nil, err
+	}
+	clients := make([]*schema.RefreshClient, len(clientIdentities))
+	for i, identity := range clientIdentities {
+		clients[i] = &schema.RefreshClient{
+			ClientID:   identity.Credentials.ID,
+			ClientName: identity.Metadata.ClientName,
+			ClientURI:  identity.Metadata.ClientURI.String(),
+			LogoURI:    identity.Metadata.LogoURI.String(),
+		}
+	}
+	return clients, nil
 }
 
 // RevokeClient revokes all refresh tokens issued to this client for the
