@@ -234,7 +234,7 @@ func isAlreadyExistsErr(err error) bool {
 	return false
 }
 
-func (r *clientIdentityRepo) New(id string, meta oidc.ClientMetadata) (*oidc.ClientCredentials, error) {
+func (r *clientIdentityRepo) New(id string, meta oidc.ClientMetadata, admin bool) (*oidc.ClientCredentials, error) {
 	secret, err := pcrypto.RandBytes(maxSecretLength)
 	if err != nil {
 		return nil, err
@@ -244,6 +244,7 @@ func (r *clientIdentityRepo) New(id string, meta oidc.ClientMetadata) (*oidc.Cli
 	if err != nil {
 		return nil, err
 	}
+	cim.DexAdmin = admin
 
 	if err := r.executor(nil).Insert(cim); err != nil {
 		if isAlreadyExistsErr(err) {

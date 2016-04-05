@@ -96,7 +96,7 @@ func (c *clientResource) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	creds, err := c.repo.New(clientID, ci.Metadata)
+	creds, err := c.repo.New(clientID, ci.Metadata, false)
 	if err != nil {
 		log.Errorf("Failed creating client: %v", err)
 		writeAPIError(w, http.StatusInternalServerError, newAPIError(errorServerError, "unable to create client"))
