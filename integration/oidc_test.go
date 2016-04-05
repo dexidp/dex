@@ -113,7 +113,7 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 	}
 
 	cfg := &connector.LocalConnectorConfig{
-		PasswordInfos: []user.PasswordInfo{passwordInfo},
+		ID: "local",
 	}
 
 	ci := oidc.ClientIdentity{
@@ -127,6 +127,10 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 	cir, err := db.NewClientIdentityRepoFromClients(dbMap, []oidc.ClientIdentity{ci})
 	if err != nil {
 		t.Fatalf("Failed to create client identity repo: " + err.Error())
+	}
+	passwordInfoRepo, err := db.NewPasswordInfoRepoFromPasswordInfos(db.NewMemDB(), []user.PasswordInfo{passwordInfo})
+	if err != nil {
+		t.Fatalf("Failed to create password info repo: %v", err)
 	}
 
 	issuerURL := url.URL{Scheme: "http", Host: "server.example.com"}
@@ -153,7 +157,6 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	passwordInfoRepo := db.NewPasswordInfoRepo(db.NewMemDB())
 	refreshTokenRepo := refreshtest.NewTestRefreshTokenRepo()
 
 	srv := &server.Server{

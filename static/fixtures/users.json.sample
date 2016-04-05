@@ -1,10 +1,9 @@
 [
     {
-        "user":{
-            "id": "elroy-id",
-            "email": "elroy77@example.com",
-            "displayName": "Elroy Jonez"
-        },
+        "id": "elroy-id",
+        "email": "elroy77@example.com",
+        "displayName": "Elroy Jonez",
+        "password": "bones",
         "remoteIdentities": [
             {
                 "connectorId": "local",
