@@ -20,9 +20,10 @@ const (
 )
 
 var (
-	AdminGetEndpoint      = addBasePath("/admin/:id")
-	AdminCreateEndpoint   = addBasePath("/admin")
-	AdminGetStateEndpoint = addBasePath("/state")
+	AdminGetEndpoint          = addBasePath("/admin/:id")
+	AdminCreateEndpoint       = addBasePath("/admin")
+	AdminGetStateEndpoint     = addBasePath("/state")
+	AdminCreateClientEndpoint = addBasePath("/client")
 )
 
 // AdminServer serves the admin API.
@@ -49,6 +50,7 @@ func (s *AdminServer) HTTPHandler() http.Handler {
 	r.GET(AdminGetEndpoint, s.getAdmin)
 	r.POST(AdminCreateEndpoint, s.createAdmin)
 	r.GET(AdminGetStateEndpoint, s.getState)
+	r.POST(AdminCreateClientEndpoint, s.createClient)
 	r.Handler("GET", httpPathHealth, s.checker)
 	r.HandlerFunc("GET", httpPathDebugVars, health.ExpvarHandler)
 
@@ -111,6 +113,21 @@ func (s *AdminServer) getState(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 
 	writeResponseWithBody(w, http.StatusOK, state)
+}
+
+func (s *AdminServer) createClient(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	var req admin.ClientRegistrationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeInvalidRequest(w, "cannot parse JSON body")
+		return
+	}
+
+	resp, err := s.adminAPI.CreateClient(req)
+	if err != nil {
+		s.writeError(w, err)
+		return
+	}
+	writeResponseWithBody(w, http.StatusOK, &resp)
 }
 
 func (s *AdminServer) writeError(w http.ResponseWriter, err error) {

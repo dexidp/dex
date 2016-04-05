@@ -113,13 +113,13 @@ func main() {
 			time.Sleep(sleep)
 		}
 	}
-
 	userRepo := db.NewUserRepo(dbc)
 	pwiRepo := db.NewPasswordInfoRepo(dbc)
 	connCfgRepo := db.NewConnectorConfigRepo(dbc)
 	userManager := manager.NewUserManager(userRepo,
 		pwiRepo, connCfgRepo, db.TransactionFactory(dbc), manager.ManagerOptions{})
-	adminAPI := admin.NewAdminAPI(userManager, userRepo, pwiRepo, *localConnectorID)
+
+	adminAPI := admin.NewAdminAPI(dbc, userManager, *localConnectorID)
 	kRepo, err := db.NewPrivateKeySetRepo(dbc, *useOldFormat, keySecrets.BytesSlice()...)
 	if err != nil {
 		log.Fatalf(err.Error())

@@ -33,7 +33,7 @@ type ClientIdentityRepo interface {
 	// New registers a ClientIdentity with the repo for the given metadata.
 	// An unused ID must be provided. A corresponding secret will be returned
 	// in a ClientCredentials struct along with the provided ID.
-	New(id string, meta oidc.ClientMetadata) (*oidc.ClientCredentials, error)
+	New(id string, meta oidc.ClientMetadata, admin bool) (*oidc.ClientCredentials, error)
 
 	SetDexAdmin(clientID string, isAdmin bool) error
 

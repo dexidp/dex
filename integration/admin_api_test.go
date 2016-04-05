@@ -1,8 +1,10 @@
 package integration
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/kylelemons/godebug/pretty"
@@ -12,6 +14,7 @@ import (
 	"github.com/coreos/dex/schema/adminschema"
 	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/user"
+	"github.com/coreos/go-oidc/oidc"
 )
 
 const (
@@ -74,10 +77,10 @@ func (a *adminAPITransport) RoundTrip(r *http.Request) (*http.Response, error) {
 func makeAdminAPITestFixtures() *adminAPITestFixtures {
 	f := &adminAPITestFixtures{}
 
-	ur, pwr, um := makeUserObjects(adminUsers, adminPasswords)
+	dbMap, ur, pwr, um := makeUserObjects(adminUsers, adminPasswords)
 	f.ur = ur
 	f.pwr = pwr
-	f.adAPI = admin.NewAdminAPI(um, f.ur, f.pwr, "local")
+	f.adAPI = admin.NewAdminAPI(dbMap, um, "local")
 	f.adSrv = server.NewAdminServer(f.adAPI, nil, adminAPITestSecret)
 	f.hSrv = httptest.NewServer(f.adSrv.HTTPHandler())
 	f.hc = &http.Client{
@@ -249,6 +252,52 @@ func TestCreateAdmin(t *testing.T) {
 
 			}
 		}()
+	}
+}
+
+func TestCreateClient(t *testing.T) {
+	tests := []struct {
+		client    oidc.ClientMetadata
+		wantError bool
+	}{
+		{
+			client:    oidc.ClientMetadata{},
+			wantError: true,
+		},
+		{
+			client: oidc.ClientMetadata{
+				RedirectURIs: []url.URL{
+					{Scheme: "https", Host: "auth.example.com", Path: "/"},
+				},
+			},
+		},
+	}
+
+	for i, tt := range tests {
+		err := func() error {
+			f := makeAdminAPITestFixtures()
+			req := &adminschema.ClientCreateRequestClient{}
+			for _, redirectURI := range tt.client.RedirectURIs {
+				req.Redirect_uris = append(req.Redirect_uris, redirectURI.String())
+			}
+			resp, err := f.adClient.Client.Create(&adminschema.ClientCreateRequest{Client: req}).Do()
+			if err != nil {
+				if tt.wantError {
+					return nil
+				}
+				return err
+			}
+			if resp.Client_id == "" {
+				return errors.New("no client id returned")
+			}
+			if resp.Client_secret == "" {
+				return errors.New("no client secret returned")
+			}
+			return nil
+		}()
+		if err != nil {
+			t.Errorf("case %d: %v", i, err)
+		}
 	}
 }
 

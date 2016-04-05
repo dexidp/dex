@@ -43,7 +43,7 @@ func (s *Server) handleClientRegistrationRequest(r *http.Request) (*oidc.ClientR
 		return nil, newAPIError(oauth2.ErrorServerError, "unable to save client metadata")
 	}
 
-	creds, err := s.ClientIdentityRepo.New(id, clientMetadata)
+	creds, err := s.ClientIdentityRepo.New(id, clientMetadata, false)
 	if err != nil {
 		log.Errorf("Failed to create new client identity: %v", err)
 		return nil, newAPIError(oauth2.ErrorServerError, "unable to save client metadata")

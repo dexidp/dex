@@ -99,7 +99,7 @@ var (
 func makeUserAPITestFixtures() *userAPITestFixtures {
 	f := &userAPITestFixtures{}
 
-	_, _, um := makeUserObjects(userUsers, userPasswords)
+	_, _, _, um := makeUserObjects(userUsers, userPasswords)
 
 	cir := func() client.ClientIdentityRepo {
 		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
