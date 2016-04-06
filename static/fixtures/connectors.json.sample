@@ -1,17 +1,7 @@
 [
 	{
 		"type": "local",
-		"id": "local",
-		"passwordInfos": [
-			{
-				"userId":"elroy-id",
-				"passwordPlaintext": "bones"
-			},
-			{
-				"userId":"penny",
-				"passwordPlaintext": "kibble"
-			}
-		]
+		"id": "local"
 	},
 	{
 		"type": "oidc",

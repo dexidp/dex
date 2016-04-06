@@ -21,8 +21,7 @@ func init() {
 }
 
 type LocalConnectorConfig struct {
-	ID            string              `json:"id"`
-	PasswordInfos []user.PasswordInfo `json:"passwordInfos"`
+	ID string `json:"id"`
 }
 
 func (cfg *LocalConnectorConfig) ConnectorID() string {

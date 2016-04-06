@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -136,7 +137,7 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	skRepo := db.NewSessionKeyRepo(dbMap)
 	sm := sessionmanager.NewSessionManager(sRepo, skRepo)
 
-	users, err := loadUsers(cfg.UsersFile)
+	users, pwis, err := loadUsers(cfg.UsersFile)
 	if err != nil {
 		return fmt.Errorf("unable to read users from file: %v", err)
 	}
@@ -145,7 +146,10 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 		return err
 	}
 
-	pwiRepo := db.NewPasswordInfoRepo(dbMap)
+	pwiRepo, err := db.NewPasswordInfoRepoFromPasswordInfos(dbMap, pwis)
+	if err != nil {
+		return err
+	}
 
 	refTokRepo := db.NewRefreshTokenRepo(dbMap)
 
@@ -163,28 +167,61 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	return nil
 }
 
-func loadUsers(filepath string) (users []user.UserWithRemoteIdentities, err error) {
+// loadUsers parses the user.json file and returns the users to be created.
+func loadUsers(filepath string) ([]user.UserWithRemoteIdentities, []user.PasswordInfo, error) {
 	f, err := os.Open(filepath)
 	if err != nil {
-		return
+		return nil, nil, err
 	}
 	defer f.Close()
-	err = json.NewDecoder(f).Decode(&users)
+	return loadUsersFromReader(f)
+}
+
+func loadUsersFromReader(r io.Reader) (users []user.UserWithRemoteIdentities, pwis []user.PasswordInfo, err error) {
+	// Encoding used by the user config file.
+	var configUsers []struct {
+		user.User
+		Password         string                `json:"password"`
+		RemoteIdentities []user.RemoteIdentity `json:"remoteIdentities"`
+	}
+	if err := json.NewDecoder(r).Decode(&configUsers); err != nil {
+		return nil, nil, err
+	}
+
+	users = make([]user.UserWithRemoteIdentities, len(configUsers))
+	pwis = make([]user.PasswordInfo, len(configUsers))
+
+	for i, u := range configUsers {
+		users[i] = user.UserWithRemoteIdentities{
+			User:             u.User,
+			RemoteIdentities: u.RemoteIdentities,
+		}
+		hashedPassword, err := user.NewPasswordFromPlaintext(u.Password)
+		if err != nil {
+			return nil, nil, err
+		}
+		pwis[i] = user.PasswordInfo{UserID: u.ID, Password: hashedPassword}
+	}
 	return
 }
 
+// loadClients parses the clients.json file and returns the clients to be created.
 func loadClients(filepath string) ([]oidc.ClientIdentity, error) {
 	f, err := os.Open(filepath)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
+	return loadClientsFromReader(f)
+}
+
+func loadClientsFromReader(r io.Reader) ([]oidc.ClientIdentity, error) {
 	var c []struct {
 		ID           string   `json:"id"`
 		Secret       string   `json:"secret"`
 		RedirectURLs []string `json:"redirectURLs"`
 	}
-	if err := json.NewDecoder(f).Decode(&c); err != nil {
+	if err := json.NewDecoder(r).Decode(&c); err != nil {
 		return nil, err
 	}
 	clients := make([]oidc.ClientIdentity, len(c))

@@ -60,23 +60,9 @@ func TestNewConnectorConfigFromMap(t *testing.T) {
 			m: map[string]interface{}{
 				"type": "local",
 				"id":   "foo",
-				"passwordInfos": []map[string]string{
-					{"userId": "abc", "passwordHash": "UElORw=="}, // []byte is base64 encoded when using json.Marshasl
-					{"userId": "271", "passwordPlaintext": "pong"},
-				},
 			},
 			want: &LocalConnectorConfig{
 				ID: "foo",
-				PasswordInfos: []user.PasswordInfo{
-					user.PasswordInfo{
-						UserID:   "abc",
-						Password: user.Password("PING"),
-					},
-					user.PasswordInfo{
-						UserID:   "271",
-						Password: user.Password("PONG"),
-					},
-				},
 			},
 		},
 		{
@@ -111,12 +97,6 @@ func TestNewConnectorConfigFromMap(t *testing.T) {
 
 func TestNewConnectorConfigFromMapFail(t *testing.T) {
 	tests := []map[string]interface{}{
-		// invalid local connector
-		map[string]interface{}{
-			"type":          "local",
-			"passwordInfos": "invalid",
-		},
-
 		// no type
 		map[string]interface{}{
 			"id": "bar",
