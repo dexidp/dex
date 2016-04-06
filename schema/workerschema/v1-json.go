@@ -55,6 +55,37 @@ const DiscoveryJSON = `{
         }
       }
     },
+	"RefreshClient": {
+      "id": "Client",
+      "type": "object",
+	  "description": "A client with associated public metadata.",
+      "properties": {
+		"clientID": {
+			"type": "string"
+		},
+		"clientName": {
+			"type": "string"
+		},
+		"logoURI": {
+			"type": "string"
+		},
+		"clientURI": {
+			"type": "string"
+		}
+      }
+	},
+	"RefreshClientList": {
+      "id": "RefreshClientList",
+      "type": "object",
+      "properties": {
+        "clients": {
+          "type": "array",
+          "items": {
+            "$ref": "RefreshClient"
+          }
+        }
+      }
+	},
     "ClientWithSecret": {
       "id": "Client",
       "type": "object",
@@ -241,6 +272,27 @@ const DiscoveryJSON = `{
           "response": {
             "$ref": "ClientWithSecret"
           }
+        },
+        "Revoke": {
+          "id": "dex.Client.Revoke",
+          "description": "Revoke all refresh tokens issues to the client for the authenticated user.",
+          "httpMethod": "DELETE",
+          "path": "account/{userid}/refresh/{clientid}",
+          "parameterOrder": [
+            "userid","clientid"
+          ],
+          "parameters": {
+            "clientid": {
+              "type": "string",
+              "required": true,
+              "location": "path"
+            },
+            "userid": {
+              "type": "string",
+              "required": true,
+              "location": "path"
+            }
+          }
         }
       }
     },
@@ -338,6 +390,29 @@ const DiscoveryJSON = `{
           },
           "response": {
             "$ref": "ResendEmailInvitationResponse"
+          }
+        }
+      }
+    },
+    "RefreshClient": {
+      "methods": {
+        "List": {
+          "id": "dex.Client.List",
+          "description": "List all clients that hold refresh tokens for the authenticated user.",
+          "httpMethod": "GET",
+          "path": "account/{userid}/refresh",
+          "parameters": {
+            "userid": {
+              "type": "string",
+              "required": true,
+              "location": "path"
+            }
+          },
+          "parameterOrder": [
+            "userid"
+          ],
+          "response": {
+            "$ref": "RefreshClientList"
           }
         }
       }
