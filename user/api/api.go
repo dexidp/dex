@@ -9,8 +9,12 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/go-gorp/gorp"
+
 	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/pkg/log"
+	"github.com/coreos/dex/refresh"
 	schema "github.com/coreos/dex/schema/workerschema"
 	"github.com/coreos/dex/user"
 	"github.com/coreos/dex/user/manager"
@@ -87,6 +91,7 @@ type UsersAPI struct {
 	manager            *manager.UserManager
 	localConnectorID   string
 	clientIdentityRepo client.ClientIdentityRepo
+	refreshRepo        refresh.RefreshTokenRepo
 	emailer            Emailer
 }
 
@@ -99,10 +104,12 @@ type Creds struct {
 	User     user.User
 }
 
-func NewUsersAPI(manager *manager.UserManager, cir client.ClientIdentityRepo, emailer Emailer, localConnectorID string) *UsersAPI {
+// TODO(ericchiang): Don't pass a dbMap. See #385.
+func NewUsersAPI(dbMap *gorp.DbMap, userManager *manager.UserManager, emailer Emailer, localConnectorID string) *UsersAPI {
 	return &UsersAPI{
-		manager:            manager,
-		clientIdentityRepo: cir,
+		manager:            userManager,
+		refreshRepo:        db.NewRefreshTokenRepo(dbMap),
+		clientIdentityRepo: db.NewClientIdentityRepo(dbMap),
 		localConnectorID:   localConnectorID,
 		emailer:            emailer,
 	}
@@ -256,6 +263,47 @@ func (u *UsersAPI) ListUsers(creds Creds, maxResults int, nextPageToken string) 
 	}
 
 	return list, tok, nil
+}
+
+// ListClientsWithRefreshTokens returns all clients issued refresh tokens
+// for the authenticated user.
+func (u *UsersAPI) ListClientsWithRefreshTokens(creds Creds, userID string) ([]*schema.RefreshClient, error) {
+	// Users must either be an admin or be requesting data associated with their own account.
+	if !creds.User.Admin && (creds.User.ID != userID) {
+		return nil, ErrorUnauthorized
+	}
+	clientIdentities, err := u.refreshRepo.ClientsWithRefreshTokens(userID)
+	if err != nil {
+		return nil, err
+	}
+	clients := make([]*schema.RefreshClient, len(clientIdentities))
+
+	urlToString := func(u *url.URL) string {
+		if u == nil {
+			return ""
+		}
+		return u.String()
+	}
+
+	for i, identity := range clientIdentities {
+		clients[i] = &schema.RefreshClient{
+			ClientID:   identity.Credentials.ID,
+			ClientName: identity.Metadata.ClientName,
+			ClientURI:  urlToString(identity.Metadata.ClientURI),
+			LogoURI:    urlToString(identity.Metadata.LogoURI),
+		}
+	}
+	return clients, nil
+}
+
+// RevokeClient revokes all refresh tokens issued to this client for the
+// authenticiated user.
+func (u *UsersAPI) RevokeRefreshTokensForClient(creds Creds, userID, clientID string) error {
+	// Users must either be an admin or be requesting data associated with their own account.
+	if !creds.User.Admin && (creds.User.ID != userID) {
+		return ErrorUnauthorized
+	}
+	return u.refreshRepo.RevokeTokensForClient(userID, clientID)
 }
 
 func (u *UsersAPI) Authorize(creds Creds) bool {

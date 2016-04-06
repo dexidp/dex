@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/base64"
 	"net/url"
+	"sort"
 	"testing"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/kylelemons/godebug/pretty"
 
-	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	schema "github.com/coreos/dex/schema/workerschema"
@@ -166,16 +166,27 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 			},
 		},
 	}
-	cir := func() client.ClientIdentityRepo {
-		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{ci})
-		if err != nil {
-			panic("Failed to create client identity repo: " + err.Error())
+	if _, err := db.NewClientIdentityRepoFromClients(dbMap, []oidc.ClientIdentity{ci}); err != nil {
+		panic("Failed to create client identity repo: " + err.Error())
+	}
+
+	// Used in TestRevokeRefreshToken test.
+	refreshTokens := []struct {
+		clientID string
+		userID   string
+	}{
+		{"XXX", "ID-1"},
+		{"XXX", "ID-2"},
+	}
+	refreshRepo := db.NewRefreshTokenRepo(dbMap)
+	for _, token := range refreshTokens {
+		if _, err := refreshRepo.Create(token.userID, token.clientID); err != nil {
+			panic("Failed to create refresh token: " + err.Error())
 		}
-		return repo
-	}()
+	}
 
 	emailer := &testEmailer{}
-	api := NewUsersAPI(mgr, cir, emailer, "local")
+	api := NewUsersAPI(dbMap, mgr, emailer, "local")
 	return api, emailer
 
 }
@@ -559,6 +570,60 @@ func TestResendEmailInvitation(t *testing.T) {
 		}
 		if diff := pretty.Compare(wantEmailer, emailer); diff != "" {
 			t.Errorf("case %d: Compare(want, got) = %v", i, diff)
+		}
+	}
+}
+
+func TestRevokeRefreshToken(t *testing.T) {
+	tests := []struct {
+		userID   string
+		toRevoke string
+		before   []string // clientIDs expected before the change.
+		after    []string // clientIDs expected after the change.
+	}{
+		{"ID-1", "XXX", []string{"XXX"}, []string{}},
+		{"ID-2", "XXX", []string{"XXX"}, []string{}},
+	}
+
+	api, _ := makeTestFixtures()
+
+	listClientsWithRefreshTokens := func(creds Creds, userID string) ([]string, error) {
+		clients, err := api.ListClientsWithRefreshTokens(creds, userID)
+		if err != nil {
+			return nil, err
+		}
+		clientIDs := make([]string, len(clients))
+		for i, client := range clients {
+			clientIDs[i] = client.ClientID
+		}
+		sort.Strings(clientIDs)
+		return clientIDs, nil
+	}
+
+	for i, tt := range tests {
+		creds := Creds{User: user.User{ID: tt.userID}}
+
+		gotBefore, err := listClientsWithRefreshTokens(creds, tt.userID)
+		if err != nil {
+			t.Errorf("case %d: list clients failed: %v", i, err)
+		} else {
+			if diff := pretty.Compare(tt.before, gotBefore); diff != "" {
+				t.Errorf("case %d: before exp!=got: %s", i, diff)
+			}
+		}
+
+		if err := api.RevokeRefreshTokensForClient(creds, tt.userID, tt.toRevoke); err != nil {
+			t.Errorf("case %d: failed to revoke client: %v", i, err)
+			continue
+		}
+
+		gotAfter, err := listClientsWithRefreshTokens(creds, tt.userID)
+		if err != nil {
+			t.Errorf("case %d: list clients failed: %v", i, err)
+		} else {
+			if diff := pretty.Compare(tt.after, gotAfter); diff != "" {
+				t.Errorf("case %d: after exp!=got: %s", i, diff)
+			}
 		}
 	}
 }
