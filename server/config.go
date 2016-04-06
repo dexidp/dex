@@ -164,6 +164,7 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	srv.SessionManager = sm
 	srv.RefreshTokenRepo = refTokRepo
 	srv.HealthChecks = append(srv.HealthChecks, db.NewHealthChecker(dbMap))
+	srv.dbMap = dbMap
 	return nil
 }
 
@@ -290,6 +291,7 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 	srv.SessionManager = sm
 	srv.RefreshTokenRepo = refreshTokenRepo
 	srv.HealthChecks = append(srv.HealthChecks, db.NewHealthChecker(dbc))
+	srv.dbMap = dbc
 	return nil
 }
 

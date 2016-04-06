@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -99,10 +100,9 @@ var (
 func makeUserAPITestFixtures() *userAPITestFixtures {
 	f := &userAPITestFixtures{}
 
-	_, _, _, um := makeUserObjects(userUsers, userPasswords)
-
+	dbMap, _, _, um := makeUserObjects(userUsers, userPasswords)
 	cir := func() client.ClientIdentityRepo {
-		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
+		repo, err := db.NewClientIdentityRepoFromClients(dbMap, []oidc.ClientIdentity{
 			oidc.ClientIdentity{
 				Credentials: oidc.ClientCredentials{
 					ID:     testClientID,
@@ -144,8 +144,16 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 		return oidc.NewJWTVerifier(testIssuerURL.String(), clientID, noop, keysFunc)
 	}
 
+	refreshRepo := db.NewRefreshTokenRepo(dbMap)
+	for _, user := range userUsers {
+		if _, err := refreshRepo.Create(user.User.ID, testClientID); err != nil {
+			panic("Failed to create refresh token: " + err.Error())
+		}
+	}
+
 	f.emailer = &testEmailer{}
-	api := api.NewUsersAPI(um, cir, f.emailer, "local")
+	um.Clock = clock
+	api := api.NewUsersAPI(dbMap, um, f.emailer, "local")
 	usrSrv := server.NewUserMgmtServer(api, jwtvFactory, um, cir)
 	f.hSrv = httptest.NewServer(usrSrv.HTTPHandler())
 
@@ -580,6 +588,48 @@ func TestDisableUser(t *testing.T) {
 		}
 		if usr.User.Disabled != tt.disable {
 			t.Errorf("case %v: user disabled state incorrect. wanted: %v found: %v", i, tt.disable, usr.User.Disabled)
+		}
+	}
+}
+
+func TestRefreshTokenEndpoints(t *testing.T) {
+
+	tests := []struct {
+		userID  string
+		clients []string
+	}{
+		{"ID-1", []string{testClientID}},
+		{"ID-2", []string{testClientID}},
+	}
+
+	for i, tt := range tests {
+		f := makeUserAPITestFixtures()
+		list, err := f.client.RefreshClient.List(tt.userID).Do()
+		if err != nil {
+			t.Errorf("case %d: list clients: %v", i, err)
+			continue
+		}
+		var ids []string
+		for _, client := range list.Clients {
+			ids = append(ids, client.ClientID)
+		}
+		sort.Strings(ids)
+		sort.Strings(tt.clients)
+		if diff := pretty.Compare(tt.clients, ids); diff != "" {
+			t.Errorf("case %d: expected client ids did not match actual: %s", i, diff)
+		}
+		for _, clientID := range ids {
+			if err := f.client.Clients.Revoke(tt.userID, clientID).Do(); err != nil {
+				t.Errorf("case %d: failed to revoke client: %v", i, err)
+			}
+		}
+		list, err = f.client.RefreshClient.List(tt.userID).Do()
+		if err != nil {
+			t.Errorf("case %d: list clients after revocation: %v", i, err)
+			continue
+		}
+		if n := len(list.Clients); n != 0 {
+			t.Errorf("case %d: expected no refresh tokens after revocation, got %d", i, n)
 		}
 	}
 }
