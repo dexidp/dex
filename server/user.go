@@ -88,7 +88,7 @@ type authedHandle func(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 // that of an admin user.
 func (s *UserMgmtServer) authAPIHandle(handle authedHandle, requiresAdmin bool) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		creds, err := s.getCreds(r)
+		creds, err := s.getCreds(r, requiresAdmin)
 		if err != nil {
 			s.writeError(w, err)
 			return
@@ -243,7 +243,7 @@ func (s *UserMgmtServer) writeError(w http.ResponseWriter, err error) {
 	writeAPIError(w, http.StatusInternalServerError, newAPIError(errorServerError, err.Error()))
 }
 
-func (s *UserMgmtServer) getCreds(r *http.Request) (api.Creds, error) {
+func (s *UserMgmtServer) getCreds(r *http.Request, requiresAdmin bool) (api.Creds, error) {
 	token, err := oidc.ExtractBearerToken(r)
 	if err != nil {
 		log.Errorf("userMgmtServer: GetCreds err: %q", err)
@@ -300,7 +300,7 @@ func (s *UserMgmtServer) getCreds(r *http.Request) (api.Creds, error) {
 		log.Errorf("userMgmtServer: GetCreds err: %q", err)
 		return api.Creds{}, err
 	}
-	if !isAdmin {
+	if requiresAdmin && !isAdmin {
 		return api.Creds{}, api.ErrorForbidden
 	}
 
