@@ -1,0 +1,527 @@
+{
+ "kind": "discovery#restDescription",
+ "etag": "\"l66ggWbucbkBw9Lpos72oziyefE/MkEFbbfro6Rau0xbZXwz9DhAfqM\"",
+ "discoveryVersion": "v1",
+ "id": "replicapoolupdater:v1beta1",
+ "name": "replicapoolupdater",
+ "version": "v1beta1",
+ "revision": "20141105",
+ "title": "Google Compute Engine Instance Group Updater API",
+ "description": "The Google Compute Engine Instance Group Updater API provides services for updating groups of Compute Engine Instances.",
+ "ownerDomain": "google.com",
+ "ownerName": "Google",
+ "icons": {
+  "x16": "http://www.google.com/images/icons/product/search-16.gif",
+  "x32": "http://www.google.com/images/icons/product/search-32.gif"
+ },
+ "documentationLink": "https://developers.google.com/compute/docs/instance-groups/manager/v1beta2",
+ "labels": [
+  "limited_availability"
+ ],
+ "protocol": "rest",
+ "baseUrl": "https://www.googleapis.com/replicapoolupdater/v1beta1/projects/",
+ "basePath": "/replicapoolupdater/v1beta1/projects/",
+ "rootUrl": "https://www.googleapis.com/",
+ "servicePath": "replicapoolupdater/v1beta1/projects/",
+ "batchPath": "batch",
+ "parameters": {
+  "alt": {
+   "type": "string",
+   "description": "Data format for the response.",
+   "default": "json",
+   "enum": [
+    "json"
+   ],
+   "enumDescriptions": [
+    "Responses with Content-Type of application/json"
+   ],
+   "location": "query"
+  },
+  "fields": {
+   "type": "string",
+   "description": "Selector specifying which fields to include in a partial response.",
+   "location": "query"
+  },
+  "key": {
+   "type": "string",
+   "description": "API key. Your API key identifies your project and provides you with API access, quota, and reports. Required unless you provide an OAuth 2.0 token.",
+   "location": "query"
+  },
+  "oauth_token": {
+   "type": "string",
+   "description": "OAuth 2.0 token for the current user.",
+   "location": "query"
+  },
+  "prettyPrint": {
+   "type": "boolean",
+   "description": "Returns response with indentations and line breaks.",
+   "default": "true",
+   "location": "query"
+  },
+  "quotaUser": {
+   "type": "string",
+   "description": "Available to use for quota purposes for server-side applications. Can be any arbitrary string assigned to a user, but should not exceed 40 characters. Overrides userIp if both are provided.",
+   "location": "query"
+  },
+  "userIp": {
+   "type": "string",
+   "description": "IP address of the site where the request originates. Use this if you want to enforce per-user limits.",
+   "location": "query"
+  }
+ },
+ "auth": {
+  "oauth2": {
+   "scopes": {
+    "https://www.googleapis.com/auth/cloud-platform": {
+     "description": "View and manage your data across Google Cloud Platform services"
+    },
+    "https://www.googleapis.com/auth/replicapool": {
+     "description": "View and manage replica pools"
+    },
+    "https://www.googleapis.com/auth/replicapool.readonly": {
+     "description": "View replica pools"
+    }
+   }
+  }
+ },
+ "schemas": {
+  "InsertResponse": {
+   "id": "InsertResponse",
+   "type": "object",
+   "description": "Response returned by Insert method.",
+   "properties": {
+    "update": {
+     "type": "string",
+     "description": "Unique (in the context of a group) handle of an update."
+    }
+   }
+  },
+  "InstanceUpdate": {
+   "id": "InstanceUpdate",
+   "type": "object",
+   "description": "Update of a single instance.",
+   "properties": {
+    "instanceName": {
+     "type": "string",
+     "description": "Name of an instance."
+    },
+    "state": {
+     "type": "string",
+     "description": "State of an instance update."
+    }
+   }
+  },
+  "Update": {
+   "id": "Update",
+   "type": "object",
+   "description": "Resource describing a single update (rollout) of an instance group to the given template.",
+   "properties": {
+    "details": {
+     "type": "string",
+     "description": "[Output Only] Human-readable description of an update progress."
+    },
+    "handle": {
+     "type": "string",
+     "description": "[Output Only] Unique (in the context of a group) handle assigned to this update."
+    },
+    "instanceTemplate": {
+     "type": "string",
+     "description": "Url of an instance template to be applied."
+    },
+    "instanceUpdates": {
+     "type": "array",
+     "description": "[Output Only] Collection of instance updates.",
+     "items": {
+      "$ref": "InstanceUpdate"
+     }
+    },
+    "kind": {
+     "type": "string",
+     "description": "[Output only] The resource type. Always replicapoolupdater#update.",
+     "default": "replicapoolupdater#update"
+    },
+    "policy": {
+     "$ref": "UpdatePolicy",
+     "description": "Parameters of an update process."
+    },
+    "selfLink": {
+     "type": "string",
+     "description": "[Output only] The fully qualified URL for this resource."
+    },
+    "state": {
+     "type": "string",
+     "description": "[Output Only] Current state of an update."
+    },
+    "targetState": {
+     "type": "string",
+     "description": "[Output Only] Requested state of an update. This is the state that the updater is moving towards. Acceptable values are:  \n- \"ROLLED_OUT\": The user has requested the update to go forward. \n- \"ROLLED_BACK\": The user has requested the update to be rolled back. \n- \"PAUSED\": The user has requested the update to be paused.\n \n- \"CANCELLED\": The user has requested the update to be cancelled. The updater service is in the process of canceling the update."
+    }
+   }
+  },
+  "UpdateList": {
+   "id": "UpdateList",
+   "type": "object",
+   "description": "Response returned by List method.",
+   "properties": {
+    "items": {
+     "type": "array",
+     "description": "Collection of requested updates.",
+     "items": {
+      "$ref": "Update"
+     }
+    },
+    "nextPageToken": {
+     "type": "string",
+     "description": "A token used to continue a truncated list request."
+    }
+   }
+  },
+  "UpdatePolicy": {
+   "id": "UpdatePolicy",
+   "type": "object",
+   "description": "Parameters of an update process.",
+   "properties": {
+    "canary": {
+     "$ref": "UpdatePolicyCanary",
+     "description": "Parameters of a canary phase. If absent, canary will NOT be performed."
+    },
+    "maxNumConcurrentInstances": {
+     "type": "integer",
+     "description": "Maximum number of instances that can be updated simultaneously (concurrently). An update of an instance starts when the instance is about to be restarted and finishes after the instance has been restarted and the sleep period (defined by sleep_after_instance_restart_sec) has passed.",
+     "format": "int32"
+    },
+    "sleepAfterInstanceRestartSec": {
+     "type": "integer",
+     "description": "Time period after the instance has been restarted but before marking the update of this instance as done.",
+     "format": "int32"
+    }
+   }
+  },
+  "UpdatePolicyCanary": {
+   "id": "UpdatePolicyCanary",
+   "type": "object",
+   "description": "Parameters of a canary phase.",
+   "properties": {
+    "numInstances": {
+     "type": "integer",
+     "description": "Number of instances updated as a part of canary phase. If absent, the default number of instances will be used.",
+     "format": "int32"
+    }
+   }
+  }
+ },
+ "resources": {
+  "updates": {
+   "methods": {
+    "cancel": {
+     "id": "replicapoolupdater.updates.cancel",
+     "path": "{project}/zones/{zone}/instanceGroupManagers/{instanceGroupManager}/updates/{update}/cancel",
+     "httpMethod": "POST",
+     "description": "Called on the particular Update endpoint. Cancels the update in state PAUSED. No-op if invoked in state CANCELLED.",
+     "parameters": {
+      "instanceGroupManager": {
+       "type": "string",
+       "description": "Name of the instance group manager for this request.",
+       "required": true,
+       "location": "path"
+      },
+      "project": {
+       "type": "string",
+       "description": "Project ID for this request.",
+       "required": true,
+       "location": "path"
+      },
+      "update": {
+       "type": "string",
+       "description": "Unique (in the context of a group) handle of an update.",
+       "required": true,
+       "location": "path"
+      },
+      "zone": {
+       "type": "string",
+       "description": "Zone for the instance group manager.",
+       "required": true,
+       "location": "path"
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone",
+      "instanceGroupManager",
+      "update"
+     ],
+     "scopes": [
+      "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/replicapool"
+     ]
+    },
+    "get": {
+     "id": "replicapoolupdater.updates.get",
+     "path": "{project}/zones/{zone}/instanceGroupManagers/{instanceGroupManager}/updates/{update}",
+     "httpMethod": "GET",
+     "description": "Called on the particular Update endpoint. Returns the Update resource.",
+     "parameters": {
+      "instanceGroupManager": {
+       "type": "string",
+       "description": "Name of the instance group manager for this request.",
+       "required": true,
+       "location": "path"
+      },
+      "project": {
+       "type": "string",
+       "description": "Project ID for this request.",
+       "required": true,
+       "location": "path"
+      },
+      "update": {
+       "type": "string",
+       "description": "Unique (in the context of a group) handle of an update.",
+       "required": true,
+       "location": "path"
+      },
+      "zone": {
+       "type": "string",
+       "description": "Zone for the instance group manager.",
+       "required": true,
+       "location": "path"
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone",
+      "instanceGroupManager",
+      "update"
+     ],
+     "response": {
+      "$ref": "Update"
+     },
+     "scopes": [
+      "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/replicapool",
+      "https://www.googleapis.com/auth/replicapool.readonly"
+     ]
+    },
+    "insert": {
+     "id": "replicapoolupdater.updates.insert",
+     "path": "{project}/zones/{zone}/instanceGroupManagers/{instanceGroupManager}/updates",
+     "httpMethod": "POST",
+     "description": "Called on the collection endpoint. Inserts the new Update resource and starts the update.",
+     "parameters": {
+      "instanceGroupManager": {
+       "type": "string",
+       "description": "Name of the instance group manager for this request.",
+       "required": true,
+       "location": "path"
+      },
+      "project": {
+       "type": "string",
+       "description": "Project ID for this request.",
+       "required": true,
+       "location": "path"
+      },
+      "zone": {
+       "type": "string",
+       "description": "Zone for the instance group manager.",
+       "required": true,
+       "location": "path"
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone",
+      "instanceGroupManager"
+     ],
+     "request": {
+      "$ref": "Update"
+     },
+     "response": {
+      "$ref": "InsertResponse"
+     },
+     "scopes": [
+      "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/replicapool"
+     ]
+    },
+    "list": {
+     "id": "replicapoolupdater.updates.list",
+     "path": "{project}/zones/{zone}/instanceGroupManagers/{instanceGroupManager}/updates",
+     "httpMethod": "GET",
+     "description": "Called on the collection endpoint. Lists updates for a given instance group, in reverse chronological order. Pagination is supported, see ListRequestHeader.",
+     "parameters": {
+      "instanceGroupManager": {
+       "type": "string",
+       "description": "Name of the instance group manager for this request.",
+       "required": true,
+       "location": "path"
+      },
+      "maxResults": {
+       "type": "integer",
+       "description": "Maximum count of results to be returned. Acceptable values are 1 to 100, inclusive. (Default: 50)",
+       "default": "50",
+       "format": "int32",
+       "minimum": "1",
+       "maximum": "100",
+       "location": "query"
+      },
+      "pageToken": {
+       "type": "string",
+       "description": "Set this to the nextPageToken value returned by a previous list request to obtain the next page of results from the previous list request.",
+       "location": "query"
+      },
+      "project": {
+       "type": "string",
+       "description": "Project ID for this request.",
+       "required": true,
+       "location": "path"
+      },
+      "zone": {
+       "type": "string",
+       "description": "Zone for the instance group manager.",
+       "required": true,
+       "location": "path"
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone",
+      "instanceGroupManager"
+     ],
+     "response": {
+      "$ref": "UpdateList"
+     },
+     "scopes": [
+      "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/replicapool",
+      "https://www.googleapis.com/auth/replicapool.readonly"
+     ]
+    },
+    "pause": {
+     "id": "replicapoolupdater.updates.pause",
+     "path": "{project}/zones/{zone}/instanceGroupManagers/{instanceGroupManager}/updates/{update}/pause",
+     "httpMethod": "POST",
+     "description": "Called on the particular Update endpoint. Pauses the update in state from { ROLLING_FORWARD, ROLLING_BACK, PAUSED }. No-op if invoked in state PAUSED.",
+     "parameters": {
+      "instanceGroupManager": {
+       "type": "string",
+       "description": "Name of the instance group manager for this request.",
+       "required": true,
+       "location": "path"
+      },
+      "project": {
+       "type": "string",
+       "description": "Project ID for this request.",
+       "required": true,
+       "location": "path"
+      },
+      "update": {
+       "type": "string",
+       "description": "Unique (in the context of a group) handle of an update.",
+       "required": true,
+       "location": "path"
+      },
+      "zone": {
+       "type": "string",
+       "description": "Zone for the instance group manager.",
+       "required": true,
+       "location": "path"
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone",
+      "instanceGroupManager",
+      "update"
+     ],
+     "scopes": [
+      "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/replicapool"
+     ]
+    },
+    "rollback": {
+     "id": "replicapoolupdater.updates.rollback",
+     "path": "{project}/zones/{zone}/instanceGroupManagers/{instanceGroupManager}/updates/{update}/rollback",
+     "httpMethod": "POST",
+     "description": "Called on the particular Update endpoint. Rolls back the update in state from { ROLLING_FORWARD, ROLLING_BACK, PAUSED }. No-op if invoked in state ROLLED_BACK.",
+     "parameters": {
+      "instanceGroupManager": {
+       "type": "string",
+       "description": "Name of the instance group manager for this request.",
+       "required": true,
+       "location": "path"
+      },
+      "project": {
+       "type": "string",
+       "description": "Project ID for this request.",
+       "required": true,
+       "location": "path"
+      },
+      "update": {
+       "type": "string",
+       "description": "Unique (in the context of a group) handle of an update.",
+       "required": true,
+       "location": "path"
+      },
+      "zone": {
+       "type": "string",
+       "description": "Zone for the instance group manager.",
+       "required": true,
+       "location": "path"
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone",
+      "instanceGroupManager",
+      "update"
+     ],
+     "scopes": [
+      "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/replicapool"
+     ]
+    },
+    "rollforward": {
+     "id": "replicapoolupdater.updates.rollforward",
+     "path": "{project}/zones/{zone}/instanceGroupManagers/{instanceGroupManager}/updates/{update}/rollforward",
+     "httpMethod": "POST",
+     "description": "Called on the particular Update endpoint. Rolls forward the update in state from { ROLLING_FORWARD, ROLLING_BACK, PAUSED }. No-op if invoked in state ROLLED_OUT.",
+     "parameters": {
+      "instanceGroupManager": {
+       "type": "string",
+       "description": "Name of the instance group manager for this request.",
+       "required": true,
+       "location": "path"
+      },
+      "project": {
+       "type": "string",
+       "description": "Project ID for this request.",
+       "required": true,
+       "location": "path"
+      },
+      "update": {
+       "type": "string",
+       "description": "Unique (in the context of a group) handle of an update.",
+       "required": true,
+       "location": "path"
+      },
+      "zone": {
+       "type": "string",
+       "description": "Zone for the instance group manager.",
+       "required": true,
+       "location": "path"
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone",
+      "instanceGroupManager",
+      "update"
+     ],
+     "scopes": [
+      "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/replicapool"
+     ]
+    }
+   }
+  }
+ }
+}
