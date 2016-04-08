@@ -82,68 +82,45 @@ docker rm -f dex_postgres
 
 ## Vendoring dependencies
 
-dex uses [godep](https://github.com/tools/godep) for vendoring external dependencies. This section details how to add and update those dependencies.
+dex uses [glide](https://github.com/Masterminds/glide) for vendoring external dependencies. This section details how to add and update those dependencies.
 
-Before continuing, please ensure you have the **latest version** of godep available in your PATH.
-
-```
-go get -u github.com/tools/godep
-```
-
-### Preparing your GOPATH
-
-Godep assumes code uses the [standard Go directory layout](https://golang.org/doc/code.html#Organization) with the GOPATH environment variable. Developers who use a different workflow (for instance, prefer working from `~/src/dex`) should see [rkt's documentation](https://github.com/coreos/rkt/blob/master/Documentation/hacking.md#having-the-right-directory-layout-ie-gopath) for workarounds.
-
-Godep determines depdencies using the GOPATH, not the vendored code in the Godeps directory. The first step is to "restore" your GOPATH to match the vendored state of dex. From dex's top level directory run:
+Before continuing, please ensure you have the **latest version** of glide available in your PATH.
 
 ```
-godep restore -v
+go get -u github.com/Masterminds/glide
 ```
-
-Next, continue to either *Adding a new package* or *Updating an existing package*.
 
 ### Adding a new package
 
-After adding a new `import` to dex source, godep will automatically detect it and update the vendored code. Once code changes are finalized, bring the dependency into your GOPATH and save the state:
+After adding a new `import` to dex source, use `glide get` to add the dependency to the `glide.yaml` and `glide.lock` files.
 
 ```
-go get github.com/mavricknz/ldap # Replace with your dependency.
-godep save ./...
+glide get -u -v -s github.com/godbus/dbus
 ```
 
-Note that dex does **not** rewrite import paths like other CoreOS projects.
+Note that __all of these flags are manditory__. This should add an entry to the glide files, add the package to the `vendor` directory, and remove nested `vendor` directories and version control information.
 
 ## Updating an existing package
 
-After restoring your GOPATH, update the dependency in your GOPATH to the version you wish to check in.
+To update an existing package, edit the `glide.yaml` file to the desired verison (most likely a git hash), and run `glide update`. 
 
 ```
-cd $GOPATH/src/github.com/lib/pq # Replace with your dependency.
-git checkout origin master
+{{ edit the entry in glide.yaml }}
+glide update -u -v -s github.com/lib/pq
 ```
 
-Then, move to dex's top level directory and run:
-
-```
-godep update github.com/lib/pq
-```
-
-To update a group of packages, use the `...` notation.
-
-```
-godep update github.com/coreos/go-oidc/...
-```
+Like `glide get` all flags are manditory. If the update was successful, `glide.lock` will have been updated to reflect the changes to `glide.yaml` and the package will have been updated in `vendor`.
 
 ## Finalizing your change
 
-Use git to ensure the Godeps directory has updated only your target packages.
+Use git to ensure the `vendor` directory has updated only your target packages, and that no other entries in `glide.yaml` and `glide.lock` have changed.
 
 Changes to the Godeps directory should be added as a separate commit from other changes for readability:
 
 ```
 git status      # make sure things look reasonable
-git add Godeps
-git commit -m "Godeps: updated postgres driver"
+git add vendor
+git commit -m "vendor: updated postgres driver"
 
 # continue working
 
