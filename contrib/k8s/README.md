@@ -85,7 +85,7 @@ Now, build and run the example app.
 
 ```sh
 ./build
-./bin/example-app --client-id=$DEX_APP_CLIENT_ID --client-secret=$DEX_APP_CLIENT_SECRET --discovery=http://172.17.4.99:30556
+./bin/example-app --client-id=$DEX_APP_CLIENT_ID --client-secret=$DEX_APP_CLIENT_SECRET --discovery=http://dex.test
 ```
 
 Now you can register and log-in to your example app: Go to http://127.0.0.1:5555

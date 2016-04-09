@@ -26,7 +26,9 @@ spec:
             name: dex-worker
             env:
               - name: DEX_WORKER_ISSUER
-                value: https://dex.astuart.co
+                value: http://dex.test
+                # Swap out for https if you've enabled TLS on your Ingress
+                # value: https://dex.test
               - name: DEX_WORKER_DB_URL
                 value: postgres://postgres@dex-postgres:5432/postgres?sslmode=disable
               - name: DEX_WORKER_EMAIL_CFG
@@ -40,6 +42,13 @@ spec:
             ports:
             - containerPort: 5556
               name: worker-port
+            readinessProbe:
+              httpGet:
+                path: /health
+                port: 5556
+              initialDelaySeconds: 5
+              timeoutSeconds: 1
+              periodSeconds: 5
             livenessProbe:
               httpGet:
                 path: /health
