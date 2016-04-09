@@ -6,7 +6,7 @@ This document will allow you to set up dex in your Kubernetes cluster; the examp
 
 The document assumes that you already have a cluster with at least one worker up and running. The easiest way to bring up a small cluster for experimentation is the [coreos-kubernetes single node](coreos-kubernetes-single-node) Vagrant installer.
 
-The other assumption is that your Kubernetes cluster will be running an appropriate Ingress controller for your environment (see [nginx](https://github.com/kubernetes/contrib/tree/master/ingress/controllers/nginx)) and that a `dex.test` DNS or `/etc/hosts` entry has been made pointing to the ingress controller Node IP(s).
+The other assumption is that your Kubernetes cluster will be running an appropriate Ingress controller for your environment (see [nginx](https://github.com/kubernetes/contrib/tree/master/ingress/controllers/nginx)) and that a `dex.example.com` DNS or `/etc/hosts` entry has been made pointing to the ingress controller Node IP(s).
 
 [coreos-kubernetes-single-node](https://github.com/coreos/coreos-kubernetes/blob/master/single-node/README.md)
 
@@ -78,14 +78,14 @@ eval "$(kubectl exec $DEX_OVERLORD_POD -- /opt/dex/bin/dexctl --db-url='postgres
 First, go to the root of the dex repo:
 
 ```sh
-cd ../..
+cd $GOPATH/src/github.com/coreos/dex
 ```
 
 Now, build and run the example app.
 
 ```sh
 ./build
-./bin/example-app --client-id=$DEX_APP_CLIENT_ID --client-secret=$DEX_APP_CLIENT_SECRET --discovery=http://dex.test
+./bin/example-app --client-id=$DEX_APP_CLIENT_ID --client-secret=$DEX_APP_CLIENT_SECRET --discovery=http://dex.example.com
 ```
 
 Now you can register and log-in to your example app: Go to http://127.0.0.1:5555

@@ -26,9 +26,9 @@ spec:
             name: dex-worker
             env:
               - name: DEX_WORKER_ISSUER
-                value: http://dex.test
-                # Swap out for https if you've enabled TLS on your Ingress
-                # value: https://dex.test
+                value: http://dex.example.com
+                # enable https if you have configured your Ingress with TLS
+                # value: https://dex.example.com
               - name: DEX_WORKER_DB_URL
                 value: postgres://postgres@dex-postgres:5432/postgres?sslmode=disable
               - name: DEX_WORKER_EMAIL_CFG
@@ -38,7 +38,7 @@ spec:
             command:
               - "sh"
               - "-c"
-              - "/opt/dex/bin/dex-worker --key-secrets=$(cat /etc/dex/key-secrets)"
+              - "/opt/dex/bin/dex-worker --key-secrets=$(cat /etc/dex/key-secrets) --enable-registration"
             ports:
             - containerPort: 5556
               name: worker-port
@@ -46,9 +46,8 @@ spec:
               httpGet:
                 path: /health
                 port: 5556
-              initialDelaySeconds: 5
               timeoutSeconds: 1
-              periodSeconds: 5
+              periodSeconds: 2
             livenessProbe:
               httpGet:
                 path: /health
@@ -59,10 +58,24 @@ spec:
               - name: dex
                 mountPath: "/etc/dex"
                 readOnly: true
+              # In production, you will likely want to include your own trusted
+              # /etc/ca-certificates and /etc/ssl in your container.
+              - name: ca
+                mountPath: /etc/ca-certificates
+                readOnly: true
+              - name: ssl
+                mountPath: /etc/ssl
+                readOnly: true
       volumes:
         - name: dex
           secret:
             secretName: "dex"
+        - name: ca
+          hostPath:
+            path: /etc/ca-certificates
+        - name: ssl
+          hostPath:
+            path: /etc/ssl
 ---
 apiVersion: v1
 kind: Service
@@ -85,11 +98,13 @@ spec:
   # secret](http://kubernetes.io/docs/user-guide/ingress/#tls) with the
   # appropriate name.
   # tls:
-  # - secretName: dex.test.tls
+  # - secretName: dex.example.com.tls
   #   hosts:
-  #   - dex.test
+  #   - dex.example.com
   rules:
-  - host: dex.test
+  # Make sure to add dex.example.com to your /etc/hosts or DNS server if you
+  # run one locally.
+  - host: dex.example.com
     http:
       paths:
       - path: /

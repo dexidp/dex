@@ -40,6 +40,14 @@ spec:
                 readOnly: true
               - name: connectors
                 mountPath: /etc/dex-connectors
+              # In production, you will likely want to include your own trusted
+              # /etc/ca-certificates and /etc/ssl in your container.
+              - name: ca
+                mountPath: /etc/ca-certificates
+                readOnly: true
+              - name: ssl
+                mountPath: /etc/ssl
+                readOnly: true
       volumes:
         - name: dex
           secret:
@@ -47,6 +55,12 @@ spec:
         - name: connectors
           configMap:
             name: dex-connectors
+        - name: ca
+          hostPath:
+            path: /etc/ca-certificates
+        - name: ssl
+          hostPath:
+            path: /etc/ssl
 ---
 apiVersion: v1
 kind: Service
@@ -67,10 +81,18 @@ kind: ConfigMap
 metadata:
   name: dex-connectors
 data:
-  local-connector.json: |
+  connector.json: |
     [
       {
-        "type": "local",
-        "id": "local"
+        "id": "local",
+        "type": "local"
       }
+      # {
+      #   "id": "google",
+      #   "type": "oidc",
+      #   "issuerURL": "https://accounts.google.com",
+      #   "clientID": "<your id here>",
+      #   "clientSecret": "<your secret here>",
+      #   "trustedEmailProvider": true
+      # }
     ]
