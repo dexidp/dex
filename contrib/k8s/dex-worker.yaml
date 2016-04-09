@@ -1,0 +1,104 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: dex
+    role: worker
+  name: dex-worker
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: dex
+        role: worker
+    spec:
+      containers:
+          - image: quay.io/coreos/dex
+            name: dex-worker
+            env:
+              - name: DEX_WORKER_ISSUER
+                value: http://dex.example.com
+                # enable https if you have configured your Ingress with TLS
+                # value: https://dex.example.com
+              - name: DEX_WORKER_DB_URL
+                value: postgres://postgres@dex-postgres:5432/postgres?sslmode=disable
+              - name: DEX_WORKER_EMAIL_CFG
+                value: /opt/dex/email/emailer.json
+              - name: DEX_WORKER_LISTEN
+                value: http://0.0.0.0:5556
+              - name: DEX_WORKER_KEY_SECRETS
+                valueFrom:
+                  secretKeyRef:
+                    name: dex
+                    key: key-secrets
+              - name: DEX_WORKER_ENABLE_REGISTRATION
+                value: "true"
+            command:
+              - "/opt/dex/bin/dex-worker"
+            ports:
+            - containerPort: 5556
+              name: worker-port
+            readinessProbe:
+              httpGet:
+                path: /health
+                port: 5556
+              timeoutSeconds: 1
+              periodSeconds: 2
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: 5556
+              initialDelaySeconds: 15
+              timeoutSeconds: 1
+              # In production, you will likely want to include your own trusted
+              # /etc/ca-certificates and /etc/ssl in your container.
+            volumeMounts:
+              - name: ca
+                mountPath: /etc/ca-certificates
+                readOnly: true
+              - name: ssl
+                mountPath: /etc/ssl
+                readOnly: true
+      volumes:
+        - name: ca
+          hostPath:
+            path: /etc/ca-certificates
+        - name: ssl
+          hostPath:
+            path: /etc/ssl
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dex-worker
+spec:
+  ports:
+    - name: worker
+      port: 5556
+  selector:
+    app: dex
+    role: worker
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: dex-worker
+spec:
+  # Uncomment this section to enable tls, after creating a [tls
+  # secret](http://kubernetes.io/docs/user-guide/ingress/#tls) with the
+  # appropriate name.
+  # tls:
+  # - secretName: dex.example.com.tls
+  #   hosts:
+  #   - dex.example.com
+  rules:
+  # Make sure to add dex.example.com to your /etc/hosts or DNS server if you
+  # run one locally.
+  - host: dex.example.com
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: dex-worker
+          servicePort: 5556

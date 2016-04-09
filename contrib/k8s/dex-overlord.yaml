@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dex
+type: Opaque
+data:
+  key-secrets: ZUhoNGVIaDRlSGg0ZUhoNGVIaDRlSGg0ZUhoNGVIaDRlSGg0ZUhoNGVIZz0= # 32 x's base64 encoded twice.
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: dex
+    role: overlord
+  name: dex-overlord
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: dex
+        role: overlord
+    spec:
+      containers:
+          - image: quay.io/coreos/dex
+            name: dex-overlord
+            env:
+              - name: DEX_OVERLORD_DB_URL
+                value: postgres://postgres@dex-postgres:5432/postgres?sslmode=disable
+              - name: DEX_OVERLORD_ADMIN_LISTEN
+                value: http://0.0.0.0:5557
+              - name: DEX_OVERLORD_KEY_SECRETS
+                valueFrom:
+                  secretKeyRef:
+                    name: dex
+                    key: key-secrets
+            command:
+              - "/opt/dex/bin/dex-overlord"
+            ports:
+            - containerPort: 5557
+              name: overlord-port
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: 5557
+              initialDelaySeconds: 16
+              timeoutSeconds: 1
+            volumeMounts:
+              - name: connectors
+                mountPath: /etc/dex-connectors
+              # In production, you will likely want to include your own trusted
+              # /etc/ca-certificates and /etc/ssl in your container.
+              - name: ca
+                mountPath: /etc/ca-certificates
+                readOnly: true
+              - name: ssl
+                mountPath: /etc/ssl
+                readOnly: true
+      volumes:
+        - name: connectors
+          configMap:
+            name: dex-connectors
+        - name: ca
+          hostPath:
+            path: /etc/ca-certificates
+        - name: ssl
+          hostPath:
+            path: /etc/ssl
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: dex
+    role: overlord
+  name: dex-overlord
+spec:
+  ports:
+    - port: 5557
+  selector:
+    app: dex
+    role: overlord
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dex-connectors
+data:
+  connector.json: |
+    [
+      {
+        "id": "local",
+        "type": "local"
+      }
+    ]
+    # google-connector.json: | 
+    #   [{
+    #     "id": "google",
+    #     "type": "oidc",
+    #     "issuerURL": "https://accounts.google.com",
+    #     "clientID": "<your id here>",
+    #     "clientSecret": "<your secret here>",
+    #     "trustedEmailProvider": true
+    #   }]
