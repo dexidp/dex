@@ -1,5 +1,5 @@
-apiVersion: v1
-kind: ReplicationController
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
   labels:
     app: dex
@@ -7,9 +7,6 @@ metadata:
   name: dex-overlord
 spec:
   replicas: 1
-  selector:
-    app: dex
-    role: overlord
   template:
     metadata:
       labels:
@@ -21,13 +18,13 @@ spec:
             name: dex-overlord
             env:
               - name: DEX_OVERLORD_DB_URL
-                value: postgres://postgres@dex-postgres.default:5432/postgres?sslmode=disable
+                value: postgres://postgres@dex-postgres:5432/postgres?sslmode=disable
               - name: DEX_OVERLORD_ADMIN_LISTEN
                 value: http://0.0.0.0:5557
             command:
               - "sh"
               - "-c"
-              - "/opt/dex/bin/dex-overlord  --key-secrets=$(cat /etc/dex/key-secrets)"
+              - "/opt/dex/bin/dex-overlord --key-secrets=$(cat /etc/dex/key-secrets) --local-connector=local"
             ports:
             - containerPort: 5557
               name: overlord-port
@@ -35,13 +32,32 @@ spec:
               httpGet:
                 path: /health
                 port: 5557
-              initialDelaySeconds: 15
+              initialDelaySeconds: 16
               timeoutSeconds: 1
             volumeMounts:
               - name: dex
                 mountPath: "/etc/dex"
                 readOnly: true
+              - name: connectors
+                mountPath: /etc/dex-connectors
       volumes:
         - name: dex
           secret:
             secretName: "dex"
+        - name: connectors
+          configMap:
+            name: dex-connectors
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: dex
+    role: overlord
+  name: dex-overlord
+spec:
+  ports:
+    - port: 5557
+  selector:
+    app: dex
+    role: overlord

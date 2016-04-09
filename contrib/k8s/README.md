@@ -71,7 +71,7 @@ cat << EOF > $DEX_CONNECTORS_FILE
 ]
 EOF
 
-/opt/dex/bin/dexctl --db-url=postgres://postgres@dex-postgres.default:5432/postgres?sslmode=disable set-connector-configs $DEX_CONNECTORS_FILE
+/opt/dex/bin/dexctl --db-url=postgres://postgres@dex-postgres:5432/postgres?sslmode=disable set-connector-configs $DEX_CONNECTORS_FILE
 exit
 ```
 
@@ -89,7 +89,7 @@ kubectl create -f dex-worker-service.yaml
 We then `eval` that which creates the shell variables `DEX_APP_CLIENT_ID` and `DEX_APP_CLIENT_SECRET`
 
 ```
-eval "$(kubectl exec $DEX_OVERLORD_POD -- /opt/dex/bin/dexctl --db-url=postgres://postgres@dex-postgres.default:5432/postgres?sslmode=disable new-client http://127.0.0.1:5555/callback )"
+eval "$(kubectl exec $DEX_OVERLORD_POD -- /opt/dex/bin/dexctl --db-url=postgres://postgres@dex-postgres:5432/postgres?sslmode=disable new-client http://127.0.0.1:5555/callback )"
 ```
 
 ## Build and Run the Example App
@@ -117,7 +117,7 @@ Now you can register and log-in to your example app: Go to http://127.0.0.1:5555
 Here's how to get psql session.
 ```
 DEX_PSQL_POD=$(kubectl get pod -l=app=postgres -o template --template "{{ (index .items 0).metadata.name }}")
-kubectl exec $DEX_PSQL_POD -ti  -- psql postgres://postgres@dex-postgres.default:5432/postgres?sslmode=disable
+kubectl exec $DEX_PSQL_POD -ti  -- psql postgres://postgres@dex-postgres:5432/postgres?sslmode=disable
 ```
 
 
