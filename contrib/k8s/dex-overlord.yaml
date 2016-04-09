@@ -24,7 +24,7 @@ spec:
             command:
               - "sh"
               - "-c"
-              - "/opt/dex/bin/dex-overlord --key-secrets=$(cat /etc/dex/key-secrets) --local-connector=local"
+              - "/opt/dex/bin/dex-overlord --key-secrets=$(cat /etc/dex/key-secrets)"
             ports:
             - containerPort: 5557
               name: overlord-port
@@ -61,3 +61,16 @@ spec:
   selector:
     app: dex
     role: overlord
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dex-connectors
+data:
+  local-connector.json: |
+    [
+      {
+        "type": "local",
+        "id": "local"
+      }
+    ]

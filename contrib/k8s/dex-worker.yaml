@@ -72,12 +72,15 @@ kind: Ingress
 metadata:
   name: dex-worker
 spec:
-  tls:
-  - secretName: dex.astuart.co.tls
-    hosts:
-    - dex.astuart.co
+  # Uncomment this section to enable tls, after creating a [tls
+  # secret](http://kubernetes.io/docs/user-guide/ingress/#tls) with the
+  # appropriate name.
+  # tls:
+  # - secretName: dex.test.tls
+  #   hosts:
+  #   - dex.test
   rules:
-  - host: dex.astuart.co
+  - host: dex.test
     http:
       paths:
       - path: /
