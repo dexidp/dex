@@ -451,6 +451,12 @@ func (u *userModel) user() (user.User, error) {
 }
 
 func newUserModel(u *user.User) (*userModel, error) {
+	if u.ID == "" {
+		return nil, fmt.Errorf("user is missing ID field")
+	}
+	if u.Email == "" {
+		return nil, fmt.Errorf("user %s is missing email field", u.ID)
+	}
 	um := userModel{
 		ID:            u.ID,
 		DisplayName:   u.DisplayName,
