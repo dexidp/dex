@@ -100,9 +100,13 @@ func NewClientIdentityRepoFromClients(dbm *gorp.DbMap, clients []oidc.ClientIden
 	defer tx.Rollback()
 	exec := repo.executor(tx)
 	for _, c := range clients {
+		if c.Credentials.Secret == "" {
+			return nil, fmt.Errorf("client %q has no secret", c.Credentials.ID)
+		}
 		dec, err := base64.URLEncoding.DecodeString(c.Credentials.Secret)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("client secrets must be base64 decodable. See issue #337. Please consider replacing %q with %q",
+				c.Credentials.Secret, base64.URLEncoding.EncodeToString([]byte(c.Credentials.Secret)))
 		}
 		cm, err := newClientIdentityModel(c.Credentials.ID, dec, &c.Metadata)
 		if err != nil {
