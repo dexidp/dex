@@ -184,6 +184,10 @@ func loadUsersFromReader(r io.Reader) (users []user.UserWithRemoteIdentities, pw
 		user.User
 		Password         string                `json:"password"`
 		RemoteIdentities []user.RemoteIdentity `json:"remoteIdentities"`
+
+		// The old format stored all user data under the "user" key.
+		// Attempt to detect that, and print an better error.
+		OldUserFields map[string]string `json:"user"`
 	}
 	if err := json.NewDecoder(r).Decode(&configUsers); err != nil {
 		return nil, nil, err
@@ -193,6 +197,10 @@ func loadUsersFromReader(r io.Reader) (users []user.UserWithRemoteIdentities, pw
 	pwis = make([]user.PasswordInfo, len(configUsers))
 
 	for i, u := range configUsers {
+		if u.OldUserFields != nil {
+			return nil, nil, fmt.Errorf("Static user file is using an outdated format. Please refer to example in static/fixtures.")
+		}
+
 		users[i] = user.UserWithRemoteIdentities{
 			User:             u.User,
 			RemoteIdentities: u.RemoteIdentities,
