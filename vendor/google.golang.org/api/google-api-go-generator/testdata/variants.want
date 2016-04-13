@@ -1,0 +1,278 @@
+// Package additionalpropsobjs provides access to the Example API.
+//
+// Usage example:
+//
+//   import "google.golang.org/api/additionalpropsobjs/v1"
+//   ...
+//   additionalpropsobjsService, err := additionalpropsobjs.New(oauthHttpClient)
+package additionalpropsobjs
+
+import (
+	"bytes"
+	"google.golang.org/api/googleapi"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+)
+
+// Always reference these packages, just in case the auto-generated code
+// below doesn't.
+var _ = bytes.NewBuffer
+var _ = strconv.Itoa
+var _ = fmt.Sprintf
+var _ = json.NewDecoder
+var _ = io.Copy
+var _ = url.Parse
+var _ = googleapi.Version
+var _ = errors.New
+var _ = strings.Replace
+
+const apiId = "additionalpropsobjs:v1"
+const apiName = "additionalpropsobjs"
+const apiVersion = "v1"
+const basePath = "https://www.googleapis.com/discovery/v1/apis"
+
+func New(client *http.Client) (*Service, error) {
+	if client == nil {
+		return nil, errors.New("client is nil")
+	}
+	s := &Service{client: client, BasePath: basePath}
+	return s, nil
+}
+
+type Service struct {
+	client   *http.Client
+	BasePath string // API endpoint base URL
+}
+
+type GeoJsonGeometry map[string]interface{}
+
+func (t GeoJsonGeometry) Type() string {
+	return googleapi.VariantType(t)
+}
+
+func (t GeoJsonGeometry) GeometryCollection() (r GeoJsonGeometryCollection, ok bool) {
+	if t.Type() != "GeometryCollection" {
+		return r, false
+	}
+	ok = googleapi.ConvertVariant(map[string]interface{}(t), &r)
+	return r, ok
+}
+
+func (t GeoJsonGeometry) LineString() (r GeoJsonLineString, ok bool) {
+	if t.Type() != "LineString" {
+		return r, false
+	}
+	ok = googleapi.ConvertVariant(map[string]interface{}(t), &r)
+	return r, ok
+}
+
+func (t GeoJsonGeometry) MultiLineString() (r GeoJsonMultiLineString, ok bool) {
+	if t.Type() != "MultiLineString" {
+		return r, false
+	}
+	ok = googleapi.ConvertVariant(map[string]interface{}(t), &r)
+	return r, ok
+}
+
+func (t GeoJsonGeometry) MultiPoint() (r GeoJsonMultiPoint, ok bool) {
+	if t.Type() != "MultiPoint" {
+		return r, false
+	}
+	ok = googleapi.ConvertVariant(map[string]interface{}(t), &r)
+	return r, ok
+}
+
+func (t GeoJsonGeometry) MultiPolygon() (r GeoJsonMultiPolygon, ok bool) {
+	if t.Type() != "MultiPolygon" {
+		return r, false
+	}
+	ok = googleapi.ConvertVariant(map[string]interface{}(t), &r)
+	return r, ok
+}
+
+func (t GeoJsonGeometry) Point() (r GeoJsonPoint, ok bool) {
+	if t.Type() != "Point" {
+		return r, false
+	}
+	ok = googleapi.ConvertVariant(map[string]interface{}(t), &r)
+	return r, ok
+}
+
+func (t GeoJsonGeometry) Polygon() (r GeoJsonPolygon, ok bool) {
+	if t.Type() != "Polygon" {
+		return r, false
+	}
+	ok = googleapi.ConvertVariant(map[string]interface{}(t), &r)
+	return r, ok
+}
+
+type GeoJsonGeometryCollection struct {
+	// Geometries: An array of geometry objects. There must be at least 2
+	// different types of geometries in the array.
+	Geometries []GeoJsonGeometry `json:"geometries,omitempty"`
+
+	// Type: Identifies this object as a GeoJsonGeometryCollection.
+	Type string `json:"type,omitempty"`
+}
+
+type GeoJsonLineString struct {
+	// Coordinates: An array of two or more positions, representing a line.
+	Coordinates [][]float64 `json:"coordinates,omitempty"`
+
+	// Type: Identifies this object as a GeoJsonLineString.
+	Type string `json:"type,omitempty"`
+}
+
+type GeoJsonMultiLineString struct {
+	// Coordinates: An array of at least two GeoJsonLineString coordinate
+	// arrays.
+	Coordinates [][][]float64 `json:"coordinates,omitempty"`
+
+	// Type: Identifies this object as a GeoJsonMultiLineString.
+	Type string `json:"type,omitempty"`
+}
+
+type GeoJsonMultiPoint struct {
+	// Coordinates: An array of at least two GeoJsonPoint coordinate arrays.
+	Coordinates [][]float64 `json:"coordinates,omitempty"`
+
+	// Type: Identifies this object as a GeoJsonMultiPoint.
+	Type string `json:"type,omitempty"`
+}
+
+type GeoJsonMultiPolygon struct {
+	// Coordinates: An array of at least two GeoJsonPolygon coordinate
+	// arrays.
+	Coordinates [][][][]float64 `json:"coordinates,omitempty"`
+
+	// Type: Identifies this object as a GeoJsonMultiPolygon.
+	Type string `json:"type,omitempty"`
+}
+
+type GeoJsonPoint struct {
+	// Coordinates: A single GeoJsonPosition, specifying the location of the
+	// point.
+	Coordinates []float64 `json:"coordinates,omitempty"`
+
+	// Type: Identifies this object as a GeoJsonPoint.
+	Type string `json:"type,omitempty"`
+}
+
+type GeoJsonPolygon struct {
+	// Coordinates: An array of LinearRings, each of which is an array of
+	// four or more GeoJsonPositions. The first and last coordinates in each
+	// LinearRing must be the same. For polygons with multiple rings, the
+	// first LinearRing is the external ring, with subsequent rings being
+	// interior rings (i.e. hole). All LinearRings must contain
+	// GeoJsonPositions in counter-clockwise order.
+	Coordinates [][][]float64 `json:"coordinates,omitempty"`
+
+	// Type: Identifies this object as a GeoJsonPolygon.
+	Type string `json:"type,omitempty"`
+}
+
+type MapFolder struct {
+	Contents []MapItem `json:"contents,omitempty"`
+
+	// DefaultViewport: An array of four numbers (west, south, east, north)
+	// which defines the rectangular bounding box of the default viewport.
+	// The numbers represent latitude and longitude in decimal degrees.
+	DefaultViewport []float64 `json:"defaultViewport,omitempty"`
+
+	// Expandable: The expandability setting of this MapFolder. If true, the
+	// folder can be expanded.
+	Expandable bool `json:"expandable,omitempty"`
+
+	// Key: A user defined alias for this MapFolder, specific to this Map.
+	Key string `json:"key,omitempty"`
+
+	// Name: The name of this MapFolder.
+	Name string `json:"name,omitempty"`
+
+	// Type: Identifies this object as a MapFolder.
+	Type string `json:"type,omitempty"`
+
+	// Visibility: The visibility setting of this MapFolder. One of
+	// "defaultOn" or "defaultOff".
+	Visibility string `json:"visibility,omitempty"`
+}
+
+type MapItem map[string]interface{}
+
+func (t MapItem) Type() string {
+	return googleapi.VariantType(t)
+}
+
+func (t MapItem) Folder() (r MapFolder, ok bool) {
+	if t.Type() != "Folder" {
+		return r, false
+	}
+	ok = googleapi.ConvertVariant(map[string]interface{}(t), &r)
+	return r, ok
+}
+
+func (t MapItem) KmlLink() (r MapKmlLink, ok bool) {
+	if t.Type() != "KmlLink" {
+		return r, false
+	}
+	ok = googleapi.ConvertVariant(map[string]interface{}(t), &r)
+	return r, ok
+}
+
+func (t MapItem) Layer() (r MapLayer, ok bool) {
+	if t.Type() != "Layer" {
+		return r, false
+	}
+	ok = googleapi.ConvertVariant(map[string]interface{}(t), &r)
+	return r, ok
+}
+
+type MapKmlLink struct {
+	// DefaultViewport: An array of four numbers (west, south, east, north)
+	// which defines the rectangular bounding box of the default viewport.
+	// The numbers represent latitude and longitude in decimal degrees.
+	DefaultViewport []float64 `json:"defaultViewport,omitempty"`
+
+	// KmlUrl: The URL to the KML file represented by this MapKmlLink.
+	KmlUrl string `json:"kmlUrl,omitempty"`
+
+	// Name: The name of this MapKmlLink.
+	Name string `json:"name,omitempty"`
+
+	// Type: Identifies this object as a MapKmlLink.
+	Type string `json:"type,omitempty"`
+
+	// Visibility: The visibility setting of this MapKmlLink. One of
+	// "defaultOn" or "defaultOff".
+	Visibility string `json:"visibility,omitempty"`
+}
+
+type MapLayer struct {
+	// DefaultViewport: An array of four numbers (west, south, east, north)
+	// which defines the rectangular bounding box of the default viewport.
+	// The numbers represent latitude and longitude in decimal degrees.
+	DefaultViewport []float64 `json:"defaultViewport,omitempty"`
+
+	// Id: The ID of this MapLayer. This ID can be used to request more
+	// details about the layer.
+	Id string `json:"id,omitempty"`
+
+	// Key: A user defined alias for this MapLayer, specific to this Map.
+	Key string `json:"key,omitempty"`
+
+	// Name: The name of this MapLayer.
+	Name string `json:"name,omitempty"`
+
+	// Type: Identifies this object as a MapLayer.
+	Type string `json:"type,omitempty"`
+
+	// Visibility: The visibility setting of this MapLayer. One of
+	// "defaultOn" or "defaultOff".
+	Visibility string `json:"visibility,omitempty"`
+}
