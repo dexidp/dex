@@ -11,10 +11,10 @@ import (
 	"github.com/go-gorp/gorp"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/refresh"
 	"github.com/coreos/dex/repo"
-	"github.com/coreos/go-oidc/oidc"
 )
 
 const (
@@ -186,7 +186,7 @@ func (r *refreshTokenRepo) RevokeTokensForClient(userID, clientID string) error 
 	return err
 }
 
-func (r *refreshTokenRepo) ClientsWithRefreshTokens(userID string) ([]oidc.ClientIdentity, error) {
+func (r *refreshTokenRepo) ClientsWithRefreshTokens(userID string) ([]client.Client, error) {
 	q := `SELECT c.* FROM %s as c
 	INNER JOIN %s as r ON c.id = r.client_id WHERE r.user_id = $1;`
 	q = fmt.Sprintf(q, r.quote(clientIdentityTableName), r.quote(refreshTokenTableName))
@@ -196,9 +196,9 @@ func (r *refreshTokenRepo) ClientsWithRefreshTokens(userID string) ([]oidc.Clien
 		return nil, err
 	}
 
-	c := make([]oidc.ClientIdentity, len(clients))
+	c := make([]client.Client, len(clients))
 	for i, client := range clients {
-		ident, err := client.ClientIdentity()
+		ident, err := client.Client()
 		if err != nil {
 			return nil, err
 		}

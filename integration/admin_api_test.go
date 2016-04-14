@@ -276,21 +276,24 @@ func TestCreateClient(t *testing.T) {
 	for i, tt := range tests {
 		err := func() error {
 			f := makeAdminAPITestFixtures()
-			req := &adminschema.ClientCreateRequestClient{}
-			for _, redirectURI := range tt.client.RedirectURIs {
-				req.Redirect_uris = append(req.Redirect_uris, redirectURI.String())
+			req := &adminschema.ClientCreateRequest{
+				Client: &adminschema.Client{},
 			}
-			resp, err := f.adClient.Client.Create(&adminschema.ClientCreateRequest{Client: req}).Do()
+
+			for _, redirectURI := range tt.client.RedirectURIs {
+				req.Client.RedirectURIs = append(req.Client.RedirectURIs, redirectURI.String())
+			}
+			resp, err := f.adClient.Client.Create(req).Do()
 			if err != nil {
 				if tt.wantError {
 					return nil
 				}
 				return err
 			}
-			if resp.Client_id == "" {
+			if resp.Client.Id == "" {
 				return errors.New("no client id returned")
 			}
-			if resp.Client_secret == "" {
+			if resp.Client.Secret == "" {
 				return errors.New("no client secret returned")
 			}
 			return nil

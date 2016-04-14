@@ -130,7 +130,7 @@ func TestServerNewSession(t *testing.T) {
 
 	state := "pants"
 	nonce := "oncenay"
-	ci := oidc.ClientIdentity{
+	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID:     "XXX",
 			Secret: "secrete",
@@ -179,7 +179,7 @@ func TestServerNewSession(t *testing.T) {
 }
 
 func TestServerLogin(t *testing.T) {
-	ci := oidc.ClientIdentity{
+	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID:     "XXX",
 			Secret: clientTestSecret,
@@ -195,7 +195,7 @@ func TestServerLogin(t *testing.T) {
 		},
 	}
 	ciRepo := func() client.ClientIdentityRepo {
-		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{ci})
+		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []client.Client{ci})
 		if err != nil {
 			t.Fatalf("Failed to create client identity repo: %v", err)
 		}
@@ -245,8 +245,8 @@ func TestServerLogin(t *testing.T) {
 
 func TestServerLoginUnrecognizedSessionKey(t *testing.T) {
 	ciRepo := func() client.ClientIdentityRepo {
-		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
-			oidc.ClientIdentity{
+		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []client.Client{
+			client.Client{
 				Credentials: oidc.ClientCredentials{
 					ID: "XXX", Secret: clientTestSecret,
 				},
@@ -281,7 +281,7 @@ func TestServerLoginUnrecognizedSessionKey(t *testing.T) {
 }
 
 func TestServerLoginDisabledUser(t *testing.T) {
-	ci := oidc.ClientIdentity{
+	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID:     "XXX",
 			Secret: clientTestSecret,
@@ -297,7 +297,7 @@ func TestServerLoginDisabledUser(t *testing.T) {
 		},
 	}
 	ciRepo := func() client.ClientIdentityRepo {
-		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{ci})
+		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []client.Client{ci})
 		if err != nil {
 			t.Fatalf("Failed to create client identity repo: %v", err)
 		}
@@ -355,14 +355,14 @@ func TestServerLoginDisabledUser(t *testing.T) {
 }
 
 func TestServerCodeToken(t *testing.T) {
-	ci := oidc.ClientIdentity{
+	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID:     "XXX",
 			Secret: clientTestSecret,
 		},
 	}
 	ciRepo := func() client.ClientIdentityRepo {
-		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{ci})
+		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []client.Client{ci})
 		if err != nil {
 			t.Fatalf("Failed to create client identity repo: %v", err)
 		}
@@ -441,14 +441,14 @@ func TestServerCodeToken(t *testing.T) {
 }
 
 func TestServerTokenUnrecognizedKey(t *testing.T) {
-	ci := oidc.ClientIdentity{
+	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID:     "XXX",
 			Secret: clientTestSecret,
 		},
 	}
 	ciRepo := func() client.ClientIdentityRepo {
-		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{ci})
+		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []client.Client{ci})
 		if err != nil {
 			t.Fatalf("Failed to create client identity repo: %v", err)
 		}
@@ -569,8 +569,8 @@ func TestServerTokenFail(t *testing.T) {
 		km := &StaticKeyManager{
 			signer: tt.signer,
 		}
-		ciRepo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
-			oidc.ClientIdentity{Credentials: ccFixture},
+		ciRepo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []client.Client{
+			client.Client{Credentials: ccFixture},
 		})
 		if err != nil {
 			t.Errorf("case %d: failed to create client identity repo: %v", i, err)
@@ -731,9 +731,9 @@ func TestServerRefreshToken(t *testing.T) {
 			signer: tt.signer,
 		}
 
-		ciRepo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
-			oidc.ClientIdentity{Credentials: credXXX},
-			oidc.ClientIdentity{Credentials: credYYY},
+		ciRepo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []client.Client{
+			client.Client{Credentials: credXXX},
+			client.Client{Credentials: credYYY},
 		})
 		if err != nil {
 			t.Errorf("case %d: failed to create client identity repo: %v", i, err)
@@ -784,9 +784,9 @@ func TestServerRefreshToken(t *testing.T) {
 		signer: signerFixture,
 	}
 
-	ciRepo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
-		oidc.ClientIdentity{Credentials: credXXX},
-		oidc.ClientIdentity{Credentials: credYYY},
+	ciRepo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []client.Client{
+		client.Client{Credentials: credXXX},
+		client.Client{Credentials: credYYY},
 	})
 	if err != nil {
 		t.Fatalf("failed to create client identity repo: %v", err)

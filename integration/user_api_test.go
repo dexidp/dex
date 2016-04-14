@@ -102,8 +102,8 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 
 	dbMap, _, _, um := makeUserObjects(userUsers, userPasswords)
 	cir := func() client.ClientIdentityRepo {
-		repo, err := db.NewClientIdentityRepoFromClients(dbMap, []oidc.ClientIdentity{
-			oidc.ClientIdentity{
+		repo, err := db.NewClientIdentityRepoFromClients(dbMap, []client.Client{
+			client.Client{
 				Credentials: oidc.ClientCredentials{
 					ID:     testClientID,
 					Secret: testClientSecret,
@@ -114,7 +114,7 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 					},
 				},
 			},
-			oidc.ClientIdentity{
+			client.Client{
 				Credentials: oidc.ClientCredentials{
 					ID:     userBadClientID,
 					Secret: base64.URLEncoding.EncodeToString([]byte("secret")),

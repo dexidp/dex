@@ -136,8 +136,8 @@ func makeTestFixtures() (*testFixtures, error) {
 		return nil, err
 	}
 
-	clientIdentityRepo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
-		oidc.ClientIdentity{
+	clientIdentityRepo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []client.Client{
+		client.Client{
 			Credentials: oidc.ClientCredentials{
 				ID:     "XXX",
 				Secret: base64.URLEncoding.EncodeToString([]byte("secrete")),

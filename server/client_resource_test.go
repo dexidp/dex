@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/db"
 	schema "github.com/coreos/dex/schema/workerschema"
 	"github.com/coreos/go-oidc/oidc"
@@ -177,7 +178,7 @@ func TestList(t *testing.T) {
 	}
 
 	tests := []struct {
-		cs   []oidc.ClientIdentity
+		cs   []client.Client
 		want []*schema.Client
 	}{
 		// empty repo
@@ -187,8 +188,8 @@ func TestList(t *testing.T) {
 		},
 		// single client
 		{
-			cs: []oidc.ClientIdentity{
-				oidc.ClientIdentity{
+			cs: []client.Client{
+				client.Client{
 					Credentials: oidc.ClientCredentials{ID: "foo", Secret: b64Encode("bar")},
 					Metadata: oidc.ClientMetadata{
 						RedirectURIs: []url.URL{
@@ -206,8 +207,8 @@ func TestList(t *testing.T) {
 		},
 		// multi client
 		{
-			cs: []oidc.ClientIdentity{
-				oidc.ClientIdentity{
+			cs: []client.Client{
+				client.Client{
 					Credentials: oidc.ClientCredentials{ID: "foo", Secret: b64Encode("bar")},
 					Metadata: oidc.ClientMetadata{
 						RedirectURIs: []url.URL{
@@ -215,7 +216,7 @@ func TestList(t *testing.T) {
 						},
 					},
 				},
-				oidc.ClientIdentity{
+				client.Client{
 					Credentials: oidc.ClientCredentials{ID: "biz", Secret: b64Encode("bang")},
 					Metadata: oidc.ClientMetadata{
 						RedirectURIs: []url.URL{

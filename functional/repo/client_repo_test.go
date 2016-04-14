@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	testClients = []oidc.ClientIdentity{
-		oidc.ClientIdentity{
+	testClients = []client.Client{
+		client.Client{
 			Credentials: oidc.ClientCredentials{
 				ID:     "client1",
 				Secret: base64.URLEncoding.EncodeToString([]byte("secret-1")),
@@ -30,7 +30,7 @@ var (
 				},
 			},
 		},
-		oidc.ClientIdentity{
+		client.Client{
 			Credentials: oidc.ClientCredentials{
 				ID:     "client2",
 				Secret: base64.URLEncoding.EncodeToString([]byte("secret-2")),

@@ -116,25 +116,38 @@ func (a *AdminAPI) GetState() (adminschema.State, error) {
 	return state, nil
 }
 
-type ClientRegistrationRequest struct {
-	IsAdmin bool                `json:"isAdmin"`
-	Client  oidc.ClientMetadata `json:"client"`
-}
+func (a *AdminAPI) CreateClient(req adminschema.ClientCreateRequest) (adminschema.ClientCreateResponse, error) {
+	cli, err := adminschema.MapSchemaClientToClient(*req.Client)
+	if err != nil {
+		// TODO  should be 400s
+		return adminschema.ClientCreateResponse{}, mapError(err)
+	}
 
-func (a *AdminAPI) CreateClient(req ClientRegistrationRequest) (oidc.ClientRegistrationResponse, error) {
-	if err := req.Client.Valid(); err != nil {
-		return oidc.ClientRegistrationResponse{}, mapError(err)
+	if err := cli.Metadata.Valid(); err != nil {
+		// TODO make sure this is not 500
+		return adminschema.ClientCreateResponse{}, mapError(err)
 	}
+
 	// metadata is guarenteed to have at least one redirect_uri by earlier validation.
-	id, err := oidc.GenClientID(req.Client.RedirectURIs[0].Host)
+	id, err := oidc.GenClientID(cli.Metadata.RedirectURIs[0].Host)
 	if err != nil {
-		return oidc.ClientRegistrationResponse{}, mapError(err)
+		return adminschema.ClientCreateResponse{}, mapError(err)
 	}
-	c, err := a.clientIdentityRepo.New(id, req.Client, req.IsAdmin)
+
+	cli.Credentials.ID = id
+
+	creds, err := a.clientIdentityRepo.New(cli)
 	if err != nil {
-		return oidc.ClientRegistrationResponse{}, mapError(err)
+		return adminschema.ClientCreateResponse{}, mapError(err)
 	}
-	return oidc.ClientRegistrationResponse{ClientID: c.ID, ClientSecret: c.Secret, ClientMetadata: req.Client}, nil
+
+	req.Client.Id = creds.ID
+	req.Client.Secret = creds.Secret
+	return adminschema.ClientCreateResponse{
+		Client: req.Client,
+	}, nil
+
+	//	github.com/coreos/dex/integrationoidc.ClientRegistrationResponse{ClientID: c.ID, ClientSecret: c.Secret, ClientMetadata: req.Client.Metadata}, nil
 }
 
 func mapError(e error) error {

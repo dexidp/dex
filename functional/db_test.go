@@ -191,7 +191,12 @@ func TestDBClientIdentityRepoMetadata(t *testing.T) {
 		},
 	}
 
-	_, err := r.New("foo", cm, false)
+	_, err := r.New(client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID: "foo",
+		},
+		Metadata: cm,
+	})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -227,7 +232,12 @@ func TestDBClientIdentityRepoNewDuplicate(t *testing.T) {
 		},
 	}
 
-	if _, err := r.New("foo", meta1, false); err != nil {
+	if _, err := r.New(client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID: "foo",
+		},
+		Metadata: meta1,
+	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -237,7 +247,12 @@ func TestDBClientIdentityRepoNewDuplicate(t *testing.T) {
 		},
 	}
 
-	if _, err := r.New("foo", meta2, false); err == nil {
+	if _, err := r.New(client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID: "foo",
+		},
+		Metadata: meta2,
+	}); err == nil {
 		t.Fatalf("expected non-nil error")
 	}
 }
@@ -251,7 +266,12 @@ func TestDBClientIdentityRepoAuthenticate(t *testing.T) {
 		},
 	}
 
-	cc, err := r.New("baz", cm, false)
+	cc, err := r.New(client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID: "baz",
+		},
+		Metadata: cm,
+	})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -299,7 +319,12 @@ func TestDBClientIdentityAll(t *testing.T) {
 		},
 	}
 
-	_, err := r.New("foo", cm, false)
+	_, err := r.New(client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID: "foo",
+		},
+		Metadata: cm,
+	})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -322,7 +347,12 @@ func TestDBClientIdentityAll(t *testing.T) {
 			url.URL{Scheme: "http", Host: "foo.com", Path: "/cb"},
 		},
 	}
-	_, err = r.New("bar", cm, false)
+	_, err = r.New(client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID: "bar",
+		},
+		Metadata: cm,
+	})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

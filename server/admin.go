@@ -116,7 +116,7 @@ func (s *AdminServer) getState(w http.ResponseWriter, r *http.Request, ps httpro
 }
 
 func (s *AdminServer) createClient(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	var req admin.ClientRegistrationRequest
+	var req = adminschema.ClientCreateRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeInvalidRequest(w, "cannot parse JSON body")
 		return

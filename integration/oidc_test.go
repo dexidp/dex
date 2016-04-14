@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	phttp "github.com/coreos/dex/pkg/http"
@@ -22,7 +23,7 @@ import (
 	"github.com/coreos/go-oidc/oidc"
 )
 
-func mockServer(cis []oidc.ClientIdentity) (*server.Server, error) {
+func mockServer(cis []client.Client) (*server.Server, error) {
 	dbMap := db.NewMemDB()
 	k, err := key.GeneratePrivateKey()
 	if err != nil {
@@ -50,7 +51,7 @@ func mockServer(cis []oidc.ClientIdentity) (*server.Server, error) {
 	return srv, nil
 }
 
-func mockClient(srv *server.Server, ci oidc.ClientIdentity) (*oidc.Client, error) {
+func mockClient(srv *server.Server, ci client.Client) (*oidc.Client, error) {
 	hdlr := srv.HTTPHandler()
 	sClient := &phttp.HandlerClient{Handler: hdlr}
 
@@ -75,7 +76,7 @@ func mockClient(srv *server.Server, ci oidc.ClientIdentity) (*oidc.Client, error
 	return oidc.NewClient(ccfg)
 }
 
-func verifyUserClaims(claims jose.Claims, ci *oidc.ClientIdentity, user *user.User, issuerURL url.URL) error {
+func verifyUserClaims(claims jose.Claims, ci *client.Client, user *user.User, issuerURL url.URL) error {
 	expectedSub, expectedName := ci.Credentials.ID, ci.Credentials.ID
 	if user != nil {
 		expectedSub, expectedName = user.ID, user.DisplayName
@@ -116,7 +117,7 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 		ID: "local",
 	}
 
-	ci := oidc.ClientIdentity{
+	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID:     "72de74a9",
 			Secret: base64.URLEncoding.EncodeToString([]byte("XXX")),
@@ -124,7 +125,7 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 	}
 
 	dbMap := db.NewMemDB()
-	cir, err := db.NewClientIdentityRepoFromClients(dbMap, []oidc.ClientIdentity{ci})
+	cir, err := db.NewClientIdentityRepoFromClients(dbMap, []client.Client{ci})
 	if err != nil {
 		t.Fatalf("Failed to create client identity repo: " + err.Error())
 	}
@@ -262,13 +263,13 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 }
 
 func TestHTTPClientCredsToken(t *testing.T) {
-	ci := oidc.ClientIdentity{
+	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID:     "72de74a9",
 			Secret: base64.URLEncoding.EncodeToString([]byte("XXX")),
 		},
 	}
-	cis := []oidc.ClientIdentity{ci}
+	cis := []client.Client{ci}
 
 	srv, err := mockServer(cis)
 	if err != nil {

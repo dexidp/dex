@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/key"
-	"github.com/coreos/go-oidc/oidc"
 	"github.com/coreos/pkg/health"
 	"github.com/go-gorp/gorp"
 
+	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/email"
@@ -214,47 +214,14 @@ func loadUsersFromReader(r io.Reader) (users []user.UserWithRemoteIdentities, pw
 	return
 }
 
-// loadClients parses the clients.json file and returns the clients to be created.
-func loadClients(filepath string) ([]oidc.ClientIdentity, error) {
+// loadClients parses the clients.json file and returns a list of clients.
+func loadClients(filepath string) ([]client.Client, error) {
 	f, err := os.Open(filepath)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	return loadClientsFromReader(f)
-}
-
-func loadClientsFromReader(r io.Reader) ([]oidc.ClientIdentity, error) {
-	var c []struct {
-		ID           string   `json:"id"`
-		Secret       string   `json:"secret"`
-		RedirectURLs []string `json:"redirectURLs"`
-	}
-	if err := json.NewDecoder(r).Decode(&c); err != nil {
-		return nil, err
-	}
-	clients := make([]oidc.ClientIdentity, len(c))
-	for i, client := range c {
-		redirectURIs := make([]url.URL, len(client.RedirectURLs))
-		for j, u := range client.RedirectURLs {
-			uri, err := url.Parse(u)
-			if err != nil {
-				return nil, err
-			}
-			redirectURIs[j] = *uri
-		}
-
-		clients[i] = oidc.ClientIdentity{
-			Credentials: oidc.ClientCredentials{
-				ID:     client.ID,
-				Secret: client.Secret,
-			},
-			Metadata: oidc.ClientMetadata{
-				RedirectURIs: redirectURIs,
-			},
-		}
-	}
-	return clients, nil
+	return client.ClientsFromReader(f)
 }
 
 func (cfg *MultiServerConfig) Configure(srv *Server) error {

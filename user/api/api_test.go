@@ -11,6 +11,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/kylelemons/godebug/pretty"
 
+	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	schema "github.com/coreos/dex/schema/workerschema"
@@ -155,7 +156,7 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 
 	mgr := manager.NewUserManager(ur, pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
 	mgr.Clock = clock
-	ci := oidc.ClientIdentity{
+	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID:     "XXX",
 			Secret: base64.URLEncoding.EncodeToString([]byte("secrete")),
@@ -166,8 +167,9 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 			},
 		},
 	}
-	if _, err := db.NewClientIdentityRepoFromClients(dbMap, []oidc.ClientIdentity{ci}); err != nil {
-		panic("Failed to create client identity repo: " + err.Error())
+
+	if _, err := db.NewClientIdentityRepoFromClients(dbMap, []client.Client{ci}); err != nil {
+		panic("Failed to create client  repo: " + err.Error())
 	}
 
 	// Used in TestRevokeRefreshToken test.

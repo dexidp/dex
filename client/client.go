@@ -1,7 +1,9 @@
 package client
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"net/url"
 	"reflect"
 
@@ -15,7 +17,15 @@ var (
 	ErrorNotFound              = errors.New("no data found")
 )
 
+type Client struct {
+	Credentials oidc.ClientCredentials
+	Metadata    oidc.ClientMetadata
+	Admin       bool
+}
+
 type ClientIdentityRepo interface {
+	Get(clientID string) (Client, error)
+
 	// Metadata returns one matching ClientMetadata if the given client
 	// exists, otherwise nil. The returned error will be non-nil only
 	// if the repo was unable to determine client existence.
@@ -28,12 +38,12 @@ type ClientIdentityRepo interface {
 	Authenticate(creds oidc.ClientCredentials) (bool, error)
 
 	// All returns all registered Client Identities.
-	All() ([]oidc.ClientIdentity, error)
+	All() ([]Client, error)
 
 	// New registers a ClientIdentity with the repo for the given metadata.
 	// An unused ID must be provided. A corresponding secret will be returned
 	// in a ClientCredentials struct along with the provided ID.
-	New(id string, meta oidc.ClientMetadata, admin bool) (*oidc.ClientCredentials, error)
+	New(client Client) (*oidc.ClientCredentials, error)
 
 	SetDexAdmin(clientID string, isAdmin bool) error
 
@@ -63,4 +73,37 @@ func ValidRedirectURL(rURL *url.URL, redirectURLs []url.URL) (url.URL, error) {
 		}
 	}
 	return url.URL{}, ErrorInvalidRedirectURL
+}
+
+func ClientsFromReader(r io.Reader) ([]Client, error) {
+	var c []struct {
+		ID           string   `json:"id"`
+		Secret       string   `json:"secret"`
+		RedirectURLs []string `json:"redirectURLs"`
+	}
+	if err := json.NewDecoder(r).Decode(&c); err != nil {
+		return nil, err
+	}
+	clients := make([]Client, len(c))
+	for i, client := range c {
+		redirectURIs := make([]url.URL, len(client.RedirectURLs))
+		for j, u := range client.RedirectURLs {
+			uri, err := url.Parse(u)
+			if err != nil {
+				return nil, err
+			}
+			redirectURIs[j] = *uri
+		}
+
+		clients[i] = Client{
+			Credentials: oidc.ClientCredentials{
+				ID:     client.ID,
+				Secret: client.Secret,
+			},
+			Metadata: oidc.ClientMetadata{
+				RedirectURIs: redirectURIs,
+			},
+		}
+	}
+	return clients, nil
 }
