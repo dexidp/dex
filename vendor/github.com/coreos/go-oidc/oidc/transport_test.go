@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"testing"
 
-	phttp "github.com/coreos/go-oidc/http"
 	"github.com/coreos/go-oidc/jose"
 )
 
@@ -122,8 +121,18 @@ func TestAuthenticatedTransportJWTCaching(t *testing.T) {
 	}
 }
 
+type fakeRoundTripper struct {
+	Request *http.Request
+	resp    *http.Response
+}
+
+func (r *fakeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	r.Request = req
+	return r.resp, nil
+}
+
 func TestAuthenticatedTransportRoundTrip(t *testing.T) {
-	rr := &phttp.RequestRecorder{Response: &http.Response{StatusCode: http.StatusOK}}
+	rr := &fakeRoundTripper{nil, &http.Response{StatusCode: http.StatusOK}}
 	at := &AuthenticatedTransport{
 		TokenRefresher: &staticTokenRefresher{
 			verify: func(jose.JWT) error { return nil },
@@ -150,7 +159,7 @@ func TestAuthenticatedTransportRoundTrip(t *testing.T) {
 }
 
 func TestAuthenticatedTransportRoundTripRefreshFail(t *testing.T) {
-	rr := &phttp.RequestRecorder{Response: &http.Response{StatusCode: http.StatusOK}}
+	rr := &fakeRoundTripper{nil, &http.Response{StatusCode: http.StatusOK}}
 	at := &AuthenticatedTransport{
 		TokenRefresher: &staticTokenRefresher{
 			verify:  func(jose.JWT) error { return errors.New("fail!") },

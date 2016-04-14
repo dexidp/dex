@@ -5,7 +5,7 @@ import:
 - package: github.com/andybalholm/cascadia
   version: 6122e68c2642b7b75c538a63b15168c6c80fb757
 - package: github.com/coreos/go-oidc
-  version: 6039032c0b15517897116d333ead8edf38792437
+  version: dfe8dca68c3c087d3e147aeef30553530e2366bf
   subpackages:
   - http
   - jose

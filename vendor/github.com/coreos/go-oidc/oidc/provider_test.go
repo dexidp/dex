@@ -17,7 +17,6 @@ import (
 	"github.com/kylelemons/godebug/diff"
 	"github.com/kylelemons/godebug/pretty"
 
-	phttp "github.com/coreos/go-oidc/http"
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 )
@@ -495,9 +494,26 @@ func TestProviderConfigRequiredFields(t *testing.T) {
 	}
 }
 
+type handlerClient struct {
+	Handler http.Handler
+}
+
+func (hc *handlerClient) Do(r *http.Request) (*http.Response, error) {
+	w := httptest.NewRecorder()
+	hc.Handler.ServeHTTP(w, r)
+
+	resp := http.Response{
+		StatusCode: w.Code,
+		Header:     w.Header(),
+		Body:       ioutil.NopCloser(w.Body),
+	}
+
+	return &resp, nil
+}
+
 func TestHTTPProviderConfigGetter(t *testing.T) {
 	svr := &fakeProviderConfigHandler{}
-	hc := &phttp.HandlerClient{Handler: svr}
+	hc := &handlerClient{Handler: svr}
 	fc := clockwork.NewFakeClock()
 	now := fc.Now().UTC()
 
@@ -887,6 +903,14 @@ func TestProviderConfigSupportsGrantType(t *testing.T) {
 	}
 }
 
+type fakeClient struct {
+	resp *http.Response
+}
+
+func (f *fakeClient) Do(req *http.Request) (*http.Response, error) {
+	return f.resp, nil
+}
+
 func TestWaitForProviderConfigImmediateSuccess(t *testing.T) {
 	cfg := newValidProviderConfig()
 	b, err := json.Marshal(&cfg)
@@ -895,7 +919,7 @@ func TestWaitForProviderConfigImmediateSuccess(t *testing.T) {
 	}
 
 	resp := http.Response{Body: ioutil.NopCloser(bytes.NewBuffer(b))}
-	hc := &phttp.RequestRecorder{Response: &resp}
+	hc := &fakeClient{&resp}
 	fc := clockwork.NewFakeClock()
 
 	reschan := make(chan ProviderConfig)

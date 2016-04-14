@@ -140,6 +140,11 @@ func NewClient(hc phttp.Client, cfg Config) (c *Client, err error) {
 	return
 }
 
+// Return the embedded HTTP client
+func (c *Client) HttpClient() phttp.Client {
+	return c.hc
+}
+
 // Generate the url for initial redirect to oauth provider.
 func (c *Client) AuthCodeURL(state, accessType, prompt string) string {
 	v := c.commonURLValues()
@@ -171,22 +176,24 @@ func (c *Client) commonURLValues() url.Values {
 	}
 }
 
-func (c *Client) newAuthenticatedRequest(url string, values url.Values) (*http.Request, error) {
+func (c *Client) newAuthenticatedRequest(urlToken string, values url.Values) (*http.Request, error) {
 	var req *http.Request
 	var err error
 	switch c.authMethod {
 	case AuthMethodClientSecretPost:
 		values.Set("client_secret", c.creds.Secret)
-		req, err = http.NewRequest("POST", url, strings.NewReader(values.Encode()))
+		req, err = http.NewRequest("POST", urlToken, strings.NewReader(values.Encode()))
 		if err != nil {
 			return nil, err
 		}
 	case AuthMethodClientSecretBasic:
-		req, err = http.NewRequest("POST", url, strings.NewReader(values.Encode()))
+		req, err = http.NewRequest("POST", urlToken, strings.NewReader(values.Encode()))
 		if err != nil {
 			return nil, err
 		}
-		req.SetBasicAuth(c.creds.ID, c.creds.Secret)
+		encodedID := url.QueryEscape(c.creds.ID)
+		encodedSecret := url.QueryEscape(c.creds.Secret)
+		req.SetBasicAuth(encodedID, encodedSecret)
 	default:
 		panic("misconfigured client: auth method not supported")
 	}
