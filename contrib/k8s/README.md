@@ -28,6 +28,13 @@ dex needs a secret key for encrypting private keys in the database. These can be
 
 The secret will be created as part of the next command, from `dex-overlord.yaml`
 
+If you would like to set up your own secret, you can do the following:
+
+```sh
+secret=$(dd if=/dev/random bs=1 count=32 2>/dev/null | base64 | tr -d '\n' > key-secrets)
+kubectl create secret generic dex --from-literal=key-secrets=$secret
+```
+
 ## Start the Overlord
 
 Start the overlord. This will also initialize your database the first time it's run, and perform migrations when new versions are installed.

@@ -1,3 +1,11 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dex
+type: Opaque
+data:
+  key-secrets: ZUhoNGVIaDRlSGg0ZUhoNGVIaDRlSGg0ZUhoNGVIaDRlSGg0ZUhoNGVIZz0= # 32 x's base64 encoded twice.
+---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -21,10 +29,15 @@ spec:
                 value: postgres://postgres@dex-postgres:5432/postgres?sslmode=disable
               - name: DEX_OVERLORD_ADMIN_LISTEN
                 value: http://0.0.0.0:5557
+              - name: DEX_SECRET
+                valueFrom:
+                  secretKeyRef:
+                  - name: dex
+                    key: key-secrets
             command:
               - "sh"
               - "-c"
-              - "/opt/dex/bin/dex-overlord --key-secrets=$(cat /etc/dex/key-secrets)"
+              - "/opt/dex/bin/dex-overlord --key-secrets=${DEX_SECRET}"
             ports:
             - containerPort: 5557
               name: overlord-port
@@ -35,9 +48,6 @@ spec:
               initialDelaySeconds: 16
               timeoutSeconds: 1
             volumeMounts:
-              - name: dex
-                mountPath: "/etc/dex"
-                readOnly: true
               - name: connectors
                 mountPath: /etc/dex-connectors
               # In production, you will likely want to include your own trusted
@@ -49,9 +59,6 @@ spec:
                 mountPath: /etc/ssl
                 readOnly: true
       volumes:
-        - name: dex
-          secret:
-            secretName: "dex"
         - name: connectors
           configMap:
             name: dex-connectors
@@ -87,12 +94,13 @@ data:
         "id": "local",
         "type": "local"
       }
-      # {
-      #   "id": "google",
-      #   "type": "oidc",
-      #   "issuerURL": "https://accounts.google.com",
-      #   "clientID": "<your id here>",
-      #   "clientSecret": "<your secret here>",
-      #   "trustedEmailProvider": true
-      # }
     ]
+    # google-connector.json: | 
+    #   [{
+    #     "id": "google",
+    #     "type": "oidc",
+    #     "issuerURL": "https://accounts.google.com",
+    #     "clientID": "<your id here>",
+    #     "clientSecret": "<your secret here>",
+    #     "trustedEmailProvider": true
+    #   }]

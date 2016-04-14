@@ -1,11 +1,3 @@
-apiVersion: v1
-kind: Secret
-metadata:
-  name: dex-worker-secret
-type: Opaque
-data:
-  key-secrets: ZUhoNGVIaDRlSGg0ZUhoNGVIaDRlSGg0ZUhoNGVIaDRlSGg0ZUhoNGVIZz0= # 32 x's base64 encoded twice.
----
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -35,7 +27,7 @@ spec:
                 value: /opt/dex/email/emailer.json
               - name: DEX_WORKER_LISTEN
                 value: http://0.0.0.0:5556
-              - name: DEX_WORKER_SECRET
+              - name: DEX_SECRET
                 valueFrom:
                   secretKeyRef:
                     name: dex-worker-secret
@@ -43,7 +35,7 @@ spec:
             command:
               - "sh"
               - "-c"
-              - "/opt/dex/bin/dex-worker --key-secrets=${DEX_WORKER_SECRET}"
+              - "/opt/dex/bin/dex-worker --key-secrets=${DEX_SECRET}"
             ports:
             - containerPort: 5556
               name: worker-port
