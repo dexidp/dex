@@ -189,9 +189,9 @@ func (r *refreshTokenRepo) RevokeTokensForClient(userID, clientID string) error 
 func (r *refreshTokenRepo) ClientsWithRefreshTokens(userID string) ([]client.Client, error) {
 	q := `SELECT c.* FROM %s as c
 	INNER JOIN %s as r ON c.id = r.client_id WHERE r.user_id = $1;`
-	q = fmt.Sprintf(q, r.quote(clientIdentityTableName), r.quote(refreshTokenTableName))
+	q = fmt.Sprintf(q, r.quote(clientTableName), r.quote(refreshTokenTableName))
 
-	var clients []clientIdentityModel
+	var clients []clientModel
 	if _, err := r.executor(nil).Select(&clients, q, userID); err != nil {
 		return nil, err
 	}

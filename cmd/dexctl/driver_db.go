@@ -14,7 +14,7 @@ func newDBDriver(dsn string) (driver, error) {
 	}
 
 	drv := &dbDriver{
-		ciRepo:  db.NewClientIdentityRepo(dbc),
+		ciRepo:  db.NewClientRepo(dbc),
 		cfgRepo: db.NewConnectorConfigRepo(dbc),
 	}
 
@@ -22,7 +22,7 @@ func newDBDriver(dsn string) (driver, error) {
 }
 
 type dbDriver struct {
-	ciRepo  client.ClientIdentityRepo
+	ciRepo  client.ClientRepo
 	cfgRepo *db.ConnectorConfigRepo
 }
 

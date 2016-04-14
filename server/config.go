@@ -114,7 +114,7 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	if err != nil {
 		return fmt.Errorf("unable to read clients from file %s: %v", cfg.ClientsFile, err)
 	}
-	ciRepo, err := db.NewClientIdentityRepoFromClients(dbMap, clients)
+	ciRepo, err := db.NewClientRepoFromClients(dbMap, clients)
 	if err != nil {
 		return fmt.Errorf("failed to create client identity repo: %v", err)
 	}
@@ -155,7 +155,7 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 
 	txnFactory := db.TransactionFactory(dbMap)
 	userManager := usermanager.NewUserManager(userRepo, pwiRepo, cfgRepo, txnFactory, usermanager.ManagerOptions{})
-	srv.ClientIdentityRepo = ciRepo
+	srv.ClientRepo = ciRepo
 	srv.KeySetRepo = kRepo
 	srv.ConnectorConfigRepo = cfgRepo
 	srv.UserRepo = userRepo
@@ -246,7 +246,7 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 		return fmt.Errorf("unable to create PrivateKeySetRepo: %v", err)
 	}
 
-	ciRepo := db.NewClientIdentityRepo(dbc)
+	ciRepo := db.NewClientRepo(dbc)
 	sRepo := db.NewSessionRepo(dbc)
 	skRepo := db.NewSessionKeyRepo(dbc)
 	cfgRepo := db.NewConnectorConfigRepo(dbc)
@@ -257,7 +257,7 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 
 	sm := sessionmanager.NewSessionManager(sRepo, skRepo)
 
-	srv.ClientIdentityRepo = ciRepo
+	srv.ClientRepo = ciRepo
 	srv.KeySetRepo = kRepo
 	srv.ConnectorConfigRepo = cfgRepo
 	srv.UserRepo = userRepo

@@ -28,7 +28,7 @@ func handleVerifyEmailResendFunc(
 	srvKeysFunc func() ([]key.PublicKey, error),
 	emailer *useremail.UserEmailer,
 	userRepo user.UserRepo,
-	clientIdentityRepo client.ClientIdentityRepo) http.HandlerFunc {
+	clientRepo client.ClientRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		decoder := json.NewDecoder(r.Body)
 		var params struct {
@@ -57,7 +57,7 @@ func handleVerifyEmailResendFunc(
 			return
 		}
 
-		cm, err := clientIdentityRepo.Metadata(clientID)
+		cm, err := clientRepo.Metadata(clientID)
 		if err == client.ErrorNotFound {
 			log.Errorf("No such client: %v", err)
 			writeAPIError(w, http.StatusBadRequest,

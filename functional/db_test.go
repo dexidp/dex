@@ -181,8 +181,8 @@ func TestDBPrivateKeySetRepoSetGet(t *testing.T) {
 	}
 }
 
-func TestDBClientIdentityRepoMetadata(t *testing.T) {
-	r := db.NewClientIdentityRepo(connect(t))
+func TestDBClientRepoMetadata(t *testing.T) {
+	r := db.NewClientRepo(connect(t))
 
 	cm := oidc.ClientMetadata{
 		RedirectURIs: []url.URL{
@@ -211,8 +211,8 @@ func TestDBClientIdentityRepoMetadata(t *testing.T) {
 	}
 }
 
-func TestDBClientIdentityRepoMetadataNoExist(t *testing.T) {
-	r := db.NewClientIdentityRepo(connect(t))
+func TestDBClientRepoMetadataNoExist(t *testing.T) {
+	r := db.NewClientRepo(connect(t))
 
 	got, err := r.Metadata("noexist")
 	if err != client.ErrorNotFound {
@@ -223,8 +223,8 @@ func TestDBClientIdentityRepoMetadataNoExist(t *testing.T) {
 	}
 }
 
-func TestDBClientIdentityRepoNewDuplicate(t *testing.T) {
-	r := db.NewClientIdentityRepo(connect(t))
+func TestDBClientRepoNewDuplicate(t *testing.T) {
+	r := db.NewClientRepo(connect(t))
 
 	meta1 := oidc.ClientMetadata{
 		RedirectURIs: []url.URL{
@@ -257,8 +257,8 @@ func TestDBClientIdentityRepoNewDuplicate(t *testing.T) {
 	}
 }
 
-func TestDBClientIdentityRepoAuthenticate(t *testing.T) {
-	r := db.NewClientIdentityRepo(connect(t))
+func TestDBClientRepoAuthenticate(t *testing.T) {
+	r := db.NewClientRepo(connect(t))
 
 	cm := oidc.ClientMetadata{
 		RedirectURIs: []url.URL{
@@ -310,8 +310,8 @@ func TestDBClientIdentityRepoAuthenticate(t *testing.T) {
 	}
 }
 
-func TestDBClientIdentityAll(t *testing.T) {
-	r := db.NewClientIdentityRepo(connect(t))
+func TestDBClientAll(t *testing.T) {
+	r := db.NewClientRepo(connect(t))
 
 	cm := oidc.ClientMetadata{
 		RedirectURIs: []url.URL{

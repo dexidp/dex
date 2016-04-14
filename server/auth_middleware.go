@@ -14,7 +14,7 @@ import (
 
 type clientTokenMiddleware struct {
 	issuerURL string
-	ciRepo    client.ClientIdentityRepo
+	ciRepo    client.ClientRepo
 	keysFunc  func() ([]key.PublicKey, error)
 	next      http.Handler
 }
@@ -31,7 +31,7 @@ func (c *clientTokenMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	if c.ciRepo == nil {
-		log.Errorf("Misconfigured clientTokenMiddleware, ClientIdentityRepo is not set")
+		log.Errorf("Misconfigured clientTokenMiddleware, ClientRepo is not set")
 		respondError()
 		return
 	}

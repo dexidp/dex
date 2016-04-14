@@ -28,7 +28,7 @@ func makeBody(s string) io.ReadCloser {
 func TestCreateInvalidRequest(t *testing.T) {
 	u := &url.URL{Scheme: "http", Host: "example.com", Path: "clients"}
 	h := http.Header{"Content-Type": []string{"application/json"}}
-	repo := db.NewClientIdentityRepo(db.NewMemDB())
+	repo := db.NewClientRepo(db.NewMemDB())
 	res := &clientResource{repo: repo}
 	tests := []struct {
 		req      *http.Request
@@ -119,7 +119,7 @@ func TestCreateInvalidRequest(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	repo := db.NewClientIdentityRepo(db.NewMemDB())
+	repo := db.NewClientRepo(db.NewMemDB())
 	res := &clientResource{repo: repo}
 	tests := [][]string{
 		[]string{"http://example.com"},
@@ -239,7 +239,7 @@ func TestList(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), tt.cs)
+		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), tt.cs)
 		if err != nil {
 			t.Errorf("case %d: failed to create client identity repo: %v", i, err)
 			continue

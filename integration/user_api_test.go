@@ -101,8 +101,8 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 	f := &userAPITestFixtures{}
 
 	dbMap, _, _, um := makeUserObjects(userUsers, userPasswords)
-	cir := func() client.ClientIdentityRepo {
-		repo, err := db.NewClientIdentityRepoFromClients(dbMap, []client.Client{
+	cir := func() client.ClientRepo {
+		repo, err := db.NewClientRepoFromClients(dbMap, []client.Client{
 			client.Client{
 				Credentials: oidc.ClientCredentials{
 					ID:     testClientID,

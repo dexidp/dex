@@ -37,7 +37,7 @@ func TestClientToken(t *testing.T) {
 			},
 		},
 	}
-	repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []client.Client{ci})
+	repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{ci})
 	if err != nil {
 		t.Fatalf("Failed to create client identity repo: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestClientToken(t *testing.T) {
 
 	tests := []struct {
 		keys     []key.PublicKey
-		repo     client.ClientIdentityRepo
+		repo     client.ClientRepo
 		header   string
 		wantCode int
 	}{
@@ -114,7 +114,7 @@ func TestClientToken(t *testing.T) {
 		// empty repo
 		{
 			keys:     []key.PublicKey{pubKey},
-			repo:     db.NewClientIdentityRepo(db.NewMemDB()),
+			repo:     db.NewClientRepo(db.NewMemDB()),
 			header:   fmt.Sprintf("BEARER %s", validJWT),
 			wantCode: http.StatusUnauthorized,
 		},

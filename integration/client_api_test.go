@@ -73,7 +73,7 @@ func TestClientCreate(t *testing.T) {
 		t.Error("Expected non-empty Client Secret")
 	}
 
-	meta, err := srv.ClientIdentityRepo.Metadata(newClient.Id)
+	meta, err := srv.ClientRepo.Metadata(newClient.Id)
 	if err != nil {
 		t.Errorf("Error looking up client metadata: %v", err)
 	} else if meta == nil {

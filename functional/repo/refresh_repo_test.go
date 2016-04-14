@@ -27,7 +27,7 @@ func newRefreshRepo(t *testing.T, users []user.UserWithRemoteIdentities, clients
 	if _, err := db.NewUserRepoFromUsers(dbMap, users); err != nil {
 		t.Fatalf("Unable to add users: %v", err)
 	}
-	if _, err := db.NewClientIdentityRepoFromClients(dbMap, clients); err != nil {
+	if _, err := db.NewClientRepoFromClients(dbMap, clients); err != nil {
 		t.Fatalf("Unable to add clients: %v", err)
 	}
 	return db.NewRefreshTokenRepo(dbMap)

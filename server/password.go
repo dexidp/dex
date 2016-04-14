@@ -29,7 +29,7 @@ type SendResetPasswordEmailHandler struct {
 	tpl     *template.Template
 	emailer *useremail.UserEmailer
 	sm      *sessionmanager.SessionManager
-	cr      client.ClientIdentityRepo
+	cr      client.ClientRepo
 }
 
 func (h *SendResetPasswordEmailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

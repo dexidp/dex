@@ -35,17 +35,17 @@ func mockServer(cis []client.Client) (*server.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	clientIdentityRepo, err := db.NewClientIdentityRepoFromClients(dbMap, cis)
+	clientRepo, err := db.NewClientRepoFromClients(dbMap, cis)
 	if err != nil {
 		return nil, err
 	}
 
 	sm := manager.NewSessionManager(db.NewSessionRepo(dbMap), db.NewSessionKeyRepo(dbMap))
 	srv := &server.Server{
-		IssuerURL:          url.URL{Scheme: "http", Host: "server.example.com"},
-		KeyManager:         km,
-		ClientIdentityRepo: clientIdentityRepo,
-		SessionManager:     sm,
+		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
+		KeyManager:     km,
+		ClientRepo:     clientRepo,
+		SessionManager: sm,
 	}
 
 	return srv, nil
@@ -125,7 +125,7 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 	}
 
 	dbMap := db.NewMemDB()
-	cir, err := db.NewClientIdentityRepoFromClients(dbMap, []client.Client{ci})
+	cir, err := db.NewClientRepoFromClients(dbMap, []client.Client{ci})
 	if err != nil {
 		t.Fatalf("Failed to create client identity repo: " + err.Error())
 	}
@@ -161,15 +161,15 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 	refreshTokenRepo := refreshtest.NewTestRefreshTokenRepo()
 
 	srv := &server.Server{
-		IssuerURL:          issuerURL,
-		KeyManager:         km,
-		SessionManager:     sm,
-		ClientIdentityRepo: cir,
-		Templates:          template.New(connector.LoginPageTemplateName),
-		Connectors:         []connector.Connector{},
-		UserRepo:           userRepo,
-		PasswordInfoRepo:   passwordInfoRepo,
-		RefreshTokenRepo:   refreshTokenRepo,
+		IssuerURL:        issuerURL,
+		KeyManager:       km,
+		SessionManager:   sm,
+		ClientRepo:       cir,
+		Templates:        template.New(connector.LoginPageTemplateName),
+		Connectors:       []connector.Connector{},
+		UserRepo:         userRepo,
+		PasswordInfoRepo: passwordInfoRepo,
+		RefreshTokenRepo: refreshTokenRepo,
 	}
 
 	if err = srv.AddConnector(cfg); err != nil {

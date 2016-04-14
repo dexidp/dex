@@ -23,7 +23,7 @@ type Client struct {
 	Admin       bool
 }
 
-type ClientIdentityRepo interface {
+type ClientRepo interface {
 	Get(clientID string) (Client, error)
 
 	// Metadata returns one matching ClientMetadata if the given client
@@ -37,10 +37,10 @@ type ClientIdentityRepo interface {
 	// to make these assertions will a non-nil error be returned.
 	Authenticate(creds oidc.ClientCredentials) (bool, error)
 
-	// All returns all registered Client Identities.
+	// All returns all registered Clients
 	All() ([]Client, error)
 
-	// New registers a ClientIdentity with the repo for the given metadata.
+	// New registers a Client with the repo.
 	// An unused ID must be provided. A corresponding secret will be returned
 	// in a ClientCredentials struct along with the provided ID.
 	New(client Client) (*oidc.ClientCredentials, error)

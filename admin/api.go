@@ -16,11 +16,11 @@ import (
 
 // AdminAPI provides the logic necessary to implement the Admin API.
 type AdminAPI struct {
-	userManager        *manager.UserManager
-	userRepo           user.UserRepo
-	passwordInfoRepo   user.PasswordInfoRepo
-	clientIdentityRepo client.ClientIdentityRepo
-	localConnectorID   string
+	userManager      *manager.UserManager
+	userRepo         user.UserRepo
+	passwordInfoRepo user.PasswordInfoRepo
+	clientRepo       client.ClientRepo
+	localConnectorID string
 }
 
 // TODO(ericchiang): Swap the DbMap for a storage interface. See #278
@@ -30,11 +30,11 @@ func NewAdminAPI(dbMap *gorp.DbMap, userManager *manager.UserManager, localConne
 		panic("must specify non-blank localConnectorID")
 	}
 	return &AdminAPI{
-		userManager:        userManager,
-		userRepo:           db.NewUserRepo(dbMap),
-		passwordInfoRepo:   db.NewPasswordInfoRepo(dbMap),
-		clientIdentityRepo: db.NewClientIdentityRepo(dbMap),
-		localConnectorID:   localConnectorID,
+		userManager:      userManager,
+		userRepo:         db.NewUserRepo(dbMap),
+		passwordInfoRepo: db.NewPasswordInfoRepo(dbMap),
+		clientRepo:       db.NewClientRepo(dbMap),
+		localConnectorID: localConnectorID,
 	}
 }
 
@@ -136,7 +136,7 @@ func (a *AdminAPI) CreateClient(req adminschema.ClientCreateRequest) (adminschem
 
 	cli.Credentials.ID = id
 
-	creds, err := a.clientIdentityRepo.New(cli)
+	creds, err := a.clientRepo.New(cli)
 	if err != nil {
 		return adminschema.ClientCreateResponse{}, mapError(err)
 	}

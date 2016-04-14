@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	clientIdentityTableName = "client_identity"
+	clientTableName = "client_identity"
 
 	bcryptHashCost = 10
 
@@ -34,19 +34,18 @@ const (
 
 func init() {
 	register(table{
-		name:    clientIdentityTableName,
-		model:   clientIdentityModel{},
+		name:    clientTableName,
+		model:   clientModel{},
 		autoinc: false,
 		pkey:    []string{"id"},
 	})
 }
 
-func newClientIdentityModel(cli client.Client) (*clientIdentityModel, error) {
+func newClientModel(cli client.Client) (*clientModel, error) {
 	secretBytes, err := base64.URLEncoding.DecodeString(cli.Credentials.Secret)
 	if err != nil {
 		return nil, err
 	}
-
 	hashed, err := bcrypt.GenerateFromPassword([]byte(
 		secretBytes),
 		bcryptHashCost)
@@ -59,7 +58,7 @@ func newClientIdentityModel(cli client.Client) (*clientIdentityModel, error) {
 		return nil, err
 	}
 
-	cim := clientIdentityModel{
+	cim := clientModel{
 		ID:       cli.Credentials.ID,
 		Secret:   hashed,
 		Metadata: string(bmeta),
@@ -69,14 +68,14 @@ func newClientIdentityModel(cli client.Client) (*clientIdentityModel, error) {
 	return &cim, nil
 }
 
-type clientIdentityModel struct {
+type clientModel struct {
 	ID       string `db:"id"`
 	Secret   []byte `db:"secret"`
 	Metadata string `db:"metadata"`
 	DexAdmin bool   `db:"dex_admin"`
 }
 
-func (m *clientIdentityModel) Client() (*client.Client, error) {
+func (m *clientModel) Client() (*client.Client, error) {
 	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID:     m.ID,
@@ -92,16 +91,16 @@ func (m *clientIdentityModel) Client() (*client.Client, error) {
 	return &ci, nil
 }
 
-func NewClientIdentityRepo(dbm *gorp.DbMap) client.ClientIdentityRepo {
-	return newClientIdentityRepo(dbm)
+func NewClientRepo(dbm *gorp.DbMap) client.ClientRepo {
+	return newClientRepo(dbm)
 }
 
-func newClientIdentityRepo(dbm *gorp.DbMap) *clientIdentityRepo {
-	return &clientIdentityRepo{db: &db{dbm}}
+func newClientRepo(dbm *gorp.DbMap) *clientRepo {
+	return &clientRepo{db: &db{dbm}}
 }
 
-func NewClientIdentityRepoFromClients(dbm *gorp.DbMap, clients []client.Client) (client.ClientIdentityRepo, error) {
-	repo := newClientIdentityRepo(dbm)
+func NewClientRepoFromClients(dbm *gorp.DbMap, clients []client.Client) (client.ClientRepo, error) {
+	repo := newClientRepo(dbm)
 	tx, err := repo.begin()
 	if err != nil {
 		return nil, err
@@ -112,7 +111,7 @@ func NewClientIdentityRepoFromClients(dbm *gorp.DbMap, clients []client.Client) 
 		if c.Credentials.Secret == "" {
 			return nil, fmt.Errorf("client %q has no secret", c.Credentials.ID)
 		}
-		cm, err := newClientIdentityModel(c)
+		cm, err := newClientModel(c)
 		if err != nil {
 			return nil, err
 		}
@@ -127,13 +126,12 @@ func NewClientIdentityRepoFromClients(dbm *gorp.DbMap, clients []client.Client) 
 	return repo, nil
 }
 
-type clientIdentityRepo struct {
+type clientRepo struct {
 	*db
 }
 
-func (r *clientIdentityRepo) Get(clientID string) (client.Client, error) {
-	m, err := r.executor(nil).Get(clientIdentityModel{}, clientID)
-
+func (r *clientRepo) Get(clientID string) (client.Client, error) {
+	m, err := r.executor(nil).Get(clientModel{}, clientID)
 	if err == sql.ErrNoRows || m == nil {
 		return client.Client{}, client.ErrorNotFound
 	}
@@ -141,7 +139,7 @@ func (r *clientIdentityRepo) Get(clientID string) (client.Client, error) {
 		return client.Client{}, err
 	}
 
-	cim, ok := m.(*clientIdentityModel)
+	cim, ok := m.(*clientModel)
 	if !ok {
 		log.Errorf("expected clientModel but found %v", reflect.TypeOf(m))
 		return client.Client{}, errors.New("unrecognized model")
@@ -155,7 +153,7 @@ func (r *clientIdentityRepo) Get(clientID string) (client.Client, error) {
 	return *ci, nil
 }
 
-func (r *clientIdentityRepo) Metadata(clientID string) (*oidc.ClientMetadata, error) {
+func (r *clientRepo) Metadata(clientID string) (*oidc.ClientMetadata, error) {
 	c, err := r.Get(clientID)
 	if err != nil {
 		return nil, err
@@ -164,22 +162,22 @@ func (r *clientIdentityRepo) Metadata(clientID string) (*oidc.ClientMetadata, er
 	return &c.Metadata, nil
 }
 
-func (r *clientIdentityRepo) IsDexAdmin(clientID string) (bool, error) {
-	m, err := r.executor(nil).Get(clientIdentityModel{}, clientID)
+func (r *clientRepo) IsDexAdmin(clientID string) (bool, error) {
+	m, err := r.executor(nil).Get(clientModel{}, clientID)
 	if m == nil || err != nil {
 		return false, err
 	}
 
-	cim, ok := m.(*clientIdentityModel)
+	cim, ok := m.(*clientModel)
 	if !ok {
-		log.Errorf("expected clientIdentityModel but found %v", reflect.TypeOf(m))
+		log.Errorf("expected clientModel but found %v", reflect.TypeOf(m))
 		return false, errors.New("unrecognized model")
 	}
 
 	return cim.DexAdmin, nil
 }
 
-func (r *clientIdentityRepo) SetDexAdmin(clientID string, isAdmin bool) error {
+func (r *clientRepo) SetDexAdmin(clientID string, isAdmin bool) error {
 	tx, err := r.begin()
 	if err != nil {
 		return err
@@ -187,14 +185,14 @@ func (r *clientIdentityRepo) SetDexAdmin(clientID string, isAdmin bool) error {
 	defer tx.Rollback()
 	exec := r.executor(tx)
 
-	m, err := exec.Get(clientIdentityModel{}, clientID)
+	m, err := exec.Get(clientModel{}, clientID)
 	if m == nil || err != nil {
 		return err
 	}
 
-	cim, ok := m.(*clientIdentityModel)
+	cim, ok := m.(*clientModel)
 	if !ok {
-		log.Errorf("expected clientIdentityModel but found %v", reflect.TypeOf(m))
+		log.Errorf("expected clientModel but found %v", reflect.TypeOf(m))
 		return errors.New("unrecognized model")
 	}
 
@@ -207,15 +205,15 @@ func (r *clientIdentityRepo) SetDexAdmin(clientID string, isAdmin bool) error {
 	return tx.Commit()
 }
 
-func (r *clientIdentityRepo) Authenticate(creds oidc.ClientCredentials) (bool, error) {
-	m, err := r.executor(nil).Get(clientIdentityModel{}, creds.ID)
+func (r *clientRepo) Authenticate(creds oidc.ClientCredentials) (bool, error) {
+	m, err := r.executor(nil).Get(clientModel{}, creds.ID)
 	if m == nil || err != nil {
 		return false, err
 	}
 
-	cim, ok := m.(*clientIdentityModel)
+	cim, ok := m.(*clientModel)
 	if !ok {
-		log.Errorf("expected clientIdentityModel but found %v", reflect.TypeOf(m))
+		log.Errorf("expected clientModel but found %v", reflect.TypeOf(m))
 		return false, errors.New("unrecognized model")
 	}
 
@@ -252,14 +250,15 @@ func isAlreadyExistsErr(err error) bool {
 	return false
 }
 
-func (r *clientIdentityRepo) New(cli client.Client) (*oidc.ClientCredentials, error) {
+func (r *clientRepo) New(cli client.Client) (*oidc.ClientCredentials, error) {
 	secret, err := pcrypto.RandBytes(maxSecretLength)
 	if err != nil {
 		return nil, err
 	}
 
 	cli.Credentials.Secret = base64.URLEncoding.EncodeToString(secret)
-	cim, err := newClientIdentityModel(cli)
+	cim, err := newClientModel(cli)
+
 	if err != nil {
 		return nil, err
 	}
@@ -279,19 +278,19 @@ func (r *clientIdentityRepo) New(cli client.Client) (*oidc.ClientCredentials, er
 	return &cc, nil
 }
 
-func (r *clientIdentityRepo) All() ([]client.Client, error) {
-	qt := r.quote(clientIdentityTableName)
+func (r *clientRepo) All() ([]client.Client, error) {
+	qt := r.quote(clientTableName)
 	q := fmt.Sprintf("SELECT * FROM %s", qt)
-	objs, err := r.executor(nil).Select(&clientIdentityModel{}, q)
+	objs, err := r.executor(nil).Select(&clientModel{}, q)
 	if err != nil {
 		return nil, err
 	}
 
 	cs := make([]client.Client, len(objs))
 	for i, obj := range objs {
-		m, ok := obj.(*clientIdentityModel)
+		m, ok := obj.(*clientModel)
 		if !ok {
-			return nil, errors.New("unable to cast client identity to clientIdentityModel")
+			return nil, errors.New("unable to cast client identity to clientModel")
 		}
 
 		ci, err := m.Client()

@@ -73,12 +73,12 @@ var (
 )
 
 type testFixtures struct {
-	srv                *Server
-	userRepo           user.UserRepo
-	sessionManager     *sessionmanager.SessionManager
-	emailer            *email.TemplatizedEmailer
-	redirectURL        url.URL
-	clientIdentityRepo client.ClientIdentityRepo
+	srv            *Server
+	userRepo       user.UserRepo
+	sessionManager *sessionmanager.SessionManager
+	emailer        *email.TemplatizedEmailer
+	redirectURL    url.URL
+	clientRepo     client.ClientRepo
 }
 
 func sequentialGenerateCodeFunc() sessionmanager.GenerateCodeFunc {
@@ -136,7 +136,7 @@ func makeTestFixtures() (*testFixtures, error) {
 		return nil, err
 	}
 
-	clientIdentityRepo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []client.Client{
+	clientRepo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
 		client.Client{
 			Credentials: oidc.ClientCredentials{
 				ID:     "XXX",
@@ -167,14 +167,14 @@ func makeTestFixtures() (*testFixtures, error) {
 	}
 
 	srv := &Server{
-		IssuerURL:          testIssuerURL,
-		SessionManager:     sessionManager,
-		ClientIdentityRepo: clientIdentityRepo,
-		Templates:          tpl,
-		UserRepo:           userRepo,
-		PasswordInfoRepo:   pwRepo,
-		UserManager:        manager,
-		KeyManager:         km,
+		IssuerURL:        testIssuerURL,
+		SessionManager:   sessionManager,
+		ClientRepo:       clientRepo,
+		Templates:        tpl,
+		UserRepo:         userRepo,
+		PasswordInfoRepo: pwRepo,
+		UserManager:      manager,
+		KeyManager:       km,
 	}
 
 	err = setTemplates(srv, tpl)
@@ -201,11 +201,11 @@ func makeTestFixtures() (*testFixtures, error) {
 	)
 
 	return &testFixtures{
-		srv:                srv,
-		redirectURL:        testRedirectURL,
-		userRepo:           userRepo,
-		sessionManager:     sessionManager,
-		emailer:            emailer,
-		clientIdentityRepo: clientIdentityRepo,
+		srv:            srv,
+		redirectURL:    testRedirectURL,
+		userRepo:       userRepo,
+		sessionManager: sessionManager,
+		emailer:        emailer,
+		clientRepo:     clientRepo,
 	}, nil
 }

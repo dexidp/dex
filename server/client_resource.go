@@ -14,10 +14,10 @@ import (
 )
 
 type clientResource struct {
-	repo client.ClientIdentityRepo
+	repo client.ClientRepo
 }
 
-func registerClientResource(prefix string, repo client.ClientIdentityRepo) (string, http.Handler) {
+func registerClientResource(prefix string, repo client.ClientRepo) (string, http.Handler) {
 	mux := http.NewServeMux()
 	c := &clientResource{
 		repo: repo,

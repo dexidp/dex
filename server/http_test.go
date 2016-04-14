@@ -78,8 +78,8 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 	srv := &Server{
 		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
 		SessionManager: manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB())),
-		ClientIdentityRepo: func() client.ClientIdentityRepo {
-			repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []client.Client{
+		ClientRepo: func() client.ClientRepo {
+			repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
 				client.Client{
 					Credentials: oidc.ClientCredentials{
 						ID:     "XXX",
@@ -230,8 +230,8 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 	srv := &Server{
 		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
 		SessionManager: manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB())),
-		ClientIdentityRepo: func() client.ClientIdentityRepo {
-			repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []client.Client{
+		ClientRepo: func() client.ClientRepo {
+			repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
 				client.Client{
 					Credentials: oidc.ClientCredentials{
 						ID:     "XXX",

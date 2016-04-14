@@ -88,7 +88,7 @@ func TestMigrateClientMetadata(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		model := &clientIdentityModel{
+		model := &clientModel{
 			ID:       strconv.Itoa(i),
 			Secret:   []byte("verysecret"),
 			Metadata: tt.before,
@@ -108,12 +108,12 @@ func TestMigrateClientMetadata(t *testing.T) {
 
 	for i, tt := range tests {
 		id := strconv.Itoa(i)
-		m, err := dbMap.Get(clientIdentityModel{}, id)
+		m, err := dbMap.Get(clientModel{}, id)
 		if err != nil {
 			t.Errorf("case %d: failed to get model: %v", i, err)
 			continue
 		}
-		cim, ok := m.(*clientIdentityModel)
+		cim, ok := m.(*clientModel)
 		if !ok {
 			t.Errorf("case %d: unrecognized model type: %T", i, m)
 			continue

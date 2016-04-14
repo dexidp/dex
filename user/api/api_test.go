@@ -167,8 +167,7 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 			},
 		},
 	}
-
-	if _, err := db.NewClientIdentityRepoFromClients(dbMap, []client.Client{ci}); err != nil {
+	if _, err := db.NewClientRepoFromClients(dbMap, []client.Client{ci}); err != nil {
 		panic("Failed to create client  repo: " + err.Error())
 	}
 
