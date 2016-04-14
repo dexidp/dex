@@ -1,0 +1,136 @@
+// Package additionalprops provides access to the Example API.
+//
+// Usage example:
+//
+//   import "google.golang.org/api/additionalprops/v1"
+//   ...
+//   additionalpropsService, err := additionalprops.New(oauthHttpClient)
+package additionalprops
+
+import (
+	"bytes"
+	"google.golang.org/api/googleapi"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+)
+
+// Always reference these packages, just in case the auto-generated code
+// below doesn't.
+var _ = bytes.NewBuffer
+var _ = strconv.Itoa
+var _ = fmt.Sprintf
+var _ = json.NewDecoder
+var _ = io.Copy
+var _ = url.Parse
+var _ = googleapi.Version
+var _ = errors.New
+var _ = strings.Replace
+
+const apiId = "additionalprops:v1"
+const apiName = "additionalprops"
+const apiVersion = "v1"
+const basePath = "https://www.googleapis.com/discovery/v1/apis"
+
+func New(client *http.Client) (*Service, error) {
+	if client == nil {
+		return nil, errors.New("client is nil")
+	}
+	s := &Service{client: client, BasePath: basePath}
+	s.Atlas = NewAtlasService(s)
+	return s, nil
+}
+
+type Service struct {
+	client   *http.Client
+	BasePath string // API endpoint base URL
+
+	Atlas *AtlasService
+}
+
+func NewAtlasService(s *Service) *AtlasService {
+	rs := &AtlasService{s: s}
+	return rs
+}
+
+type AtlasService struct {
+	s *Service
+}
+
+type TimeseriesDescriptor struct {
+	// Labels: The set of key-value pairs that describe this time series,
+	// including target-specific labels and metric-specific labels.
+	Labels map[string]string `json:"labels,omitempty"`
+
+	// Metric: The name of the metric.
+	Metric string `json:"metric,omitempty"`
+
+	// Project: The project ID to which this time series belongs.
+	Project string `json:"project,omitempty"`
+
+	// Tags: A map of additional information.
+	Tags map[string][]string `json:"tags,omitempty"`
+}
+
+// method id "mapofstrings.getMap":
+
+type AtlasGetMapCall struct {
+	s    *Service
+	opt_ map[string]interface{}
+}
+
+// GetMap: Get a map.
+func (r *AtlasService) GetMap() *AtlasGetMapCall {
+	c := &AtlasGetMapCall{s: r.s, opt_: make(map[string]interface{})}
+	return c
+}
+
+// Fields allows partial responses to be retrieved.
+// See https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *AtlasGetMapCall) Fields(s ...googleapi.Field) *AtlasGetMapCall {
+	c.opt_["fields"] = googleapi.CombineFields(s)
+	return c
+}
+
+func (c *AtlasGetMapCall) Do() (map[string]string, error) {
+	var body io.Reader = nil
+	params := make(url.Values)
+	params.Set("alt", "json")
+	if v, ok := c.opt_["fields"]; ok {
+		params.Set("fields", fmt.Sprintf("%v", v))
+	}
+	urls := googleapi.ResolveRelative(c.s.BasePath, "map")
+	urls += "?" + params.Encode()
+	req, _ := http.NewRequest("GET", urls, body)
+	googleapi.SetOpaque(req.URL)
+	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	res, err := c.s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	var ret map[string]string
+	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Get a map.",
+	//   "httpMethod": "GET",
+	//   "id": "mapofstrings.getMap",
+	//   "path": "map",
+	//   "response": {
+	//     "$ref": "GetMapResponse"
+	//   }
+	// }
+
+}

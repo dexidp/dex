@@ -15,6 +15,8 @@ func TestLoadUsers(t *testing.T) {
 		expUsers []user.UserWithRemoteIdentities
 		// userid -> plaintext password
 		expPasswds map[string]string
+
+		wantErr bool
 	}{
 		{
 			raw: `[
@@ -50,13 +52,39 @@ func TestLoadUsers(t *testing.T) {
 				"elroy-id": "bones",
 			},
 		},
+		{
+			// using old format.
+			raw: `[
+			    {
+					"user": {
+			        	"id": "elroy-id",
+			        	"email": "elroy77@example.com",
+			        	"displayName": "Elroy Jonez",
+			        	"password": "bones"
+					},
+			        "remoteIdentities": [
+			            {
+			                "connectorId": "local",
+			                "id": "elroy-id"
+			            }
+			        ]
+			    }
+			]`,
+			wantErr: true,
+		},
 	}
 
 	for i, tt := range tests {
 		users, pwInfos, err := loadUsersFromReader(strings.NewReader(tt.raw))
 		if err != nil {
-			t.Errorf("case %d: failed to load user: %v", i, err)
-			return
+			if !tt.wantErr {
+				t.Errorf("case %d: failed to load user: %v", i, err)
+			}
+			continue
+		}
+		if tt.wantErr {
+			t.Errorf("case %d: wanted parsing error, didn't get one", i)
+			continue
 		}
 
 		if diff := pretty.Compare(tt.expUsers, users); diff != "" {

@@ -1,0 +1,85 @@
+hash: b0a1c1b400f077dac572450cb9602aabba62d9b7c6fc8ef426c2093de7621e8c
+updated: 2016-04-08T11:43:54.191409294-07:00
+imports:
+- name: github.com/andybalholm/cascadia
+  version: 6122e68c2642b7b75c538a63b15168c6c80fb757
+- name: github.com/coreos/go-oidc
+  version: 6039032c0b15517897116d333ead8edf38792437
+  subpackages:
+  - http
+  - jose
+  - key
+  - oauth2
+  - oidc
+- name: github.com/coreos/pkg
+  version: fa94270d4bac0d8ae5dc6b71894e251aada93f74
+  subpackages:
+  - capnslog
+  - flagutil
+  - health
+  - httputil
+  - timeutil
+- name: github.com/go-gorp/gorp
+  version: c44345f52fc81d27c47e6b592dedaf8c28a972eb
+- name: github.com/gorilla/handlers
+  version: 60c7bfde3e33c201519a200a4507a158cc03a17b
+- name: github.com/inconshreveable/mousetrap
+  version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/jonboulle/clockwork
+  version: 3f831b65b61282ba6bece21b91beea2edc4c887a
+- name: github.com/julienschmidt/httprouter
+  version: 8c199fb6259ffc1af525cc3ad52ee60ba8359669
+- name: github.com/kylelemons/godebug
+  version: 808ac284003ce2b08ef590da08f95379e8a06936
+  subpackages:
+  - diff
+  - pretty
+- name: github.com/lib/pq
+  version: 7175accbed18058468c07811f76440d6e8d7cf19
+  subpackages:
+  - oid
+- name: github.com/mailgun/mailgun-go
+  version: 9578dc67692294bb7e2a6f4b15dd18c97af19440
+- name: github.com/mattn/go-sqlite3
+  version: 2513631704612107a1c8b1803fb8e6b3dda2230e
+- name: github.com/mbanzon/simplehttp
+  version: 04c542e7ac706a25820090f274ea6a4f39a63326
+- name: github.com/pborman/uuid
+  version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
+- name: github.com/PuerkitoBio/goquery
+  version: b4440419d81240f8451a505b2f806c853bc2befc
+- name: github.com/rubenv/sql-migrate
+  version: 53184e1edfb4f9655b0fa8dd2c23e7763f452bda
+  subpackages:
+  - sqlparse
+- name: github.com/spf13/cobra
+  version: b3f29e98e63a3618988a231fd02b45c1e6369d4f
+- name: github.com/spf13/pflag
+  version: 7f60f83a2c81bc3c3c0d5297f61ddfa68da9d3b7
+- name: golang.org/x/crypto
+  version: 1fbbd62cfec66bd39d91e97749579579d4d3037e
+  subpackages:
+  - bcrypt
+  - blowfish
+- name: golang.org/x/net
+  version: dfe268fd2bb5c793f4c083803609fce9806c6f80
+  subpackages:
+  - html
+  - html/atom
+- name: google.golang.org/api
+  version: d3edb0282bde692467788c50070a9211afe75cf3
+  subpackages:
+  - google-api-go-generator
+  - googleapi
+  - googleapi/internal/uritemplates
+- name: gopkg.in/alexcesaro/quotedprintable.v3
+  version: 2caba252f4dc53eaf6b553000885530023f54623
+- name: gopkg.in/asn1-ber.v1
+  version: 4e86f4367175e39f69d9358a5f17b4dda270378d
+- name: gopkg.in/gomail.v2
+  version: b1e55520bf557d8a614f1e1f493ce892c1b5e97e
+- name: gopkg.in/gorp.v1
+  version: c87af80f3cc5036b55b83d77171e156791085e2e
+- name: gopkg.in/ldap.v2
+  version: e9a325d64989e2844be629682cb085d2c58eef8d
+devImports: []
