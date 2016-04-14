@@ -30,7 +30,7 @@ spec:
               - name: DEX_SECRET
                 valueFrom:
                   secretKeyRef:
-                    name: dex-worker-secret
+                    name: dex
                     key: key-secrets
             command:
               - "sh"
@@ -53,6 +53,7 @@ spec:
               timeoutSeconds: 1
               # In production, you will likely want to include your own trusted
               # /etc/ca-certificates and /etc/ssl in your container.
+            volumeMounts:
               - name: ca
                 mountPath: /etc/ca-certificates
                 readOnly: true

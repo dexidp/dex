@@ -32,7 +32,7 @@ spec:
               - name: DEX_SECRET
                 valueFrom:
                   secretKeyRef:
-                  - name: dex
+                    name: dex
                     key: key-secrets
             command:
               - "sh"
