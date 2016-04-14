@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Secret
 metadata:
-  name: dex
+  name: dex-worker-secret
 type: Opaque
 data:
   key-secrets: ZUhoNGVIaDRlSGg0ZUhoNGVIaDRlSGg0ZUhoNGVIaDRlSGg0ZUhoNGVIZz0= # 32 x's base64 encoded twice.
@@ -35,10 +35,15 @@ spec:
                 value: /opt/dex/email/emailer.json
               - name: DEX_WORKER_LISTEN
                 value: http://0.0.0.0:5556
+              - name: DEX_WORKER_SECRET
+                valueFrom:
+                  secretKeyRef:
+                    name: dex-worker-secret
+                    key: key-secrets
             command:
               - "sh"
               - "-c"
-              - "/opt/dex/bin/dex-worker --key-secrets=$(cat /etc/dex/key-secrets) --enable-registration"
+              - "/opt/dex/bin/dex-worker --key-secrets=${DEX_WORKER_SECRET}"
             ports:
             - containerPort: 5556
               name: worker-port
@@ -54,10 +59,6 @@ spec:
                 port: 5556
               initialDelaySeconds: 15
               timeoutSeconds: 1
-            volumeMounts:
-              - name: dex
-                mountPath: "/etc/dex"
-                readOnly: true
               # In production, you will likely want to include your own trusted
               # /etc/ca-certificates and /etc/ssl in your container.
               - name: ca
@@ -67,9 +68,6 @@ spec:
                 mountPath: /etc/ssl
                 readOnly: true
       volumes:
-        - name: dex
-          secret:
-            secretName: "dex"
         - name: ca
           hostPath:
             path: /etc/ca-certificates
