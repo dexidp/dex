@@ -31,6 +31,8 @@ The secret will be created as part of the next command, from `dex-overlord.yaml`
 If you would like to set up your own secret, you can do the following:
 
 ```sh
+# For a real secret (i.e. not checked into this public repo), run the following
+# and comment out the secret in the dex-overlord.yaml file.
 secret=$(dd if=/dev/random bs=1 count=32 2>/dev/null | base64 | tr -d '\n' > key-secrets)
 kubectl create secret generic dex --from-literal=key-secrets=$secret
 ```
