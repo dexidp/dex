@@ -16,7 +16,7 @@ Dex needs a database to store information; these commands will create a Postgres
 
 In production you should have a sufficiently fault-tolerant and secure (TLS enabled) Postgres deployment on a persistent volume with backup.
 
-```sh
+```bash
 kubectl apply -f postgres.yaml
 ```
 
@@ -30,7 +30,7 @@ The secret will be created as part of the next command, from `dex-overlord.yaml`
 
 If you would like to set up your own secret, you can do the following:
 
-```sh
+```bash
 # For a real secret (i.e. not checked into this public repo), run the following
 # and comment out the secret in the dex-overlord.yaml file.
 secret=$(dd if=/dev/random bs=1 count=32 2>/dev/null | base64 | tr -d '\n' > key-secrets)
@@ -41,7 +41,7 @@ kubectl create secret generic dex --from-literal=key-secrets=$secret
 
 Start the overlord. This will also initialize your database the first time it's run, and perform migrations when new versions are installed.
 
-```sh
+```bash
 kubectl apply -f dex-overlord.yaml
 ```
 
@@ -59,7 +59,7 @@ The other hacky thing is that this needs to happen before the workers start beca
 First, start a shell session on the overlord pod.
 
 Once we're on the pod, we create a connectors file and upload it to dex.
-```sh
+```bash
 DEX_OVERLORD_POD=$(kubectl get pod -l=app=dex,role=overlord -o template --template "{{ (index .items 0).metadata.name }}")
 
 kubectl exec $DEX_OVERLORD_POD -- /opt/dex/bin/dexctl --db-url='postgres://postgres@dex-postgres:5432/postgres?sslmode=disable' set-connector-configs '/etc/dex-connectors/connector.json'
@@ -69,7 +69,7 @@ kubectl exec $DEX_OVERLORD_POD -- /opt/dex/bin/dexctl --db-url='postgres://postg
 
 Start the worker. The worker is exposed as an external service so that end-users can access it.
 
-```sh
+```bash
 kubectl apply -f dex-worker.yaml
 ```
 
@@ -77,7 +77,7 @@ kubectl apply -f dex-worker.yaml
 
 We then `eval` that which creates the shell variables `DEX_APP_CLIENT_ID` and `DEX_APP_CLIENT_SECRET`
 
-```sh
+```bash
 CALLBACK_URL='http://127.0.0.1:5555/callback'
 eval "$(kubectl exec $DEX_OVERLORD_POD -- /opt/dex/bin/dexctl --db-url='postgres://postgres@dex-postgres:5432/postgres?sslmode=disable' new-client $CALLBACK_URL )"
 ```
@@ -86,13 +86,13 @@ eval "$(kubectl exec $DEX_OVERLORD_POD -- /opt/dex/bin/dexctl --db-url='postgres
 
 First, go to the root of the dex repo:
 
-```sh
+```bash
 cd $GOPATH/src/github.com/coreos/dex
 ```
 
 Now, build and run the example app.
 
-```sh
+```bash
 ./build
 ./bin/example-app --client-id=$DEX_APP_CLIENT_ID --client-secret=$DEX_APP_CLIENT_SECRET --discovery=http://dex.example.com
 ```
@@ -104,7 +104,7 @@ Now you can register and log-in to your example app: Go to http://127.0.0.1:5555
 ### psql
 
 Here's how to get psql session.
-```sh
+```bash
 DEX_PSQL_POD=$(kubectl get pod -l=app=postgres -o template --template "{{ (index .items 0).metadata.name }}")
 kubectl exec $DEX_PSQL_POD -ti -- psql 'postgres://postgres@dex-postgres:5432/postgres?sslmode=disable'
 ```
