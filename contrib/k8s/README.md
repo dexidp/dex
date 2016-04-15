@@ -6,9 +6,20 @@ This document will allow you to set up dex in your Kubernetes cluster; the examp
 
 The document assumes that you already have a cluster with at least one worker up and running. The easiest way to bring up a small cluster for experimentation is the [coreos-kubernetes single node](coreos-kubernetes-single-node) Vagrant installer.
 
-The other assumption is that your Kubernetes cluster will be running an appropriate Ingress controller for your environment (see [nginx](https://github.com/kubernetes/contrib/tree/master/ingress/controllers/nginx)) and that a `dex.example.com` DNS or `/etc/hosts` entry has been made pointing to the ingress controller Node IP(s).
+The other assumption is that your Kubernetes cluster will be running an appropriate Ingress controller for your environment (see below, or for more advanced or cloud-specific options, see [the Kubernetes Ingress Docs](http://kubernetes.io/docs/user-guide/ingress/#ingress-controllers)).
+
+Additionally, make sure that a `dex.example.com` DNS or `/etc/hosts` entry has been made pointing to the ingress controller Node IP(s).
 
 [coreos-kubernetes-single-node](https://github.com/coreos/coreos-kubernetes/blob/master/single-node/README.md)
+
+
+## Create Ingress Controller
+
+If you do not already have an ingress controller in place, and if you'd like to use the latest kubernetes/contrib nginx ingress controller, simply run the following:
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/contrib/master/ingress/controllers/nginx/rc.yaml
+```
 
 ## Start Postgres
 
