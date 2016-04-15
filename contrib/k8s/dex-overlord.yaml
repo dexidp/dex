@@ -29,15 +29,13 @@ spec:
                 value: postgres://postgres@dex-postgres:5432/postgres?sslmode=disable
               - name: DEX_OVERLORD_ADMIN_LISTEN
                 value: http://0.0.0.0:5557
-              - name: DEX_SECRET
+              - name: DEX_OVERLORD_KEY_SECRETS
                 valueFrom:
                   secretKeyRef:
                     name: dex
                     key: key-secrets
             command:
-              - "sh"
-              - "-c"
-              - "/opt/dex/bin/dex-overlord --key-secrets=${DEX_SECRET}"
+              - "/opt/dex/bin/dex-overlord"
             ports:
             - containerPort: 5557
               name: overlord-port

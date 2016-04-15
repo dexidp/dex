@@ -27,15 +27,13 @@ spec:
                 value: /opt/dex/email/emailer.json
               - name: DEX_WORKER_LISTEN
                 value: http://0.0.0.0:5556
-              - name: DEX_SECRET
+              - name: DEX_WORKER_KEY_SECRETS
                 valueFrom:
                   secretKeyRef:
                     name: dex
                     key: key-secrets
             command:
-              - "sh"
-              - "-c"
-              - "/opt/dex/bin/dex-worker --key-secrets=${DEX_SECRET}"
+              - "/opt/dex/bin/dex-worker"
             ports:
             - containerPort: 5556
               name: worker-port
