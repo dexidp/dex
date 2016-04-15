@@ -86,6 +86,12 @@ func ClientsFromReader(r io.Reader) ([]Client, error) {
 	}
 	clients := make([]Client, len(c))
 	for i, client := range c {
+		if client.ID == "" {
+			return nil, errors.New("clients must have an ID")
+		}
+		if len(client.Secret) == 0 {
+			return nil, errors.New("clients must have a Secret")
+		}
 		redirectURIs := make([]url.URL, len(client.RedirectURLs))
 		for j, u := range client.RedirectURLs {
 			uri, err := url.Parse(u)
