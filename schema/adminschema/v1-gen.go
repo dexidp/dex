@@ -97,49 +97,52 @@ type Admin struct {
 	Password string `json:"password,omitempty"`
 }
 
-type ClientCreateRequest struct {
-	Client *ClientCreateRequestClient `json:"client,omitempty"`
-
-	IsAdmin bool `json:"isAdmin,omitempty"`
-}
-
-type ClientCreateRequestClient struct {
-	// Client_name: OPTIONAL. Name of the Client to be presented to the
+type Client struct {
+	// ClientName: OPTIONAL. Name of the Client to be presented to the
 	// End-User. If desired, representation of this Claim in different
 	// languages and scripts is represented as described in Section 2.1 (
 	// Metadata Languages and Scripts ) .
-	Client_name string `json:"client_name,omitempty"`
+	ClientName string `json:"clientName,omitempty"`
 
-	// Client_uri: OPTIONAL. URL of the home page of the Client. The value
-	// of this field MUST point to a valid Web page. If present, the server
+	// ClientURI: OPTIONAL. URL of the home page of the Client. The value of
+	// this field MUST point to a valid Web page. If present, the server
 	// SHOULD display this URL to the End-User in a followable fashion. If
 	// desired, representation of this Claim in different languages and
 	// scripts is represented as described in Section 2.1 ( Metadata
 	// Languages and Scripts ) .
-	Client_uri string `json:"client_uri,omitempty"`
+	ClientURI string `json:"clientURI,omitempty"`
 
-	// Logo_uri: OPTIONAL. URL that references a logo for the Client
+	// Id: The client ID. Ignored in client create requests.
+	Id string `json:"id,omitempty"`
+
+	IsAdmin bool `json:"isAdmin,omitempty"`
+
+	// LogoURI: OPTIONAL. URL that references a logo for the Client
 	// application. If present, the server SHOULD display this image to the
 	// End-User during approval. The value of this field MUST point to a
 	// valid image file. If desired, representation of this Claim in
 	// different languages and scripts is represented as described in
 	// Section 2.1 ( Metadata Languages and Scripts ) .
-	Logo_uri string `json:"logo_uri,omitempty"`
+	LogoURI string `json:"logoURI,omitempty"`
 
-	// Redirect_uris: REQUIRED. Array of Redirection URI values used by the
+	// RedirectURIs: REQUIRED. Array of Redirection URI values used by the
 	// Client. One of these registered Redirection URI values MUST exactly
 	// match the redirect_uri parameter value used in each Authorization
 	// Request, with the matching performed as described in Section 6.2.1 of
 	// [RFC3986] ( Berners-Lee, T., Fielding, R., and L. Masinter,
 	// “Uniform Resource Identifier (URI): Generic Syntax,” January
 	// 2005. ) (Simple String Comparison).
-	Redirect_uris []string `json:"redirect_uris,omitempty"`
+	RedirectURIs []string `json:"redirectURIs,omitempty"`
+
+	Secret string `json:"secret,omitempty"`
 }
 
-type ClientRegistrationResponse struct {
-	Client_id string `json:"client_id,omitempty"`
+type ClientCreateRequest struct {
+	Client *Client `json:"client,omitempty"`
+}
 
-	Client_secret string `json:"client_secret,omitempty"`
+type ClientCreateResponse struct {
+	Client *Client `json:"client,omitempty"`
 }
 
 type State struct {
@@ -310,7 +313,7 @@ func (c *ClientCreateCall) Fields(s ...googleapi.Field) *ClientCreateCall {
 	return c
 }
 
-func (c *ClientCreateCall) Do() (*ClientRegistrationResponse, error) {
+func (c *ClientCreateCall) Do() (*ClientCreateResponse, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.clientcreaterequest)
 	if err != nil {
@@ -336,7 +339,7 @@ func (c *ClientCreateCall) Do() (*ClientRegistrationResponse, error) {
 	if err := googleapi.CheckResponse(res); err != nil {
 		return nil, err
 	}
-	var ret *ClientRegistrationResponse
+	var ret *ClientCreateResponse
 	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
 		return nil, err
 	}
@@ -350,7 +353,7 @@ func (c *ClientCreateCall) Do() (*ClientRegistrationResponse, error) {
 	//     "$ref": "ClientCreateRequest"
 	//   },
 	//   "response": {
-	//     "$ref": "ClientRegistrationResponse"
+	//     "$ref": "ClientCreateResponse"
 	//   }
 	// }
 
