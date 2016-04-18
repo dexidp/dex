@@ -78,8 +78,7 @@ type clientModel struct {
 func (m *clientModel) Client() (*client.Client, error) {
 	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
-			ID:     m.ID,
-			Secret: string(m.Secret),
+			ID: m.ID,
 		},
 		Admin: m.DexAdmin,
 	}
