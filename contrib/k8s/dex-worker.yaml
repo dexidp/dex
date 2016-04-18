@@ -32,6 +32,8 @@ spec:
                   secretKeyRef:
                     name: dex
                     key: key-secrets
+              - name: DEX_WORKER_ENABLE_REGISTRATION
+                value: "true"
             command:
               - "/opt/dex/bin/dex-worker"
             ports:
