@@ -257,6 +257,42 @@ func TestDBClientRepoNewDuplicate(t *testing.T) {
 	}
 }
 
+func TestDBClientRepoNewAdmin(t *testing.T) {
+
+	for _, admin := range []bool{true, false} {
+		r := db.NewClientRepo(connect(t))
+		if _, err := r.New(client.Client{
+			Credentials: oidc.ClientCredentials{
+				ID: "foo",
+			},
+			Metadata: oidc.ClientMetadata{
+				RedirectURIs: []url.URL{
+					url.URL{Scheme: "http", Host: "foo.example.com"},
+				},
+			},
+			Admin: admin,
+		}); err != nil {
+			t.Fatalf("expected non-nil error: %v", err)
+		}
+
+		gotAdmin, err := r.IsDexAdmin("foo")
+		if err != nil {
+			t.Fatalf("expected non-nil error")
+		}
+		if gotAdmin != admin {
+			t.Errorf("want=%v, gotAdmin=%v", admin, gotAdmin)
+		}
+
+		cli, err := r.Get("foo")
+		if err != nil {
+			t.Fatalf("expected non-nil error")
+		}
+		if cli.Admin != admin {
+			t.Errorf("want=%v, cli.Admin=%v", admin, cli.Admin)
+		}
+	}
+
+}
 func TestDBClientRepoAuthenticate(t *testing.T) {
 	r := db.NewClientRepo(connect(t))
 
