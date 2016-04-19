@@ -13,6 +13,7 @@ import (
 
 	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/pkg/log"
+	sessionmanager "github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
 	useremail "github.com/coreos/dex/user/email"
 	"github.com/coreos/dex/user/manager"
@@ -142,6 +143,30 @@ func handleVerifyEmailResendFunc(
 			return
 		}
 
+		nonce, _, _ := claims.StringClaim(user.ClaimTokenNonce)
+		if err != nil {
+			log.Errorf("Failed to extract nonce from token: %v", err)
+			writeAPIError(w, http.StatusBadRequest,
+				newAPIError(errorInvalidRequest, "invalid token could not be parsed"))
+			return
+		}
+
+		scopes, _, _ := claims.StringsClaim(user.ClaimTokenScopes)
+		if err != nil {
+			log.Errorf("Failed to extract scopes from token: %v", err)
+			writeAPIError(w, http.StatusBadRequest,
+				newAPIError(errorInvalidRequest, "invalid token could not be parsed"))
+			return
+		}
+
+		state, _, _ := claims.StringClaim(user.ClaimTokenState)
+		if err != nil {
+			log.Errorf("Failed to extract state from token: %v", err)
+			writeAPIError(w, http.StatusBadRequest,
+				newAPIError(errorInvalidRequest, "invalid token could not be parsed"))
+			return
+		}
+
 		redirectURLStr := params.RedirectURI
 		if redirectURLStr == "" {
 			log.Errorf("No redirect URL: %v", err)
@@ -174,7 +199,7 @@ func handleVerifyEmailResendFunc(
 			}
 		}
 
-		_, err = emailer.SendEmailVerification(usr.ID, clientID, *redirectURL)
+		_, err = emailer.SendEmailVerification(usr.ID, clientID, *redirectURL, state, nonce, scopes)
 		if err != nil {
 			log.Errorf("Failed to send email verification email: %v", err)
 			writeAPIError(w, http.StatusInternalServerError,
@@ -190,28 +215,107 @@ type emailVerifiedTemplateData struct {
 	Message string
 }
 
-func handleEmailVerifyFunc(verifiedTpl *template.Template, issuer url.URL, keysFunc func() ([]key.PublicKey,
+func handleEmailVerifyFunc(verifiedTpl *template.Template, s *sessionmanager.SessionManager, issuer url.URL, keysFunc func() ([]key.PublicKey,
 	error), userManager *manager.UserManager) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		token := q.Get("token")
 
+		runtpl := func(error string, message string, statusCode int) {
+			execTemplateWithStatus(w, verifiedTpl, emailVerifiedTemplateData{
+				Error:   error,
+				Message: message,
+			}, statusCode)
+		}
+
 		keys, err := keysFunc()
 		if err != nil {
-			execTemplateWithStatus(w, verifiedTpl, emailVerifiedTemplateData{
-				Error:   "There's been an error processing your request.",
-				Message: "Please try again later.",
-			}, http.StatusInternalServerError)
+			runtpl("There's been an error processing your request.", "Please try again later.", http.StatusInternalServerError)
 			return
 		}
 
 		ev, err := user.ParseAndVerifyEmailVerificationToken(token, issuer, keys)
 		if err != nil {
-			execTemplateWithStatus(w, verifiedTpl, emailVerifiedTemplateData{
-				Error:   "Bad Email Verification Token",
-				Message: "That was not a verifiable token.",
-			}, http.StatusBadRequest)
+			runtpl("Bad Email Verification Token", "That was not a verifiable token.", http.StatusBadRequest)
+			return
+		}
+
+		aud, ok, err := ev.Claims.StringClaim("aud")
+		if !ok {
+			runtpl("Unable to get 'aud' from token", "That was not a verifiable token.", http.StatusBadRequest)
+			return
+		}
+
+		sub, ok, err := ev.Claims.StringClaim("sub")
+		if !ok {
+			runtpl("Unable to get 'sub' from token", "That was not a verifiable token.", http.StatusBadRequest)
+			return
+		}
+
+		state, ok, err := ev.Claims.StringClaim(user.ClaimTokenState)
+		if !ok {
+			runtpl("Unable to get 'sub' from token", "That was not a verifiable token.", http.StatusBadRequest)
+			return
+		}
+
+		nonce, ok, err := ev.Claims.StringClaim(user.ClaimTokenNonce)
+		if !ok {
+			runtpl("Unable to get 'sub' from token", "That was not a verifiable token.", http.StatusBadRequest)
+			return
+		}
+
+		scopes, ok, err := ev.Claims.StringsClaim(user.ClaimTokenScopes)
+		if !ok {
+			runtpl("Unable to get 'sub' from token", "That was not a verifiable token.", http.StatusBadRequest)
+			return
+		}
+
+		callback, ok, err := ev.Claims.StringClaim(user.ClaimEmailVerificationCallback)
+		if !ok {
+			runtpl("Unable to get callback URL from token", "That was not a verifiable token.", http.StatusBadRequest)
+			return
+		}
+
+		redirectURL, err := url.Parse(callback)
+		if err != nil {
+			runtpl("Unable to parse callback URL", "The callback URL inside the token couldn't be parsed.", http.StatusBadRequest)
+			return
+		}
+
+		sessionID, err := s.NewSession("local", aud, state, *redirectURL, nonce, false, scopes)
+		if err != nil {
+			runtpl("Unable to create session", "Unable to create session.", http.StatusUnauthorized)
+			return
+		}
+
+		ident, err := oidc.IdentityFromClaims(ev.Claims)
+		if err != nil {
+			runtpl("Unable to retrieve identity", "Could not extract identity from claims.", http.StatusBadRequest)
+			return
+		}
+
+		_, err = s.AttachRemoteIdentity(sessionID, *ident)
+		if err != nil {
+			runtpl("Unable to attach identity to session", "Could not attach identity to session.", http.StatusInternalServerError)
+			return
+		}
+
+		usr, err := userManager.Get(sub)
+		if err != nil {
+			runtpl("Unable to retrieve user", "Unable to retrieve user.", http.StatusUnauthorized)
+			return
+		}
+
+		_, err = s.AttachUser(sessionID, usr.ID)
+		if err != nil {
+			runtpl("Unable to attach user to session", "Unable to attach user to session.", http.StatusInternalServerError)
+			return
+		}
+
+		code, err := s.NewSessionKey(sessionID)
+		if err != nil {
+			runtpl("Unable to generate session key", "Unable to generate session key.", http.StatusInternalServerError)
 			return
 		}
 
@@ -219,23 +323,20 @@ func handleEmailVerifyFunc(verifiedTpl *template.Template, issuer url.URL, keysF
 		if err != nil {
 			switch err {
 			case manager.ErrorEmailAlreadyVerified:
-				execTemplateWithStatus(w, verifiedTpl, emailVerifiedTemplateData{
-					Error:   "Invalid Verification Link",
-					Message: "Your email link has expired or has already been verified.",
-				}, http.StatusBadRequest)
+				runtpl("Invalid Verification Link", "Your email link has expired or has already been verified.", http.StatusBadRequest)
 			case user.ErrorNotFound:
-				execTemplateWithStatus(w, verifiedTpl, emailVerifiedTemplateData{
-					Error:   "Invalid Verification Link",
-					Message: "Your email link does not match the email address on file. Perhaps you have a more recent verification link?",
-				}, http.StatusBadRequest)
+				runtpl("Invalid Verification Link", "Your email link does not match the email address on file. Perhaps you have a more recent verification link?", http.StatusUnauthorized)
 			default:
-				execTemplateWithStatus(w, verifiedTpl, emailVerifiedTemplateData{
-					Error:   "Error Processing Request",
-					Message: "Please try again later.",
-				}, http.StatusInternalServerError)
+				runtpl("Error Processing Request", "Please try again later.", http.StatusInternalServerError)
 			}
 			return
 		}
+
+		qr := cbURL.Query()
+		qr.Set("code", code)
+		qr.Set("state", state)
+		cbURL.RawQuery = qr.Encode()
+
 		http.SetCookie(w, &http.Cookie{
 			HttpOnly: true,
 			Name:     "ShowEmailVerifiedMessage",

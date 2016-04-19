@@ -14,10 +14,13 @@ import (
 // in serialized form to verify that they control an email address.
 // The clientID is the ID of the registering user. The callback is
 // where a user should land after verifying their email.
-func NewEmailVerification(user User, clientID string, issuer url.URL, callback url.URL, expires time.Duration) EmailVerification {
+func NewEmailVerification(user User, clientID string, issuer url.URL, callback url.URL, expires time.Duration, state string, nonce string, scopes []string) EmailVerification {
 	claims := oidc.NewClaims(issuer.String(), user.ID, clientID, clock.Now(), clock.Now().Add(expires))
 	claims.Add(ClaimEmailVerificationCallback, callback.String())
 	claims.Add(ClaimEmailVerificationEmail, user.Email)
+	claims.Add(ClaimTokenState, state)
+	claims.Add(ClaimTokenNonce, nonce)
+	claims.Add(ClaimTokenScopes, scopes)
 	return EmailVerification{claims}
 }
 
@@ -53,6 +56,21 @@ func ParseAndVerifyEmailVerificationToken(token string, issuer url.URL, keys []k
 	}
 	if _, err := url.Parse(cb); err != nil {
 		return EmailVerification{}, fmt.Errorf("callback URL not parseable: %v", cb)
+	}
+
+	_, ok, err = tokenClaims.Claims.StringClaim("state")
+	if err != nil {
+		return EmailVerification{}, err
+	}
+
+	_, ok, err = tokenClaims.Claims.StringClaim("nonce")
+	if err != nil {
+		return EmailVerification{}, err
+	}
+
+	_, ok, err = tokenClaims.Claims.StringsClaim("scopes")
+	if err != nil {
+		return EmailVerification{}, err
 	}
 
 	return EmailVerification{tokenClaims.Claims}, nil

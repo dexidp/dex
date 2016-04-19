@@ -273,7 +273,7 @@ func TestSendEmailVerificationEmail(t *testing.T) {
 		if !tt.hasEmailer {
 			ue.SetEmailer(nil)
 		}
-		verifyLink, err := ue.SendEmailVerification(tt.userID, clientID, redirURL)
+		verifyLink, err := ue.SendEmailVerification(tt.userID, clientID, redirURL, "", "", []string{""})
 		if tt.wantErr {
 			if err == nil {
 				t.Errorf("case %d: want non-nil err.", i)

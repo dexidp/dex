@@ -159,7 +159,7 @@ func (u *UserEmailer) SendInviteEmail(email string, redirectURL url.URL, clientI
 
 // SendEmailVerification sends an email to the user with the given userID containing a link which when visited marks the user as having had their email verified.
 // If there is no emailer is configured, the URL of the aforementioned link is returned, otherwise nil is returned.
-func (u *UserEmailer) SendEmailVerification(userID, clientID string, redirectURL url.URL) (*url.URL, error) {
+func (u *UserEmailer) SendEmailVerification(userID, clientID string, redirectURL url.URL, state string, nonce string, scopes []string) (*url.URL, error) {
 	usr, err := u.ur.Get(nil, userID)
 	if err == user.ErrorNotFound {
 		log.Errorf("No Such user for ID: %q", userID)
@@ -170,7 +170,7 @@ func (u *UserEmailer) SendEmailVerification(userID, clientID string, redirectURL
 		return nil, err
 	}
 
-	ev := user.NewEmailVerification(usr, clientID, u.issuerURL, redirectURL, u.tokenValidityWindow)
+	ev := user.NewEmailVerification(usr, clientID, u.issuerURL, redirectURL, u.tokenValidityWindow, state, nonce, scopes)
 
 	signer, err := u.signerFn()
 	if err != nil || signer == nil {

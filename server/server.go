@@ -207,7 +207,10 @@ func (s *Server) HTTPHandler() http.Handler {
 	}
 
 	mux.HandleFunc(httpPathEmailVerify, handleEmailVerifyFunc(s.VerifyEmailTemplate,
-		s.IssuerURL, s.KeyManager.PublicKeys, s.UserManager))
+		s.SessionManager,
+		s.IssuerURL,
+		s.KeyManager.PublicKeys,
+		s.UserManager))
 
 	mux.Handle(httpPathVerifyEmailResend, s.NewClientTokenAuthHandler(handleVerifyEmailResendFunc(s.IssuerURL,
 		s.KeyManager.PublicKeys,

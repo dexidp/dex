@@ -33,6 +33,9 @@ func TestNewEmailVerification(t *testing.T) {
 		callback string
 		expires  time.Duration
 		want     jose.Claims
+		state    string
+		nonce    string
+		scopes   []string
 	}{
 		{
 			issuer:   *issuer,
@@ -40,14 +43,20 @@ func TestNewEmailVerification(t *testing.T) {
 			user:     usr,
 			callback: callback,
 			expires:  expires,
+			state:    "",
+			nonce:    "",
+			scopes:   []string{"openid"},
 			want: map[string]interface{}{
 				"iss": issuer.String(),
 				"aud": clientID,
 				ClaimEmailVerificationCallback: callback,
 				ClaimEmailVerificationEmail:    usr.Email,
-				"exp": float64(now.Add(expires).Unix()),
-				"sub": usr.ID,
-				"iat": float64(now.Unix()),
+				"exp":            float64(now.Add(expires).Unix()),
+				"sub":            usr.ID,
+				"iat":            float64(now.Unix()),
+				ClaimTokenState:  "",
+				ClaimTokenNonce:  "",
+				ClaimTokenScopes: []string{"openid"},
 			},
 		},
 	}
@@ -57,7 +66,7 @@ func TestNewEmailVerification(t *testing.T) {
 		if err != nil {
 			t.Fatalf("case %d: non-nil err: %q", i, err)
 		}
-		ev := NewEmailVerification(tt.user, tt.clientID, tt.issuer, *cbURL, tt.expires)
+		ev := NewEmailVerification(tt.user, tt.clientID, tt.issuer, *cbURL, tt.expires, tt.state, tt.nonce, tt.scopes)
 
 		if diff := pretty.Compare(tt.want, ev.Claims); diff != "" {
 			t.Errorf("case %d: Compare(want, got): %v", i, diff)
@@ -74,11 +83,14 @@ func TestEmailVerificationParseAndVerify(t *testing.T) {
 	user := User{ID: "1234", Email: "user@example.com"}
 	callback, _ := url.Parse("http://client.example.com")
 	expires := time.Hour * 3
+	state := ""
+	nonce := ""
+	scopes := []string{"openid"}
 
-	goodEV := NewEmailVerification(user, client, *issuer, *callback, expires)
-	expiredEV := NewEmailVerification(user, client, *issuer, *callback, -expires)
-	wrongIssuerEV := NewEmailVerification(user, client, *otherIssuer, *callback, expires)
-	noSubEV := NewEmailVerification(User{}, client, *issuer, *callback, expires)
+	goodEV := NewEmailVerification(user, client, *issuer, *callback, expires, state, nonce, scopes)
+	expiredEV := NewEmailVerification(user, client, *issuer, *callback, -expires, state, nonce, scopes)
+	wrongIssuerEV := NewEmailVerification(user, client, *otherIssuer, *callback, expires, state, nonce, scopes)
+	noSubEV := NewEmailVerification(User{}, client, *issuer, *callback, expires, state, nonce, scopes)
 
 	privKey, err := key.GeneratePrivateKey()
 	if err != nil {

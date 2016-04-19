@@ -38,6 +38,10 @@ const (
 
 	// Claim representing where a user should be sent after responding to an invitation
 	ClaimInvitationCallback = "http://coreos.com/invitation/callback"
+
+	ClaimTokenState  = "http://coreos.com/token/state"
+	ClaimTokenNonce  = "nonce"
+	ClaimTokenScopes = "http://coreos.com/token/scopes"
 )
 
 var (

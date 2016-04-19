@@ -252,7 +252,7 @@ func handleRegisterFunc(s *Server, tpl Template) http.HandlerFunc {
 		}
 
 		if !trustedEmail {
-			_, err = s.UserEmailer.SendEmailVerification(usr.ID, ses.ClientID, ses.RedirectURL)
+			_, err = s.UserEmailer.SendEmailVerification(usr.ID, ses.ClientID, ses.RedirectURL, ses.ClientState, ses.Nonce, ses.Scope)
 
 			if err != nil {
 				log.Errorf("Error sending email verification: %v", err)
