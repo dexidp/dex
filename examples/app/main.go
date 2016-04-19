@@ -20,10 +20,6 @@ import (
 	"github.com/coreos/go-oidc/oidc"
 )
 
-var (
-	pathCallback = "/callback"
-)
-
 func main() {
 	fs := flag.NewFlagSet("oidc-app", flag.ExitOnError)
 	listen := fs.String("listen", "http://127.0.0.1:5555", "")
@@ -142,7 +138,7 @@ func NewClientHandler(c *oidc.Client, issuer string, cbURL url.URL) http.Handler
 	mux.HandleFunc("/", handleIndex)
 	mux.HandleFunc("/login", handleLoginFunc(c))
 	mux.HandleFunc("/register", handleRegisterFunc(c))
-	mux.HandleFunc(pathCallback, handleCallbackFunc(c))
+	mux.HandleFunc(cbURL.Path, handleCallbackFunc(c))
 
 	resendURL := *issuerURL
 	resendURL.Path = "/resend-verify-email"
