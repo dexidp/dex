@@ -181,8 +181,8 @@ func TestDBPrivateKeySetRepoSetGet(t *testing.T) {
 	}
 }
 
-func TestDBClientIdentityRepoMetadata(t *testing.T) {
-	r := db.NewClientIdentityRepo(connect(t))
+func TestDBClientRepoMetadata(t *testing.T) {
+	r := db.NewClientRepo(connect(t))
 
 	cm := oidc.ClientMetadata{
 		RedirectURIs: []url.URL{
@@ -191,7 +191,12 @@ func TestDBClientIdentityRepoMetadata(t *testing.T) {
 		},
 	}
 
-	_, err := r.New("foo", cm, false)
+	_, err := r.New(client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID: "foo",
+		},
+		Metadata: cm,
+	})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -206,8 +211,8 @@ func TestDBClientIdentityRepoMetadata(t *testing.T) {
 	}
 }
 
-func TestDBClientIdentityRepoMetadataNoExist(t *testing.T) {
-	r := db.NewClientIdentityRepo(connect(t))
+func TestDBClientRepoMetadataNoExist(t *testing.T) {
+	r := db.NewClientRepo(connect(t))
 
 	got, err := r.Metadata("noexist")
 	if err != client.ErrorNotFound {
@@ -218,8 +223,8 @@ func TestDBClientIdentityRepoMetadataNoExist(t *testing.T) {
 	}
 }
 
-func TestDBClientIdentityRepoNewDuplicate(t *testing.T) {
-	r := db.NewClientIdentityRepo(connect(t))
+func TestDBClientRepoNewDuplicate(t *testing.T) {
+	r := db.NewClientRepo(connect(t))
 
 	meta1 := oidc.ClientMetadata{
 		RedirectURIs: []url.URL{
@@ -227,7 +232,12 @@ func TestDBClientIdentityRepoNewDuplicate(t *testing.T) {
 		},
 	}
 
-	if _, err := r.New("foo", meta1, false); err != nil {
+	if _, err := r.New(client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID: "foo",
+		},
+		Metadata: meta1,
+	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -237,13 +247,54 @@ func TestDBClientIdentityRepoNewDuplicate(t *testing.T) {
 		},
 	}
 
-	if _, err := r.New("foo", meta2, false); err == nil {
+	if _, err := r.New(client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID: "foo",
+		},
+		Metadata: meta2,
+	}); err == nil {
 		t.Fatalf("expected non-nil error")
 	}
 }
 
-func TestDBClientIdentityRepoAuthenticate(t *testing.T) {
-	r := db.NewClientIdentityRepo(connect(t))
+func TestDBClientRepoNewAdmin(t *testing.T) {
+
+	for _, admin := range []bool{true, false} {
+		r := db.NewClientRepo(connect(t))
+		if _, err := r.New(client.Client{
+			Credentials: oidc.ClientCredentials{
+				ID: "foo",
+			},
+			Metadata: oidc.ClientMetadata{
+				RedirectURIs: []url.URL{
+					url.URL{Scheme: "http", Host: "foo.example.com"},
+				},
+			},
+			Admin: admin,
+		}); err != nil {
+			t.Fatalf("expected non-nil error: %v", err)
+		}
+
+		gotAdmin, err := r.IsDexAdmin("foo")
+		if err != nil {
+			t.Fatalf("expected non-nil error")
+		}
+		if gotAdmin != admin {
+			t.Errorf("want=%v, gotAdmin=%v", admin, gotAdmin)
+		}
+
+		cli, err := r.Get("foo")
+		if err != nil {
+			t.Fatalf("expected non-nil error")
+		}
+		if cli.Admin != admin {
+			t.Errorf("want=%v, cli.Admin=%v", admin, cli.Admin)
+		}
+	}
+
+}
+func TestDBClientRepoAuthenticate(t *testing.T) {
+	r := db.NewClientRepo(connect(t))
 
 	cm := oidc.ClientMetadata{
 		RedirectURIs: []url.URL{
@@ -251,7 +302,12 @@ func TestDBClientIdentityRepoAuthenticate(t *testing.T) {
 		},
 	}
 
-	cc, err := r.New("baz", cm, false)
+	cc, err := r.New(client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID: "baz",
+		},
+		Metadata: cm,
+	})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -290,8 +346,8 @@ func TestDBClientIdentityRepoAuthenticate(t *testing.T) {
 	}
 }
 
-func TestDBClientIdentityAll(t *testing.T) {
-	r := db.NewClientIdentityRepo(connect(t))
+func TestDBClientAll(t *testing.T) {
+	r := db.NewClientRepo(connect(t))
 
 	cm := oidc.ClientMetadata{
 		RedirectURIs: []url.URL{
@@ -299,7 +355,12 @@ func TestDBClientIdentityAll(t *testing.T) {
 		},
 	}
 
-	_, err := r.New("foo", cm, false)
+	_, err := r.New(client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID: "foo",
+		},
+		Metadata: cm,
+	})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -322,7 +383,12 @@ func TestDBClientIdentityAll(t *testing.T) {
 			url.URL{Scheme: "http", Host: "foo.com", Path: "/cb"},
 		},
 	}
-	_, err = r.New("bar", cm, false)
+	_, err = r.New(client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID: "bar",
+		},
+		Metadata: cm,
+	})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

@@ -7,12 +7,13 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/coreos/dex/client"
 	schema "github.com/coreos/dex/schema/workerschema"
 	"github.com/coreos/go-oidc/oidc"
 )
 
 func TestClientCreate(t *testing.T) {
-	ci := oidc.ClientIdentity{
+	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID:     "72de74a9",
 			Secret: base64.URLEncoding.EncodeToString([]byte("XXX")),
@@ -23,7 +24,7 @@ func TestClientCreate(t *testing.T) {
 			},
 		},
 	}
-	cis := []oidc.ClientIdentity{ci}
+	cis := []client.Client{ci}
 
 	srv, err := mockServer(cis)
 	if err != nil {
@@ -72,7 +73,7 @@ func TestClientCreate(t *testing.T) {
 		t.Error("Expected non-empty Client Secret")
 	}
 
-	meta, err := srv.ClientIdentityRepo.Metadata(newClient.Id)
+	meta, err := srv.ClientRepo.Metadata(newClient.Id)
 	if err != nil {
 		t.Errorf("Error looking up client metadata: %v", err)
 	} else if meta == nil {

@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	testClients = []oidc.ClientIdentity{
-		oidc.ClientIdentity{
+	testClients = []client.Client{
+		client.Client{
 			Credentials: oidc.ClientCredentials{
 				ID:     "client1",
 				Secret: base64.URLEncoding.EncodeToString([]byte("secret-1")),
@@ -30,7 +30,7 @@ var (
 				},
 			},
 		},
-		oidc.ClientIdentity{
+		client.Client{
 			Credentials: oidc.ClientCredentials{
 				ID:     "client2",
 				Secret: base64.URLEncoding.EncodeToString([]byte("secret-2")),
@@ -48,7 +48,7 @@ var (
 	}
 )
 
-func newClientIdentityRepo(t *testing.T) client.ClientIdentityRepo {
+func newClientRepo(t *testing.T) client.ClientRepo {
 	dsn := os.Getenv("DEX_TEST_DSN")
 	var dbMap *gorp.DbMap
 	if dsn == "" {
@@ -56,7 +56,7 @@ func newClientIdentityRepo(t *testing.T) client.ClientIdentityRepo {
 	} else {
 		dbMap = connect(t)
 	}
-	repo, err := db.NewClientIdentityRepoFromClients(dbMap, testClients)
+	repo, err := db.NewClientRepoFromClients(dbMap, testClients)
 	if err != nil {
 		t.Fatalf("failed to create client repo from clients: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestGetSetAdminClient(t *testing.T) {
 
 Tests:
 	for i, tt := range tests {
-		repo := newClientIdentityRepo(t)
+		repo := newClientRepo(t)
 		for _, cid := range startAdmins {
 			err := repo.SetDexAdmin(cid, true)
 			if err != nil {

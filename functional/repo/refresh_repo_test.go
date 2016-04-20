@@ -11,12 +11,13 @@ import (
 	"github.com/go-gorp/gorp"
 	"github.com/kylelemons/godebug/pretty"
 
+	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/refresh"
 	"github.com/coreos/dex/user"
 )
 
-func newRefreshRepo(t *testing.T, users []user.UserWithRemoteIdentities, clients []oidc.ClientIdentity) refresh.RefreshTokenRepo {
+func newRefreshRepo(t *testing.T, users []user.UserWithRemoteIdentities, clients []client.Client) refresh.RefreshTokenRepo {
 	var dbMap *gorp.DbMap
 	if dsn := os.Getenv("DEX_TEST_DSN"); dsn == "" {
 		dbMap = db.NewMemDB()
@@ -26,7 +27,7 @@ func newRefreshRepo(t *testing.T, users []user.UserWithRemoteIdentities, clients
 	if _, err := db.NewUserRepoFromUsers(dbMap, users); err != nil {
 		t.Fatalf("Unable to add users: %v", err)
 	}
-	if _, err := db.NewClientIdentityRepoFromClients(dbMap, clients); err != nil {
+	if _, err := db.NewClientRepoFromClients(dbMap, clients); err != nil {
 		t.Fatalf("Unable to add clients: %v", err)
 	}
 	return db.NewRefreshTokenRepo(dbMap)
@@ -35,7 +36,7 @@ func newRefreshRepo(t *testing.T, users []user.UserWithRemoteIdentities, clients
 func TestRefreshTokenRepo(t *testing.T) {
 	clientID := "client1"
 	userID := "user1"
-	clients := []oidc.ClientIdentity{
+	clients := []client.Client{
 		{
 			Credentials: oidc.ClientCredentials{
 				ID:     clientID,

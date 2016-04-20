@@ -130,7 +130,7 @@ func TestHandleVerifyEmailResend(t *testing.T) {
 			keysFunc,
 			f.srv.UserEmailer,
 			f.userRepo,
-			f.clientIdentityRepo)
+			f.clientRepo)
 
 		w := httptest.NewRecorder()
 		u := "http://example.com"

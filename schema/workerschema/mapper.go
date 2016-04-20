@@ -4,11 +4,12 @@ import (
 	"errors"
 	"net/url"
 
+	"github.com/coreos/dex/client"
 	"github.com/coreos/go-oidc/oidc"
 )
 
-func MapSchemaClientToClientIdentity(sc Client) (oidc.ClientIdentity, error) {
-	ci := oidc.ClientIdentity{
+func MapSchemaClientToClient(sc Client) (client.Client, error) {
+	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID: sc.Id,
 		},
@@ -19,12 +20,12 @@ func MapSchemaClientToClientIdentity(sc Client) (oidc.ClientIdentity, error) {
 
 	for i, ru := range sc.RedirectURIs {
 		if ru == "" {
-			return oidc.ClientIdentity{}, errors.New("redirect URL empty")
+			return client.Client{}, errors.New("redirect URL empty")
 		}
 
 		u, err := url.Parse(ru)
 		if err != nil {
-			return oidc.ClientIdentity{}, errors.New("redirect URL invalid")
+			return client.Client{}, errors.New("redirect URL invalid")
 		}
 
 		ci.Metadata.RedirectURIs[i] = *u
@@ -33,7 +34,7 @@ func MapSchemaClientToClientIdentity(sc Client) (oidc.ClientIdentity, error) {
 	return ci, nil
 }
 
-func MapClientIdentityToSchemaClient(c oidc.ClientIdentity) Client {
+func MapClientToSchemaClient(c client.Client) Client {
 	cl := Client{
 		Id:           c.Credentials.ID,
 		RedirectURIs: make([]string, len(c.Metadata.RedirectURIs)),
@@ -44,7 +45,7 @@ func MapClientIdentityToSchemaClient(c oidc.ClientIdentity) Client {
 	return cl
 }
 
-func MapClientIdentityToSchemaClientWithSecret(c oidc.ClientIdentity) ClientWithSecret {
+func MapClientToSchemaClientWithSecret(c client.Client) ClientWithSecret {
 	cl := ClientWithSecret{
 		Id:           c.Credentials.ID,
 		Secret:       c.Credentials.Secret,

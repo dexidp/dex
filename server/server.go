@@ -60,7 +60,7 @@ type Server struct {
 	KeyManager                     key.PrivateKeyManager
 	KeySetRepo                     key.PrivateKeySetRepo
 	SessionManager                 *sessionmanager.SessionManager
-	ClientIdentityRepo             client.ClientIdentityRepo
+	ClientRepo                     client.ClientRepo
 	ConnectorConfigRepo            connector.ConnectorConfigRepo
 	Templates                      *template.Template
 	LoginTemplate                  *template.Template
@@ -213,13 +213,13 @@ func (s *Server) HTTPHandler() http.Handler {
 		s.KeyManager.PublicKeys,
 		s.UserEmailer,
 		s.UserRepo,
-		s.ClientIdentityRepo)))
+		s.ClientRepo)))
 
 	mux.Handle(httpPathSendResetPassword, &SendResetPasswordEmailHandler{
 		tpl:     s.SendResetPasswordEmailTemplate,
 		emailer: s.UserEmailer,
 		sm:      s.SessionManager,
-		cr:      s.ClientIdentityRepo,
+		cr:      s.ClientRepo,
 	})
 
 	mux.Handle(httpPathResetPassword, &ResetPasswordHandler{
@@ -256,11 +256,11 @@ func (s *Server) HTTPHandler() http.Handler {
 	apiBasePath := path.Join(httpPathAPI, APIVersion)
 	registerDiscoveryResource(apiBasePath, mux)
 
-	clientPath, clientHandler := registerClientResource(apiBasePath, s.ClientIdentityRepo)
+	clientPath, clientHandler := registerClientResource(apiBasePath, s.ClientRepo)
 	mux.Handle(path.Join(apiBasePath, clientPath), s.NewClientTokenAuthHandler(clientHandler))
 
 	usersAPI := usersapi.NewUsersAPI(s.dbMap, s.UserManager, s.UserEmailer, s.localConnectorID)
-	handler := NewUserMgmtServer(usersAPI, s.JWTVerifierFactory(), s.UserManager, s.ClientIdentityRepo).HTTPHandler()
+	handler := NewUserMgmtServer(usersAPI, s.JWTVerifierFactory(), s.UserManager, s.ClientRepo).HTTPHandler()
 
 	mux.Handle(apiBasePath+"/", handler)
 
@@ -271,14 +271,14 @@ func (s *Server) HTTPHandler() http.Handler {
 func (s *Server) NewClientTokenAuthHandler(handler http.Handler) http.Handler {
 	return &clientTokenMiddleware{
 		issuerURL: s.IssuerURL.String(),
-		ciRepo:    s.ClientIdentityRepo,
+		ciRepo:    s.ClientRepo,
 		keysFunc:  s.KeyManager.PublicKeys,
 		next:      handler,
 	}
 }
 
 func (s *Server) ClientMetadata(clientID string) (*oidc.ClientMetadata, error) {
-	return s.ClientIdentityRepo.Metadata(clientID)
+	return s.ClientRepo.Metadata(clientID)
 }
 
 func (s *Server) NewSession(ipdcID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error) {
@@ -365,7 +365,7 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 }
 
 func (s *Server) ClientCredsToken(creds oidc.ClientCredentials) (*jose.JWT, error) {
-	ok, err := s.ClientIdentityRepo.Authenticate(creds)
+	ok, err := s.ClientRepo.Authenticate(creds)
 	if err != nil {
 		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
 		return nil, oauth2.NewError(oauth2.ErrorServerError)
@@ -397,7 +397,7 @@ func (s *Server) ClientCredsToken(creds oidc.ClientCredentials) (*jose.JWT, erro
 }
 
 func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jose.JWT, string, error) {
-	ok, err := s.ClientIdentityRepo.Authenticate(creds)
+	ok, err := s.ClientRepo.Authenticate(creds)
 	if err != nil {
 		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
 		return nil, "", oauth2.NewError(oauth2.ErrorServerError)
@@ -466,7 +466,7 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 }
 
 func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose.JWT, error) {
-	ok, err := s.ClientIdentityRepo.Authenticate(creds)
+	ok, err := s.ClientRepo.Authenticate(creds)
 	if err != nil {
 		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
 		return nil, oauth2.NewError(oauth2.ErrorServerError)

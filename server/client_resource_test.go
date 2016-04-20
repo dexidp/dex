@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/db"
 	schema "github.com/coreos/dex/schema/workerschema"
 	"github.com/coreos/go-oidc/oidc"
@@ -27,7 +28,7 @@ func makeBody(s string) io.ReadCloser {
 func TestCreateInvalidRequest(t *testing.T) {
 	u := &url.URL{Scheme: "http", Host: "example.com", Path: "clients"}
 	h := http.Header{"Content-Type": []string{"application/json"}}
-	repo := db.NewClientIdentityRepo(db.NewMemDB())
+	repo := db.NewClientRepo(db.NewMemDB())
 	res := &clientResource{repo: repo}
 	tests := []struct {
 		req      *http.Request
@@ -118,7 +119,7 @@ func TestCreateInvalidRequest(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	repo := db.NewClientIdentityRepo(db.NewMemDB())
+	repo := db.NewClientRepo(db.NewMemDB())
 	res := &clientResource{repo: repo}
 	tests := [][]string{
 		[]string{"http://example.com"},
@@ -177,7 +178,7 @@ func TestList(t *testing.T) {
 	}
 
 	tests := []struct {
-		cs   []oidc.ClientIdentity
+		cs   []client.Client
 		want []*schema.Client
 	}{
 		// empty repo
@@ -187,8 +188,8 @@ func TestList(t *testing.T) {
 		},
 		// single client
 		{
-			cs: []oidc.ClientIdentity{
-				oidc.ClientIdentity{
+			cs: []client.Client{
+				client.Client{
 					Credentials: oidc.ClientCredentials{ID: "foo", Secret: b64Encode("bar")},
 					Metadata: oidc.ClientMetadata{
 						RedirectURIs: []url.URL{
@@ -206,8 +207,8 @@ func TestList(t *testing.T) {
 		},
 		// multi client
 		{
-			cs: []oidc.ClientIdentity{
-				oidc.ClientIdentity{
+			cs: []client.Client{
+				client.Client{
 					Credentials: oidc.ClientCredentials{ID: "foo", Secret: b64Encode("bar")},
 					Metadata: oidc.ClientMetadata{
 						RedirectURIs: []url.URL{
@@ -215,7 +216,7 @@ func TestList(t *testing.T) {
 						},
 					},
 				},
-				oidc.ClientIdentity{
+				client.Client{
 					Credentials: oidc.ClientCredentials{ID: "biz", Secret: b64Encode("bang")},
 					Metadata: oidc.ClientMetadata{
 						RedirectURIs: []url.URL{
@@ -238,7 +239,7 @@ func TestList(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), tt.cs)
+		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), tt.cs)
 		if err != nil {
 			t.Errorf("case %d: failed to create client identity repo: %v", i, err)
 			continue

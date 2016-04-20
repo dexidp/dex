@@ -14,10 +14,10 @@ import (
 )
 
 type clientResource struct {
-	repo client.ClientIdentityRepo
+	repo client.ClientRepo
 }
 
-func registerClientResource(prefix string, repo client.ClientIdentityRepo) (string, http.Handler) {
+func registerClientResource(prefix string, repo client.ClientRepo) (string, http.Handler) {
 	mux := http.NewServeMux()
 	c := &clientResource{
 		repo: repo,
@@ -49,7 +49,7 @@ func (c *clientResource) list(w http.ResponseWriter, r *http.Request) {
 
 	scs := make([]*schema.Client, len(cs))
 	for i, ci := range cs {
-		sc := schema.MapClientIdentityToSchemaClient(ci)
+		sc := schema.MapClientToSchemaClient(ci)
 		scs[i] = &sc
 	}
 
@@ -76,7 +76,7 @@ func (c *clientResource) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ci, err := schema.MapSchemaClientToClientIdentity(sc)
+	ci, err := schema.MapSchemaClientToClient(sc)
 	if err != nil {
 		log.Debugf("Invalid request data: %v", err)
 		writeAPIError(w, http.StatusBadRequest, newAPIError(errorInvalidClientMetadata, "missing or invalid field: redirectURIs"))
@@ -96,7 +96,9 @@ func (c *clientResource) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	creds, err := c.repo.New(clientID, ci.Metadata, false)
+	ci.Credentials.ID = clientID
+	creds, err := c.repo.New(ci)
+
 	if err != nil {
 		log.Errorf("Failed creating client: %v", err)
 		writeAPIError(w, http.StatusInternalServerError, newAPIError(errorServerError, "unable to create client"))
@@ -104,7 +106,7 @@ func (c *clientResource) create(w http.ResponseWriter, r *http.Request) {
 	}
 	ci.Credentials = *creds
 
-	ssc := schema.MapClientIdentityToSchemaClientWithSecret(ci)
+	ssc := schema.MapClientToSchemaClientWithSecret(ci)
 	w.Header().Add("Location", phttp.NewResourceLocation(r.URL, ci.Credentials.ID))
 	writeResponseWithBody(w, http.StatusCreated, ssc)
 }

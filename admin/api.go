@@ -5,36 +5,36 @@ import (
 	"net/http"
 
 	"github.com/coreos/go-oidc/oidc"
-	"github.com/go-gorp/gorp"
 
 	"github.com/coreos/dex/client"
-	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/schema/adminschema"
 	"github.com/coreos/dex/user"
 	"github.com/coreos/dex/user/manager"
 )
 
+var (
+	ClientIDGenerator = oidc.GenClientID
+)
+
 // AdminAPI provides the logic necessary to implement the Admin API.
 type AdminAPI struct {
-	userManager        *manager.UserManager
-	userRepo           user.UserRepo
-	passwordInfoRepo   user.PasswordInfoRepo
-	clientIdentityRepo client.ClientIdentityRepo
-	localConnectorID   string
+	userManager      *manager.UserManager
+	userRepo         user.UserRepo
+	passwordInfoRepo user.PasswordInfoRepo
+	clientRepo       client.ClientRepo
+	localConnectorID string
 }
 
-// TODO(ericchiang): Swap the DbMap for a storage interface. See #278
-
-func NewAdminAPI(dbMap *gorp.DbMap, userManager *manager.UserManager, localConnectorID string) *AdminAPI {
+func NewAdminAPI(userRepo user.UserRepo, pwiRepo user.PasswordInfoRepo, clientRepo client.ClientRepo, userManager *manager.UserManager, localConnectorID string) *AdminAPI {
 	if localConnectorID == "" {
 		panic("must specify non-blank localConnectorID")
 	}
 	return &AdminAPI{
-		userManager:        userManager,
-		userRepo:           db.NewUserRepo(dbMap),
-		passwordInfoRepo:   db.NewPasswordInfoRepo(dbMap),
-		clientIdentityRepo: db.NewClientIdentityRepo(dbMap),
-		localConnectorID:   localConnectorID,
+		userManager:      userManager,
+		userRepo:         userRepo,
+		passwordInfoRepo: pwiRepo,
+		clientRepo:       clientRepo,
+		localConnectorID: localConnectorID,
 	}
 }
 
@@ -67,10 +67,20 @@ func errorMaker(typ string, desc string, code int) func(internal error) Error {
 }
 
 var (
+	ErrorMissingClient = errorMaker("bad_request", "The 'client' cannot be empty", http.StatusBadRequest)(nil)
+
+	// Called when oidc.ClientMetadata.Valid() fails.
+	ErrorInvalidClientFunc = errorMaker("bad_request", "Your client could not be validated.", http.StatusBadRequest)
+
 	errorMap = map[error]func(error) Error{
 		user.ErrorNotFound:       errorMaker("resource_not_found", "Resource could not be found.", http.StatusNotFound),
 		user.ErrorDuplicateEmail: errorMaker("bad_request", "Email already in use.", http.StatusBadRequest),
 		user.ErrorInvalidEmail:   errorMaker("bad_request", "invalid email.", http.StatusBadRequest),
+
+		adminschema.ErrorInvalidRedirectURI: errorMaker("bad_request", "invalid redirectURI.", http.StatusBadRequest),
+		adminschema.ErrorInvalidLogoURI:     errorMaker("bad_request", "invalid logoURI.", http.StatusBadRequest),
+		adminschema.ErrorInvalidClientURI:   errorMaker("bad_request", "invalid clientURI.", http.StatusBadRequest),
+		adminschema.ErrorNoRedirectURI:      errorMaker("bad_request", "invalid redirectURI.", http.StatusBadRequest),
 	}
 )
 
@@ -116,25 +126,38 @@ func (a *AdminAPI) GetState() (adminschema.State, error) {
 	return state, nil
 }
 
-type ClientRegistrationRequest struct {
-	IsAdmin bool                `json:"isAdmin"`
-	Client  oidc.ClientMetadata `json:"client"`
-}
+func (a *AdminAPI) CreateClient(req adminschema.ClientCreateRequest) (adminschema.ClientCreateResponse, error) {
+	if req.Client == nil {
+		return adminschema.ClientCreateResponse{}, ErrorMissingClient
+	}
 
-func (a *AdminAPI) CreateClient(req ClientRegistrationRequest) (oidc.ClientRegistrationResponse, error) {
-	if err := req.Client.Valid(); err != nil {
-		return oidc.ClientRegistrationResponse{}, mapError(err)
-	}
-	// metadata is guarenteed to have at least one redirect_uri by earlier validation.
-	id, err := oidc.GenClientID(req.Client.RedirectURIs[0].Host)
+	cli, err := adminschema.MapSchemaClientToClient(*req.Client)
 	if err != nil {
-		return oidc.ClientRegistrationResponse{}, mapError(err)
+		return adminschema.ClientCreateResponse{}, mapError(err)
 	}
-	c, err := a.clientIdentityRepo.New(id, req.Client, req.IsAdmin)
+
+	if err := cli.Metadata.Valid(); err != nil {
+		return adminschema.ClientCreateResponse{}, ErrorInvalidClientFunc(err)
+	}
+
+	// metadata is guaranteed to have at least one redirect_uri by earlier validation.
+	id, err := ClientIDGenerator(cli.Metadata.RedirectURIs[0].Host)
 	if err != nil {
-		return oidc.ClientRegistrationResponse{}, mapError(err)
+		return adminschema.ClientCreateResponse{}, mapError(err)
 	}
-	return oidc.ClientRegistrationResponse{ClientID: c.ID, ClientSecret: c.Secret, ClientMetadata: req.Client}, nil
+
+	cli.Credentials.ID = id
+
+	creds, err := a.clientRepo.New(cli)
+	if err != nil {
+		return adminschema.ClientCreateResponse{}, mapError(err)
+	}
+
+	req.Client.Id = creds.ID
+	req.Client.Secret = creds.Secret
+	return adminschema.ClientCreateResponse{
+		Client: req.Client,
+	}, nil
 }
 
 func mapError(e error) error {

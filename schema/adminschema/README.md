@@ -20,32 +20,41 @@ __Version:__ v1
 }
 ```
 
+### Client
+
+
+
+```
+{
+    clientName: string // OPTIONAL. Name of the Client to be presented to the End-User. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) .,
+    clientURI: string // OPTIONAL. URL of the home page of the Client. The value of this field MUST point to a valid Web page. If present, the server SHOULD display this URL to the End-User in a followable fashion. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) .,
+    id: string // The client ID. Ignored in client create requests.,
+    isAdmin: boolean,
+    logoURI: string // OPTIONAL. URL that references a logo for the Client application. If present, the server SHOULD display this image to the End-User during approval. The value of this field MUST point to a valid image file. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) .,
+    redirectURIs: [
+        string
+    ],
+    secret: string
+}
+```
+
 ### ClientCreateRequest
 
 A request to register a client with dex.
 
 ```
 {
-    client: {
-        client_name: string // OPTIONAL. Name of the Client to be presented to the End-User. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) .,
-        client_uri: string // OPTIONAL. URL of the home page of the Client. The value of this field MUST point to a valid Web page. If present, the server SHOULD display this URL to the End-User in a followable fashion. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) .,
-        logo_uri: string // OPTIONAL. URL that references a logo for the Client application. If present, the server SHOULD display this image to the End-User during approval. The value of this field MUST point to a valid image file. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) .,
-        redirect_uris: [
-            string
-        ]
-    },
-    isAdmin: boolean
+    client: Client
 }
 ```
 
-### ClientRegistrationResponse
+### ClientCreateResponse
 
 Upon successful registration, an ID and secret is assigned to the client.
 
 ```
 {
-    client_id: string,
-    client_secret: string
+    client: Client
 }
 ```
 
@@ -137,7 +146,7 @@ Upon successful registration, an ID and secret is assigned to the client.
 
 > |Code|Description|Type|
 |:-----|:-----|:-----|
-| 200 |  | [ClientRegistrationResponse](#clientregistrationresponse) |
+| 200 |  | [ClientCreateResponse](#clientcreateresponse) |
 | default | Unexpected error |  |
 
 

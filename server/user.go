@@ -39,10 +39,10 @@ type UserMgmtServer struct {
 	api         *api.UsersAPI
 	jwtvFactory JWTVerifierFactory
 	um          *manager.UserManager
-	cir         client.ClientIdentityRepo
+	cir         client.ClientRepo
 }
 
-func NewUserMgmtServer(userMgmtAPI *api.UsersAPI, jwtvFactory JWTVerifierFactory, um *manager.UserManager, cir client.ClientIdentityRepo) *UserMgmtServer {
+func NewUserMgmtServer(userMgmtAPI *api.UsersAPI, jwtvFactory JWTVerifierFactory, um *manager.UserManager, cir client.ClientRepo) *UserMgmtServer {
 	return &UserMgmtServer{
 		api:         userMgmtAPI,
 		jwtvFactory: jwtvFactory,

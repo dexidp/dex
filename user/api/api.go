@@ -88,11 +88,11 @@ func (e Error) Error() string {
 // calling User. It is assumed that the clientID has already validated as an
 // admin app before calling.
 type UsersAPI struct {
-	manager            *manager.UserManager
-	localConnectorID   string
-	clientIdentityRepo client.ClientIdentityRepo
-	refreshRepo        refresh.RefreshTokenRepo
-	emailer            Emailer
+	manager          *manager.UserManager
+	localConnectorID string
+	clientRepo       client.ClientRepo
+	refreshRepo      refresh.RefreshTokenRepo
+	emailer          Emailer
 }
 
 type Emailer interface {
@@ -107,11 +107,11 @@ type Creds struct {
 // TODO(ericchiang): Don't pass a dbMap. See #385.
 func NewUsersAPI(dbMap *gorp.DbMap, userManager *manager.UserManager, emailer Emailer, localConnectorID string) *UsersAPI {
 	return &UsersAPI{
-		manager:            userManager,
-		refreshRepo:        db.NewRefreshTokenRepo(dbMap),
-		clientIdentityRepo: db.NewClientIdentityRepo(dbMap),
-		localConnectorID:   localConnectorID,
-		emailer:            emailer,
+		manager:          userManager,
+		refreshRepo:      db.NewRefreshTokenRepo(dbMap),
+		clientRepo:       db.NewClientRepo(dbMap),
+		localConnectorID: localConnectorID,
+		emailer:          emailer,
 	}
 }
 
@@ -157,7 +157,7 @@ func (u *UsersAPI) CreateUser(creds Creds, usr schema.User, redirURL url.URL) (s
 		return schema.UserCreateResponse{}, mapError(err)
 	}
 
-	metadata, err := u.clientIdentityRepo.Metadata(creds.ClientID)
+	metadata, err := u.clientRepo.Metadata(creds.ClientID)
 	if err != nil {
 		return schema.UserCreateResponse{}, mapError(err)
 	}
@@ -202,7 +202,7 @@ func (u *UsersAPI) ResendEmailInvitation(creds Creds, userID string, redirURL ur
 		return schema.ResendEmailInvitationResponse{}, ErrorUnauthorized
 	}
 
-	metadata, err := u.clientIdentityRepo.Metadata(creds.ClientID)
+	metadata, err := u.clientRepo.Metadata(creds.ClientID)
 	if err != nil {
 		return schema.ResendEmailInvitationResponse{}, mapError(err)
 	}

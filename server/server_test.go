@@ -130,7 +130,7 @@ func TestServerNewSession(t *testing.T) {
 
 	state := "pants"
 	nonce := "oncenay"
-	ci := oidc.ClientIdentity{
+	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID:     "XXX",
 			Secret: "secrete",
@@ -179,7 +179,7 @@ func TestServerNewSession(t *testing.T) {
 }
 
 func TestServerLogin(t *testing.T) {
-	ci := oidc.ClientIdentity{
+	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID:     "XXX",
 			Secret: clientTestSecret,
@@ -194,8 +194,8 @@ func TestServerLogin(t *testing.T) {
 			},
 		},
 	}
-	ciRepo := func() client.ClientIdentityRepo {
-		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{ci})
+	ciRepo := func() client.ClientRepo {
+		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{ci})
 		if err != nil {
 			t.Fatalf("Failed to create client identity repo: %v", err)
 		}
@@ -219,11 +219,11 @@ func TestServerLogin(t *testing.T) {
 	}
 
 	srv := &Server{
-		IssuerURL:          url.URL{Scheme: "http", Host: "server.example.com"},
-		KeyManager:         km,
-		SessionManager:     sm,
-		ClientIdentityRepo: ciRepo,
-		UserRepo:           userRepo,
+		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
+		KeyManager:     km,
+		SessionManager: sm,
+		ClientRepo:     ciRepo,
+		UserRepo:       userRepo,
 	}
 
 	ident := oidc.Identity{ID: "YYY", Name: "elroy", Email: "elroy@example.com"}
@@ -244,9 +244,9 @@ func TestServerLogin(t *testing.T) {
 }
 
 func TestServerLoginUnrecognizedSessionKey(t *testing.T) {
-	ciRepo := func() client.ClientIdentityRepo {
-		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
-			oidc.ClientIdentity{
+	ciRepo := func() client.ClientRepo {
+		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
+			client.Client{
 				Credentials: oidc.ClientCredentials{
 					ID: "XXX", Secret: clientTestSecret,
 				},
@@ -263,10 +263,10 @@ func TestServerLoginUnrecognizedSessionKey(t *testing.T) {
 	}
 	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 	srv := &Server{
-		IssuerURL:          url.URL{Scheme: "http", Host: "server.example.com"},
-		KeyManager:         km,
-		SessionManager:     sm,
-		ClientIdentityRepo: ciRepo,
+		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
+		KeyManager:     km,
+		SessionManager: sm,
+		ClientRepo:     ciRepo,
 	}
 
 	ident := oidc.Identity{ID: "YYY", Name: "elroy", Email: "elroy@example.com"}
@@ -281,7 +281,7 @@ func TestServerLoginUnrecognizedSessionKey(t *testing.T) {
 }
 
 func TestServerLoginDisabledUser(t *testing.T) {
-	ci := oidc.ClientIdentity{
+	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID:     "XXX",
 			Secret: clientTestSecret,
@@ -296,8 +296,8 @@ func TestServerLoginDisabledUser(t *testing.T) {
 			},
 		},
 	}
-	ciRepo := func() client.ClientIdentityRepo {
-		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{ci})
+	ciRepo := func() client.ClientRepo {
+		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{ci})
 		if err != nil {
 			t.Fatalf("Failed to create client identity repo: %v", err)
 		}
@@ -335,11 +335,11 @@ func TestServerLoginDisabledUser(t *testing.T) {
 	})
 
 	srv := &Server{
-		IssuerURL:          url.URL{Scheme: "http", Host: "server.example.com"},
-		KeyManager:         km,
-		SessionManager:     sm,
-		ClientIdentityRepo: ciRepo,
-		UserRepo:           userRepo,
+		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
+		KeyManager:     km,
+		SessionManager: sm,
+		ClientRepo:     ciRepo,
+		UserRepo:       userRepo,
 	}
 
 	ident := oidc.Identity{ID: "disabled-connector-id", Name: "elroy", Email: "elroy@example.com"}
@@ -355,14 +355,14 @@ func TestServerLoginDisabledUser(t *testing.T) {
 }
 
 func TestServerCodeToken(t *testing.T) {
-	ci := oidc.ClientIdentity{
+	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID:     "XXX",
 			Secret: clientTestSecret,
 		},
 	}
-	ciRepo := func() client.ClientIdentityRepo {
-		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{ci})
+	ciRepo := func() client.ClientRepo {
+		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{ci})
 		if err != nil {
 			t.Fatalf("Failed to create client identity repo: %v", err)
 		}
@@ -381,12 +381,12 @@ func TestServerCodeToken(t *testing.T) {
 	refreshTokenRepo := refreshtest.NewTestRefreshTokenRepo()
 
 	srv := &Server{
-		IssuerURL:          url.URL{Scheme: "http", Host: "server.example.com"},
-		KeyManager:         km,
-		SessionManager:     sm,
-		ClientIdentityRepo: ciRepo,
-		UserRepo:           userRepo,
-		RefreshTokenRepo:   refreshTokenRepo,
+		IssuerURL:        url.URL{Scheme: "http", Host: "server.example.com"},
+		KeyManager:       km,
+		SessionManager:   sm,
+		ClientRepo:       ciRepo,
+		UserRepo:         userRepo,
+		RefreshTokenRepo: refreshTokenRepo,
 	}
 
 	tests := []struct {
@@ -441,14 +441,14 @@ func TestServerCodeToken(t *testing.T) {
 }
 
 func TestServerTokenUnrecognizedKey(t *testing.T) {
-	ci := oidc.ClientIdentity{
+	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID:     "XXX",
 			Secret: clientTestSecret,
 		},
 	}
-	ciRepo := func() client.ClientIdentityRepo {
-		repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{ci})
+	ciRepo := func() client.ClientRepo {
+		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{ci})
 		if err != nil {
 			t.Fatalf("Failed to create client identity repo: %v", err)
 		}
@@ -460,10 +460,10 @@ func TestServerTokenUnrecognizedKey(t *testing.T) {
 	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 
 	srv := &Server{
-		IssuerURL:          url.URL{Scheme: "http", Host: "server.example.com"},
-		KeyManager:         km,
-		SessionManager:     sm,
-		ClientIdentityRepo: ciRepo,
+		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
+		KeyManager:     km,
+		SessionManager: sm,
+		ClientRepo:     ciRepo,
 	}
 
 	sessionID, err := sm.NewSession("connector_id", ci.Credentials.ID, "bogus", url.URL{}, "", false, []string{"openid", "offline_access"})
@@ -569,8 +569,8 @@ func TestServerTokenFail(t *testing.T) {
 		km := &StaticKeyManager{
 			signer: tt.signer,
 		}
-		ciRepo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
-			oidc.ClientIdentity{Credentials: ccFixture},
+		ciRepo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
+			client.Client{Credentials: ccFixture},
 		})
 		if err != nil {
 			t.Errorf("case %d: failed to create client identity repo: %v", i, err)
@@ -590,12 +590,12 @@ func TestServerTokenFail(t *testing.T) {
 		refreshTokenRepo := refreshtest.NewTestRefreshTokenRepo()
 
 		srv := &Server{
-			IssuerURL:          issuerURL,
-			KeyManager:         km,
-			SessionManager:     sm,
-			ClientIdentityRepo: ciRepo,
-			UserRepo:           userRepo,
-			RefreshTokenRepo:   refreshTokenRepo,
+			IssuerURL:        issuerURL,
+			KeyManager:       km,
+			SessionManager:   sm,
+			ClientRepo:       ciRepo,
+			UserRepo:         userRepo,
+			RefreshTokenRepo: refreshTokenRepo,
 		}
 
 		_, err = sm.NewSessionKey(sessionID)
@@ -731,9 +731,9 @@ func TestServerRefreshToken(t *testing.T) {
 			signer: tt.signer,
 		}
 
-		ciRepo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
-			oidc.ClientIdentity{Credentials: credXXX},
-			oidc.ClientIdentity{Credentials: credYYY},
+		ciRepo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
+			client.Client{Credentials: credXXX},
+			client.Client{Credentials: credYYY},
 		})
 		if err != nil {
 			t.Errorf("case %d: failed to create client identity repo: %v", i, err)
@@ -748,11 +748,11 @@ func TestServerRefreshToken(t *testing.T) {
 		refreshTokenRepo := refreshtest.NewTestRefreshTokenRepo()
 
 		srv := &Server{
-			IssuerURL:          issuerURL,
-			KeyManager:         km,
-			ClientIdentityRepo: ciRepo,
-			UserRepo:           userRepo,
-			RefreshTokenRepo:   refreshTokenRepo,
+			IssuerURL:        issuerURL,
+			KeyManager:       km,
+			ClientRepo:       ciRepo,
+			UserRepo:         userRepo,
+			RefreshTokenRepo: refreshTokenRepo,
 		}
 
 		if _, err := refreshTokenRepo.Create("testid-1", tt.clientID); err != nil {
@@ -784,9 +784,9 @@ func TestServerRefreshToken(t *testing.T) {
 		signer: signerFixture,
 	}
 
-	ciRepo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{
-		oidc.ClientIdentity{Credentials: credXXX},
-		oidc.ClientIdentity{Credentials: credYYY},
+	ciRepo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
+		client.Client{Credentials: credXXX},
+		client.Client{Credentials: credYYY},
 	})
 	if err != nil {
 		t.Fatalf("failed to create client identity repo: %v", err)
@@ -808,11 +808,11 @@ func TestServerRefreshToken(t *testing.T) {
 	refreshTokenRepo := refreshtest.NewTestRefreshTokenRepo()
 
 	srv := &Server{
-		IssuerURL:          issuerURL,
-		KeyManager:         km,
-		ClientIdentityRepo: ciRepo,
-		UserRepo:           userRepo,
-		RefreshTokenRepo:   refreshTokenRepo,
+		IssuerURL:        issuerURL,
+		KeyManager:       km,
+		ClientRepo:       ciRepo,
+		UserRepo:         userRepo,
+		RefreshTokenRepo: refreshTokenRepo,
 	}
 
 	if _, err := refreshTokenRepo.Create("testid-2", credXXX.ID); err != nil {

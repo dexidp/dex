@@ -26,7 +26,7 @@ func TestClientToken(t *testing.T) {
 	now := time.Now()
 	tomorrow := now.Add(24 * time.Hour)
 	validClientID := "valid-client"
-	ci := oidc.ClientIdentity{
+	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID:     validClientID,
 			Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
@@ -37,7 +37,7 @@ func TestClientToken(t *testing.T) {
 			},
 		},
 	}
-	repo, err := db.NewClientIdentityRepoFromClients(db.NewMemDB(), []oidc.ClientIdentity{ci})
+	repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{ci})
 	if err != nil {
 		t.Fatalf("Failed to create client identity repo: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestClientToken(t *testing.T) {
 
 	tests := []struct {
 		keys     []key.PublicKey
-		repo     client.ClientIdentityRepo
+		repo     client.ClientRepo
 		header   string
 		wantCode int
 	}{
@@ -114,7 +114,7 @@ func TestClientToken(t *testing.T) {
 		// empty repo
 		{
 			keys:     []key.PublicKey{pubKey},
-			repo:     db.NewClientIdentityRepo(db.NewMemDB()),
+			repo:     db.NewClientRepo(db.NewMemDB()),
 			header:   fmt.Sprintf("BEARER %s", validJWT),
 			wantCode: http.StatusUnauthorized,
 		},

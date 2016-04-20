@@ -143,7 +143,7 @@ func TestClientRegistration(t *testing.T) {
 				return fmt.Errorf("no client id in registration response")
 			}
 
-			metadata, err := fixtures.clientIdentityRepo.Metadata(r.ClientID)
+			metadata, err := fixtures.clientRepo.Metadata(r.ClientID)
 			if err != nil {
 				return fmt.Errorf("failed to lookup client id after creation")
 			}

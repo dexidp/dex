@@ -45,53 +45,62 @@
               }
           }
       },
-      "ClientCreateRequest": {
-          "id": "ClientCreateRequest",
-          "type": "object",
-          "description": "A request to register a client with dex.",
-          "properties": {
-              "isAdmin": {
-                  "type": "boolean"
-              },
-              "client": {
-                  "type": "object",
-                  "properties": {
-                      "redirect_uris": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        },
-                        "description": "REQUIRED. Array of Redirection URI values used by the Client. One of these registered Redirection URI values MUST exactly match the redirect_uri parameter value used in each Authorization Request, with the matching performed as described in Section 6.2.1 of [RFC3986] ( Berners-Lee, T., Fielding, R., and L. Masinter, “Uniform Resource Identifier (URI): Generic Syntax,” January 2005. ) (Simple String Comparison)."
-                      },
-                      "client_name": {
-                        "type": "string",
-                        "description": "OPTIONAL. Name of the Client to be presented to the End-User. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) ."
-                      },
-                      "logo_uri": {
-                        "type": "string",
-                        "description": "OPTIONAL. URL that references a logo for the Client application. If present, the server SHOULD display this image to the End-User during approval. The value of this field MUST point to a valid image file. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) ."
-                      },
-                      "client_uri": {
-                        "type": "string",
-                        "description": "OPTIONAL. URL of the home page of the Client. The value of this field MUST point to a valid Web page. If present, the server SHOULD display this URL to the End-User in a followable fashion. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) ."
-                      }
-                  }
-              }
+      "Client": {
+        "id": "Client",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The client ID. Ignored in client create requests."
+          },
+          "secret": {
+            "type": "string",
+            "description": "The client secret. Ignored in client create requests."
+          },
+          "isAdmin": {
+            "type": "boolean"
+          },
+          "redirectURIs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "REQUIRED. Array of Redirection URI values used by the Client. One of these registered Redirection URI values MUST exactly match the redirect_uri parameter value used in each Authorization Request, with the matching performed as described in Section 6.2.1 of [RFC3986] ( Berners-Lee, T., Fielding, R., and L. Masinter, “Uniform Resource Identifier (URI): Generic Syntax,” January 2005. ) (Simple String Comparison)."
+          },
+          "clientName": {
+            "type": "string",
+            "description": "OPTIONAL. Name of the Client to be presented to the End-User. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) ."
+          },
+          "logoURI": {
+            "type": "string",
+            "description": "OPTIONAL. URL that references a logo for the Client application. If present, the server SHOULD display this image to the End-User during approval. The value of this field MUST point to a valid image file. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) ."
+          },
+          "clientURI": {
+            "type": "string",
+            "description": "OPTIONAL. URL of the home page of the Client. The value of this field MUST point to a valid Web page. If present, the server SHOULD display this URL to the End-User in a followable fashion. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) ."
           }
+        }
       },
-      "ClientRegistrationResponse": {
-          "id": "ClientRegistrationResponse",
-          "type": "object",
-          "description": "Upon successful registration, an ID and secret is assigned to the client.",
-          "properties": {
-              "client_id": {
-                "type": "string"
-              },
-              "client_secret": {
-                "type": "string"
-              }
-          }
+    "ClientCreateRequest": {
+      "id": "ClientCreateRequest",
+      "type": "object",
+      "description": "A request to register a client with dex.",
+      "properties": {
+        "client": {
+          "$ref": "Client"
+        }
       }
+    },
+    "ClientCreateResponse": {
+      "id": "ClientCreateResponse",
+      "type": "object",
+      "description": "Upon successful registration, an ID and secret is assigned to the client.",
+      "properties": {
+        "client":{
+          "$ref": "Client"
+        }
+      }
+    }
   },
   "resources": {
       "Admin": {
@@ -154,7 +163,7 @@
                       "$ref": "ClientCreateRequest"
                   },
                   "response": {
-                      "$ref": "ClientRegistrationResponse"
+                      "$ref": "ClientCreateResponse"
                   }
               }
           }

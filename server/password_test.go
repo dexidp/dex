@@ -267,7 +267,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			tpl:     f.srv.SendResetPasswordEmailTemplate,
 			emailer: f.srv.UserEmailer,
 			sm:      f.sessionManager,
-			cr:      f.clientIdentityRepo,
+			cr:      f.clientRepo,
 		}
 
 		w := httptest.NewRecorder()

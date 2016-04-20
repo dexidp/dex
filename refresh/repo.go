@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"errors"
 
-	"github.com/coreos/go-oidc/oidc"
+	"github.com/coreos/dex/client"
 )
 
 const (
@@ -54,5 +54,5 @@ type RefreshTokenRepo interface {
 	RevokeTokensForClient(userID, clientID string) error
 
 	// ClientsWithRefreshTokens returns a list of all clients the user has an outstanding client with.
-	ClientsWithRefreshTokens(userID string) ([]oidc.ClientIdentity, error)
+	ClientsWithRefreshTokens(userID string) ([]client.Client, error)
 }
