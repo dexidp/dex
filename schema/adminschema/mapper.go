@@ -8,6 +8,13 @@ import (
 	"github.com/coreos/go-oidc/oidc"
 )
 
+var (
+	ErrorNoRedirectURI      = errors.New("No Redirect URIs")
+	ErrorInvalidRedirectURI = errors.New("Invalid Redirect URI")
+	ErrorInvalidLogoURI     = errors.New("Invalid Logo URI")
+	ErrorInvalidClientURI   = errors.New("Invalid Client URI")
+)
+
 func MapSchemaClientToClient(sc Client) (client.Client, error) {
 	c := client.Client{
 		Credentials: oidc.ClientCredentials{
@@ -20,12 +27,12 @@ func MapSchemaClientToClient(sc Client) (client.Client, error) {
 	}
 	for i, ru := range sc.RedirectURIs {
 		if ru == "" {
-			return client.Client{}, errors.New("redirect URL empty")
+			return client.Client{}, ErrorNoRedirectURI
 		}
 
 		u, err := url.Parse(ru)
 		if err != nil {
-			return client.Client{}, errors.New("redirect URL invalid")
+			return client.Client{}, ErrorInvalidRedirectURI
 		}
 
 		c.Metadata.RedirectURIs[i] = *u
@@ -36,7 +43,7 @@ func MapSchemaClientToClient(sc Client) (client.Client, error) {
 	if sc.LogoURI != "" {
 		logoURI, err := url.Parse(sc.LogoURI)
 		if err != nil {
-			return client.Client{}, errors.New("logoURI invalid")
+			return client.Client{}, ErrorInvalidLogoURI
 		}
 		c.Metadata.LogoURI = logoURI
 	}
@@ -44,10 +51,12 @@ func MapSchemaClientToClient(sc Client) (client.Client, error) {
 	if sc.ClientURI != "" {
 		clientURI, err := url.Parse(sc.ClientURI)
 		if err != nil {
-			return client.Client{}, errors.New("clientURI invalid")
+			return client.Client{}, ErrorInvalidClientURI
 		}
 		c.Metadata.ClientURI = clientURI
 	}
+
+	c.Admin = sc.IsAdmin
 	return c, nil
 }
 
@@ -69,5 +78,6 @@ func MapClientToSchemaClient(c client.Client) Client {
 	if c.Metadata.ClientURI != nil {
 		cl.ClientURI = c.Metadata.ClientURI.String()
 	}
+	cl.IsAdmin = c.Admin
 	return cl
 }

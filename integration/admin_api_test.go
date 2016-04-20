@@ -1,20 +1,23 @@
 package integration
 
 import (
-	"errors"
+	"encoding/base64"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
 
+	"github.com/coreos/go-oidc/oidc"
 	"github.com/kylelemons/godebug/pretty"
 	"google.golang.org/api/googleapi"
 
 	"github.com/coreos/dex/admin"
+	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/schema/adminschema"
 	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/user"
-	"github.com/coreos/go-oidc/oidc"
 )
 
 const (
@@ -24,6 +27,7 @@ const (
 type adminAPITestFixtures struct {
 	ur       user.UserRepo
 	pwr      user.PasswordInfoRepo
+	cr       client.ClientRepo
 	adAPI    *admin.AdminAPI
 	adSrv    *server.AdminServer
 	hSrv     *httptest.Server
@@ -78,9 +82,17 @@ func makeAdminAPITestFixtures() *adminAPITestFixtures {
 	f := &adminAPITestFixtures{}
 
 	dbMap, ur, pwr, um := makeUserObjects(adminUsers, adminPasswords)
+
+	var cliCount int
+	secGen := func() ([]byte, error) {
+		return []byte(fmt.Sprintf("client_%v", cliCount)), nil
+	}
+	cr := db.NewClientRepoWithSecretGenerator(dbMap, secGen)
+
+	f.cr = cr
 	f.ur = ur
 	f.pwr = pwr
-	f.adAPI = admin.NewAdminAPI(dbMap, um, "local")
+	f.adAPI = admin.NewAdminAPI(ur, pwr, cr, um, "local")
 	f.adSrv = server.NewAdminServer(f.adAPI, nil, adminAPITestSecret)
 	f.hSrv = httptest.NewServer(f.adSrv.HTTPHandler())
 	f.hc = &http.Client{
@@ -256,50 +268,147 @@ func TestCreateAdmin(t *testing.T) {
 }
 
 func TestCreateClient(t *testing.T) {
+	oldGen := admin.ClientIDGenerator
+	admin.ClientIDGenerator = func(hostport string) (string, error) {
+		return fmt.Sprintf("client_%v", hostport), nil
+	}
+	defer func() {
+		admin.ClientIDGenerator = oldGen
+	}()
+
+	mustParseURL := func(s string) *url.URL {
+		u, err := url.Parse(s)
+		if err != nil {
+			t.Fatalf("couldn't parse URL: %v", err)
+		}
+		return u
+	}
+	addIDAndSecret := func(cli adminschema.Client) *adminschema.Client {
+		cli.Id = "client_auth.example.com"
+		cli.Secret = base64.URLEncoding.EncodeToString([]byte("client_0"))
+		return &cli
+	}
+
+	adminClientGood := adminschema.Client{
+		RedirectURIs: []string{"https://auth.example.com/"},
+	}
+	clientGood := client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID: "client_auth.example.com",
+		},
+		Metadata: oidc.ClientMetadata{
+			RedirectURIs: []url.URL{*mustParseURL("https://auth.example.com/")},
+		},
+	}
+
+	adminAdminClient := adminClientGood
+	adminAdminClient.IsAdmin = true
+	clientGoodAdmin := clientGood
+	clientGoodAdmin.Admin = true
+
+	adminMultiRedirect := adminClientGood
+	adminMultiRedirect.RedirectURIs = []string{"https://auth.example.com/", "https://auth2.example.com/"}
+	clientMultiRedirect := clientGoodAdmin
+	clientMultiRedirect.Metadata.RedirectURIs = append(
+		clientMultiRedirect.Metadata.RedirectURIs,
+		*mustParseURL("https://auth2.example.com/"))
+
 	tests := []struct {
-		client    oidc.ClientMetadata
-		wantError bool
+		req        adminschema.ClientCreateRequest
+		want       adminschema.ClientCreateResponse
+		wantClient client.Client
+		wantError  int
 	}{
 		{
-			client:    oidc.ClientMetadata{},
-			wantError: true,
+			req:       adminschema.ClientCreateRequest{},
+			wantError: http.StatusBadRequest,
 		},
 		{
-			client: oidc.ClientMetadata{
-				RedirectURIs: []url.URL{
-					{Scheme: "https", Host: "auth.example.com", Path: "/"},
+			req: adminschema.ClientCreateRequest{
+				Client: &adminschema.Client{
+					IsAdmin: true,
 				},
 			},
+			wantError: http.StatusBadRequest,
+		},
+		{
+			req: adminschema.ClientCreateRequest{
+				Client: &adminschema.Client{
+					RedirectURIs: []string{"909090"},
+				},
+			},
+			wantError: http.StatusBadRequest,
+		},
+		{
+			req: adminschema.ClientCreateRequest{
+				Client: &adminClientGood,
+			},
+			want: adminschema.ClientCreateResponse{
+				Client: addIDAndSecret(adminClientGood),
+			},
+			wantClient: clientGood,
+		},
+		{
+			req: adminschema.ClientCreateRequest{
+				Client: &adminAdminClient,
+			},
+			want: adminschema.ClientCreateResponse{
+				Client: addIDAndSecret(adminAdminClient),
+			},
+			wantClient: clientGoodAdmin,
+		},
+		{
+			req: adminschema.ClientCreateRequest{
+				Client: &adminMultiRedirect,
+			},
+			want: adminschema.ClientCreateResponse{
+				Client: addIDAndSecret(adminMultiRedirect),
+			},
+			wantClient: clientMultiRedirect,
 		},
 	}
 
 	for i, tt := range tests {
-		err := func() error {
-			f := makeAdminAPITestFixtures()
-			req := &adminschema.ClientCreateRequest{
-				Client: &adminschema.Client{},
+		if i != 3 {
+			continue
+		}
+		f := makeAdminAPITestFixtures()
+
+		resp, err := f.adClient.Client.Create(&tt.req).Do()
+		if tt.wantError != 0 {
+			if err == nil {
+				t.Errorf("case %d: want non-nil error.", i)
+				continue
 			}
 
-			for _, redirectURI := range tt.client.RedirectURIs {
-				req.Client.RedirectURIs = append(req.Client.RedirectURIs, redirectURI.String())
+			aErr, ok := err.(*googleapi.Error)
+			if !ok {
+				t.Errorf("case %d: could not assert as adminSchema.Error: %v", i, err)
+				continue
 			}
-			resp, err := f.adClient.Client.Create(req).Do()
-			if err != nil {
-				if tt.wantError {
-					return nil
-				}
-				return err
+			if aErr.Code != tt.wantError {
+				t.Errorf("case %d: want aErr.Code=%v, got %v", i, tt.wantError, aErr.Code)
+				continue
 			}
-			if resp.Client.Id == "" {
-				return errors.New("no client id returned")
-			}
-			if resp.Client.Secret == "" {
-				return errors.New("no client secret returned")
-			}
-			return nil
-		}()
+			continue
+		}
+
 		if err != nil {
-			t.Errorf("case %d: %v", i, err)
+			t.Errorf("case %d: unexpected error creating client: %v", i, err)
+			continue
+		}
+
+		if diff := pretty.Compare(tt.want, resp); diff != "" {
+			t.Errorf("case %d: Compare(want, got) = %v", i, diff)
+		}
+
+		repoClient, err := f.cr.Get(resp.Client.Id)
+		if err != nil {
+			t.Errorf("case %d: Unexpected error getting client: %v", i, err)
+		}
+
+		if diff := pretty.Compare(tt.wantClient, repoClient); diff != "" {
+			t.Errorf("case %d: Compare(wantClient, repoClient) = %v", i, diff)
 		}
 	}
 }

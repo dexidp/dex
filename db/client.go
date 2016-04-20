@@ -92,10 +92,20 @@ func (m *clientModel) Client() (*client.Client, error) {
 
 func NewClientRepo(dbm *gorp.DbMap) client.ClientRepo {
 	return newClientRepo(dbm)
+
+}
+
+func NewClientRepoWithSecretGenerator(dbm *gorp.DbMap, secGen SecretGenerator) client.ClientRepo {
+	rep := newClientRepo(dbm)
+	rep.secretGenerator = secGen
+	return rep
 }
 
 func newClientRepo(dbm *gorp.DbMap) *clientRepo {
-	return &clientRepo{db: &db{dbm}}
+	return &clientRepo{
+		db:              &db{dbm},
+		secretGenerator: DefaultSecretGenerator,
+	}
 }
 
 func NewClientRepoFromClients(dbm *gorp.DbMap, clients []client.Client) (client.ClientRepo, error) {
@@ -127,6 +137,7 @@ func NewClientRepoFromClients(dbm *gorp.DbMap, clients []client.Client) (client.
 
 type clientRepo struct {
 	*db
+	secretGenerator SecretGenerator
 }
 
 func (r *clientRepo) Get(clientID string) (client.Client, error) {
@@ -249,8 +260,14 @@ func isAlreadyExistsErr(err error) bool {
 	return false
 }
 
+type SecretGenerator func() ([]byte, error)
+
+func DefaultSecretGenerator() ([]byte, error) {
+	return pcrypto.RandBytes(maxSecretLength)
+}
+
 func (r *clientRepo) New(cli client.Client) (*oidc.ClientCredentials, error) {
-	secret, err := pcrypto.RandBytes(maxSecretLength)
+	secret, err := r.secretGenerator()
 	if err != nil {
 		return nil, err
 	}
