@@ -6,6 +6,28 @@ type: Opaque
 data:
   key-secrets: ZUhoNGVIaDRlSGg0ZUhoNGVIaDRlSGg0ZUhoNGVIaDRlSGg0ZUhoNGVIZz0= # 32 x's base64 encoded twice.
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dex-connectors
+data:
+  connector.json: |
+    [
+      {
+        "id": "local",
+        "type": "local"
+      }
+    ]
+    # google-connector.json: | 
+    #   [{
+    #     "id": "google",
+    #     "type": "oidc",
+    #     "issuerURL": "https://accounts.google.com",
+    #     "clientID": "<your id here>",
+    #     "clientSecret": "<your secret here>",
+    #     "trustedEmailProvider": true
+    #   }]
+---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -80,25 +102,4 @@ spec:
   selector:
     app: dex
     role: overlord
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: dex-connectors
-data:
-  connector.json: |
-    [
-      {
-        "id": "local",
-        "type": "local"
-      }
-    ]
-    # google-connector.json: | 
-    #   [{
-    #     "id": "google",
-    #     "type": "oidc",
-    #     "issuerURL": "https://accounts.google.com",
-    #     "clientID": "<your id here>",
-    #     "clientSecret": "<your secret here>",
-    #     "trustedEmailProvider": true
-    #   }]
+
