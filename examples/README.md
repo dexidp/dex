@@ -52,7 +52,7 @@ The example CLI will start, connect to the Dex instance to gather discovery info
 
 ```console
 ./bin/example-cli \
-	--client-id example-cli
-	--client-secret examplie-cli-secret
+	--client-id example-cli \
+	--client-secret examplie-cli-secret \
 	--discovery=http://127.0.0.1:5556
 ```
