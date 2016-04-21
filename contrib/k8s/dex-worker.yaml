@@ -40,19 +40,19 @@ spec:
             - containerPort: 5556
               name: worker-port
             readinessProbe:
-              httpGet:
+              httpGet: &health
                 path: /health
                 port: 5556
               timeoutSeconds: 1
               periodSeconds: 2
             livenessProbe:
-              httpGet:
-                path: /health
-                port: 5556
+              httpGet: *health
               initialDelaySeconds: 15
               timeoutSeconds: 1
-              # In production, you will likely want to include your own trusted
-              # /etc/ca-certificates and /etc/ssl in your container.
+            resources:
+              requests: { cpu: 200m, memory: 256Mi }
+            # In production, you will likely want to include your own trusted
+            # /etc/ca-certificates and /etc/ssl in your container.
             volumeMounts:
               - name: ca
                 mountPath: /etc/ca-certificates
