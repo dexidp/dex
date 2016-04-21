@@ -1,0 +1,7 @@
+#!/bin/bash -e
+
+# This creates a URL which will pre-populate an issue with the contents of PROPOSAL_TEMPLATE.md
+
+BODY=$(python -c "import urllib, sys; print urllib.quote(sys.stdin.read()[0:-1])" < PROPOSAL_TEMPLATE.md)
+
+echo "https://github.com/coreos/dex/issues/new?body=$BODY"
