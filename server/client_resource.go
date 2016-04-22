@@ -87,7 +87,7 @@ func (c *clientResource) create(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, newAPIError(errorInvalidClientMetadata, err.Error()))
 		return
 	}
-	creds, err := c.manager.New(ci)
+	creds, err := c.manager.New(ci, nil)
 
 	if err != nil {
 		log.Errorf("Failed creating client: %v", err)

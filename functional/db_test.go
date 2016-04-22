@@ -316,7 +316,7 @@ func TestDBClientRepoAuthenticate(t *testing.T) {
 	cli := client.Client{
 		Metadata: cm,
 	}
-	cc, err := m.New(cli)
+	cc, err := m.New(cli, nil)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

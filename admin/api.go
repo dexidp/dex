@@ -141,7 +141,7 @@ func (a *AdminAPI) CreateClient(req adminschema.ClientCreateRequest) (adminschem
 	}
 
 	// metadata is guaranteed to have at least one redirect_uri by earlier validation.
-	creds, err := a.clientManager.New(cli)
+	creds, err := a.clientManager.New(cli, nil)
 	if err != nil {
 		return adminschema.ClientCreateResponse{}, mapError(err)
 	}

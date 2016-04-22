@@ -37,7 +37,7 @@ func TestClientToken(t *testing.T) {
 	cli := client.Client{
 		Metadata: clientMetadata,
 	}
-	creds, err := clientManager.New(cli)
+	creds, err := clientManager.New(cli, nil)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}

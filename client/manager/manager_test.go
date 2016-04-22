@@ -132,7 +132,7 @@ func TestAuthenticate(t *testing.T) {
 	cli := client.Client{
 		Metadata: cm,
 	}
-	cc, err := f.mgr.New(cli)
+	cc, err := f.mgr.New(cli, nil)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
