@@ -84,6 +84,13 @@ const DiscoveryJSON = `{
         "clientURI": {
           "type": "string",
           "description": "OPTIONAL. URL of the home page of the Client. The value of this field MUST point to a valid Web page. If present, the server SHOULD display this URL to the End-User in a followable fashion. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) ."
+        },
+        "trustedPeers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Array of ClientIDs of clients that are allowed to mint ID tokens for the client being created."
         }
       }
     },
@@ -228,4 +235,5 @@ const DiscoveryJSON = `{
     }
   }
 }
+
 `

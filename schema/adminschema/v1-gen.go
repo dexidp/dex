@@ -148,6 +148,10 @@ type Client struct {
 
 	// Secret: The client secret. Ignored in client create requests.
 	Secret string `json:"secret,omitempty"`
+
+	// TrustedPeers: Array of ClientIDs of clients that are allowed to mint
+	// ID tokens for the client being created.
+	TrustedPeers []string `json:"trustedPeers,omitempty"`
 }
 
 type ClientCreateRequest struct {
