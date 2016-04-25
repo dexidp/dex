@@ -62,11 +62,18 @@ spec:
             - containerPort: 5557
               name: overlord-port
             livenessProbe:
-              httpGet:
+              httpGet: &health
                 path: /health
                 port: 5557
-              initialDelaySeconds: 16
+              initialDelaySeconds: 15
               timeoutSeconds: 1
+            readinessProbe:
+              httpGet: *health
+              initialDelaySeconds: 5
+              timeoutSeconds: 5
+              periodSeconds: 5
+            resources:
+              requests: { cpu: 500m, memory: 512Mi }
             volumeMounts:
               - name: connectors
                 mountPath: /etc/dex-connectors
