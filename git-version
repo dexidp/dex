@@ -15,7 +15,7 @@ fi
 
 # check for changed files (not untracked files)
 if [ -n "$(git diff --shortstat 2> /dev/null | tail -n1)" ]; then
-	VERSION="${VERSION}+dirty"
+	VERSION="${VERSION}-dirty"
 fi
 
 echo $VERSION
