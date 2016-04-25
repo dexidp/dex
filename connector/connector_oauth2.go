@@ -84,7 +84,7 @@ func (c *OAuth2Connector) handleCallbackFunc(lf oidc.LoginFunc, errorURL url.URL
 			redirectError(w, errorURL, q)
 			return
 		}
-		ident, err := c.conn.Identity(newAuthenticatedClient(token, http.DefaultClient))
+		ident, err := c.conn.Identity(newAuthenticatedClient(token, c.conn.Client().HttpClient()))
 		if err != nil {
 			log.Errorf("Unable to retrieve identity: %v", err)
 			q.Set("error", oauth2.ErrorUnsupportedResponseType)
