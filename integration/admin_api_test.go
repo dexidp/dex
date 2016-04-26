@@ -86,7 +86,9 @@ func makeAdminAPITestFixtures() *adminAPITestFixtures {
 
 	var cliCount int
 	secGen := func() ([]byte, error) {
-		return []byte(fmt.Sprintf("client_%v", cliCount)), nil
+		id := []byte(fmt.Sprintf("client_%v", cliCount))
+		cliCount++
+		return id, nil
 	}
 	cr := db.NewClientRepo(dbMap)
 	clientIDGenerator := func(hostport string) (string, error) {
@@ -379,9 +381,11 @@ func TestCreateClient(t *testing.T) {
 		}
 		return u
 	}
-	addIDAndSecret := func(cli adminschema.Client) *adminschema.Client {
-		cli.Id = "client_auth.example.com"
-		cli.Secret = base64.URLEncoding.EncodeToString([]byte("client_0"))
+
+	addIDAndSecret := func(cliNum int, hostport string, cli adminschema.Client) *adminschema.Client {
+		cli.Id = fmt.Sprintf("client_%v.example.com", hostport)
+		cli.Secret = base64.URLEncoding.EncodeToString([]byte(
+			fmt.Sprintf("client_%d", cliNum)))
 		return &cli
 	}
 
@@ -404,16 +408,20 @@ func TestCreateClient(t *testing.T) {
 
 	adminMultiRedirect := adminClientGood
 	adminMultiRedirect.RedirectURIs = []string{"https://auth.example.com/", "https://auth2.example.com/"}
-	clientMultiRedirect := clientGoodAdmin
+	clientMultiRedirect := clientGood
 	clientMultiRedirect.Metadata.RedirectURIs = append(
 		clientMultiRedirect.Metadata.RedirectURIs,
 		*mustParseURL("https://auth2.example.com/"))
 
+	adminClientWithPeers := adminClientGood
+	adminClientWithPeers.TrustedPeers = []string{"test_client_0"}
+
 	tests := []struct {
-		req        adminschema.ClientCreateRequest
-		want       adminschema.ClientCreateResponse
-		wantClient client.Client
-		wantError  int
+		req              adminschema.ClientCreateRequest
+		want             adminschema.ClientCreateResponse
+		wantClient       client.Client
+		wantError        int
+		wantTrustedPeers []string
 	}{
 		{
 			req:       adminschema.ClientCreateRequest{},
@@ -440,7 +448,7 @@ func TestCreateClient(t *testing.T) {
 				Client: &adminClientGood,
 			},
 			want: adminschema.ClientCreateResponse{
-				Client: addIDAndSecret(adminClientGood),
+				Client: addIDAndSecret(2, "auth", adminClientGood),
 			},
 			wantClient: clientGood,
 		},
@@ -449,7 +457,7 @@ func TestCreateClient(t *testing.T) {
 				Client: &adminAdminClient,
 			},
 			want: adminschema.ClientCreateResponse{
-				Client: addIDAndSecret(adminAdminClient),
+				Client: addIDAndSecret(2, "auth", adminAdminClient),
 			},
 			wantClient: clientGoodAdmin,
 		},
@@ -458,17 +466,39 @@ func TestCreateClient(t *testing.T) {
 				Client: &adminMultiRedirect,
 			},
 			want: adminschema.ClientCreateResponse{
-				Client: addIDAndSecret(adminMultiRedirect),
+				Client: addIDAndSecret(2, "auth", adminMultiRedirect),
 			},
 			wantClient: clientMultiRedirect,
+		},
+		{
+			req: adminschema.ClientCreateRequest{
+				Client: &adminClientWithPeers,
+			},
+			want: adminschema.ClientCreateResponse{
+				Client: addIDAndSecret(2, "auth", adminClientWithPeers),
+			},
+			wantClient:       clientGood,
+			wantTrustedPeers: []string{"test_client_0"},
 		},
 	}
 
 	for i, tt := range tests {
-		if i != 3 {
-			continue
-		}
 		f := makeAdminAPITestFixtures()
+		for j, r := range []string{"https://client0.example.com",
+			"https://client1.example.com"} {
+			_, err := f.cr.New(nil, client.Client{
+				Credentials: oidc.ClientCredentials{
+					ID: fmt.Sprintf("test_client_%d", j),
+				},
+				Metadata: oidc.ClientMetadata{
+					RedirectURIs: []url.URL{*mustParseURL(r)},
+				},
+			})
+			if err != nil {
+				t.Errorf("case %d, client %d: unexpected error creating client: %v", i, j, err)
+				continue
+			}
+		}
 
 		resp, err := f.adClient.Client.Create(&tt.req).Do()
 		if tt.wantError != 0 {
