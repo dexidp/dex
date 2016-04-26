@@ -334,82 +334,7 @@ func (c *ClientsListCall) Do() (*ClientPage, error) {
 
 }
 
-// method id "dex.Client.Revoke":
-
-type ClientsRevokeCall struct {
-	s        *Service
-	userid   string
-	clientid string
-	opt_     map[string]interface{}
-}
-
-// Revoke: Revoke all refresh tokens issues to the client for the
-// authenticated user.
-func (r *ClientsService) Revoke(userid string, clientid string) *ClientsRevokeCall {
-	c := &ClientsRevokeCall{s: r.s, opt_: make(map[string]interface{})}
-	c.userid = userid
-	c.clientid = clientid
-	return c
-}
-
-// Fields allows partial responses to be retrieved.
-// See https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
-// for more information.
-func (c *ClientsRevokeCall) Fields(s ...googleapi.Field) *ClientsRevokeCall {
-	c.opt_["fields"] = googleapi.CombineFields(s)
-	return c
-}
-
-func (c *ClientsRevokeCall) Do() error {
-	var body io.Reader = nil
-	params := make(url.Values)
-	params.Set("alt", "json")
-	if v, ok := c.opt_["fields"]; ok {
-		params.Set("fields", fmt.Sprintf("%v", v))
-	}
-	urls := googleapi.ResolveRelative(c.s.BasePath, "account/{userid}/refresh/{clientid}")
-	urls += "?" + params.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
-	googleapi.Expand(req.URL, map[string]string{
-		"userid":   c.userid,
-		"clientid": c.clientid,
-	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
-	res, err := c.s.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer googleapi.CloseBody(res)
-	if err := googleapi.CheckResponse(res); err != nil {
-		return err
-	}
-	return nil
-	// {
-	//   "description": "Revoke all refresh tokens issues to the client for the authenticated user.",
-	//   "httpMethod": "DELETE",
-	//   "id": "dex.Client.Revoke",
-	//   "parameterOrder": [
-	//     "userid",
-	//     "clientid"
-	//   ],
-	//   "parameters": {
-	//     "clientid": {
-	//       "location": "path",
-	//       "required": true,
-	//       "type": "string"
-	//     },
-	//     "userid": {
-	//       "location": "path",
-	//       "required": true,
-	//       "type": "string"
-	//     }
-	//   },
-	//   "path": "account/{userid}/refresh/{clientid}"
-	// }
-
-}
-
-// method id "dex.Client.List":
+// method id "dex.RefreshClient.List":
 
 type RefreshClientListCall struct {
 	s      *Service
@@ -417,7 +342,7 @@ type RefreshClientListCall struct {
 	opt_   map[string]interface{}
 }
 
-// List: List all clients that hold refresh tokens for the authenticated
+// List: List all clients that hold refresh tokens for the specified
 // user.
 func (r *RefreshClientService) List(userid string) *RefreshClientListCall {
 	c := &RefreshClientListCall{s: r.s, opt_: make(map[string]interface{})}
@@ -461,9 +386,9 @@ func (c *RefreshClientListCall) Do() (*RefreshClientList, error) {
 	}
 	return ret, nil
 	// {
-	//   "description": "List all clients that hold refresh tokens for the authenticated user.",
+	//   "description": "List all clients that hold refresh tokens for the specified user.",
 	//   "httpMethod": "GET",
-	//   "id": "dex.Client.List",
+	//   "id": "dex.RefreshClient.List",
 	//   "parameterOrder": [
 	//     "userid"
 	//   ],
@@ -478,6 +403,81 @@ func (c *RefreshClientListCall) Do() (*RefreshClientList, error) {
 	//   "response": {
 	//     "$ref": "RefreshClientList"
 	//   }
+	// }
+
+}
+
+// method id "dex.RefreshClient.Revoke":
+
+type RefreshClientRevokeCall struct {
+	s        *Service
+	userid   string
+	clientid string
+	opt_     map[string]interface{}
+}
+
+// Revoke: Revoke all refresh tokens issues to the client for the
+// specified user.
+func (r *RefreshClientService) Revoke(userid string, clientid string) *RefreshClientRevokeCall {
+	c := &RefreshClientRevokeCall{s: r.s, opt_: make(map[string]interface{})}
+	c.userid = userid
+	c.clientid = clientid
+	return c
+}
+
+// Fields allows partial responses to be retrieved.
+// See https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *RefreshClientRevokeCall) Fields(s ...googleapi.Field) *RefreshClientRevokeCall {
+	c.opt_["fields"] = googleapi.CombineFields(s)
+	return c
+}
+
+func (c *RefreshClientRevokeCall) Do() error {
+	var body io.Reader = nil
+	params := make(url.Values)
+	params.Set("alt", "json")
+	if v, ok := c.opt_["fields"]; ok {
+		params.Set("fields", fmt.Sprintf("%v", v))
+	}
+	urls := googleapi.ResolveRelative(c.s.BasePath, "account/{userid}/refresh/{clientid}")
+	urls += "?" + params.Encode()
+	req, _ := http.NewRequest("DELETE", urls, body)
+	googleapi.Expand(req.URL, map[string]string{
+		"userid":   c.userid,
+		"clientid": c.clientid,
+	})
+	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	res, err := c.s.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return err
+	}
+	return nil
+	// {
+	//   "description": "Revoke all refresh tokens issues to the client for the specified user.",
+	//   "httpMethod": "DELETE",
+	//   "id": "dex.RefreshClient.Revoke",
+	//   "parameterOrder": [
+	//     "userid",
+	//     "clientid"
+	//   ],
+	//   "parameters": {
+	//     "clientid": {
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "userid": {
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     }
+	//   },
+	//   "path": "account/{userid}/refresh/{clientid}"
 	// }
 
 }

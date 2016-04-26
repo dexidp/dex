@@ -382,10 +382,9 @@ func TestCreateClient(t *testing.T) {
 		return u
 	}
 
-	addIDAndSecret := func(cliNum int, hostport string, cli adminschema.Client) *adminschema.Client {
-		cli.Id = fmt.Sprintf("client_%v.example.com", hostport)
-		cli.Secret = base64.URLEncoding.EncodeToString([]byte(
-			fmt.Sprintf("client_%d", cliNum)))
+	addIDAndSecret := func(cli adminschema.Client) *adminschema.Client {
+		cli.Id = "client_auth.example.com"
+		cli.Secret = base64.URLEncoding.EncodeToString([]byte("client_0"))
 		return &cli
 	}
 
@@ -448,7 +447,7 @@ func TestCreateClient(t *testing.T) {
 				Client: &adminClientGood,
 			},
 			want: adminschema.ClientCreateResponse{
-				Client: addIDAndSecret(2, "auth", adminClientGood),
+				Client: addIDAndSecret(adminClientGood),
 			},
 			wantClient: clientGood,
 		},
@@ -457,7 +456,7 @@ func TestCreateClient(t *testing.T) {
 				Client: &adminAdminClient,
 			},
 			want: adminschema.ClientCreateResponse{
-				Client: addIDAndSecret(2, "auth", adminAdminClient),
+				Client: addIDAndSecret(adminAdminClient),
 			},
 			wantClient: clientGoodAdmin,
 		},
@@ -466,7 +465,7 @@ func TestCreateClient(t *testing.T) {
 				Client: &adminMultiRedirect,
 			},
 			want: adminschema.ClientCreateResponse{
-				Client: addIDAndSecret(2, "auth", adminMultiRedirect),
+				Client: addIDAndSecret(adminMultiRedirect),
 			},
 			wantClient: clientMultiRedirect,
 		},
@@ -475,7 +474,7 @@ func TestCreateClient(t *testing.T) {
 				Client: &adminClientWithPeers,
 			},
 			want: adminschema.ClientCreateResponse{
-				Client: addIDAndSecret(2, "auth", adminClientWithPeers),
+				Client: addIDAndSecret(adminClientWithPeers),
 			},
 			wantClient:       clientGood,
 			wantTrustedPeers: []string{"test_client_0"},

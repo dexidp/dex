@@ -199,7 +199,7 @@ A client with associated public metadata.
 
 > __Description__
 
-> List all clients that hold refresh tokens for the authenticated user.
+> List all clients that hold refresh tokens for the specified user.
 
 
 > __Parameters__
@@ -221,11 +221,11 @@ A client with associated public metadata.
 
 > __Summary__
 
-> Revoke Clients
+> Revoke RefreshClient
 
 > __Description__
 
-> Revoke all refresh tokens issues to the client for the authenticated user.
+> Revoke all refresh tokens issues to the client for the specified user.
 
 
 > __Parameters__
