@@ -311,7 +311,9 @@ func (p *stickyErrParser) parseURIs(s []string, field string) []url.URL {
 			p.firstErr = fmt.Errorf("invalid URI in field %s", field)
 			return nil
 		}
-		uris[i] = *(p.parseURI(val, field))
+		if u := p.parseURI(val, field); u != nil {
+			uris[i] = *u
+		}
 	}
 	return uris
 }
