@@ -618,7 +618,7 @@ func TestRefreshTokenEndpoints(t *testing.T) {
 			t.Errorf("case %d: expected client ids did not match actual: %s", i, diff)
 		}
 		for _, clientID := range ids {
-			if err := f.client.Clients.Revoke(tt.userID, clientID).Do(); err != nil {
+			if err := f.client.RefreshClient.Revoke(tt.userID, clientID).Do(); err != nil {
 				t.Errorf("case %d: failed to revoke client: %v", i, err)
 			}
 		}
