@@ -35,9 +35,15 @@ You can also use a copy of `go` hosted inside a Docker container if you prefix y
 Once binaries are compiled you can build and push a dex image to quay.io. Before doing this step binaries must be built above using one of the build tools.
 
 ```console
+./build-docker build
+```
+
+If you want to push the build to quay.io, use `./build-docker push`:
+
+```console
 export DOCKER_USER=<<your user>>
 export DOCKER_PASSWORD=<<your password>>
-./build-docker-push
+./build-docker push
 ```
 
 By default the script pushes to `quay.io/coreos/dex`; if you want to push to a different repository, override the `DOCKER_REGISTRY` and `DOCKER_REPO` environment variables.
@@ -102,7 +108,7 @@ Note that __all of these flags are manditory__. This should add an entry to the 
 
 ## Updating an existing package
 
-To update an existing package, edit the `glide.yaml` file to the desired verison (most likely a git hash), and run `glide update`. 
+To update an existing package, edit the `glide.yaml` file to the desired verison (most likely a git hash), and run `glide update`.
 
 ```
 {{ edit the entry in glide.yaml }}

@@ -1,0 +1,40 @@
+#!/bin/bash -e
+#
+# Build the docker container and push it to quay
+# ./build-docker push
+#
+# Build the docker container locally without pushing to registry
+# ./build-docker build
+
+DOCKER_REGISTRY=${DOCKER_REGISTRY:=quay.io}
+DOCKER_REPO=${DOCKER_REPO:=coreos/dex}
+repo=$DOCKER_REGISTRY/$DOCKER_REPO
+
+version=$(./git-version)
+
+stage() {
+  echo -e "\033[36m----> $1\033[0m"
+}
+
+build() {
+  stage "build $repo:$version"
+  docker build -q --rm=true -t $repo:$version .
+  docker tag $repo:$version $repo:latest
+}
+
+push() {
+  stage "push image $repo:$version"
+  if [ -v $DOCKER_USER ] || [ -v $DOCKER_PASSWORD ]; then
+      echo "env variables not set: DOCKER_USER, DOCKER_PASSWORD. skipping login, assuming creds in .dockercfg"
+  else
+      echo logging in as $DOCKER_USER
+      docker login --username="$DOCKER_USER" --password="$DOCKER_PASSWORD" --email="dex@example.com" $DOCKER_REGISTRY
+  fi
+
+  docker push $repo:$version
+  docker push $repo:latest
+}
+
+test -z "$1" && build && push
+test "$1" = "push" && build && push
+test "$1" = "build" && build
