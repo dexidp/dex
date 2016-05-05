@@ -1,0 +1,61 @@
+version: '2'
+services:
+  dex-overlord:
+    environment:
+    - DEX_OVERLORD_DB_URL=postgres://postgres:postgres@pg:5432/dex?sslmode=disable
+    - DEX_OVERLORD_ADMIN_LISTEN=http://0.0.0.0:5557
+    - DEX_OVERLORD_KEY_SECRETS=888itDzhxF9rw6To9AK77CLg5HoKin9toDned1mZNYc=
+    - DEX_OVERLORD_ADMIN_API_SECRET=aUnaaFWwWJ6C1gcSvAAOdM+LzlRwauEo928BRoGdKLDJboPj2KfK0nXwUxBaetIF2GS8qUqGOpdqeNIhKxlsxXbuLcDf40ZZ4BykJFwzZCQ0lx+BCFEHKIuWjzRV2gRyM0X7H1Nx8cmYK8uGRjqSLDYUbAICYVMhyhAza2xrxek=
+    image: quay.io/coreos/dex
+    command: /opt/dex/bin/dex-overlord
+    ports:
+    - "5557:5557"
+    depends_on:
+    - pg
+  # dex worker requires dex-overlord to create the database
+  dex-worker:
+    environment:
+    - DEX_WORKER_ISSUER=http://dex-worker:5556
+    - DEX_WORKER_DB_URL=postgres://postgres:postgres@pg:5432/dex?sslmode=disable
+    - DEX_WORKER_EMAIL_CFG=/opt/dex/static/emailer.json
+    - DEX_WORKER_LISTEN=http://0.0.0.0:5556
+    - DEX_WORKER_ENABLE_REGISTRATION=true
+    - DEX_WORKER_KEY_SECRETS=FzB7DFVUIgByCKrCb7k619Yw8+UVjslEOPBeyL8VF+E=
+    image: quay.io/coreos/dex
+    command: sh -c 'sleep 10 ; /opt/dex/bin/dex-worker'
+    volumes:
+    - ./config:/opt/dex/static
+    ports:
+    - "5556:5556"
+    depends_on:
+    - dex-setup
+    - dex-overlord
+    - pg
+  # once the overlord created the db, we can create a connector
+  dex-setup:
+    image: quay.io/coreos/dex
+    command: sh -c 'sleep 10 ; /opt/dex/bin/dexctl --db-url=postgres://postgres:postgres@pg:5432/dex?sslmode=disable set-connector-configs /opt/dex/static/connectors.json'
+    volumes:
+    - ./config:/opt/dex/static
+    depends_on:
+    - dex-overlord
+    - pg
+  # the example app demonstrates the usage
+  example:
+    build:
+      context: ./example-app
+      dockerfile: Dockerfile
+    command: '/run.sh'
+    ports:
+    - "5555:5555"
+    depends_on:
+    - dex-worker
+    - pg
+  pg:
+    environment:
+    - POSTGRES_USER=postgres
+    - POSTGRES_PASSWORD=postgres
+    - POSTGRES_DB=dex
+    image: postgres:9.5.2
+    ports:
+    - "5432:5432"
