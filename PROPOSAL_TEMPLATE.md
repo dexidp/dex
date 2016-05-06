@@ -17,7 +17,7 @@ Describe how the data will be persisted.
 
 ## API
 
-Describe the methods that the API will expose.
+Describe the methods that the API will expose. If there are any breaking changes be sure to call them out here.
 
 ## UI/UX
 
