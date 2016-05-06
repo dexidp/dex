@@ -14,10 +14,13 @@ import (
 	"os"
 	"time"
 
+	"github.com/coreos/go-oidc/jose"
+	"github.com/coreos/go-oidc/oauth2"
+	"github.com/coreos/go-oidc/oidc"
+
 	pflag "github.com/coreos/dex/pkg/flag"
 	phttp "github.com/coreos/dex/pkg/http"
 	"github.com/coreos/dex/pkg/log"
-	"github.com/coreos/go-oidc/oidc"
 )
 
 func main() {
@@ -104,6 +107,7 @@ func main() {
 		ProviderConfig: cfg,
 		Credentials:    cc,
 		RedirectURL:    *redirectURL,
+		Scope:          append(oidc.DefaultScope, "offline_access"),
 	}
 
 	client, err := oidc.NewClient(ccfg)
@@ -229,21 +233,51 @@ func handleCallbackFunc(c *oidc.Client) http.HandlerFunc {
 			return
 		}
 
-		tok, err := c.ExchangeAuthCode(code)
+		tokens, err := exchangeAuthCode(c, code)
 		if err != nil {
-			phttp.WriteError(w, http.StatusBadRequest, fmt.Sprintf("unable to verify auth code with issuer: %v", err))
+			phttp.WriteError(w, http.StatusBadRequest,
+				fmt.Sprintf("unable to verify auth code with issuer: %v", err))
+			return
+		}
+
+		tok, err := jose.ParseJWT(tokens.IDToken)
+		if err != nil {
+			phttp.WriteError(w, http.StatusBadRequest,
+				fmt.Sprintf("unable to parse JWT: %v", err))
 			return
 		}
 
 		claims, err := tok.Claims()
 		if err != nil {
-			phttp.WriteError(w, http.StatusBadRequest, fmt.Sprintf("unable to construct claims: %v", err))
+			phttp.WriteError(w, http.StatusBadRequest,
+				fmt.Sprintf("unable to construct claims: %v", err))
 			return
 		}
 
-		s := fmt.Sprintf(`<html><body><p>Token: %v</p><p>Claims: %v </p>
+		s := fmt.Sprintf(`
+<html>
+  <body>
+    <p> Token: %v</p>
+    <p> Claims: %v </p>
         <a href="/resend?jwt=%s">Resend Verification Email</a>
-</body></html>`, tok.Encode(), claims, tok.Encode())
+    <p> Refresh Token: %v </p>
+  </body>
+</html>`, tok.Encode(), claims, tok.Encode(), tokens.RefreshToken)
 		w.Write([]byte(s))
 	}
+}
+
+func exchangeAuthCode(c *oidc.Client, code string) (oauth2.TokenResponse, error) {
+	oac, err := c.OAuthClient()
+	if err != nil {
+		return oauth2.TokenResponse{}, err
+	}
+
+	t, err := oac.RequestToken(oauth2.GrantTypeAuthCode, code)
+	if err != nil {
+		return oauth2.TokenResponse{}, err
+	}
+
+	return t, nil
+
 }
