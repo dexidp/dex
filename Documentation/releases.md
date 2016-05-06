@@ -1,5 +1,7 @@
 ## Making a dex Release
 
+1. Make sure you've [uploaded your GPG key](https://github.com/settings/keys).
+
 1. Make a new clone of the dex repo:
 
   ```console
