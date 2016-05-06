@@ -21,6 +21,17 @@ for V in "${KNOWN_INSECURE[@]}"; do
     fi
 done
 
+PROJ="dex"
+ORG_PATH="github.com/coreos"
+REPO_PATH="${ORG_PATH}/${PROJ}"
+
+if [ ! -h gopath/src/${REPO_PATH} ]; then
+	mkdir -p gopath/src/${ORG_PATH}
+	ln -s ${PWD} gopath/src/${REPO_PATH} || exit 255
+fi
+
+export GOPATH=${PWD}/gopath
+export GOBIN=${PWD}/bin
 export GO15VENDOREXPERIMENT=1
 export VERSION=$(./git-version)
 LD_FLAGS="-X main.version=${VERSION}"
