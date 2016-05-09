@@ -66,3 +66,24 @@ func TestPublicKeySetKey(t *testing.T) {
 		t.Errorf("Expected nil response from PublicKeySet.Key, got %#v", got)
 	}
 }
+
+func TestPublicKeyMarshalJSON(t *testing.T) {
+	k := jose.JWK{
+		ID:       "foo",
+		Type:     "RSA",
+		Alg:      "RS256",
+		Use:      "sig",
+		Modulus:  big.NewInt(int64(17)),
+		Exponent: 65537,
+	}
+	want := `{"kid":"foo","kty":"RSA","alg":"RS256","use":"sig","e":"AQAB","n":"EQ=="}`
+	pubKey := NewPublicKey(k)
+	gotBytes, err := pubKey.MarshalJSON()
+	if err != nil {
+		t.Fatalf("failed to marshal public key: %v", err)
+	}
+	got := string(gotBytes)
+	if got != want {
+		t.Errorf("got != want:\n%s\n%s", got, want)
+	}
+}

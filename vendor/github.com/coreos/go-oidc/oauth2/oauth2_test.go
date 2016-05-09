@@ -158,10 +158,20 @@ func TestParseAuthCodeRequest(t *testing.T) {
 	}
 }
 
+type fakeBadClient struct {
+	Request *http.Request
+	err     error
+}
+
+func (f *fakeBadClient) Do(r *http.Request) (*http.Response, error) {
+	f.Request = r
+	return nil, f.err
+}
+
 func TestClientCredsToken(t *testing.T) {
-	hc := &phttp.RequestRecorder{Error: errors.New("error")}
+	hc := &fakeBadClient{nil, errors.New("error")}
 	cfg := Config{
-		Credentials: ClientCredentials{ID: "cid", Secret: "csecret"},
+		Credentials: ClientCredentials{ID: "c#id", Secret: "c secret"},
 		Scope:       []string{"foo-scope", "bar-scope"},
 		TokenURL:    "http://example.com/token",
 		AuthMethod:  AuthMethodClientSecretBasic,
@@ -195,11 +205,11 @@ func TestClientCredsToken(t *testing.T) {
 		t.Error("unexpected error parsing basic auth")
 	}
 
-	if cfg.Credentials.ID != cid {
+	if url.QueryEscape(cfg.Credentials.ID) != cid {
 		t.Errorf("wrong client ID, want=%v, got=%v", cfg.Credentials.ID, cid)
 	}
 
-	if cfg.Credentials.Secret != secret {
+	if url.QueryEscape(cfg.Credentials.Secret) != secret {
 		t.Errorf("wrong client secret, want=%v, got=%v", cfg.Credentials.Secret, secret)
 	}
 
@@ -210,12 +220,72 @@ func TestClientCredsToken(t *testing.T) {
 
 	gt := hc.Request.PostForm.Get("grant_type")
 	if gt != GrantTypeClientCreds {
-		t.Errorf("wrong grant_type, want=client_credentials, got=%v", gt)
+		t.Errorf("wrong grant_type, want=%v, got=%v", GrantTypeClientCreds, gt)
 	}
 
 	sc := strings.Split(hc.Request.PostForm.Get("scope"), " ")
 	if !reflect.DeepEqual(scope, sc) {
 		t.Errorf("wrong scope, want=%v, got=%v", scope, sc)
+	}
+}
+
+func TestUserCredsToken(t *testing.T) {
+	hc := &fakeBadClient{nil, errors.New("error")}
+	cfg := Config{
+		Credentials: ClientCredentials{ID: "c#id", Secret: "c secret"},
+		Scope:       []string{"foo-scope", "bar-scope"},
+		TokenURL:    "http://example.com/token",
+		AuthMethod:  AuthMethodClientSecretBasic,
+		RedirectURL: "http://example.com/redirect",
+		AuthURL:     "http://example.com/auth",
+	}
+
+	c, err := NewClient(hc, cfg)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+
+	c.UserCredsToken("username", "password")
+	if hc.Request == nil {
+		t.Error("request is empty")
+	}
+
+	tu := hc.Request.URL.String()
+	if cfg.TokenURL != tu {
+		t.Errorf("wrong token url, want=%v, got=%v", cfg.TokenURL, tu)
+	}
+
+	ct := hc.Request.Header.Get("Content-Type")
+	if ct != "application/x-www-form-urlencoded" {
+		t.Errorf("wrong content-type, want=application/x-www-form-urlencoded, got=%v", ct)
+	}
+
+	cid, secret, ok := phttp.BasicAuth(hc.Request)
+	if !ok {
+		t.Error("unexpected error parsing basic auth")
+	}
+
+	if url.QueryEscape(cfg.Credentials.ID) != cid {
+		t.Errorf("wrong client ID, want=%v, got=%v", cfg.Credentials.ID, cid)
+	}
+
+	if url.QueryEscape(cfg.Credentials.Secret) != secret {
+		t.Errorf("wrong client secret, want=%v, got=%v", cfg.Credentials.Secret, secret)
+	}
+
+	err = hc.Request.ParseForm()
+	if err != nil {
+		t.Error("unexpected error parsing form")
+	}
+
+	gt := hc.Request.PostForm.Get("grant_type")
+	if gt != GrantTypeUserCreds {
+		t.Errorf("wrong grant_type, want=%v, got=%v", GrantTypeUserCreds, gt)
+	}
+
+	sc := strings.Split(hc.Request.PostForm.Get("scope"), " ")
+	if !reflect.DeepEqual(c.scope, sc) {
+		t.Errorf("wrong scope, want=%v, got=%v", c.scope, sc)
 	}
 }
 
@@ -238,16 +308,15 @@ func TestNewAuthenticatedRequest(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		hc := &phttp.HandlerClient{}
 		cfg := Config{
-			Credentials: ClientCredentials{ID: "cid", Secret: "csecret"},
+			Credentials: ClientCredentials{ID: "c#id", Secret: "c secret"},
 			Scope:       []string{"foo-scope", "bar-scope"},
 			TokenURL:    "http://example.com/token",
 			AuthURL:     "http://example.com/auth",
 			RedirectURL: "http://example.com/redirect",
 			AuthMethod:  tt.authMethod,
 		}
-		c, err := NewClient(hc, cfg)
+		c, err := NewClient(nil, cfg)
 		req, err := c.newAuthenticatedRequest(tt.url, tt.values)
 		if err != nil {
 			t.Errorf("case %d: unexpected error: %v", i, err)
@@ -264,10 +333,10 @@ func TestNewAuthenticatedRequest(t *testing.T) {
 				t.Errorf("case %d: !ok parsing Basic Auth headers", i)
 				continue
 			}
-			if cid != cfg.Credentials.ID {
+			if cid != url.QueryEscape(cfg.Credentials.ID) {
 				t.Errorf("case %d: want CID == %q, got CID == %q", i, cfg.Credentials.ID, cid)
 			}
-			if secret != cfg.Credentials.Secret {
+			if secret != url.QueryEscape(cfg.Credentials.Secret) {
 				t.Errorf("case %d: want secret == %q, got secret == %q", i, cfg.Credentials.Secret, secret)
 			}
 		} else if tt.authMethod == AuthMethodClientSecretPost {

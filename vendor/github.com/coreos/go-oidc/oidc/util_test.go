@@ -83,8 +83,8 @@ func TestNewClaims(t *testing.T) {
 		"iss": "https://example.com",
 		"sub": "user-123",
 		"aud": "client-abc",
-		"iat": float64(issAt.Unix()),
-		"exp": float64(expAt.Unix()),
+		"iat": issAt.Unix(),
+		"exp": expAt.Unix(),
 	}
 
 	got := NewClaims("https://example.com", "user-123", "client-abc", issAt, expAt)
@@ -97,8 +97,8 @@ func TestNewClaims(t *testing.T) {
 		"iss": "https://example.com",
 		"sub": "user-123",
 		"aud": []string{"client-abc", "client-def"},
-		"iat": float64(issAt.Unix()),
-		"exp": float64(expAt.Unix()),
+		"iat": issAt.Unix(),
+		"exp": expAt.Unix(),
 	}
 
 	got2 := NewClaims("https://example.com", "user-123", []string{"client-abc", "client-def"}, issAt, expAt)
