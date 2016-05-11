@@ -402,7 +402,7 @@ func TestCreateClient(t *testing.T) {
 			t.Errorf("case %d: Compare(want, got) = %v", i, diff)
 		}
 
-		repoClient, err := f.cr.Get(resp.Client.Id)
+		repoClient, err := f.cr.Get(nil, resp.Client.Id)
 		if err != nil {
 			t.Errorf("case %d: Unexpected error getting client: %v", i, err)
 		}

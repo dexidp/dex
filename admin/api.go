@@ -148,7 +148,7 @@ func (a *AdminAPI) CreateClient(req adminschema.ClientCreateRequest) (adminschem
 
 	cli.Credentials.ID = id
 
-	creds, err := a.clientRepo.New(cli)
+	creds, err := a.clientRepo.New(nil, cli)
 	if err != nil {
 		return adminschema.ClientCreateResponse{}, mapError(err)
 	}

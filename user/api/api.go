@@ -157,7 +157,7 @@ func (u *UsersAPI) CreateUser(creds Creds, usr schema.User, redirURL url.URL) (s
 		return schema.UserCreateResponse{}, mapError(err)
 	}
 
-	metadata, err := u.clientRepo.Metadata(creds.ClientID)
+	metadata, err := u.clientRepo.Metadata(nil, creds.ClientID)
 	if err != nil {
 		return schema.UserCreateResponse{}, mapError(err)
 	}
@@ -202,7 +202,7 @@ func (u *UsersAPI) ResendEmailInvitation(creds Creds, userID string, redirURL ur
 		return schema.ResendEmailInvitationResponse{}, ErrorUnauthorized
 	}
 
-	metadata, err := u.clientRepo.Metadata(creds.ClientID)
+	metadata, err := u.clientRepo.Metadata(nil, creds.ClientID)
 	if err != nil {
 		return schema.ResendEmailInvitationResponse{}, mapError(err)
 	}

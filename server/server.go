@@ -278,7 +278,7 @@ func (s *Server) NewClientTokenAuthHandler(handler http.Handler) http.Handler {
 }
 
 func (s *Server) ClientMetadata(clientID string) (*oidc.ClientMetadata, error) {
-	return s.ClientRepo.Metadata(clientID)
+	return s.ClientRepo.Metadata(nil, clientID)
 }
 
 func (s *Server) NewSession(ipdcID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error) {
@@ -365,7 +365,7 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 }
 
 func (s *Server) ClientCredsToken(creds oidc.ClientCredentials) (*jose.JWT, error) {
-	ok, err := s.ClientRepo.Authenticate(creds)
+	ok, err := s.ClientRepo.Authenticate(nil, creds)
 	if err != nil {
 		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
 		return nil, oauth2.NewError(oauth2.ErrorServerError)
@@ -397,7 +397,7 @@ func (s *Server) ClientCredsToken(creds oidc.ClientCredentials) (*jose.JWT, erro
 }
 
 func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jose.JWT, string, error) {
-	ok, err := s.ClientRepo.Authenticate(creds)
+	ok, err := s.ClientRepo.Authenticate(nil, creds)
 	if err != nil {
 		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
 		return nil, "", oauth2.NewError(oauth2.ErrorServerError)
@@ -466,7 +466,7 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 }
 
 func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose.JWT, error) {
-	ok, err := s.ClientRepo.Authenticate(creds)
+	ok, err := s.ClientRepo.Authenticate(nil, creds)
 	if err != nil {
 		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
 		return nil, oauth2.NewError(oauth2.ErrorServerError)

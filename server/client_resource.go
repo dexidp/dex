@@ -41,7 +41,7 @@ func (c *clientResource) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *clientResource) list(w http.ResponseWriter, r *http.Request) {
-	cs, err := c.repo.All()
+	cs, err := c.repo.All(nil)
 	if err != nil {
 		writeAPIError(w, http.StatusInternalServerError, newAPIError(errorServerError, "error listing clients"))
 		return
@@ -97,7 +97,7 @@ func (c *clientResource) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ci.Credentials.ID = clientID
-	creds, err := c.repo.New(ci)
+	creds, err := c.repo.New(nil, ci)
 
 	if err != nil {
 		log.Errorf("Failed creating client: %v", err)

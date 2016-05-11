@@ -83,7 +83,7 @@ func (c *clientTokenMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	md, err := c.ciRepo.Metadata(clientID)
+	md, err := c.ciRepo.Metadata(nil, clientID)
 	if md == nil || err != nil {
 		log.Errorf("Failed to find clientID: %s, error=%v", clientID, err)
 		respondError()

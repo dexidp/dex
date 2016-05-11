@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"reflect"
 
+	"github.com/coreos/dex/repo"
 	"github.com/coreos/go-oidc/oidc"
 )
 
@@ -24,26 +25,26 @@ type Client struct {
 }
 
 type ClientRepo interface {
-	Get(clientID string) (Client, error)
+	Get(tx repo.Transaction, clientID string) (Client, error)
 
 	// Metadata returns one matching ClientMetadata if the given client
 	// exists, otherwise nil. The returned error will be non-nil only
 	// if the repo was unable to determine client existence.
-	Metadata(clientID string) (*oidc.ClientMetadata, error)
+	Metadata(tx repo.Transaction, clientID string) (*oidc.ClientMetadata, error)
 
 	// Authenticate asserts that a client with the given ID exists and
 	// that the provided secret matches. If either of these assertions
 	// fail, (false, nil) will be returned. Only if the repo is unable
 	// to make these assertions will a non-nil error be returned.
-	Authenticate(creds oidc.ClientCredentials) (bool, error)
+	Authenticate(tx repo.Transaction, creds oidc.ClientCredentials) (bool, error)
 
 	// All returns all registered Clients
-	All() ([]Client, error)
+	All(tx repo.Transaction) ([]Client, error)
 
 	// New registers a Client with the repo.
 	// An unused ID must be provided. A corresponding secret will be returned
 	// in a ClientCredentials struct along with the provided ID.
-	New(client Client) (*oidc.ClientCredentials, error)
+	New(tx repo.Transaction, client Client) (*oidc.ClientCredentials, error)
 
 	SetDexAdmin(clientID string, isAdmin bool) error
 

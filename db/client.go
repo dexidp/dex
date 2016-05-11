@@ -15,6 +15,7 @@ import (
 	"github.com/coreos/dex/client"
 	pcrypto "github.com/coreos/dex/pkg/crypto"
 	"github.com/coreos/dex/pkg/log"
+	"github.com/coreos/dex/repo"
 )
 
 const (
@@ -140,8 +141,8 @@ type clientRepo struct {
 	secretGenerator SecretGenerator
 }
 
-func (r *clientRepo) Get(clientID string) (client.Client, error) {
-	m, err := r.executor(nil).Get(clientModel{}, clientID)
+func (r *clientRepo) Get(tx repo.Transaction, clientID string) (client.Client, error) {
+	m, err := r.executor(tx).Get(clientModel{}, clientID)
 	if err == sql.ErrNoRows || m == nil {
 		return client.Client{}, client.ErrorNotFound
 	}
@@ -163,8 +164,8 @@ func (r *clientRepo) Get(clientID string) (client.Client, error) {
 	return *ci, nil
 }
 
-func (r *clientRepo) Metadata(clientID string) (*oidc.ClientMetadata, error) {
-	c, err := r.Get(clientID)
+func (r *clientRepo) Metadata(tx repo.Transaction, clientID string) (*oidc.ClientMetadata, error) {
+	c, err := r.Get(tx, clientID)
 	if err != nil {
 		return nil, err
 	}
@@ -215,8 +216,8 @@ func (r *clientRepo) SetDexAdmin(clientID string, isAdmin bool) error {
 	return tx.Commit()
 }
 
-func (r *clientRepo) Authenticate(creds oidc.ClientCredentials) (bool, error) {
-	m, err := r.executor(nil).Get(clientModel{}, creds.ID)
+func (r *clientRepo) Authenticate(tx repo.Transaction, creds oidc.ClientCredentials) (bool, error) {
+	m, err := r.executor(tx).Get(clientModel{}, creds.ID)
 	if m == nil || err != nil {
 		return false, err
 	}
@@ -266,7 +267,7 @@ func DefaultSecretGenerator() ([]byte, error) {
 	return pcrypto.RandBytes(maxSecretLength)
 }
 
-func (r *clientRepo) New(cli client.Client) (*oidc.ClientCredentials, error) {
+func (r *clientRepo) New(tx repo.Transaction, cli client.Client) (*oidc.ClientCredentials, error) {
 	secret, err := r.secretGenerator()
 	if err != nil {
 		return nil, err
@@ -279,7 +280,7 @@ func (r *clientRepo) New(cli client.Client) (*oidc.ClientCredentials, error) {
 		return nil, err
 	}
 
-	if err := r.executor(nil).Insert(cim); err != nil {
+	if err := r.executor(tx).Insert(cim); err != nil {
 		if isAlreadyExistsErr(err) {
 			err = errors.New("client ID already exists")
 		}
@@ -294,10 +295,10 @@ func (r *clientRepo) New(cli client.Client) (*oidc.ClientCredentials, error) {
 	return &cc, nil
 }
 
-func (r *clientRepo) All() ([]client.Client, error) {
+func (r *clientRepo) All(tx repo.Transaction) ([]client.Client, error) {
 	qt := r.quote(clientTableName)
 	q := fmt.Sprintf("SELECT * FROM %s", qt)
-	objs, err := r.executor(nil).Select(&clientModel{}, q)
+	objs, err := r.executor(tx).Select(&clientModel{}, q)
 	if err != nil {
 		return nil, err
 	}

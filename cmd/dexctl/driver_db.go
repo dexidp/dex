@@ -36,7 +36,7 @@ func (d *dbDriver) NewClient(meta oidc.ClientMetadata) (*oidc.ClientCredentials,
 		return nil, err
 	}
 
-	return d.ciRepo.New(client.Client{
+	return d.ciRepo.New(nil, client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID: clientID,
 		},

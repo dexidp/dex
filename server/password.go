@@ -128,7 +128,7 @@ func (h *SendResetPasswordEmailHandler) validateRedirectURL(clientID string, red
 		return url.URL{}, false
 	}
 
-	cm, err := h.cr.Metadata(clientID)
+	cm, err := h.cr.Metadata(nil, clientID)
 	if err != nil || cm == nil {
 		log.Errorf("Error getting ClientMetadata: %v", err)
 		return url.URL{}, false

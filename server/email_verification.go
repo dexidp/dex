@@ -57,7 +57,7 @@ func handleVerifyEmailResendFunc(
 			return
 		}
 
-		cm, err := clientRepo.Metadata(clientID)
+		cm, err := clientRepo.Metadata(nil, clientID)
 		if err == client.ErrorNotFound {
 			log.Errorf("No such client: %v", err)
 			writeAPIError(w, http.StatusBadRequest,

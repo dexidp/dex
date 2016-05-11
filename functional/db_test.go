@@ -191,7 +191,7 @@ func TestDBClientRepoMetadata(t *testing.T) {
 		},
 	}
 
-	_, err := r.New(client.Client{
+	_, err := r.New(nil, client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID: "foo",
 		},
@@ -201,7 +201,7 @@ func TestDBClientRepoMetadata(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	got, err := r.Metadata("foo")
+	got, err := r.Metadata(nil, "foo")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -214,7 +214,7 @@ func TestDBClientRepoMetadata(t *testing.T) {
 func TestDBClientRepoMetadataNoExist(t *testing.T) {
 	r := db.NewClientRepo(connect(t))
 
-	got, err := r.Metadata("noexist")
+	got, err := r.Metadata(nil, "noexist")
 	if err != client.ErrorNotFound {
 		t.Errorf("want==%q, got==%q", client.ErrorNotFound, err)
 	}
@@ -232,7 +232,7 @@ func TestDBClientRepoNewDuplicate(t *testing.T) {
 		},
 	}
 
-	if _, err := r.New(client.Client{
+	if _, err := r.New(nil, client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID: "foo",
 		},
@@ -247,7 +247,7 @@ func TestDBClientRepoNewDuplicate(t *testing.T) {
 		},
 	}
 
-	if _, err := r.New(client.Client{
+	if _, err := r.New(nil, client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID: "foo",
 		},
@@ -261,7 +261,7 @@ func TestDBClientRepoNewAdmin(t *testing.T) {
 
 	for _, admin := range []bool{true, false} {
 		r := db.NewClientRepo(connect(t))
-		if _, err := r.New(client.Client{
+		if _, err := r.New(nil, client.Client{
 			Credentials: oidc.ClientCredentials{
 				ID: "foo",
 			},
@@ -283,7 +283,7 @@ func TestDBClientRepoNewAdmin(t *testing.T) {
 			t.Errorf("want=%v, gotAdmin=%v", admin, gotAdmin)
 		}
 
-		cli, err := r.Get("foo")
+		cli, err := r.Get(nil, "foo")
 		if err != nil {
 			t.Fatalf("expected non-nil error")
 		}
@@ -302,7 +302,7 @@ func TestDBClientRepoAuthenticate(t *testing.T) {
 		},
 	}
 
-	cc, err := r.New(client.Client{
+	cc, err := r.New(nil, client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID: "baz",
 		},
@@ -316,7 +316,7 @@ func TestDBClientRepoAuthenticate(t *testing.T) {
 		t.Fatalf("Returned ClientCredentials has incorrect ID: want=baz got=%s", cc.ID)
 	}
 
-	ok, err := r.Authenticate(*cc)
+	ok, err := r.Authenticate(nil, *cc)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	} else if !ok {
@@ -337,7 +337,7 @@ func TestDBClientRepoAuthenticate(t *testing.T) {
 		oidc.ClientCredentials{ID: cc.ID, Secret: fmt.Sprintf("%sfluff", cc.Secret)},
 	}
 	for i, c := range creds {
-		ok, err := r.Authenticate(c)
+		ok, err := r.Authenticate(nil, c)
 		if err != nil {
 			t.Errorf("case %d: unexpected error: %v", i, err)
 		} else if ok {
@@ -355,7 +355,7 @@ func TestDBClientAll(t *testing.T) {
 		},
 	}
 
-	_, err := r.New(client.Client{
+	_, err := r.New(nil, client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID: "foo",
 		},
@@ -365,7 +365,7 @@ func TestDBClientAll(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	got, err := r.All()
+	got, err := r.All(nil)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -383,7 +383,7 @@ func TestDBClientAll(t *testing.T) {
 			url.URL{Scheme: "http", Host: "foo.com", Path: "/cb"},
 		},
 	}
-	_, err = r.New(client.Client{
+	_, err = r.New(nil, client.Client{
 		Credentials: oidc.ClientCredentials{
 			ID: "bar",
 		},
@@ -393,7 +393,7 @@ func TestDBClientAll(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	got, err = r.All()
+	got, err = r.All(nil)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
