@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/schema/adminschema"
@@ -17,6 +18,7 @@ type testFixtures struct {
 	ur    user.UserRepo
 	pwr   user.PasswordInfoRepo
 	cr    client.ClientRepo
+	cm    *clientmanager.ClientManager
 	mgr   *manager.UserManager
 	adAPI *AdminAPI
 }
@@ -71,7 +73,8 @@ func makeTestFixtures() *testFixtures {
 	}()
 
 	f.mgr = manager.NewUserManager(f.ur, f.pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
-	f.adAPI = NewAdminAPI(f.ur, f.pwr, f.cr, f.mgr, "local")
+	f.cm = clientmanager.NewClientManager(f.cr, db.TransactionFactory(dbMap), clientmanager.ManagerOptions{})
+	f.adAPI = NewAdminAPI(f.ur, f.pwr, f.cr, f.mgr, f.cm, "local")
 
 	return f
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/session/manager"
@@ -75,28 +76,37 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 	idpcs := []connector.Connector{
 		&fakeConnector{loginURL: "http://fake.example.com"},
 	}
+	dbm := db.NewMemDB()
+	clients := []client.Client{
+		client.Client{
+			Credentials: oidc.ClientCredentials{
+				ID:     "client.example.com",
+				Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
+			},
+			Metadata: oidc.ClientMetadata{
+				RedirectURIs: []url.URL{
+					url.URL{Scheme: "http", Host: "client.example.com", Path: "/callback"},
+				},
+			},
+		},
+	}
+
+	clientIDGenerator := func(hostport string) (string, error) {
+		return hostport, nil
+	}
+	secGen := func() ([]byte, error) {
+		return []byte("secret"), nil
+	}
+	clientRepo := db.NewClientRepo(dbm)
+	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbm), clients, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+	if err != nil {
+		t.Fatalf("Failed to create client identity manager: %v", err)
+	}
 	srv := &Server{
 		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
 		SessionManager: manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB())),
-		ClientRepo: func() client.ClientRepo {
-			repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
-				client.Client{
-					Credentials: oidc.ClientCredentials{
-						ID:     "XXX",
-						Secret: base64.URLEncoding.EncodeToString([]byte("secrete")),
-					},
-					Metadata: oidc.ClientMetadata{
-						RedirectURIs: []url.URL{
-							url.URL{Scheme: "http", Host: "client.example.com", Path: "/callback"},
-						},
-					},
-				},
-			})
-			if err != nil {
-				t.Fatalf("Failed to create client identity repo: %v", err)
-			}
-			return repo
-		}(),
+		ClientRepo:     clientRepo,
+		ClientManager:  clientManager,
 	}
 
 	tests := []struct {
@@ -108,7 +118,7 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 		{
 			query: url.Values{
 				"response_type": []string{"code"},
-				"client_id":     []string{"XXX"},
+				"client_id":     []string{"client.example.com"},
 				"connector_id":  []string{"fake"},
 				"scope":         []string{"openid"},
 			},
@@ -121,7 +131,7 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 			query: url.Values{
 				"response_type": []string{"code"},
 				"redirect_uri":  []string{"http://client.example.com/callback"},
-				"client_id":     []string{"XXX"},
+				"client_id":     []string{"client.example.com"},
 				"connector_id":  []string{"fake"},
 				"scope":         []string{"openid"},
 			},
@@ -134,7 +144,7 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 			query: url.Values{
 				"response_type": []string{"code"},
 				"redirect_uri":  []string{"http://unrecognized.example.com/callback"},
-				"client_id":     []string{"XXX"},
+				"client_id":     []string{"client.example.com"},
 				"connector_id":  []string{"fake"},
 				"scope":         []string{"openid"},
 			},
@@ -157,7 +167,7 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 		{
 			query: url.Values{
 				"response_type": []string{"token"},
-				"client_id":     []string{"XXX"},
+				"client_id":     []string{"client.example.com"},
 				"connector_id":  []string{"fake"},
 				"scope":         []string{"openid"},
 			},
@@ -170,8 +180,30 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 			query: url.Values{
 				"response_type": []string{"code"},
 				"redirect_uri":  []string{"http://client.example.com/callback"},
-				"client_id":     []string{"XXX"},
+				"client_id":     []string{"client.example.com"},
 				"connector_id":  []string{"fake"},
+			},
+			wantCode: http.StatusBadRequest,
+		},
+		// empty response_type
+		{
+			query: url.Values{
+				"redirect_uri": []string{"http://client.example.com/callback"},
+				"client_id":    []string{"client.example.com"},
+				"connector_id": []string{"fake"},
+				"scope":        []string{"openid"},
+			},
+			wantCode:     http.StatusFound,
+			wantLocation: "http://client.example.com/callback?error=unsupported_response_type&state=",
+		},
+
+		// empty client_id
+		{
+			query: url.Values{
+				"response_type": []string{"code"},
+				"redirect_uri":  []string{"http://unrecognized.example.com/callback"},
+				"connector_id":  []string{"fake"},
+				"scope":         []string{"openid"},
 			},
 			wantCode: http.StatusBadRequest,
 		},
@@ -204,29 +236,39 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 	idpcs := []connector.Connector{
 		&fakeConnector{loginURL: "http://fake.example.com"},
 	}
+
+	dbm := db.NewMemDB()
+	clients := []client.Client{
+		client.Client{
+			Credentials: oidc.ClientCredentials{
+				ID:     "foo.example.com",
+				Secret: base64.URLEncoding.EncodeToString([]byte("secrete")),
+			},
+			Metadata: oidc.ClientMetadata{
+				RedirectURIs: []url.URL{
+					url.URL{Scheme: "http", Host: "foo.example.com", Path: "/callback"},
+					url.URL{Scheme: "http", Host: "bar.example.com", Path: "/callback"},
+				},
+			},
+		},
+	}
+
+	clientIDGenerator := func(hostport string) (string, error) {
+		return hostport, nil
+	}
+	secGen := func() ([]byte, error) {
+		return []byte("secret"), nil
+	}
+	clientRepo := db.NewClientRepo(dbm)
+	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbm), clients, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+	if err != nil {
+		t.Fatalf("Failed to create client identity manager: %v", err)
+	}
 	srv := &Server{
 		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
 		SessionManager: manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB())),
-		ClientRepo: func() client.ClientRepo {
-			repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
-				client.Client{
-					Credentials: oidc.ClientCredentials{
-						ID:     "XXX",
-						Secret: base64.URLEncoding.EncodeToString([]byte("secrete")),
-					},
-					Metadata: oidc.ClientMetadata{
-						RedirectURIs: []url.URL{
-							url.URL{Scheme: "http", Host: "foo.example.com", Path: "/callback"},
-							url.URL{Scheme: "http", Host: "bar.example.com", Path: "/callback"},
-						},
-					},
-				},
-			})
-			if err != nil {
-				t.Fatalf("Failed to create client identity repo: %v", err)
-			}
-			return repo
-		}(),
+		ClientRepo:     clientRepo,
+		ClientManager:  clientManager,
 	}
 
 	tests := []struct {
@@ -239,7 +281,7 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 			query: url.Values{
 				"response_type": []string{"code"},
 				"redirect_uri":  []string{"http://foo.example.com/callback"},
-				"client_id":     []string{"XXX"},
+				"client_id":     []string{"foo.example.com"},
 				"connector_id":  []string{"fake"},
 				"scope":         []string{"openid"},
 			},
@@ -252,7 +294,7 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 			query: url.Values{
 				"response_type": []string{"code"},
 				"redirect_uri":  []string{"http://bar.example.com/callback"},
-				"client_id":     []string{"XXX"},
+				"client_id":     []string{"foo.example.com"},
 				"connector_id":  []string{"fake"},
 				"scope":         []string{"openid"},
 			},
@@ -265,7 +307,7 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 			query: url.Values{
 				"response_type": []string{"code"},
 				"redirect_uri":  []string{"http://unrecognized.example.com/callback"},
-				"client_id":     []string{"XXX"},
+				"client_id":     []string{"foo.example.com"},
 				"connector_id":  []string{"fake"},
 				"scope":         []string{"openid"},
 			},
@@ -276,7 +318,7 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 		{
 			query: url.Values{
 				"response_type": []string{"code"},
-				"client_id":     []string{"XXX"},
+				"client_id":     []string{"foo.example.com"},
 				"connector_id":  []string{"fake"},
 				"scope":         []string{"openid"},
 			},
@@ -328,8 +370,8 @@ func TestHandleTokenFunc(t *testing.T) {
 				"grant_type": []string{"invalid!"},
 				"code":       []string{"someCode"},
 			},
-			user:     "XXX",
-			passwd:   base64.URLEncoding.EncodeToString([]byte("secrete")),
+			user:     testClientID,
+			passwd:   base64.URLEncoding.EncodeToString([]byte("secret")),
 			wantCode: http.StatusBadRequest,
 		},
 
@@ -338,8 +380,8 @@ func TestHandleTokenFunc(t *testing.T) {
 			query: url.Values{
 				"grant_type": []string{"authorization_code"},
 			},
-			user:     "XXX",
-			passwd:   base64.URLEncoding.EncodeToString([]byte("secrete")),
+			user:     testClientID,
+			passwd:   base64.URLEncoding.EncodeToString([]byte("secret")),
 			wantCode: http.StatusBadRequest,
 		},
 
@@ -349,8 +391,8 @@ func TestHandleTokenFunc(t *testing.T) {
 				"grant_type": []string{"authorization_code"},
 				"code":       []string{""},
 			},
-			user:     "XXX",
-			passwd:   base64.URLEncoding.EncodeToString([]byte("secrete")),
+			user:     testClientID,
+			passwd:   base64.URLEncoding.EncodeToString([]byte("secret")),
 			wantCode: http.StatusBadRequest,
 		},
 
@@ -371,8 +413,8 @@ func TestHandleTokenFunc(t *testing.T) {
 				"grant_type": []string{"authorization_code"},
 				"code":       []string{"asdasd"},
 			},
-			user:     "XXX",
-			passwd:   base64.URLEncoding.EncodeToString([]byte("secrete")),
+			user:     testClientID,
+			passwd:   base64.URLEncoding.EncodeToString([]byte("secret")),
 			wantCode: http.StatusBadRequest,
 		},
 
@@ -382,8 +424,8 @@ func TestHandleTokenFunc(t *testing.T) {
 				"grant_type": []string{"authorization_code"},
 				"code":       []string{"code-2"},
 			},
-			user:     "XXX",
-			passwd:   base64.URLEncoding.EncodeToString([]byte("secrete")),
+			user:     testClientID,
+			passwd:   base64.URLEncoding.EncodeToString([]byte("secret")),
 			wantCode: http.StatusOK,
 		},
 	}
@@ -402,7 +444,7 @@ func TestHandleTokenFunc(t *testing.T) {
 
 		// need to create session in order to exchange the code (generated by the NewSessionKey func) for token
 		setSession := func() error {
-			sid, err := fx.sessionManager.NewSession("local", "XXX", "", testRedirectURL, "", true, []string{"openid"})
+			sid, err := fx.sessionManager.NewSession("local", testClientID, "", testRedirectURL, "", true, []string{"openid"})
 			if err != nil {
 				return fmt.Errorf("case %d: cannot create session, error=%v", i, err)
 			}

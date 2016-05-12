@@ -8,6 +8,7 @@ import (
 	"github.com/coreos/go-oidc/key"
 
 	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/pkg/log"
 	sessionmanager "github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
@@ -29,7 +30,7 @@ type SendResetPasswordEmailHandler struct {
 	tpl     *template.Template
 	emailer *useremail.UserEmailer
 	sm      *sessionmanager.SessionManager
-	cr      client.ClientRepo
+	cm      *clientmanager.ClientManager
 }
 
 func (h *SendResetPasswordEmailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -128,7 +129,7 @@ func (h *SendResetPasswordEmailHandler) validateRedirectURL(clientID string, red
 		return url.URL{}, false
 	}
 
-	cm, err := h.cr.Metadata(nil, clientID)
+	cm, err := h.cm.Metadata(clientID)
 	if err != nil || cm == nil {
 		log.Errorf("Error getting ClientMetadata: %v", err)
 		return url.URL{}, false

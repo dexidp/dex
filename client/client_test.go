@@ -34,7 +34,7 @@ var (
 
 	badSecretClient = `{ 
   "id": "my_id",
-  "secret": "` + "****" + `",
+  "secret": "` + "" + `",
   "redirectURLs": ["https://client.example.com"]
 }`
 
@@ -64,7 +64,7 @@ func TestClientsFromReader(t *testing.T) {
 				{
 					Credentials: oidc.ClientCredentials{
 						ID:     "my_id",
-						Secret: "my_secret",
+						Secret: goodSecret1,
 					},
 					Metadata: oidc.ClientMetadata{
 						RedirectURIs: []url.URL{
@@ -80,7 +80,7 @@ func TestClientsFromReader(t *testing.T) {
 				{
 					Credentials: oidc.ClientCredentials{
 						ID:     "my_id",
-						Secret: "my_secret",
+						Secret: goodSecret1,
 					},
 					Metadata: oidc.ClientMetadata{
 						RedirectURIs: []url.URL{
@@ -91,7 +91,7 @@ func TestClientsFromReader(t *testing.T) {
 				{
 					Credentials: oidc.ClientCredentials{
 						ID:     "my_other_id",
-						Secret: "my_other_secret",
+						Secret: goodSecret2,
 					},
 					Metadata: oidc.ClientMetadata{
 						RedirectURIs: []url.URL{
@@ -101,7 +101,8 @@ func TestClientsFromReader(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			json:    "[" + badURLClient + "]",
 			wantErr: true,
 		},

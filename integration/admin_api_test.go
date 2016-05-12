@@ -14,6 +14,7 @@ import (
 
 	"github.com/coreos/dex/admin"
 	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/schema/adminschema"
 	"github.com/coreos/dex/server"
@@ -87,12 +88,16 @@ func makeAdminAPITestFixtures() *adminAPITestFixtures {
 	secGen := func() ([]byte, error) {
 		return []byte(fmt.Sprintf("client_%v", cliCount)), nil
 	}
-	cr := db.NewClientRepoWithSecretGenerator(dbMap, secGen)
+	cr := db.NewClientRepo(dbMap)
+	clientIDGenerator := func(hostport string) (string, error) {
+		return fmt.Sprintf("client_%v", hostport), nil
+	}
+	cm := manager.NewClientManager(cr, db.TransactionFactory(dbMap), manager.ManagerOptions{SecretGenerator: secGen, ClientIDGenerator: clientIDGenerator})
 
 	f.cr = cr
 	f.ur = ur
 	f.pwr = pwr
-	f.adAPI = admin.NewAdminAPI(ur, pwr, cr, um, "local")
+	f.adAPI = admin.NewAdminAPI(ur, pwr, cr, um, cm, "local")
 	f.adSrv = server.NewAdminServer(f.adAPI, nil, adminAPITestSecret)
 	f.hSrv = httptest.NewServer(f.adSrv.HTTPHandler())
 	f.hc = &http.Client{
@@ -268,14 +273,6 @@ func TestCreateAdmin(t *testing.T) {
 }
 
 func TestCreateClient(t *testing.T) {
-	oldGen := admin.ClientIDGenerator
-	admin.ClientIDGenerator = func(hostport string) (string, error) {
-		return fmt.Sprintf("client_%v", hostport), nil
-	}
-	defer func() {
-		admin.ClientIDGenerator = oldGen
-	}()
-
 	mustParseURL := func(s string) *url.URL {
 		u, err := url.Parse(s)
 		if err != nil {

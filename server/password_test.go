@@ -253,7 +253,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			t.Fatalf("case %d: could not make test fixtures: %v", i, err)
 		}
 
-		_, err = f.srv.NewSession("local", "XXX", "", f.redirectURL, "", true, []string{"openid"})
+		_, err = f.srv.NewSession("local", testClientID, "", f.redirectURL, "", true, []string{"openid"})
 		if err != nil {
 			t.Fatalf("case %d: could not create new session: %v", i, err)
 		}
@@ -267,7 +267,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			tpl:     f.srv.SendResetPasswordEmailTemplate,
 			emailer: f.srv.UserEmailer,
 			sm:      f.sessionManager,
-			cr:      f.clientRepo,
+			cm:      f.clientManager,
 		}
 
 		w := httptest.NewRecorder()

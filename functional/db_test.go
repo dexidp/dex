@@ -14,6 +14,7 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 
 	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/refresh"
 	"github.com/coreos/dex/session"
@@ -201,20 +202,22 @@ func TestDBClientRepoMetadata(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	got, err := r.Metadata(nil, "foo")
+	got, err := r.Get(nil, "foo")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
-	if diff := pretty.Compare(cm, *got); diff != "" {
+	if diff := pretty.Compare(cm, got.Metadata); diff != "" {
 		t.Fatalf("Retrieved incorrect ClientMetadata: Compare(want,got): %v", diff)
 	}
 }
 
 func TestDBClientRepoMetadataNoExist(t *testing.T) {
-	r := db.NewClientRepo(connect(t))
+	c := connect(t)
+	r := db.NewClientRepo(c)
+	m := manager.NewClientManager(r, db.TransactionFactory(c), manager.ManagerOptions{})
 
-	got, err := r.Metadata(nil, "noexist")
+	got, err := m.Metadata("noexist")
 	if err != client.ErrorNotFound {
 		t.Errorf("want==%q, got==%q", client.ErrorNotFound, err)
 	}
@@ -275,11 +278,11 @@ func TestDBClientRepoNewAdmin(t *testing.T) {
 			t.Fatalf("expected non-nil error: %v", err)
 		}
 
-		gotAdmin, err := r.IsDexAdmin("foo")
+		gotAdmin, err := r.Get(nil, "foo")
 		if err != nil {
 			t.Fatalf("expected non-nil error")
 		}
-		if gotAdmin != admin {
+		if gotAdmin.Admin != admin {
 			t.Errorf("want=%v, gotAdmin=%v", admin, gotAdmin)
 		}
 
@@ -294,7 +297,16 @@ func TestDBClientRepoNewAdmin(t *testing.T) {
 
 }
 func TestDBClientRepoAuthenticate(t *testing.T) {
-	r := db.NewClientRepo(connect(t))
+	c := connect(t)
+	r := db.NewClientRepo(c)
+
+	clientIDGenerator := func(hostport string) (string, error) {
+		return hostport, nil
+	}
+	secGen := func() ([]byte, error) {
+		return []byte("secret"), nil
+	}
+	m := manager.NewClientManager(r, db.TransactionFactory(c), manager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
 
 	cm := oidc.ClientMetadata{
 		RedirectURIs: []url.URL{
@@ -302,21 +314,16 @@ func TestDBClientRepoAuthenticate(t *testing.T) {
 		},
 	}
 
-	cc, err := r.New(nil, client.Client{
-		Credentials: oidc.ClientCredentials{
-			ID: "baz",
-		},
-		Metadata: cm,
-	})
+	cc, err := m.New(cm)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
-	if cc.ID != "baz" {
+	if cc.ID != "127.0.0.1:5556" {
 		t.Fatalf("Returned ClientCredentials has incorrect ID: want=baz got=%s", cc.ID)
 	}
 
-	ok, err := r.Authenticate(nil, *cc)
+	ok, err := m.Authenticate(*cc)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	} else if !ok {
@@ -337,7 +344,7 @@ func TestDBClientRepoAuthenticate(t *testing.T) {
 		oidc.ClientCredentials{ID: cc.ID, Secret: fmt.Sprintf("%sfluff", cc.Secret)},
 	}
 	for i, c := range creds {
-		ok, err := r.Authenticate(nil, c)
+		ok, err := m.Authenticate(c)
 		if err != nil {
 			t.Errorf("case %d: unexpected error: %v", i, err)
 		} else if ok {

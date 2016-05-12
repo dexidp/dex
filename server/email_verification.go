@@ -12,6 +12,7 @@ import (
 	"github.com/coreos/go-oidc/oidc"
 
 	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/user"
 	useremail "github.com/coreos/dex/user/email"
@@ -28,7 +29,7 @@ func handleVerifyEmailResendFunc(
 	srvKeysFunc func() ([]key.PublicKey, error),
 	emailer *useremail.UserEmailer,
 	userRepo user.UserRepo,
-	clientRepo client.ClientRepo) http.HandlerFunc {
+	clientManager *clientmanager.ClientManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		decoder := json.NewDecoder(r.Body)
 		var params struct {
@@ -57,7 +58,7 @@ func handleVerifyEmailResendFunc(
 			return
 		}
 
-		cm, err := clientRepo.Metadata(nil, clientID)
+		cm, err := clientManager.Metadata(clientID)
 		if err == client.ErrorNotFound {
 			log.Errorf("No such client: %v", err)
 			writeAPIError(w, http.StatusBadRequest,

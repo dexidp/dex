@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/db"
 	schema "github.com/coreos/dex/schema/workerschema"
 	"github.com/coreos/go-oidc/oidc"
@@ -28,8 +29,10 @@ func makeBody(s string) io.ReadCloser {
 func TestCreateInvalidRequest(t *testing.T) {
 	u := &url.URL{Scheme: "http", Host: "example.com", Path: "clients"}
 	h := http.Header{"Content-Type": []string{"application/json"}}
-	repo := db.NewClientRepo(db.NewMemDB())
-	res := &clientResource{repo: repo}
+	dbm := db.NewMemDB()
+	repo := db.NewClientRepo(dbm)
+	manager := manager.NewClientManager(repo, db.TransactionFactory(dbm), manager.ManagerOptions{})
+	res := &clientResource{manager: manager}
 	tests := []struct {
 		req      *http.Request
 		wantCode int
@@ -119,8 +122,10 @@ func TestCreateInvalidRequest(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	repo := db.NewClientRepo(db.NewMemDB())
-	res := &clientResource{repo: repo}
+	dbm := db.NewMemDB()
+	repo := db.NewClientRepo(dbm)
+	manager := manager.NewClientManager(repo, db.TransactionFactory(dbm), manager.ManagerOptions{})
+	res := &clientResource{manager: manager}
 	tests := [][]string{
 		[]string{"http://example.com"},
 		[]string{"https://example.com"},
@@ -190,7 +195,7 @@ func TestList(t *testing.T) {
 		{
 			cs: []client.Client{
 				client.Client{
-					Credentials: oidc.ClientCredentials{ID: "foo", Secret: b64Encode("bar")},
+					Credentials: oidc.ClientCredentials{ID: "example.com", Secret: b64Encode("secret")},
 					Metadata: oidc.ClientMetadata{
 						RedirectURIs: []url.URL{
 							url.URL{Scheme: "http", Host: "example.com"},
@@ -200,7 +205,7 @@ func TestList(t *testing.T) {
 			},
 			want: []*schema.Client{
 				&schema.Client{
-					Id:           "foo",
+					Id:           "example.com",
 					RedirectURIs: []string{"http://example.com"},
 				},
 			},
@@ -209,7 +214,7 @@ func TestList(t *testing.T) {
 		{
 			cs: []client.Client{
 				client.Client{
-					Credentials: oidc.ClientCredentials{ID: "foo", Secret: b64Encode("bar")},
+					Credentials: oidc.ClientCredentials{ID: "example.com", Secret: b64Encode("secret")},
 					Metadata: oidc.ClientMetadata{
 						RedirectURIs: []url.URL{
 							url.URL{Scheme: "http", Host: "example.com"},
@@ -217,21 +222,21 @@ func TestList(t *testing.T) {
 					},
 				},
 				client.Client{
-					Credentials: oidc.ClientCredentials{ID: "biz", Secret: b64Encode("bang")},
+					Credentials: oidc.ClientCredentials{ID: "example2.com", Secret: b64Encode("secret")},
 					Metadata: oidc.ClientMetadata{
 						RedirectURIs: []url.URL{
-							url.URL{Scheme: "https", Host: "example.com", Path: "one/two/three"},
+							url.URL{Scheme: "https", Host: "example2.com", Path: "one/two/three"},
 						},
 					},
 				},
 			},
 			want: []*schema.Client{
 				&schema.Client{
-					Id:           "biz",
-					RedirectURIs: []string{"https://example.com/one/two/three"},
+					Id:           "example2.com",
+					RedirectURIs: []string{"https://example2.com/one/two/three"},
 				},
 				&schema.Client{
-					Id:           "foo",
+					Id:           "example.com",
 					RedirectURIs: []string{"http://example.com"},
 				},
 			},
@@ -239,12 +244,20 @@ func TestList(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), tt.cs)
+		dbm := db.NewMemDB()
+		clientIDGenerator := func(hostport string) (string, error) {
+			return hostport, nil
+		}
+		secGen := func() ([]byte, error) {
+			return []byte("secret"), nil
+		}
+		clientRepo := db.NewClientRepo(dbm)
+		clientManager, err := manager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbm), tt.cs, manager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
 		if err != nil {
-			t.Errorf("case %d: failed to create client identity repo: %v", i, err)
+			t.Fatalf("Failed to create client identity manager: %v", err)
 			continue
 		}
-		res := &clientResource{repo: repo}
+		res := &clientResource{manager: clientManager}
 
 		r, err := http.NewRequest("GET", "http://example.com/clients", nil)
 		if err != nil {

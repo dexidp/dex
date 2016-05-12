@@ -19,6 +19,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/refresh"
@@ -72,6 +73,7 @@ type Server struct {
 	Connectors                     []connector.Connector
 	UserRepo                       user.UserRepo
 	UserManager                    *usermanager.UserManager
+	ClientManager                  *clientmanager.ClientManager
 	PasswordInfoRepo               user.PasswordInfoRepo
 	RefreshTokenRepo               refresh.RefreshTokenRepo
 	UserEmailer                    *useremail.UserEmailer
@@ -213,13 +215,13 @@ func (s *Server) HTTPHandler() http.Handler {
 		s.KeyManager.PublicKeys,
 		s.UserEmailer,
 		s.UserRepo,
-		s.ClientRepo)))
+		s.ClientManager)))
 
 	mux.Handle(httpPathSendResetPassword, &SendResetPasswordEmailHandler{
 		tpl:     s.SendResetPasswordEmailTemplate,
 		emailer: s.UserEmailer,
 		sm:      s.SessionManager,
-		cr:      s.ClientRepo,
+		cm:      s.ClientManager,
 	})
 
 	mux.Handle(httpPathResetPassword, &ResetPasswordHandler{
@@ -256,11 +258,11 @@ func (s *Server) HTTPHandler() http.Handler {
 	apiBasePath := path.Join(httpPathAPI, APIVersion)
 	registerDiscoveryResource(apiBasePath, mux)
 
-	clientPath, clientHandler := registerClientResource(apiBasePath, s.ClientRepo)
+	clientPath, clientHandler := registerClientResource(apiBasePath, s.ClientManager)
 	mux.Handle(path.Join(apiBasePath, clientPath), s.NewClientTokenAuthHandler(clientHandler))
 
-	usersAPI := usersapi.NewUsersAPI(s.dbMap, s.UserManager, s.UserEmailer, s.localConnectorID)
-	handler := NewUserMgmtServer(usersAPI, s.JWTVerifierFactory(), s.UserManager, s.ClientRepo).HTTPHandler()
+	usersAPI := usersapi.NewUsersAPI(s.UserManager, s.ClientManager, s.RefreshTokenRepo, s.UserEmailer, s.localConnectorID)
+	handler := NewUserMgmtServer(usersAPI, s.JWTVerifierFactory(), s.UserManager, s.ClientManager).HTTPHandler()
 
 	mux.Handle(apiBasePath+"/", handler)
 
@@ -271,14 +273,14 @@ func (s *Server) HTTPHandler() http.Handler {
 func (s *Server) NewClientTokenAuthHandler(handler http.Handler) http.Handler {
 	return &clientTokenMiddleware{
 		issuerURL: s.IssuerURL.String(),
-		ciRepo:    s.ClientRepo,
+		ciManager: s.ClientManager,
 		keysFunc:  s.KeyManager.PublicKeys,
 		next:      handler,
 	}
 }
 
 func (s *Server) ClientMetadata(clientID string) (*oidc.ClientMetadata, error) {
-	return s.ClientRepo.Metadata(nil, clientID)
+	return s.ClientManager.Metadata(clientID)
 }
 
 func (s *Server) NewSession(ipdcID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error) {
@@ -365,9 +367,9 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 }
 
 func (s *Server) ClientCredsToken(creds oidc.ClientCredentials) (*jose.JWT, error) {
-	ok, err := s.ClientRepo.Authenticate(nil, creds)
+	ok, err := s.ClientManager.Authenticate(creds)
 	if err != nil {
-		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
+		log.Errorf("Failed fetching client %s from manager: %v", creds.ID, err)
 		return nil, oauth2.NewError(oauth2.ErrorServerError)
 	}
 	if !ok {
@@ -397,7 +399,7 @@ func (s *Server) ClientCredsToken(creds oidc.ClientCredentials) (*jose.JWT, erro
 }
 
 func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jose.JWT, string, error) {
-	ok, err := s.ClientRepo.Authenticate(nil, creds)
+	ok, err := s.ClientManager.Authenticate(creds)
 	if err != nil {
 		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
 		return nil, "", oauth2.NewError(oauth2.ErrorServerError)
@@ -466,7 +468,7 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 }
 
 func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose.JWT, error) {
-	ok, err := s.ClientRepo.Authenticate(nil, creds)
+	ok, err := s.ClientManager.Authenticate(creds)
 	if err != nil {
 		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
 		return nil, oauth2.NewError(oauth2.ErrorServerError)
