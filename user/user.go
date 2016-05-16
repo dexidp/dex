@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"net/mail"
@@ -259,5 +260,27 @@ func parseAndVerifyTokenClaims(token string, issuer url.URL, keys []key.PublicKe
 		return TokenClaims{}, err
 	}
 
+	timeClaimsToInt(claims)
+
 	return TokenClaims{claims}, nil
+}
+
+// timeClaimsToInt converts float64 time claims to ints.
+// This is unfortunately neccessary for interop as some clients incorrectly fail
+// to marshal floats as times.
+func timeClaimsToInt(claims jose.Claims) {
+	for _, k := range []string{"exp", "iat"} {
+		v, ok := claims[k]
+		if !ok {
+			continue
+		}
+
+		fVal, ok := v.(float64)
+		if !ok {
+			continue
+		}
+
+		// round
+		claims[k] = int64(fVal + math.Copysign(0.5, fVal))
+	}
 }
