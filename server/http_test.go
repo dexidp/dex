@@ -175,29 +175,6 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 			},
 			wantCode: http.StatusBadRequest,
 		},
-
-		// empty response_type
-		{
-			query: url.Values{
-				"redirect_uri": []string{"http://client.example.com/callback"},
-				"client_id":    []string{"XXX"},
-				"connector_id": []string{"fake"},
-				"scope":        []string{"openid"},
-			},
-			wantCode:     http.StatusFound,
-			wantLocation: "http://client.example.com/callback?error=unsupported_response_type&state=",
-		},
-
-		// empty client_id
-		{
-			query: url.Values{
-				"response_type": []string{"code"},
-				"redirect_uri":  []string{"http://unrecognized.example.com/callback"},
-				"connector_id":  []string{"fake"},
-				"scope":         []string{"openid"},
-			},
-			wantCode: http.StatusBadRequest,
-		},
 	}
 
 	for i, tt := range tests {
