@@ -9,9 +9,9 @@ In this mode you provide the binary with paths to files for connectors, users, a
 You can rename these to the equivalent without the *".sample"* suffix since the defaults point to those locations:
 
 ```console
-mv static/fixtures/connectors.json.sample static/fixtures/connectors.json
-mv static/fixtures/users.json.sample static/fixtures/users.json
-mv static/fixtures/emailer.json.sample static/fixtures/emailer.json
+cp static/fixtures/connectors.json.sample static/fixtures/connectors.json
+cp static/fixtures/users.json.sample static/fixtures/users.json
+cp static/fixtures/emailer.json.sample static/fixtures/emailer.json
 ```
 
 Starting dex is then as simple as:
