@@ -4,11 +4,12 @@
 
 When you are working on dex it's convenient to use the `--no-db` flag. This starts up dex in a mode which uses an in-memory datastore for persistence. It also does not rotate keys, so no overlord is required.
 
-In this mode you provide the binary with paths to files for connectors, users, and emailer. There are example files you can use inside of `static/fixtures` named *"connectors.json.sample"*, *"users.json.sample"*, and *"emailer.json.sample"*, respectively.
+In this mode you provide the binary with paths to files for clients, connectors, users, and emailer. There are example files you can use inside of `static/fixtures` named *"clients.json.sample"*, *"connectors.json.sample"*, *"users.json.sample"*, and *"emailer.json.sample"*, respectively.
 
 You can rename these to the equivalent without the *".sample"* suffix since the defaults point to those locations:
 
 ```console
+cp static/fixtures/clients.json.sample static/fixtures/clients.json
 cp static/fixtures/connectors.json.sample static/fixtures/connectors.json
 cp static/fixtures/users.json.sample static/fixtures/users.json
 cp static/fixtures/emailer.json.sample static/fixtures/emailer.json
