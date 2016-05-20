@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
@@ -30,7 +31,10 @@ func (d *dbDriver) NewClient(meta oidc.ClientMetadata) (*oidc.ClientCredentials,
 	if err := meta.Valid(); err != nil {
 		return nil, err
 	}
-	return d.ciManager.New(meta)
+	cli := client.Client{
+		Metadata: meta,
+	}
+	return d.ciManager.New(cli)
 }
 
 func (d *dbDriver) ConnectorConfigs() ([]connector.ConnectorConfig, error) {

@@ -77,11 +77,10 @@ func NewClientManagerFromClients(clientRepo client.ClientRepo, txnFactory repo.T
 			return nil, fmt.Errorf("client %q has no secret", c.Credentials.ID)
 		}
 
-		cli, err := clientManager.clientFromMetadata(c.Metadata)
+		cli, err := clientManager.generateClientCredentials(c)
 		if err != nil {
 			return nil, err
 		}
-		cli.Admin = c.Admin
 
 		_, err = clientRepo.New(tx, cli)
 		if err != nil {
@@ -94,22 +93,22 @@ func NewClientManagerFromClients(clientRepo client.ClientRepo, txnFactory repo.T
 	return clientManager, nil
 }
 
-func (m *ClientManager) New(meta oidc.ClientMetadata) (*oidc.ClientCredentials, error) {
+func (m *ClientManager) New(cli client.Client) (*oidc.ClientCredentials, error) {
 	tx, err := m.begin()
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
 
-	cli, err := m.clientFromMetadata(meta)
+	c, err := m.generateClientCredentials(cli)
 	if err != nil {
 		return nil, err
 	}
 
-	creds := cli.Credentials
+	creds := c.Credentials
 
 	// Save Client
-	_, err = m.clientRepo.New(tx, cli)
+	_, err = m.clientRepo.New(tx, c)
 	if err != nil {
 		return nil, err
 	}
@@ -190,28 +189,25 @@ func (m *ClientManager) Authenticate(creds oidc.ClientCredentials) (bool, error)
 	return ok, nil
 }
 
-func (m *ClientManager) clientFromMetadata(meta oidc.ClientMetadata) (client.Client, error) {
+func (m *ClientManager) generateClientCredentials(cli client.Client) (client.Client, error) {
 	// Generate Client ID
-	if len(meta.RedirectURIs) < 1 {
-		return client.Client{}, errors.New("no client redirect url given")
+	if len(cli.Metadata.RedirectURIs) < 1 {
+		return cli, errors.New("no client redirect url given")
 	}
-	clientID, err := m.clientIDGenerator(meta.RedirectURIs[0].Host)
+	clientID, err := m.clientIDGenerator(cli.Metadata.RedirectURIs[0].Host)
 	if err != nil {
-		return client.Client{}, err
+		return cli, err
 	}
 
 	// Generate Secret
 	secret, err := m.secretGenerator()
 	if err != nil {
-		return client.Client{}, err
+		return cli, err
 	}
 	clientSecret := base64.URLEncoding.EncodeToString(secret)
-	cli := client.Client{
-		Credentials: oidc.ClientCredentials{
-			ID:     clientID,
-			Secret: clientSecret,
-		},
-		Metadata: meta,
+	cli.Credentials = oidc.ClientCredentials{
+		ID:     clientID,
+		Secret: clientSecret,
 	}
 	return cli, nil
 }

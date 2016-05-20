@@ -313,8 +313,10 @@ func TestDBClientRepoAuthenticate(t *testing.T) {
 			url.URL{Scheme: "http", Host: "127.0.0.1:5556", Path: "/cb"},
 		},
 	}
-
-	cc, err := m.New(cm)
+	cli := client.Client{
+		Metadata: cm,
+	}
+	cc, err := m.New(cli)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

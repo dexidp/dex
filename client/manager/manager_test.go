@@ -126,8 +126,10 @@ func TestAuthenticate(t *testing.T) {
 			url.URL{Scheme: "http", Host: "example.com", Path: "/cb"},
 		},
 	}
-
-	cc, err := f.mgr.New(cm)
+	cli := client.Client{
+		Metadata: cm,
+	}
+	cc, err := f.mgr.New(cli)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

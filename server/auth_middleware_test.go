@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/dex/client"
 	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/go-oidc/jose"
@@ -33,7 +34,10 @@ func TestClientToken(t *testing.T) {
 	dbm := db.NewMemDB()
 	clientRepo := db.NewClientRepo(dbm)
 	clientManager := clientmanager.NewClientManager(clientRepo, db.TransactionFactory(dbm), clientmanager.ManagerOptions{})
-	creds, err := clientManager.New(clientMetadata)
+	cli := client.Client{
+		Metadata: clientMetadata,
+	}
+	creds, err := clientManager.New(cli)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
