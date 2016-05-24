@@ -28,6 +28,7 @@ coverage/
 deploy/
 Godeps/_workspace/src/github.com/coreos/dex
 static/fixtures/env.txt
+static/fixtures/clients.json
 static/fixtures/connectors.json
 static/fixtures/users.json
 static/fixtures/emailer.json

@@ -14,6 +14,7 @@ Now copy the example configurations into place to get dex configured.
 You can customize these later but the defaults should work fine.
 
 ```console
+cp static/fixtures/clients.json.sample static/fixtures/clients.json
 cp static/fixtures/connectors.json.sample static/fixtures/connectors.json
 cp static/fixtures/users.json.sample static/fixtures/users.json
 cp static/fixtures/emailer.json.sample static/fixtures/emailer.json
@@ -27,7 +28,7 @@ With `dex-worker` configuration in place we can start dex in local mode.
 
 ## Example Webapp Client
 
-Build and run the example app webserver by pointing the discovery URL to local Dex, and 
+Build and run the example app webserver by pointing the discovery URL to local Dex, and
 supplying the client information from `./static/fixtures/clients.json` into the flags.
 
 ```console
