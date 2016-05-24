@@ -17,6 +17,7 @@ import (
 	"github.com/go-gorp/gorp"
 
 	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/email"
@@ -114,9 +115,11 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	if err != nil {
 		return fmt.Errorf("unable to read clients from file %s: %v", cfg.ClientsFile, err)
 	}
-	ciRepo, err := db.NewClientRepoFromClients(dbMap, clients)
-	if err != nil {
-		return fmt.Errorf("failed to create client identity repo: %v", err)
+
+	clientRepo := db.NewClientRepo(dbMap)
+
+	for _, c := range clients {
+		clientRepo.New(nil, c)
 	}
 
 	f, err := os.Open(cfg.ConnectorsFile)
@@ -155,7 +158,12 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 
 	txnFactory := db.TransactionFactory(dbMap)
 	userManager := usermanager.NewUserManager(userRepo, pwiRepo, cfgRepo, txnFactory, usermanager.ManagerOptions{})
-	srv.ClientRepo = ciRepo
+	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbMap), clients, clientmanager.ManagerOptions{})
+	if err != nil {
+		return fmt.Errorf("Failed to create client identity manager: %v", err)
+	}
+	srv.ClientRepo = clientRepo
+	srv.ClientManager = clientManager
 	srv.KeySetRepo = kRepo
 	srv.ConnectorConfigRepo = cfgRepo
 	srv.UserRepo = userRepo
@@ -253,11 +261,13 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 	userRepo := db.NewUserRepo(dbc)
 	pwiRepo := db.NewPasswordInfoRepo(dbc)
 	userManager := usermanager.NewUserManager(userRepo, pwiRepo, cfgRepo, db.TransactionFactory(dbc), usermanager.ManagerOptions{})
+	clientManager := clientmanager.NewClientManager(ciRepo, db.TransactionFactory(dbc), clientmanager.ManagerOptions{})
 	refreshTokenRepo := db.NewRefreshTokenRepo(dbc)
 
 	sm := sessionmanager.NewSessionManager(sRepo, skRepo)
 
 	srv.ClientRepo = ciRepo
+	srv.ClientManager = clientManager
 	srv.KeySetRepo = kRepo
 	srv.ConnectorConfigRepo = cfgRepo
 	srv.UserRepo = userRepo

@@ -1,12 +1,16 @@
 package client
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/url"
 	"reflect"
 
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/coreos/dex/repo"
 	"github.com/coreos/go-oidc/oidc"
 )
 
@@ -17,6 +21,24 @@ var (
 	ErrorNotFound              = errors.New("no data found")
 )
 
+const (
+	bcryptHashCost = 10
+)
+
+func HashSecret(creds oidc.ClientCredentials) ([]byte, error) {
+	secretBytes, err := base64.URLEncoding.DecodeString(creds.Secret)
+	if err != nil {
+		return nil, err
+	}
+	hashed, err := bcrypt.GenerateFromPassword([]byte(
+		secretBytes),
+		bcryptHashCost)
+	if err != nil {
+		return nil, err
+	}
+	return hashed, nil
+}
+
 type Client struct {
 	Credentials oidc.ClientCredentials
 	Metadata    oidc.ClientMetadata
@@ -24,30 +46,20 @@ type Client struct {
 }
 
 type ClientRepo interface {
-	Get(clientID string) (Client, error)
+	Get(tx repo.Transaction, clientID string) (Client, error)
 
-	// Metadata returns one matching ClientMetadata if the given client
-	// exists, otherwise nil. The returned error will be non-nil only
-	// if the repo was unable to determine client existence.
-	Metadata(clientID string) (*oidc.ClientMetadata, error)
-
-	// Authenticate asserts that a client with the given ID exists and
-	// that the provided secret matches. If either of these assertions
-	// fail, (false, nil) will be returned. Only if the repo is unable
-	// to make these assertions will a non-nil error be returned.
-	Authenticate(creds oidc.ClientCredentials) (bool, error)
+	// GetSecret returns the (base64 encoded) hashed client secret
+	GetSecret(tx repo.Transaction, clientID string) ([]byte, error)
 
 	// All returns all registered Clients
-	All() ([]Client, error)
+	All(tx repo.Transaction) ([]Client, error)
 
 	// New registers a Client with the repo.
 	// An unused ID must be provided. A corresponding secret will be returned
 	// in a ClientCredentials struct along with the provided ID.
-	New(client Client) (*oidc.ClientCredentials, error)
+	New(tx repo.Transaction, client Client) (*oidc.ClientCredentials, error)
 
-	SetDexAdmin(clientID string, isAdmin bool) error
-
-	IsDexAdmin(clientID string) (bool, error)
+	Update(tx repo.Transaction, client Client) error
 }
 
 // ValidRedirectURL returns the passed in URL if it is present in the redirectURLs list, and returns an error otherwise.

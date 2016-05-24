@@ -18,7 +18,7 @@ if [ ! -d $GOPATH/pkg ]; then
 	echo "WARNING: No cached builds detected. Please run the ./build script to speed up future tests."
 fi
 
-TESTABLE="connector db integration pkg/crypto pkg/flag pkg/http pkg/time pkg/html functional/repo server session session/manager user user/api user/manager user/email email admin"
+TESTABLE="connector db integration pkg/crypto pkg/flag pkg/http pkg/time pkg/html functional/repo server session session/manager user user/api user/manager user/email email admin client client/manager"
 FORMATTABLE="$TESTABLE cmd/dexctl cmd/dex-worker cmd/dex-overlord examples/app functional pkg/log"
 
 # user has not provided PKG override

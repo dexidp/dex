@@ -11,12 +11,12 @@ import (
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/pkg/log"
 	schema "github.com/coreos/dex/schema/workerschema"
 	"github.com/coreos/dex/user"
 	"github.com/coreos/dex/user/api"
-	"github.com/coreos/dex/user/manager"
+	usermanager "github.com/coreos/dex/user/manager"
 )
 
 const (
@@ -38,16 +38,16 @@ var (
 type UserMgmtServer struct {
 	api         *api.UsersAPI
 	jwtvFactory JWTVerifierFactory
-	um          *manager.UserManager
-	cir         client.ClientRepo
+	um          *usermanager.UserManager
+	cm          *clientmanager.ClientManager
 }
 
-func NewUserMgmtServer(userMgmtAPI *api.UsersAPI, jwtvFactory JWTVerifierFactory, um *manager.UserManager, cir client.ClientRepo) *UserMgmtServer {
+func NewUserMgmtServer(userMgmtAPI *api.UsersAPI, jwtvFactory JWTVerifierFactory, um *usermanager.UserManager, cm *clientmanager.ClientManager) *UserMgmtServer {
 	return &UserMgmtServer{
 		api:         userMgmtAPI,
 		jwtvFactory: jwtvFactory,
 		um:          um,
-		cir:         cir,
+		cm:          cm,
 	}
 }
 
@@ -295,7 +295,7 @@ func (s *UserMgmtServer) getCreds(r *http.Request, requiresAdmin bool) (api.Cred
 		return api.Creds{}, err
 	}
 
-	isAdmin, err := s.cir.IsDexAdmin(clientID)
+	isAdmin, err := s.cm.IsDexAdmin(clientID)
 	if err != nil {
 		log.Errorf("userMgmtServer: GetCreds err: %q", err)
 		return api.Creds{}, err

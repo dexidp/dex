@@ -22,9 +22,10 @@ var (
 	clock = clockwork.NewFakeClock()
 
 	testIssuerURL        = url.URL{Scheme: "https", Host: "auth.example.com"}
-	testClientID         = "XXX"
-	testClientSecret     = base64.URLEncoding.EncodeToString([]byte("yyy"))
+	testClientID         = "client.example.com"
+	testClientSecret     = base64.URLEncoding.EncodeToString([]byte("secret"))
 	testRedirectURL      = url.URL{Scheme: "https", Host: "client.example.com", Path: "/redirect"}
+	testBadRedirectURL   = url.URL{Scheme: "https", Host: "bad.example.com", Path: "/redirect"}
 	testResetPasswordURL = url.URL{Scheme: "https", Host: "auth.example.com", Path: "/resetPassword"}
 	testPrivKey, _       = key.GeneratePrivateKey()
 )

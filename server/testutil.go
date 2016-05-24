@@ -10,6 +10,7 @@ import (
 	"github.com/coreos/go-oidc/oidc"
 
 	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/email"
@@ -26,7 +27,7 @@ const (
 
 var (
 	testIssuerURL = url.URL{Scheme: "http", Host: "server.example.com"}
-	testClientID  = "XXX"
+	testClientID  = "client.example.com"
 
 	testRedirectURL = url.URL{Scheme: "http", Host: "client.example.com", Path: "/callback"}
 
@@ -79,6 +80,7 @@ type testFixtures struct {
 	emailer        *email.TemplatizedEmailer
 	redirectURL    url.URL
 	clientRepo     client.ClientRepo
+	clientManager  *clientmanager.ClientManager
 }
 
 func sequentialGenerateCodeFunc() sessionmanager.GenerateCodeFunc {
@@ -123,7 +125,7 @@ func makeTestFixtures() (*testFixtures, error) {
 		return nil, err
 	}
 
-	manager := usermanager.NewUserManager(userRepo, pwRepo, connCfgRepo, db.TransactionFactory(dbMap), usermanager.ManagerOptions{})
+	userManager := usermanager.NewUserManager(userRepo, pwRepo, connCfgRepo, db.TransactionFactory(dbMap), usermanager.ManagerOptions{})
 
 	sessionManager := sessionmanager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 	sessionManager.GenerateCode = sequentialGenerateCodeFunc()
@@ -136,11 +138,11 @@ func makeTestFixtures() (*testFixtures, error) {
 		return nil, err
 	}
 
-	clientRepo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
+	clients := []client.Client{
 		client.Client{
 			Credentials: oidc.ClientCredentials{
-				ID:     "XXX",
-				Secret: base64.URLEncoding.EncodeToString([]byte("secrete")),
+				ID:     testClientID,
+				Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
 			},
 			Metadata: oidc.ClientMetadata{
 				RedirectURIs: []url.URL{
@@ -148,11 +150,19 @@ func makeTestFixtures() (*testFixtures, error) {
 				},
 			},
 		},
-	})
+	}
+
+	clientIDGenerator := func(hostport string) (string, error) {
+		return hostport, nil
+	}
+	secGen := func() ([]byte, error) {
+		return []byte("secret"), nil
+	}
+	clientRepo := db.NewClientRepo(dbMap)
+	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbMap), clients, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
 	if err != nil {
 		return nil, err
 	}
-
 	km := key.NewPrivateKeyManager()
 	err = km.Set(key.NewPrivateKeySet([]*key.PrivateKey{testPrivKey}, time.Now().Add(time.Minute)))
 	if err != nil {
@@ -173,7 +183,8 @@ func makeTestFixtures() (*testFixtures, error) {
 		Templates:        tpl,
 		UserRepo:         userRepo,
 		PasswordInfoRepo: pwRepo,
-		UserManager:      manager,
+		UserManager:      userManager,
+		ClientManager:    clientManager,
 		KeyManager:       km,
 	}
 
@@ -207,5 +218,6 @@ func makeTestFixtures() (*testFixtures, error) {
 		sessionManager: sessionManager,
 		emailer:        emailer,
 		clientRepo:     clientRepo,
+		clientManager:  clientManager,
 	}, nil
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/refresh/refreshtest"
 	"github.com/coreos/dex/session/manager"
@@ -21,7 +22,12 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 )
 
-var clientTestSecret = base64.URLEncoding.EncodeToString([]byte("secrete"))
+var clientTestSecret = base64.URLEncoding.EncodeToString([]byte("secret"))
+var validRedirURL = url.URL{
+	Scheme: "http",
+	Host:   "client.example.com",
+	Path:   "/callback",
+}
 
 type StaticKeyManager struct {
 	key.PrivateKeyManager
@@ -132,8 +138,8 @@ func TestServerNewSession(t *testing.T) {
 	nonce := "oncenay"
 	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
-			ID:     "XXX",
-			Secret: "secrete",
+			ID:     testClientID,
+			Secret: clientTestSecret,
 		},
 		Metadata: oidc.ClientMetadata{
 			RedirectURIs: []url.URL{
@@ -181,7 +187,7 @@ func TestServerNewSession(t *testing.T) {
 func TestServerLogin(t *testing.T) {
 	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
-			ID:     "XXX",
+			ID:     testClientID,
 			Secret: clientTestSecret,
 		},
 		Metadata: oidc.ClientMetadata{
@@ -194,13 +200,13 @@ func TestServerLogin(t *testing.T) {
 			},
 		},
 	}
-	ciRepo := func() client.ClientRepo {
-		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{ci})
-		if err != nil {
-			t.Fatalf("Failed to create client identity repo: %v", err)
-		}
-		return repo
-	}()
+
+	dbm := db.NewMemDB()
+	clientRepo := db.NewClientRepo(dbm)
+	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbm), []client.Client{ci}, clientmanager.ManagerOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create client identity manager: %v", err)
+	}
 
 	km := &StaticKeyManager{
 		signer: &StaticSigner{sig: []byte("beer"), err: nil},
@@ -222,7 +228,8 @@ func TestServerLogin(t *testing.T) {
 		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
 		KeyManager:     km,
 		SessionManager: sm,
-		ClientRepo:     ciRepo,
+		ClientRepo:     clientRepo,
+		ClientManager:  clientManager,
 		UserRepo:       userRepo,
 	}
 
@@ -244,20 +251,30 @@ func TestServerLogin(t *testing.T) {
 }
 
 func TestServerLoginUnrecognizedSessionKey(t *testing.T) {
-	ciRepo := func() client.ClientRepo {
-		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
-			client.Client{
-				Credentials: oidc.ClientCredentials{
-					ID: "XXX", Secret: clientTestSecret,
+	clients := []client.Client{
+		client.Client{
+			Credentials: oidc.ClientCredentials{
+				ID: testClientID, Secret: clientTestSecret,
+			},
+			Metadata: oidc.ClientMetadata{
+				RedirectURIs: []url.URL{
+					validRedirURL,
 				},
 			},
-		})
-		if err != nil {
-			t.Fatalf("Failed to create client identity repo: %v", err)
-		}
-		return repo
-	}()
-
+		},
+	}
+	dbm := db.NewMemDB()
+	clientIDGenerator := func(hostport string) (string, error) {
+		return hostport, nil
+	}
+	secGen := func() ([]byte, error) {
+		return []byte("secret"), nil
+	}
+	clientRepo := db.NewClientRepo(dbm)
+	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbm), clients, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+	if err != nil {
+		t.Fatalf("Failed to create client identity manager: %v", err)
+	}
 	km := &StaticKeyManager{
 		signer: &StaticSigner{sig: nil, err: errors.New("fail")},
 	}
@@ -266,11 +283,12 @@ func TestServerLoginUnrecognizedSessionKey(t *testing.T) {
 		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
 		KeyManager:     km,
 		SessionManager: sm,
-		ClientRepo:     ciRepo,
+		ClientRepo:     clientRepo,
+		ClientManager:  clientManager,
 	}
 
 	ident := oidc.Identity{ID: "YYY", Name: "elroy", Email: "elroy@example.com"}
-	code, err := srv.Login(ident, "XXX")
+	code, err := srv.Login(ident, testClientID)
 	if err == nil {
 		t.Fatalf("Expected non-nil error")
 	}
@@ -283,27 +301,28 @@ func TestServerLoginUnrecognizedSessionKey(t *testing.T) {
 func TestServerLoginDisabledUser(t *testing.T) {
 	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
-			ID:     "XXX",
+			ID:     testClientID,
 			Secret: clientTestSecret,
 		},
 		Metadata: oidc.ClientMetadata{
 			RedirectURIs: []url.URL{
-				url.URL{
-					Scheme: "http",
-					Host:   "client.example.com",
-					Path:   "/callback",
-				},
+				validRedirURL,
 			},
 		},
 	}
-	ciRepo := func() client.ClientRepo {
-		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{ci})
-		if err != nil {
-			t.Fatalf("Failed to create client identity repo: %v", err)
-		}
-		return repo
-	}()
-
+	clients := []client.Client{ci}
+	dbm := db.NewMemDB()
+	clientIDGenerator := func(hostport string) (string, error) {
+		return hostport, nil
+	}
+	secGen := func() ([]byte, error) {
+		return []byte("secret"), nil
+	}
+	clientRepo := db.NewClientRepo(dbm)
+	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbm), clients, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+	if err != nil {
+		t.Fatalf("Failed to create client identity manager: %v", err)
+	}
 	km := &StaticKeyManager{
 		signer: &StaticSigner{sig: []byte("beer"), err: nil},
 	}
@@ -338,7 +357,8 @@ func TestServerLoginDisabledUser(t *testing.T) {
 		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
 		KeyManager:     km,
 		SessionManager: sm,
-		ClientRepo:     ciRepo,
+		ClientRepo:     clientRepo,
+		ClientManager:  clientManager,
 		UserRepo:       userRepo,
 	}
 
@@ -357,17 +377,28 @@ func TestServerLoginDisabledUser(t *testing.T) {
 func TestServerCodeToken(t *testing.T) {
 	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
-			ID:     "XXX",
+			ID:     testClientID,
 			Secret: clientTestSecret,
 		},
+		Metadata: oidc.ClientMetadata{
+			RedirectURIs: []url.URL{
+				validRedirURL,
+			},
+		},
 	}
-	ciRepo := func() client.ClientRepo {
-		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{ci})
-		if err != nil {
-			t.Fatalf("Failed to create client identity repo: %v", err)
-		}
-		return repo
-	}()
+	clients := []client.Client{ci}
+	dbm := db.NewMemDB()
+	clientIDGenerator := func(hostport string) (string, error) {
+		return hostport, nil
+	}
+	secGen := func() ([]byte, error) {
+		return []byte("secret"), nil
+	}
+	clientRepo := db.NewClientRepo(dbm)
+	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbm), clients, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+	if err != nil {
+		t.Fatalf("Failed to create client identity manager: %v", err)
+	}
 	km := &StaticKeyManager{
 		signer: &StaticSigner{sig: []byte("beer"), err: nil},
 	}
@@ -384,7 +415,8 @@ func TestServerCodeToken(t *testing.T) {
 		IssuerURL:        url.URL{Scheme: "http", Host: "server.example.com"},
 		KeyManager:       km,
 		SessionManager:   sm,
-		ClientRepo:       ciRepo,
+		ClientRepo:       clientRepo,
+		ClientManager:    clientManager,
 		UserRepo:         userRepo,
 		RefreshTokenRepo: refreshTokenRepo,
 	}
@@ -443,17 +475,29 @@ func TestServerCodeToken(t *testing.T) {
 func TestServerTokenUnrecognizedKey(t *testing.T) {
 	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
-			ID:     "XXX",
+			ID:     testClientID,
 			Secret: clientTestSecret,
 		},
+		Metadata: oidc.ClientMetadata{
+			RedirectURIs: []url.URL{
+				validRedirURL,
+			},
+		},
 	}
-	ciRepo := func() client.ClientRepo {
-		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{ci})
-		if err != nil {
-			t.Fatalf("Failed to create client identity repo: %v", err)
-		}
-		return repo
-	}()
+
+	clients := []client.Client{ci}
+	dbm := db.NewMemDB()
+	clientIDGenerator := func(hostport string) (string, error) {
+		return hostport, nil
+	}
+	secGen := func() ([]byte, error) {
+		return []byte("secret"), nil
+	}
+	clientRepo := db.NewClientRepo(dbm)
+	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbm), clients, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+	if err != nil {
+		t.Fatalf("Failed to create client identity manager: %v", err)
+	}
 	km := &StaticKeyManager{
 		signer: &StaticSigner{sig: []byte("beer"), err: nil},
 	}
@@ -463,7 +507,8 @@ func TestServerTokenUnrecognizedKey(t *testing.T) {
 		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
 		KeyManager:     km,
 		SessionManager: sm,
-		ClientRepo:     ciRepo,
+		ClientRepo:     clientRepo,
+		ClientManager:  clientManager,
 	}
 
 	sessionID, err := sm.NewSession("connector_id", ci.Credentials.ID, "bogus", url.URL{}, "", false, []string{"openid", "offline_access"})
@@ -492,7 +537,7 @@ func TestServerTokenFail(t *testing.T) {
 	issuerURL := url.URL{Scheme: "http", Host: "server.example.com"}
 	keyFixture := "goodkey"
 	ccFixture := oidc.ClientCredentials{
-		ID:     "XXX",
+		ID:     testClientID,
 		Secret: clientTestSecret,
 	}
 	signerFixture := &StaticSigner{sig: []byte("beer"), err: nil}
@@ -569,14 +614,29 @@ func TestServerTokenFail(t *testing.T) {
 		km := &StaticKeyManager{
 			signer: tt.signer,
 		}
-		ciRepo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
-			client.Client{Credentials: ccFixture},
-		})
-		if err != nil {
-			t.Errorf("case %d: failed to create client identity repo: %v", i, err)
-			continue
-		}
 
+		clients := []client.Client{
+			client.Client{
+				Credentials: ccFixture,
+				Metadata: oidc.ClientMetadata{
+					RedirectURIs: []url.URL{
+						validRedirURL,
+					},
+				},
+			},
+		}
+		dbm := db.NewMemDB()
+		clientIDGenerator := func(hostport string) (string, error) {
+			return hostport, nil
+		}
+		secGen := func() ([]byte, error) {
+			return []byte("secret"), nil
+		}
+		clientRepo := db.NewClientRepo(dbm)
+		clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbm), clients, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+		if err != nil {
+			t.Fatalf("Failed to create client identity manager: %v", err)
+		}
 		_, err = sm.AttachUser(sessionID, "testid-1")
 		if err != nil {
 			t.Fatalf("case %d: unexpected error: %v", i, err)
@@ -593,7 +653,8 @@ func TestServerTokenFail(t *testing.T) {
 			IssuerURL:        issuerURL,
 			KeyManager:       km,
 			SessionManager:   sm,
-			ClientRepo:       ciRepo,
+			ClientRepo:       clientRepo,
+			ClientManager:    clientManager,
 			UserRepo:         userRepo,
 			RefreshTokenRepo: refreshTokenRepo,
 		}
@@ -623,14 +684,27 @@ func TestServerTokenFail(t *testing.T) {
 
 func TestServerRefreshToken(t *testing.T) {
 	issuerURL := url.URL{Scheme: "http", Host: "server.example.com"}
-
-	credXXX := oidc.ClientCredentials{
-		ID:     "XXX",
-		Secret: clientTestSecret,
+	clientA := client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID:     testClientID,
+			Secret: clientTestSecret,
+		},
+		Metadata: oidc.ClientMetadata{
+			RedirectURIs: []url.URL{
+				url.URL{Scheme: "https", Host: "client.example.com", Path: "one/two/three"},
+			},
+		},
 	}
-	credYYY := oidc.ClientCredentials{
-		ID:     "YYY",
-		Secret: clientTestSecret,
+	clientB := client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID:     "example2.com",
+			Secret: clientTestSecret,
+		},
+		Metadata: oidc.ClientMetadata{
+			RedirectURIs: []url.URL{
+				url.URL{Scheme: "https", Host: "example2.com", Path: "one/two/three"},
+			},
+		},
 	}
 
 	signerFixture := &StaticSigner{sig: []byte("beer"), err: nil}
@@ -647,47 +721,47 @@ func TestServerRefreshToken(t *testing.T) {
 		// Everything is good.
 		{
 			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			"XXX",
-			credXXX,
+			clientA.Credentials.ID,
+			clientA.Credentials,
 			signerFixture,
 			nil,
 		},
 		// Invalid refresh token(malformatted).
 		{
 			"invalid-token",
-			"XXX",
-			credXXX,
+			clientA.Credentials.ID,
+			clientA.Credentials,
 			signerFixture,
 			oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 		// Invalid refresh token(invalid payload content).
 		{
 			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-2"))),
-			"XXX",
-			credXXX,
+			clientA.Credentials.ID,
+			clientA.Credentials,
 			signerFixture,
 			oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 		// Invalid refresh token(invalid ID content).
 		{
 			fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			"XXX",
-			credXXX,
+			clientA.Credentials.ID,
+			clientA.Credentials,
 			signerFixture,
 			oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 		// Invalid client(client is not associated with the token).
 		{
 			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			"XXX",
-			credYYY,
+			clientA.Credentials.ID,
+			clientB.Credentials,
 			signerFixture,
 			oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(no client ID).
 		{
 			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			"XXX",
+			clientA.Credentials.ID,
 			oidc.ClientCredentials{ID: "", Secret: "aaa"},
 			signerFixture,
 			oauth2.NewError(oauth2.ErrorInvalidClient),
@@ -695,7 +769,7 @@ func TestServerRefreshToken(t *testing.T) {
 		// Invalid client(no such client).
 		{
 			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			"XXX",
+			clientA.Credentials.ID,
 			oidc.ClientCredentials{ID: "AAA", Secret: "aaa"},
 			signerFixture,
 			oauth2.NewError(oauth2.ErrorInvalidClient),
@@ -703,24 +777,24 @@ func TestServerRefreshToken(t *testing.T) {
 		// Invalid client(no secrets).
 		{
 			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			"XXX",
-			oidc.ClientCredentials{ID: "XXX"},
+			clientA.Credentials.ID,
+			oidc.ClientCredentials{ID: testClientID},
 			signerFixture,
 			oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(invalid secret).
 		{
 			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			"XXX",
-			oidc.ClientCredentials{ID: "XXX", Secret: "bad-secret"},
+			clientA.Credentials.ID,
+			oidc.ClientCredentials{ID: "bad-id", Secret: "bad-secret"},
 			signerFixture,
 			oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Signing operation fails.
 		{
 			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			"XXX",
-			credXXX,
+			clientA.Credentials.ID,
+			clientA.Credentials,
 			&StaticSigner{sig: nil, err: errors.New("fail")},
 			oauth2.NewError(oauth2.ErrorServerError),
 		},
@@ -731,15 +805,23 @@ func TestServerRefreshToken(t *testing.T) {
 			signer: tt.signer,
 		}
 
-		ciRepo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
-			client.Client{Credentials: credXXX},
-			client.Client{Credentials: credYYY},
-		})
-		if err != nil {
-			t.Errorf("case %d: failed to create client identity repo: %v", i, err)
-			continue
+		clients := []client.Client{
+			clientA,
+			clientB,
 		}
 
+		clientIDGenerator := func(hostport string) (string, error) {
+			return hostport, nil
+		}
+		secGen := func() ([]byte, error) {
+			return []byte("secret"), nil
+		}
+		dbm := db.NewMemDB()
+		clientRepo := db.NewClientRepo(dbm)
+		clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbm), clients, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+		if err != nil {
+			t.Fatalf("Failed to create client identity manager: %v", err)
+		}
 		userRepo, err := makeNewUserRepo()
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
@@ -750,7 +832,8 @@ func TestServerRefreshToken(t *testing.T) {
 		srv := &Server{
 			IssuerURL:        issuerURL,
 			KeyManager:       km,
-			ClientRepo:       ciRepo,
+			ClientRepo:       clientRepo,
+			ClientManager:    clientManager,
 			UserRepo:         userRepo,
 			RefreshTokenRepo: refreshTokenRepo,
 		}
@@ -772,7 +855,7 @@ func TestServerRefreshToken(t *testing.T) {
 			if err != nil {
 				t.Errorf("Case %d: unexpected error: %v", i, err)
 			}
-			if claims["iss"] != issuerURL.String() || claims["sub"] != "testid-1" || claims["aud"] != "XXX" {
+			if claims["iss"] != issuerURL.String() || claims["sub"] != "testid-1" || claims["aud"] != testClientID {
 				t.Errorf("Case %d: invalid claims: %v", i, claims)
 			}
 		}
@@ -784,14 +867,22 @@ func TestServerRefreshToken(t *testing.T) {
 		signer: signerFixture,
 	}
 
-	ciRepo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
-		client.Client{Credentials: credXXX},
-		client.Client{Credentials: credYYY},
-	})
-	if err != nil {
-		t.Fatalf("failed to create client identity repo: %v", err)
+	clients := []client.Client{
+		clientA,
+		clientB,
 	}
-
+	clientIDGenerator := func(hostport string) (string, error) {
+		return hostport, nil
+	}
+	secGen := func() ([]byte, error) {
+		return []byte("secret"), nil
+	}
+	dbm := db.NewMemDB()
+	clientRepo := db.NewClientRepo(dbm)
+	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbm), clients, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+	if err != nil {
+		t.Fatalf("Failed to create client identity manager: %v", err)
+	}
 	userRepo, err := makeNewUserRepo()
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -810,12 +901,13 @@ func TestServerRefreshToken(t *testing.T) {
 	srv := &Server{
 		IssuerURL:        issuerURL,
 		KeyManager:       km,
-		ClientRepo:       ciRepo,
+		ClientRepo:       clientRepo,
+		ClientManager:    clientManager,
 		UserRepo:         userRepo,
 		RefreshTokenRepo: refreshTokenRepo,
 	}
 
-	if _, err := refreshTokenRepo.Create("testid-2", credXXX.ID); err != nil {
+	if _, err := refreshTokenRepo.Create("testid-2", clientA.Credentials.ID); err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
@@ -826,7 +918,7 @@ func TestServerRefreshToken(t *testing.T) {
 	}
 	srv.UserRepo = userRepo
 
-	_, err = srv.RefreshToken(credXXX, fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))))
+	_, err = srv.RefreshToken(clientA.Credentials, fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))))
 	if !reflect.DeepEqual(err, oauth2.NewError(oauth2.ErrorServerError)) {
 		t.Errorf("Expect: %v, got: %v", oauth2.NewError(oauth2.ErrorServerError), err)
 	}

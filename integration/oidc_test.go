@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	phttp "github.com/coreos/dex/pkg/http"
@@ -35,7 +36,15 @@ func mockServer(cis []client.Client) (*server.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	clientRepo, err := db.NewClientRepoFromClients(dbMap, cis)
+
+	clientIDGenerator := func(hostport string) (string, error) {
+		return hostport, nil
+	}
+	secGen := func() ([]byte, error) {
+		return []byte("secret"), nil
+	}
+	clientRepo := db.NewClientRepo(dbMap)
+	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbMap), cis, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
 	if err != nil {
 		return nil, err
 	}
@@ -45,6 +54,7 @@ func mockServer(cis []client.Client) (*server.Server, error) {
 		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
 		KeyManager:     km,
 		ClientRepo:     clientRepo,
+		ClientManager:  clientManager,
 		SessionManager: sm,
 	}
 
@@ -82,15 +92,21 @@ func verifyUserClaims(claims jose.Claims, ci *client.Client, user *user.User, is
 		expectedSub, expectedName = user.ID, user.DisplayName
 	}
 
-	if aud := claims["aud"].(string); aud != ci.Credentials.ID {
+	if aud, ok := claims["aud"].(string); !ok {
+		return fmt.Errorf("unexpected claim value for aud, got=nil, want=%v", ci.Credentials.ID)
+	} else if aud != ci.Credentials.ID {
 		return fmt.Errorf("unexpected claim value for aud, got=%v, want=%v", aud, ci.Credentials.ID)
 	}
 
-	if sub := claims["sub"].(string); sub != expectedSub {
+	if sub, ok := claims["sub"].(string); !ok {
+		return fmt.Errorf("unexpected claim value for sub, got=nil, want=%v", expectedSub)
+	} else if sub != expectedSub {
 		return fmt.Errorf("unexpected claim value for sub, got=%v, want=%v", sub, expectedSub)
 	}
 
-	if name := claims["name"].(string); name != expectedName {
+	if name, ok := claims["name"].(string); !ok {
+		return fmt.Errorf("unexpected claim value for aud, got=nil, want=%v", expectedName)
+	} else if name != expectedName {
 		return fmt.Errorf("unexpected claim value for name, got=%v, want=%v", name, expectedName)
 	}
 
@@ -117,17 +133,34 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 		ID: "local",
 	}
 
+	validRedirURL := url.URL{
+		Scheme: "http",
+		Host:   "client.example.com",
+		Path:   "/callback",
+	}
 	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
-			ID:     "72de74a9",
-			Secret: base64.URLEncoding.EncodeToString([]byte("XXX")),
+			ID:     validRedirURL.Host,
+			Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
+		},
+		Metadata: oidc.ClientMetadata{
+			RedirectURIs: []url.URL{
+				validRedirURL,
+			},
 		},
 	}
 
+	clientIDGenerator := func(hostport string) (string, error) {
+		return hostport, nil
+	}
+	secGen := func() ([]byte, error) {
+		return []byte("secret"), nil
+	}
 	dbMap := db.NewMemDB()
-	cir, err := db.NewClientRepoFromClients(dbMap, []client.Client{ci})
+	clientRepo := db.NewClientRepo(dbMap)
+	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbMap), []client.Client{ci}, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
 	if err != nil {
-		t.Fatalf("Failed to create client identity repo: " + err.Error())
+		t.Fatalf("Failed to create client identity manager: " + err.Error())
 	}
 	passwordInfoRepo, err := db.NewPasswordInfoRepoFromPasswordInfos(db.NewMemDB(), []user.PasswordInfo{passwordInfo})
 	if err != nil {
@@ -164,7 +197,8 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 		IssuerURL:        issuerURL,
 		KeyManager:       km,
 		SessionManager:   sm,
-		ClientRepo:       cir,
+		ClientRepo:       clientRepo,
+		ClientManager:    clientManager,
 		Templates:        template.New(connector.LoginPageTemplateName),
 		Connectors:       []connector.Connector{},
 		UserRepo:         userRepo,
@@ -188,7 +222,7 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 		HTTPClient:     sClient,
 		ProviderConfig: pcfg,
 		Credentials:    ci.Credentials,
-		RedirectURL:    "http://client.example.com",
+		RedirectURL:    validRedirURL.String(),
 		KeySet:         *ks,
 	}
 
@@ -263,10 +297,20 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 }
 
 func TestHTTPClientCredsToken(t *testing.T) {
+	validRedirURL := url.URL{
+		Scheme: "http",
+		Host:   "client.example.com",
+		Path:   "/callback",
+	}
 	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
-			ID:     "72de74a9",
-			Secret: base64.URLEncoding.EncodeToString([]byte("XXX")),
+			ID:     validRedirURL.Host,
+			Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
+		},
+		Metadata: oidc.ClientMetadata{
+			RedirectURIs: []url.URL{
+				validRedirURL,
+			},
 		},
 	}
 	cis := []client.Client{ci}

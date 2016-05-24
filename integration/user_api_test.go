@@ -18,6 +18,7 @@ import (
 	"google.golang.org/api/googleapi"
 
 	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/db"
 	schema "github.com/coreos/dex/schema/workerschema"
 	"github.com/coreos/dex/server"
@@ -79,7 +80,7 @@ var (
 		},
 	}
 
-	userBadClientID = "ZZZ"
+	userBadClientID = testBadRedirectURL.Host
 
 	userGoodToken = makeUserToken(testIssuerURL,
 		"ID-1", testClientID, time.Hour*1, testPrivKey)
@@ -101,38 +102,42 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 	f := &userAPITestFixtures{}
 
 	dbMap, _, _, um := makeUserObjects(userUsers, userPasswords)
-	cir := func() client.ClientRepo {
-		repo, err := db.NewClientRepoFromClients(dbMap, []client.Client{
-			client.Client{
-				Credentials: oidc.ClientCredentials{
-					ID:     testClientID,
-					Secret: testClientSecret,
-				},
-				Metadata: oidc.ClientMetadata{
-					RedirectURIs: []url.URL{
-						testRedirectURL,
-					},
+	clients := []client.Client{
+		client.Client{
+			Credentials: oidc.ClientCredentials{
+				ID:     testClientID,
+				Secret: testClientSecret,
+			},
+			Metadata: oidc.ClientMetadata{
+				RedirectURIs: []url.URL{
+					testRedirectURL,
 				},
 			},
-			client.Client{
-				Credentials: oidc.ClientCredentials{
-					ID:     userBadClientID,
-					Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
-				},
-				Metadata: oidc.ClientMetadata{
-					RedirectURIs: []url.URL{
-						testRedirectURL,
-					},
+		},
+		client.Client{
+			Credentials: oidc.ClientCredentials{
+				ID:     userBadClientID,
+				Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
+			},
+			Metadata: oidc.ClientMetadata{
+				RedirectURIs: []url.URL{
+					testBadRedirectURL,
 				},
 			},
-		})
-		if err != nil {
-			panic("Failed to create client identity repo: " + err.Error())
-		}
-		return repo
-	}()
-
-	cir.SetDexAdmin(testClientID, true)
+		},
+	}
+	clientIDGenerator := func(hostport string) (string, error) {
+		return hostport, nil
+	}
+	secGen := func() ([]byte, error) {
+		return []byte(testClientSecret), nil
+	}
+	clientRepo := db.NewClientRepo(dbMap)
+	clientManager, err := manager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbMap), clients, manager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+	if err != nil {
+		panic("Failed to create client identity manager: " + err.Error())
+	}
+	clientManager.SetDexAdmin(testClientID, true)
 
 	noop := func() error { return nil }
 
@@ -153,8 +158,9 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 
 	f.emailer = &testEmailer{}
 	um.Clock = clock
-	api := api.NewUsersAPI(dbMap, um, f.emailer, "local")
-	usrSrv := server.NewUserMgmtServer(api, jwtvFactory, um, cir)
+
+	api := api.NewUsersAPI(um, clientManager, refreshRepo, f.emailer, "local")
+	usrSrv := server.NewUserMgmtServer(api, jwtvFactory, um, clientManager)
 	f.hSrv = httptest.NewServer(usrSrv.HTTPHandler())
 
 	f.trans = &tokenHandlerTransport{
@@ -536,7 +542,7 @@ func TestCreateUser(t *testing.T) {
 			wantEmalier := testEmailer{
 				cantEmail:       tt.cantEmail,
 				lastEmail:       tt.req.User.Email,
-				lastClientID:    "XXX",
+				lastClientID:    testClientID,
 				lastWasInvite:   true,
 				lastRedirectURL: *urlParsed,
 			}
@@ -799,7 +805,7 @@ func TestResendEmailInvitation(t *testing.T) {
 			wantEmalier := testEmailer{
 				cantEmail:       tt.cantEmail,
 				lastEmail:       strings.ToLower(tt.email),
-				lastClientID:    "XXX",
+				lastClientID:    testClientID,
 				lastWasInvite:   true,
 				lastRedirectURL: *urlParsed,
 			}

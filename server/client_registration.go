@@ -39,18 +39,10 @@ func (s *Server) handleClientRegistrationRequest(r *http.Request) (*oidc.ClientR
 	}
 
 	// metadata is guarenteed to have at least one redirect_uri by earlier validation.
-	id, err := oidc.GenClientID(clientMetadata.RedirectURIs[0].Host)
-	if err != nil {
-		log.Errorf("Faild to create client ID: %v", err)
-		return nil, newAPIError(oauth2.ErrorServerError, "unable to save client metadata")
-	}
-
-	creds, err := s.ClientRepo.New(client.Client{
-		Credentials: oidc.ClientCredentials{
-			ID: id,
-		},
+	cli := client.Client{
 		Metadata: clientMetadata,
-	})
+	}
+	creds, err := s.ClientManager.New(cli)
 	if err != nil {
 		log.Errorf("Failed to create new client identity: %v", err)
 		return nil, newAPIError(oauth2.ErrorServerError, "unable to save client metadata")

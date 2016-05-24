@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/key"
@@ -25,22 +25,23 @@ func (h staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func TestClientToken(t *testing.T) {
 	now := time.Now()
 	tomorrow := now.Add(24 * time.Hour)
-	validClientID := "valid-client"
-	ci := client.Client{
-		Credentials: oidc.ClientCredentials{
-			ID:     validClientID,
-			Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
-		},
-		Metadata: oidc.ClientMetadata{
-			RedirectURIs: []url.URL{
-				{Scheme: "https", Host: "authn.example.com", Path: "/callback"},
-			},
+	clientMetadata := oidc.ClientMetadata{
+		RedirectURIs: []url.URL{
+			{Scheme: "https", Host: "authn.example.com", Path: "/callback"},
 		},
 	}
-	repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{ci})
+
+	dbm := db.NewMemDB()
+	clientRepo := db.NewClientRepo(dbm)
+	clientManager := clientmanager.NewClientManager(clientRepo, db.TransactionFactory(dbm), clientmanager.ManagerOptions{})
+	cli := client.Client{
+		Metadata: clientMetadata,
+	}
+	creds, err := clientManager.New(cli)
 	if err != nil {
-		t.Fatalf("Failed to create client identity repo: %v", err)
+		t.Fatalf("Failed to create client: %v", err)
 	}
+	validClientID := creds.ID
 
 	privKey, err := key.GeneratePrivateKey()
 	if err != nil {
@@ -65,63 +66,63 @@ func TestClientToken(t *testing.T) {
 
 	tests := []struct {
 		keys     []key.PublicKey
-		repo     client.ClientRepo
+		manager  *clientmanager.ClientManager
 		header   string
 		wantCode int
 	}{
 		// valid token
 		{
 			keys:     []key.PublicKey{pubKey},
-			repo:     repo,
+			manager:  clientManager,
 			header:   fmt.Sprintf("BEARER %s", validJWT),
 			wantCode: http.StatusOK,
 		},
 		// invalid token
 		{
 			keys:     []key.PublicKey{pubKey},
-			repo:     repo,
+			manager:  clientManager,
 			header:   fmt.Sprintf("BEARER %s", invalidJWT),
 			wantCode: http.StatusUnauthorized,
 		},
 		// empty header
 		{
 			keys:     []key.PublicKey{pubKey},
-			repo:     repo,
+			manager:  clientManager,
 			header:   "",
 			wantCode: http.StatusUnauthorized,
 		},
 		// unparsable token
 		{
 			keys:     []key.PublicKey{pubKey},
-			repo:     repo,
+			manager:  clientManager,
 			header:   "BEARER xxx",
 			wantCode: http.StatusUnauthorized,
 		},
 		// no verification keys
 		{
 			keys:     []key.PublicKey{},
-			repo:     repo,
+			manager:  clientManager,
 			header:   fmt.Sprintf("BEARER %s", validJWT),
 			wantCode: http.StatusUnauthorized,
 		},
 		// nil repo
 		{
 			keys:     []key.PublicKey{pubKey},
-			repo:     nil,
+			manager:  nil,
 			header:   fmt.Sprintf("BEARER %s", validJWT),
 			wantCode: http.StatusUnauthorized,
 		},
 		// empty repo
 		{
 			keys:     []key.PublicKey{pubKey},
-			repo:     db.NewClientRepo(db.NewMemDB()),
+			manager:  clientmanager.NewClientManager(db.NewClientRepo(db.NewMemDB()), db.TransactionFactory(db.NewMemDB()), clientmanager.ManagerOptions{}),
 			header:   fmt.Sprintf("BEARER %s", validJWT),
 			wantCode: http.StatusUnauthorized,
 		},
 		// client not in repo
 		{
 			keys:     []key.PublicKey{pubKey},
-			repo:     repo,
+			manager:  clientManager,
 			header:   fmt.Sprintf("BEARER %s", makeToken(validIss, "DOESNT-EXIST", "DOESNT-EXIST", now, tomorrow)),
 			wantCode: http.StatusUnauthorized,
 		},
@@ -131,7 +132,7 @@ func TestClientToken(t *testing.T) {
 		w := httptest.NewRecorder()
 		mw := &clientTokenMiddleware{
 			issuerURL: validIss,
-			ciRepo:    tt.repo,
+			ciManager: tt.manager,
 			keysFunc: func() ([]key.PublicKey, error) {
 				return tt.keys, nil
 			},

@@ -6,21 +6,20 @@ import (
 	"net/http"
 	"path"
 
-	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/client/manager"
 	phttp "github.com/coreos/dex/pkg/http"
 	"github.com/coreos/dex/pkg/log"
 	schema "github.com/coreos/dex/schema/workerschema"
-	"github.com/coreos/go-oidc/oidc"
 )
 
 type clientResource struct {
-	repo client.ClientRepo
+	manager *manager.ClientManager
 }
 
-func registerClientResource(prefix string, repo client.ClientRepo) (string, http.Handler) {
+func registerClientResource(prefix string, manager *manager.ClientManager) (string, http.Handler) {
 	mux := http.NewServeMux()
 	c := &clientResource{
-		repo: repo,
+		manager: manager,
 	}
 	relPath := "clients"
 	absPath := path.Join(prefix, relPath)
@@ -41,7 +40,7 @@ func (c *clientResource) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *clientResource) list(w http.ResponseWriter, r *http.Request) {
-	cs, err := c.repo.All()
+	cs, err := c.manager.All()
 	if err != nil {
 		writeAPIError(w, http.StatusInternalServerError, newAPIError(errorServerError, "error listing clients"))
 		return
@@ -88,16 +87,7 @@ func (c *clientResource) create(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, newAPIError(errorInvalidClientMetadata, err.Error()))
 		return
 	}
-
-	clientID, err := oidc.GenClientID(ci.Metadata.RedirectURIs[0].Host)
-	if err != nil {
-		log.Errorf("Failed generating ID for new client: %v", err)
-		writeAPIError(w, http.StatusInternalServerError, newAPIError(errorServerError, "unable to generate client ID"))
-		return
-	}
-
-	ci.Credentials.ID = clientID
-	creds, err := c.repo.New(ci)
+	creds, err := c.manager.New(ci)
 
 	if err != nil {
 		log.Errorf("Failed creating client: %v", err)
