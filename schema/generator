@@ -31,6 +31,8 @@ if [ ! -f $GENDOC ]; then
     exit 1
 fi
 
+go run schema/jsonfmt.go $IN
+
 $GENDOC --f $IN --o $DOC
 
 # Though google-api-go-generator is a main, dex vendors the app using the same
