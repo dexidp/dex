@@ -47,6 +47,7 @@ func New(client *http.Client) (*Service, error) {
 	s := &Service{client: client, BasePath: basePath}
 	s.Admin = NewAdminService(s)
 	s.Client = NewClientService(s)
+	s.Connectors = NewConnectorsService(s)
 	s.State = NewStateService(s)
 	return s, nil
 }
@@ -58,6 +59,8 @@ type Service struct {
 	Admin *AdminService
 
 	Client *ClientService
+
+	Connectors *ConnectorsService
 
 	State *StateService
 }
@@ -77,6 +80,15 @@ func NewClientService(s *Service) *ClientService {
 }
 
 type ClientService struct {
+	s *Service
+}
+
+func NewConnectorsService(s *Service) *ConnectorsService {
+	rs := &ConnectorsService{s: s}
+	return rs
+}
+
+type ConnectorsService struct {
 	s *Service
 }
 
@@ -144,6 +156,16 @@ type ClientCreateRequest struct {
 
 type ClientCreateResponse struct {
 	Client *Client `json:"client,omitempty"`
+}
+
+type Connector interface{}
+
+type ConnectorsGetResponse struct {
+	Connectors []interface{} `json:"connectors,omitempty"`
+}
+
+type ConnectorsSetRequest struct {
+	Connectors []interface{} `json:"connectors,omitempty"`
 }
 
 type State struct {
@@ -355,6 +377,128 @@ func (c *ClientCreateCall) Do() (*ClientCreateResponse, error) {
 	//   },
 	//   "response": {
 	//     "$ref": "ClientCreateResponse"
+	//   }
+	// }
+
+}
+
+// method id "dex.admin.Connector.Get":
+
+type ConnectorsGetCall struct {
+	s    *Service
+	opt_ map[string]interface{}
+}
+
+// Get: Return a list of the connectors for the dex system.
+func (r *ConnectorsService) Get() *ConnectorsGetCall {
+	c := &ConnectorsGetCall{s: r.s, opt_: make(map[string]interface{})}
+	return c
+}
+
+// Fields allows partial responses to be retrieved.
+// See https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *ConnectorsGetCall) Fields(s ...googleapi.Field) *ConnectorsGetCall {
+	c.opt_["fields"] = googleapi.CombineFields(s)
+	return c
+}
+
+func (c *ConnectorsGetCall) Do() (*ConnectorsGetResponse, error) {
+	var body io.Reader = nil
+	params := make(url.Values)
+	params.Set("alt", "json")
+	if v, ok := c.opt_["fields"]; ok {
+		params.Set("fields", fmt.Sprintf("%v", v))
+	}
+	urls := googleapi.ResolveRelative(c.s.BasePath, "connectors")
+	urls += "?" + params.Encode()
+	req, _ := http.NewRequest("GET", urls, body)
+	googleapi.SetOpaque(req.URL)
+	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	res, err := c.s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	var ret *ConnectorsGetResponse
+	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Return a list of the connectors for the dex system.",
+	//   "httpMethod": "GET",
+	//   "id": "dex.admin.Connector.Get",
+	//   "path": "connectors",
+	//   "response": {
+	//     "$ref": "ConnectorsGetResponse"
+	//   }
+	// }
+
+}
+
+// method id "dex.admin.Connector.Set":
+
+type ConnectorsSetCall struct {
+	s                    *Service
+	connectorssetrequest *ConnectorsSetRequest
+	opt_                 map[string]interface{}
+}
+
+// Set: Set the list of connectors for the dex system, overwriting all
+// previous connectors. A 200 status code indicates the action was
+// successful.
+func (r *ConnectorsService) Set(connectorssetrequest *ConnectorsSetRequest) *ConnectorsSetCall {
+	c := &ConnectorsSetCall{s: r.s, opt_: make(map[string]interface{})}
+	c.connectorssetrequest = connectorssetrequest
+	return c
+}
+
+// Fields allows partial responses to be retrieved.
+// See https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *ConnectorsSetCall) Fields(s ...googleapi.Field) *ConnectorsSetCall {
+	c.opt_["fields"] = googleapi.CombineFields(s)
+	return c
+}
+
+func (c *ConnectorsSetCall) Do() error {
+	var body io.Reader = nil
+	body, err := googleapi.WithoutDataWrapper.JSONReader(c.connectorssetrequest)
+	if err != nil {
+		return err
+	}
+	ctype := "application/json"
+	params := make(url.Values)
+	params.Set("alt", "json")
+	if v, ok := c.opt_["fields"]; ok {
+		params.Set("fields", fmt.Sprintf("%v", v))
+	}
+	urls := googleapi.ResolveRelative(c.s.BasePath, "connectors")
+	urls += "?" + params.Encode()
+	req, _ := http.NewRequest("PUT", urls, body)
+	googleapi.SetOpaque(req.URL)
+	req.Header.Set("Content-Type", ctype)
+	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	res, err := c.s.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return err
+	}
+	return nil
+	// {
+	//   "description": "Set the list of connectors for the dex system, overwriting all previous connectors. A 200 status code indicates the action was successful.",
+	//   "httpMethod": "PUT",
+	//   "id": "dex.admin.Connector.Set",
+	//   "path": "connectors",
+	//   "request": {
+	//     "$ref": "ConnectorsSetRequest"
 	//   }
 	// }
 

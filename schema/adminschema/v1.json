@@ -100,6 +100,37 @@
           "$ref": "Client"
         }
       }
+    },
+    "Connector": {
+      "id": "Connector",
+      "type": "any",
+      "description": "An object which describes a federating identity strategy. For documentation see Documentation/connectors-configuration.md. Since different connectors expect different object fields the scheme is omitted here."
+    },
+    "ConnectorsSetRequest": {
+      "id": "ConnectorsSetRequest",
+      "type": "object",
+      "description": "A request to set all the connectors in the dex database.",
+      "properties": {
+        "connectors": {
+          "type": "array",
+          "items": {
+            "$ref": "Connector"
+          }
+        }
+      }
+    },
+    "ConnectorsGetResponse": {
+      "id": "ConnectorsGetResponse",
+      "type": "object",
+      "description": "A list of all connector responses.",
+      "properties": {
+        "connectors": {
+          "type": "array",
+          "items": {
+            "$ref": "Connector"
+          }
+        }
+      }
     }
   },
   "resources": {
@@ -163,6 +194,28 @@
           },
           "response": {
             "$ref": "ClientCreateResponse"
+          }
+        }
+      }
+    },
+    "Connectors": {
+      "methods": {
+        "Set": {
+          "id": "dex.admin.Connector.Set",
+          "description": "Set the list of connectors for the dex system, overwriting all previous connectors. A 200 status code indicates the action was successful.",
+          "httpMethod": "PUT",
+          "path": "connectors",
+          "request": {
+            "$ref": "ConnectorsSetRequest"
+          }
+        },
+        "Get": {
+          "id": "dex.admin.Connector.Get",
+          "description": "Return a list of the connectors for the dex system.",
+          "httpMethod": "GET",
+          "path": "connectors",
+          "response": {
+            "$ref": "ConnectorsGetResponse"
           }
         }
       }
