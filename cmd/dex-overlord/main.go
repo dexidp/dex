@@ -121,8 +121,9 @@ func main() {
 	userManager := manager.NewUserManager(userRepo,
 		pwiRepo, connCfgRepo, db.TransactionFactory(dbc), manager.ManagerOptions{})
 	clientManager := clientmanager.NewClientManager(clientRepo, db.TransactionFactory(dbc), clientmanager.ManagerOptions{})
+	connectorConfigRepo := db.NewConnectorConfigRepo(dbc)
 
-	adminAPI := admin.NewAdminAPI(userRepo, pwiRepo, clientRepo, userManager, clientManager, *localConnectorID)
+	adminAPI := admin.NewAdminAPI(userRepo, pwiRepo, clientRepo, connectorConfigRepo, userManager, clientManager, *localConnectorID)
 	kRepo, err := db.NewPrivateKeySetRepo(dbc, *useOldFormat, keySecrets.BytesSlice()...)
 	if err != nil {
 		log.Fatalf(err.Error())
