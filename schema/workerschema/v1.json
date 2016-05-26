@@ -49,26 +49,26 @@
         }
       }
     },
-	"RefreshClient": {
+    "RefreshClient": {
       "id": "Client",
       "type": "object",
-	  "description": "A client with associated public metadata.",
+      "description": "A client with associated public metadata.",
       "properties": {
-		"clientID": {
-			"type": "string"
-		},
-		"clientName": {
-			"type": "string"
-		},
-		"logoURI": {
-			"type": "string"
-		},
-		"clientURI": {
-			"type": "string"
-		}
+        "clientID": {
+          "type": "string"
+        },
+        "clientName": {
+          "type": "string"
+        },
+        "logoURI": {
+          "type": "string"
+        },
+        "clientURI": {
+          "type": "string"
+        }
       }
-	},
-	"RefreshClientList": {
+    },
+    "RefreshClientList": {
       "id": "RefreshClientList",
       "type": "object",
       "properties": {
@@ -79,7 +79,7 @@
           }
         }
       }
-	},
+    },
     "ClientWithSecret": {
       "id": "Client",
       "type": "object",
@@ -147,7 +147,7 @@
       "type": "object",
       "properties": {
         "user": {
-            "$ref": "User"
+          "$ref": "User"
         }
       }
     },
@@ -273,7 +273,8 @@
           "httpMethod": "DELETE",
           "path": "account/{userid}/refresh/{clientid}",
           "parameterOrder": [
-            "userid","clientid"
+            "userid",
+            "clientid"
           ],
           "parameters": {
             "clientid": {
