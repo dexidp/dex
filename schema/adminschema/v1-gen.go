@@ -134,6 +134,7 @@ type Client struct {
 	// 2005. ) (Simple String Comparison).
 	RedirectURIs []string `json:"redirectURIs,omitempty"`
 
+	// Secret: The client secret. Ignored in client create requests.
 	Secret string `json:"secret,omitempty"`
 }
 

@@ -232,8 +232,8 @@ A client with associated public metadata.
 
 > |Name|Located in|Description|Required|Type|
 |:-----|:-----|:-----|:-----|:-----|
-| clientid | path |  | Yes | string | 
 | userid | path |  | Yes | string | 
+| clientid | path |  | Yes | string | 
 
 
 > __Responses__
@@ -310,8 +310,8 @@ A client with associated public metadata.
 
 > |Name|Located in|Description|Required|Type|
 |:-----|:-----|:-----|:-----|:-----|
-| nextPageToken | query |  | No | string | 
 | maxResults | query |  | No | integer | 
+| nextPageToken | query |  | No | string | 
 
 
 > __Responses__
