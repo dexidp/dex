@@ -48,11 +48,15 @@ if [ -n "${fmtRes}" ]; then
 	exit 255
 fi
 
-echo "Checking govet..."
-vetRes=$(go vet $TEST)
-if [ -n "${vetRes}" ]; then
-	echo -e "govet checking failed:\n${vetRes}"
-	exit 255
+if [[ -z "$TRAVIS_GO_VERSION" || "$TRAVIS_GO_VERSION" != "1.4.3" ]]; then
+  echo "Checking govet..."
+  vetRes=$(go vet $TEST)
+  if [ -n "${vetRes}" ]; then
+    echo -e "govet checking failed:\n${vetRes}"
+    exit 255
+  fi
+else
+  echo "Skipping govet (Go 1.4)"
 fi
 
 echo "Success"

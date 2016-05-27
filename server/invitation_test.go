@@ -159,9 +159,9 @@ func TestInvitationHandler(t *testing.T) {
 				t.Errorf("case %d: password token is invalid: %v", i, err)
 			}
 
-			expTime := pwrReset.Claims["exp"].(float64)
-			if expTime > float64(tZero.Add(handler.redirectValidityWindow).Unix()) ||
-				expTime < float64(tZero.Unix()) {
+			expTime := pwrReset.Claims["exp"].(int64)
+			if expTime > tZero.Add(handler.redirectValidityWindow).Unix() ||
+				expTime < tZero.Unix() {
 				t.Errorf("case %d: funny expiration time detected: %d", i, pwrReset.Claims["exp"])
 			}
 

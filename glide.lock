@@ -1,10 +1,10 @@
-hash: 2542cf3debe2db35e04c4cd29d8db83f7b52d90167f4e55be5a2b24f5b74c65b
-updated: 2016-04-25T17:06:03.25154684-07:00
+hash: 7e7b258be2aa7e03d1bb15c96f856a9b7982d850a1faeba699a0b11bcb0c6936
+updated: 2016-05-27T00:22:02.656877293+02:00
 imports:
 - name: github.com/andybalholm/cascadia
   version: 6122e68c2642b7b75c538a63b15168c6c80fb757
 - name: github.com/coreos/go-oidc
-  version: 46fc3c20dcad27d27596c8832b354621bdd8b88f
+  version: e6174c764e906bd60c76fdfc33faf5e0bdc875d6
   subpackages:
   - http
   - jose
