@@ -31,6 +31,9 @@ func main() {
 	clientSecret := fs.String("client-secret", "ZXhhbXBsZS1hcHAtc2VjcmV0", "")
 	caFile := fs.String("trusted-ca-file", "", "the TLS CA file, if empty then the host's root CA will be used")
 
+	certFile := fs.String("tls-cert-file", "", "the TLS cert file. If empty, the app will listen on HTTP")
+	keyFile := fs.String("tls-key-file", "", "the TLS key file. If empty, the app will listen on HTTP")
+
 	discovery := fs.String("discovery", "http://127.0.0.1:5556", "")
 	logDebug := fs.Bool("log-debug", false, "log debug-level information")
 	logTimestamps := fs.Bool("log-timestamps", false, "prefix log lines with timestamps")
@@ -128,7 +131,13 @@ func main() {
 	}
 
 	log.Infof("Binding to %s...", httpsrv.Addr)
-	log.Fatal(httpsrv.ListenAndServe())
+
+	if *keyFile != "" && *certFile != "" {
+		log.Info("Key and cert file provided. Using TLS")
+		log.Fatal(httpsrv.ListenAndServeTLS(*certFile, *keyFile))
+	} else {
+		log.Fatal(httpsrv.ListenAndServe())
+	}
 }
 
 func NewClientHandler(c *oidc.Client, issuer string, cbURL url.URL) http.Handler {
