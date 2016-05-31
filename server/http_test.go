@@ -308,8 +308,110 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 	}
 }
 
-func TestHandleTokenFunc(t *testing.T) {
+func TestValidateScopes(t *testing.T) {
+	f, err := makeCrossClientTestFixtures()
+	if err != nil {
+		t.Fatalf("couldn't make test fixtures: %v", err)
+	}
 
+	tests := []struct {
+		clientID string
+		scopes   []string
+		wantErr  bool
+	}{
+		{
+			// ERR: no openid scope
+			clientID: "XXX",
+			scopes:   []string{},
+			wantErr:  true,
+		},
+		{
+			// OK: minimum scopes
+			clientID: "XXX",
+			scopes:   []string{"openid"},
+			wantErr:  false,
+		},
+		{
+			// OK: offline_access
+			clientID: "XXX",
+			scopes:   []string{"openid", "offline_access"},
+			wantErr:  false,
+		},
+		{
+			// ERR: unknown scope
+			clientID: "XXX",
+			scopes:   []string{"openid", "wat"},
+			wantErr:  true,
+		},
+		{
+			// ERR: invalid cross client auth
+			clientID: "XXX",
+			scopes:   []string{"openid", ScopeGoogleCrossClient + "client_a"},
+			wantErr:  true,
+		},
+		{
+			// OK: valid cross client auth (though perverse - a client
+			// requesting cross-client auth for itself)
+			clientID: "client_a",
+			scopes:   []string{"openid", ScopeGoogleCrossClient + "client_a"},
+			wantErr:  false,
+		},
+		{
+
+			// OK: valid cross client auth
+			clientID: "client_a",
+			scopes:   []string{"openid", ScopeGoogleCrossClient + "client_b"},
+			wantErr:  false,
+		},
+		{
+
+			// ERR: valid cross client auth...but duplicated scope.
+			clientID: "client_a",
+			scopes: []string{"openid",
+				ScopeGoogleCrossClient + "client_b",
+				ScopeGoogleCrossClient + "client_b",
+			},
+			wantErr: true,
+		},
+		{
+			// OK: valid cross client auth with >1 clients including itself
+			clientID: "client_a",
+			scopes: []string{
+				"openid",
+				ScopeGoogleCrossClient + "client_a",
+				ScopeGoogleCrossClient + "client_b",
+				ScopeGoogleCrossClient + "client_c",
+			},
+			wantErr: false,
+		},
+		{
+			// ERR: valid cross client auth with >1 clients including itself...but no openid!
+			clientID: "client_a",
+			scopes: []string{
+				ScopeGoogleCrossClient + "client_a",
+				ScopeGoogleCrossClient + "client_b",
+				ScopeGoogleCrossClient + "client_c",
+			},
+			wantErr: true,
+		},
+	}
+
+	for i, tt := range tests {
+		err := validateScopes(f.srv, tt.clientID, tt.scopes)
+		if tt.wantErr {
+			if err == nil {
+				t.Errorf("case %d: want non-nil err", i)
+			}
+			continue
+		}
+
+		if err != nil {
+			t.Errorf("case %d: unexpected err: %v", i, err)
+		}
+	}
+}
+
+func TestHandleTokenFunc(t *testing.T) {
 	fx, err := makeTestFixtures()
 	if err != nil {
 		t.Fatalf("could not run test fixtures: %v", err)

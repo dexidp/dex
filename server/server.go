@@ -39,19 +39,35 @@ const (
 	ResetPasswordTemplateName          = "reset-password.html"
 
 	APIVersion = "v1"
+
+	// Scope prefix which indicates initiation of a cross-client authentication flow.
+	// See https://developers.google.com/identity/protocols/CrossClientAuth
+	ScopeGoogleCrossClient = "audience:server:client_id:"
 )
 
 type OIDCServer interface {
 	ClientMetadata(string) (*oidc.ClientMetadata, error)
 	NewSession(connectorID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error)
 	Login(oidc.Identity, string) (string, error)
+
 	// CodeToken exchanges a code for an ID token and a refresh token string on success.
 	CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jose.JWT, string, error)
+
 	ClientCredsToken(creds oidc.ClientCredentials) (*jose.JWT, error)
+
 	// RefreshToken takes a previously generated refresh token and returns a new ID token
 	// if the token is valid.
 	RefreshToken(creds oidc.ClientCredentials, token string) (*jose.JWT, error)
+
 	KillSession(string) error
+}
+
+// DexServer is an OIDCServer that also has dex-specific features.
+type DexServer interface {
+	OIDCServer
+
+	// CrossClientAuthAllowed
+	CrossClientAuthAllowed(requestingClientID, authorizingClientID string) (bool, error)
 }
 
 type JWTVerifierFactory func(clientID string) oidc.JWTVerifier
@@ -519,6 +535,19 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose
 	log.Infof("New token sent: clientID=%s", creds.ID)
 
 	return jwt, nil
+}
+
+func (s *Server) CrossClientAuthAllowed(requestingClientID, authorizingClientID string) (bool, error) {
+	alloweds, err := s.ClientRepo.GetTrustedPeers(authorizingClientID)
+	if err != nil {
+		return false, err
+	}
+	for _, allowed := range alloweds {
+		if requestingClientID == allowed {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *Server) JWTVerifierFactory() JWTVerifierFactory {
