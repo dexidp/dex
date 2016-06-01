@@ -6,6 +6,7 @@ import (
 
 	"github.com/coreos/dex/client"
 	clientmanager "github.com/coreos/dex/client/manager"
+	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/schema/adminschema"
 	"github.com/coreos/dex/user"
 	usermanager "github.com/coreos/dex/user/manager"
@@ -13,25 +14,27 @@ import (
 
 // AdminAPI provides the logic necessary to implement the Admin API.
 type AdminAPI struct {
-	userManager      *usermanager.UserManager
-	userRepo         user.UserRepo
-	passwordInfoRepo user.PasswordInfoRepo
-	clientRepo       client.ClientRepo
-	clientManager    *clientmanager.ClientManager
-	localConnectorID string
+	userManager         *usermanager.UserManager
+	userRepo            user.UserRepo
+	passwordInfoRepo    user.PasswordInfoRepo
+	connectorConfigRepo connector.ConnectorConfigRepo
+	clientRepo          client.ClientRepo
+	clientManager       *clientmanager.ClientManager
+	localConnectorID    string
 }
 
-func NewAdminAPI(userRepo user.UserRepo, pwiRepo user.PasswordInfoRepo, clientRepo client.ClientRepo, userManager *usermanager.UserManager, clientManager *clientmanager.ClientManager, localConnectorID string) *AdminAPI {
+func NewAdminAPI(userRepo user.UserRepo, pwiRepo user.PasswordInfoRepo, clientRepo client.ClientRepo, connectorConfigRepo connector.ConnectorConfigRepo, userManager *usermanager.UserManager, clientManager *clientmanager.ClientManager, localConnectorID string) *AdminAPI {
 	if localConnectorID == "" {
 		panic("must specify non-blank localConnectorID")
 	}
 	return &AdminAPI{
-		userManager:      userManager,
-		userRepo:         userRepo,
-		passwordInfoRepo: pwiRepo,
-		clientRepo:       clientRepo,
-		clientManager:    clientManager,
-		localConnectorID: localConnectorID,
+		userManager:         userManager,
+		userRepo:            userRepo,
+		passwordInfoRepo:    pwiRepo,
+		clientRepo:          clientRepo,
+		clientManager:       clientManager,
+		connectorConfigRepo: connectorConfigRepo,
+		localConnectorID:    localConnectorID,
 	}
 }
 
@@ -148,6 +151,14 @@ func (a *AdminAPI) CreateClient(req adminschema.ClientCreateRequest) (adminschem
 	return adminschema.ClientCreateResponse{
 		Client: req.Client,
 	}, nil
+}
+
+func (a *AdminAPI) SetConnectors(connectorConfigs []connector.ConnectorConfig) error {
+	return a.connectorConfigRepo.Set(connectorConfigs)
+}
+
+func (a *AdminAPI) GetConnectors() ([]connector.ConnectorConfig, error) {
+	return a.connectorConfigRepo.All()
 }
 
 func mapError(e error) error {

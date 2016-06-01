@@ -34,7 +34,7 @@ __Version:__ v1
     redirectURIs: [
         string
     ],
-    secret: string
+    secret: string // The client secret. Ignored in client create requests.
 }
 ```
 
@@ -55,6 +55,38 @@ Upon successful registration, an ID and secret is assigned to the client.
 ```
 {
     client: Client
+}
+```
+
+### Connector
+
+An object which describes a federating identity strategy. For documentation see Documentation/connectors-configuration.md. Since different connectors expect different object fields the scheme is omitted here.
+
+```
+
+```
+
+### ConnectorsGetResponse
+
+A list of all connector responses.
+
+```
+{
+    connectors: [
+        Connector
+    ]
+}
+```
+
+### ConnectorsSetRequest
+
+A request to set all the connectors in the dex database.
+
+```
+{
+    connectors: [
+        Connector
+    ]
 }
 ```
 
@@ -147,6 +179,50 @@ Upon successful registration, an ID and secret is assigned to the client.
 > |Code|Description|Type|
 |:-----|:-----|:-----|
 | 200 |  | [ClientCreateResponse](#clientcreateresponse) |
+| default | Unexpected error |  |
+
+
+### GET /connectors
+
+> __Summary__
+
+> Get Connectors
+
+> __Description__
+
+> Return a list of the connectors for the dex system.
+
+
+> __Responses__
+
+> |Code|Description|Type|
+|:-----|:-----|:-----|
+| 200 |  | [ConnectorsGetResponse](#connectorsgetresponse) |
+| default | Unexpected error |  |
+
+
+### PUT /connectors
+
+> __Summary__
+
+> Set Connectors
+
+> __Description__
+
+> Set the list of connectors for the dex system, overwriting all previous connectors. A 200 status code indicates the action was successful.
+
+
+> __Parameters__
+
+> |Name|Located in|Description|Required|Type|
+|:-----|:-----|:-----|:-----|:-----|
+|  | body |  | Yes | [ConnectorsSetRequest](#connectorssetrequest) | 
+
+
+> __Responses__
+
+> |Code|Description|Type|
+|:-----|:-----|:-----|
 | default | Unexpected error |  |
 
 

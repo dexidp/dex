@@ -93,11 +93,12 @@ func makeAdminAPITestFixtures() *adminAPITestFixtures {
 		return fmt.Sprintf("client_%v", hostport), nil
 	}
 	cm := manager.NewClientManager(cr, db.TransactionFactory(dbMap), manager.ManagerOptions{SecretGenerator: secGen, ClientIDGenerator: clientIDGenerator})
+	ccr := db.NewConnectorConfigRepo(dbMap)
 
 	f.cr = cr
 	f.ur = ur
 	f.pwr = pwr
-	f.adAPI = admin.NewAdminAPI(ur, pwr, cr, um, cm, "local")
+	f.adAPI = admin.NewAdminAPI(ur, pwr, cr, ccr, um, cm, "local")
 	f.adSrv = server.NewAdminServer(f.adAPI, nil, adminAPITestSecret)
 	f.hSrv = httptest.NewServer(f.adSrv.HTTPHandler())
 	f.hc = &http.Client{
@@ -269,6 +270,104 @@ func TestCreateAdmin(t *testing.T) {
 
 			}
 		}()
+	}
+}
+
+func TestConnectors(t *testing.T) {
+	tests := []struct {
+		req     adminschema.ConnectorsSetRequest
+		want    adminschema.ConnectorsGetResponse
+		wantErr bool
+	}{
+		{
+			req: adminschema.ConnectorsSetRequest{
+				Connectors: []interface{}{
+					map[string]string{
+						"type": "local",
+						"id":   "local",
+					},
+				},
+			},
+			want: adminschema.ConnectorsGetResponse{
+				Connectors: []interface{}{
+					map[string]string{
+						"id": "local",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			req: adminschema.ConnectorsSetRequest{
+				Connectors: []interface{}{
+					map[string]string{
+						"type":         "github",
+						"id":           "github",
+						"clientID":     "foo",
+						"clientSecret": "bar",
+					},
+					map[string]interface{}{
+						"type":                 "oidc",
+						"id":                   "oidc",
+						"issuerURL":            "https://auth.example.com",
+						"clientID":             "foo",
+						"clientSecret":         "bar",
+						"trustedEmailProvider": true,
+					},
+				},
+			},
+			want: adminschema.ConnectorsGetResponse{
+				Connectors: []interface{}{
+					map[string]string{
+						"id":           "github",
+						"clientID":     "foo",
+						"clientSecret": "bar",
+					},
+					map[string]interface{}{
+						"id":                   "oidc",
+						"issuerURL":            "https://auth.example.com",
+						"clientID":             "foo",
+						"clientSecret":         "bar",
+						"trustedEmailProvider": true,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			// Missing "type" argument
+			req: adminschema.ConnectorsSetRequest{
+				Connectors: []interface{}{
+					map[string]string{
+						"id": "local",
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for i, tt := range tests {
+		f := makeAdminAPITestFixtures()
+		if err := f.adClient.Connectors.Set(&tt.req).Do(); err != nil {
+			if !tt.wantErr {
+				t.Errorf("case %d: failed to set connectors: %v", i, err)
+			}
+			continue
+		}
+		if tt.wantErr {
+			t.Errorf("case %d: expected error setting connectors", i)
+			continue
+		}
+
+		resp, err := f.adClient.Connectors.Get().Do()
+		if err != nil {
+			t.Errorf("case %d: failed toget connectors: %v", i, err)
+			continue
+		}
+		if diff := pretty.Compare(tt.want, resp); diff != "" {
+			t.Errorf("case %d: Compare(want, got) = %s", i, diff)
+		}
 	}
 }
 
