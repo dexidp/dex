@@ -9,16 +9,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/dex/client"
-	"github.com/coreos/dex/db"
-	"github.com/coreos/dex/refresh/refreshtest"
-	"github.com/coreos/dex/session/manager"
-	"github.com/coreos/dex/user"
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/key"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/kylelemons/godebug/pretty"
+
+	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/db"
+	"github.com/coreos/dex/refresh/refreshtest"
+	"github.com/coreos/dex/session/manager"
+	"github.com/coreos/dex/user"
 )
 
 var validRedirURL = url.URL{
@@ -266,6 +267,12 @@ func TestServerLoginDisabledUser(t *testing.T) {
 }
 
 func TestServerCodeToken(t *testing.T) {
+	f, err := makeTestFixtures()
+	if err != nil {
+		t.Fatalf("Error creating test fixtures: %v", err)
+	}
+	sm := f.sessionManager
+
 	tests := []struct {
 		scope        []string
 		refreshToken string
@@ -277,21 +284,14 @@ func TestServerCodeToken(t *testing.T) {
 		},
 		// Have 'offline_access' in scope, should get non-empty refresh token.
 		{
-			// NOTE(ericchiang): This test assumes that the database ID of the first
-			// refresh token will be "1".
+			// NOTE(ericchiang): This test assumes that the database ID of the
+			// first refresh token will be "1".
 			scope:        []string{"openid", "offline_access"},
 			refreshToken: fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
 		},
 	}
 
 	for i, tt := range tests {
-		f, err := makeTestFixtures()
-		if err != nil {
-			t.Fatalf("error making test fixtures: %v", err)
-		}
-		f.srv.RefreshTokenRepo = refreshtest.NewTestRefreshTokenRepo()
-
-		sm := f.sessionManager
 		sessionID, err := sm.NewSession("bogus_idpc", testClientID, "bogus", url.URL{}, "", false, tt.scope)
 		if err != nil {
 			t.Fatalf("case %d: unexpected error: %v", i, err)
@@ -311,11 +311,9 @@ func TestServerCodeToken(t *testing.T) {
 			t.Fatalf("case %d: unexpected error: %v", i, err)
 		}
 
-		jwt, token, err := f.srv.CodeToken(
-			oidc.ClientCredentials{
-				ID:     testClientID,
-				Secret: clientTestSecret,
-			}, key)
+		jwt, token, err := f.srv.CodeToken(oidc.ClientCredentials{
+			ID:     testClientID,
+			Secret: clientTestSecret}, key)
 		if err != nil {
 			t.Fatalf("case %d: unexpected error: %v", i, err)
 		}

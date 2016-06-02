@@ -14,6 +14,7 @@ import (
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/email"
+	"github.com/coreos/dex/refresh/refreshtest"
 	sessionmanager "github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
 	useremail "github.com/coreos/dex/user/email"
@@ -83,6 +84,11 @@ var (
 	}
 
 	testPrivKey, _ = key.GeneratePrivateKey()
+
+	testClientCreds = oidc.ClientCredentials{
+		ID:     testClientID,
+		Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
+	}
 )
 
 type testFixtures struct {
@@ -93,6 +99,7 @@ type testFixtures struct {
 	redirectURL    url.URL
 	clientRepo     client.ClientRepo
 	clientManager  *clientmanager.ClientManager
+	clientCreds    map[string]oidc.ClientCredentials
 }
 
 type testFixtureOptions struct {
@@ -149,6 +156,8 @@ func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, err
 
 	sessionManager := sessionmanager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 	sessionManager.GenerateCode = sequentialGenerateCodeFunc()
+
+	refreshTokenRepo := refreshtest.NewTestRefreshTokenRepo()
 
 	emailer, err := email.NewTemplatizedEmailerFromGlobs(
 		emailTemplatesLocation+"/*.txt",
@@ -210,6 +219,7 @@ func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, err
 		UserManager:      userManager,
 		ClientManager:    clientManager,
 		KeyManager:       km,
+		RefreshTokenRepo: refreshTokenRepo,
 	}
 
 	err = setTemplates(srv, tpl)
@@ -243,5 +253,8 @@ func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, err
 		emailer:        emailer,
 		clientRepo:     clientRepo,
 		clientManager:  clientManager,
+		clientCreds: map[string]oidc.ClientCredentials{
+			testClientID: testClientCreds,
+		},
 	}, nil
 }

@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
 	"strings"
 	"time"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/coreos/dex/connector"
 	phttp "github.com/coreos/dex/pkg/http"
 	"github.com/coreos/dex/pkg/log"
+	"github.com/coreos/dex/scope"
 )
 
 const (
@@ -392,20 +392,18 @@ func handleAuthFunc(srv DexServer, idpcs []connector.Connector, tpl *template.Te
 
 func validateScopes(srv DexServer, clientID string, scopes []string) error {
 	foundOpenIDScope := false
-	sort.Strings(scopes)
-	for i, scope := range scopes {
-		if i > 0 && scope == scopes[i-1] {
+	for i, curScope := range scopes {
+		if i > 0 && curScope == scopes[i-1] {
 			err := oauth2.NewError(oauth2.ErrorInvalidRequest)
 			err.Description = fmt.Sprintf(
 				"Duplicate scopes are not allowed: %q",
-				scope)
+				curScope)
 			return err
 		}
 
 		switch {
-		case strings.HasPrefix(scope, ScopeGoogleCrossClient):
-			otherClient := scope[len(ScopeGoogleCrossClient):]
-
+		case strings.HasPrefix(curScope, scope.ScopeGoogleCrossClient):
+			otherClient := curScope[len(scope.ScopeGoogleCrossClient):]
 			var allowed bool
 			var err error
 			if otherClient == clientID {
@@ -424,11 +422,11 @@ func validateScopes(srv DexServer, clientID string, scopes []string) error {
 					clientID, otherClient)
 				return err
 			}
-		case scope == "openid":
+		case curScope == "openid":
 			foundOpenIDScope = true
-		case scope == "profile":
-		case scope == "email":
-		case scope == "offline_access":
+		case curScope == "profile":
+		case curScope == "email":
+		case curScope == "offline_access":
 			// According to the spec, for offline_access scope, the client must
 			// use a response_type value that would result in an Authorization
 			// Code.  Currently oauth2.ResponseTypeCode is the only supported
@@ -439,7 +437,7 @@ func validateScopes(srv DexServer, clientID string, scopes []string) error {
 		default:
 			// Reject all other scopes.
 			err := oauth2.NewError(oauth2.ErrorInvalidRequest)
-			err.Description = fmt.Sprintf("%q is not a recognized scope", scope)
+			err.Description = fmt.Sprintf("%q is not a recognized scope", curScope)
 			return err
 		}
 	}

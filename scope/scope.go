@@ -1,0 +1,34 @@
+package scope
+
+import "strings"
+
+const (
+	// Scope prefix which indicates initiation of a cross-client authentication flow.
+	// See https://developers.google.com/identity/protocols/CrossClientAuth
+	ScopeGoogleCrossClient = "audience:server:client_id:"
+)
+
+type Scopes []string
+
+func (s Scopes) OfflineAccess() bool {
+	return s.HasScope("offline_access")
+}
+
+func (s Scopes) HasScope(scope string) bool {
+	for _, curScope := range s {
+		if curScope == scope {
+			return true
+		}
+	}
+	return false
+}
+
+func (s Scopes) CrossClientIDs() []string {
+	clients := []string{}
+	for _, scope := range s {
+		if strings.HasPrefix(scope, ScopeGoogleCrossClient) {
+			clients = append(clients, scope[len(ScopeGoogleCrossClient):])
+		}
+	}
+	return clients
+}

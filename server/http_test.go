@@ -18,6 +18,7 @@ import (
 
 	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
+	"github.com/coreos/dex/scope"
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
@@ -346,21 +347,21 @@ func TestValidateScopes(t *testing.T) {
 		{
 			// ERR: invalid cross client auth
 			clientID: "XXX",
-			scopes:   []string{"openid", ScopeGoogleCrossClient + "client_a"},
+			scopes:   []string{"openid", scope.ScopeGoogleCrossClient + "client_a"},
 			wantErr:  true,
 		},
 		{
 			// OK: valid cross client auth (though perverse - a client
 			// requesting cross-client auth for itself)
 			clientID: "client_a",
-			scopes:   []string{"openid", ScopeGoogleCrossClient + "client_a"},
+			scopes:   []string{"openid", scope.ScopeGoogleCrossClient + "client_a"},
 			wantErr:  false,
 		},
 		{
 
 			// OK: valid cross client auth
 			clientID: "client_a",
-			scopes:   []string{"openid", ScopeGoogleCrossClient + "client_b"},
+			scopes:   []string{"openid", scope.ScopeGoogleCrossClient + "client_b"},
 			wantErr:  false,
 		},
 		{
@@ -368,8 +369,8 @@ func TestValidateScopes(t *testing.T) {
 			// ERR: valid cross client auth...but duplicated scope.
 			clientID: "client_a",
 			scopes: []string{"openid",
-				ScopeGoogleCrossClient + "client_b",
-				ScopeGoogleCrossClient + "client_b",
+				scope.ScopeGoogleCrossClient + "client_b",
+				scope.ScopeGoogleCrossClient + "client_b",
 			},
 			wantErr: true,
 		},
@@ -378,9 +379,9 @@ func TestValidateScopes(t *testing.T) {
 			clientID: "client_a",
 			scopes: []string{
 				"openid",
-				ScopeGoogleCrossClient + "client_a",
-				ScopeGoogleCrossClient + "client_b",
-				ScopeGoogleCrossClient + "client_c",
+				scope.ScopeGoogleCrossClient + "client_a",
+				scope.ScopeGoogleCrossClient + "client_b",
+				scope.ScopeGoogleCrossClient + "client_c",
 			},
 			wantErr: false,
 		},
@@ -388,9 +389,9 @@ func TestValidateScopes(t *testing.T) {
 			// ERR: valid cross client auth with >1 clients including itself...but no openid!
 			clientID: "client_a",
 			scopes: []string{
-				ScopeGoogleCrossClient + "client_a",
-				ScopeGoogleCrossClient + "client_b",
-				ScopeGoogleCrossClient + "client_c",
+				scope.ScopeGoogleCrossClient + "client_a",
+				scope.ScopeGoogleCrossClient + "client_b",
+				scope.ScopeGoogleCrossClient + "client_c",
 			},
 			wantErr: true,
 		},

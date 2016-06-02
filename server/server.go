@@ -39,10 +39,6 @@ const (
 	ResetPasswordTemplateName          = "reset-password.html"
 
 	APIVersion = "v1"
-
-	// Scope prefix which indicates initiation of a cross-client authentication flow.
-	// See https://developers.google.com/identity/protocols/CrossClientAuth
-	ScopeGoogleCrossClient = "audience:server:client_id:"
 )
 
 type OIDCServer interface {
@@ -454,6 +450,36 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 	claims := ses.Claims(s.IssuerURL.String())
 	user.AddToClaims(claims)
 
+	crossClientIDs := ses.Scope.CrossClientIDs()
+	if len(crossClientIDs) > 0 {
+		var aud []string
+		for _, id := range crossClientIDs {
+			if ses.ClientID == id {
+				aud = append(aud, id)
+				continue
+			}
+			allowed, err := s.CrossClientAuthAllowed(ses.ClientID, id)
+			if err != nil {
+				log.Errorf("Failed to check cross client auth. reqClientID %v; authClient:ID %v; err: %v", ses.ClientID, id, err)
+				return nil, "", oauth2.NewError(oauth2.ErrorServerError)
+			}
+			if !allowed {
+				err := oauth2.NewError(oauth2.ErrorInvalidRequest)
+				err.Description = fmt.Sprintf(
+					"%q is not authorized to perform cross-client requests for %q",
+					ses.ClientID, id)
+				return nil, "", err
+			}
+			aud = append(aud, id)
+		}
+		if len(aud) == 1 {
+			claims.Add("aud", aud[0])
+		} else {
+			claims.Add("aud", aud)
+		}
+		claims.Add("azp", ses.ClientID)
+	}
+
 	jwt, err := jose.NewSignedJWT(claims, signer)
 	if err != nil {
 		log.Errorf("Failed to generate ID token: %v", err)
@@ -538,7 +564,7 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose
 }
 
 func (s *Server) CrossClientAuthAllowed(requestingClientID, authorizingClientID string) (bool, error) {
-	alloweds, err := s.ClientRepo.GetTrustedPeers(authorizingClientID)
+	alloweds, err := s.ClientRepo.GetTrustedPeers(nil, authorizingClientID)
 	if err != nil {
 		return false, err
 	}
