@@ -73,6 +73,16 @@ func main() {
 		log.Fatalf("Unable to parse host from --listen flag: %v", err)
 	}
 
+	redirectURLParsed, err := url.Parse(*redirectURL)
+	if err != nil {
+		log.Fatalf("Unable to parse url from --redirect-url flag: %v", err)
+	}
+
+	useTLS := *keyFile != "" && *certFile != ""
+	if useTLS && (redirectURLParsed.Scheme != "https" || l.Scheme != "https") {
+		log.Fatalf("TLS Cert File and Key File were provided. Ensure the listen and redirect URL are using HTTPS.")
+	}
+
 	cc := oidc.ClientCredentials{
 		ID:     *clientID,
 		Secret: *clientSecret,
@@ -120,10 +130,6 @@ func main() {
 
 	client.SyncProviderConfig(*discovery)
 
-	redirectURLParsed, err := url.Parse(*redirectURL)
-	if err != nil {
-		log.Fatalf("Unable to parse url from --redirect-url flag: %v", err)
-	}
 	hdlr := NewClientHandler(client, *discovery, *redirectURLParsed)
 	httpsrv := &http.Server{
 		Addr:    fmt.Sprintf(":%s", p),
@@ -132,7 +138,7 @@ func main() {
 
 	log.Infof("Binding to %s...", httpsrv.Addr)
 
-	if *keyFile != "" && *certFile != "" {
+	if useTLS {
 		log.Info("Key and cert file provided. Using TLS")
 		log.Fatal(httpsrv.ListenAndServeTLS(*certFile, *keyFile))
 	} else {
