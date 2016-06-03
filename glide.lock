@@ -65,6 +65,7 @@ imports:
   version: dfe268fd2bb5c793f4c083803609fce9806c6f80
   subpackages:
   - html
+  - context
   - html/atom
 - name: google.golang.org/api
   version: d3edb0282bde692467788c50070a9211afe75cf3
