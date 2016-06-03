@@ -77,12 +77,12 @@ func NewClientManagerFromClients(clientRepo client.ClientRepo, txnFactory repo.T
 			return nil, fmt.Errorf("client %q has no secret", c.Credentials.ID)
 		}
 
-		cli, err := clientManager.generateClientCredentials(c)
+		err := clientManager.addClientCredentials(&c)
 		if err != nil {
 			return nil, err
 		}
 
-		_, err = clientRepo.New(tx, cli)
+		_, err = clientRepo.New(tx, c)
 		if err != nil {
 			return nil, err
 		}
@@ -100,15 +100,15 @@ func (m *ClientManager) New(cli client.Client) (*oidc.ClientCredentials, error) 
 	}
 	defer tx.Rollback()
 
-	c, err := m.generateClientCredentials(cli)
+	err = m.addClientCredentials(&cli)
 	if err != nil {
 		return nil, err
 	}
 
-	creds := c.Credentials
+	creds := cli.Credentials
 
 	// Save Client
-	_, err = m.clientRepo.New(tx, c)
+	_, err = m.clientRepo.New(tx, cli)
 	if err != nil {
 		return nil, err
 	}
@@ -189,25 +189,25 @@ func (m *ClientManager) Authenticate(creds oidc.ClientCredentials) (bool, error)
 	return ok, nil
 }
 
-func (m *ClientManager) generateClientCredentials(cli client.Client) (client.Client, error) {
+func (m *ClientManager) addClientCredentials(cli *client.Client) error {
 	// Generate Client ID
 	if len(cli.Metadata.RedirectURIs) < 1 {
-		return cli, errors.New("no client redirect url given")
+		return errors.New("no client redirect url given")
 	}
 	clientID, err := m.clientIDGenerator(cli.Metadata.RedirectURIs[0].Host)
 	if err != nil {
-		return cli, err
+		return err
 	}
 
 	// Generate Secret
 	secret, err := m.secretGenerator()
 	if err != nil {
-		return cli, err
+		return err
 	}
 	clientSecret := base64.URLEncoding.EncodeToString(secret)
 	cli.Credentials = oidc.ClientCredentials{
 		ID:     clientID,
 		Secret: clientSecret,
 	}
-	return cli, nil
+	return nil
 }
