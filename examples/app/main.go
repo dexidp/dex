@@ -80,7 +80,7 @@ func main() {
 
 	useTLS := *keyFile != "" && *certFile != ""
 	if useTLS && (redirectURLParsed.Scheme != "https" || l.Scheme != "https") {
-		log.Fatalf("TLS Cert File and Key File were provided. Ensure the listen and redirect URL are using HTTPS.")
+		log.Fatalf(`TLS Cert File and Key File were provided. Ensure listen and redirect URLs are using the "https://" scheme.`)
 	}
 
 	cc := oidc.ClientCredentials{
