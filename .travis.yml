@@ -5,8 +5,9 @@ services:
 language: go
 
 go:
-  - 1.5.3
-  - 1.6
+  - 1.5.4
+  - 1.6.2
+  - tip
 
 env:
   - DEX_TEST_DSN="postgres://postgres@127.0.0.1:15432/postgres?sslmode=disable" ISOLATED=true
@@ -43,3 +44,7 @@ deploy:
 
 notifications:
   email: false
+
+matrix:
+  allow_failures:
+    - go: tip
