@@ -26,21 +26,33 @@ const (
 )
 
 var (
+	testUserID1       = "ID-1"
+	testUserEmail1    = "Email-1@example.com"
+	testUserRemoteID1 = "RID-1"
+
 	testIssuerURL = url.URL{Scheme: "http", Host: "server.example.com"}
-	testClientID  = "client.example.com"
+
+	testClientID          = "client.example.com"
+	clientTestSecret      = base64.URLEncoding.EncodeToString([]byte("secret"))
+	testClientCredentials = oidc.ClientCredentials{
+		ID:     testClientID,
+		Secret: clientTestSecret,
+	}
+
+	testConnectorID1 = "IDPC-1"
 
 	testRedirectURL = url.URL{Scheme: "http", Host: "client.example.com", Path: "/callback"}
 
 	testUsers = []user.UserWithRemoteIdentities{
 		{
 			User: user.User{
-				ID:    "ID-1",
-				Email: "Email-1@example.com",
+				ID:    testUserID1,
+				Email: testUserEmail1,
 			},
 			RemoteIdentities: []user.RemoteIdentity{
 				{
-					ConnectorID: "IDPC-1",
-					ID:          "RID-1",
+					ConnectorID: testConnectorID1,
+					ID:          testUserRemoteID1,
 				},
 			},
 		},
@@ -140,10 +152,7 @@ func makeTestFixtures() (*testFixtures, error) {
 
 	clients := []client.Client{
 		client.Client{
-			Credentials: oidc.ClientCredentials{
-				ID:     testClientID,
-				Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
-			},
+			Credentials: testClientCredentials,
 			Metadata: oidc.ClientMetadata{
 				RedirectURIs: []url.URL{
 					testRedirectURL,
