@@ -95,6 +95,10 @@ type testFixtures struct {
 	clientManager  *clientmanager.ClientManager
 }
 
+type testFixtureOptions struct {
+	clients []client.Client
+}
+
 func sequentialGenerateCodeFunc() sessionmanager.GenerateCodeFunc {
 	x := 0
 	return func() (string, error) {
@@ -104,6 +108,10 @@ func sequentialGenerateCodeFunc() sessionmanager.GenerateCodeFunc {
 }
 
 func makeTestFixtures() (*testFixtures, error) {
+	return makeTestFixturesWithOptions(testFixtureOptions{})
+}
+
+func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, error) {
 	dbMap := db.NewMemDB()
 	userRepo, err := db.NewUserRepoFromUsers(dbMap, testUsers)
 	if err != nil {
@@ -150,15 +158,20 @@ func makeTestFixtures() (*testFixtures, error) {
 		return nil, err
 	}
 
-	clients := []client.Client{
-		client.Client{
-			Credentials: testClientCredentials,
-			Metadata: oidc.ClientMetadata{
-				RedirectURIs: []url.URL{
-					testRedirectURL,
+	var clients []client.Client
+	if options.clients == nil {
+		clients = []client.Client{
+			client.Client{
+				Credentials: testClientCredentials,
+				Metadata: oidc.ClientMetadata{
+					RedirectURIs: []url.URL{
+						testRedirectURL,
+					},
 				},
 			},
-		},
+		}
+	} else {
+		clients = options.clients
 	}
 
 	clientIDGenerator := func(hostport string) (string, error) {
