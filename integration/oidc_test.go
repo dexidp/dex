@@ -9,8 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-oidc/jose"
+	"github.com/coreos/go-oidc/key"
+	"github.com/coreos/go-oidc/oauth2"
+	"github.com/coreos/go-oidc/oidc"
+
 	"github.com/coreos/dex/client"
-	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	phttp "github.com/coreos/dex/pkg/http"
@@ -18,10 +22,6 @@ import (
 	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
-	"github.com/coreos/go-oidc/jose"
-	"github.com/coreos/go-oidc/key"
-	"github.com/coreos/go-oidc/oauth2"
-	"github.com/coreos/go-oidc/oidc"
 )
 
 func mockServer(cis []client.Client) (*server.Server, error) {
@@ -37,14 +37,7 @@ func mockServer(cis []client.Client) (*server.Server, error) {
 		return nil, err
 	}
 
-	clientIDGenerator := func(hostport string) (string, error) {
-		return hostport, nil
-	}
-	secGen := func() ([]byte, error) {
-		return []byte("secret"), nil
-	}
-	clientRepo := db.NewClientRepo(dbMap)
-	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbMap), cis, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+	clientRepo, clientManager, err := makeClientRepoAndManager(dbMap, cis)
 	if err != nil {
 		return nil, err
 	}
@@ -150,18 +143,12 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 		},
 	}
 
-	clientIDGenerator := func(hostport string) (string, error) {
-		return hostport, nil
-	}
-	secGen := func() ([]byte, error) {
-		return []byte("secret"), nil
-	}
 	dbMap := db.NewMemDB()
-	clientRepo := db.NewClientRepo(dbMap)
-	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbMap), []client.Client{ci}, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+	clientRepo, clientManager, err := makeClientRepoAndManager(dbMap, []client.Client{ci})
 	if err != nil {
 		t.Fatalf("Failed to create client identity manager: " + err.Error())
 	}
+
 	passwordInfoRepo, err := db.NewPasswordInfoRepoFromPasswordInfos(db.NewMemDB(), []user.PasswordInfo{passwordInfo})
 	if err != nil {
 		t.Fatalf("Failed to create password info repo: %v", err)

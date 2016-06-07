@@ -180,11 +180,13 @@ func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, err
 	secGen := func() ([]byte, error) {
 		return []byte("secret"), nil
 	}
-	clientRepo := db.NewClientRepo(dbMap)
-	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbMap), clients, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+	clientRepo, err := db.NewClientRepoFromClients(dbMap, clients)
 	if err != nil {
 		return nil, err
 	}
+
+	clientManager := clientmanager.NewClientManager(clientRepo, db.TransactionFactory(dbMap), clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+
 	km := key.NewPrivateKeyManager()
 	err = km.Set(key.NewPrivateKeySet([]*key.PrivateKey{testPrivKey}, time.Now().Add(time.Minute)))
 	if err != nil {

@@ -12,6 +12,8 @@ import (
 	"github.com/go-gorp/gorp"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/user"
@@ -78,4 +80,20 @@ func makeUserObjects(users []user.UserWithRemoteIdentities, passwords []user.Pas
 	um := manager.NewUserManager(ur, pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
 	um.Clock = clock
 	return dbMap, ur, pwr, um
+}
+
+func makeClientRepoAndManager(dbMap *gorp.DbMap, clients []client.Client) (client.ClientRepo, *clientmanager.ClientManager, error) {
+	clientIDGenerator := func(hostport string) (string, error) {
+		return hostport, nil
+	}
+	secGen := func() ([]byte, error) {
+		return []byte("secret"), nil
+	}
+	clientRepo, err := db.NewClientRepoFromClients(dbMap, clients)
+	if err != nil {
+		return nil, nil, err
+	}
+	clientManager := clientmanager.NewClientManager(clientRepo, db.TransactionFactory(dbMap), clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+	return clientRepo, clientManager, nil
+
 }

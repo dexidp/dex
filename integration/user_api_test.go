@@ -18,7 +18,6 @@ import (
 	"google.golang.org/api/googleapi"
 
 	"github.com/coreos/dex/client"
-	"github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/db"
 	schema "github.com/coreos/dex/schema/workerschema"
 	"github.com/coreos/dex/server"
@@ -126,14 +125,8 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 			},
 		},
 	}
-	clientIDGenerator := func(hostport string) (string, error) {
-		return hostport, nil
-	}
-	secGen := func() ([]byte, error) {
-		return []byte(testClientSecret), nil
-	}
-	clientRepo := db.NewClientRepo(dbMap)
-	clientManager, err := manager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbMap), clients, manager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+
+	_, clientManager, err := makeClientRepoAndManager(dbMap, clients)
 	if err != nil {
 		panic("Failed to create client identity manager: " + err.Error())
 	}

@@ -116,10 +116,9 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 		return fmt.Errorf("unable to read clients from file %s: %v", cfg.ClientsFile, err)
 	}
 
-	clientRepo := db.NewClientRepo(dbMap)
-
-	for _, c := range clients {
-		clientRepo.New(nil, c)
+	clientRepo, err := db.NewClientRepoFromClients(dbMap, clients)
+	if err != nil {
+		return err
 	}
 
 	f, err := os.Open(cfg.ConnectorsFile)
@@ -158,7 +157,7 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 
 	txnFactory := db.TransactionFactory(dbMap)
 	userManager := usermanager.NewUserManager(userRepo, pwiRepo, cfgRepo, txnFactory, usermanager.ManagerOptions{})
-	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbMap), clients, clientmanager.ManagerOptions{})
+	clientManager := clientmanager.NewClientManager(clientRepo, db.TransactionFactory(dbMap), clientmanager.ManagerOptions{})
 	if err != nil {
 		return fmt.Errorf("Failed to create client identity manager: %v", err)
 	}

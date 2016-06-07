@@ -2,7 +2,6 @@ package manager
 
 import (
 	"encoding/base64"
-	"fmt"
 
 	"errors"
 
@@ -62,35 +61,6 @@ func NewClientManager(clientRepo client.ClientRepo, txnFactory repo.TransactionF
 		secretGenerator:   options.SecretGenerator,
 		clientIDGenerator: options.ClientIDGenerator,
 	}
-}
-
-func NewClientManagerFromClients(clientRepo client.ClientRepo, txnFactory repo.TransactionFactory, clients []client.Client, options ManagerOptions) (*ClientManager, error) {
-	clientManager := NewClientManager(clientRepo, txnFactory, options)
-	tx, err := clientManager.begin()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	for _, c := range clients {
-		if c.Credentials.Secret == "" {
-			return nil, fmt.Errorf("client %q has no secret", c.Credentials.ID)
-		}
-
-		err := clientManager.addClientCredentials(&c)
-		if err != nil {
-			return nil, err
-		}
-
-		_, err = clientRepo.New(tx, c)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	return clientManager, nil
 }
 
 func (m *ClientManager) New(cli client.Client) (*oidc.ClientCredentials, error) {
