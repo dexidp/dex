@@ -24,18 +24,20 @@ func makeTestFixtures() *testFixtures {
 	f := &testFixtures{}
 
 	dbMap := db.NewMemDB()
-	clients := []client.Client{
+	clients := []client.LoadableClient{
 		{
-			Credentials: oidc.ClientCredentials{
-				ID:     "client.example.com",
-				Secret: goodSecret,
-			},
-			Metadata: oidc.ClientMetadata{
-				RedirectURIs: []url.URL{
-					{Scheme: "http", Host: "client.example.com", Path: "/"},
+			Client: client.Client{
+				Credentials: oidc.ClientCredentials{
+					ID:     "client.example.com",
+					Secret: goodSecret,
 				},
+				Metadata: oidc.ClientMetadata{
+					RedirectURIs: []url.URL{
+						{Scheme: "http", Host: "client.example.com", Path: "/"},
+					},
+				},
+				Admin: true,
 			},
-			Admin: true,
 		},
 	}
 	clientIDGenerator := func(hostport string) (string, error) {

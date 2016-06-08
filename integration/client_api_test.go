@@ -25,7 +25,7 @@ func TestClientCreate(t *testing.T) {
 			},
 		},
 	}
-	cis := []client.Client{ci}
+	cis := []client.LoadableClient{{Client: ci}}
 
 	srv, err := mockServer(cis)
 	if err != nil {

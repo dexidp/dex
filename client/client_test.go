@@ -13,17 +13,26 @@ import (
 var (
 	goodSecret1 = base64.URLEncoding.EncodeToString([]byte("my_secret"))
 	goodSecret2 = base64.URLEncoding.EncodeToString([]byte("my_other_secret"))
+	goodSecret3 = base64.URLEncoding.EncodeToString([]byte("yet_another_secret"))
 
 	goodClient1 = `{ 
   "id": "my_id",
   "secret": "` + goodSecret1 + `",
-  "redirectURLs": ["https://client.example.com"]
+  "redirectURLs": ["https://client.example.com"],
+  "admin": true
 }`
 
 	goodClient2 = `{ 
   "id": "my_other_id",
   "secret": "` + goodSecret2 + `",
   "redirectURLs": ["https://client2.example.com","https://client2_a.example.com"]
+}`
+
+	goodClient3 = `{ 
+  "id": "yet_another_id",
+  "secret": "` + goodSecret3 + `",
+  "redirectURLs": ["https://client3.example.com","https://client3_a.example.com"],
+  "trustedPeers":["goodClient1", "goodClient2"]
 }`
 
 	badURLClient = `{ 
@@ -51,54 +60,82 @@ var (
 func TestClientsFromReader(t *testing.T) {
 	tests := []struct {
 		json    string
-		want    []Client
+		want    []LoadableClient
 		wantErr bool
 	}{
 		{
 			json: "[]",
-			want: []Client{},
+			want: []LoadableClient{},
 		},
 		{
 			json: "[" + goodClient1 + "]",
-			want: []Client{
+			want: []LoadableClient{
 				{
-					Credentials: oidc.ClientCredentials{
-						ID:     "my_id",
-						Secret: goodSecret1,
-					},
-					Metadata: oidc.ClientMetadata{
-						RedirectURIs: []url.URL{
-							mustParseURL(t, "https://client.example.com"),
+					Client: Client{
+						Credentials: oidc.ClientCredentials{
+							ID:     "my_id",
+							Secret: goodSecret1,
 						},
+						Metadata: oidc.ClientMetadata{
+							RedirectURIs: []url.URL{
+								mustParseURL(t, "https://client.example.com"),
+							},
+						},
+						Admin: true,
 					},
 				},
 			},
 		},
 		{
 			json: "[" + strings.Join([]string{goodClient1, goodClient2}, ",") + "]",
-			want: []Client{
+			want: []LoadableClient{
 				{
-					Credentials: oidc.ClientCredentials{
-						ID:     "my_id",
-						Secret: goodSecret1,
-					},
-					Metadata: oidc.ClientMetadata{
-						RedirectURIs: []url.URL{
-							mustParseURL(t, "https://client.example.com"),
+					Client: Client{
+						Credentials: oidc.ClientCredentials{
+							ID:     "my_id",
+							Secret: goodSecret1,
 						},
+						Metadata: oidc.ClientMetadata{
+							RedirectURIs: []url.URL{
+								mustParseURL(t, "https://client.example.com"),
+							},
+						},
+						Admin: true,
 					},
 				},
 				{
-					Credentials: oidc.ClientCredentials{
-						ID:     "my_other_id",
-						Secret: goodSecret2,
-					},
-					Metadata: oidc.ClientMetadata{
-						RedirectURIs: []url.URL{
-							mustParseURL(t, "https://client2.example.com"),
-							mustParseURL(t, "https://client2_a.example.com"),
+					Client: Client{
+						Credentials: oidc.ClientCredentials{
+							ID:     "my_other_id",
+							Secret: goodSecret2,
+						},
+						Metadata: oidc.ClientMetadata{
+							RedirectURIs: []url.URL{
+								mustParseURL(t, "https://client2.example.com"),
+								mustParseURL(t, "https://client2_a.example.com"),
+							},
 						},
 					},
+				},
+			},
+		},
+		{
+			json: "[" + goodClient3 + "]",
+			want: []LoadableClient{
+				{
+					Client: Client{
+						Credentials: oidc.ClientCredentials{
+							ID:     "yet_another_id",
+							Secret: goodSecret3,
+						},
+						Metadata: oidc.ClientMetadata{
+							RedirectURIs: []url.URL{
+								mustParseURL(t, "https://client3.example.com"),
+								mustParseURL(t, "https://client3_a.example.com"),
+							},
+						},
+					},
+					TrustedPeers: []string{"goodClient1", "goodClient2"},
 				},
 			},
 		},

@@ -176,7 +176,7 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 	secGen := func() ([]byte, error) {
 		return []byte("secret"), nil
 	}
-	clientRepo, err := db.NewClientRepoFromClients(dbMap, []client.Client{ci})
+	clientRepo, err := db.NewClientRepoFromClients(dbMap, []client.LoadableClient{{Client: ci}})
 	if err != nil {
 		panic("Failed to create client manager: " + err.Error())
 	}

@@ -82,7 +82,7 @@ func makeUserObjects(users []user.UserWithRemoteIdentities, passwords []user.Pas
 	return dbMap, ur, pwr, um
 }
 
-func makeClientRepoAndManager(dbMap *gorp.DbMap, clients []client.Client) (client.ClientRepo, *clientmanager.ClientManager, error) {
+func makeClientRepoAndManager(dbMap *gorp.DbMap, clients []client.LoadableClient) (client.ClientRepo, *clientmanager.ClientManager, error) {
 	clientIDGenerator := func(hostport string) (string, error) {
 		return hostport, nil
 	}
