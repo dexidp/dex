@@ -313,14 +313,6 @@ func (r *clientRepo) SetTrustedPeers(tx repo.Transaction, clientID string, clien
 		return err
 	}
 
-	// Verify that all the clients are valid
-	for _, curID := range clientIDs {
-		_, err := r.get(tx, curID)
-		if err != nil {
-			return err
-		}
-	}
-
 	// Set the clients
 	rows := []interface{}{}
 	for _, curID := range clientIDs {
