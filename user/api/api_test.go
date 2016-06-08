@@ -176,11 +176,11 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 	secGen := func() ([]byte, error) {
 		return []byte("secret"), nil
 	}
-	clientRepo := db.NewClientRepo(dbMap)
-	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbMap), []client.Client{ci}, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+	clientRepo, err := db.NewClientRepoFromClients(dbMap, []client.Client{ci})
 	if err != nil {
 		panic("Failed to create client manager: " + err.Error())
 	}
+	clientManager := clientmanager.NewClientManager(clientRepo, db.TransactionFactory(dbMap), clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
 
 	// Used in TestRevokeRefreshToken test.
 	refreshTokens := []struct {

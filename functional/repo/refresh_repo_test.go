@@ -12,7 +12,6 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 
 	"github.com/coreos/dex/client"
-	"github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/refresh"
 	"github.com/coreos/dex/user"
@@ -28,9 +27,7 @@ func newRefreshRepo(t *testing.T, users []user.UserWithRemoteIdentities, clients
 	if _, err := db.NewUserRepoFromUsers(dbMap, users); err != nil {
 		t.Fatalf("Unable to add users: %v", err)
 	}
-	if _, err := manager.NewClientManagerFromClients(db.NewClientRepo(dbMap), db.TransactionFactory(dbMap), clients, manager.ManagerOptions{}); err != nil {
-		t.Fatalf("Unable to add clients: %v", err)
-	}
+
 	return db.NewRefreshTokenRepo(dbMap)
 }
 

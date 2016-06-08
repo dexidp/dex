@@ -26,21 +26,33 @@ const (
 )
 
 var (
+	testUserID1       = "ID-1"
+	testUserEmail1    = "Email-1@example.com"
+	testUserRemoteID1 = "RID-1"
+
 	testIssuerURL = url.URL{Scheme: "http", Host: "server.example.com"}
-	testClientID  = "client.example.com"
+
+	testClientID          = "client.example.com"
+	clientTestSecret      = base64.URLEncoding.EncodeToString([]byte("secret"))
+	testClientCredentials = oidc.ClientCredentials{
+		ID:     testClientID,
+		Secret: clientTestSecret,
+	}
+
+	testConnectorID1 = "IDPC-1"
 
 	testRedirectURL = url.URL{Scheme: "http", Host: "client.example.com", Path: "/callback"}
 
 	testUsers = []user.UserWithRemoteIdentities{
 		{
 			User: user.User{
-				ID:    "ID-1",
-				Email: "Email-1@example.com",
+				ID:    testUserID1,
+				Email: testUserEmail1,
 			},
 			RemoteIdentities: []user.RemoteIdentity{
 				{
-					ConnectorID: "IDPC-1",
-					ID:          "RID-1",
+					ConnectorID: testConnectorID1,
+					ID:          testUserRemoteID1,
 				},
 			},
 		},
@@ -83,6 +95,10 @@ type testFixtures struct {
 	clientManager  *clientmanager.ClientManager
 }
 
+type testFixtureOptions struct {
+	clients []client.Client
+}
+
 func sequentialGenerateCodeFunc() sessionmanager.GenerateCodeFunc {
 	x := 0
 	return func() (string, error) {
@@ -92,6 +108,10 @@ func sequentialGenerateCodeFunc() sessionmanager.GenerateCodeFunc {
 }
 
 func makeTestFixtures() (*testFixtures, error) {
+	return makeTestFixturesWithOptions(testFixtureOptions{})
+}
+
+func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, error) {
 	dbMap := db.NewMemDB()
 	userRepo, err := db.NewUserRepoFromUsers(dbMap, testUsers)
 	if err != nil {
@@ -138,18 +158,20 @@ func makeTestFixtures() (*testFixtures, error) {
 		return nil, err
 	}
 
-	clients := []client.Client{
-		client.Client{
-			Credentials: oidc.ClientCredentials{
-				ID:     testClientID,
-				Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
-			},
-			Metadata: oidc.ClientMetadata{
-				RedirectURIs: []url.URL{
-					testRedirectURL,
+	var clients []client.Client
+	if options.clients == nil {
+		clients = []client.Client{
+			client.Client{
+				Credentials: testClientCredentials,
+				Metadata: oidc.ClientMetadata{
+					RedirectURIs: []url.URL{
+						testRedirectURL,
+					},
 				},
 			},
-		},
+		}
+	} else {
+		clients = options.clients
 	}
 
 	clientIDGenerator := func(hostport string) (string, error) {
@@ -158,11 +180,13 @@ func makeTestFixtures() (*testFixtures, error) {
 	secGen := func() ([]byte, error) {
 		return []byte("secret"), nil
 	}
-	clientRepo := db.NewClientRepo(dbMap)
-	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbMap), clients, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+	clientRepo, err := db.NewClientRepoFromClients(dbMap, clients)
 	if err != nil {
 		return nil, err
 	}
+
+	clientManager := clientmanager.NewClientManager(clientRepo, db.TransactionFactory(dbMap), clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+
 	km := key.NewPrivateKeyManager()
 	err = km.Set(key.NewPrivateKeySet([]*key.PrivateKey{testPrivKey}, time.Now().Add(time.Minute)))
 	if err != nil {

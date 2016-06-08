@@ -17,10 +17,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/coreos/dex/client"
-	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
-	"github.com/coreos/dex/db"
-	"github.com/coreos/dex/session/manager"
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
@@ -76,38 +73,6 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 	idpcs := []connector.Connector{
 		&fakeConnector{loginURL: "http://fake.example.com"},
 	}
-	dbm := db.NewMemDB()
-	clients := []client.Client{
-		client.Client{
-			Credentials: oidc.ClientCredentials{
-				ID:     "client.example.com",
-				Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
-			},
-			Metadata: oidc.ClientMetadata{
-				RedirectURIs: []url.URL{
-					url.URL{Scheme: "http", Host: "client.example.com", Path: "/callback"},
-				},
-			},
-		},
-	}
-
-	clientIDGenerator := func(hostport string) (string, error) {
-		return hostport, nil
-	}
-	secGen := func() ([]byte, error) {
-		return []byte("secret"), nil
-	}
-	clientRepo := db.NewClientRepo(dbm)
-	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbm), clients, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
-	if err != nil {
-		t.Fatalf("Failed to create client identity manager: %v", err)
-	}
-	srv := &Server{
-		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
-		SessionManager: manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB())),
-		ClientRepo:     clientRepo,
-		ClientManager:  clientManager,
-	}
 
 	tests := []struct {
 		query        url.Values
@@ -118,7 +83,7 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 		{
 			query: url.Values{
 				"response_type": []string{"code"},
-				"client_id":     []string{"client.example.com"},
+				"client_id":     []string{testClientID},
 				"connector_id":  []string{"fake"},
 				"scope":         []string{"openid"},
 			},
@@ -210,7 +175,12 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		hdlr := handleAuthFunc(srv, idpcs, nil, true)
+		f, err := makeTestFixtures()
+		if err != nil {
+			t.Fatalf("error making test fixtures: %v", err)
+		}
+
+		hdlr := handleAuthFunc(f.srv, idpcs, nil, true)
 		w := httptest.NewRecorder()
 		u := fmt.Sprintf("http://server.example.com?%s", tt.query.Encode())
 		req, err := http.NewRequest("GET", u, nil)
@@ -237,7 +207,6 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 		&fakeConnector{loginURL: "http://fake.example.com"},
 	}
 
-	dbm := db.NewMemDB()
 	clients := []client.Client{
 		client.Client{
 			Credentials: oidc.ClientCredentials{
@@ -252,23 +221,11 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 			},
 		},
 	}
-
-	clientIDGenerator := func(hostport string) (string, error) {
-		return hostport, nil
-	}
-	secGen := func() ([]byte, error) {
-		return []byte("secret"), nil
-	}
-	clientRepo := db.NewClientRepo(dbm)
-	clientManager, err := clientmanager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbm), clients, clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+	f, err := makeTestFixturesWithOptions(testFixtureOptions{
+		clients: clients,
+	})
 	if err != nil {
-		t.Fatalf("Failed to create client identity manager: %v", err)
-	}
-	srv := &Server{
-		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
-		SessionManager: manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB())),
-		ClientRepo:     clientRepo,
-		ClientManager:  clientManager,
+		t.Fatalf("error making test fixtures: %v", err)
 	}
 
 	tests := []struct {
@@ -327,7 +284,7 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		hdlr := handleAuthFunc(srv, idpcs, nil, true)
+		hdlr := handleAuthFunc(f.srv, idpcs, nil, true)
 		w := httptest.NewRecorder()
 		u := fmt.Sprintf("http://server.example.com?%s", tt.query.Encode())
 		req, err := http.NewRequest("GET", u, nil)

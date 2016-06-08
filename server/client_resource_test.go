@@ -188,7 +188,7 @@ func TestList(t *testing.T) {
 	}{
 		// empty repo
 		{
-			cs:   nil,
+			cs:   []client.Client{},
 			want: nil,
 		},
 		// single client
@@ -244,20 +244,14 @@ func TestList(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		dbm := db.NewMemDB()
-		clientIDGenerator := func(hostport string) (string, error) {
-			return hostport, nil
-		}
-		secGen := func() ([]byte, error) {
-			return []byte("secret"), nil
-		}
-		clientRepo := db.NewClientRepo(dbm)
-		clientManager, err := manager.NewClientManagerFromClients(clientRepo, db.TransactionFactory(dbm), tt.cs, manager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+		f, err := makeTestFixturesWithOptions(testFixtureOptions{
+			clients: tt.cs,
+		})
 		if err != nil {
-			t.Fatalf("Failed to create client identity manager: %v", err)
-			continue
+			t.Fatalf("error making test fixtures: %v", err)
 		}
-		res := &clientResource{manager: clientManager}
+
+		res := &clientResource{manager: f.clientManager}
 
 		r, err := http.NewRequest("GET", "http://example.com/clients", nil)
 		if err != nil {

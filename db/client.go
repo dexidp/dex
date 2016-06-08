@@ -199,6 +199,18 @@ func (r *clientRepo) All(tx repo.Transaction) ([]client.Client, error) {
 	return cs, nil
 }
 
+func NewClientRepoFromClients(dbm *gorp.DbMap, cs []client.Client) (client.ClientRepo, error) {
+	repo := NewClientRepo(dbm).(*clientRepo)
+	for _, c := range cs {
+		cm, err := newClientModel(c)
+		if err != nil {
+			return nil, err
+		}
+		err = repo.executor(nil).Insert(cm)
+	}
+	return repo, nil
+}
+
 func (r *clientRepo) get(tx repo.Transaction, clientID string) (client.Client, error) {
 	cm, err := r.getModel(tx, clientID)
 	if err != nil {

@@ -2,7 +2,6 @@ package manager
 
 import (
 	"encoding/base64"
-	"fmt"
 
 	"errors"
 
@@ -64,35 +63,6 @@ func NewClientManager(clientRepo client.ClientRepo, txnFactory repo.TransactionF
 	}
 }
 
-func NewClientManagerFromClients(clientRepo client.ClientRepo, txnFactory repo.TransactionFactory, clients []client.Client, options ManagerOptions) (*ClientManager, error) {
-	clientManager := NewClientManager(clientRepo, txnFactory, options)
-	tx, err := clientManager.begin()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	for _, c := range clients {
-		if c.Credentials.Secret == "" {
-			return nil, fmt.Errorf("client %q has no secret", c.Credentials.ID)
-		}
-
-		cli, err := clientManager.generateClientCredentials(c)
-		if err != nil {
-			return nil, err
-		}
-
-		_, err = clientRepo.New(tx, cli)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	return clientManager, nil
-}
-
 func (m *ClientManager) New(cli client.Client) (*oidc.ClientCredentials, error) {
 	tx, err := m.begin()
 	if err != nil {
@@ -100,15 +70,15 @@ func (m *ClientManager) New(cli client.Client) (*oidc.ClientCredentials, error) 
 	}
 	defer tx.Rollback()
 
-	c, err := m.generateClientCredentials(cli)
+	err = m.addClientCredentials(&cli)
 	if err != nil {
 		return nil, err
 	}
 
-	creds := c.Credentials
+	creds := cli.Credentials
 
 	// Save Client
-	_, err = m.clientRepo.New(tx, c)
+	_, err = m.clientRepo.New(tx, cli)
 	if err != nil {
 		return nil, err
 	}
@@ -189,25 +159,25 @@ func (m *ClientManager) Authenticate(creds oidc.ClientCredentials) (bool, error)
 	return ok, nil
 }
 
-func (m *ClientManager) generateClientCredentials(cli client.Client) (client.Client, error) {
+func (m *ClientManager) addClientCredentials(cli *client.Client) error {
 	// Generate Client ID
 	if len(cli.Metadata.RedirectURIs) < 1 {
-		return cli, errors.New("no client redirect url given")
+		return errors.New("no client redirect url given")
 	}
 	clientID, err := m.clientIDGenerator(cli.Metadata.RedirectURIs[0].Host)
 	if err != nil {
-		return cli, err
+		return err
 	}
 
 	// Generate Secret
 	secret, err := m.secretGenerator()
 	if err != nil {
-		return cli, err
+		return err
 	}
 	clientSecret := base64.URLEncoding.EncodeToString(secret)
 	cli.Credentials = oidc.ClientCredentials{
 		ID:     clientID,
 		Secret: clientSecret,
 	}
-	return cli, nil
+	return nil
 }

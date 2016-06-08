@@ -44,11 +44,14 @@ func makeTestFixtures() *testFixtures {
 	secGen := func() ([]byte, error) {
 		return []byte("secret"), nil
 	}
-	f.clientRepo = db.NewClientRepo(dbMap)
-	clientManager, err := NewClientManagerFromClients(f.clientRepo, db.TransactionFactory(dbMap), clients, ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+
+	var err error
+	f.clientRepo, err = db.NewClientRepoFromClients(dbMap, clients)
 	if err != nil {
 		panic("Failed to create client manager: " + err.Error())
 	}
+
+	clientManager := NewClientManager(f.clientRepo, db.TransactionFactory(dbMap), ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
 	f.mgr = clientManager
 	return f
 }
