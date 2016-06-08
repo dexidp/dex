@@ -199,7 +199,7 @@ A client with associated public metadata.
 
 > __Description__
 
-> List all clients that hold refresh tokens for the authenticated user.
+> List all clients that hold refresh tokens for the specified user.
 
 
 > __Parameters__
@@ -221,19 +221,19 @@ A client with associated public metadata.
 
 > __Summary__
 
-> Revoke Clients
+> Revoke RefreshClient
 
 > __Description__
 
-> Revoke all refresh tokens issues to the client for the authenticated user.
+> Revoke all refresh tokens issues to the client for the specified user.
 
 
 > __Parameters__
 
 > |Name|Located in|Description|Required|Type|
 |:-----|:-----|:-----|:-----|:-----|
-| userid | path |  | Yes | string | 
 | clientid | path |  | Yes | string | 
+| userid | path |  | Yes | string | 
 
 
 > __Responses__
@@ -310,8 +310,8 @@ A client with associated public metadata.
 
 > |Name|Located in|Description|Required|Type|
 |:-----|:-----|:-----|:-----|:-----|
-| maxResults | query |  | No | integer | 
 | nextPageToken | query |  | No | string | 
+| maxResults | query |  | No | integer | 
 
 
 > __Responses__

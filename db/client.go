@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	clientTableName = "client_identity"
+	clientTableName      = "client_identity"
+	trustedPeerTableName = "trusted_peers"
 
 	// postgres error codes
 	pgErrorCodeUniqueViolation = "23505" // unique_violation
@@ -28,6 +29,13 @@ func init() {
 		model:   clientModel{},
 		autoinc: false,
 		pkey:    []string{"id"},
+	})
+
+	register(table{
+		name:    trustedPeerTableName,
+		model:   trustedPeerModel{},
+		autoinc: false,
+		pkey:    []string{"client_id", "trusted_client_id"},
 	})
 }
 
@@ -56,6 +64,11 @@ type clientModel struct {
 	Secret   []byte `db:"secret"`
 	Metadata string `db:"metadata"`
 	DexAdmin bool   `db:"dex_admin"`
+}
+
+type trustedPeerModel struct {
+	ClientID        string `db:"client_id"`
+	TrustedClientID string `db:"trusted_client_id"`
 }
 
 func (m *clientModel) Client() (*client.Client, error) {
@@ -253,4 +266,64 @@ func (r *clientRepo) update(tx repo.Transaction, cli client.Client) error {
 	}
 	_, err = ex.Update(cm)
 	return err
+}
+
+func (r *clientRepo) GetTrustedPeers(tx repo.Transaction, clientID string) ([]string, error) {
+	ex := r.executor(tx)
+	if clientID == "" {
+		return nil, client.ErrorInvalidClientID
+	}
+
+	qt := r.quote(trustedPeerTableName)
+	var ids []string
+	_, err := ex.Select(&ids, fmt.Sprintf("SELECT trusted_client_id from %s where client_id = $1", qt), clientID)
+
+	if err != nil {
+		if err != sql.ErrNoRows {
+			return nil, err
+		}
+		return nil, nil
+	}
+
+	return ids, nil
+}
+
+func (r *clientRepo) SetTrustedPeers(tx repo.Transaction, clientID string, clientIDs []string) error {
+	ex := r.executor(tx)
+	qt := r.quote(trustedPeerTableName)
+
+	// First delete all existing rows
+	_, err := ex.Exec(fmt.Sprintf("DELETE from %s where client_id = $1", qt), clientID)
+	if err != nil {
+		return err
+	}
+
+	// Ensure that the client exists.
+	_, err = r.get(tx, clientID)
+	if err != nil {
+		return err
+	}
+
+	// Verify that all the clients are valid
+	for _, curID := range clientIDs {
+		_, err := r.get(tx, curID)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Set the clients
+	rows := []interface{}{}
+	for _, curID := range clientIDs {
+		rows = append(rows, &trustedPeerModel{
+			ClientID:        clientID,
+			TrustedClientID: curID,
+		})
+	}
+	err = ex.Insert(rows...)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

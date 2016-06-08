@@ -70,4 +70,10 @@ CREATE TABLE session_key (
     expires_at bigint,
     stale integer
 );
+
+CREATE TABLE trusted_peers (
+    client_id text NOT NULL,
+    trusted_client_id text NOT NULL
+);
+
 `

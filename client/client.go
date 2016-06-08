@@ -15,6 +15,7 @@ import (
 )
 
 var (
+	ErrorInvalidClientID       = errors.New("not a valid client ID")
 	ErrorInvalidRedirectURL    = errors.New("not a valid redirect url for the given client")
 	ErrorCantChooseRedirectURL = errors.New("must provide a redirect url; client has many")
 	ErrorNoValidRedirectURLs   = errors.New("no valid redirect URLs for this client.")
@@ -60,6 +61,12 @@ type ClientRepo interface {
 	New(tx repo.Transaction, client Client) (*oidc.ClientCredentials, error)
 
 	Update(tx repo.Transaction, client Client) error
+
+	// GetTrustedPeers returns the list of clients authorized to mint ID token for the given client.
+	GetTrustedPeers(tx repo.Transaction, clientID string) ([]string, error)
+
+	// SetTrustedPeers sets the list of clients authorized to mint ID token for the given client.
+	SetTrustedPeers(tx repo.Transaction, clientID string, clientIDs []string) error
 }
 
 // ValidRedirectURL returns the passed in URL if it is present in the redirectURLs list, and returns an error otherwise.

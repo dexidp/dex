@@ -272,28 +272,6 @@ const DiscoveryJSON = `{
           "response": {
             "$ref": "ClientWithSecret"
           }
-        },
-        "Revoke": {
-          "id": "dex.Client.Revoke",
-          "description": "Revoke all refresh tokens issues to the client for the authenticated user.",
-          "httpMethod": "DELETE",
-          "path": "account/{userid}/refresh/{clientid}",
-          "parameterOrder": [
-            "userid",
-            "clientid"
-          ],
-          "parameters": {
-            "clientid": {
-              "type": "string",
-              "required": true,
-              "location": "path"
-            },
-            "userid": {
-              "type": "string",
-              "required": true,
-              "location": "path"
-            }
-          }
         }
       }
     },
@@ -398,8 +376,8 @@ const DiscoveryJSON = `{
     "RefreshClient": {
       "methods": {
         "List": {
-          "id": "dex.Client.List",
-          "description": "List all clients that hold refresh tokens for the authenticated user.",
+          "id": "dex.RefreshClient.List",
+          "description": "List all clients that hold refresh tokens for the specified user.",
           "httpMethod": "GET",
           "path": "account/{userid}/refresh",
           "parameters": {
@@ -414,6 +392,28 @@ const DiscoveryJSON = `{
           ],
           "response": {
             "$ref": "RefreshClientList"
+          }
+        },
+        "Revoke": {
+          "id": "dex.RefreshClient.Revoke",
+          "description": "Revoke all refresh tokens issues to the client for the specified user.",
+          "httpMethod": "DELETE",
+          "path": "account/{userid}/refresh/{clientid}",
+          "parameterOrder": [
+            "userid",
+            "clientid"
+          ],
+          "parameters": {
+            "clientid": {
+              "type": "string",
+              "required": true,
+              "location": "path"
+            },
+            "userid": {
+              "type": "string",
+              "required": true,
+              "location": "path"
+            }
           }
         }
       }

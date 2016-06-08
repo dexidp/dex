@@ -21,6 +21,7 @@ import (
 	"github.com/coreos/dex/connector"
 	phttp "github.com/coreos/dex/pkg/http"
 	"github.com/coreos/dex/pkg/log"
+	"github.com/coreos/dex/scope"
 )
 
 const (
@@ -341,30 +342,9 @@ func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.T
 		}
 
 		// Check scopes.
-		var scopes []string
-		foundOpenIDScope := false
-		for _, scope := range acr.Scope {
-			switch scope {
-			case "openid":
-				foundOpenIDScope = true
-				scopes = append(scopes, scope)
-			case "offline_access":
-				// According to the spec, for offline_access scope, the client must
-				// use a response_type value that would result in an Authorization Code.
-				// Currently oauth2.ResponseTypeCode is the only supported response type,
-				// and it's been checked above, so we don't need to check it again here.
-				//
-				// TODO(yifan): Verify that 'consent' should be in 'prompt'.
-				scopes = append(scopes, scope)
-			default:
-				// Pass all other scopes.
-				scopes = append(scopes, scope)
-			}
-		}
-
-		if !foundOpenIDScope {
-			log.Errorf("Invalid auth request: missing 'openid' in 'scope'")
-			writeAuthError(w, oauth2.NewError(oauth2.ErrorInvalidRequest), acr.State)
+		if scopeErr := validateScopes(srv, acr.ClientID, acr.Scope); scopeErr != nil {
+			log.Error(scopeErr)
+			writeAuthError(w, scopeErr, acr.State)
 			return
 		}
 
@@ -408,6 +388,67 @@ func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.T
 		w.WriteHeader(http.StatusFound)
 		return
 	}
+}
+
+func validateScopes(srv OIDCServer, clientID string, scopes []string) error {
+	foundOpenIDScope := false
+	for i, curScope := range scopes {
+		if i > 0 && curScope == scopes[i-1] {
+			err := oauth2.NewError(oauth2.ErrorInvalidRequest)
+			err.Description = fmt.Sprintf(
+				"Duplicate scopes are not allowed: %q",
+				curScope)
+			return err
+		}
+
+		switch {
+		case strings.HasPrefix(curScope, scope.ScopeGoogleCrossClient):
+			otherClient := curScope[len(scope.ScopeGoogleCrossClient):]
+			var allowed bool
+			var err error
+			if otherClient == clientID {
+				allowed = true
+			} else {
+				allowed, err = srv.CrossClientAuthAllowed(clientID, otherClient)
+				if err != nil {
+					return err
+				}
+			}
+
+			if !allowed {
+				err := oauth2.NewError(oauth2.ErrorInvalidRequest)
+				err.Description = fmt.Sprintf(
+					"%q is not authorized to perform cross-client requests for %q",
+					clientID, otherClient)
+				return err
+			}
+		case curScope == "openid":
+			foundOpenIDScope = true
+		case curScope == "profile":
+		case curScope == "email":
+		case curScope == "offline_access":
+			// According to the spec, for offline_access scope, the client must
+			// use a response_type value that would result in an Authorization
+			// Code.  Currently oauth2.ResponseTypeCode is the only supported
+			// response type, and it's been checked above, so we don't need to
+			// check it again here.
+			//
+			// TODO(yifan): Verify that 'consent' should be in 'prompt'.
+		default:
+			// Reject all other scopes.
+			err := oauth2.NewError(oauth2.ErrorInvalidRequest)
+			err.Description = fmt.Sprintf("%q is not a recognized scope", curScope)
+			return err
+		}
+	}
+
+	if !foundOpenIDScope {
+		log.Errorf("Invalid auth request: missing 'openid' in 'scope'")
+		err := oauth2.NewError(oauth2.ErrorInvalidRequest)
+		err.Description = "Invalid auth request: missing 'openid' in 'scope'"
+		return err
+	}
+	return nil
 }
 
 func handleTokenFunc(srv OIDCServer) http.HandlerFunc {

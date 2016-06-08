@@ -34,7 +34,7 @@ func (d *dbDriver) NewClient(meta oidc.ClientMetadata) (*oidc.ClientCredentials,
 	cli := client.Client{
 		Metadata: meta,
 	}
-	return d.ciManager.New(cli)
+	return d.ciManager.New(cli, nil)
 }
 
 func (d *dbDriver) ConnectorConfigs() ([]connector.ConnectorConfig, error) {

@@ -21,6 +21,10 @@ const (
 	maxSecretLength = 72
 )
 
+type ClientOptions struct {
+	TrustedPeers []string
+}
+
 type SecretGenerator func() ([]byte, error)
 
 func DefaultSecretGenerator() ([]byte, error) {
@@ -63,7 +67,7 @@ func NewClientManager(clientRepo client.ClientRepo, txnFactory repo.TransactionF
 	}
 }
 
-func (m *ClientManager) New(cli client.Client) (*oidc.ClientCredentials, error) {
+func (m *ClientManager) New(cli client.Client, options *ClientOptions) (*oidc.ClientCredentials, error) {
 	tx, err := m.begin()
 	if err != nil {
 		return nil, err
@@ -81,6 +85,13 @@ func (m *ClientManager) New(cli client.Client) (*oidc.ClientCredentials, error) 
 	_, err = m.clientRepo.New(tx, cli)
 	if err != nil {
 		return nil, err
+	}
+
+	if options != nil && len(options.TrustedPeers) > 0 {
+		err = m.clientRepo.SetTrustedPeers(tx, creds.ID, options.TrustedPeers)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	err = tx.Commit()

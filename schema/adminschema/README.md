@@ -34,7 +34,10 @@ __Version:__ v1
     redirectURIs: [
         string
     ],
-    secret: string // The client secret. Ignored in client create requests.
+    secret: string // The client secret. Ignored in client create requests.,
+    trustedPeers: [
+        string
+    ]
 }
 ```
 

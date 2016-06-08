@@ -45,13 +45,19 @@ type OIDCServer interface {
 	ClientMetadata(string) (*oidc.ClientMetadata, error)
 	NewSession(connectorID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error)
 	Login(oidc.Identity, string) (string, error)
+
 	// CodeToken exchanges a code for an ID token and a refresh token string on success.
 	CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jose.JWT, string, error)
+
 	ClientCredsToken(creds oidc.ClientCredentials) (*jose.JWT, error)
+
 	// RefreshToken takes a previously generated refresh token and returns a new ID token
 	// if the token is valid.
 	RefreshToken(creds oidc.ClientCredentials, token string) (*jose.JWT, error)
+
 	KillSession(string) error
+
+	CrossClientAuthAllowed(requestingClientID, authorizingClientID string) (bool, error)
 }
 
 type JWTVerifierFactory func(clientID string) oidc.JWTVerifier
@@ -438,6 +444,36 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 	claims := ses.Claims(s.IssuerURL.String())
 	user.AddToClaims(claims)
 
+	crossClientIDs := ses.Scope.CrossClientIDs()
+	if len(crossClientIDs) > 0 {
+		var aud []string
+		for _, id := range crossClientIDs {
+			if ses.ClientID == id {
+				aud = append(aud, id)
+				continue
+			}
+			allowed, err := s.CrossClientAuthAllowed(ses.ClientID, id)
+			if err != nil {
+				log.Errorf("Failed to check cross client auth. reqClientID %v; authClient:ID %v; err: %v", ses.ClientID, id, err)
+				return nil, "", oauth2.NewError(oauth2.ErrorServerError)
+			}
+			if !allowed {
+				err := oauth2.NewError(oauth2.ErrorInvalidRequest)
+				err.Description = fmt.Sprintf(
+					"%q is not authorized to perform cross-client requests for %q",
+					ses.ClientID, id)
+				return nil, "", err
+			}
+			aud = append(aud, id)
+		}
+		if len(aud) == 1 {
+			claims.Add("aud", aud[0])
+		} else {
+			claims.Add("aud", aud)
+		}
+		claims.Add("azp", ses.ClientID)
+	}
+
 	jwt, err := jose.NewSignedJWT(claims, signer)
 	if err != nil {
 		log.Errorf("Failed to generate ID token: %v", err)
@@ -519,6 +555,19 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose
 	log.Infof("New token sent: clientID=%s", creds.ID)
 
 	return jwt, nil
+}
+
+func (s *Server) CrossClientAuthAllowed(requestingClientID, authorizingClientID string) (bool, error) {
+	alloweds, err := s.ClientRepo.GetTrustedPeers(nil, authorizingClientID)
+	if err != nil {
+		return false, err
+	}
+	for _, allowed := range alloweds {
+		if requestingClientID == allowed {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *Server) JWTVerifierFactory() JWTVerifierFactory {
