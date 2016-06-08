@@ -264,7 +264,7 @@ func renderLoginPage(w http.ResponseWriter, r *http.Request, srv OIDCServer, idp
 	execTemplate(w, tpl, td)
 }
 
-func handleAuthFunc(srv DexServer, idpcs []connector.Connector, tpl *template.Template, registrationEnabled bool) http.HandlerFunc {
+func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.Template, registrationEnabled bool) http.HandlerFunc {
 	idx := makeConnectorMap(idpcs)
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
@@ -390,7 +390,7 @@ func handleAuthFunc(srv DexServer, idpcs []connector.Connector, tpl *template.Te
 	}
 }
 
-func validateScopes(srv DexServer, clientID string, scopes []string) error {
+func validateScopes(srv OIDCServer, clientID string, scopes []string) error {
 	foundOpenIDScope := false
 	for i, curScope := range scopes {
 		if i > 0 && curScope == scopes[i-1] {

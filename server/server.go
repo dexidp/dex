@@ -56,13 +56,7 @@ type OIDCServer interface {
 	RefreshToken(creds oidc.ClientCredentials, token string) (*jose.JWT, error)
 
 	KillSession(string) error
-}
 
-// DexServer is an OIDCServer that also has dex-specific features.
-type DexServer interface {
-	OIDCServer
-
-	// CrossClientAuthAllowed
 	CrossClientAuthAllowed(requestingClientID, authorizingClientID string) (bool, error)
 }
 
