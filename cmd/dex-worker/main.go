@@ -191,7 +191,7 @@ func main() {
 	for _, cfg := range cfgs {
 		cfg := cfg
 		if err = srv.AddConnector(cfg); err != nil {
-			log.Fatalf("Failed registering connector: %v", err)
+			log.Fatalf("Failed registering connector '%s': %v", cfg.ConnectorID(), err)
 		}
 	}
 
