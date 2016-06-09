@@ -417,15 +417,18 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 
 	sessionID, err := s.SessionManager.ExchangeKey(sessionKey)
 	if err != nil {
+		log.Errorf("Invalid grant %v: %v", sessionKey, err)
 		return nil, "", oauth2.NewError(oauth2.ErrorInvalidGrant)
 	}
 
 	ses, err := s.SessionManager.Kill(sessionID)
 	if err != nil {
+		log.Errorf("Invalid request: %v", err)
 		return nil, "", oauth2.NewError(oauth2.ErrorInvalidRequest)
 	}
 
 	if ses.ClientID != creds.ID {
+		log.Errorf("Invalid client id: %v, expected: %v", creds.ID, ses.ClientID)
 		return nil, "", oauth2.NewError(oauth2.ErrorInvalidGrant)
 	}
 
