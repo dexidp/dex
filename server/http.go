@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -468,25 +469,42 @@ func handleTokenFunc(srv OIDCServer) http.HandlerFunc {
 
 		state := r.PostForm.Get("state")
 
+		var decodedUser = ""
+		var decodedPassword = ""
+
 		user, password, ok := r.BasicAuth()
-		if !ok {
-			log.Errorf("error parsing basic auth")
-			writeTokenError(w, oauth2.NewError(oauth2.ErrorInvalidClient), state)
-			return
-		}
+		// If the Authorization header wasn't set attempt to
+		// get client id and secret from POST body. See
+		// https://github.com/coreos/dex/issues/460 and
+		// https://tools.ietf.org/html/rfc6749#section-2.3
+		if ok {
+			decodedUser, err = url.QueryUnescape(user)
+			if err != nil {
+				log.Errorf("error decoding user: %v", err)
+				writeTokenError(w, oauth2.NewError(oauth2.ErrorInvalidClient), state)
+				return
+			}
 
-		decodedUser, err := url.QueryUnescape(user)
-		if err != nil {
-			log.Errorf("error decoding user: %v", err)
-			writeTokenError(w, oauth2.NewError(oauth2.ErrorInvalidClient), state)
-			return
-		}
+			decodedPassword, err = url.QueryUnescape(password)
+			if err != nil {
+				log.Errorf("error decoding password: %v", err)
+				writeTokenError(w, oauth2.NewError(oauth2.ErrorInvalidClient), state)
+				return
+			}
+		} else {
+			log.Warningf("error parsing basic auth. Attempting discouraged parsing of client_secret. %v", r.PostForm)
 
-		decodedPassword, err := url.QueryUnescape(password)
-		if err != nil {
-			log.Errorf("error decoding password: %v", err)
-			writeTokenError(w, oauth2.NewError(oauth2.ErrorInvalidClient), state)
-			return
+			decodedUser = r.PostForm.Get("client_id")
+			decodedPassword = r.PostForm.Get("client_secret")
+
+			if decodedUser == "" || decodedPassword == "" {
+				log.Errorf("Neither Authorization nor client_id and client_secret set.")
+				writeTokenError(w, oauth2.NewError(oauth2.ErrorInvalidClient), state)
+				return
+			}
+
+			// Internal code requires password to be base64 encoded
+			decodedPassword = base64.URLEncoding.EncodeToString([]byte(decodedPassword))
 		}
 
 		creds := oidc.ClientCredentials{ID: decodedUser, Secret: decodedPassword}
