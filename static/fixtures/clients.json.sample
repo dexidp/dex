@@ -2,7 +2,8 @@
   {
     "id": "XXX",
     "secret": "c2VjcmV0ZQ==",
-    "redirectURLs": ["http://127.0.0.1:5555/callback"]
+    "redirectURLs": ["http://127.0.0.1:5555/callback"],
+    "trustedPeers": ["example-app"]
   },
   {
     "id": "example-app",

@@ -223,7 +223,7 @@ func TestHandleAuthFuncResponsesMultipleRedirectURLs(t *testing.T) {
 		},
 	}
 	f, err := makeTestFixturesWithOptions(testFixtureOptions{
-		clients: clients,
+		clients: clientsToLoadableClients(clients),
 	})
 	if err != nil {
 		t.Fatalf("error making test fixtures: %v", err)

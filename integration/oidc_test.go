@@ -24,7 +24,7 @@ import (
 	"github.com/coreos/dex/user"
 )
 
-func mockServer(cis []client.Client) (*server.Server, error) {
+func mockServer(cis []client.LoadableClient) (*server.Server, error) {
 	dbMap := db.NewMemDB()
 	k, err := key.GeneratePrivateKey()
 	if err != nil {
@@ -144,7 +144,10 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 	}
 
 	dbMap := db.NewMemDB()
-	clientRepo, clientManager, err := makeClientRepoAndManager(dbMap, []client.Client{ci})
+	clientRepo, clientManager, err := makeClientRepoAndManager(dbMap,
+		[]client.LoadableClient{{
+			Client: ci,
+		}})
 	if err != nil {
 		t.Fatalf("Failed to create client identity manager: " + err.Error())
 	}
@@ -300,7 +303,7 @@ func TestHTTPClientCredsToken(t *testing.T) {
 			},
 		},
 	}
-	cis := []client.Client{ci}
+	cis := []client.LoadableClient{{Client: ci}}
 
 	srv, err := mockServer(cis)
 	if err != nil {

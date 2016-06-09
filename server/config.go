@@ -222,7 +222,7 @@ func loadUsersFromReader(r io.Reader) (users []user.UserWithRemoteIdentities, pw
 }
 
 // loadClients parses the clients.json file and returns a list of clients.
-func loadClients(filepath string) ([]client.Client, error) {
+func loadClients(filepath string) ([]client.LoadableClient, error) {
 	f, err := os.Open(filepath)
 	if err != nil {
 		return nil, err

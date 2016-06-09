@@ -103,7 +103,7 @@ type testFixtures struct {
 }
 
 type testFixtureOptions struct {
-	clients []client.Client
+	clients []client.LoadableClient
 }
 
 func sequentialGenerateCodeFunc() sessionmanager.GenerateCodeFunc {
@@ -167,14 +167,16 @@ func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, err
 		return nil, err
 	}
 
-	var clients []client.Client
+	var clients []client.LoadableClient
 	if options.clients == nil {
-		clients = []client.Client{
-			client.Client{
-				Credentials: testClientCredentials,
-				Metadata: oidc.ClientMetadata{
-					RedirectURIs: []url.URL{
-						testRedirectURL,
+		clients = []client.LoadableClient{
+			{
+				Client: client.Client{
+					Credentials: testClientCredentials,
+					Metadata: oidc.ClientMetadata{
+						RedirectURIs: []url.URL{
+							testRedirectURL,
+						},
 					},
 				},
 			},
@@ -257,4 +259,14 @@ func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, err
 			testClientID: testClientCreds,
 		},
 	}, nil
+}
+
+func clientsToLoadableClients(cs []client.Client) []client.LoadableClient {
+	lcs := make([]client.LoadableClient, len(cs), len(cs))
+	for i, c := range cs {
+		lcs[i] = client.LoadableClient{
+			Client: c,
+		}
+	}
+	return lcs
 }

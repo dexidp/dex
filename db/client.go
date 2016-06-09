@@ -212,14 +212,23 @@ func (r *clientRepo) All(tx repo.Transaction) ([]client.Client, error) {
 	return cs, nil
 }
 
-func NewClientRepoFromClients(dbm *gorp.DbMap, cs []client.Client) (client.ClientRepo, error) {
+func NewClientRepoFromClients(dbm *gorp.DbMap, cs []client.LoadableClient) (client.ClientRepo, error) {
 	repo := NewClientRepo(dbm).(*clientRepo)
 	for _, c := range cs {
-		cm, err := newClientModel(c)
+		cm, err := newClientModel(c.Client)
 		if err != nil {
 			return nil, err
 		}
 		err = repo.executor(nil).Insert(cm)
+		if err != nil {
+			return nil, err
+		}
+
+		err = repo.SetTrustedPeers(nil, c.Client.Credentials.ID, c.TrustedPeers)
+		if err != nil {
+			return nil, err
+		}
+
 	}
 	return repo, nil
 }
@@ -302,14 +311,6 @@ func (r *clientRepo) SetTrustedPeers(tx repo.Transaction, clientID string, clien
 	_, err = r.get(tx, clientID)
 	if err != nil {
 		return err
-	}
-
-	// Verify that all the clients are valid
-	for _, curID := range clientIDs {
-		_, err := r.get(tx, curID)
-		if err != nil {
-			return err
-		}
 	}
 
 	// Set the clients

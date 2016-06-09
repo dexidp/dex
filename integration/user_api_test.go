@@ -101,26 +101,30 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 	f := &userAPITestFixtures{}
 
 	dbMap, _, _, um := makeUserObjects(userUsers, userPasswords)
-	clients := []client.Client{
-		client.Client{
-			Credentials: oidc.ClientCredentials{
-				ID:     testClientID,
-				Secret: testClientSecret,
-			},
-			Metadata: oidc.ClientMetadata{
-				RedirectURIs: []url.URL{
-					testRedirectURL,
+	clients := []client.LoadableClient{
+		{
+			Client: client.Client{
+				Credentials: oidc.ClientCredentials{
+					ID:     testClientID,
+					Secret: testClientSecret,
+				},
+				Metadata: oidc.ClientMetadata{
+					RedirectURIs: []url.URL{
+						testRedirectURL,
+					},
 				},
 			},
 		},
-		client.Client{
-			Credentials: oidc.ClientCredentials{
-				ID:     userBadClientID,
-				Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
-			},
-			Metadata: oidc.ClientMetadata{
-				RedirectURIs: []url.URL{
-					testBadRedirectURL,
+		{
+			Client: client.Client{
+				Credentials: oidc.ClientCredentials{
+					ID:     userBadClientID,
+					Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
+				},
+				Metadata: oidc.ClientMetadata{
+					RedirectURIs: []url.URL{
+						testBadRedirectURL,
+					},
 				},
 			},
 		},

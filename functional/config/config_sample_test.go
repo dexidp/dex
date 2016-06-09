@@ -27,14 +27,15 @@ func TestClientSample(t *testing.T) {
 	}
 
 	memDB := db.NewMemDB()
-	repo := db.NewClientRepo(memDB)
-	for _, c := range clients {
-		repo.New(nil, c)
+	repo, err := db.NewClientRepoFromClients(memDB, clients)
+	if err != nil {
+		t.Fatalf("Error creating Clients: %v", err)
 	}
+
 	mgr := manager.NewClientManager(repo, db.TransactionFactory(memDB), manager.ManagerOptions{})
 
 	for i, c := range clients {
-		ok, err := mgr.Authenticate(c.Credentials)
+		ok, err := mgr.Authenticate(c.Client.Credentials)
 		if !ok {
 			t.Errorf("case %d: couldn't authenticate", i)
 		}

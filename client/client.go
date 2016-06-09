@@ -94,16 +94,24 @@ func ValidRedirectURL(rURL *url.URL, redirectURLs []url.URL) (url.URL, error) {
 	return url.URL{}, ErrorInvalidRedirectURL
 }
 
-func ClientsFromReader(r io.Reader) ([]Client, error) {
+// LoadableClient contains sufficient information for creating a Client and its related entities.
+type LoadableClient struct {
+	Client       Client
+	TrustedPeers []string
+}
+
+func ClientsFromReader(r io.Reader) ([]LoadableClient, error) {
 	var c []struct {
 		ID           string   `json:"id"`
 		Secret       string   `json:"secret"`
 		RedirectURLs []string `json:"redirectURLs"`
+		Admin        bool     `json:"admin"`
+		TrustedPeers []string `json:"trustedPeers"`
 	}
 	if err := json.NewDecoder(r).Decode(&c); err != nil {
 		return nil, err
 	}
-	clients := make([]Client, len(c))
+	clients := make([]LoadableClient, len(c))
 	for i, client := range c {
 		if client.ID == "" {
 			return nil, errors.New("clients must have an ID")
@@ -120,14 +128,18 @@ func ClientsFromReader(r io.Reader) ([]Client, error) {
 			redirectURIs[j] = *uri
 		}
 
-		clients[i] = Client{
-			Credentials: oidc.ClientCredentials{
-				ID:     client.ID,
-				Secret: client.Secret,
+		clients[i] = LoadableClient{
+			Client: Client{
+				Credentials: oidc.ClientCredentials{
+					ID:     client.ID,
+					Secret: client.Secret,
+				},
+				Metadata: oidc.ClientMetadata{
+					RedirectURIs: redirectURIs,
+				},
+				Admin: client.Admin,
 			},
-			Metadata: oidc.ClientMetadata{
-				RedirectURIs: redirectURIs,
-			},
+			TrustedPeers: client.TrustedPeers,
 		}
 	}
 	return clients, nil

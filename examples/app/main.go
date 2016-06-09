@@ -1,5 +1,8 @@
 package main
 
+//go:generate go-bindata -pkg main -o assets.go data/
+//go:generate gofmt -w assets.go
+
 import (
 	"bytes"
 	"crypto/tls"
@@ -7,11 +10,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/jose"
@@ -21,7 +26,10 @@ import (
 	pflag "github.com/coreos/dex/pkg/flag"
 	phttp "github.com/coreos/dex/pkg/http"
 	"github.com/coreos/dex/pkg/log"
+	"github.com/coreos/dex/scope"
 )
+
+var indexTemplate *template.Template
 
 func main() {
 	fs := flag.NewFlagSet("oidc-app", flag.ExitOnError)
@@ -136,8 +144,14 @@ func main() {
 		Handler: hdlr,
 	}
 
-	log.Infof("Binding to %s...", httpsrv.Addr)
+	indexBytes, err := Asset("data/index.html")
+	if err != nil {
+		log.Fatalf("could not load template: %q", err)
+	}
 
+	indexTemplate = template.Must(template.New("root").Parse(string(indexBytes)))
+
+	log.Infof("Binding to %s...", httpsrv.Addr)
 	if useTLS {
 		log.Info("Key and cert file provided. Using TLS")
 		log.Fatal(httpsrv.ListenAndServeTLS(*certFile, *keyFile))
@@ -167,13 +181,22 @@ func NewClientHandler(c *oidc.Client, issuer string, cbURL url.URL) http.Handler
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("<a href='/login'>login</a>"))
-	w.Write([]byte("<br>"))
-	w.Write([]byte("<a href='/register'>register</a>"))
+	err := indexTemplate.Execute(w, nil)
+	if err != nil {
+		phttp.WriteError(w, http.StatusInternalServerError,
+			fmt.Sprintf("unable to execute template: %v", err))
+
+	}
 }
 
 func handleLoginFunc(c *oidc.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		err := r.ParseForm()
+		if err != nil {
+			phttp.WriteError(w, http.StatusBadRequest,
+				fmt.Sprintf("Could not parse request: %v", err))
+		}
+
 		oac, err := c.OAuthClient()
 		if err != nil {
 			panic("unable to proceed")
@@ -183,6 +206,22 @@ func handleLoginFunc(c *oidc.Client) http.HandlerFunc {
 		if err != nil {
 			panic("unable to proceed")
 		}
+
+		xClient := r.Form.Get("cross_client")
+		if xClient != "" {
+			xClients := strings.Split(xClient, ",")
+			for i, x := range xClients {
+				xClients[i] = scope.ScopeGoogleCrossClient + x
+			}
+			q := u.Query()
+			scope := q.Get("scope")
+			scopes := strings.Split(scope, " ")
+			scopes = append(scopes, xClients...)
+			scope = strings.Join(scopes, " ")
+			q.Set("scope", scope)
+			u.RawQuery = q.Encode()
+		}
+
 		http.Redirect(w, r, u.String(), http.StatusFound)
 	}
 }

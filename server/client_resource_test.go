@@ -245,7 +245,7 @@ func TestList(t *testing.T) {
 
 	for i, tt := range tests {
 		f, err := makeTestFixturesWithOptions(testFixtureOptions{
-			clients: tt.cs,
+			clients: clientsToLoadableClients(tt.cs),
 		})
 		if err != nil {
 			t.Fatalf("error making test fixtures: %v", err)
