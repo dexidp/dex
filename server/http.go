@@ -518,11 +518,12 @@ func handleTokenFunc(srv OIDCServer) http.HandlerFunc {
 			}
 		case oauth2.GrantTypeRefreshToken:
 			token := r.PostForm.Get("refresh_token")
+			scopes := r.PostForm.Get("scope")
 			if token == "" {
 				writeTokenError(w, oauth2.NewError(oauth2.ErrorInvalidRequest), state)
 				return
 			}
-			jwt, err = srv.RefreshToken(creds, token)
+			jwt, err = srv.RefreshToken(creds, strings.Split(scopes, " "), token)
 			if err != nil {
 				writeTokenError(w, err, state)
 				return

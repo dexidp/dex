@@ -484,11 +484,13 @@ func TestServerRefreshToken(t *testing.T) {
 	// NOTE(ericchiang): These tests assume that the database ID of the first
 	// refresh token will be "1".
 	tests := []struct {
-		token    string
-		clientID string // The client that associates with the token.
-		creds    oidc.ClientCredentials
-		signer   jose.Signer
-		err      error
+		token         string
+		clientID      string // The client that associates with the token.
+		creds         oidc.ClientCredentials
+		signer        jose.Signer
+		createScopes  []string
+		refreshScopes []string
+		err           error
 	}{
 		// Everything is good.
 		{
@@ -496,7 +498,19 @@ func TestServerRefreshToken(t *testing.T) {
 			testClientID,
 			testClientCredentials,
 			signerFixture,
+			[]string{"openid", "profile"},
+			[]string{"openid", "profile"},
 			nil,
+		},
+		// Asking for a scope not originally granted to you.
+		{
+			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			testClientID,
+			testClientCredentials,
+			signerFixture,
+			[]string{"openid", "profile"},
+			[]string{"openid", "profile", "extra_scope"},
+			oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 		// Invalid refresh token(malformatted).
 		{
@@ -504,6 +518,8 @@ func TestServerRefreshToken(t *testing.T) {
 			testClientID,
 			testClientCredentials,
 			signerFixture,
+			[]string{"openid", "profile"},
+			[]string{"openid", "profile"},
 			oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 		// Invalid refresh token(invalid payload content).
@@ -512,6 +528,8 @@ func TestServerRefreshToken(t *testing.T) {
 			testClientID,
 			testClientCredentials,
 			signerFixture,
+			[]string{"openid", "profile"},
+			[]string{"openid", "profile"},
 			oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 		// Invalid refresh token(invalid ID content).
@@ -520,6 +538,8 @@ func TestServerRefreshToken(t *testing.T) {
 			testClientID,
 			testClientCredentials,
 			signerFixture,
+			[]string{"openid", "profile"},
+			[]string{"openid", "profile"},
 			oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 		// Invalid client(client is not associated with the token).
@@ -528,6 +548,8 @@ func TestServerRefreshToken(t *testing.T) {
 			testClientID,
 			clientB.Credentials,
 			signerFixture,
+			[]string{"openid", "profile"},
+			[]string{"openid", "profile"},
 			oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(no client ID).
@@ -536,6 +558,8 @@ func TestServerRefreshToken(t *testing.T) {
 			testClientID,
 			oidc.ClientCredentials{ID: "", Secret: "aaa"},
 			signerFixture,
+			[]string{"openid", "profile"},
+			[]string{"openid", "profile"},
 			oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(no such client).
@@ -544,6 +568,8 @@ func TestServerRefreshToken(t *testing.T) {
 			testClientID,
 			oidc.ClientCredentials{ID: "AAA", Secret: "aaa"},
 			signerFixture,
+			[]string{"openid", "profile"},
+			[]string{"openid", "profile"},
 			oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(no secrets).
@@ -552,6 +578,8 @@ func TestServerRefreshToken(t *testing.T) {
 			testClientID,
 			oidc.ClientCredentials{ID: testClientID},
 			signerFixture,
+			[]string{"openid", "profile"},
+			[]string{"openid", "profile"},
 			oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(invalid secret).
@@ -560,6 +588,8 @@ func TestServerRefreshToken(t *testing.T) {
 			testClientID,
 			oidc.ClientCredentials{ID: "bad-id", Secret: "bad-secret"},
 			signerFixture,
+			[]string{"openid", "profile"},
+			[]string{"openid", "profile"},
 			oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Signing operation fails.
@@ -568,6 +598,8 @@ func TestServerRefreshToken(t *testing.T) {
 			testClientID,
 			testClientCredentials,
 			&StaticSigner{sig: nil, err: errors.New("fail")},
+			[]string{"openid", "profile"},
+			[]string{"openid", "profile"},
 			oauth2.NewError(oauth2.ErrorServerError),
 		},
 	}
@@ -587,11 +619,12 @@ func TestServerRefreshToken(t *testing.T) {
 			t.Errorf("case %d: error creating other client: %v", i, err)
 		}
 
-		if _, err := f.srv.RefreshTokenRepo.Create(testUserID1, tt.clientID); err != nil {
+		if _, err := f.srv.RefreshTokenRepo.Create(testUserID1, tt.clientID,
+			tt.createScopes); err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
 
-		jwt, err := f.srv.RefreshToken(tt.creds, tt.token)
+		jwt, err := f.srv.RefreshToken(tt.creds, tt.refreshScopes, tt.token)
 		if !reflect.DeepEqual(err, tt.err) {
 			t.Errorf("Case %d: expect: %v, got: %v", i, tt.err, err)
 		}

@@ -39,7 +39,8 @@ CREATE TABLE refresh_token (
     id integer PRIMARY KEY,
     payload_hash blob,
     user_id text,
-    client_id text
+    client_id text,
+    scopes text
 );
 
 CREATE TABLE remote_identity_mapping (

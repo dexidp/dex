@@ -23,6 +23,7 @@ import (
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/refresh"
+	"github.com/coreos/dex/scope"
 	"github.com/coreos/dex/session"
 	sessionmanager "github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
@@ -53,7 +54,7 @@ type OIDCServer interface {
 
 	// RefreshToken takes a previously generated refresh token and returns a new ID token
 	// if the token is valid.
-	RefreshToken(creds oidc.ClientCredentials, token string) (*jose.JWT, error)
+	RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes, token string) (*jose.JWT, error)
 
 	KillSession(string) error
 
@@ -487,7 +488,7 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 		if scope == "offline_access" {
 			log.Infof("Session %s requests offline access, will generate refresh token", sessionID)
 
-			refreshToken, err = s.RefreshTokenRepo.Create(ses.UserID, creds.ID)
+			refreshToken, err = s.RefreshTokenRepo.Create(ses.UserID, creds.ID, ses.Scope)
 			switch err {
 			case nil:
 				break
@@ -503,7 +504,7 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 	return jwt, refreshToken, nil
 }
 
-func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose.JWT, error) {
+func (s *Server) RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes, token string) (*jose.JWT, error) {
 	ok, err := s.ClientManager.Authenticate(creds)
 	if err != nil {
 		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
@@ -514,7 +515,7 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose
 		return nil, oauth2.NewError(oauth2.ErrorInvalidClient)
 	}
 
-	userID, err := s.RefreshTokenRepo.Verify(creds.ID, token)
+	userID, rtScopes, err := s.RefreshTokenRepo.Verify(creds.ID, token)
 	switch err {
 	case nil:
 		break
@@ -524,6 +525,14 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose
 		return nil, oauth2.NewError(oauth2.ErrorInvalidClient)
 	default:
 		return nil, oauth2.NewError(oauth2.ErrorServerError)
+	}
+
+	if len(scopes) == 0 {
+		scopes = rtScopes
+	} else {
+		if !rtScopes.Contains(scopes) {
+			return nil, oauth2.NewError(oauth2.ErrorInvalidRequest)
+		}
 	}
 
 	user, err := s.UserRepo.Get(nil, userID)
