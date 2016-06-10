@@ -14,29 +14,24 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 
 	"github.com/coreos/dex/client"
-	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/scope"
 )
 
 func makeCrossClientTestFixtures() (*testFixtures, error) {
-	f, err := makeTestFixtures()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't make test fixtures: %v", err)
-	}
-
+	xClients := []client.LoadableClient{}
 	for _, cliData := range []struct {
-		id         string
-		authorized []string
+		id           string
+		trustedPeers []string
 	}{
 		{
 			id: "client_a",
 		}, {
-			id:         "client_b",
-			authorized: []string{"client_a"},
+			id:           "client_b",
+			trustedPeers: []string{"client_a"},
 		}, {
-			id:         "client_c",
-			authorized: []string{"client_a", "client_b"},
+			id:           "client_c",
+			trustedPeers: []string{"client_a", "client_b"},
 		},
 	} {
 		u := url.URL{
@@ -44,20 +39,27 @@ func makeCrossClientTestFixtures() (*testFixtures, error) {
 			Path:   cliData.id,
 			Host:   cliData.id,
 		}
-		cliCreds, err := f.clientManager.New(client.Client{
-			Credentials: oidc.ClientCredentials{
-				ID: cliData.id,
+		xClients = append(xClients, client.LoadableClient{
+			Client: client.Client{
+				Credentials: oidc.ClientCredentials{
+					ID: cliData.id,
+					Secret: base64.URLEncoding.EncodeToString(
+						[]byte(cliData.id + "_secret")),
+				},
+				Metadata: oidc.ClientMetadata{
+					RedirectURIs: []url.URL{u},
+				},
 			},
-			Metadata: oidc.ClientMetadata{
-				RedirectURIs: []url.URL{u},
-			},
-		}, &clientmanager.ClientOptions{
-			TrustedPeers: cliData.authorized,
+			TrustedPeers: cliData.trustedPeers,
 		})
-		if err != nil {
-			return nil, fmt.Errorf("Unexpected error creating clients: %v", err)
-		}
-		f.clientCreds[cliData.id] = *cliCreds
+	}
+
+	xClients = append(xClients, testClients...)
+	f, err := makeTestFixturesWithOptions(testFixtureOptions{
+		clients: xClients,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("couldn't make test fixtures: %v", err)
 	}
 	return f, nil
 }

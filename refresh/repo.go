@@ -41,7 +41,9 @@ func DefaultRefreshTokenGenerator() ([]byte, error) {
 
 type RefreshTokenRepo interface {
 	// Create generates and returns a new refresh token for the given client-user pair.
-	// On success the token will be return.
+	// The scopes will be stored with the refresh token, and used to verify
+	// against future OIDC refresh requests' scopes.
+	// On success the token will be returned.
 	Create(userID, clientID string, scope []string) (string, error)
 
 	// Verify verifies that a token belongs to the client.

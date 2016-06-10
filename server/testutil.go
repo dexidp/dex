@@ -39,6 +39,18 @@ var (
 		ID:     testClientID,
 		Secret: clientTestSecret,
 	}
+	testClients = []client.LoadableClient{
+		{
+			Client: client.Client{
+				Credentials: testClientCredentials,
+				Metadata: oidc.ClientMetadata{
+					RedirectURIs: []url.URL{
+						testRedirectURL,
+					},
+				},
+			},
+		},
+	}
 
 	testConnectorID1 = "IDPC-1"
 
@@ -169,18 +181,7 @@ func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, err
 
 	var clients []client.LoadableClient
 	if options.clients == nil {
-		clients = []client.LoadableClient{
-			{
-				Client: client.Client{
-					Credentials: testClientCredentials,
-					Metadata: oidc.ClientMetadata{
-						RedirectURIs: []url.URL{
-							testRedirectURL,
-						},
-					},
-				},
-			},
-		}
+		clients = testClients
 	} else {
 		clients = options.clients
 	}
@@ -247,6 +248,10 @@ func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, err
 		srv.absURL(httpPathAcceptInvitation),
 	)
 
+	clientCreds := map[string]oidc.ClientCredentials{}
+	for _, c := range clients {
+		clientCreds[c.Client.Credentials.ID] = c.Client.Credentials
+	}
 	return &testFixtures{
 		srv:            srv,
 		redirectURL:    testRedirectURL,
@@ -255,9 +260,7 @@ func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, err
 		emailer:        emailer,
 		clientRepo:     clientRepo,
 		clientManager:  clientManager,
-		clientCreds: map[string]oidc.ClientCredentials{
-			testClientID: testClientCreds,
-		},
+		clientCreds:    clientCreds,
 	}, nil
 }
 

@@ -146,6 +146,7 @@ func (r *refreshTokenRepo) Verify(clientID, token string) (string, scope.Scopes,
 	if len(record.Scopes) > 0 {
 		scopes = strings.Split(record.Scopes, " ")
 	}
+
 	return record.UserID, scopes, nil
 }
 

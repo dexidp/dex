@@ -445,35 +445,7 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 	claims := ses.Claims(s.IssuerURL.String())
 	user.AddToClaims(claims)
 
-	crossClientIDs := ses.Scope.CrossClientIDs()
-	if len(crossClientIDs) > 0 {
-		var aud []string
-		for _, id := range crossClientIDs {
-			if ses.ClientID == id {
-				aud = append(aud, id)
-				continue
-			}
-			allowed, err := s.CrossClientAuthAllowed(ses.ClientID, id)
-			if err != nil {
-				log.Errorf("Failed to check cross client auth. reqClientID %v; authClient:ID %v; err: %v", ses.ClientID, id, err)
-				return nil, "", oauth2.NewError(oauth2.ErrorServerError)
-			}
-			if !allowed {
-				err := oauth2.NewError(oauth2.ErrorInvalidRequest)
-				err.Description = fmt.Sprintf(
-					"%q is not authorized to perform cross-client requests for %q",
-					ses.ClientID, id)
-				return nil, "", err
-			}
-			aud = append(aud, id)
-		}
-		if len(aud) == 1 {
-			claims.Add("aud", aud[0])
-		} else {
-			claims.Add("aud", aud)
-		}
-		claims.Add("azp", ses.ClientID)
-	}
+	s.addClaimsFromScope(claims, ses.Scope, ses.ClientID)
 
 	jwt, err := jose.NewSignedJWT(claims, signer)
 	if err != nil {
@@ -555,6 +527,8 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes,
 	claims := oidc.NewClaims(s.IssuerURL.String(), user.ID, creds.ID, now, expireAt)
 	user.AddToClaims(claims)
 
+	s.addClaimsFromScope(claims, scope.Scopes(scopes), creds.ID)
+
 	jwt, err := jose.NewSignedJWT(claims, signer)
 	if err != nil {
 		log.Errorf("Failed to generate ID token: %v", err)
@@ -594,6 +568,41 @@ func (s *Server) JWTVerifierFactory() JWTVerifierFactory {
 
 		return oidc.NewJWTVerifier(s.IssuerURL.String(), clientID, noop, keyFunc)
 	}
+}
+
+// addClaimsFromScope adds claims that are based on the scopes that the client requested.
+// Currently, these include cross-client claims (aud, azp).
+func (s *Server) addClaimsFromScope(claims jose.Claims, scopes scope.Scopes, clientID string) error {
+	crossClientIDs := scopes.CrossClientIDs()
+	if len(crossClientIDs) > 0 {
+		var aud []string
+		for _, id := range crossClientIDs {
+			if clientID == id {
+				aud = append(aud, id)
+				continue
+			}
+			allowed, err := s.CrossClientAuthAllowed(clientID, id)
+			if err != nil {
+				log.Errorf("Failed to check cross client auth. reqClientID %v; authClient:ID %v; err: %v", clientID, id, err)
+				return oauth2.NewError(oauth2.ErrorServerError)
+			}
+			if !allowed {
+				err := oauth2.NewError(oauth2.ErrorInvalidRequest)
+				err.Description = fmt.Sprintf(
+					"%q is not authorized to perform cross-client requests for %q",
+					clientID, id)
+				return err
+			}
+			aud = append(aud, id)
+		}
+		if len(aud) == 1 {
+			claims.Add("aud", aud[0])
+		} else {
+			claims.Add("aud", aud)
+		}
+		claims.Add("azp", clientID)
+	}
+	return nil
 }
 
 type sortableIDPCs []connector.Connector
