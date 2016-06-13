@@ -439,6 +439,20 @@ func TestParseTokenResponse(t *testing.T) {
 			},
 		},
 		{
+			// Azure AD returns "expires_in" value as string
+			resp: response{
+				body:        `{"access_token":"foo","id_token":"bar","expires_in":"300","token_type":"bearer","refresh_token":"spam"}`,
+				contentType: "application/json; charset=utf-8",
+			},
+			wantResp: TokenResponse{
+				AccessToken:  "foo",
+				IDToken:      "bar",
+				Expires:      300,
+				TokenType:    "bearer",
+				RefreshToken: "spam",
+			},
+		},
+		{
 			resp: response{
 				body:        `{"access_token":"foo","id_token":"bar","expires":200,"token_type":"bearer","refresh_token":"spam"}`,
 				contentType: "application/json; charset=utf-8",
