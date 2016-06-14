@@ -23,6 +23,7 @@ import (
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/refresh"
+	"github.com/coreos/dex/scope"
 	"github.com/coreos/dex/session"
 	sessionmanager "github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
@@ -53,7 +54,7 @@ type OIDCServer interface {
 
 	// RefreshToken takes a previously generated refresh token and returns a new ID token
 	// if the token is valid.
-	RefreshToken(creds oidc.ClientCredentials, token string) (*jose.JWT, error)
+	RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes, token string) (*jose.JWT, error)
 
 	KillSession(string) error
 
@@ -444,35 +445,7 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 	claims := ses.Claims(s.IssuerURL.String())
 	user.AddToClaims(claims)
 
-	crossClientIDs := ses.Scope.CrossClientIDs()
-	if len(crossClientIDs) > 0 {
-		var aud []string
-		for _, id := range crossClientIDs {
-			if ses.ClientID == id {
-				aud = append(aud, id)
-				continue
-			}
-			allowed, err := s.CrossClientAuthAllowed(ses.ClientID, id)
-			if err != nil {
-				log.Errorf("Failed to check cross client auth. reqClientID %v; authClient:ID %v; err: %v", ses.ClientID, id, err)
-				return nil, "", oauth2.NewError(oauth2.ErrorServerError)
-			}
-			if !allowed {
-				err := oauth2.NewError(oauth2.ErrorInvalidRequest)
-				err.Description = fmt.Sprintf(
-					"%q is not authorized to perform cross-client requests for %q",
-					ses.ClientID, id)
-				return nil, "", err
-			}
-			aud = append(aud, id)
-		}
-		if len(aud) == 1 {
-			claims.Add("aud", aud[0])
-		} else {
-			claims.Add("aud", aud)
-		}
-		claims.Add("azp", ses.ClientID)
-	}
+	s.addClaimsFromScope(claims, ses.Scope, ses.ClientID)
 
 	jwt, err := jose.NewSignedJWT(claims, signer)
 	if err != nil {
@@ -487,7 +460,7 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 		if scope == "offline_access" {
 			log.Infof("Session %s requests offline access, will generate refresh token", sessionID)
 
-			refreshToken, err = s.RefreshTokenRepo.Create(ses.UserID, creds.ID)
+			refreshToken, err = s.RefreshTokenRepo.Create(ses.UserID, creds.ID, ses.Scope)
 			switch err {
 			case nil:
 				break
@@ -503,7 +476,7 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 	return jwt, refreshToken, nil
 }
 
-func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose.JWT, error) {
+func (s *Server) RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes, token string) (*jose.JWT, error) {
 	ok, err := s.ClientManager.Authenticate(creds)
 	if err != nil {
 		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
@@ -514,7 +487,7 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose
 		return nil, oauth2.NewError(oauth2.ErrorInvalidClient)
 	}
 
-	userID, err := s.RefreshTokenRepo.Verify(creds.ID, token)
+	userID, rtScopes, err := s.RefreshTokenRepo.Verify(creds.ID, token)
 	switch err {
 	case nil:
 		break
@@ -524,6 +497,14 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose
 		return nil, oauth2.NewError(oauth2.ErrorInvalidClient)
 	default:
 		return nil, oauth2.NewError(oauth2.ErrorServerError)
+	}
+
+	if len(scopes) == 0 {
+		scopes = rtScopes
+	} else {
+		if !rtScopes.Contains(scopes) {
+			return nil, oauth2.NewError(oauth2.ErrorInvalidRequest)
+		}
 	}
 
 	user, err := s.UserRepo.Get(nil, userID)
@@ -545,6 +526,8 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose
 
 	claims := oidc.NewClaims(s.IssuerURL.String(), user.ID, creds.ID, now, expireAt)
 	user.AddToClaims(claims)
+
+	s.addClaimsFromScope(claims, scope.Scopes(scopes), creds.ID)
 
 	jwt, err := jose.NewSignedJWT(claims, signer)
 	if err != nil {
@@ -585,6 +568,41 @@ func (s *Server) JWTVerifierFactory() JWTVerifierFactory {
 
 		return oidc.NewJWTVerifier(s.IssuerURL.String(), clientID, noop, keyFunc)
 	}
+}
+
+// addClaimsFromScope adds claims that are based on the scopes that the client requested.
+// Currently, these include cross-client claims (aud, azp).
+func (s *Server) addClaimsFromScope(claims jose.Claims, scopes scope.Scopes, clientID string) error {
+	crossClientIDs := scopes.CrossClientIDs()
+	if len(crossClientIDs) > 0 {
+		var aud []string
+		for _, id := range crossClientIDs {
+			if clientID == id {
+				aud = append(aud, id)
+				continue
+			}
+			allowed, err := s.CrossClientAuthAllowed(clientID, id)
+			if err != nil {
+				log.Errorf("Failed to check cross client auth. reqClientID %v; authClient:ID %v; err: %v", clientID, id, err)
+				return oauth2.NewError(oauth2.ErrorServerError)
+			}
+			if !allowed {
+				err := oauth2.NewError(oauth2.ErrorInvalidRequest)
+				err.Description = fmt.Sprintf(
+					"%q is not authorized to perform cross-client requests for %q",
+					clientID, id)
+				return err
+			}
+			aud = append(aud, id)
+		}
+		if len(aud) == 1 {
+			claims.Add("aud", aud[0])
+		} else {
+			claims.Add("aud", aud)
+		}
+		claims.Add("azp", clientID)
+	}
+	return nil
 }
 
 type sortableIDPCs []connector.Connector

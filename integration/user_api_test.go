@@ -148,7 +148,8 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 
 	refreshRepo := db.NewRefreshTokenRepo(dbMap)
 	for _, user := range userUsers {
-		if _, err := refreshRepo.Create(user.User.ID, testClientID); err != nil {
+		if _, err := refreshRepo.Create(user.User.ID, testClientID,
+			append([]string{"offline_access"}, oidc.DefaultScope...)); err != nil {
 			panic("Failed to create refresh token: " + err.Error())
 		}
 	}

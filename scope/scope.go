@@ -32,3 +32,17 @@ func (s Scopes) CrossClientIDs() []string {
 	}
 	return clients
 }
+
+func (s Scopes) Contains(other Scopes) bool {
+	rScopes := map[string]struct{}{}
+	for _, scope := range s {
+		rScopes[scope] = struct{}{}
+	}
+
+	for _, scope := range other {
+		if _, ok := rScopes[scope]; !ok {
+			return false
+		}
+	}
+	return true
+}

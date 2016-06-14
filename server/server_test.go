@@ -18,6 +18,7 @@ import (
 	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/refresh/refreshtest"
+	"github.com/coreos/dex/scope"
 	"github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
 )
@@ -484,91 +485,197 @@ func TestServerRefreshToken(t *testing.T) {
 	// NOTE(ericchiang): These tests assume that the database ID of the first
 	// refresh token will be "1".
 	tests := []struct {
-		token    string
-		clientID string // The client that associates with the token.
-		creds    oidc.ClientCredentials
-		signer   jose.Signer
-		err      error
+		token         string
+		clientID      string // The client that associates with the token.
+		creds         oidc.ClientCredentials
+		signer        jose.Signer
+		createScopes  []string
+		refreshScopes []string
+		expectedAud   []string
+		err           error
 	}{
 		// Everything is good.
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			testClientID,
-			testClientCredentials,
-			signerFixture,
-			nil,
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         testClientCredentials,
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+		},
+		// Asking for a scope not originally granted to you.
+		{
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         testClientCredentials,
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile", "extra_scope"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 		// Invalid refresh token(malformatted).
 		{
-			"invalid-token",
-			testClientID,
-			testClientCredentials,
-			signerFixture,
-			oauth2.NewError(oauth2.ErrorInvalidRequest),
+			token:         "invalid-token",
+			clientID:      testClientID,
+			creds:         testClientCredentials,
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 		// Invalid refresh token(invalid payload content).
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-2"))),
-			testClientID,
-			testClientCredentials,
-			signerFixture,
-			oauth2.NewError(oauth2.ErrorInvalidRequest),
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-2"))),
+			clientID:      testClientID,
+			creds:         testClientCredentials,
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 		// Invalid refresh token(invalid ID content).
 		{
-			fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			testClientID,
-			testClientCredentials,
-			signerFixture,
-			oauth2.NewError(oauth2.ErrorInvalidRequest),
+			token:         fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         testClientCredentials,
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 		// Invalid client(client is not associated with the token).
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			testClientID,
-			clientB.Credentials,
-			signerFixture,
-			oauth2.NewError(oauth2.ErrorInvalidClient),
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         clientB.Credentials,
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(no client ID).
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			testClientID,
-			oidc.ClientCredentials{ID: "", Secret: "aaa"},
-			signerFixture,
-			oauth2.NewError(oauth2.ErrorInvalidClient),
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         oidc.ClientCredentials{ID: "", Secret: "aaa"},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(no such client).
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			testClientID,
-			oidc.ClientCredentials{ID: "AAA", Secret: "aaa"},
-			signerFixture,
-			oauth2.NewError(oauth2.ErrorInvalidClient),
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         oidc.ClientCredentials{ID: "AAA", Secret: "aaa"},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(no secrets).
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			testClientID,
-			oidc.ClientCredentials{ID: testClientID},
-			signerFixture,
-			oauth2.NewError(oauth2.ErrorInvalidClient),
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         oidc.ClientCredentials{ID: testClientID},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(invalid secret).
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			testClientID,
-			oidc.ClientCredentials{ID: "bad-id", Secret: "bad-secret"},
-			signerFixture,
-			oauth2.NewError(oauth2.ErrorInvalidClient),
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         oidc.ClientCredentials{ID: "bad-id", Secret: "bad-secret"},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Signing operation fails.
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			testClientID,
-			testClientCredentials,
-			&StaticSigner{sig: nil, err: errors.New("fail")},
-			oauth2.NewError(oauth2.ErrorServerError),
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         testClientCredentials,
+			signer:        &StaticSigner{sig: nil, err: errors.New("fail")},
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorServerError),
+		},
+		// Valid Cross-Client
+		{
+			token:    fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID: "client_a",
+			creds: oidc.ClientCredentials{
+				ID: "client_a",
+				Secret: base64.URLEncoding.EncodeToString(
+					[]byte("client_a_secret")),
+			},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile", scope.ScopeGoogleCrossClient + "client_b"},
+			refreshScopes: []string{"openid", "profile", scope.ScopeGoogleCrossClient + "client_b"},
+			expectedAud:   []string{"client_b"},
+		},
+		// Valid Cross-Client - but this time we leave out the scopes in the
+		// refresh request, which should result in the original stored scopes
+		// being used.
+		{
+			token:    fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID: "client_a",
+			creds: oidc.ClientCredentials{
+				ID: "client_a",
+				Secret: base64.URLEncoding.EncodeToString(
+					[]byte("client_a_secret")),
+			},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile", scope.ScopeGoogleCrossClient + "client_b"},
+			refreshScopes: []string{},
+			expectedAud:   []string{"client_b"},
+		},
+		// Valid Cross-Client - asking for fewer scopes than originally used
+		// when creating the refresh token, which is ok.
+		{
+			token:    fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID: "client_a",
+			creds: oidc.ClientCredentials{
+				ID: "client_a",
+				Secret: base64.URLEncoding.EncodeToString(
+					[]byte("client_a_secret")),
+			},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile", scope.ScopeGoogleCrossClient + "client_b", scope.ScopeGoogleCrossClient + "client_c"},
+			refreshScopes: []string{"openid", "profile", scope.ScopeGoogleCrossClient + "client_b"},
+			expectedAud:   []string{"client_b"},
+		},
+		// Valid Cross-Client - asking for multiple clients in the audience.
+		{
+			token:    fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID: "client_a",
+			creds: oidc.ClientCredentials{
+				ID: "client_a",
+				Secret: base64.URLEncoding.EncodeToString(
+					[]byte("client_a_secret")),
+			},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile", scope.ScopeGoogleCrossClient + "client_b", scope.ScopeGoogleCrossClient + "client_c"},
+			refreshScopes: []string{"openid", "profile", scope.ScopeGoogleCrossClient + "client_b", scope.ScopeGoogleCrossClient + "client_c"},
+			expectedAud:   []string{"client_b", "client_c"},
+		},
+		// Invalid Cross-Client - didn't orignally request cross-client when
+		// refresh token was created.
+		{
+			token:    fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID: "client_a",
+			creds: oidc.ClientCredentials{
+				ID: "client_a",
+				Secret: base64.URLEncoding.EncodeToString(
+					[]byte("client_a_secret")),
+			},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile", scope.ScopeGoogleCrossClient + "client_b"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 	}
 
@@ -576,7 +683,7 @@ func TestServerRefreshToken(t *testing.T) {
 		km := &StaticKeyManager{
 			signer: tt.signer,
 		}
-		f, err := makeTestFixtures()
+		f, err := makeCrossClientTestFixtures()
 		if err != nil {
 			t.Fatalf("error making test fixtures: %v", err)
 		}
@@ -587,11 +694,12 @@ func TestServerRefreshToken(t *testing.T) {
 			t.Errorf("case %d: error creating other client: %v", i, err)
 		}
 
-		if _, err := f.srv.RefreshTokenRepo.Create(testUserID1, tt.clientID); err != nil {
+		if _, err := f.srv.RefreshTokenRepo.Create(testUserID1, tt.clientID,
+			tt.createScopes); err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
 
-		jwt, err := f.srv.RefreshToken(tt.creds, tt.token)
+		jwt, err := f.srv.RefreshToken(tt.creds, tt.refreshScopes, tt.token)
 		if !reflect.DeepEqual(err, tt.err) {
 			t.Errorf("Case %d: expect: %v, got: %v", i, tt.err, err)
 		}
@@ -604,8 +712,27 @@ func TestServerRefreshToken(t *testing.T) {
 			if err != nil {
 				t.Errorf("Case %d: unexpected error: %v", i, err)
 			}
-			if claims["iss"] != testIssuerURL.String() || claims["sub"] != testUserID1 || claims["aud"] != testClientID {
-				t.Errorf("Case %d: invalid claims: %v", i, claims)
+
+			var expectedAud interface{}
+			if tt.expectedAud == nil {
+				expectedAud = testClientID
+			} else if len(tt.expectedAud) == 1 {
+				expectedAud = tt.expectedAud[0]
+			} else {
+				expectedAud = tt.expectedAud
+			}
+
+			if claims["iss"] != testIssuerURL.String() {
+				t.Errorf("Case %d: want=%v, got=%v", i,
+					testIssuerURL.String(), claims["iss"])
+			}
+			if claims["sub"] != testUserID1 {
+				t.Errorf("Case %d: want=%v, got=%v", i,
+					testUserID1, claims["sub"])
+			}
+			if diff := pretty.Compare(claims["aud"], expectedAud); diff != "" {
+				t.Errorf("Case %d: want=%v, got=%v", i,
+					expectedAud, claims["aud"])
 			}
 		}
 	}

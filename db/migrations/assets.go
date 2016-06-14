@@ -78,5 +78,11 @@ var PostgresMigrations migrate.MigrationSource = &migrate.MemoryMigrationSource{
 				"-- +migrate Up\nCREATE TABLE IF NOT EXISTS \"trusted_peers\" (\n       \"client_id\" text not null,\n       \"trusted_client_id\" text not null,\n       primary key (\"client_id\", \"trusted_client_id\")) ;\n",
 			},
 		},
+		{
+			Id: "0013_add_scopes_to_refresh_tokens.sql",
+			Up: []string{
+				"-- +migrate Up\nALTER TABLE refresh_token ADD COLUMN \"scopes\" text;\n\nUPDATE refresh_token SET scopes = 'openid profile email offline_access';\n",
+			},
+		},
 	},
 }
