@@ -15,12 +15,25 @@ import (
 )
 
 var (
-	ErrorInvalidClientID       = errors.New("not a valid client ID")
-	ErrorInvalidRedirectURL    = errors.New("not a valid redirect url for the given client")
-	ErrorCantChooseRedirectURL = errors.New("must provide a redirect url; client has many")
-	ErrorNoValidRedirectURLs   = errors.New("no valid redirect URLs for this client.")
-	ErrorNotFound              = errors.New("no data found")
+	ErrorInvalidClientID          = errors.New("not a valid client ID")
+	ErrorInvalidRedirectURL       = errors.New("not a valid redirect url for the given client")
+	ErrorCantChooseRedirectURL    = errors.New("must provide a redirect url; client has many")
+	ErrorNoValidRedirectURLs      = errors.New("no valid redirect URLs for this client.")
+	ErrorPublicClientRedirectURIs = errors.New("native clients cannot have redirect URIs")
+	ErrorPublicClientMissingName  = errors.New("native clients must have a name")
+
+	ErrorMissingRedirectURI = errors.New("no client redirect url given")
+
+	ErrorNotFound = errors.New("no data found")
 )
+
+type ValidationError struct {
+	Err error
+}
+
+func (v ValidationError) Error() string {
+	return v.Err.Error()
+}
 
 const (
 	bcryptHashCost = 10
@@ -44,6 +57,7 @@ type Client struct {
 	Credentials oidc.ClientCredentials
 	Metadata    oidc.ClientMetadata
 	Admin       bool
+	Public      bool
 }
 
 type ClientRepo interface {
@@ -106,6 +120,7 @@ func ClientsFromReader(r io.Reader) ([]LoadableClient, error) {
 		Secret       string   `json:"secret"`
 		RedirectURLs []string `json:"redirectURLs"`
 		Admin        bool     `json:"admin"`
+		Public       bool     `json:"public"`
 		TrustedPeers []string `json:"trustedPeers"`
 	}
 	if err := json.NewDecoder(r).Decode(&c); err != nil {
@@ -137,7 +152,8 @@ func ClientsFromReader(r io.Reader) ([]LoadableClient, error) {
 				Metadata: oidc.ClientMetadata{
 					RedirectURIs: redirectURIs,
 				},
-				Admin: client.Admin,
+				Admin:  client.Admin,
+				Public: client.Public,
 			},
 			TrustedPeers: client.TrustedPeers,
 		}

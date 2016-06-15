@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
 
 	"github.com/coreos/go-oidc/oidc"
@@ -21,6 +22,10 @@ const (
 
 	// postgres error codes
 	pgErrorCodeUniqueViolation = "23505" // unique_violation
+)
+
+var (
+	localHostRedirectURL = mustParseURL("http://localhost:0")
 )
 
 func init() {
@@ -44,6 +49,16 @@ func newClientModel(cli client.Client) (*clientModel, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if cli.Public {
+		// Metadata.Valid(), and therefore json.Unmarshal(metadata) complains
+		// when there's no RedirectURIs, so we set them to a fixed value here,
+		// and remove it when translating back to a client.Client
+		cli.Metadata.RedirectURIs = []url.URL{
+			localHostRedirectURL,
+		}
+	}
+
 	bmeta, err := json.Marshal(&cli.Metadata)
 	if err != nil {
 		return nil, err
@@ -54,6 +69,7 @@ func newClientModel(cli client.Client) (*clientModel, error) {
 		Secret:   hashed,
 		Metadata: string(bmeta),
 		DexAdmin: cli.Admin,
+		Public:   cli.Public,
 	}
 
 	return &cim, nil
@@ -64,6 +80,7 @@ type clientModel struct {
 	Secret   []byte `db:"secret"`
 	Metadata string `db:"metadata"`
 	DexAdmin bool   `db:"dex_admin"`
+	Public   bool   `db:"public"`
 }
 
 type trustedPeerModel struct {
@@ -76,11 +93,16 @@ func (m *clientModel) Client() (*client.Client, error) {
 		Credentials: oidc.ClientCredentials{
 			ID: m.ID,
 		},
-		Admin: m.DexAdmin,
+		Admin:  m.DexAdmin,
+		Public: m.Public,
 	}
 
 	if err := json.Unmarshal([]byte(m.Metadata), &ci.Metadata); err != nil {
 		return nil, err
+	}
+
+	if ci.Public {
+		ci.Metadata.RedirectURIs = []url.URL{}
 	}
 
 	return &ci, nil
@@ -168,7 +190,6 @@ func isAlreadyExistsErr(err error) bool {
 
 func (r *clientRepo) New(tx repo.Transaction, cli client.Client) (*oidc.ClientCredentials, error) {
 	cim, err := newClientModel(cli)
-
 	if err != nil {
 		return nil, err
 	}
@@ -327,4 +348,12 @@ func (r *clientRepo) SetTrustedPeers(tx repo.Transaction, clientID string, clien
 	}
 
 	return nil
+}
+
+func mustParseURL(s string) url.URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return *u
 }

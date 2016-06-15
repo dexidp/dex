@@ -35,6 +35,13 @@ var (
   "trustedPeers":["goodClient1", "goodClient2"]
 }`
 
+	publicClient = `{ 
+  "id": "public_client",
+  "secret": "` + goodSecret3 + `",
+  "redirectURLs": ["http://localhost:8080","urn:ietf:wg:oauth:2.0:oob"],
+  "public": true
+}`
+
 	badURLClient = `{ 
   "id": "my_id",
   "secret": "` + goodSecret1 + `",
@@ -136,6 +143,26 @@ func TestClientsFromReader(t *testing.T) {
 						},
 					},
 					TrustedPeers: []string{"goodClient1", "goodClient2"},
+				},
+			},
+		},
+		{
+			json: "[" + publicClient + "]",
+			want: []LoadableClient{
+				{
+					Client: Client{
+						Credentials: oidc.ClientCredentials{
+							ID:     "public_client",
+							Secret: goodSecret3,
+						},
+						Metadata: oidc.ClientMetadata{
+							RedirectURIs: []url.URL{
+								mustParseURL(t, "http://localhost:8080"),
+								mustParseURL(t, "urn:ietf:wg:oauth:2.0:oob"),
+							},
+						},
+						Public: true,
+					},
 				},
 			},
 		},
