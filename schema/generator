@@ -73,3 +73,5 @@ GOPATH=${PWD}/gopath ./bin/google-api-go-generator \
 
 # Finally, fix the import in the bindings to refer to the vendored google-api package
 goimports -w ${GEN}
+
+gofmt -w schema/${GOPKG}

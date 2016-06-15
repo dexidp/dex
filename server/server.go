@@ -265,9 +265,6 @@ func (s *Server) HTTPHandler() http.Handler {
 	apiBasePath := path.Join(httpPathAPI, APIVersion)
 	registerDiscoveryResource(apiBasePath, mux)
 
-	clientPath, clientHandler := registerClientResource(apiBasePath, s.ClientManager)
-	mux.Handle(path.Join(apiBasePath, clientPath), s.NewClientTokenAuthHandler(clientHandler))
-
 	usersAPI := usersapi.NewUsersAPI(s.UserManager, s.ClientManager, s.RefreshTokenRepo, s.UserEmailer, s.localConnectorID)
 	handler := NewUserMgmtServer(usersAPI, s.JWTVerifierFactory(), s.UserManager, s.ClientManager).HTTPHandler()
 
