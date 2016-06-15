@@ -39,22 +39,6 @@ const DiscoveryJSON = `{
         }
       }
     },
-    "Client": {
-      "id": "Client",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "redirectURIs": {
-          "required": true,
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      }
-    },
     "RefreshClient": {
       "id": "Client",
       "type": "object",
@@ -83,40 +67,6 @@ const DiscoveryJSON = `{
           "items": {
             "$ref": "RefreshClient"
           }
-        }
-      }
-    },
-    "ClientWithSecret": {
-      "id": "Client",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "secret": {
-          "type": "string"
-        },
-        "redirectURIs": {
-          "required": true,
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    "ClientPage": {
-      "id": "ClientPage",
-      "type": "object",
-      "properties": {
-        "clients": {
-          "type": "array",
-          "items": {
-            "$ref": "Client"
-          }
-        },
-        "nextPageToken": {
-          "type": "string"
         }
       }
     },
@@ -244,37 +194,6 @@ const DiscoveryJSON = `{
     }
   },
   "resources": {
-    "Clients": {
-      "methods": {
-        "List": {
-          "id": "dex.Client.List",
-          "description": "Retrieve a page of Client objects.",
-          "httpMethod": "GET",
-          "path": "clients",
-          "parameters": {
-            "nextPageToken": {
-              "type": "string",
-              "location": "query"
-            }
-          },
-          "response": {
-            "$ref": "ClientPage"
-          }
-        },
-        "Create": {
-          "id": "dex.Client.Create",
-          "description": "Register a new Client.",
-          "httpMethod": "POST",
-          "path": "clients",
-          "request": {
-            "$ref": "Client"
-          },
-          "response": {
-            "$ref": "ClientWithSecret"
-          }
-        }
-      }
-    },
     "Users": {
       "methods": {
         "List": {
