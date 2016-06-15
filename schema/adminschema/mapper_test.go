@@ -48,7 +48,7 @@ func TestMapSchemaClientToClient(t *testing.T) {
 				Id:     "123",
 				Secret: "sec_123",
 				RedirectURIs: []string{
-					"ht.d://p * * *",
+					"",
 				},
 			},
 			wantErr: true,
