@@ -26,11 +26,12 @@ __Version:__ v1
 
 ```
 {
-    clientName: string // OPTIONAL. Name of the Client to be presented to the End-User. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) .,
+    clientName: string // OPTIONAL for normal cliens. Name of the Client to be presented to the End-User. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ). REQUIRED for public clients,
     clientURI: string // OPTIONAL. URL of the home page of the Client. The value of this field MUST point to a valid Web page. If present, the server SHOULD display this URL to the End-User in a followable fashion. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) .,
     id: string // The client ID. Ignored in client create requests.,
     isAdmin: boolean,
     logoURI: string // OPTIONAL. URL that references a logo for the Client application. If present, the server SHOULD display this image to the End-User during approval. The value of this field MUST point to a valid image file. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) .,
+    public: boolean // OPTIONAL. Determines if the client is public. Public clients have certain restrictions: They cannot use their credentials to obtain a client JWT. Their redirects URLs cannot be specified: they are always http://localhost:$PORT or urn:ietf:wg:oauth:2.0:oob,
     redirectURIs: [
         string
     ],

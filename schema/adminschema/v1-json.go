@@ -72,11 +72,11 @@ const DiscoveryJSON = `{
           "items": {
             "type": "string"
           },
-          "description": "REQUIRED. Array of Redirection URI values used by the Client. One of these registered Redirection URI values MUST exactly match the redirect_uri parameter value used in each Authorization Request, with the matching performed as described in Section 6.2.1 of [RFC3986] ( Berners-Lee, T., Fielding, R., and L. Masinter, “Uniform Resource Identifier (URI): Generic Syntax,” January 2005. ) (Simple String Comparison)."
+          "description": "REQUIRED for normal clients. Array of Redirection URI values used by the Client. One of these registered Redirection URI values MUST exactly match the redirect_uri parameter value used in each Authorization Request, with the matching performed as described in Section 6.2.1 of [RFC3986] ( Berners-Lee, T., Fielding, R., and L. Masinter, “Uniform Resource Identifier (URI): Generic Syntax,” January 2005. ) (Simple String Comparison). DISALLOWED for public clients."
         },
         "clientName": {
           "type": "string",
-          "description": "OPTIONAL. Name of the Client to be presented to the End-User. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ) ."
+          "description": "OPTIONAL for normal cliens. Name of the Client to be presented to the End-User. If desired, representation of this Claim in different languages and scripts is represented as described in Section 2.1 ( Metadata Languages and Scripts ). REQUIRED for public clients"
         },
         "logoURI": {
           "type": "string",
@@ -92,6 +92,10 @@ const DiscoveryJSON = `{
             "type": "string"
           },
           "description": "Array of ClientIDs of clients that are allowed to mint ID tokens for the client being created."
+        },
+        "public": {
+          "type": "boolean",
+          "description": "OPTIONAL. Determines if the client is public. Public clients have certain restrictions: They cannot use their credentials to obtain a client JWT. Their redirects URLs cannot be specified: they are always http://localhost:$PORT or urn:ietf:wg:oauth:2.0:oob"
         }
       }
     },
