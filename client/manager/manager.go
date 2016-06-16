@@ -2,6 +2,7 @@ package manager
 
 import (
 	"encoding/base64"
+	"net/url"
 
 	"errors"
 
@@ -19,6 +20,10 @@ const (
 	// since the bcrypt library will silently ignore portions of
 	// a password past the first 72 characters.
 	maxSecretLength = 72
+)
+
+var (
+	localHostRedirectURL = mustParseURL("http://localhost:0")
 )
 
 type ClientOptions struct {
@@ -67,6 +72,10 @@ func NewClientManager(clientRepo client.ClientRepo, txnFactory repo.TransactionF
 	}
 }
 
+// New creates and persists a new client with the given options, returning the generated credentials.
+// Any Credenials provided with the client are ignored and overwritten by the generated  ID and Secret.
+// "Normal" (i.e. non-Public) clients must have at least one valid RedirectURI in their Metadata.
+// Public clients must not have any RedirectURIs and must have a client name.
 func (m *ClientManager) New(cli client.Client, options *ClientOptions) (*oidc.ClientCredentials, error) {
 	tx, err := m.begin()
 	if err != nil {
@@ -74,11 +83,14 @@ func (m *ClientManager) New(cli client.Client, options *ClientOptions) (*oidc.Cl
 	}
 	defer tx.Rollback()
 
+	if err := validateClient(cli); err != nil {
+		return nil, err
+	}
+
 	err = m.addClientCredentials(&cli)
 	if err != nil {
 		return nil, err
 	}
-
 	creds := cli.Credentials
 
 	// Save Client
@@ -171,11 +183,15 @@ func (m *ClientManager) Authenticate(creds oidc.ClientCredentials) (bool, error)
 }
 
 func (m *ClientManager) addClientCredentials(cli *client.Client) error {
-	// Generate Client ID
-	if len(cli.Metadata.RedirectURIs) < 1 {
-		return errors.New("no client redirect url given")
+	var seed string
+	if cli.Public {
+		seed = cli.Metadata.ClientName
+	} else {
+		seed = cli.Metadata.RedirectURIs[0].Host
 	}
-	clientID, err := m.clientIDGenerator(cli.Metadata.RedirectURIs[0].Host)
+
+	// Generate Client ID
+	clientID, err := m.clientIDGenerator(seed)
 	if err != nil {
 		return err
 	}
@@ -191,4 +207,38 @@ func (m *ClientManager) addClientCredentials(cli *client.Client) error {
 		Secret: clientSecret,
 	}
 	return nil
+}
+
+func validateClient(cli client.Client) error {
+	// NOTE: please be careful changing the errors returned here; they are used
+	// downstream (eg. in the admin API) to determine the http errors returned.
+	if cli.Public {
+		if len(cli.Metadata.RedirectURIs) > 0 {
+			return client.ErrorPublicClientRedirectURIs
+		}
+		if cli.Metadata.ClientName == "" {
+			return client.ErrorPublicClientMissingName
+		}
+		cli.Metadata.RedirectURIs = []url.URL{
+			localHostRedirectURL,
+		}
+	} else {
+		if len(cli.Metadata.RedirectURIs) < 1 {
+			return client.ErrorMissingRedirectURI
+		}
+	}
+
+	err := cli.Metadata.Valid()
+	if err != nil {
+		return client.ValidationError{Err: err}
+	}
+	return nil
+}
+
+func mustParseURL(s string) url.URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return *u
 }

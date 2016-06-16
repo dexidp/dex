@@ -15,12 +15,13 @@ import (
 )
 
 var (
-	ErrorInvalidClientID          = errors.New("not a valid client ID")
-	ErrorInvalidRedirectURL       = errors.New("not a valid redirect url for the given client")
-	ErrorCantChooseRedirectURL    = errors.New("must provide a redirect url; client has many")
-	ErrorNoValidRedirectURLs      = errors.New("no valid redirect URLs for this client.")
-	ErrorPublicClientRedirectURIs = errors.New("native clients cannot have redirect URIs")
-	ErrorPublicClientMissingName  = errors.New("native clients must have a name")
+	ErrorInvalidClientID       = errors.New("not a valid client ID")
+	ErrorInvalidRedirectURL    = errors.New("not a valid redirect url for the given client")
+	ErrorCantChooseRedirectURL = errors.New("must provide a redirect url; client has many")
+	ErrorNoValidRedirectURLs   = errors.New("no valid redirect URLs for this client.")
+
+	ErrorPublicClientRedirectURIs = errors.New("public clients cannot have redirect URIs")
+	ErrorPublicClientMissingName  = errors.New("public clients must have a name")
 
 	ErrorMissingRedirectURI = errors.New("no client redirect url given")
 
