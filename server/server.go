@@ -43,7 +43,7 @@ const (
 )
 
 type OIDCServer interface {
-	ClientMetadata(string) (*oidc.ClientMetadata, error)
+	Client(string) (client.Client, error)
 	NewSession(connectorID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error)
 	Login(oidc.Identity, string) (string, error)
 
@@ -290,8 +290,8 @@ func (s *Server) NewClientTokenAuthHandler(handler http.Handler) http.Handler {
 	}
 }
 
-func (s *Server) ClientMetadata(clientID string) (*oidc.ClientMetadata, error) {
-	return s.ClientManager.Metadata(clientID)
+func (s *Server) Client(clientID string) (client.Client, error) {
+	return s.ClientManager.Get(clientID)
 }
 
 func (s *Server) NewSession(ipdcID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error) {

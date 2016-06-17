@@ -188,7 +188,7 @@ func renderLoginPage(w http.ResponseWriter, r *http.Request, srv OIDCServer, idp
 
 	// Render error message if client id is invalid.
 	clientID := q.Get("client_id")
-	cm, err := srv.ClientMetadata(clientID)
+	_, err := srv.Client(clientID)
 	if err != nil {
 		log.Errorf("Failed fetching client %q from repo: %v", clientID, err)
 		td.Error = true
@@ -196,7 +196,7 @@ func renderLoginPage(w http.ResponseWriter, r *http.Request, srv OIDCServer, idp
 		execTemplate(w, tpl, td)
 		return
 	}
-	if cm == nil {
+	if err == client.ErrorNotFound {
 		td.Error = true
 		td.Message = "Authentication Error"
 		td.Detail = "Invalid client ID"
@@ -299,13 +299,14 @@ func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.T
 			return
 		}
 
-		cm, err := srv.ClientMetadata(acr.ClientID)
+		cli, err := srv.Client(acr.ClientID)
+		cm := cli.Metadata
 		if err != nil {
 			log.Errorf("Failed fetching client %q from repo: %v", acr.ClientID, err)
 			writeAuthError(w, oauth2.NewError(oauth2.ErrorServerError), acr.State)
 			return
 		}
-		if cm == nil {
+		if err == client.ErrorNotFound {
 			log.Errorf("Client %q not found", acr.ClientID)
 			writeAuthError(w, oauth2.NewError(oauth2.ErrorInvalidRequest), acr.State)
 			return
