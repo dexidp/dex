@@ -54,6 +54,10 @@ var (
 
 	testConnectorID1 = "IDPC-1"
 
+	testConnectorIDOpenID        = "oidc"
+	testConnectorIDOpenIDTrusted = "oidc-trusted"
+	testConnectorLocalID         = "local"
+
 	testRedirectURL = url.URL{Scheme: "http", Host: "client.example.com", Path: "/callback"}
 
 	testUsers = []user.UserWithRemoteIdentities{
@@ -143,20 +147,27 @@ func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, err
 
 	connConfigs := []connector.ConnectorConfig{
 		&connector.OIDCConnectorConfig{
-			ID:           "oidc",
+			ID:           testConnectorIDOpenID,
 			IssuerURL:    testIssuerURL.String(),
 			ClientID:     "12345",
 			ClientSecret: "567789",
 		},
 		&connector.OIDCConnectorConfig{
-			ID:                   "oidc-trusted",
+			ID:                   testConnectorIDOpenIDTrusted,
 			IssuerURL:            testIssuerURL.String(),
 			ClientID:             "12345-trusted",
 			ClientSecret:         "567789-trusted",
 			TrustedEmailProvider: true,
 		},
+		&connector.OIDCConnectorConfig{
+			ID:                   testConnectorID1,
+			IssuerURL:            testIssuerURL.String(),
+			ClientID:             testConnectorID1 + "_client_id",
+			ClientSecret:         testConnectorID1 + "_client_secret",
+			TrustedEmailProvider: true,
+		},
 		&connector.LocalConnectorConfig{
-			ID: "local",
+			ID: testConnectorLocalID,
 		},
 	}
 	connCfgRepo := db.NewConnectorConfigRepo(dbMap)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -185,31 +186,121 @@ func TestServerNewSession(t *testing.T) {
 }
 
 func TestServerLogin(t *testing.T) {
-	f, err := makeTestFixtures()
-	if err != nil {
-		t.Fatalf("error making test fixtures: %v", err)
+
+	tests := []struct {
+		testCase     string
+		connectorID  string
+		clientID     string
+		userID       string
+		remoteUserID string
+		email        string
+		configure    func(s *Server)
+
+		wantError bool // should server.Login fail?
+		wantLogin bool // should server.Login redirect back to the app?
+	}{
+		{
+			testCase:     "good user",
+			connectorID:  testConnectorID1,
+			clientID:     testClientID,
+			userID:       testUserID1,
+			remoteUserID: testUserRemoteID1,
+			email:        testUserEmail1,
+			wantLogin:    true,
+		},
+		{
+			testCase:     "user has remote identity with another connector",
+			connectorID:  testConnectorIDOpenID,
+			clientID:     testClientID,
+			userID:       testUserID1,
+			remoteUserID: testUserRemoteID1,
+			email:        testUserEmail1,
+			wantLogin:    false,
+		},
+		{
+			testCase:     "unknown connector id",
+			connectorID:  "bad connector id",
+			clientID:     testClientID,
+			userID:       testUserID1,
+			remoteUserID: testUserRemoteID1,
+			email:        testUserEmail1,
+			wantError:    true,
+		},
+		{
+			testCase:     "unregistered user",
+			connectorID:  testConnectorIDOpenID,
+			clientID:     testClientID,
+			userID:       testUserID1,
+			remoteUserID: "unregistered-user-id",
+			email:        "newemail@example.com",
+			wantLogin:    false,
+		},
+		{
+			testCase:     "unregistered user with register on first login",
+			connectorID:  testConnectorIDOpenID,
+			clientID:     testClientID,
+			userID:       testUserID1,
+			remoteUserID: "unregistered-user-id",
+			email:        "newemail@example.com",
+			configure:    func(srv *Server) { srv.RegisterOnFirstLogin = true },
+			wantLogin:    true,
+		},
+		{
+			testCase:     "unregistered user through local connector with register on first login",
+			connectorID:  testConnectorLocalID,
+			clientID:     testClientID,
+			userID:       testUserID1,
+			remoteUserID: "unregistered-user-id",
+			email:        "newemail@example.com",
+			configure:    func(srv *Server) { srv.RegisterOnFirstLogin = true },
+			wantLogin:    false,
+		},
 	}
 
-	sm := f.sessionManager
-	sessionID, err := sm.NewSession("IDPC-1", testClientID, "bogus", testRedirectURL, "", false, []string{"openid"})
+	for _, tt := range tests {
+		f, err := makeTestFixtures()
+		if err != nil {
+			t.Fatalf("error making test fixtures: %v", err)
+		}
 
-	ident := oidc.Identity{ID: testUserRemoteID1, Name: "elroy", Email: testUserEmail1}
-	key, err := sm.NewSessionKey(sessionID)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+		if tt.configure != nil {
+			tt.configure(f.srv)
+		}
 
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	redirectURL, err := f.srv.Login(ident, key)
-	if err != nil {
-		t.Fatalf("Unexpected err from Server.Login: %v", err)
-	}
+		sm := f.sessionManager
+		sessionID, err := sm.NewSession(tt.connectorID, tt.clientID, "bogus", testRedirectURL, "", false, []string{"openid"})
+		if err != nil {
+			t.Errorf("case %s: new session: %v", tt.testCase, err)
+			continue
+		}
 
-	wantRedirectURL := "http://client.example.com/callback?code=code-3&state=bogus"
-	if wantRedirectURL != redirectURL {
-		t.Fatalf("Unexpected redirectURL: want=%q, got=%q", wantRedirectURL, redirectURL)
+		key, err := sm.NewSessionKey(sessionID)
+		if err != nil {
+			t.Errorf("case %s: new session key: %v", tt.testCase, err)
+			continue
+		}
+
+		ident := oidc.Identity{ID: tt.remoteUserID, Name: "elroy", Email: tt.email}
+		redirectURL, err := f.srv.Login(ident, key)
+		if err != nil {
+			if !tt.wantError {
+				t.Errorf("case %s: server.Login: %v", tt.testCase, err)
+			}
+			continue
+		}
+		if tt.wantError {
+			t.Errorf("case %s: expected server.Login to fail", tt.testCase)
+			continue
+		}
+
+		// Did the server redirect back to the client app or display an error to the user?
+		gotRedirectURL := strings.HasPrefix(redirectURL, testRedirectURL.String())
+		if gotRedirectURL && !tt.wantLogin {
+			t.Errorf("case %s: should not have logged in", tt.testCase)
+		}
+		if !gotRedirectURL && tt.wantLogin {
+			t.Errorf("case %s: failed to log in. expected redirect url got: %s", tt.testCase, redirectURL)
+		}
 	}
 }
 
