@@ -105,6 +105,30 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 			wantLocation: "http://fake.example.com",
 		},
 
+		// valid redirect_uri for public client
+		{
+			query: url.Values{
+				"response_type": []string{"code"},
+				"redirect_uri":  []string{"http://localhost:8080"},
+				"client_id":     []string{testPublicClientID},
+				"connector_id":  []string{"fake"},
+				"scope":         []string{"openid"},
+			},
+			wantCode:     http.StatusFound,
+			wantLocation: "http://fake.example.com",
+		},
+		// valid OOB  redirect_uri for public client
+		{
+			query: url.Values{
+				"response_type": []string{"code"},
+				"redirect_uri":  []string{client.OOBRedirectURI},
+				"client_id":     []string{testPublicClientID},
+				"connector_id":  []string{"fake"},
+				"scope":         []string{"openid"},
+			},
+			wantCode:     http.StatusFound,
+			wantLocation: "http://fake.example.com",
+		},
 		// provided redirect_uri does not match client
 		{
 			query: url.Values{
@@ -168,6 +192,17 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 			query: url.Values{
 				"response_type": []string{"code"},
 				"redirect_uri":  []string{"http://unrecognized.example.com/callback"},
+				"connector_id":  []string{"fake"},
+				"scope":         []string{"openid"},
+			},
+			wantCode: http.StatusBadRequest,
+		},
+		// invalid  redirect_uri for public client
+		{
+			query: url.Values{
+				"response_type": []string{"code"},
+				"redirect_uri":  []string{client.OOBRedirectURI + "oops"},
+				"client_id":     []string{testPublicClientID},
 				"connector_id":  []string{"fake"},
 				"scope":         []string{"openid"},
 			},

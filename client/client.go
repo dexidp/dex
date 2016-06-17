@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/url"
 	"reflect"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -38,6 +39,8 @@ func (v ValidationError) Error() string {
 
 const (
 	bcryptHashCost = 10
+
+	OOBRedirectURI = "urn:ietf:wg:oauth:2.0:oob"
 )
 
 func HashSecret(creds oidc.ClientCredentials) ([]byte, error) {
@@ -59,6 +62,34 @@ type Client struct {
 	Metadata    oidc.ClientMetadata
 	Admin       bool
 	Public      bool
+}
+
+func (c Client) ValidRedirectURL(u *url.URL) (url.URL, error) {
+	if c.Public {
+		if u == nil {
+			return url.URL{}, ErrorInvalidRedirectURL
+		}
+		if u.String() == OOBRedirectURI {
+			return *u, nil
+		}
+
+		if u.Scheme != "http" {
+			return url.URL{}, ErrorInvalidRedirectURL
+		}
+
+		hostPort := strings.Split(u.Host, ":")
+		if len(hostPort) != 2 {
+			return url.URL{}, ErrorInvalidRedirectURL
+		}
+
+		if hostPort[0] != "localhost" || u.Path != "" || u.RawPath != "" || u.RawQuery != "" || u.Fragment != "" {
+			return url.URL{}, ErrorInvalidRedirectURL
+		}
+
+		return *u, nil
+	}
+
+	return ValidRedirectURL(u, c.Metadata.RedirectURIs)
 }
 
 type ClientRepo interface {

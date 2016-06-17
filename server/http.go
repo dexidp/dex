@@ -300,7 +300,6 @@ func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.T
 		}
 
 		cli, err := srv.Client(acr.ClientID)
-		cm := cli.Metadata
 		if err != nil {
 			log.Errorf("Failed fetching client %q from repo: %v", acr.ClientID, err)
 			writeAuthError(w, oauth2.NewError(oauth2.ErrorServerError), acr.State)
@@ -312,13 +311,7 @@ func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.T
 			return
 		}
 
-		if len(cm.RedirectURIs) == 0 {
-			log.Errorf("Client %q has no redirect URLs", acr.ClientID)
-			writeAuthError(w, oauth2.NewError(oauth2.ErrorServerError), acr.State)
-			return
-		}
-
-		redirectURL, err := client.ValidRedirectURL(acr.RedirectURL, cm.RedirectURIs)
+		redirectURL, err := cli.ValidRedirectURL(acr.RedirectURL)
 		if err != nil {
 			switch err {
 			case (client.ErrorCantChooseRedirectURL):

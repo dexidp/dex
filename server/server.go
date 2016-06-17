@@ -408,6 +408,15 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 }
 
 func (s *Server) ClientCredsToken(creds oidc.ClientCredentials) (*jose.JWT, error) {
+	cli, err := s.Client(creds.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if cli.Public {
+		return nil, oauth2.NewError(oauth2.ErrorInvalidClient)
+	}
+
 	ok, err := s.ClientManager.Authenticate(creds)
 	if err != nil {
 		log.Errorf("Failed fetching client %s from manager: %v", creds.ID, err)

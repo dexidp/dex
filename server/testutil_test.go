@@ -39,6 +39,13 @@ var (
 		ID:     testClientID,
 		Secret: clientTestSecret,
 	}
+
+	testPublicClientID          = "publicclient.example.com"
+	publicClientTestSecret      = base64.URLEncoding.EncodeToString([]byte("secret"))
+	testPublicClientCredentials = oidc.ClientCredentials{
+		ID:     testPublicClientID,
+		Secret: publicClientTestSecret,
+	}
 	testClients = []client.LoadableClient{
 		{
 			Client: client.Client{
@@ -48,6 +55,12 @@ var (
 						testRedirectURL,
 					},
 				},
+			},
+		},
+		{
+			Client: client.Client{
+				Credentials: testPublicClientCredentials,
+				Public:      true,
 			},
 		},
 	}

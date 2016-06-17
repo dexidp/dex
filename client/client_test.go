@@ -204,7 +204,101 @@ func TestClientsFromReader(t *testing.T) {
 		}
 	}
 }
+func TestClientValidRedirectURL(t *testing.T) {
+	makeClient := func(public bool, urls []string) Client {
+		cli := Client{
+			Metadata: oidc.ClientMetadata{
+				RedirectURIs: make([]url.URL, len(urls)),
+			},
+			Public: public,
+		}
+		for i, s := range urls {
+			cli.Metadata.RedirectURIs[i] = mustParseURL(t, s)
+		}
+		return cli
+	}
 
+	tests := []struct {
+		u   string
+		cli Client
+
+		wantU   string
+		wantErr bool
+	}{
+		{
+			u:     "http://auth.example.com",
+			cli:   makeClient(false, []string{"http://auth.example.com"}),
+			wantU: "http://auth.example.com",
+		},
+		{
+			u:     "http://auth2.example.com",
+			cli:   makeClient(false, []string{"http://auth.example.com", "http://auth2.example.com"}),
+			wantU: "http://auth2.example.com",
+		},
+		{
+			u:     "",
+			cli:   makeClient(false, []string{"http://auth.example.com"}),
+			wantU: "http://auth.example.com",
+		},
+		{
+			u:       "",
+			cli:     makeClient(false, []string{"http://auth.example.com", "http://auth2.example.com"}),
+			wantErr: true,
+		},
+		{
+			u:     "http://localhost:8080",
+			cli:   makeClient(true, []string{}),
+			wantU: "http://localhost:8080",
+		},
+		{
+			u:     OOBRedirectURI,
+			cli:   makeClient(true, []string{}),
+			wantU: OOBRedirectURI,
+		},
+		{
+			u:       "",
+			cli:     makeClient(true, []string{}),
+			wantErr: true,
+		},
+		{
+			u:       "http://localhost:8080/hey_there",
+			cli:     makeClient(true, []string{}),
+			wantErr: true,
+		},
+		{
+			u:       "http://auth.google.com:8080",
+			cli:     makeClient(true, []string{}),
+			wantErr: true,
+		},
+	}
+
+	for i, tt := range tests {
+		var testURL *url.URL
+		if tt.u == "" {
+			testURL = nil
+		} else {
+			u := mustParseURL(t, tt.u)
+			testURL = &u
+		}
+
+		u, err := tt.cli.ValidRedirectURL(testURL)
+		if tt.wantErr {
+			if err == nil {
+				t.Errorf("case %d: want non-nil error", i)
+			}
+			continue
+		}
+
+		if err != nil {
+			t.Errorf("case %d: unexpected error: %v", i, err)
+		}
+
+		if diff := pretty.Compare(mustParseURL(t, tt.wantU), u); diff != "" {
+			t.Fatalf("case %d: Compare(wantU, u): %v", i, diff)
+		}
+	}
+
+}
 func mustParseURL(t *testing.T, s string) url.URL {
 	u, err := url.Parse(s)
 	if err != nil {

@@ -303,30 +303,69 @@ func TestHTTPClientCredsToken(t *testing.T) {
 			},
 		},
 	}
-	cis := []client.LoadableClient{{Client: ci}}
 
-	srv, err := mockServer(cis)
-	if err != nil {
-		t.Fatalf("Unexpected error setting up server: %v", err)
+	ci2 := ci
+	ci2.Credentials.ID = "not_a_client"
+
+	ciPublic := ci
+	ciPublic.Public = true
+	ciPublic.Credentials.ID = "public"
+
+	cis := []client.LoadableClient{{Client: ci}, {Client: ciPublic}}
+	tests := []struct {
+		cli     client.Client
+		clients []client.LoadableClient
+		wantErr bool
+	}{
+		{
+			cli:     ci,
+			clients: cis,
+			wantErr: false,
+		},
+		{
+			cli:     ci2,
+			clients: cis,
+			wantErr: true,
+		},
+		{
+			cli:     ciPublic,
+			clients: cis,
+			wantErr: true,
+		},
 	}
 
-	cl, err := mockClient(srv, ci)
-	if err != nil {
-		t.Fatalf("Unexpected error setting up OIDC client: %v", err)
-	}
+	for i, tt := range tests {
+		srv, err := mockServer(tt.clients)
+		if err != nil {
+			t.Fatalf("case %d: Unexpected error setting up server: %v", i, err)
+		}
 
-	tok, err := cl.ClientCredsToken([]string{"openid"})
-	if err != nil {
-		t.Fatalf("Failed getting client token: %v", err)
-	}
+		cl, err := mockClient(srv, tt.cli)
+		if err != nil {
+			t.Fatalf("case %d: Unexpected error setting up OIDC client: %v", i, err)
+		}
 
-	claims, err := tok.Claims()
-	if err != nil {
-		t.Fatalf("Failed parsing claims from client token: %v", err)
-	}
+		tok, err := cl.ClientCredsToken([]string{"openid"})
+		if tt.wantErr {
+			if err == nil {
+				t.Errorf("case %d: want non-nil error", i)
+			}
+			continue
+		}
 
-	if err := verifyUserClaims(claims, &ci, nil, srv.IssuerURL); err != nil {
-		t.Fatalf("Failed to verify claims: %v", err)
+		if err != nil {
+			t.Fatalf("case %d: Failed getting client token: %v", i, err)
+			continue
+		}
+
+		claims, err := tok.Claims()
+		if err != nil {
+			t.Fatalf("case %d: Failed parsing claims from client token: %v", i, err)
+		}
+
+		if err := verifyUserClaims(claims, &ci, nil, srv.IssuerURL); err != nil {
+			t.Fatalf("case %d: Failed to verify claims: %v", i, err)
+		}
 	}
 }
 
