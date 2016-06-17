@@ -38,6 +38,7 @@ type ServerConfig struct {
 	StateConfig              StateConfigurer
 	EnableRegistration       bool
 	EnableClientRegistration bool
+	RegisterOnFirstLogin     bool
 }
 
 type StateConfigurer interface {
@@ -78,6 +79,7 @@ func (cfg *ServerConfig) Server() (*Server, error) {
 
 		EnableRegistration:       cfg.EnableRegistration,
 		EnableClientRegistration: cfg.EnableClientRegistration,
+		RegisterOnFirstLogin:     cfg.RegisterOnFirstLogin,
 	}
 
 	err = cfg.StateConfig.Configure(&srv)

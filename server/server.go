@@ -64,28 +64,35 @@ type OIDCServer interface {
 type JWTVerifierFactory func(clientID string) oidc.JWTVerifier
 
 type Server struct {
-	IssuerURL                      url.URL
-	KeyManager                     key.PrivateKeyManager
-	KeySetRepo                     key.PrivateKeySetRepo
-	SessionManager                 *sessionmanager.SessionManager
-	ClientRepo                     client.ClientRepo
-	ConnectorConfigRepo            connector.ConnectorConfigRepo
+	IssuerURL url.URL
+
 	Templates                      *template.Template
 	LoginTemplate                  *template.Template
 	RegisterTemplate               *template.Template
 	VerifyEmailTemplate            *template.Template
 	SendResetPasswordEmailTemplate *template.Template
 	ResetPasswordTemplate          *template.Template
-	HealthChecks                   []health.Checkable
-	Connectors                     []connector.Connector
-	UserRepo                       user.UserRepo
-	UserManager                    *usermanager.UserManager
-	ClientManager                  *clientmanager.ClientManager
-	PasswordInfoRepo               user.PasswordInfoRepo
-	RefreshTokenRepo               refresh.RefreshTokenRepo
-	UserEmailer                    *useremail.UserEmailer
-	EnableRegistration             bool
-	EnableClientRegistration       bool
+
+	HealthChecks []health.Checkable
+	Connectors   []connector.Connector
+
+	ClientRepo          client.ClientRepo
+	ConnectorConfigRepo connector.ConnectorConfigRepo
+	KeySetRepo          key.PrivateKeySetRepo
+	RefreshTokenRepo    refresh.RefreshTokenRepo
+	UserRepo            user.UserRepo
+	PasswordInfoRepo    user.PasswordInfoRepo
+
+	ClientManager  *clientmanager.ClientManager
+	KeyManager     key.PrivateKeyManager
+	SessionManager *sessionmanager.SessionManager
+	UserManager    *usermanager.UserManager
+
+	UserEmailer *useremail.UserEmailer
+
+	EnableRegistration       bool
+	EnableClientRegistration bool
+	RegisterOnFirstLogin     bool
 
 	dbMap            *gorp.DbMap
 	localConnectorID string
@@ -323,42 +330,72 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 		return ru.String(), nil
 	}
 
-	usr, err := s.UserRepo.GetByRemoteIdentity(nil, user.RemoteIdentity{
-		ConnectorID: ses.ConnectorID,
-		ID:          ses.Identity.ID,
-	})
+	remoteIdentity := user.RemoteIdentity{ConnectorID: ses.ConnectorID, ID: ses.Identity.ID}
+
+	// Get the connector used to log the user in.
+	var conn connector.Connector
+	for _, c := range s.Connectors {
+		if c.ID() == ses.ConnectorID {
+			conn = c
+			break
+		}
+	}
+	if conn == nil {
+		return "", fmt.Errorf("session contained invalid connector ID (%s)", ses.ConnectorID)
+	}
+
+	usr, err := s.UserRepo.GetByRemoteIdentity(nil, remoteIdentity)
 	if err == user.ErrorNotFound {
-		// Does the user have an existing account with a different connector?
-		if ses.Identity.Email != "" {
-			connID, err := getConnectorForUserByEmail(s.UserRepo, ses.Identity.Email)
-			if err == nil {
-				// Ask user to sign in through existing account.
-				u := newLoginURLFromSession(s.IssuerURL, ses, false, []string{connID}, "wrong-connector")
-				return u.String(), nil
-			}
+		if ses.Identity.Email == "" {
+			// User doesn't have an existing account. Ask them to register.
+			u := newLoginURLFromSession(s.IssuerURL, ses, true, []string{ses.ConnectorID}, "register-maybe")
+			return u.String(), nil
 		}
 
-		// User doesn't have an existing account. Ask them to register.
-		u := newLoginURLFromSession(s.IssuerURL, ses, true, []string{ses.ConnectorID}, "register-maybe")
-		return u.String(), nil
-	}
-	if err != nil {
-		return "", err
+		// Does the user have an existing account with a different connector?
+		if connID, err := getConnectorForUserByEmail(s.UserRepo, ses.Identity.Email); err == nil {
+			// Ask user to sign in through existing account.
+			u := newLoginURLFromSession(s.IssuerURL, ses, false, []string{connID}, "wrong-connector")
+			return u.String(), nil
+		}
+
+		// RegisterOnFirstLogin doesn't work for the local connector
+		tryToRegister := s.RegisterOnFirstLogin && (ses.ConnectorID != s.localConnectorID)
+
+		if !tryToRegister {
+			// User doesn't have an existing account. Ask them to register.
+			u := newLoginURLFromSession(s.IssuerURL, ses, true, []string{ses.ConnectorID}, "register-maybe")
+			return u.String(), nil
+		}
+
+		// First time logging in through a remote connector. Attempt to register.
+		emailVerified := conn.TrustedEmailProvider()
+		usrID, err := s.UserManager.RegisterWithRemoteIdentity(ses.Identity.Email, emailVerified, remoteIdentity)
+		if err != nil {
+			return "", fmt.Errorf("failed to register user: %v", err)
+		}
+		usr, err = s.UserManager.Get(usrID)
+		if err != nil {
+			return "", fmt.Errorf("getting created user: %v", err)
+		}
+	} else if err != nil {
+		return "", fmt.Errorf("getting user: %v", err)
 	}
 
 	if usr.Disabled {
+		log.Errorf("user %s disabled", ses.Identity.Email)
 		return "", user.ErrorNotFound
 	}
 
 	ses, err = s.SessionManager.AttachUser(sessionID, usr.ID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("attaching user to session: %v", err)
 	}
 	log.Infof("Session %s user identified: clientID=%s user=%#v", sessionID, ses.ClientID, usr)
 
 	code, err := s.SessionManager.NewSessionKey(sessionID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("creating new session key: %v", err)
 	}
 
 	ru := ses.RedirectURL

@@ -46,7 +46,9 @@ func main() {
 	emailFrom := fs.String("email-from", "", "emails sent from dex will come from this address")
 	emailConfig := fs.String("email-cfg", "./static/fixtures/emailer.json", "configures emailer.")
 
-	enableRegistration := fs.Bool("enable-registration", false, "Allows users to self-register")
+	enableRegistration := fs.Bool("enable-registration", false, "Allows users to self-register. This flag cannot be used in combination with --enable-automatic-registration.")
+	registerOnFirstLogin := fs.Bool("enable-automatic-registration", false, "When a user logs in through a federated identity service, automatically register them if they don't have an account. This flag cannot be used in combination with --enable-registration.")
+
 	enableClientRegistration := fs.Bool("enable-client-registration", false, "Allow dynamic registration of clients")
 
 	noDB := fs.Bool("no-db", false, "manage entities in-process w/o any encryption, used only for single-node testing")
@@ -88,6 +90,11 @@ func main() {
 	if *printVersion {
 		fmt.Printf("dex version %s\ngo version %s\n", strings.TrimPrefix(version, "v"), strings.TrimPrefix(runtime.Version(), "go"))
 		os.Exit(0)
+	}
+
+	if (*enableRegistration) && (*registerOnFirstLogin) {
+		fmt.Fprintln(os.Stderr, "The flags --enable-registration and --enable-automatic-login cannot both be true.")
+		os.Exit(1)
 	}
 
 	if *logDebug {
@@ -135,6 +142,7 @@ func main() {
 		IssuerLogoURL:            *issuerLogoURL,
 		EnableRegistration:       *enableRegistration,
 		EnableClientRegistration: *enableClientRegistration,
+		RegisterOnFirstLogin:     *registerOnFirstLogin,
 	}
 
 	if *noDB {
