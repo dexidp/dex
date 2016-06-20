@@ -44,6 +44,7 @@ var (
 	httpPathAcceptInvitation   = "/accept-invitation"
 	httpPathDebugVars          = "/debug/vars"
 	httpPathClientRegistration = "/registration"
+	httpPathOOB                = "/oob"
 
 	cookieLastSeen                 = "LastSeen"
 	cookieShowEmailVerifiedMessage = "ShowEmailVerifiedMessage"
@@ -545,6 +546,37 @@ func handleTokenFunc(srv OIDCServer) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(b)
+	}
+}
+
+func handleOOBFunc(s *Server, tpl *template.Template) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			w.Header().Set("Allow", "GET")
+			phttp.WriteError(w, http.StatusMethodNotAllowed, "GET only acceptable method")
+			return
+		}
+
+		key := r.URL.Query().Get("code")
+		if key == "" {
+			phttp.WriteError(w, http.StatusBadRequest, "Invalid Session")
+			return
+		}
+		sessionID, err := s.SessionManager.ExchangeKey(key)
+		if err != nil {
+			phttp.WriteError(w, http.StatusBadRequest, "Invalid Session")
+			return
+		}
+		code, err := s.SessionManager.NewSessionKey(sessionID)
+		if err != nil {
+			log.Errorf("problem getting NewSessionKey: %v", err)
+			phttp.WriteError(w, http.StatusInternalServerError, "Internal Server Error")
+			return
+		}
+
+		execTemplate(w, tpl, map[string]string{
+			"code": code,
+		})
 	}
 }
 

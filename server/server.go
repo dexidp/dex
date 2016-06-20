@@ -38,8 +38,8 @@ const (
 	VerifyEmailTemplateName            = "verify-email.html"
 	SendResetPasswordEmailTemplateName = "send-reset-password.html"
 	ResetPasswordTemplateName          = "reset-password.html"
-
-	APIVersion = "v1"
+	OOBTemplateName                    = "oob-template.html"
+	APIVersion                         = "v1"
 )
 
 type OIDCServer interface {
@@ -72,6 +72,7 @@ type Server struct {
 	VerifyEmailTemplate            *template.Template
 	SendResetPasswordEmailTemplate *template.Template
 	ResetPasswordTemplate          *template.Template
+	OOBTemplate                    *template.Template
 
 	HealthChecks []health.Checkable
 	Connectors   []connector.Connector
@@ -214,6 +215,7 @@ func (s *Server) HTTPHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc(httpPathDiscovery, handleDiscoveryFunc(s.ProviderConfig()))
 	mux.HandleFunc(httpPathAuth, handleAuthFunc(s, s.Connectors, s.LoginTemplate, s.EnableRegistration))
+	mux.HandleFunc(httpPathOOB, handleOOBFunc(s, s.OOBTemplate))
 	mux.HandleFunc(httpPathToken, handleTokenFunc(s))
 	mux.HandleFunc(httpPathKeys, handleKeysFunc(s.KeyManager, clock))
 	mux.Handle(httpPathHealth, makeHealthHandler(checks))
@@ -399,6 +401,9 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 	}
 
 	ru := ses.RedirectURL
+	if ru.String() == client.OOBRedirectURI {
+		ru = s.absURL(httpPathOOB)
+	}
 	q := ru.Query()
 	q.Set("code", code)
 	q.Set("state", ses.ClientState)
