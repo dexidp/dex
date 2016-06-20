@@ -168,7 +168,13 @@ func (m *ClientManager) SetDexAdmin(clientID string, isAdmin bool) error {
 
 func (m *ClientManager) Authenticate(creds oidc.ClientCredentials) (bool, error) {
 	clientSecret, err := m.clientRepo.GetSecret(nil, creds.ID)
-	if err != nil || clientSecret == nil {
+	if err != nil {
+		log.Errorf("error getting secret for client ID: %v: err: %v", creds.ID, err)
+		return false, nil
+	}
+
+	if clientSecret == nil {
+		log.Errorf("no secret found for client ID: %v", creds.ID)
 		return false, nil
 	}
 
