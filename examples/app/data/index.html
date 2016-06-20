@@ -1,5 +1,6 @@
 <html>
   <body>
+
     <form action="/login">
       <table>
         <tr>
@@ -7,15 +8,29 @@
             <br>
             (comma-separated list of client-ids)
           </td>
-          <td> <input type="text" name="cross_client"> </td>
-
+          <td> <input type="text" name="cross_client" > </td>
         </tr>
       </table>
+{{ if .OOB }}
+        <input type="submit" value="Login" formtarget="_blank">
+{{ else }}
+        <input type="submit" value="Login" >
+{{ end }}
+    </form>
 
-      <input type="submit" value="Login">
+{{ if .OOB }}
+    <form action="/callback" method="get" >
+      Code
+      <input type="text" name="code" value="">
+      <br>
+      <input type="submit" value="Exchange Code" >
     </form>
+{{ end }}
+    
+{{ if not .OOB }}
     <form action="/register">
-      <input type="submit" value="Register">
+      <input type="submit" value="Register"  />
     </form>
+{{ end }}
   </body>
 </html>
