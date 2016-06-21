@@ -58,11 +58,11 @@ const DiscoveryJSON = `{
       "properties": {
         "id": {
           "type": "string",
-          "description": "The client ID. Ignored in client create requests."
+          "description": "The client ID. If specified in a client create request, it will be used as the ID. Otherwise, the server will choose the ID."
         },
         "secret": {
           "type": "string",
-          "description": "The client secret. Ignored in client create requests."
+          "description": "The client secret. If specified in a client create request, it will be used as the secret. Otherwise, the server will choose the secret. Must be a base64 URLEncoded string."
         },
         "isAdmin": {
           "type": "boolean"
@@ -95,7 +95,7 @@ const DiscoveryJSON = `{
         },
         "public": {
           "type": "boolean",
-          "description": "OPTIONAL. Determines if the client is public. Public clients have certain restrictions: They cannot use their credentials to obtain a client JWT. Their redirects URLs cannot be specified: they are always http://localhost:$PORT or urn:ietf:wg:oauth:2.0:oob"
+          "description": "OPTIONAL. Determines if the client is public. Public clients have certain restrictions: They cannot use their credentials to obtain a client JWT. Their redirects URLs cannot be specified: they are always http://localhost:$PORT or urn:ietf:wg:oauth:2.0:oob."
         }
       }
     },

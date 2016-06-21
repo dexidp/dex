@@ -16,7 +16,10 @@ import (
 )
 
 var (
-	ErrorInvalidClientID       = errors.New("not a valid client ID")
+	ErrorInvalidClientID = errors.New("not a valid client ID")
+
+	ErrorInvalidClientSecret = errors.New("not a valid client Secret")
+
 	ErrorInvalidRedirectURL    = errors.New("not a valid redirect url for the given client")
 	ErrorCantChooseRedirectURL = errors.New("must provide a redirect url; client has many")
 	ErrorNoValidRedirectURLs   = errors.New("no valid redirect URLs for this client.")
@@ -46,7 +49,7 @@ const (
 func HashSecret(creds oidc.ClientCredentials) ([]byte, error) {
 	secretBytes, err := base64.URLEncoding.DecodeString(creds.Secret)
 	if err != nil {
-		return nil, err
+		return nil, ErrorInvalidClientSecret
 	}
 	hashed, err := bcrypt.GenerateFromPassword([]byte(
 		secretBytes),

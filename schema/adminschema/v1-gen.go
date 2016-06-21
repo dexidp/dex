@@ -125,7 +125,8 @@ type Client struct {
 	// Languages and Scripts ) .
 	ClientURI string `json:"clientURI,omitempty"`
 
-	// Id: The client ID. Ignored in client create requests.
+	// Id: The client ID. If specified in a client create request, it will
+	// be used as the ID. Otherwise, the server will choose the ID.
 	Id string `json:"id,omitempty"`
 
 	IsAdmin bool `json:"isAdmin,omitempty"`
@@ -141,7 +142,7 @@ type Client struct {
 	// Public: OPTIONAL. Determines if the client is public. Public clients
 	// have certain restrictions: They cannot use their credentials to
 	// obtain a client JWT. Their redirects URLs cannot be specified: they
-	// are always http://localhost:$PORT or urn:ietf:wg:oauth:2.0:oob
+	// are always http://localhost:$PORT or urn:ietf:wg:oauth:2.0:oob.
 	Public bool `json:"public,omitempty"`
 
 	// RedirectURIs: REQUIRED for normal clients. Array of Redirection URI
@@ -154,7 +155,9 @@ type Client struct {
 	// clients.
 	RedirectURIs []string `json:"redirectURIs,omitempty"`
 
-	// Secret: The client secret. Ignored in client create requests.
+	// Secret: The client secret. If specified in a client create request,
+	// it will be used as the secret. Otherwise, the server will choose the
+	// secret. Must be a base64 URLEncoded string.
 	Secret string `json:"secret,omitempty"`
 
 	// TrustedPeers: Array of ClientIDs of clients that are allowed to mint

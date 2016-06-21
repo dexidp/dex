@@ -51,11 +51,11 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "The client ID. Ignored in client create requests."
+          "description": "The client ID. If specified in a client create request, it will be used as the ID. Otherwise, the server will choose the ID."
         },
         "secret": {
           "type": "string",
-          "description": "The client secret. Ignored in client create requests."
+          "description": "The client secret. If specified in a client create request, it will be used as the secret. Otherwise, the server will choose the secret. Must be a base64 URLEncoded string."
         },
         "isAdmin": {
           "type": "boolean"
