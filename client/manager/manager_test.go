@@ -168,3 +168,53 @@ func TestAuthenticate(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateClient(t *testing.T) {
+	tests := []struct {
+		cli     client.Client
+		wantErr error
+	}{
+		{
+			cli: client.Client{
+				Metadata: oidc.ClientMetadata{
+					RedirectURIs: []url.URL{mustParseURL("http://auth.google.com")},
+				},
+			},
+		},
+		{
+			cli:     client.Client{},
+			wantErr: client.ErrorMissingRedirectURI,
+		},
+		{
+			cli: client.Client{
+				Metadata: oidc.ClientMetadata{
+					ClientName: "frank",
+				},
+				Public: true,
+			},
+		},
+		{
+			cli: client.Client{
+				Metadata: oidc.ClientMetadata{
+					RedirectURIs: []url.URL{mustParseURL("http://auth.google.com")},
+					ClientName:   "frank",
+				},
+				Public: true,
+			},
+			wantErr: client.ErrorPublicClientRedirectURIs,
+		},
+		{
+			cli: client.Client{
+				Public: true,
+			},
+			wantErr: client.ErrorPublicClientMissingName,
+		},
+	}
+
+	for i, tt := range tests {
+		err := validateClient(tt.cli)
+		if err != tt.wantErr {
+			t.Errorf("case %d: want=%v, got=%v", i, tt.wantErr, err)
+		}
+	}
+}

@@ -38,12 +38,12 @@ const (
 	VerifyEmailTemplateName            = "verify-email.html"
 	SendResetPasswordEmailTemplateName = "send-reset-password.html"
 	ResetPasswordTemplateName          = "reset-password.html"
-
-	APIVersion = "v1"
+	OOBTemplateName                    = "oob-template.html"
+	APIVersion                         = "v1"
 )
 
 type OIDCServer interface {
-	ClientMetadata(string) (*oidc.ClientMetadata, error)
+	Client(string) (client.Client, error)
 	NewSession(connectorID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error)
 	Login(oidc.Identity, string) (string, error)
 
@@ -72,6 +72,7 @@ type Server struct {
 	VerifyEmailTemplate            *template.Template
 	SendResetPasswordEmailTemplate *template.Template
 	ResetPasswordTemplate          *template.Template
+	OOBTemplate                    *template.Template
 
 	HealthChecks []health.Checkable
 	Connectors   []connector.Connector
@@ -214,6 +215,7 @@ func (s *Server) HTTPHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc(httpPathDiscovery, handleDiscoveryFunc(s.ProviderConfig()))
 	mux.HandleFunc(httpPathAuth, handleAuthFunc(s, s.Connectors, s.LoginTemplate, s.EnableRegistration))
+	mux.HandleFunc(httpPathOOB, handleOOBFunc(s, s.OOBTemplate))
 	mux.HandleFunc(httpPathToken, handleTokenFunc(s))
 	mux.HandleFunc(httpPathKeys, handleKeysFunc(s.KeyManager, clock))
 	mux.Handle(httpPathHealth, makeHealthHandler(checks))
@@ -290,8 +292,8 @@ func (s *Server) NewClientTokenAuthHandler(handler http.Handler) http.Handler {
 	}
 }
 
-func (s *Server) ClientMetadata(clientID string) (*oidc.ClientMetadata, error) {
-	return s.ClientManager.Metadata(clientID)
+func (s *Server) Client(clientID string) (client.Client, error) {
+	return s.ClientManager.Get(clientID)
 }
 
 func (s *Server) NewSession(ipdcID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error) {
@@ -399,6 +401,9 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 	}
 
 	ru := ses.RedirectURL
+	if ru.String() == client.OOBRedirectURI {
+		ru = s.absURL(httpPathOOB)
+	}
 	q := ru.Query()
 	q.Set("code", code)
 	q.Set("state", ses.ClientState)
@@ -408,6 +413,15 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 }
 
 func (s *Server) ClientCredsToken(creds oidc.ClientCredentials) (*jose.JWT, error) {
+	cli, err := s.Client(creds.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if cli.Public {
+		return nil, oauth2.NewError(oauth2.ErrorInvalidClient)
+	}
+
 	ok, err := s.ClientManager.Authenticate(creds)
 	if err != nil {
 		log.Errorf("Failed fetching client %s from manager: %v", creds.ID, err)

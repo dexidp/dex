@@ -383,7 +383,11 @@ func TestCreateClient(t *testing.T) {
 	}
 
 	addIDAndSecret := func(cli adminschema.Client) *adminschema.Client {
-		cli.Id = "client_auth.example.com"
+		if cli.Public {
+			cli.Id = "client_" + cli.ClientName
+		} else {
+			cli.Id = "client_auth.example.com"
+		}
 		cli.Secret = base64.URLEncoding.EncodeToString([]byte("client_0"))
 		return &cli
 	}
@@ -399,6 +403,23 @@ func TestCreateClient(t *testing.T) {
 			RedirectURIs: []url.URL{*mustParseURL("https://auth.example.com/")},
 		},
 	}
+
+	clientPublicGood := clientGood
+	clientPublicGood.Public = true
+	clientPublicGood.Metadata.ClientName = "PublicName"
+	clientPublicGood.Metadata.RedirectURIs = []url.URL{}
+	clientPublicGood.Credentials.ID = "client_PublicName"
+
+	adminPublicClientGood := adminClientGood
+	adminPublicClientGood.Public = true
+	adminPublicClientGood.ClientName = "PublicName"
+	adminPublicClientGood.RedirectURIs = []string{}
+
+	adminPublicClientMissingName := adminPublicClientGood
+	adminPublicClientMissingName.ClientName = ""
+
+	adminPublicClientHasARedirect := adminPublicClientGood
+	adminPublicClientHasARedirect.RedirectURIs = []string{"https://auth.example.com/"}
 
 	adminAdminClient := adminClientGood
 	adminAdminClient.IsAdmin = true
@@ -479,6 +500,27 @@ func TestCreateClient(t *testing.T) {
 			wantClient:       clientGood,
 			wantTrustedPeers: []string{"test_client_0"},
 		},
+		{
+			req: adminschema.ClientCreateRequest{
+				Client: &adminPublicClientGood,
+			},
+			want: adminschema.ClientCreateResponse{
+				Client: addIDAndSecret(adminPublicClientGood),
+			},
+			wantClient: clientPublicGood,
+		},
+		{
+			req: adminschema.ClientCreateRequest{
+				Client: &adminPublicClientMissingName,
+			},
+			wantError: http.StatusBadRequest,
+		},
+		{
+			req: adminschema.ClientCreateRequest{
+				Client: &adminPublicClientHasARedirect,
+			},
+			wantError: http.StatusBadRequest,
+		},
 	}
 
 	for i, tt := range tests {
@@ -530,6 +572,7 @@ func TestCreateClient(t *testing.T) {
 		repoClient, err := f.cr.Get(nil, resp.Client.Id)
 		if err != nil {
 			t.Errorf("case %d: Unexpected error getting client: %v", i, err)
+			continue
 		}
 
 		if diff := pretty.Compare(tt.wantClient, repoClient); diff != "" {

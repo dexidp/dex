@@ -16,7 +16,8 @@ CREATE TABLE client_identity (
     id text NOT NULL UNIQUE,
     secret blob,
     metadata text,
-    dex_admin integer
+    dex_admin integer,
+    public integer
 );
 
 CREATE TABLE connector_config (

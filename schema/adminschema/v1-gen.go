@@ -110,10 +110,11 @@ type Admin struct {
 }
 
 type Client struct {
-	// ClientName: OPTIONAL. Name of the Client to be presented to the
-	// End-User. If desired, representation of this Claim in different
-	// languages and scripts is represented as described in Section 2.1 (
-	// Metadata Languages and Scripts ) .
+	// ClientName: OPTIONAL for normal cliens. Name of the Client to be
+	// presented to the End-User. If desired, representation of this Claim
+	// in different languages and scripts is represented as described in
+	// Section 2.1 ( Metadata Languages and Scripts ). REQUIRED for public
+	// clients
 	ClientName string `json:"clientName,omitempty"`
 
 	// ClientURI: OPTIONAL. URL of the home page of the Client. The value of
@@ -137,13 +138,20 @@ type Client struct {
 	// Section 2.1 ( Metadata Languages and Scripts ) .
 	LogoURI string `json:"logoURI,omitempty"`
 
-	// RedirectURIs: REQUIRED. Array of Redirection URI values used by the
-	// Client. One of these registered Redirection URI values MUST exactly
-	// match the redirect_uri parameter value used in each Authorization
-	// Request, with the matching performed as described in Section 6.2.1 of
-	// [RFC3986] ( Berners-Lee, T., Fielding, R., and L. Masinter,
-	// “Uniform Resource Identifier (URI): Generic Syntax,” January
-	// 2005. ) (Simple String Comparison).
+	// Public: OPTIONAL. Determines if the client is public. Public clients
+	// have certain restrictions: They cannot use their credentials to
+	// obtain a client JWT. Their redirects URLs cannot be specified: they
+	// are always http://localhost:$PORT or urn:ietf:wg:oauth:2.0:oob
+	Public bool `json:"public,omitempty"`
+
+	// RedirectURIs: REQUIRED for normal clients. Array of Redirection URI
+	// values used by the Client. One of these registered Redirection URI
+	// values MUST exactly match the redirect_uri parameter value used in
+	// each Authorization Request, with the matching performed as described
+	// in Section 6.2.1 of [RFC3986] ( Berners-Lee, T., Fielding, R., and L.
+	// Masinter, “Uniform Resource Identifier (URI): Generic Syntax,”
+	// January 2005. ) (Simple String Comparison). DISALLOWED for public
+	// clients.
 	RedirectURIs []string `json:"redirectURIs,omitempty"`
 
 	// Secret: The client secret. Ignored in client create requests.

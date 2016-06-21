@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/url"
 	"reflect"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -19,11 +20,27 @@ var (
 	ErrorInvalidRedirectURL    = errors.New("not a valid redirect url for the given client")
 	ErrorCantChooseRedirectURL = errors.New("must provide a redirect url; client has many")
 	ErrorNoValidRedirectURLs   = errors.New("no valid redirect URLs for this client.")
-	ErrorNotFound              = errors.New("no data found")
+
+	ErrorPublicClientRedirectURIs = errors.New("public clients cannot have redirect URIs")
+	ErrorPublicClientMissingName  = errors.New("public clients must have a name")
+
+	ErrorMissingRedirectURI = errors.New("no client redirect url given")
+
+	ErrorNotFound = errors.New("no data found")
 )
+
+type ValidationError struct {
+	Err error
+}
+
+func (v ValidationError) Error() string {
+	return v.Err.Error()
+}
 
 const (
 	bcryptHashCost = 10
+
+	OOBRedirectURI = "urn:ietf:wg:oauth:2.0:oob"
 )
 
 func HashSecret(creds oidc.ClientCredentials) ([]byte, error) {
@@ -44,6 +61,35 @@ type Client struct {
 	Credentials oidc.ClientCredentials
 	Metadata    oidc.ClientMetadata
 	Admin       bool
+	Public      bool
+}
+
+func (c Client) ValidRedirectURL(u *url.URL) (url.URL, error) {
+	if c.Public {
+		if u == nil {
+			return url.URL{}, ErrorInvalidRedirectURL
+		}
+		if u.String() == OOBRedirectURI {
+			return *u, nil
+		}
+
+		if u.Scheme != "http" {
+			return url.URL{}, ErrorInvalidRedirectURL
+		}
+
+		hostPort := strings.Split(u.Host, ":")
+		if len(hostPort) != 2 {
+			return url.URL{}, ErrorInvalidRedirectURL
+		}
+
+		if hostPort[0] != "localhost" || u.Path != "" || u.RawPath != "" || u.RawQuery != "" || u.Fragment != "" {
+			return url.URL{}, ErrorInvalidRedirectURL
+		}
+
+		return *u, nil
+	}
+
+	return ValidRedirectURL(u, c.Metadata.RedirectURIs)
 }
 
 type ClientRepo interface {
@@ -106,6 +152,7 @@ func ClientsFromReader(r io.Reader) ([]LoadableClient, error) {
 		Secret       string   `json:"secret"`
 		RedirectURLs []string `json:"redirectURLs"`
 		Admin        bool     `json:"admin"`
+		Public       bool     `json:"public"`
 		TrustedPeers []string `json:"trustedPeers"`
 	}
 	if err := json.NewDecoder(r).Decode(&c); err != nil {
@@ -137,7 +184,8 @@ func ClientsFromReader(r io.Reader) ([]LoadableClient, error) {
 				Metadata: oidc.ClientMetadata{
 					RedirectURIs: redirectURIs,
 				},
-				Admin: client.Admin,
+				Admin:  client.Admin,
+				Public: client.Public,
 			},
 			TrustedPeers: client.TrustedPeers,
 		}

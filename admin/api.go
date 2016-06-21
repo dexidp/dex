@@ -69,10 +69,15 @@ func errorMaker(typ string, desc string, code int) func(internal error) Error {
 var (
 	ErrorMissingClient = errorMaker("bad_request", "The 'client' cannot be empty", http.StatusBadRequest)(nil)
 
-	// Called when oidc.ClientMetadata.Valid() fails.
 	ErrorInvalidClientFunc = errorMaker("bad_request", "Your client could not be validated.", http.StatusBadRequest)
 
 	errorMap = map[error]func(error) Error{
+		client.ErrorMissingRedirectURI: errorMaker("bad_request", "Non-public clients must have at least one redirect URI", http.StatusBadRequest),
+
+		client.ErrorPublicClientRedirectURIs: errorMaker("bad_request", "Public clients cannot specify redirect URIs", http.StatusBadRequest),
+
+		client.ErrorPublicClientMissingName: errorMaker("bad_request", "Public clients require a ClientName", http.StatusBadRequest),
+
 		user.ErrorNotFound:       errorMaker("resource_not_found", "Resource could not be found.", http.StatusNotFound),
 		user.ErrorDuplicateEmail: errorMaker("bad_request", "Email already in use.", http.StatusBadRequest),
 		user.ErrorInvalidEmail:   errorMaker("bad_request", "invalid email.", http.StatusBadRequest),
@@ -86,7 +91,6 @@ var (
 
 func (a *AdminAPI) GetAdmin(id string) (adminschema.Admin, error) {
 	usr, err := a.userRepo.Get(nil, id)
-
 	if err != nil {
 		return adminschema.Admin{}, mapError(err)
 	}
@@ -136,15 +140,9 @@ func (a *AdminAPI) CreateClient(req adminschema.ClientCreateRequest) (adminschem
 		return adminschema.ClientCreateResponse{}, mapError(err)
 	}
 
-	if err := cli.Metadata.Valid(); err != nil {
-		return adminschema.ClientCreateResponse{}, ErrorInvalidClientFunc(err)
-	}
-
-	// metadata is guaranteed to have at least one redirect_uri by earlier validation.
 	creds, err := a.clientManager.New(cli, &clientmanager.ClientOptions{
 		TrustedPeers: req.Client.TrustedPeers,
 	})
-
 	if err != nil {
 		return adminschema.ClientCreateResponse{}, mapError(err)
 	}
@@ -165,6 +163,12 @@ func (a *AdminAPI) GetConnectors() ([]connector.ConnectorConfig, error) {
 }
 
 func mapError(e error) error {
+	switch t := e.(type) {
+	case client.ValidationError:
+		return ErrorInvalidClientFunc(t)
+	default:
+	}
+
 	if mapped, ok := errorMap[e]; ok {
 		return mapped(e)
 	}

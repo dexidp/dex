@@ -44,6 +44,7 @@ var (
 	httpPathAcceptInvitation   = "/accept-invitation"
 	httpPathDebugVars          = "/debug/vars"
 	httpPathClientRegistration = "/registration"
+	httpPathOOB                = "/oob"
 
 	cookieLastSeen                 = "LastSeen"
 	cookieShowEmailVerifiedMessage = "ShowEmailVerifiedMessage"
@@ -188,7 +189,7 @@ func renderLoginPage(w http.ResponseWriter, r *http.Request, srv OIDCServer, idp
 
 	// Render error message if client id is invalid.
 	clientID := q.Get("client_id")
-	cm, err := srv.ClientMetadata(clientID)
+	_, err := srv.Client(clientID)
 	if err != nil {
 		log.Errorf("Failed fetching client %q from repo: %v", clientID, err)
 		td.Error = true
@@ -196,7 +197,7 @@ func renderLoginPage(w http.ResponseWriter, r *http.Request, srv OIDCServer, idp
 		execTemplate(w, tpl, td)
 		return
 	}
-	if cm == nil {
+	if err == client.ErrorNotFound {
 		td.Error = true
 		td.Message = "Authentication Error"
 		td.Detail = "Invalid client ID"
@@ -299,25 +300,19 @@ func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.T
 			return
 		}
 
-		cm, err := srv.ClientMetadata(acr.ClientID)
+		cli, err := srv.Client(acr.ClientID)
 		if err != nil {
 			log.Errorf("Failed fetching client %q from repo: %v", acr.ClientID, err)
 			writeAuthError(w, oauth2.NewError(oauth2.ErrorServerError), acr.State)
 			return
 		}
-		if cm == nil {
+		if err == client.ErrorNotFound {
 			log.Errorf("Client %q not found", acr.ClientID)
 			writeAuthError(w, oauth2.NewError(oauth2.ErrorInvalidRequest), acr.State)
 			return
 		}
 
-		if len(cm.RedirectURIs) == 0 {
-			log.Errorf("Client %q has no redirect URLs", acr.ClientID)
-			writeAuthError(w, oauth2.NewError(oauth2.ErrorServerError), acr.State)
-			return
-		}
-
-		redirectURL, err := client.ValidRedirectURL(acr.RedirectURL, cm.RedirectURIs)
+		redirectURL, err := cli.ValidRedirectURL(acr.RedirectURL)
 		if err != nil {
 			switch err {
 			case (client.ErrorCantChooseRedirectURL):
@@ -551,6 +546,37 @@ func handleTokenFunc(srv OIDCServer) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(b)
+	}
+}
+
+func handleOOBFunc(s *Server, tpl *template.Template) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			w.Header().Set("Allow", "GET")
+			phttp.WriteError(w, http.StatusMethodNotAllowed, "GET only acceptable method")
+			return
+		}
+
+		key := r.URL.Query().Get("code")
+		if key == "" {
+			phttp.WriteError(w, http.StatusBadRequest, "Invalid Session")
+			return
+		}
+		sessionID, err := s.SessionManager.ExchangeKey(key)
+		if err != nil {
+			phttp.WriteError(w, http.StatusBadRequest, "Invalid Session")
+			return
+		}
+		code, err := s.SessionManager.NewSessionKey(sessionID)
+		if err != nil {
+			log.Errorf("problem getting NewSessionKey: %v", err)
+			phttp.WriteError(w, http.StatusInternalServerError, "Internal Server Error")
+			return
+		}
+
+		execTemplate(w, tpl, map[string]string{
+			"code": code,
+		})
 	}
 }
 

@@ -79,6 +79,12 @@ var PostgresMigrations migrate.MigrationSource = &migrate.MemoryMigrationSource{
 			},
 		},
 		{
+			Id: "0013_add_public_clients.sql",
+			Up: []string{
+				"-- +migrate Up\nALTER TABLE client_identity ADD COLUMN \"public\" boolean;\n\nUPDATE \"client_identity\" SET \"public\" = false;\n",
+			},
+		},
+		{
 			Id: "0013_add_scopes_to_refresh_tokens.sql",
 			Up: []string{
 				"-- +migrate Up\nALTER TABLE refresh_token ADD COLUMN \"scopes\" text;\n\nUPDATE refresh_token SET scopes = 'openid profile email offline_access';\n",

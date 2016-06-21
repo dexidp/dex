@@ -23,6 +23,7 @@ import (
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 
+	"github.com/coreos/dex/client"
 	pflag "github.com/coreos/dex/pkg/flag"
 	phttp "github.com/coreos/dex/pkg/http"
 	"github.com/coreos/dex/pkg/log"
@@ -163,15 +164,21 @@ func main() {
 func NewClientHandler(c *oidc.Client, issuer string, cbURL url.URL) http.Handler {
 	mux := http.NewServeMux()
 
+	oob := cbURL.String() == client.OOBRedirectURI
+
 	issuerURL, err := url.Parse(issuer)
 	if err != nil {
 		log.Fatalf("Could not parse issuer url: %v", err)
 	}
 
-	mux.HandleFunc("/", handleIndex)
+	mux.HandleFunc("/", handleIndexFunc(oob))
 	mux.HandleFunc("/login", handleLoginFunc(c))
 	mux.HandleFunc("/register", handleRegisterFunc(c))
-	mux.HandleFunc(cbURL.Path, handleCallbackFunc(c))
+	if cbURL.String() != client.OOBRedirectURI {
+		mux.HandleFunc(cbURL.Path, handleCallbackFunc(c))
+	} else {
+		mux.HandleFunc("/callback", handleCallbackFunc(c))
+	}
 
 	resendURL := *issuerURL
 	resendURL.Path = "/resend-verify-email"
@@ -180,12 +187,16 @@ func NewClientHandler(c *oidc.Client, issuer string, cbURL url.URL) http.Handler
 	return mux
 }
 
-func handleIndex(w http.ResponseWriter, r *http.Request) {
-	err := indexTemplate.Execute(w, nil)
-	if err != nil {
-		phttp.WriteError(w, http.StatusInternalServerError,
-			fmt.Sprintf("unable to execute template: %v", err))
+func handleIndexFunc(oob bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		err := indexTemplate.Execute(w, map[string]interface{}{
+			"OOB": oob,
+		})
+		if err != nil {
+			phttp.WriteError(w, http.StatusInternalServerError,
+				fmt.Sprintf("unable to execute template: %v", err))
 
+		}
 	}
 }
 

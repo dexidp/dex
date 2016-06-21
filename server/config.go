@@ -299,35 +299,23 @@ func getTemplates(issuerName, issuerLogoURL string,
 }
 
 func setTemplates(srv *Server, tpls *template.Template) error {
-	ltpl, err := findTemplate(LoginPageTemplateName, tpls)
-	if err != nil {
-		return err
+	for _, t := range []struct {
+		templateName string
+		templatePtr  **template.Template
+	}{
+		{LoginPageTemplateName, &srv.LoginTemplate},
+		{RegisterTemplateName, &srv.RegisterTemplate},
+		{VerifyEmailTemplateName, &srv.VerifyEmailTemplate},
+		{SendResetPasswordEmailTemplateName, &srv.SendResetPasswordEmailTemplate},
+		{ResetPasswordTemplateName, &srv.ResetPasswordTemplate},
+		{OOBTemplateName, &srv.OOBTemplate},
+	} {
+		tpl, err := findTemplate(t.templateName, tpls)
+		if err != nil {
+			return err
+		}
+		*t.templatePtr = tpl
 	}
-	srv.LoginTemplate = ltpl
-
-	rtpl, err := findTemplate(RegisterTemplateName, tpls)
-	if err != nil {
-		return err
-	}
-	srv.RegisterTemplate = rtpl
-
-	vtpl, err := findTemplate(VerifyEmailTemplateName, tpls)
-	if err != nil {
-		return err
-	}
-	srv.VerifyEmailTemplate = vtpl
-
-	srtpl, err := findTemplate(SendResetPasswordEmailTemplateName, tpls)
-	if err != nil {
-		return err
-	}
-	srv.SendResetPasswordEmailTemplate = srtpl
-
-	rpwtpl, err := findTemplate(ResetPasswordTemplateName, tpls)
-	if err != nil {
-		return err
-	}
-	srv.ResetPasswordTemplate = rpwtpl
 
 	return nil
 }
