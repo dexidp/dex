@@ -196,18 +196,30 @@ func (m *ClientManager) addClientCredentials(cli *client.Client) error {
 		seed = cli.Metadata.RedirectURIs[0].Host
 	}
 
-	// Generate Client ID
-	clientID, err := m.clientIDGenerator(seed)
-	if err != nil {
-		return err
+	var err error
+	var clientID string
+	if cli.Credentials.ID != "" {
+		clientID = cli.Credentials.ID
+	} else {
+		// Generate Client ID
+		clientID, err = m.clientIDGenerator(seed)
+		if err != nil {
+			return err
+		}
 	}
 
-	// Generate Secret
-	secret, err := m.secretGenerator()
-	if err != nil {
-		return err
+	var clientSecret string
+	if cli.Credentials.Secret != "" {
+		clientSecret = cli.Credentials.Secret
+	} else {
+		// Generate Secret
+		secret, err := m.secretGenerator()
+		if err != nil {
+			return err
+		}
+		clientSecret = base64.URLEncoding.EncodeToString(secret)
 	}
-	clientSecret := base64.URLEncoding.EncodeToString(secret)
+
 	cli.Credentials = oidc.ClientCredentials{
 		ID:     clientID,
 		Secret: clientSecret,

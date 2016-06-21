@@ -383,12 +383,17 @@ func TestCreateClient(t *testing.T) {
 	}
 
 	addIDAndSecret := func(cli adminschema.Client) *adminschema.Client {
-		if cli.Public {
-			cli.Id = "client_" + cli.ClientName
-		} else {
-			cli.Id = "client_auth.example.com"
+		if cli.Id == "" {
+			if cli.Public {
+				cli.Id = "client_" + cli.ClientName
+			} else {
+				cli.Id = "client_auth.example.com"
+			}
 		}
-		cli.Secret = base64.URLEncoding.EncodeToString([]byte("client_0"))
+
+		if cli.Secret == "" {
+			cli.Secret = base64.URLEncoding.EncodeToString([]byte("client_0"))
+		}
 		return &cli
 	}
 
@@ -436,6 +441,24 @@ func TestCreateClient(t *testing.T) {
 	adminClientWithPeers := adminClientGood
 	adminClientWithPeers.TrustedPeers = []string{"test_client_0"}
 
+	adminClientOwnID := adminClientGood
+	adminClientOwnID.Id = "my_own_id"
+
+	clientGoodOwnID := clientGood
+	clientGoodOwnID.Credentials.ID = "my_own_id"
+
+	adminClientOwnSecret := adminClientGood
+	adminClientOwnSecret.Secret = base64.URLEncoding.EncodeToString([]byte("my_own_secret"))
+	clientGoodOwnSecret := clientGood
+
+	adminClientOwnIDAndSecret := adminClientGood
+	adminClientOwnIDAndSecret.Id = "my_own_id"
+	adminClientOwnIDAndSecret.Secret = base64.URLEncoding.EncodeToString([]byte("my_own_secret"))
+	clientGoodOwnIDAndSecret := clientGoodOwnID
+
+	adminClientBadSecret := adminClientGood
+	adminClientBadSecret.Secret = "not_base64_encoded"
+
 	tests := []struct {
 		req              adminschema.ClientCreateRequest
 		want             adminschema.ClientCreateResponse
@@ -446,24 +469,21 @@ func TestCreateClient(t *testing.T) {
 		{
 			req:       adminschema.ClientCreateRequest{},
 			wantError: http.StatusBadRequest,
-		},
-		{
+		}, {
 			req: adminschema.ClientCreateRequest{
 				Client: &adminschema.Client{
 					IsAdmin: true,
 				},
 			},
 			wantError: http.StatusBadRequest,
-		},
-		{
+		}, {
 			req: adminschema.ClientCreateRequest{
 				Client: &adminschema.Client{
 					RedirectURIs: []string{"909090"},
 				},
 			},
 			wantError: http.StatusBadRequest,
-		},
-		{
+		}, {
 			req: adminschema.ClientCreateRequest{
 				Client: &adminClientGood,
 			},
@@ -471,8 +491,7 @@ func TestCreateClient(t *testing.T) {
 				Client: addIDAndSecret(adminClientGood),
 			},
 			wantClient: clientGood,
-		},
-		{
+		}, {
 			req: adminschema.ClientCreateRequest{
 				Client: &adminAdminClient,
 			},
@@ -480,8 +499,7 @@ func TestCreateClient(t *testing.T) {
 				Client: addIDAndSecret(adminAdminClient),
 			},
 			wantClient: clientGoodAdmin,
-		},
-		{
+		}, {
 			req: adminschema.ClientCreateRequest{
 				Client: &adminMultiRedirect,
 			},
@@ -489,8 +507,7 @@ func TestCreateClient(t *testing.T) {
 				Client: addIDAndSecret(adminMultiRedirect),
 			},
 			wantClient: clientMultiRedirect,
-		},
-		{
+		}, {
 			req: adminschema.ClientCreateRequest{
 				Client: &adminClientWithPeers,
 			},
@@ -499,8 +516,7 @@ func TestCreateClient(t *testing.T) {
 			},
 			wantClient:       clientGood,
 			wantTrustedPeers: []string{"test_client_0"},
-		},
-		{
+		}, {
 			req: adminschema.ClientCreateRequest{
 				Client: &adminPublicClientGood,
 			},
@@ -508,16 +524,43 @@ func TestCreateClient(t *testing.T) {
 				Client: addIDAndSecret(adminPublicClientGood),
 			},
 			wantClient: clientPublicGood,
-		},
-		{
+		}, {
 			req: adminschema.ClientCreateRequest{
 				Client: &adminPublicClientMissingName,
 			},
 			wantError: http.StatusBadRequest,
-		},
-		{
+		}, {
 			req: adminschema.ClientCreateRequest{
 				Client: &adminPublicClientHasARedirect,
+			},
+			wantError: http.StatusBadRequest,
+		}, {
+			req: adminschema.ClientCreateRequest{
+				Client: &adminClientOwnID,
+			},
+			want: adminschema.ClientCreateResponse{
+				Client: addIDAndSecret(adminClientOwnID),
+			},
+			wantClient: clientGoodOwnID,
+		}, {
+			req: adminschema.ClientCreateRequest{
+				Client: &adminClientOwnSecret,
+			},
+			want: adminschema.ClientCreateResponse{
+				Client: addIDAndSecret(adminClientOwnSecret),
+			},
+			wantClient: clientGoodOwnSecret,
+		}, {
+			req: adminschema.ClientCreateRequest{
+				Client: &adminClientOwnIDAndSecret,
+			},
+			want: adminschema.ClientCreateResponse{
+				Client: addIDAndSecret(adminClientOwnIDAndSecret),
+			},
+			wantClient: clientGoodOwnIDAndSecret,
+		}, {
+			req: adminschema.ClientCreateRequest{
+				Client: &adminClientBadSecret,
 			},
 			wantError: http.StatusBadRequest,
 		},
