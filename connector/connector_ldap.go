@@ -3,6 +3,8 @@ package connector
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
+	"net"
 
 	"fmt"
 
@@ -28,30 +30,63 @@ const (
 
 func init() {
 	RegisterConnectorConfigType(LDAPConnectorType, func() ConnectorConfig { return &LDAPConnectorConfig{} })
+
+	// Set default ldap timeout.
+	ldap.DefaultTimeout = 30 * time.Second
 }
 
 type LDAPConnectorConfig struct {
-	ID                   string        `json:"id"`
-	ServerHost           string        `json:"serverHost"`
-	ServerPort           uint16        `json:"serverPort"`
-	Timeout              time.Duration `json:"timeout"`
-	UseTLS               bool          `json:"useTLS"`
-	UseSSL               bool          `json:"useSSL"`
-	CertFile             string        `json:"certFile"`
-	KeyFile              string        `json:"keyFile"`
-	CaFile               string        `json:"caFile"`
-	SkipCertVerification bool          `json:"skipCertVerification"`
-	MaxIdleConn          int           `json:"maxIdleConn"`
-	BaseDN               string        `json:"baseDN"`
-	NameAttribute        string        `json:"nameAttribute"`
-	EmailAttribute       string        `json:"emailAttribute"`
-	SearchBeforeAuth     bool          `json:"searchBeforeAuth"`
-	SearchFilter         string        `json:"searchFilter"`
-	SearchScope          string        `json:"searchScope"`
-	SearchBindDN         string        `json:"searchBindDN"`
-	SearchBindPw         string        `json:"searchBindPw"`
-	BindTemplate         string        `json:"bindTemplate"`
-	TrustedEmailProvider bool          `json:"trustedEmailProvider"`
+	ID string `json:"id"`
+
+	// Host and port of ldap service in form "host:port"
+	Host string `json:"host"`
+
+	// UseTLS indicates that the connector should use the TLS port.
+	UseTLS bool `json:"useTLS"`
+	UseSSL bool `json:"useSSL"`
+
+	// Trusted TLS certificate when connecting to the LDAP server. If empty the
+	// host's root certificates will be used.
+	CaFile string `json:"caFile"`
+	// CertFile and KeyFile are used to specifiy client certificate data.
+	CertFile string `json:"certFile"`
+	KeyFile  string `json:"keyFile"`
+
+	MaxIdleConn int `json:"maxIdleConn"`
+
+	NameAttribute  string `json:"nameAttribute"`
+	EmailAttribute string `json:"emailAttribute"`
+
+	// The place to start all searches from.
+	BaseDN string `json:"baseDN"`
+
+	// Search fields indicate how to search for user records in LDAP.
+	SearchBeforeAuth  bool   `json:"searchBeforeAuth"`
+	SearchFilter      string `json:"searchFilter"`
+	SearchScope       string `json:"searchScope"`
+	SearchBindDN      string `json:"searchBindDN"`
+	SearchBindPw      string `json:"searchBindPw"`
+	SearchGroupFilter string `json:"searchGroupFilter"`
+
+	// BindTemplate is a format string that maps user names to a record to bind as.
+	// It's passed both the username entered by the end user and the base DN.
+	//
+	// For example the bindTemplate
+	//
+	//     "uid=%u,%d"
+	//
+	// with the username "johndoe" and basename "ou=People,dc=example,dc=com" would attempt
+	// to bind as
+	//
+	//     "uid=johndoe,ou=People,dc=example,dc=com"
+	//
+	BindTemplate string `json:"bindTemplate"`
+
+	// DEPRICATED fields that exist for backward compatibility.
+	// Use "host" instead of "ServerHost" and "ServerPort"
+	ServerHost string        `json:"serverHost"`
+	ServerPort uint16        `json:"serverPort"`
+	Timeout    time.Duration `json:"timeout"`
 }
 
 func (cfg *LDAPConnectorConfig) ConnectorID() string {
@@ -63,13 +98,27 @@ func (cfg *LDAPConnectorConfig) ConnectorType() string {
 }
 
 type LDAPConnector struct {
-	id                   string
-	idp                  *LDAPIdentityProvider
-	namespace            url.URL
-	trustedEmailProvider bool
-	loginFunc            oidc.LoginFunc
-	loginTpl             *template.Template
+	id        string
+	namespace url.URL
+	loginFunc oidc.LoginFunc
+	loginTpl  *template.Template
+
+	baseDN         string
+	nameAttribute  string
+	emailAttribute string
+
+	searchBeforeAuth bool
+	searchFilter     string
+	searchScope      int
+	searchBindDN     string
+	searchBindPw     string
+
+	bindTemplate string
+
+	ldapPool *LDAPPool
 }
+
+const defaultPoolCheckTimer = 7200 * time.Second
 
 func (cfg *LDAPConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *template.Template) (Connector, error) {
 	ns.Path = path.Join(ns.Path, httpPathCallback)
@@ -77,14 +126,6 @@ func (cfg *LDAPConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *t
 	if tpl == nil {
 		return nil, fmt.Errorf("unable to find necessary HTML template")
 	}
-
-	// defaults
-	const defaultNameAttribute = "cn"
-	const defaultEmailAttribute = "mail"
-	const defaultBindTemplate = "uid=%u,%b"
-	const defaultSearchScope = ldap.ScopeWholeSubtree
-	const defaultMaxIdleConns = 5
-	const defaultPoolCheckTimer = 7200 * time.Second
 
 	if cfg.UseTLS && cfg.UseSSL {
 		return nil, fmt.Errorf("Invalid configuration. useTLS and useSSL are mutual exclusive.")
@@ -94,26 +135,23 @@ func (cfg *LDAPConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *t
 		return nil, fmt.Errorf("Invalid configuration. Both certFile and keyFile must be specified.")
 	}
 
-	nameAttribute := defaultNameAttribute
-	if len(cfg.NameAttribute) > 0 {
-		nameAttribute = cfg.NameAttribute
+	// Set default values
+	if cfg.NameAttribute == "" {
+		cfg.NameAttribute = "cn"
 	}
-
-	emailAttribute := defaultEmailAttribute
-	if len(cfg.EmailAttribute) > 0 {
-		emailAttribute = cfg.EmailAttribute
+	if cfg.EmailAttribute == "" {
+		cfg.EmailAttribute = "mail"
 	}
-
-	bindTemplate := defaultBindTemplate
-	if len(cfg.BindTemplate) > 0 {
-		if cfg.SearchBeforeAuth {
-			log.Warningf("bindTemplate not used when searchBeforeAuth specified.")
-		}
-		bindTemplate = cfg.BindTemplate
+	if cfg.MaxIdleConn > 0 {
+		cfg.MaxIdleConn = 5
 	}
-
-	searchScope := defaultSearchScope
-	if len(cfg.SearchScope) > 0 {
+	if cfg.BindTemplate == "" {
+		cfg.BindTemplate = "uid=%u,%b"
+	} else if cfg.SearchBeforeAuth {
+		log.Warningf("bindTemplate not used when searchBeforeAuth specified.")
+	}
+	searchScope := ldap.ScopeWholeSubtree
+	if cfg.SearchScope != "" {
 		switch {
 		case strings.EqualFold(cfg.SearchScope, "BASE"):
 			searchScope = ldap.ScopeBaseObject
@@ -126,14 +164,20 @@ func (cfg *LDAPConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *t
 		}
 	}
 
-	if cfg.Timeout != 0 {
-		ldap.DefaultTimeout = cfg.Timeout * time.Millisecond
+	if cfg.Host == "" {
+		if cfg.ServerHost == "" {
+			return nil, errors.New("no host provided")
+		}
+		// For backward compatibility construct host form old fields.
+		cfg.Host = fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort)
 	}
 
-	tlsConfig := &tls.Config{
-		ServerName:         cfg.ServerHost,
-		InsecureSkipVerify: cfg.SkipCertVerification,
+	host, _, err := net.SplitHostPort(cfg.Host)
+	if err != nil {
+		return nil, fmt.Errorf("host is not of form 'host:port': %v", err)
 	}
+
+	tlsConfig := &tls.Config{ServerName: host}
 
 	if (cfg.UseTLS || cfg.UseSSL) && len(cfg.CaFile) > 0 {
 		buf, err := ioutil.ReadFile(cfg.CaFile)
@@ -158,41 +202,28 @@ func (cfg *LDAPConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *t
 		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
 
-	maxIdleConn := defaultMaxIdleConns
-	if cfg.MaxIdleConn > 0 {
-		maxIdleConn = cfg.MaxIdleConn
-	}
-
-	ldapPool := &LDAPPool{
-		MaxIdleConn:    maxIdleConn,
-		PoolCheckTimer: defaultPoolCheckTimer,
-		ServerHost:     cfg.ServerHost,
-		ServerPort:     cfg.ServerPort,
-		UseTLS:         cfg.UseTLS,
-		UseSSL:         cfg.UseSSL,
-		TLSConfig:      tlsConfig,
-	}
-
-	idp := &LDAPIdentityProvider{
+	idpc := &LDAPConnector{
+		id:               cfg.ID,
+		namespace:        ns,
+		loginFunc:        lf,
+		loginTpl:         tpl,
 		baseDN:           cfg.BaseDN,
-		nameAttribute:    nameAttribute,
-		emailAttribute:   emailAttribute,
+		nameAttribute:    cfg.NameAttribute,
+		emailAttribute:   cfg.EmailAttribute,
 		searchBeforeAuth: cfg.SearchBeforeAuth,
 		searchFilter:     cfg.SearchFilter,
 		searchScope:      searchScope,
 		searchBindDN:     cfg.SearchBindDN,
 		searchBindPw:     cfg.SearchBindPw,
-		bindTemplate:     bindTemplate,
-		ldapPool:         ldapPool,
-	}
-
-	idpc := &LDAPConnector{
-		id:                   cfg.ID,
-		idp:                  idp,
-		namespace:            ns,
-		trustedEmailProvider: cfg.TrustedEmailProvider,
-		loginFunc:            lf,
-		loginTpl:             tpl,
+		bindTemplate:     cfg.BindTemplate,
+		ldapPool: &LDAPPool{
+			MaxIdleConn:    cfg.MaxIdleConn,
+			PoolCheckTimer: defaultPoolCheckTimer,
+			Host:           cfg.Host,
+			UseTLS:         cfg.UseTLS,
+			UseSSL:         cfg.UseSSL,
+			TLSConfig:      tlsConfig,
+		},
 	}
 
 	return idpc, nil
@@ -203,11 +234,10 @@ func (c *LDAPConnector) ID() string {
 }
 
 func (c *LDAPConnector) Healthy() error {
-	ldapConn, err := c.idp.ldapPool.Acquire()
-	if err == nil {
-		c.idp.ldapPool.Put(ldapConn)
-	}
-	return err
+	return c.ldapPool.Do(func(c *ldap.Conn) error {
+		// Attempt an anonymous bind.
+		return c.Bind("", "")
+	})
 }
 
 func (c *LDAPConnector) LoginURL(sessionKey, prompt string) (string, error) {
@@ -221,7 +251,7 @@ func (c *LDAPConnector) LoginURL(sessionKey, prompt string) (string, error) {
 
 func (c *LDAPConnector) Register(mux *http.ServeMux, errorURL url.URL) {
 	route := path.Join(c.namespace.Path, "login")
-	mux.Handle(route, handleLoginFunc(c.loginFunc, c.loginTpl, c.idp, route, errorURL))
+	mux.Handle(route, handlePasswordLogin(c.loginFunc, c.loginTpl, c, route, errorURL))
 }
 
 func (c *LDAPConnector) Sync() chan struct{} {
@@ -230,8 +260,8 @@ func (c *LDAPConnector) Sync() chan struct{} {
 	go func() {
 		for {
 			select {
-			case <-time.After(c.idp.ldapPool.PoolCheckTimer):
-				alive, killed := c.idp.ldapPool.CheckConnections()
+			case <-time.After(c.ldapPool.PoolCheckTimer):
+				alive, killed := c.ldapPool.CheckConnections()
 				if alive > 0 {
 					log.Infof("Connector ID=%v idle_conns=%v", c.id, alive)
 				}
@@ -247,38 +277,41 @@ func (c *LDAPConnector) Sync() chan struct{} {
 }
 
 func (c *LDAPConnector) TrustedEmailProvider() bool {
-	return c.trustedEmailProvider
+	return true
 }
 
-// A LDAPPool is a Connection Pool for LDAP connections
-// Initialize exported fields and use Acquire() to get a connection.
-// Use Put() to put it back into the pool.
+// A LDAPPool is a Connection Pool for LDAP connections. Use Do() to request connections
+// from the pool.
 type LDAPPool struct {
 	m              sync.Mutex
 	conns          map[*ldap.Conn]struct{}
 	MaxIdleConn    int
 	PoolCheckTimer time.Duration
-	ServerHost     string
-	ServerPort     uint16
+	Host           string
 	UseTLS         bool
 	UseSSL         bool
 	TLSConfig      *tls.Config
 }
 
-// Acquire removes and returns a random connection from the pool. A new connection is returned
-// if there are no connections available in the pool.
-func (p *LDAPPool) Acquire() (*ldap.Conn, error) {
+// Do runs a function which requires an LDAP connection.
+//
+// The connection will be unauthenticated with the server and should not be closed by f.
+func (p *LDAPPool) Do(f func(conn *ldap.Conn) error) (err error) {
 	conn := p.removeRandomConn()
-	if conn != nil {
-		return conn, nil
+	if conn == nil {
+		conn, err = p.ldapConnect()
+		if err != nil {
+			return err
+		}
 	}
-	return p.ldapConnect()
+	defer p.put(conn)
+	return f(conn)
 }
 
-// Put makes a connection ready for re-use and puts it back into the pool. If the connection
+// put makes a connection ready for re-use and puts it back into the pool. If the connection
 // cannot be reused it is discarded. If there already are MaxIdleConn connections in the pool
 // the connection is discarded.
-func (p *LDAPPool) Put(c *ldap.Conn) {
+func (p *LDAPPool) put(c *ldap.Conn) {
 	p.m.Lock()
 	if p.conns == nil {
 		// First call to Put, initialize map
@@ -345,7 +378,7 @@ func (p *LDAPPool) CheckConnections() (int, int) {
 		if ok {
 			err := ldapPing(conn)
 			if err == nil {
-				p.Put(conn)
+				p.put(conn)
 				alive++
 			} else {
 				conn.Close()
@@ -363,31 +396,17 @@ func ldapPing(conn *ldap.Conn) error {
 	return err
 }
 
-type LDAPIdentityProvider struct {
-	baseDN           string
-	nameAttribute    string
-	emailAttribute   string
-	searchBeforeAuth bool
-	searchFilter     string
-	searchScope      int
-	searchBindDN     string
-	searchBindPw     string
-	bindTemplate     string
-	ldapPool         *LDAPPool
-}
-
 func (p *LDAPPool) ldapConnect() (*ldap.Conn, error) {
 	var err error
 	var ldapConn *ldap.Conn
 
-	log.Debugf("LDAPConnect()")
 	if p.UseSSL {
-		ldapConn, err = ldap.DialTLS("tcp", fmt.Sprintf("%s:%d", p.ServerHost, p.ServerPort), p.TLSConfig)
+		ldapConn, err = ldap.DialTLS("tcp", p.Host, p.TLSConfig)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		ldapConn, err = ldap.Dial("tcp", fmt.Sprintf("%s:%d", p.ServerHost, p.ServerPort))
+		ldapConn, err = ldap.Dial("tcp", p.Host)
 		if err != nil {
 			return nil, err
 		}
@@ -402,74 +421,114 @@ func (p *LDAPPool) ldapConnect() (*ldap.Conn, error) {
 	return ldapConn, err
 }
 
-func (m *LDAPIdentityProvider) ParseString(template, username string) string {
+// invalidBindCredentials determines if a bind error was the result of invalid
+// credentials.
+func invalidBindCredentials(err error) bool {
+	ldapErr, ok := err.(*ldap.Error)
+	if ok {
+		return false
+	}
+	return ldapErr.ResultCode == ldap.LDAPResultInvalidCredentials
+}
+
+func (c *LDAPConnector) formatDN(template, username string) string {
 	result := template
 	result = strings.Replace(result, "%u", username, -1)
-	result = strings.Replace(result, "%b", m.baseDN, -1)
+	result = strings.Replace(result, "%b", c.baseDN, -1)
 
 	return result
 }
 
-func (m *LDAPIdentityProvider) Identity(username, password string) (*oidc.Identity, error) {
-	var err error
-	var bindDN, ldapUid, ldapName, ldapEmail string
-	var ldapConn *ldap.Conn
+func (c *LDAPConnector) Identity(username, password string) (*oidc.Identity, error) {
+	log.Errorf("handling identity")
+	var (
+		identity *oidc.Identity
+		err      error
+	)
+	if c.searchBeforeAuth {
+		err = c.ldapPool.Do(func(conn *ldap.Conn) error {
+			if err := conn.Bind(c.searchBindDN, c.searchBindPw); err != nil {
+				// Don't wrap error as it may be a specific LDAP error.
+				return err
+			}
 
-	ldapConn, err = m.ldapPool.Acquire()
-	if err != nil {
-		return nil, err
-	}
-	defer m.ldapPool.Put(ldapConn)
+			filter := c.formatDN(c.searchFilter, username)
+			req := &ldap.SearchRequest{
+				BaseDN:     c.baseDN,
+				Scope:      c.searchScope,
+				Filter:     filter,
+				Attributes: []string{c.nameAttribute, c.emailAttribute},
+			}
+			resp, err := conn.Search(req)
+			if err != nil {
+				return fmt.Errorf("search failed: %v", err)
+			}
+			switch len(resp.Entries) {
+			case 0:
+				return errors.New("user not found by search")
+			case 1:
+			default:
+				// For now reject searches that return multiple entries to avoid ambiguity.
+				log.Errorf("LDAP search %q returned %d entries. Must disambiguate searchFilter.", filter, len(resp.Entries))
+				return errors.New("search returned multiple entries")
+			}
 
-	if m.searchBeforeAuth {
-		err = ldapConn.Bind(m.searchBindDN, m.searchBindPw)
-		if err != nil {
-			return nil, err
-		}
+			entry := resp.Entries[0]
+			email := entry.GetAttributeValue(c.emailAttribute)
+			if email == "" {
+				return fmt.Errorf("no email attribute found")
+			}
 
-		filter := m.ParseString(m.searchFilter, username)
+			identity = &oidc.Identity{
+				ID:    entry.DN,
+				Name:  entry.GetAttributeValue(c.nameAttribute),
+				Email: email,
+			}
 
-		attributes := []string{
-			m.nameAttribute,
-			m.emailAttribute,
-		}
-
-		s := ldap.NewSearchRequest(m.baseDN, m.searchScope, ldap.NeverDerefAliases, 0, 0, false, filter, attributes, nil)
-
-		sr, err := ldapConn.Search(s)
-		if err != nil {
-			return nil, err
-		}
-		if len(sr.Entries) == 0 {
-			err = fmt.Errorf("Search returned no match. filter='%v' base='%v'", filter, m.baseDN)
-			return nil, err
-		}
-
-		bindDN = sr.Entries[0].DN
-		ldapName = sr.Entries[0].GetAttributeValue(m.nameAttribute)
-		ldapEmail = sr.Entries[0].GetAttributeValue(m.emailAttribute)
-
-		// prepare LDAP connection for bind as user
-		m.ldapPool.Put(ldapConn)
-		ldapConn, err = m.ldapPool.Acquire()
-		if err != nil {
-			return nil, err
-		}
+			// Attempt to bind as the end user.
+			return conn.Bind(entry.DN, password)
+		})
 	} else {
-		bindDN = m.ParseString(m.bindTemplate, username)
+		err = c.ldapPool.Do(func(conn *ldap.Conn) error {
+			userBindDN := c.formatDN(c.bindTemplate, username)
+			if err := conn.Bind(userBindDN, password); err != nil {
+				// Don't wrap error as it may be a specific LDAP error.
+				return err
+			}
+
+			req := &ldap.SearchRequest{
+				BaseDN: userBindDN,
+				Scope:  ldap.ScopeBaseObject, // Only attempt to
+				Filter: "(objectClass=*)",
+			}
+			resp, err := conn.Search(req)
+			if err != nil {
+				return fmt.Errorf("search failed: %v", err)
+			}
+			if len(resp.Entries) == 0 {
+				// Are there cases were a user wouldn't be able to see their own entity?
+				return fmt.Errorf("user not found by search")
+			}
+			entry := resp.Entries[0]
+			email := entry.GetAttributeValue(c.emailAttribute)
+			if email == "" {
+				return fmt.Errorf("no email attribute found")
+			}
+
+			identity = &oidc.Identity{
+				ID:    entry.DN,
+				Name:  entry.GetAttributeValue(c.nameAttribute),
+				Email: email,
+			}
+			return nil
+		})
 	}
 
-	// authenticate user
-	err = ldapConn.Bind(bindDN, password)
 	if err != nil {
+		if !invalidBindCredentials(err) {
+			log.Errorf("failed to connect to LDAP for search bind: %v", err)
+		}
 		return nil, err
 	}
-
-	ldapUid = bindDN
-
-	return &oidc.Identity{
-		ID:    ldapUid,
-		Name:  ldapName,
-		Email: ldapEmail,
-	}, nil
+	return identity, nil
 }

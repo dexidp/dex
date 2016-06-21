@@ -87,7 +87,7 @@ func (c *LocalConnector) LoginURL(sessionKey, prompt string) (string, error) {
 
 func (c *LocalConnector) Register(mux *http.ServeMux, errorURL url.URL) {
 	route := c.namespace.Path + "/login"
-	mux.Handle(route, handleLoginFunc(c.loginFunc, c.loginTpl, c.idp, route, errorURL))
+	mux.Handle(route, handlePasswordLogin(c.loginFunc, c.loginTpl, c.idp, route, errorURL))
 }
 
 func (c *LocalConnector) Sync() chan struct{} {
