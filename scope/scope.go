@@ -41,6 +41,9 @@ func (s Scopes) Contains(other Scopes) bool {
 
 	for _, scope := range other {
 		if _, ok := rScopes[scope]; !ok {
+			if scope == "" {
+				continue
+			}
 			return false
 		}
 	}
