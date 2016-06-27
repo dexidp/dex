@@ -39,7 +39,7 @@ deploy:
   skip_cleanup: true
   on:
     branch: master
-    go: '1.5.3'
+    go: '1.6.2'
     condition: "$TRAVIS_PULL_REQUEST = false"
 
 notifications:
