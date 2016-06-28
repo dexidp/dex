@@ -196,7 +196,7 @@ func (r *clientRepo) New(tx repo.Transaction, cli client.Client) (*oidc.ClientCr
 
 	if err := r.executor(tx).Insert(cim); err != nil {
 		if isAlreadyExistsErr(err) {
-			err = errors.New("client ID already exists")
+			return nil, client.ErrorDuplicateClientID
 		}
 		return nil, err
 	}

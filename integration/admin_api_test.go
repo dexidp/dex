@@ -68,6 +68,22 @@ var (
 			Password: []byte("hi."),
 		},
 	}
+
+	clients = []client.Client{
+		{
+			Credentials: oidc.ClientCredentials{
+				ID:     "client-1",
+				Secret: "Zm9vYmFy", // "foobar"
+			},
+			Metadata: oidc.ClientMetadata{
+				RedirectURIs: []url.URL{
+					url.URL{Scheme: "http", Host: "127.0.0.1:5556", Path: "/cb"},
+					url.URL{Scheme: "https", Host: "example.com", Path: "/callback"},
+				},
+			},
+			Admin: true,
+		},
+	}
 )
 
 type adminAPITransport struct {
@@ -93,6 +109,12 @@ func makeAdminAPITestFixtures() *adminAPITestFixtures {
 	cr := db.NewClientRepo(dbMap)
 	clientIDGenerator := func(hostport string) (string, error) {
 		return fmt.Sprintf("client_%v", hostport), nil
+	}
+	for _, client := range clients {
+		_, err := cr.New(nil, client)
+		if err != nil {
+			panic(err)
+		}
 	}
 	cm := manager.NewClientManager(cr, db.TransactionFactory(dbMap), manager.ManagerOptions{SecretGenerator: secGen, ClientIDGenerator: clientIDGenerator})
 	ccr := db.NewConnectorConfigRepo(dbMap)
@@ -563,6 +585,16 @@ func TestCreateClient(t *testing.T) {
 				Client: &adminClientBadSecret,
 			},
 			wantError: http.StatusBadRequest,
+		}, {
+			// Client ID already exists
+			req: adminschema.ClientCreateRequest{
+				Client: &adminschema.Client{
+					Id:           "client-1",
+					Secret:       "Zm9vYmFy",
+					RedirectURIs: []string{"https://auth.example.com/"},
+				},
+			},
+			wantError: http.StatusConflict,
 		},
 	}
 
@@ -597,7 +629,7 @@ func TestCreateClient(t *testing.T) {
 				continue
 			}
 			if aErr.Code != tt.wantError {
-				t.Errorf("case %d: want aErr.Code=%v, got %v", i, tt.wantError, aErr.Code)
+				t.Errorf("case %d: want aErr.Code=%v, got %v: %v", i, tt.wantError, aErr.Code, aErr)
 				continue
 			}
 			continue

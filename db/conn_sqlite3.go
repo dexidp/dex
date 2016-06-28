@@ -8,7 +8,7 @@ import "github.com/mattn/go-sqlite3"
 
 func init() {
 	registerAlreadyExistsChecker(func(err error) bool {
-		sqlErr, ok := err.(*sqlite3.Error)
+		sqlErr, ok := err.(sqlite3.Error)
 		if !ok {
 			return false
 		}
