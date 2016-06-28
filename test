@@ -9,7 +9,6 @@
 #   PKG=ssh ./test
 #
 
-# Invoke ./cover for HTML output
 COVER=${COVER:-"-cover"}
 
 source ./env
