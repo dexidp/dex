@@ -1,4 +1,4 @@
-FROM quay.io/brianredbeard/corebox
+FROM quay.io/coreos/alpine-sh
 
 ADD bin/dex-worker /opt/dex/bin/dex-worker
 ADD bin/dex-overlord /opt/dex/bin/dex-overlord

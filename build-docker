@@ -1,40 +1,33 @@
 #!/bin/bash -e
 #
-# Build the docker container and push it to quay
-# ./build-docker push
-#
-# Build the docker container locally without pushing to registry
-# ./build-docker build
+# Build dex for Linux using Docker.
 
-DOCKER_REGISTRY=${DOCKER_REGISTRY:=quay.io}
-DOCKER_REPO=${DOCKER_REPO:=coreos/dex}
-repo=$DOCKER_REGISTRY/$DOCKER_REPO
+buildImage="dex-builder:$( ./git-version )"
+tempdir="$( mktemp -d )"
+cidfile="${tempdir}/cid"
 
-version=$(./git-version)
-
-stage() {
-  echo -e "\033[36m----> $1\033[0m"
+cleanup() {
+    echo "Cleaning up"
+    docker rm $( cat $cidfile )
+    rm -rf $tempdir
+    docker rmi $buildImage
 }
+trap cleanup EXIT
 
-build() {
-  stage "build $repo:$version"
-  docker build -q --rm=true -t $repo:$version .
-  docker tag $repo:$version $repo:latest
-}
+echo "Creating build image"
 
-push() {
-  stage "push image $repo:$version"
-  if [ -v $DOCKER_USER ] || [ -v $DOCKER_PASSWORD ]; then
-      echo "env variables not set: DOCKER_USER, DOCKER_PASSWORD. skipping login, assuming creds in .dockercfg"
-  else
-      echo logging in as $DOCKER_USER
-      docker login --username="$DOCKER_USER" --password="$DOCKER_PASSWORD" --email="dex@example.com" $DOCKER_REGISTRY
-  fi
+docker build -t $buildImage -f Dockerfile-builder .
 
-  docker push $repo:$version
-  docker push $repo:latest
-}
+echo "Building binaries"
 
-test -z "$1" && build && push
-test "$1" = "push" && build && push
-test "$1" = "build" && build
+docker run --cidfile=${cidfile} $buildImage ./build
+cid=$( cat ${cidfile} )
+
+buildpath=/dex/gopath/src/github.com/coreos/dex/bin
+
+echo "Copying binaries from image"
+
+rm bin/*
+docker cp ${cid}:${buildpath}/dex-worker bin/dex-worker
+docker cp ${cid}:${buildpath}/dex-overlord bin/dex-overlord
+docker cp ${cid}:${buildpath}/dexctl bin/dexctl
