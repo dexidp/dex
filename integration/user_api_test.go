@@ -411,6 +411,24 @@ func TestCreateUser(t *testing.T) {
 		},
 		{
 
+			// Duplicate email
+			req: schema.UserCreateRequest{
+				User: &schema.User{
+					Email:         "Email-1@example.com",
+					DisplayName:   "New User",
+					EmailVerified: true,
+					Admin:         false,
+					CreatedAt:     clock.Now().Format(time.RFC3339),
+				},
+				RedirectURL: testRedirectURL.String(),
+			},
+
+			token: userGoodToken,
+
+			wantCode: http.StatusConflict,
+		},
+		{
+
 			req: schema.UserCreateRequest{
 				User: &schema.User{
 					Email:         "newuser@example.com",

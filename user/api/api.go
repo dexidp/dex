@@ -31,7 +31,7 @@ var (
 
 	ErrorInvalidClient = newError("invalid_client", "invalid email.", http.StatusBadRequest)
 
-	ErrorDuplicateEmail   = newError("duplicate_email", "Email already in use.", http.StatusBadRequest)
+	ErrorDuplicateEmail   = newError("duplicate_email", "Email already in use.", http.StatusConflict)
 	ErrorResourceNotFound = newError("resource_not_found", "Resource could not be found.", http.StatusNotFound)
 
 	ErrorUnauthorized = newError("unauthorized", "Necessary credentials not provided.", http.StatusUnauthorized)
