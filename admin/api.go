@@ -79,6 +79,7 @@ var (
 		client.ErrorPublicClientMissingName: errorMaker("bad_request", "Public clients require a ClientName", http.StatusBadRequest),
 
 		client.ErrorInvalidClientSecret: errorMaker("bad_request", "Secret must be a base64 encoded string", http.StatusBadRequest),
+		client.ErrorDuplicateClientID:   errorMaker("bad_request", "Client ID already exists.", http.StatusConflict),
 
 		user.ErrorNotFound:       errorMaker("resource_not_found", "Resource could not be found.", http.StatusNotFound),
 		user.ErrorDuplicateEmail: errorMaker("bad_request", "Email already in use.", http.StatusConflict),

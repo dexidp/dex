@@ -20,6 +20,8 @@ var (
 
 	ErrorInvalidClientSecret = errors.New("not a valid client Secret")
 
+	ErrorDuplicateClientID = errors.New("client ID already exists")
+
 	ErrorInvalidRedirectURL    = errors.New("not a valid redirect url for the given client")
 	ErrorCantChooseRedirectURL = errors.New("must provide a redirect url; client has many")
 	ErrorNoValidRedirectURLs   = errors.New("no valid redirect URLs for this client.")
