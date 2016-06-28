@@ -1,7 +1,6 @@
 package mailgun
 
 import (
-	"github.com/mbanzon/simplehttp"
 	"strconv"
 )
 
@@ -28,14 +27,15 @@ type complaintsEnvelope struct {
 // Recipients of your messages can click on a link which sends feedback to Mailgun
 // indicating that the message they received is, to them, spam.
 func (m *MailgunImpl) GetComplaints(limit, skip int) (int, []Complaint, error) {
-	r := simplehttp.NewHTTPRequest(generateApiUrl(m, complaintsEndpoint))
-	r.SetBasicAuth(basicAuthUser, m.ApiKey())
+	r := newHTTPRequest(generateApiUrl(m, complaintsEndpoint))
+	r.setClient(m.Client())
+	r.setBasicAuth(basicAuthUser, m.ApiKey())
 
 	if limit != -1 {
-		r.AddParameter("limit", strconv.Itoa(limit))
+		r.addParameter("limit", strconv.Itoa(limit))
 	}
 	if skip != -1 {
-		r.AddParameter("skip", strconv.Itoa(skip))
+		r.addParameter("skip", strconv.Itoa(skip))
 	}
 
 	var envelope complaintsEnvelope
@@ -49,8 +49,9 @@ func (m *MailgunImpl) GetComplaints(limit, skip int) (int, []Complaint, error) {
 // GetSingleComplaint returns a single complaint record filed by a recipient at the email address provided.
 // If no complaint exists, the Complaint instance returned will be empty.
 func (m *MailgunImpl) GetSingleComplaint(address string) (Complaint, error) {
-	r := simplehttp.NewHTTPRequest(generateApiUrl(m, complaintsEndpoint) + "/" + address)
-	r.SetBasicAuth(basicAuthUser, m.ApiKey())
+	r := newHTTPRequest(generateApiUrl(m, complaintsEndpoint) + "/" + address)
+	r.setClient(m.Client())
+	r.setBasicAuth(basicAuthUser, m.ApiKey())
 
 	var c Complaint
 	err := getResponseFromJSON(r, &c)
@@ -60,10 +61,11 @@ func (m *MailgunImpl) GetSingleComplaint(address string) (Complaint, error) {
 // CreateComplaint registers the specified address as a recipient who has complained of receiving spam
 // from your domain.
 func (m *MailgunImpl) CreateComplaint(address string) error {
-	r := simplehttp.NewHTTPRequest(generateApiUrl(m, complaintsEndpoint))
-	r.SetBasicAuth(basicAuthUser, m.ApiKey())
-	p := simplehttp.NewUrlEncodedPayload()
-	p.AddValue("address", address)
+	r := newHTTPRequest(generateApiUrl(m, complaintsEndpoint))
+	r.setClient(m.Client())
+	r.setBasicAuth(basicAuthUser, m.ApiKey())
+	p := newUrlEncodedPayload()
+	p.addValue("address", address)
 	_, err := makePostRequest(r, p)
 	return err
 }
@@ -71,8 +73,9 @@ func (m *MailgunImpl) CreateComplaint(address string) error {
 // DeleteComplaint removes a previously registered e-mail address from the list of people who complained
 // of receiving spam from your domain.
 func (m *MailgunImpl) DeleteComplaint(address string) error {
-	r := simplehttp.NewHTTPRequest(generateApiUrl(m, complaintsEndpoint) + "/" + address)
-	r.SetBasicAuth(basicAuthUser, m.ApiKey())
+	r := newHTTPRequest(generateApiUrl(m, complaintsEndpoint) + "/" + address)
+	r.setClient(m.Client())
+	r.setBasicAuth(basicAuthUser, m.ApiKey())
 	_, err := makeDeleteRequest(r)
 	return err
 }

@@ -5,8 +5,6 @@ import (
 	"errors"
 	"io"
 	"time"
-
-	"github.com/mbanzon/simplehttp"
 )
 
 // MaxNumberOfRecipients represents the largest batch of recipients that Mailgun can support in a single API call.
@@ -118,7 +116,7 @@ type features interface {
 	addCC(string)
 	addBCC(string)
 	setHtml(string)
-	addValues(*simplehttp.FormDataPayload)
+	addValues(*formDataPayload)
 	isValid() bool
 	endpoint() string
 	recipientCount() int
@@ -423,44 +421,44 @@ func (m *MailgunImpl) Send(message *Message) (mes string, id string, err error) 
 	if !isValid(message) {
 		err = errors.New("Message not valid")
 	} else {
-		payload := simplehttp.NewFormDataPayload()
+		payload := newFormDataPayload()
 
 		message.specific.addValues(payload)
 		for _, to := range message.to {
-			payload.AddValue("to", to)
+			payload.addValue("to", to)
 		}
 		for _, tag := range message.tags {
-			payload.AddValue("o:tag", tag)
+			payload.addValue("o:tag", tag)
 		}
 		for _, campaign := range message.campaigns {
-			payload.AddValue("o:campaign", campaign)
+			payload.addValue("o:campaign", campaign)
 		}
 		if message.dkimSet {
-			payload.AddValue("o:dkim", yesNo(message.dkim))
+			payload.addValue("o:dkim", yesNo(message.dkim))
 		}
 		if message.deliveryTime != nil {
-			payload.AddValue("o:deliverytime", formatMailgunTime(message.deliveryTime))
+			payload.addValue("o:deliverytime", formatMailgunTime(message.deliveryTime))
 		}
 		if message.testMode {
-			payload.AddValue("o:testmode", "yes")
+			payload.addValue("o:testmode", "yes")
 		}
 		if message.trackingSet {
-			payload.AddValue("o:tracking", yesNo(message.tracking))
+			payload.addValue("o:tracking", yesNo(message.tracking))
 		}
 		if message.trackingClicksSet {
-			payload.AddValue("o:tracking-clicks", yesNo(message.trackingClicks))
+			payload.addValue("o:tracking-clicks", yesNo(message.trackingClicks))
 		}
 		if message.trackingOpensSet {
-			payload.AddValue("o:tracking-opens", yesNo(message.trackingOpens))
+			payload.addValue("o:tracking-opens", yesNo(message.trackingOpens))
 		}
 		if message.headers != nil {
 			for header, value := range message.headers {
-				payload.AddValue("h:"+header, value)
+				payload.addValue("h:"+header, value)
 			}
 		}
 		if message.variables != nil {
 			for variable, value := range message.variables {
-				payload.AddValue("v:"+variable, value)
+				payload.addValue("v:"+variable, value)
 			}
 		}
 		if message.recipientVariables != nil {
@@ -468,26 +466,27 @@ func (m *MailgunImpl) Send(message *Message) (mes string, id string, err error) 
 			if err != nil {
 				return "", "", err
 			}
-			payload.AddValue("recipient-variables", string(j))
+			payload.addValue("recipient-variables", string(j))
 		}
 		if message.attachments != nil {
 			for _, attachment := range message.attachments {
-				payload.AddFile("attachment", attachment)
+				payload.addFile("attachment", attachment)
 			}
 		}
 		if message.readerAttachments != nil {
 			for _, readerAttachment := range message.readerAttachments {
-				payload.AddReadCloser("attachment", readerAttachment.Filename, readerAttachment.ReadCloser)
+				payload.addReadCloser("attachment", readerAttachment.Filename, readerAttachment.ReadCloser)
 			}
 		}
 		if message.inlines != nil {
 			for _, inline := range message.inlines {
-				payload.AddFile("inline", inline)
+				payload.addFile("inline", inline)
 			}
 		}
 
-		r := simplehttp.NewHTTPRequest(generateApiUrl(m, message.specific.endpoint()))
-		r.SetBasicAuth(basicAuthUser, m.ApiKey())
+		r := newHTTPRequest(generateApiUrl(m, message.specific.endpoint()))
+		r.setClient(m.Client())
+		r.setBasicAuth(basicAuthUser, m.ApiKey())
 
 		var response sendMessageResponse
 		err = postResponseFromJSON(r, payload, &response)
@@ -500,23 +499,23 @@ func (m *MailgunImpl) Send(message *Message) (mes string, id string, err error) 
 	return
 }
 
-func (pm *plainMessage) addValues(p *simplehttp.FormDataPayload) {
-	p.AddValue("from", pm.from)
-	p.AddValue("subject", pm.subject)
-	p.AddValue("text", pm.text)
+func (pm *plainMessage) addValues(p *formDataPayload) {
+	p.addValue("from", pm.from)
+	p.addValue("subject", pm.subject)
+	p.addValue("text", pm.text)
 	for _, cc := range pm.cc {
-		p.AddValue("cc", cc)
+		p.addValue("cc", cc)
 	}
 	for _, bcc := range pm.bcc {
-		p.AddValue("bcc", bcc)
+		p.addValue("bcc", bcc)
 	}
 	if pm.html != "" {
-		p.AddValue("html", pm.html)
+		p.addValue("html", pm.html)
 	}
 }
 
-func (mm *mimeMessage) addValues(p *simplehttp.FormDataPayload) {
-	p.AddReadCloser("message", "message.mime", mm.body)
+func (mm *mimeMessage) addValues(p *formDataPayload) {
+	p.addReadCloser("message", "message.mime", mm.body)
 }
 
 func (pm *plainMessage) endpoint() string {
@@ -612,8 +611,9 @@ func validateStringList(list []string, requireOne bool) bool {
 // This provides visibility into, e.g., replies to a message sent to a mailing list.
 func (mg *MailgunImpl) GetStoredMessage(id string) (StoredMessage, error) {
 	url := generateStoredMessageUrl(mg, messagesEndpoint, id)
-	r := simplehttp.NewHTTPRequest(url)
-	r.SetBasicAuth(basicAuthUser, mg.ApiKey())
+	r := newHTTPRequest(url)
+	r.setClient(mg.Client())
+	r.setBasicAuth(basicAuthUser, mg.ApiKey())
 
 	var response StoredMessage
 	err := getResponseFromJSON(r, &response)
@@ -625,9 +625,10 @@ func (mg *MailgunImpl) GetStoredMessage(id string) (StoredMessage, error) {
 // thus delegates to the caller the required parsing.
 func (mg *MailgunImpl) GetStoredMessageRaw(id string) (StoredMessageRaw, error) {
 	url := generateStoredMessageUrl(mg, messagesEndpoint, id)
-	r := simplehttp.NewHTTPRequest(url)
-	r.SetBasicAuth(basicAuthUser, mg.ApiKey())
-	r.AddHeader("Accept", "message/rfc2822")
+	r := newHTTPRequest(url)
+	r.setClient(mg.Client())
+	r.setBasicAuth(basicAuthUser, mg.ApiKey())
+	r.addHeader("Accept", "message/rfc2822")
 
 	var response StoredMessageRaw
 	err := getResponseFromJSON(r, &response)
@@ -640,8 +641,9 @@ func (mg *MailgunImpl) GetStoredMessageRaw(id string) (StoredMessageRaw, error) 
 // Consult the current Mailgun API documentation for more details.
 func (mg *MailgunImpl) DeleteStoredMessage(id string) error {
 	url := generateStoredMessageUrl(mg, messagesEndpoint, id)
-	r := simplehttp.NewHTTPRequest(url)
-	r.SetBasicAuth(basicAuthUser, mg.ApiKey())
+	r := newHTTPRequest(url)
+	r.setClient(mg.Client())
+	r.setBasicAuth(basicAuthUser, mg.ApiKey())
 	_, err := makeDeleteRequest(r)
 	return err
 }
