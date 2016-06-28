@@ -33,15 +33,6 @@ script:
   - ./test-functional
   - DEX_TEST_DSN="sqlite3://:memory:" ./test-functional
 
-deploy:
-  provider: script
-  script: "./build-docker push"
-  skip_cleanup: true
-  on:
-    branch: master
-    go: '1.6.2'
-    condition: "$TRAVIS_PULL_REQUEST = false"
-
 notifications:
   email: false
 

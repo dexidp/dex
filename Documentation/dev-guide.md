@@ -21,33 +21,15 @@ Starting dex is then as simple as:
 bin/dex-worker  --no-db
 ```
 
-***Do not use this flag in production*** - it's not thread safe and data is destroyed when the process dies. In addition, there is no key rotation.
+***Do not use this flag in production*** - data is destroyed when the process dies and there is no key rotation.
 
 Note: If you want to test out the registration flow, you need to enable that feature by passing `--enable-registration=true` as well.
 
 ## Building
 
-To build using the go binary on your host, use the `./build` script.
+To build using the go binary on your host, use the `./build` script. Note that __dex cannot be cross compiled__ due to cgo dependencies.
 
-You can also use a copy of `go` hosted inside a Docker container if you prefix your command with `go-docker`, as in: `./go-docker ./build`
-
-## Docker Build and Push
-
-Once binaries are compiled you can build and push a dex image to quay.io. Before doing this step binaries must be built above using one of the build tools.
-
-```console
-./build-docker build
-```
-
-If you want to push the build to quay.io, use `./build-docker push`:
-
-```console
-export DOCKER_USER=<<your user>>
-export DOCKER_PASSWORD=<<your password>>
-./build-docker push
-```
-
-By default the script pushes to `quay.io/coreos/dex`; if you want to push to a different repository, override the `DOCKER_REGISTRY` and `DOCKER_REPO` environment variables.
+Docker can be used to build Linux binaries using the `./build-docker` script. Either for Linux user without Go on their host, or for users wishing to cross-compile dex.
 
 ## Rebuild API from JSON schema
 

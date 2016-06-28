@@ -1,0 +1,20 @@
+#!/bin/bash -e
+#
+# Build the docker container and push it to quay
+# ./build-docker push
+#
+# Build the docker container locally without pushing to registry
+# ./build-docker build
+
+DOCKER_REGISTRY=${DOCKER_REGISTRY:=quay.io}
+DOCKER_REPO=${DOCKER_REPO:=coreos/dex}
+repo=$DOCKER_REGISTRY/$DOCKER_REPO
+
+version=$(./git-version)
+
+./build-docker
+
+echo "Creating release image"
+
+docker build -q --rm=true -t $repo:$version -f Dockerfile .
+docker tag $repo:$version $repo:latest

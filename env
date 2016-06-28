@@ -26,9 +26,15 @@ PROJ="dex"
 ORG_PATH="github.com/coreos"
 REPO_PATH="${ORG_PATH}/${PROJ}"
 
-if [ ! -h gopath/src/${REPO_PATH} ]; then
-	mkdir -p gopath/src/${ORG_PATH}
-	ln -s ${PWD} gopath/src/${REPO_PATH} || exit 255
+LINK_PATH=gopath/src/${REPO_PATH}
+
+if [ -h "${LINK_PATH}" ]; then
+    unlink ${LINK_PATH}
+fi
+
+if [ ! -h ${LINK_PATH} ]; then
+    mkdir -p gopath/src/${ORG_PATH}
+	ln -s ${PWD} ${LINK_PATH} || exit 255
 fi
 
 export GOPATH=${PWD}/gopath
