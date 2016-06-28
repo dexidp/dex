@@ -2,7 +2,6 @@ package mailgun
 
 import (
 	"fmt"
-	"github.com/mbanzon/simplehttp"
 	"strconv"
 )
 
@@ -18,14 +17,15 @@ var ErrEmptyParam = fmt.Errorf("empty or illegal parameter")
 
 // GetCredentials returns the (possibly zero-length) list of credentials associated with your domain.
 func (mg *MailgunImpl) GetCredentials(limit, skip int) (int, []Credential, error) {
-	r := simplehttp.NewHTTPRequest(generateCredentialsUrl(mg, ""))
+	r := newHTTPRequest(generateCredentialsUrl(mg, ""))
+	r.setClient(mg.Client())
 	if limit != DefaultLimit {
-		r.AddParameter("limit", strconv.Itoa(limit))
+		r.addParameter("limit", strconv.Itoa(limit))
 	}
 	if skip != DefaultSkip {
-		r.AddParameter("skip", strconv.Itoa(skip))
+		r.addParameter("skip", strconv.Itoa(skip))
 	}
-	r.SetBasicAuth(basicAuthUser, mg.ApiKey())
+	r.setBasicAuth(basicAuthUser, mg.ApiKey())
 	var envelope struct {
 		TotalCount int          `json:"total_count"`
 		Items      []Credential `json:"items"`
@@ -42,11 +42,12 @@ func (mg *MailgunImpl) CreateCredential(login, password string) error {
 	if (login == "") || (password == "") {
 		return ErrEmptyParam
 	}
-	r := simplehttp.NewHTTPRequest(generateCredentialsUrl(mg, ""))
-	r.SetBasicAuth(basicAuthUser, mg.ApiKey())
-	p := simplehttp.NewUrlEncodedPayload()
-	p.AddValue("login", login)
-	p.AddValue("password", password)
+	r := newHTTPRequest(generateCredentialsUrl(mg, ""))
+	r.setClient(mg.Client())
+	r.setBasicAuth(basicAuthUser, mg.ApiKey())
+	p := newUrlEncodedPayload()
+	p.addValue("login", login)
+	p.addValue("password", password)
 	_, err := makePostRequest(r, p)
 	return err
 }
@@ -56,10 +57,11 @@ func (mg *MailgunImpl) ChangeCredentialPassword(id, password string) error {
 	if (id == "") || (password == "") {
 		return ErrEmptyParam
 	}
-	r := simplehttp.NewHTTPRequest(generateCredentialsUrl(mg, id))
-	r.SetBasicAuth(basicAuthUser, mg.ApiKey())
-	p := simplehttp.NewUrlEncodedPayload()
-	p.AddValue("password", password)
+	r := newHTTPRequest(generateCredentialsUrl(mg, id))
+	r.setClient(mg.Client())
+	r.setBasicAuth(basicAuthUser, mg.ApiKey())
+	p := newUrlEncodedPayload()
+	p.addValue("password", password)
 	_, err := makePutRequest(r, p)
 	return err
 }
@@ -69,8 +71,9 @@ func (mg *MailgunImpl) DeleteCredential(id string) error {
 	if id == "" {
 		return ErrEmptyParam
 	}
-	r := simplehttp.NewHTTPRequest(generateCredentialsUrl(mg, id))
-	r.SetBasicAuth(basicAuthUser, mg.ApiKey())
+	r := newHTTPRequest(generateCredentialsUrl(mg, id))
+	r.setClient(mg.Client())
+	r.setBasicAuth(basicAuthUser, mg.ApiKey())
 	_, err := makeDeleteRequest(r)
 	return err
 }

@@ -1,7 +1,6 @@
 package mailgun
 
 import (
-	"github.com/mbanzon/simplehttp"
 	"strconv"
 	"time"
 )
@@ -23,23 +22,24 @@ type statsEnvelope struct {
 // Events start at the given start date, if one is provided.
 // If not, this function will consider all stated events dating to the creation of the sending domain.
 func (m *MailgunImpl) GetStats(limit int, skip int, startDate *time.Time, event ...string) (int, []Stat, error) {
-	r := simplehttp.NewHTTPRequest(generateApiUrl(m, statsEndpoint))
+	r := newHTTPRequest(generateApiUrl(m, statsEndpoint))
 
 	if limit != -1 {
-		r.AddParameter("limit", strconv.Itoa(limit))
+		r.addParameter("limit", strconv.Itoa(limit))
 	}
 	if skip != -1 {
-		r.AddParameter("skip", strconv.Itoa(skip))
+		r.addParameter("skip", strconv.Itoa(skip))
 	}
 
 	if startDate != nil {
-		r.AddParameter("start-date", startDate.Format(time.RFC3339))
+		r.addParameter("start-date", startDate.Format(time.RFC3339))
 	}
 
 	for _, e := range event {
-		r.AddParameter("event", e)
+		r.addParameter("event", e)
 	}
-	r.SetBasicAuth(basicAuthUser, m.ApiKey())
+	r.setClient(m.Client())
+	r.setBasicAuth(basicAuthUser, m.ApiKey())
 
 	var res statsEnvelope
 	err := getResponseFromJSON(r, &res)
@@ -52,8 +52,9 @@ func (m *MailgunImpl) GetStats(limit int, skip int, startDate *time.Time, event 
 
 // DeleteTag removes all counters for a particular tag, including the tag itself.
 func (m *MailgunImpl) DeleteTag(tag string) error {
-	r := simplehttp.NewHTTPRequest(generateApiUrl(m, deleteTagEndpoint) + "/" + tag)
-	r.SetBasicAuth(basicAuthUser, m.ApiKey())
+	r := newHTTPRequest(generateApiUrl(m, deleteTagEndpoint) + "/" + tag)
+	r.setClient(m.Client())
+	r.setBasicAuth(basicAuthUser, m.ApiKey())
 	_, err := makeDeleteRequest(r)
 	return err
 }

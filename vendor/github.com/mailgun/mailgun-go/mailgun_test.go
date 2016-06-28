@@ -1,6 +1,7 @@
 package mailgun
 
 import (
+	"net/http"
 	"strconv"
 	"testing"
 )
@@ -22,6 +23,15 @@ func TestMailgun(t *testing.T) {
 
 	if publicApiKey != m.PublicApiKey() {
 		t.Fatal("PublicApiKey not equal!")
+	}
+
+	if http.DefaultClient != m.Client() {
+		t.Fatal("HTTP client not default!")
+	}
+	client := new(http.Client)
+	m.SetClient(client)
+	if client != m.Client() {
+		t.Fatal("HTTP client not equal!")
 	}
 }
 

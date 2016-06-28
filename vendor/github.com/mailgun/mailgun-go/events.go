@@ -2,7 +2,6 @@ package mailgun
 
 import (
 	"fmt"
-	"github.com/mbanzon/simplehttp"
 	"time"
 )
 
@@ -58,28 +57,28 @@ func (ei *EventIterator) GetFirstPage(opts GetEventsOptions) error {
 		return fmt.Errorf("collation cannot at once be both ascending and descending")
 	}
 
-	payload := simplehttp.NewUrlEncodedPayload()
+	payload := newUrlEncodedPayload()
 	if opts.Limit != 0 {
-		payload.AddValue("limit", fmt.Sprintf("%d", opts.Limit))
+		payload.addValue("limit", fmt.Sprintf("%d", opts.Limit))
 	}
 	if opts.Compact {
-		payload.AddValue("pretty", "no")
+		payload.addValue("pretty", "no")
 	}
 	if opts.ForceAscending {
-		payload.AddValue("ascending", "yes")
+		payload.addValue("ascending", "yes")
 	}
 	if opts.ForceDescending {
-		payload.AddValue("ascending", "no")
+		payload.addValue("ascending", "no")
 	}
 	if opts.Begin != noTime {
-		payload.AddValue("begin", formatMailgunTime(&opts.Begin))
+		payload.addValue("begin", formatMailgunTime(&opts.Begin))
 	}
 	if opts.End != noTime {
-		payload.AddValue("end", formatMailgunTime(&opts.End))
+		payload.addValue("end", formatMailgunTime(&opts.End))
 	}
 	if opts.Filter != nil {
 		for k, v := range opts.Filter {
-			payload.AddValue(k, v)
+			payload.addValue(k, v)
 		}
 	}
 
@@ -105,8 +104,9 @@ func (ei *EventIterator) GetNext() error {
 // GetFirstPage, GetPrevious, and GetNext all have a common body of code.
 // fetch completes the API fetch common to all three of these functions.
 func (ei *EventIterator) fetch(url string) error {
-	r := simplehttp.NewHTTPRequest(url)
-	r.SetBasicAuth(basicAuthUser, ei.mg.ApiKey())
+	r := newHTTPRequest(url)
+	r.setClient(ei.mg.Client())
+	r.setBasicAuth(basicAuthUser, ei.mg.ApiKey())
 	var response map[string]interface{}
 	err := getResponseFromJSON(r, &response)
 	if err != nil {
