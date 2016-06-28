@@ -201,7 +201,7 @@ func TestCreateAdmin(t *testing.T) {
 				Email:    "Email-1@example.com",
 				Password: "foopass",
 			},
-			errCode: http.StatusBadRequest,
+			errCode: http.StatusConflict,
 		},
 		{
 			// missing Email

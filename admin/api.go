@@ -81,7 +81,7 @@ var (
 		client.ErrorInvalidClientSecret: errorMaker("bad_request", "Secret must be a base64 encoded string", http.StatusBadRequest),
 
 		user.ErrorNotFound:       errorMaker("resource_not_found", "Resource could not be found.", http.StatusNotFound),
-		user.ErrorDuplicateEmail: errorMaker("bad_request", "Email already in use.", http.StatusBadRequest),
+		user.ErrorDuplicateEmail: errorMaker("bad_request", "Email already in use.", http.StatusConflict),
 		user.ErrorInvalidEmail:   errorMaker("bad_request", "invalid email.", http.StatusBadRequest),
 
 		adminschema.ErrorInvalidRedirectURI: errorMaker("bad_request", "invalid redirectURI.", http.StatusBadRequest),
