@@ -12,6 +12,7 @@ go:
 env:
   - DEX_TEST_DSN="postgres://postgres@127.0.0.1:15432/postgres?sslmode=disable" ISOLATED=true
     DEX_TEST_LDAP_HOST="tlstest.local:1389"
+    DEX_TEST_LDAPS_HOST="tlstest.local:1636"
     DEX_TEST_LDAP_BINDNAME="cn=admin,dc=example,dc=org"
     DEX_TEST_LDAP_BINDPASS="admin"
 

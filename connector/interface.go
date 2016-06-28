@@ -65,7 +65,3 @@ type ConnectorConfigRepo interface {
 	GetConnectorByID(repo.Transaction, string) (ConnectorConfig, error)
 	Set(cfgs []ConnectorConfig) error
 }
-
-type IdentityProvider interface {
-	Identity(email, password string) (*oidc.Identity, error)
-}

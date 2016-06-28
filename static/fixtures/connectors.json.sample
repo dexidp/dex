@@ -25,8 +25,7 @@
 	{
 		"type": "ldap",
 		"id": "ldap",
-		"serverHost": "127.0.0.1",
-		"serverPort": 389,
+		"host": "127.0.0.1:389",
 		"useTLS": true,
 		"useSSL": false,
 		"caFile": "/etc/ssl/certs/example_com_root.crt",

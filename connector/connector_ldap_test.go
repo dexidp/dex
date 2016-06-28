@@ -21,6 +21,7 @@ func init() {
 func TestLDAPConnectorConfigValidTLS(t *testing.T) {
 	cc := LDAPConnectorConfig{
 		ID:     "ldap",
+		Host:   "example.com:636",
 		UseTLS: true,
 		UseSSL: false,
 	}
@@ -34,6 +35,7 @@ func TestLDAPConnectorConfigValidTLS(t *testing.T) {
 func TestLDAPConnectorConfigInvalidSSLandTLS(t *testing.T) {
 	cc := LDAPConnectorConfig{
 		ID:     "ldap",
+		Host:   "example.com:636",
 		UseTLS: true,
 		UseSSL: true,
 	}
@@ -47,6 +49,7 @@ func TestLDAPConnectorConfigInvalidSSLandTLS(t *testing.T) {
 func TestLDAPConnectorConfigValidSearchScope(t *testing.T) {
 	cc := LDAPConnectorConfig{
 		ID:          "ldap",
+		Host:        "example.com:636",
 		SearchScope: "one",
 	}
 
@@ -59,6 +62,7 @@ func TestLDAPConnectorConfigValidSearchScope(t *testing.T) {
 func TestLDAPConnectorConfigInvalidSearchScope(t *testing.T) {
 	cc := LDAPConnectorConfig{
 		ID:          "ldap",
+		Host:        "example.com:636",
 		SearchScope: "three",
 	}
 
@@ -71,6 +75,7 @@ func TestLDAPConnectorConfigInvalidSearchScope(t *testing.T) {
 func TestLDAPConnectorConfigInvalidCertFileNoKeyFile(t *testing.T) {
 	cc := LDAPConnectorConfig{
 		ID:       "ldap",
+		Host:     "example.com:636",
 		CertFile: "/tmp/ldap.crt",
 	}
 
@@ -83,6 +88,7 @@ func TestLDAPConnectorConfigInvalidCertFileNoKeyFile(t *testing.T) {
 func TestLDAPConnectorConfigValidCertFileAndKeyFile(t *testing.T) {
 	cc := LDAPConnectorConfig{
 		ID:       "ldap",
+		Host:     "example.com:636",
 		CertFile: "/tmp/ldap.crt",
 		KeyFile:  "/tmp/ldap.key",
 	}
