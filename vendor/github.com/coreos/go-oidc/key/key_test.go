@@ -87,3 +87,17 @@ func TestPublicKeyMarshalJSON(t *testing.T) {
 		t.Errorf("got != want:\n%s\n%s", got, want)
 	}
 }
+
+func TestGeneratePrivateKeyIDs(t *testing.T) {
+	key1, err := GeneratePrivateKey()
+	if err != nil {
+		t.Fatalf("GeneratePrivateKey(): %v", err)
+	}
+	key2, err := GeneratePrivateKey()
+	if err != nil {
+		t.Fatalf("GeneratePrivateKey(): %v", err)
+	}
+	if key1.KeyID == key2.KeyID {
+		t.Fatalf("expected different keys to have different key IDs")
+	}
+}
