@@ -198,7 +198,8 @@ func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, err
 	emailer, err := email.NewTemplatizedEmailerFromGlobs(
 		emailTemplatesLocation+"/*.txt",
 		emailTemplatesLocation+"/*.html",
-		&email.FakeEmailer{})
+		&email.FakeEmailer{},
+		"admin@example.com")
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +267,6 @@ func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, err
 		srv.SessionManager.ValidityWindow,
 		srv.IssuerURL,
 		emailer,
-		"noreply@example.com",
 		srv.absURL(httpPathResetPassword),
 		srv.absURL(httpPathEmailVerify),
 		srv.absURL(httpPathAcceptInvitation),

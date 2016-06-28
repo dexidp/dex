@@ -21,6 +21,7 @@ type SmtpEmailerConfig struct {
 	Auth     string `json:"auth"`
 	Username string `json:"username"`
 	Password string `json:"password"`
+	FromAddr string `json:"from"`
 }
 
 func (cfg SmtpEmailerConfig) EmailerType() string {
@@ -31,7 +32,16 @@ func (cfg SmtpEmailerConfig) EmailerID() string {
 	return SmtpEmailerType
 }
 
-func (cfg SmtpEmailerConfig) Emailer() (Emailer, error) {
+func (cfg SmtpEmailerConfig) Emailer(fromAddr string) (Emailer, error) {
+	from := cfg.FromAddr
+	if from == "" {
+		from = fromAddr
+	}
+
+	if from == "" {
+		return nil, errors.New(`missing "from" field in email config`)
+	}
+
 	var dialer *gomail.Dialer
 	if cfg.Auth == "plain" {
 		dialer = gomail.NewPlainDialer(cfg.Host, cfg.Port, cfg.Username, cfg.Password)
@@ -43,6 +53,7 @@ func (cfg SmtpEmailerConfig) Emailer() (Emailer, error) {
 	}
 	return &smtpEmailer{
 		dialer: dialer,
+		from:   from,
 	}, nil
 }
 
@@ -66,11 +77,12 @@ func (cfg *SmtpEmailerConfig) UnmarshalJSON(data []byte) error {
 
 type smtpEmailer struct {
 	dialer *gomail.Dialer
+	from   string
 }
 
-func (emailer *smtpEmailer) SendMail(from, subject, text, html string, to ...string) error {
+func (emailer *smtpEmailer) SendMail(subject, text, html string, to ...string) error {
 	msg := gomail.NewMessage()
-	msg.SetHeader("From", from)
+	msg.SetHeader("From", emailer.from)
 	msg.SetHeader("To", to...)
 	msg.SetHeader("Subject", subject)
 	msg.SetBody("text/plain", text)

@@ -327,7 +327,7 @@ func setEmailer(srv *Server, issuerName, fromAddress, emailerConfigFile string, 
 		return err
 	}
 
-	emailer, err := cfg.Emailer()
+	emailer, err := cfg.Emailer(fromAddress)
 	if err != nil {
 		return err
 	}
@@ -371,7 +371,7 @@ func setEmailer(srv *Server, issuerName, fromAddress, emailerConfigFile string, 
 			return err
 		}
 	}
-	tMailer := email.NewTemplatizedEmailerFromTemplates(textTemplates, htmlTemplates, emailer)
+	tMailer := email.NewTemplatizedEmailerFromTemplates(textTemplates, htmlTemplates, emailer, fromAddress)
 	tMailer.SetGlobalContext(map[string]interface{}{
 		"issuer_name": issuerName,
 	})
@@ -382,7 +382,6 @@ func setEmailer(srv *Server, issuerName, fromAddress, emailerConfigFile string, 
 		srv.SessionManager.ValidityWindow,
 		srv.IssuerURL,
 		tMailer,
-		fromAddress,
 		srv.absURL(httpPathResetPassword),
 		srv.absURL(httpPathEmailVerify),
 		srv.absURL(httpPathAcceptInvitation),

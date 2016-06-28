@@ -20,6 +20,7 @@ set `auth` to `plain` and specify your username and password.
     "host": "smtp.example.org",
     "port": 587,
     "auth": "plain",
+    "from": "postmaster@example.com",
     "username": "postmaster@example.org",
     "password": "foo"
 }
@@ -33,6 +34,7 @@ If using Mailgun the `type` field **must** be set to `mailgun`. Additionally
 ```
 {
     "type": "mailgun",
+    "from": "noreply@example.com",
     "privateAPIKey": "key-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
     "publicAPIKey": "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY",
     "domain": "sandboxZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ.mailgun.org"

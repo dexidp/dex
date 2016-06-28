@@ -1,3 +1,4 @@
 {
-    "type": "fake"
+    "type": "fake",
+    "from": "noreply@example.com"
 }
