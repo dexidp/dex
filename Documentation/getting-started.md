@@ -88,7 +88,7 @@ Once you have setup your email config run `dex-worker`:
 
 `./bin/dex-worker --db-url=$DEX_DB_URL --key-secrets=$DEX_KEY_SECRET --email-cfg=static/fixtures/emailer.json.sample --enable-registration=true --log-debug=true &`
 
-Now you have a worker which you can authenticate against, listening on `http://0.0.0.0:5556`, which is the default. Note that the default issuer URL (which can be changed on --issuerURL) is `http://127.0.0.1:5556`. The issuer URL is the base URL (i.e. no query or fragments) uniquely identifying your dex installation.
+Now you have a worker which you can authenticate against, listening on `http://0.0.0.0:5556`, which is the default. Note that the default issuer URL (which can be changed on --issuer) is `http://127.0.0.1:5556`. The issuer URL is the base URL (i.e. no query or fragments) uniquely identifying your dex installation.
 
 Note: the issuer URL MUST have an `https` scheme in production to meet spec compliance and to be considered reasonably secure.
 
