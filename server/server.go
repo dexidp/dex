@@ -168,7 +168,7 @@ func (s *Server) AddConnector(cfg connector.ConnectorConfig) error {
 	ns := s.IssuerURL
 	ns.Path = path.Join(ns.Path, httpPathAuth, connectorID)
 
-	idpc, err := cfg.Connector(ns, s.Login, s.Templates)
+	idpc, err := cfg.Connector(ns, s.Login, s.NewSession, s.Templates)
 	if err != nil {
 		return err
 	}

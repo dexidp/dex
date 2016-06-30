@@ -32,28 +32,30 @@ func (cfg *LocalConnectorConfig) ConnectorType() string {
 	return LocalConnectorType
 }
 
-func (cfg *LocalConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *template.Template) (Connector, error) {
+func (cfg *LocalConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, nsf NewSessionFunc, tpls *template.Template) (Connector, error) {
 	tpl := tpls.Lookup(LoginPageTemplateName)
 	if tpl == nil {
 		return nil, fmt.Errorf("unable to find necessary HTML template")
 	}
 
 	idpc := &LocalConnector{
-		id:        cfg.ID,
-		namespace: ns,
-		loginFunc: lf,
-		loginTpl:  tpl,
+		id:             cfg.ID,
+		namespace:      ns,
+		loginFunc:      lf,
+		loginTpl:       tpl,
+		newSessionFunc: nsf,
 	}
 
 	return idpc, nil
 }
 
 type LocalConnector struct {
-	id        string
-	idp       *LocalIdentityProvider
-	namespace url.URL
-	loginFunc oidc.LoginFunc
-	loginTpl  *template.Template
+	id             string
+	idp            *LocalIdentityProvider
+	namespace      url.URL
+	newSessionFunc NewSessionFunc
+	loginFunc      oidc.LoginFunc
+	loginTpl       *template.Template
 }
 
 type Page struct {
@@ -88,6 +90,9 @@ func (c *LocalConnector) LoginURL(sessionKey, prompt string) (string, error) {
 func (c *LocalConnector) Register(mux *http.ServeMux, errorURL url.URL) {
 	route := c.namespace.Path + "/login"
 	mux.Handle(route, handlePasswordLogin(c.loginFunc, c.loginTpl, c.idp, route, errorURL))
+
+	APIroute := c.namespace.Path + "/api/login"
+	mux.Handle(APIroute, handleRESTPasswordLogin(LocalConnectorType, c.loginFunc, c.newSessionFunc, c.idp, APIroute))
 }
 
 func (c *LocalConnector) Sync() chan struct{} {

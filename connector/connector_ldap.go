@@ -120,7 +120,7 @@ type LDAPConnector struct {
 
 const defaultPoolCheckTimer = 7200 * time.Second
 
-func (cfg *LDAPConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *template.Template) (Connector, error) {
+func (cfg *LDAPConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, _ NewSessionFunc, tpls *template.Template) (Connector, error) {
 	ns.Path = path.Join(ns.Path, httpPathCallback)
 	tpl := tpls.Lookup(LDAPLoginPageTemplateName)
 	if tpl == nil {

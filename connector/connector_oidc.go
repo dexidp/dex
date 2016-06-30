@@ -46,7 +46,7 @@ type OIDCConnector struct {
 	trustedEmailProvider bool
 }
 
-func (cfg *OIDCConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *template.Template) (Connector, error) {
+func (cfg *OIDCConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, _ NewSessionFunc, tpls *template.Template) (Connector, error) {
 	ns.Path = path.Join(ns.Path, httpPathCallback)
 
 	ccfg := oidc.ClientConfig{
