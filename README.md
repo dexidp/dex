@@ -29,7 +29,7 @@ dex consists of multiple components:
   OAuth sessions and other data. Currently Postgres (9.4+) is the only supported
   database.
 
-A typical dex deployment consists of N dex-workers behind a load balanacer, and one dex-overlord.
+A typical dex deployment consists of N dex-workers behind a load balancer, and one dex-overlord.
 The dex-workers directly handle user requests, so the loss of all workers can result in service downtime.
 The single dex-overlord runs its tasks periodically, so it does not need to maintain 100% uptime.
 
@@ -38,8 +38,8 @@ The single dex-overlord runs its tasks periodically, so it does not need to main
 A non-exhaustive list of those who would benefit from using dex:
 
 - Those who want a language/framework-agnostic way to manage authentication.
-- Those who want to federate authentication from mutiple providers of differing types.
-- Those who want to manage user credentials (eg. username and password) and perform authentication locally
+- Those who want to federate authentication from multiple providers of differing types.
+- Those who want to manage user credentials (e.g. username and password) and perform authentication locally.
 - Those who want to create an OIDC Identity Provider for multiple clients to authenticate against.
 - Those who want any or all of the above in a Free and Open Source project.
 
@@ -76,7 +76,7 @@ OpenID Connect (OIDC) is broken up into several specifications. The following (a
 - https://accounts.google.com/.well-known/openid-configuration
 - https://login.salesforce.com/.well-known/openid-configuration
 
-# Next steps:
+## Next steps
 
 If you want to try out dex quickly with a single process and no database (do *not* run this way in production!) take a look at the [dev guide][dev-guide].
 
@@ -85,7 +85,7 @@ For running the full stack check out the [getting started guide][getting-started
 [getting-started]: https://github.com/coreos/dex/blob/master/Documentation/getting-started.md
 [dev-guide]: https://github.com/coreos/dex/blob/master/Documentation/dev-guide.md
 
-# Coming Soon
+## Coming Soon
 
 - Multiple backing Identity Providers
 - Identity Management
@@ -95,9 +95,9 @@ For running the full stack check out the [getting started guide][getting-started
 
 ### [Auth0](https://auth0.com)
 
-Auth0 is a commercial product which implements the OpenID Connect protocol and [JWT](http://jwt.io). It comes with built-in support for 30+ social providers (and provide extenibility points to add customs); enterprise providers like ADFS, SiteMinder, Ping, Tivoli, or any SAML provider; LDAP/AD connectors that can be run behind firewalls via [an open source agent/connector](https://github.com/auth0/ad-ldap-connector); built-in user/password stores with email and phone verification; legacy user/password stores running Mongo, PG, MySQL, SQL Server among others; multi-factor auth; passwordless support; custom extensibility of the auth pipeline through node.js and many other things.
+Auth0 is a commercial product which implements the OpenID Connect protocol and [JWT](http://jwt.io). It comes with built-in support for 30+ social providers (and provide extensibility points to add customs); enterprise providers like ADFS, SiteMinder, Ping, Tivoli, or any SAML provider; LDAP/AD connectors that can be run behind firewalls via [an open source agent/connector](https://github.com/auth0/ad-ldap-connector); built-in user/password stores with email and phone verification; legacy user/password stores running Mongo, PG, MySQL, SQL Server among others; multi-factor auth; passwordless support; custom extensibility of the auth pipeline through node.js and many other things.
 
-You could chain dex with Auth0, dex as RP and Auth0 as OpenId Connect Provider, and bring to dex all the providers that comes in Auth0 plus the user management capabilities. 
+You could chain dex with Auth0, dex as RP and Auth0 as OpenId Connect Provider, and bring to dex all the providers that come in Auth0 plus the user management capabilities.
 
 ### [CloudFoundry UAA](https://github.com/cloudfoundry/uaa)
 
@@ -108,9 +108,9 @@ You could chain dex with Auth0, dex as RP and Auth0 as OpenId Connect Provider, 
 OmniAuth provides authentication federation at the language (Ruby) level, with a [wide range of integrations](https://github.com/intridea/omniauth/wiki/List-of-Strategies) available.
 
 ### [Okta](http://developer.okta.com/product/)
-Okta is a commercial product which is similar to dex in that for it too, identity federation is a key feature. It connects to many more authentication providers than dex, and also does the federation in the oppposite direction - it can be used as a SSO to other identity providers.
+
+Okta is a commercial product which is similar to dex in that for it too, identity federation is a key feature. It connects to many more authentication providers than dex, and also does the federation in the opposite direction - it can be used as a SSO to other identity providers.
 
 ### [Shibboleth](https://shibboleth.net/)
 
-Shibboleth is an open source system implementing the [SAML](https://www.oasis-open.org/standards#samlv2.0) standard, and can federate from a variety of backends, most notably LDAP. 
-
+Shibboleth is an open source system implementing the [SAML](https://www.oasis-open.org/standards#samlv2.0) standard, and can federate from a variety of backends, most notably LDAP.

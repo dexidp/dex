@@ -31,7 +31,7 @@ are very busy and read the mailing lists.
 
 This is a rough outline of what a contributor's workflow looks like:
 
-- Create a proposal (if neccessary - see below) and get an LGTM by someone in [maintainer](MAINTAINERS)
+- Create a proposal (if neccessary - see below) and get an LGTM by someone in [maintainer](MAINTAINERS).
 - Create a topic branch from where you want to base your work (usually master).
 - Make commits of logical units.
 - Make sure your commit messages are in the proper format (see below).
