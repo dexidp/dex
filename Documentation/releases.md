@@ -1,25 +1,37 @@
-## Making a dex Release
+# Making a dex Release
 
-1. Make sure you've [uploaded your GPG key](https://github.com/settings/keys).
+Make sure you've [uploaded your GPG key](https://github.com/settings/keys) and
+configured git to [use that signing key](
+https://git-scm.com/book/en/v2/Git-Tools-Signing-Your-Work) either globally or
+for the Dex repo. Note that the email the key is issued for must be the email
+you use for git.
 
-1. Make a new clone of the dex repo:
+```
+git config [--global] user.signingkey "{{ GPG key ID }}"
+git config [--global] user.email "{{ Email associated with key }}"
+```
 
-  ```console
-  $ git clone git@github.com:coreos/dex.git
-  $ cd dex
-  ```
+Create a signed tag at the commit you wish to release. This action will prompt
+you to enter a tag message, which can just be the release version.
 
-1. Tag with the release name:
+```
+git tag -s v0.4.0 ea4c04fde83bd6c48f4d43862c406deb4ea9dba2
+```
 
-   ```console
-   git tag -s v0.4.0
-   ```
+Push that tag to the CoreOS repo.
 
-1. Push the change:
-    ```console
-    git push origin v0.4.0
-    ```
+```
+git push git@github.com:coreos/dex.git v0.4.0
+```
 
-1. Make a release with release notes here:
-    https://github.com/coreos/dex/releases
-    
+Draft releases on GitHub and summarize the changes since the last release. See
+previous releases for the expected format.
+
+https://github.com/coreos/dex/releases
+
+Finally create an image tag on Quay corresponding to the release. Log into
+Quay, navigate to the `quay.io/coreos/dex` repo, find the correct commit, and
+add an additional tag to that image for the release (click the gear on the
+image tag's row and then "Add New Tag").
+
+https://quay.io/repository/coreos/dex?tag=latest&tab=tags
