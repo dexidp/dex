@@ -40,6 +40,8 @@ type Connector interface {
 	health.Checkable
 }
 
+type NewSessionFunc func(ipdcID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error)
+
 //go:generate genconfig -o config.go connector Connector
 type ConnectorConfig interface {
 	// ConnectorID returns a unique end user facing identifier. For example "google".
@@ -57,7 +59,7 @@ type ConnectorConfig interface {
 	//
 	// Additional templates are passed for connectors that require rendering HTML
 	// pages, such as the "local" connector.
-	Connector(ns url.URL, loginFunc oidc.LoginFunc, tpls *template.Template) (Connector, error)
+	Connector(ns url.URL, loginFunc oidc.LoginFunc, newSessionFunc NewSessionFunc, tpls *template.Template) (Connector, error)
 }
 
 type ConnectorConfigRepo interface {

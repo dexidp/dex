@@ -39,7 +39,7 @@ func (cfg *BitbucketConnectorConfig) ConnectorType() string {
 	return BitbucketConnectorType
 }
 
-func (cfg *BitbucketConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *template.Template) (Connector, error) {
+func (cfg *BitbucketConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, _ NewSessionFunc, tpls *template.Template) (Connector, error) {
 	ns.Path = path.Join(ns.Path, httpPathCallback)
 	oauth2Conn, err := newBitbucketConnector(cfg.ClientID, cfg.ClientSecret, ns.String())
 	if err != nil {

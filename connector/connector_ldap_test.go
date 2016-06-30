@@ -11,6 +11,7 @@ import (
 var (
 	ns        url.URL
 	lf        oidc.LoginFunc
+	nsf       NewSessionFunc
 	templates *template.Template
 )
 
@@ -26,7 +27,7 @@ func TestLDAPConnectorConfigValidTLS(t *testing.T) {
 		UseSSL: false,
 	}
 
-	_, err := cc.Connector(ns, lf, templates)
+	_, err := cc.Connector(ns, lf, nsf, templates)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +41,7 @@ func TestLDAPConnectorConfigInvalidSSLandTLS(t *testing.T) {
 		UseSSL: true,
 	}
 
-	_, err := cc.Connector(ns, lf, templates)
+	_, err := cc.Connector(ns, lf, nsf, templates)
 	if err == nil {
 		t.Fatal("Expected LDAPConnector initialization to fail when both TLS and SSL enabled.")
 	}
@@ -53,7 +54,7 @@ func TestLDAPConnectorConfigValidSearchScope(t *testing.T) {
 		SearchScope: "one",
 	}
 
-	_, err := cc.Connector(ns, lf, templates)
+	_, err := cc.Connector(ns, lf, nsf, templates)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +67,7 @@ func TestLDAPConnectorConfigInvalidSearchScope(t *testing.T) {
 		SearchScope: "three",
 	}
 
-	_, err := cc.Connector(ns, lf, templates)
+	_, err := cc.Connector(ns, lf, nsf, templates)
 	if err == nil {
 		t.Fatal("Expected LDAPConnector initialization to fail when invalid value provided for SearchScope.")
 	}
@@ -79,7 +80,7 @@ func TestLDAPConnectorConfigInvalidCertFileNoKeyFile(t *testing.T) {
 		CertFile: "/tmp/ldap.crt",
 	}
 
-	_, err := cc.Connector(ns, lf, templates)
+	_, err := cc.Connector(ns, lf, nsf, templates)
 	if err == nil {
 		t.Fatal("Expected LDAPConnector initialization to fail when CertFile specified without KeyFile.")
 	}
@@ -93,7 +94,7 @@ func TestLDAPConnectorConfigValidCertFileAndKeyFile(t *testing.T) {
 		KeyFile:  "/tmp/ldap.key",
 	}
 
-	_, err := cc.Connector(ns, lf, templates)
+	_, err := cc.Connector(ns, lf, nsf, templates)
 	if err != nil {
 		t.Fatal(err)
 	}
