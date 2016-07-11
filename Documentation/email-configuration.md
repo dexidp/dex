@@ -12,14 +12,12 @@ specific fields.
 
 If using SMTP the `type` field **must** be set to `smtp`. Additionally both
 `host` and `port` are required. If you wish to use SMTP plain auth, then
-set `auth` to `plain` and specify your username and password.
+specify your username and password.
 
 ```
 {
     "type": "smtp",
-    "host": "smtp.example.org",
-    "port": 587,
-    "auth": "plain",
+    "host": "smtp.example.org:587",
     "from": "postmaster@example.com",
     "username": "postmaster@example.org",
     "password": "foo"
