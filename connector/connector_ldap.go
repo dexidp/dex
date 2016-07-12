@@ -440,7 +440,6 @@ func (c *LDAPConnector) formatDN(template, username string) string {
 }
 
 func (c *LDAPConnector) Identity(username, password string) (*oidc.Identity, error) {
-	log.Errorf("handling identity")
 	var (
 		identity *oidc.Identity
 		err      error
