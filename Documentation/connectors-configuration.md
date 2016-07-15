@@ -153,6 +153,7 @@ In addition to `id` and `type`, the `ldap` connector takes the following additio
 * emailAttribute: a `string`. Required. Attribute to map to Email. Default: `mail`
 * searchBeforeAuth: a `boolean`. Perform search for entryDN to be used for bind.
 * searchFilter: a `string`. Filter to apply to search. Variable substititions: `%u` User supplied username/e-mail address. `%b` BaseDN. Searches that return multiple entries are considered ambiguous and will return an error.
+* searchGroupFilter: a `string`. A filter which should return group entry for a given user. The string is formatted the same as `searchFilter`, execpt `%u` is replaced by the fully qualified user entry. Groups are only searched if the client request the "groups" scope. 
 * searchScope: a `string`. Scope of the search. `base|one|sub`. Default: `one`
 * searchBindDN: a `string`. DN to bind as for search operations.
 * searchBindPw: a `string`. Password for bind for search operations.
@@ -180,19 +181,20 @@ uid=janedoe,cn=users,cn=accounts,dc=auth,dc=example,dc=com
 
 The connector then attempts to bind as this entry using the password provided by the end user.
 
-### Example: Searching the directory
+### Example: Searching a FreeIPA server with groups
 
-The following configuration will search a directory using an LDAP filter. With FreeIPA
+The following configuration will search a FreeIPA directory using an LDAP filter.
 
 ```
     {
         "type": "ldap",
         "id": "ldap",
         "host": "127.0.0.1:389",
-        "baseDN": "cn=auth,dc=example,dc=com",
+        "baseDN": "cn=accounts,dc=example,dc=com",
 
         "searchBeforeAuth": true,
         "searchFilter": "(&(objectClass=person)(uid=%u))",
+        "searchGroupFilter": "(&(objectClass=ipausergroup)(member=%u))",
         "searchScope": "sub",
 
         "searchBindDN": "serviceAccountUser",
@@ -206,9 +208,15 @@ The following configuration will search a directory using an LDAP filter. With F
 (&(objectClass=person)(uid=janedoe))
 ```
 
-If the search finds an entry, it will attempt to use the provided password to bind as that entry.
+If the search finds an entry, it will attempt to use the provided password to bind as that entry. Searches that return multiple entries are considered ambiguous and will return an error.
 
-__NOTE__: Searches that return multiple entries will return an error.
+"searchGroupFilter" is a format string similar to "searchFilter" except `%u` is replaced by the fully qualified user entry returned by "searchFilter". So if the initial search returns "uid=janedoe,cn=users,cn=accounts,dc=example,dc=com", the connector will use the search query:
+
+```
+(&(objectClass=ipausergroup)(member=uid=janedoe,cn=users,cn=accounts,dc=example,dc=com))
+```
+
+If the client requests the "groups" scope, the names of all returned entries are added to the ID Token "groups" claim.
 
 ## Setting the Configuration
 

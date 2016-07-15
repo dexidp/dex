@@ -56,3 +56,19 @@ For situations in which an app does not have access to a browser, the out-of-ban
 \* In OpenID Connect a client is called a "Relying Party", but "client" seems to
 be the more common ter, has been around longer and is present in paramter names
 like "client_id" so we prefer it over "Relying Party" usually.
+
+## Groups
+
+Connectors that support groups (currently only the LDAP connector) can embed the groups a user belongs to in the ID Token. Using the scope "groups" during the initial redirect with a connector that supports groups will return an JWT with the following field.
+
+```
+{
+  "groups": [
+    "cn=ipausers,cn=groups,cn=accounts,dc=example,dc=com,
+    "cn=team-engineering,cn=groups,cn=accounts,dc=example,dc=com"
+  ],
+  ...
+}
+```
+
+If the client has also requested a refresh token, the groups field is updated during each refresh request.
