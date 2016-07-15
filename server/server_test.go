@@ -785,8 +785,7 @@ func TestServerRefreshToken(t *testing.T) {
 			t.Errorf("case %d: error creating other client: %v", i, err)
 		}
 
-		if _, err := f.srv.RefreshTokenRepo.Create(testUserID1, tt.clientID,
-			tt.createScopes); err != nil {
+		if _, err := f.srv.RefreshTokenRepo.Create(testUserID1, tt.clientID, "", tt.createScopes); err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
 

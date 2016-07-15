@@ -421,6 +421,7 @@ func validateScopes(srv OIDCServer, clientID string, scopes []string) error {
 			foundOpenIDScope = true
 		case curScope == "profile":
 		case curScope == "email":
+		case curScope == scope.ScopeGroups:
 		case curScope == "offline_access":
 			// According to the spec, for offline_access scope, the client must
 			// use a response_type value that would result in an Authorization

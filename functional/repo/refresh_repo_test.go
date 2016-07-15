@@ -20,7 +20,10 @@ import (
 var (
 	testRefreshClientID  = "client1"
 	testRefreshClientID2 = "client2"
-	testRefreshClients   = []client.LoadableClient{
+
+	testRefreshConnectorID = "IDPC-1"
+
+	testRefreshClients = []client.LoadableClient{
 		{
 			Client: client.Client{
 				Credentials: oidc.ClientCredentials{
@@ -59,7 +62,7 @@ var (
 			},
 			RemoteIdentities: []user.RemoteIdentity{
 				{
-					ConnectorID: "IDPC-1",
+					ConnectorID: testRefreshConnectorID,
 					ID:          "RID-1",
 				},
 			},
@@ -103,12 +106,12 @@ func TestRefreshTokenRepoCreateVerify(t *testing.T) {
 
 	for i, tt := range tests {
 		repo := newRefreshRepo(t, testRefreshUsers, testRefreshClients)
-		tok, err := repo.Create(testRefreshUserID, testRefreshClientID, tt.createScopes)
+		tok, err := repo.Create(testRefreshUserID, testRefreshClientID, testRefreshConnectorID, tt.createScopes)
 		if err != nil {
 			t.Fatalf("case %d: failed to create refresh token: %v", i, err)
 		}
 
-		tokUserID, gotScopes, err := repo.Verify(tt.verifyClientID, tok)
+		tokUserID, gotConnectorID, gotScopes, err := repo.Verify(tt.verifyClientID, tok)
 		if tt.wantVerifyErr {
 			if err == nil {
 				t.Errorf("case %d: want non-nil error.", i)
@@ -126,6 +129,10 @@ func TestRefreshTokenRepoCreateVerify(t *testing.T) {
 			t.Errorf("case %d: Verified token returned wrong user id, want=%s, got=%s", i,
 				testRefreshUserID, tokUserID)
 		}
+
+		if gotConnectorID != testRefreshConnectorID {
+			t.Errorf("case %d: wanted connector_id=%q got=%q", i, testRefreshConnectorID, gotConnectorID)
+		}
 	}
 }
 
@@ -138,7 +145,7 @@ func buildRefreshToken(tokenID int64, tokenPayload []byte) string {
 func TestRefreshRepoVerifyInvalidTokens(t *testing.T) {
 	r := db.NewRefreshTokenRepo(connect(t))
 
-	token, err := r.Create("user-foo", "client-foo", oidc.DefaultScope)
+	token, err := r.Create("user-foo", "client-foo", testRefreshConnectorID, oidc.DefaultScope)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -209,7 +216,7 @@ func TestRefreshRepoVerifyInvalidTokens(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		result, _, err := r.Verify(tt.creds.ID, tt.token)
+		result, _, _, err := r.Verify(tt.creds.ID, tt.token)
 		if err != tt.err {
 			t.Errorf("Case #%d: expected: %v, got: %v", i, tt.err, err)
 		}
@@ -232,7 +239,7 @@ func TestRefreshTokenRepoClientsWithRefreshTokens(t *testing.T) {
 		repo := newRefreshRepo(t, testRefreshUsers, testRefreshClients)
 
 		for _, clientID := range tt.clientIDs {
-			_, err := repo.Create(testRefreshUserID, clientID, []string{"openid"})
+			_, err := repo.Create(testRefreshUserID, clientID, testRefreshConnectorID, []string{"openid"})
 			if err != nil {
 				t.Fatalf("case %d: client_id: %s couldn't create refresh token: %v", i, clientID, err)
 			}
@@ -281,7 +288,7 @@ func TestRefreshTokenRepoRevokeForClient(t *testing.T) {
 		repo := newRefreshRepo(t, testRefreshUsers, testRefreshClients)
 
 		for _, clientID := range tt.createIDs {
-			_, err := repo.Create(testRefreshUserID, clientID, []string{"openid"})
+			_, err := repo.Create(testRefreshUserID, clientID, testRefreshConnectorID, []string{"openid"})
 			if err != nil {
 				t.Fatalf("case %d: client_id: %s couldn't create refresh token: %v", i, clientID, err)
 			}
@@ -318,7 +325,7 @@ func TestRefreshTokenRepoRevokeForClient(t *testing.T) {
 func TestRefreshRepoRevoke(t *testing.T) {
 	r := db.NewRefreshTokenRepo(connect(t))
 
-	token, err := r.Create("user-foo", "client-foo", oidc.DefaultScope)
+	token, err := r.Create("user-foo", "client-foo", testRefreshConnectorID, oidc.DefaultScope)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

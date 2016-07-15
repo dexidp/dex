@@ -6,6 +6,9 @@ const (
 	// Scope prefix which indicates initiation of a cross-client authentication flow.
 	// See https://developers.google.com/identity/protocols/CrossClientAuth
 	ScopeGoogleCrossClient = "audience:server:client_id:"
+
+	// ScopeGroups indicates that groups should be added to the ID Token.
+	ScopeGroups = "groups"
 )
 
 type Scopes []string

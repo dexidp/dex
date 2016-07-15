@@ -41,6 +41,7 @@ CREATE TABLE refresh_token (
     payload_hash blob,
     user_id text,
     client_id text,
+    connector_id text,
     scopes text
 );
 
@@ -63,7 +64,8 @@ CREATE TABLE session (
     user_id text,
     register integer,
     nonce text,
-    scope text
+    scope text,
+    groups text
 );
 
 CREATE TABLE session_key (
