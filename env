@@ -3,14 +3,14 @@ MAJOR_GOVERSION=$( go version | grep -o 'go1\.[0-9]' || true)
 FULL_GOVERSION=$( go version| grep -o 'go1\.[0-9|\.]*' || true)
 
 # The list of unsupported major go versions.
-UNSUPPORTED=( "go1.0" "go1.1" "go1.2" "go1.3" "go1.4" )
+UNSUPPORTED=( "go1.0" "go1.1" "go1.2" "go1.3" "go1.4" "go1.5" )
 
 # Minor go verisons which have known security vulnerabilities. Refuse to build with these.
-KNOWN_INSECURE=( "go1.5" "go1.5.1" "go1.5.2" )
+KNOWN_INSECURE=( "go1.6" "go1.6.1" "go1.6.2" )
 
 for V in "${UNSUPPORTED[@]}"; do
     if [ "$V" = "$MAJOR_GOVERSION" ]; then
-        echo "dex requires Go version 1.5.3+. Please update your Go version."
+        echo "dex requires Go version 1.6.3+. Please update your Go version."
         exit 2
     fi
 done
