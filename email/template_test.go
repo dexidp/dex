@@ -22,8 +22,7 @@ type testEmailer struct {
 	to                        []string
 }
 
-func (t *testEmailer) SendMail(from, subject, text, html string, to ...string) error {
-	t.from = from
+func (t *testEmailer) SendMail(subject, text, html string, to ...string) error {
 	t.subject = subject
 	t.text = text
 	t.html = html
@@ -118,12 +117,12 @@ func TestTemplatizedEmailSendMail(t *testing.T) {
 
 	for i, tt := range tests {
 		emailer := &testEmailer{}
-		templatizer := NewTemplatizedEmailerFromTemplates(textTemplates, htmlTemplates, emailer)
+		templatizer := NewTemplatizedEmailerFromTemplates(textTemplates, htmlTemplates, emailer, tt.from)
 		if tt.ctx != nil {
 			templatizer.SetGlobalContext(tt.ctx)
 		}
 
-		err := templatizer.SendMail(tt.from, tt.subject, tt.tplName, tt.data, tt.to)
+		err := templatizer.SendMail(tt.subject, tt.tplName, tt.data, tt.to)
 		if tt.wantErr {
 			if err == nil {
 				t.Errorf("case %d: err == nil, want non-nil err", i)
@@ -131,9 +130,6 @@ func TestTemplatizedEmailSendMail(t *testing.T) {
 			continue
 		}
 
-		if emailer.from != tt.from {
-			t.Errorf("case %d: want=%q, got=%q", i, tt.from, emailer.from)
-		}
 		if emailer.subject != tt.subject {
 			t.Errorf("case %d: want=%q, got=%q", i, tt.subject, emailer.subject)
 		}
