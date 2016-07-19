@@ -75,7 +75,8 @@ type Server struct {
 	OOBTemplate                    *template.Template
 
 	HealthChecks []health.Checkable
-	Connectors   []connector.Connector
+	// TODO(ericchiang): Make this a map of ID to connector.
+	Connectors []connector.Connector
 
 	ClientRepo          client.ClientRepo
 	ConnectorConfigRepo connector.ConnectorConfigRepo
@@ -306,6 +307,15 @@ func (s *Server) NewSession(ipdcID, clientID, clientState string, redirectURL ur
 	return s.SessionManager.NewSessionKey(sessionID)
 }
 
+func (s *Server) connector(id string) (connector.Connector, bool) {
+	for _, c := range s.Connectors {
+		if c.ID() == id {
+			return c, true
+		}
+	}
+	return nil, false
+}
+
 func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 	sessionID, err := s.SessionManager.ExchangeKey(key)
 	if err != nil {
@@ -317,6 +327,29 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 		return "", err
 	}
 	log.Infof("Session %s remote identity attached: clientID=%s identity=%#v", sessionID, ses.ClientID, ident)
+
+	// Get the connector used to log the user in.
+	conn, ok := s.connector(ses.ConnectorID)
+	if !ok {
+		return "", fmt.Errorf("session contained invalid connector ID (%s)", ses.ConnectorID)
+	}
+
+	// If the client has requested access to groups, add them here.
+	if ses.Scope.HasScope(scope.ScopeGroups) {
+		grouper, ok := conn.(connector.GroupsConnector)
+		if !ok {
+			return "", fmt.Errorf("scope %q provided but connector does not support groups", scope.ScopeGroups)
+		}
+		groups, err := grouper.Groups(ident.ID)
+		if err != nil {
+			return "", fmt.Errorf("failed to retrieve user groups for %q %v", ident.ID, err)
+		}
+
+		// Update the session.
+		if ses, err = s.SessionManager.AttachGroups(sessionID, groups); err != nil {
+			return "", fmt.Errorf("failed save groups")
+		}
+	}
 
 	if ses.Register {
 		code, err := s.SessionManager.NewSessionKey(sessionID)
@@ -333,18 +366,6 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 	}
 
 	remoteIdentity := user.RemoteIdentity{ConnectorID: ses.ConnectorID, ID: ses.Identity.ID}
-
-	// Get the connector used to log the user in.
-	var conn connector.Connector
-	for _, c := range s.Connectors {
-		if c.ID() == ses.ConnectorID {
-			conn = c
-			break
-		}
-	}
-	if conn == nil {
-		return "", fmt.Errorf("session contained invalid connector ID (%s)", ses.ConnectorID)
-	}
 
 	usr, err := s.UserRepo.GetByRemoteIdentity(nil, remoteIdentity)
 	if err == user.ErrorNotFound {
@@ -508,7 +529,7 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 		if scope == "offline_access" {
 			log.Infof("Session %s requests offline access, will generate refresh token", sessionID)
 
-			refreshToken, err = s.RefreshTokenRepo.Create(ses.UserID, creds.ID, ses.Scope)
+			refreshToken, err = s.RefreshTokenRepo.Create(ses.UserID, creds.ID, ses.ConnectorID, ses.Scope)
 			switch err {
 			case nil:
 				break
@@ -535,7 +556,7 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes,
 		return nil, oauth2.NewError(oauth2.ErrorInvalidClient)
 	}
 
-	userID, rtScopes, err := s.RefreshTokenRepo.Verify(creds.ID, token)
+	userID, connectorID, rtScopes, err := s.RefreshTokenRepo.Verify(creds.ID, token)
 	switch err {
 	case nil:
 		break
@@ -555,12 +576,49 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes,
 		}
 	}
 
-	user, err := s.UserRepo.Get(nil, userID)
+	usr, err := s.UserRepo.Get(nil, userID)
 	if err != nil {
 		// The error can be user.ErrorNotFound, but we are not deleting
 		// user at this moment, so this shouldn't happen.
 		log.Errorf("Failed to fetch user %q from repo: %v: ", userID, err)
 		return nil, oauth2.NewError(oauth2.ErrorServerError)
+	}
+
+	var groups []string
+	if rtScopes.HasScope(scope.ScopeGroups) {
+		conn, ok := s.connector(connectorID)
+		if !ok {
+			log.Errorf("refresh token contained invalid connector ID (%s)", connectorID)
+			return nil, oauth2.NewError(oauth2.ErrorServerError)
+		}
+
+		grouper, ok := conn.(connector.GroupsConnector)
+		if !ok {
+			log.Errorf("refresh token requested groups for connector (%s) that doesn't support groups", connectorID)
+			return nil, oauth2.NewError(oauth2.ErrorServerError)
+		}
+
+		remoteIdentities, err := s.UserRepo.GetRemoteIdentities(nil, userID)
+		if err != nil {
+			log.Errorf("failed to get remote identities: %v", err)
+			return nil, oauth2.NewError(oauth2.ErrorServerError)
+		}
+		remoteIdentity, ok := func() (user.RemoteIdentity, bool) {
+			for _, ri := range remoteIdentities {
+				if ri.ConnectorID == connectorID {
+					return ri, true
+				}
+			}
+			return user.RemoteIdentity{}, false
+		}()
+		if !ok {
+			log.Errorf("failed to get remote identity for connector %s", connectorID)
+			return nil, oauth2.NewError(oauth2.ErrorServerError)
+		}
+		if groups, err = grouper.Groups(remoteIdentity.ID); err != nil {
+			log.Errorf("failed to get groups for refresh token: %v", connectorID)
+			return nil, oauth2.NewError(oauth2.ErrorServerError)
+		}
 	}
 
 	signer, err := s.KeyManager.Signer()
@@ -572,8 +630,14 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes,
 	now := time.Now()
 	expireAt := now.Add(session.DefaultSessionValidityWindow)
 
-	claims := oidc.NewClaims(s.IssuerURL.String(), user.ID, creds.ID, now, expireAt)
-	user.AddToClaims(claims)
+	claims := oidc.NewClaims(s.IssuerURL.String(), usr.ID, creds.ID, now, expireAt)
+	usr.AddToClaims(claims)
+	if rtScopes.HasScope(scope.ScopeGroups) {
+		if groups == nil {
+			groups = []string{}
+		}
+		claims["groups"] = groups
+	}
 
 	s.addClaimsFromScope(claims, scope.Scopes(scopes), creds.ID)
 

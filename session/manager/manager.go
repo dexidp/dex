@@ -144,6 +144,18 @@ func (m *SessionManager) AttachUser(sessionID string, userID string) (*session.S
 	return s, nil
 }
 
+func (m *SessionManager) AttachGroups(sessionID string, groups []string) (*session.Session, error) {
+	s, err := m.sessions.Get(sessionID)
+	if err != nil {
+		return nil, err
+	}
+	s.Groups = groups
+	if err = m.sessions.Update(*s); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
 func (m *SessionManager) Kill(sessionID string) (*session.Session, error) {
 	s, err := m.sessions.Get(sessionID)
 	if err != nil {

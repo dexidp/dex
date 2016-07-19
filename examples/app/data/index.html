@@ -1,16 +1,12 @@
 <html>
   <body>
-
     <form action="/login">
-      <table>
-        <tr>
-          <td> Authenticate for:
-            <br>
-            (comma-separated list of client-ids)
-          </td>
-          <td> <input type="text" name="cross_client" > </td>
-        </tr>
-      </table>
+       <p>
+         Authenticate for:<input type="text" name="cross_client" placeholder="comma-separated list of client-ids">
+       </p>
+       <p>
+         Extra scopes:<input type="text" name="extra_scopes" placeholder="comma-separated list of scopes">
+       </p>
 {{ if .OOB }}
         <input type="submit" value="Login" formtarget="_blank">
 {{ else }}

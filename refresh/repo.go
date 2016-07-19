@@ -44,12 +44,12 @@ type RefreshTokenRepo interface {
 	// The scopes will be stored with the refresh token, and used to verify
 	// against future OIDC refresh requests' scopes.
 	// On success the token will be returned.
-	Create(userID, clientID string, scope []string) (string, error)
+	Create(userID, clientID, connectorID string, scope []string) (string, error)
 
 	// Verify verifies that a token belongs to the client.
 	// It returns the user ID to which the token belongs, and the scopes stored
 	// with token.
-	Verify(clientID, token string) (string, scope.Scopes, error)
+	Verify(clientID, token string) (userID, connectorID string, scope scope.Scopes, err error)
 
 	// Revoke deletes the refresh token if the token belongs to the given userID.
 	Revoke(userID, token string) error

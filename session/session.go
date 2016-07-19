@@ -55,6 +55,9 @@ type Session struct {
 	// Scope is the 'scope' field in the authentication request. Example scopes
 	// are 'openid', 'email', 'offline', etc.
 	Scope scope.Scopes
+
+	// Groups the user belongs to.
+	Groups []string
 }
 
 // Claims returns a new set of Claims for the current session.
@@ -64,6 +67,9 @@ func (s *Session) Claims(issuerURL string) jose.Claims {
 	claims := oidc.NewClaims(issuerURL, s.UserID, s.ClientID, s.CreatedAt, s.ExpiresAt)
 	if s.Nonce != "" {
 		claims["nonce"] = s.Nonce
+	}
+	if s.Scope.HasScope(scope.ScopeGroups) {
+		claims["groups"] = s.Groups
 	}
 	return claims
 }

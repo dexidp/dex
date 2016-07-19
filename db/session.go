@@ -44,6 +44,7 @@ type sessionModel struct {
 	Register    bool   `db:"register"`
 	Nonce       string `db:"nonce"`
 	Scope       string `db:"scope"`
+	Groups      string `db:"groups"`
 }
 
 func (s *sessionModel) session() (*session.Session, error) {
@@ -75,6 +76,11 @@ func (s *sessionModel) session() (*session.Session, error) {
 		Nonce:       s.Nonce,
 		Scope:       strings.Fields(s.Scope),
 	}
+	if s.Groups != "" {
+		if err := json.Unmarshal([]byte(s.Groups), &ses.Groups); err != nil {
+			return nil, fmt.Errorf("failed to decode groups in session: %v", err)
+		}
+	}
 
 	if s.CreatedAt != 0 {
 		ses.CreatedAt = time.Unix(s.CreatedAt, 0).UTC()
@@ -105,6 +111,14 @@ func newSessionModel(s *session.Session) (*sessionModel, error) {
 		Register:    s.Register,
 		Nonce:       s.Nonce,
 		Scope:       strings.Join(s.Scope, " "),
+	}
+
+	if s.Groups != nil {
+		data, err := json.Marshal(s.Groups)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal groups: %v", err)
+		}
+		sm.Groups = string(data)
 	}
 
 	if !s.CreatedAt.IsZero() {

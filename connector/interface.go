@@ -60,6 +60,12 @@ type ConnectorConfig interface {
 	Connector(ns url.URL, loginFunc oidc.LoginFunc, tpls *template.Template) (Connector, error)
 }
 
+// GroupsConnector is a strategy for mapping a user to a set of groups. This is optionally
+// implemented by some connectors.
+type GroupsConnector interface {
+	Groups(fullUserID string) ([]string, error)
+}
+
 type ConnectorConfigRepo interface {
 	All() ([]ConnectorConfig, error)
 	GetConnectorByID(repo.Transaction, string) (ConnectorConfig, error)

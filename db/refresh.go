@@ -41,6 +41,7 @@ type refreshTokenModel struct {
 	PayloadHash []byte `db:"payload_hash"`
 	UserID      string `db:"user_id"`
 	ClientID    string `db:"client_id"`
+	ConnectorID string `db:"connector_id"`
 	Scopes      string `db:"scopes"`
 }
 
@@ -89,7 +90,7 @@ func NewRefreshTokenRepoWithGenerator(dbm *gorp.DbMap, gen refresh.RefreshTokenG
 	}
 }
 
-func (r *refreshTokenRepo) Create(userID, clientID string, scopes []string) (string, error) {
+func (r *refreshTokenRepo) Create(userID, clientID, connectorID string, scopes []string) (string, error) {
 	if userID == "" {
 		return "", refresh.ErrorInvalidUserID
 	}
@@ -112,6 +113,7 @@ func (r *refreshTokenRepo) Create(userID, clientID string, scopes []string) (str
 		PayloadHash: payloadHash,
 		UserID:      userID,
 		ClientID:    clientID,
+		ConnectorID: connectorID,
 		Scopes:      strings.Join(scopes, " "),
 	}
 
@@ -122,24 +124,24 @@ func (r *refreshTokenRepo) Create(userID, clientID string, scopes []string) (str
 	return buildToken(record.ID, tokenPayload), nil
 }
 
-func (r *refreshTokenRepo) Verify(clientID, token string) (string, scope.Scopes, error) {
+func (r *refreshTokenRepo) Verify(clientID, token string) (userID, connectorID string, scope scope.Scopes, err error) {
 	tokenID, tokenPayload, err := parseToken(token)
 
 	if err != nil {
-		return "", nil, err
+		return
 	}
 
 	record, err := r.get(nil, tokenID)
 	if err != nil {
-		return "", nil, err
+		return
 	}
 
 	if record.ClientID != clientID {
-		return "", nil, refresh.ErrorInvalidClientID
+		return "", "", nil, refresh.ErrorInvalidClientID
 	}
 
-	if err := checkTokenPayload(record.PayloadHash, tokenPayload); err != nil {
-		return "", nil, err
+	if err = checkTokenPayload(record.PayloadHash, tokenPayload); err != nil {
+		return
 	}
 
 	var scopes []string
@@ -147,7 +149,7 @@ func (r *refreshTokenRepo) Verify(clientID, token string) (string, scope.Scopes,
 		scopes = strings.Split(record.Scopes, " ")
 	}
 
-	return record.UserID, scopes, nil
+	return record.UserID, record.ConnectorID, scopes, nil
 }
 
 func (r *refreshTokenRepo) Revoke(userID, token string) error {

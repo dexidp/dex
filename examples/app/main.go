@@ -218,18 +218,25 @@ func handleLoginFunc(c *oidc.Client) http.HandlerFunc {
 			panic("unable to proceed")
 		}
 
-		xClient := r.Form.Get("cross_client")
-		if xClient != "" {
+		var scopes []string
+		q := u.Query()
+		if scope := q.Get("scope"); scope != "" {
+			scopes = strings.Split(scope, " ")
+		}
+
+		if xClient := r.Form.Get("cross_client"); xClient != "" {
 			xClients := strings.Split(xClient, ",")
-			for i, x := range xClients {
-				xClients[i] = scope.ScopeGoogleCrossClient + x
+			for _, x := range xClients {
+				scopes = append(scopes, scope.ScopeGoogleCrossClient+x)
 			}
-			q := u.Query()
-			scope := q.Get("scope")
-			scopes := strings.Split(scope, " ")
-			scopes = append(scopes, xClients...)
-			scope = strings.Join(scopes, " ")
-			q.Set("scope", scope)
+		}
+
+		if extraScopes := r.Form.Get("extra_scopes"); extraScopes != "" {
+			scopes = append(scopes, strings.Split(extraScopes, ",")...)
+		}
+
+		if scopes != nil {
+			q.Set("scope", strings.Join(scopes, " "))
 			u.RawQuery = q.Encode()
 		}
 
@@ -292,57 +299,69 @@ func handleResendFunc(c *oidc.Client, issuerURL, resendURL, cbURL url.URL) http.
 
 func handleCallbackFunc(c *oidc.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		refreshToken := r.URL.Query().Get("refresh_token")
 		code := r.URL.Query().Get("code")
-		if code == "" {
+
+		oac, err := c.OAuthClient()
+		if err != nil {
+			phttp.WriteError(w, http.StatusBadRequest, fmt.Sprintf("unable to create OAuth2 client: %v", err))
+			return
+		}
+
+		var token oauth2.TokenResponse
+
+		switch {
+		case code != "":
+			if token, err = oac.RequestToken(oauth2.GrantTypeAuthCode, code); err != nil {
+				phttp.WriteError(w, http.StatusBadRequest, fmt.Sprintf("unable to verify auth code with issuer: %v", err))
+				return
+			}
+		case refreshToken != "":
+			if token, err = oac.RequestToken(oauth2.GrantTypeRefreshToken, refreshToken); err != nil {
+				phttp.WriteError(w, http.StatusBadRequest, fmt.Sprintf("unable to refresh token: %v", err))
+				return
+			}
+			if token.RefreshToken == "" {
+				token.RefreshToken = refreshToken
+			}
+		default:
 			phttp.WriteError(w, http.StatusBadRequest, "code query param must be set")
 			return
 		}
 
-		tokens, err := exchangeAuthCode(c, code)
+		tok, err := jose.ParseJWT(token.IDToken)
 		if err != nil {
-			phttp.WriteError(w, http.StatusBadRequest,
-				fmt.Sprintf("unable to verify auth code with issuer: %v", err))
+			phttp.WriteError(w, http.StatusBadRequest, fmt.Sprintf("unable to parse JWT: %v", err))
 			return
 		}
 
-		tok, err := jose.ParseJWT(tokens.IDToken)
-		if err != nil {
-			phttp.WriteError(w, http.StatusBadRequest,
-				fmt.Sprintf("unable to parse JWT: %v", err))
+		claims := new(bytes.Buffer)
+		if err := json.Indent(claims, tok.Payload, "", "  "); err != nil {
+			phttp.WriteError(w, http.StatusBadRequest, fmt.Sprintf("unable to construct claims: %v", err))
 			return
 		}
-
-		claims, err := tok.Claims()
-		if err != nil {
-			phttp.WriteError(w, http.StatusBadRequest,
-				fmt.Sprintf("unable to construct claims: %v", err))
-			return
-		}
-
 		s := fmt.Sprintf(`
 <html>
+  <head>
+    <style>
+/* make pre wrap */
+pre {
+ white-space: pre-wrap;       /* css-3 */
+ white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+ white-space: -pre-wrap;      /* Opera 4-6 */
+ white-space: -o-pre-wrap;    /* Opera 7 */
+ word-wrap: break-word;       /* Internet Explorer 5.5+ */
+} 
+    </style>
+  </head>
   <body>
-    <p> Token: %v</p>
-    <p> Claims: %v </p>
-        <a href="/resend?jwt=%s">Resend Verification Email</a>
-    <p> Refresh Token: %v </p>
+    <p> Token: <pre><code>%v</code></pre></p>
+    <p> Claims: <pre><code>%v</code></pre></p>
+    <p> Refresh Token: <pre><code>%v</code></pre></p>
+    <p><a href="%s?refresh_token=%s">Redeem refresh token</a><p>
+    <p><a href="/resend?jwt=%s">Resend Verification Email</a></p>
   </body>
-</html>`, tok.Encode(), claims, tok.Encode(), tokens.RefreshToken)
+</html>`, tok.Encode(), claims.String(), token.RefreshToken, r.URL.Path, token.RefreshToken, tok.Encode())
 		w.Write([]byte(s))
 	}
-}
-
-func exchangeAuthCode(c *oidc.Client, code string) (oauth2.TokenResponse, error) {
-	oac, err := c.OAuthClient()
-	if err != nil {
-		return oauth2.TokenResponse{}, err
-	}
-
-	t, err := oac.RequestToken(oauth2.GrantTypeAuthCode, code)
-	if err != nil {
-		return oauth2.TokenResponse{}, err
-	}
-
-	return t, nil
-
 }

@@ -192,7 +192,7 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 	}
 	refreshRepo := db.NewRefreshTokenRepo(dbMap)
 	for _, token := range refreshTokens {
-		if _, err := refreshRepo.Create(token.userID, token.clientID, []string{"openid"}); err != nil {
+		if _, err := refreshRepo.Create(token.userID, token.clientID, "local", []string{"openid"}); err != nil {
 			panic("Failed to create refresh token: " + err.Error())
 		}
 	}

@@ -104,6 +104,13 @@ func TestSessionRepoCreateGet(t *testing.T) {
 			ExpiresAt:   time.Unix(789, 0).UTC(),
 			Nonce:       "oncenay",
 		},
+		session.Session{
+			ID:          "anID",
+			ClientState: "blargh",
+			ExpiresAt:   time.Unix(789, 0).UTC(),
+			Nonce:       "oncenay",
+			Groups:      []string{"group1", "group2"},
+		},
 	}
 
 	for i, tt := range tests {
