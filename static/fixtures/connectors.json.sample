@@ -28,7 +28,6 @@
 		"host": "127.0.0.1:389",
 		"useTLS": true,
 		"useSSL": false,
-		"caFile": "/etc/ssl/certs/example_com_root.crt",
 		"skipCertVerification": false,
 		"baseDN": "ou=People,dc=example,dc=com",
 		"nameAttribute": "cn",

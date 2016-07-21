@@ -69,10 +69,10 @@ func main() {
 	dbMaxOpenConns := fs.Int("db-max-open-conns", 0, "maximum number of open connections to the database")
 	printVersion := fs.Bool("version", false, "Print the version and exit")
 
-	// used only if --no-db is set
-	connectors := fs.String("connectors", "./static/fixtures/connectors.json", "JSON file containg set of IDPC configs")
-	clients := fs.String("clients", "./static/fixtures/clients.json", "json file containing set of clients")
-	users := fs.String("users", "./static/fixtures/users.json", "json file containing set of users")
+	// These are configuration files for development convenience, only used if --no-db is set.
+	connectors := fs.String("connectors", "./static/fixtures/connectors.json.sample", "JSON file containg set of IDPC configs")
+	clients := fs.String("clients", "./static/fixtures/clients.json.sample", "json file containing set of clients")
+	users := fs.String("users", "./static/fixtures/users.json.sample", "json file containing set of users")
 
 	logDebug := fs.Bool("log-debug", false, "log debug-level information")
 	logTimestamps := fs.Bool("log-timestamps", false, "prefix log lines with timestamps")
