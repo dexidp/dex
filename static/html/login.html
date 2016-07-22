@@ -40,7 +40,7 @@
       {{ if .Register }}
         {{ range $c := .Links }}
           <div class="form-row">
-            <a href="{{ $c.URL }}" target="_self">
+            <a href="{{ $c.URL | absPath }}" target="_self">
               <button class="btn btn-provider">
                 <span class="btn-icon btn-icon-{{ $c.ID }}"></span>
                 <span class="btn-text">Use {{ $c.DisplayName }}</span>
@@ -51,7 +51,7 @@
       {{ else }}
         {{ range $c := .Links }}
           <div class="form-row">
-            <a href="{{ $c.URL }}" target="_self">
+            <a href="{{ $c.URL | absPath }}" target="_self">
               <button class="btn btn-provider">
                 <span class="btn-icon btn-icon-{{ $c.ID }}"></span>
                 <span class="btn-text">Log in with {{ $c.DisplayName }}</span>
@@ -68,10 +68,10 @@
 {{ if not .Error }}
   <div class="footer subtle-text">
     {{ if .Register }}
-        Already have an account? <a href="{{ .RegisterOrLoginURL }}">Log in</a>
+        Already have an account? <a href="{{ .RegisterOrLoginURL | absPath }}">Log in</a>
     {{ else }}
       {{ if enableRegister }}
-        Don't have an account yet? <a href="{{ .RegisterOrLoginURL }}">Register</a>
+        Don't have an account yet? <a href="{{ .RegisterOrLoginURL | absPath }}">Register</a>
       {{ end }}
     {{ end }}
   </div>

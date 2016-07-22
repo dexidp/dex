@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	texttemplate "text/template"
 	"time"
@@ -63,7 +64,7 @@ func (cfg *ServerConfig) Server() (*Server, error) {
 		return nil, err
 	}
 
-	tpl, err := getTemplates(cfg.IssuerName, cfg.IssuerLogoURL, cfg.EnableRegistration, cfg.TemplateDir)
+	tpl, err := getTemplates(cfg.IssuerName, cfg.IssuerURL, cfg.IssuerLogoURL, cfg.EnableRegistration, cfg.TemplateDir)
 	if err != nil {
 		return nil, err
 	}
@@ -281,8 +282,14 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 	return nil
 }
 
-func getTemplates(issuerName, issuerLogoURL string,
+func getTemplates(issuerName, issuerURL, issuerLogoURL string,
 	enableRegister bool, dir string) (*template.Template, error) {
+	u, err := url.Parse(issuerURL)
+	if err != nil {
+		return nil, err
+	}
+	issuerPath := u.Path
+
 	tpl := template.New("").Funcs(map[string]interface{}{
 		"issuerName": func() string {
 			return issuerName
@@ -292,6 +299,9 @@ func getTemplates(issuerName, issuerLogoURL string,
 		},
 		"enableRegister": func() bool {
 			return enableRegister
+		},
+		"absPath": func(p string) string {
+			return path.Join(issuerPath, p)
 		},
 	})
 
