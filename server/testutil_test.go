@@ -230,7 +230,7 @@ func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, err
 		return nil, err
 	}
 
-	tpl, err := getTemplates("dex",
+	tpl, err := getTemplates("dex", "https://coreos.com",
 		"https://coreos.com/assets/images/brand/coreos-mark-30px.png",
 		true, templatesLocation)
 	if err != nil {
