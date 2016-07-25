@@ -251,9 +251,9 @@ func (c *LDAPConnector) LoginURL(sessionKey, prompt string) (string, error) {
 	return path.Join(c.namespace.Path, "login") + "?" + enc, nil
 }
 
-func (c *LDAPConnector) Register(mux *http.ServeMux, errorURL url.URL) {
-	route := path.Join(c.namespace.Path, "login")
-	mux.Handle(route, handlePasswordLogin(c.loginFunc, c.loginTpl, c, route, errorURL))
+func (c *LDAPConnector) Handler(errorURL url.URL) http.Handler {
+	route := path.Join(c.namespace.Path, "/login")
+	return handlePasswordLogin(c.loginFunc, c.loginTpl, c, route, errorURL)
 }
 
 func (c *LDAPConnector) Sync() chan struct{} {

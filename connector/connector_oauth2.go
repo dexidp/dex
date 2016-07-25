@@ -53,8 +53,8 @@ func (c *OAuth2Connector) LoginURL(sessionKey, prompt string) (string, error) {
 	return c.conn.Client().AuthCodeURL(sessionKey, oauth2.GrantTypeAuthCode, prompt), nil
 }
 
-func (c *OAuth2Connector) Register(mux *http.ServeMux, errorURL url.URL) {
-	mux.Handle(c.cbURL.Path, c.handleCallbackFunc(c.loginFunc, errorURL))
+func (c *OAuth2Connector) Handler(errorURL url.URL) http.Handler {
+	return c.handleCallbackFunc(c.loginFunc, errorURL)
 }
 
 func (c *OAuth2Connector) handleCallbackFunc(lf oidc.LoginFunc, errorURL url.URL) http.HandlerFunc {

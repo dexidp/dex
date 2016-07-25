@@ -21,12 +21,12 @@ type Connector interface {
 	// and OAuth2 prompt type.
 	LoginURL(sessionKey, prompt string) (string, error)
 
-	// Register allows connectors to register a callback handler with the
+	// Handler allows connectors to register a callback handler with the
 	// dex server.
 	//
-	// Connectors should register with a path that extends the namespace
-	// URL provided when the Connector is instantiated.
-	Register(mux *http.ServeMux, errorURL url.URL)
+	// Connectors will handle any path that extends the namespace URL provided
+	// when the Connector is instantiated.
+	Handler(errorURL url.URL) http.Handler
 
 	// Sync triggers any long-running tasks needed to maintain the
 	// Connector's operation. For example, this would encompass
