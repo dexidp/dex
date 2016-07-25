@@ -214,41 +214,47 @@ func (s *Server) HTTPHandler() http.Handler {
 
 	clock := clockwork.NewRealClock()
 	mux := http.NewServeMux()
-	mux.HandleFunc(httpPathDiscovery, handleDiscoveryFunc(s.ProviderConfig()))
-	mux.HandleFunc(httpPathAuth, handleAuthFunc(s, s.Connectors, s.LoginTemplate, s.EnableRegistration))
-	mux.HandleFunc(httpPathOOB, handleOOBFunc(s, s.OOBTemplate))
-	mux.HandleFunc(httpPathToken, handleTokenFunc(s))
-	mux.HandleFunc(httpPathKeys, handleKeysFunc(s.KeyManager, clock))
-	mux.Handle(httpPathHealth, makeHealthHandler(checks))
+	handle := func(urlPath string, h http.Handler) {
+		mux.Handle(path.Join(s.IssuerURL.Path, urlPath), h)
+	}
+	handleFunc := func(urlPath string, hf http.HandlerFunc) {
+		handle(urlPath, hf)
+	}
+	handleFunc(httpPathDiscovery, handleDiscoveryFunc(s.ProviderConfig()))
+	handleFunc(httpPathAuth, handleAuthFunc(s, s.Connectors, s.LoginTemplate, s.EnableRegistration))
+	handleFunc(httpPathOOB, handleOOBFunc(s, s.OOBTemplate))
+	handleFunc(httpPathToken, handleTokenFunc(s))
+	handleFunc(httpPathKeys, handleKeysFunc(s.KeyManager, clock))
+	handle(httpPathHealth, makeHealthHandler(checks))
 
 	if s.EnableRegistration {
-		mux.HandleFunc(httpPathRegister, handleRegisterFunc(s, s.RegisterTemplate))
+		handleFunc(httpPathRegister, handleRegisterFunc(s, s.RegisterTemplate))
 	}
 
-	mux.HandleFunc(httpPathEmailVerify, handleEmailVerifyFunc(s.VerifyEmailTemplate,
+	handleFunc(httpPathEmailVerify, handleEmailVerifyFunc(s.VerifyEmailTemplate,
 		s.IssuerURL, s.KeyManager.PublicKeys, s.UserManager))
 
-	mux.Handle(httpPathVerifyEmailResend, s.NewClientTokenAuthHandler(handleVerifyEmailResendFunc(s.IssuerURL,
+	handle(httpPathVerifyEmailResend, s.NewClientTokenAuthHandler(handleVerifyEmailResendFunc(s.IssuerURL,
 		s.KeyManager.PublicKeys,
 		s.UserEmailer,
 		s.UserRepo,
 		s.ClientManager)))
 
-	mux.Handle(httpPathSendResetPassword, &SendResetPasswordEmailHandler{
+	handle(httpPathSendResetPassword, &SendResetPasswordEmailHandler{
 		tpl:     s.SendResetPasswordEmailTemplate,
 		emailer: s.UserEmailer,
 		sm:      s.SessionManager,
 		cm:      s.ClientManager,
 	})
 
-	mux.Handle(httpPathResetPassword, &ResetPasswordHandler{
+	handle(httpPathResetPassword, &ResetPasswordHandler{
 		tpl:       s.ResetPasswordTemplate,
 		issuerURL: s.IssuerURL,
 		um:        s.UserManager,
 		keysFunc:  s.KeyManager.PublicKeys,
 	})
 
-	mux.Handle(httpPathAcceptInvitation, &InvitationHandler{
+	handle(httpPathAcceptInvitation, &InvitationHandler{
 		passwordResetURL:       s.absURL(httpPathResetPassword),
 		issuerURL:              s.IssuerURL,
 		um:                     s.UserManager,
@@ -258,10 +264,10 @@ func (s *Server) HTTPHandler() http.Handler {
 	})
 
 	if s.EnableClientRegistration {
-		mux.HandleFunc(httpPathClientRegistration, s.handleClientRegistration)
+		handleFunc(httpPathClientRegistration, s.handleClientRegistration)
 	}
 
-	mux.HandleFunc(httpPathDebugVars, health.ExpvarHandler)
+	handleFunc(httpPathDebugVars, health.ExpvarHandler)
 
 	pcfg := s.ProviderConfig()
 	for _, idpc := range s.Connectors {
@@ -280,7 +286,7 @@ func (s *Server) HTTPHandler() http.Handler {
 	usersAPI := usersapi.NewUsersAPI(s.UserManager, s.ClientManager, s.RefreshTokenRepo, s.UserEmailer, s.localConnectorID)
 	handler := NewUserMgmtServer(usersAPI, s.JWTVerifierFactory(), s.UserManager, s.ClientManager).HTTPHandler()
 
-	mux.Handle(apiBasePath+"/", handler)
+	handle(apiBasePath+"/", handler)
 
 	return http.Handler(mux)
 }
