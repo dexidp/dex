@@ -1,0 +1,63 @@
+package: github.com/coreos/poke
+import:
+- package: github.com/spf13/cobra
+  version: bc81c21bd0d8be5ba2d6630a505d79d4467566e7
+- package: github.com/spf13/pflag
+  version: 367864438f1b1a3c7db4da06a2f55b144e6784e0
+- package: github.com/inconshreveable/mousetrap
+  version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+
+- package: gopkg.in/ldap.v2
+  version: 0e7db8eb77695b5a952f0e5d78df9ab160050c73
+- package: gopkg.in/asn1-ber.v1
+  version: 4e86f4367175e39f69d9358a5f17b4dda270378d
+
+- package: gopkg.in/square/go-jose.v2
+  version: f209f41628247c56938cb20ef51d589ddad6c30b
+  subpackages:
+  - cipher
+  - json
+
+- package: gopkg.in/yaml.v2
+  version: a83829b6f1293c91addabc89d0571c246397bbf4
+
+- package: golang.org/x/net/context
+  version: d7bf3545bb0dacf009c535b3d3fbf53ac0a339ab
+
+- package: github.com/gorilla/mux
+  version: 9fa818a44c2bf1396a17f9d5a3c0f6dd39d2ff8e
+- package: github.com/gorilla/context
+  version: aed02d124ae4a0e94fea4541c8effd05bf0c8296
+
+- package: github.com/gtank/cryptopasta
+  version: e7e23673cac3f529f49e22f94e4af6d12bb49dba
+- package: golang.org/x/crypto
+  version: 2c99acdd1e9b90d779ca23f632aad86af9909c62
+  subpackages:
+  - bcrypt
+
+- package: github.com/ericchiang/oidc
+  version: 69fec81d167d815f4f455c741b2a94ffaf547ed2
+- package: github.com/pquerna/cachecontrol
+  version: c97913dcbd76de40b051a9b4cd827f7eaeb7a868
+- package: gopkg.in/square/go-jose.v1
+  version: v1.0.2
+- package: golang.org/x/oauth2
+  version: 08c8d727d2392d18286f9f88ad775ad98f09ab33
+- package: google.golang.org/appengine
+  version: 267c27e7492265b84fc6719503b14a1e17975d79
+  subpackages:
+  - urlfetch
+  - internal
+  - internal/urlfetch
+  - internal/base
+  - internal/datastore
+  - internal/log
+  - internal/remote_api
+- package: github.com/golang/protobuf
+  version: 874264fbbb43f4d91e999fecb4b40143ed611400
+  subpackages:
+  - proto
+
+- package: github.com/mitchellh/go-homedir
+  verison: 756f7b183b7ab78acdbbee5c7f392838ed459dda
