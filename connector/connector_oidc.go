@@ -90,8 +90,8 @@ func (c *OIDCConnector) LoginURL(sessionKey, prompt string) (string, error) {
 	return oac.AuthCodeURL(sessionKey, "", prompt), nil
 }
 
-func (c *OIDCConnector) Register(mux *http.ServeMux, errorURL url.URL) {
-	mux.Handle(c.cbURL.Path, c.handleCallbackFunc(c.loginFunc, errorURL))
+func (c *OIDCConnector) Handler(errorURL url.URL) http.Handler {
+	return c.handleCallbackFunc(c.loginFunc, errorURL)
 }
 
 func (c *OIDCConnector) Sync() chan struct{} {

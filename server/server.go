@@ -269,7 +269,9 @@ func (s *Server) HTTPHandler() http.Handler {
 		if err != nil {
 			log.Fatal(err)
 		}
-		idpc.Register(mux, *errorURL)
+		// NOTE(ericchiang): This path MUST end in a "/" in order to indicate a
+		// path prefix rather than an absolute path.
+		mux.Handle(path.Join(httpPathAuth, idpc.ID())+"/", idpc.Handler(*errorURL))
 	}
 
 	apiBasePath := path.Join(httpPathAPI, APIVersion)

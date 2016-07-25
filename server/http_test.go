@@ -40,7 +40,9 @@ func (f *fakeConnector) LoginURL(sessionKey, prompt string) (string, error) {
 	return f.loginURL, nil
 }
 
-func (f *fakeConnector) Register(mux *http.ServeMux, errorURL url.URL) {}
+func (f *fakeConnector) Handler(errorURL url.URL) http.Handler {
+	return http.HandlerFunc(http.NotFound)
+}
 
 func (f *fakeConnector) Sync() chan struct{} {
 	return nil
