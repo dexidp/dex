@@ -43,7 +43,7 @@ func main() {
 	certFile := fs.String("tls-cert-file", "", "the TLS cert file. If empty, the app will listen on HTTP")
 	keyFile := fs.String("tls-key-file", "", "the TLS key file. If empty, the app will listen on HTTP")
 
-	discovery := fs.String("discovery", "http://127.0.0.1:5556", "")
+	discovery := fs.String("discovery", "http://127.0.0.1:5556/dex", "")
 	logDebug := fs.Bool("log-debug", false, "log debug-level information")
 	logTimestamps := fs.Bool("log-timestamps", false, "prefix log lines with timestamps")
 

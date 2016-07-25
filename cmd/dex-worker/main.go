@@ -33,7 +33,7 @@ func main() {
 	fs := flag.NewFlagSet("dex-worker", flag.ExitOnError)
 	listen := fs.String("listen", "http://127.0.0.1:5556", "the address that the server will listen on")
 
-	issuer := fs.String("issuer", "http://127.0.0.1:5556", "the issuer's location")
+	issuer := fs.String("issuer", "http://127.0.0.1:5556/dex", "the issuer's location")
 
 	certFile := fs.String("tls-cert-file", "", "the server's certificate file for TLS connection")
 	keyFile := fs.String("tls-key-file", "", "the server's private key file for TLS connection")
