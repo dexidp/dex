@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -181,7 +182,7 @@ func NewClientHandler(c *oidc.Client, issuer string, cbURL url.URL) http.Handler
 	}
 
 	resendURL := *issuerURL
-	resendURL.Path = "/resend-verify-email"
+	resendURL.Path = path.Join(resendURL.Path, "/resend-verify-email")
 
 	mux.HandleFunc("/resend", handleResendFunc(c, *issuerURL, resendURL, cbURL))
 	return mux

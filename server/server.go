@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"path"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/jose"
@@ -215,7 +216,13 @@ func (s *Server) HTTPHandler() http.Handler {
 	clock := clockwork.NewRealClock()
 	mux := http.NewServeMux()
 	handle := func(urlPath string, h http.Handler) {
-		mux.Handle(path.Join(s.IssuerURL.Path, urlPath), h)
+		p := path.Join(s.IssuerURL.Path, urlPath)
+		// path.Join always trims trailing slashes (https://play.golang.org/p/GRr0jDd9P7).
+		// If path being registered has a trailing slash, add it back on.
+		if strings.HasSuffix(urlPath, "/") {
+			p = p + "/"
+		}
+		mux.Handle(p, h)
 	}
 	handleFunc := func(urlPath string, hf http.HandlerFunc) {
 		handle(urlPath, hf)
@@ -277,7 +284,7 @@ func (s *Server) HTTPHandler() http.Handler {
 		}
 		// NOTE(ericchiang): This path MUST end in a "/" in order to indicate a
 		// path prefix rather than an absolute path.
-		mux.Handle(path.Join(httpPathAuth, idpc.ID())+"/", idpc.Handler(*errorURL))
+		handle(path.Join(httpPathAuth, idpc.ID())+"/", idpc.Handler(*errorURL))
 	}
 
 	apiBasePath := path.Join(httpPathAPI, APIVersion)
