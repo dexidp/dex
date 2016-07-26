@@ -54,10 +54,14 @@ In order to use the `oidc` connector you must register dex as an OIDC client; th
 When registering dex as a client, you need to provide redirect URLs to the provider. dex requires just one:
 
 ```
-https://$DEX_HOST:$DEX_PORT/auth/$CONNECTOR_ID/callback
+$ISSUER_URL/auth/$CONNECTOR_ID/callback
 ```
 
-`$DEX_HOST` and `$DEX_PORT` are the host and port of your dex installation. `$CONNECTOR_ID` is the `id` field of the connector for this OIDC provider.
+For example runnning a connector with ID `"google"` and an issuer URL of `"https://auth.example.com/foo"` the redirect would be.
+
+```
+https://auth.example.com/foo/auth/google/callback
+```
 
 Here's what a `oidc` connector looks like configured for authenticating with Google; the clientID and clientSecret shown are not usable. We consider Google a trusted email provider because the email address that is present in claims is for a Google provisioned email account (eg. an `@gmail.com` address)
 
@@ -82,10 +86,14 @@ This connector config lets users authenticate through [GitHub](https://github.co
 To begin, register an OAuth application with GitHub through your, or your organization's [account settings](ttps://github.com/settings/applications/new). To register dex as a client of your GitHub application, enter dex's redirect URL under 'Authorization callback URL':
 
 ```
-https://$DEX_HOST:$DEX_PORT/auth/$CONNECTOR_ID/callback
+$ISSUER_URL/auth/$CONNECTOR_ID/callback
 ```
 
-`$DEX_HOST` and `$DEX_PORT` are the host and port of your dex installation. `$CONNECTOR_ID` is the `id` field of the connector.
+For example runnning a connector with ID `"github"` and an issuer URL of `"https://auth.example.com/bar"` the redirect would be.
+
+```
+https://auth.example.com/bar/auth/github/callback
+```
 
 Here's an example of a `github` connector; the clientID and clientSecret should be replaced by values provided by GitHub.
 
@@ -113,10 +121,14 @@ __NOTE:__ When configuring a consumer through Bitbucket you _must_ configure rea
 To register dex as a client of your Bitbucket consumer, enter dex's redirect URL under 'Callback URL':
 
 ```
-https://$DEX_HOST:$DEX_PORT/auth/$CONNECTOR_ID/callback
+$ISSUER_URL/auth/$CONNECTOR_ID/callback
 ```
 
-`$DEX_HOST` and `$DEX_PORT` are the host and port of your dex installation. `$CONNECTOR_ID` is the `id` field of the connector.
+For example runnning a connector with ID `"bitbucket"` and an issuer URL of `"https://auth.example.com/spaz"` the redirect would be.
+
+```
+https://auth.example.com/spaz/auth/bitbucket/callback
+```
 
 Here's an example of a `bitbucket` connector; the clientID and clientSecret should be replaced by values provided by Bitbucket.
 
