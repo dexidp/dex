@@ -5,8 +5,7 @@ services:
 language: go
 
 go:
-  - 1.5.4
-  - 1.6.2
+  - 1.6.3
   - tip
 
 env:
@@ -40,7 +39,7 @@ deploy:
   skip_cleanup: true
   on:
     branch: master
-    go: '1.6.2'
+    go: '1.6.3'
     condition: "$TRAVIS_PULL_REQUEST = false"
 
 notifications:
