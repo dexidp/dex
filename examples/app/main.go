@@ -1,5 +1,8 @@
 package main
 
+//go:generate go-bindata -pkg main -o assets.go data/
+//go:generate gofmt -w assets.go
+
 import (
 	"bytes"
 	"crypto/tls"
@@ -7,18 +10,28 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"path"
+	"strings"
 	"time"
 
+	"github.com/coreos/go-oidc/jose"
+	"github.com/coreos/go-oidc/oauth2"
+	"github.com/coreos/go-oidc/oidc"
+
+	"github.com/coreos/dex/client"
 	pflag "github.com/coreos/dex/pkg/flag"
 	phttp "github.com/coreos/dex/pkg/http"
 	"github.com/coreos/dex/pkg/log"
-	"github.com/coreos/go-oidc/oidc"
+	"github.com/coreos/dex/scope"
 )
+
+var indexTemplate *template.Template
 
 func main() {
 	fs := flag.NewFlagSet("oidc-app", flag.ExitOnError)
@@ -28,7 +41,10 @@ func main() {
 	clientSecret := fs.String("client-secret", "ZXhhbXBsZS1hcHAtc2VjcmV0", "")
 	caFile := fs.String("trusted-ca-file", "", "the TLS CA file, if empty then the host's root CA will be used")
 
-	discovery := fs.String("discovery", "http://127.0.0.1:5556", "")
+	certFile := fs.String("tls-cert-file", "", "the TLS cert file. If empty, the app will listen on HTTP")
+	keyFile := fs.String("tls-key-file", "", "the TLS key file. If empty, the app will listen on HTTP")
+
+	discovery := fs.String("discovery", "http://127.0.0.1:5556/dex", "")
 	logDebug := fs.Bool("log-debug", false, "log debug-level information")
 	logTimestamps := fs.Bool("log-timestamps", false, "prefix log lines with timestamps")
 
@@ -65,6 +81,16 @@ func main() {
 	_, p, err := net.SplitHostPort(l.Host)
 	if err != nil {
 		log.Fatalf("Unable to parse host from --listen flag: %v", err)
+	}
+
+	redirectURLParsed, err := url.Parse(*redirectURL)
+	if err != nil {
+		log.Fatalf("Unable to parse url from --redirect-url flag: %v", err)
+	}
+
+	useTLS := *keyFile != "" && *certFile != ""
+	if useTLS && (redirectURLParsed.Scheme != "https" || l.Scheme != "https") {
+		log.Fatalf(`TLS Cert File and Key File were provided. Ensure listen and redirect URLs are using the "https://" scheme.`)
 	}
 
 	cc := oidc.ClientCredentials{
@@ -104,6 +130,7 @@ func main() {
 		ProviderConfig: cfg,
 		Credentials:    cc,
 		RedirectURL:    *redirectURL,
+		Scope:          append(oidc.DefaultScope, "offline_access"),
 	}
 
 	client, err := oidc.NewClient(ccfg)
@@ -113,48 +140,75 @@ func main() {
 
 	client.SyncProviderConfig(*discovery)
 
-	redirectURLParsed, err := url.Parse(*redirectURL)
-	if err != nil {
-		log.Fatalf("Unable to parse url from --redirect-url flag: %v", err)
-	}
 	hdlr := NewClientHandler(client, *discovery, *redirectURLParsed)
 	httpsrv := &http.Server{
 		Addr:    fmt.Sprintf(":%s", p),
 		Handler: hdlr,
 	}
 
+	indexBytes, err := Asset("data/index.html")
+	if err != nil {
+		log.Fatalf("could not load template: %q", err)
+	}
+
+	indexTemplate = template.Must(template.New("root").Parse(string(indexBytes)))
+
 	log.Infof("Binding to %s...", httpsrv.Addr)
-	log.Fatal(httpsrv.ListenAndServe())
+	if useTLS {
+		log.Info("Key and cert file provided. Using TLS")
+		log.Fatal(httpsrv.ListenAndServeTLS(*certFile, *keyFile))
+	} else {
+		log.Fatal(httpsrv.ListenAndServe())
+	}
 }
 
 func NewClientHandler(c *oidc.Client, issuer string, cbURL url.URL) http.Handler {
 	mux := http.NewServeMux()
+
+	oob := cbURL.String() == client.OOBRedirectURI
 
 	issuerURL, err := url.Parse(issuer)
 	if err != nil {
 		log.Fatalf("Could not parse issuer url: %v", err)
 	}
 
-	mux.HandleFunc("/", handleIndex)
+	mux.HandleFunc("/", handleIndexFunc(oob))
 	mux.HandleFunc("/login", handleLoginFunc(c))
 	mux.HandleFunc("/register", handleRegisterFunc(c))
-	mux.HandleFunc(cbURL.Path, handleCallbackFunc(c))
+	if cbURL.String() != client.OOBRedirectURI {
+		mux.HandleFunc(cbURL.Path, handleCallbackFunc(c))
+	} else {
+		mux.HandleFunc("/callback", handleCallbackFunc(c))
+	}
 
 	resendURL := *issuerURL
-	resendURL.Path = "/resend-verify-email"
+	resendURL.Path = path.Join(resendURL.Path, "/resend-verify-email")
 
 	mux.HandleFunc("/resend", handleResendFunc(c, *issuerURL, resendURL, cbURL))
 	return mux
 }
 
-func handleIndex(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("<a href='/login'>login</a>"))
-	w.Write([]byte("<br>"))
-	w.Write([]byte("<a href='/register'>register</a>"))
+func handleIndexFunc(oob bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		err := indexTemplate.Execute(w, map[string]interface{}{
+			"OOB": oob,
+		})
+		if err != nil {
+			phttp.WriteError(w, http.StatusInternalServerError,
+				fmt.Sprintf("unable to execute template: %v", err))
+
+		}
+	}
 }
 
 func handleLoginFunc(c *oidc.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		err := r.ParseForm()
+		if err != nil {
+			phttp.WriteError(w, http.StatusBadRequest,
+				fmt.Sprintf("Could not parse request: %v", err))
+		}
+
 		oac, err := c.OAuthClient()
 		if err != nil {
 			panic("unable to proceed")
@@ -164,6 +218,29 @@ func handleLoginFunc(c *oidc.Client) http.HandlerFunc {
 		if err != nil {
 			panic("unable to proceed")
 		}
+
+		var scopes []string
+		q := u.Query()
+		if scope := q.Get("scope"); scope != "" {
+			scopes = strings.Split(scope, " ")
+		}
+
+		if xClient := r.Form.Get("cross_client"); xClient != "" {
+			xClients := strings.Split(xClient, ",")
+			for _, x := range xClients {
+				scopes = append(scopes, scope.ScopeGoogleCrossClient+x)
+			}
+		}
+
+		if extraScopes := r.Form.Get("extra_scopes"); extraScopes != "" {
+			scopes = append(scopes, strings.Split(extraScopes, ",")...)
+		}
+
+		if scopes != nil {
+			q.Set("scope", strings.Join(scopes, " "))
+			u.RawQuery = q.Encode()
+		}
+
 		http.Redirect(w, r, u.String(), http.StatusFound)
 	}
 }
@@ -223,27 +300,69 @@ func handleResendFunc(c *oidc.Client, issuerURL, resendURL, cbURL url.URL) http.
 
 func handleCallbackFunc(c *oidc.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		refreshToken := r.URL.Query().Get("refresh_token")
 		code := r.URL.Query().Get("code")
-		if code == "" {
+
+		oac, err := c.OAuthClient()
+		if err != nil {
+			phttp.WriteError(w, http.StatusBadRequest, fmt.Sprintf("unable to create OAuth2 client: %v", err))
+			return
+		}
+
+		var token oauth2.TokenResponse
+
+		switch {
+		case code != "":
+			if token, err = oac.RequestToken(oauth2.GrantTypeAuthCode, code); err != nil {
+				phttp.WriteError(w, http.StatusBadRequest, fmt.Sprintf("unable to verify auth code with issuer: %v", err))
+				return
+			}
+		case refreshToken != "":
+			if token, err = oac.RequestToken(oauth2.GrantTypeRefreshToken, refreshToken); err != nil {
+				phttp.WriteError(w, http.StatusBadRequest, fmt.Sprintf("unable to refresh token: %v", err))
+				return
+			}
+			if token.RefreshToken == "" {
+				token.RefreshToken = refreshToken
+			}
+		default:
 			phttp.WriteError(w, http.StatusBadRequest, "code query param must be set")
 			return
 		}
 
-		tok, err := c.ExchangeAuthCode(code)
+		tok, err := jose.ParseJWT(token.IDToken)
 		if err != nil {
-			phttp.WriteError(w, http.StatusBadRequest, fmt.Sprintf("unable to verify auth code with issuer: %v", err))
+			phttp.WriteError(w, http.StatusBadRequest, fmt.Sprintf("unable to parse JWT: %v", err))
 			return
 		}
 
-		claims, err := tok.Claims()
-		if err != nil {
+		claims := new(bytes.Buffer)
+		if err := json.Indent(claims, tok.Payload, "", "  "); err != nil {
 			phttp.WriteError(w, http.StatusBadRequest, fmt.Sprintf("unable to construct claims: %v", err))
 			return
 		}
-
-		s := fmt.Sprintf(`<html><body><p>Token: %v</p><p>Claims: %v </p>
-        <a href="/resend?jwt=%s">Resend Verification Email</a>
-</body></html>`, tok.Encode(), claims, tok.Encode())
+		s := fmt.Sprintf(`
+<html>
+  <head>
+    <style>
+/* make pre wrap */
+pre {
+ white-space: pre-wrap;       /* css-3 */
+ white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+ white-space: -pre-wrap;      /* Opera 4-6 */
+ white-space: -o-pre-wrap;    /* Opera 7 */
+ word-wrap: break-word;       /* Internet Explorer 5.5+ */
+} 
+    </style>
+  </head>
+  <body>
+    <p> Token: <pre><code>%v</code></pre></p>
+    <p> Claims: <pre><code>%v</code></pre></p>
+    <p> Refresh Token: <pre><code>%v</code></pre></p>
+    <p><a href="%s?refresh_token=%s">Redeem refresh token</a><p>
+    <p><a href="/resend?jwt=%s">Resend Verification Email</a></p>
+  </body>
+</html>`, tok.Encode(), claims.String(), token.RefreshToken, r.URL.Path, token.RefreshToken, tok.Encode())
 		w.Write([]byte(s))
 	}
 }

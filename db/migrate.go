@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-gorp/gorp"
-	"github.com/rubenv/sql-migrate"
+	migrate "github.com/rubenv/sql-migrate"
 
 	"github.com/coreos/dex/db/migrations"
 )

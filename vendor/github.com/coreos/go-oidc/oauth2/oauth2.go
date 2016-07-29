@@ -56,6 +56,7 @@ const (
 const (
 	GrantTypeAuthCode     = "authorization_code"
 	GrantTypeClientCreds  = "client_credentials"
+	GrantTypeUserCreds    = "password"
 	GrantTypeImplicit     = "implicit"
 	GrantTypeRefreshToken = "refresh_token"
 
@@ -140,6 +141,11 @@ func NewClient(hc phttp.Client, cfg Config) (c *Client, err error) {
 	return
 }
 
+// Return the embedded HTTP client
+func (c *Client) HttpClient() phttp.Client {
+	return c.hc
+}
+
 // Generate the url for initial redirect to oauth provider.
 func (c *Client) AuthCodeURL(state, accessType, prompt string) string {
 	v := c.commonURLValues()
@@ -171,22 +177,24 @@ func (c *Client) commonURLValues() url.Values {
 	}
 }
 
-func (c *Client) newAuthenticatedRequest(url string, values url.Values) (*http.Request, error) {
+func (c *Client) newAuthenticatedRequest(urlToken string, values url.Values) (*http.Request, error) {
 	var req *http.Request
 	var err error
 	switch c.authMethod {
 	case AuthMethodClientSecretPost:
 		values.Set("client_secret", c.creds.Secret)
-		req, err = http.NewRequest("POST", url, strings.NewReader(values.Encode()))
+		req, err = http.NewRequest("POST", urlToken, strings.NewReader(values.Encode()))
 		if err != nil {
 			return nil, err
 		}
 	case AuthMethodClientSecretBasic:
-		req, err = http.NewRequest("POST", url, strings.NewReader(values.Encode()))
+		req, err = http.NewRequest("POST", urlToken, strings.NewReader(values.Encode()))
 		if err != nil {
 			return nil, err
 		}
-		req.SetBasicAuth(c.creds.ID, c.creds.Secret)
+		encodedID := url.QueryEscape(c.creds.ID)
+		encodedSecret := url.QueryEscape(c.creds.Secret)
+		req.SetBasicAuth(encodedID, encodedSecret)
 	default:
 		panic("misconfigured client: auth method not supported")
 	}
@@ -202,6 +210,30 @@ func (c *Client) ClientCredsToken(scope []string) (result TokenResponse, err err
 	v := url.Values{
 		"scope":      {strings.Join(scope, " ")},
 		"grant_type": {GrantTypeClientCreds},
+	}
+
+	req, err := c.newAuthenticatedRequest(c.tokenURL.String(), v)
+	if err != nil {
+		return
+	}
+
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	return parseTokenResponse(resp)
+}
+
+// UserCredsToken posts the username and password to obtain a token scoped to the OAuth2 client via the "password" grant_type
+// May not be supported by all OAuth2 servers.
+func (c *Client) UserCredsToken(username, password string) (result TokenResponse, err error) {
+	v := url.Values{
+		"scope":      {strings.Join(c.scope, " ")},
+		"grant_type": {GrantTypeUserCreds},
+		"username":   {username},
+		"password":   {password},
 	}
 
 	req, err := c.newAuthenticatedRequest(c.tokenURL.String(), v)
@@ -300,16 +332,16 @@ func parseTokenResponse(resp *http.Response) (result TokenResponse, err error) {
 		result.Scope = vals.Get("scope")
 	} else {
 		var r struct {
-			AccessToken  string `json:"access_token"`
-			TokenType    string `json:"token_type"`
-			IDToken      string `json:"id_token"`
-			RefreshToken string `json:"refresh_token"`
-			Scope        string `json:"scope"`
-			State        string `json:"state"`
-			ExpiresIn    int    `json:"expires_in"`
-			Expires      int    `json:"expires"`
-			Error        string `json:"error"`
-			Desc         string `json:"error_description"`
+			AccessToken  string      `json:"access_token"`
+			TokenType    string      `json:"token_type"`
+			IDToken      string      `json:"id_token"`
+			RefreshToken string      `json:"refresh_token"`
+			Scope        string      `json:"scope"`
+			State        string      `json:"state"`
+			ExpiresIn    json.Number `json:"expires_in"` // Azure AD returns string
+			Expires      int         `json:"expires"`
+			Error        string      `json:"error"`
+			Desc         string      `json:"error_description"`
 		}
 		if err = json.Unmarshal(body, &r); err != nil {
 			return
@@ -323,10 +355,10 @@ func parseTokenResponse(resp *http.Response) (result TokenResponse, err error) {
 		result.IDToken = r.IDToken
 		result.RefreshToken = r.RefreshToken
 		result.Scope = r.Scope
-		if r.ExpiresIn == 0 {
+		if expiresIn, err := r.ExpiresIn.Int64(); err != nil {
 			result.Expires = r.Expires
 		} else {
-			result.Expires = r.ExpiresIn
+			result.Expires = int(expiresIn)
 		}
 	}
 	return

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	texttemplate "text/template"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/go-gorp/gorp"
 
 	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/email"
@@ -37,6 +39,7 @@ type ServerConfig struct {
 	StateConfig              StateConfigurer
 	EnableRegistration       bool
 	EnableClientRegistration bool
+	RegisterOnFirstLogin     bool
 }
 
 type StateConfigurer interface {
@@ -61,7 +64,7 @@ func (cfg *ServerConfig) Server() (*Server, error) {
 		return nil, err
 	}
 
-	tpl, err := getTemplates(cfg.IssuerName, cfg.IssuerLogoURL, cfg.EnableRegistration, cfg.TemplateDir)
+	tpl, err := getTemplates(cfg.IssuerName, cfg.IssuerURL, cfg.IssuerLogoURL, cfg.EnableRegistration, cfg.TemplateDir)
 	if err != nil {
 		return nil, err
 	}
@@ -77,6 +80,7 @@ func (cfg *ServerConfig) Server() (*Server, error) {
 
 		EnableRegistration:       cfg.EnableRegistration,
 		EnableClientRegistration: cfg.EnableClientRegistration,
+		RegisterOnFirstLogin:     cfg.RegisterOnFirstLogin,
 	}
 
 	err = cfg.StateConfig.Configure(&srv)
@@ -114,9 +118,10 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	if err != nil {
 		return fmt.Errorf("unable to read clients from file %s: %v", cfg.ClientsFile, err)
 	}
-	ciRepo, err := db.NewClientRepoFromClients(dbMap, clients)
+
+	clientRepo, err := db.NewClientRepoFromClients(dbMap, clients)
 	if err != nil {
-		return fmt.Errorf("failed to create client identity repo: %v", err)
+		return err
 	}
 
 	f, err := os.Open(cfg.ConnectorsFile)
@@ -155,7 +160,12 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 
 	txnFactory := db.TransactionFactory(dbMap)
 	userManager := usermanager.NewUserManager(userRepo, pwiRepo, cfgRepo, txnFactory, usermanager.ManagerOptions{})
-	srv.ClientRepo = ciRepo
+	clientManager := clientmanager.NewClientManager(clientRepo, db.TransactionFactory(dbMap), clientmanager.ManagerOptions{})
+	if err != nil {
+		return fmt.Errorf("Failed to create client identity manager: %v", err)
+	}
+	srv.ClientRepo = clientRepo
+	srv.ClientManager = clientManager
 	srv.KeySetRepo = kRepo
 	srv.ConnectorConfigRepo = cfgRepo
 	srv.UserRepo = userRepo
@@ -215,7 +225,7 @@ func loadUsersFromReader(r io.Reader) (users []user.UserWithRemoteIdentities, pw
 }
 
 // loadClients parses the clients.json file and returns a list of clients.
-func loadClients(filepath string) ([]client.Client, error) {
+func loadClients(filepath string) ([]client.LoadableClient, error) {
 	f, err := os.Open(filepath)
 	if err != nil {
 		return nil, err
@@ -253,11 +263,13 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 	userRepo := db.NewUserRepo(dbc)
 	pwiRepo := db.NewPasswordInfoRepo(dbc)
 	userManager := usermanager.NewUserManager(userRepo, pwiRepo, cfgRepo, db.TransactionFactory(dbc), usermanager.ManagerOptions{})
+	clientManager := clientmanager.NewClientManager(ciRepo, db.TransactionFactory(dbc), clientmanager.ManagerOptions{})
 	refreshTokenRepo := db.NewRefreshTokenRepo(dbc)
 
 	sm := sessionmanager.NewSessionManager(sRepo, skRepo)
 
 	srv.ClientRepo = ciRepo
+	srv.ClientManager = clientManager
 	srv.KeySetRepo = kRepo
 	srv.ConnectorConfigRepo = cfgRepo
 	srv.UserRepo = userRepo
@@ -270,8 +282,14 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 	return nil
 }
 
-func getTemplates(issuerName, issuerLogoURL string,
+func getTemplates(issuerName, issuerURL, issuerLogoURL string,
 	enableRegister bool, dir string) (*template.Template, error) {
+	u, err := url.Parse(issuerURL)
+	if err != nil {
+		return nil, err
+	}
+	issuerPath := u.Path
+
 	tpl := template.New("").Funcs(map[string]interface{}{
 		"issuerName": func() string {
 			return issuerName
@@ -282,41 +300,32 @@ func getTemplates(issuerName, issuerLogoURL string,
 		"enableRegister": func() bool {
 			return enableRegister
 		},
+		"absPath": func(p string) string {
+			return path.Join(issuerPath, p)
+		},
 	})
 
 	return tpl.ParseGlob(dir + "/*.html")
 }
 
 func setTemplates(srv *Server, tpls *template.Template) error {
-	ltpl, err := findTemplate(LoginPageTemplateName, tpls)
-	if err != nil {
-		return err
+	for _, t := range []struct {
+		templateName string
+		templatePtr  **template.Template
+	}{
+		{LoginPageTemplateName, &srv.LoginTemplate},
+		{RegisterTemplateName, &srv.RegisterTemplate},
+		{VerifyEmailTemplateName, &srv.VerifyEmailTemplate},
+		{SendResetPasswordEmailTemplateName, &srv.SendResetPasswordEmailTemplate},
+		{ResetPasswordTemplateName, &srv.ResetPasswordTemplate},
+		{OOBTemplateName, &srv.OOBTemplate},
+	} {
+		tpl, err := findTemplate(t.templateName, tpls)
+		if err != nil {
+			return err
+		}
+		*t.templatePtr = tpl
 	}
-	srv.LoginTemplate = ltpl
-
-	rtpl, err := findTemplate(RegisterTemplateName, tpls)
-	if err != nil {
-		return err
-	}
-	srv.RegisterTemplate = rtpl
-
-	vtpl, err := findTemplate(VerifyEmailTemplateName, tpls)
-	if err != nil {
-		return err
-	}
-	srv.VerifyEmailTemplate = vtpl
-
-	srtpl, err := findTemplate(SendResetPasswordEmailTemplateName, tpls)
-	if err != nil {
-		return err
-	}
-	srv.SendResetPasswordEmailTemplate = srtpl
-
-	rpwtpl, err := findTemplate(ResetPasswordTemplateName, tpls)
-	if err != nil {
-		return err
-	}
-	srv.ResetPasswordTemplate = rpwtpl
 
 	return nil
 }
@@ -328,7 +337,7 @@ func setEmailer(srv *Server, issuerName, fromAddress, emailerConfigFile string, 
 		return err
 	}
 
-	emailer, err := cfg.Emailer()
+	emailer, err := cfg.Emailer(fromAddress)
 	if err != nil {
 		return err
 	}
@@ -372,7 +381,7 @@ func setEmailer(srv *Server, issuerName, fromAddress, emailerConfigFile string, 
 			return err
 		}
 	}
-	tMailer := email.NewTemplatizedEmailerFromTemplates(textTemplates, htmlTemplates, emailer)
+	tMailer := email.NewTemplatizedEmailerFromTemplates(textTemplates, htmlTemplates, emailer, fromAddress)
 	tMailer.SetGlobalContext(map[string]interface{}{
 		"issuer_name": issuerName,
 	})
@@ -383,7 +392,6 @@ func setEmailer(srv *Server, issuerName, fromAddress, emailerConfigFile string, 
 		srv.SessionManager.ValidityWindow,
 		srv.IssuerURL,
 		tMailer,
-		fromAddress,
 		srv.absURL(httpPathResetPassword),
 		srv.absURL(httpPathEmailVerify),
 		srv.absURL(httpPathAcceptInvitation),

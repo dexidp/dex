@@ -24,6 +24,7 @@ func MapSchemaClientToClient(sc Client) (client.Client, error) {
 		Metadata: oidc.ClientMetadata{
 			RedirectURIs: make([]url.URL, len(sc.RedirectURIs)),
 		},
+		Public: sc.Public,
 	}
 	for i, ru := range sc.RedirectURIs {
 		if ru == "" {
@@ -65,6 +66,8 @@ func MapClientToSchemaClient(c client.Client) Client {
 		Id:           c.Credentials.ID,
 		Secret:       c.Credentials.Secret,
 		RedirectURIs: make([]string, len(c.Metadata.RedirectURIs)),
+		IsAdmin:      c.Admin,
+		Public:       c.Public,
 	}
 	for i, u := range c.Metadata.RedirectURIs {
 		cl.RedirectURIs[i] = u.String()
@@ -78,6 +81,5 @@ func MapClientToSchemaClient(c client.Client) Client {
 	if c.Metadata.ClientURI != nil {
 		cl.ClientURI = c.Metadata.ClientURI.String()
 	}
-	cl.IsAdmin = c.Admin
 	return cl
 }

@@ -1,40 +1,40 @@
-// package admin provides an implementation of the API described in auth/schema/adminschema.
+// Package admin provides an implementation of the API described in auth/schema/adminschema.
 package admin
 
 import (
 	"net/http"
 
-	"github.com/coreos/go-oidc/oidc"
-
 	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
+	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/schema/adminschema"
 	"github.com/coreos/dex/user"
-	"github.com/coreos/dex/user/manager"
-)
-
-var (
-	ClientIDGenerator = oidc.GenClientID
+	usermanager "github.com/coreos/dex/user/manager"
 )
 
 // AdminAPI provides the logic necessary to implement the Admin API.
 type AdminAPI struct {
-	userManager      *manager.UserManager
-	userRepo         user.UserRepo
-	passwordInfoRepo user.PasswordInfoRepo
-	clientRepo       client.ClientRepo
-	localConnectorID string
+	userManager         *usermanager.UserManager
+	userRepo            user.UserRepo
+	passwordInfoRepo    user.PasswordInfoRepo
+	connectorConfigRepo connector.ConnectorConfigRepo
+	clientRepo          client.ClientRepo
+	clientManager       *clientmanager.ClientManager
+	localConnectorID    string
 }
 
-func NewAdminAPI(userRepo user.UserRepo, pwiRepo user.PasswordInfoRepo, clientRepo client.ClientRepo, userManager *manager.UserManager, localConnectorID string) *AdminAPI {
+func NewAdminAPI(userRepo user.UserRepo, pwiRepo user.PasswordInfoRepo, clientRepo client.ClientRepo, connectorConfigRepo connector.ConnectorConfigRepo, userManager *usermanager.UserManager, clientManager *clientmanager.ClientManager, localConnectorID string) *AdminAPI {
 	if localConnectorID == "" {
 		panic("must specify non-blank localConnectorID")
 	}
 	return &AdminAPI{
-		userManager:      userManager,
-		userRepo:         userRepo,
-		passwordInfoRepo: pwiRepo,
-		clientRepo:       clientRepo,
-		localConnectorID: localConnectorID,
+		userManager:         userManager,
+		userRepo:            userRepo,
+		passwordInfoRepo:    pwiRepo,
+		clientRepo:          clientRepo,
+		clientManager:       clientManager,
+		connectorConfigRepo: connectorConfigRepo,
+		localConnectorID:    localConnectorID,
 	}
 }
 
@@ -69,12 +69,20 @@ func errorMaker(typ string, desc string, code int) func(internal error) Error {
 var (
 	ErrorMissingClient = errorMaker("bad_request", "The 'client' cannot be empty", http.StatusBadRequest)(nil)
 
-	// Called when oidc.ClientMetadata.Valid() fails.
 	ErrorInvalidClientFunc = errorMaker("bad_request", "Your client could not be validated.", http.StatusBadRequest)
 
 	errorMap = map[error]func(error) Error{
+		client.ErrorMissingRedirectURI: errorMaker("bad_request", "Non-public clients must have at least one redirect URI", http.StatusBadRequest),
+
+		client.ErrorPublicClientRedirectURIs: errorMaker("bad_request", "Public clients cannot specify redirect URIs", http.StatusBadRequest),
+
+		client.ErrorPublicClientMissingName: errorMaker("bad_request", "Public clients require a ClientName", http.StatusBadRequest),
+
+		client.ErrorInvalidClientSecret: errorMaker("bad_request", "Secret must be a base64 encoded string", http.StatusBadRequest),
+		client.ErrorDuplicateClientID:   errorMaker("bad_request", "Client ID already exists.", http.StatusConflict),
+
 		user.ErrorNotFound:       errorMaker("resource_not_found", "Resource could not be found.", http.StatusNotFound),
-		user.ErrorDuplicateEmail: errorMaker("bad_request", "Email already in use.", http.StatusBadRequest),
+		user.ErrorDuplicateEmail: errorMaker("bad_request", "Email already in use.", http.StatusConflict),
 		user.ErrorInvalidEmail:   errorMaker("bad_request", "invalid email.", http.StatusBadRequest),
 
 		adminschema.ErrorInvalidRedirectURI: errorMaker("bad_request", "invalid redirectURI.", http.StatusBadRequest),
@@ -86,7 +94,6 @@ var (
 
 func (a *AdminAPI) GetAdmin(id string) (adminschema.Admin, error) {
 	usr, err := a.userRepo.Get(nil, id)
-
 	if err != nil {
 		return adminschema.Admin{}, mapError(err)
 	}
@@ -136,19 +143,9 @@ func (a *AdminAPI) CreateClient(req adminschema.ClientCreateRequest) (adminschem
 		return adminschema.ClientCreateResponse{}, mapError(err)
 	}
 
-	if err := cli.Metadata.Valid(); err != nil {
-		return adminschema.ClientCreateResponse{}, ErrorInvalidClientFunc(err)
-	}
-
-	// metadata is guaranteed to have at least one redirect_uri by earlier validation.
-	id, err := ClientIDGenerator(cli.Metadata.RedirectURIs[0].Host)
-	if err != nil {
-		return adminschema.ClientCreateResponse{}, mapError(err)
-	}
-
-	cli.Credentials.ID = id
-
-	creds, err := a.clientRepo.New(cli)
+	creds, err := a.clientManager.New(cli, &clientmanager.ClientOptions{
+		TrustedPeers: req.Client.TrustedPeers,
+	})
 	if err != nil {
 		return adminschema.ClientCreateResponse{}, mapError(err)
 	}
@@ -160,7 +157,21 @@ func (a *AdminAPI) CreateClient(req adminschema.ClientCreateRequest) (adminschem
 	}, nil
 }
 
+func (a *AdminAPI) SetConnectors(connectorConfigs []connector.ConnectorConfig) error {
+	return a.connectorConfigRepo.Set(connectorConfigs)
+}
+
+func (a *AdminAPI) GetConnectors() ([]connector.ConnectorConfig, error) {
+	return a.connectorConfigRepo.All()
+}
+
 func mapError(e error) error {
+	switch t := e.(type) {
+	case client.ValidationError:
+		return ErrorInvalidClientFunc(t)
+	default:
+	}
+
 	if mapped, ok := errorMap[e]; ok {
 		return mapped(e)
 	}

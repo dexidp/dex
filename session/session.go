@@ -6,6 +6,8 @@ import (
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oidc"
+
+	"github.com/coreos/dex/scope"
 )
 
 const (
@@ -46,11 +48,16 @@ type Session struct {
 	// Regsiter indicates that this session is a registration flow.
 	Register bool
 
-	// Nonce is optionally provided in the initial authorization request, and propogated in such cases to the generated claims.
+	// Nonce is optionally provided in the initial authorization request, and
+	// propogated in such cases to the generated claims.
 	Nonce string
 
-	// Scope is the 'scope' field in the authentication request. Example scopes are 'openid', 'email', 'offline', etc.
-	Scope []string
+	// Scope is the 'scope' field in the authentication request. Example scopes
+	// are 'openid', 'email', 'offline', etc.
+	Scope scope.Scopes
+
+	// Groups the user belongs to.
+	Groups []string
 }
 
 // Claims returns a new set of Claims for the current session.
@@ -60,6 +67,9 @@ func (s *Session) Claims(issuerURL string) jose.Claims {
 	claims := oidc.NewClaims(issuerURL, s.UserID, s.ClientID, s.CreatedAt, s.ExpiresAt)
 	if s.Nonce != "" {
 		claims["nonce"] = s.Nonce
+	}
+	if s.Scope.HasScope(scope.ScopeGroups) {
+		claims["groups"] = s.Groups
 	}
 	return claims
 }

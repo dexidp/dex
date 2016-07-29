@@ -1,53 +1,123 @@
 package client
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/url"
 	"reflect"
+	"strings"
 
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/coreos/dex/repo"
 	"github.com/coreos/go-oidc/oidc"
 )
 
 var (
+	ErrorInvalidClientID = errors.New("not a valid client ID")
+
+	ErrorInvalidClientSecret = errors.New("not a valid client Secret")
+
+	ErrorDuplicateClientID = errors.New("client ID already exists")
+
 	ErrorInvalidRedirectURL    = errors.New("not a valid redirect url for the given client")
 	ErrorCantChooseRedirectURL = errors.New("must provide a redirect url; client has many")
 	ErrorNoValidRedirectURLs   = errors.New("no valid redirect URLs for this client.")
-	ErrorNotFound              = errors.New("no data found")
+
+	ErrorPublicClientRedirectURIs = errors.New("public clients cannot have redirect URIs")
+	ErrorPublicClientMissingName  = errors.New("public clients must have a name")
+
+	ErrorMissingRedirectURI = errors.New("no client redirect url given")
+
+	ErrorNotFound = errors.New("no data found")
 )
+
+type ValidationError struct {
+	Err error
+}
+
+func (v ValidationError) Error() string {
+	return v.Err.Error()
+}
+
+const (
+	bcryptHashCost = 10
+
+	OOBRedirectURI = "urn:ietf:wg:oauth:2.0:oob"
+)
+
+func HashSecret(creds oidc.ClientCredentials) ([]byte, error) {
+	secretBytes, err := base64.URLEncoding.DecodeString(creds.Secret)
+	if err != nil {
+		return nil, ErrorInvalidClientSecret
+	}
+	hashed, err := bcrypt.GenerateFromPassword([]byte(
+		secretBytes),
+		bcryptHashCost)
+	if err != nil {
+		return nil, err
+	}
+	return hashed, nil
+}
 
 type Client struct {
 	Credentials oidc.ClientCredentials
 	Metadata    oidc.ClientMetadata
 	Admin       bool
+	Public      bool
+}
+
+func (c Client) ValidRedirectURL(u *url.URL) (url.URL, error) {
+	if c.Public {
+		if u == nil {
+			return url.URL{}, ErrorInvalidRedirectURL
+		}
+		if u.String() == OOBRedirectURI {
+			return *u, nil
+		}
+
+		if u.Scheme != "http" {
+			return url.URL{}, ErrorInvalidRedirectURL
+		}
+
+		hostPort := strings.Split(u.Host, ":")
+		if len(hostPort) != 2 {
+			return url.URL{}, ErrorInvalidRedirectURL
+		}
+
+		if hostPort[0] != "localhost" || u.Path != "" || u.RawPath != "" || u.RawQuery != "" || u.Fragment != "" {
+			return url.URL{}, ErrorInvalidRedirectURL
+		}
+
+		return *u, nil
+	}
+
+	return ValidRedirectURL(u, c.Metadata.RedirectURIs)
 }
 
 type ClientRepo interface {
-	Get(clientID string) (Client, error)
+	Get(tx repo.Transaction, clientID string) (Client, error)
 
-	// Metadata returns one matching ClientMetadata if the given client
-	// exists, otherwise nil. The returned error will be non-nil only
-	// if the repo was unable to determine client existence.
-	Metadata(clientID string) (*oidc.ClientMetadata, error)
-
-	// Authenticate asserts that a client with the given ID exists and
-	// that the provided secret matches. If either of these assertions
-	// fail, (false, nil) will be returned. Only if the repo is unable
-	// to make these assertions will a non-nil error be returned.
-	Authenticate(creds oidc.ClientCredentials) (bool, error)
+	// GetSecret returns the (base64 encoded) hashed client secret
+	GetSecret(tx repo.Transaction, clientID string) ([]byte, error)
 
 	// All returns all registered Clients
-	All() ([]Client, error)
+	All(tx repo.Transaction) ([]Client, error)
 
 	// New registers a Client with the repo.
 	// An unused ID must be provided. A corresponding secret will be returned
 	// in a ClientCredentials struct along with the provided ID.
-	New(client Client) (*oidc.ClientCredentials, error)
+	New(tx repo.Transaction, client Client) (*oidc.ClientCredentials, error)
 
-	SetDexAdmin(clientID string, isAdmin bool) error
+	Update(tx repo.Transaction, client Client) error
 
-	IsDexAdmin(clientID string) (bool, error)
+	// GetTrustedPeers returns the list of clients authorized to mint ID token for the given client.
+	GetTrustedPeers(tx repo.Transaction, clientID string) ([]string, error)
+
+	// SetTrustedPeers sets the list of clients authorized to mint ID token for the given client.
+	SetTrustedPeers(tx repo.Transaction, clientID string, clientIDs []string) error
 }
 
 // ValidRedirectURL returns the passed in URL if it is present in the redirectURLs list, and returns an error otherwise.
@@ -75,16 +145,25 @@ func ValidRedirectURL(rURL *url.URL, redirectURLs []url.URL) (url.URL, error) {
 	return url.URL{}, ErrorInvalidRedirectURL
 }
 
-func ClientsFromReader(r io.Reader) ([]Client, error) {
+// LoadableClient contains sufficient information for creating a Client and its related entities.
+type LoadableClient struct {
+	Client       Client
+	TrustedPeers []string
+}
+
+func ClientsFromReader(r io.Reader) ([]LoadableClient, error) {
 	var c []struct {
 		ID           string   `json:"id"`
 		Secret       string   `json:"secret"`
 		RedirectURLs []string `json:"redirectURLs"`
+		Admin        bool     `json:"admin"`
+		Public       bool     `json:"public"`
+		TrustedPeers []string `json:"trustedPeers"`
 	}
 	if err := json.NewDecoder(r).Decode(&c); err != nil {
 		return nil, err
 	}
-	clients := make([]Client, len(c))
+	clients := make([]LoadableClient, len(c))
 	for i, client := range c {
 		if client.ID == "" {
 			return nil, errors.New("clients must have an ID")
@@ -101,14 +180,19 @@ func ClientsFromReader(r io.Reader) ([]Client, error) {
 			redirectURIs[j] = *uri
 		}
 
-		clients[i] = Client{
-			Credentials: oidc.ClientCredentials{
-				ID:     client.ID,
-				Secret: client.Secret,
+		clients[i] = LoadableClient{
+			Client: Client{
+				Credentials: oidc.ClientCredentials{
+					ID:     client.ID,
+					Secret: client.Secret,
+				},
+				Metadata: oidc.ClientMetadata{
+					RedirectURIs: redirectURIs,
+				},
+				Admin:  client.Admin,
+				Public: client.Public,
 			},
-			Metadata: oidc.ClientMetadata{
-				RedirectURIs: redirectURIs,
-			},
+			TrustedPeers: client.TrustedPeers,
 		}
 	}
 	return clients, nil

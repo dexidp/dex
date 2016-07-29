@@ -6,22 +6,29 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/coreos/dex/client"
-	"github.com/coreos/dex/db"
-	"github.com/coreos/dex/refresh/refreshtest"
-	"github.com/coreos/dex/session/manager"
-	"github.com/coreos/dex/user"
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/key"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/kylelemons/godebug/pretty"
+
+	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/db"
+	"github.com/coreos/dex/refresh/refreshtest"
+	"github.com/coreos/dex/scope"
+	"github.com/coreos/dex/session/manager"
+	"github.com/coreos/dex/user"
 )
 
-var clientTestSecret = base64.URLEncoding.EncodeToString([]byte("secrete"))
+var validRedirURL = url.URL{
+	Scheme: "http",
+	Host:   "client.example.com",
+	Path:   "/callback",
+}
 
 type StaticKeyManager struct {
 	key.PrivateKeyManager
@@ -132,8 +139,8 @@ func TestServerNewSession(t *testing.T) {
 	nonce := "oncenay"
 	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
-			ID:     "XXX",
-			Secret: "secrete",
+			ID:     testClientID,
+			Secret: clientTestSecret,
 		},
 		Metadata: oidc.ClientMetadata{
 			RedirectURIs: []url.URL{
@@ -179,98 +186,132 @@ func TestServerNewSession(t *testing.T) {
 }
 
 func TestServerLogin(t *testing.T) {
-	ci := client.Client{
-		Credentials: oidc.ClientCredentials{
-			ID:     "XXX",
-			Secret: clientTestSecret,
+
+	tests := []struct {
+		testCase     string
+		connectorID  string
+		clientID     string
+		userID       string
+		remoteUserID string
+		email        string
+		configure    func(s *Server)
+
+		wantError bool // should server.Login fail?
+		wantLogin bool // should server.Login redirect back to the app?
+	}{
+		{
+			testCase:     "good user",
+			connectorID:  testConnectorID1,
+			clientID:     testClientID,
+			userID:       testUserID1,
+			remoteUserID: testUserRemoteID1,
+			email:        testUserEmail1,
+			wantLogin:    true,
 		},
-		Metadata: oidc.ClientMetadata{
-			RedirectURIs: []url.URL{
-				url.URL{
-					Scheme: "http",
-					Host:   "client.example.com",
-					Path:   "/callback",
-				},
-			},
+		{
+			testCase:     "user has remote identity with another connector",
+			connectorID:  testConnectorIDOpenID,
+			clientID:     testClientID,
+			userID:       testUserID1,
+			remoteUserID: testUserRemoteID1,
+			email:        testUserEmail1,
+			wantLogin:    false,
+		},
+		{
+			testCase:     "unknown connector id",
+			connectorID:  "bad connector id",
+			clientID:     testClientID,
+			userID:       testUserID1,
+			remoteUserID: testUserRemoteID1,
+			email:        testUserEmail1,
+			wantError:    true,
+		},
+		{
+			testCase:     "unregistered user",
+			connectorID:  testConnectorIDOpenID,
+			clientID:     testClientID,
+			userID:       testUserID1,
+			remoteUserID: "unregistered-user-id",
+			email:        "newemail@example.com",
+			wantLogin:    false,
+		},
+		{
+			testCase:     "unregistered user with register on first login",
+			connectorID:  testConnectorIDOpenID,
+			clientID:     testClientID,
+			userID:       testUserID1,
+			remoteUserID: "unregistered-user-id",
+			email:        "newemail@example.com",
+			configure:    func(srv *Server) { srv.RegisterOnFirstLogin = true },
+			wantLogin:    true,
+		},
+		{
+			testCase:     "unregistered user through local connector with register on first login",
+			connectorID:  testConnectorLocalID,
+			clientID:     testClientID,
+			userID:       testUserID1,
+			remoteUserID: "unregistered-user-id",
+			email:        "newemail@example.com",
+			configure:    func(srv *Server) { srv.RegisterOnFirstLogin = true },
+			wantLogin:    false,
 		},
 	}
-	ciRepo := func() client.ClientRepo {
-		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{ci})
+
+	for _, tt := range tests {
+		f, err := makeTestFixtures()
 		if err != nil {
-			t.Fatalf("Failed to create client identity repo: %v", err)
+			t.Fatalf("error making test fixtures: %v", err)
 		}
-		return repo
-	}()
 
-	km := &StaticKeyManager{
-		signer: &StaticSigner{sig: []byte("beer"), err: nil},
-	}
+		if tt.configure != nil {
+			tt.configure(f.srv)
+		}
 
-	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
-	sm.GenerateCode = staticGenerateCodeFunc("fakecode")
-	sessionID, err := sm.NewSession("test_connector_id", ci.Credentials.ID, "bogus", ci.Metadata.RedirectURIs[0], "", false, []string{"openid"})
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+		sm := f.sessionManager
+		sessionID, err := sm.NewSession(tt.connectorID, tt.clientID, "bogus", testRedirectURL, "", false, []string{"openid"})
+		if err != nil {
+			t.Errorf("case %s: new session: %v", tt.testCase, err)
+			continue
+		}
 
-	userRepo, err := makeNewUserRepo()
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+		key, err := sm.NewSessionKey(sessionID)
+		if err != nil {
+			t.Errorf("case %s: new session key: %v", tt.testCase, err)
+			continue
+		}
 
-	srv := &Server{
-		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
-		KeyManager:     km,
-		SessionManager: sm,
-		ClientRepo:     ciRepo,
-		UserRepo:       userRepo,
-	}
+		ident := oidc.Identity{ID: tt.remoteUserID, Name: "elroy", Email: tt.email}
+		redirectURL, err := f.srv.Login(ident, key)
+		if err != nil {
+			if !tt.wantError {
+				t.Errorf("case %s: server.Login: %v", tt.testCase, err)
+			}
+			continue
+		}
+		if tt.wantError {
+			t.Errorf("case %s: expected server.Login to fail", tt.testCase)
+			continue
+		}
 
-	ident := oidc.Identity{ID: "YYY", Name: "elroy", Email: "elroy@example.com"}
-	key, err := sm.NewSessionKey(sessionID)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	redirectURL, err := srv.Login(ident, key)
-	if err != nil {
-		t.Fatalf("Unexpected err from Server.Login: %v", err)
-	}
-
-	wantRedirectURL := "http://client.example.com/callback?code=fakecode&state=bogus"
-	if wantRedirectURL != redirectURL {
-		t.Fatalf("Unexpected redirectURL: want=%q, got=%q", wantRedirectURL, redirectURL)
+		// Did the server redirect back to the client app or display an error to the user?
+		gotRedirectURL := strings.HasPrefix(redirectURL, testRedirectURL.String())
+		if gotRedirectURL && !tt.wantLogin {
+			t.Errorf("case %s: should not have logged in", tt.testCase)
+		}
+		if !gotRedirectURL && tt.wantLogin {
+			t.Errorf("case %s: failed to log in. expected redirect url got: %s", tt.testCase, redirectURL)
+		}
 	}
 }
 
 func TestServerLoginUnrecognizedSessionKey(t *testing.T) {
-	ciRepo := func() client.ClientRepo {
-		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
-			client.Client{
-				Credentials: oidc.ClientCredentials{
-					ID: "XXX", Secret: clientTestSecret,
-				},
-			},
-		})
-		if err != nil {
-			t.Fatalf("Failed to create client identity repo: %v", err)
-		}
-		return repo
-	}()
-
-	km := &StaticKeyManager{
-		signer: &StaticSigner{sig: nil, err: errors.New("fail")},
-	}
-	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
-	srv := &Server{
-		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
-		KeyManager:     km,
-		SessionManager: sm,
-		ClientRepo:     ciRepo,
+	f, err := makeTestFixtures()
+	if err != nil {
+		t.Fatalf("error making test fixtures: %v", err)
 	}
 
-	ident := oidc.Identity{ID: "YYY", Name: "elroy", Email: "elroy@example.com"}
-	code, err := srv.Login(ident, "XXX")
+	ident := oidc.Identity{ID: testUserRemoteID1, Name: "elroy", Email: testUserEmail1}
+	code, err := f.srv.Login(ident, testClientID)
 	if err == nil {
 		t.Fatalf("Expected non-nil error")
 	}
@@ -281,46 +322,12 @@ func TestServerLoginUnrecognizedSessionKey(t *testing.T) {
 }
 
 func TestServerLoginDisabledUser(t *testing.T) {
-	ci := client.Client{
-		Credentials: oidc.ClientCredentials{
-			ID:     "XXX",
-			Secret: clientTestSecret,
-		},
-		Metadata: oidc.ClientMetadata{
-			RedirectURIs: []url.URL{
-				url.URL{
-					Scheme: "http",
-					Host:   "client.example.com",
-					Path:   "/callback",
-				},
-			},
-		},
-	}
-	ciRepo := func() client.ClientRepo {
-		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{ci})
-		if err != nil {
-			t.Fatalf("Failed to create client identity repo: %v", err)
-		}
-		return repo
-	}()
-
-	km := &StaticKeyManager{
-		signer: &StaticSigner{sig: []byte("beer"), err: nil},
-	}
-
-	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
-	sm.GenerateCode = staticGenerateCodeFunc("fakecode")
-	sessionID, err := sm.NewSession("test_connector_id", ci.Credentials.ID, "bogus", ci.Metadata.RedirectURIs[0], "", false, []string{"openid"})
+	f, err := makeTestFixtures()
 	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
+		t.Fatalf("error making test fixtures: %v", err)
 	}
 
-	userRepo, err := makeNewUserRepo()
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	err = userRepo.Create(nil, user.User{
+	err = f.userRepo.Create(nil, user.User{
 		ID:       "disabled-1",
 		Email:    "disabled@example.com",
 		Disabled: true,
@@ -329,65 +336,34 @@ func TestServerLoginDisabledUser(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	err = userRepo.AddRemoteIdentity(nil, "disabled-1", user.RemoteIdentity{
+	err = f.userRepo.AddRemoteIdentity(nil, "disabled-1", user.RemoteIdentity{
 		ConnectorID: "test_connector_id",
 		ID:          "disabled-connector-id",
 	})
 
-	srv := &Server{
-		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
-		KeyManager:     km,
-		SessionManager: sm,
-		ClientRepo:     ciRepo,
-		UserRepo:       userRepo,
-	}
-
-	ident := oidc.Identity{ID: "disabled-connector-id", Name: "elroy", Email: "elroy@example.com"}
-	key, err := sm.NewSessionKey(sessionID)
+	sessionID, err := f.sessionManager.NewSession("test_connector_id", testClientID, "bogus", testRedirectURL, "", false, []string{"openid"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	_, err = srv.Login(ident, key)
+	ident := oidc.Identity{ID: "disabled-connector-id", Name: "elroy", Email: "elroy@example.com"}
+	key, err := f.sessionManager.NewSessionKey(sessionID)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	_, err = f.srv.Login(ident, key)
 	if err == nil {
 		t.Errorf("disabled user was allowed to log in")
 	}
 }
 
 func TestServerCodeToken(t *testing.T) {
-	ci := client.Client{
-		Credentials: oidc.ClientCredentials{
-			ID:     "XXX",
-			Secret: clientTestSecret,
-		},
-	}
-	ciRepo := func() client.ClientRepo {
-		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{ci})
-		if err != nil {
-			t.Fatalf("Failed to create client identity repo: %v", err)
-		}
-		return repo
-	}()
-	km := &StaticKeyManager{
-		signer: &StaticSigner{sig: []byte("beer"), err: nil},
-	}
-	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
-
-	userRepo, err := makeNewUserRepo()
+	f, err := makeTestFixtures()
 	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
+		t.Fatalf("Error creating test fixtures: %v", err)
 	}
-
-	refreshTokenRepo := refreshtest.NewTestRefreshTokenRepo()
-
-	srv := &Server{
-		IssuerURL:        url.URL{Scheme: "http", Host: "server.example.com"},
-		KeyManager:       km,
-		SessionManager:   sm,
-		ClientRepo:       ciRepo,
-		UserRepo:         userRepo,
-		RefreshTokenRepo: refreshTokenRepo,
-	}
+	sm := f.sessionManager
 
 	tests := []struct {
 		scope        []string
@@ -400,15 +376,15 @@ func TestServerCodeToken(t *testing.T) {
 		},
 		// Have 'offline_access' in scope, should get non-empty refresh token.
 		{
-			// NOTE(ericchiang): This test assumes that the database ID of the first
-			// refresh token will be "1".
+			// NOTE(ericchiang): This test assumes that the database ID of the
+			// first refresh token will be "1".
 			scope:        []string{"openid", "offline_access"},
 			refreshToken: fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
 		},
 	}
 
 	for i, tt := range tests {
-		sessionID, err := sm.NewSession("bogus_idpc", ci.Credentials.ID, "bogus", url.URL{}, "", false, tt.scope)
+		sessionID, err := sm.NewSession("bogus_idpc", testClientID, "bogus", url.URL{}, "", false, tt.scope)
 		if err != nil {
 			t.Fatalf("case %d: unexpected error: %v", i, err)
 		}
@@ -417,7 +393,7 @@ func TestServerCodeToken(t *testing.T) {
 			t.Fatalf("case %d: unexpected error: %v", i, err)
 		}
 
-		_, err = sm.AttachUser(sessionID, "testid-1")
+		_, err = sm.AttachUser(sessionID, testUserID1)
 		if err != nil {
 			t.Fatalf("case %d: unexpected error: %v", i, err)
 		}
@@ -427,7 +403,9 @@ func TestServerCodeToken(t *testing.T) {
 			t.Fatalf("case %d: unexpected error: %v", i, err)
 		}
 
-		jwt, token, err := srv.CodeToken(ci.Credentials, key)
+		jwt, token, err := f.srv.CodeToken(oidc.ClientCredentials{
+			ID:     testClientID,
+			Secret: clientTestSecret}, key)
 		if err != nil {
 			t.Fatalf("case %d: unexpected error: %v", i, err)
 		}
@@ -441,32 +419,13 @@ func TestServerCodeToken(t *testing.T) {
 }
 
 func TestServerTokenUnrecognizedKey(t *testing.T) {
-	ci := client.Client{
-		Credentials: oidc.ClientCredentials{
-			ID:     "XXX",
-			Secret: clientTestSecret,
-		},
+	f, err := makeTestFixtures()
+	if err != nil {
+		t.Fatalf("error making test fixtures: %v", err)
 	}
-	ciRepo := func() client.ClientRepo {
-		repo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{ci})
-		if err != nil {
-			t.Fatalf("Failed to create client identity repo: %v", err)
-		}
-		return repo
-	}()
-	km := &StaticKeyManager{
-		signer: &StaticSigner{sig: []byte("beer"), err: nil},
-	}
-	sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
+	sm := f.sessionManager
 
-	srv := &Server{
-		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
-		KeyManager:     km,
-		SessionManager: sm,
-		ClientRepo:     ciRepo,
-	}
-
-	sessionID, err := sm.NewSession("connector_id", ci.Credentials.ID, "bogus", url.URL{}, "", false, []string{"openid", "offline_access"})
+	sessionID, err := sm.NewSession("connector_id", testClientID, "bogus", url.URL{}, "", false, []string{"openid", "offline_access"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -476,7 +435,7 @@ func TestServerTokenUnrecognizedKey(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	jwt, token, err := srv.CodeToken(ci.Credentials, "foo")
+	jwt, token, err := f.srv.CodeToken(testClientCredentials, "foo")
 	if err == nil {
 		t.Fatalf("Expected non-nil error")
 	}
@@ -489,12 +448,8 @@ func TestServerTokenUnrecognizedKey(t *testing.T) {
 }
 
 func TestServerTokenFail(t *testing.T) {
-	issuerURL := url.URL{Scheme: "http", Host: "server.example.com"}
 	keyFixture := "goodkey"
-	ccFixture := oidc.ClientCredentials{
-		ID:     "XXX",
-		Secret: clientTestSecret,
-	}
+
 	signerFixture := &StaticSigner{sig: []byte("beer"), err: nil}
 
 	tests := []struct {
@@ -510,7 +465,7 @@ func TestServerTokenFail(t *testing.T) {
 			// NOTE(ericchiang): This test assumes that the database ID of the first
 			// refresh token will be "1".
 			signer:       signerFixture,
-			argCC:        ccFixture,
+			argCC:        testClientCredentials,
 			argKey:       keyFixture,
 			scope:        []string{"openid", "offline_access"},
 			refreshToken: fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
@@ -519,7 +474,7 @@ func TestServerTokenFail(t *testing.T) {
 		// no 'offline_access' in 'scope', should get empty refresh token
 		{
 			signer: signerFixture,
-			argCC:  ccFixture,
+			argCC:  testClientCredentials,
 			argKey: keyFixture,
 			scope:  []string{"openid"},
 		},
@@ -527,7 +482,7 @@ func TestServerTokenFail(t *testing.T) {
 		// unrecognized key
 		{
 			signer: signerFixture,
-			argCC:  ccFixture,
+			argCC:  testClientCredentials,
 			argKey: "foo",
 			err:    oauth2.NewError(oauth2.ErrorInvalidGrant),
 			scope:  []string{"openid", "offline_access"},
@@ -545,7 +500,7 @@ func TestServerTokenFail(t *testing.T) {
 		// signing operation fails
 		{
 			signer: &StaticSigner{sig: nil, err: errors.New("fail")},
-			argCC:  ccFixture,
+			argCC:  testClientCredentials,
 			argKey: keyFixture,
 			err:    oauth2.NewError(oauth2.ErrorServerError),
 			scope:  []string{"openid", "offline_access"},
@@ -553,10 +508,19 @@ func TestServerTokenFail(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		sm := manager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
-		sm.GenerateCode = func() (string, error) { return keyFixture, nil }
 
-		sessionID, err := sm.NewSession("connector_id", ccFixture.ID, "bogus", url.URL{}, "", false, tt.scope)
+		f, err := makeTestFixtures()
+		if err != nil {
+			t.Fatalf("error making test fixtures: %v", err)
+		}
+		sm := f.sessionManager
+		sm.GenerateCode = func() (string, error) { return keyFixture, nil }
+		f.srv.RefreshTokenRepo = refreshtest.NewTestRefreshTokenRepo()
+		f.srv.KeyManager = &StaticKeyManager{
+			signer: tt.signer,
+		}
+
+		sessionID, err := sm.NewSession(testConnectorID1, testClientID, "bogus", url.URL{}, "", false, tt.scope)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -566,36 +530,9 @@ func TestServerTokenFail(t *testing.T) {
 			t.Errorf("case %d: unexpected error: %v", i, err)
 			continue
 		}
-		km := &StaticKeyManager{
-			signer: tt.signer,
-		}
-		ciRepo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
-			client.Client{Credentials: ccFixture},
-		})
-		if err != nil {
-			t.Errorf("case %d: failed to create client identity repo: %v", i, err)
-			continue
-		}
-
-		_, err = sm.AttachUser(sessionID, "testid-1")
+		_, err = sm.AttachUser(sessionID, testUserID1)
 		if err != nil {
 			t.Fatalf("case %d: unexpected error: %v", i, err)
-		}
-
-		userRepo, err := makeNewUserRepo()
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
-		}
-
-		refreshTokenRepo := refreshtest.NewTestRefreshTokenRepo()
-
-		srv := &Server{
-			IssuerURL:        issuerURL,
-			KeyManager:       km,
-			SessionManager:   sm,
-			ClientRepo:       ciRepo,
-			UserRepo:         userRepo,
-			RefreshTokenRepo: refreshTokenRepo,
 		}
 
 		_, err = sm.NewSessionKey(sessionID)
@@ -603,7 +540,7 @@ func TestServerTokenFail(t *testing.T) {
 			t.Fatalf("Unexpected error: %v", err)
 		}
 
-		jwt, token, err := srv.CodeToken(tt.argCC, tt.argKey)
+		jwt, token, err := f.srv.CodeToken(tt.argCC, tt.argKey)
 		if token != tt.refreshToken {
 			fmt.Printf("case %d: expect refresh token %q, got %q\n", i, tt.refreshToken, token)
 			t.Fatalf("case %d: expect refresh token %q, got %q", i, tt.refreshToken, token)
@@ -622,107 +559,214 @@ func TestServerTokenFail(t *testing.T) {
 }
 
 func TestServerRefreshToken(t *testing.T) {
-	issuerURL := url.URL{Scheme: "http", Host: "server.example.com"}
 
-	credXXX := oidc.ClientCredentials{
-		ID:     "XXX",
-		Secret: clientTestSecret,
+	clientB := client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID:     "example2.com",
+			Secret: clientTestSecret,
+		},
+		Metadata: oidc.ClientMetadata{
+			RedirectURIs: []url.URL{
+				url.URL{Scheme: "https", Host: "example2.com", Path: "one/two/three"},
+			},
+		},
 	}
-	credYYY := oidc.ClientCredentials{
-		ID:     "YYY",
-		Secret: clientTestSecret,
-	}
-
 	signerFixture := &StaticSigner{sig: []byte("beer"), err: nil}
 
 	// NOTE(ericchiang): These tests assume that the database ID of the first
 	// refresh token will be "1".
 	tests := []struct {
-		token    string
-		clientID string // The client that associates with the token.
-		creds    oidc.ClientCredentials
-		signer   jose.Signer
-		err      error
+		token         string
+		clientID      string // The client that associates with the token.
+		creds         oidc.ClientCredentials
+		signer        jose.Signer
+		createScopes  []string
+		refreshScopes []string
+		expectedAud   []string
+		err           error
 	}{
 		// Everything is good.
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			"XXX",
-			credXXX,
-			signerFixture,
-			nil,
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         testClientCredentials,
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+		},
+		// Asking for a scope not originally granted to you.
+		{
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         testClientCredentials,
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile", "extra_scope"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 		// Invalid refresh token(malformatted).
 		{
-			"invalid-token",
-			"XXX",
-			credXXX,
-			signerFixture,
-			oauth2.NewError(oauth2.ErrorInvalidRequest),
+			token:         "invalid-token",
+			clientID:      testClientID,
+			creds:         testClientCredentials,
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 		// Invalid refresh token(invalid payload content).
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-2"))),
-			"XXX",
-			credXXX,
-			signerFixture,
-			oauth2.NewError(oauth2.ErrorInvalidRequest),
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-2"))),
+			clientID:      testClientID,
+			creds:         testClientCredentials,
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 		// Invalid refresh token(invalid ID content).
 		{
-			fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			"XXX",
-			credXXX,
-			signerFixture,
-			oauth2.NewError(oauth2.ErrorInvalidRequest),
+			token:         fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         testClientCredentials,
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 		// Invalid client(client is not associated with the token).
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			"XXX",
-			credYYY,
-			signerFixture,
-			oauth2.NewError(oauth2.ErrorInvalidClient),
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         clientB.Credentials,
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(no client ID).
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			"XXX",
-			oidc.ClientCredentials{ID: "", Secret: "aaa"},
-			signerFixture,
-			oauth2.NewError(oauth2.ErrorInvalidClient),
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         oidc.ClientCredentials{ID: "", Secret: "aaa"},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(no such client).
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			"XXX",
-			oidc.ClientCredentials{ID: "AAA", Secret: "aaa"},
-			signerFixture,
-			oauth2.NewError(oauth2.ErrorInvalidClient),
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         oidc.ClientCredentials{ID: "AAA", Secret: "aaa"},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(no secrets).
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			"XXX",
-			oidc.ClientCredentials{ID: "XXX"},
-			signerFixture,
-			oauth2.NewError(oauth2.ErrorInvalidClient),
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         oidc.ClientCredentials{ID: testClientID},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Invalid client(invalid secret).
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			"XXX",
-			oidc.ClientCredentials{ID: "XXX", Secret: "bad-secret"},
-			signerFixture,
-			oauth2.NewError(oauth2.ErrorInvalidClient),
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         oidc.ClientCredentials{ID: "bad-id", Secret: "bad-secret"},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidClient),
 		},
 		// Signing operation fails.
 		{
-			fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			"XXX",
-			credXXX,
-			&StaticSigner{sig: nil, err: errors.New("fail")},
-			oauth2.NewError(oauth2.ErrorServerError),
+			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID:      testClientID,
+			creds:         testClientCredentials,
+			signer:        &StaticSigner{sig: nil, err: errors.New("fail")},
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile"},
+			err:           oauth2.NewError(oauth2.ErrorServerError),
+		},
+		// Valid Cross-Client
+		{
+			token:    fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID: "client_a",
+			creds: oidc.ClientCredentials{
+				ID: "client_a",
+				Secret: base64.URLEncoding.EncodeToString(
+					[]byte("client_a_secret")),
+			},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile", scope.ScopeGoogleCrossClient + "client_b"},
+			refreshScopes: []string{"openid", "profile", scope.ScopeGoogleCrossClient + "client_b"},
+			expectedAud:   []string{"client_b"},
+		},
+		// Valid Cross-Client - but this time we leave out the scopes in the
+		// refresh request, which should result in the original stored scopes
+		// being used.
+		{
+			token:    fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID: "client_a",
+			creds: oidc.ClientCredentials{
+				ID: "client_a",
+				Secret: base64.URLEncoding.EncodeToString(
+					[]byte("client_a_secret")),
+			},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile", scope.ScopeGoogleCrossClient + "client_b"},
+			refreshScopes: []string{},
+			expectedAud:   []string{"client_b"},
+		},
+		// Valid Cross-Client - asking for fewer scopes than originally used
+		// when creating the refresh token, which is ok.
+		{
+			token:    fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID: "client_a",
+			creds: oidc.ClientCredentials{
+				ID: "client_a",
+				Secret: base64.URLEncoding.EncodeToString(
+					[]byte("client_a_secret")),
+			},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile", scope.ScopeGoogleCrossClient + "client_b", scope.ScopeGoogleCrossClient + "client_c"},
+			refreshScopes: []string{"openid", "profile", scope.ScopeGoogleCrossClient + "client_b"},
+			expectedAud:   []string{"client_b"},
+		},
+		// Valid Cross-Client - asking for multiple clients in the audience.
+		{
+			token:    fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID: "client_a",
+			creds: oidc.ClientCredentials{
+				ID: "client_a",
+				Secret: base64.URLEncoding.EncodeToString(
+					[]byte("client_a_secret")),
+			},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile", scope.ScopeGoogleCrossClient + "client_b", scope.ScopeGoogleCrossClient + "client_c"},
+			refreshScopes: []string{"openid", "profile", scope.ScopeGoogleCrossClient + "client_b", scope.ScopeGoogleCrossClient + "client_c"},
+			expectedAud:   []string{"client_b", "client_c"},
+		},
+		// Invalid Cross-Client - didn't orignally request cross-client when
+		// refresh token was created.
+		{
+			token:    fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			clientID: "client_a",
+			creds: oidc.ClientCredentials{
+				ID: "client_a",
+				Secret: base64.URLEncoding.EncodeToString(
+					[]byte("client_a_secret")),
+			},
+			signer:        signerFixture,
+			createScopes:  []string{"openid", "profile"},
+			refreshScopes: []string{"openid", "profile", scope.ScopeGoogleCrossClient + "client_b"},
+			err:           oauth2.NewError(oauth2.ErrorInvalidRequest),
 		},
 	}
 
@@ -730,36 +774,22 @@ func TestServerRefreshToken(t *testing.T) {
 		km := &StaticKeyManager{
 			signer: tt.signer,
 		}
-
-		ciRepo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
-			client.Client{Credentials: credXXX},
-			client.Client{Credentials: credYYY},
-		})
+		f, err := makeCrossClientTestFixtures()
 		if err != nil {
-			t.Errorf("case %d: failed to create client identity repo: %v", i, err)
-			continue
+			t.Fatalf("error making test fixtures: %v", err)
+		}
+		f.srv.RefreshTokenRepo = refreshtest.NewTestRefreshTokenRepo()
+		f.srv.KeyManager = km
+		_, err = f.clientRepo.New(nil, clientB)
+		if err != nil {
+			t.Errorf("case %d: error creating other client: %v", i, err)
 		}
 
-		userRepo, err := makeNewUserRepo()
-		if err != nil {
+		if _, err := f.srv.RefreshTokenRepo.Create(testUserID1, tt.clientID, "", tt.createScopes); err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
 
-		refreshTokenRepo := refreshtest.NewTestRefreshTokenRepo()
-
-		srv := &Server{
-			IssuerURL:        issuerURL,
-			KeyManager:       km,
-			ClientRepo:       ciRepo,
-			UserRepo:         userRepo,
-			RefreshTokenRepo: refreshTokenRepo,
-		}
-
-		if _, err := refreshTokenRepo.Create("testid-1", tt.clientID); err != nil {
-			t.Fatalf("Unexpected error: %v", err)
-		}
-
-		jwt, err := srv.RefreshToken(tt.creds, tt.token)
+		jwt, err := f.srv.RefreshToken(tt.creds, tt.refreshScopes, tt.token)
 		if !reflect.DeepEqual(err, tt.err) {
 			t.Errorf("Case %d: expect: %v, got: %v", i, tt.err, err)
 		}
@@ -772,62 +802,28 @@ func TestServerRefreshToken(t *testing.T) {
 			if err != nil {
 				t.Errorf("Case %d: unexpected error: %v", i, err)
 			}
-			if claims["iss"] != issuerURL.String() || claims["sub"] != "testid-1" || claims["aud"] != "XXX" {
-				t.Errorf("Case %d: invalid claims: %v", i, claims)
+
+			var expectedAud interface{}
+			if tt.expectedAud == nil {
+				expectedAud = testClientID
+			} else if len(tt.expectedAud) == 1 {
+				expectedAud = tt.expectedAud[0]
+			} else {
+				expectedAud = tt.expectedAud
+			}
+
+			if claims["iss"] != testIssuerURL.String() {
+				t.Errorf("Case %d: want=%v, got=%v", i,
+					testIssuerURL.String(), claims["iss"])
+			}
+			if claims["sub"] != testUserID1 {
+				t.Errorf("Case %d: want=%v, got=%v", i,
+					testUserID1, claims["sub"])
+			}
+			if diff := pretty.Compare(claims["aud"], expectedAud); diff != "" {
+				t.Errorf("Case %d: want=%v, got=%v", i,
+					expectedAud, claims["aud"])
 			}
 		}
-	}
-
-	// Test that we should return error when user cannot be found after
-	// verifying the token.
-	km := &StaticKeyManager{
-		signer: signerFixture,
-	}
-
-	ciRepo, err := db.NewClientRepoFromClients(db.NewMemDB(), []client.Client{
-		client.Client{Credentials: credXXX},
-		client.Client{Credentials: credYYY},
-	})
-	if err != nil {
-		t.Fatalf("failed to create client identity repo: %v", err)
-	}
-
-	userRepo, err := makeNewUserRepo()
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	// Create a user that will be removed later.
-	if err := userRepo.Create(nil, user.User{
-		ID:    "testid-2",
-		Email: "test-2@example.com",
-	}); err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	refreshTokenRepo := refreshtest.NewTestRefreshTokenRepo()
-
-	srv := &Server{
-		IssuerURL:        issuerURL,
-		KeyManager:       km,
-		ClientRepo:       ciRepo,
-		UserRepo:         userRepo,
-		RefreshTokenRepo: refreshTokenRepo,
-	}
-
-	if _, err := refreshTokenRepo.Create("testid-2", credXXX.ID); err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	// Recreate the user repo to remove the user we created.
-	userRepo, err = makeNewUserRepo()
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	srv.UserRepo = userRepo
-
-	_, err = srv.RefreshToken(credXXX, fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))))
-	if !reflect.DeepEqual(err, oauth2.NewError(oauth2.ErrorServerError)) {
-		t.Errorf("Expect: %v, got: %v", oauth2.NewError(oauth2.ErrorServerError), err)
 	}
 }

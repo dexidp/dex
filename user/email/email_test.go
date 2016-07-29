@@ -29,13 +29,12 @@ var (
 )
 
 type testEmailer struct {
-	from, subject, text, html string
-	to                        []string
-	sent                      bool
+	subject, text, html string
+	to                  []string
+	sent                bool
 }
 
-func (t *testEmailer) SendMail(from, subject, text, html string, to ...string) error {
-	t.from = from
+func (t *testEmailer) SendMail(subject, text, html string, to ...string) error {
 	t.subject = subject
 	t.text = text
 	t.html = html
@@ -112,9 +111,9 @@ func makeTestFixtures() (*UserEmailer, *testEmailer, *key.PublicKey) {
 	htmlTemplates := htmltemplate.New("html")
 
 	emailer := &testEmailer{}
-	tEmailer := email.NewTemplatizedEmailerFromTemplates(textTemplates, htmlTemplates, emailer)
+	tEmailer := email.NewTemplatizedEmailerFromTemplates(textTemplates, htmlTemplates, emailer, fromAddress)
 
-	userEmailer := NewUserEmailer(ur, pwr, signerFn, validityWindow, issuerURL, tEmailer, fromAddress, passwordResetURL, verifyEmailURL, acceptInvitationURL)
+	userEmailer := NewUserEmailer(ur, pwr, signerFn, validityWindow, issuerURL, tEmailer, passwordResetURL, verifyEmailURL, acceptInvitationURL)
 
 	return userEmailer, emailer, publicKey
 }
@@ -201,10 +200,6 @@ func TestSendResetPasswordEmail(t *testing.T) {
 			}
 			if tt.email != emailer.to[0] {
 				t.Errorf("case %d: want==%v, got==%v", i, tt.email, emailer.to[0])
-			}
-
-			if fromAddress != emailer.from {
-				t.Errorf("case %d: want==%v, got==%v", i, fromAddress, emailer.from)
 			}
 
 		} else if emailer.sent {
@@ -304,10 +299,6 @@ func TestSendEmailVerificationEmail(t *testing.T) {
 			}
 			if tt.wantEmailAddress != emailer.to[0] {
 				t.Errorf("case %d: want==%v, got==%v", i, tt.wantEmailAddress, emailer.to[0])
-			}
-
-			if fromAddress != emailer.from {
-				t.Errorf("case %d: want==%v, got==%v", i, fromAddress, emailer.from)
 			}
 
 		} else if emailer.sent {

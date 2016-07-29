@@ -79,7 +79,7 @@ var (
 		},
 	}
 
-	userBadClientID = "ZZZ"
+	userBadClientID = testBadRedirectURL.Host
 
 	userGoodToken = makeUserToken(testIssuerURL,
 		"ID-1", testClientID, time.Hour*1, testPrivKey)
@@ -101,9 +101,9 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 	f := &userAPITestFixtures{}
 
 	dbMap, _, _, um := makeUserObjects(userUsers, userPasswords)
-	cir := func() client.ClientRepo {
-		repo, err := db.NewClientRepoFromClients(dbMap, []client.Client{
-			client.Client{
+	clients := []client.LoadableClient{
+		{
+			Client: client.Client{
 				Credentials: oidc.ClientCredentials{
 					ID:     testClientID,
 					Secret: testClientSecret,
@@ -114,25 +114,27 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 					},
 				},
 			},
-			client.Client{
+		},
+		{
+			Client: client.Client{
 				Credentials: oidc.ClientCredentials{
 					ID:     userBadClientID,
 					Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
 				},
 				Metadata: oidc.ClientMetadata{
 					RedirectURIs: []url.URL{
-						testRedirectURL,
+						testBadRedirectURL,
 					},
 				},
 			},
-		})
-		if err != nil {
-			panic("Failed to create client identity repo: " + err.Error())
-		}
-		return repo
-	}()
+		},
+	}
 
-	cir.SetDexAdmin(testClientID, true)
+	_, clientManager, err := makeClientRepoAndManager(dbMap, clients)
+	if err != nil {
+		panic("Failed to create client identity manager: " + err.Error())
+	}
+	clientManager.SetDexAdmin(testClientID, true)
 
 	noop := func() error { return nil }
 
@@ -146,15 +148,17 @@ func makeUserAPITestFixtures() *userAPITestFixtures {
 
 	refreshRepo := db.NewRefreshTokenRepo(dbMap)
 	for _, user := range userUsers {
-		if _, err := refreshRepo.Create(user.User.ID, testClientID); err != nil {
+		if _, err := refreshRepo.Create(user.User.ID, testClientID,
+			"", append([]string{"offline_access"}, oidc.DefaultScope...)); err != nil {
 			panic("Failed to create refresh token: " + err.Error())
 		}
 	}
 
 	f.emailer = &testEmailer{}
 	um.Clock = clock
-	api := api.NewUsersAPI(dbMap, um, f.emailer, "local")
-	usrSrv := server.NewUserMgmtServer(api, jwtvFactory, um, cir)
+
+	api := api.NewUsersAPI(um, clientManager, refreshRepo, f.emailer, "local")
+	usrSrv := server.NewUserMgmtServer(api, jwtvFactory, um, clientManager)
 	f.hSrv = httptest.NewServer(usrSrv.HTTPHandler())
 
 	f.trans = &tokenHandlerTransport{
@@ -407,6 +411,24 @@ func TestCreateUser(t *testing.T) {
 		},
 		{
 
+			// Duplicate email
+			req: schema.UserCreateRequest{
+				User: &schema.User{
+					Email:         "Email-1@example.com",
+					DisplayName:   "New User",
+					EmailVerified: true,
+					Admin:         false,
+					CreatedAt:     clock.Now().Format(time.RFC3339),
+				},
+				RedirectURL: testRedirectURL.String(),
+			},
+
+			token: userGoodToken,
+
+			wantCode: http.StatusConflict,
+		},
+		{
+
 			req: schema.UserCreateRequest{
 				User: &schema.User{
 					Email:         "newuser@example.com",
@@ -536,7 +558,7 @@ func TestCreateUser(t *testing.T) {
 			wantEmalier := testEmailer{
 				cantEmail:       tt.cantEmail,
 				lastEmail:       tt.req.User.Email,
-				lastClientID:    "XXX",
+				lastClientID:    testClientID,
 				lastWasInvite:   true,
 				lastRedirectURL: *urlParsed,
 			}
@@ -619,7 +641,7 @@ func TestRefreshTokenEndpoints(t *testing.T) {
 			t.Errorf("case %d: expected client ids did not match actual: %s", i, diff)
 		}
 		for _, clientID := range ids {
-			if err := f.client.Clients.Revoke(tt.userID, clientID).Do(); err != nil {
+			if err := f.client.RefreshClient.Revoke(tt.userID, clientID).Do(); err != nil {
 				t.Errorf("case %d: failed to revoke client: %v", i, err)
 			}
 		}
@@ -799,7 +821,7 @@ func TestResendEmailInvitation(t *testing.T) {
 			wantEmalier := testEmailer{
 				cantEmail:       tt.cantEmail,
 				lastEmail:       strings.ToLower(tt.email),
-				lastClientID:    "XXX",
+				lastClientID:    testClientID,
 				lastWasInvite:   true,
 				lastRedirectURL: *urlParsed,
 			}

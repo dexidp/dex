@@ -106,9 +106,9 @@ func TestNewPasswordReset(t *testing.T) {
 				"aud": clientID,
 				ClaimPasswordResetCallback: callback,
 				ClaimPasswordResetPassword: string(password),
-				"exp": float64(now.Add(expires).Unix()),
+				"exp": now.Add(expires).Unix(),
 				"sub": usr.ID,
-				"iat": float64(now.Unix()),
+				"iat": now.Unix(),
 			},
 		},
 	}

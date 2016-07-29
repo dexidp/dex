@@ -1,7 +1,6 @@
 package mailgun
 
 import (
-	"github.com/mbanzon/simplehttp"
 	"strconv"
 	"time"
 )
@@ -52,15 +51,16 @@ func (b Bounce) GetCode() (int, error) {
 // and the slice of bounces specified, if successful.
 // Note that the length of the slice may be smaller than the total number of bounces.
 func (m *MailgunImpl) GetBounces(limit, skip int) (int, []Bounce, error) {
-	r := simplehttp.NewHTTPRequest(generateApiUrl(m, bouncesEndpoint))
+	r := newHTTPRequest(generateApiUrl(m, bouncesEndpoint))
 	if limit != -1 {
-		r.AddParameter("limit", strconv.Itoa(limit))
+		r.addParameter("limit", strconv.Itoa(limit))
 	}
 	if skip != -1 {
-		r.AddParameter("skip", strconv.Itoa(skip))
+		r.addParameter("skip", strconv.Itoa(skip))
 	}
 
-	r.SetBasicAuth(basicAuthUser, m.ApiKey())
+	r.setClient(m.Client())
+	r.setBasicAuth(basicAuthUser, m.ApiKey())
 
 	var response bounceEnvelope
 	err := getResponseFromJSON(r, &response)
@@ -73,8 +73,9 @@ func (m *MailgunImpl) GetBounces(limit, skip int) (int, []Bounce, error) {
 
 // GetSingleBounce retrieves a single bounce record, if any exist, for the given recipient address.
 func (m *MailgunImpl) GetSingleBounce(address string) (Bounce, error) {
-	r := simplehttp.NewHTTPRequest(generateApiUrl(m, bouncesEndpoint) + "/" + address)
-	r.SetBasicAuth(basicAuthUser, m.ApiKey())
+	r := newHTTPRequest(generateApiUrl(m, bouncesEndpoint) + "/" + address)
+	r.setClient(m.Client())
+	r.setBasicAuth(basicAuthUser, m.ApiKey())
 
 	var response singleBounceEnvelope
 	err := getResponseFromJSON(r, &response)
@@ -98,16 +99,17 @@ func (m *MailgunImpl) GetSingleBounce(address string) (Bounce, error) {
 // Note that both code and error exist as strings, even though
 // code will report as a number.
 func (m *MailgunImpl) AddBounce(address, code, error string) error {
-	r := simplehttp.NewHTTPRequest(generateApiUrl(m, bouncesEndpoint))
-	r.SetBasicAuth(basicAuthUser, m.ApiKey())
+	r := newHTTPRequest(generateApiUrl(m, bouncesEndpoint))
+	r.setClient(m.Client())
+	r.setBasicAuth(basicAuthUser, m.ApiKey())
 
-	payload := simplehttp.NewUrlEncodedPayload()
-	payload.AddValue("address", address)
+	payload := newUrlEncodedPayload()
+	payload.addValue("address", address)
 	if code != "" {
-		payload.AddValue("code", code)
+		payload.addValue("code", code)
 	}
 	if error != "" {
-		payload.AddValue("error", error)
+		payload.addValue("error", error)
 	}
 	_, err := makePostRequest(r, payload)
 	return err
@@ -115,8 +117,9 @@ func (m *MailgunImpl) AddBounce(address, code, error string) error {
 
 // DeleteBounce removes all bounces associted with the provided e-mail address.
 func (m *MailgunImpl) DeleteBounce(address string) error {
-	r := simplehttp.NewHTTPRequest(generateApiUrl(m, bouncesEndpoint) + "/" + address)
-	r.SetBasicAuth(basicAuthUser, m.ApiKey())
+	r := newHTTPRequest(generateApiUrl(m, bouncesEndpoint) + "/" + address)
+	r.setClient(m.Client())
+	r.setBasicAuth(basicAuthUser, m.ApiKey())
 	_, err := makeDeleteRequest(r)
 	return err
 }

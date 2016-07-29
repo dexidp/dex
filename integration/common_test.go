@@ -12,6 +12,8 @@ import (
 	"github.com/go-gorp/gorp"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/user"
@@ -22,9 +24,10 @@ var (
 	clock = clockwork.NewFakeClock()
 
 	testIssuerURL        = url.URL{Scheme: "https", Host: "auth.example.com"}
-	testClientID         = "XXX"
-	testClientSecret     = base64.URLEncoding.EncodeToString([]byte("yyy"))
+	testClientID         = "client.example.com"
+	testClientSecret     = base64.URLEncoding.EncodeToString([]byte("secret"))
 	testRedirectURL      = url.URL{Scheme: "https", Host: "client.example.com", Path: "/redirect"}
+	testBadRedirectURL   = url.URL{Scheme: "https", Host: "bad.example.com", Path: "/redirect"}
 	testResetPasswordURL = url.URL{Scheme: "https", Host: "auth.example.com", Path: "/resetPassword"}
 	testPrivKey, _       = key.GeneratePrivateKey()
 )
@@ -77,4 +80,20 @@ func makeUserObjects(users []user.UserWithRemoteIdentities, passwords []user.Pas
 	um := manager.NewUserManager(ur, pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
 	um.Clock = clock
 	return dbMap, ur, pwr, um
+}
+
+func makeClientRepoAndManager(dbMap *gorp.DbMap, clients []client.LoadableClient) (client.ClientRepo, *clientmanager.ClientManager, error) {
+	clientIDGenerator := func(hostport string) (string, error) {
+		return hostport, nil
+	}
+	secGen := func() ([]byte, error) {
+		return []byte("secret"), nil
+	}
+	clientRepo, err := db.NewClientRepoFromClients(dbMap, clients)
+	if err != nil {
+		return nil, nil, err
+	}
+	clientManager := clientmanager.NewClientManager(clientRepo, db.TransactionFactory(dbMap), clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
+	return clientRepo, clientManager, nil
+
 }

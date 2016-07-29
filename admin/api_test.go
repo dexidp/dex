@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/schema/adminschema"
@@ -16,7 +17,9 @@ import (
 type testFixtures struct {
 	ur    user.UserRepo
 	pwr   user.PasswordInfoRepo
+	ccr   connector.ConnectorConfigRepo
 	cr    client.ClientRepo
+	cm    *clientmanager.ClientManager
 	mgr   *manager.UserManager
 	adAPI *AdminAPI
 }
@@ -61,7 +64,7 @@ func makeTestFixtures() *testFixtures {
 		return repo
 	}()
 
-	ccr := func() connector.ConnectorConfigRepo {
+	f.ccr = func() connector.ConnectorConfigRepo {
 		c := []connector.ConnectorConfig{&connector.LocalConnectorConfig{ID: "local"}}
 		repo := db.NewConnectorConfigRepo(dbMap)
 		if err := repo.Set(c); err != nil {
@@ -70,8 +73,9 @@ func makeTestFixtures() *testFixtures {
 		return repo
 	}()
 
-	f.mgr = manager.NewUserManager(f.ur, f.pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
-	f.adAPI = NewAdminAPI(f.ur, f.pwr, f.cr, f.mgr, "local")
+	f.mgr = manager.NewUserManager(f.ur, f.pwr, f.ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
+	f.cm = clientmanager.NewClientManager(f.cr, db.TransactionFactory(dbMap), clientmanager.ManagerOptions{})
+	f.adAPI = NewAdminAPI(f.ur, f.pwr, f.cr, f.ccr, f.mgr, f.cm, "local")
 
 	return f
 }
@@ -245,6 +249,54 @@ func TestGetState(t *testing.T) {
 		}
 
 		if diff := pretty.Compare(tt.want, got); diff != "" {
+			t.Errorf("case %d: Compare(want, got) = %v", i, diff)
+		}
+	}
+}
+
+func TestSetConnectors(t *testing.T) {
+	tests := []struct {
+		connectors []connector.ConnectorConfig
+	}{
+		{
+			connectors: []connector.ConnectorConfig{
+				&connector.GitHubConnectorConfig{
+					ID:           "github",
+					ClientID:     "foo",
+					ClientSecret: "bar",
+				},
+			},
+		},
+		{
+			connectors: []connector.ConnectorConfig{
+				&connector.GitHubConnectorConfig{
+					ID:           "github",
+					ClientID:     "foo",
+					ClientSecret: "bar",
+				},
+				&connector.LocalConnectorConfig{
+					ID: "local",
+				},
+				&connector.BitbucketConnectorConfig{
+					ID:           "bitbucket",
+					ClientID:     "foo",
+					ClientSecret: "bar",
+				},
+			},
+		},
+	}
+	for i, tt := range tests {
+		f := makeTestFixtures()
+		if err := f.adAPI.SetConnectors(tt.connectors); err != nil {
+			t.Errorf("case %d: failed to set connectors: %v", i, err)
+			continue
+		}
+		got, err := f.adAPI.GetConnectors()
+		if err != nil {
+			t.Errorf("case %d: failed to get connectors: %v", i, err)
+			continue
+		}
+		if diff := pretty.Compare(tt.connectors, got); diff != "" {
 			t.Errorf("case %d: Compare(want, got) = %v", i, diff)
 		}
 	}

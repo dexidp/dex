@@ -13,17 +13,33 @@ import (
 var (
 	goodSecret1 = base64.URLEncoding.EncodeToString([]byte("my_secret"))
 	goodSecret2 = base64.URLEncoding.EncodeToString([]byte("my_other_secret"))
+	goodSecret3 = base64.URLEncoding.EncodeToString([]byte("yet_another_secret"))
 
 	goodClient1 = `{ 
   "id": "my_id",
   "secret": "` + goodSecret1 + `",
-  "redirectURLs": ["https://client.example.com"]
+  "redirectURLs": ["https://client.example.com"],
+  "admin": true
 }`
 
 	goodClient2 = `{ 
   "id": "my_other_id",
   "secret": "` + goodSecret2 + `",
   "redirectURLs": ["https://client2.example.com","https://client2_a.example.com"]
+}`
+
+	goodClient3 = `{ 
+  "id": "yet_another_id",
+  "secret": "` + goodSecret3 + `",
+  "redirectURLs": ["https://client3.example.com","https://client3_a.example.com"],
+  "trustedPeers":["goodClient1", "goodClient2"]
+}`
+
+	publicClient = `{ 
+  "id": "public_client",
+  "secret": "` + goodSecret3 + `",
+  "redirectURLs": ["http://localhost:8080","urn:ietf:wg:oauth:2.0:oob"],
+  "public": true
 }`
 
 	badURLClient = `{ 
@@ -34,7 +50,7 @@ var (
 
 	badSecretClient = `{ 
   "id": "my_id",
-  "secret": "` + "****" + `",
+  "secret": "` + "" + `",
   "redirectURLs": ["https://client.example.com"]
 }`
 
@@ -51,57 +67,106 @@ var (
 func TestClientsFromReader(t *testing.T) {
 	tests := []struct {
 		json    string
-		want    []Client
+		want    []LoadableClient
 		wantErr bool
 	}{
 		{
 			json: "[]",
-			want: []Client{},
+			want: []LoadableClient{},
 		},
 		{
 			json: "[" + goodClient1 + "]",
-			want: []Client{
+			want: []LoadableClient{
 				{
-					Credentials: oidc.ClientCredentials{
-						ID:     "my_id",
-						Secret: "my_secret",
-					},
-					Metadata: oidc.ClientMetadata{
-						RedirectURIs: []url.URL{
-							mustParseURL(t, "https://client.example.com"),
+					Client: Client{
+						Credentials: oidc.ClientCredentials{
+							ID:     "my_id",
+							Secret: goodSecret1,
 						},
+						Metadata: oidc.ClientMetadata{
+							RedirectURIs: []url.URL{
+								mustParseURL(t, "https://client.example.com"),
+							},
+						},
+						Admin: true,
 					},
 				},
 			},
 		},
 		{
 			json: "[" + strings.Join([]string{goodClient1, goodClient2}, ",") + "]",
-			want: []Client{
+			want: []LoadableClient{
 				{
-					Credentials: oidc.ClientCredentials{
-						ID:     "my_id",
-						Secret: "my_secret",
-					},
-					Metadata: oidc.ClientMetadata{
-						RedirectURIs: []url.URL{
-							mustParseURL(t, "https://client.example.com"),
+					Client: Client{
+						Credentials: oidc.ClientCredentials{
+							ID:     "my_id",
+							Secret: goodSecret1,
 						},
+						Metadata: oidc.ClientMetadata{
+							RedirectURIs: []url.URL{
+								mustParseURL(t, "https://client.example.com"),
+							},
+						},
+						Admin: true,
 					},
 				},
 				{
-					Credentials: oidc.ClientCredentials{
-						ID:     "my_other_id",
-						Secret: "my_other_secret",
-					},
-					Metadata: oidc.ClientMetadata{
-						RedirectURIs: []url.URL{
-							mustParseURL(t, "https://client2.example.com"),
-							mustParseURL(t, "https://client2_a.example.com"),
+					Client: Client{
+						Credentials: oidc.ClientCredentials{
+							ID:     "my_other_id",
+							Secret: goodSecret2,
+						},
+						Metadata: oidc.ClientMetadata{
+							RedirectURIs: []url.URL{
+								mustParseURL(t, "https://client2.example.com"),
+								mustParseURL(t, "https://client2_a.example.com"),
+							},
 						},
 					},
 				},
 			},
-		}, {
+		},
+		{
+			json: "[" + goodClient3 + "]",
+			want: []LoadableClient{
+				{
+					Client: Client{
+						Credentials: oidc.ClientCredentials{
+							ID:     "yet_another_id",
+							Secret: goodSecret3,
+						},
+						Metadata: oidc.ClientMetadata{
+							RedirectURIs: []url.URL{
+								mustParseURL(t, "https://client3.example.com"),
+								mustParseURL(t, "https://client3_a.example.com"),
+							},
+						},
+					},
+					TrustedPeers: []string{"goodClient1", "goodClient2"},
+				},
+			},
+		},
+		{
+			json: "[" + publicClient + "]",
+			want: []LoadableClient{
+				{
+					Client: Client{
+						Credentials: oidc.ClientCredentials{
+							ID:     "public_client",
+							Secret: goodSecret3,
+						},
+						Metadata: oidc.ClientMetadata{
+							RedirectURIs: []url.URL{
+								mustParseURL(t, "http://localhost:8080"),
+								mustParseURL(t, "urn:ietf:wg:oauth:2.0:oob"),
+							},
+						},
+						Public: true,
+					},
+				},
+			},
+		},
+		{
 			json:    "[" + badURLClient + "]",
 			wantErr: true,
 		},
@@ -139,7 +204,101 @@ func TestClientsFromReader(t *testing.T) {
 		}
 	}
 }
+func TestClientValidRedirectURL(t *testing.T) {
+	makeClient := func(public bool, urls []string) Client {
+		cli := Client{
+			Metadata: oidc.ClientMetadata{
+				RedirectURIs: make([]url.URL, len(urls)),
+			},
+			Public: public,
+		}
+		for i, s := range urls {
+			cli.Metadata.RedirectURIs[i] = mustParseURL(t, s)
+		}
+		return cli
+	}
 
+	tests := []struct {
+		u   string
+		cli Client
+
+		wantU   string
+		wantErr bool
+	}{
+		{
+			u:     "http://auth.example.com",
+			cli:   makeClient(false, []string{"http://auth.example.com"}),
+			wantU: "http://auth.example.com",
+		},
+		{
+			u:     "http://auth2.example.com",
+			cli:   makeClient(false, []string{"http://auth.example.com", "http://auth2.example.com"}),
+			wantU: "http://auth2.example.com",
+		},
+		{
+			u:     "",
+			cli:   makeClient(false, []string{"http://auth.example.com"}),
+			wantU: "http://auth.example.com",
+		},
+		{
+			u:       "",
+			cli:     makeClient(false, []string{"http://auth.example.com", "http://auth2.example.com"}),
+			wantErr: true,
+		},
+		{
+			u:     "http://localhost:8080",
+			cli:   makeClient(true, []string{}),
+			wantU: "http://localhost:8080",
+		},
+		{
+			u:     OOBRedirectURI,
+			cli:   makeClient(true, []string{}),
+			wantU: OOBRedirectURI,
+		},
+		{
+			u:       "",
+			cli:     makeClient(true, []string{}),
+			wantErr: true,
+		},
+		{
+			u:       "http://localhost:8080/hey_there",
+			cli:     makeClient(true, []string{}),
+			wantErr: true,
+		},
+		{
+			u:       "http://auth.google.com:8080",
+			cli:     makeClient(true, []string{}),
+			wantErr: true,
+		},
+	}
+
+	for i, tt := range tests {
+		var testURL *url.URL
+		if tt.u == "" {
+			testURL = nil
+		} else {
+			u := mustParseURL(t, tt.u)
+			testURL = &u
+		}
+
+		u, err := tt.cli.ValidRedirectURL(testURL)
+		if tt.wantErr {
+			if err == nil {
+				t.Errorf("case %d: want non-nil error", i)
+			}
+			continue
+		}
+
+		if err != nil {
+			t.Errorf("case %d: unexpected error: %v", i, err)
+		}
+
+		if diff := pretty.Compare(mustParseURL(t, tt.wantU), u); diff != "" {
+			t.Fatalf("case %d: Compare(wantU, u): %v", i, diff)
+		}
+	}
+
+}
 func mustParseURL(t *testing.T, s string) url.URL {
 	u, err := url.Parse(s)
 	if err != nil {

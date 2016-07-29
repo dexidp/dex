@@ -14,6 +14,7 @@ import (
 
 	"github.com/coreos/dex/admin"
 	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/dex/schema/adminschema"
 	"github.com/coreos/dex/server"
@@ -67,6 +68,22 @@ var (
 			Password: []byte("hi."),
 		},
 	}
+
+	clients = []client.Client{
+		{
+			Credentials: oidc.ClientCredentials{
+				ID:     "client-1",
+				Secret: "Zm9vYmFy", // "foobar"
+			},
+			Metadata: oidc.ClientMetadata{
+				RedirectURIs: []url.URL{
+					url.URL{Scheme: "http", Host: "127.0.0.1:5556", Path: "/cb"},
+					url.URL{Scheme: "https", Host: "example.com", Path: "/callback"},
+				},
+			},
+			Admin: true,
+		},
+	}
 )
 
 type adminAPITransport struct {
@@ -85,14 +102,27 @@ func makeAdminAPITestFixtures() *adminAPITestFixtures {
 
 	var cliCount int
 	secGen := func() ([]byte, error) {
-		return []byte(fmt.Sprintf("client_%v", cliCount)), nil
+		id := []byte(fmt.Sprintf("client_%v", cliCount))
+		cliCount++
+		return id, nil
 	}
-	cr := db.NewClientRepoWithSecretGenerator(dbMap, secGen)
+	cr := db.NewClientRepo(dbMap)
+	clientIDGenerator := func(hostport string) (string, error) {
+		return fmt.Sprintf("client_%v", hostport), nil
+	}
+	for _, client := range clients {
+		_, err := cr.New(nil, client)
+		if err != nil {
+			panic(err)
+		}
+	}
+	cm := manager.NewClientManager(cr, db.TransactionFactory(dbMap), manager.ManagerOptions{SecretGenerator: secGen, ClientIDGenerator: clientIDGenerator})
+	ccr := db.NewConnectorConfigRepo(dbMap)
 
 	f.cr = cr
 	f.ur = ur
 	f.pwr = pwr
-	f.adAPI = admin.NewAdminAPI(ur, pwr, cr, um, "local")
+	f.adAPI = admin.NewAdminAPI(ur, pwr, cr, ccr, um, cm, "local")
 	f.adSrv = server.NewAdminServer(f.adAPI, nil, adminAPITestSecret)
 	f.hSrv = httptest.NewServer(f.adSrv.HTTPHandler())
 	f.hc = &http.Client{
@@ -193,7 +223,7 @@ func TestCreateAdmin(t *testing.T) {
 				Email:    "Email-1@example.com",
 				Password: "foopass",
 			},
-			errCode: http.StatusBadRequest,
+			errCode: http.StatusConflict,
 		},
 		{
 			// missing Email
@@ -267,15 +297,105 @@ func TestCreateAdmin(t *testing.T) {
 	}
 }
 
-func TestCreateClient(t *testing.T) {
-	oldGen := admin.ClientIDGenerator
-	admin.ClientIDGenerator = func(hostport string) (string, error) {
-		return fmt.Sprintf("client_%v", hostport), nil
+func TestConnectors(t *testing.T) {
+	tests := []struct {
+		req     adminschema.ConnectorsSetRequest
+		want    adminschema.ConnectorsGetResponse
+		wantErr bool
+	}{
+		{
+			req: adminschema.ConnectorsSetRequest{
+				Connectors: []interface{}{
+					map[string]string{
+						"type": "local",
+						"id":   "local",
+					},
+				},
+			},
+			want: adminschema.ConnectorsGetResponse{
+				Connectors: []interface{}{
+					map[string]string{
+						"id": "local",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			req: adminschema.ConnectorsSetRequest{
+				Connectors: []interface{}{
+					map[string]string{
+						"type":         "github",
+						"id":           "github",
+						"clientID":     "foo",
+						"clientSecret": "bar",
+					},
+					map[string]interface{}{
+						"type":                 "oidc",
+						"id":                   "oidc",
+						"issuerURL":            "https://auth.example.com",
+						"clientID":             "foo",
+						"clientSecret":         "bar",
+						"trustedEmailProvider": true,
+					},
+				},
+			},
+			want: adminschema.ConnectorsGetResponse{
+				Connectors: []interface{}{
+					map[string]string{
+						"id":           "github",
+						"clientID":     "foo",
+						"clientSecret": "bar",
+					},
+					map[string]interface{}{
+						"id":                   "oidc",
+						"issuerURL":            "https://auth.example.com",
+						"clientID":             "foo",
+						"clientSecret":         "bar",
+						"trustedEmailProvider": true,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			// Missing "type" argument
+			req: adminschema.ConnectorsSetRequest{
+				Connectors: []interface{}{
+					map[string]string{
+						"id": "local",
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
-	defer func() {
-		admin.ClientIDGenerator = oldGen
-	}()
 
+	for i, tt := range tests {
+		f := makeAdminAPITestFixtures()
+		if err := f.adClient.Connectors.Set(&tt.req).Do(); err != nil {
+			if !tt.wantErr {
+				t.Errorf("case %d: failed to set connectors: %v", i, err)
+			}
+			continue
+		}
+		if tt.wantErr {
+			t.Errorf("case %d: expected error setting connectors", i)
+			continue
+		}
+
+		resp, err := f.adClient.Connectors.Get().Do()
+		if err != nil {
+			t.Errorf("case %d: failed toget connectors: %v", i, err)
+			continue
+		}
+		if diff := pretty.Compare(tt.want, resp); diff != "" {
+			t.Errorf("case %d: Compare(want, got) = %s", i, diff)
+		}
+	}
+}
+
+func TestCreateClient(t *testing.T) {
 	mustParseURL := func(s string) *url.URL {
 		u, err := url.Parse(s)
 		if err != nil {
@@ -283,9 +403,19 @@ func TestCreateClient(t *testing.T) {
 		}
 		return u
 	}
+
 	addIDAndSecret := func(cli adminschema.Client) *adminschema.Client {
-		cli.Id = "client_auth.example.com"
-		cli.Secret = base64.URLEncoding.EncodeToString([]byte("client_0"))
+		if cli.Id == "" {
+			if cli.Public {
+				cli.Id = "client_" + cli.ClientName
+			} else {
+				cli.Id = "client_auth.example.com"
+			}
+		}
+
+		if cli.Secret == "" {
+			cli.Secret = base64.URLEncoding.EncodeToString([]byte("client_0"))
+		}
 		return &cli
 	}
 
@@ -301,6 +431,23 @@ func TestCreateClient(t *testing.T) {
 		},
 	}
 
+	clientPublicGood := clientGood
+	clientPublicGood.Public = true
+	clientPublicGood.Metadata.ClientName = "PublicName"
+	clientPublicGood.Metadata.RedirectURIs = []url.URL{}
+	clientPublicGood.Credentials.ID = "client_PublicName"
+
+	adminPublicClientGood := adminClientGood
+	adminPublicClientGood.Public = true
+	adminPublicClientGood.ClientName = "PublicName"
+	adminPublicClientGood.RedirectURIs = []string{}
+
+	adminPublicClientMissingName := adminPublicClientGood
+	adminPublicClientMissingName.ClientName = ""
+
+	adminPublicClientHasARedirect := adminPublicClientGood
+	adminPublicClientHasARedirect.RedirectURIs = []string{"https://auth.example.com/"}
+
 	adminAdminClient := adminClientGood
 	adminAdminClient.IsAdmin = true
 	clientGoodAdmin := clientGood
@@ -308,38 +455,57 @@ func TestCreateClient(t *testing.T) {
 
 	adminMultiRedirect := adminClientGood
 	adminMultiRedirect.RedirectURIs = []string{"https://auth.example.com/", "https://auth2.example.com/"}
-	clientMultiRedirect := clientGoodAdmin
+	clientMultiRedirect := clientGood
 	clientMultiRedirect.Metadata.RedirectURIs = append(
 		clientMultiRedirect.Metadata.RedirectURIs,
 		*mustParseURL("https://auth2.example.com/"))
 
+	adminClientWithPeers := adminClientGood
+	adminClientWithPeers.TrustedPeers = []string{"test_client_0"}
+
+	adminClientOwnID := adminClientGood
+	adminClientOwnID.Id = "my_own_id"
+
+	clientGoodOwnID := clientGood
+	clientGoodOwnID.Credentials.ID = "my_own_id"
+
+	adminClientOwnSecret := adminClientGood
+	adminClientOwnSecret.Secret = base64.URLEncoding.EncodeToString([]byte("my_own_secret"))
+	clientGoodOwnSecret := clientGood
+
+	adminClientOwnIDAndSecret := adminClientGood
+	adminClientOwnIDAndSecret.Id = "my_own_id"
+	adminClientOwnIDAndSecret.Secret = base64.URLEncoding.EncodeToString([]byte("my_own_secret"))
+	clientGoodOwnIDAndSecret := clientGoodOwnID
+
+	adminClientBadSecret := adminClientGood
+	adminClientBadSecret.Secret = "not_base64_encoded"
+
 	tests := []struct {
-		req        adminschema.ClientCreateRequest
-		want       adminschema.ClientCreateResponse
-		wantClient client.Client
-		wantError  int
+		req              adminschema.ClientCreateRequest
+		want             adminschema.ClientCreateResponse
+		wantClient       client.Client
+		wantError        int
+		wantTrustedPeers []string
 	}{
 		{
 			req:       adminschema.ClientCreateRequest{},
 			wantError: http.StatusBadRequest,
-		},
-		{
+		}, {
 			req: adminschema.ClientCreateRequest{
 				Client: &adminschema.Client{
 					IsAdmin: true,
 				},
 			},
 			wantError: http.StatusBadRequest,
-		},
-		{
+		}, {
 			req: adminschema.ClientCreateRequest{
 				Client: &adminschema.Client{
 					RedirectURIs: []string{"909090"},
 				},
 			},
 			wantError: http.StatusBadRequest,
-		},
-		{
+		}, {
 			req: adminschema.ClientCreateRequest{
 				Client: &adminClientGood,
 			},
@@ -347,8 +513,7 @@ func TestCreateClient(t *testing.T) {
 				Client: addIDAndSecret(adminClientGood),
 			},
 			wantClient: clientGood,
-		},
-		{
+		}, {
 			req: adminschema.ClientCreateRequest{
 				Client: &adminAdminClient,
 			},
@@ -356,8 +521,7 @@ func TestCreateClient(t *testing.T) {
 				Client: addIDAndSecret(adminAdminClient),
 			},
 			wantClient: clientGoodAdmin,
-		},
-		{
+		}, {
 			req: adminschema.ClientCreateRequest{
 				Client: &adminMultiRedirect,
 			},
@@ -365,14 +529,92 @@ func TestCreateClient(t *testing.T) {
 				Client: addIDAndSecret(adminMultiRedirect),
 			},
 			wantClient: clientMultiRedirect,
+		}, {
+			req: adminschema.ClientCreateRequest{
+				Client: &adminClientWithPeers,
+			},
+			want: adminschema.ClientCreateResponse{
+				Client: addIDAndSecret(adminClientWithPeers),
+			},
+			wantClient:       clientGood,
+			wantTrustedPeers: []string{"test_client_0"},
+		}, {
+			req: adminschema.ClientCreateRequest{
+				Client: &adminPublicClientGood,
+			},
+			want: adminschema.ClientCreateResponse{
+				Client: addIDAndSecret(adminPublicClientGood),
+			},
+			wantClient: clientPublicGood,
+		}, {
+			req: adminschema.ClientCreateRequest{
+				Client: &adminPublicClientMissingName,
+			},
+			wantError: http.StatusBadRequest,
+		}, {
+			req: adminschema.ClientCreateRequest{
+				Client: &adminPublicClientHasARedirect,
+			},
+			wantError: http.StatusBadRequest,
+		}, {
+			req: adminschema.ClientCreateRequest{
+				Client: &adminClientOwnID,
+			},
+			want: adminschema.ClientCreateResponse{
+				Client: addIDAndSecret(adminClientOwnID),
+			},
+			wantClient: clientGoodOwnID,
+		}, {
+			req: adminschema.ClientCreateRequest{
+				Client: &adminClientOwnSecret,
+			},
+			want: adminschema.ClientCreateResponse{
+				Client: addIDAndSecret(adminClientOwnSecret),
+			},
+			wantClient: clientGoodOwnSecret,
+		}, {
+			req: adminschema.ClientCreateRequest{
+				Client: &adminClientOwnIDAndSecret,
+			},
+			want: adminschema.ClientCreateResponse{
+				Client: addIDAndSecret(adminClientOwnIDAndSecret),
+			},
+			wantClient: clientGoodOwnIDAndSecret,
+		}, {
+			req: adminschema.ClientCreateRequest{
+				Client: &adminClientBadSecret,
+			},
+			wantError: http.StatusBadRequest,
+		}, {
+			// Client ID already exists
+			req: adminschema.ClientCreateRequest{
+				Client: &adminschema.Client{
+					Id:           "client-1",
+					Secret:       "Zm9vYmFy",
+					RedirectURIs: []string{"https://auth.example.com/"},
+				},
+			},
+			wantError: http.StatusConflict,
 		},
 	}
 
 	for i, tt := range tests {
-		if i != 3 {
-			continue
-		}
 		f := makeAdminAPITestFixtures()
+		for j, r := range []string{"https://client0.example.com",
+			"https://client1.example.com"} {
+			_, err := f.cr.New(nil, client.Client{
+				Credentials: oidc.ClientCredentials{
+					ID: fmt.Sprintf("test_client_%d", j),
+				},
+				Metadata: oidc.ClientMetadata{
+					RedirectURIs: []url.URL{*mustParseURL(r)},
+				},
+			})
+			if err != nil {
+				t.Errorf("case %d, client %d: unexpected error creating client: %v", i, j, err)
+				continue
+			}
+		}
 
 		resp, err := f.adClient.Client.Create(&tt.req).Do()
 		if tt.wantError != 0 {
@@ -387,7 +629,7 @@ func TestCreateClient(t *testing.T) {
 				continue
 			}
 			if aErr.Code != tt.wantError {
-				t.Errorf("case %d: want aErr.Code=%v, got %v", i, tt.wantError, aErr.Code)
+				t.Errorf("case %d: want aErr.Code=%v, got %v: %v", i, tt.wantError, aErr.Code, aErr)
 				continue
 			}
 			continue
@@ -402,9 +644,10 @@ func TestCreateClient(t *testing.T) {
 			t.Errorf("case %d: Compare(want, got) = %v", i, diff)
 		}
 
-		repoClient, err := f.cr.Get(resp.Client.Id)
+		repoClient, err := f.cr.Get(nil, resp.Client.Id)
 		if err != nil {
 			t.Errorf("case %d: Unexpected error getting client: %v", i, err)
+			continue
 		}
 
 		if diff := pretty.Compare(tt.wantClient, repoClient); diff != "" {

@@ -8,46 +8,6 @@ __Version:__ v1
 ## Models
 
 
-### Client
-
-
-
-```
-{
-    id: string,
-    redirectURIs: [
-        string
-    ]
-}
-```
-
-### ClientPage
-
-
-
-```
-{
-    clients: [
-        Client
-    ],
-    nextPageToken: string
-}
-```
-
-### ClientWithSecret
-
-
-
-```
-{
-    id: string,
-    redirectURIs: [
-        string
-    ],
-    secret: string
-}
-```
-
 ### Error
 
 
@@ -199,7 +159,7 @@ A client with associated public metadata.
 
 > __Description__
 
-> List all clients that hold refresh tokens for the authenticated user.
+> List all clients that hold refresh tokens for the specified user.
 
 
 > __Parameters__
@@ -221,77 +181,25 @@ A client with associated public metadata.
 
 > __Summary__
 
-> Revoke Clients
+> Revoke RefreshClient
 
 > __Description__
 
-> Revoke all refresh tokens issues to the client for the authenticated user.
+> Revoke all refresh tokens issues to the client for the specified user.
 
 
 > __Parameters__
 
 > |Name|Located in|Description|Required|Type|
 |:-----|:-----|:-----|:-----|:-----|
-| clientid | path |  | Yes | string | 
 | userid | path |  | Yes | string | 
+| clientid | path |  | Yes | string | 
 
 
 > __Responses__
 
 > |Code|Description|Type|
 |:-----|:-----|:-----|
-| default | Unexpected error |  |
-
-
-### GET /clients
-
-> __Summary__
-
-> List Clients
-
-> __Description__
-
-> Retrieve a page of Client objects.
-
-
-> __Parameters__
-
-> |Name|Located in|Description|Required|Type|
-|:-----|:-----|:-----|:-----|:-----|
-| nextPageToken | query |  | No | string | 
-
-
-> __Responses__
-
-> |Code|Description|Type|
-|:-----|:-----|:-----|
-| 200 |  | [ClientPage](#clientpage) |
-| default | Unexpected error |  |
-
-
-### POST /clients
-
-> __Summary__
-
-> Create Clients
-
-> __Description__
-
-> Register a new Client.
-
-
-> __Parameters__
-
-> |Name|Located in|Description|Required|Type|
-|:-----|:-----|:-----|:-----|:-----|
-|  | body |  | Yes | [Client](#client) | 
-
-
-> __Responses__
-
-> |Code|Description|Type|
-|:-----|:-----|:-----|
-| 200 |  | [ClientWithSecret](#clientwithsecret) |
 | default | Unexpected error |  |
 
 

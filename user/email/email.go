@@ -19,7 +19,6 @@ type UserEmailer struct {
 	tokenValidityWindow time.Duration
 	issuerURL           url.URL
 	emailer             *email.TemplatizedEmailer
-	fromAddress         string
 
 	passwordResetURL url.URL
 	verifyEmailURL   url.URL
@@ -33,7 +32,6 @@ func NewUserEmailer(ur user.UserRepo,
 	tokenValidityWindow time.Duration,
 	issuerURL url.URL,
 	emailer *email.TemplatizedEmailer,
-	fromAddress string,
 	passwordResetURL url.URL,
 	verifyEmailURL url.URL,
 	invitationURL url.URL,
@@ -45,7 +43,6 @@ func NewUserEmailer(ur user.UserRepo,
 		tokenValidityWindow: tokenValidityWindow,
 		issuerURL:           issuerURL,
 		emailer:             emailer,
-		fromAddress:         fromAddress,
 		passwordResetURL:    passwordResetURL,
 		verifyEmailURL:      verifyEmailURL,
 		invitationURL:       invitationURL,
@@ -106,7 +103,7 @@ func (u *UserEmailer) SendResetPasswordEmail(email string, redirectURL url.URL, 
 	resetURL.RawQuery = q.Encode()
 
 	if u.emailer != nil {
-		err = u.emailer.SendMail(u.fromAddress, "Reset Your Password", "password-reset",
+		err = u.emailer.SendMail("Reset Your Password", "password-reset",
 			map[string]interface{}{
 				"email": usr.Email,
 				"link":  resetURL.String(),
@@ -144,7 +141,7 @@ func (u *UserEmailer) SendInviteEmail(email string, redirectURL url.URL, clientI
 	resetURL.RawQuery = q.Encode()
 
 	if u.emailer != nil {
-		err = u.emailer.SendMail(u.fromAddress, "Activate Your Account", "invite",
+		err = u.emailer.SendMail("Activate Your Account", "invite",
 			map[string]interface{}{
 				"email": usr.Email,
 				"link":  resetURL.String(),
@@ -191,7 +188,7 @@ func (u *UserEmailer) SendEmailVerification(userID, clientID string, redirectURL
 	verifyURL.RawQuery = q.Encode()
 
 	if u.emailer != nil {
-		err = u.emailer.SendMail(u.fromAddress, "Please verify your email address.", "verify-email",
+		err = u.emailer.SendMail("Please verify your email address.", "verify-email",
 			map[string]interface{}{
 				"email": usr.Email,
 				"link":  verifyURL.String(),

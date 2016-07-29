@@ -40,42 +40,26 @@ const DiscoveryJSON = `{
         }
       }
     },
-    "Client": {
+    "RefreshClient": {
       "id": "Client",
       "type": "object",
+      "description": "A client with associated public metadata.",
       "properties": {
-        "id": {
+        "clientID": {
           "type": "string"
         },
-        "redirectURIs": {
-          "required": true,
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+        "clientName": {
+          "type": "string"
+        },
+        "logoURI": {
+          "type": "string"
+        },
+        "clientURI": {
+          "type": "string"
         }
       }
     },
-	"RefreshClient": {
-      "id": "Client",
-      "type": "object",
-	  "description": "A client with associated public metadata.",
-      "properties": {
-		"clientID": {
-			"type": "string"
-		},
-		"clientName": {
-			"type": "string"
-		},
-		"logoURI": {
-			"type": "string"
-		},
-		"clientURI": {
-			"type": "string"
-		}
-      }
-	},
-	"RefreshClientList": {
+    "RefreshClientList": {
       "id": "RefreshClientList",
       "type": "object",
       "properties": {
@@ -84,40 +68,6 @@ const DiscoveryJSON = `{
           "items": {
             "$ref": "RefreshClient"
           }
-        }
-      }
-	},
-    "ClientWithSecret": {
-      "id": "Client",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "secret": {
-          "type": "string"
-        },
-        "redirectURIs": {
-          "required": true,
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    "ClientPage": {
-      "id": "ClientPage",
-      "type": "object",
-      "properties": {
-        "clients": {
-          "type": "array",
-          "items": {
-            "$ref": "Client"
-          }
-        },
-        "nextPageToken": {
-          "type": "string"
         }
       }
     },
@@ -154,7 +104,7 @@ const DiscoveryJSON = `{
       "type": "object",
       "properties": {
         "user": {
-            "$ref": "User"
+          "$ref": "User"
         }
       }
     },
@@ -245,58 +195,6 @@ const DiscoveryJSON = `{
     }
   },
   "resources": {
-    "Clients": {
-      "methods": {
-        "List": {
-          "id": "dex.Client.List",
-          "description": "Retrieve a page of Client objects.",
-          "httpMethod": "GET",
-          "path": "clients",
-          "parameters": {
-            "nextPageToken": {
-              "type": "string",
-              "location": "query"
-            }
-          },
-          "response": {
-            "$ref": "ClientPage"
-          }
-        },
-        "Create": {
-          "id": "dex.Client.Create",
-          "description": "Register a new Client.",
-          "httpMethod": "POST",
-          "path": "clients",
-          "request": {
-            "$ref": "Client"
-          },
-          "response": {
-            "$ref": "ClientWithSecret"
-          }
-        },
-        "Revoke": {
-          "id": "dex.Client.Revoke",
-          "description": "Revoke all refresh tokens issues to the client for the authenticated user.",
-          "httpMethod": "DELETE",
-          "path": "account/{userid}/refresh/{clientid}",
-          "parameterOrder": [
-            "userid","clientid"
-          ],
-          "parameters": {
-            "clientid": {
-              "type": "string",
-              "required": true,
-              "location": "path"
-            },
-            "userid": {
-              "type": "string",
-              "required": true,
-              "location": "path"
-            }
-          }
-        }
-      }
-    },
     "Users": {
       "methods": {
         "List": {
@@ -398,8 +296,8 @@ const DiscoveryJSON = `{
     "RefreshClient": {
       "methods": {
         "List": {
-          "id": "dex.Client.List",
-          "description": "List all clients that hold refresh tokens for the authenticated user.",
+          "id": "dex.RefreshClient.List",
+          "description": "List all clients that hold refresh tokens for the specified user.",
           "httpMethod": "GET",
           "path": "account/{userid}/refresh",
           "parameters": {
@@ -414,6 +312,28 @@ const DiscoveryJSON = `{
           ],
           "response": {
             "$ref": "RefreshClientList"
+          }
+        },
+        "Revoke": {
+          "id": "dex.RefreshClient.Revoke",
+          "description": "Revoke all refresh tokens issues to the client for the specified user.",
+          "httpMethod": "DELETE",
+          "path": "account/{userid}/refresh/{clientid}",
+          "parameterOrder": [
+            "userid",
+            "clientid"
+          ],
+          "parameters": {
+            "clientid": {
+              "type": "string",
+              "required": true,
+              "location": "path"
+            },
+            "userid": {
+              "type": "string",
+              "required": true,
+              "location": "path"
+            }
           }
         }
       }

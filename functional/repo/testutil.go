@@ -12,7 +12,8 @@ import (
 func connect(t *testing.T) *gorp.DbMap {
 	dsn := os.Getenv("DEX_TEST_DSN")
 	if dsn == "" {
-		t.Fatal("DEX_TEST_DSN environment variable not set")
+		return db.NewMemDB()
+
 	}
 	c, err := db.NewConnection(db.Config{DSN: dsn})
 	if err != nil {

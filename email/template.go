@@ -8,7 +8,7 @@ import (
 )
 
 // NewTemplatizedEmailerFromGlobs creates a new TemplatizedEmailer, parsing the templates found in the given filepattern globs.
-func NewTemplatizedEmailerFromGlobs(textGlob, htmlGlob string, emailer Emailer) (*TemplatizedEmailer, error) {
+func NewTemplatizedEmailerFromGlobs(textGlob, htmlGlob string, emailer Emailer, fromAddr string) (*TemplatizedEmailer, error) {
 	textTemplates, err := template.ParseGlob(textGlob)
 	if err != nil {
 		return nil, err
@@ -19,15 +19,16 @@ func NewTemplatizedEmailerFromGlobs(textGlob, htmlGlob string, emailer Emailer) 
 		return nil, err
 	}
 
-	return NewTemplatizedEmailerFromTemplates(textTemplates, htmlTemplates, emailer), nil
+	return NewTemplatizedEmailerFromTemplates(textTemplates, htmlTemplates, emailer, fromAddr), nil
 }
 
 // NewTemplatizedEmailerFromTemplates creates a new TemplatizedEmailer, given root text and html templates.
-func NewTemplatizedEmailerFromTemplates(textTemplates *template.Template, htmlTemplates *htmltemplate.Template, emailer Emailer) *TemplatizedEmailer {
+func NewTemplatizedEmailerFromTemplates(textTemplates *template.Template, htmlTemplates *htmltemplate.Template, emailer Emailer, fromAddr string) *TemplatizedEmailer {
 	return &TemplatizedEmailer{
 		emailer:       emailer,
 		textTemplates: textTemplates,
 		htmlTemplates: htmlTemplates,
+		fromAddr:      fromAddr,
 	}
 }
 
@@ -37,6 +38,7 @@ type TemplatizedEmailer struct {
 	htmlTemplates *htmltemplate.Template
 	emailer       Emailer
 	globalCtx     map[string]interface{}
+	fromAddr      string
 }
 
 func (t *TemplatizedEmailer) SetGlobalContext(ctx map[string]interface{}) {
@@ -48,7 +50,7 @@ func (t *TemplatizedEmailer) SetGlobalContext(ctx map[string]interface{}) {
 // the template names you want to base the message on instead of the actual
 // text. "to", "from" and "subject" will be added into the data map regardless
 // of if they are used.
-func (t *TemplatizedEmailer) SendMail(from, subject, tplName string, data map[string]interface{}, to string) error {
+func (t *TemplatizedEmailer) SendMail(subject, tplName string, data map[string]interface{}, to string) error {
 	if tplName == "" {
 		return errors.New("Must provide a template name")
 	}
@@ -61,7 +63,7 @@ func (t *TemplatizedEmailer) SendMail(from, subject, tplName string, data map[st
 	}
 
 	data["to"] = to
-	data["from"] = from
+	data["from"] = t.fromAddr
 	data["subject"] = subject
 
 	for k, v := range t.globalCtx {
@@ -84,5 +86,5 @@ func (t *TemplatizedEmailer) SendMail(from, subject, tplName string, data map[st
 		}
 	}
 
-	return t.emailer.SendMail(from, subject, textBuffer.String(), htmlBuffer.String(), to)
+	return t.emailer.SendMail(subject, textBuffer.String(), htmlBuffer.String(), to)
 }

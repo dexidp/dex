@@ -1,0 +1,32 @@
+<html>
+  <body>
+    <form action="/login">
+       <p>
+         Authenticate for:<input type="text" name="cross_client" placeholder="comma-separated list of client-ids">
+       </p>
+       <p>
+         Extra scopes:<input type="text" name="extra_scopes" placeholder="comma-separated list of scopes">
+       </p>
+{{ if .OOB }}
+        <input type="submit" value="Login" formtarget="_blank">
+{{ else }}
+        <input type="submit" value="Login" >
+{{ end }}
+    </form>
+
+{{ if .OOB }}
+    <form action="/callback" method="get" >
+      Code
+      <input type="text" name="code" value="">
+      <br>
+      <input type="submit" value="Exchange Code" >
+    </form>
+{{ end }}
+    
+{{ if not .OOB }}
+    <form action="/register">
+      <input type="submit" value="Register"  />
+    </form>
+{{ end }}
+  </body>
+</html>

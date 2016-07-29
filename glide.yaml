@@ -5,7 +5,7 @@ import:
 - package: github.com/andybalholm/cascadia
   version: 6122e68c2642b7b75c538a63b15168c6c80fb757
 - package: github.com/coreos/go-oidc
-  version: 6039032c0b15517897116d333ead8edf38792437
+  version: 5aa9381f6e998aa16cc96b4347d33dcc29792864
   subpackages:
   - http
   - jose
@@ -38,11 +38,9 @@ import:
 - package: github.com/lib/pq
   version: 7175accbed18058468c07811f76440d6e8d7cf19
 - package: github.com/mailgun/mailgun-go
-  version: 9578dc67692294bb7e2a6f4b15dd18c97af19440
+  version: a98c4eecda3e6a36bd804ae80e9a4f8edaa6cd99
 - package: github.com/mattn/go-sqlite3
   version: 2513631704612107a1c8b1803fb8e6b3dda2230e
-- package: github.com/mbanzon/simplehttp
-  version: 04c542e7ac706a25820090f274ea6a4f39a63326
 - package: github.com/pborman/uuid
   version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
 - package: github.com/rubenv/sql-migrate
@@ -60,6 +58,7 @@ import:
   version: dfe268fd2bb5c793f4c083803609fce9806c6f80
   subpackages:
   - html
+  - context
 - package: google.golang.org/api
   version: d3edb0282bde692467788c50070a9211afe75cf3
   subpackages:

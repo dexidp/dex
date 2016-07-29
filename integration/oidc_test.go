@@ -9,6 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-oidc/jose"
+	"github.com/coreos/go-oidc/key"
+	"github.com/coreos/go-oidc/oauth2"
+	"github.com/coreos/go-oidc/oidc"
+
 	"github.com/coreos/dex/client"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
@@ -17,13 +22,9 @@ import (
 	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
-	"github.com/coreos/go-oidc/jose"
-	"github.com/coreos/go-oidc/key"
-	"github.com/coreos/go-oidc/oauth2"
-	"github.com/coreos/go-oidc/oidc"
 )
 
-func mockServer(cis []client.Client) (*server.Server, error) {
+func mockServer(cis []client.LoadableClient) (*server.Server, error) {
 	dbMap := db.NewMemDB()
 	k, err := key.GeneratePrivateKey()
 	if err != nil {
@@ -35,7 +36,8 @@ func mockServer(cis []client.Client) (*server.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	clientRepo, err := db.NewClientRepoFromClients(dbMap, cis)
+
+	clientRepo, clientManager, err := makeClientRepoAndManager(dbMap, cis)
 	if err != nil {
 		return nil, err
 	}
@@ -45,6 +47,7 @@ func mockServer(cis []client.Client) (*server.Server, error) {
 		IssuerURL:      url.URL{Scheme: "http", Host: "server.example.com"},
 		KeyManager:     km,
 		ClientRepo:     clientRepo,
+		ClientManager:  clientManager,
 		SessionManager: sm,
 	}
 
@@ -82,15 +85,21 @@ func verifyUserClaims(claims jose.Claims, ci *client.Client, user *user.User, is
 		expectedSub, expectedName = user.ID, user.DisplayName
 	}
 
-	if aud := claims["aud"].(string); aud != ci.Credentials.ID {
+	if aud, ok := claims["aud"].(string); !ok {
+		return fmt.Errorf("unexpected claim value for aud, got=nil, want=%v", ci.Credentials.ID)
+	} else if aud != ci.Credentials.ID {
 		return fmt.Errorf("unexpected claim value for aud, got=%v, want=%v", aud, ci.Credentials.ID)
 	}
 
-	if sub := claims["sub"].(string); sub != expectedSub {
+	if sub, ok := claims["sub"].(string); !ok {
+		return fmt.Errorf("unexpected claim value for sub, got=nil, want=%v", expectedSub)
+	} else if sub != expectedSub {
 		return fmt.Errorf("unexpected claim value for sub, got=%v, want=%v", sub, expectedSub)
 	}
 
-	if name := claims["name"].(string); name != expectedName {
+	if name, ok := claims["name"].(string); !ok {
+		return fmt.Errorf("unexpected claim value for aud, got=nil, want=%v", expectedName)
+	} else if name != expectedName {
 		return fmt.Errorf("unexpected claim value for name, got=%v, want=%v", name, expectedName)
 	}
 
@@ -117,18 +126,32 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 		ID: "local",
 	}
 
+	validRedirURL := url.URL{
+		Scheme: "http",
+		Host:   "client.example.com",
+		Path:   "/callback",
+	}
 	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
-			ID:     "72de74a9",
-			Secret: base64.URLEncoding.EncodeToString([]byte("XXX")),
+			ID:     validRedirURL.Host,
+			Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
+		},
+		Metadata: oidc.ClientMetadata{
+			RedirectURIs: []url.URL{
+				validRedirURL,
+			},
 		},
 	}
 
 	dbMap := db.NewMemDB()
-	cir, err := db.NewClientRepoFromClients(dbMap, []client.Client{ci})
+	clientRepo, clientManager, err := makeClientRepoAndManager(dbMap,
+		[]client.LoadableClient{{
+			Client: ci,
+		}})
 	if err != nil {
-		t.Fatalf("Failed to create client identity repo: " + err.Error())
+		t.Fatalf("Failed to create client identity manager: " + err.Error())
 	}
+
 	passwordInfoRepo, err := db.NewPasswordInfoRepoFromPasswordInfos(db.NewMemDB(), []user.PasswordInfo{passwordInfo})
 	if err != nil {
 		t.Fatalf("Failed to create password info repo: %v", err)
@@ -164,7 +187,8 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 		IssuerURL:        issuerURL,
 		KeyManager:       km,
 		SessionManager:   sm,
-		ClientRepo:       cir,
+		ClientRepo:       clientRepo,
+		ClientManager:    clientManager,
 		Templates:        template.New(connector.LoginPageTemplateName),
 		Connectors:       []connector.Connector{},
 		UserRepo:         userRepo,
@@ -188,7 +212,7 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 		HTTPClient:     sClient,
 		ProviderConfig: pcfg,
 		Credentials:    ci.Credentials,
-		RedirectURL:    "http://client.example.com",
+		RedirectURL:    validRedirURL.String(),
 		KeySet:         *ks,
 	}
 
@@ -207,7 +231,7 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 
 	// this will actually happen due to some interaction between the
 	// end-user and a remote identity provider
-	sessionID, err := sm.NewSession("bogus_idpc", ci.Credentials.ID, "bogus", url.URL{}, "", false, []string{"openid", "offline_access"})
+	sessionID, err := sm.NewSession("bogus_idpc", ci.Credentials.ID, "bogus", url.URL{}, "", false, []string{"openid", "offline_access", "email", "profile"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -263,36 +287,85 @@ func TestHTTPExchangeTokenRefreshToken(t *testing.T) {
 }
 
 func TestHTTPClientCredsToken(t *testing.T) {
+	validRedirURL := url.URL{
+		Scheme: "http",
+		Host:   "client.example.com",
+		Path:   "/callback",
+	}
 	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
-			ID:     "72de74a9",
-			Secret: base64.URLEncoding.EncodeToString([]byte("XXX")),
+			ID:     validRedirURL.Host,
+			Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
+		},
+		Metadata: oidc.ClientMetadata{
+			RedirectURIs: []url.URL{
+				validRedirURL,
+			},
 		},
 	}
-	cis := []client.Client{ci}
 
-	srv, err := mockServer(cis)
-	if err != nil {
-		t.Fatalf("Unexpected error setting up server: %v", err)
+	ci2 := ci
+	ci2.Credentials.ID = "not_a_client"
+
+	ciPublic := ci
+	ciPublic.Public = true
+	ciPublic.Credentials.ID = "public"
+
+	cis := []client.LoadableClient{{Client: ci}, {Client: ciPublic}}
+	tests := []struct {
+		cli     client.Client
+		clients []client.LoadableClient
+		wantErr bool
+	}{
+		{
+			cli:     ci,
+			clients: cis,
+			wantErr: false,
+		},
+		{
+			cli:     ci2,
+			clients: cis,
+			wantErr: true,
+		},
+		{
+			cli:     ciPublic,
+			clients: cis,
+			wantErr: true,
+		},
 	}
 
-	cl, err := mockClient(srv, ci)
-	if err != nil {
-		t.Fatalf("Unexpected error setting up OIDC client: %v", err)
-	}
+	for i, tt := range tests {
+		srv, err := mockServer(tt.clients)
+		if err != nil {
+			t.Fatalf("case %d: Unexpected error setting up server: %v", i, err)
+		}
 
-	tok, err := cl.ClientCredsToken([]string{"openid"})
-	if err != nil {
-		t.Fatalf("Failed getting client token: %v", err)
-	}
+		cl, err := mockClient(srv, tt.cli)
+		if err != nil {
+			t.Fatalf("case %d: Unexpected error setting up OIDC client: %v", i, err)
+		}
 
-	claims, err := tok.Claims()
-	if err != nil {
-		t.Fatalf("Failed parsing claims from client token: %v", err)
-	}
+		tok, err := cl.ClientCredsToken([]string{"openid"})
+		if tt.wantErr {
+			if err == nil {
+				t.Errorf("case %d: want non-nil error", i)
+			}
+			continue
+		}
 
-	if err := verifyUserClaims(claims, &ci, nil, srv.IssuerURL); err != nil {
-		t.Fatalf("Failed to verify claims: %v", err)
+		if err != nil {
+			t.Fatalf("case %d: Failed getting client token: %v", i, err)
+			continue
+		}
+
+		claims, err := tok.Claims()
+		if err != nil {
+			t.Fatalf("case %d: Failed parsing claims from client token: %v", i, err)
+		}
+
+		if err := verifyUserClaims(claims, &ci, nil, srv.IssuerURL); err != nil {
+			t.Fatalf("case %d: Failed to verify claims: %v", i, err)
+		}
 	}
 }
 

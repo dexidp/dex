@@ -31,6 +31,8 @@ if [ ! -f $GENDOC ]; then
     exit 1
 fi
 
+go run schema/jsonfmt.go $IN
+
 $GENDOC --f $IN --o $DOC
 
 # Though google-api-go-generator is a main, dex vendors the app using the same
@@ -71,3 +73,5 @@ GOPATH=${PWD}/gopath ./bin/google-api-go-generator \
 
 # Finally, fix the import in the bindings to refer to the vendored google-api package
 goimports -w ${GEN}
+
+gofmt -w schema/${GOPKG}

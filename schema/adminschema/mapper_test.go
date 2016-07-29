@@ -45,10 +45,27 @@ func TestMapSchemaClientToClient(t *testing.T) {
 			},
 		}, {
 			sc: Client{
+				Id:         "456",
+				Secret:     "sec_456",
+				ClientName: "Dave",
+				Public:     true,
+			},
+			want: client.Client{
+				Credentials: oidc.ClientCredentials{
+					ID:     "456",
+					Secret: "sec_456",
+				},
+				Metadata: oidc.ClientMetadata{
+					ClientName: "Dave",
+				},
+				Public: true,
+			},
+		}, {
+			sc: Client{
 				Id:     "123",
 				Secret: "sec_123",
 				RedirectURIs: []string{
-					"ht.d://p * * *",
+					"",
 				},
 			},
 			wantErr: true,
@@ -106,6 +123,24 @@ func TestMapClientToClientSchema(t *testing.T) {
 					LogoURI:    mustParseURL(t, "https://logo.example.com"),
 					ClientURI:  mustParseURL(t, "https://clientURI.example.com"),
 				},
+			},
+		},
+		{
+			want: Client{
+				Id:         "456",
+				Secret:     "sec_456",
+				ClientName: "Dave",
+				Public:     true,
+			},
+			c: client.Client{
+				Credentials: oidc.ClientCredentials{
+					ID:     "456",
+					Secret: "sec_456",
+				},
+				Metadata: oidc.ClientMetadata{
+					ClientName: "Dave",
+				},
+				Public: true,
 			},
 		},
 	}

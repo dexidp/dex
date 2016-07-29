@@ -101,7 +101,6 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			wantCode: http.StatusOK,
 			wantEmailer: &testEmailer{
 				to:      str("email-1@example.com"),
-				from:    "noreply@example.com",
 				subject: "Reset Your Password",
 			},
 			wantPRUserID:   "ID-1",
@@ -137,7 +136,6 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			wantCode: http.StatusOK,
 			wantEmailer: &testEmailer{
 				to:      str("email-1@example.com"),
-				from:    "noreply@example.com",
 				subject: "Reset Your Password",
 			},
 			wantPRPassword: "password",
@@ -253,7 +251,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			t.Fatalf("case %d: could not make test fixtures: %v", i, err)
 		}
 
-		_, err = f.srv.NewSession("local", "XXX", "", f.redirectURL, "", true, []string{"openid"})
+		_, err = f.srv.NewSession("local", testClientID, "", f.redirectURL, "", true, []string{"openid"})
 		if err != nil {
 			t.Fatalf("case %d: could not create new session: %v", i, err)
 		}
@@ -261,13 +259,13 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 		emailer := &testEmailer{
 			sent: make(chan struct{}),
 		}
-		templatizer := email.NewTemplatizedEmailerFromTemplates(textTemplates, htmlTemplates, emailer)
+		templatizer := email.NewTemplatizedEmailerFromTemplates(textTemplates, htmlTemplates, emailer, "admin@example.com")
 		f.srv.UserEmailer.SetEmailer(templatizer)
 		hdlr := SendResetPasswordEmailHandler{
 			tpl:     f.srv.SendResetPasswordEmailTemplate,
 			emailer: f.srv.UserEmailer,
 			sm:      f.sessionManager,
-			cr:      f.clientRepo,
+			cm:      f.clientManager,
 		}
 
 		w := httptest.NewRecorder()
@@ -584,13 +582,12 @@ func TestResetPasswordHandler(t *testing.T) {
 }
 
 type testEmailer struct {
-	from, subject, text, html string
-	to                        []string
-	sent                      chan struct{}
+	subject, text, html string
+	to                  []string
+	sent                chan struct{}
 }
 
-func (t *testEmailer) SendMail(from, subject, text, html string, to ...string) error {
-	t.from = from
+func (t *testEmailer) SendMail(subject, text, html string, to ...string) error {
 	t.subject = subject
 	t.text = text
 	t.html = html

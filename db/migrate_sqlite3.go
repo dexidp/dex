@@ -16,7 +16,8 @@ CREATE TABLE client_identity (
     id text NOT NULL UNIQUE,
     secret blob,
     metadata text,
-    dex_admin integer
+    dex_admin integer,
+    public integer
 );
 
 CREATE TABLE connector_config (
@@ -39,7 +40,9 @@ CREATE TABLE refresh_token (
     id integer PRIMARY KEY,
     payload_hash blob,
     user_id text,
-    client_id text
+    client_id text,
+    connector_id text,
+    scopes text
 );
 
 CREATE TABLE remote_identity_mapping (
@@ -61,7 +64,8 @@ CREATE TABLE session (
     user_id text,
     register integer,
     nonce text,
-    scope text
+    scope text,
+    groups text
 );
 
 CREATE TABLE session_key (
@@ -70,4 +74,10 @@ CREATE TABLE session_key (
     expires_at bigint,
     stale integer
 );
+
+CREATE TABLE trusted_peers (
+    client_id text NOT NULL,
+    trusted_client_id text NOT NULL
+);
+
 `

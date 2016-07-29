@@ -2,6 +2,7 @@
 // To regenerate run:
 //   go install github.com/coreos/dex/cmd/genconfig
 //   go generate <<fully qualified package name>>
+
 package connector
 
 import (

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/key"
@@ -14,7 +14,7 @@ import (
 
 type clientTokenMiddleware struct {
 	issuerURL string
-	ciRepo    client.ClientRepo
+	ciManager *manager.ClientManager
 	keysFunc  func() ([]key.PublicKey, error)
 	next      http.Handler
 }
@@ -30,8 +30,8 @@ func (c *clientTokenMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if c.ciRepo == nil {
-		log.Errorf("Misconfigured clientTokenMiddleware, ClientRepo is not set")
+	if c.ciManager == nil {
+		log.Errorf("Misconfigured clientTokenMiddleware, ClientManager is not set")
 		respondError()
 		return
 	}
@@ -83,7 +83,7 @@ func (c *clientTokenMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	md, err := c.ciRepo.Metadata(clientID)
+	md, err := c.ciManager.Metadata(clientID)
 	if md == nil || err != nil {
 		log.Errorf("Failed to find clientID: %s, error=%v", clientID, err)
 		respondError()

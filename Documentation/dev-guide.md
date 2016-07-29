@@ -4,14 +4,15 @@
 
 When you are working on dex it's convenient to use the `--no-db` flag. This starts up dex in a mode which uses an in-memory datastore for persistence. It also does not rotate keys, so no overlord is required.
 
-In this mode you provide the binary with paths to files for connectors, users, and emailer. There are example files you can use inside of `static/fixtures` named *"connectors.json.sample"*, *"users.json.sample"*, and *"emailer.json.sample"*, respectively.
+In this mode you provide the binary with paths to files for clients, connectors, users, and emailer. There are example files you can use inside of `static/fixtures` named *"clients.json.sample"*, *"connectors.json.sample"*, *"users.json.sample"*, and *"emailer.json.sample"*, respectively.
 
 You can rename these to the equivalent without the *".sample"* suffix since the defaults point to those locations:
 
 ```console
-mv static/fixtures/connectors.json.sample static/fixtures/connectors.json
-mv static/fixtures/users.json.sample static/fixtures/users.json
-mv static/fixtures/emailer.json.sample static/fixtures/emailer.json
+cp static/fixtures/clients.json.sample static/fixtures/clients.json
+cp static/fixtures/connectors.json.sample static/fixtures/connectors.json
+cp static/fixtures/users.json.sample static/fixtures/users.json
+cp static/fixtures/emailer.json.sample static/fixtures/emailer.json
 ```
 
 Starting dex is then as simple as:
@@ -35,9 +36,15 @@ You can also use a copy of `go` hosted inside a Docker container if you prefix y
 Once binaries are compiled you can build and push a dex image to quay.io. Before doing this step binaries must be built above using one of the build tools.
 
 ```console
+./build-docker build
+```
+
+If you want to push the build to quay.io, use `./build-docker push`:
+
+```console
 export DOCKER_USER=<<your user>>
 export DOCKER_PASSWORD=<<your password>>
-./build-docker-push
+./build-docker push
 ```
 
 By default the script pushes to `quay.io/coreos/dex`; if you want to push to a different repository, override the `DOCKER_REGISTRY` and `DOCKER_REPO` environment variables.
@@ -102,7 +109,7 @@ Note that __all of these flags are manditory__. This should add an entry to the 
 
 ## Updating an existing package
 
-To update an existing package, edit the `glide.yaml` file to the desired verison (most likely a git hash), and run `glide update`. 
+To update an existing package, edit the `glide.yaml` file to the desired verison (most likely a git hash), and run `glide update`.
 
 ```
 {{ edit the entry in glide.yaml }}

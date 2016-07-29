@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"path"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/jose"
@@ -19,9 +20,11 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/refresh"
+	"github.com/coreos/dex/scope"
 	"github.com/coreos/dex/session"
 	sessionmanager "github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
@@ -36,47 +39,63 @@ const (
 	VerifyEmailTemplateName            = "verify-email.html"
 	SendResetPasswordEmailTemplateName = "send-reset-password.html"
 	ResetPasswordTemplateName          = "reset-password.html"
-
-	APIVersion = "v1"
+	OOBTemplateName                    = "oob-template.html"
+	APIVersion                         = "v1"
 )
 
 type OIDCServer interface {
-	ClientMetadata(string) (*oidc.ClientMetadata, error)
+	Client(string) (client.Client, error)
 	NewSession(connectorID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error)
 	Login(oidc.Identity, string) (string, error)
+
 	// CodeToken exchanges a code for an ID token and a refresh token string on success.
 	CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jose.JWT, string, error)
+
 	ClientCredsToken(creds oidc.ClientCredentials) (*jose.JWT, error)
+
 	// RefreshToken takes a previously generated refresh token and returns a new ID token
 	// if the token is valid.
-	RefreshToken(creds oidc.ClientCredentials, token string) (*jose.JWT, error)
+	RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes, token string) (*jose.JWT, error)
+
 	KillSession(string) error
+
+	CrossClientAuthAllowed(requestingClientID, authorizingClientID string) (bool, error)
 }
 
 type JWTVerifierFactory func(clientID string) oidc.JWTVerifier
 
 type Server struct {
-	IssuerURL                      url.URL
-	KeyManager                     key.PrivateKeyManager
-	KeySetRepo                     key.PrivateKeySetRepo
-	SessionManager                 *sessionmanager.SessionManager
-	ClientRepo                     client.ClientRepo
-	ConnectorConfigRepo            connector.ConnectorConfigRepo
+	IssuerURL url.URL
+
 	Templates                      *template.Template
 	LoginTemplate                  *template.Template
 	RegisterTemplate               *template.Template
 	VerifyEmailTemplate            *template.Template
 	SendResetPasswordEmailTemplate *template.Template
 	ResetPasswordTemplate          *template.Template
-	HealthChecks                   []health.Checkable
-	Connectors                     []connector.Connector
-	UserRepo                       user.UserRepo
-	UserManager                    *usermanager.UserManager
-	PasswordInfoRepo               user.PasswordInfoRepo
-	RefreshTokenRepo               refresh.RefreshTokenRepo
-	UserEmailer                    *useremail.UserEmailer
-	EnableRegistration             bool
-	EnableClientRegistration       bool
+	OOBTemplate                    *template.Template
+
+	HealthChecks []health.Checkable
+	// TODO(ericchiang): Make this a map of ID to connector.
+	Connectors []connector.Connector
+
+	ClientRepo          client.ClientRepo
+	ConnectorConfigRepo connector.ConnectorConfigRepo
+	KeySetRepo          key.PrivateKeySetRepo
+	RefreshTokenRepo    refresh.RefreshTokenRepo
+	UserRepo            user.UserRepo
+	PasswordInfoRepo    user.PasswordInfoRepo
+
+	ClientManager  *clientmanager.ClientManager
+	KeyManager     key.PrivateKeyManager
+	SessionManager *sessionmanager.SessionManager
+	UserManager    *usermanager.UserManager
+
+	UserEmailer *useremail.UserEmailer
+
+	EnableRegistration       bool
+	EnableClientRegistration bool
+	RegisterOnFirstLogin     bool
 
 	dbMap            *gorp.DbMap
 	localConnectorID string
@@ -196,14 +215,27 @@ func (s *Server) HTTPHandler() http.Handler {
 
 	clock := clockwork.NewRealClock()
 	mux := http.NewServeMux()
-	mux.HandleFunc(httpPathDiscovery, handleDiscoveryFunc(s.ProviderConfig()))
-	mux.HandleFunc(httpPathAuth, handleAuthFunc(s, s.Connectors, s.LoginTemplate, s.EnableRegistration))
-	mux.HandleFunc(httpPathToken, handleTokenFunc(s))
-	mux.HandleFunc(httpPathKeys, handleKeysFunc(s.KeyManager, clock))
-	mux.Handle(httpPathHealth, makeHealthHandler(checks))
+	handle := func(urlPath string, h http.Handler) {
+		p := path.Join(s.IssuerURL.Path, urlPath)
+		// path.Join always trims trailing slashes (https://play.golang.org/p/GRr0jDd9P7).
+		// If path being registered has a trailing slash, add it back on.
+		if strings.HasSuffix(urlPath, "/") {
+			p = p + "/"
+		}
+		mux.Handle(p, h)
+	}
+	handleFunc := func(urlPath string, hf http.HandlerFunc) {
+		handle(urlPath, hf)
+	}
+	handleFunc(httpPathDiscovery, handleDiscoveryFunc(s.ProviderConfig()))
+	handleFunc(httpPathAuth, handleAuthFunc(s, s.Connectors, s.LoginTemplate, s.EnableRegistration))
+	handleFunc(httpPathOOB, handleOOBFunc(s, s.OOBTemplate))
+	handleFunc(httpPathToken, handleTokenFunc(s))
+	handleFunc(httpPathKeys, handleKeysFunc(s.KeyManager, clock))
+	handle(httpPathHealth, makeHealthHandler(checks))
 
 	if s.EnableRegistration {
-		mux.HandleFunc(httpPathRegister, handleRegisterFunc(s, s.RegisterTemplate))
+		handleFunc(httpPathRegister, handleRegisterFunc(s, s.RegisterTemplate))
 	}
 
 	mux.HandleFunc(httpPathEmailVerify, handleEmailVerifyFunc(s.VerifyEmailTemplate,
@@ -212,27 +244,27 @@ func (s *Server) HTTPHandler() http.Handler {
 		s.KeyManager.PublicKeys,
 		s.UserManager))
 
-	mux.Handle(httpPathVerifyEmailResend, s.NewClientTokenAuthHandler(handleVerifyEmailResendFunc(s.IssuerURL,
+	handle(httpPathVerifyEmailResend, s.NewClientTokenAuthHandler(handleVerifyEmailResendFunc(s.IssuerURL,
 		s.KeyManager.PublicKeys,
 		s.UserEmailer,
 		s.UserRepo,
-		s.ClientRepo)))
+		s.ClientManager)))
 
-	mux.Handle(httpPathSendResetPassword, &SendResetPasswordEmailHandler{
+	handle(httpPathSendResetPassword, &SendResetPasswordEmailHandler{
 		tpl:     s.SendResetPasswordEmailTemplate,
 		emailer: s.UserEmailer,
 		sm:      s.SessionManager,
-		cr:      s.ClientRepo,
+		cm:      s.ClientManager,
 	})
 
-	mux.Handle(httpPathResetPassword, &ResetPasswordHandler{
+	handle(httpPathResetPassword, &ResetPasswordHandler{
 		tpl:       s.ResetPasswordTemplate,
 		issuerURL: s.IssuerURL,
 		um:        s.UserManager,
 		keysFunc:  s.KeyManager.PublicKeys,
 	})
 
-	mux.Handle(httpPathAcceptInvitation, &InvitationHandler{
+	handle(httpPathAcceptInvitation, &InvitationHandler{
 		passwordResetURL:       s.absURL(httpPathResetPassword),
 		issuerURL:              s.IssuerURL,
 		um:                     s.UserManager,
@@ -242,10 +274,10 @@ func (s *Server) HTTPHandler() http.Handler {
 	})
 
 	if s.EnableClientRegistration {
-		mux.HandleFunc(httpPathClientRegistration, s.handleClientRegistration)
+		handleFunc(httpPathClientRegistration, s.handleClientRegistration)
 	}
 
-	mux.HandleFunc(httpPathDebugVars, health.ExpvarHandler)
+	handleFunc(httpPathDebugVars, health.ExpvarHandler)
 
 	pcfg := s.ProviderConfig()
 	for _, idpc := range s.Connectors {
@@ -253,19 +285,18 @@ func (s *Server) HTTPHandler() http.Handler {
 		if err != nil {
 			log.Fatal(err)
 		}
-		idpc.Register(mux, *errorURL)
+		// NOTE(ericchiang): This path MUST end in a "/" in order to indicate a
+		// path prefix rather than an absolute path.
+		handle(path.Join(httpPathAuth, idpc.ID())+"/", idpc.Handler(*errorURL))
 	}
 
 	apiBasePath := path.Join(httpPathAPI, APIVersion)
 	registerDiscoveryResource(apiBasePath, mux)
 
-	clientPath, clientHandler := registerClientResource(apiBasePath, s.ClientRepo)
-	mux.Handle(path.Join(apiBasePath, clientPath), s.NewClientTokenAuthHandler(clientHandler))
+	usersAPI := usersapi.NewUsersAPI(s.UserManager, s.ClientManager, s.RefreshTokenRepo, s.UserEmailer, s.localConnectorID)
+	handler := NewUserMgmtServer(usersAPI, s.JWTVerifierFactory(), s.UserManager, s.ClientManager).HTTPHandler()
 
-	usersAPI := usersapi.NewUsersAPI(s.dbMap, s.UserManager, s.UserEmailer, s.localConnectorID)
-	handler := NewUserMgmtServer(usersAPI, s.JWTVerifierFactory(), s.UserManager, s.ClientRepo).HTTPHandler()
-
-	mux.Handle(apiBasePath+"/", handler)
+	handle(apiBasePath+"/", handler)
 
 	return http.Handler(mux)
 }
@@ -274,14 +305,14 @@ func (s *Server) HTTPHandler() http.Handler {
 func (s *Server) NewClientTokenAuthHandler(handler http.Handler) http.Handler {
 	return &clientTokenMiddleware{
 		issuerURL: s.IssuerURL.String(),
-		ciRepo:    s.ClientRepo,
+		ciManager: s.ClientManager,
 		keysFunc:  s.KeyManager.PublicKeys,
 		next:      handler,
 	}
 }
 
-func (s *Server) ClientMetadata(clientID string) (*oidc.ClientMetadata, error) {
-	return s.ClientRepo.Metadata(clientID)
+func (s *Server) Client(clientID string) (client.Client, error) {
+	return s.ClientManager.Get(clientID)
 }
 
 func (s *Server) NewSession(ipdcID, clientID, clientState string, redirectURL url.URL, nonce string, register bool, scope []string) (string, error) {
@@ -292,6 +323,15 @@ func (s *Server) NewSession(ipdcID, clientID, clientState string, redirectURL ur
 
 	log.Infof("Session %s created: clientID=%s clientState=%s", sessionID, clientID, clientState)
 	return s.SessionManager.NewSessionKey(sessionID)
+}
+
+func (s *Server) connector(id string) (connector.Connector, bool) {
+	for _, c := range s.Connectors {
+		if c.ID() == id {
+			return c, true
+		}
+	}
+	return nil, false
 }
 
 func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
@@ -305,6 +345,29 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 		return "", err
 	}
 	log.Infof("Session %s remote identity attached: clientID=%s identity=%#v", sessionID, ses.ClientID, ident)
+
+	// Get the connector used to log the user in.
+	conn, ok := s.connector(ses.ConnectorID)
+	if !ok {
+		return "", fmt.Errorf("session contained invalid connector ID (%s)", ses.ConnectorID)
+	}
+
+	// If the client has requested access to groups, add them here.
+	if ses.Scope.HasScope(scope.ScopeGroups) {
+		grouper, ok := conn.(connector.GroupsConnector)
+		if !ok {
+			return "", fmt.Errorf("scope %q provided but connector does not support groups", scope.ScopeGroups)
+		}
+		groups, err := grouper.Groups(ident.ID)
+		if err != nil {
+			return "", fmt.Errorf("failed to retrieve user groups for %q %v", ident.ID, err)
+		}
+
+		// Update the session.
+		if ses, err = s.SessionManager.AttachGroups(sessionID, groups); err != nil {
+			return "", fmt.Errorf("failed save groups")
+		}
+	}
 
 	if ses.Register {
 		code, err := s.SessionManager.NewSessionKey(sessionID)
@@ -320,45 +383,66 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 		return ru.String(), nil
 	}
 
-	usr, err := s.UserRepo.GetByRemoteIdentity(nil, user.RemoteIdentity{
-		ConnectorID: ses.ConnectorID,
-		ID:          ses.Identity.ID,
-	})
+	remoteIdentity := user.RemoteIdentity{ConnectorID: ses.ConnectorID, ID: ses.Identity.ID}
+
+	usr, err := s.UserRepo.GetByRemoteIdentity(nil, remoteIdentity)
 	if err == user.ErrorNotFound {
-		// Does the user have an existing account with a different connector?
-		if ses.Identity.Email != "" {
-			connID, err := getConnectorForUserByEmail(s.UserRepo, ses.Identity.Email)
-			if err == nil {
-				// Ask user to sign in through existing account.
-				u := newLoginURLFromSession(s.IssuerURL, ses, false, []string{connID}, "wrong-connector")
-				return u.String(), nil
-			}
+		if ses.Identity.Email == "" {
+			// User doesn't have an existing account. Ask them to register.
+			u := newLoginURLFromSession(s.IssuerURL, ses, true, []string{ses.ConnectorID}, "register-maybe")
+			return u.String(), nil
 		}
 
-		// User doesn't have an existing account. Ask them to register.
-		u := newLoginURLFromSession(s.IssuerURL, ses, true, []string{ses.ConnectorID}, "register-maybe")
-		return u.String(), nil
-	}
-	if err != nil {
-		return "", err
+		// Does the user have an existing account with a different connector?
+		if connID, err := getConnectorForUserByEmail(s.UserRepo, ses.Identity.Email); err == nil {
+			// Ask user to sign in through existing account.
+			u := newLoginURLFromSession(s.IssuerURL, ses, false, []string{connID}, "wrong-connector")
+			return u.String(), nil
+		}
+
+		// RegisterOnFirstLogin doesn't work for the local connector
+		tryToRegister := s.RegisterOnFirstLogin && (ses.ConnectorID != s.localConnectorID)
+
+		if !tryToRegister {
+			// User doesn't have an existing account. Ask them to register.
+			u := newLoginURLFromSession(s.IssuerURL, ses, true, []string{ses.ConnectorID}, "register-maybe")
+			return u.String(), nil
+		}
+
+		// First time logging in through a remote connector. Attempt to register.
+		emailVerified := conn.TrustedEmailProvider()
+		usrID, err := s.UserManager.RegisterWithRemoteIdentity(ses.Identity.Email, emailVerified, remoteIdentity)
+		if err != nil {
+			return "", fmt.Errorf("failed to register user: %v", err)
+		}
+		usr, err = s.UserManager.Get(usrID)
+		if err != nil {
+			return "", fmt.Errorf("getting created user: %v", err)
+		}
+	} else if err != nil {
+		return "", fmt.Errorf("getting user: %v", err)
 	}
 
 	if usr.Disabled {
+		log.Errorf("user %s disabled", ses.Identity.Email)
 		return "", user.ErrorNotFound
 	}
 
 	ses, err = s.SessionManager.AttachUser(sessionID, usr.ID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("attaching user to session: %v", err)
 	}
 	log.Infof("Session %s user identified: clientID=%s user=%#v", sessionID, ses.ClientID, usr)
 
 	code, err := s.SessionManager.NewSessionKey(sessionID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("creating new session key: %v", err)
 	}
 
 	ru := ses.RedirectURL
+	if ru.String() == client.OOBRedirectURI {
+		ru = s.absURL(httpPathOOB)
+	}
 	q := ru.Query()
 	q.Set("code", code)
 	q.Set("state", ses.ClientState)
@@ -368,9 +452,18 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 }
 
 func (s *Server) ClientCredsToken(creds oidc.ClientCredentials) (*jose.JWT, error) {
-	ok, err := s.ClientRepo.Authenticate(creds)
+	cli, err := s.Client(creds.ID)
 	if err != nil {
-		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
+		return nil, err
+	}
+
+	if cli.Public {
+		return nil, oauth2.NewError(oauth2.ErrorInvalidClient)
+	}
+
+	ok, err := s.ClientManager.Authenticate(creds)
+	if err != nil {
+		log.Errorf("Failed fetching client %s from manager: %v", creds.ID, err)
 		return nil, oauth2.NewError(oauth2.ErrorServerError)
 	}
 	if !ok {
@@ -400,7 +493,7 @@ func (s *Server) ClientCredsToken(creds oidc.ClientCredentials) (*jose.JWT, erro
 }
 
 func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jose.JWT, string, error) {
-	ok, err := s.ClientRepo.Authenticate(creds)
+	ok, err := s.ClientManager.Authenticate(creds)
 	if err != nil {
 		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
 		return nil, "", oauth2.NewError(oauth2.ErrorServerError)
@@ -439,6 +532,8 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 	claims := ses.Claims(s.IssuerURL.String())
 	user.AddToClaims(claims)
 
+	s.addClaimsFromScope(claims, ses.Scope, ses.ClientID)
+
 	jwt, err := jose.NewSignedJWT(claims, signer)
 	if err != nil {
 		log.Errorf("Failed to generate ID token: %v", err)
@@ -452,7 +547,7 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 		if scope == "offline_access" {
 			log.Infof("Session %s requests offline access, will generate refresh token", sessionID)
 
-			refreshToken, err = s.RefreshTokenRepo.Create(ses.UserID, creds.ID)
+			refreshToken, err = s.RefreshTokenRepo.Create(ses.UserID, creds.ID, ses.ConnectorID, ses.Scope)
 			switch err {
 			case nil:
 				break
@@ -468,8 +563,8 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 	return jwt, refreshToken, nil
 }
 
-func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose.JWT, error) {
-	ok, err := s.ClientRepo.Authenticate(creds)
+func (s *Server) RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes, token string) (*jose.JWT, error) {
+	ok, err := s.ClientManager.Authenticate(creds)
 	if err != nil {
 		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
 		return nil, oauth2.NewError(oauth2.ErrorServerError)
@@ -479,7 +574,7 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose
 		return nil, oauth2.NewError(oauth2.ErrorInvalidClient)
 	}
 
-	userID, err := s.RefreshTokenRepo.Verify(creds.ID, token)
+	userID, connectorID, rtScopes, err := s.RefreshTokenRepo.Verify(creds.ID, token)
 	switch err {
 	case nil:
 		break
@@ -491,12 +586,57 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose
 		return nil, oauth2.NewError(oauth2.ErrorServerError)
 	}
 
-	user, err := s.UserRepo.Get(nil, userID)
+	if len(scopes) == 0 {
+		scopes = rtScopes
+	} else {
+		if !rtScopes.Contains(scopes) {
+			return nil, oauth2.NewError(oauth2.ErrorInvalidRequest)
+		}
+	}
+
+	usr, err := s.UserRepo.Get(nil, userID)
 	if err != nil {
 		// The error can be user.ErrorNotFound, but we are not deleting
 		// user at this moment, so this shouldn't happen.
 		log.Errorf("Failed to fetch user %q from repo: %v: ", userID, err)
 		return nil, oauth2.NewError(oauth2.ErrorServerError)
+	}
+
+	var groups []string
+	if rtScopes.HasScope(scope.ScopeGroups) {
+		conn, ok := s.connector(connectorID)
+		if !ok {
+			log.Errorf("refresh token contained invalid connector ID (%s)", connectorID)
+			return nil, oauth2.NewError(oauth2.ErrorServerError)
+		}
+
+		grouper, ok := conn.(connector.GroupsConnector)
+		if !ok {
+			log.Errorf("refresh token requested groups for connector (%s) that doesn't support groups", connectorID)
+			return nil, oauth2.NewError(oauth2.ErrorServerError)
+		}
+
+		remoteIdentities, err := s.UserRepo.GetRemoteIdentities(nil, userID)
+		if err != nil {
+			log.Errorf("failed to get remote identities: %v", err)
+			return nil, oauth2.NewError(oauth2.ErrorServerError)
+		}
+		remoteIdentity, ok := func() (user.RemoteIdentity, bool) {
+			for _, ri := range remoteIdentities {
+				if ri.ConnectorID == connectorID {
+					return ri, true
+				}
+			}
+			return user.RemoteIdentity{}, false
+		}()
+		if !ok {
+			log.Errorf("failed to get remote identity for connector %s", connectorID)
+			return nil, oauth2.NewError(oauth2.ErrorServerError)
+		}
+		if groups, err = grouper.Groups(remoteIdentity.ID); err != nil {
+			log.Errorf("failed to get groups for refresh token: %v", connectorID)
+			return nil, oauth2.NewError(oauth2.ErrorServerError)
+		}
 	}
 
 	signer, err := s.KeyManager.Signer()
@@ -508,8 +648,16 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose
 	now := time.Now()
 	expireAt := now.Add(session.DefaultSessionValidityWindow)
 
-	claims := oidc.NewClaims(s.IssuerURL.String(), user.ID, creds.ID, now, expireAt)
-	user.AddToClaims(claims)
+	claims := oidc.NewClaims(s.IssuerURL.String(), usr.ID, creds.ID, now, expireAt)
+	usr.AddToClaims(claims)
+	if rtScopes.HasScope(scope.ScopeGroups) {
+		if groups == nil {
+			groups = []string{}
+		}
+		claims["groups"] = groups
+	}
+
+	s.addClaimsFromScope(claims, scope.Scopes(scopes), creds.ID)
 
 	jwt, err := jose.NewSignedJWT(claims, signer)
 	if err != nil {
@@ -520,6 +668,19 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, token string) (*jose
 	log.Infof("New token sent: clientID=%s", creds.ID)
 
 	return jwt, nil
+}
+
+func (s *Server) CrossClientAuthAllowed(requestingClientID, authorizingClientID string) (bool, error) {
+	alloweds, err := s.ClientRepo.GetTrustedPeers(nil, authorizingClientID)
+	if err != nil {
+		return false, err
+	}
+	for _, allowed := range alloweds {
+		if requestingClientID == allowed {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *Server) JWTVerifierFactory() JWTVerifierFactory {
@@ -537,6 +698,41 @@ func (s *Server) JWTVerifierFactory() JWTVerifierFactory {
 
 		return oidc.NewJWTVerifier(s.IssuerURL.String(), clientID, noop, keyFunc)
 	}
+}
+
+// addClaimsFromScope adds claims that are based on the scopes that the client requested.
+// Currently, these include cross-client claims (aud, azp).
+func (s *Server) addClaimsFromScope(claims jose.Claims, scopes scope.Scopes, clientID string) error {
+	crossClientIDs := scopes.CrossClientIDs()
+	if len(crossClientIDs) > 0 {
+		var aud []string
+		for _, id := range crossClientIDs {
+			if clientID == id {
+				aud = append(aud, id)
+				continue
+			}
+			allowed, err := s.CrossClientAuthAllowed(clientID, id)
+			if err != nil {
+				log.Errorf("Failed to check cross client auth. reqClientID %v; authClient:ID %v; err: %v", clientID, id, err)
+				return oauth2.NewError(oauth2.ErrorServerError)
+			}
+			if !allowed {
+				err := oauth2.NewError(oauth2.ErrorInvalidRequest)
+				err.Description = fmt.Sprintf(
+					"%q is not authorized to perform cross-client requests for %q",
+					clientID, id)
+				return err
+			}
+			aud = append(aud, id)
+		}
+		if len(aud) == 1 {
+			claims.Add("aud", aud[0])
+		} else {
+			claims.Add("aud", aud)
+		}
+		claims.Add("azp", clientID)
+	}
+	return nil
 }
 
 type sortableIDPCs []connector.Connector

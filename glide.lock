@@ -1,10 +1,10 @@
-hash: b0a1c1b400f077dac572450cb9602aabba62d9b7c6fc8ef426c2093de7621e8c
-updated: 2016-04-08T11:43:54.191409294-07:00
+hash: 2e6ef5ae85fe17d9b695b37ba6875b438a617692cc1f6fefc682c4e405a4dcf1
+updated: 2016-06-28T10:36:39.146887182-07:00
 imports:
 - name: github.com/andybalholm/cascadia
   version: 6122e68c2642b7b75c538a63b15168c6c80fb757
 - name: github.com/coreos/go-oidc
-  version: 6039032c0b15517897116d333ead8edf38792437
+  version: 5aa9381f6e998aa16cc96b4347d33dcc29792864
   subpackages:
   - http
   - jose
@@ -39,11 +39,9 @@ imports:
   subpackages:
   - oid
 - name: github.com/mailgun/mailgun-go
-  version: 9578dc67692294bb7e2a6f4b15dd18c97af19440
+  version: a98c4eecda3e6a36bd804ae80e9a4f8edaa6cd99
 - name: github.com/mattn/go-sqlite3
   version: 2513631704612107a1c8b1803fb8e6b3dda2230e
-- name: github.com/mbanzon/simplehttp
-  version: 04c542e7ac706a25820090f274ea6a4f39a63326
 - name: github.com/pborman/uuid
   version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
 - name: github.com/PuerkitoBio/goquery
@@ -65,6 +63,7 @@ imports:
   version: dfe268fd2bb5c793f4c083803609fce9806c6f80
   subpackages:
   - html
+  - context
   - html/atom
 - name: google.golang.org/api
   version: d3edb0282bde692467788c50070a9211afe75cf3
@@ -82,4 +81,4 @@ imports:
   version: c87af80f3cc5036b55b83d77171e156791085e2e
 - name: gopkg.in/ldap.v2
   version: e9a325d64989e2844be629682cb085d2c58eef8d
-devImports: []
+testImports: []

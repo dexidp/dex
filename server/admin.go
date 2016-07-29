@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"path"
@@ -9,6 +10,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/coreos/dex/admin"
+	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/schema/adminschema"
 	"github.com/coreos/go-oidc/key"
@@ -24,6 +26,7 @@ var (
 	AdminCreateEndpoint       = addBasePath("/admin")
 	AdminGetStateEndpoint     = addBasePath("/state")
 	AdminCreateClientEndpoint = addBasePath("/client")
+	AdminConnectorsEndpoint   = addBasePath("/connectors")
 )
 
 // AdminServer serves the admin API.
@@ -53,6 +56,8 @@ func (s *AdminServer) HTTPHandler() http.Handler {
 	r.POST(AdminCreateClientEndpoint, s.createClient)
 	r.Handler("GET", httpPathHealth, s.checker)
 	r.HandlerFunc("GET", httpPathDebugVars, health.ExpvarHandler)
+	r.PUT(AdminConnectorsEndpoint, s.setConnectors)
+	r.GET(AdminConnectorsEndpoint, s.getConnectors)
 
 	return authorizer(r, s.secret, httpPathHealth, httpPathDebugVars)
 }
@@ -126,6 +131,41 @@ func (s *AdminServer) createClient(w http.ResponseWriter, r *http.Request, ps ht
 	if err != nil {
 		s.writeError(w, err)
 		return
+	}
+	writeResponseWithBody(w, http.StatusOK, &resp)
+}
+
+func (s *AdminServer) setConnectors(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	var req struct {
+		Connectors json.RawMessage `json:"connectors"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeInvalidRequest(w, "cannot parse JSON body")
+		return
+	}
+
+	connectorConfigs, err := connector.ReadConfigs(bytes.NewReader([]byte(req.Connectors)))
+	if err != nil {
+		writeInvalidRequest(w, "cannot parse JSON body")
+		return
+	}
+	if err := s.adminAPI.SetConnectors(connectorConfigs); err != nil {
+		s.writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *AdminServer) getConnectors(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	connectorConfigs, err := s.adminAPI.GetConnectors()
+	if err != nil {
+		s.writeError(w, err)
+		return
+	}
+	var resp adminschema.ConnectorsGetResponse
+	resp.Connectors = make([]interface{}, len(connectorConfigs))
+	for i, connectorConfig := range connectorConfigs {
+		resp.Connectors[i] = connectorConfig
 	}
 	writeResponseWithBody(w, http.StatusOK, &resp)
 }

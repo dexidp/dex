@@ -33,7 +33,7 @@ func main() {
 	fs := flag.NewFlagSet("dex-worker", flag.ExitOnError)
 	listen := fs.String("listen", "http://127.0.0.1:5556", "the address that the server will listen on")
 
-	issuer := fs.String("issuer", "http://127.0.0.1:5556", "the issuer's location")
+	issuer := fs.String("issuer", "http://127.0.0.1:5556/dex", "the issuer's location")
 
 	certFile := fs.String("tls-cert-file", "", "the server's certificate file for TLS connection")
 	keyFile := fs.String("tls-key-file", "", "the server's private key file for TLS connection")
@@ -43,10 +43,12 @@ func main() {
 	emailTemplateDirs := flagutil.StringSliceFlag{"./static/email"}
 	fs.Var(&emailTemplateDirs, "email-templates", "comma separated list of directories of email template files")
 
-	emailFrom := fs.String("email-from", "", "emails sent from dex will come from this address")
+	emailFrom := fs.String("email-from", "", `DEPRICATED: use "from" field in email config.`)
 	emailConfig := fs.String("email-cfg", "./static/fixtures/emailer.json", "configures emailer.")
 
-	enableRegistration := fs.Bool("enable-registration", false, "Allows users to self-register")
+	enableRegistration := fs.Bool("enable-registration", false, "Allows users to self-register. This flag cannot be used in combination with --enable-automatic-registration.")
+	registerOnFirstLogin := fs.Bool("enable-automatic-registration", false, "When a user logs in through a federated identity service, automatically register them if they don't have an account. This flag cannot be used in combination with --enable-registration.")
+
 	enableClientRegistration := fs.Bool("enable-client-registration", false, "Allow dynamic registration of clients")
 
 	noDB := fs.Bool("no-db", false, "manage entities in-process w/o any encryption, used only for single-node testing")
@@ -67,10 +69,10 @@ func main() {
 	dbMaxOpenConns := fs.Int("db-max-open-conns", 0, "maximum number of open connections to the database")
 	printVersion := fs.Bool("version", false, "Print the version and exit")
 
-	// used only if --no-db is set
-	connectors := fs.String("connectors", "./static/fixtures/connectors.json", "JSON file containg set of IDPC configs")
-	clients := fs.String("clients", "./static/fixtures/clients.json", "json file containing set of clients")
-	users := fs.String("users", "./static/fixtures/users.json", "json file containing set of users")
+	// These are configuration files for development convenience, only used if --no-db is set.
+	connectors := fs.String("connectors", "./static/fixtures/connectors.json.sample", "JSON file containg set of IDPC configs")
+	clients := fs.String("clients", "./static/fixtures/clients.json.sample", "json file containing set of clients")
+	users := fs.String("users", "./static/fixtures/users.json.sample", "json file containing set of users")
 
 	logDebug := fs.Bool("log-debug", false, "log debug-level information")
 	logTimestamps := fs.Bool("log-timestamps", false, "prefix log lines with timestamps")
@@ -88,6 +90,11 @@ func main() {
 	if *printVersion {
 		fmt.Printf("dex version %s\ngo version %s\n", strings.TrimPrefix(version, "v"), strings.TrimPrefix(runtime.Version(), "go"))
 		os.Exit(0)
+	}
+
+	if (*enableRegistration) && (*registerOnFirstLogin) {
+		fmt.Fprintln(os.Stderr, "The flags --enable-registration and --enable-automatic-login cannot both be true.")
+		os.Exit(1)
 	}
 
 	if *logDebug {
@@ -125,6 +132,10 @@ func main() {
 		log.Fatalf("Only 'http' and 'https' schemes are supported")
 	}
 
+	if *emailFrom != "" {
+		log.Errorf(`--email-from flag is depricated. Use "from" field in email config.`)
+	}
+
 	scfg := server.ServerConfig{
 		IssuerURL:                *issuer,
 		TemplateDir:              *templates,
@@ -135,6 +146,7 @@ func main() {
 		IssuerLogoURL:            *issuerLogoURL,
 		EnableRegistration:       *enableRegistration,
 		EnableClientRegistration: *enableClientRegistration,
+		RegisterOnFirstLogin:     *registerOnFirstLogin,
 	}
 
 	if *noDB {
@@ -191,7 +203,7 @@ func main() {
 	for _, cfg := range cfgs {
 		cfg := cfg
 		if err = srv.AddConnector(cfg); err != nil {
-			log.Fatalf("Failed registering connector: %v", err)
+			log.Fatalf("Failed registering connector '%s': %v", cfg.ConnectorID(), err)
 		}
 	}
 

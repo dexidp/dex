@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 
 	"github.com/coreos/dex/connector"
@@ -336,7 +337,7 @@ func getConnectorForUserByEmail(ur user.UserRepo, email string) (string, error) 
 func newLoginURLFromSession(issuer url.URL, ses *session.Session, register bool, connectorFilter []string, msgCode string) *url.URL {
 	loginURL := issuer
 	v := loginURL.Query()
-	loginURL.Path = httpPathAuth
+	loginURL.Path = path.Join(loginURL.Path, httpPathAuth)
 	v.Set("redirect_uri", ses.RedirectURL.String())
 	v.Set("state", ses.ClientState)
 	v.Set("client_id", ses.ClientID)

@@ -248,7 +248,7 @@ func (r *userRepo) GetRemoteIdentities(tx repo.Transaction, userID string) ([]us
 		if err != sql.ErrNoRows {
 			return nil, err
 		}
-		return nil, err
+		return nil, nil
 	}
 	if len(rims) == 0 {
 		return nil, nil

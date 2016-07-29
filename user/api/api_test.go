@@ -12,6 +12,7 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 
 	"github.com/coreos/dex/client"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	schema "github.com/coreos/dex/schema/workerschema"
@@ -50,14 +51,15 @@ func (t *testEmailer) sendEmail(email string, redirectURL url.URL, clientID stri
 }
 
 var (
-	clock = clockwork.NewFakeClock()
+	clock        = clockwork.NewFakeClock()
+	goodClientID = "client.example.com"
 
 	goodCreds = Creds{
 		User: user.User{
 			ID:    "ID-1",
 			Admin: true,
 		},
-		ClientID: "XXX",
+		ClientID: goodClientID,
 	}
 
 	badCreds = Creds{
@@ -72,7 +74,7 @@ var (
 			Admin:    true,
 			Disabled: true,
 		},
-		ClientID: "XXX",
+		ClientID: goodClientID,
 	}
 
 	resetPasswordURL = url.URL{
@@ -82,7 +84,7 @@ var (
 
 	validRedirURL = url.URL{
 		Scheme: "http",
-		Host:   "client.example.com",
+		Host:   goodClientID,
 		Path:   "/callback",
 	}
 )
@@ -158,8 +160,8 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 	mgr.Clock = clock
 	ci := client.Client{
 		Credentials: oidc.ClientCredentials{
-			ID:     "XXX",
-			Secret: base64.URLEncoding.EncodeToString([]byte("secrete")),
+			ID:     goodClientID,
+			Secret: base64.URLEncoding.EncodeToString([]byte("secret")),
 		},
 		Metadata: oidc.ClientMetadata{
 			RedirectURIs: []url.URL{
@@ -167,27 +169,36 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 			},
 		},
 	}
-	if _, err := db.NewClientRepoFromClients(dbMap, []client.Client{ci}); err != nil {
-		panic("Failed to create client  repo: " + err.Error())
+
+	clientIDGenerator := func(hostport string) (string, error) {
+		return hostport, nil
 	}
+	secGen := func() ([]byte, error) {
+		return []byte("secret"), nil
+	}
+	clientRepo, err := db.NewClientRepoFromClients(dbMap, []client.LoadableClient{{Client: ci}})
+	if err != nil {
+		panic("Failed to create client manager: " + err.Error())
+	}
+	clientManager := clientmanager.NewClientManager(clientRepo, db.TransactionFactory(dbMap), clientmanager.ManagerOptions{ClientIDGenerator: clientIDGenerator, SecretGenerator: secGen})
 
 	// Used in TestRevokeRefreshToken test.
 	refreshTokens := []struct {
 		clientID string
 		userID   string
 	}{
-		{"XXX", "ID-1"},
-		{"XXX", "ID-2"},
+		{goodClientID, "ID-1"},
+		{goodClientID, "ID-2"},
 	}
 	refreshRepo := db.NewRefreshTokenRepo(dbMap)
 	for _, token := range refreshTokens {
-		if _, err := refreshRepo.Create(token.userID, token.clientID); err != nil {
+		if _, err := refreshRepo.Create(token.userID, token.clientID, "local", []string{"openid"}); err != nil {
 			panic("Failed to create refresh token: " + err.Error())
 		}
 	}
 
 	emailer := &testEmailer{}
-	api := NewUsersAPI(dbMap, mgr, emailer, "local")
+	api := NewUsersAPI(mgr, clientManager, refreshRepo, emailer, "local")
 	return api, emailer
 
 }
@@ -582,8 +593,8 @@ func TestRevokeRefreshToken(t *testing.T) {
 		before   []string // clientIDs expected before the change.
 		after    []string // clientIDs expected after the change.
 	}{
-		{"ID-1", "XXX", []string{"XXX"}, []string{}},
-		{"ID-2", "XXX", []string{"XXX"}, []string{}},
+		{"ID-1", goodClientID, []string{goodClientID}, []string{}},
+		{"ID-2", goodClientID, []string{goodClientID}, []string{}},
 	}
 
 	api, _ := makeTestFixtures()

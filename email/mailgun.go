@@ -17,6 +17,7 @@ func init() {
 }
 
 type MailgunEmailerConfig struct {
+	FromAddr      string `json:"from"`
 	PrivateAPIKey string `json:"privateAPIKey"`
 	PublicAPIKey  string `json:"publicAPIKey"`
 	Domain        string `json:"domain"`
@@ -30,10 +31,19 @@ func (cfg MailgunEmailerConfig) EmailerID() string {
 	return MailgunEmailerType
 }
 
-func (cfg MailgunEmailerConfig) Emailer() (Emailer, error) {
+func (cfg MailgunEmailerConfig) Emailer(fromAddr string) (Emailer, error) {
+	from := cfg.FromAddr
+	if from == "" {
+		from = fromAddr
+	}
+
+	if from == "" {
+		return nil, errors.New(`missing "from" field in email config`)
+	}
 	mg := mailgun.NewMailgun(cfg.Domain, cfg.PrivateAPIKey, cfg.PublicAPIKey)
 	return &mailgunEmailer{
-		mg: mg,
+		mg:   mg,
+		from: from,
 	}, nil
 }
 
@@ -64,11 +74,12 @@ func (cfg *MailgunEmailerConfig) UnmarshalJSON(data []byte) error {
 }
 
 type mailgunEmailer struct {
-	mg mailgun.Mailgun
+	mg   mailgun.Mailgun
+	from string
 }
 
-func (m *mailgunEmailer) SendMail(from, subject, text, html string, to ...string) error {
-	msg := m.mg.NewMessage(from, subject, text, to...)
+func (m *mailgunEmailer) SendMail(subject, text, html string, to ...string) error {
+	msg := m.mg.NewMessage(m.from, subject, text, to...)
 	if html != "" {
 		msg.SetHtml(html)
 	}

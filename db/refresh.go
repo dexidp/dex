@@ -15,6 +15,7 @@ import (
 	"github.com/coreos/dex/pkg/log"
 	"github.com/coreos/dex/refresh"
 	"github.com/coreos/dex/repo"
+	"github.com/coreos/dex/scope"
 )
 
 const (
@@ -38,10 +39,10 @@ type refreshTokenRepo struct {
 type refreshTokenModel struct {
 	ID          int64  `db:"id"`
 	PayloadHash []byte `db:"payload_hash"`
-	// TODO(yifan): Use some sort of foreign key to manage database level
-	// data integrity.
-	UserID   string `db:"user_id"`
-	ClientID string `db:"client_id"`
+	UserID      string `db:"user_id"`
+	ClientID    string `db:"client_id"`
+	ConnectorID string `db:"connector_id"`
+	Scopes      string `db:"scopes"`
 }
 
 // buildToken combines the token ID and token payload to create a new token.
@@ -89,7 +90,7 @@ func NewRefreshTokenRepoWithGenerator(dbm *gorp.DbMap, gen refresh.RefreshTokenG
 	}
 }
 
-func (r *refreshTokenRepo) Create(userID, clientID string) (string, error) {
+func (r *refreshTokenRepo) Create(userID, clientID, connectorID string, scopes []string) (string, error) {
 	if userID == "" {
 		return "", refresh.ErrorInvalidUserID
 	}
@@ -112,6 +113,8 @@ func (r *refreshTokenRepo) Create(userID, clientID string) (string, error) {
 		PayloadHash: payloadHash,
 		UserID:      userID,
 		ClientID:    clientID,
+		ConnectorID: connectorID,
+		Scopes:      strings.Join(scopes, " "),
 	}
 
 	if err := r.executor(nil).Insert(record); err != nil {
@@ -121,27 +124,32 @@ func (r *refreshTokenRepo) Create(userID, clientID string) (string, error) {
 	return buildToken(record.ID, tokenPayload), nil
 }
 
-func (r *refreshTokenRepo) Verify(clientID, token string) (string, error) {
+func (r *refreshTokenRepo) Verify(clientID, token string) (userID, connectorID string, scope scope.Scopes, err error) {
 	tokenID, tokenPayload, err := parseToken(token)
 
 	if err != nil {
-		return "", err
+		return
 	}
 
 	record, err := r.get(nil, tokenID)
 	if err != nil {
-		return "", err
+		return
 	}
 
 	if record.ClientID != clientID {
-		return "", refresh.ErrorInvalidClientID
+		return "", "", nil, refresh.ErrorInvalidClientID
 	}
 
-	if err := checkTokenPayload(record.PayloadHash, tokenPayload); err != nil {
-		return "", err
+	if err = checkTokenPayload(record.PayloadHash, tokenPayload); err != nil {
+		return
 	}
 
-	return record.UserID, nil
+	var scopes []string
+	if len(record.Scopes) > 0 {
+		scopes = strings.Split(record.Scopes, " ")
+	}
+
+	return record.UserID, record.ConnectorID, scopes, nil
 }
 
 func (r *refreshTokenRepo) Revoke(userID, token string) error {
@@ -190,7 +198,6 @@ func (r *refreshTokenRepo) ClientsWithRefreshTokens(userID string) ([]client.Cli
 	q := `SELECT c.* FROM %s as c
 	INNER JOIN %s as r ON c.id = r.client_id WHERE r.user_id = $1;`
 	q = fmt.Sprintf(q, r.quote(clientTableName), r.quote(refreshTokenTableName))
-
 	var clients []clientModel
 	if _, err := r.executor(nil).Select(&clients, q, userID); err != nil {
 		return nil, err
@@ -206,6 +213,7 @@ func (r *refreshTokenRepo) ClientsWithRefreshTokens(userID string) ([]client.Cli
 		// Do not share the secret.
 		c[i].Credentials.Secret = ""
 	}
+
 	return c, nil
 }
 

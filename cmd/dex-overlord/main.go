@@ -15,6 +15,7 @@ import (
 	"github.com/go-gorp/gorp"
 
 	"github.com/coreos/dex/admin"
+	clientmanager "github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/db"
 	pflag "github.com/coreos/dex/pkg/flag"
 	"github.com/coreos/dex/pkg/log"
@@ -119,8 +120,10 @@ func main() {
 	clientRepo := db.NewClientRepo(dbc)
 	userManager := manager.NewUserManager(userRepo,
 		pwiRepo, connCfgRepo, db.TransactionFactory(dbc), manager.ManagerOptions{})
+	clientManager := clientmanager.NewClientManager(clientRepo, db.TransactionFactory(dbc), clientmanager.ManagerOptions{})
+	connectorConfigRepo := db.NewConnectorConfigRepo(dbc)
 
-	adminAPI := admin.NewAdminAPI(userRepo, pwiRepo, clientRepo, userManager, *localConnectorID)
+	adminAPI := admin.NewAdminAPI(userRepo, pwiRepo, clientRepo, connectorConfigRepo, userManager, clientManager, *localConnectorID)
 	kRepo, err := db.NewPrivateKeySetRepo(dbc, *useOldFormat, keySecrets.BytesSlice()...)
 	if err != nil {
 		log.Fatalf(err.Error())

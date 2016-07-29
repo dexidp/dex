@@ -69,17 +69,17 @@ EOF
 export DEX_WORKER_DB_URL=$DEX_DB_URL
 export DEX_WORKER_KEY_SECRETS=$DEX_KEY_SECRET
 export DEX_WORKER_LOG_DEBUG=1
-export DEX_WORKER_EMAIL_CFG=static/fixtures/emailer.json.sample
+export DEX_WORKER_EMAIL_CFG=static/fixtures/emailer.json
 export DEX_WORKER_ENABLE_REGISTRATION=true
 ./bin/dex-worker &
 echo "Waiting for worker to start..."
-until $(curl --output /dev/null --silent --fail http://localhost:5556/health); do
+until $(curl --output /dev/null --silent --fail http://localhost:5556/dex/health); do
     printf '.'
     sleep 1
 done
 
 # Start the app
-./bin/example-app --client-id=$DEX_APP_CLIENT_ID --client-secret=$DEX_APP_CLIENT_SECRET --discovery=http://127.0.0.1:5556 &
+./bin/example-app --client-id=$DEX_APP_CLIENT_ID --client-secret=$DEX_APP_CLIENT_SECRET --discovery=http://127.0.0.1:5556/dex &
 
 # Create Admin User - the password is a hash of the word "password"
 curl -X POST --data '{"email":"admin@example.com","password":"$2a$04$J54iz31fhYfXIRVglUMmpufY6TKf/vvwc9pv8zWog7X/LFrFfkNQe" }' --header "Authorization: $DEX_OVERLORD_ADMIN_API_SECRET" http://127.0.0.1:5557/api/v1/admin

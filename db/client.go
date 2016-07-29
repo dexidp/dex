@@ -2,34 +2,30 @@ package db
 
 import (
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
 
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/go-gorp/gorp"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/coreos/dex/client"
-	pcrypto "github.com/coreos/dex/pkg/crypto"
 	"github.com/coreos/dex/pkg/log"
+	"github.com/coreos/dex/repo"
 )
 
 const (
-	clientTableName = "client_identity"
-
-	bcryptHashCost = 10
-
-	// Blowfish, the algorithm underlying bcrypt, has a maximum
-	// password length of 72. We explicitly track and check this
-	// since the bcrypt library will silently ignore portions of
-	// a password past the first 72 characters.
-	maxSecretLength = 72
+	clientTableName      = "client_identity"
+	trustedPeerTableName = "trusted_peers"
 
 	// postgres error codes
 	pgErrorCodeUniqueViolation = "23505" // unique_violation
+)
+
+var (
+	localHostRedirectURL = mustParseURL("http://localhost:0")
 )
 
 func init() {
@@ -39,18 +35,28 @@ func init() {
 		autoinc: false,
 		pkey:    []string{"id"},
 	})
+
+	register(table{
+		name:    trustedPeerTableName,
+		model:   trustedPeerModel{},
+		autoinc: false,
+		pkey:    []string{"client_id", "trusted_client_id"},
+	})
 }
 
 func newClientModel(cli client.Client) (*clientModel, error) {
-	secretBytes, err := base64.URLEncoding.DecodeString(cli.Credentials.Secret)
+	hashed, err := client.HashSecret(cli.Credentials)
 	if err != nil {
 		return nil, err
 	}
-	hashed, err := bcrypt.GenerateFromPassword([]byte(
-		secretBytes),
-		bcryptHashCost)
-	if err != nil {
-		return nil, err
+
+	if cli.Public {
+		// Metadata.Valid(), and therefore json.Unmarshal(metadata) complains
+		// when there's no RedirectURIs, so we set them to a fixed value here,
+		// and remove it when translating back to a client.Client
+		cli.Metadata.RedirectURIs = []url.URL{
+			localHostRedirectURL,
+		}
 	}
 
 	bmeta, err := json.Marshal(&cli.Metadata)
@@ -63,6 +69,7 @@ func newClientModel(cli client.Client) (*clientModel, error) {
 		Secret:   hashed,
 		Metadata: string(bmeta),
 		DexAdmin: cli.Admin,
+		Public:   cli.Public,
 	}
 
 	return &cim, nil
@@ -73,6 +80,12 @@ type clientModel struct {
 	Secret   []byte `db:"secret"`
 	Metadata string `db:"metadata"`
 	DexAdmin bool   `db:"dex_admin"`
+	Public   bool   `db:"public"`
+}
+
+type trustedPeerModel struct {
+	ClientID        string `db:"client_id"`
+	TrustedClientID string `db:"trusted_client_id"`
 }
 
 func (m *clientModel) Client() (*client.Client, error) {
@@ -80,11 +93,16 @@ func (m *clientModel) Client() (*client.Client, error) {
 		Credentials: oidc.ClientCredentials{
 			ID: m.ID,
 		},
-		Admin: m.DexAdmin,
+		Admin:  m.DexAdmin,
+		Public: m.Public,
 	}
 
 	if err := json.Unmarshal([]byte(m.Metadata), &ci.Metadata); err != nil {
 		return nil, err
+	}
+
+	if ci.Public {
+		ci.Metadata.RedirectURIs = []url.URL{}
 	}
 
 	return &ci, nil
@@ -92,56 +110,20 @@ func (m *clientModel) Client() (*client.Client, error) {
 
 func NewClientRepo(dbm *gorp.DbMap) client.ClientRepo {
 	return newClientRepo(dbm)
-
-}
-
-func NewClientRepoWithSecretGenerator(dbm *gorp.DbMap, secGen SecretGenerator) client.ClientRepo {
-	rep := newClientRepo(dbm)
-	rep.secretGenerator = secGen
-	return rep
 }
 
 func newClientRepo(dbm *gorp.DbMap) *clientRepo {
 	return &clientRepo{
-		db:              &db{dbm},
-		secretGenerator: DefaultSecretGenerator,
+		db: &db{dbm},
 	}
-}
-
-func NewClientRepoFromClients(dbm *gorp.DbMap, clients []client.Client) (client.ClientRepo, error) {
-	repo := newClientRepo(dbm)
-	tx, err := repo.begin()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	exec := repo.executor(tx)
-	for _, c := range clients {
-		if c.Credentials.Secret == "" {
-			return nil, fmt.Errorf("client %q has no secret", c.Credentials.ID)
-		}
-		cm, err := newClientModel(c)
-		if err != nil {
-			return nil, err
-		}
-		err = exec.Insert(cm)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	return repo, nil
 }
 
 type clientRepo struct {
 	*db
-	secretGenerator SecretGenerator
 }
 
-func (r *clientRepo) Get(clientID string) (client.Client, error) {
-	m, err := r.executor(nil).Get(clientModel{}, clientID)
+func (r *clientRepo) Get(tx repo.Transaction, clientID string) (client.Client, error) {
+	m, err := r.executor(tx).Get(clientModel{}, clientID)
 	if err == sql.ErrNoRows || m == nil {
 		return client.Client{}, client.ErrorNotFound
 	}
@@ -163,82 +145,28 @@ func (r *clientRepo) Get(clientID string) (client.Client, error) {
 	return *ci, nil
 }
 
-func (r *clientRepo) Metadata(clientID string) (*oidc.ClientMetadata, error) {
-	c, err := r.Get(clientID)
-	if err != nil {
+func (r *clientRepo) GetSecret(tx repo.Transaction, clientID string) ([]byte, error) {
+	m, err := r.getModel(tx, clientID)
+	if err != nil || m == nil {
 		return nil, err
 	}
-
-	return &c.Metadata, nil
+	return m.Secret, nil
 }
 
-func (r *clientRepo) IsDexAdmin(clientID string) (bool, error) {
-	m, err := r.executor(nil).Get(clientModel{}, clientID)
-	if m == nil || err != nil {
-		return false, err
+func (r *clientRepo) Update(tx repo.Transaction, cli client.Client) error {
+	if cli.Credentials.ID == "" {
+		return client.ErrorNotFound
 	}
-
-	cim, ok := m.(*clientModel)
-	if !ok {
-		log.Errorf("expected clientModel but found %v", reflect.TypeOf(m))
-		return false, errors.New("unrecognized model")
-	}
-
-	return cim.DexAdmin, nil
-}
-
-func (r *clientRepo) SetDexAdmin(clientID string, isAdmin bool) error {
-	tx, err := r.begin()
+	// make sure this client exists already
+	_, err := r.get(tx, cli.Credentials.ID)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
-	exec := r.executor(tx)
-
-	m, err := exec.Get(clientModel{}, clientID)
-	if m == nil || err != nil {
-		return err
-	}
-
-	cim, ok := m.(*clientModel)
-	if !ok {
-		log.Errorf("expected clientModel but found %v", reflect.TypeOf(m))
-		return errors.New("unrecognized model")
-	}
-
-	cim.DexAdmin = isAdmin
-	_, err = exec.Update(cim)
+	err = r.update(tx, cli)
 	if err != nil {
 		return err
 	}
-
-	return tx.Commit()
-}
-
-func (r *clientRepo) Authenticate(creds oidc.ClientCredentials) (bool, error) {
-	m, err := r.executor(nil).Get(clientModel{}, creds.ID)
-	if m == nil || err != nil {
-		return false, err
-	}
-
-	cim, ok := m.(*clientModel)
-	if !ok {
-		log.Errorf("expected clientModel but found %v", reflect.TypeOf(m))
-		return false, errors.New("unrecognized model")
-	}
-
-	dec, err := base64.URLEncoding.DecodeString(creds.Secret)
-	if err != nil {
-		log.Errorf("error Decoding client creds: %v", err)
-		return false, nil
-	}
-
-	if len(dec) > maxSecretLength {
-		return false, nil
-	}
-
-	ok = bcrypt.CompareHashAndPassword(cim.Secret, dec) == nil
-	return ok, nil
+	return nil
 }
 
 var alreadyExistsCheckers []func(err error) bool
@@ -260,28 +188,15 @@ func isAlreadyExistsErr(err error) bool {
 	return false
 }
 
-type SecretGenerator func() ([]byte, error)
-
-func DefaultSecretGenerator() ([]byte, error) {
-	return pcrypto.RandBytes(maxSecretLength)
-}
-
-func (r *clientRepo) New(cli client.Client) (*oidc.ClientCredentials, error) {
-	secret, err := r.secretGenerator()
-	if err != nil {
-		return nil, err
-	}
-
-	cli.Credentials.Secret = base64.URLEncoding.EncodeToString(secret)
+func (r *clientRepo) New(tx repo.Transaction, cli client.Client) (*oidc.ClientCredentials, error) {
 	cim, err := newClientModel(cli)
-
 	if err != nil {
 		return nil, err
 	}
 
-	if err := r.executor(nil).Insert(cim); err != nil {
+	if err := r.executor(tx).Insert(cim); err != nil {
 		if isAlreadyExistsErr(err) {
-			err = errors.New("client ID already exists")
+			return nil, client.ErrorDuplicateClientID
 		}
 		return nil, err
 	}
@@ -294,10 +209,10 @@ func (r *clientRepo) New(cli client.Client) (*oidc.ClientCredentials, error) {
 	return &cc, nil
 }
 
-func (r *clientRepo) All() ([]client.Client, error) {
+func (r *clientRepo) All(tx repo.Transaction) ([]client.Client, error) {
 	qt := r.quote(clientTableName)
 	q := fmt.Sprintf("SELECT * FROM %s", qt)
-	objs, err := r.executor(nil).Select(&clientModel{}, q)
+	objs, err := r.executor(tx).Select(&clientModel{}, q)
 	if err != nil {
 		return nil, err
 	}
@@ -316,4 +231,129 @@ func (r *clientRepo) All() ([]client.Client, error) {
 		cs[i] = *ci
 	}
 	return cs, nil
+}
+
+func NewClientRepoFromClients(dbm *gorp.DbMap, cs []client.LoadableClient) (client.ClientRepo, error) {
+	repo := NewClientRepo(dbm).(*clientRepo)
+	for _, c := range cs {
+		cm, err := newClientModel(c.Client)
+		if err != nil {
+			return nil, err
+		}
+		err = repo.executor(nil).Insert(cm)
+		if err != nil {
+			return nil, err
+		}
+
+		err = repo.SetTrustedPeers(nil, c.Client.Credentials.ID, c.TrustedPeers)
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return repo, nil
+}
+
+func (r *clientRepo) get(tx repo.Transaction, clientID string) (client.Client, error) {
+	cm, err := r.getModel(tx, clientID)
+	if err != nil {
+		return client.Client{}, err
+	}
+
+	cli, err := cm.Client()
+	if err != nil {
+		return client.Client{}, err
+	}
+
+	return *cli, nil
+}
+
+func (r *clientRepo) getModel(tx repo.Transaction, clientID string) (*clientModel, error) {
+	ex := r.executor(tx)
+
+	m, err := ex.Get(clientModel{}, clientID)
+	if err != nil {
+		return nil, err
+	}
+
+	if m == nil {
+		return nil, client.ErrorNotFound
+	}
+
+	cm, ok := m.(*clientModel)
+	if !ok {
+		log.Errorf("expected clientModel but found %v", reflect.TypeOf(m))
+		return nil, errors.New("unrecognized model")
+	}
+	return cm, nil
+}
+
+func (r *clientRepo) update(tx repo.Transaction, cli client.Client) error {
+	ex := r.executor(tx)
+	cm, err := newClientModel(cli)
+	if err != nil {
+		return err
+	}
+	_, err = ex.Update(cm)
+	return err
+}
+
+func (r *clientRepo) GetTrustedPeers(tx repo.Transaction, clientID string) ([]string, error) {
+	ex := r.executor(tx)
+	if clientID == "" {
+		return nil, client.ErrorInvalidClientID
+	}
+
+	qt := r.quote(trustedPeerTableName)
+	var ids []string
+	_, err := ex.Select(&ids, fmt.Sprintf("SELECT trusted_client_id from %s where client_id = $1", qt), clientID)
+
+	if err != nil {
+		if err != sql.ErrNoRows {
+			return nil, err
+		}
+		return nil, nil
+	}
+
+	return ids, nil
+}
+
+func (r *clientRepo) SetTrustedPeers(tx repo.Transaction, clientID string, clientIDs []string) error {
+	ex := r.executor(tx)
+	qt := r.quote(trustedPeerTableName)
+
+	// First delete all existing rows
+	_, err := ex.Exec(fmt.Sprintf("DELETE from %s where client_id = $1", qt), clientID)
+	if err != nil {
+		return err
+	}
+
+	// Ensure that the client exists.
+	_, err = r.get(tx, clientID)
+	if err != nil {
+		return err
+	}
+
+	// Set the clients
+	rows := []interface{}{}
+	for _, curID := range clientIDs {
+		rows = append(rows, &trustedPeerModel{
+			ClientID:        clientID,
+			TrustedClientID: curID,
+		})
+	}
+	err = ex.Insert(rows...)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func mustParseURL(s string) url.URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return *u
 }

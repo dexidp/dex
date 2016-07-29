@@ -48,6 +48,22 @@ func TestGetPlannedMigrations(t *testing.T) {
 }
 
 func TestMigrateClientMetadata(t *testing.T) {
+	// oldClientModel exists to model what the client model looked like at
+	// migration time. Without using this, the test fails because there's no
+	// columns for the new fields.
+	type oldClientModel struct {
+		ID       string `db:"id"`
+		Secret   []byte `db:"secret"`
+		Metadata string `db:"metadata"`
+		DexAdmin bool   `db:"dex_admin"`
+	}
+	register(table{
+		name:    clientTableName,
+		model:   oldClientModel{},
+		autoinc: false,
+		pkey:    []string{"id"},
+	})
+
 	dsn := os.Getenv("DEX_TEST_DSN")
 	if dsn == "" {
 		t.Skip("Test will not run without DEX_TEST_DSN environment variable.")
@@ -88,7 +104,7 @@ func TestMigrateClientMetadata(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		model := &clientModel{
+		model := &oldClientModel{
 			ID:       strconv.Itoa(i),
 			Secret:   []byte("verysecret"),
 			Metadata: tt.before,
@@ -108,12 +124,12 @@ func TestMigrateClientMetadata(t *testing.T) {
 
 	for i, tt := range tests {
 		id := strconv.Itoa(i)
-		m, err := dbMap.Get(clientModel{}, id)
+		m, err := dbMap.Get(oldClientModel{}, id)
 		if err != nil {
 			t.Errorf("case %d: failed to get model: %v", i, err)
 			continue
 		}
-		cim, ok := m.(*clientModel)
+		cim, ok := m.(*oldClientModel)
 		if !ok {
 			t.Errorf("case %d: unrecognized model type: %T", i, m)
 			continue

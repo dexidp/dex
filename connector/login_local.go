@@ -18,7 +18,12 @@ func redirectPostError(w http.ResponseWriter, errorURL url.URL, q url.Values) {
 	w.WriteHeader(http.StatusSeeOther)
 }
 
-func handleLoginFunc(lf oidc.LoginFunc, tpl *template.Template, idp IdentityProvider, localErrorPath string, errorURL url.URL) http.HandlerFunc {
+// passwordLoginProvider is a provider which requires a username and password to identify the user.
+type passwordLoginProvider interface {
+	Identity(email, password string) (*oidc.Identity, error)
+}
+
+func handlePasswordLogin(lf oidc.LoginFunc, tpl *template.Template, idp passwordLoginProvider, localErrorPath string, errorURL url.URL) http.HandlerFunc {
 	handleGET := func(w http.ResponseWriter, r *http.Request, errMsg string) {
 		q := r.URL.Query()
 		sessionKey := q.Get("session_key")
@@ -54,9 +59,7 @@ func handleLoginFunc(lf oidc.LoginFunc, tpl *template.Template, idp IdentityProv
 		}
 
 		ident, err := idp.Identity(userid, password)
-		log.Errorf("IDENTITY: err: %v", err)
-
-		if ident == nil || err != nil {
+		if err != nil {
 			handleGET(w, r, "invalid login")
 			return
 		}

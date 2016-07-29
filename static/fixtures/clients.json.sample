@@ -2,7 +2,8 @@
   {
     "id": "XXX",
     "secret": "c2VjcmV0ZQ==",
-    "redirectURLs": ["http://127.0.0.1:5555/callback"]
+    "redirectURLs": ["http://127.0.0.1:5555/callback"],
+    "trustedPeers": ["example-app", "public"]
   },
   {
     "id": "example-app",
@@ -13,6 +14,11 @@
     "id": "example-cli",
     "secret": "ZXhhbXBsZS1jbGktc2VjcmV0",
     "redirectURLs": ["http://127.0.0.1:8000/admin/v1/oauth/login"]
+  },
+  {
+    "id": "public",
+    "secret": "ZXhhbXBsZS1hcHAtc2VjcmV0",
+    "public": true
   },
   {
     "id": "oauth2_proxy",

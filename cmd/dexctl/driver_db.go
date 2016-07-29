@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/coreos/dex/client"
+	"github.com/coreos/dex/client/manager"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/db"
 	"github.com/coreos/go-oidc/oidc"
@@ -14,34 +15,26 @@ func newDBDriver(dsn string) (driver, error) {
 	}
 
 	drv := &dbDriver{
-		ciRepo:  db.NewClientRepo(dbc),
-		cfgRepo: db.NewConnectorConfigRepo(dbc),
+		cfgRepo:   db.NewConnectorConfigRepo(dbc),
+		ciManager: manager.NewClientManager(db.NewClientRepo(dbc), db.TransactionFactory(dbc), manager.ManagerOptions{}),
 	}
 
 	return drv, nil
 }
 
 type dbDriver struct {
-	ciRepo  client.ClientRepo
-	cfgRepo *db.ConnectorConfigRepo
+	ciManager *manager.ClientManager
+	cfgRepo   *db.ConnectorConfigRepo
 }
 
 func (d *dbDriver) NewClient(meta oidc.ClientMetadata) (*oidc.ClientCredentials, error) {
 	if err := meta.Valid(); err != nil {
 		return nil, err
 	}
-
-	clientID, err := oidc.GenClientID(meta.RedirectURIs[0].Host)
-	if err != nil {
-		return nil, err
-	}
-
-	return d.ciRepo.New(client.Client{
-		Credentials: oidc.ClientCredentials{
-			ID: clientID,
-		},
+	cli := client.Client{
 		Metadata: meta,
-	})
+	}
+	return d.ciManager.New(cli, nil)
 }
 
 func (d *dbDriver) ConnectorConfigs() ([]connector.ConnectorConfig, error) {
