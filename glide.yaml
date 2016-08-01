@@ -1,5 +1,9 @@
+# NOTE(ericchiang): Create a separate block for each dependency so it's clear
+# which dependencies require which transitive dependencies.
+
 package: github.com/coreos/poke
 import:
+
 - package: github.com/spf13/cobra
   version: bc81c21bd0d8be5ba2d6630a505d79d4467566e7
 - package: github.com/spf13/pflag
@@ -21,9 +25,6 @@ import:
 - package: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 
-- package: golang.org/x/net/context
-  version: d7bf3545bb0dacf009c535b3d3fbf53ac0a339ab
-
 - package: github.com/gorilla/mux
   version: 9fa818a44c2bf1396a17f9d5a3c0f6dd39d2ff8e
 - package: github.com/gorilla/context
@@ -44,6 +45,8 @@ import:
   version: v1.0.2
 - package: golang.org/x/oauth2
   version: 08c8d727d2392d18286f9f88ad775ad98f09ab33
+# Not actually imported but glide detects it. Consider adding subpackages to
+# the oauth2 package to eliminate.
 - package: google.golang.org/appengine
   version: 267c27e7492265b84fc6719503b14a1e17975d79
   subpackages:
@@ -54,10 +57,33 @@ import:
   - internal/datastore
   - internal/log
   - internal/remote_api
+# Go's protobuf generator is also a direct dependency of this repo.
 - package: github.com/golang/protobuf
   version: 874264fbbb43f4d91e999fecb4b40143ed611400
   subpackages:
   - proto
+  - protoc-gen-go
 
 - package: github.com/mitchellh/go-homedir
   verison: 756f7b183b7ab78acdbbee5c7f392838ed459dda
+
+- package: google.golang.org/grpc
+  version: v1.0.0
+  subpackages:
+  - codes
+  - credentials
+  - grpclog
+  - internal
+  - metadata
+  - naming
+  - transport
+  - peer
+- package: golang.org/x/net
+  version: 6a513affb38dc9788b449d59ffed099b8de18fa0
+  subpackages:
+  - context # context is also imported directly by this repo.
+  - http2
+  - http2/hpack
+  - trace
+  - lex/httplex
+  - internal/timeseries
