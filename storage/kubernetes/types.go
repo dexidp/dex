@@ -15,6 +15,9 @@ const keysName = "openid-connect-keys"
 
 // Client is a mirrored struct from storage with JSON struct tags and
 // Kubernetes type metadata.
+//
+// TODO(ericchiang): Kubernetes has an extremely restricted set of characters it can use for IDs.
+// Consider base32ing client IDs.
 type Client struct {
 	k8sapi.TypeMeta   `json:",inline"`
 	k8sapi.ObjectMeta `json:"metadata,omitempty"`

@@ -339,30 +339,6 @@ func (s *Server) ServeConn(c net.Conn, opts *ServeConnOpts) {
 	sc.serve()
 }
 
-// isBadCipher reports whether the cipher is blacklisted by the HTTP/2 spec.
-func isBadCipher(cipher uint16) bool {
-	switch cipher {
-	case tls.TLS_RSA_WITH_RC4_128_SHA,
-		tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA,
-		tls.TLS_RSA_WITH_AES_128_CBC_SHA,
-		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_ECDHE_ECDSA_WITH_RC4_128_SHA,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_ECDHE_RSA_WITH_RC4_128_SHA,
-		tls.TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
-		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-		tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:
-		// Reject cipher suites from Appendix A.
-		// "This list includes those cipher suites that do not
-		// offer an ephemeral key exchange and those that are
-		// based on the TLS null, stream or block cipher type"
-		return true
-	default:
-		return false
-	}
-}
-
 func (sc *serverConn) rejectConn(err ErrCode, debug string) {
 	sc.vlogf("http2: server rejecting conn: %v, %s", err, debug)
 	// ignoring errors. hanging up anyway.
@@ -1200,6 +1176,10 @@ func (sc *serverConn) closeStream(st *stream, err error) {
 	}
 	delete(sc.streams, st.id)
 	if p := st.body; p != nil {
+		// Return any buffered unread bytes worth of conn-level flow control.
+		// See golang.org/issue/16481
+		sc.sendWindowUpdate(nil, p.Len())
+
 		p.CloseWithError(err)
 	}
 	st.cw.Close() // signals Handler's CloseNotifier, unblocks writes, etc
@@ -1301,6 +1281,8 @@ func (sc *serverConn) processSettingInitialWindowSize(val uint32) error {
 
 func (sc *serverConn) processData(f *DataFrame) error {
 	sc.serveG.check()
+	data := f.Data()
+
 	// "If a DATA frame is received whose stream is not in "open"
 	// or "half closed (local)" state, the recipient MUST respond
 	// with a stream error (Section 5.4.2) of type STREAM_CLOSED."
@@ -1312,12 +1294,25 @@ func (sc *serverConn) processData(f *DataFrame) error {
 		// the http.Handler returned, so it's done reading &
 		// done writing). Try to stop the client from sending
 		// more DATA.
+
+		// But still enforce their connection-level flow control,
+		// and return any flow control bytes since we're not going
+		// to consume them.
+		if int(sc.inflow.available()) < len(data) {
+			return StreamError{id, ErrCodeFlowControl}
+		}
+		// Deduct the flow control from inflow, since we're
+		// going to immediately add it back in
+		// sendWindowUpdate, which also schedules sending the
+		// frames.
+		sc.inflow.take(int32(len(data)))
+		sc.sendWindowUpdate(nil, len(data)) // conn-level
+
 		return StreamError{id, ErrCodeStreamClosed}
 	}
 	if st.body == nil {
 		panic("internal error: should have a body in this state")
 	}
-	data := f.Data()
 
 	// Sender sending more than they'd declared?
 	if st.declBodyBytes != -1 && st.bodyBytes+int64(len(data)) > st.declBodyBytes {

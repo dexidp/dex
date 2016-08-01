@@ -1,5 +1,5 @@
-hash: 8b33b8abf5bca183ffa7108b03f4001f4d23f7f2e26f773f5bcb4bfefa51a26f
-updated: 2016-07-22T23:25:33.173188655-07:00
+hash: 66d8717b42e620d52ceec62e7cb3f2bc23f21bfe35547587338d85564bd330c9
+updated: 2016-07-31T12:19:29.812965492-07:00
 imports:
 - name: github.com/ericchiang/oidc
   version: 69fec81d167d815f4f455c741b2a94ffaf547ed2
@@ -7,6 +7,7 @@ imports:
   version: 874264fbbb43f4d91e999fecb4b40143ed611400
   subpackages:
   - proto
+  - protoc-gen-go
 - name: github.com/gorilla/context
   version: aed02d124ae4a0e94fea4541c8effd05bf0c8296
 - name: github.com/gorilla/mux
@@ -31,12 +32,18 @@ imports:
   - bcrypt
   - blowfish
 - name: golang.org/x/net
-  version: d7bf3545bb0dacf009c535b3d3fbf53ac0a339ab
+  version: 6a513affb38dc9788b449d59ffed099b8de18fa0
   subpackages:
   - context
+  - http2
+  - http2/hpack
+  - trace
+  - lex/httplex
+  - internal/timeseries
 - name: golang.org/x/oauth2
   version: 08c8d727d2392d18286f9f88ad775ad98f09ab33
   subpackages:
+  - github
   - internal
 - name: google.golang.org/appengine
   version: 267c27e7492265b84fc6719503b14a1e17975d79
@@ -48,6 +55,17 @@ imports:
   - internal/datastore
   - internal/log
   - internal/remote_api
+- name: google.golang.org/grpc
+  version: 13edeeffdea7a41d5aad96c28deb4c7bd01a9397
+  subpackages:
+  - codes
+  - credentials
+  - grpclog
+  - internal
+  - metadata
+  - naming
+  - transport
+  - peer
 - name: gopkg.in/asn1-ber.v1
   version: 4e86f4367175e39f69d9358a5f17b4dda270378d
 - name: gopkg.in/ldap.v2

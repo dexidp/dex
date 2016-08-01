@@ -77,13 +77,14 @@ func Open(driverName string, config map[string]string) (Storage, error) {
 type Storage interface {
 	Close() error
 
+	// TODO(ericchiang): Let the storages set the IDs of these objects.
 	CreateAuthRequest(a AuthRequest) error
 	CreateClient(c Client) error
 	CreateAuthCode(c AuthCode) error
 	CreateRefresh(r Refresh) error
 
 	// TODO(ericchiang): return (T, bool, error) so we can indicate not found
-	// requests that way.
+	// requests that way instead of using ErrNotFound.
 	GetAuthRequest(id string) (AuthRequest, error)
 	GetAuthCode(id string) (AuthCode, error)
 	GetClient(id string) (Client, error)
