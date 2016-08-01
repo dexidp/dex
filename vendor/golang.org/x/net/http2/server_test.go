@@ -104,6 +104,8 @@ func newServerTester(t testing.TB, handler http.HandlerFunc, opts ...interface{}
 			case optQuiet:
 				quiet = true
 			}
+		case func(net.Conn, http.ConnState):
+			ts.Config.ConnState = v
 		default:
 			t.Fatalf("unknown newServerTester option type %T", v)
 		}
@@ -2165,6 +2167,9 @@ func TestServer_NoCrash_HandlerClose_Then_ClientClose(t *testing.T) {
 		// it did before.
 		st.writeData(1, true, []byte("foo"))
 
+		// Get our flow control bytes back, since the handler didn't get them.
+		st.wantWindowUpdate(0, uint32(len("foo")))
+
 		// Sent after a peer sends data anyway (admittedly the
 		// previous RST_STREAM might've still been in-flight),
 		// but they'll get the more friendly 'cancel' code
@@ -3298,4 +3303,44 @@ func TestExpect100ContinueAfterHandlerWrites(t *testing.T) {
 	if string(buf) != msg2 {
 		t.Fatalf("second msg = %q; want %q", buf, msg2)
 	}
+}
+
+type funcReader func([]byte) (n int, err error)
+
+func (f funcReader) Read(p []byte) (n int, err error) { return f(p) }
+
+// golang.org/issue/16481 -- return flow control when streams close with unread data.
+// (The Server version of the bug. See also TestUnreadFlowControlReturned_Transport)
+func TestUnreadFlowControlReturned_Server(t *testing.T) {
+	unblock := make(chan bool, 1)
+	defer close(unblock)
+
+	st := newServerTester(t, func(w http.ResponseWriter, r *http.Request) {
+		// Don't read the 16KB request body. Wait until the client's
+		// done sending it and then return. This should cause the Server
+		// to then return those 16KB of flow control to the client.
+		<-unblock
+	}, optOnlyServer)
+	defer st.Close()
+
+	tr := &Transport{TLSClientConfig: tlsConfigInsecure}
+	defer tr.CloseIdleConnections()
+
+	// This previously hung on the 4th iteration.
+	for i := 0; i < 6; i++ {
+		body := io.MultiReader(
+			io.LimitReader(neverEnding('A'), 16<<10),
+			funcReader(func([]byte) (n int, err error) {
+				unblock <- true
+				return 0, io.EOF
+			}),
+		)
+		req, _ := http.NewRequest("POST", st.ts.URL, body)
+		res, err := tr.RoundTrip(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+	}
+
 }
