@@ -34,6 +34,7 @@ script:
   - ./test-functional
   - DEX_TEST_DSN="sqlite3://:memory:" ./test-functional
   - ./build-docker
+  - ./build-docker clean
 
 deploy:
   provider: script
