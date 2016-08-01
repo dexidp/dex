@@ -51,6 +51,9 @@ func main() {
 
 	enableClientRegistration := fs.Bool("enable-client-registration", false, "Allow dynamic registration of clients")
 
+	// Client credentials administration
+	apiUseClientCredentials := fs.Bool("api-use-client-credentials", false, "Forces API to authenticate using client credentials instead of ID token. Clients must be 'admin clients' to use the API.")
+
 	noDB := fs.Bool("no-db", false, "manage entities in-process w/o any encryption, used only for single-node testing")
 
 	// UI-related:
@@ -137,16 +140,17 @@ func main() {
 	}
 
 	scfg := server.ServerConfig{
-		IssuerURL:                *issuer,
-		TemplateDir:              *templates,
-		EmailTemplateDirs:        emailTemplateDirs,
-		EmailFromAddress:         *emailFrom,
-		EmailerConfigFile:        *emailConfig,
-		IssuerName:               *issuerName,
-		IssuerLogoURL:            *issuerLogoURL,
-		EnableRegistration:       *enableRegistration,
-		EnableClientRegistration: *enableClientRegistration,
-		RegisterOnFirstLogin:     *registerOnFirstLogin,
+		IssuerURL:                    *issuer,
+		TemplateDir:                  *templates,
+		EmailTemplateDirs:            emailTemplateDirs,
+		EmailFromAddress:             *emailFrom,
+		EmailerConfigFile:            *emailConfig,
+		IssuerName:                   *issuerName,
+		IssuerLogoURL:                *issuerLogoURL,
+		EnableRegistration:           *enableRegistration,
+		EnableClientRegistration:     *enableClientRegistration,
+		EnableClientCredentialAccess: *apiUseClientCredentials,
+		RegisterOnFirstLogin:         *registerOnFirstLogin,
 	}
 
 	if *noDB {

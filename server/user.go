@@ -35,18 +35,20 @@ var (
 )
 
 type UserMgmtServer struct {
-	api         *api.UsersAPI
-	jwtvFactory JWTVerifierFactory
-	um          *usermanager.UserManager
-	cm          *clientmanager.ClientManager
+	api                  *api.UsersAPI
+	jwtvFactory          JWTVerifierFactory
+	um                   *usermanager.UserManager
+	cm                   *clientmanager.ClientManager
+	allowClientCredsAuth bool
 }
 
-func NewUserMgmtServer(userMgmtAPI *api.UsersAPI, jwtvFactory JWTVerifierFactory, um *usermanager.UserManager, cm *clientmanager.ClientManager) *UserMgmtServer {
+func NewUserMgmtServer(userMgmtAPI *api.UsersAPI, jwtvFactory JWTVerifierFactory, um *usermanager.UserManager, cm *clientmanager.ClientManager, allowClientCredsAuth bool) *UserMgmtServer {
 	return &UserMgmtServer{
-		api:         userMgmtAPI,
-		jwtvFactory: jwtvFactory,
-		um:          um,
-		cm:          cm,
+		api:                  userMgmtAPI,
+		jwtvFactory:          jwtvFactory,
+		um:                   um,
+		cm:                   cm,
+		allowClientCredsAuth: allowClientCredsAuth,
 	}
 }
 
@@ -92,7 +94,7 @@ func (s *UserMgmtServer) authAPIHandle(handle authedHandle, requiresAdmin bool) 
 			s.writeError(w, err)
 			return
 		}
-		if creds.User.Disabled || (requiresAdmin && !creds.User.Admin) {
+		if !s.allowClientCredsAuth && (creds.User.Disabled || (requiresAdmin && !creds.User.Admin)) {
 			s.writeError(w, api.ErrorUnauthorized)
 			return
 		}
@@ -297,6 +299,20 @@ func (s *UserMgmtServer) getCreds(r *http.Request, requiresAdmin bool) (api.Cred
 	}
 	if !ok || sub == "" {
 		return api.Creds{}, api.ErrorUnauthorized
+	}
+
+	if s.allowClientCredsAuth && (len(clientIDs) == 1) && (sub == clientIDs[0]) {
+		isAdmin, err := s.cm.IsDexAdmin(clientIDs[0])
+		if err != nil {
+			log.Errorf("userMgmtServer: GetCreds err: %q", err)
+			return api.Creds{}, err
+		}
+		if requiresAdmin && !isAdmin {
+			return api.Creds{}, api.ErrorForbidden
+		}
+		return api.Creds{
+			ClientIDs: clientIDs,
+		}, nil
 	}
 
 	usr, err := s.um.Get(sub)
