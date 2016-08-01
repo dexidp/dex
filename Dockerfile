@@ -9,4 +9,4 @@ ADD static/html/* $DEX_WORKER_HTML_ASSETS
 
 ENV DEX_WORKER_EMAIL_TEMPLATES /opt/dex/email/
 ADD static/email/* $DEX_WORKER_EMAIL_TEMPLATES
-ADD static/fixtures/emailer.json.sample $DEX_WORKER_EMAIL_TEMPLATES/emailer.json
+ADD static/fixtures/emailer.json $DEX_WORKER_EMAIL_TEMPLATES/emailer.json
