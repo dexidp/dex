@@ -98,8 +98,9 @@ type Emailer interface {
 }
 
 type Creds struct {
-	ClientID string
-	User     user.User
+	// IDTokens can be issued for multiple clients.
+	ClientIDs []string
+	User      user.User
 }
 
 // TODO(ericchiang): Don't pass a dbMap. See #385.
@@ -144,6 +145,22 @@ func (u *UsersAPI) DisableUser(creds Creds, userID string, disable bool) (schema
 	}, nil
 }
 
+// validRedirectURL finds the first client for which the redirect URL is valid. If found it returns the client_id of the client.
+func validRedirectURL(clientManager *clientmanager.ClientManager, redirectURL url.URL, clientIDs []string) (string, error) {
+	// Find the first client with a valid redirectURL.
+	for _, clientID := range clientIDs {
+		metadata, err := clientManager.Metadata(clientID)
+		if err != nil {
+			return "", mapError(err)
+		}
+
+		if _, err := client.ValidRedirectURL(&redirectURL, metadata.RedirectURIs); err == nil {
+			return clientID, nil
+		}
+	}
+	return "", ErrorInvalidRedirectURL
+}
+
 func (u *UsersAPI) CreateUser(creds Creds, usr schema.User, redirURL url.URL) (schema.UserCreateResponse, error) {
 	log.Infof("userAPI: CreateUser")
 	if !u.Authorize(creds) {
@@ -155,14 +172,9 @@ func (u *UsersAPI) CreateUser(creds Creds, usr schema.User, redirURL url.URL) (s
 		return schema.UserCreateResponse{}, mapError(err)
 	}
 
-	metadata, err := u.clientManager.Metadata(creds.ClientID)
+	clientID, err := validRedirectURL(u.clientManager, redirURL, creds.ClientIDs)
 	if err != nil {
-		return schema.UserCreateResponse{}, mapError(err)
-	}
-
-	validRedirURL, err := client.ValidRedirectURL(&redirURL, metadata.RedirectURIs)
-	if err != nil {
-		return schema.UserCreateResponse{}, ErrorInvalidRedirectURL
+		return schema.UserCreateResponse{}, err
 	}
 
 	id, err := u.userManager.CreateUser(schemaUserToUser(usr), user.Password(hash), u.localConnectorID)
@@ -177,7 +189,7 @@ func (u *UsersAPI) CreateUser(creds Creds, usr schema.User, redirURL url.URL) (s
 
 	usr = userToSchemaUser(userUser)
 
-	url, err := u.emailer.SendInviteEmail(usr.Email, validRedirURL, creds.ClientID)
+	url, err := u.emailer.SendInviteEmail(usr.Email, redirURL, clientID)
 
 	// An email is sent only if we don't get a link and there's no error.
 	emailSent := err == nil && url == nil
@@ -200,14 +212,9 @@ func (u *UsersAPI) ResendEmailInvitation(creds Creds, userID string, redirURL ur
 		return schema.ResendEmailInvitationResponse{}, ErrorUnauthorized
 	}
 
-	metadata, err := u.clientManager.Metadata(creds.ClientID)
+	clientID, err := validRedirectURL(u.clientManager, redirURL, creds.ClientIDs)
 	if err != nil {
-		return schema.ResendEmailInvitationResponse{}, mapError(err)
-	}
-
-	validRedirURL, err := client.ValidRedirectURL(&redirURL, metadata.RedirectURIs)
-	if err != nil {
-		return schema.ResendEmailInvitationResponse{}, ErrorInvalidRedirectURL
+		return schema.ResendEmailInvitationResponse{}, err
 	}
 
 	// Retrieve user to check if it's already created
@@ -221,7 +228,7 @@ func (u *UsersAPI) ResendEmailInvitation(creds Creds, userID string, redirURL ur
 		return schema.ResendEmailInvitationResponse{}, ErrorVerifiedEmail
 	}
 
-	url, err := u.emailer.SendInviteEmail(userUser.Email, validRedirURL, creds.ClientID)
+	url, err := u.emailer.SendInviteEmail(userUser.Email, redirURL, clientID)
 
 	// An email is sent only if we don't get a link and there's no error.
 	emailSent := err == nil && url == nil
