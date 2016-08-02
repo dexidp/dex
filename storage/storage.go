@@ -73,7 +73,7 @@ func Open(driverName string, config map[string]string) (Storage, error) {
 // require compare-and-swap atomic actions.
 //
 // Implementations are expected to perform their own garbage collection of
-// expired objects (expect keys which are handled by rotation).
+// expired objects (expect keys, which are handled by the server).
 type Storage interface {
 	Close() error
 

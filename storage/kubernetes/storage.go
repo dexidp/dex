@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	homedir "github.com/mitchellh/go-homedir"
+	"golang.org/x/net/context"
 
 	"github.com/coreos/poke/storage"
 	"github.com/coreos/poke/storage/kubernetes/k8sapi"
@@ -32,10 +34,29 @@ const (
 type Config struct {
 	InCluster      bool   `yaml:"inCluster"`
 	KubeConfigPath string `yaml:"kubeConfigPath"`
+	GCFrequency    int64  `yaml:"gcFrequency"` // seconds
 }
 
 // Open returns a storage using Kubernetes third party resource.
 func (c *Config) Open() (storage.Storage, error) {
+	cli, err := c.open()
+	if err != nil {
+		return nil, err
+	}
+
+	// start up garbage collection
+	gcFrequency := c.GCFrequency
+	if gcFrequency == 0 {
+		gcFrequency = 600
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cli.cancel = cancel
+	go cli.gc(ctx, time.Duration(gcFrequency)*time.Second)
+	return cli, nil
+}
+
+// open returns a client with no garbage collection.
+func (c *Config) open() (*client, error) {
 	if c.InCluster && (c.KubeConfigPath != "") {
 		return nil, errors.New("cannot specify both 'inCluster' and 'kubeConfigPath'")
 	}
@@ -70,6 +91,9 @@ func (c *Config) Open() (storage.Storage, error) {
 }
 
 func (cli *client) Close() error {
+	if cli.cancel != nil {
+		cli.cancel()
+	}
 	return nil
 }
 

@@ -4,7 +4,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/coreos/poke/storage"
 	"github.com/coreos/poke/storage/storagetest"
 )
 
@@ -12,12 +11,12 @@ func TestLoadClient(t *testing.T) {
 	loadClient(t)
 }
 
-func loadClient(t *testing.T) storage.Storage {
+func loadClient(t *testing.T) *client {
 	if os.Getenv("KUBECONFIG") == "" {
 		t.Skip()
 	}
 	var config Config
-	s, err := config.Open()
+	s, err := config.open()
 	if err != nil {
 		t.Fatal(err)
 	}
