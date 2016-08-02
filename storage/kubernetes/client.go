@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/gtank/cryptopasta"
+	"golang.org/x/net/context"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/coreos/poke/storage"
@@ -32,6 +33,9 @@ type client struct {
 	apiVersion string
 
 	now func() time.Time
+
+	// If not nil, the cancel function for stopping garbage colletion.
+	cancel context.CancelFunc
 
 	// BUG: currently each third party API group can only have one resource in it,
 	// so for each resource this storage uses, it need a unique API group.
@@ -251,7 +255,14 @@ func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string) (
 	}
 
 	// TODO(ericchiang): make API Group and version configurable.
-	return &client{&http.Client{Transport: t}, cluster.Server, namespace, "oidc.coreos.com/v1", time.Now, true}, nil
+	return &client{
+		client:     &http.Client{Transport: t},
+		baseURL:    cluster.Server,
+		namespace:  namespace,
+		apiVersion: "oidc.coreos.com/v1",
+		now:        time.Now,
+		prependResourceNameToAPIGroup: true,
+	}, nil
 }
 
 type transport struct {

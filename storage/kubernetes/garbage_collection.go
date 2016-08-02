@@ -3,27 +3,56 @@ package kubernetes
 import (
 	"fmt"
 	"log"
+	"time"
+
+	"golang.org/x/net/context"
 )
 
-// TODO(ericchiang): Complete this.
+// gc begins the gc process for Kubernetes.
+func (cli *client) gc(ctx context.Context, every time.Duration) {
+	handleErr := func(err error) { log.Println(err.Error()) }
 
-type multiErr []error
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(every):
+		}
 
-func (m multiErr) Error() string {
-	return fmt.Sprintf("errors encountered: %s", m)
+		// TODO(ericchiang): On failures, run garbage collection more often.
+		log.Println("kubernetes: running garbage collection")
+		cli.gcAuthRequests(handleErr)
+		cli.gcAuthCodes(handleErr)
+		log.Printf("kubernetes: garbage collection finished, next run at %s", cli.now().Add(every))
+	}
 }
 
-func (cli *client) gcAuthRequests() error {
+func (cli *client) gcAuthRequests(handleErr func(error)) {
 	var authRequests AuthRequestList
 	if err := cli.list(resourceAuthRequest, &authRequests); err != nil {
-		return err
+		handleErr(fmt.Errorf("failed to list auth requests: %v", err))
+		return
 	}
 	for _, authRequest := range authRequests.AuthRequests {
 		if cli.now().After(authRequest.Expiry) {
 			if err := cli.delete(resourceAuthRequest, authRequest.ObjectMeta.Name); err != nil {
-				log.Printf("failed to detele auth request: %v", err)
+				handleErr(fmt.Errorf("failed to detele auth request: %v", err))
 			}
 		}
 	}
-	return nil
+}
+
+func (cli *client) gcAuthCodes(handleErr func(error)) {
+	var authCodes AuthCodeList
+	if err := cli.list(resourceAuthCode, &authCodes); err != nil {
+		handleErr(fmt.Errorf("failed to list auth codes: %v", err))
+		return
+	}
+	for _, authCode := range authCodes.AuthCodes {
+		if cli.now().After(authCode.Expiry) {
+			if err := cli.delete(resourceAuthCode, authCode.ObjectMeta.Name); err != nil {
+				handleErr(fmt.Errorf("failed to delete auth code: %v", err))
+			}
+		}
+	}
 }
