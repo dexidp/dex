@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -262,18 +261,32 @@ func (s *UserMgmtServer) getCreds(r *http.Request, requiresAdmin bool) (api.Cred
 		return api.Creds{}, api.ErrorUnauthorized
 	}
 
-	clientID, ok, err := claims.StringClaim("aud")
-	if err != nil {
-		log.Errorf("userMgmtServer: GetCreds err: %q", err)
-		return api.Creds{}, err
+	// The "aud" claim is allowed to be both a list of clients or a single client. Check for both cases.
+	clientIDs, ok, err := claims.StringsClaim("aud")
+	if err != nil || !ok {
+		clientID, ok, err := claims.StringClaim("aud")
+		if err != nil {
+			log.Errorf("userMgmtServer: GetCreds failed to parse 'aud' claim: %q", err)
+			return api.Creds{}, api.ErrorUnauthorized
+		}
+		if !ok || clientID == "" {
+			return api.Creds{}, api.ErrorUnauthorized
+		}
+		clientIDs = []string{clientID}
 	}
-	if !ok || clientID == "" {
-		return api.Creds{}, errors.New("no aud(client ID) claim")
+	if len(clientIDs) == 0 {
+		log.Errorf("userMgmtServer: GetCreds err: no client in audience")
+		return api.Creds{}, api.ErrorUnauthorized
 	}
 
-	verifier := s.jwtvFactory(clientID)
+	// Verify that the JWT is signed by this server, has the correct issuer, hasn't expired, etc.
+	// While we don't actualy care which client the token was issued for (we'll check that later),
+	// go-oidc doesn't provide any methods which don't require passing a client ID.
+	//
+	// TODO(ericchiang): Add a verifier to go-oidc that doesn't require a client ID.
+	verifier := s.jwtvFactory(clientIDs[0])
 	if err := verifier.Verify(jwt); err != nil {
-		log.Errorf("userMgmtServer: GetCreds err: %q", err)
+		log.Errorf("userMgmtServer: GetCreds err: failed to verify token %q", err)
 		return api.Creds{}, api.ErrorUnauthorized
 	}
 
@@ -295,18 +308,32 @@ func (s *UserMgmtServer) getCreds(r *http.Request, requiresAdmin bool) (api.Cred
 		return api.Creds{}, err
 	}
 
-	isAdmin, err := s.cm.IsDexAdmin(clientID)
-	if err != nil {
-		log.Errorf("userMgmtServer: GetCreds err: %q", err)
-		return api.Creds{}, err
+	i := 0
+	for _, clientID := range clientIDs {
+		// Make sure the client actually exists.
+		isAdmin, err := s.cm.IsDexAdmin(clientID)
+		if err != nil {
+			log.Errorf("userMgmtServer: GetCreds err: failed to get client %v", err)
+			return api.Creds{}, err
+		}
+
+		// If the endpoint requires an admin client, filter out clients which are not admins.
+		if requiresAdmin && !isAdmin {
+			continue
+		}
+
+		clientIDs[i] = clientID
+		i++
 	}
-	if requiresAdmin && !isAdmin {
+
+	clientIDs = clientIDs[:i]
+	if len(clientIDs) == 0 {
 		return api.Creds{}, api.ErrorForbidden
 	}
 
 	return api.Creds{
-		ClientID: clientID,
-		User:     usr,
+		ClientIDs: clientIDs,
+		User:      usr,
 	}, nil
 }
 

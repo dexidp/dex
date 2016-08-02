@@ -51,15 +51,16 @@ func (t *testEmailer) sendEmail(email string, redirectURL url.URL, clientID stri
 }
 
 var (
-	clock        = clockwork.NewFakeClock()
-	goodClientID = "client.example.com"
+	clock            = clockwork.NewFakeClock()
+	goodClientID     = "client.example.com"
+	nonAdminClientID = "user.example.com"
 
 	goodCreds = Creds{
 		User: user.User{
 			ID:    "ID-1",
 			Admin: true,
 		},
-		ClientID: goodClientID,
+		ClientIDs: []string{goodClientID},
 	}
 
 	badCreds = Creds{
@@ -68,13 +69,21 @@ var (
 		},
 	}
 
+	credsWithMultipleAudiences = Creds{
+		User: user.User{
+			ID:    "ID-1",
+			Admin: true,
+		},
+		ClientIDs: []string{nonAdminClientID, goodClientID},
+	}
+
 	disabledCreds = Creds{
 		User: user.User{
 			ID:       "ID-1",
 			Admin:    true,
 			Disabled: true,
 		},
-		ClientID: goodClientID,
+		ClientIDs: []string{goodClientID},
 	}
 
 	resetPasswordURL = url.URL{
@@ -85,6 +94,11 @@ var (
 	validRedirURL = url.URL{
 		Scheme: "http",
 		Host:   goodClientID,
+		Path:   "/callback",
+	}
+	validRedirURL2 = url.URL{
+		Scheme: "http",
+		Host:   nonAdminClientID,
 		Path:   "/callback",
 	}
 )
@@ -169,6 +183,17 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 			},
 		},
 	}
+	ci2 := client.Client{
+		Credentials: oidc.ClientCredentials{
+			ID:     nonAdminClientID,
+			Secret: base64.URLEncoding.EncodeToString([]byte("anothersecret")),
+		},
+		Metadata: oidc.ClientMetadata{
+			RedirectURIs: []url.URL{
+				validRedirURL2,
+			},
+		},
+	}
 
 	clientIDGenerator := func(hostport string) (string, error) {
 		return hostport, nil
@@ -176,7 +201,7 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 	secGen := func() ([]byte, error) {
 		return []byte("secret"), nil
 	}
-	clientRepo, err := db.NewClientRepoFromClients(dbMap, []client.LoadableClient{{Client: ci}})
+	clientRepo, err := db.NewClientRepoFromClients(dbMap, []client.LoadableClient{{Client: ci}, {Client: ci2}})
 	if err != nil {
 		panic("Failed to create client manager: " + err.Error())
 	}
@@ -222,6 +247,10 @@ func TestGetUser(t *testing.T) {
 			creds:   goodCreds,
 			id:      "NO_ID",
 			wantErr: ErrorResourceNotFound,
+		},
+		{
+			creds: credsWithMultipleAudiences,
+			id:    "ID-1",
 		},
 	}
 
@@ -318,6 +347,7 @@ func TestCreateUser(t *testing.T) {
 		cantEmail bool
 
 		wantResponse schema.UserCreateResponse
+		wantClientID string
 		wantErr      error
 	}{
 		{
@@ -340,6 +370,29 @@ func TestCreateUser(t *testing.T) {
 					CreatedAt:     clock.Now().Format(time.RFC3339),
 				},
 			},
+			wantClientID: goodClientID,
+		},
+		{
+			creds: credsWithMultipleAudiences,
+			usr: schema.User{
+				Email:         "newuser01@example.com",
+				DisplayName:   "New User",
+				EmailVerified: true,
+				Admin:         false,
+			},
+			redirURL: validRedirURL,
+
+			wantResponse: schema.UserCreateResponse{
+				EmailSent: true,
+				User: &schema.User{
+					Email:         "newuser01@example.com",
+					DisplayName:   "New User",
+					EmailVerified: true,
+					Admin:         false,
+					CreatedAt:     clock.Now().Format(time.RFC3339),
+				},
+			},
+			wantClientID: goodClientID,
 		},
 		{
 			creds: goodCreds,
@@ -362,6 +415,7 @@ func TestCreateUser(t *testing.T) {
 				},
 				ResetPasswordLink: resetPasswordURL.String(),
 			},
+			wantClientID: goodClientID,
 		},
 		{
 			creds: goodCreds,
@@ -397,6 +451,7 @@ func TestCreateUser(t *testing.T) {
 		if tt.wantErr != nil {
 			if err != tt.wantErr {
 				t.Errorf("case %d: want=%q, got=%q", i, tt.wantErr, err)
+				continue
 			}
 
 			tok := ""
@@ -420,11 +475,13 @@ func TestCreateUser(t *testing.T) {
 		}
 		if err != nil {
 			t.Errorf("case %d: want nil err, got: %q ", i, err)
+			continue
 		}
 
 		newID := response.User.Id
 		if newID == "" {
 			t.Errorf("case %d: expected non-empty newID", i)
+			continue
 		}
 
 		tt.wantResponse.User.Id = newID
@@ -436,7 +493,7 @@ func TestCreateUser(t *testing.T) {
 		wantEmalier := testEmailer{
 			cantEmail:       tt.cantEmail,
 			lastEmail:       tt.usr.Email,
-			lastClientID:    tt.creds.ClientID,
+			lastClientID:    tt.wantClientID,
 			lastRedirectURL: tt.redirURL,
 			lastWasInvite:   true,
 		}
@@ -497,6 +554,7 @@ func TestResendEmailInvitation(t *testing.T) {
 
 		wantResponse schema.ResendEmailInvitationResponse
 		wantErr      error
+		wantClientID string
 	}{
 		{
 			creds:    goodCreds,
@@ -507,6 +565,7 @@ func TestResendEmailInvitation(t *testing.T) {
 			wantResponse: schema.ResendEmailInvitationResponse{
 				EmailSent: true,
 			},
+			wantClientID: goodClientID,
 		},
 		{
 			creds:     goodCreds,
@@ -519,6 +578,20 @@ func TestResendEmailInvitation(t *testing.T) {
 				EmailSent:         false,
 				ResetPasswordLink: resetPasswordURL.String(),
 			},
+			wantClientID: goodClientID,
+		},
+		{
+			creds:     credsWithMultipleAudiences,
+			userID:    "ID-1",
+			email:     "id1@example.com",
+			redirURL:  validRedirURL,
+			cantEmail: true,
+
+			wantResponse: schema.ResendEmailInvitationResponse{
+				EmailSent:         false,
+				ResetPasswordLink: resetPasswordURL.String(),
+			},
+			wantClientID: goodClientID,
 		},
 		{
 			creds:    badCreds,
@@ -576,7 +649,7 @@ func TestResendEmailInvitation(t *testing.T) {
 		wantEmailer := testEmailer{
 			cantEmail:       tt.cantEmail,
 			lastEmail:       tt.email,
-			lastClientID:    tt.creds.ClientID,
+			lastClientID:    tt.wantClientID,
 			lastRedirectURL: tt.redirURL,
 			lastWasInvite:   true,
 		}
