@@ -30,10 +30,10 @@ bin/pokectl: FORCE
 	@go install $(REPO_PATH)/cmd/pokectl
 
 test:
-	@go test -v $(shell go list ./... | grep -v '/vendor/')
+	@go test $(shell go list ./... | grep -v '/vendor/')
 
 testrace:
-	@go test -v --race $(shell go list ./... | grep -v '/vendor/')
+	@go test --race $(shell go list ./... | grep -v '/vendor/')
 
 vet:
 	@go vet $(shell go list ./... | grep -v '/vendor/')
