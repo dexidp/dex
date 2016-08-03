@@ -14,7 +14,6 @@ import (
 	"golang.org/x/oauth2/github"
 
 	"github.com/coreos/poke/connector"
-	"github.com/coreos/poke/storage"
 )
 
 const baseURL = "https://api.github.com"
@@ -85,7 +84,7 @@ func (e *oauth2Error) Error() string {
 	return e.error + ": " + e.errorDescription
 }
 
-func (c *githubConnector) HandleCallback(r *http.Request) (identity storage.Identity, state string, err error) {
+func (c *githubConnector) HandleCallback(r *http.Request) (identity connector.Identity, state string, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, "", &oauth2Error{errType, q.Get("error_description")}
@@ -128,7 +127,7 @@ func (c *githubConnector) HandleCallback(r *http.Request) (identity storage.Iden
 	if username == "" {
 		username = user.Login
 	}
-	identity = storage.Identity{
+	identity = connector.Identity{
 		UserID:        strconv.Itoa(user.ID),
 		Username:      username,
 		Email:         user.Email,
@@ -138,7 +137,7 @@ func (c *githubConnector) HandleCallback(r *http.Request) (identity storage.Iden
 	return identity, q.Get("state"), nil
 }
 
-func (c *githubConnector) Groups(identity storage.Identity) ([]string, error) {
+func (c *githubConnector) Groups(identity connector.Identity) ([]string, error) {
 	var data connectorData
 	if err := json.Unmarshal(identity.ConnectorData, &data); err != nil {
 		return nil, fmt.Errorf("decode connector data: %v", err)

@@ -104,12 +104,6 @@ type Identity struct {
 	EmailVerified bool
 
 	Groups []string
-
-	// ConnectorData holds data used by the connector for subsequent requests after initial
-	// authentication, such as access tokens for upstream provides.
-	//
-	// This data is never shared with end users, OAuth clients, or through the API.
-	ConnectorData []byte
 }
 
 // AuthRequest represents a OAuth2 client authorization request. It holds the state
@@ -133,8 +127,11 @@ type AuthRequest struct {
 	// The identity of the end user. Generally nil until the user authenticates
 	// with a backend.
 	Identity *Identity
-	// The connector used to login the user. Set when the user authenticates.
-	ConnectorID string
+
+	// The connector used to login the user and any data the connector wishes to persists.
+	// Set when the user authenticates.
+	ConnectorID   string
+	ConnectorData []byte
 
 	Expiry time.Time
 }
@@ -145,7 +142,9 @@ type AuthCode struct {
 
 	ClientID    string
 	RedirectURI string
-	ConnectorID string
+
+	ConnectorID   string
+	ConnectorData []byte
 
 	Nonce string
 
@@ -162,8 +161,10 @@ type Refresh struct {
 	RefreshToken string
 
 	// Client this refresh token is valid for.
-	ClientID    string
-	ConnectorID string
+	ClientID string
+
+	ConnectorID   string
+	ConnectorData []byte
 
 	// Scopes present in the initial request. Refresh requests may specify a set
 	// of scopes different from the initial request when refreshing a token,

@@ -77,8 +77,6 @@ type Identity struct {
 	Email         string   `json:"email"`
 	EmailVerified bool     `json:"emailVerified"`
 	Groups        []string `json:"groups,omitempty"`
-
-	ConnectorData []byte `json:"connectorData,omitempty"`
 }
 
 func fromStorageIdentity(i storage.Identity) Identity {
@@ -88,7 +86,6 @@ func fromStorageIdentity(i storage.Identity) Identity {
 		Email:         i.Email,
 		EmailVerified: i.EmailVerified,
 		Groups:        i.Groups,
-		ConnectorData: i.ConnectorData,
 	}
 }
 
@@ -99,7 +96,6 @@ func toStorageIdentity(i Identity) storage.Identity {
 		Email:         i.Email,
 		EmailVerified: i.EmailVerified,
 		Groups:        i.Groups,
-		ConnectorData: i.ConnectorData,
 	}
 }
 
@@ -126,7 +122,8 @@ type AuthRequest struct {
 	// with a backend.
 	Identity *Identity `json:"identity,omitempty"`
 	// The connector used to login the user. Set when the user authenticates.
-	ConnectorID string `json:"connectorID,omitempty"`
+	ConnectorID   string `json:"connectorID,omitempty"`
+	ConnectorData []byte `json:"connectorData,omitempty"`
 
 	Expiry time.Time `json:"expiry"`
 }
@@ -149,6 +146,7 @@ func toStorageAuthRequest(req AuthRequest) storage.AuthRequest {
 		State:               req.State,
 		ForceApprovalPrompt: req.ForceApprovalPrompt,
 		ConnectorID:         req.ConnectorID,
+		ConnectorData:       req.ConnectorData,
 		Expiry:              req.Expiry,
 	}
 	if req.Identity != nil {
@@ -176,6 +174,7 @@ func (cli *client) fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		State:               a.State,
 		ForceApprovalPrompt: a.ForceApprovalPrompt,
 		ConnectorID:         a.ConnectorID,
+		ConnectorData:       a.ConnectorData,
 		Expiry:              a.Expiry,
 	}
 	if a.Identity != nil {
@@ -198,8 +197,10 @@ type AuthCode struct {
 	Nonce string `json:"nonce,omitempty"`
 	State string `json:"state,omitempty"`
 
-	Identity    Identity `json:"identity,omitempty"`
-	ConnectorID string   `json:"connectorID,omitempty"`
+	Identity Identity `json:"identity,omitempty"`
+
+	ConnectorID   string `json:"connectorID,omitempty"`
+	ConnectorData []byte `json:"connectorData,omitempty"`
 
 	Expiry time.Time `json:"expiry"`
 }
@@ -221,26 +222,28 @@ func (cli *client) fromStorageAuthCode(a storage.AuthCode) AuthCode {
 			Name:      a.ID,
 			Namespace: cli.namespace,
 		},
-		ClientID:    a.ClientID,
-		RedirectURI: a.RedirectURI,
-		ConnectorID: a.ConnectorID,
-		Nonce:       a.Nonce,
-		Scopes:      a.Scopes,
-		Identity:    fromStorageIdentity(a.Identity),
-		Expiry:      a.Expiry,
+		ClientID:      a.ClientID,
+		RedirectURI:   a.RedirectURI,
+		ConnectorID:   a.ConnectorID,
+		ConnectorData: a.ConnectorData,
+		Nonce:         a.Nonce,
+		Scopes:        a.Scopes,
+		Identity:      fromStorageIdentity(a.Identity),
+		Expiry:        a.Expiry,
 	}
 }
 
 func toStorageAuthCode(a AuthCode) storage.AuthCode {
 	return storage.AuthCode{
-		ID:          a.ObjectMeta.Name,
-		ClientID:    a.ClientID,
-		RedirectURI: a.RedirectURI,
-		ConnectorID: a.ConnectorID,
-		Nonce:       a.Nonce,
-		Scopes:      a.Scopes,
-		Identity:    toStorageIdentity(a.Identity),
-		Expiry:      a.Expiry,
+		ID:            a.ObjectMeta.Name,
+		ClientID:      a.ClientID,
+		RedirectURI:   a.RedirectURI,
+		ConnectorID:   a.ConnectorID,
+		ConnectorData: a.ConnectorData,
+		Nonce:         a.Nonce,
+		Scopes:        a.Scopes,
+		Identity:      toStorageIdentity(a.Identity),
+		Expiry:        a.Expiry,
 	}
 }
 

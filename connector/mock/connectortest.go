@@ -2,12 +2,13 @@
 package mock
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 
 	"github.com/coreos/poke/connector"
-	"github.com/coreos/poke/storage"
 )
 
 // New returns a mock connector which requires no user interaction. It always returns
@@ -15,6 +16,11 @@ import (
 func New() connector.Connector {
 	return mockConnector{}
 }
+
+var (
+	_ connector.CallbackConnector = mockConnector{}
+	_ connector.GroupsConnector   = mockConnector{}
+)
 
 type mockConnector struct{}
 
@@ -31,16 +37,22 @@ func (m mockConnector) LoginURL(callbackURL, state string) (string, error) {
 	return u.String(), nil
 }
 
-func (m mockConnector) HandleCallback(r *http.Request) (storage.Identity, string, error) {
-	return storage.Identity{
+var connectorData = []byte("foobar")
+
+func (m mockConnector) HandleCallback(r *http.Request) (connector.Identity, string, error) {
+	return connector.Identity{
 		UserID:        "0-385-28089-0",
 		Username:      "Kilgore Trout",
 		Email:         "kilgore@kilgore.trout",
 		EmailVerified: true,
+		ConnectorData: connectorData,
 	}, r.URL.Query().Get("state"), nil
 }
 
-func (m mockConnector) Groups(identity storage.Identity) ([]string, error) {
+func (m mockConnector) Groups(identity connector.Identity) ([]string, error) {
+	if !bytes.Equal(identity.ConnectorData, connectorData) {
+		return nil, errors.New("connector data mismatch")
+	}
 	return []string{"authors"}, nil
 }
 

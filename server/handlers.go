@@ -180,17 +180,14 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			renderPasswordTmpl(w, state, r.URL.String(), "Invalid credentials")
 			return
 		}
-
-		groups, ok, err := s.groups(identity, state, conn.Connector)
+		redirectURL, err := s.finalizeLogin(identity, state, connID, conn.Connector)
 		if err != nil {
+			log.Printf("Failed to finalize login: %v", err)
 			s.renderError(w, http.StatusInternalServerError, errServerError, "")
 			return
 		}
-		if ok {
-			identity.Groups = groups
-		}
 
-		s.redirectToApproval(w, r, identity, connID, state)
+		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 	default:
 		s.notFound(w, r)
 	}
@@ -215,54 +212,56 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		s.renderError(w, http.StatusInternalServerError, errServerError, "")
 		return
 	}
-	groups, ok, err := s.groups(identity, state, conn.Connector)
+
+	redirectURL, err := s.finalizeLogin(identity, state, connID, conn.Connector)
 	if err != nil {
+		log.Printf("Failed to finalize login: %v", err)
 		s.renderError(w, http.StatusInternalServerError, errServerError, "")
 		return
 	}
-	if ok {
-		identity.Groups = groups
-	}
-	s.redirectToApproval(w, r, identity, connID, state)
+
+	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
-func (s *Server) redirectToApproval(w http.ResponseWriter, r *http.Request, identity storage.Identity, connectorID, state string) {
-	updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
-		a.Identity = &identity
-		a.ConnectorID = connectorID
-		return a, nil
+func (s *Server) finalizeLogin(identity connector.Identity, authReqID, connectorID string, conn connector.Connector) (string, error) {
+	claims := storage.Identity{
+		UserID:        identity.UserID,
+		Username:      identity.Username,
+		Email:         identity.Email,
+		EmailVerified: identity.EmailVerified,
 	}
-	if err := s.storage.UpdateAuthRequest(state, updater); err != nil {
-		log.Printf("Failed to updated auth request with identity: %v", err)
-		s.renderError(w, http.StatusInternalServerError, errServerError, "")
-		return
-	}
-	http.Redirect(w, r, path.Join(s.issuerURL.Path, "/approval")+"?state="+state, http.StatusSeeOther)
-}
 
-func (s *Server) groups(identity storage.Identity, authReqID string, conn connector.Connector) ([]string, bool, error) {
 	groupsConn, ok := conn.(connector.GroupsConnector)
-	if !ok {
-		return nil, false, nil
-	}
-	authReq, err := s.storage.GetAuthRequest(authReqID)
-	if err != nil {
-		log.Printf("get auth request: %v", err)
-		return nil, false, err
-	}
-	reqGroups := func() bool {
-		for _, scope := range authReq.Scopes {
-			if scope == scopeGroups {
-				return true
+	if ok {
+		authReq, err := s.storage.GetAuthRequest(authReqID)
+		if err != nil {
+			return "", fmt.Errorf("get auth request: %v", err)
+		}
+		reqGroups := func() bool {
+			for _, scope := range authReq.Scopes {
+				if scope == scopeGroups {
+					return true
+				}
+			}
+			return false
+		}()
+		if reqGroups {
+			if claims.Groups, err = groupsConn.Groups(identity); err != nil {
+				return "", fmt.Errorf("getting groups: %v", err)
 			}
 		}
-		return false
-	}()
-	if !reqGroups {
-		return nil, false, nil
 	}
-	groups, err := groupsConn.Groups(identity)
-	return groups, true, err
+
+	updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
+		a.Identity = &claims
+		a.ConnectorID = connectorID
+		a.ConnectorData = identity.ConnectorData
+		return a, nil
+	}
+	if err := s.storage.UpdateAuthRequest(authReqID, updater); err != nil {
+		return "", fmt.Errorf("failed to update auth request: %v", err)
+	}
+	return path.Join(s.issuerURL.Path, "/approval") + "?state=" + authReqID, nil
 }
 
 func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {

@@ -8,7 +8,6 @@ import (
 	"gopkg.in/ldap.v2"
 
 	"github.com/coreos/poke/connector"
-	"github.com/coreos/poke/storage"
 )
 
 // Config holds the configuration parameters for the LDAP connector.
@@ -32,6 +31,8 @@ type ldapConnector struct {
 	Config
 }
 
+var _ connector.PasswordConnector = (*ldapConnector)(nil)
+
 func (c *ldapConnector) do(f func(c *ldap.Conn) error) error {
 	// TODO(ericchiang): Connection pooling.
 	conn, err := ldap.Dial("tcp", c.Host)
@@ -43,15 +44,16 @@ func (c *ldapConnector) do(f func(c *ldap.Conn) error) error {
 	return f(conn)
 }
 
-func (c *ldapConnector) Login(username, password string) (storage.Identity, error) {
+func (c *ldapConnector) Login(username, password string) (connector.Identity, bool, error) {
 	err := c.do(func(conn *ldap.Conn) error {
 		return conn.Bind(fmt.Sprintf("uid=%s,%s", username, c.BindDN), password)
 	})
 	if err != nil {
-		return storage.Identity{}, err
+		// TODO(ericchiang): Determine when the user has entered invalid credentials.
+		return connector.Identity{}, false, err
 	}
 
-	return storage.Identity{Username: username}, nil
+	return connector.Identity{Username: username}, true, nil
 }
 
 func (c *ldapConnector) Close() error {
