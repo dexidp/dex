@@ -358,6 +358,42 @@ func TestServerLoginDisabledUser(t *testing.T) {
 	}
 }
 
+func TestServerLoginDisplayName(t *testing.T) {
+	f, err := makeTestFixtures()
+	if err != nil {
+		t.Fatalf("error making test fixtures: %v", err)
+	}
+
+	sm := f.sessionManager
+	sessionID, err := sm.NewSession(testConnectorIDOpenID, testClientID, "bogus", testRedirectURL, "", false, []string{"openid"})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	key, err := sm.NewSessionKey(sessionID)
+	if err != nil {
+		t.Errorf("new session key: %v", err)
+	}
+
+	f.srv.RegisterOnFirstLogin = true
+
+	ident := oidc.Identity{ID: testUserRemoteID1, Name: "elroy", Email: "elroy@example.com"}
+	_, err = f.srv.Login(ident, key)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	usr, err := f.srv.UserRepo.GetByEmail(nil, ident.Email)
+	if err != nil {
+		t.Fatalf("Couldn't retrieve user we just created: %v", err)
+	}
+
+	if usr.DisplayName != ident.Name {
+		t.Fatalf("User display name (%s) did not match name on identity (%s)",
+			usr.DisplayName, ident.Name)
+	}
+}
+
 func TestServerCodeToken(t *testing.T) {
 	f, err := makeTestFixtures()
 	if err != nil {

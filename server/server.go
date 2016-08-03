@@ -416,6 +416,13 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("getting created user: %v", err)
 		}
+
+		if ses.Identity.Name != "" && ses.Identity.Name != usr.DisplayName {
+			err = s.UserManager.SetDisplayName(usr, ses.Identity.Name)
+			if err != nil {
+				return "", fmt.Errorf("couldn't set display name for user: %v", err)
+			}
+		}
 	} else if err != nil {
 		return "", fmt.Errorf("getting user: %v", err)
 	}

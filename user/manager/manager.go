@@ -120,6 +120,25 @@ func (m *UserManager) Disable(userID string, disabled bool) error {
 	return nil
 }
 
+func (m *UserManager) SetDisplayName(usr user.User, displayName string) error {
+	tx, err := m.begin()
+	if err != nil {
+		return err
+	}
+	defer rollback(tx)
+
+	usr.DisplayName = displayName
+	if err = m.userRepo.Update(tx, usr); err != nil {
+		return err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // RegisterWithRemoteIdentity creates new user and attaches the given remote identity.
 func (m *UserManager) RegisterWithRemoteIdentity(email string, emailVerified bool, rid user.RemoteIdentity) (string, error) {
 	tx, err := m.begin()
