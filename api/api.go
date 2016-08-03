@@ -47,10 +47,10 @@ func (s *server) CreateClient(ctx context.Context, req *apipb.CreateClientReq) (
 	// and secrets which are restricted based on the storage.
 	client := fromPBClient(req.Client)
 	if client.ID == "" {
-		client.ID = storage.NewNonce()
+		client.ID = storage.NewID()
 	}
 	if client.Secret == "" {
-		client.Secret = storage.NewNonce() + storage.NewNonce()
+		client.Secret = storage.NewID() + storage.NewID()
 	}
 
 	if err := s.storage.CreateClient(client); err != nil {

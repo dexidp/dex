@@ -120,7 +120,7 @@ type idTokenClaims struct {
 	Name string `json:"name,omitempty"`
 }
 
-func (s *Server) newIDToken(clientID string, claims storage.Identity, scopes []string, nonce string) (idToken string, expiry time.Time, err error) {
+func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce string) (idToken string, expiry time.Time, err error) {
 	issuedAt := s.now()
 	expiry = issuedAt.Add(s.idTokensValidFor)
 
@@ -260,7 +260,7 @@ func parseAuthorizationRequest(s storage.Storage, r *http.Request) (req storage.
 	}
 
 	return storage.AuthRequest{
-		ID:                  storage.NewNonce(),
+		ID:                  storage.NewID(),
 		ClientID:            client.ID,
 		State:               r.Form.Get("state"),
 		Nonce:               r.Form.Get("nonce"),

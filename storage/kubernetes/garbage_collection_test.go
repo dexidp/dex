@@ -22,8 +22,8 @@ func TestGCAuthRequests(t *testing.T) {
 	now := time.Now()
 	cli.now = func() time.Time { return now }
 
-	expiredID := storage.NewNonce()
-	goodID := storage.NewNonce()
+	expiredID := storage.NewID()
+	goodID := storage.NewID()
 
 	must(cli.CreateAuthRequest(storage.AuthRequest{
 		ID:     expiredID,
@@ -58,8 +58,8 @@ func TestGCAuthCodes(t *testing.T) {
 	now := time.Now()
 	cli.now = func() time.Time { return now }
 
-	expiredID := storage.NewNonce()
-	goodID := storage.NewNonce()
+	expiredID := storage.NewID()
+	goodID := storage.NewID()
 
 	must(cli.CreateAuthCode(storage.AuthCode{
 		ID:     expiredID,

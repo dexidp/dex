@@ -224,7 +224,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) finalizeLogin(identity connector.Identity, authReqID, connectorID string, conn connector.Connector) (string, error) {
-	claims := storage.Identity{
+	claims := storage.Claims{
 		UserID:        identity.UserID,
 		Username:      identity.Username,
 		Email:         identity.Email,
@@ -253,7 +253,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReqID, connector
 	}
 
 	updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
-		a.Identity = &claims
+		a.Claims = &claims
 		a.ConnectorID = connectorID
 		a.ConnectorData = identity.ConnectorData
 		return a, nil
@@ -271,7 +271,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, http.StatusInternalServerError, errServerError, "")
 		return
 	}
-	if authReq.Identity == nil {
+	if authReq.Claims == nil {
 		log.Printf("Auth request does not have an identity for approval")
 		s.renderError(w, http.StatusInternalServerError, errServerError, "")
 		return
@@ -280,7 +280,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		if s.skipApproval {
-			s.sendCodeResponse(w, r, authReq, *authReq.Identity)
+			s.sendCodeResponse(w, r, authReq)
 			return
 		}
 		client, err := s.storage.GetClient(authReq.ClientID)
@@ -289,17 +289,17 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 			s.renderError(w, http.StatusInternalServerError, errServerError, "")
 			return
 		}
-		renderApprovalTmpl(w, authReq.ID, *authReq.Identity, client, authReq.Scopes)
+		renderApprovalTmpl(w, authReq.ID, *authReq.Claims, client, authReq.Scopes)
 	case "POST":
 		if r.FormValue("approval") != "approve" {
 			s.renderError(w, http.StatusInternalServerError, "approval rejected", "")
 			return
 		}
-		s.sendCodeResponse(w, r, authReq, *authReq.Identity)
+		s.sendCodeResponse(w, r, authReq)
 	}
 }
 
-func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest, identity storage.Identity) {
+func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest) {
 	if authReq.Expiry.After(s.now()) {
 		s.renderError(w, http.StatusBadRequest, errInvalidRequest, "Authorization request period has expired.")
 		return
@@ -315,12 +315,12 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		return
 	}
 	code := storage.AuthCode{
-		ID:          storage.NewNonce(),
+		ID:          storage.NewID(),
 		ClientID:    authReq.ClientID,
 		ConnectorID: authReq.ConnectorID,
 		Nonce:       authReq.Nonce,
 		Scopes:      authReq.Scopes,
-		Identity:    *authReq.Identity,
+		Claims:      *authReq.Claims,
 		Expiry:      s.now().Add(time.Minute * 5),
 		RedirectURI: authReq.RedirectURI,
 	}
@@ -412,7 +412,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		return
 	}
 
-	idToken, expiry, err := s.newIDToken(client.ID, authCode.Identity, authCode.Scopes, authCode.Nonce)
+	idToken, expiry, err := s.newIDToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce)
 	if err != nil {
 		log.Printf("failed to create ID token: %v", err)
 		tokenErr(w, errServerError, "", http.StatusInternalServerError)
@@ -435,12 +435,12 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	}()
 	var refreshToken string
 	if reqRefresh {
-		refresh := storage.Refresh{
-			RefreshToken: storage.NewNonce(),
+		refresh := storage.RefreshToken{
+			RefreshToken: storage.NewID(),
 			ClientID:     authCode.ClientID,
 			ConnectorID:  authCode.ConnectorID,
 			Scopes:       authCode.Scopes,
-			Identity:     authCode.Identity,
+			Claims:       authCode.Claims,
 			Nonce:        authCode.Nonce,
 		}
 		if err := s.storage.CreateRefresh(refresh); err != nil {
@@ -497,7 +497,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 
 	// TODO(ericchiang): re-auth with backends
 
-	idToken, expiry, err := s.newIDToken(client.ID, refresh.Identity, scopes, refresh.Nonce)
+	idToken, expiry, err := s.newIDToken(client.ID, refresh.Claims, scopes, refresh.Nonce)
 	if err != nil {
 		log.Printf("failed to create ID token: %v", err)
 		tokenErr(w, errServerError, "", http.StatusInternalServerError)
@@ -509,7 +509,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		tokenErr(w, errServerError, "", http.StatusInternalServerError)
 		return
 	}
-	refresh.RefreshToken = storage.NewNonce()
+	refresh.RefreshToken = storage.NewID()
 	if err := s.storage.CreateRefresh(refresh); err != nil {
 		log.Printf("failed to create refresh token: %v", err)
 		tokenErr(w, errServerError, "", http.StatusInternalServerError)
@@ -529,7 +529,7 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, refreshToken s
 		RefreshToken string `json:"refresh_token,omitempty"`
 		IDToken      string `json:"id_token"`
 	}{
-		storage.NewNonce(),
+		storage.NewID(),
 		"bearer",
 		int(expiry.Sub(s.now())),
 		refreshToken,

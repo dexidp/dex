@@ -72,7 +72,7 @@ var approvalTmpl = template.Must(template.New("approval-template").Parse(`<html>
 </body>
 </html>`))
 
-func renderApprovalTmpl(w http.ResponseWriter, state string, identity storage.Identity, client storage.Client, scopes []string) {
+func renderApprovalTmpl(w http.ResponseWriter, state string, identity storage.Claims, client storage.Client, scopes []string) {
 	data := struct {
 		User       string
 		ClientName string

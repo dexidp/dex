@@ -109,8 +109,8 @@ func (cli *client) CreateAuthCode(c storage.AuthCode) error {
 	return cli.post(resourceAuthCode, cli.fromStorageAuthCode(c))
 }
 
-func (cli *client) CreateRefresh(r storage.Refresh) error {
-	refresh := Refresh{
+func (cli *client) CreateRefresh(r storage.RefreshToken) error {
+	refresh := RefreshToken{
 		TypeMeta: k8sapi.TypeMeta{
 			Kind:       kindRefreshToken,
 			APIVersion: cli.apiVersionForResource(resourceRefreshToken),
@@ -123,7 +123,7 @@ func (cli *client) CreateRefresh(r storage.Refresh) error {
 		ConnectorID: r.ConnectorID,
 		Scopes:      r.Scopes,
 		Nonce:       r.Nonce,
-		Identity:    fromStorageIdentity(r.Identity),
+		Claims:      fromStorageClaims(r.Claims),
 	}
 	return cli.post(resourceRefreshToken, refresh)
 }
@@ -160,18 +160,18 @@ func (cli *client) GetKeys() (storage.Keys, error) {
 	return toStorageKeys(keys), nil
 }
 
-func (cli *client) GetRefresh(id string) (storage.Refresh, error) {
-	var r Refresh
+func (cli *client) GetRefresh(id string) (storage.RefreshToken, error) {
+	var r RefreshToken
 	if err := cli.get(resourceRefreshToken, id, &r); err != nil {
-		return storage.Refresh{}, err
+		return storage.RefreshToken{}, err
 	}
-	return storage.Refresh{
+	return storage.RefreshToken{
 		RefreshToken: r.ObjectMeta.Name,
 		ClientID:     r.ClientID,
 		ConnectorID:  r.ConnectorID,
 		Scopes:       r.Scopes,
 		Nonce:        r.Nonce,
-		Identity:     toStorageIdentity(r.Identity),
+		Claims:       toStorageClaims(r.Claims),
 	}, nil
 }
 
@@ -179,7 +179,7 @@ func (cli *client) ListClients() ([]storage.Client, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (cli *client) ListRefreshTokens() ([]storage.Refresh, error) {
+func (cli *client) ListRefreshTokens() ([]storage.RefreshToken, error) {
 	return nil, errors.New("not implemented")
 }
 

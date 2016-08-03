@@ -28,8 +28,8 @@ var ErrNotFound = errors.New("not found")
 // TODO(ericchiang): refactor ID creation onto the storage.
 var encoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567")
 
-// NewNonce returns a new ID for the objects.
-func NewNonce() string {
+// NewID returns a random string which can be used as an ID for objects.
+func NewID() string {
 	buff := make([]byte, 8) // 64 bit random ID.
 	if _, err := io.ReadFull(rand.Reader, buff); err != nil {
 		panic(err)
@@ -50,7 +50,7 @@ type Storage interface {
 	CreateAuthRequest(a AuthRequest) error
 	CreateClient(c Client) error
 	CreateAuthCode(c AuthCode) error
-	CreateRefresh(r Refresh) error
+	CreateRefresh(r RefreshToken) error
 
 	// TODO(ericchiang): return (T, bool, error) so we can indicate not found
 	// requests that way instead of using ErrNotFound.
@@ -58,10 +58,10 @@ type Storage interface {
 	GetAuthCode(id string) (AuthCode, error)
 	GetClient(id string) (Client, error)
 	GetKeys() (Keys, error)
-	GetRefresh(id string) (Refresh, error)
+	GetRefresh(id string) (RefreshToken, error)
 
 	ListClients() ([]Client, error)
-	ListRefreshTokens() ([]Refresh, error)
+	ListRefreshTokens() ([]RefreshToken, error)
 
 	// Delete methods MUST be atomic.
 	DeleteAuthRequest(id string) error
@@ -96,8 +96,8 @@ type Client struct {
 	LogoURL string
 }
 
-// Identity represents the ID Token claims supported by the server.
-type Identity struct {
+// Claims represents the ID Token claims supported by the server.
+type Claims struct {
 	UserID        string
 	Username      string
 	Email         string
@@ -126,7 +126,7 @@ type AuthRequest struct {
 
 	// The identity of the end user. Generally nil until the user authenticates
 	// with a backend.
-	Identity *Identity
+	Claims *Claims
 
 	// The connector used to login the user and any data the connector wishes to persists.
 	// Set when the user authenticates.
@@ -150,13 +150,13 @@ type AuthCode struct {
 
 	Scopes []string
 
-	Identity Identity
+	Claims Claims
 
 	Expiry time.Time
 }
 
-// Refresh is an OAuth2 refresh token.
-type Refresh struct {
+// RefreshToken is an OAuth2 refresh token.
+type RefreshToken struct {
 	// The actual refresh token.
 	RefreshToken string
 
@@ -173,7 +173,7 @@ type Refresh struct {
 
 	Nonce string
 
-	Identity Identity
+	Claims Claims
 }
 
 // VerificationKey is a rotated signing key which can still be used to verify

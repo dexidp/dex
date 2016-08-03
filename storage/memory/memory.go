@@ -13,7 +13,7 @@ func New() storage.Storage {
 	return &memStorage{
 		clients:       make(map[string]storage.Client),
 		authCodes:     make(map[string]storage.AuthCode),
-		refreshTokens: make(map[string]storage.Refresh),
+		refreshTokens: make(map[string]storage.RefreshToken),
 		authReqs:      make(map[string]storage.AuthRequest),
 	}
 }
@@ -23,7 +23,7 @@ type memStorage struct {
 
 	clients       map[string]storage.Client
 	authCodes     map[string]storage.AuthCode
-	refreshTokens map[string]storage.Refresh
+	refreshTokens map[string]storage.RefreshToken
 	authReqs      map[string]storage.AuthRequest
 
 	keys storage.Keys
@@ -49,7 +49,7 @@ func (s *memStorage) CreateAuthCode(c storage.AuthCode) error {
 	return nil
 }
 
-func (s *memStorage) CreateRefresh(r storage.Refresh) error {
+func (s *memStorage) CreateRefresh(r storage.RefreshToken) error {
 	s.tx(func() { s.refreshTokens[r.RefreshToken] = r })
 	return nil
 }
@@ -74,7 +74,7 @@ func (s *memStorage) GetKeys() (keys storage.Keys, err error) {
 	return
 }
 
-func (s *memStorage) GetRefresh(token string) (tok storage.Refresh, err error) {
+func (s *memStorage) GetRefresh(token string) (tok storage.RefreshToken, err error) {
 	s.tx(func() {
 		var ok bool
 		if tok, ok = s.refreshTokens[token]; !ok {
@@ -105,7 +105,7 @@ func (s *memStorage) ListClients() (clients []storage.Client, err error) {
 	return
 }
 
-func (s *memStorage) ListRefreshTokens() (tokens []storage.Refresh, err error) {
+func (s *memStorage) ListRefreshTokens() (tokens []storage.RefreshToken, err error) {
 	s.tx(func() {
 		for _, refresh := range s.refreshTokens {
 			tokens = append(tokens, refresh)
@@ -180,7 +180,7 @@ func (s *memStorage) ClaimCode(id string) (err error) {
 	return
 }
 
-func (s *memStorage) ClaimRefresh(refreshToken string) (token storage.Refresh, err error) {
+func (s *memStorage) ClaimRefresh(refreshToken string) (token storage.RefreshToken, err error) {
 	s.tx(func() {
 		var ok bool
 		if token, ok = s.refreshTokens[refreshToken]; !ok {

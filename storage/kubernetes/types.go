@@ -70,8 +70,8 @@ func toStorageClient(c Client) storage.Client {
 	}
 }
 
-// Identity is a mirrored struct from storage with JSON struct tags.
-type Identity struct {
+// Claims is a mirrored struct from storage with JSON struct tags.
+type Claims struct {
 	UserID        string   `json:"userID"`
 	Username      string   `json:"username"`
 	Email         string   `json:"email"`
@@ -79,8 +79,8 @@ type Identity struct {
 	Groups        []string `json:"groups,omitempty"`
 }
 
-func fromStorageIdentity(i storage.Identity) Identity {
-	return Identity{
+func fromStorageClaims(i storage.Claims) Claims {
+	return Claims{
 		UserID:        i.UserID,
 		Username:      i.Username,
 		Email:         i.Email,
@@ -89,8 +89,8 @@ func fromStorageIdentity(i storage.Identity) Identity {
 	}
 }
 
-func toStorageIdentity(i Identity) storage.Identity {
-	return storage.Identity{
+func toStorageClaims(i Claims) storage.Claims {
+	return storage.Claims{
 		UserID:        i.UserID,
 		Username:      i.Username,
 		Email:         i.Email,
@@ -120,7 +120,7 @@ type AuthRequest struct {
 
 	// The identity of the end user. Generally nil until the user authenticates
 	// with a backend.
-	Identity *Identity `json:"identity,omitempty"`
+	Claims *Claims `json:"claims,omitempty"`
 	// The connector used to login the user. Set when the user authenticates.
 	ConnectorID   string `json:"connectorID,omitempty"`
 	ConnectorData []byte `json:"connectorData,omitempty"`
@@ -149,9 +149,9 @@ func toStorageAuthRequest(req AuthRequest) storage.AuthRequest {
 		ConnectorData:       req.ConnectorData,
 		Expiry:              req.Expiry,
 	}
-	if req.Identity != nil {
-		i := toStorageIdentity(*req.Identity)
-		a.Identity = &i
+	if req.Claims != nil {
+		i := toStorageClaims(*req.Claims)
+		a.Claims = &i
 	}
 	return a
 }
@@ -177,9 +177,9 @@ func (cli *client) fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		ConnectorData:       a.ConnectorData,
 		Expiry:              a.Expiry,
 	}
-	if a.Identity != nil {
-		i := fromStorageIdentity(*a.Identity)
-		req.Identity = &i
+	if a.Claims != nil {
+		i := fromStorageClaims(*a.Claims)
+		req.Claims = &i
 	}
 	return req
 }
@@ -197,7 +197,7 @@ type AuthCode struct {
 	Nonce string `json:"nonce,omitempty"`
 	State string `json:"state,omitempty"`
 
-	Identity Identity `json:"identity,omitempty"`
+	Claims Claims `json:"claims,omitempty"`
 
 	ConnectorID   string `json:"connectorID,omitempty"`
 	ConnectorData []byte `json:"connectorData,omitempty"`
@@ -228,7 +228,7 @@ func (cli *client) fromStorageAuthCode(a storage.AuthCode) AuthCode {
 		ConnectorData: a.ConnectorData,
 		Nonce:         a.Nonce,
 		Scopes:        a.Scopes,
-		Identity:      fromStorageIdentity(a.Identity),
+		Claims:        fromStorageClaims(a.Claims),
 		Expiry:        a.Expiry,
 	}
 }
@@ -242,14 +242,14 @@ func toStorageAuthCode(a AuthCode) storage.AuthCode {
 		ConnectorData: a.ConnectorData,
 		Nonce:         a.Nonce,
 		Scopes:        a.Scopes,
-		Identity:      toStorageIdentity(a.Identity),
+		Claims:        toStorageClaims(a.Claims),
 		Expiry:        a.Expiry,
 	}
 }
 
-// Refresh is a mirrored struct from storage with JSON struct tags and
+// RefreshToken is a mirrored struct from storage with JSON struct tags and
 // Kubernetes type metadata.
-type Refresh struct {
+type RefreshToken struct {
 	k8sapi.TypeMeta   `json:",inline"`
 	k8sapi.ObjectMeta `json:"metadata,omitempty"`
 
@@ -258,15 +258,15 @@ type Refresh struct {
 
 	Nonce string `json:"nonce,omitempty"`
 
-	Identity    Identity `json:"identity,omitempty"`
-	ConnectorID string   `json:"connectorID,omitempty"`
+	Claims      Claims `json:"claims,omitempty"`
+	ConnectorID string `json:"connectorID,omitempty"`
 }
 
 // RefreshList is a list of refresh tokens.
 type RefreshList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`
-	RefreshTokens   []Refresh `json:"items"`
+	RefreshTokens   []RefreshToken `json:"items"`
 }
 
 // Keys is a mirrored struct from storage with JSON struct tags and Kubernetes

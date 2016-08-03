@@ -21,7 +21,7 @@ func RunTestSuite(t *testing.T, s storage.Storage) {
 
 func testUpdateAuthRequest(t *testing.T, s storage.Storage) {
 	a := storage.AuthRequest{
-		ID:            storage.NewNonce(),
+		ID:            storage.NewID(),
 		ClientID:      "foobar",
 		ResponseTypes: []string{"code"},
 		Scopes:        []string{"openid", "email"},
@@ -29,13 +29,13 @@ func testUpdateAuthRequest(t *testing.T, s storage.Storage) {
 		Expiry:        neverExpire,
 	}
 
-	identity := storage.Identity{Email: "foobar"}
+	identity := storage.Claims{Email: "foobar"}
 
 	if err := s.CreateAuthRequest(a); err != nil {
 		t.Fatalf("failed creating auth request: %v", err)
 	}
 	if err := s.UpdateAuthRequest(a.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
-		old.Identity = &identity
+		old.Claims = &identity
 		old.ConnectorID = "connID"
 		return old, nil
 	}); err != nil {
@@ -46,17 +46,17 @@ func testUpdateAuthRequest(t *testing.T, s storage.Storage) {
 	if err != nil {
 		t.Fatalf("failed to get auth req: %v", err)
 	}
-	if got.Identity == nil {
+	if got.Claims == nil {
 		t.Fatalf("no identity in auth request")
 	}
-	if !reflect.DeepEqual(*got.Identity, identity) {
-		t.Fatalf("update failed, wanted identity=%#v got %#v", identity, *got.Identity)
+	if !reflect.DeepEqual(*got.Claims, identity) {
+		t.Fatalf("update failed, wanted identity=%#v got %#v", identity, *got.Claims)
 	}
 }
 
 func testCreateRefresh(t *testing.T, s storage.Storage) {
-	id := storage.NewNonce()
-	refresh := storage.Refresh{
+	id := storage.NewID()
+	refresh := storage.RefreshToken{
 		RefreshToken: id,
 		ClientID:     "client_id",
 		ConnectorID:  "client_secret",
