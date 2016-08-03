@@ -16,8 +16,6 @@ import (
 )
 
 var (
-	drivers = make(map[string]Driver)
-
 	// stubbed out for testing
 	now = time.Now
 )
@@ -38,35 +36,6 @@ func NewNonce() string {
 	}
 	// Trim padding
 	return strings.TrimRight(encoding.EncodeToString(buff), "=")
-}
-
-// Driver is the interface implemented by storage drivers.
-type Driver interface {
-	// Open returns a storage implementation. It should only validate its
-	// arguments and not return an error if the underlying storage is
-	// unavailable.
-	Open(config map[string]string) (Storage, error)
-}
-
-// Register makes a storage driver available by the provided name. If Register
-// is called twice with the same name or if driver is nil, it panics.
-func Register(name string, driver Driver) {
-	if driver == nil {
-		panic("driver cannot be nil")
-	}
-	if _, ok := drivers[name]; ok {
-		panic("driver " + name + " is already registered")
-	}
-	drivers[name] = driver
-}
-
-// Open returns a new storage object with a given key rotation strategy.
-func Open(driverName string, config map[string]string) (Storage, error) {
-	driver, ok := drivers[driverName]
-	if !ok {
-		return nil, fmt.Errorf("no driver of type %s found", driverName)
-	}
-	return driver.Open(config)
 }
 
 // Storage is the storage interface used by the server. Implementations, at minimum

@@ -8,10 +8,6 @@ import (
 	"github.com/coreos/poke/storage"
 )
 
-func init() {
-	storage.Register("memory", new(driver))
-}
-
 // New returns an in memory storage.
 func New() storage.Storage {
 	return &memStorage{
@@ -20,15 +16,6 @@ func New() storage.Storage {
 		refreshTokens: make(map[string]storage.Refresh),
 		authReqs:      make(map[string]storage.AuthRequest),
 	}
-}
-
-type driver struct{}
-
-func (f *driver) Open(config map[string]string) (storage.Storage, error) {
-	if len(config) != 0 {
-		return nil, errors.New("in memory storage does not take any arguments")
-	}
-	return New(), nil
 }
 
 type memStorage struct {
