@@ -1,5 +1,5 @@
-hash: 66d8717b42e620d52ceec62e7cb3f2bc23f21bfe35547587338d85564bd330c9
-updated: 2016-07-31T12:19:29.812965492-07:00
+hash: 2b694ffd26e854f519064b43f437545dfb7cfdc437b3890552dc1f6e7955a2b5
+updated: 2016-08-03T23:07:24.402853601-07:00
 imports:
 - name: github.com/ericchiang/oidc
   version: 69fec81d167d815f4f455c741b2a94ffaf547ed2
@@ -16,6 +16,11 @@ imports:
   version: e7e23673cac3f529f49e22f94e4af6d12bb49dba
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/kylelemons/godebug
+  version: eadb3ce320cbab8393bea5ca17bebac3f78a021b
+  subpackages:
+  - diff
+  - pretty
 - name: github.com/mitchellh/go-homedir
   version: 756f7b183b7ab78acdbbee5c7f392838ed459dda
 - name: github.com/pquerna/cachecontrol
