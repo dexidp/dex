@@ -7,10 +7,11 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/spf13/cobra"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/coreos/poke/server"
-	"github.com/spf13/cobra"
+	"github.com/coreos/poke/storage"
 )
 
 func commandServe() *cobra.Command {
@@ -82,6 +83,9 @@ func serve(cmd *cobra.Command, args []string) error {
 	s, err := c.Storage.Config.Open()
 	if err != nil {
 		return fmt.Errorf("initializing storage: %v", err)
+	}
+	if len(c.StaticClients) > 0 {
+		s = storage.WithStaticClients(s, c.StaticClients)
 	}
 
 	serverConfig := server.Config{

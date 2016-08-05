@@ -18,6 +18,18 @@ func New() storage.Storage {
 	}
 }
 
+// Config is an implementation of a storage configuration.
+//
+// TODO(ericchiang): Actually define a storage config interface and have registration.
+type Config struct {
+	// The in memory implementation has no config.
+}
+
+// Open always returns a new in memory storage.
+func (c *Config) Open() (storage.Storage, error) {
+	return New(), nil
+}
+
 type memStorage struct {
 	mu sync.Mutex
 

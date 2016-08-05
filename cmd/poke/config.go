@@ -9,6 +9,7 @@ import (
 	"github.com/coreos/poke/connector/mock"
 	"github.com/coreos/poke/storage"
 	"github.com/coreos/poke/storage/kubernetes"
+	"github.com/coreos/poke/storage/memory"
 )
 
 // Config is the config format for the main application.
@@ -17,6 +18,8 @@ type Config struct {
 	Storage    Storage     `yaml:"storage"`
 	Connectors []Connector `yaml:"connectors"`
 	Web        Web         `yaml:"web"`
+
+	StaticClients []storage.Client `yaml:"staticClients"`
 }
 
 // Web is the config format for the HTTP server.
@@ -46,9 +49,12 @@ func (s *Storage) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var c struct {
 		Config StorageConfig `yaml:"config"`
 	}
+	// TODO(ericchiang): replace this with a registration process.
 	switch storageMeta.Type {
 	case "kubernetes":
 		c.Config = &kubernetes.Config{}
+	case "memory":
+		c.Config = &memory.Config{}
 	default:
 		return fmt.Errorf("unknown storage type %q", storageMeta.Type)
 	}

@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -125,7 +126,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	for id := range s.connectors {
 		connectorInfos[i] = connectorInfo{
 			DisplayName: id,
-			URL:         s.absPath("/auth", id) + "?state=" + state,
+			URL:         s.absPath("/auth", id),
 		}
 		i++
 	}
@@ -224,6 +225,9 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) finalizeLogin(identity connector.Identity, authReqID, connectorID string, conn connector.Connector) (string, error) {
+	if authReqID == "" {
+		return "", errors.New("no auth request ID passed")
+	}
 	claims := storage.Claims{
 		UserID:        identity.UserID,
 		Username:      identity.Username,

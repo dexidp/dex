@@ -1,0 +1,27 @@
+issuer: http://127.0.0.1:5556
+storage:
+  # NOTE(ericchiang): This will be replaced by sqlite3 in the future.
+  type: memory
+
+web:
+  http: 127.0.0.1:5556
+
+connectors:
+- type: mock
+  id: mock
+  name: Mock
+- type: github
+  id: github
+  name: GitHub
+  config:
+    clientID: "$GITHUB_CLIENT_ID"
+    clientSecret: "$GITHUB_CLIENT_SECRET"
+    redirectURI: http://127.0.0.1:5556/callback/github
+    org: kubernetes
+
+staticClients:
+- id: example-app
+  redirectURIs:
+  - 'http://127.0.0.1:5555/callback'
+  name: 'Example App'
+  secret: ZXhhbXBsZS1hcHAtc2VjcmV0
