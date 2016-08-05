@@ -87,3 +87,9 @@ import:
   - trace
   - lex/httplex
   - internal/timeseries
+
+- package: github.com/kylelemons/godebug
+  subpackages:
+  - diff
+  - pretty
+  version: eadb3ce320cbab8393bea5ca17bebac3f78a021b

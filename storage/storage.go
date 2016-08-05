@@ -81,19 +81,19 @@ type Storage interface {
 //   * Trusted peers: https://developers.google.com/identity/protocols/CrossClientAuth
 //   * Public clients: https://developers.google.com/api-client-library/python/auth/installed-app
 type Client struct {
-	ID           string
-	Secret       string
-	RedirectURIs []string
+	ID           string   `json:"id" yaml:"id"`
+	Secret       string   `json:"secret" yaml:"secret"`
+	RedirectURIs []string `json:"redirectURIs" yaml:"redirectURIs"`
 
 	// TrustedPeers are a list of peers which can issue tokens on this client's behalf.
 	// Clients inherently trust themselves.
-	TrustedPeers []string
+	TrustedPeers []string `json:"trustedPeers" yaml:"trustedPeers"`
 
 	// Public clients must use either use a redirectURL 127.0.0.1:X or "urn:ietf:wg:oauth:2.0:oob"
-	Public bool
+	Public bool `json:"public" yaml:"public"`
 
-	Name    string
-	LogoURL string
+	Name    string `json:"name" yaml:"name"`
+	LogoURL string `json:"logoURL" yaml:"logoURL"`
 }
 
 // Claims represents the ID Token claims supported by the server.
