@@ -46,13 +46,6 @@ lint:
       golint $$package; \
 	done
 
-# TODO(ericchiang): Grab protoc as well.
-grpc: bin/protoc-gen-go
-	@protoc --go_out=plugins=grpc:. ./api/apipb/*.proto
-
-bin/protoc-gen-go:
-	@go install ${REPO_PATH}/vendor/github.com/golang/protobuf/protoc-gen-go
-
 clean:
 	@rm bin/*
 
@@ -60,4 +53,4 @@ testall: testrace vet fmt lint
 
 FORCE:
 
-.PHONY: test testrace vet fmt lint testall grpc
+.PHONY: test testrace vet fmt lint testall
