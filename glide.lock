@@ -1,5 +1,5 @@
-hash: 2b694ffd26e854f519064b43f437545dfb7cfdc437b3890552dc1f6e7955a2b5
-updated: 2016-08-03T23:07:24.402853601-07:00
+hash: 4442a097b81856345ae5f80101ad1a692a0b4e5d9b7627f5ad09cd20926122f4
+updated: 2016-08-05T09:58:15.61704222-07:00
 imports:
 - name: github.com/ericchiang/oidc
   version: 69fec81d167d815f4f455c741b2a94ffaf547ed2
@@ -40,11 +40,6 @@ imports:
   version: 6a513affb38dc9788b449d59ffed099b8de18fa0
   subpackages:
   - context
-  - http2
-  - http2/hpack
-  - trace
-  - lex/httplex
-  - internal/timeseries
 - name: golang.org/x/oauth2
   version: 08c8d727d2392d18286f9f88ad775ad98f09ab33
   subpackages:
@@ -60,17 +55,6 @@ imports:
   - internal/datastore
   - internal/log
   - internal/remote_api
-- name: google.golang.org/grpc
-  version: 13edeeffdea7a41d5aad96c28deb4c7bd01a9397
-  subpackages:
-  - codes
-  - credentials
-  - grpclog
-  - internal
-  - metadata
-  - naming
-  - transport
-  - peer
 - name: gopkg.in/asn1-ber.v1
   version: 4e86f4367175e39f69d9358a5f17b4dda270378d
 - name: gopkg.in/ldap.v2
