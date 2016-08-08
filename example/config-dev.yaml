@@ -18,6 +18,14 @@ connectors:
     clientSecret: "$GITHUB_CLIENT_SECRET"
     redirectURI: http://127.0.0.1:5556/callback/github
     org: kubernetes
+- type: oidc
+  id: google
+  name: Google Account
+  config:
+    issuer: https://accounts.google.com
+    clientID: "$GOOGLE_OAUTH2_CLIENT_ID"
+    clientSecret: "$GOOGLE_OAUTH2_CLIENT_SECRET"
+    redirectURI: http://127.0.0.1:5556/callback/google
 
 staticClients:
 - id: example-app

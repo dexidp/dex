@@ -1,9 +1,7 @@
 package oidc
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 
 	"golang.org/x/oauth2"
 )
@@ -29,13 +27,7 @@ type nonceVerifier struct {
 	nonceSource NonceSource
 }
 
-func (n nonceVerifier) verifyIDTokenPayload(payload []byte) error {
-	var token struct {
-		Nonce string `json:"nonce"`
-	}
-	if err := json.Unmarshal(payload, &token); err != nil {
-		return fmt.Errorf("oidc: failed to unmarshal nonce: %v", err)
-	}
+func (n nonceVerifier) verifyIDToken(token *IDToken) error {
 	if token.Nonce == "" {
 		return errors.New("oidc: no nonce present in ID Token")
 	}

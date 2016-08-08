@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/rand"
 	"encoding/gob"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -192,7 +191,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 			return httpError(http.StatusInternalServerError, "Authentication failed")
 		}
 
-		payload, err := verifier.Verify(rawIDToken)
+		idToken, err := verifier.Verify(rawIDToken)
 		if err != nil {
 			log.Printf("Failed to verify token: %v", err)
 			return httpError(http.StatusInternalServerError, "Authentication failed")
@@ -201,7 +200,8 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 			Email         string `json:"email"`
 			EmailVerified bool   `json:"email_verified"`
 		}
-		if err := json.Unmarshal(payload, &claims); err != nil {
+
+		if err := idToken.Claims(&claims); err != nil {
 			log.Printf("Failed to decode claims: %v", err)
 			return httpError(http.StatusInternalServerError, "Authentication failed")
 		}

@@ -69,23 +69,28 @@ func main() {
 			http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+
 		rawIDToken, ok := oauth2Token.Extra("id_token").(string)
 		if !ok {
 			http.Error(w, "No id_token field in oauth2 token.", http.StatusInternalServerError)
 			return
 		}
 		// Verify the ID Token signature and nonce.
-		idTokenPayload, err := nonceEnabledVerifier.Verify(rawIDToken)
+		idToken, err := nonceEnabledVerifier.Verify(rawIDToken)
 		if err != nil {
 			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		rawMessage := json.RawMessage(idTokenPayload)
 		resp := struct {
-			OAuth2Token *oauth2.Token
-			IDToken     *json.RawMessage // ID Token payload is just JSON.
-		}{oauth2Token, &rawMessage}
+			OAuth2Token   *oauth2.Token
+			IDTokenClaims *json.RawMessage // ID Token payload is just JSON.
+		}{oauth2Token, new(json.RawMessage)}
+
+		if err := idToken.Claims(&resp.IDTokenClaims); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		data, err := json.MarshalIndent(resp, "", "    ")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

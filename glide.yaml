@@ -43,7 +43,7 @@ import:
   - bcrypt
 
 - package: github.com/ericchiang/oidc
-  version: 69fec81d167d815f4f455c741b2a94ffaf547ed2
+  version: 1907f0e61549f9081f26bdf269f11603496c9dee
 - package: github.com/pquerna/cachecontrol
   version: c97913dcbd76de40b051a9b4cd827f7eaeb7a868
 - package: gopkg.in/square/go-jose.v1
