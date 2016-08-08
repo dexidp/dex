@@ -520,7 +520,7 @@ func handleTokenFunc(srv OIDCServer) http.HandlerFunc {
 				writeTokenError(w, oauth2.NewError(oauth2.ErrorInvalidRequest), state)
 				return
 			}
-			jwt, err = srv.RefreshToken(creds, strings.Split(scopes, " "), token)
+			jwt, refreshToken, err = srv.RefreshToken(creds, strings.Split(scopes, " "), token)
 			if err != nil {
 				writeTokenError(w, err, state)
 				return

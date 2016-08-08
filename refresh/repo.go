@@ -54,6 +54,9 @@ type RefreshTokenRepo interface {
 	// Revoke deletes the refresh token if the token belongs to the given userID.
 	Revoke(userID, token string) error
 
+	// Revoke old refresh token and generates a new one
+	RenewRefreshToken(clientID, userID, oldToken string) (newRefreshToken string, err error)
+
 	// RevokeTokensForClient revokes all tokens issued for the userID for the provided client.
 	RevokeTokensForClient(userID, clientID string) error
 
