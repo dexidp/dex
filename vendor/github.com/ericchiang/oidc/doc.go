@@ -65,19 +65,19 @@ including verifying the JWT signature. It then returns the payload.
 		}
 
 		// Verify that the ID Token is signed by the provider.
-		payload, err := verifier.Verify(rawIDToken)
+		idToken, err := verifier.Verify(rawIDToken)
 		if err != nil {
 			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		// Unmarshal ID Token for expected custom claims.
-		var idToken struct {
+		var claims struct {
 			Email         string `json:"email"`
 			EmailVerified bool   `json:"email_verified"`
 		}
-		if err := json.Unmarshal(payload, &idToken); err != nil {
-			http.Error(w, "Failed to unmarshal ID Token: "+err.Error(), http.StatusInternalServerError)
+		if err := idToken.Claims(&claims); err != nil {
+			http.Error(w, "Failed to unmarshal ID Token custom claims: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -123,7 +123,7 @@ The nonce enabled verifier can then be used to verify the nonce while unpacking 
 		}
 
 		// Verify that the ID Token is signed by the provider and verify the nonce.
-		payload, err := nonceEnabledVerifier.Verify(rawIDToken)
+		idToken, err := nonceEnabledVerifier.Verify(rawIDToken)
 		if err != nil {
 			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
 			return

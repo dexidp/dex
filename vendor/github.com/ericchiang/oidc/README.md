@@ -58,6 +58,13 @@ Or the provider can be used to verify and inspect the OpenID Connect
 verifier := provider.NewVerifier(ctx)
 ```
 
+The verifier itself can be constructed with addition checks, such as verifing a
+token was issued for a specific client or hasn't expired.
+
+```go
+verifier := provier.NewVerifier(ctx, oidc.VerifyAudience(clientID), oidc.VerifyExpiry())
+```
+
 The returned verifier can be used to ensure the ID Token (a JWT) is signed by the provider. 
 
 ```go
@@ -78,19 +85,19 @@ func handleOAuth2Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify that the ID Token is signed by the provider.
-	payload, err := verifier.Verify(rawIDToken)
+	idToken, err := verifier.Verify(rawIDToken)
 	if err != nil {
 		http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Unmarshal ID Token for expected custom claims.
-	var idToken struct {
+	var claims struct {
 		Email         string `json:"email"`
 		EmailVerified bool   `json:"email_verified"`
 	}
-	if err := json.Unmarshal(payload, &idToken); err != nil {
-		http.Error(w, "Failed to unmarshal ID Token: "+err.Error(), http.StatusInternalServerError)
+	if err := idToken.Claims(&claims); err != nil {
+		http.Error(w, "Failed to unmarshal ID Token claims: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
