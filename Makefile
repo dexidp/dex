@@ -21,10 +21,13 @@ else
 endif
 
 
-build: bin/poke
+build: bin/poke bin/example-app
 
 bin/poke: FORCE
 	@go install $(REPO_PATH)/cmd/poke
+
+bin/example-app: FORCE
+	@go install $(REPO_PATH)/cmd/example-app
 
 test:
 	@go test $(shell go list ./... | grep -v '/vendor/')
