@@ -10,9 +10,12 @@ import (
 
 func commandVersion() *cobra.Command {
 	return &cobra.Command{
-		Use: "version",
+		Use:   "version",
+		Short: "Print the version and exit",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf(`v%s %s %s %s
+			fmt.Printf(`dex Version:%s
+Go Version: %s
+Go OS/ARCH: %s %s
 `, version.Version, runtime.Version(), runtime.GOOS, runtime.GOARCH)
 		},
 	}
