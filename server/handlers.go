@@ -82,10 +82,10 @@ func (s *Server) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 		ResponseTypes: []string{"code"},
 		Subjects:      []string{"public"},
 		IDTokenAlgs:   []string{string(jose.RS256)},
-		Scopes:        []string{"openid", "email", "profile"},
+		Scopes:        []string{"openid", "email", "profile", "offline_access"},
 		AuthMethods:   []string{"client_secret_basic"},
 		Claims: []string{
-			"aud", "email", "email_verified", "exp", "family_name", "given_name",
+			"aud", "email", "email_verified", "exp",
 			"iat", "iss", "locale", "name", "sub",
 		},
 	}
