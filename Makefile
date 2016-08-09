@@ -1,33 +1,24 @@
-PROJ="poke"
-ORG_PATH="github.com/coreos"
-REPO_PATH="$(ORG_PATH)/$(PROJ)"
+PROJ=poke
+ORG_PATH=github.com/coreos
+REPO_PATH=$(ORG_PATH)/$(PROJ)
 export PATH := $(PWD)/bin:$(PATH)
 
 export GOBIN=$(PWD)/bin
 export GO15VENDOREXPERIMENT=1
+export CGO_ENABLED:=0
+
+LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(shell ./scripts/git-version)"
 
 GOOS=$(shell go env GOOS)
 GOARCH=$(shell go env GOARCH)
 
-COMMIT=$(shell git rev-parse HEAD)
-
-# check if the current commit has a matching tag
-TAG=$(shell git describe --exact-match --abbrev=0 --tags $(COMMIT) 2> /dev/null || true)
-
-ifeq ($(TAG),)
-	VERSION=$(TAG)
-else
-	VERSION=$(COMMIT)
-endif
-
-
 build: bin/poke bin/example-app
 
 bin/poke: FORCE
-	@go install $(REPO_PATH)/cmd/poke
+	@go install -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/poke
 
 bin/example-app: FORCE
-	@go install $(REPO_PATH)/cmd/example-app
+	@go install -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/example-app
 
 test:
 	@go test $(shell go list ./... | grep -v '/vendor/')
