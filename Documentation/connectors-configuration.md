@@ -235,5 +235,5 @@ If the client requests the "groups" scope, the names of all returned entries are
 To set a connectors configuration in dex, put it in some temporary file, then use the dexctl command to upload it to dex:
 
 ```
-dexctl -db-url=$DEX_DB_URL set-connector-configs /tmp/dex_connectors.json
+dexctl --db-url=$DEX_DB_URL set-connector-configs /tmp/dex_connectors.json
 ```
