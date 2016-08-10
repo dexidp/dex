@@ -165,7 +165,7 @@ In addition to `id` and `type`, the `ldap` connector takes the following additio
 * emailAttribute: a `string`. Required. Attribute to map to Email. Default: `mail`
 * searchBeforeAuth: a `boolean`. Perform search for entryDN to be used for bind.
 * searchFilter: a `string`. Filter to apply to search. Variable substititions: `%u` User supplied username/e-mail address. `%b` BaseDN. Searches that return multiple entries are considered ambiguous and will return an error.
-* searchGroupFilter: a `string`. A filter which should return group entry for a given user. The string is formatted the same as `searchFilter`, execpt `%u` is replaced by the fully qualified user entry. Groups are only searched if the client request the "groups" scope. 
+* searchGroupFilter: a `string`. A filter which should return group entry for a given user. The string is formatted the same as `searchFilter`, execpt `%u` is replaced by the fully qualified user entry. Groups are only searched if the client request the "groups" scope.
 * searchScope: a `string`. Scope of the search. `base|one|sub`. Default: `one`
 * searchBindDN: a `string`. DN to bind as for search operations.
 * searchBindPw: a `string`. Password for bind for search operations.
@@ -237,3 +237,38 @@ To set a connectors configuration in dex, put it in some temporary file, then us
 ```
 dexctl --db-url=$DEX_DB_URL set-connector-configs /tmp/dex_connectors.json
 ```
+
+### `uaa` connector
+
+This connector config lets users authenticate through the
+[CloudFoundry User Account and Authentication (UAA) Server](https://github.com/cloudfoundry/uaa). In addition to `id`
+and `type`, the `uaa` connector takes the following additional fields:
+
+* clientID: a `string`. The UAA OAuth application client ID.
+* clientSecret: a `string`. The UAA OAuth application client secret.
+* serverURL: a `string`. The full URL to the UAA service.
+
+To begin, register an OAuth application with UAA. To register dex as a client of your UAA application, there are two
+things your OAuth application needs to have configured properly:
+
+* Make sure dex's redirect URL _(`ISSUER_URL/auth/$CONNECTOR_ID/callback`)_ is in the application's `redirect_uri` list
+* Make sure the `openid` scope is in the application's `scope` list
+
+Regarding the `redirect_uri` list, as an example if you were running dex at `https://auth.example.com/bar`, the UAA
+OAuth application's `redirect_uri` list would need to contain `https://auth.example.com/bar/auth/uaa/callback`.
+
+Here's an example of a `uaa` connector _(The `clientID` and `clientSecret` should be replaced by values provided to UAA
+and the `serverURL` should be the fully-qualified URL to your UAA server)_:
+
+```
+    {
+        "type": "uaa",
+        "id": "example-uaa",
+        "clientID": "$UAA_OAUTH_APPLICATION_CLIENT_ID",
+        "clientSecret": "$UAA_OAUTH_APPLICATION_CLIENT_SECRET",
+        "serverURL": "$UAA_SERVER_URL"
+    }
+```
+
+The `uaa` connector requests only the `openid` scope which allows dex the ability to query the user's identity
+information.
