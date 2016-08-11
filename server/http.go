@@ -131,6 +131,7 @@ var connectorDisplayNameMap = map[string]string{
 	"local":     "Email",
 	"github":    "GitHub",
 	"bitbucket": "Bitbucket",
+	"uaa":       "CloudFoundry User Account and Authentication (UAA)",
 }
 
 type Template interface {
