@@ -32,8 +32,9 @@ dex requires a Go installation and a GOPATH configured. Clone it down the
 correct place, and simply type `make` to compile dex.
 
 ```
-git clone https://github.com:coreos/dex.git $GOPATH/src/github.com/coreos/dex
+git clone https://github.com/coreos/dex.git $GOPATH/src/github.com/coreos/dex
 cd $GOPATH/src/github.com/coreos/dex
+git checkout dev
 make
 ```
 
