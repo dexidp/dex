@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/coreos/poke/connector"
+	"github.com/coreos/dex/connector"
 )
 
 // New returns a mock connector which requires no user interaction. It always returns

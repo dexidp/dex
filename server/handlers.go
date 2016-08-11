@@ -15,8 +15,8 @@ import (
 	"github.com/gorilla/mux"
 	jose "gopkg.in/square/go-jose.v2"
 
-	"github.com/coreos/poke/connector"
-	"github.com/coreos/poke/storage"
+	"github.com/coreos/dex/connector"
+	"github.com/coreos/dex/storage"
 )
 
 func (s *Server) handlePublicKeys(w http.ResponseWriter, r *http.Request) {

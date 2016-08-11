@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/poke/storage"
+	"github.com/coreos/dex/storage"
 )
 
 var neverExpire = time.Now().Add(time.Hour * 24 * 365 * 100)

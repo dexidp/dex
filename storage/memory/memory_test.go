@@ -3,7 +3,7 @@ package memory
 import (
 	"testing"
 
-	"github.com/coreos/poke/storage/storagetest"
+	"github.com/coreos/dex/storage/storagetest"
 )
 
 func TestStorage(t *testing.T) {

@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/coreos/poke/storage"
+	"github.com/coreos/dex/storage"
 	"github.com/kylelemons/godebug/pretty"
 
 	yaml "gopkg.in/yaml.v2"

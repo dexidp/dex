@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/poke/storage"
+	"github.com/coreos/dex/storage"
 )
 
 // TODO(ericchiang): clean this file up and figure out more idiomatic error handling.

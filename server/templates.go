@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"text/template"
 
-	"github.com/coreos/poke/storage"
+	"github.com/coreos/dex/storage"
 )
 
 type connectorInfo struct {

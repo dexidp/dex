@@ -11,7 +11,7 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 
-	"github.com/coreos/poke/connector"
+	"github.com/coreos/dex/connector"
 )
 
 // Config holds configuration options for OpenID Connect logins.

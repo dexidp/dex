@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/coreos/poke/version"
+	"github.com/coreos/dex/version"
 	"github.com/spf13/cobra"
 )
 

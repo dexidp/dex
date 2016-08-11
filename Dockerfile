@@ -4,8 +4,8 @@ MAINTAINER Eric Chiang <eric.chiang@coreos.com>
 
 RUN apk add --update ca-certificates 
 
-COPY bin/poke /poke
+COPY bin/dex /dex
 
-ENTRYPOINT ["/poke"]
+ENTRYPOINT ["/dex"]
 
 CMD ["version"]

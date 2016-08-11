@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/coreos/poke/storage/storagetest"
+	"github.com/coreos/dex/storage/storagetest"
 )
 
 func TestLoadClient(t *testing.T) {

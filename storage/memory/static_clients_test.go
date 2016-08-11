@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/coreos/poke/storage"
+	"github.com/coreos/dex/storage"
 )
 
 func TestStaticClients(t *testing.T) {

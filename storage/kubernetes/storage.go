@@ -10,8 +10,8 @@ import (
 	homedir "github.com/mitchellh/go-homedir"
 	"golang.org/x/net/context"
 
-	"github.com/coreos/poke/storage"
-	"github.com/coreos/poke/storage/kubernetes/k8sapi"
+	"github.com/coreos/dex/storage"
+	"github.com/coreos/dex/storage/kubernetes/k8sapi"
 )
 
 const (

@@ -3,14 +3,14 @@ package main
 import (
 	"fmt"
 
-	"github.com/coreos/poke/connector"
-	"github.com/coreos/poke/connector/github"
-	"github.com/coreos/poke/connector/ldap"
-	"github.com/coreos/poke/connector/mock"
-	"github.com/coreos/poke/connector/oidc"
-	"github.com/coreos/poke/storage"
-	"github.com/coreos/poke/storage/kubernetes"
-	"github.com/coreos/poke/storage/memory"
+	"github.com/coreos/dex/connector"
+	"github.com/coreos/dex/connector/github"
+	"github.com/coreos/dex/connector/ldap"
+	"github.com/coreos/dex/connector/mock"
+	"github.com/coreos/dex/connector/oidc"
+	"github.com/coreos/dex/storage"
+	"github.com/coreos/dex/storage/kubernetes"
+	"github.com/coreos/dex/storage/memory"
 )
 
 // Config is the config format for the main application.

@@ -14,9 +14,9 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 
-	"github.com/coreos/poke/connector/mock"
-	"github.com/coreos/poke/storage"
-	"github.com/coreos/poke/storage/memory"
+	"github.com/coreos/dex/connector/mock"
+	"github.com/coreos/dex/storage"
+	"github.com/coreos/dex/storage/memory"
 )
 
 func mustLoad(s string) *rsa.PrivateKey {

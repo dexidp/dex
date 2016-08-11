@@ -1,7 +1,7 @@
 # NOTE(ericchiang): Create a separate block for each dependency so it's clear
 # which dependencies require which transitive dependencies.
 
-package: github.com/coreos/poke
+package: github.com/coreos/dex
 import:
 
 - package: github.com/spf13/cobra

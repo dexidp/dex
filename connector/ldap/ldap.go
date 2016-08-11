@@ -7,7 +7,7 @@ import (
 
 	"gopkg.in/ldap.v2"
 
-	"github.com/coreos/poke/connector"
+	"github.com/coreos/dex/connector"
 )
 
 // Config holds the configuration parameters for the LDAP connector.

@@ -1,11 +1,11 @@
-PROJ=poke
+PROJ=dex
 ORG_PATH=github.com/coreos
 REPO_PATH=$(ORG_PATH)/$(PROJ)
 export PATH := $(PWD)/bin:$(PATH)
 
 VERSION=$(shell ./scripts/git-version)
 
-DOCKER_REPO=quay.io/ericchiang/poke
+DOCKER_REPO=quay.io/ericchiang/dex
 DOCKER_IMAGE=$(DOCKER_REPO):$(VERSION)
 
 export GOBIN=$(PWD)/bin
@@ -17,10 +17,10 @@ LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
 GOOS=$(shell go env GOOS)
 GOARCH=$(shell go env GOARCH)
 
-build: bin/poke bin/example-app
+build: bin/dex bin/example-app
 
-bin/poke: FORCE
-	@go install -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/poke
+bin/dex: FORCE
+	@go install -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
 bin/example-app: FORCE
 	@go install -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/example-app
@@ -43,7 +43,7 @@ lint:
 	done
 
 .PHONY: docker-build
-docker-build: bin/poke
+docker-build: bin/dex
 	@docker build -t $(DOCKER_IMAGE) .
 
 .PHONY: docker-push

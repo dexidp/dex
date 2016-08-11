@@ -13,7 +13,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 
-	"github.com/coreos/poke/connector"
+	"github.com/coreos/dex/connector"
 )
 
 const baseURL = "https://api.github.com"

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/poke/storage"
+	"github.com/coreos/dex/storage"
 )
 
 func muster(t *testing.T) func(err error) {

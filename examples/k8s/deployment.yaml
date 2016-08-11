@@ -12,10 +12,10 @@ spec:
         app: dex
     spec:
       containers:
-      - image: quay.io/ericchiang/poke
+      - image: quay.io/ericchiang/dex
         name: dex
         command:
-        - "/poke"
+        - "/dex"
         - "serve"
         - "/dex/config.yaml"
         env:

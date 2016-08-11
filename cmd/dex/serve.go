@@ -10,8 +10,8 @@ import (
 	"github.com/spf13/cobra"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/coreos/poke/server"
-	"github.com/coreos/poke/storage"
+	"github.com/coreos/dex/server"
+	"github.com/coreos/dex/storage"
 )
 
 func commandServe() *cobra.Command {
@@ -19,7 +19,7 @@ func commandServe() *cobra.Command {
 		Use:     "serve [ config file ]",
 		Short:   "Connect to the storage and begin serving requests.",
 		Long:    ``,
-		Example: "poke serve c.yaml",
+		Example: "dex serve c.yaml",
 		RunE:    serve,
 	}
 }

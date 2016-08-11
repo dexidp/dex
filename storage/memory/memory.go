@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/coreos/poke/storage"
+	"github.com/coreos/dex/storage"
 )
 
 // New returns an in memory storage.

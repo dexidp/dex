@@ -5,8 +5,8 @@ import (
 
 	jose "gopkg.in/square/go-jose.v2"
 
-	"github.com/coreos/poke/storage"
-	"github.com/coreos/poke/storage/kubernetes/k8sapi"
+	"github.com/coreos/dex/storage"
+	"github.com/coreos/dex/storage/kubernetes/k8sapi"
 )
 
 // There will only ever be a single keys resource. Maintain this by setting a

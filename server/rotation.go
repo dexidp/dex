@@ -13,7 +13,7 @@ import (
 	"golang.org/x/net/context"
 	"gopkg.in/square/go-jose.v2"
 
-	"github.com/coreos/poke/storage"
+	"github.com/coreos/dex/storage"
 )
 
 // rotationStrategy describes a strategy for generating cryptographic keys, how

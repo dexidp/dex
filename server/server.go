@@ -11,8 +11,8 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/coreos/poke/connector"
-	"github.com/coreos/poke/storage"
+	"github.com/coreos/dex/connector"
+	"github.com/coreos/dex/storage"
 )
 
 // Connector is a connector with metadata.

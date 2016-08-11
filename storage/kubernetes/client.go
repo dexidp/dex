@@ -22,8 +22,8 @@ import (
 	"golang.org/x/net/context"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/coreos/poke/storage"
-	"github.com/coreos/poke/storage/kubernetes/k8sapi"
+	"github.com/coreos/dex/storage"
+	"github.com/coreos/dex/storage/kubernetes/k8sapi"
 )
 
 type client struct {
