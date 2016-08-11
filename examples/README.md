@@ -34,7 +34,7 @@ supplying the client information from `./static/fixtures/clients.json` into the 
 ```console
 ./bin/example-app \
 	--client-id=example-app \
-	--client-secret=example-app-secret \
+	--client-secret=eZXhhbXBsZS1jbGktc2VjcmV0 \
 	--discovery=http://127.0.0.1:5556
 ```
 
@@ -54,6 +54,6 @@ The example CLI will start, connect to the Dex instance to gather discovery info
 ```console
 ./bin/example-cli \
 	--client-id example-cli \
-	--client-secret examplie-cli-secret \
+	--client-secret ZXhhbXBsZS1jbGktc2VjcmV0 \
 	--discovery=http://127.0.0.1:5556
 ```
