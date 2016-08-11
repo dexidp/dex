@@ -94,7 +94,7 @@ func cmd() *cobra.Command {
 				}
 
 				// This sets the OAuth2 client and oidc client.
-				a.ctx = context.WithValue(a.ctx, oauth2.HTTPClient, &client)
+				a.ctx = context.WithValue(a.ctx, oauth2.HTTPClient, client)
 			}
 
 			// TODO(ericchiang): Retry with backoff

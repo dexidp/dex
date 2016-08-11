@@ -47,23 +47,25 @@ func (s *Storage) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	s.Type = storageMeta.Type
-	var c struct {
-		Config StorageConfig `yaml:"config"`
-	}
 	// TODO(ericchiang): replace this with a registration process.
+	var err error
 	switch storageMeta.Type {
 	case "kubernetes":
-		c.Config = &kubernetes.Config{}
+		var config struct {
+			Config kubernetes.Config `yaml:"config"`
+		}
+		err = unmarshal(&config)
+		s.Config = &config.Config
 	case "memory":
-		c.Config = &memory.Config{}
+		var config struct {
+			Config memory.Config `yaml:"config"`
+		}
+		err = unmarshal(&config)
+		s.Config = &config.Config
 	default:
 		return fmt.Errorf("unknown storage type %q", storageMeta.Type)
 	}
-	if err := unmarshal(c); err != nil {
-		return err
-	}
-	s.Config = c.Config
-	return nil
+	return err
 }
 
 // StorageConfig is a configuration that can create a storage.
