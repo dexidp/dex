@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -93,9 +94,14 @@ func newServer(c Config, rotationStrategy rotationStrategy) (*Server, error) {
 	}
 
 	s := &Server{
-		issuerURL:        *issuerURL,
-		connectors:       make(map[string]Connector),
-		storage:          storageWithKeyRotation(c.Storage, rotationStrategy, now),
+		issuerURL:  *issuerURL,
+		connectors: make(map[string]Connector),
+		storage: newKeyCacher(
+			storageWithKeyRotation(
+				c.Storage, rotationStrategy, now,
+			),
+			now,
+		),
 		idTokensValidFor: value(c.IDTokensValidFor, 24*time.Hour),
 		now:              now,
 	}
@@ -138,4 +144,36 @@ func (s *Server) absURL(pathItems ...string) string {
 	u := s.issuerURL
 	u.Path = s.absPath(pathItems...)
 	return u.String()
+}
+
+// newKeyCacher returns a storage which caches keys so long as the next
+func newKeyCacher(s storage.Storage, now func() time.Time) storage.Storage {
+	if now == nil {
+		now = time.Now
+	}
+	return &keyCacher{Storage: s, now: now}
+}
+
+type keyCacher struct {
+	storage.Storage
+
+	now  func() time.Time
+	keys atomic.Value // Always holds nil or type *storage.Keys.
+}
+
+func (k *keyCacher) GetKeys() (storage.Keys, error) {
+	keys, ok := k.keys.Load().(*storage.Keys)
+	if ok && keys != nil && k.now().Before(keys.NextRotation) {
+		return *keys, nil
+	}
+
+	storageKeys, err := k.Storage.GetKeys()
+	if err != nil {
+		return storageKeys, err
+	}
+
+	if k.now().Before(storageKeys.NextRotation) {
+		k.keys.Store(&storageKeys)
+	}
+	return storageKeys, nil
 }
