@@ -29,7 +29,7 @@ test:
 	@go test $(shell go list ./... | grep -v '/vendor/')
 
 testrace:
-	@go test --race $(shell go list ./... | grep -v '/vendor/')
+	@CGO_ENABLED=1 go test --race $(shell go list ./... | grep -v '/vendor/')
 
 vet:
 	@go vet $(shell go list ./... | grep -v '/vendor/')
