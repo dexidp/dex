@@ -46,7 +46,7 @@ When establishing connection to the server, we will need to provide the CA file 
 ./bin/example-app \
     --trusted-ca-file=examples/tls-setup/certs/ca.pem \
     --client-id="XXX" \
-    --client-secret="secrete" \
+    --client-secret="c2VjcmV0ZQ==" \
     --redirect-url="http://127.0.0.1:5555/callback" \
     --discovery="https://127.0.0.1:5556" \
     --listen="http://127.0.0.1:5555"
