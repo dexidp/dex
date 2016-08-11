@@ -1,5 +1,10 @@
 # dex - A federated OpenID Connect provider
 
+![Caution image](Documentation/img/caution.png)
+
+__This is an experimental version of dex that is likely to change in
+incompatible ways.__
+
 dex is an OAuth2 server that presents clients with a low overhead framework for
 identifying users while leveraging existing identity services such as Google
 Accounts, FreeIPA, GitHub, etc, for actual authentication. dex sits between your
