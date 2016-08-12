@@ -15,6 +15,7 @@ import (
 const (
 	OIDCConnectorType = "oidc"
 	httpPathCallback  = "/callback"
+	defaultEmailClaim = "email"
 )
 
 func init() {
@@ -27,6 +28,7 @@ type OIDCConnectorConfig struct {
 	ClientID             string `json:"clientID"`
 	ClientSecret         string `json:"clientSecret"`
 	TrustedEmailProvider bool   `json:"trustedEmailProvider"`
+	EmailClaim           string `json:"emailClaim"`
 }
 
 func (cfg *OIDCConnectorConfig) ConnectorID() string {
@@ -44,6 +46,7 @@ type OIDCConnector struct {
 	loginFunc            oidc.LoginFunc
 	client               *oidc.Client
 	trustedEmailProvider bool
+	emailClaim           string
 }
 
 func (cfg *OIDCConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *template.Template) (Connector, error) {
@@ -69,6 +72,7 @@ func (cfg *OIDCConnectorConfig) Connector(ns url.URL, lf oidc.LoginFunc, tpls *t
 		loginFunc:            lf,
 		client:               cl,
 		trustedEmailProvider: cfg.TrustedEmailProvider,
+		emailClaim:           cfg.EmailClaim,
 	}
 	return idpc, nil
 }
@@ -142,6 +146,30 @@ func (c *OIDCConnector) handleCallbackFunc(lf oidc.LoginFunc, errorURL url.URL) 
 			q.Set("error_description", "unable to construct claims")
 			redirectError(w, errorURL, q)
 			return
+		}
+
+		// Override the email claim by using the value of the specified claim.
+		// This is used for the provider (e.g., Azure AD) which returns
+		// the ID token that does not include a email claim.
+		if c.emailClaim != "" && c.emailClaim != defaultEmailClaim {
+			email, ok, err := claims.StringClaim(c.emailClaim)
+			if err != nil {
+				log.Errorf("Unable to get value of alternative email claim: %v", err)
+				q.Set("error", oauth2.ErrorUnsupportedResponseType)
+				q.Set("error_description", "unable to get value of alternative email claim")
+				redirectError(w, errorURL, q)
+				return
+			}
+
+			if !ok {
+				log.Errorf("Failed parsing alternative email claim from remote provider: %v", err)
+				q.Set("error", oauth2.ErrorUnsupportedResponseType)
+				q.Set("error_description", "failed parsing alternative email claim")
+				redirectError(w, errorURL, q)
+				return
+			}
+
+			claims.Add(defaultEmailClaim, email)
 		}
 
 		ident, err := oidc.IdentityFromClaims(claims)

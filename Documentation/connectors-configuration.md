@@ -48,6 +48,7 @@ This connector config lets users authenticate with other OIDC providers. In addi
 * clientID: a `string`. The OIDC client ID.
 * clientSecret: a `string`. The OIDC client secret.
 * trustedEmailProvider: a `boolean`. If true dex will trust the email address claims from this provider and not require that users verify their emails.
+* emailClaim: a `string`. The name of the claim to be treated as an email claim. If empty dex will use a `email` claim.
 
 In order to use the `oidc` connector you must register dex as an OIDC client; this mechanism is different from provider to provider. For Google, follow the instructions at their [developer site](https://developers.google.com/identity/protocols/OpenIDConnect?hl=en). Regardless of your provider, registering your client will also provide you with the client ID and secret.
 
