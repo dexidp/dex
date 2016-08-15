@@ -23,7 +23,7 @@ install:
 
 script:
   - docker run -d -p 127.0.0.1:15432:5432 quay.io/coreos/postgres
-  - LDAPCONTAINER=`docker run -e LDAP_TLS_PROTOCOL_MIN=3.0 -e LDAP_TLS_CIPHER_SUITE=NORMAL -d -p 127.0.0.1:1389:389 -p 127.0.0.1:1636:636 -h tlstest.local osixia/openldap`
+  - LDAPCONTAINER=`docker run -e LDAP_TLS_PROTOCOL_MIN=3.0 -e LDAP_TLS_CIPHER_SUITE=NORMAL -d -p 127.0.0.1:1389:389 -p 127.0.0.1:1636:636 -h tlstest.local osixia/openldap:1.1.4`
   - ./build
   - ./test
   - docker cp ${LDAPCONTAINER}:container/service/:cfssl/assets/default-ca/default-ca.pem /tmp/openldap-ca.pem
