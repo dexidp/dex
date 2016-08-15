@@ -20,7 +20,7 @@ In addition, if you wish to try out authenticating against Google's OIDC backend
 
 * Go to https://console.developers.google.com/project and select an existing project or create a new project.
 * Click on APIs and auth > Credentials, and select an OAuth 2 client ID from the Add credentials dropdown.
-* On the "Create Client ID" screen, choose "Web Application", provide a Name and enter `http://127.0.0.1:5556/auth/google/callback` for your Authorised redirect URI.
+* On the "Create Client ID" screen, choose "Web Application", provide a Name and enter `http://127.0.0.1:5556/dex/auth/google/callback` for your Authorised redirect URI.
 * The generated client ID and client secret will be needed later.
 
 # Create Database
@@ -142,7 +142,7 @@ DEX_APP_CLIENT_SECRET
 The included example app demonstrates registering and authenticating with dex. Start it up:
 
 ```
-./bin/example-app --client-id=$DEX_APP_CLIENT_ID --client-secret=$DEX_APP_CLIENT_SECRET --discovery=http://127.0.0.1:5556 &
+./bin/example-app --client-id=$DEX_APP_CLIENT_ID --client-secret=$DEX_APP_CLIENT_SECRET --discovery=http://127.0.0.1:5556/dex &
 ```
 
 # Authenticate with dex!
