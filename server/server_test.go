@@ -107,6 +107,10 @@ func makeNewUserRepo() (user.UserRepo, error) {
 	return userRepo, nil
 }
 
+func getRefreshTokenEncoded(id, value string) string {
+	return fmt.Sprintf("%v/%s", id, base64.URLEncoding.EncodeToString([]byte(value)))
+}
+
 func TestServerProviderConfig(t *testing.T) {
 	srv := &Server{IssuerURL: url.URL{Scheme: "http", Host: "server.example.com"}}
 
@@ -612,27 +616,29 @@ func TestServerRefreshToken(t *testing.T) {
 	// NOTE(ericchiang): These tests assume that the database ID of the first
 	// refresh token will be "1".
 	tests := []struct {
-		token         string
-		clientID      string // The client that associates with the token.
-		creds         oidc.ClientCredentials
-		signer        jose.Signer
-		createScopes  []string
-		refreshScopes []string
-		expectedAud   []string
-		err           error
+		token                string
+		expectedRefreshToken string
+		clientID             string // The client that associates with the token.
+		creds                oidc.ClientCredentials
+		signer               jose.Signer
+		createScopes         []string
+		refreshScopes        []string
+		expectedAud          []string
+		err                  error
 	}{
 		// Everything is good.
 		{
-			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			clientID:      testClientID,
-			creds:         testClientCredentials,
-			signer:        signerFixture,
-			createScopes:  []string{"openid", "profile"},
-			refreshScopes: []string{"openid", "profile"},
+			token:                getRefreshTokenEncoded("1", "refresh-1"),
+			expectedRefreshToken: getRefreshTokenEncoded("1", "refresh-2"),
+			clientID:             testClientID,
+			creds:                testClientCredentials,
+			signer:               signerFixture,
+			createScopes:         []string{"openid", "profile"},
+			refreshScopes:        []string{"openid", "profile"},
 		},
 		// Asking for a scope not originally granted to you.
 		{
-			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			token:         getRefreshTokenEncoded("1", "refresh-1"),
 			clientID:      testClientID,
 			creds:         testClientCredentials,
 			signer:        signerFixture,
@@ -652,7 +658,7 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Invalid refresh token(invalid payload content).
 		{
-			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-2"))),
+			token:         getRefreshTokenEncoded("1", "refresh-2"),
 			clientID:      testClientID,
 			creds:         testClientCredentials,
 			signer:        signerFixture,
@@ -662,7 +668,7 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Invalid refresh token(invalid ID content).
 		{
-			token:         fmt.Sprintf("0/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			token:         getRefreshTokenEncoded("0", "refresh-1"),
 			clientID:      testClientID,
 			creds:         testClientCredentials,
 			signer:        signerFixture,
@@ -672,7 +678,7 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Invalid client(client is not associated with the token).
 		{
-			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			token:         getRefreshTokenEncoded("1", "refresh-1"),
 			clientID:      testClientID,
 			creds:         clientB.Credentials,
 			signer:        signerFixture,
@@ -682,7 +688,7 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Invalid client(no client ID).
 		{
-			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			token:         getRefreshTokenEncoded("1", "refresh-1"),
 			clientID:      testClientID,
 			creds:         oidc.ClientCredentials{ID: "", Secret: "aaa"},
 			signer:        signerFixture,
@@ -692,7 +698,7 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Invalid client(no such client).
 		{
-			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			token:         getRefreshTokenEncoded("1", "refresh-1"),
 			clientID:      testClientID,
 			creds:         oidc.ClientCredentials{ID: "AAA", Secret: "aaa"},
 			signer:        signerFixture,
@@ -702,7 +708,7 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Invalid client(no secrets).
 		{
-			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			token:         getRefreshTokenEncoded("1", "refresh-1"),
 			clientID:      testClientID,
 			creds:         oidc.ClientCredentials{ID: testClientID},
 			signer:        signerFixture,
@@ -712,7 +718,7 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Invalid client(invalid secret).
 		{
-			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			token:         getRefreshTokenEncoded("1", "refresh-1"),
 			clientID:      testClientID,
 			creds:         oidc.ClientCredentials{ID: "bad-id", Secret: "bad-secret"},
 			signer:        signerFixture,
@@ -722,7 +728,7 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Signing operation fails.
 		{
-			token:         fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			token:         getRefreshTokenEncoded("1", "refresh-1"),
 			clientID:      testClientID,
 			creds:         testClientCredentials,
 			signer:        &StaticSigner{sig: nil, err: errors.New("fail")},
@@ -732,8 +738,9 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Valid Cross-Client
 		{
-			token:    fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			clientID: "client_a",
+			token:                getRefreshTokenEncoded("1", "refresh-1"),
+			expectedRefreshToken: getRefreshTokenEncoded("1", "refresh-2"),
+			clientID:             "client_a",
 			creds: oidc.ClientCredentials{
 				ID: "client_a",
 				Secret: base64.URLEncoding.EncodeToString(
@@ -748,8 +755,9 @@ func TestServerRefreshToken(t *testing.T) {
 		// refresh request, which should result in the original stored scopes
 		// being used.
 		{
-			token:    fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			clientID: "client_a",
+			token:                getRefreshTokenEncoded("1", "refresh-1"),
+			expectedRefreshToken: getRefreshTokenEncoded("1", "refresh-2"),
+			clientID:             "client_a",
 			creds: oidc.ClientCredentials{
 				ID: "client_a",
 				Secret: base64.URLEncoding.EncodeToString(
@@ -763,8 +771,9 @@ func TestServerRefreshToken(t *testing.T) {
 		// Valid Cross-Client - asking for fewer scopes than originally used
 		// when creating the refresh token, which is ok.
 		{
-			token:    fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			clientID: "client_a",
+			token:                getRefreshTokenEncoded("1", "refresh-1"),
+			expectedRefreshToken: getRefreshTokenEncoded("1", "refresh-2"),
+			clientID:             "client_a",
 			creds: oidc.ClientCredentials{
 				ID: "client_a",
 				Secret: base64.URLEncoding.EncodeToString(
@@ -777,8 +786,9 @@ func TestServerRefreshToken(t *testing.T) {
 		},
 		// Valid Cross-Client - asking for multiple clients in the audience.
 		{
-			token:    fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
-			clientID: "client_a",
+			token:                getRefreshTokenEncoded("1", "refresh-1"),
+			expectedRefreshToken: getRefreshTokenEncoded("1", "refresh-2"),
+			clientID:             "client_a",
 			creds: oidc.ClientCredentials{
 				ID: "client_a",
 				Secret: base64.URLEncoding.EncodeToString(
@@ -792,7 +802,7 @@ func TestServerRefreshToken(t *testing.T) {
 		// Invalid Cross-Client - didn't orignally request cross-client when
 		// refresh token was created.
 		{
-			token:    fmt.Sprintf("1/%s", base64.URLEncoding.EncodeToString([]byte("refresh-1"))),
+			token:    getRefreshTokenEncoded("1", "refresh-1"),
 			clientID: "client_a",
 			creds: oidc.ClientCredentials{
 				ID: "client_a",
@@ -825,7 +835,7 @@ func TestServerRefreshToken(t *testing.T) {
 			t.Fatalf("Unexpected error: %v", err)
 		}
 
-		jwt, err := f.srv.RefreshToken(tt.creds, tt.refreshScopes, tt.token)
+		jwt, refreshToken, err := f.srv.RefreshToken(tt.creds, tt.refreshScopes, tt.token)
 		if !reflect.DeepEqual(err, tt.err) {
 			t.Errorf("Case %d: expect: %v, got: %v", i, tt.err, err)
 		}
@@ -860,6 +870,10 @@ func TestServerRefreshToken(t *testing.T) {
 				t.Errorf("Case %d: want=%v, got=%v", i,
 					expectedAud, claims["aud"])
 			}
+		}
+
+		if diff := pretty.Compare(refreshToken, tt.expectedRefreshToken); diff != "" {
+			t.Errorf("Case %d: want=%v, got=%v", i, tt.expectedRefreshToken, refreshToken)
 		}
 	}
 }

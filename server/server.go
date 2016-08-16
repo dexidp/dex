@@ -53,9 +53,9 @@ type OIDCServer interface {
 
 	ClientCredsToken(creds oidc.ClientCredentials) (*jose.JWT, error)
 
-	// RefreshToken takes a previously generated refresh token and returns a new ID token
+	// RefreshToken takes a previously generated refresh token and returns a new ID token and new refresh token
 	// if the token is valid.
-	RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes, token string) (*jose.JWT, error)
+	RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes, token string) (*jose.JWT, string, error)
 
 	KillSession(string) error
 
@@ -567,15 +567,15 @@ func (s *Server) CodeToken(creds oidc.ClientCredentials, sessionKey string) (*jo
 	return jwt, refreshToken, nil
 }
 
-func (s *Server) RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes, token string) (*jose.JWT, error) {
+func (s *Server) RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes, token string) (*jose.JWT, string, error) {
 	ok, err := s.ClientManager.Authenticate(creds)
 	if err != nil {
 		log.Errorf("Failed fetching client %s from repo: %v", creds.ID, err)
-		return nil, oauth2.NewError(oauth2.ErrorServerError)
+		return nil, "", oauth2.NewError(oauth2.ErrorServerError)
 	}
 	if !ok {
 		log.Errorf("Failed to Authenticate client %s", creds.ID)
-		return nil, oauth2.NewError(oauth2.ErrorInvalidClient)
+		return nil, "", oauth2.NewError(oauth2.ErrorInvalidClient)
 	}
 
 	userID, connectorID, rtScopes, err := s.RefreshTokenRepo.Verify(creds.ID, token)
@@ -583,18 +583,18 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes,
 	case nil:
 		break
 	case refresh.ErrorInvalidToken:
-		return nil, oauth2.NewError(oauth2.ErrorInvalidRequest)
+		return nil, "", oauth2.NewError(oauth2.ErrorInvalidRequest)
 	case refresh.ErrorInvalidClientID:
-		return nil, oauth2.NewError(oauth2.ErrorInvalidClient)
+		return nil, "", oauth2.NewError(oauth2.ErrorInvalidClient)
 	default:
-		return nil, oauth2.NewError(oauth2.ErrorServerError)
+		return nil, "", oauth2.NewError(oauth2.ErrorServerError)
 	}
 
 	if len(scopes) == 0 {
 		scopes = rtScopes
 	} else {
 		if !rtScopes.Contains(scopes) {
-			return nil, oauth2.NewError(oauth2.ErrorInvalidRequest)
+			return nil, "", oauth2.NewError(oauth2.ErrorInvalidRequest)
 		}
 	}
 
@@ -603,7 +603,7 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes,
 		// The error can be user.ErrorNotFound, but we are not deleting
 		// user at this moment, so this shouldn't happen.
 		log.Errorf("Failed to fetch user %q from repo: %v: ", userID, err)
-		return nil, oauth2.NewError(oauth2.ErrorServerError)
+		return nil, "", oauth2.NewError(oauth2.ErrorServerError)
 	}
 
 	var groups []string
@@ -611,19 +611,19 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes,
 		conn, ok := s.connector(connectorID)
 		if !ok {
 			log.Errorf("refresh token contained invalid connector ID (%s)", connectorID)
-			return nil, oauth2.NewError(oauth2.ErrorServerError)
+			return nil, "", oauth2.NewError(oauth2.ErrorServerError)
 		}
 
 		grouper, ok := conn.(connector.GroupsConnector)
 		if !ok {
 			log.Errorf("refresh token requested groups for connector (%s) that doesn't support groups", connectorID)
-			return nil, oauth2.NewError(oauth2.ErrorServerError)
+			return nil, "", oauth2.NewError(oauth2.ErrorServerError)
 		}
 
 		remoteIdentities, err := s.UserRepo.GetRemoteIdentities(nil, userID)
 		if err != nil {
 			log.Errorf("failed to get remote identities: %v", err)
-			return nil, oauth2.NewError(oauth2.ErrorServerError)
+			return nil, "", oauth2.NewError(oauth2.ErrorServerError)
 		}
 		remoteIdentity, ok := func() (user.RemoteIdentity, bool) {
 			for _, ri := range remoteIdentities {
@@ -635,18 +635,18 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes,
 		}()
 		if !ok {
 			log.Errorf("failed to get remote identity for connector %s", connectorID)
-			return nil, oauth2.NewError(oauth2.ErrorServerError)
+			return nil, "", oauth2.NewError(oauth2.ErrorServerError)
 		}
 		if groups, err = grouper.Groups(remoteIdentity.ID); err != nil {
 			log.Errorf("failed to get groups for refresh token: %v", connectorID)
-			return nil, oauth2.NewError(oauth2.ErrorServerError)
+			return nil, "", oauth2.NewError(oauth2.ErrorServerError)
 		}
 	}
 
 	signer, err := s.KeyManager.Signer()
 	if err != nil {
 		log.Errorf("Failed to refresh ID token: %v", err)
-		return nil, oauth2.NewError(oauth2.ErrorServerError)
+		return nil, "", oauth2.NewError(oauth2.ErrorServerError)
 	}
 
 	now := time.Now()
@@ -666,12 +666,18 @@ func (s *Server) RefreshToken(creds oidc.ClientCredentials, scopes scope.Scopes,
 	jwt, err := jose.NewSignedJWT(claims, signer)
 	if err != nil {
 		log.Errorf("Failed to generate ID token: %v", err)
-		return nil, oauth2.NewError(oauth2.ErrorServerError)
+		return nil, "", oauth2.NewError(oauth2.ErrorServerError)
+	}
+
+	refreshToken, err := s.RefreshTokenRepo.RenewRefreshToken(creds.ID, userID, token)
+	if err != nil {
+		log.Errorf("Failed to generate new refresh token: %v", err)
+		return nil, "", oauth2.NewError(oauth2.ErrorServerError)
 	}
 
 	log.Infof("New token sent: clientID=%s", creds.ID)
 
-	return jwt, nil
+	return jwt, refreshToken, nil
 }
 
 func (s *Server) CrossClientAuthAllowed(requestingClientID, authorizingClientID string) (bool, error) {
