@@ -215,6 +215,8 @@ func (s *Server) HTTPHandler() http.Handler {
 
 	clock := clockwork.NewRealClock()
 	mux := http.NewServeMux()
+
+	// Handler methods which register handlers at prefixed paths.
 	handle := func(urlPath string, h http.Handler) {
 		p := path.Join(s.IssuerURL.Path, urlPath)
 		// path.Join always trims trailing slashes (https://play.golang.org/p/GRr0jDd9P7).
@@ -227,6 +229,14 @@ func (s *Server) HTTPHandler() http.Handler {
 	handleFunc := func(urlPath string, hf http.HandlerFunc) {
 		handle(urlPath, hf)
 	}
+	handleStripPrefix := func(urlPath string, h http.Handler) {
+		if s.IssuerURL.Path != "" {
+			handle(urlPath, http.StripPrefix(s.IssuerURL.Path, h))
+		} else {
+			handle(urlPath, h)
+		}
+	}
+
 	handleFunc(httpPathDiscovery, handleDiscoveryFunc(s.ProviderConfig()))
 	handleFunc(httpPathAuth, handleAuthFunc(s, s.Connectors, s.LoginTemplate, s.EnableRegistration))
 	handleFunc(httpPathOOB, handleOOBFunc(s, s.OOBTemplate))
@@ -293,7 +303,7 @@ func (s *Server) HTTPHandler() http.Handler {
 	usersAPI := usersapi.NewUsersAPI(s.UserManager, s.ClientManager, s.RefreshTokenRepo, s.UserEmailer, s.localConnectorID)
 	handler := NewUserMgmtServer(usersAPI, s.JWTVerifierFactory(), s.UserManager, s.ClientManager).HTTPHandler()
 
-	handle(apiBasePath+"/", handler)
+	handleStripPrefix(apiBasePath+"/", handler)
 
 	return http.Handler(mux)
 }
