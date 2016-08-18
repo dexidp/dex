@@ -1,0 +1,13 @@
+language: go
+
+go:
+  - 1.7
+
+install:
+  - go get -u github.com/golang/lint/golint
+
+script:
+  - make testall
+
+notifications:
+  email: false
