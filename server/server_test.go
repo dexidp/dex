@@ -59,11 +59,12 @@ FDWV28nTP9sqbtsmU8Tem2jzMvZ7C/Q0AuDoKELFUpux8shm8wfIhyaPnXUGZoAZ
 Np4vUwMSYV5mopESLWOg3loBxKyLGFtgGKVCjGiQvy6zISQ4fQo=
 -----END RSA PRIVATE KEY-----`)
 
-func newTestServer() (*httptest.Server, *Server) {
+func newTestServer(path string) (*httptest.Server, *Server) {
 	var server *Server
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		server.ServeHTTP(w, r)
 	}))
+	s.URL = s.URL + path
 	config := Config{
 		Issuer:  s.URL,
 		Storage: memory.New(),
@@ -84,14 +85,14 @@ func newTestServer() (*httptest.Server, *Server) {
 }
 
 func TestNewTestServer(t *testing.T) {
-	newTestServer()
+	newTestServer("")
 }
 
 func TestDiscovery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	httpServer, _ := newTestServer()
+	httpServer, _ := newTestServer("/nonrootpath")
 	defer httpServer.Close()
 
 	p, err := oidc.NewProvider(ctx, httpServer.URL)
@@ -117,7 +118,7 @@ func TestOAuth2Flow(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	httpServer, s := newTestServer()
+	httpServer, s := newTestServer("/nonrootpath")
 	defer httpServer.Close()
 
 	p, err := oidc.NewProvider(ctx, httpServer.URL)
