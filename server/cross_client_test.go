@@ -180,7 +180,7 @@ func TestHandleAuthCrossClient(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		hdlr := handleAuthFunc(f.srv, idpcs, nil, true)
+		hdlr := handleAuthFunc(f.srv, url.URL{}, idpcs, nil, true)
 		w := httptest.NewRecorder()
 
 		query := url.Values{

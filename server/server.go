@@ -238,7 +238,7 @@ func (s *Server) HTTPHandler() http.Handler {
 	}
 
 	handleFunc(httpPathDiscovery, handleDiscoveryFunc(s.ProviderConfig()))
-	handleFunc(httpPathAuth, handleAuthFunc(s, s.Connectors, s.LoginTemplate, s.EnableRegistration))
+	handleFunc(httpPathAuth, handleAuthFunc(s, s.IssuerURL, s.Connectors, s.LoginTemplate, s.EnableRegistration))
 	handleFunc(httpPathOOB, handleOOBFunc(s, s.OOBTemplate))
 	handleFunc(httpPathToken, handleTokenFunc(s))
 	handleFunc(httpPathKeys, handleKeysFunc(s.KeyManager, clock))
