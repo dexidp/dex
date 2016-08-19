@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -266,7 +267,7 @@ func renderLoginPage(w http.ResponseWriter, r *http.Request, srv OIDCServer, idp
 	execTemplate(w, tpl, td)
 }
 
-func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.Template, registrationEnabled bool) http.HandlerFunc {
+func handleAuthFunc(srv OIDCServer, baseURL url.URL, idpcs []connector.Connector, tpl *template.Template, registrationEnabled bool) http.HandlerFunc {
 	idx := makeConnectorMap(idpcs)
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
@@ -358,7 +359,7 @@ func handleAuthFunc(srv OIDCServer, idpcs []connector.Connector, tpl *template.T
 			if ok {
 				q := url.Values{}
 				q.Set("code", key)
-				ru := httpPathRegister + "?" + q.Encode()
+				ru := path.Join(baseURL.Path, httpPathRegister) + "?" + q.Encode()
 				w.Header().Set("Location", ru)
 				w.WriteHeader(http.StatusFound)
 				return
