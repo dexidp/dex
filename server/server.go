@@ -23,6 +23,8 @@ type Connector struct {
 }
 
 // Config holds the server's configuration options.
+//
+// Multiple servers using the same storage are expected to be configured identically.
 type Config struct {
 	Issuer string
 
@@ -32,8 +34,10 @@ type Config struct {
 	// Strategies for federated identity.
 	Connectors []Connector
 
-	// NOTE: Multiple servers using the same storage are expected to set rotation and
-	// validity periods to the same values.
+	// Valid values are "code" to enable the code flow and "token" to enable the implicit
+	// flow. If no response types are supplied this value defaults to "code".
+	SupportedResponseTypes []string
+
 	RotateKeysAfter  time.Duration // Defaults to 6 hours.
 	IDTokensValidFor time.Duration // Defaults to 24 hours
 
@@ -63,6 +67,8 @@ type Server struct {
 	// No package level API to set this, only used in tests.
 	skipApproval bool
 
+	supportedResponseTypes map[string]bool
+
 	now func() time.Time
 
 	idTokensValidFor time.Duration
@@ -87,6 +93,19 @@ func newServer(c Config, rotationStrategy rotationStrategy) (*Server, error) {
 	if c.Storage == nil {
 		return nil, errors.New("server: storage cannot be nil")
 	}
+	if len(c.SupportedResponseTypes) == 0 {
+		c.SupportedResponseTypes = []string{responseTypeCode}
+	}
+
+	supported := make(map[string]bool)
+	for _, respType := range c.SupportedResponseTypes {
+		switch respType {
+		case responseTypeCode, responseTypeToken:
+		default:
+			return nil, fmt.Errorf("unsupported response_type %q", respType)
+		}
+		supported[respType] = true
+	}
 
 	now := c.Now
 	if now == nil {
@@ -102,8 +121,9 @@ func newServer(c Config, rotationStrategy rotationStrategy) (*Server, error) {
 			),
 			now,
 		),
-		idTokensValidFor: value(c.IDTokensValidFor, 24*time.Hour),
-		now:              now,
+		supportedResponseTypes: supported,
+		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
+		now:                    now,
 	}
 
 	for _, conn := range c.Connectors {

@@ -102,7 +102,7 @@ func (s *Server) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 
 // handleAuthorization handles the OAuth2 auth endpoint.
 func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
-	authReq, err := parseAuthorizationRequest(s.storage, r)
+	authReq, err := parseAuthorizationRequest(s.storage, s.supportedResponseTypes, r)
 	if err != nil {
 		s.renderError(w, http.StatusInternalServerError, err.Type, err.Description)
 		return
@@ -318,35 +318,55 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		}
 		return
 	}
-	code := storage.AuthCode{
-		ID:          storage.NewID(),
-		ClientID:    authReq.ClientID,
-		ConnectorID: authReq.ConnectorID,
-		Nonce:       authReq.Nonce,
-		Scopes:      authReq.Scopes,
-		Claims:      *authReq.Claims,
-		Expiry:      s.now().Add(time.Minute * 5),
-		RedirectURI: authReq.RedirectURI,
-	}
-	if err := s.storage.CreateAuthCode(code); err != nil {
-		log.Printf("Failed to create auth code: %v", err)
-		s.renderError(w, http.StatusInternalServerError, errServerError, "")
-		return
-	}
-
-	if authReq.RedirectURI == "urn:ietf:wg:oauth:2.0:oob" {
-		// TODO(ericchiang): Add a proper template.
-		fmt.Fprintf(w, "Code: %s", code.ID)
-		return
-	}
-
 	u, err := url.Parse(authReq.RedirectURI)
 	if err != nil {
 		s.renderError(w, http.StatusInternalServerError, errServerError, "Invalid redirect URI.")
 		return
 	}
 	q := u.Query()
-	q.Set("code", code.ID)
+
+	for _, responseType := range authReq.ResponseTypes {
+		switch responseType {
+		case responseTypeCode:
+			code := storage.AuthCode{
+				ID:          storage.NewID(),
+				ClientID:    authReq.ClientID,
+				ConnectorID: authReq.ConnectorID,
+				Nonce:       authReq.Nonce,
+				Scopes:      authReq.Scopes,
+				Claims:      *authReq.Claims,
+				Expiry:      s.now().Add(time.Minute * 5),
+				RedirectURI: authReq.RedirectURI,
+			}
+			if err := s.storage.CreateAuthCode(code); err != nil {
+				log.Printf("Failed to create auth code: %v", err)
+				s.renderError(w, http.StatusInternalServerError, errServerError, "")
+				return
+			}
+
+			if authReq.RedirectURI == redirectURIOOB {
+				// TODO(ericchiang): Add a proper template.
+				fmt.Fprintf(w, "Code: %s", code.ID)
+				return
+			}
+			q.Set("code", code.ID)
+		case responseTypeToken:
+			idToken, expiry, err := s.newIDToken(authReq.ClientID, *authReq.Claims, authReq.Scopes, authReq.Nonce)
+			if err != nil {
+				log.Printf("failed to create ID token: %v", err)
+				tokenErr(w, errServerError, "", http.StatusInternalServerError)
+				return
+			}
+			v := url.Values{}
+			v.Set("access_token", storage.NewID())
+			v.Set("token_type", "bearer")
+			v.Set("id_token", idToken)
+			v.Set("state", authReq.State)
+			v.Set("expires_in", strconv.Itoa(int(expiry.Sub(s.now()))))
+			u.Fragment = v.Encode()
+		}
+	}
+
 	q.Set("state", authReq.State)
 	u.RawQuery = q.Encode()
 	http.Redirect(w, r, u.String(), http.StatusSeeOther)

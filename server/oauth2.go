@@ -78,6 +78,10 @@ const (
 )
 
 const (
+	redirectURIOOB = "urn:ietf:wg:oauth:2.0:oob"
+)
+
+const (
 	grantTypeAuthorizationCode = "authorization_code"
 	grantTypeRefreshToken      = "refresh_token"
 )
@@ -87,12 +91,6 @@ const (
 	responseTypeToken   = "token"    // Implicit flow for frontend apps.
 	responseTypeIDToken = "id_token" // ID Token in url fragment
 )
-
-var validResponseTypes = map[string]bool{
-	"code":     true,
-	"token":    true,
-	"id_token": true,
-}
 
 type audience []string
 
@@ -182,7 +180,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 // parse the initial request from the OAuth2 client.
 //
 // For correctness the logic is largely copied from https://github.com/RangelReale/osin.
-func parseAuthorizationRequest(s storage.Storage, r *http.Request) (req storage.AuthRequest, oauth2Err *authErr) {
+func parseAuthorizationRequest(s storage.Storage, supportedResponseTypes map[string]bool, r *http.Request) (req storage.AuthRequest, oauth2Err *authErr) {
 	if err := r.ParseForm(); err != nil {
 		return req, &authErr{"", "", errInvalidRequest, "Failed to parse request."}
 	}
@@ -252,9 +250,27 @@ func parseAuthorizationRequest(s storage.Storage, r *http.Request) (req storage.
 		return req, newErr("invalid_scope", "Client can't request scope(s) %q", invalidScopes)
 	}
 
+	nonce := r.Form.Get("nonce")
 	responseTypes := strings.Split(r.Form.Get("response_type"), " ")
 	for _, responseType := range responseTypes {
-		if !validResponseTypes[responseType] {
+		if !supportedResponseTypes[responseType] {
+			return req, newErr("invalid_request", "Invalid response type %q", responseType)
+		}
+
+		switch responseType {
+		case responseTypeCode:
+		case responseTypeToken:
+			// Implicit flow requires a nonce value.
+			// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitAuthRequest
+			if nonce == "" {
+				return req, newErr("invalid_request", "Response type 'token' requires a 'nonce' value.")
+			}
+
+			if redirectURI == redirectURIOOB {
+				err := fmt.Sprintf("Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
+				return req, newErr("invalid_request", err)
+			}
+		default:
 			return req, newErr("invalid_request", "Invalid response type %q", responseType)
 		}
 	}
@@ -263,7 +279,7 @@ func parseAuthorizationRequest(s storage.Storage, r *http.Request) (req storage.
 		ID:                  storage.NewID(),
 		ClientID:            client.ID,
 		State:               r.Form.Get("state"),
-		Nonce:               r.Form.Get("nonce"),
+		Nonce:               nonce,
 		ForceApprovalPrompt: r.Form.Get("approval_prompt") == "force",
 		Scopes:              scopes,
 		RedirectURI:         redirectURI,
@@ -308,7 +324,7 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 		return false
 	}
 
-	if redirectURI == "urn:ietf:wg:oauth:2.0:oob" {
+	if redirectURI == redirectURIOOB {
 		return true
 	}
 	if !strings.HasPrefix(redirectURI, "http://localhost:") {
