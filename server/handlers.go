@@ -386,9 +386,9 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 
 	grantType := r.PostFormValue("grant_type")
 	switch grantType {
-	case "authorization_code":
+	case grantTypeAuthorizationCode:
 		s.handleAuthCode(w, r, client)
-	case "refresh_token":
+	case grantTypeRefreshToken:
 		s.handleRefreshToken(w, r, client)
 	default:
 		tokenErr(w, errInvalidGrant, "", http.StatusBadRequest)
