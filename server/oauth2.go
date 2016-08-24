@@ -78,7 +78,7 @@ const (
 )
 
 const (
-	grantTypeAuthorizationCode = "code"
+	grantTypeAuthorizationCode = "authorization_code"
 	grantTypeRefreshToken      = "refresh_token"
 )
 
@@ -316,24 +316,4 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 	}
 	n, err := strconv.Atoi(strings.TrimPrefix(redirectURI, "https://localhost:"))
 	return err == nil && n <= 0
-}
-
-type tokenRequest struct {
-	Client      storage.Client
-	IsRefresh   bool
-	Token       string
-	RedirectURI string
-	Scopes      []string
-}
-
-func handleTokenRequest(s storage.Storage, w http.ResponseWriter, r *http.Request) *authErr {
-	return nil
-}
-
-func handleRefreshRequest(s storage.Storage, w http.ResponseWriter, r *http.Request, client storage.Client) *authErr {
-	return nil
-}
-
-func handleCodeRequest(s storage.Storage, w http.ResponseWriter, r *http.Request, client storage.Client) *authErr {
-	return nil
 }
