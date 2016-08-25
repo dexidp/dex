@@ -8,6 +8,7 @@ import (
 	"github.com/coreos/dex/connector/ldap"
 	"github.com/coreos/dex/connector/mock"
 	"github.com/coreos/dex/connector/oidc"
+	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/kubernetes"
 	"github.com/coreos/dex/storage/memory"
@@ -20,6 +21,8 @@ type Config struct {
 	Connectors []Connector `yaml:"connectors"`
 	Web        Web         `yaml:"web"`
 	OAuth2     OAuth2      `yaml:"oauth2"`
+
+	Templates server.TemplateConfig `yaml:"templates"`
 
 	StaticClients []storage.Client `yaml:"staticClients"`
 }

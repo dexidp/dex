@@ -43,6 +43,8 @@ type Config struct {
 
 	// If specified, the server will use this function for determining time.
 	Now func() time.Time
+
+	TemplateConfig TemplateConfig
 }
 
 func value(val, defaultValue time.Duration) time.Duration {
@@ -62,6 +64,8 @@ type Server struct {
 	storage storage.Storage
 
 	mux http.Handler
+
+	templates *templates
 
 	// If enabled, don't prompt user for approval after logging in through connector.
 	// No package level API to set this, only used in tests.
@@ -107,6 +111,11 @@ func newServer(c Config, rotationStrategy rotationStrategy) (*Server, error) {
 		supported[respType] = true
 	}
 
+	tmpls, err := loadTemplates(c.TemplateConfig)
+	if err != nil {
+		return nil, fmt.Errorf("server: failed to load templates: %v", err)
+	}
+
 	now := c.Now
 	if now == nil {
 		now = time.Now
@@ -124,6 +133,7 @@ func newServer(c Config, rotationStrategy rotationStrategy) (*Server, error) {
 		supportedResponseTypes: supported,
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
 		now:                    now,
+		templates:              tmpls,
 	}
 
 	for _, conn := range c.Connectors {
