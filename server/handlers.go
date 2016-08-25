@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -72,32 +73,37 @@ type discovery struct {
 	Claims        []string `json:"claims_supported"`
 }
 
-func (s *Server) handleDiscovery(w http.ResponseWriter, r *http.Request) {
-	// TODO(ericchiang): Cache this
+func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 	d := discovery{
-		Issuer:        s.issuerURL.String(),
-		Auth:          s.absURL("/auth"),
-		Token:         s.absURL("/token"),
-		Keys:          s.absURL("/keys"),
-		ResponseTypes: []string{"code"},
-		Subjects:      []string{"public"},
-		IDTokenAlgs:   []string{string(jose.RS256)},
-		Scopes:        []string{"openid", "email", "profile", "offline_access"},
-		AuthMethods:   []string{"client_secret_basic"},
+		Issuer:      s.issuerURL.String(),
+		Auth:        s.absURL("/auth"),
+		Token:       s.absURL("/token"),
+		Keys:        s.absURL("/keys"),
+		Subjects:    []string{"public"},
+		IDTokenAlgs: []string{string(jose.RS256)},
+		Scopes:      []string{"openid", "email", "profile", "offline_access"},
+		AuthMethods: []string{"client_secret_basic"},
 		Claims: []string{
 			"aud", "email", "email_verified", "exp",
 			"iat", "iss", "locale", "name", "sub",
 		},
 	}
+
+	for responseType := range s.supportedResponseTypes {
+		d.ResponseTypes = append(d.ResponseTypes, responseType)
+	}
+	sort.Strings(d.ResponseTypes)
+
 	data, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
-		log.Printf("failed to marshal discovery data: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
+		return nil, fmt.Errorf("failed to marshal discovery data: %v", err)
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-	w.Write(data)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+		w.Write(data)
+	}, nil
 }
 
 // handleAuthorization handles the OAuth2 auth endpoint.
