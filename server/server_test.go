@@ -4,9 +4,14 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
+	"net/url"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -59,12 +64,11 @@ FDWV28nTP9sqbtsmU8Tem2jzMvZ7C/Q0AuDoKELFUpux8shm8wfIhyaPnXUGZoAZ
 Np4vUwMSYV5mopESLWOg3loBxKyLGFtgGKVCjGiQvy6zISQ4fQo=
 -----END RSA PRIVATE KEY-----`)
 
-func newTestServer(path string) (*httptest.Server, *Server) {
+func newTestServer(updateConfig func(c *Config)) (*httptest.Server, *Server) {
 	var server *Server
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		server.ServeHTTP(w, r)
 	}))
-	s.URL = s.URL + path
 	config := Config{
 		Issuer:  s.URL,
 		Storage: memory.New(),
@@ -76,6 +80,11 @@ func newTestServer(path string) (*httptest.Server, *Server) {
 			},
 		},
 	}
+	if updateConfig != nil {
+		updateConfig(&config)
+	}
+	s.URL = config.Issuer
+
 	var err error
 	if server, err = newServer(config, staticRotationStrategy(testKey)); err != nil {
 		panic(err)
@@ -85,14 +94,16 @@ func newTestServer(path string) (*httptest.Server, *Server) {
 }
 
 func TestNewTestServer(t *testing.T) {
-	newTestServer("")
+	newTestServer(nil)
 }
 
 func TestDiscovery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	httpServer, _ := newTestServer("/nonrootpath")
+	httpServer, _ := newTestServer(func(c *Config) {
+		c.Issuer = c.Issuer + "/non-root-path"
+	})
 	defer httpServer.Close()
 
 	p, err := oidc.NewProvider(ctx, httpServer.URL)
@@ -114,11 +125,13 @@ func TestDiscovery(t *testing.T) {
 	}
 }
 
-func TestOAuth2Flow(t *testing.T) {
+func TestOAuth2CodeFlow(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	httpServer, s := newTestServer("/nonrootpath")
+	httpServer, s := newTestServer(func(c *Config) {
+		c.Issuer = c.Issuer + "/non-root-path"
+	})
 	defer httpServer.Close()
 
 	p, err := oidc.NewProvider(ctx, httpServer.URL)
@@ -210,6 +223,153 @@ func TestOAuth2Flow(t *testing.T) {
 	}
 
 	resp, err := http.Get(oauth2Server.URL + "/login")
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if reqDump, err = httputil.DumpRequest(resp.Request, false); err != nil {
+		t.Fatal(err)
+	}
+	if respDump, err = httputil.DumpResponse(resp, true); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type nonceSource struct {
+	nonce string
+	once  sync.Once
+}
+
+func (n *nonceSource) ClaimNonce(nonce string) error {
+	if n.nonce != nonce {
+		return errors.New("invalid nonce")
+	}
+	ok := false
+	n.once.Do(func() { ok = true })
+	if !ok {
+		return errors.New("invalid nonce")
+	}
+	return nil
+}
+
+func TestOAuth2ImplicitFlow(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	httpServer, s := newTestServer(func(c *Config) {
+		// Enable support for the implicit flow.
+		c.SupportedResponseTypes = []string{"code", "token"}
+	})
+	defer httpServer.Close()
+
+	p, err := oidc.NewProvider(ctx, httpServer.URL)
+	if err != nil {
+		t.Fatalf("failed to get provider: %v", err)
+	}
+
+	var (
+		reqDump, respDump []byte
+		gotIDToken        bool
+		state             = "a_state"
+		nonce             = "a_nonce"
+	)
+	defer func() {
+		if !gotIDToken {
+			t.Errorf("never got a id token in fragment\n%s\n%s", reqDump, respDump)
+		}
+	}()
+
+	var oauth2Config *oauth2.Config
+	oauth2Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/callback" {
+			q := r.URL.Query()
+			if errType := q.Get("error"); errType != "" {
+				if desc := q.Get("error_description"); desc != "" {
+					t.Errorf("got error from server %s: %s", errType, desc)
+				} else {
+					t.Errorf("got error from server %s", errType)
+				}
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			// Fragment is checked by the client since net/http servers don't preserve URL fragments.
+			// E.g.
+			//
+			//    r.URL.Fragment
+			//
+			// Will always be empty.
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		u := oauth2Config.AuthCodeURL(state, oauth2.SetAuthURLParam("response_type", "token"), oidc.Nonce(nonce))
+		http.Redirect(w, r, u, http.StatusSeeOther)
+	}))
+
+	defer oauth2Server.Close()
+
+	redirectURL := oauth2Server.URL + "/callback"
+	client := storage.Client{
+		ID:           "testclient",
+		Secret:       "testclientsecret",
+		RedirectURIs: []string{redirectURL},
+	}
+	if err := s.storage.CreateClient(client); err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	src := &nonceSource{nonce: nonce}
+
+	idTokenVerifier := p.NewVerifier(ctx, oidc.VerifyAudience(client.ID), oidc.VerifyNonce(src))
+
+	oauth2Config = &oauth2.Config{
+		ClientID:     client.ID,
+		ClientSecret: client.Secret,
+		Endpoint:     p.Endpoint(),
+		Scopes:       []string{oidc.ScopeOpenID, "profile", "email", "offline_access"},
+		RedirectURL:  redirectURL,
+	}
+
+	checkIDToken := func(u *url.URL) error {
+		if u.Fragment == "" {
+			return fmt.Errorf("url has no fragment: %s", u)
+		}
+		v, err := url.ParseQuery(u.Fragment)
+		if err != nil {
+			return fmt.Errorf("failed to parse fragment: %v", err)
+		}
+		idToken := v.Get("id_token")
+		if idToken == "" {
+			return errors.New("no id_token in fragment")
+		}
+		if _, err := idTokenVerifier.Verify(idToken); err != nil {
+			return fmt.Errorf("failed to verify id_token: %v", err)
+		}
+		return nil
+	}
+
+	httpClient := &http.Client{
+		// net/http servers don't preserve URL fragments when passing the request to
+		// handlers. The only way to get at that values is to check the redirect on
+		// the client side.
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) > 10 {
+				return errors.New("too many redirects")
+			}
+
+			// If we're being redirected back to the client server, inspect the URL fragment
+			// for an ID Token.
+			u := req.URL.String()
+			if strings.HasPrefix(u, oauth2Server.URL) {
+				if err := checkIDToken(req.URL); err == nil {
+					gotIDToken = true
+				} else {
+					t.Error(err)
+				}
+			}
+			return nil
+		},
+	}
+
+	resp, err := httpClient.Get(oauth2Server.URL + "/login")
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}

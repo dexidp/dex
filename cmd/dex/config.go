@@ -19,8 +19,14 @@ type Config struct {
 	Storage    Storage     `yaml:"storage"`
 	Connectors []Connector `yaml:"connectors"`
 	Web        Web         `yaml:"web"`
+	OAuth2     OAuth2      `yaml:"oauth2"`
 
 	StaticClients []storage.Client `yaml:"staticClients"`
+}
+
+// OAuth2 describes enabled OAuth2 extensions.
+type OAuth2 struct {
+	ResponseTypes []string `yaml:"responseTypes"`
 }
 
 // Web is the config format for the HTTP server.
