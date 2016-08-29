@@ -92,6 +92,8 @@ func serve(cmd *cobra.Command, args []string) error {
 		Issuer:     c.Issuer,
 		Connectors: connectors,
 		Storage:    s,
+
+		SupportedResponseTypes: c.OAuth2.ResponseTypes,
 	}
 
 	serv, err := server.New(serverConfig)

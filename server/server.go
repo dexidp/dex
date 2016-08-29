@@ -136,8 +136,13 @@ func newServer(c Config, rotationStrategy rotationStrategy) (*Server, error) {
 	}
 	r.NotFoundHandler = http.HandlerFunc(s.notFound)
 
+	discoveryHandler, err := s.discoveryHandler()
+	if err != nil {
+		return nil, err
+	}
+	handleFunc("/.well-known/openid-configuration", discoveryHandler)
+
 	// TODO(ericchiang): rate limit certain paths based on IP.
-	handleFunc("/.well-known/openid-configuration", s.handleDiscovery)
 	handleFunc("/token", s.handleToken)
 	handleFunc("/keys", s.handlePublicKeys)
 	handleFunc("/auth", s.handleAuthorization)
