@@ -63,6 +63,14 @@ var (
 		ClientIDs: []string{goodClientID},
 	}
 
+	clientCreds = Creds{
+		User: user.User{
+			ID:    "",
+			Admin: false,
+		},
+		ClientIDs: []string{goodClientID},
+	}
+
 	badCreds = Creds{
 		User: user.User{
 			ID: "ID-2",
@@ -103,7 +111,7 @@ var (
 	}
 )
 
-func makeTestFixtures() (*UsersAPI, *testEmailer) {
+func makeTestFixtures(clientCredsFlag bool) (*UsersAPI, *testEmailer) {
 	dbMap := db.NewMemDB()
 	ur := func() user.UserRepo {
 		repo, err := db.NewUserRepoFromUsers(dbMap, []user.UserWithRemoteIdentities{
@@ -223,39 +231,49 @@ func makeTestFixtures() (*UsersAPI, *testEmailer) {
 	}
 
 	emailer := &testEmailer{}
-	api := NewUsersAPI(mgr, clientManager, refreshRepo, emailer, "local")
+	api := NewUsersAPI(mgr, clientManager, refreshRepo, emailer, "local", clientCredsFlag)
 	return api, emailer
 
 }
 
 func TestGetUser(t *testing.T) {
 	tests := []struct {
-		creds   Creds
-		id      string
-		wantErr error
+		creds           Creds
+		id              string
+		wantErr         error
+		clientCredsFlag bool
 	}{
 		{
-			creds: goodCreds,
-			id:    "ID-1",
+			creds:           goodCreds,
+			id:              "ID-1",
+			clientCredsFlag: false,
 		},
 		{
-			creds:   badCreds,
-			id:      "ID-1",
-			wantErr: ErrorUnauthorized,
+			creds:           badCreds,
+			id:              "ID-1",
+			wantErr:         ErrorUnauthorized,
+			clientCredsFlag: false,
 		},
 		{
-			creds:   goodCreds,
-			id:      "NO_ID",
-			wantErr: ErrorResourceNotFound,
+			creds:           goodCreds,
+			id:              "NO_ID",
+			wantErr:         ErrorResourceNotFound,
+			clientCredsFlag: false,
 		},
 		{
-			creds: credsWithMultipleAudiences,
-			id:    "ID-1",
+			creds:           credsWithMultipleAudiences,
+			id:              "ID-1",
+			clientCredsFlag: false,
+		},
+		{
+			creds:           clientCreds,
+			id:              "ID-1",
+			clientCredsFlag: true,
 		},
 	}
 
 	for i, tt := range tests {
-		api, _ := makeTestFixtures()
+		api, _ := makeTestFixtures(tt.clientCredsFlag)
 		usr, err := api.GetUser(tt.creds, tt.id)
 		if tt.wantErr != nil {
 			if err != tt.wantErr {
@@ -309,7 +327,7 @@ func TestListUsers(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		api, _ := makeTestFixtures()
+		api, _ := makeTestFixtures(false)
 
 		gotIDs := [][]string{}
 		var next string
@@ -346,6 +364,8 @@ func TestCreateUser(t *testing.T) {
 		redirURL  url.URL
 		cantEmail bool
 
+		clientCredsFlag bool
+
 		wantResponse schema.UserCreateResponse
 		wantClientID string
 		wantErr      error
@@ -370,7 +390,31 @@ func TestCreateUser(t *testing.T) {
 					CreatedAt:     clock.Now().Format(time.RFC3339),
 				},
 			},
-			wantClientID: goodClientID,
+			wantClientID:    goodClientID,
+			clientCredsFlag: false,
+		},
+		{
+			creds: clientCreds,
+			usr: schema.User{
+				Email:         "newuser01@example.com",
+				DisplayName:   "New User",
+				EmailVerified: true,
+				Admin:         false,
+			},
+			redirURL: validRedirURL,
+
+			wantResponse: schema.UserCreateResponse{
+				EmailSent: true,
+				User: &schema.User{
+					Email:         "newuser01@example.com",
+					DisplayName:   "New User",
+					EmailVerified: true,
+					Admin:         false,
+					CreatedAt:     clock.Now().Format(time.RFC3339),
+				},
+			},
+			wantClientID:    goodClientID,
+			clientCredsFlag: true,
 		},
 		{
 			creds: credsWithMultipleAudiences,
@@ -392,7 +436,8 @@ func TestCreateUser(t *testing.T) {
 					CreatedAt:     clock.Now().Format(time.RFC3339),
 				},
 			},
-			wantClientID: goodClientID,
+			wantClientID:    goodClientID,
+			clientCredsFlag: false,
 		},
 		{
 			creds: goodCreds,
@@ -415,7 +460,8 @@ func TestCreateUser(t *testing.T) {
 				},
 				ResetPasswordLink: resetPasswordURL.String(),
 			},
-			wantClientID: goodClientID,
+			wantClientID:    goodClientID,
+			clientCredsFlag: false,
 		},
 		{
 			creds: goodCreds,
@@ -439,12 +485,13 @@ func TestCreateUser(t *testing.T) {
 			},
 			redirURL: validRedirURL,
 
-			wantErr: ErrorUnauthorized,
+			wantErr:         ErrorUnauthorized,
+			clientCredsFlag: false,
 		},
 	}
 
 	for i, tt := range tests {
-		api, emailer := makeTestFixtures()
+		api, emailer := makeTestFixtures(tt.clientCredsFlag)
 		emailer.cantEmail = tt.cantEmail
 
 		response, err := api.CreateUser(tt.creds, tt.usr, tt.redirURL)
@@ -528,7 +575,7 @@ func TestDisableUsers(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		api, _ := makeTestFixtures()
+		api, _ := makeTestFixtures(false)
 		_, err := api.DisableUser(goodCreds, tt.id, tt.disable)
 		if err != nil {
 			t.Fatalf("case %d: unexpected error: %v", i, err)
@@ -552,6 +599,8 @@ func TestResendEmailInvitation(t *testing.T) {
 		redirURL  url.URL
 		cantEmail bool
 
+		clientCredsFlag bool
+
 		wantResponse schema.ResendEmailInvitationResponse
 		wantErr      error
 		wantClientID string
@@ -565,7 +614,20 @@ func TestResendEmailInvitation(t *testing.T) {
 			wantResponse: schema.ResendEmailInvitationResponse{
 				EmailSent: true,
 			},
-			wantClientID: goodClientID,
+			wantClientID:    goodClientID,
+			clientCredsFlag: false,
+		},
+		{
+			creds:    clientCreds,
+			userID:   "ID-1",
+			email:    "id1@example.com",
+			redirURL: validRedirURL,
+
+			wantResponse: schema.ResendEmailInvitationResponse{
+				EmailSent: true,
+			},
+			wantClientID:    goodClientID,
+			clientCredsFlag: true,
 		},
 		{
 			creds:     goodCreds,
@@ -578,7 +640,8 @@ func TestResendEmailInvitation(t *testing.T) {
 				EmailSent:         false,
 				ResetPasswordLink: resetPasswordURL.String(),
 			},
-			wantClientID: goodClientID,
+			wantClientID:    goodClientID,
+			clientCredsFlag: false,
 		},
 		{
 			creds:     credsWithMultipleAudiences,
@@ -591,7 +654,8 @@ func TestResendEmailInvitation(t *testing.T) {
 				EmailSent:         false,
 				ResetPasswordLink: resetPasswordURL.String(),
 			},
-			wantClientID: goodClientID,
+			wantClientID:    goodClientID,
+			clientCredsFlag: false,
 		},
 		{
 			creds:    badCreds,
@@ -599,7 +663,8 @@ func TestResendEmailInvitation(t *testing.T) {
 			email:    "id1@example.com",
 			redirURL: validRedirURL,
 
-			wantErr: ErrorUnauthorized,
+			wantErr:         ErrorUnauthorized,
+			clientCredsFlag: false,
 		},
 		{
 			creds:    goodCreds,
@@ -607,7 +672,8 @@ func TestResendEmailInvitation(t *testing.T) {
 			email:    "id1@example.com",
 			redirURL: url.URL{Host: "scammers.com"},
 
-			wantErr: ErrorInvalidRedirectURL,
+			wantErr:         ErrorInvalidRedirectURL,
+			clientCredsFlag: false,
 		},
 		{
 			creds:    goodCreds,
@@ -615,7 +681,8 @@ func TestResendEmailInvitation(t *testing.T) {
 			email:    "id2@example.com",
 			redirURL: validRedirURL,
 
-			wantErr: ErrorVerifiedEmail,
+			wantErr:         ErrorVerifiedEmail,
+			clientCredsFlag: false,
 		},
 		{
 			creds:    goodCreds,
@@ -623,12 +690,13 @@ func TestResendEmailInvitation(t *testing.T) {
 			email:    "non-existent@example.com",
 			redirURL: validRedirURL,
 
-			wantErr: ErrorResourceNotFound,
+			wantErr:         ErrorResourceNotFound,
+			clientCredsFlag: false,
 		},
 	}
 
 	for i, tt := range tests {
-		api, emailer := makeTestFixtures()
+		api, emailer := makeTestFixtures(tt.clientCredsFlag)
 		emailer.cantEmail = tt.cantEmail
 
 		response, err := api.ResendEmailInvitation(tt.creds, tt.userID, tt.redirURL)
@@ -670,7 +738,7 @@ func TestRevokeRefreshToken(t *testing.T) {
 		{"ID-2", goodClientID, []string{goodClientID}, []string{}},
 	}
 
-	api, _ := makeTestFixtures()
+	api, _ := makeTestFixtures(false)
 
 	listClientsWithRefreshTokens := func(creds Creds, userID string) ([]string, error) {
 		clients, err := api.ListClientsWithRefreshTokens(creds, userID)

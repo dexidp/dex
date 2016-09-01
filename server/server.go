@@ -93,9 +93,10 @@ type Server struct {
 
 	UserEmailer *useremail.UserEmailer
 
-	EnableRegistration       bool
-	EnableClientRegistration bool
-	RegisterOnFirstLogin     bool
+	EnableRegistration           bool
+	EnableClientRegistration     bool
+	EnableClientCredentialAccess bool
+	RegisterOnFirstLogin         bool
 
 	dbMap            *gorp.DbMap
 	localConnectorID string
@@ -300,8 +301,8 @@ func (s *Server) HTTPHandler() http.Handler {
 	apiBasePath := path.Join(httpPathAPI, APIVersion)
 	registerDiscoveryResource(apiBasePath, mux)
 
-	usersAPI := usersapi.NewUsersAPI(s.UserManager, s.ClientManager, s.RefreshTokenRepo, s.UserEmailer, s.localConnectorID)
-	handler := NewUserMgmtServer(usersAPI, s.JWTVerifierFactory(), s.UserManager, s.ClientManager).HTTPHandler()
+	usersAPI := usersapi.NewUsersAPI(s.UserManager, s.ClientManager, s.RefreshTokenRepo, s.UserEmailer, s.localConnectorID, s.EnableClientCredentialAccess)
+	handler := NewUserMgmtServer(usersAPI, s.JWTVerifierFactory(), s.UserManager, s.ClientManager, s.EnableClientCredentialAccess).HTTPHandler()
 
 	handleStripPrefix(apiBasePath+"/", handler)
 

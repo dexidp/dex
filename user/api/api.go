@@ -91,6 +91,7 @@ type UsersAPI struct {
 	clientManager    *clientmanager.ClientManager
 	refreshRepo      refresh.RefreshTokenRepo
 	emailer          Emailer
+	allowClientCreds bool
 }
 
 type Emailer interface {
@@ -104,19 +105,19 @@ type Creds struct {
 }
 
 // TODO(ericchiang): Don't pass a dbMap. See #385.
-func NewUsersAPI(userManager *usermanager.UserManager, clientManager *clientmanager.ClientManager, refreshRepo refresh.RefreshTokenRepo, emailer Emailer, localConnectorID string) *UsersAPI {
+func NewUsersAPI(userManager *usermanager.UserManager, clientManager *clientmanager.ClientManager, refreshRepo refresh.RefreshTokenRepo, emailer Emailer, localConnectorID string, allowClientCreds bool) *UsersAPI {
 	return &UsersAPI{
 		userManager:      userManager,
 		refreshRepo:      refreshRepo,
 		clientManager:    clientManager,
 		localConnectorID: localConnectorID,
 		emailer:          emailer,
+		allowClientCreds: allowClientCreds,
 	}
 }
 
 func (u *UsersAPI) GetUser(creds Creds, id string) (schema.User, error) {
 	log.Infof("userAPI: GetUser")
-
 	if !u.Authorize(creds) {
 		return schema.User{}, ErrorUnauthorized
 	}
@@ -312,6 +313,11 @@ func (u *UsersAPI) RevokeRefreshTokensForClient(creds Creds, userID, clientID st
 }
 
 func (u *UsersAPI) Authorize(creds Creds) bool {
+	if u.allowClientCreds {
+		if creds.User.ID == "" {
+			return true
+		}
+	}
 	return creds.User.Admin && !creds.User.Disabled
 }
 

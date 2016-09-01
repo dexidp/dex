@@ -29,17 +29,18 @@ import (
 )
 
 type ServerConfig struct {
-	IssuerURL                string
-	IssuerName               string
-	IssuerLogoURL            string
-	TemplateDir              string
-	EmailTemplateDirs        []string
-	EmailFromAddress         string
-	EmailerConfigFile        string
-	StateConfig              StateConfigurer
-	EnableRegistration       bool
-	EnableClientRegistration bool
-	RegisterOnFirstLogin     bool
+	IssuerURL                    string
+	IssuerName                   string
+	IssuerLogoURL                string
+	TemplateDir                  string
+	EmailTemplateDirs            []string
+	EmailFromAddress             string
+	EmailerConfigFile            string
+	StateConfig                  StateConfigurer
+	EnableRegistration           bool
+	EnableClientRegistration     bool
+	EnableClientCredentialAccess bool
+	RegisterOnFirstLogin         bool
 }
 
 type StateConfigurer interface {
@@ -78,9 +79,10 @@ func (cfg *ServerConfig) Server() (*Server, error) {
 		HealthChecks: []health.Checkable{km},
 		Connectors:   []connector.Connector{},
 
-		EnableRegistration:       cfg.EnableRegistration,
-		EnableClientRegistration: cfg.EnableClientRegistration,
-		RegisterOnFirstLogin:     cfg.RegisterOnFirstLogin,
+		EnableRegistration:           cfg.EnableRegistration,
+		EnableClientRegistration:     cfg.EnableClientRegistration,
+		EnableClientCredentialAccess: cfg.EnableClientCredentialAccess,
+		RegisterOnFirstLogin:         cfg.RegisterOnFirstLogin,
 	}
 
 	err = cfg.StateConfig.Configure(&srv)
