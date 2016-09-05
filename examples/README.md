@@ -10,17 +10,8 @@ First, build the example webapp client and example CLI client.
 ./build
 ```
 
-Now copy the example configurations into place to get dex configured.
-You can customize these later but the defaults should work fine.
-
-```console
-cp static/fixtures/clients.json.sample static/fixtures/clients.json
-cp static/fixtures/connectors.json.sample static/fixtures/connectors.json
-cp static/fixtures/users.json.sample static/fixtures/users.json
-cp static/fixtures/emailer.json.sample static/fixtures/emailer.json
-```
-
-With `dex-worker` configuration in place we can start dex in local mode.
+We can start dex in local mode. The default values for `dex-worker` flags are set to load
+some example objects which will be used in the next steps.
 
 ```console
 ./bin/dex-worker --no-db &
@@ -34,8 +25,8 @@ supplying the client information from `./static/fixtures/clients.json` into the 
 ```console
 ./bin/example-app \
 	--client-id=example-app \
-	--client-secret=eZXhhbXBsZS1jbGktc2VjcmV0 \
-	--discovery=http://127.0.0.1:5556
+	--client-secret=ZXhhbXBsZS1hcHAtc2VjcmV0 \
+	--discovery=http://127.0.0.1:5556/dex
 ```
 
 Visit [http://localhost:5555](http://localhost:5555) in your browser and click "login" link.
@@ -55,5 +46,5 @@ The example CLI will start, connect to the Dex instance to gather discovery info
 ./bin/example-cli \
 	--client-id example-cli \
 	--client-secret ZXhhbXBsZS1jbGktc2VjcmV0 \
-	--discovery=http://127.0.0.1:5556
+	--discovery=http://127.0.0.1:5556/dex
 ```
