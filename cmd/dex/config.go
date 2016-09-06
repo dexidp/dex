@@ -8,6 +8,7 @@ import (
 	"github.com/coreos/dex/connector/ldap"
 	"github.com/coreos/dex/connector/mock"
 	"github.com/coreos/dex/connector/oidc"
+	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/kubernetes"
 	"github.com/coreos/dex/storage/memory"
@@ -20,6 +21,8 @@ type Config struct {
 	Connectors []Connector `yaml:"connectors"`
 	Web        Web         `yaml:"web"`
 	OAuth2     OAuth2      `yaml:"oauth2"`
+
+	Templates server.TemplateConfig `yaml:"templates"`
 
 	StaticClients []storage.Client `yaml:"staticClients"`
 }
@@ -111,9 +114,15 @@ func (c *Connector) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	var err error
 	switch c.Type {
-	case "mock":
+	case "mockCallback":
 		var config struct {
-			Config mock.Config `yaml:"config"`
+			Config mock.CallbackConfig `yaml:"config"`
+		}
+		err = unmarshal(&config)
+		c.Config = &config.Config
+	case "mockPassword":
+		var config struct {
+			Config mock.PasswordConfig `yaml:"config"`
 		}
 		err = unmarshal(&config)
 		c.Config = &config.Config

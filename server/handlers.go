@@ -129,15 +129,16 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 
 	connectorInfos := make([]connectorInfo, len(s.connectors))
 	i := 0
-	for id := range s.connectors {
+	for id, conn := range s.connectors {
 		connectorInfos[i] = connectorInfo{
-			DisplayName: id,
-			URL:         s.absPath("/auth", id),
+			ID:   id,
+			Name: conn.DisplayName,
+			URL:  s.absPath("/auth", id),
 		}
 		i++
 	}
 
-	renderLoginOptions(w, connectorInfos, state)
+	s.templates.login(w, connectorInfos, state)
 }
 
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
@@ -163,7 +164,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			}
 			http.Redirect(w, r, callbackURL, http.StatusFound)
 		case connector.PasswordConnector:
-			renderPasswordTmpl(w, state, r.URL.String(), "")
+			s.templates.password(w, state, r.URL.String(), "", false)
 		default:
 			s.notFound(w, r)
 		}
@@ -174,7 +175,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		username := r.FormValue("username")
+		username := r.FormValue("login")
 		password := r.FormValue("password")
 
 		identity, ok, err := passwordConnector.Login(username, password)
@@ -184,7 +185,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !ok {
-			renderPasswordTmpl(w, state, r.URL.String(), "Invalid credentials")
+			s.templates.password(w, state, r.URL.String(), username, true)
 			return
 		}
 		redirectURL, err := s.finalizeLogin(identity, state, connID, conn.Connector)
@@ -299,7 +300,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 			s.renderError(w, http.StatusInternalServerError, errServerError, "")
 			return
 		}
-		renderApprovalTmpl(w, authReq.ID, *authReq.Claims, client, authReq.Scopes)
+		s.templates.approval(w, authReq.ID, authReq.Claims.Username, client.Name, authReq.Scopes)
 	case "POST":
 		if r.FormValue("approval") != "approve" {
 			s.renderError(w, http.StatusInternalServerError, "approval rejected", "")

@@ -7,25 +7,15 @@ web:
   http: 127.0.0.1:5556
 
 connectors:
-- type: mock
-  id: mock
+- type: mockCallback
+  id: mock-callback
   name: Mock
-- type: github
-  id: github
-  name: GitHub
+- type: mockPassword
+  id: mock-password
+  name: Password
   config:
-    clientID: "$GITHUB_CLIENT_ID"
-    clientSecret: "$GITHUB_CLIENT_SECRET"
-    redirectURI: http://127.0.0.1:5556/callback/github
-    org: kubernetes
-- type: oidc
-  id: google
-  name: Google Account
-  config:
-    issuer: https://accounts.google.com
-    clientID: "$GOOGLE_OAUTH2_CLIENT_ID"
-    clientSecret: "$GOOGLE_OAUTH2_CLIENT_SECRET"
-    redirectURI: http://127.0.0.1:5556/callback/google
+    username: "admin"
+    password: "PASSWORD"
 
 staticClients:
 - id: example-app

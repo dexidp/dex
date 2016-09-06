@@ -1,0 +1,42 @@
+{{ template "header.html" . }}
+
+<div class="panel">
+  <h2 class="heading">Grant Access</h2>
+
+  <hr>
+  <div class="list-with-title">
+    <div class="subtle-text">{{ .Client }} would like to:</div>
+      {{ range $scope := .Scopes }}
+      <li class="bullet-point">
+        <div class="subtle-text">
+          {{ $scope }}
+        </div>
+      </li>
+      {{ end }}
+  </div>
+  <hr>
+
+  <div>
+    <div class="form-row">
+      <form method="post">
+        <input type="hidden" name="state" value="{{ .State }}"/>
+        <input type="hidden" name="approval" value="approve">
+        <button type="submit" class="btn btn-success">
+            <span class="btn-text">Grant Access</span>
+        </button>
+      </form>
+    </div>
+    <div class="form-row">
+      <form method="post">
+        <input type="hidden" name="state" value="{{ .State }}"/>
+        <input type="hidden" name="approval" value="rejected">
+        <button type="submit" class="btn btn-provider">
+            <span class="btn-text">Cancel</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+{{ template "footer.html" . }}

@@ -19,7 +19,7 @@ GOARCH=$(shell go env GOARCH)
 
 build: bin/dex bin/example-app
 
-bin/dex: FORCE
+bin/dex: FORCE server/templates_default.go
 	@go install -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
 bin/example-app: FORCE
@@ -41,6 +41,9 @@ lint:
 	@for package in $(shell go list ./... | grep -v '/vendor/' | grep -v 'api/apipb'); do \
       golint $$package; \
 	done
+
+server/templates_default.go: $(wildcard web/templates/**)
+	@go run server/templates_default_gen.go
 
 .PHONY: docker-build
 docker-build: bin/dex
