@@ -32,12 +32,15 @@ func ignoreFile(p string) (ok bool, err error) {
 	return false, err
 }
 
+// Maps aren't deterministic, use a struct instead.
+
 type fileData struct {
 	name string
 	data string
 }
 
 func main() {
+	// ReadDir guarentees result in sorted order.
 	dir, err := ioutil.ReadDir("web/templates")
 	if err != nil {
 		log.Fatal(err)
@@ -57,6 +60,9 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		if bytes.Contains(data, []byte{'`'}) {
+			log.Fatalf("file %s contains escape character '`' and cannot be compiled into go source", p)
+		}
 		files = append(files, fileData{file.Name(), string(data)})
 	}
 
@@ -69,7 +75,7 @@ func main() {
 	fmt.Fprintln(f, "// defaultTemplates is a key for file name to file data of the files in web/templates.")
 	fmt.Fprintln(f, "var defaultTemplates = map[string]string{")
 	for _, file := range files {
-		fmt.Fprintf(f, "\t%q: %q,\n", file.name, file.data)
+		fmt.Fprintf(f, "\t%q: `%s`,\n", file.name, file.data)
 	}
 	fmt.Fprintln(f, "}")
 

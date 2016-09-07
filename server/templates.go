@@ -27,6 +27,10 @@ var requiredTmpls = []string{
 
 // TemplateConfig describes.
 type TemplateConfig struct {
+	// TODO(ericchiang): Asking for a directory with a set of templates doesn't indicate
+	// what the templates should look like and doesn't allow consumers of this package to
+	// provide their own templates in memory. In the future clean this up.
+
 	// Directory of the templates. If empty, these will be loaded from memory.
 	Dir string `yaml:"dir"`
 
