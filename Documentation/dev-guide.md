@@ -29,7 +29,7 @@ Note: If you want to test out the registration flow, you need to enable that fea
 
 To build using the go binary on your host, use the `./build` script.
 
-You can also use a copy of `go` hosted inside a Docker container if you prefix your command with `go-docker`, as in: `./go-docker ./build`
+You can also use a copy of `go` hosted inside a Docker container if you prefix your command with `go-docker`, as in: `GOPATH=/go ./go-docker ./build`
 
 ## Docker Build and Push
 
