@@ -1,0 +1,7 @@
+[
+  {
+    "id": "castle-global-frontend",
+    "secret": "ZXhhbXBsZS1hcHAtc2VjcmV0",
+    "redirectURLs": ["http://global/api/auth/callback"]
+  }
+]
