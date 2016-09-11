@@ -491,6 +491,7 @@ func handleTokenFunc(srv OIDCServer) http.HandlerFunc {
 
 		var jwt *jose.JWT
 		var refreshToken string
+		var expiresIn int64
 		grantType := r.PostForm.Get("grant_type")
 
 		switch grantType {
@@ -501,14 +502,14 @@ func handleTokenFunc(srv OIDCServer) http.HandlerFunc {
 				writeTokenError(w, oauth2.NewError(oauth2.ErrorInvalidRequest), state)
 				return
 			}
-			jwt, refreshToken, err = srv.CodeToken(creds, code)
+			jwt, refreshToken, expiresIn, err = srv.CodeToken(creds, code)
 			if err != nil {
 				log.Errorf("couldn't exchange code for token: %v", err)
 				writeTokenError(w, err, state)
 				return
 			}
 		case oauth2.GrantTypeClientCreds:
-			jwt, err = srv.ClientCredsToken(creds)
+			jwt, expiresIn, err = srv.ClientCredsToken(creds)
 			if err != nil {
 				log.Errorf("couldn't creds for token: %v", err)
 				writeTokenError(w, err, state)
@@ -521,7 +522,7 @@ func handleTokenFunc(srv OIDCServer) http.HandlerFunc {
 				writeTokenError(w, oauth2.NewError(oauth2.ErrorInvalidRequest), state)
 				return
 			}
-			jwt, refreshToken, err = srv.RefreshToken(creds, strings.Split(scopes, " "), token)
+			jwt, refreshToken, expiresIn, err = srv.RefreshToken(creds, strings.Split(scopes, " "), token)
 			if err != nil {
 				writeTokenError(w, err, state)
 				return
@@ -537,6 +538,7 @@ func handleTokenFunc(srv OIDCServer) http.HandlerFunc {
 			IDToken:      jwt.Encode(),
 			TokenType:    "bearer",
 			RefreshToken: refreshToken,
+			ExpiresIn:    expiresIn,
 		}
 
 		b, err := json.Marshal(t)
@@ -594,6 +596,7 @@ type oAuth2Token struct {
 	IDToken      string `json:"id_token"`
 	TokenType    string `json:"token_type"`
 	RefreshToken string `json:"refresh_token,omitempty"`
+	ExpiresIn    int64  `json:"expires_in"`
 }
 
 func createLastSeenCookie() *http.Cookie {
