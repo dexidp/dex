@@ -283,7 +283,7 @@ func TestServerCodeTokenCrossClient(t *testing.T) {
 			t.Fatalf("case %d: unexpected error: %v", i, err)
 		}
 
-		jwt, token, expiresIn, err := f.srv.CodeToken(f.clientCreds[tt.clientID], key)
+		jwt, token, expiresAt, err := f.srv.CodeToken(f.clientCreds[tt.clientID], key)
 		if err != nil {
 			t.Fatalf("case %d: unexpected error: %v", i, err)
 		}
@@ -293,7 +293,7 @@ func TestServerCodeTokenCrossClient(t *testing.T) {
 		if token != tt.refreshToken {
 			t.Errorf("case %d: expect refresh token %q, got %q", i, tt.refreshToken, token)
 		}
-		if expiresIn == 0 {
+		if expiresAt.IsZero() {
 			t.Errorf("case %d: expect non-zero expiration time", i)
 		}
 
