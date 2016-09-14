@@ -118,9 +118,11 @@ type AuthRequest struct {
 	// attempts.
 	ForceApprovalPrompt bool `json:"forceApprovalPrompt,omitempty"`
 
+	LoggedIn bool `json:"loggedIn"`
+
 	// The identity of the end user. Generally nil until the user authenticates
 	// with a backend.
-	Claims *Claims `json:"claims,omitempty"`
+	Claims Claims `json:"claims,omitempty"`
 	// The connector used to login the user. Set when the user authenticates.
 	ConnectorID   string `json:"connectorID,omitempty"`
 	ConnectorData []byte `json:"connectorData,omitempty"`
@@ -145,13 +147,11 @@ func toStorageAuthRequest(req AuthRequest) storage.AuthRequest {
 		Nonce:               req.Nonce,
 		State:               req.State,
 		ForceApprovalPrompt: req.ForceApprovalPrompt,
+		LoggedIn:            req.LoggedIn,
 		ConnectorID:         req.ConnectorID,
 		ConnectorData:       req.ConnectorData,
 		Expiry:              req.Expiry,
-	}
-	if req.Claims != nil {
-		i := toStorageClaims(*req.Claims)
-		a.Claims = &i
+		Claims:              toStorageClaims(req.Claims),
 	}
 	return a
 }
@@ -172,14 +172,12 @@ func (cli *client) fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		RedirectURI:         a.RedirectURI,
 		Nonce:               a.Nonce,
 		State:               a.State,
+		LoggedIn:            a.LoggedIn,
 		ForceApprovalPrompt: a.ForceApprovalPrompt,
 		ConnectorID:         a.ConnectorID,
 		ConnectorData:       a.ConnectorData,
 		Expiry:              a.Expiry,
-	}
-	if a.Claims != nil {
-		i := fromStorageClaims(*a.Claims)
-		req.Claims = &i
+		Claims:              fromStorageClaims(a.Claims),
 	}
 	return req
 }

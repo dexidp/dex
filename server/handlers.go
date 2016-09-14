@@ -264,7 +264,8 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReqID, connector
 	}
 
 	updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
-		a.Claims = &claims
+		a.LoggedIn = true
+		a.Claims = claims
 		a.ConnectorID = connectorID
 		a.ConnectorData = identity.ConnectorData
 		return a, nil
@@ -282,7 +283,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, http.StatusInternalServerError, errServerError, "")
 		return
 	}
-	if authReq.Claims == nil {
+	if !authReq.LoggedIn {
 		log.Printf("Auth request does not have an identity for approval")
 		s.renderError(w, http.StatusInternalServerError, errServerError, "")
 		return
@@ -341,7 +342,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 				ConnectorID: authReq.ConnectorID,
 				Nonce:       authReq.Nonce,
 				Scopes:      authReq.Scopes,
-				Claims:      *authReq.Claims,
+				Claims:      authReq.Claims,
 				Expiry:      s.now().Add(time.Minute * 5),
 				RedirectURI: authReq.RedirectURI,
 			}
@@ -358,7 +359,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			}
 			q.Set("code", code.ID)
 		case responseTypeToken:
-			idToken, expiry, err := s.newIDToken(authReq.ClientID, *authReq.Claims, authReq.Scopes, authReq.Nonce)
+			idToken, expiry, err := s.newIDToken(authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce)
 			if err != nil {
 				log.Printf("failed to create ID token: %v", err)
 				tokenErr(w, errServerError, "", http.StatusInternalServerError)

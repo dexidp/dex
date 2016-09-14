@@ -35,7 +35,7 @@ func testUpdateAuthRequest(t *testing.T, s storage.Storage) {
 		t.Fatalf("failed creating auth request: %v", err)
 	}
 	if err := s.UpdateAuthRequest(a.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
-		old.Claims = &identity
+		old.Claims = identity
 		old.ConnectorID = "connID"
 		return old, nil
 	}); err != nil {
@@ -46,11 +46,8 @@ func testUpdateAuthRequest(t *testing.T, s storage.Storage) {
 	if err != nil {
 		t.Fatalf("failed to get auth req: %v", err)
 	}
-	if got.Claims == nil {
-		t.Fatalf("no identity in auth request")
-	}
-	if !reflect.DeepEqual(*got.Claims, identity) {
-		t.Fatalf("update failed, wanted identity=%#v got %#v", identity, *got.Claims)
+	if !reflect.DeepEqual(got.Claims, identity) {
+		t.Fatalf("update failed, wanted identity=%#v got %#v", identity, got.Claims)
 	}
 }
 
