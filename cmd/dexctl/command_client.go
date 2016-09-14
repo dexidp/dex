@@ -12,7 +12,7 @@ var (
 		Use:     "new-client",
 		Short:   "Create a new client with one or more redirect URLs.",
 		Long:    "Create a new client with one or more redirect URLs,",
-		Example: `  dexctl new-client --db-url=${DB_URL} 'https://example.com/callback'`,
+		Example: `  dexctl new-client --base-url=${OVER_LORD_URL} --api-key=${ADMIN_API_KEY} 'https://example.com/callback'`,
 		Run:     wrapRun(runNewClient),
 	}
 )
