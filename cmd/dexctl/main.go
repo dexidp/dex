@@ -44,7 +44,8 @@ var (
 
 	global struct {
 		creds    oidc.ClientCredentials
-		dbURL    string
+		baseURL  string
+		apiKey   string
 		help     bool
 		logDebug bool
 	}
@@ -53,7 +54,8 @@ var (
 func init() {
 	log.EnableTimestamps()
 
-	rootCmd.PersistentFlags().StringVar(&global.dbURL, "db-url", "", "DSN-formatted database connection string")
+	rootCmd.PersistentFlags().StringVar(&global.baseURL, "base-url", "", "DSN-formatted dex-overlord base URL")
+	rootCmd.PersistentFlags().StringVar(&global.apiKey, "api-key", "", "API key for Admin API")
 	rootCmd.PersistentFlags().BoolVar(&global.logDebug, "log-debug", false, "Log debug-level information")
 }
 
@@ -72,10 +74,12 @@ func wrapRun(run func(cmd *cobra.Command, args []string) int) func(cmd *cobra.Co
 func getDriver() (drv driver) {
 	var err error
 	switch {
-	case len(global.dbURL) > 0:
-		drv, err = newDBDriver(global.dbURL)
-	default:
+	case len(global.baseURL) < 1:
 		err = errors.New("--db-url flag unset")
+	case len(global.apiKey) < 1:
+		err = errors.New("--api-key flag unset")
+	default:
+		drv, err = newAdminAPIDriver(global.baseURL, global.apiKey)
 	}
 
 	if err != nil {

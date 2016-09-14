@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/coreos/dex/connector"
+	"encoding/json"
 	"github.com/spf13/cobra"
 )
 
@@ -14,7 +14,7 @@ var (
 		Use:     "get-connector-configs",
 		Short:   "Enumerate current IdP connector configs.",
 		Long:    "Enumerate current IdP connector configs.",
-		Example: `  dexctl get-connector-configs --db-url=${DB_URL}`,
+		Example: `  dexctl get-connector-configs --base-url=${OVER_LORD_URL} --api-key=${ADMIN_API_KEY}`,
 		Run:     wrapRun(runGetConnectorConfigs),
 	}
 
@@ -22,7 +22,7 @@ var (
 		Use:     "set-connector-configs",
 		Short:   "Overwrite the current IdP connector configs with those from a local file. Provide the argument '-' to read from stdin.",
 		Long:    "Overwrite the current IdP connector configs with those from a local file. Provide the argument '-' to read from stdin.",
-		Example: `  dexctl set-connector-configs --db-url=${DB_URL} ./static/conn_conf.json`,
+		Example: `  dexctl set-connector-configs --base-url=${OVER_LORD_URL} --api-key=${ADMIN_API_KEY} ./static/fixtures/connectors.json.sample`,
 		Run:     wrapRun(runSetConnectorConfigs),
 	}
 )
@@ -51,7 +51,7 @@ func runSetConnectorConfigs(cmd *cobra.Command, args []string) int {
 		r = f
 	}
 
-	cfgs, err := connector.ReadConfigs(r)
+	cfgs, err := readConfigs(r)
 	if err != nil {
 		stderr("Unable to decode connector configs: %v", err)
 		return 1
@@ -81,10 +81,28 @@ func runGetConnectorConfigs(cmd *cobra.Command, args []string) int {
 	fmt.Printf("Found %d connector config(s)\n", len(cfgs))
 
 	for _, cfg := range cfgs {
+		cfgMap := cfg.(map[string]interface{})
+		id := cfgMap["id"].(string)
 		fmt.Println()
-		fmt.Printf("ID:   %v\n", cfg.ConnectorID())
-		fmt.Printf("Type: %v\n", cfg.ConnectorType())
+		fmt.Printf("ID:   %v\n", id)
+		for key, val := range cfgMap {
+			fmt.Printf("\t%s: %v\n", key, val)
+		}
+
 	}
 
 	return 0
+}
+
+func readConfigs(r io.Reader) ([]interface{}, error) {
+	var connectorConfigAsMap []map[string]interface{}
+	if err := json.NewDecoder(r).Decode(&connectorConfigAsMap); err != nil {
+		return nil, err
+	}
+	connectorConfigs := make([]interface{}, len(connectorConfigAsMap))
+	for i, connectorConfig := range connectorConfigAsMap {
+
+		connectorConfigs[i] = connectorConfig
+	}
+	return connectorConfigs, nil
 }
