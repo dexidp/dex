@@ -1,7 +1,7 @@
 // +build go1.7
 
-// Package storagetest provides conformance tests for storage implementations.
-package storagetest
+// Package conformance provides conformance tests for storage implementations.
+package conformance
 
 import (
 	"reflect"
