@@ -13,10 +13,24 @@ import (
 
 var neverExpire = time.Now().Add(time.Hour * 24 * 365 * 100)
 
+// StorageFactory is a method for creating a new storage. The returned storage sould be initialized
+// but shouldn't have any existing data in it.
+type StorageFactory func() storage.Storage
+
 // RunTestSuite runs a set of conformance tests against a storage.
-func RunTestSuite(t *testing.T, s storage.Storage) {
-	t.Run("UpdateAuthRequest", func(t *testing.T) { testUpdateAuthRequest(t, s) })
-	t.Run("CreateRefresh", func(t *testing.T) { testCreateRefresh(t, s) })
+func RunTestSuite(t *testing.T, sf StorageFactory) {
+	tests := []struct {
+		name string
+		run  func(t *testing.T, s storage.Storage)
+	}{
+		{"UpdateAuthRequest", testUpdateAuthRequest},
+		{"CreateRefresh", testCreateRefresh},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.run(t, sf())
+		})
+	}
 }
 
 func testUpdateAuthRequest(t *testing.T, s storage.Storage) {
