@@ -1,8 +1,14 @@
-hash: 2af4a276277d2ab2ba9de9b0fd67ab7d6b70c07f4171a9efb225f30306d6f3eb
-updated: 2016-08-08T11:20:44.300140564-07:00
+hash: 149c717bc83cc279ab6192364776b8c1b6bad8a620ce9d64c56d946276630437
+updated: 2016-09-30T21:01:57.607704513-07:00
 imports:
+- name: github.com/cockroachdb/cockroach-go
+  version: 31611c0501c812f437d4861d87d117053967c955
+  subpackages:
+  - crdb
 - name: github.com/ericchiang/oidc
   version: 1907f0e61549f9081f26bdf269f11603496c9dee
+- name: github.com/go-sql-driver/mysql
+  version: 0b58b37b664c21f3010e836f1b931e1d0b0b0685
 - name: github.com/golang/protobuf
   version: 874264fbbb43f4d91e999fecb4b40143ed611400
   subpackages:
@@ -21,6 +27,12 @@ imports:
   subpackages:
   - diff
   - pretty
+- name: github.com/lib/pq
+  version: 50761b0867bd1d9d069276790bcd4a3bccf2324a
+  subpackages:
+  - oid
+- name: github.com/mattn/go-sqlite3
+  version: 3fb7a0e792edd47bf0cf1e919dfc14e2be412e15
 - name: github.com/mitchellh/go-homedir
   version: 756f7b183b7ab78acdbbee5c7f392838ed459dda
 - name: github.com/pquerna/cachecontrol
@@ -48,13 +60,13 @@ imports:
 - name: google.golang.org/appengine
   version: 267c27e7492265b84fc6719503b14a1e17975d79
   subpackages:
-  - urlfetch
   - internal
-  - internal/urlfetch
   - internal/base
   - internal/datastore
   - internal/log
   - internal/remote_api
+  - internal/urlfetch
+  - urlfetch
 - name: gopkg.in/asn1-ber.v1
   version: 4e86f4367175e39f69d9358a5f17b4dda270378d
 - name: gopkg.in/ldap.v2
