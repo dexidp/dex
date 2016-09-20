@@ -60,7 +60,7 @@ func handlePasswordLogin(lf oidc.LoginFunc, tpl *template.Template, idp password
 
 		ident, err := idp.Identity(userid, password)
 		if err != nil {
-			handleGET(w, r, "invalid login")
+			handleGET(w, r, "Oops, looks like the email or password you entered is invalid. Please try again.")
 			return
 		}
 
