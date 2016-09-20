@@ -6,8 +6,8 @@
 # Build the docker container locally without pushing to registry
 # ./build-docker build
 
-DOCKER_REGISTRY=${DOCKER_REGISTRY:=quay.io}
-DOCKER_REPO=${DOCKER_REPO:=coreos/dex}
+DOCKER_REGISTRY=${DOCKER_REGISTRY:=quantum}
+DOCKER_REPO=${DOCKER_REPO:=dex}
 repo=$DOCKER_REGISTRY/$DOCKER_REPO
 
 version=$(./git-version)
