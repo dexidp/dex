@@ -55,7 +55,7 @@
       <input name="password" type="password" class="form-control{{ if .Error }} has-error{{ end }}" placeholder="Password" required/>
        <span class="help-block"><a href="{{ "/send-reset-password" | absPath }}?session_key={{ .SessionKey }}">Forgot your password?</a></span>
     </div>
-    <button type="submit" class="btn btn-primary btn-block">Login</button>
+    <button type="submit" class="btn btn-primary btn-block">Sign In</button>
     <p>Don't have an account? <a href="{{ "/register" | absPath }}?code={{ .SessionKey }}">Sign up</a></p>
   </form>
 
