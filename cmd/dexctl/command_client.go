@@ -5,6 +5,7 @@ import (
 
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/spf13/cobra"
+	"os"
 )
 
 var (
@@ -12,7 +13,7 @@ var (
 		Use:     "new-client",
 		Short:   "Create a new client with one or more redirect URLs.",
 		Long:    "Create a new client with one or more redirect URLs,",
-		Example: `  dexctl new-client --db-url=${DB_URL} 'https://example.com/callback'`,
+		Example: `  dexctl new-client --base-url=${OVER_LORD_URL} --api-key=${ADMIN_API_KEY} 'https://example.com/callback'`,
 		Run:     wrapRun(runNewClient),
 	}
 )
@@ -36,16 +37,43 @@ func runNewClient(cmd *cobra.Command, args []string) int {
 		}
 		redirectURLs[i] = *u
 	}
+	var clientCredential *oidc.ClientCredentials
+	if useDBConnector, err := isDBURLPresent(); err != nil {
+		stderr("Unable to configure dexctl : %v", err)
+		os.Exit(1)
+	} else {
+		if useDBConnector {
 
-	cc, err := getDriver().NewClient(oidc.ClientMetadata{RedirectURIs: redirectURLs})
-	if err != nil {
-		stderr("Failed creating new client: %v", err)
-		return 1
+			dbConnector, dbConnectorError := getDBConnector()
+			if dbConnectorError != nil {
+				stderr("Failed creating database connector: %v", dbConnectorError)
+				return 1
+			}
+			if cc, err := dbConnector.NewClient(oidc.ClientMetadata{RedirectURIs: redirectURLs}); err != nil {
+				stderr("Failed creating new client: %v", err)
+				return 1
+			} else {
+				clientCredential = cc
+			}
+
+		} else {
+			adminAPIConnector, adminAPIConnectorError := getAdminAPIConnector()
+			if adminAPIConnectorError != nil {
+				stderr("Failed creating admin api client : %v", adminAPIConnectorError)
+				return 1
+			}
+			if cc, err := adminAPIConnector.NewClient(oidc.ClientMetadata{RedirectURIs: redirectURLs}); err != nil {
+				stderr("Failed creating new client: %v", err)
+				return 1
+			} else {
+				clientCredential = cc
+			}
+		}
 	}
 
 	stdout("# Added new client:")
-	stdout("DEX_APP_CLIENT_ID=%s", cc.ID)
-	stdout("DEX_APP_CLIENT_SECRET=%s", cc.Secret)
+	stdout("DEX_APP_CLIENT_ID=%s", clientCredential.ID)
+	stdout("DEX_APP_CLIENT_SECRET=%s", clientCredential.Secret)
 	for i, u := range redirectURLs {
 		stdout("DEX_APP_REDIRECTURL_%d=%s", i, u.String())
 	}

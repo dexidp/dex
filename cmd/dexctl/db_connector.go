@@ -8,26 +8,26 @@ import (
 	"github.com/coreos/go-oidc/oidc"
 )
 
-func newDBDriver(dsn string) (driver, error) {
+func newDBConnector(dsn string) (*dbConnector, error) {
 	dbc, err := db.NewConnection(db.Config{DSN: dsn})
 	if err != nil {
 		return nil, err
 	}
 
-	drv := &dbDriver{
+	dConn := &dbConnector{
 		cfgRepo:   db.NewConnectorConfigRepo(dbc),
 		ciManager: manager.NewClientManager(db.NewClientRepo(dbc), db.TransactionFactory(dbc), manager.ManagerOptions{}),
 	}
 
-	return drv, nil
+	return dConn, nil
 }
 
-type dbDriver struct {
+type dbConnector struct {
 	ciManager *manager.ClientManager
 	cfgRepo   *db.ConnectorConfigRepo
 }
 
-func (d *dbDriver) NewClient(meta oidc.ClientMetadata) (*oidc.ClientCredentials, error) {
+func (d *dbConnector) NewClient(meta oidc.ClientMetadata) (*oidc.ClientCredentials, error) {
 	if err := meta.Valid(); err != nil {
 		return nil, err
 	}
@@ -37,10 +37,10 @@ func (d *dbDriver) NewClient(meta oidc.ClientMetadata) (*oidc.ClientCredentials,
 	return d.ciManager.New(cli, nil)
 }
 
-func (d *dbDriver) ConnectorConfigs() ([]connector.ConnectorConfig, error) {
+func (d *dbConnector) ConnectorConfigs() ([]connector.ConnectorConfig, error) {
 	return d.cfgRepo.All()
 }
 
-func (d *dbDriver) SetConnectorConfigs(cfgs []connector.ConnectorConfig) error {
+func (d *dbConnector) SetConnectorConfigs(cfgs []connector.ConnectorConfig) error {
 	return d.cfgRepo.Set(cfgs)
 }
