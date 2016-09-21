@@ -443,7 +443,7 @@ func TestServerCodeToken(t *testing.T) {
 			t.Fatalf("case %d: unexpected error: %v", i, err)
 		}
 
-		jwt, token, err := f.srv.CodeToken(oidc.ClientCredentials{
+		jwt, token, expiresAt, err := f.srv.CodeToken(oidc.ClientCredentials{
 			ID:     testClientID,
 			Secret: clientTestSecret}, key)
 		if err != nil {
@@ -454,6 +454,9 @@ func TestServerCodeToken(t *testing.T) {
 		}
 		if token != tt.refreshToken {
 			t.Fatalf("case %d: expect refresh token %q, got %q", i, tt.refreshToken, token)
+		}
+		if expiresAt.IsZero() {
+			t.Fatalf("case %d: expect non-zero expiration time", i)
 		}
 	}
 }
@@ -475,7 +478,7 @@ func TestServerTokenUnrecognizedKey(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	jwt, token, err := f.srv.CodeToken(testClientCredentials, "foo")
+	jwt, token, expiresAt, err := f.srv.CodeToken(testClientCredentials, "foo")
 	if err == nil {
 		t.Fatalf("Expected non-nil error")
 	}
@@ -484,6 +487,9 @@ func TestServerTokenUnrecognizedKey(t *testing.T) {
 	}
 	if token != "" {
 		t.Fatalf("Expected empty refresh token")
+	}
+	if !expiresAt.IsZero() {
+		t.Fatalf("Expected zero expiration time")
 	}
 }
 
@@ -580,7 +586,7 @@ func TestServerTokenFail(t *testing.T) {
 			t.Fatalf("Unexpected error: %v", err)
 		}
 
-		jwt, token, err := f.srv.CodeToken(tt.argCC, tt.argKey)
+		jwt, token, expiresAt, err := f.srv.CodeToken(tt.argCC, tt.argKey)
 		if token != tt.refreshToken {
 			fmt.Printf("case %d: expect refresh token %q, got %q\n", i, tt.refreshToken, token)
 			t.Fatalf("case %d: expect refresh token %q, got %q", i, tt.refreshToken, token)
@@ -594,6 +600,9 @@ func TestServerTokenFail(t *testing.T) {
 		}
 		if err != nil && jwt != nil {
 			t.Errorf("case %d: got non-nil JWT %v", i, jwt)
+		}
+		if err == nil && expiresAt.IsZero() {
+			t.Errorf("case %d: got zero expiration time %v", i, expiresAt)
 		}
 	}
 }
@@ -835,7 +844,7 @@ func TestServerRefreshToken(t *testing.T) {
 			t.Fatalf("Unexpected error: %v", err)
 		}
 
-		jwt, refreshToken, err := f.srv.RefreshToken(tt.creds, tt.refreshScopes, tt.token)
+		jwt, refreshToken, expiresIn, err := f.srv.RefreshToken(tt.creds, tt.refreshScopes, tt.token)
 		if !reflect.DeepEqual(err, tt.err) {
 			t.Errorf("Case %d: expect: %v, got: %v", i, tt.err, err)
 		}
@@ -874,6 +883,10 @@ func TestServerRefreshToken(t *testing.T) {
 
 		if diff := pretty.Compare(refreshToken, tt.expectedRefreshToken); diff != "" {
 			t.Errorf("Case %d: want=%v, got=%v", i, tt.expectedRefreshToken, refreshToken)
+		}
+
+		if err == nil && expiresIn.IsZero() {
+			t.Errorf("case %d: got zero expiration time %v", i, expiresIn)
 		}
 	}
 }
