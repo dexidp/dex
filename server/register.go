@@ -37,6 +37,7 @@ type registerTemplateData struct {
 	Password     string
 	Local        bool
 	RemoteExists *remoteExistsData
+	LoginURL     string
 }
 
 var (
@@ -100,6 +101,8 @@ func handleRegisterFunc(s *Server, tpl Template) http.HandlerFunc {
 			return
 		}
 
+		loginURL := newLoginURLFromSession(s.IssuerURL, ses, false, []string{}, "")
+
 		var exists bool
 		exists, err = remoteIdentityExists(s.UserRepo, ses.ConnectorID, ses.Identity.ID)
 		if err != nil {
@@ -135,6 +138,7 @@ func handleRegisterFunc(s *Server, tpl Template) http.HandlerFunc {
 					Login:    redirURL,
 					Register: registerURL.String(),
 				},
+				LoginURL: loginURL.String(),
 			})
 
 			return
@@ -176,6 +180,7 @@ func handleRegisterFunc(s *Server, tpl Template) http.HandlerFunc {
 			Email:    email,
 			Password: password,
 			Local:    local,
+			LoginURL: loginURL.String(),
 		}
 
 		// If there are form errors or this is the initial request
