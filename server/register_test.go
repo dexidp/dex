@@ -272,6 +272,11 @@ func TestHandleRegister(t *testing.T) {
 			attachRemote:   true,
 			wantStatus:     http.StatusUnauthorized,
 			wantUserExists: false,
+			wantFormValues: url.Values{
+				"code":     str(""),
+				"email":    str(""),
+				"validate": str("1"),
+			},
 		},
 	}
 

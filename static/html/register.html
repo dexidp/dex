@@ -14,8 +14,7 @@
 
   {{ if .RemoteExists }}
   <div class="alert alert danger">This account is already registered.</div>
-  {{ end }}
-
+  {{ else }}
   <form id="registerForm" method="POST" action="{{ "/register" | absPath }}">
     <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "email" }}has-error{{ end }}{{ end }}">
       <input id="email" class="form-control" type="email" name="email" required placeholder="Email" value="{{.Email}}" autofocus/>
@@ -42,6 +41,7 @@
     <input type="hidden" name="code" value="{{.Code}}"/>
     <input type="hidden" name="validate" value="1"/>
   </form>
+  {{ end }}
 </div>
 
 {{ template "footer.html" }}

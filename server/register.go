@@ -138,7 +138,6 @@ func handleRegisterFunc(s *Server, tpl Template) http.HandlerFunc {
 					Login:    redirURL,
 					Register: registerURL.String(),
 				},
-				LoginURL: loginURL.String(),
 			})
 
 			return
