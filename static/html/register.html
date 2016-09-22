@@ -1,72 +1,47 @@
 {{ template "header.html" }}
 
-<div class="panel">
-  <h2 class="heading">Create Your Account</h2>
+<div class="middle-box">
+  <header>
+    <div class="logo">
+      {{ template "logo.svg.html" }}
+    </div>
+    <h3>Create Your Account</h3>
+  </header>
 
   {{ if .Error }}
-  <div class="error-box">{{ .Message }}</div>
-  {{ else if .RemoteExists }}
-     {{ with .RemoteExists }}
-     <div class="instruction-block">
-       This account is already registered.
-       If you'd like to login with that account, click here:
-     </div>
-      <div>
-        <a href="{{ .Login | absPath }}" target="_self">
-          <button class="btn btn-provider">
-            <span class="btn-text">Login</span>
-          </button>
-        </a>
-      </div>
-      <div class="instruction-block">
-        If you would like to register with a different account, click here:
-      </div>
-      <div>
-        <a href="{{ .Register | absPath }}" target="_self">
-          <button class="btn btn-provider">
-            <span class="btn-text">Register</span>
-          </button>
-        </a>
-      </div>
-     {{ end }}
-
-  {{ else }}
-
-  <form id="registerForm" method="POST" action="{{ "/register" | absPath }}">
-
-      <div class="form-row">
-        <div class="input-desc">
-          <label for="email">Email Address</label>
-        </div>
-        <input id="email" class="input-box" type="text" name="email" required placeholder="email" value="{{.Email}}" autofocus />
-        {{ range $fe := .FormErrors }}
-          {{ if eq $fe.Field "email" }}
-          <div class="error-box-field">{{ $fe.Error }}</div>
-          {{ end }}
-        {{ end }}
-      </div>
-
-      {{ if .Local }}
-      <div class="form-row">
-        <div class="input-desc">
-          <label for="password">Password</label>
-        </div>
-        <input minlength="6" required id="password" name="password" type="password" class="input-box" value="{{.Password}}"/>
-        {{ range $fe := .FormErrors }}
-          {{ if eq $fe.Field "password" }}
-          <div class="error-box-field">{{ $fe.Error }}</div>
-          {{ end }}
-        {{ end }}
-      </div>
-      {{ end }}
-
-      <button type="submit" class="btn btn-primary">Create Account</button>
-      <input type="hidden" name="code" value="{{.Code}}"/>
-      <input type="hidden" name="validate" value="1"/>
-    </form>
-
+  <div class="alert alert-danger">{{ .Message }}</div>
   {{ end }}
 
+  {{ if .RemoteExists }}
+  <div class="alert alert danger">This account is already registered.</div>
+  {{ else }}
+  <form id="registerForm" method="POST" action="{{ "/register" | absPath }}">
+    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "email" }}has-error{{ end }}{{ end }}">
+      <input id="email" class="form-control" type="email" name="email" required placeholder="Email" value="{{.Email}}" autofocus/>
+      {{ range $fe := .FormErrors }}
+        {{ if eq $fe.Field "email" }}
+        <div class="help-block">{{ $fe.Error }}</div>
+        {{ end }}
+      {{ end }}
+    </div>
+
+    {{ if .Local }}
+    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "email" }}has-error{{ end }}{{ end }}">
+      <input minlength="6" required id="password" name="password" type="password" class="form-control" placeholder="Password" value="{{.Password}}"/>
+      {{ range $fe := .FormErrors }}
+        {{ if eq $fe.Field "password" }}
+        <div class="help-block">{{ $fe.Error }}</div>
+        {{ end }}
+      {{ end }}
+    </div>
+    {{ end }}
+
+    <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+    <p>Already have an account? <a href="{{ .LoginURL }}">Sign in</a></p>
+    <input type="hidden" name="code" value="{{.Code}}"/>
+    <input type="hidden" name="validate" value="1"/>
+  </form>
+  {{ end }}
 </div>
 
 {{ template "footer.html" }}
