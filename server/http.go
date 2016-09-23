@@ -291,8 +291,14 @@ func handleAuthFunc(srv OIDCServer, baseURL url.URL, idpcs []connector.Connector
 		connectorID := q.Get("connector_id")
 		idpc, ok := idx[connectorID]
 		if !ok {
-			renderLoginPage(w, r, srv, idpcs, register, tpl)
-			return
+			if len(idpcs) == 1 {
+				// no need to select connector if only one is available
+				idpc = idpcs[0]
+				connectorID = idpc.ID()
+			} else {
+				renderLoginPage(w, r, srv, idpcs, register, tpl)
+				return
+			}
 		}
 
 		acr, err := oauth2.ParseAuthCodeRequest(q)

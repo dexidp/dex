@@ -2,22 +2,5 @@
 	{
 		"type": "local",
 		"id": "local"
-	},
-	{
-		"type": "ldap",
-		"id": "ldap",
-		"host": "127.0.0.1:389",
-		"useTLS": true,
-		"useSSL": false,
-		"skipCertVerification": false,
-		"baseDN": "ou=People,dc=example,dc=com",
-		"nameAttribute": "cn",
-		"emailAttribute": "mail",
-		"searchBeforeAuth": true,
-		"searchFilter": "(mail=%u)",
-		"searchScope": "one",
-		"searchBindDN": "searchuser",
-		"searchBindPw": "supersecret",
-		"bindTemplate": "uid=%u,%b"
 	}
 ]

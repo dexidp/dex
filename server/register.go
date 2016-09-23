@@ -345,6 +345,8 @@ func newLoginURLFromSession(issuer url.URL, ses *session.Session, register bool,
 	v.Set("redirect_uri", ses.RedirectURL.String())
 	v.Set("state", ses.ClientState)
 	v.Set("client_id", ses.ClientID)
+	v.Set("connector_id", ses.ConnectorID)
+	v.Set("response_type", "code")
 	if register {
 		v.Set("register", "1")
 	}
