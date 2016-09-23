@@ -10,7 +10,6 @@ DOCKER_IMAGE=$(DOCKER_REPO):$(VERSION)
 
 export GOBIN=$(PWD)/bin
 export GO15VENDOREXPERIMENT=1
-export CGO_ENABLED:=0
 
 LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
 
@@ -26,10 +25,12 @@ bin/example-app: FORCE
 	@go install -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/example-app
 
 test:
-	@go test $(shell go list ./... | grep -v '/vendor/')
+	@go test -v -i $(shell go list ./... | grep -v '/vendor/')
+	@go test -v $(shell go list ./... | grep -v '/vendor/')
 
 testrace:
-	@CGO_ENABLED=1 go test --race $(shell go list ./... | grep -v '/vendor/')
+	@go test -v -i --race $(shell go list ./... | grep -v '/vendor/')
+	@go test -v --race $(shell go list ./... | grep -v '/vendor/')
 
 vet:
 	@go vet $(shell go list ./... | grep -v '/vendor/')
@@ -39,7 +40,7 @@ fmt:
 
 lint:
 	@for package in $(shell go list ./... | grep -v '/vendor/' | grep -v 'api/apipb'); do \
-      golint $$package; \
+      golint -set_exit_status $$package; \
 	done
 
 server/templates_default.go: $(wildcard web/templates/**)
