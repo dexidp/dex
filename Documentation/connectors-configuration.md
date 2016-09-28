@@ -273,3 +273,49 @@ and the `serverURL` should be the fully-qualified URL to your UAA server)_:
 
 The `uaa` connector requests only the `openid` scope which allows dex the ability to query the user's identity
 information.
+
+### `facebook` connector
+
+This connector config lets users authenticate through [Facebook](https://www.facebook.com/). In addition to `id` and `type`, the `facebook` connector takes the following additional fields:
+
+* clientID: a `string`. The Facebook App ID.
+* clientSecret: a `string`. The Facebook App Secret.
+
+To begin, register an App in facebook and configure it according to following steps.
+
+* Go to [https://developers.facebook.com/](https://developers.facebook.com/) and log in using your Facebook credentials.
+* If you haven't created developer account follow step 2 in [https://developers.facebook.com/docs/apps/register](https://developers.facebook.com/docs/apps/register).
+* Click on `My Apps` and then click `Create a New App`.
+* Choose the platform you wish to use. Select `Website` if you are testing dex sample app.
+* Enter the name of your new app in the window that appears and click `Create App ID`.
+* Enter a `Display Name`, `Contact Email` and select an appropriate `category` from the dropdown. Click `Create App ID`.
+* Click on `Dashboard` from the left menu to go to the developer Dashboard. You can find the `App ID` and `App Secret` there. Click Show to view the `App Secret`.
+* Click `Settings` on the left menu and navigate to the Basic tab. Add the dex worker domain(if dex is running on localhost, you can add `localhost` as the `App Domain`) and click `Add Platform`.
+* Select `Website`  as the platform for the application and enter the dex URL (if dex is running on localhost, you can add `http://localhost:5556`). Click `Save Changes`.
+* On the left panel, click `Add Product` and click Get Started for a `Facebook Login` product.
+* You can configure the Client OAuth Settings on the window that appears. `Client OAuth Login` should be set to `Yes`. `Web OAuth Login` should be set to `Yes`. `Valid OAuth redirect URIs` should be set to in following format.
+
+```
+$ISSUER_URL/auth/$CONNECTOR_ID/callback
+```
+
+For example runnning a connector with ID `"facebook"` and an issuer URL of `"https://auth.example.com/spaz"` the redirect would be.
+
+```
+https://auth.example.com/spaz/auth/facebook/callback
+```
+
+* Scroll down and click the Save Changes button to save the change.
+
+
+Here's an example of a `facebook` connector configuration; the clientID and clientSecret should be replaced by App ID and App Secret values provided by Facebook.
+
+```
+    {
+        "type": "facebook",
+        "id": "facebook",
+        "clientID": "$DEX_FACEBOOK_CLIENT_ID",
+        "clientSecret": "$DEX_FACEBOOK_CLIENT_SECRET"
+    }
+```
+
