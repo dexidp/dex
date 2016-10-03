@@ -4,7 +4,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/coreos/dex/storage/storagetest"
+	"github.com/coreos/dex/storage"
+	"github.com/coreos/dex/storage/conformance"
 )
 
 func TestLoadClient(t *testing.T) {
@@ -73,5 +74,8 @@ func TestURLFor(t *testing.T) {
 
 func TestStorage(t *testing.T) {
 	client := loadClient(t)
-	storagetest.RunTestSuite(t, client)
+	conformance.RunTestSuite(t, func() storage.Storage {
+		// TODO(erichiang): Tear down namespaces between each iteration.
+		return client
+	})
 }

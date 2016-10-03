@@ -3,10 +3,9 @@ package memory
 import (
 	"testing"
 
-	"github.com/coreos/dex/storage/storagetest"
+	"github.com/coreos/dex/storage/conformance"
 )
 
 func TestStorage(t *testing.T) {
-	s := New()
-	storagetest.RunTestSuite(t, s)
+	conformance.RunTestSuite(t, New)
 }
