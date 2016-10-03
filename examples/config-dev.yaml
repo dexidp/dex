@@ -1,7 +1,8 @@
 issuer: http://127.0.0.1:5556
 storage:
-  # NOTE(ericchiang): This will be replaced by sqlite3 in the future.
-  type: memory
+  type: sqlite3
+  config:
+    file: examples/dex.db
 
 web:
   http: 127.0.0.1:5556

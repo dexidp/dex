@@ -12,6 +12,7 @@ import (
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/kubernetes"
 	"github.com/coreos/dex/storage/memory"
+	"github.com/coreos/dex/storage/sql"
 )
 
 // Config is the config format for the main application.
@@ -68,6 +69,18 @@ func (s *Storage) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	case "memory":
 		var config struct {
 			Config memory.Config `yaml:"config"`
+		}
+		err = unmarshal(&config)
+		s.Config = &config.Config
+	case "sqlite3":
+		var config struct {
+			Config sql.SQLite3 `yaml:"config"`
+		}
+		err = unmarshal(&config)
+		s.Config = &config.Config
+	case "postgres":
+		var config struct {
+			Config sql.Postgres `yaml:"config"`
 		}
 		err = unmarshal(&config)
 		s.Config = &config.Config
