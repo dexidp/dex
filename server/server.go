@@ -35,7 +35,7 @@ import (
 
 const (
 	LoginPageTemplateName              = "login.html"
-	RegisterTemplateName               = "register.html"
+	RegisterTemplateName               = "create-account.html"
 	VerifyEmailTemplateName            = "verify-email.html"
 	SendResetPasswordEmailTemplateName = "send-reset-password.html"
 	ResetPasswordTemplateName          = "reset-password.html"

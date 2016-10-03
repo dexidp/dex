@@ -1,0 +1,99 @@
+{{ template "header.html" }}
+
+<div class="middle-box">
+  <header>
+    <div class="logo">
+      {{ template "user.svg.html" }}
+    </div>
+    <h2>Create your account</h2>
+  </header>
+
+  {{ if .Error }}
+  <div class="alert alert-danger">{{ .Message }}</div>
+  {{ end }}
+
+  {{ if .RemoteExists }}
+  <div class="alert alert danger">This account is already registered.</div>
+  {{ else }}
+  <form id="registerForm" method="POST" action="{{ "/register" | absPath }}">
+    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "fname" }}has-error{{ end }}{{ end }}">
+      <input id="fname" class="form-control" type="text" name="fname" required placeholder="First Name"/>
+      <div class="help-block">
+        {{ range $fe := .FormErrors }}
+          {{ if eq $fe.Field "fname" }}
+            {{ $fe.Error }}
+          {{ end }}
+        {{ end }}
+      </div>
+    </div>
+
+    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "lname" }}has-error{{ end }}{{ end }}">
+      <input id="lname" class="form-control" type="text" name="lname" required placeholder="Last Name"/>
+      <div class="help-block">
+        {{ range $fe := .FormErrors }}
+          {{ if eq $fe.Field "lname" }}
+            {{ $fe.Error }}
+          {{ end }}
+        {{ end }}
+      </div>
+    </div>
+
+    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "company" }}has-error{{ end }}{{ end }}">
+      <input id="company" class="form-control" type="text" name="company" required placeholder="Company"/>
+      <div class="help-block">
+        {{ range $fe := .FormErrors }}
+          {{ if eq $fe.Field "company" }}
+            {{ $fe.Error }}
+          {{ end }}
+        {{ end }}
+      </div>
+    </div>
+
+    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "email" }}has-error{{ end }}{{ end }}">
+      <input id="email" class="form-control" type="email" name="email" required placeholder="Email" value="{{.Email}}"/>
+      <div class="help-block">
+        {{ range $fe := .FormErrors }}
+          {{ if eq $fe.Field "email" }}
+            {{ $fe.Error }}
+          {{ end }}
+        {{ end }}
+      </div>
+    </div>
+
+    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "password" }}has-error{{ end }}{{ end }}">
+      <input minlength="6" required id="password" name="password" type="password" class="form-control" placeholder="Password" value="{{.Password}}"/>
+        <div class="help-block">At least six characters, one symbol and one upper and lowercase letter required.</div>
+    </div>
+
+    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "password" }}has-error{{ end }}{{ end }}">
+      <input required id="password" name="password" type="password" class="form-control" placeholder="Confirm Password"/>
+    </div>
+
+    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "invite_code" }}has-error{{ end }}{{ end }}">
+      <input required id="invite_code" name="invite_code" type="text" class="form-control" placeholder="Invite Code"/>
+      <div class="help-block">
+        {{ range $fe := .FormErrors }}
+          {{ if eq $fe.Field "invite-code" }}
+            {{ $fe.Error }}
+          {{ end }}
+        {{ end }}
+      </div>
+    </div>
+
+    <div class="form-group left">      
+      <div class="checkbox">
+        <input id="terms" name="terms" type="checkbox">
+        <label for="terms"></label>
+      </div>
+      I accept Castle <a>Terms of Use</a><br>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-block">Create my account</button>
+    <p>Already have an account? <a href="{{ .LoginURL }}">Login here</a></p>
+    <input type="hidden" name="code" value="{{.Code}}"/>
+    <input type="hidden" name="validate" value="1"/>
+  </form>
+  {{ end }}
+</div>
+
+{{ template "footer.html" }}
