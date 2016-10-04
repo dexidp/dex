@@ -1,5 +1,5 @@
-hash: 149c717bc83cc279ab6192364776b8c1b6bad8a620ce9d64c56d946276630437
-updated: 2016-09-30T21:01:57.607704513-07:00
+hash: 8b7a5f94584ecd144fc3ce94bb0b09f8e96c94b5a8e10d5053bd24bb597367ce
+updated: 2016-10-03T23:25:41.280181088-07:00
 imports:
 - name: github.com/cockroachdb/cockroach-go
   version: 31611c0501c812f437d4861d87d117053967c955
@@ -52,6 +52,11 @@ imports:
   version: 6a513affb38dc9788b449d59ffed099b8de18fa0
   subpackages:
   - context
+  - http2
+  - http2/hpack
+  - internal/timeseries
+  - lex/httplex
+  - trace
 - name: golang.org/x/oauth2
   version: 08c8d727d2392d18286f9f88ad775ad98f09ab33
   subpackages:
@@ -67,6 +72,17 @@ imports:
   - internal/remote_api
   - internal/urlfetch
   - urlfetch
+- name: google.golang.org/grpc
+  version: b1a2821ca5a4fd6b6e48ddfbb7d6d7584d839d21
+  subpackages:
+  - codes
+  - credentials
+  - grpclog
+  - internal
+  - metadata
+  - naming
+  - peer
+  - transport
 - name: gopkg.in/asn1-ber.v1
   version: 4e86f4367175e39f69d9358a5f17b4dda270378d
 - name: gopkg.in/ldap.v2
