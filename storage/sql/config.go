@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/coreos/dex/storage"
 )
@@ -17,7 +18,11 @@ type SQLite3 struct {
 
 // Open creates a new storage implementation backed by SQLite3
 func (s *SQLite3) Open() (storage.Storage, error) {
-	return s.open()
+	conn, err := s.open()
+	if err != nil {
+		return nil, err
+	}
+	return withGC(conn, time.Now), nil
 }
 
 func (s *SQLite3) open() (*conn, error) {
@@ -67,7 +72,11 @@ type Postgres struct {
 
 // Open creates a new storage implementation backed by Postgres.
 func (p *Postgres) Open() (storage.Storage, error) {
-	return p.open()
+	conn, err := p.open()
+	if err != nil {
+		return nil, err
+	}
+	return withGC(conn, time.Now), nil
 }
 
 func (p *Postgres) open() (*conn, error) {
