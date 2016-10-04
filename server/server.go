@@ -78,8 +78,8 @@ type Server struct {
 	idTokensValidFor time.Duration
 }
 
-// New constructs a server from the provided config.
-func New(c Config) (*Server, error) {
+// NewServer constructs a server from the provided config.
+func NewServer(c Config) (*Server, error) {
 	return newServer(c, defaultRotationStrategy(
 		value(c.RotateKeysAfter, 6*time.Hour),
 		value(c.IDTokensValidFor, 24*time.Hour),
