@@ -26,6 +26,11 @@ import:
   version: 6a513affb38dc9788b449d59ffed099b8de18fa0
   subpackages:
   - context
+  - http2
+  - http2/hpack
+  - internal/timeseries
+  - lex/httplex
+  - trace
 
 - package: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
@@ -89,3 +94,16 @@ import:
   version: 31611c0501c812f437d4861d87d117053967c955
   subpackages:
   - crdb
+
+# gRPC also imports protobuf and the x/net/http2 stack.
+- package: google.golang.org/grpc
+  version: b1a2821ca5a4fd6b6e48ddfbb7d6d7584d839d21
+  subpackages:
+  - codes
+  - credentials
+  - grpclog
+  - internal
+  - metadata
+  - naming
+  - peer
+  - transport
