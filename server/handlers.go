@@ -20,6 +20,36 @@ import (
 	"github.com/coreos/dex/storage"
 )
 
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	start := s.now()
+	err := func() error {
+		// Instead of trying to introspect health, just try to use the underlying storage.
+		a := storage.AuthRequest{
+			ID:       storage.NewID(),
+			ClientID: storage.NewID(),
+
+			// Set a short expiry so if the delete fails this will be cleaned up quickly by garbage collection.
+			Expiry: s.now().Add(time.Minute),
+		}
+
+		if err := s.storage.CreateAuthRequest(a); err != nil {
+			return fmt.Errorf("create auth request: %v", err)
+		}
+		if err := s.storage.DeleteAuthRequest(a.ID); err != nil {
+			return fmt.Errorf("delete auth request: %v", err)
+		}
+		return nil
+	}()
+
+	t := s.now().Sub(start)
+	if err != nil {
+		log.Printf("Storage health check failed: %v", err)
+		http.Error(w, "Health check failed", http.StatusInternalServerError)
+		return
+	}
+	fmt.Fprintf(w, "Health check passed in %s", t)
+}
+
 func (s *Server) handlePublicKeys(w http.ResponseWriter, r *http.Request) {
 	// TODO(ericchiang): Cache this.
 	keys, err := s.storage.GetKeys()

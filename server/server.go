@@ -159,6 +159,7 @@ func newServer(c Config, rotationStrategy rotationStrategy) (*Server, error) {
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
+	handleFunc("/healthz", s.handleHealth)
 	s.mux = r
 
 	return s, nil
