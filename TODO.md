@@ -8,15 +8,6 @@ OpenID Connect / OAuth2
 - [ ] Add a "NextSigningKey" to the storage.Keys type so clients can cache more aggressively
 - [ ] Support grant_type=password
 
-API
-
-- [ ] Determine best way to expose an API
-  - [ ] Use access tokens so we don't expose the underlying credentials implementation
-  - [ ] Support grant_type=client_credentials so clients can operate on their own
-  - [ ] Figure out a spec for the access tokens so other services can use them
-- [ ] Group API, ability to list groups, members, etc.
-- [ ] Expose capabilities of the server (implicit support, group API, etc.)
-
 Connectors
 
 - [ ] Port BitBucket connector
