@@ -5,11 +5,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 
 	"github.com/spf13/cobra"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/coreos/dex/api"
 	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/storage"
 )
@@ -19,7 +23,7 @@ func commandServe() *cobra.Command {
 		Use:     "serve [ config file ]",
 		Short:   "Connect to the storage and begin serving requests.",
 		Long:    ``,
-		Example: "dex serve c.yaml",
+		Example: "dex serve config.yaml",
 		RunE:    serve,
 	}
 }
@@ -56,12 +60,24 @@ func serve(cmd *cobra.Command, args []string) error {
 		{c.Web.HTTP == "" && c.Web.HTTPS == "", "must supply a HTTP/HTTPS  address to listen on"},
 		{c.Web.HTTPS != "" && c.Web.TLSCert == "", "no cert specified for HTTPS"},
 		{c.Web.HTTPS != "" && c.Web.TLSKey == "", "no private key specified for HTTPS"},
+		{c.GRPC.TLSCert != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
+		{c.GRPC.TLSKey != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
+		{(c.GRPC.TLSCert == "") != (c.GRPC.TLSKey == ""), "must specific both a gRPC TLS cert and key"},
 	}
 
 	for _, check := range checks {
 		if check.bad {
 			return errors.New(check.errMsg)
 		}
+	}
+
+	var grpcOptions []grpc.ServerOption
+	if c.GRPC.TLSCert != "" {
+		opt, err := credentials.NewServerTLSFromFile(c.GRPC.TLSCert, c.GRPC.TLSKey)
+		if err != nil {
+			return fmt.Errorf("load grpc certs: %v", err)
+		}
+		grpcOptions = append(grpcOptions, grpc.Creds(opt))
 	}
 
 	connectors := make([]server.Connector, len(c.Connectors))
@@ -96,22 +112,37 @@ func serve(cmd *cobra.Command, args []string) error {
 		TemplateConfig:         c.Templates,
 	}
 
-	serv, err := server.New(serverConfig)
+	serv, err := server.NewServer(serverConfig)
 	if err != nil {
 		return fmt.Errorf("initializing server: %v", err)
 	}
-	errc := make(chan error, 2)
+	errc := make(chan error, 3)
 	if c.Web.HTTP != "" {
+		log.Printf("listening (http) on %s", c.Web.HTTP)
 		go func() {
-			log.Printf("listening on %s", c.Web.HTTP)
 			errc <- http.ListenAndServe(c.Web.HTTP, serv)
 		}()
 	}
 	if c.Web.HTTPS != "" {
+		log.Printf("listening (https) on %s", c.Web.HTTPS)
 		go func() {
-			log.Printf("listening on %s", c.Web.HTTPS)
 			errc <- http.ListenAndServeTLS(c.Web.HTTPS, c.Web.TLSCert, c.Web.TLSKey, serv)
 		}()
 	}
+	if c.GRPC.Addr != "" {
+		log.Printf("listening (grpc) on %s", c.GRPC.Addr)
+		go func() {
+			errc <- func() error {
+				list, err := net.Listen("tcp", c.GRPC.Addr)
+				if err != nil {
+					return fmt.Errorf("listen grpc: %v", err)
+				}
+				s := grpc.NewServer(grpcOptions...)
+				api.RegisterDexServer(s, server.NewAPI(serverConfig.Storage))
+				return s.Serve(list)
+			}()
+		}()
+	}
+
 	return <-errc
 }
