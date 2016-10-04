@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package api;
+
+// Client represents an OAuth2 client.
+message Client {
+  string id = 1;
+  string secret = 2;
+  repeated string redirect_uris = 3;
+  repeated string trusted_peers = 4;
+  bool public = 5;
+  string name = 6;
+  string logo_url = 7;
+}
+
+// CreateClientReq is a request to make a client.
+message CreateClientReq {
+  Client client = 1;
+}
+
+// CreateClientResp returns the response from creating a client.
+message CreateClientResp {
+  bool already_exists = 1;
+  Client client = 2; 
+}
+
+// DeleteClientReq is a request to delete a client.
+message DeleteClientReq {
+  // The ID of the client.
+  string id = 1;
+}
+
+// DeleteClientResp determines if the. 
+message DeleteClientResp {
+  bool not_found = 1;
+}
+
+// TODO(ericchiang): expand this.
+
+// Dex represents the dex gRPC service.
+service Dex {
+  // CreateClient attempts to create the client.
+  rpc CreateClient(CreateClientReq) returns (CreateClientResp) {};
+  // DeleteClient attempts to delete the provided client.
+  rpc DeleteClient(DeleteClientReq) returns (DeleteClientResp) {};
+}
