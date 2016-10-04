@@ -26,7 +26,7 @@
     </div>
 
     {{ if .Local }}
-    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "email" }}has-error{{ end }}{{ end }}">
+    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "password" }}has-error{{ end }}{{ end }}">
       <input minlength="6" required id="password" name="password" type="password" class="form-control" placeholder="Password" value="{{.Password}}"/>
       {{ range $fe := .FormErrors }}
         {{ if eq $fe.Field "password" }}
