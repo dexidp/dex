@@ -15,7 +15,8 @@
     }
     
     html,
-    body {
+    body,
+    input {
       margin: 0;
       font-family: "open sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
       font-size: 13px;
@@ -24,22 +25,15 @@
     }
     
     p {
-      margin: 0 0 10px;
+      margin: 0 0 30px;
       line-height: 22px;
+      color: #7EA0B1;
     }
     
     h2 {
       font-weight: lighter;
       font-size: 24px;
       margin: 5px 0 20px 0;
-      line-height: 1.1;
-      color: #546A79;
-    }
-
-    h3 {
-      font-weight: lighter;
-      font-size: 16px;
-      margin: 0 0 30px 0;
       line-height: 1.1;
       color: #546A79;
     }
@@ -53,6 +47,24 @@
     a:active,
     a:hover {
       color: #048dbc;
+    }
+
+    input::-webkit-input-placeholder {
+      color: #7EA0B1;
+    }
+
+    input:-ms-input-placeholder{
+      color: #7EA0B1;
+    }
+
+    input::-moz-placeholder {
+      color: #7EA0B1;
+      opacity: 1;
+    }
+
+    input:-moz-placeholder {
+      color: #7EA0B1;
+      opacity: 1;
     }
     
     .container {
@@ -90,6 +102,7 @@
       display: block;
       margin-top: 5px;
       text-align: left;
+      color: #7EA0B1;
     }
     
     .alert {
@@ -139,6 +152,18 @@
     .btn-primary:focus {
       background-color: #7cb947;
       border-color: #7cb947;
+      color: white;
+    }
+
+    .btn-primary.btn-outline {
+      background-color: transparent;
+      color: #87BF56;
+    }
+
+    .btn-primary.btn-outline:hover {
+      background-color: #7cb947;
+      border-color: #7cb947;
+      color: white; 
     }
     
     .btn-block {
@@ -216,16 +241,16 @@
       border-color: #ED7060;
     }
     
-    @media (max-width: 543px) {
+    @media (max-width: 767px) {
       .middle-box {
+        width: 100%;
         height: inherit;
         top: 0;
-        margin-top: 25px;
-        margin-bottom: 25px;
+        left: 0;
+        margin: 0;
+        padding: 25px;
       }
-    }
-    
-    @media (max-width: 767px) {
+
       .btn-block-xs-only {
         width: 100%;
         display: block;

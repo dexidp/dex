@@ -40,6 +40,7 @@ const (
 	SendResetPasswordEmailTemplateName = "send-reset-password.html"
 	ResetPasswordTemplateName          = "reset-password.html"
 	OOBTemplateName                    = "oob-template.html"
+	EmailConfirmationSentTemplateName  = "email-confirmation-sent.html"
 	APIVersion                         = "v1"
 )
 
@@ -74,6 +75,7 @@ type Server struct {
 	SendResetPasswordEmailTemplate *template.Template
 	ResetPasswordTemplate          *template.Template
 	OOBTemplate                    *template.Template
+	EmailConfirmationSentTemplate  *template.Template
 
 	HealthChecks []health.Checkable
 	// TODO(ericchiang): Make this a map of ID to connector.

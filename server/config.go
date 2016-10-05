@@ -320,6 +320,7 @@ func setTemplates(srv *Server, tpls *template.Template) error {
 		{VerifyEmailTemplateName, &srv.VerifyEmailTemplate},
 		{SendResetPasswordEmailTemplateName, &srv.SendResetPasswordEmailTemplate},
 		{ResetPasswordTemplateName, &srv.ResetPasswordTemplate},
+		{EmailConfirmationSentTemplateName, &srv.EmailConfirmationSentTemplate},
 		{OOBTemplateName, &srv.OOBTemplate},
 	} {
 		tpl, err := findTemplate(t.templateName, tpls)
