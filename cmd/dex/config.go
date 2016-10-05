@@ -22,6 +22,7 @@ type Config struct {
 	Connectors []Connector `yaml:"connectors"`
 	Web        Web         `yaml:"web"`
 	OAuth2     OAuth2      `yaml:"oauth2"`
+	GRPC       GRPC        `yaml:"grpc"`
 
 	Templates server.TemplateConfig `yaml:"templates"`
 
@@ -37,6 +38,14 @@ type OAuth2 struct {
 type Web struct {
 	HTTP    string `yaml:"http"`
 	HTTPS   string `yaml:"https"`
+	TLSCert string `yaml:"tlsCert"`
+	TLSKey  string `yaml:"tlsKey"`
+}
+
+// GRPC is the config for the gRPC API.
+type GRPC struct {
+	// The port to listen on.
+	Addr    string `yaml:"addr"`
 	TLSCert string `yaml:"tlsCert"`
 	TLSKey  string `yaml:"tlsKey"`
 }
