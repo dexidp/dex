@@ -16,9 +16,12 @@ import (
 	"time"
 
 	"github.com/ericchiang/oidc"
+	"github.com/kylelemons/godebug/pretty"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 
+	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/connector/mock"
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/memory"
@@ -379,6 +382,91 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 	if respDump, err = httputil.DumpResponse(resp, true); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestPasswordDB(t *testing.T) {
+	s := memory.New()
+	conn := newPasswordDB(s)
+	defer conn.Close()
+
+	pw := "hi"
+
+	h, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.MinCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s.CreatePassword(storage.Password{
+		Email:    "jane@example.com",
+		Username: "jane",
+		UserID:   "foobar",
+		Hash:     h,
+	})
+
+	tests := []struct {
+		name         string
+		username     string
+		password     string
+		wantIdentity connector.Identity
+		wantInvalid  bool
+		wantErr      bool
+	}{
+		{
+			name:     "valid password",
+			username: "jane@example.com",
+			password: pw,
+			wantIdentity: connector.Identity{
+				Email:         "jane@example.com",
+				Username:      "jane",
+				UserID:        "foobar",
+				EmailVerified: true,
+			},
+		},
+		{
+			name:     "unknown user",
+			username: "john@example.com",
+			password: pw,
+			wantErr:  true,
+		},
+		{
+			name:        "invalid password",
+			username:    "jane@example.com",
+			password:    "not the correct password",
+			wantInvalid: true,
+		},
+	}
+
+	for _, tc := range tests {
+		ident, valid, err := conn.Login(tc.username, tc.password)
+		if err != nil {
+			if !tc.wantErr {
+				t.Errorf("%s: %v", tc.name, err)
+			}
+			continue
+		}
+
+		if tc.wantErr {
+			t.Errorf("%s: expected error", tc.name)
+			continue
+		}
+
+		if !valid {
+			if !tc.wantInvalid {
+				t.Errorf("%s: expected valid password", tc.name)
+			}
+			continue
+		}
+
+		if tc.wantInvalid {
+			t.Errorf("%s: expected invalid password", tc.name)
+			continue
+		}
+
+		if diff := pretty.Compare(tc.wantIdentity, ident); diff != "" {
+			t.Errorf("%s: %s", tc.name, diff)
+		}
+	}
+
 }
 
 type storageWithKeysTrigger struct {
