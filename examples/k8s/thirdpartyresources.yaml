@@ -46,3 +46,12 @@ kind: ThirdPartyResource
 description: "Refresh tokens for clients to continuously act on behalf of an end user."
 versions:
 - name: v1
+---
+
+metadata:
+  name: password.passwords.oidc.coreos.com
+apiVersion: extensions/v1beta1
+kind: ThirdPartyResource
+description: "Passwords managed by the OIDC server."
+versions:
+- name: v1

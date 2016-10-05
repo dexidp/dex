@@ -75,7 +75,18 @@ func TestURLFor(t *testing.T) {
 func TestStorage(t *testing.T) {
 	client := loadClient(t)
 	conformance.RunTestSuite(t, func() storage.Storage {
-		// TODO(erichiang): Tear down namespaces between each iteration.
+		for _, resource := range []string{
+			resourceAuthCode,
+			resourceAuthRequest,
+			resourceClient,
+			resourceRefreshToken,
+			resourceKeys,
+			resourcePassword,
+		} {
+			if err := client.deleteAll(resource); err != nil {
+				t.Fatalf("delete all %q failed: %v", resource, err)
+			}
+		}
 		return client
 	})
 }

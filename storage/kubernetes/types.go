@@ -1,6 +1,8 @@
 package kubernetes
 
 import (
+	"encoding/base32"
+	"strings"
 	"time"
 
 	jose "gopkg.in/square/go-jose.v2"
@@ -180,6 +182,60 @@ func (cli *client) fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		Claims:              fromStorageClaims(a.Claims),
 	}
 	return req
+}
+
+// Password is a mirrored struct from the stroage with JSON struct tags and
+// Kubernetes type metadata.
+type Password struct {
+	k8sapi.TypeMeta   `json:",inline"`
+	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+
+	// The Kubernetes name is actually an encoded version of this value.
+	//
+	// This field is IMMUTABLE. Do not change.
+	Email string `json:"email,omitempty"`
+
+	Hash     []byte `json:"hash,omitempty"`
+	Username string `json:"username,omitempty"`
+	UserID   string `json:"userID,omitempty"`
+}
+
+// Kubernetes only allows lower case letters for names.
+//
+// NOTE(ericchiang): This is currently copied from the storage package's NewID()
+// method. Once we refactor those into the storage, just use that instead.
+var encoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567")
+
+// Map an arbitrary email to a valid Kuberntes name.
+func emailToID(email string) string {
+	return strings.TrimRight(encoding.EncodeToString([]byte(strings.ToLower(email))), "=")
+}
+
+func (cli *client) fromStoragePassword(p storage.Password) Password {
+	email := strings.ToLower(p.Email)
+	return Password{
+		TypeMeta: k8sapi.TypeMeta{
+			Kind:       kindPassword,
+			APIVersion: cli.apiVersionForResource(resourcePassword),
+		},
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name:      emailToID(email),
+			Namespace: cli.namespace,
+		},
+		Email:    email,
+		Hash:     p.Hash,
+		Username: p.Username,
+		UserID:   p.UserID,
+	}
+}
+
+func toStoragePassword(p Password) storage.Password {
+	return storage.Password{
+		Email:    p.Email,
+		Hash:     p.Hash,
+		Username: p.Username,
+		UserID:   p.UserID,
+	}
 }
 
 // AuthCode is a mirrored struct from storage with JSON struct tags and
