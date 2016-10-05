@@ -55,7 +55,8 @@ func serve(cmd *cobra.Command, args []string) error {
 		errMsg string
 	}{
 		{c.Issuer == "", "no issuer specified in config file"},
-		{len(c.Connectors) == 0, "no connectors supplied in config file"},
+		{len(c.Connectors) == 0 && !c.EnablePasswordDB, "no connectors supplied in config file"},
+		{!c.EnablePasswordDB && len(c.StaticPasswords) != 0, "cannot specify static passwords without enabling password db"},
 		{c.Storage.Config == nil, "no storage suppied in config file"},
 		{c.Web.HTTP == "" && c.Web.HTTPS == "", "must supply a HTTP/HTTPS  address to listen on"},
 		{c.Web.HTTPS != "" && c.Web.TLSCert == "", "no cert specified for HTTPS"},
@@ -103,6 +104,15 @@ func serve(cmd *cobra.Command, args []string) error {
 	if len(c.StaticClients) > 0 {
 		s = storage.WithStaticClients(s, c.StaticClients)
 	}
+	if len(c.StaticPasswords) > 0 {
+		p := make([]storage.Password, len(c.StaticPasswords))
+		for i, pw := range c.StaticPasswords {
+			if p[i], err = pw.toPassword(); err != nil {
+				return err
+			}
+		}
+		s = storage.WithStaticPasswords(s, p)
+	}
 
 	serverConfig := server.Config{
 		SupportedResponseTypes: c.OAuth2.ResponseTypes,
@@ -110,6 +120,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		Connectors:             connectors,
 		Storage:                s,
 		TemplateConfig:         c.Templates,
+		EnablePasswordDB:       c.EnablePasswordDB,
 	}
 
 	serv, err := server.NewServer(serverConfig)
