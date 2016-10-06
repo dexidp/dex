@@ -5,10 +5,15 @@ export PATH := $(PWD)/bin:$(PATH)
 
 VERSION=$(shell ./scripts/git-version)
 
-DOCKER_REPO=quay.io/ericchiang/dex
+DOCKER_REPO=quay.io/coreos/dex
 DOCKER_IMAGE=$(DOCKER_REPO):$(VERSION)
 
 $( shell mkdir -p bin )
+$( shell mkdir -p _output/images )
+$( shell mkdir -p _output/bin )
+
+user=$(shell id -u -n)
+group=$(shell id -g -n)
 
 export GOBIN=$(PWD)/bin
 # Prefer ./bin instead of system packages for things like protoc, where we want
@@ -51,15 +56,28 @@ lint:
 server/templates_default.go: $(wildcard web/templates/**)
 	@go run server/templates_default_gen.go
 
-.PHONY: docker-build
-docker-build: bin/dex
-	@docker build -t $(DOCKER_IMAGE) .
+_output/bin/dex:
+	# Using rkt to build the dex binary.
+	@./scripts/rkt-build
+	@sudo chown $(user):$(group) _output/bin/dex
 
-.PHONY: docker-push
-docker-push: docker-build
-	@docker tag $(DOCKER_IMAGE) $(DOCKER_REPO):latest
-	@docker push $(DOCKER_IMAGE)
-	@docker push $(DOCKER_REPO):latest
+_output/images/library-alpine-3.4.aci:
+	@mkdir -p _output/images
+	# Using docker2aci to get a base ACI to build from.
+	@docker2aci docker://alpine:3.4
+	@mv library-alpine-3.4.aci _output/images/library-alpine-3.4.aci
+
+_output/images/dex.aci: _output/bin/dex _output/images/library-alpine-3.4.aci
+	# Using acbuild to build a application container image.
+	@sudo ./scripts/build-aci ./_output/images/library-alpine-3.4.aci
+	@sudo chown $(user):$(group) _output/images/dex.aci
+
+.PHONY: aci
+aci: _output/images/dex.aci
+
+.PHONY: docker-image
+docker-image: _output/bin/dex
+	@docker build -t $(DOCKER_IMAGE) .
 
 .PHONY: grpc
 grpc: api/api.pb.go
@@ -74,7 +92,8 @@ bin/protoc-gen-go:
 	@go install -v $(REPO_PATH)/vendor/github.com/golang/protobuf/protoc-gen-go
 
 clean:
-	@rm bin/*
+	@rm -rf bin/
+	@rm -rf _output/
 
 testall: testrace vet fmt lint
 
