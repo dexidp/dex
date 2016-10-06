@@ -33,7 +33,7 @@ Documentation
 
 Storage
 
-- [ ] Add SQL storage implementation
+- [x] Add SQL storage implementation
 - [ ] Utilize fixes for third party resources in Kubernetes 1.4 
 
 UX
@@ -48,3 +48,4 @@ Backend
 
 - [ ] Improve logging, possibly switch to logrus
 - [ ] Standardize OAuth2 error handling
+- [ ] Switch to github.com/ghodss/yaml for []byte to base64 string logic

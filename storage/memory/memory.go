@@ -2,7 +2,7 @@
 package memory
 
 import (
-	"errors"
+	"strings"
 	"sync"
 
 	"github.com/coreos/dex/storage"
@@ -15,6 +15,7 @@ func New() storage.Storage {
 		authCodes:     make(map[string]storage.AuthCode),
 		refreshTokens: make(map[string]storage.RefreshToken),
 		authReqs:      make(map[string]storage.AuthRequest),
+		passwords:     make(map[string]storage.Password),
 	}
 }
 
@@ -37,6 +38,7 @@ type memStorage struct {
 	authCodes     map[string]storage.AuthCode
 	refreshTokens map[string]storage.RefreshToken
 	authReqs      map[string]storage.AuthRequest
+	passwords     map[string]storage.Password
 
 	keys storage.Keys
 }
@@ -47,28 +49,73 @@ func (s *memStorage) tx(f func()) {
 	f()
 }
 
-var errAlreadyExists = errors.New("already exists")
-
 func (s *memStorage) Close() error { return nil }
 
-func (s *memStorage) CreateClient(c storage.Client) error {
-	s.tx(func() { s.clients[c.ID] = c })
-	return nil
+func (s *memStorage) CreateClient(c storage.Client) (err error) {
+	s.tx(func() {
+		if _, ok := s.clients[c.ID]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.clients[c.ID] = c
+		}
+	})
+	return
 }
 
-func (s *memStorage) CreateAuthCode(c storage.AuthCode) error {
-	s.tx(func() { s.authCodes[c.ID] = c })
-	return nil
+func (s *memStorage) CreateAuthCode(c storage.AuthCode) (err error) {
+	s.tx(func() {
+		if _, ok := s.authCodes[c.ID]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.authCodes[c.ID] = c
+		}
+	})
+	return
 }
 
-func (s *memStorage) CreateRefresh(r storage.RefreshToken) error {
-	s.tx(func() { s.refreshTokens[r.RefreshToken] = r })
-	return nil
+func (s *memStorage) CreateRefresh(r storage.RefreshToken) (err error) {
+	s.tx(func() {
+		if _, ok := s.refreshTokens[r.RefreshToken]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.refreshTokens[r.RefreshToken] = r
+		}
+	})
+	return
 }
 
-func (s *memStorage) CreateAuthRequest(a storage.AuthRequest) error {
-	s.tx(func() { s.authReqs[a.ID] = a })
-	return nil
+func (s *memStorage) CreateAuthRequest(a storage.AuthRequest) (err error) {
+	s.tx(func() {
+		if _, ok := s.authReqs[a.ID]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.authReqs[a.ID] = a
+		}
+	})
+	return
+}
+
+func (s *memStorage) CreatePassword(p storage.Password) (err error) {
+	p.Email = strings.ToLower(p.Email)
+	s.tx(func() {
+		if _, ok := s.passwords[p.Email]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.passwords[p.Email] = p
+		}
+	})
+	return
+}
+
+func (s *memStorage) GetPassword(email string) (p storage.Password, err error) {
+	email = strings.ToLower(email)
+	s.tx(func() {
+		var ok bool
+		if p, ok = s.passwords[email]; !ok {
+			err = storage.ErrNotFound
+		}
+	})
+	return
 }
 
 func (s *memStorage) GetClient(id string) (client storage.Client, err error) {
@@ -122,6 +169,18 @@ func (s *memStorage) ListRefreshTokens() (tokens []storage.RefreshToken, err err
 		for _, refresh := range s.refreshTokens {
 			tokens = append(tokens, refresh)
 		}
+	})
+	return
+}
+
+func (s *memStorage) DeletePassword(email string) (err error) {
+	email = strings.ToLower(email)
+	s.tx(func() {
+		if _, ok := s.passwords[email]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		delete(s.passwords, email)
 	})
 	return
 }
@@ -235,8 +294,23 @@ func (s *memStorage) UpdateAuthRequest(id string, updater func(old storage.AuthR
 			err = storage.ErrNotFound
 			return
 		}
-		if req, err := updater(req); err == nil {
+		if req, err = updater(req); err == nil {
 			s.authReqs[id] = req
+		}
+	})
+	return
+}
+
+func (s *memStorage) UpdatePassword(email string, updater func(p storage.Password) (storage.Password, error)) (err error) {
+	email = strings.ToLower(email)
+	s.tx(func() {
+		req, ok := s.passwords[email]
+		if !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		if req, err = updater(req); err == nil {
+			s.passwords[email] = req
 		}
 	})
 	return

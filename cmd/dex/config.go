@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 
 	"github.com/coreos/dex/connector"
@@ -26,7 +27,46 @@ type Config struct {
 
 	Templates server.TemplateConfig `yaml:"templates"`
 
+	// StaticClients cause the server to use this list of clients rather than
+	// querying the storage. Write operations, like creating a client, will fail.
 	StaticClients []storage.Client `yaml:"staticClients"`
+
+	// If enabled, the server will maintain a list of passwords which can be used
+	// to identify a user.
+	EnablePasswordDB bool `yaml:"enablePasswordDB"`
+
+	// StaticPasswords cause the server use this list of passwords rather than
+	// querying the storage. Cannot be specified without enabling a passwords
+	// database.
+	//
+	// The "password" type is identical to the storage.Password type, but does
+	// unmarshaling into []byte correctly.
+	StaticPasswords []password `yaml:"staticPasswords"`
+}
+
+type password struct {
+	Email    string `yaml:"email"`
+	Username string `yaml:"username"`
+	UserID   string `yaml:"userID"`
+
+	// Because our YAML parser doesn't base64, we have to do it ourselves.
+	//
+	// TODO(ericchiang): switch to github.com/ghodss/yaml
+	Hash string `yaml:"hash"`
+}
+
+// decode the hash appropriately and convert to the storage passwords.
+func (p password) toPassword() (storage.Password, error) {
+	hash, err := base64.StdEncoding.DecodeString(p.Hash)
+	if err != nil {
+		return storage.Password{}, fmt.Errorf("decoding hash: %v", err)
+	}
+	return storage.Password{
+		Email:    p.Email,
+		Username: p.Username,
+		UserID:   p.UserID,
+		Hash:     hash,
+	}, nil
 }
 
 // OAuth2 describes enabled OAuth2 extensions.

@@ -3,11 +3,14 @@ package server
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"path"
 	"sync/atomic"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gorilla/mux"
 
@@ -43,6 +46,8 @@ type Config struct {
 
 	// If specified, the server will use this function for determining time.
 	Now func() time.Time
+
+	EnablePasswordDB bool
 
 	TemplateConfig TemplateConfig
 }
@@ -91,6 +96,14 @@ func newServer(c Config, rotationStrategy rotationStrategy) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("server: can't parse issuer URL")
 	}
+	if c.EnablePasswordDB {
+		c.Connectors = append(c.Connectors, Connector{
+			ID:          "local",
+			DisplayName: "Email",
+			Connector:   newPasswordDB(c.Storage),
+		})
+	}
+
 	if len(c.Connectors) == 0 {
 		return nil, errors.New("server: no connectors specified")
 	}
@@ -180,6 +193,38 @@ func (s *Server) absURL(pathItems ...string) string {
 	u := s.issuerURL
 	u.Path = s.absPath(pathItems...)
 	return u.String()
+}
+
+func newPasswordDB(s storage.Storage) interface {
+	connector.Connector
+	connector.PasswordConnector
+} {
+	return passwordDB{s}
+}
+
+type passwordDB struct {
+	s storage.Storage
+}
+
+func (db passwordDB) Close() error { return nil }
+
+func (db passwordDB) Login(email, password string) (connector.Identity, bool, error) {
+	p, err := db.s.GetPassword(email)
+	if err != nil {
+		if err != storage.ErrNotFound {
+			log.Printf("get password: %v", err)
+		}
+		return connector.Identity{}, false, err
+	}
+	if err := bcrypt.CompareHashAndPassword(p.Hash, []byte(password)); err != nil {
+		return connector.Identity{}, false, nil
+	}
+	return connector.Identity{
+		UserID:        p.UserID,
+		Username:      p.Username,
+		Email:         p.Email,
+		EmailVerified: true,
+	}, true, nil
 }
 
 // newKeyCacher returns a storage which caches keys so long as the next

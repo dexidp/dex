@@ -62,7 +62,9 @@ type Cluster struct {
 	// CertificateAuthority is the path to a cert file for the certificate authority.
 	CertificateAuthority string `yaml:"certificate-authority,omitempty"`
 	// CertificateAuthorityData contains PEM-encoded certificate authority certificates. Overrides CertificateAuthority
-	CertificateAuthorityData []byte `yaml:"certificate-authority-data,omitempty"`
+	//
+	// NOTE(ericchiang): Our yaml parser doesn't assume []byte is a base64 encoded string.
+	CertificateAuthorityData string `yaml:"certificate-authority-data,omitempty"`
 	// Extensions holds additional information. This is useful for extenders so that reads and writes don't clobber unknown fields
 	Extensions []NamedExtension `yaml:"extensions,omitempty"`
 }
@@ -72,11 +74,15 @@ type AuthInfo struct {
 	// ClientCertificate is the path to a client cert file for TLS.
 	ClientCertificate string `yaml:"client-certificate,omitempty"`
 	// ClientCertificateData contains PEM-encoded data from a client cert file for TLS. Overrides ClientCertificate
-	ClientCertificateData []byte `yaml:"client-certificate-data,omitempty"`
+	//
+	// NOTE(ericchiang): Our yaml parser doesn't assume []byte is a base64 encoded string.
+	ClientCertificateData string `yaml:"client-certificate-data,omitempty"`
 	// ClientKey is the path to a client key file for TLS.
 	ClientKey string `yaml:"client-key,omitempty"`
 	// ClientKeyData contains PEM-encoded data from a client key file for TLS. Overrides ClientKey
-	ClientKeyData []byte `yaml:"client-key-data,omitempty"`
+	//
+	// NOTE(ericchiang): Our yaml parser doesn't assume []byte is a base64 encoded string.
+	ClientKeyData string `yaml:"client-key-data,omitempty"`
 	// Token is the bearer token for authentication to the kubernetes cluster.
 	Token string `yaml:"token,omitempty"`
 	// Impersonate is the username to imperonate.  The name matches the flag.

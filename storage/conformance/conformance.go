@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/coreos/dex/storage"
 
 	"github.com/kylelemons/godebug/pretty"
@@ -30,6 +32,7 @@ func RunTestSuite(t *testing.T, sf StorageFactory) {
 		{"AuthRequestCRUD", testAuthRequestCRUD},
 		{"ClientCRUD", testClientCRUD},
 		{"RefreshTokenCRUD", testRefreshTokenCRUD},
+		{"PasswordCRUD", testPasswordCRUD},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -222,5 +225,54 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 	if _, err := s.GetRefresh(id); err != storage.ErrNotFound {
 		t.Errorf("after deleting refresh expected storage.ErrNotFound, got %v", err)
 	}
+}
 
+func testPasswordCRUD(t *testing.T, s storage.Storage) {
+	// Use bcrypt.MinCost to keep the tests short.
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte("secret"), bcrypt.MinCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	password := storage.Password{
+		Email:    "jane@example.com",
+		Hash:     passwordHash,
+		Username: "jane",
+		UserID:   "foobar",
+	}
+	if err := s.CreatePassword(password); err != nil {
+		t.Fatalf("create password token: %v", err)
+	}
+
+	getAndCompare := func(id string, want storage.Password) {
+		gr, err := s.GetPassword(id)
+		if err != nil {
+			t.Errorf("get password %q: %v", id, err)
+			return
+		}
+		if diff := pretty.Compare(want, gr); diff != "" {
+			t.Errorf("password retrieved from storage did not match: %s", diff)
+		}
+	}
+
+	getAndCompare("jane@example.com", password)
+	getAndCompare("JANE@example.com", password) // Emails should be case insensitive
+
+	if err := s.UpdatePassword(password.Email, func(old storage.Password) (storage.Password, error) {
+		old.Username = "jane doe"
+		return old, nil
+	}); err != nil {
+		t.Fatalf("failed to update auth request: %v", err)
+	}
+
+	password.Username = "jane doe"
+	getAndCompare("jane@example.com", password)
+
+	if err := s.DeletePassword(password.Email); err != nil {
+		t.Fatalf("failed to delete password: %v", err)
+	}
+
+	if _, err := s.GetPassword(password.Email); err != storage.ErrNotFound {
+		t.Errorf("after deleting password expected storage.ErrNotFound, got %v", err)
+	}
 }

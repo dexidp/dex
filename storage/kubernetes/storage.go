@@ -20,6 +20,7 @@ const (
 	kindClient       = "OAuth2Client"
 	kindRefreshToken = "RefreshToken"
 	kindKeys         = "SigningKey"
+	kindPassword     = "Password"
 )
 
 const (
@@ -28,6 +29,7 @@ const (
 	resourceClient       = "oauth2clients"
 	resourceRefreshToken = "refreshtokens"
 	resourceKeys         = "signingkeies" // Kubernetes attempts to pluralize.
+	resourcePassword     = "passwords"
 )
 
 // Config values for the Kubernetes storage type.
@@ -109,6 +111,10 @@ func (cli *client) CreateAuthCode(c storage.AuthCode) error {
 	return cli.post(resourceAuthCode, cli.fromStorageAuthCode(c))
 }
 
+func (cli *client) CreatePassword(p storage.Password) error {
+	return cli.post(resourcePassword, cli.fromStoragePassword(p))
+}
+
 func (cli *client) CreateRefresh(r storage.RefreshToken) error {
 	refresh := RefreshToken{
 		TypeMeta: k8sapi.TypeMeta{
@@ -150,6 +156,14 @@ func (cli *client) GetClient(id string) (storage.Client, error) {
 		return storage.Client{}, err
 	}
 	return toStorageClient(c), nil
+}
+
+func (cli *client) GetPassword(email string) (storage.Password, error) {
+	var p Password
+	if err := cli.get(resourcePassword, emailToID(email), &p); err != nil {
+		return storage.Password{}, err
+	}
+	return toStoragePassword(p), nil
 }
 
 func (cli *client) GetKeys() (storage.Keys, error) {
@@ -199,6 +213,10 @@ func (cli *client) DeleteRefresh(id string) error {
 	return cli.delete(resourceRefreshToken, id)
 }
 
+func (cli *client) DeletePassword(email string) error {
+	return cli.delete(resourcePassword, emailToID(email))
+}
+
 func (cli *client) UpdateClient(id string, updater func(old storage.Client) (storage.Client, error)) error {
 	var c Client
 	if err := cli.get(resourceClient, id, &c); err != nil {
@@ -212,6 +230,23 @@ func (cli *client) UpdateClient(id string, updater func(old storage.Client) (sto
 	newClient := cli.fromStorageClient(updated)
 	newClient.ObjectMeta = c.ObjectMeta
 	return cli.put(resourceClient, id, newClient)
+}
+
+func (cli *client) UpdatePassword(email string, updater func(old storage.Password) (storage.Password, error)) error {
+	id := emailToID(email)
+	var p Password
+	if err := cli.get(resourcePassword, id, &p); err != nil {
+		return err
+	}
+
+	updated, err := updater(toStoragePassword(p))
+	if err != nil {
+		return err
+	}
+
+	newPassword := cli.fromStoragePassword(updated)
+	newPassword.ObjectMeta = p.ObjectMeta
+	return cli.put(resourcePassword, id, newPassword)
 }
 
 func (cli *client) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) error {
