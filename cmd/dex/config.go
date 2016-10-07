@@ -72,6 +72,9 @@ func (p password) toPassword() (storage.Password, error) {
 // OAuth2 describes enabled OAuth2 extensions.
 type OAuth2 struct {
 	ResponseTypes []string `yaml:"responseTypes"`
+	// If specified, do not prompt the user to approve client authorization. The
+	// act of logging in implies authorization.
+	SkipApprovalScreen bool `yaml:"skipApprovalScreen"`
 }
 
 // Web is the config format for the HTTP server.

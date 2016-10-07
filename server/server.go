@@ -41,6 +41,10 @@ type Config struct {
 	// flow. If no response types are supplied this value defaults to "code".
 	SupportedResponseTypes []string
 
+	// If enabled, the server won't prompt the user to approve authorization requests.
+	// Logging in implies approval.
+	SkipApprovalScreen bool
+
 	RotateKeysAfter  time.Duration // Defaults to 6 hours.
 	IDTokensValidFor time.Duration // Defaults to 24 hours
 
@@ -73,7 +77,6 @@ type Server struct {
 	templates *templates
 
 	// If enabled, don't prompt user for approval after logging in through connector.
-	// No package level API to set this, only used in tests.
 	skipApproval bool
 
 	supportedResponseTypes map[string]bool
@@ -145,6 +148,7 @@ func newServer(c Config, rotationStrategy rotationStrategy) (*Server, error) {
 		),
 		supportedResponseTypes: supported,
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
+		skipApproval:           c.SkipApprovalScreen,
 		now:                    now,
 		templates:              tmpls,
 	}

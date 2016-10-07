@@ -116,6 +116,7 @@ func serve(cmd *cobra.Command, args []string) error {
 
 	serverConfig := server.Config{
 		SupportedResponseTypes: c.OAuth2.ResponseTypes,
+		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
 		Issuer:                 c.Issuer,
 		Connectors:             connectors,
 		Storage:                s,
