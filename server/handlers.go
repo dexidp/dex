@@ -538,20 +538,25 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 	scopes := refresh.Scopes
 	if scope != "" {
 		requestedScopes := strings.Split(scope, " ")
-		contains := func() bool {
-		Loop:
-			for _, s := range requestedScopes {
+		var unauthorizedScopes []string
+
+		for _, s := range requestedScopes {
+			contains := func() bool {
 				for _, scope := range refresh.Scopes {
 					if s == scope {
-						continue Loop
+						return true
 					}
 				}
 				return false
+			}()
+			if !contains {
+				unauthorizedScopes = append(unauthorizedScopes, s)
 			}
-			return true
-		}()
-		if !contains {
-			tokenErr(w, errInvalidRequest, "Requested scopes did not contain authorized scopes.", http.StatusBadRequest)
+		}
+
+		if len(unauthorizedScopes) > 0 {
+			msg := fmt.Sprintf("Requested scopes contain unauthorized scope(s): %q.", unauthorizedScopes)
+			tokenErr(w, errInvalidRequest, msg, http.StatusBadRequest)
 			return
 		}
 		scopes = requestedScopes
