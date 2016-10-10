@@ -52,6 +52,7 @@ func tokenErr(w http.ResponseWriter, typ, description string, statusCode int) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	w.WriteHeader(statusCode)
 	w.Write(body)
 }
 

@@ -131,111 +131,191 @@ func TestDiscovery(t *testing.T) {
 }
 
 func TestOAuth2CodeFlow(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	clientID := "testclient"
+	clientSecret := "testclientsecret"
+	requestedScopes := []string{oidc.ScopeOpenID, "email", "offline_access"}
 
-	httpServer, s := newTestServer(t, func(c *Config) {
-		c.Issuer = c.Issuer + "/non-root-path"
-	})
-	defer httpServer.Close()
-
-	p, err := oidc.NewProvider(ctx, httpServer.URL)
-	if err != nil {
-		t.Fatalf("failed to get provider: %v", err)
-	}
-
-	var (
-		reqDump, respDump []byte
-		gotCode           bool
-		state             = "a_state"
-	)
-	defer func() {
-		if !gotCode {
-			t.Errorf("never got a code in callback\n%s\n%s", reqDump, respDump)
-		}
-	}()
-
-	var oauth2Config *oauth2.Config
-	oauth2Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/callback" {
-			q := r.URL.Query()
-			if errType := q.Get("error"); errType != "" {
-				if desc := q.Get("error_description"); desc != "" {
-					t.Errorf("got error from server %s: %s", errType, desc)
-				} else {
-					t.Errorf("got error from server %s", errType)
-				}
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-
-			if code := q.Get("code"); code != "" {
-				gotCode = true
-				token, err := oauth2Config.Exchange(ctx, code)
-				if err != nil {
-					t.Errorf("failed to exchange code for token: %v", err)
-					return
-				}
+	tests := []struct {
+		name        string
+		handleToken func(context.Context, *oidc.Provider, *oauth2.Config, *oauth2.Token) error
+	}{
+		{
+			name: "verify ID Token",
+			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
 				idToken, ok := token.Extra("id_token").(string)
 				if !ok {
-					t.Errorf("no id token found: %v", err)
-					return
+					return fmt.Errorf("no id token found")
 				}
-				// TODO(ericchiang): validate id token
-				_ = idToken
-
+				if _, err := p.NewVerifier(ctx).Verify(idToken); err != nil {
+					return fmt.Errorf("failed to verify id token: %v", err)
+				}
+				return nil
+			},
+		},
+		{
+			name: "refresh token",
+			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
+				// have to use time.Now because the OAuth2 package uses it.
 				token.Expiry = time.Now().Add(time.Second * -10)
 				if token.Valid() {
-					t.Errorf("token shouldn't be valid")
+					return errors.New("token shouldn't be valid")
 				}
 
-				newToken, err := oauth2Config.TokenSource(ctx, token).Token()
+				newToken, err := config.TokenSource(ctx, token).Token()
 				if err != nil {
-					t.Errorf("failed to refresh token: %v", err)
-					return
+					return fmt.Errorf("failed to refresh token: %v", err)
 				}
 				if token.RefreshToken == newToken.RefreshToken {
-					t.Errorf("old refresh token was the same as the new token %q", token.RefreshToken)
+					return fmt.Errorf("old refresh token was the same as the new token %q", token.RefreshToken)
 				}
+				return nil
+			},
+		},
+		{
+			name: "refresh with explicit scopes",
+			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
+				v := url.Values{}
+				v.Add("client_id", clientID)
+				v.Add("client_secret", clientSecret)
+				v.Add("grant_type", "refresh_token")
+				v.Add("refresh_token", token.RefreshToken)
+				v.Add("scope", strings.Join(requestedScopes, " "))
+				resp, err := http.PostForm(p.TokenURL, v)
+				if err != nil {
+					return err
+				}
+				defer resp.Body.Close()
+				if resp.StatusCode != http.StatusOK {
+					dump, err := httputil.DumpResponse(resp, true)
+					if err != nil {
+						panic(err)
+					}
+					return fmt.Errorf("unexpected response: %s", dump)
+				}
+				return nil
+			},
+		},
+		{
+			name: "refresh with unauthorized scopes",
+			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
+				v := url.Values{}
+				v.Add("client_id", clientID)
+				v.Add("client_secret", clientSecret)
+				v.Add("grant_type", "refresh_token")
+				v.Add("refresh_token", token.RefreshToken)
+				// Request a scope that wasn't requestd initially.
+				v.Add("scope", strings.Join(append(requestedScopes, "profile"), " "))
+				resp, err := http.PostForm(p.TokenURL, v)
+				if err != nil {
+					return err
+				}
+				defer resp.Body.Close()
+				if resp.StatusCode == http.StatusOK {
+					dump, err := httputil.DumpResponse(resp, true)
+					if err != nil {
+						panic(err)
+					}
+					return fmt.Errorf("unexpected response: %s", dump)
+				}
+				return nil
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			httpServer, s := newTestServer(t, func(c *Config) {
+				c.Issuer = c.Issuer + "/non-root-path"
+			})
+			defer httpServer.Close()
+
+			p, err := oidc.NewProvider(ctx, httpServer.URL)
+			if err != nil {
+				t.Fatalf("failed to get provider: %v", err)
 			}
-			if gotState := q.Get("state"); gotState != state {
-				t.Errorf("state did not match, want=%q got=%q", state, gotState)
+
+			var (
+				reqDump, respDump []byte
+				gotCode           bool
+				state             = "a_state"
+			)
+			defer func() {
+				if !gotCode {
+					t.Errorf("never got a code in callback\n%s\n%s", reqDump, respDump)
+				}
+			}()
+
+			var oauth2Config *oauth2.Config
+			oauth2Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/callback" {
+					q := r.URL.Query()
+					if errType := q.Get("error"); errType != "" {
+						if desc := q.Get("error_description"); desc != "" {
+							t.Errorf("got error from server %s: %s", errType, desc)
+						} else {
+							t.Errorf("got error from server %s", errType)
+						}
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+
+					if code := q.Get("code"); code != "" {
+						gotCode = true
+						token, err := oauth2Config.Exchange(ctx, code)
+						if err != nil {
+							t.Errorf("failed to exchange code for token: %v", err)
+							return
+						}
+						err = tc.handleToken(ctx, p, oauth2Config, token)
+						if err != nil {
+							t.Errorf("%s: %v", tc.name, err)
+						}
+						return
+
+					}
+					if gotState := q.Get("state"); gotState != state {
+						t.Errorf("state did not match, want=%q got=%q", state, gotState)
+					}
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				http.Redirect(w, r, oauth2Config.AuthCodeURL(state), http.StatusSeeOther)
+			}))
+
+			defer oauth2Server.Close()
+
+			redirectURL := oauth2Server.URL + "/callback"
+			client := storage.Client{
+				ID:           clientID,
+				Secret:       clientSecret,
+				RedirectURIs: []string{redirectURL},
 			}
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		http.Redirect(w, r, oauth2Config.AuthCodeURL(state), http.StatusSeeOther)
-	}))
+			if err := s.storage.CreateClient(client); err != nil {
+				t.Fatalf("failed to create client: %v", err)
+			}
 
-	defer oauth2Server.Close()
+			oauth2Config = &oauth2.Config{
+				ClientID:     client.ID,
+				ClientSecret: client.Secret,
+				Endpoint:     p.Endpoint(),
+				Scopes:       requestedScopes,
+				RedirectURL:  redirectURL,
+			}
 
-	redirectURL := oauth2Server.URL + "/callback"
-	client := storage.Client{
-		ID:           "testclient",
-		Secret:       "testclientsecret",
-		RedirectURIs: []string{redirectURL},
-	}
-	if err := s.storage.CreateClient(client); err != nil {
-		t.Fatalf("failed to create client: %v", err)
-	}
-
-	oauth2Config = &oauth2.Config{
-		ClientID:     client.ID,
-		ClientSecret: client.Secret,
-		Endpoint:     p.Endpoint(),
-		Scopes:       []string{oidc.ScopeOpenID, "profile", "email", "offline_access"},
-		RedirectURL:  redirectURL,
-	}
-
-	resp, err := http.Get(oauth2Server.URL + "/login")
-	if err != nil {
-		t.Fatalf("get failed: %v", err)
-	}
-	if reqDump, err = httputil.DumpRequest(resp.Request, false); err != nil {
-		t.Fatal(err)
-	}
-	if respDump, err = httputil.DumpResponse(resp, true); err != nil {
-		t.Fatal(err)
+			resp, err := http.Get(oauth2Server.URL + "/login")
+			if err != nil {
+				t.Fatalf("get failed: %v", err)
+			}
+			if reqDump, err = httputil.DumpRequest(resp.Request, false); err != nil {
+				t.Fatal(err)
+			}
+			if respDump, err = httputil.DumpResponse(resp, true); err != nil {
+				t.Fatal(err)
+			}
+		}()
 	}
 }
 
