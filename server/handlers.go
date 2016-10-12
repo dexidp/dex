@@ -537,7 +537,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 
 	scopes := refresh.Scopes
 	if scope != "" {
-		requestedScopes := strings.Split(scope, " ")
+		requestedScopes := strings.Fields(scope)
 		var unauthorizedScopes []string
 
 		for _, s := range requestedScopes {
