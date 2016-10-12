@@ -196,6 +196,34 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			},
 		},
 		{
+			name: "refresh with extra spaces",
+			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
+				v := url.Values{}
+				v.Add("client_id", clientID)
+				v.Add("client_secret", clientSecret)
+				v.Add("grant_type", "refresh_token")
+				v.Add("refresh_token", token.RefreshToken)
+
+				// go-oidc adds an additional space before scopes when refreshing.
+				// Since we support that client we choose to be more relaxed about
+				// scope parsing, disregarding extra whitespace.
+				v.Add("scope", " "+strings.Join(requestedScopes, " "))
+				resp, err := http.PostForm(p.TokenURL, v)
+				if err != nil {
+					return err
+				}
+				defer resp.Body.Close()
+				if resp.StatusCode != http.StatusOK {
+					dump, err := httputil.DumpResponse(resp, true)
+					if err != nil {
+						panic(err)
+					}
+					return fmt.Errorf("unexpected response: %s", dump)
+				}
+				return nil
+			},
+		},
+		{
 			name: "refresh with unauthorized scopes",
 			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
 				v := url.Values{}

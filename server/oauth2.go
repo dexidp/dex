@@ -213,7 +213,7 @@ func parseAuthorizationRequest(s storage.Storage, supportedResponseTypes map[str
 		return &authErr{state, redirectURI, typ, fmt.Sprintf(format, a...)}
 	}
 
-	scopes := strings.Split(r.Form.Get("scope"), " ")
+	scopes := strings.Fields(r.Form.Get("scope"))
 
 	var (
 		unrecognized  []string
