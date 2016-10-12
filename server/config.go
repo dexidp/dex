@@ -144,7 +144,7 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	skRepo := db.NewSessionKeyRepo(dbMap)
 	sm := sessionmanager.NewSessionManager(sRepo, skRepo)
 
-	users, pwis, err := loadUsers(cfg.UsersFile)
+	users, pwis, orgs, err := loadUsers(cfg.UsersFile)
 	if err != nil {
 		return fmt.Errorf("unable to read users from file: %v", err)
 	}
@@ -158,10 +158,15 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 		return err
 	}
 
+	orgRepo, err := db.NewOrganizationRepoFromOrganizations(dbMap, orgs)
+	if err != nil {
+		return err
+	}
+
 	refTokRepo := db.NewRefreshTokenRepo(dbMap)
 
 	txnFactory := db.TransactionFactory(dbMap)
-	userManager := usermanager.NewUserManager(userRepo, pwiRepo, cfgRepo, txnFactory, usermanager.ManagerOptions{})
+	userManager := usermanager.NewUserManager(userRepo, pwiRepo, orgRepo, cfgRepo, txnFactory, usermanager.ManagerOptions{})
 	clientManager := clientmanager.NewClientManager(clientRepo, db.TransactionFactory(dbMap), clientmanager.ManagerOptions{})
 	if err != nil {
 		return fmt.Errorf("Failed to create client identity manager: %v", err)
@@ -173,6 +178,7 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 	srv.UserRepo = userRepo
 	srv.UserManager = userManager
 	srv.PasswordInfoRepo = pwiRepo
+	srv.OrganizationRepo = orgRepo
 	srv.SessionManager = sm
 	srv.RefreshTokenRepo = refTokRepo
 	srv.HealthChecks = append(srv.HealthChecks, db.NewHealthChecker(dbMap))
@@ -181,19 +187,20 @@ func (cfg *SingleServerConfig) Configure(srv *Server) error {
 }
 
 // loadUsers parses the user.json file and returns the users to be created.
-func loadUsers(filepath string) ([]user.UserWithRemoteIdentities, []user.PasswordInfo, error) {
+func loadUsers(filepath string) ([]user.UserWithRemoteIdentities, []user.PasswordInfo, []user.Organization, error) {
 	f, err := os.Open(filepath)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	defer f.Close()
 	return loadUsersFromReader(f)
 }
 
-func loadUsersFromReader(r io.Reader) (users []user.UserWithRemoteIdentities, pwis []user.PasswordInfo, err error) {
+func loadUsersFromReader(r io.Reader) (users []user.UserWithRemoteIdentities, pwis []user.PasswordInfo, orgs []user.Organization, err error) {
 	// Encoding used by the user config file.
 	var configUsers []struct {
 		user.User
+		Organization     user.Organization     `json:"organization"`
 		Password         string                `json:"password"`
 		RemoteIdentities []user.RemoteIdentity `json:"remoteIdentities"`
 
@@ -202,15 +209,16 @@ func loadUsersFromReader(r io.Reader) (users []user.UserWithRemoteIdentities, pw
 		OldUserFields map[string]string `json:"user"`
 	}
 	if err := json.NewDecoder(r).Decode(&configUsers); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	users = make([]user.UserWithRemoteIdentities, len(configUsers))
 	pwis = make([]user.PasswordInfo, len(configUsers))
+	orgs = make([]user.Organization, len(configUsers))
 
 	for i, u := range configUsers {
 		if u.OldUserFields != nil {
-			return nil, nil, fmt.Errorf("Static user file is using an outdated format. Please refer to example in static/fixtures.")
+			return nil, nil, nil, fmt.Errorf("Static user file is using an outdated format. Please refer to example in static/fixtures.")
 		}
 
 		users[i] = user.UserWithRemoteIdentities{
@@ -219,9 +227,10 @@ func loadUsersFromReader(r io.Reader) (users []user.UserWithRemoteIdentities, pw
 		}
 		hashedPassword, err := user.NewPasswordFromPlaintext(u.Password)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		pwis[i] = user.PasswordInfo{UserID: u.ID, Password: hashedPassword}
+		orgs[i] = u.Organization
 	}
 	return
 }
@@ -264,7 +273,8 @@ func (cfg *MultiServerConfig) Configure(srv *Server) error {
 	cfgRepo := db.NewConnectorConfigRepo(dbc)
 	userRepo := db.NewUserRepo(dbc)
 	pwiRepo := db.NewPasswordInfoRepo(dbc)
-	userManager := usermanager.NewUserManager(userRepo, pwiRepo, cfgRepo, db.TransactionFactory(dbc), usermanager.ManagerOptions{})
+	orgRepo := db.NewOrganizationRepo(dbc)
+	userManager := usermanager.NewUserManager(userRepo, pwiRepo, orgRepo, cfgRepo, db.TransactionFactory(dbc), usermanager.ManagerOptions{})
 	clientManager := clientmanager.NewClientManager(ciRepo, db.TransactionFactory(dbc), clientmanager.ManagerOptions{})
 	refreshTokenRepo := db.NewRefreshTokenRepo(dbc)
 
@@ -317,6 +327,7 @@ func setTemplates(srv *Server, tpls *template.Template) error {
 	}{
 		{LoginPageTemplateName, &srv.LoginTemplate},
 		{RegisterTemplateName, &srv.RegisterTemplate},
+		{CreateAccountTemplateName, &srv.CreateAccountTemplate},
 		{VerifyEmailTemplateName, &srv.VerifyEmailTemplate},
 		{SendResetPasswordEmailTemplateName, &srv.SendResetPasswordEmailTemplate},
 		{ResetPasswordTemplateName, &srv.ResetPasswordTemplate},

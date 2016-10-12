@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"time"
+	"unicode"
 
 	"net/mail"
 	"net/url"
@@ -76,6 +77,12 @@ type User struct {
 	// DisplayName is not neccesarily unique with a UserRepo.
 	DisplayName string
 
+	FirstName string
+
+	LastName string
+
+	OrganizationID string
+
 	Email string
 
 	EmailVerified bool
@@ -95,6 +102,9 @@ type UserFilter struct {
 // http://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
 func (u *User) AddToClaims(claims jose.Claims) {
 	claims.Add("name", u.DisplayName)
+	claims.Add("given_name", u.FirstName)
+	claims.Add("family_name", u.LastName)
+	claims.Add("organization_id", u.OrganizationID)
 	if u.Email != "" {
 		claims.Add("email", u.Email)
 		if u.EmailVerified {
@@ -168,7 +178,29 @@ func ValidEmail(email string) bool {
 }
 
 func ValidPassword(plaintext string) bool {
-	return len(plaintext) > 5
+	if len(plaintext) < 6 {
+		return false
+	}
+
+	var hasNumber, hasUpper, hasLower, hasSpecial bool
+	for _, char := range plaintext {
+		switch {
+		case unicode.IsNumber(char):
+			hasNumber = true
+		case unicode.IsUpper(char):
+			hasUpper = true
+		case unicode.IsLower(char):
+			hasLower = true
+		case unicode.IsPunct(char) || unicode.IsSymbol(char):
+			hasSpecial = true
+		}
+	}
+
+	if !hasNumber || !hasUpper || !hasLower || !hasSpecial {
+		return false
+	}
+
+	return true
 }
 
 type UserWithRemoteIdentities struct {
@@ -178,10 +210,13 @@ type UserWithRemoteIdentities struct {
 
 func (u *User) UnmarshalJSON(data []byte) error {
 	var dec struct {
-		ID            string `json:"id"`
-		DisplayName   string `json:"displayName"`
-		Email         string `json:"email"`
-		EmailVerified bool   `json:"emailVerified"`
+		ID             string `json:"id"`
+		DisplayName    string `json:"displayName"`
+		FirstName      string `json:"firstName"`
+		LastName       string `json:"lastName"`
+		OrganizationID string `json:"organizationID"`
+		Email          string `json:"email"`
+		EmailVerified  bool   `json:"emailVerified"`
 	}
 
 	err := json.Unmarshal(data, &dec)
@@ -191,6 +226,9 @@ func (u *User) UnmarshalJSON(data []byte) error {
 
 	u.ID = dec.ID
 	u.DisplayName = dec.DisplayName
+	u.FirstName = dec.FirstName
+	u.LastName = dec.LastName
+	u.OrganizationID = dec.OrganizationID
 	u.Email = dec.Email
 	u.EmailVerified = dec.EmailVerified
 	return nil

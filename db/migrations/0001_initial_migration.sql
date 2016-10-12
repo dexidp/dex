@@ -3,7 +3,10 @@ CREATE TABLE IF NOT EXISTS "authd_user" (
     "id" text not null primary key,
     "email" text UNIQUE,
     "email_verified" boolean,
+    "first_name" text,
+    "last_name" text,
     "display_name" text,
+    "organization_id" text,
     "admin" boolean,
     "created_at" bigint,
     "disabled" boolean
@@ -19,7 +22,8 @@ CREATE TABLE IF NOT EXISTS "client_identity" (
 
 CREATE TABLE IF NOT EXISTS "connector_config" (
     "id" text not null primary key,
-    "type" text, "config" text
+    "type" text,
+    "config" text
 );
 
 CREATE TABLE IF NOT EXISTS "key" (
@@ -92,18 +96,11 @@ CREATE TABLE IF NOT EXISTS "trusted_peers" (
 );
 
 CREATE TABLE IF NOT EXISTS "organization" (
-    "id" text not null primary key,
+    "organization_id" text not null primary key,
     "name" text UNIQUE,
     "owner_id" text,
-    "created_at" bigint
+    "created_at" bigint,
+    "disabled" boolean
 );
 
-CREATE TABLE IF NOT EXISTS "user_organization" (
-    "user_id" text,
-    "organization_id" text not null,
-    primary key ("user_id", "organization_id")
-);
-
-CREATE INDEX org_by_user_idx ON user_organization (user_id);
-
-CREATE INDEX user_by_org_idx ON user_organization (organization_id);
+CREATE INDEX authd_user_organization_index ON authd_user (organization_id);

@@ -1,6 +1,6 @@
 {{ template "header.html" }}
 
-<div class="middle-box">
+<div class="middle-box create-account">
   <header>
     <div class="logo">
       {{ template "user.svg.html" }}
@@ -12,70 +12,70 @@
   <div class="alert alert-danger">{{ .Message }}</div>
   {{ end }}
 
-  {{ if .RemoteExists }}
-  <div class="alert alert danger">This account is already registered.</div>
-  {{ else }}
-  <form id="registerForm" method="POST" action="{{ "/register" | absPath }}">
-    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "fname" }}has-error{{ end }}{{ end }}">
-      <input id="fname" class="form-control" type="text" name="fname" required placeholder="First Name"/>
+  {{ with .FieldError "terms" }}
+    <div class="alert alert-danger">{{ .Error }}</div>
+  {{ end }}
+
+  {{ with .FieldError "password-match" }}
+    <div class="alert alert-danger">{{ .Error }}</div>
+  {{ end }}
+
+  <form id="createAccountForm" method="POST" action="{{ "/create-account" | absPath }}" novalidate>
+    <div class="form-group {{ if .FieldError "fname" }}has-error{{ end }}">
+      <input id="fname" class="form-control" type="text" name="fname" required placeholder="First Name" value="{{.FirstName}}"/>
       <div class="help-block">
-        {{ range $fe := .FormErrors }}
-          {{ if eq $fe.Field "fname" }}
-            {{ $fe.Error }}
-          {{ end }}
+        {{ with .FieldError "fname" }}
+          {{ .Error }}
         {{ end }}
       </div>
     </div>
 
-    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "lname" }}has-error{{ end }}{{ end }}">
-      <input id="lname" class="form-control" type="text" name="lname" required placeholder="Last Name"/>
+    <div class="form-group {{ if .FieldError "lname" }}has-error{{ end }}">
+      <input id="lname" class="form-control" type="text" name="lname" required placeholder="Last Name"  value="{{.LastName}}"/>
       <div class="help-block">
-        {{ range $fe := .FormErrors }}
-          {{ if eq $fe.Field "lname" }}
-            {{ $fe.Error }}
-          {{ end }}
+        {{ with .FieldError "lname" }}
+          {{ .Error }}
         {{ end }}
       </div>
     </div>
 
-    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "company" }}has-error{{ end }}{{ end }}">
-      <input id="company" class="form-control" type="text" name="company" required placeholder="Company"/>
+    <div class="form-group {{ if .FieldError "company" }}has-error{{ end }}">
+      <input id="company" class="form-control" type="text" name="company" required placeholder="Company"  value="{{.Company}}"/>
       <div class="help-block">
-        {{ range $fe := .FormErrors }}
-          {{ if eq $fe.Field "company" }}
-            {{ $fe.Error }}
-          {{ end }}
+        {{ with .FieldError "company" }}
+          {{ .Error }}
         {{ end }}
       </div>
     </div>
 
-    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "email" }}has-error{{ end }}{{ end }}">
+    <div class="form-group {{ if .FieldError "email" }}has-error{{ end }}">
       <input id="email" class="form-control" type="email" name="email" required placeholder="Email" value="{{.Email}}"/>
       <div class="help-block">
-        {{ range $fe := .FormErrors }}
-          {{ if eq $fe.Field "email" }}
-            {{ $fe.Error }}
-          {{ end }}
+        {{ with .FieldError "email" }}
+          {{ .Error }}
         {{ end }}
       </div>
     </div>
 
-    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "password" }}has-error{{ end }}{{ end }}">
-      <input minlength="6" required id="password" name="password" type="password" class="form-control" placeholder="Password" value="{{.Password}}"/>
-        <div class="help-block">At least six characters, one symbol and one upper and lowercase letter required.</div>
+    <div class="form-group {{ if or (.FieldError "password") (.FieldError "password-match") }}has-error{{ end }}">
+      <input minlength="6" required id="password" name="password" type="password" class="form-control" placeholder="Password"/>
+        <div class="help-block">At least six characters, one number, one symbol, one upper and lowercase letter required.</div>
     </div>
 
-    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "password" }}has-error{{ end }}{{ end }}">
-      <input required id="password" name="password" type="password" class="form-control" placeholder="Confirm Password"/>
-    </div>
-
-    <div class="form-group{{ range $fe := .FormErrors }}{{ if eq $fe.Field "invite_code" }}has-error{{ end }}{{ end }}">
-      <input required id="invite_code" name="invite_code" type="text" class="form-control" placeholder="Invite Code"/>
+    <div class="form-group {{ if or (.FieldError "confirm-password") (.FieldError "password-match") }}has-error{{ end }}">
+      <input required id="password" name="confirm-password" type="password" class="form-control" placeholder="Confirm Password"/>
       <div class="help-block">
-        {{ range $fe := .FormErrors }}
-          {{ if eq $fe.Field "invite-code" }}
-            {{ $fe.Error }}
-          {{ end }}
+        {{ with .FieldError "confirm-password" }}
+          {{ .Error }}
+        {{ end }}
+      </div>
+    </div>
+
+    <div class="form-group {{ if .FieldError "invite-code" }}has-error{{ end }}">
+      <input required id="invite-code" name="invite-code" type="text" class="form-control" placeholder="Invite Code" value="{{.InviteCode}}"/>
+      <div class="help-block">
+        {{ with .FieldError "invite-code" }}
+          {{ .Error }}
         {{ end }}
       </div>
     </div>
@@ -93,7 +93,6 @@
     <input type="hidden" name="code" value="{{.Code}}"/>
     <input type="hidden" name="validate" value="1"/>
   </form>
-  {{ end }}
 </div>
 
 {{ template "footer.html" }}

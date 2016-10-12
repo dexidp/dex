@@ -35,7 +35,8 @@ import (
 
 const (
 	LoginPageTemplateName              = "login.html"
-	RegisterTemplateName               = "create-account.html"
+	RegisterTemplateName               = "register.html"
+	CreateAccountTemplateName          = "create-account.html"
 	VerifyEmailTemplateName            = "verify-email.html"
 	SendResetPasswordEmailTemplateName = "send-reset-password.html"
 	ResetPasswordTemplateName          = "reset-password.html"
@@ -71,6 +72,7 @@ type Server struct {
 	Templates                      *template.Template
 	LoginTemplate                  *template.Template
 	RegisterTemplate               *template.Template
+	CreateAccountTemplate          *template.Template
 	VerifyEmailTemplate            *template.Template
 	SendResetPasswordEmailTemplate *template.Template
 	ResetPasswordTemplate          *template.Template
@@ -87,6 +89,7 @@ type Server struct {
 	RefreshTokenRepo    refresh.RefreshTokenRepo
 	UserRepo            user.UserRepo
 	PasswordInfoRepo    user.PasswordInfoRepo
+	OrganizationRepo    user.OrganizationRepo
 
 	ClientManager  *clientmanager.ClientManager
 	KeyManager     key.PrivateKeyManager
@@ -250,6 +253,8 @@ func (s *Server) HTTPHandler() http.Handler {
 	if s.EnableRegistration {
 		handleFunc(httpPathRegister, handleRegisterFunc(s, s.RegisterTemplate))
 	}
+
+	handleFunc(httpPathCreateAccount, handleCreateAccountFunc(s, s.CreateAccountTemplate))
 
 	handleFunc(httpPathEmailVerify, handleEmailVerifyFunc(s.VerifyEmailTemplate,
 		s.IssuerURL, s.KeyManager.PublicKeys, s.UserManager))

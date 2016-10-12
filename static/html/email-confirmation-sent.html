@@ -7,9 +7,9 @@
     </div>
     <h2>Email confirmation sent</h2>
   </header>
-<p>(Users First Name), you will be receiving an email shortly at (Users Email) to confirm your account and provide you with the next steps for logging into your new account.</p>
+<p>{{.FirstName}}, you will be receiving an email shortly at {{.Email}} to confirm your account and provide you with the next steps for logging into your new account.</p>
 <a class="btn btn-primary btn-block">Resend link</a>
-<a class="btn btn-primary btn-block btn-outline">Return to log in</a>
+<a class="btn btn-primary btn-block btn-outline" href="{{.LoginURL}}">Return to log in</a>
 </div>
 
 {{ template "footer.html" }}

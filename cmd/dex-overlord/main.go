@@ -116,10 +116,10 @@ func main() {
 	}
 	userRepo := db.NewUserRepo(dbc)
 	pwiRepo := db.NewPasswordInfoRepo(dbc)
+	orgRepo := db.NewOrganizationRepo(dbc)
 	connCfgRepo := db.NewConnectorConfigRepo(dbc)
 	clientRepo := db.NewClientRepo(dbc)
-	userManager := manager.NewUserManager(userRepo,
-		pwiRepo, connCfgRepo, db.TransactionFactory(dbc), manager.ManagerOptions{})
+	userManager := manager.NewUserManager(userRepo, pwiRepo, orgRepo, connCfgRepo, db.TransactionFactory(dbc), manager.ManagerOptions{})
 	clientManager := clientmanager.NewClientManager(clientRepo, db.TransactionFactory(dbc), clientmanager.ManagerOptions{})
 	connectorConfigRepo := db.NewConnectorConfigRepo(dbc)
 

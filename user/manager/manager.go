@@ -22,11 +22,13 @@ var (
 type UserManager struct {
 	Clock clockwork.Clock
 
-	userRepo        user.UserRepo
-	pwRepo          user.PasswordInfoRepo
-	connCfgRepo     connector.ConnectorConfigRepo
-	begin           repo.TransactionFactory
-	userIDGenerator user.UserIDGenerator
+	userRepo                user.UserRepo
+	pwRepo                  user.PasswordInfoRepo
+	orgRepo                 user.OrganizationRepo
+	connCfgRepo             connector.ConnectorConfigRepo
+	begin                   repo.TransactionFactory
+	userIDGenerator         user.UserIDGenerator
+	organizationIDGenerator user.UserIDGenerator
 }
 
 type ManagerOptions struct {
@@ -35,15 +37,23 @@ type ManagerOptions struct {
 	// variable policies
 }
 
-func NewUserManager(userRepo user.UserRepo, pwRepo user.PasswordInfoRepo, connCfgRepo connector.ConnectorConfigRepo, txnFactory repo.TransactionFactory, options ManagerOptions) *UserManager {
+func NewUserManager(
+	userRepo user.UserRepo,
+	pwRepo user.PasswordInfoRepo,
+	orgRepo user.OrganizationRepo,
+	connCfgRepo connector.ConnectorConfigRepo,
+	txnFactory repo.TransactionFactory,
+	options ManagerOptions) *UserManager {
 	return &UserManager{
 		Clock: clockwork.NewRealClock(),
 
-		userRepo:        userRepo,
-		pwRepo:          pwRepo,
-		connCfgRepo:     connCfgRepo,
-		begin:           txnFactory,
-		userIDGenerator: user.DefaultUserIDGenerator,
+		userRepo:                userRepo,
+		pwRepo:                  pwRepo,
+		orgRepo:                 orgRepo,
+		connCfgRepo:             connCfgRepo,
+		begin:                   txnFactory,
+		userIDGenerator:         user.DefaultUserIDGenerator,
+		organizationIDGenerator: user.DefaultUserIDGenerator,
 	}
 }
 
@@ -226,6 +236,73 @@ func (m *UserManager) RegisterWithPassword(email, plaintext, connID string) (str
 	return usr.ID, nil
 }
 
+// RegisterUserAndOrganization creates an organization and a new user as its owner.
+// connID is the connector ID of the ConnectorLocal connector.
+func (m *UserManager) RegisterUserAndOrganization(firstName, lastName, company, email, plaintext, connID string) (string, error) {
+	tx, err := m.begin()
+	if err != nil {
+		return "", err
+	}
+
+	if !user.ValidPassword(plaintext) {
+		rollback(tx)
+		return "", user.ErrorInvalidPassword
+	}
+
+	usr, err := m.insertNewUser(tx, email, false)
+	if err != nil {
+		rollback(tx)
+		return "", err
+	}
+
+	org, err := m.insertNewOrganization(tx, usr.ID, company)
+	if err != nil {
+		rollback(tx)
+		return "", err
+	}
+
+	usr.FirstName = firstName
+	usr.LastName = lastName
+	usr.OrganizationID = org.OrganizationID
+	err = m.userRepo.Update(tx, usr)
+	if err != nil {
+		rollback(tx)
+		return "", err
+	}
+
+	rid := user.RemoteIdentity{
+		ConnectorID: connID,
+		ID:          usr.ID,
+	}
+	if err := m.addRemoteIdentity(tx, usr.ID, rid); err != nil {
+		rollback(tx)
+		return "", err
+	}
+
+	password, err := user.NewPasswordFromPlaintext(plaintext)
+	if err != nil {
+		rollback(tx)
+		return "", err
+	}
+	pwi := user.PasswordInfo{
+		UserID:   usr.ID,
+		Password: password,
+	}
+
+	err = m.pwRepo.Create(tx, pwi)
+	if err != nil {
+		rollback(tx)
+		return "", err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		rollback(tx)
+		return "", err
+	}
+	return usr.ID, nil
+}
+
 type EmailVerifiable interface {
 	UserID() string
 	Email() string
@@ -356,6 +433,34 @@ func (m *UserManager) insertNewUser(tx repo.Transaction, email string, emailVeri
 		return user.User{}, err
 	}
 	return usr, nil
+}
+
+func (m *UserManager) insertNewOrganization(tx repo.Transaction, ownerID, name string) (user.Organization, error) {
+	var err error
+	if _, err = m.orgRepo.GetByName(tx, name); err == nil {
+		return user.Organization{}, user.ErrorDuplicateOrganizationName
+	}
+	if err != user.ErrorNotFound {
+		return user.Organization{}, err
+	}
+
+	orgID, err := m.organizationIDGenerator()
+	if err != nil {
+		return user.Organization{}, err
+	}
+
+	org := user.Organization{
+		OrganizationID: orgID,
+		Name:           name,
+		OwnerID:        ownerID,
+		CreatedAt:      m.Clock.Now(),
+	}
+
+	err = m.orgRepo.Create(tx, org)
+	if err != nil {
+		return user.Organization{}, err
+	}
+	return org, nil
 }
 
 func (m *UserManager) addRemoteIdentity(tx repo.Transaction, userID string, rid user.RemoteIdentity) error {

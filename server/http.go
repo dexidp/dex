@@ -38,6 +38,7 @@ var (
 	httpPathHealth             = "/health"
 	httpPathAPI                = "/api"
 	httpPathRegister           = "/register"
+	httpPathCreateAccount      = "/create-account"
 	httpPathEmailVerify        = "/verify-email"
 	httpPathVerifyEmailResend  = "/resend-verify-email"
 	httpPathSendResetPassword  = "/send-reset-password"
@@ -365,7 +366,7 @@ func handleAuthFunc(srv OIDCServer, baseURL url.URL, idpcs []connector.Connector
 			if ok {
 				q := url.Values{}
 				q.Set("code", key)
-				ru := path.Join(baseURL.Path, httpPathRegister) + "?" + q.Encode()
+				ru := path.Join(baseURL.Path, httpPathCreateAccount) + "?" + q.Encode()
 				w.Header().Set("Location", ru)
 				w.WriteHeader(http.StatusFound)
 				return

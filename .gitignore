@@ -27,3 +27,5 @@ bin/
 coverage/
 deploy/
 gopath/
+.vscode/
+dex

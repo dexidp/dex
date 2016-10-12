@@ -216,7 +216,7 @@ func handleEmailVerifyFunc(verifiedTpl *template.Template, issuer url.URL, keysF
 			return
 		}
 
-		cbURL, err := userManager.VerifyEmail(ev)
+		_, err = userManager.VerifyEmail(ev)
 		if err != nil {
 			switch err {
 			case manager.ErrorEmailAlreadyVerified:
@@ -243,6 +243,7 @@ func handleEmailVerifyFunc(verifiedTpl *template.Template, issuer url.URL, keysF
 			MaxAge:   int(60 * 5),
 			Expires:  time.Now().Add(time.Minute * 5),
 		})
-		http.Redirect(w, r, cbURL.String(), http.StatusSeeOther)
+		// http.Redirect(w, r, cbURL.String(), http.StatusSeeOther)
+		execTemplate(w, verifiedTpl, emailVerifiedTemplateData{})
 	}
 }

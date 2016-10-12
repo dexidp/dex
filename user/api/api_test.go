@@ -117,23 +117,26 @@ func makeTestFixtures(clientCredsFlag bool) (*UsersAPI, *testEmailer) {
 		repo, err := db.NewUserRepoFromUsers(dbMap, []user.UserWithRemoteIdentities{
 			{
 				User: user.User{
-					ID:        "ID-1",
-					Email:     "id1@example.com",
-					Admin:     true,
-					CreatedAt: clock.Now(),
+					ID:             "ID-1",
+					Email:          "id1@example.com",
+					OrganizationID: "OrgID-1",
+					Admin:          true,
+					CreatedAt:      clock.Now(),
 				},
 			}, {
 				User: user.User{
-					ID:            "ID-2",
-					Email:         "id2@example.com",
-					EmailVerified: true,
-					CreatedAt:     clock.Now(),
+					ID:             "ID-2",
+					Email:          "id2@example.com",
+					EmailVerified:  true,
+					OrganizationID: "OrgID-2",
+					CreatedAt:      clock.Now(),
 				},
 			}, {
 				User: user.User{
-					ID:        "ID-3",
-					Email:     "id3@example.com",
-					CreatedAt: clock.Now(),
+					ID:             "ID-3",
+					Email:          "id3@example.com",
+					OrganizationID: "OrgID-3",
+					CreatedAt:      clock.Now(),
 				},
 			}, {
 				User: user.User{
@@ -167,6 +170,30 @@ func makeTestFixtures(clientCredsFlag bool) (*UsersAPI, *testEmailer) {
 		return repo
 	}()
 
+	orgr := func() user.OrganizationRepo {
+		repo, err := db.NewOrganizationRepoFromOrganizations(dbMap, []user.Organization{
+			{
+				OrganizationID: "OrgID-1",
+				Name:           "OrgName-1",
+				OwnerID:        "ID-1",
+			},
+			{
+				OrganizationID: "OrgID-2",
+				Name:           "OrgName-2",
+				OwnerID:        "ID-2",
+			},
+			{
+				OrganizationID: "OrgID-3",
+				Name:           "OrgName-3",
+				OwnerID:        "ID-3",
+			},
+		})
+		if err != nil {
+			panic("Failed to create organization repo: " + err.Error())
+		}
+		return repo
+	}()
+
 	ccr := func() connector.ConnectorConfigRepo {
 		repo := db.NewConnectorConfigRepo(dbMap)
 		c := []connector.ConnectorConfig{
@@ -178,7 +205,7 @@ func makeTestFixtures(clientCredsFlag bool) (*UsersAPI, *testEmailer) {
 		return repo
 	}()
 
-	mgr := manager.NewUserManager(ur, pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
+	mgr := manager.NewUserManager(ur, pwr, orgr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
 	mgr.Clock = clock
 	ci := client.Client{
 		Credentials: oidc.ClientCredentials{

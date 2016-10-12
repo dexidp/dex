@@ -40,9 +40,10 @@ var (
 	userUsers = []user.UserWithRemoteIdentities{
 		{
 			User: user.User{
-				ID:    "ID-1",
-				Email: "Email-1@example.com",
-				Admin: true,
+				ID:             "ID-1",
+				Email:          "Email-1@example.com",
+				OrganizationID: "OrgID-1",
+				Admin:          true,
 			},
 		},
 		{
@@ -79,6 +80,14 @@ var (
 		},
 	}
 
+	userOrganizations = []user.Organization{
+		{
+			OrganizationID: "OrgID-1",
+			Name:           "OrgName-1",
+			OwnerID:        "ID-1",
+		},
+	}
+
 	userBadClientID = testBadRedirectURL.Host
 
 	userGoodToken = makeUserToken(testIssuerURL,
@@ -106,7 +115,7 @@ var (
 func makeUserAPITestFixtures(clientCredsFlag bool) *userAPITestFixtures {
 	f := &userAPITestFixtures{}
 
-	dbMap, _, _, um := makeUserObjects(userUsers, userPasswords)
+	dbMap, _, _, _, um := makeUserObjects(userUsers, userPasswords, userOrganizations)
 	clients := []client.LoadableClient{
 		{
 			Client: client.Client{

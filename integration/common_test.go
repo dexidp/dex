@@ -51,7 +51,10 @@ func (t *tokenHandlerTransport) RoundTrip(r *http.Request) (*http.Response, erro
 
 // TODO(ericchiang): Replace DbMap with storage interface. See #278
 
-func makeUserObjects(users []user.UserWithRemoteIdentities, passwords []user.PasswordInfo) (*gorp.DbMap, user.UserRepo, user.PasswordInfoRepo, *manager.UserManager) {
+func makeUserObjects(
+	users []user.UserWithRemoteIdentities,
+	passwords []user.PasswordInfo,
+	organizations []user.Organization) (*gorp.DbMap, user.UserRepo, user.PasswordInfoRepo, user.OrganizationRepo, *manager.UserManager) {
 	dbMap := db.NewMemDB()
 	ur := func() user.UserRepo {
 		repo, err := db.NewUserRepoFromUsers(dbMap, users)
@@ -68,6 +71,14 @@ func makeUserObjects(users []user.UserWithRemoteIdentities, passwords []user.Pas
 		return repo
 	}()
 
+	orgr := func() user.OrganizationRepo {
+		repo, err := db.NewOrganizationRepoFromOrganizations(dbMap, organizations)
+		if err != nil {
+			panic("Failed to create password info repo: " + err.Error())
+		}
+		return repo
+	}()
+
 	ccr := func() connector.ConnectorConfigRepo {
 		repo := db.NewConnectorConfigRepo(dbMap)
 		c := []connector.ConnectorConfig{&connector.LocalConnectorConfig{ID: "local"}}
@@ -77,9 +88,9 @@ func makeUserObjects(users []user.UserWithRemoteIdentities, passwords []user.Pas
 		return repo
 	}()
 
-	um := manager.NewUserManager(ur, pwr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
+	um := manager.NewUserManager(ur, pwr, orgr, ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
 	um.Clock = clock
-	return dbMap, ur, pwr, um
+	return dbMap, ur, pwr, orgr, um
 }
 
 func makeClientRepoAndManager(dbMap *gorp.DbMap, clients []client.LoadableClient) (client.ClientRepo, *clientmanager.ClientManager, error) {

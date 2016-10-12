@@ -75,18 +75,25 @@
     }
     
     .middle-box {
-      height: 800px;
+      height: 500px;
       width: 300px;
       position: absolute;
       top: 50%;
       left: 50%;
-      margin-top: -450px;
+      margin-top: -250px;
       margin-left: -150px;
       z-index: 100;
     }
 
+    .middle-box.create-account {
+      height: inherit;
+      top: 0;
+      margin-top: 0;
+      padding: 25px;
+    }
+
     .left {
-        text-align: left;
+      text-align: left;
     }
     
     .logo {
@@ -240,9 +247,13 @@
     .has-error .form-control {
       border-color: #ED7060;
     }
+
+    .has-error .help-block {
+      color: #ED7060;
+    }
     
     @media (max-width: 767px) {
-      .middle-box {
+      .middle-box, .middle-box.create-account {
         width: 100%;
         height: inherit;
         top: 0;

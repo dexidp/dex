@@ -21,7 +21,7 @@
       <span class="help-block"><a href="{{ "/send-reset-password" | absPath }}?session_key={{ .SessionKey }}">Forgot your password?</a></span>
     </div>
     <button type="submit" class="btn btn-primary btn-block">Sign In</button>
-    <p>Don't have an account? <a href="{{ "/register" | absPath }}?code={{ .SessionKey }}">Sign up</a></p>
+    <p>Don't have an account? <a href="{{ "/create-account" | absPath }}?code={{ .SessionKey }}">Sign up</a></p>
   </form>
 </div>
 

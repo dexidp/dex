@@ -42,18 +42,10 @@ type registerTemplateData struct {
 
 var (
 	errToFormErrorMap = map[error]formError{
-		user.ErrorInvalidEmail: formError{
-			Field: "email",
-			Error: "Please enter a valid email",
-		},
-		user.ErrorInvalidPassword: formError{
-			Field: "password",
-			Error: "Please enter a valid password",
-		},
-		user.ErrorDuplicateEmail: formError{
-			Field: "email",
-			Error: "That email is already in use; please choose another.",
-		},
+		user.ErrorInvalidEmail:              ErrorInvalidEmail,
+		user.ErrorInvalidPassword:           ErrorInvalidPassword,
+		user.ErrorDuplicateEmail:            ErrorDuplicateEmail,
+		user.ErrorDuplicateOrganizationName: ErrorDuplicateCompanyName,
 	}
 )
 

@@ -15,6 +15,8 @@ func TestLoadUsers(t *testing.T) {
 		expUsers []user.UserWithRemoteIdentities
 		// userid -> plaintext password
 		expPasswds map[string]string
+		// userid -> organization
+		expOrgs map[string]string
 
 		wantErr bool
 	}{
@@ -25,6 +27,12 @@ func TestLoadUsers(t *testing.T) {
 			        "email": "elroy77@example.com",
 			        "displayName": "Elroy Jonez",
 			        "password": "bones",
+                    "organizationID": "example-org-id",
+                    "organization": {
+                        "organizationId": "example-org-id",
+                        "name": "example org",
+                        "ownerId": "elroy-id"
+                    },
 			        "remoteIdentities": [
 			            {
 			                "connectorId": "local",
@@ -36,9 +44,10 @@ func TestLoadUsers(t *testing.T) {
 			expUsers: []user.UserWithRemoteIdentities{
 				{
 					User: user.User{
-						ID:          "elroy-id",
-						Email:       "elroy77@example.com",
-						DisplayName: "Elroy Jonez",
+						ID:             "elroy-id",
+						Email:          "elroy77@example.com",
+						DisplayName:    "Elroy Jonez",
+						OrganizationID: "example-org-id",
 					},
 					RemoteIdentities: []user.RemoteIdentity{
 						{
@@ -50,6 +59,9 @@ func TestLoadUsers(t *testing.T) {
 			},
 			expPasswds: map[string]string{
 				"elroy-id": "bones",
+			},
+			expOrgs: map[string]string{
+				"elroy-id": "example-org-id",
 			},
 		},
 		{
@@ -75,7 +87,7 @@ func TestLoadUsers(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		users, pwInfos, err := loadUsersFromReader(strings.NewReader(tt.raw))
+		users, pwInfos, orgs, err := loadUsersFromReader(strings.NewReader(tt.raw))
 		if err != nil {
 			if !tt.wantErr {
 				t.Errorf("case %d: failed to load user: %v", i, err)
@@ -100,6 +112,17 @@ func TestLoadUsers(t *testing.T) {
 			}
 			if _, err := pwInfo.Authenticate(expPW); err != nil {
 				t.Errorf("case %d: user %s's password did not match", i, pwInfo.UserID)
+			}
+		}
+
+		for _, org := range orgs {
+			expOrgID, ok := tt.expOrgs[org.OwnerID]
+			if !ok {
+				t.Errorf("no organization entry for %s", org.OwnerID)
+				continue
+			}
+			if org.OrganizationID != expOrgID {
+				t.Errorf("case %d: user %s's organization ID did not match", i, org.OwnerID)
 			}
 		}
 	}

@@ -16,32 +16,50 @@ func TestAddToClaims(t *testing.T) {
 	}{
 		{
 			user: User{
-				DisplayName: "Test User Name",
+				DisplayName:    "Test User Name",
+				FirstName:      "Test First Name",
+				LastName:       "Test Last Name",
+				OrganizationID: "Test Organization ID",
 			},
 			wantedClaims: jose.Claims{
-				"name": "Test User Name",
+				"name":            "Test User Name",
+				"given_name":      "Test First Name",
+				"family_name":     "Test Last Name",
+				"organization_id": "Test Organization ID",
 			},
 		},
 		{
 			user: User{
-				DisplayName: "Test User Name",
-				Email:       "unverified@example.com",
+				DisplayName:    "Test User Name",
+				FirstName:      "Test First Name",
+				LastName:       "Test Last Name",
+				OrganizationID: "Test Organization ID",
+				Email:          "unverified@example.com",
 			},
 			wantedClaims: jose.Claims{
-				"name":  "Test User Name",
-				"email": "unverified@example.com",
+				"name":            "Test User Name",
+				"given_name":      "Test First Name",
+				"family_name":     "Test Last Name",
+				"organization_id": "Test Organization ID",
+				"email":           "unverified@example.com",
 			},
 		},
 		{
 			user: User{
-				DisplayName:   "Test User Name",
-				Email:         "verified@example.com",
-				EmailVerified: true,
+				DisplayName:    "Test User Name",
+				FirstName:      "Test First Name",
+				LastName:       "Test Last Name",
+				OrganizationID: "Test Organization ID",
+				Email:          "verified@example.com",
+				EmailVerified:  true,
 			},
 			wantedClaims: jose.Claims{
-				"name":           "Test User Name",
-				"email":          "verified@example.com",
-				"email_verified": true,
+				"name":            "Test User Name",
+				"given_name":      "Test First Name",
+				"family_name":     "Test Last Name",
+				"organization_id": "Test Organization ID",
+				"email":           "verified@example.com",
+				"email_verified":  true,
 			},
 		},
 	}
@@ -71,6 +89,29 @@ func TestValidEmail(t *testing.T) {
 
 	for i, tt := range tests {
 		if ValidEmail(tt.email) != tt.want {
+			t.Errorf("case %d: want=%v, got=%v", i, tt.want, !tt.want)
+		}
+	}
+}
+
+func TestValidPassword(t *testing.T) {
+	tests := []struct {
+		password string
+		want     bool
+	}{
+		{"ValidPassword#123", true},
+		{"@6Char", true},
+		{"Unicode;2世界", true},
+		{"short", false},
+		{"", false},
+		{"noupper", false},
+		{"NOLOWER", false},
+		{"NoSymbol7", false},
+		{"NoNumber%", false},
+	}
+
+	for i, tt := range tests {
+		if ValidPassword(tt.password) != tt.want {
 			t.Errorf("case %d: want=%v, got=%v", i, tt.want, !tt.want)
 		}
 	}

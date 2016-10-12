@@ -384,7 +384,7 @@ func TestResetPasswordHandler(t *testing.T) {
 	}
 
 	user.PasswordHasher = func(s string) ([]byte, error) {
-		return []byte(strings.ToUpper(s)), nil
+		return []byte(s), nil
 	}
 	defer func() {
 		user.PasswordHasher = user.DefaultPasswordHasher
@@ -424,13 +424,13 @@ func TestResetPasswordHandler(t *testing.T) {
 			// Step 1.2 - User enters in new valid password, password is changed, user is redirected.
 			query: url.Values{
 				"token":    str(makeToken("ID-1", "password", testClientID, testRedirectURL, time.Hour*1, goodSigner)),
-				"password": str("new_password"),
+				"password": str("New_password#1"),
 			},
 			method: "POST",
 
 			wantCode:       http.StatusSeeOther,
 			wantFormValues: &url.Values{},
-			wantPassword:   "NEW_PASSWORD",
+			wantPassword:   "New_password#1",
 		},
 		// Scenario 2: Happy Path, but without redirect.
 		{ // Case 2
@@ -451,14 +451,14 @@ func TestResetPasswordHandler(t *testing.T) {
 			// Step 2.2 - User enters in new valid password, password is changed, user is redirected.
 			query: url.Values{
 				"token":    str(makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, goodSigner)),
-				"password": str("new_password"),
+				"password": str("New_password#1"),
 			},
 			method: "POST",
 
 			// no redirect
 			wantCode:       http.StatusOK,
 			wantFormValues: &url.Values{},
-			wantPassword:   "NEW_PASSWORD",
+			wantPassword:   "New_password#1",
 		},
 		// Errors
 		{ // Case 4

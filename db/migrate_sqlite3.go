@@ -7,6 +7,9 @@ CREATE TABLE authd_user (
     email text,
     email_verified integer,
     display_name text,
+    first_name text,
+    last_name text,
+    organization_id text,
     admin integer,
     created_at bigint,
     disabled integer
@@ -78,6 +81,14 @@ CREATE TABLE session_key (
 CREATE TABLE trusted_peers (
     client_id text NOT NULL,
     trusted_client_id text NOT NULL
+);
+
+CREATE TABLE organization (
+    organization_id text NOT NULL UNIQUE,
+    name text,
+    owner_id text,
+    created_at bigint,
+    disabled integer
 );
 
 `

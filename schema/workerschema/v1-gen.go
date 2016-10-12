@@ -120,7 +120,13 @@ type User struct {
 
 	EmailVerified bool `json:"emailVerified,omitempty"`
 
+	FirstName string `json:"firstName,omitempty"`
+
 	Id string `json:"id,omitempty"`
+
+	LastName string `json:"lastName,omitempty"`
+
+	OrganizationID string `json:"organizationID,omitempty"`
 }
 
 type UserCreateRequest struct {

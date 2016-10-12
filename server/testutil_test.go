@@ -30,6 +30,7 @@ var (
 	testUserID1       = "ID-1"
 	testUserEmail1    = "Email-1@example.com"
 	testUserRemoteID1 = "RID-1"
+	testOrganization  = "OrgID-1"
 
 	testIssuerURL = url.URL{Scheme: "http", Host: "server.example.com"}
 
@@ -88,9 +89,10 @@ var (
 		},
 		{
 			User: user.User{
-				ID:            "ID-Verified",
-				Email:         "Email-Verified@example.com",
-				EmailVerified: true,
+				ID:             "ID-Verified",
+				Email:          "Email-Verified@example.com",
+				EmailVerified:  true,
+				OrganizationID: "OrgID-1",
 			},
 			RemoteIdentities: []user.RemoteIdentity{
 				{
@@ -109,6 +111,14 @@ var (
 		{
 			UserID:   "ID-Verified",
 			Password: []byte("password"),
+		},
+	}
+
+	testOrganizations = []user.Organization{
+		{
+			OrganizationID: testOrganization,
+			Name:           "OrgName-1",
+			OwnerID:        "ID-1",
 		},
 	}
 
@@ -157,6 +167,10 @@ func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, err
 	if err != nil {
 		return nil, err
 	}
+	orgRepo, err := db.NewOrganizationRepoFromOrganizations(dbMap, testOrganizations)
+	if err != nil {
+		return nil, err
+	}
 
 	connConfigs := []connector.ConnectorConfig{
 		&connector.OIDCConnectorConfig{
@@ -188,7 +202,7 @@ func makeTestFixturesWithOptions(options testFixtureOptions) (*testFixtures, err
 		return nil, err
 	}
 
-	userManager := usermanager.NewUserManager(userRepo, pwRepo, connCfgRepo, db.TransactionFactory(dbMap), usermanager.ManagerOptions{})
+	userManager := usermanager.NewUserManager(userRepo, pwRepo, orgRepo, connCfgRepo, db.TransactionFactory(dbMap), usermanager.ManagerOptions{})
 
 	sessionManager := sessionmanager.NewSessionManager(db.NewSessionRepo(db.NewMemDB()), db.NewSessionKeyRepo(db.NewMemDB()))
 	sessionManager.GenerateCode = sequentialGenerateCodeFunc()
