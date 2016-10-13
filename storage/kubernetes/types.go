@@ -11,6 +11,64 @@ import (
 	"github.com/coreos/dex/storage/kubernetes/k8sapi"
 )
 
+var tprMeta = k8sapi.TypeMeta{
+	APIVersion: "extensions/v1beta1",
+	Kind:       "ThirdPartyResource",
+}
+
+// The set of third party resources required by the storage. These are managed by
+// the storage so it can migrate itself by creating new resources.
+var thirdPartyResources = []k8sapi.ThirdPartyResource{
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "auth-code.oidc.coreos.com",
+		},
+		TypeMeta:    tprMeta,
+		Description: "A code which can be claimed for an access token.",
+		Versions:    []k8sapi.APIVersion{{Name: "v1"}},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "auth-request.oidc.coreos.com",
+		},
+		TypeMeta:    tprMeta,
+		Description: "A request for an end user to authorize a client.",
+		Versions:    []k8sapi.APIVersion{{Name: "v1"}},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "o-auth2-client.oidc.coreos.com",
+		},
+		TypeMeta:    tprMeta,
+		Description: "An OpenID Connect client.",
+		Versions:    []k8sapi.APIVersion{{Name: "v1"}},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "signing-key.oidc.coreos.com",
+		},
+		TypeMeta:    tprMeta,
+		Description: "Keys used to sign and verify OpenID Connect tokens.",
+		Versions:    []k8sapi.APIVersion{{Name: "v1"}},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "refresh-token.oidc.coreos.com",
+		},
+		TypeMeta:    tprMeta,
+		Description: "Refresh tokens for clients to continuously act on behalf of an end user.",
+		Versions:    []k8sapi.APIVersion{{Name: "v1"}},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "password.oidc.coreos.com",
+		},
+		TypeMeta:    tprMeta,
+		Description: "Passwords managed by the OIDC server.",
+		Versions:    []k8sapi.APIVersion{{Name: "v1"}},
+	},
+}
+
 // There will only ever be a single keys resource. Maintain this by setting a
 // common name.
 const keysName = "openid-connect-keys"
@@ -45,7 +103,7 @@ func (cli *client) fromStorageClient(c storage.Client) Client {
 	return Client{
 		TypeMeta: k8sapi.TypeMeta{
 			Kind:       kindClient,
-			APIVersion: cli.apiVersionForResource(resourceClient),
+			APIVersion: cli.apiVersion,
 		},
 		ObjectMeta: k8sapi.ObjectMeta{
 			Name:      c.ID,
@@ -162,7 +220,7 @@ func (cli *client) fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 	req := AuthRequest{
 		TypeMeta: k8sapi.TypeMeta{
 			Kind:       kindAuthRequest,
-			APIVersion: cli.apiVersionForResource(resourceAuthRequest),
+			APIVersion: cli.apiVersion,
 		},
 		ObjectMeta: k8sapi.ObjectMeta{
 			Name:      a.ID,
@@ -216,7 +274,7 @@ func (cli *client) fromStoragePassword(p storage.Password) Password {
 	return Password{
 		TypeMeta: k8sapi.TypeMeta{
 			Kind:       kindPassword,
-			APIVersion: cli.apiVersionForResource(resourcePassword),
+			APIVersion: cli.apiVersion,
 		},
 		ObjectMeta: k8sapi.ObjectMeta{
 			Name:      emailToID(email),
@@ -270,7 +328,7 @@ func (cli *client) fromStorageAuthCode(a storage.AuthCode) AuthCode {
 	return AuthCode{
 		TypeMeta: k8sapi.TypeMeta{
 			Kind:       kindAuthCode,
-			APIVersion: cli.apiVersionForResource(resourceAuthCode),
+			APIVersion: cli.apiVersion,
 		},
 		ObjectMeta: k8sapi.ObjectMeta{
 			Name:      a.ID,
@@ -346,7 +404,7 @@ func (cli *client) fromStorageKeys(keys storage.Keys) Keys {
 	return Keys{
 		TypeMeta: k8sapi.TypeMeta{
 			Kind:       kindKeys,
-			APIVersion: cli.apiVersionForResource(resourceKeys),
+			APIVersion: cli.apiVersion,
 		},
 		ObjectMeta: k8sapi.ObjectMeta{
 			Name:      keysName,
