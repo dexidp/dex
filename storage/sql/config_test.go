@@ -54,7 +54,7 @@ func TestSQLite3(t *testing.T) {
 	}
 
 	withTimeout(time.Second*10, func() {
-		conformance.RunTestSuite(t, newStorage)
+		conformance.RunTests(t, newStorage)
 	})
 }
 
@@ -85,6 +85,6 @@ func TestPostgres(t *testing.T) {
 		return conn
 	}
 	withTimeout(time.Minute*1, func() {
-		conformance.RunTestSuite(t, newStorage)
+		conformance.RunTests(t, newStorage)
 	})
 }
