@@ -56,40 +56,34 @@ type keyRotater struct {
 	storage.Storage
 
 	strategy rotationStrategy
-	cancel   context.CancelFunc
-
-	now func() time.Time
+	now      func() time.Time
 }
 
-func storageWithKeyRotation(s storage.Storage, strategy rotationStrategy, now func() time.Time) storage.Storage {
-	if now == nil {
-		now = time.Now
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	rotater := keyRotater{s, strategy, cancel, now}
+// startKeyRotation begins key rotation in a new goroutine, closing once the context is canceled.
+//
+// The method blocks until after the first attempt to rotate keys has completed. That way
+// healthy storages will return from this call with valid keys.
+func startKeyRotation(ctx context.Context, s storage.Storage, strategy rotationStrategy, now func() time.Time) {
+	rotater := keyRotater{s, strategy, now}
 
-	// Try to rotate immediately so properly configured storages will return a
-	// storage with keys.
+	// Try to rotate immediately so properly configured storages will have keys.
 	if err := rotater.rotate(); err != nil {
 		log.Printf("failed to rotate keys: %v", err)
 	}
 
 	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(time.Second * 30):
-			if err := rotater.rotate(); err != nil {
-				log.Printf("failed to rotate keys: %v", err)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(strategy.period):
+				if err := rotater.rotate(); err != nil {
+					log.Printf("failed to rotate keys: %v", err)
+				}
 			}
 		}
 	}()
-	return rotater
-}
-
-func (k keyRotater) Close() error {
-	k.cancel()
-	return k.Storage.Close()
+	return
 }
 
 func (k keyRotater) rotate() error {

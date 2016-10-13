@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
-	"time"
 
 	"github.com/coreos/dex/storage"
 )
@@ -22,7 +21,7 @@ func (s *SQLite3) Open() (storage.Storage, error) {
 	if err != nil {
 		return nil, err
 	}
-	return withGC(conn, time.Now), nil
+	return conn, nil
 }
 
 func (s *SQLite3) open() (*conn, error) {
@@ -76,7 +75,7 @@ func (p *Postgres) Open() (storage.Storage, error) {
 	if err != nil {
 		return nil, err
 	}
-	return withGC(conn, time.Now), nil
+	return conn, nil
 }
 
 func (p *Postgres) open() (*conn, error) {

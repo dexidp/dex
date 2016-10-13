@@ -69,7 +69,7 @@ FDWV28nTP9sqbtsmU8Tem2jzMvZ7C/Q0AuDoKELFUpux8shm8wfIhyaPnXUGZoAZ
 Np4vUwMSYV5mopESLWOg3loBxKyLGFtgGKVCjGiQvy6zISQ4fQo=
 -----END RSA PRIVATE KEY-----`)
 
-func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
+func newTestServer(t *testing.T, ctx context.Context, updateConfig func(c *Config)) (*httptest.Server, *Server) {
 	var server *Server
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		server.ServeHTTP(w, r)
@@ -91,7 +91,7 @@ func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server
 	s.URL = config.Issuer
 
 	var err error
-	if server, err = newServer(config, staticRotationStrategy(testKey)); err != nil {
+	if server, err = newServer(ctx, config, staticRotationStrategy(testKey)); err != nil {
 		t.Fatal(err)
 	}
 	server.skipApproval = true // Don't prompt for approval, just immediately redirect with code.
@@ -99,14 +99,16 @@ func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server
 }
 
 func TestNewTestServer(t *testing.T) {
-	newTestServer(t, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	newTestServer(t, ctx, nil)
 }
 
 func TestDiscovery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	httpServer, _ := newTestServer(t, func(c *Config) {
+	httpServer, _ := newTestServer(t, ctx, func(c *Config) {
 		c.Issuer = c.Issuer + "/non-root-path"
 	})
 	defer httpServer.Close()
@@ -255,7 +257,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			httpServer, s := newTestServer(t, func(c *Config) {
+			httpServer, s := newTestServer(t, ctx, func(c *Config) {
 				c.Issuer = c.Issuer + "/non-root-path"
 			})
 			defer httpServer.Close()
@@ -368,7 +370,7 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	httpServer, s := newTestServer(t, func(c *Config) {
+	httpServer, s := newTestServer(t, ctx, func(c *Config) {
 		// Enable support for the implicit flow.
 		c.SupportedResponseTypes = []string{"code", "token"}
 	})
@@ -498,7 +500,7 @@ func TestCrossClientScopes(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	httpServer, s := newTestServer(t, func(c *Config) {
+	httpServer, s := newTestServer(t, ctx, func(c *Config) {
 		c.Issuer = c.Issuer + "/non-root-path"
 	})
 	defer httpServer.Close()

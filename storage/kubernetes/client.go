@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/gtank/cryptopasta"
-	"golang.org/x/net/context"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/coreos/dex/storage"
@@ -34,9 +33,6 @@ type client struct {
 	apiVersion string
 
 	now func() time.Time
-
-	// If not nil, the cancel function for stopping garbage colletion.
-	cancel context.CancelFunc
 
 	// BUG: currently each third party API group can only have one resource in it,
 	// so for each resource this storage uses, it need a unique API group.

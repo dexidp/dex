@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/coreos/dex/storage"
 )
@@ -81,6 +82,25 @@ type querier interface {
 // Abstract row vs rows.
 type scanner interface {
 	Scan(dest ...interface{}) error
+}
+
+func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error) {
+	r, err := c.Exec(`delete from auth_request where expiry < $1`, now)
+	if err != nil {
+		return result, fmt.Errorf("gc auth_request: %v", err)
+	}
+	if n, err := r.RowsAffected(); err == nil {
+		result.AuthRequests = n
+	}
+
+	r, err = c.Exec(`delete from auth_code where expiry < $1`, now)
+	if err != nil {
+		return result, fmt.Errorf("gc auth_code: %v", err)
+	}
+	if n, err := r.RowsAffected(); err == nil {
+		result.AuthCodes = n
+	}
+	return
 }
 
 func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {

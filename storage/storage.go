@@ -38,6 +38,12 @@ func NewID() string {
 	return strings.TrimRight(encoding.EncodeToString(buff), "=")
 }
 
+// GCResult returns the number of objects deleted by garbage collection.
+type GCResult struct {
+	AuthRequests int64
+	AuthCodes    int64
+}
+
 // Storage is the storage interface used by the server. Implementations, at minimum
 // require compare-and-swap atomic actions.
 //
@@ -80,8 +86,8 @@ type Storage interface {
 	UpdateAuthRequest(id string, updater func(a AuthRequest) (AuthRequest, error)) error
 	UpdatePassword(email string, updater func(p Password) (Password, error)) error
 
-	// TODO(ericchiang): Add a GarbageCollect(now time.Time) method so conformance tests
-	// can test implementations.
+	// GarbageCollect deletes all expired AuthCodes and AuthRequests.
+	GarbageCollect(now time.Time) (GCResult, error)
 }
 
 // Client represents an OAuth2 client.

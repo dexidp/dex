@@ -74,7 +74,7 @@ func TestURLFor(t *testing.T) {
 
 func TestStorage(t *testing.T) {
 	client := loadClient(t)
-	conformance.RunTestSuite(t, func() storage.Storage {
+	conformance.RunTests(t, func() storage.Storage {
 		for _, resource := range []string{
 			resourceAuthCode,
 			resourceAuthRequest,
