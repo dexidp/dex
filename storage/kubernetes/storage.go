@@ -3,12 +3,12 @@ package kubernetes
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
 
 	homedir "github.com/mitchellh/go-homedir"
-	"golang.org/x/net/context"
 
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/kubernetes/k8sapi"
@@ -46,14 +46,6 @@ func (c *Config) Open() (storage.Storage, error) {
 		return nil, err
 	}
 
-	// start up garbage collection
-	gcFrequency := c.GCFrequency
-	if gcFrequency == 0 {
-		gcFrequency = 600
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	cli.cancel = cancel
-	go cli.gc(ctx, time.Duration(gcFrequency)*time.Second)
 	return cli, nil
 }
 
@@ -93,9 +85,6 @@ func (c *Config) open() (*client, error) {
 }
 
 func (cli *client) Close() error {
-	if cli.cancel != nil {
-		cli.cancel()
-	}
 	return nil
 }
 
@@ -290,4 +279,41 @@ func (cli *client) UpdateAuthRequest(id string, updater func(a storage.AuthReque
 	newReq := cli.fromStorageAuthRequest(updated)
 	newReq.ObjectMeta = req.ObjectMeta
 	return cli.put(resourceAuthRequest, id, newReq)
+}
+
+func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err error) {
+	var authRequests AuthRequestList
+	if err := cli.list(resourceAuthRequest, &authRequests); err != nil {
+		return result, fmt.Errorf("failed to list auth requests: %v", err)
+	}
+
+	var delErr error
+	for _, authRequest := range authRequests.AuthRequests {
+		if now.After(authRequest.Expiry) {
+			if err := cli.delete(resourceAuthRequest, authRequest.ObjectMeta.Name); err != nil {
+				log.Printf("failed to delete auth request: %v", err)
+				delErr = fmt.Errorf("failed to delete auth request: %v", err)
+			}
+			result.AuthRequests++
+		}
+	}
+	if delErr != nil {
+		return result, delErr
+	}
+
+	var authCodes AuthCodeList
+	if err := cli.list(resourceAuthCode, &authCodes); err != nil {
+		return result, fmt.Errorf("failed to list auth codes: %v", err)
+	}
+
+	for _, authCode := range authCodes.AuthCodes {
+		if now.After(authCode.Expiry) {
+			if err := cli.delete(resourceAuthCode, authCode.ObjectMeta.Name); err != nil {
+				log.Printf("failed to delete auth code %v", err)
+				delErr = fmt.Errorf("failed to delete auth code: %v", err)
+			}
+			result.AuthCodes++
+		}
+	}
+	return result, delErr
 }
