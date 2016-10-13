@@ -72,15 +72,20 @@ func TestPostgres(t *testing.T) {
 		},
 		ConnectionTimeout: 5,
 	}
-	conn, err := p.open()
-	if err != nil {
-		t.Fatal(err)
+
+	// t.Fatal has a bad habbit of not actually printing the error
+	fatal := func(i interface{}) {
+		fmt.Fprintln(os.Stdout, i)
+		t.Fatal(i)
 	}
-	defer conn.Close()
 
 	newStorage := func() storage.Storage {
+		conn, err := p.open()
+		if err != nil {
+			fatal(err)
+		}
 		if err := cleanDB(conn); err != nil {
-			t.Fatal(err)
+			fatal(err)
 		}
 		return conn
 	}
