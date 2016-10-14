@@ -4,11 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
 
 	homedir "github.com/mitchellh/go-homedir"
+	"golang.org/x/net/context"
 
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/kubernetes/k8sapi"
@@ -45,7 +47,6 @@ func (c *Config) Open() (storage.Storage, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return cli, nil
 }
 
@@ -81,10 +82,57 @@ func (c *Config) open() (*client, error) {
 		return nil, err
 	}
 
-	return newClient(cluster, user, namespace)
+	cli, err := newClient(cluster, user, namespace)
+	if err != nil {
+		return nil, fmt.Errorf("create client: %v", err)
+	}
+
+	// Don't try to synchronize this because creating third party resources is not
+	// a synchronous event. Even after the API server returns a 200, it can still
+	// take several seconds for them to actually appear.
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		for {
+			if err := cli.createThirdPartyResources(); err != nil {
+				log.Printf("failed creating third party resources: %v", err)
+			} else {
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(30 * time.Second):
+			}
+		}
+	}()
+
+	// If the client is closed, stop trying to create third party resources.
+	cli.cancel = cancel
+	return cli, nil
+}
+
+func (cli *client) createThirdPartyResources() error {
+	for _, r := range thirdPartyResources {
+		err := cli.postResource("extensions/v1beta1", "", "thirdpartyresources", r)
+		if err != nil {
+			if e, ok := err.(httpError); ok {
+				if e.StatusCode() == http.StatusConflict {
+					log.Printf("third party resource already created %q", r.ObjectMeta.Name)
+					continue
+				}
+			}
+			return err
+		}
+		log.Printf("create third party resource %q", r.ObjectMeta.Name)
+	}
+	return nil
 }
 
 func (cli *client) Close() error {
+	if cli.cancel != nil {
+		cli.cancel()
+	}
 	return nil
 }
 
@@ -108,7 +156,7 @@ func (cli *client) CreateRefresh(r storage.RefreshToken) error {
 	refresh := RefreshToken{
 		TypeMeta: k8sapi.TypeMeta{
 			Kind:       kindRefreshToken,
-			APIVersion: cli.apiVersionForResource(resourceRefreshToken),
+			APIVersion: cli.apiVersion,
 		},
 		ObjectMeta: k8sapi.ObjectMeta{
 			Name:      r.RefreshToken,

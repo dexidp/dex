@@ -28,7 +28,6 @@ ConfigMap for dex to use. These run dex as a deployment with configuration and
 storage, allowing it to get started. 
 
 ```
-kubectl create -f thirdpartyresources.yaml
 kubectl create configmap dex-config --from-file=config.yaml=config-k8s.yaml
 kubectl create -f deployment.yaml
 ```

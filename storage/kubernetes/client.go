@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gtank/cryptopasta"
+	"golang.org/x/net/context"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/coreos/dex/storage"
@@ -27,37 +28,23 @@ import (
 )
 
 type client struct {
-	client     *http.Client
-	baseURL    string
-	namespace  string
+	client    *http.Client
+	baseURL   string
+	namespace string
+
+	// API version of the oidc resources. For example "oidc.coreos.com". This is
+	// currently not configurable, but could be in the future.
 	apiVersion string
 
-	now func() time.Time
-
-	// BUG: currently each third party API group can only have one resource in it,
-	// so for each resource this storage uses, it need a unique API group.
-	//
-	// Prepend the name of each resource to the API group for a predictable mapping.
-	//
-	// See: https://github.com/kubernetes/kubernetes/pull/28414
-	prependResourceNameToAPIGroup bool
-}
-
-func (c *client) apiVersionForResource(resource string) string {
-	if !c.prependResourceNameToAPIGroup {
-		return c.apiVersion
-	}
-	return resource + "." + c.apiVersion
+	// This is called once the client's Close method is called to signal goroutines,
+	// such as the one creating third party resources, to stop.
+	cancel context.CancelFunc
 }
 
 func (c *client) urlFor(apiVersion, namespace, resource, name string) string {
 	basePath := "apis/"
 	if apiVersion == "v1" {
 		basePath = "api/"
-	}
-
-	if c.prependResourceNameToAPIGroup && apiVersion != "" && resource != "" {
-		apiVersion = resource + "." + apiVersion
 	}
 
 	var p string
@@ -72,15 +59,28 @@ func (c *client) urlFor(apiVersion, namespace, resource, name string) string {
 	return c.baseURL + "/" + p
 }
 
+// Define an error interface so we can get at the underlying status code if it's
+// absolutely necessary. For instance when we need to see if an error indicates
+// a resource already exists.
+type httpError interface {
+	StatusCode() int
+}
+
+var _ httpError = (*httpErr)(nil)
+
 type httpErr struct {
 	method string
 	url    string
-	status string
+	status int
 	body   []byte
 }
 
+func (e *httpErr) StatusCode() int {
+	return e.status
+}
+
 func (e *httpErr) Error() string {
-	return fmt.Sprintf("%s %s %s: response from server \"%s\"", e.method, e.url, e.status, bytes.TrimSpace(e.body))
+	return fmt.Sprintf("%s %s %s: response from server \"%s\"", e.method, e.url, http.StatusText(e.status), bytes.TrimSpace(e.body))
 }
 
 func checkHTTPErr(r *http.Response, validStatusCodes ...int) error {
@@ -100,7 +100,7 @@ func checkHTTPErr(r *http.Response, validStatusCodes ...int) error {
 		method = r.Request.Method
 		url = r.Request.URL.String()
 	}
-	err = &httpErr{method, url, r.Status, body}
+	err = &httpErr{method, url, r.StatusCode, body}
 	log.Printf("%s", err)
 
 	if r.StatusCode == http.StatusNotFound {
@@ -134,12 +134,16 @@ func (c *client) list(resource string, v interface{}) error {
 }
 
 func (c *client) post(resource string, v interface{}) error {
+	return c.postResource(c.apiVersion, c.namespace, resource, v)
+}
+
+func (c *client) postResource(apiVersion, namespace, resource string, v interface{}) error {
 	body, err := json.Marshal(v)
 	if err != nil {
 		return fmt.Errorf("marshal object: %v", err)
 	}
 
-	url := c.urlFor(c.apiVersion, c.namespace, resource, "")
+	url := c.urlFor(apiVersion, namespace, resource, "")
 	resp, err := c.client.Post(url, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -277,8 +281,6 @@ func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string) (
 		baseURL:    cluster.Server,
 		namespace:  namespace,
 		apiVersion: "oidc.coreos.com/v1",
-		now:        time.Now,
-		prependResourceNameToAPIGroup: true,
 	}, nil
 }
 
