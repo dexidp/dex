@@ -54,7 +54,7 @@ fmt:
 
 lint:
 	@for package in $(shell go list ./... | grep -v '/vendor/' | grep -v '/api'); do \
-      golint -set_exit_status $$package; \
+      golint -set_exit_status $$package $$i || exit 1; \
 	done
 
 server/templates_default.go: $(wildcard web/templates/**)
