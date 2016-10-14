@@ -350,7 +350,7 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 				set 
 				    verification_keys = $1,
 					signing_key = $2,
-					singing_key_pub = $3,
+					signing_key_pub = $3,
 					next_rotation = $4
 				where id = $5;
 			`,
@@ -374,7 +374,7 @@ func getKeys(q querier) (keys storage.Keys, err error) {
 		select
 			verification_keys, signing_key, signing_key_pub, next_rotation
 		from keys
-		where id=$q
+		where id=$1
 	`, keysRowID).Scan(
 		decoder(&keys.VerificationKeys), decoder(&keys.SigningKey),
 		decoder(&keys.SigningKeyPub), &keys.NextRotation,
