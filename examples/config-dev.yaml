@@ -1,18 +1,31 @@
-issuer: http://127.0.0.1:5556
+# The base path of dex and the external name of the OpenID Connect service.
+# Clients use this value to do discovery.
+issuer: http://127.0.0.1:5556/dex
+
+# The storage configuration determines where dex stores its state. Supported
+# options include SQL flavors and Kubernetes third party resources.
 storage:
   type: sqlite3
   config:
     file: examples/dex.db
 
+# Configuration for the
 web:
   http: 127.0.0.1:5556
+  # HTTPS options are also supported:
+  # https: 127.0.0.1:5554
+  # tlsCert: /etc/dex/tls.crt
+  # tlsKey: /etc/dex/tls.key
 
-connectors:
-- type: mockCallback
-  id: mock-callback
-  name: Mock
+# Uncomment this block to enable the gRPC API.
+# grpc:
+#   addr: 127.0.0.1:5557
+#   tlsCert: /etc/dex/grpc.crt
+#   tlsKey: /etc/dex/grpc.key
 
 # Instead of reading from an external storage, use this list of clients.
+#
+# If this option isn't choosen clients may be added through the gRPC API.
 staticClients:
 - id: example-app
   redirectURIs:
@@ -20,14 +33,22 @@ staticClients:
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
 
-# Let dex keep a list of passwords which can be used to login the user.
+connectors:
+- type: mockCallback
+  id: mock
+  name: Example
+
+# Let dex keep a list of passwords which can be used to login the user
 enablePasswordDB: true
 
 # A static list of passwords to login the end user. By identifying here, dex
-# won't look in its undlying storage for passwords.
+# won't look in its underlying storage for passwords.
+#
+# If this option isn't choosen users may be added through the gRPC API.
 staticPasswords:
 - email: "admin@example.com"
   # bcrypt hash of the string "password"
   hash: "JDJhJDE0JDh4TnlVZ3pzSmVuQm4ySlRPT2QvbmVGcUlnQzF4TEFVRFA3VlpTVzhDNWlkLnFPcmNlYUJX"
   username: "admin"
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+
