@@ -58,10 +58,8 @@ Then to interact with dex, like any other OAuth2 provider, you must first visit
 a client app, then be prompted to login through dex. This can be achieved using
 the following steps:
 
-NOTE: The UIs are extremely bare bones at the moment.
-
 1. Navigate to http://localhost:5555/ in your browser.
 2. Hit "login" on the example app to be redirected to dex.
-3. Choose the "mock" option to login as a predefined user.
+3. Choose the "Login with Email" and enter "admin@example.com" and "password"
 4. Approve the example app's request.
 5. See the resulting token the example app claims from dex.
