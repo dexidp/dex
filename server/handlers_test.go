@@ -12,7 +12,7 @@ func TestHandleHealth(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	httpServer, server := newTestServer(t, ctx, nil)
+	httpServer, server := newTestServer(ctx, t, nil)
 	defer httpServer.Close()
 
 	rr := httptest.NewRecorder()

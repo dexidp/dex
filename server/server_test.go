@@ -69,7 +69,7 @@ FDWV28nTP9sqbtsmU8Tem2jzMvZ7C/Q0AuDoKELFUpux8shm8wfIhyaPnXUGZoAZ
 Np4vUwMSYV5mopESLWOg3loBxKyLGFtgGKVCjGiQvy6zISQ4fQo=
 -----END RSA PRIVATE KEY-----`)
 
-func newTestServer(t *testing.T, ctx context.Context, updateConfig func(c *Config)) (*httptest.Server, *Server) {
+func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
 	var server *Server
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		server.ServeHTTP(w, r)
@@ -101,14 +101,14 @@ func newTestServer(t *testing.T, ctx context.Context, updateConfig func(c *Confi
 func TestNewTestServer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	newTestServer(t, ctx, nil)
+	newTestServer(ctx, t, nil)
 }
 
 func TestDiscovery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	httpServer, _ := newTestServer(t, ctx, func(c *Config) {
+	httpServer, _ := newTestServer(ctx, t, func(c *Config) {
 		c.Issuer = c.Issuer + "/non-root-path"
 	})
 	defer httpServer.Close()
@@ -257,7 +257,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			httpServer, s := newTestServer(t, ctx, func(c *Config) {
+			httpServer, s := newTestServer(ctx, t, func(c *Config) {
 				c.Issuer = c.Issuer + "/non-root-path"
 			})
 			defer httpServer.Close()
@@ -370,7 +370,7 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	httpServer, s := newTestServer(t, ctx, func(c *Config) {
+	httpServer, s := newTestServer(ctx, t, func(c *Config) {
 		// Enable support for the implicit flow.
 		c.SupportedResponseTypes = []string{"code", "token"}
 	})
@@ -500,7 +500,7 @@ func TestCrossClientScopes(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	httpServer, s := newTestServer(t, ctx, func(c *Config) {
+	httpServer, s := newTestServer(ctx, t, func(c *Config) {
 		c.Issuer = c.Issuer + "/non-root-path"
 	})
 	defer httpServer.Close()
