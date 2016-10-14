@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	jose "gopkg.in/square/go-jose.v2"
+
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/coreos/dex/storage"
@@ -31,6 +33,7 @@ func RunTests(t *testing.T, newStorage func() storage.Storage) {
 		{"ClientCRUD", testClientCRUD},
 		{"RefreshTokenCRUD", testRefreshTokenCRUD},
 		{"PasswordCRUD", testPasswordCRUD},
+		{"KeysCRUD", testKeysCRUD},
 		{"GarbageCollection", testGC},
 	}
 	for _, test := range tests {
@@ -40,6 +43,14 @@ func RunTests(t *testing.T, newStorage func() storage.Storage) {
 			s.Close()
 		})
 	}
+}
+
+func mustLoadJWK(b string) *jose.JSONWebKey {
+	var jwt jose.JSONWebKey
+	if err := jwt.UnmarshalJSON([]byte(b)); err != nil {
+		panic(err)
+	}
+	return &jwt
 }
 
 func mustBeErrNotFound(t *testing.T, kind string, err error) {
@@ -278,8 +289,57 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 	}
 }
 
+func testKeysCRUD(t *testing.T, s storage.Storage) {
+	updateAndCompare := func(k storage.Keys) {
+		err := s.UpdateKeys(func(oldKeys storage.Keys) (storage.Keys, error) {
+			return k, nil
+		})
+		if err != nil {
+			t.Errorf("failed to update keys: %v", err)
+			return
+		}
+
+		if got, err := s.GetKeys(); err != nil {
+			t.Errorf("failed to get keys: %v", err)
+		} else {
+			got.NextRotation = got.NextRotation.UTC()
+			if diff := pretty.Compare(k, got); diff != "" {
+				t.Errorf("got keys did not equal expected: %s", diff)
+			}
+		}
+	}
+
+	// Postgres isn't as accurate with nano seconds as we'd like
+	n := time.Now().UTC().Round(time.Second)
+
+	keys1 := storage.Keys{
+		SigningKey:    jsonWebKeys[0].Private,
+		SigningKeyPub: jsonWebKeys[0].Public,
+		NextRotation:  n,
+	}
+
+	keys2 := storage.Keys{
+		SigningKey:    jsonWebKeys[2].Private,
+		SigningKeyPub: jsonWebKeys[2].Public,
+		NextRotation:  n.Add(time.Hour),
+		VerificationKeys: []storage.VerificationKey{
+			{
+				PublicKey: jsonWebKeys[0].Public,
+				Expiry:    n.Add(time.Hour),
+			},
+			{
+				PublicKey: jsonWebKeys[1].Public,
+				Expiry:    n.Add(time.Hour * 2),
+			},
+		},
+	}
+
+	updateAndCompare(keys1)
+	updateAndCompare(keys2)
+}
+
 func testGC(t *testing.T, s storage.Storage) {
-	n := time.Now()
+	n := time.Now().UTC()
 	c := storage.AuthCode{
 		ID:            storage.NewID(),
 		ClientID:      "foobar",
