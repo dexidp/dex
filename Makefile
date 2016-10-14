@@ -71,13 +71,12 @@ _output/images/library-alpine-3.4.aci:
 	@docker2aci docker://alpine:3.4
 	@mv library-alpine-3.4.aci _output/images/library-alpine-3.4.aci
 
-_output/images/dex.aci: clean-release _output/bin/dex _output/images/library-alpine-3.4.aci
+.PHONY: aci
+aci: clean-release _output/bin/dex _output/images/library-alpine-3.4.aci
 	# Using acbuild to build a application container image.
 	@sudo ./scripts/build-aci ./_output/images/library-alpine-3.4.aci
 	@sudo chown $(user):$(group) _output/images/dex.aci
-
-.PHONY: aci
-aci: _output/images/dex.aci
+	@mv _output/images/dex.aci _output/images/dex-$(VERSION)-linux-amd64.aci
 
 .PHONY: docker-image
 docker-image: clean-release _output/bin/dex
