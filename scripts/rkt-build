@@ -10,4 +10,4 @@ sudo rkt run \
     --insecure-options=image \
     docker://golang:1.7.1-alpine \
     --exec=/bin/sh -- -x -c \
-	'apk add --no-cache --update alpine-sdk && go install -v github.com/coreos/dex/cmd/dex && cp /go/bin/dex /go/src/github.com/coreos/dex/_output/bin'
+    'apk add --no-cache --update alpine-sdk && cd /go/src/github.com/coreos/dex && make release-binary'
