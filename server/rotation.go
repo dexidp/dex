@@ -76,7 +76,7 @@ func startKeyRotation(ctx context.Context, s storage.Storage, strategy rotationS
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(strategy.period):
+			case <-time.After(time.Second * 30):
 				if err := rotater.rotate(); err != nil {
 					log.Printf("failed to rotate keys: %v", err)
 				}
