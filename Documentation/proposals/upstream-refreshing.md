@@ -2,12 +2,12 @@
 
 ## TL;DR
 
-Today, if a user deletes their Google account, dex will keep allowing clients to
+Today, if a user deletes their GitHub account, dex will keep allowing clients to
 refresh tokens on that user's behalf because dex never checks back in with
-Google.
+GitHub.
 
 This is a proposal to change the connector package so the dex can check back
-in with Google.
+in with GitHub.
 
 ## The problem
 
@@ -148,3 +148,18 @@ func (db passwordDB) Refresh(s connector.Scopes, identity connector.Identity) (c
 	return identity, nil
 }
 ```
+
+## Caveats
+
+Certain providers, such as Google, will only grant a single refresh token for each
+client + end user pair. The second time one's requested, no refresh token is
+returned. This means refresh tokens must be stored by dex as objects on an
+upstream identity rather than part of a downstream refresh even.
+
+Right now `ConnectorData` is too general for this since it is only stored with a
+refresh token and can't be shared between sessions. This should be rethought in
+combination with the [`user-object.md`](./user-object.md) proposal to see if
+there are reasonable ways for us to do this.
+
+This isn't a problem for providers like GitHub because they return the same
+refresh token every time. We don't need to track a token per client.
