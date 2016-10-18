@@ -66,6 +66,10 @@ func (e EmailVerification) Email() string {
 	return assertStringClaim(e.Claims, ClaimEmailVerificationEmail)
 }
 
+func (e EmailVerification) ClientID() string {
+	return assertStringClaim(e.Claims, "aud")
+}
+
 func (e EmailVerification) Callback() *url.URL {
 	return assertURLClaim(e.Claims, ClaimEmailVerificationCallback)
 }

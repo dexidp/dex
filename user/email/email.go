@@ -188,7 +188,7 @@ func (u *UserEmailer) SendEmailVerification(userID, clientID string, redirectURL
 	verifyURL.RawQuery = q.Encode()
 
 	if u.emailer != nil {
-		err = u.emailer.SendMail("Please verify your email address.", "verify-email",
+		err = u.emailer.SendMail("Please verify your email address.", "confirm-account",
 			map[string]interface{}{
 				"email": usr.Email,
 				"link":  verifyURL.String(),

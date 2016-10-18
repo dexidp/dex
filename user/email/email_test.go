@@ -101,7 +101,7 @@ func makeTestFixtures() (*UserEmailer, *testEmailer, *key.PublicKey) {
 	}
 
 	textTemplateString := `{{define "password-reset.txt"}}{{.link}}{{end}}
-{{define "verify-email.txt"}}{{.link}}{{end}}"`
+{{define "confirm-account.txt"}}{{.link}}{{end}}"`
 	textTemplates := template.New("text")
 	_, err = textTemplates.Parse(textTemplateString)
 	if err != nil {
