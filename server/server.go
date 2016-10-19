@@ -266,14 +266,16 @@ func (s *Server) HTTPHandler() http.Handler {
 		s.ClientManager)))
 
 	handle(httpPathSendResetPassword, &SendResetPasswordEmailHandler{
-		tpl:     s.SendResetPasswordEmailTemplate,
-		emailer: s.UserEmailer,
-		sm:      s.SessionManager,
-		cm:      s.ClientManager,
+		issuerURL: s.IssuerURL,
+		tpl:       s.SendResetPasswordEmailTemplate,
+		emailer:   s.UserEmailer,
+		sm:        s.SessionManager,
+		cm:        s.ClientManager,
 	})
 
 	handle(httpPathResetPassword, &ResetPasswordHandler{
 		tpl:       s.ResetPasswordTemplate,
+		emailer:   s.UserEmailer,
 		issuerURL: s.IssuerURL,
 		um:        s.UserManager,
 		keysFunc:  s.KeyManager.PublicKeys,

@@ -22,7 +22,7 @@
 
   <form id="createAccountForm" method="POST" action="{{ "/create-account" | absPath }}" novalidate>
     <div class="form-group {{ if .FieldError "fname" }}has-error{{ end }}">
-      <input id="fname" class="form-control" type="text" name="fname" required placeholder="First Name" value="{{.FirstName}}"/>
+      <input class="form-control" type="text" name="fname" required placeholder="First Name" value="{{.FirstName}}"/>
       <div class="help-block">
         {{ with .FieldError "fname" }}
           {{ .Error }}
@@ -31,7 +31,7 @@
     </div>
 
     <div class="form-group {{ if .FieldError "lname" }}has-error{{ end }}">
-      <input id="lname" class="form-control" type="text" name="lname" required placeholder="Last Name"  value="{{.LastName}}"/>
+      <input class="form-control" type="text" name="lname" required placeholder="Last Name"  value="{{.LastName}}"/>
       <div class="help-block">
         {{ with .FieldError "lname" }}
           {{ .Error }}
@@ -40,7 +40,7 @@
     </div>
 
     <div class="form-group {{ if .FieldError "company" }}has-error{{ end }}">
-      <input id="company" class="form-control" type="text" name="company" required placeholder="Company"  value="{{.Company}}"/>
+      <input class="form-control" type="text" name="company" required placeholder="Company"  value="{{.Company}}"/>
       <div class="help-block">
         {{ with .FieldError "company" }}
           {{ .Error }}
@@ -49,7 +49,7 @@
     </div>
 
     <div class="form-group {{ if .FieldError "email" }}has-error{{ end }}">
-      <input id="email" class="form-control" type="email" name="email" required placeholder="Email" value="{{.Email}}"/>
+      <input class="form-control" type="email" name="email" required placeholder="Email" value="{{.Email}}"/>
       <div class="help-block">
         {{ with .FieldError "email" }}
           {{ .Error }}
@@ -58,12 +58,12 @@
     </div>
 
     <div class="form-group {{ if or (.FieldError "password") (.FieldError "password-match") }}has-error{{ end }}">
-      <input minlength="6" required id="password" name="password" type="password" class="form-control" placeholder="Password"/>
+      <input minlength="6" required name="password" type="password" class="form-control" placeholder="Password"/>
         <div class="help-block">At least six characters, one number, one symbol, one upper and lowercase letter required.</div>
     </div>
 
     <div class="form-group {{ if or (.FieldError "confirm-password") (.FieldError "password-match") }}has-error{{ end }}">
-      <input required id="password" name="confirm-password" type="password" class="form-control" placeholder="Confirm Password"/>
+      <input required name="confirm-password" type="password" class="form-control" placeholder="Confirm Password"/>
       <div class="help-block">
         {{ with .FieldError "confirm-password" }}
           {{ .Error }}
@@ -72,7 +72,7 @@
     </div>
 
     <div class="form-group {{ if .FieldError "invite-code" }}has-error{{ end }}">
-      <input required id="invite-code" name="invite-code" type="text" class="form-control" placeholder="Invite Code" value="{{.InviteCode}}"/>
+      <input required name="invite-code" type="text" class="form-control" placeholder="Invite Code" value="{{.InviteCode}}"/>
       <div class="help-block">
         {{ with .FieldError "invite-code" }}
           {{ .Error }}

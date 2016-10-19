@@ -4,8 +4,11 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"path"
+	"strings"
 
 	"github.com/coreos/go-oidc/key"
+	"github.com/coreos/go-oidc/oidc"
 
 	"github.com/coreos/dex/client"
 	clientmanager "github.com/coreos/dex/client/manager"
@@ -24,13 +27,15 @@ type sendResetPasswordEmailData struct {
 	ClientID          string
 	RedirectURL       string
 	RedirectURLParsed url.URL
+	LoginURL          string
 }
 
 type SendResetPasswordEmailHandler struct {
-	tpl     *template.Template
-	emailer *useremail.UserEmailer
-	sm      *sessionmanager.SessionManager
-	cm      *clientmanager.ClientManager
+	issuerURL url.URL
+	tpl       *template.Template
+	emailer   *useremail.UserEmailer
+	sm        *sessionmanager.SessionManager
+	cm        *clientmanager.ClientManager
 }
 
 func (h *SendResetPasswordEmailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -93,6 +98,9 @@ func (h *SendResetPasswordEmailHandler) fillData(r *http.Request, data *sendRese
 		} else {
 			return newAPIError(errorInvalidRequest, "invalid redirect url")
 		}
+
+		loginURL := newLoginURLFromClientData(h.issuerURL, data.ClientID, data.RedirectURL)
+		data.LoginURL = loginURL.String()
 	}
 
 	return nil
@@ -110,7 +118,7 @@ func (h *SendResetPasswordEmailHandler) handlePOST(w http.ResponseWriter, r *htt
 	}
 
 	if !user.ValidEmail(data.Email) {
-		h.errPage(w, "Please supply a valid email address.", http.StatusBadRequest, &data)
+		h.errPage(w, "Valid email required", http.StatusBadRequest, &data)
 		return
 	}
 
@@ -172,10 +180,12 @@ type resetPasswordTemplateData struct {
 	Token        string
 	DontShowForm bool
 	Success      bool
+	LoginURL     string
 }
 
 type ResetPasswordHandler struct {
 	tpl       *template.Template
+	emailer   *useremail.UserEmailer
 	issuerURL url.URL
 	um        *usermanager.UserManager
 	keysFunc  func() ([]key.PublicKey, error)
@@ -229,8 +239,19 @@ func (r *resetPasswordRequest) handlePOST() {
 		return
 	}
 
+	issuerURL := r.h.issuerURL
+	clientID := r.pwReset.ClientID()
+	callback := r.pwReset.Callback()
+	redirectURL := ""
+	if callback != nil {
+		redirectURL = callback.String()
+	}
+
+	loginURL := newLoginURLFromClientData(issuerURL, clientID, redirectURL)
+	r.data.LoginURL = loginURL.String()
+
 	plaintext := r.r.FormValue("password")
-	cbURL, err := r.h.um.ChangePassword(r.pwReset, plaintext)
+	_, err := r.h.um.ChangePassword(r.pwReset, plaintext)
 	if err != nil {
 		switch err {
 		case usermanager.ErrorPasswordAlreadyChanged:
@@ -241,7 +262,7 @@ func (r *resetPasswordRequest) handlePOST() {
 			return
 		case user.ErrorInvalidPassword:
 			r.data.Error = "Invalid Password"
-			r.data.Message = "Please choose a password which is at least six characters."
+			r.data.Message = "Password must be at least 6 characters in length with at least one uppercase letter and one symbol."
 			execTemplateWithStatus(r.w, r.h.tpl, r.data, http.StatusBadRequest)
 			return
 		default:
@@ -251,13 +272,12 @@ func (r *resetPasswordRequest) handlePOST() {
 			return
 		}
 	}
-	if cbURL == nil {
-		r.data.Success = true
-		execTemplate(r.w, r.h.tpl, r.data)
-		return
-	}
 
-	http.Redirect(r.w, r.r, cbURL.String(), http.StatusSeeOther)
+	r.data.Success = true
+	execTemplate(r.w, r.h.tpl, r.data)
+
+	// Spawn this in new goroutine to send email in an async way
+	go r.h.emailer.SendPasswordChangedEmail(r.pwReset.UserID())
 }
 
 func (r *resetPasswordRequest) parseAndVerifyToken() bool {
@@ -283,4 +303,18 @@ func (r *resetPasswordRequest) parseAndVerifyToken() bool {
 	r.pwReset = pwReset
 	r.data.Token = token
 	return true
+}
+
+func newLoginURLFromClientData(issuer url.URL, clientID, redirectURL string) *url.URL {
+	loginURL := issuer
+	v := loginURL.Query()
+	loginURL.Path = path.Join(loginURL.Path, httpPathAuth)
+	v.Set("redirect_uri", redirectURL)
+	v.Set("client_id", clientID)
+	v.Set("response_type", "code")
+	scope := append(oidc.DefaultScope, "offline_access")
+	v.Set("scope", strings.Join(scope, " "))
+
+	loginURL.RawQuery = v.Encode()
+	return &loginURL
 }

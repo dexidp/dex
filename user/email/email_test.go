@@ -101,7 +101,8 @@ func makeTestFixtures() (*UserEmailer, *testEmailer, *key.PublicKey) {
 	}
 
 	textTemplateString := `{{define "password-reset.txt"}}{{.link}}{{end}}
-{{define "confirm-account.txt"}}{{.link}}{{end}}"`
+                           {{define "confirm-account.txt"}}{{.link}}{{end}}
+                           {{define "password-reset-success.txt"}}Password changed{{end}}`
 	textTemplates := template.New("text")
 	_, err = textTemplates.Parse(textTemplateString)
 	if err != nil {
@@ -216,6 +217,69 @@ func TestSendResetPasswordEmail(t *testing.T) {
 
 		if tt.wantUserID != pr.UserID() {
 			t.Errorf("case %d: want==%v, got==%v", i, tt.wantUserID, pr.UserID())
+		}
+	}
+}
+
+func TestSendPasswordChangedEmail(t *testing.T) {
+	tests := []struct {
+		userID     string
+		hasEmailer bool
+
+		wantEmailAddress string
+		wantEmail        bool
+		wantErr          bool
+	}{
+		{
+			// typical case with an emailer.
+			userID:     "ID-1",
+			hasEmailer: true,
+
+			wantEmailAddress: "id1@example.com",
+			wantEmail:        true,
+		},
+		{
+
+			// typical case without an emailer.
+			userID:     "ID-1",
+			hasEmailer: false,
+
+			wantEmail: false,
+		},
+		{
+			// no such user.
+			userID:     "ID-NOT-FOUND",
+			hasEmailer: false,
+
+			wantErr: true,
+		},
+	}
+
+	for i, tt := range tests {
+		ue, emailer, _ := makeTestFixtures()
+		if !tt.hasEmailer {
+			ue.SetEmailer(nil)
+		}
+		err := ue.SendPasswordChangedEmail(tt.userID)
+		if tt.wantErr {
+			if err == nil {
+				t.Errorf("case %d: want non-nil err.", i)
+			}
+			continue
+		}
+
+		if tt.wantEmail {
+			if !emailer.sent {
+				t.Errorf("case %d: want emailer.sent", i)
+				continue
+			}
+
+			if tt.wantEmailAddress != emailer.to[0] {
+				t.Errorf("case %d: want==%v, got==%v", i, tt.wantEmailAddress, emailer.to[0])
+			}
+
+		} else if emailer.sent {
+			t.Errorf("case %d: want !emailer.sent", i)
 		}
 	}
 }

@@ -37,6 +37,14 @@
       line-height: 1.1;
       color: #546A79;
     }
+
+    h3 {
+      font-weight: normal;
+      font-size: 16px;
+      margin: 5px 0 20px 0;
+      line-height: 1.1;
+      color: #546A79;
+    }
     
     a {
       color: #4AA0D8;
@@ -75,12 +83,12 @@
     }
     
     .middle-box {
-      height: 500px;
+      height: 600px;
       width: 300px;
       position: absolute;
       top: 50%;
       left: 50%;
-      margin-top: -250px;
+      margin-top: -300px;
       margin-left: -150px;
       z-index: 100;
     }
@@ -244,11 +252,14 @@
       border-color: #87BF56;
     } 
     
-    .has-error .form-control {
+    .has-error .form-control,
+    input.has-error,
+    input.has-error:focus {
       border-color: #ED7060;
     }
 
-    .has-error .help-block {
+    .has-error .help-block,
+    p.has-error {
       color: #ED7060;
     }
     
