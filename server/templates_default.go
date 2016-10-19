@@ -315,6 +315,18 @@ var defaultTemplates = map[string]string{
 
 {{ template "footer.html" . }}
 `,
+	"oob.html": `{{ template "header.html" . }}
+
+<div class="panel">
+  <h2 class="heading">Login Successful</h2>
+
+  Please copy this code, switch to your application and paste it there:
+  <br/>
+  <input type="text" value="{{ .Code }}" />
+</div>
+
+{{ template "footer.html" . }}
+`,
 	"password.html": `{{ template "header.html" . }}
 
 <div class="panel">

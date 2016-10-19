@@ -384,8 +384,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			}
 
 			if authReq.RedirectURI == redirectURIOOB {
-				// TODO(ericchiang): Add a proper template.
-				fmt.Fprintf(w, "Code: %s", code.ID)
+				s.templates.oob(w, code.ID)
 				return
 			}
 			q.Set("code", code.ID)
