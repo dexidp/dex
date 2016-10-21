@@ -84,6 +84,15 @@ const DiscoveryJSON = `{
         "displayName": {
           "type": "string"
         },
+        "firstName": {
+          "type": "string"
+        },
+        "lastName": {
+          "type": "string"
+        },
+        "organizationID": {
+          "type": "string"
+        },
         "emailVerified": {
           "type": "boolean"
         },

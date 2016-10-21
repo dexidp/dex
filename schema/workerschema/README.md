@@ -77,7 +77,10 @@ A client with associated public metadata.
     displayName: string,
     email: string,
     emailVerified: boolean,
-    id: string
+    firstName: string,
+    id: string,
+    lastName: string,
+    organizationID: string
 }
 ```
 
@@ -192,8 +195,8 @@ A client with associated public metadata.
 
 > |Name|Located in|Description|Required|Type|
 |:-----|:-----|:-----|:-----|:-----|
-| userid | path |  | Yes | string | 
 | clientid | path |  | Yes | string | 
+| userid | path |  | Yes | string | 
 
 
 > __Responses__

@@ -1,8 +1,28 @@
 {{ template "header.html" }}
 
-  <div class="panel">
-    <h2 class="heading">{{ .Error }}</h2>
-    <div class="explain">{{ .Message }}</div>
-  </div>
+<div class="middle-box">
+  {{ if .Error }}   
+  <header>
+    <div class="logo">
+      {{ template "expired.svg.html" }}
+    </div>
+    <h2>Link expired</h2>
+  </header>
+  <p>The time sensitive link that was sent to your email address has expired. Please try logging in to your account and we will send you a new link.</p>
+  
+  {{ else }}
+  <header>
+    <div class="logo">
+      {{ template "account-created.svg.html" }}
+    </div>
+    <h2>Your account is ready</h2>
+  </header>
+  <p>{{ .FirstName }}, we’ve successfully confirmed your account and you are all ready to go start building your new data kingdom with Castle.</p>
+  {{ end }}
+
+  {{ with .LoginURL }}
+  <a class="btn btn-primary btn-block" href="{{ . }}">Log in to my account</a>
+  {{ end }}
+</div>
 
 {{ template "footer.html" }}

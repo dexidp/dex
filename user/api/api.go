@@ -323,24 +323,30 @@ func (u *UsersAPI) Authorize(creds Creds) bool {
 
 func userToSchemaUser(usr user.User) schema.User {
 	return schema.User{
-		Id:            usr.ID,
-		Email:         usr.Email,
-		EmailVerified: usr.EmailVerified,
-		DisplayName:   usr.DisplayName,
-		Admin:         usr.Admin,
-		Disabled:      usr.Disabled,
-		CreatedAt:     usr.CreatedAt.UTC().Format(time.RFC3339),
+		Id:             usr.ID,
+		Email:          usr.Email,
+		EmailVerified:  usr.EmailVerified,
+		DisplayName:    usr.DisplayName,
+		FirstName:      usr.FirstName,
+		LastName:       usr.LastName,
+		OrganizationID: usr.OrganizationID,
+		Admin:          usr.Admin,
+		Disabled:       usr.Disabled,
+		CreatedAt:      usr.CreatedAt.UTC().Format(time.RFC3339),
 	}
 }
 
 func schemaUserToUser(usr schema.User) user.User {
 	return user.User{
-		ID:            usr.Id,
-		Email:         usr.Email,
-		EmailVerified: usr.EmailVerified,
-		DisplayName:   usr.DisplayName,
-		Admin:         usr.Admin,
-		Disabled:      usr.Disabled,
+		ID:             usr.Id,
+		Email:          usr.Email,
+		EmailVerified:  usr.EmailVerified,
+		DisplayName:    usr.DisplayName,
+		FirstName:      usr.FirstName,
+		LastName:       usr.LastName,
+		OrganizationID: usr.OrganizationID,
+		Admin:          usr.Admin,
+		Disabled:       usr.Disabled,
 	}
 }
 

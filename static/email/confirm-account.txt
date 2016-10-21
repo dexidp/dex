@@ -1,0 +1,7 @@
+Confirm your email to get started
+
+I bet you are ready to dive into your new Castle account. We're also excited to have you join! We just need you to quickly confirm your email and you will be ready to start building your data kingdom! 
+
+Please confirm your email by clicking here:
+
+{{ .link }}

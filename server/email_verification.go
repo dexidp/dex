@@ -5,6 +5,8 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/jose"
@@ -187,8 +189,10 @@ func handleVerifyEmailResendFunc(
 }
 
 type emailVerifiedTemplateData struct {
-	Error   string
-	Message string
+	Error     string
+	Message   string
+	LoginURL  string
+	FirstName string
 }
 
 func handleEmailVerifyFunc(verifiedTpl *template.Template, issuer url.URL, keysFunc func() ([]key.PublicKey,
@@ -216,33 +220,66 @@ func handleEmailVerifyFunc(verifiedTpl *template.Template, issuer url.URL, keysF
 			return
 		}
 
-		cbURL, err := userManager.VerifyEmail(ev)
+		loginURL := newLoginURLFromEmailVerification(issuer, ev)
+
+		_, err = userManager.VerifyEmail(ev)
 		if err != nil {
 			switch err {
 			case manager.ErrorEmailAlreadyVerified:
 				execTemplateWithStatus(w, verifiedTpl, emailVerifiedTemplateData{
-					Error:   "Invalid Verification Link",
-					Message: "Your email link has expired or has already been verified.",
+					Error:    "Invalid Verification Link",
+					Message:  "Your email link has expired or has already been verified.",
+					LoginURL: loginURL.String(),
 				}, http.StatusBadRequest)
 			case user.ErrorNotFound:
 				execTemplateWithStatus(w, verifiedTpl, emailVerifiedTemplateData{
-					Error:   "Invalid Verification Link",
-					Message: "Your email link does not match the email address on file. Perhaps you have a more recent verification link?",
+					Error:    "Invalid Verification Link",
+					Message:  "Your email link does not match the email address on file. Perhaps you have a more recent verification link?",
+					LoginURL: loginURL.String(),
 				}, http.StatusBadRequest)
 			default:
 				execTemplateWithStatus(w, verifiedTpl, emailVerifiedTemplateData{
-					Error:   "Error Processing Request",
-					Message: "Please try again later.",
+					Error:    "Error Processing Request",
+					Message:  "Please try again later.",
+					LoginURL: loginURL.String(),
 				}, http.StatusInternalServerError)
 			}
 			return
 		}
+
+		usr, err := userManager.Get(ev.UserID())
+		if err != nil {
+			execTemplateWithStatus(w, verifiedTpl, emailVerifiedTemplateData{
+				Error:    "Invalid Verification Link",
+				Message:  "Your email link does not match the email address on file. Perhaps you have a more recent verification link?",
+				LoginURL: loginURL.String(),
+			}, http.StatusBadRequest)
+		}
+
 		http.SetCookie(w, &http.Cookie{
 			HttpOnly: true,
 			Name:     "ShowEmailVerifiedMessage",
 			MaxAge:   int(60 * 5),
 			Expires:  time.Now().Add(time.Minute * 5),
 		})
-		http.Redirect(w, r, cbURL.String(), http.StatusSeeOther)
+
+		execTemplate(w, verifiedTpl, emailVerifiedTemplateData{
+			LoginURL:  loginURL.String(),
+			FirstName: usr.FirstName,
+		})
 	}
+}
+
+func newLoginURLFromEmailVerification(issuer url.URL, ev user.EmailVerification) *url.URL {
+	loginURL := issuer
+	v := loginURL.Query()
+	loginURL.Path = path.Join(loginURL.Path, httpPathAuth)
+	v.Set("redirect_uri", ev.Callback().String())
+	v.Set("client_id", ev.ClientID())
+	v.Set("response_type", "code")
+	scope := append(oidc.DefaultScope, "offline_access")
+	v.Set("scope", strings.Join(scope, " "))
+
+	loginURL.RawQuery = v.Encode()
+	return &loginURL
 }

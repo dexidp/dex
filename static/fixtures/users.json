@@ -1,0 +1,22 @@
+[
+    {
+        "id": "castle-id",
+        "email": "castle@quantum.com",
+        "displayName": "Castle Quantum",
+        "firstName": "Castle",
+        "lastName": "Quantum",
+        "organizationID": "Quantum",
+        "password": "castle",
+        "organization": {
+            "organizationId": "Quantum-id",
+            "name": "Quantum",
+            "ownerId": "castle-id"
+        },
+        "remoteIdentities": [
+            {
+                "connectorId": "local",
+                "id": "castle-id"
+            }
+        ]
+    }
+]

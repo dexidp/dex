@@ -1,0 +1,98 @@
+{{ template "header.html" }}
+
+<div class="middle-box create-account">
+  <header>
+    <div class="logo">
+      {{ template "user.svg.html" }}
+    </div>
+    <h2>Create your account</h2>
+  </header>
+
+  {{ if .Error }}
+  <div class="alert alert-danger">{{ .Message }}</div>
+  {{ end }}
+
+  {{ with .FieldError "terms" }}
+    <div class="alert alert-danger">{{ .Error }}</div>
+  {{ end }}
+
+  {{ with .FieldError "password-match" }}
+    <div class="alert alert-danger">{{ .Error }}</div>
+  {{ end }}
+
+  <form id="createAccountForm" method="POST" action="{{ "/create-account" | absPath }}" novalidate>
+    <div class="form-group {{ if .FieldError "fname" }}has-error{{ end }}">
+      <input class="form-control" type="text" name="fname" required placeholder="First Name" value="{{.FirstName}}"/>
+      <div class="help-block">
+        {{ with .FieldError "fname" }}
+          {{ .Error }}
+        {{ end }}
+      </div>
+    </div>
+
+    <div class="form-group {{ if .FieldError "lname" }}has-error{{ end }}">
+      <input class="form-control" type="text" name="lname" required placeholder="Last Name"  value="{{.LastName}}"/>
+      <div class="help-block">
+        {{ with .FieldError "lname" }}
+          {{ .Error }}
+        {{ end }}
+      </div>
+    </div>
+
+    <div class="form-group {{ if .FieldError "company" }}has-error{{ end }}">
+      <input class="form-control" type="text" name="company" required placeholder="Company"  value="{{.Company}}"/>
+      <div class="help-block">
+        {{ with .FieldError "company" }}
+          {{ .Error }}
+        {{ end }}
+      </div>
+    </div>
+
+    <div class="form-group {{ if .FieldError "email" }}has-error{{ end }}">
+      <input class="form-control" type="email" name="email" required placeholder="Email" value="{{.Email}}"/>
+      <div class="help-block">
+        {{ with .FieldError "email" }}
+          {{ .Error }}
+        {{ end }}
+      </div>
+    </div>
+
+    <div class="form-group {{ if or (.FieldError "password") (.FieldError "password-match") }}has-error{{ end }}">
+      <input minlength="6" required name="password" type="password" class="form-control" placeholder="Password"/>
+        <div class="help-block">At least six characters, one number, one symbol, one upper and lowercase letter required.</div>
+    </div>
+
+    <div class="form-group {{ if or (.FieldError "confirm-password") (.FieldError "password-match") }}has-error{{ end }}">
+      <input required name="confirm-password" type="password" class="form-control" placeholder="Confirm Password"/>
+      <div class="help-block">
+        {{ with .FieldError "confirm-password" }}
+          {{ .Error }}
+        {{ end }}
+      </div>
+    </div>
+
+    <div class="form-group {{ if .FieldError "invite-code" }}has-error{{ end }}">
+      <input required name="invite-code" type="text" class="form-control" placeholder="Invite Code" value="{{.InviteCode}}"/>
+      <div class="help-block">
+        {{ with .FieldError "invite-code" }}
+          {{ .Error }}
+        {{ end }}
+      </div>
+    </div>
+
+    <div class="form-group left">      
+      <div class="checkbox">
+        <input id="terms" name="terms" type="checkbox">
+        <label for="terms"></label>
+      </div>
+      I accept Castle <a>Terms of Use</a><br>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-block">Create my account</button>
+    <p>Already have an account? <a href="{{ "/auth/local/login" | absPath }}?session_key={{ .Code }}">Login here</a></p>
+    <input type="hidden" name="code" value="{{.Code}}"/>
+    <input type="hidden" name="validate" value="1"/>
+  </form>
+</div>
+
+{{ template "footer.html" }}

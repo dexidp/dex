@@ -17,6 +17,7 @@ import (
 type testFixtures struct {
 	ur    user.UserRepo
 	pwr   user.PasswordInfoRepo
+	orgr  user.OrganizationRepo
 	ccr   connector.ConnectorConfigRepo
 	mgr   *UserManager
 	clock clockwork.Clock
@@ -31,8 +32,9 @@ func makeTestFixtures() *testFixtures {
 		repo, err := db.NewUserRepoFromUsers(dbMap, []user.UserWithRemoteIdentities{
 			{
 				User: user.User{
-					ID:    "ID-1",
-					Email: "Email-1@example.com",
+					ID:             "ID-1",
+					Email:          "Email-1@example.com",
+					OrganizationID: "OrgID-1",
 				},
 				RemoteIdentities: []user.RemoteIdentity{
 					{
@@ -42,9 +44,10 @@ func makeTestFixtures() *testFixtures {
 				},
 			}, {
 				User: user.User{
-					ID:            "ID-2",
-					Email:         "Email-2@example.com",
-					EmailVerified: true,
+					ID:             "ID-2",
+					Email:          "Email-2@example.com",
+					EmailVerified:  true,
+					OrganizationID: "OrgID-2",
 				},
 				RemoteIdentities: []user.RemoteIdentity{
 					{
@@ -64,15 +67,34 @@ func makeTestFixtures() *testFixtures {
 		repo, err := db.NewPasswordInfoRepoFromPasswordInfos(dbMap, []user.PasswordInfo{
 			{
 				UserID:   "ID-1",
-				Password: []byte("password-1"),
+				Password: []byte("Password#1"),
 			},
 			{
 				UserID:   "ID-2",
-				Password: []byte("password-2"),
+				Password: []byte("Password#2"),
 			},
 		})
 		if err != nil {
 			panic("Failed to create user repo: " + err.Error())
+		}
+		return repo
+	}()
+
+	f.orgr = func() user.OrganizationRepo {
+		repo, err := db.NewOrganizationRepoFromOrganizations(dbMap, []user.Organization{
+			{
+				OrganizationID: "OrgID-1",
+				Name:           "OrgName-1",
+				OwnerID:        "ID-1",
+			},
+			{
+				OrganizationID: "OrgID-2",
+				Name:           "OrgName-2",
+				OwnerID:        "ID-2",
+			},
+		})
+		if err != nil {
+			panic("Failed to create organization repo: " + err.Error())
 		}
 		return repo
 	}()
@@ -88,7 +110,7 @@ func makeTestFixtures() *testFixtures {
 		return repo
 	}()
 
-	f.mgr = NewUserManager(f.ur, f.pwr, f.ccr, db.TransactionFactory(dbMap), ManagerOptions{})
+	f.mgr = NewUserManager(f.ur, f.pwr, f.orgr, f.ccr, db.TransactionFactory(dbMap), ManagerOptions{})
 	f.mgr.Clock = f.clock
 	return f
 }
@@ -181,11 +203,11 @@ func TestRegisterWithPassword(t *testing.T) {
 	}{
 		{
 			email:     "email@example.com",
-			plaintext: "secretpassword123",
+			plaintext: "SecretPassword#123",
 			err:       nil,
 		},
 		{
-			plaintext: "secretpassword123",
+			plaintext: "SecretPassword#123",
 			err:       user.ErrorInvalidEmail,
 		},
 		{
@@ -219,6 +241,118 @@ func TestRegisterWithPassword(t *testing.T) {
 		}
 		if usr.EmailVerified != false {
 			t.Errorf("case %d: user.EmailVerified: want=%v, got=%v", i, false, usr.EmailVerified)
+		}
+
+		ridUSR, err := f.ur.GetByRemoteIdentity(nil, user.RemoteIdentity{
+			ID:          userID,
+			ConnectorID: connID,
+		})
+		if err != nil {
+			t.Errorf("case %d: err != nil: %q", i, err)
+		}
+		if diff := pretty.Compare(usr, ridUSR); diff != "" {
+			t.Errorf("case %d: Compare(want, got) = %v", i, diff)
+			continue
+		}
+
+		pwi, err := f.pwr.Get(nil, userID)
+		if err != nil {
+			t.Errorf("case %d: err != nil: %q", i, err)
+			continue
+		}
+		ident, err := pwi.Authenticate(tt.plaintext)
+		if err != nil {
+			t.Errorf("case %d: err != nil: %q", i, err)
+			continue
+		}
+		if ident.ID != userID {
+			t.Errorf("case %d: ident.ID: want=%q, got=%q", i, userID, ident.ID)
+			continue
+		}
+
+		_, err = pwi.Authenticate(tt.plaintext + "WRONG")
+		if err == nil {
+			t.Errorf("case %d: want non-nil err", i)
+		}
+	}
+}
+
+func TestRegisterUserAndOrganization(t *testing.T) {
+	tests := []struct {
+		firstName string
+		lastName  string
+		company   string
+		email     string
+		plaintext string
+		err       error
+	}{
+		{
+			email:     "email@example.com",
+			firstName: "first-name",
+			lastName:  "last-name",
+			company:   "company-name",
+			plaintext: "SecretPassword#123",
+			err:       nil,
+		},
+		{
+			firstName: "first-name",
+			lastName:  "last-name",
+			company:   "company-name",
+			plaintext: "SecretPassword#123",
+			err:       user.ErrorInvalidEmail,
+		},
+		{
+			firstName: "first-name",
+			lastName:  "last-name",
+			company:   "company-name",
+			email:     "email@example.com",
+			err:       user.ErrorInvalidPassword,
+		},
+	}
+
+	for i, tt := range tests {
+		f := makeTestFixtures()
+		connID := "local"
+		userID, err := f.mgr.RegisterUserAndOrganization(
+			tt.firstName,
+			tt.lastName,
+			tt.company,
+			tt.email,
+			tt.plaintext,
+			connID)
+
+		if tt.err != nil {
+			if tt.err != err {
+				t.Errorf("case %d: want=%q, got=%q", i, tt.err, err)
+			}
+			continue
+		}
+
+		usr, err := f.ur.Get(nil, userID)
+		if err != nil {
+			t.Errorf("case %d: err != nil: %q", i, err)
+		}
+
+		if usr.Email != tt.email {
+			t.Errorf("case %d: user.Email: want=%q, got=%q", i, tt.email, usr.Email)
+		}
+		if usr.EmailVerified != false {
+			t.Errorf("case %d: user.EmailVerified: want=%v, got=%v", i, false, usr.EmailVerified)
+		}
+
+		if usr.OrganizationID == "" {
+			t.Errorf("case %d: user.OrganizationID is empty", i)
+		}
+
+		org, err := f.orgr.Get(nil, usr.OrganizationID)
+		if err != nil {
+			t.Errorf("case %d: err != nil: %q", i, err)
+		}
+		if org.Name != tt.company {
+			t.Errorf("case %d: organization.Name: want=%v, got=%v", i, tt.company, org.Name)
+		}
+		if org.OwnerID != userID {
+			t.Errorf("case %d: organization.OwnerID: want=%v, got=%v", i, userID, org.OwnerID)
 		}
 
 		ridUSR, err := f.ur.GetByRemoteIdentity(nil, user.RemoteIdentity{
@@ -327,7 +461,7 @@ func TestChangePassword(t *testing.T) {
 	clientID := "myclient"
 	callback := "http://client.example.com/callback"
 	expires := time.Hour * 3
-	password := "password-1"
+	password := "Password#1"
 
 	makeClaims := func(usrID, callback string) jose.Claims {
 		return map[string]interface{}{
@@ -349,23 +483,23 @@ func TestChangePassword(t *testing.T) {
 		{
 			// happy path
 			pwrClaims:   makeClaims("ID-1", callback),
-			newPassword: "password-1.1",
+			newPassword: "Password#1.1",
 		},
 		{
 			// happy path with no callback
 			pwrClaims:   makeClaims("ID-1", ""),
-			newPassword: "password-1.1",
+			newPassword: "Password#1.1",
 		},
 		{
 			// passwords don't match changed
 			pwrClaims:   makeClaims("ID-2", callback),
-			newPassword: "password-1.1",
+			newPassword: "Password#1.1",
 			wantErr:     true,
 		},
 		{
 			// user doesn't exist
 			pwrClaims:   makeClaims("ID-123", callback),
-			newPassword: "password-1.1",
+			newPassword: "Password#1.1",
 			wantErr:     true,
 		},
 	}

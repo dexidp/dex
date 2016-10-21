@@ -116,6 +116,24 @@ func (u *UserEmailer) SendResetPasswordEmail(email string, redirectURL url.URL, 
 	return &resetURL, nil
 }
 
+// SendPasswordChangedEmail sends an email to notify the user of the password changed event.
+func (u *UserEmailer) SendPasswordChangedEmail(userID string) error {
+	usr, err := u.ur.Get(nil, userID)
+	if err != nil {
+		log.Errorf("Error getting user: %q", err)
+		return err
+	}
+
+	if u.emailer != nil {
+		err := u.emailer.SendMail("Password changed", "password-reset-success", map[string]interface{}{}, usr.Email)
+		if err != nil {
+			log.Errorf("error sending password reset success email %v: ", err)
+		}
+		return err
+	}
+	return nil
+}
+
 // SendInviteEmail is sends an email that allows the user to both
 // reset their password *and* verify their email address. Similar to
 // SendResetPasswordEmail, the given url and client id are assumed
@@ -188,7 +206,7 @@ func (u *UserEmailer) SendEmailVerification(userID, clientID string, redirectURL
 	verifyURL.RawQuery = q.Encode()
 
 	if u.emailer != nil {
-		err = u.emailer.SendMail("Please verify your email address.", "verify-email",
+		err = u.emailer.SendMail("Please verify your email address.", "confirm-account",
 			map[string]interface{}{
 				"email": usr.Email,
 				"link":  verifyURL.String(),

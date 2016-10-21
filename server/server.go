@@ -36,10 +36,12 @@ import (
 const (
 	LoginPageTemplateName              = "login.html"
 	RegisterTemplateName               = "register.html"
+	CreateAccountTemplateName          = "create-account.html"
 	VerifyEmailTemplateName            = "verify-email.html"
 	SendResetPasswordEmailTemplateName = "send-reset-password.html"
 	ResetPasswordTemplateName          = "reset-password.html"
 	OOBTemplateName                    = "oob-template.html"
+	EmailConfirmationSentTemplateName  = "email-confirmation-sent.html"
 	APIVersion                         = "v1"
 )
 
@@ -70,10 +72,12 @@ type Server struct {
 	Templates                      *template.Template
 	LoginTemplate                  *template.Template
 	RegisterTemplate               *template.Template
+	CreateAccountTemplate          *template.Template
 	VerifyEmailTemplate            *template.Template
 	SendResetPasswordEmailTemplate *template.Template
 	ResetPasswordTemplate          *template.Template
 	OOBTemplate                    *template.Template
+	EmailConfirmationSentTemplate  *template.Template
 
 	HealthChecks []health.Checkable
 	// TODO(ericchiang): Make this a map of ID to connector.
@@ -85,6 +89,7 @@ type Server struct {
 	RefreshTokenRepo    refresh.RefreshTokenRepo
 	UserRepo            user.UserRepo
 	PasswordInfoRepo    user.PasswordInfoRepo
+	OrganizationRepo    user.OrganizationRepo
 
 	ClientManager  *clientmanager.ClientManager
 	KeyManager     key.PrivateKeyManager
@@ -249,6 +254,8 @@ func (s *Server) HTTPHandler() http.Handler {
 		handleFunc(httpPathRegister, handleRegisterFunc(s, s.RegisterTemplate))
 	}
 
+	handleFunc(httpPathCreateAccount, handleCreateAccountFunc(s, s.CreateAccountTemplate))
+
 	handleFunc(httpPathEmailVerify, handleEmailVerifyFunc(s.VerifyEmailTemplate,
 		s.IssuerURL, s.KeyManager.PublicKeys, s.UserManager))
 
@@ -259,14 +266,16 @@ func (s *Server) HTTPHandler() http.Handler {
 		s.ClientManager)))
 
 	handle(httpPathSendResetPassword, &SendResetPasswordEmailHandler{
-		tpl:     s.SendResetPasswordEmailTemplate,
-		emailer: s.UserEmailer,
-		sm:      s.SessionManager,
-		cm:      s.ClientManager,
+		issuerURL: s.IssuerURL,
+		tpl:       s.SendResetPasswordEmailTemplate,
+		emailer:   s.UserEmailer,
+		sm:        s.SessionManager,
+		cm:        s.ClientManager,
 	})
 
 	handle(httpPathResetPassword, &ResetPasswordHandler{
 		tpl:       s.ResetPasswordTemplate,
+		emailer:   s.UserEmailer,
 		issuerURL: s.IssuerURL,
 		um:        s.UserManager,
 		keysFunc:  s.KeyManager.PublicKeys,
@@ -377,19 +386,23 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 		}
 	}
 
-	if ses.Register {
-		code, err := s.SessionManager.NewSessionKey(sessionID)
-		if err != nil {
-			return "", err
-		}
+	// Below redirects to register if user tends to register in the initial session.
+	// Local connector works fine with this. Even remote connectors probably work fine without it.
+	// Comment it out for future reference when we enable remote connectors
 
-		ru := s.absURL(httpPathRegister)
-		q := ru.Query()
-		q.Set("code", code)
-		q.Set("state", ses.ClientState)
-		ru.RawQuery = q.Encode()
-		return ru.String(), nil
-	}
+	// if ses.Register {
+	// 	code, err := s.SessionManager.NewSessionKey(sessionID)
+	// 	if err != nil {
+	// 		return "", err
+	// 	}
+
+	// 	ru := s.absURL(httpPathRegister)
+	// 	q := ru.Query()
+	// 	q.Set("code", code)
+	// 	q.Set("state", ses.ClientState)
+	// 	ru.RawQuery = q.Encode()
+	// 	return ru.String(), nil
+	// }
 
 	remoteIdentity := user.RemoteIdentity{ConnectorID: ses.ConnectorID, ID: ses.Identity.ID}
 

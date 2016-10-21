@@ -17,6 +17,7 @@ import (
 type testFixtures struct {
 	ur    user.UserRepo
 	pwr   user.PasswordInfoRepo
+	orgr  user.OrganizationRepo
 	ccr   connector.ConnectorConfigRepo
 	cr    client.ClientRepo
 	cm    *clientmanager.ClientManager
@@ -32,16 +33,22 @@ func makeTestFixtures() *testFixtures {
 		repo, err := db.NewUserRepoFromUsers(dbMap, []user.UserWithRemoteIdentities{
 			{
 				User: user.User{
-					ID:          "ID-1",
-					Email:       "email-1@example.com",
-					DisplayName: "Name-1",
+					ID:             "ID-1",
+					Email:          "email-1@example.com",
+					DisplayName:    "Name-1",
+					FirstName:      "FirstName-1",
+					LastName:       "LastName-1",
+					OrganizationID: "OrgID-1",
 				},
 			},
 			{
 				User: user.User{
-					ID:          "ID-2",
-					Email:       "email-2@example.com",
-					DisplayName: "Name-2",
+					ID:             "ID-2",
+					Email:          "email-2@example.com",
+					DisplayName:    "Name-2",
+					FirstName:      "FirstName-2",
+					LastName:       "LastName-2",
+					OrganizationID: "OrgID-2",
 				},
 			},
 		})
@@ -59,7 +66,26 @@ func makeTestFixtures() *testFixtures {
 			},
 		})
 		if err != nil {
-			panic("Failed to create user repo: " + err.Error())
+			panic("Failed to create password repo: " + err.Error())
+		}
+		return repo
+	}()
+
+	f.orgr = func() user.OrganizationRepo {
+		repo, err := db.NewOrganizationRepoFromOrganizations(dbMap, []user.Organization{
+			{
+				OrganizationID: "OrgID-1",
+				Name:           "OrgName-1",
+				OwnerID:        "ID-1",
+			},
+			{
+				OrganizationID: "OrgID-2",
+				Name:           "OrgName-2",
+				OwnerID:        "ID-2",
+			},
+		})
+		if err != nil {
+			panic("Failed to create organization repo: " + err.Error())
 		}
 		return repo
 	}()
@@ -73,7 +99,7 @@ func makeTestFixtures() *testFixtures {
 		return repo
 	}()
 
-	f.mgr = manager.NewUserManager(f.ur, f.pwr, f.ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
+	f.mgr = manager.NewUserManager(f.ur, f.pwr, f.orgr, f.ccr, db.TransactionFactory(dbMap), manager.ManagerOptions{})
 	f.cm = clientmanager.NewClientManager(f.cr, db.TransactionFactory(dbMap), clientmanager.ManagerOptions{})
 	f.adAPI = NewAdminAPI(f.ur, f.pwr, f.cr, f.ccr, f.mgr, f.cm, "local")
 
@@ -218,10 +244,13 @@ func TestGetState(t *testing.T) {
 		{
 			addUsers: []user.User{
 				user.User{
-					ID:          "ID-3",
-					Email:       "email-3@example.com",
-					DisplayName: "Admin",
-					Admin:       true,
+					ID:             "ID-3",
+					Email:          "email-3@example.com",
+					DisplayName:    "Admin",
+					FirstName:      "FirstName-3",
+					LastName:       "LastName-3",
+					OrganizationID: "Organization-3",
+					Admin:          true,
 				},
 			},
 			want: adminschema.State{

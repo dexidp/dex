@@ -99,6 +99,10 @@ func (m *SessionManager) ExchangeKey(key string) (string, error) {
 	return m.keys.Pop(key)
 }
 
+func (m *SessionManager) GetSessionByKey(key string) (string, error) {
+	return m.keys.Peek(key)
+}
+
 func (m *SessionManager) getSessionInState(sessionID string, state session.SessionState) (*session.Session, error) {
 	s, err := m.sessions.Get(sessionID)
 	if err != nil {

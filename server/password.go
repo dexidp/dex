@@ -4,8 +4,11 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"path"
+	"strings"
 
 	"github.com/coreos/go-oidc/key"
+	"github.com/coreos/go-oidc/oidc"
 
 	"github.com/coreos/dex/client"
 	clientmanager "github.com/coreos/dex/client/manager"
@@ -24,13 +27,15 @@ type sendResetPasswordEmailData struct {
 	ClientID          string
 	RedirectURL       string
 	RedirectURLParsed url.URL
+	SessionKey        string
 }
 
 type SendResetPasswordEmailHandler struct {
-	tpl     *template.Template
-	emailer *useremail.UserEmailer
-	sm      *sessionmanager.SessionManager
-	cm      *clientmanager.ClientManager
+	issuerURL url.URL
+	tpl       *template.Template
+	emailer   *useremail.UserEmailer
+	sm        *sessionmanager.SessionManager
+	cm        *clientmanager.ClientManager
 }
 
 func (h *SendResetPasswordEmailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -50,12 +55,20 @@ func (h *SendResetPasswordEmailHandler) ServeHTTP(w http.ResponseWriter, r *http
 
 func (h *SendResetPasswordEmailHandler) handleGET(w http.ResponseWriter, r *http.Request) {
 	sessionKey := r.URL.Query().Get("session_key")
-	if sessionKey != "" {
-		clientID, redirectURL, err := h.exchangeKeyForClientAndRedirect(sessionKey)
+	clientID := r.URL.Query().Get("client_id")
+	redirectURL := r.URL.Query().Get("redirect_uri")
+
+	if sessionKey == "" {
+		writeAPIError(w, http.StatusBadRequest, newAPIError(errorInvalidRequest,
+			"missing required parameters"))
+		return
+	}
+
+	if clientID == "" || redirectURL == "" {
+		clientID, redirectURL, err := h.getClientAndRedirectByKey(sessionKey)
 		if err == nil {
 			handleURL := *r.URL
 			q := r.URL.Query()
-			q.Del("session_key")
 			q.Set("redirect_uri", redirectURL.String())
 			q.Set("client_id", clientID)
 			handleURL.RawQuery = q.Encode()
@@ -67,6 +80,7 @@ func (h *SendResetPasswordEmailHandler) handleGET(w http.ResponseWriter, r *http
 		// one in, so we don't return here.
 		log.Errorf("could not exchange sessionKey: %v", err)
 	}
+
 	data := sendResetPasswordEmailData{}
 	if err := h.fillData(r, &data); err != nil {
 		writeAPIError(w, http.StatusBadRequest, err)
@@ -83,6 +97,7 @@ func (h *SendResetPasswordEmailHandler) handleGET(w http.ResponseWriter, r *http
 
 func (h *SendResetPasswordEmailHandler) fillData(r *http.Request, data *sendResetPasswordEmailData) *apiError {
 	data.Email = r.FormValue("email")
+	data.SessionKey = r.FormValue("session_key")
 	data.ClientID = r.FormValue("client_id")
 	redirectURL := r.FormValue("redirect_uri")
 
@@ -110,7 +125,7 @@ func (h *SendResetPasswordEmailHandler) handlePOST(w http.ResponseWriter, r *htt
 	}
 
 	if !user.ValidEmail(data.Email) {
-		h.errPage(w, "Please supply a valid email address.", http.StatusBadRequest, &data)
+		h.errPage(w, "Valid email required", http.StatusBadRequest, &data)
 		return
 	}
 
@@ -150,16 +165,16 @@ func (h *SendResetPasswordEmailHandler) errPage(w http.ResponseWriter, msg strin
 	execTemplateWithStatus(w, h.tpl, data, status)
 }
 
-func (h *SendResetPasswordEmailHandler) exchangeKeyForClientAndRedirect(key string) (string, url.URL, error) {
-	id, err := h.sm.ExchangeKey(key)
+func (h *SendResetPasswordEmailHandler) getClientAndRedirectByKey(key string) (string, url.URL, error) {
+	id, err := h.sm.GetSessionByKey(key)
 	if err != nil {
 		log.Errorf("error exchanging key: %v ", err)
 		return "", url.URL{}, err
 	}
 
-	ses, err := h.sm.Kill(id)
+	ses, err := h.sm.Get(id)
 	if err != nil {
-		log.Errorf("error killing session: %v", err)
+		log.Errorf("error getting session: %v", err)
 		return "", url.URL{}, err
 	}
 
@@ -172,10 +187,12 @@ type resetPasswordTemplateData struct {
 	Token        string
 	DontShowForm bool
 	Success      bool
+	LoginURL     string
 }
 
 type ResetPasswordHandler struct {
 	tpl       *template.Template
+	emailer   *useremail.UserEmailer
 	issuerURL url.URL
 	um        *usermanager.UserManager
 	keysFunc  func() ([]key.PublicKey, error)
@@ -229,8 +246,19 @@ func (r *resetPasswordRequest) handlePOST() {
 		return
 	}
 
+	issuerURL := r.h.issuerURL
+	clientID := r.pwReset.ClientID()
+	callback := r.pwReset.Callback()
+	redirectURL := ""
+	if callback != nil {
+		redirectURL = callback.String()
+	}
+
+	loginURL := newLoginURLFromClientData(issuerURL, clientID, redirectURL)
+	r.data.LoginURL = loginURL.String()
+
 	plaintext := r.r.FormValue("password")
-	cbURL, err := r.h.um.ChangePassword(r.pwReset, plaintext)
+	_, err := r.h.um.ChangePassword(r.pwReset, plaintext)
 	if err != nil {
 		switch err {
 		case usermanager.ErrorPasswordAlreadyChanged:
@@ -241,7 +269,7 @@ func (r *resetPasswordRequest) handlePOST() {
 			return
 		case user.ErrorInvalidPassword:
 			r.data.Error = "Invalid Password"
-			r.data.Message = "Please choose a password which is at least six characters."
+			r.data.Message = "Password must be at least 6 characters in length with at least one uppercase letter and one symbol."
 			execTemplateWithStatus(r.w, r.h.tpl, r.data, http.StatusBadRequest)
 			return
 		default:
@@ -251,13 +279,12 @@ func (r *resetPasswordRequest) handlePOST() {
 			return
 		}
 	}
-	if cbURL == nil {
-		r.data.Success = true
-		execTemplate(r.w, r.h.tpl, r.data)
-		return
-	}
 
-	http.Redirect(r.w, r.r, cbURL.String(), http.StatusSeeOther)
+	r.data.Success = true
+	execTemplate(r.w, r.h.tpl, r.data)
+
+	// Spawn this in new goroutine to send email in an async way
+	go r.h.emailer.SendPasswordChangedEmail(r.pwReset.UserID())
 }
 
 func (r *resetPasswordRequest) parseAndVerifyToken() bool {
@@ -283,4 +310,18 @@ func (r *resetPasswordRequest) parseAndVerifyToken() bool {
 	r.pwReset = pwReset
 	r.data.Token = token
 	return true
+}
+
+func newLoginURLFromClientData(issuer url.URL, clientID, redirectURL string) *url.URL {
+	loginURL := issuer
+	v := loginURL.Query()
+	loginURL.Path = path.Join(loginURL.Path, httpPathAuth)
+	v.Set("redirect_uri", redirectURL)
+	v.Set("client_id", clientID)
+	v.Set("response_type", "code")
+	scope := append(oidc.DefaultScope, "offline_access")
+	v.Set("scope", strings.Join(scope, " "))
+
+	loginURL.RawQuery = v.Encode()
+	return &loginURL
 }

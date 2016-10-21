@@ -1,28 +1,27 @@
 {{ template "header.html" }}
 
-<div class="panel">
-  <h2 class="heading">Log in to Your Account</h2>
+<div class="middle-box">
+  <header>
+    <div class="logo">
+      {{ template "logo.svg.html" }}
+    </div>
+    <h3>Sign in with your Castle Account</h3>
+  </header>
+
+  {{ if .Error }}
+  <div class="alert alert-danger">{{ .Message }}</div>
+  {{ end }}
+
   <form method="post" action="{{ .PostURL }}">
-    <div class="form-row">
-      <div class="input-desc">
-        <label for="userid">Email Address</label>
-      </div>
-      <input tabindex="1" required id="userid" name="userid" type="text" class="input-box" placeholder="email" autofocus/>
+    <div class="form-group{{ if .Error }} has-error{{ end }}">
+      <input name="userid" type="email" class="form-control" placeholder="Email" required autofocus/>
     </div>
-    <div class="form-row">
-      <div class="input-desc">
-        <label for="password">Password</label>
-        <span class="subtle-text input-label-right">Forgot? <a href="{{ "/send-reset-password" | absPath }}?session_key={{ .SessionKey }}">Reset Password</a></span>
-      </div>
-      <input tabindex="2" required id="password" name="password" type="password" class="input-box" placeholder="password"/>
+    <div class="form-group{{ if .Error }} has-error{{ end }}">
+      <input name="password" type="password" class="form-control" placeholder="Password" required/>
+      <span class="help-block"><a href="{{ "/send-reset-password" | absPath }}?session_key={{ .SessionKey }}">Forgot your password?</a></span>
     </div>
-
-    {{ if .Error }}
-      <div class="error-box">{{ .Message }}</div>
-    {{ end }}
-
-    <button tabindex="3" type="submit" class="btn btn-primary">Login</button>
-
+    <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+    <p>Don't have an account? <a href="{{ "/create-account" | absPath }}?code={{ .SessionKey }}">Sign up</a></p>
   </form>
 </div>
 

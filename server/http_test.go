@@ -239,7 +239,7 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 			},
 			baseURL:      url.URL{Scheme: "https", Host: "dex.example.com"}, // Root URL.
 			wantCode:     http.StatusFound,
-			wantLocation: "/register?code=code-2",
+			wantLocation: "/create-account?code=code-2",
 		},
 		{
 			query: url.Values{
@@ -252,7 +252,7 @@ func TestHandleAuthFuncResponsesSingleRedirectURL(t *testing.T) {
 			},
 			baseURL:      url.URL{Scheme: "https", Host: "dex.example.com", Path: "/foobar"},
 			wantCode:     http.StatusFound,
-			wantLocation: "/foobar/register?code=code-2",
+			wantLocation: "/foobar/create-account?code=code-2",
 		},
 	}
 

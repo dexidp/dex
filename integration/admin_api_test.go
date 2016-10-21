@@ -28,6 +28,7 @@ const (
 type adminAPITestFixtures struct {
 	ur       user.UserRepo
 	pwr      user.PasswordInfoRepo
+	orgr     user.OrganizationRepo
 	cr       client.ClientRepo
 	adAPI    *admin.AdminAPI
 	adSrv    *server.AdminServer
@@ -69,6 +70,14 @@ var (
 		},
 	}
 
+	adminOrganizations = []user.Organization{
+		{
+			OrganizationID: "OrgID-1",
+			Name:           "OrgName-1",
+			OwnerID:        "ID-1",
+		},
+	}
+
 	clients = []client.Client{
 		{
 			Credentials: oidc.ClientCredentials{
@@ -98,7 +107,7 @@ func (a *adminAPITransport) RoundTrip(r *http.Request) (*http.Response, error) {
 func makeAdminAPITestFixtures() *adminAPITestFixtures {
 	f := &adminAPITestFixtures{}
 
-	dbMap, ur, pwr, um := makeUserObjects(adminUsers, adminPasswords)
+	dbMap, ur, pwr, orgr, um := makeUserObjects(adminUsers, adminPasswords, adminOrganizations)
 
 	var cliCount int
 	secGen := func() ([]byte, error) {
@@ -122,6 +131,7 @@ func makeAdminAPITestFixtures() *adminAPITestFixtures {
 	f.cr = cr
 	f.ur = ur
 	f.pwr = pwr
+	f.orgr = orgr
 	f.adAPI = admin.NewAdminAPI(ur, pwr, cr, ccr, um, cm, "local")
 	f.adSrv = server.NewAdminServer(f.adAPI, nil, adminAPITestSecret)
 	f.hSrv = httptest.NewServer(f.adSrv.HTTPHandler())

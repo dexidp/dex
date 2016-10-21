@@ -11,4 +11,5 @@ type SessionRepo interface {
 type SessionKeyRepo interface {
 	Push(SessionKey, time.Duration) error
 	Pop(string) (string, error)
+	Peek(string) (string, error)
 }

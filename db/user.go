@@ -54,6 +54,9 @@ func NewUserRepoFromUsers(dbm *gorp.DbMap, us []user.UserWithRemoteIdentities) (
 			return nil, err
 		}
 		err = repo.executor(nil).Insert(um)
+		if err != nil {
+			return nil, err
+		}
 		for _, ri := range u.RemoteIdentities {
 			err = repo.AddRemoteIdentity(nil, u.User.ID, ri)
 			if err != nil {
@@ -424,23 +427,29 @@ func (r *userRepo) insertRemoteIdentity(tx repo.Transaction, userID string, ri u
 }
 
 type userModel struct {
-	ID            string `db:"id"`
-	Email         string `db:"email"`
-	EmailVerified bool   `db:"email_verified"`
-	DisplayName   string `db:"display_name"`
-	Disabled      bool   `db:"disabled"`
-	Admin         bool   `db:"admin"`
-	CreatedAt     int64  `db:"created_at"`
+	ID             string `db:"id"`
+	Email          string `db:"email"`
+	EmailVerified  bool   `db:"email_verified"`
+	DisplayName    string `db:"display_name"`
+	FirstName      string `db:"first_name"`
+	LastName       string `db:"last_name"`
+	OrganizationID string `db:"organization_id"`
+	Disabled       bool   `db:"disabled"`
+	Admin          bool   `db:"admin"`
+	CreatedAt      int64  `db:"created_at"`
 }
 
 func (u *userModel) user() (user.User, error) {
 	usr := user.User{
-		ID:            u.ID,
-		DisplayName:   u.DisplayName,
-		Email:         u.Email,
-		EmailVerified: u.EmailVerified,
-		Admin:         u.Admin,
-		Disabled:      u.Disabled,
+		ID:             u.ID,
+		DisplayName:    u.DisplayName,
+		FirstName:      u.FirstName,
+		LastName:       u.LastName,
+		OrganizationID: u.OrganizationID,
+		Email:          u.Email,
+		EmailVerified:  u.EmailVerified,
+		Admin:          u.Admin,
+		Disabled:       u.Disabled,
 	}
 
 	if u.CreatedAt != 0 {
@@ -458,12 +467,15 @@ func newUserModel(u *user.User) (*userModel, error) {
 		return nil, fmt.Errorf("user %s is missing email field", u.ID)
 	}
 	um := userModel{
-		ID:            u.ID,
-		DisplayName:   u.DisplayName,
-		Email:         strings.ToLower(u.Email),
-		EmailVerified: u.EmailVerified,
-		Admin:         u.Admin,
-		Disabled:      u.Disabled,
+		ID:             u.ID,
+		DisplayName:    u.DisplayName,
+		FirstName:      u.FirstName,
+		LastName:       u.LastName,
+		OrganizationID: u.OrganizationID,
+		Email:          strings.ToLower(u.Email),
+		EmailVerified:  u.EmailVerified,
+		Admin:          u.Admin,
+		Disabled:       u.Disabled,
 	}
 
 	if !u.CreatedAt.IsZero() {

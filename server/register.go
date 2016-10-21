@@ -37,22 +37,15 @@ type registerTemplateData struct {
 	Password     string
 	Local        bool
 	RemoteExists *remoteExistsData
+	LoginURL     string
 }
 
 var (
 	errToFormErrorMap = map[error]formError{
-		user.ErrorInvalidEmail: formError{
-			Field: "email",
-			Error: "Please enter a valid email",
-		},
-		user.ErrorInvalidPassword: formError{
-			Field: "password",
-			Error: "Please enter a valid password",
-		},
-		user.ErrorDuplicateEmail: formError{
-			Field: "email",
-			Error: "That email is already in use; please choose another.",
-		},
+		user.ErrorInvalidEmail:              ErrorInvalidEmail,
+		user.ErrorInvalidPassword:           ErrorInvalidPassword,
+		user.ErrorDuplicateEmail:            ErrorDuplicateEmail,
+		user.ErrorDuplicateOrganizationName: ErrorDuplicateCompanyName,
 	}
 )
 
@@ -83,22 +76,18 @@ func handleRegisterFunc(s *Server, tpl Template) http.HandlerFunc {
 
 		// verify the user has a valid code.
 		key := r.Form.Get("code")
-		sessionID, err := s.SessionManager.ExchangeKey(key)
+		sessionID, err := s.SessionManager.GetSessionByKey(key)
 		if err != nil {
 			errPage(w, "Please authenticate before registering.", "", http.StatusUnauthorized)
 			return
 		}
 
-		// create a new code for them to use next time they hit the server.
-		code, err := s.SessionManager.NewSessionKey(sessionID)
-		if err != nil {
-			internalError(w, err)
-			return
-		}
 		ses, err := s.SessionManager.Get(sessionID)
 		if err != nil || ses == nil {
 			return
 		}
+
+		loginURL := newLoginURLFromSession(s.IssuerURL, ses, false, []string{}, "")
 
 		var exists bool
 		exists, err = remoteIdentityExists(s.UserRepo, ses.ConnectorID, ses.Identity.ID)
@@ -116,7 +105,7 @@ func handleRegisterFunc(s *Server, tpl Template) http.HandlerFunc {
 				return
 			}
 			// make sure to clean up the old session
-			if err = s.KillSession(code); err != nil {
+			if err = s.KillSession(key); err != nil {
 				internalError(w, err)
 			}
 
@@ -172,10 +161,11 @@ func handleRegisterFunc(s *Server, tpl Template) http.HandlerFunc {
 		}
 
 		data := registerTemplateData{
-			Code:     code,
+			Code:     key,
 			Email:    email,
 			Password: password,
 			Local:    local,
+			LoginURL: loginURL.String(),
 		}
 
 		// If there are form errors or this is the initial request
@@ -219,7 +209,7 @@ func handleRegisterFunc(s *Server, tpl Template) http.HandlerFunc {
 			}
 			loginURL := newLoginURLFromSession(
 				s.IssuerURL, ses, false, []string{connID}, "login-maybe")
-			if err = s.KillSession(code); err != nil {
+			if err = s.KillSession(key); err != nil {
 				log.Errorf("Error killing session: %v", err)
 			}
 			http.Redirect(w, r, loginURL.String(), http.StatusSeeOther)
@@ -258,6 +248,13 @@ func handleRegisterFunc(s *Server, tpl Template) http.HandlerFunc {
 			if err != nil {
 				log.Errorf("Error sending email verification: %v", err)
 			}
+		}
+
+		// create a new code for them to use next time they hit the server.
+		code, err := s.SessionManager.NewSessionKey(sessionID)
+		if err != nil {
+			internalError(w, err)
+			return
 		}
 
 		w.Header().Set("Location", makeClientRedirectURL(
@@ -341,6 +338,8 @@ func newLoginURLFromSession(issuer url.URL, ses *session.Session, register bool,
 	v.Set("redirect_uri", ses.RedirectURL.String())
 	v.Set("state", ses.ClientState)
 	v.Set("client_id", ses.ClientID)
+	v.Set("connector_id", ses.ConnectorID)
+	v.Set("response_type", "code")
 	if register {
 		v.Set("register", "1")
 	}

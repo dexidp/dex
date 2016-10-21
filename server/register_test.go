@@ -64,7 +64,7 @@ func TestHandleRegister(t *testing.T) {
 
 			wantStatus: http.StatusOK,
 			wantFormValues: url.Values{
-				"code":     str("code-3"),
+				"code":     str("code-2"),
 				"email":    str(""),
 				"password": str(""),
 				"validate": str("1"),
@@ -101,15 +101,17 @@ func TestHandleRegister(t *testing.T) {
 			wantRegisterTemplateData: &registerTemplateData{
 				RemoteExists: &remoteExistsData{
 					Login: newURLWithParams(testRedirectURL, url.Values{
-						"code":  []string{"code-7"},
+						"code":  []string{"code-6"},
 						"state": []string{""},
 					}).String(),
 					Register: newURLWithParams(testIssuerAuth, url.Values{
-						"client_id":    []string{testClientID},
-						"redirect_uri": []string{testRedirectURL.String()},
-						"register":     []string{"1"},
-						"scope":        []string{"openid"},
-						"state":        []string{""},
+						"client_id":     []string{testClientID},
+						"redirect_uri":  []string{testRedirectURL.String()},
+						"register":      []string{"1"},
+						"scope":         []string{"openid"},
+						"state":         []string{""},
+						"response_type": []string{"code"},
+						"connector_id":  []string{"oidc-trusted"},
 					}).String(),
 				},
 			},
@@ -144,7 +146,7 @@ func TestHandleRegister(t *testing.T) {
 			wantStatus:     http.StatusOK,
 			wantUserExists: false,
 			wantFormValues: url.Values{
-				"code":     str("code-4"),
+				"code":     str("code-3"),
 				"email":    str(""),
 				"validate": str("1"),
 			},
@@ -163,7 +165,7 @@ func TestHandleRegister(t *testing.T) {
 			wantStatus:     http.StatusOK,
 			wantUserExists: false,
 			wantFormValues: url.Values{
-				"code":     str("code-4"),
+				"code":     str("code-3"),
 				"email":    str(""),
 				"validate": str("1"),
 			},
@@ -180,7 +182,7 @@ func TestHandleRegister(t *testing.T) {
 			connID:     "local",
 			wantStatus: http.StatusBadRequest,
 			wantFormValues: url.Values{
-				"code":     str("code-3"),
+				"code":     str("code-2"),
 				"email":    str(""),
 				"password": str("password"),
 				"validate": str("1"),
@@ -193,7 +195,7 @@ func TestHandleRegister(t *testing.T) {
 				"code":     []string{"code-2"},
 				"validate": []string{"1"},
 				"email":    str("test@example.com"),
-				"password": str("password"),
+				"password": str("Password#1"),
 			},
 			connID:         "local",
 			wantStatus:     http.StatusSeeOther,
@@ -206,7 +208,7 @@ func TestHandleRegister(t *testing.T) {
 				"code":     []string{"code-2"},
 				"validate": []string{"1"},
 				"email":    str("\t\ntest@example.com "),
-				"password": str("password"),
+				"password": str("Password#1"),
 			},
 			connID:         "local",
 			wantStatus:     http.StatusSeeOther,
@@ -224,7 +226,7 @@ func TestHandleRegister(t *testing.T) {
 			connID:     "local",
 			wantStatus: http.StatusBadRequest,
 			wantFormValues: url.Values{
-				"code":     str("code-3"),
+				"code":     str("code-2"),
 				"email":    str("aninvalidemail"),
 				"password": str("password"),
 				"validate": str("1"),
@@ -242,7 +244,7 @@ func TestHandleRegister(t *testing.T) {
 			wantStatus:     http.StatusBadRequest,
 			wantUserExists: false,
 			wantFormValues: url.Values{
-				"code":     str("code-3"),
+				"code":     str("code-2"),
 				"email":    str("test@example.com"),
 				"password": str(""),
 				"validate": str("1"),
@@ -272,6 +274,11 @@ func TestHandleRegister(t *testing.T) {
 			attachRemote:   true,
 			wantStatus:     http.StatusUnauthorized,
 			wantUserExists: false,
+			wantFormValues: url.Values{
+				"code":     str(""),
+				"email":    str(""),
+				"validate": str("1"),
+			},
 		},
 	}
 

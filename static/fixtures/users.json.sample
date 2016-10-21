@@ -3,7 +3,15 @@
         "id": "elroy-id",
         "email": "elroy77@example.com",
         "displayName": "Elroy Jonez",
+        "firstName": "Elroy",
+        "lastName": "Jonez",
+        "organizationID": "example-org-id",
         "password": "bones",
+        "organization": {
+            "organizationId": "example-org-id",
+            "name": "example org",
+            "ownerId": "elroy-id"
+        },
         "remoteIdentities": [
             {
                 "connectorId": "local",

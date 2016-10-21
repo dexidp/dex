@@ -66,6 +66,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 				RawQuery: url.Values{
 					"client_id":    str(testClientID),
 					"redirect_uri": str(testRedirectURL.String()),
+					"session_key":  str("code-2"),
 				}.Encode(),
 			},
 		},
@@ -77,6 +78,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			query: url.Values{
 				"client_id":    str(testClientID),
 				"redirect_uri": str(testRedirectURL.String()),
+				"session_key":  str("code-2"),
 			},
 			method: "GET",
 
@@ -94,6 +96,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			query: url.Values{
 				"client_id":    str(testClientID),
 				"redirect_uri": str(testRedirectURL.String()),
+				"session_key":  str("code-2"),
 				"email":        str("Email-1@example.com"),
 			},
 			method: "POST",
@@ -117,12 +120,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			},
 			method: "GET",
 
-			wantCode: http.StatusOK,
-			wantFormValues: &url.Values{
-				"client_id":    str(testClientID),
-				"redirect_uri": str(""),
-				"email":        str(""),
-			},
+			wantCode: http.StatusBadRequest,
 		},
 		{ // Case 4
 
@@ -156,7 +154,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			wantFormValues: &url.Values{
 				"client_id":    str(testClientID),
 				"redirect_uri": str(testRedirectURL.String()),
-				"email":        str(""),
+				"email":        str("NOT EMAIL"),
 			},
 		},
 		{ // Case 6
@@ -384,17 +382,26 @@ func TestResetPasswordHandler(t *testing.T) {
 	}
 
 	user.PasswordHasher = func(s string) ([]byte, error) {
-		return []byte(strings.ToUpper(s)), nil
+		return []byte(s), nil
 	}
 	defer func() {
 		user.PasswordHasher = user.DefaultPasswordHasher
 	}()
 
 	tokenForCase := map[int]string{
-		0: makeToken("ID-1", "password", testClientID, testRedirectURL, time.Hour*1, goodSigner),
-		2: makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, goodSigner),
-		5: makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, goodSigner),
+		0: makeToken(testUserID1, "password", testClientID, testRedirectURL, time.Hour*1, goodSigner),
+		2: makeToken(testUserID1, "password", testClientID, url.URL{}, time.Hour*1, goodSigner),
+		5: makeToken(testUserID1, "password", testClientID, url.URL{}, time.Hour*1, goodSigner),
 	}
+
+	textTemplateString := `{{define "password-reset-success.txt"}}Password changed{{end}}`
+	textTemplates := template.New("text")
+	_, err = textTemplates.Parse(textTemplateString)
+	if err != nil {
+		t.Fatalf("error parsing text templates: %v", err)
+	}
+
+	htmlTemplates := htmltemplate.New("html")
 
 	tests := []struct {
 		query url.Values
@@ -404,6 +411,7 @@ func TestResetPasswordHandler(t *testing.T) {
 		wantFormValues *url.Values
 		wantCode       int
 		wantPassword   string
+		wantEmailer    *testEmailer
 	}{
 		// Scenario 1: Happy Path
 		{ // Case 0
@@ -421,18 +429,23 @@ func TestResetPasswordHandler(t *testing.T) {
 			wantPassword: "password",
 		},
 		{ // Case 1
-			// Step 1.2 - User enters in new valid password, password is changed, user is redirected.
+			// Step 1.2 - User enters in new valid password, password is changed.
 			query: url.Values{
-				"token":    str(makeToken("ID-1", "password", testClientID, testRedirectURL, time.Hour*1, goodSigner)),
-				"password": str("new_password"),
+				"token":    str(makeToken(testUserID1, "password", testClientID, testRedirectURL, time.Hour*1, goodSigner)),
+				"password": str("New_password#1"),
 			},
 			method: "POST",
 
-			wantCode:       http.StatusSeeOther,
+			wantCode:       http.StatusOK,
 			wantFormValues: &url.Values{},
-			wantPassword:   "NEW_PASSWORD",
+			wantPassword:   "New_password#1",
+			wantEmailer: &testEmailer{
+				to:      str("email-1@example.com"),
+				subject: "Password changed",
+				text:    "Password changed",
+			},
 		},
-		// Scenario 2: Happy Path, but without redirect.
+		// Scenario 2: Happy Path, no redirectURL.
 		{ // Case 2
 			// Step 2.1 - User clicks link in email, has valid token.
 			query: url.Values{
@@ -448,23 +461,23 @@ func TestResetPasswordHandler(t *testing.T) {
 			wantPassword: "password",
 		},
 		{ // Case 3
-			// Step 2.2 - User enters in new valid password, password is changed, user is redirected.
+			// Step 2.2 - User enters in new valid password, password is changed
 			query: url.Values{
-				"token":    str(makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, goodSigner)),
-				"password": str("new_password"),
+				"token":    str(makeToken(testUserID1, "password", testClientID, url.URL{}, time.Hour*1, goodSigner)),
+				"password": str("New_password#1"),
 			},
 			method: "POST",
 
 			// no redirect
 			wantCode:       http.StatusOK,
 			wantFormValues: &url.Values{},
-			wantPassword:   "NEW_PASSWORD",
+			wantPassword:   "New_password#1",
 		},
 		// Errors
 		{ // Case 4
 			// Step 1.1.1 - User clicks link in email, has invalid token.
 			query: url.Values{
-				"token": str(makeToken("ID-1", "password", testClientID, testRedirectURL, time.Hour*1, badSigner)),
+				"token": str(makeToken(testUserID1, "password", testClientID, testRedirectURL, time.Hour*1, badSigner)),
 			},
 			method: "GET",
 
@@ -473,8 +486,8 @@ func TestResetPasswordHandler(t *testing.T) {
 			wantPassword:   "password",
 		},
 
-		{ // Case 5
-			// Step 2.2.1 - User enters in new valid password, password is changed, no redirect
+		{ // Case 5 no redirectURL
+			// Step 2.2.1 - User enters in new valid password, password is changed
 			query: url.Values{
 				"token":    str(tokenForCase[5]),
 				"password": str("shrt"),
@@ -492,7 +505,7 @@ func TestResetPasswordHandler(t *testing.T) {
 		{ // Case 6
 			// Step 2.2.2 - User enters in new valid password, with suspicious token.
 			query: url.Values{
-				"token":    str(makeToken("ID-1", "password", testClientID, url.URL{}, time.Hour*1, badSigner)),
+				"token":    str(makeToken(testUserID1, "password", testClientID, url.URL{}, time.Hour*1, badSigner)),
 				"password": str("shrt"),
 			},
 			method: "POST",
@@ -505,7 +518,7 @@ func TestResetPasswordHandler(t *testing.T) {
 		{ // Case 7
 			// Token lacking client id
 			query: url.Values{
-				"token":    str(makeToken("ID-1", "password", "", url.URL{}, time.Hour*1, goodSigner)),
+				"token":    str(makeToken(testUserID1, "password", "", url.URL{}, time.Hour*1, goodSigner)),
 				"password": str("shrt"),
 			},
 			method: "GET",
@@ -516,7 +529,7 @@ func TestResetPasswordHandler(t *testing.T) {
 		{ // Case 8
 			// Token lacking client id
 			query: url.Values{
-				"token":    str(makeToken("ID-1", "password", "", url.URL{}, time.Hour*1, goodSigner)),
+				"token":    str(makeToken(testUserID1, "password", "", url.URL{}, time.Hour*1, goodSigner)),
 				"password": str("shrt"),
 			},
 			method: "POST",
@@ -531,8 +544,14 @@ func TestResetPasswordHandler(t *testing.T) {
 			t.Fatalf("case %d: could not make test fixtures: %v", i, err)
 		}
 
+		emailer := &testEmailer{
+			sent: make(chan struct{}),
+		}
+		templatizer := email.NewTemplatizedEmailerFromTemplates(textTemplates, htmlTemplates, emailer, "admin@example.com")
+		f.srv.UserEmailer.SetEmailer(templatizer)
 		hdlr := ResetPasswordHandler{
 			tpl:       f.srv.ResetPasswordTemplate,
+			emailer:   f.srv.UserEmailer,
 			issuerURL: testIssuerURL,
 			um:        f.srv.UserManager,
 			keysFunc:  f.srv.KeyManager.PublicKeys,
@@ -576,6 +595,13 @@ func TestResetPasswordHandler(t *testing.T) {
 		}
 		if tt.wantPassword != string(pwi.Password) {
 			t.Errorf("case %d: wantPassword=%v, got=%v", i, tt.wantPassword, string(pwi.Password))
+		}
+
+		if tt.wantEmailer != nil {
+			<-emailer.sent // wait for email to be sent
+			if diff := pretty.Compare(*tt.wantEmailer, *emailer); diff != "" {
+				t.Errorf("case %d: Compare(wantEmailer, got) = %v", i, diff)
+			}
 		}
 
 	}

@@ -174,6 +174,10 @@ func (e PasswordReset) UserID() string {
 	return assertStringClaim(e.Claims, "sub")
 }
 
+func (e PasswordReset) ClientID() string {
+	return assertStringClaim(e.Claims, "aud")
+}
+
 func (e PasswordReset) Password() Password {
 	pw := assertStringClaim(e.Claims, ClaimPasswordResetPassword)
 	return Password(pw)
