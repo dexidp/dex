@@ -93,6 +93,29 @@ func (r *SessionKeyRepo) Pop(key string) (string, error) {
 	return skm.SessionID, nil
 }
 
+func (r *SessionKeyRepo) Peek(key string) (string, error) {
+	m, err := r.executor(nil).Get(sessionKeyModel{}, key)
+	if err != nil {
+		return "", err
+	}
+
+	if m == nil {
+		return "", errors.New("session key does not exist")
+	}
+
+	skm, ok := m.(*sessionKeyModel)
+	if !ok {
+		log.Errorf("expected sessionKeyModel but found %v", reflect.TypeOf(m))
+		return "", errors.New("unrecognized model")
+	}
+
+	if skm.Stale || skm.ExpiresAt < r.clock.Now().Unix() {
+		return "", errors.New("invalid session key")
+	}
+
+	return skm.SessionID, nil
+}
+
 func (r *SessionKeyRepo) purge() error {
 	qt := r.quote(sessionKeyTableName)
 	q := fmt.Sprintf("DELETE FROM %s WHERE stale = $1 OR expires_at < $2", qt)

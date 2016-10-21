@@ -76,18 +76,12 @@ func handleRegisterFunc(s *Server, tpl Template) http.HandlerFunc {
 
 		// verify the user has a valid code.
 		key := r.Form.Get("code")
-		sessionID, err := s.SessionManager.ExchangeKey(key)
+		sessionID, err := s.SessionManager.GetSessionByKey(key)
 		if err != nil {
 			errPage(w, "Please authenticate before registering.", "", http.StatusUnauthorized)
 			return
 		}
 
-		// create a new code for them to use next time they hit the server.
-		code, err := s.SessionManager.NewSessionKey(sessionID)
-		if err != nil {
-			internalError(w, err)
-			return
-		}
 		ses, err := s.SessionManager.Get(sessionID)
 		if err != nil || ses == nil {
 			return
@@ -111,7 +105,7 @@ func handleRegisterFunc(s *Server, tpl Template) http.HandlerFunc {
 				return
 			}
 			// make sure to clean up the old session
-			if err = s.KillSession(code); err != nil {
+			if err = s.KillSession(key); err != nil {
 				internalError(w, err)
 			}
 
@@ -167,7 +161,7 @@ func handleRegisterFunc(s *Server, tpl Template) http.HandlerFunc {
 		}
 
 		data := registerTemplateData{
-			Code:     code,
+			Code:     key,
 			Email:    email,
 			Password: password,
 			Local:    local,
@@ -215,7 +209,7 @@ func handleRegisterFunc(s *Server, tpl Template) http.HandlerFunc {
 			}
 			loginURL := newLoginURLFromSession(
 				s.IssuerURL, ses, false, []string{connID}, "login-maybe")
-			if err = s.KillSession(code); err != nil {
+			if err = s.KillSession(key); err != nil {
 				log.Errorf("Error killing session: %v", err)
 			}
 			http.Redirect(w, r, loginURL.String(), http.StatusSeeOther)
@@ -254,6 +248,13 @@ func handleRegisterFunc(s *Server, tpl Template) http.HandlerFunc {
 			if err != nil {
 				log.Errorf("Error sending email verification: %v", err)
 			}
+		}
+
+		// create a new code for them to use next time they hit the server.
+		code, err := s.SessionManager.NewSessionKey(sessionID)
+		if err != nil {
+			internalError(w, err)
+			return
 		}
 
 		w.Header().Set("Location", makeClientRedirectURL(

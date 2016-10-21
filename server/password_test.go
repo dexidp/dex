@@ -66,6 +66,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 				RawQuery: url.Values{
 					"client_id":    str(testClientID),
 					"redirect_uri": str(testRedirectURL.String()),
+					"session_key":  str("code-2"),
 				}.Encode(),
 			},
 		},
@@ -77,6 +78,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			query: url.Values{
 				"client_id":    str(testClientID),
 				"redirect_uri": str(testRedirectURL.String()),
+				"session_key":  str("code-2"),
 			},
 			method: "GET",
 
@@ -94,6 +96,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			query: url.Values{
 				"client_id":    str(testClientID),
 				"redirect_uri": str(testRedirectURL.String()),
+				"session_key":  str("code-2"),
 				"email":        str("Email-1@example.com"),
 			},
 			method: "POST",
@@ -117,12 +120,7 @@ func TestSendResetPasswordEmailHandler(t *testing.T) {
 			},
 			method: "GET",
 
-			wantCode: http.StatusOK,
-			wantFormValues: &url.Values{
-				"client_id":    str(testClientID),
-				"redirect_uri": str(""),
-				"email":        str(""),
-			},
+			wantCode: http.StatusBadRequest,
 		},
 		{ // Case 4
 

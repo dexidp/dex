@@ -27,7 +27,7 @@ type sendResetPasswordEmailData struct {
 	ClientID          string
 	RedirectURL       string
 	RedirectURLParsed url.URL
-	LoginURL          string
+	SessionKey        string
 }
 
 type SendResetPasswordEmailHandler struct {
@@ -55,12 +55,20 @@ func (h *SendResetPasswordEmailHandler) ServeHTTP(w http.ResponseWriter, r *http
 
 func (h *SendResetPasswordEmailHandler) handleGET(w http.ResponseWriter, r *http.Request) {
 	sessionKey := r.URL.Query().Get("session_key")
-	if sessionKey != "" {
-		clientID, redirectURL, err := h.exchangeKeyForClientAndRedirect(sessionKey)
+	clientID := r.URL.Query().Get("client_id")
+	redirectURL := r.URL.Query().Get("redirect_uri")
+
+	if sessionKey == "" {
+		writeAPIError(w, http.StatusBadRequest, newAPIError(errorInvalidRequest,
+			"missing required parameters"))
+		return
+	}
+
+	if clientID == "" || redirectURL == "" {
+		clientID, redirectURL, err := h.getClientAndRedirectByKey(sessionKey)
 		if err == nil {
 			handleURL := *r.URL
 			q := r.URL.Query()
-			q.Del("session_key")
 			q.Set("redirect_uri", redirectURL.String())
 			q.Set("client_id", clientID)
 			handleURL.RawQuery = q.Encode()
@@ -72,6 +80,7 @@ func (h *SendResetPasswordEmailHandler) handleGET(w http.ResponseWriter, r *http
 		// one in, so we don't return here.
 		log.Errorf("could not exchange sessionKey: %v", err)
 	}
+
 	data := sendResetPasswordEmailData{}
 	if err := h.fillData(r, &data); err != nil {
 		writeAPIError(w, http.StatusBadRequest, err)
@@ -88,6 +97,7 @@ func (h *SendResetPasswordEmailHandler) handleGET(w http.ResponseWriter, r *http
 
 func (h *SendResetPasswordEmailHandler) fillData(r *http.Request, data *sendResetPasswordEmailData) *apiError {
 	data.Email = r.FormValue("email")
+	data.SessionKey = r.FormValue("session_key")
 	data.ClientID = r.FormValue("client_id")
 	redirectURL := r.FormValue("redirect_uri")
 
@@ -98,9 +108,6 @@ func (h *SendResetPasswordEmailHandler) fillData(r *http.Request, data *sendRese
 		} else {
 			return newAPIError(errorInvalidRequest, "invalid redirect url")
 		}
-
-		loginURL := newLoginURLFromClientData(h.issuerURL, data.ClientID, data.RedirectURL)
-		data.LoginURL = loginURL.String()
 	}
 
 	return nil
@@ -158,16 +165,16 @@ func (h *SendResetPasswordEmailHandler) errPage(w http.ResponseWriter, msg strin
 	execTemplateWithStatus(w, h.tpl, data, status)
 }
 
-func (h *SendResetPasswordEmailHandler) exchangeKeyForClientAndRedirect(key string) (string, url.URL, error) {
-	id, err := h.sm.ExchangeKey(key)
+func (h *SendResetPasswordEmailHandler) getClientAndRedirectByKey(key string) (string, url.URL, error) {
+	id, err := h.sm.GetSessionByKey(key)
 	if err != nil {
 		log.Errorf("error exchanging key: %v ", err)
 		return "", url.URL{}, err
 	}
 
-	ses, err := h.sm.Kill(id)
+	ses, err := h.sm.Get(id)
 	if err != nil {
-		log.Errorf("error killing session: %v", err)
+		log.Errorf("error getting session: %v", err)
 		return "", url.URL{}, err
 	}
 

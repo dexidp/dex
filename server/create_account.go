@@ -5,10 +5,7 @@ import (
 	"strings"
 
 	"github.com/coreos/dex/pkg/log"
-	"github.com/coreos/dex/session"
-	sessionmanager "github.com/coreos/dex/session/manager"
 	"github.com/coreos/dex/user"
-	usermanager "github.com/coreos/dex/user/manager"
 	"github.com/coreos/go-oidc/oidc"
 )
 
@@ -120,18 +117,12 @@ func handleCreateAccountFunc(s *Server, tpl Template) http.HandlerFunc {
 
 		// verify the user has a valid code.
 		key := r.Form.Get("code")
-		sessionID, err := s.SessionManager.ExchangeKey(key)
+		sessionID, err := s.SessionManager.GetSessionByKey(key)
 		if err != nil {
 			errPage(w, "Please authenticate before registering.", "", http.StatusUnauthorized)
 			return
 		}
 
-		// create a new code for them to use next time they hit the server.
-		code, err := s.SessionManager.NewSessionKey(sessionID)
-		if err != nil {
-			internalError(w, err)
-			return
-		}
 		ses, err := s.SessionManager.Get(sessionID)
 		if err != nil || ses == nil {
 			return
@@ -181,7 +172,7 @@ func handleCreateAccountFunc(s *Server, tpl Template) http.HandlerFunc {
 		}
 
 		data := createAccountTemplateData{
-			Code:       code,
+			Code:       key,
 			FirstName:  firstName,
 			LastName:   lastName,
 			Company:    company,
@@ -200,16 +191,7 @@ func handleCreateAccountFunc(s *Server, tpl Template) http.HandlerFunc {
 			return
 		}
 
-		var userID string
-		userID, err = createOrgAndOwner(
-			s.UserManager,
-			s.SessionManager,
-			ses,
-			firstName,
-			lastName,
-			company,
-			email,
-			password)
+		userID, err := s.UserManager.RegisterUserAndOrganization(firstName, lastName, company, email, password, ses.ConnectorID)
 
 		if err != nil {
 			formErrors := errToFormErrors(err)
@@ -219,6 +201,14 @@ func handleCreateAccountFunc(s *Server, tpl Template) http.HandlerFunc {
 				return
 			}
 
+			internalError(w, err)
+			return
+		}
+
+		ses, err = s.SessionManager.AttachRemoteIdentity(sessionID, oidc.Identity{
+			ID: userID,
+		})
+		if err != nil {
 			internalError(w, err)
 			return
 		}
@@ -249,23 +239,4 @@ func handleCreateAccountFunc(s *Server, tpl Template) http.HandlerFunc {
 		})
 		return
 	}
-}
-
-func createOrgAndOwner(
-	userManager *usermanager.UserManager,
-	sessionManager *sessionmanager.SessionManager,
-	ses *session.Session,
-	firstName, lastName, company, email, password string) (string, error) {
-	userID, err := userManager.RegisterUserAndOrganization(firstName, lastName, company, email, password, ses.ConnectorID)
-	if err != nil {
-		return "", err
-	}
-
-	ses, err = sessionManager.AttachRemoteIdentity(ses.ID, oidc.Identity{
-		ID: userID,
-	})
-	if err != nil {
-		return "", err
-	}
-	return userID, nil
 }

@@ -386,19 +386,23 @@ func (s *Server) Login(ident oidc.Identity, key string) (string, error) {
 		}
 	}
 
-	if ses.Register {
-		code, err := s.SessionManager.NewSessionKey(sessionID)
-		if err != nil {
-			return "", err
-		}
+	// Below redirects to register if user tends to register in the initial session.
+	// Local connector works fine with this. Even remote connectors probably work fine without it.
+	// Comment it out for future reference when we enable remote connectors
 
-		ru := s.absURL(httpPathRegister)
-		q := ru.Query()
-		q.Set("code", code)
-		q.Set("state", ses.ClientState)
-		ru.RawQuery = q.Encode()
-		return ru.String(), nil
-	}
+	// if ses.Register {
+	// 	code, err := s.SessionManager.NewSessionKey(sessionID)
+	// 	if err != nil {
+	// 		return "", err
+	// 	}
+
+	// 	ru := s.absURL(httpPathRegister)
+	// 	q := ru.Query()
+	// 	q.Set("code", code)
+	// 	q.Set("state", ses.ClientState)
+	// 	ru.RawQuery = q.Encode()
+	// 	return ru.String(), nil
+	// }
 
 	remoteIdentity := user.RemoteIdentity{ConnectorID: ses.ConnectorID, ID: ses.Identity.ID}
 

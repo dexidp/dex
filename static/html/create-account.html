@@ -89,7 +89,7 @@
     </div>
 
     <button type="submit" class="btn btn-primary btn-block">Create my account</button>
-    <p>Already have an account? <a href="{{ .LoginURL }}">Login here</a></p>
+    <p>Already have an account? <a href="{{ "/auth/local/login" | absPath }}?session_key={{ .Code }}">Login here</a></p>
     <input type="hidden" name="code" value="{{.Code}}"/>
     <input type="hidden" name="validate" value="1"/>
   </form>

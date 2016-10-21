@@ -64,7 +64,7 @@ func TestHandleRegister(t *testing.T) {
 
 			wantStatus: http.StatusOK,
 			wantFormValues: url.Values{
-				"code":     str("code-3"),
+				"code":     str("code-2"),
 				"email":    str(""),
 				"password": str(""),
 				"validate": str("1"),
@@ -101,7 +101,7 @@ func TestHandleRegister(t *testing.T) {
 			wantRegisterTemplateData: &registerTemplateData{
 				RemoteExists: &remoteExistsData{
 					Login: newURLWithParams(testRedirectURL, url.Values{
-						"code":  []string{"code-7"},
+						"code":  []string{"code-6"},
 						"state": []string{""},
 					}).String(),
 					Register: newURLWithParams(testIssuerAuth, url.Values{
@@ -146,7 +146,7 @@ func TestHandleRegister(t *testing.T) {
 			wantStatus:     http.StatusOK,
 			wantUserExists: false,
 			wantFormValues: url.Values{
-				"code":     str("code-4"),
+				"code":     str("code-3"),
 				"email":    str(""),
 				"validate": str("1"),
 			},
@@ -165,7 +165,7 @@ func TestHandleRegister(t *testing.T) {
 			wantStatus:     http.StatusOK,
 			wantUserExists: false,
 			wantFormValues: url.Values{
-				"code":     str("code-4"),
+				"code":     str("code-3"),
 				"email":    str(""),
 				"validate": str("1"),
 			},
@@ -182,7 +182,7 @@ func TestHandleRegister(t *testing.T) {
 			connID:     "local",
 			wantStatus: http.StatusBadRequest,
 			wantFormValues: url.Values{
-				"code":     str("code-3"),
+				"code":     str("code-2"),
 				"email":    str(""),
 				"password": str("password"),
 				"validate": str("1"),
@@ -226,7 +226,7 @@ func TestHandleRegister(t *testing.T) {
 			connID:     "local",
 			wantStatus: http.StatusBadRequest,
 			wantFormValues: url.Values{
-				"code":     str("code-3"),
+				"code":     str("code-2"),
 				"email":    str("aninvalidemail"),
 				"password": str("password"),
 				"validate": str("1"),
@@ -244,7 +244,7 @@ func TestHandleRegister(t *testing.T) {
 			wantStatus:     http.StatusBadRequest,
 			wantUserExists: false,
 			wantFormValues: url.Values{
-				"code":     str("code-3"),
+				"code":     str("code-2"),
 				"email":    str("test@example.com"),
 				"password": str(""),
 				"validate": str("1"),
