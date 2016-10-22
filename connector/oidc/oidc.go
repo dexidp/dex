@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/ericchiang/oidc"
 	"golang.org/x/net/context"
@@ -42,12 +41,12 @@ func (c *Config) Open() (conn connector.Connector, err error) {
 		scopes = append(scopes, "profile", "email")
 	}
 
-	clientID := os.ExpandEnv(c.ClientID)
+	clientID := c.ClientID
 	return &oidcConnector{
 		redirectURI: c.RedirectURI,
 		oauth2Config: &oauth2.Config{
 			ClientID:     clientID,
-			ClientSecret: os.ExpandEnv(c.ClientSecret),
+			ClientSecret: c.ClientSecret,
 			Endpoint:     provider.Endpoint(),
 			Scopes:       scopes,
 			RedirectURL:  c.RedirectURI,

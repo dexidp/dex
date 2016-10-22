@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strconv"
 
 	"golang.org/x/net/context"
@@ -32,8 +31,8 @@ func (c *Config) Open() (connector.Connector, error) {
 		redirectURI: c.RedirectURI,
 		org:         c.Org,
 		oauth2Config: &oauth2.Config{
-			ClientID:     os.ExpandEnv(c.ClientID),
-			ClientSecret: os.ExpandEnv(c.ClientSecret),
+			ClientID:     c.ClientID,
+			ClientSecret: c.ClientSecret,
 			Endpoint:     github.Endpoint,
 			Scopes: []string{
 				"user:email", // View user's email
