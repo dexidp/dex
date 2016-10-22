@@ -322,6 +322,32 @@ func loadKubeConfig(kubeConfigPath string) (cluster k8sapi.Cluster, user k8sapi.
 	return
 }
 
+func namespaceFromServiceAccountJWT(s string) (string, error) {
+	// The service account token is just a JWT. Parse it as such.
+	parts := strings.Split(s, ".")
+	if len(parts) < 2 {
+		// It's extremely important we don't log the actual service account token.
+		return "", fmt.Errorf("malformed service account token: expected 3 parts got %d", len(parts))
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", fmt.Errorf("malformed service account token: %v", err)
+	}
+	var data struct {
+		// The claim Kubernetes uses to identify which namespace a service account belongs to.
+		//
+		// See: https://github.com/kubernetes/kubernetes/blob/v1.4.3/pkg/serviceaccount/jwt.go#L42
+		Namespace string `json:"kubernetes.io/serviceaccount/namespace"`
+	}
+	if err := json.Unmarshal(payload, &data); err != nil {
+		return "", fmt.Errorf("malformed service account token: %v", err)
+	}
+	if data.Namespace == "" {
+		return "", errors.New(`jwt claim "kubernetes.io/serviceaccount/namespace" not found`)
+	}
+	return data.Namespace, nil
+}
+
 func inClusterConfig() (cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, err error) {
 	host, port := os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT")
 	if len(host) == 0 || len(port) == 0 {
@@ -332,17 +358,20 @@ func inClusterConfig() (cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace 
 		Server:               "https://" + host + ":" + port,
 		CertificateAuthority: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
 	}
-
-	if namespace = os.Getenv("KUBERNETES_POD_NAMESPACE"); namespace == "" {
-		err = fmt.Errorf("unable to load in-cluster configuration, KUBERNETES_POD_NAMESPACE must be defined")
-		return
-	}
-
 	token, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
 	if err != nil {
 		return
 	}
 	user = k8sapi.AuthInfo{Token: string(token)}
+
+	if namespace = os.Getenv("KUBERNETES_POD_NAMESPACE"); namespace == "" {
+		namespace, err = namespaceFromServiceAccountJWT(user.Token)
+		if err != nil {
+			err = fmt.Errorf("failed to inspect service account token: %v", err)
+			return
+		}
+	}
+
 	return
 }
 
