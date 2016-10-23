@@ -8,15 +8,19 @@ import (
 	"github.com/coreos/dex/storage/conformance"
 )
 
+const testKubeConfigEnv = "DEX_KUBECONFIG"
+
 func TestLoadClient(t *testing.T) {
 	loadClient(t)
 }
 
 func loadClient(t *testing.T) *client {
-	if os.Getenv("KUBECONFIG") == "" {
-		t.Skip()
+	config := Config{
+		KubeConfigFile: os.Getenv(testKubeConfigEnv),
 	}
-	var config Config
+	if config.KubeConfigFile == "" {
+		t.Skipf("test environment variable %q not set, skipping", testKubeConfigEnv)
+	}
 	s, err := config.open()
 	if err != nil {
 		t.Fatal(err)

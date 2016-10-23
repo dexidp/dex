@@ -74,9 +74,6 @@ import:
   - proto
   - protoc-gen-go
 
-- package: github.com/mitchellh/go-homedir
-  verison: 756f7b183b7ab78acdbbee5c7f392838ed459dda
-
 - package: github.com/kylelemons/godebug
   subpackages:
   - diff

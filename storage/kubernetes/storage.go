@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
-	homedir "github.com/mitchellh/go-homedir"
 	"golang.org/x/net/context"
 
 	"github.com/coreos/dex/storage"
@@ -37,8 +34,7 @@ const (
 // Config values for the Kubernetes storage type.
 type Config struct {
 	InCluster      bool   `yaml:"inCluster"`
-	KubeConfigPath string `yaml:"kubeConfigPath"`
-	GCFrequency    int64  `yaml:"gcFrequency"` // seconds
+	KubeConfigFile string `yaml:"kubeConfigFile"`
 }
 
 // Open returns a storage using Kubernetes third party resource.
@@ -52,8 +48,11 @@ func (c *Config) Open() (storage.Storage, error) {
 
 // open returns a client with no garbage collection.
 func (c *Config) open() (*client, error) {
-	if c.InCluster && (c.KubeConfigPath != "") {
-		return nil, errors.New("cannot specify both 'inCluster' and 'kubeConfigPath'")
+	if c.InCluster && (c.KubeConfigFile != "") {
+		return nil, errors.New("cannot specify both 'inCluster' and 'kubeConfigFile'")
+	}
+	if !c.InCluster && (c.KubeConfigFile == "") {
+		return nil, errors.New("must specify either 'inCluster' or 'kubeConfigFile'")
 	}
 
 	var (
@@ -65,18 +64,7 @@ func (c *Config) open() (*client, error) {
 	if c.InCluster {
 		cluster, user, namespace, err = inClusterConfig()
 	} else {
-		kubeConfigPath := c.KubeConfigPath
-		if kubeConfigPath == "" {
-			kubeConfigPath = os.Getenv("KUBECONFIG")
-		}
-		if kubeConfigPath == "" {
-			p, err := homedir.Dir()
-			if err != nil {
-				return nil, fmt.Errorf("finding homedir: %v", err)
-			}
-			kubeConfigPath = filepath.Join(p, ".kube", "config")
-		}
-		cluster, user, namespace, err = loadKubeConfig(kubeConfigPath)
+		cluster, user, namespace, err = loadKubeConfig(c.KubeConfigFile)
 	}
 	if err != nil {
 		return nil, err
