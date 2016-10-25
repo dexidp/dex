@@ -346,7 +346,11 @@ func inClusterConfig() (cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace 
 
 func currentContext(config *k8sapi.Config) (cluster k8sapi.Cluster, user k8sapi.AuthInfo, ns string, err error) {
 	if config.CurrentContext == "" {
-		return cluster, user, "", errors.New("kubeconfig has no current context")
+		if len(config.Contexts) == 1 {
+			config.CurrentContext = config.Contexts[0].Name
+		} else {
+			return cluster, user, "", errors.New("kubeconfig has no current context")
+		}
 	}
 	context, ok := func() (k8sapi.Context, bool) {
 		for _, namedContext := range config.Contexts {
