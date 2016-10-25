@@ -41,6 +41,8 @@ This is a rough outline of what a contributor's workflow looks like:
 
 Thanks for your contributions!
 
+**Note**: When editing documentation you should follow the [CoreOS Docs Style Guide][coreos-docs-style].
+
 ## Proposals
 
 For very simple contributions - bug fixes, documentation tweaks, small optimizations, etc. - a proposal is not neccesary. Otherwise, it's necessary to discuss your proposal with other members of the community and get approval from the maintainers. 
@@ -82,3 +84,5 @@ The first line is the subject and should be no longer than 70 characters, the
 second line is always blank, and other lines should be wrapped at 80 characters.
 This allows the message to be easier to read on GitHub as well as in various
 git tools.
+
+[coreos-docs-style]: https://github.com/coreos/docs/blob/master/STYLE.md
