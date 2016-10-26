@@ -84,7 +84,7 @@ func (s *Server) handlePublicKeys(w http.ResponseWriter, r *http.Request) {
 		maxAge = time.Minute * 2
 	}
 
-	w.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d, must-revalidate", maxAge))
+	w.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d, must-revalidate", int(maxAge.Seconds())))
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	w.Write(data)
