@@ -20,22 +20,12 @@ import (
 // ensure that values being tested on never expire.
 var neverExpire = time.Now().UTC().Add(time.Hour * 24 * 365 * 100)
 
-// RunTests runs a set of conformance tests against a storage. newStorage should
-// return an initialized but empty storage. The storage will be closed at the
-// end of each test run.
-func RunTests(t *testing.T, newStorage func() storage.Storage) {
-	tests := []struct {
-		name string
-		run  func(t *testing.T, s storage.Storage)
-	}{
-		{"AuthCodeCRUD", testAuthCodeCRUD},
-		{"AuthRequestCRUD", testAuthRequestCRUD},
-		{"ClientCRUD", testClientCRUD},
-		{"RefreshTokenCRUD", testRefreshTokenCRUD},
-		{"PasswordCRUD", testPasswordCRUD},
-		{"KeysCRUD", testKeysCRUD},
-		{"GarbageCollection", testGC},
-	}
+type subTest struct {
+	name string
+	run  func(t *testing.T, s storage.Storage)
+}
+
+func runTests(t *testing.T, newStorage func() storage.Storage, tests []subTest) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			s := newStorage()
@@ -43,6 +33,21 @@ func RunTests(t *testing.T, newStorage func() storage.Storage) {
 			s.Close()
 		})
 	}
+}
+
+// RunTests runs a set of conformance tests against a storage. newStorage should
+// return an initialized but empty storage. The storage will be closed at the
+// end of each test run.
+func RunTests(t *testing.T, newStorage func() storage.Storage) {
+	runTests(t, newStorage, []subTest{
+		{"AuthCodeCRUD", testAuthCodeCRUD},
+		{"AuthRequestCRUD", testAuthRequestCRUD},
+		{"ClientCRUD", testClientCRUD},
+		{"RefreshTokenCRUD", testRefreshTokenCRUD},
+		{"PasswordCRUD", testPasswordCRUD},
+		{"KeysCRUD", testKeysCRUD},
+		{"GarbageCollection", testGC},
+	})
 }
 
 func mustLoadJWK(b string) *jose.JSONWebKey {
