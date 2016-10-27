@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base32"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
+	"hash/fnv"
 	"io"
 	"io/ioutil"
 	"net"
@@ -31,6 +34,14 @@ type client struct {
 	baseURL   string
 	namespace string
 
+	// Hash function to map IDs (which could span a large range) to Kubernetes names.
+	// While this is not currently upgradable, it could be in the future.
+	//
+	// The default hash is a non-cryptographic hash, because cryptographic hashes
+	// always produce sums too long to fit into a Kubernetes name. Because of this,
+	// gets, updates, and deletes are _always_ checked for collisions.
+	hash func() hash.Hash
+
 	// API version of the oidc resources. For example "oidc.coreos.com". This is
 	// currently not configurable, but could be in the future.
 	apiVersion string
@@ -38,6 +49,18 @@ type client struct {
 	// This is called once the client's Close method is called to signal goroutines,
 	// such as the one creating third party resources, to stop.
 	cancel context.CancelFunc
+}
+
+// idToName maps an arbitrary ID, such as an email or client ID to a Kubernetes object name.
+func (c *client) idToName(s string) string {
+	return idToName(s, c.hash)
+}
+
+// Kubernetes names must match the regexp '[a-z0-9]([-a-z0-9]*[a-z0-9])?'.
+var encoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567")
+
+func idToName(s string, h func() hash.Hash) string {
+	return strings.TrimRight(encoding.EncodeToString(h().Sum([]byte(s))), "=")
 }
 
 func (c *client) urlFor(apiVersion, namespace, resource, name string) string {
@@ -277,6 +300,7 @@ func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string) (
 	return &client{
 		client:     &http.Client{Transport: t},
 		baseURL:    cluster.Server,
+		hash:       func() hash.Hash { return fnv.New64() },
 		namespace:  namespace,
 		apiVersion: "oidc.coreos.com/v1",
 	}, nil

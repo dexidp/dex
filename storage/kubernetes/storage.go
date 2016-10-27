@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"golang.org/x/net/context"
@@ -187,19 +188,45 @@ func (cli *client) GetAuthCode(id string) (storage.AuthCode, error) {
 }
 
 func (cli *client) GetClient(id string) (storage.Client, error) {
-	var c Client
-	if err := cli.get(resourceClient, id, &c); err != nil {
+	c, err := cli.getClient(id)
+	if err != nil {
 		return storage.Client{}, err
 	}
 	return toStorageClient(c), nil
 }
 
+func (cli *client) getClient(id string) (Client, error) {
+	var c Client
+	name := cli.idToName(id)
+	if err := cli.get(resourceClient, name, &c); err != nil {
+		return Client{}, err
+	}
+	if c.ID != id {
+		return Client{}, fmt.Errorf("get client: ID %q mapped to client with ID %q", id, c.ID)
+	}
+	return c, nil
+}
+
 func (cli *client) GetPassword(email string) (storage.Password, error) {
-	var p Password
-	if err := cli.get(resourcePassword, emailToID(email), &p); err != nil {
+	p, err := cli.getPassword(email)
+	if err != nil {
 		return storage.Password{}, err
 	}
 	return toStoragePassword(p), nil
+}
+
+func (cli *client) getPassword(email string) (Password, error) {
+	// TODO(ericchiang): Figure out whose job it is to lowercase emails.
+	email = strings.ToLower(email)
+	var p Password
+	name := cli.idToName(email)
+	if err := cli.get(resourcePassword, name, &p); err != nil {
+		return Password{}, err
+	}
+	if email != p.Email {
+		return Password{}, fmt.Errorf("get email: email %q mapped to password with email %q", email, p.Email)
+	}
+	return p, nil
 }
 
 func (cli *client) GetKeys() (storage.Keys, error) {
@@ -242,7 +269,12 @@ func (cli *client) DeleteAuthCode(code string) error {
 }
 
 func (cli *client) DeleteClient(id string) error {
-	return cli.delete(resourceClient, id)
+	// Check for hash collition.
+	c, err := cli.getClient(id)
+	if err != nil {
+		return err
+	}
+	return cli.delete(resourceClient, c.ObjectMeta.Name)
 }
 
 func (cli *client) DeleteRefresh(id string) error {
@@ -250,28 +282,34 @@ func (cli *client) DeleteRefresh(id string) error {
 }
 
 func (cli *client) DeletePassword(email string) error {
-	return cli.delete(resourcePassword, emailToID(email))
+	// Check for hash collition.
+	p, err := cli.getPassword(email)
+	if err != nil {
+		return err
+	}
+	return cli.delete(resourcePassword, p.ObjectMeta.Name)
 }
 
 func (cli *client) UpdateClient(id string, updater func(old storage.Client) (storage.Client, error)) error {
-	var c Client
-	if err := cli.get(resourceClient, id, &c); err != nil {
-		return err
-	}
-	updated, err := updater(toStorageClient(c))
+	c, err := cli.getClient(id)
 	if err != nil {
 		return err
 	}
 
+	updated, err := updater(toStorageClient(c))
+	if err != nil {
+		return err
+	}
+	updated.ID = c.ID
+
 	newClient := cli.fromStorageClient(updated)
 	newClient.ObjectMeta = c.ObjectMeta
-	return cli.put(resourceClient, id, newClient)
+	return cli.put(resourceClient, c.ObjectMeta.Name, newClient)
 }
 
 func (cli *client) UpdatePassword(email string, updater func(old storage.Password) (storage.Password, error)) error {
-	id := emailToID(email)
-	var p Password
-	if err := cli.get(resourcePassword, id, &p); err != nil {
+	p, err := cli.getPassword(email)
+	if err != nil {
 		return err
 	}
 
@@ -279,10 +317,11 @@ func (cli *client) UpdatePassword(email string, updater func(old storage.Passwor
 	if err != nil {
 		return err
 	}
+	updated.Email = p.Email
 
 	newPassword := cli.fromStoragePassword(updated)
 	newPassword.ObjectMeta = p.ObjectMeta
-	return cli.put(resourcePassword, id, newPassword)
+	return cli.put(resourcePassword, p.ObjectMeta.Name, newPassword)
 }
 
 func (cli *client) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) error {

@@ -1,7 +1,6 @@
 package kubernetes
 
 import (
-	"encoding/base32"
 	"strings"
 	"time"
 
@@ -75,12 +74,13 @@ const keysName = "openid-connect-keys"
 
 // Client is a mirrored struct from storage with JSON struct tags and
 // Kubernetes type metadata.
-//
-// TODO(ericchiang): Kubernetes has an extremely restricted set of characters it can use for IDs.
-// Consider base32ing client IDs.
 type Client struct {
+	// Name is a hash of the ID.
 	k8sapi.TypeMeta   `json:",inline"`
 	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+
+	// ID is immutable, since it's a primary key and should not be changed.
+	ID string `json:"id,omitempty"`
 
 	Secret       string   `json:"secret,omitempty"`
 	RedirectURIs []string `json:"redirectURIs,omitempty"`
@@ -106,9 +106,10 @@ func (cli *client) fromStorageClient(c storage.Client) Client {
 			APIVersion: cli.apiVersion,
 		},
 		ObjectMeta: k8sapi.ObjectMeta{
-			Name:      c.ID,
+			Name:      cli.idToName(c.ID),
 			Namespace: cli.namespace,
 		},
+		ID:           c.ID,
 		Secret:       c.Secret,
 		RedirectURIs: c.RedirectURIs,
 		TrustedPeers: c.TrustedPeers,
@@ -120,7 +121,7 @@ func (cli *client) fromStorageClient(c storage.Client) Client {
 
 func toStorageClient(c Client) storage.Client {
 	return storage.Client{
-		ID:           c.ObjectMeta.Name,
+		ID:           c.ID,
 		Secret:       c.Secret,
 		RedirectURIs: c.RedirectURIs,
 		TrustedPeers: c.TrustedPeers,
@@ -258,17 +259,6 @@ type Password struct {
 	UserID   string `json:"userID,omitempty"`
 }
 
-// Kubernetes only allows lower case letters for names.
-//
-// NOTE(ericchiang): This is currently copied from the storage package's NewID()
-// method. Once we refactor those into the storage, just use that instead.
-var encoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567")
-
-// Map an arbitrary email to a valid Kuberntes name.
-func emailToID(email string) string {
-	return strings.TrimRight(encoding.EncodeToString([]byte(strings.ToLower(email))), "=")
-}
-
 func (cli *client) fromStoragePassword(p storage.Password) Password {
 	email := strings.ToLower(p.Email)
 	return Password{
@@ -277,7 +267,7 @@ func (cli *client) fromStoragePassword(p storage.Password) Password {
 			APIVersion: cli.apiVersion,
 		},
 		ObjectMeta: k8sapi.ObjectMeta{
-			Name:      emailToID(email),
+			Name:      cli.idToName(email),
 			Namespace: cli.namespace,
 		},
 		Email:    email,
