@@ -41,14 +41,14 @@ func (m callbackConnector) LoginURL(callbackURL, state string) (string, error) {
 
 var connectorData = []byte("foobar")
 
-func (m callbackConnector) HandleCallback(r *http.Request) (connector.Identity, string, error) {
+func (m callbackConnector) HandleCallback(r *http.Request) (connector.Identity, error) {
 	return connector.Identity{
 		UserID:        "0-385-28089-0",
 		Username:      "Kilgore Trout",
 		Email:         "kilgore@kilgore.trout",
 		EmailVerified: true,
 		ConnectorData: connectorData,
-	}, r.URL.Query().Get("state"), nil
+	}, nil
 }
 
 func (m callbackConnector) Groups(identity connector.Identity) ([]string, error) {

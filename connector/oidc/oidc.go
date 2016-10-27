@@ -95,23 +95,23 @@ func (e *oauth2Error) Error() string {
 	return e.error + ": " + e.errorDescription
 }
 
-func (c *oidcConnector) HandleCallback(r *http.Request) (identity connector.Identity, state string, err error) {
+func (c *oidcConnector) HandleCallback(r *http.Request) (identity connector.Identity, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
-		return identity, "", &oauth2Error{errType, q.Get("error_description")}
+		return identity, &oauth2Error{errType, q.Get("error_description")}
 	}
 	token, err := c.oauth2Config.Exchange(c.ctx, q.Get("code"))
 	if err != nil {
-		return identity, "", fmt.Errorf("oidc: failed to get token: %v", err)
+		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
 	}
 
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
-		return identity, "", errors.New("oidc: no id_token in token response")
+		return identity, errors.New("oidc: no id_token in token response")
 	}
 	idToken, err := c.verifier.Verify(rawIDToken)
 	if err != nil {
-		return identity, "", fmt.Errorf("oidc: failed to verify ID Token: %v", err)
+		return identity, fmt.Errorf("oidc: failed to verify ID Token: %v", err)
 	}
 
 	var claims struct {
@@ -120,7 +120,7 @@ func (c *oidcConnector) HandleCallback(r *http.Request) (identity connector.Iden
 		EmailVerified bool   `json:"email_verified"`
 	}
 	if err := idToken.Claims(&claims); err != nil {
-		return identity, "", fmt.Errorf("oidc: failed to decode claims: %v", err)
+		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
 	}
 
 	identity = connector.Identity{
@@ -129,5 +129,5 @@ func (c *oidcConnector) HandleCallback(r *http.Request) (identity connector.Iden
 		Email:         claims.Email,
 		EmailVerified: claims.EmailVerified,
 	}
-	return identity, q.Get("state"), nil
+	return identity, nil
 }

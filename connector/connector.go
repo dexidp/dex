@@ -33,7 +33,7 @@ type PasswordConnector interface {
 // CallbackConnector is an optional interface for callback based connectors.
 type CallbackConnector interface {
 	LoginURL(callbackURL, state string) (string, error)
-	HandleCallback(r *http.Request) (identity Identity, state string, err error)
+	HandleCallback(r *http.Request) (identity Identity, err error)
 }
 
 // GroupsConnector is an optional interface for connectors which can map a user to groups.
