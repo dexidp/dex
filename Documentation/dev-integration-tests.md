@@ -47,3 +47,49 @@ When you're done, tear down the unit using the `standup.sh` script.
 ```
 $ sudo ./storage/sql/standup.sh destroy postgres
 ```
+
+## LDAP
+
+To run LDAP tests locally, you require a container running OpenLDAP.
+
+Run OpenLDAP docker image:
+
+```
+$ sudo docker run --hostname ldap.example.org --name openldap-container --detach osixia/openldap:1.1.6
+```
+
+By default TLS is enabled and a certificate is created with the container hostname, which in this case is "ldap.example.org". It will create an empty LDAP for the company Example Inc. and the domain example.org. By default the admin has the password admin.
+
+Add new users and groups (sample .ldif file included at the end):
+
+```
+$ sudo docker exec openldap-container ldapadd -x -D "cn=admin,dc=example,dc=org" -w admin -f <path to .ldif> -h ldap.example.org -ZZ
+```
+
+Verify that the added entries are in your directory with ldapsearch :
+
+```
+$ sudo docker exec openldap-container ldapsearch -x -h localhost -b dc=example,dc=org -D "cn=admin,dc=example,dc=org" -w admin
+```
+The .ldif file should contain seed data. Example file contents:
+
+```
+dn: cn=Test1,dc=example,dc=org
+objectClass: organizationalRole
+cn: Test1
+
+dn: cn=Test2,dc=example,dc=org
+objectClass: organizationalRole
+cn: Test2
+
+dn: ou=groups,dc=example,dc=org
+ou: groups
+objectClass: top
+objectClass: organizationalUnit
+
+dn: cn=tstgrp,ou=groups,dc=example,dc=org
+objectClass: top
+objectClass: groupOfNames
+member: cn=Test1,dc=example,dc=org
+cn: tstgrp
+```
