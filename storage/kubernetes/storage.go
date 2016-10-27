@@ -75,31 +75,42 @@ func (c *Config) open() (*client, error) {
 		return nil, fmt.Errorf("create client: %v", err)
 	}
 
-	// Don't try to synchronize this because creating third party resources is not
-	// a synchronous event. Even after the API server returns a 200, it can still
-	// take several seconds for them to actually appear.
 	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		for {
-			if err := cli.createThirdPartyResources(); err != nil {
-				log.Printf("failed creating third party resources: %v", err)
-			} else {
-				return
-			}
 
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(30 * time.Second):
+	// Try to synchronously create the third party resources once. This doesn't mean
+	// they'll immediately be available, but ensures that the client will actually try
+	// once.
+	if err := cli.createThirdPartyResources(); err != nil {
+		log.Printf("failed creating third party resources: %v", err)
+		go func() {
+			for {
+				if err := cli.createThirdPartyResources(); err != nil {
+					log.Printf("failed creating third party resources: %v", err)
+				} else {
+					return
+				}
+
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(30 * time.Second):
+				}
 			}
-		}
-	}()
+		}()
+	}
 
 	// If the client is closed, stop trying to create third party resources.
 	cli.cancel = cancel
 	return cli, nil
 }
 
+// createThirdPartyResources attempts to create the third party resources dex
+// requires or identifies that they're already enabled.
+//
+// Creating a third party resource does not mean that they'll be immediately available.
+//
+// TODO(ericchiang): Provide an option to wait for the third party resources
+// to actually be available.
 func (cli *client) createThirdPartyResources() error {
 	for _, r := range thirdPartyResources {
 		err := cli.postResource("extensions/v1beta1", "", "thirdpartyresources", r)
