@@ -238,8 +238,7 @@ type Password struct {
 	// (cough cough, kubernetes), must map this value appropriately.
 	Email string `yaml:"email"`
 
-	// Bcrypt encoded hash of the password. This package recommends a cost value of at
-	// least 14.
+	// Bcrypt encoded hash of the password. This package enforces a min cost value of 10
 	Hash []byte `yaml:"hash"`
 
 	// Optional username to display. NOT used during login.

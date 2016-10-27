@@ -37,10 +37,59 @@ message DeleteClientResp {
 
 // TODO(ericchiang): expand this.
 
+// Password is an email for password mapping managed by the storage.
+message Password {
+  string email = 1;
+
+  // Currently we do not accept plain text passwords. Could be an option in the future.
+  bytes hash = 2;
+  string username = 3;
+  string user_id = 4;
+}
+
+// CreatePasswordReq is a request to make a password.
+message CreatePasswordReq {
+  Password password = 1;
+}
+
+// CreatePasswordResp returns the response from creating a password.
+message CreatePasswordResp {
+  bool already_exists = 1;
+}
+
+// UpdatePasswordReq is a request to modify an existing password.
+message UpdatePasswordReq {
+  // The email used to lookup the password. This field cannot be modified
+  string email = 1;
+  bytes new_hash = 2;
+  string new_username = 3;
+}
+
+// UpdatePasswordResp returns the response from modifying an existing password. 
+message UpdatePasswordResp {
+  bool not_found = 1;
+}
+
+// DeletePasswordReq is a request to delete a password.
+message DeletePasswordReq {
+  string email = 1;
+}
+
+// DeletePasswordResp returns the response from deleting a password. 
+message DeletePasswordResp {
+  bool not_found = 1;
+}
+
 // Dex represents the dex gRPC service.
 service Dex {
   // CreateClient attempts to create the client.
   rpc CreateClient(CreateClientReq) returns (CreateClientResp) {};
   // DeleteClient attempts to delete the provided client.
   rpc DeleteClient(DeleteClientReq) returns (DeleteClientResp) {};
+  // CreatePassword attempts to create the password.
+  rpc CreatePassword(CreatePasswordReq) returns (CreatePasswordResp) {};
+  // UpdatePassword attempts to modify existing password.
+  rpc UpdatePassword(UpdatePasswordReq) returns (UpdatePasswordResp) {};
+  // DeletePassword attempts to delete the password.
+  rpc DeletePassword(DeletePasswordReq) returns (DeletePasswordResp) {};
 }
