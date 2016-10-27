@@ -148,11 +148,9 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, http.StatusInternalServerError, errServerError, "")
 		return
 	}
-	state := authReq.ID
-
 	if len(s.connectors) == 1 {
 		for id := range s.connectors {
-			http.Redirect(w, r, s.absPath("/auth", id)+"?state="+state, http.StatusFound)
+			http.Redirect(w, r, s.absPath("/auth", id)+"?req="+authReq.ID, http.StatusFound)
 			return
 		}
 	}
@@ -168,7 +166,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		i++
 	}
 
-	s.templates.login(w, connectorInfos, state)
+	s.templates.login(w, connectorInfos, authReq.ID)
 }
 
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
@@ -179,7 +177,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authReqID := r.FormValue("state")
+	authReqID := r.FormValue("req")
 
 	// TODO(ericchiang): cache user identity.
 
@@ -198,6 +196,9 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 
 		switch conn := conn.Connector.(type) {
 		case connector.CallbackConnector:
+			// Use the auth request ID as the "state" token.
+			//
+			// TODO(ericchiang): Is this appropriate or should we also be using a nonce?
 			callbackURL, err := conn.LoginURL(s.absURL("/callback"), authReqID)
 			if err != nil {
 				log.Printf("Connector %q returned error when creating callback: %v", connID, err)
@@ -342,11 +343,11 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 	if err := s.storage.UpdateAuthRequest(authReq.ID, updater); err != nil {
 		return "", fmt.Errorf("failed to update auth request: %v", err)
 	}
-	return path.Join(s.issuerURL.Path, "/approval") + "?state=" + authReq.ID, nil
+	return path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID, nil
 }
 
 func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
-	authReq, err := s.storage.GetAuthRequest(r.FormValue("state"))
+	authReq, err := s.storage.GetAuthRequest(r.FormValue("req"))
 	if err != nil {
 		log.Printf("Failed to get auth request: %v", err)
 		s.renderError(w, http.StatusInternalServerError, errServerError, "")

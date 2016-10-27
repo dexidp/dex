@@ -25,7 +25,7 @@ var defaultTemplates = map[string]string{
   <div>
     <div class="form-row">
       <form method="post">
-        <input type="hidden" name="state" value="{{ .State }}"/>
+        <input type="hidden" name="req" value="{{ .AuthReqID }}"/>
         <input type="hidden" name="approval" value="approve">
         <button type="submit" class="btn btn-success">
             <span class="btn-text">Grant Access</span>
@@ -34,7 +34,7 @@ var defaultTemplates = map[string]string{
     </div>
     <div class="form-row">
       <form method="post">
-        <input type="hidden" name="state" value="{{ .State }}"/>
+        <input type="hidden" name="req" value="{{ .AuthReqID }}"/>
         <input type="hidden" name="approval" value="rejected">
         <button type="submit" class="btn btn-provider">
             <span class="btn-text">Cancel</span>
@@ -300,7 +300,7 @@ var defaultTemplates = map[string]string{
   <div>
     {{ range $c := .Connectors }}
       <div class="form-row">
-        <a href="{{ $c.URL }}?state={{ $.State }}" target="_self">
+        <a href="{{ $c.URL }}?req={{ $.AuthReqID }}" target="_self">
           <button class="btn btn-provider">
             <span class="btn-icon btn-icon-{{ $c.ID }}"></span>
             <span class="btn-text">Log in with {{ $c.Name }}</span>
@@ -344,7 +344,7 @@ var defaultTemplates = map[string]string{
       </div>
 	  <input tabindex="2" required id="password" name="password" type="password" class="input-box" placeholder="password" {{ if .Invalid }} autofocus {{ end }}/>
     </div>
-    <input type="hidden" name="state" value="{{ .State }}"/>
+    <input type="hidden" name="req" value="{{ .AuthReqID }}"/>
 
     {{ if .Invalid }}
       <div class="error-box">

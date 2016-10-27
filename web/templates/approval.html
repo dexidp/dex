@@ -19,7 +19,7 @@
   <div>
     <div class="form-row">
       <form method="post">
-        <input type="hidden" name="state" value="{{ .State }}"/>
+        <input type="hidden" name="req" value="{{ .AuthReqID }}"/>
         <input type="hidden" name="approval" value="approve">
         <button type="submit" class="btn btn-success">
             <span class="btn-text">Grant Access</span>
@@ -28,7 +28,7 @@
     </div>
     <div class="form-row">
       <form method="post">
-        <input type="hidden" name="state" value="{{ .State }}"/>
+        <input type="hidden" name="req" value="{{ .AuthReqID }}"/>
         <input type="hidden" name="approval" value="rejected">
         <button type="submit" class="btn btn-provider">
             <span class="btn-text">Cancel</span>

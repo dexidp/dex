@@ -6,7 +6,7 @@
   <div>
     {{ range $c := .Connectors }}
       <div class="form-row">
-        <a href="{{ $c.URL }}?state={{ $.State }}" target="_self">
+        <a href="{{ $c.URL }}?req={{ $.AuthReqID }}" target="_self">
           <button class="btn btn-provider">
             <span class="btn-icon btn-icon-{{ $c.ID }}"></span>
             <span class="btn-text">Log in with {{ $c.Name }}</span>
