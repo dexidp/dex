@@ -172,7 +172,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleFunc("/keys", s.handlePublicKeys)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
-	handleFunc("/callback/{connector}", s.handleConnectorCallback)
+	handleFunc("/callback", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
 	handleFunc("/healthz", s.handleHealth)
 	s.mux = r

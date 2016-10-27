@@ -138,29 +138,29 @@ func (n byName) Len() int           { return len(n) }
 func (n byName) Less(i, j int) bool { return n[i].Name < n[j].Name }
 func (n byName) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
 
-func (t *templates) login(w http.ResponseWriter, connectors []connectorInfo, state string) {
+func (t *templates) login(w http.ResponseWriter, connectors []connectorInfo, authReqID string) {
 	sort.Sort(byName(connectors))
 
 	data := struct {
 		TemplateConfig
 		Connectors []connectorInfo
-		State      string
-	}{t.globalData, connectors, state}
+		AuthReqID  string
+	}{t.globalData, connectors, authReqID}
 	renderTemplate(w, t.loginTmpl, data)
 }
 
-func (t *templates) password(w http.ResponseWriter, state, callback, lastUsername string, lastWasInvalid bool) {
+func (t *templates) password(w http.ResponseWriter, authReqID, callback, lastUsername string, lastWasInvalid bool) {
 	data := struct {
 		TemplateConfig
-		State    string
-		PostURL  string
-		Username string
-		Invalid  bool
-	}{t.globalData, state, callback, lastUsername, lastWasInvalid}
+		AuthReqID string
+		PostURL   string
+		Username  string
+		Invalid   bool
+	}{t.globalData, authReqID, callback, lastUsername, lastWasInvalid}
 	renderTemplate(w, t.passwordTmpl, data)
 }
 
-func (t *templates) approval(w http.ResponseWriter, state, username, clientName string, scopes []string) {
+func (t *templates) approval(w http.ResponseWriter, authReqID, username, clientName string, scopes []string) {
 	accesses := []string{}
 	for _, scope := range scopes {
 		access, ok := scopeDescriptions[scope]
@@ -171,11 +171,11 @@ func (t *templates) approval(w http.ResponseWriter, state, username, clientName 
 	sort.Strings(accesses)
 	data := struct {
 		TemplateConfig
-		User   string
-		Client string
-		State  string
-		Scopes []string
-	}{t.globalData, username, clientName, state, accesses}
+		User      string
+		Client    string
+		AuthReqID string
+		Scopes    []string
+	}{t.globalData, username, clientName, authReqID, accesses}
 	renderTemplate(w, t.approvalTmpl, data)
 }
 

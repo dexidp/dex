@@ -83,28 +83,28 @@ func (e *oauth2Error) Error() string {
 	return e.error + ": " + e.errorDescription
 }
 
-func (c *githubConnector) HandleCallback(r *http.Request) (identity connector.Identity, state string, err error) {
+func (c *githubConnector) HandleCallback(r *http.Request) (identity connector.Identity, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
-		return identity, "", &oauth2Error{errType, q.Get("error_description")}
+		return identity, &oauth2Error{errType, q.Get("error_description")}
 	}
 	token, err := c.oauth2Config.Exchange(c.ctx, q.Get("code"))
 	if err != nil {
-		return identity, "", fmt.Errorf("github: failed to get token: %v", err)
+		return identity, fmt.Errorf("github: failed to get token: %v", err)
 	}
 
 	resp, err := c.oauth2Config.Client(c.ctx, token).Get(baseURL + "/user")
 	if err != nil {
-		return identity, "", fmt.Errorf("github: get URL %v", err)
+		return identity, fmt.Errorf("github: get URL %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return identity, "", fmt.Errorf("github: read body: %v", err)
+			return identity, fmt.Errorf("github: read body: %v", err)
 		}
-		return identity, "", fmt.Errorf("%s: %s", resp.Status, body)
+		return identity, fmt.Errorf("%s: %s", resp.Status, body)
 	}
 	var user struct {
 		Name  string `json:"name"`
@@ -113,13 +113,13 @@ func (c *githubConnector) HandleCallback(r *http.Request) (identity connector.Id
 		Email string `json:"email"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		return identity, "", fmt.Errorf("failed to decode response: %v", err)
+		return identity, fmt.Errorf("failed to decode response: %v", err)
 	}
 
 	data := connectorData{AccessToken: token.AccessToken}
 	connData, err := json.Marshal(data)
 	if err != nil {
-		return identity, "", fmt.Errorf("marshal connector data: %v", err)
+		return identity, fmt.Errorf("marshal connector data: %v", err)
 	}
 
 	username := user.Name
@@ -133,7 +133,7 @@ func (c *githubConnector) HandleCallback(r *http.Request) (identity connector.Id
 		EmailVerified: true,
 		ConnectorData: connData,
 	}
-	return identity, q.Get("state"), nil
+	return identity, nil
 }
 
 func (c *githubConnector) Groups(identity connector.Identity) ([]string, error) {
