@@ -311,7 +311,8 @@ func (c *ldapConnector) Login(username, password string) (ident connector.Identi
 		switch n := len(resp.Entries); n {
 		case 0:
 			return fmt.Errorf("ldap: no results returned for filter: %q", filter)
-		case 2:
+		case 1:
+		default:
 			return fmt.Errorf("ldap: filter returned multiple (%d) results: %q", n, filter)
 		}
 
