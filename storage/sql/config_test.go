@@ -36,6 +36,7 @@ func cleanDB(c *conn) error {
 		delete from auth_code;
 		delete from refresh_token;
 		delete from keys;
+		delete from password;
 	`)
 	return err
 }
@@ -48,6 +49,7 @@ func TestSQLite3(t *testing.T) {
 		s := &SQLite3{":memory:"}
 		conn, err := s.open()
 		if err != nil {
+			fmt.Fprintln(os.Stdout, err)
 			t.Fatal(err)
 		}
 		return conn
@@ -58,15 +60,25 @@ func TestSQLite3(t *testing.T) {
 	})
 }
 
+func getenv(key, defaultVal string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	return defaultVal
+}
+
+const testPostgresEnv = "DEX_POSTGRES_HOST"
+
 func TestPostgres(t *testing.T) {
-	if os.Getenv("DEX_POSTGRES_HOST") == "" {
-		t.Skip("postgres envs not set, skipping tests")
+	host := os.Getenv(testPostgresEnv)
+	if host == "" {
+		t.Skipf("test environment variable %q not set, skipping", testPostgresEnv)
 	}
 	p := Postgres{
-		Database: os.Getenv("DEX_POSTGRES_DATABASE"),
-		User:     os.Getenv("DEX_POSTGRES_USER"),
-		Password: os.Getenv("DEX_POSTGRES_PASSWORD"),
-		Host:     os.Getenv("DEX_POSTGRES_HOST"),
+		Database: getenv("DEX_POSTGRES_DATABASE", "postgres"),
+		User:     getenv("DEX_POSTGRES_USER", "postgres"),
+		Password: getenv("DEX_POSTGRES_PASSWORD", "postgres"),
+		Host:     host,
 		SSL: PostgresSSL{
 			Mode: sslDisable, // Postgres container doesn't support SSL.
 		},
@@ -91,5 +103,8 @@ func TestPostgres(t *testing.T) {
 	}
 	withTimeout(time.Minute*1, func() {
 		conformance.RunTests(t, newStorage)
+	})
+	withTimeout(time.Minute*1, func() {
+		conformance.RunTransactionTests(t, newStorage)
 	})
 }

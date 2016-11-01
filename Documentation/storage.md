@@ -4,13 +4,6 @@ Dex requires persisting state to perform various tasks such as track refresh tok
 
 Storage breaches are serious as they can affect applications that rely on dex. Dex saves sensitive data in its backing storage, including signing keys and bcrypt'd passwords. As such, transport security and database ACLs should both be used, no matter which storage option is chosen.
 
-
-## Caveat: running replicated instances
-
-Tests still need to be written to validate that multiple instances of dex behave correctly when using the same storage. While there aren't any technical limitations, edge cases have been observed and progress on these kind of bugs can be found on the [dex issue tracker][issues-transaction-tests].
-
-The dex team suggests running one dex instance most of the time and two instance during upgrades.
-
 ## Kubernetes third party resources
 
 __NOTE:__ Dex requires Kubernetes version 1.4+.
