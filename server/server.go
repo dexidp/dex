@@ -218,8 +218,9 @@ func (db passwordDB) Login(email, password string) (connector.Identity, bool, er
 	if err != nil {
 		if err != storage.ErrNotFound {
 			log.Printf("get password: %v", err)
+			return connector.Identity{}, false, err
 		}
-		return connector.Identity{}, false, err
+		return connector.Identity{}, false, nil
 	}
 	if err := bcrypt.CompareHashAndPassword(p.Hash, []byte(password)); err != nil {
 		return connector.Identity{}, false, nil

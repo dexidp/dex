@@ -310,7 +310,9 @@ func (c *ldapConnector) Login(username, password string) (ident connector.Identi
 
 		switch n := len(resp.Entries); n {
 		case 0:
-			return fmt.Errorf("ldap: no results returned for filter: %q", filter)
+			log.Printf("ldap: no results returned for filter: %q", filter)
+			incorrectPass = true
+			return nil
 		case 1:
 		default:
 			return fmt.Errorf("ldap: filter returned multiple (%d) results: %q", n, filter)
@@ -334,6 +336,9 @@ func (c *ldapConnector) Login(username, password string) (ident connector.Identi
 	})
 	if err != nil {
 		return connector.Identity{}, false, err
+	}
+	if incorrectPass {
+		return connector.Identity{}, false, nil
 	}
 
 	// Encode entry for follow up requests such as the groups query and
@@ -364,7 +369,7 @@ func (c *ldapConnector) Login(username, password string) (ident connector.Identi
 		return connector.Identity{}, false, err
 	}
 
-	return ident, !incorrectPass, nil
+	return ident, true, nil
 }
 
 func (c *ldapConnector) Groups(ident connector.Identity) ([]string, error) {
