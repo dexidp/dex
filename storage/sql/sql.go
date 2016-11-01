@@ -45,7 +45,30 @@ func matchLiteral(s string) *regexp.Regexp {
 var (
 	// The "github.com/lib/pq" driver is the default flavor. All others are
 	// translations of this.
-	flavorPostgres = flavor{}
+	flavorPostgres = flavor{
+		// The default behavior for Postgres transactions is consistent reads, not consistent writes.
+		// For each transaction opened, ensure it has the correct isolation level.
+		//
+		// See: https://www.postgresql.org/docs/9.3/static/sql-set-transaction.html
+		//
+		// NOTE(ericchiang): For some reason using `SET SESSION CHARACTERISTICS AS TRANSACTION` at a
+		// session level didn't work for some edge cases. Might be something worth exploring.
+		executeTx: func(db *sql.DB, fn func(sqlTx *sql.Tx) error) error {
+			tx, err := db.Begin()
+			if err != nil {
+				return err
+			}
+			defer tx.Rollback()
+
+			if _, err := tx.Exec(`SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;`); err != nil {
+				return err
+			}
+			if err := fn(tx); err != nil {
+				return err
+			}
+			return tx.Commit()
+		},
+	}
 
 	flavorSQLite3 = flavor{
 		queryReplacers: []replacer{
