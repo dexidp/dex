@@ -657,10 +657,10 @@ func TestPasswordDB(t *testing.T) {
 			},
 		},
 		{
-			name:     "unknown user",
-			username: "john@example.com",
-			password: pw,
-			wantErr:  true,
+			name:        "unknown user",
+			username:    "john@example.com",
+			password:    pw,
+			wantInvalid: true,
 		},
 		{
 			name:        "invalid password",
