@@ -88,9 +88,10 @@ type Web struct {
 // GRPC is the config for the gRPC API.
 type GRPC struct {
 	// The port to listen on.
-	Addr    string `yaml:"addr"`
-	TLSCert string `yaml:"tlsCert"`
-	TLSKey  string `yaml:"tlsKey"`
+	Addr        string `yaml:"addr"`
+	TLSCert     string `yaml:"tlsCert"`
+	TLSKey      string `yaml:"tlsKey"`
+	TLSClientCA string `yaml:"tlsClientCA"`
 }
 
 // Storage holds app's storage configuration.

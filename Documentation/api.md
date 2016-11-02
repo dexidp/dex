@@ -15,6 +15,8 @@ grpc:
   # Server certs. If TLS credentials aren't provided dex will generate self-signed ones.
   tlsCert: /etc/dex/grpc.crt
   tlsKey: /etc/dex/grpc.key
+  # Client auth CA.
+  tlsClientCA: /etc/dex/client.crt
 ```
 
 ## Generating clients

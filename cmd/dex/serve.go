@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -67,6 +69,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		{c.GRPC.TLSCert != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
 		{c.GRPC.TLSKey != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
 		{(c.GRPC.TLSCert == "") != (c.GRPC.TLSKey == ""), "must specific both a gRPC TLS cert and key"},
+		{c.GRPC.TLSCert == "" && c.GRPC.TLSClientCA != "", "cannot specify gRPC TLS client CA without a gRPC TLS cert"},
 	}
 
 	for _, check := range checks {
@@ -77,11 +80,36 @@ func serve(cmd *cobra.Command, args []string) error {
 
 	var grpcOptions []grpc.ServerOption
 	if c.GRPC.TLSCert != "" {
-		opt, err := credentials.NewServerTLSFromFile(c.GRPC.TLSCert, c.GRPC.TLSKey)
-		if err != nil {
-			return fmt.Errorf("load grpc certs: %v", err)
+		if c.GRPC.TLSClientCA != "" {
+			// Parse certificates from certificate file and key file for server.
+			cert, err := tls.LoadX509KeyPair(c.GRPC.TLSCert, c.GRPC.TLSKey)
+			if err != nil {
+				return fmt.Errorf("parsing certificate file: %v", err)
+			}
+
+			// Parse certificates from client CA file to a new CertPool.
+			cPool := x509.NewCertPool()
+			clientCert, err := ioutil.ReadFile(c.GRPC.TLSClientCA)
+			if err != nil {
+				return fmt.Errorf("reading from client CA file: %v", err)
+			}
+			if cPool.AppendCertsFromPEM(clientCert) != true {
+				return errors.New("failed to parse client CA")
+			}
+
+			tlsConfig := tls.Config{
+				Certificates: []tls.Certificate{cert},
+				ClientAuth:   tls.RequireAndVerifyClientCert,
+				ClientCAs:    cPool,
+			}
+			grpcOptions = append(grpcOptions, grpc.Creds(credentials.NewTLS(&tlsConfig)))
+		} else {
+			opt, err := credentials.NewServerTLSFromFile(c.GRPC.TLSCert, c.GRPC.TLSKey)
+			if err != nil {
+				return fmt.Errorf("load grpc certs: %v", err)
+			}
+			grpcOptions = append(grpcOptions, grpc.Creds(opt))
 		}
-		grpcOptions = append(grpcOptions, grpc.Creds(opt))
 	}
 
 	connectors := make([]server.Connector, len(c.Connectors))
