@@ -11,11 +11,11 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ghodss/yaml"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	yaml "gopkg.in/yaml.v2"
 
 	"github.com/coreos/dex/api"
 	"github.com/coreos/dex/server"
@@ -136,13 +136,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		s = storage.WithStaticClients(s, c.StaticClients)
 	}
 	if len(c.StaticPasswords) > 0 {
-		p := make([]storage.Password, len(c.StaticPasswords))
-		for i, pw := range c.StaticPasswords {
-			if p[i], err = pw.toPassword(); err != nil {
-				return err
-			}
-		}
-		s = storage.WithStaticPasswords(s, p)
+		s = storage.WithStaticPasswords(s, c.StaticPasswords)
 	}
 
 	serverConfig := server.Config{

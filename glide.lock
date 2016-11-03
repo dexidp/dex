@@ -1,5 +1,5 @@
-hash: a813cbca07393d7cbe35d411cdef588afac7a3bab8a287ffe7b9587516ef5898
-updated: 2016-10-23T20:51:55.313818678-07:00
+hash: bc7fa6bbfddcb39710064a9d6dab090d49bd88486571cae12c68c4b70093e716
+updated: 2016-11-03T14:31:37.323302694-07:00
 imports:
 - name: github.com/cockroachdb/cockroach-go
   version: 31611c0501c812f437d4861d87d117053967c955
@@ -7,6 +7,8 @@ imports:
   - crdb
 - name: github.com/ericchiang/oidc
   version: 1907f0e61549f9081f26bdf269f11603496c9dee
+- name: github.com/ghodss/yaml
+  version: bea76d6a4713e18b7f5321a2b020738552def3ea
 - name: github.com/go-sql-driver/mysql
   version: 0b58b37b664c21f3010e836f1b931e1d0b0b0685
 - name: github.com/golang/protobuf

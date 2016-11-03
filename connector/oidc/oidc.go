@@ -15,12 +15,12 @@ import (
 
 // Config holds configuration options for OpenID Connect logins.
 type Config struct {
-	Issuer       string `yaml:"issuer"`
-	ClientID     string `yaml:"clientID"`
-	ClientSecret string `yaml:"clientSecret"`
-	RedirectURI  string `yaml:"redirectURI"`
+	Issuer       string `json:"issuer"`
+	ClientID     string `json:"clientID"`
+	ClientSecret string `json:"clientSecret"`
+	RedirectURI  string `json:"redirectURI"`
 
-	Scopes []string `yaml:"scopes"` // defaults to "profile" and "email"
+	Scopes []string `json:"scopes"` // defaults to "profile" and "email"
 }
 
 // Open returns a connector which can be used to login users through an upstream

@@ -21,9 +21,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/gtank/cryptopasta"
 	"golang.org/x/net/context"
-	yaml "gopkg.in/yaml.v2"
 
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/kubernetes/k8sapi"

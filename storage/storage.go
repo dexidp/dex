@@ -247,16 +247,16 @@ type Password struct {
 	//
 	// Storages that don't support an extended character set for IDs, such as '.' and '@'
 	// (cough cough, kubernetes), must map this value appropriately.
-	Email string `yaml:"email"`
+	Email string `json:"email"`
 
 	// Bcrypt encoded hash of the password. This package enforces a min cost value of 10
-	Hash []byte `yaml:"hash"`
+	Hash []byte `json:"hash"`
 
 	// Optional username to display. NOT used during login.
-	Username string `yaml:"username"`
+	Username string `json:"username"`
 
 	// Randomly generated user ID. This is NOT the primary ID of the Password object.
-	UserID string `yaml:"userID"`
+	UserID string `json:"userID"`
 }
 
 // VerificationKey is a rotated signing key which can still be used to verify

@@ -69,8 +69,8 @@ func (c *CallbackConfig) Open() (connector.Connector, error) {
 // PasswordConfig holds the configuration for a mock connector which prompts for the supplied
 // username and password.
 type PasswordConfig struct {
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 // Open returns an authentication strategy which prompts for a predefined username and password.
