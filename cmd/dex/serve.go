@@ -136,7 +136,11 @@ func serve(cmd *cobra.Command, args []string) error {
 		s = storage.WithStaticClients(s, c.StaticClients)
 	}
 	if len(c.StaticPasswords) > 0 {
-		s = storage.WithStaticPasswords(s, c.StaticPasswords)
+		passwords := make([]storage.Password, len(c.StaticPasswords))
+		for i, p := range c.StaticPasswords {
+			passwords[i] = storage.Password(p)
+		}
+		s = storage.WithStaticPasswords(s, passwords)
 	}
 
 	serverConfig := server.Config{

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/connector/github"
@@ -38,7 +41,47 @@ type Config struct {
 	// StaticPasswords cause the server use this list of passwords rather than
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
-	StaticPasswords []storage.Password `json:"staticPasswords"`
+	StaticPasswords []password `json:"staticPasswords"`
+}
+
+type password storage.Password
+
+func (p *password) UnmarshalJSON(b []byte) error {
+	var data struct {
+		Email    string `json:"email"`
+		Username string `json:"username"`
+		UserID   string `json:"userID"`
+		Hash     string `json:"hash"`
+	}
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+	*p = password(storage.Password{
+		Email:    data.Email,
+		Username: data.Username,
+		UserID:   data.UserID,
+	})
+	if len(data.Hash) == 0 {
+		return fmt.Errorf("no password hash provided")
+	}
+
+	// If this value is a valid bcrypt, use it.
+	_, bcryptErr := bcrypt.Cost([]byte(data.Hash))
+	if bcryptErr == nil {
+		p.Hash = []byte(data.Hash)
+		return nil
+	}
+
+	// For backwards compatibility try to base64 decode this value.
+	hashBytes, err := base64.StdEncoding.DecodeString(data.Hash)
+	if err != nil {
+		return fmt.Errorf("malformed bcrypt hash: %v", bcryptErr)
+	}
+	if _, err := bcrypt.Cost(hashBytes); err != nil {
+		return fmt.Errorf("malformed bcrypt hash: %v", err)
+	}
+	p.Hash = hashBytes
+	return nil
 }
 
 // OAuth2 describes enabled OAuth2 extensions.
@@ -161,7 +204,7 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 	}
 	*c = Connector{
 		Type:   conn.Type,
-		Name:   conn.Type,
+		Name:   conn.Name,
 		ID:     conn.ID,
 		Config: connConfig,
 	}
