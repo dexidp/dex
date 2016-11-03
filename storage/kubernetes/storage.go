@@ -34,8 +34,8 @@ const (
 
 // Config values for the Kubernetes storage type.
 type Config struct {
-	InCluster      bool   `yaml:"inCluster"`
-	KubeConfigFile string `yaml:"kubeConfigFile"`
+	InCluster      bool   `json:"inCluster"`
+	KubeConfigFile string `json:"kubeConfigFile"`
 }
 
 // Open returns a storage using Kubernetes third party resource.

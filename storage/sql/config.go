@@ -12,7 +12,7 @@ import (
 // SQLite3 options for creating an SQL db.
 type SQLite3 struct {
 	// File to
-	File string `yaml:"file"`
+	File string `json:"file"`
 }
 
 // Open creates a new storage implementation backed by SQLite3

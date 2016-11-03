@@ -53,52 +53,52 @@ import (
 type Config struct {
 	// The host and optional port of the LDAP server. If port isn't supplied, it will be
 	// guessed based on the TLS configuration. 389 or 636.
-	Host string `yaml:"host"`
+	Host string `json:"host"`
 
 	// Required if LDAP host does not use TLS.
-	InsecureNoSSL bool `yaml:"insecureNoSSL"`
+	InsecureNoSSL bool `json:"insecureNoSSL"`
 
 	// Path to a trusted root certificate file.
-	RootCA string `yaml:"rootCA"`
+	RootCA string `json:"rootCA"`
 
 	// BindDN and BindPW for an application service account. The connector uses these
 	// credentials to search for users and groups.
-	BindDN string `yaml:"bindDN"`
-	BindPW string `yaml:"bindPW"`
+	BindDN string `json:"bindDN"`
+	BindPW string `json:"bindPW"`
 
 	// User entry search configuration.
 	UserSearch struct {
 		// BsaeDN to start the search from. For example "cn=users,dc=example,dc=com"
-		BaseDN string `yaml:"baseDN"`
+		BaseDN string `json:"baseDN"`
 
 		// Optional filter to apply when searching the directory. For example "(objectClass=person)"
-		Filter string `yaml:"filter"`
+		Filter string `json:"filter"`
 
 		// Attribute to match against the inputted username. This will be translated and combined
 		// with the other filter as "(<attr>=<username>)".
-		Username string `yaml:"username"`
+		Username string `json:"username"`
 
 		// Can either be:
 		// * "sub" - search the whole sub tree
 		// * "one" - only search one level
-		Scope string `yaml:"scope"`
+		Scope string `json:"scope"`
 
 		// A mapping of attributes on the user entry to claims.
-		IDAttr    string `yaml:"idAttr"`    // Defaults to "uid"
-		EmailAttr string `yaml:"emailAttr"` // Defaults to "mail"
-		NameAttr  string `yaml:"nameAttr"`  // No default.
+		IDAttr    string `json:"idAttr"`    // Defaults to "uid"
+		EmailAttr string `json:"emailAttr"` // Defaults to "mail"
+		NameAttr  string `json:"nameAttr"`  // No default.
 
-	} `yaml:"userSearch"`
+	} `json:"userSearch"`
 
 	// Group search configuration.
 	GroupSearch struct {
 		// BsaeDN to start the search from. For example "cn=groups,dc=example,dc=com"
-		BaseDN string `yaml:"baseDN"`
+		BaseDN string `json:"baseDN"`
 
 		// Optional filter to apply when searching the directory. For example "(objectClass=posixGroup)"
-		Filter string `yaml:"filter"`
+		Filter string `json:"filter"`
 
-		Scope string `yaml:"scope"` // Defaults to "sub"
+		Scope string `json:"scope"` // Defaults to "sub"
 
 		// These two fields are use to match a user to a group.
 		//
@@ -108,12 +108,12 @@ type Config struct {
 		//
 		//   (<groupAttr>=<userAttr value>)
 		//
-		UserAttr  string `yaml:"userAttr"`
-		GroupAttr string `yaml:"groupAttr"`
+		UserAttr  string `json:"userAttr"`
+		GroupAttr string `json:"groupAttr"`
 
 		// The attribute of the group that represents its name.
-		NameAttr string `yaml:"nameAttr"`
-	} `yaml:"groupSearch"`
+		NameAttr string `json:"nameAttr"`
+	} `json:"groupSearch"`
 }
 
 func parseScope(s string) (int, bool) {

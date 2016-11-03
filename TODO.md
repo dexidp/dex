@@ -48,4 +48,3 @@ Backend
 
 - [ ] Improve logging, possibly switch to logrus
 - [ ] Standardize OAuth2 error handling
-- [ ] Switch to github.com/ghodss/yaml for []byte to base64 string logic
