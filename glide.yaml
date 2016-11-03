@@ -32,6 +32,8 @@ import:
   - lex/httplex
   - trace
 
+- package: github.com/ghodss/yaml
+  version: bea76d6a4713e18b7f5321a2b020738552def3ea
 - package: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 
