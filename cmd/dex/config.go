@@ -27,6 +27,7 @@ type Config struct {
 	Web        Web         `json:"web"`
 	OAuth2     OAuth2      `json:"oauth2"`
 	GRPC       GRPC        `json:"grpc"`
+	Expiry     Expiry      `json:"expiry"`
 
 	Templates server.TemplateConfig `json:"templates"`
 
@@ -209,4 +210,13 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 		Config: connConfig,
 	}
 	return nil
+}
+
+// Expiry holds configuration for the validity period of components.
+type Expiry struct {
+	// SigningKeys defines the duration of time after which the SigningKeys will be rotated.
+	SigningKeys string `json:"signingKeys"`
+
+	// IdTokens defines the duration of time for which the IdTokens will be valid.
+	IDTokens string `json:"idTokens"`
 }
