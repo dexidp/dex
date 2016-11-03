@@ -61,6 +61,9 @@ type Config struct {
 	// Path to a trusted root certificate file.
 	RootCA string `json:"rootCA"`
 
+	// Base64 encoded PEM data containing root CAs.
+	RootCAData []byte `json:"rootCAData"`
+
 	// BindDN and BindPW for an application service account. The connector uses these
 	// credentials to search for users and groups.
 	BindDN string `json:"bindDN"`
@@ -167,6 +170,20 @@ func escapeFilter(s string) string {
 
 // Open returns an authentication strategy using LDAP.
 func (c *Config) Open() (connector.Connector, error) {
+	conn, err := c.OpenConnector()
+	if err != nil {
+		return nil, err
+	}
+	return connector.Connector(conn), nil
+}
+
+// OpenConnector is the same as Open but returns a type with all implemented connector interfaces.
+func (c *Config) OpenConnector() (interface {
+	connector.Connector
+	connector.PasswordConnector
+	connector.GroupsConnector
+}, error) {
+
 	requiredFields := []struct {
 		name string
 		val  string
@@ -196,10 +213,13 @@ func (c *Config) Open() (connector.Connector, error) {
 	}
 
 	tlsConfig := new(tls.Config)
-	if c.RootCA != "" {
-		data, err := ioutil.ReadFile(c.RootCA)
-		if err != nil {
-			return nil, fmt.Errorf("ldap: read ca file: %v", err)
+	if c.RootCA != "" || len(c.RootCAData) != 0 {
+		data := c.RootCAData
+		if len(data) == 0 {
+			var err error
+			if data, err = ioutil.ReadFile(c.RootCA); err != nil {
+				return nil, fmt.Errorf("ldap: read ca file: %v", err)
+			}
 		}
 		rootCAs := x509.NewCertPool()
 		if !rootCAs.AppendCertsFromPEM(data) {
