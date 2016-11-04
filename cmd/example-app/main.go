@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"strings"
@@ -62,6 +63,31 @@ func httpClientForRootCAs(rootCAs string) (*http.Client, error) {
 	}, nil
 }
 
+type debugTransport struct {
+	t http.RoundTripper
+}
+
+func (d debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	reqDump, err := httputil.DumpRequest(req, true)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("%s", reqDump)
+
+	resp, err := d.t.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+
+	respDump, err := httputil.DumpResponse(resp, true)
+	if err != nil {
+		resp.Body.Close()
+		return nil, err
+	}
+	log.Printf("%s", respDump)
+	return resp, nil
+}
+
 func cmd() *cobra.Command {
 	var (
 		a         app
@@ -70,6 +96,7 @@ func cmd() *cobra.Command {
 		tlsCert   string
 		tlsKey    string
 		rootCAs   string
+		debug     bool
 	)
 	c := cobra.Command{
 		Use:   "example-app",
@@ -99,6 +126,17 @@ func cmd() *cobra.Command {
 
 				// This sets the OAuth2 client and oidc client.
 				a.ctx = context.WithValue(a.ctx, oauth2.HTTPClient, client)
+			}
+
+			if debug {
+				client, ok := a.ctx.Value(oauth2.HTTPClient).(*http.Client)
+				if ok {
+					client.Transport = debugTransport{client.Transport}
+				} else {
+					a.ctx = context.WithValue(a.ctx, oauth2.HTTPClient, &http.Client{
+						Transport: debugTransport{http.DefaultTransport},
+					})
+				}
 			}
 
 			// TODO(ericchiang): Retry with backoff
@@ -161,6 +199,7 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&tlsCert, "tls-cert", "", "X509 cert file to present when serving HTTPS.")
 	c.Flags().StringVar(&tlsKey, "tls-key", "", "Private key for the HTTPS cert.")
 	c.Flags().StringVar(&rootCAs, "issuer-root-ca", "", "Root certificate authorities for the issuer. Defaults to host certs.")
+	c.Flags().BoolVar(&debug, "debug", false, "Print all request and responses from the OpenID Connect issuer.")
 	return &c
 }
 
