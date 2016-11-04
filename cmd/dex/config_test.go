@@ -56,6 +56,10 @@ staticPasswords:
   hash: "JDJhJDEwJDMzRU1UMGNWWVZsUHk2V0FNQ0xzY2VMWWpXaHVIcGJ6NXl1Wnh1L0dBRmowM0o5THl0anV5"
   username: "foo"
   userID: "41331323-6f44-45e6-b3b9-2c4b60c02be5"
+
+expiry:
+  signingKeys: "6h"
+  idTokens: "24h"
 `)
 
 	want := Config{
@@ -112,6 +116,10 @@ staticPasswords:
 				Username: "foo",
 				UserID:   "41331323-6f44-45e6-b3b9-2c4b60c02be5",
 			},
+		},
+		Expiry: Expiry{
+			SigningKeys: "6h",
+			IDTokens:    "24h",
 		},
 	}
 

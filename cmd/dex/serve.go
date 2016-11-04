@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/spf13/cobra"
@@ -151,6 +152,20 @@ func serve(cmd *cobra.Command, args []string) error {
 		Storage:                s,
 		TemplateConfig:         c.Templates,
 		EnablePasswordDB:       c.EnablePasswordDB,
+	}
+	if c.Expiry.SigningKeys != "" {
+		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
+		if err != nil {
+			return fmt.Errorf("parsing signingKeys expiry: %v", err)
+		}
+		serverConfig.RotateKeysAfter = signingKeys
+	}
+	if c.Expiry.IDTokens != "" {
+		idTokens, err := time.ParseDuration(c.Expiry.IDTokens)
+		if err != nil {
+			return fmt.Errorf("parsing idTokens expiry: %v", err)
+		}
+		serverConfig.IDTokensValidFor = idTokens
 	}
 
 	serv, err := server.NewServer(context.Background(), serverConfig)
