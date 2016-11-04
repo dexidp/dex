@@ -137,6 +137,18 @@ func TestOAuth2CodeFlow(t *testing.T) {
 	clientSecret := "testclientsecret"
 	requestedScopes := []string{oidc.ScopeOpenID, "email", "offline_access"}
 
+	t0 := time.Now().Round(time.Second)
+
+	// Always have the time function used by the server return the same time so
+	// we can predict expected values of "expires_in" fields exactly.
+	now := func() time.Time { return t0 }
+
+	// Used later when configuring test servers to set how long id_tokens will be valid for.
+	//
+	// The actual value of 30s is completely arbitrary. We just need to set a value
+	// so tests can compute the expected "expires_in" field.
+	idTokensValidFor := time.Second * 30
+
 	tests := []struct {
 		name        string
 		handleToken func(context.Context, *oidc.Provider, *oauth2.Config, *oauth2.Token) error
@@ -150,6 +162,29 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				}
 				if _, err := p.NewVerifier(ctx).Verify(idToken); err != nil {
 					return fmt.Errorf("failed to verify id token: %v", err)
+				}
+				return nil
+			},
+		},
+		{
+			name: "verify id token and oauth2 token expiry",
+			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
+				expectedExpiry := now().Add(idTokensValidFor)
+
+				if !token.Expiry.Round(time.Second).Equal(expectedExpiry) {
+					return fmt.Errorf("expected expired_in to be %s, got %s", expectedExpiry, token.Expiry)
+				}
+
+				rawIDToken, ok := token.Extra("id_token").(string)
+				if !ok {
+					return fmt.Errorf("no id token found")
+				}
+				idToken, err := p.NewVerifier(ctx).Verify(rawIDToken)
+				if err != nil {
+					return fmt.Errorf("failed to verify id token: %v", err)
+				}
+				if !idToken.Expiry.Round(time.Second).Equal(expectedExpiry) {
+					return fmt.Errorf("expected id token expiry to be %s, got %s", expectedExpiry, token.Expiry)
 				}
 				return nil
 			},
@@ -259,6 +294,8 @@ func TestOAuth2CodeFlow(t *testing.T) {
 
 			httpServer, s := newTestServer(ctx, t, func(c *Config) {
 				c.Issuer = c.Issuer + "/non-root-path"
+				c.Now = now
+				c.IDTokensValidFor = idTokensValidFor
 			})
 			defer httpServer.Close()
 
