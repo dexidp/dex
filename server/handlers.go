@@ -439,7 +439,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			v.Set("token_type", "bearer")
 			v.Set("id_token", idToken)
 			v.Set("state", authReq.State)
-			v.Set("expires_in", strconv.Itoa(int(expiry.Sub(s.now()))))
+			v.Set("expires_in", strconv.Itoa(int(expiry.Sub(s.now()).Seconds())))
 			u.Fragment = v.Encode()
 		}
 	}
@@ -637,7 +637,7 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, refreshToken s
 	}{
 		storage.NewID(),
 		"bearer",
-		int(expiry.Sub(s.now())),
+		int(expiry.Sub(s.now()).Seconds()),
 		refreshToken,
 		idToken,
 	}
