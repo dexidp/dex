@@ -80,6 +80,17 @@ message DeletePasswordResp {
   bool not_found = 1;
 }
 
+// Version holds the version info of components.
+message Version {
+  // Semantic version of the server.
+  string server = 1;
+  // Numeric version of the API.
+  int32 api = 2;
+}
+
+// VersionReq is a request to fetch version info.
+message VersionReq {}
+
 // Dex represents the dex gRPC service.
 service Dex {
   // CreateClient attempts to create the client.
@@ -92,4 +103,6 @@ service Dex {
   rpc UpdatePassword(UpdatePasswordReq) returns (UpdatePasswordResp) {};
   // DeletePassword attempts to delete the password.
   rpc DeletePassword(DeletePasswordReq) returns (DeletePasswordResp) {};
+  // Version attempts to get the version info.
+  rpc GetVersion(VersionReq) returns (Version) {};
 }
