@@ -107,7 +107,7 @@ Between v1 and v2, dex switched from REST to gRPC. This largely stemmed from pro
 Many arguments _against_ gRPC cite short term convenience rather than production use cases. Though this is a recognized shortcoming, dex already implements many features for developer convenience. For instance, users who wish to manually edit clients during testing can use the `staticClients` config field instead of the API.
 
 [grpc]: http://www.grpc.io/
-[api-proto]: https://github.com/coreos/dex/blob/v2.0.0-alpha.5/api/api.proto
+[api-proto]: ../api/api.proto
 [protoc]: https://github.com/google/protobuf/releases
 [protoc-gen-go]: https://github.com/golang/protobuf
 [google-apis]: https://github.com/google/apis-client-generator

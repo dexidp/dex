@@ -1,65 +1,32 @@
 # dex - A federated OpenID Connect provider
 
-![Caution image](Documentation/img/caution.png)
+[![GoDoc](https://godoc.org/github.com/coreos/dex?status.svg)](https://godoc.org/github.com/coreos/dex)
 
-__This is an experimental version of dex that is likely to change in
-incompatible ways.__
+![logo](Documentation/logos/dex-horizontal-color.png)
 
-dex is an OAuth2 server that presents clients with a low overhead framework for
-identifying users while leveraging existing identity services such as Google
-Accounts, FreeIPA, GitHub, etc, for actual authentication. dex sits between your
-applications and an identity service, providing a backend agnostic flavor of
-OAuth2 called [OpenID Connect](https://openid.net/connect/), a spec will allows
-dex to support:
+Dex is an OpenID Connect server that allows users to login through upstream identity providers. Clients use a standards-based OAuth2 flow to login users, while the actual authentication is performed by established user management systems such as Google, GitHub, FreeIPA, etc.
 
-* Short-lived, signed tokens with predefined fields (such as email) issued on
-behalf of users.
-* Well known discovery of OAuth2 endpoints.
+[OpenID Connect][openid-connect] is a flavor of OAuth that builds on top of OAuth2 using the JOSE standards. This allows dex to provide:
+
+* Short-lived, signed tokens with standard fields (such as email) issued on behalf of users.
+* "well-known" discovery of OAuth2 endpoints.
 * OAuth2 mechanisms such as refresh tokens and revocation for long term access.
 * Automatic signing key rotation.
 
-Any system which can query dex can cryptographically verify a users identity
-based on these tokens, allowing authentication events to be passed between
-backend services.
+Standards-based token responses allows applications to interact with any OpenID Connect server instead of writing backend specific "access_token" dances. Systems that can already consume ID Tokens issued by dex include:
 
-One such application that consumes OpenID Connect tokens is the [Kubernetes](
-http://kubernetes.io/) API server, allowing dex to provide identity for any
-Kubernetes clusters.
+* [Kubernetes][kubernetes]
+* [Amazon STS][amazon-sts]
 
-## Getting started
+## Documentation
 
-dex requires a Go installation and a GOPATH configured. Clone it down the
-correct place, and simply type `make` to compile dex.
+* [Getting started](Documentation/getting-started.md)
+* [Storage options](Documentation/storage.md)
+* [Intro to OpenID Connect](Documentation/openid-connect.md)
+* [gRPC API](Documentation/api.md)
+* Identity provider logins (coming soon!)
+* Client libraries (coming soon!)
 
-```
-git clone https://github.com/coreos/dex.git $GOPATH/src/github.com/coreos/dex
-cd $GOPATH/src/github.com/coreos/dex
-git checkout dev
-make
-```
-
-dex is a single, scalable binary that pulls all configuration from a config
-file (no command line flags at the moment). Use one of the config files defined
-in the `examples` folder to start up dex with an in-memory data store.
-
-```
-./bin/dex serve examples/config-dev.yaml
-```
-
-dex allows OAuth2 clients to be defined statically through the config file. In
-another window, run the `example-app` (an OAuth2 client). By default this is
-configured to use the client ID and secret defined in the config file.
-
-```
-./bin/example-app
-```
-
-Then to interact with dex, like any other OAuth2 provider, you must first visit
-a client app, then be prompted to login through dex. This can be achieved using
-the following steps:
-
-1. Navigate to http://localhost:5555/ in your browser.
-2. Hit "login" on the example app to be redirected to dex.
-3. Choose the "Login with Email" and enter "admin@example.com" and "password"
-4. Approve the example app's request.
-5. See the resulting token the example app claims from dex.
+[openid-connect]: https://openid.net/connect/
+[kubernetes]: http://kubernetes.io/docs/admin/authentication/#openid-connect-tokens
+[amazon-sts]: https://docs.aws.amazon.com/STS/latest/APIReference/Welcome.html

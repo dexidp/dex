@@ -1,28 +1,37 @@
 # The base path of dex and the external name of the OpenID Connect service.
-# Clients use this value to do discovery.
+# This is the canonical URL that all clients MUST use to refer to dex. If a
+# path is provided, dex's HTTP service will listen at a non-root URL.
 issuer: http://127.0.0.1:5556/dex
 
 # The storage configuration determines where dex stores its state. Supported
 # options include SQL flavors and Kubernetes third party resources.
+#
+# See the storage document at Documentation/storage.md for further information.
 storage:
   type: sqlite3
   config:
     file: examples/dex.db
 
-# Configuration for the
+# Configuration for the HTTP endpoints.
 web:
   http: 127.0.0.1:5556
-  # HTTPS options are also supported:
+  # Uncomment for HTTPS options.
   # https: 127.0.0.1:5554
   # tlsCert: /etc/dex/tls.crt
   # tlsKey: /etc/dex/tls.key
 
-# Uncomment this block to enable the gRPC API.
+# Uncomment this block to enable the gRPC API. This values MUST be different
+# from the HTTP endpoints.
 # grpc:
 #   addr: 127.0.0.1:5557
 #   tlsCert: /etc/dex/grpc.crt
 #   tlsKey: /etc/dex/grpc.key
 #   tlsClientCA: /etc/dex/client.crt
+
+# Uncomment this block to enable configuration for the expiration time durations.
+# expiry:
+#   signingKeys: "6h"
+#   idTokens: "24h"
 
 # Instead of reading from an external storage, use this list of clients.
 #
@@ -43,12 +52,12 @@ connectors:
 #   name: Google
 #   config:
 #     issuer: https://accounts.google.com
-#     #  Config values starting with a "$" will read from the environment.
+#     # Connector config values starting with a "$" will read from the environment.
 #     clientID: $GOOGLE_CLIENT_ID
 #     clientSecret: $GOOGLE_CLIENT_SECRET
-#     redirectURI: http://127.0.0.1:5556/dex/callback/google
+#     redirectURI: http://127.0.0.1:5556/dex/google
 
-# Let dex keep a list of passwords which can be used to login the user
+# Let dex keep a list of passwords which can be used to login to dex.
 enablePasswordDB: true
 
 # A static list of passwords to login the end user. By identifying here, dex
@@ -61,8 +70,3 @@ staticPasswords:
   hash: "$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"
   username: "admin"
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
-
-# Uncomment this block to enable configuration for the expiration time durations.
-# expiry:
-#   signingKeys: "6h"
-#   idTokens: "24h"
