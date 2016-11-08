@@ -21,12 +21,22 @@ Standards-based token responses allows applications to interact with any OpenID 
 ## Documentation
 
 * [Getting started](Documentation/getting-started.md)
+* [What's new in v2](Documentation/v2.md)
 * [Storage options](Documentation/storage.md)
 * [Intro to OpenID Connect](Documentation/openid-connect.md)
 * [gRPC API](Documentation/api.md)
 * Identity provider logins (coming soon!)
 * Client libraries (coming soon!)
 
+## Getting help
+
+* For bugs and feature requests (including documentation!), file an [issue][issues].
+* For general discussion about both using and developing dex, join the [dex-dev][dex-dev] mailing list.
+* For more details on dex development plans, check out the GitHub [milestones][milestones].
+
 [openid-connect]: https://openid.net/connect/
 [kubernetes]: http://kubernetes.io/docs/admin/authentication/#openid-connect-tokens
 [amazon-sts]: https://docs.aws.amazon.com/STS/latest/APIReference/Welcome.html
+[issues]: https://github.com/coreos/dex/milestones
+[dex-dev]: https://github.com/coreos/dex/milestones
+[milestones]: https://github.com/coreos/dex/milestones
