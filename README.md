@@ -37,6 +37,6 @@ Standards-based token responses allows applications to interact with any OpenID 
 [openid-connect]: https://openid.net/connect/
 [kubernetes]: http://kubernetes.io/docs/admin/authentication/#openid-connect-tokens
 [amazon-sts]: https://docs.aws.amazon.com/STS/latest/APIReference/Welcome.html
-[issues]: https://github.com/coreos/dex/milestones
-[dex-dev]: https://github.com/coreos/dex/milestones
+[issues]: https://github.com/coreos/dex/issues
+[dex-dev]: https://groups.google.com/forum/#!forum/dex-dev
 [milestones]: https://github.com/coreos/dex/milestones
