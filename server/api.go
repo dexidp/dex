@@ -10,7 +10,12 @@ import (
 
 	"github.com/coreos/dex/api"
 	"github.com/coreos/dex/storage"
+	"github.com/coreos/dex/version"
 )
+
+// apiVersion increases everytime a new call is added to the API. Clients should use this info
+// to determine if the server supports specific features.
+const apiVersion = 0
 
 // NewAPI returns a server which implements the gRPC API interface.
 func NewAPI(s storage.Storage) api.DexServer {
@@ -158,4 +163,11 @@ func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) 
 	}
 	return &api.DeletePasswordResp{}, nil
 
+}
+
+func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.VersionResp, error) {
+	return &api.VersionResp{
+		Server: version.Version,
+		Api:    apiVersion,
+	}, nil
 }
