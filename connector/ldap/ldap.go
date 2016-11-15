@@ -212,7 +212,7 @@ func (c *Config) OpenConnector() (interface {
 		}
 	}
 
-	tlsConfig := new(tls.Config)
+	tlsConfig := &tls.Config{ServerName: host}
 	if c.RootCA != "" || len(c.RootCAData) != 0 {
 		data := c.RootCAData
 		if len(data) == 0 {
@@ -226,9 +226,6 @@ func (c *Config) OpenConnector() (interface {
 			return nil, fmt.Errorf("ldap: no certs found in ca file")
 		}
 		tlsConfig.RootCAs = rootCAs
-		// NOTE(ericchiang): This was required for our internal LDAP server
-		// but might be because of an issue with our root CA.
-		tlsConfig.ServerName = host
 	}
 	userSearchScope, ok := parseScope(c.UserSearch.Scope)
 	if !ok {
