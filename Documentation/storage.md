@@ -117,7 +117,7 @@ Because SQLite3 uses file locks to prevent race conditions, if the ":memory:" va
 
 When using Postgres, admins may want to dedicate a database to dex for the following reasons:
 
-1. Dex requires privileged access ot its database because it performs migrations.
+1. Dex requires privileged access to its database because it performs migrations.
 2. Dex's database table names are not configurable; when shared with other applications there may be table name clashes.
 
 ```
