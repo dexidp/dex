@@ -285,6 +285,22 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 	password.Username = "jane doe"
 	getAndCompare("jane@example.com", password)
 
+	var passwordList []storage.Password
+	passwordList = append(passwordList, password)
+
+	listAndCompare := func(want []storage.Password) {
+		passwords, err := s.ListPasswords()
+		if err != nil {
+			t.Errorf("list password: %v", err)
+			return
+		}
+		if diff := pretty.Compare(want, passwords); diff != "" {
+			t.Errorf("password list retrieved from storage did not match: %s", diff)
+		}
+	}
+
+	listAndCompare(passwordList)
+
 	if err := s.DeletePassword(password.Email); err != nil {
 		t.Fatalf("failed to delete password: %v", err)
 	}
@@ -292,6 +308,7 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 	if _, err := s.GetPassword(password.Email); err != storage.ErrNotFound {
 		t.Errorf("after deleting password expected storage.ErrNotFound, got %v", err)
 	}
+
 }
 
 func testKeysCRUD(t *testing.T, s storage.Storage) {

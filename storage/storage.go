@@ -70,6 +70,7 @@ type Storage interface {
 
 	ListClients() ([]Client, error)
 	ListRefreshTokens() ([]RefreshToken, error)
+	ListPasswords() ([]Password, error)
 
 	// Delete methods MUST be atomic.
 	DeleteAuthRequest(id string) error

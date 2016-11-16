@@ -192,6 +192,15 @@ func (s *memStorage) ListRefreshTokens() (tokens []storage.RefreshToken, err err
 	return
 }
 
+func (s *memStorage) ListPasswords() (passwords []storage.Password, err error) {
+	s.tx(func() {
+		for _, password := range s.passwords {
+			passwords = append(passwords, password)
+		}
+	})
+	return
+}
+
 func (s *memStorage) DeletePassword(email string) (err error) {
 	email = strings.ToLower(email)
 	s.tx(func() {

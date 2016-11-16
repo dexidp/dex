@@ -532,12 +532,39 @@ func (c *conn) GetPassword(email string) (storage.Password, error) {
 }
 
 func getPassword(q querier, email string) (p storage.Password, err error) {
-	email = strings.ToLower(email)
-	err = q.QueryRow(`
+	return scanPassword(q.QueryRow(`
 		select
 			email, hash, username, user_id
 		from password where email = $1;
-	`, email).Scan(
+	`, strings.ToLower(email)))
+}
+
+func (c *conn) ListPasswords() ([]storage.Password, error) {
+	rows, err := c.Query(`
+		select
+			email, hash, username, user_id
+		from password;
+	`)
+	if err != nil {
+		return nil, err
+	}
+
+	var passwords []storage.Password
+	for rows.Next() {
+		p, err := scanPassword(rows)
+		if err != nil {
+			return nil, err
+		}
+		passwords = append(passwords, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return passwords, nil
+}
+
+func scanPassword(s scanner) (p storage.Password, err error) {
+	err = s.Scan(
 		&p.Email, &p.Hash, &p.Username, &p.UserID,
 	)
 	if err != nil {
