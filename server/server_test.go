@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -17,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ericchiang/oidc"
+	oidc "github.com/coreos/go-oidc"
 	"github.com/kylelemons/godebug/pretty"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/context"
@@ -117,17 +118,21 @@ func TestDiscovery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get provider: %v", err)
 	}
-	required := []struct {
-		name, val string
-	}{
-		{"issuer", p.Issuer},
-		{"authorization_endpoint", p.AuthURL},
-		{"token_endpoint", p.TokenURL},
-		{"jwks_uri", p.JWKSURL},
+
+	var got map[string]*json.RawMessage
+	if err := p.Claims(&got); err != nil {
+		t.Fatalf("failed to decode claims: %v", err)
+	}
+
+	required := []string{
+		"issuer",
+		"authorization_endpoint",
+		"token_endpoint",
+		"jwks_uri",
 	}
 	for _, field := range required {
-		if field.val == "" {
-			t.Errorf("server discovery is missing required field %q", field.name)
+		if _, ok := got[field]; !ok {
+			t.Errorf("server discovery is missing required field %q", field)
 		}
 	}
 }
@@ -169,7 +174,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				if !ok {
 					return fmt.Errorf("no id token found")
 				}
-				if _, err := p.NewVerifier(ctx).Verify(idToken); err != nil {
+				if _, err := p.Verifier().Verify(ctx, idToken); err != nil {
 					return fmt.Errorf("failed to verify id token: %v", err)
 				}
 				return nil
@@ -192,7 +197,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				if !ok {
 					return fmt.Errorf("no id token found")
 				}
-				idToken, err := p.NewVerifier(ctx).Verify(rawIDToken)
+				idToken, err := p.Verifier().Verify(ctx, rawIDToken)
 				if err != nil {
 					return fmt.Errorf("failed to verify id token: %v", err)
 				}
@@ -230,7 +235,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				v.Add("grant_type", "refresh_token")
 				v.Add("refresh_token", token.RefreshToken)
 				v.Add("scope", strings.Join(requestedScopes, " "))
-				resp, err := http.PostForm(p.TokenURL, v)
+				resp, err := http.PostForm(p.Endpoint().TokenURL, v)
 				if err != nil {
 					return err
 				}
@@ -258,7 +263,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				// Since we support that client we choose to be more relaxed about
 				// scope parsing, disregarding extra whitespace.
 				v.Add("scope", " "+strings.Join(requestedScopes, " "))
-				resp, err := http.PostForm(p.TokenURL, v)
+				resp, err := http.PostForm(p.Endpoint().TokenURL, v)
 				if err != nil {
 					return err
 				}
@@ -284,7 +289,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				v.Add("refresh_token", token.RefreshToken)
 				// Request a scope that wasn't requestd initially.
 				v.Add("scope", "oidc email profile")
-				resp, err := http.PostForm(p.TokenURL, v)
+				resp, err := http.PostForm(p.Endpoint().TokenURL, v)
 				if err != nil {
 					return err
 				}
@@ -335,7 +340,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				if !ok {
 					return fmt.Errorf("no id_token in refreshed token")
 				}
-				idToken, err := p.NewVerifier(ctx).Verify(rawIDToken)
+				idToken, err := p.Verifier().Verify(ctx, rawIDToken)
 				if err != nil {
 					return fmt.Errorf("failed to verify id token: %v", err)
 				}
@@ -547,7 +552,7 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 
 	src := &nonceSource{nonce: nonce}
 
-	idTokenVerifier := p.NewVerifier(ctx, oidc.VerifyAudience(client.ID), oidc.VerifyNonce(src))
+	idTokenVerifier := p.Verifier(oidc.VerifyAudience(client.ID), oidc.VerifyNonce(src))
 
 	oauth2Config = &oauth2.Config{
 		ClientID:     client.ID,
@@ -569,7 +574,7 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 		if idToken == "" {
 			return errors.New("no id_token in fragment")
 		}
-		if _, err := idTokenVerifier.Verify(idToken); err != nil {
+		if _, err := idTokenVerifier.Verify(ctx, idToken); err != nil {
 			return fmt.Errorf("failed to verify id_token: %v", err)
 		}
 		return nil
@@ -664,7 +669,7 @@ func TestCrossClientScopes(t *testing.T) {
 					t.Errorf("no id token found: %v", err)
 					return
 				}
-				idToken, err := p.NewVerifier(ctx).Verify(rawIDToken)
+				idToken, err := p.Verifier().Verify(ctx, rawIDToken)
 				if err != nil {
 					t.Errorf("failed to parse ID Token: %v", err)
 					return
