@@ -22,6 +22,16 @@ import (
 	"testing"
 )
 
+func TestEmbeddedHMAC(t *testing.T) {
+	// protected: {"alg":"HS256", "jwk":{"kty":"oct", "k":"MTEx"}}, aka HMAC key.
+	msg := `{"payload":"TG9yZW0gaXBzdW0gZG9sb3Igc2l0IGFtZXQ","protected":"eyJhbGciOiJIUzI1NiIsICJqd2siOnsia3R5Ijoib2N0IiwgImsiOiJNVEV4In19","signature":"lvo41ZZsuHwQvSh0uJtEXRR3vmuBJ7in6qMoD7p9jyo"}`
+
+	_, err := ParseSigned(msg)
+	if err == nil {
+		t.Error("should not allow parsing JWS with embedded JWK with HMAC key")
+	}
+}
+
 func TestCompactParseJWS(t *testing.T) {
 	// Should parse
 	msg := "eyJhbGciOiJYWVoifQ.cGF5bG9hZA.c2lnbmF0dXJl"

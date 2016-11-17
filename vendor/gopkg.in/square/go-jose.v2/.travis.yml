@@ -10,9 +10,10 @@ matrix:
 go:
 - 1.5
 - 1.6
+- 1.7
 - tip
 
-go_import_path: gopkg.in/square/go-jose.v1
+go_import_path: gopkg.in/square/go-jose.v2
 
 before_script:
 - export PATH=$HOME/.local/bin:$PATH
@@ -32,7 +33,6 @@ before_install:
 
 script:
 - go test . -v -covermode=count -coverprofile=profile.cov
-- go test . -tags std_json -v -covermode=count -coverprofile=profile-std-json.cov
 - go test ./cipher -v -covermode=count -coverprofile=cipher/profile.cov
 - go test ./jwt -v -covermode=count -coverprofile=jwt/profile.cov
 - go test ./json -v # no coverage for forked encoding/json package

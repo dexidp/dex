@@ -283,7 +283,7 @@ func TestTruncatedCiphertext(t *testing.T) {
 	ct := aead.Seal(nil, nonce, data, nil)
 
 	// Truncated ciphertext, but with correct auth tag
-	truncated, tail := resize(ct[:len(ct)-ctx.authtagBytes-2], len(ct)-2)
+	truncated, tail := resize(ct[:len(ct)-ctx.authtagBytes-2], uint64(len(ct))-2)
 	copy(tail, ctx.computeAuthTag(nil, nonce, truncated[:len(truncated)-ctx.authtagBytes]))
 
 	// Open should fail
@@ -313,8 +313,8 @@ func TestInvalidPaddingOpen(t *testing.T) {
 	ctx := aead.(*cbcAEAD)
 
 	// Mutated ciphertext, but with correct auth tag
-	size := len(buffer)
-	ciphertext, tail := resize(buffer, size+(len(key)/2))
+	size := uint64(len(buffer))
+	ciphertext, tail := resize(buffer, size+(uint64(len(key))/2))
 	copy(tail, ctx.computeAuthTag(nil, nonce, ciphertext[:size]))
 
 	// Open should fail (b/c of invalid padding, even though tag matches)

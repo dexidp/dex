@@ -1,12 +1,12 @@
-hash: bc7fa6bbfddcb39710064a9d6dab090d49bd88486571cae12c68c4b70093e716
-updated: 2016-11-03T14:31:37.323302694-07:00
+hash: c3530f2a60a64c2efc4c3ac499fcd15f79de2a532715ba2b9841c1d404942b2e
+updated: 2016-11-17T15:18:56.701287533-08:00
 imports:
 - name: github.com/cockroachdb/cockroach-go
   version: 31611c0501c812f437d4861d87d117053967c955
   subpackages:
   - crdb
-- name: github.com/ericchiang/oidc
-  version: 1907f0e61549f9081f26bdf269f11603496c9dee
+- name: github.com/coreos/go-oidc
+  version: 5a7f09ab5787e846efa7f56f4a08b6d6926d08c4
 - name: github.com/ghodss/yaml
   version: bea76d6a4713e18b7f5321a2b020738552def3ea
 - name: github.com/go-sql-driver/mysql
@@ -52,6 +52,7 @@ imports:
   version: 6a513affb38dc9788b449d59ffed099b8de18fa0
   subpackages:
   - context
+  - context/ctxhttp
   - http2
   - http2/hpack
   - internal/timeseries
@@ -87,13 +88,8 @@ imports:
   version: 4e86f4367175e39f69d9358a5f17b4dda270378d
 - name: gopkg.in/ldap.v2
   version: 0e7db8eb77695b5a952f0e5d78df9ab160050c73
-- name: gopkg.in/square/go-jose.v1
-  version: e3f973b66b91445ec816dd7411ad1b6495a5a2fc
-  subpackages:
-  - cipher
-  - json
 - name: gopkg.in/square/go-jose.v2
-  version: f209f41628247c56938cb20ef51d589ddad6c30b
+  version: 8c5257b2f658f86d174ae68c6a592eaf6a9608d9
   subpackages:
   - cipher
   - json

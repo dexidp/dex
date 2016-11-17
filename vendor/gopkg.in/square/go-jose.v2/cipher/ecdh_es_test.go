@@ -48,7 +48,7 @@ var bobKey = &ecdsa.PrivateKey{
 func fromBase64Int(data string) *big.Int {
 	val, err := base64.URLEncoding.DecodeString(data)
 	if err != nil {
-		panic("Invalid test data")
+		panic("Invalid test data: " + err.Error())
 	}
 	return new(big.Int).SetBytes(val)
 }
@@ -65,6 +65,23 @@ func TestVectorECDHES(t *testing.T) {
 	if bytes.Compare(output, expected) != 0 {
 		t.Error("output did not match what we expect, got", output, "wanted", expected)
 	}
+}
+
+func TestInvalidECPublicKey(t *testing.T) {
+	defer func() { recover() }()
+
+	// Invalid key
+	invalid := &ecdsa.PrivateKey{
+		PublicKey: ecdsa.PublicKey{
+			Curve: elliptic.P256(),
+			X:     fromBase64Int("MTEx"),
+			Y:     fromBase64Int("MTEx"),
+		},
+		D: fromBase64Int("0_NxaRPUMQoAJt50Gz8YiTr8gRTwyEaCumd-MToTmIo="),
+	}
+
+	DeriveECDHES("A128GCM", []byte{}, []byte{}, bobKey, &invalid.PublicKey, 16)
+	t.Fatal("should panic if public key was invalid")
 }
 
 func BenchmarkECDHES_128(b *testing.B) {
