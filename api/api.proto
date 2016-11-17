@@ -80,6 +80,14 @@ message DeletePasswordResp {
   bool not_found = 1;
 }
 
+// ListPasswordReq is a request to enumerate passwords.
+message ListPasswordReq {}
+
+// ListPasswordResp returs a list of passwords.
+message ListPasswordResp {
+  repeated Password passwords = 1;
+}
+
 // VersionReq is a request to fetch version info.
 message VersionReq {}
 
@@ -104,6 +112,8 @@ service Dex {
   rpc UpdatePassword(UpdatePasswordReq) returns (UpdatePasswordResp) {};
   // DeletePassword deletes the password.
   rpc DeletePassword(DeletePasswordReq) returns (DeletePasswordResp) {};
+  // ListPassword lists all password entries.
+  rpc ListPasswords(ListPasswordReq) returns (ListPasswordResp) {};
   // GetVersion returns version information of the server.
   rpc GetVersion(VersionReq) returns (VersionResp) {};
 }
