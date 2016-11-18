@@ -260,6 +260,25 @@ func (cli *client) ListRefreshTokens() ([]storage.RefreshToken, error) {
 	return nil, errors.New("not implemented")
 }
 
+func (cli *client) ListPasswords() (passwords []storage.Password, err error) {
+	var passwordList PasswordList
+	if err = cli.list(resourcePassword, &passwordList); err != nil {
+		return passwords, fmt.Errorf("failed to list passwords: %v", err)
+	}
+
+	for _, password := range passwordList.Passwords {
+		p := storage.Password{
+			Email:    password.Email,
+			Hash:     password.Hash,
+			Username: password.Username,
+			UserID:   password.UserID,
+		}
+		passwords = append(passwords, p)
+	}
+
+	return
+}
+
 func (cli *client) DeleteAuthRequest(id string) error {
 	return cli.delete(resourceAuthRequest, id)
 }

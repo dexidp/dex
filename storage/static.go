@@ -60,6 +60,8 @@ func (s staticClientsStorage) UpdateClient(id string, updater func(old Client) (
 type staticPasswordsStorage struct {
 	Storage
 
+	// A read-only set of passwords.
+	passwords        []Password
 	passwordsByEmail map[string]Password
 }
 
@@ -71,7 +73,7 @@ func WithStaticPasswords(s Storage, staticPasswords []Password) Storage {
 		p.Email = strings.ToLower(p.Email)
 		passwordsByEmail[p.Email] = p
 	}
-	return staticPasswordsStorage{s, passwordsByEmail}
+	return staticPasswordsStorage{s, staticPasswords, passwordsByEmail}
 }
 
 func (s staticPasswordsStorage) GetPassword(email string) (Password, error) {
@@ -79,6 +81,12 @@ func (s staticPasswordsStorage) GetPassword(email string) (Password, error) {
 		return password, nil
 	}
 	return Password{}, ErrNotFound
+}
+
+func (s staticPasswordsStorage) ListPasswords() ([]Password, error) {
+	passwords := make([]Password, len(s.passwords))
+	copy(passwords, s.passwords)
+	return passwords, nil
 }
 
 func (s staticPasswordsStorage) CreatePassword(p Password) error {

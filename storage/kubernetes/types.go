@@ -259,6 +259,13 @@ type Password struct {
 	UserID   string `json:"userID,omitempty"`
 }
 
+// PasswordList is a list of Passwords.
+type PasswordList struct {
+	k8sapi.TypeMeta `json:",inline"`
+	k8sapi.ListMeta `json:"metadata,omitempty"`
+	Passwords       []Password `json:"items"`
+}
+
 func (cli *client) fromStoragePassword(p storage.Password) Password {
 	email := strings.ToLower(p.Email)
 	return Password{

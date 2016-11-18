@@ -171,3 +171,26 @@ func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.Versi
 		Api:    apiVersion,
 	}, nil
 }
+
+func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*api.ListPasswordResp, error) {
+	passwordList, err := d.s.ListPasswords()
+	if err != nil {
+		log.Printf("api: failed to list passwords: %v", err)
+		return nil, fmt.Errorf("list passwords: %v", err)
+	}
+
+	var passwords []*api.Password
+	for _, password := range passwordList {
+		p := api.Password{
+			Email:    password.Email,
+			Username: password.Username,
+			UserId:   password.UserID,
+		}
+		passwords = append(passwords, &p)
+	}
+
+	return &api.ListPasswordResp{
+		Passwords: passwords,
+	}, nil
+
+}

@@ -5,6 +5,7 @@ package conformance
 
 import (
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
@@ -244,6 +245,12 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 	}
 }
 
+type byEmail []storage.Password
+
+func (n byEmail) Len() int           { return len(n) }
+func (n byEmail) Less(i, j int) bool { return n[i].Email < n[j].Email }
+func (n byEmail) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
+
 func testPasswordCRUD(t *testing.T, s storage.Storage) {
 	// Use bcrypt.MinCost to keep the tests short.
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte("secret"), bcrypt.MinCost)
@@ -285,6 +292,24 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 	password.Username = "jane doe"
 	getAndCompare("jane@example.com", password)
 
+	var passwordList []storage.Password
+	passwordList = append(passwordList, password)
+
+	listAndCompare := func(want []storage.Password) {
+		passwords, err := s.ListPasswords()
+		if err != nil {
+			t.Errorf("list password: %v", err)
+			return
+		}
+		sort.Sort(byEmail(want))
+		sort.Sort(byEmail(passwords))
+		if diff := pretty.Compare(want, passwords); diff != "" {
+			t.Errorf("password list retrieved from storage did not match: %s", diff)
+		}
+	}
+
+	listAndCompare(passwordList)
+
 	if err := s.DeletePassword(password.Email); err != nil {
 		t.Fatalf("failed to delete password: %v", err)
 	}
@@ -292,6 +317,7 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 	if _, err := s.GetPassword(password.Email); err != storage.ErrNotFound {
 		t.Errorf("after deleting password expected storage.ErrNotFound, got %v", err)
 	}
+
 }
 
 func testKeysCRUD(t *testing.T, s storage.Storage) {
