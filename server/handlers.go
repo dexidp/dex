@@ -110,7 +110,7 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 		Keys:        s.absURL("/keys"),
 		Subjects:    []string{"public"},
 		IDTokenAlgs: []string{string(jose.RS256)},
-		Scopes:      []string{"openid", "email", "profile", "offline_access"},
+		Scopes:      []string{"openid", "email", "groups", "profile", "offline_access"},
 		AuthMethods: []string{"client_secret_basic"},
 		Claims: []string{
 			"aud", "email", "email_verified", "exp",
