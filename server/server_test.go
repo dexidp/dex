@@ -137,7 +137,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 	clientSecret := "testclientsecret"
 	requestedScopes := []string{oidc.ScopeOpenID, "email", "offline_access"}
 
-	t0 := time.Now().Round(time.Second)
+	t0 := time.Now()
 
 	// Always have the time function used by the server return the same time so
 	// we can predict expected values of "expires_in" fields exactly.
@@ -171,7 +171,11 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
 				expectedExpiry := now().Add(idTokensValidFor)
 
-				if !token.Expiry.Round(time.Second).Equal(expectedExpiry) {
+				timeEq := func(t1, t2 time.Time, within time.Duration) bool {
+					return t1.Sub(t2) < within
+				}
+
+				if !timeEq(token.Expiry, expectedExpiry, time.Second) {
 					return fmt.Errorf("expected expired_in to be %s, got %s", expectedExpiry, token.Expiry)
 				}
 
@@ -183,7 +187,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				if err != nil {
 					return fmt.Errorf("failed to verify id token: %v", err)
 				}
-				if !idToken.Expiry.Round(time.Second).Equal(expectedExpiry) {
+				if !timeEq(idToken.Expiry, expectedExpiry, time.Second) {
 					return fmt.Errorf("expected id token expiry to be %s, got %s", expectedExpiry, token.Expiry)
 				}
 				return nil
