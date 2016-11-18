@@ -662,7 +662,6 @@ func TestCrossClientScopes(t *testing.T) {
 func TestPasswordDB(t *testing.T) {
 	s := memory.New()
 	conn := newPasswordDB(s)
-	defer conn.Close()
 
 	pw := "hi"
 
@@ -712,7 +711,7 @@ func TestPasswordDB(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		ident, valid, err := conn.Login(tc.username, tc.password)
+		ident, valid, err := conn.Login(context.Background(), connector.Scopes{}, tc.username, tc.password)
 		if err != nil {
 			if !tc.wantErr {
 				t.Errorf("%s: %v", tc.name, err)

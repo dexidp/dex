@@ -2,11 +2,12 @@
 package mock
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+
+	"golang.org/x/net/context"
 
 	"github.com/coreos/dex/connector"
 )
@@ -19,7 +20,6 @@ func NewCallbackConnector() connector.Connector {
 
 var (
 	_ connector.CallbackConnector = callbackConnector{}
-	_ connector.GroupsConnector   = callbackConnector{}
 
 	_ connector.PasswordConnector = passwordConnector{}
 )
@@ -28,7 +28,7 @@ type callbackConnector struct{}
 
 func (m callbackConnector) Close() error { return nil }
 
-func (m callbackConnector) LoginURL(callbackURL, state string) (string, error) {
+func (m callbackConnector) LoginURL(s connector.Scopes, callbackURL, state string) (string, error) {
 	u, err := url.Parse(callbackURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse callbackURL %q: %v", callbackURL, err)
@@ -41,21 +41,20 @@ func (m callbackConnector) LoginURL(callbackURL, state string) (string, error) {
 
 var connectorData = []byte("foobar")
 
-func (m callbackConnector) HandleCallback(r *http.Request) (connector.Identity, error) {
+func (m callbackConnector) HandleCallback(s connector.Scopes, r *http.Request) (connector.Identity, error) {
+	var groups []string
+	if s.Groups {
+		groups = []string{"authors"}
+	}
+
 	return connector.Identity{
 		UserID:        "0-385-28089-0",
 		Username:      "Kilgore Trout",
 		Email:         "kilgore@kilgore.trout",
 		EmailVerified: true,
+		Groups:        groups,
 		ConnectorData: connectorData,
 	}, nil
-}
-
-func (m callbackConnector) Groups(identity connector.Identity) ([]string, error) {
-	if !bytes.Equal(identity.ConnectorData, connectorData) {
-		return nil, errors.New("connector data mismatch")
-	}
-	return []string{"authors"}, nil
 }
 
 // CallbackConfig holds the configuration parameters for a connector which requires no interaction.
@@ -91,7 +90,7 @@ type passwordConnector struct {
 
 func (p passwordConnector) Close() error { return nil }
 
-func (p passwordConnector) Login(username, password string) (identity connector.Identity, validPassword bool, err error) {
+func (p passwordConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (identity connector.Identity, validPassword bool, err error) {
 	if username == p.username && password == p.password {
 		return connector.Identity{
 			UserID:        "0-385-28089-0",

@@ -75,7 +75,7 @@ func (c *oidcConnector) Close() error {
 	return nil
 }
 
-func (c *oidcConnector) LoginURL(callbackURL, state string) (string, error) {
+func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) (string, error) {
 	if c.redirectURI != callbackURL {
 		return "", fmt.Errorf("expected callback URL did not match the URL in the config")
 	}
@@ -94,7 +94,7 @@ func (e *oauth2Error) Error() string {
 	return e.error + ": " + e.errorDescription
 }
 
-func (c *oidcConnector) HandleCallback(r *http.Request) (identity connector.Identity, err error) {
+func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, &oauth2Error{errType, q.Get("error_description")}

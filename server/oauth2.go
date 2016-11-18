@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/storage"
 )
 
@@ -92,6 +93,19 @@ const (
 	responseTypeToken   = "token"    // Implicit flow for frontend apps.
 	responseTypeIDToken = "id_token" // ID Token in url fragment
 )
+
+func parseScopes(scopes []string) connector.Scopes {
+	var s connector.Scopes
+	for _, scope := range scopes {
+		switch scope {
+		case scopeOfflineAccess:
+			s.OfflineAccess = true
+		case scopeGroups:
+			s.Groups = true
+		}
+	}
+	return s
+}
 
 type audience []string
 

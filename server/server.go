@@ -211,9 +211,7 @@ type passwordDB struct {
 	s storage.Storage
 }
 
-func (db passwordDB) Close() error { return nil }
-
-func (db passwordDB) Login(email, password string) (connector.Identity, bool, error) {
+func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, password string) (connector.Identity, bool, error) {
 	p, err := db.s.GetPassword(email)
 	if err != nil {
 		if err != storage.ErrNotFound {
@@ -231,6 +229,31 @@ func (db passwordDB) Login(email, password string) (connector.Identity, bool, er
 		Email:         p.Email,
 		EmailVerified: true,
 	}, true, nil
+}
+
+func (db passwordDB) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+	// If the user has been deleted, the refresh token will be rejected.
+	p, err := db.s.GetPassword(identity.Email)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			return connector.Identity{}, errors.New("user not found")
+		}
+		return connector.Identity{}, fmt.Errorf("get password: %v", err)
+	}
+
+	// User removed but a new user with the same email exists.
+	if p.UserID != identity.UserID {
+		return connector.Identity{}, errors.New("user not found")
+	}
+
+	// If a user has updated their username, that will be reflected in the
+	// refreshed token.
+	//
+	// No other fields are expected to be refreshable as email is effectively used
+	// as an ID and this implementation doesn't deal with groups.
+	identity.Username = p.Username
+
+	return identity, nil
 }
 
 // newKeyCacher returns a storage which caches keys so long as the next

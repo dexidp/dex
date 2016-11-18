@@ -179,7 +179,13 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 
 	authReqID := r.FormValue("req")
 
-	// TODO(ericchiang): cache user identity.
+	authReq, err := s.storage.GetAuthRequest(authReqID)
+	if err != nil {
+		log.Printf("Failed to get auth request: %v", err)
+		s.renderError(w, http.StatusInternalServerError, errServerError, "")
+		return
+	}
+	scopes := parseScopes(authReq.Scopes)
 
 	switch r.Method {
 	case "GET":
@@ -199,7 +205,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			// Use the auth request ID as the "state" token.
 			//
 			// TODO(ericchiang): Is this appropriate or should we also be using a nonce?
-			callbackURL, err := conn.LoginURL(s.absURL("/callback"), authReqID)
+			callbackURL, err := conn.LoginURL(scopes, s.absURL("/callback"), authReqID)
 			if err != nil {
 				log.Printf("Connector %q returned error when creating callback: %v", connID, err)
 				s.renderError(w, http.StatusInternalServerError, errServerError, "")
@@ -221,7 +227,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		username := r.FormValue("login")
 		password := r.FormValue("password")
 
-		identity, ok, err := passwordConnector.Login(username, password)
+		identity, ok, err := passwordConnector.Login(r.Context(), scopes, username, password)
 		if err != nil {
 			log.Printf("Failed to login user: %v", err)
 			s.renderError(w, http.StatusInternalServerError, errServerError, "")
@@ -229,12 +235,6 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		}
 		if !ok {
 			s.templates.password(w, authReqID, r.URL.String(), username, true)
-			return
-		}
-		authReq, err := s.storage.GetAuthRequest(authReqID)
-		if err != nil {
-			log.Printf("Failed to get auth request: %v", err)
-			s.renderError(w, http.StatusInternalServerError, errServerError, "")
 			return
 		}
 		redirectURL, err := s.finalizeLogin(identity, authReq, conn.Connector)
@@ -286,7 +286,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	identity, err := callbackConnector.HandleCallback(r)
+	identity, err := callbackConnector.HandleCallback(parseScopes(authReq.Scopes), r)
 	if err != nil {
 		log.Printf("Failed to authenticate: %v", err)
 		s.renderError(w, http.StatusInternalServerError, errServerError, "")
@@ -304,34 +304,12 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (string, error) {
-	if authReq.ConnectorID == "" {
-
-	}
-
 	claims := storage.Claims{
 		UserID:        identity.UserID,
 		Username:      identity.Username,
 		Email:         identity.Email,
 		EmailVerified: identity.EmailVerified,
-	}
-
-	groupsConn, ok := conn.(connector.GroupsConnector)
-	if ok {
-		reqGroups := func() bool {
-			for _, scope := range authReq.Scopes {
-				if scope == scopeGroups {
-					return true
-				}
-			}
-			return false
-		}()
-		if reqGroups {
-			groups, err := groupsConn.Groups(identity)
-			if err != nil {
-				return "", fmt.Errorf("getting groups: %v", err)
-			}
-			claims.Groups = groups
-		}
+		Groups:        identity.Groups,
 	}
 
 	updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
@@ -407,14 +385,15 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		switch responseType {
 		case responseTypeCode:
 			code := storage.AuthCode{
-				ID:          storage.NewID(),
-				ClientID:    authReq.ClientID,
-				ConnectorID: authReq.ConnectorID,
-				Nonce:       authReq.Nonce,
-				Scopes:      authReq.Scopes,
-				Claims:      authReq.Claims,
-				Expiry:      s.now().Add(time.Minute * 30),
-				RedirectURI: authReq.RedirectURI,
+				ID:            storage.NewID(),
+				ClientID:      authReq.ClientID,
+				ConnectorID:   authReq.ConnectorID,
+				Nonce:         authReq.Nonce,
+				Scopes:        authReq.Scopes,
+				Claims:        authReq.Claims,
+				Expiry:        s.now().Add(time.Minute * 30),
+				RedirectURI:   authReq.RedirectURI,
+				ConnectorData: authReq.ConnectorData,
 			}
 			if err := s.storage.CreateAuthCode(code); err != nil {
 				log.Printf("Failed to create auth code: %v", err)
@@ -537,12 +516,13 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	var refreshToken string
 	if reqRefresh {
 		refresh := storage.RefreshToken{
-			RefreshToken: storage.NewID(),
-			ClientID:     authCode.ClientID,
-			ConnectorID:  authCode.ConnectorID,
-			Scopes:       authCode.Scopes,
-			Claims:       authCode.Claims,
-			Nonce:        authCode.Nonce,
+			RefreshToken:  storage.NewID(),
+			ClientID:      authCode.ClientID,
+			ConnectorID:   authCode.ConnectorID,
+			Scopes:        authCode.Scopes,
+			Claims:        authCode.Claims,
+			Nonce:         authCode.Nonce,
+			ConnectorData: authCode.ConnectorData,
 		}
 		if err := s.storage.CreateRefresh(refresh); err != nil {
 			log.Printf("failed to create refresh token: %v", err)
@@ -574,6 +554,10 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 
+	// Per the OAuth2 spec, if the client has omitted the scopes, default to the original
+	// authorized scopes.
+	//
+	// https://tools.ietf.org/html/rfc6749#section-6
 	scopes := refresh.Scopes
 	if scope != "" {
 		requestedScopes := strings.Fields(scope)
@@ -601,7 +585,43 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		scopes = requestedScopes
 	}
 
-	// TODO(ericchiang): re-auth with backends
+	conn, ok := s.connectors[refresh.ConnectorID]
+	if !ok {
+		log.Printf("connector ID not found: %q", refresh.ConnectorID)
+		tokenErr(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
+	// Can the connector refresh the identity? If so, attempt to refresh the data
+	// in the connector.
+	//
+	// TODO(ericchiang): We may want a strict mode where connectors that don't implement
+	// this interface can't perform refreshing.
+	if refreshConn, ok := conn.Connector.(connector.RefreshConnector); ok {
+		ident := connector.Identity{
+			UserID:        refresh.Claims.UserID,
+			Username:      refresh.Claims.Username,
+			Email:         refresh.Claims.Email,
+			EmailVerified: refresh.Claims.EmailVerified,
+			Groups:        refresh.Claims.Groups,
+			ConnectorData: refresh.ConnectorData,
+		}
+		ident, err := refreshConn.Refresh(r.Context(), parseScopes(scopes), ident)
+		if err != nil {
+			log.Printf("failed to refresh identity: %v", err)
+			tokenErr(w, errServerError, "", http.StatusInternalServerError)
+			return
+		}
+
+		// Update the claims of the refresh token.
+		//
+		// UserID intentionally ignored for now.
+		refresh.Claims.Username = ident.Username
+		refresh.Claims.Email = ident.Email
+		refresh.Claims.EmailVerified = ident.EmailVerified
+		refresh.Claims.Groups = ident.Groups
+		refresh.ConnectorData = ident.ConnectorData
+	}
 
 	idToken, expiry, err := s.newIDToken(client.ID, refresh.Claims, scopes, refresh.Nonce)
 	if err != nil {
@@ -610,6 +630,8 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 
+	// Refresh tokens are claimed exactly once. Delete the current token and
+	// create a new one.
 	if err := s.storage.DeleteRefresh(code); err != nil {
 		log.Printf("failed to delete auth code: %v", err)
 		tokenErr(w, errServerError, "", http.StatusInternalServerError)
