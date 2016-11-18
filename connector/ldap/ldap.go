@@ -47,6 +47,9 @@ import (
 //         baseDN: cn=groups,dc=example,dc=com
 //         filter: "(objectClass=group)"
 //         userAttr: uid
+//         # Use if full DN is needed and not available as any other attribute
+//         # Will only work if "DN" attribute does not exist in the record
+//         # userAttr: DN
 //         groupAttr: member
 //         nameAttr: name
 //
@@ -284,6 +287,9 @@ func getAttr(e ldap.Entry, name string) string {
 			return ""
 		}
 		return a.Values[0]
+	}
+	if name == "DN" {
+		return e.DN
 	}
 	return ""
 }
