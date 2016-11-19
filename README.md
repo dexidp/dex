@@ -16,7 +16,7 @@ Dex is an OpenID Connect server that allows users to login through upstream iden
 Standards-based token responses allows applications to interact with any OpenID Connect server instead of writing backend specific "access_token" dances. Systems that can already consume ID Tokens issued by dex include:
 
 * [Kubernetes][kubernetes]
-* [Amazon STS][amazon-sts]
+* [AWS STS][aws-sts]
 
 ## Documentation
 
@@ -25,8 +25,10 @@ Standards-based token responses allows applications to interact with any OpenID 
 * [Storage options](Documentation/storage.md)
 * [Intro to OpenID Connect](Documentation/openid-connect.md)
 * [gRPC API](Documentation/api.md)
-* Identity provider logins (coming soon!)
-* Client libraries (coming soon!)
+* Identity provider logins
+  * [LDAP](Documentation/ldap-connector.md)
+* Client libraries
+  * [Go][go-oidc]
 
 ## Getting help
 
@@ -36,7 +38,8 @@ Standards-based token responses allows applications to interact with any OpenID 
 
 [openid-connect]: https://openid.net/connect/
 [kubernetes]: http://kubernetes.io/docs/admin/authentication/#openid-connect-tokens
-[amazon-sts]: https://docs.aws.amazon.com/STS/latest/APIReference/Welcome.html
+[aws-sts]: https://docs.aws.amazon.com/STS/latest/APIReference/Welcome.html
+[go-oidc]: https://github.com/coreos/go-oidc
 [issues]: https://github.com/coreos/dex/issues
 [dex-dev]: https://groups.google.com/forum/#!forum/dex-dev
 [milestones]: https://github.com/coreos/dex/milestones
