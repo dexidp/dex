@@ -15,20 +15,32 @@ import (
 // NewCallbackConnector returns a mock connector which requires no user interaction. It always returns
 // the same (fake) identity.
 func NewCallbackConnector() connector.Connector {
-	return callbackConnector{}
+	return &Callback{
+		Identity: connector.Identity{
+			UserID:        "0-385-28089-0",
+			Username:      "Kilgore Trout",
+			Email:         "kilgore@kilgore.trout",
+			EmailVerified: true,
+			Groups:        []string{"authors"},
+			ConnectorData: connectorData,
+		},
+	}
 }
 
 var (
-	_ connector.CallbackConnector = callbackConnector{}
+	_ connector.CallbackConnector = &Callback{}
 
 	_ connector.PasswordConnector = passwordConnector{}
 )
 
-type callbackConnector struct{}
+// Callback is a connector that requires no user interaction and always returns the same identity.
+type Callback struct {
+	// The returned identity.
+	Identity connector.Identity
+}
 
-func (m callbackConnector) Close() error { return nil }
-
-func (m callbackConnector) LoginURL(s connector.Scopes, callbackURL, state string) (string, error) {
+// LoginURL returns the URL to redirect the user to login with.
+func (m *Callback) LoginURL(s connector.Scopes, callbackURL, state string) (string, error) {
 	u, err := url.Parse(callbackURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse callbackURL %q: %v", callbackURL, err)
@@ -41,20 +53,14 @@ func (m callbackConnector) LoginURL(s connector.Scopes, callbackURL, state strin
 
 var connectorData = []byte("foobar")
 
-func (m callbackConnector) HandleCallback(s connector.Scopes, r *http.Request) (connector.Identity, error) {
-	var groups []string
-	if s.Groups {
-		groups = []string{"authors"}
-	}
+// HandleCallback parses the request and returns the user's identity
+func (m *Callback) HandleCallback(s connector.Scopes, r *http.Request) (connector.Identity, error) {
+	return m.Identity, nil
+}
 
-	return connector.Identity{
-		UserID:        "0-385-28089-0",
-		Username:      "Kilgore Trout",
-		Email:         "kilgore@kilgore.trout",
-		EmailVerified: true,
-		Groups:        groups,
-		ConnectorData: connectorData,
-	}, nil
+// Refresh updates the identity during a refresh token request.
+func (m *Callback) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+	return m.Identity, nil
 }
 
 // CallbackConfig holds the configuration parameters for a connector which requires no interaction.

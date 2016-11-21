@@ -132,10 +132,13 @@ func TestDiscovery(t *testing.T) {
 	}
 }
 
+// TestOAuth2CodeFlow runs integration tests against a test server. The tests stand up a server
+// which requires no interaction to login, logs in through a test client, then passes the client
+// and returned token to the test.
 func TestOAuth2CodeFlow(t *testing.T) {
 	clientID := "testclient"
 	clientSecret := "testclientsecret"
-	requestedScopes := []string{oidc.ScopeOpenID, "email", "offline_access"}
+	requestedScopes := []string{oidc.ScopeOpenID, "email", "profile", "groups", "offline_access"}
 
 	t0 := time.Now()
 
@@ -149,8 +152,14 @@ func TestOAuth2CodeFlow(t *testing.T) {
 	// so tests can compute the expected "expires_in" field.
 	idTokensValidFor := time.Second * 30
 
+	// Connector used by the tests.
+	var conn *mock.Callback
+
 	tests := []struct {
-		name        string
+		name string
+		// If specified these set of scopes will be used during the test case.
+		scopes []string
+		// handleToken provides the OAuth2 token response for the integration test.
 		handleToken func(context.Context, *oidc.Provider, *oauth2.Config, *oauth2.Token) error
 	}{
 		{
@@ -265,7 +274,8 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			},
 		},
 		{
-			name: "refresh with unauthorized scopes",
+			name:   "refresh with unauthorized scopes",
+			scopes: []string{"openid", "email"},
 			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
 				v := url.Values{}
 				v.Add("client_id", clientID)
@@ -273,7 +283,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				v.Add("grant_type", "refresh_token")
 				v.Add("refresh_token", token.RefreshToken)
 				// Request a scope that wasn't requestd initially.
-				v.Add("scope", strings.Join(append(requestedScopes, "profile"), " "))
+				v.Add("scope", "oidc email profile")
 				resp, err := http.PostForm(p.TokenURL, v)
 				if err != nil {
 					return err
@@ -289,6 +299,57 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				return nil
 			},
 		},
+		{
+			// This test ensures that the connector.RefreshConnector interface is being
+			// used when clients request a refresh token.
+			name: "refresh with identity changes",
+			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
+				// have to use time.Now because the OAuth2 package uses it.
+				token.Expiry = time.Now().Add(time.Second * -10)
+				if token.Valid() {
+					return errors.New("token shouldn't be valid")
+				}
+
+				ident := connector.Identity{
+					UserID:        "fooid",
+					Username:      "foo",
+					Email:         "foo@bar.com",
+					EmailVerified: true,
+					Groups:        []string{"foo", "bar"},
+				}
+				conn.Identity = ident
+
+				type claims struct {
+					Username      string   `json:"name"`
+					Email         string   `json:"email"`
+					EmailVerified bool     `json:"email_verified"`
+					Groups        []string `json:"groups"`
+				}
+				want := claims{ident.Username, ident.Email, ident.EmailVerified, ident.Groups}
+
+				newToken, err := config.TokenSource(ctx, token).Token()
+				if err != nil {
+					return fmt.Errorf("failed to refresh token: %v", err)
+				}
+				rawIDToken, ok := newToken.Extra("id_token").(string)
+				if !ok {
+					return fmt.Errorf("no id_token in refreshed token")
+				}
+				idToken, err := p.NewVerifier(ctx).Verify(rawIDToken)
+				if err != nil {
+					return fmt.Errorf("failed to verify id token: %v", err)
+				}
+				var got claims
+				if err := idToken.Claims(&got); err != nil {
+					return fmt.Errorf("failed to unmarshal claims: %v", err)
+				}
+
+				if diff := pretty.Compare(want, got); diff != "" {
+					return fmt.Errorf("got identity != want identity: %s", diff)
+				}
+				return nil
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -300,6 +361,15 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				c.Issuer = c.Issuer + "/non-root-path"
 				c.Now = now
 				c.IDTokensValidFor = idTokensValidFor
+				// Create a new mock callback connector for each test case.
+				conn = mock.NewCallbackConnector().(*mock.Callback)
+				c.Connectors = []Connector{
+					{
+						ID:          "mock",
+						DisplayName: "mock",
+						Connector:   conn,
+					},
+				}
 			})
 			defer httpServer.Close()
 
@@ -374,6 +444,9 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				Endpoint:     p.Endpoint(),
 				Scopes:       requestedScopes,
 				RedirectURL:  redirectURL,
+			}
+			if len(tc.scopes) != 0 {
+				oauth2Config.Scopes = tc.scopes
 			}
 
 			resp, err := http.Get(oauth2Server.URL + "/login")
