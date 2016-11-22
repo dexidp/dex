@@ -27,6 +27,7 @@ Standards-based token responses allows applications to interact with any OpenID 
 * [gRPC API](Documentation/api.md)
 * Identity provider logins
   * [LDAP](Documentation/ldap-connector.md)
+  * [GitHub](Documentation/github-connector.md)
 * Client libraries
   * [Go][go-oidc]
 
