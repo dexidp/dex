@@ -24,13 +24,19 @@ const (
 	DefaultLeeway = 1.0 * time.Minute
 )
 
-// Expected defines values used for claims validation.
+// Expected defines values used for protected claims validation.
+// If field has zero value then validation is skipped.
 type Expected struct {
-	Issuer   string
-	Subject  string
-	Audience []string
-	ID       string
-	Time     time.Time
+	// Issuer matches the "iss" claim exactly.
+	Issuer string
+	// Subject matches the "sub" claim exactly.
+	Subject string
+	// Audience matches the values in "aud" claim, regardless of their order.
+	Audience Audience
+	// ID matches the "jti" claim exactly.
+	ID string
+	// Time matches the "exp" and "ebf" claims with leeway.
+	Time time.Time
 }
 
 // WithTime copies expectations with new time.
@@ -68,18 +74,18 @@ func (c Claims) ValidateWithLeeway(e Expected, leeway time.Duration) error {
 			return ErrInvalidAudience
 		}
 
-		for i, a := range e.Audience {
-			if a != c.Audience[i] {
+		for _, v := range e.Audience {
+			if !c.Audience.Contains(v) {
 				return ErrInvalidAudience
 			}
 		}
 	}
 
-	if !e.Time.IsZero() && e.Time.Add(leeway).Before(c.NotBefore) {
+	if !e.Time.IsZero() && e.Time.Add(leeway).Before(c.NotBefore.Time()) {
 		return ErrNotValidYet
 	}
 
-	if !e.Time.IsZero() && e.Time.Add(-leeway).After(c.Expiry) {
+	if !e.Time.IsZero() && e.Time.Add(-leeway).After(c.Expiry.Time()) {
 		return ErrExpired
 	}
 

@@ -21,6 +21,7 @@ import (
 	"compress/flate"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"io"
 	"math/big"
 	"regexp"
@@ -31,7 +32,7 @@ var stripWhitespaceRegex = regexp.MustCompile("\\s")
 // Helper function to serialize known-good objects.
 // Precondition: value is not a nil pointer.
 func mustSerializeJSON(value interface{}) []byte {
-	out, err := MarshalJSON(value)
+	out, err := json.Marshal(value)
 	if err != nil {
 		panic(err)
 	}
@@ -132,12 +133,12 @@ func newBufferFromInt(num uint64) *byteBuffer {
 }
 
 func (b *byteBuffer) MarshalJSON() ([]byte, error) {
-	return MarshalJSON(b.base64())
+	return json.Marshal(b.base64())
 }
 
 func (b *byteBuffer) UnmarshalJSON(data []byte) error {
 	var encoded string
-	err := UnmarshalJSON(data, &encoded)
+	err := json.Unmarshal(data, &encoded)
 	if err != nil {
 		return err
 	}

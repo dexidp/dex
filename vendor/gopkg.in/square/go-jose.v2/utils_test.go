@@ -44,7 +44,7 @@ func fromBase64Int(encoded string) *big.Int {
 	re := regexp.MustCompile(`\s+`)
 	val, err := base64.RawURLEncoding.DecodeString(re.ReplaceAllString(encoded, ""))
 	if err != nil {
-		panic("Invalid test data")
+		panic("Invalid test data: " + err.Error())
 	}
 	return new(big.Int).SetBytes(val)
 }

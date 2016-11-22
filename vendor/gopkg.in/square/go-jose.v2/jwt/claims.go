@@ -18,66 +18,98 @@
 package jwt
 
 import (
+	"encoding/json"
+	"strconv"
 	"time"
-
-	"gopkg.in/square/go-jose.v2"
 )
 
 // Claims represents public claim values (as specified in RFC 7519).
 type Claims struct {
-	Issuer    string    `json:"-"`
-	Subject   string    `json:"-"`
-	Audience  []string  `json:"-"`
-	Expiry    time.Time `json:"-"`
-	NotBefore time.Time `json:"-"`
-	IssuedAt  time.Time `json:"-"`
-	ID        string    `json:"-"`
+	Issuer    string      `json:"iss,omitempty"`
+	Subject   string      `json:"sub,omitempty"`
+	Audience  Audience    `json:"aud,omitempty"`
+	Expiry    NumericDate `json:"exp,omitempty"`
+	NotBefore NumericDate `json:"nbf,omitempty"`
+	IssuedAt  NumericDate `json:"iat,omitempty"`
+	ID        string      `json:"jti,omitempty"`
 }
 
-type rawClaims struct {
-	Iss string      `json:"iss,omitempty"`
-	Sub string      `json:"sub,omitempty"`
-	Aud audience    `json:"aud,omitempty"`
-	Exp NumericDate `json:"exp,omitempty"`
-	Nbf NumericDate `json:"nbf,omitempty"`
-	Iat NumericDate `json:"iat,omitempty"`
-	Jti string      `json:"jti,omitempty"`
-}
+// NumericDate represents date and time as the number of seconds since the
+// epoch, including leap seconds. Non-integer values can be represented
+// in the serialized format, but we round to the nearest second.
+type NumericDate int64
 
-func (c *Claims) marshalJSON() ([]byte, error) {
-	t := rawClaims{
-		Iss: c.Issuer,
-		Sub: c.Subject,
-		Aud: audience(c.Audience),
-		Exp: TimeToNumericDate(c.Expiry),
-		Nbf: TimeToNumericDate(c.NotBefore),
-		Iat: TimeToNumericDate(c.IssuedAt),
-		Jti: c.ID,
+// NewNumericDate constructs NumericDate from time.Time value.
+func NewNumericDate(t time.Time) NumericDate {
+	if t.IsZero() {
+		return NumericDate(0)
 	}
 
-	b, err := jose.MarshalJSON(t)
+	// While RFC 7519 technically states that NumericDate values may be
+	// non-integer values, we don't bother serializing timestamps in
+	// claims with sub-second accurancy and just round to the nearest
+	// second instead. Not convined sub-second accuracy is useful here.
+	return NumericDate(t.Unix())
+}
 
+// MarshalJSON serializes the given NumericDate into its JSON representation.
+func (n NumericDate) MarshalJSON() ([]byte, error) {
+	return []byte(strconv.FormatInt(int64(n), 10)), nil
+}
+
+// UnmarshalJSON reads a date from its JSON representation.
+func (n *NumericDate) UnmarshalJSON(b []byte) error {
+	s := string(b)
+
+	f, err := strconv.ParseFloat(s, 64)
 	if err != nil {
-		return nil, err
+		return ErrUnmarshalNumericDate
 	}
 
-	return b, err
+	*n = NumericDate(f)
+	return nil
 }
 
-func (c *Claims) unmarshalJSON(b []byte) error {
-	t := rawClaims{}
+// Time returns time.Time representation of NumericDate.
+func (n NumericDate) Time() time.Time {
+	return time.Unix(int64(n), 0)
+}
 
-	if err := jose.UnmarshalJSON(b, &t); err != nil {
+// Audience represents the recipents that the token is intended for.
+type Audience []string
+
+// UnmarshalJSON reads an audience from its JSON representation.
+func (s *Audience) UnmarshalJSON(b []byte) error {
+	var v interface{}
+	if err := json.Unmarshal(b, &v); err != nil {
 		return err
 	}
 
-	c.Issuer = t.Iss
-	c.Subject = t.Sub
-	c.Audience = []string(t.Aud)
-	c.Expiry = t.Exp.Time()
-	c.NotBefore = t.Nbf.Time()
-	c.IssuedAt = t.Iat.Time()
-	c.ID = t.Jti
+	switch v := v.(type) {
+	case string:
+		*s = []string{v}
+	case []interface{}:
+		a := make([]string, len(v))
+		for i, e := range v {
+			s, ok := e.(string)
+			if !ok {
+				return ErrUnmarshalAudience
+			}
+			a[i] = s
+		}
+		*s = a
+	default:
+		return ErrUnmarshalAudience
+	}
 
 	return nil
+}
+
+func (s Audience) Contains(v string) bool {
+	for _, a := range s {
+		if a == v {
+			return true
+		}
+	}
+	return false
 }

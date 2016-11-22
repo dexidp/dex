@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ericchiang/oidc"
+	"github.com/coreos/go-oidc"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
@@ -173,7 +173,7 @@ func cmd() *cobra.Command {
 			}
 
 			a.provider = provider
-			a.verifier = provider.NewVerifier(a.ctx, oidc.VerifyAudience(a.clientID))
+			a.verifier = provider.Verifier(oidc.VerifyAudience(a.clientID))
 
 			http.HandleFunc("/", a.handleIndex)
 			http.HandleFunc("/login", a.handleLogin)
@@ -269,7 +269,7 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 			RefreshToken: refresh,
 			Expiry:       time.Now().Add(-time.Hour),
 		}
-		token, err = oauth2Config.TokenSource(a.ctx, t).Token()
+		token, err = oauth2Config.TokenSource(r.Context(), t).Token()
 	default:
 		http.Error(w, fmt.Sprintf("no code in request: %q", r.Form), http.StatusBadRequest)
 		return
@@ -286,7 +286,7 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	idToken, err := a.verifier.Verify(rawIDToken)
+	idToken, err := a.verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to verify ID token: %v", err), http.StatusInternalServerError)
 		return

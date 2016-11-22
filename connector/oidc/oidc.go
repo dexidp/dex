@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ericchiang/oidc"
+	"github.com/coreos/go-oidc"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 
@@ -51,7 +51,7 @@ func (c *Config) Open() (conn connector.Connector, err error) {
 			Scopes:       scopes,
 			RedirectURL:  c.RedirectURI,
 		},
-		verifier: provider.NewVerifier(ctx,
+		verifier: provider.Verifier(
 			oidc.VerifyExpiry(),
 			oidc.VerifyAudience(clientID),
 		),
@@ -99,7 +99,7 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 	if errType := q.Get("error"); errType != "" {
 		return identity, &oauth2Error{errType, q.Get("error_description")}
 	}
-	token, err := c.oauth2Config.Exchange(c.ctx, q.Get("code"))
+	token, err := c.oauth2Config.Exchange(r.Context(), q.Get("code"))
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
 	}
@@ -108,7 +108,7 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 	if !ok {
 		return identity, errors.New("oidc: no id_token in token response")
 	}
-	idToken, err := c.verifier.Verify(rawIDToken)
+	idToken, err := c.verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to verify ID Token: %v", err)
 	}

@@ -18,6 +18,8 @@ package jose
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"errors"
@@ -427,5 +429,40 @@ func TestInvalidEllipticCurve(t *testing.T) {
 	_, err = signer521.signPayload([]byte{}, ES384)
 	if err == nil {
 		t.Error("should not generate ES384 signature with P-521 key")
+	}
+}
+
+func estInvalidECPublicKey(t *testing.T) {
+	// Invalid key
+	invalid := &ecdsa.PrivateKey{
+		PublicKey: ecdsa.PublicKey{
+			Curve: elliptic.P256(),
+			X:     fromBase64Int("MTEx"),
+			Y:     fromBase64Int("MTEx"),
+		},
+		D: fromBase64Int("0_NxaRPUMQoAJt50Gz8YiTr8gRTwyEaCumd-MToTmIo"),
+	}
+
+	headers := rawHeader{
+		Alg: string(ECDH_ES),
+		Epk: &JSONWebKey{
+			Key: &invalid.PublicKey,
+		},
+	}
+
+	dec := ecDecrypterSigner{
+		privateKey: ecTestKey256,
+	}
+
+	_, err := dec.decryptKey(headers, nil, randomKeyGenerator{size: 16})
+	if err == nil {
+		t.Fatal("decrypter accepted JWS with invalid ECDH public key")
+	}
+}
+
+func TestInvalidAlgorithmEC(t *testing.T) {
+	err := ecEncrypterVerifier{publicKey: &ecTestKey256.PublicKey}.verifyPayload([]byte{}, []byte{}, "XYZ")
+	if err != ErrUnsupportedAlgorithm {
+		t.Fatal("should not accept invalid/unsupported algorithm")
 	}
 }

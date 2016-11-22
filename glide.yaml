@@ -17,7 +17,7 @@ import:
   version: 4e86f4367175e39f69d9358a5f17b4dda270378d
 
 - package: gopkg.in/square/go-jose.v2
-  version: f209f41628247c56938cb20ef51d589ddad6c30b
+  version: v2.0.0
   subpackages:
   - cipher
   - json
@@ -26,6 +26,7 @@ import:
   version: 6a513affb38dc9788b449d59ffed099b8de18fa0
   subpackages:
   - context
+  - context/ctxhttp
   - http2
   - http2/hpack
   - internal/timeseries
@@ -49,16 +50,17 @@ import:
   subpackages:
   - bcrypt
 
-- package: github.com/ericchiang/oidc
-  version: 1907f0e61549f9081f26bdf269f11603496c9dee
+- package: github.com/coreos/go-oidc
+  version: 5a7f09ab5787e846efa7f56f4a08b6d6926d08c4
 - package: github.com/pquerna/cachecontrol
   version: c97913dcbd76de40b051a9b4cd827f7eaeb7a868
-- package: gopkg.in/square/go-jose.v1
-  version: v1.0.2
 - package: golang.org/x/oauth2
   version: 08c8d727d2392d18286f9f88ad775ad98f09ab33
-# Not actually imported but glide detects it. Consider adding subpackages to
-# the oauth2 package to eliminate.
+  subpackages: []
+# The oauth2 package only imports the appengine code when it's given a 
+# specific build tags, but glide detects it anyway.
+#
+# https://github.com/golang/oauth2/blob/d5040cdd/client_appengine.go
 - package: google.golang.org/appengine
   version: 267c27e7492265b84fc6719503b14a1e17975d79
   subpackages:

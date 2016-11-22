@@ -20,6 +20,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"encoding/base64"
+	"errors"
 	"fmt"
 )
 
@@ -185,13 +186,50 @@ func (ctx *genericSigner) Sign(payload []byte) (*JSONWebSignature, error) {
 }
 
 // Verify validates the signature on the object and returns the payload.
+// This function does not support multi-signature, if you desire multi-sig
+// verification use VerifyMulti instead.
+//
+// Be careful when verifying signatures based on embedded JWKs inside the
+// payload header. You cannot assume that the key received in a payload is
+// trusted.
 func (obj JSONWebSignature) Verify(verificationKey interface{}) ([]byte, error) {
 	verifier, err := newVerifier(verificationKey)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, signature := range obj.Signatures {
+	if len(obj.Signatures) > 1 {
+		return nil, errors.New("square/go-jose: too many signatures in payload; expecting only one")
+	}
+
+	signature := obj.Signatures[0]
+	headers := signature.mergedHeaders()
+	if len(headers.Crit) > 0 {
+		// Unsupported crit header
+		return nil, ErrCryptoFailure
+	}
+
+	input := obj.computeAuthData(&signature)
+	alg := SignatureAlgorithm(headers.Alg)
+	err = verifier.verifyPayload(input, signature.Signature, alg)
+	if err == nil {
+		return obj.payload, nil
+	}
+
+	return nil, ErrCryptoFailure
+}
+
+// VerifyMulti validates (one of the multiple) signatures on the object and
+// returns the index of the signature that was verified, along with the signature
+// object and the payload. We return the signature and index to guarantee that
+// callers are getting the verified value.
+func (obj JSONWebSignature) VerifyMulti(verificationKey interface{}) (int, Signature, []byte, error) {
+	verifier, err := newVerifier(verificationKey)
+	if err != nil {
+		return -1, Signature{}, nil, err
+	}
+
+	for i, signature := range obj.Signatures {
 		headers := signature.mergedHeaders()
 		if len(headers.Crit) > 0 {
 			// Unsupported crit header
@@ -202,9 +240,9 @@ func (obj JSONWebSignature) Verify(verificationKey interface{}) ([]byte, error) 
 		alg := SignatureAlgorithm(headers.Alg)
 		err := verifier.verifyPayload(input, signature.Signature, alg)
 		if err == nil {
-			return obj.payload, nil
+			return i, signature, obj.payload, nil
 		}
 	}
 
-	return nil, ErrCryptoFailure
+	return -1, Signature{}, nil, ErrCryptoFailure
 }

@@ -18,8 +18,11 @@ package jose
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strings"
+
+	"gopkg.in/square/go-jose.v2/json"
 )
 
 // rawJSONWebSignature represents a raw JWS JSON object. Used for parsing/serializing.
@@ -40,7 +43,10 @@ type rawSignatureInfo struct {
 
 // JSONWebSignature represents a signed JWS object after parsing.
 type JSONWebSignature struct {
-	payload    []byte
+	payload []byte
+	// Signatures attached to this object (may be more than one for multi-sig).
+	// Be careful about accessing these directly, prefer to use Verify() or
+	// VerifyMulti() to ensure that the data you're getting is verified.
 	Signatures []Signature
 }
 
@@ -57,7 +63,7 @@ type Signature struct {
 	original  *rawSignatureInfo
 }
 
-// ParseSigned parses an encrypted message in compact or full serialization format.
+// ParseSigned parses a signed message in compact or full serialization format.
 func ParseSigned(input string) (*JSONWebSignature, error) {
 	input = stripWhitespace(input)
 	if strings.HasPrefix(input, "{") {
@@ -95,7 +101,7 @@ func (obj JSONWebSignature) computeAuthData(signature *Signature) []byte {
 // parseSignedFull parses a message in full format.
 func parseSignedFull(input string) (*JSONWebSignature, error) {
 	var parsed rawJSONWebSignature
-	err := UnmarshalJSON([]byte(input), &parsed)
+	err := json.Unmarshal([]byte(input), &parsed)
 	if err != nil {
 		return nil, err
 	}
@@ -119,12 +125,13 @@ func (parsed *rawJSONWebSignature) sanitized() (*JSONWebSignature, error) {
 		signature := Signature{}
 		if parsed.Protected != nil && len(parsed.Protected.bytes()) > 0 {
 			signature.protected = &rawHeader{}
-			err := UnmarshalJSON(parsed.Protected.bytes(), signature.protected)
+			err := json.Unmarshal(parsed.Protected.bytes(), signature.protected)
 			if err != nil {
 				return nil, err
 			}
 		}
 
+		// Check that there is not a nonce in the unprotected header
 		if parsed.Header != nil && parsed.Header.Nonce != "" {
 			return nil, ErrUnprotectedNonce
 		}
@@ -147,13 +154,20 @@ func (parsed *rawJSONWebSignature) sanitized() (*JSONWebSignature, error) {
 		}
 
 		signature.Header = signature.mergedHeaders().sanitized()
+
+		// As per RFC 7515 Section 4.1.3, only public keys are allowed to be embedded.
+		jwk := signature.Header.JSONWebKey
+		if jwk != nil && (!jwk.Valid() || !jwk.IsPublic()) {
+			return nil, errors.New("square/go-jose: invalid embedded jwk, must be public key")
+		}
+
 		obj.Signatures = append(obj.Signatures, signature)
 	}
 
 	for i, sig := range parsed.Signatures {
 		if sig.Protected != nil && len(sig.Protected.bytes()) > 0 {
 			obj.Signatures[i].protected = &rawHeader{}
-			err := UnmarshalJSON(sig.Protected.bytes(), obj.Signatures[i].protected)
+			err := json.Unmarshal(sig.Protected.bytes(), obj.Signatures[i].protected)
 			if err != nil {
 				return nil, err
 			}
@@ -164,14 +178,20 @@ func (parsed *rawJSONWebSignature) sanitized() (*JSONWebSignature, error) {
 			return nil, ErrUnprotectedNonce
 		}
 
+		obj.Signatures[i].Header = obj.Signatures[i].mergedHeaders().sanitized()
 		obj.Signatures[i].Signature = sig.Signature.bytes()
+
+		// As per RFC 7515 Section 4.1.3, only public keys are allowed to be embedded.
+		jwk := obj.Signatures[i].Header.JSONWebKey
+		if jwk != nil && (!jwk.Valid() || !jwk.IsPublic()) {
+			return nil, errors.New("square/go-jose: invalid embedded jwk, must be public key")
+		}
 
 		// Copy value of sig
 		original := sig
 
 		obj.Signatures[i].header = sig.Header
 		obj.Signatures[i].original = &original
-		obj.Signatures[i].Header = obj.Signatures[i].mergedHeaders().sanitized()
 	}
 
 	return obj, nil
