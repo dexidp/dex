@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/net/context"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/kubernetes/k8sapi"
 )
@@ -39,8 +40,8 @@ type Config struct {
 }
 
 // Open returns a storage using Kubernetes third party resource.
-func (c *Config) Open() (storage.Storage, error) {
-	cli, err := c.open()
+func (c *Config) Open(logger logrus.FieldLogger) (storage.Storage, error) {
+	cli, err := c.open(logger)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +49,7 @@ func (c *Config) Open() (storage.Storage, error) {
 }
 
 // open returns a client with no garbage collection.
-func (c *Config) open() (*client, error) {
+func (c *Config) open(logger logrus.FieldLogger) (*client, error) {
 	if c.InCluster && (c.KubeConfigFile != "") {
 		return nil, errors.New("cannot specify both 'inCluster' and 'kubeConfigFile'")
 	}
@@ -71,7 +72,7 @@ func (c *Config) open() (*client, error) {
 		return nil, err
 	}
 
-	cli, err := newClient(cluster, user, namespace)
+	cli, err := newClient(cluster, user, namespace, logger)
 	if err != nil {
 		return nil, fmt.Errorf("create client: %v", err)
 	}

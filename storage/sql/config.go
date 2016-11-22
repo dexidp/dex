@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/storage"
 )
 
@@ -16,15 +17,15 @@ type SQLite3 struct {
 }
 
 // Open creates a new storage implementation backed by SQLite3
-func (s *SQLite3) Open() (storage.Storage, error) {
-	conn, err := s.open()
+func (s *SQLite3) Open(logger logrus.FieldLogger) (storage.Storage, error) {
+	conn, err := s.open(logger)
 	if err != nil {
 		return nil, err
 	}
 	return conn, nil
 }
 
-func (s *SQLite3) open() (*conn, error) {
+func (s *SQLite3) open(logger logrus.FieldLogger) (*conn, error) {
 	db, err := sql.Open("sqlite3", s.File)
 	if err != nil {
 		return nil, err
@@ -34,7 +35,7 @@ func (s *SQLite3) open() (*conn, error) {
 		// doesn't support this, so limit the number of connections to 1.
 		db.SetMaxOpenConns(1)
 	}
-	c := &conn{db, flavorSQLite3}
+	c := &conn{db, flavorSQLite3, logger}
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}
@@ -70,15 +71,15 @@ type Postgres struct {
 }
 
 // Open creates a new storage implementation backed by Postgres.
-func (p *Postgres) Open() (storage.Storage, error) {
-	conn, err := p.open()
+func (p *Postgres) Open(logger logrus.FieldLogger) (storage.Storage, error) {
+	conn, err := p.open(logger)
 	if err != nil {
 		return nil, err
 	}
 	return conn, nil
 }
 
-func (p *Postgres) open() (*conn, error) {
+func (p *Postgres) open(logger logrus.FieldLogger) (*conn, error) {
 	v := url.Values{}
 	set := func(key, val string) {
 		if val != "" {
@@ -113,7 +114,7 @@ func (p *Postgres) open() (*conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := &conn{db, flavorPostgres}
+	c := &conn{db, flavorPostgres, logger}
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}

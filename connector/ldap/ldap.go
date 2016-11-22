@@ -13,6 +13,7 @@ import (
 	"golang.org/x/net/context"
 	"gopkg.in/ldap.v2"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/connector"
 )
 
@@ -135,8 +136,8 @@ func parseScope(s string) (int, bool) {
 }
 
 // Open returns an authentication strategy using LDAP.
-func (c *Config) Open() (connector.Connector, error) {
-	conn, err := c.OpenConnector()
+func (c *Config) Open(logger logrus.FieldLogger) (connector.Connector, error) {
+	conn, err := c.OpenConnector(logger)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +150,7 @@ type refreshData struct {
 }
 
 // OpenConnector is the same as Open but returns a type with all implemented connector interfaces.
-func (c *Config) OpenConnector() (interface {
+func (c *Config) OpenConnector(logger logrus.FieldLogger) (interface {
 	connector.Connector
 	connector.PasswordConnector
 	connector.RefreshConnector
@@ -206,7 +207,7 @@ func (c *Config) OpenConnector() (interface {
 	if !ok {
 		return nil, fmt.Errorf("userSearch.Scope unknown value %q", c.GroupSearch.Scope)
 	}
-	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig}, nil
+	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig, logger}, nil
 }
 
 type ldapConnector struct {
@@ -216,6 +217,8 @@ type ldapConnector struct {
 	groupSearchScope int
 
 	tlsConfig *tls.Config
+
+	logger logrus.FieldLogger
 }
 
 var (

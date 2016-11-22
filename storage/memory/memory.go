@@ -6,17 +6,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/storage"
 )
 
 // New returns an in memory storage.
-func New() storage.Storage {
+func New(logger logrus.FieldLogger) storage.Storage {
 	return &memStorage{
 		clients:       make(map[string]storage.Client),
 		authCodes:     make(map[string]storage.AuthCode),
 		refreshTokens: make(map[string]storage.RefreshToken),
 		authReqs:      make(map[string]storage.AuthRequest),
 		passwords:     make(map[string]storage.Password),
+		logger:        logger,
 	}
 }
 
@@ -28,8 +30,8 @@ type Config struct {
 }
 
 // Open always returns a new in memory storage.
-func (c *Config) Open() (storage.Storage, error) {
-	return New(), nil
+func (c *Config) Open(logger logrus.FieldLogger) (storage.Storage, error) {
+	return New(logger), nil
 }
 
 type memStorage struct {
@@ -42,6 +44,8 @@ type memStorage struct {
 	passwords     map[string]storage.Password
 
 	keys storage.Keys
+
+	logger logrus.FieldLogger
 }
 
 func (s *memStorage) tx(f func()) {

@@ -13,6 +13,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/context"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
 
 	"github.com/coreos/dex/connector"
@@ -57,6 +58,8 @@ type Config struct {
 	EnablePasswordDB bool
 
 	Web WebConfig
+
+	Logger logrus.FieldLogger
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -112,6 +115,8 @@ type Server struct {
 	now func() time.Time
 
 	idTokensValidFor time.Duration
+
+	logger logrus.FieldLogger
 }
 
 // NewServer constructs a server from the provided config.
@@ -182,6 +187,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		skipApproval:           c.SkipApprovalScreen,
 		now:                    now,
 		templates:              tmpls,
+		logger:                 c.Logger,
 	}
 
 	for _, conn := range c.Connectors {

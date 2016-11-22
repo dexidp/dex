@@ -9,8 +9,11 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/ghodss/yaml"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
@@ -111,6 +114,8 @@ func serve(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	logger, _ := newLogger(c.Logger.Level, c.Logger.Format)
+
 	connectors := make([]server.Connector, len(c.Connectors))
 	for i, conn := range c.Connectors {
 		if conn.ID == "" {
@@ -119,7 +124,8 @@ func serve(cmd *cobra.Command, args []string) error {
 		if conn.Config == nil {
 			return fmt.Errorf("no config field for connector %q", conn.ID)
 		}
-		c, err := conn.Config.Open()
+		connectorLogger := logger.WithField("connector", conn.Name)
+		c, err := conn.Config.Open(connectorLogger)
 		if err != nil {
 			return fmt.Errorf("open %s: %v", conn.ID, err)
 		}
@@ -130,7 +136,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	s, err := c.Storage.Config.Open()
+	s, err := c.Storage.Config.Open(logger)
 	if err != nil {
 		return fmt.Errorf("initializing storage: %v", err)
 	}
@@ -153,6 +159,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		Storage:                s,
 		Web:                    c.Frontend,
 		EnablePasswordDB:       c.EnablePasswordDB,
+		Logger:                 logger,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
@@ -202,4 +209,34 @@ func serve(cmd *cobra.Command, args []string) error {
 	}
 
 	return <-errc
+}
+
+func newLogger(level string, format string) (logrus.FieldLogger, error) {
+	var logLevel logrus.Level
+	switch strings.ToLower(level) {
+	case "debug":
+		logLevel = logrus.DebugLevel
+	case "", "info":
+		logLevel = logrus.InfoLevel
+	case "error":
+		logLevel = logrus.ErrorLevel
+	default:
+		return nil, fmt.Errorf("unsupported logLevel: %s", level)
+	}
+
+	var formatter logrus.Formatter
+	switch strings.ToLower(format) {
+	case "", "text":
+		formatter = &logrus.TextFormatter{DisableColors: true}
+	case "json":
+		formatter = &logrus.JSONFormatter{}
+	default:
+		return nil, fmt.Errorf("unsupported logger format: %s", format)
+	}
+
+	return &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: formatter,
+		Level:     logLevel,
+	}, nil
 }

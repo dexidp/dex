@@ -2,15 +2,23 @@ package server
 
 import (
 	"context"
+	"os"
 	"testing"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/api"
 	"github.com/coreos/dex/storage/memory"
 )
 
 // Attempts to create, update and delete a test Password
 func TestPassword(t *testing.T) {
-	s := memory.New()
+	logger := &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level:     logrus.DebugLevel,
+	}
+
+	s := memory.New(logger)
 	serv := NewAPI(s)
 
 	ctx := context.Background()
