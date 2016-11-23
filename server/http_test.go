@@ -810,7 +810,7 @@ func TestHandleKeysFunc(t *testing.T) {
 		t.Fatalf("Incorrect headers: want=%#v got=%#v", wantHeader, gotHeader)
 	}
 
-	wantBody := `{"keys":[{"kid":"1234","kty":"RSA","alg":"RS256","use":"sig","e":"AQAB","n":"FE9chh46rg=="},{"kid":"5678","kty":"RSA","alg":"RS256","use":"sig","e":"AQAB","n":"BGKVohEShg=="}]}`
+	wantBody := `{"keys":[{"kid":"1234","kty":"RSA","alg":"RS256","use":"sig","e":"AQAB","n":"FE9chh46rg"},{"kid":"5678","kty":"RSA","alg":"RS256","use":"sig","e":"AQAB","n":"BGKVohEShg"}]}`
 	gotBody := w.Body.String()
 	if wantBody != gotBody {
 		t.Fatalf("Incorrect body: want=%s got=%s", wantBody, gotBody)
