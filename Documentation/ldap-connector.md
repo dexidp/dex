@@ -9,6 +9,12 @@ The connector executes two primary queries:
 1. Finding the user based on the end user's credentials.
 2. Searching for groups using the user entry.
 
+## Security considerations
+
+Dex attempts to bind with the backing LDAP server using the end user's _plain text password_. Though some LDAP implementations allow passing hashed passwords, dex doesn't support hashing and instead _strongly recommends that all administrators just use TLS_. This can often be achieved by using port 636 instead of 389, and administrators that choose 389 are actively leaking passwords.
+
+Dex currently allows insecure connections because the project is still verifying that dex works with the wide variety of LDAP implementations. However, dex may remove this transport option, and _users who configure LDAP login using 389 are not covered by any compatibility guarantees with future releases._
+
 ## Configuration
 
 User entries are expected to have an email attribute (configurable through `emailAttr`), and a display name attribute (configurable through `nameAttr`). `*Attr` attributes could be set to "DN" in situations where it is needed but not available elsewhere, and if "DN" attribute does not exist in the record.
@@ -16,18 +22,31 @@ User entries are expected to have an email attribute (configurable through `emai
 The following is an example config file that can be used by the LDAP connector to authenticate a user.
 
 ```yaml
-
 connectors:
 - type: ldap
   id: ldap
   config:
     # Host and optional port of the LDAP server in the form "host:port".
-    # If the port is not supplied, it will be guessed based on the TLS config.
+    # If the port is not supplied, it will be guessed based on "insecureNoSSL".
+    # 389 for insecure connections, 636 otherwise.
     host: ldap.example.com:636
+
     # Following field is required if the LDAP host is not using TLS (port 389).
+    # Because this option inherently leaks passwords to anyone on the same network
+    # as dex, THIS OPTION MAY BE REMOVED WITHOUT WARNING IN A FUTURE RELEASE.
     # insecureNoSSL: true
+
+    # If a custom certificate isn't provide, this option can be used to turn on
+    # TLS certificate checks. As noted, it is insecure and shouldn't be used outside
+    # of explorative phases.
+    # insecureSkipVerify: true
+
     # Path to a trusted root certificate file. Default: use the host's root CA.
     rootCA: /etc/dex/ldap.ca
+
+    # A raw certificate file can also be provided inline.
+    # rootCAData: ( base64 encoded PEM file )
+
     # The DN and password for an application service account. The connector uses
     # these credentials to search for users and groups. Not required if the LDAP
     # server provides access for anonymous auth.
