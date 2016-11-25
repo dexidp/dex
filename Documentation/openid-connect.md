@@ -1,6 +1,6 @@
 # An overview of OpenID Connect
 
-This document attempts to provide an overview of the [OpenID Connect protocl](
+This document attempts to provide an overview of the [OpenID Connect protocol](
 https://openid.net/connect/), a flavor of OAuth2 that dex implements. While
 this document isn't complete we hope it provides a enough to get users up and
 running.
