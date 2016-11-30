@@ -6,8 +6,10 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"text/template"
 )
 
@@ -18,8 +20,6 @@ const (
 	tmplOOB      = "oob.html"
 )
 
-const coreOSLogoURL = "https://coreos.com/assets/images/brand/coreos-wordmark-135x40px.png"
-
 var requiredTmpls = []string{
 	tmplApproval,
 	tmplLogin,
@@ -27,65 +27,122 @@ var requiredTmpls = []string{
 	tmplOOB,
 }
 
-// TemplateConfig describes.
-type TemplateConfig struct {
-	// TODO(ericchiang): Asking for a directory with a set of templates doesn't indicate
-	// what the templates should look like and doesn't allow consumers of this package to
-	// provide their own templates in memory. In the future clean this up.
-
-	// Directory of the templates. If empty, these will be loaded from memory.
-	Dir string `yaml:"dir"`
-
-	// Defaults to the CoreOS logo and "dex".
-	LogoURL string `yaml:"logoURL"`
-	Issuer  string `yaml:"issuerName"`
+type templates struct {
+	loginTmpl    *template.Template
+	approvalTmpl *template.Template
+	passwordTmpl *template.Template
+	oobTmpl      *template.Template
 }
 
-type globalData struct {
-	LogoURL string
-	Issuer  string
+type webConfig struct {
+	dir       string
+	logoURL   string
+	issuer    string
+	theme     string
+	issuerURL string
 }
 
-func loadTemplates(config TemplateConfig) (*templates, error) {
-	var tmpls *template.Template
-	if config.Dir != "" {
-		files, err := ioutil.ReadDir(config.Dir)
-		if err != nil {
-			return nil, fmt.Errorf("read dir: %v", err)
+func join(base, path string) string {
+	b := strings.HasSuffix(base, "/")
+	p := strings.HasPrefix(path, "/")
+	switch {
+	case b && p:
+		return base + path[1:]
+	case b || p:
+		return base + path
+	default:
+		return base + "/" + path
+	}
+}
+
+func dirExists(dir string) error {
+	stat, err := os.Stat(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("directory %q does not exist", dir)
 		}
-		filenames := []string{}
-		for _, file := range files {
-			if file.IsDir() {
-				continue
-			}
-			filenames = append(filenames, filepath.Join(config.Dir, file.Name()))
-		}
-		if len(filenames) == 0 {
-			return nil, fmt.Errorf("no files in template dir %s", config.Dir)
-		}
-		if tmpls, err = template.ParseFiles(filenames...); err != nil {
-			return nil, fmt.Errorf("parse files: %v", err)
-		}
-	} else {
-		// Load templates from memory. This code is largely copied from the standard library's
-		// ParseFiles source code.
-		// See: https://goo.gl/6Wm4mN
-		for name, data := range defaultTemplates {
-			var t *template.Template
-			if tmpls == nil {
-				tmpls = template.New(name)
-			}
-			if name == tmpls.Name() {
-				t = tmpls
-			} else {
-				t = tmpls.New(name)
-			}
-			if _, err := t.Parse(data); err != nil {
-				return nil, fmt.Errorf("parsing %s: %v", name, err)
-			}
+		return fmt.Errorf("stat directory %q: %v", dir, err)
+	}
+	if !stat.IsDir() {
+		return fmt.Errorf("path %q is a file not a directory", dir)
+	}
+	return nil
+}
+
+// loadWebConfig returns static assets, theme assets, and templates used by the frontend by
+// reading the directory specified in the webConfig.
+//
+// The directory layout is expected to be:
+//
+//    ( web directory )
+//    |- static
+//    |- themes
+//    |  |- (theme name)
+//    |- templates
+//
+func loadWebConfig(c webConfig) (static, theme http.Handler, templates *templates, err error) {
+	if c.theme == "" {
+		c.theme = "coreos"
+	}
+	if c.issuer == "" {
+		c.issuer = "dex"
+	}
+	if c.dir == "" {
+		c.dir = "./web"
+	}
+	if c.logoURL == "" {
+		c.logoURL = join(c.issuerURL, "theme/logo.png")
+	}
+
+	if err := dirExists(c.dir); err != nil {
+		return nil, nil, nil, fmt.Errorf("load web dir: %v", err)
+	}
+
+	staticDir := filepath.Join(c.dir, "static")
+	templatesDir := filepath.Join(c.dir, "templates")
+	themeDir := filepath.Join(c.dir, "themes", c.theme)
+
+	for _, dir := range []string{staticDir, templatesDir, themeDir} {
+		if err := dirExists(dir); err != nil {
+			return nil, nil, nil, fmt.Errorf("load dir: %v", err)
 		}
 	}
 
+	static = http.FileServer(http.Dir(staticDir))
+	theme = http.FileServer(http.Dir(themeDir))
+
+	templates, err = loadTemplates(c, templatesDir)
+	return
+}
+
+// loadTemplates parses the expected templates from the provided directory.
+func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
+	files, err := ioutil.ReadDir(templatesDir)
+	if err != nil {
+		return nil, fmt.Errorf("read dir: %v", err)
+	}
+
+	filenames := []string{}
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		filenames = append(filenames, filepath.Join(templatesDir, file.Name()))
+	}
+	if len(filenames) == 0 {
+		return nil, fmt.Errorf("no files in template dir %q", templatesDir)
+	}
+
+	funcs := map[string]interface{}{
+		"issuer": func() string { return c.issuer },
+		"logo":   func() string { return c.logoURL },
+		"url":    func(s string) string { return join(c.issuerURL, s) },
+	}
+
+	tmpls, err := template.New("").Funcs(funcs).ParseFiles(filenames...)
+	if err != nil {
+		return nil, fmt.Errorf("parse files: %v", err)
+	}
 	missingTmpls := []string{}
 	for _, tmplName := range requiredTmpls {
 		if tmpls.Lookup(tmplName) == nil {
@@ -95,16 +152,7 @@ func loadTemplates(config TemplateConfig) (*templates, error) {
 	if len(missingTmpls) > 0 {
 		return nil, fmt.Errorf("missing template(s): %s", missingTmpls)
 	}
-
-	if config.LogoURL == "" {
-		config.LogoURL = coreOSLogoURL
-	}
-	if config.Issuer == "" {
-		config.Issuer = "dex"
-	}
-
 	return &templates{
-		globalData:   config,
 		loginTmpl:    tmpls.Lookup(tmplLogin),
 		approvalTmpl: tmpls.Lookup(tmplApproval),
 		passwordTmpl: tmpls.Lookup(tmplPassword),
@@ -116,14 +164,6 @@ var scopeDescriptions = map[string]string{
 	"offline_access": "Have offline access",
 	"profile":        "View basic profile information",
 	"email":          "View your email",
-}
-
-type templates struct {
-	globalData   TemplateConfig
-	loginTmpl    *template.Template
-	approvalTmpl *template.Template
-	passwordTmpl *template.Template
-	oobTmpl      *template.Template
 }
 
 type connectorInfo struct {
@@ -142,21 +182,19 @@ func (t *templates) login(w http.ResponseWriter, connectors []connectorInfo, aut
 	sort.Sort(byName(connectors))
 
 	data := struct {
-		TemplateConfig
 		Connectors []connectorInfo
 		AuthReqID  string
-	}{t.globalData, connectors, authReqID}
+	}{connectors, authReqID}
 	renderTemplate(w, t.loginTmpl, data)
 }
 
 func (t *templates) password(w http.ResponseWriter, authReqID, callback, lastUsername string, lastWasInvalid bool) {
 	data := struct {
-		TemplateConfig
 		AuthReqID string
 		PostURL   string
 		Username  string
 		Invalid   bool
-	}{t.globalData, authReqID, callback, lastUsername, lastWasInvalid}
+	}{authReqID, string(callback), lastUsername, lastWasInvalid}
 	renderTemplate(w, t.passwordTmpl, data)
 }
 
@@ -170,20 +208,18 @@ func (t *templates) approval(w http.ResponseWriter, authReqID, username, clientN
 	}
 	sort.Strings(accesses)
 	data := struct {
-		TemplateConfig
 		User      string
 		Client    string
 		AuthReqID string
 		Scopes    []string
-	}{t.globalData, username, clientName, authReqID, accesses}
+	}{username, clientName, authReqID, accesses}
 	renderTemplate(w, t.approvalTmpl, data)
 }
 
 func (t *templates) oob(w http.ResponseWriter, code string) {
 	data := struct {
-		TemplateConfig
 		Code string
-	}{t.globalData, code}
+	}{code}
 	renderTemplate(w, t.oobTmpl, data)
 }
 

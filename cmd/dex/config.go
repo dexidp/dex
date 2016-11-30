@@ -30,7 +30,7 @@ type Config struct {
 	GRPC       GRPC        `json:"grpc"`
 	Expiry     Expiry      `json:"expiry"`
 
-	Templates server.TemplateConfig `json:"templates"`
+	Frontend server.WebConfig `json:"frontend"`
 
 	// StaticClients cause the server to use this list of clients rather than
 	// querying the storage. Write operations, like creating a client, will fail.

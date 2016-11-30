@@ -3,8 +3,10 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-    <title>{{ .Issuer }}</title>
+    <title>{{ issuer }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="{{ url "static/main.css" }}" rel="stylesheet">
+    <link href="{{ url "theme/style.css" }}" rel="stylesheet">
     <style>
       * {
         -webkit-box-sizing: border-box;
@@ -232,7 +234,7 @@
   <body>
     <div id="navbar">
       <div id="navbar-logo-wrap">
-        <img id="navbar-logo" src="{{ .LogoURL }}">
+        <img id="navbar-logo" src="{{ logo }}">
       </div>
     </div>
 

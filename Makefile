@@ -25,7 +25,7 @@ LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
 
 build: bin/dex bin/example-app
 
-bin/dex: FORCE generated
+bin/dex: FORCE
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
 bin/example-app: FORCE
@@ -34,9 +34,6 @@ bin/example-app: FORCE
 .PHONY: release-binary
 release-binary:
 	@go build -o _output/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
-
-.PHONY: generated
-generated: server/templates_default.go
 
 test:
 	@go test -v -i $(shell go list ./... | grep -v '/vendor/')
@@ -56,9 +53,6 @@ lint:
 	@for package in $(shell go list ./... | grep -v '/vendor/' | grep -v '/api'); do \
       golint -set_exit_status $$package $$i || exit 1; \
 	done
-
-server/templates_default.go: $(wildcard web/templates/**)
-	@go run server/templates_default_gen.go
 
 _output/bin/dex:
 	# Using rkt to build the dex binary.

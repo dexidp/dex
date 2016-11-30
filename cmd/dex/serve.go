@@ -151,7 +151,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		Issuer:                 c.Issuer,
 		Connectors:             connectors,
 		Storage:                s,
-		TemplateConfig:         c.Templates,
+		Web:                    c.Frontend,
 		EnablePasswordDB:       c.EnablePasswordDB,
 	}
 	if c.Expiry.SigningKeys != "" {

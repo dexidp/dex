@@ -1,7 +1,7 @@
 {{ template "header.html" . }}
 
 <div class="panel">
-  <h2 class="heading">Log in to {{ .Issuer }} </h2>
+  <h2 class="heading">Log in to {{ issuer }} </h2>
 
   <div>
     {{ range $c := .Connectors }}
