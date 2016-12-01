@@ -39,38 +39,39 @@ type remoteKeySet struct {
 	// guard all other fields
 	mu sync.Mutex
 
-	// inflightCtx is the context of the current HTTP request to update the keys.
-	// Its Err() method returns any errors encountered during that attempt.
+	// inflightCtx suppresses parallel execution of updateKeys and allows
+	// multiple goroutines to wait for its result.
+	// Its Err() method returns any errors encountered during updateKeys.
 	//
-	// If nil, there is no inflight request.
-	inflightCtx context.Context
+	// If nil, there is no inflight updateKeys request.
+	inflightCtx *inflight
 
 	// A set of cached keys and their expiry.
 	cachedKeys []jose.JSONWebKey
 	expiry     time.Time
 }
 
-// errContext is a context with a customizable Err() return value.
-type errContext struct {
-	context.Context
-
-	cf  context.CancelFunc
-	err error
+// inflight is used to wait on some in-flight request from multiple goroutines
+type inflight struct {
+	done chan struct{}
+	err  error
 }
 
-func newErrContext(parent context.Context) *errContext {
-	ctx, cancel := context.WithCancel(parent)
-	return &errContext{ctx, cancel, nil}
+// Done returns a channel that is closed when the inflight request finishes.
+func (i *inflight) Done() <-chan struct{} {
+	return i.done
 }
 
-func (e errContext) Err() error {
-	return e.err
+// Err returns any error encountered during request execution. May be nil.
+func (i *inflight) Err() error {
+	return i.err
 }
 
-// cancel cancels the errContext causing listeners on Done() to return.
-func (e errContext) cancel(err error) {
-	e.err = err
-	e.cf()
+// Cancel signals completion of the inflight request with error err.
+// Must be called only once for particular inflight instance.
+func (i *inflight) Cancel(err error) {
+	i.err = err
+	close(i.done)
 }
 
 func (r *remoteKeySet) keysWithIDFromCache(keyIDs []string) ([]jose.JSONWebKey, bool) {
@@ -105,18 +106,15 @@ func (r *remoteKeySet) keysWithID(ctx context.Context, keyIDs []string) ([]jose.
 		return keys, nil
 	}
 
-	var inflightCtx context.Context
+	var inflightCtx *inflight
 	func() {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 
 		// If there's not a current inflight request, create one.
 		if r.inflightCtx == nil {
-			// Use the remoteKeySet's context instead of the requests context
-			// because a re-sync is unique to the keys set and will span multiple
-			// requests.
-			errCtx := newErrContext(r.ctx)
-			r.inflightCtx = errCtx
+			inflightCtx := &inflight{make(chan struct{}), nil}
+			r.inflightCtx = inflightCtx
 
 			go func() {
 				// TODO(ericchiang): Upstream Kubernetes request that we recover every time
@@ -131,7 +129,10 @@ func (r *remoteKeySet) keysWithID(ctx context.Context, keyIDs []string) ([]jose.
 				// See: https://github.com/coreos/go-oidc/issues/89
 
 				// Sync keys and close inflightCtx when that's done.
-				errCtx.cancel(r.updateKeys(r.inflightCtx))
+				// Use the remoteKeySet's context instead of the requests context
+				// because a re-sync is unique to the keys set and will span multiple
+				// requests.
+				inflightCtx.Cancel(r.updateKeys(r.ctx))
 
 				r.mu.Lock()
 				defer r.mu.Unlock()
