@@ -1,22 +1,19 @@
 {{ template "header.html" . }}
 
-<div class="panel">
-  <h2 class="heading">Log in to {{ issuer }} </h2>
-
+<div class="theme-panel">
+  <h2 class="theme-heading">Log in to {{ issuer }} </h2>
   <div>
     {{ range $c := .Connectors }}
-      <div class="form-row">
+      <div class="theme-form-row">
         <a href="{{ $c.URL }}?req={{ $.AuthReqID }}" target="_self">
-          <button class="btn btn-provider">
-            <span class="btn-icon btn-icon-{{ $c.ID }}"></span>
-            <span class="btn-text">Log in with {{ $c.Name }}</span>
+          <button class="dex-btn dex-btn-provider">
+            <span class="dex-btn-icon dex-btn-icon--{{ $c.ID }}"></span>
+            <span class="dex-btn-text">Log in with {{ $c.Name }}</span>
           </button>
         </a>
       </div>
     {{ end }}
   </div>
-
 </div>
-
 
 {{ template "footer.html" . }}
