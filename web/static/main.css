@@ -32,16 +32,6 @@ body {
   outline: none;
 }
 
-.dex-btn-provider {
-  background-color: #fff;
-  color: #333;
-  width: 250px;
-}
-
-.dex-btn-provider:hover {
-  color: #999;
-}
-
 .dex-btn-icon {
   background-position: center;
   background-repeat: no-repeat;

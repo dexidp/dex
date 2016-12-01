@@ -41,6 +41,16 @@
   padding: 30px;
 }
 
+.theme-btn-provider {
+  background-color: #fff;
+  color: #333;
+  min-width: 250px;
+}
+
+.theme-btn-provider:hover {
+  color: #999;
+}
+
 .theme-btn--primary {
   background-color: #333;
   border: none;
