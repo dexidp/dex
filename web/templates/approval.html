@@ -1,37 +1,35 @@
 {{ template "header.html" . }}
 
-<div class="panel">
-  <h2 class="heading">Grant Access</h2>
+<div class="theme-panel">
+  <h2 class="theme-heading">Grant Access</h2>
 
-  <hr>
-  <div class="list-with-title">
-    <div class="subtle-text">{{ .Client }} would like to:</div>
+  <hr class="dex-separator">
+  <div>
+    <div class="dex-subtle-text">{{ .Client }} would like to:</div>
+    <ul class="dex-list">
       {{ range $scope := .Scopes }}
-      <li class="bullet-point">
-        <div class="subtle-text">
-          {{ $scope }}
-        </div>
-      </li>
+      <li>{{ $scope }}</li>
       {{ end }}
+    </ul>
   </div>
-  <hr>
+  <hr class="dex-separator">
 
   <div>
-    <div class="form-row">
+    <div class="theme-form-row">
       <form method="post">
         <input type="hidden" name="req" value="{{ .AuthReqID }}"/>
         <input type="hidden" name="approval" value="approve">
-        <button type="submit" class="btn btn-success">
-            <span class="btn-text">Grant Access</span>
+        <button type="submit" class="dex-btn theme-btn--success">
+            <span class="dex-btn-text">Grant Access</span>
         </button>
       </form>
     </div>
-    <div class="form-row">
+    <div class="theme-form-row">
       <form method="post">
         <input type="hidden" name="req" value="{{ .AuthReqID }}"/>
         <input type="hidden" name="approval" value="rejected">
-        <button type="submit" class="btn btn-provider">
-            <span class="btn-text">Cancel</span>
+        <button type="submit" class="dex-btn theme-btn-provider">
+            <span class="dex-btn-text">Cancel</span>
         </button>
       </form>
     </div>
