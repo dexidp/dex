@@ -9,7 +9,7 @@ LINTABLE=$( go list -tags=golint -f '
   {{ range $i, $file := .TestGoFiles -}}
     {{ $file }} {{ end }}' github.com/coreos/go-oidc )
 
-go test -v -i -race github.com/coreos/go-oidc
-go test -v -race github.com/coreos/go-oidc
+go test -v -i -race github.com/coreos/go-oidc/...
+go test -v -race github.com/coreos/go-oidc/...
 golint $LINTABLE
-go vet github.com/coreos/go-oidc
+go vet github.com/coreos/go-oidc/...
