@@ -56,7 +56,32 @@ type Config struct {
 
 	EnablePasswordDB bool
 
-	TemplateConfig TemplateConfig
+	Web WebConfig
+}
+
+// WebConfig holds the server's frontend templates and asset configuration.
+//
+// These are currently very custom to CoreOS and it's not recommended that
+// outside users attempt to customize these.
+type WebConfig struct {
+	// A filepath to web static.
+	//
+	// It is expected to contain the following directories:
+	//
+	//   * static - Static static served at "( issuer URL )/static".
+	//   * templates - HTML templates controlled by dex.
+	//   * themes/(theme) - Static static served at "( issuer URL )/theme".
+	//
+	Dir string
+
+	// Defaults to "( issuer URL )/theme/logo.png"
+	LogoURL string
+
+	// Defaults to "dex"
+	Issuer string
+
+	// Defaults to "coreos"
+	Theme string
 }
 
 func value(val, defaultValue time.Duration) time.Duration {
@@ -130,9 +155,17 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		supported[respType] = true
 	}
 
-	tmpls, err := loadTemplates(c.TemplateConfig)
+	web := webConfig{
+		dir:       c.Web.Dir,
+		logoURL:   c.Web.LogoURL,
+		issuerURL: c.Issuer,
+		issuer:    c.Web.Issuer,
+		theme:     c.Web.Theme,
+	}
+
+	static, theme, tmpls, err := loadWebConfig(web)
 	if err != nil {
-		return nil, fmt.Errorf("server: failed to load templates: %v", err)
+		return nil, fmt.Errorf("server: failed to load web static: %v", err)
 	}
 
 	now := c.Now
@@ -159,6 +192,10 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleFunc := func(p string, h http.HandlerFunc) {
 		r.HandleFunc(path.Join(issuerURL.Path, p), h)
 	}
+	handlePrefix := func(p string, h http.Handler) {
+		prefix := path.Join(issuerURL.Path, p)
+		r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, h))
+	}
 	r.NotFoundHandler = http.HandlerFunc(s.notFound)
 
 	discoveryHandler, err := s.discoveryHandler()
@@ -175,6 +212,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleFunc("/callback", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
 	handleFunc("/healthz", s.handleHealth)
+	handlePrefix("/static", static)
+	handlePrefix("/theme", theme)
 	s.mux = r
 
 	startKeyRotation(ctx, c.Storage, rotationStrategy, now)

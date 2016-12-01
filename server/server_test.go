@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -84,6 +86,9 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 				DisplayName: "Mock",
 				Connector:   mock.NewCallbackConnector(),
 			},
+		},
+		Web: WebConfig{
+			Dir: filepath.Join(os.Getenv("GOPATH"), "src/github.com/coreos/dex/web"),
 		},
 	}
 	if updateConfig != nil {
