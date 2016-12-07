@@ -36,15 +36,6 @@ script:
   - ./build-docker
   - ./build-docker clean
 
-deploy:
-  provider: script
-  script: scripts/deploy
-  skip_cleanup: true
-  on:
-    branch: master
-    go: '1.6.2'
-    condition: "$TRAVIS_PULL_REQUEST = false"
-
 notifications:
   email: false
 
