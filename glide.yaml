@@ -123,3 +123,9 @@ import:
   subpackages:
   - proto
   - protoc-gen-go
+
+# Structured logging
+- package: github.com/Sirupsen/logrus
+  version: v0.11.0
+- package: golang.org/x/sys/unix
+  version: 833a04a10549a95dc34458c195cbad61bbb6cb4d
