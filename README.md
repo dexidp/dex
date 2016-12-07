@@ -4,7 +4,7 @@
 
 ![logo](Documentation/logos/dex-horizontal-color.png)
 
-Dex is an OpenID Connect server that allows users to login through upstream identity providers. Clients use a standards-based OAuth2 flow to login users, while the actual authentication is performed by established user management systems such as Google, GitHub, FreeIPA, etc.
+Dex is an OpenID Connect server that connects to other identity providers. Clients use a standards-based OAuth2 flow to login users, while the actual authentication is performed by established user management systems such as Google, GitHub, FreeIPA, etc.
 
 [OpenID Connect][openid-connect] is a flavor of OAuth that builds on top of OAuth2 using the JOSE standards. This allows dex to provide:
 
@@ -18,6 +18,12 @@ Standards-based token responses allows applications to interact with any OpenID 
 * [Kubernetes][kubernetes]
 * [AWS STS][aws-sts]
 
+## Kubernetes + dex
+
+Dex's main production use is as an auth-N addon in CoreOS's enterprise Kubernetes solution, [Tectonic][tectonic]. Dex runs natively on top of any Kubernetes cluster using Third Party Resources and can drive API server authentication through the OpenID Connect plugin. Clients, such as the [Tectonic Console][tectonic-console] and `kubectl`, can act on behalf users who can login to the cluster through any identity provider dex supports.
+
+More docs for running dex as a Kubernetes authenticator can be found [here](Documentation/kubernetes.md).
+
 ## Documentation
 
 * [Getting started](Documentation/getting-started.md)
@@ -25,6 +31,7 @@ Standards-based token responses allows applications to interact with any OpenID 
 * [Storage options](Documentation/storage.md)
 * [Intro to OpenID Connect](Documentation/openid-connect.md)
 * [gRPC API](Documentation/api.md)
+* [Using Kubernetes with dex](Documentation/kubernetes.md)
 * Identity provider logins
   * [LDAP](Documentation/ldap-connector.md)
   * [GitHub](Documentation/github-connector.md)
@@ -40,6 +47,8 @@ Standards-based token responses allows applications to interact with any OpenID 
 [openid-connect]: https://openid.net/connect/
 [kubernetes]: http://kubernetes.io/docs/admin/authentication/#openid-connect-tokens
 [aws-sts]: https://docs.aws.amazon.com/STS/latest/APIReference/Welcome.html
+[tectonic]: https://tectonic.com/
+[tectonic-console]: https://tectonic.com/enterprise/docs/latest/usage/index.html#tectonic-console
 [go-oidc]: https://github.com/coreos/go-oidc
 [issues]: https://github.com/coreos/dex/issues
 [dex-dev]: https://groups.google.com/forum/#!forum/dex-dev
