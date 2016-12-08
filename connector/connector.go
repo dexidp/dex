@@ -64,6 +64,9 @@ type CallbackConnector interface {
 
 	// Handle the callback to the server and return an identity.
 	HandleCallback(s Scopes, r *http.Request) (identity Identity, err error)
+
+	// State returns the response field with the OAuth2 or SAML state. Allowed values are "state" or "RelayState".
+	State() string
 }
 
 // RefreshConnector is a connector that can update the client claims.
