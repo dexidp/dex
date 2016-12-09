@@ -52,13 +52,15 @@ connectors:
     # server provides access for anonymous auth.
     bindDN: uid=seviceaccount,cn=users,dc=example,dc=com
     bindPW: password
-    # User entry search configuration.
+
+    # User search maps a username and password entered by a user to a LDAP entry.
     userSearch:
       # BaseDN to start the search from. It will translate to the query
       # "(&(objectClass=person)(uid=<username>))".
       baseDN: cn=users,dc=example,dc=com
       # Optional filter to apply when searching the directory.
       filter: "(objectClass=person)"
+
       # username attribute used for comparing user entries. This will be translated
       # and combined with the other filter as "(<attr>=<username>)".
       username: uid
@@ -69,24 +71,113 @@ connectors:
       emailAttr: mail
       # Maps to display name of users. No default value.
       nameAttr: name
-    # Group search configuration.
+
+    # Group search queries for groups given a user entry.
     groupSearch:
       # BaseDN to start the search from. It will translate to the query
       # "(&(objectClass=group)(member=<user uid>))".
       baseDN: cn=groups,dc=freeipa,dc=example,dc=com
       # Optional filter to apply when searching the directory.
       filter: "(objectClass=group)"
+
       # Following two fields are used to match a user to a group. It adds an additional
       # requirement to the filter that an attribute in the group must match the user's
       # attribute value.
       userAttr: uid
       groupAttr: member
+
       # Represents group name.
       nameAttr: name
 ```
 
 The LDAP connector first initializes a connection to the LDAP directory using the `bindDN` and `bindPW`. It then tries to search for the given `username` and bind as that user to verify their password.
 Searches that return multiple entries are considered ambiguous and will return an error.
+
+## Example: Mapping a schema to a search config
+
+Writing a search configuration often involves mapping an existing LDAP schema to the various options dex provides. To query an existing LDAP schema install the OpenLDAP tool `ldapsearch`. For `rpm` based distros run:
+
+```
+sudo dnf install openldap-clients
+```
+
+For `apt-get`:
+
+```
+sudo apt-get install ldap-utils
+```
+
+For smaller user directories it may be practical to dump the entire contents and search by hand.
+
+```
+ldapsearch -x -h ldap.example.org -b 'dc=example,dc=org' | less
+```
+
+First, find a user entry. User entries declare users who can login to LDAP connector using username and password.
+
+```
+dn: uid=jdoe,cn=users,cn=compat,dc=example,dc=org
+cn: Jane Doe
+objectClass: posixAccount
+objectClass: ipaOverrideTarget
+objectClass: top
+gidNumber: 200015
+gecos: Jane Doe
+uidNumber: 200015
+loginShell: /bin/bash
+homeDirectory: /home/jdoe
+mail: jane.doe@example.com
+uid: janedoe
+```
+
+Compose a user search which returns this user.
+
+```yaml
+userSearch:
+  # The directory directly above the user entry.
+  baseDN: cn=users,cn=compat,dc=example,dc=org
+  filter: "(objectClass=posixAccount)"
+
+  # Expect user to enter "janedoe" when logging in.
+  username: uid
+
+  # Use the full DN as an ID.
+  idAttr: DN
+
+  # When an email address is not available, use another value unique to the user, like uid.
+  emailAttr: mail
+  nameAttr: gecos
+```
+
+Second, find a group entry.
+
+```
+dn: cn=developers,cn=groups,cn=compat,dc=example,dc=org
+memberUid: janedoe
+memberUid: johndoe
+gidNumber: 200115
+objectClass: posixGroup
+objectClass: ipaOverrideTarget
+objectClass: top
+cn: developers
+```
+
+Group searches must match a user attribute to a group attribute. In this example, the search returns users whose uid is found in the group's list of memberUid attributes.
+
+```yaml
+groupSearch:
+  # The directory directly above the group entry.
+  baseDN: cn=groups,cn=compat,dc=example,dc=org
+  filter: "(objectClass=posixGroup)"
+
+  # The group search needs to match the "uid" attribute on
+  # the user with the "memberUid" attribute on the group.
+  userAttr: uid
+  groupAttr: memberUid
+
+  # Unique name of the group.
+  nameAttr: cn
+```
 
 ## Example: Searching a FreeIPA server with groups
 
