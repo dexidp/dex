@@ -442,7 +442,3 @@ func currentContext(config *k8sapi.Config) (cluster k8sapi.Cluster, user k8sapi.
 	}
 	return cluster, user, context.Namespace, nil
 }
-
-func newInClusterClient() (*client, error) {
-	return nil, nil
-}
