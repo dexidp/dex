@@ -278,6 +278,9 @@ func (c *ldapConnector) identityFromEntry(user ldap.Entry) (ident connector.Iden
 	if ident.Email = getAttr(user, c.UserSearch.EmailAttr); ident.Email == "" {
 		missing = append(missing, c.UserSearch.EmailAttr)
 	}
+	// TODO(ericchiang): Let this value be set from an attribute.
+	ident.EmailVerified = true
+
 	if c.UserSearch.NameAttr != "" {
 		if ident.Username = getAttr(user, c.UserSearch.NameAttr); ident.Username == "" {
 			missing = append(missing, c.UserSearch.NameAttr)
