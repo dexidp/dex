@@ -50,6 +50,15 @@ previous releases for the expected format.
 
 https://github.com/coreos/dex/releases
 
+## Minor releases - create a branch
+
+If the release is a minor release (2.1.0, 2.2.0, etc.) create a branch for future patch releases.
+
+```bash
+git checkout -b v2.1.x tags/v2.1.0
+git push git@github.com:coreos/dex.git v2.1.x
+```
+
 ## Building the Docker image
 
 Build the Docker image and push to Quay.
