@@ -3,11 +3,11 @@ package server
 import (
 	"errors"
 	"fmt"
-	"log"
 
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/context"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/api"
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/version"
@@ -18,12 +18,16 @@ import (
 const apiVersion = 0
 
 // NewAPI returns a server which implements the gRPC API interface.
-func NewAPI(s storage.Storage) api.DexServer {
-	return dexAPI{s: s}
+func NewAPI(s storage.Storage, logger logrus.FieldLogger) api.DexServer {
+	return dexAPI{
+		s:      s,
+		logger: logger,
+	}
 }
 
 type dexAPI struct {
-	s storage.Storage
+	s      storage.Storage
+	logger logrus.FieldLogger
 }
 
 func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*api.CreateClientResp, error) {
@@ -48,7 +52,7 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 		LogoURL:      req.Client.LogoUrl,
 	}
 	if err := d.s.CreateClient(c); err != nil {
-		log.Printf("api: failed to create client: %v", err)
+		d.logger.Errorf("api: failed to create client: %v", err)
 		// TODO(ericchiang): Surface "already exists" errors.
 		return nil, fmt.Errorf("create client: %v", err)
 	}
@@ -64,7 +68,7 @@ func (d dexAPI) DeleteClient(ctx context.Context, req *api.DeleteClientReq) (*ap
 		if err == storage.ErrNotFound {
 			return &api.DeleteClientResp{NotFound: true}, nil
 		}
-		log.Printf("api: failed to delete client: %v", err)
+		d.logger.Errorf("api: failed to delete client: %v", err)
 		return nil, fmt.Errorf("delete client: %v", err)
 	}
 	return &api.DeleteClientResp{}, nil
@@ -104,7 +108,7 @@ func (d dexAPI) CreatePassword(ctx context.Context, req *api.CreatePasswordReq) 
 		UserID:   req.Password.UserId,
 	}
 	if err := d.s.CreatePassword(p); err != nil {
-		log.Printf("api: failed to create password: %v", err)
+		d.logger.Errorf("api: failed to create password: %v", err)
 		return nil, fmt.Errorf("create password: %v", err)
 	}
 
@@ -141,7 +145,7 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 		if err == storage.ErrNotFound {
 			return &api.UpdatePasswordResp{NotFound: true}, nil
 		}
-		log.Printf("api: failed to update password: %v", err)
+		d.logger.Errorf("api: failed to update password: %v", err)
 		return nil, fmt.Errorf("update password: %v", err)
 	}
 
@@ -158,7 +162,7 @@ func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) 
 		if err == storage.ErrNotFound {
 			return &api.DeletePasswordResp{NotFound: true}, nil
 		}
-		log.Printf("api: failed to delete password: %v", err)
+		d.logger.Errorf("api: failed to delete password: %v", err)
 		return nil, fmt.Errorf("delete password: %v", err)
 	}
 	return &api.DeletePasswordResp{}, nil
@@ -175,7 +179,7 @@ func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.Versi
 func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*api.ListPasswordResp, error) {
 	passwordList, err := d.s.ListPasswords()
 	if err != nil {
-		log.Printf("api: failed to list passwords: %v", err)
+		d.logger.Errorf("api: failed to list passwords: %v", err)
 		return nil, fmt.Errorf("list passwords: %v", err)
 	}
 

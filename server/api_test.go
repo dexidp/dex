@@ -19,7 +19,7 @@ func TestPassword(t *testing.T) {
 	}
 
 	s := memory.New(logger)
-	serv := NewAPI(s)
+	serv := NewAPI(s, logger)
 
 	ctx := context.Background()
 	p := api.Password{

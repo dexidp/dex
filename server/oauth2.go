@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -41,20 +40,20 @@ func (err *authErr) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, redirectURI, http.StatusSeeOther)
 }
 
-func tokenErr(w http.ResponseWriter, typ, description string, statusCode int) {
+func tokenErr(w http.ResponseWriter, typ, description string, statusCode int) error {
 	data := struct {
 		Error       string `json:"error"`
 		Description string `json:"error_description,omitempty"`
 	}{typ, description}
 	body, err := json.Marshal(data)
 	if err != nil {
-		log.Printf("failed to marshal token error response: %v", err)
-		return
+		return fmt.Errorf("failed to marshal token error response: %v", err)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	w.WriteHeader(statusCode)
 	w.Write(body)
+	return nil
 }
 
 const (
@@ -159,7 +158,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 			if !ok {
 				continue
 			}
-			isTrusted, err := validateCrossClientTrust(s.storage, clientID, peerID)
+			isTrusted, err := s.validateCrossClientTrust(clientID, peerID)
 			if err != nil {
 				return "", expiry, err
 			}
@@ -183,7 +182,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 
 	keys, err := s.storage.GetKeys()
 	if err != nil {
-		log.Printf("Failed to get keys: %v", err)
+		s.logger.Errorf("Failed to get keys: %v", err)
 		return "", expiry, err
 	}
 	if idToken, err = keys.Sign(payload); err != nil {
@@ -195,7 +194,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 // parse the initial request from the OAuth2 client.
 //
 // For correctness the logic is largely copied from https://github.com/RangelReale/osin.
-func parseAuthorizationRequest(s storage.Storage, supportedResponseTypes map[string]bool, r *http.Request) (req storage.AuthRequest, oauth2Err *authErr) {
+func (s *Server) parseAuthorizationRequest(supportedResponseTypes map[string]bool, r *http.Request) (req storage.AuthRequest, oauth2Err *authErr) {
 	if err := r.ParseForm(); err != nil {
 		return req, &authErr{"", "", errInvalidRequest, "Failed to parse request."}
 	}
@@ -208,13 +207,13 @@ func parseAuthorizationRequest(s storage.Storage, supportedResponseTypes map[str
 
 	clientID := r.Form.Get("client_id")
 
-	client, err := s.GetClient(clientID)
+	client, err := s.storage.GetClient(clientID)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			description := fmt.Sprintf("Invalid client_id (%q).", clientID)
 			return req, &authErr{"", "", errUnauthorizedClient, description}
 		}
-		log.Printf("Failed to get client: %v", err)
+		s.logger.Errorf("Failed to get client: %v", err)
 		return req, &authErr{"", "", errServerError, ""}
 	}
 
@@ -246,7 +245,7 @@ func parseAuthorizationRequest(s storage.Storage, supportedResponseTypes map[str
 				continue
 			}
 
-			isTrusted, err := validateCrossClientTrust(s, clientID, peerID)
+			isTrusted, err := s.validateCrossClientTrust(clientID, peerID)
 			if err != nil {
 				return req, newErr(errServerError, "")
 			}
@@ -309,14 +308,14 @@ func parseCrossClientScope(scope string) (peerID string, ok bool) {
 	return
 }
 
-func validateCrossClientTrust(s storage.Storage, clientID, peerID string) (trusted bool, err error) {
+func (s *Server) validateCrossClientTrust(clientID, peerID string) (trusted bool, err error) {
 	if peerID == clientID {
 		return true, nil
 	}
-	peer, err := s.GetClient(peerID)
+	peer, err := s.storage.GetClient(peerID)
 	if err != nil {
 		if err != storage.ErrNotFound {
-			log.Printf("Failed to get client: %v", err)
+			s.logger.Errorf("Failed to get client: %v", err)
 			return false, err
 		}
 		return false, nil

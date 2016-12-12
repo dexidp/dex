@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -182,19 +181,19 @@ func serve(cmd *cobra.Command, args []string) error {
 	}
 	errc := make(chan error, 3)
 	if c.Web.HTTP != "" {
-		log.Printf("listening (http) on %s", c.Web.HTTP)
+		logger.Errorf("listening (http) on %s", c.Web.HTTP)
 		go func() {
 			errc <- http.ListenAndServe(c.Web.HTTP, serv)
 		}()
 	}
 	if c.Web.HTTPS != "" {
-		log.Printf("listening (https) on %s", c.Web.HTTPS)
+		logger.Errorf("listening (https) on %s", c.Web.HTTPS)
 		go func() {
 			errc <- http.ListenAndServeTLS(c.Web.HTTPS, c.Web.TLSCert, c.Web.TLSKey, serv)
 		}()
 	}
 	if c.GRPC.Addr != "" {
-		log.Printf("listening (grpc) on %s", c.GRPC.Addr)
+		logger.Errorf("listening (grpc) on %s", c.GRPC.Addr)
 		go func() {
 			errc <- func() error {
 				list, err := net.Listen("tcp", c.GRPC.Addr)
@@ -202,7 +201,7 @@ func serve(cmd *cobra.Command, args []string) error {
 					return fmt.Errorf("listen grpc: %v", err)
 				}
 				s := grpc.NewServer(grpcOptions...)
-				api.RegisterDexServer(s, server.NewAPI(serverConfig.Storage))
+				api.RegisterDexServer(s, server.NewAPI(serverConfig.Storage, logger))
 				return s.Serve(list)
 			}()
 		}()

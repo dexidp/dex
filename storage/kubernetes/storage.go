@@ -3,7 +3,6 @@ package kubernetes
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -83,11 +82,11 @@ func (c *Config) open(logger logrus.FieldLogger) (*client, error) {
 	// they'll immediately be available, but ensures that the client will actually try
 	// once.
 	if err := cli.createThirdPartyResources(); err != nil {
-		log.Printf("failed creating third party resources: %v", err)
+		logger.Errorf("failed creating third party resources: %v", err)
 		go func() {
 			for {
 				if err := cli.createThirdPartyResources(); err != nil {
-					log.Printf("failed creating third party resources: %v", err)
+					logger.Errorf("failed creating third party resources: %v", err)
 				} else {
 					return
 				}
@@ -119,13 +118,13 @@ func (cli *client) createThirdPartyResources() error {
 		if err != nil {
 			if e, ok := err.(httpError); ok {
 				if e.StatusCode() == http.StatusConflict {
-					log.Printf("third party resource already created %q", r.ObjectMeta.Name)
+					cli.logger.Errorf("third party resource already created %q", r.ObjectMeta.Name)
 					continue
 				}
 			}
 			return err
 		}
-		log.Printf("create third party resource %q", r.ObjectMeta.Name)
+		cli.logger.Errorf("create third party resource %q", r.ObjectMeta.Name)
 	}
 	return nil
 }
@@ -397,7 +396,7 @@ func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err e
 	for _, authRequest := range authRequests.AuthRequests {
 		if now.After(authRequest.Expiry) {
 			if err := cli.delete(resourceAuthRequest, authRequest.ObjectMeta.Name); err != nil {
-				log.Printf("failed to delete auth request: %v", err)
+				cli.logger.Errorf("failed to delete auth request: %v", err)
 				delErr = fmt.Errorf("failed to delete auth request: %v", err)
 			}
 			result.AuthRequests++
@@ -415,7 +414,7 @@ func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err e
 	for _, authCode := range authCodes.AuthCodes {
 		if now.After(authCode.Expiry) {
 			if err := cli.delete(resourceAuthCode, authCode.ObjectMeta.Name); err != nil {
-				log.Printf("failed to delete auth code %v", err)
+				cli.logger.Errorf("failed to delete auth code %v", err)
 				delErr = fmt.Errorf("failed to delete auth code: %v", err)
 			}
 			result.AuthCodes++
