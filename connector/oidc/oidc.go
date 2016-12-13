@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/coreos/go-oidc"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
@@ -25,7 +26,7 @@ type Config struct {
 
 // Open returns a connector which can be used to login users through an upstream
 // OpenID Connect provider.
-func (c *Config) Open() (conn connector.Connector, err error) {
+func (c *Config) Open(logger logrus.FieldLogger) (conn connector.Connector, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	provider, err := oidc.NewProvider(ctx, c.Issuer)
@@ -55,6 +56,7 @@ func (c *Config) Open() (conn connector.Connector, err error) {
 			oidc.VerifyExpiry(),
 			oidc.VerifyAudience(clientID),
 		),
+		logger: logger,
 	}, nil
 }
 
@@ -68,6 +70,7 @@ type oidcConnector struct {
 	verifier     *oidc.IDTokenVerifier
 	ctx          context.Context
 	cancel       context.CancelFunc
+	logger       logrus.FieldLogger
 }
 
 func (c *oidcConnector) Close() error {

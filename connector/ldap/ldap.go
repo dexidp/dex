@@ -7,12 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 
 	"golang.org/x/net/context"
 	"gopkg.in/ldap.v2"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/connector"
 )
 
@@ -135,8 +135,8 @@ func parseScope(s string) (int, bool) {
 }
 
 // Open returns an authentication strategy using LDAP.
-func (c *Config) Open() (connector.Connector, error) {
-	conn, err := c.OpenConnector()
+func (c *Config) Open(logger logrus.FieldLogger) (connector.Connector, error) {
+	conn, err := c.OpenConnector(logger)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ type refreshData struct {
 }
 
 // OpenConnector is the same as Open but returns a type with all implemented connector interfaces.
-func (c *Config) OpenConnector() (interface {
+func (c *Config) OpenConnector(logger logrus.FieldLogger) (interface {
 	connector.Connector
 	connector.PasswordConnector
 	connector.RefreshConnector
@@ -206,7 +206,7 @@ func (c *Config) OpenConnector() (interface {
 	if !ok {
 		return nil, fmt.Errorf("userSearch.Scope unknown value %q", c.GroupSearch.Scope)
 	}
-	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig}, nil
+	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig, logger}, nil
 }
 
 type ldapConnector struct {
@@ -216,6 +216,8 @@ type ldapConnector struct {
 	groupSearchScope int
 
 	tlsConfig *tls.Config
+
+	logger logrus.FieldLogger
 }
 
 var (
@@ -325,7 +327,7 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 
 	switch n := len(resp.Entries); n {
 	case 0:
-		log.Printf("ldap: no results returned for filter: %q", filter)
+		c.logger.Errorf("ldap: no results returned for filter: %q", filter)
 		return ldap.Entry{}, false, nil
 	case 1:
 		return *resp.Entries[0], true, nil
@@ -358,7 +360,7 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 			// Detect a bad password through the LDAP error code.
 			if ldapErr, ok := err.(*ldap.Error); ok {
 				if ldapErr.ResultCode == ldap.LDAPResultInvalidCredentials {
-					log.Printf("ldap: invalid password for user %q", user.DN)
+					c.logger.Errorf("ldap: invalid password for user %q", user.DN)
 					incorrectPass = true
 					return nil
 				}
@@ -468,7 +470,7 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 	}
 	if len(groups) == 0 {
 		// TODO(ericchiang): Is this going to spam the logs?
-		log.Printf("ldap: groups search with filter %q returned no groups", filter)
+		c.logger.Errorf("ldap: groups search with filter %q returned no groups", filter)
 	}
 
 	var groupNames []string

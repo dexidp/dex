@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"regexp"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/cockroachdb/cockroach-go/crdb"
 
 	// import third party drivers
@@ -110,6 +111,7 @@ func (f flavor) translate(query string) string {
 type conn struct {
 	db     *sql.DB
 	flavor flavor
+	logger logrus.FieldLogger
 }
 
 func (c *conn) Close() error {

@@ -1,5 +1,5 @@
-hash: 2d3cc27484f672337349fffc8d7839462df7b1fbedc9200ae0a87a84afeed896
-updated: 2016-12-07T13:06:21.940111139-08:00
+hash: 723f2faad8f09a97ffb5ce647705b8ee41dbf2f81f91488c60f23d102789a23b
+updated: 2016-12-08T11:11:10.172119799-08:00
 imports:
 - name: github.com/cockroachdb/cockroach-go
   version: 31611c0501c812f437d4861d87d117053967c955
@@ -39,6 +39,8 @@ imports:
   version: c97913dcbd76de40b051a9b4cd827f7eaeb7a868
   subpackages:
   - cacheobject
+- name: github.com/Sirupsen/logrus
+  version: d26492970760ca5d33129d2d799e34be5c4782eb
 - name: github.com/spf13/cobra
   version: bc81c21bd0d8be5ba2d6630a505d79d4467566e7
 - name: github.com/spf13/pflag
@@ -63,6 +65,10 @@ imports:
   subpackages:
   - github
   - internal
+- name: golang.org/x/sys
+  version: 833a04a10549a95dc34458c195cbad61bbb6cb4d
+  subpackages:
+  - unix
 - name: google.golang.org/appengine
   version: 267c27e7492265b84fc6719503b14a1e17975d79
   subpackages:

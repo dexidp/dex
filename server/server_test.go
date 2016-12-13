@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	oidc "github.com/coreos/go-oidc"
 	"github.com/kylelemons/godebug/pretty"
 	"golang.org/x/crypto/bcrypt"
@@ -72,24 +73,32 @@ FDWV28nTP9sqbtsmU8Tem2jzMvZ7C/Q0AuDoKELFUpux8shm8wfIhyaPnXUGZoAZ
 Np4vUwMSYV5mopESLWOg3loBxKyLGFtgGKVCjGiQvy6zISQ4fQo=
 -----END RSA PRIVATE KEY-----`)
 
+var logger = &logrus.Logger{
+	Out:       os.Stderr,
+	Formatter: &logrus.TextFormatter{DisableColors: true},
+	Level:     logrus.DebugLevel,
+}
+
 func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
 	var server *Server
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		server.ServeHTTP(w, r)
 	}))
+
 	config := Config{
 		Issuer:  s.URL,
-		Storage: memory.New(),
+		Storage: memory.New(logger),
 		Connectors: []Connector{
 			{
 				ID:          "mock",
 				DisplayName: "Mock",
-				Connector:   mock.NewCallbackConnector(),
+				Connector:   mock.NewCallbackConnector(logger),
 			},
 		},
 		Web: WebConfig{
 			Dir: filepath.Join(os.Getenv("GOPATH"), "src/github.com/coreos/dex/web"),
 		},
+		Logger: logger,
 	}
 	if updateConfig != nil {
 		updateConfig(&config)
@@ -367,12 +376,17 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
+			logger := &logrus.Logger{
+				Out:       os.Stderr,
+				Formatter: &logrus.TextFormatter{DisableColors: true},
+				Level:     logrus.DebugLevel,
+			}
 			httpServer, s := newTestServer(ctx, t, func(c *Config) {
 				c.Issuer = c.Issuer + "/non-root-path"
 				c.Now = now
 				c.IDTokensValidFor = idTokensValidFor
 				// Create a new mock callback connector for each test case.
-				conn = mock.NewCallbackConnector().(*mock.Callback)
+				conn = mock.NewCallbackConnector(logger).(*mock.Callback)
 				c.Connectors = []Connector{
 					{
 						ID:          "mock",
@@ -743,7 +757,7 @@ func TestCrossClientScopes(t *testing.T) {
 }
 
 func TestPasswordDB(t *testing.T) {
-	s := memory.New()
+	s := memory.New(logger)
 	conn := newPasswordDB(s)
 
 	pw := "hi"
@@ -840,7 +854,7 @@ func TestKeyCacher(t *testing.T) {
 	tNow := time.Now()
 	now := func() time.Time { return tNow }
 
-	s := memory.New()
+	s := memory.New(logger)
 
 	tests := []struct {
 		before            func()

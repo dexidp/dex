@@ -1,14 +1,21 @@
 package memory
 
 import (
+	"os"
 	"reflect"
 	"testing"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/storage"
 )
 
 func TestStaticClients(t *testing.T) {
-	s := New()
+	logger := &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level:     logrus.DebugLevel,
+	}
+	s := New(logger)
 
 	c1 := storage.Client{ID: "foo", Secret: "foo_secret"}
 	c2 := storage.Client{ID: "bar", Secret: "bar_secret"}
