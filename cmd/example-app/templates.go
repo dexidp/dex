@@ -70,7 +70,7 @@ func renderTemplate(w http.ResponseWriter, tmpl *template.Template, data interfa
 
 	switch err := err.(type) {
 	case *template.Error:
-		// An ExecError guarentees that Execute has not written to the underlying reader.
+		// An ExecError guarantees that Execute has not written to the underlying reader.
 		log.Printf("Error rendering template %s: %s", tmpl.Name(), err)
 
 		// TODO(ericchiang): replace with better internal server error.

@@ -222,7 +222,7 @@ func (t *templates) oob(w http.ResponseWriter, code string) error {
 	return renderTemplate(w, t.oobTmpl, data)
 }
 
-// small io.Writer utilitiy to determine if executing the template wrote to the underlying response writer.
+// small io.Writer utility to determine if executing the template wrote to the underlying response writer.
 type writeRecorder struct {
 	wrote bool
 	w     io.Writer

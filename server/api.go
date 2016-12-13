@@ -13,7 +13,7 @@ import (
 	"github.com/coreos/dex/version"
 )
 
-// apiVersion increases everytime a new call is added to the API. Clients should use this info
+// apiVersion increases every time a new call is added to the API. Clients should use this info
 // to determine if the server supports specific features.
 const apiVersion = 0
 

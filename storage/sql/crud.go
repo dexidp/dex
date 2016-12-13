@@ -13,7 +13,7 @@ import (
 )
 
 // TODO(ericchiang): The update, insert, and select methods queries are all
-// very repetivite. Consider creating them programatically.
+// very repetitive. Consider creating them programmatically.
 
 // keysRowID is the ID of the only row we expect to populate the "keys" table.
 const keysRowID = "keys"
