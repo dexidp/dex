@@ -181,19 +181,19 @@ func serve(cmd *cobra.Command, args []string) error {
 	}
 	errc := make(chan error, 3)
 	if c.Web.HTTP != "" {
-		logger.Errorf("listening (http) on %s", c.Web.HTTP)
+		logger.Infof("listening (http) on %s", c.Web.HTTP)
 		go func() {
 			errc <- http.ListenAndServe(c.Web.HTTP, serv)
 		}()
 	}
 	if c.Web.HTTPS != "" {
-		logger.Errorf("listening (https) on %s", c.Web.HTTPS)
+		logger.Infof("listening (https) on %s", c.Web.HTTPS)
 		go func() {
 			errc <- http.ListenAndServeTLS(c.Web.HTTPS, c.Web.TLSCert, c.Web.TLSKey, serv)
 		}()
 	}
 	if c.GRPC.Addr != "" {
-		logger.Errorf("listening (grpc) on %s", c.GRPC.Addr)
+		logger.Infof("listening (grpc) on %s", c.GRPC.Addr)
 		go func() {
 			errc <- func() error {
 				list, err := net.Listen("tcp", c.GRPC.Addr)
