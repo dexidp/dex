@@ -30,7 +30,12 @@ func commandServe() *cobra.Command {
 		Short:   "Connect to the storage and begin serving requests.",
 		Long:    ``,
 		Example: "dex serve config.yaml",
-		RunE:    serve,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := serve(cmd, args); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(2)
+			}
+		},
 	}
 }
 
@@ -40,19 +45,27 @@ func serve(cmd *cobra.Command, args []string) error {
 		return errors.New("surplus arguments")
 	case 0:
 		// TODO(ericchiang): Consider having a default config file location.
-		return errors.New("no config file specified")
+		return errors.New("no arguments provided")
 	case 1:
 	}
 
 	configFile := args[0]
 	configData, err := ioutil.ReadFile(configFile)
 	if err != nil {
-		return fmt.Errorf("read config file %s: %v", configFile, err)
+		return fmt.Errorf("failed to read config file %s: %v", configFile, err)
 	}
 
 	var c Config
 	if err := yaml.Unmarshal(configData, &c); err != nil {
-		return fmt.Errorf("parse config file %s: %v", configFile, err)
+		return fmt.Errorf("error parse config file %s: %v", configFile, err)
+	}
+
+	logger, err := newLogger(c.Logger.Level, c.Logger.Format)
+	if err != nil {
+		return fmt.Errorf("invalid config: %v", err)
+	}
+	if c.Logger.Level != "" {
+		logger.Infof("config using log level: %s", c.Logger.Level)
 	}
 
 	// Fast checks. Perform these first for a more responsive CLI.
@@ -75,9 +88,11 @@ func serve(cmd *cobra.Command, args []string) error {
 
 	for _, check := range checks {
 		if check.bad {
-			return errors.New(check.errMsg)
+			return fmt.Errorf("invalid config: %s", check.errMsg)
 		}
 	}
+
+	logger.Infof("config issuer: %s", c.Issuer)
 
 	var grpcOptions []grpc.ServerOption
 	if c.GRPC.TLSCert != "" {
@@ -85,17 +100,17 @@ func serve(cmd *cobra.Command, args []string) error {
 			// Parse certificates from certificate file and key file for server.
 			cert, err := tls.LoadX509KeyPair(c.GRPC.TLSCert, c.GRPC.TLSKey)
 			if err != nil {
-				return fmt.Errorf("parsing certificate file: %v", err)
+				return fmt.Errorf("invalid config: error parsing gRPC certificate file: %v", err)
 			}
 
 			// Parse certificates from client CA file to a new CertPool.
 			cPool := x509.NewCertPool()
 			clientCert, err := ioutil.ReadFile(c.GRPC.TLSClientCA)
 			if err != nil {
-				return fmt.Errorf("reading from client CA file: %v", err)
+				return fmt.Errorf("invalid config: reading from client CA file: %v", err)
 			}
 			if cPool.AppendCertsFromPEM(clientCert) != true {
-				return errors.New("failed to parse client CA")
+				return errors.New("invalid config: failed to parse client CA")
 			}
 
 			tlsConfig := tls.Config{
@@ -107,26 +122,26 @@ func serve(cmd *cobra.Command, args []string) error {
 		} else {
 			opt, err := credentials.NewServerTLSFromFile(c.GRPC.TLSCert, c.GRPC.TLSKey)
 			if err != nil {
-				return fmt.Errorf("load grpc certs: %v", err)
+				return fmt.Errorf("invalid config: load grpc certs: %v", err)
 			}
 			grpcOptions = append(grpcOptions, grpc.Creds(opt))
 		}
 	}
 
-	logger, _ := newLogger(c.Logger.Level, c.Logger.Format)
-
 	connectors := make([]server.Connector, len(c.Connectors))
 	for i, conn := range c.Connectors {
 		if conn.ID == "" {
-			return fmt.Errorf("no ID field for connector %d", i)
+			return fmt.Errorf("invalid config: no ID field for connector %d", i)
 		}
 		if conn.Config == nil {
-			return fmt.Errorf("no config field for connector %q", conn.ID)
+			return fmt.Errorf("invalid config: no config field for connector %q", conn.ID)
 		}
+		logger.Infof("config connector: %s", conn.ID)
+
 		connectorLogger := logger.WithField("connector", conn.Name)
 		c, err := conn.Config.Open(connectorLogger)
 		if err != nil {
-			return fmt.Errorf("open %s: %v", conn.ID, err)
+			return fmt.Errorf("failed to create connector %s: %v", conn.ID, err)
 		}
 		connectors[i] = server.Connector{
 			ID:          conn.ID,
@@ -134,12 +149,20 @@ func serve(cmd *cobra.Command, args []string) error {
 			Connector:   c,
 		}
 	}
+	if c.EnablePasswordDB {
+		logger.Infof("config connector: local passwords enabled")
+	}
 
 	s, err := c.Storage.Config.Open(logger)
 	if err != nil {
-		return fmt.Errorf("initializing storage: %v", err)
+		return fmt.Errorf("failed to initialize storage: %v", err)
 	}
+	logger.Infof("config storage: %s", c.Storage.Type)
+
 	if len(c.StaticClients) > 0 {
+		for _, client := range c.StaticClients {
+			logger.Infof("config static client: %s", client.ID)
+		}
 		s = storage.WithStaticClients(s, c.StaticClients)
 	}
 	if len(c.StaticPasswords) > 0 {
@@ -148,6 +171,13 @@ func serve(cmd *cobra.Command, args []string) error {
 			passwords[i] = storage.Password(p)
 		}
 		s = storage.WithStaticPasswords(s, passwords)
+	}
+
+	if len(c.OAuth2.ResponseTypes) > 0 {
+		logger.Infof("config response types accepted: %s", c.OAuth2.ResponseTypes)
+	}
+	if c.OAuth2.SkipApprovalScreen {
+		logger.Infof("config skipping approval screen")
 	}
 
 	serverConfig := server.Config{
@@ -163,33 +193,38 @@ func serve(cmd *cobra.Command, args []string) error {
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
 		if err != nil {
-			return fmt.Errorf("parsing signingKeys expiry: %v", err)
+			return fmt.Errorf("invalid config value %q for signing keys expiry: %v", c.Expiry.SigningKeys, err)
 		}
+		logger.Infof("config signing keys expire after: %v", signingKeys)
 		serverConfig.RotateKeysAfter = signingKeys
 	}
 	if c.Expiry.IDTokens != "" {
 		idTokens, err := time.ParseDuration(c.Expiry.IDTokens)
 		if err != nil {
-			return fmt.Errorf("parsing idTokens expiry: %v", err)
+			return fmt.Errorf("invalid config value %q for id token expiry: %v", c.Expiry.IDTokens, err)
 		}
+		logger.Infof("config id tokens valid for: %v", idTokens)
 		serverConfig.IDTokensValidFor = idTokens
 	}
 
 	serv, err := server.NewServer(context.Background(), serverConfig)
 	if err != nil {
-		return fmt.Errorf("initializing server: %v", err)
+		return fmt.Errorf("failed to initialize server: %v", err)
 	}
+
 	errc := make(chan error, 3)
 	if c.Web.HTTP != "" {
 		logger.Infof("listening (http) on %s", c.Web.HTTP)
 		go func() {
-			errc <- http.ListenAndServe(c.Web.HTTP, serv)
+			err := http.ListenAndServe(c.Web.HTTP, serv)
+			errc <- fmt.Errorf("listening on %s failed: %v", c.Web.HTTP, err)
 		}()
 	}
 	if c.Web.HTTPS != "" {
 		logger.Infof("listening (https) on %s", c.Web.HTTPS)
 		go func() {
-			errc <- http.ListenAndServeTLS(c.Web.HTTPS, c.Web.TLSCert, c.Web.TLSKey, serv)
+			err := http.ListenAndServeTLS(c.Web.HTTPS, c.Web.TLSCert, c.Web.TLSKey, serv)
+			errc <- fmt.Errorf("listening on %s failed: %v", c.Web.HTTPS, err)
 		}()
 	}
 	if c.GRPC.Addr != "" {
@@ -198,17 +233,23 @@ func serve(cmd *cobra.Command, args []string) error {
 			errc <- func() error {
 				list, err := net.Listen("tcp", c.GRPC.Addr)
 				if err != nil {
-					return fmt.Errorf("listen grpc: %v", err)
+					return fmt.Errorf("listening on %s failed: %v", c.GRPC.Addr, err)
 				}
 				s := grpc.NewServer(grpcOptions...)
 				api.RegisterDexServer(s, server.NewAPI(serverConfig.Storage, logger))
-				return s.Serve(list)
+				err = s.Serve(list)
+				return fmt.Errorf("listening on %s failed: %v", c.GRPC.Addr, err)
 			}()
 		}()
 	}
 
 	return <-errc
 }
+
+var (
+	logLevels  = []string{"debug", "info", "error"}
+	logFormats = []string{"json", "text"}
+)
 
 func newLogger(level string, format string) (logrus.FieldLogger, error) {
 	var logLevel logrus.Level
@@ -220,7 +261,7 @@ func newLogger(level string, format string) (logrus.FieldLogger, error) {
 	case "error":
 		logLevel = logrus.ErrorLevel
 	default:
-		return nil, fmt.Errorf("unsupported logLevel: %s", level)
+		return nil, fmt.Errorf("log level is not one of the supported values (%s): %s", strings.Join(logLevels, ", "), level)
 	}
 
 	var formatter logrus.Formatter
@@ -230,7 +271,7 @@ func newLogger(level string, format string) (logrus.FieldLogger, error) {
 	case "json":
 		formatter = &logrus.JSONFormatter{}
 	default:
-		return nil, fmt.Errorf("unsupported logger format: %s", format)
+		return nil, fmt.Errorf("log format is not one of the supported values (%s): %s", strings.Join(logFormats, ", "), format)
 	}
 
 	return &logrus.Logger{
