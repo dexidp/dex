@@ -4,6 +4,7 @@ package sql
 import (
 	"database/sql"
 	"regexp"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/cockroachdb/cockroach-go/crdb"
@@ -28,6 +29,9 @@ type flavor struct {
 	//
 	// See: https://github.com/cockroachdb/docs/blob/63761c2e/_includes/app/txn-sample.go#L41-L44
 	executeTx func(db *sql.DB, fn func(*sql.Tx) error) error
+
+	// Does the flavor support timezones?
+	supportsTimezones bool
 }
 
 // A regexp with a replacement string.
@@ -69,6 +73,8 @@ var (
 			}
 			return tx.Commit()
 		},
+
+		supportsTimezones: true,
 	}
 
 	flavorSQLite3 = flavor{
@@ -80,7 +86,7 @@ var (
 			{matchLiteral("boolean"), "integer"},
 			// Translate other types.
 			{matchLiteral("bytea"), "blob"},
-			// {matchLiteral("timestamp"), "integer"},
+			{matchLiteral("timestamptz"), "timestamp"},
 			// SQLite doesn't have a "now()" method, replace with "date('now')"
 			{regexp.MustCompile(`\bnow\(\)`), "date('now')"},
 		},
@@ -107,6 +113,22 @@ func (f flavor) translate(query string) string {
 	return query
 }
 
+// translateArgs translates query parameters that may be unique to
+// a specific SQL flavor. For example, standardizing "time.Time"
+// types to UTC for clients that don't provide timezone support.
+func (c *conn) translateArgs(args []interface{}) []interface{} {
+	if c.flavor.supportsTimezones {
+		return args
+	}
+
+	for i, arg := range args {
+		if t, ok := arg.(time.Time); ok {
+			args[i] = t.UTC()
+		}
+	}
+	return args
+}
+
 // conn is the main database connection.
 type conn struct {
 	db     *sql.DB
@@ -122,17 +144,17 @@ func (c *conn) Close() error {
 
 func (c *conn) Exec(query string, args ...interface{}) (sql.Result, error) {
 	query = c.flavor.translate(query)
-	return c.db.Exec(query, args...)
+	return c.db.Exec(query, c.translateArgs(args)...)
 }
 
 func (c *conn) Query(query string, args ...interface{}) (*sql.Rows, error) {
 	query = c.flavor.translate(query)
-	return c.db.Query(query, args...)
+	return c.db.Query(query, c.translateArgs(args)...)
 }
 
 func (c *conn) QueryRow(query string, args ...interface{}) *sql.Row {
 	query = c.flavor.translate(query)
-	return c.db.QueryRow(query, args...)
+	return c.db.QueryRow(query, c.translateArgs(args)...)
 }
 
 // ExecTx runs a method which operates on a transaction.
@@ -163,15 +185,15 @@ type trans struct {
 
 func (t *trans) Exec(query string, args ...interface{}) (sql.Result, error) {
 	query = t.c.flavor.translate(query)
-	return t.tx.Exec(query, args...)
+	return t.tx.Exec(query, t.c.translateArgs(args)...)
 }
 
 func (t *trans) Query(query string, args ...interface{}) (*sql.Rows, error) {
 	query = t.c.flavor.translate(query)
-	return t.tx.Query(query, args...)
+	return t.tx.Query(query, t.c.translateArgs(args)...)
 }
 
 func (t *trans) QueryRow(query string, args ...interface{}) *sql.Row {
 	query = t.c.flavor.translate(query)
-	return t.tx.QueryRow(query, args...)
+	return t.tx.QueryRow(query, t.c.translateArgs(args)...)
 }
