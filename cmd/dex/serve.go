@@ -180,6 +180,9 @@ func serve(cmd *cobra.Command, args []string) error {
 		logger.Infof("config skipping approval screen")
 	}
 
+	// explicitly convert to UTC.
+	now := func() time.Time { return time.Now().UTC() }
+
 	serverConfig := server.Config{
 		SupportedResponseTypes: c.OAuth2.ResponseTypes,
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
@@ -189,6 +192,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		Web:                    c.Frontend,
 		EnablePasswordDB:       c.EnablePasswordDB,
 		Logger:                 logger,
+		Now:                    now,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
@@ -251,6 +255,15 @@ var (
 	logFormats = []string{"json", "text"}
 )
 
+type utcFormatter struct {
+	f logrus.Formatter
+}
+
+func (f *utcFormatter) Format(e *logrus.Entry) ([]byte, error) {
+	e.Time = e.Time.UTC()
+	return f.f.Format(e)
+}
+
 func newLogger(level string, format string) (logrus.FieldLogger, error) {
 	var logLevel logrus.Level
 	switch strings.ToLower(level) {
@@ -264,19 +277,19 @@ func newLogger(level string, format string) (logrus.FieldLogger, error) {
 		return nil, fmt.Errorf("log level is not one of the supported values (%s): %s", strings.Join(logLevels, ", "), level)
 	}
 
-	var formatter logrus.Formatter
+	var formatter utcFormatter
 	switch strings.ToLower(format) {
 	case "", "text":
-		formatter = &logrus.TextFormatter{DisableColors: true}
+		formatter.f = &logrus.TextFormatter{DisableColors: true}
 	case "json":
-		formatter = &logrus.JSONFormatter{}
+		formatter.f = &logrus.JSONFormatter{}
 	default:
 		return nil, fmt.Errorf("log format is not one of the supported values (%s): %s", strings.Join(logFormats, ", "), format)
 	}
 
 	return &logrus.Logger{
 		Out:       os.Stderr,
-		Formatter: formatter,
+		Formatter: &formatter,
 		Level:     logLevel,
 	}, nil
 }
