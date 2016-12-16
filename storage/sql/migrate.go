@@ -9,7 +9,7 @@ func (c *conn) migrate() (int, error) {
 	_, err := c.Exec(`
 		create table if not exists migrations (
 			num integer not null,
-			at timestamp not null
+			at timestamptz not null
 		);
 	`)
 	if err != nil {
@@ -100,7 +100,7 @@ var migrations = []migration{
 				connector_id text not null,
 				connector_data bytea,
 		
-				expiry timestamp not null
+				expiry timestamptz not null
 			);
 		
 			create table auth_code (
@@ -119,7 +119,7 @@ var migrations = []migration{
 				connector_id text not null,
 				connector_data bytea,
 		
-				expiry timestamp not null
+				expiry timestamptz not null
 			);
 		
 			create table refresh_token (
@@ -151,7 +151,7 @@ var migrations = []migration{
 				verification_keys bytea not null, -- JSON array
 				signing_key bytea not null,       -- JSON object
 				signing_key_pub bytea not null,   -- JSON object
-				next_rotation timestamp not null
+				next_rotation timestamptz not null
 			);
 		`,
 	},
