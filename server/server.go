@@ -201,7 +201,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		prefix := path.Join(issuerURL.Path, p)
 		r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, h))
 	}
-	r.NotFoundHandler = http.HandlerFunc(s.notFound)
+	r.NotFoundHandler = http.HandlerFunc(http.NotFound)
 
 	discoveryHandler, err := s.discoveryHandler()
 	if err != nil {
