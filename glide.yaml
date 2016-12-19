@@ -23,6 +23,21 @@ import:
 - package: gopkg.in/asn1-ber.v1
   version: 4e86f4367175e39f69d9358a5f17b4dda270378d
 
+# SAML
+# Use Calpicow forks until pull requests are merged
+- package: github.com/Calpicow/go-saml
+  version: 5a00907a960aa26107fcb51c4f93595337aeb407
+  subpackages:
+  - util
+- package: github.com/beevik/etree
+  version: 4cd0dd976db869f817248477718071a28e978df0
+- package: github.com/kardianos/osext
+  version: c2c54e542fb797ad986b31721e1baedf214ca413
+- package: github.com/ma314smith/signedxml
+  version: e0e37b2720f9d7e341e6c46c9dfd9716a24156d0
+- package: github.com/nu7hatch/gouuid
+  version: 179d4d0c4d8d407a32af483c2354df1d2c91e6c3
+
 # Used for JOSE functionality (JWKs, JWTs, etc.).
 - package: gopkg.in/square/go-jose.v2
   version: v2.0.0
@@ -72,7 +87,7 @@ import:
 - package: golang.org/x/oauth2
   version: 08c8d727d2392d18286f9f88ad775ad98f09ab33
   subpackages: []
-# The oauth2 package only imports the appengine code when it's given a 
+# The oauth2 package only imports the appengine code when it's given a
 # specific build tags, but glide detects it anyway.
 #
 # https://github.com/golang/oauth2/blob/d5040cdd/client_appengine.go
