@@ -131,3 +131,11 @@ import:
   version: v0.11.0
 - package: golang.org/x/sys/unix
   version: 833a04a10549a95dc34458c195cbad61bbb6cb4d
+
+# XML signature validation for SAML connector
+- package: github.com/russellhaering/goxmldsig
+  version: d9f653eb27ee8b145f7d5a45172e81a93def0860
+- package: github.com/beevik/etree
+  version: 4cd0dd976db869f817248477718071a28e978df0
+- package: github.com/jonboulle/clockwork
+  version: bcac9884e7502bb2b474c0339d889cb981a2f27f
