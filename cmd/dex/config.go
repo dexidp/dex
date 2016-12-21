@@ -14,6 +14,7 @@ import (
 	"github.com/coreos/dex/connector/ldap"
 	"github.com/coreos/dex/connector/mock"
 	"github.com/coreos/dex/connector/oidc"
+	"github.com/coreos/dex/connector/saml"
 	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/kubernetes"
@@ -177,11 +178,12 @@ type ConnectorConfig interface {
 }
 
 var connectors = map[string]func() ConnectorConfig{
-	"mockCallback": func() ConnectorConfig { return new(mock.CallbackConfig) },
-	"mockPassword": func() ConnectorConfig { return new(mock.PasswordConfig) },
-	"ldap":         func() ConnectorConfig { return new(ldap.Config) },
-	"github":       func() ConnectorConfig { return new(github.Config) },
-	"oidc":         func() ConnectorConfig { return new(oidc.Config) },
+	"mockCallback":     func() ConnectorConfig { return new(mock.CallbackConfig) },
+	"mockPassword":     func() ConnectorConfig { return new(mock.PasswordConfig) },
+	"ldap":             func() ConnectorConfig { return new(ldap.Config) },
+	"github":           func() ConnectorConfig { return new(github.Config) },
+	"oidc":             func() ConnectorConfig { return new(oidc.Config) },
+	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
 }
 
 // UnmarshalJSON allows Connector to implement the unmarshaler interface to

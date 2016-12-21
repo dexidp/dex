@@ -227,6 +227,31 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			if err := s.templates.password(w, authReqID, r.URL.String(), "", false); err != nil {
 				s.logger.Errorf("Server template error: %v", err)
 			}
+		case connector.SAMLConnector:
+			action, value, err := conn.POSTData(scopes)
+			if err != nil {
+				s.logger.Errorf("Creating SAML data: %v", err)
+				s.renderError(w, http.StatusInternalServerError, "Connector Login Error")
+				return
+			}
+
+			// TODO(ericchiang): Don't inline this.
+			fmt.Fprintf(w, `<!DOCTYPE html>
+			  <html lang="en">
+			  <head>
+			    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+			    <title>SAML login</title>
+			  </head>
+			  <body>
+			    <form method="post" action="%s" >
+				    <input type="hidden" name="SAMLRequest" value="%s" />
+				    <input type="hidden" name="RelayState" value="%s" />
+			    </form>
+				<script>
+				    document.forms[0].submit();
+				</script>
+			  </body>
+			  </html>`, action, value, authReqID)
 		default:
 			s.renderError(w, http.StatusBadRequest, "Requested resource does not exist.")
 		}
@@ -266,20 +291,24 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request) {
-	// SAML redirect bindings use the "RelayState" URL query field. When we support
-	// SAML, we'll have to check that field too and possibly let callback connectors
-	// indicate which field is used to determine the state.
-	//
-	// See:
-	//   https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
-	//   Section: "3.4.3 RelayState"
-	state := r.URL.Query().Get("state")
-	if state == "" {
-		s.renderError(w, http.StatusBadRequest, "User session error.")
+	var authID string
+	switch r.Method {
+	case "GET": // OAuth2 callback
+		if authID = r.URL.Query().Get("state"); authID == "" {
+			s.renderError(w, http.StatusBadRequest, "User session error.")
+			return
+		}
+	case "POST": // SAML POST binding
+		if authID = r.PostFormValue("RelayState"); authID == "" {
+			s.renderError(w, http.StatusBadRequest, "User session error.")
+			return
+		}
+	default:
+		s.renderError(w, http.StatusBadRequest, "Method not supported")
 		return
 	}
 
-	authReq, err := s.storage.GetAuthRequest(state)
+	authReq, err := s.storage.GetAuthRequest(authID)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			s.logger.Errorf("Invalid 'state' parameter provided: %v", err)
@@ -296,13 +325,28 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		s.renderError(w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
 	}
-	callbackConnector, ok := conn.Connector.(connector.CallbackConnector)
-	if !ok {
+
+	var identity connector.Identity
+	switch conn := conn.Connector.(type) {
+	case connector.CallbackConnector:
+		if r.Method != "GET" {
+			s.logger.Errorf("SAML request mapped to OAuth2 connector")
+			s.renderError(w, http.StatusBadRequest, "Invalid request")
+			return
+		}
+		identity, err = conn.HandleCallback(parseScopes(authReq.Scopes), r)
+	case connector.SAMLConnector:
+		if r.Method != "POST" {
+			s.logger.Errorf("OAuth2 request mapped to SAML connector")
+			s.renderError(w, http.StatusBadRequest, "Invalid request")
+			return
+		}
+		identity, err = conn.HandlePOST(parseScopes(authReq.Scopes), r.PostFormValue("SAMLResponse"))
+	default:
 		s.renderError(w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
 	}
 
-	identity, err := callbackConnector.HandleCallback(parseScopes(authReq.Scopes), r)
 	if err != nil {
 		s.logger.Errorf("Failed to authenticate: %v", err)
 		s.renderError(w, http.StatusInternalServerError, "Failed to return user's identity.")
