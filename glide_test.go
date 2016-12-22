@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v2"
@@ -96,13 +97,23 @@ func TestGlideYAMLPinsAllDependencies(t *testing.T) {
 	}
 }
 
-func TestRemoveVersionControl(t *testing.T) {
+func TestGlideVCUseLockFile(t *testing.T) {
+	_, err := os.Stat("vendor/github.com/golang/protobuf/protoc-gen-go")
+	if err != nil {
+		t.Fatalf("vendor did not use glide-vc --use-lock-file. Revendor packages using 'make revendor' to use the correct glide and glide-vc flags")
+	}
+}
+
+func TestGlideFlagsAndGlideVC(t *testing.T) {
 	err := filepath.Walk("vendor", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			t.Fatalf("walk: stat path %s failed: %v", path, err)
 		}
 		if info.IsDir() && filepath.Base(path) == ".git" {
-			t.Fatalf(".git directory detected in vendor: %s. Revendor packages and remove version control data with 'glide update -s -v -u'", path)
+			t.Fatalf(".git directory detected in vendor: %s. Revendor packages using 'make revendor' to use the correct glide and glide-vc flags", path)
+		}
+		if !info.IsDir() && strings.HasSuffix(path, "_test.go") {
+			t.Fatalf("'_test.go' file detected in vendor: %s. Revendor packages using 'make revendor' to use the correct glide and glide-vc flags", path)
 		}
 		return nil
 	})
