@@ -266,6 +266,11 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	//   https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
 	//   Section: "3.4.3 RelayState"
 	state := r.URL.Query().Get("state")
+
+	if state == "" {
+		state = r.FormValue("RelayState")
+	}
+
 	if state == "" {
 		s.renderError(w, http.StatusBadRequest, "User session error.")
 		return
