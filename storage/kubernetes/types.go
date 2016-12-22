@@ -362,8 +362,13 @@ type RefreshToken struct {
 	k8sapi.TypeMeta   `json:",inline"`
 	k8sapi.ObjectMeta `json:"metadata,omitempty"`
 
+	CreatedAt time.Time
+	LastUsed  time.Time
+
 	ClientID string   `json:"clientID"`
 	Scopes   []string `json:"scopes,omitempty"`
+
+	Token string `json:"token,omitempty"`
 
 	Nonce string `json:"nonce,omitempty"`
 
@@ -377,6 +382,43 @@ type RefreshList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`
 	RefreshTokens   []RefreshToken `json:"items"`
+}
+
+func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
+	return storage.RefreshToken{
+		ID:            r.ObjectMeta.Name,
+		Token:         r.Token,
+		CreatedAt:     r.CreatedAt,
+		LastUsed:      r.LastUsed,
+		ClientID:      r.ClientID,
+		ConnectorID:   r.ConnectorID,
+		ConnectorData: r.ConnectorData,
+		Scopes:        r.Scopes,
+		Nonce:         r.Nonce,
+		Claims:        toStorageClaims(r.Claims),
+	}
+}
+
+func (cli *client) fromStorageRefreshToken(r storage.RefreshToken) RefreshToken {
+	return RefreshToken{
+		TypeMeta: k8sapi.TypeMeta{
+			Kind:       kindRefreshToken,
+			APIVersion: cli.apiVersion,
+		},
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name:      r.ID,
+			Namespace: cli.namespace,
+		},
+		Token:         r.Token,
+		CreatedAt:     r.CreatedAt,
+		LastUsed:      r.LastUsed,
+		ClientID:      r.ClientID,
+		ConnectorID:   r.ConnectorID,
+		ConnectorData: r.ConnectorData,
+		Scopes:        r.Scopes,
+		Nonce:         r.Nonce,
+		Claims:        fromStorageClaims(r.Claims),
+	}
 }
 
 // Keys is a mirrored struct from storage with JSON struct tags and Kubernetes

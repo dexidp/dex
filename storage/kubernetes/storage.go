@@ -153,23 +153,7 @@ func (cli *client) CreatePassword(p storage.Password) error {
 }
 
 func (cli *client) CreateRefresh(r storage.RefreshToken) error {
-	refresh := RefreshToken{
-		TypeMeta: k8sapi.TypeMeta{
-			Kind:       kindRefreshToken,
-			APIVersion: cli.apiVersion,
-		},
-		ObjectMeta: k8sapi.ObjectMeta{
-			Name:      r.RefreshToken,
-			Namespace: cli.namespace,
-		},
-		ClientID:      r.ClientID,
-		ConnectorID:   r.ConnectorID,
-		Scopes:        r.Scopes,
-		Nonce:         r.Nonce,
-		Claims:        fromStorageClaims(r.Claims),
-		ConnectorData: r.ConnectorData,
-	}
-	return cli.post(resourceRefreshToken, refresh)
+	return cli.post(resourceRefreshToken, cli.fromStorageRefreshToken(r))
 }
 
 func (cli *client) GetAuthRequest(id string) (storage.AuthRequest, error) {
@@ -239,19 +223,16 @@ func (cli *client) GetKeys() (storage.Keys, error) {
 }
 
 func (cli *client) GetRefresh(id string) (storage.RefreshToken, error) {
-	var r RefreshToken
-	if err := cli.get(resourceRefreshToken, id, &r); err != nil {
+	r, err := cli.getRefreshToken(id)
+	if err != nil {
 		return storage.RefreshToken{}, err
 	}
-	return storage.RefreshToken{
-		RefreshToken:  r.ObjectMeta.Name,
-		ClientID:      r.ClientID,
-		ConnectorID:   r.ConnectorID,
-		Scopes:        r.Scopes,
-		Nonce:         r.Nonce,
-		Claims:        toStorageClaims(r.Claims),
-		ConnectorData: r.ConnectorData,
-	}, nil
+	return toStorageRefreshToken(r), nil
+}
+
+func (cli *client) getRefreshToken(id string) (r RefreshToken, err error) {
+	err = cli.get(resourceRefreshToken, id, &r)
+	return
 }
 
 func (cli *client) ListClients() ([]storage.Client, error) {
@@ -309,6 +290,22 @@ func (cli *client) DeletePassword(email string) error {
 		return err
 	}
 	return cli.delete(resourcePassword, p.ObjectMeta.Name)
+}
+
+func (cli *client) UpdateRefreshToken(id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
+	r, err := cli.getRefreshToken(id)
+	if err != nil {
+		return err
+	}
+	updated, err := updater(toStorageRefreshToken(r))
+	if err != nil {
+		return err
+	}
+	updated.ID = id
+
+	newToken := cli.fromStorageRefreshToken(updated)
+	newToken.ObjectMeta = r.ObjectMeta
+	return cli.put(resourceRefreshToken, r.ObjectMeta.Name, newToken)
 }
 
 func (cli *client) UpdateClient(id string, updater func(old storage.Client) (storage.Client, error)) error {
