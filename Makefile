@@ -35,6 +35,11 @@ bin/example-app: check-go-version
 release-binary:
 	@go build -o _output/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
+.PHONY: revendor
+revendor:
+	@glide up -v
+	@glide-vc --use-lock-file --no-tests --only-code
+
 test:
 	@go test -v -i $(shell go list ./... | grep -v '/vendor/')
 	@go test -v $(shell go list ./... | grep -v '/vendor/')

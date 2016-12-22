@@ -15,11 +15,10 @@ To add a new dependency to dex or update an existing one:
 
 Tests will fail if transitive dependencies aren't included. 
 
-Once `glide.yaml` describes the desired state use glide and glide-vc to update `glide.lock` and `vendor`.
+Once `glide.yaml` describes the desired state use `make` to update `glide.lock` and `vendor`. This calls both `glide` and `glide-vc` with the set of flags that dex requires.
 
 ```
-glide up -v
-glide-vc
+make revendor
 ```
 
 When composing commits make sure that updates to `vendor` are in a separate commit from the main changes. GitHub's UI makes commits with a large number of changes unreviewable.
