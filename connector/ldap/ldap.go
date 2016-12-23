@@ -445,6 +445,11 @@ func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident c
 }
 
 func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, error) {
+	if c.GroupSearch.BaseDN == "" {
+		c.logger.Infof("groups requested but no baseDN provided")
+		return nil, nil
+	}
+
 	filter := fmt.Sprintf("(%s=%s)", c.GroupSearch.GroupAttr, ldap.EscapeFilter(getAttr(user, c.GroupSearch.UserAttr)))
 	if c.GroupSearch.Filter != "" {
 		filter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, filter)
