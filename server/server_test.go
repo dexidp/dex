@@ -237,6 +237,10 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				if token.RefreshToken == newToken.RefreshToken {
 					return fmt.Errorf("old refresh token was the same as the new token %q", token.RefreshToken)
 				}
+
+				if _, err := config.TokenSource(ctx, token).Token(); err == nil {
+					return errors.New("was able to redeem the same refresh token twice")
+				}
 				return nil
 			},
 		},
