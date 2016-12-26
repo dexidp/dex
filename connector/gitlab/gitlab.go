@@ -136,7 +136,7 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 		EmailVerified: true,
 	}
 
-	if s.Groups && c.org != "" {
+	if s.Groups {
 		groups, err := c.groups(ctx, client)
 		if err != nil {
 			return identity, fmt.Errorf("gitlab: get groups: %v", err)
@@ -179,7 +179,7 @@ func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 	ident.Username = username
 	ident.Email = user.Email
 
-	if s.Groups && c.org != "" {
+	if s.Groups {
 		groups, err := c.groups(ctx, client)
 		if err != nil {
 			return ident, fmt.Errorf("gitlab: get groups: %v", err)
