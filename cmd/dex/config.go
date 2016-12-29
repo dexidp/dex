@@ -98,10 +98,11 @@ type OAuth2 struct {
 
 // Web is the config format for the HTTP server.
 type Web struct {
-	HTTP    string `json:"http"`
-	HTTPS   string `json:"https"`
-	TLSCert string `json:"tlsCert"`
-	TLSKey  string `json:"tlsKey"`
+	HTTP                    string   `json:"http"`
+	HTTPS                   string   `json:"https"`
+	TLSCert                 string   `json:"tlsCert"`
+	TLSKey                  string   `json:"tlsKey"`
+	DiscoveryAllowedOrigins []string `json:"discoveryAllowedOrigins"`
 }
 
 // GRPC is the config for the gRPC API.

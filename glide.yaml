@@ -53,6 +53,8 @@ import:
   version: 9fa818a44c2bf1396a17f9d5a3c0f6dd39d2ff8e
 - package: github.com/gorilla/context
   version: aed02d124ae4a0e94fea4541c8effd05bf0c8296
+- package: github.com/gorilla/handlers
+  version: 3a5767ca75ece5f7f1440b1d16975247f8d8b221
 
 # Package with a bunch of sane crypto defaults. Consider just
 # copy the code (as recommended by the repo itself) instead
