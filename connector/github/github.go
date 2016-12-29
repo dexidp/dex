@@ -60,6 +60,10 @@ type githubConnector struct {
 	logger       logrus.FieldLogger
 }
 
+func (c *githubConnector) State() string {
+	return "state"
+}
+
 func (c *githubConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
 	var githubScopes []string
 	if scopes.Groups {

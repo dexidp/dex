@@ -1,6 +1,12 @@
-hash: 723f2faad8f09a97ffb5ce647705b8ee41dbf2f81f91488c60f23d102789a23b
-updated: 2016-12-08T11:11:10.172119799-08:00
+hash: 4abe0363e897fb1e4f1bb0c79aff55e10c34f6829f566b1b539737a544afe65a
+updated: 2016-12-19T15:09:44.891833204-08:00
 imports:
+- name: github.com/beevik/etree
+  version: 4cd0dd976db869f817248477718071a28e978df0
+- name: github.com/Calpicow/go-saml
+  version: 5a00907a960aa26107fcb51c4f93595337aeb407
+  subpackages:
+  - util
 - name: github.com/cockroachdb/cockroach-go
   version: 31611c0501c812f437d4861d87d117053967c955
   subpackages:
@@ -24,6 +30,8 @@ imports:
   version: e7e23673cac3f529f49e22f94e4af6d12bb49dba
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/kardianos/osext
+  version: c2c54e542fb797ad986b31721e1baedf214ca413
 - name: github.com/kylelemons/godebug
   version: eadb3ce320cbab8393bea5ca17bebac3f78a021b
   subpackages:
@@ -33,8 +41,12 @@ imports:
   version: 50761b0867bd1d9d069276790bcd4a3bccf2324a
   subpackages:
   - oid
+- name: github.com/ma314smith/signedxml
+  version: e0e37b2720f9d7e341e6c46c9dfd9716a24156d0
 - name: github.com/mattn/go-sqlite3
   version: 3fb7a0e792edd47bf0cf1e919dfc14e2be412e15
+- name: github.com/nu7hatch/gouuid
+  version: 179d4d0c4d8d407a32af483c2354df1d2c91e6c3
 - name: github.com/pquerna/cachecontrol
   version: c97913dcbd76de40b051a9b4cd827f7eaeb7a868
   subpackages:

@@ -1,0 +1,16 @@
+language: go
+sudo: false
+
+go:
+  - 1.x
+  - 1.6
+  - 1.7.x
+  - master
+
+before_install:
+  - go get -v github.com/golang/lint/golint
+
+script:
+  - go vet ./...
+  - golint ./...
+  - go test -cover -v ./...

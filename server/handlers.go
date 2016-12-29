@@ -265,7 +265,16 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	// See:
 	//   https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
 	//   Section: "3.4.3 RelayState"
-	state := r.URL.Query().Get("state")
+	oauthState := r.URL.Query().Get("state")
+	relayState := r.FormValue("RelayState")
+	state := ""
+
+	if oauthState != "" {
+		state = oauthState
+	} else {
+		state = relayState
+	}
+
 	if state == "" {
 		s.renderError(w, http.StatusBadRequest, "User session error.")
 		return
@@ -288,9 +297,23 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		s.renderError(w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
 	}
+
 	callbackConnector, ok := conn.Connector.(connector.CallbackConnector)
 	if !ok {
 		s.renderError(w, http.StatusInternalServerError, "Requested resource does not exist.")
+		return
+	}
+
+	stateParam := callbackConnector.State()
+
+	if stateParam != "state" && stateParam != "RelayState" {
+		s.renderError(w, http.StatusBadRequest, "connector defines invalid state parameter")
+		return
+	} else if stateParam == "state" && oauthState == "" {
+		s.renderError(w, http.StatusBadRequest, "no 'state' parameter provided")
+		return
+	} else if stateParam == "RelayState" && relayState == "" {
+		s.renderError(w, http.StatusBadRequest, "no 'RelayState' parameter provided")
 		return
 	}
 

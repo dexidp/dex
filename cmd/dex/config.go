@@ -14,6 +14,7 @@ import (
 	"github.com/coreos/dex/connector/ldap"
 	"github.com/coreos/dex/connector/mock"
 	"github.com/coreos/dex/connector/oidc"
+	"github.com/coreos/dex/connector/saml"
 	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/kubernetes"
@@ -181,6 +182,7 @@ var connectors = map[string]func() ConnectorConfig{
 	"ldap":         func() ConnectorConfig { return new(ldap.Config) },
 	"github":       func() ConnectorConfig { return new(github.Config) },
 	"oidc":         func() ConnectorConfig { return new(oidc.Config) },
+	"saml":         func() ConnectorConfig { return new(saml.Config) },
 }
 
 // UnmarshalJSON allows Connector to implement the unmarshaler interface to

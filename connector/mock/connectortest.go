@@ -42,6 +42,11 @@ type Callback struct {
 	Logger   logrus.FieldLogger
 }
 
+// State returns the response field with the OAuth2 or SAML state. Allowed values are "state" or "RelayState".
+func (m *Callback) State() string {
+	return "state"
+}
+
 // LoginURL returns the URL to redirect the user to login with.
 func (m *Callback) LoginURL(s connector.Scopes, callbackURL, state string) (string, error) {
 	u, err := url.Parse(callbackURL)
