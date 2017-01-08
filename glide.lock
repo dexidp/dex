@@ -1,5 +1,5 @@
-hash: 22c01c4265c210fbf3cd2d55e9451b924a3301e35053c82ebe35171ab7286c83
-updated: 2017-01-06T15:38:29.812891187-08:00
+hash: 4d7d84f09a330d27458fb821ae7ada243cfa825808dc7ab116db28a08f9166a2
+updated: 2017-01-08T19:23:40.352046548+01:00
 imports:
 - name: github.com/cockroachdb/cockroach-go
   version: 31611c0501c812f437d4861d87d117053967c955
@@ -18,6 +18,8 @@ imports:
   - protoc-gen-go
 - name: github.com/gorilla/context
   version: aed02d124ae4a0e94fea4541c8effd05bf0c8296
+- name: github.com/gorilla/handlers
+  version: 3a5767ca75ece5f7f1440b1d16975247f8d8b221
 - name: github.com/gorilla/mux
   version: 9fa818a44c2bf1396a17f9d5a3c0f6dd39d2ff8e
 - name: github.com/gtank/cryptopasta
