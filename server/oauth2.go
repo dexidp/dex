@@ -24,20 +24,39 @@ type authErr struct {
 	Description string
 }
 
-func (err *authErr) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	v := url.Values{}
-	v.Add("state", err.State)
-	v.Add("error", err.Type)
-	if err.Description != "" {
-		v.Add("error_description", err.Description)
+func (err *authErr) Status() int {
+	if err.State == errServerError {
+		return http.StatusInternalServerError
 	}
-	var redirectURI string
-	if strings.Contains(err.RedirectURI, "?") {
-		redirectURI = err.RedirectURI + "&" + v.Encode()
-	} else {
-		redirectURI = err.RedirectURI + "?" + v.Encode()
+	return http.StatusBadRequest
+}
+
+func (err *authErr) Error() string {
+	return err.Description
+}
+
+func (err *authErr) Handle() (http.Handler, bool) {
+	// Didn't get a valid redirect URI.
+	if err.RedirectURI == "" {
+		return nil, false
 	}
-	http.Redirect(w, r, redirectURI, http.StatusSeeOther)
+
+	hf := func(w http.ResponseWriter, r *http.Request) {
+		v := url.Values{}
+		v.Add("state", err.State)
+		v.Add("error", err.Type)
+		if err.Description != "" {
+			v.Add("error_description", err.Description)
+		}
+		var redirectURI string
+		if strings.Contains(err.RedirectURI, "?") {
+			redirectURI = err.RedirectURI + "&" + v.Encode()
+		} else {
+			redirectURI = err.RedirectURI + "?" + v.Encode()
+		}
+		http.Redirect(w, r, redirectURI, http.StatusSeeOther)
+	}
+	return http.HandlerFunc(hf), true
 }
 
 func tokenErr(w http.ResponseWriter, typ, description string, statusCode int) error {
@@ -192,20 +211,19 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 }
 
 // parse the initial request from the OAuth2 client.
-//
-// For correctness the logic is largely copied from https://github.com/RangelReale/osin.
-func (s *Server) parseAuthorizationRequest(supportedResponseTypes map[string]bool, r *http.Request) (req storage.AuthRequest, oauth2Err *authErr) {
-	if err := r.ParseForm(); err != nil {
-		return req, &authErr{"", "", errInvalidRequest, "Failed to parse request."}
-	}
-
-	redirectURI, err := url.QueryUnescape(r.Form.Get("redirect_uri"))
+func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthRequest, oauth2Err *authErr) {
+	q := r.URL.Query()
+	redirectURI, err := url.QueryUnescape(q.Get("redirect_uri"))
 	if err != nil {
 		return req, &authErr{"", "", errInvalidRequest, "No redirect_uri provided."}
 	}
-	state := r.FormValue("state")
 
-	clientID := r.Form.Get("client_id")
+	clientID := q.Get("client_id")
+	state := q.Get("state")
+	nonce := q.Get("nonce")
+	// Some clients, like the old go-oidc, provide extra whitespace. Tolerate this.
+	scopes := strings.Fields(q.Get("scope"))
+	responseTypes := strings.Fields(q.Get("response_type"))
 
 	client, err := s.storage.GetClient(clientID)
 	if err != nil {
@@ -222,11 +240,10 @@ func (s *Server) parseAuthorizationRequest(supportedResponseTypes map[string]boo
 		return req, &authErr{"", "", errInvalidRequest, description}
 	}
 
+	// From here on out, we want to redirect back to the client with an error.
 	newErr := func(typ, format string, a ...interface{}) *authErr {
 		return &authErr{state, redirectURI, typ, fmt.Sprintf(format, a...)}
 	}
-
-	scopes := strings.Fields(r.Form.Get("scope"))
 
 	var (
 		unrecognized  []string
@@ -247,7 +264,7 @@ func (s *Server) parseAuthorizationRequest(supportedResponseTypes map[string]boo
 
 			isTrusted, err := s.validateCrossClientTrust(clientID, peerID)
 			if err != nil {
-				return req, newErr(errServerError, "")
+				return req, newErr(errServerError, "Internal server error.")
 			}
 			if !isTrusted {
 				invalidScopes = append(invalidScopes, scope)
@@ -264,37 +281,61 @@ func (s *Server) parseAuthorizationRequest(supportedResponseTypes map[string]boo
 		return req, newErr("invalid_scope", "Client can't request scope(s) %q", invalidScopes)
 	}
 
-	nonce := r.Form.Get("nonce")
-	responseTypes := strings.Split(r.Form.Get("response_type"), " ")
+	var rt struct {
+		code    bool
+		idToken bool
+		token   bool
+	}
+
 	for _, responseType := range responseTypes {
-		if !supportedResponseTypes[responseType] {
+		switch responseType {
+		case responseTypeCode:
+			rt.code = true
+		case responseTypeIDToken:
+			rt.idToken = true
+		case responseTypeToken:
+			rt.token = true
+		default:
 			return req, newErr("invalid_request", "Invalid response type %q", responseType)
 		}
 
-		switch responseType {
-		case responseTypeCode:
-		case responseTypeToken:
-			// Implicit flow requires a nonce value.
-			// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitAuthRequest
-			if nonce == "" {
-				return req, newErr("invalid_request", "Response type 'token' requires a 'nonce' value.")
-			}
+		if !s.supportedResponseTypes[responseType] {
+			return req, newErr(errUnsupportedResponseType, "Unsupported response type %q", responseType)
+		}
+	}
 
-			if redirectURI == redirectURIOOB {
-				err := fmt.Sprintf("Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
-				return req, newErr("invalid_request", err)
-			}
-		default:
-			return req, newErr("invalid_request", "Invalid response type %q", responseType)
+	if len(responseTypes) == 0 {
+		return req, newErr("invalid_requests", "No response_type provided")
+	}
+
+	if rt.token && !rt.code && !rt.idToken {
+		// "token" can't be provided by its own.
+		//
+		// https://openid.net/specs/openid-connect-core-1_0.html#Authentication
+		return req, newErr("invalid_request", "Response type 'token' must be provided with type 'id_token' and/or 'code'")
+	}
+	if !rt.code {
+		// Either "id_token code" or "id_token" has been provided which implies the
+		// implicit flow. Implicit flow requires a nonce value.
+		//
+		// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitAuthRequest
+		if nonce == "" {
+			return req, newErr("invalid_request", "Response type 'token' requires a 'nonce' value.")
+		}
+	}
+	if rt.token {
+		if redirectURI == redirectURIOOB {
+			err := fmt.Sprintf("Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
+			return req, newErr("invalid_request", err)
 		}
 	}
 
 	return storage.AuthRequest{
 		ID:                  storage.NewID(),
 		ClientID:            client.ID,
-		State:               r.Form.Get("state"),
+		State:               state,
 		Nonce:               nonce,
-		ForceApprovalPrompt: r.Form.Get("approval_prompt") == "force",
+		ForceApprovalPrompt: q.Get("approval_prompt") == "force",
 		Scopes:              scopes,
 		RedirectURI:         redirectURI,
 		ResponseTypes:       responseTypes,

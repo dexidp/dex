@@ -510,7 +510,7 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 
 	httpServer, s := newTestServer(ctx, t, func(c *Config) {
 		// Enable support for the implicit flow.
-		c.SupportedResponseTypes = []string{"code", "token"}
+		c.SupportedResponseTypes = []string{"code", "token", "id_token"}
 	})
 	defer httpServer.Close()
 
@@ -553,7 +553,7 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		u := oauth2Config.AuthCodeURL(state, oauth2.SetAuthURLParam("response_type", "token"), oidc.Nonce(nonce))
+		u := oauth2Config.AuthCodeURL(state, oauth2.SetAuthURLParam("response_type", "id_token token"), oidc.Nonce(nonce))
 		http.Redirect(w, r, u, http.StatusSeeOther)
 	}))
 
