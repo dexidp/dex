@@ -219,6 +219,7 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 			EmailVerified: true,
 			Groups:        []string{"a", "b"},
 		},
+		ConnectorData: []byte(`{"some":"data"}`),
 	}
 	if err := s.CreateRefresh(refresh); err != nil {
 		t.Fatalf("create refresh token: %v", err)
