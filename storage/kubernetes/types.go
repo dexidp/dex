@@ -367,8 +367,9 @@ type RefreshToken struct {
 
 	Nonce string `json:"nonce,omitempty"`
 
-	Claims      Claims `json:"claims,omitempty"`
-	ConnectorID string `json:"connectorID,omitempty"`
+	Claims        Claims `json:"claims,omitempty"`
+	ConnectorID   string `json:"connectorID,omitempty"`
+	ConnectorData []byte `json:"connectorData,omitempty"`
 }
 
 // RefreshList is a list of refresh tokens.
