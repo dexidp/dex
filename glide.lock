@@ -1,12 +1,12 @@
-hash: 2d3cc27484f672337349fffc8d7839462df7b1fbedc9200ae0a87a84afeed896
-updated: 2016-12-07T13:06:21.940111139-08:00
+hash: 22c01c4265c210fbf3cd2d55e9451b924a3301e35053c82ebe35171ab7286c83
+updated: 2017-01-06T15:38:29.812891187-08:00
 imports:
 - name: github.com/cockroachdb/cockroach-go
   version: 31611c0501c812f437d4861d87d117053967c955
   subpackages:
   - crdb
 - name: github.com/coreos/go-oidc
-  version: dedb650fb29c39c2f21aa88c1e4cec66da8754d1
+  version: 2b5d73091ea4b7ddb15e3ac00077f153120b5b61
 - name: github.com/ghodss/yaml
   version: bea76d6a4713e18b7f5321a2b020738552def3ea
 - name: github.com/go-sql-driver/mysql
@@ -39,6 +39,8 @@ imports:
   version: c97913dcbd76de40b051a9b4cd827f7eaeb7a868
   subpackages:
   - cacheobject
+- name: github.com/Sirupsen/logrus
+  version: d26492970760ca5d33129d2d799e34be5c4782eb
 - name: github.com/spf13/cobra
   version: bc81c21bd0d8be5ba2d6630a505d79d4467566e7
 - name: github.com/spf13/pflag
@@ -63,6 +65,10 @@ imports:
   subpackages:
   - github
   - internal
+- name: golang.org/x/sys
+  version: 833a04a10549a95dc34458c195cbad61bbb6cb4d
+  subpackages:
+  - unix
 - name: google.golang.org/appengine
   version: 267c27e7492265b84fc6719503b14a1e17975d79
   subpackages:

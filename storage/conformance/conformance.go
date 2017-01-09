@@ -48,6 +48,7 @@ func RunTests(t *testing.T, newStorage func() storage.Storage) {
 		{"PasswordCRUD", testPasswordCRUD},
 		{"KeysCRUD", testKeysCRUD},
 		{"GarbageCollection", testGC},
+		{"TimezoneSupport", testTimezones},
 	})
 }
 
@@ -62,7 +63,7 @@ func mustLoadJWK(b string) *jose.JSONWebKey {
 func mustBeErrNotFound(t *testing.T, kind string, err error) {
 	switch {
 	case err == nil:
-		t.Errorf("deleting non-existant %s should return an error", kind)
+		t.Errorf("deleting non-existent %s should return an error", kind)
 	case err != storage.ErrNotFound:
 		t.Errorf("deleting %s expected storage.ErrNotFound, got %v", kind, err)
 	}
@@ -370,14 +371,23 @@ func testKeysCRUD(t *testing.T, s storage.Storage) {
 }
 
 func testGC(t *testing.T, s storage.Storage) {
-	n := time.Now().UTC()
+	est, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pst, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expiry := time.Now().In(est)
 	c := storage.AuthCode{
 		ID:            storage.NewID(),
 		ClientID:      "foobar",
 		RedirectURI:   "https://localhost:80/callback",
 		Nonce:         "foobar",
 		Scopes:        []string{"openid", "email"},
-		Expiry:        n.Add(time.Second),
+		Expiry:        expiry,
 		ConnectorID:   "ldap",
 		ConnectorData: []byte(`{"some":"data"}`),
 		Claims: storage.Claims{
@@ -393,14 +403,21 @@ func testGC(t *testing.T, s storage.Storage) {
 		t.Fatalf("failed creating auth code: %v", err)
 	}
 
-	if _, err := s.GarbageCollect(n); err != nil {
-		t.Errorf("garbage collection failed: %v", err)
-	}
-	if _, err := s.GetAuthCode(c.ID); err != nil {
-		t.Errorf("expected to be able to get auth code after GC: %v", err)
+	for _, tz := range []*time.Location{time.UTC, est, pst} {
+		result, err := s.GarbageCollect(expiry.Add(-time.Hour).In(tz))
+		if err != nil {
+			t.Errorf("garbage collection failed: %v", err)
+		} else {
+			if result.AuthCodes != 0 || result.AuthRequests != 0 {
+				t.Errorf("expected no garbage collection results, got %#v", result)
+			}
+		}
+		if _, err := s.GetAuthCode(c.ID); err != nil {
+			t.Errorf("expected to be able to get auth code after GC: %v", err)
+		}
 	}
 
-	if r, err := s.GarbageCollect(n.Add(time.Minute)); err != nil {
+	if r, err := s.GarbageCollect(expiry.Add(time.Hour)); err != nil {
 		t.Errorf("garbage collection failed: %v", err)
 	} else if r.AuthCodes != 1 {
 		t.Errorf("expected to garbage collect 1 objects, got %d", r.AuthCodes)
@@ -422,7 +439,7 @@ func testGC(t *testing.T, s storage.Storage) {
 		State:               "bar",
 		ForceApprovalPrompt: true,
 		LoggedIn:            true,
-		Expiry:              n,
+		Expiry:              expiry,
 		ConnectorID:         "ldap",
 		ConnectorData:       []byte(`{"some":"data"}`),
 		Claims: storage.Claims{
@@ -438,14 +455,21 @@ func testGC(t *testing.T, s storage.Storage) {
 		t.Fatalf("failed creating auth request: %v", err)
 	}
 
-	if _, err := s.GarbageCollect(n); err != nil {
-		t.Errorf("garbage collection failed: %v", err)
-	}
-	if _, err := s.GetAuthRequest(a.ID); err != nil {
-		t.Errorf("expected to be able to get auth code after GC: %v", err)
+	for _, tz := range []*time.Location{time.UTC, est, pst} {
+		result, err := s.GarbageCollect(expiry.Add(-time.Hour).In(tz))
+		if err != nil {
+			t.Errorf("garbage collection failed: %v", err)
+		} else {
+			if result.AuthCodes != 0 || result.AuthRequests != 0 {
+				t.Errorf("expected no garbage collection results, got %#v", result)
+			}
+		}
+		if _, err := s.GetAuthRequest(a.ID); err != nil {
+			t.Errorf("expected to be able to get auth code after GC: %v", err)
+		}
 	}
 
-	if r, err := s.GarbageCollect(n.Add(time.Minute)); err != nil {
+	if r, err := s.GarbageCollect(expiry.Add(time.Hour)); err != nil {
 		t.Errorf("garbage collection failed: %v", err)
 	} else if r.AuthRequests != 1 {
 		t.Errorf("expected to garbage collect 1 objects, got %d", r.AuthRequests)
@@ -455,5 +479,51 @@ func testGC(t *testing.T, s storage.Storage) {
 		t.Errorf("expected auth code to be GC'd")
 	} else if err != storage.ErrNotFound {
 		t.Errorf("expected storage.ErrNotFound, got %v", err)
+	}
+}
+
+// testTimezones tests that backends either fully support timezones or
+// do the correct standardization.
+func testTimezones(t *testing.T, s storage.Storage) {
+	est, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Create an expiry with timezone info. Only expect backends to be
+	// accurate to the millisecond
+	expiry := time.Now().In(est).Round(time.Millisecond)
+
+	c := storage.AuthCode{
+		ID:            storage.NewID(),
+		ClientID:      "foobar",
+		RedirectURI:   "https://localhost:80/callback",
+		Nonce:         "foobar",
+		Scopes:        []string{"openid", "email"},
+		Expiry:        expiry,
+		ConnectorID:   "ldap",
+		ConnectorData: []byte(`{"some":"data"}`),
+		Claims: storage.Claims{
+			UserID:        "1",
+			Username:      "jane",
+			Email:         "jane.doe@example.com",
+			EmailVerified: true,
+			Groups:        []string{"a", "b"},
+		},
+	}
+	if err := s.CreateAuthCode(c); err != nil {
+		t.Fatalf("failed creating auth code: %v", err)
+	}
+	got, err := s.GetAuthCode(c.ID)
+	if err != nil {
+		t.Fatalf("failed to get auth code: %v", err)
+	}
+
+	// Ensure that if the resulting time is converted to the same
+	// timezone, it's the same value. We DO NOT expect timezones
+	// to be preserved.
+	gotTime := got.Expiry.In(est)
+	wantTime := expiry
+	if !gotTime.Equal(wantTime) {
+		t.Fatalf("expected expiry %v got %v", wantTime, gotTime)
 	}
 }

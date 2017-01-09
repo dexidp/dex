@@ -25,15 +25,20 @@ LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
 
 build: bin/dex bin/example-app
 
-bin/dex: FORCE
+bin/dex: check-go-version
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
-bin/example-app: FORCE
+bin/example-app: check-go-version
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/example-app
 
 .PHONY: release-binary
 release-binary:
 	@go build -o _output/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
+
+.PHONY: revendor
+revendor:
+	@glide up -v
+	@glide-vc --use-lock-file --no-tests --only-code
 
 test:
 	@go test -v -i $(shell go list ./... | grep -v '/vendor/')
@@ -87,6 +92,10 @@ bin/protoc: scripts/get-protoc
 
 bin/protoc-gen-go:
 	@go install -v $(REPO_PATH)/vendor/github.com/golang/protobuf/protoc-gen-go
+
+.PHONY: check-go-version
+check-go-version:
+	@./scripts/check-go-version
 
 clean: clean-release
 	@rm -rf bin/

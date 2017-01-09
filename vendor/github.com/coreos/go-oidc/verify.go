@@ -145,6 +145,13 @@ func (v *IDTokenVerifier) Verify(ctx context.Context, rawIDToken string) (*IDTok
 		}
 	}
 
+	// If a checkExpiry is specified, make sure token is not expired.
+	if v.config.checkExpiry != nil {
+		if t.Expiry.Before(v.config.checkExpiry()) {
+			return nil, fmt.Errorf("oidc: token is expired (Token Expiry: %v)", t.Expiry)
+		}
+	}
+
 	// If a set of required algorithms has been provided, ensure that the signatures use those.
 	var keyIDs, gotAlgs []string
 	for _, sig := range jws.Signatures {

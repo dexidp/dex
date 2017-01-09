@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/conformance"
 )
@@ -41,13 +42,19 @@ func cleanDB(c *conn) error {
 	return err
 }
 
+var logger = &logrus.Logger{
+	Out:       os.Stderr,
+	Formatter: &logrus.TextFormatter{DisableColors: true},
+	Level:     logrus.DebugLevel,
+}
+
 func TestSQLite3(t *testing.T) {
 	newStorage := func() storage.Storage {
 		// NOTE(ericchiang): In memory means we only get one connection at a time. If we
 		// ever write tests that require using multiple connections, for instance to test
 		// transactions, we need to move to a file based system.
 		s := &SQLite3{":memory:"}
-		conn, err := s.open()
+		conn, err := s.open(logger)
 		if err != nil {
 			fmt.Fprintln(os.Stdout, err)
 			t.Fatal(err)
@@ -92,7 +99,7 @@ func TestPostgres(t *testing.T) {
 	}
 
 	newStorage := func() storage.Storage {
-		conn, err := p.open()
+		conn, err := p.open(logger)
 		if err != nil {
 			fatal(err)
 		}

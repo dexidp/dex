@@ -3,13 +3,13 @@ package kubernetes
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"golang.org/x/net/context"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/kubernetes/k8sapi"
 )
@@ -39,8 +39,8 @@ type Config struct {
 }
 
 // Open returns a storage using Kubernetes third party resource.
-func (c *Config) Open() (storage.Storage, error) {
-	cli, err := c.open()
+func (c *Config) Open(logger logrus.FieldLogger) (storage.Storage, error) {
+	cli, err := c.open(logger)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (c *Config) Open() (storage.Storage, error) {
 }
 
 // open returns a client with no garbage collection.
-func (c *Config) open() (*client, error) {
+func (c *Config) open(logger logrus.FieldLogger) (*client, error) {
 	if c.InCluster && (c.KubeConfigFile != "") {
 		return nil, errors.New("cannot specify both 'inCluster' and 'kubeConfigFile'")
 	}
@@ -71,7 +71,7 @@ func (c *Config) open() (*client, error) {
 		return nil, err
 	}
 
-	cli, err := newClient(cluster, user, namespace)
+	cli, err := newClient(cluster, user, namespace, logger)
 	if err != nil {
 		return nil, fmt.Errorf("create client: %v", err)
 	}
@@ -82,11 +82,11 @@ func (c *Config) open() (*client, error) {
 	// they'll immediately be available, but ensures that the client will actually try
 	// once.
 	if err := cli.createThirdPartyResources(); err != nil {
-		log.Printf("failed creating third party resources: %v", err)
+		logger.Errorf("failed creating third party resources: %v", err)
 		go func() {
 			for {
 				if err := cli.createThirdPartyResources(); err != nil {
-					log.Printf("failed creating third party resources: %v", err)
+					logger.Errorf("failed creating third party resources: %v", err)
 				} else {
 					return
 				}
@@ -118,13 +118,13 @@ func (cli *client) createThirdPartyResources() error {
 		if err != nil {
 			if e, ok := err.(httpError); ok {
 				if e.StatusCode() == http.StatusConflict {
-					log.Printf("third party resource already created %q", r.ObjectMeta.Name)
+					cli.logger.Errorf("third party resource already created %q", r.ObjectMeta.Name)
 					continue
 				}
 			}
 			return err
 		}
-		log.Printf("create third party resource %q", r.ObjectMeta.Name)
+		cli.logger.Errorf("create third party resource %q", r.ObjectMeta.Name)
 	}
 	return nil
 }
@@ -396,7 +396,7 @@ func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err e
 	for _, authRequest := range authRequests.AuthRequests {
 		if now.After(authRequest.Expiry) {
 			if err := cli.delete(resourceAuthRequest, authRequest.ObjectMeta.Name); err != nil {
-				log.Printf("failed to delete auth request: %v", err)
+				cli.logger.Errorf("failed to delete auth request: %v", err)
 				delErr = fmt.Errorf("failed to delete auth request: %v", err)
 			}
 			result.AuthRequests++
@@ -414,7 +414,7 @@ func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err e
 	for _, authCode := range authCodes.AuthCodes {
 		if now.After(authCode.Expiry) {
 			if err := cli.delete(resourceAuthCode, authCode.ObjectMeta.Name); err != nil {
-				log.Printf("failed to delete auth code %v", err)
+				cli.logger.Errorf("failed to delete auth code %v", err)
 				delErr = fmt.Errorf("failed to delete auth code: %v", err)
 			}
 			result.AuthCodes++

@@ -3,7 +3,6 @@ package server
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -13,6 +12,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/context"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
 
 	"github.com/coreos/dex/connector"
@@ -57,6 +57,8 @@ type Config struct {
 	EnablePasswordDB bool
 
 	Web WebConfig
+
+	Logger logrus.FieldLogger
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -112,6 +114,8 @@ type Server struct {
 	now func() time.Time
 
 	idTokensValidFor time.Duration
+
+	logger logrus.FieldLogger
 }
 
 // NewServer constructs a server from the provided config.
@@ -182,6 +186,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		skipApproval:           c.SkipApprovalScreen,
 		now:                    now,
 		templates:              tmpls,
+		logger:                 c.Logger,
 	}
 
 	for _, conn := range c.Connectors {
@@ -196,7 +201,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		prefix := path.Join(issuerURL.Path, p)
 		r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, h))
 	}
-	r.NotFoundHandler = http.HandlerFunc(s.notFound)
+	r.NotFoundHandler = http.HandlerFunc(http.NotFound)
 
 	discoveryHandler, err := s.discoveryHandler()
 	if err != nil {
@@ -216,8 +221,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handlePrefix("/theme", theme)
 	s.mux = r
 
-	startKeyRotation(ctx, c.Storage, rotationStrategy, now)
-	startGarbageCollection(ctx, c.Storage, value(c.GCFrequency, 5*time.Minute), now)
+	s.startKeyRotation(ctx, rotationStrategy, now)
+	s.startGarbageCollection(ctx, value(c.GCFrequency, 5*time.Minute), now)
 
 	return s, nil
 }
@@ -254,8 +259,7 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 	p, err := db.s.GetPassword(email)
 	if err != nil {
 		if err != storage.ErrNotFound {
-			log.Printf("get password: %v", err)
-			return connector.Identity{}, false, err
+			return connector.Identity{}, false, fmt.Errorf("get password: %v", err)
 		}
 		return connector.Identity{}, false, nil
 	}
@@ -327,17 +331,17 @@ func (k *keyCacher) GetKeys() (storage.Keys, error) {
 	return storageKeys, nil
 }
 
-func startGarbageCollection(ctx context.Context, s storage.Storage, frequency time.Duration, now func() time.Time) {
+func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Duration, now func() time.Time) {
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-time.After(frequency):
-				if r, err := s.GarbageCollect(now()); err != nil {
-					log.Printf("garbage collection failed: %v", err)
+				if r, err := s.storage.GarbageCollect(now()); err != nil {
+					s.logger.Errorf("garbage collection failed: %v", err)
 				} else if r.AuthRequests > 0 || r.AuthCodes > 0 {
-					log.Printf("garbage collection run, delete auth requests=%d, auth codes=%d", r.AuthRequests, r.AuthCodes)
+					s.logger.Errorf("garbage collection run, delete auth requests=%d, auth codes=%d", r.AuthRequests, r.AuthCodes)
 				}
 			}
 		}

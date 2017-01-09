@@ -44,11 +44,9 @@ type GCResult struct {
 	AuthCodes    int64
 }
 
-// Storage is the storage interface used by the server. Implementations, at minimum
-// require compare-and-swap atomic actions.
-//
-// Implementations are expected to perform their own garbage collection of
-// expired objects (expect keys, which are handled by the server).
+// Storage is the storage interface used by the server. Implementations are
+// required to be able to perform atomic compare-and-swap updates and either
+// support timezones or standardize on UTC.
 type Storage interface {
 	Close() error
 
