@@ -1,6 +1,8 @@
-hash: 4d7d84f09a330d27458fb821ae7ada243cfa825808dc7ab116db28a08f9166a2
-updated: 2017-01-08T19:23:40.352046548+01:00
+hash: 2f68b742168a81ebbe604be42801d37e9da71dff5aeb6b8f8e91ed81ff0edec0
+updated: 2017-01-09T14:51:09.514065012-08:00
 imports:
+- name: github.com/beevik/etree
+  version: 4cd0dd976db869f817248477718071a28e978df0
 - name: github.com/cockroachdb/cockroach-go
   version: 31611c0501c812f437d4861d87d117053967c955
   subpackages:
@@ -26,6 +28,8 @@ imports:
   version: e7e23673cac3f529f49e22f94e4af6d12bb49dba
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/jonboulle/clockwork
+  version: bcac9884e7502bb2b474c0339d889cb981a2f27f
 - name: github.com/kylelemons/godebug
   version: eadb3ce320cbab8393bea5ca17bebac3f78a021b
   subpackages:
@@ -41,6 +45,8 @@ imports:
   version: c97913dcbd76de40b051a9b4cd827f7eaeb7a868
   subpackages:
   - cacheobject
+- name: github.com/russellhaering/goxmldsig
+  version: d9f653eb27ee8b145f7d5a45172e81a93def0860
 - name: github.com/Sirupsen/logrus
   version: d26492970760ca5d33129d2d799e34be5c4782eb
 - name: github.com/spf13/cobra
