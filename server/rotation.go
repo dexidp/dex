@@ -130,6 +130,7 @@ func (k keyRotater) rotate() error {
 
 		// Remove expired verification keys.
 		i := 0
+
 		for _, key := range keys.VerificationKeys {
 			if !key.Expiry.After(tNow) {
 				keys.VerificationKeys[i] = key

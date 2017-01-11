@@ -159,7 +159,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	supported := make(map[string]bool)
 	for _, respType := range c.SupportedResponseTypes {
 		switch respType {
-		case responseTypeCode, responseTypeToken:
+		case responseTypeCode, responseTypeIDToken, responseTypeToken:
 		default:
 			return nil, fmt.Errorf("unsupported response_type %q", respType)
 		}
