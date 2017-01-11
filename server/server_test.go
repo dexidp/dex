@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
+	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/connector/mock"
@@ -218,6 +219,38 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				if !timeEq(idToken.Expiry, expectedExpiry, time.Second) {
 					return fmt.Errorf("expected id token expiry to be %s, got %s", expectedExpiry, token.Expiry)
 				}
+				return nil
+			},
+		},
+		{
+			name: "verify at_hash",
+			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
+				rawIDToken, ok := token.Extra("id_token").(string)
+				if !ok {
+					return fmt.Errorf("no id token found")
+				}
+				idToken, err := p.Verifier().Verify(ctx, rawIDToken)
+				if err != nil {
+					return fmt.Errorf("failed to verify id token: %v", err)
+				}
+
+				var claims struct {
+					AtHash string `json:"at_hash"`
+				}
+				if err := idToken.Claims(&claims); err != nil {
+					return fmt.Errorf("failed to decode raw claims: %v", err)
+				}
+				if claims.AtHash == "" {
+					return errors.New("no at_hash value in id_token")
+				}
+				wantAtHash, err := accessTokenHash(jose.RS256, token.AccessToken)
+				if err != nil {
+					return fmt.Errorf("computed expected at hash: %v", err)
+				}
+				if wantAtHash != claims.AtHash {
+					return fmt.Errorf("expected at_hash=%q got=%q", wantAtHash, claims.AtHash)
+				}
+
 				return nil
 			},
 		},
