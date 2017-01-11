@@ -1,6 +1,6 @@
 # The dex API
 
-Dex provides a [gRPC][grpc] service for programmatic modification of dex's state. The API is intended too expose hooks for management applications and is not expected to be used by most installations.
+Dex provides a [gRPC][grpc] service for programmatic modification of dex's state. The API is intended to expose hooks for management applications and is not expected to be used by most installations.
 
 This document is an overview of how to interact with the API.
 
