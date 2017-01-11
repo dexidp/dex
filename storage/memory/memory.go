@@ -98,10 +98,10 @@ func (s *memStorage) CreateAuthCode(c storage.AuthCode) (err error) {
 
 func (s *memStorage) CreateRefresh(r storage.RefreshToken) (err error) {
 	s.tx(func() {
-		if _, ok := s.refreshTokens[r.RefreshToken]; ok {
+		if _, ok := s.refreshTokens[r.ID]; ok {
 			err = storage.ErrAlreadyExists
 		} else {
-			s.refreshTokens[r.RefreshToken] = r
+			s.refreshTokens[r.ID] = r
 		}
 	})
 	return
@@ -320,6 +320,20 @@ func (s *memStorage) UpdatePassword(email string, updater func(p storage.Passwor
 		}
 		if req, err = updater(req); err == nil {
 			s.passwords[email] = req
+		}
+	})
+	return
+}
+
+func (s *memStorage) UpdateRefreshToken(id string, updater func(p storage.RefreshToken) (storage.RefreshToken, error)) (err error) {
+	s.tx(func() {
+		r, ok := s.refreshTokens[id]
+		if !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		if r, err = updater(r); err == nil {
+			s.refreshTokens[id] = r
 		}
 	})
 	return

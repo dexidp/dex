@@ -94,6 +94,7 @@ type Storage interface {
 	UpdateClient(id string, updater func(old Client) (Client, error)) error
 	UpdateKeys(updater func(old Keys) (Keys, error)) error
 	UpdateAuthRequest(id string, updater func(a AuthRequest) (AuthRequest, error)) error
+	UpdateRefreshToken(id string, updater func(r RefreshToken) (RefreshToken, error)) error
 	UpdatePassword(email string, updater func(p Password) (Password, error)) error
 
 	// GarbageCollect deletes all expired AuthCodes and AuthRequests.
@@ -216,8 +217,15 @@ type AuthCode struct {
 // RefreshToken is an OAuth2 refresh token which allows a client to request new
 // tokens on the end user's behalf.
 type RefreshToken struct {
-	// The actual refresh token.
-	RefreshToken string
+	ID string
+
+	// A single token that's rotated every time the refresh token is refreshed.
+	//
+	// May be empty.
+	Token string
+
+	CreatedAt time.Time
+	LastUsed  time.Time
 
 	// Client this refresh token is valid for.
 	ClientID string

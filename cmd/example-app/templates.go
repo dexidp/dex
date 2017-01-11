@@ -8,7 +8,7 @@ import (
 
 var indexTmpl = template.Must(template.New("index.html").Parse(`<html>
   <body>
-    <form action="/login">
+    <form action="/login" method="post">
        <p>
          Authenticate for:<input type="text" name="cross_client" placeholder="list of client-ids">
        </p>
@@ -50,8 +50,13 @@ pre {
   <body>
     <p> Token: <pre><code>{{ .IDToken }}</code></pre></p>
     <p> Claims: <pre><code>{{ .Claims }}</code></pre></p>
+	{{ if .RefreshToken }}
     <p> Refresh Token: <pre><code>{{ .RefreshToken }}</code></pre></p>
-    <p><a href="{{ .RedirectURL }}?refresh_token={{ .RefreshToken }}">Redeem refresh token</a><p>
+	<form action="{{ .RedirectURL }}" method="post">
+	  <input type="hidden" name="refresh_token" value="{{ .RefreshToken }}">
+	  <input type="submit" value="Redeem refresh token">
+    </form>
+	{{ end }}
   </body>
 </html>
 `))

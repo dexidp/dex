@@ -244,14 +244,16 @@ func (c *conn) CreateRefresh(r storage.RefreshToken) error {
 			id, client_id, scopes, nonce,
 			claims_user_id, claims_username, claims_email, claims_email_verified,
 			claims_groups,
-			connector_id, connector_data
+			connector_id, connector_data,
+			token, created_at, last_used
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
 	`,
-		r.RefreshToken, r.ClientID, encoder(r.Scopes), r.Nonce,
+		r.ID, r.ClientID, encoder(r.Scopes), r.Nonce,
 		r.Claims.UserID, r.Claims.Username, r.Claims.Email, r.Claims.EmailVerified,
 		encoder(r.Claims.Groups),
 		r.ConnectorID, r.ConnectorData,
+		r.Token, r.CreatedAt, r.LastUsed,
 	)
 	if err != nil {
 		return fmt.Errorf("insert refresh_token: %v", err)
@@ -259,13 +261,57 @@ func (c *conn) CreateRefresh(r storage.RefreshToken) error {
 	return nil
 }
 
+func (c *conn) UpdateRefreshToken(id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
+	return c.ExecTx(func(tx *trans) error {
+		r, err := getRefresh(tx, id)
+		if err != nil {
+			return err
+		}
+		if r, err = updater(r); err != nil {
+			return err
+		}
+		_, err = tx.Exec(`
+			update refresh_token
+			set
+				client_id = $1,
+				scopes = $2,
+				nonce = $3,
+				claims_user_id = $4,
+				claims_username = $5,
+				claims_email = $6,
+				claims_email_verified = $7,
+				claims_groups = $8,
+				connector_id = $9,
+				connector_data = $10,
+				token = $11,
+				created_at = $12,
+				last_used = $13
+		`,
+			r.ClientID, encoder(r.Scopes), r.Nonce,
+			r.Claims.UserID, r.Claims.Username, r.Claims.Email, r.Claims.EmailVerified,
+			encoder(r.Claims.Groups),
+			r.ConnectorID, r.ConnectorData,
+			r.Token, r.CreatedAt, r.LastUsed,
+		)
+		if err != nil {
+			return fmt.Errorf("update refresh token: %v", err)
+		}
+		return nil
+	})
+}
+
 func (c *conn) GetRefresh(id string) (storage.RefreshToken, error) {
-	return scanRefresh(c.QueryRow(`
+	return getRefresh(c, id)
+}
+
+func getRefresh(q querier, id string) (storage.RefreshToken, error) {
+	return scanRefresh(q.QueryRow(`
 		select
 			id, client_id, scopes, nonce,
 			claims_user_id, claims_username, claims_email, claims_email_verified,
 			claims_groups,
-			connector_id, connector_data
+			connector_id, connector_data,
+			token, created_at, last_used
 		from refresh_token where id = $1;
 	`, id))
 }
@@ -276,7 +322,8 @@ func (c *conn) ListRefreshTokens() ([]storage.RefreshToken, error) {
 			id, client_id, scopes, nonce,
 			claims_user_id, claims_username, claims_email, claims_email_verified,
 			claims_groups,
-			connector_id, connector_data
+			connector_id, connector_data,
+			token, created_at, last_used
 		from refresh_token;
 	`)
 	if err != nil {
@@ -298,10 +345,11 @@ func (c *conn) ListRefreshTokens() ([]storage.RefreshToken, error) {
 
 func scanRefresh(s scanner) (r storage.RefreshToken, err error) {
 	err = s.Scan(
-		&r.RefreshToken, &r.ClientID, decoder(&r.Scopes), &r.Nonce,
+		&r.ID, &r.ClientID, decoder(&r.Scopes), &r.Nonce,
 		&r.Claims.UserID, &r.Claims.Username, &r.Claims.Email, &r.Claims.EmailVerified,
 		decoder(&r.Claims.Groups),
 		&r.ConnectorID, &r.ConnectorData,
+		&r.Token, &r.CreatedAt, &r.LastUsed,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
