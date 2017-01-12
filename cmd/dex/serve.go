@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -39,6 +40,17 @@ func commandServe() *cobra.Command {
 	}
 }
 
+func substituteEnvVars(text string) string {
+	re := regexp.MustCompile("\\${([a-zA-Z0-9\\-_]+)}")
+	matches := re.FindAllStringSubmatch(text, -1)
+	for _, val := range matches {
+		envVar := os.Getenv(val[1])
+		// fmt.Printf("%q %q %q\n", val[0], val[1], envVar)
+		text = strings.Replace(text, val[0], envVar, -1)
+	}
+	return text
+}
+
 func serve(cmd *cobra.Command, args []string) error {
 	switch len(args) {
 	default:
@@ -54,6 +66,9 @@ func serve(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read config file %s: %v", configFile, err)
 	}
+
+	configDataString := substituteEnvVars(string(configData))
+	configData = []byte(configDataString)
 
 	var c Config
 	if err := yaml.Unmarshal(configData, &c); err != nil {
