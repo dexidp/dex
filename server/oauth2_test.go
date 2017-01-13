@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"testing"
 
+	jose "gopkg.in/square/go-jose.v2"
+
 	"github.com/coreos/dex/storage"
 )
 
@@ -146,5 +148,22 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				t.Errorf("%s: expected error", tc.name)
 			}
 		}()
+	}
+}
+
+const (
+	// at_hash value and access_token returned by Google.
+	googleAccessTokenHash = "piwt8oCH-K2D9pXlaS1Y-w"
+	googleAccessToken     = "ya29.CjHSA1l5WUn8xZ6HanHFzzdHdbXm-14rxnC7JHch9eFIsZkQEGoWzaYG4o7k5f6BnPLj"
+	googleSigningAlg      = jose.RS256
+)
+
+func TestAccessTokenHash(t *testing.T) {
+	atHash, err := accessTokenHash(googleSigningAlg, googleAccessToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if atHash != googleAccessTokenHash {
+		t.Errorf("expected %q got %q", googleAccessTokenHash, atHash)
 	}
 }

@@ -1,13 +1,9 @@
 package storage
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"encoding/base32"
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -287,39 +283,4 @@ type Keys struct {
 	//
 	// For caching purposes, implementations MUST NOT update keys before this time.
 	NextRotation time.Time
-}
-
-// Sign creates a JWT using the signing key.
-func (k Keys) Sign(payload []byte) (jws string, err error) {
-	if k.SigningKey == nil {
-		return "", fmt.Errorf("no key to sign payload with")
-	}
-	signingKey := jose.SigningKey{Key: k.SigningKey}
-
-	switch key := k.SigningKey.Key.(type) {
-	case *rsa.PrivateKey:
-		// TODO(ericchiang): Allow different cryptographic hashes.
-		signingKey.Algorithm = jose.RS256
-	case *ecdsa.PrivateKey:
-		switch key.Params() {
-		case elliptic.P256().Params():
-			signingKey.Algorithm = jose.ES256
-		case elliptic.P384().Params():
-			signingKey.Algorithm = jose.ES384
-		case elliptic.P521().Params():
-			signingKey.Algorithm = jose.ES512
-		default:
-			return "", errors.New("unsupported ecdsa curve")
-		}
-	}
-
-	signer, err := jose.NewSigner(signingKey, &jose.SignerOptions{})
-	if err != nil {
-		return "", fmt.Errorf("new signier: %v", err)
-	}
-	signature, err := signer.Sign(payload)
-	if err != nil {
-		return "", fmt.Errorf("signing payload: %v", err)
-	}
-	return signature.CompactSerialize()
 }

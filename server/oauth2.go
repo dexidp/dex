@@ -1,13 +1,24 @@
 package server
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"hash"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/storage"
@@ -125,6 +136,88 @@ func parseScopes(scopes []string) connector.Scopes {
 	return s
 }
 
+// Determine the signature algorithm for a JWT.
+func signatureAlgorithm(jwk *jose.JSONWebKey) (alg jose.SignatureAlgorithm, err error) {
+	if jwk.Key == nil {
+		return alg, errors.New("no signing key")
+	}
+	switch key := jwk.Key.(type) {
+	case *rsa.PrivateKey:
+		// Because OIDC mandates that we support RS256, we always return that
+		// value. In the future, we might want to make this configurable on a
+		// per client basis. For example allowing PS256 or ECDSA variants.
+		//
+		// See https://github.com/coreos/dex/issues/692
+		return jose.RS256, nil
+	case *ecdsa.PrivateKey:
+		// We don't actually support ECDSA keys yet, but they're tested for
+		// in case we want to in the future.
+		//
+		// These values are prescribed depending on the ECDSA key type. We
+		// can't return different values.
+		switch key.Params() {
+		case elliptic.P256().Params():
+			return jose.ES256, nil
+		case elliptic.P384().Params():
+			return jose.ES384, nil
+		case elliptic.P521().Params():
+			return jose.ES512, nil
+		default:
+			return alg, errors.New("unsupported ecdsa curve")
+		}
+	default:
+		return alg, fmt.Errorf("unsupported signing key type %T", key)
+	}
+}
+
+func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []byte) (jws string, err error) {
+	signingKey := jose.SigningKey{Key: key, Algorithm: alg}
+
+	signer, err := jose.NewSigner(signingKey, &jose.SignerOptions{})
+	if err != nil {
+		return "", fmt.Errorf("new signier: %v", err)
+	}
+	signature, err := signer.Sign(payload)
+	if err != nil {
+		return "", fmt.Errorf("signing payload: %v", err)
+	}
+	return signature.CompactSerialize()
+}
+
+// The hash algorithm for the at_hash is detemrined by the signing
+// algorithm used for the id_token. From the spec:
+//
+//    ...the hash algorithm used is the hash algorithm used in the alg Header
+//    Parameter of the ID Token's JOSE Header. For instance, if the alg is RS256,
+//    hash the access_token value with SHA-256
+//
+// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDToken
+var hashForSigAlg = map[jose.SignatureAlgorithm]func() hash.Hash{
+	jose.RS256: sha256.New,
+	jose.RS384: sha512.New384,
+	jose.RS512: sha512.New,
+	jose.ES256: sha256.New,
+	jose.ES384: sha512.New384,
+	jose.ES512: sha512.New,
+}
+
+// Compute an at_hash from a raw access token and a signature algorithm
+//
+// See: https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDToken
+func accessTokenHash(alg jose.SignatureAlgorithm, accessToken string) (string, error) {
+	newHash, ok := hashForSigAlg[alg]
+	if !ok {
+		return "", fmt.Errorf("unsupported signature algorithm: %s", alg)
+	}
+
+	hash := newHash()
+	if _, err := io.WriteString(hash, accessToken); err != nil {
+		return "", fmt.Errorf("computing hash: %v", err)
+	}
+	sum := hash.Sum(nil)
+	return base64.RawURLEncoding.EncodeToString(sum[:len(sum)/2]), nil
+}
+
 type audience []string
 
 func (a audience) MarshalJSON() ([]byte, error) {
@@ -143,6 +236,8 @@ type idTokenClaims struct {
 	AuthorizingParty string   `json:"azp,omitempty"`
 	Nonce            string   `json:"nonce,omitempty"`
 
+	AccessTokenHash string `json:"at_hash,omitempty"`
+
 	Email         string `json:"email,omitempty"`
 	EmailVerified *bool  `json:"email_verified,omitempty"`
 
@@ -151,7 +246,22 @@ type idTokenClaims struct {
 	Name string `json:"name,omitempty"`
 }
 
-func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce string) (idToken string, expiry time.Time, err error) {
+func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken string) (idToken string, expiry time.Time, err error) {
+	keys, err := s.storage.GetKeys()
+	if err != nil {
+		s.logger.Errorf("Failed to get keys: %v", err)
+		return "", expiry, err
+	}
+
+	signingKey := keys.SigningKey
+	if signingKey == nil {
+		return "", expiry, fmt.Errorf("no key to sign payload with")
+	}
+	signingAlg, err := signatureAlgorithm(signingKey)
+	if err != nil {
+		return "", expiry, err
+	}
+
 	issuedAt := s.now()
 	expiry = issuedAt.Add(s.idTokensValidFor)
 
@@ -161,6 +271,15 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		Nonce:    nonce,
 		Expiry:   expiry.Unix(),
 		IssuedAt: issuedAt.Unix(),
+	}
+
+	if accessToken != "" {
+		atHash, err := accessTokenHash(signingAlg, accessToken)
+		if err != nil {
+			s.logger.Errorf("error computing at_hash: %v", err)
+			return "", expiry, fmt.Errorf("error computing at_hash: %v", err)
+		}
+		tok.AccessTokenHash = atHash
 	}
 
 	for _, scope := range scopes {
@@ -175,6 +294,8 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		default:
 			peerID, ok := parseCrossClientScope(scope)
 			if !ok {
+				// Ignore unknown scopes. These are already validated during the
+				// initial auth request.
 				continue
 			}
 			isTrusted, err := s.validateCrossClientTrust(clientID, peerID)
@@ -188,9 +309,14 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 			tok.Audience = append(tok.Audience, peerID)
 		}
 	}
+
 	if len(tok.Audience) == 0 {
+		// Client didn't ask for cross client audience. Set the current
+		// client as the audience.
 		tok.Audience = audience{clientID}
 	} else {
+		// Client asked for cross client audience. The current client
+		// becomes the authorizing party.
 		tok.AuthorizingParty = clientID
 	}
 
@@ -199,12 +325,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		return "", expiry, fmt.Errorf("could not serialize claims: %v", err)
 	}
 
-	keys, err := s.storage.GetKeys()
-	if err != nil {
-		s.logger.Errorf("Failed to get keys: %v", err)
-		return "", expiry, err
-	}
-	if idToken, err = keys.Sign(payload); err != nil {
+	if idToken, err = signPayload(signingKey, signingAlg, payload); err != nil {
 		return "", expiry, fmt.Errorf("failed to sign payload: %v", err)
 	}
 	return idToken, expiry, nil

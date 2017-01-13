@@ -467,6 +467,8 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		// Only valid for implicit and hybrid flows.
 		idToken       string
 		idTokenExpiry time.Time
+
+		accessToken = storage.NewID()
 	)
 
 	for _, responseType := range authReq.ResponseTypes {
@@ -502,7 +504,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		case responseTypeIDToken:
 			implicitOrHybrid = true
 			var err error
-			idToken, idTokenExpiry, err = s.newIDToken(authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce)
+			idToken, idTokenExpiry, err = s.newIDToken(authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, accessToken)
 			if err != nil {
 				s.logger.Errorf("failed to create ID token: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -513,7 +515,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 
 	if implicitOrHybrid {
 		v := url.Values{}
-		v.Set("access_token", storage.NewID())
+		v.Set("access_token", accessToken)
 		v.Set("token_type", "bearer")
 		v.Set("state", authReq.State)
 		if idToken != "" {
@@ -623,7 +625,8 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		return
 	}
 
-	idToken, expiry, err := s.newIDToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce)
+	accessToken := storage.NewID()
+	idToken, expiry, err := s.newIDToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, accessToken)
 	if err != nil {
 		s.logger.Errorf("failed to create ID token: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -674,7 +677,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 			return
 		}
 	}
-	s.writeAccessToken(w, idToken, refreshToken, expiry)
+	s.writeAccessToken(w, idToken, accessToken, refreshToken, expiry)
 }
 
 // handle a refresh token request https://tools.ietf.org/html/rfc6749#section-6
@@ -787,7 +790,8 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		Groups:        ident.Groups,
 	}
 
-	idToken, expiry, err := s.newIDToken(client.ID, claims, scopes, refresh.Nonce)
+	accessToken := storage.NewID()
+	idToken, expiry, err := s.newIDToken(client.ID, claims, scopes, refresh.Nonce, accessToken)
 	if err != nil {
 		s.logger.Errorf("failed to create ID token: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -826,10 +830,10 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return
 	}
-	s.writeAccessToken(w, idToken, rawNewToken, expiry)
+	s.writeAccessToken(w, idToken, accessToken, rawNewToken, expiry)
 }
 
-func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, refreshToken string, expiry time.Time) {
+func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, accessToken, refreshToken string, expiry time.Time) {
 	// TODO(ericchiang): figure out an access token story and support the user info
 	// endpoint. For now use a random value so no one depends on the access_token
 	// holding a specific structure.
@@ -840,7 +844,7 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, refreshToken s
 		RefreshToken string `json:"refresh_token,omitempty"`
 		IDToken      string `json:"id_token"`
 	}{
-		storage.NewID(),
+		accessToken,
 		"bearer",
 		int(expiry.Sub(s.now()).Seconds()),
 		refreshToken,
