@@ -25,6 +25,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gtank/cryptopasta"
 	"golang.org/x/net/context"
+	"golang.org/x/net/http2"
 
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/kubernetes/k8sapi"
@@ -285,7 +286,8 @@ func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, l
 		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
 
-	var t http.RoundTripper = &http.Transport{
+	var t http.RoundTripper
+	httpTransport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		Dial: (&net.Dialer{
 			Timeout:   30 * time.Second,
@@ -295,6 +297,15 @@ func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, l
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 	}
+
+	// Since we set a custom TLS client config we have to explicitly
+	// enable HTTP/2.
+	//
+	// https://github.com/golang/go/blob/go1.7.4/src/net/http/transport.go#L200-L206
+	if err := http2.ConfigureTransport(httpTransport); err != nil {
+		return nil, err
+	}
+	t = httpTransport
 
 	if user.Token != "" {
 		t = transport{
