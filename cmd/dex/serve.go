@@ -179,24 +179,24 @@ func serve(cmd *cobra.Command, args []string) error {
 	if c.OAuth2.SkipApprovalScreen {
 		logger.Infof("config skipping approval screen")
 	}
-	if len(c.Web.DiscoveryAllowedOrigins) > 0 {
-		logger.Infof("config discovery allowed origins: %s", c.Web.DiscoveryAllowedOrigins)
+	if len(c.Web.AllowedOrigins) > 0 {
+		logger.Infof("config allowed origins: %s", c.Web.AllowedOrigins)
 	}
 
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
 
 	serverConfig := server.Config{
-		SupportedResponseTypes:  c.OAuth2.ResponseTypes,
-		SkipApprovalScreen:      c.OAuth2.SkipApprovalScreen,
-		DiscoveryAllowedOrigins: c.Web.DiscoveryAllowedOrigins,
-		Issuer:                  c.Issuer,
-		Connectors:              connectors,
-		Storage:                 s,
-		Web:                     c.Frontend,
-		EnablePasswordDB:        c.EnablePasswordDB,
-		Logger:                  logger,
-		Now:                     now,
+		SupportedResponseTypes: c.OAuth2.ResponseTypes,
+		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
+		AllowedOrigins:         c.Web.AllowedOrigins,
+		Issuer:                 c.Issuer,
+		Connectors:             connectors,
+		Storage:                s,
+		Web:                    c.Frontend,
+		EnablePasswordDB:       c.EnablePasswordDB,
+		Logger:                 logger,
+		Now:                    now,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)

@@ -13,6 +13,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 
 	"github.com/coreos/dex/connector"
@@ -42,10 +43,10 @@ type Config struct {
 	// flow. If no response types are supplied this value defaults to "code".
 	SupportedResponseTypes []string
 
-	// List of allowed origins for CORS requests on discovery endpoint.
+	// List of allowed origins for CORS requests on discovery, token and keys endpoint.
 	// If none are indicated, CORS requests are disabled. Passing in "*" will allow any
 	// domain.
-	DiscoveryAllowedOrigins []string
+	AllowedOrigins []string
 
 	// If enabled, the server won't prompt the user to approve authorization requests.
 	// Logging in implies approval.
@@ -116,8 +117,6 @@ type Server struct {
 
 	supportedResponseTypes map[string]bool
 
-	discoveryAllowedOrigins []string
-
 	now func() time.Time
 
 	idTokensValidFor time.Duration
@@ -185,16 +184,15 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 
 	s := &Server{
-		issuerURL:               *issuerURL,
-		connectors:              make(map[string]Connector),
-		storage:                 newKeyCacher(c.Storage, now),
-		supportedResponseTypes:  supported,
-		discoveryAllowedOrigins: c.DiscoveryAllowedOrigins,
-		idTokensValidFor:        value(c.IDTokensValidFor, 24*time.Hour),
-		skipApproval:            c.SkipApprovalScreen,
-		now:                     now,
-		templates:               tmpls,
-		logger:                  c.Logger,
+		issuerURL:              *issuerURL,
+		connectors:             make(map[string]Connector),
+		storage:                newKeyCacher(c.Storage, now),
+		supportedResponseTypes: supported,
+		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
+		skipApproval:           c.SkipApprovalScreen,
+		now:                    now,
+		templates:              tmpls,
+		logger:                 c.Logger,
 	}
 
 	for _, conn := range c.Connectors {
@@ -205,12 +203,17 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleFunc := func(p string, h http.HandlerFunc) {
 		r.HandleFunc(path.Join(issuerURL.Path, p), h)
 	}
-	handle := func(p string, h http.Handler) {
-		r.Handle(path.Join(issuerURL.Path, p), h)
-	}
 	handlePrefix := func(p string, h http.Handler) {
 		prefix := path.Join(issuerURL.Path, p)
 		r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, h))
+	}
+	handleWithCORS := func(p string, h http.HandlerFunc) {
+		var handler http.Handler = h
+		if len(c.AllowedOrigins) > 0 {
+			corsOption := handlers.AllowedOrigins(c.AllowedOrigins)
+			handler = handlers.CORS(corsOption)(handler)
+		}
+		r.Handle(path.Join(issuerURL.Path, p), handler)
 	}
 	r.NotFoundHandler = http.HandlerFunc(http.NotFound)
 
@@ -218,11 +221,11 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	if err != nil {
 		return nil, err
 	}
-	handle("/.well-known/openid-configuration", discoveryHandler)
+	handleWithCORS("/.well-known/openid-configuration", discoveryHandler)
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
-	handleFunc("/token", s.handleToken)
-	handleFunc("/keys", s.handlePublicKeys)
+	handleWithCORS("/token", s.handleToken)
+	handleWithCORS("/keys", s.handlePublicKeys)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/callback", s.handleConnectorCallback)
