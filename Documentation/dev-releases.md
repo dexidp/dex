@@ -36,13 +36,13 @@ Create a signed tag at the commit you wish to release. This action will prompt
 you to enter a tag message, which can just be the release version.
 
 ```
-git tag -s v2.1.0-alpha ea4c04fde83bd6c48f4d43862c406deb4ea9dba2
+git tag -s v2.0.0 ea4c04fde83bd6c48f4d43862c406deb4ea9dba2
 ```
 
 Push that tag to the CoreOS repo.
 
 ```
-git push git@github.com:coreos/dex.git v2.1.0-alpha
+git push git@github.com:coreos/dex.git v2.0.0
 ```
 
 Draft releases on GitHub and summarize the changes since the last release. See
@@ -59,25 +59,39 @@ git checkout -b v2.1.x tags/v2.1.0
 git push git@github.com:coreos/dex.git v2.1.x
 ```
 
+## Patch releases - cherry pick required commits
+
+If the release is a patch release (2.0.1, 2.0.2, etc.) checkout the desired release branch and cherry pick specific commits. A patch release is only meant for urgent bug or security fixes.
+
+```bash
+RELEASE_BRANCH="v2.0.x"
+git checkout $RELEASE_BRANCH
+git checkout -b "cherry-picked-change"
+git cherry-pick (SHA of change)
+git push origin "cherry-picked-change"
+```
+
+Open a PR onto $RELEASE_BRANCH to get the changes approved.
+
 ## Building the Docker image
 
 Build the Docker image and push to Quay.
 
 ```bash
 # checkout the tag
-git checkout tags/v2.1.0-alpha
+git checkout tags/v2.1.0
 # rkt doesn't play nice with SELinux, see https://github.com/coreos/rkt/issues/1727
 sudo setenforce Permissive
 # will prompt for sudo password
 make docker-image
-sudo docker push quay.io/coreos/dex:v2.1.0-alpha
+sudo docker push quay.io/coreos/dex:v2.1.0
 ```
 
 ## Building the ACI
 
 ```bash
 # checkout the tag
-git checkout tags/v2.1.0-alpha
+git checkout tags/v2.1.0
 # rkt doesn't play nice with SELinux, see https://github.com/coreos/rkt/issues/1727
 sudo setenforce Permissive
 # will prompt for sudo password
