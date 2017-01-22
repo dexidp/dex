@@ -1,13 +1,24 @@
 package server
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"hash"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/storage"
@@ -24,20 +35,39 @@ type authErr struct {
 	Description string
 }
 
-func (err *authErr) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	v := url.Values{}
-	v.Add("state", err.State)
-	v.Add("error", err.Type)
-	if err.Description != "" {
-		v.Add("error_description", err.Description)
+func (err *authErr) Status() int {
+	if err.State == errServerError {
+		return http.StatusInternalServerError
 	}
-	var redirectURI string
-	if strings.Contains(err.RedirectURI, "?") {
-		redirectURI = err.RedirectURI + "&" + v.Encode()
-	} else {
-		redirectURI = err.RedirectURI + "?" + v.Encode()
+	return http.StatusBadRequest
+}
+
+func (err *authErr) Error() string {
+	return err.Description
+}
+
+func (err *authErr) Handle() (http.Handler, bool) {
+	// Didn't get a valid redirect URI.
+	if err.RedirectURI == "" {
+		return nil, false
 	}
-	http.Redirect(w, r, redirectURI, http.StatusSeeOther)
+
+	hf := func(w http.ResponseWriter, r *http.Request) {
+		v := url.Values{}
+		v.Add("state", err.State)
+		v.Add("error", err.Type)
+		if err.Description != "" {
+			v.Add("error_description", err.Description)
+		}
+		var redirectURI string
+		if strings.Contains(err.RedirectURI, "?") {
+			redirectURI = err.RedirectURI + "&" + v.Encode()
+		} else {
+			redirectURI = err.RedirectURI + "?" + v.Encode()
+		}
+		http.Redirect(w, r, redirectURI, http.StatusSeeOther)
+	}
+	return http.HandlerFunc(hf), true
 }
 
 func tokenErr(w http.ResponseWriter, typ, description string, statusCode int) error {
@@ -106,6 +136,88 @@ func parseScopes(scopes []string) connector.Scopes {
 	return s
 }
 
+// Determine the signature algorithm for a JWT.
+func signatureAlgorithm(jwk *jose.JSONWebKey) (alg jose.SignatureAlgorithm, err error) {
+	if jwk.Key == nil {
+		return alg, errors.New("no signing key")
+	}
+	switch key := jwk.Key.(type) {
+	case *rsa.PrivateKey:
+		// Because OIDC mandates that we support RS256, we always return that
+		// value. In the future, we might want to make this configurable on a
+		// per client basis. For example allowing PS256 or ECDSA variants.
+		//
+		// See https://github.com/coreos/dex/issues/692
+		return jose.RS256, nil
+	case *ecdsa.PrivateKey:
+		// We don't actually support ECDSA keys yet, but they're tested for
+		// in case we want to in the future.
+		//
+		// These values are prescribed depending on the ECDSA key type. We
+		// can't return different values.
+		switch key.Params() {
+		case elliptic.P256().Params():
+			return jose.ES256, nil
+		case elliptic.P384().Params():
+			return jose.ES384, nil
+		case elliptic.P521().Params():
+			return jose.ES512, nil
+		default:
+			return alg, errors.New("unsupported ecdsa curve")
+		}
+	default:
+		return alg, fmt.Errorf("unsupported signing key type %T", key)
+	}
+}
+
+func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []byte) (jws string, err error) {
+	signingKey := jose.SigningKey{Key: key, Algorithm: alg}
+
+	signer, err := jose.NewSigner(signingKey, &jose.SignerOptions{})
+	if err != nil {
+		return "", fmt.Errorf("new signier: %v", err)
+	}
+	signature, err := signer.Sign(payload)
+	if err != nil {
+		return "", fmt.Errorf("signing payload: %v", err)
+	}
+	return signature.CompactSerialize()
+}
+
+// The hash algorithm for the at_hash is detemrined by the signing
+// algorithm used for the id_token. From the spec:
+//
+//    ...the hash algorithm used is the hash algorithm used in the alg Header
+//    Parameter of the ID Token's JOSE Header. For instance, if the alg is RS256,
+//    hash the access_token value with SHA-256
+//
+// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDToken
+var hashForSigAlg = map[jose.SignatureAlgorithm]func() hash.Hash{
+	jose.RS256: sha256.New,
+	jose.RS384: sha512.New384,
+	jose.RS512: sha512.New,
+	jose.ES256: sha256.New,
+	jose.ES384: sha512.New384,
+	jose.ES512: sha512.New,
+}
+
+// Compute an at_hash from a raw access token and a signature algorithm
+//
+// See: https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDToken
+func accessTokenHash(alg jose.SignatureAlgorithm, accessToken string) (string, error) {
+	newHash, ok := hashForSigAlg[alg]
+	if !ok {
+		return "", fmt.Errorf("unsupported signature algorithm: %s", alg)
+	}
+
+	hash := newHash()
+	if _, err := io.WriteString(hash, accessToken); err != nil {
+		return "", fmt.Errorf("computing hash: %v", err)
+	}
+	sum := hash.Sum(nil)
+	return base64.RawURLEncoding.EncodeToString(sum[:len(sum)/2]), nil
+}
+
 type audience []string
 
 func (a audience) MarshalJSON() ([]byte, error) {
@@ -124,6 +236,8 @@ type idTokenClaims struct {
 	AuthorizingParty string   `json:"azp,omitempty"`
 	Nonce            string   `json:"nonce,omitempty"`
 
+	AccessTokenHash string `json:"at_hash,omitempty"`
+
 	Email         string `json:"email,omitempty"`
 	EmailVerified *bool  `json:"email_verified,omitempty"`
 
@@ -132,7 +246,22 @@ type idTokenClaims struct {
 	Name string `json:"name,omitempty"`
 }
 
-func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce string) (idToken string, expiry time.Time, err error) {
+func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken string) (idToken string, expiry time.Time, err error) {
+	keys, err := s.storage.GetKeys()
+	if err != nil {
+		s.logger.Errorf("Failed to get keys: %v", err)
+		return "", expiry, err
+	}
+
+	signingKey := keys.SigningKey
+	if signingKey == nil {
+		return "", expiry, fmt.Errorf("no key to sign payload with")
+	}
+	signingAlg, err := signatureAlgorithm(signingKey)
+	if err != nil {
+		return "", expiry, err
+	}
+
 	issuedAt := s.now()
 	expiry = issuedAt.Add(s.idTokensValidFor)
 
@@ -142,6 +271,15 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		Nonce:    nonce,
 		Expiry:   expiry.Unix(),
 		IssuedAt: issuedAt.Unix(),
+	}
+
+	if accessToken != "" {
+		atHash, err := accessTokenHash(signingAlg, accessToken)
+		if err != nil {
+			s.logger.Errorf("error computing at_hash: %v", err)
+			return "", expiry, fmt.Errorf("error computing at_hash: %v", err)
+		}
+		tok.AccessTokenHash = atHash
 	}
 
 	for _, scope := range scopes {
@@ -156,6 +294,8 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		default:
 			peerID, ok := parseCrossClientScope(scope)
 			if !ok {
+				// Ignore unknown scopes. These are already validated during the
+				// initial auth request.
 				continue
 			}
 			isTrusted, err := s.validateCrossClientTrust(clientID, peerID)
@@ -169,9 +309,14 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 			tok.Audience = append(tok.Audience, peerID)
 		}
 	}
+
 	if len(tok.Audience) == 0 {
+		// Client didn't ask for cross client audience. Set the current
+		// client as the audience.
 		tok.Audience = audience{clientID}
 	} else {
+		// Client asked for cross client audience. The current client
+		// becomes the authorizing party.
 		tok.AuthorizingParty = clientID
 	}
 
@@ -180,32 +325,26 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		return "", expiry, fmt.Errorf("could not serialize claims: %v", err)
 	}
 
-	keys, err := s.storage.GetKeys()
-	if err != nil {
-		s.logger.Errorf("Failed to get keys: %v", err)
-		return "", expiry, err
-	}
-	if idToken, err = keys.Sign(payload); err != nil {
+	if idToken, err = signPayload(signingKey, signingAlg, payload); err != nil {
 		return "", expiry, fmt.Errorf("failed to sign payload: %v", err)
 	}
 	return idToken, expiry, nil
 }
 
 // parse the initial request from the OAuth2 client.
-//
-// For correctness the logic is largely copied from https://github.com/RangelReale/osin.
-func (s *Server) parseAuthorizationRequest(supportedResponseTypes map[string]bool, r *http.Request) (req storage.AuthRequest, oauth2Err *authErr) {
-	if err := r.ParseForm(); err != nil {
-		return req, &authErr{"", "", errInvalidRequest, "Failed to parse request."}
-	}
-
-	redirectURI, err := url.QueryUnescape(r.Form.Get("redirect_uri"))
+func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthRequest, oauth2Err *authErr) {
+	q := r.URL.Query()
+	redirectURI, err := url.QueryUnescape(q.Get("redirect_uri"))
 	if err != nil {
 		return req, &authErr{"", "", errInvalidRequest, "No redirect_uri provided."}
 	}
-	state := r.FormValue("state")
 
-	clientID := r.Form.Get("client_id")
+	clientID := q.Get("client_id")
+	state := q.Get("state")
+	nonce := q.Get("nonce")
+	// Some clients, like the old go-oidc, provide extra whitespace. Tolerate this.
+	scopes := strings.Fields(q.Get("scope"))
+	responseTypes := strings.Fields(q.Get("response_type"))
 
 	client, err := s.storage.GetClient(clientID)
 	if err != nil {
@@ -222,11 +361,10 @@ func (s *Server) parseAuthorizationRequest(supportedResponseTypes map[string]boo
 		return req, &authErr{"", "", errInvalidRequest, description}
 	}
 
+	// From here on out, we want to redirect back to the client with an error.
 	newErr := func(typ, format string, a ...interface{}) *authErr {
 		return &authErr{state, redirectURI, typ, fmt.Sprintf(format, a...)}
 	}
-
-	scopes := strings.Fields(r.Form.Get("scope"))
 
 	var (
 		unrecognized  []string
@@ -247,7 +385,7 @@ func (s *Server) parseAuthorizationRequest(supportedResponseTypes map[string]boo
 
 			isTrusted, err := s.validateCrossClientTrust(clientID, peerID)
 			if err != nil {
-				return req, newErr(errServerError, "")
+				return req, newErr(errServerError, "Internal server error.")
 			}
 			if !isTrusted {
 				invalidScopes = append(invalidScopes, scope)
@@ -264,37 +402,61 @@ func (s *Server) parseAuthorizationRequest(supportedResponseTypes map[string]boo
 		return req, newErr("invalid_scope", "Client can't request scope(s) %q", invalidScopes)
 	}
 
-	nonce := r.Form.Get("nonce")
-	responseTypes := strings.Split(r.Form.Get("response_type"), " ")
+	var rt struct {
+		code    bool
+		idToken bool
+		token   bool
+	}
+
 	for _, responseType := range responseTypes {
-		if !supportedResponseTypes[responseType] {
+		switch responseType {
+		case responseTypeCode:
+			rt.code = true
+		case responseTypeIDToken:
+			rt.idToken = true
+		case responseTypeToken:
+			rt.token = true
+		default:
 			return req, newErr("invalid_request", "Invalid response type %q", responseType)
 		}
 
-		switch responseType {
-		case responseTypeCode:
-		case responseTypeToken:
-			// Implicit flow requires a nonce value.
-			// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitAuthRequest
-			if nonce == "" {
-				return req, newErr("invalid_request", "Response type 'token' requires a 'nonce' value.")
-			}
+		if !s.supportedResponseTypes[responseType] {
+			return req, newErr(errUnsupportedResponseType, "Unsupported response type %q", responseType)
+		}
+	}
 
-			if redirectURI == redirectURIOOB {
-				err := fmt.Sprintf("Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
-				return req, newErr("invalid_request", err)
-			}
-		default:
-			return req, newErr("invalid_request", "Invalid response type %q", responseType)
+	if len(responseTypes) == 0 {
+		return req, newErr("invalid_requests", "No response_type provided")
+	}
+
+	if rt.token && !rt.code && !rt.idToken {
+		// "token" can't be provided by its own.
+		//
+		// https://openid.net/specs/openid-connect-core-1_0.html#Authentication
+		return req, newErr("invalid_request", "Response type 'token' must be provided with type 'id_token' and/or 'code'")
+	}
+	if !rt.code {
+		// Either "id_token code" or "id_token" has been provided which implies the
+		// implicit flow. Implicit flow requires a nonce value.
+		//
+		// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitAuthRequest
+		if nonce == "" {
+			return req, newErr("invalid_request", "Response type 'token' requires a 'nonce' value.")
+		}
+	}
+	if rt.token {
+		if redirectURI == redirectURIOOB {
+			err := fmt.Sprintf("Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
+			return req, newErr("invalid_request", err)
 		}
 	}
 
 	return storage.AuthRequest{
 		ID:                  storage.NewID(),
 		ClientID:            client.ID,
-		State:               r.Form.Get("state"),
+		State:               state,
 		Nonce:               nonce,
-		ForceApprovalPrompt: r.Form.Get("approval_prompt") == "force",
+		ForceApprovalPrompt: q.Get("approval_prompt") == "force",
 		Scopes:              scopes,
 		RedirectURI:         redirectURI,
 		ResponseTypes:       responseTypes,

@@ -1,13 +1,9 @@
 package storage
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"encoding/base32"
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -94,6 +90,7 @@ type Storage interface {
 	UpdateClient(id string, updater func(old Client) (Client, error)) error
 	UpdateKeys(updater func(old Keys) (Keys, error)) error
 	UpdateAuthRequest(id string, updater func(a AuthRequest) (AuthRequest, error)) error
+	UpdateRefreshToken(id string, updater func(r RefreshToken) (RefreshToken, error)) error
 	UpdatePassword(email string, updater func(p Password) (Password, error)) error
 
 	// GarbageCollect deletes all expired AuthCodes and AuthRequests.
@@ -216,8 +213,15 @@ type AuthCode struct {
 // RefreshToken is an OAuth2 refresh token which allows a client to request new
 // tokens on the end user's behalf.
 type RefreshToken struct {
-	// The actual refresh token.
-	RefreshToken string
+	ID string
+
+	// A single token that's rotated every time the refresh token is refreshed.
+	//
+	// May be empty.
+	Token string
+
+	CreatedAt time.Time
+	LastUsed  time.Time
 
 	// Client this refresh token is valid for.
 	ClientID string
@@ -279,39 +283,4 @@ type Keys struct {
 	//
 	// For caching purposes, implementations MUST NOT update keys before this time.
 	NextRotation time.Time
-}
-
-// Sign creates a JWT using the signing key.
-func (k Keys) Sign(payload []byte) (jws string, err error) {
-	if k.SigningKey == nil {
-		return "", fmt.Errorf("no key to sign payload with")
-	}
-	signingKey := jose.SigningKey{Key: k.SigningKey}
-
-	switch key := k.SigningKey.Key.(type) {
-	case *rsa.PrivateKey:
-		// TODO(ericchiang): Allow different cryptographic hashes.
-		signingKey.Algorithm = jose.RS256
-	case *ecdsa.PrivateKey:
-		switch key.Params() {
-		case elliptic.P256().Params():
-			signingKey.Algorithm = jose.ES256
-		case elliptic.P384().Params():
-			signingKey.Algorithm = jose.ES384
-		case elliptic.P521().Params():
-			signingKey.Algorithm = jose.ES512
-		default:
-			return "", errors.New("unsupported ecdsa curve")
-		}
-	}
-
-	signer, err := jose.NewSigner(signingKey, &jose.SignerOptions{})
-	if err != nil {
-		return "", fmt.Errorf("new signier: %v", err)
-	}
-	signature, err := signer.Sign(payload)
-	if err != nil {
-		return "", fmt.Errorf("signing payload: %v", err)
-	}
-	return signature.CompactSerialize()
 }

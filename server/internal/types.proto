@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+// Package internal holds protobuf types used by the server
+package internal;
+
+// RefreshToken is a message that holds refresh token data used by dex.
+message RefreshToken {
+  string refresh_id = 1;
+  string token = 2;
+}

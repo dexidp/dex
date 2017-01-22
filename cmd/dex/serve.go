@@ -179,6 +179,9 @@ func serve(cmd *cobra.Command, args []string) error {
 	if c.OAuth2.SkipApprovalScreen {
 		logger.Infof("config skipping approval screen")
 	}
+	if len(c.Web.AllowedOrigins) > 0 {
+		logger.Infof("config allowed origins: %s", c.Web.AllowedOrigins)
+	}
 
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
@@ -186,6 +189,7 @@ func serve(cmd *cobra.Command, args []string) error {
 	serverConfig := server.Config{
 		SupportedResponseTypes: c.OAuth2.ResponseTypes,
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
+		AllowedOrigins:         c.Web.AllowedOrigins,
 		Issuer:                 c.Issuer,
 		Connectors:             connectors,
 		Storage:                s,

@@ -208,10 +208,14 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 	id := storage.NewID()
 	refresh := storage.RefreshToken{
-		RefreshToken: id,
-		ClientID:     "client_id",
-		ConnectorID:  "client_secret",
-		Scopes:       []string{"openid", "email", "profile"},
+		ID:          id,
+		Token:       "bar",
+		Nonce:       "foo",
+		ClientID:    "client_id",
+		ConnectorID: "client_secret",
+		Scopes:      []string{"openid", "email", "profile"},
+		CreatedAt:   time.Now().UTC().Round(time.Millisecond),
+		LastUsed:    time.Now().UTC().Round(time.Millisecond),
 		Claims: storage.Claims{
 			UserID:        "1",
 			Username:      "jane",
@@ -219,6 +223,7 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 			EmailVerified: true,
 			Groups:        []string{"a", "b"},
 		},
+		ConnectorData: []byte(`{"some":"data"}`),
 	}
 	if err := s.CreateRefresh(refresh); err != nil {
 		t.Fatalf("create refresh token: %v", err)
@@ -235,6 +240,20 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 		}
 	}
 
+	getAndCompare(id, refresh)
+
+	updatedAt := time.Now().UTC().Round(time.Millisecond)
+
+	updater := func(r storage.RefreshToken) (storage.RefreshToken, error) {
+		r.Token = "spam"
+		r.LastUsed = updatedAt
+		return r, nil
+	}
+	if err := s.UpdateRefreshToken(id, updater); err != nil {
+		t.Errorf("failed to udpate refresh token: %v", err)
+	}
+	refresh.Token = "spam"
+	refresh.LastUsed = updatedAt
 	getAndCompare(id, refresh)
 
 	if err := s.DeleteRefresh(id); err != nil {
