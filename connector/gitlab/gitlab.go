@@ -29,7 +29,7 @@ type Config struct {
 }
 
 type gitlabUser struct {
-	Id       int
+	ID       int
 	Name     string
 	Username string
 	State    string
@@ -38,7 +38,7 @@ type gitlabUser struct {
 }
 
 type gitlabGroup struct {
-	Id   int
+	ID   int
 	Name string
 	Path string
 }
@@ -130,7 +130,7 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 		username = user.Email
 	}
 	identity = connector.Identity{
-		UserID:        strconv.Itoa(user.Id),
+		UserID:        strconv.Itoa(user.ID),
 		Username:      username,
 		Email:         user.Email,
 		EmailVerified: true,
