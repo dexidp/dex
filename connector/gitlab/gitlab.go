@@ -34,7 +34,7 @@ type gitlabUser struct {
 	Username string
 	State    string
 	Email    string
-	Is_admin bool
+	IsAdmin  bool
 }
 
 type gitlabGroup struct {
