@@ -1,5 +1,8 @@
 language: go
 
+
+go_import_path: github.com/coreos/dex
+
 go:
   - 1.7.4
 
