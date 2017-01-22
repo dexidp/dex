@@ -177,13 +177,12 @@ type ConnectorConfig interface {
 }
 
 var connectors = map[string]func() ConnectorConfig{
-	"mockCallback":     func() ConnectorConfig { return new(mock.CallbackConfig) },
-	"mockPassword":     func() ConnectorConfig { return new(mock.PasswordConfig) },
-	"ldap":             func() ConnectorConfig { return new(ldap.Config) },
-	"github":           func() ConnectorConfig { return new(github.Config) },
-	"gitlab":           func() ConnectorConfig { return new(gitlab.Config) },
-	"oidc":             func() ConnectorConfig { return new(oidc.Config) },
-	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
+	"mockCallback": func() ConnectorConfig { return new(mock.CallbackConfig) },
+	"mockPassword": func() ConnectorConfig { return new(mock.PasswordConfig) },
+	"ldap":         func() ConnectorConfig { return new(ldap.Config) },
+	"github":       func() ConnectorConfig { return new(github.Config) },
+	"gitlab":       func() ConnectorConfig { return new(gitlab.Config) },
+	"oidc":         func() ConnectorConfig { return new(oidc.Config) },
 }
 
 // UnmarshalJSON allows Connector to implement the unmarshaler interface to
