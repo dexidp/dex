@@ -55,7 +55,7 @@ fmt:
 	@go fmt $(shell go list ./... | grep -v '/vendor/')
 
 lint:
-	@for package in $(shell go list ./... | grep -v '/vendor/' | grep -v '/api'); do \
+	@for package in $(shell go list ./... | grep -v '/vendor/' | grep -v '/api' | grep -v '/server/internal'); do \
       golint -set_exit_status $$package $$i || exit 1; \
 	done
 
@@ -81,11 +81,14 @@ aci: clean-release _output/bin/dex _output/images/library-alpine-3.4.aci
 docker-image: clean-release _output/bin/dex
 	@sudo docker build -t $(DOCKER_IMAGE) .
 
-.PHONY: grpc
-grpc: api/api.pb.go
+.PHONY: proto
+proto: api/api.pb.go server/internal/types.pb.go
 
 api/api.pb.go: api/api.proto bin/protoc bin/protoc-gen-go
 	@protoc --go_out=plugins=grpc:. api/*.proto
+
+server/internal/types.pb.go: server/internal/types.proto bin/protoc bin/protoc-gen-go
+	@protoc --go_out=. server/internal/*.proto
 
 bin/protoc: scripts/get-protoc
 	@./scripts/get-protoc bin/protoc

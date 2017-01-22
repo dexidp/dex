@@ -15,6 +15,7 @@ import (
 	"github.com/coreos/dex/connector/ldap"
 	"github.com/coreos/dex/connector/mock"
 	"github.com/coreos/dex/connector/oidc"
+	"github.com/coreos/dex/connector/saml"
 	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/kubernetes"
@@ -99,10 +100,11 @@ type OAuth2 struct {
 
 // Web is the config format for the HTTP server.
 type Web struct {
-	HTTP    string `json:"http"`
-	HTTPS   string `json:"https"`
-	TLSCert string `json:"tlsCert"`
-	TLSKey  string `json:"tlsKey"`
+	HTTP           string   `json:"http"`
+	HTTPS          string   `json:"https"`
+	TLSCert        string   `json:"tlsCert"`
+	TLSKey         string   `json:"tlsKey"`
+	AllowedOrigins []string `json:"allowedOrigins"`
 }
 
 // GRPC is the config for the gRPC API.
@@ -183,6 +185,7 @@ var connectors = map[string]func() ConnectorConfig{
 	"github":       func() ConnectorConfig { return new(github.Config) },
 	"gitlab":       func() ConnectorConfig { return new(gitlab.Config) },
 	"oidc":         func() ConnectorConfig { return new(oidc.Config) },
+	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
 }
 
 // UnmarshalJSON allows Connector to implement the unmarshaler interface to

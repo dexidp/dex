@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
+	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/connector/mock"
@@ -222,6 +223,38 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			},
 		},
 		{
+			name: "verify at_hash",
+			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
+				rawIDToken, ok := token.Extra("id_token").(string)
+				if !ok {
+					return fmt.Errorf("no id token found")
+				}
+				idToken, err := p.Verifier().Verify(ctx, rawIDToken)
+				if err != nil {
+					return fmt.Errorf("failed to verify id token: %v", err)
+				}
+
+				var claims struct {
+					AtHash string `json:"at_hash"`
+				}
+				if err := idToken.Claims(&claims); err != nil {
+					return fmt.Errorf("failed to decode raw claims: %v", err)
+				}
+				if claims.AtHash == "" {
+					return errors.New("no at_hash value in id_token")
+				}
+				wantAtHash, err := accessTokenHash(jose.RS256, token.AccessToken)
+				if err != nil {
+					return fmt.Errorf("computed expected at hash: %v", err)
+				}
+				if wantAtHash != claims.AtHash {
+					return fmt.Errorf("expected at_hash=%q got=%q", wantAtHash, claims.AtHash)
+				}
+
+				return nil
+			},
+		},
+		{
 			name: "refresh token",
 			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
 				// have to use time.Now because the OAuth2 package uses it.
@@ -236,6 +269,10 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				}
 				if token.RefreshToken == newToken.RefreshToken {
 					return fmt.Errorf("old refresh token was the same as the new token %q", token.RefreshToken)
+				}
+
+				if _, err := config.TokenSource(ctx, token).Token(); err == nil {
+					return errors.New("was able to redeem the same refresh token twice")
 				}
 				return nil
 			},
@@ -510,7 +547,7 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 
 	httpServer, s := newTestServer(ctx, t, func(c *Config) {
 		// Enable support for the implicit flow.
-		c.SupportedResponseTypes = []string{"code", "token"}
+		c.SupportedResponseTypes = []string{"code", "token", "id_token"}
 	})
 	defer httpServer.Close()
 
@@ -553,7 +590,7 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		u := oauth2Config.AuthCodeURL(state, oauth2.SetAuthURLParam("response_type", "token"), oidc.Nonce(nonce))
+		u := oauth2Config.AuthCodeURL(state, oauth2.SetAuthURLParam("response_type", "id_token token"), oidc.Nonce(nonce))
 		http.Redirect(w, r, u, http.StatusSeeOther)
 	}))
 

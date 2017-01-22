@@ -66,6 +66,23 @@ type CallbackConnector interface {
 	HandleCallback(s Scopes, r *http.Request) (identity Identity, err error)
 }
 
+// SAMLConnector represents SAML connectors which implement the HTTP POST binding.
+//
+// RelayState is handled by the server.
+type SAMLConnector interface {
+	// POSTData returns an encoded SAML request and SSO URL for the server to
+	// render a POST form with.
+	POSTData(s Scopes) (sooURL, samlRequest string, err error)
+
+	// TODO(ericchiang): Provide expected "InResponseTo" ID value.
+	//
+	// See: https://www.oasis-open.org/committees/download.php/35711/sstc-saml-core-errata-2.0-wd-06-diff.pdf
+	// "3.2.2 Complex Type StatusResponseType"
+
+	// HandlePOST decodes, verifies, and maps attributes from the SAML response.
+	HandlePOST(s Scopes, samlResponse string) (identity Identity, err error)
+}
+
 // RefreshConnector is a connector that can update the client claims.
 type RefreshConnector interface {
 	// Refresh is called when a client attempts to claim a refresh token. The

@@ -1,12 +1,14 @@
-hash: 723f2faad8f09a97ffb5ce647705b8ee41dbf2f81f91488c60f23d102789a23b
-updated: 2016-12-08T11:11:10.172119799-08:00
+hash: 2f68b742168a81ebbe604be42801d37e9da71dff5aeb6b8f8e91ed81ff0edec0
+updated: 2017-01-09T14:51:09.514065012-08:00
 imports:
+- name: github.com/beevik/etree
+  version: 4cd0dd976db869f817248477718071a28e978df0
 - name: github.com/cockroachdb/cockroach-go
   version: 31611c0501c812f437d4861d87d117053967c955
   subpackages:
   - crdb
 - name: github.com/coreos/go-oidc
-  version: dedb650fb29c39c2f21aa88c1e4cec66da8754d1
+  version: 2b5d73091ea4b7ddb15e3ac00077f153120b5b61
 - name: github.com/ghodss/yaml
   version: bea76d6a4713e18b7f5321a2b020738552def3ea
 - name: github.com/go-sql-driver/mysql
@@ -18,12 +20,16 @@ imports:
   - protoc-gen-go
 - name: github.com/gorilla/context
   version: aed02d124ae4a0e94fea4541c8effd05bf0c8296
+- name: github.com/gorilla/handlers
+  version: 3a5767ca75ece5f7f1440b1d16975247f8d8b221
 - name: github.com/gorilla/mux
   version: 9fa818a44c2bf1396a17f9d5a3c0f6dd39d2ff8e
 - name: github.com/gtank/cryptopasta
   version: e7e23673cac3f529f49e22f94e4af6d12bb49dba
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/jonboulle/clockwork
+  version: bcac9884e7502bb2b474c0339d889cb981a2f27f
 - name: github.com/kylelemons/godebug
   version: eadb3ce320cbab8393bea5ca17bebac3f78a021b
   subpackages:
@@ -39,6 +45,8 @@ imports:
   version: c97913dcbd76de40b051a9b4cd827f7eaeb7a868
   subpackages:
   - cacheobject
+- name: github.com/russellhaering/goxmldsig
+  version: d9f653eb27ee8b145f7d5a45172e81a93def0860
 - name: github.com/Sirupsen/logrus
   version: d26492970760ca5d33129d2d799e34be5c4782eb
 - name: github.com/spf13/cobra

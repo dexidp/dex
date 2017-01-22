@@ -241,44 +241,55 @@ func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	authCodeURL := ""
 	scopes = append(scopes, "openid", "profile", "email")
-	if a.offlineAsScope {
+	if r.FormValue("offline_access") != "yes" {
+		authCodeURL = a.oauth2Config(scopes).AuthCodeURL(exampleAppState)
+	} else if a.offlineAsScope {
 		scopes = append(scopes, "offline_access")
 		authCodeURL = a.oauth2Config(scopes).AuthCodeURL(exampleAppState)
 	} else {
 		authCodeURL = a.oauth2Config(scopes).AuthCodeURL(exampleAppState, oauth2.AccessTypeOffline)
 	}
+
 	http.Redirect(w, r, authCodeURL, http.StatusSeeOther)
 }
 
 func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
-	if errMsg := r.FormValue("error"); errMsg != "" {
-		http.Error(w, errMsg+": "+r.FormValue("error_description"), http.StatusBadRequest)
-		return
-	}
-
-	if state := r.FormValue("state"); state != exampleAppState {
-		http.Error(w, fmt.Sprintf("expected state %q got %q", exampleAppState, state), http.StatusBadRequest)
-		return
-	}
-
-	code := r.FormValue("code")
-	refresh := r.FormValue("refresh_token")
 	var (
 		err   error
 		token *oauth2.Token
 	)
 	oauth2Config := a.oauth2Config(nil)
-	switch {
-	case code != "":
+	switch r.Method {
+	case "GET":
+		// Authorization redirect callback from OAuth2 auth flow.
+		if errMsg := r.FormValue("error"); errMsg != "" {
+			http.Error(w, errMsg+": "+r.FormValue("error_description"), http.StatusBadRequest)
+			return
+		}
+		code := r.FormValue("code")
+		if code == "" {
+			http.Error(w, fmt.Sprintf("no code in request: %q", r.Form), http.StatusBadRequest)
+			return
+		}
+		if state := r.FormValue("state"); state != exampleAppState {
+			http.Error(w, fmt.Sprintf("expected state %q got %q", exampleAppState, state), http.StatusBadRequest)
+			return
+		}
 		token, err = oauth2Config.Exchange(a.ctx, code)
-	case refresh != "":
+	case "POST":
+		// Form request from frontend to refresh a token.
+		refresh := r.FormValue("refresh_token")
+		if refresh == "" {
+			http.Error(w, fmt.Sprintf("no refresh_token in request: %q", r.Form), http.StatusBadRequest)
+			return
+		}
 		t := &oauth2.Token{
 			RefreshToken: refresh,
 			Expiry:       time.Now().Add(-time.Hour),
 		}
 		token, err = oauth2Config.TokenSource(r.Context(), t).Token()
 	default:
-		http.Error(w, fmt.Sprintf("no code in request: %q", r.Form), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("method not implemented: %s", r.Method), http.StatusBadRequest)
 		return
 	}
 
