@@ -15,7 +15,9 @@ The following is an example of a configuration for `examples/config-dev.yaml`:
 ```yaml
 connectors:
 - type: github
+  # Required field for connector id.
   id: github
+  # Required field for connector name.
   name: GitHub
   config:
     # Credentials can be string literals or pulled from the environment.
