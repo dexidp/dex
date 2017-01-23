@@ -17,7 +17,7 @@ Username and group information can be combined with Kubernetes [authorization pl
 
 ## Configuring the OpenID Connect plugin
 
-Configuring the API server to use the OpenID Connect [authentcation plugin][k8s-oidc] requires:
+Configuring the API server to use the OpenID Connect [authentication plugin][k8s-oidc] requires:
 
 * Deploying an API server with specific flags.
 * Dex is running on HTTPS.
