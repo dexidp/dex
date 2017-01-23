@@ -25,6 +25,7 @@ The following is an example config file that can be used by the LDAP connector t
 connectors:
 - type: ldap
   id: ldap
+  name: LDAP
   config:
     # Host and optional port of the LDAP server in the form "host:port".
     # If the port is not supplied, it will be guessed based on "insecureNoSSL".
