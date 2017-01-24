@@ -11,6 +11,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/connector/github"
+	"github.com/coreos/dex/connector/gitlab"
 	"github.com/coreos/dex/connector/ldap"
 	"github.com/coreos/dex/connector/mock"
 	"github.com/coreos/dex/connector/oidc"
@@ -182,6 +183,7 @@ var connectors = map[string]func() ConnectorConfig{
 	"mockPassword":     func() ConnectorConfig { return new(mock.PasswordConfig) },
 	"ldap":             func() ConnectorConfig { return new(ldap.Config) },
 	"github":           func() ConnectorConfig { return new(github.Config) },
+	"gitlab":           func() ConnectorConfig { return new(gitlab.Config) },
 	"oidc":             func() ConnectorConfig { return new(oidc.Config) },
 	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
 }
