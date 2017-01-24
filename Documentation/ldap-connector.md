@@ -24,7 +24,9 @@ The following is an example config file that can be used by the LDAP connector t
 ```yaml
 connectors:
 - type: ldap
+  # Required field for connector id.
   id: ldap
+  # Required field for connector name.
   name: LDAP
   config:
     # Host and optional port of the LDAP server in the form "host:port".
@@ -189,6 +191,7 @@ The following configuration will allow the LDAP connector to search a FreeIPA di
 connectors:
 - type: ldap
   id: ldap
+  name: LDAP
   config:
     # host and port of the LDAP server in form "host:port".
     host: freeipa.example.com:636

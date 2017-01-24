@@ -19,7 +19,10 @@ The connector doesn't support refresh tokens since the SAML 2.0 protocol doesn't
 ```yaml
 connectors:
 - type: samlExperimental # will be changed to "saml" later without support for the "samlExperimental" value
+  # Required field for connector id.
   id: saml
+  # Required field for connector name.
+  name: SAML
   config:
     # Issuer used for validating the SAML response.
     issuer: https://saml.example.com
