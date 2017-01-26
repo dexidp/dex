@@ -2,8 +2,6 @@
 package saml
 
 import (
-	"bytes"
-	"compress/flate"
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
@@ -36,6 +34,15 @@ const (
 	nameIDFormatKerberos     = "urn:oasis:names:tc:SAML:2.0:nameid-format:kerberos"
 	nameIDFormatPersistent   = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
 	nameIDformatTransient    = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
+
+	// top level status codes
+	statusCodeSuccess = "urn:oasis:names:tc:SAML:2.0:status:Success"
+
+	// subject confirmation methods
+	subjectConfirmationMethodBearer = "urn:oasis:names:tc:SAML:2.0:cm:bearer"
+
+	// allowed clock drift for timestamp validation
+	allowedClockDrift = time.Duration(30) * time.Second
 )
 
 var (
@@ -253,6 +260,7 @@ func (p *provider) POSTData(s connector.Scopes) (action, value string, err error
 			AllowCreate: true,
 			Format:      p.nameIDPolicyFormat,
 		},
+		AssertionConsumerServiceURL: p.redirectURI,
 	}
 
 	data, err := xml.MarshalIndent(r, "", "  ")
@@ -260,19 +268,7 @@ func (p *provider) POSTData(s connector.Scopes) (action, value string, err error
 		return "", "", fmt.Errorf("marshal authn request: %v", err)
 	}
 
-	buff := new(bytes.Buffer)
-	fw, err := flate.NewWriter(buff, flate.DefaultCompression)
-	if err != nil {
-		return "", "", fmt.Errorf("new flate writer: %v", err)
-	}
-	if _, err := fw.Write(data); err != nil {
-		return "", "", fmt.Errorf("compress message: %v", err)
-	}
-	if err := fw.Close(); err != nil {
-		return "", "", fmt.Errorf("flush message: %v", err)
-	}
-
-	return p.ssoURL, base64.StdEncoding.EncodeToString(buff.Bytes()), nil
+	return p.ssoURL, base64.StdEncoding.EncodeToString(data), nil
 }
 
 func (p *provider) HandlePOST(s connector.Scopes, samlResponse string) (ident connector.Identity, err error) {
@@ -296,6 +292,10 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse string) (ident co
 
 	}
 
+	if err = p.validateStatus(&resp); err != nil {
+		return ident, err
+	}
+
 	assertion := resp.Assertion
 	if assertion == nil {
 		return ident, fmt.Errorf("response did not contain an assertion")
@@ -303,6 +303,13 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse string) (ident co
 	subject := assertion.Subject
 	if subject == nil {
 		return ident, fmt.Errorf("response did not contain a subject")
+	}
+
+	if err = p.validateConditions(assertion); err != nil {
+		return ident, err
+	}
+	if err = p.validateSubjectConfirmation(subject); err != nil {
+		return ident, err
 	}
 
 	switch {
@@ -348,19 +355,151 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse string) (ident co
 	return ident, nil
 }
 
+// Validate that the StatusCode of the Response is success.
+// Otherwise return a human readable message to the end user
+func (p *provider) validateStatus(resp *response) error {
+	// Status is mandatory in the Response type
+	status := resp.Status
+	if status == nil {
+		return fmt.Errorf("response did not contain a Status")
+	}
+	// StatusCode is mandatory in the Status type
+	statusCode := status.StatusCode
+	if statusCode == nil {
+		return fmt.Errorf("response did not contain a StatusCode")
+	}
+	if statusCode.Value != statusCodeSuccess {
+		parts := strings.Split(statusCode.Value, ":")
+		lastPart := parts[len(parts)-1]
+		errorMessage := fmt.Sprintf("status code of the Response was not Success, was %q", lastPart)
+		statusMessage := status.StatusMessage
+		if statusMessage != nil && statusMessage.Value != "" {
+			errorMessage += " -> " + statusMessage.Value
+		}
+		return fmt.Errorf(errorMessage)
+	}
+	return nil
+}
+
+// Multiple subject SubjectConfirmation can be in the assertion
+// and at least one SubjectConfirmation must be valid.
+// This is described in the spec "Profiles for the OASIS Security
+// Assertion Markup Language" in section 3.3 Bearer.
+// see https://www.oasis-open.org/committees/download.php/35389/sstc-saml-profiles-errata-2.0-wd-06-diff.pdf
+func (p *provider) validateSubjectConfirmation(subject *subject) error {
+	validSubjectConfirmation := false
+	subjectConfirmations := subject.SubjectConfirmations
+	if subjectConfirmations != nil && len(subjectConfirmations) > 0 {
+		for _, subjectConfirmation := range subjectConfirmations {
+			// skip if method is wrong
+			method := subjectConfirmation.Method
+			if method != "" && method != subjectConfirmationMethodBearer {
+				continue
+			}
+			subjectConfirmationData := subjectConfirmation.SubjectConfirmationData
+			if subjectConfirmationData == nil {
+				continue
+			}
+			inResponseTo := subjectConfirmationData.InResponseTo
+			if inResponseTo != "" {
+				// TODO also validate InResponseTo if present
+			}
+			// only validate that subjectConfirmationData is not expired
+			now := p.now()
+			notOnOrAfter := time.Time(subjectConfirmationData.NotOnOrAfter)
+			if !notOnOrAfter.IsZero() {
+				if now.After(notOnOrAfter) {
+					continue
+				}
+			}
+			// validate recipient if present
+			recipient := subjectConfirmationData.Recipient
+			if recipient != "" && recipient != p.redirectURI {
+				continue
+			}
+			validSubjectConfirmation = true
+		}
+	}
+	if !validSubjectConfirmation {
+		return fmt.Errorf("no valid SubjectConfirmation was found on this Response")
+	}
+	return nil
+}
+
+// Validates the Conditions element and all of it's content
+func (p *provider) validateConditions(assertion *assertion) error {
+	// Checks if a Conditions element exists
+	conditions := assertion.Conditions
+	if conditions == nil {
+		return nil
+	}
+	// Validates Assertion timestamps
+	now := p.now()
+	notBefore := time.Time(conditions.NotBefore)
+	if !notBefore.IsZero() {
+		if now.Add(allowedClockDrift).Before(notBefore) {
+			return fmt.Errorf("at %s got response that cannot be processed before %s", now, notBefore)
+		}
+	}
+	notOnOrAfter := time.Time(conditions.NotOnOrAfter)
+	if !notOnOrAfter.IsZero() {
+		if now.After(notOnOrAfter.Add(allowedClockDrift)) {
+			return fmt.Errorf("at %s got response that cannot be processed because it expired at %s", now, notOnOrAfter)
+		}
+	}
+	// Validates audience
+	audienceRestriction := conditions.AudienceRestriction
+	if audienceRestriction != nil {
+		audiences := audienceRestriction.Audiences
+		if audiences != nil && len(audiences) > 0 {
+			issuerInAudiences := false
+			for _, audience := range audiences {
+				if audience.Value == p.issuer {
+					issuerInAudiences = true
+					break
+				}
+			}
+			if !issuerInAudiences {
+				return fmt.Errorf("required audience %s was not in Response audiences %s", p.issuer, audiences)
+			}
+		}
+	}
+	return nil
+}
+
 // verify checks the signature info of a XML document and returns
 // the signed elements.
+// The Validate function of the goxmldsig library only looks for
+// signatures on the root element level. But a saml Response is valid
+// if the complete message is signed, or only the Assertion is signed,
+// or but elements are signed. Therefore we first check a possible
+// signature of the Response than of the Assertion. If one of these
+// is successful the Response is considered as valid.
 func verify(validator *dsig.ValidationContext, data []byte) (signed []byte, err error) {
 	doc := etree.NewDocument()
-	if err := doc.ReadFromBytes(data); err != nil {
+	if err = doc.ReadFromBytes(data); err != nil {
 		return nil, fmt.Errorf("parse document: %v", err)
 	}
-
-	result, err := validator.Validate(doc.Root())
-	if err != nil {
-		return nil, err
+	verified := false
+	response := doc.Root()
+	transformedResponse, err := validator.Validate(response)
+	if err == nil {
+		verified = true
+		doc.SetRoot(transformedResponse)
 	}
-	doc.SetRoot(result)
+	assertion := response.SelectElement("Assertion")
+	if assertion == nil {
+		return nil, fmt.Errorf("response does not contain an Assertion element")
+	}
+	transformedAssertion, err := validator.Validate(assertion)
+	if err == nil {
+		verified = true
+		response.RemoveChild(assertion)
+		response.AddChild(transformedAssertion)
+	}
+	if verified != true {
+		return nil, fmt.Errorf("response does not contain a valid Signature element")
+	}
 	return doc.WriteToBytes()
 }
 

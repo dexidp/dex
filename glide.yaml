@@ -134,7 +134,7 @@ import:
 
 # XML signature validation for SAML connector
 - package: github.com/russellhaering/goxmldsig
-  version: d9f653eb27ee8b145f7d5a45172e81a93def0860
+  version: e2990269f42f6ddfea940870a0800a14acdb8c21
 - package: github.com/beevik/etree
   version: 4cd0dd976db869f817248477718071a28e978df0
 - package: github.com/jonboulle/clockwork
