@@ -62,6 +62,11 @@ body {
   background-image: url(../static/img/github-icon.svg);
 }
 
+.dex-btn-icon--gitlab {
+  background-image: url(../static/img/gitlab-icon.svg);
+  background-size: contain;
+}
+
 .dex-btn-icon--bitbucket {
   background-color: #205081;
   background-image: url(../static/img/bitbucket-icon.svg);
