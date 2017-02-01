@@ -84,6 +84,9 @@ func (a attrsByKey) Less(i, j int) bool {
 	if a[i].Space == "" && a[i].Key == "xmlns" {
 		return true
 	}
+	if a[j].Space == "" && a[j].Key == "xmlns" {
+		return false
+	}
 
 	if a[i].Space == "xmlns" {
 		if a[j].Space == "xmlns" {

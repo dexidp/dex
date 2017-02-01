@@ -57,6 +57,8 @@ type authnRequest struct {
 	IsPassive       bool   `xml:"IsPassive,attr,omitempty"`
 	ProtocolBinding string `xml:"ProtocolBinding,attr,omitempty"`
 
+	AssertionConsumerServiceURL string `xml:"AssertionConsumerServiceURL,attr,omitempty"`
+
 	Subject      *subject      `xml:"Subject,omitempty"`
 	Issuer       *issuer       `xml:"Issuer,omitempty"`
 	NameIDPolicy *nameIDPolicy `xml:"NameIDPolicy,omitempty"`
@@ -68,7 +70,8 @@ type authnRequest struct {
 type subject struct {
 	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:assertion Subject"`
 
-	NameID *nameID `xml:"NameID,omitempty"`
+	NameID               *nameID               `xml:"NameID,omitempty"`
+	SubjectConfirmations []subjectConfirmation `xml:"SubjectConfirmation"`
 
 	// TODO(ericchiang): Do we need to deal with baseID?
 }
@@ -78,6 +81,60 @@ type nameID struct {
 
 	Format string `xml:"Format,omitempty"`
 	Value  string `xml:",chardata"`
+}
+
+type subjectConfirmationData struct {
+	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:assertion SubjectConfirmationData"`
+
+	NotOnOrAfter xmlTime `xml:"NotOnOrAfter,attr,omitempty"`
+	Recipient    string  `xml:"Recipient,attr,omitempty"`
+	InResponseTo string  `xml:"InResponseTo,attr,omitempty"`
+}
+
+type subjectConfirmation struct {
+	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:assertion SubjectConfirmation"`
+
+	Method                  string                   `xml:"Method,attr,omitempty"`
+	SubjectConfirmationData *subjectConfirmationData `xml:"SubjectConfirmationData,omitempty"`
+}
+
+type audience struct {
+	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:assertion Audience"`
+	Value   string   `xml:",chardata"`
+}
+
+type audienceRestriction struct {
+	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:assertion AudienceRestriction"`
+
+	Audiences []audience `xml:"Audience"`
+}
+
+type conditions struct {
+	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:assertion Conditions"`
+
+	NotBefore    xmlTime `xml:"NotBefore,attr,omitempty"`
+	NotOnOrAfter xmlTime `xml:"NotOnOrAfter,attr,omitempty"`
+
+	AudienceRestriction *audienceRestriction `xml:"AudienceRestriction,omitempty"`
+}
+
+type statusCode struct {
+	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:protocol StatusCode"`
+
+	Value string `xml:"Value,attr,omitempty"`
+}
+
+type statusMessage struct {
+	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:protocol StatusMessage"`
+
+	Value string `xml:",chardata"`
+}
+
+type status struct {
+	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:protocol Status"`
+
+	StatusCode    *statusCode    `xml:"StatusCode"`
+	StatusMessage *statusMessage `xml:"StatusMessage,omitempty"`
 }
 
 type issuer struct {
@@ -112,6 +169,8 @@ type response struct {
 
 	Issuer *issuer `xml:"Issuer,omitempty"`
 
+	Status *status `xml:"Status"`
+
 	// TODO(ericchiang): How do deal with multiple assertions?
 	Assertion *assertion `xml:"Assertion,omitempty"`
 }
@@ -126,6 +185,8 @@ type assertion struct {
 	Issuer issuer `xml:"Issuer"`
 
 	Subject *subject `xml:"Subject,omitempty"`
+
+	Conditions *conditions `xml:"Conditions"`
 
 	AttributeStatement *attributeStatement `xml:"AttributeStatement,omitempty"`
 }
