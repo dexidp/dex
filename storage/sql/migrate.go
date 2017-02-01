@@ -153,6 +153,7 @@ var migrations = []migration{
 				signing_key_pub bytea not null,   -- JSON object
 				next_rotation timestamptz not null
 			);
+
 		`,
 	},
 	{
@@ -163,6 +164,16 @@ var migrations = []migration{
 				add column created_at timestamptz not null default '0001-01-01 00:00:00 UTC';
 			alter table refresh_token
 				add column last_used timestamptz not null default '0001-01-01 00:00:00 UTC';
+		`,
+	},
+	{
+		stmt: `
+			create table offline_session (
+				user_id text not null,
+				conn_id text not null,
+				refresh bytea not null,
+				PRIMARY KEY (user_id, conn_id)
+			);
 		`,
 	},
 }

@@ -58,11 +58,23 @@ func (c *client) idToName(s string) string {
 	return idToName(s, c.hash)
 }
 
+// offlineTokenName maps two arbitrary IDs, to a single Kubernetes object name.
+// This is used when more than one field is used to uniquely identify the object.
+func (c *client) offlineTokenName(userID string, connID string) string {
+	return offlineTokenName(userID, connID, c.hash)
+}
+
 // Kubernetes names must match the regexp '[a-z0-9]([-a-z0-9]*[a-z0-9])?'.
 var encoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567")
 
 func idToName(s string, h func() hash.Hash) string {
 	return strings.TrimRight(encoding.EncodeToString(h().Sum([]byte(s))), "=")
+}
+
+func offlineTokenName(userID string, connID string, h func() hash.Hash) string {
+	h().Write([]byte(userID))
+	h().Write([]byte(connID))
+	return strings.TrimRight(encoding.EncodeToString(h().Sum(nil)), "=")
 }
 
 func (c *client) urlFor(apiVersion, namespace, resource, name string) string {

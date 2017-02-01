@@ -66,6 +66,14 @@ var thirdPartyResources = []k8sapi.ThirdPartyResource{
 		Description: "Passwords managed by the OIDC server.",
 		Versions:    []k8sapi.APIVersion{{Name: "v1"}},
 	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "offline-sessions.oidc.coreos.com",
+		},
+		TypeMeta:    tprMeta,
+		Description: "User sessions with an active refresh token.",
+		Versions:    []k8sapi.APIVersion{{Name: "v1"}},
+	},
 }
 
 // There will only ever be a single keys resource. Maintain this by setting a
@@ -463,5 +471,40 @@ func toStorageKeys(keys Keys) storage.Keys {
 		SigningKeyPub:    keys.SigningKeyPub,
 		VerificationKeys: keys.VerificationKeys,
 		NextRotation:     keys.NextRotation,
+	}
+}
+
+// OfflineSessions is a mirrored struct from storage with JSON struct tags and Kubernetes
+// type metadata.
+type OfflineSessions struct {
+	k8sapi.TypeMeta   `json:",inline"`
+	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+
+	UserID  string                              `json:"userID,omitempty"`
+	ConnID  string                              `json:"connID,omitempty"`
+	Refresh map[string]*storage.RefreshTokenRef `json:"refresh,omitempty"`
+}
+
+func (cli *client) fromStorageOfflineSessions(o storage.OfflineSessions) OfflineSessions {
+	return OfflineSessions{
+		TypeMeta: k8sapi.TypeMeta{
+			Kind:       kindOfflineSessions,
+			APIVersion: cli.apiVersion,
+		},
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name:      cli.offlineTokenName(o.UserID, o.ConnID),
+			Namespace: cli.namespace,
+		},
+		UserID:  o.UserID,
+		ConnID:  o.ConnID,
+		Refresh: o.Refresh,
+	}
+}
+
+func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
+	return storage.OfflineSessions{
+		UserID:  o.UserID,
+		ConnID:  o.ConnID,
+		Refresh: o.Refresh,
 	}
 }

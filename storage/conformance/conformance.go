@@ -47,6 +47,7 @@ func RunTests(t *testing.T, newStorage func() storage.Storage) {
 		{"RefreshTokenCRUD", testRefreshTokenCRUD},
 		{"PasswordCRUD", testPasswordCRUD},
 		{"KeysCRUD", testKeysCRUD},
+		{"OfflineSessionCRUD", testOfflineSessionCRUD},
 		{"GarbageCollection", testGC},
 		{"TimezoneSupport", testTimezones},
 	})
@@ -336,6 +337,60 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 
 	if _, err := s.GetPassword(password.Email); err != storage.ErrNotFound {
 		t.Errorf("after deleting password expected storage.ErrNotFound, got %v", err)
+	}
+
+}
+
+func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {
+	session := storage.OfflineSessions{
+		UserID:  "User",
+		ConnID:  "Conn",
+		Refresh: make(map[string]*storage.RefreshTokenRef),
+	}
+
+	// Creating an OfflineSession with an empty Refresh list to ensure that
+	// an empty map is translated as expected by the storage.
+	if err := s.CreateOfflineSessions(session); err != nil {
+		t.Fatalf("create offline session: %v", err)
+	}
+
+	getAndCompare := func(userID string, connID string, want storage.OfflineSessions) {
+		gr, err := s.GetOfflineSessions(userID, connID)
+		if err != nil {
+			t.Errorf("get offline session: %v", err)
+			return
+		}
+		if diff := pretty.Compare(want, gr); diff != "" {
+			t.Errorf("offline session retrieved from storage did not match: %s", diff)
+		}
+	}
+
+	getAndCompare("User", "Conn", session)
+
+	id := storage.NewID()
+	tokenRef := storage.RefreshTokenRef{
+		ID:        id,
+		ClientID:  "client_id",
+		CreatedAt: time.Now().UTC().Round(time.Millisecond),
+		LastUsed:  time.Now().UTC().Round(time.Millisecond),
+	}
+	session.Refresh[tokenRef.ClientID] = &tokenRef
+
+	if err := s.UpdateOfflineSessions(session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+		old.Refresh[tokenRef.ClientID] = &tokenRef
+		return old, nil
+	}); err != nil {
+		t.Fatalf("failed to update offline session: %v", err)
+	}
+
+	getAndCompare("User", "Conn", session)
+
+	if err := s.DeleteOfflineSessions(session.UserID, session.ConnID); err != nil {
+		t.Fatalf("failed to delete offline session: %v", err)
+	}
+
+	if _, err := s.GetOfflineSessions(session.UserID, session.ConnID); err != storage.ErrNotFound {
+		t.Errorf("after deleting offline session expected storage.ErrNotFound, got %v", err)
 	}
 
 }

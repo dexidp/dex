@@ -15,21 +15,23 @@ import (
 )
 
 const (
-	kindAuthCode     = "AuthCode"
-	kindAuthRequest  = "AuthRequest"
-	kindClient       = "OAuth2Client"
-	kindRefreshToken = "RefreshToken"
-	kindKeys         = "SigningKey"
-	kindPassword     = "Password"
+	kindAuthCode        = "AuthCode"
+	kindAuthRequest     = "AuthRequest"
+	kindClient          = "OAuth2Client"
+	kindRefreshToken    = "RefreshToken"
+	kindKeys            = "SigningKey"
+	kindPassword        = "Password"
+	kindOfflineSessions = "OfflineSessions"
 )
 
 const (
-	resourceAuthCode     = "authcodes"
-	resourceAuthRequest  = "authrequests"
-	resourceClient       = "oauth2clients"
-	resourceRefreshToken = "refreshtokens"
-	resourceKeys         = "signingkeies" // Kubernetes attempts to pluralize.
-	resourcePassword     = "passwords"
+	resourceAuthCode        = "authcodes"
+	resourceAuthRequest     = "authrequests"
+	resourceClient          = "oauth2clients"
+	resourceRefreshToken    = "refreshtokens"
+	resourceKeys            = "signingkeies" // Kubernetes attempts to pluralize.
+	resourcePassword        = "passwords"
+	resourceOfflineSessions = "offlinesessions"
 )
 
 // Config values for the Kubernetes storage type.
@@ -156,6 +158,10 @@ func (cli *client) CreateRefresh(r storage.RefreshToken) error {
 	return cli.post(resourceRefreshToken, cli.fromStorageRefreshToken(r))
 }
 
+func (cli *client) CreateOfflineSessions(o storage.OfflineSessions) error {
+	return cli.post(resourceOfflineSessions, cli.fromStorageOfflineSessions(o))
+}
+
 func (cli *client) GetAuthRequest(id string) (storage.AuthRequest, error) {
 	var req AuthRequest
 	if err := cli.get(resourceAuthRequest, id, &req); err != nil {
@@ -235,6 +241,25 @@ func (cli *client) getRefreshToken(id string) (r RefreshToken, err error) {
 	return
 }
 
+func (cli *client) GetOfflineSessions(userID string, connID string) (storage.OfflineSessions, error) {
+	o, err := cli.getOfflineSessions(userID, connID)
+	if err != nil {
+		return storage.OfflineSessions{}, err
+	}
+	return toStorageOfflineSessions(o), nil
+}
+
+func (cli *client) getOfflineSessions(userID string, connID string) (o OfflineSessions, err error) {
+	name := cli.offlineTokenName(userID, connID)
+	if err = cli.get(resourceOfflineSessions, name, &o); err != nil {
+		return OfflineSessions{}, err
+	}
+	if userID != o.UserID || connID != o.ConnID {
+		return OfflineSessions{}, fmt.Errorf("get offline session: wrong session retrieved")
+	}
+	return o, nil
+}
+
 func (cli *client) ListClients() ([]storage.Client, error) {
 	return nil, errors.New("not implemented")
 }
@@ -292,6 +317,15 @@ func (cli *client) DeletePassword(email string) error {
 	return cli.delete(resourcePassword, p.ObjectMeta.Name)
 }
 
+func (cli *client) DeleteOfflineSessions(userID string, connID string) error {
+	// Check for hash collition.
+	o, err := cli.getOfflineSessions(userID, connID)
+	if err != nil {
+		return err
+	}
+	return cli.delete(resourceOfflineSessions, o.ObjectMeta.Name)
+}
+
 func (cli *client) UpdateRefreshToken(id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
 	r, err := cli.getRefreshToken(id)
 	if err != nil {
@@ -340,6 +374,22 @@ func (cli *client) UpdatePassword(email string, updater func(old storage.Passwor
 	newPassword := cli.fromStoragePassword(updated)
 	newPassword.ObjectMeta = p.ObjectMeta
 	return cli.put(resourcePassword, p.ObjectMeta.Name, newPassword)
+}
+
+func (cli *client) UpdateOfflineSessions(userID string, connID string, updater func(old storage.OfflineSessions) (storage.OfflineSessions, error)) error {
+	o, err := cli.getOfflineSessions(userID, connID)
+	if err != nil {
+		return err
+	}
+
+	updated, err := updater(toStorageOfflineSessions(o))
+	if err != nil {
+		return err
+	}
+
+	newOfflineSessions := cli.fromStorageOfflineSessions(updated)
+	newOfflineSessions.ObjectMeta = o.ObjectMeta
+	return cli.put(resourceOfflineSessions, o.ObjectMeta.Name, newOfflineSessions)
 }
 
 func (cli *client) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) error {
