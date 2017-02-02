@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -9,7 +10,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"text/template"
 )
 
 const (
@@ -181,23 +181,20 @@ func (n byName) Len() int           { return len(n) }
 func (n byName) Less(i, j int) bool { return n[i].Name < n[j].Name }
 func (n byName) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
 
-func (t *templates) login(w http.ResponseWriter, connectors []connectorInfo, authReqID string) error {
+func (t *templates) login(w http.ResponseWriter, connectors []connectorInfo) error {
 	sort.Sort(byName(connectors))
-
 	data := struct {
 		Connectors []connectorInfo
-		AuthReqID  string
-	}{connectors, authReqID}
+	}{connectors}
 	return renderTemplate(w, t.loginTmpl, data)
 }
 
-func (t *templates) password(w http.ResponseWriter, authReqID, callback, lastUsername string, lastWasInvalid bool) error {
+func (t *templates) password(w http.ResponseWriter, postURL, lastUsername string, lastWasInvalid bool) error {
 	data := struct {
-		AuthReqID string
-		PostURL   string
-		Username  string
-		Invalid   bool
-	}{authReqID, string(callback), lastUsername, lastWasInvalid}
+		PostURL  string
+		Username string
+		Invalid  bool
+	}{postURL, lastUsername, lastWasInvalid}
 	return renderTemplate(w, t.passwordTmpl, data)
 }
 
