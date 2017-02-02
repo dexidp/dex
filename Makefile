@@ -23,7 +23,7 @@ export GO15VENDOREXPERIMENT=1
 
 LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
 
-build: bin/dex bin/example-app bin/grpc-client
+build: bin/dex bin/example-app bin/grpc-client bin/oidc-proxy
 
 bin/dex: check-go-version
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
@@ -33,6 +33,9 @@ bin/example-app: check-go-version
 
 bin/grpc-client: check-go-version
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/grpc-client
+
+bin/oidc-proxy: check-go-version
+	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/oidc-proxy
 
 .PHONY: release-binary
 release-binary:
