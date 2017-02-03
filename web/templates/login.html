@@ -5,7 +5,7 @@
   <div>
     {{ range $c := .Connectors }}
       <div class="theme-form-row">
-        <a href="{{ $c.URL }}?req={{ $.AuthReqID }}" target="_self">
+        <a href="{{ $c.URL }}" target="_self">
           <button class="dex-btn theme-btn-provider">
             <span class="dex-btn-icon dex-btn-icon--{{ $c.ID }}"></span>
             <span class="dex-btn-text">Log in with {{ $c.Name }}</span>
