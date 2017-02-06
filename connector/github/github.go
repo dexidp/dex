@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"strconv"
 
 	"golang.org/x/net/context"
@@ -221,39 +222,66 @@ func (c *githubConnector) user(ctx context.Context, client *http.Client) (user, 
 // The HTTP passed client is expected to be constructed by the golang.org/x/oauth2 package,
 // which inserts a bearer token as part of the request.
 func (c *githubConnector) teams(ctx context.Context, client *http.Client, org string) ([]string, error) {
-	req, err := http.NewRequest("GET", baseURL+"/user/teams", nil)
-	if err != nil {
-		return nil, fmt.Errorf("github: new req: %v", err)
-	}
-	req = req.WithContext(ctx)
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("github: get teams: %v", err)
-	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("github: read body: %v", err)
-		}
-		return nil, fmt.Errorf("%s: %s", resp.Status, body)
-	}
-
-	// https://developer.github.com/v3/orgs/teams/#response-12
-	var teams []struct {
-		Name string `json:"name"`
-		Org  struct {
-			Login string `json:"login"`
-		} `json:"organization"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&teams); err != nil {
-		return nil, fmt.Errorf("github: unmarshal groups: %v", err)
-	}
 	groups := []string{}
-	for _, team := range teams {
-		if team.Org.Login == org {
-			groups = append(groups, team.Name)
+
+	// https://developer.github.com/v3/#pagination
+	reNext := regexp.MustCompile("<(.*)>; rel=\"next\"")
+	reLast := regexp.MustCompile("<(.*)>; rel=\"last\"")
+	apiURL := baseURL + "/user/teams"
+
+	for {
+		req, err := http.NewRequest("GET", apiURL, nil)
+
+		if err != nil {
+			return nil, fmt.Errorf("github: new req: %v", err)
+		}
+		req = req.WithContext(ctx)
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("github: get teams: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				return nil, fmt.Errorf("github: read body: %v", err)
+			}
+			return nil, fmt.Errorf("%s: %s", resp.Status, body)
+		}
+
+		// https://developer.github.com/v3/orgs/teams/#response-12
+		var teams []struct {
+			Name string `json:"name"`
+			Org  struct {
+				Login string `json:"login"`
+			} `json:"organization"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&teams); err != nil {
+			return nil, fmt.Errorf("github: unmarshal groups: %v", err)
+		}
+
+		for _, team := range teams {
+			if team.Org.Login == org {
+				groups = append(groups, team.Name)
+			}
+		}
+
+		links := resp.Header.Get("Link")
+		if len(reLast.FindStringSubmatch(links)) > 1 {
+			lastPageURL := reLast.FindStringSubmatch(links)[1]
+			if apiURL == lastPageURL {
+				break
+			}
+		} else {
+			break
+		}
+
+		if len(reNext.FindStringSubmatch(links)) > 1 {
+			apiURL = reNext.FindStringSubmatch(links)[1]
+		} else {
+			break
 		}
 	}
 	return groups, nil
