@@ -10,6 +10,8 @@ __NOTE:__ Dex requires Kubernetes version 1.4+.
 
 Kubernetes third party resources are a way for applications to create new resources types in the Kubernetes API. This allows dex to run on top of an existing Kubernetes cluster without the need for an external database. While this storage may not be appropriate for a large number of users, it's extremely effective for many Kubernetes use cases.
 
+The rest of this section will explore internal details of how dex uses `ThirdPartyResources`. __Admins should not interact with these resources directly__, except when debugging. These resources are only designed to store state and aren't meant to be consumed by humans. For modifying dex's state dynamically see the [API documentation](api.md).
+
 The `ThirdPartyResource` type acts as a description for the new resource a user wishes to create. The following an example of a resource managed by dex:
 
 ```
@@ -32,7 +34,7 @@ kind: OAuth2Client
 apiVersion: oidc.coreos.com/v1
 metadata:
   namespace: foobar
-  name: client-foo
+  name: ( opaque hash )
 
 # Custom fields defined by dex.
 clientID: "aclientid"
