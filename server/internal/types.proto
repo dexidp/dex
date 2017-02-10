@@ -8,3 +8,10 @@ message RefreshToken {
   string refresh_id = 1;
   string token = 2;
 }
+
+// IDTokenSubject represents both the userID and connID which is returned
+// as the "sub" claim in the ID Token.
+message IDTokenSubject {
+  string user_id = 1;
+  string conn_id = 2;
+}
