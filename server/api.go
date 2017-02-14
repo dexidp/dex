@@ -16,7 +16,7 @@ import (
 
 // apiVersion increases every time a new call is added to the API. Clients should use this info
 // to determine if the server supports specific features.
-const apiVersion = 0
+const apiVersion = 1
 
 // NewAPI returns a server which implements the gRPC API interface.
 func NewAPI(s storage.Storage, logger logrus.FieldLogger) api.DexServer {
@@ -204,13 +204,13 @@ func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.
 	id := new(internal.IDTokenSubject)
 	if err := internal.Unmarshal(req.UserId, id); err != nil {
 		d.logger.Errorf("api: failed to unmarshal ID Token subject: %v", err)
-		return nil, fmt.Errorf("unmarshal ID Token subject: %v", err)
+		return nil, err
 	}
 
 	offlineSessions, err := d.s.GetOfflineSessions(id.UserId, id.ConnId)
 	if err != nil {
 		d.logger.Errorf("api: failed to list refresh tokens: %v", err)
-		return nil, fmt.Errorf("list refresh tokens: %v", err)
+		return nil, err
 	}
 
 	var refreshTokenRefs []*api.RefreshTokenRef
@@ -227,4 +227,40 @@ func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.
 	return &api.ListRefreshResp{
 		RefreshTokens: refreshTokenRefs,
 	}, nil
+}
+
+func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*api.RevokeRefreshResp, error) {
+	id := new(internal.IDTokenSubject)
+	if err := internal.Unmarshal(req.UserId, id); err != nil {
+		d.logger.Errorf("api: failed to unmarshal ID Token subject: %v", err)
+		return nil, err
+	}
+
+	var refreshID string
+	updater := func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+		if refreshID = old.Refresh[req.ClientId].ID; refreshID == "" {
+			return old, fmt.Errorf("user does not have a refresh token for the client = %s", req.ClientId)
+		}
+
+		// Remove entry from Refresh list of the OfflineSession object.
+		delete(old.Refresh, req.ClientId)
+
+		return old, nil
+	}
+
+	if err := d.s.UpdateOfflineSessions(id.UserId, id.ConnId, updater); err != nil {
+		if err == storage.ErrNotFound {
+			return &api.RevokeRefreshResp{NotFound: true}, nil
+		}
+		d.logger.Errorf("api: failed to update offline session object: %v", err)
+		return nil, err
+	}
+
+	// Delete the refresh token from the storage
+	if err := d.s.DeleteRefresh(refreshID); err != nil {
+		d.logger.Errorf("failed to delete refresh token: %v", err)
+		return nil, err
+	}
+
+	return &api.RevokeRefreshResp{}, nil
 }
