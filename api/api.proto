@@ -83,7 +83,7 @@ message DeletePasswordResp {
 // ListPasswordReq is a request to enumerate passwords.
 message ListPasswordReq {}
 
-// ListPasswordResp returs a list of passwords.
+// ListPasswordResp returns a list of passwords.
 message ListPasswordResp {
   repeated Password passwords = 1;
 }
@@ -98,6 +98,26 @@ message VersionResp {
   // Numeric version of the API. It increases everytime a new call is added to the API.
   // Clients should use this info to determine if the server supports specific features.
   int32 api = 2;
+}
+
+// RefreshTokenRef contains the metadata for a refresh token that is managed by the storage.
+message RefreshTokenRef {
+  // ID of the refresh token.
+  string id = 1;
+  string client_id = 2;
+  string created_at = 3;
+  string last_used = 4;
+}
+
+// ListRefreshReq is a request to enumerate the refresh tokens of a user.
+message ListRefreshReq {
+  // The "sub" claim returned in the ID Token.
+  string user_id = 1;
+}
+
+// ListRefreshResp returns a list of refresh tokens for a user.
+message ListRefreshResp {
+  repeated RefreshTokenRef refresh_tokens = 1;
 }
 
 // Dex represents the dex gRPC service.
@@ -116,4 +136,6 @@ service Dex {
   rpc ListPasswords(ListPasswordReq) returns (ListPasswordResp) {};
   // GetVersion returns version information of the server.
   rpc GetVersion(VersionReq) returns (VersionResp) {};
+  // ListRefresh lists all the refresh token entries for a particular user.
+  rpc ListRefresh(ListRefreshReq) returns (ListRefreshResp) {};
 }

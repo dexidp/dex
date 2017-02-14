@@ -21,6 +21,7 @@ import (
 	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/coreos/dex/connector"
+	"github.com/coreos/dex/server/internal"
 	"github.com/coreos/dex/storage"
 )
 
@@ -246,7 +247,7 @@ type idTokenClaims struct {
 	Name string `json:"name,omitempty"`
 }
 
-func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken string) (idToken string, expiry time.Time, err error) {
+func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, connID string) (idToken string, expiry time.Time, err error) {
 	keys, err := s.storage.GetKeys()
 	if err != nil {
 		s.logger.Errorf("Failed to get keys: %v", err)
@@ -265,9 +266,20 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	issuedAt := s.now()
 	expiry = issuedAt.Add(s.idTokensValidFor)
 
+	sub := &internal.IDTokenSubject{
+		UserId: claims.UserID,
+		ConnId: connID,
+	}
+
+	subjectString, err := internal.Marshal(sub)
+	if err != nil {
+		s.logger.Errorf("failed to marshal offline session ID: %v", err)
+		return "", expiry, fmt.Errorf("failed to marshal offline session ID: %v", err)
+	}
+
 	tok := idTokenClaims{
 		Issuer:   s.issuerURL.String(),
-		Subject:  claims.UserID,
+		Subject:  subjectString,
 		Nonce:    nonce,
 		Expiry:   expiry.Unix(),
 		IssuedAt: issuedAt.Unix(),

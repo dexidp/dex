@@ -9,6 +9,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/api"
+	"github.com/coreos/dex/server/internal"
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/version"
 )
@@ -197,4 +198,33 @@ func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*a
 		Passwords: passwords,
 	}, nil
 
+}
+
+func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.ListRefreshResp, error) {
+	id := new(internal.IDTokenSubject)
+	if err := internal.Unmarshal(req.UserId, id); err != nil {
+		d.logger.Errorf("api: failed to unmarshal ID Token subject: %v", err)
+		return nil, fmt.Errorf("unmarshal ID Token subject: %v", err)
+	}
+
+	offlineSessions, err := d.s.GetOfflineSessions(id.UserId, id.ConnId)
+	if err != nil {
+		d.logger.Errorf("api: failed to list refresh tokens: %v", err)
+		return nil, fmt.Errorf("list refresh tokens: %v", err)
+	}
+
+	var refreshTokenRefs []*api.RefreshTokenRef
+	for _, session := range offlineSessions.Refresh {
+		r := api.RefreshTokenRef{
+			Id:        session.ID,
+			ClientId:  session.ClientID,
+			CreatedAt: session.CreatedAt.String(),
+			LastUsed:  session.LastUsed.String(),
+		}
+		refreshTokenRefs = append(refreshTokenRefs, &r)
+	}
+
+	return &api.ListRefreshResp{
+		RefreshTokens: refreshTokenRefs,
+	}, nil
 }
