@@ -30,7 +30,7 @@ message DeleteClientReq {
   string id = 1;
 }
 
-// DeleteClientResp determines if the. 
+// DeleteClientResp determines if the client is deleted successfully. 
 message DeleteClientResp {
   bool not_found = 1;
 }
@@ -120,6 +120,19 @@ message ListRefreshResp {
   repeated RefreshTokenRef refresh_tokens = 1;
 }
 
+// RevokeRefreshReq is a request to revoke the refresh token of the user-client pair.
+message RevokeRefreshReq {
+  // The "sub" claim returned in the ID Token.
+  string user_id = 1;
+  string client_id = 2;
+}
+
+// RevokeRefreshResp determines if the refresh token is revoked successfully. 
+message RevokeRefreshResp {
+  // Set to true is refresh token was not found and token could not be revoked.
+  bool not_found = 1;
+}
+
 // Dex represents the dex gRPC service.
 service Dex {
   // CreateClient creates a client.
@@ -138,4 +151,8 @@ service Dex {
   rpc GetVersion(VersionReq) returns (VersionResp) {};
   // ListRefresh lists all the refresh token entries for a particular user.
   rpc ListRefresh(ListRefreshReq) returns (ListRefreshResp) {};
+  // RevokeRefresh revokes the refresh token for the provided user-client pair.
+  //
+  // Note that each user-client pair can have only one refresh token at a time.
+  rpc RevokeRefresh(RevokeRefreshReq) returns (RevokeRefreshResp) {};
 }

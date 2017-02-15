@@ -4,9 +4,12 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/api"
+	"github.com/coreos/dex/server/internal"
+	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/memory"
 )
 
@@ -64,4 +67,92 @@ func TestPassword(t *testing.T) {
 		t.Fatalf("Unable to delete password: %v", err)
 	}
 
+}
+
+// Attempts to list and revoke an exisiting refresh token.
+func TestRefreshToken(t *testing.T) {
+	logger := &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level:     logrus.DebugLevel,
+	}
+
+	s := memory.New(logger)
+	serv := NewAPI(s, logger)
+
+	ctx := context.Background()
+
+	// Creating a storage with an existing refresh token and offline session for the user.
+	id := storage.NewID()
+	r := storage.RefreshToken{
+		ID:          id,
+		Token:       "bar",
+		Nonce:       "foo",
+		ClientID:    "client_id",
+		ConnectorID: "client_secret",
+		Scopes:      []string{"openid", "email", "profile"},
+		CreatedAt:   time.Now().UTC().Round(time.Millisecond),
+		LastUsed:    time.Now().UTC().Round(time.Millisecond),
+		Claims: storage.Claims{
+			UserID:        "1",
+			Username:      "jane",
+			Email:         "jane.doe@example.com",
+			EmailVerified: true,
+			Groups:        []string{"a", "b"},
+		},
+		ConnectorData: []byte(`{"some":"data"}`),
+	}
+
+	if err := s.CreateRefresh(r); err != nil {
+		t.Fatalf("create refresh token: %v", err)
+	}
+
+	tokenRef := storage.RefreshTokenRef{
+		ID:        r.ID,
+		ClientID:  r.ClientID,
+		CreatedAt: r.CreatedAt,
+		LastUsed:  r.LastUsed,
+	}
+
+	session := storage.OfflineSessions{
+		UserID:  r.Claims.UserID,
+		ConnID:  r.ConnectorID,
+		Refresh: make(map[string]*storage.RefreshTokenRef),
+	}
+	session.Refresh[tokenRef.ClientID] = &tokenRef
+
+	if err := s.CreateOfflineSessions(session); err != nil {
+		t.Fatalf("create offline session: %v", err)
+	}
+
+	subjectString, err := internal.Marshal(&internal.IDTokenSubject{
+		UserId: r.Claims.UserID,
+		ConnId: r.ConnectorID,
+	})
+	if err != nil {
+		t.Errorf("failed to marshal offline session ID: %v", err)
+	}
+
+	//Testing the api.
+	listReq := api.ListRefreshReq{
+		UserId: subjectString,
+	}
+
+	if _, err := serv.ListRefresh(ctx, &listReq); err != nil {
+		t.Fatalf("Unable to list refresh tokens for user: %v", err)
+	}
+
+	revokeReq := api.RevokeRefreshReq{
+		UserId:   subjectString,
+		ClientId: r.ClientID,
+	}
+
+	resp, err := serv.RevokeRefresh(ctx, &revokeReq)
+	if err != nil || resp.NotFound {
+		t.Fatalf("Unable to revoke refresh tokens for user: %v", err)
+	}
+
+	if resp, _ := serv.ListRefresh(ctx, &listReq); len(resp.RefreshTokens) != 0 {
+		t.Fatalf("Refresh token returned inspite of revoking it.")
+	}
 }
