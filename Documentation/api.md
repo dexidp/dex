@@ -88,6 +88,8 @@ func main() {
 }
 ```
 
+A clear working example of the Dex gRPC client can be found [here][../examples/grpc-client/README.md].
+
 ## Authentication and access control
 
 The dex API does not provide any authentication or authorization beyond TLS client auth.

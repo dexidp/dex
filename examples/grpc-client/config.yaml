@@ -1,0 +1,24 @@
+issuer: http://127.0.0.1:5556/dex
+
+storage:
+  type: sqlite3
+  config:
+    file: examples/dex.db
+
+# Configuration for the HTTP endpoints.
+web:
+  http: 0.0.0.0:5556
+
+grpc:
+  addr: 127.0.0.1:5557
+  tlsCert: server.crt
+  tlsKey: server.key
+
+connectors:
+- type: mockCallback
+  id: mock
+  name: Example
+
+# Let dex keep a list of passwords which can be used to login to dex.
+enablePasswordDB: true
+
