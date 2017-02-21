@@ -70,6 +70,15 @@ func mustBeErrNotFound(t *testing.T, kind string, err error) {
 	}
 }
 
+func mustBeErrAlreadyExists(t *testing.T, kind string, err error) {
+	switch {
+	case err == nil:
+		t.Errorf("attempting to create an existing %s should return an error", kind)
+	case err != storage.ErrAlreadyExists:
+		t.Errorf("creating an existing %s expected storage.ErrAlreadyExists, got %v", kind, err)
+	}
+}
+
 func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 	a := storage.AuthRequest{
 		ID:                  storage.NewID(),
@@ -98,6 +107,11 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 	if err := s.CreateAuthRequest(a); err != nil {
 		t.Fatalf("failed creating auth request: %v", err)
 	}
+
+	// Attempt to create same AuthRequest twice.
+	err := s.CreateAuthRequest(a)
+	mustBeErrAlreadyExists(t, "auth request", err)
+
 	if err := s.UpdateAuthRequest(a.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
 		old.Claims = identity
 		old.ConnectorID = "connID"
@@ -138,6 +152,10 @@ func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 		t.Fatalf("failed creating auth code: %v", err)
 	}
 
+	// Attempt to create same AuthCode twice.
+	err := s.CreateAuthCode(a)
+	mustBeErrAlreadyExists(t, "auth code", err)
+
 	got, err := s.GetAuthCode(a.ID)
 	if err != nil {
 		t.Fatalf("failed to get auth req: %v", err)
@@ -173,6 +191,10 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 	if err := s.CreateClient(c); err != nil {
 		t.Fatalf("create client: %v", err)
 	}
+
+	// Attempt to create same Client twice.
+	err = s.CreateClient(c)
+	mustBeErrAlreadyExists(t, "client", err)
 
 	getAndCompare := func(id string, want storage.Client) {
 		gc, err := s.GetClient(id)
@@ -230,6 +252,10 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 		t.Fatalf("create refresh token: %v", err)
 	}
 
+	// Attempt to create same Refresh Token twice.
+	err := s.CreateRefresh(refresh)
+	mustBeErrAlreadyExists(t, "refresh token", err)
+
 	getAndCompare := func(id string, want storage.RefreshToken) {
 		gr, err := s.GetRefresh(id)
 		if err != nil {
@@ -261,9 +287,8 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 		t.Fatalf("failed to delete refresh request: %v", err)
 	}
 
-	if _, err := s.GetRefresh(id); err != storage.ErrNotFound {
-		t.Errorf("after deleting refresh expected storage.ErrNotFound, got %v", err)
-	}
+	_, err = s.GetRefresh(id)
+	mustBeErrNotFound(t, "refresh token", err)
 }
 
 type byEmail []storage.Password
@@ -288,6 +313,10 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 	if err := s.CreatePassword(password); err != nil {
 		t.Fatalf("create password token: %v", err)
 	}
+
+	// Attempt to create same Password twice.
+	err = s.CreatePassword(password)
+	mustBeErrAlreadyExists(t, "password", err)
 
 	getAndCompare := func(id string, want storage.Password) {
 		gr, err := s.GetPassword(id)
@@ -335,9 +364,8 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 		t.Fatalf("failed to delete password: %v", err)
 	}
 
-	if _, err := s.GetPassword(password.Email); err != storage.ErrNotFound {
-		t.Errorf("after deleting password expected storage.ErrNotFound, got %v", err)
-	}
+	_, err = s.GetPassword(password.Email)
+	mustBeErrNotFound(t, "password", err)
 
 }
 
@@ -353,6 +381,10 @@ func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {
 	if err := s.CreateOfflineSessions(session); err != nil {
 		t.Fatalf("create offline session: %v", err)
 	}
+
+	// Attempt to create same OfflineSession twice.
+	err := s.CreateOfflineSessions(session)
+	mustBeErrAlreadyExists(t, "offline session", err)
 
 	getAndCompare := func(userID string, connID string, want storage.OfflineSessions) {
 		gr, err := s.GetOfflineSessions(userID, connID)
@@ -389,9 +421,8 @@ func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {
 		t.Fatalf("failed to delete offline session: %v", err)
 	}
 
-	if _, err := s.GetOfflineSessions(session.UserID, session.ConnID); err != storage.ErrNotFound {
-		t.Errorf("after deleting offline session expected storage.ErrNotFound, got %v", err)
-	}
+	_, err = s.GetOfflineSessions(session.UserID, session.ConnID)
+	mustBeErrNotFound(t, "offline session", err)
 
 }
 
