@@ -37,8 +37,16 @@ func TestPassword(t *testing.T) {
 		Password: &p,
 	}
 
-	if _, err := serv.CreatePassword(ctx, &createReq); err != nil {
+	if resp, err := serv.CreatePassword(ctx, &createReq); err != nil || resp.AlreadyExists {
+		if resp.AlreadyExists {
+			t.Fatalf("Unable to create password since %s already exists", createReq.Password.Email)
+		}
 		t.Fatalf("Unable to create password: %v", err)
+	}
+
+	// Attempt to create a password that already exists.
+	if resp, _ := serv.CreatePassword(ctx, &createReq); !resp.AlreadyExists {
+		t.Fatalf("Created password %s twice", createReq.Password.Email)
 	}
 
 	updateReq := api.UpdatePasswordReq{

@@ -125,6 +125,9 @@ func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
 		a.Expiry,
 	)
 	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
 		return fmt.Errorf("insert auth request: %v", err)
 	}
 	return nil
@@ -212,7 +215,14 @@ func (c *conn) CreateAuthCode(a storage.AuthCode) error {
 		a.Claims.Username, a.Claims.Email, a.Claims.EmailVerified, encoder(a.Claims.Groups),
 		a.ConnectorID, a.ConnectorData, a.Expiry,
 	)
-	return err
+
+	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
+		return fmt.Errorf("insert auth code: %v", err)
+	}
+	return nil
 }
 
 func (c *conn) GetAuthCode(id string) (a storage.AuthCode, err error) {
@@ -256,6 +266,9 @@ func (c *conn) CreateRefresh(r storage.RefreshToken) error {
 		r.Token, r.CreatedAt, r.LastUsed,
 	)
 	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
 		return fmt.Errorf("insert refresh_token: %v", err)
 	}
 	return nil
@@ -477,6 +490,9 @@ func (c *conn) CreateClient(cli storage.Client) error {
 		cli.Public, cli.Name, cli.LogoURL,
 	)
 	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
 		return fmt.Errorf("insert client: %v", err)
 	}
 	return nil
@@ -544,6 +560,9 @@ func (c *conn) CreatePassword(p storage.Password) error {
 		p.Email, p.Hash, p.Username, p.UserID,
 	)
 	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
 		return fmt.Errorf("insert password: %v", err)
 	}
 	return nil
@@ -636,6 +655,9 @@ func (c *conn) CreateOfflineSessions(s storage.OfflineSessions) error {
 		s.UserID, s.ConnID, encoder(s.Refresh),
 	)
 	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
 		return fmt.Errorf("insert offline session: %v", err)
 	}
 	return nil

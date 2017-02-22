@@ -8,6 +8,13 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/storage"
+	"github.com/lib/pq"
+	sqlite3 "github.com/mattn/go-sqlite3"
+)
+
+const (
+	// postgres error codes
+	pgErrUniqueViolation = "23505" // unique_violation
 )
 
 // SQLite3 options for creating an SQL db.
@@ -35,7 +42,16 @@ func (s *SQLite3) open(logger logrus.FieldLogger) (*conn, error) {
 		// doesn't support this, so limit the number of connections to 1.
 		db.SetMaxOpenConns(1)
 	}
-	c := &conn{db, flavorSQLite3, logger}
+
+	errCheck := func(err error) bool {
+		sqlErr, ok := err.(sqlite3.Error)
+		if !ok {
+			return false
+		}
+		return sqlErr.ExtendedCode == sqlite3.ErrConstraintPrimaryKey
+	}
+
+	c := &conn{db, flavorSQLite3, logger, errCheck}
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}
@@ -114,7 +130,16 @@ func (p *Postgres) open(logger logrus.FieldLogger) (*conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := &conn{db, flavorPostgres, logger}
+
+	errCheck := func(err error) bool {
+		sqlErr, ok := err.(*pq.Error)
+		if !ok {
+			return false
+		}
+		return sqlErr.Code == pgErrUniqueViolation
+	}
+
+	c := &conn{db, flavorPostgres, logger, errCheck}
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}

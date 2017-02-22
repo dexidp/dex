@@ -53,8 +53,10 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 		LogoURL:      req.Client.LogoUrl,
 	}
 	if err := d.s.CreateClient(c); err != nil {
+		if err == storage.ErrAlreadyExists {
+			return &api.CreateClientResp{AlreadyExists: true}, nil
+		}
 		d.logger.Errorf("api: failed to create client: %v", err)
-		// TODO(ericchiang): Surface "already exists" errors.
 		return nil, fmt.Errorf("create client: %v", err)
 	}
 
@@ -109,6 +111,9 @@ func (d dexAPI) CreatePassword(ctx context.Context, req *api.CreatePasswordReq) 
 		UserID:   req.Password.UserId,
 	}
 	if err := d.s.CreatePassword(p); err != nil {
+		if err == storage.ErrAlreadyExists {
+			return &api.CreatePasswordResp{AlreadyExists: true}, nil
+		}
 		d.logger.Errorf("api: failed to create password: %v", err)
 		return nil, fmt.Errorf("create password: %v", err)
 	}
