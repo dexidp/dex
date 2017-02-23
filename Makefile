@@ -3,7 +3,7 @@ ORG_PATH=github.com/coreos
 REPO_PATH=$(ORG_PATH)/$(PROJ)
 export PATH := $(PWD)/bin:$(PATH)
 
-VERSION=$(shell ./scripts/git-version)
+VERSION ?= $(shell ./scripts/git-version)
 
 DOCKER_REPO=quay.io/coreos/dex
 DOCKER_IMAGE=$(DOCKER_REPO):$(VERSION)
