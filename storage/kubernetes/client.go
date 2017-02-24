@@ -72,9 +72,10 @@ func idToName(s string, h func() hash.Hash) string {
 }
 
 func offlineTokenName(userID string, connID string, h func() hash.Hash) string {
-	h().Write([]byte(userID))
-	h().Write([]byte(connID))
-	return strings.TrimRight(encoding.EncodeToString(h().Sum(nil)), "=")
+	hash := h()
+	hash.Write([]byte(userID))
+	hash.Write([]byte(connID))
+	return strings.TrimRight(encoding.EncodeToString(hash.Sum(nil)), "=")
 }
 
 func (c *client) urlFor(apiVersion, namespace, resource, name string) string {
