@@ -29,6 +29,19 @@ func TestIDToName(t *testing.T) {
 	wg.Wait()
 }
 
+func TestOfflineTokenName(t *testing.T) {
+	h := func() hash.Hash { return fnv.New64() }
+
+	userID1 := "john"
+	userID2 := "jane"
+
+	id1 := offlineTokenName(userID1, "local", h)
+	id2 := offlineTokenName(userID2, "local", h)
+	if id1 == id2 {
+		t.Errorf("expected offlineTokenName to produce different hashes")
+	}
+}
+
 func TestNamespaceFromServiceAccountJWT(t *testing.T) {
 	namespace, err := namespaceFromServiceAccountJWT(serviceAccountToken)
 	if err != nil {
