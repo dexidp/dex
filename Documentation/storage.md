@@ -12,7 +12,7 @@ Kubernetes third party resources are a way for applications to create new resour
 
 The rest of this section will explore internal details of how dex uses `ThirdPartyResources`. __Admins should not interact with these resources directly__, except when debugging. These resources are only designed to store state and aren't meant to be consumed by humans. For modifying dex's state dynamically see the [API documentation](api.md).
 
-The `ThirdPartyResource` type acts as a description for the new resource a user wishes to create. The following an example of a resource managed by dex:
+The `ThirdPartyResource` type acts as a description for the new resource a user wishes to create. The following is an example of a resource managed by dex:
 
 ```
 kind: ThirdPartyResource
@@ -20,7 +20,7 @@ apiVersion: extensions/v1beta1
 metadata:
   name: o-auth2-client.oidc.coreos.com
 versions:
-  - v1
+  - name: v1
 description: "An OAuth2 client."
 ```
 
