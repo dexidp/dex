@@ -135,6 +135,9 @@ func checkHTTPErr(r *http.Response, validStatusCodes ...int) error {
 	if r.StatusCode == http.StatusNotFound {
 		return storage.ErrNotFound
 	}
+	if r.Request.Method == "POST" && r.StatusCode == http.StatusConflict {
+		return storage.ErrAlreadyExists
+	}
 
 	var url, method string
 	if r.Request != nil {

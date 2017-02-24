@@ -31,7 +31,7 @@ const (
 	resourceRefreshToken    = "refreshtokens"
 	resourceKeys            = "signingkeies" // Kubernetes attempts to pluralize.
 	resourcePassword        = "passwords"
-	resourceOfflineSessions = "offlinesessions"
+	resourceOfflineSessions = "offlinesessionses" // Again attempts to pluralize.
 )
 
 // Config values for the Kubernetes storage type.
