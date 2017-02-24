@@ -502,9 +502,14 @@ func (cli *client) fromStorageOfflineSessions(o storage.OfflineSessions) Offline
 }
 
 func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
-	return storage.OfflineSessions{
+	s := storage.OfflineSessions{
 		UserID:  o.UserID,
 		ConnID:  o.ConnID,
 		Refresh: o.Refresh,
 	}
+	if s.Refresh == nil {
+		// Server code assumes this will be non-nil.
+		s.Refresh = make(map[string]*storage.RefreshTokenRef)
+	}
+	return s
 }
