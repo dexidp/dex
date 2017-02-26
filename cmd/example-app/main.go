@@ -23,7 +23,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const exampleAppState = "I wish to wash my irish wristwatch"
+const exampleAppState = "Daenerys says Dracarys to Drogon"
 
 type app struct {
 	clientID     string
@@ -100,8 +100,8 @@ func cmd() *cobra.Command {
 		debug     bool
 	)
 	c := cobra.Command{
-		Use:   "example-app",
-		Short: "An example OpenID Connect client",
+		Use:   "kubeauth",
+		Short: "Hurley Kubernetes OpenID Connect client",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 0 {
@@ -192,7 +192,7 @@ func cmd() *cobra.Command {
 			}
 		},
 	}
-	c.Flags().StringVar(&a.clientID, "client-id", "example-app", "OAuth2 client ID of this application.")
+	c.Flags().StringVar(&a.clientID, "client-id", "kubeauth", "OAuth2 client ID of this application.")
 	c.Flags().StringVar(&a.clientSecret, "client-secret", "ZXhhbXBsZS1hcHAtc2VjcmV0", "OAuth2 client secret of this application.")
 	c.Flags().StringVar(&a.redirectURI, "redirect-uri", "http://127.0.0.1:5555/callback", "Callback URL for OAuth2 responses.")
 	c.Flags().StringVar(&issuerURL, "issuer", "http://127.0.0.1:5556/dex", "URL of the OpenID Connect issuer.")
