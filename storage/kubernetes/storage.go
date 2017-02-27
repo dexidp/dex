@@ -3,7 +3,6 @@ package kubernetes
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -42,15 +41,19 @@ type Config struct {
 
 // Open returns a storage using Kubernetes third party resource.
 func (c *Config) Open(logger logrus.FieldLogger) (storage.Storage, error) {
-	cli, err := c.open(logger)
+	cli, err := c.open(logger, false)
 	if err != nil {
 		return nil, err
 	}
 	return cli, nil
 }
 
-// open returns a client with no garbage collection.
-func (c *Config) open(logger logrus.FieldLogger) (*client, error) {
+// open returns a kubernetes client, initializing the third party resources used
+// by dex.
+//
+// errOnTPRs controls if errors creating the resources cause this method to return
+// immediately (used during testing), or if the client will asynchronously retry.
+func (c *Config) open(logger logrus.FieldLogger, errOnTPRs bool) (*client, error) {
 	if c.InCluster && (c.KubeConfigFile != "") {
 		return nil, errors.New("cannot specify both 'inCluster' and 'kubeConfigFile'")
 	}
@@ -80,16 +83,18 @@ func (c *Config) open(logger logrus.FieldLogger) (*client, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Try to synchronously create the third party resources once. This doesn't mean
-	// they'll immediately be available, but ensures that the client will actually try
-	// once.
-	if err := cli.createThirdPartyResources(); err != nil {
+	if !cli.createThirdPartyResources() {
+		if errOnTPRs {
+			return nil, fmt.Errorf("failed creating third party resources")
+		}
+
+		// Try to synchronously create the third party resources once. This doesn't mean
+		// they'll immediately be available, but ensures that the client will actually try
+		// once.
 		logger.Errorf("failed creating third party resources: %v", err)
 		go func() {
 			for {
-				if err := cli.createThirdPartyResources(); err != nil {
-					logger.Errorf("failed creating third party resources: %v", err)
-				} else {
+				if cli.createThirdPartyResources() {
 					return
 				}
 
@@ -108,27 +113,33 @@ func (c *Config) open(logger logrus.FieldLogger) (*client, error) {
 }
 
 // createThirdPartyResources attempts to create the third party resources dex
-// requires or identifies that they're already enabled.
+// requires or identifies that they're already enabled. It logs all errors,
+// returning true if the third party resources were created successfully.
 //
 // Creating a third party resource does not mean that they'll be immediately available.
 //
 // TODO(ericchiang): Provide an option to wait for the third party resources
 // to actually be available.
-func (cli *client) createThirdPartyResources() error {
+func (cli *client) createThirdPartyResources() (ok bool) {
+	ok = true
 	for _, r := range thirdPartyResources {
 		err := cli.postResource("extensions/v1beta1", "", "thirdpartyresources", r)
 		if err != nil {
-			if e, ok := err.(httpError); ok {
-				if e.StatusCode() == http.StatusConflict {
-					cli.logger.Errorf("third party resource already created %q", r.ObjectMeta.Name)
-					continue
-				}
+			switch err {
+			case storage.ErrAlreadyExists:
+				cli.logger.Errorf("third party resource already created %s", r.ObjectMeta.Name)
+			case storage.ErrNotFound:
+				cli.logger.Errorf("third party resources not found, please enable API group extensions/v1beta1")
+				ok = false
+			default:
+				cli.logger.Errorf("creating third party resource %s: %v", r.ObjectMeta.Name, err)
+				ok = false
 			}
-			return err
+			continue
 		}
-		cli.logger.Errorf("create third party resource %q", r.ObjectMeta.Name)
+		cli.logger.Errorf("create third party resource %s", r.ObjectMeta.Name)
 	}
-	return nil
+	return ok
 }
 
 func (cli *client) Close() error {
