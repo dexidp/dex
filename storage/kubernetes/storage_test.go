@@ -28,7 +28,7 @@ func loadClient(t *testing.T) *client {
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
 	}
-	s, err := config.open(logger)
+	s, err := config.open(logger, true)
 	if err != nil {
 		t.Fatal(err)
 	}
