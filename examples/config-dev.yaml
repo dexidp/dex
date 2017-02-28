@@ -24,9 +24,9 @@ web:
 # from the HTTP endpoints.
 # grpc:
 #   addr: 127.0.0.1:5557
-#   tlsCert: /etc/dex/grpc.crt
-#   tlsKey: /etc/dex/grpc.key
-#   tlsClientCA: /etc/dex/client.crt
+#  tlsCert: examples/grpc-client/server.crt
+#  tlsKey: examples/grpc-client/server.key
+#  tlsClientCA: /etc/dex/client.crt
 
 # Uncomment this block to enable configuration for the expiration time durations.
 # expiry:
