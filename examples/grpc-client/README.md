@@ -55,7 +55,7 @@ Running the gRPC client will cause the following API calls to be made to the ser
 Run the following command to destroy all the credentials files that were created by the `cert-gen` script:
 
 ```
-./examples/grpc-client/cert-destory
+./examples/grpc-client/cert-destroy
 ```
 [api-proto]: ../../api/api.proto
 [client]: client.go
