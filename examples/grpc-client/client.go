@@ -49,7 +49,7 @@ func main() {
 	flag.Parse()
 
 	if *clientCrt == "" || *caCrt == "" || *clientKey == "" {
-		log.Fatal("Please provide CA & client certificates and client key. Usage: ./client -ca_crt=<path ca.crt> -client_crt=<path client.crt> -client_key=<path client key>")
+		log.Fatal("Please provide CA & client certificates and client key. Usage: ./client --ca-crt=<path ca.crt> --client-crt=<path client.crt> --client-key=<path client key>")
 	}
 
 	client, err := newDexClient("127.0.0.1:5557", *caCrt, *clientCrt, *clientKey)
