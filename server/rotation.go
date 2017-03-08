@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/hex"
@@ -9,7 +10,6 @@ import (
 	"io"
 	"time"
 
-	"golang.org/x/net/context"
 	"gopkg.in/square/go-jose.v2"
 
 	"github.com/Sirupsen/logrus"

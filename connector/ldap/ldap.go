@@ -2,6 +2,7 @@
 package ldap
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -9,7 +10,6 @@ import (
 	"io/ioutil"
 	"net"
 
-	"golang.org/x/net/context"
 	"gopkg.in/ldap.v2"
 
 	"github.com/Sirupsen/logrus"

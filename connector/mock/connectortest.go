@@ -2,12 +2,11 @@
 package mock
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
-
-	"golang.org/x/net/context"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/connector"

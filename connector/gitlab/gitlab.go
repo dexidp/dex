@@ -2,6 +2,7 @@
 package gitlab
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/connector"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 )
 

@@ -5,6 +5,9 @@ import (
 	"fmt"
 
 	"golang.org/x/crypto/bcrypt"
+
+	// go-grpc doesn't use the standard library's context.
+	// https://github.com/grpc/grpc-go/issues/711
 	"golang.org/x/net/context"
 
 	"github.com/Sirupsen/logrus"

@@ -1,11 +1,10 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"golang.org/x/net/context"
 )
 
 func TestHandleHealth(t *testing.T) {

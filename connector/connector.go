@@ -2,9 +2,8 @@
 package connector
 
 import (
+	"context"
 	"net/http"
-
-	"golang.org/x/net/context"
 )
 
 // Connector is a mechanism for federating login to a remote identity service.
