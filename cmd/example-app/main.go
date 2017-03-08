@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -19,7 +20,6 @@ import (
 
 	"github.com/coreos/go-oidc"
 	"github.com/spf13/cobra"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 )
 
@@ -175,7 +175,7 @@ func cmd() *cobra.Command {
 			}
 
 			a.provider = provider
-			a.verifier = provider.Verifier(oidc.VerifyAudience(a.clientID))
+			a.verifier = provider.Verifier(&oidc.Config{ClientID: a.clientID})
 
 			http.HandleFunc("/", a.handleIndex)
 			http.HandleFunc("/login", a.handleLogin)

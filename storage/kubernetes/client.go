@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base32"
@@ -24,7 +25,6 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/ghodss/yaml"
 	"github.com/gtank/cryptopasta"
-	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
 
 	"github.com/coreos/dex/storage"

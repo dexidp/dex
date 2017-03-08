@@ -2,6 +2,7 @@ package oidc
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -9,61 +10,71 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	jose "gopkg.in/square/go-jose.v2"
+)
+
+const (
+	issuerGoogleAccounts         = "https://accounts.google.com"
+	issuerGoogleAccountsNoScheme = "accounts.google.com"
 )
 
 // IDTokenVerifier provides verification for ID Tokens.
 type IDTokenVerifier struct {
 	keySet *remoteKeySet
-	config *verificationConfig
-}
-
-// verificationConfig is the unexported configuration for an IDTokenVerifier.
-//
-// Users interact with this struct using a VerificationOption.
-type verificationConfig struct {
+	config *Config
 	issuer string
-	// If provided, this value must be in the ID Token audiences.
-	audience string
-	// If not nil, check the expiry of the id token.
-	checkExpiry func() time.Time
-	// If specified, only these sets of algorithms may be used to sign the JWT.
-	requiredAlgs []string
-	// If not nil, don't verify nonce.
-	nonceSource NonceSource
 }
 
-// VerificationOption provides additional checks on ID Tokens.
-type VerificationOption interface {
-	// Unexport this method so other packages can't implement this interface.
-	updateConfig(c *verificationConfig)
+// Config is the configuration for an IDTokenVerifier.
+type Config struct {
+	// Expected audience of the token. For a majority of the cases this is expected to be
+	// the ID of the client that initialized the login flow. It may occasionally differ if
+	// the provider supports the authorizing party (azp) claim.
+	//
+	// If not provided, users must explicitly set SkipClientIDCheck.
+	ClientID string
+	// Method to verify the ID Token nonce. If a nonce is present and this method
+	// is nil, users must explicitly set SkipNonceCheck.
+	//
+	// If the ID Token nonce is empty, for example if the client didn't provide a nonce in
+	// the initial redirect, this may be nil.
+	ClaimNonce func(nonce string) error
+	// If specified, only this set of algorithms may be used to sign the JWT.
+	//
+	// Since many providers only support RS256, SupportedSigningAlgs defaults to this value.
+	SupportedSigningAlgs []string
+
+	// If true, no ClientID check performed. Must be true if ClientID field is empty.
+	SkipClientIDCheck bool
+	// If true, token expiry is not checked.
+	SkipExpiryCheck bool
+	// If true, nonce claim is not checked. Must be true if ClaimNonce field is empty.
+	SkipNonceCheck bool
+
+	// Time function to check Token expiry. Defaults to time.Now
+	Now func() time.Time
 }
 
 // Verifier returns an IDTokenVerifier that uses the provider's key set to verify JWTs.
 //
 // The returned IDTokenVerifier is tied to the Provider's context and its behavior is
 // undefined once the Provider's context is canceled.
-func (p *Provider) Verifier(options ...VerificationOption) *IDTokenVerifier {
-	config := &verificationConfig{issuer: p.issuer}
-	for _, option := range options {
-		option.updateConfig(config)
-	}
+func (p *Provider) Verifier(config *Config) *IDTokenVerifier {
 
-	return newVerifier(p.remoteKeySet, config)
+	return newVerifier(p.remoteKeySet, config, p.issuer)
 }
 
-func newVerifier(keySet *remoteKeySet, config *verificationConfig) *IDTokenVerifier {
-	// As discussed in the godocs for VerifrySigningAlg, because almost all providers
-	// only support RS256, default to only allowing it.
-	if len(config.requiredAlgs) == 0 {
-		config.requiredAlgs = []string{RS256}
+func newVerifier(keySet *remoteKeySet, config *Config, issuer string) *IDTokenVerifier {
+	// If SupportedSigningAlgs is empty defaults to only support RS256.
+	if len(config.SupportedSigningAlgs) == 0 {
+		config.SupportedSigningAlgs = []string{RS256}
 	}
 
 	return &IDTokenVerifier{
 		keySet: keySet,
 		config: config,
+		issuer: issuer,
 	}
 }
 
@@ -89,7 +100,7 @@ func contains(sli []string, ele string) bool {
 }
 
 // Verify parses a raw ID Token, verifies it's been signed by the provider, preforms
-// any additional checks passed as VerifictionOptions, and returns the payload.
+// any additional checks depending on the Config, and returns the payload.
 //
 // See: https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
 //
@@ -134,20 +145,38 @@ func (v *IDTokenVerifier) Verify(ctx context.Context, rawIDToken string) (*IDTok
 	}
 
 	// Check issuer.
-	if t.Issuer != v.config.issuer {
-		return nil, fmt.Errorf("oidc: id token issued by a different provider, expected %q got %q", v.config.issuer, t.Issuer)
-	}
-
-	// If a client ID has been provided, make sure it's part of the audience.
-	if v.config.audience != "" {
-		if !contains(t.Audience, v.config.audience) {
-			return nil, fmt.Errorf("oidc: expected audience %q got %q", v.config.audience, t.Audience)
+	if t.Issuer != v.issuer {
+		// Google sometimes returns "accounts.google.com" as the issuer claim instead of
+		// the required "https://accounts.google.com". Detect this case and allow it only
+		// for Google.
+		//
+		// We will not add hooks to let other providers go off spec like this.
+		if !(v.issuer == issuerGoogleAccounts && t.Issuer == issuerGoogleAccountsNoScheme) {
+			return nil, fmt.Errorf("oidc: id token issued by a different provider, expected %q got %q", v.issuer, t.Issuer)
 		}
 	}
 
-	// If a checkExpiry is specified, make sure token is not expired.
-	if v.config.checkExpiry != nil {
-		if t.Expiry.Before(v.config.checkExpiry()) {
+	// If a client ID has been provided, make sure it's part of the audience. SkipClientIDCheck must be true if ClientID is empty.
+	//
+	// This check DOES NOT ensure that the ClientID is the party to which the ID Token was issued (i.e. Authorized party).
+	if !v.config.SkipClientIDCheck {
+		if v.config.ClientID != "" {
+			if !contains(t.Audience, v.config.ClientID) {
+				return nil, fmt.Errorf("oidc: expected audience %q got %q", v.config.ClientID, t.Audience)
+			}
+		} else {
+			return nil, fmt.Errorf("oidc: Invalid configuration. ClientID must be provided or SkipClientIDCheck must be set.")
+		}
+	}
+
+	// If a SkipExpiryCheck is false, make sure token is not expired.
+	if !v.config.SkipExpiryCheck {
+		now := time.Now
+		if v.config.Now != nil {
+			now = v.config.Now
+		}
+
+		if t.Expiry.Before(now()) {
 			return nil, fmt.Errorf("oidc: token is expired (Token Expiry: %v)", t.Expiry)
 		}
 	}
@@ -155,14 +184,14 @@ func (v *IDTokenVerifier) Verify(ctx context.Context, rawIDToken string) (*IDTok
 	// If a set of required algorithms has been provided, ensure that the signatures use those.
 	var keyIDs, gotAlgs []string
 	for _, sig := range jws.Signatures {
-		if len(v.config.requiredAlgs) == 0 || contains(v.config.requiredAlgs, sig.Header.Algorithm) {
+		if len(v.config.SupportedSigningAlgs) == 0 || contains(v.config.SupportedSigningAlgs, sig.Header.Algorithm) {
 			keyIDs = append(keyIDs, sig.Header.KeyID)
 		} else {
 			gotAlgs = append(gotAlgs, sig.Header.Algorithm)
 		}
 	}
 	if len(keyIDs) == 0 {
-		return nil, fmt.Errorf("oidc: no signatures use a require algorithm, expected %q got %q", v.config.requiredAlgs, gotAlgs)
+		return nil, fmt.Errorf("oidc: no signatures use a supported algorithm, expected %q got %q", v.config.SupportedSigningAlgs, gotAlgs)
 	}
 
 	// Get keys from the remote key set. This may trigger a re-sync.
@@ -192,79 +221,22 @@ func (v *IDTokenVerifier) Verify(ctx context.Context, rawIDToken string) (*IDTok
 
 	// Check the nonce after we've verified the token. We don't want to allow unverified
 	// payloads to trigger a nonce lookup.
-	if v.config.nonceSource != nil {
-		if err := v.config.nonceSource.ClaimNonce(t.Nonce); err != nil {
-			return nil, err
+	// If SkipNonceCheck is not set ClaimNonce cannot be Nil.
+	if !v.config.SkipNonceCheck && t.Nonce != "" {
+		if v.config.ClaimNonce != nil {
+			if err := v.config.ClaimNonce(t.Nonce); err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, fmt.Errorf("oidc: Invalid configuration. ClaimNonce must be provided or SkipNonceCheck must be set.")
 		}
 	}
 
 	return t, nil
 }
 
-// VerifyAudience ensures that an ID Token was issued for the specific client.
-//
-// Note that a verified token may be valid for other clients, as OpenID Connect allows a token to have
-// multiple audiences.
-func VerifyAudience(clientID string) VerificationOption {
-	return clientVerifier{clientID}
-}
-
-type clientVerifier struct {
-	clientID string
-}
-
-func (v clientVerifier) updateConfig(c *verificationConfig) {
-	c.audience = v.clientID
-}
-
-// VerifyExpiry ensures that an ID Token has not expired.
-func VerifyExpiry() VerificationOption {
-	return expiryVerifier{}
-}
-
-type expiryVerifier struct{}
-
-func (v expiryVerifier) updateConfig(c *verificationConfig) {
-	c.checkExpiry = time.Now
-}
-
-// VerifySigningAlg enforces that an ID Token is signed by a specific signing algorithm.
-//
-// Because so many providers only support RS256, if this verifiction option isn't used,
-// the IDTokenVerifier defaults to only allowing RS256.
-func VerifySigningAlg(allowedAlgs ...string) VerificationOption {
-	return algVerifier{allowedAlgs}
-}
-
-type algVerifier struct {
-	algs []string
-}
-
-func (v algVerifier) updateConfig(c *verificationConfig) {
-	c.requiredAlgs = v.algs
-}
-
 // Nonce returns an auth code option which requires the ID Token created by the
 // OpenID Connect provider to contain the specified nonce.
 func Nonce(nonce string) oauth2.AuthCodeOption {
 	return oauth2.SetAuthURLParam("nonce", nonce)
-}
-
-// NonceSource represents a source which can verify a nonce is valid and has not
-// been claimed before.
-type NonceSource interface {
-	ClaimNonce(nonce string) error
-}
-
-// VerifyNonce ensures that the ID Token contains a nonce which can be claimed by the nonce source.
-func VerifyNonce(source NonceSource) VerificationOption {
-	return nonceVerifier{source}
-}
-
-type nonceVerifier struct {
-	nonceSource NonceSource
-}
-
-func (n nonceVerifier) updateConfig(c *verificationConfig) {
-	c.nonceSource = n.nonceSource
 }

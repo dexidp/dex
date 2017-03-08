@@ -1,12 +1,11 @@
 package kubernetes
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/storage"
@@ -85,6 +84,7 @@ func (c *Config) open(logger logrus.FieldLogger, errOnTPRs bool) (*client, error
 
 	if !cli.createThirdPartyResources() {
 		if errOnTPRs {
+			cancel()
 			return nil, fmt.Errorf("failed creating third party resources")
 		}
 

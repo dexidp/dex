@@ -1,5 +1,5 @@
-hash: 1207c251a7dab3b824746d66219beabc40f0b1d3c08ed90ac50f5bbdb8872631
-updated: 2017-01-25T20:32:43.599648533+01:00
+hash: fbef1f81a0f86f519714bbe568692a92709c446ef487a3fa9875e58f86e14430
+updated: 2017-03-08T10:31:06.364335442-08:00
 imports:
 - name: github.com/beevik/etree
   version: 4cd0dd976db869f817248477718071a28e978df0
@@ -8,7 +8,7 @@ imports:
   subpackages:
   - crdb
 - name: github.com/coreos/go-oidc
-  version: 2b5d73091ea4b7ddb15e3ac00077f153120b5b61
+  version: be73733bb8cc830d0205609b95d125215f8e9c70
 - name: github.com/ghodss/yaml
   version: bea76d6a4713e18b7f5321a2b020738552def3ea
 - name: github.com/go-sql-driver/mysql
@@ -62,7 +62,6 @@ imports:
   version: 6a513affb38dc9788b449d59ffed099b8de18fa0
   subpackages:
   - context
-  - context/ctxhttp
   - http2
   - http2/hpack
   - internal/timeseries

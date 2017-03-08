@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
@@ -24,7 +25,6 @@ import (
 	oidc "github.com/coreos/go-oidc"
 	"github.com/kylelemons/godebug/pretty"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	jose "gopkg.in/square/go-jose.v2"
 
@@ -175,6 +175,8 @@ func TestOAuth2CodeFlow(t *testing.T) {
 	// Connector used by the tests.
 	var conn *mock.Callback
 
+	oidcConfig := &oidc.Config{SkipClientIDCheck: true}
+
 	tests := []struct {
 		name string
 		// If specified these set of scopes will be used during the test case.
@@ -189,7 +191,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				if !ok {
 					return fmt.Errorf("no id token found")
 				}
-				if _, err := p.Verifier().Verify(ctx, idToken); err != nil {
+				if _, err := p.Verifier(oidcConfig).Verify(ctx, idToken); err != nil {
 					return fmt.Errorf("failed to verify id token: %v", err)
 				}
 				return nil
@@ -212,7 +214,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				if !ok {
 					return fmt.Errorf("no id token found")
 				}
-				idToken, err := p.Verifier().Verify(ctx, rawIDToken)
+				idToken, err := p.Verifier(oidcConfig).Verify(ctx, rawIDToken)
 				if err != nil {
 					return fmt.Errorf("failed to verify id token: %v", err)
 				}
@@ -229,7 +231,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				if !ok {
 					return fmt.Errorf("no id token found")
 				}
-				idToken, err := p.Verifier().Verify(ctx, rawIDToken)
+				idToken, err := p.Verifier(oidcConfig).Verify(ctx, rawIDToken)
 				if err != nil {
 					return fmt.Errorf("failed to verify id token: %v", err)
 				}
@@ -391,7 +393,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				if !ok {
 					return fmt.Errorf("no id_token in refreshed token")
 				}
-				idToken, err := p.Verifier().Verify(ctx, rawIDToken)
+				idToken, err := p.Verifier(oidcConfig).Verify(ctx, rawIDToken)
 				if err != nil {
 					return fmt.Errorf("failed to verify id token: %v", err)
 				}
@@ -632,7 +634,10 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 
 	src := &nonceSource{nonce: nonce}
 
-	idTokenVerifier := p.Verifier(oidc.VerifyAudience(client.ID), oidc.VerifyNonce(src))
+	idTokenVerifier := p.Verifier(&oidc.Config{
+		ClientID:   client.ID,
+		ClaimNonce: src.ClaimNonce,
+	})
 
 	oauth2Config = &oauth2.Config{
 		ClientID:     client.ID,
@@ -749,7 +754,7 @@ func TestCrossClientScopes(t *testing.T) {
 					t.Errorf("no id token found: %v", err)
 					return
 				}
-				idToken, err := p.Verifier().Verify(ctx, rawIDToken)
+				idToken, err := p.Verifier(&oidc.Config{ClientID: testClientID}).Verify(ctx, rawIDToken)
 				if err != nil {
 					t.Errorf("failed to parse ID Token: %v", err)
 					return

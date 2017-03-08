@@ -2,13 +2,13 @@
 package oidc
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/coreos/go-oidc"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 
 	"github.com/coreos/dex/connector"
@@ -53,10 +53,10 @@ func (c *Config) Open(logger logrus.FieldLogger) (conn connector.Connector, err 
 			RedirectURL:  c.RedirectURI,
 		},
 		verifier: provider.Verifier(
-			oidc.VerifyExpiry(),
-			oidc.VerifyAudience(clientID),
+			&oidc.Config{ClientID: clientID},
 		),
 		logger: logger,
+		cancel: cancel,
 	}, nil
 }
 
