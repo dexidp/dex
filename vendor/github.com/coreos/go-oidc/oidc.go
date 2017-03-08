@@ -2,6 +2,7 @@
 package oidc
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
 	"golang.org/x/oauth2"
 	jose "gopkg.in/square/go-jose.v2"
 )
@@ -46,11 +45,12 @@ func ClientContext(ctx context.Context, client *http.Client) context.Context {
 	return context.WithValue(ctx, oauth2.HTTPClient, client)
 }
 
-func clientFromContext(ctx context.Context) *http.Client {
-	if client, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
-		return client
+func doRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
+	client := http.DefaultClient
+	if c, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
+		client = c
 	}
-	return http.DefaultClient
+	return client.Do(req.WithContext(ctx))
 }
 
 // Provider represents an OpenID Connect server's configuration.
@@ -85,7 +85,11 @@ type providerJSON struct {
 // or "https://login.salesforce.com".
 func NewProvider(ctx context.Context, issuer string) (*Provider, error) {
 	wellKnown := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
-	resp, err := ctxhttp.Get(ctx, clientFromContext(ctx), wellKnown)
+	req, err := http.NewRequest("GET", wellKnown, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +178,7 @@ func (p *Provider) UserInfo(ctx context.Context, tokenSource oauth2.TokenSource)
 	}
 	token.SetAuthHeader(req)
 
-	resp, err := ctxhttp.Do(ctx, clientFromContext(ctx), req)
+	resp, err := doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -201,19 +205,35 @@ func (p *Provider) UserInfo(ctx context.Context, tokenSource oauth2.TokenSource)
 // The ID Token only holds fields OpenID Connect requires. To access additional
 // claims returned by the server, use the Claims method.
 type IDToken struct {
-	// The URL of the server which issued this token. This will always be the same
-	// as the URL used for initial discovery.
+	// The URL of the server which issued this token. OpenID Connect
+	// requires this value always be identical to the URL used for
+	// initial discovery.
+	//
+	// Note: Because of a known issue with Google Accounts' implementation
+	// this value may differ when using Google.
+	//
+	// See: https://developers.google.com/identity/protocols/OpenIDConnect#obtainuserinfo
 	Issuer string
 
-	// The client, or set of clients, that this token is issued for.
+	// The client ID, or set of client IDs, that this token is issued for. For
+	// common uses, this is the client that initialized the auth flow.
+	//
+	// This package ensures the audience contains an expected value.
 	Audience []string
 
 	// A unique string which identifies the end user.
 	Subject string
 
+	// Expiry of the token. Ths package will not process tokens that have
+	// expired unless that validation is explicitly turned off.
+	Expiry time.Time
+	// When the token was issued by the provider.
 	IssuedAt time.Time
-	Expiry   time.Time
-	Nonce    string
+
+	// Initial nonce provided during the authentication redirect.
+	//
+	// If present, this package ensures this is a valid nonce.
+	Nonce string
 
 	// Raw payload of the id_token.
 	claims []byte

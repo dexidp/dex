@@ -1,6 +1,7 @@
 package oidc
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -9,8 +10,6 @@ import (
 	"time"
 
 	"github.com/pquerna/cachecontrol"
-	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
 	jose "gopkg.in/square/go-jose.v2"
 )
 
@@ -163,7 +162,7 @@ func (r *remoteKeySet) updateKeys(ctx context.Context) error {
 		return fmt.Errorf("oidc: can't create request: %v", err)
 	}
 
-	resp, err := ctxhttp.Do(ctx, clientFromContext(ctx), req)
+	resp, err := doRequest(ctx, req)
 	if err != nil {
 		return fmt.Errorf("oidc: get keys failed %v", err)
 	}
