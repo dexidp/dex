@@ -36,7 +36,7 @@ bin/grpc-client: check-go-version
 
 .PHONY: release-binary
 release-binary:
-	@go build -o _output/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
+	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
 .PHONY: revendor
 revendor:
@@ -63,22 +63,8 @@ lint:
 	done
 
 _output/bin/dex:
-	# Using rkt to build the dex binary.
-	@./scripts/rkt-build
+	@./scripts/docker-build
 	@sudo chown $(user):$(group) _output/bin/dex
-
-_output/images/library-alpine-3.4.aci:
-	@mkdir -p _output/images
-	# Using docker2aci to get a base ACI to build from.
-	@docker2aci docker://alpine:3.4
-	@mv library-alpine-3.4.aci _output/images/library-alpine-3.4.aci
-
-.PHONY: aci
-aci: clean-release _output/bin/dex _output/images/library-alpine-3.4.aci
-	# Using acbuild to build a application container image.
-	@sudo ./scripts/build-aci ./_output/images/library-alpine-3.4.aci
-	@sudo chown $(user):$(group) _output/images/dex.aci
-	@mv _output/images/dex.aci _output/images/dex-$(VERSION)-linux-amd64.aci
 
 .PHONY: docker-image
 docker-image: clean-release _output/bin/dex
