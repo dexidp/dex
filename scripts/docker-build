@@ -8,7 +8,7 @@ sudo docker run \
     -w /go/src/github.com/coreos/dex \
     golang:1.8.0-alpine \
     /bin/sh -x -c \
-    'apk add --no-cache --update alpine-sdk && make release-binary'
+    'apk add --no-cache --update alpine-sdk && go install -v github.com/coreos/dex/cmd/dex'
 
 sudo docker cp $( cat cid ):/go/bin/dex _output/bin/dex
 sudo docker rm $( cat cid )

@@ -1,0 +1,20 @@
+#!/bin/sh -e
+
+# This script setups up a symlinked GOPATH so the project can build without
+# being cloned to an on host GOPATH. To use the GOPATH created set the
+# environment variable before calling Go tools.
+#
+#     export GOPATH=$PWD/_gopath
+#
+# The directory "_gopath" is used because Go tooling ingnores directories
+# prefixed with "_". This prevents recursively discoving the top level package.
+
+REPO=github.com/coreos/dex
+TARGET=_gopath/src/$REPO
+
+if [ ! -d $TARGET ]; then
+   mkdir -p $( dirname $TARGET )
+   ln -s $PWD $TARGET
+fi
+
+echo $PWD/_gopath
