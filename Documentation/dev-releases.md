@@ -4,20 +4,15 @@ Making a dex release involves:
 
 * Tagging a git commit and pushing the tag to GitHub.
 * Building and pushing a Docker image.
-* Building, signing, and hosting an ACI.
 
 This requires the following tools.
 
-* rkt
 * Docker
-* [docker2aci](https://github.com/appc/docker2aci)
-* [acbuild](https://github.com/containers/build) (must be in your sudo user's PATH)
 
 And the following permissions.
 
 * Push access to the github.com/coreos/dex git repo.
 * Push access to the quay.io/coreos/dex Docker repo.
-* Access to the CoreOS application signing key.
 
 ## Tagging the release
 
@@ -80,24 +75,7 @@ Build the Docker image and push to Quay.
 ```bash
 # checkout the tag
 git checkout tags/v2.1.0
-# rkt doesn't play nice with SELinux, see https://github.com/coreos/rkt/issues/1727
-sudo setenforce Permissive
 # will prompt for sudo password
 make docker-image
 sudo docker push quay.io/coreos/dex:v2.1.0
 ```
-
-## Building the ACI
-
-```bash
-# checkout the tag
-git checkout tags/v2.1.0
-# rkt doesn't play nice with SELinux, see https://github.com/coreos/rkt/issues/1727
-sudo setenforce Permissive
-# will prompt for sudo password
-make aci
-# aci will be built at _output/image/dex.aci
-```
-
-Sign the ACI using the CoreOS application signing key. Upload the ACI and
-signature to the GitHub release.
