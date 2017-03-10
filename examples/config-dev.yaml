@@ -47,6 +47,11 @@ staticClients:
   - 'http://127.0.0.1:5555/callback'
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+- id: oidc-proxy
+  redirectURIs:
+  - 'http://127.0.0.1:5558/callback'
+  name: 'OpenID Connect proxy'
+  secret: oidc-proxy-secret
 
 connectors:
 - type: mockCallback
@@ -75,3 +80,13 @@ staticPasswords:
   hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
   username: "admin"
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+- email: "jane@example.com"
+  # bcrypt hash of the string "password"
+  hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+  username: "admin"
+  userID: "342c2662-0569-4a33-a930-ef9fc1bfcbbd"
+- email: "john@example.com"
+  # bcrypt hash of the string "password"
+  hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+  username: "admin"
+  userID: "c970a82e-a2ca-4d18-aa62-6e5fb41cf7db"

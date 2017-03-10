@@ -87,7 +87,7 @@ func main() {
 		"Comma separated list of email domains allowed to access the backend.")
 
 	fs.StringVar(&logLevel, "log-level", "info",
-		"Logging level. Valid values are 'error', 'info', and 'debug'. The 'debug' level potentially prints sensative information to the log.")
+		"Logging level. Valid values are 'error', 'info', and 'debug'. The 'debug' level potentially prints sensitive information to the log.")
 	fs.BoolVar(&version, "version", false,
 		"Print the version of the binary to stdout and exit.")
 
@@ -118,7 +118,7 @@ func main() {
 		}
 		l.Level = level
 		if level == logrus.DebugLevel {
-			l.Warn("a debug log level will print sensative information to the log and is not recommended outside of debugging")
+			l.Warn("a debug log level will print sensitive information to the log and is not recommended outside of debugging")
 		}
 
 		c.logger = l
