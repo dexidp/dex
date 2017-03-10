@@ -93,11 +93,19 @@ __Caveats:__ No health checking is configured because dex does its own TLS termi
 
 ## Logging into the cluster
 
-The example app can be used to log into the cluster. Choose the GitHub option and grant access to dex to view your profile.
+The `example-app` can be used to log into the cluster and get an ID Token.
+
+To build the app, you can run `make` and it will build the `example-app` binary in the root of the repo in the `bin` directory. To build the `example-app` requires at least a 1.7 version of Go. 
 
 ```
 $ ./bin/example-app --issuer https://dex.example.com:32000 --issuer-root-ca examples/k8s/ssl/ca.pem
 ```
+
+Please note that the `example-app` will listen at http://127.0.0.1:5555 and can be changed with the `--listen` flag.
+
+Once the example app is running, choose the GitHub option and grant access to dex to view your profile.
+
+The default redirect uri is http://127.0.0.1:5555/callback and can be changed with the `--redirect-uri` flag and should correspond with your GitHub OAuth2 client. 
 
 The printed ID Token can then be used as a bearer token to authenticate against the API server.
 
