@@ -269,6 +269,32 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 
 	getAndCompare(id, refresh)
 
+	id2 := storage.NewID()
+	refresh2 := storage.RefreshToken{
+		ID:          id2,
+		Token:       "bar_2",
+		Nonce:       "foo_2",
+		ClientID:    "client_id_2",
+		ConnectorID: "client_secret",
+		Scopes:      []string{"openid", "email", "profile"},
+		CreatedAt:   time.Now().UTC().Round(time.Millisecond),
+		LastUsed:    time.Now().UTC().Round(time.Millisecond),
+		Claims: storage.Claims{
+			UserID:        "2",
+			Username:      "john",
+			Email:         "john.doe@example.com",
+			EmailVerified: true,
+			Groups:        []string{"a", "b"},
+		},
+		ConnectorData: []byte(`{"some":"data"}`),
+	}
+
+	if err := s.CreateRefresh(refresh2); err != nil {
+		t.Fatalf("create second refresh token: %v", err)
+	}
+
+	getAndCompare(id2, refresh2)
+
 	updatedAt := time.Now().UTC().Round(time.Millisecond)
 
 	updater := func(r storage.RefreshToken) (storage.RefreshToken, error) {
@@ -282,6 +308,9 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 	refresh.Token = "spam"
 	refresh.LastUsed = updatedAt
 	getAndCompare(id, refresh)
+
+	// Ensure that updating the first token doesn't impact the second. Issue #847.
+	getAndCompare(id2, refresh2)
 
 	if err := s.DeleteRefresh(id); err != nil {
 		t.Fatalf("failed to delete refresh request: %v", err)
