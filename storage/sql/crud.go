@@ -299,12 +299,14 @@ func (c *conn) UpdateRefreshToken(id string, updater func(old storage.RefreshTok
 				token = $11,
 				created_at = $12,
 				last_used = $13
+			where
+				id = $14
 		`,
 			r.ClientID, encoder(r.Scopes), r.Nonce,
 			r.Claims.UserID, r.Claims.Username, r.Claims.Email, r.Claims.EmailVerified,
 			encoder(r.Claims.Groups),
 			r.ConnectorID, r.ConnectorData,
-			r.Token, r.CreatedAt, r.LastUsed,
+			r.Token, r.CreatedAt, r.LastUsed, id,
 		)
 		if err != nil {
 			return fmt.Errorf("update refresh token: %v", err)
