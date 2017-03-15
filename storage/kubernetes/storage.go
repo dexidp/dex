@@ -127,7 +127,7 @@ func (cli *client) createThirdPartyResources() (ok bool) {
 		if err != nil {
 			switch err {
 			case storage.ErrAlreadyExists:
-				cli.logger.Errorf("third party resource already created %s", r.ObjectMeta.Name)
+				cli.logger.Infof("third party resource already created %s", r.ObjectMeta.Name)
 			case storage.ErrNotFound:
 				cli.logger.Errorf("third party resources not found, please enable API group extensions/v1beta1")
 				ok = false
