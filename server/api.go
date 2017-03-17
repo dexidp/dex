@@ -19,7 +19,7 @@ import (
 
 // apiVersion increases every time a new call is added to the API. Clients should use this info
 // to determine if the server supports specific features.
-const apiVersion = 1
+const apiVersion = 2
 
 // NewAPI returns a server which implements the gRPC API interface.
 func NewAPI(s storage.Storage, logger logrus.FieldLogger) api.DexServer {
@@ -226,8 +226,8 @@ func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.
 		r := api.RefreshTokenRef{
 			Id:        session.ID,
 			ClientId:  session.ClientID,
-			CreatedAt: session.CreatedAt.String(),
-			LastUsed:  session.LastUsed.String(),
+			CreatedAt: session.CreatedAt.Unix(),
+			LastUsed:  session.LastUsed.Unix(),
 		}
 		refreshTokenRefs = append(refreshTokenRefs, &r)
 	}

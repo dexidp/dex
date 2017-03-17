@@ -146,8 +146,19 @@ func TestRefreshToken(t *testing.T) {
 		UserId: subjectString,
 	}
 
-	if _, err := serv.ListRefresh(ctx, &listReq); err != nil {
+	listResp, err := serv.ListRefresh(ctx, &listReq)
+	if err != nil {
 		t.Fatalf("Unable to list refresh tokens for user: %v", err)
+	}
+
+	for _, tok := range listResp.RefreshTokens {
+		if tok.CreatedAt != r.CreatedAt.Unix() {
+			t.Errorf("Expected CreatedAt timestamp %v, got %v", r.CreatedAt.Unix(), tok.CreatedAt)
+		}
+
+		if tok.LastUsed != r.LastUsed.Unix() {
+			t.Errorf("Expected LastUsed timestamp %v, got %v", r.LastUsed.Unix(), tok.LastUsed)
+		}
 	}
 
 	revokeReq := api.RevokeRefreshReq{
