@@ -90,7 +90,7 @@ func TestKeyRotater(t *testing.T) {
 		got := verificationKeyIDs(t, r.Storage)
 
 		if !slicesEq(expVerificationKeys, got) {
-			t.Errorf("after %d rotation, expected varification keys %q, got %q", i+1, expVerificationKeys, got)
+			t.Errorf("after %d rotation, expected verification keys %q, got %q", i+1, expVerificationKeys, got)
 		}
 
 		expVerificationKeys = append(expVerificationKeys, signingKeyID(t, r.Storage))

@@ -1070,7 +1070,7 @@ func TestRefreshTokenFlow(t *testing.T) {
 		Expiry:       time.Now().Add(-time.Hour),
 	}
 
-	// Login in again to recieve a new token.
+	// Login in again to receive a new token.
 	if _, err = http.Get(oauth2Client.server.URL + "/login"); err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
