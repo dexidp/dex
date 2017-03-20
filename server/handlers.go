@@ -721,7 +721,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 			offlineSessions.Refresh[tokenRef.ClientID] = &tokenRef
 
 			// Create a new OfflineSession object for the user and add a reference object for
-			// the newly recieved refreshtoken.
+			// the newly received refreshtoken.
 			if err := s.storage.CreateOfflineSessions(offlineSessions); err != nil {
 				s.logger.Errorf("failed to create offline session: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -962,6 +962,6 @@ func (s *Server) renderError(w http.ResponseWriter, status int, description stri
 
 func (s *Server) tokenErrHelper(w http.ResponseWriter, typ string, description string, statusCode int) {
 	if err := tokenErr(w, typ, description, statusCode); err != nil {
-		s.logger.Errorf("token error repsonse: %v", err)
+		s.logger.Errorf("token error response: %v", err)
 	}
 }

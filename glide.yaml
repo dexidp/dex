@@ -5,7 +5,7 @@
 # * Use glide and glide-vc.
 # * List transitive dependencies.
 # * Create a separate block for each dependency group.
-# * Keep updates to "vendor/" in a seperate commit from actual changes.
+# * Keep updates to "vendor/" in a separate commit from actual changes.
 
 package: github.com/coreos/dex
 import:
