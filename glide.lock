@@ -1,5 +1,5 @@
-hash: fbef1f81a0f86f519714bbe568692a92709c446ef487a3fa9875e58f86e14430
-updated: 2017-03-08T10:31:06.364335442-08:00
+hash: dcaae4487139cd27ae69c50e1dff442d6108f10d3758d43a9e5687a192072337
+updated: 2017-03-08T18:25:00.157877983-08:00
 imports:
 - name: github.com/beevik/etree
   version: 4cd0dd976db869f817248477718071a28e978df0
@@ -24,6 +24,8 @@ imports:
   version: 3a5767ca75ece5f7f1440b1d16975247f8d8b221
 - name: github.com/gorilla/mux
   version: 9fa818a44c2bf1396a17f9d5a3c0f6dd39d2ff8e
+- name: github.com/gorilla/websocket
+  version: b258b4fadb573ac412f187b9f31974ea99d32f50
 - name: github.com/gtank/cryptopasta
   version: e7e23673cac3f529f49e22f94e4af6d12bb49dba
 - name: github.com/inconshreveable/mousetrap
