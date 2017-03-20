@@ -22,9 +22,14 @@ import (
 
 // Connector is a connector with metadata.
 type Connector struct {
-	ID          string
+	// Type is the kind of the login strategy. For example "ldap".
+	Type string
+	// ID is the unique identifier for a connector. For example "free-ipa-server".
+	ID string
+	// Display name of the connector. For example "Free IPA".
 	DisplayName string
-	Connector   connector.Connector
+	// Underlying connector.
+	Connector connector.Connector
 }
 
 // Config holds the server's configuration options.
@@ -139,6 +144,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 	if c.EnablePasswordDB {
 		c.Connectors = append(c.Connectors, Connector{
+			Type:        "local",
 			ID:          "local",
 			DisplayName: "Email",
 			Connector:   newPasswordDB(c.Storage),
@@ -256,6 +262,16 @@ func (s *Server) absURL(pathItems ...string) string {
 	u := s.issuerURL
 	u.Path = s.absPath(pathItems...)
 	return u.String()
+}
+
+func (s *Server) connector(id string) (Connector, error) {
+	// TODO(ericchiang): Make this dynamically call the storage, possibly with
+	// some caching.
+	conn, ok := s.connectors[id]
+	if !ok {
+		return Connector{}, storage.ErrNotFound
+	}
+	return conn, nil
 }
 
 func newPasswordDB(s storage.Storage) interface {
