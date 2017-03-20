@@ -1,9 +1,8 @@
 # An overview of OpenID Connect
 
-This document attempts to provide an overview of the [OpenID Connect protocol](
-https://openid.net/connect/), a flavor of OAuth2 that dex implements. While
-this document isn't complete we hope it provides a enough to get users up and
-running.
+This document attempts to provide a general overview of the [OpenID Connect protocol](https://openid.net/connect/), a flavor of OAuth2 that dex implements. While this document isn't complete, we hope it provides enough information to get users up and running.
+
+For an overview of custom claims, scopes, and client features implemented by dex, see [this document][scopes-claims-clients].
 
 ## OAuth2
 
@@ -138,3 +137,5 @@ $ curl http://127.0.0.1:5556/keys
   ]
 }
 ```
+
+[scopes-claims-clients]: custom-scopes-claims-clients.md

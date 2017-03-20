@@ -30,6 +30,7 @@ More docs for running dex as a Kubernetes authenticator can be found [here](Docu
 
 * [Getting started](Documentation/getting-started.md)
 * [What's new in v2](Documentation/v2.md)
+* [Custom scopes, claims, and client features](Documentation/custom-scopes-claims-clients.md)
 * [Storage options](Documentation/storage.md)
 * [Intro to OpenID Connect](Documentation/openid-connect.md)
 * [gRPC API](Documentation/api.md)
