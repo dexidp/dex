@@ -38,6 +38,7 @@ More docs for running dex as a Kubernetes authenticator can be found [here](Docu
   * [LDAP](Documentation/ldap-connector.md)
   * [GitHub](Documentation/github-connector.md)
   * [SAML 2.0 (experimental)](Documentation/saml-connector.md)
+  * [OpenID Connect](Documentation/oidc-connector.md) (includes Google, Salesforce, Azure, etc.)
 * Client libraries
   * [Go][go-oidc]
 
