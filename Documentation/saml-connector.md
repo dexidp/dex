@@ -24,8 +24,6 @@ connectors:
   # Required field for connector name.
   name: SAML
   config:
-    # Issuer used for validating the SAML response.
-    issuer: https://saml.example.com
     # SSO URL used for POST value.
     ssoURL: https://saml.example.com/sso
 
@@ -72,4 +70,8 @@ connectors:
     #     urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
     #
     nameIDPolicyFormat: persistent
+
+    # Optional issuer used for validating the SAML response. If provided the
+    # connector will validate the Issuer in the response.
+    # issuer: https://saml.example.com
 ```

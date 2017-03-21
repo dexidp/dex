@@ -93,3 +93,46 @@ objectClass: groupOfNames
 member: cn=Test1,dc=example,dc=org
 cn: tstgrp
 ```
+
+## SAML
+
+### Okta
+
+The Okta identity provider supports free accounts for developers to test their implementation against. This document describes configuring an Okta application to test dex's SAML connector.
+
+First, [sign up for a developer account][okta-sign-up]. Then, to create a SAML application:
+
+* Go to the admin screen.
+* Click "Add application"
+* Click "Create New App"
+* Choose "SAML 2.0" and press "Create"
+* Configure SAML
+  * Enter `http://127.0.0.1:5556/dex/callback` for "Single sign on URL"
+  * Enter `http://127.0.0.1:5556/dex/callback` for "Audience URI (SP Entity ID)"
+  * Under "ATTRIBUTE STATEMENTS (OPTIONAL)" add an "email" and "name" attribute. The values should be something like `user:email` and `user:firstName`, respectively.
+  * Under "GROUP ATTRIBUTE STATEMENTS (OPTIONAL)" add a "groups" attribute. Use the "Regexp" filter `.*`.
+
+After the application's created, assign yourself to the app.
+
+* "Applications" > "Applications"
+* Click on your application then under the "People" tab press the "Assign to People" button and add yourself.
+
+At the app, go to the "Sign On" tab and then click "View Setup Instructions". Use those values to fill out the following connector in `examples/config-dev.yaml`.
+
+```yaml
+connectors:
+- type: samlExperimental
+  id: saml
+  name: Okta
+  config:
+    ssoURL: ( "Identity Provider Single Sign-On URL" )
+    caData: ( base64'd value of "X.509 Certificate" )
+    redirectURI: http://127.0.0.1:5556/dex/callback
+    usernameAttr: name
+    emailAttr: email
+    groupsAttr: groups
+```
+
+Start both dex and the example app, and try logging in (requires not requesting a refresh token).
+
+[okta-sign-up]: https://www.okta.com/developer/signup/

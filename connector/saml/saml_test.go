@@ -18,8 +18,11 @@ import (
 )
 
 const (
-	defaultIssuer      = "http://localhost:5556/dex/callback"
+	defaultIssuer      = "http://www.okta.com/exk91cb99lKkKSYoy0h7"
 	defaultRedirectURI = "http://localhost:5556/dex/callback"
+
+	// Response ID embedded in our testdata.
+	testDataResponseID = "_fd1b3ef9-ec09-44a7-a66b-0d39c250f6a0"
 )
 
 func loadCert(ca string) (*x509.Certificate, error) {
@@ -109,7 +112,7 @@ func TestHandlePOST(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ident, err := p.HandlePOST(scopes, base64.StdEncoding.EncodeToString(data))
+	ident, err := p.HandlePOST(scopes, base64.StdEncoding.EncodeToString(data), testDataResponseID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,12 +257,12 @@ func TestValidateConditions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("validation of %q should succeed", "Conditions where notBefore is 15 seconds after now")
 	}
-	// Audiences contains the issuer
-	validAudience := audience{Value: p.issuer}
+	// Audiences contains the redirectURI
+	validAudience := audience{Value: p.redirectURI}
 	cond.AudienceRestriction.Audiences = []audience{validAudience}
 	err = p.validateConditions(assert)
 	if err != nil {
-		t.Fatalf("validation of %q should succeed", "Audiences contains the issuer")
+		t.Fatalf("validation of %q should succeed: %v", "Audiences contains the redirectURI", err)
 	}
 	// Audiences is not empty and not contains the issuer
 	invalidAudience := audience{Value: "invalid"}
