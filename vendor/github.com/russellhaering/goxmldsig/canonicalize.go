@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/beevik/etree"
+	"github.com/russellhaering/goxmldsig/etreeutils"
 )
 
 // Canonicalizer is an implementation of a canonicalization algorithm.
@@ -65,41 +66,6 @@ func composeAttr(space, key string) string {
 	}
 
 	return key
-}
-
-type attrsByKey []etree.Attr
-
-func (a attrsByKey) Len() int {
-	return len(a)
-}
-
-func (a attrsByKey) Swap(i, j int) {
-	a[i], a[j] = a[j], a[i]
-}
-
-func (a attrsByKey) Less(i, j int) bool {
-	// As I understand it: any "xmlns" attribute should come first, followed by any
-	// any "xmlns:prefix" attributes, presumably ordered by prefix. Lastly any other
-	// attributes in lexicographical order.
-	if a[i].Space == "" && a[i].Key == "xmlns" {
-		return true
-	}
-	if a[j].Space == "" && a[j].Key == "xmlns" {
-		return false
-	}
-
-	if a[i].Space == "xmlns" {
-		if a[j].Space == "xmlns" {
-			return a[i].Key < a[j].Key
-		}
-		return true
-	}
-
-	if a[j].Space == "xmlns" {
-		return false
-	}
-
-	return composeAttr(a[i].Space, a[i].Key) < composeAttr(a[j].Space, a[j].Key)
 }
 
 type c14nSpace struct {
@@ -192,7 +158,7 @@ func excCanonicalPrep(el *etree.Element, _nsAlreadyDeclared map[string]c14nSpace
 	}
 
 	//Sort attributes lexicographically
-	sort.Sort(attrsByKey(el.Attr))
+	sort.Sort(etreeutils.SortedAttrs(el.Attr))
 
 	return el.Copy()
 }
@@ -215,7 +181,7 @@ func canonicalPrep(el *etree.Element, seenSoFar map[string]struct{}) *etree.Elem
 	}
 
 	ne := el.Copy()
-	sort.Sort(attrsByKey(ne.Attr))
+	sort.Sort(etreeutils.SortedAttrs(ne.Attr))
 	if len(ne.Attr) != 0 {
 		for _, attr := range ne.Attr {
 			if attr.Space != nsSpace {
