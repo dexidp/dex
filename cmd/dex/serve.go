@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -20,6 +21,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/coreos/dex/api"
+	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/storage"
 )
@@ -128,6 +130,71 @@ func serve(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	s, err := c.Storage.Config.Open(logger)
+	if err != nil {
+		return fmt.Errorf("failed to initialize storage: %v", err)
+	}
+	logger.Infof("config storage: %s", c.Storage.Type)
+
+	if len(c.StaticClients) > 0 {
+		for _, client := range c.StaticClients {
+			logger.Infof("config static client: %s", client.ID)
+		}
+		s = storage.WithStaticClients(s, c.StaticClients)
+	}
+	if len(c.StaticPasswords) > 0 {
+		passwords := make([]storage.Password, len(c.StaticPasswords))
+		for i, p := range c.StaticPasswords {
+			passwords[i] = storage.Password(p)
+		}
+		s = storage.WithStaticPasswords(s, passwords)
+	}
+	/*
+		if len(c.Connectors) > 0 {
+			connectors := make([]storage.Connector, len(c.Connectors))
+			for i, c := range c.Connectors {
+				if c.ID == "" {
+					return fmt.Errorf("invalid config: no ID field for a connector")
+				}
+				if c.Config == nil {
+					return fmt.Errorf("invalid config: no config field for connector %q", c.ID)
+				}
+				if c.Name == "" {
+					return fmt.Errorf("invalid config: no Name field for connector %q", c.ID)
+				}
+				logger.Infof("config connector: %s", c.ID)
+				conn, err := ToStorageConnector(c)
+				if err != nil {
+					return fmt.Errorf("failed to initialize connectors: %v", err)
+				}
+				connectors[i] = conn
+				fmt.Errorf("storage connector: %v", conn)
+			}
+			s = storage.WithStaticConnectors(s, connectors)
+		}
+
+		// Retrieves connector objects in backend storage. These connector objects can dynamically modified
+		// This list does not include the static connectors defined in the ConfigMap.
+		storageConnectors, err := s.ListConnectors()
+		if err != nil {
+			return fmt.Errorf("failed to list connector objects from storage: %v", err)
+		}
+
+		connectorList := make([]server.Connector, len(storageConnectors))
+		for i, conn := range storageConnectors {
+			connectorLogger := logger.WithField("connector", conn.Name)
+			c, err := openConnector(connectorLogger, conn)
+			if err != nil {
+				return fmt.Errorf("failed to create connector %s: %v", conn.ID, err)
+			}
+			connectorList[i] = server.Connector{
+				ID:          conn.ID,
+				DisplayName: conn.Name,
+				Connector:   c,
+			}
+		}
+	*/
+
 	connectors := make([]server.Connector, len(c.Connectors))
 	for i, conn := range c.Connectors {
 		if conn.ID == "" {
@@ -154,26 +221,6 @@ func serve(cmd *cobra.Command, args []string) error {
 	}
 	if c.EnablePasswordDB {
 		logger.Infof("config connector: local passwords enabled")
-	}
-
-	s, err := c.Storage.Config.Open(logger)
-	if err != nil {
-		return fmt.Errorf("failed to initialize storage: %v", err)
-	}
-	logger.Infof("config storage: %s", c.Storage.Type)
-
-	if len(c.StaticClients) > 0 {
-		for _, client := range c.StaticClients {
-			logger.Infof("config static client: %s", client.ID)
-		}
-		s = storage.WithStaticClients(s, c.StaticClients)
-	}
-	if len(c.StaticPasswords) > 0 {
-		passwords := make([]storage.Password, len(c.StaticPasswords))
-		for i, p := range c.StaticPasswords {
-			passwords[i] = storage.Password(p)
-		}
-		s = storage.WithStaticPasswords(s, passwords)
 	}
 
 	if len(c.OAuth2.ResponseTypes) > 0 {
@@ -299,4 +346,28 @@ func newLogger(level string, format string) (logrus.FieldLogger, error) {
 		Formatter: &formatter,
 		Level:     logLevel,
 	}, nil
+}
+
+func openConnector(logger logrus.FieldLogger, conn storage.Connector) (connector.Connector, error) {
+	var c connector.Connector
+
+	f, ok := connectors[conn.Type]
+	if !ok {
+		return c, fmt.Errorf("unknown connector type %q", conn.Type)
+	}
+
+	connConfig := f()
+	if len(conn.Config) != 0 {
+		data := []byte(os.ExpandEnv(string(conn.Config)))
+		if err := json.Unmarshal(data, connConfig); err != nil {
+			return c, fmt.Errorf("parse connector config: %v", err)
+		}
+	}
+
+	c, err := connConfig.Open(logger)
+	if err != nil {
+		return c, fmt.Errorf("failed to create connector %s: %v", conn.ID, err)
+	}
+
+	return c, nil
 }

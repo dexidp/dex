@@ -362,3 +362,22 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 	}()
 	return
 }
+
+// getUpdatedConnectorList retrieves a current list of connector objects available in
+// the storage. It gets the latest configuration of connectors that are dynamically
+// updated via the API.
+func (s *Server) getUpdatedConnectorList() error {
+	storageConnectors, err := s.storage.ListConnectors()
+	if err != nil {
+		return fmt.Errorf("failed to list connector objects from storage: %v", err)
+	}
+
+	for _, conn := range storageConnectors {
+		if _, ok := s.connectors[conn.ID]; ok {
+			// Update existing connector
+		} else {
+			// Add new connector
+		}
+	}
+	return nil
+}

@@ -190,3 +190,94 @@ func TestStaticPasswords(t *testing.T) {
 		}
 	}
 }
+
+func TestStaticConnectors(t *testing.T) {
+	logger := &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level:     logrus.DebugLevel,
+	}
+	backing := New(logger)
+
+	config1 := []byte(`{"issuer": "https://accounts.google.com"}`)
+	config2 := []byte(`{"host": "ldap.example.com:636"}`)
+	config3 := []byte(`{"issuer": "https://example.com"}`)
+
+	c1 := storage.Connector{ID: storage.NewID(), Type: "oidc", Name: "oidc", ResourceVersion: "1", Config: config1}
+	c2 := storage.Connector{ID: storage.NewID(), Type: "ldap", Name: "ldap", ResourceVersion: "1", Config: config2}
+	c3 := storage.Connector{ID: storage.NewID(), Type: "saml", Name: "saml", ResourceVersion: "1", Config: config3}
+
+	backing.CreateConnector(c1)
+	s := storage.WithStaticConnectors(backing, []storage.Connector{c2})
+
+	tests := []struct {
+		name    string
+		action  func() error
+		wantErr bool
+	}{
+		{
+			name: "get connector from static storage",
+			action: func() error {
+				_, err := s.GetConnector(c2.ID)
+				return err
+			},
+		},
+		{
+			name: "get connector from backing storage",
+			action: func() error {
+				_, err := s.GetConnector(c1.ID)
+				return err
+			},
+		},
+		{
+			name: "update static connector",
+			action: func() error {
+				updater := func(c storage.Connector) (storage.Connector, error) {
+					c.Name = "New"
+					return c, nil
+				}
+				return s.UpdateConnector(c2.ID, updater)
+			},
+			wantErr: true,
+		},
+		{
+			name: "update non-static connector",
+			action: func() error {
+				updater := func(c storage.Connector) (storage.Connector, error) {
+					c.Name = "New"
+					return c, nil
+				}
+				return s.UpdateConnector(c1.ID, updater)
+			},
+		},
+		{
+			name: "list connectors",
+			action: func() error {
+				connectors, err := s.ListConnectors()
+				if err != nil {
+					return err
+				}
+				if n := len(connectors); n != 2 {
+					return fmt.Errorf("expected 2 connectors got %d", n)
+				}
+				return nil
+			},
+		},
+		{
+			name: "create connector",
+			action: func() error {
+				return s.CreateConnector(c3)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		err := tc.action()
+		if err != nil && !tc.wantErr {
+			t.Errorf("%s: %v", tc.name, err)
+		}
+		if err == nil && tc.wantErr {
+			t.Errorf("%s: expected error, didn't get one", tc.name)
+		}
+	}
+}
