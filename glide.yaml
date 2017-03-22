@@ -73,7 +73,7 @@ import:
 - package: golang.org/x/oauth2
   version: 08c8d727d2392d18286f9f88ad775ad98f09ab33
   subpackages: []
-# The oauth2 package only imports the appengine code when it's given a 
+# The oauth2 package only imports the appengine code when it's given a
 # specific build tags, but glide detects it anyway.
 #
 # https://github.com/golang/oauth2/blob/d5040cdd/client_appengine.go
@@ -133,7 +133,7 @@ import:
 
 # XML signature validation for SAML connector
 - package: github.com/russellhaering/goxmldsig
-  version: 51810e925e5fc495822fbddda8202f70a6e4a3f3
+  version: eaac44c63fe007124f8f6255b09febc906784981
 - package: github.com/beevik/etree
   version: 4cd0dd976db869f817248477718071a28e978df0
 - package: github.com/jonboulle/clockwork
