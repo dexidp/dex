@@ -17,6 +17,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/beevik/etree"
 	dsig "github.com/russellhaering/goxmldsig"
+	"github.com/russellhaering/goxmldsig/etreeutils"
 
 	"github.com/coreos/dex/connector"
 )
@@ -500,8 +501,9 @@ func verify(validator *dsig.ValidationContext, data []byte) (signed []byte, err 
 		verified = true
 		doc.SetRoot(transformedResponse)
 	}
-	assertion := response.SelectElement("Assertion")
-	if assertion == nil {
+	// Ensures xmlns are copied down to the assertion element when they are defined in the root
+	assertion, err := etreeutils.NSSelectOne(response, "urn:oasis:names:tc:SAML:2.0:assertion", "Assertion")
+	if err != nil {
 		return nil, fmt.Errorf("response does not contain an Assertion element")
 	}
 	transformedAssertion, err := validator.Validate(assertion)

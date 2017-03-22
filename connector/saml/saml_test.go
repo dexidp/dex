@@ -86,6 +86,10 @@ func TestVerify(t *testing.T) {
 	runVerify(t, "testdata/okta-ca.pem", "testdata/okta-resp.xml", true)
 }
 
+func TestVerifyUnsignedMessageAndSignedAssertionWithRootXmlNs(t *testing.T) {
+	runVerify(t, "testdata/oam-ca.pem", "testdata/oam-resp.xml", true)
+}
+
 func TestVerifySignedMessageAndUnsignedAssertion(t *testing.T) {
 	runVerify(t, "testdata/idp-cert.pem", "testdata/idp-resp-signed-message.xml", true)
 }
