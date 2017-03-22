@@ -135,7 +135,6 @@ func (c *Config) openConnector(logger logrus.FieldLogger) (interface {
 	requiredFields := []struct {
 		name, val string
 	}{
-		{"issuer", c.Issuer},
 		{"ssoURL", c.SSOURL},
 		{"usernameAttr", c.UsernameAttr},
 		{"emailAttr", c.EmailAttr},
@@ -240,7 +239,7 @@ type provider struct {
 	logger logrus.FieldLogger
 }
 
-func (p *provider) POSTData(s connector.Scopes) (action, value string, err error) {
+func (p *provider) POSTData(s connector.Scopes, id string) (action, value string, err error) {
 
 	// NOTE(ericchiang): If we can't follow up with the identity provider, can we
 	// support refresh tokens?
@@ -250,17 +249,19 @@ func (p *provider) POSTData(s connector.Scopes) (action, value string, err error
 
 	r := &authnRequest{
 		ProtocolBinding: bindingPOST,
-		ID:              "_" + uuidv4(),
+		ID:              id,
 		IssueInstant:    xmlTime(p.now()),
 		Destination:     p.ssoURL,
-		Issuer: &issuer{
-			Issuer: p.issuer,
-		},
 		NameIDPolicy: &nameIDPolicy{
 			AllowCreate: true,
 			Format:      p.nameIDPolicyFormat,
 		},
 		AssertionConsumerServiceURL: p.redirectURI,
+	}
+	if p.issuer != "" {
+		// Issuer for the request is optional. For example, okta always ignores
+		// this value.
+		r.Issuer = &issuer{Issuer: p.issuer}
 	}
 
 	data, err := xml.MarshalIndent(r, "", "  ")
@@ -268,10 +269,12 @@ func (p *provider) POSTData(s connector.Scopes) (action, value string, err error
 		return "", "", fmt.Errorf("marshal authn request: %v", err)
 	}
 
+	// See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
+	// "3.5.4 Message Encoding"
 	return p.ssoURL, base64.StdEncoding.EncodeToString(data), nil
 }
 
-func (p *provider) HandlePOST(s connector.Scopes, samlResponse string) (ident connector.Identity, err error) {
+func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo string) (ident connector.Identity, err error) {
 	rawResp, err := base64.StdEncoding.DecodeString(samlResponse)
 	if err != nil {
 		return ident, fmt.Errorf("decode response: %v", err)
@@ -287,6 +290,17 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse string) (ident co
 		return ident, fmt.Errorf("unmarshal response: %v", err)
 	}
 
+	if p.issuer != "" && resp.Issuer != nil && resp.Issuer.Issuer != p.issuer {
+		return ident, fmt.Errorf("expected Issuer value %s, got %s", p.issuer, resp.Issuer.Issuer)
+	}
+
+	// Verify InResponseTo value matches the expected ID associated with
+	// the RelayState.
+	if resp.InResponseTo != inResponseTo {
+		return ident, fmt.Errorf("expected InResponseTo value %s, got %s", inResponseTo, resp.InResponseTo)
+	}
+
+	// Destination is optional.
 	if resp.Destination != "" && resp.Destination != p.redirectURI {
 		return ident, fmt.Errorf("expected destination %q got %q", p.redirectURI, resp.Destination)
 
@@ -327,26 +341,26 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse string) (ident co
 	}
 
 	if ident.Email, _ = attributes.get(p.emailAttr); ident.Email == "" {
-		return ident, fmt.Errorf("no attribute with name %q", p.emailAttr)
+		return ident, fmt.Errorf("no attribute with name %q: %s", p.emailAttr, attributes.names())
 	}
 	ident.EmailVerified = true
 
 	if ident.Username, _ = attributes.get(p.usernameAttr); ident.Username == "" {
-		return ident, fmt.Errorf("no attribute with name %q", p.usernameAttr)
+		return ident, fmt.Errorf("no attribute with name %q: %s", p.usernameAttr, attributes.names())
 	}
 
 	if s.Groups && p.groupsAttr != "" {
 		if p.groupsDelim != "" {
 			groupsStr, ok := attributes.get(p.groupsAttr)
 			if !ok {
-				return ident, fmt.Errorf("no attribute with name %q", p.groupsAttr)
+				return ident, fmt.Errorf("no attribute with name %q: %s", p.groupsAttr, attributes.names())
 			}
 			// TODO(ericchiang): Do we need to further trim whitespace?
 			ident.Groups = strings.Split(groupsStr, p.groupsDelim)
 		} else {
 			groups, ok := attributes.all(p.groupsAttr)
 			if !ok {
-				return ident, fmt.Errorf("no attribute with name %q", p.groupsAttr)
+				return ident, fmt.Errorf("no attribute with name %q: %s", p.groupsAttr, attributes.names())
 			}
 			ident.Groups = groups
 		}
@@ -427,6 +441,9 @@ func (p *provider) validateSubjectConfirmation(subject *subject) error {
 }
 
 // Validates the Conditions element and all of it's content
+//
+// See: https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf
+// "2.3.3 Element <Assertion>"
 func (p *provider) validateConditions(assertion *assertion) error {
 	// Checks if a Conditions element exists
 	conditions := assertion.Conditions
@@ -452,15 +469,17 @@ func (p *provider) validateConditions(assertion *assertion) error {
 	if audienceRestriction != nil {
 		audiences := audienceRestriction.Audiences
 		if audiences != nil && len(audiences) > 0 {
+			values := make([]string, len(audiences))
 			issuerInAudiences := false
-			for _, audience := range audiences {
-				if audience.Value == p.issuer {
+			for i, audience := range audiences {
+				if audience.Value == p.redirectURI {
 					issuerInAudiences = true
 					break
 				}
+				values[i] = audience.Value
 			}
 			if !issuerInAudiences {
-				return fmt.Errorf("required audience %s was not in Response audiences %s", p.issuer, audiences)
+				return fmt.Errorf("required audience %s was not in Response audiences %s", p.redirectURI, values)
 			}
 		}
 	}

@@ -162,8 +162,9 @@ type authnContextClassRef struct {
 type response struct {
 	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:protocol Response"`
 
-	ID      string      `xml:"ID,attr"`
-	Version samlVersion `xml:"Version,attr"`
+	ID           string      `xml:"ID,attr"`
+	InResponseTo string      `xml:"InResponseTo,attr"`
+	Version      samlVersion `xml:"Version,attr"`
 
 	Destination string `xml:"Destination,attr,omitempty"`
 
@@ -219,6 +220,16 @@ func (a *attributeStatement) all(name string) (s []string, ok bool) {
 		}
 	}
 	return
+}
+
+// names list the names of all attributes in the attribute statement.
+func (a *attributeStatement) names() []string {
+	s := make([]string, len(a.Attributes))
+
+	for i, attr := range a.Attributes {
+		s[i] = attr.Name
+	}
+	return s
 }
 
 type attribute struct {
