@@ -646,6 +646,20 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	}
 
 	reqRefresh := func() bool {
+		// Ensure the connector supports refresh tokens.
+		//
+		// Connectors like `samlExperimental` do not implement RefreshConnector.
+		conn, ok := s.connectors[authCode.ConnectorID]
+		if !ok {
+			s.logger.Errorf("connector ID not found: %q", authCode.ConnectorID)
+			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+			return false
+		}
+		_, ok = conn.Connector.(connector.RefreshConnector)
+		if !ok {
+			return false
+		}
+
 		for _, scope := range authCode.Scopes {
 			if scope == scopeOfflineAccess {
 				return true
