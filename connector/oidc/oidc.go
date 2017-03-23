@@ -117,6 +117,7 @@ func (c *Config) Open(logger logrus.FieldLogger) (conn connector.Connector, err 
 
 var (
 	_ connector.CallbackConnector = (*oidcConnector)(nil)
+	_ connector.RefreshConnector  = (*oidcConnector)(nil)
 )
 
 type oidcConnector struct {
@@ -186,5 +187,10 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		Email:         claims.Email,
 		EmailVerified: claims.EmailVerified,
 	}
+	return identity, nil
+}
+
+// Refresh is implemented for backwards compatibility, even though it's a no-op.
+func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
 	return identity, nil
 }

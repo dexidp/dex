@@ -241,12 +241,6 @@ type provider struct {
 
 func (p *provider) POSTData(s connector.Scopes, id string) (action, value string, err error) {
 
-	// NOTE(ericchiang): If we can't follow up with the identity provider, can we
-	// support refresh tokens?
-	if s.OfflineAccess {
-		return "", "", fmt.Errorf("SAML does not support offline access")
-	}
-
 	r := &authnRequest{
 		ProtocolBinding: bindingPOST,
 		ID:              id,
