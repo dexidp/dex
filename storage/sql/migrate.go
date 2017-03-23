@@ -176,4 +176,15 @@ var migrations = []migration{
 			);
 		`,
 	},
+	{
+		stmt: `
+			create table connector (
+				id text not null primary key,
+				type text not null,
+				name text not null,
+				resource_version text not null,
+				config bytea
+			);
+		`,
+	},
 }

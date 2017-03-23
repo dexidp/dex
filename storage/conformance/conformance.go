@@ -48,6 +48,7 @@ func RunTests(t *testing.T, newStorage func() storage.Storage) {
 		{"PasswordCRUD", testPasswordCRUD},
 		{"KeysCRUD", testKeysCRUD},
 		{"OfflineSessionCRUD", testOfflineSessionCRUD},
+		{"ConnectorCRUD", testConnectorCRUD},
 		{"GarbageCollection", testGC},
 		{"TimezoneSupport", testTimezones},
 	})
@@ -569,6 +570,74 @@ func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {
 
 	_, err = s.GetOfflineSessions(session1.UserID, session1.ConnID)
 	mustBeErrNotFound(t, "offline session", err)
+}
+
+func testConnectorCRUD(t *testing.T, s storage.Storage) {
+	id1 := storage.NewID()
+	config1 := []byte(`{"issuer": "https://accounts.google.com"}`)
+	c1 := storage.Connector{
+		ID:              id1,
+		Type:            "Default",
+		Name:            "Default",
+		ResourceVersion: "1",
+		Config:          config1,
+	}
+
+	if err := s.CreateConnector(c1); err != nil {
+		t.Fatalf("create connector with ID = %s: %v", c1.ID, err)
+	}
+
+	// Attempt to create same Connector twice.
+	err := s.CreateConnector(c1)
+	mustBeErrAlreadyExists(t, "connector", err)
+
+	id2 := storage.NewID()
+	config2 := []byte(`{"redirectURIi": "http://127.0.0.1:5556/dex/callback"}`)
+	c2 := storage.Connector{
+		ID:              id2,
+		Type:            "Mock",
+		Name:            "Mock",
+		ResourceVersion: "2",
+		Config:          config2,
+	}
+
+	if err := s.CreateConnector(c2); err != nil {
+		t.Fatalf("create connector with ID = %s: %v", c2.ID, err)
+	}
+
+	getAndCompare := func(id string, want storage.Connector) {
+		gr, err := s.GetConnector(id)
+		if err != nil {
+			t.Errorf("get connector: %v", err)
+			return
+		}
+		if diff := pretty.Compare(want, gr); diff != "" {
+			t.Errorf("connector retrieved from storage did not match: %s", diff)
+		}
+	}
+
+	getAndCompare(id1, c1)
+
+	if err := s.UpdateConnector(c1.ID, func(old storage.Connector) (storage.Connector, error) {
+		old.Type = "oidc"
+		return old, nil
+	}); err != nil {
+		t.Fatalf("failed to update Connector: %v", err)
+	}
+
+	c1.Type = "oidc"
+	getAndCompare(id1, c1)
+
+	if err := s.DeleteConnector(c1.ID); err != nil {
+		t.Fatalf("failed to delete connector: %v", err)
+	}
+
+	if err := s.DeleteConnector(c2.ID); err != nil {
+		t.Fatalf("failed to delete connector: %v", err)
+	}
+
+	_, err = s.GetConnector(c1.ID)
+	mustBeErrNotFound(t, "connector", err)
 }
 
 func testKeysCRUD(t *testing.T, s storage.Storage) {

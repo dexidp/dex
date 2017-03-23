@@ -19,6 +19,7 @@ func New(logger logrus.FieldLogger) storage.Storage {
 		authReqs:        make(map[string]storage.AuthRequest),
 		passwords:       make(map[string]storage.Password),
 		offlineSessions: make(map[offlineSessionID]storage.OfflineSessions),
+		connectors:      make(map[string]storage.Connector),
 		logger:          logger,
 	}
 }
@@ -44,6 +45,7 @@ type memStorage struct {
 	authReqs        map[string]storage.AuthRequest
 	passwords       map[string]storage.Password
 	offlineSessions map[offlineSessionID]storage.OfflineSessions
+	connectors      map[string]storage.Connector
 
 	keys storage.Keys
 
@@ -152,6 +154,17 @@ func (s *memStorage) CreateOfflineSessions(o storage.OfflineSessions) (err error
 	return
 }
 
+func (s *memStorage) CreateConnector(connector storage.Connector) (err error) {
+	s.tx(func() {
+		if _, ok := s.connectors[connector.ID]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.connectors[connector.ID] = connector
+		}
+	})
+	return
+}
+
 func (s *memStorage) GetAuthCode(id string) (c storage.AuthCode, err error) {
 	s.tx(func() {
 		var ok bool
@@ -226,6 +239,16 @@ func (s *memStorage) GetOfflineSessions(userID string, connID string) (o storage
 	return
 }
 
+func (s *memStorage) GetConnector(id string) (connector storage.Connector, err error) {
+	s.tx(func() {
+		var ok bool
+		if connector, ok = s.connectors[id]; !ok {
+			err = storage.ErrNotFound
+		}
+	})
+	return
+}
+
 func (s *memStorage) ListClients() (clients []storage.Client, err error) {
 	s.tx(func() {
 		for _, client := range s.clients {
@@ -248,6 +271,15 @@ func (s *memStorage) ListPasswords() (passwords []storage.Password, err error) {
 	s.tx(func() {
 		for _, password := range s.passwords {
 			passwords = append(passwords, password)
+		}
+	})
+	return
+}
+
+func (s *memStorage) ListConnectors() (conns []storage.Connector, err error) {
+	s.tx(func() {
+		for _, c := range s.connectors {
+			conns = append(conns, c)
 		}
 	})
 	return
@@ -320,6 +352,17 @@ func (s *memStorage) DeleteOfflineSessions(userID string, connID string) (err er
 			return
 		}
 		delete(s.offlineSessions, id)
+	})
+	return
+}
+
+func (s *memStorage) DeleteConnector(id string) (err error) {
+	s.tx(func() {
+		if _, ok := s.connectors[id]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		delete(s.connectors, id)
 	})
 	return
 }
@@ -404,6 +447,20 @@ func (s *memStorage) UpdateOfflineSessions(userID string, connID string, updater
 		}
 		if r, err = updater(r); err == nil {
 			s.offlineSessions[id] = r
+		}
+	})
+	return
+}
+
+func (s *memStorage) UpdateConnector(id string, updater func(c storage.Connector) (storage.Connector, error)) (err error) {
+	s.tx(func() {
+		r, ok := s.connectors[id]
+		if !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		if r, err = updater(r); err == nil {
+			s.connectors[id] = r
 		}
 	})
 	return
