@@ -13,6 +13,7 @@ grpc:
   addr: 127.0.0.1:5557
   tlsCert: server.crt
   tlsKey: server.key
+  tlsClientCA: ca.crt
 
 connectors:
 - type: mockCallback

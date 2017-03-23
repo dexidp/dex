@@ -42,6 +42,55 @@ func newDexClient(hostAndPort, caPath, clientCrt, clientKey string) (api.DexClie
 	return api.NewDexClient(conn), nil
 }
 
+func createPassword(cli api.DexClient) error {
+	p := api.Password{
+		Email: "test@example.com",
+		// bcrypt hash of the value "test1" with cost 10
+		Hash:     []byte("$2a$10$XVMN/Fid.Ks4CXgzo8fpR.iU1khOMsP5g9xQeXuBm1wXjRX8pjUtO"),
+		Username: "test",
+		UserId:   "test",
+	}
+
+	createReq := &api.CreatePasswordReq{
+		Password: &p,
+	}
+
+	// Create password.
+	if resp, err := cli.CreatePassword(context.TODO(), createReq); err != nil || resp.AlreadyExists {
+		if resp.AlreadyExists {
+			return fmt.Errorf("Password %s already exists", createReq.Password.Email)
+		}
+		return fmt.Errorf("failed to create password: %v", err)
+	}
+	log.Printf("Created password with email %s", createReq.Password.Email)
+
+	// List all passwords.
+	resp, err := cli.ListPasswords(context.TODO(), &api.ListPasswordReq{})
+	if err != nil {
+		return fmt.Errorf("failed to list password: %v", err)
+	}
+
+	log.Print("Listing Passwords:\n")
+	for _, pass := range resp.Passwords {
+		log.Printf("%+v", pass)
+	}
+
+	deleteReq := &api.DeletePasswordReq{
+		Email: p.Email,
+	}
+
+	// Delete password with email = test@example.com.
+	if resp, err := cli.DeletePassword(context.TODO(), deleteReq); err != nil || resp.NotFound {
+		if resp.NotFound {
+			return fmt.Errorf("Password %s not found", deleteReq.Email)
+		}
+		return fmt.Errorf("failed to delete password: %v", err)
+	}
+	log.Printf("Deleted password with email %s", deleteReq.Email)
+
+	return nil
+}
+
 func main() {
 	caCrt := flag.String("ca-crt", "", "CA certificate")
 	clientCrt := flag.String("client-crt", "", "Client certificate")
@@ -57,50 +106,7 @@ func main() {
 		log.Fatalf("failed creating dex client: %v ", err)
 	}
 
-	p := api.Password{
-		Email: "test@example.com",
-		// bcrypt hash of the value "test1" with cost 10
-		Hash:     []byte("$2a$10$XVMN/Fid.Ks4CXgzo8fpR.iU1khOMsP5g9xQeXuBm1wXjRX8pjUtO"),
-		Username: "test",
-		UserId:   "test",
-	}
-
-	createReq := &api.CreatePasswordReq{
-		Password: &p,
-	}
-
-	// Create password.
-	if resp, err := client.CreatePassword(context.TODO(), createReq); err != nil || resp.AlreadyExists {
-		if resp.AlreadyExists {
-			log.Fatalf("Password %s already exists", createReq.Password.Email)
-		}
-		log.Fatalf("failed to create password: %v", err)
-	} else {
-		log.Printf("Created password with email %s", createReq.Password.Email)
-	}
-
-	// List all passwords.
-	resp, err := client.ListPasswords(context.TODO(), &api.ListPasswordReq{})
-	if err != nil {
-		log.Fatalf("failed to list password: %v", err)
-	}
-
-	log.Print("Listing Passwords:\n")
-	for _, pass := range resp.Passwords {
-		log.Printf("%+v", pass)
-	}
-
-	deleteReq := &api.DeletePasswordReq{
-		Email: p.Email,
-	}
-
-	// Delete password with email = test@example.com.
-	if resp, err := client.DeletePassword(context.TODO(), deleteReq); err != nil || resp.NotFound {
-		if resp.NotFound {
-			log.Fatalf("Password %s not found", deleteReq.Email)
-		}
-		log.Fatalf("failed to delete password: %v", err)
-	} else {
-		log.Printf("Deleted password with email %s", deleteReq.Email)
+	if err := createPassword(client); err != nil {
+		log.Fatalf("testPassword failed: %v", err)
 	}
 }
