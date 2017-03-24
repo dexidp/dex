@@ -1,5 +1,5 @@
-hash: 4a3ac3a2a2b39357dc5de7ba296dbe20a97dd2fe13bc15a68e904e69afae2adb
-updated: 2017-03-21T09:24:08.089284929-07:00
+hash: ba77a77f03b1750479aa4a61de59d7a545dc8bd5c71be10e1c2e9afed37e1925
+updated: 2017-03-24T11:03:21.332291207-07:00
 imports:
 - name: github.com/beevik/etree
   version: 4cd0dd976db869f817248477718071a28e978df0
@@ -46,9 +46,10 @@ imports:
   subpackages:
   - cacheobject
 - name: github.com/russellhaering/goxmldsig
-  version: 51810e925e5fc495822fbddda8202f70a6e4a3f3
+  version: eaac44c63fe007124f8f6255b09febc906784981
   subpackages:
   - etreeutils
+  - types
 - name: github.com/Sirupsen/logrus
   version: d26492970760ca5d33129d2d799e34be5c4782eb
 - name: github.com/spf13/cobra

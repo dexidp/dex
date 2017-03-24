@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/beevik/etree"
+	"github.com/russellhaering/goxmldsig/etreeutils"
 )
 
 type SigningContext struct {
@@ -133,15 +134,39 @@ func (ctx *SigningContext) constructSignature(el *etree.Element, enveloped bool)
 	}
 
 	sig.CreateAttr(xmlns, Namespace)
+	sig.AddChild(signedInfo)
 
-	sig.Child = append(sig.Child, signedInfo)
+	// When using xml-c14n11 (ie, non-exclusive canonicalization) the canonical form
+	// of the SignedInfo must declare all namespaces that are in scope at it's final
+	// enveloped location in the document. In order to do that, we're going to construct
+	// a series of cascading NSContexts to capture namespace declarations:
 
-	// Must propagate down the attributes to the 'SignedInfo' before digesting
-	for _, attr := range sig.Attr {
-		signedInfo.CreateAttr(attr.Space+":"+attr.Key, attr.Value)
+	// First get the context surrounding the element we are signing.
+	rootNSCtx, err := etreeutils.NSBuildParentContext(el)
+	if err != nil {
+		return nil, err
 	}
 
-	digest, err := ctx.digest(signedInfo)
+	// Then capture any declarations on the element itself.
+	elNSCtx, err := rootNSCtx.SubContext(el)
+	if err != nil {
+		return nil, err
+	}
+
+	// Followed by declarations on the Signature (which we just added above)
+	sigNSCtx, err := elNSCtx.SubContext(sig)
+	if err != nil {
+		return nil, err
+	}
+
+	// Finally detatch the SignedInfo in order to capture all of the namespace
+	// declarations in the scope we've constructed.
+	detatchedSignedInfo, err := etreeutils.NSDetatch(sigNSCtx, signedInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	digest, err := ctx.digest(detatchedSignedInfo)
 	if err != nil {
 		return nil, err
 	}
