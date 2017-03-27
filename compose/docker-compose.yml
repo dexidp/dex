@@ -1,0 +1,30 @@
+version: '2'
+services:
+  db:
+    container_name: dex-postgres
+    image: postgres:9.6.2-alpine
+    # volumes:
+      # - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: dex
+      POSTGRES_PASSWORD: insert_super_secure_password_here
+      POSTGRES_DB: dex_db
+
+  dex:
+    container_name: dex
+    command: ./init.sh
+    build: .
+    ports:
+      - "5556:5556"
+      - "5557:5557"
+    depends_on:
+      - db
+    environment:
+      GOOGLE_CLIENT_ID: 947530770163-n2jcr1cn9d6lagvckth3sid9d19k93rl.apps.googleusercontent.com
+      GOOGLE_CLIENT_SECRET: kekaq99Sd6KbYyQMO1Ko0lEK
+      GOOGLE_CLIENT_REDIRECT: https://dev.circleci.com:4443/oauth/callback
+
+networks:
+  default:
+    external:
+      name: circle_default
