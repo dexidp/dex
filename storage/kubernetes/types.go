@@ -74,6 +74,14 @@ var thirdPartyResources = []k8sapi.ThirdPartyResource{
 		Description: "User sessions with an active refresh token.",
 		Versions:    []k8sapi.APIVersion{{Name: "v1"}},
 	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "connector.oidc.coreos.com",
+		},
+		TypeMeta:    tprMeta,
+		Description: "Connectors available for login",
+		Versions:    []k8sapi.APIVersion{{Name: "v1"}},
+	},
 }
 
 // There will only ever be a single keys resource. Maintain this by setting a
@@ -512,4 +520,53 @@ func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
 		s.Refresh = make(map[string]*storage.RefreshTokenRef)
 	}
 	return s
+}
+
+// Connector is a mirrored struct from storage with JSON struct tags and Kubernetes
+// type metadata.
+type Connector struct {
+	k8sapi.TypeMeta   `json:",inline"`
+	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+
+	ID              string `json:"id,omitempty"`
+	Type            string `json:"type,omitempty"`
+	Name            string `json:"name,omitempty"`
+	ResourceVersion string `json:"resourceVersion,omitempty"`
+	// Config holds connector specific configuration information
+	Config []byte `json:"config,omitempty"`
+}
+
+func (cli *client) fromStorageConnector(c storage.Connector) Connector {
+	return Connector{
+		TypeMeta: k8sapi.TypeMeta{
+			Kind:       kindConnector,
+			APIVersion: cli.apiVersion,
+		},
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name:      c.ID,
+			Namespace: cli.namespace,
+		},
+		ID:              c.ID,
+		Type:            c.Type,
+		Name:            c.Name,
+		ResourceVersion: c.ResourceVersion,
+		Config:          c.Config,
+	}
+}
+
+func toStorageConnector(c Connector) storage.Connector {
+	return storage.Connector{
+		ID:              c.ID,
+		Type:            c.Type,
+		Name:            c.Name,
+		ResourceVersion: c.ResourceVersion,
+		Config:          c.Config,
+	}
+}
+
+// ConnectorList is a list of Connectors.
+type ConnectorList struct {
+	k8sapi.TypeMeta `json:",inline"`
+	k8sapi.ListMeta `json:"metadata,omitempty"`
+	Connectors      []Connector `json:"items"`
 }

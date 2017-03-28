@@ -717,6 +717,104 @@ func scanOfflineSessions(s scanner) (o storage.OfflineSessions, err error) {
 	return o, nil
 }
 
+func (c *conn) CreateConnector(connector storage.Connector) error {
+	_, err := c.Exec(`
+		insert into connector (
+			id, type, name, resource_version, config
+		)
+		values (
+			$1, $2, $3, $4, $5
+		);
+	`,
+		connector.ID, connector.Type, connector.Name, connector.ResourceVersion, connector.Config,
+	)
+	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
+		return fmt.Errorf("insert connector: %v", err)
+	}
+	return nil
+}
+
+func (c *conn) UpdateConnector(id string, updater func(s storage.Connector) (storage.Connector, error)) error {
+	return c.ExecTx(func(tx *trans) error {
+		connector, err := getConnector(tx, id)
+		if err != nil {
+			return err
+		}
+
+		newConn, err := updater(connector)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(`
+			update connector
+			set 
+			    type = $1,
+			    name = $2,
+			    resource_version = $3,
+			    config = $4
+			where id = $5;
+		`,
+			newConn.Type, newConn.Name, newConn.ResourceVersion, newConn.Config, connector.ID,
+		)
+		if err != nil {
+			return fmt.Errorf("update connector: %v", err)
+		}
+		return nil
+	})
+}
+
+func (c *conn) GetConnector(id string) (storage.Connector, error) {
+	return getConnector(c, id)
+}
+
+func getConnector(q querier, id string) (storage.Connector, error) {
+	return scanConnector(q.QueryRow(`
+		select
+			id, type, name, resource_version, config
+		from connector
+		where id = $1;
+		`, id))
+}
+
+func scanConnector(s scanner) (c storage.Connector, err error) {
+	err = s.Scan(
+		&c.ID, &c.Type, &c.Name, &c.ResourceVersion, &c.Config,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c, storage.ErrNotFound
+		}
+		return c, fmt.Errorf("select connector: %v", err)
+	}
+	return c, nil
+}
+
+func (c *conn) ListConnectors() ([]storage.Connector, error) {
+	rows, err := c.Query(`
+		select
+			id, type, name, resource_version, config
+		from connector;
+	`)
+	if err != nil {
+		return nil, err
+	}
+	var connectors []storage.Connector
+	for rows.Next() {
+		conn, err := scanConnector(rows)
+		if err != nil {
+			return nil, err
+		}
+		connectors = append(connectors, conn)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return connectors, nil
+}
+
 func (c *conn) DeleteAuthRequest(id string) error { return c.delete("auth_request", "id", id) }
 func (c *conn) DeleteAuthCode(id string) error    { return c.delete("auth_code", "id", id) }
 func (c *conn) DeleteClient(id string) error      { return c.delete("client", "id", id) }
@@ -724,6 +822,7 @@ func (c *conn) DeleteRefresh(id string) error     { return c.delete("refresh_tok
 func (c *conn) DeletePassword(email string) error {
 	return c.delete("password", "email", strings.ToLower(email))
 }
+func (c *conn) DeleteConnector(id string) error { return c.delete("connector", "id", id) }
 
 func (c *conn) DeleteOfflineSessions(userID string, connID string) error {
 	result, err := c.Exec(`delete from offline_session where user_id = $1 AND conn_id = $2`, userID, connID)

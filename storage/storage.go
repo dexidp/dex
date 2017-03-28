@@ -53,6 +53,7 @@ type Storage interface {
 	CreateRefresh(r RefreshToken) error
 	CreatePassword(p Password) error
 	CreateOfflineSessions(s OfflineSessions) error
+	CreateConnector(c Connector) error
 
 	// TODO(ericchiang): return (T, bool, error) so we can indicate not found
 	// requests that way instead of using ErrNotFound.
@@ -63,10 +64,12 @@ type Storage interface {
 	GetRefresh(id string) (RefreshToken, error)
 	GetPassword(email string) (Password, error)
 	GetOfflineSessions(userID string, connID string) (OfflineSessions, error)
+	GetConnector(id string) (Connector, error)
 
 	ListClients() ([]Client, error)
 	ListRefreshTokens() ([]RefreshToken, error)
 	ListPasswords() ([]Password, error)
+	ListConnectors() ([]Connector, error)
 
 	// Delete methods MUST be atomic.
 	DeleteAuthRequest(id string) error
@@ -75,6 +78,7 @@ type Storage interface {
 	DeleteRefresh(id string) error
 	DeletePassword(email string) error
 	DeleteOfflineSessions(userID string, connID string) error
+	DeleteConnector(id string) error
 
 	// Update methods take a function for updating an object then performs that update within
 	// a transaction. "updater" functions may be called multiple times by a single update call.
@@ -96,6 +100,7 @@ type Storage interface {
 	UpdateRefreshToken(id string, updater func(r RefreshToken) (RefreshToken, error)) error
 	UpdatePassword(email string, updater func(p Password) (Password, error)) error
 	UpdateOfflineSessions(userID string, connID string, updater func(s OfflineSessions) (OfflineSessions, error)) error
+	UpdateConnector(id string, updater func(c Connector) (Connector, error)) error
 
 	// GarbageCollect deletes all expired AuthCodes and AuthRequests.
 	GarbageCollect(now time.Time) (GCResult, error)
@@ -288,6 +293,22 @@ type Password struct {
 
 	// Randomly generated user ID. This is NOT the primary ID of the Password object.
 	UserID string `json:"userID"`
+}
+
+// Connector is an object that contains the metadata about connectors used to login to Dex.
+type Connector struct {
+	// ID that will uniquely identify the connector object.
+	ID string
+	// The Type of the connector. E.g. 'oidc' or 'ldap'
+	Type string
+	// The Name of the connector that is used when displaying it to the end user.
+	Name string
+	// ResourceVersion is the static versioning used to keep track of dynamic configuration
+	// changes to the connector object made by the API calls.
+	ResourceVersion string
+	// Config holds all the configuration information specific to the connector type. Since there
+	// no generic struct we can use for this purpose, it is stored as a byte stream.
+	Config []byte
 }
 
 // VerificationKey is a rotated signing key which can still be used to verify

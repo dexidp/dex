@@ -20,6 +20,7 @@ const (
 	kindKeys            = "SigningKey"
 	kindPassword        = "Password"
 	kindOfflineSessions = "OfflineSessions"
+	kindConnector       = "Connector"
 )
 
 const (
@@ -30,6 +31,7 @@ const (
 	resourceKeys            = "signingkeies" // Kubernetes attempts to pluralize.
 	resourcePassword        = "passwords"
 	resourceOfflineSessions = "offlinesessionses" // Again attempts to pluralize.
+	resourceConnector       = "connectors"
 )
 
 // Config values for the Kubernetes storage type.
@@ -173,6 +175,10 @@ func (cli *client) CreateOfflineSessions(o storage.OfflineSessions) error {
 	return cli.post(resourceOfflineSessions, cli.fromStorageOfflineSessions(o))
 }
 
+func (cli *client) CreateConnector(c storage.Connector) error {
+	return cli.post(resourceConnector, cli.fromStorageConnector(c))
+}
+
 func (cli *client) GetAuthRequest(id string) (storage.AuthRequest, error) {
 	var req AuthRequest
 	if err := cli.get(resourceAuthRequest, id, &req); err != nil {
@@ -271,6 +277,14 @@ func (cli *client) getOfflineSessions(userID string, connID string) (o OfflineSe
 	return o, nil
 }
 
+func (cli *client) GetConnector(id string) (storage.Connector, error) {
+	var c Connector
+	if err := cli.get(resourceConnector, id, &c); err != nil {
+		return storage.Connector{}, err
+	}
+	return toStorageConnector(c), nil
+}
+
 func (cli *client) ListClients() ([]storage.Client, error) {
 	return nil, errors.New("not implemented")
 }
@@ -293,6 +307,20 @@ func (cli *client) ListPasswords() (passwords []storage.Password, err error) {
 			UserID:   password.UserID,
 		}
 		passwords = append(passwords, p)
+	}
+
+	return
+}
+
+func (cli *client) ListConnectors() (connectors []storage.Connector, err error) {
+	var connectorList ConnectorList
+	if err = cli.list(resourceConnector, &connectorList); err != nil {
+		return connectors, fmt.Errorf("failed to list connectors: %v", err)
+	}
+
+	connectors = make([]storage.Connector, len(connectorList.Connectors))
+	for i, connector := range connectorList.Connectors {
+		connectors[i] = toStorageConnector(connector)
 	}
 
 	return
@@ -335,6 +363,10 @@ func (cli *client) DeleteOfflineSessions(userID string, connID string) error {
 		return err
 	}
 	return cli.delete(resourceOfflineSessions, o.ObjectMeta.Name)
+}
+
+func (cli *client) DeleteConnector(id string) error {
+	return cli.delete(resourceConnector, id)
 }
 
 func (cli *client) UpdateRefreshToken(id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
@@ -444,6 +476,23 @@ func (cli *client) UpdateAuthRequest(id string, updater func(a storage.AuthReque
 	newReq := cli.fromStorageAuthRequest(updated)
 	newReq.ObjectMeta = req.ObjectMeta
 	return cli.put(resourceAuthRequest, id, newReq)
+}
+
+func (cli *client) UpdateConnector(id string, updater func(a storage.Connector) (storage.Connector, error)) error {
+	var c Connector
+	err := cli.get(resourceConnector, id, &c)
+	if err != nil {
+		return err
+	}
+
+	updated, err := updater(toStorageConnector(c))
+	if err != nil {
+		return err
+	}
+
+	newConn := cli.fromStorageConnector(updated)
+	newConn.ObjectMeta = c.ObjectMeta
+	return cli.put(resourceConnector, id, newConn)
 }
 
 func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err error) {
