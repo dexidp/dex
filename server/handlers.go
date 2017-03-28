@@ -196,10 +196,12 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	connID := mux.Vars(r)["connector"]
-	conn, ok := s.connectors[connID]
-	if !ok {
-		s.logger.Errorf("Failed to create authorization request.")
-		s.renderError(w, http.StatusBadRequest, "Requested resource does not exist.")
+	conn, err := s.connector(connID)
+	if err != nil {
+		s.logger.Errorf("Failed to get connector with ID %s: %v", connID, err)
+		if err == storage.ErrNotFound {
+			s.renderError(w, http.StatusBadRequest, "Requested resource does not exist.")
+		}
 		return
 	}
 
@@ -339,9 +341,14 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	conn, ok := s.connectors[authReq.ConnectorID]
-	if !ok {
-		s.renderError(w, http.StatusInternalServerError, "Requested resource does not exist.")
+	conn, err := s.connector(authReq.ConnectorID)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			s.renderError(w, http.StatusInternalServerError, "Requested resource does not exist.")
+			return
+		}
+		s.logger.Errorf("Failed to get connector with id %s: %v", authReq.ConnectorID, err)
+		s.renderError(w, http.StatusInternalServerError, "Database error.")
 		return
 	}
 
@@ -841,9 +848,9 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		scopes = requestedScopes
 	}
 
-	conn, ok := s.connectors[refresh.ConnectorID]
-	if !ok {
-		s.logger.Errorf("connector ID not found: %q", refresh.ConnectorID)
+	conn, err := s.connector(refresh.ConnectorID)
+	if err != nil {
+		s.logger.Errorf("failed to get connecto with id %s: %v", refresh.ConnectorID, err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return
 	}

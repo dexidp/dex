@@ -245,6 +245,8 @@ type idTokenClaims struct {
 	Groups []string `json:"groups,omitempty"`
 
 	Name string `json:"name,omitempty"`
+
+	Login string `json:"dex.coreos.com/login"`
 }
 
 func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, connID string) (idToken string, expiry time.Time, err error) {
@@ -277,12 +279,18 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		return "", expiry, fmt.Errorf("failed to marshal offline session ID: %v", err)
 	}
 
+	conn, err := s.connector(connID)
+	if err != nil {
+		return "", expiry, fmt.Errorf("get connector: %v", err)
+	}
+
 	tok := idTokenClaims{
 		Issuer:   s.issuerURL.String(),
 		Subject:  subjectString,
 		Nonce:    nonce,
 		Expiry:   expiry.Unix(),
 		IssuedAt: issuedAt.Unix(),
+		Login:    conn.Type,
 	}
 
 	if accessToken != "" {

@@ -91,6 +91,7 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 		Storage: memory.New(logger),
 		Connectors: []Connector{
 			{
+				Type:        "mock",
 				ID:          "mock",
 				DisplayName: "Mock",
 				Connector:   mock.NewCallbackConnector(logger),
@@ -193,6 +194,29 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				}
 				if _, err := p.Verifier(oidcConfig).Verify(ctx, idToken); err != nil {
 					return fmt.Errorf("failed to verify id token: %v", err)
+				}
+				return nil
+			},
+		},
+		{
+			name: "login claim",
+			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
+				rawIDToken, ok := token.Extra("id_token").(string)
+				if !ok {
+					return fmt.Errorf("no id token found")
+				}
+				idToken, err := p.Verifier(oidcConfig).Verify(ctx, rawIDToken)
+				if err != nil {
+					return fmt.Errorf("failed to verify id token: %v", err)
+				}
+				var claims struct {
+					Login string `json:"dex.coreos.com/login"`
+				}
+				if err := idToken.Claims(&claims); err != nil {
+					return err
+				}
+				if claims.Login != "mock" {
+					return fmt.Errorf("expected login claim to be 'mock' got %q", claims.Login)
 				}
 				return nil
 			},
@@ -431,6 +455,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				conn = mock.NewCallbackConnector(logger).(*mock.Callback)
 				c.Connectors = []Connector{
 					{
+						Type:        "mock",
 						ID:          "mock",
 						DisplayName: "mock",
 						Connector:   conn,
