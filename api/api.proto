@@ -105,8 +105,8 @@ message RefreshTokenRef {
   // ID of the refresh token.
   string id = 1;
   string client_id = 2;
-  int64 created_at = 5;
-  int64 last_used = 6;
+  int64 created_at = 3;
+  int64 last_used = 4;
 }
 
 // ListRefreshReq is a request to enumerate the refresh tokens of a user.
