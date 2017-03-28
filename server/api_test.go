@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -11,7 +12,47 @@ import (
 	"github.com/coreos/dex/server/internal"
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/memory"
+	"google.golang.org/grpc"
 )
+
+// apiClient is a test gRPC client. When constructed, it runs a server in
+// the background to exercise the serialization and network configuration
+// instead of just this package's server implementation.
+type apiClient struct {
+	// Embedded gRPC client to talk to the server.
+	api.DexClient
+	// Close releases resources associated with this client, includuing shutting
+	// down the background server.
+	Close func()
+}
+
+// newAPI constructs a gRCP client connected to a backing server.
+func newAPI(s storage.Storage, logger logrus.FieldLogger, t *testing.T) *apiClient {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	serv := grpc.NewServer()
+	api.RegisterDexServer(serv, NewAPI(s, logger))
+	go serv.Serve(l)
+
+	// Dial will retry automatically if the serv.Serve() goroutine
+	// hasn't started yet.
+	conn, err := grpc.Dial(l.Addr().String(), grpc.WithInsecure())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return &apiClient{
+		DexClient: api.NewDexClient(conn),
+		Close: func() {
+			conn.Close()
+			serv.Stop()
+			l.Close()
+		},
+	}
+}
 
 // Attempts to create, update and delete a test Password
 func TestPassword(t *testing.T) {
@@ -22,7 +63,8 @@ func TestPassword(t *testing.T) {
 	}
 
 	s := memory.New(logger)
-	serv := NewAPI(s, logger)
+	client := newAPI(s, logger, t)
+	defer client.Close()
 
 	ctx := context.Background()
 	p := api.Password{
@@ -37,7 +79,7 @@ func TestPassword(t *testing.T) {
 		Password: &p,
 	}
 
-	if resp, err := serv.CreatePassword(ctx, &createReq); err != nil || resp.AlreadyExists {
+	if resp, err := client.CreatePassword(ctx, &createReq); err != nil || resp.AlreadyExists {
 		if resp.AlreadyExists {
 			t.Fatalf("Unable to create password since %s already exists", createReq.Password.Email)
 		}
@@ -45,7 +87,7 @@ func TestPassword(t *testing.T) {
 	}
 
 	// Attempt to create a password that already exists.
-	if resp, _ := serv.CreatePassword(ctx, &createReq); !resp.AlreadyExists {
+	if resp, _ := client.CreatePassword(ctx, &createReq); !resp.AlreadyExists {
 		t.Fatalf("Created password %s twice", createReq.Password.Email)
 	}
 
@@ -54,7 +96,7 @@ func TestPassword(t *testing.T) {
 		NewUsername: "test1",
 	}
 
-	if _, err := serv.UpdatePassword(ctx, &updateReq); err != nil {
+	if _, err := client.UpdatePassword(ctx, &updateReq); err != nil {
 		t.Fatalf("Unable to update password: %v", err)
 	}
 
@@ -71,7 +113,7 @@ func TestPassword(t *testing.T) {
 		Email: "test@example.com",
 	}
 
-	if _, err := serv.DeletePassword(ctx, &deleteReq); err != nil {
+	if _, err := client.DeletePassword(ctx, &deleteReq); err != nil {
 		t.Fatalf("Unable to delete password: %v", err)
 	}
 
@@ -86,7 +128,8 @@ func TestRefreshToken(t *testing.T) {
 	}
 
 	s := memory.New(logger)
-	serv := NewAPI(s, logger)
+	client := newAPI(s, logger, t)
+	defer client.Close()
 
 	ctx := context.Background()
 
@@ -146,7 +189,7 @@ func TestRefreshToken(t *testing.T) {
 		UserId: subjectString,
 	}
 
-	listResp, err := serv.ListRefresh(ctx, &listReq)
+	listResp, err := client.ListRefresh(ctx, &listReq)
 	if err != nil {
 		t.Fatalf("Unable to list refresh tokens for user: %v", err)
 	}
@@ -166,12 +209,12 @@ func TestRefreshToken(t *testing.T) {
 		ClientId: r.ClientID,
 	}
 
-	resp, err := serv.RevokeRefresh(ctx, &revokeReq)
+	resp, err := client.RevokeRefresh(ctx, &revokeReq)
 	if err != nil || resp.NotFound {
 		t.Fatalf("Unable to revoke refresh tokens for user: %v", err)
 	}
 
-	if resp, _ := serv.ListRefresh(ctx, &listReq); len(resp.RefreshTokens) != 0 {
+	if resp, _ := client.ListRefresh(ctx, &listReq); len(resp.RefreshTokens) != 0 {
 		t.Fatalf("Refresh token returned inspite of revoking it.")
 	}
 }
