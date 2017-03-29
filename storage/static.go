@@ -139,7 +139,7 @@ func (s staticPasswordsStorage) CreatePassword(p Password) error {
 
 func (s staticPasswordsStorage) DeletePassword(email string) error {
 	if s.isStatic(email) {
-		return errors.New("static passwords: read-only cannot create password")
+		return errors.New("static passwords: read-only cannot delete password")
 	}
 	return s.Storage.DeletePassword(email)
 }
