@@ -81,8 +81,9 @@ type Config struct {
 	//
 	// https://www.oasis-open.org/committees/download.php/35391/sstc-saml-metadata-errata-2.0-wd-04-diff.pdf
 
-	Issuer string `json:"issuer"`
-	SSOURL string `json:"ssoURL"`
+	EntityIssuer string `json:"entityIssuer"`
+	SSOIssuer    string `json:"ssoIssuer"`
+	SSOURL       string `json:"ssoURL"`
 
 	// X509 CA file or raw data to verify XML signatures.
 	CA     string `json:"ca"`
@@ -154,7 +155,8 @@ func (c *Config) openConnector(logger logrus.FieldLogger) (*provider, error) {
 	}
 
 	p := &provider{
-		issuer:       c.Issuer,
+		entityIssuer: c.EntityIssuer,
+		ssoIssuer:    c.SSOIssuer,
 		ssoURL:       c.SSOURL,
 		now:          time.Now,
 		usernameAttr: c.UsernameAttr,
@@ -217,8 +219,9 @@ func (c *Config) openConnector(logger logrus.FieldLogger) (*provider, error) {
 }
 
 type provider struct {
-	issuer string
-	ssoURL string
+	entityIssuer string
+	ssoIssuer    string
+	ssoURL       string
 
 	now func() time.Time
 
@@ -251,10 +254,10 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 		},
 		AssertionConsumerServiceURL: p.redirectURI,
 	}
-	if p.issuer != "" {
+	if p.entityIssuer != "" {
 		// Issuer for the request is optional. For example, okta always ignores
 		// this value.
-		r.Issuer = &issuer{Issuer: p.issuer}
+		r.Issuer = &issuer{Issuer: p.entityIssuer}
 	}
 
 	data, err := xml.MarshalIndent(r, "", "  ")
@@ -287,8 +290,8 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	}
 
 	if rootElementSigned {
-		if p.issuer != "" && resp.Issuer != nil && resp.Issuer.Issuer != p.issuer {
-			return ident, fmt.Errorf("expected Issuer value %s, got %s", p.issuer, resp.Issuer.Issuer)
+		if p.ssoIssuer != "" && resp.Issuer != nil && resp.Issuer.Issuer != p.ssoIssuer {
+			return ident, fmt.Errorf("expected Issuer value %s, got %s", p.entityIssuer, resp.Issuer.Issuer)
 		}
 
 		// Verify InResponseTo value matches the expected ID associated with
