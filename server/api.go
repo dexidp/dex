@@ -64,7 +64,8 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 	}
 
 	return &api.CreateClientResp{
-		Client: req.Client,
+		AlreadyExists: false,
+		Client:        req.Client,
 	}, nil
 }
 
@@ -77,7 +78,7 @@ func (d dexAPI) DeleteClient(ctx context.Context, req *api.DeleteClientReq) (*ap
 		d.logger.Errorf("api: failed to delete client: %v", err)
 		return nil, fmt.Errorf("delete client: %v", err)
 	}
-	return &api.DeleteClientResp{}, nil
+	return &api.DeleteClientResp{NotFound: false}, nil
 }
 
 // checkCost returns an error if the hash provided does not meet minimum cost requirement
@@ -121,7 +122,7 @@ func (d dexAPI) CreatePassword(ctx context.Context, req *api.CreatePasswordReq) 
 		return nil, fmt.Errorf("create password: %v", err)
 	}
 
-	return &api.CreatePasswordResp{}, nil
+	return &api.CreatePasswordResp{AlreadyExists: false}, nil
 }
 
 func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) (*api.UpdatePasswordResp, error) {
@@ -158,7 +159,7 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 		return nil, fmt.Errorf("update password: %v", err)
 	}
 
-	return &api.UpdatePasswordResp{}, nil
+	return &api.UpdatePasswordResp{NotFound: false}, nil
 }
 
 func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) (*api.DeletePasswordResp, error) {
@@ -174,7 +175,7 @@ func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) 
 		d.logger.Errorf("api: failed to delete password: %v", err)
 		return nil, fmt.Errorf("delete password: %v", err)
 	}
-	return &api.DeletePasswordResp{}, nil
+	return &api.DeletePasswordResp{NotFound: false}, nil
 
 }
 
@@ -270,5 +271,5 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 		return nil, err
 	}
 
-	return &api.RevokeRefreshResp{}, nil
+	return &api.RevokeRefreshResp{NotFound: false}, nil
 }
