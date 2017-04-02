@@ -65,6 +65,8 @@ type Config struct {
 	Web WebConfig
 
 	Logger logrus.FieldLogger
+
+	UserInfoEndpoint string
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -122,6 +124,8 @@ type Server struct {
 	idTokensValidFor time.Duration
 
 	logger logrus.FieldLogger
+
+	userInfoEndpoint url.URL
 }
 
 // NewServer constructs a server from the provided config.
@@ -136,6 +140,10 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	issuerURL, err := url.Parse(c.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("server: can't parse issuer URL")
+	}
+	userInfoEndpoint, err := url.Parse(c.UserInfoEndpoint)
+	if err != nil {
+		return nil, fmt.Errorf("server: can't parse UserInfoEndpoint URL")
 	}
 	if c.EnablePasswordDB {
 		c.Connectors = append(c.Connectors, Connector{
@@ -193,6 +201,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		now:                    now,
 		templates:              tmpls,
 		logger:                 c.Logger,
+		userInfoEndpoint:       *userInfoEndpoint,
 	}
 
 	for _, conn := range c.Connectors {

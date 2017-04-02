@@ -200,6 +200,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		EnablePasswordDB:       c.EnablePasswordDB,
 		Logger:                 logger,
 		Now:                    now,
+		UserInfoEndpoint:       c.UserInfoEndpoint,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
