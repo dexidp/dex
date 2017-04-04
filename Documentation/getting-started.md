@@ -2,11 +2,11 @@
 
 ## Building the dex binary
 
-Dex requires a Go installation and a GOPATH configured. For setting up a Go workspace, refer to the [official documentation][go-setup]. Clone it down the correct place, and simply type `make` to compile the dex binary.
+Building dex only requires a recent version of Go. Official install instructions for Go can be found on the [offical Go site][go-setup].
 
 ```
-$ go get github.com/coreos/dex
-$ cd $GOPATH/src/github.com/coreos/dex
+$ git clone https://github.com/coreos/dex.git
+$ cd dex
 $ make
 ```
 
