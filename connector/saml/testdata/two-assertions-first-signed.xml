@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<saml2p:Response xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:xs="http://www.w3.org/2001/XMLSchema" Destination="http://127.0.0.1:5556/dex/callback" ID="id19906521125278359305566047" InResponseTo="6zmm5mguyebwvajyf2sdwwcw6m" IssueInstant="2017-04-04T04:34:59.330Z" Version="2.0">
+  <saml2:Issuer xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">http://www.okta.com/exk91cb99lKkKSYoy0h7</saml2:Issuer>
+  <saml2p:Status xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol">
+    <saml2p:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+  </saml2p:Status>
+  <!--
+      First assertion is signed but in the wrong place (wrapped by "AttackersElement").
+      Previously triggered an edge case where the signature validation would find this
+      assertion and validate the signature, but latter XML parsing would grab second
+      one provided by the attacker.
+  -->
+  <AttackersElement>
+  <saml2:Assertion xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xs="http://www.w3.org/2001/XMLSchema" ID="id199065211253338521862321146" IssueInstant="2017-04-04T04:34:59.330Z" Version="2.0">
+    <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
+      <SignedInfo> 
+        <CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/> 
+        <SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/>
+        <Reference URI="#id199065211253338521862321146">
+          <Transforms> 
+            <Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/> 
+            <Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/> 
+          </Transforms> 
+          <DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/> 
+          <DigestValue>kDdpmKMPp7zjUeMTuntXJFpT6cs=</DigestValue> 
+        </Reference> 
+        </SignedInfo> 
+      <SignatureValue>Q12w9zPo9Bqn3W2OT7lbFbhfIDQrp7SXd/+9ZWpY4mv3ApgaOcNX2VtpSE0EjorU
+1NyrktVOkCYueJm/HVQF7gyF85KRlPBDLBZOwxbnnmrRFoCk+U2kjIt8k8eZ7NsD
+jLFGFgEveS359uvaHZR1Exbr0PBYwS7aXR3fpmjMjZ9T8f8Oe3Nt/9nWPgz/dFhb
+Aa+AniWuupfq2v6YMLZ+9GLiO0sOr8UVkW8AYOm2Bin30epikXT1Axi/VxWz/fjP
+nMUkgusFnhkgmIf/YncAv4S9GY6DcaV2iEj6cL70S7pcgaeRFi3iozigl+9a+lFo
+dt3Jy8Jq/N3OAyDP2DxLEw==</SignatureValue> 
+      <KeyInfo> 
+        <X509Data>
+<X509Certificate>MIIDGTCCAgGgAwIBAgIJAKLbLcQajEf8MA0GCSqGSIb3DQEBCwUAMCMxDDAKBgNV
+BAoMA0RFWDETMBEGA1UEAwwKY29yZW9zLmNvbTAeFw0xNzA0MDQwNzAwNTNaFw0z
+NzAzMzAwNzAwNTNaMCMxDDAKBgNVBAoMA0RFWDETMBEGA1UEAwwKY29yZW9zLmNv
+bTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKH3dKWbRqCIZD2m3aHI
+4lfBT+u/4DECde74Ggq9WugdTucVQzDZUTaI7wzn17JM9hdPmXvaSRG9BaB1H3uO
+ZCs/fmdhBERRhPvuEVfAZaFfQfR7vn7WvUzT7zwMLLB8+EHzL3fOSGM2QnCOMeUD
+AB27Pb0fuBW43NXaTD9rwfFCHvo1UP+TBJIPnV65HMeMGIrtGLt7MZTPuPm3LnYA
+faXLf2vWSzL5nAgnJvUgceZXmyuciBfXpt8c1jIsj4y3tBoRTRqaxuaW1Eo7WMKF
+a7s6KvTBKErPKuzAoIcVB4ir6jm1ticAgB72SScKtPJJdEPemTXRNNzkiw7VbpY9
+QacCAwEAAaNQME4wHQYDVR0OBBYEFNHyGYyY2+eZ1l7ZLPZsnc3GOtj/MB8GA1Ud
+IwQYMBaAFNHyGYyY2+eZ1l7ZLPZsnc3GOtj/MAwGA1UdEwQFMAMBAf8wDQYJKoZI
+hvcNAQELBQADggEBAHVXB5QmZfki9QpKzoiBNfpQ/mo6XWhExLGBTJXEWJT3P7JP
+oR4Z0+85bp0fUK338s+WjyqTn0U55Jtp0B65Qxy6ythkZat/6NPp/S7gto2De6pS
+hSGygokQioVQnoYQeK0MXl2QbtrWwNiM4HC+9yohbUfjwv8yI7opwn/rjB6X/4De
+oX2YzwTBJgoIXF7zMKYFF0DrKQjbTQr/a7kfNjq4930o7VhFph9Qpdv0EWM3svTd
+esSffLKbWcabtyMtCr5QyEwZiozd567oWFWZYeHQyEtd+w6tAFmz9ZslipdQEa/j
+1xUtrScuXt19sUfOgjUvA+VUNeMLDdpHUKHNW/Q=</X509Certificate>
+</X509Data> 
+      </KeyInfo> 
+    </Signature>
+    <saml2:Issuer xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">http://www.okta.com/exk91cb99lKkKSYoy0h7</saml2:Issuer>
+    <saml2:Subject xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">
+      <saml2:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent">eric.chiang+okta@coreos.com</saml2:NameID>
+      <saml2:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+        <saml2:SubjectConfirmationData InResponseTo="6zmm5mguyebwvajyf2sdwwcw6m" NotOnOrAfter="2017-04-04T04:39:59.330Z" Recipient="http://127.0.0.1:5556/dex/callback"/>
+      </saml2:SubjectConfirmation>
+    </saml2:Subject>
+    <saml2:Conditions xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" NotBefore="2017-04-04T04:29:59.330Z" NotOnOrAfter="2017-04-04T04:39:59.330Z">
+      <saml2:AudienceRestriction>
+        <saml2:Audience>http://127.0.0.1:5556/dex/callback</saml2:Audience>
+      </saml2:AudienceRestriction>
+    </saml2:Conditions>
+    <saml2:AuthnStatement xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" AuthnInstant="2017-04-04T04:34:59.330Z" SessionIndex="6zmm5mguyebwvajyf2sdwwcw6m">
+      <saml2:AuthnContext>
+        <saml2:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml2:AuthnContextClassRef>
+      </saml2:AuthnContext>
+    </saml2:AuthnStatement>
+    <saml2:AttributeStatement xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">
+      <saml2:Attribute Name="email" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
+        <saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">eric.chiang+okta@coreos.com</saml2:AttributeValue>
+      </saml2:Attribute>
+      <saml2:Attribute Name="Name" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
+        <saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Eric</saml2:AttributeValue>
+      </saml2:Attribute>
+      <saml2:Attribute Name="groups" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
+        <saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Everyone</saml2:AttributeValue>
+        <saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Admins</saml2:AttributeValue>
+      </saml2:Attribute>
+    </saml2:AttributeStatement>
+  </saml2:Assertion>
+  </AttackersElement>
+  <saml2:Assertion xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xs="http://www.w3.org/2001/XMLSchema" ID="foobar" IssueInstant="2017-04-04T04:34:59.330Z" Version="2.0">
+    <saml2:Issuer xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">http://www.okta.com/exk91cb99lKkKSYoy0h7</saml2:Issuer>
+    <saml2:Subject xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">
+      <saml2:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent">eric.chiang+okta@coreos.com</saml2:NameID>
+      <saml2:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+        <saml2:SubjectConfirmationData InResponseTo="6zmm5mguyebwvajyf2sdwwcw6m" NotOnOrAfter="2017-04-04T04:39:59.330Z" Recipient="http://127.0.0.1:5556/dex/callback"/>
+      </saml2:SubjectConfirmation>
+    </saml2:Subject>
+    <saml2:Conditions xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" NotBefore="2017-04-04T04:29:59.330Z" NotOnOrAfter="2017-04-04T04:39:59.330Z">
+      <saml2:AudienceRestriction>
+        <saml2:Audience>http://127.0.0.1:5556/dex/callback</saml2:Audience>
+      </saml2:AudienceRestriction>
+    </saml2:Conditions>
+    <saml2:AuthnStatement xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" AuthnInstant="2017-04-04T04:34:59.330Z" SessionIndex="6zmm5mguyebwvajyf2sdwwcw6m">
+      <saml2:AuthnContext>
+        <saml2:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml2:AuthnContextClassRef>
+      </saml2:AuthnContext>
+    </saml2:AuthnStatement>
+    <saml2:AttributeStatement xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">
+      <saml2:Attribute Name="email" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
+        <saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">eric.chiang+okta@coreos.com</saml2:AttributeValue>
+      </saml2:Attribute>
+      <saml2:Attribute Name="Name" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
+        <saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">
+
+          I AM AN ATTACKER TRYING TO GET YOU TO USE THIS ASSERTION!!!
+
+        </saml2:AttributeValue>
+      </saml2:Attribute>
+      <saml2:Attribute Name="groups" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
+        <saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Everyone</saml2:AttributeValue>
+        <saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Admins</saml2:AttributeValue>
+      </saml2:Attribute>
+    </saml2:AttributeStatement>
+  </saml2:Assertion>
+</saml2p:Response>

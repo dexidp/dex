@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<saml2p:Response xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:xs="http://www.w3.org/2001/XMLSchema" Destination="http://127.0.0.1:5556/dex/callback" ID="id19906521125278359305566047" InResponseTo="6zmm5mguyebwvajyf2sdwwcw6m" IssueInstant="2017-04-04T04:34:59.330Z" Version="2.0">
+  <saml2:Issuer xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">http://www.okta.com/exk91cb99lKkKSYoy0h7</saml2:Issuer>
+  <saml2p:Status xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol">
+    <saml2p:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+  </saml2p:Status>
+  <saml2:Assertion xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xs="http://www.w3.org/2001/XMLSchema" ID="id199065211253338521862321146" IssueInstant="2017-04-04T04:34:59.330Z" Version="2.0">
+    <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
+      <SignedInfo> 
+        <CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/> 
+        <SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/>
+        <Reference URI="#id199065211253338521862321146">
+          <Transforms> 
+            <Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/> 
+            <Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/> 
+          </Transforms> 
+          <DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/> 
+          <DigestValue/> 
+        </Reference> 
+        </SignedInfo> 
+      <SignatureValue/> 
+      <KeyInfo> 
+        <X509Data/> 
+      </KeyInfo> 
+    </Signature>
+    <saml2:Issuer xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">http://www.okta.com/exk91cb99lKkKSYoy0h7</saml2:Issuer>
+    <saml2:Subject xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">
+      <saml2:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent">eric.chiang+okta@coreos.com</saml2:NameID>
+      <saml2:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+        <saml2:SubjectConfirmationData InResponseTo="6zmm5mguyebwvajyf2sdwwcw6m" NotOnOrAfter="2017-04-04T04:39:59.330Z" Recipient="http://127.0.0.1:5556/dex/callback"/>
+      </saml2:SubjectConfirmation>
+    </saml2:Subject>
+    <saml2:Conditions xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" NotBefore="2017-04-04T04:29:59.330Z" NotOnOrAfter="2017-04-04T04:39:59.330Z">
+      <saml2:AudienceRestriction>
+        <saml2:Audience>http://127.0.0.1:5556/dex/callback</saml2:Audience>
+      </saml2:AudienceRestriction>
+    </saml2:Conditions>
+    <saml2:AuthnStatement xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" AuthnInstant="2017-04-04T04:34:59.330Z" SessionIndex="6zmm5mguyebwvajyf2sdwwcw6m">
+      <saml2:AuthnContext>
+        <saml2:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml2:AuthnContextClassRef>
+      </saml2:AuthnContext>
+    </saml2:AuthnStatement>
+    <saml2:AttributeStatement xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">
+      <saml2:Attribute Name="email" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
+        <saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">eric.chiang+okta@coreos.com</saml2:AttributeValue>
+      </saml2:Attribute>
+      <saml2:Attribute Name="Name" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
+        <saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Eric</saml2:AttributeValue>
+      </saml2:Attribute>
+      <saml2:Attribute Name="groups" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
+        <saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Everyone</saml2:AttributeValue>
+        <saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Admins</saml2:AttributeValue>
+      </saml2:Attribute>
+    </saml2:AttributeStatement>
+  </saml2:Assertion>
+</saml2p:Response>

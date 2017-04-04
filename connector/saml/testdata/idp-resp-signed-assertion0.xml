@@ -1,0 +1,57 @@
+<Response xmlns="urn:oasis:names:tc:SAML:2.0:protocol" Destination="http://localhost:5556/dex/callback" ID="id108965453120986171998428970" InResponseTo="_fd1b3ef9-ec09-44a7-a66b-0d39c250f6a0" IssueInstant="2016-12-20T22:18:23.771Z" Version="2.0">
+  <Issuer xmlns="urn:oasis:names:tc:SAML:2.0:assertion" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">http://www.okta.com/exk91cb99lKkKSYoy0h7</Issuer>
+  <Status>
+    <StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+  </Status>
+  <Assertion xmlns="urn:oasis:names:tc:SAML:2.0:assertion" ID="pfxe4534a5f-0f40-2f3a-599d-4dfd123f7d0a" IssueInstant="2016-12-20T22:18:23.771Z" Version="2.0">
+    <Issuer Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">http://www.okta.com/exk91cb99lKkKSYoy0h7</Issuer><ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+  <ds:SignedInfo><ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+    <ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/>
+  <ds:Reference URI="#pfxe4534a5f-0f40-2f3a-599d-4dfd123f7d0a"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><ds:DigestValue>HFNooGfpAONF7T96W3bFsXkH51k=</ds:DigestValue></ds:Reference></ds:SignedInfo><ds:SignatureValue>dI0QBihhNT5rtRYE9iB0lEKXkE7Yr4+QueOItRH2RcKwAXJ6DA/m3D/S7qwXk00Hn8ZpHu48ZO+HJpyweEEh2UuUWJCCTwwggagKybbSoRx3UTnSuNAFTdoDWTGt89z8j4+gRMC0sepYwppF3u87vJKRVBh8HjFfrHmWsZKwNtfoeXOOFCeatwxcI1sKCoBs2fTn78683ThoAJe3pygipSHY5WPt4dfT/yAY5Ars+OPY/N02M80OfIygZXdJwND0tVPJIF3M9DaehSkvCBHs7QA7DARsRXcuXdsYY7R8wHzqDVJZ4OvcsprONamm5AgUIpql1CjT94rFwWOFyxF2tg==</ds:SignatureValue>
+<ds:KeyInfo><ds:X509Data><ds:X509Certificate>MIIEUTCCAzmgAwIBAgIJAJdmunb39nFKMA0GCSqGSIb3DQEBCwUAMHgxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9ybmlhMQwwCgYDVQQKEwNJRFAxFDASBgNVBAsTC1NTT1Byb3ZpZGVyMRMwEQYDVQQDEwpkZXYtOTY5MjQ0MRswGQYJKoZIhvcNAQkBFgxpbmZvQGlkcC5vcmcwHhcNMTcwMTI0MTczMTI3WhcNMjcwMTIyMTczMTI3WjB4MQswCQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEMMAoGA1UEChMDSURQMRQwEgYDVQQLEwtTU09Qcm92aWRlcjETMBEGA1UEAxMKZGV2LTk2OTI0NDEbMBkGCSqGSIb3DQEJARYMaW5mb0BpZHAub3JnMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0X/AE1tmDmhGRROAWaJ82XSORivRfgNt9Fb4rLrf6nIJsQN3vNb1Nk4DSUEDdQuvHNaEemSVkSPgfq5qnhh37bJaghr0728J8dOyYzV5eArPvsbyCRcnhXQzpCK2zvHwjgxNJMsNJLbnYpG/U+dCdCtcOOn9JEhKO8wKn06y2tcrvC1uuVs7bodukPUNq82KJTyvCQP8jh1hEZXeR2siJFDeJj1n2FNTMeCKIqOb42J/i+sBTlyK3mV5Ni++hI/ssIYVbPwrMIBd6sKLVAgInshBHOj/7XcXW/rMf468YtBKs4XnXsE3hLoU02aWCRDlVHa4hm3jfIAqEADOUumklQIDAQABo4HdMIHaMB0GA1UdDgQWBBRjN/dQSvhZxIsHTXmDKQJkPrjp0TCBqgYDVR0jBIGiMIGfgBRjN/dQSvhZxIsHTXmDKQJkPrjp0aF8pHoweDELMAkGA1UEBhMCVVMxEzARBgNVBAgTCkNhbGlmb3JuaWExDDAKBgNVBAoTA0lEUDEUMBIGA1UECxMLU1NPUHJvdmlkZXIxEzARBgNVBAMTCmRldi05NjkyNDQxGzAZBgkqhkiG9w0BCQEWDGluZm9AaWRwLm9yZ4IJAJdmunb39nFKMAwGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEBAIqHUglIUAA+BKMW6B0Q+cqIgDr9fWlsvDwIVK7/cvUeGIH3icSsje9AVZ4nQOJpxmC/E06HfuDXmbT1wG16jNo01mPW9qaOGRJuQqlZdegCSF385o/OHcbaEKBRwyYuvLfu80EREj8wcMUKFpExoaxK7K8DS7hh3w7exLB80jyhIaDEYc1hdyAl+206XpOXSYBetsg7I622R2+ajSL7ygUxQjmKQ5DyInPdXzCFCL6Ew/BN0dwzfnBEEK223ruOWBLpj13zMC077dor/NgYyHZU6iqiDS2eYO5jhVMve/mP9734+6N34seQRmekfmsf2dJcEQhPVYr/j0DeJc3men4=</ds:X509Certificate></ds:X509Data></ds:KeyInfo></ds:Signature>
+    <Subject>
+      <NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified">eric.chiang+okta@coreos.com</NameID>
+      <SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+        <SubjectConfirmationData InResponseTo="_fd1b3ef9-ec09-44a7-a66b-0d39c250f6a0" NotOnOrAfter="2116-12-20T22:23:23.772Z" Recipient="http://localhost:5556/dex/callback"/>
+      </SubjectConfirmation>
+    </Subject>
+    <Conditions NotBefore="2016-12-20T22:13:23.772Z" NotOnOrAfter="2116-12-20T22:23:23.772Z">
+      <AudienceRestriction>
+        <Audience>http://localhost:5556/dex/callback</Audience>
+      </AudienceRestriction>
+    </Conditions>
+    <AuthnStatement AuthnInstant="2016-12-20T22:18:23.771Z" SessionIndex="_fd1b3ef9-ec09-44a7-a66b-0d39c250f6a0">
+      <AuthnContext>
+        <AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</AuthnContextClassRef>
+      </AuthnContext>
+    </AuthnStatement>
+  </Assertion>
+  <!-- Attacker, unsigned assertion below -->
+  <Assertion xmlns="urn:oasis:names:tc:SAML:2.0:assertion" ID="id10896545312129779529177535" IssueInstant="2016-12-20T22:18:23.771Z" Version="2.0">
+    <Issuer Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">http://www.okta.com/exk91cb99lKkKSYoy0h7</Issuer>
+    <Subject>
+      <NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified">eric.chiang+attacker@coreos.com</NameID>
+      <SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+        <SubjectConfirmationData InResponseTo="_fd1b3ef9-ec09-44a7-a66b-0d39c250f6a0" NotOnOrAfter="2116-12-20T22:23:23.772Z" Recipient="http://localhost:5556/dex/callback"/>
+      </SubjectConfirmation>
+    </Subject>
+    <Conditions NotBefore="2016-12-20T22:13:23.772Z" NotOnOrAfter="2116-12-20T22:23:23.772Z">
+      <AudienceRestriction>
+        <Audience>http://localhost:5556/dex/callback</Audience>
+      </AudienceRestriction>
+    </Conditions>
+    <AuthnStatement AuthnInstant="2016-12-20T22:18:23.771Z" SessionIndex="_fd1b3ef9-ec09-44a7-a66b-0d39c250f6a0">
+      <AuthnContext>
+        <AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</AuthnContextClassRef>
+      </AuthnContext>
+    </AuthnStatement>
+    <AttributeStatement>
+      <Attribute Name="user" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
+        <AttributeValue xsi:type="xs:string">attacker</AttributeValue>
+      </Attribute>
+      <Attribute Name="email" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
+        <AttributeValue xsi:type="xs:string">eric.chiang+attacker@coreos.com</AttributeValue>
+      </Attribute>
+    </AttributeStatement>
+  </Assertion>
+</Response>
