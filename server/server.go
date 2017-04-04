@@ -355,7 +355,7 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 				if r, err := s.storage.GarbageCollect(now()); err != nil {
 					s.logger.Errorf("garbage collection failed: %v", err)
 				} else if r.AuthRequests > 0 || r.AuthCodes > 0 {
-					s.logger.Errorf("garbage collection run, delete auth requests=%d, auth codes=%d", r.AuthRequests, r.AuthCodes)
+					s.logger.Infof("garbage collection run, delete auth requests=%d, auth codes=%d", r.AuthRequests, r.AuthCodes)
 				}
 			}
 		}
