@@ -30,17 +30,23 @@ connectors:
     # CA to use when validating the SAML response.
     ca: /path/to/ca.pem
 
-    # CA's can also be provided inline as a base64'd blob. 
+    # CA's can also be provided inline as a base64'd blob.
     #
     # caData: ( RAW base64'd PEM encoded CA )
 
     # To skip signature validation, uncomment the following field. This should
     # only be used during testing and may be removed in the future.
-    # 
-    # insucreSkipSignatureValidation: true
+    #
+    # insecureSkipSignatureValidation: true
+
+    # Optional: Issuer value for AuthnRequest
+    entityIssuer: https://dex.example.com/callback
+
+    # Optional: Issuer value for SAML Response
+    ssoIssuer: https://saml.example.com/sso
 
     # Dex's callback URL. Must match the "Destination" attribute of all responses
-    # exactly.  
+    # exactly.
     redirectURI: https://dex.example.com/callback
 
     # Name of attributes in the returned assertions to map to ID token claims.

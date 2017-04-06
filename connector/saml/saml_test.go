@@ -278,14 +278,14 @@ func (r responseTest) run(t *testing.T) {
 }
 
 const (
-	defaultIssuer      = "http://www.okta.com/exk91cb99lKkKSYoy0h7"
+	defaultSSOIssuer   = "http://www.okta.com/exk91cb99lKkKSYoy0h7"
 	defaultRedirectURI = "http://localhost:5556/dex/callback"
 
 	// Response ID embedded in our testdata.
 	testDataResponseID = "_fd1b3ef9-ec09-44a7-a66b-0d39c250f6a0"
 )
 
-// Depricated: Use testing framework established above.
+// Deprecated: Use testing framework established above.
 func runVerify(t *testing.T, ca string, resp string, shouldSucceed bool) {
 	cert, err := loadCert(ca)
 	if err != nil {
@@ -311,10 +311,10 @@ func runVerify(t *testing.T, ca string, resp string, shouldSucceed bool) {
 	}
 }
 
-// Depricated: Use testing framework established above.
-func newProvider(issuer string, redirectURI string) *provider {
-	if issuer == "" {
-		issuer = defaultIssuer
+// Deprecated: Use testing framework established above.
+func newProvider(ssoIssuer string, redirectURI string) *provider {
+	if ssoIssuer == "" {
+		ssoIssuer = defaultSSOIssuer
 	}
 	if redirectURI == "" {
 		redirectURI = defaultRedirectURI
@@ -322,7 +322,7 @@ func newProvider(issuer string, redirectURI string) *provider {
 	now, _ := time.Parse(time.RFC3339, "2017-01-24T20:48:41Z")
 	timeFunc := func() time.Time { return now }
 	return &provider{
-		issuer:       issuer,
+		ssoIssuer:    ssoIssuer,
 		ssoURL:       "http://idp.org/saml/sso",
 		now:          timeFunc,
 		usernameAttr: "user",
