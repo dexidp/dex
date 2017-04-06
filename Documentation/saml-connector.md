@@ -40,6 +40,8 @@ connectors:
     # insecureSkipSignatureValidation: true
 
     # Optional: Issuer value for AuthnRequest
+    # Must be contained within the "AudienceRestriction" attribute in all responses
+    # If not set, redirectURI will be used for audience validation
     entityIssuer: https://dex.example.com/callback
 
     # Optional: Issuer value for SAML Response

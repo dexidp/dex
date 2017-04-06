@@ -466,6 +466,10 @@ func (p *provider) validateConditions(assertion *assertion) error {
 		}
 	}
 	// Validates audience
+	audienceValue := p.entityIssuer
+	if audienceValue == "" {
+		audienceValue = p.redirectURI
+	}
 	audienceRestriction := conditions.AudienceRestriction
 	if audienceRestriction != nil {
 		audiences := audienceRestriction.Audiences
@@ -473,14 +477,14 @@ func (p *provider) validateConditions(assertion *assertion) error {
 			values := make([]string, len(audiences))
 			issuerInAudiences := false
 			for i, audience := range audiences {
-				if audience.Value == p.redirectURI {
+				if audience.Value == audienceValue {
 					issuerInAudiences = true
 					break
 				}
 				values[i] = audience.Value
 			}
 			if !issuerInAudiences {
-				return fmt.Errorf("required audience %s was not in Response audiences %s", p.redirectURI, values)
+				return fmt.Errorf("required audience %s was not in Response audiences %s", audienceValue, values)
 			}
 		}
 	}
