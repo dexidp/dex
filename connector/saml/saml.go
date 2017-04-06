@@ -291,7 +291,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 
 	if rootElementSigned {
 		if p.ssoIssuer != "" && resp.Issuer != nil && resp.Issuer.Issuer != p.ssoIssuer {
-			return ident, fmt.Errorf("expected Issuer value %s, got %s", p.entityIssuer, resp.Issuer.Issuer)
+			return ident, fmt.Errorf("expected Issuer value %s, got %s", p.ssoIssuer, resp.Issuer.Issuer)
 		}
 
 		// Verify InResponseTo value matches the expected ID associated with
