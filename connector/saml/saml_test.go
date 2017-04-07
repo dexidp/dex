@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io/ioutil"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -47,6 +46,7 @@ type responseTest struct {
 	now          string
 	inResponseTo string
 	redirectURI  string
+	entityIssuer string
 
 	// Attribute customization.
 	usernameAttr string
@@ -196,6 +196,51 @@ func TestAssertionSignedNotResponse(t *testing.T) {
 	test.run(t)
 }
 
+func TestInvalidSubjectInResponseTo(t *testing.T) {
+	test := responseTest{
+		caFile:       "testdata/ca.crt",
+		respFile:     "testdata/assertion-signed.xml",
+		now:          "2017-04-04T04:34:59.330Z",
+		usernameAttr: "Name",
+		emailAttr:    "email",
+		inResponseTo: "invalid-id", // Bad InResponseTo value.
+		redirectURI:  "http://127.0.0.1:5556/dex/callback",
+		wantErr:      true,
+	}
+	test.run(t)
+}
+
+func TestInvalidSubjectRecipient(t *testing.T) {
+	test := responseTest{
+		caFile:       "testdata/ca.crt",
+		respFile:     "testdata/assertion-signed.xml",
+		now:          "2017-04-04T04:34:59.330Z",
+		usernameAttr: "Name",
+		emailAttr:    "email",
+		inResponseTo: "6zmm5mguyebwvajyf2sdwwcw6m",
+		redirectURI:  "http://bad.com/dex/callback", // Doesn't match Recipient value.
+		wantErr:      true,
+	}
+	test.run(t)
+}
+
+func TestInvalidAssertionAudience(t *testing.T) {
+	test := responseTest{
+		caFile:       "testdata/ca.crt",
+		respFile:     "testdata/assertion-signed.xml",
+		now:          "2017-04-04T04:34:59.330Z",
+		usernameAttr: "Name",
+		emailAttr:    "email",
+		inResponseTo: "6zmm5mguyebwvajyf2sdwwcw6m",
+		redirectURI:  "http://127.0.0.1:5556/dex/callback",
+		// EntityIssuer overrides RedirectURI when determining the expected
+		// audience. In this case, ensure the audience is invalid.
+		entityIssuer: "http://localhost:5556/dex/callback",
+		wantErr:      true,
+	}
+	test.run(t)
+}
+
 // TestTwoAssertionFirstSigned tries to catch an edge case where an attacker
 // provides a second assertion that's not signed.
 func TestTwoAssertionFirstSigned(t *testing.T) {
@@ -236,6 +281,7 @@ func (r responseTest) run(t *testing.T) {
 		EmailAttr:    r.emailAttr,
 		GroupsAttr:   r.groupsAttr,
 		RedirectURI:  r.redirectURI,
+		EntityIssuer: r.entityIssuer,
 		// Never logging in, don't need this.
 		SSOURL: "http://foo.bar/",
 	}
@@ -354,153 +400,4 @@ func TestVerifySignedMessageAndSignedAssertion(t *testing.T) {
 
 func TestVerifyUnsignedMessageAndUnsignedAssertion(t *testing.T) {
 	runVerify(t, "testdata/idp-cert.pem", "testdata/idp-resp.xml", false)
-}
-
-func TestValidateStatus(t *testing.T) {
-	p := newProvider("", "")
-	var err error
-	resp := response{}
-	// Test missing Status element
-	err = p.validateStatus(&resp)
-	if err == nil || !strings.HasSuffix(err.Error(), `Status`) {
-		t.Fatalf("validation should fail with missing Status")
-	}
-	// Test missing StatusCode element
-	resp.Status = &status{}
-	err = p.validateStatus(&resp)
-	if err == nil || !strings.HasSuffix(err.Error(), `StatusCode`) {
-		t.Fatalf("validation should fail with missing StatusCode")
-	}
-	// Test failed request without StatusMessage
-	resp.Status.StatusCode = &statusCode{
-		Value: ":Requester",
-	}
-	err = p.validateStatus(&resp)
-	if err == nil || !strings.HasSuffix(err.Error(), `"Requester"`) {
-		t.Fatalf("validation should fail with code %q", "Requester")
-	}
-	// Test failed request with StatusMessage
-	resp.Status.StatusMessage = &statusMessage{
-		Value: "Failed",
-	}
-	err = p.validateStatus(&resp)
-	if err == nil || !strings.HasSuffix(err.Error(), `"Requester" -> Failed`) {
-		t.Fatalf("validation should fail with code %q and message %q", "Requester", "Failed")
-	}
-}
-
-func TestValidateSubjectConfirmation(t *testing.T) {
-	p := newProvider("", "")
-	var err error
-	var notAfter time.Time
-	subj := &subject{}
-	// Subject without any SubjectConfirmation
-	err = p.validateSubjectConfirmation(subj)
-	if err == nil {
-		t.Fatalf("validation of %q should fail", "Subject without any SubjectConfirmation")
-	}
-	// SubjectConfirmation without Method and SubjectConfirmationData
-	subj.SubjectConfirmations = []subjectConfirmation{subjectConfirmation{}}
-	err = p.validateSubjectConfirmation(subj)
-	if err == nil {
-		t.Fatalf("validation of %q should fail", "SubjectConfirmation without Method and SubjectConfirmationData")
-	}
-	// SubjectConfirmation with invalid Method and no SubjectConfirmationData
-	subj.SubjectConfirmations = []subjectConfirmation{subjectConfirmation{
-		Method: "invalid",
-	}}
-	err = p.validateSubjectConfirmation(subj)
-	if err == nil {
-		t.Fatalf("validation of %q should fail", "SubjectConfirmation with invalid Method and no SubjectConfirmationData")
-	}
-	// SubjectConfirmation with valid Method and empty SubjectConfirmationData
-	subjConfirmationData := subjectConfirmationData{}
-	subj.SubjectConfirmations = []subjectConfirmation{subjectConfirmation{
-		Method:                  "urn:oasis:names:tc:SAML:2.0:cm:bearer",
-		SubjectConfirmationData: &subjConfirmationData,
-	}}
-	err = p.validateSubjectConfirmation(subj)
-	if err != nil {
-		t.Fatalf("validation of %q should succeed", "SubjectConfirmation with valid Method and empty SubjectConfirmationData")
-	}
-	// SubjectConfirmationData with invalid Recipient
-	subjConfirmationData.Recipient = "invalid"
-	err = p.validateSubjectConfirmation(subj)
-	if err == nil {
-		t.Fatalf("validation of %q should fail", "SubjectConfirmationData with invalid Recipient")
-	}
-	// expired SubjectConfirmationData
-	notAfter = p.now().Add(-time.Duration(60) * time.Second)
-	subjConfirmationData.NotOnOrAfter = xmlTime(notAfter)
-	subjConfirmationData.Recipient = defaultRedirectURI
-	err = p.validateSubjectConfirmation(subj)
-	if err == nil {
-		t.Fatalf("validation of %q should fail", " expired SubjectConfirmationData")
-	}
-	// valid SubjectConfirmationData
-	notAfter = p.now().Add(+time.Duration(60) * time.Second)
-	subjConfirmationData.NotOnOrAfter = xmlTime(notAfter)
-	subjConfirmationData.Recipient = defaultRedirectURI
-	err = p.validateSubjectConfirmation(subj)
-	if err != nil {
-		t.Fatalf("validation of %q should succed", "valid SubjectConfirmationData")
-	}
-}
-
-func TestValidateConditions(t *testing.T) {
-	p := newProvider("", "")
-	var err error
-	var notAfter, notBefore time.Time
-	cond := conditions{
-		AudienceRestriction: &audienceRestriction{},
-	}
-	assert := &assertion{}
-	// Assertion without Conditions
-	err = p.validateConditions(assert)
-	if err != nil {
-		t.Fatalf("validation of %q should succeed", "Assertion without Conditions")
-	}
-	// Assertion with empty Conditions
-	assert.Conditions = &cond
-	err = p.validateConditions(assert)
-	if err != nil {
-		t.Fatalf("validation of %q should succeed", "Assertion with empty Conditions")
-	}
-	// Conditions with valid timestamps
-	notBefore = p.now().Add(-time.Duration(60) * time.Second)
-	notAfter = p.now().Add(+time.Duration(60) * time.Second)
-	cond.NotBefore = xmlTime(notBefore)
-	cond.NotOnOrAfter = xmlTime(notAfter)
-	err = p.validateConditions(assert)
-	if err != nil {
-		t.Fatalf("validation of %q should succeed", "Conditions with valid timestamps")
-	}
-	// Conditions where notBefore is 45 seconds after now
-	notBefore = p.now().Add(+time.Duration(45) * time.Second)
-	cond.NotBefore = xmlTime(notBefore)
-	err = p.validateConditions(assert)
-	if err == nil {
-		t.Fatalf("validation of %q should fail", "Conditions where notBefore is 45 seconds after now")
-	}
-	// Conditions where notBefore is 15 seconds after now
-	notBefore = p.now().Add(+time.Duration(15) * time.Second)
-	cond.NotBefore = xmlTime(notBefore)
-	err = p.validateConditions(assert)
-	if err != nil {
-		t.Fatalf("validation of %q should succeed", "Conditions where notBefore is 15 seconds after now")
-	}
-	// Audiences contains the redirectURI
-	validAudience := audience{Value: p.redirectURI}
-	cond.AudienceRestriction.Audiences = []audience{validAudience}
-	err = p.validateConditions(assert)
-	if err != nil {
-		t.Fatalf("validation of %q should succeed: %v", "Audiences contains the redirectURI", err)
-	}
-	// Audiences is not empty and not contains the issuer
-	invalidAudience := audience{Value: "invalid"}
-	cond.AudienceRestriction.Audiences = []audience{invalidAudience}
-	err = p.validateConditions(assert)
-	if err == nil {
-		t.Fatalf("validation of %q should succeed", "Audiences is not empty and not contains the issuer")
-	}
 }
