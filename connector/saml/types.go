@@ -86,6 +86,7 @@ type nameID struct {
 type subjectConfirmationData struct {
 	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:assertion SubjectConfirmationData"`
 
+	NotBefore    xmlTime `xml:"NotBefore,attr,omitempty"`
 	NotOnOrAfter xmlTime `xml:"NotOnOrAfter,attr,omitempty"`
 	Recipient    string  `xml:"Recipient,attr,omitempty"`
 	InResponseTo string  `xml:"InResponseTo,attr,omitempty"`
@@ -115,7 +116,7 @@ type conditions struct {
 	NotBefore    xmlTime `xml:"NotBefore,attr,omitempty"`
 	NotOnOrAfter xmlTime `xml:"NotOnOrAfter,attr,omitempty"`
 
-	AudienceRestriction *audienceRestriction `xml:"AudienceRestriction,omitempty"`
+	AudienceRestriction []audienceRestriction `xml:"AudienceRestriction,omitempty"`
 }
 
 type statusCode struct {
