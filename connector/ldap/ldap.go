@@ -154,6 +154,10 @@ func (c *Config) OpenConnector(logger logrus.FieldLogger) (interface {
 	connector.PasswordConnector
 	connector.RefreshConnector
 }, error) {
+	return c.openConnector(logger)
+}
+
+func (c *Config) openConnector(logger logrus.FieldLogger) (*ldapConnector, error) {
 
 	requiredFields := []struct {
 		name string
