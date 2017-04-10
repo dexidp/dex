@@ -1,5 +1,7 @@
 language: go
 
+sudo: required
+
 go:
   - 1.7.5
   - 1.8
@@ -8,11 +10,14 @@ services:
   - postgresql
 
 env:
-  - DEX_POSTGRES_DATABASE=postgres DEX_POSTGRES_USER=postgres DEX_POSTGRES_HOST="localhost"
+  - DEX_POSTGRES_DATABASE=postgres DEX_POSTGRES_USER=postgres DEX_POSTGRES_HOST="localhost" DEX_LDAP_TESTS=1 DEBIAN_FRONTEND=noninteractive
 
 
 install:
   - go get -u github.com/golang/lint/golint
+  - sudo -E apt-get install -y --force-yes slapd time ldap-utils
+  - sudo /etc/init.d/slapd stop
+
 
 script:
   - make testall
