@@ -31,4 +31,37 @@ connectors:
     org: my-oranization
 ```
 
+## GitHub Enterprise
+
+Users can use their GitHub Enterprise account to login to dex. The following configuration can be used to enable a GitHub Enterprise connector on dex:
+
+```yaml
+connectors:
+- type: github
+  # Required field for connector id.
+  id: github
+  # Required field for connector name.
+  name: GitHub
+  config:
+    # Required fields. Dex must be pre-registered with GitHub Enterprise
+    # to get the following values.
+    # Credentials can be string literals or pulled from the environment.
+    clientID: $GITHUB_CLIENT_ID
+    clientSecret: $GITHUB_CLIENT_SECRET
+    redirectURI: http://127.0.0.1:5556/dex/callback
+    # Optional organization to pull teams from, communicate through the
+    # "groups" scope.
+    #
+    # NOTE: This is an EXPERIMENTAL config option and will likely change.
+    org: my-oranization
+
+    # Required ONLY for GitHub Enterprise.
+    # This is the Hostname of the GitHub Enterprise account listed on the
+    # management console. Ensure this domain is routable on your network.
+    hostName: git.example.com
+    # ONLY for GitHub Enterprise. Optional field.
+    # Used to support self-signed or untrusted CA root certificates.
+    rootCA: /etc/dex/ca.crt
+```
+
 [github-oauth2]: https://github.com/settings/applications/new
