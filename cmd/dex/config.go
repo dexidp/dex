@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/connector/github"
 	"github.com/coreos/dex/connector/gitlab"
@@ -179,12 +179,14 @@ type ConnectorConfig interface {
 }
 
 var connectors = map[string]func() ConnectorConfig{
-	"mockCallback":     func() ConnectorConfig { return new(mock.CallbackConfig) },
-	"mockPassword":     func() ConnectorConfig { return new(mock.PasswordConfig) },
-	"ldap":             func() ConnectorConfig { return new(ldap.Config) },
-	"github":           func() ConnectorConfig { return new(github.Config) },
-	"gitlab":           func() ConnectorConfig { return new(gitlab.Config) },
-	"oidc":             func() ConnectorConfig { return new(oidc.Config) },
+	"mockCallback": func() ConnectorConfig { return new(mock.CallbackConfig) },
+	"mockPassword": func() ConnectorConfig { return new(mock.PasswordConfig) },
+	"ldap":         func() ConnectorConfig { return new(ldap.Config) },
+	"github":       func() ConnectorConfig { return new(github.Config) },
+	"gitlab":       func() ConnectorConfig { return new(gitlab.Config) },
+	"oidc":         func() ConnectorConfig { return new(oidc.Config) },
+	"saml":         func() ConnectorConfig { return new(saml.Config) },
+	// Keep around for backwards compatibility.
 	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
 }
 
