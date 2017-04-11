@@ -52,7 +52,7 @@ ou: People
 
 dn: cn=jane,ou=People,dc=example,dc=org
 objectClass: person
-objectClass: iNetOrgPerson
+objectClass: inetOrgPerson
 sn: doe
 cn: jane
 mail: janedoe@example.com
@@ -60,7 +60,7 @@ userpassword: foo
 
 dn: cn=john,ou=People,dc=example,dc=org
 objectClass: person
-objectClass: iNetOrgPerson
+objectClass: inetOrgPerson
 sn: doe
 cn: john
 mail: johndoe@example.com
@@ -127,7 +127,7 @@ ou: People
 
 dn: cn=jane,ou=People,dc=example,dc=org
 objectClass: person
-objectClass: iNetOrgPerson
+objectClass: inetOrgPerson
 sn: doe
 cn: jane
 mail: janedoe@example.com
@@ -135,7 +135,7 @@ userpassword: foo
 
 dn: cn=john,ou=People,dc=example,dc=org
 objectClass: person
-objectClass: iNetOrgPerson
+objectClass: inetOrgPerson
 sn: doe
 cn: john
 mail: johndoe@example.com
@@ -198,6 +198,103 @@ member: cn=jane,ou=People,dc=example,dc=org
 		},
 	}
 
+	runTests(t, schema, c, tests)
+}
+
+func TestGroupsOnUserEntity(t *testing.T) {
+	schema := `
+dn: dc=example,dc=org
+objectClass: dcObject
+objectClass: organization
+o: Example Company
+dc: example
+
+dn: ou=People,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+# Groups are enumerated as part of the user entity instead of the members being
+# a list on the group entity.
+
+dn: cn=jane,ou=People,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+departmentNumber: 1000
+departmentNumber: 1001
+
+dn: cn=john,ou=People,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: john
+mail: johndoe@example.com
+userpassword: bar
+departmentNumber: 1000
+departmentNumber: 1002
+
+# Group definitions. Notice that they don't have any "member" field.
+
+dn: ou=Groups,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: cn=admins,ou=Groups,dc=example,dc=org
+objectClass: posixGroup
+cn: admins
+gidNumber: 1000
+
+dn: cn=developers,ou=Groups,dc=example,dc=org
+objectClass: posixGroup
+cn: developers
+gidNumber: 1001
+
+dn: cn=designers,ou=Groups,dc=example,dc=org
+objectClass: posixGroup
+cn: designers
+gidNumber: 1002
+`
+	c := &Config{}
+	c.UserSearch.BaseDN = "ou=People,dc=example,dc=org"
+	c.UserSearch.NameAttr = "cn"
+	c.UserSearch.EmailAttr = "mail"
+	c.UserSearch.IDAttr = "DN"
+	c.UserSearch.Username = "cn"
+	c.GroupSearch.BaseDN = "ou=Groups,dc=example,dc=org"
+	c.GroupSearch.UserAttr = "departmentNumber"
+	c.GroupSearch.GroupAttr = "gidNumber"
+	c.GroupSearch.NameAttr = "cn"
+	tests := []subtest{
+		{
+			name:     "validpassword",
+			username: "jane",
+			password: "foo",
+			groups:   true,
+			want: connector.Identity{
+				UserID:        "cn=jane,ou=People,dc=example,dc=org",
+				Username:      "jane",
+				Email:         "janedoe@example.com",
+				EmailVerified: true,
+				Groups:        []string{"admins", "developers"},
+			},
+		},
+		{
+			name:     "validpassword2",
+			username: "john",
+			password: "bar",
+			groups:   true,
+			want: connector.Identity{
+				UserID:        "cn=john,ou=People,dc=example,dc=org",
+				Username:      "john",
+				Email:         "johndoe@example.com",
+				EmailVerified: true,
+				Groups:        []string{"admins", "designers"},
+			},
+		},
+	}
 	runTests(t, schema, c, tests)
 }
 

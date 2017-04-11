@@ -256,18 +256,22 @@ func (c *ldapConnector) do(ctx context.Context, f func(c *ldap.Conn) error) erro
 	return f(conn)
 }
 
-func getAttr(e ldap.Entry, name string) string {
+func getAttrs(e ldap.Entry, name string) []string {
 	for _, a := range e.Attributes {
 		if a.Name != name {
 			continue
 		}
-		if len(a.Values) == 0 {
-			return ""
-		}
-		return a.Values[0]
+		return a.Values
 	}
 	if name == "DN" {
-		return e.DN
+		return []string{e.DN}
+	}
+	return nil
+}
+
+func getAttr(e ldap.Entry, name string) string {
+	if a := getAttrs(e, name); len(a) > 0 {
+		return a[0]
 	}
 	return ""
 }
@@ -454,36 +458,39 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 		return nil, nil
 	}
 
-	filter := fmt.Sprintf("(%s=%s)", c.GroupSearch.GroupAttr, ldap.EscapeFilter(getAttr(user, c.GroupSearch.UserAttr)))
-	if c.GroupSearch.Filter != "" {
-		filter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, filter)
-	}
-
-	req := &ldap.SearchRequest{
-		BaseDN:     c.GroupSearch.BaseDN,
-		Filter:     filter,
-		Scope:      c.groupSearchScope,
-		Attributes: []string{c.GroupSearch.NameAttr},
-	}
-
 	var groups []*ldap.Entry
-	if err := c.do(ctx, func(conn *ldap.Conn) error {
-		resp, err := conn.Search(req)
-		if err != nil {
-			return fmt.Errorf("ldap: search failed: %v", err)
+	for _, attr := range getAttrs(user, c.GroupSearch.UserAttr) {
+		filter := fmt.Sprintf("(%s=%s)", c.GroupSearch.GroupAttr, ldap.EscapeFilter(attr))
+		if c.GroupSearch.Filter != "" {
+			filter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, filter)
 		}
-		groups = resp.Entries
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-	if len(groups) == 0 {
-		// TODO(ericchiang): Is this going to spam the logs?
-		c.logger.Errorf("ldap: groups search with filter %q returned no groups", filter)
+
+		req := &ldap.SearchRequest{
+			BaseDN:     c.GroupSearch.BaseDN,
+			Filter:     filter,
+			Scope:      c.groupSearchScope,
+			Attributes: []string{c.GroupSearch.NameAttr},
+		}
+
+		gotGroups := false
+		if err := c.do(ctx, func(conn *ldap.Conn) error {
+			resp, err := conn.Search(req)
+			if err != nil {
+				return fmt.Errorf("ldap: search failed: %v", err)
+			}
+			gotGroups = len(resp.Entries) != 0
+			groups = append(groups, resp.Entries...)
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+		if !gotGroups {
+			// TODO(ericchiang): Is this going to spam the logs?
+			c.logger.Errorf("ldap: groups search with filter %q returned no groups", filter)
+		}
 	}
 
 	var groupNames []string
-
 	for _, group := range groups {
 		name := getAttr(*group, c.GroupSearch.NameAttr)
 		if name == "" {
