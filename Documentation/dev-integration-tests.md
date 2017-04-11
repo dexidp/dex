@@ -121,7 +121,7 @@ At the app, go to the "Sign On" tab and then click "View Setup Instructions". Us
 
 ```yaml
 connectors:
-- type: samlExperimental
+- type: saml
   id: saml
   name: Okta
   config:

@@ -12,7 +12,7 @@ The following is the exhaustive list of scopes supported by dex:
 | `email` | ID token claims should include the end user's email and if that email was verified by an upstream provider. |
 | `profile` | ID token claims should include the username of the end user. |
 | `groups` | ID token claims should include a list of groups the end user is a member of. |
-| `offline_access` | Token response should include a refresh token. |
+| `offline_access` | Token response should include a refresh token. Doesn't work in combinations with some connectors, notability the [SAML connector][saml-connector] ignores this scope. |
 | `audience:server:client_id:( client-id )` | Dynamic scope indicating that the ID token should be issued on behalf of another client. See the _"Cross-client trust and authorized party"_ section below. |
 
 ## Custom claims
@@ -67,5 +67,6 @@ The ID token claims will then include the following audience and authorized part
 }
 ``` 
 
+[saml-connector]: saml-connector.md
 [core-claims]: https://openid.net/specs/openid-connect-core-1_0.html#IDToken
 [standard-claims]: https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
