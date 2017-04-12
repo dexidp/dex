@@ -10,15 +10,15 @@
           <Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/> 
         </Transforms> 
         <DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/> 
-        <DigestValue>96Mymeqjk6Mm0azcGKf6nD6SFWY=</DigestValue> 
+        <DigestValue>6a1wCEwD2CQ3tYWkRrVs/upMJ10=</DigestValue> 
       </Reference> 
       </SignedInfo> 
-    <SignatureValue>AbzrvvisCPqcZ0OnkYNaFeuC8wIkivlIL479c3HJmFJycXLxm6LzS7wILw47huzP
-/8r2FnZ3MT/qJdibz53zNFXBADu2af/lSx9bkuxZpYN5J91cgCjUt68xF8Xvo4d8
-jqOKq3H3C7DqU52QyF+XoPKHaBWUcefJoeLQEwUm9C+U6mSP5AZ82m1DoqyhOuWk
-UYTjVUjVro+J1x9Bp/dyZ8OczaN+S9vIYm6AbsV5klYPQug951da5KJ/K8fvure9
-OIHaLnEb4BtQb7qDA8+3jPU7c88XvP+27FtSqiWM0vGGSc9pq4kS5hHmsrdbIkyl
-Ajr+mNXxlNnXRQNEsqE+Gw==</SignatureValue> 
+    <SignatureValue>J/yFKDQIAKkfoJyK/5Apylg6KFaK7Kwr/gn1stAUJqAab7I61gx/fVw4TCCGH5Nv
+6yXdw1f/QN6CBoNXA9sus2tG5KQ7od/lrPs+kmyaDVTp87Q6mqvQBD/Ekt2N/SQ6
+jvlK70BGjJibVGoZf20EZdojpZEgvDdNa2YsVws0ZEuY4/XMsmddJnY76UDZvR8X
+NVryuMuK8rYWXMl8tLaZo5k/LgxxeDDWWwcicBQcWIOl/tuGbfssixgBHFWY4ye3
+HD8ChdxfS7sxHxAbipZ03BoutVriGQBeO3f+nI4TEIZov7V41YUqSyfcRGb3+WT4
+dm7kMaNn6GUyv3/TXuGIQg==</SignatureValue> 
     <KeyInfo> 
       <X509Data>
 <X509Certificate>MIIDGTCCAgGgAwIBAgIJAKLbLcQajEf8MA0GCSqGSIb3DQEBCwUAMCMxDDAKBgNV
@@ -43,9 +43,6 @@ esSffLKbWcabtyMtCr5QyEwZiozd567oWFWZYeHQyEtd+w6tAFmz9ZslipdQEa/j
   </Signature>
   <saml2:Issuer xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">http://www.okta.com/exk91cb99lKkKSYoy0h7</saml2:Issuer>
   <saml2p:Status xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol">
-
-    <!-- Status code indicates an error. Ensure this fails to authenticate a user -->
-
     <saml2p:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:AuthnFailed"/>
   </saml2p:Status>
   <saml2:Assertion xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xs="http://www.w3.org/2001/XMLSchema" ID="id199065211253338521862321146" IssueInstant="2017-04-04T04:34:59.330Z" Version="2.0">
