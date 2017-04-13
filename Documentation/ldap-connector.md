@@ -30,19 +30,27 @@ connectors:
   name: LDAP
   config:
     # Host and optional port of the LDAP server in the form "host:port".
-    # If the port is not supplied, it will be guessed based on "insecureNoSSL".
-    # 389 for insecure connections, 636 otherwise.
+    # If the port is not supplied, it will be guessed based on "insecureNoSSL",
+    # and "startTLS" flags. 389 for insecure or StartTLS connections, 636
+    # otherwise.
     host: ldap.example.com:636
 
     # Following field is required if the LDAP host is not using TLS (port 389).
     # Because this option inherently leaks passwords to anyone on the same network
     # as dex, THIS OPTION MAY BE REMOVED WITHOUT WARNING IN A FUTURE RELEASE.
+    #
     # insecureNoSSL: true
 
     # If a custom certificate isn't provide, this option can be used to turn on
     # TLS certificate checks. As noted, it is insecure and shouldn't be used outside
     # of explorative phases.
+    #
     # insecureSkipVerify: true
+
+    # When connecting to the server, connect using the ldap:// protocol then issue
+    # a StartTLS command. If unspecified, connections will use the ldaps:// protocol
+    #
+    # startTLS: true
 
     # Path to a trusted root certificate file. Default: use the host's root CA.
     rootCA: /etc/dex/ldap.ca

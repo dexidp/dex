@@ -61,6 +61,11 @@ type Config struct {
 	// Don't verify the CA.
 	InsecureSkipVerify bool `json:"insecureSkipVerify"`
 
+	// Connect to the insecure port then issue a StartTLS command to negotiate a
+	// secure connection. If unsupplied secure connections will use the LDAPS
+	// protocol.
+	StartTLS bool `json:"startTLS"`
+
 	// Path to a trusted root certificate file.
 	RootCA string `json:"rootCA"`
 
@@ -238,9 +243,18 @@ func (c *ldapConnector) do(ctx context.Context, f func(c *ldap.Conn) error) erro
 		conn *ldap.Conn
 		err  error
 	)
-	if c.InsecureNoSSL {
+	switch {
+	case c.InsecureNoSSL:
 		conn, err = ldap.Dial("tcp", c.Host)
-	} else {
+	case c.StartTLS:
+		conn, err = ldap.Dial("tcp", c.Host)
+		if err != nil {
+			return fmt.Errorf("failed to connect: %v", err)
+		}
+		if err := conn.StartTLS(c.tlsConfig); err != nil {
+			return fmt.Errorf("start TLS failed: %v", err)
+		}
+	default:
 		conn, err = ldap.DialTLS("tcp", c.Host, c.tlsConfig)
 	}
 	if err != nil {
