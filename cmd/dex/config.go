@@ -224,6 +224,22 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// ToStorageConnector translates a Connector to a storage.Connector
+func ToStorageConnector(c Connector) (storage.Connector, error) {
+	data, err := json.Marshal(c.Config)
+	if err != nil {
+		return storage.Connector{}, fmt.Errorf("failed to marshal connector config: %v", err)
+	}
+
+	return storage.Connector{
+		ID:              c.ID,
+		Type:            c.Type,
+		Name:            c.Name,
+		ResourceVersion: "1",
+		Config:          data,
+	}, nil
+}
+
 // Expiry holds configuration for the validity period of components.
 type Expiry struct {
 	// SigningKeys defines the duration of time after which the SigningKeys will be rotated.
