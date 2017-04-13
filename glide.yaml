@@ -32,7 +32,7 @@ import:
 
 # Imported directly and by several third party packages.
 - package: golang.org/x/net
-  version: 6a513affb38dc9788b449d59ffed099b8de18fa0
+  version: 5602c733f70afc6dcec6766be0d5034d4c4f14de
   subpackages:
   - context
   - http2
@@ -40,6 +40,8 @@ import:
   - internal/timeseries
   - lex/httplex
   - trace
+- package: golang.org/x/text
+  version: f4b4367115ec2de254587813edaa901bc1c723a8
 
 # Used for parsing configs.
 - package: github.com/ghodss/yaml
@@ -109,7 +111,7 @@ import:
 
 # gRPC and protobuf are use for the API. Also import x/net/http2 stack.
 - package: google.golang.org/grpc
-  version: b1a2821ca5a4fd6b6e48ddfbb7d6d7584d839d21
+  version: 0e8b58d22f34640cb17dbbed1c8aef3b8dcc0e97
   subpackages:
   - codes
   - credentials
@@ -120,10 +122,13 @@ import:
   - peer
   - transport
 - package: github.com/golang/protobuf
-  version: 874264fbbb43f4d91e999fecb4b40143ed611400
+  version: 2bba0603135d7d7f5cb73b2125beeda19c09f4ef
   subpackages:
   - proto
   - protoc-gen-go
+  - protoc-gen-go/grpc
+- package: google.golang.org/genproto
+  version: 411e09b969b1170a9f0c467558eb4c4c110d9c77
 
 # Structured logging
 - package: github.com/Sirupsen/logrus

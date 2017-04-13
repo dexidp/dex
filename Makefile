@@ -16,10 +16,6 @@ user=$(shell id -u -n)
 group=$(shell id -g -n)
 
 export GOBIN=$(PWD)/bin
-# Prefer ./bin instead of system packages for things like protoc, where we want
-# to use the version dex uses, not whatever a developer has installed.
-export PATH=$(GOBIN):$(shell printenv PATH)
-export GO15VENDOREXPERIMENT=1
 
 LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
 
@@ -74,10 +70,10 @@ docker-image: clean-release _output/bin/dex
 proto: api/api.pb.go server/internal/types.pb.go
 
 api/api.pb.go: api/api.proto bin/protoc bin/protoc-gen-go
-	@protoc --go_out=plugins=grpc:. api/*.proto
+	@./bin/protoc --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go api/*.proto
 
 server/internal/types.pb.go: server/internal/types.proto bin/protoc bin/protoc-gen-go
-	@protoc --go_out=. server/internal/*.proto
+	@./bin/protoc --go_out=. --plugin=protoc-gen-go=./bin/protoc-gen-go server/internal/*.proto
 
 bin/protoc: scripts/get-protoc
 	@./scripts/get-protoc bin/protoc
