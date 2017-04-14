@@ -153,7 +153,7 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 	if len(store.Config) != 0 {
 		data := []byte(os.ExpandEnv(string(store.Config)))
 		if err := json.Unmarshal(data, storageConfig); err != nil {
-			return fmt.Errorf("parse storace config: %v", err)
+			return fmt.Errorf("parse storage config: %v", err)
 		}
 	}
 	*s = Storage{
