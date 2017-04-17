@@ -628,6 +628,10 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 	c1.Type = "oidc"
 	getAndCompare(id1, c1)
 
+	if _, err := s.ListConnectors(); err != nil {
+		t.Fatalf("failed to list connectors: %v", err)
+	}
+
 	if err := s.DeleteConnector(c1.ID); err != nil {
 		t.Fatalf("failed to delete connector: %v", err)
 	}

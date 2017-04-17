@@ -89,13 +89,6 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 	config := Config{
 		Issuer:  s.URL,
 		Storage: memory.New(logger),
-		Connectors: []Connector{
-			{
-				ID:          "mock",
-				DisplayName: "Mock",
-				Connector:   mock.NewCallbackConnector(logger),
-			},
-		},
 		Web: WebConfig{
 			Dir: filepath.Join(os.Getenv("GOPATH"), "src/github.com/coreos/dex/web"),
 		},
@@ -105,6 +98,16 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 		updateConfig(&config)
 	}
 	s.URL = config.Issuer
+
+	connector := storage.Connector{
+		ID:              "mock",
+		Type:            "mockCallback",
+		Name:            "Mock",
+		ResourceVersion: "1",
+	}
+	if err := config.Storage.CreateConnector(connector); err != nil {
+		t.Fatalf("create connector: %v", err)
+	}
 
 	var err error
 	if server, err = newServer(ctx, config, staticRotationStrategy(testKey)); err != nil {
@@ -416,28 +419,15 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			defer cancel()
 
 			// Setup a dex server.
-			logger := &logrus.Logger{
-				Out:       os.Stderr,
-				Formatter: &logrus.TextFormatter{DisableColors: true},
-				Level:     logrus.DebugLevel,
-			}
 			httpServer, s := newTestServer(ctx, t, func(c *Config) {
 				c.Issuer = c.Issuer + "/non-root-path"
 				c.Now = now
 				c.IDTokensValidFor = idTokensValidFor
-
-				// Testing connector that redirects without interaction with
-				// the user.
-				conn = mock.NewCallbackConnector(logger).(*mock.Callback)
-				c.Connectors = []Connector{
-					{
-						ID:          "mock",
-						DisplayName: "mock",
-						Connector:   conn,
-					},
-				}
 			})
 			defer httpServer.Close()
+
+			mockConn := s.connectors["mock"]
+			conn = mockConn.Connector.(*mock.Callback)
 
 			// Query server's provider metadata.
 			p, err := oidc.NewProvider(ctx, httpServer.URL)
