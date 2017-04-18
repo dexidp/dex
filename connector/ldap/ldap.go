@@ -213,7 +213,7 @@ func (c *Config) openConnector(logger logrus.FieldLogger) (*ldapConnector, error
 	}
 	groupSearchScope, ok := parseScope(c.GroupSearch.Scope)
 	if !ok {
-		return nil, fmt.Errorf("userSearch.Scope unknown value %q", c.GroupSearch.Scope)
+		return nil, fmt.Errorf("groupSearch.Scope unknown value %q", c.GroupSearch.Scope)
 	}
 	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig, logger}, nil
 }
