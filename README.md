@@ -44,9 +44,13 @@ More docs for running dex as a Kubernetes authenticator can be found [here](Docu
 * Client libraries
   * [Go][go-oidc]
 
+## Reporting a security vulnerability
+
+Due to their public nature, GitHub and mailing lists are NOT appropriate places for reporting vulnerabilities. Please refer to CoreOS's [security disclosure][disclosure] process when reporting issues that may be security related.
+
 ## Getting help
 
-* For bugs and feature requests (including documentation!), file an [issue][issues].
+* For feature requests and bugs, file an [issue][issues].
 * For general discussion about both using and developing dex, join the [dex-dev][dex-dev] mailing list.
 * For more details on dex development plans, check out the GitHub [milestones][milestones].
 
@@ -59,3 +63,4 @@ More docs for running dex as a Kubernetes authenticator can be found [here](Docu
 [issues]: https://github.com/coreos/dex/issues
 [dex-dev]: https://groups.google.com/forum/#!forum/dex-dev
 [milestones]: https://github.com/coreos/dex/milestones
+[disclosure]: https://coreos.com/security/disclosure/
