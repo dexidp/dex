@@ -59,3 +59,10 @@ More docs for running dex as a Kubernetes authenticator can be found [here](Docu
 [issues]: https://github.com/coreos/dex/issues
 [dex-dev]: https://groups.google.com/forum/#!forum/dex-dev
 [milestones]: https://github.com/coreos/dex/milestones
+
+## Related Links
+
+### Integrations and Production Users
+ 
+ - [Projects integrating with dex](https://github.com/coreos/dex/blob/master/Documentation/integrations.md)
+ - [Production users](https://github.com/coreos/dex/blob/master/Documentation/production-users.md)
