@@ -83,6 +83,28 @@ var (
 			{regexp.MustCompile(`\bnow\(\)`), "date('now')"},
 		},
 	}
+
+	flavorMySQL = flavor{
+		queryReplacers: []replacer{
+			{bindRegexp, "?"},
+			// Translate types.
+			{matchLiteral("bytea"), "blob"},
+			{matchLiteral("timestamptz"), "datetime(3)"},
+			// MySQL doesn't support indicies on text fields w/o
+			// specifying key length. Use varchar instead (768 is
+			// the max key length for InnoDB with 4k pages).
+			{matchLiteral("text"), "varchar(768)"},
+			// Quote keywords and reserved words used as identifiers.
+			{regexp.MustCompile(`\b(keys)\b`), "`$1`"},
+			// Change default timestamp to fit datetime.
+			{regexp.MustCompile(`0001-01-01 00:00:00 UTC`), "1000-01-01 00:00:00"},
+		},
+	}
+
+	// Not tested.
+	flavorCockroach = flavor{
+		executeTx: crdb.ExecuteTx,
+	}
 )
 
 func (f flavor) translate(query string) string {
