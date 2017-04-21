@@ -6,19 +6,44 @@
 
 ![logo](Documentation/logos/dex-horizontal-color.png)
 
-Dex is an OpenID Connect server that connects to other identity providers. Clients use a standards-based OAuth2 flow to login users, while the actual authentication is performed by established user management systems such as Google, GitHub, FreeIPA, etc.
+Dex is an identity service that uses [OpenID Connect][openid-connect] to drive authentication for other apps.
 
-[OpenID Connect][openid-connect] is a flavor of OAuth that builds on top of OAuth2 using the JOSE standards. This allows dex to provide:
+Dex is NOT a user-management system, but acts as a portal to other identity providers through "connectors." This lets dex defer authentication to LDAP servers, SAML providers, or established identity providers like GitHub, Google, and Active Directory. Clients write their authentication logic once to talk to dex, then dex handles the protocols for a given backend.
 
-* Short-lived, signed tokens with standard fields (such as email) issued on behalf of users.
-* "well-known" discovery of OAuth2 endpoints.
-* OAuth2 mechanisms such as refresh tokens and revocation for long term access.
-* Automatic signing key rotation.
+## ID Tokens
 
-Standards-based token responses allows applications to interact with any OpenID Connect server instead of writing backend specific "access_token" dances. Systems that can already consume ID Tokens issued by dex include:
+ID Tokens are an OAuth2 extension introduced by OpenID Connect and dex's primary feature. ID Tokens are [JSON Web Tokens][jwt-io] (JWTs) signed by dex and returned as part of the OAuth2 response that attest to the end user's identity. An example JWT might look like:
+
+```
+eyJhbGciOiJSUzI1NiIsImtpZCI6IjlkNDQ3NDFmNzczYjkzOGNmNjVkZDMyNjY4NWI4NjE4MGMzMjRkOTkifQ.eyJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjU1NTYvZGV4Iiwic3ViIjoiQ2djeU16UXlOelE1RWdabmFYUm9kV0kiLCJhdWQiOiJleGFtcGxlLWFwcCIsImV4cCI6MTQ5Mjg4MjA0MiwiaWF0IjoxNDkyNzk1NjQyLCJhdF9oYXNoIjoiYmk5NmdPWFpTaHZsV1l0YWw5RXFpdyIsImVtYWlsIjoiZXJpYy5jaGlhbmdAY29yZW9zLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJncm91cHMiOlsiYWRtaW5zIiwiZGV2ZWxvcGVycyJdLCJuYW1lIjoiRXJpYyBDaGlhbmcifQ.OhROPq_0eP-zsQRjg87KZ4wGkjiQGnTi5QuG877AdJDb3R2ZCOk2Vkf5SdP8cPyb3VMqL32G4hLDayniiv8f1_ZXAde0sKrayfQ10XAXFgZl_P1yilkLdknxn6nbhDRVllpWcB12ki9vmAxklAr0B1C4kr5nI3-BZLrFcUR5sQbxwJj4oW1OuG6jJCNGHXGNTBTNEaM28eD-9nhfBeuBTzzO7BKwPsojjj4C9ogU4JQhGvm_l4yfVi0boSx8c0FX3JsiB0yLa1ZdJVWVl9m90XmbWRSD85pNDQHcWZP9hR6CMgbvGkZsgjG32qeRwUL_eNkNowSBNWLrGNPoON1gMg
+```
+
+ID Tokens contains standard claims assert which client app logged the user in, when the token expires, and the identity of the user.
+
+```json
+{
+  "iss": "http://127.0.0.1:5556/dex",
+  "sub": "CgcyMzQyNzQ5EgZnaXRodWI",
+  "aud": "example-app",
+  "exp": 1492882042,
+  "iat": 1492795642,
+  "at_hash": "bi96gOXZShvlWYtal9Eqiw",
+  "email": "jane.doe@coreos.com",
+  "email_verified": true,
+  "groups": [
+    "admins",
+    "developers"
+  ],
+  "name": "Jane Doe"
+}
+```
+
+Because these tokens are signed by dex and [contain standard-based claims][standard-claims] other services can consume them as service-to-service credentials. Systems that can already consume OpenID Connect ID Tokens issued by dex include:
 
 * [Kubernetes][kubernetes]
 * [AWS STS][aws-sts]
+
+For details on how to request or validate an ID Token, see [_"Writing apps that use dex"_][using-dex].
 
 ## Kubernetes + dex
 
@@ -29,11 +54,11 @@ More docs for running dex as a Kubernetes authenticator can be found [here](Docu
 ## Documentation
 
 * [Getting started](Documentation/getting-started.md)
-* [Writing apps that use dex](Documentation/using-dex.md)
+* [Intro to OpenID Connect](Documentation/openid-connect.md)
+* [Writing apps that use dex][using-dex]
 * [What's new in v2](Documentation/v2.md)
 * [Custom scopes, claims, and client features](Documentation/custom-scopes-claims-clients.md)
 * [Storage options](Documentation/storage.md)
-* [Intro to OpenID Connect](Documentation/openid-connect.md)
 * [gRPC API](Documentation/api.md)
 * [Using Kubernetes with dex](Documentation/kubernetes.md)
 * Identity provider logins
@@ -56,6 +81,9 @@ Due to their public nature, GitHub and mailing lists are NOT appropriate places 
 * For more details on dex development plans, check out the GitHub [milestones][milestones].
 
 [openid-connect]: https://openid.net/connect/
+[standard-claims]: https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
+[using-dex]: Documentation/using-dex.md
+[jwt-io]: https://jwt.io/
 [kubernetes]: http://kubernetes.io/docs/admin/authentication/#openid-connect-tokens
 [aws-sts]: https://docs.aws.amazon.com/STS/latest/APIReference/Welcome.html
 [tectonic]: https://tectonic.com/
