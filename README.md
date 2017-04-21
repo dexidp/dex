@@ -29,6 +29,7 @@ More docs for running dex as a Kubernetes authenticator can be found [here](Docu
 ## Documentation
 
 * [Getting started](Documentation/getting-started.md)
+* [Writing apps that use dex](Documentation/using-dex.md)
 * [What's new in v2](Documentation/v2.md)
 * [Custom scopes, claims, and client features](Documentation/custom-scopes-claims-clients.md)
 * [Storage options](Documentation/storage.md)
