@@ -1,7 +1,7 @@
 FROM alpine:3.4
 
 MAINTAINER Ed Rooth <ed.rooth@coreos.com>
-MAINTAINER Eric Chiang <eric.chiang@coreos.com>
+MAINTAINER Lucas Servén <lucas.serven@coreos.com>
 MAINTAINER Rithu John <rithu.john@coreos.com>
 
 # Dex connectors, such as GitHub and Google logins require root certificates.
