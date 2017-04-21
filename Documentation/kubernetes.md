@@ -65,7 +65,7 @@ To run dex on Kubernetes perform the following steps:
 The TLS assets can be created using the following command:
 
 ```
-$ cd examles/k8s
+$ cd examples/k8s
 $ ./gencert.sh
 ```
 
