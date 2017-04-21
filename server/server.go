@@ -180,7 +180,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	now := c.Now
 	if now == nil {
-		now = time.Now
+		now = func() time.Time { return time.Now().UTC() }
 	}
 
 	s := &Server{
