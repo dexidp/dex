@@ -20,6 +20,9 @@ web:
   # tlsCert: /etc/dex/tls.crt
   # tlsKey: /etc/dex/tls.key
 
+frontend:
+  theme: tectonic
+
 # Uncomment this block to enable the gRPC API. This values MUST be different
 # from the HTTP endpoints.
 # grpc:
