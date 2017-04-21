@@ -82,14 +82,16 @@ func TestPostgres(t *testing.T) {
 		t.Skipf("test environment variable %q not set, skipping", testPostgresEnv)
 	}
 	p := Postgres{
-		Database: getenv("DEX_POSTGRES_DATABASE", "postgres"),
-		User:     getenv("DEX_POSTGRES_USER", "postgres"),
-		Password: getenv("DEX_POSTGRES_PASSWORD", "postgres"),
-		Host:     host,
+		NetworkDB: NetworkDB{
+			Database:          getenv("DEX_POSTGRES_DATABASE", "postgres"),
+			User:              getenv("DEX_POSTGRES_USER", "postgres"),
+			Password:          getenv("DEX_POSTGRES_PASSWORD", "postgres"),
+			Host:              host,
+			ConnectionTimeout: 5,
+		},
 		SSL: PostgresSSL{
 			Mode: sslDisable, // Postgres container doesn't support SSL.
 		},
-		ConnectionTimeout: 5,
 	}
 
 	// t.Fatal has a bad habbit of not actually printing the error

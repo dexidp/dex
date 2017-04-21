@@ -65,6 +65,16 @@ const (
 	sslVerifyFull = "verify-full"
 )
 
+// NetworkDB contains options common to SQL databases accessed over network.
+type NetworkDB struct {
+	Database string
+	User     string
+	Password string
+	Host     string
+
+	ConnectionTimeout int // Seconds
+}
+
 // PostgresSSL represents SSL options for Postgres databases.
 type PostgresSSL struct {
 	Mode   string
@@ -76,14 +86,9 @@ type PostgresSSL struct {
 
 // Postgres options for creating an SQL db.
 type Postgres struct {
-	Database string
-	User     string
-	Password string
-	Host     string
+	NetworkDB
 
 	SSL PostgresSSL `json:"ssl" yaml:"ssl"`
-
-	ConnectionTimeout int // Seconds
 }
 
 // Open creates a new storage implementation backed by Postgres.
