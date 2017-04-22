@@ -31,15 +31,16 @@ func withTimeout(t time.Duration, f func()) {
 }
 
 func cleanDB(c *conn) error {
-	_, err := c.Exec(`
-		delete from client;
-		delete from auth_request;
-		delete from auth_code;
-		delete from refresh_token;
-		delete from keys;
-		delete from password;
-	`)
-	return err
+	tables := []string{"client", "auth_request", "auth_code",
+		"refresh_token", "keys", "password"}
+
+	for _, tbl := range tables {
+		_, err := c.Exec("delete from " + tbl)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 var logger = &logrus.Logger{
