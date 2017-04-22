@@ -112,3 +112,25 @@ func TestPostgres(t *testing.T) {
 	}
 	testDB(t, p, true)
 }
+
+const testMySQLEnv = "DEX_MYSQL_HOST"
+
+func TestMySQL(t *testing.T) {
+	host := os.Getenv(testMySQLEnv)
+	if host == "" {
+		t.Skipf("test environment variable %q not set, skipping", testMySQLEnv)
+	}
+	s := &MySQL{
+		NetworkDB: NetworkDB{
+			Database:          getenv("DEX_MYSQL_DATABASE", "mysql"),
+			User:              getenv("DEX_MYSQL_USER", "mysql"),
+			Password:          getenv("DEX_MYSQL_PASSWORD", ""),
+			Host:              host,
+			ConnectionTimeout: 5,
+		},
+		params: map[string]string{
+			"innodb_lock_wait_timeout": "3",
+		},
+	}
+	testDB(t, s, true)
+}
