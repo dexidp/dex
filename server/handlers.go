@@ -177,6 +177,13 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 
 	connectorInfos := make([]connectorInfo, len(s.connectors))
+	if conn, ok := s.connectors[r.Form.Get("connector_id")]; ok {
+		// TODO(ericchiang): Make this pass on r.URL.RawQuery and let something latter
+		// on create the auth request.
+		http.Redirect(w, r, s.absPath("/auth", conn.ID)+"?req="+authReq.ID, http.StatusFound)
+		return
+	}
+
 	i := 0
 	for id, conn := range s.connectors {
 		connectorInfos[i] = connectorInfo{
