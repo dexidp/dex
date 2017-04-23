@@ -107,5 +107,40 @@ function destroy_postgres {
   rm $UUID_FILE
 }
 
+function create_mysql {
+  UUID_FILE=/tmp/dex-mysql-uuid
+  if [ -f $UUID_FILE ]; then
+    echo "MySQL database already exists, try ./standup.sh destroy mysql"
+    exit 2
+  fi
+
+  echo "Starting mysql. To view progress run:"
+  echo ""
+  echo "  journalctl -fu dex-mysql"
+  echo ""
+  systemd-run --unit=dex-mysql \
+      rkt run --uuid-file-save=$UUID_FILE --insecure-options=image \
+      --set-env MYSQL_ROOT_PASSWORD=dex \
+      --set-env MYSQL_DATABASE=mysql \
+      --set-env MYSQL_USER=mysql \
+      --set-env MYSQL_PASSWORD=mysql docker://mysql:5.7
+
+  wait_for_file $UUID_FILE
+
+  UUID=$( cat $UUID_FILE )
+  wait_for_container $UUID
+  HOST=$( rkt list --full | grep "$UUID" | awk '{ print $NF }' | sed -e 's/default:ip4=//g' )
+  echo "To run tests export the following environment variables:"
+  echo ""
+  echo "  export DEX_MYSQL_DATABASE=mysql; export DEX_MYSQL_USER=mysql; export DEX_MYSQL_PASSWORD=mysql; export DEX_MYSQL_HOST=$HOST:3306"
+  echo ""
+}
+
+function destroy_mysql {
+  UUID_FILE=/tmp/dex-mysql-uuid
+  systemctl stop dex-mysql
+  rkt rm --uuid-file=$UUID_FILE
+  rm $UUID_FILE
+}
 
 main $@
