@@ -106,8 +106,8 @@ func TestPostgres(t *testing.T) {
 			Host:              host,
 			ConnectionTimeout: 5,
 		},
-		SSL: PostgresSSL{
-			Mode: sslDisable, // Postgres container doesn't support SSL.
+		SSL: SSL{
+			Mode: pgSSLDisable, // Postgres container doesn't support SSL.
 		},
 	}
 	testDB(t, p, true)
@@ -127,6 +127,9 @@ func TestMySQL(t *testing.T) {
 			Password:          getenv("DEX_MYSQL_PASSWORD", ""),
 			Host:              host,
 			ConnectionTimeout: 5,
+		},
+		SSL: SSL{
+			Mode: mysqlSSLFalse,
 		},
 		params: map[string]string{
 			"innodb_lock_wait_timeout": "3",

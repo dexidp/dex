@@ -1,8 +1,11 @@
 package sql
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"strconv"
 	"time"
@@ -67,10 +70,19 @@ func (s *SQLite3) open(logger logrus.FieldLogger) (*conn, error) {
 }
 
 const (
-	sslDisable    = "disable"
-	sslRequire    = "require"
-	sslVerifyCA   = "verify-ca"
-	sslVerifyFull = "verify-full"
+	// postgres SSL modes
+	pgSSLDisable    = "disable"
+	pgSSLRequire    = "require"
+	pgSSLVerifyCA   = "verify-ca"
+	pgSSLVerifyFull = "verify-full"
+)
+
+const (
+	// MySQL SSL modes
+	mysqlSSLTrue       = "true"
+	mysqlSSLFalse      = "false"
+	mysqlSSLSkipVerify = "skip-verify"
+	mysqlSSLCustom     = "custom"
 )
 
 // NetworkDB contains options common to SQL databases accessed over network.
@@ -83,8 +95,8 @@ type NetworkDB struct {
 	ConnectionTimeout int // Seconds
 }
 
-// PostgresSSL represents SSL options for Postgres databases.
-type PostgresSSL struct {
+// SSL represents SSL options for network databases.
+type SSL struct {
 	Mode   string
 	CAFile string
 	// Files for client auth.
@@ -96,7 +108,7 @@ type PostgresSSL struct {
 type Postgres struct {
 	NetworkDB
 
-	SSL PostgresSSL `json:"ssl" yaml:"ssl"`
+	SSL SSL `json:"ssl" yaml:"ssl"`
 }
 
 // Open creates a new storage implementation backed by Postgres.
@@ -121,7 +133,7 @@ func (p *Postgres) open(logger logrus.FieldLogger) (*conn, error) {
 	set("sslrootcert", p.SSL.CAFile)
 	if p.SSL.Mode == "" {
 		// Assume the strictest mode if unspecified.
-		p.SSL.Mode = sslVerifyFull
+		p.SSL.Mode = pgSSLVerifyFull
 	}
 	set("sslmode", p.SSL.Mode)
 
@@ -161,7 +173,9 @@ func (p *Postgres) open(logger logrus.FieldLogger) (*conn, error) {
 
 // MySQL options for creating a MySQL db.
 type MySQL struct {
-	NetworkedDB
+	NetworkDB
+
+	SSL SSL `json:"ssl" yaml:"ssl"`
 
 	// TODO(pborzenkov): used by tests to reduce lock wait timeout. Should
 	// we make it exported and allow users to provide arbitrary params?
@@ -199,6 +213,14 @@ func (s *MySQL) open(logger logrus.FieldLogger) (*conn, error) {
 			cfg.Addr = s.Host
 		}
 	}
+	if s.SSL.CAFile != "" || s.SSL.CertFile != "" || s.SSL.KeyFile != "" {
+		if err := s.makeTLSConfig(); err != nil {
+			return nil, fmt.Errorf("failed to make TLS config: %v", err)
+		}
+		cfg.TLSConfig = mysqlSSLCustom
+	} else {
+		cfg.TLSConfig = s.SSL.Mode
+	}
 	for k, v := range s.params {
 		cfg.Params[k] = v
 	}
@@ -222,4 +244,31 @@ func (s *MySQL) open(logger logrus.FieldLogger) (*conn, error) {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}
 	return c, nil
+}
+
+func (s *MySQL) makeTLSConfig() error {
+	cfg := &tls.Config{}
+	if s.SSL.CAFile != "" {
+		rootCertPool := x509.NewCertPool()
+		pem, err := ioutil.ReadFile(s.SSL.CAFile)
+		if err != nil {
+			return err
+		}
+		if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
+			return fmt.Errorf("failed to append PEM")
+		}
+		cfg.RootCAs = rootCertPool
+	}
+	if s.SSL.CertFile != "" && s.SSL.KeyFile != "" {
+		clientCert := make([]tls.Certificate, 0, 1)
+		certs, err := tls.LoadX509KeyPair(s.SSL.CertFile, s.SSL.KeyFile)
+		if err != nil {
+			return err
+		}
+		clientCert = append(clientCert, certs)
+		cfg.Certificates = clientCert
+	}
+
+	mysql.RegisterTLSConfig(mysqlSSLCustom, cfg)
+	return nil
 }
