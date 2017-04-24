@@ -132,6 +132,7 @@ var storages = map[string]func() StorageConfig{
 	"memory":     func() StorageConfig { return new(memory.Config) },
 	"sqlite3":    func() StorageConfig { return new(sql.SQLite3) },
 	"postgres":   func() StorageConfig { return new(sql.Postgres) },
+	"mysql":      func() StorageConfig { return new(sql.MySQL) },
 }
 
 // UnmarshalJSON allows Storage to implement the unmarshaler interface to
