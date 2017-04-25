@@ -47,7 +47,8 @@ type Config struct {
 	// StaticPasswords cause the server use this list of passwords rather than
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
-	StaticPasswords []password `json:"staticPasswords"`
+	StaticPasswords  []password `json:"staticPasswords"`
+	UserInfoEndpoint string     `json:"userInfoEndpoint"`
 }
 
 type password storage.Password

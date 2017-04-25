@@ -63,6 +63,8 @@ expiry:
 logger:
   level: "debug"
   format: "json"
+
+userInfoEndpoint: http://127.0.0.1:8000/v1/users
 `)
 
 	want := Config{
@@ -128,6 +130,7 @@ logger:
 			Level:  "debug",
 			Format: "json",
 		},
+		UserInfoEndpoint: "http://127.0.0.1:8000/v1/users",
 	}
 
 	var c Config
