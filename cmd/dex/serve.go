@@ -74,7 +74,6 @@ func serve(cmd *cobra.Command, args []string) error {
 		errMsg string
 	}{
 		{c.Issuer == "", "no issuer specified in config file"},
-		{len(c.Connectors) == 0 && !c.EnablePasswordDB, "no connectors supplied in config file"},
 		{!c.EnablePasswordDB && len(c.StaticPasswords) != 0, "cannot specify static passwords without enabling password db"},
 		{c.Storage.Config == nil, "no storage suppied in config file"},
 		{c.Web.HTTP == "" && c.Web.HTTPS == "", "must supply a HTTP/HTTPS  address to listen on"},
@@ -128,34 +127,6 @@ func serve(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	connectors := make([]server.Connector, len(c.Connectors))
-	for i, conn := range c.Connectors {
-		if conn.ID == "" {
-			return fmt.Errorf("invalid config: no ID field for connector %d", i)
-		}
-		if conn.Config == nil {
-			return fmt.Errorf("invalid config: no config field for connector %q", conn.ID)
-		}
-		if conn.Name == "" {
-			return fmt.Errorf("invalid config: no Name field for connector %q", conn.ID)
-		}
-		logger.Infof("config connector: %s", conn.ID)
-
-		connectorLogger := logger.WithField("connector", conn.Name)
-		c, err := conn.Config.Open(connectorLogger)
-		if err != nil {
-			return fmt.Errorf("failed to create connector %s: %v", conn.ID, err)
-		}
-		connectors[i] = server.Connector{
-			ID:          conn.ID,
-			DisplayName: conn.Name,
-			Connector:   c,
-		}
-	}
-	if c.EnablePasswordDB {
-		logger.Infof("config connector: local passwords enabled")
-	}
-
 	s, err := c.Storage.Config.Open(logger)
 	if err != nil {
 		return fmt.Errorf("failed to initialize storage: %v", err)
@@ -176,6 +147,35 @@ func serve(cmd *cobra.Command, args []string) error {
 		s = storage.WithStaticPasswords(s, passwords)
 	}
 
+	if c.EnablePasswordDB {
+		c.StaticConnectors = append(c.StaticConnectors, Connector{
+			ID:   server.LocalConnector,
+			Name: "Email",
+			Type: server.LocalConnector,
+		})
+		logger.Infof("config connector: local passwords enabled")
+	}
+
+	storageConnectors := make([]storage.Connector, len(c.StaticConnectors))
+	for i, c := range c.StaticConnectors {
+		if c.ID == "" || c.Name == "" || c.Type == "" {
+			return fmt.Errorf("invalid config: ID, Type and Name fields are required for a connector")
+		}
+		if c.Config == nil {
+			return fmt.Errorf("invalid config: no config field for connector %q", c.ID)
+		}
+		logger.Infof("config connector: %s", c.ID)
+
+		// convert to a storage connector object
+		conn, err := ToStorageConnector(c)
+		if err != nil {
+			return fmt.Errorf("failed to initialize storage connectors: %v", err)
+		}
+		storageConnectors[i] = conn
+
+	}
+	s = storage.WithStaticConnectors(s, storageConnectors)
+
 	if len(c.OAuth2.ResponseTypes) > 0 {
 		logger.Infof("config response types accepted: %s", c.OAuth2.ResponseTypes)
 	}
@@ -194,10 +194,8 @@ func serve(cmd *cobra.Command, args []string) error {
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
 		AllowedOrigins:         c.Web.AllowedOrigins,
 		Issuer:                 c.Issuer,
-		Connectors:             connectors,
 		Storage:                s,
 		Web:                    c.Frontend,
-		EnablePasswordDB:       c.EnablePasswordDB,
 		Logger:                 logger,
 		Now:                    now,
 	}

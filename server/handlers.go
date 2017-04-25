@@ -167,24 +167,31 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(s.connectors) == 1 {
-		for id := range s.connectors {
+	connectors, e := s.storage.ListConnectors()
+	if e != nil {
+		s.logger.Errorf("Failed to get list of connectors: %v", err)
+		s.renderError(w, http.StatusInternalServerError, "Failed to retrieve connector list.")
+		return
+	}
+
+	if len(connectors) == 1 {
+		for _, c := range connectors {
 			// TODO(ericchiang): Make this pass on r.URL.RawQuery and let something latter
 			// on create the auth request.
-			http.Redirect(w, r, s.absPath("/auth", id)+"?req="+authReq.ID, http.StatusFound)
+			http.Redirect(w, r, s.absPath("/auth", c.ID)+"?req="+authReq.ID, http.StatusFound)
 			return
 		}
 	}
 
-	connectorInfos := make([]connectorInfo, len(s.connectors))
+	connectorInfos := make([]connectorInfo, len(connectors))
 	i := 0
-	for id, conn := range s.connectors {
+	for _, conn := range connectors {
 		connectorInfos[i] = connectorInfo{
-			ID:   id,
-			Name: conn.DisplayName,
+			ID:   conn.ID,
+			Name: conn.Name,
 			// TODO(ericchiang): Make this pass on r.URL.RawQuery and let something latter
 			// on create the auth request.
-			URL: s.absPath("/auth", id) + "?req=" + authReq.ID,
+			URL: s.absPath("/auth", conn.ID) + "?req=" + authReq.ID,
 		}
 		i++
 	}
@@ -196,10 +203,10 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	connID := mux.Vars(r)["connector"]
-	conn, ok := s.connectors[connID]
-	if !ok {
-		s.logger.Errorf("Failed to create authorization request.")
-		s.renderError(w, http.StatusBadRequest, "Requested resource does not exist.")
+	conn, err := s.getConnector(connID)
+	if err != nil {
+		s.logger.Errorf("Failed to create authorization request: %v", err)
+		s.renderError(w, http.StatusBadRequest, "Requested resource does not exist")
 		return
 	}
 
@@ -339,8 +346,9 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	conn, ok := s.connectors[authReq.ConnectorID]
-	if !ok {
+	conn, err := s.getConnector(authReq.ConnectorID)
+	if err != nil {
+		s.logger.Errorf("Failed to get connector with id %q : %v", authReq.ConnectorID, err)
 		s.renderError(w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
 	}
@@ -649,13 +657,14 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		// Ensure the connector supports refresh tokens.
 		//
 		// Connectors like `saml` do not implement RefreshConnector.
-		conn, ok := s.connectors[authCode.ConnectorID]
-		if !ok {
-			s.logger.Errorf("connector ID not found: %q", authCode.ConnectorID)
+		conn, err := s.getConnector(authCode.ConnectorID)
+		if err != nil {
+			s.logger.Errorf("connector with ID %q not found: %v", authCode.ConnectorID, err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 			return false
 		}
-		_, ok = conn.Connector.(connector.RefreshConnector)
+
+		_, ok := conn.Connector.(connector.RefreshConnector)
 		if !ok {
 			return false
 		}
@@ -841,9 +850,9 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		scopes = requestedScopes
 	}
 
-	conn, ok := s.connectors[refresh.ConnectorID]
-	if !ok {
-		s.logger.Errorf("connector ID not found: %q", refresh.ConnectorID)
+	conn, err := s.getConnector(refresh.ConnectorID)
+	if err != nil {
+		s.logger.Errorf("connector with ID %q not found: %v", refresh.ConnectorID, err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return
 	}

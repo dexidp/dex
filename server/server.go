@@ -2,11 +2,13 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"path"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -17,14 +19,23 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/coreos/dex/connector"
+	"github.com/coreos/dex/connector/github"
+	"github.com/coreos/dex/connector/gitlab"
+	"github.com/coreos/dex/connector/ldap"
+	"github.com/coreos/dex/connector/mock"
+	"github.com/coreos/dex/connector/oidc"
+	"github.com/coreos/dex/connector/saml"
 	"github.com/coreos/dex/storage"
 )
 
-// Connector is a connector with metadata.
+// LocalConnector is the local passwordDB connector which is an internal
+// connector maintained by the server.
+const LocalConnector = "local"
+
+// Connector is a connector with resource version metadata.
 type Connector struct {
-	ID          string
-	DisplayName string
-	Connector   connector.Connector
+	ResourceVersion string
+	Connector       connector.Connector
 }
 
 // Config holds the server's configuration options.
@@ -35,9 +46,6 @@ type Config struct {
 
 	// The backing persistence layer.
 	Storage storage.Storage
-
-	// Strategies for federated identity.
-	Connectors []Connector
 
 	// Valid values are "code" to enable the code flow and "token" to enable the implicit
 	// flow. If no response types are supplied this value defaults to "code".
@@ -59,8 +67,6 @@ type Config struct {
 
 	// If specified, the server will use this function for determining time.
 	Now func() time.Time
-
-	EnablePasswordDB bool
 
 	Web WebConfig
 
@@ -103,7 +109,9 @@ func value(val, defaultValue time.Duration) time.Duration {
 type Server struct {
 	issuerURL url.URL
 
-	// Read-only map of connector IDs to connectors.
+	// mutex for the connectors map.
+	mu sync.Mutex
+	// Map of connector IDs to connectors.
 	connectors map[string]Connector
 
 	storage storage.Storage
@@ -137,17 +145,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	if err != nil {
 		return nil, fmt.Errorf("server: can't parse issuer URL")
 	}
-	if c.EnablePasswordDB {
-		c.Connectors = append(c.Connectors, Connector{
-			ID:          "local",
-			DisplayName: "Email",
-			Connector:   newPasswordDB(c.Storage),
-		})
-	}
 
-	if len(c.Connectors) == 0 {
-		return nil, errors.New("server: no connectors specified")
-	}
 	if c.Storage == nil {
 		return nil, errors.New("server: storage cannot be nil")
 	}
@@ -195,8 +193,21 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		logger:                 c.Logger,
 	}
 
-	for _, conn := range c.Connectors {
-		s.connectors[conn.ID] = conn
+	// Retrieves connector objects in backend storage. This list includes the static connectors
+	// defined in the ConfigMap and dynamic connectors retrieved from the storage.
+	storageConnectors, err := c.Storage.ListConnectors()
+	if err != nil {
+		return nil, fmt.Errorf("server: failed to list connector objects from storage: %v", err)
+	}
+
+	if len(storageConnectors) == 0 && len(s.connectors) == 0 {
+		return nil, errors.New("server: no connectors specified")
+	}
+
+	for _, conn := range storageConnectors {
+		if _, err := s.OpenConnector(conn); err != nil {
+			return nil, fmt.Errorf("server: Failed to open connector %s: %v", conn.ID, err)
+		}
 	}
 
 	r := mux.NewRouter()
@@ -361,4 +372,100 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 		}
 	}()
 	return
+}
+
+// ConnectorConfig is a configuration that can open a connector.
+type ConnectorConfig interface {
+	Open(logrus.FieldLogger) (connector.Connector, error)
+}
+
+// ConnectorsConfig variable provides an easy way to return a config struct
+// depending on the connector type.
+var ConnectorsConfig = map[string]func() ConnectorConfig{
+	"mockCallback": func() ConnectorConfig { return new(mock.CallbackConfig) },
+	"mockPassword": func() ConnectorConfig { return new(mock.PasswordConfig) },
+	"ldap":         func() ConnectorConfig { return new(ldap.Config) },
+	"github":       func() ConnectorConfig { return new(github.Config) },
+	"gitlab":       func() ConnectorConfig { return new(gitlab.Config) },
+	"oidc":         func() ConnectorConfig { return new(oidc.Config) },
+	"saml":         func() ConnectorConfig { return new(saml.Config) },
+	// Keep around for backwards compatibility.
+	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
+}
+
+// openConnector will parse the connector config and open the connector.
+func openConnector(logger logrus.FieldLogger, conn storage.Connector) (connector.Connector, error) {
+	var c connector.Connector
+
+	f, ok := ConnectorsConfig[conn.Type]
+	if !ok {
+		return c, fmt.Errorf("unknown connector type %q", conn.Type)
+	}
+
+	connConfig := f()
+	if len(conn.Config) != 0 {
+		data := []byte(string(conn.Config))
+		if err := json.Unmarshal(data, connConfig); err != nil {
+			return c, fmt.Errorf("parse connector config: %v", err)
+		}
+	}
+
+	c, err := connConfig.Open(logger)
+	if err != nil {
+		return c, fmt.Errorf("failed to create connector %s: %v", conn.ID, err)
+	}
+
+	return c, nil
+}
+
+// OpenConnector updates server connector map with specified connector object.
+func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
+	var c connector.Connector
+
+	if conn.Type == LocalConnector {
+		c = newPasswordDB(s.storage)
+	} else {
+		var err error
+		c, err = openConnector(s.logger.WithField("connector", conn.Name), conn)
+		if err != nil {
+			return Connector{}, fmt.Errorf("failed to open connector: %v", err)
+		}
+	}
+
+	connector := Connector{
+		ResourceVersion: conn.ResourceVersion,
+		Connector:       c,
+	}
+	s.mu.Lock()
+	s.connectors[conn.ID] = connector
+	s.mu.Unlock()
+
+	return connector, nil
+}
+
+// getConnector retrieves the connector object with the given id from the storage
+// and updates the connector list for server if necessary.
+func (s *Server) getConnector(id string) (Connector, error) {
+	storageConnector, err := s.storage.GetConnector(id)
+	if err != nil {
+		return Connector{}, fmt.Errorf("failed to get connector object from storage: %v", err)
+	}
+
+	var conn Connector
+	var ok bool
+	s.mu.Lock()
+	conn, ok = s.connectors[id]
+	s.mu.Unlock()
+
+	if !ok || storageConnector.ResourceVersion != conn.ResourceVersion {
+		// Connector object does not exist in server connectors map or
+		// has been updated in the storage. Need to get latest.
+		conn, err := s.OpenConnector(storageConnector)
+		if err != nil {
+			return Connector{}, fmt.Errorf("failed to open connector: %v", err)
+		}
+		return conn, nil
+	}
+
+	return conn, nil
 }
