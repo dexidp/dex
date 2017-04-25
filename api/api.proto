@@ -133,6 +133,57 @@ message RevokeRefreshResp {
   bool not_found = 1;
 }
 
+// Connector represents a mechanism for enabling login to dex via an identity service.
+message Connector {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  // config is the configuration information specific to a connector.
+  bytes config = 5;
+}
+
+// CreateConnectorReq is a request to create a connector.
+message CreateConnectorReq {
+  Connector connector = 1;
+}
+
+// CreateConnectorResp determines if the connector was created successfully.
+message CreateConnectorResp {
+  bool already_exists = 1;
+}
+
+// UpdateConnectorReq is a request to modify an existing connector.
+message UpdateConnectorReq {
+  // The id used tddo lookup the connector. This field cannot be modified
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  bytes config = 5;
+}
+
+// UpdateConnectorResp returns the response from modifying an existing connector. 
+message UpdateConnectorResp {
+  bool not_found = 1;
+}
+
+// ListConnectorReq is a request to list out all the connectors.
+message ListConnectorReq {}
+
+// ListConnectorResp is a response that contains a list of all the connectors.
+message ListConnectorResp {
+  repeated Connector connectors = 1;
+}
+
+// DeleteConnectorReq is a request to delete a connector with the given ID.
+message DeleteConnectorReq {
+  string id = 1;
+}
+
+// DeleteConnectorResp determines if the cooresponding connector was deleted successfully.
+message DeleteConnectorResp {
+  bool not_found = 1;
+}
+
 // Dex represents the dex gRPC service.
 service Dex {
   // CreateClient creates a client.
@@ -155,4 +206,12 @@ service Dex {
   //
   // Note that each user-client pair can have only one refresh token at a time.
   rpc RevokeRefresh(RevokeRefreshReq) returns (RevokeRefreshResp) {};
+  // CreateConnector creates a connector.
+  rpc CreateConnector(CreateConnectorReq) returns (CreateConnectorResp) {};
+  // UpdateConnector modifies an existing connector.
+  rpc UpdateConnector(UpdateConnectorReq) returns (UpdateConnectorResp) {};
+  // ListConnectors lists all the connector entries.
+  rpc ListConnectors(ListConnectorReq) returns (ListConnectorResp) {};
+  // DeleteConnector deletes the corresponding connector.
+  rpc DeleteConnector(DeleteConnectorReq) returns (DeleteConnectorResp) {};
 }
