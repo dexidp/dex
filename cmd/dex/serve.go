@@ -161,9 +161,6 @@ func serve(cmd *cobra.Command, args []string) error {
 		if c.ID == "" || c.Name == "" || c.Type == "" {
 			return fmt.Errorf("invalid config: ID, Type and Name fields are required for a connector")
 		}
-		if c.Config == nil {
-			return fmt.Errorf("invalid config: no config field for connector %q", c.ID)
-		}
 		logger.Infof("config connector: %s", c.ID)
 
 		// convert to a storage connector object
