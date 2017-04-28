@@ -359,6 +359,11 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 }
 
 func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (ident connector.Identity, validPass bool, err error) {
+	// make this check to avoid anonymous bind to the LDAP server.
+	if password == "" {
+		return connector.Identity{}, false, nil
+	}
+
 	var (
 		// We want to return a different error if the user's password is incorrect vs
 		// if there was an error.
