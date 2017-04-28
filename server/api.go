@@ -215,13 +215,20 @@ func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.
 		return nil, err
 	}
 
+	var refreshTokenRefs []*api.RefreshTokenRef
 	offlineSessions, err := d.s.GetOfflineSessions(id.UserId, id.ConnId)
 	if err != nil {
-		d.logger.Errorf("api: failed to list refresh tokens: %v", err)
+		if err == storage.ErrNotFound {
+			// This means that this user-client pair does not have a refresh token yet.
+			// An empty list should be returned instead of an error.
+			return &api.ListRefreshResp{
+				RefreshTokens: refreshTokenRefs,
+			}, nil
+		}
+		d.logger.Errorf("api: failed to list refresh tokens %t here : %v", err == storage.ErrNotFound, err)
 		return nil, err
 	}
 
-	var refreshTokenRefs []*api.RefreshTokenRef
 	for _, session := range offlineSessions.Refresh {
 		r := api.RefreshTokenRef{
 			Id:        session.ID,
