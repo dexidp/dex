@@ -147,15 +147,6 @@ func serve(cmd *cobra.Command, args []string) error {
 		s = storage.WithStaticPasswords(s, passwords)
 	}
 
-	if c.EnablePasswordDB {
-		c.StaticConnectors = append(c.StaticConnectors, Connector{
-			ID:   server.LocalConnector,
-			Name: "Email",
-			Type: server.LocalConnector,
-		})
-		logger.Infof("config connector: local passwords enabled")
-	}
-
 	storageConnectors := make([]storage.Connector, len(c.StaticConnectors))
 	for i, c := range c.StaticConnectors {
 		if c.ID == "" || c.Name == "" || c.Type == "" {
@@ -174,6 +165,16 @@ func serve(cmd *cobra.Command, args []string) error {
 		storageConnectors[i] = conn
 
 	}
+
+	if c.EnablePasswordDB {
+		storageConnectors = append(storageConnectors, storage.Connector{
+			ID:   server.LocalConnector,
+			Name: "Email",
+			Type: server.LocalConnector,
+		})
+		logger.Infof("config connector: local passwords enabled")
+	}
+
 	s = storage.WithStaticConnectors(s, storageConnectors)
 
 	if len(c.OAuth2.ResponseTypes) > 0 {
