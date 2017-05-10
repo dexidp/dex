@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -518,9 +519,18 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 	if redirectURI == redirectURIOOB {
 		return true
 	}
-	if !strings.HasPrefix(redirectURI, "http://localhost:") {
+
+	// verify that the host is of form "http://localhost:(port)(path)" or "http://localhost(path)"
+	u, err := url.Parse(redirectURI)
+	if err != nil {
 		return false
 	}
-	n, err := strconv.Atoi(strings.TrimPrefix(redirectURI, "https://localhost:"))
-	return err == nil && n <= 0
+	if u.Scheme != "http" {
+		return false
+	}
+	if u.Host == "localhost" {
+		return true
+	}
+	host, _, err := net.SplitHostPort(u.Host)
+	return err == nil && host == "localhost"
 }
