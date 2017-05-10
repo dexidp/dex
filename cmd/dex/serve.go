@@ -134,10 +134,12 @@ func serve(cmd *cobra.Command, args []string) error {
 	logger.Infof("config storage: %s", c.Storage.Type)
 
 	if len(c.StaticClients) > 0 {
-		for _, client := range c.StaticClients {
+		staticClients := make([]storage.Client, len(c.StaticClients))
+		for i, client := range c.StaticClients {
+			staticClients[i] = storage.Client(client)
 			logger.Infof("config static client: %s", client.ID)
 		}
-		s = storage.WithStaticClients(s, c.StaticClients)
+		s = storage.WithStaticClients(s, staticClients)
 	}
 	if len(c.StaticPasswords) > 0 {
 		passwords := make([]storage.Password, len(c.StaticPasswords))

@@ -34,7 +34,7 @@ type Config struct {
 
 	// StaticClients cause the server to use this list of clients rather than
 	// querying the storage. Write operations, like creating a client, will fail.
-	StaticClients []storage.Client `json:"staticClients"`
+	StaticClients []client `json:"staticClients"`
 
 	// If enabled, the server will maintain a list of passwords which can be used
 	// to identify a user.
@@ -44,6 +44,19 @@ type Config struct {
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
+}
+
+type client storage.Client
+
+func (c *client) UnmarshalJSON(b []byte) error {
+	data := []byte(os.ExpandEnv(string(b)))
+	// unmarshal into a storage.Client to avoid infinite loop
+	var result storage.Client
+	if err := json.Unmarshal(data, &result); err != nil {
+		return fmt.Errorf("parse staticClients: %v", err)
+	}
+	*c = client(result)
+	return nil
 }
 
 type password storage.Password
