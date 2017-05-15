@@ -67,6 +67,23 @@ The ID token claims will then include the following audience and authorized part
 }
 ``` 
 
+## Public clients
+
+Public clients are inspired by Google's [_"Installed Applications"_][installed-apps] and are meant to impose restrictions on applications that don't intend to keep their client secret private. Clients can be declared as public using the `public` config option.
+
+```yaml
+staticClients:
+- id: cli-app
+  public: true
+  name: 'CLI app'
+  secret: cli-app-secret
+```
+
+Instead of traditional redirect URIs, public clients are limited to either redirects that begin with "http://localhost" or a special "out-of-browser" URL "urn:ietf:wg:oauth:2.0:oob". The latter triggers dex to display the OAuth2 code in the browser, prompting the end user to manually copy it to their app. It's the client's responsibility to either create a screen or a prompt to receive the code, then perform a code exchange for a token response.
+
+When using the "out-of-browser" flow, an ID Token nonce is strongly recommended.
+
 [saml-connector]: saml-connector.md
 [core-claims]: https://openid.net/specs/openid-connect-core-1_0.html#IDToken
 [standard-claims]: https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
+[installed-apps]: https://developers.google.com/api-client-library/python/auth/installed-app
