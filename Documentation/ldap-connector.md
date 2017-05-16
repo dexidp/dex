@@ -61,6 +61,8 @@ connectors:
     # The DN and password for an application service account. The connector uses
     # these credentials to search for users and groups. Not required if the LDAP
     # server provides access for anonymous auth.
+    # Please note that if the bind password contains a `$`, it has to be saved in an
+    # environment variable which should be given as the value to `bindPW`.
     bindDN: uid=seviceaccount,cn=users,dc=example,dc=com
     bindPW: password
 
