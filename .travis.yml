@@ -14,6 +14,8 @@ env:
 
 
 install:
+  - wget https://github.com/kubernetes/minikube/releases/download/v0.17.1/minikube_0.17-1.deb
+  - sudo dpkg -i minikube_0.17-1.deb
   - go get -u github.com/golang/lint/golint
   - sudo -E apt-get install -y --force-yes slapd time ldap-utils
   - sudo /etc/init.d/slapd stop
