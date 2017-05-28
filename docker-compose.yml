@@ -1,0 +1,31 @@
+
+version: "2.1"
+
+services:
+  base:
+    image: sticksnleaves/dex
+
+  dex:
+    extends:
+      service: base
+    volumes:
+      - "./examples/:/go/src/github.com/coreos/dex/examples"
+    command: ["dex","serve","examples/config-dev.yaml"]
+    ports:
+      - 5554:5554
+      - 5555:5555
+      - 5556:5556
+      - 5557:5557
+    expose:
+      - 5556
+
+  example-app:
+    extends: base
+    command: ["./bin/example-app", "--listen=http://example-app:6555","--redirect-uri=http://example-app:6555/callback","--issuer=http://dex:5556/dex"]
+    depends_on:
+      - dex
+    ports:
+      - 6555:6555
+    links:
+      - dex
+    
