@@ -76,6 +76,7 @@ imports:
 - name: golang.org/x/oauth2
   version: 08c8d727d2392d18286f9f88ad775ad98f09ab33
   subpackages:
+  - facebook
   - github
   - internal
 - name: golang.org/x/sys
