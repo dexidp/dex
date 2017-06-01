@@ -46,9 +46,10 @@ func createPassword(cli api.DexClient) error {
 	p := api.Password{
 		Email: "test@example.com",
 		// bcrypt hash of the value "test1" with cost 10
-		Hash:     []byte("$2a$10$XVMN/Fid.Ks4CXgzo8fpR.iU1khOMsP5g9xQeXuBm1wXjRX8pjUtO"),
-		Username: "test",
-		UserId:   "test",
+		Hash:          []byte("$2a$10$XVMN/Fid.Ks4CXgzo8fpR.iU1khOMsP5g9xQeXuBm1wXjRX8pjUtO"),
+		Username:      "test",
+		UserId:        "test",
+		EmailVerified: true,
 	}
 
 	createReq := &api.CreatePasswordReq{

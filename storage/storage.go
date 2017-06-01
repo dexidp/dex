@@ -293,6 +293,9 @@ type Password struct {
 
 	// Randomly generated user ID. This is NOT the primary ID of the Password object.
 	UserID string `json:"userID"`
+
+	// Has user's email been verified?
+	EmailVerified bool `json:"emailVerified"`
 }
 
 // Connector is an object that contains the metadata about connectors used to login to Dex.

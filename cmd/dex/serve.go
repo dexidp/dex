@@ -191,14 +191,15 @@ func serve(cmd *cobra.Command, args []string) error {
 	now := func() time.Time { return time.Now().UTC() }
 
 	serverConfig := server.Config{
-		SupportedResponseTypes: c.OAuth2.ResponseTypes,
-		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
-		AllowedOrigins:         c.Web.AllowedOrigins,
-		Issuer:                 c.Issuer,
-		Storage:                s,
-		Web:                    c.Frontend,
-		Logger:                 logger,
-		Now:                    now,
+		SupportedResponseTypes:   c.OAuth2.ResponseTypes,
+		SkipApprovalScreen:       c.OAuth2.SkipApprovalScreen,
+		AllowedOrigins:           c.Web.AllowedOrigins,
+		Issuer:                   c.Issuer,
+		Storage:                  s,
+		Web:                      c.Frontend,
+		Logger:                   logger,
+		Now:                      now,
+		RequireEmailVerification: c.RequireEmailVerification,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)

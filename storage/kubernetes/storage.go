@@ -305,6 +305,7 @@ func (cli *client) ListPasswords() (passwords []storage.Password, err error) {
 			Hash:     password.Hash,
 			Username: password.Username,
 			UserID:   password.UserID,
+			EmailVerified:   password.EmailVerified,
 		}
 		passwords = append(passwords, p)
 	}

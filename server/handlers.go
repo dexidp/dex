@@ -250,7 +250,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			}
 			http.Redirect(w, r, callbackURL, http.StatusFound)
 		case connector.PasswordConnector:
-			if err := s.templates.password(w, r.URL.String(), "", false); err != nil {
+			if err := s.templates.password(w, r.URL.String(), "", false, false); err != nil {
 				s.logger.Errorf("Server template error: %v", err)
 			}
 		case connector.SAMLConnector:
@@ -298,11 +298,18 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !ok {
-			if err := s.templates.password(w, r.URL.String(), username, true); err != nil {
+			if err := s.templates.password(w, r.URL.String(), username, true, false); err != nil {
 				s.logger.Errorf("Server template error: %v", err)
 			}
 			return
 		}
+		if !identity.EmailVerified /* and it's on via config */ {
+			if err := s.templates.password(w, r.URL.String(), username, false, true); err != nil {
+				s.logger.Errorf("Server template error: %v", err)
+			}
+			return
+		}
+
 		redirectURL, err := s.finalizeLogin(identity, authReq, conn.Connector)
 		if err != nil {
 			s.logger.Errorf("Failed to finalize login: %v", err)
