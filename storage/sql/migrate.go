@@ -143,7 +143,7 @@ var migrations = []migration{
 				hash bytea not null,
 				username text not null,
 				user_id text not null,
-				email_verified integer not null default 0
+				email_verified boolean not null
 			);
 		
 			-- keys is a weird table because we only ever expect there to be a single row
