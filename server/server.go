@@ -298,11 +298,12 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 	if err := bcrypt.CompareHashAndPassword(p.Hash, []byte(password)); err != nil {
 		return connector.Identity{}, false, nil
 	}
+
 	return connector.Identity{
 		UserID:        p.UserID,
 		Username:      p.Username,
 		Email:         p.Email,
-		EmailVerified: true,
+		EmailVerified: p.EmailVerified,
 	}, true, nil
 }
 
