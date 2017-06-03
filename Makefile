@@ -6,7 +6,9 @@ export PATH := $(PWD)/bin:$(PATH)
 VERSION ?= $(shell ./scripts/git-version)
 
 DOCKER_REPO=quay.io/coreos/dex
+DOCKER_REPO_EXAMPLE_APP=quay.io/coreos/dex-example-app
 DOCKER_IMAGE=$(DOCKER_REPO):$(VERSION)
+DOCKER_IMAGE_EXAMPLE_APP=$(DOCKER_REPO_EXAMPLE_APP):$(VERSION)
 
 $( shell mkdir -p bin )
 $( shell mkdir -p _output/images )
@@ -33,6 +35,10 @@ bin/grpc-client: check-go-version
 .PHONY: release-binary
 release-binary:
 	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
+
+.PHONY: release-binary-example-app
+release-binary-example-app:
+	@go build -o /go/bin/example-app -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/example-app
 
 .PHONY: revendor
 revendor:
@@ -62,9 +68,17 @@ _output/bin/dex:
 	@./scripts/docker-build
 	@sudo chown $(user):$(group) _output/bin/dex
 
+_output/bin/example-app:
+	@./scripts/docker-build-example-app
+	@sudo chown $(user):$(group) _output/bin/example-app
+
 .PHONY: docker-image
 docker-image: clean-release _output/bin/dex
 	@sudo docker build -t $(DOCKER_IMAGE) .
+
+.PHONY: docker-image-example-app
+docker-image-example-app: clean-release _output/bin/example-app
+	@sudo docker build -f Dockerfile-example-app -t $(DOCKER_IMAGE_EXAMPLE_APP) .
 
 .PHONY: proto
 proto: api/api.pb.go server/internal/types.pb.go

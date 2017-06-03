@@ -1,0 +1,15 @@
+#!/bin/bash -e
+
+mkdir -p _output/bin
+
+sudo docker run \
+    --cidfile=cid-example-app \
+    -v $PWD:/go/src/github.com/coreos/dex:ro \
+    -w /go/src/github.com/coreos/dex \
+    golang:1.8.0-alpine \
+    /bin/sh -x -c \
+    'apk add --no-cache --update alpine-sdk && make release-binary-example-app'
+
+sudo docker cp $( cat cid-example-app ):/go/bin/example-app _output/bin/example-app
+sudo docker rm $( cat cid-example-app )
+sudo rm cid-example-app
