@@ -245,7 +245,9 @@ type idTokenClaims struct {
 
 	Groups []string `json:"groups,omitempty"`
 
-	Name string `json:"name,omitempty"`
+	UID       string `json:"uid,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Connector string `json:"connector,omitempty"`
 }
 
 func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, connID string) (idToken string, expiry time.Time, err error) {
@@ -279,11 +281,12 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	}
 
 	tok := idTokenClaims{
-		Issuer:   s.issuerURL.String(),
-		Subject:  subjectString,
-		Nonce:    nonce,
-		Expiry:   expiry.Unix(),
-		IssuedAt: issuedAt.Unix(),
+		Issuer:    s.issuerURL.String(),
+		Subject:   subjectString,
+		Nonce:     nonce,
+		Expiry:    expiry.Unix(),
+		IssuedAt:  issuedAt.Unix(),
+		Connector: connID,
 	}
 
 	if accessToken != "" {
@@ -303,6 +306,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		case scope == scopeGroups:
 			tok.Groups = claims.Groups
 		case scope == scopeProfile:
+			tok.UID = claims.UserID
 			tok.Name = claims.Username
 		default:
 			peerID, ok := parseCrossClientScope(scope)
