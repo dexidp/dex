@@ -514,16 +514,19 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 		gotGroups := false
 		if err := c.do(ctx, func(conn *ldap.Conn) error {
 			resp, err := conn.Search(req)
-			gidresp, giderr := conn.Search(gidreq)
 			if err != nil {
 				return fmt.Errorf("ldap: search failed: %v", err)
 			}
-			if giderr != nil {
-				return fmt.Errorf("ldap: search2 failed: %v", err)
-			}
-			gotGroups = (len(resp.Entries) + len(gidresp.Entries)) != 0
+			gotGroups = len(resp.Entries) != 0
 			groups = append(groups, resp.Entries...)
-			groups = append(groups, gidresp.Entries...)
+			if c.GroupSearch.GidAttr != "" && c.GroupSearch.UserGidAttr != "" {
+				gidresp, giderr := conn.Search(gidreq)
+				if giderr != nil {
+					return fmt.Errorf("ldap: search2 failed: %v", err)
+				}
+				groups = append(groups, gidresp.Entries...)
+				gotGroups = gotGroups || len(gidresp.Entries) != 0
+			}
 			return nil
 		}); err != nil {
 			return nil, err
@@ -545,7 +548,6 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 			return nil, fmt.Errorf("ldap: group entity %q missing required attribute %q",
 				group.DN, c.GroupSearch.NameAttr)
 		}
-
 		groupNames = append(groupNames, name)
 	}
 	return groupNames, nil
