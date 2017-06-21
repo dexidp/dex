@@ -33,6 +33,7 @@ type Config struct {
 
 	Scopes []string `json:"scopes"` // defaults to "profile" and "email"
 
+	HostedDomain string `json:"hostedDomain"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -110,8 +111,9 @@ func (c *Config) Open(logger logrus.FieldLogger) (conn connector.Connector, err 
 		verifier: provider.Verifier(
 			&oidc.Config{ClientID: clientID},
 		),
-		logger: logger,
-		cancel: cancel,
+		logger:       logger,
+		cancel:       cancel,
+		hostedDomain: c.HostedDomain,
 	}, nil
 }
 
@@ -127,6 +129,7 @@ type oidcConnector struct {
 	ctx          context.Context
 	cancel       context.CancelFunc
 	logger       logrus.FieldLogger
+	hostedDomain string
 }
 
 func (c *oidcConnector) Close() error {
@@ -138,7 +141,12 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 	if c.redirectURI != callbackURL {
 		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
-	return c.oauth2Config.AuthCodeURL(state), nil
+
+	if c.hostedDomain != "" {
+		return c.oauth2Config.AuthCodeURL(state, oauth2.SetAuthURLParam("hd", c.hostedDomain)), nil
+	} else {
+		return c.oauth2Config.AuthCodeURL(state), nil
+	}
 }
 
 type oauth2Error struct {
@@ -176,9 +184,14 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		Username      string `json:"name"`
 		Email         string `json:"email"`
 		EmailVerified bool   `json:"email_verified"`
+		HostedDomain  string `json:"hd"`
 	}
 	if err := idToken.Claims(&claims); err != nil {
 		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
+	}
+
+	if claims.HostedDomain != c.hostedDomain {
+		return identity, fmt.Errorf("oidc: unexpected hd claim %v", claims.HostedDomain)
 	}
 
 	identity = connector.Identity{
