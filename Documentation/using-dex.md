@@ -136,7 +136,7 @@ A more thorough discussion of these kinds of best practices can be found in the 
 
 ## Consuming ID tokens
 
-Apps can also choose to consume ID tokens, letting other trusted clients handle the web flows for login. Clients pass along the ID tokens they receive from dex, usually as a bearer token, letting them act at the user to the backend service.
+Apps can also choose to consume ID tokens, letting other trusted clients handle the web flows for login. Clients pass along the ID tokens they receive from dex, usually as a bearer token, letting them act as the user to the backend service.
 
 ![][dex-backend-flow]
 
