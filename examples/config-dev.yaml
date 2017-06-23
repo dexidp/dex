@@ -38,6 +38,12 @@ web:
 #   level: "debug"
 #   format: "text" # can also be "json"
 
+# Uncomment this block to control which response types dex supports. For example
+# the following response types enable the implicit flow for web-only clients.
+# Defaults to ["code"], the code flow.
+# oauth2:
+#   responseTypes: ["code", "token", "id_token"]
+
 # Instead of reading from an external storage, use this list of clients.
 #
 # If this option isn't chosen clients may be added through the gRPC API.
