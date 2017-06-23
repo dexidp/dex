@@ -19,7 +19,7 @@ Apps that directly use dex to authenticate a user use OAuth2 code flows to reque
 * User visits client app.
 * Client app redirects user to dex with an OAuth2 request.
 * Dex determines user's identity.
-* Dex redirects user to dex with a code.
+* Dex redirects user to client with a code.
 * Client exchanges code with dex for an id_token.
 
 ![][dex-flow]
