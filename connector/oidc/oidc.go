@@ -33,6 +33,9 @@ type Config struct {
 
 	Scopes []string `json:"scopes"` // defaults to "profile" and "email"
 
+	// Optional list of whitelisted domains when using Google
+	// If this field is nonempty, only users from a listed domain will be allowed to log in
+	HostedDomains []string `json:"hostedDomain"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -110,8 +113,9 @@ func (c *Config) Open(logger logrus.FieldLogger) (conn connector.Connector, err 
 		verifier: provider.Verifier(
 			&oidc.Config{ClientID: clientID},
 		),
-		logger: logger,
-		cancel: cancel,
+		logger:        logger,
+		cancel:        cancel,
+		hostedDomains: c.HostedDomains,
 	}, nil
 }
 
@@ -121,12 +125,13 @@ var (
 )
 
 type oidcConnector struct {
-	redirectURI  string
-	oauth2Config *oauth2.Config
-	verifier     *oidc.IDTokenVerifier
-	ctx          context.Context
-	cancel       context.CancelFunc
-	logger       logrus.FieldLogger
+	redirectURI   string
+	oauth2Config  *oauth2.Config
+	verifier      *oidc.IDTokenVerifier
+	ctx           context.Context
+	cancel        context.CancelFunc
+	logger        logrus.FieldLogger
+	hostedDomains []string
 }
 
 func (c *oidcConnector) Close() error {
@@ -137,6 +142,14 @@ func (c *oidcConnector) Close() error {
 func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) (string, error) {
 	if c.redirectURI != callbackURL {
 		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
+	}
+
+	if len(c.hostedDomains) > 0 {
+		preferredDomain := c.hostedDomains[0]
+		if len(c.hostedDomains) > 1 {
+			preferredDomain = "*"
+		}
+		return c.oauth2Config.AuthCodeURL(state, oauth2.SetAuthURLParam("hd", preferredDomain)), nil
 	}
 	return c.oauth2Config.AuthCodeURL(state), nil
 }
@@ -176,9 +189,24 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		Username      string `json:"name"`
 		Email         string `json:"email"`
 		EmailVerified bool   `json:"email_verified"`
+		HostedDomain  string `json:"hd"`
 	}
 	if err := idToken.Claims(&claims); err != nil {
 		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
+	}
+
+	if len(c.hostedDomains) > 0 {
+		found := false
+		for _, domain := range c.hostedDomains {
+			if claims.HostedDomain != domain {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return identity, fmt.Errorf("oidc: unexpected hd claim %v", claims.HostedDomain)
+		}
 	}
 
 	identity = connector.Identity{

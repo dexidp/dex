@@ -42,6 +42,13 @@ connectors:
     # following field.
     #
     # basicAuthUnsupported: true
+    
+    # Google supports whitelisting allowed domains when using G Suite
+    # (Google Apps). The following field can be set to a list of domains
+    # that can log in:
+    #
+    # hostedDomains:
+    #  - example.com
 ```
 
 [oidc-doc]: openid-connect.md
