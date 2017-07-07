@@ -375,7 +375,7 @@ func scanRefresh(s scanner) (r storage.RefreshToken, err error) {
 	return r, nil
 }
 
-func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) error {
+func (c *conn) UpdateKeys(updater func(old storage.Keys) (*storage.Keys, error)) error {
 	return c.ExecTx(func(tx *trans) error {
 		firstUpdate := false
 		// TODO(ericchiang): errors may cause a transaction be rolled back by the SQL
@@ -390,6 +390,9 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 		}
 
 		nk, err := updater(old)
+		if nk == nil {
+			return nil
+		}
 		if err != nil {
 			return err
 		}

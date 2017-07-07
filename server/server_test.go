@@ -922,9 +922,9 @@ func TestKeyCacher(t *testing.T) {
 		},
 		{
 			before: func() {
-				s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
+				s.UpdateKeys(func(old storage.Keys) (*storage.Keys, error) {
 					old.NextRotation = tNow.Add(time.Minute)
-					return old, nil
+					return &old, nil
 				})
 			},
 			wantCallToStorage: true,
@@ -942,9 +942,9 @@ func TestKeyCacher(t *testing.T) {
 		{
 			before: func() {
 				tNow = tNow.Add(time.Hour)
-				s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
+				s.UpdateKeys(func(old storage.Keys) (*storage.Keys, error) {
 					old.NextRotation = tNow.Add(time.Minute)
-					return old, nil
+					return &old, nil
 				})
 			},
 			wantCallToStorage: true,

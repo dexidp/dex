@@ -435,7 +435,7 @@ func (cli *client) UpdateOfflineSessions(userID string, connID string, updater f
 	return cli.put(resourceOfflineSessions, o.ObjectMeta.Name, newOfflineSessions)
 }
 
-func (cli *client) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) error {
+func (cli *client) UpdateKeys(updater func(old storage.Keys) (*storage.Keys, error)) error {
 	firstUpdate := false
 	var keys Keys
 	if err := cli.get(resourceKeys, keysName, &keys); err != nil {
@@ -450,10 +450,13 @@ func (cli *client) UpdateKeys(updater func(old storage.Keys) (storage.Keys, erro
 	}
 
 	updated, err := updater(oldKeys)
+	if updated == nil {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
-	newKeys := cli.fromStorageKeys(updated)
+	newKeys := cli.fromStorageKeys(*updated)
 	if firstUpdate {
 		return cli.post(resourceKeys, newKeys)
 	}

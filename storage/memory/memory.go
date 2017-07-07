@@ -381,11 +381,11 @@ func (s *memStorage) UpdateClient(id string, updater func(old storage.Client) (s
 	return
 }
 
-func (s *memStorage) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) (err error) {
+func (s *memStorage) UpdateKeys(updater func(old storage.Keys) (*storage.Keys, error)) (err error) {
 	s.tx(func() {
-		var keys storage.Keys
+		var keys *storage.Keys
 		if keys, err = updater(s.keys); err == nil {
-			s.keys = keys
+			s.keys = *keys
 		}
 	})
 	return

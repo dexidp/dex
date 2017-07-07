@@ -160,11 +160,11 @@ func testKeysConcurrentUpdate(t *testing.T, s storage.Storage) {
 
 		var err1, err2 error
 
-		err1 = s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
-			err2 = s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
-				return keys1, nil
+		err1 = s.UpdateKeys(func(old storage.Keys) (*storage.Keys, error) {
+			err2 = s.UpdateKeys(func(old storage.Keys) (*storage.Keys, error) {
+				return &keys1, nil
 			})
-			return keys2, nil
+			return &keys2, nil
 		})
 
 		if (err1 == nil) == (err2 == nil) {
