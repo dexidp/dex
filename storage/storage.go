@@ -30,8 +30,8 @@ func NewID() string {
 	if _, err := io.ReadFull(rand.Reader, buff); err != nil {
 		panic(err)
 	}
-	// Trim padding
-	return strings.TrimRight(encoding.EncodeToString(buff), "=")
+	// Avoid the identifier to begin with number and trim padding
+	return string(buff[0]%26+'a') + strings.TrimRight(encoding.EncodeToString(buff[1:]), "=")
 }
 
 // GCResult returns the number of objects deleted by garbage collection.
