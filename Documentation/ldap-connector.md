@@ -191,6 +191,32 @@ groupSearch:
   # Unique name of the group.
   nameAttr: cn
 ```
+To extract group specific information the `DN` can be used in the `userAttr` field.
+
+```
+# Top level object example.coma in LDIF file.
+dn: dc=example,dc=com
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+dc: example
+```
+
+The following is an example of a group query would match any entry with member=<user DN>:
+
+```yaml
+groupSearch:
+  # BaseDN to start the search from. It will translate to the query
+  # "(&(objectClass=group)(member=<user DN>))".
+  baseDN: cn=groups,cn=compat,dc=example,dc=com
+  # Optional filter to apply when searching the directory.
+  filter: "(objectClass=group)"
+
+  userAttr: DN # Use "DN" here not "uid"
+  groupAttr: member
+
+  nameAttr: name
+```
 
 ## Example: Searching a FreeIPA server with groups
 
