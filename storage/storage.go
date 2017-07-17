@@ -95,7 +95,7 @@ type Storage interface {
 	//		}
 	//
 	UpdateClient(id string, updater func(old Client) (Client, error)) error
-	UpdateKeys(updater func(old Keys) (Keys, error)) error
+	UpdateKeys(updater func(old Keys) (*Keys, error)) error
 	UpdateAuthRequest(id string, updater func(a AuthRequest) (AuthRequest, error)) error
 	UpdateRefreshToken(id string, updater func(r RefreshToken) (RefreshToken, error)) error
 	UpdatePassword(email string, updater func(p Password) (Password, error)) error

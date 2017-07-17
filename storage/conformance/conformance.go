@@ -646,8 +646,8 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 
 func testKeysCRUD(t *testing.T, s storage.Storage) {
 	updateAndCompare := func(k storage.Keys) {
-		err := s.UpdateKeys(func(oldKeys storage.Keys) (storage.Keys, error) {
-			return k, nil
+		err := s.UpdateKeys(func(oldKeys storage.Keys) (*storage.Keys, error) {
+			return &k, nil
 		})
 		if err != nil {
 			t.Errorf("failed to update keys: %v", err)
