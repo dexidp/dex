@@ -4,7 +4,7 @@ sudo: required
 
 go:
   - 1.7.5
-  - 1.8
+  - 1.8.3
 
 services:
   - postgresql
