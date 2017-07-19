@@ -19,6 +19,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/coreos/dex/connector"
+	"github.com/coreos/dex/connector/facebook"
 	"github.com/coreos/dex/connector/github"
 	"github.com/coreos/dex/connector/gitlab"
 	"github.com/coreos/dex/connector/ldap"
@@ -387,6 +388,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"ldap":         func() ConnectorConfig { return new(ldap.Config) },
 	"github":       func() ConnectorConfig { return new(github.Config) },
 	"gitlab":       func() ConnectorConfig { return new(gitlab.Config) },
+	"facebook":     func() ConnectorConfig { return new(facebook.Config) },
 	"oidc":         func() ConnectorConfig { return new(oidc.Config) },
 	"saml":         func() ConnectorConfig { return new(saml.Config) },
 	// Keep around for backwards compatibility.

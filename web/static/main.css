@@ -72,6 +72,11 @@ body {
   background-image: url(../static/img/bitbucket-icon.svg);
 }
 
+.dex-btn-icon--facebook {
+  background-image: url(../static/img/facebook-icon.svg);
+  background-size: contain;
+}
+
 .dex-btn-text {
   font-weight: 600;
   line-height: 36px;
