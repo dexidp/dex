@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -14,6 +15,8 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/storage"
 )
+
+var errAlreadyRotated = errors.New("keys already rotated by another server instance")
 
 // rotationStrategy describes a strategy for generating cryptographic keys, how
 // often to rotate them, and how long they can validate signatures after rotation.
@@ -70,7 +73,11 @@ func (s *Server) startKeyRotation(ctx context.Context, strategy rotationStrategy
 
 	// Try to rotate immediately so properly configured storages will have keys.
 	if err := rotater.rotate(); err != nil {
-		s.logger.Errorf("failed to rotate keys: %v", err)
+		if err == errAlreadyRotated {
+			s.logger.Infof("Key rotation not needed: %v", err)
+		} else {
+			s.logger.Errorf("failed to rotate keys: %v", err)
+		}
 	}
 
 	go func() {
@@ -128,7 +135,7 @@ func (k keyRotater) rotate() error {
 		// if you are running multiple instances of dex, another instance
 		// could have already rotated the keys.
 		if tNow.Before(keys.NextRotation) {
-			return storage.Keys{}, nil
+			return storage.Keys{}, errAlreadyRotated
 		}
 
 		expired := func(key storage.VerificationKey) bool {
