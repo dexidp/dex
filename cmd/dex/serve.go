@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/coreos/dex/api"
+	"github.com/coreos/dex/config"
 	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/storage"
 )
@@ -55,7 +56,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to read config file %s: %v", configFile, err)
 	}
 
-	var c Config
+	var c config.Config
 	if err := yaml.Unmarshal(configData, &c); err != nil {
 		return fmt.Errorf("error parse config file %s: %v", configFile, err)
 	}
@@ -158,7 +159,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		logger.Infof("config connector: %s", c.ID)
 
 		// convert to a storage connector object
-		conn, err := ToStorageConnector(c)
+		conn, err := config.ToStorageConnector(c)
 		if err != nil {
 			return fmt.Errorf("failed to initialize storage connectors: %v", err)
 		}
