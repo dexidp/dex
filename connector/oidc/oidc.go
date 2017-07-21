@@ -35,7 +35,7 @@ type Config struct {
 
 	// Optional list of whitelisted domains when using Google
 	// If this field is nonempty, only users from a listed domain will be allowed to log in
-	HostedDomains []string `json:"hostedDomain"`
+	HostedDomains []string `json:"hostedDomains"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -198,7 +198,7 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 	if len(c.hostedDomains) > 0 {
 		found := false
 		for _, domain := range c.hostedDomains {
-			if claims.HostedDomain != domain {
+			if claims.HostedDomain == domain {
 				found = true
 				break
 			}
