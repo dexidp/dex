@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/cockroachdb/cockroach-go/crdb"
+	"github.com/sirupsen/logrus"
 
 	// import third party drivers
 	_ "github.com/go-sql-driver/mysql"

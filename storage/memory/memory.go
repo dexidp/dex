@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/storage"
+	"github.com/sirupsen/logrus"
 )
 
 // New returns an in memory storage.
