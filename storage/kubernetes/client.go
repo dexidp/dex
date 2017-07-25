@@ -22,9 +22,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/ghodss/yaml"
 	"github.com/gtank/cryptopasta"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 
 	"github.com/coreos/dex/storage"

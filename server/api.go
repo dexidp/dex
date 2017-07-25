@@ -10,11 +10,11 @@ import (
 	// https://github.com/grpc/grpc-go/issues/711
 	"golang.org/x/net/context"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/api"
 	"github.com/coreos/dex/server/internal"
 	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/version"
+	"github.com/sirupsen/logrus"
 )
 
 // apiVersion increases every time a new call is added to the API. Clients should use this info

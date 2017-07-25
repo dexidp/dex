@@ -13,8 +13,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/kylelemons/godebug/pretty"
+	"github.com/sirupsen/logrus"
 
 	"github.com/coreos/dex/connector"
 )
