@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/kylelemons/godebug/pretty"
 	dsig "github.com/russellhaering/goxmldsig"
+	"github.com/sirupsen/logrus"
 
 	"github.com/coreos/dex/connector"
 )

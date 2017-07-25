@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/coreos/go-oidc"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 
 	"github.com/coreos/dex/connector"

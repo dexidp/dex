@@ -74,7 +74,7 @@ import:
   version: c97913dcbd76de40b051a9b4cd827f7eaeb7a868
 - package: golang.org/x/oauth2
   version: 08c8d727d2392d18286f9f88ad775ad98f09ab33
-  subpackages: []
+
 # The oauth2 package only imports the appengine code when it's given a
 # specific build tags, but glide detects it anyway.
 #
@@ -92,10 +92,10 @@ import:
 
 # Testing conveniences.
 - package: github.com/kylelemons/godebug
+  version: eadb3ce320cbab8393bea5ca17bebac3f78a021b
   subpackages:
   - diff
   - pretty
-  version: eadb3ce320cbab8393bea5ca17bebac3f78a021b
 
 # SQL drivers
 - package: github.com/mattn/go-sqlite3
@@ -131,10 +131,12 @@ import:
   version: 411e09b969b1170a9f0c467558eb4c4c110d9c77
 
 # Structured logging
-- package: github.com/Sirupsen/logrus
-  version: v0.11.0
-- package: golang.org/x/sys/unix
+- package: github.com/sirupsen/logrus
+  version: v1.0.2
+- package: golang.org/x/sys
   version: 833a04a10549a95dc34458c195cbad61bbb6cb4d
+  subpackages:
+  - unix
 
 # XML signature validation for SAML connector
 - package: github.com/russellhaering/goxmldsig

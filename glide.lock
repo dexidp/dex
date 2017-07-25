@@ -1,5 +1,5 @@
-hash: 94ea60e268ee0ed04e8affdee4db2884fd93ee68ed625d88ccc0e24565b98569
-updated: 2017-04-13T11:28:49.008994259-07:00
+hash: e83f57fea75d4a509d812fab12785599fdab16db950cc3738cec59a6c73f93af
+updated: 2017-07-25T13:48:39.899190846-07:00
 imports:
 - name: github.com/beevik/etree
   version: 4cd0dd976db869f817248477718071a28e978df0
@@ -52,8 +52,8 @@ imports:
   subpackages:
   - etreeutils
   - types
-- name: github.com/Sirupsen/logrus
-  version: d26492970760ca5d33129d2d799e34be5c4782eb
+- name: github.com/sirupsen/logrus
+  version: a3f95b5c423586578a4e099b11a46c2479628cac
 - name: github.com/spf13/cobra
   version: bc81c21bd0d8be5ba2d6630a505d79d4467566e7
 - name: github.com/spf13/pflag

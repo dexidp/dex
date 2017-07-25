@@ -1,8 +1,8 @@
 package oidc
 
 import (
-	"github.com/Sirupsen/logrus"
 	"github.com/coreos/dex/connector"
+	"github.com/sirupsen/logrus"
 	"net/url"
 	"os"
 	"reflect"
