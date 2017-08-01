@@ -214,6 +214,14 @@ func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 	}
 
 	if s.Groups && c.org != "" {
+		inOrg, err := c.userInOrg(ctx, client, c.org)
+		if err != nil {
+			return identity, err
+		}
+		// User was not in org, return related error
+		if !inOrg {
+			return identity, fmt.Errorf("github: user is not an organization member")
+		}
 		groups, err := c.teams(ctx, client, c.org)
 		if err != nil {
 			return identity, fmt.Errorf("github: get teams: %v", err)
@@ -257,6 +265,14 @@ func (c *githubConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 	ident.Email = user.Email
 
 	if s.Groups && c.org != "" {
+		inOrg, err := c.userInOrg(ctx, client, c.org)
+		if err != nil {
+			return ident, err
+		}
+		// User was not in org, return related error
+		if !inOrg {
+			return ident, fmt.Errorf("github: user is not an organization member")
+		}
 		groups, err := c.teams(ctx, client, c.org)
 		if err != nil {
 			return ident, fmt.Errorf("github: get teams: %v", err)
@@ -371,4 +387,68 @@ func (c *githubConnector) teams(ctx context.Context, client *http.Client, org st
 		}
 	}
 	return groups, nil
+}
+
+// orgs queries the GitHub API for organization membership
+//
+// The HTTP passed client is expected to be constructed by the golang.org/x/oauth2 package,
+// which inserts a bearer token as part of the request.
+func (c *githubConnector) userInOrg(ctx context.Context, client *http.Client, orgName string) (bool, error) {
+	// https://developer.github.com/v3/#pagination
+	reNext := regexp.MustCompile("<(.*)>; rel=\"next\"")
+	reLast := regexp.MustCompile("<(.*)>; rel=\"last\"")
+	apiURL := c.apiURL + "/user/orgs"
+
+	for {
+		req, err := http.NewRequest("GET", apiURL, nil)
+		if err != nil {
+			return false, fmt.Errorf("github: new req: %v", err)
+		}
+		req = req.WithContext(ctx)
+		resp, err := client.Do(req)
+		if err != nil {
+			return false, fmt.Errorf("github: get orgs: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				return false, fmt.Errorf("github: read body: %v", err)
+			}
+			return false, fmt.Errorf("%s: %s", resp.Status, body)
+		}
+
+		// https://developer.github.com/v3/orgs/#list-your-organizations
+		var orgs []struct {
+			Name string `json:"login"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&orgs); err != nil {
+			return false, fmt.Errorf("github: unmarshal groups: %v", err)
+		}
+
+		for _, org := range orgs {
+			if org.Name == orgName {
+				return true, nil
+			}
+		}
+
+		links := resp.Header.Get("Link")
+		if len(reLast.FindStringSubmatch(links)) > 1 {
+			lastPageURL := reLast.FindStringSubmatch(links)[1]
+			if apiURL == lastPageURL {
+				break
+			}
+		} else {
+			break
+		}
+
+		if len(reNext.FindStringSubmatch(links)) > 1 {
+			apiURL = reNext.FindStringSubmatch(links)[1]
+		} else {
+			break
+		}
+	}
+
+	return false, nil
 }
