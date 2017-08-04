@@ -142,6 +142,8 @@ func (c *Config) openConnector(logger logrus.FieldLogger) (*provider, error) {
 	for _, f := range requiredFields {
 		if f.val == "" {
 			missing = append(missing, f.name)
+		} else {
+			logger.Infof("saml %s: %s", f.name, f.val)
 		}
 	}
 	switch len(missing) {
@@ -176,6 +178,7 @@ func (c *Config) openConnector(logger logrus.FieldLogger) (*provider, error) {
 			return nil, fmt.Errorf("invalid nameIDPolicyFormat: %q", p.nameIDPolicyFormat)
 		}
 	}
+	logger.Debugf("saml: nameID policy format set to %q", p.nameIDPolicyFormat)
 
 	if !c.InsecureSkipSignatureValidation {
 		if (c.CA == "") == (c.CAData == nil) {
@@ -189,8 +192,10 @@ func (c *Config) openConnector(logger logrus.FieldLogger) (*provider, error) {
 				return nil, fmt.Errorf("read ca file: %v", err)
 			}
 			caData = data
+			logger.Debugf("saml: using CA data from cert file %q", c.CA)
 		} else {
 			caData = c.CAData
+			logger.Debugln("saml: using CA data from config file")
 		}
 
 		var (
@@ -252,10 +257,14 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 		},
 		AssertionConsumerServiceURL: p.redirectURI,
 	}
+
 	if p.entityIssuer != "" {
 		// Issuer for the request is optional. For example, okta always ignores
 		// this value.
 		r.Issuer = &issuer{Issuer: p.entityIssuer}
+		p.logger.Debugln("saml: authn request entity issuer set to %q", p.entityIssuer)
+	} else {
+		p.logger.Debugln("saml: no authn request entity issuer set")
 	}
 
 	data, err := xml.MarshalIndent(r, "", "  ")
@@ -290,10 +299,15 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		if err != nil {
 			return ident, fmt.Errorf("verify signature: %v", err)
 		}
+		if rootElementSigned {
+			p.logger.Debugln("saml: response root element signed and verified")
+		} else {
+			p.logger.Debugln("saml: response first assertion signed, root element not verified")
+		}
 	}
 
 	var resp response
-	if err := xml.Unmarshal(rawResp, &resp); err != nil {
+	if err = xml.Unmarshal(rawResp, &resp); err != nil {
 		return ident, fmt.Errorf("unmarshal response: %v", err)
 	}
 
@@ -303,6 +317,12 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		if p.ssoIssuer != "" && resp.Issuer != nil && resp.Issuer.Issuer != p.ssoIssuer {
 			return ident, fmt.Errorf("expected Issuer value %s, got %s", p.ssoIssuer, resp.Issuer.Issuer)
 		}
+		if p.ssoIssuer == "" {
+			p.logger.Debugln("saml: provider SSO issuer element was empty")
+		}
+		if resp.Issuer == nil {
+			p.logger.Debugln("saml: response SSO issuer element was empty")
+		}
 
 		// Verify InResponseTo value matches the expected ID associated with
 		// the RelayState.
@@ -311,8 +331,13 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		}
 
 		// Destination is optional.
-		if resp.Destination != "" && resp.Destination != p.redirectURI {
-			return ident, fmt.Errorf("expected destination %q got %q", p.redirectURI, resp.Destination)
+		if resp.Destination != "" {
+			p.logger.Debugln("saml: destination set to %q", resp.Destination)
+			if resp.Destination != p.redirectURI {
+				return ident, fmt.Errorf("expected destination %q, got %q", p.redirectURI, resp.Destination)
+			}
+		} else {
+			p.logger.Debugln("saml: destination not set")
 		}
 
 		// Status is a required element.
@@ -329,6 +354,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	if assertion == nil {
 		return ident, fmt.Errorf("response did not contain an assertion")
 	}
+	p.logger.Debugf("saml: assertion (id %q) received", assertion.ID)
 
 	// Subject is usually optional, but we need it for the user ID, so complain
 	// if it's not present.
@@ -336,6 +362,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	if subject == nil {
 		return ident, fmt.Errorf("response did not contain a subject")
 	}
+	p.logger.Debugf("saml: assertion subject set to %q", subject.NameID)
 
 	// Validate that the response is to the request we originally sent.
 	if err = p.validateSubject(subject, inResponseTo); err != nil {
@@ -348,6 +375,8 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		if err = p.validateConditions(assertion.Conditions); err != nil {
 			return ident, err
 		}
+	} else {
+		p.logger.Debugln("saml: assertion did not contain a conditions element")
 	}
 
 	switch {
@@ -355,8 +384,9 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		if ident.UserID = subject.NameID.Value; ident.UserID == "" {
 			return ident, fmt.Errorf("NameID element does not contain a value")
 		}
+		p.logger.Debugf("saml: identity UserID set to %q", ident.UserID)
 	default:
-		return ident, fmt.Errorf("subject does not contain an NameID element")
+		return ident, fmt.Errorf("subject does not contain a NameID element")
 	}
 
 	// After verifying the assertion, map data in the attribute statements to
@@ -372,19 +402,23 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	}
 	// TODO(ericchiang): Does SAML have an email_verified equivalent?
 	ident.EmailVerified = true
+	p.logger.Debugf("saml: identity Email verified and set to %q", ident.Email)
 
 	// Grab the username.
 	if ident.Username, _ = attributes.get(p.usernameAttr); ident.Username == "" {
 		return ident, fmt.Errorf("no attribute with name %q: %s", p.usernameAttr, attributes.names())
 	}
+	p.logger.Debugf("saml: identity Username set to %q", ident.Username)
 
 	if !s.Groups || p.groupsAttr == "" {
 		// Groups not requested or not configured. We're done.
+		p.logger.Debugln("saml: groups not requested or configured")
 		return ident, nil
 	}
 
 	// Grab the groups.
 	if p.groupsDelim != "" {
+		p.logger.Debugf("saml: using delimiter %q to parse groups", p.groupsDelim)
 		groupsStr, ok := attributes.get(p.groupsAttr)
 		if !ok {
 			return ident, fmt.Errorf("no attribute with name %q: %s", p.groupsAttr, attributes.names())
@@ -398,6 +432,8 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		}
 		ident.Groups = groups
 	}
+
+	p.logger.Debugf("saml: successful search for groups: %s", strings.Join(ident.Groups, ", "))
 	return ident, nil
 }
 
@@ -405,8 +441,8 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 // formats a human readble error based on the bad status.
 func (p *provider) validateStatus(status *status) error {
 	// StatusCode is mandatory in the Status type
-	statusCode := status.StatusCode
-	if statusCode == nil {
+	statusCode, statusMessage := status.StatusCode, status.StatusMessage
+	if statusCode == nil || statusCode.Value == "" {
 		return fmt.Errorf("response did not contain a StatusCode")
 	}
 
@@ -414,12 +450,17 @@ func (p *provider) validateStatus(status *status) error {
 		parts := strings.Split(statusCode.Value, ":")
 		lastPart := parts[len(parts)-1]
 		errorMessage := fmt.Sprintf("status code of the Response was not Success, was %q", lastPart)
-		statusMessage := status.StatusMessage
 		if statusMessage != nil && statusMessage.Value != "" {
 			errorMessage += " -> " + statusMessage.Value
 		}
 		return fmt.Errorf(errorMessage)
 	}
+
+	statusLog := fmt.Sprintf("saml: response status received (code %q)", statusCode.Value)
+	if statusMessage != nil && statusMessage.Value != "" {
+		statusLog = fmt.Sprintf("%s: %q", statusLog, statusMessage.Value)
+	}
+	p.logger.Debugf(statusLog)
 	return nil
 }
 
@@ -436,6 +477,11 @@ func (p *provider) validateSubject(subject *subject, inResponseTo string) error 
 	// Optional according to the spec, but again, we're going to be strict here.
 	if len(subject.SubjectConfirmations) == 0 {
 		return fmt.Errorf("Subject contained no SubjectConfrimations")
+	}
+	if subject.NameID != nil {
+		p.logger.Debugln("saml: subject NameID %q", subject.NameID.Value)
+	} else {
+		p.logger.Debugln("saml: subject has no NameID")
 	}
 
 	var errs []error
@@ -466,6 +512,7 @@ func (p *provider) validateSubject(subject *subject, inResponseTo string) error 
 			if r := data.Recipient; r != "" && r != p.redirectURI {
 				return fmt.Errorf("expected Recipient %q got %q", p.redirectURI, r)
 			}
+			p.logger.Debugf("saml: found valid subject confirmation (recipient %q, inResponseTo %q)", data.Recipient, data.InResponseTo)
 			return nil
 		}()
 		if err == nil {
@@ -501,11 +548,11 @@ func (p *provider) validateConditions(conditions *conditions) error {
 
 	// Sometimes, dex's issuer string can be different than the redirect URI,
 	// but if dex's issuer isn't explicitly provided assume the redirect URI.
-	expAud := p.entityIssuer
+	expAud, checkStr := p.entityIssuer, ""
 	if expAud == "" {
-		expAud = p.redirectURI
+		expAud, checkStr = p.redirectURI, "entity issuer was not set,"
 	}
-
+	p.logger.Debugf("saml:%s audience set to %q", checkStr, expAud)
 	// AudienceRestriction elements indicate the intended audience(s) of an
 	// assertion. If dex isn't in these audiences, reject the assertion.
 	//
@@ -525,7 +572,10 @@ func (p *provider) validateConditions(conditions *conditions) error {
 		if !issuerInAudiences {
 			return fmt.Errorf("required audience %s was not in Response audiences %s", expAud, values)
 		}
+		p.logger.Debugf("saml: response audiences contained required audience %q", expAud)
 	}
+
+	p.logger.Debugf("saml: conditions for audience %q validated successfully", expAud)
 	return nil
 }
 
