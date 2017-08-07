@@ -88,7 +88,7 @@ func main() {
 }
 ```
 
-A clear working example of the Dex gRPC client can be found [here][../examples/grpc-client/README.md].
+A clear working example of the Dex gRPC client can be found [here](../examples/grpc-client/README.md).
 
 ## Authentication and access control
 
