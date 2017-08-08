@@ -9,7 +9,6 @@ When a client redeems a refresh token through dex, dex will re-query GitHub to u
 ## Caveats
 
 * Please note that in order for a user to be authenticated via GitHub, the user needs to mark their email id as public on GitHub. This will enable the API to return the user's email to Dex.
-* Currently, authentication via GitHub allows users outside of the `Org` specified in the connector to login. This is being tracked by [issue #920][issue-920].
 
 ## Configuration
 
@@ -29,11 +28,29 @@ connectors:
     clientID: $GITHUB_CLIENT_ID
     clientSecret: $GITHUB_CLIENT_SECRET
     redirectURI: http://127.0.0.1:5556/dex/callback
-    # Optional organization to pull teams from, communicate through the
-    # "groups" scope.
+    # Optional organizations and teams, communicated through the "groups" scope.
     #
     # NOTE: This is an EXPERIMENTAL config option and will likely change.
-    org: my-oranization
+    #
+    # Legacy 'org' field. 'org' and 'orgs' cannot be used simultaneously. A user
+    # MUST be a member of the following org to authenticate with dex.
+    # org: my-organization
+    #
+    # Dex queries the following organizations for group information if the
+    # "groups" scope is provided. Group claims are formatted as "(org):(team)".
+    # For example if a user is part of the "engineering" team of the "coreos"
+    # org, the group claim would include "coreos:engineering".
+    #
+    # A user MUST be a member of at least one of the following orgs to
+    # authenticate with dex.
+    orgs:
+    - name: my-organization
+      # Include all teams as claims.
+    - name: my-organization-with-teams
+      # A white list of teams. Only include group claims for these teams.
+      teams:
+      - read-team
+      - blue-team
 ```
 
 ## GitHub Enterprise
@@ -54,12 +71,29 @@ connectors:
     clientID: $GITHUB_CLIENT_ID
     clientSecret: $GITHUB_CLIENT_SECRET
     redirectURI: http://127.0.0.1:5556/dex/callback
-    # Optional organization to pull teams from, communicate through the
-    # "groups" scope.
+    # Optional organizations and teams, communicated through the "groups" scope.
     #
     # NOTE: This is an EXPERIMENTAL config option and will likely change.
-    org: my-oranization
-
+    #
+    # Legacy 'org' field. 'org' and 'orgs' cannot be used simultaneously. A user
+    # MUST be a member of the following org to authenticate with dex.
+    # org: my-organization
+    #
+    # Dex queries the following organizations for group information if the
+    # "groups" scope is provided. Group claims are formatted as "(org):(team)".
+    # For example if a user is part of the "engineering" team of the "coreos"
+    # org, the group claim would include "coreos:engineering".
+    #
+    # A user MUST be a member of at least one of the following orgs to
+    # authenticate with dex.
+    orgs:
+    - name: my-organization
+      # Include all teams as claims.
+    - name: my-organization-with-teams
+      # A white list of teams. Only include group claims for these teams.
+      teams:
+      - read-team
+      - blue-team
     # Required ONLY for GitHub Enterprise.
     # This is the Hostname of the GitHub Enterprise account listed on the
     # management console. Ensure this domain is routable on your network.
@@ -70,4 +104,3 @@ connectors:
 ```
 
 [github-oauth2]: https://github.com/settings/applications/new
-[issue-920]: https://github.com/coreos/dex/issues/920

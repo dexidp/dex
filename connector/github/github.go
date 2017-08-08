@@ -35,15 +35,40 @@ type Config struct {
 	ClientSecret string `json:"clientSecret"`
 	RedirectURI  string `json:"redirectURI"`
 	Org          string `json:"org"`
+	Orgs         []Org  `json:"orgs"`
 	HostName     string `json:"hostName"`
 	RootCA       string `json:"rootCA"`
 }
 
+// Org holds org-team filters, in which teams are optional.
+type Org struct {
+
+	// Organization name in github (not slug, full name). Only users in this github
+	// organization can authenticate.
+	Name string `json:"name"`
+
+	// Names of teams in a github organization. A user will be able to
+	// authenticate if they are members of at least one of these teams. Users
+	// in the organization can authenticate if this field is omitted from the
+	// config file.
+	Teams []string `json:"teams,omitempty"`
+}
+
 // Open returns a strategy for logging in through GitHub.
 func (c *Config) Open(logger logrus.FieldLogger) (connector.Connector, error) {
+
+	if c.Org != "" {
+		// Return error if both 'org' and 'orgs' fields are used.
+		if len(c.Orgs) > 0 {
+			return nil, errors.New("github: cannot use both 'org' and 'orgs' fields simultaneously")
+		}
+		logger.Warnln("github: legacy field 'org' being used. Switch to the newer 'orgs' field structure")
+	}
+
 	g := githubConnector{
 		redirectURI:  c.RedirectURI,
 		org:          c.Org,
+		orgs:         c.Orgs,
 		clientID:     c.ClientID,
 		clientSecret: c.ClientSecret,
 		apiURL:       apiURL,
@@ -89,6 +114,7 @@ var (
 type githubConnector struct {
 	redirectURI  string
 	org          string
+	orgs         []Org
 	clientID     string
 	clientSecret string
 	logger       logrus.FieldLogger
@@ -213,10 +239,23 @@ func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 		EmailVerified: true,
 	}
 
-	if s.Groups && c.org != "" {
-		groups, err := c.teams(ctx, client, c.org)
-		if err != nil {
-			return identity, fmt.Errorf("github: get teams: %v", err)
+	if s.Groups {
+		var groups []string
+		if len(c.orgs) > 0 {
+			if groups, err = c.listGroups(ctx, client, username); err != nil {
+				return identity, err
+			}
+		} else if c.org != "" {
+			inOrg, err := c.userInOrg(ctx, client, username, c.org)
+			if err != nil {
+				return identity, err
+			}
+			if !inOrg {
+				return identity, fmt.Errorf("github: user %q not a member of org %q", username, c.org)
+			}
+			if groups, err = c.teams(ctx, client, c.org); err != nil {
+				return identity, fmt.Errorf("github: get teams: %v", err)
+			}
 		}
 		identity.Groups = groups
 	}
@@ -233,37 +272,112 @@ func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 	return identity, nil
 }
 
-func (c *githubConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
-	if len(ident.ConnectorData) == 0 {
-		return ident, errors.New("no upstream access token found")
+func (c *githubConnector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+	if len(identity.ConnectorData) == 0 {
+		return identity, errors.New("no upstream access token found")
 	}
 
 	var data connectorData
-	if err := json.Unmarshal(ident.ConnectorData, &data); err != nil {
-		return ident, fmt.Errorf("github: unmarshal access token: %v", err)
+	if err := json.Unmarshal(identity.ConnectorData, &data); err != nil {
+		return identity, fmt.Errorf("github: unmarshal access token: %v", err)
 	}
 
 	client := c.oauth2Config(s).Client(ctx, &oauth2.Token{AccessToken: data.AccessToken})
 	user, err := c.user(ctx, client)
 	if err != nil {
-		return ident, fmt.Errorf("github: get user: %v", err)
+		return identity, fmt.Errorf("github: get user: %v", err)
 	}
 
 	username := user.Name
 	if username == "" {
 		username = user.Login
 	}
-	ident.Username = username
-	ident.Email = user.Email
+	identity.Username = username
+	identity.Email = user.Email
 
-	if s.Groups && c.org != "" {
-		groups, err := c.teams(ctx, client, c.org)
-		if err != nil {
-			return ident, fmt.Errorf("github: get teams: %v", err)
+	if s.Groups {
+		var groups []string
+		if len(c.orgs) > 0 {
+			if groups, err = c.listGroups(ctx, client, username); err != nil {
+				return identity, err
+			}
+		} else if c.org != "" {
+			inOrg, err := c.userInOrg(ctx, client, username, c.org)
+			if err != nil {
+				return identity, err
+			}
+			if !inOrg {
+				return identity, fmt.Errorf("github: user %q not a member of org %q", username, c.org)
+			}
+			if groups, err = c.teams(ctx, client, c.org); err != nil {
+				return identity, fmt.Errorf("github: get teams: %v", err)
+			}
 		}
-		ident.Groups = groups
+		identity.Groups = groups
 	}
-	return ident, nil
+
+	return identity, nil
+}
+
+// listGroups enforces org and team constraints on user authorization
+// Cases in which user is authorized:
+// 	N orgs, no teams: user is member of at least 1 org
+// 	N orgs, M teams per org: user is member of any team from at least 1 org
+// 	N-1 orgs, M teams per org, 1 org with no teams: user is member of any team
+// from at least 1 org, or member of org with no teams
+func (c *githubConnector) listGroups(ctx context.Context, client *http.Client, userName string) (groups []string, err error) {
+	var inOrgNoTeams bool
+	for _, org := range c.orgs {
+		inOrg, err := c.userInOrg(ctx, client, userName, org.Name)
+		if err != nil {
+			return groups, err
+		}
+		if !inOrg {
+			continue
+		}
+
+		teams, err := c.teams(ctx, client, org.Name)
+		if err != nil {
+			return groups, err
+		}
+		// User is in at least one org. User is authorized if no teams are specified
+		// in config; include all teams in claim. Otherwise filter out teams not in
+		// 'teams' list in config.
+		if len(org.Teams) == 0 {
+			inOrgNoTeams = true
+			c.logger.Debugf("github: user %q in org %q", userName, org.Name)
+		} else if teams = filterTeams(teams, org.Teams); len(teams) == 0 {
+			c.logger.Debugf("github: user %q in org %q but no teams", userName, org.Name)
+		}
+
+		// Orgs might have the same team names. We append orgPrefix to team name,
+		// i.e. "org:team", to make team names unique across orgs.
+		orgPrefix := org.Name + ":"
+		for _, teamName := range teams {
+			groups = append(groups, orgPrefix+teamName)
+			c.logger.Debugf("github: user %q in org %q team %q", userName, org.Name, teamName)
+		}
+	}
+	if inOrgNoTeams || len(groups) > 0 {
+		return
+	}
+	return groups, fmt.Errorf("github: user %q not in required orgs or teams", userName)
+}
+
+// Filter the users' team memberships by 'teams' from config.
+func filterTeams(userTeams, configTeams []string) (teams []string) {
+	teamFilter := make(map[string]struct{})
+	for _, team := range configTeams {
+		if _, ok := teamFilter[team]; !ok {
+			teamFilter[team] = struct{}{}
+		}
+	}
+	for _, team := range userTeams {
+		if _, ok := teamFilter[team]; ok {
+			teams = append(teams, team)
+		}
+	}
+	return
 }
 
 type user struct {
@@ -303,11 +417,46 @@ func (c *githubConnector) user(ctx context.Context, client *http.Client) (user, 
 	return u, nil
 }
 
+// userInOrg queries the GitHub API for a users' org membership.
+//
+// The HTTP passed client is expected to be constructed by the golang.org/x/oauth2 package,
+// which inserts a bearer token as part of the request.
+func (c *githubConnector) userInOrg(ctx context.Context, client *http.Client, userName, orgName string) (bool, error) {
+	// requester == user, so GET-ing this endpoint should return 404/302 if user
+	// is not a member
+	//
+	// https://developer.github.com/v3/orgs/members/#check-membership
+	apiURL := fmt.Sprintf("%s/orgs/%s/members/%s", c.apiURL, orgName, userName)
+
+	req, err := http.NewRequest("GET", apiURL, nil)
+
+	if err != nil {
+		return false, fmt.Errorf("github: new req: %v", err)
+	}
+	req = req.WithContext(ctx)
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("github: get teams: %v", err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusNoContent:
+	case http.StatusFound, http.StatusNotFound:
+		c.logger.Debugf("github: user %q not in org %q", userName, orgName)
+	default:
+		err = fmt.Errorf("github: unexpected return status: %q", resp.Status)
+	}
+
+	// 204 if user is a member
+	return resp.StatusCode == http.StatusNoContent, err
+}
+
 // teams queries the GitHub API for team membership within a specific organization.
 //
 // The HTTP passed client is expected to be constructed by the golang.org/x/oauth2 package,
 // which inserts a bearer token as part of the request.
-func (c *githubConnector) teams(ctx context.Context, client *http.Client, org string) ([]string, error) {
+func (c *githubConnector) teams(ctx context.Context, client *http.Client, orgName string) ([]string, error) {
 
 	groups := []string{}
 
@@ -349,7 +498,7 @@ func (c *githubConnector) teams(ctx context.Context, client *http.Client, org st
 		}
 
 		for _, team := range teams {
-			if team.Org.Login == org {
+			if team.Org.Login == orgName {
 				groups = append(groups, team.Name)
 			}
 		}
