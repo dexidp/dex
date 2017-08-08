@@ -6,6 +6,11 @@ One of the login options for dex uses the GitHub OAuth2 flow to identify the end
 
 When a client redeems a refresh token through dex, dex will re-query GitHub to update user information in the ID Token. To do this, __dex stores a readonly GitHub access token in its backing datastore.__ Users that reject dex's access through GitHub will also revoke all dex clients which authenticated them through GitHub.
 
+## Caveats
+
+* The GitHub API calls dex uses requires a user to have their organization membership visibility set to public. This can be done on the ["request access from org" page](github-request-org-access) which GitHub will skip if the client app is an existing authorized application. The current workaround is as follows: the user should log into their GitHub account, go to Settings -> Authorized OAuth Apps, click 'Revoke' to revoke the application's grant, and restart the dex login process. This will force the "request access from org" page to be shown, allowing the user to request that the organization owner make their membership public.
+    * Note: GitHub [organizations][github-orgs] are different from GitHub [teams][github-teams]
+
 ## Configuration
 
 Register a new application with [GitHub][github-oauth2] ensuring the callback URL is `(dex issuer)/callback`. For example if dex is listening at the non-root path `https://auth.example.com/dex` the callback would be `https://auth.example.com/dex/callback`.
@@ -100,3 +105,6 @@ connectors:
 ```
 
 [github-oauth2]: https://github.com/settings/applications/new
+[github-orgs]: https://developer.github.com/v3/orgs/
+[github-teams]: https://developer.github.com/v3/orgs/teams/
+[github-request-org-access]: https://help.github.com/articles/requesting-organization-approval-for-oauth-apps/
