@@ -1,0 +1,33 @@
+#!/bin/bash -x
+# Script adapted from https://github.com/kubernetes/minikube#linux-ci-installation-which-supports-running-in-a-vm-example-w-kubectl-installation
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN_DIR="$(mktemp -d -p "$DIR")"
+
+if command -v minikube; then
+  ln -sf "$(command -v minikube)" "$BIN_DIR"/minikube
+else
+  curl -Lo "$BIN_DIR"/minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+fi
+
+if command -v kubectl; then
+  ln -sf "$(command -v kubectl)" "$BIN_DIR"/kubectl
+else
+  stable_release="$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)"
+  curl -Lo "$BIN_DIR"/kubectl https://storage.googleapis.com/kubernetes-release/release/"$stable_release"/bin/linux/amd64/kubectl
+fi
+chmod -R +x "$BIN_DIR"
+
+export PATH="${BIN_DIR}:${PATH}"
+export MINIKUBE_WANTUPDATENOTIFICATION=false
+export MINIKUBE_WANTREPORTERRORPROMPT=false
+export MINIKUBE_HOME="$DIR"
+export CHANGE_MINIKUBE_NONE_USER=true
+export KUBECONFIG="$DEX_KUBECONFIG"
+sudo -E "$BIN_DIR"/minikube start --vm-driver=none
+
+# this for loop waits until kubectl can access the api server that minikube has created
+for i in {1..150}; do # timeout for 5 minutes
+  if "$BIN_DIR"/kubectl get pods &> /dev/null; then break; fi
+  sleep 2
+done

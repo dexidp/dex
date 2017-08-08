@@ -1,0 +1,8 @@
+#!/bin/bash -x
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN_DIR=$(find "$DIR" -name minikube -not -type d -exec dirname {} \;)
+
+trap "rm -rf $BIN_DIR; exit" EXIT
+
+"$BIN_DIR"/minikube delete
