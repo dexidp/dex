@@ -281,3 +281,66 @@ func TestRefreshToken(t *testing.T) {
 		t.Fatalf("Refresh token returned inspite of revoking it.")
 	}
 }
+
+// Attempts to create, update and delete a test Connector
+func TestConnector(t *testing.T) {
+	logger := &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level:     logrus.DebugLevel,
+	}
+
+	s := memory.New(logger)
+	serv := NewAPI(s, logger)
+
+	ctx := context.Background()
+	id := storage.NewID()
+	c := api.Connector{
+		Id:     id,
+		Type:   "oidc",
+		Name:   "Test",
+		Config: []byte(`{"issuer": "https://accounts.google.com"}`),
+	}
+
+	createReq := api.CreateConnectorReq{
+		Connector: &c,
+	}
+
+	if resp, err := serv.CreateConnector(ctx, &createReq); err != nil || resp.AlreadyExists {
+		if resp.AlreadyExists {
+			t.Fatalf("Unable to create connector since %s already exists", createReq.Connector.Id)
+		}
+		t.Fatalf("Unable to create connector: %v", err)
+	}
+
+	// Attempt to create a connector that already exists.
+	if resp, _ := serv.CreateConnector(ctx, &createReq); !resp.AlreadyExists {
+		t.Fatalf("Created connector %s twice", createReq.Connector.Id)
+	}
+
+	updateReq := api.UpdateConnectorReq{
+		Id:   id,
+		Name: "Test1",
+	}
+
+	if _, err := serv.UpdateConnector(ctx, &updateReq); err != nil {
+		t.Fatalf("Unable to update connector: %v", err)
+	}
+
+	conn, err := s.GetConnector(id)
+	if err != nil {
+		t.Fatalf("Unable to retrieve connector: %v", err)
+	}
+
+	if conn.Name != updateReq.Name {
+		t.Fatalf("UpdateConnector failed. Expected name %s retrieved %s", updateReq.Name, conn.Name)
+	}
+
+	deleteReq := api.DeleteConnectorReq{
+		Id: id,
+	}
+
+	if _, err := serv.DeleteConnector(ctx, &deleteReq); err != nil {
+		t.Fatalf("Unable to delete connector: %v", err)
+	}
+}

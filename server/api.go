@@ -1,8 +1,10 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -186,7 +188,6 @@ func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) 
 		return nil, fmt.Errorf("delete password: %v", err)
 	}
 	return &api.DeletePasswordResp{}, nil
-
 }
 
 func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.VersionResp, error) {
@@ -289,4 +290,151 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 	}
 
 	return &api.RevokeRefreshResp{}, nil
+}
+
+// parseConnConfig will parse the provided connector config to ensure it is correct.
+func parseConnConfig(connType string, config []byte) error {
+	f, ok := ConnectorsConfig[connType]
+	if !ok {
+		return fmt.Errorf("unknown connector type %q", connType)
+	}
+
+	connConfig := f()
+	if len(config) != 0 {
+		if err := json.Unmarshal(config, connConfig); err != nil {
+			return fmt.Errorf("parse connector config: %v", err)
+		}
+	}
+	return nil
+}
+
+func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq) (*api.CreateConnectorResp, error) {
+	if req.Connector == nil {
+		return nil, errors.New("no connector supplied")
+	}
+	if req.Connector.Id == "" || req.Connector.Type == "" || req.Connector.Name == "" {
+		return nil, errors.New("Connector ID, Type, and Name are mandatory fields")
+	}
+	if len(req.Connector.Config) != 0 {
+		if err := parseConnConfig(req.Connector.Type, req.Connector.Config); err != nil {
+			return nil, fmt.Errorf("create connector: %v", err)
+		}
+	}
+
+	c := storage.Connector{
+		ID:              req.Connector.Id,
+		Type:            req.Connector.Type,
+		Name:            req.Connector.Name,
+		ResourceVersion: "1",
+		Config:          req.Connector.Config,
+	}
+	if err := d.s.CreateConnector(c); err != nil {
+		if err == storage.ErrAlreadyExists {
+			return &api.CreateConnectorResp{AlreadyExists: true}, nil
+		}
+		d.logger.Errorf("api: failed to create connector: %v", err)
+		return nil, fmt.Errorf("create connector: %v", err)
+	}
+
+	return &api.CreateConnectorResp{}, nil
+}
+
+func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq) (*api.UpdateConnectorResp, error) {
+	if req.Id == "" {
+		return nil, errors.New("no connector ID supplied")
+	}
+	if req.Type == "" && req.Name == "" && len(req.Config) == 0 {
+		return nil, errors.New("nothing to update")
+	}
+	if len(req.Config) != 0 {
+		var conntype string
+
+		if req.Type != "" {
+			conntype = req.Type
+		} else {
+			conn, err := d.s.GetConnector(req.Id)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get connector with id %q: %v", req.Id, err)
+			}
+			conntype = conn.Type
+		}
+
+		if err := parseConnConfig(conntype, req.Config); err != nil {
+			return nil, fmt.Errorf("create connector: %v", err)
+		}
+
+	}
+
+	updater := func(old storage.Connector) (storage.Connector, error) {
+		if req.Type != "" {
+			old.Type = req.Type
+		}
+
+		if req.Name != "" {
+			old.Name = req.Name
+		}
+
+		if len(req.Config) > 0 {
+			old.Config = req.Config
+		}
+
+		currentVersion, err := strconv.Atoi(old.ResourceVersion)
+		if err != nil {
+			return storage.Connector{}, errors.New("failed to covert ResourceVersion string to int")
+		}
+		old.ResourceVersion = strconv.Itoa(currentVersion + 1)
+
+		return old, nil
+	}
+
+	if err := d.s.UpdateConnector(req.Id, updater); err != nil {
+		if err == storage.ErrNotFound {
+			return &api.UpdateConnectorResp{NotFound: true}, nil
+		}
+		d.logger.Errorf("api: failed to update connector: %v", err)
+		return nil, fmt.Errorf("update connector: %v", err)
+	}
+
+	return &api.UpdateConnectorResp{}, nil
+}
+
+// ListConnectors lists out the connector objects saved in the backend storage and static connector objects
+// retrieved from the ConfigMap.
+func (d dexAPI) ListConnectors(ctx context.Context, req *api.ListConnectorReq) (*api.ListConnectorResp, error) {
+	connectorList, err := d.s.ListConnectors()
+	if err != nil {
+		d.logger.Errorf("api: failed to list connectors: %v", err)
+		return nil, fmt.Errorf("list connectors: %v", err)
+	}
+
+	var connectors []*api.Connector
+	for _, connector := range connectorList {
+		c := api.Connector{
+			Id:     connector.ID,
+			Type:   connector.Type,
+			Name:   connector.Name,
+			Config: connector.Config,
+		}
+		connectors = append(connectors, &c)
+	}
+
+	return &api.ListConnectorResp{
+		Connectors: connectors,
+	}, nil
+}
+
+func (d dexAPI) DeleteConnector(ctx context.Context, req *api.DeleteConnectorReq) (*api.DeleteConnectorResp, error) {
+	if req.Id == "" {
+		return nil, errors.New("no connector ID supplied")
+	}
+
+	err := d.s.DeleteConnector(req.Id)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			return &api.DeleteConnectorResp{NotFound: true}, nil
+		}
+		d.logger.Errorf("api: failed to delete connector: %v", err)
+		return nil, fmt.Errorf("delete connector: %v", err)
+	}
+	return &api.DeleteConnectorResp{}, nil
 }
