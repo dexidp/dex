@@ -29,6 +29,11 @@ const (
 	scopeOrgs  = "read:org"
 )
 
+// Pagination URL patterns
+// https://developer.github.com/v3/#pagination
+var reNext = regexp.MustCompile("<([^>]+)>; rel=\"next\"")
+var reLast = regexp.MustCompile("<([^>]+)>; rel=\"last\"")
+
 // Config holds configuration options for github logins.
 type Config struct {
 	ClientID     string `json:"clientID"`
@@ -380,6 +385,67 @@ func filterTeams(userTeams, configTeams []string) (teams []string) {
 	return
 }
 
+// get creates a "GET `apiURL`" request with context, sends the request using
+// the client, and decodes the resulting response body into v. A pagination URL
+// is returned if one exists. Any errors encountered when building requests,
+// sending requests, and reading and decoding response data are returned.
+func get(ctx context.Context, client *http.Client, apiURL string, v interface{}) (string, error) {
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("github: new req: %v", err)
+	}
+	req = req.WithContext(ctx)
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("github: get URL %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return "", fmt.Errorf("github: read body: %v", err)
+		}
+		return "", fmt.Errorf("%s: %s", resp.Status, body)
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
+		return "", fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return getPagination(apiURL, resp), nil
+}
+
+// getPagination checks the "Link" header field for "next" or "last" pagination
+// URLs, and returns true only if a "next" URL is found. The next pages' URL is
+// returned if a "next" URL is found. apiURL is returned if apiURL equals the
+// "last" URL or no "next" or "last" URL are found.
+//
+// https://developer.github.com/v3/#pagination
+func getPagination(apiURL string, resp *http.Response) string {
+	if resp == nil {
+		return ""
+	}
+
+	links := resp.Header.Get("Link")
+	if len(reLast.FindStringSubmatch(links)) > 1 {
+		lastPageURL := reLast.FindStringSubmatch(links)[1]
+		if apiURL == lastPageURL {
+			return ""
+		}
+	} else {
+		return ""
+	}
+
+	if len(reNext.FindStringSubmatch(links)) > 1 {
+		return reNext.FindStringSubmatch(links)[1]
+	}
+
+	return ""
+}
+
+// user holds GitHub user information (relevant to dex) as defined by
+// https://developer.github.com/v3/users/#response-with-public-profile-information
 type user struct {
 	Name  string `json:"name"`
 	Login string `json:"login"`
@@ -387,34 +453,67 @@ type user struct {
 	Email string `json:"email"`
 }
 
-// user queries the GitHub API for profile information using the provided client. The HTTP
-// client is expected to be constructed by the golang.org/x/oauth2 package, which inserts
-// a bearer token as part of the request.
+// user queries the GitHub API for profile information using the provided client.
+//
+// The HTTP client is expected to be constructed by the golang.org/x/oauth2 package,
+// which inserts a bearer token as part of the request.
 func (c *githubConnector) user(ctx context.Context, client *http.Client) (user, error) {
+	// https://developer.github.com/v3/users/#get-the-authenticated-user
 	var u user
-	req, err := http.NewRequest("GET", c.apiURL+"/user", nil)
-	if err != nil {
-		return u, fmt.Errorf("github: new req: %v", err)
+	if _, err := get(ctx, client, c.apiURL+"/user", &u); err != nil {
+		return u, err
 	}
-	req = req.WithContext(ctx)
-	resp, err := client.Do(req)
-	if err != nil {
-		return u, fmt.Errorf("github: get URL %v", err)
-	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return u, fmt.Errorf("github: read body: %v", err)
+	// Only pulic user emails are returned by 'GET /user'. u.Email will be empty
+	// if a users' email is private. We must retrieve private emails explicitly.
+	if u.Email == "" {
+		var err error
+		if u.Email, err = c.userEmail(ctx, client); err != nil {
+			return u, err
 		}
-		return u, fmt.Errorf("%s: %s", resp.Status, body)
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
-		return u, fmt.Errorf("failed to decode response: %v", err)
 	}
 	return u, nil
+}
+
+// userEmail holds GitHub user email information as defined by
+// https://developer.github.com/v3/users/emails/#response
+type userEmail struct {
+	Email      string `json:"email"`
+	Verified   bool   `json:"verified"`
+	Primary    bool   `json:"primary"`
+	Visibility string `json:"visibility"`
+}
+
+// userEmail queries the GitHub API for a users' email information using the
+// provided client. Only returns the users' verified, primary email (private or
+// public).
+//
+// The HTTP client is expected to be constructed by the golang.org/x/oauth2 package,
+// which inserts a bearer token as part of the request.
+func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (string, error) {
+	apiURL := c.apiURL + "/user/emails"
+	for {
+		// https://developer.github.com/v3/users/emails/#list-email-addresses-for-a-user
+		var (
+			emails []userEmail
+			err    error
+		)
+		if apiURL, err = get(ctx, client, apiURL, &emails); err != nil {
+			return "", err
+		}
+
+		for _, email := range emails {
+			if email.Verified && email.Primary {
+				return email.Email, nil
+			}
+		}
+
+		if apiURL == "" {
+			break
+		}
+	}
+
+	return "", errors.New("github: user has no verified, primary email")
 }
 
 // userInOrg queries the GitHub API for a users' org membership.
@@ -452,49 +551,29 @@ func (c *githubConnector) userInOrg(ctx context.Context, client *http.Client, us
 	return resp.StatusCode == http.StatusNoContent, err
 }
 
+// teams holds GitHub a users' team information as defined by
+// https://developer.github.com/v3/orgs/teams/#response-12
+type team struct {
+	Name string `json:"name"`
+	Org  struct {
+		Login string `json:"login"`
+	} `json:"organization"`
+}
+
 // teams queries the GitHub API for team membership within a specific organization.
 //
 // The HTTP passed client is expected to be constructed by the golang.org/x/oauth2 package,
 // which inserts a bearer token as part of the request.
 func (c *githubConnector) teams(ctx context.Context, client *http.Client, orgName string) ([]string, error) {
-
-	groups := []string{}
-
-	// https://developer.github.com/v3/#pagination
-	reNext := regexp.MustCompile("<(.*)>; rel=\"next\"")
-	reLast := regexp.MustCompile("<(.*)>; rel=\"last\"")
-	apiURL := c.apiURL + "/user/teams"
-
+	apiURL, groups := c.apiURL+"/user/teams", []string{}
 	for {
-		req, err := http.NewRequest("GET", apiURL, nil)
-
-		if err != nil {
-			return nil, fmt.Errorf("github: new req: %v", err)
-		}
-		req = req.WithContext(ctx)
-		resp, err := client.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("github: get teams: %v", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				return nil, fmt.Errorf("github: read body: %v", err)
-			}
-			return nil, fmt.Errorf("%s: %s", resp.Status, body)
-		}
-
-		// https://developer.github.com/v3/orgs/teams/#response-12
-		var teams []struct {
-			Name string `json:"name"`
-			Org  struct {
-				Login string `json:"login"`
-			} `json:"organization"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&teams); err != nil {
-			return nil, fmt.Errorf("github: unmarshal groups: %v", err)
+		// https://developer.github.com/v3/orgs/teams/#list-user-teams
+		var (
+			teams []team
+			err   error
+		)
+		if apiURL, err = get(ctx, client, apiURL, &teams); err != nil {
+			return nil, err
 		}
 
 		for _, team := range teams {
@@ -503,21 +582,10 @@ func (c *githubConnector) teams(ctx context.Context, client *http.Client, orgNam
 			}
 		}
 
-		links := resp.Header.Get("Link")
-		if len(reLast.FindStringSubmatch(links)) > 1 {
-			lastPageURL := reLast.FindStringSubmatch(links)[1]
-			if apiURL == lastPageURL {
-				break
-			}
-		} else {
-			break
-		}
-
-		if len(reNext.FindStringSubmatch(links)) > 1 {
-			apiURL = reNext.FindStringSubmatch(links)[1]
-		} else {
+		if apiURL == "" {
 			break
 		}
 	}
+
 	return groups, nil
 }

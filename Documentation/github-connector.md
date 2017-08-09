@@ -6,10 +6,6 @@ One of the login options for dex uses the GitHub OAuth2 flow to identify the end
 
 When a client redeems a refresh token through dex, dex will re-query GitHub to update user information in the ID Token. To do this, __dex stores a readonly GitHub access token in its backing datastore.__ Users that reject dex's access through GitHub will also revoke all dex clients which authenticated them through GitHub.
 
-## Caveats
-
-* Please note that in order for a user to be authenticated via GitHub, the user needs to mark their email id as public on GitHub. This will enable the API to return the user's email to Dex.
-
 ## Configuration
 
 Register a new application with [GitHub][github-oauth2] ensuring the callback URL is `(dex issuer)/callback`. For example if dex is listening at the non-root path `https://auth.example.com/dex` the callback would be `https://auth.example.com/dex/callback`.
