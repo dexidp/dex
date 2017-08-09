@@ -119,6 +119,69 @@ func TestPassword(t *testing.T) {
 
 }
 
+// Ensures checkCost returns expected values
+func TestCheckCost(t *testing.T) {
+	logger := &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level:     logrus.DebugLevel,
+	}
+
+	s := memory.New(logger)
+	client := newAPI(s, logger, t)
+	defer client.Close()
+
+	tests := []struct {
+		name         string
+		inputHash    []byte
+		expectedCost int
+		wantErr      bool
+	}{
+		{
+			name: "valid cost",
+			// bcrypt hash of the value "test1" with cost 12
+			inputHash:    []byte("$2a$12$M2Ot95Qty1MuQdubh1acWOiYadJDzeVg3ve4n5b.dgcgPdjCseKx2"),
+			expectedCost: recCost,
+		},
+		{
+			name:      "invalid hash",
+			inputHash: []byte(""),
+			wantErr:   true,
+		},
+		{
+			name: "cost below default",
+			// bcrypt hash of the value "test1" with cost 4
+			inputHash: []byte("$2a$04$8bSTbuVCLpKzaqB3BmgI7edDigG5tIQKkjYUu/mEO9gQgIkw9m7eG"),
+			wantErr:   true,
+		},
+		{
+			name: "cost above recommendation",
+			// bcrypt hash of the value "test1" with cost 20
+			inputHash:    []byte("$2a$20$yODn5quqK9MZdePqYLs6Y.Jr4cOO1P0aXsKz0eTa2rxOmu8e7ETpi"),
+			expectedCost: 20,
+		},
+	}
+
+	for _, tc := range tests {
+		cost, err := checkCost(tc.inputHash)
+		if err != nil {
+			if !tc.wantErr {
+				t.Errorf("%s: %s", tc.name, err)
+			}
+			continue
+		}
+
+		if tc.wantErr {
+			t.Errorf("%s: expected err", tc.name)
+			continue
+		}
+
+		if cost != tc.expectedCost {
+			t.Errorf("%s: exepcted cost = %d but got cost = %d", tc.name, tc.expectedCost, cost)
+		}
+	}
+}
+
 // Attempts to list and revoke an exisiting refresh token.
 func TestRefreshToken(t *testing.T) {
 	logger := &logrus.Logger{
