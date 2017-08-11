@@ -1,6 +1,7 @@
 package saml
 
 import (
+	"bytes"
 	"encoding/xml"
 	"fmt"
 	"time"
@@ -233,6 +234,18 @@ func (a *attributeStatement) names() []string {
 	return s
 }
 
+// String is a formatter for logging an attribute statement's sub statements.
+func (a *attributeStatement) String() string {
+	buff := new(bytes.Buffer)
+	for i, attr := range a.Attributes {
+		if i != 0 {
+			buff.WriteString(", ")
+		}
+		buff.WriteString(attr.String())
+	}
+	return buff.String()
+}
+
 type attribute struct {
 	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:assertion Attribute"`
 
@@ -247,4 +260,18 @@ type attribute struct {
 type attributeValue struct {
 	XMLName xml.Name `xml:"AttributeValue"`
 	Value   string   `xml:",chardata"`
+}
+
+func (a attribute) String() string {
+	if len(a.AttributeValues) == 1 {
+		// "email" = "jane.doe@coreos.com"
+		return fmt.Sprintf("%q = %q", a.Name, a.AttributeValues[0].Value)
+	}
+	values := make([]string, len(a.AttributeValues))
+	for i, av := range a.AttributeValues {
+		values[i] = av.Value
+	}
+
+	// "groups" = ["engineering", "docs"]
+	return fmt.Sprintf("%q = %q", a.Name, values)
 }
