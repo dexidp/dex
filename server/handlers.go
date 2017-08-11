@@ -390,6 +390,8 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
+// finalizeLogin associates the user's identity with the current AuthRequest, then returns
+// the approval page's path.
 func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (string, error) {
 	claims := storage.Claims{
 		UserID:        identity.UserID,
@@ -408,6 +410,15 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 	if err := s.storage.UpdateAuthRequest(authReq.ID, updater); err != nil {
 		return "", fmt.Errorf("failed to update auth request: %v", err)
 	}
+
+	email := claims.Email
+	if !claims.EmailVerified {
+		email = email + " (unverified)"
+	}
+
+	s.logger.Infof("login successful: connector %q, username=%q, email=%q, groups=%q",
+		authReq.ConnectorID, claims.Username, email, claims.Groups)
+
 	return path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID, nil
 }
 

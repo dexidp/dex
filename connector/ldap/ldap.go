@@ -127,6 +127,19 @@ type Config struct {
 	} `json:"groupSearch"`
 }
 
+func scopeString(i int) string {
+	switch i {
+	case ldap.ScopeBaseObject:
+		return "base"
+	case ldap.ScopeSingleLevel:
+		return "one"
+	case ldap.ScopeWholeSubtree:
+		return "sub"
+	default:
+		return ""
+	}
+}
+
 func parseScope(s string) (int, bool) {
 	// NOTE(ericchiang): ScopeBaseObject doesn't really make sense for us because we
 	// never know the user's or group's DN.
@@ -342,6 +355,9 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 	if c.UserSearch.NameAttr != "" {
 		req.Attributes = append(req.Attributes, c.UserSearch.NameAttr)
 	}
+
+	c.logger.Infof("performing ldap search %s %s %s",
+		req.BaseDN, scopeString(req.Scope), req.Filter)
 	resp, err := conn.Search(req)
 	if err != nil {
 		return ldap.Entry{}, false, fmt.Errorf("ldap: search with filter %q failed: %v", req.Filter, err)
@@ -352,7 +368,9 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 		c.logger.Errorf("ldap: no results returned for filter: %q", filter)
 		return ldap.Entry{}, false, nil
 	case 1:
-		return *resp.Entries[0], true, nil
+		user = *resp.Entries[0]
+		c.logger.Infof("username %q mapped to entry %s", username, user.DN)
+		return user, true, nil
 	default:
 		return ldap.Entry{}, false, fmt.Errorf("ldap: filter returned multiple (%d) results: %q", n, filter)
 	}
@@ -493,6 +511,8 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 
 		gotGroups := false
 		if err := c.do(ctx, func(conn *ldap.Conn) error {
+			c.logger.Infof("performing ldap search %s %s %s",
+				req.BaseDN, scopeString(req.Scope), req.Filter)
 			resp, err := conn.Search(req)
 			if err != nil {
 				return fmt.Errorf("ldap: search failed: %v", err)
