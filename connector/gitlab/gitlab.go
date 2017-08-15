@@ -3,13 +3,18 @@ package gitlab
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/coreos/dex/connector"
 	"github.com/sirupsen/logrus"
@@ -17,16 +22,18 @@ import (
 )
 
 const (
+	hostName   = "gitlab.com"
 	scopeEmail = "user:email"
 	scopeOrgs  = "read:org"
 )
 
-// Config holds configuration options for gilab logins.
+// Config holds configuration options for GitLab logins.
 type Config struct {
-	BaseURL      string `json:"baseURL"`
 	ClientID     string `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
 	RedirectURI  string `json:"redirectURI"`
+	HostName     string `json:"hostName"`
+	RootCA       string `json:"rootCA"`
 }
 
 type gitlabUser struct {
@@ -46,15 +53,66 @@ type gitlabGroup struct {
 
 // Open returns a strategy for logging in through GitLab.
 func (c *Config) Open(logger logrus.FieldLogger) (connector.Connector, error) {
-	if c.BaseURL == "" {
-		c.BaseURL = "https://www.gitlab.com"
-	}
-	return &gitlabConnector{
-		baseURL:      c.BaseURL,
+	g := &gitlabConnector{
 		redirectURI:  c.RedirectURI,
 		clientID:     c.ClientID,
 		clientSecret: c.ClientSecret,
+		hostName:     hostName,
+		apiURL:       "https://" + hostName + "/api/v4",
 		logger:       logger,
+	}
+
+	if c.HostName != "" {
+		// ensure this is a hostname and not a URL or path.
+		if strings.Contains(c.HostName, "/") {
+			return nil, errors.New("invalid hostname: hostname cannot contain `/`")
+		}
+
+		g.hostName = c.HostName
+		g.apiURL = "https://" + c.HostName + "/api/v4"
+	}
+
+	if c.RootCA != "" {
+		if c.HostName == "" {
+			return nil, errors.New("invalid connector config: Host name field required for a root certificate file")
+		}
+		g.rootCA = c.RootCA
+
+		var err error
+		if g.httpClient, err = newHTTPClient(g.rootCA); err != nil {
+			return nil, fmt.Errorf("failed to create HTTP client: %v", err)
+		}
+
+	}
+
+	return &g, nil
+}
+
+// newHTTPClient returns a new HTTP client that trusts the custom delcared rootCA cert.
+func newHTTPClient(rootCA string) (*http.Client, error) {
+	tlsConfig := tls.Config{RootCAs: x509.NewCertPool()}
+	rootCABytes, err := ioutil.ReadFile(rootCA)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read root-ca: %v", err)
+	}
+	if !tlsConfig.RootCAs.AppendCertsFromPEM(rootCABytes) {
+		return nil, fmt.Errorf("no certs found in root CA file %q", rootCA)
+	}
+
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tlsConfig,
+			Proxy:           http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+				DualStack: true,
+			}).DialContext,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
 	}, nil
 }
 
@@ -69,17 +127,29 @@ var (
 )
 
 type gitlabConnector struct {
-	baseURL      string
 	redirectURI  string
 	org          string
 	clientID     string
 	clientSecret string
 	logger       logrus.FieldLogger
+	// apiURL defaults to "https://www.gitlab.com/api/v4".
+	apiURL string
+	// host name of the Gitlab enterprise account.
+	hostName string
+	// Used to support untrusted/self-signed CA certs.
+	rootCA string
+	// HTTP Client that trusts the custom delcared rootCA cert.
+	httpClient *http.Client
 }
 
 func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
 	gitlabScopes := []string{"api"}
-	gitlabEndpoint := oauth2.Endpoint{AuthURL: c.baseURL + "/oauth/authorize", TokenURL: c.baseURL + "/oauth/token"}
+
+	gitlabEndpoint := oauth2.Endpoint{
+		AuthURL:  "https://" + c.hostName + "/oauth/authorize",
+		TokenURL: "https://" + c.hostName + "/oauth/token",
+	}
+
 	return &oauth2.Config{
 		ClientID:     c.clientID,
 		ClientSecret: c.clientSecret,
@@ -198,7 +268,7 @@ func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 // a bearer token as part of the request.
 func (c *gitlabConnector) user(ctx context.Context, client *http.Client) (gitlabUser, error) {
 	var u gitlabUser
-	req, err := http.NewRequest("GET", c.baseURL+"/api/v3/user", nil)
+	req, err := http.NewRequest("GET", c.apiURL+"/user", nil)
 	if err != nil {
 		return u, fmt.Errorf("gitlab: new req: %v", err)
 	}
@@ -229,7 +299,7 @@ func (c *gitlabConnector) user(ctx context.Context, client *http.Client) (gitlab
 // which inserts a bearer token as part of the request.
 func (c *gitlabConnector) groups(ctx context.Context, client *http.Client) ([]string, error) {
 
-	apiURL := c.baseURL + "/api/v3/groups"
+	apiURL := c.apiURL + "/groups"
 
 	reNext := regexp.MustCompile("<(.*)>; rel=\"next\"")
 	reLast := regexp.MustCompile("<(.*)>; rel=\"last\"")
