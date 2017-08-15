@@ -20,10 +20,34 @@ connectors:
     # Required field for connector name.
     name: GitLab
     config:
-      # optional, default = https://www.gitlab.com 
-      baseURL: https://www.gitlab.com
       # Credentials can be string literals or pulled from the environment.  
-      clientID: $GITLAB_APPLICATION_ID 
+      clientID: $GITLAB_APPLICATION_ID
       clientSecret: $GITLAB_CLIENT_SECRET
       redirectURI: http://127.0.0.1:5556/dex/callback
+```
+
+Users can use their GitLab Enterprise account to login to dex. The following configuration can be used to enable a GitLab Enterprise connector on dex:
+
+```yaml
+connectors:
+- type: gitlab
+  # Required field for connector id.
+  id: gitlab
+  # Required field for connector name.
+  name: GitLab
+  config:
+    # Required fields. Dex must be pre-registered with GitLab Enterprise
+    # to get the following values.
+    # Credentials can be string literals or pulled from the environment.
+    clientID: $GITLAB_CLIENT_ID
+    clientSecret: $GITLAB_CLIENT_SECRET
+    redirectURI: http://127.0.0.1:5556/dex/callback
+
+    # Required ONLY for GitLab Enterprise.
+    # This is the Hostname of the GitLab Enterprise account listed on the
+    # management console. Ensure this domain is routable on your network.
+    hostName: git.example.com
+    # ONLY for GitLab Enterprise. Optional field.
+    # Used to support self-signed or untrusted CA root certificates.
+    rootCA: /etc/dex/ca.crt
 ```
