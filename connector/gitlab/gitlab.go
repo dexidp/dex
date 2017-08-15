@@ -3,13 +3,18 @@ package gitlab
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/coreos/dex/connector"
 	"github.com/sirupsen/logrus"
@@ -17,44 +22,84 @@ import (
 )
 
 const (
-	scopeEmail = "user:email"
-	scopeOrgs  = "read:org"
+	hostName  = "gitlab.com"
+	scopeUser = "read_user"
+	scopeAPI  = "api"
 )
 
-// Config holds configuration options for gilab logins.
+// Config holds configuration options for gitlab logins.
 type Config struct {
-	BaseURL      string `json:"baseURL"`
 	ClientID     string `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
 	RedirectURI  string `json:"redirectURI"`
-}
-
-type gitlabUser struct {
-	ID       int
-	Name     string
-	Username string
-	State    string
-	Email    string
-	IsAdmin  bool
-}
-
-type gitlabGroup struct {
-	ID   int
-	Name string
-	Path string
+	Group        string `json:"group"`
+	HostName     string `json:"hostName"`
+	RootCA       string `json:"rootCA"`
 }
 
 // Open returns a strategy for logging in through GitLab.
 func (c *Config) Open(logger logrus.FieldLogger) (connector.Connector, error) {
-	if c.BaseURL == "" {
-		c.BaseURL = "https://www.gitlab.com"
-	}
-	return &gitlabConnector{
-		baseURL:      c.BaseURL,
+	g := gitlabConnector{
 		redirectURI:  c.RedirectURI,
+		group:        c.Group,
 		clientID:     c.ClientID,
 		clientSecret: c.ClientSecret,
+		hostName:     hostName,
+		apiURL:       "https://" + hostName + "/api/v4",
 		logger:       logger,
+	}
+
+	if c.HostName != "" {
+		// ensure this is a hostname and not a URL or path.
+		if strings.Contains(c.HostName, "/") {
+			return nil, errors.New("invalid hostname: hostname cannot contain `/`")
+		}
+
+		g.hostName = c.HostName
+		g.apiURL = "https://" + c.HostName + "/api/v4"
+	}
+
+	if c.RootCA != "" {
+		if c.HostName == "" {
+			return nil, errors.New("invalid connector config: Host name field required for a root certificate file")
+		}
+		g.rootCA = c.RootCA
+
+		var err error
+		if g.httpClient, err = newHTTPClient(g.rootCA); err != nil {
+			return nil, fmt.Errorf("failed to create HTTP client: %v", err)
+		}
+
+	}
+
+	return &g, nil
+}
+
+// newHTTPClient returns a new HTTP client that trusts the custom delcared rootCA cert.
+func newHTTPClient(rootCA string) (*http.Client, error) {
+	tlsConfig := tls.Config{RootCAs: x509.NewCertPool()}
+	rootCABytes, err := ioutil.ReadFile(rootCA)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read root-ca: %v", err)
+	}
+	if !tlsConfig.RootCAs.AppendCertsFromPEM(rootCABytes) {
+		return nil, fmt.Errorf("no certs found in root CA file %q", rootCA)
+	}
+
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tlsConfig,
+			Proxy:           http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+				DualStack: true,
+			}).DialContext,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
 	}, nil
 }
 
@@ -69,17 +114,32 @@ var (
 )
 
 type gitlabConnector struct {
-	baseURL      string
 	redirectURI  string
-	org          string
+	group        string
 	clientID     string
 	clientSecret string
 	logger       logrus.FieldLogger
+	// apiURL defaults to "https://www.gitlab.com"
+	apiURL string
+	// hostName of the Gitlab enterprise account.
+	hostName string
+	// Used to support untrusted/self-signed CA certs.
+	rootCA string
+	// HTTP Client that trusts the custom delcared rootCA cert.
+	httpClient *http.Client
 }
 
 func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
-	gitlabScopes := []string{"api"}
-	gitlabEndpoint := oauth2.Endpoint{AuthURL: c.baseURL + "/oauth/authorize", TokenURL: c.baseURL + "/oauth/token"}
+	gitlabScopes := []string{scopeUser}
+	if scopes.Groups {
+		gitlabScopes = []string{scopeAPI}
+	}
+
+	gitlabEndpoint := oauth2.Endpoint{
+		AuthURL:  "https://" + c.hostName + "/oauth/authorize",
+		TokenURL: "https://" + c.hostName + "/oauth/token",
+	}
+
 	return &oauth2.Config{
 		ClientID:     c.clientID,
 		ClientSecret: c.clientSecret,
@@ -141,7 +201,7 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 	}
 
 	if s.Groups {
-		groups, err := c.groups(ctx, client)
+		groups, err := c.groups(ctx, client, c.group)
 		if err != nil {
 			return identity, fmt.Errorf("gitlab: get groups: %v", err)
 		}
@@ -184,7 +244,7 @@ func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 	ident.Email = user.Email
 
 	if s.Groups {
-		groups, err := c.groups(ctx, client)
+		groups, err := c.groups(ctx, client, c.group)
 		if err != nil {
 			return ident, fmt.Errorf("gitlab: get groups: %v", err)
 		}
@@ -193,12 +253,25 @@ func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 	return ident, nil
 }
 
+type gitlabUser struct {
+	ID       int
+	Name     string
+	Username string
+	State    string
+	Email    string
+	IsAdmin  bool
+}
+
 // user queries the GitLab API for profile information using the provided client. The HTTP
 // client is expected to be constructed by the golang.org/x/oauth2 package, which inserts
 // a bearer token as part of the request.
 func (c *gitlabConnector) user(ctx context.Context, client *http.Client) (gitlabUser, error) {
+
+	// https://docs.gitlab.com/ce/api/users.html#for-normal-users
+	apiURL := c.apiURL + "/user"
+
 	var u gitlabUser
-	req, err := http.NewRequest("GET", c.baseURL+"/api/v3/user", nil)
+	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		return u, fmt.Errorf("gitlab: new req: %v", err)
 	}
@@ -223,21 +296,27 @@ func (c *gitlabConnector) user(ctx context.Context, client *http.Client) (gitlab
 	return u, nil
 }
 
+type gitlabGroup struct {
+	ID   int
+	Name string
+	Path string
+}
+
 // groups queries the GitLab API for group membership.
 //
 // The HTTP passed client is expected to be constructed by the golang.org/x/oauth2 package,
 // which inserts a bearer token as part of the request.
-func (c *gitlabConnector) groups(ctx context.Context, client *http.Client) ([]string, error) {
+func (c *gitlabConnector) groups(ctx context.Context, client *http.Client, groupName string) ([]string, error) {
 
-	apiURL := c.baseURL + "/api/v3/groups"
-
+	// https://docs.gitlab.com/ce/api/groups.html#list-groups
 	reNext := regexp.MustCompile("<(.*)>; rel=\"next\"")
 	reLast := regexp.MustCompile("<(.*)>; rel=\"last\"")
+	apiURL := c.apiURL + "/groups"
 
 	groups := []string{}
 	var gitlabGroups []gitlabGroup
 	for {
-		// 100 is the maximum number for per_page that allowed by gitlab
+		// 100 is the maximum number for per_page allowed by gitlab
 		req, err := http.NewRequest("GET", apiURL, nil)
 		if err != nil {
 			return nil, fmt.Errorf("gitlab: new req: %v", err)
@@ -262,14 +341,14 @@ func (c *gitlabConnector) groups(ctx context.Context, client *http.Client) ([]st
 		}
 
 		for _, group := range gitlabGroups {
-			groups = append(groups, group.Name)
+			if group.Name == groupName {
+				groups = append(groups, group.Name)
+			}
 		}
 
-		link := resp.Header.Get("Link")
-
-		if len(reLast.FindStringSubmatch(link)) > 1 {
-			lastPageURL := reLast.FindStringSubmatch(link)[1]
-
+		links := resp.Header.Get("Link")
+		if len(reLast.FindStringSubmatch(links)) > 1 {
+			lastPageURL := reLast.FindStringSubmatch(links)[1]
 			if apiURL == lastPageURL {
 				break
 			}
@@ -277,8 +356,8 @@ func (c *gitlabConnector) groups(ctx context.Context, client *http.Client) ([]st
 			break
 		}
 
-		if len(reNext.FindStringSubmatch(link)) > 1 {
-			apiURL = reNext.FindStringSubmatch(link)[1]
+		if len(reNext.FindStringSubmatch(links)) > 1 {
+			apiURL = reNext.FindStringSubmatch(links)[1]
 		} else {
 			break
 		}
