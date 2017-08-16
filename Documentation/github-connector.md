@@ -8,7 +8,7 @@ When a client redeems a refresh token through dex, dex will re-query GitHub to u
 
 ## Caveats
 
-* The GitHub API calls dex uses requires a user to have their organization membership visibility set to public. This can be done on the ["request access from org" page](github-request-org-access) which GitHub will skip if the client app is an existing authorized application. The current workaround is as follows: the user should log into their GitHub account, go to Settings -> Authorized OAuth Apps, click 'Revoke' to revoke the application's grant, and restart the dex login process. This will force the "request access from org" page to be shown, allowing the user to request that the organization owner make their membership public.
+* The GitHub API calls dex uses requires a user to have their organization membership visibility set to public. This can be done on the ["request access from org" page][github-request-org-access] which GitHub will skip if the client app is an existing authorized application. The current workaround is as follows: the user should log into their GitHub account, go to Settings -> Authorized OAuth Apps, click 'Revoke' to revoke the application's grant, and restart the dex login process. This will force the "request access from org" page to be shown, allowing the user to request that the organization owner make their membership public.
     * Note: GitHub [organizations][github-orgs] are different from GitHub [teams][github-teams]
 
 ## Configuration
