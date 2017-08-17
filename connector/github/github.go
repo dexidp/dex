@@ -503,6 +503,11 @@ func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (s
 		}
 
 		for _, email := range emails {
+			// if GitHub Enterprise, set email.Verified to true
+			if c.hostName != "" {
+				email.Verified = true
+			}
+			
 			if email.Verified && email.Primary {
 				return email.Email, nil
 			}
