@@ -247,16 +247,16 @@ func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 	if s.Groups {
 		var groups []string
 		if len(c.orgs) > 0 {
-			if groups, err = c.listGroups(ctx, client, username); err != nil {
+			if groups, err = c.listGroups(ctx, client, user.Login); err != nil {
 				return identity, err
 			}
 		} else if c.org != "" {
-			inOrg, err := c.userInOrg(ctx, client, username, c.org)
+			inOrg, err := c.userInOrg(ctx, client, user.Login, c.org)
 			if err != nil {
 				return identity, err
 			}
 			if !inOrg {
-				return identity, fmt.Errorf("github: user %q not a member of org %q", username, c.org)
+				return identity, fmt.Errorf("github: user %q not a member of org %q", user.Login, c.org)
 			}
 			if groups, err = c.teams(ctx, client, c.org); err != nil {
 				return identity, fmt.Errorf("github: get teams: %v", err)
@@ -303,16 +303,16 @@ func (c *githubConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 	if s.Groups {
 		var groups []string
 		if len(c.orgs) > 0 {
-			if groups, err = c.listGroups(ctx, client, username); err != nil {
+			if groups, err = c.listGroups(ctx, client, user.Login); err != nil {
 				return identity, err
 			}
 		} else if c.org != "" {
-			inOrg, err := c.userInOrg(ctx, client, username, c.org)
+			inOrg, err := c.userInOrg(ctx, client, user.Login, c.org)
 			if err != nil {
 				return identity, err
 			}
 			if !inOrg {
-				return identity, fmt.Errorf("github: user %q not a member of org %q", username, c.org)
+				return identity, fmt.Errorf("github: user %q not a member of org %q", user.Login, c.org)
 			}
 			if groups, err = c.teams(ctx, client, c.org); err != nil {
 				return identity, fmt.Errorf("github: get teams: %v", err)
