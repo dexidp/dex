@@ -818,7 +818,7 @@ func TestPasswordDB(t *testing.T) {
 
 	pw := "hi"
 
-	h, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.MinCost)
+	h, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -891,116 +891,6 @@ func TestPasswordDB(t *testing.T) {
 
 		if diff := pretty.Compare(tc.wantIdentity, ident); diff != "" {
 			t.Errorf("%s: %s", tc.name, diff)
-		}
-	}
-
-}
-
-// A warning message should be logged if password-hash comparison takes longer than 10s
-func TestLoginTimeout(t *testing.T) {
-	s := memory.New(logger)
-	conn := newPasswordDB(s)
-
-	pw := "test1"
-
-	tests := []struct {
-		name, email, password string
-		pwHash                []byte
-		wantIdentity          connector.Identity
-		wantInvalid           bool
-		wantedErr             string
-	}{
-		{
-			name:     "valid password min cost",
-			email:    "jane@example.com",
-			password: pw,
-			// bcrypt hash of the value "test1" with cost 4
-			pwHash: []byte("$2a$04$lGqOe5gnlpsfreQ1OJHxGOO7f5FyyESyICkswSFATM1cnBVgCyyuG"),
-			wantIdentity: connector.Identity{
-				Email:         "jane@example.com",
-				Username:      "jane",
-				UserID:        "foobar",
-				EmailVerified: true,
-			},
-		},
-		{
-			name:     "valid password reccomended cost",
-			email:    "jane@example.com",
-			password: pw,
-			// bcrypt hash of the value "test1" with cost 12
-			pwHash: []byte("$2a$12$VZNNjuCUGX2NG5S1ci.3Ku9mI9DmA9XeXyrr7YzJuyTxuVBGdRAbm"),
-			wantIdentity: connector.Identity{
-				Email:         "jane@example.com",
-				Username:      "jane",
-				UserID:        "foobar",
-				EmailVerified: true,
-			},
-		},
-		{
-			name:     "valid password timeout cost",
-			email:    "jane@example.com",
-			password: pw,
-			// bcrypt hash of the value "test1" with cost 20
-			pwHash:    []byte("$2a$20$yODn5quqK9MZdePqYLs6Y.Jr4cOO1P0aXsKz0eTa2rxOmu8e7ETpi"),
-			wantedErr: fmt.Sprintf("password-hash comparison timeout: your bcrypt cost = 20, recommended cost = %d", recCost),
-		},
-		{
-			name:     "invalid password min cost",
-			email:    "jane@example.com",
-			password: pw,
-			// bcrypt hash of the value "test2" with cost 4
-			pwHash:      []byte("$2a$04$pX8wwwpxw8xlXrToYaEgZemK0JIibMZYXPsgau7aPDoGyHPF73br."),
-			wantInvalid: true,
-		},
-		{
-			name:     "invalid password timeout cost",
-			email:    "jane@example.com",
-			password: pw,
-			// bcrypt hash of the value "test2" with cost 20
-			pwHash:    []byte("$2a$20$WBD9cs63Zf0zqS99yyrQhODoDXphWw8MlYqVYRiftJH.lRJ1stnAa"),
-			wantedErr: fmt.Sprintf("password-hash comparison timeout: your bcrypt cost = 20, recommended cost = %d", recCost),
-		},
-	}
-
-	sEmail, sUsername, sUserID := "jane@example.com", "jane", "foobar"
-	for _, tc := range tests {
-		// Clean up before new test case
-		s.DeletePassword(sEmail)
-
-		s.CreatePassword(storage.Password{
-			Email:    sEmail,
-			Username: sUsername,
-			UserID:   sUserID,
-			Hash:     tc.pwHash,
-		})
-
-		ident, valid, err := conn.Login(context.Background(), connector.Scopes{}, tc.email, tc.password)
-		if err != nil {
-			if err.Error() != tc.wantedErr {
-				t.Errorf("%s: error was incorrect:\n%v", tc.name, err)
-			}
-			continue
-		}
-
-		if tc.wantedErr != "" {
-			t.Errorf("%s: expected error", tc.name)
-			continue
-		}
-
-		if !valid {
-			if !tc.wantInvalid {
-				t.Errorf("%s: expected valid response", tc.name)
-			}
-			continue
-		}
-
-		if tc.wantInvalid {
-			t.Errorf("%s: expected invalid response", tc.name)
-			continue
-		}
-
-		if diff := pretty.Compare(tc.wantIdentity, ident); diff != "" {
-			t.Errorf("%s: %s", tc.email, diff)
 		}
 	}
 
