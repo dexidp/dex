@@ -350,9 +350,8 @@ func (c *githubConnector) listGroups(ctx context.Context, client *http.Client, u
 		// 'teams' list in config.
 		if len(org.Teams) == 0 {
 			inOrgNoTeams = true
-			c.logger.Debugf("github: user %q in org %q", userName, org.Name)
 		} else if teams = filterTeams(teams, org.Teams); len(teams) == 0 {
-			c.logger.Debugf("github: user %q in org %q but no teams", userName, org.Name)
+			c.logger.Infof("github: user %q in org %q but no teams", userName, org.Name)
 		}
 
 		// Orgs might have the same team names. We append orgPrefix to team name,
@@ -360,7 +359,6 @@ func (c *githubConnector) listGroups(ctx context.Context, client *http.Client, u
 		orgPrefix := org.Name + ":"
 		for _, teamName := range teams {
 			groups = append(groups, orgPrefix+teamName)
-			c.logger.Debugf("github: user %q in org %q team %q", userName, org.Name, teamName)
 		}
 	}
 	if inOrgNoTeams || len(groups) > 0 {
@@ -542,7 +540,7 @@ func (c *githubConnector) userInOrg(ctx context.Context, client *http.Client, us
 	switch resp.StatusCode {
 	case http.StatusNoContent:
 	case http.StatusFound, http.StatusNotFound:
-		c.logger.Debugf("github: user %q not in org %q", userName, orgName)
+		c.logger.Infof("github: user %q not in org %q or application not authorized to read org data", userName, orgName)
 	default:
 		err = fmt.Errorf("github: unexpected return status: %q", resp.Status)
 	}
