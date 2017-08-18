@@ -501,6 +501,20 @@ func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (s
 		}
 
 		for _, email := range emails {
+			/*
+				if GitHub Enterprise, set email.Verified to true
+				This change being made because GitHub Enterprise does not
+				support email verification. CircleCI indicated that GitHub
+				advised them not to check for verified emails
+				(https://circleci.com/enterprise/changelog/#1-47-1).
+				In addition, GitHub Enterprise support replied to a support
+				ticket with "There is no way to verify an email address in 
+				GitHub Enterprise."			
+			*/
+			if c.hostName != "" {
+				email.Verified = true
+			}
+			
 			if email.Verified && email.Primary {
 				return email.Email, nil
 			}
