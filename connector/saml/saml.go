@@ -2,12 +2,15 @@
 package saml
 
 import (
+	"bytes"
+	"compress/flate"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"strings"
 	"time"
@@ -57,6 +60,10 @@ var (
 		nameIDformatTransient,
 	}
 	nameIDFormatLookup = make(map[string]string)
+	validBindings      = map[string]bool{
+		connector.SAMLBindingPOST:     true,
+		connector.SAMLBindingRedirect: true,
+	}
 )
 
 func init() {
@@ -70,6 +77,14 @@ func init() {
 		nameIDFormatLookup[suffix(format, ":")] = format
 		nameIDFormatLookup[format] = format
 	}
+}
+
+// verifyBinding verifies binding from config
+func verifyBinding(binding string) error {
+	if _, exist := validBindings[binding]; !exist {
+		return fmt.Errorf("unsupported binding: %s", binding)
+	}
+	return nil
 }
 
 // Config represents configuration options for the SAML provider.
@@ -113,6 +128,10 @@ type Config struct {
 	//		urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
 	//
 	NameIDPolicyFormat string `json:"nameIDPolicyFormat"`
+
+	// Specify which binding to use, default is post
+	RequestBinding  string `json:"requestBinding"`
+	ResponseBinding string `json:"responseBinding"`
 }
 
 type certStore struct {
@@ -165,6 +184,21 @@ func (c *Config) openConnector(logger logrus.FieldLogger) (*provider, error) {
 		logger:       logger,
 
 		nameIDPolicyFormat: c.NameIDPolicyFormat,
+
+		requestBinding:  c.RequestBinding,
+		responseBinding: c.ResponseBinding,
+	}
+
+	if p.requestBinding == "" {
+		p.requestBinding = connector.SAMLBindingPOST
+	} else if err := verifyBinding(p.requestBinding); err != nil {
+		return nil, err
+	}
+
+	if p.responseBinding == "" {
+		p.responseBinding = connector.SAMLBindingPOST
+	} else if err := verifyBinding(p.responseBinding); err != nil {
+		return nil, err
 	}
 
 	if p.nameIDPolicyFormat == "" {
@@ -236,11 +270,13 @@ type provider struct {
 
 	nameIDPolicyFormat string
 
+	requestBinding  string
+	responseBinding string
+
 	logger logrus.FieldLogger
 }
 
-func (p *provider) POSTData(s connector.Scopes, id string) (action, value string, err error) {
-
+func (p *provider) AuthnRequest(s connector.Scopes, id string) (binding, ssoURL, value string, err error) {
 	r := &authnRequest{
 		ProtocolBinding: bindingPOST,
 		ID:              id,
@@ -252,6 +288,11 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 		},
 		AssertionConsumerServiceURL: p.redirectURI,
 	}
+
+	if p.responseBinding == connector.SAMLBindingRedirect {
+		r.ProtocolBinding = bindingRedirect
+	}
+
 	if p.entityIssuer != "" {
 		// Issuer for the request is optional. For example, okta always ignores
 		// this value.
@@ -260,15 +301,23 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 
 	data, err := xml.MarshalIndent(r, "", "  ")
 	if err != nil {
-		return "", "", fmt.Errorf("marshal authn request: %v", err)
+		return "", "", "", fmt.Errorf("marshal authn request: %v", err)
+	}
+
+	// for redirect binding, SAMLRequest must be deflated
+	if p.requestBinding == connector.SAMLBindingRedirect {
+		data, err = compressRequest(data)
+		if err != nil {
+			return "", "", "", fmt.Errorf("deflate request: %v", err)
+		}
 	}
 
 	// See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
 	// "3.5.4 Message Encoding"
-	return p.ssoURL, base64.StdEncoding.EncodeToString(data), nil
+	return p.requestBinding, p.ssoURL, base64.StdEncoding.EncodeToString(data), nil
 }
 
-// HandlePOST interprets a request from a SAML provider attempting to verify a
+// HandleResponse interprets a request from a SAML provider attempting to verify a
 // user's identity.
 //
 // The steps taken are:
@@ -277,10 +326,22 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 // * Verify various parts of the Assertion element. Conditions, audience, etc.
 // * Map the Assertion's attribute elements to user info.
 //
-func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo string) (ident connector.Identity, err error) {
+func (p *provider) HandleResponse(s connector.Scopes,
+	binding, samlResponse, inResponseTo string) (ident connector.Identity, err error) {
+	// enforce responseBinding
+	if binding != p.responseBinding {
+		return ident, fmt.Errorf("unexpected response binding %s, expect %s as configured", binding, p.responseBinding)
+	}
 	rawResp, err := base64.StdEncoding.DecodeString(samlResponse)
 	if err != nil {
 		return ident, fmt.Errorf("decode response: %v", err)
+	}
+
+	// with HTTP redirect binding, response is compressed
+	if p.responseBinding == connector.SAMLBindingRedirect {
+		if rawResp, err = decompressResponse(rawResp); err != nil {
+			return ident, fmt.Errorf("inflate response: %v", err)
+		}
 	}
 
 	// Root element is allowed to not be signed if the Assertion element is.
@@ -293,7 +354,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	}
 
 	var resp response
-	if err := xml.Unmarshal(rawResp, &resp); err != nil {
+	if err = xml.Unmarshal(rawResp, &resp); err != nil {
 		return ident, fmt.Errorf("unmarshal response: %v", err)
 	}
 
@@ -597,4 +658,33 @@ func before(now, notBefore time.Time) bool {
 // allowed clock drift.
 func after(now, notOnOrAfter time.Time) bool {
 	return now.After(notOnOrAfter.Add(allowedClockDrift))
+}
+
+func compressRequest(data []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	zw, err := flate.NewWriter(&buf, flate.DefaultCompression)
+	if err != nil {
+		return nil, err
+	}
+	defer zw.Close()
+	if _, err := zw.Write(data); err != nil {
+		return nil, err
+	}
+	if err := zw.Flush(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func decompressResponse(data []byte) ([]byte, error) {
+	zr := flate.NewReader(bytes.NewReader(data))
+	defer zr.Close()
+	result, err := ioutil.ReadAll(zr)
+	// the compressed data has no frame, so we don't know the length
+	// of decompressed data. according to impl of compress/flate,
+	// treat io.EOF/io.ErrUnexpectedEOF as completion of decompression.
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		err = nil
+	}
+	return result, err
 }

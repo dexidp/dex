@@ -53,6 +53,9 @@ type responseTest struct {
 	emailAttr    string
 	groupsAttr   string
 
+	// use redirect binding for response
+	responseUseRedirect bool
+
 	// Expected outcome of the test.
 	wantErr   bool
 	wantIdent connector.Identity
@@ -262,6 +265,27 @@ func TestTwoAssertionFirstSigned(t *testing.T) {
 	test.run(t)
 }
 
+// TestResponseRedirectBinding provides a response for HTTP redirect binding
+func TestResponseRedirectBinding(t *testing.T) {
+	test := responseTest{
+		caFile:       "testdata/ca.crt",
+		respFile:     "testdata/good-resp.xml",
+		now:          "2017-04-04T04:34:59.330Z",
+		usernameAttr: "Name",
+		emailAttr:    "email",
+		inResponseTo: "6zmm5mguyebwvajyf2sdwwcw6m",
+		redirectURI:  "http://127.0.0.1:5556/dex/callback",
+		wantIdent: connector.Identity{
+			UserID:        "eric.chiang+okta@coreos.com",
+			Username:      "Eric",
+			Email:         "eric.chiang+okta@coreos.com",
+			EmailVerified: true,
+		},
+		responseUseRedirect: true,
+	}
+	test.run(t)
+}
+
 func loadCert(ca string) (*x509.Certificate, error) {
 	data, err := ioutil.ReadFile(ca)
 	if err != nil {
@@ -283,8 +307,13 @@ func (r responseTest) run(t *testing.T) {
 		RedirectURI:  r.redirectURI,
 		EntityIssuer: r.entityIssuer,
 		// Never logging in, don't need this.
-		SSOURL: "http://foo.bar/",
+		SSOURL:          "http://foo.bar/",
+		ResponseBinding: connector.SAMLBindingPOST,
 	}
+	if r.responseUseRedirect {
+		c.ResponseBinding = connector.SAMLBindingRedirect
+	}
+
 	now, err := time.Parse(timeFormat, r.now)
 	if err != nil {
 		t.Fatalf("parse test time: %v", err)
@@ -299,13 +328,18 @@ func (r responseTest) run(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if r.responseUseRedirect {
+		if resp, err = compressRequest(resp); err != nil {
+			t.Fatal(err)
+		}
+	}
 	samlResp := base64.StdEncoding.EncodeToString(resp)
 
 	scopes := connector.Scopes{
 		OfflineAccess: false,
 		Groups:        true,
 	}
-	ident, err := conn.HandlePOST(scopes, samlResp, r.inResponseTo)
+	ident, err := conn.HandleResponse(scopes, c.ResponseBinding, samlResp, r.inResponseTo)
 	if err != nil {
 		if !r.wantErr {
 			t.Fatalf("handle response: %v", err)

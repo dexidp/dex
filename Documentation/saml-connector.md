@@ -86,6 +86,19 @@ connectors:
     #     urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
     #
     nameIDPolicyFormat: persistent
+
+    # Optional: Specify binding to use, default is HTTP-POST
+    #
+    # requestBinding specifies how AuthnRequest is sent to identity provider
+    # responseBinding specifies how identity provider calls back to dex
+    #
+    # Some identity provider may require specific binding
+    # supported values:
+    #   - post: use HTTP-POST binding (default)
+    #   - redirect: use HTTP redirect binding
+    #
+    # requestBinding: post
+    # responseBinding: post
 ```
 
 A minimal working configuration might look like:
