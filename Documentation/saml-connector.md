@@ -53,6 +53,13 @@ connectors:
     #
     # insecureSkipSignatureValidation: true
 
+    # Optional: Compress SAMLRequest
+    #
+    # Some identity providers require SAMLRequest to be deflated
+    # set to true to deflate the request
+    #
+    # compress: true
+
     # Optional: Manually specify dex's Issuer value.
     #
     # When provided dex will include this as the Issuer value during AuthnRequest.
