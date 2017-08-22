@@ -2,6 +2,8 @@
 package saml
 
 import (
+	"bytes"
+	"compress/flate"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -113,6 +115,9 @@ type Config struct {
 	//		urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
 	//
 	NameIDPolicyFormat string `json:"nameIDPolicyFormat"`
+
+	// Specify which binding to use, default is post
+	Binding string `json:"binding"`
 }
 
 type certStore struct {
@@ -165,6 +170,14 @@ func (c *Config) openConnector(logger logrus.FieldLogger) (*provider, error) {
 		logger:       logger,
 
 		nameIDPolicyFormat: c.NameIDPolicyFormat,
+		binding:            strings.ToLower(strings.TrimSpace(c.Binding)),
+	}
+
+	if p.binding == "" {
+		p.binding = connector.SAMLBindingPOST
+	} else if p.binding != connector.SAMLBindingPOST &&
+		p.binding != connector.SAMLBindingRedirect {
+		return nil, fmt.Errorf("unsupported binding: %s", p.binding)
 	}
 
 	if p.nameIDPolicyFormat == "" {
@@ -236,11 +249,12 @@ type provider struct {
 
 	nameIDPolicyFormat string
 
+	binding string
+
 	logger logrus.FieldLogger
 }
 
-func (p *provider) POSTData(s connector.Scopes, id string) (action, value string, err error) {
-
+func (p *provider) AuthnRequest(s connector.Scopes, id string) (binding, ssoURL, value string, err error) {
 	r := &authnRequest{
 		ProtocolBinding: bindingPOST,
 		ID:              id,
@@ -252,6 +266,7 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 		},
 		AssertionConsumerServiceURL: p.redirectURI,
 	}
+
 	if p.entityIssuer != "" {
 		// Issuer for the request is optional. For example, okta always ignores
 		// this value.
@@ -260,12 +275,20 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 
 	data, err := xml.MarshalIndent(r, "", "  ")
 	if err != nil {
-		return "", "", fmt.Errorf("marshal authn request: %v", err)
+		return "", "", "", fmt.Errorf("marshal authn request: %v", err)
+	}
+
+	// for redirect binding, SAMLRequest must be deflated
+	if p.binding == connector.SAMLBindingRedirect {
+		data, err = deflate(data)
+		if err != nil {
+			return "", "", "", fmt.Errorf("deflate request: %v", err)
+		}
 	}
 
 	// See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
 	// "3.5.4 Message Encoding"
-	return p.ssoURL, base64.StdEncoding.EncodeToString(data), nil
+	return p.binding, p.ssoURL, base64.StdEncoding.EncodeToString(data), nil
 }
 
 // HandlePOST interprets a request from a SAML provider attempting to verify a
@@ -597,4 +620,21 @@ func before(now, notBefore time.Time) bool {
 // allowed clock drift.
 func after(now, notOnOrAfter time.Time) bool {
 	return now.After(notOnOrAfter.Add(allowedClockDrift))
+}
+
+// deflate compresses the data
+func deflate(data []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	zw, err := flate.NewWriter(&buf, flate.DefaultCompression)
+	if err != nil {
+		return nil, err
+	}
+	defer zw.Close()
+	if _, err = zw.Write(data); err != nil {
+		return nil, err
+	}
+	if err = zw.Flush(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }

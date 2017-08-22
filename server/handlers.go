@@ -254,30 +254,41 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 				s.logger.Errorf("Server template error: %v", err)
 			}
 		case connector.SAMLConnector:
-			action, value, err := conn.POSTData(scopes, authReqID)
+			binding, ssoURL, value, err := conn.AuthnRequest(scopes, authReqID)
 			if err != nil {
 				s.logger.Errorf("Creating SAML data: %v", err)
 				s.renderError(w, http.StatusInternalServerError, "Connector Login Error")
 				return
 			}
 
-			// TODO(ericchiang): Don't inline this.
-			fmt.Fprintf(w, `<!DOCTYPE html>
-			  <html lang="en">
-			  <head>
-			    <meta http-equiv="content-type" content="text/html; charset=utf-8">
-			    <title>SAML login</title>
-			  </head>
-			  <body>
-			    <form method="post" action="%s" >
-				    <input type="hidden" name="SAMLRequest" value="%s" />
-				    <input type="hidden" name="RelayState" value="%s" />
-			    </form>
-				<script>
-				    document.forms[0].submit();
-				</script>
-			  </body>
-			  </html>`, action, value, authReqID)
+			switch binding {
+			case connector.SAMLBindingPOST:
+				// TODO(ericchiang): Don't inline this.
+				fmt.Fprintf(w, `<!DOCTYPE html>
+				  <html lang="en">
+				  <head>
+				    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+				    <title>SAML login</title>
+				  </head>
+				  <body>
+				    <form method="post" action="%s" >
+					    <input type="hidden" name="SAMLRequest" value="%s" />
+					    <input type="hidden" name="RelayState" value="%s" />
+				    </form>
+					<script>
+					    document.forms[0].submit();
+					</script>
+				  </body>
+				  </html>`, ssoURL, value, authReqID)
+			case connector.SAMLBindingRedirect:
+				query := make(url.Values)
+				query.Set("SAMLRequest", value)
+				query.Set("RelayState", authReqID)
+				redirectURL := ssoURL + "?" + query.Encode()
+				http.Redirect(w, r, redirectURL, http.StatusFound)
+			default:
+				s.renderError(w, http.StatusInternalServerError, "Invalid SAML configuration.")
+			}
 		default:
 			s.renderError(w, http.StatusBadRequest, "Requested resource does not exist.")
 		}

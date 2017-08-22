@@ -65,18 +65,24 @@ type CallbackConnector interface {
 	HandleCallback(s Scopes, r *http.Request) (identity Identity, err error)
 }
 
+// SAMLConnector bindings
+const (
+	SAMLBindingPOST     = "post"
+	SAMLBindingRedirect = "redirect"
+)
+
 // SAMLConnector represents SAML connectors which implement the HTTP POST binding.
 //  RelayState is handled by the server.
 //
 // See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
 // "3.5 HTTP POST Binding"
 type SAMLConnector interface {
-	// POSTData returns an encoded SAML request and SSO URL for the server to
-	// render a POST form with.
+	// AuthnRequest builds an encoded SAML request and SSO URL for the server to
+	// render a POST form or reply a redirection depending on binding.
 	//
-	// POSTData should encode the provided request ID in the returned serialized
+	// AuthnRequest should encode the provided request ID in the returned serialized
 	// SAML request.
-	POSTData(s Scopes, requestID string) (sooURL, samlRequest string, err error)
+	AuthnRequest(s Scopes, requestID string) (binding, ssoURL, samlRequest string, err error)
 
 	// HandlePOST decodes, verifies, and maps attributes from the SAML response.
 	// It passes the expected value of the "InResponseTo" response field, which

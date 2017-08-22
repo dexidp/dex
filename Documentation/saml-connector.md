@@ -86,6 +86,15 @@ connectors:
     #     urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
     #
     nameIDPolicyFormat: persistent
+
+    # Optional: Specify binding to use, default is HTTP-POST
+    #
+    # Some identity provider may require specific binding
+    # supported values:
+    #   - post: use HTTP-POST binding (default)
+    #   - redirect: use HTTP redirect binding
+    #
+    # binding: post
 ```
 
 A minimal working configuration might look like:
