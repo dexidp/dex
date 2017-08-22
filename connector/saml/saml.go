@@ -2,6 +2,8 @@
 package saml
 
 import (
+	"bytes"
+	"compress/flate"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -89,6 +91,10 @@ type Config struct {
 
 	InsecureSkipSignatureValidation bool `json:"insecureSkipSignatureValidation"`
 
+	// Compress SAMLRequest using deflate
+	// some identity providers require compression
+	Compress bool `json:"compress"`
+
 	// Assertion attribute names to lookup various claims with.
 	UsernameAttr string `json:"usernameAttr"`
 	EmailAttr    string `json:"emailAttr"`
@@ -157,6 +163,7 @@ func (c *Config) openConnector(logger logrus.FieldLogger) (*provider, error) {
 		ssoIssuer:    c.SSOIssuer,
 		ssoURL:       c.SSOURL,
 		now:          time.Now,
+		compress:     c.Compress,
 		usernameAttr: c.UsernameAttr,
 		emailAttr:    c.EmailAttr,
 		groupsAttr:   c.GroupsAttr,
@@ -223,6 +230,8 @@ type provider struct {
 
 	now func() time.Time
 
+	compress bool
+
 	// If nil, don't do signature validation.
 	validator *dsig.ValidationContext
 
@@ -261,6 +270,23 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 	data, err := xml.MarshalIndent(r, "", "  ")
 	if err != nil {
 		return "", "", fmt.Errorf("marshal authn request: %v", err)
+	}
+
+	// Compress the request if required by config
+	if p.compress {
+		var buf bytes.Buffer
+		zw, e := flate.NewWriter(&buf, flate.DefaultCompression)
+		if e == nil {
+			_, e = zw.Write(data)
+		}
+		if e == nil {
+			e = zw.Flush()
+		}
+		zw.Close()
+		if e != nil {
+			return "", "", fmt.Errorf("deflate request: %v", e)
+		}
+		data = buf.Bytes()
 	}
 
 	// See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
