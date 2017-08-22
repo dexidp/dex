@@ -50,9 +50,16 @@ $ sudo ./storage/sql/standup.sh destroy postgres
 
 ## LDAP
 
-To run LDAP tests locally, you require a container running OpenLDAP.
+The LDAP integration tests require [OpenLDAP][openldap] installed on the host machine. To run them, use `go test`:
 
-Run OpenLDAP docker image:
+```
+export DEX_LDAP_TESTS=1
+go test -v ./connector/ldap/
+```
+
+To quickly stand up a LDAP server for development, see the LDAP [_"Getting started"_][ldap-getting-started] example. This also requires OpenLDAP installed on the host.
+
+To stand up a containerized LDAP server run the OpenLDAP docker image:
 
 ```
 $ sudo docker run --hostname ldap.example.org --name openldap-container --detach osixia/openldap:1.1.6
@@ -136,3 +143,5 @@ connectors:
 Start both dex and the example app, and try logging in (requires not requesting a refresh token).
 
 [okta-sign-up]: https://www.okta.com/developer/signup/
+[openldap]: https://www.openldap.org/
+[ldap-getting-started]: ldap-connector.md#getting-started
