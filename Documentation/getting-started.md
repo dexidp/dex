@@ -42,9 +42,12 @@ Login to dex through the example app using the following steps.
 
 Dex is generally used as a building block to drive authentication for other apps. See [_"Writing apps that use dex"_][using-dex] for an overview of instrumenting apps to work with dex.
 
+For a primer on using LDAP to back dex's user store, see the OpenLDAP [_"Getting started"_][ldap-getting-started] example.
+
 Check out the Documentation directory for further reading on setting up different storages, interacting with the dex API, intros for OpenID Connect, and logging in through other identity providers such as Google, GitHub, or LDAP.
 
 [go-setup]: https://golang.org/doc/install
 [example-config]: ../examples/config-dev.yaml
 [oidc-discovery]: https://openid.net/specs/openid-connect-discovery-1_0-17.html#ProviderMetadata
 [using-dex]: using-dex.md
+[ldap-getting-started]: ldap-connector.md#getting-started
