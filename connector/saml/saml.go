@@ -10,6 +10,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"strings"
 	"time"
@@ -74,6 +75,18 @@ func init() {
 	}
 }
 
+// normalizeBinding verifies binding from config and normalize the string
+func normalizeBinding(binding string) (string, error) {
+	binding = strings.ToLower(strings.TrimSpace(binding))
+	if binding == "" {
+		return connector.SAMLBindingPOST, nil
+	}
+	if binding != connector.SAMLBindingPOST && binding != connector.SAMLBindingRedirect {
+		return "", fmt.Errorf("unsupported binding: %s", binding)
+	}
+	return binding, nil
+}
+
 // Config represents configuration options for the SAML provider.
 type Config struct {
 	// TODO(ericchiang): A bunch of these fields could be auto-filled if
@@ -117,7 +130,8 @@ type Config struct {
 	NameIDPolicyFormat string `json:"nameIDPolicyFormat"`
 
 	// Specify which binding to use, default is post
-	Binding string `json:"binding"`
+	RequestBinding  string `json:"requestBinding"`
+	ResponseBinding string `json:"responseBinding"`
 }
 
 type certStore struct {
@@ -170,14 +184,14 @@ func (c *Config) openConnector(logger logrus.FieldLogger) (*provider, error) {
 		logger:       logger,
 
 		nameIDPolicyFormat: c.NameIDPolicyFormat,
-		binding:            strings.ToLower(strings.TrimSpace(c.Binding)),
 	}
 
-	if p.binding == "" {
-		p.binding = connector.SAMLBindingPOST
-	} else if p.binding != connector.SAMLBindingPOST &&
-		p.binding != connector.SAMLBindingRedirect {
-		return nil, fmt.Errorf("unsupported binding: %s", p.binding)
+	var err error
+	if p.requestBinding, err = normalizeBinding(c.RequestBinding); err != nil {
+		return nil, err
+	}
+	if p.responseBinding, err = normalizeBinding(c.ResponseBinding); err != nil {
+		return nil, err
 	}
 
 	if p.nameIDPolicyFormat == "" {
@@ -249,7 +263,8 @@ type provider struct {
 
 	nameIDPolicyFormat string
 
-	binding string
+	requestBinding  string
+	responseBinding string
 
 	logger logrus.FieldLogger
 }
@@ -267,6 +282,10 @@ func (p *provider) AuthnRequest(s connector.Scopes, id string) (binding, ssoURL,
 		AssertionConsumerServiceURL: p.redirectURI,
 	}
 
+	if p.responseBinding == connector.SAMLBindingRedirect {
+		r.ProtocolBinding = bindingRedirect
+	}
+
 	if p.entityIssuer != "" {
 		// Issuer for the request is optional. For example, okta always ignores
 		// this value.
@@ -279,7 +298,7 @@ func (p *provider) AuthnRequest(s connector.Scopes, id string) (binding, ssoURL,
 	}
 
 	// for redirect binding, SAMLRequest must be deflated
-	if p.binding == connector.SAMLBindingRedirect {
+	if p.requestBinding == connector.SAMLBindingRedirect {
 		data, err = deflate(data)
 		if err != nil {
 			return "", "", "", fmt.Errorf("deflate request: %v", err)
@@ -288,10 +307,10 @@ func (p *provider) AuthnRequest(s connector.Scopes, id string) (binding, ssoURL,
 
 	// See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
 	// "3.5.4 Message Encoding"
-	return p.binding, p.ssoURL, base64.StdEncoding.EncodeToString(data), nil
+	return p.requestBinding, p.ssoURL, base64.StdEncoding.EncodeToString(data), nil
 }
 
-// HandlePOST interprets a request from a SAML provider attempting to verify a
+// HandleResponse interprets a request from a SAML provider attempting to verify a
 // user's identity.
 //
 // The steps taken are:
@@ -300,10 +319,17 @@ func (p *provider) AuthnRequest(s connector.Scopes, id string) (binding, ssoURL,
 // * Verify various parts of the Assertion element. Conditions, audience, etc.
 // * Map the Assertion's attribute elements to user info.
 //
-func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo string) (ident connector.Identity, err error) {
+func (p *provider) HandleResponse(s connector.Scopes, samlResponse, inResponseTo string) (ident connector.Identity, err error) {
 	rawResp, err := base64.StdEncoding.DecodeString(samlResponse)
 	if err != nil {
 		return ident, fmt.Errorf("decode response: %v", err)
+	}
+
+	// with HTTP redirect binding, response is compressed
+	if p.responseBinding == connector.SAMLBindingRedirect {
+		if rawResp, err = inflate(rawResp); err != nil {
+			return ident, fmt.Errorf("inflate response: %v", err)
+		}
 	}
 
 	// Root element is allowed to not be signed if the Assertion element is.
@@ -316,7 +342,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	}
 
 	var resp response
-	if err := xml.Unmarshal(rawResp, &resp); err != nil {
+	if err = xml.Unmarshal(rawResp, &resp); err != nil {
 		return ident, fmt.Errorf("unmarshal response: %v", err)
 	}
 
@@ -630,11 +656,25 @@ func deflate(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	defer zw.Close()
-	if _, err = zw.Write(data); err != nil {
+	if _, err := zw.Write(data); err != nil {
 		return nil, err
 	}
-	if err = zw.Flush(); err != nil {
+	if err := zw.Flush(); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// inflate decompress the data
+func inflate(data []byte) ([]byte, error) {
+	zr := flate.NewReader(bytes.NewReader(data))
+	defer zr.Close()
+	result, err := ioutil.ReadAll(zr)
+	// the compressed data has no frame, so we don't know the length
+	// of decompressed data. according to impl of compress/flate,
+	// treat io.EOF/io.ErrUnexpectedEOF as completion of decompression.
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		err = nil
+	}
+	return result, err
 }

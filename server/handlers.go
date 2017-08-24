@@ -330,12 +330,18 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request) {
 	var authID string
 	switch r.Method {
-	case "GET": // OAuth2 callback
-		if authID = r.URL.Query().Get("state"); authID == "" {
+	case http.MethodGet: // OAuth2 or SAML HTTP-Redirect callback
+		// try OAuth2
+		authID = r.URL.Query().Get("state")
+		if authID == "" {
+			// try SAML callback
+			authID = r.URL.Query().Get("RelayState")
+		}
+		if authID == "" {
 			s.renderError(w, http.StatusBadRequest, "User session error.")
 			return
 		}
-	case "POST": // SAML POST binding
+	case http.MethodPost: // SAML POST binding
 		if authID = r.PostFormValue("RelayState"); authID == "" {
 			s.renderError(w, http.StatusBadRequest, "User session error.")
 			return
@@ -367,19 +373,25 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	var identity connector.Identity
 	switch conn := conn.Connector.(type) {
 	case connector.CallbackConnector:
-		if r.Method != "GET" {
+		if r.Method != http.MethodGet {
 			s.logger.Errorf("SAML request mapped to OAuth2 connector")
 			s.renderError(w, http.StatusBadRequest, "Invalid request")
 			return
 		}
 		identity, err = conn.HandleCallback(parseScopes(authReq.Scopes), r)
 	case connector.SAMLConnector:
-		if r.Method != "POST" {
-			s.logger.Errorf("OAuth2 request mapped to SAML connector")
+		var response string
+		switch r.Method {
+		case http.MethodGet:
+			response = r.URL.Query().Get("SAMLResponse")
+		case http.MethodPost:
+			response = r.PostFormValue("SAMLResponse")
+		default:
+			s.logger.Errorf("Invalid method responds to SAML callback")
 			s.renderError(w, http.StatusBadRequest, "Invalid request")
 			return
 		}
-		identity, err = conn.HandlePOST(parseScopes(authReq.Scopes), r.PostFormValue("SAMLResponse"), authReq.ID)
+		identity, err = conn.HandleResponse(parseScopes(authReq.Scopes), response, authReq.ID)
 	default:
 		s.renderError(w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
