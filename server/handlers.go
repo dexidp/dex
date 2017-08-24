@@ -254,30 +254,41 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 				s.logger.Errorf("Server template error: %v", err)
 			}
 		case connector.SAMLConnector:
-			action, value, err := conn.POSTData(scopes, authReqID)
+			binding, ssoURL, value, err := conn.AuthnRequest(scopes, authReqID)
 			if err != nil {
 				s.logger.Errorf("Creating SAML data: %v", err)
 				s.renderError(w, http.StatusInternalServerError, "Connector Login Error")
 				return
 			}
 
-			// TODO(ericchiang): Don't inline this.
-			fmt.Fprintf(w, `<!DOCTYPE html>
-			  <html lang="en">
-			  <head>
-			    <meta http-equiv="content-type" content="text/html; charset=utf-8">
-			    <title>SAML login</title>
-			  </head>
-			  <body>
-			    <form method="post" action="%s" >
-				    <input type="hidden" name="SAMLRequest" value="%s" />
-				    <input type="hidden" name="RelayState" value="%s" />
-			    </form>
-				<script>
-				    document.forms[0].submit();
-				</script>
-			  </body>
-			  </html>`, action, value, authReqID)
+			switch binding {
+			case connector.SAMLBindingPOST:
+				// TODO(ericchiang): Don't inline this.
+				fmt.Fprintf(w, `<!DOCTYPE html>
+				  <html lang="en">
+				  <head>
+				    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+				    <title>SAML login</title>
+				  </head>
+				  <body>
+				    <form method="post" action="%s" >
+					    <input type="hidden" name="SAMLRequest" value="%s" />
+					    <input type="hidden" name="RelayState" value="%s" />
+				    </form>
+					<script>
+					    document.forms[0].submit();
+					</script>
+				  </body>
+				  </html>`, ssoURL, value, authReqID)
+			case connector.SAMLBindingRedirect:
+				query := make(url.Values)
+				query.Set("SAMLRequest", value)
+				query.Set("RelayState", authReqID)
+				redirectURL := ssoURL + "?" + query.Encode()
+				http.Redirect(w, r, redirectURL, http.StatusFound)
+			default:
+				s.renderError(w, http.StatusInternalServerError, "Invalid SAML configuration.")
+			}
 		default:
 			s.renderError(w, http.StatusBadRequest, "Requested resource does not exist.")
 		}
@@ -319,12 +330,18 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request) {
 	var authID string
 	switch r.Method {
-	case "GET": // OAuth2 callback
-		if authID = r.URL.Query().Get("state"); authID == "" {
+	case http.MethodGet: // OAuth2 or SAML HTTP-Redirect callback
+		// try OAuth2
+		authID = r.URL.Query().Get("state")
+		if authID == "" {
+			// try SAML callback
+			authID = r.URL.Query().Get("RelayState")
+		}
+		if authID == "" {
 			s.renderError(w, http.StatusBadRequest, "User session error.")
 			return
 		}
-	case "POST": // SAML POST binding
+	case http.MethodPost: // SAML POST binding
 		if authID = r.PostFormValue("RelayState"); authID == "" {
 			s.renderError(w, http.StatusBadRequest, "User session error.")
 			return
@@ -356,19 +373,25 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	var identity connector.Identity
 	switch conn := conn.Connector.(type) {
 	case connector.CallbackConnector:
-		if r.Method != "GET" {
+		if r.Method != http.MethodGet {
 			s.logger.Errorf("SAML request mapped to OAuth2 connector")
 			s.renderError(w, http.StatusBadRequest, "Invalid request")
 			return
 		}
 		identity, err = conn.HandleCallback(parseScopes(authReq.Scopes), r)
 	case connector.SAMLConnector:
-		if r.Method != "POST" {
-			s.logger.Errorf("OAuth2 request mapped to SAML connector")
+		var response string
+		switch r.Method {
+		case http.MethodGet:
+			response = r.URL.Query().Get("SAMLResponse")
+		case http.MethodPost:
+			response = r.PostFormValue("SAMLResponse")
+		default:
+			s.logger.Errorf("Invalid method responds to SAML callback")
 			s.renderError(w, http.StatusBadRequest, "Invalid request")
 			return
 		}
-		identity, err = conn.HandlePOST(parseScopes(authReq.Scopes), r.PostFormValue("SAMLResponse"), authReq.ID)
+		identity, err = conn.HandleResponse(parseScopes(authReq.Scopes), response, authReq.ID)
 	default:
 		s.renderError(w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
