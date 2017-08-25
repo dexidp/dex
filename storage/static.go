@@ -3,6 +3,8 @@ package storage
 import (
 	"errors"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
 
 // Tests for this code are in the "memory" package, since this package doesn't
@@ -25,6 +27,7 @@ func WithStaticClients(s Storage, staticClients []Client) Storage {
 	for _, client := range staticClients {
 		clientsByID[client.ID] = client
 	}
+
 	return staticClientsStorage{s, staticClients, clientsByID}
 }
 
@@ -82,19 +85,26 @@ type staticPasswordsStorage struct {
 	Storage
 
 	// A read-only set of passwords.
-	passwords        []Password
+	passwords []Password
+	// A map of passwords that is indexed by lower-case email ids
 	passwordsByEmail map[string]Password
+
+	logger logrus.FieldLogger
 }
 
-// WithStaticPasswords returns a storage with a read-only set of passwords. Write actions,
-// such as creating other passwords, will fail.
-func WithStaticPasswords(s Storage, staticPasswords []Password) Storage {
+// WithStaticPasswords returns a storage with a read-only set of passwords.
+func WithStaticPasswords(s Storage, staticPasswords []Password, logger logrus.FieldLogger) Storage {
 	passwordsByEmail := make(map[string]Password, len(staticPasswords))
 	for _, p := range staticPasswords {
-		p.Email = strings.ToLower(p.Email)
-		passwordsByEmail[p.Email] = p
+		//Enable case insensitive email comparison.
+		lowerEmail := strings.ToLower(p.Email)
+		if _, ok := passwordsByEmail[lowerEmail]; ok {
+			logger.Errorf("Attempting to create StaticPasswords with the same email id: %s", p.Email)
+		}
+		passwordsByEmail[lowerEmail] = p
 	}
-	return staticPasswordsStorage{s, staticPasswords, passwordsByEmail}
+
+	return staticPasswordsStorage{s, staticPasswords, passwordsByEmail, logger}
 }
 
 func (s staticPasswordsStorage) isStatic(email string) bool {

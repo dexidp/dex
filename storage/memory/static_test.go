@@ -108,9 +108,10 @@ func TestStaticPasswords(t *testing.T) {
 	p1 := storage.Password{Email: "foo@example.com", Username: "foo_secret"}
 	p2 := storage.Password{Email: "bar@example.com", Username: "bar_secret"}
 	p3 := storage.Password{Email: "spam@example.com", Username: "spam_secret"}
+	p4 := storage.Password{Email: "Spam@example.com", Username: "Spam_secret"}
 
 	backing.CreatePassword(p1)
-	s := storage.WithStaticPasswords(backing, []storage.Password{p2})
+	s := storage.WithStaticPasswords(backing, []storage.Password{p2}, logger)
 
 	tests := []struct {
 		name    string
@@ -160,22 +161,39 @@ func TestStaticPasswords(t *testing.T) {
 			},
 		},
 		{
+			name: "create passwords",
+			action: func() error {
+				if err := s.CreatePassword(p4); err != nil {
+					return err
+				}
+				return s.CreatePassword(p3)
+			},
+			wantErr: true,
+		},
+		{
+			name: "get password",
+			action: func() error {
+				p, err := s.GetPassword(p4.Email)
+				if err != nil {
+					return err
+				}
+				if strings.Compare(p.Email, p4.Email) != 0 {
+					return fmt.Errorf("expected %s passwords got %s", p4.Email, p.Email)
+				}
+				return nil
+			},
+		},
+		{
 			name: "list passwords",
 			action: func() error {
 				passwords, err := s.ListPasswords()
 				if err != nil {
 					return err
 				}
-				if n := len(passwords); n != 2 {
-					return fmt.Errorf("expected 2 passwords got %d", n)
+				if n := len(passwords); n != 3 {
+					return fmt.Errorf("expected 3 passwords got %d", n)
 				}
 				return nil
-			},
-		},
-		{
-			name: "create password",
-			action: func() error {
-				return s.CreatePassword(p3)
 			},
 		},
 	}
