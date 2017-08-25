@@ -4,7 +4,17 @@ The OpenID Foundation provides a set of [conformance test profiles][oidc-conf-pr
 
 ## Basic OpenID Provider Tests
 
-Dex is an OP that implements the [mandatory set][oidc-core-spec-mandatory] of OpenID Connect features, and can be tested against the Basic OpenID Provider profile ([profile outline][oidc-conf-profiles], section 2.1.1). These tests ensure that all features required by a [basic client][oidc-basic-client-spec] work as expected.
+Dex is an OP that strives to implement the [mandatory set][oidc-core-spec-mandatory] of OpenID Connect features, and can be tested against the Basic OpenID Provider profile ([profile outline][oidc-conf-profiles], section 2.1.1). These tests ensure that all features required by a [basic client][oidc-basic-client-spec] work as expected.
+
+Features are currently under development to fully comply with the Basic profile, as dex currently does not. The following issues track our progress:
+
+Issue number | Relates to
+:---: | :---:
+[\#376][dex-issue-376] | userinfo_endpoint
+[\#1052][dex-issue-1052] | auth_time
+
+[dex-issue-376]: https://github.com/coreos/dex/issues/376
+[dex-issue-1052]: https://github.com/coreos/dex/issues/1052
 
 ### Setup
 
@@ -105,7 +115,47 @@ Configuration is essentially the same for either type of OpenID test instance. W
 1. Run through each test case, following all instructions given by individual cases.
     * In order to pass certain cases, screenshots of OP responses might be required.
 
-## Result Submission
+## Results and Submission
+
+Dex does not fully pass the Basic profile test suite yet. The following table contains the current state of test results.
+
+Test case ID | Result type | Cause | Relates to
+--- | --- | --- | ---
+OP-Response-Missing | Incomplete | Expected |
+OP-Response-code | Succeeded | |
+OP-Response-form_post | Succeeded | |
+OP-IDToken-C-Signature | Succeeded | |
+OP-ClientAuth-Basic-Static | Succeeded | |
+OP-ClientAuth-SecretPost-Static | Warning | Unsupported | client_secret_post
+OP-Token-refresh | Incomplete | Unsupported | userinfo_endpoint
+OP-UserInfo-Body | Incomplete | Unsupported | userinfo_endpoint
+OP-UserInfo-Endpoint | Incomplete | Unsupported | userinfo_endpoint
+OP-UserInfo-Header | Incomplete | Unsupported | userinfo_endpoint
+OP-claims-essential | Incomplete | Unsupported | userinfo_endpoint
+OP-display-page | Succeeded | |
+OP-display-popup | Succeeded | |
+OP-nonce-NoReq-code | Succeeded | |
+OP-nonce-code | Succeeded | |
+OP-prompt-login | Succeeded | |
+OP-prompt-none-LoggedIn | Succeeded | |
+OP-prompt-none-NotLoggedIn | Incomplete | Error expected
+OP-redirect_uri-NotReg | Incomplete | Requires screenshot
+OP-scope-All | Incomplete | Unsupported | address, phone
+OP-scope-address | Incomplete | Unsupported | address
+OP-scope-email | Incomplete | Unsupported | userinfo_endpoint
+OP-scope-phone | Incomplete | Unsupported | phone
+OP-scope-profile | Incomplete | Unsupported | userinfo_endpoint
+OP-Req-NotUnderstood | Succeeded | |
+OP-Req-acr_values | Warning | No acr value | id_token
+OP-Req-claims_locales | Incomplete | Unsupported | userinfo_endpoint
+OP-Req-id_token_hint | Succeeded | |
+OP-Req-login_hint | Incomplete | Missing configuration field | login_hint
+OP-Req-max_age=1 | Failed | Missing configuration field | auth_time
+OP-Req-max_age=10000 | Failed | Missing configuration field | auth_time
+OP-Req-ui_locales | Succeeded | |
+OP-OAuth-2nd | Warning | Unexpected error response | invalid_request
+OP-OAuth-2nd-30s | Warning | Unexpected error response | invalid_request
+OP-OAuth-2nd-Revokes | Incomplete | Unsupported | userinfo_endpoint
 
 Once all test cases pass, submit your results by following instructions listed [on the website][oidc-result-submission].
 
