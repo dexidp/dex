@@ -124,6 +124,14 @@ type Config struct {
 
 		// The attribute of the group that represents its name.
 		NameAttr string `json:"nameAttr"`
+
+		// The attribute of the gid. Some LDAP servers exclude the main group
+		// from the groupsearch. To deliver a complete list of groups, the numeric
+		// group id (gid) of a user can be resolved to the group name and be
+		// appended. `GidAttr` specifies the gid attribute in the group's entry,
+		// `UserGidAttr` specifies the gid attribute of the user.
+		GidAttr string `json:"gidAttr"`
+		UserGidAttr string `json:"usergidAttr"`
 	} `json:"groupSearch"`
 }
 
@@ -348,6 +356,7 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 			c.UserSearch.IDAttr,
 			c.UserSearch.EmailAttr,
 			c.GroupSearch.UserAttr,
+			c.GroupSearch.UserGidAttr,
 			// TODO(ericchiang): what if this contains duplicate values?
 		},
 	}
@@ -501,10 +510,21 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 		if c.GroupSearch.Filter != "" {
 			filter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, filter)
 		}
+		gidfilter := fmt.Sprintf("(%s=%s)", c.GroupSearch.GidAttr, getAttr(user, c.GroupSearch.UserGidAttr))
+		if c.GroupSearch.Filter != "" {
+			gidfilter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, gidfilter)
+		}
 
 		req := &ldap.SearchRequest{
 			BaseDN:     c.GroupSearch.BaseDN,
 			Filter:     filter,
+			Scope:      c.groupSearchScope,
+			Attributes: []string{c.GroupSearch.NameAttr},
+		}
+
+		gidreq := &ldap.SearchRequest{
+			BaseDN:     c.GroupSearch.BaseDN,
+			Filter:     gidfilter,
 			Scope:      c.groupSearchScope,
 			Attributes: []string{c.GroupSearch.NameAttr},
 		}
@@ -519,6 +539,14 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 			}
 			gotGroups = len(resp.Entries) != 0
 			groups = append(groups, resp.Entries...)
+			if c.GroupSearch.GidAttr != "" && c.GroupSearch.UserGidAttr != "" {
+				gidresp, giderr := conn.Search(gidreq)
+				if giderr != nil {
+					return fmt.Errorf("ldap: search2 failed: %v", err)
+				}
+				groups = append(groups, gidresp.Entries...)
+				gotGroups = gotGroups || len(gidresp.Entries) != 0
+			}
 			return nil
 		}); err != nil {
 			return nil, err
@@ -540,7 +568,6 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 			return nil, fmt.Errorf("ldap: group entity %q missing required attribute %q",
 				group.DN, c.GroupSearch.NameAttr)
 		}
-
 		groupNames = append(groupNames, name)
 	}
 	return groupNames, nil
