@@ -267,8 +267,22 @@ func TestRefreshToken(t *testing.T) {
 	}
 
 	resp, err := client.RevokeRefresh(ctx, &revokeReq)
-	if err != nil || resp.NotFound {
+	if err != nil {
 		t.Fatalf("Unable to revoke refresh tokens for user: %v", err)
+	}
+	if resp.NotFound {
+		t.Errorf("refresh token session wasn't found")
+	}
+
+	// Try to delete again.
+	//
+	// See https://github.com/coreos/dex/issues/1055
+	resp, err = client.RevokeRefresh(ctx, &revokeReq)
+	if err != nil {
+		t.Fatalf("Unable to revoke refresh tokens for user: %v", err)
+	}
+	if !resp.NotFound {
+		t.Errorf("refresh token session was found")
 	}
 
 	if resp, _ := client.ListRefresh(ctx, &listReq); len(resp.RefreshTokens) != 0 {
