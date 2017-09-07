@@ -553,13 +553,13 @@ func (c *conn) CreatePassword(p storage.Password) error {
 	p.Email = strings.ToLower(p.Email)
 	_, err := c.Exec(`
 		insert into password (
-			email, hash, username, user_id
+			email, hash, username, user_id, groups
 		)
 		values (
-			$1, $2, $3, $4
+			$1, $2, $3, $4, $5
 		);
 	`,
-		p.Email, p.Hash, p.Username, p.UserID,
+		p.Email, p.Hash, p.Username, p.UserID, p.Groups,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -603,7 +603,7 @@ func (c *conn) GetPassword(email string) (storage.Password, error) {
 func getPassword(q querier, email string) (p storage.Password, err error) {
 	return scanPassword(q.QueryRow(`
 		select
-			email, hash, username, user_id
+			email, hash, username, user_id, groups
 		from password where email = $1;
 	`, strings.ToLower(email)))
 }
@@ -611,7 +611,7 @@ func getPassword(q querier, email string) (p storage.Password, err error) {
 func (c *conn) ListPasswords() ([]storage.Password, error) {
 	rows, err := c.Query(`
 		select
-			email, hash, username, user_id
+			email, hash, username, user_id, groups
 		from password;
 	`)
 	if err != nil {

@@ -112,7 +112,7 @@ type Client struct {
 type ClientList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`
-	Clients         []Client `json:"items"`
+	Clients []Client `json:"items"`
 }
 
 func (cli *client) fromStorageClient(c storage.Client) Client {
@@ -211,7 +211,7 @@ type AuthRequest struct {
 type AuthRequestList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`
-	AuthRequests    []AuthRequest `json:"items"`
+	AuthRequests []AuthRequest `json:"items"`
 }
 
 func toStorageAuthRequest(req AuthRequest) storage.AuthRequest {
@@ -259,7 +259,7 @@ func (cli *client) fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 	return req
 }
 
-// Password is a mirrored struct from the stroage with JSON struct tags and
+// Password is a mirrored struct from the storage with JSON struct tags and
 // Kubernetes type metadata.
 type Password struct {
 	k8sapi.TypeMeta   `json:",inline"`
@@ -273,13 +273,14 @@ type Password struct {
 	Hash     []byte `json:"hash,omitempty"`
 	Username string `json:"username,omitempty"`
 	UserID   string `json:"userID,omitempty"`
+	Groups   []string `json:"groups,omitempty"`
 }
 
 // PasswordList is a list of Passwords.
 type PasswordList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`
-	Passwords       []Password `json:"items"`
+	Passwords []Password `json:"items"`
 }
 
 func (cli *client) fromStoragePassword(p storage.Password) Password {
@@ -297,6 +298,7 @@ func (cli *client) fromStoragePassword(p storage.Password) Password {
 		Hash:     p.Hash,
 		Username: p.Username,
 		UserID:   p.UserID,
+		Groups:   p.Groups,
 	}
 }
 
@@ -306,6 +308,7 @@ func toStoragePassword(p Password) storage.Password {
 		Hash:     p.Hash,
 		Username: p.Username,
 		UserID:   p.UserID,
+		Groups:   p.Groups,
 	}
 }
 
@@ -334,7 +337,7 @@ type AuthCode struct {
 type AuthCodeList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`
-	AuthCodes       []AuthCode `json:"items"`
+	AuthCodes []AuthCode `json:"items"`
 }
 
 func (cli *client) fromStorageAuthCode(a storage.AuthCode) AuthCode {
@@ -397,7 +400,7 @@ type RefreshToken struct {
 type RefreshList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`
-	RefreshTokens   []RefreshToken `json:"items"`
+	RefreshTokens []RefreshToken `json:"items"`
 }
 
 func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
@@ -568,5 +571,5 @@ func toStorageConnector(c Connector) storage.Connector {
 type ConnectorList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`
-	Connectors      []Connector `json:"items"`
+	Connectors []Connector `json:"items"`
 }

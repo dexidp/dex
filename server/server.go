@@ -281,6 +281,7 @@ type passwordDB struct {
 }
 
 func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, password string) (connector.Identity, bool, error) {
+
 	p, err := db.s.GetPassword(email)
 	if err != nil {
 		if err != storage.ErrNotFound {
@@ -296,11 +297,13 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 	if err := bcrypt.CompareHashAndPassword(p.Hash, []byte(password)); err != nil {
 		return connector.Identity{}, false, nil
 	}
+
 	return connector.Identity{
 		UserID:        p.UserID,
 		Username:      p.Username,
 		Email:         p.Email,
 		EmailVerified: true,
+		Groups:        p.Groups,
 	}, true, nil
 }
 
