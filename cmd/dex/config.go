@@ -234,4 +234,7 @@ type Logger struct {
 
 	// Format specifies the format to be used for logging.
 	Format string `json:"format"`
+
+	// Location of log file
+	File string `json:"file"`
 }

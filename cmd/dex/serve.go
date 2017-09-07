@@ -60,7 +60,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error parse config file %s: %v", configFile, err)
 	}
 
-	logger, err := newLogger(c.Logger.Level, c.Logger.Format)
+	logger, err := newLogger(c.Logger.File, c.Logger.Level, c.Logger.Format)
 	if err != nil {
 		return fmt.Errorf("invalid config: %v", err)
 	}
@@ -270,7 +270,7 @@ func (f *utcFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	return f.f.Format(e)
 }
 
-func newLogger(level string, format string) (logrus.FieldLogger, error) {
+func newLogger(filePath string, level string, format string) (logrus.FieldLogger, error) {
 	var logLevel logrus.Level
 	switch strings.ToLower(level) {
 	case "debug":
@@ -293,8 +293,13 @@ func newLogger(level string, format string) (logrus.FieldLogger, error) {
 		return nil, fmt.Errorf("log format is not one of the supported values (%s): %s", strings.Join(logFormats, ", "), format)
 	}
 
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
+	if err != nil {
+		panic(err)
+	}
+
 	return &logrus.Logger{
-		Out:       os.Stderr,
+		Out:       file,
 		Formatter: &formatter,
 		Level:     logLevel,
 	}, nil

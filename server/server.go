@@ -19,9 +19,11 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/coreos/dex/connector"
+	"github.com/coreos/dex/connector/facebook"
 	"github.com/coreos/dex/connector/github"
 	"github.com/coreos/dex/connector/gitlab"
 	"github.com/coreos/dex/connector/ldap"
+	"github.com/coreos/dex/connector/linkedin"
 	"github.com/coreos/dex/connector/mock"
 	"github.com/coreos/dex/connector/oidc"
 	"github.com/coreos/dex/connector/saml"
@@ -396,6 +398,8 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"saml":         func() ConnectorConfig { return new(saml.Config) },
 	// Keep around for backwards compatibility.
 	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
+	"facebook":         func() ConnectorConfig { return new(facebook.Config) },
+	"linkedin":         func() ConnectorConfig { return new(linkedin.Config) },
 }
 
 // openConnector will parse the connector config and open the connector.
