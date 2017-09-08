@@ -445,3 +445,63 @@ sn: doe
 cn: jane
 mail: janedoe@example.com
 userpassword: foo
+
+########################################################################
+
+dn: ou=TestNestedGroups,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestNestedGroups
+
+dn: ou=People,ou=TestNestedGroups,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=TestNestedGroups,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+
+dn: cn=john,ou=People,ou=TestNestedGroups,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: john
+mail: johndoe@example.com
+userpassword: bar
+
+# Group definitions.
+
+dn: ou=Groups,ou=TestNestedGroups,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: cn=childGroup,ou=Groups,ou=TestNestedGroups,dc=example,dc=org
+objectClass: groupOfNames
+cn: childGroup
+member: cn=jane,ou=People,ou=TestNestedGroups,dc=example,dc=org
+
+dn: cn=intermediateGroup,ou=Groups,ou=TestNestedGroups,dc=example,dc=org
+objectClass: groupOfNames
+cn: intermediateGroup
+member: cn=childGroup,ou=Groups,ou=TestNestedGroups,dc=example,dc=org
+member: cn=john,ou=People,ou=TestNestedGroups,dc=example,dc=org
+
+dn: cn=parentGroup,ou=Groups,ou=TestNestedGroups,dc=example,dc=org
+objectClass: groupOfNames
+cn: parentGroup
+member: cn=intermediateGroup,ou=Groups,ou=TestNestedGroups,dc=example,dc=org
+
+dn: cn=circularGroup1,ou=Groups,ou=TestNestedGroups,dc=example,dc=org
+objectClass: groupOfNames
+cn: circularGroup1
+member: cn=circularGroup2,ou=Groups,ou=TestNestedGroups,dc=example,dc=org
+member: cn=jane,ou=People,ou=TestNestedGroups,dc=example,dc=org
+
+dn: cn=circularGroup2,ou=Groups,ou=TestNestedGroups,dc=example,dc=org
+objectClass: groupOfNames
+cn: circularGroup2
+member: cn=circularGroup1,ou=Groups,ou=TestNestedGroups,dc=example,dc=org
+member: cn=john,ou=People,ou=TestNestedGroups,dc=example,dc=org
