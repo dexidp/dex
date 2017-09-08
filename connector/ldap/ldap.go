@@ -50,6 +50,11 @@ import (
 //         groupAttr: member
 //         nameAttr: name
 //
+//         #Used when the filter member:1.2.840.113556.1.4.1941: timesout
+//         #Better implementation of recursive search
+//         inheritance: true
+//
+//
 type Config struct {
 	// The host and optional port of the LDAP server. If port isn't supplied, it will be
 	// guessed based on the TLS configuration. 389 or 636.
@@ -124,6 +129,9 @@ type Config struct {
 
 		// The attribute of the group that represents its name.
 		NameAttr string `json:"nameAttr"`
+		//Look for parent groups
+		Inheritance bool `json:"inheritance"`
+
 	} `json:"groupSearch"`
 }
 
@@ -496,52 +504,102 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 	}
 
 	var groups []*ldap.Entry
+	var groupNames []string
+	//Unusual to have many DN or uid (UserAttr)
 	for _, attr := range getAttrs(user, c.GroupSearch.UserAttr) {
-		filter := fmt.Sprintf("(%s=%s)", c.GroupSearch.GroupAttr, ldap.EscapeFilter(attr))
-		if c.GroupSearch.Filter != "" {
-			filter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, filter)
-		}
-
-		req := &ldap.SearchRequest{
-			BaseDN:     c.GroupSearch.BaseDN,
-			Filter:     filter,
-			Scope:      c.groupSearchScope,
-			Attributes: []string{c.GroupSearch.NameAttr},
-		}
-
-		gotGroups := false
-		if err := c.do(ctx, func(conn *ldap.Conn) error {
-			c.logger.Infof("performing ldap search %s %s %s",
-				req.BaseDN, scopeString(req.Scope), req.Filter)
-			resp, err := conn.Search(req)
-			if err != nil {
-				return fmt.Errorf("ldap: search failed: %v", err)
+		if obtainedGroups, filter, err := c.queryGroups(ctx, attr); err==nil{
+			groups = append(groups, obtainedGroups...)
+			if len(obtainedGroups) == 0 {
+				// TODO(ericchiang): Is this going to spam the logs?
+				c.logger.Errorf("ldap: groups search with filter %q returned no groups", filter)
 			}
-			gotGroups = len(resp.Entries) != 0
-			groups = append(groups, resp.Entries...)
-			return nil
-		}); err != nil {
+		}else {
 			return nil, err
 		}
-		if !gotGroups {
-			// TODO(ericchiang): Is this going to spam the logs?
-			c.logger.Errorf("ldap: groups search with filter %q returned no groups", filter)
-		}
 	}
 
-	var groupNames []string
-	for _, group := range groups {
-		name := getAttr(*group, c.GroupSearch.NameAttr)
-		if name == "" {
-			// Be obnoxious about missing missing attributes. If the group entry is
-			// missing its name attribute, that indicates a misconfiguration.
-			//
-			// In the future we can add configuration options to just log these errors.
-			return nil, fmt.Errorf("ldap: group entity %q missing required attribute %q",
-				group.DN, c.GroupSearch.NameAttr)
-		}
-
-		groupNames = append(groupNames, name)
+	if c.GroupSearch.Inheritance {
+		c.logger.Infof("Inheritance enabled for groups search")
 	}
+	// While loop for search in different levels (of LDAP tree) with inheritance
+	// or one time with inheritance disabled
+	// This allows to give permissions to subgroups and affect all users of subgroups
+	// Note that this iterative implementation optimizes the recursive one from LDAP
+	for {
+		// Temporal variable used to reset variable groups on each cycle
+		var nextLevelGroups []*ldap.Entry
+		for _, group := range groups {
+
+				name := getAttr(*group, c.GroupSearch.NameAttr)
+				if name == "" {
+					// Be obnoxious about missing missing attributes. If the group entry is
+					// missing its name attribute, that indicates a misconfiguration.
+					//
+					// In the future we can add configuration options to just log these errors.
+					return nil, fmt.Errorf("ldap: group entity %q missing required attribute %q",
+						group.DN, c.GroupSearch.NameAttr)
+				}
+
+				// Prevent duplicates and circular hierarchy
+				for _, groupName := range groupNames{
+					if name == groupName{
+						c.logger.Infof("Found duplicate group with name %s", name)
+						continue
+					}
+					c.logger.Infof("Comparing %s with %s", name, groupName)
+				}
+
+				groupNames = append(groupNames, name)
+					if c.GroupSearch.Inheritance {
+						if obtainedGroups, _, err := c.queryGroups(ctx, group.DN); err==nil{
+							// Keep searching upwards
+							if len(obtainedGroups) != 0 {
+								nextLevelGroups = append(nextLevelGroups, obtainedGroups...)
+							}else {
+								c.logger.Infof("Didn't find parents for group with name %s", name)
+							}
+						}else {
+							return nil, err
+						}
+				}
+			}
+			// If there's no remaining levels -> exit loop
+			if (len(nextLevelGroups) == 0) {
+				break
+			}
+			// reassign groups for next loop
+			groups = nextLevelGroups
+
+		}
 	return groupNames, nil
+
+}
+
+//  Abrstraction query of Groups and reuse code
+func (c *ldapConnector) queryGroups(ctx context.Context, dn string) ([]*ldap.Entry, string, error) {
+	var groups []*ldap.Entry
+	filter := fmt.Sprintf("(%s=%s)", c.GroupSearch.GroupAttr, ldap.EscapeFilter(dn))
+	if c.GroupSearch.Filter != "" {
+		filter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, filter)
+	}
+	req := &ldap.SearchRequest{
+		BaseDN:     c.GroupSearch.BaseDN,
+		Filter:     filter,
+		Scope:      c.groupSearchScope,
+		Attributes: []string{c.GroupSearch.NameAttr},
+	}
+
+	if err := c.do(ctx, func(conn *ldap.Conn) error {
+		c.logger.Infof("performing ldap search %s %s %s",
+			req.BaseDN, scopeString(req.Scope), req.Filter)
+		resp, err := conn.Search(req)
+		if err != nil {
+			return  fmt.Errorf("ldap: search failed: %v", err)
+		}
+		groups = append(groups, resp.Entries...)
+		return nil
+	}); err != nil {
+		return nil, filter, err
+	}
+	return groups, filter, nil
 }
