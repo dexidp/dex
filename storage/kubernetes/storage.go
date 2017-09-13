@@ -38,6 +38,8 @@ const (
 type Config struct {
 	InCluster      bool   `json:"inCluster"`
 	KubeConfigFile string `json:"kubeConfigFile"`
+	APIVersion     string `json:"apiVersion"` // API Group and version
+	UseCRD         bool   `json:"useCRD"`     // Flag option to use CRDs instead of TPRs
 }
 
 // Open returns a storage using Kubernetes third party resource.
@@ -52,9 +54,9 @@ func (c *Config) Open(logger logrus.FieldLogger) (storage.Storage, error) {
 // open returns a kubernetes client, initializing the third party resources used
 // by dex.
 //
-// errOnTPRs controls if errors creating the resources cause this method to return
+// errOnResources controls if errors creating the resources cause this method to return
 // immediately (used during testing), or if the client will asynchronously retry.
-func (c *Config) open(logger logrus.FieldLogger, errOnTPRs bool) (*client, error) {
+func (c *Config) open(logger logrus.FieldLogger, errOnResources bool) (*client, error) {
 	if c.InCluster && (c.KubeConfigFile != "") {
 		return nil, errors.New("cannot specify both 'inCluster' and 'kubeConfigFile'")
 	}
@@ -77,15 +79,46 @@ func (c *Config) open(logger logrus.FieldLogger, errOnTPRs bool) (*client, error
 		return nil, err
 	}
 
-	cli, err := newClient(cluster, user, namespace, logger)
+	cli, err := newClient(cluster, user, namespace, logger, c.APIVersion)
 	if err != nil {
 		return nil, fmt.Errorf("create client: %v", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	if c.UseCRD {
+		if !cli.createCustomResourceDefinitions() {
+			if errOnResources {
+				cancel()
+				return nil, fmt.Errorf("failed creating custom resource definitions")
+			}
+		}
+
+		// Try to synchronously create the custom resource definitions once. This doesn't mean
+		// they'll immediately be available, but ensures that the client will actually try
+		// once.
+		logger.Errorf("failed creating custom resource definitions: %v", err)
+		go func() {
+			for {
+				if cli.createCustomResourceDefinitions() {
+					return
+				}
+
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(30 * time.Second):
+				}
+			}
+		}()
+		// If the client is closed, stop trying to create third party resources.
+		cli.cancel = cancel
+		return cli, nil
+
+	}
+
 	if !cli.createThirdPartyResources() {
-		if errOnTPRs {
+		if errOnResources {
 			cancel()
 			return nil, fmt.Errorf("failed creating third party resources")
 		}
@@ -140,6 +173,33 @@ func (cli *client) createThirdPartyResources() (ok bool) {
 			continue
 		}
 		cli.logger.Errorf("create third party resource %s", r.ObjectMeta.Name)
+	}
+	return ok
+}
+
+// createCustomResourceDefinitions attempts to create the custom resource definitions(CRDs)
+// required by dex. If the CRDs exist, this information is logged. It logs all errors,
+// returning true if the CRDs were created successfully.
+//
+// TODO: Provide an option to wait for the CRDs to actually be available.
+func (cli *client) createCustomResourceDefinitions() (ok bool) {
+	ok = true
+	for _, r := range customResourceDefinitions {
+		err := cli.postResource("apiextensions.k8s.io/v1beta1", "", "customresourcedefinition", r)
+		if err != nil {
+			switch err {
+			case storage.ErrAlreadyExists:
+				cli.logger.Infof("custom resource definition already created %s", r.ObjectMeta.Name)
+			case storage.ErrNotFound:
+				cli.logger.Errorf("custom resource definition not found, please enable API group apiextensions.k8s.io/v1beta1")
+				ok = false
+			default:
+				cli.logger.Errorf("creating custom resource definition %s: %v", r.ObjectMeta.Name, err)
+				ok = false
+			}
+			continue
+		}
+		cli.logger.Errorf("create custom resource definition %s", r.ObjectMeta.Name)
 	}
 	return ok
 }

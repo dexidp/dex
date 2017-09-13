@@ -84,6 +84,138 @@ var thirdPartyResources = []k8sapi.ThirdPartyResource{
 	},
 }
 
+var crdMeta = k8sapi.TypeMeta{
+	APIVersion: "apiextensions.k8s.io/v1beta1",
+	Kind:       "CustomResourceDefinition",
+}
+
+const apiGroup = "dex.coreos.com"
+
+// The set of custom resource definitions required by the storage. These are managed by
+// the storage so it can migrate itself by creating new resources.
+var customResourceDefinitions = []k8sapi.CustomResourceDefinition{
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "authcodes.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "authcodes",
+				Singular: "authcode",
+				Kind:     "AuthCode",
+			},
+		},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "authrequests.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "authrequests",
+				Singular: "authcodrequest",
+				Kind:     "AuthRequests",
+			},
+		},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "oauth2clients.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "oauth2clients",
+				Singular: "oauth2client",
+				Kind:     "Oauth2Client",
+			},
+		},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "signingkeies.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "signingkeies",
+				Singular: "signingkey",
+				Kind:     "SigningKey",
+			},
+		},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "refreshtokens.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "refreshtokens",
+				Singular: "refreshtoken",
+				Kind:     "RefreshToken",
+			},
+		},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "passwords.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "passwords",
+				Singular: "password",
+				Kind:     "Password",
+			},
+		},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "offlinesessionses.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "offlinesessionses",
+				Singular: "offlinesessions",
+				Kind:     "OfflineSessions",
+			},
+		},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "connectors.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "connectors",
+				Singular: "connector",
+				Kind:     "Connector",
+			},
+		},
+	},
+}
+
 // There will only ever be a single keys resource. Maintain this by setting a
 // common name.
 const keysName = "openid-connect-keys"
