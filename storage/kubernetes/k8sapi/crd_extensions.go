@@ -47,10 +47,13 @@ type CustomResourceDefinitionNames struct {
 type ResourceScope string
 
 const (
-	ClusterScoped   ResourceScope = "Cluster"
+	// ClusterScoped is the `cluster` scope for a custom resource.
+	ClusterScoped ResourceScope = "Cluster"
+	// NamespaceScoped is the `namespaced` scope for a custom resource.
 	NamespaceScoped ResourceScope = "Namespaced"
 )
 
+// ConditionStatus reflects if a resource
 type ConditionStatus string
 
 // These are valid condition statuses. "ConditionTrue" means a resource is in the condition.

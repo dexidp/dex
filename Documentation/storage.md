@@ -4,13 +4,68 @@ Dex requires persisting state to perform various tasks such as track refresh tok
 
 Storage breaches are serious as they can affect applications that rely on dex. Dex saves sensitive data in its backing storage, including signing keys and bcrypt'd passwords. As such, transport security and database ACLs should both be used, no matter which storage option is chosen.
 
-## Kubernetes third party resources
+## Kubernetes custom resource definitions (CRDs)
 
-__NOTE:__ Dex requires Kubernetes version 1.4+.
+__NOTE:__ CRDs are only supported by Kubernetes version 1.7+.
 
-Kubernetes third party resources are a way for applications to create new resources types in the Kubernetes API. This allows dex to run on top of an existing Kubernetes cluster without the need for an external database. While this storage may not be appropriate for a large number of users, it's extremely effective for many Kubernetes use cases.
+Kubernetes [custom resource definitions](crd) are a way for applications to create new resources types in the Kubernetes API. The Custom Resource Definition (CRD) API object was introduced in Kubernetes version 1.7 to replace the Third Party Resource (TPR) extension. CRDs allows dex to run on top of an existing Kubernetes cluster without the need for an external database. While this storage may not be appropriate for a large number of users, it's extremely effective for many Kubernetes use cases.
 
-The rest of this section will explore internal details of how dex uses `ThirdPartyResources`. __Admins should not interact with these resources directly__, except when debugging. These resources are only designed to store state and aren't meant to be consumed by humans. For modifying dex's state dynamically see the [API documentation](api.md).
+The rest of this section will explore internal details of how dex uses CRDs. __Admins should not interact with these resources directly__, except while debugging. These resources are only designed to store state and aren't meant to be consumed by end users. For modifying dex's state dynamically see the [API documentation](api.md).
+
+The following is an example of the AuthCode resource managed by dex:
+
+```
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  creationTimestamp: 2017-09-13T19:56:28Z
+  name: authcodes.dex.coreos.com
+  resourceVersion: "288893"
+  selfLink: /apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/authcodes.dex.coreos.com
+  uid: a1cb72dc-98bd-11e7-8f6a-02d13336a01e
+spec:
+  group: dex.coreos.com
+  names:
+    kind: AuthCode
+    listKind: AuthCodeList
+    plural: authcodes
+    singular: authcode
+  scope: Namespaced
+  version: v1
+status:
+  acceptedNames:
+    kind: AuthCode
+    listKind: AuthCodeList
+    plural: authcodes
+    singular: authcode
+  conditions:
+  - lastTransitionTime: null
+    message: no conflicts found
+    reason: NoConflicts
+    status: "True"
+    type: NamesAccepted
+  - lastTransitionTime: 2017-09-13T19:56:28Z
+    message: the initial names have been accepted
+    reason: InitialNamesAccepted
+    status: "True"
+    type: Established
+```
+
+Once the `CustomResourceDefinition` is created, custom resources can be created and stored at a namespace level. The CRD type and the custom resources can be queried, deleted, and edited like any other resource using `kubectl`.
+
+## Kubernetes third party resources(TPRs)
+
+__NOTE:__ TPRs will be deprecated by Kubernetes version 1.8.
+
+The default behavior of dex from release v2.7.0 onwards is to utitlize CRDs to manage its custom resources. If users would like to use dex with a Kubernetes version lower than 1.7, they will have to force dex to use TPRs instead of CRDs by setting the `UseTPR` flag in the storage configuration as shown below:
+
+```
+storage:
+  type: kubernetes
+  config:
+    kubeConfigFile: kubeconfig
+    useTPR: true
+```
 
 The `ThirdPartyResource` type acts as a description for the new resource a user wishes to create. The following an example of a resource managed by dex:
 
@@ -166,3 +221,4 @@ Any proposal to add a new implementation must address the following:
 [issues-transaction-tests]: https://github.com/coreos/dex/issues/600
 [k8s-api]: https://github.com/kubernetes/kubernetes/blob/master/docs/devel/api-conventions.md#concurrency-control-and-consistency
 [psql-conn-options]: https://godoc.org/github.com/lib/pq#hdr-Connection_String_Parameters
+[crd]: https://kubernetes.io/docs/tasks/access-kubernetes-api/extend-api-custom-resource-definitions/

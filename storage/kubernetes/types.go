@@ -119,8 +119,8 @@ var customResourceDefinitions = []k8sapi.CustomResourceDefinition{
 			Version: "v1",
 			Names: k8sapi.CustomResourceDefinitionNames{
 				Plural:   "authrequests",
-				Singular: "authcodrequest",
-				Kind:     "AuthRequests",
+				Singular: "authrequest",
+				Kind:     "AuthRequest",
 			},
 		},
 	},
@@ -135,7 +135,7 @@ var customResourceDefinitions = []k8sapi.CustomResourceDefinition{
 			Names: k8sapi.CustomResourceDefinitionNames{
 				Plural:   "oauth2clients",
 				Singular: "oauth2client",
-				Kind:     "Oauth2Client",
+				Kind:     "OAuth2Client",
 			},
 		},
 	},
@@ -148,6 +148,9 @@ var customResourceDefinitions = []k8sapi.CustomResourceDefinition{
 			Group:   apiGroup,
 			Version: "v1",
 			Names: k8sapi.CustomResourceDefinitionNames{
+				// `signingkeies` is an artifact from the old TPR pluralization.
+				// Users don't directly interact with this value, hence leaving it
+				// as is.
 				Plural:   "signingkeies",
 				Singular: "signingkey",
 				Kind:     "SigningKey",
@@ -195,7 +198,7 @@ var customResourceDefinitions = []k8sapi.CustomResourceDefinition{
 			Names: k8sapi.CustomResourceDefinitionNames{
 				Plural:   "offlinesessionses",
 				Singular: "offlinesessions",
-				Kind:     "OfflineSessions",
+				Kind:     "OfflineSession",
 			},
 		},
 	},
