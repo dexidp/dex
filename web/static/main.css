@@ -44,9 +44,10 @@ body {
 }
 
 .dex-btn-icon--google {
-  background-color: #DB4437;
+  background-color: #FFFFFF;
   background-image: url(../static/img/google-icon.svg);;
 }
+
 .dex-btn-icon--local {
   background-color: #84B6EF;
   background-image: url(../static/img/email-icon.svg);
@@ -70,6 +71,16 @@ body {
 .dex-btn-icon--bitbucket {
   background-color: #205081;
   background-image: url(../static/img/bitbucket-icon.svg);
+}
+
+.dex-btn-icon--ldap {
+  background-color: #84B6EF;
+  background-image: url(../static/img/ldap-icon.svg);
+}
+
+.dex-btn-icon--saml {
+  background-color: #84B6EF;
+  background-image: url(../static/img/saml-icon.svg);
 }
 
 .dex-btn-text {
