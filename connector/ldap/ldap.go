@@ -541,12 +541,17 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 				}
 
 				// Prevent duplicates and circular hierarchy
+				exit := false
 				for _, groupName := range groupNames{
 					if name == groupName{
 						c.logger.Infof("Found duplicate group with name %s", name)
-						continue
+						exit = true
+						break
 					}
 					c.logger.Infof("Comparing %s with %s", name, groupName)
+				}
+				if exit {
+					continue
 				}
 
 				groupNames = append(groupNames, name)
