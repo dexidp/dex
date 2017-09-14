@@ -51,7 +51,7 @@ vet:
 	@go vet $(shell go list ./... | grep -v '/vendor/')
 
 fmt:
-	@go fmt $(shell go list ./... | grep -v '/vendor/')
+	@./scripts/gofmt $(shell go list ./... | grep -v '/vendor/')
 
 lint:
 	@for package in $(shell go list ./... | grep -v '/vendor/' | grep -v '/api' | grep -v '/server/internal'); do \

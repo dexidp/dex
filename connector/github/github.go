@@ -503,13 +503,13 @@ func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (s
 				advised them not to check for verified emails
 				(https://circleci.com/enterprise/changelog/#1-47-1).
 				In addition, GitHub Enterprise support replied to a support
-				ticket with "There is no way to verify an email address in 
-				GitHub Enterprise."			
+				ticket with "There is no way to verify an email address in
+				GitHub Enterprise."
 			*/
 			if c.hostName != "" {
 				email.Verified = true
 			}
-			
+
 			if email.Verified && email.Primary {
 				return email.Email, nil
 			}
