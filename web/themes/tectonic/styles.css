@@ -1,18 +1,11 @@
 .theme-body {
-  background-color: #1E394C;
+  background-color: #1C425B;
   color: #333;
   font-family: 'Source Sans Pro', Helvetica, sans-serif;
 }
 
 .theme-navbar {
-  background-color: #fff;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-  color: #333;
-  font-size: 13px;
-  font-weight: 100;
-  height: 46px;
-  overflow: hidden;
-  padding: 0 10px;
+  display: none;
 }
 
 .theme-navbar__logo-wrap {
@@ -106,4 +99,8 @@
   position: relative;
   font-size: 13px;
   font-weight: 600;
+}
+
+.dex-container {
+  margin: 60px auto;
 }
