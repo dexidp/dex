@@ -131,7 +131,6 @@ type Config struct {
 		NameAttr string `json:"nameAttr"`
 		//Look for parent groups
 		Inheritance bool `json:"inheritance"`
-
 	} `json:"groupSearch"`
 }
 
@@ -507,13 +506,13 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 	var groupNames []string
 	//Unusual to have many DN or uid (UserAttr)
 	for _, attr := range getAttrs(user, c.GroupSearch.UserAttr) {
-		if obtainedGroups, filter, err := c.queryGroups(ctx, attr); err==nil{
+		if obtainedGroups, filter, err := c.queryGroups(ctx, attr); err == nil {
 			groups = append(groups, obtainedGroups...)
 			if len(obtainedGroups) == 0 {
 				// TODO(ericchiang): Is this going to spam the logs?
 				c.logger.Errorf("ldap: groups search with filter %q returned no groups", filter)
 			}
-		}else {
+		} else {
 			return nil, err
 		}
 	}
@@ -530,52 +529,52 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 		var nextLevelGroups []*ldap.Entry
 		for _, group := range groups {
 
-				name := getAttr(*group, c.GroupSearch.NameAttr)
-				if name == "" {
-					// Be obnoxious about missing missing attributes. If the group entry is
-					// missing its name attribute, that indicates a misconfiguration.
-					//
-					// In the future we can add configuration options to just log these errors.
-					return nil, fmt.Errorf("ldap: group entity %q missing required attribute %q",
-						group.DN, c.GroupSearch.NameAttr)
-				}
+			name := getAttr(*group, c.GroupSearch.NameAttr)
+			if name == "" {
+				// Be obnoxious about missing missing attributes. If the group entry is
+				// missing its name attribute, that indicates a misconfiguration.
+				//
+				// In the future we can add configuration options to just log these errors.
+				return nil, fmt.Errorf("ldap: group entity %q missing required attribute %q",
+					group.DN, c.GroupSearch.NameAttr)
+			}
 
-				// Prevent duplicates and circular hierarchy
-				exit := false
-				for _, groupName := range groupNames{
-					if name == groupName{
-						c.logger.Infof("Found duplicate group with name %s", name)
-						exit = true
-						break
+			// Prevent duplicates and circular hierarchy
+			exit := false
+			for _, groupName := range groupNames {
+				if name == groupName {
+					c.logger.Infof("Found duplicate group with name %s", name)
+					exit = true
+					break
+				}
+				c.logger.Infof("Comparing %s with %s", name, groupName)
+			}
+			if exit {
+				continue
+			}
+
+			groupNames = append(groupNames, name)
+			if c.GroupSearch.Inheritance {
+				if obtainedGroups, _, err := c.queryGroups(ctx, group.DN); err == nil {
+					// Keep searching upwards
+					if len(obtainedGroups) != 0 {
+						nextLevelGroups = append(nextLevelGroups, obtainedGroups...)
+					} else {
+						c.logger.Infof("Didn't find parents for group with name %s", name)
 					}
-					c.logger.Infof("Comparing %s with %s", name, groupName)
-				}
-				if exit {
-					continue
-				}
-
-				groupNames = append(groupNames, name)
-					if c.GroupSearch.Inheritance {
-						if obtainedGroups, _, err := c.queryGroups(ctx, group.DN); err==nil{
-							// Keep searching upwards
-							if len(obtainedGroups) != 0 {
-								nextLevelGroups = append(nextLevelGroups, obtainedGroups...)
-							}else {
-								c.logger.Infof("Didn't find parents for group with name %s", name)
-							}
-						}else {
-							return nil, err
-						}
+				} else {
+					return nil, err
 				}
 			}
-			// If there's no remaining levels -> exit loop
-			if (len(nextLevelGroups) == 0) {
-				break
-			}
-			// reassign groups for next loop
-			groups = nextLevelGroups
-
 		}
+		// If there's no remaining levels -> exit loop
+		if len(nextLevelGroups) == 0 {
+			break
+		}
+		// reassign groups for next loop
+		groups = nextLevelGroups
+
+	}
 	return groupNames, nil
 
 }
@@ -599,7 +598,7 @@ func (c *ldapConnector) queryGroups(ctx context.Context, dn string) ([]*ldap.Ent
 			req.BaseDN, scopeString(req.Scope), req.Filter)
 		resp, err := conn.Search(req)
 		if err != nil {
-			return  fmt.Errorf("ldap: search failed: %v", err)
+			return fmt.Errorf("ldap: search failed: %v", err)
 		}
 		groups = append(groups, resp.Entries...)
 		return nil
