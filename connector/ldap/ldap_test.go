@@ -295,7 +295,7 @@ member: cn=jane,ou=People,dc=example,dc=org
 				Username:      "jane",
 				Email:         "janedoe@example.com",
 				EmailVerified: true,
-				Groups:        []string{"IT", "developers", "team-one", "team-two"},
+				Groups:        []string{"team-one", "team-two", "developers", "IT"},
 			},
 		},
 		{
@@ -308,7 +308,7 @@ member: cn=jane,ou=People,dc=example,dc=org
 				Username:      "john",
 				Email:         "johndoe@example.com",
 				EmailVerified: true,
-				Groups:        []string{"admins" , "IT", "developers", "team-one"},
+				Groups:        []string{"admins" , "team-one", "IT", "developers"},
 			},
 		},
 	}
