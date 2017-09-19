@@ -147,6 +147,39 @@ storage:
 
 Dex determines the namespace it's running in by parsing the service account token automatically mounted into its pod.
 
+## Migrating from TPRs to CRDs
+
+This section descibes how users can migrate storage data in dex when upgrading from an older version of kubernetes (lower than 1.7). This involves creating new CRDs and moving over the data from TPRs.
+The flow of the migration process is as follows:
+1. Stop running old version of Dex (lower than v2.7.0).
+2. Create new CRDs by running the following command:
+   ```
+   kubectl apply -f scripts/manifests/crds/
+   ```
+   Note that the newly created CRDs have `dex.coreos.com` as their group and will not conflict with the existing TPR resources which have `oidc.coreos.com` as the group.
+3. Migrate data from existing TPRs to CRDs by running the following commands for each of the TPRs:
+   1. Export `DEX_NAMESPACE` to be the namespace in which the TPRs exist and run the following script to store TPR definition in a temporary yaml file:
+      ```
+      export DEX_NAMESPACE="<namespace-value>"
+      ./scripts/dump-tprs > out.yaml
+      ```
+   2. Update `out.yaml` to change the apiVersion to `apiVersion: dex.coreos.com/v1` and delete the `resourceVersion` field.
+      ```
+      sed 's/oidc.coreos.com/dex.coreos.com/' out.yaml
+      ```
+      ```
+      sed 's/resourceVersion: ".*"//' out.yaml
+      ```
+   3. Create the resource object using the following command:
+      ```
+      kubectl apply -f out.yaml
+      ```
+   4. Confirm that the resource got created using the following get command:
+      ```
+      kubectl get --namespace=tectonic-system <TPR-name>.dex.coreos.com  -o yaml
+      ```
+4. Update to new version of Dex (v2.7.0 or higher) which will use CRDs instead of TPRs.
+
 ## SQL
 
 Dex supports two flavors of SQL, SQLite3 and Postgres. MySQL and CockroachDB may be added at a later time.
