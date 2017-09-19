@@ -210,7 +210,7 @@ member: cn=jane,ou=People,dc=example,dc=org
 	runTests(t, schema, connectLDAP, c, tests)
 }
 
-func TestGroupInheritanceQuery(t *testing.T) {
+func TestGroupRecursiveQuery(t *testing.T) {
 	schema := `
 dn: dc=example,dc=org
 objectClass: dcObject
@@ -309,6 +309,119 @@ member: cn=jane,ou=People,dc=example,dc=org
 				Email:         "johndoe@example.com",
 				EmailVerified: true,
 				Groups:        []string{"admins", "team-one", "IT", "developers"},
+			},
+		},
+	}
+
+	runTests(t, schema, connectLDAP, c, tests)
+}
+
+func TestGroupRecursiveLoopsQuery(t *testing.T) {
+	schema := `
+dn: dc=example,dc=org
+objectClass: dcObject
+objectClass: organization
+o: Example Company
+dc: example
+
+dn: ou=People,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+
+dn: cn=john,ou=People,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: john
+mail: johndoe@example.com
+userpassword: bar
+
+# Group definitions.
+
+dn: ou=Groups,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: cn=admins,ou=Groups,dc=example,dc=org
+objectClass: groupOfNames
+cn: admins
+member: cn=admins,ou=Groups,dc=example,dc=org
+member: cn=john,ou=People,dc=example,dc=org
+
+dn: cn=IT,ou=Groups,dc=example,dc=org
+objectClass: groupOfNames
+cn: IT
+member: cn=developers,ou=Groups,dc=example,dc=org
+member: cn=team-three,ou=Groups,dc=example,dc=org
+member: cn=john,ou=People,dc=example,dc=org
+
+dn: cn=developers,ou=Groups,dc=example,dc=org
+objectClass: groupOfNames
+cn: developers
+member: cn=IT,ou=Groups,dc=example,dc=org
+member: cn=team-one,ou=Groups,dc=example,dc=org
+member: cn=team-two,ou=Groups,dc=example,dc=org
+
+dn: cn=team-one,ou=Groups,dc=example,dc=org
+objectClass: groupOfNames
+cn: team-one
+member: cn=jane,ou=People,dc=example,dc=org
+
+dn: cn=team-two,ou=Groups,dc=example,dc=org
+objectClass: groupOfNames
+cn: team-two
+member: cn=jane,ou=People,dc=example,dc=org
+
+dn: cn=team-three,ou=Groups,dc=example,dc=org
+objectClass: groupOfNames
+cn: team-three
+member: cn=jane,ou=People,dc=example,dc=org
+`
+	c := &Config{}
+	c.UserSearch.BaseDN = "ou=People,dc=example,dc=org"
+	c.UserSearch.NameAttr = "cn"
+	c.UserSearch.EmailAttr = "mail"
+	c.UserSearch.IDAttr = "DN"
+	c.UserSearch.Username = "cn"
+	c.GroupSearch.BaseDN = "ou=Groups,dc=example,dc=org"
+	c.GroupSearch.UserAttr = "DN"
+	c.GroupSearch.GroupAttr = "member"
+	c.GroupSearch.NameAttr = "cn"
+	c.GroupSearch.Recursive = true
+
+	tests := []subtest{
+		{
+			name:     "validpassword",
+			username: "jane",
+			password: "foo",
+			groups:   true,
+			want: connector.Identity{
+				UserID:        "cn=jane,ou=People,dc=example,dc=org",
+				Username:      "jane",
+				Email:         "janedoe@example.com",
+				EmailVerified: true,
+				Groups:        []string{"team-one", "team-two", "team-three","developers", "IT"},
+			},
+		},
+		{
+			name:     "validpassword2",
+			username: "john",
+			password: "bar",
+			groups:   true,
+			want: connector.Identity{
+				UserID:        "cn=john,ou=People,dc=example,dc=org",
+				Username:      "john",
+				Email:         "johndoe@example.com",
+				EmailVerified: true,
+				Groups:        []string{"admins", "IT", "developers"},
 			},
 		},
 	}
