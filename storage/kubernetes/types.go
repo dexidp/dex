@@ -198,7 +198,7 @@ var customResourceDefinitions = []k8sapi.CustomResourceDefinition{
 			Names: k8sapi.CustomResourceDefinitionNames{
 				Plural:   "offlinesessionses",
 				Singular: "offlinesessions",
-				Kind:     "OfflineSession",
+				Kind:     "OfflineSessions",
 			},
 		},
 	},
