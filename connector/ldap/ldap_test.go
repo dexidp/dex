@@ -282,7 +282,7 @@ member: cn=jane,ou=People,dc=example,dc=org
 	c.GroupSearch.UserAttr = "DN"
 	c.GroupSearch.GroupAttr = "member"
 	c.GroupSearch.NameAttr = "cn"
-	c.GroupSearch.Inheritance = true
+	c.GroupSearch.Recursive = true
 
 	tests := []subtest{
 		{

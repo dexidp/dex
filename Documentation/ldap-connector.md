@@ -126,8 +126,8 @@ connectors:
       # Represents group name.
       nameAttr: name
 
-      #Add also parents of groups
-      inheritance: true
+      # Enables recursive search for groups
+      recursive: true
 ```
 
 The LDAP connector first initializes a connection to the LDAP directory using the `bindDN` and `bindPW`. It then tries to search for the given `username` and bind as that user to verify their password.

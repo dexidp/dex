@@ -130,7 +130,7 @@ type Config struct {
 		// The attribute of the group that represents its name.
 		NameAttr string `json:"nameAttr"`
 		//Look for parent groups
-		Inheritance bool `json:"inheritance"`
+		Recursive bool `json:"recursive"`
 	} `json:"groupSearch"`
 }
 
@@ -506,7 +506,7 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 	var groupNames []string
 	//Unusual to have many DN or uid (UserAttr)
 	for _, attr := range getAttrs(user, c.GroupSearch.UserAttr) {
-		if obtainedGroups, filter, err := c.queryGroups(ctx, attr); err == nil {
+		if obtainedGroups, filter, err := c.queryGroups(ctx, c.GroupSearch.GroupAttr, attr); err == nil {
 			groups = append(groups, obtainedGroups...)
 			if len(obtainedGroups) == 0 {
 				// TODO(ericchiang): Is this going to spam the logs?
@@ -517,8 +517,8 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 		}
 	}
 
-	if c.GroupSearch.Inheritance {
-		c.logger.Infof("Inheritance enabled for groups search")
+	if c.GroupSearch.Recursive {
+		c.logger.Infof("Recursive search enabled for groups")
 	}
 	// While loop for search in different levels (of LDAP tree) with inheritance
 	// or one time with inheritance disabled
@@ -539,7 +539,7 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 					group.DN, c.GroupSearch.NameAttr)
 			}
 
-			// Prevent duplicates and circular hierarchy
+			// Prevent duplicates and circular hierarchy therefore infinite loops
 			exit := false
 			for _, groupName := range groupNames {
 				if name == groupName {
@@ -554,8 +554,8 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 			}
 
 			groupNames = append(groupNames, name)
-			if c.GroupSearch.Inheritance {
-				if obtainedGroups, _, err := c.queryGroups(ctx, group.DN); err == nil {
+			if c.GroupSearch.Recursive {
+				if obtainedGroups, _, err := c.queryGroups(ctx, c.GroupSearch.GroupAttr, group.DN); err == nil {
 					// Keep searching upwards
 					if len(obtainedGroups) != 0 {
 						nextLevelGroups = append(nextLevelGroups, obtainedGroups...)
@@ -568,10 +568,11 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 			}
 		}
 		// If there's no remaining levels -> exit loop
+		// No duplicated group would reach this code
 		if len(nextLevelGroups) == 0 {
 			break
 		}
-		// reassign groups for next loop
+		// reassign groups for next iteration
 		groups = nextLevelGroups
 
 	}
@@ -579,10 +580,10 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 
 }
 
-//  Abrstraction query of Groups and reuse code
-func (c *ldapConnector) queryGroups(ctx context.Context, dn string) ([]*ldap.Entry, string, error) {
+//  Query groups for users and groups
+func (c *ldapConnector) queryGroups(ctx context.Context, memberAttr string, dn string) ([]*ldap.Entry, string, error) {
 	var groups []*ldap.Entry
-	filter := fmt.Sprintf("(%s=%s)", c.GroupSearch.GroupAttr, ldap.EscapeFilter(dn))
+	filter := fmt.Sprintf("(%s=%s)", memberAttr, ldap.EscapeFilter(dn))
 	if c.GroupSearch.Filter != "" {
 		filter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, filter)
 	}
