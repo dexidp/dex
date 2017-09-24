@@ -283,6 +283,7 @@ member: cn=jane,ou=People,dc=example,dc=org
 	c.GroupSearch.GroupAttr = "member"
 	c.GroupSearch.NameAttr = "cn"
 	c.GroupSearch.Recursive = true
+	c.GroupSearch.RecursionGroupAttr = "member"
 
 	tests := []subtest{
 		{
@@ -396,6 +397,7 @@ member: cn=jane,ou=People,dc=example,dc=org
 	c.GroupSearch.GroupAttr = "member"
 	c.GroupSearch.NameAttr = "cn"
 	c.GroupSearch.Recursive = true
+	c.GroupSearch.RecursionGroupAttr = "member"
 
 	tests := []subtest{
 		{

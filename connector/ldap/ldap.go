@@ -129,8 +129,9 @@ type Config struct {
 
 		// The attribute of the group that represents its name.
 		NameAttr string `json:"nameAttr"`
-		//Look for parent groups
-		Recursive bool `json:"recursive"`
+		//Look for parent groups recursively
+		Recursive          bool   `json:"recursive"`
+		RecursionGroupAttr string `json:"recursionGroupAttr"`
 	} `json:"groupSearch"`
 }
 
@@ -555,7 +556,10 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 
 			groupNames = append(groupNames, name)
 			if c.GroupSearch.Recursive {
-				if obtainedGroups, _, err := c.queryGroups(ctx, c.GroupSearch.GroupAttr, group.DN); err == nil {
+				if c.GroupSearch.RecursionGroupAttr == "" {
+					return nil, fmt.Errorf("ldap: recursionGroupAttr attribute is not set but recursive search is enabled")
+				}
+				if obtainedGroups, _, err := c.queryGroups(ctx, c.GroupSearch.RecursionGroupAttr, group.DN); err == nil {
 					// Keep searching upwards
 					if len(obtainedGroups) != 0 {
 						nextLevelGroups = append(nextLevelGroups, obtainedGroups...)
