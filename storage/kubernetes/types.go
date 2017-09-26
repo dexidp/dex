@@ -112,7 +112,7 @@ type Client struct {
 type ClientList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`
-	Clients []Client `json:"items"`
+	Clients         []Client `json:"items"`
 }
 
 func (cli *client) fromStorageClient(c storage.Client) Client {
@@ -211,7 +211,7 @@ type AuthRequest struct {
 type AuthRequestList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`
-	AuthRequests []AuthRequest `json:"items"`
+	AuthRequests    []AuthRequest `json:"items"`
 }
 
 func toStorageAuthRequest(req AuthRequest) storage.AuthRequest {
@@ -270,9 +270,9 @@ type Password struct {
 	// This field is IMMUTABLE. Do not change.
 	Email string `json:"email,omitempty"`
 
-	Hash     []byte `json:"hash,omitempty"`
-	Username string `json:"username,omitempty"`
-	UserID   string `json:"userID,omitempty"`
+	Hash     []byte   `json:"hash,omitempty"`
+	Username string   `json:"username,omitempty"`
+	UserID   string   `json:"userID,omitempty"`
 	Groups   []string `json:"groups,omitempty"`
 }
 
@@ -280,7 +280,7 @@ type Password struct {
 type PasswordList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`
-	Passwords []Password `json:"items"`
+	Passwords       []Password `json:"items"`
 }
 
 func (cli *client) fromStoragePassword(p storage.Password) Password {
@@ -337,7 +337,7 @@ type AuthCode struct {
 type AuthCodeList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`
-	AuthCodes []AuthCode `json:"items"`
+	AuthCodes       []AuthCode `json:"items"`
 }
 
 func (cli *client) fromStorageAuthCode(a storage.AuthCode) AuthCode {
@@ -400,7 +400,7 @@ type RefreshToken struct {
 type RefreshList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`
-	RefreshTokens []RefreshToken `json:"items"`
+	RefreshTokens   []RefreshToken `json:"items"`
 }
 
 func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
@@ -571,5 +571,5 @@ func toStorageConnector(c Connector) storage.Connector {
 type ConnectorList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`
-	Connectors []Connector `json:"items"`
+	Connectors      []Connector `json:"items"`
 }

@@ -50,10 +50,10 @@ type password storage.Password
 
 func (p *password) UnmarshalJSON(b []byte) error {
 	var data struct {
-		Email    string `json:"email"`
-		Username string `json:"username"`
-		UserID   string `json:"userID"`
-		Hash     string `json:"hash"`
+		Email    string   `json:"email"`
+		Username string   `json:"username"`
+		UserID   string   `json:"userID"`
+		Hash     string   `json:"hash"`
 		Groups   []string `json:"groups"`
 	}
 	if err := json.Unmarshal(b, &data); err != nil {
