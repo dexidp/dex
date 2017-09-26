@@ -187,4 +187,10 @@ var migrations = []migration{
 			);
 		`,
 	},
+	{
+		stmt: `
+			alter table password
+				add column groups text;
+		`,
+	},
 }
