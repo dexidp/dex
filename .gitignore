@@ -1,5 +1,3 @@
 bin
 dist
 _output
-config
-examples/k8s
