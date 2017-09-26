@@ -559,7 +559,7 @@ func (c *conn) CreatePassword(p storage.Password) error {
 			$1, $2, $3, $4, $5
 		);
 	`,
-		p.Email, p.Hash, p.Username, p.UserID, p.Groups,
+		p.Email, p.Hash, p.Username, p.UserID, encoder(p.Groups),
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -584,10 +584,10 @@ func (c *conn) UpdatePassword(email string, updater func(p storage.Password) (st
 		_, err = tx.Exec(`
 			update password
 			set
-				hash = $1, username = $2, user_id = $3
-			where email = $4;
+				hash = $1, username = $2, user_id = $3, groups = $4
+			where email = $5;
 		`,
-			np.Hash, np.Username, np.UserID, p.Email,
+			np.Hash, np.Username, np.UserID, encoder(p.Groups), p.Email,
 		)
 		if err != nil {
 			return fmt.Errorf("update password: %v", err)
@@ -634,7 +634,7 @@ func (c *conn) ListPasswords() ([]storage.Password, error) {
 
 func scanPassword(s scanner) (p storage.Password, err error) {
 	err = s.Scan(
-		&p.Email, &p.Hash, &p.Username, &p.UserID,
+		&p.Email, &p.Hash, &p.Username, &p.UserID, decoder(&p.Groups),
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
