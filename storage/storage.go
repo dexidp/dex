@@ -294,7 +294,7 @@ type Password struct {
 	// Randomly generated user ID. This is NOT the primary ID of the Password object.
 	UserID string `json:"userID"`
 
-	// Randomly generated user ID. This is NOT the primary ID of the Password object.
+	// Groups assigned to the user
 	Groups []string `json:"groups"`
 }
 
