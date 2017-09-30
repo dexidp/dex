@@ -222,6 +222,15 @@ func accessTokenHash(alg jose.SignatureAlgorithm, accessToken string) (string, e
 
 type audience []string
 
+func (a audience) contains(aud string) bool {
+	for _, e := range a {
+		if aud == e {
+			return true
+		}
+	}
+	return false
+}
+
 func (a audience) MarshalJSON() ([]byte, error) {
 	if len(a) == 1 {
 		return json.Marshal(a[0])
@@ -328,8 +337,13 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		// client as the audience.
 		tok.Audience = audience{clientID}
 	} else {
-		// Client asked for cross client audience. The current client
-		// becomes the authorizing party.
+		// Client asked for cross client audience:
+		// if the current client was not requested explicitly
+		if !tok.Audience.contains(clientID) {
+			// by default it becomes one of entries in Audience
+			tok.Audience = append(tok.Audience, clientID)
+		}
+		// The current client becomes the authorizing party.
 		tok.AuthorizingParty = clientID
 	}
 

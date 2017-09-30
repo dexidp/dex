@@ -812,6 +812,127 @@ func TestCrossClientScopes(t *testing.T) {
 	}
 }
 
+func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+		c.Issuer = c.Issuer + "/non-root-path"
+	})
+	defer httpServer.Close()
+
+	p, err := oidc.NewProvider(ctx, httpServer.URL)
+	if err != nil {
+		t.Fatalf("failed to get provider: %v", err)
+	}
+
+	var (
+		reqDump, respDump []byte
+		gotCode           bool
+		state             = "a_state"
+	)
+	defer func() {
+		if !gotCode {
+			t.Errorf("never got a code in callback\n%s\n%s", reqDump, respDump)
+		}
+	}()
+
+	testClientID := "testclient"
+	peerID := "peer"
+
+	var oauth2Config *oauth2.Config
+	oauth2Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/callback" {
+			q := r.URL.Query()
+			if errType := q.Get("error"); errType != "" {
+				if desc := q.Get("error_description"); desc != "" {
+					t.Errorf("got error from server %s: %s", errType, desc)
+				} else {
+					t.Errorf("got error from server %s", errType)
+				}
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			if code := q.Get("code"); code != "" {
+				gotCode = true
+				token, err := oauth2Config.Exchange(ctx, code)
+				if err != nil {
+					t.Errorf("failed to exchange code for token: %v", err)
+					return
+				}
+				rawIDToken, ok := token.Extra("id_token").(string)
+				if !ok {
+					t.Errorf("no id token found: %v", err)
+					return
+				}
+				idToken, err := p.Verifier(&oidc.Config{ClientID: testClientID}).Verify(ctx, rawIDToken)
+				if err != nil {
+					t.Errorf("failed to parse ID Token: %v", err)
+					return
+				}
+
+				sort.Strings(idToken.Audience)
+				expAudience := []string{peerID, testClientID}
+				if !reflect.DeepEqual(idToken.Audience, expAudience) {
+					t.Errorf("expected audience %q, got %q", expAudience, idToken.Audience)
+				}
+
+			}
+			if gotState := q.Get("state"); gotState != state {
+				t.Errorf("state did not match, want=%q got=%q", state, gotState)
+			}
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		http.Redirect(w, r, oauth2Config.AuthCodeURL(state), http.StatusSeeOther)
+	}))
+
+	defer oauth2Server.Close()
+
+	redirectURL := oauth2Server.URL + "/callback"
+	client := storage.Client{
+		ID:           testClientID,
+		Secret:       "testclientsecret",
+		RedirectURIs: []string{redirectURL},
+	}
+	if err := s.storage.CreateClient(client); err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	peer := storage.Client{
+		ID:           peerID,
+		Secret:       "foobar",
+		TrustedPeers: []string{"testclient"},
+	}
+
+	if err := s.storage.CreateClient(peer); err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	oauth2Config = &oauth2.Config{
+		ClientID:     client.ID,
+		ClientSecret: client.Secret,
+		Endpoint:     p.Endpoint(),
+		Scopes: []string{
+			oidc.ScopeOpenID, "profile", "email",
+			"audience:server:client_id:" + peer.ID,
+		},
+		RedirectURL: redirectURL,
+	}
+
+	resp, err := http.Get(oauth2Server.URL + "/login")
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if reqDump, err = httputil.DumpRequest(resp.Request, false); err != nil {
+		t.Fatal(err)
+	}
+	if respDump, err = httputil.DumpResponse(resp, true); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPasswordDB(t *testing.T) {
 	s := memory.New(logger)
 	conn := newPasswordDB(s)
