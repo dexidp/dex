@@ -86,16 +86,16 @@ type WebConfig struct {
 	//   * templates - HTML templates controlled by dex.
 	//   * themes/(theme) - Static static served at "( issuer URL )/theme".
 	//
-	Dir string
+	Dir string `json:"dir"`
 
 	// Defaults to "( issuer URL )/theme/logo.png"
-	LogoURL string
+	LogoURL string `json:"logourl"`
 
 	// Defaults to "dex"
-	Issuer string
+	Issuer string `json:"issuer"`
 
 	// Defaults to "coreos"
-	Theme string
+	Theme string `json:"theme"`
 }
 
 func value(val, defaultValue time.Duration) time.Duration {
