@@ -60,6 +60,9 @@ type Config struct {
 	// Logging in implies approval.
 	SkipApprovalScreen bool
 
+	// If enabled, require local account emails to be verified on login
+	RequireEmailVerification bool
+
 	RotateKeysAfter  time.Duration // Defaults to 6 hours.
 	IDTokensValidFor time.Duration // Defaults to 24 hours
 
@@ -123,6 +126,9 @@ type Server struct {
 	// If enabled, don't prompt user for approval after logging in through connector.
 	skipApproval bool
 
+	// If enabled, require local account emails to be verified on login
+	requireEmailVerification bool
+
 	supportedResponseTypes map[string]bool
 
 	now func() time.Time
@@ -182,15 +188,16 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 
 	s := &Server{
-		issuerURL:              *issuerURL,
-		connectors:             make(map[string]Connector),
-		storage:                newKeyCacher(c.Storage, now),
-		supportedResponseTypes: supported,
-		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
-		skipApproval:           c.SkipApprovalScreen,
-		now:                    now,
-		templates:              tmpls,
-		logger:                 c.Logger,
+		issuerURL:                *issuerURL,
+		connectors:               make(map[string]Connector),
+		storage:                  newKeyCacher(c.Storage, now),
+		supportedResponseTypes:   supported,
+		idTokensValidFor:         value(c.IDTokensValidFor, 24*time.Hour),
+		skipApproval:             c.SkipApprovalScreen,
+		requireEmailVerification: c.RequireEmailVerification,
+		now:                      now,
+		templates:                tmpls,
+		logger:                   c.Logger,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -296,11 +303,12 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 	if err := bcrypt.CompareHashAndPassword(p.Hash, []byte(password)); err != nil {
 		return connector.Identity{}, false, nil
 	}
+
 	return connector.Identity{
 		UserID:        p.UserID,
 		Username:      p.Username,
 		Email:         p.Email,
-		EmailVerified: true,
+		EmailVerified: p.EmailVerified,
 	}, true, nil
 }
 

@@ -189,12 +189,13 @@ func (t *templates) login(w http.ResponseWriter, connectors []connectorInfo) err
 	return renderTemplate(w, t.loginTmpl, data)
 }
 
-func (t *templates) password(w http.ResponseWriter, postURL, lastUsername string, lastWasInvalid bool) error {
+func (t *templates) password(w http.ResponseWriter, postURL, lastUsername string, lastWasInvalid bool, lastNotVerified bool) error {
 	data := struct {
 		PostURL  string
 		Username string
 		Invalid  bool
-	}{postURL, lastUsername, lastWasInvalid}
+		EmailNotVerified bool
+	}{postURL, lastUsername, lastWasInvalid, lastNotVerified}
 	return renderTemplate(w, t.passwordTmpl, data)
 }
 

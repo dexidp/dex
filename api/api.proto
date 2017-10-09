@@ -45,6 +45,7 @@ message Password {
   bytes hash = 2;
   string username = 3;
   string user_id = 4;
+  bool email_verified = 5;
 }
 
 // CreatePasswordReq is a request to make a password.
@@ -63,6 +64,7 @@ message UpdatePasswordReq {
   string email = 1;
   bytes new_hash = 2;
   string new_username = 3;
+  bool new_email_verified = 4;
 }
 
 // UpdatePasswordResp returns the response from modifying an existing password. 

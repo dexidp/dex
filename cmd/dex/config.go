@@ -40,6 +40,9 @@ type Config struct {
 	// to identify a user.
 	EnablePasswordDB bool `json:"enablePasswordDB"`
 
+	// If enabled, require local account emails to be verified on login
+	RequireEmailVerification bool `json:"requireEmailVerification"`
+
 	// StaticPasswords cause the server use this list of passwords rather than
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
@@ -50,10 +53,11 @@ type password storage.Password
 
 func (p *password) UnmarshalJSON(b []byte) error {
 	var data struct {
-		Email    string `json:"email"`
-		Username string `json:"username"`
-		UserID   string `json:"userID"`
-		Hash     string `json:"hash"`
+		Email         string `json:"email"`
+		Username      string `json:"username"`
+		UserID        string `json:"userID"`
+		Hash          string `json:"hash"`
+		EmailVerified bool `json:"emailVerified"`
 	}
 	if err := json.Unmarshal(b, &data); err != nil {
 		return err

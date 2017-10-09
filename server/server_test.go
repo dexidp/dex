@@ -967,7 +967,7 @@ func TestPasswordDB(t *testing.T) {
 				Email:         "jane@example.com",
 				Username:      "jane",
 				UserID:        "foobar",
-				EmailVerified: true,
+				EmailVerified: false,
 			},
 		},
 		{
