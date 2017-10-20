@@ -114,7 +114,7 @@ func serve(cmd *cobra.Command, args []string) error {
 
 			tlsConfig := tls.Config{
 				Certificates: []tls.Certificate{cert},
-				ClientAuth:   tls.RequireAndVerifyClientCert,
+				ClientAuth:   tls.RequireAnyClientCert,
 				ClientCAs:    cPool,
 			}
 			grpcOptions = append(grpcOptions, grpc.Creds(credentials.NewTLS(&tlsConfig)))
