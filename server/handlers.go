@@ -346,6 +346,12 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if connID := mux.Vars(r)["connector"]; connID != "" && connID != authReq.ConnectorID {
+		s.logger.Errorf("Connector mismatch: authentication started with id %q, but callback for id %q was triggered", authReq.ConnectorID, connID)
+		s.renderError(w, http.StatusInternalServerError, "Requested resource does not exist.")
+		return
+	}
+
 	conn, err := s.getConnector(authReq.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("Failed to get connector with id %q : %v", authReq.ConnectorID, err)
