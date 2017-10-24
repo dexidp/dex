@@ -45,15 +45,20 @@ func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector
 	}, nil
 }
 
+type connectorData struct {
+	AccessToken string `json:"accessToken"`
+}
+
 type linkedInConnector struct {
 	oauth2Config *oauth2.Config
 	logger       logrus.FieldLogger
 }
 
-// LinkedIn doesn't provide refresh tokens, so we don't implement
-// RefreshConnector here.
+// LinkedIn doesn't provide refresh tokens, so refresh tokens issued by Dex
+// will expire in 60 days (default LinkedIn token lifetime).
 var (
 	_ connector.CallbackConnector = (*linkedInConnector)(nil)
+	_ connector.RefreshConnector  = (*linkedInConnector)(nil)
 )
 
 // LoginURL returns an access token request URL
@@ -92,7 +97,38 @@ func (c *linkedInConnector) HandleCallback(s connector.Scopes, r *http.Request) 
 		EmailVerified: true,
 	}
 
+	if s.OfflineAccess {
+		data := connectorData{AccessToken: token.AccessToken}
+		connData, err := json.Marshal(data)
+		if err != nil {
+			return identity, fmt.Errorf("linkedin: marshal connector data: %v", err)
+		}
+		identity.ConnectorData = connData
+	}
+
 	return identity, nil
+}
+
+func (c *linkedInConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
+	if len(ident.ConnectorData) == 0 {
+		return ident, fmt.Errorf("linkedin: no upstream access token found")
+	}
+
+	var data connectorData
+	if err := json.Unmarshal(ident.ConnectorData, &data); err != nil {
+		return ident, fmt.Errorf("linkedin: unmarshal access token: %v", err)
+	}
+
+	client := c.oauth2Config.Client(ctx, &oauth2.Token{AccessToken: data.AccessToken})
+	profile, err := c.profile(ctx, client)
+	if err != nil {
+		return ident, fmt.Errorf("linkedin: get profile: %v", err)
+	}
+
+	ident.Username = profile.fullname()
+	ident.Email = profile.Email
+
+	return ident, nil
 }
 
 type profile struct {
