@@ -83,6 +83,11 @@ body {
   background-image: url(../static/img/saml-icon.svg);
 }
 
+.dex-btn-icon--linkedin {
+  background-image: url(../static/img/linkedin-icon.svg);
+  background-size: contain;
+}
+
 .dex-btn-text {
   font-weight: 600;
   line-height: 36px;
