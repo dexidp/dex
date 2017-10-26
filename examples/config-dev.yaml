@@ -63,6 +63,7 @@ connectors:
 #   name: Google
 #   config:
 #     issuer: https://accounts.google.com
+#     userInfo: https://www.googleapis.com/oauth2/v3/userinfo
 #     # Connector config values starting with a "$" will read from the environment.
 #     clientID: $GOOGLE_CLIENT_ID
 #     clientSecret: $GOOGLE_CLIENT_SECRET

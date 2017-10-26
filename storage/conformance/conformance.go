@@ -42,6 +42,7 @@ func runTests(t *testing.T, newStorage func() storage.Storage, tests []subTest) 
 func RunTests(t *testing.T, newStorage func() storage.Storage) {
 	runTests(t, newStorage, []subTest{
 		{"AuthCodeCRUD", testAuthCodeCRUD},
+		{"AccessTokenCRUD", testAccessTokenCRUD},
 		{"AuthRequestCRUD", testAuthRequestCRUD},
 		{"ClientCRUD", testClientCRUD},
 		{"RefreshTokenCRUD", testRefreshTokenCRUD},
@@ -236,6 +237,57 @@ func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 
 	_, err = s.GetAuthCode(a1.ID)
 	mustBeErrNotFound(t, "auth code", err)
+}
+
+func testAccessTokenCRUD(t *testing.T, s storage.Storage) {
+	a1 := storage.AccessToken{
+		ID:            storage.NewID(),
+		ConnectorData: []byte,
+		ConnectorID:   "ldap",
+		Expiry:        neverExpire,
+	}
+
+	if err := s.CreateAccessToken(a1); err != nil {
+		t.Fatalf("failed creating access token: %v", err)
+	}
+
+	a2 := storage.AccessToken{
+		ID:            storage.NewID(),
+		ConnectorData: []byte,
+		ConnectorID:   "ldap",
+		Expiry:        neverExpire,
+	}
+
+	// Attempt to create same AccessToken twice.
+	err := s.CreateAccessToken(a1)
+	mustBeErrAlreadyExists(t, "access token", err)
+
+	if err := s.CreateAccessToken(a2); err != nil {
+		t.Fatalf("failed creating access token: %v", err)
+	}
+
+	got, err := s.GetAccessToken(a1.ID)
+	if err != nil {
+		t.Fatalf("failed to get access token: %v", err)
+	}
+	if a1.Expiry.Unix() != got.Expiry.Unix() {
+		t.Errorf("access token expiry did not match want=%s vs got=%s", a1.Expiry, got.Expiry)
+	}
+	got.Expiry = a1.Expiry // time fields do not compare well
+	if diff := pretty.Compare(a1, got); diff != "" {
+		t.Errorf("access token retrieved from storage did not match: %s", diff)
+	}
+
+	if err := s.DeleteAccessToken(a1.ID); err != nil {
+		t.Fatalf("delete access token: %v", err)
+	}
+
+	if err := s.DeleteAccessToken(a2.ID); err != nil {
+		t.Fatalf("delete access token: %v", err)
+	}
+
+	_, err = s.GetAccessToken(a1.ID)
+	mustBeErrNotFound(t, "access token", err)
 }
 
 func testClientCRUD(t *testing.T, s storage.Storage) {
@@ -731,7 +783,7 @@ func testGC(t *testing.T, s storage.Storage) {
 		if err != nil {
 			t.Errorf("garbage collection failed: %v", err)
 		} else {
-			if result.AuthCodes != 0 || result.AuthRequests != 0 {
+			if result.AuthCodes != 0 || result.AccessTokens != 0 || result.AuthRequests != 0 {
 				t.Errorf("expected no garbage collection results, got %#v", result)
 			}
 		}
@@ -748,6 +800,43 @@ func testGC(t *testing.T, s storage.Storage) {
 
 	if _, err := s.GetAuthCode(c.ID); err == nil {
 		t.Errorf("expected auth code to be GC'd")
+	} else if err != storage.ErrNotFound {
+		t.Errorf("expected storage.ErrNotFound, got %v", err)
+	}
+
+	c := storage.AccessToken{
+		ID:            storage.NewID(),
+		ConnectorData: []byte,
+		ConnectorID:   "ldap",
+		Expiry:        expiry,
+	}
+
+	if err := s.CreateAccessToken(c); err != nil {
+		t.Fatalf("failed creating access token: %v", err)
+	}
+
+	for _, tz := range []*time.Location{time.UTC, est, pst} {
+		result, err := s.GarbageCollect(expiry.Add(-time.Hour).In(tz))
+		if err != nil {
+			t.Errorf("garbage collection failed: %v", err)
+		} else {
+			if result.AccessTokens != 0 || result.AccessTokens != 0 || result.AuthRequests != 0 {
+				t.Errorf("expected no garbage collection results, got %#v", result)
+			}
+		}
+		if _, err := s.GetAccessToken(c.ID); err != nil {
+			t.Errorf("expected to be able to get access token after GC: %v", err)
+		}
+	}
+
+	if r, err := s.GarbageCollect(expiry.Add(time.Hour)); err != nil {
+		t.Errorf("garbage collection failed: %v", err)
+	} else if r.AccessTokens != 1 {
+		t.Errorf("expected to garbage collect 1 objects, got %d", r.AccessTokens)
+	}
+
+	if _, err := s.GetAccessToken(c.ID); err == nil {
+		t.Errorf("expected access token to be GC'd")
 	} else if err != storage.ErrNotFound {
 		t.Errorf("expected storage.ErrNotFound, got %v", err)
 	}
@@ -783,7 +872,7 @@ func testGC(t *testing.T, s storage.Storage) {
 		if err != nil {
 			t.Errorf("garbage collection failed: %v", err)
 		} else {
-			if result.AuthCodes != 0 || result.AuthRequests != 0 {
+			if result.AuthCodes != 0 || result.AccessTokens != 0 || result.AuthRequests != 0 {
 				t.Errorf("expected no garbage collection results, got %#v", result)
 			}
 		}

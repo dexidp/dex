@@ -14,6 +14,7 @@ import (
 
 const (
 	kindAuthCode        = "AuthCode"
+	kindAccessToken     = "AccessToken"
 	kindAuthRequest     = "AuthRequest"
 	kindClient          = "OAuth2Client"
 	kindRefreshToken    = "RefreshToken"
@@ -25,6 +26,7 @@ const (
 
 const (
 	resourceAuthCode        = "authcodes"
+	resourceAccessToken     = "accesstokens"
 	resourceAuthRequest     = "authrequests"
 	resourceClient          = "oauth2clients"
 	resourceRefreshToken    = "refreshtokens"
@@ -184,6 +186,10 @@ func (cli *client) CreateAuthCode(c storage.AuthCode) error {
 	return cli.post(resourceAuthCode, cli.fromStorageAuthCode(c))
 }
 
+func (cli *client) CreateAccessToken(c storage.AccessToken) error {
+	return cli.post(resourceAccessToken, cli.fromStorageAccessToken(c))
+}
+
 func (cli *client) CreatePassword(p storage.Password) error {
 	return cli.post(resourcePassword, cli.fromStoragePassword(p))
 }
@@ -214,6 +220,14 @@ func (cli *client) GetAuthCode(id string) (storage.AuthCode, error) {
 		return storage.AuthCode{}, err
 	}
 	return toStorageAuthCode(code), nil
+}
+
+func (cli *client) GetAccessToken(id string) (storage.AccessToken, error) {
+	var token AccessToken
+	if err := cli.get(resourceAccessToken, id, &token); err != nil {
+		return storage.AccessToken{}, err
+	}
+	return toStorageAccessToken(token), nil
 }
 
 func (cli *client) GetClient(id string) (storage.Client, error) {
@@ -353,6 +367,10 @@ func (cli *client) DeleteAuthRequest(id string) error {
 
 func (cli *client) DeleteAuthCode(code string) error {
 	return cli.delete(resourceAuthCode, code)
+}
+
+func (cli *client) DeleteAccessToken(token string) error {
+	return cli.delete(resourceAccessToken, token)
 }
 
 func (cli *client) DeleteClient(id string) error {
@@ -550,5 +568,21 @@ func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err e
 			result.AuthCodes++
 		}
 	}
+
+	var accessTokens AccessTokenList
+	if err := cli.list(resourceAccessToken, &accessTokens); err != nil {
+		return result, fmt.Errorf("failed to list access tokens: %v", err)
+	}
+
+	for _, accessToken := range accessTokens.AccessTokens {
+		if now.After(accessToken.Expiry) {
+			if err := cli.delete(resourceAccessToken, accessToken.ObjectMeta.Name); err != nil {
+				cli.logger.Errorf("failed to delete access tokens %v", err)
+				delErr = fmt.Errorf("failed to delete access tokens: %v", err)
+			}
+			result.AccessTokens++
+		}
+	}
+
 	return result, delErr
 }

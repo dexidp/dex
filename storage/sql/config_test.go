@@ -35,6 +35,7 @@ func cleanDB(c *conn) error {
 		delete from client;
 		delete from auth_request;
 		delete from auth_code;
+		delete from access_token;
 		delete from refresh_token;
 		delete from keys;
 		delete from password;

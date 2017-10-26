@@ -38,6 +38,7 @@ func NewID() string {
 type GCResult struct {
 	AuthRequests int64
 	AuthCodes    int64
+	AccessTokens int64
 }
 
 // Storage is the storage interface used by the server. Implementations are
@@ -50,6 +51,7 @@ type Storage interface {
 	CreateAuthRequest(a AuthRequest) error
 	CreateClient(c Client) error
 	CreateAuthCode(c AuthCode) error
+	CreateAccessToken(c AccessToken) error
 	CreateRefresh(r RefreshToken) error
 	CreatePassword(p Password) error
 	CreateOfflineSessions(s OfflineSessions) error
@@ -59,6 +61,7 @@ type Storage interface {
 	// requests that way instead of using ErrNotFound.
 	GetAuthRequest(id string) (AuthRequest, error)
 	GetAuthCode(id string) (AuthCode, error)
+	GetAccessToken(id string) (AccessToken, error)
 	GetClient(id string) (Client, error)
 	GetKeys() (Keys, error)
 	GetRefresh(id string) (RefreshToken, error)
@@ -74,6 +77,7 @@ type Storage interface {
 	// Delete methods MUST be atomic.
 	DeleteAuthRequest(id string) error
 	DeleteAuthCode(code string) error
+	DeleteAccessToken(id string) error
 	DeleteClient(id string) error
 	DeleteRefresh(id string) error
 	DeletePassword(email string) error
@@ -215,6 +219,22 @@ type AuthCode struct {
 	ConnectorID   string
 	ConnectorData []byte
 	Claims        Claims
+
+	Expiry time.Time
+}
+
+// AccessToken represents all information associated with an access token 
+// which is sent to a client that authenticated with dex
+// This value is stored once once Dex is authenticated with an upstream source
+type AccessToken struct {
+	// Random fake Token sent to the client as if it were the real AccessToken
+	ID string
+
+	// Authorization data provided by an upstream source.
+	ConnectorData []byte
+
+	// The connector this access token is valid for
+	ConnectorID string
 
 	Expiry time.Time
 }

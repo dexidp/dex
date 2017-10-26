@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"encoding/json"
+
 
 	"github.com/coreos/go-oidc"
 	"github.com/sirupsen/logrus"
@@ -16,6 +18,17 @@ import (
 
 	"github.com/coreos/dex/connector"
 )
+
+type connectorData struct {
+	// Store token, even if it eventually expires
+	AccessToken string `json:"accessToken"`
+	TokenType   string `json:"tokenType"`
+}
+
+type connectorData2 struct {
+	// Store token, even if it eventually expires
+	AccessToken string `json:"accessToken"`
+}
 
 // Config holds configuration options for OpenID Connect logins.
 type Config struct {
@@ -36,6 +49,8 @@ type Config struct {
 	// Optional list of whitelisted domains when using Google
 	// If this field is nonempty, only users from a listed domain will be allowed to log in
 	HostedDomains []string `json:"hostedDomains"`
+	// Userinfo endpoint for Relying Parties that need details about the authenticated user
+	UserInfo string `json:"userInfo"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -116,6 +131,7 @@ func (c *Config) Open(id string, logger logrus.FieldLogger) (conn connector.Conn
 		logger:        logger,
 		cancel:        cancel,
 		hostedDomains: c.HostedDomains,
+		userInfo:      c.UserInfo,
 	}, nil
 }
 
@@ -132,6 +148,7 @@ type oidcConnector struct {
 	cancel        context.CancelFunc
 	logger        logrus.FieldLogger
 	hostedDomains []string
+	userInfo      string
 }
 
 func (c *oidcConnector) Close() error {
@@ -215,7 +232,61 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		Email:         claims.Email,
 		EmailVerified: claims.EmailVerified,
 	}
+
+	// Add AccessToken to user identity for future requests
+	data := connectorData{
+		TokenType:   "bearer",
+		AccessToken: token.AccessToken,
+	}
+
+	connData, err := json.Marshal(data)
+	if err != nil {
+		return identity, fmt.Errorf("marshal connector data: %v", err)
+	}
+
+	identity.ConnectorData = connData
+
 	return identity, nil
+}
+
+func (c *oidcConnector) GetUserInfo(connData []byte) (user map[string]interface{}, err error) {
+	user = map[string]interface{}{}
+
+	// Extract Access Token that was stored while the connector handled the OIDC handshake
+	var cData connectorData
+
+	if err := json.Unmarshal(connData, &cData); err != nil {
+		c.logger.Errorf("Failed to read connector data : %v", err)
+		return user, err
+	}
+
+	// Format Authorization header to request user info on behalf of the client
+	authorization := fmt.Sprintf("%s %s", cData.TokenType, cData.AccessToken)
+	// Prepare get request including Authorization header from RP
+	req, err := http.NewRequest("GET", c.userInfo, nil)
+
+	if err != nil {
+		fmt.Errorf("Error Creating GET request: %v", err)
+		return user, err
+	}
+
+	req.Header.Add("Accept", `application/json`)
+	req.Header.Add("Content-Type", `application/json`)
+	req.Header.Add("Authorization", authorization)
+
+	// Prepare http client to execute get request
+	client := &http.Client{}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Errorf("Error Executing GET request: %v", err)
+		return user, err
+	}
+
+	json.NewDecoder(resp.Body).Decode(&user)
+
+
+	return user, nil
 }
 
 // Refresh is implemented for backwards compatibility, even though it's a no-op.
