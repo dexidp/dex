@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -240,7 +241,16 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS("/keys", s.handlePublicKeys)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
-	handleFunc("/callback", s.handleConnectorCallback)
+	r.HandleFunc(path.Join(issuerURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {
+		// Strip the X-Remote-* headers to prevent security issues on
+		// misconfigured authproxy connector setups.
+		for key := range r.Header {
+			if strings.HasPrefix(strings.ToLower(key), "x-remote-") {
+				r.Header.Del(key)
+			}
+		}
+		s.handleConnectorCallback(w, r)
+	})
 	// For easier connector-specific web server configuration, e.g. for the
 	// "authproxy" connector.
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
