@@ -25,6 +25,15 @@ location and provides the result in the X-Remote-User HTTP header. The following
 configuration will work for Apache 2.4.10+:
 
 ```
+<Location /dex/>
+    ProxyPass "http://localhost:5556/dex/"
+    ProxyPassReverse "http://localhost:5556/dex/"
+
+    # Strip the X-Remote-User header from all requests except for the ones
+    # where we override it.
+    RequestHeader unset X-Remote-User
+</Location>
+
 <Location /dex/callback/myBasicAuth>
     AuthType Basic
     AuthName "db.debian.org webPassword"
@@ -62,6 +71,10 @@ virtual host configuration in e.g. `/etc/apache2/sites-available/sso.conf`:
     <Location /dex/>
         ProxyPass "http://localhost:5556/dex/"
         ProxyPassReverse "http://localhost:5556/dex/"
+
+        # Strip the X-Remote-User header from all requests except for the ones
+        # where we override it.
+        RequestHeader unset X-Remote-User
     </Location>
 
     <Location /dex/callback/myBasicAuth>
