@@ -1,13 +1,51 @@
-# External authentication
+# Authenticating proxy
+
+NOTE: This connector is experimental and may change in the future.
 
 ## Overview
 
-The authproxy connector returns identities based on authentication which your
-front-end web server performs.
+The `authproxy` connector returns identities based on authentication which your
+front-end web server performs. Dex consumes the `X-Remote-User` header set by
+the proxy, which is then used as the user's email address.
 
-The connector does not support refresh tokens or groups at this point.
+__The proxy MUST remove any `X-Remote-*` headers set by the client, for any URL
+path, before the request is forwarded to dex.__
+
+The connector does not support refresh tokens or groups.
 
 ## Configuration
+
+The `authproxy` connector is used by proxies to implement login strategies not
+supported by dex. For example, a proxy could handle a different OAuth2 strategy
+such as Slack. The connector takes no configuration other than a `name` and `id`:
+
+```yaml
+connectors:
+# Slack login implemented by an authenticating proxy, not by dex.
+- type: authproxy
+  id: slack
+  name: Slack 
+```
+
+The proxy only needs to authenticate the user when they attempt to visit the
+callback URL path:
+
+```
+( dex issuer URL )/callback/( connector id )?( url query )
+```
+
+For example, if dex is running at `https://auth.example.com/dex` and the connector
+ID is `slack`, the callback URL would look like:
+
+```
+https://auth.example.com/dex/callback/slack?state=xdg3z6quhrhwaueo5iysvliqf
+``` 
+
+The proxy should login the user then return them to the exact URL (inlucing the
+query), setting `X-Remote-User` to the user's email before proxying the request
+to dex.
+
+## Configuration example - Apache 2
 
 The following is an example config file that can be used by the external
 connector to authenticate a user.
