@@ -15,6 +15,7 @@ func New(logger logrus.FieldLogger) storage.Storage {
 	return &memStorage{
 		clients:         make(map[string]storage.Client),
 		authCodes:       make(map[string]storage.AuthCode),
+		accessTokens:    make(map[string]storage.AccessToken),
 		refreshTokens:   make(map[string]storage.RefreshToken),
 		authReqs:        make(map[string]storage.AuthRequest),
 		passwords:       make(map[string]storage.Password),
@@ -41,6 +42,7 @@ type memStorage struct {
 
 	clients         map[string]storage.Client
 	authCodes       map[string]storage.AuthCode
+	accessTokens    map[string]storage.AccessToken
 	refreshTokens   map[string]storage.RefreshToken
 	authReqs        map[string]storage.AuthRequest
 	passwords       map[string]storage.Password
@@ -79,6 +81,12 @@ func (s *memStorage) GarbageCollect(now time.Time) (result storage.GCResult, err
 				result.AuthRequests++
 			}
 		}
+		for id, a := range s.accessTokens {
+			if now.After(a.Expiry) {
+				delete(s.accessTokens, id)
+				result.AccessTokens++
+			}
+		}
 	})
 	return result, nil
 }
@@ -100,6 +108,17 @@ func (s *memStorage) CreateAuthCode(c storage.AuthCode) (err error) {
 			err = storage.ErrAlreadyExists
 		} else {
 			s.authCodes[c.ID] = c
+		}
+	})
+	return
+}
+
+func (s *memStorage) CreateAccessToken(c storage.AccessToken) (err error) {
+	s.tx(func() {
+		if _, ok := s.accessTokens[c.ID]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.accessTokens[c.ID] = c
 		}
 	})
 	return
@@ -169,6 +188,17 @@ func (s *memStorage) GetAuthCode(id string) (c storage.AuthCode, err error) {
 	s.tx(func() {
 		var ok bool
 		if c, ok = s.authCodes[id]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+	})
+	return
+}
+
+func (s *memStorage) GetAccessToken(id string) (c storage.AccessToken, err error) {
+	s.tx(func() {
+		var ok bool
+		if c, ok = s.accessTokens[id]; !ok {
 			err = storage.ErrNotFound
 			return
 		}
@@ -326,6 +356,17 @@ func (s *memStorage) DeleteAuthCode(id string) (err error) {
 			return
 		}
 		delete(s.authCodes, id)
+	})
+	return
+}
+
+func (s *memStorage) DeleteAccessToken(id string) (err error) {
+	s.tx(func() {
+		if _, ok := s.accessTokens[id]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		delete(s.accessTokens, id)
 	})
 	return
 }

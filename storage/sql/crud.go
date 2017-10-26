@@ -100,6 +100,14 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 	if n, err := r.RowsAffected(); err == nil {
 		result.AuthCodes = n
 	}
+
+	r, err = c.Exec(`delete from access_token where expiry < $1`, now)
+	if err != nil {
+		return result, fmt.Errorf("gc access_token: %v", err)
+	}
+	if n, err := r.RowsAffected(); err == nil {
+		result.AccessTokens = n
+	}
 	return
 }
 
@@ -244,6 +252,42 @@ func (c *conn) GetAuthCode(id string) (a storage.AuthCode, err error) {
 			return a, storage.ErrNotFound
 		}
 		return a, fmt.Errorf("select auth code: %v", err)
+	}
+	return a, nil
+}
+
+func (c *conn) CreateAccessToken(a storage.AccessToken) error {
+	_, err := c.Exec(`
+		insert into access_token (
+			id, connector_data, connector_id, expiry
+		)
+		values ($1, $2, $3, $4);
+	`,
+		a.ID, a.ConnectorData, a.ConnectorID, a.Expiry,
+	)
+
+	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
+		return fmt.Errorf("insert access token: %v", err)
+	}
+	return nil
+}
+
+func (c *conn) GetAccessToken(id string) (a storage.AccessToken, err error) {
+	err = c.QueryRow(`
+		select
+			id, connector_data, connector_id, expiry
+		from access_token where id = $1;
+	`, id).Scan(
+		&a.ID, &a.ConnectorData, &a.ConnectorID, &a.Expiry,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return a, storage.ErrNotFound
+		}
+		return a, fmt.Errorf("select access token: %v", err)
 	}
 	return a, nil
 }
@@ -817,6 +861,7 @@ func (c *conn) ListConnectors() ([]storage.Connector, error) {
 
 func (c *conn) DeleteAuthRequest(id string) error { return c.delete("auth_request", "id", id) }
 func (c *conn) DeleteAuthCode(id string) error    { return c.delete("auth_code", "id", id) }
+func (c *conn) DeleteAccessToken(id string) error { return c.delete("access_token", "id", id) }
 func (c *conn) DeleteClient(id string) error      { return c.delete("client", "id", id) }
 func (c *conn) DeleteRefresh(id string) error     { return c.delete("refresh_token", "id", id) }
 func (c *conn) DeletePassword(email string) error {

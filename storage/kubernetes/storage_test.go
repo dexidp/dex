@@ -88,6 +88,7 @@ func TestStorage(t *testing.T) {
 	newStorage := func() storage.Storage {
 		for _, resource := range []string{
 			resourceAuthCode,
+			resourceAccessToken,
 			resourceAuthRequest,
 			resourceClient,
 			resourceRefreshToken,
