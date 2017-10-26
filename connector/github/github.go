@@ -63,7 +63,7 @@ type Org struct {
 }
 
 // Open returns a strategy for logging in through GitHub.
-func (c *Config) Open(logger logrus.FieldLogger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
 
 	if c.Org != "" {
 		// Return error if both 'org' and 'orgs' fields are used.

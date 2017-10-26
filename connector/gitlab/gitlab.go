@@ -51,7 +51,7 @@ type gitlabGroup struct {
 }
 
 // Open returns a strategy for logging in through GitLab.
-func (c *Config) Open(logger logrus.FieldLogger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
 	if c.BaseURL == "" {
 		c.BaseURL = "https://www.gitlab.com"
 	}
