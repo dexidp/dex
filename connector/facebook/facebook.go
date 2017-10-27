@@ -32,7 +32,7 @@ type Config struct {
 }
 
 // Open returns a strategy for logging in through Facebook.
-func (c *Config) Open(logger logrus.FieldLogger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
 	return &facebookConnector{
 		redirectURI:  c.RedirectURI,
 		org:          c.Org,
