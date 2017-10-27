@@ -133,6 +133,15 @@ type Client struct {
 	// Name and LogoURL used when displaying this client to the end user.
 	Name    string `json:"name" yaml:"name"`
 	LogoURL string `json:"logoURL" yaml:"logoURL"`
+
+	// out of band template to use. For use with Public Clients.
+	OOBTemplate string `json:"oobTemplate" yaml:"oobTemplate"`
+
+	// out of band http headers to return. For example, used to force a download.
+	OOBHeaders []map[string]string `json:"oobHeaders" yaml:"oobHeaders"`
+
+	// out of band extra values to pass to the template
+	OOBValues map[string]string `json:"oobValues" yaml:"oobValues"`
 }
 
 // Claims represents the ID Token claims supported by the server.

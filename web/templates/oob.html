@@ -3,7 +3,7 @@
 <div class="theme-panel">
   <h2 class="theme-heading">Login Successful</h2>
   <p>Please copy this code, switch to your application and paste it there:</p>
-  <input type="text" class="theme-form-input" value="{{ .Code }}" />
+  <input type="text" class="theme-form-input" value="{{ html .Code }}" />
 </div>
 
 {{ template "footer.html" . }}

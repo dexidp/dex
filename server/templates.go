@@ -2,7 +2,7 @@ package server
 
 import (
 	"fmt"
-	"html/template"
+	"text/template"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+        "github.com/coreos/dex/storage"
 )
 
 const (
@@ -34,6 +36,7 @@ type templates struct {
 	passwordTmpl *template.Template
 	oobTmpl      *template.Template
 	errorTmpl    *template.Template
+	oobTmpls     map[string]*template.Template
 }
 
 type webConfig struct {
@@ -82,7 +85,7 @@ func dirExists(dir string) error {
 //    |  |- (theme name)
 //    |- templates
 //
-func loadWebConfig(c webConfig) (static, theme http.Handler, templates *templates, err error) {
+func loadWebConfig(c webConfig, s storage.Storage) (static, theme http.Handler, templates *templates, err error) {
 	if c.theme == "" {
 		c.theme = "coreos"
 	}
@@ -113,12 +116,21 @@ func loadWebConfig(c webConfig) (static, theme http.Handler, templates *template
 	static = http.FileServer(http.Dir(staticDir))
 	theme = http.FileServer(http.Dir(themeDir))
 
-	templates, err = loadTemplates(c, templatesDir)
+
+	oobTmpls := []string{}
+	clients, _ := s.ListClients() 
+	for _, client := range clients {
+		if client.OOBTemplate != "" {
+			oobTmpls = append(oobTmpls, client.OOBTemplate)
+		}
+	}
+
+	templates, err = loadTemplates(c, templatesDir, oobTmpls)
 	return
 }
 
 // loadTemplates parses the expected templates from the provided directory.
-func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
+func loadTemplates(c webConfig, templatesDir string, oobTmpls []string) (*templates, error) {
 	files, err := ioutil.ReadDir(templatesDir)
 	if err != nil {
 		return nil, fmt.Errorf("read dir: %v", err)
@@ -154,12 +166,26 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 	if len(missingTmpls) > 0 {
 		return nil, fmt.Errorf("missing template(s): %s", missingTmpls)
 	}
+	newOOBTmpls := make(map[string]*template.Template)
+	missingTmpls = []string{}
+	for _, tmplName := range oobTmpls {
+		tmpl := tmpls.Lookup(tmplName)
+		if tmpl == nil {
+			missingTmpls = append(missingTmpls, tmplName)
+		} else {
+			newOOBTmpls[tmplName] = tmpl
+		}
+	}
+	if len(missingTmpls) > 0 {
+		return nil, fmt.Errorf("missing template(s): %s", missingTmpls)
+	}
 	return &templates{
 		loginTmpl:    tmpls.Lookup(tmplLogin),
 		approvalTmpl: tmpls.Lookup(tmplApproval),
 		passwordTmpl: tmpls.Lookup(tmplPassword),
 		oobTmpl:      tmpls.Lookup(tmplOOB),
 		errorTmpl:    tmpls.Lookup(tmplError),
+		oobTmpls:     newOOBTmpls,
 	}, nil
 }
 
@@ -216,10 +242,14 @@ func (t *templates) approval(w http.ResponseWriter, authReqID, username, clientN
 	return renderTemplate(w, t.approvalTmpl, data)
 }
 
-func (t *templates) oob(w http.ResponseWriter, code string) error {
+func (t *templates) oob(w http.ResponseWriter, code string, tmpl string, values map[string]string) error {
 	data := struct {
 		Code string
-	}{code}
+                Values map[string]string
+	}{code, values}
+	if tmpl != "" {
+		return renderTemplate(w, t.oobTmpls[tmpl], data)
+	}
 	return renderTemplate(w, t.oobTmpl, data)
 }
 

@@ -525,7 +525,18 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			// Implicit and hybrid flows that try to use the OOB redirect URI are
 			// rejected earlier. If we got here we're using the code flow.
 			if authReq.RedirectURI == redirectURIOOB {
-				if err := s.templates.oob(w, code.ID); err != nil {
+				client, err := s.storage.GetClient(authReq.ClientID)
+				if err != nil {
+					s.logger.Errorf("Failed to get client %q: %v", authReq.ClientID, err)
+					s.renderError(w, http.StatusInternalServerError, "Failed to retrieve client.")
+					return
+				}
+		        	for _, headers := range client.OOBHeaders {
+		        		for k, v := range headers {
+						w.Header().Add(k, v)
+					}
+				}
+				if err := s.templates.oob(w, code.ID, client.OOBTemplate, client.OOBValues); err != nil {
 					s.logger.Errorf("Server template error: %v", err)
 				}
 				return
