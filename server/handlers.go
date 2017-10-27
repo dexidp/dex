@@ -531,8 +531,8 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 					s.renderError(w, http.StatusInternalServerError, "Failed to retrieve client.")
 					return
 				}
-		        	for _, headers := range client.OOBHeaders {
-		        		for k, v := range headers {
+				for _, headers := range client.OOBHeaders {
+					for k, v := range headers {
 						w.Header().Add(k, v)
 					}
 				}
