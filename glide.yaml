@@ -109,6 +109,12 @@ import:
   subpackages:
   - crdb
 
+# etcd driver
+- package: github.com/coreos/etcd
+  version: v3.2.9
+  subpackages:
+  - clientv3
+
 # gRPC and protobuf are use for the API. Also import x/net/http2 stack.
 - package: google.golang.org/grpc
   version: 0e8b58d22f34640cb17dbbed1c8aef3b8dcc0e97
