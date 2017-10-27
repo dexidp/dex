@@ -121,6 +121,13 @@ var migrations = []migration{
 		
 				expiry timestamptz not null
 			);
+
+			create table access_token (
+				id text not null primary key,
+				connector_id text not null,
+				connector_data blob not null,
+				expiry timestamptz not null
+			);
 		
 			create table refresh_token (
 				id text not null primary key,

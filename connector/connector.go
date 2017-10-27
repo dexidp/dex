@@ -65,6 +65,11 @@ type CallbackConnector interface {
 	HandleCallback(s Scopes, r *http.Request) (identity Identity, err error)
 }
 
+// UserInfoConnector represents connectors that support the user info endpoint
+type UserInfoConnector interface {
+	GetUserInfo(connData []byte) (user map[string]interface{}, err error)
+}
+
 // SAMLConnector represents SAML connectors which implement the HTTP POST binding.
 //  RelayState is handled by the server.
 //

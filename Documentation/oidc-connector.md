@@ -42,6 +42,12 @@ connectors:
     # following field.
     #
     # basicAuthUnsupported: true
+
+    # Some clients require the possibility to get further user details provided
+    # by via the UserInfo endpoint.
+    #
+    # See: http://openid.net/specs/openid-connect-core-1_0.html#UserInfo
+    # userInfo: https://www.googleapis.com/oauth2/v3/userinfo
     
     # Google supports whitelisting allowed domains when using G Suite
     # (Google Apps). The following field can be set to a list of domains

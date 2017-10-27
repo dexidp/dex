@@ -28,6 +28,14 @@ var thirdPartyResources = []k8sapi.ThirdPartyResource{
 	},
 	{
 		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "access-token.oidc.coreos.com",
+		},
+		TypeMeta:    tprMeta,
+		Description: "A token which can be used to access resources.",
+		Versions:    []k8sapi.APIVersion{{Name: "v1"}},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
 			Name: "auth-request.oidc.coreos.com",
 		},
 		TypeMeta:    tprMeta,
@@ -106,6 +114,21 @@ var customResourceDefinitions = []k8sapi.CustomResourceDefinition{
 				Plural:   "authcodes",
 				Singular: "authcode",
 				Kind:     "AuthCode",
+			},
+		},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "accesstokens.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "accesstokens",
+				Singular: "accesstoken",
+				Kind:     "AccessToken",
 			},
 		},
 	},
@@ -503,6 +526,50 @@ func toStorageAuthCode(a AuthCode) storage.AuthCode {
 		Nonce:         a.Nonce,
 		Scopes:        a.Scopes,
 		Claims:        toStorageClaims(a.Claims),
+		Expiry:        a.Expiry,
+	}
+}
+
+// AccessToken is a mirrored struct from storage with JSON struct tags and
+// Kubernetes type metadata.
+type AccessToken struct {
+	k8sapi.TypeMeta   `json:",inline"`
+	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+
+	ConnectorData []byte `json:"connectorData,omitempty"`
+	ConnectorID   string `json:"connectorID,omitempty"`
+
+	Expiry time.Time `json:"expiry"`
+}
+
+// AccessTokenList is a list of AccessTokens.
+type AccessTokenList struct {
+	k8sapi.TypeMeta `json:",inline"`
+	k8sapi.ListMeta `json:"metadata,omitempty"`
+	AccessTokens       []AccessToken `json:"items"`
+}
+
+func (cli *client) fromStorageAccessToken(a storage.AccessToken) AccessToken {
+	return AccessToken{
+		TypeMeta: k8sapi.TypeMeta{
+			Kind:       kindAccessToken,
+			APIVersion: cli.apiVersion,
+		},
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name:      a.ID,
+			Namespace: cli.namespace,
+		},
+		ConnectorData: a.ConnectorData,
+		ConnectorID:   a.ConnectorID,
+		Expiry:        a.Expiry,
+	}
+}
+
+func toStorageAccessToken(a AccessToken) storage.AccessToken {
+	return storage.AccessToken{
+		ID:            a.ObjectMeta.Name,
+		ConnectorData: a.ConnectorData,
+		ConnectorID:   a.ConnectorID,
 		Expiry:        a.Expiry,
 	}
 }

@@ -95,6 +95,7 @@ type discovery struct {
 	Auth          string   `json:"authorization_endpoint"`
 	Token         string   `json:"token_endpoint"`
 	Keys          string   `json:"jwks_uri"`
+	UserInfo      string   `json:"userinfo_endpoint"`
 	ResponseTypes []string `json:"response_types_supported"`
 	Subjects      []string `json:"subject_types_supported"`
 	IDTokenAlgs   []string `json:"id_token_signing_alg_values_supported"`
@@ -109,6 +110,7 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 		Auth:        s.absURL("/auth"),
 		Token:       s.absURL("/token"),
 		Keys:        s.absURL("/keys"),
+		UserInfo:    s.absURL("/userinfo"),
 		Subjects:    []string{"public"},
 		IDTokenAlgs: []string{string(jose.RS256)},
 		Scopes:      []string{"openid", "email", "groups", "profile", "offline_access"},
@@ -656,7 +658,24 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		return
 	}
 
+	// Random token to be handed to the client as Access Token
 	accessToken := storage.NewID()
+
+	// Create and store connector information under this access token
+	// so it can be used for future requests on behalf of the client
+	newAccessToken := storage.AccessToken{
+		ID:            accessToken,
+		ConnectorData: authCode.ConnectorData,
+		ConnectorID:   authCode.ConnectorID,
+		Expiry:        s.now().Add(time.Minute * 30),
+	}
+
+	if err := s.storage.CreateAccessToken(newAccessToken); err != nil {
+		s.logger.Errorf("Failed to create access token: %v", err)
+		s.renderError(w, http.StatusInternalServerError, "Internal server error.")
+		return
+	}
+	
 	idToken, expiry, err := s.newIDToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, accessToken, authCode.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create ID token: %v", err)
@@ -984,6 +1003,65 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, accessToken, r
 		idToken,
 	}
 	data, err := json.Marshal(resp)
+	if err != nil {
+		s.logger.Errorf("failed to marshal access token response: %v", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.Write(data)
+}
+
+// Request userinfo data from the original IdP on behalf of the Relying Party (client)
+func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
+
+	// Extract token type and token value from Authorization header
+	authorization_substrs := strings.Split(r.Header.Get("Authorization"), " ")
+	clientAccessToken := authorization_substrs[1]
+
+	// Retrieve previously saved actual Access Token to allow requesting user info from upstream source
+	accessToken, err := s.storage.GetAccessToken(clientAccessToken)
+	if err != nil || s.now().After(accessToken.Expiry) {
+		if err != storage.ErrNotFound {
+			s.logger.Errorf("failed to get access token: %v", err)
+			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		} else {
+			s.tokenErrHelper(w, errInvalidRequest, "Invalid or expired access token.", http.StatusBadRequest)
+		}
+		return
+	}
+
+	// Delegate the fetching of User info data to the oidc connector
+	conn, err := s.getConnector(accessToken.ConnectorID)
+
+	if err != nil {
+		s.logger.Errorf("Failed to get connector with id %q : %v", accessToken.ConnectorID, err)
+		s.renderError(w, http.StatusBadRequest, "Requested resource does not exist")
+		return
+	}
+
+	var user map[string]interface{}
+	
+	switch conn := conn.Connector.(type) {
+		case connector.UserInfoConnector:
+
+			lala := map[string]interface{}{}
+			if err := json.Unmarshal(accessToken.ConnectorData, &lala); err != nil {
+				s.logger.Errorf("Failed to read lala data : %v", err)
+			}
+
+			user, err = conn.GetUserInfo(accessToken.ConnectorData)
+		default:
+			s.renderError(w, http.StatusBadRequest, "Requested resource does not exist.")
+	}
+
+	s.writeUserInfo(w, user)
+}
+
+func (s *Server) writeUserInfo(w http.ResponseWriter, user map[string]interface{}) {
+
+	data, err := json.Marshal(user)
 	if err != nil {
 		s.logger.Errorf("failed to marshal access token response: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
