@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/coreos/dex/connector"
+	"github.com/coreos/dex/connector/authproxy"
 	"github.com/coreos/dex/connector/facebook"
 	"github.com/coreos/dex/connector/github"
 	"github.com/coreos/dex/connector/gitlab"
@@ -241,7 +243,19 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS("/keys", s.handlePublicKeys)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
-	handleFunc("/callback", s.handleConnectorCallback)
+	r.HandleFunc(path.Join(issuerURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {
+		// Strip the X-Remote-* headers to prevent security issues on
+		// misconfigured authproxy connector setups.
+		for key := range r.Header {
+			if strings.HasPrefix(strings.ToLower(key), "x-remote-") {
+				r.Header.Del(key)
+			}
+		}
+		s.handleConnectorCallback(w, r)
+	})
+	// For easier connector-specific web server configuration, e.g. for the
+	// "authproxy" connector.
+	handleFunc("/callback/{connector}", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
 	handleFunc("/healthz", s.handleHealth)
 	handlePrefix("/static", static)
@@ -383,7 +397,7 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 
 // ConnectorConfig is a configuration that can open a connector.
 type ConnectorConfig interface {
-	Open(logrus.FieldLogger) (connector.Connector, error)
+	Open(id string, logger logrus.FieldLogger) (connector.Connector, error)
 }
 
 // ConnectorsConfig variable provides an easy way to return a config struct
@@ -396,10 +410,11 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"gitlab":       func() ConnectorConfig { return new(gitlab.Config) },
 	"oidc":         func() ConnectorConfig { return new(oidc.Config) },
 	"saml":         func() ConnectorConfig { return new(saml.Config) },
-	// Keep around for backwards compatibility.
-	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
+	"authproxy":    func() ConnectorConfig { return new(authproxy.Config) },
 	"facebook":         func() ConnectorConfig { return new(facebook.Config) },
 	"linkedin":         func() ConnectorConfig { return new(linkedin.Config) },
+	// Keep around for backwards compatibility.
+	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
 }
 
 // openConnector will parse the connector config and open the connector.
@@ -419,7 +434,7 @@ func openConnector(logger logrus.FieldLogger, conn storage.Connector) (connector
 		}
 	}
 
-	c, err := connConfig.Open(logger)
+	c, err := connConfig.Open(conn.ID, logger)
 	if err != nil {
 		return c, fmt.Errorf("failed to create connector %s: %v", conn.ID, err)
 	}
