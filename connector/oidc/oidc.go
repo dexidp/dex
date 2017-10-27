@@ -75,7 +75,7 @@ func registerBrokenAuthHeaderProvider(url string) {
 
 // Open returns a connector which can be used to login users through an upstream
 // OpenID Connect provider.
-func (c *Config) Open(logger logrus.FieldLogger) (conn connector.Connector, err error) {
+func (c *Config) Open(id string, logger logrus.FieldLogger) (conn connector.Connector, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	provider, err := oidc.NewProvider(ctx, c.Issuer)
