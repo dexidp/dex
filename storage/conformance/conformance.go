@@ -628,9 +628,21 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 	c1.Type = "oidc"
 	getAndCompare(id1, c1)
 
-	if _, err := s.ListConnectors(); err != nil {
-		t.Fatalf("failed to list connectors: %v", err)
+	connectorList := []storage.Connector{c1, c2}
+	listAndCompare := func(want []storage.Connector) {
+		connectors, err := s.ListConnectors()
+		if err != nil {
+			t.Errorf("list connectors: %v", err)
+			return
+		}
+		sort.Slice(connectors, func(i, j int) bool {
+			return connectors[i].Name < connectors[j].Name
+		})
+		if diff := pretty.Compare(want, connectors); diff != "" {
+			t.Errorf("password list retrieved from storage did not match: %s", diff)
+		}
 	}
+	listAndCompare(connectorList)
 
 	if err := s.DeleteConnector(c1.ID); err != nil {
 		t.Fatalf("failed to delete connector: %v", err)
