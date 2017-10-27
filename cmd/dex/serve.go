@@ -295,7 +295,7 @@ func newLogger(filePath string, level string, format string) (logrus.FieldLogger
 
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
 	if err != nil {
-		panic(err)
+		file = os.Stderr
 	}
 
 	return &logrus.Logger{
