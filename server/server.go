@@ -21,6 +21,7 @@ import (
 
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/connector/authproxy"
+	"github.com/coreos/dex/connector/facebook"
 	"github.com/coreos/dex/connector/github"
 	"github.com/coreos/dex/connector/gitlab"
 	"github.com/coreos/dex/connector/ldap"
@@ -411,6 +412,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"saml":         func() ConnectorConfig { return new(saml.Config) },
 	"authproxy":    func() ConnectorConfig { return new(authproxy.Config) },
 	"linkedin":     func() ConnectorConfig { return new(linkedin.Config) },
+	"facebook":     func() ConnectorConfig { return new(facebook.Config) },
 	// Keep around for backwards compatibility.
 	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
 }

@@ -99,7 +99,7 @@ import:
 
 # SQL drivers
 - package: github.com/mattn/go-sqlite3
-  version: 3fb7a0e792edd47bf0cf1e919dfc14e2be412e15
+  version: 5160b48509cf5c877bc22c11c373f8c7738cdb38
 - package: github.com/lib/pq
   version: 50761b0867bd1d9d069276790bcd4a3bccf2324a
 - package: github.com/go-sql-driver/mysql

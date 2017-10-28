@@ -91,8 +91,8 @@ func (c *linkedInConnector) HandleCallback(s connector.Scopes, r *http.Request) 
 	}
 
 	identity = connector.Identity{
-		UserID:        profile.ID,
-		Username:      profile.fullname(),
+		UserID:        profile.Alias,
+		Username:      profile.Alias + "," + profile.FirstName + "," + profile.LastName,
 		Email:         profile.Email,
 		EmailVerified: true,
 	}
@@ -132,10 +132,13 @@ func (c *linkedInConnector) Refresh(ctx context.Context, s connector.Scopes, ide
 }
 
 type profile struct {
-	ID        string `json:"id"`
-	FirstName string `json:"firstName"`
-	LastName  string `json:"lastName"`
-	Email     string `json:"emailAddress"`
+	ID               string `json:"id"`
+	Name             string `json:"formattedName"`
+	FirstName        string `json:"firstName"`
+	LastName         string `json:"lastName"`
+	PublicProfileURL string `json:"publicProfileUrl"`
+	Alias            string
+	Email            string `json:"emailAddress"`
 }
 
 // fullname returns a full name of a person, or email if the resulting name is
@@ -151,7 +154,7 @@ func (p profile) fullname() string {
 
 func (c *linkedInConnector) profile(ctx context.Context, client *http.Client) (p profile, err error) {
 	// https://developer.linkedin.com/docs/fields/basic-profile
-	req, err := http.NewRequest("GET", apiURL+"/people/~:(id,first-name,last-name,email-address)", nil)
+	req, err := http.NewRequest("GET", apiURL+"/people/~:(id,first-name,last-name,email-address,public-profile-url)", nil)
 	if err != nil {
 		return p, fmt.Errorf("new req: %v", err)
 	}
@@ -180,7 +183,8 @@ func (c *linkedInConnector) profile(ctx context.Context, client *http.Client) (p
 	if p.Email == "" {
 		return p, fmt.Errorf("email is not set")
 	}
-
+	lastBin := strings.LastIndex(p.PublicProfileURL, "/")
+	p.Alias = p.PublicProfileURL[lastBin+1 : len(p.PublicProfileURL)]
 	return p, err
 }
 

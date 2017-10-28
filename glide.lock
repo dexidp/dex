@@ -1,5 +1,5 @@
-hash: e83f57fea75d4a509d812fab12785599fdab16db950cc3738cec59a6c73f93af
-updated: 2017-10-13T22:48:00.511877988+11:00
+hash: 6022d58558fef9daf7f2cb8fd0bbf559f7f03c8a6ba84f320c66282d08cb2f98
+updated: 2017-10-28T19:12:36.282891505+11:00
 imports:
 - name: github.com/beevik/etree
   version: 4cd0dd976db869f817248477718071a28e978df0
@@ -42,7 +42,7 @@ imports:
   subpackages:
   - oid
 - name: github.com/mattn/go-sqlite3
-  version: 3fb7a0e792edd47bf0cf1e919dfc14e2be412e15
+  version: 5160b48509cf5c877bc22c11c373f8c7738cdb38
 - name: github.com/pquerna/cachecontrol
   version: c97913dcbd76de40b051a9b4cd827f7eaeb7a868
   subpackages:
@@ -79,7 +79,6 @@ imports:
   - facebook
   - github
   - internal
-  - linkedin
 - name: golang.org/x/sys
   version: 833a04a10549a95dc34458c195cbad61bbb6cb4d
   subpackages:

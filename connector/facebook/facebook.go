@@ -110,7 +110,6 @@ func (c *facebookConnector) HandleCallback(s connector.Scopes, r *http.Request) 
 	if err != nil {
 		return identity, fmt.Errorf("facebook: get user: %v", err)
 	}
-	//TODO send snugAuth request with firstname, lastname, email
 
 	identity = connector.Identity{
 		UserID:   user.ID,
