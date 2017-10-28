@@ -12,7 +12,6 @@ import (
 	// import third party drivers
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 // flavor represents a specific SQL implementation, and is used to translate query strings

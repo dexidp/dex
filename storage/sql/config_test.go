@@ -48,25 +48,6 @@ var logger = &logrus.Logger{
 	Level:     logrus.DebugLevel,
 }
 
-func TestSQLite3(t *testing.T) {
-	newStorage := func() storage.Storage {
-		// NOTE(ericchiang): In memory means we only get one connection at a time. If we
-		// ever write tests that require using multiple connections, for instance to test
-		// transactions, we need to move to a file based system.
-		s := &SQLite3{":memory:"}
-		conn, err := s.open(logger)
-		if err != nil {
-			fmt.Fprintln(os.Stdout, err)
-			t.Fatal(err)
-		}
-		return conn
-	}
-
-	withTimeout(time.Second*10, func() {
-		conformance.RunTests(t, newStorage)
-	})
-}
-
 func getenv(key, defaultVal string) string {
 	if val := os.Getenv(key); val != "" {
 		return val
