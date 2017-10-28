@@ -126,7 +126,6 @@ type StorageConfig interface {
 var storages = map[string]func() StorageConfig{
 	"kubernetes": func() StorageConfig { return new(kubernetes.Config) },
 	"memory":     func() StorageConfig { return new(memory.Config) },
-	"sqlite3":    func() StorageConfig { return new(sql.SQLite3) },
 	"postgres":   func() StorageConfig { return new(sql.Postgres) },
 }
 
