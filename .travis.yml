@@ -8,6 +8,7 @@ go:
 
 services:
   - postgresql
+  - docker
 
 env:
   - DEX_POSTGRES_DATABASE=postgres DEX_POSTGRES_USER=postgres DEX_POSTGRES_HOST="localhost" DEX_LDAP_TESTS=1 DEBIAN_FRONTEND=noninteractive
@@ -21,6 +22,7 @@ install:
 
 script:
   - make testall
+  - ./scripts/test-k8s.sh
 
 notifications:
   email: false
