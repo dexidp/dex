@@ -5,7 +5,6 @@ import (
 
 	"github.com/coreos/dex/connector/mock"
 	"github.com/coreos/dex/connector/oidc"
-	"github.com/coreos/dex/storage"
 	"github.com/coreos/dex/storage/sql"
 	"github.com/ghodss/yaml"
 	"github.com/kylelemons/godebug/pretty"
@@ -76,7 +75,7 @@ logger:
 		Web: Web{
 			HTTP: "127.0.0.1:5556",
 		},
-		StaticClients: []storage.Client{
+		StaticClients: []client{
 			{
 				ID:     "example-app",
 				Secret: "ZXhhbXBsZS1hcHAtc2VjcmV0",
