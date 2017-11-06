@@ -16,10 +16,10 @@ var (
 
 // SSL represents SSL options for etcd databases.
 type SSL struct {
-	ServerName string
-	CAFile     string
-	KeyFile    string
-	CertFile   string
+	ServerName string `json:"serverName" yaml:"serverName"`
+	CAFile     string `json:"caFile" yaml:"caFile"`
+	KeyFile    string `json:"keyFile" yaml:"keyFile"`
+	CertFile   string `json:"certFile" yaml:"certFile"`
 }
 
 // Etcd options for connecting to etcd databases.
@@ -27,11 +27,11 @@ type SSL struct {
 // configure an etcd namespace either via Namespace field or using `etcd grpc-proxy
 // --namespace=<prefix>`
 type Etcd struct {
-	Endpoints []string
-	Namespace string
-	Username  string
-	Password  string
-	SSL       SSL
+	Endpoints []string `json:"endpoints" yaml:"endpoints"`
+	Namespace string   `json:"namespace" yaml:"namespace"`
+	Username  string   `json:"username" yaml:"username"`
+	Password  string   `json:"password" yaml:"password"`
+	SSL       SSL      `json:"ssl" yaml:"ssl"`
 }
 
 // Open creates a new storage implementation backed by Etcd
