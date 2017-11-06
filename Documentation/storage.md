@@ -4,6 +4,38 @@ Dex requires persisting state to perform various tasks such as track refresh tok
 
 Storage breaches are serious as they can affect applications that rely on dex. Dex saves sensitive data in its backing storage, including signing keys and bcrypt'd passwords. As such, transport security and database ACLs should both be used, no matter which storage option is chosen.
 
+## Etcd
+
+Dex supports persisting state to [etcd v3](https://github.com/coreos/etcd).
+
+An example etcd configuration is using these values:
+
+```
+storage:
+  type: etcd
+  config:
+    # list of etcd endpoints we should connect to
+    endpoints:
+      - http://localhost:2379
+    namespace: my-etcd-namespace/
+```
+
+Etcd storage can be customized further using the following options:
+
+* `endpoints`: list of etcd endpoints we should connect to
+* `namespace`: etcd namespace to be set for the connection. All keys created by
+  etcd storage will be prefixed with the namespace. This is useful when you
+  share your etcd cluster amongst several applications. Another approach for
+  setting namespace is to use [etcd proxy](https://coreos.com/etcd/docs/latest/op-guide/grpc_proxy.html#namespacing)
+* `username`: username for etcd authentication
+* `password`: password for etcd authentication
+* `ssl`: ssl setup for etcd connection
+  * `serverName`: ensures that the certificate matches the given hostname the
+    client is connecting to.
+  * `caFile`: path to the ca
+  * `keyFile`: path to the private key
+  * `certFile`: path to the certificate
+
 ## Kubernetes custom resource definitions (CRDs)
 
 __NOTE:__ CRDs are only supported by Kubernetes version 1.7+.

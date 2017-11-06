@@ -1,5 +1,5 @@
-hash: e83f57fea75d4a509d812fab12785599fdab16db950cc3738cec59a6c73f93af
-updated: 2017-07-25T13:48:39.899190846-07:00
+hash: 322a63b37abfe42807c2249c7d7b18dfb508c5548853732cf55c0c36a7688da5
+updated: 2017-10-31T14:32:36.104478036Z
 imports:
 - name: github.com/beevik/etree
   version: 4cd0dd976db869f817248477718071a28e978df0
@@ -7,6 +7,17 @@ imports:
   version: 31611c0501c812f437d4861d87d117053967c955
   subpackages:
   - crdb
+- name: github.com/coreos/etcd
+  version: f1d7dd87da3e8feab4aaf675b8e29c6a5ed5f58b
+  subpackages:
+  - auth/authpb
+  - clientv3
+  - clientv3/namespace
+  - etcdserver/api/v3rpc/rpctypes
+  - etcdserver/etcdserverpb
+  - mvcc/mvccpb
+  - pkg/tlsutil
+  - pkg/transport
 - name: github.com/coreos/go-oidc
   version: be73733bb8cc830d0205609b95d125215f8e9c70
 - name: github.com/ghodss/yaml
