@@ -90,6 +90,10 @@ connectors:
     bindDN: uid=seviceaccount,cn=users,dc=example,dc=com
     bindPW: password
 
+    # The attribute to display in the provided password prompt. If unset, will
+    # display "Username"
+    usernamePrompt: SSO Username
+
     # User search maps a username and password entered by a user to a LDAP entry.
     userSearch:
       # BaseDN to start the search from. It will translate to the query

@@ -77,6 +77,11 @@ type Config struct {
 	BindDN string `json:"bindDN"`
 	BindPW string `json:"bindPW"`
 
+	// UsernamePrompt allows users to override the username attribute (displayed
+	// in the username/password prompt). If unset, the handler will use
+	// "Username".
+	UsernamePrompt string `json:"usernamePrompt"`
+
 	// User entry search configuration.
 	UserSearch struct {
 		// BsaeDN to start the search from. For example "cn=users,dc=example,dc=com"
@@ -544,4 +549,8 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 		groupNames = append(groupNames, name)
 	}
 	return groupNames, nil
+}
+
+func (c *ldapConnector) Prompt() string {
+	return c.UsernamePrompt
 }
