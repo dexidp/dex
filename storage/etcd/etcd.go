@@ -247,31 +247,32 @@ func (c *conn) ListClients() (clients []storage.Client, err error) {
 func (c *conn) CreatePassword(p storage.Password) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	return c.txnCreate(ctx, passwordPrefix+strings.ToLower(p.Email), p)
+	return c.txnCreate(ctx, passwordPrefix+strings.ToLower(p.Email), fromStoragePassword(p))
 }
 
 func (c *conn) GetPassword(email string) (p storage.Password, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	err = c.getKey(ctx, keyEmail(passwordPrefix, email), &p)
-	return p, err
+	var pass Password
+	err = c.getKey(ctx, keyEmail(passwordPrefix, email), &pass)
+	return toStoragePassword(pass), err
 }
 
 func (c *conn) UpdatePassword(email string, updater func(p storage.Password) (storage.Password, error)) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
 	return c.txnUpdate(ctx, keyEmail(passwordPrefix, email), func(currentValue []byte) ([]byte, error) {
-		var current storage.Password
+		var current Password
 		if len(currentValue) > 0 {
 			if err := json.Unmarshal(currentValue, &current); err != nil {
 				return nil, err
 			}
 		}
-		updated, err := updater(current)
+		updated, err := updater(toStoragePassword(current))
 		if err != nil {
 			return nil, err
 		}
-		return json.Marshal(updated)
+		return json.Marshal(fromStoragePassword(updated))
 	})
 }
 
@@ -289,11 +290,11 @@ func (c *conn) ListPasswords() (passwords []storage.Password, err error) {
 		return passwords, err
 	}
 	for _, v := range res.Kvs {
-		var p storage.Password
+		var p Password
 		if err = json.Unmarshal(v.Value, &p); err != nil {
 			return passwords, err
 		}
-		passwords = append(passwords, p)
+		passwords = append(passwords, toStoragePassword(p))
 	}
 	return passwords, nil
 }

@@ -461,12 +461,14 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 
 	if err := s.UpdatePassword(password1.Email, func(old storage.Password) (storage.Password, error) {
 		old.Username = "jane doe"
+		old.EmailVerified = true
 		return old, nil
 	}); err != nil {
 		t.Fatalf("failed to update auth request: %v", err)
 	}
 
 	password1.Username = "jane doe"
+	password1.EmailVerified = true
 	getAndCompare("jane@example.com", password1)
 
 	var passwordList []storage.Password

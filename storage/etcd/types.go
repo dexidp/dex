@@ -227,3 +227,36 @@ func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
 	}
 	return s
 }
+
+// Password is a mirrored struct from the storage with JSON struct tags
+type Password struct {
+	Email         string `json:"email,omitempty"`
+	EmailVerified *bool  `json:"emailVerified,omitempty"`
+	Hash          []byte `json:"hash,omitempty"`
+	Username      string `json:"username,omitempty"`
+	UserID        string `json:"userID,omitempty"`
+}
+
+func fromStoragePassword(p storage.Password) Password {
+	return Password{
+		Email:         p.Email,
+		EmailVerified: &p.EmailVerified,
+		Hash:          p.Hash,
+		Username:      p.Username,
+		UserID:        p.UserID,
+	}
+}
+
+func toStoragePassword(p Password) storage.Password {
+	sp := storage.Password{
+		Email:         p.Email,
+		EmailVerified: true,
+		Hash:          p.Hash,
+		Username:      p.Username,
+		UserID:        p.UserID,
+	}
+	if p.EmailVerified != nil {
+		sp.EmailVerified = *p.EmailVerified
+	}
+	return sp
+}
