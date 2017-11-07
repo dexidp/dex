@@ -15,11 +15,13 @@ connectors:
 
     # No TLS for this setup.
     insecureNoSSL: true
-    
+
     # This would normally be a read-only user.
     bindDN: cn=admin,dc=example,dc=org
     bindPW: admin
-    
+
+    usernamePrompt: Email Address
+
     userSearch:
       baseDN: ou=People,dc=example,dc=org
       filter: "(objectClass=person)"

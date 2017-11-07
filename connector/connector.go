@@ -39,7 +39,10 @@ type Identity struct {
 
 // PasswordConnector is an interface implemented by connectors which take a
 // username and password.
+// Prompt() is used to inform the handler what to display in the password
+// template. If this returns an empty string, it'll default to "Username".
 type PasswordConnector interface {
+	Prompt() string
 	Login(ctx context.Context, s Scopes, username, password string) (identity Identity, validPassword bool, err error)
 }
 

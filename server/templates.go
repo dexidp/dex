@@ -139,6 +139,7 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		"issuer": func() string { return c.issuer },
 		"logo":   func() string { return c.logoURL },
 		"url":    func(s string) string { return join(c.issuerURL, s) },
+		"lower":  strings.ToLower,
 	}
 
 	tmpls, err := template.New("").Funcs(funcs).ParseFiles(filenames...)
@@ -189,12 +190,13 @@ func (t *templates) login(w http.ResponseWriter, connectors []connectorInfo) err
 	return renderTemplate(w, t.loginTmpl, data)
 }
 
-func (t *templates) password(w http.ResponseWriter, postURL, lastUsername string, lastWasInvalid bool) error {
+func (t *templates) password(w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid bool) error {
 	data := struct {
-		PostURL  string
-		Username string
-		Invalid  bool
-	}{postURL, lastUsername, lastWasInvalid}
+		PostURL        string
+		Username       string
+		UsernamePrompt string
+		Invalid        bool
+	}{postURL, lastUsername, usernamePrompt, lastWasInvalid}
 	return renderTemplate(w, t.passwordTmpl, data)
 }
 
