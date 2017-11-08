@@ -1,9 +1,5 @@
 FROM golang:1.8.3-alpine
 
-MAINTAINER Ed Rooth <ed.rooth@coreos.com>
-MAINTAINER Lucas Servén <lucas.serven@coreos.com>
-MAINTAINER Rithu John <rithu.john@coreos.com>
-
 RUN apk add --no-cache --update alpine-sdk
 
 COPY . /go/src/github.com/coreos/dex
