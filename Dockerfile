@@ -1,4 +1,4 @@
-FROM golang:1.8.3-alpine
+FROM golang:1.9.2-alpine
 
 MAINTAINER Ed Rooth <ed.rooth@coreos.com>
 MAINTAINER Lucas Servén <lucas.serven@coreos.com>
