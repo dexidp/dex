@@ -491,6 +491,9 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		// the "normal" code flow?
 		implicitOrHybrid = false
 
+		// Was a token requested? (Implicit flow can request ONLY id_token)
+		requestedToken = false
+
 		// Only present in hybrid or code flow. code.ID == "" if this is not set.
 		code storage.AuthCode
 
@@ -532,6 +535,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			}
 		case responseTypeToken:
 			implicitOrHybrid = true
+			requestedToken = true
 		case responseTypeIDToken:
 			implicitOrHybrid = true
 			var err error
@@ -546,7 +550,9 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 
 	if implicitOrHybrid {
 		v := url.Values{}
-		v.Set("access_token", accessToken)
+		if requestedToken {
+			v.Set("access_token", accessToken)
+		}
 		v.Set("token_type", "bearer")
 		v.Set("state", authReq.State)
 		if idToken != "" {
