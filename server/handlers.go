@@ -167,6 +167,12 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// if we already know which connector the user should use -- go there directly
+	if authReq.ConnectorID != "" {
+		http.Redirect(w, r, s.absPath("/auth", authReq.ConnectorID)+"?req="+authReq.ID, http.StatusFound)
+		return
+	}
+
 	connectors, e := s.storage.ListConnectors()
 	if e != nil {
 		s.logger.Errorf("Failed to get list of connectors: %v", err)
