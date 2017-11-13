@@ -278,12 +278,21 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 		}
 		token, err = oauth2Config.Exchange(ctx, code)
 	case "POST":
-		// Form request from frontend to refresh a token.
+		// Form request from frontend to refresh a token; or login again with hint
 		refresh := r.FormValue("refresh_token")
-		if refresh == "" {
-			http.Error(w, fmt.Sprintf("no refresh_token in request: %q", r.Form), http.StatusBadRequest)
+		idTokenHint := r.FormValue("id_token_hint")
+		if refresh == "" && idTokenHint == "" {
+			http.Error(w, fmt.Sprintf("no refresh_token or id_token_hint in request: %q", r.Form), http.StatusBadRequest)
 			return
 		}
+		if idTokenHint != "" {
+			// redirect to auth URL with the hint, using default scopes
+			scopes := []string{"openid", "profile", "email"}
+			authURL := a.oauth2Config(scopes).AuthCodeURL(exampleAppState)
+			http.Redirect(w, r, authURL+"&id_token_hint="+idTokenHint, http.StatusSeeOther)
+			return
+		}
+		// reaching this means refresh_token handling
 		t := &oauth2.Token{
 			RefreshToken: refresh,
 			Expiry:       time.Now().Add(-time.Hour),

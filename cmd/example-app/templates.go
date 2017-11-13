@@ -50,13 +50,17 @@ pre {
   <body>
     <p> Token: <pre><code>{{ .IDToken }}</code></pre></p>
     <p> Claims: <pre><code>{{ .Claims }}</code></pre></p>
-	{{ if .RefreshToken }}
+  {{ if .RefreshToken }}
     <p> Refresh Token: <pre><code>{{ .RefreshToken }}</code></pre></p>
-	<form action="{{ .RedirectURL }}" method="post">
-	  <input type="hidden" name="refresh_token" value="{{ .RefreshToken }}">
-	  <input type="submit" value="Redeem refresh token">
+    <form action="{{ .RedirectURL }}" method="post">
+      <input type="hidden" name="refresh_token" value="{{ .RefreshToken }}">
+      <input type="submit" value="Redeem refresh token">
     </form>
-	{{ end }}
+  {{ end }}
+    <form action="{{ .RedirectURL }}" method="post">
+      <input type="hidden" name="id_token_hint" value="{{ .IDToken }}">
+      <input type="submit" value="Login again using ID token hint">
+    </form>
   </body>
 </html>
 `))
