@@ -145,7 +145,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		func() {
+		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
@@ -170,12 +170,12 @@ func TestParseAuthorizationRequest(t *testing.T) {
 			}
 			_, err := server.parseAuthorizationRequest(req)
 			if err != nil && !tc.wantErr {
-				t.Errorf("%s: %v", tc.name, err)
+				t.Error(err)
 			}
 			if err == nil && tc.wantErr {
-				t.Errorf("%s: expected error", tc.name)
+				t.Error("expected error")
 			}
-		}()
+		})
 	}
 }
 
