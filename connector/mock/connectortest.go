@@ -110,3 +110,5 @@ func (p passwordConnector) Login(ctx context.Context, s connector.Scopes, userna
 	}
 	return identity, false, nil
 }
+
+func (p passwordConnector) Prompt() string { return "" }

@@ -344,6 +344,10 @@ func (db passwordDB) Refresh(ctx context.Context, s connector.Scopes, identity c
 	return identity, nil
 }
 
+func (db passwordDB) Prompt() string {
+	return "Email Address"
+}
+
 // newKeyCacher returns a storage which caches keys so long as the next
 func newKeyCacher(s storage.Storage, now func() time.Time) storage.Storage {
 	if now == nil {

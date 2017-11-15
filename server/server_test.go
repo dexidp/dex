@@ -1017,6 +1017,16 @@ func TestPasswordDB(t *testing.T) {
 
 }
 
+func TestPasswordDBUsernamePrompt(t *testing.T) {
+	s := memory.New(logger)
+	conn := newPasswordDB(s)
+
+	expected := "Email Address"
+	if actual := conn.Prompt(); actual != expected {
+		t.Errorf("expected %v, got %v", expected, actual)
+	}
+}
+
 type storageWithKeysTrigger struct {
 	storage.Storage
 	f func()
