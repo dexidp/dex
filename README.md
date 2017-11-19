@@ -69,6 +69,7 @@ More docs for running dex as a Kubernetes authenticator can be found [here](Docu
   * [OpenID Connect](Documentation/oidc-connector.md) (includes Google, Salesforce, Azure, etc.)
   * [authproxy](Documentation/authproxy.md) (Apache2 mod_auth, etc.)
   * [LinkedIn](Documentation/linkedin-connector.md)
+  * [Microsoft](Documentation/microsoft-connection.md)
 * Client libraries
   * [Go][go-oidc]
 
