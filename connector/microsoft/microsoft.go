@@ -2,10 +2,12 @@
 package microsoft
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -20,24 +22,31 @@ const (
 	apiURL = "https://graph.microsoft.com"
 	// Microsoft requires this scope to access user's profile
 	scopeUser = "user.read"
+	// Microsoft requires this scope to list groups the user is a member of
+	// and resolve their UUIDs to groups names.
+	scopeGroups = "directory.read.all"
 )
 
 // Config holds configuration options for microsoft logins.
 type Config struct {
-	ClientID     string `json:"clientID"`
-	ClientSecret string `json:"clientSecret"`
-	RedirectURI  string `json:"redirectURI"`
-	Tenant       string `json:"tenant"`
+	ClientID           string   `json:"clientID"`
+	ClientSecret       string   `json:"clientSecret"`
+	RedirectURI        string   `json:"redirectURI"`
+	Tenant             string   `json:"tenant"`
+	OnlySecurityGroups bool     `json:"onlySecurityGroups"`
+	Groups             []string `json:"groups"`
 }
 
 // Open returns a strategy for logging in through Microsoft.
 func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
 	m := microsoftConnector{
-		redirectURI:  c.RedirectURI,
-		clientID:     c.ClientID,
-		clientSecret: c.ClientSecret,
-		tenant:       c.Tenant,
-		logger:       logger,
+		redirectURI:        c.RedirectURI,
+		clientID:           c.ClientID,
+		clientSecret:       c.ClientSecret,
+		tenant:             c.Tenant,
+		onlySecurityGroups: c.OnlySecurityGroups,
+		groups:             c.Groups,
+		logger:             logger,
 	}
 	// By default allow logins from both personal and business/school
 	// accounts.
@@ -60,15 +69,28 @@ var (
 )
 
 type microsoftConnector struct {
-	redirectURI  string
-	clientID     string
-	clientSecret string
-	tenant       string
-	logger       logrus.FieldLogger
+	redirectURI        string
+	clientID           string
+	clientSecret       string
+	tenant             string
+	onlySecurityGroups bool
+	groups             []string
+	logger             logrus.FieldLogger
+}
+
+func (c *microsoftConnector) isOrgTenant() bool {
+	return c.tenant != "common" && c.tenant != "consumers" && c.tenant != "organizations"
+}
+
+func (c *microsoftConnector) groupsRequired(groupScope bool) bool {
+	return (len(c.groups) > 0 || groupScope) && c.isOrgTenant()
 }
 
 func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
 	microsoftScopes := []string{scopeUser}
+	if c.groupsRequired(scopes.Groups) {
+		microsoftScopes = append(microsoftScopes, scopeGroups)
+	}
 
 	return &oauth2.Config{
 		ClientID:     c.clientID,
@@ -117,6 +139,14 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 		Username:      user.Name,
 		Email:         user.Email,
 		EmailVerified: true,
+	}
+
+	if c.groupsRequired(s.Groups) {
+		groups, err := c.getGroups(ctx, client, user.ID)
+		if err != nil {
+			return identity, fmt.Errorf("microsoft: get groups: %v", err)
+		}
+		identity.Groups = groups
 	}
 
 	if s.OfflineAccess {
@@ -202,6 +232,14 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 	identity.Username = user.Name
 	identity.Email = user.Email
 
+	if c.groupsRequired(s.Groups) {
+		groups, err := c.getGroups(ctx, client, user.ID)
+		if err != nil {
+			return identity, fmt.Errorf("microsoft: get groups: %v", err)
+		}
+		identity.Groups = groups
+	}
+
 	return identity, nil
 }
 
@@ -243,14 +281,7 @@ func (c *microsoftConnector) user(ctx context.Context, client *http.Client) (u u
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		// https://developer.microsoft.com/en-us/graph/docs/concepts/errors
-		var ge graphError
-		if err := json.NewDecoder(resp.Body).Decode(&struct {
-			Error *graphError `json:"error"`
-		}{&ge}); err != nil {
-			return u, fmt.Errorf("JSON error decode: %v", err)
-		}
-		return u, &ge
+		return u, newGraphError(resp.Body)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
@@ -260,6 +291,135 @@ func (c *microsoftConnector) user(ctx context.Context, client *http.Client) (u u
 	return u, err
 }
 
+// https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/resources/group
+// displayName - The display name for the group. This property is required when
+//               a group is created and it cannot be cleared during updates.
+//               Supports $filter and $orderby.
+type group struct {
+	Name string `json:"displayName"`
+}
+
+func (c *microsoftConnector) getGroups(ctx context.Context, client *http.Client, userID string) (groups []string, err error) {
+	ids, err := c.getGroupIDs(ctx, client)
+	if err != nil {
+		return groups, err
+	}
+
+	groups, err = c.getGroupNames(ctx, client, ids)
+	if err != nil {
+		return
+	}
+
+	// ensure that the user is in at least one required group
+	isInGroups := false
+	if len(c.groups) > 0 {
+		gs := make(map[string]struct{})
+		for _, g := range c.groups {
+			gs[g] = struct{}{}
+		}
+
+		for _, g := range groups {
+			if _, ok := gs[g]; ok {
+				isInGroups = true
+				break
+			}
+		}
+	}
+	if len(c.groups) > 0 && !isInGroups {
+		return nil, fmt.Errorf("microsoft: user %v not in required groups", userID)
+	}
+
+	return
+}
+
+func (c *microsoftConnector) getGroupIDs(ctx context.Context, client *http.Client) (ids []string, err error) {
+	// https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/api/user_getmembergroups
+	in := &struct {
+		SecurityEnabledOnly bool `json:"securityEnabledOnly"`
+	}{c.onlySecurityGroups}
+	reqURL := apiURL + "/v1.0/me/getMemberGroups"
+	for {
+		var out []string
+		var next string
+
+		next, err = c.post(ctx, client, reqURL, in, &out)
+		if err != nil {
+			return ids, err
+		}
+
+		ids = append(ids, out...)
+		if next == "" {
+			return
+		}
+		reqURL = next
+	}
+}
+
+func (c *microsoftConnector) getGroupNames(ctx context.Context, client *http.Client, ids []string) (groups []string, err error) {
+	if len(ids) == 0 {
+		return
+	}
+
+	// https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/api/directoryobject_getbyids
+	in := &struct {
+		IDs   []string `json:"ids"`
+		Types []string `json:"types"`
+	}{ids, []string{"group"}}
+	reqURL := apiURL + "/v1.0/directoryObjects/getByIds"
+	for {
+		var out []group
+		var next string
+
+		next, err = c.post(ctx, client, reqURL, in, &out)
+		if err != nil {
+			return groups, err
+		}
+
+		for _, g := range out {
+			groups = append(groups, g.Name)
+		}
+		if next == "" {
+			return
+		}
+		reqURL = next
+	}
+}
+
+func (c *microsoftConnector) post(ctx context.Context, client *http.Client, reqURL string, in interface{}, out interface{}) (string, error) {
+	var payload bytes.Buffer
+
+	err := json.NewEncoder(&payload).Encode(in)
+	if err != nil {
+		return "", fmt.Errorf("microsoft: JSON encode: %v", err)
+	}
+
+	req, err := http.NewRequest("POST", reqURL, &payload)
+	if err != nil {
+		return "", fmt.Errorf("new req: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req.WithContext(ctx))
+	if err != nil {
+		return "", fmt.Errorf("post URL %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", newGraphError(resp.Body)
+	}
+
+	var next string
+	if err = json.NewDecoder(resp.Body).Decode(&struct {
+		NextLink *string     `json:"@odata.nextLink"`
+		Value    interface{} `json:"value"`
+	}{&next, out}); err != nil {
+		return "", fmt.Errorf("JSON decode: %v", err)
+	}
+
+	return next, nil
+}
+
 type graphError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
@@ -267,6 +427,17 @@ type graphError struct {
 
 func (e *graphError) Error() string {
 	return e.Code + ": " + e.Message
+}
+
+func newGraphError(r io.Reader) error {
+	// https://developer.microsoft.com/en-us/graph/docs/concepts/errors
+	var ge graphError
+	if err := json.NewDecoder(r).Decode(&struct {
+		Error *graphError `json:"error"`
+	}{&ge}); err != nil {
+		return fmt.Errorf("JSON error decode: %v", err)
+	}
+	return &ge
 }
 
 type oauth2Error struct {
