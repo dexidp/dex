@@ -15,9 +15,9 @@ import (
 	"github.com/gorilla/mux"
 	jose "gopkg.in/square/go-jose.v2"
 
-	"github.com/coreos/dex/connector"
-	"github.com/coreos/dex/server/internal"
-	"github.com/coreos/dex/storage"
+	"github.com/Tsui89/dex/connector"
+	"github.com/Tsui89/dex/server/internal"
+	"github.com/Tsui89/dex/storage"
 )
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

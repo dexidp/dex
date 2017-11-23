@@ -1,5 +1,5 @@
 PROJ=dex
-ORG_PATH=github.com/coreos
+ORG_PATH=github.com/Tsui89
 REPO_PATH=$(ORG_PATH)/$(PROJ)
 export PATH := $(PWD)/bin:$(PATH)
 
