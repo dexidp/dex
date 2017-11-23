@@ -37,6 +37,7 @@ type authErr struct {
 	Description string
 }
 
+
 func (err *authErr) Status() int {
 	if err.State == errServerError {
 		return http.StatusInternalServerError
@@ -238,6 +239,7 @@ func (a audience) MarshalJSON() ([]byte, error) {
 	return json.Marshal([]string(a))
 }
 
+
 type idTokenClaims struct {
 	Issuer           string   `json:"iss"`
 	Subject          string   `json:"sub"`
@@ -254,6 +256,7 @@ type idTokenClaims struct {
 
 	Groups []string `json:"groups,omitempty"`
 
+	Permissions	map[string][]string	`json:"permissions,omitempty"`
 	Name string `json:"name,omitempty"`
 }
 
@@ -331,6 +334,8 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 			tok.Audience = append(tok.Audience, peerID)
 		}
 	}
+
+	tok.Permissions = permissionGetByEmail(claims.Email)
 
 	if len(tok.Audience) == 0 {
 		// Client didn't ask for cross client audience. Set the current

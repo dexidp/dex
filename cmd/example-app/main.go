@@ -21,9 +21,15 @@ import (
 	"github.com/coreos/go-oidc"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
+	"github.com/Tsui89/factory/auth/jsonWebToken"
 )
 
 const exampleAppState = "I wish to wash my irish wristwatch"
+
+
+type claim struct {
+	Permissions map[string][]string `json:"permissions"`
+}
 
 type app struct {
 	clientID     string
@@ -176,7 +182,7 @@ func cmd() *cobra.Command {
 			a.provider = provider
 			a.verifier = provider.Verifier(&oidc.Config{ClientID: a.clientID})
 
-			http.HandleFunc("/", a.handleIndex)
+			http.HandleFunc("/", a.handleLogin)
 			http.HandleFunc("/login", a.handleLogin)
 			http.HandleFunc(u.Path, a.handleCallback)
 
@@ -317,4 +323,25 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 	json.Indent(buff, []byte(claims), "", "  ")
 
 	renderToken(w, a.redirectURI, rawIDToken, token.RefreshToken, buff.Bytes())
+	fmt.Println(jsonWebToken.JwtPermCheck("money","ReadWrite",rawIDToken))
+	//var per claim
+	//json.Unmarshal(claims,&per)
+	//
+	//for k,v := range per.Permissions{
+	//	fmt.Println(k,":",v)
+	//}
+	//
+	//if _,ok := per.Permissions["rn:people:money"];ok{
+	//	for _,value := range per.Permissions["rn:people:money"]{
+	//		if strings.Compare(value,"rn:people:money:read:allow") == 0{
+	//			buff := new(bytes.Buffer)
+	//			json.Indent(buff, []byte(claims), "", "  ")
+	//
+	//			renderToken(w, a.redirectURI, rawIDToken, token.RefreshToken, buff.Bytes())
+	//			return
+	//		}
+	//	}
+	//}
+	//w.Write([]byte("have no permission"))
+	return
 }

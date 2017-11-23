@@ -1,3 +1,11 @@
 bin
 dist
 _output
+.idea
+.idea/codeStyles/Project.xml
+.idea/dex.iml
+.idea/markdown-navigator.xml
+.idea/markdown-navigator/
+.idea/modules.xml
+.idea/vcs.xml
+.idea/workspace.xml

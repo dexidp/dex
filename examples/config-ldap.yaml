@@ -5,23 +5,25 @@ storage:
     file: examples/dex.db
 web:
   http: 0.0.0.0:5556
+oauth2:
+  skipApprovalScreen: true
 
 connectors:
 - type: ldap
   name: OpenLDAP
   id: ldap
   config:
-    host: localhost:10389
+    host: openldap.cwc.marathon.mesos:389
 
     # No TLS for this setup.
     insecureNoSSL: true
     
     # This would normally be a read-only user.
-    bindDN: cn=admin,dc=example,dc=org
-    bindPW: admin
+    bindDN: cn=admin,dc=k2data,dc=com,dc=cn
+    bindPW: k2
     
     userSearch:
-      baseDN: ou=People,dc=example,dc=org
+      baseDN: ou=ops,dc=k2data,dc=com,dc=cn
       filter: "(objectClass=person)"
       username: mail
       # "DN" (case sensitive) is a special attribute name. It indicates that
@@ -32,7 +34,7 @@ connectors:
       nameAttr: cn
     
     groupSearch:
-      baseDN: ou=Groups,dc=example,dc=org
+      baseDN: cn=groups,dc=k2data,dc=com,dc=cn
       filter: "(objectClass=groupOfNames)"
       
       # A user is a member of a group when their DN matches
