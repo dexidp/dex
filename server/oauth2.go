@@ -335,7 +335,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		}
 	}
 
-	tok.Permissions = permissionGetByEmail(claims.Email)
+	tok.Permissions = s.permissionGetByEmail(claims.Email)
 
 	if len(tok.Audience) == 0 {
 		// Client didn't ask for cross client audience. Set the current

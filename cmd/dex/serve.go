@@ -199,6 +199,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		Web:                    c.Frontend,
 		Logger:                 logger,
 		Now:                    now,
+		SqlConf:				c.SqlConf,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)

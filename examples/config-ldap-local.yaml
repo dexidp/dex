@@ -1,4 +1,4 @@
-issuer: http://192.168.56.110:5556/dex
+issuer: http://127.0.0.1:5556/dex
 storage:
   type: sqlite3
   config:
@@ -53,6 +53,6 @@ connectors:
 staticClients:
 - id: example-app
   redirectURIs:
-  - 'http://192.168.56.110:5555/callback'
+  - 'http://127.0.0.1:5555/callback'
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0

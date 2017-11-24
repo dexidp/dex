@@ -74,6 +74,14 @@ type Config struct {
 	Web WebConfig
 
 	Logger logrus.FieldLogger
+
+	SqlConf SQLConfig
+}
+
+type SQLConfig struct {
+	Addr string	`json:"addr"`
+	User string `json:"user"`
+	Password string `json:"password"`
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -133,6 +141,8 @@ type Server struct {
 	idTokensValidFor time.Duration
 
 	logger logrus.FieldLogger
+
+	sqlConf SQLConfig
 }
 
 // NewServer constructs a server from the provided config.
@@ -194,6 +204,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		now:                    now,
 		templates:              tmpls,
 		logger:                 c.Logger,
+		sqlConf:				c.SqlConf,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors

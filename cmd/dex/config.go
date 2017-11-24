@@ -45,7 +45,10 @@ type Config struct {
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
+
+	SqlConf server.SQLConfig `json:"sqlConfig"`
 }
+
 
 type password storage.Password
 

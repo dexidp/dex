@@ -12,12 +12,12 @@ type UserPolicy struct {
 	ResourceId string	`json:"resource_id"`
 	PolicyName string `json:"policy_name"`
 }
-func permissionGetByEmail(userEmail string) map[string][]string {
+func (s Server)permissionGetByEmail(userEmail string) map[string][]string {
 	newConfig := mysql.NewConfig()
 	newConfig.Net = "tcp"
-	newConfig.Addr = "192.168.56.110:3306"
-	newConfig.User = "root"
-	newConfig.Passwd = "password"
+	newConfig.Addr = s.sqlConf.Addr
+	newConfig.User = s.sqlConf.User
+	newConfig.Passwd = s.sqlConf.Password
 	newConfig.DBName = "auth"
 	dsn := newConfig.FormatDSN()
 	fmt.Println(dsn)
