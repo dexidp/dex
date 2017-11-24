@@ -21,7 +21,7 @@ import (
 	"github.com/coreos/go-oidc"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
-	"github.com/Tsui89/factory/auth/jsonWebToken"
+	"github.com/Tsui89/factory/auth/sdk"
 )
 
 const exampleAppState = "I wish to wash my irish wristwatch"
@@ -325,7 +325,7 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 	json.Indent(buff, []byte(claims), "", "  ")
 
 	renderToken(w, a.redirectURI, rawIDToken, token.RefreshToken, buff.Bytes())
-	fmt.Println(jsonWebToken.JwtPermCheck("money","ReadWrite",rawIDToken))
+	fmt.Println("Has money ReadWrite Permission? ", sdk.JwtPermCheck("money","ReadWrite",rawIDToken))
 	//var per claim
 	//json.Unmarshal(claims,&per)
 	//
