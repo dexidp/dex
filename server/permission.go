@@ -18,7 +18,7 @@ func (s Server)permissionGetByEmail(userEmail string) map[string][]string {
 	newConfig.Addr = s.sqlConf.Addr
 	newConfig.User = s.sqlConf.User
 	newConfig.Passwd = s.sqlConf.Password
-	newConfig.DBName = "auth"
+	newConfig.DBName = s.sqlConf.Password
 	dsn := newConfig.FormatDSN()
 	fmt.Println(dsn)
 

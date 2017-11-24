@@ -12,6 +12,7 @@ sqlConfig:
   addr: 192.168.56.110:3306
   user: root
   password: password
+  database: auth
 
 connectors:
 - type: ldap

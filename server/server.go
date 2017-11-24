@@ -82,6 +82,7 @@ type SQLConfig struct {
 	Addr string	`json:"addr"`
 	User string `json:"user"`
 	Password string `json:"password"`
+	DataBase string `json:"database"`
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
