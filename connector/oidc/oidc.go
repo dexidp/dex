@@ -3,13 +3,13 @@ package oidc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
-	"encoding/json"
 
 	"github.com/coreos/go-oidc"
 	"github.com/sirupsen/logrus"
@@ -225,7 +225,7 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		Email:         claims.Email,
 		EmailVerified: claims.EmailVerified,
 	}
-	
+
 	// Add AccessToken to user identity for future requests
 	connData, err := json.Marshal(connectorData{
 		AccessToken: token.AccessToken,
@@ -260,8 +260,7 @@ func (c *oidcConnector) GetUserInfo(connData []byte, user *map[string]interface{
 	req, err := http.NewRequest("GET", c.userInfoURI, nil)
 
 	if err != nil {
-		fmt.Errorf("Error Creating GET request: %v", err)
-		return err
+		return fmt.Errorf("Error Creating GET request: %v", err)
 	}
 
 	req.Header.Add("Accept", `application/json`)
@@ -273,8 +272,7 @@ func (c *oidcConnector) GetUserInfo(connData []byte, user *map[string]interface{
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Errorf("Error Executing GET request: %v", err)
-		return err
+		return fmt.Errorf("Error Executing GET request: %v", err)
 	}
 
 	json.NewDecoder(resp.Body).Decode(user)

@@ -668,7 +668,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		Groups:        authCode.Claims.Groups,
 		ConnectorData: string(authCode.ConnectorData),
 		ConnectorId:   authCode.ConnectorID,
-		Expiry:	       authCode.Expiry.Unix(),
+		Expiry:        authCode.Expiry.Unix(),
 	}
 
 	// The accessToken is build from claims
@@ -1015,8 +1015,8 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, accessToken, r
 func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 
 	// Extract token type and token value from Authorization header
-	authorization_substrs := strings.Split(r.Header.Get("Authorization"), " ")
-	token := authorization_substrs[1]
+	authorizationSubstrs := strings.Split(r.Header.Get("Authorization"), " ")
+	token := authorizationSubstrs[1]
 
 	accessToken := new(internal.AccessToken)
 	if err := internal.Unmarshal(token, accessToken); err != nil {
@@ -1033,29 +1033,29 @@ func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create a flexible map initialized with the existing accessToken data
-	// If the connector does not implement a GetUserInfo, this map is 
+	// If the connector does not implement a GetUserInfo, this map is
 	// returned as is
 	user := map[string]interface{}{
-		"sub": accessToken.Subject,
-		"name": accessToken.Username,
-		"email": accessToken.Email,
+		"sub":            accessToken.Subject,
+		"name":           accessToken.Username,
+		"email":          accessToken.Email,
 		"email_verified": accessToken.EmailVerified,
-		"groups": accessToken.Groups,
-		"expiry": accessToken.Expiry,
+		"groups":         accessToken.Groups,
+		"expiry":         accessToken.Expiry,
 	}
-	
+
 	switch conn := conn.Connector.(type) {
-		// Delegate the responsibility of coming up with the user info
-		// to the connector if it is a UserInfoConnector
-		// e.g. oidc connector
-		case connector.UserInfoConnector:
+	// Delegate the responsibility of coming up with the user info
+	// to the connector if it is a UserInfoConnector
+	// e.g. oidc connector
+	case connector.UserInfoConnector:
 
-			connData := []byte(accessToken.ConnectorData)
-			err = conn.GetUserInfo(connData, &user)
+		connData := []byte(accessToken.ConnectorData)
+		err = conn.GetUserInfo(connData, &user)
 
-			if err != nil {
-				s.logger.Errorf("Failed to retrieve user info: %v", err)
-			}
+		if err != nil {
+			s.logger.Errorf("Failed to retrieve user info: %v", err)
+		}
 	}
 
 	s.writeUserInfo(w, user)
