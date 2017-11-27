@@ -21,7 +21,6 @@ import (
 	"github.com/coreos/go-oidc"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
-	"github.com/Tsui89/factory/auth/sdk"
 )
 
 const exampleAppState = "I wish to wash my irish wristwatch"
