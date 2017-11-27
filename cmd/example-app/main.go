@@ -325,25 +325,6 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 	json.Indent(buff, []byte(claims), "", "  ")
 
 	renderToken(w, a.redirectURI, rawIDToken, token.RefreshToken, buff.Bytes())
-	fmt.Println("Has money ReadWrite Permission? ", sdk.JwtPermCheck("money","ReadWrite",rawIDToken))
-	//var per claim
-	//json.Unmarshal(claims,&per)
-	//
-	//for k,v := range per.Permissions{
-	//	fmt.Println(k,":",v)
-	//}
-	//
-	//if _,ok := per.Permissions["rn:people:money"];ok{
-	//	for _,value := range per.Permissions["rn:people:money"]{
-	//		if strings.Compare(value,"rn:people:money:read:allow") == 0{
-	//			buff := new(bytes.Buffer)
-	//			json.Indent(buff, []byte(claims), "", "  ")
-	//
-	//			renderToken(w, a.redirectURI, rawIDToken, token.RefreshToken, buff.Bytes())
-	//			return
-	//		}
-	//	}
-	//}
-	//w.Write([]byte("have no permission"))
+
 	return
 }
