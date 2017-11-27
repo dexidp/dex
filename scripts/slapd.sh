@@ -13,6 +13,8 @@ command -v slapd >/dev/null 2>&1 || {
    sudo dnf -y install openldap-servers openldap-clients 
 
    sudo apt-get install slapd ldap-utils
+
+   Note: certain OpenLDAP packages may include AppArmor or SELinux configurations which prevent actions this script takes, such as referencing config files outside of its default config directory.
 "; exit 1;
 }
 
