@@ -88,6 +88,10 @@ body {
   background-size: contain;
 }
 
+.dex-btn-icon--microsoft {
+  background-image: url(../static/img/microsoft-icon.svg);
+}
+
 .dex-btn-text {
   font-weight: 600;
   line-height: 36px;
