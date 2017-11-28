@@ -1,4 +1,5 @@
 syntax = "proto3";
+option java_package = "com.coreos.dex.api";
 
 package api;
 
