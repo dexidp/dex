@@ -167,6 +167,11 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if authReq.ConnectorID != "" {
+		http.Redirect(w, r, s.absPath("/auth", authReq.ConnectorID)+"?req="+authReq.ID, http.StatusFound)
+		return
+	}
+
 	connectors, e := s.storage.ListConnectors()
 	if e != nil {
 		s.logger.Errorf("Failed to get list of connectors: %v", err)
