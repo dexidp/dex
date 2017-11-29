@@ -945,10 +945,11 @@ func TestPasswordDB(t *testing.T) {
 	}
 
 	s.CreatePassword(storage.Password{
-		Email:    "jane@example.com",
-		Username: "jane",
-		UserID:   "foobar",
-		Hash:     h,
+		Email:         "jane@example.com",
+		EmailVerified: true,
+		Username:      "jane",
+		UserID:        "foobar",
+		Hash:          h,
 	})
 
 	tests := []struct {

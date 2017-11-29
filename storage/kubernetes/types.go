@@ -405,6 +405,8 @@ type Password struct {
 	// This field is IMMUTABLE. Do not change.
 	Email string `json:"email,omitempty"`
 
+	EmailVerified *bool `json:"emailVerified,omitempty"`
+
 	Hash     []byte `json:"hash,omitempty"`
 	Username string `json:"username,omitempty"`
 	UserID   string `json:"userID,omitempty"`
@@ -428,20 +430,26 @@ func (cli *client) fromStoragePassword(p storage.Password) Password {
 			Name:      cli.idToName(email),
 			Namespace: cli.namespace,
 		},
-		Email:    email,
-		Hash:     p.Hash,
-		Username: p.Username,
-		UserID:   p.UserID,
+		Email:         email,
+		EmailVerified: &p.EmailVerified,
+		Hash:          p.Hash,
+		Username:      p.Username,
+		UserID:        p.UserID,
 	}
 }
 
 func toStoragePassword(p Password) storage.Password {
-	return storage.Password{
-		Email:    p.Email,
-		Hash:     p.Hash,
-		Username: p.Username,
-		UserID:   p.UserID,
+	sp := storage.Password{
+		Email:         p.Email,
+		EmailVerified: true,
+		Hash:          p.Hash,
+		Username:      p.Username,
+		UserID:        p.UserID,
 	}
+	if p.EmailVerified != nil {
+		sp.EmailVerified = *p.EmailVerified
+	}
+	return sp
 }
 
 // AuthCode is a mirrored struct from storage with JSON struct tags and

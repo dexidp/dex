@@ -285,6 +285,12 @@ type Password struct {
 	// (cough cough, kubernetes), must map this value appropriately.
 	Email string `json:"email"`
 
+	// EmailVerified flag indicates that an outside application has
+	// determined that an end-user controls the given address.
+	// The flag is encoded into an identity token issued by Dex as
+	// 'email_verified' claim.
+	EmailVerified bool `json:"emailVerified"`
+
 	// Bcrypt encoded hash of the password. This package enforces a min cost value of 10
 	Hash []byte `json:"hash"`
 
