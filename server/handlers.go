@@ -674,6 +674,14 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	// The accessToken is build from claims
 	accessToken, err := internal.Marshal(token)
 
+	// Encrypt access token to hide sensible data
+	accessToken, err = s.Encrypt(accessToken)
+	if err != nil {
+		s.logger.Errorf("Internal server error: %v", err)
+		s.renderError(w, http.StatusInternalServerError, "Internal server error.")
+		return
+	}
+
 	idToken, expiry, err := s.newIDToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, accessToken, authCode.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create ID token: %v", err)
@@ -987,6 +995,7 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, accessToken, r
 	// TODO(ericchiang): figure out an access token story and support the user info
 	// endpoint. For now use a random value so no one depends on the access_token
 	// holding a specific structure.
+
 	resp := struct {
 		AccessToken  string `json:"access_token"`
 		TokenType    string `json:"token_type"`
@@ -1018,8 +1027,15 @@ func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 	authorizationSubstrs := strings.Split(r.Header.Get("Authorization"), " ")
 	token := authorizationSubstrs[1]
 
+	decryptedToken, err := s.Decrypt(token)
+	if err != nil {
+		s.logger.Errorf("Internal server error: %v", err)
+		s.renderError(w, http.StatusInternalServerError, "Internal server error.")
+		return
+	}
+
 	accessToken := new(internal.AccessToken)
-	if err := internal.Unmarshal(token, accessToken); err != nil {
+	if err := internal.Unmarshal(decryptedToken, accessToken); err != nil {
 		s.logger.Errorf("Failed to unmarshal access token: %v", err)
 	}
 
