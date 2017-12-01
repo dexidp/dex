@@ -996,7 +996,7 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, accessToken, r
 }
 
 func (s *Server) renderError(w http.ResponseWriter, status int, description string) {
-	if err := s.templates.err(w, http.StatusText(status), description); err != nil {
+	if err := s.templates.err(w, status, description); err != nil {
 		s.logger.Errorf("Server template error: %v", err)
 	}
 }
