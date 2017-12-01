@@ -128,11 +128,14 @@ import:
   - peer
   - transport
 - package: github.com/golang/protobuf
-  version: 2bba0603135d7d7f5cb73b2125beeda19c09f4ef
+  version: 1e59b77b52bf8e4b449a57e6f79f21226d571845
   subpackages:
   - proto
   - protoc-gen-go
   - protoc-gen-go/grpc
+  - protoc-gen-go/descriptor        
+  - protoc-gen-go/plugin            
+  - protoc-gen-go/generator   
 - package: google.golang.org/genproto
   version: 411e09b969b1170a9f0c467558eb4c4c110d9c77
 

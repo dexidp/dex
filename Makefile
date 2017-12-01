@@ -61,13 +61,13 @@ docker-image:
 	@sudo docker build -t $(DOCKER_IMAGE) .
 
 .PHONY: proto
-proto: api/api.pb.go server/internal/types.pb.go
-
-api/api.pb.go: api/api.proto bin/protoc bin/protoc-gen-go
+proto: bin/protoc bin/protoc-gen-go
 	@./bin/protoc --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go api/*.proto
-
-server/internal/types.pb.go: server/internal/types.proto bin/protoc bin/protoc-gen-go
 	@./bin/protoc --go_out=. --plugin=protoc-gen-go=./bin/protoc-gen-go server/internal/*.proto
+
+.PHONY: verify-proto
+verify-proto: proto
+	@./scripts/git-diff
 
 bin/protoc: scripts/get-protoc
 	@./scripts/get-protoc bin/protoc
