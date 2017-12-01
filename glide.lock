@@ -1,5 +1,5 @@
-hash: 322a63b37abfe42807c2249c7d7b18dfb508c5548853732cf55c0c36a7688da5
-updated: 2017-10-31T14:32:36.104478036Z
+hash: aa8fb290b0e14af4bf4d4cae250ce66561c819a9cdd6447a0432de26f9216318
+updated: 2017-11-30T16:40:26.928155912-08:00
 imports:
 - name: github.com/beevik/etree
   version: 4cd0dd976db869f817248477718071a28e978df0
@@ -25,11 +25,14 @@ imports:
 - name: github.com/go-sql-driver/mysql
   version: 0b58b37b664c21f3010e836f1b931e1d0b0b0685
 - name: github.com/golang/protobuf
-  version: 2bba0603135d7d7f5cb73b2125beeda19c09f4ef
+  version: 1e59b77b52bf8e4b449a57e6f79f21226d571845
   subpackages:
   - proto
   - protoc-gen-go
+  - protoc-gen-go/descriptor
+  - protoc-gen-go/generator
   - protoc-gen-go/grpc
+  - protoc-gen-go/plugin
   - ptypes/any
 - name: github.com/gorilla/context
   version: aed02d124ae4a0e94fea4541c8effd05bf0c8296
