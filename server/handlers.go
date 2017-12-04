@@ -169,7 +169,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 
 	// if we already know which connector the user should use -- go there directly
 	if authReq.ConnectorID != "" {
-		http.Redirect(w, r, s.absPath("/auth", authReq.ConnectorID)+"?req="+authReq.ID, http.StatusFound)
+		http.Redirect(w, r, s.absPath("/auth", authReq.ConnectorID)+"?backlink=none&req="+authReq.ID, http.StatusFound)
 		return
 	}
 
@@ -229,7 +229,12 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	scopes := parseScopes(authReq.Scopes)
-	showBacklink := len(s.connectors) > 1
+
+	// allows for overriding the backlink display -- this is set when the initial
+	// request provided an `id_token_hint`, and we've forwarded the client based
+	// on this token's connector id.
+	backlinkOverride := r.FormValue("backlink")
+	showBacklink := len(s.connectors) > 1 && backlinkOverride != "none"
 
 	switch r.Method {
 	case "GET":
