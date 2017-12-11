@@ -224,14 +224,16 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set the connector being used for the login.
-	updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
-		a.ConnectorID = connID
-		return a, nil
-	}
-	if err := s.storage.UpdateAuthRequest(authReqID, updater); err != nil {
-		s.logger.Errorf("Failed to set connector ID on auth request: %v", err)
-		s.renderError(w, http.StatusInternalServerError, "Database error.")
-		return
+	if authReq.ConnectorID != connID {
+		updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
+			a.ConnectorID = connID
+			return a, nil
+		}
+		if err := s.storage.UpdateAuthRequest(authReqID, updater); err != nil {
+			s.logger.Errorf("Failed to set connector ID on auth request: %v", err)
+			s.renderError(w, http.StatusInternalServerError, "Database error.")
+			return
+		}
 	}
 
 	scopes := parseScopes(authReq.Scopes)
