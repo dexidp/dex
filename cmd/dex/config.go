@@ -45,6 +45,16 @@ type Config struct {
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
+
+	// Address to register pprof endpoints for debugging.
+	//
+	// NOTE: This cannot be the same as the Web.HTTP endpoint.
+	//
+	// See:
+	//
+	//     https://golang.org/pkg/net/http/pprof/
+	//     https://blog.golang.org/profiling-go-programs
+	PprofAddr string `json:"pprofAddr"`
 }
 
 type password storage.Password

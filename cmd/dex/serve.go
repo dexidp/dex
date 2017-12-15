@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"strings"
 	"time"
@@ -222,7 +223,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize server: %v", err)
 	}
 
-	errc := make(chan error, 3)
+	errc := make(chan error, 4)
 	if c.Web.HTTP != "" {
 		logger.Infof("listening (http) on %s", c.Web.HTTP)
 		go func() {
@@ -250,6 +251,20 @@ func serve(cmd *cobra.Command, args []string) error {
 				err = s.Serve(list)
 				return fmt.Errorf("listening on %s failed: %v", c.GRPC.Addr, err)
 			}()
+		}()
+	}
+	if c.PprofAddr != "" {
+		logger.Infof("listening (grpc) on %s", c.PprofAddr)
+
+		mux := http.NewServeMux()
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		go func() {
+			err := http.ListenAndServe(c.PprofAddr, mux)
+			errc <- fmt.Errorf("listening on %s failed: %v", c.PprofAddr, err)
 		}()
 	}
 
