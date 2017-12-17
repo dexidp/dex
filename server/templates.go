@@ -167,7 +167,7 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 var scopeDescriptions = map[string]string{
 	"offline_access": "Have offline access",
 	"profile":        "View basic profile information",
-	"email":          "View your email",
+	"email":          "View your email address",
 }
 
 type connectorInfo struct {
