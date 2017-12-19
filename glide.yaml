@@ -154,3 +154,7 @@ import:
   version: 4cd0dd976db869f817248477718071a28e978df0
 - package: github.com/jonboulle/clockwork
   version: bcac9884e7502bb2b474c0339d889cb981a2f27f
+
+# License bill of materials generator.
+- package: github.com/coreos/license-bill-of-materials
+  version: d70207c33a3c79a1c0479b208f8b7ab6215144c7
