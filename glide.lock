@@ -1,5 +1,5 @@
-hash: aa8fb290b0e14af4bf4d4cae250ce66561c819a9cdd6447a0432de26f9216318
-updated: 2017-11-30T16:40:26.928155912-08:00
+hash: dda54feb39d5947ad20e9d583ccad9be02343dac0f52752944b7cd39668af7a4
+updated: 2017-12-19T10:23:03.503553615-08:00
 imports:
 - name: github.com/beevik/etree
   version: 4cd0dd976db869f817248477718071a28e978df0
@@ -20,6 +20,8 @@ imports:
   - pkg/transport
 - name: github.com/coreos/go-oidc
   version: be73733bb8cc830d0205609b95d125215f8e9c70
+- name: github.com/coreos/license-bill-of-materials
+  version: d70207c33a3c79a1c0479b208f8b7ab6215144c7
 - name: github.com/ghodss/yaml
   version: bea76d6a4713e18b7f5321a2b020738552def3ea
 - name: github.com/go-sql-driver/mysql

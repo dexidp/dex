@@ -33,9 +33,10 @@ release-binary:
 	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
 .PHONY: revendor
-revendor:
+revendor: bin/license-bill-of-materials
 	@glide up -v
 	@glide-vc --use-lock-file --no-tests --only-code
+	@./bin/license-bill-of-materials ./cmd/dex ./cmd/example-app > bill-of-materials.json
 
 test:
 	@go test -v -i $(shell go list ./... | grep -v '/vendor/')
@@ -74,6 +75,9 @@ bin/protoc: scripts/get-protoc
 
 bin/protoc-gen-go:
 	@go install -v $(REPO_PATH)/vendor/github.com/golang/protobuf/protoc-gen-go
+
+bin/license-bill-of-materials:
+	@CGO_ENABLED=1 go install -v $(REPO_PATH)/vendor/github.com/coreos/license-bill-of-materials
 
 .PHONY: check-go-version
 check-go-version:
