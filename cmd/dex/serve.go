@@ -14,6 +14,9 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
+	grpcprometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
@@ -93,7 +96,25 @@ func serve(cmd *cobra.Command, args []string) error {
 
 	logger.Infof("config issuer: %s", c.Issuer)
 
+	prometheusRegistry := prometheus.NewRegistry()
+	err = prometheusRegistry.Register(prometheus.NewGoCollector())
+	if err != nil {
+		return fmt.Errorf("failed to register Go runtime metrics: %v", err)
+	}
+
+	err = prometheusRegistry.Register(prometheus.NewProcessCollector(os.Getpid(), ""))
+	if err != nil {
+		return fmt.Errorf("failed to register process metrics: %v", err)
+	}
+
+	grpcMetrics := grpcprometheus.NewServerMetrics()
+	err = prometheusRegistry.Register(grpcMetrics)
+	if err != nil {
+		return fmt.Errorf("failed to register gRPC server metrics: %v", err)
+	}
+
 	var grpcOptions []grpc.ServerOption
+
 	if c.GRPC.TLSCert != "" {
 		if c.GRPC.TLSClientCA != "" {
 			// Parse certificates from certificate file and key file for server.
@@ -117,7 +138,11 @@ func serve(cmd *cobra.Command, args []string) error {
 				ClientAuth:   tls.RequireAndVerifyClientCert,
 				ClientCAs:    cPool,
 			}
-			grpcOptions = append(grpcOptions, grpc.Creds(credentials.NewTLS(&tlsConfig)))
+			grpcOptions = append(grpcOptions,
+				grpc.Creds(credentials.NewTLS(&tlsConfig)),
+				grpc.StreamInterceptor(grpcMetrics.StreamServerInterceptor()),
+				grpc.UnaryInterceptor(grpcMetrics.UnaryServerInterceptor()),
+			)
 		} else {
 			opt, err := credentials.NewServerTLSFromFile(c.GRPC.TLSCert, c.GRPC.TLSKey)
 			if err != nil {
@@ -199,6 +224,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		Web:                    c.Frontend,
 		Logger:                 logger,
 		Now:                    now,
+		PrometheusRegistry:     prometheusRegistry,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
@@ -222,7 +248,17 @@ func serve(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize server: %v", err)
 	}
 
+	telemetryServ := http.NewServeMux()
+	telemetryServ.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
+
 	errc := make(chan error, 3)
+	if c.Telemetry.HTTP != "" {
+		logger.Infof("listening (http/telemetry) on %s", c.Telemetry.HTTP)
+		go func() {
+			err := http.ListenAndServe(c.Telemetry.HTTP, telemetryServ)
+			errc <- fmt.Errorf("listening on %s failed: %v", c.Telemetry.HTTP, err)
+		}()
+	}
 	if c.Web.HTTP != "" {
 		logger.Infof("listening (http) on %s", c.Web.HTTP)
 		go func() {
@@ -247,6 +283,7 @@ func serve(cmd *cobra.Command, args []string) error {
 				}
 				s := grpc.NewServer(grpcOptions...)
 				api.RegisterDexServer(s, server.NewAPI(serverConfig.Storage, logger))
+				grpcMetrics.InitializeMetrics(s)
 				err = s.Serve(list)
 				return fmt.Errorf("listening on %s failed: %v", c.GRPC.Addr, err)
 			}()

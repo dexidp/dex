@@ -23,6 +23,7 @@ import (
 
 	oidc "github.com/coreos/go-oidc"
 	"github.com/kylelemons/godebug/pretty"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
@@ -92,7 +93,8 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 		Web: WebConfig{
 			Dir: filepath.Join(os.Getenv("GOPATH"), "src/github.com/coreos/dex/web"),
 		},
-		Logger: logger,
+		Logger:             logger,
+		PrometheusRegistry: prometheus.NewRegistry(),
 	}
 	if updateConfig != nil {
 		updateConfig(&config)
