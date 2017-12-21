@@ -9,6 +9,15 @@
 		]
 	},
 	{
+		"project": "github.com/beorn7/perks/quantile",
+		"licenses": [
+			{
+				"type": "MIT License",
+				"confidence": 0.9891304347826086
+			}
+		]
+	},
+	{
 		"project": "github.com/cockroachdb/cockroach-go/crdb",
 		"licenses": [
 			{
@@ -41,6 +50,15 @@
 			{
 				"type": "Apache License 2.0",
 				"confidence": 1
+			}
+		]
+	},
+	{
+		"project": "github.com/felixge/httpsnoop",
+		"licenses": [
+			{
+				"type": "MIT License",
+				"confidence": 0.9891304347826086
 			}
 		]
 	},
@@ -90,6 +108,15 @@
 		]
 	},
 	{
+		"project": "github.com/grpc-ecosystem/go-grpc-prometheus",
+		"licenses": [
+			{
+				"type": "Apache License 2.0",
+				"confidence": 1
+			}
+		]
+	},
+	{
 		"project": "github.com/gtank/cryptopasta",
 		"licenses": [
 			{
@@ -126,7 +153,52 @@
 		]
 	},
 	{
+		"project": "github.com/matttproud/golang_protobuf_extensions/pbutil",
+		"licenses": [
+			{
+				"type": "Apache License 2.0",
+				"confidence": 0.9988925802879292
+			}
+		]
+	},
+	{
 		"project": "github.com/pquerna/cachecontrol",
+		"licenses": [
+			{
+				"type": "Apache License 2.0",
+				"confidence": 1
+			}
+		]
+	},
+	{
+		"project": "github.com/prometheus/client_golang/prometheus",
+		"licenses": [
+			{
+				"type": "Apache License 2.0",
+				"confidence": 1
+			}
+		]
+	},
+	{
+		"project": "github.com/prometheus/client_model/go",
+		"licenses": [
+			{
+				"type": "Apache License 2.0",
+				"confidence": 1
+			}
+		]
+	},
+	{
+		"project": "github.com/prometheus/common",
+		"licenses": [
+			{
+				"type": "Apache License 2.0",
+				"confidence": 1
+			}
+		]
+	},
+	{
+		"project": "github.com/prometheus/procfs",
 		"licenses": [
 			{
 				"type": "Apache License 2.0",
