@@ -8,11 +8,9 @@ Prominent examples of OpenID Connect providers include Google Accounts, Salesfor
 
 ## Caveats
 
-Many OpenID Connect providers implement different restrictions on refresh tokens. For example, Google will only issue the first login attempt a refresh token, then not return one after. Because of this, this connector does not refresh the id_token claims when a client of dex redeems a refresh token, which can result in stale user info.
+This connector does not support the "groups" claim. Progress for this is tracked in [issue #1065][issue-1065].
 
-It's generally recommended to avoid using refresh tokens with the `oidc` connector.
-
-Progress on this caveat can be tracked in [issue #863][google-refreshing].
+When using refresh tokens, changes to the upstream claims aren't propegated to the id_token returned by dex. If a user's email changes, the "email" claim returned by dex won't change unless the user logs in again. Progress for this is tracked in [issue #863][issue-863].
 
 ## Configuration
 
@@ -52,5 +50,6 @@ connectors:
 ```
 
 [oidc-doc]: openid-connect.md
-[google-refreshing]: https://github.com/coreos/dex/issues/863
+[issue-863]: https://github.com/coreos/dex/issues/863
+[issue-1065]: https://github.com/coreos/dex/issues/1065
 [azure-ad-v1]: https://github.com/coreos/go-oidc/issues/133
