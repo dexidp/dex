@@ -158,3 +158,27 @@ import:
 # License bill of materials generator.
 - package: github.com/coreos/license-bill-of-materials
   version: d70207c33a3c79a1c0479b208f8b7ab6215144c7
+
+# monitoring packages
+- package: github.com/beorn7/perks/quantile
+  version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
+- package: github.com/felixge/httpsnoop
+  version: eadd4fad6aac69ae62379194fe0219f3dbc80fd3
+- package: github.com/grpc-ecosystem/go-grpc-prometheus
+  version: 0dafe0d496ea71181bf2dd039e7e3f44b6bd11a7
+- package: github.com/matttproud/golang_protobuf_extensions/pbutil
+  version: fc2b8d3a73c4867e51861bbdd5ae3c1f0869dd6a
+- package: github.com/prometheus/client_golang/prometheus
+  version: 967789050ba94deca04a5e84cce8ad472ce313c1
+- package: github.com/prometheus/client_golang/prometheus/promhttp
+  version: 967789050ba94deca04a5e84cce8ad472ce313c1
+- package: github.com/prometheus/client_model/go
+  version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
+- package: github.com/prometheus/common/expfmt
+  version: 49fee292b27bfff7f354ee0f64e1bc4850462edf
+- package: github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
+  version: 49fee292b27bfff7f354ee0f64e1bc4850462edf
+- package: github.com/prometheus/common/model
+  version: 49fee292b27bfff7f354ee0f64e1bc4850462edf
+- package: github.com/prometheus/procfs/xfs
+  version: a1dba9ce8baed984a2495b658c82687f8157b98f
