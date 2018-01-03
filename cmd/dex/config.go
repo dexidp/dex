@@ -94,6 +94,8 @@ type OAuth2 struct {
 	// If specified, do not prompt the user to approve client authorization. The
 	// act of logging in implies authorization.
 	SkipApprovalScreen bool `json:"skipApprovalScreen"`
+	// This is the connector that can be used for password grant
+	PasswordConnector string `json:"passwordConnector"`
 }
 
 // Web is the config format for the HTTP server.
