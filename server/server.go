@@ -67,6 +67,9 @@ type Config struct {
 	// Logging in implies approval.
 	SkipApprovalScreen bool
 
+	// If set, the server will use this connector to handle password grants
+	PasswordConnector string
+
 	RotateKeysAfter  time.Duration // Defaults to 6 hours.
 	IDTokensValidFor time.Duration // Defaults to 24 hours
 
@@ -132,6 +135,9 @@ type Server struct {
 	// If enabled, don't prompt user for approval after logging in through connector.
 	skipApproval bool
 
+	// Used for password grant
+	passwordConnector string
+
 	supportedResponseTypes map[string]bool
 
 	now func() time.Time
@@ -190,6 +196,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		skipApproval:           c.SkipApprovalScreen,
 		now:                    c.Now,
 		templates:              templates,
+		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
 	}
 

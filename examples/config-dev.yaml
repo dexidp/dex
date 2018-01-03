@@ -45,7 +45,9 @@ telemetry:
 # Uncomment this block to control which response types dex supports. For example
 # the following response types enable the implicit flow for web-only clients.
 # Defaults to ["code"], the code flow.
-# oauth2:
+# Uncommend the passwordConnector to use a specific connector for password grants
+#oauth2:
+#   passwordConnector: local
 #   responseTypes: ["code", "token", "id_token"]
 
 # Instead of reading from an external storage, use this list of clients.
