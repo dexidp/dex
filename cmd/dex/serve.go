@@ -201,6 +201,9 @@ func serve(cmd *cobra.Command, args []string) error {
 	if c.OAuth2.SkipApprovalScreen {
 		logger.Infof("config skipping approval screen")
 	}
+	if c.OAuth2.PasswordConnector != "" {
+		logger.Infof("config using password grant connector: %s", c.OAuth2.PasswordConnector)
+	}
 	if len(c.Web.AllowedOrigins) > 0 {
 		logger.Infof("config allowed origins: %s", c.Web.AllowedOrigins)
 	}
@@ -212,6 +215,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		SupportedResponseTypes: c.OAuth2.ResponseTypes,
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
+		PasswordConnector:      c.OAuth2.PasswordConnector,
 		AllowedOrigins:         c.Web.AllowedOrigins,
 		Issuer:                 c.Issuer,
 		Storage:                s,
