@@ -62,14 +62,14 @@ More docs for running dex as a Kubernetes authenticator can be found [here](Docu
 * [gRPC API](Documentation/api.md)
 * [Using Kubernetes with dex](Documentation/kubernetes.md)
 * Identity provider logins
-  * [LDAP](Documentation/ldap-connector.md)
-  * [GitHub](Documentation/github-connector.md)
-  * [GitLab](Documentation/gitlab-connector.md)
-  * [SAML 2.0](Documentation/saml-connector.md)
-  * [OpenID Connect](Documentation/oidc-connector.md) (includes Google, Salesforce, Azure, etc.)
-  * [authproxy](Documentation/authproxy.md) (Apache2 mod_auth, etc.)
-  * [LinkedIn](Documentation/linkedin-connector.md)
-  * [Microsoft](Documentation/microsoft-connection.md)
+  * [LDAP](Documentation/connectors/ldap.md)
+  * [GitHub](Documentation/connectors/github.md)
+  * [GitLab](Documentation/connectors/gitlab.md)
+  * [SAML 2.0](Documentation/connectors/saml.md)
+  * [OpenID Connect](Documentation/connectors/oidc.md) (includes Google, Salesforce, Azure, etc.)
+  * [authproxy](Documentation/connectors/authproxy.md) (Apache2 mod_auth, etc.)
+  * [LinkedIn](Documentation/connectors/linkedin.md)
+  * [Microsoft](Documentation/connectors/microsoft.md)
 * Client libraries
   * [Go][go-oidc]
 
