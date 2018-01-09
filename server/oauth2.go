@@ -376,6 +376,15 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 	scopes := strings.Fields(q.Get("scope"))
 	responseTypes := strings.Fields(q.Get("response_type"))
 
+	var connectorID string
+	if hint := q.Get("id_token_hint"); hint != "" {
+		connectorID, err = connectorIDFromIDTokenHint(hint)
+		if err != nil {
+			s.logger.Errorf("failed to process id_token_hint: %s", err)
+			return req, &authErr{"", "", errInvalidRequest, "Invalid id_token_hint."}
+		}
+	}
+
 	client, err := s.storage.GetClient(clientID)
 	if err != nil {
 		if err == storage.ErrNotFound {
@@ -484,6 +493,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 	return storage.AuthRequest{
 		ID:                  storage.NewID(),
 		ClientID:            client.ID,
+		ConnectorID:         connectorID,
 		State:               state,
 		Nonce:               nonce,
 		ForceApprovalPrompt: q.Get("approval_prompt") == "force",
@@ -547,4 +557,28 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 	}
 	host, _, err := net.SplitHostPort(u.Host)
 	return err == nil && host == "localhost"
+}
+
+// connectorIDFromIDTokenHint tries to extract the connector used when the
+// passed ID token was issued. It does NOT check the JWT signature -- we might
+// get presented an ID token that has long since expired and we still want to
+// provide the correct connector pre-selection. Note, however, that the token
+// MAY BE VALID and should this not be part of any error output.
+func connectorIDFromIDTokenHint(hint string) (string, error) {
+	parts := strings.SplitN(hint, ".", 3)
+	if len(parts) != 3 {
+		return "", errors.New("wrong format")
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", fmt.Errorf("failed to decode payload: %v", err)
+	}
+
+	cl := struct {
+		Sub internal.IDTokenSubject `json:"sub"`
+	}{}
+	if err := json.Unmarshal([]byte(payload), &cl); err != nil {
+		return "", fmt.Errorf("failed to unmarshal payload: %v", err)
+	}
+	return cl.Sub.ConnId, nil
 }

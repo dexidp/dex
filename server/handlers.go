@@ -167,6 +167,12 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// if we already know which connector the user should use -- go there directly
+	if authReq.ConnectorID != "" {
+		http.Redirect(w, r, s.absPath("/auth", authReq.ConnectorID)+"?backlink=none&req="+authReq.ID, http.StatusFound)
+		return
+	}
+
 	connectors, e := s.storage.ListConnectors()
 	if e != nil {
 		s.logger.Errorf("Failed to get list of connectors: %v", err)
@@ -223,7 +229,12 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	scopes := parseScopes(authReq.Scopes)
-	showBacklink := len(s.connectors) > 1
+
+	// allows for overriding the backlink display -- this is set when the initial
+	// request provided an `id_token_hint`, and we've forwarded the client based
+	// on this token's connector id.
+	backlinkOverride := r.FormValue("backlink")
+	showBacklink := len(s.connectors) > 1 && backlinkOverride != "none"
 
 	switch r.Method {
 	case "GET":

@@ -24,6 +24,8 @@ func TestParseAuthorizationRequest(t *testing.T) {
 		queryParams map[string]string
 
 		wantErr bool
+
+		authReqCheck func(*testing.T, *storage.AuthRequest)
 	}{
 		{
 			name: "normal request",
@@ -40,6 +42,66 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "code",
 				"scope":         "openid email profile",
 			},
+		},
+		{
+			name: "request with valid id_token_hint",
+			clients: []storage.Client{
+				{
+					ID:           "foo",
+					RedirectURIs: []string{"https://example.com/foo"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				// sub: "Cg0wLTM4NS0yODA4OS0wEgRtb2Nr" = {0-385-28089-0, "mock"}
+				"id_token_hint": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJDZzB3TFRNNE5TMHlPREE0T1Mwd0VnUnRiMk5yIn0.M1mYqRIYeAaLeo3B7DWj_Nxm589tbworSGffCIgBz04",
+				"client_id":     "foo",
+				"redirect_uri":  "https://example.com/foo",
+				"response_type": "code",
+				"scope":         "openid email profile",
+			},
+			authReqCheck: func(t *testing.T, ar *storage.AuthRequest) {
+				if ar.ConnectorID != "mock" {
+					t.Errorf("expected connectorID \"mock\", got %v", ar.ConnectorID)
+				}
+			},
+		},
+		{
+			name: "request with non-jwt id_token_hint",
+			clients: []storage.Client{
+				{
+					ID:           "foo",
+					RedirectURIs: []string{"https://example.com/foo"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"id_token_hint": "notevenajwt",
+				"client_id":     "foo",
+				"redirect_uri":  "https://example.com/foo",
+				"response_type": "code",
+				"scope":         "openid email profile",
+			},
+			wantErr: true,
+		},
+		{
+			name: "request with invalid id_token_hint (bad sub)",
+			clients: []storage.Client{
+				{
+					ID:           "foo",
+					RedirectURIs: []string{"https://example.com/foo"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				// sub: "ject"
+				"id_token_hint": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqZWN0In0.GwGd9UBSu2XrfeULp8u3KI0jZPt1ccUIGk1TaCCtLqE",
+				"client_id":     "foo",
+				"redirect_uri":  "https://example.com/foo",
+				"response_type": "code",
+				"scope":         "openid email profile",
+			},
+			wantErr: true,
 		},
 		{
 			name: "POST request",
@@ -145,7 +207,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		func() {
+		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
@@ -168,14 +230,17 @@ func TestParseAuthorizationRequest(t *testing.T) {
 			} else {
 				req = httptest.NewRequest("GET", httpServer.URL+"/auth?"+params.Encode(), nil)
 			}
-			_, err := server.parseAuthorizationRequest(req)
+			resp, err := server.parseAuthorizationRequest(req)
 			if err != nil && !tc.wantErr {
-				t.Errorf("%s: %v", tc.name, err)
+				t.Fatal(err)
 			}
 			if err == nil && tc.wantErr {
-				t.Errorf("%s: expected error", tc.name)
+				t.Error("expected error")
 			}
-		}()
+			if tc.authReqCheck != nil {
+				tc.authReqCheck(t, &resp)
+			}
+		})
 	}
 }
 

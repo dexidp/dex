@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/base64"
+	"encoding/json"
 
 	"github.com/golang/protobuf/proto"
 )
@@ -22,4 +23,13 @@ func Unmarshal(s string, message proto.Message) error {
 		return err
 	}
 	return proto.Unmarshal(data, message)
+}
+
+// UnmarshalJSON unmarshals the subject claim's internal format
+func (s *IDTokenSubject) UnmarshalJSON(src []byte) error {
+	var sub string
+	if err := json.Unmarshal(src, &sub); err != nil {
+		return err
+	}
+	return Unmarshal(sub, s)
 }
