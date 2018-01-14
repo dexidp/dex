@@ -84,7 +84,7 @@ type Config struct {
 
 	// User entry search configuration.
 	UserSearch struct {
-		// BsaeDN to start the search from. For example "cn=users,dc=example,dc=com"
+		// BaseDN to start the search from. For example "cn=users,dc=example,dc=com"
 		BaseDN string `json:"baseDN"`
 
 		// Optional filter to apply when searching the directory. For example "(objectClass=person)"
@@ -108,7 +108,7 @@ type Config struct {
 
 	// Group search configuration.
 	GroupSearch struct {
-		// BsaeDN to start the search from. For example "cn=groups,dc=example,dc=com"
+		// BaseDN to start the search from. For example "cn=groups,dc=example,dc=com"
 		BaseDN string `json:"baseDN"`
 
 		// Optional filter to apply when searching the directory. For example "(objectClass=posixGroup)"
