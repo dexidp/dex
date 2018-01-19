@@ -74,12 +74,10 @@ type CallbackConnector interface {
 // See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
 // "3.5 HTTP POST Binding"
 type SAMLConnector interface {
-	// POSTData returns an encoded SAML request and SSO URL for the server to
-	// render a POST form with.
-	//
-	// POSTData should encode the provided request ID in the returned serialized
-	// SAML request.
-	POSTData(s Scopes, requestID string) (ssoURL, samlRequest string, err error)
+	// AuthnRequest returns an encoded SAML request and SSO URL for the server to
+	// render a POST form with, or send via the Redirect Binding, depending on the
+	// connector's configuration.
+	AuthnRequest(s Scopes, requestID string) (sooURL, samlRequest string, post bool, err error)
 
 	// HandlePOST decodes, verifies, and maps attributes from the SAML response.
 	// It passes the expected value of the "InResponseTo" response field, which

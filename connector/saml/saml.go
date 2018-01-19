@@ -3,6 +3,7 @@ package saml
 
 import (
 	"bytes"
+	"compress/flate"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -84,6 +85,17 @@ type Config struct {
 	SSOIssuer    string `json:"ssoIssuer"`
 	SSOURL       string `json:"ssoURL"`
 
+	// Use HTTP Redirect Binding instead of HTTP Post Binding for AuthnRequest
+	// See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
+	// "3.4.4 Message Encoding" for HTTP Redirect Binding
+	// "3.5.4 Message Encoding" for HTTP POST Binding
+	//
+	// If not provided, will use HTTP Post Binding.
+	// If set to true, this will use the DEFLATE encoding specified in the spec
+	// referenced above. It will NOT pass SAMLEncoding set to
+	//   urn:oasis:names:tc:SAML:2.0:bindings:URL-Encoding:DEFLATE
+	RedirectBinding bool `json:"redirectBinding"`
+
 	// X509 CA file or raw data to verify XML signatures.
 	CA     string `json:"ca"`
 	CAData []byte `json:"caData"`
@@ -154,16 +166,17 @@ func (c *Config) openConnector(logger log.Logger) (*provider, error) {
 	}
 
 	p := &provider{
-		entityIssuer: c.EntityIssuer,
-		ssoIssuer:    c.SSOIssuer,
-		ssoURL:       c.SSOURL,
-		now:          time.Now,
-		usernameAttr: c.UsernameAttr,
-		emailAttr:    c.EmailAttr,
-		groupsAttr:   c.GroupsAttr,
-		groupsDelim:  c.GroupsDelim,
-		redirectURI:  c.RedirectURI,
-		logger:       logger,
+		entityIssuer:    c.EntityIssuer,
+		ssoIssuer:       c.SSOIssuer,
+		ssoURL:          c.SSOURL,
+		redirectBinding: c.RedirectBinding,
+		now:             time.Now,
+		usernameAttr:    c.UsernameAttr,
+		emailAttr:       c.EmailAttr,
+		groupsAttr:      c.GroupsAttr,
+		groupsDelim:     c.GroupsDelim,
+		redirectURI:     c.RedirectURI,
+		logger:          logger,
 
 		nameIDPolicyFormat: c.NameIDPolicyFormat,
 	}
@@ -226,6 +239,10 @@ type provider struct {
 	ssoIssuer    string
 	ssoURL       string
 
+	// use HTTP Redirect Binding for AuthnRequest
+	// if false, HTTP Post Binding is used
+	redirectBinding bool
+
 	now func() time.Time
 
 	// If nil, don't do signature validation.
@@ -244,19 +261,24 @@ type provider struct {
 	logger log.Logger
 }
 
-func (p *provider) POSTData(s connector.Scopes, id string) (action, value string, err error) {
-
+func (p *provider) AuthnRequest(s connector.Scopes, id string) (action, value string, post bool, err error) {
 	r := &authnRequest{
-		ProtocolBinding: bindingPOST,
-		ID:              id,
-		IssueInstant:    xmlTime(p.now()),
-		Destination:     p.ssoURL,
+		ID:           id,
+		IssueInstant: xmlTime(p.now()),
+		Destination:  p.ssoURL,
 		NameIDPolicy: &nameIDPolicy{
 			AllowCreate: true,
 			Format:      p.nameIDPolicyFormat,
 		},
 		AssertionConsumerServiceURL: p.redirectURI,
 	}
+
+	if p.redirectBinding {
+		r.ProtocolBinding = bindingRedirect
+	} else {
+		r.ProtocolBinding = bindingPOST
+	}
+
 	if p.entityIssuer != "" {
 		// Issuer for the request is optional. For example, okta always ignores
 		// this value.
@@ -265,12 +287,26 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 
 	data, err := xml.MarshalIndent(r, "", "  ")
 	if err != nil {
-		return "", "", fmt.Errorf("marshal authn request: %v", err)
+		return "", "", false, fmt.Errorf("marshal authn request: %v", err)
 	}
 
+	// Encode data according to specified binding
 	// See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
-	// "3.5.4 Message Encoding"
-	return p.ssoURL, base64.StdEncoding.EncodeToString(data), nil
+	var encoded string
+	if p.redirectBinding { // "3.4.4 Message Encoding"
+		b := new(bytes.Buffer)
+		compressor, err := flate.NewWriter(b, 0) // no compression
+		if err != nil {
+			return "", "", false, fmt.Errorf("encode authn request: %v", err)
+		}
+		compressor.Write(data)
+		compressor.Close()
+		encoded = base64.URLEncoding.EncodeToString(b.Bytes())
+	} else { // "3.5.4 Message Encoding"
+		encoded = base64.StdEncoding.EncodeToString(data)
+	}
+
+	return p.ssoURL, encoded, !p.redirectBinding, nil
 }
 
 // HandlePOST interprets a request from a SAML provider attempting to verify a
