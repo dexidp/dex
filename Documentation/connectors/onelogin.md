@@ -37,10 +37,6 @@ connectors:
     clientID: $ONELOGIN_CLIENT_ID
     clientSecret: $ONELOGIN_CLIENT_SECRET
 
-    # Connector config values starting with a "$" will read from the environment.
-    clientID: $GOOGLE_CLIENT_ID
-    clientSecret: $GOOGLE_CLIENT_SECRET
-
     # Dex's issuer URL + "/callback"
     redirectURI: http://127.0.0.1:5556/callback
 
