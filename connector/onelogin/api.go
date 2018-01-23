@@ -94,7 +94,6 @@ func getAPIAccessToken(auth string) (string, error) {
 	if err := json.Unmarshal(*body, &token); err != nil {
 		return "", err
 	}
-	fmt.Printf("%+v\n", token)
 	return token.Data[0].AccessToken, nil
 }
 
@@ -110,7 +109,6 @@ func getAPIUserRoles(rolesPrefix, authToken, userID string) ([]string, error) {
 	if err := json.Unmarshal(*body, &userRoleIDs); err != nil {
 		return nil, err
 	}
-	fmt.Printf("%+v\n", userRoleIDs)
 
 	var userRoles []string
 	for i, g := range userRoleIDs.Data[0] {
@@ -141,7 +139,5 @@ func getAPIRoleName(authToken string, roleID int) (string, error) {
 	if err := json.Unmarshal(*body, &role); err != nil {
 		return "", err
 	}
-	fmt.Printf("%+v\n", role)
-
 	return role.Data[0].Name, nil
 }
