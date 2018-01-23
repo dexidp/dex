@@ -107,6 +107,7 @@ const (
 	scopeGroups            = "groups"
 	scopeEmail             = "email"
 	scopeProfile           = "profile"
+	scopeFederatedID       = "federated:id"
 	scopeCrossClientPrefix = "audience:server:client_id:"
 )
 
@@ -255,6 +256,13 @@ type idTokenClaims struct {
 	Groups []string `json:"groups,omitempty"`
 
 	Name string `json:"name,omitempty"`
+
+	FederatedIDClaims *federatedIDClaims `json:"federated_claims,omitempty"`
+}
+
+type federatedIDClaims struct {
+	ConnectorID string `json:"connector_id,omitempty"`
+	UserID      string `json:"user_id,omitempty"`
 }
 
 func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, connID string) (idToken string, expiry time.Time, err error) {
@@ -313,6 +321,11 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 			tok.Groups = claims.Groups
 		case scope == scopeProfile:
 			tok.Name = claims.Username
+		case scope == scopeFederatedID:
+			tok.FederatedIDClaims = &federatedIDClaims{
+				ConnectorID: connID,
+				UserID:      claims.UserID,
+			}
 		default:
 			peerID, ok := parseCrossClientScope(scope)
 			if !ok {
@@ -405,7 +418,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 		switch scope {
 		case scopeOpenID:
 			hasOpenIDScope = true
-		case scopeOfflineAccess, scopeEmail, scopeProfile, scopeGroups:
+		case scopeOfflineAccess, scopeEmail, scopeProfile, scopeGroups, scopeFederatedID:
 		default:
 			peerID, ok := parseCrossClientScope(scope)
 			if !ok {
