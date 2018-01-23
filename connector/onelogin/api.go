@@ -57,7 +57,7 @@ type (
 )
 
 var (
-	roleNames map[int]string
+	roleNames = make(map[int]string)
 )
 
 func doRequest(req *http.Request) (*[]byte, error) {
