@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/sh -e
 
 # This is a script to download protoc. Rather than depending on the version on
 # a developer's machine, always download a specific version.

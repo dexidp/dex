@@ -35,6 +35,8 @@ type Identity struct {
 	//
 	// This data is never shared with end users, OAuth clients, or through the API.
 	ConnectorData []byte
+
+	UserDN string
 }
 
 // PasswordConnector is an interface implemented by connectors which take a
@@ -45,6 +47,11 @@ type PasswordConnector interface {
 	Prompt() string
 	Login(ctx context.Context, s Scopes, username, password string) (identity Identity, validPassword bool, err error)
 }
+
+//type PKIConnector interface {
+//	Prompt() string
+//	Login(ctx context.Context, s Scopes, dn string) (identity Identity, err error)
+//}
 
 // CallbackConnector is an interface implemented by connectors which use an OAuth
 // style redirect flow to determine user information.

@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/sh -e
 
 result=$( go fmt $@ )
 if [[ $result != "" ]]; then

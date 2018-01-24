@@ -25,6 +25,7 @@ import (
 	"github.com/coreos/dex/api"
 	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/storage"
+	"github.com/coreos/dex/pkiutil"
 )
 
 func commandServe() *cobra.Command {
@@ -269,8 +270,27 @@ func serve(cmd *cobra.Command, args []string) error {
 	if c.Web.HTTPS != "" {
 		logger.Infof("listening (https) on %s", c.Web.HTTPS)
 		go func() {
-			err := http.ListenAndServeTLS(c.Web.HTTPS, c.Web.TLSCert, c.Web.TLSKey, serv)
-			errc <- fmt.Errorf("listening on %s failed: %v", c.Web.HTTPS, err)
+			tlsConfig, err := newTLSConfig("certs/ca.crt", "certs/server.crt", "certs/server.key") // TODO: config
+			if err != nil {
+				errc <- fmt.Errorf("listening on %s failed: %v", c.Web.HTTPS, err)
+				return
+			}
+			srv := &http.Server{
+				Addr:      c.Web.HTTPS,
+				Handler:   distinguishedNameMiddleware(serv),
+				TLSConfig: tlsConfig,
+			}
+			ln, err := tls.Listen("tcp", c.Web.HTTPS, tlsConfig)
+			if err != nil {
+				errc <- fmt.Errorf("listening on %s failed: %v", c.Web.HTTPS, err)
+				return
+			}
+			err = srv.Serve(ln)
+			if err != nil {
+				errc <- fmt.Errorf("listening on %s failed: %v", c.Web.HTTPS, err)
+				return
+			}
+
 		}()
 	}
 	if c.GRPC.Addr != "" {
@@ -335,4 +355,78 @@ func newLogger(level string, format string) (logrus.FieldLogger, error) {
 		Formatter: &formatter,
 		Level:     logLevel,
 	}, nil
+}
+
+func distinguishedNameMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if dn, ok := getDistinguishedName(r); ok {
+			ctx := r.Context()
+			ctx = pkiutil.ContextWithDistinguishedName(ctx, dn)
+			r = r.WithContext(ctx)
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func getDistinguishedName(req *http.Request) (userDN string, ok bool) {
+	havePeerCert := req.TLS != nil && req.TLS.PeerCertificates != nil && len(req.TLS.PeerCertificates) != 0
+	if !havePeerCert {
+		return "", false
+	}
+
+	cert := req.TLS.PeerCertificates[0]
+
+	result := ""
+	if len(cert.Subject.CommonName) > 0 {
+		result += ",CN=" + cert.Subject.CommonName
+	}
+	for l := len(cert.Subject.Locality); l > 0; l-- {
+		result += ",L=" + cert.Subject.Locality[l-1]
+	}
+	for p := len(cert.Subject.Province); p > 0; p-- {
+		result += ",ST=" + cert.Subject.Province[p-1]
+	}
+	for ou := len(cert.Subject.OrganizationalUnit); ou > 0; ou-- {
+		result += ",OU=" + cert.Subject.OrganizationalUnit[ou-1]
+	}
+	for o := len(cert.Subject.Organization); o > 0; o-- {
+		result += ",O=" + cert.Subject.Organization[o-1]
+	}
+	for c := len(cert.Subject.Country); c > 0; c-- {
+		result += ",C=" + cert.Subject.Country[c-1]
+	}
+	for street := len(cert.Subject.StreetAddress); street > 0; street-- {
+		result += ",STREET=" + cert.Subject.StreetAddress[street-1]
+	}
+	if len(result) > 0 {
+		result = result[1:len(result)]
+	}
+
+	return result, true
+}
+
+func newTLSConfig(trustPath, certPath, keyPath string) (*tls.Config, error) {
+	trustBytes, err := ioutil.ReadFile(trustPath)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing CA trust %s: %v", trustPath, err)
+	}
+	trustCertPool := x509.NewCertPool()
+	if !trustCertPool.AppendCertsFromPEM(trustBytes) {
+		return nil, fmt.Errorf("error adding CA trust to pool: %v", err)
+	}
+	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing cert: %v", err)
+	}
+	cfg := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		ClientCAs:    trustCertPool,
+		RootCAs:      trustCertPool,
+		ClientAuth:   tls.RequestClientCert,
+	}
+
+	cfg.BuildNameToCertificate()
+
+	return cfg, nil
 }
