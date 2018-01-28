@@ -272,6 +272,9 @@ type OfflineSessions struct {
 	// Refresh is a hash table of refresh token reference objects
 	// indexed by the ClientID of the refresh token.
 	Refresh map[string]*RefreshTokenRef
+
+	// Authentication data provided by an upstream source.
+	ConnectorData []byte
 }
 
 // Password is an email to password mapping managed by the storage.
