@@ -470,7 +470,6 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 	updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
 		a.LoggedIn = true
 		a.Claims = claims
-		a.ConnectorData = identity.ConnectorData
 		return a, nil
 	}
 	if err := s.storage.UpdateAuthRequest(authReq.ID, updater); err != nil {
@@ -599,15 +598,14 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		switch responseType {
 		case responseTypeCode:
 			code = storage.AuthCode{
-				ID:            storage.NewID(),
-				ClientID:      authReq.ClientID,
-				ConnectorID:   authReq.ConnectorID,
-				Nonce:         authReq.Nonce,
-				Scopes:        authReq.Scopes,
-				Claims:        authReq.Claims,
-				Expiry:        s.now().Add(time.Minute * 30),
-				RedirectURI:   authReq.RedirectURI,
-				ConnectorData: authReq.ConnectorData,
+				ID:          storage.NewID(),
+				ClientID:    authReq.ClientID,
+				ConnectorID: authReq.ConnectorID,
+				Nonce:       authReq.Nonce,
+				Scopes:      authReq.Scopes,
+				Claims:      authReq.Claims,
+				Expiry:      s.now().Add(time.Minute * 30),
+				RedirectURI: authReq.RedirectURI,
 			}
 			if err := s.storage.CreateAuthCode(code); err != nil {
 				s.logger.Errorf("Failed to create auth code: %v", err)
@@ -789,16 +787,15 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	var refreshToken string
 	if reqRefresh {
 		refresh := storage.RefreshToken{
-			ID:            storage.NewID(),
-			Token:         storage.NewID(),
-			ClientID:      authCode.ClientID,
-			ConnectorID:   authCode.ConnectorID,
-			Scopes:        authCode.Scopes,
-			Claims:        authCode.Claims,
-			Nonce:         authCode.Nonce,
-			ConnectorData: authCode.ConnectorData,
-			CreatedAt:     s.now(),
-			LastUsed:      s.now(),
+			ID:          storage.NewID(),
+			Token:       storage.NewID(),
+			ClientID:    authCode.ClientID,
+			ConnectorID: authCode.ConnectorID,
+			Scopes:      authCode.Scopes,
+			Claims:      authCode.Claims,
+			Nonce:       authCode.Nonce,
+			CreatedAt:   s.now(),
+			LastUsed:    s.now(),
 		}
 		token := &internal.RefreshToken{
 			RefreshId: refresh.ID,
