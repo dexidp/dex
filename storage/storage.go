@@ -181,8 +181,7 @@ type AuthRequest struct {
 
 	// The connector used to login the user and any data the connector wishes to persists.
 	// Set when the user authenticates.
-	ConnectorID   string
-	ConnectorData []byte
+	ConnectorID string
 }
 
 // AuthCode represents a code which can be exchanged for an OAuth2 token response.
@@ -213,9 +212,8 @@ type AuthCode struct {
 	Scopes []string
 
 	// Authentication data provided by an upstream source.
-	ConnectorID   string
-	ConnectorData []byte
-	Claims        Claims
+	ConnectorID string
+	Claims      Claims
 
 	Expiry time.Time
 }
@@ -237,9 +235,8 @@ type RefreshToken struct {
 	ClientID string
 
 	// Authentication data provided by an upstream source.
-	ConnectorID   string
-	ConnectorData []byte
-	Claims        Claims
+	ConnectorID string
+	Claims      Claims
 
 	// Scopes present in the initial request. Refresh requests may specify a set
 	// of scopes different from the initial request when refreshing a token,
