@@ -91,7 +91,6 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 		LoggedIn:            true,
 		Expiry:              neverExpire,
 		ConnectorID:         "ldap",
-		ConnectorData:       []byte(`{"some":"data"}`),
 		Claims: storage.Claims{
 			UserID:        "1",
 			Username:      "jane",
@@ -123,7 +122,6 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 		LoggedIn:            true,
 		Expiry:              neverExpire,
 		ConnectorID:         "ldap",
-		ConnectorData:       []byte(`{"some":"data"}`),
 		Claims: storage.Claims{
 			UserID:        "2",
 			Username:      "john",
@@ -165,14 +163,13 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 
 func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 	a1 := storage.AuthCode{
-		ID:            storage.NewID(),
-		ClientID:      "client1",
-		RedirectURI:   "https://localhost:80/callback",
-		Nonce:         "foobar",
-		Scopes:        []string{"openid", "email"},
-		Expiry:        neverExpire,
-		ConnectorID:   "ldap",
-		ConnectorData: []byte(`{"some":"data"}`),
+		ID:          storage.NewID(),
+		ClientID:    "client1",
+		RedirectURI: "https://localhost:80/callback",
+		Nonce:       "foobar",
+		Scopes:      []string{"openid", "email"},
+		Expiry:      neverExpire,
+		ConnectorID: "ldap",
 		Claims: storage.Claims{
 			UserID:        "1",
 			Username:      "jane",
@@ -187,14 +184,13 @@ func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 	}
 
 	a2 := storage.AuthCode{
-		ID:            storage.NewID(),
-		ClientID:      "client2",
-		RedirectURI:   "https://localhost:80/callback",
-		Nonce:         "foobar",
-		Scopes:        []string{"openid", "email"},
-		Expiry:        neverExpire,
-		ConnectorID:   "ldap",
-		ConnectorData: []byte(`{"some":"data"}`),
+		ID:          storage.NewID(),
+		ClientID:    "client2",
+		RedirectURI: "https://localhost:80/callback",
+		Nonce:       "foobar",
+		Scopes:      []string{"openid", "email"},
+		Expiry:      neverExpire,
+		ConnectorID: "ldap",
 		Claims: storage.Claims{
 			UserID:        "2",
 			Username:      "john",
@@ -323,7 +319,6 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 			EmailVerified: true,
 			Groups:        []string{"a", "b"},
 		},
-		ConnectorData: []byte(`{"some":"data"}`),
 	}
 	if err := s.CreateRefresh(refresh); err != nil {
 		t.Fatalf("create refresh token: %v", err)
@@ -377,7 +372,6 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 			EmailVerified: true,
 			Groups:        []string{"a", "b"},
 		},
-		ConnectorData: []byte(`{"some":"data"}`),
 	}
 
 	if err := s.CreateRefresh(refresh2); err != nil {
@@ -729,14 +723,13 @@ func testGC(t *testing.T, s storage.Storage) {
 
 	expiry := time.Now().In(est)
 	c := storage.AuthCode{
-		ID:            storage.NewID(),
-		ClientID:      "foobar",
-		RedirectURI:   "https://localhost:80/callback",
-		Nonce:         "foobar",
-		Scopes:        []string{"openid", "email"},
-		Expiry:        expiry,
-		ConnectorID:   "ldap",
-		ConnectorData: []byte(`{"some":"data"}`),
+		ID:          storage.NewID(),
+		ClientID:    "foobar",
+		RedirectURI: "https://localhost:80/callback",
+		Nonce:       "foobar",
+		Scopes:      []string{"openid", "email"},
+		Expiry:      expiry,
+		ConnectorID: "ldap",
 		Claims: storage.Claims{
 			UserID:        "1",
 			Username:      "jane",
@@ -788,7 +781,6 @@ func testGC(t *testing.T, s storage.Storage) {
 		LoggedIn:            true,
 		Expiry:              expiry,
 		ConnectorID:         "ldap",
-		ConnectorData:       []byte(`{"some":"data"}`),
 		Claims: storage.Claims{
 			UserID:        "1",
 			Username:      "jane",
@@ -841,14 +833,13 @@ func testTimezones(t *testing.T, s storage.Storage) {
 	expiry := time.Now().In(est).Round(time.Millisecond)
 
 	c := storage.AuthCode{
-		ID:            storage.NewID(),
-		ClientID:      "foobar",
-		RedirectURI:   "https://localhost:80/callback",
-		Nonce:         "foobar",
-		Scopes:        []string{"openid", "email"},
-		Expiry:        expiry,
-		ConnectorID:   "ldap",
-		ConnectorData: []byte(`{"some":"data"}`),
+		ID:          storage.NewID(),
+		ClientID:    "foobar",
+		RedirectURI: "https://localhost:80/callback",
+		Nonce:       "foobar",
+		Scopes:      []string{"openid", "email"},
+		Expiry:      expiry,
+		ConnectorID: "ldap",
 		Claims: storage.Claims{
 			UserID:        "1",
 			Username:      "jane",
