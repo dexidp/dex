@@ -324,7 +324,7 @@ func getRefresh(q querier, id string) (storage.RefreshToken, error) {
 			id, client_id, scopes, nonce,
 			claims_user_id, claims_username, claims_email, claims_email_verified,
 			claims_groups,
-			connector_id, connector_data,
+			connector_id,
 			token, created_at, last_used
 		from refresh_token where id = $1;
 	`, id))
@@ -678,7 +678,7 @@ func (c *conn) UpdateOfflineSessions(userID string, connID string, updater func(
 		_, err = tx.Exec(`
 			update offline_session
 			set
-				refresh = $1
+				refresh = $1,
 				connector_data = $2
 			where user_id = $3 AND conn_id = $4;
 		`,
