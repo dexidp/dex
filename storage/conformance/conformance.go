@@ -509,9 +509,10 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {
 	userID1 := storage.NewID()
 	session1 := storage.OfflineSessions{
-		UserID:  userID1,
-		ConnID:  "Conn1",
-		Refresh: make(map[string]*storage.RefreshTokenRef),
+		UserID:        userID1,
+		ConnID:        "Conn1",
+		Refresh:       make(map[string]*storage.RefreshTokenRef),
+		ConnectorData: []byte(`{"some":"data"}`),
 	}
 
 	// Creating an OfflineSession with an empty Refresh list to ensure that
@@ -526,9 +527,10 @@ func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {
 
 	userID2 := storage.NewID()
 	session2 := storage.OfflineSessions{
-		UserID:  userID2,
-		ConnID:  "Conn2",
-		Refresh: make(map[string]*storage.RefreshTokenRef),
+		UserID:        userID2,
+		ConnID:        "Conn2",
+		Refresh:       make(map[string]*storage.RefreshTokenRef),
+		ConnectorData: []byte(`{"some":"data"}`),
 	}
 
 	if err := s.CreateOfflineSessions(session2); err != nil {
