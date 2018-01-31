@@ -16,14 +16,15 @@ import (
 
 // Config holds configuration options for OpenID Connect logins.
 type Config struct {
-	Subdomain    string   `json:"subdomain"`
-	APIID        string   `json:"apiID"`
-	APISecret    string   `json:"apiSecret"`
-	ClientID     string   `json:"clientID"`
-	ClientSecret string   `json:"clientSecret"`
-	RedirectURI  string   `json:"redirectURI"`
-	RolesPrefix  string   `json:"rolesPrefix"`
-	Scopes       []string `json:"scopes"` // defaults to "profile" and "email"
+	Subdomain             string   `json:"subdomain"`
+	APIID                 string   `json:"apiID"`
+	APISecret             string   `json:"apiSecret"`
+	ClientID              string   `json:"clientID"`
+	ClientSecret          string   `json:"clientSecret"`
+	RedirectURI           string   `json:"redirectURI"`
+	RolesPrefix           string   `json:"rolesPrefix"`
+	EmailVerifiedOverride bool     `json:"emailVerifiedOverride"`
+	Scopes                []string `json:"scopes"` // defaults to "profile" and "email"
 }
 
 // Open returns a connector which can be used to login users through an upstream
@@ -64,10 +65,11 @@ func (c *Config) Open(id string, logger logrus.FieldLogger) (conn connector.Conn
 		verifier: provider.Verifier(
 			&oidc.Config{ClientID: clientID},
 		),
-		logger:      logger,
-		cancel:      cancel,
-		apiAuth:     apiAuth,
-		rolesPrefix: c.RolesPrefix,
+		logger:                logger,
+		cancel:                cancel,
+		apiAuth:               apiAuth,
+		rolesPrefix:           c.RolesPrefix,
+		emailVerifiedOverride: c.EmailVerifiedOverride,
 	}, nil
 }
 
@@ -77,14 +79,15 @@ var (
 )
 
 type oidcConnector struct {
-	redirectURI  string
-	oauth2Config *oauth2.Config
-	verifier     *oidc.IDTokenVerifier
-	ctx          context.Context
-	cancel       context.CancelFunc
-	logger       logrus.FieldLogger
-	apiAuth      string
-	rolesPrefix  string
+	redirectURI           string
+	oauth2Config          *oauth2.Config
+	verifier              *oidc.IDTokenVerifier
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	logger                logrus.FieldLogger
+	apiAuth               string
+	rolesPrefix           string
+	emailVerifiedOverride bool
 }
 
 func (c *oidcConnector) Close() error {
@@ -156,7 +159,7 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		UserID:        idToken.Subject,
 		Username:      claims.Username,
 		Email:         claims.Email,
-		EmailVerified: claims.EmailVerified,
+		EmailVerified: claims.EmailVerified || c.emailVerifiedOverride,
 		Groups:        groups,
 	}
 	return identity, nil

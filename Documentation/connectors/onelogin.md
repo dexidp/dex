@@ -37,6 +37,9 @@ connectors:
     clientID: $ONELOGIN_CLIENT_ID
     clientSecret: $ONELOGIN_CLIENT_SECRET
 
+    # Force email_verified field in returned JWT to be true for this connector.
+    emailVerifiedOverride: true
+
     # Dex's issuer URL + "/callback"
     redirectURI: http://127.0.0.1:5556/callback
 
