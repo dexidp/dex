@@ -100,7 +100,9 @@ var migrations = []migration{
 				connector_id text not null,
 				connector_data bytea,
 		
-				expiry timestamptz not null
+				expiry timestamptz not null,
+
+				claims_user_dn text not null
 			);
 		
 			create table auth_code (
@@ -119,7 +121,9 @@ var migrations = []migration{
 				connector_id text not null,
 				connector_data bytea,
 		
-				expiry timestamptz not null
+				expiry timestamptz not null,
+
+				claims_user_dn text not null
 			);
 		
 			create table refresh_token (
@@ -135,7 +139,9 @@ var migrations = []migration{
 				claims_groups bytea not null, -- JSON array of strings
 		
 				connector_id text not null,
-				connector_data bytea
+				connector_data bytea,
+
+				claims_user_dn text not null
 			);
 
 			create table password (

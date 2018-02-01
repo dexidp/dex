@@ -14,11 +14,11 @@ storage:
 
 # Configuration for the HTTP endpoints.
 web:
-  http: 0.0.0.0:5556
+  #http: 0.0.0.0:5556
   # Uncomment for HTTPS options.
-  # https: 127.0.0.1:5554
-  # tlsCert: /etc/dex/tls.crt
-  # tlsKey: /etc/dex/tls.key
+  https: 127.0.0.1:5556
+  tlsCert: /etc/dex/tls.crt
+  tlsKey: /etc/dex/tls.key
 
 # Configuration for telemetry
 telemetry:
@@ -59,9 +59,9 @@ staticClients:
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
 
 connectors:
-- type: mockCallback
-  id: mock
-  name: Example
+- type: pki
+  id: pki
+  name: PKI
 # - type: oidc
 #   id: google
 #   name: Google

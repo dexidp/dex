@@ -33,6 +33,7 @@ import (
 	"github.com/coreos/dex/connector/oidc"
 	"github.com/coreos/dex/connector/saml"
 	"github.com/coreos/dex/storage"
+	"github.com/coreos/dex/connector/pki"
 )
 
 // LocalConnector is the local passwordDB connector which is an internal
@@ -439,6 +440,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"authproxy":    func() ConnectorConfig { return new(authproxy.Config) },
 	"linkedin":     func() ConnectorConfig { return new(linkedin.Config) },
 	"microsoft":    func() ConnectorConfig { return new(microsoft.Config) },
+	"pki":          func() ConnectorConfig { return new(pki.Config) },
 	// Keep around for backwards compatibility.
 	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
 }

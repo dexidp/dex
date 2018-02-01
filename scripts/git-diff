@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/sh -e
 
 DIFF=$( git diff . )
 if [ "$DIFF" != "" ]; then

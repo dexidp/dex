@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	jose "gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2"
 )
 
 var (
@@ -143,6 +143,8 @@ type Claims struct {
 	EmailVerified bool
 
 	Groups []string
+
+	UserDN string
 }
 
 // AuthRequest represents a OAuth2 client authorization request. It holds the state

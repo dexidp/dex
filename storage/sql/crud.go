@@ -111,10 +111,10 @@ func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
 			claims_user_id, claims_username, claims_email, claims_email_verified,
 			claims_groups,
 			connector_id, connector_data,
-			expiry
+			expiry, claims_user_dn
 		)
 		values (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
 		);
 	`,
 		a.ID, a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
@@ -122,7 +122,7 @@ func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
 		a.Claims.UserID, a.Claims.Username, a.Claims.Email, a.Claims.EmailVerified,
 		encoder(a.Claims.Groups),
 		a.ConnectorID, a.ConnectorData,
-		a.Expiry,
+		a.Expiry, a.Claims.UserDN,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -153,15 +153,15 @@ func (c *conn) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) 
 				claims_email_verified = $12,
 				claims_groups = $13,
 				connector_id = $14, connector_data = $15,
-				expiry = $16
-			where id = $17;
+				expiry = $16, claims_user_dn = $17
+			where id = $18;
 		`,
 			a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
 			a.ForceApprovalPrompt, a.LoggedIn,
 			a.Claims.UserID, a.Claims.Username, a.Claims.Email, a.Claims.EmailVerified,
 			encoder(a.Claims.Groups),
 			a.ConnectorID, a.ConnectorData,
-			a.Expiry, r.ID,
+			a.Expiry, a.Claims.UserDN, r.ID,
 		)
 		if err != nil {
 			return fmt.Errorf("update auth request: %v", err)
@@ -182,14 +182,14 @@ func getAuthRequest(q querier, id string) (a storage.AuthRequest, err error) {
 			force_approval_prompt, logged_in,
 			claims_user_id, claims_username, claims_email, claims_email_verified,
 			claims_groups,
-			connector_id, connector_data, expiry
+			connector_id, connector_data, expiry, claims_user_dn
 		from auth_request where id = $1;
 	`, id).Scan(
 		&a.ID, &a.ClientID, decoder(&a.ResponseTypes), decoder(&a.Scopes), &a.RedirectURI, &a.Nonce, &a.State,
 		&a.ForceApprovalPrompt, &a.LoggedIn,
 		&a.Claims.UserID, &a.Claims.Username, &a.Claims.Email, &a.Claims.EmailVerified,
 		decoder(&a.Claims.Groups),
-		&a.ConnectorID, &a.ConnectorData, &a.Expiry,
+		&a.ConnectorID, &a.ConnectorData, &a.Expiry, &a.Claims.UserDN,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -207,13 +207,13 @@ func (c *conn) CreateAuthCode(a storage.AuthCode) error {
 			claims_user_id, claims_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
-			expiry
+			expiry, claims_user_dn
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
 	`,
 		a.ID, a.ClientID, encoder(a.Scopes), a.Nonce, a.RedirectURI, a.Claims.UserID,
 		a.Claims.Username, a.Claims.Email, a.Claims.EmailVerified, encoder(a.Claims.Groups),
-		a.ConnectorID, a.ConnectorData, a.Expiry,
+		a.ConnectorID, a.ConnectorData, a.Expiry, a.Claims.UserDN,
 	)
 
 	if err != nil {
@@ -232,12 +232,12 @@ func (c *conn) GetAuthCode(id string) (a storage.AuthCode, err error) {
 			claims_user_id, claims_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
-			expiry
+			expiry, claims_user_dn
 		from auth_code where id = $1;
 	`, id).Scan(
 		&a.ID, &a.ClientID, decoder(&a.Scopes), &a.Nonce, &a.RedirectURI, &a.Claims.UserID,
 		&a.Claims.Username, &a.Claims.Email, &a.Claims.EmailVerified, decoder(&a.Claims.Groups),
-		&a.ConnectorID, &a.ConnectorData, &a.Expiry,
+		&a.ConnectorID, &a.ConnectorData, &a.Expiry, &a.Claims.UserDN,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -255,15 +255,15 @@ func (c *conn) CreateRefresh(r storage.RefreshToken) error {
 			claims_user_id, claims_username, claims_email, claims_email_verified,
 			claims_groups,
 			connector_id, connector_data,
-			token, created_at, last_used
+			token, created_at, last_used, claims_user_dn
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
 	`,
 		r.ID, r.ClientID, encoder(r.Scopes), r.Nonce,
 		r.Claims.UserID, r.Claims.Username, r.Claims.Email, r.Claims.EmailVerified,
 		encoder(r.Claims.Groups),
 		r.ConnectorID, r.ConnectorData,
-		r.Token, r.CreatedAt, r.LastUsed,
+		r.Token, r.CreatedAt, r.LastUsed, r.Claims.UserDN,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -298,15 +298,16 @@ func (c *conn) UpdateRefreshToken(id string, updater func(old storage.RefreshTok
 				connector_data = $10,
 				token = $11,
 				created_at = $12,
-				last_used = $13
+				last_used = $13,
+				claims_user_dn = $14
 			where
-				id = $14
+				id = $15
 		`,
 			r.ClientID, encoder(r.Scopes), r.Nonce,
 			r.Claims.UserID, r.Claims.Username, r.Claims.Email, r.Claims.EmailVerified,
 			encoder(r.Claims.Groups),
 			r.ConnectorID, r.ConnectorData,
-			r.Token, r.CreatedAt, r.LastUsed, id,
+			r.Token, r.CreatedAt, r.LastUsed, r.Claims.UserDN, id,
 		)
 		if err != nil {
 			return fmt.Errorf("update refresh token: %v", err)
@@ -326,7 +327,7 @@ func getRefresh(q querier, id string) (storage.RefreshToken, error) {
 			claims_user_id, claims_username, claims_email, claims_email_verified,
 			claims_groups,
 			connector_id, connector_data,
-			token, created_at, last_used
+			token, created_at, last_used, claims_user_dn
 		from refresh_token where id = $1;
 	`, id))
 }
@@ -338,7 +339,7 @@ func (c *conn) ListRefreshTokens() ([]storage.RefreshToken, error) {
 			claims_user_id, claims_username, claims_email, claims_email_verified,
 			claims_groups,
 			connector_id, connector_data,
-			token, created_at, last_used
+			token, created_at, last_used, claims_user_dn
 		from refresh_token;
 	`)
 	if err != nil {
@@ -364,7 +365,7 @@ func scanRefresh(s scanner) (r storage.RefreshToken, err error) {
 		&r.Claims.UserID, &r.Claims.Username, &r.Claims.Email, &r.Claims.EmailVerified,
 		decoder(&r.Claims.Groups),
 		&r.ConnectorID, &r.ConnectorData,
-		&r.Token, &r.CreatedAt, &r.LastUsed,
+		&r.Token, &r.CreatedAt, &r.LastUsed, &r.Claims.UserDN,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {

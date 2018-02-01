@@ -19,11 +19,12 @@ import (
 	"strings"
 	"time"
 
-	jose "gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2"
 
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/server/internal"
 	"github.com/coreos/dex/storage"
+	"log"
 )
 
 // TODO(ericchiang): clean this file up and figure out more idiomatic error handling.
@@ -255,6 +256,8 @@ type idTokenClaims struct {
 	Groups []string `json:"groups,omitempty"`
 
 	Name string `json:"name,omitempty"`
+
+	UserDN string `json:"user_dn,omitempty"`
 }
 
 func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, connID string) (idToken string, expiry time.Time, err error) {
@@ -294,6 +297,8 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		Expiry:   expiry.Unix(),
 		IssuedAt: issuedAt.Unix(),
 	}
+
+	tok.UserDN = claims.UserDN
 
 	if accessToken != "" {
 		atHash, err := accessTokenHash(signingAlg, accessToken)
@@ -355,6 +360,10 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	if idToken, err = signPayload(signingKey, signingAlg, payload); err != nil {
 		return "", expiry, fmt.Errorf("failed to sign payload: %v", err)
 	}
+
+	log.Println("PAYLOAD:", string(payload))
+	log.Println("SIGNED:", idToken)
+
 	return idToken, expiry, nil
 }
 

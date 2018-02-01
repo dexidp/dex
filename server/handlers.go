@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	jose "gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2"
 
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/server/internal"
@@ -406,6 +406,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 		Email:         identity.Email,
 		EmailVerified: identity.EmailVerified,
 		Groups:        identity.Groups,
+		UserDN:        identity.UserDN,
 	}
 
 	updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
@@ -880,6 +881,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		Email:         refresh.Claims.Email,
 		EmailVerified: refresh.Claims.EmailVerified,
 		Groups:        refresh.Claims.Groups,
+		UserDN:        refresh.Claims.UserDN,
 		ConnectorData: refresh.ConnectorData,
 	}
 
@@ -904,6 +906,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		Email:         ident.Email,
 		EmailVerified: ident.EmailVerified,
 		Groups:        ident.Groups,
+		UserDN:        ident.UserDN,
 	}
 
 	accessToken := storage.NewID()
@@ -938,6 +941,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		old.Claims.Email = ident.Email
 		old.Claims.EmailVerified = ident.EmailVerified
 		old.Claims.Groups = ident.Groups
+		old.Claims.UserDN = ident.UserDN
 		old.ConnectorData = ident.ConnectorData
 		old.LastUsed = lastUsed
 		return old, nil
