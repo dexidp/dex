@@ -15,9 +15,12 @@ import (
 	"github.com/dexidp/dex/connector"
 )
 
+const (
+	issuerURL = "https://accounts.google.com"
+)
+
 // Config holds configuration options for OpenID Connect logins.
 type Config struct {
-	Issuer       string `json:"issuer"`
 	ClientID     string `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
 	RedirectURI  string `json:"redirectURI"`
@@ -34,7 +37,7 @@ type Config struct {
 func (c *Config) Open(id string, logger logrus.FieldLogger) (conn connector.Connector, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	provider, err := oidc.NewProvider(ctx, c.Issuer)
+	provider, err := oidc.NewProvider(ctx, issuerURL)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("failed to get provider: %v", err)
