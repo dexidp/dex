@@ -5,14 +5,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"time"
 
 	"github.com/coreos/go-oidc"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/log"
+	"golang.org/x/oauth2/google"
+	"google.golang.org/api/admin/directory/v1"
 )
 
 const (
@@ -30,11 +33,21 @@ type Config struct {
 	// Optional list of whitelisted domains
 	// If this field is nonempty, only users from a listed domain will be allowed to log in
 	HostedDomains []string `json:"hostedDomains"`
+
+	// Optional path to service account json
+	// If nonempty, and groups claim is made, will use authentication from file to
+	// check groups with the admin directory api
+	ServiceAccountFilePath string `json:"serviceAccountFilePath"`
+
+	// Required if ServiceAccountFilePath
+	// The email of a GSuite super user which the service account will impersonate
+	// when listing groups
+	AdminEmail string
 }
 
 // Open returns a connector which can be used to login users through an upstream
 // OpenID Connect provider.
-func (c *Config) Open(id string, logger logrus.FieldLogger) (conn connector.Connector, err error) {
+func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	provider, err := oidc.NewProvider(ctx, issuerURL)
@@ -63,9 +76,11 @@ func (c *Config) Open(id string, logger logrus.FieldLogger) (conn connector.Conn
 		verifier: provider.Verifier(
 			&oidc.Config{ClientID: clientID},
 		),
-		logger:        logger,
-		cancel:        cancel,
-		hostedDomains: c.HostedDomains,
+		logger:                 logger,
+		cancel:                 cancel,
+		hostedDomains:          c.HostedDomains,
+		serviceAccountFilePath: c.ServiceAccountFilePath,
+		adminEmail:             c.AdminEmail,
 	}, nil
 }
 
@@ -75,13 +90,15 @@ var (
 )
 
 type googleConnector struct {
-	redirectURI   string
-	oauth2Config  *oauth2.Config
-	verifier      *oidc.IDTokenVerifier
-	ctx           context.Context
-	cancel        context.CancelFunc
-	logger        logrus.FieldLogger
-	hostedDomains []string
+	redirectURI            string
+	oauth2Config           *oauth2.Config
+	verifier               *oidc.IDTokenVerifier
+	ctx                    context.Context
+	cancel                 context.CancelFunc
+	logger                 log.Logger
+	hostedDomains          []string
+	serviceAccountFilePath string
+	adminEmail             string
 }
 
 func (c *googleConnector) Close() error {
@@ -131,7 +148,7 @@ func (c *googleConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 		return identity, fmt.Errorf("google: failed to get token: %v", err)
 	}
 
-	return c.createIdentity(r.Context(), identity, token)
+	return c.createIdentity(r.Context(), identity, s, token)
 }
 
 // Refresh is implemented for backwards compatibility, even though it's a no-op.
@@ -145,10 +162,10 @@ func (c *googleConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 		return identity, fmt.Errorf("google: failed to get token: %v", err)
 	}
 
-	return c.createIdentity(ctx, identity, token)
+	return c.createIdentity(ctx, identity, s, token)
 }
 
-func (c *googleConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token) (connector.Identity, error) {
+func (c *googleConnector) createIdentity(ctx context.Context, identity connector.Identity, s connector.Scopes, token *oauth2.Token) (connector.Identity, error) {
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
 		return identity, errors.New("google: no id_token in token response")
@@ -182,12 +199,63 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		}
 	}
 
+	var groups []string
+	if s.Groups {
+		groups, err = c.getGroups(claims.Email)
+		if err != nil {
+			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
+		}
+	}
+
 	identity = connector.Identity{
 		UserID:        idToken.Subject,
 		Username:      claims.Username,
 		Email:         claims.Email,
 		EmailVerified: claims.EmailVerified,
 		ConnectorData: []byte(token.RefreshToken),
+		Groups:        groups,
 	}
 	return identity, nil
+}
+
+func (c *googleConnector) getGroups(email string) ([]string, error) {
+	srv, err := createDirectoryService(c.serviceAccountFilePath, c.adminEmail)
+	if err != nil {
+		return nil, fmt.Errorf("could not create directory service: %v", err)
+	}
+
+	groupsList, err := srv.Groups.List().UserKey(email).Do()
+	if err != nil {
+		return nil, fmt.Errorf("could not list groups: %v", err)
+	}
+
+	var userGroups []string
+	for _, group := range groupsList.Groups {
+		userGroups = append(userGroups, group.Email)
+	}
+
+	return userGroups, nil
+}
+
+func createDirectoryService(serviceAccountFilePath string, email string) (*admin.Service, error) {
+	jsonCredentials, err := ioutil.ReadFile(serviceAccountFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading credentials from file: %v", err)
+	}
+
+	config, err := google.JWTConfigFromJSON(jsonCredentials, admin.AdminDirectoryGroupReadonlyScope)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
+	}
+
+	config.Subject = email
+
+	ctx := context.Background()
+	client := config.Client(ctx)
+
+	srv, err := admin.New(client)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create directory service %v", err)
+	}
+	return srv, nil
 }
