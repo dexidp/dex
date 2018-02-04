@@ -145,14 +145,19 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
 
+	var opts []oauth2.AuthCodeOption
 	if len(c.hostedDomains) > 0 {
 		preferredDomain := c.hostedDomains[0]
 		if len(c.hostedDomains) > 1 {
 			preferredDomain = "*"
 		}
-		return c.oauth2Config.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "consent"), oauth2.SetAuthURLParam("hd", preferredDomain)), nil
+		opts = append(opts, oauth2.SetAuthURLParam("hd", preferredDomain))
 	}
-	return c.oauth2Config.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "consent")), nil
+
+	if s.OfflineAccess {
+		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "consent"))
+	}
+	return c.oauth2Config.AuthCodeURL(state, opts...), nil
 }
 
 type oauth2Error struct {

@@ -507,7 +507,9 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 		} else {
 			// Update existing OfflineSession obj with new RefreshTokenRef.
 			if err := s.storage.UpdateOfflineSessions(session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
-				old.ConnectorData = identity.ConnectorData
+				if len(identity.ConnectorData) > 0 {
+					old.ConnectorData = identity.ConnectorData
+				}
 				return old, nil
 			}); err != nil {
 				s.logger.Errorf("failed to update offline session: %v", err)
