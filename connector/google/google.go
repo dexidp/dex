@@ -22,7 +22,7 @@ const (
 	issuerURL = "https://accounts.google.com"
 )
 
-// Config holds configuration options for OpenID Connect logins.
+// Config holds configuration options for Google logins.
 type Config struct {
 	ClientID     string `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
@@ -45,8 +45,7 @@ type Config struct {
 	AdminEmail string
 }
 
-// Open returns a connector which can be used to login users through an upstream
-// OpenID Connect provider.
+// Open returns a connector which can be used to login users through Google.
 func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -151,7 +150,6 @@ func (c *googleConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 	return c.createIdentity(r.Context(), identity, s, token)
 }
 
-// Refresh is implemented for backwards compatibility, even though it's a no-op.
 func (c *googleConnector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
 	t := &oauth2.Token{
 		RefreshToken: string(identity.ConnectorData),
@@ -218,6 +216,8 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	return identity, nil
 }
 
+// getGroups creates a connection to the admin directory service and lists
+// all groups the user is a member of
 func (c *googleConnector) getGroups(email string) ([]string, error) {
 	srv, err := createDirectoryService(c.serviceAccountFilePath, c.adminEmail)
 	if err != nil {
@@ -237,6 +237,9 @@ func (c *googleConnector) getGroups(email string) ([]string, error) {
 	return userGroups, nil
 }
 
+// createDirectoryService loads a google service account credentials file,
+// sets up super user impersonation and creates an admin client for calling
+// the google admin api
 func createDirectoryService(serviceAccountFilePath string, email string) (*admin.Service, error) {
 	jsonCredentials, err := ioutil.ReadFile(serviceAccountFilePath)
 	if err != nil {
@@ -248,6 +251,7 @@ func createDirectoryService(serviceAccountFilePath string, email string) (*admin
 		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
 	}
 
+	// Impersonate an admin. This is mandatory for the admin APIs.
 	config.Subject = email
 
 	ctx := context.Background()
