@@ -48,6 +48,8 @@ import (
 //         # Will only work if "DN" attribute does not exist in the record
 //         # userAttr: DN
 //         groupAttr: member
+//         # If userAttr value is group DN, set groupAttr to "DN"
+//         # groupAttr: DN
 //         nameAttr: name
 //
 type Config struct {
@@ -124,7 +126,8 @@ type Config struct {
 		//
 		//   (<groupAttr>=<userAttr value>)
 		//
-		UserAttr  string `json:"userAttr"`
+		UserAttr string `json:"userAttr"`
+		// If UserAttr value is DN, set GroupAttr to "DN"
 		GroupAttr string `json:"groupAttr"`
 
 		// The attribute of the group that represents its name.
@@ -502,15 +505,26 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 
 	var groups []*ldap.Entry
 	for _, attr := range getAttrs(user, c.GroupSearch.UserAttr) {
-		filter := fmt.Sprintf("(%s=%s)", c.GroupSearch.GroupAttr, ldap.EscapeFilter(attr))
-		if c.GroupSearch.Filter != "" {
-			filter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, filter)
+		var baseDN, filter string
+		var scope int
+
+		if c.GroupSearch.GroupAttr == "DN" {
+			baseDN = attr
+			filter = "(objectClass=*)"
+			scope = ldap.ScopeBaseObject
+		} else {
+			baseDN = c.GroupSearch.BaseDN
+			scope = c.groupSearchScope
+			filter := fmt.Sprintf("(%s=%s)", c.GroupSearch.GroupAttr, ldap.EscapeFilter(attr))
+			if c.GroupSearch.Filter != "" {
+				filter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, filter)
+			}
 		}
 
 		req := &ldap.SearchRequest{
-			BaseDN:     c.GroupSearch.BaseDN,
+			BaseDN:     baseDN,
 			Filter:     filter,
-			Scope:      c.groupSearchScope,
+			Scope:      scope,
 			Attributes: []string{c.GroupSearch.NameAttr},
 		}
 
