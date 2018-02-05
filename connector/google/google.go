@@ -200,7 +200,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	}
 
 	var groups []string
-	if s.Groups {
+	if s.Groups && c.adminEmail != "" && c.serviceAccountFilePath != "" {
 		groups, err = c.getGroups(claims.Email)
 		if err != nil {
 			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
