@@ -20,6 +20,10 @@ web:
   # tlsCert: /etc/dex/tls.crt
   # tlsKey: /etc/dex/tls.key
 
+# Configuration for telemetry
+telemetry:
+  http: 0.0.0.0:5558
+
 # Uncomment this block to enable the gRPC API. This values MUST be different
 # from the HTTP endpoints.
 # grpc:

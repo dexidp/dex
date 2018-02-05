@@ -53,9 +53,9 @@ func (c *Config) Open(logger logrus.FieldLogger) (storage.Storage, error) {
 // open returns a kubernetes client, initializing the third party resources used
 // by dex.
 //
-// errOnResources controls if errors creating the resources cause this method to return
+// waitForResources controls if errors creating the resources cause this method to return
 // immediately (used during testing), or if the client will asynchronously retry.
-func (c *Config) open(logger logrus.FieldLogger, errOnResources bool) (*client, error) {
+func (c *Config) open(logger logrus.FieldLogger, waitForResources bool) (*client, error) {
 	if c.InCluster && (c.KubeConfigFile != "") {
 		return nil, errors.New("cannot specify both 'inCluster' and 'kubeConfigFile'")
 	}
@@ -87,7 +87,7 @@ func (c *Config) open(logger logrus.FieldLogger, errOnResources bool) (*client, 
 
 	logger.Info("creating custom Kubernetes resources")
 	if !cli.registerCustomResources(c.UseTPR) {
-		if errOnResources {
+		if waitForResources {
 			cancel()
 			return nil, fmt.Errorf("failed creating custom resources")
 		}
@@ -111,6 +111,13 @@ func (c *Config) open(logger logrus.FieldLogger, errOnResources bool) (*client, 
 		}()
 	}
 
+	if waitForResources {
+		if err := cli.waitForCRDs(ctx); err != nil {
+			cancel()
+			return nil, err
+		}
+	}
+
 	// If the client is closed, stop trying to create resources.
 	cli.cancel = cancel
 	return cli, nil
@@ -123,9 +130,6 @@ func (c *Config) open(logger logrus.FieldLogger, errOnResources bool) (*client, 
 // It logs all errors, returning true if the resources were created successfully.
 //
 // Creating a custom resource does not mean that they'll be immediately available.
-//
-// TODO(ericchiang): Provide an option to wait for the resources to actually
-// be available.
 func (cli *client) registerCustomResources(useTPR bool) (ok bool) {
 	ok = true
 	length := len(customResourceDefinitions)
@@ -163,6 +167,49 @@ func (cli *client) registerCustomResources(useTPR bool) (ok bool) {
 		cli.logger.Errorf("create custom resource %s", resourceName)
 	}
 	return ok
+}
+
+// waitForCRDs waits for all CRDs to be in a ready state, and is used
+// by the tests to synchronize before running conformance.
+func (cli *client) waitForCRDs(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	for _, crd := range customResourceDefinitions {
+		for {
+			err := cli.isCRDReady(crd.Name)
+			if err == nil {
+				break
+			}
+
+			cli.logger.Errorf("checking CRD: %v", err)
+
+			select {
+			case <-ctx.Done():
+				return errors.New("timed out waiting for CRDs to be available")
+			case <-time.After(time.Millisecond * 100):
+			}
+		}
+	}
+	return nil
+}
+
+// isCRDReady determines if a CRD is ready by inspecting its conditions.
+func (cli *client) isCRDReady(name string) error {
+	var r k8sapi.CustomResourceDefinition
+	err := cli.getResource("apiextensions.k8s.io/v1beta1", "", "customresourcedefinitions", name, &r)
+	if err != nil {
+		return fmt.Errorf("get crd %s: %v", name, err)
+	}
+
+	conds := make(map[string]string) // For debugging, keep the conditions around.
+	for _, c := range r.Status.Conditions {
+		if c.Type == k8sapi.Established && c.Status == k8sapi.ConditionTrue {
+			return nil
+		}
+		conds[string(c.Type)] = string(c.Status)
+	}
+	return fmt.Errorf("crd %s not ready %#v", name, conds)
 }
 
 func (cli *client) Close() error {

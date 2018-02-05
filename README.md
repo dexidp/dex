@@ -8,7 +8,7 @@
 
 Dex is an identity service that uses [OpenID Connect][openid-connect] to drive authentication for other apps.
 
-Dex is NOT a user-management system, but acts as a portal to other identity providers through "connectors." This lets dex defer authentication to LDAP servers, SAML providers, or established identity providers like GitHub, Google, and Active Directory. Clients write their authentication logic once to talk to dex, then dex handles the protocols for a given backend.
+Dex acts as a portal to other identity providers through ["connectors."](#connectors) This lets dex defer authentication to LDAP servers, SAML providers, or established identity providers like GitHub, Google, and Active Directory. Clients write their authentication logic once to talk to dex, then dex handles the protocols for a given backend.
 
 ## ID Tokens
 
@@ -51,6 +51,37 @@ Dex's main production use is as an auth-N addon in CoreOS's enterprise Kubernete
 
 More docs for running dex as a Kubernetes authenticator can be found [here](Documentation/kubernetes.md).
 
+## Connectors
+
+When a user logs in through dex, the user's identity is usually stored in another user-management system: a LDAP directory, a GitHub org, etc. Dex acts a shim between a client app and the upstream identity provider. The client only needs to understand OpenID Connect to query dex, while dex implements an array of protocols for querying other user-management systems.
+
+![](Documentation/img/dex-flow.png)
+
+A "connector" is a strategy used by dex for authenticating a user against another identity provider. Dex implements connectors that target specific platforms such as GitHub, LinkedIn, and Microsoft as well as established protocols like LDAP and SAML.
+
+Depending on the connectors limitations in protocols can prevent dex from issuing [refresh tokens][scopes] or returning [group membership][scopes] claims. For example, because SAML doesn't provide a non-interactive way to refresh assertions, if a user logs in through the SAML connector dex won't issue a refresh token to its client. Refresh token support is required for clients that require offline access, such as `kubectl`.
+
+Dex implements the following connectors:
+
+| Name | supports refresh tokens | supports groups claim | status | notes |
+| ---- | ----------------------- | --------------------- | ------ | ----- |
+| [LDAP](Documentation/connectors/ldap.md) | yes | yes | stable | |
+| [GitHub](Documentation/connectors/github.md) | yes | yes | stable | |
+| [SAML 2.0](Documentation/connectors/saml.md) | no | yes | stable |
+| [GitLab](Documentation/connectors/gitlab.md) | yes | yes | beta | |
+| [OpenID Connect](Documentation/connectors/oidc.md) | yes | no ([#1065][issue-1065]) | beta | Includes Google, Salesforce, Azure, etc. |
+| [LinkedIn](Documentation/connectors/linkedin.md) | yes | no | beta | |
+| [Microsoft](Documentation/connectors/microsoft.md) | yes | yes | beta | |
+| [AuthProxy](Documentation/connectors/authproxy.md) | no | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
+
+Stable, beta, and alpha are defined as:
+
+* Stable: well tested, in active use, and will not change in backward incompatible ways.
+* Beta: tested and unlikely to change in backward incompatible ways.
+* Alpha: may be untested by core maintainers and is subject to change in backward incompatible ways.
+
+All changes or deprecations of connector features will be announced in the [release notes][release-notes].
+
 ## Documentation
 
 * [Getting started](Documentation/getting-started.md)
@@ -61,13 +92,6 @@ More docs for running dex as a Kubernetes authenticator can be found [here](Docu
 * [Storage options](Documentation/storage.md)
 * [gRPC API](Documentation/api.md)
 * [Using Kubernetes with dex](Documentation/kubernetes.md)
-* Identity provider logins
-  * [LDAP](Documentation/ldap-connector.md)
-  * [GitHub](Documentation/github-connector.md)
-  * [GitLab](Documentation/gitlab-connector.md)
-  * [SAML 2.0](Documentation/saml-connector.md)
-  * [OpenID Connect](Documentation/oidc-connector.md) (includes Google, Salesforce, Azure, etc.)
-  * [authproxy](Documentation/authproxy.md) (Apache2 mod_auth, etc.)
 * Client libraries
   * [Go][go-oidc]
 
@@ -79,10 +103,10 @@ Due to their public nature, GitHub and mailing lists are NOT appropriate places 
 
 * For feature requests and bugs, file an [issue][issues].
 * For general discussion about both using and developing dex, join the [dex-dev][dex-dev] mailing list.
-* For more details on dex development plans, check out the GitHub [milestones][milestones].
 
 [openid-connect]: https://openid.net/connect/
 [standard-claims]: https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
+[scopes]: Documentation/custom-scopes-claims-clients.md#scopes
 [using-dex]: Documentation/using-dex.md
 [jwt-io]: https://jwt.io/
 [kubernetes]: http://kubernetes.io/docs/admin/authentication/#openid-connect-tokens
@@ -90,7 +114,8 @@ Due to their public nature, GitHub and mailing lists are NOT appropriate places 
 [tectonic]: https://tectonic.com/
 [tectonic-console]: https://tectonic.com/enterprise/docs/latest/usage/index.html#tectonic-console
 [go-oidc]: https://github.com/coreos/go-oidc
+[issue-1065]: https://github.com/coreos/dex/issues/1065
+[release-notes]: https://github.com/coreos/dex/releases
 [issues]: https://github.com/coreos/dex/issues
 [dex-dev]: https://groups.google.com/forum/#!forum/dex-dev
-[milestones]: https://github.com/coreos/dex/milestones
 [disclosure]: https://coreos.com/security/disclosure/

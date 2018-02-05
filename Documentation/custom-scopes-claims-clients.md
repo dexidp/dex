@@ -12,6 +12,7 @@ The following is the exhaustive list of scopes supported by dex:
 | `email` | ID token claims should include the end user's email and if that email was verified by an upstream provider. |
 | `profile` | ID token claims should include the username of the end user. |
 | `groups` | ID token claims should include a list of groups the end user is a member of. |
+| `federated:id` | ID token claims should include information from the ID provider. The token will contain the connector ID and the user ID assigned at the provider. |
 | `offline_access` | Token response should include a refresh token. Doesn't work in combinations with some connectors, notability the [SAML connector][saml-connector] ignores this scope. |
 | `audience:server:client_id:( client-id )` | Dynamic scope indicating that the ID token should be issued on behalf of another client. See the _"Cross-client trust and authorized party"_ section below. |
 
@@ -22,9 +23,19 @@ Beyond the [required OpenID Connect claims][core-claims], and a handful of [stan
 | Name | Description |
 | ---- | ------------|
 | `groups` | A list of strings representing the groups a user is a member of. |
+| `federated_claims` | The connector ID and the user ID assigned to the user at the provider. |
 | `email` | The email of the user. |
 | `email_verified` | If the upstream provider has verified the email. |
 | `name` | User's display name. |
+
+The `federated_claims` claim has the following format:
+
+```json
+"federated_claims": {
+  "connector_id": "github",
+  "user_id": "110272483197731336751"
+}
+```
 
 ## Cross-client trust and authorized party
 

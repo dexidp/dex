@@ -157,7 +157,11 @@ func closeResp(r *http.Response) {
 }
 
 func (c *client) get(resource, name string, v interface{}) error {
-	url := c.urlFor(c.apiVersion, c.namespace, resource, name)
+	return c.getResource(c.apiVersion, c.namespace, resource, name, v)
+}
+
+func (c *client) getResource(apiVersion, namespace, resource, name string, v interface{}) error {
+	url := c.urlFor(apiVersion, namespace, resource, name)
 	resp, err := c.client.Get(url)
 	if err != nil {
 		return err

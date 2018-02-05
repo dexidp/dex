@@ -6,21 +6,26 @@ go:
   - 1.8
   - 1.9
 
+go_import_path: github.com/coreos/dex
+
 services:
   - postgresql
+  - docker
 
 env:
-  - DEX_POSTGRES_DATABASE=postgres DEX_POSTGRES_USER=postgres DEX_POSTGRES_HOST="localhost" DEX_LDAP_TESTS=1 DEBIAN_FRONTEND=noninteractive
-
+  - DEX_POSTGRES_DATABASE=postgres DEX_POSTGRES_USER=postgres DEX_POSTGRES_HOST="localhost" DEX_ETCD_ENDPOINTS=http://localhost:2379 DEX_LDAP_TESTS=1 DEBIAN_FRONTEND=noninteractive
 
 install:
   - go get -u github.com/golang/lint/golint
   - sudo -E apt-get install -y --force-yes slapd time ldap-utils
   - sudo /etc/init.d/slapd stop
+  - docker run -d --net=host gcr.io/etcd-development/etcd:v3.2.9
 
 
 script:
   - make testall
+  - ./scripts/test-k8s.sh
+  - make verify-proto # Ensure proto generation doesn't depend on external packages.
 
 notifications:
   email: false

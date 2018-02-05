@@ -109,6 +109,12 @@ import:
   subpackages:
   - crdb
 
+# etcd driver
+- package: github.com/coreos/etcd
+  version: v3.2.9
+  subpackages:
+  - clientv3
+
 # gRPC and protobuf are use for the API. Also import x/net/http2 stack.
 - package: google.golang.org/grpc
   version: 0e8b58d22f34640cb17dbbed1c8aef3b8dcc0e97
@@ -122,11 +128,14 @@ import:
   - peer
   - transport
 - package: github.com/golang/protobuf
-  version: 2bba0603135d7d7f5cb73b2125beeda19c09f4ef
+  version: 1e59b77b52bf8e4b449a57e6f79f21226d571845
   subpackages:
   - proto
   - protoc-gen-go
   - protoc-gen-go/grpc
+  - protoc-gen-go/descriptor        
+  - protoc-gen-go/plugin            
+  - protoc-gen-go/generator   
 - package: google.golang.org/genproto
   version: 411e09b969b1170a9f0c467558eb4c4c110d9c77
 
@@ -145,3 +154,31 @@ import:
   version: 4cd0dd976db869f817248477718071a28e978df0
 - package: github.com/jonboulle/clockwork
   version: bcac9884e7502bb2b474c0339d889cb981a2f27f
+
+# License bill of materials generator.
+- package: github.com/coreos/license-bill-of-materials
+  version: d70207c33a3c79a1c0479b208f8b7ab6215144c7
+
+# monitoring packages
+- package: github.com/beorn7/perks/quantile
+  version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
+- package: github.com/felixge/httpsnoop
+  version: eadd4fad6aac69ae62379194fe0219f3dbc80fd3
+- package: github.com/grpc-ecosystem/go-grpc-prometheus
+  version: 0dafe0d496ea71181bf2dd039e7e3f44b6bd11a7
+- package: github.com/matttproud/golang_protobuf_extensions/pbutil
+  version: fc2b8d3a73c4867e51861bbdd5ae3c1f0869dd6a
+- package: github.com/prometheus/client_golang/prometheus
+  version: 967789050ba94deca04a5e84cce8ad472ce313c1
+- package: github.com/prometheus/client_golang/prometheus/promhttp
+  version: 967789050ba94deca04a5e84cce8ad472ce313c1
+- package: github.com/prometheus/client_model/go
+  version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
+- package: github.com/prometheus/common/expfmt
+  version: 49fee292b27bfff7f354ee0f64e1bc4850462edf
+- package: github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
+  version: 49fee292b27bfff7f354ee0f64e1bc4850462edf
+- package: github.com/prometheus/common/model
+  version: 49fee292b27bfff7f354ee0f64e1bc4850462edf
+- package: github.com/prometheus/procfs/xfs
+  version: a1dba9ce8baed984a2495b658c82687f8157b98f

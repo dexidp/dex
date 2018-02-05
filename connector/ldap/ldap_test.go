@@ -437,6 +437,31 @@ userpassword: foo
 	runTests(t, schema, connectLDAPS, c, tests)
 }
 
+func TestUsernamePrompt(t *testing.T) {
+	tests := map[string]struct {
+		config   Config
+		expected string
+	}{
+		"with usernamePrompt unset it returns \"\"": {
+			config:   Config{},
+			expected: "",
+		},
+		"with usernamePrompt set it returns that": {
+			config:   Config{UsernamePrompt: "Email address"},
+			expected: "Email address",
+		},
+	}
+
+	for n, d := range tests {
+		t.Run(n, func(t *testing.T) {
+			conn := &ldapConnector{Config: d.config}
+			if actual := conn.Prompt(); actual != d.expected {
+				t.Errorf("expected %v, got %v", d.expected, actual)
+			}
+		})
+	}
+}
+
 // runTests runs a set of tests against an LDAP schema. It does this by
 // setting up an OpenLDAP server and injecting the provided scheme.
 //

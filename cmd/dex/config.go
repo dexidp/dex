@@ -11,6 +11,7 @@ import (
 
 	"github.com/coreos/dex/server"
 	"github.com/coreos/dex/storage"
+	"github.com/coreos/dex/storage/etcd"
 	"github.com/coreos/dex/storage/kubernetes"
 	"github.com/coreos/dex/storage/memory"
 	"github.com/coreos/dex/storage/sql"
@@ -18,13 +19,14 @@ import (
 
 // Config is the config format for the main application.
 type Config struct {
-	Issuer  string  `json:"issuer"`
-	Storage Storage `json:"storage"`
-	Web     Web     `json:"web"`
-	OAuth2  OAuth2  `json:"oauth2"`
-	GRPC    GRPC    `json:"grpc"`
-	Expiry  Expiry  `json:"expiry"`
-	Logger  Logger  `json:"logger"`
+	Issuer    string    `json:"issuer"`
+	Storage   Storage   `json:"storage"`
+	Web       Web       `json:"web"`
+	Telemetry Telemetry `json:"telemetry"`
+	OAuth2    OAuth2    `json:"oauth2"`
+	GRPC      GRPC      `json:"grpc"`
+	Expiry    Expiry    `json:"expiry"`
+	Logger    Logger    `json:"logger"`
 
 	Frontend server.WebConfig `json:"frontend"`
 
@@ -103,6 +105,11 @@ type Web struct {
 	AllowedOrigins []string `json:"allowedOrigins"`
 }
 
+// Telemetry is the config format for telemetry including the HTTP server config.
+type Telemetry struct {
+	HTTP string `json:"http"`
+}
+
 // GRPC is the config for the gRPC API.
 type GRPC struct {
 	// The port to listen on.
@@ -124,6 +131,7 @@ type StorageConfig interface {
 }
 
 var storages = map[string]func() StorageConfig{
+	"etcd":       func() StorageConfig { return new(etcd.Etcd) },
 	"kubernetes": func() StorageConfig { return new(kubernetes.Config) },
 	"memory":     func() StorageConfig { return new(memory.Config) },
 	"sqlite3":    func() StorageConfig { return new(sql.SQLite3) },

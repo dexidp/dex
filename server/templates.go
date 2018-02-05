@@ -139,6 +139,7 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		"issuer": func() string { return c.issuer },
 		"logo":   func() string { return c.logoURL },
 		"url":    func(s string) string { return join(c.issuerURL, s) },
+		"lower":  strings.ToLower,
 	}
 
 	tmpls, err := template.New("").Funcs(funcs).ParseFiles(filenames...)
@@ -166,7 +167,7 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 var scopeDescriptions = map[string]string{
 	"offline_access": "Have offline access",
 	"profile":        "View basic profile information",
-	"email":          "View your email",
+	"email":          "View your email address",
 }
 
 type connectorInfo struct {
@@ -189,12 +190,14 @@ func (t *templates) login(w http.ResponseWriter, connectors []connectorInfo) err
 	return renderTemplate(w, t.loginTmpl, data)
 }
 
-func (t *templates) password(w http.ResponseWriter, postURL, lastUsername string, lastWasInvalid bool) error {
+func (t *templates) password(w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid, showBacklink bool) error {
 	data := struct {
-		PostURL  string
-		Username string
-		Invalid  bool
-	}{postURL, lastUsername, lastWasInvalid}
+		PostURL        string
+		BackLink       bool
+		Username       string
+		UsernamePrompt string
+		Invalid        bool
+	}{postURL, showBacklink, lastUsername, usernamePrompt, lastWasInvalid}
 	return renderTemplate(w, t.passwordTmpl, data)
 }
 
@@ -223,12 +226,16 @@ func (t *templates) oob(w http.ResponseWriter, code string) error {
 	return renderTemplate(w, t.oobTmpl, data)
 }
 
-func (t *templates) err(w http.ResponseWriter, errType string, errMsg string) error {
+func (t *templates) err(w http.ResponseWriter, errCode int, errMsg string) error {
+	w.WriteHeader(errCode)
 	data := struct {
 		ErrType string
 		ErrMsg  string
-	}{errType, errMsg}
-	return renderTemplate(w, t.errorTmpl, data)
+	}{http.StatusText(errCode), errMsg}
+	if err := t.errorTmpl.Execute(w, data); err != nil {
+		return fmt.Errorf("Error rendering template %s: %s", t.errorTmpl.Name(), err)
+	}
+	return nil
 }
 
 // small io.Writer utility to determine if executing the template wrote to the underlying response writer.

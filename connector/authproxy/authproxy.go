@@ -50,6 +50,7 @@ func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connecto
 	// TODO: add support for X-Remote-Group, see
 	// https://kubernetes.io/docs/admin/authentication/#authenticating-proxy
 	return connector.Identity{
+		UserID:        remoteUser, // TODO: figure out if this is a bad ID value.
 		Email:         remoteUser,
 		EmailVerified: true,
 	}, nil

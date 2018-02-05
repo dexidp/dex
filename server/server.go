@@ -8,14 +8,18 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/felixge/httpsnoop"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
 	"github.com/coreos/dex/connector"
@@ -23,6 +27,8 @@ import (
 	"github.com/coreos/dex/connector/github"
 	"github.com/coreos/dex/connector/gitlab"
 	"github.com/coreos/dex/connector/ldap"
+	"github.com/coreos/dex/connector/linkedin"
+	"github.com/coreos/dex/connector/microsoft"
 	"github.com/coreos/dex/connector/mock"
 	"github.com/coreos/dex/connector/oidc"
 	"github.com/coreos/dex/connector/saml"
@@ -72,6 +78,8 @@ type Config struct {
 	Web WebConfig
 
 	Logger logrus.FieldLogger
+
+	PrometheusRegistry *prometheus.Registry
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -211,9 +219,26 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 	}
 
+	requestCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "http_requests_total",
+		Help: "Count of all HTTP requests.",
+	}, []string{"handler", "code", "method"})
+
+	err = c.PrometheusRegistry.Register(requestCounter)
+	if err != nil {
+		return nil, fmt.Errorf("server: Failed to register Prometheus HTTP metrics: %v", err)
+	}
+
+	instrumentHandlerCounter := func(handlerName string, handler http.Handler) http.HandlerFunc {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			m := httpsnoop.CaptureMetrics(handler, w, r)
+			requestCounter.With(prometheus.Labels{"handler": handlerName, "code": strconv.Itoa(m.Code), "method": r.Method}).Inc()
+		})
+	}
+
 	r := mux.NewRouter()
 	handleFunc := func(p string, h http.HandlerFunc) {
-		r.HandleFunc(path.Join(issuerURL.Path, p), h)
+		r.HandleFunc(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, h))
 	}
 	handlePrefix := func(p string, h http.Handler) {
 		prefix := path.Join(issuerURL.Path, p)
@@ -240,7 +265,16 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS("/keys", s.handlePublicKeys)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
-	handleFunc("/callback", s.handleConnectorCallback)
+	r.HandleFunc(path.Join(issuerURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {
+		// Strip the X-Remote-* headers to prevent security issues on
+		// misconfigured authproxy connector setups.
+		for key := range r.Header {
+			if strings.HasPrefix(strings.ToLower(key), "x-remote-") {
+				r.Header.Del(key)
+			}
+		}
+		s.handleConnectorCallback(w, r)
+	})
 	// For easier connector-specific web server configuration, e.g. for the
 	// "authproxy" connector.
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
@@ -333,6 +367,10 @@ func (db passwordDB) Refresh(ctx context.Context, s connector.Scopes, identity c
 	return identity, nil
 }
 
+func (db passwordDB) Prompt() string {
+	return "Email Address"
+}
+
 // newKeyCacher returns a storage which caches keys so long as the next
 func newKeyCacher(s storage.Storage, now func() time.Time) storage.Storage {
 	if now == nil {
@@ -399,6 +437,8 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"oidc":         func() ConnectorConfig { return new(oidc.Config) },
 	"saml":         func() ConnectorConfig { return new(saml.Config) },
 	"authproxy":    func() ConnectorConfig { return new(authproxy.Config) },
+	"linkedin":     func() ConnectorConfig { return new(linkedin.Config) },
+	"microsoft":    func() ConnectorConfig { return new(microsoft.Config) },
 	// Keep around for backwards compatibility.
 	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
 }
