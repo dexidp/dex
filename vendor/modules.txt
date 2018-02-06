@@ -1,3 +1,5 @@
+# cloud.google.com/go v0.38.0
+cloud.google.com/go/compute/metadata
 # github.com/beevik/etree v1.1.0
 github.com/beevik/etree
 # github.com/beorn7/perks v1.0.0
@@ -38,6 +40,8 @@ github.com/golang/protobuf/protoc-gen-go/plugin
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
+# github.com/googleapis/gax-go/v2 v2.0.5
+github.com/googleapis/gax-go/v2
 # github.com/gorilla/handlers v1.4.2
 github.com/gorilla/handlers
 # github.com/gorilla/mux v1.7.3
@@ -46,6 +50,8 @@ github.com/gorilla/mux
 github.com/grpc-ecosystem/go-grpc-prometheus
 # github.com/gtank/cryptopasta v0.0.0-20170601214702-1f550f6f2f69
 github.com/gtank/cryptopasta
+# github.com/hashicorp/golang-lru v0.5.1
+github.com/hashicorp/golang-lru/simplelru
 # github.com/inconshreveable/mousetrap v1.0.0
 github.com/inconshreveable/mousetrap
 # github.com/jonboulle/clockwork v0.1.0
@@ -93,6 +99,23 @@ github.com/spf13/cobra
 github.com/spf13/pflag
 # github.com/stretchr/testify v1.3.0
 github.com/stretchr/testify/assert
+# go.opencensus.io v0.21.0
+go.opencensus.io/plugin/ochttp
+go.opencensus.io/plugin/ochttp/propagation/b3
+go.opencensus.io/stats
+go.opencensus.io/stats/view
+go.opencensus.io/tag
+go.opencensus.io/trace
+go.opencensus.io/trace/propagation
+go.opencensus.io/metric/metricdata
+go.opencensus.io/stats/internal
+go.opencensus.io/internal/tagencoding
+go.opencensus.io/metric/metricproducer
+go.opencensus.io/internal
+go.opencensus.io/trace/internal
+go.opencensus.io/trace/tracestate
+go.opencensus.io/resource
+go.opencensus.io
 # golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish
@@ -103,9 +126,9 @@ golang.org/x/crypto/ed25519/internal/edwards25519
 golang.org/x/lint/golint
 golang.org/x/lint
 # golang.org/x/net v0.0.0-20190813141303-74dc4d7220e7
-golang.org/x/net/context
 golang.org/x/net/http2
 golang.org/x/net/trace
+golang.org/x/net/context
 golang.org/x/net/http/httpguts
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
@@ -115,7 +138,10 @@ golang.org/x/net/context/ctxhttp
 golang.org/x/oauth2
 golang.org/x/oauth2/bitbucket
 golang.org/x/oauth2/github
+golang.org/x/oauth2/google
 golang.org/x/oauth2/internal
+golang.org/x/oauth2/jws
+golang.org/x/oauth2/jwt
 # golang.org/x/sys v0.0.0-20190813064441-fde4db37ae7a
 golang.org/x/sys/windows
 golang.org/x/sys/unix
@@ -128,10 +154,23 @@ golang.org/x/text/transform
 golang.org/x/tools/go/ast/astutil
 golang.org/x/tools/go/gcexportdata
 golang.org/x/tools/go/internal/gcimporter
+# google.golang.org/api v0.10.0
+google.golang.org/api/admin/directory/v1
+google.golang.org/api/gensupport
+google.golang.org/api/googleapi
+google.golang.org/api/option
+google.golang.org/api/transport/http
+google.golang.org/api/googleapi/internal/uritemplates
+google.golang.org/api/internal
+google.golang.org/api/googleapi/transport
+google.golang.org/api/transport/http/internal/propagation
 # google.golang.org/appengine v1.6.1
+google.golang.org/appengine
 google.golang.org/appengine/cloudsql
 google.golang.org/appengine/urlfetch
 google.golang.org/appengine/internal
+google.golang.org/appengine/internal/app_identity
+google.golang.org/appengine/internal/modules
 google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/internal/base
 google.golang.org/appengine/internal/datastore
