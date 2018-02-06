@@ -316,6 +316,8 @@ func (c *githubConnector) getGroups(ctx context.Context, client *http.Client, gr
 		return c.groupsForOrgs(ctx, client, userLogin)
 	} else if c.org != "" {
 		return c.teamsForOrg(ctx, client, c.org)
+	} else if groupScope {
+		return c.userGroups(ctx, client)
 	}
 	return nil, nil
 }
@@ -563,9 +565,11 @@ func (c *githubConnector) userInOrg(ctx context.Context, client *http.Client, us
 // https://developer.github.com/v3/orgs/teams/#response-12
 type team struct {
 	Name string `json:"name"`
-	Org  struct {
-		Login string `json:"login"`
-	} `json:"organization"`
+	Org  org    `json:"organization"`
+}
+
+type org struct {
+	Login string `json:"login"`
 }
 
 // teamsForOrg queries the GitHub API for team membership within a specific organization.
@@ -588,6 +592,79 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 			if team.Org.Login == orgName {
 				groups = append(groups, team.Name)
 			}
+		}
+
+		if apiURL == "" {
+			break
+		}
+	}
+
+	return groups, nil
+}
+
+func (c *githubConnector) userGroups(ctx context.Context, client *http.Client) (groups []string, err error) {
+
+	orgs, err := c.userOrgs(ctx, client)
+	if err != nil {
+		return groups, err
+	}
+
+	orgTeams, err := c.userOrgTeams(ctx, client)
+	if err != nil {
+		return groups, err
+	}
+
+	for _, org := range orgs {
+		if teams, ok := orgTeams[org]; !ok {
+			groups = append(groups, org)
+		} else {
+			for _, team := range teams {
+				groups = append(groups, org+":"+team)
+			}
+		}
+	}
+
+	return groups, err
+}
+
+func (c *githubConnector) userOrgs(ctx context.Context, client *http.Client) ([]string, error) {
+	apiURL, groups := c.apiURL+"/user/orgs", []string{}
+	for {
+		// https://developer.github.com/v3/orgs/#list-your-organizations
+		var (
+			orgs []org
+			err  error
+		)
+		if apiURL, err = get(ctx, client, apiURL, &orgs); err != nil {
+			return nil, fmt.Errorf("github: get orgs: %v", err)
+		}
+
+		for _, org := range orgs {
+			groups = append(groups, org.Login)
+		}
+
+		if apiURL == "" {
+			break
+		}
+	}
+
+	return groups, nil
+}
+
+func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client) (map[string][]string, error) {
+	apiURL, groups := c.apiURL+"/user/teams", map[string][]string{}
+	for {
+		// https://developer.github.com/v3/orgs/teams/#list-user-teams
+		var (
+			teams []team
+			err   error
+		)
+		if apiURL, err = get(ctx, client, apiURL, &teams); err != nil {
+			return nil, fmt.Errorf("github: get teams: %v", err)
+		}
+
+		for _, team := range teams {
+			groups[team.Org.Login] = append(groups[team.Org.Login], team.Name)
 		}
 
 		if apiURL == "" {
