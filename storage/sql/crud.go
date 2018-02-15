@@ -682,7 +682,7 @@ func (c *conn) UpdateOfflineSessions(userID string, connID string, updater func(
 				connector_data = $2
 			where user_id = $3 AND conn_id = $4;
 		`,
-			encoder(newSession.Refresh), s.ConnectorData, s.UserID, s.ConnID,
+			encoder(newSession.Refresh), newSession.ConnectorData, s.UserID, s.ConnID,
 		)
 		if err != nil {
 			return fmt.Errorf("update offline session: %v", err)
