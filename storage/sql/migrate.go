@@ -100,6 +100,7 @@ var migrations = []migration{
 				claims_groups bytea not null, -- JSON array of strings
 
 				connector_id text not null,
+				connector_data bytea,
 
 				expiry timestamptz not null
 			);`,
@@ -118,6 +119,7 @@ var migrations = []migration{
 				claims_groups bytea not null, -- JSON array of strings
 
 				connector_id text not null,
+				connector_data bytea,
 
 				expiry timestamptz not null
 			);`,
@@ -134,7 +136,8 @@ var migrations = []migration{
 				claims_email_verified boolean not null,
 				claims_groups bytea not null, -- JSON array of strings
 
-				connector_id text not null
+				connector_id text not null,
+				connector_data bytea
 			);`,
 			`
 			create table password (
@@ -172,7 +175,6 @@ var migrations = []migration{
 				user_id text not null,
 				conn_id text not null,
 				refresh bytea not null,
-				connector_data bytea not null,
 				PRIMARY KEY (user_id, conn_id)
 			);`,
 		},
@@ -198,6 +200,13 @@ var migrations = []migration{
 			`
 			alter table refresh_token
 				add column claims_preferred_username text not null default '';`,
+		},
+	},
+	{
+		stmts: []string{`
+			alter table offline_session
+				add column connector_data bytea not null default '';
+			`,
 		},
 	},
 }
