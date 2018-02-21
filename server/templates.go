@@ -1,12 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"net/http"
-	"os"
+	"net/url"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -20,14 +21,6 @@ const (
 	tmplError    = "error.html"
 )
 
-var requiredTmpls = []string{
-	tmplApproval,
-	tmplLogin,
-	tmplPassword,
-	tmplOOB,
-	tmplError,
-}
-
 type templates struct {
 	loginTmpl    *template.Template
 	approvalTmpl *template.Template
@@ -37,131 +30,94 @@ type templates struct {
 }
 
 type webConfig struct {
-	dir       string
-	logoURL   string
-	issuer    string
-	theme     string
-	issuerURL string
+	themeDir     http.FileSystem
+	staticDir    http.FileSystem
+	templatesDir http.FileSystem
+	logoURL      string
+	issuer       string
+	theme        string
+	issuerURL    string
 }
 
-func join(base, path string) string {
-	b := strings.HasSuffix(base, "/")
-	p := strings.HasPrefix(path, "/")
-	switch {
-	case b && p:
-		return base + path[1:]
-	case b || p:
-		return base + path
-	default:
-		return base + "/" + path
-	}
-}
-
-func dirExists(dir string) error {
-	stat, err := os.Stat(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("directory %q does not exist", dir)
-		}
-		return fmt.Errorf("stat directory %q: %v", dir, err)
-	}
-	if !stat.IsDir() {
-		return fmt.Errorf("path %q is a file not a directory", dir)
-	}
-	return nil
-}
-
-// loadWebConfig returns static assets, theme assets, and templates used by the frontend by
-// reading the directory specified in the webConfig.
-//
-// The directory layout is expected to be:
-//
-//    ( web directory )
-//    |- static
-//    |- themes
-//    |  |- (theme name)
-//    |- templates
-//
-func loadWebConfig(c webConfig) (static, theme http.Handler, templates *templates, err error) {
-	if c.theme == "" {
-		c.theme = "coreos"
-	}
-	if c.issuer == "" {
-		c.issuer = "dex"
-	}
-	if c.dir == "" {
-		c.dir = "./web"
-	}
-	if c.logoURL == "" {
-		c.logoURL = join(c.issuerURL, "theme/logo.png")
-	}
-
-	if err := dirExists(c.dir); err != nil {
-		return nil, nil, nil, fmt.Errorf("load web dir: %v", err)
-	}
-
-	staticDir := filepath.Join(c.dir, "static")
-	templatesDir := filepath.Join(c.dir, "templates")
-	themeDir := filepath.Join(c.dir, "themes", c.theme)
-
-	for _, dir := range []string{staticDir, templatesDir, themeDir} {
-		if err := dirExists(dir); err != nil {
-			return nil, nil, nil, fmt.Errorf("load dir: %v", err)
-		}
-	}
-
-	static = http.FileServer(http.Dir(staticDir))
-	theme = http.FileServer(http.Dir(themeDir))
-
-	templates, err = loadTemplates(c, templatesDir)
-	return
+func join(basepath string, paths ...string) string {
+	u, _ := url.Parse(basepath)
+	u.Path = path.Join(append([]string{u.Path}, paths...)...)
+	return u.String()
 }
 
 // loadTemplates parses the expected templates from the provided directory.
-func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
-	files, err := ioutil.ReadDir(templatesDir)
-	if err != nil {
-		return nil, fmt.Errorf("read dir: %v", err)
+func loadTemplates(c WebConfig, issuerURL string) (*templates, error) {
+
+	if c.Theme == "" {
+		c.Theme = "coreos"
 	}
 
-	filenames := []string{}
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-		filenames = append(filenames, filepath.Join(templatesDir, file.Name()))
-	}
-	if len(filenames) == 0 {
-		return nil, fmt.Errorf("no files in template dir %q", templatesDir)
+	if c.Issuer == "" {
+		c.Issuer = "dex"
 	}
 
-	funcs := map[string]interface{}{
-		"issuer": func() string { return c.issuer },
-		"logo":   func() string { return c.logoURL },
-		"url":    func(s string) string { return join(c.issuerURL, s) },
+	if c.LogoURL == "" {
+		c.LogoURL = join(issuerURL, "themes", c.Theme, "logo.png")
+	}
+
+	funcs := template.FuncMap{
+		"issuer": func() string { return c.Issuer },
+		"logo":   func() string { return c.LogoURL },
+		"static": func(s string) string { return join(issuerURL, "static", s) },
+		"theme":  func(s string) string { return join(issuerURL, "themes", c.Theme, s) },
 		"lower":  strings.ToLower,
 	}
 
-	tmpls, err := template.New("").Funcs(funcs).ParseFiles(filenames...)
+	group := template.New("")
+
+	loginTemplate, err := loadTemplate(c.Dir, tmplLogin, funcs, group)
 	if err != nil {
-		return nil, fmt.Errorf("parse files: %v", err)
+		return nil, err
 	}
-	missingTmpls := []string{}
-	for _, tmplName := range requiredTmpls {
-		if tmpls.Lookup(tmplName) == nil {
-			missingTmpls = append(missingTmpls, tmplName)
-		}
+
+	approvalTemplate, err := loadTemplate(c.Dir, tmplApproval, funcs, group)
+	if err != nil {
+		return nil, err
 	}
-	if len(missingTmpls) > 0 {
-		return nil, fmt.Errorf("missing template(s): %s", missingTmpls)
+
+	passwordTemplate, err := loadTemplate(c.Dir, tmplPassword, funcs, group)
+	if err != nil {
+		return nil, err
 	}
+
+	oobTemplate, err := loadTemplate(c.Dir, tmplOOB, funcs, group)
+	if err != nil {
+		return nil, err
+	}
+
+	errorTemplate, err := loadTemplate(c.Dir, tmplError, funcs, group)
+	if err != nil {
+		return nil, err
+	}
+
+	loadTemplate(c.Dir, "header.html", funcs, group)
+	loadTemplate(c.Dir, "footer.html", funcs, group)
+
 	return &templates{
-		loginTmpl:    tmpls.Lookup(tmplLogin),
-		approvalTmpl: tmpls.Lookup(tmplApproval),
-		passwordTmpl: tmpls.Lookup(tmplPassword),
-		oobTmpl:      tmpls.Lookup(tmplOOB),
-		errorTmpl:    tmpls.Lookup(tmplError),
+		loginTmpl:    loginTemplate,
+		approvalTmpl: approvalTemplate,
+		passwordTmpl: passwordTemplate,
+		oobTmpl:      oobTemplate,
+		errorTmpl:    errorTemplate,
 	}, nil
+}
+
+func loadTemplate(dir http.FileSystem, name string, funcs template.FuncMap, group *template.Template) (*template.Template, error) {
+	file, err := dir.Open(filepath.Join("templates", name))
+	if err != nil {
+		return nil, err
+	}
+
+	var buffer bytes.Buffer
+	buffer.ReadFrom(file)
+	contents := buffer.String()
+
+	return group.New(name).Funcs(funcs).Parse(contents)
 }
 
 var scopeDescriptions = map[string]string{

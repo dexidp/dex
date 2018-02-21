@@ -95,7 +95,7 @@ type WebConfig struct {
 	//   * templates - HTML templates controlled by dex.
 	//   * themes/(theme) - Static static served at "( issuer URL )/theme".
 	//
-	Dir string
+	Dir http.FileSystem
 
 	// Defaults to "( issuer URL )/theme/logo.png"
 	LogoURL string
@@ -172,33 +172,24 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		supported[respType] = true
 	}
 
-	web := webConfig{
-		dir:       c.Web.Dir,
-		logoURL:   c.Web.LogoURL,
-		issuerURL: c.Issuer,
-		issuer:    c.Web.Issuer,
-		theme:     c.Web.Theme,
+	if c.Now == nil {
+		c.Now = time.Now
 	}
 
-	static, theme, tmpls, err := loadWebConfig(web)
+	templates, err := loadTemplates(c.Web, c.Issuer)
 	if err != nil {
-		return nil, fmt.Errorf("server: failed to load web static: %v", err)
-	}
-
-	now := c.Now
-	if now == nil {
-		now = time.Now
+		return nil, fmt.Errorf("server: failed to templates: %v", err)
 	}
 
 	s := &Server{
 		issuerURL:              *issuerURL,
 		connectors:             make(map[string]Connector),
-		storage:                newKeyCacher(c.Storage, now),
+		storage:                newKeyCacher(c.Storage, c.Now),
 		supportedResponseTypes: supported,
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
 		skipApproval:           c.SkipApprovalScreen,
-		now:                    now,
-		templates:              tmpls,
+		now:                    c.Now,
+		templates:              templates,
 		logger:                 c.Logger,
 	}
 
@@ -280,12 +271,11 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
 	handleFunc("/healthz", s.handleHealth)
-	handlePrefix("/static", static)
-	handlePrefix("/theme", theme)
+	handlePrefix("/", http.FileServer(c.Web.Dir))
 	s.mux = r
 
-	s.startKeyRotation(ctx, rotationStrategy, now)
-	s.startGarbageCollection(ctx, value(c.GCFrequency, 5*time.Minute), now)
+	s.startKeyRotation(ctx, rotationStrategy, c.Now)
+	s.startGarbageCollection(ctx, value(c.GCFrequency, 5*time.Minute), c.Now)
 
 	return s, nil
 }
