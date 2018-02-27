@@ -47,7 +47,7 @@ staticClients:
   - 'http://127.0.0.1:5555/callback'
 ```
 
-In this case, the Go code would configured as:
+In this case, the Go code would be configured as:
 
 ```go
 // Initialize a provider by specifying dex's issuer URL.
