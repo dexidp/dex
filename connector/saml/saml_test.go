@@ -262,6 +262,20 @@ func TestTwoAssertionFirstSigned(t *testing.T) {
 	test.run(t)
 }
 
+func TestTamperedResponseNameID(t *testing.T) {
+	test := responseTest{
+		caFile:       "testdata/ca.crt",
+		respFile:     "testdata/tampered-resp.xml",
+		now:          "2017-04-04T04:34:59.330Z",
+		usernameAttr: "Name",
+		emailAttr:    "email",
+		inResponseTo: "6zmm5mguyebwvajyf2sdwwcw6m",
+		redirectURI:  "http://127.0.0.1:5556/dex/callback",
+		wantErr:      true,
+	}
+	test.run(t)
+}
+
 func loadCert(ca string) (*x509.Certificate, error) {
 	data, err := ioutil.ReadFile(ca)
 	if err != nil {
