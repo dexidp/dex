@@ -5,7 +5,7 @@ set -e
 VERSION=$( go version )
 
 # For development versions of Go, these will be empty.
-MAJOR_GOVERSION=$( echo -n "$VERSION" | grep -o 'go1\.[0-9]' || true )
+MAJOR_GOVERSION=$( echo -n "$VERSION" | grep -o 'go1\.[0-9]*' || true )
 FULL_GOVERSION=$( echo -n "$VERSION" | grep -o 'go1\.[0-9|\.]*' || true )
 
 # The list of unsupported major go versions.
