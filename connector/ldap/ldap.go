@@ -199,9 +199,12 @@ func (c *Config) openConnector(logger logrus.FieldLogger) (*ldapConnector, error
 
 	var (
 		host string
+		port string
 		err  error
 	)
-	if host, _, err = net.SplitHostPort(c.Host); err != nil {
+
+	// Guess port only if it's not present in the host string
+	if host, port, err = net.SplitHostPort(c.Host); err != nil && port == "" {
 		host = c.Host
 		if c.InsecureNoSSL {
 			c.Host = c.Host + ":389"
