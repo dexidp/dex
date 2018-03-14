@@ -437,6 +437,42 @@ userpassword: foo
 	runTests(t, schema, connectLDAPS, c, tests)
 }
 
+func TestLDAPHostAndPort(t *testing.T) {
+	config := &Config{
+		Host: "",
+	}
+	if _, _, err := normalizeHostAndPort(config); err == nil {
+		t.Fatal("did not throw error for empty host")
+	}
+	config = &Config{
+		Host: "1.2.3.4",
+		InsecureNoSSL: true,
+	}
+	if host, port, err := normalizeHostAndPort(config); err != nil || host != "1.2.3.4" || port != "389" {
+		t.Fatalf("wrong result %v %v %v", host, port, err)
+	}
+	config = &Config{
+		Host: "1.2.3.4",
+		InsecureNoSSL: false,
+	}
+	if host, port, err := normalizeHostAndPort(config); err != nil || host != "1.2.3.4" || port != "636" {
+		t.Fatalf("wrong result %v %v %v", host, port, err)
+	}
+	config = &Config{
+		Host: "1.2.3.4:1636",
+	}
+	if host, port, err := normalizeHostAndPort(config); err != nil || host != "1.2.3.4" || port != "1636" {
+		t.Fatalf("wrong result %s %s %v", host, port, err)
+	}
+	config = &Config{
+		Host: "ldaps://1.2.3.4",
+		InsecureNoSSL: true,
+	}
+	if host, port, err := normalizeHostAndPort(config); err != nil || host != "1.2.3.4" || port != "389" {
+		t.Fatalf("wrong result %v %v %v", host, port, err)
+	}
+}
+
 func TestUsernamePrompt(t *testing.T) {
 	tests := map[string]struct {
 		config   Config
@@ -470,9 +506,9 @@ func TestUsernamePrompt(t *testing.T) {
 //
 // The DEX_LDAP_TESTS must be set to "1"
 func runTests(t *testing.T, schema string, connMethod connectionMethod, config *Config, tests []subtest) {
-	if os.Getenv(envVar) != "1" {
-		t.Skipf("%s not set. Skipping test (run 'export %s=1' to run tests)", envVar, envVar)
-	}
+	//if os.Getenv(envVar) != "1" {
+	//	t.Skipf("%s not set. Skipping test (run 'export %s=1' to run tests)", envVar, envVar)
+	//}
 
 	for _, cmd := range []string{"slapd", "ldapadd"} {
 		if _, err := exec.LookPath(cmd); err != nil {
