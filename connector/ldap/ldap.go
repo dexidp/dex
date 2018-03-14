@@ -16,6 +16,7 @@ import (
 	"github.com/coreos/dex/connector"
 	"github.com/sirupsen/logrus"
 	"errors"
+	"strconv"
 )
 
 // Config holds the configuration parameters for the LDAP connector. The LDAP
@@ -190,12 +191,17 @@ func normalizeHostAndPort(c *Config) (host string, port string, err error) {
 		return
 	}
 
+	// remove ldap or ldaps if they are in the host string
 	host = c.Host
 	host = strings.Replace(host, "ldap://", "", -1)
 	host = strings.Replace(host, "ldaps://", "", -1)
 
+	// check if there is a port and try to extract it
 	if strings.Contains(host, ":") {
-		if host, port, err = net.SplitHostPort(c.Host); err != nil {
+		if host, port, err = net.SplitHostPort(host); err != nil {
+			return
+		}
+		if _, err = strconv.Atoi(port); err != nil {
 			return
 		}
 	}

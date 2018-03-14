@@ -471,6 +471,20 @@ func TestLDAPHostAndPort(t *testing.T) {
 	if host, port, err := normalizeHostAndPort(config); err != nil || host != "1.2.3.4" || port != "389" {
 		t.Fatalf("wrong result %v %v %v", host, port, err)
 	}
+	config = &Config{
+		Host: "ldaps://1.2.3.4:636",
+		InsecureNoSSL: true,
+	}
+	if host, port, err := normalizeHostAndPort(config); err != nil || host != "1.2.3.4" || port != "636" {
+		t.Fatalf("wrong result %v %v %v", host, port, err)
+	}
+	config = &Config{
+		Host: "1.2.3.4:bla",
+		InsecureNoSSL: true,
+	}
+	if host, port, err := normalizeHostAndPort(config); err == nil {
+		t.Fatalf("wrong result %v %v %v", host, port, err)
+	}
 }
 
 func TestUsernamePrompt(t *testing.T) {
