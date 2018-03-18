@@ -6,17 +6,17 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
+	"strconv"
 	"strings"
 
 	"gopkg.in/ldap.v2"
 
 	"github.com/coreos/dex/connector"
 	"github.com/sirupsen/logrus"
-	"errors"
-	"strconv"
 )
 
 // Config holds the configuration parameters for the LDAP connector. The LDAP
