@@ -445,14 +445,14 @@ func TestLDAPHostAndPort(t *testing.T) {
 		t.Fatal("did not throw error for empty host")
 	}
 	config = &Config{
-		Host: "1.2.3.4",
+		Host:          "1.2.3.4",
 		InsecureNoSSL: true,
 	}
 	if host, port, err := normalizeHostAndPort(config); err != nil || host != "1.2.3.4" || port != "389" {
 		t.Fatalf("wrong result %v %v %v", host, port, err)
 	}
 	config = &Config{
-		Host: "1.2.3.4",
+		Host:          "1.2.3.4",
 		InsecureNoSSL: false,
 	}
 	if host, port, err := normalizeHostAndPort(config); err != nil || host != "1.2.3.4" || port != "636" {
@@ -465,21 +465,21 @@ func TestLDAPHostAndPort(t *testing.T) {
 		t.Fatalf("wrong result %s %s %v", host, port, err)
 	}
 	config = &Config{
-		Host: "ldaps://1.2.3.4",
+		Host:          "ldaps://1.2.3.4",
 		InsecureNoSSL: true,
 	}
 	if host, port, err := normalizeHostAndPort(config); err != nil || host != "1.2.3.4" || port != "389" {
 		t.Fatalf("wrong result %v %v %v", host, port, err)
 	}
 	config = &Config{
-		Host: "ldaps://1.2.3.4:636",
+		Host:          "ldaps://1.2.3.4:636",
 		InsecureNoSSL: true,
 	}
 	if host, port, err := normalizeHostAndPort(config); err != nil || host != "1.2.3.4" || port != "636" {
 		t.Fatalf("wrong result %v %v %v", host, port, err)
 	}
 	config = &Config{
-		Host: "1.2.3.4:bla",
+		Host:          "1.2.3.4:bla",
 		InsecureNoSSL: true,
 	}
 	if host, port, err := normalizeHostAndPort(config); err == nil {
