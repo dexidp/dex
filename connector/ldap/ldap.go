@@ -6,9 +6,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
+	"strconv"
+	"strings"
 
 	"gopkg.in/ldap.v2"
 
@@ -180,8 +183,40 @@ func (c *Config) OpenConnector(logger logrus.FieldLogger) (interface {
 	return c.openConnector(logger)
 }
 
-func (c *Config) openConnector(logger logrus.FieldLogger) (*ldapConnector, error) {
+// Get the host string and check if there is a port. If there is no port then
+// try to guess it
+func normalizeHostAndPort(c *Config) (host string, port string, err error) {
+	if c.Host == "" {
+		err = errors.New("empty host")
+		return
+	}
 
+	// remove ldap or ldaps if they are in the host string
+	host = c.Host
+	host = strings.Replace(host, "ldap://", "", -1)
+	host = strings.Replace(host, "ldaps://", "", -1)
+
+	// check if there is a port and try to extract it
+	if strings.Contains(host, ":") {
+		if host, port, err = net.SplitHostPort(host); err != nil {
+			return
+		}
+		if _, err = strconv.Atoi(port); err != nil {
+			return
+		}
+	}
+	// Guess port only if it's not present in the host string
+	if port == "" {
+		if c.InsecureNoSSL {
+			port = "389"
+		} else {
+			port = "636"
+		}
+	}
+	return
+}
+
+func (c *Config) openConnector(logger logrus.FieldLogger) (*ldapConnector, error) {
 	requiredFields := []struct {
 		name string
 		val  string
@@ -199,16 +234,14 @@ func (c *Config) openConnector(logger logrus.FieldLogger) (*ldapConnector, error
 
 	var (
 		host string
+		port string
 		err  error
 	)
-	if host, _, err = net.SplitHostPort(c.Host); err != nil {
-		host = c.Host
-		if c.InsecureNoSSL {
-			c.Host = c.Host + ":389"
-		} else {
-			c.Host = c.Host + ":636"
-		}
+
+	if host, port, err = normalizeHostAndPort(c); err != nil {
+		return nil, fmt.Errorf("malformed host string: %v", err)
 	}
+	c.Host = host + ":" + port
 
 	tlsConfig := &tls.Config{ServerName: host, InsecureSkipVerify: c.InsecureSkipVerify}
 	if c.RootCA != "" || len(c.RootCAData) != 0 {
