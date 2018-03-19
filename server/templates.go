@@ -126,6 +126,18 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 
 	filenames := []string{}
 	for _, file := range files {
+		if file.Mode()&os.ModeSymlink > 0 {
+			var err error
+			fp := filepath.Join(templatesDir, file.Name())
+			fp, err = filepath.EvalSymlinks(fp)
+			if err != nil {
+				return nil, fmt.Errorf("evaluate symlink: %v", err)
+			}
+			file, err = os.Stat(fp)
+			if err != nil {
+				return nil, fmt.Errorf("retrieve file info: %v", err)
+			}
+		}
 		if file.IsDir() {
 			continue
 		}
