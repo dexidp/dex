@@ -157,6 +157,16 @@ func parseScope(s string) (int, bool) {
 	return 0, false
 }
 
+func getHost(host string, insecure bool) string {
+	if _, _, err := net.SplitHostPort(host); err == nil {
+		return host
+	}
+	if insecure {
+		return host + ":389"
+	}
+	return host + ":636"
+}
+
 // Open returns an authentication strategy using LDAP.
 func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
 	conn, err := c.OpenConnector(logger)
@@ -197,18 +207,7 @@ func (c *Config) openConnector(logger logrus.FieldLogger) (*ldapConnector, error
 		}
 	}
 
-	var (
-		host string
-		err  error
-	)
-	if host, _, err = net.SplitHostPort(c.Host); err != nil {
-		host = c.Host
-		if c.InsecureNoSSL {
-			c.Host = c.Host + ":389"
-		} else {
-			c.Host = c.Host + ":636"
-		}
-	}
+	host := getHost(c.Host, c.InsecureNoSSL)
 
 	tlsConfig := &tls.Config{ServerName: host, InsecureSkipVerify: c.InsecureSkipVerify}
 	if c.RootCA != "" || len(c.RootCAData) != 0 {

@@ -19,6 +19,25 @@ import (
 	"github.com/coreos/dex/connector"
 )
 
+func TestGetScope(t *testing.T) {
+	tests := []struct {
+		host     string
+		insecure bool
+		want     string
+	}{
+		{"example.com", true, "example.com:389"},
+		{"example.com", false, "example.com:636"},
+		{"example.com:90", false, "example.com:90"},
+		{"example.com:90", true, "example.com:90"},
+	}
+	for _, test := range tests {
+		got := getHost(test.host, test.insecure)
+		if got != test.want {
+			t.Errorf("getHost(%q, %t), wanted=%q got=%q", test.host, test.insecure, test.want, got)
+		}
+	}
+}
+
 const envVar = "DEX_LDAP_TESTS"
 
 // connectionMethod indicates how the test should connect to the LDAP server.
