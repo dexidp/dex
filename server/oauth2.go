@@ -537,14 +537,13 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 	if !client.Public {
 		if client.RedirectURIRegex != nil {
 			return client.RedirectURIRegex.MatchString(redirectURI)
-		} else {
-			for _, uri := range client.RedirectURIs {
-				if redirectURI == uri {
-					return true
-				}
-			}
-			return false
 		}
+		for _, uri := range client.RedirectURIs {
+			if redirectURI == uri {
+				return true
+			}
+		}
+		return false
 	}
 
 	if redirectURI == redirectURIOOB {
