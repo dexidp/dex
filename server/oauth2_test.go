@@ -42,6 +42,55 @@ func TestParseAuthorizationRequest(t *testing.T) {
 			},
 		},
 		{
+			name: "normal request regexp",
+			clients: []storage.Client{
+				{
+					ID:           "foo",
+					RedirectURIs: []string{"https://example.com/(foo){1}"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id":     "foo",
+				"redirect_uri":  "https://example.com/foo",
+				"response_type": "code",
+				"scope":         "openid email profile",
+			},
+		},
+		{
+			name: "normal request, but invalid regex",
+			clients: []storage.Client{
+				{
+					ID:           "foo",
+					RedirectURIs: []string{"https://example.com/foo("},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id":     "foo",
+				"redirect_uri":  "https://example.com/foo(",
+				"response_type": "code",
+				"scope":         "openid email profile",
+			},
+		},
+		{
+			name: "redirectURI uses full match",
+			clients: []storage.Client{
+				{
+					ID:           "foo",
+					RedirectURIs: []string{"https://example.com/foo"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id":     "foo",
+				"redirect_uri":  "https://example.com/foobar",
+				"response_type": "code",
+				"scope":         "openid email profile",
+			},
+			wantErr: true,
+		},
+		{
 			name: "POST request",
 			clients: []storage.Client{
 				{

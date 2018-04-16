@@ -5,6 +5,7 @@ import (
 	"encoding/base32"
 	"errors"
 	"io"
+	"regexp"
 	"strings"
 	"time"
 
@@ -119,6 +120,11 @@ type Client struct {
 	// A registered set of redirect URIs. When redirecting from dex to the client, the URI
 	// requested to redirect to MUST match one of these values, unless the client is "public".
 	RedirectURIs []string `json:"redirectURIs" yaml:"redirectURIs"`
+
+	// Regex the redirect URI have to match to ba allowed for non-public Clients
+	// requested to redirect to MUST match one of these values, unless the client is "public".
+	// NOTE: we dont serialize this field into any persistent storage
+	RedirectURIRegex *regexp.Regexp `json:"-" yaml:"-"`
 
 	// TrustedPeers are a list of peers which can issue tokens on this client's behalf using
 	// the dynamic "oauth2:server:client_id:(client_id)" scope. If a peer makes such a request,
