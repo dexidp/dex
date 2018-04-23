@@ -259,14 +259,15 @@ func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 		return identity, fmt.Errorf("github: get user: %v", err)
 	}
 
-	username := user.Name
-	if username == "" {
-		username = user.Login
+	name := user.Name
+	if name == "" {
+		name = user.Login
 	}
 
 	identity = connector.Identity{
 		UserID:        strconv.Itoa(user.ID),
-		Username:      username,
+		Name:          name,
+		Username:      user.Login,
 		Email:         user.Email,
 		EmailVerified: true,
 	}

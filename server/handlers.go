@@ -462,6 +462,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 	claims := storage.Claims{
 		UserID:        identity.UserID,
 		Username:      identity.Username,
+		Name:          identity.Name,
 		Email:         identity.Email,
 		EmailVerified: identity.EmailVerified,
 		Groups:        identity.Groups,
@@ -935,6 +936,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 	}
 	ident := connector.Identity{
 		UserID:        refresh.Claims.UserID,
+		Name:          refresh.Claims.Name,
 		Username:      refresh.Claims.Username,
 		Email:         refresh.Claims.Email,
 		EmailVerified: refresh.Claims.EmailVerified,
@@ -959,6 +961,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 
 	claims := storage.Claims{
 		UserID:        ident.UserID,
+		Name:          ident.Name,
 		Username:      ident.Username,
 		Email:         ident.Email,
 		EmailVerified: ident.EmailVerified,
@@ -993,6 +996,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		// Update the claims of the refresh token.
 		//
 		// UserID intentionally ignored for now.
+		old.Claims.Name = ident.Name
 		old.Claims.Username = ident.Username
 		old.Claims.Email = ident.Email
 		old.Claims.EmailVerified = ident.EmailVerified

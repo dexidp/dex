@@ -136,6 +136,7 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 
 	identity = connector.Identity{
 		UserID:        user.ID,
+		Name:          user.Name,
 		Username:      user.Name,
 		Email:         user.Email,
 		EmailVerified: true,

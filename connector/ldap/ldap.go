@@ -335,8 +335,14 @@ func (c *ldapConnector) identityFromEntry(user ldap.Entry) (ident connector.Iden
 		missing = append(missing, c.UserSearch.IDAttr)
 	}
 
+	if c.UserSearch.Username != "" {
+		if ident.Username = getAttr(user, c.UserSearch.Username); ident.Username == "" {
+			missing = append(missing, c.UserSearch.Username)
+		}
+	}
+
 	if c.UserSearch.NameAttr != "" {
-		if ident.Username = getAttr(user, c.UserSearch.NameAttr); ident.Username == "" {
+		if ident.Name = getAttr(user, c.UserSearch.NameAttr); ident.Name == "" {
 			missing = append(missing, c.UserSearch.NameAttr)
 		}
 	}

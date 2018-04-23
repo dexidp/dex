@@ -263,6 +263,7 @@ type idTokenClaims struct {
 type federatedIDClaims struct {
 	ConnectorID string `json:"connector_id,omitempty"`
 	UserID      string `json:"user_id,omitempty"`
+	Username    string `json:"user_name,omitempty"`
 }
 
 func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, connID string) (idToken string, expiry time.Time, err error) {
@@ -320,11 +321,12 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		case scope == scopeGroups:
 			tok.Groups = claims.Groups
 		case scope == scopeProfile:
-			tok.Name = claims.Username
+			tok.Name = claims.Name
 		case scope == scopeFederatedID:
 			tok.FederatedIDClaims = &federatedIDClaims{
 				ConnectorID: connID,
 				UserID:      claims.UserID,
+				Username:    claims.Username,
 			}
 		default:
 			peerID, ok := parseCrossClientScope(scope)

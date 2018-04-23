@@ -197,7 +197,8 @@ func TestLoginUsedAsIDWhenConfigured(t *testing.T) {
 
 	expectNil(t, err)
 	expectEquals(t, identity.UserID, "some-login")
-	expectEquals(t, identity.Username, "Joe Bloggs")
+	expectEquals(t, identity.Username, "some-login")
+	expectEquals(t, identity.Name, "Joe Bloggs")
 }
 
 func newTestServer(responses map[string]testResponse) *httptest.Server {

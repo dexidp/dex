@@ -141,6 +141,7 @@ func (p *conn) Login(ctx context.Context, scopes connector.Scopes, username, pas
 		}
 		identity.Groups = groups
 	}
+	identity.Name = username
 	identity.Username = username
 	identity.UserID = tokenResp.Token.User.ID
 	return identity, true, nil

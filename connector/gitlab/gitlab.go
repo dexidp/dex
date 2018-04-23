@@ -136,6 +136,7 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 	}
 	identity = connector.Identity{
 		UserID:        strconv.Itoa(user.ID),
+		Name:          username,
 		Username:      username,
 		Email:         user.Email,
 		EmailVerified: true,
@@ -177,11 +178,12 @@ func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 		return ident, fmt.Errorf("gitlab: get user: %v", err)
 	}
 
-	username := user.Name
-	if username == "" {
-		username = user.Email
+	name := user.Name
+	if name == "" {
+		name = user.Email
 	}
-	ident.Username = username
+	ident.Name = name
+	ident.Username = name
 	ident.Email = user.Email
 
 	if s.Groups {

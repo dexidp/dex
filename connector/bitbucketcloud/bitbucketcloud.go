@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/dexidp/dex/pkg/log"
 	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/dexidp/dex/pkg/log"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/bitbucket"
@@ -151,6 +152,7 @@ func (b *bitbucketConnector) HandleCallback(s connector.Scopes, r *http.Request)
 
 	identity = connector.Identity{
 		UserID:        user.UUID,
+		Name:          user.Username,
 		Username:      user.Username,
 		Email:         user.Email,
 		EmailVerified: true,
@@ -248,6 +250,7 @@ func (b *bitbucketConnector) Refresh(ctx context.Context, s connector.Scopes, id
 		return identity, fmt.Errorf("bitbucket: get user: %v", err)
 	}
 
+	identity.Name = user.Username
 	identity.Username = user.Username
 	identity.Email = user.Email
 
