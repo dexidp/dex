@@ -19,7 +19,7 @@ func NewCallbackConnector(logger logrus.FieldLogger) connector.Connector {
 	return &Callback{
 		Identity: connector.Identity{
 			UserID:        "0-385-28089-0",
-			Username:      "Kilgore Trout",
+			Name:          "Kilgore Trout",
 			Email:         "kilgore@kilgore.trout",
 			EmailVerified: true,
 			Groups:        []string{"authors"},

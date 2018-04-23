@@ -24,6 +24,7 @@ type Scopes struct {
 // Identity represents the ID Token claims supported by the server.
 type Identity struct {
 	UserID        string
+	Name          string
 	Username      string
 	Email         string
 	EmailVerified bool

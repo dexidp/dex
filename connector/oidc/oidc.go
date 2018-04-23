@@ -186,7 +186,8 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 	}
 
 	var claims struct {
-		Username      string `json:"name"`
+		Name          string `json:"name"`
+		Username      string `json:"username"`
 		Email         string `json:"email"`
 		EmailVerified bool   `json:"email_verified"`
 		HostedDomain  string `json:"hd"`
@@ -211,6 +212,7 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 
 	identity = connector.Identity{
 		UserID:        idToken.Subject,
+		Name:          claims.Name,
 		Username:      claims.Username,
 		Email:         claims.Email,
 		EmailVerified: claims.EmailVerified,
