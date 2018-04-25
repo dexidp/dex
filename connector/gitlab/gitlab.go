@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/coreos/dex/connector"
 	"github.com/sirupsen/logrus"
@@ -47,7 +48,7 @@ type gitlabUser struct {
 type gitlabGroup struct {
 	ID   int
 	Name string
-	Path string
+	Path string `json:"full_path"`
 }
 
 // Open returns a strategy for logging in through GitLab.
@@ -269,7 +270,7 @@ func (c *gitlabConnector) groups(ctx context.Context, client *http.Client) ([]st
 		}
 
 		for _, group := range gitlabGroups {
-			groups = append(groups, group.Name)
+			groups = append(groups, strings.Replace(group.Path, "/", "-", -1))
 		}
 
 		link := resp.Header.Get("Link")
