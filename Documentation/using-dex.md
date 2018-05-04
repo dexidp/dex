@@ -63,7 +63,7 @@ oauth2Config := oauth2.Config{
     ClientSecret: "example-app-secret",
 
     // The redirectURL.
-    RedirectURL: "http://127.0.0.1:5556/callback",
+    RedirectURL: "http://127.0.0.1:5555/callback",
 
     // Discovery returns the OAuth2 endpoints.
     Endpoint: provider.Endpoint(),
