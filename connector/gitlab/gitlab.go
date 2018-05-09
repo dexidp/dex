@@ -87,7 +87,7 @@ type gitlabConnector struct {
 func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
 	gitlabScopes := []string{scopeUser}
 	if scopes.Groups {
-		gitlabScopes = []string{scopeAPI}
+		gitlabScopes = append(gitlabScopes, scopeAPI)
 	}
 
 	gitlabEndpoint := oauth2.Endpoint{AuthURL: c.baseURL + "/oauth/authorize", TokenURL: c.baseURL + "/oauth/token"}
