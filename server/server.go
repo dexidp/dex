@@ -31,6 +31,7 @@ import (
 	"github.com/coreos/dex/connector/microsoft"
 	"github.com/coreos/dex/connector/mock"
 	"github.com/coreos/dex/connector/oidc"
+	"github.com/coreos/dex/connector/onelogin"
 	"github.com/coreos/dex/connector/saml"
 	"github.com/coreos/dex/storage"
 )
@@ -434,6 +435,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"ldap":         func() ConnectorConfig { return new(ldap.Config) },
 	"github":       func() ConnectorConfig { return new(github.Config) },
 	"gitlab":       func() ConnectorConfig { return new(gitlab.Config) },
+	"onelogin":     func() ConnectorConfig { return new(onelogin.Config) },
 	"oidc":         func() ConnectorConfig { return new(oidc.Config) },
 	"saml":         func() ConnectorConfig { return new(saml.Config) },
 	"authproxy":    func() ConnectorConfig { return new(authproxy.Config) },

@@ -30,10 +30,7 @@ ID Tokens contains standard claims assert which client app logged the user in, w
   "at_hash": "bi96gOXZShvlWYtal9Eqiw",
   "email": "jane.doe@coreos.com",
   "email_verified": true,
-  "groups": [
-    "admins",
-    "developers"
-  ],
+  "groups": ["admins", "developers"],
   "name": "Jane Doe"
 }
 ```
@@ -63,16 +60,17 @@ Depending on the connectors limitations in protocols can prevent dex from issuin
 
 Dex implements the following connectors:
 
-| Name | supports refresh tokens | supports groups claim | status | notes |
-| ---- | ----------------------- | --------------------- | ------ | ----- |
-| [LDAP](Documentation/connectors/ldap.md) | yes | yes | stable | |
-| [GitHub](Documentation/connectors/github.md) | yes | yes | stable | |
-| [SAML 2.0](Documentation/connectors/saml.md) | no | yes | stable |
-| [GitLab](Documentation/connectors/gitlab.md) | yes | yes | beta | |
-| [OpenID Connect](Documentation/connectors/oidc.md) | yes | no ([#1065][issue-1065]) | beta | Includes Google, Salesforce, Azure, etc. |
-| [LinkedIn](Documentation/connectors/linkedin.md) | yes | no | beta | |
-| [Microsoft](Documentation/connectors/microsoft.md) | yes | yes | beta | |
-| [AuthProxy](Documentation/connectors/authproxy.md) | no | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
+| Name                                               | supports refresh tokens | supports groups claim    | status | notes                                                 |
+| -------------------------------------------------- | ----------------------- | ------------------------ | ------ | ----------------------------------------------------- |
+| [LDAP](Documentation/connectors/ldap.md)           | yes                     | yes                      | stable |                                                       |
+| [GitHub](Documentation/connectors/github.md)       | yes                     | yes                      | stable |                                                       |
+| [SAML 2.0](Documentation/connectors/saml.md)       | no                      | yes                      | stable |                                                       |
+| [GitLab](Documentation/connectors/gitlab.md)       | yes                     | yes                      | beta   |                                                       |
+| [Onelogin](Documentation/connectors/onelogin.md)   | yes                     | yes                      | beta   | Based on OpenID Connect.                              |
+| [OpenID Connect](Documentation/connectors/oidc.md) | yes                     | no ([#1065][issue-1065]) | beta   | Includes Google, Salesforce, Azure, etc.              |
+| [LinkedIn](Documentation/connectors/linkedin.md)   | yes                     | no                       | beta   |                                                       |
+| [Microsoft](Documentation/connectors/microsoft.md) | yes                     | yes                      | beta   |                                                       |
+| [AuthProxy](Documentation/connectors/authproxy.md) | no                      | no                       | alpha  | Authentication proxies such as Apache2 mod_auth, etc. |
 
 Stable, beta, and alpha are defined as:
 
