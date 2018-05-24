@@ -14,6 +14,7 @@ import (
 	"github.com/coreos/dex/storage/etcd"
 	"github.com/coreos/dex/storage/kubernetes"
 	"github.com/coreos/dex/storage/memory"
+	"github.com/coreos/dex/storage/mongodb"
 	"github.com/coreos/dex/storage/sql"
 )
 
@@ -136,6 +137,7 @@ var storages = map[string]func() StorageConfig{
 	"memory":     func() StorageConfig { return new(memory.Config) },
 	"sqlite3":    func() StorageConfig { return new(sql.SQLite3) },
 	"postgres":   func() StorageConfig { return new(sql.Postgres) },
+	"mongodb":    func() StorageConfig { return new(mongodb.Config) },
 }
 
 // UnmarshalJSON allows Storage to implement the unmarshaler interface to
