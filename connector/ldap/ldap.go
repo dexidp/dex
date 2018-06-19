@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"strings"
 
 	"gopkg.in/ldap.v2"
 
@@ -289,14 +290,13 @@ func (c *ldapConnector) do(ctx context.Context, f func(c *ldap.Conn) error) erro
 }
 
 func getAttrs(e ldap.Entry, name string) []string {
-	for _, a := range e.Attributes {
-		if a.Name != name {
-			continue
-		}
-		return a.Values
-	}
 	if name == "DN" {
 		return []string{e.DN}
+	}
+	for _, a := range e.Attributes {
+		if strings.EqualFold(a.Name, name) {
+			return a.Values
+		}
 	}
 	return nil
 }
