@@ -6,7 +6,7 @@ require (
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/cockroachdb/cmux v0.0.0-20170110192607-30d10be49292 // indirect
 	github.com/coreos/etcd v3.2.9+incompatible
-	github.com/coreos/go-oidc v0.0.0-20170307191026-be73733bb8cc
+	github.com/coreos/go-oidc v2.0.0+incompatible
 	github.com/coreos/go-semver v0.2.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20181031085051-9002847aa142 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
