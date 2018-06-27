@@ -22,10 +22,10 @@ func TestUserGroups(t *testing.T) {
 	}
 
 	teams := []team{
-		{Name: "team-1", Org: org{Login: "org-1"}},
-		{Name: "team-2", Org: org{Login: "org-1"}},
-		{Name: "team-3", Org: org{Login: "org-1"}},
-		{Name: "team-4", Org: org{Login: "org-2"}},
+		{Name: "Team 1", Slug: "team-1", Org: org{Login: "org-1"}},
+		{Name: "Team 2", Slug: "team-2", Org: org{Login: "org-1"}},
+		{Name: "Team 3", Slug: "team-3", Org: org{Login: "org-1"}},
+		{Name: "Team 4", Slug: "team-4", Org: org{Login: "org-2"}},
 	}
 
 	s := newTestServer(map[string]interface{}{
@@ -38,9 +38,13 @@ func TestUserGroups(t *testing.T) {
 
 	expectNil(t, err)
 	expectEquals(t, groups, []string{
+		"org-1:Team 1",
 		"org-1:team-1",
+		"org-1:Team 2",
 		"org-1:team-2",
+		"org-1:Team 3",
 		"org-1:team-3",
+		"org-2:Team 4",
 		"org-2:team-4",
 		"org-3",
 	})
