@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,10 @@ import (
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/server/internal"
 	"github.com/coreos/dex/storage"
+)
+
+var (
+	errTokenExpired = errors.New("token has expired")
 )
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -95,6 +100,7 @@ type discovery struct {
 	Auth          string   `json:"authorization_endpoint"`
 	Token         string   `json:"token_endpoint"`
 	Keys          string   `json:"jwks_uri"`
+	UserInfo      string   `json:"userinfo_endpoint"`
 	ResponseTypes []string `json:"response_types_supported"`
 	Subjects      []string `json:"subject_types_supported"`
 	IDTokenAlgs   []string `json:"id_token_signing_alg_values_supported"`
@@ -109,6 +115,7 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 		Auth:        s.absURL("/auth"),
 		Token:       s.absURL("/token"),
 		Keys:        s.absURL("/keys"),
+		UserInfo:    s.absURL("/userinfo"),
 		Subjects:    []string{"public"},
 		IDTokenAlgs: []string{string(jose.RS256)},
 		Scopes:      []string{"openid", "email", "groups", "profile", "offline_access"},
@@ -660,7 +667,13 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		return
 	}
 
-	accessToken := storage.NewID()
+	accessToken, err := s.newAccessToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID)
+	if err != nil {
+		s.logger.Errorf("failed to create new access token: %v", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
 	idToken, expiry, err := s.newIDToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, accessToken, authCode.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create ID token: %v", err)
@@ -796,6 +809,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 
 		}
 	}
+
 	s.writeAccessToken(w, idToken, accessToken, refreshToken, expiry)
 }
 
@@ -909,7 +923,13 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		Groups:        ident.Groups,
 	}
 
-	accessToken := storage.NewID()
+	accessToken, err := s.newAccessToken(client.ID, claims, scopes, refresh.Nonce, refresh.ConnectorID)
+	if err != nil {
+		s.logger.Errorf("failed to create new access token: %v", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
 	idToken, expiry, err := s.newIDToken(client.ID, claims, scopes, refresh.Nonce, accessToken, refresh.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create ID token: %v", err)
@@ -968,6 +988,88 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 	}
 
 	s.writeAccessToken(w, idToken, accessToken, rawNewToken, expiry)
+}
+
+func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
+	authorization := r.Header.Get("Authorization")
+	parts := strings.Fields(authorization)
+
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
+		msg := "invalid authorization header"
+		w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Bearer realm="dex", error="%s", error_description="%s"`, errInvalidRequest, msg))
+		s.tokenErrHelper(w, errInvalidRequest, msg, http.StatusBadRequest)
+		return
+	}
+
+	token := parts[1]
+
+	verified, err := s.verify(token)
+	if err != nil {
+		if err == errTokenExpired {
+			s.tokenErrHelper(w, errAccessDenied, err.Error(), http.StatusUnauthorized)
+			return
+		}
+		s.tokenErrHelper(w, errInvalidRequest, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(verified)
+}
+
+func (s *Server) verify(token string) ([]byte, error) {
+	keys, err := s.storage.GetKeys()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get keys: %v", err)
+	}
+
+	if keys.SigningKey == nil {
+		return nil, fmt.Errorf("no private keys found")
+	}
+
+	object, err := jose.ParseSigned(token)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse signed message")
+	}
+
+	// Parse the message to check expiry, as it jose doesn't distinguish expiry error from others
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("square/go-jose: compact JWS format must have three parts")
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: check other claims
+	var tokenInfo struct {
+		Expiry int64 `json:"exp"`
+	}
+
+	if err := json.Unmarshal(payload, &tokenInfo); err != nil {
+		return nil, err
+	}
+
+	if tokenInfo.Expiry < s.now().Unix() {
+		return nil, errTokenExpired
+	}
+
+	var allKeys []*jose.JSONWebKey
+
+	allKeys = append(allKeys, keys.SigningKeyPub)
+	for _, key := range keys.VerificationKeys {
+		allKeys = append(allKeys, key.PublicKey)
+	}
+
+	for _, pubKey := range allKeys {
+		verified, err := object.Verify(pubKey)
+		if err == nil {
+			return verified, nil
+		}
+	}
+	return nil, errors.New("unable to verify jwt")
 }
 
 func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, accessToken, refreshToken string, expiry time.Time) {
