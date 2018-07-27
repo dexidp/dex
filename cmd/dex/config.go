@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -46,6 +47,38 @@ type Config struct {
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
+}
+
+//Validate the configuration
+func (c Config) Validate() error {
+	// Fast checks. Perform these first for a more responsive CLI.
+	checks := []struct {
+		bad    bool
+		errMsg string
+	}{
+		{c.Issuer == "", "no issuer specified in config file"},
+		{!c.EnablePasswordDB && len(c.StaticPasswords) != 0, "cannot specify static passwords without enabling password db"},
+		{c.Storage.Config == nil, "no storage supplied in config file"},
+		{c.Web.HTTP == "" && c.Web.HTTPS == "", "must supply a HTTP/HTTPS  address to listen on"},
+		{c.Web.HTTPS != "" && c.Web.TLSCert == "", "no cert specified for HTTPS"},
+		{c.Web.HTTPS != "" && c.Web.TLSKey == "", "no private key specified for HTTPS"},
+		{c.GRPC.TLSCert != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
+		{c.GRPC.TLSKey != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
+		{(c.GRPC.TLSCert == "") != (c.GRPC.TLSKey == ""), "must specific both a gRPC TLS cert and key"},
+		{c.GRPC.TLSCert == "" && c.GRPC.TLSClientCA != "", "cannot specify gRPC TLS client CA without a gRPC TLS cert"},
+	}
+
+	var checkErrors []string
+
+	for _, check := range checks {
+		if check.bad {
+			checkErrors = append(checkErrors, check.errMsg)
+		}
+	}
+	if len(checkErrors) != 0 {
+		return fmt.Errorf("Invalid Config:\n\t-\t%s", strings.Join(checkErrors, "\n\t-\t"))
+	}
+	return nil
 }
 
 type password storage.Password
