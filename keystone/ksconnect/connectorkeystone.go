@@ -36,13 +36,6 @@ type KeystoneConnector interface {
 	// identity provider based on the scopes requested by the downstream client.
 	// For example, if the downstream client requests a refresh token from the
 	// server, the connector should also request a token from the provider.
-	//
-	// Many identity providers have arbitrary restrictions on refresh tokens. For
-	// example Google only allows a single refresh token per client/user/scopes
-	// combination, and wont return a refresh token even if offline access is
-	// requested if one has already been issues. There's no good general answer
-	// for these kind of restrictions, and may require this package to become more
-	// aware of the global set of user/connector interactions.
 
 	Prompt() string
 	Login(ctx context.Context, s Scopes, username, password string) (identity Identity, validPassword bool, err error)
@@ -52,10 +45,12 @@ type KeystoneConnector interface {
 	HandleCallback(s Scopes, r *http.Request) (identity Identity, err error)
 }
 
+
 //type KeystoneConfig struct{
 //	Username string `json:"username"`
 //	Password string `json:"password"`
 //}
+
 
 // SAMLConnector represents SAML connectors which implement the HTTP POST binding.
 //  RelayState is handled by the server.

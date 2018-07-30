@@ -1,4 +1,4 @@
-// Package mock implements connectors which help test various server components.
+// Package ksconnect implements connectors which help test various server components.
 package ksconnect
 
 import (
@@ -8,8 +8,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/coreos/dex/connector"
+	//"github.com/coreos/dex/connector"
 	"github.com/sirupsen/logrus"
+	//"github.com/knangia/ksconnect"
 )
 
 // NewCallbackConnector returns a mock connector which requires no user interaction. It always returns
@@ -29,11 +30,11 @@ import (
 //}
 //fmt.Println("CONNECTOR FOR KEYSTONE IS IMPORTED")
 
-func NewKeystoneConnector(logger logrus.FieldLogger) connector.Connector {
+func NewKeystoneConnector(logger logrus.FieldLogger) Connector {
 	return &Keystone{
-		Identity: connector.Identity{
-			username: "Kilgore Trout",
-			password: "xyz",
+		Identity: Identity{
+			Username: "Kilgore Trout",
+			Password: "xyz",
 		},
 			Logger:    logger,
 	}
@@ -42,7 +43,7 @@ func NewKeystoneConnector(logger logrus.FieldLogger) connector.Connector {
 var (
 	//_ connector.CallbackConnector = &Callback{}
 
-	_ connector.KeystoneConnector = Keystone{}
+	_ KeystoneConnector = &Keystone{}
 )
 
 // Callback is a connector that requires no user interaction and always returns the same identity.
@@ -53,12 +54,12 @@ var (
 //}
 
 type Keystone struct {
-	Identity connector.Identity
+	Identity Identity
 	Logger   logrus.FieldLogger
 }
 
 // LoginURL returns the URL to redirect the user to login with.
-func (m *Keystone) LoginURL(s connector.Scopes, callbackURL, state string) (string, error) {
+func (m *Keystone) LoginURL(s Scopes, callbackURL, state string) (string, error) {
 	u, err := url.Parse(callbackURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse callbackURL %q: %v", callbackURL, err)
@@ -72,12 +73,12 @@ func (m *Keystone) LoginURL(s connector.Scopes, callbackURL, state string) (stri
 //var connectorData = []byte("foobar")
 
 // HandleCallback parses the request and returns the user's identity
-func (m *Keystone) HandleCallback(s connector.Scopes, r *http.Request) (connector.Identity, error) {
+func (m *Keystone) HandleCallback(s Scopes, r *http.Request) (Identity, error) {
 	return m.Identity, nil
 }
 
 // Refresh updates the identity during a refresh token request.
-func (m *Keystone) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+func (m *Keystone) Refresh(ctx context.Context, s Scopes, identity Identity) (Identity, error) {
 	return m.Identity, nil
 }
 
@@ -125,24 +126,28 @@ type KeystoneConfig struct {
 
 
 // Open returns an authentication strategy which prompts for a predefined username and password.
-func (c *KeystoneConfig) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
+func (c *KeystoneConfig) Open(id string, logger logrus.FieldLogger) (Connector, error) {
 	if c.Username == "" {
 		return nil, errors.New("no username supplied")
 	}
 	if c.Password == "" {
 		return nil, errors.New("no password supplied")
 	}
-	return &Keystone{c.Identity, logger}, nil
+	i := Identity{c.Username, c.Password}
+	return &Keystone{i, logger}, nil
 }
 
 
 func (p Keystone) Close() error { return nil }
 
-////////// wip
+////////// wip :::: we have identity in keystone struct and not separate username and password
 
-func (p Keystone) Login(ctx context.Context, s connector.Scopes, username, password string) (identity connector.Identity, validPassword bool, err error) {
-	if username == p.username && password == p.password {
-		return connector.username, true, nil
+func (p Keystone) Login(ctx context.Context, s Scopes, username, password string) (identity Identity, validPassword bool, err error) {
+	if username == p.Identity.Username && password == p.Identity.Password {
+		return Identity{
+			Username: "Kilgore Trout",
+			Password: "xyz",
+		}, true, nil
 	}
 	return identity, false, nil
 }
