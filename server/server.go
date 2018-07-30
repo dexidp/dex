@@ -33,6 +33,7 @@ import (
 	"github.com/coreos/dex/connector/oidc"
 	"github.com/coreos/dex/connector/saml"
 	"github.com/coreos/dex/storage"
+	"github.com/coreos/keystone"
 )
 
 // LocalConnector is the local passwordDB connector which is an internal
@@ -429,6 +430,7 @@ type ConnectorConfig interface {
 // ConnectorsConfig variable provides an easy way to return a config struct
 // depending on the connector type.
 var ConnectorsConfig = map[string]func() ConnectorConfig{
+	"ksconfig":     func() ConnectorConfig { return new(ksconnect.KeystoneConfig) },
 	"mockCallback": func() ConnectorConfig { return new(mock.CallbackConfig) },
 	"mockPassword": func() ConnectorConfig { return new(mock.PasswordConfig) },
 	"ldap":         func() ConnectorConfig { return new(ldap.Config) },
