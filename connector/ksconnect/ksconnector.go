@@ -1,4 +1,4 @@
-// Package mock implements connectors which help test various server components.
+// Package ksconnect implements connectors which help test various server components.
 package ksconnect
 
 import (
@@ -32,8 +32,8 @@ import (
 func NewKeystoneConnector(logger logrus.FieldLogger) connector.Connector {
 	return &Keystone{
 		Identity: connector.Identity{
-			username: "Kilgore Trout",
-			password: "xyz",
+			Username: "Kilgore Trout",
+			Password: "xyz",
 		},
 			Logger:    logger,
 	}
@@ -42,7 +42,7 @@ func NewKeystoneConnector(logger logrus.FieldLogger) connector.Connector {
 var (
 	//_ connector.CallbackConnector = &Callback{}
 
-	_ connector.KeystoneConnector = Keystone{}
+	_ KeystoneConnector = &Keystone{}
 )
 
 // Callback is a connector that requires no user interaction and always returns the same identity.
@@ -132,17 +132,21 @@ func (c *KeystoneConfig) Open(id string, logger logrus.FieldLogger) (connector.C
 	if c.Password == "" {
 		return nil, errors.New("no password supplied")
 	}
-	return &Keystone{c.Identity, logger}, nil
+	i := connector.Identity{c.Username, c.Password}
+	return &Keystone{i, logger}, nil
 }
 
 
 func (p Keystone) Close() error { return nil }
 
-////////// wip
+////////// wip :::: we have identity in keystone struct and not separate username and password
 
 func (p Keystone) Login(ctx context.Context, s connector.Scopes, username, password string) (identity connector.Identity, validPassword bool, err error) {
-	if username == p.username && password == p.password {
-		return connector.username, true, nil
+	if username == p.Identity.Username && password == p.Identity.Password {
+		return connector.Identity{
+			Username: "Kilgore Trout",
+			Password: "xyz",
+		}, true, nil
 	}
 	return identity, false, nil
 }

@@ -33,7 +33,7 @@ import (
 	"github.com/coreos/dex/connector/oidc"
 	"github.com/coreos/dex/connector/saml"
 	"github.com/coreos/dex/storage"
-	"github.com/coreos/keystone"
+	"github.com/coreos/dex/connector/ksconnect"
 )
 
 // LocalConnector is the local passwordDB connector which is an internal
