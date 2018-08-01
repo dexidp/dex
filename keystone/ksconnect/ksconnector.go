@@ -132,7 +132,7 @@ func (c *KeystoneConfig) Open(id string, logger logrus.FieldLogger) (connector.C
 	if c.Password == "" {
 		return nil, errors.New("no password supplied")
 	}
-	i := connector.Identity{c.Username, c.Password}
+	i := connector.Identity{Username: c.Username, Password:c.Password }
 	return &Keystone{i, logger}, nil
 }
 
