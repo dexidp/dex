@@ -3,7 +3,6 @@ package ksconnect
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -118,21 +117,22 @@ type KeystoneConfig struct {
 //type CallbackConfig struct{}
 
 // Open returns an authentication strategy which requires no user interaction.
-//func (c *CallbackConfig) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
-//	return NewCallbackConnector(logger), nil
+//func (c *KeystoneConfig) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
+//	return NewKeystoneConnector(logger), nil
 //}
 
 
 
 // Open returns an authentication strategy which prompts for a predefined username and password.
 func (c *KeystoneConfig) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
-	if c.Username == "" {
-		return nil, errors.New("no username supplied")
-	}
-	if c.Password == "" {
-		return nil, errors.New("no password supplied")
-	}
+	//if c.Username == "" {
+	//	return nil, errors.New("no username supplied")
+	//}
+	//if c.Password == "" {
+	//	return nil, errors.New("no password supplied")
+	//}
 	i := connector.Identity{Username: c.Username, Password:c.Password }
+	//return NewKeystoneConnector(logger), nil
 	return &Keystone{i, logger}, nil
 }
 
