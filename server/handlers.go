@@ -18,6 +18,9 @@ import (
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/server/internal"
 	"github.com/coreos/dex/storage"
+
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
 )
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
