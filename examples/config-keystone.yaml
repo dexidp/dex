@@ -1,7 +1,7 @@
 # The base path of dex and the external name of the OpenID Connect service.
 # This is the canonical URL that all clients MUST use to refer to dex. If a
 # path is provided, dex's HTTP service will listen at a non-root URL.
-issuer: http://127.0.0.1:5556/dex
+issuer: http://0.0.0.0:5556/dex
 
 # The storage configuration determines where dex stores its state. Supported
 # options include SQL flavors and Kubernetes third party resources.
@@ -62,7 +62,7 @@ staticClients:
 connectors:
 - type: ksconfig
   id: ksconnect
-  name: Example
+  name: Keystone
 # - type: oidc
 #   id: google
 #   name: Google
