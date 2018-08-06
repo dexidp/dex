@@ -223,6 +223,40 @@ func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*a
 
 }
 
+func (d dexAPI) VerifyPassword(ctx context.Context, req *api.VerifyPasswordReq) (*api.VerifyPasswordResp, error) {
+	if req.Email == "" {
+		return nil, errors.New("no email supplied")
+	}
+
+	if req.Password == "" {
+		return nil, errors.New("no passwored to verify supplied")
+	}
+
+	// TODO we can dry this up if https://github.com/coreos/dex/pull/1271/files merges
+	password, err := d.s.GetPassword(req.Email)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			return &api.VerifyPasswordResp{
+				NotFound: true,
+				Verified: false,
+			}, nil
+		}
+		d.logger.Errorf("api: there was an error retrieving the password: %v", err)
+		return nil, fmt.Errorf("verify password: %v", err)
+	}
+
+	resp := &api.VerifyPasswordResp{
+		NotFound: false,
+	}
+
+	if err := bcrypt.CompareHashAndPassword(password.Hash, []byte(req.Password)); err != nil {
+		resp.Verified = false
+		return resp, nil
+	}
+	resp.Verified = true
+	return resp, nil
+}
+
 func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.ListRefreshResp, error) {
 	id := new(internal.IDTokenSubject)
 	if err := internal.Unmarshal(req.UserId, id); err != nil {
