@@ -19,6 +19,7 @@ const (
 	kindRefreshToken    = "RefreshToken"
 	kindKeys            = "SigningKey"
 	kindPassword        = "Password"
+	kindTotp            = "TotpSecret"
 	kindOfflineSessions = "OfflineSessions"
 	kindConnector       = "Connector"
 )
@@ -30,6 +31,7 @@ const (
 	resourceRefreshToken    = "refreshtokens"
 	resourceKeys            = "signingkeies" // Kubernetes attempts to pluralize.
 	resourcePassword        = "passwords"
+	resourceTotp            = "totpsecrets"
 	resourceOfflineSessions = "offlinesessionses" // Again attempts to pluralize.
 	resourceConnector       = "connectors"
 )
@@ -247,6 +249,10 @@ func (cli *client) CreateConnector(c storage.Connector) error {
 	return cli.post(resourceConnector, cli.fromStorageConnector(c))
 }
 
+func (cli *client) CreateOtp(t storage.TotpSecret) error {
+	return cli.post(resourceTotp, cli.fromStorageTotpSecret(t))
+}
+
 func (cli *client) GetAuthRequest(id string) (storage.AuthRequest, error) {
 	var req AuthRequest
 	if err := cli.get(resourceAuthRequest, id, &req); err != nil {
@@ -353,6 +359,28 @@ func (cli *client) GetConnector(id string) (storage.Connector, error) {
 	return toStorageConnector(c), nil
 }
 
+func (cli *client) GetOtp(email string) (string, error) {
+	t, err := cli.getOtp(email)
+	if err != nil {
+		return "", err
+	}
+	return toStorageTotpSecret(t).Secret, nil
+}
+
+func (cli *client) getOtp(email string) (TotpSecret, error) {
+	// TODO(ericchiang): Figure out whose job it is to lowercase emails.
+	email = strings.ToLower(email)
+	var p TotpSecret
+	name := cli.idToName(email + ".totp")
+	if err := cli.get(resourceTotp, name, &p); err != nil {
+		return TotpSecret{}, err
+	}
+	if email != p.Email {
+		return TotpSecret{}, fmt.Errorf("get email: email %q mapped to password with email %q", email, p.Email)
+	}
+	return p, nil
+}
+
 func (cli *client) ListClients() ([]storage.Client, error) {
 	return nil, errors.New("not implemented")
 }
@@ -435,6 +463,14 @@ func (cli *client) DeleteOfflineSessions(userID string, connID string) error {
 
 func (cli *client) DeleteConnector(id string) error {
 	return cli.delete(resourceConnector, id)
+}
+
+func (cli *client) DeleteOtp(email string) error {
+	t, err := cli.getOtp(email)
+	if err != nil {
+		return err
+	}
+	return cli.delete(resourceTotp, t.ObjectMeta.Name)
 }
 
 func (cli *client) UpdateRefreshToken(id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
@@ -561,6 +597,23 @@ func (cli *client) UpdateConnector(id string, updater func(a storage.Connector) 
 	newConn := cli.fromStorageConnector(updated)
 	newConn.ObjectMeta = c.ObjectMeta
 	return cli.put(resourceConnector, id, newConn)
+}
+
+func (cli *client) UpdateOtp(email string, updater func(p storage.TotpSecret) (storage.TotpSecret, error)) error {
+	p, err := cli.getOtp(email)
+	if err != nil {
+		return err
+	}
+
+	updated, err := updater(toStorageTotpSecret(p))
+	if err != nil {
+		return err
+	}
+	updated.Email = p.Email
+
+	newTotp := cli.fromStorageTotpSecret(updated)
+	newTotp.ObjectMeta = p.ObjectMeta
+	return cli.put(resourceTotp, p.ObjectMeta.Name, newTotp)
 }
 
 func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err error) {

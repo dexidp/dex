@@ -15,6 +15,7 @@ import (
 const (
 	tmplApproval = "approval.html"
 	tmplLogin    = "login.html"
+	tmplTotp     = "totp.html"
 	tmplPassword = "password.html"
 	tmplOOB      = "oob.html"
 	tmplError    = "error.html"
@@ -23,6 +24,7 @@ const (
 var requiredTmpls = []string{
 	tmplApproval,
 	tmplLogin,
+	tmplTotp,
 	tmplPassword,
 	tmplOOB,
 	tmplError,
@@ -30,6 +32,7 @@ var requiredTmpls = []string{
 
 type templates struct {
 	loginTmpl    *template.Template
+	totpImpl     *template.Template
 	approvalTmpl *template.Template
 	passwordTmpl *template.Template
 	oobTmpl      *template.Template
@@ -157,6 +160,7 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 	}
 	return &templates{
 		loginTmpl:    tmpls.Lookup(tmplLogin),
+		totpImpl:     tmpls.Lookup(tmplTotp),
 		approvalTmpl: tmpls.Lookup(tmplApproval),
 		passwordTmpl: tmpls.Lookup(tmplPassword),
 		oobTmpl:      tmpls.Lookup(tmplOOB),
@@ -188,6 +192,16 @@ func (t *templates) login(w http.ResponseWriter, connectors []connectorInfo) err
 		Connectors []connectorInfo
 	}{connectors}
 	return renderTemplate(w, t.loginTmpl, data)
+}
+
+func (t *templates) totp(w http.ResponseWriter, postURL, enrollmentURL, secret string, invalid bool) error {
+	data := struct {
+		PostURL    string
+		Enrollment string
+		TotpSecret string
+		Invalid    bool
+	}{postURL, enrollmentURL, secret, invalid}
+	return renderTemplate(w, t.totpImpl, data)
 }
 
 func (t *templates) password(w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid, showBacklink bool) error {

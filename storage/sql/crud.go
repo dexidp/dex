@@ -200,6 +200,50 @@ func getAuthRequest(q querier, id string) (a storage.AuthRequest, err error) {
 	return a, nil
 }
 
+func (c *conn) CreateOtp(t storage.TotpSecret) error {
+	_, err := c.Exec(`
+		insert into totp (
+			email, secret
+		)
+		values ($1, $2);
+	`,
+		t.Email, t.Secret,
+	)
+
+	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
+		return fmt.Errorf("insert totp code: %v", err)
+	}
+	return nil
+}
+
+func (c *conn) GetOtp(email string) (secret string, err error) {
+	totp, err := getOtp(c, email)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return secret, storage.ErrNotFound
+		}
+		return "", fmt.Errorf("select otp: %v", err)
+	}
+	return totp.Secret, nil
+}
+
+func getOtp(q querier, email string) (res storage.TotpSecret, err error) {
+	res.Email = strings.ToLower(email)
+	err = q.QueryRow(`
+		select
+			secret
+		from totp
+		where email = $1;
+		`, res.Email).Scan(&res.Secret)
+	return
+}
+
+func (c *conn) DeleteOtp(email string) error { return c.delete("totp", "email", email) }
+
 func (c *conn) CreateAuthCode(a storage.AuthCode) error {
 	_, err := c.Exec(`
 		insert into auth_code (
@@ -813,6 +857,32 @@ func (c *conn) ListConnectors() ([]storage.Connector, error) {
 		return nil, err
 	}
 	return connectors, nil
+}
+
+func (c *conn) UpdateOtp(email string, updater func(t storage.TotpSecret) (storage.TotpSecret, error)) error {
+	return c.ExecTx(func(tx *trans) error {
+		totp, err := getOtp(tx, email)
+		if err != nil {
+			return err
+		}
+
+		newTotp, err := updater(totp)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(`
+			update totp
+			set 
+			    secret = $1
+			where email = $2;
+		`,
+			newTotp.Secret, email,
+		)
+		if err != nil {
+			return fmt.Errorf("update otp: %v", err)
+		}
+		return nil
+	})
 }
 
 func (c *conn) DeleteAuthRequest(id string) error { return c.delete("auth_request", "id", id) }

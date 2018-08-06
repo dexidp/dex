@@ -17,6 +17,7 @@ func New(logger logrus.FieldLogger) storage.Storage {
 		authCodes:       make(map[string]storage.AuthCode),
 		refreshTokens:   make(map[string]storage.RefreshToken),
 		authReqs:        make(map[string]storage.AuthRequest),
+		totps:           make(map[string]storage.TotpSecret),
 		passwords:       make(map[string]storage.Password),
 		offlineSessions: make(map[offlineSessionID]storage.OfflineSessions),
 		connectors:      make(map[string]storage.Connector),
@@ -43,6 +44,7 @@ type memStorage struct {
 	authCodes       map[string]storage.AuthCode
 	refreshTokens   map[string]storage.RefreshToken
 	authReqs        map[string]storage.AuthRequest
+	totps           map[string]storage.TotpSecret
 	passwords       map[string]storage.Password
 	offlineSessions map[offlineSessionID]storage.OfflineSessions
 	connectors      map[string]storage.Connector
@@ -127,6 +129,17 @@ func (s *memStorage) CreateAuthRequest(a storage.AuthRequest) (err error) {
 	return
 }
 
+func (s *memStorage) CreateOtp(t storage.TotpSecret) (err error) {
+	s.tx(func() {
+		if _, ok := s.totps[t.Email]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.totps[t.Email] = t
+		}
+	})
+	return
+}
+
 func (s *memStorage) CreatePassword(p storage.Password) (err error) {
 	lowerEmail := strings.ToLower(p.Email)
 	s.tx(func() {
@@ -185,6 +198,18 @@ func (s *memStorage) GetPassword(email string) (p storage.Password, err error) {
 		}
 	})
 	return
+}
+
+func (s *memStorage) GetOtp(email string) (secret string, err error) {
+	email = strings.ToLower(email)
+	var p storage.TotpSecret
+	s.tx(func() {
+		var ok bool
+		if p, ok = s.totps[email]; !ok {
+			err = storage.ErrNotFound
+		}
+	})
+	return p.Secret, err
 }
 
 func (s *memStorage) GetClient(id string) (client storage.Client, err error) {
@@ -293,6 +318,18 @@ func (s *memStorage) DeletePassword(email string) (err error) {
 			return
 		}
 		delete(s.passwords, email)
+	})
+	return
+}
+
+func (s *memStorage) DeleteOtp(email string) (err error) {
+	email = strings.ToLower(email)
+	s.tx(func() {
+		if _, ok := s.totps[email]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		delete(s.totps, email)
 	})
 	return
 }
@@ -461,6 +498,20 @@ func (s *memStorage) UpdateConnector(id string, updater func(c storage.Connector
 		}
 		if r, err = updater(r); err == nil {
 			s.connectors[id] = r
+		}
+	})
+	return
+}
+
+func (s *memStorage) UpdateOtp(email string, updater func(t storage.TotpSecret) (storage.TotpSecret, error)) (err error) {
+	s.tx(func() {
+		r, ok := s.totps[email]
+		if !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		if r, err = updater(r); err == nil {
+			s.totps[email] = r
 		}
 	})
 	return

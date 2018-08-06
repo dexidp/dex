@@ -67,6 +67,9 @@ type Config struct {
 	// Logging in implies approval.
 	SkipApprovalScreen bool
 
+	Totp       bool
+	TotpDigits int
+
 	RotateKeysAfter  time.Duration // Defaults to 6 hours.
 	IDTokensValidFor time.Duration // Defaults to 24 hours
 
@@ -131,6 +134,8 @@ type Server struct {
 
 	// If enabled, don't prompt user for approval after logging in through connector.
 	skipApproval bool
+	totp         bool
+	totpDigits   int
 
 	supportedResponseTypes map[string]bool
 
@@ -200,6 +205,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		now:                    now,
 		templates:              tmpls,
 		logger:                 c.Logger,
+		totp:                   c.Totp,
+		totpDigits:             c.TotpDigits,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -264,7 +271,9 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS("/token", s.handleToken)
 	handleWithCORS("/keys", s.handlePublicKeys)
 	handleFunc("/auth", s.handleAuthorization)
+	handleFunc("/authTotp", s.handleTotpLogin)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
+	handleFunc("/auth/totp/qrcode", s.handleTotpQRCode)
 	r.HandleFunc(path.Join(issuerURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on
 		// misconfigured authproxy connector setups.

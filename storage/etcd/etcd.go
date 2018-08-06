@@ -15,6 +15,7 @@ import (
 const (
 	clientPrefix         = "client/"
 	authCodePrefix       = "auth_code/"
+	totpPrefix           = "totp/"
 	refreshTokenPrefix   = "refresh_token/"
 	authRequestPrefix    = "auth_req/"
 	passwordPrefix       = "password/"
@@ -242,6 +243,44 @@ func (c *conn) ListClients() (clients []storage.Client, err error) {
 		clients = append(clients, cli)
 	}
 	return clients, nil
+}
+
+func (c *conn) CreateOtp(p storage.TotpSecret) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnCreate(ctx, totpPrefix+strings.ToLower(p.Email), p)
+}
+
+func (c *conn) GetOtp(email string) (secret string, err error) {
+	var p storage.TotpSecret
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	err = c.getKey(ctx, keyEmail(totpPrefix, email), &p)
+	return p.Secret, err
+}
+
+func (c *conn) UpdateOtp(email string, updater func(p storage.TotpSecret) (storage.TotpSecret, error)) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnUpdate(ctx, keyEmail(totpPrefix, email), func(currentValue []byte) ([]byte, error) {
+		var current storage.TotpSecret
+		if len(currentValue) > 0 {
+			if err := json.Unmarshal(currentValue, &current); err != nil {
+				return nil, err
+			}
+		}
+		updated, err := updater(current)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(updated)
+	})
+}
+
+func (c *conn) DeleteOtp(email string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.deleteKey(ctx, keyEmail(totpPrefix, email))
 }
 
 func (c *conn) CreatePassword(p storage.Password) error {

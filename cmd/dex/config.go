@@ -25,6 +25,7 @@ type Config struct {
 	Telemetry Telemetry `json:"telemetry"`
 	OAuth2    OAuth2    `json:"oauth2"`
 	GRPC      GRPC      `json:"grpc"`
+	OTP       OTP       `json:"otp"`
 	Expiry    Expiry    `json:"expiry"`
 	Logger    Logger    `json:"logger"`
 
@@ -117,6 +118,12 @@ type GRPC struct {
 	TLSCert     string `json:"tlsCert"`
 	TLSKey      string `json:"tlsKey"`
 	TLSClientCA string `json:"tlsClientCA"`
+}
+
+// OTP is config for One-Time password
+type OTP struct {
+	Type   string `json:"type"`
+	Digits int    `json:"digits"`
 }
 
 // Storage holds app's storage configuration.

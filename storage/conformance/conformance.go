@@ -51,6 +51,7 @@ func RunTests(t *testing.T, newStorage func() storage.Storage) {
 		{"ConnectorCRUD", testConnectorCRUD},
 		{"GarbageCollection", testGC},
 		{"TimezoneSupport", testTimezones},
+		{"TotpCRUD", testTotpCRUD},
 	})
 }
 
@@ -861,4 +862,70 @@ func testTimezones(t *testing.T, s storage.Storage) {
 	if !gotTime.Equal(wantTime) {
 		t.Fatalf("expected expiry %v got %v", wantTime, gotTime)
 	}
+}
+
+func testTotpCRUD(t *testing.T, s storage.Storage) {
+	// Use bcrypt.MinCost to keep the tests short.
+	secretHash1 := "a3n4zncxade6fvzhaznqoapauh6nliig"
+
+	totp1 := storage.TotpSecret{
+		Email:  "jane@example.com",
+		Secret: secretHash1,
+	}
+	if err := s.CreateOtp(totp1); err != nil {
+		t.Fatalf("create totp token: %v", err)
+	}
+
+	// Attempt to create same totp twice.
+	err := s.CreateOtp(totp1)
+	mustBeErrAlreadyExists(t, "totp", err)
+
+	passwordHash2 := "vvpqwbpyvwcy7ehnaie6ib7x4bcidsfi"
+
+	totp2 := storage.TotpSecret{
+		Email:  "john@example.com",
+		Secret: passwordHash2,
+	}
+	if err := s.CreateOtp(totp2); err != nil {
+		t.Fatalf("create password token: %v", err)
+	}
+
+	getAndCompare := func(email string, want storage.TotpSecret) {
+		gr, err := s.GetOtp(email)
+		if err != nil {
+			t.Errorf("get totp %q: %v", email, err)
+			return
+		}
+		if diff := pretty.Compare(want.Secret, gr); diff != "" {
+			t.Errorf("totp retrieved from storage did not match: %s", diff)
+		}
+	}
+
+	getAndCompare("jane@example.com", totp1)
+	getAndCompare("JANE@example.com", totp1) // Emails should be case insensitive
+
+	if err := s.UpdateOtp(totp1.Email, func(old storage.TotpSecret) (storage.TotpSecret, error) {
+		old.Secret = "new secret"
+		return old, nil
+	}); err != nil {
+		t.Fatalf("failed to update totp secret: %v", err)
+	}
+
+	totp1.Secret = "new secret"
+	getAndCompare("jane@example.com", totp1)
+
+	var totpList []storage.TotpSecret
+	totpList = append(totpList, totp1, totp2)
+
+	if err := s.DeleteOtp(totp1.Email); err != nil {
+		t.Fatalf("failed to delete totp: %v", err)
+	}
+
+	if err := s.DeleteOtp(totp2.Email); err != nil {
+		t.Fatalf("failed to delete totp: %v", err)
+	}
+
+	_, err = s.GetPassword(totp1.Email)
+	mustBeErrNotFound(t, "totp", err)
+
 }
