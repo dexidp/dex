@@ -223,6 +223,33 @@ func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*a
 
 }
 
+func (d dexAPI) GetPassword(ctx context.Context, req *api.GetPasswordReq) (*api.GetPasswordResp, error) {
+	if req.Email == "" {
+		return nil, errors.New("no email supplied")
+	}
+
+	password, err := d.s.GetPassword(req.Email)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			return &api.GetPasswordResp{
+				NotFound: true,
+			}, nil
+		}
+		d.logger.Errorf("api: there was an error retrieving the password: %v", err)
+		return nil, fmt.Errorf("get password: %v", err)
+	}
+
+	return &api.GetPasswordResp{
+		NotFound: false,
+		Password: &api.Password{
+			Email:    password.Email,
+			Username: password.Username,
+			UserId:   password.UserID,
+		},
+	}, nil
+
+}
+
 func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.ListRefreshResp, error) {
 	id := new(internal.IDTokenSubject)
 	if err := internal.Unmarshal(req.UserId, id); err != nil {

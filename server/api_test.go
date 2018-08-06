@@ -67,8 +67,9 @@ func TestPassword(t *testing.T) {
 	defer client.Close()
 
 	ctx := context.Background()
+	email := "test@example.com"
 	p := api.Password{
-		Email: "test@example.com",
+		Email: email,
 		// bcrypt hash of the value "test1" with cost 10
 		Hash:     []byte("$2a$10$XVMN/Fid.Ks4CXgzo8fpR.iU1khOMsP5g9xQeXuBm1wXjRX8pjUtO"),
 		Username: "test",
@@ -92,7 +93,7 @@ func TestPassword(t *testing.T) {
 	}
 
 	updateReq := api.UpdatePasswordReq{
-		Email:       "test@example.com",
+		Email:       email,
 		NewUsername: "test1",
 	}
 
@@ -100,13 +101,30 @@ func TestPassword(t *testing.T) {
 		t.Fatalf("Unable to update password: %v", err)
 	}
 
-	pass, err := s.GetPassword(updateReq.Email)
+	// Test GetPassword not found response for invalid email
+	badGetReq := &api.GetPasswordReq{
+		Email: "somewrongaddress@email.com",
+	}
+	badGetResp, err := client.GetPassword(ctx, badGetReq)
 	if err != nil {
 		t.Fatalf("Unable to retrieve password: %v", err)
 	}
+	if !badGetResp.NotFound {
+		t.Fatalf("GetPassword failed. Expected NotFound to be %t retrieved %t", true, badGetResp.NotFound)
+	}
 
-	if pass.Username != updateReq.NewUsername {
-		t.Fatalf("UpdatePassword failed. Expected username %s retrieved %s", updateReq.NewUsername, pass.Username)
+	getReq := &api.GetPasswordReq{
+		Email: email,
+	}
+	getResp, err := client.GetPassword(ctx, getReq)
+	if err != nil {
+		t.Fatalf("Unable to retrieve password: %v", err)
+	}
+	if getResp.NotFound {
+		t.Fatalf("GetPassword failed. Expected NotFound to be %t retrieved %t", false, getResp.NotFound)
+	}
+	if getResp.Password.Username != updateReq.NewUsername {
+		t.Fatalf("GetPassword failed. Expected username %s retrieved %s", updateReq.NewUsername, getResp.Password.Username)
 	}
 
 	deleteReq := api.DeletePasswordReq{
