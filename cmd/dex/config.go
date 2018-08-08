@@ -56,6 +56,7 @@ func (p *password) UnmarshalJSON(b []byte) error {
 		Username string `json:"username"`
 		UserID   string `json:"userID"`
 		Hash     string `json:"hash"`
+		Groups   []string `json:"groups"`
 	}
 	if err := json.Unmarshal(b, &data); err != nil {
 		return err
@@ -64,6 +65,7 @@ func (p *password) UnmarshalJSON(b []byte) error {
 		Email:    data.Email,
 		Username: data.Username,
 		UserID:   data.UserID,
+		Groups:	  data.Groups,
 	})
 	if len(data.Hash) == 0 {
 		return fmt.Errorf("no password hash provided")

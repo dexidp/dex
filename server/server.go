@@ -339,6 +339,7 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 		Username:      p.Username,
 		Email:         p.Email,
 		EmailVerified: true,
+		Groups:		   p.Groups,
 	}, true, nil
 }
 
