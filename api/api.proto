@@ -36,6 +36,21 @@ message DeleteClientResp {
   bool not_found = 1;
 }
 
+// UpdateClientReq is a request to update an exisitng client.
+message UpdateClientReq {
+    string id = 1;
+    repeated string redirect_uris = 2;
+    repeated string trusted_peers = 3;
+    bool public = 4;
+    string name = 5;
+    string logo_url = 6;
+}
+
+// UpdateClientResp returns the reponse form updating a client.
+message UpdateClientResp {
+    bool not_found = 1;
+}
+
 // TODO(ericchiang): expand this.
 
 // Password is an email for password mapping managed by the storage.
@@ -138,6 +153,8 @@ message RevokeRefreshResp {
 service Dex {
   // CreateClient creates a client.
   rpc CreateClient(CreateClientReq) returns (CreateClientResp) {};
+  // UpdateClient updates an exisitng client
+  rpc UpdateClient(UpdateClientReq) returns (UpdateClientResp) {};
   // DeleteClient deletes the provided client.
   rpc DeleteClient(DeleteClientReq) returns (DeleteClientResp) {};
   // CreatePassword creates a password.
