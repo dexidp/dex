@@ -63,6 +63,12 @@ connectors:
 - type: ksconfig
   id: ksconnect
   name: Keystone
+  config:
+    keystoneURI: http://192.168.180.200:5000/v3/auth/tokens
+    domain: default
+#     hostedDomains:
+#     - $GOOGLE_HOSTED_DOMAIN
+
 # - type: oidc
 #   id: google
 #   name: Google
