@@ -1,4 +1,4 @@
-issuer: http://127.0.0.1:5556/dex
+issuer: http://10.104.223.225:5556/dex
 storage:
   type: sqlite3
   config:
@@ -11,19 +11,22 @@ connectors:
   name: OpenLDAP
   id: ldap
   config:
-    host: localhost:10389
+    #host: blrqa-sam-lab.com:389
+    host: WIN-CDGOM26LA5H.blrqa-sam-lab.com:389
+    rootCA: /home/phireman/dex_backup/certnew.cer
+    startTLS: true
 
     # No TLS for this setup.
-    insecureNoSSL: true
+    insecureNoSSL: false
 
     # This would normally be a read-only user.
-    bindDN: cn=admin,dc=example,dc=org
-    bindPW: admin
+    bindDN: CN=Administrator,CN=Users,DC=blrqa-sam-lab,DC=com
+    bindPW: Nbv_12345
 
     usernamePrompt: Email Address
 
     userSearch:
-      baseDN: ou=People,dc=example,dc=org
+      baseDN: DC=blrqa-sam-lab,DC=com
       filter: "(objectClass=person)"
       username: mail
       # "DN" (case sensitive) is a special attribute name. It indicates that
@@ -34,8 +37,8 @@ connectors:
       nameAttr: cn
 
     groupSearch:
-      baseDN: ou=Groups,dc=example,dc=org
-      filter: "(objectClass=groupOfNames)"
+      baseDN: CN=Users,DC=blrqa-sam-lab,DC=com
+      filter: "(objectClass=group)"
 
       # A user is a member of a group when their DN matches
       # the value of a "member" attribute on the group entity.
@@ -43,11 +46,16 @@ connectors:
       groupAttr: member
 
       # The group name should be the "cn" value.
-      nameAttr: cn
+      nameAttr: DN
+
+      #Add also parents of group
+      #inheritance: true
+      recursive: true
+      recursionGroupAttr: member
 
 staticClients:
-- id: example-app
+- id: intersight-onprem
   redirectURIs:
-  - 'http://127.0.0.1:5555/callback'
-  name: 'Example App'
+  - 'https://ucs.cisco.com:443/iam/oidc/oid/auth/callback'
+  name: 'Intersight Onprem'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
