@@ -15,8 +15,8 @@ import (
 )
 
 type Keystone struct {
-	keystoneURI string
 	domain string
+	keystoneURI string
 	Logger   logrus.FieldLogger
 }
 
@@ -32,9 +32,21 @@ type KeystoneConfig struct {
 	keystoneURI string `json:"keystoneURI"`
 }
 
+/*type Keystone struct {
+	Config
+	Logger   logrus.FieldLogger
+}
+
+var (
+	_ connector.PasswordConnector = &Keystone{}
+)*/
+
 // Open returns an authentication strategy which prompts for a predefined username and password.
 func (c *KeystoneConfig) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
 
+	fmt.Println(c.domain)
+	fmt.Println(c.keystoneURI)
+	//i := Config{keystoneURI:c.keystoneURI,domain:c.domain}
 	return &Keystone{c.keystoneURI,c.domain, logger}, nil
 }
 
@@ -69,12 +81,12 @@ type Auth struct {
 
 type Identity struct {
 	Methods  []string `json:"methods"`
-	Password
+	Password `json:"password"`
 
 }
 
 type Password struct {
-	User `json:"identity"`
+	User `json:"user"`
 }
 
 type User struct {
@@ -86,10 +98,16 @@ type User struct {
 type Domain struct {
 	ID string `json:"id"`
 }
-//var jsonData KeystoneJson
+
+//var kjson KeystoneJson
 
 func (p Keystone) Login(ctx context.Context, s connector.Scopes, username, password string) (identity connector.Identity, validPassword bool, err error) {
-	fmt.Println("Keystone login function called !!!!!!! ")
+
+	fmt.Println("\n Keystone login function called !!!!!!! ")
+	fmt.Println("\n domain is !!!!!!! ")
+	fmt.Println(p.domain)
+	fmt.Println("\n uri is !!!!!!! ")
+	fmt.Println(p.keystoneURI)
 
 
 	// instantiate type
@@ -100,7 +118,7 @@ func (p Keystone) Login(ctx context.Context, s connector.Scopes, username, passw
 				Password: Password{
 					User: User{
 						Name: username,
-						Domain: Domain{ID: p.domain},
+						Domain: Domain{ID:"default"},
 						Password: password,
 					},
 				},
@@ -108,12 +126,46 @@ func (p Keystone) Login(ctx context.Context, s connector.Scopes, username, passw
 		},
 	}
 
+
+
 	//jsonData.Auth.Identity.Methods = {"password"}
 	//jsonData.Auth.Identity.Password.User.Name = username
 	//jsonData.Auth.Identity.Password.User.Domain.ID = p.domain
 	//jsonData.Auth.Identity.Password.User.Password = password
 
+	//jsonConf := []byte(`{"Auth":{"Identity":{"Methods":{"password"},"Password":{"User":{"Name": username,"Domain":{"ID": "default"},"Password":password}}}}}`)
+
+
+
+		//jsonConfig := []byte(`{"server":{"host":"localhost","port":"8080"},"database":{"host":"localhost","user":"db_user","password":"supersecret","db":"my_db"}}`)
+
+	fmt.Println("\n :::::::::::::before marshaling, jsonData :::::::::::")
+	fmt.Print(jsonData)
+	fmt.Print("\n")
+
+	//var config Config
+	//err := json.Unmarshal(jsonConfig, &config)
 	jsonValue, _ := json.Marshal(jsonData)
+	//jsonValue, _ := json.Unmarshal(jsonConf, &kjson)
+
+	fmt.Println("\n ::::::::::::::::after Marshaling, jsonValue ::::::::::")
+	fmt.Print(jsonValue )
+	fmt.Print("\n")
+
+	//jsonstring := String(jsonValue)
+	buff := bytes.NewBuffer(jsonValue)
+	jsonString := buff.String()
+
+	fmt.Println("\n ::::::::::::::::after converting to string, jsonString ::::::::::")
+	fmt.Print(jsonString )
+	fmt.Print("\n")
+	fmt.Print("\n")
+
+	//buff := bytes.NewBuffer([]byte("abcdefg"))
+
+	//fmt.Println(buff.String())
+
+
 	response, err := http.Post("http://192.168.180.200:5000/v3/auth/tokens", "application/json", bytes.NewBuffer(jsonValue))
 	if err != nil {
 		fmt.Printf("The HTTP request failed with error %s\n", err)
