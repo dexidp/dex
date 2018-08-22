@@ -62,7 +62,7 @@ connectors:
 - type: ksconfig
   id: ksconnect
   name: Keystone
-  keystoneConfig:
+  config:
     keystoneURI: http://192.168.180.200:5000/v3/auth/tokens
     domain: default
 #     hostedDomains:

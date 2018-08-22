@@ -430,7 +430,7 @@ type ConnectorConfig interface {
 // ConnectorsConfig variable provides an easy way to return a config struct
 // depending on the connector type.
 var ConnectorsConfig = map[string]func() ConnectorConfig{
-	"ksconfig":     func() ConnectorConfig { return new(ksconnect.KeystoneConfig) },
+	"ksconfig":     func() ConnectorConfig { return new(ksconnect.Config) },
 	"mockCallback": func() ConnectorConfig { return new(mock.CallbackConfig) },
 	"mockPassword": func() ConnectorConfig { return new(mock.PasswordConfig) },
 	"ldap":         func() ConnectorConfig { return new(ldap.Config) },
