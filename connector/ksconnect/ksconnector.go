@@ -36,8 +36,8 @@ type Config struct {
 // Open returns an authentication strategy which prompts for a predefined username and password.
 func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
 
-	fmt.Println(c.Domain)
-	fmt.Println(c.KeystoneURI)
+	//fmt.Println(c.Domain)
+	//fmt.Println(c.KeystoneURI)
 
 	/*k := Keystone{
 		domain:      c.Domain,
