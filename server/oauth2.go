@@ -383,7 +383,6 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 	}
 
 	clientID := q.Get("client_id")
-	fmt.Printf("client id %s\n", clientID)
 	state := q.Get("state")
 	nonce := q.Get("nonce")
 	// Some clients, like the old go-oidc, provide extra whitespace. Tolerate this.

@@ -2,9 +2,7 @@ package storage
 
 import (
 	"errors"
-	"fmt"
 	"strings"
-
 	"github.com/sirupsen/logrus"
 )
 
@@ -33,7 +31,6 @@ func WithStaticClients(s Storage, staticClients []Client) Storage {
 }
 
 func (s staticClientsStorage) GetClient(id string) (Client, error) {
-	fmt.Printf("looking for static client: %s", id)
 	if client, ok := s.clientsByID[id]; ok {
 		return client, nil
 	}
