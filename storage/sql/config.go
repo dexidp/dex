@@ -3,8 +3,9 @@ package sql
 import (
 	"database/sql"
 	"fmt"
-	"net/url"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/lib/pq"
 	sqlite3 "github.com/mattn/go-sqlite3"
@@ -81,6 +82,7 @@ type Postgres struct {
 	User     string
 	Password string
 	Host     string
+	Port     uint16
 
 	SSL PostgresSSL `json:"ssl" yaml:"ssl"`
 
@@ -89,45 +91,75 @@ type Postgres struct {
 
 // Open creates a new storage implementation backed by Postgres.
 func (p *Postgres) Open(logger logrus.FieldLogger) (storage.Storage, error) {
-	conn, err := p.open(logger)
+	conn, err := p.open(logger, p.createDataSourceName())
 	if err != nil {
 		return nil, err
 	}
 	return conn, nil
 }
 
-func (p *Postgres) open(logger logrus.FieldLogger) (*conn, error) {
-	v := url.Values{}
-	set := func(key, val string) {
-		if val != "" {
-			v.Set(key, val)
-		}
-	}
-	set("connect_timeout", strconv.Itoa(p.ConnectionTimeout))
-	set("sslkey", p.SSL.KeyFile)
-	set("sslcert", p.SSL.CertFile)
-	set("sslrootcert", p.SSL.CAFile)
-	if p.SSL.Mode == "" {
-		// Assume the strictest mode if unspecified.
-		p.SSL.Mode = sslVerifyFull
-	}
-	set("sslmode", p.SSL.Mode)
+var strEsc = regexp.MustCompile(`([\\'])`)
 
-	u := url.URL{
-		Scheme:   "postgres",
-		Host:     p.Host,
-		Path:     "/" + p.Database,
-		RawQuery: v.Encode(),
+func dataSourceStr(str string) string {
+	return "'" + strEsc.ReplaceAllString(str, `\$1`) + "'"
+}
+
+// createDataSourceName takes the configuration provided via the Postgres
+// struct to create a data-source name that Go's database/sql package can
+// make use of.
+func (p *Postgres) createDataSourceName() string {
+	parameters := []string{}
+
+	addParam := func(key, val string) {
+		parameters = append(parameters, fmt.Sprintf("%s=%s", key, val))
+	}
+
+	addParam("connect_timeout", strconv.Itoa(p.ConnectionTimeout))
+
+	if p.Host != "" {
+		addParam("host", dataSourceStr(p.Host))
+	}
+
+	if p.Port != 0 {
+		addParam("port", strconv.Itoa(int(p.Port)))
 	}
 
 	if p.User != "" {
-		if p.Password != "" {
-			u.User = url.UserPassword(p.User, p.Password)
-		} else {
-			u.User = url.User(p.User)
-		}
+		addParam("user", dataSourceStr(p.User))
 	}
-	db, err := sql.Open("postgres", u.String())
+
+	if p.Password != "" {
+		addParam("password", dataSourceStr(p.Password))
+	}
+
+	if p.Database != "" {
+		addParam("dbname", dataSourceStr(p.Database))
+	}
+
+	if p.SSL.Mode == "" {
+		// Assume the strictest mode if unspecified.
+		addParam("sslmode", dataSourceStr(sslVerifyFull))
+	} else {
+		addParam("sslmode", dataSourceStr(p.SSL.Mode))
+	}
+
+	if p.SSL.CAFile != "" {
+		addParam("sslrootcert", dataSourceStr(p.SSL.CAFile))
+	}
+
+	if p.SSL.CertFile != "" {
+		addParam("sslcert", dataSourceStr(p.SSL.CertFile))
+	}
+
+	if p.SSL.KeyFile != "" {
+		addParam("sslkey", dataSourceStr(p.SSL.KeyFile))
+	}
+
+	return strings.Join(parameters, " ")
+}
+
+func (p *Postgres) open(logger logrus.FieldLogger, dataSourceName string) (*conn, error) {
+	db, err := sql.Open("postgres", dataSourceName)
 	if err != nil {
 		return nil, err
 	}
