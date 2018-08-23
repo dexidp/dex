@@ -173,6 +173,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, http.StatusInternalServerError, "Failed to retrieve connector list.")
 		return
 	}
+
 	if len(connectors) == 1 {
 		for _, c := range connectors {
 			// TODO(ericchiang): Make this pass on r.URL.RawQuery and let something latter
