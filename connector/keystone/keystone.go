@@ -1,5 +1,5 @@
-// // Package ksconnect provides authentication strategies using Keystone.
-package ksconnect
+// Package keystone provides authentication strategies using Keystone.
+package keystone
 
 import (
 	"context"
@@ -12,21 +12,21 @@ import (
 	"io/ioutil"
 )
 
-type Keystone struct {
+type KeystoneConnector struct {
 	domain string
 	keystoneURI string
 	Logger   logrus.FieldLogger
 }
 
 var (
-	_ connector.PasswordConnector = &Keystone{}
+	_ connector.PasswordConnector = &KeystoneConnector{}
 )
 
 // Config holds the configuration parameters for Keystone connector.
 // An example config:
 //	connectors:
 //		type: ksconfig
-//		id: ksconnect
+//		id: keystone
 //		name: Keystone
 //		config:
 //			keystoneURI: http://192.168.180.200:5000/v3/auth/tokens
@@ -37,17 +37,14 @@ type Config struct {
 	KeystoneURI string `json:"keystoneURI"`
 }
 
-
 // Open returns an authentication strategy using Keystone.
 func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
-
-	return &Keystone{c.Domain,c.KeystoneURI,logger}, nil
+	return &KeystoneConnector{c.Domain,c.KeystoneURI,logger}, nil
 }
 
-func (p Keystone) Close() error { return nil }
+func (p KeystoneConnector) Close() error { return nil }
 
-//Declare KeystoneJson struct to get a token with default scope
-
+// Declare KeystoneJson struct to get a token with default scope
 type KeystoneJson struct {
 	Auth `json:"auth"`
 }
@@ -59,7 +56,6 @@ type Auth struct {
 type Identity struct {
 	Methods  []string `json:"methods"`
 	Password `json:"password"`
-
 }
 
 type Password struct {
@@ -76,10 +72,8 @@ type Domain struct {
 	ID string `json:"id"`
 }
 
-
-func (p Keystone) Login(ctx context.Context, s connector.Scopes, username, password string) (identity connector.Identity, validPassword bool, err error) {
-
-	// instantiate KeystoneJson struct type to get a token with default scope
+func (p KeystoneConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (identity connector.Identity, validPassword bool, err error) {
+	// Instantiate KeystoneJson struct type to get a token with default scope
 	jsonData := KeystoneJson{
 		Auth: Auth{
 			Identity: Identity{
@@ -95,22 +89,27 @@ func (p Keystone) Login(ctx context.Context, s connector.Scopes, username, passw
 		},
 	}
 
-	//Marshal jsonData
+	// Marshal jsonData
 	jsonValue, _ := json.Marshal(jsonData)
 
-	//Make a http post request to Keystone URI
+	// Make an http post request to Keystone URI
 	response, err := http.Post(p.keystoneURI, "application/json", bytes.NewBuffer(jsonValue))
-	if err != nil {
-		fmt.Printf("The HTTP request failed with error %s\n", err)
-	} else {
+
+	// Providing wrong keystone URI gives http error 404
+	// Providing wrong password gives http error 401
+	if response.StatusCode == 201 {
 		data, _ := ioutil.ReadAll(response.Body)
 		fmt.Println(string(data))
-		id :=connector.Identity{
-			Username: username,
-		}
-		return id, true, nil
+		identity.Username =	username
+		return identity, true, nil
+
+	} else {
+		fmt.Printf("The HTTP request failed with error %v\n", response.StatusCode)
+		data, _ := ioutil.ReadAll(response.Body)
+		fmt.Println(string(data))
+		return identity, false, err
 	}
 	return identity, false, nil
 }
 
-func (p Keystone) Prompt() string { return "username" }
+func (p KeystoneConnector) Prompt() string { return "username" }
