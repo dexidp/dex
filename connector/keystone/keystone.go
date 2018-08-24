@@ -1,4 +1,4 @@
-// Package keystone provides authentication strategies using Keystone.
+// Package keystone provides authentication strategy using Keystone.
 package keystone
 
 import (
