@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"bytes"
 	"io/ioutil"
+	"log"
 )
 
 type KeystoneConnector struct {
@@ -44,7 +45,7 @@ func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector
 
 func (p KeystoneConnector) Close() error { return nil }
 
-// Declare KeystoneJson struct to get a token with default scope
+// Declare KeystoneJson struct to get a token
 type KeystoneJson struct {
 	Auth `json:"auth"`
 }
@@ -73,7 +74,7 @@ type Domain struct {
 }
 
 func (p KeystoneConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (identity connector.Identity, validPassword bool, err error) {
-	// Instantiate KeystoneJson struct type to get a token with default scope
+	// Instantiate KeystoneJson struct type to get a token
 	jsonData := KeystoneJson{
 		Auth: Auth{
 			Identity: Identity{
@@ -95,19 +96,23 @@ func (p KeystoneConnector) Login(ctx context.Context, s connector.Scopes, userna
 	// Make an http post request to Keystone URI
 	response, err := http.Post(p.keystoneURI, "application/json", bytes.NewBuffer(jsonValue))
 
-	// Providing wrong keystone URI gives http error 404
-	// Providing wrong password gives http error 401
-	if response.StatusCode == 201 {
+	// Providing wrong password or wrong keystone URI throws error
+	if err == nil && response.StatusCode == 201 {
 		data, _ := ioutil.ReadAll(response.Body)
 		fmt.Println(string(data))
 		identity.Username =	username
 		return identity, true, nil
+
+	} else if err != nil {
+		log.Fatal(err)
+		return identity, false, err
 
 	} else {
 		fmt.Printf("The HTTP request failed with error %v\n", response.StatusCode)
 		data, _ := ioutil.ReadAll(response.Body)
 		fmt.Println(string(data))
 		return identity, false, err
+
 	}
 	return identity, false, nil
 }
