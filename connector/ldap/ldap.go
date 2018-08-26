@@ -68,8 +68,8 @@ type Config struct {
 
 	// Path to a trusted root certificate file.
 	RootCA string `json:"rootCA"`
-        // Path to a self-signed certificates ca file.
-	ClientCA  string `json:"clientCA"`
+	// Path to a self-signed certificates ca file.
+	ClientCA string `json:"clientCA"`
 	//Path to a self-signed certificates private key file.
 	ClientKey string `json:"clientKey"`
 	// Base64 encoded PEM data containing root CAs.
@@ -565,4 +565,3 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 func (c *ldapConnector) Prompt() string {
 	return c.UsernamePrompt
 }
-
