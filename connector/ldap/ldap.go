@@ -68,7 +68,10 @@ type Config struct {
 
 	// Path to a trusted root certificate file.
 	RootCA string `json:"rootCA"`
-
+	// Path to a self-signed certificates ca file.
+	ClientCA string `json:"clientCA"`
+	//Path to a self-signed certificates private key file.
+	ClientKey string `json:"clientKey"`
 	// Base64 encoded PEM data containing root CAs.
 	RootCAData []byte `json:"rootCAData"`
 
@@ -224,6 +227,14 @@ func (c *Config) openConnector(logger logrus.FieldLogger) (*ldapConnector, error
 			return nil, fmt.Errorf("ldap: no certs found in ca file")
 		}
 		tlsConfig.RootCAs = rootCAs
+	}
+
+	if c.ClientKey != "" && c.ClientCA != "" {
+		cert, err := tls.LoadX509KeyPair(c.ClientCA, c.ClientKey)
+		if err != nil {
+			return nil, fmt.Errorf("ldap: load self signed certs file failed.error:%s", err)
+		}
+		tlsConfig.Certificates = append(tlsConfig.Certificates, cert)
 	}
 	userSearchScope, ok := parseScope(c.UserSearch.Scope)
 	if !ok {
