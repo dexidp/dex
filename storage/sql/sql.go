@@ -65,9 +65,6 @@ var (
 			}
 			defer tx.Rollback()
 
-			if _, err := tx.Exec(`SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;`); err != nil {
-				return err
-			}
 			if err := fn(tx); err != nil {
 				return err
 			}
