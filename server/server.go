@@ -32,6 +32,7 @@ import (
 	"github.com/coreos/dex/connector/mock"
 	"github.com/coreos/dex/connector/oidc"
 	"github.com/coreos/dex/connector/saml"
+	"github.com/coreos/dex/connector/saml2"
 	"github.com/coreos/dex/storage"
 )
 
@@ -441,6 +442,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"microsoft":    func() ConnectorConfig { return new(microsoft.Config) },
 	// Keep around for backwards compatibility.
 	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
+	"saml2":            func() ConnectorConfig { return new(saml2.Config) },
 }
 
 // openConnector will parse the connector config and open the connector.
