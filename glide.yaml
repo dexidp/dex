@@ -133,9 +133,9 @@ import:
   - proto
   - protoc-gen-go
   - protoc-gen-go/grpc
-  - protoc-gen-go/descriptor        
-  - protoc-gen-go/plugin            
-  - protoc-gen-go/generator   
+  - protoc-gen-go/descriptor
+  - protoc-gen-go/plugin
+  - protoc-gen-go/generator
 - package: google.golang.org/genproto
   version: 411e09b969b1170a9f0c467558eb4c4c110d9c77
 
@@ -154,10 +154,6 @@ import:
   version: 4cd0dd976db869f817248477718071a28e978df0
 - package: github.com/jonboulle/clockwork
   version: bcac9884e7502bb2b474c0339d889cb981a2f27f
-
-# License bill of materials generator.
-- package: github.com/coreos/license-bill-of-materials
-  version: d70207c33a3c79a1c0479b208f8b7ab6215144c7
 
 # monitoring packages
 - package: github.com/beorn7/perks/quantile
