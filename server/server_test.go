@@ -13,7 +13,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -29,10 +28,10 @@ import (
 	"golang.org/x/oauth2"
 	jose "gopkg.in/square/go-jose.v2"
 
-	"github.com/coreos/dex/connector"
-	"github.com/coreos/dex/connector/mock"
-	"github.com/coreos/dex/storage"
-	"github.com/coreos/dex/storage/memory"
+	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/connector/mock"
+	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/memory"
 )
 
 func mustLoad(s string) *rsa.PrivateKey {
@@ -91,7 +90,7 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 		Issuer:  s.URL,
 		Storage: memory.New(logger),
 		Web: WebConfig{
-			Dir: filepath.Join(os.Getenv("GOPATH"), "src/github.com/coreos/dex/web"),
+			Dir: "../web",
 		},
 		Logger:             logger,
 		PrometheusRegistry: prometheus.NewRegistry(),

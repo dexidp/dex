@@ -7,7 +7,7 @@
 # * Create a separate block for each dependency group.
 # * Keep updates to "vendor/" in a separate commit from actual changes.
 
-package: github.com/coreos/dex
+package: github.com/dexidp/dex
 import:
 
 - package: github.com/spf13/cobra

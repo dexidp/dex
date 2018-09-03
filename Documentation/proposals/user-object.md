@@ -73,7 +73,7 @@ type RemoteIdentity struct {
 
 `UserID` fields will be added to the `AuthRequest`, `AuthCode` and `RefreshToken`
 structs. When a user logs in successfully through a connector
-[here](https://github.com/coreos/dex/blob/95a61454b522edd6643ced36b9d4b9baa8059556/server/handlers.go#L227),
+[here](https://github.com/dexidp/dex/blob/95a61454b522edd6643ced36b9d4b9baa8059556/server/handlers.go#L227),
 the server will attempt to either get the user, or create one if none exists with
 the remote identity.
 
