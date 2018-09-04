@@ -60,7 +60,7 @@ func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector
 		{"certificate", c.Certificate},
 		{"key", c.Key},
 		{"emailAttr", c.EmailAttr},
-		{"entityID", c.NameAttr},
+		{"nameAttr", c.NameAttr},
 	}
 
 	for _, field := range requiredFields {
