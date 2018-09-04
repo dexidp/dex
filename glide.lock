@@ -1,6 +1,18 @@
-hash: dda54feb39d5947ad20e9d583ccad9be02343dac0f52752944b7cd39668af7a4
-updated: 2017-12-20T16:05:04.690191111+01:00
+hash: 3c6a77ecc2f0a7fbc44c3b4be4137acb930611dce71102642e7843594f91784e
+updated: 2018-09-04T17:08:35.533111-04:00
 imports:
+- name: github.com/allegro/bigcache
+  version: 5e5c707aa7246adf35fdb347f5156e9c77f0c96f
+  subpackages:
+  - queue
+- name: github.com/amdonov/lite-idp
+  version: 88d249359aa1d622610f493e46dc5a1e80e6e57f
+  subpackages:
+  - saml
+  - sp
+  - store
+- name: github.com/amdonov/xmlsig
+  version: a23f0fe030d20afc95444f1183b37167689b5cc5
 - name: github.com/beevik/etree
   version: 4cd0dd976db869f817248477718071a28e978df0
 - name: github.com/beorn7/perks
@@ -42,6 +54,8 @@ imports:
   - protoc-gen-go/grpc
   - protoc-gen-go/plugin
   - ptypes/any
+- name: github.com/google/uuid
+  version: e704694aed0ea004bb7eb1fc2e911d048a54606a
 - name: github.com/gorilla/context
   version: aed02d124ae4a0e94fea4541c8effd05bf0c8296
 - name: github.com/gorilla/handlers

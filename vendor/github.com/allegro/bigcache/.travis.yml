@@ -1,0 +1,31 @@
+language: go
+
+go:
+  - 1.x
+  - tip
+
+matrix:
+  allow_failures:
+    - go: tip
+  fast_finish: true
+
+before_install:
+  - go get github.com/modocache/gover
+  - go get github.com/mattn/goveralls
+  - go get golang.org/x/tools/cmd/cover
+  - go get golang.org/x/tools/cmd/goimports
+  - go get github.com/golang/lint/golint
+  - go get github.com/stretchr/testify/assert
+  - go get github.com/gordonklaus/ineffassign
+  
+script:
+  - gofiles=$(find ./ -name '*.go') && [ -z "$gofiles" ] || unformatted=$(goimports -l $gofiles) && [ -z "$unformatted" ] || (echo >&2 "Go files must be formatted with gofmt. Following files has problem:\n $unformatted" && false)
+  - diff <(echo -n) <(gofmt -s -d .)
+  - golint ./... # This won't break the build, just show warnings
+  - ineffassign .
+  - go vet ./...
+  - go test -race -count=1 -coverprofile=queue.coverprofile ./queue
+  - go test -race -count=1 -coverprofile=server.coverprofile ./server
+  - go test -race -count=1 -coverprofile=main.coverprofile
+  - $HOME/gopath/bin/gover
+  - $HOME/gopath/bin/goveralls -coverprofile=gover.coverprofile -service travis-ci

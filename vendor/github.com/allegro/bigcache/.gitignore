@@ -1,0 +1,10 @@
+.idea
+.DS_Store
+/server/server.exe
+/server/server
+/server/server_dar*
+/server/server_fre*
+/server/server_win*
+/server/server_net*
+/server/server_ope*
+CHANGELOG.md

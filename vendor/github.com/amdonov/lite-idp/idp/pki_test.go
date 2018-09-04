@@ -1,0 +1,39 @@
+package idp
+
+import (
+	"testing"
+
+	"github.com/amdonov/xmlsig"
+)
+
+func TestGetCertFromXML(t *testing.T) {
+	cert, err := getCertFromXML(&xmlsig.X509Data{
+		X509Certificate: `MIID6zCCAlOgAwIBAgIJAJMHFEqlO9AuMA0GCSqGSIb3DQEBCwUAMBcxFTATBgNV
+BAMTDDFiMGQ2MTYzZmRjMjAeFw0xNzA5MDMxNTMwMjFaFw0yNzA5MDExNTMwMjFa
+MBcxFTATBgNVBAMTDDFiMGQ2MTYzZmRjMjCCAaIwDQYJKoZIhvcNAQEBBQADggGP
+ADCCAYoCggGBAM/060iMmyHo0SnnfZcHJpyW8wB2uPsky64c/GVL98pmgNOhsAWr
+KA1rl70ZMpTAn4iEVwcokpb91PWj8ZlfcmTkUWSGPpXa9jZCutgToVZJ1aNuURiO
+h+6siedwmkhqTRKbVJcAGcyz+m8QPtZgOHQmT2twhGOdy45nztC3NU5JrX0fJCR/
+SlB7MTcEVh60Pq4OaOrQj0FU/V2AlEHQw2N9gBvIvx6TshqwSzZd33swo6j9yymr
+WPny8CVngmUAqtCN+esDBRV9ZOSuOQCL8v1nCfUyNit9TifnSTUX7Dx18k1NL5x/
+gv2RPvrKlnkmrj21HP+E9+1CX/AV3DM3avk85r6Nl9L34qzM/c/1Lpdcg49a79Sf
+8+9KQ8LYaK/VAN3qFosE1m4LB9hHGEawO0DTIwyd9JLeuyhEnGOU7TZL2GABULuC
+eGkQ7sPM6Pc6FTHcWeptnSHorJvkTrL5DKd8vAOMuu4natpUBWihmYABnk1w8FBk
+mRdOTfgfFhpXGQIDAQABozowODAXBgNVHREEEDAOggwxYjBkNjE2M2ZkYzIwHQYD
+VR0OBBYEFJqcFUkylEq8WhJOenfKLHLgKlOjMA0GCSqGSIb3DQEBCwUAA4IBgQA2
+5I5+JhT9xlc10h4BeynMhmOOpVQTivz6gqZMW6YQDjJspAljdvX9j+gbEauXz3EG
+TDgPKMQ1h49Pkb0dlaWs5Y9BFbdk2LhwN2mR0DQ91JBp/AEENgn1p3qVdJLDFLXs
+4uPFi4yDxaeYvvB2aHC6dbuhjtWCa+GA4CrE7STO4cL7NqCKxAOc4fgksV0Mc6fL
+IoKN18LYWDyAIFnCHYYoAsA0+KxGpODHnYDTRwu29919y0gjeg6rP7bEoivlKJGh
+ymy8j/GKgmMoePMAEr6MiUkHabd70Ts/lKzjVRp3VF4UTSOWPJzjqNv0zQDSGHu1
+nVVZ2RQECq8UYQtSdpnZ+M0yNiLGrs/Mjeg9W+cBDP3+DG2/rMQnKI3f+VKVC08v
+XID3bAwVL9+5xreiTrGWRo6Ot+URSdLV+n5DvBl2zsm26oV/HM+8W1a70TfxPWze
+VAMtigDCrxuwesx681g/cdi9oXWmRSB3wt7LXHcvxGWz9Db45iWyMRDh0scqdiQ=`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if "CN=1b0d6163fdc2" != getSubjectDN(cert.Subject) {
+		t.Fatal("dn didn't match expected value")
+	}
+}

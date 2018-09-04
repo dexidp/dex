@@ -1,0 +1,41 @@
+syntax = "proto3";
+package model;
+
+import "google/protobuf/timestamp.proto";
+
+// Allows storage of the request for cases where there 
+// is a user wait state such as entering a password
+message AuthnRequest {
+    string ID = 1;
+    string Version = 2;
+    google.protobuf.Timestamp IssueInstant = 3;
+    string Issuer = 4;
+    string Destination = 5;
+    string AssertionConsumerServiceURL = 6;
+    string ProtocolBinding = 7;
+    uint32 AssertionConsumerServiceIndex = 8;
+    string RelayState = 9;
+}
+
+// Allows storage of user information to avoid
+// repeated logins, basis of SSO
+message User {
+    string Name = 1;
+    string Format = 2;
+    string Context = 3;
+    string IP = 4;
+    repeated Attribute Attributes = 5;
+}
+
+// User attributes
+message Attribute {
+    string Name = 1;
+    repeated string Value = 2;
+}
+
+// Allows storage of data required for artifact
+// response until service provider retrieves it
+message ArtifactResponse {
+    User User = 1;
+    AuthnRequest Request = 2;
+}
