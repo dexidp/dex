@@ -82,6 +82,14 @@ var thirdPartyResources = []k8sapi.ThirdPartyResource{
 		Description: "Connectors available for login",
 		Versions:    []k8sapi.APIVersion{{Name: "v1"}},
 	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "totp-secret.oidc.coreos.com",
+		},
+		TypeMeta:    tprMeta,
+		Description: "One Time Passwords",
+		Versions:    []k8sapi.APIVersion{{Name: "v1"}},
+	},
 }
 
 var crdMeta = k8sapi.TypeMeta{
@@ -214,6 +222,21 @@ var customResourceDefinitions = []k8sapi.CustomResourceDefinition{
 				Plural:   "connectors",
 				Singular: "connector",
 				Kind:     "Connector",
+			},
+		},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "totpsecrets.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "totpsecrets",
+				Singular: "totpsecret",
+				Kind:     "TotpSecret",
 			},
 		},
 	},
@@ -441,6 +464,42 @@ func toStoragePassword(p Password) storage.Password {
 		Hash:     p.Hash,
 		Username: p.Username,
 		UserID:   p.UserID,
+	}
+}
+
+// TotpSecret is a mirrored struct from the stroage with JSON struct tags and
+// Kubernetes type metadata.
+type TotpSecret struct {
+	k8sapi.TypeMeta   `json:",inline"`
+	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+
+	// The Kubernetes name is actually an encoded version of this value.
+	//
+	// This field is IMMUTABLE. Do not change.
+	Email  string `json:"email,omitempty"`
+	Secret string `json:"secret,omitempty"`
+}
+
+func (cli *client) fromStorageTotpSecret(p storage.TotpSecret) TotpSecret {
+	email := strings.ToLower(p.Email)
+	return TotpSecret{
+		TypeMeta: k8sapi.TypeMeta{
+			Kind:       kindTotp,
+			APIVersion: cli.apiVersion,
+		},
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name:      cli.idToName(email + ".totp"),
+			Namespace: cli.namespace,
+		},
+		Email:  email,
+		Secret: p.Secret,
+	}
+}
+
+func toStorageTotpSecret(p TotpSecret) storage.TotpSecret {
+	return storage.TotpSecret{
+		Email:  p.Email,
+		Secret: p.Secret,
 	}
 }
 

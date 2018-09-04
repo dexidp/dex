@@ -30,6 +30,10 @@ staticClients:
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
 
+otp:
+  type: TOTP
+  digits: 8
+
 connectors:
 - type: mockCallback
   id: mock
@@ -75,6 +79,10 @@ logger:
 		},
 		Web: Web{
 			HTTP: "127.0.0.1:5556",
+		},
+		OTP: OTP{
+			Type:   "TOTP",
+			Digits: 8,
 		},
 		StaticClients: []storage.Client{
 			{

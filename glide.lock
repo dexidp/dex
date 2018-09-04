@@ -1,5 +1,5 @@
-hash: dda54feb39d5947ad20e9d583ccad9be02343dac0f52752944b7cd39668af7a4
-updated: 2017-12-20T16:05:04.690191111+01:00
+hash: f14c411ddb1a5d5582ba579709597211f6af22e0aeb3acbef86f90397f55262a
+updated: 2018-08-06T18:27:53.578964187+03:00
 imports:
 - name: github.com/beevik/etree
   version: 4cd0dd976db869f817248477718071a28e978df0
@@ -7,6 +7,11 @@ imports:
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
   subpackages:
   - quantile
+- name: github.com/boombuler/barcode
+  version: 3c06908149f740ca6bd65f66e501651d8f729e70
+  subpackages:
+  - qr
+  - utils
 - name: github.com/cockroachdb/cockroach-go
   version: 31611c0501c812f437d4861d87d117053967c955
   subpackages:
@@ -75,6 +80,11 @@ imports:
   version: c97913dcbd76de40b051a9b4cd827f7eaeb7a868
   subpackages:
   - cacheobject
+- name: github.com/pquerna/otp
+  version: 7b7d3c712f975469621fc8fb0a1fa08f0bcafe52
+  subpackages:
+  - hotp
+  - totp
 - name: github.com/prometheus/client_golang
   version: 967789050ba94deca04a5e84cce8ad472ce313c1
   subpackages:

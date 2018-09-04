@@ -93,6 +93,7 @@ func TestStorage(t *testing.T) {
 			resourceRefreshToken,
 			resourceKeys,
 			resourcePassword,
+			resourceTotp,
 		} {
 			if err := client.deleteAll(resource); err != nil {
 				// Fatalf sometimes doesn't print the error message.

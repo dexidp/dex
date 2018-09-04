@@ -86,6 +86,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		{c.GRPC.TLSKey != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
 		{(c.GRPC.TLSCert == "") != (c.GRPC.TLSKey == ""), "must specific both a gRPC TLS cert and key"},
 		{c.GRPC.TLSCert == "" && c.GRPC.TLSClientCA != "", "cannot specify gRPC TLS client CA without a gRPC TLS cert"},
+		{c.OTP.Type != "" && c.OTP.Type != "TOTP", "currently only TOTP (Time based One-Time Password) is supported"},
 	}
 
 	for _, check := range checks {
@@ -225,6 +226,8 @@ func serve(cmd *cobra.Command, args []string) error {
 		Logger:                 logger,
 		Now:                    now,
 		PrometheusRegistry:     prometheusRegistry,
+		Totp:                   c.OTP.Type == "TOTP",
+		TotpDigits:             c.OTP.Digits,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
@@ -288,6 +291,13 @@ func serve(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("listening on %s failed: %v", c.GRPC.Addr, err)
 			}()
 		}()
+	}
+
+	if c.OTP.Type == "TOTP" {
+		logger.Infof("Using Time based One-Time password")
+		if c.OTP.Digits == 0 {
+			c.OTP.Digits = 6
+		}
 	}
 
 	return <-errc

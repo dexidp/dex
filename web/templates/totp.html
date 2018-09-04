@@ -1,0 +1,36 @@
+{{ template "header.html" . }}
+
+<div class="theme-panel">
+  <h2 class="theme-heading">Enter one time password from your Google Auth.</h2>
+  <form method="post" action="{{ .PostURL }}">
+    <div class="theme-form-row">
+      <div class="theme-form-label">
+        <label for="userid">one time password</label>
+      </div>
+    <input tabindex="1" required id="totp" name="totp" type="text" class="theme-form-input" placeholder="" autofocus/>
+    </div>
+
+    {{ if .Invalid }}
+      <div id="login-error" class="dex-error-box">
+        Invalid one time password. Please try again.
+      </div>
+    {{ end }}
+
+    {{ if .Enrollment }}
+    <div>
+      <ol>
+        <li>Download Google Authenticator for <a href="https://itunes.apple.com/us/app/google-authenticator/id388497605?mt=8">iOS</a> / <a href="https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2&hl=en">Android</a><br/>
+          Or Yandex.Key for <a href="https://itunes.apple.com/us/app/yandex-key-2fa-and-one-time-passwords/id957324816?mt=8">iOS</a> / <a href="https://play.google.com/store/apps/details?id=ru.yandex.key&hl=en">Android</a></li>
+        <li>Create an account and scan the QR code.<br/>
+          <img src="{{ .Enrollment }}" alt="Smiley face" height="200" width="200"></li>
+        <li>Or enter the following secret key without spaces:<br/>{{ .TotpSecret }}</li>
+      </ol>
+    </div>
+    {{ end }}
+
+    <button tabindex="3" id="submit-login" type="submit" class="dex-btn theme-btn--primary">Login</button>
+
+  </form>
+</div>
+
+{{ template "footer.html" . }}

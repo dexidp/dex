@@ -1,9 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image/png"
 	"net/http"
 	"net/url"
 	"path"
@@ -18,6 +20,9 @@ import (
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/server/internal"
 	"github.com/coreos/dex/storage"
+
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
 )
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -314,7 +319,161 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if s.totp {
+			var enrollmentURL string
+			var totpSecret string
+			totpEnrollment := s.shouldBeDoneTotpEnrollment(identity.Email)
+			if totpEnrollment {
+				totpSecret, err = s.installTempTotp(authReqID, identity.Email)
+				if err != nil {
+					s.renderError(w, http.StatusInternalServerError, "Totp error.")
+					return
+				}
+
+				enrollmentURL = s.absPath("/auth/totp/qrcode") + "?req=" + authReq.ID
+			}
+
+			if err := s.templates.totp(w, s.absPath("/authTotp")+"?req="+authReq.ID, enrollmentURL, totpSecret, false); err != nil {
+				s.logger.Errorf("Server totp template error: %v", err)
+			}
+			return
+		}
+
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+	default:
+		s.renderError(w, http.StatusBadRequest, "Unsupported request method.")
+	}
+}
+
+func (s *Server) handleTotpQRCode(w http.ResponseWriter, r *http.Request) {
+	authReqID := r.FormValue("req")
+
+	secret, err := s.storage.GetOtp(authReqID)
+	if err != nil {
+		s.renderError(w, http.StatusBadRequest, "Login session doesn't have TOTP code assigned.")
+		return
+	}
+
+	authReq, err := s.storage.GetAuthRequest(authReqID)
+	if err != nil {
+		s.logger.Errorf("Failed to get auth request: %v", err)
+		if err == storage.ErrNotFound {
+			s.renderError(w, http.StatusBadRequest, "Login session expired.")
+		} else {
+			s.renderError(w, http.StatusInternalServerError, "Database error.")
+		}
+		return
+	}
+
+	issuer := s.issuerURL.Host
+	accountName := authReq.Claims.Username
+
+	v := url.Values{}
+	v.Set("secret", secret)
+	v.Set("issuer", issuer)
+	v.Set("period", strconv.FormatUint(uint64(30), 10))
+	v.Set("algorithm", otp.AlgorithmSHA1.String())
+	v.Set("digits", strconv.Itoa(s.totpDigits))
+
+	u := url.URL{
+		Scheme:   "otpauth",
+		Host:     "totp",
+		Path:     "/" + issuer + ":" + accountName,
+		RawQuery: v.Encode(),
+	}
+
+	key, err := otp.NewKeyFromURL(u.String())
+
+	// Convert TOTP key into a PNG
+	var buf bytes.Buffer
+	img, err := key.Image(200, 200)
+	if err != nil {
+		s.logger.Errorf("Couldn't generate TOTP QR code: %v", err)
+		s.renderError(w, http.StatusInternalServerError, "Totp error.")
+		return
+	}
+	png.Encode(&buf, img)
+	buf.WriteTo(w)
+}
+
+func (s *Server) shouldBeDoneTotpEnrollment(email string) bool {
+	_, err := s.storage.GetOtp(email)
+	return err != nil
+}
+
+func (s *Server) installTempTotp(authReqID, email string) (string, error) {
+	key, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      s.issuerURL.String(),
+		AccountName: email,
+	})
+	if err != nil {
+		s.logger.Errorf("Couldn't generate TOTP secret code: %v", err)
+		return "", err
+	}
+
+	if err := s.storage.CreateOtp(storage.TotpSecret{Email: authReqID, Secret: key.Secret()}); err != nil {
+		s.logger.Errorf("Couldn't store totp secret: %v", err)
+		return "", err
+	}
+
+	s.logger.Errorf("Installed temp totp %s for %s", key.Secret(), authReqID)
+	return key.Secret(), nil
+}
+
+func (s *Server) handleTotpLogin(w http.ResponseWriter, r *http.Request) {
+	authReqID := r.FormValue("req")
+
+	authReq, err := s.storage.GetAuthRequest(authReqID)
+	if err != nil {
+		s.logger.Errorf("Failed to get auth request: %v", err)
+		if err == storage.ErrNotFound {
+			s.renderError(w, http.StatusBadRequest, "Login session expired.")
+		} else {
+			s.renderError(w, http.StatusInternalServerError, "Database error.")
+		}
+		return
+	}
+
+	installTotp := false
+	var enrollmentURL string
+	email := authReq.Claims.Email
+	totpSecret, err := s.storage.GetOtp(email)
+	if err != nil {
+		installTotp = true
+		enrollmentURL = s.absPath("/auth/totp/qrcode") + "?req=" + authReq.ID
+		totpSecret, err = s.storage.GetOtp(authReqID)
+		if err != nil {
+			//@TODO: use
+			s.logger.Errorf("Failed to get OTP secret for: %v", email)
+			return
+		}
+	}
+
+	switch r.Method {
+	case "POST":
+		passcode := r.FormValue("totp")
+		s.logger.Errorf("Validating %v against: %v", passcode, totpSecret)
+		valid := totp.Validate(passcode, totpSecret)
+
+		if !valid {
+			if err := s.templates.totp(w, s.absPath("/authTotp")+"?req="+authReq.ID, enrollmentURL, totpSecret, true); err != nil {
+				s.logger.Errorf("Server totp template error: %v", err)
+				s.renderError(w, http.StatusInternalServerError, "Template error.")
+			}
+			return
+		}
+
+		if installTotp {
+			if err := s.storage.CreateOtp(storage.TotpSecret{Email: email, Secret: totpSecret}); err != nil {
+				s.logger.Errorf("Couldn't store totp secret: %v", err)
+				s.renderError(w, http.StatusInternalServerError, "Database error.")
+				return
+			}
+		}
+
+		redirectURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID
+		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+
 	default:
 		s.renderError(w, http.StatusBadRequest, "Unsupported request method.")
 	}

@@ -154,6 +154,12 @@ var migrations = []migration{
 				next_rotation timestamptz not null
 			);
 
+			-- keys is a weird table because we only ever expect there to be a single row
+			create table totp (
+				email text not null primary key,
+				secret text not null
+			);
+
 		`,
 	},
 	{
