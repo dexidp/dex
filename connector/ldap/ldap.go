@@ -409,12 +409,17 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 		if err := conn.Bind(user.DN, password); err != nil {
 			// Detect a bad password through the LDAP error code.
 			if ldapErr, ok := err.(*ldap.Error); ok {
-				if ldapErr.ResultCode == ldap.LDAPResultInvalidCredentials {
+				switch ldapErr.ResultCode {
+				case ldap.LDAPResultInvalidCredentials:
 					c.logger.Errorf("ldap: invalid password for user %q", user.DN)
 					incorrectPass = true
 					return nil
+				case ldap.LDAPResultConstraintViolation:
+					c.logger.Errorf("ldap: constraint violation for user %q: %s", user.DN, ldapErr.Error())
+					incorrectPass = true
+					return nil
 				}
-			}
+			} // will also catch all ldap.Error without a case statement above
 			return fmt.Errorf("ldap: failed to bind as dn %q: %v", user.DN, err)
 		}
 		return nil
