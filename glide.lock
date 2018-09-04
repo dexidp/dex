@@ -1,8 +1,8 @@
-hash: 3c6a77ecc2f0a7fbc44c3b4be4137acb930611dce71102642e7843594f91784e
-updated: 2018-09-04T17:08:35.533111-04:00
+hash: 7d86cd912be85f3a46a4f0c9095f4e7b8a56f01ce5ec2e8380172cc5904cb097
+updated: 2018-09-04T18:20:54.70862-04:00
 imports:
 - name: github.com/allegro/bigcache
-  version: 5e5c707aa7246adf35fdb347f5156e9c77f0c96f
+  version: f31987a23e44c5121ef8c8b2f2ea2e8ffa37b068
   subpackages:
   - queue
 - name: github.com/amdonov/lite-idp
@@ -55,7 +55,7 @@ imports:
   - protoc-gen-go/plugin
   - ptypes/any
 - name: github.com/google/uuid
-  version: e704694aed0ea004bb7eb1fc2e911d048a54606a
+  version: d460ce9f8df2e77fb1ba55ca87fafed96c607494
 - name: github.com/gorilla/context
   version: aed02d124ae4a0e94fea4541c8effd05bf0c8296
 - name: github.com/gorilla/handlers

@@ -8,14 +8,12 @@ import (
 	"github.com/allegro/bigcache/queue"
 )
 
-type onRemoveCallback func(wrappedEntry []byte, reason RemoveReason)
-
 type cacheShard struct {
 	hashmap     map[uint64]uint32
 	entries     queue.BytesQueue
 	lock        sync.RWMutex
 	entryBuffer []byte
-	onRemove    onRemoveCallback
+	onRemove    func(wrappedEntry []byte)
 
 	isVerbose  bool
 	logger     Logger
@@ -24,6 +22,8 @@ type cacheShard struct {
 
 	stats Stats
 }
+
+type onRemoveCallback func(wrappedEntry []byte)
 
 func (s *cacheShard) get(key string, hashedKey uint64) ([]byte, error) {
 	s.lock.RLock()
@@ -77,7 +77,7 @@ func (s *cacheShard) set(key string, hashedKey uint64, entry []byte) error {
 			s.lock.Unlock()
 			return nil
 		}
-		if s.removeOldestEntry(NoSpace) != nil {
+		if s.removeOldestEntry() != nil {
 			s.lock.Unlock()
 			return fmt.Errorf("entry is bigger than max shard size")
 		}
@@ -105,7 +105,7 @@ func (s *cacheShard) del(key string, hashedKey uint64) error {
 	s.lock.Lock()
 	{
 		delete(s.hashmap, hashedKey)
-		s.onRemove(wrappedEntry, Deleted)
+		s.onRemove(wrappedEntry)
 		resetKeyFromEntry(wrappedEntry)
 	}
 	s.lock.Unlock()
@@ -114,10 +114,10 @@ func (s *cacheShard) del(key string, hashedKey uint64) error {
 	return nil
 }
 
-func (s *cacheShard) onEvict(oldestEntry []byte, currentTimestamp uint64, evict func(reason RemoveReason) error) bool {
+func (s *cacheShard) onEvict(oldestEntry []byte, currentTimestamp uint64, evict func() error) bool {
 	oldestTimestamp := readTimestampFromEntry(oldestEntry)
 	if currentTimestamp-oldestTimestamp > s.lifeWindow {
-		evict(Expired)
+		evict()
 		return true
 	}
 	return false
@@ -157,12 +157,12 @@ func (s *cacheShard) copyKeys() (keys []uint32, next int) {
 	return keys, next
 }
 
-func (s *cacheShard) removeOldestEntry(reason RemoveReason) error {
+func (s *cacheShard) removeOldestEntry() error {
 	oldest, err := s.entries.Pop()
 	if err == nil {
 		hash := readHashFromEntry(oldest)
 		delete(s.hashmap, hash)
-		s.onRemove(oldest, reason)
+		s.onRemove(oldest)
 		return nil
 	}
 	return err
@@ -179,13 +179,6 @@ func (s *cacheShard) reset(config Config) {
 func (s *cacheShard) len() int {
 	s.lock.RLock()
 	res := len(s.hashmap)
-	s.lock.RUnlock()
-	return res
-}
-
-func (s *cacheShard) capacity() int {
-	s.lock.RLock()
-	res := s.entries.Capacity()
 	s.lock.RUnlock()
 	return res
 }

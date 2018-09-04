@@ -26,16 +26,8 @@ type Config struct {
 	// the oldest entries are overridden for the new ones.
 	HardMaxCacheSize int
 	// OnRemove is a callback fired when the oldest entry is removed because of its expiration time or no space left
-	// for the new entry, or because delete was called.
-	// Default value is nil which means no callback and it prevents from unwrapping the oldest entry.
+	// for the new entry. Default value is nil which means no callback and it prevents from unwrapping the oldest entry.
 	OnRemove func(key string, entry []byte)
-	// OnRemoveWithReason is a callback fired when the oldest entry is removed because of its expiration time or no space left
-	// for the new entry, or because delete was called. A constant representing the reason will be passed through.
-	// Default value is nil which means no callback and it prevents from unwrapping the oldest entry.
-	// Ignored if OnRemove is specified.
-	OnRemoveWithReason func(key string, entry []byte, reason RemoveReason)
-
-	onRemoveFilter int
 
 	// Logger is a logging interface and used in combination with `Verbose`
 	// Defaults to `DefaultLogger()`
@@ -72,15 +64,4 @@ func (c Config) maximumShardSize() int {
 	}
 
 	return maxShardSize
-}
-
-// OnRemoveFilterSet sets which remove reasons will trigger a call to OnRemoveWithReason.
-// Filtering out reasons prevents bigcache from unwrapping them, which saves cpu.
-func (c Config) OnRemoveFilterSet(reasons ...RemoveReason) Config {
-	c.onRemoveFilter = 0
-	for i := range reasons {
-		c.onRemoveFilter |= 1 << uint(reasons[i])
-	}
-
-	return c
 }

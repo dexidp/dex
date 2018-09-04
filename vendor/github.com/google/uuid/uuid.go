@@ -97,16 +97,6 @@ func ParseBytes(b []byte) (UUID, error) {
 	return uuid, nil
 }
 
-// MustParse is like Parse but panics if the string cannot be parsed.
-// It simplifies safe initialization of global variables holding compiled UUIDs.
-func MustParse(s string) UUID {
-	uuid, err := Parse(s)
-	if err != nil {
-		panic(`uuid: Parse(` + s + `): ` + err.Error())
-	}
-	return uuid
-}
-
 // FromBytes creates a new UUID from a byte slice. Returns an error if the slice
 // does not have a length of 16. The bytes are copied from the slice.
 func FromBytes(b []byte) (uuid UUID, err error) {
@@ -140,7 +130,7 @@ func (uuid UUID) URN() string {
 }
 
 func encodeHex(dst []byte, uuid UUID) {
-	hex.Encode(dst, uuid[:4])
+	hex.Encode(dst[:], uuid[:4])
 	dst[8] = '-'
 	hex.Encode(dst[9:13], uuid[4:6])
 	dst[13] = '-'
