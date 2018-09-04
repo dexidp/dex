@@ -54,7 +54,9 @@ func TestCallbackSuccess(t *testing.T) {
 	q.Add("SAMLart", "ABCDEF")
 
 	req.URL.RawQuery = q.Encode()
-	i, err := sc.HandleCallback(connector.Scopes{true, true}, req)
+	i, err := sc.HandleCallback(connector.Scopes{
+		OfflineAccess: true,
+		Groups:        true}, req)
 	if err != nil {
 		t.Fatal(err)
 	}
