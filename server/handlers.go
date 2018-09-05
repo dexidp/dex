@@ -324,9 +324,13 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	var authID string
 	switch r.Method {
 	case "GET": // OAuth2 callback
-		if authID = r.URL.Query().Get("state"); authID == "" {
-			s.renderError(w, http.StatusBadRequest, "User session error.")
-			return
+		values := r.URL.Query()
+		if authID = values.Get("state"); authID == "" {
+			// Check for SAML2 Artifact binding
+			if authID = values.Get("RelayState"); authID == "" {
+				s.renderError(w, http.StatusBadRequest, "User session error.")
+				return
+			}
 		}
 	case "POST": // SAML POST binding
 		if authID = r.PostFormValue("RelayState"); authID == "" {
