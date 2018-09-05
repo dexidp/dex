@@ -60,11 +60,16 @@ func loadTemplates(c WebConfig, issuerURL string) (*templates, error) {
 		c.LogoURL = join(issuerURL, "themes", c.Theme, "logo.png")
 	}
 
+	hostURL := issuerURL
+	if c.HostURL != "" {
+		hostURL = c.HostURL
+	}
+
 	funcs := template.FuncMap{
 		"issuer": func() string { return c.Issuer },
 		"logo":   func() string { return c.LogoURL },
-		"static": func(s string) string { return join(issuerURL, "static", s) },
-		"theme":  func(s string) string { return join(issuerURL, "themes", c.Theme, s) },
+		"static": func(s string) string { return join(hostURL, "static", s) },
+		"theme":  func(s string) string { return join(hostURL, "themes", c.Theme, s) },
 		"lower":  strings.ToLower,
 	}
 
