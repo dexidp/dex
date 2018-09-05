@@ -117,10 +117,10 @@ $ curl -H "Authorization: Bearer $token" -k https://( API server host ):443/api/
 
 [k8s-authz]: http://kubernetes.io/docs/admin/authorization/
 [k8s-oidc]: http://kubernetes.io/docs/admin/authentication/#openid-connect-tokens
-[trusted-peers]: https://godoc.org/github.com/coreos/dex/storage#Client
+[trusted-peers]: https://godoc.org/github.com/dexidp/dex/storage#Client
 [coreos-kubernetes]: https://github.com/coreos/coreos-kubernetes/
 [coreos-baremetal]: https://github.com/coreos/coreos-baremetal/
-[dex-healthz]: https://github.com/coreos/dex/issues/682
+[dex-healthz]: https://github.com/dexidp/dex/issues/682
 [github-oauth2]: https://github.com/settings/applications/new
 [node-port]: http://kubernetes.io/docs/user-guide/services/#type-nodeport
 [coreos-kubernetes]: https://github.com/coreos/coreos-kubernetes

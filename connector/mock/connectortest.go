@@ -8,8 +8,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/coreos/dex/connector"
 	"github.com/sirupsen/logrus"
+
+	"github.com/dexidp/dex/connector"
 )
 
 // NewCallbackConnector returns a mock connector which requires no user interaction. It always returns

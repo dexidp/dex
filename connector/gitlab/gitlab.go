@@ -11,9 +11,10 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/coreos/dex/connector"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
+
+	"github.com/dexidp/dex/connector"
 )
 
 const (
