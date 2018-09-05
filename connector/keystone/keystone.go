@@ -30,7 +30,7 @@ var (
 //		id: keystone
 //		name: Keystone
 //		config:
-//			keystoneURI: http://192.168.180.200:5000/v3/auth/tokens
+//			keystoneURI: http://example:5000/v3/auth/tokens
 //			domain: default
 
 type Config struct {
