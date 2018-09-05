@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/coreos/dex/cmd/dex/cmd"
-	"github.com/coreos/dex/cmd/extend-example/connector/custom"
-	"github.com/coreos/dex/server"
+	"github.com/dexidp/dex/cmd/dex/cmd"
+	"github.com/dexidp/dex/cmd/extend-example/connector/custom"
+	"github.com/dexidp/dex/server"
 	"github.com/spf13/cobra"
 )
 

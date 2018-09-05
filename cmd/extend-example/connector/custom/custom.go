@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/coreos/dex/connector"
+	"github.com/dexidp/dex/connector"
 	"github.com/sirupsen/logrus"
 )
 

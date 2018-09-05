@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/coreos/dex/cmd/dex/cmd"
+	"github.com/dexidp/dex/cmd/dex/cmd"
 	"github.com/spf13/cobra"
 )
 
