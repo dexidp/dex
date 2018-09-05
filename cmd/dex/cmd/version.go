@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"fmt"
@@ -9,7 +9,8 @@ import (
 	"github.com/dexidp/dex/version"
 )
 
-func commandVersion() *cobra.Command {
+// CommandVersion creates a dex version command
+func CommandVersion() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print the version and exit",

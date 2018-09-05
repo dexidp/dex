@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/dexidp/dex/cmd/dex/cmd"
 	"github.com/spf13/cobra"
 )
 
@@ -15,8 +16,8 @@ func commandRoot() *cobra.Command {
 			os.Exit(2)
 		},
 	}
-	rootCmd.AddCommand(commandServe())
-	rootCmd.AddCommand(commandVersion())
+	rootCmd.AddCommand(cmd.CommandServe())
+	rootCmd.AddCommand(cmd.CommandVersion())
 	return rootCmd
 }
 
