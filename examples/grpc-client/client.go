@@ -9,9 +9,10 @@ import (
 	"io/ioutil"
 	"log"
 
-	"github.com/coreos/dex/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+
+	"github.com/dexidp/dex/api"
 )
 
 func newDexClient(hostAndPort, caPath, clientCrt, clientKey string) (api.DexClient, error) {

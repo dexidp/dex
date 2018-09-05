@@ -3,8 +3,9 @@ package etcd
 import (
 	"time"
 
-	"github.com/coreos/dex/storage"
 	jose "gopkg.in/square/go-jose.v2"
+
+	"github.com/dexidp/dex/storage"
 )
 
 // AuthCode is a mirrored struct from storage with JSON struct tags

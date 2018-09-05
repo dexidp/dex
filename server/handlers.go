@@ -15,9 +15,9 @@ import (
 	"github.com/gorilla/mux"
 	jose "gopkg.in/square/go-jose.v2"
 
-	"github.com/coreos/dex/connector"
-	"github.com/coreos/dex/server/internal"
-	"github.com/coreos/dex/storage"
+	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/storage"
 )
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -159,7 +159,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	// so users don't hit "not found" database errors if they wait at the login
 	// screen too long.
 	//
-	// See: https://github.com/coreos/dex/issues/646
+	// See: https://github.com/dexidp/dex/issues/646
 	authReq.Expiry = s.now().Add(24 * time.Hour) // Totally arbitrary value.
 	if err := s.storage.CreateAuthRequest(authReq); err != nil {
 		s.logger.Errorf("Failed to create authorization request: %v", err)

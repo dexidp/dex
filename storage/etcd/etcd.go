@@ -7,9 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/dex/storage"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/sirupsen/logrus"
+
+	"github.com/dexidp/dex/storage"
 )
 
 const (

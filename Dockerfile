@@ -2,8 +2,8 @@ FROM golang:1.10.2-alpine
 
 RUN apk add --no-cache --update alpine-sdk
 
-COPY . /go/src/github.com/coreos/dex
-RUN cd /go/src/github.com/coreos/dex && make release-binary
+COPY . /go/src/github.com/dexidp/dex
+RUN cd /go/src/github.com/dexidp/dex && make release-binary
 
 FROM alpine:3.4
 # Dex connectors, such as GitHub and Google logins require root certificates.

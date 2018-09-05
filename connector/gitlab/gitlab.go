@@ -11,9 +11,10 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/coreos/dex/connector"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
+
+	"github.com/dexidp/dex/connector"
 )
 
 const (
@@ -53,7 +54,7 @@ type gitlabGroup struct {
 // Open returns a strategy for logging in through GitLab.
 func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
 	if c.BaseURL == "" {
-		c.BaseURL = "https://www.gitlab.com"
+		c.BaseURL = "https://gitlab.com"
 	}
 	return &gitlabConnector{
 		baseURL:      c.BaseURL,

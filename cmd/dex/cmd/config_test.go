@@ -3,12 +3,13 @@ package cmd
 import (
 	"testing"
 
-	"github.com/coreos/dex/connector/mock"
-	"github.com/coreos/dex/connector/oidc"
-	"github.com/coreos/dex/storage"
-	"github.com/coreos/dex/storage/sql"
 	"github.com/ghodss/yaml"
 	"github.com/kylelemons/godebug/pretty"
+
+	"github.com/dexidp/dex/connector/mock"
+	"github.com/dexidp/dex/connector/oidc"
+	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/sql"
 )
 
 var _ = yaml.YAMLToJSON
