@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func commandVersion() *cobra.Command {
+func CommandVersion() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print the version and exit",

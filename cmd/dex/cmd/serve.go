@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"context"
@@ -27,7 +27,7 @@ import (
 	"github.com/coreos/dex/storage"
 )
 
-func commandServe() *cobra.Command {
+func CommandServe() *cobra.Command {
 	return &cobra.Command{
 		Use:     "serve [ config file ]",
 		Short:   "Connect to the storage and begin serving requests.",

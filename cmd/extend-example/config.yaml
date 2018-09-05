@@ -1,0 +1,31 @@
+--- 
+connectors: 
+  - 
+    config: 
+      userid: jomama
+      name: Joe Mama
+      email: mama_joe@gmail.com
+    id: demo
+    name: Demo
+    type: custom
+enablePasswordDB: false
+frontend:
+  Dir: ../../web
+issuer: "http://127.0.0.1:5556/dex"
+oauth2: 
+  skipApprovalScreen: true
+staticClients: 
+  - 
+    id: example-app
+    name: example-app
+    redirectURIs: 
+      - "http://127.0.0.1:5555/callback"
+    secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+storage: 
+  config: 
+    file: dex.db
+  type: sqlite3
+telemetry: 
+  http: "127.0.0.1:5558"
+web: 
+  http: "127.0.0.1:5556"
