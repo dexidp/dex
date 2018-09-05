@@ -27,6 +27,7 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
+// CommandServe creates a dex server command
 func CommandServe() *cobra.Command {
 	return &cobra.Command{
 		Use:     "serve [ config file ]",
