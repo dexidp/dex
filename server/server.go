@@ -31,6 +31,7 @@ import (
 	"github.com/dexidp/dex/connector/linkedin"
 	"github.com/dexidp/dex/connector/microsoft"
 	"github.com/dexidp/dex/connector/mock"
+	"github.com/dexidp/dex/connector/oauth"
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/storage"
@@ -68,6 +69,9 @@ type Config struct {
 	// Logging in implies approval.
 	SkipApprovalScreen bool
 
+	// If set, the server will use this connector to handle password grants
+	PasswordConnector string
+
 	RotateKeysAfter  time.Duration // Defaults to 6 hours.
 	IDTokensValidFor time.Duration // Defaults to 24 hours
 
@@ -96,7 +100,7 @@ type WebConfig struct {
 	//   * templates - HTML templates controlled by dex.
 	//   * themes/(theme) - Static static served at "( issuer URL )/theme".
 	//
-	Dir string
+	Dir http.FileSystem
 
 	// Defaults to "( issuer URL )/theme/logo.png"
 	LogoURL string
@@ -106,6 +110,9 @@ type WebConfig struct {
 
 	// Defaults to "coreos"
 	Theme string
+
+	// Defaults to issuer URL
+	HostURL string
 }
 
 func value(val, defaultValue time.Duration) time.Duration {
@@ -133,6 +140,9 @@ type Server struct {
 	// If enabled, don't prompt user for approval after logging in through connector.
 	skipApproval bool
 
+	// Used for password grant
+	passwordConnector string
+
 	supportedResponseTypes map[string]bool
 
 	now func() time.Time
@@ -151,6 +161,10 @@ func NewServer(ctx context.Context, c Config) (*Server, error) {
 }
 
 func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy) (*Server, error) {
+	if c.Logger == nil {
+		c.Logger = logrus.New()
+	}
+
 	issuerURL, err := url.Parse(c.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("server: can't parse issuer URL")
@@ -173,33 +187,25 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		supported[respType] = true
 	}
 
-	web := webConfig{
-		dir:       c.Web.Dir,
-		logoURL:   c.Web.LogoURL,
-		issuerURL: c.Issuer,
-		issuer:    c.Web.Issuer,
-		theme:     c.Web.Theme,
+	if c.Now == nil {
+		c.Now = time.Now
 	}
 
-	static, theme, tmpls, err := loadWebConfig(web)
+	templates, err := loadTemplates(c.Web, c.Issuer)
 	if err != nil {
-		return nil, fmt.Errorf("server: failed to load web static: %v", err)
-	}
-
-	now := c.Now
-	if now == nil {
-		now = time.Now
+		return nil, fmt.Errorf("server: failed to templates: %v", err)
 	}
 
 	s := &Server{
 		issuerURL:              *issuerURL,
 		connectors:             make(map[string]Connector),
-		storage:                newKeyCacher(c.Storage, now),
+		storage:                newKeyCacher(c.Storage, c.Now),
 		supportedResponseTypes: supported,
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
 		skipApproval:           c.SkipApprovalScreen,
-		now:                    now,
-		templates:              tmpls,
+		now:                    c.Now,
+		templates:              templates,
+		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
 	}
 
@@ -220,27 +226,34 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 	}
 
-	requestCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "http_requests_total",
-		Help: "Count of all HTTP requests.",
-	}, []string{"handler", "code", "method"})
-
-	err = c.PrometheusRegistry.Register(requestCounter)
-	if err != nil {
-		return nil, fmt.Errorf("server: Failed to register Prometheus HTTP metrics: %v", err)
-	}
-
-	instrumentHandlerCounter := func(handlerName string, handler http.Handler) http.HandlerFunc {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			m := httpsnoop.CaptureMetrics(handler, w, r)
-			requestCounter.With(prometheus.Labels{"handler": handlerName, "code": strconv.Itoa(m.Code), "method": r.Method}).Inc()
-		})
-	}
-
 	r := mux.NewRouter()
+
 	handleFunc := func(p string, h http.HandlerFunc) {
-		r.HandleFunc(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, h))
+		// r.HandleFunc(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, h))
+		r.HandleFunc(path.Join(issuerURL.Path, p), h)
 	}
+
+	if c.PrometheusRegistry != nil {
+		requestCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Count of all HTTP requests.",
+		}, []string{"handler", "code", "method"})
+
+		err = c.PrometheusRegistry.Register(requestCounter)
+		if err != nil {
+			return nil, fmt.Errorf("server: Failed to register Prometheus HTTP metrics: %v", err)
+		}
+		instrumentHandlerCounter := func(handlerName string, handler http.Handler) http.HandlerFunc {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				m := httpsnoop.CaptureMetrics(handler, w, r)
+				requestCounter.With(prometheus.Labels{"handler": handlerName, "code": strconv.Itoa(m.Code), "method": r.Method}).Inc()
+			})
+		}
+		handleFunc = func(p string, h http.HandlerFunc) {
+			r.HandleFunc(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, h))
+		}
+	}
+
 	handlePrefix := func(p string, h http.Handler) {
 		prefix := path.Join(issuerURL.Path, p)
 		r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, h))
@@ -281,12 +294,11 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
 	handleFunc("/healthz", s.handleHealth)
-	handlePrefix("/static", static)
-	handlePrefix("/theme", theme)
+	handlePrefix("/", http.FileServer(c.Web.Dir))
 	s.mux = r
 
-	s.startKeyRotation(ctx, rotationStrategy, now)
-	s.startGarbageCollection(ctx, value(c.GCFrequency, 5*time.Minute), now)
+	s.startKeyRotation(ctx, rotationStrategy, c.Now)
+	s.startGarbageCollection(ctx, value(c.GCFrequency, 5*time.Minute), c.Now)
 
 	return s, nil
 }
@@ -436,6 +448,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"github":       func() ConnectorConfig { return new(github.Config) },
 	"gitlab":       func() ConnectorConfig { return new(gitlab.Config) },
 	"oidc":         func() ConnectorConfig { return new(oidc.Config) },
+	"oauth":        func() ConnectorConfig { return new(oauth.Config) },
 	"saml":         func() ConnectorConfig { return new(saml.Config) },
 	"cf":           func() ConnectorConfig { return new(cf.Config) },
 	"authproxy":    func() ConnectorConfig { return new(authproxy.Config) },
