@@ -3,16 +3,12 @@
 Making a dex release involves:
 
 * Tagging a git commit and pushing the tag to GitHub.
-* Building and pushing a Docker image.
 
-This requires the following tools.
+From this, Quay will build and tag an image via a build trigger.
 
-* Docker
-
-And the following permissions.
+This requires the following permissions.
 
 * Push access to the github.com/dexidp/dex git repo.
-* Push access to the quay.io/coreos/dex Docker repo.
 
 ## Tagging the release
 
@@ -34,7 +30,7 @@ you to enter a tag message, which can just be the release version.
 git tag -s v2.0.0 ea4c04fde83bd6c48f4d43862c406deb4ea9dba2
 ```
 
-Push that tag to the CoreOS repo.
+Push that tag to the Dex repo.
 
 ```
 git push git@github.com:dexidp/dex.git v2.0.0
@@ -67,15 +63,3 @@ git push origin "cherry-picked-change"
 ```
 
 Open a PR onto $RELEASE_BRANCH to get the changes approved.
-
-## Building the Docker image
-
-Build the Docker image and push to Quay.
-
-```bash
-# checkout the tag
-git checkout tags/v2.1.0
-# will prompt for sudo password
-make docker-image
-sudo docker push quay.io/coreos/dex:v2.1.0
-```
