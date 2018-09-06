@@ -14,7 +14,7 @@ import (
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/sirupsen/logrus"
 
-	"github.com/dexidp/dex/connector"
+	"github.com/concourse/dex/connector"
 )
 
 // responseTest maps a SAML 2.0 response object to a set of expected values.

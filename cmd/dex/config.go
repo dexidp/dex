@@ -9,12 +9,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/dexidp/dex/server"
-	"github.com/dexidp/dex/storage"
-	"github.com/dexidp/dex/storage/etcd"
-	"github.com/dexidp/dex/storage/kubernetes"
-	"github.com/dexidp/dex/storage/memory"
-	"github.com/dexidp/dex/storage/sql"
+	"github.com/concourse/dex/server"
+	"github.com/concourse/dex/storage"
+	"github.com/concourse/dex/storage/etcd"
+	"github.com/concourse/dex/storage/kubernetes"
+	"github.com/concourse/dex/storage/memory"
+	"github.com/concourse/dex/storage/sql"
 )
 
 // Config is the config format for the main application.

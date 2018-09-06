@@ -9,8 +9,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/dexidp/dex/storage"
-	"github.com/dexidp/dex/storage/conformance"
+	"github.com/concourse/dex/storage"
+	"github.com/concourse/dex/storage/conformance"
 )
 
 func withTimeout(t time.Duration, f func()) {

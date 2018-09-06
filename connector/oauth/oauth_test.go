@@ -13,7 +13,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/dexidp/dex/connector"
+	"github.com/concourse/dex/connector"
 	"github.com/sirupsen/logrus"
 	jose "gopkg.in/square/go-jose.v2"
 )
