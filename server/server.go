@@ -33,7 +33,7 @@ import (
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/storage"
-  "github.com/dexidp/dex/connector/keystone"
+   	"github.com/dexidp/dex/connector/keystone"
 )
 
 // LocalConnector is the local passwordDB connector which is an internal
