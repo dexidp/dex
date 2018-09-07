@@ -1,0 +1,44 @@
+# The base path of dex and the external name of the OpenID Connect service.
+# This is the canonical URL that all clients MUST use to refer to dex. If a
+# path is provided, dex's HTTP service will listen at a non-root URL.
+issuer: http://0.0.0.0:5556/dex
+
+# The storage configuration determines where dex stores its state. Supported
+# options include SQL flavors and Kubernetes third party resources.
+#
+# See the storage document at Documentation/storage.md for further information.
+storage:
+  type: sqlite3
+  config:
+    file: examples/dex.db   #be in the dex directory, else change path here
+
+# Configuration for the HTTP endpoints.
+web:
+  http: 0.0.0.0:5556
+
+# Configuration for telemetry
+telemetry:
+  http: 0.0.0.0:5558
+
+oauth2:
+  responseTypes: ["id_token"]
+
+# Instead of reading from an external storage, use this list of clients.
+staticClients:
+- id: example-app
+  redirectURIs:
+  - 'http://127.0.0.1:5555/callback'
+  name: 'Example App'
+  secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+
+#Provide Keystone connector and its config here
+connectors:
+- type: ksconfig
+  id: keystone
+  name: Keystone
+  config:
+    keystoneURI: http://example:5000/v3/auth/tokens
+    domain: default
+
+# Let dex keep a list of passwords which can be used to login to dex.
+enablePasswordDB: true

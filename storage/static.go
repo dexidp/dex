@@ -3,7 +3,6 @@ package storage
 import (
 	"errors"
 	"strings"
-
 	"github.com/sirupsen/logrus"
 )
 
