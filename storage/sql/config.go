@@ -6,10 +6,11 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/coreos/dex/storage"
 	"github.com/lib/pq"
 	sqlite3 "github.com/mattn/go-sqlite3"
 	"github.com/sirupsen/logrus"
+
+	"github.com/dexidp/dex/storage"
 )
 
 const (

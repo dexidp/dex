@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/dex/storage"
-	"github.com/coreos/dex/storage/conformance"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/sirupsen/logrus"
+
+	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/conformance"
 )
 
 func withTimeout(t time.Duration, f func()) {

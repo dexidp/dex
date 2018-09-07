@@ -3,11 +3,12 @@ package etcd
 import (
 	"time"
 
-	"github.com/coreos/dex/storage"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/namespace"
 	"github.com/coreos/etcd/pkg/transport"
 	"github.com/sirupsen/logrus"
+
+	"github.com/dexidp/dex/storage"
 )
 
 var (

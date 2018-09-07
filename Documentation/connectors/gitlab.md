@@ -20,8 +20,8 @@ connectors:
     # Required field for connector name.
     name: GitLab
     config:
-      # optional, default = https://www.gitlab.com 
-      baseURL: https://www.gitlab.com
+      # optional, default = https://gitlab.com 
+      baseURL: https://gitlab.com
       # Credentials can be string literals or pulled from the environment.  
       clientID: $GITLAB_APPLICATION_ID 
       clientSecret: $GITLAB_CLIENT_SECRET

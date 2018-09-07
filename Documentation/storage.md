@@ -302,8 +302,8 @@ Each storage implementation bears a large ongoing maintenance cost and needs to 
 
 Those who still want to construct a proposal for a new storage should review the following packages:
 
-* `github.com/coreos/dex/storage`: Interface definitions which the storage must implement. __NOTE:__ This package is not stable.
-* `github.com/coreos/dex/storage/conformance`: Conformance tests which storage implementations must pass.
+* `github.com/dexidp/dex/storage`: Interface definitions which the storage must implement. __NOTE:__ This package is not stable.
+* `github.com/dexidp/dex/storage/conformance`: Conformance tests which storage implementations must pass.
 
 ### New storage option requirements
 
@@ -313,7 +313,7 @@ Any proposal to add a new implementation must address the following:
 * Transactional requirements: atomic deletes, updates, etc.
 * Is there an established and reasonable Go client?
 
-[issues-transaction-tests]: https://github.com/coreos/dex/issues/600
+[issues-transaction-tests]: https://github.com/dexidp/dex/issues/600
 [k8s-api]: https://github.com/kubernetes/kubernetes/blob/master/docs/devel/api-conventions.md#concurrency-control-and-consistency
 [psql-conn-options]: https://godoc.org/github.com/lib/pq#hdr-Connection_String_Parameters
 [crd]: https://kubernetes.io/docs/tasks/access-kubernetes-api/extend-api-custom-resource-definitions/

@@ -5,8 +5,8 @@
 Dex requires a Go installation and a GOPATH configured. For setting up a Go workspace, refer to the [official documentation][go-setup]. Clone it down the correct place, and simply type `make` to compile the dex binary.
 
 ```
-$ go get github.com/coreos/dex
-$ cd $GOPATH/src/github.com/coreos/dex
+$ go get github.com/dexidp/dex
+$ cd $GOPATH/src/github.com/dexidp/dex
 $ make
 ```
 

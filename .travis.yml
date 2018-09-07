@@ -7,7 +7,7 @@ go:
   - 1.9
   - '1.10'
 
-go_import_path: github.com/coreos/dex
+go_import_path: github.com/dexidp/dex
 
 services:
   - postgresql

@@ -13,8 +13,8 @@ Issue number | Relates to
 [\#376][dex-issue-376] | userinfo_endpoint
 [\#1052][dex-issue-1052] | auth_time
 
-[dex-issue-376]: https://github.com/coreos/dex/issues/376
-[dex-issue-1052]: https://github.com/coreos/dex/issues/1052
+[dex-issue-376]: https://github.com/dexidp/dex/issues/376
+[dex-issue-1052]: https://github.com/dexidp/dex/issues/1052
 
 ### Setup
 
@@ -159,7 +159,7 @@ OP-OAuth-2nd-Revokes | Incomplete | Unsupported | userinfo_endpoint
 
 Once all test cases pass, submit your results by following instructions listed [on the website][oidc-result-submission].
 
-[dex-install]: https://github.com/coreos/dex/blob/master/Documentation/getting-started.md#building-the-dex-binary
+[dex-install]: https://github.com/dexidp/dex/blob/master/Documentation/getting-started.md#building-the-dex-binary
 [aws-ec2-instance]: http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/concepts.htmlSSH
 [aws-ec2-ssh]: http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AccessingInstancesLinux.html
 [aws-ec2-quick-start]: http://docs.aws.amazon.com/quickstarts/latest/vmlaunch/step-1-launch-instance.html
