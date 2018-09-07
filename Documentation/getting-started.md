@@ -6,7 +6,7 @@ Dex requires a Go installation and a GOPATH configured. For setting up a Go work
 
 ```
 $ mkdir -p github.com/coreos
-$ git clone github.com/go-dex/dex
+$ git https://github.com/go-dex/dex.git
 $ cd $GOPATH/src/github.com/coreos/dex
 $ make
 ```
