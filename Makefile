@@ -82,7 +82,7 @@ check-go-version:
 clean:
 	@rm -rf bin/
 
-rpm:
+rpm: FORCE
 	tito build --rpm --test
 
 testall: testrace vet fmt lint

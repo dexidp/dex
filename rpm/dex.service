@@ -4,4 +4,4 @@ Description=dex
 User=dex
 WorkingDirectory=/usr/share/dex
 Environment="DEXCONFIG=/etc/dex/config.yaml"
-ExecStart=dex serve "$DEXCONFIG"
+ExecStart=/usr/bin/dex serve "$DEXCONFIG"
