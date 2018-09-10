@@ -9,8 +9,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/dexidp/dex/storage"
-	"github.com/dexidp/dex/storage/conformance"
+	"github.com/concourse/dex/storage"
+	"github.com/concourse/dex/storage/conformance"
 )
 
 func withTimeout(t time.Duration, f func()) {
@@ -77,6 +77,55 @@ func getenv(key, defaultVal string) string {
 
 const testPostgresEnv = "DEX_POSTGRES_HOST"
 
+func TestCreateDataSourceName(t *testing.T) {
+	var testCases = []struct {
+		description string
+		input       *Postgres
+		expected    string
+	}{
+		{
+			description: "with no configuration, connect_timeout is specified with default value",
+			input: &Postgres{
+				SSL: PostgresSSL{
+					Mode: "disable",
+				},
+			},
+			expected: "connect_timeout=0 sslmode='disable'",
+		},
+		{
+			description: "with unix socket host",
+			input: &Postgres{
+				Host: "/var/run/postgres",
+				SSL: PostgresSSL{
+					Mode: "disable",
+				},
+			},
+			expected: "connect_timeout=0 host='/var/run/postgres' sslmode='disable'",
+		},
+		{
+			description: "with tcp host",
+			input: &Postgres{
+				Host: "coreos.com",
+				SSL: PostgresSSL{
+					Mode: "disable",
+				},
+			},
+			expected: "connect_timeout=0 host='coreos.com' sslmode='disable'",
+		},
+	}
+
+	var actual string
+	for _, testCase := range testCases {
+		t.Run(testCase.description, func(t *testing.T) {
+			actual = testCase.input.CreateDataSourceName()
+
+			if actual != testCase.expected {
+				t.Fatalf("%s != %s", actual, testCase.expected)
+			}
+		})
+	}
+}
+
 func TestPostgres(t *testing.T) {
 	host := os.Getenv(testPostgresEnv)
 	if host == "" {
@@ -100,7 +149,7 @@ func TestPostgres(t *testing.T) {
 	}
 
 	newStorage := func() storage.Storage {
-		conn, err := p.open(logger)
+		conn, err := p.open(logger, p.CreateDataSourceName())
 		if err != nil {
 			fatal(err)
 		}

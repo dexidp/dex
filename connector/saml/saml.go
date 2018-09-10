@@ -17,7 +17,7 @@ import (
 	"github.com/russellhaering/goxmldsig/etreeutils"
 	"github.com/sirupsen/logrus"
 
-	"github.com/dexidp/dex/connector"
+	"github.com/concourse/dex/connector"
 )
 
 const (
@@ -379,8 +379,11 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	ident.EmailVerified = true
 
 	// Grab the username.
-	if ident.Username, _ = attributes.get(p.usernameAttr); ident.Username == "" {
+	if name, _ := attributes.get(p.usernameAttr); name == "" {
 		return ident, fmt.Errorf("no attribute with name %q: %s", p.usernameAttr, attributes.names())
+	} else {
+		ident.Name = name
+		ident.Username = name
 	}
 
 	if !s.Groups || p.groupsAttr == "" {

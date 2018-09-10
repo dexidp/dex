@@ -16,7 +16,7 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/sirupsen/logrus"
 
-	"github.com/dexidp/dex/connector"
+	"github.com/concourse/dex/connector"
 )
 
 const envVar = "DEX_LDAP_TESTS"

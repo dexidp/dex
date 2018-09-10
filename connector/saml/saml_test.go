@@ -14,7 +14,7 @@ import (
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/sirupsen/logrus"
 
-	"github.com/dexidp/dex/connector"
+	"github.com/concourse/dex/connector"
 )
 
 // responseTest maps a SAML 2.0 response object to a set of expected values.
@@ -69,6 +69,7 @@ func TestGoodResponse(t *testing.T) {
 		redirectURI:  "http://127.0.0.1:5556/dex/callback",
 		wantIdent: connector.Identity{
 			UserID:        "eric.chiang+okta@coreos.com",
+			Name:          "Eric",
 			Username:      "Eric",
 			Email:         "eric.chiang+okta@coreos.com",
 			EmailVerified: true,
@@ -89,6 +90,7 @@ func TestGroups(t *testing.T) {
 		redirectURI:  "http://127.0.0.1:5556/dex/callback",
 		wantIdent: connector.Identity{
 			UserID:        "eric.chiang+okta@coreos.com",
+			Name:          "Eric",
 			Username:      "Eric",
 			Email:         "eric.chiang+okta@coreos.com",
 			EmailVerified: true,
@@ -110,6 +112,7 @@ func TestOkta(t *testing.T) {
 		redirectURI:  "http://127.0.0.1:5556/dex/callback",
 		wantIdent: connector.Identity{
 			UserID:        "eric.chiang+okta@coreos.com",
+			Name:          "Eric",
 			Username:      "Eric",
 			Email:         "eric.chiang+okta@coreos.com",
 			EmailVerified: true,
@@ -188,6 +191,7 @@ func TestAssertionSignedNotResponse(t *testing.T) {
 		redirectURI:  "http://127.0.0.1:5556/dex/callback",
 		wantIdent: connector.Identity{
 			UserID:        "eric.chiang+okta@coreos.com",
+			Name:          "Eric",
 			Username:      "Eric",
 			Email:         "eric.chiang+okta@coreos.com",
 			EmailVerified: true,
@@ -254,6 +258,7 @@ func TestTwoAssertionFirstSigned(t *testing.T) {
 		redirectURI:  "http://127.0.0.1:5556/dex/callback",
 		wantIdent: connector.Identity{
 			UserID:        "eric.chiang+okta@coreos.com",
+			Name:          "Eric",
 			Username:      "Eric",
 			Email:         "eric.chiang+okta@coreos.com",
 			EmailVerified: true,

@@ -13,7 +13,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/dexidp/dex/connector"
+	"github.com/concourse/dex/connector"
 )
 
 const (
@@ -93,6 +93,7 @@ func (c *linkedInConnector) HandleCallback(s connector.Scopes, r *http.Request) 
 
 	identity = connector.Identity{
 		UserID:        profile.ID,
+		Name:          profile.fullname(),
 		Username:      profile.fullname(),
 		Email:         profile.Email,
 		EmailVerified: true,
@@ -126,6 +127,7 @@ func (c *linkedInConnector) Refresh(ctx context.Context, s connector.Scopes, ide
 		return ident, fmt.Errorf("linkedin: get profile: %v", err)
 	}
 
+	ident.Name = profile.fullname()
 	ident.Username = profile.fullname()
 	ident.Email = profile.Email
 
