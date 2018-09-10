@@ -19,13 +19,13 @@ LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
 
 build: bin/dex bin/example-app bin/grpc-client
 
-bin/dex: check-go-version
+bin/dex:
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
-bin/example-app: check-go-version
+bin/example-app:
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/example-app
 
-bin/grpc-client: check-go-version
+bin/grpc-client:
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/grpc-client
 
 .PHONY: release-binary
@@ -74,10 +74,6 @@ bin/protoc: scripts/get-protoc
 
 bin/protoc-gen-go:
 	@go install -v $(REPO_PATH)/vendor/github.com/golang/protobuf/protoc-gen-go
-
-.PHONY: check-go-version
-check-go-version:
-	@./scripts/check-go-version
 
 clean:
 	@rm -rf bin/
