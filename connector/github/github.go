@@ -40,13 +40,14 @@ var reLast = regexp.MustCompile("<([^>]+)>; rel=\"last\"")
 
 // Config holds configuration options for github logins.
 type Config struct {
-	ClientID     string `json:"clientID"`
-	ClientSecret string `json:"clientSecret"`
-	RedirectURI  string `json:"redirectURI"`
-	Org          string `json:"org"`
-	Orgs         []Org  `json:"orgs"`
-	HostName     string `json:"hostName"`
-	RootCA       string `json:"rootCA"`
+	ClientID             string `json:"clientID"`
+	ClientSecret         string `json:"clientSecret"`
+	RedirectURI          string `json:"redirectURI"`
+	Org                  string `json:"org"`
+	Orgs                 []Org  `json:"orgs"`
+	HostName             string `json:"hostName"`
+	RootCA               string `json:"rootCA"`
+	PreferredEmailDomain string `json:"preferredEmailDomain"`
 }
 
 // Org holds org-team filters, in which teams are optional.
