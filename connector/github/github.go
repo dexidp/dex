@@ -40,13 +40,14 @@ var reLast = regexp.MustCompile("<([^>]+)>; rel=\"last\"")
 
 // Config holds configuration options for github logins.
 type Config struct {
-	ClientID     string `json:"clientID"`
-	ClientSecret string `json:"clientSecret"`
-	RedirectURI  string `json:"redirectURI"`
-	Org          string `json:"org"`
-	Orgs         []Org  `json:"orgs"`
-	HostName     string `json:"hostName"`
-	RootCA       string `json:"rootCA"`
+	ClientID      string `json:"clientID"`
+	ClientSecret  string `json:"clientSecret"`
+	RedirectURI   string `json:"redirectURI"`
+	Org           string `json:"org"`
+	Orgs          []Org  `json:"orgs"`
+	HostName      string `json:"hostName"`
+	RootCA        string `json:"rootCA"`
+	TeamNameField string `json:"teamNameField"`
 }
 
 // Org holds org-team filters, in which teams are optional.
@@ -107,6 +108,13 @@ func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector
 
 	}
 
+	switch c.TeamNameField {
+	case "name", "slug", "":
+		g.teamNameField = c.TeamNameField
+	default:
+		return nil, fmt.Errorf("invalid connector config: unsupported team name field value `%s`", c.TeamNameField)
+	}
+
 	return &g, nil
 }
 
@@ -134,7 +142,8 @@ type githubConnector struct {
 	// Used to support untrusted/self-signed CA certs.
 	rootCA string
 	// HTTP Client that trusts the custom delcared rootCA cert.
-	httpClient *http.Client
+	httpClient    *http.Client
+	teamNameField string
 }
 
 // groupsRequired returns whether dex requires GitHub's 'read:org' scope. Dex
@@ -566,6 +575,7 @@ type team struct {
 	Org  struct {
 		Login string `json:"login"`
 	} `json:"organization"`
+	Slug string `json:"slug"`
 }
 
 // teamsForOrg queries the GitHub API for team membership within a specific organization.
@@ -586,7 +596,12 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 
 		for _, team := range teams {
 			if team.Org.Login == orgName {
-				groups = append(groups, team.Name)
+				switch c.teamNameField {
+				case "name", "":
+					groups = append(groups, team.Name)
+				case "slug":
+					groups = append(groups, team.Slug)
+				}
 			}
 		}
 

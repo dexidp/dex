@@ -28,6 +28,7 @@ connectors:
     clientID: $GITHUB_CLIENT_ID
     clientSecret: $GITHUB_CLIENT_SECRET
     redirectURI: http://127.0.0.1:5556/dex/callback
+
     # Optional organizations and teams, communicated through the "groups" scope.
     #
     # NOTE: This is an EXPERIMENTAL config option and will likely change.
@@ -51,6 +52,14 @@ connectors:
       teams:
       - red-team
       - blue-team
+
+    # Optional choice between 'name' (default) or 'slug'.
+    #
+    # As an example, group claims for member of 'Site Reliability Engineers' in
+    # Acme organization would yield:
+    #   - ['acme:Site Reliability Engineers'] for 'name'
+    #   - ['acme:site-reliability-engineers'] for 'slug'
+    teamNameField: slug
 ```
 
 ## GitHub Enterprise
