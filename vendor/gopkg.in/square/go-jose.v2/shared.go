@@ -18,8 +18,12 @@ package jose
 
 import (
 	"crypto/elliptic"
+	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"fmt"
+
+	"gopkg.in/square/go-jose.v2/json"
 )
 
 // KeyAlgorithm represents a key management algorithm.
@@ -33,6 +37,9 @@ type ContentEncryption string
 
 // CompressionAlgorithm represents an algorithm used for plaintext compression.
 type CompressionAlgorithm string
+
+// ContentType represents type of the contained data.
+type ContentType string
 
 var (
 	// ErrCryptoFailure represents an error in cryptographic primitive. This
@@ -63,6 +70,7 @@ var (
 
 // Key management algorithms
 const (
+	ED25519            = KeyAlgorithm("ED25519")
 	RSA1_5             = KeyAlgorithm("RSA1_5")             // RSA-PKCS1v1.5
 	RSA_OAEP           = KeyAlgorithm("RSA-OAEP")           // RSA-OAEP-SHA1
 	RSA_OAEP_256       = KeyAlgorithm("RSA-OAEP-256")       // RSA-OAEP-SHA256
@@ -84,6 +92,7 @@ const (
 
 // Signature algorithms
 const (
+	EdDSA = SignatureAlgorithm("EdDSA")
 	HS256 = SignatureAlgorithm("HS256") // HMAC using SHA-256
 	HS384 = SignatureAlgorithm("HS384") // HMAC using SHA-384
 	HS512 = SignatureAlgorithm("HS512") // HMAC using SHA-512
@@ -114,21 +123,44 @@ const (
 	DEFLATE = CompressionAlgorithm("DEF") // DEFLATE (RFC 1951)
 )
 
+// A key in the protected header of a JWS object. Use of the Header...
+// constants is preferred to enhance type safety.
+type HeaderKey string
+
+const (
+	HeaderType        HeaderKey = "typ" // string
+	HeaderContentType           = "cty" // string
+
+	// These are set by go-jose and shouldn't need to be set by consumers of the
+	// library.
+	headerAlgorithm   = "alg"  // string
+	headerEncryption  = "enc"  // ContentEncryption
+	headerCompression = "zip"  // CompressionAlgorithm
+	headerCritical    = "crit" // []string
+
+	headerAPU = "apu" // *byteBuffer
+	headerAPV = "apv" // *byteBuffer
+	headerEPK = "epk" // *JSONWebKey
+	headerIV  = "iv"  // *byteBuffer
+	headerTag = "tag" // *byteBuffer
+	headerX5c = "x5c" // []*x509.Certificate
+
+	headerJWK   = "jwk"   // *JSONWebKey
+	headerKeyID = "kid"   // string
+	headerNonce = "nonce" // string
+
+	headerP2C = "p2c" // *byteBuffer (int)
+	headerP2S = "p2s" // *byteBuffer ([]byte)
+
+)
+
 // rawHeader represents the JOSE header for JWE/JWS objects (used for parsing).
-type rawHeader struct {
-	Alg   string               `json:"alg,omitempty"`
-	Enc   ContentEncryption    `json:"enc,omitempty"`
-	Zip   CompressionAlgorithm `json:"zip,omitempty"`
-	Crit  []string             `json:"crit,omitempty"`
-	Apu   *byteBuffer          `json:"apu,omitempty"`
-	Apv   *byteBuffer          `json:"apv,omitempty"`
-	Epk   *JSONWebKey          `json:"epk,omitempty"`
-	Iv    *byteBuffer          `json:"iv,omitempty"`
-	Tag   *byteBuffer          `json:"tag,omitempty"`
-	Jwk   *JSONWebKey          `json:"jwk,omitempty"`
-	Kid   string               `json:"kid,omitempty"`
-	Nonce string               `json:"nonce,omitempty"`
-}
+//
+// The decoding of the constituent items is deferred because we want to marshal
+// some members into particular structs rather than generic maps, but at the
+// same time we need to receive any extra fields unhandled by this library to
+// pass through to consuming code in case it wants to examine them.
+type rawHeader map[HeaderKey]*json.RawMessage
 
 // Header represents the read-only JOSE header for JWE/JWS objects.
 type Header struct {
@@ -136,62 +168,295 @@ type Header struct {
 	JSONWebKey *JSONWebKey
 	Algorithm  string
 	Nonce      string
+
+	// Unverified certificate chain parsed from x5c header.
+	certificates []*x509.Certificate
+
+	// Any headers not recognised above get unmarshaled
+	// from JSON in a generic manner and placed in this map.
+	ExtraHeaders map[HeaderKey]interface{}
+}
+
+// Certificates verifies & returns the certificate chain present
+// in the x5c header field of a message, if one was present. Returns
+// an error if there was no x5c header present or the chain could
+// not be validated with the given verify options.
+func (h Header) Certificates(opts x509.VerifyOptions) ([][]*x509.Certificate, error) {
+	if len(h.certificates) == 0 {
+		return nil, errors.New("square/go-jose: no x5c header present in message")
+	}
+
+	leaf := h.certificates[0]
+	if opts.Intermediates == nil {
+		opts.Intermediates = x509.NewCertPool()
+		for _, intermediate := range h.certificates[1:] {
+			opts.Intermediates.AddCert(intermediate)
+		}
+	}
+
+	return leaf.Verify(opts)
+}
+
+func (parsed rawHeader) set(k HeaderKey, v interface{}) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	parsed[k] = makeRawMessage(b)
+	return nil
+}
+
+// getString gets a string from the raw JSON, defaulting to "".
+func (parsed rawHeader) getString(k HeaderKey) string {
+	v, ok := parsed[k]
+	if !ok || v == nil {
+		return ""
+	}
+	var s string
+	err := json.Unmarshal(*v, &s)
+	if err != nil {
+		return ""
+	}
+	return s
+}
+
+// getByteBuffer gets a byte buffer from the raw JSON. Returns (nil, nil) if
+// not specified.
+func (parsed rawHeader) getByteBuffer(k HeaderKey) (*byteBuffer, error) {
+	v := parsed[k]
+	if v == nil {
+		return nil, nil
+	}
+	var bb *byteBuffer
+	err := json.Unmarshal(*v, &bb)
+	if err != nil {
+		return nil, err
+	}
+	return bb, nil
+}
+
+// getAlgorithm extracts parsed "alg" from the raw JSON as a KeyAlgorithm.
+func (parsed rawHeader) getAlgorithm() KeyAlgorithm {
+	return KeyAlgorithm(parsed.getString(headerAlgorithm))
+}
+
+// getSignatureAlgorithm extracts parsed "alg" from the raw JSON as a SignatureAlgorithm.
+func (parsed rawHeader) getSignatureAlgorithm() SignatureAlgorithm {
+	return SignatureAlgorithm(parsed.getString(headerAlgorithm))
+}
+
+// getEncryption extracts parsed "enc" from the raw JSON.
+func (parsed rawHeader) getEncryption() ContentEncryption {
+	return ContentEncryption(parsed.getString(headerEncryption))
+}
+
+// getCompression extracts parsed "zip" from the raw JSON.
+func (parsed rawHeader) getCompression() CompressionAlgorithm {
+	return CompressionAlgorithm(parsed.getString(headerCompression))
+}
+
+func (parsed rawHeader) getNonce() string {
+	return parsed.getString(headerNonce)
+}
+
+// getEPK extracts parsed "epk" from the raw JSON.
+func (parsed rawHeader) getEPK() (*JSONWebKey, error) {
+	v := parsed[headerEPK]
+	if v == nil {
+		return nil, nil
+	}
+	var epk *JSONWebKey
+	err := json.Unmarshal(*v, &epk)
+	if err != nil {
+		return nil, err
+	}
+	return epk, nil
+}
+
+// getAPU extracts parsed "apu" from the raw JSON.
+func (parsed rawHeader) getAPU() (*byteBuffer, error) {
+	return parsed.getByteBuffer(headerAPU)
+}
+
+// getAPV extracts parsed "apv" from the raw JSON.
+func (parsed rawHeader) getAPV() (*byteBuffer, error) {
+	return parsed.getByteBuffer(headerAPV)
+}
+
+// getIV extracts parsed "iv" frpom the raw JSON.
+func (parsed rawHeader) getIV() (*byteBuffer, error) {
+	return parsed.getByteBuffer(headerIV)
+}
+
+// getTag extracts parsed "tag" frpom the raw JSON.
+func (parsed rawHeader) getTag() (*byteBuffer, error) {
+	return parsed.getByteBuffer(headerTag)
+}
+
+// getJWK extracts parsed "jwk" from the raw JSON.
+func (parsed rawHeader) getJWK() (*JSONWebKey, error) {
+	v := parsed[headerJWK]
+	if v == nil {
+		return nil, nil
+	}
+	var jwk *JSONWebKey
+	err := json.Unmarshal(*v, &jwk)
+	if err != nil {
+		return nil, err
+	}
+	return jwk, nil
+}
+
+// getCritical extracts parsed "crit" from the raw JSON. If omitted, it
+// returns an empty slice.
+func (parsed rawHeader) getCritical() ([]string, error) {
+	v := parsed[headerCritical]
+	if v == nil {
+		return nil, nil
+	}
+
+	var q []string
+	err := json.Unmarshal(*v, &q)
+	if err != nil {
+		return nil, err
+	}
+	return q, nil
+}
+
+// getS2C extracts parsed "p2c" from the raw JSON.
+func (parsed rawHeader) getP2C() (int, error) {
+	v := parsed[headerP2C]
+	if v == nil {
+		return 0, nil
+	}
+
+	var p2c int
+	err := json.Unmarshal(*v, &p2c)
+	if err != nil {
+		return 0, err
+	}
+	return p2c, nil
+}
+
+// getS2S extracts parsed "p2s" from the raw JSON.
+func (parsed rawHeader) getP2S() (*byteBuffer, error) {
+	return parsed.getByteBuffer(headerP2S)
 }
 
 // sanitized produces a cleaned-up header object from the raw JSON.
-func (parsed rawHeader) sanitized() Header {
-	return Header{
-		KeyID:      parsed.Kid,
-		JSONWebKey: parsed.Jwk,
-		Algorithm:  parsed.Alg,
-		Nonce:      parsed.Nonce,
+func (parsed rawHeader) sanitized() (h Header, err error) {
+	for k, v := range parsed {
+		if v == nil {
+			continue
+		}
+		switch k {
+		case headerJWK:
+			var jwk *JSONWebKey
+			err = json.Unmarshal(*v, &jwk)
+			if err != nil {
+				err = fmt.Errorf("failed to unmarshal JWK: %v: %#v", err, string(*v))
+				return
+			}
+			h.JSONWebKey = jwk
+		case headerKeyID:
+			var s string
+			err = json.Unmarshal(*v, &s)
+			if err != nil {
+				err = fmt.Errorf("failed to unmarshal key ID: %v: %#v", err, string(*v))
+				return
+			}
+			h.KeyID = s
+		case headerAlgorithm:
+			var s string
+			err = json.Unmarshal(*v, &s)
+			if err != nil {
+				err = fmt.Errorf("failed to unmarshal algorithm: %v: %#v", err, string(*v))
+				return
+			}
+			h.Algorithm = s
+		case headerNonce:
+			var s string
+			err = json.Unmarshal(*v, &s)
+			if err != nil {
+				err = fmt.Errorf("failed to unmarshal nonce: %v: %#v", err, string(*v))
+				return
+			}
+			h.Nonce = s
+		case headerX5c:
+			c := []string{}
+			err = json.Unmarshal(*v, &c)
+			if err != nil {
+				err = fmt.Errorf("failed to unmarshal x5c header: %v: %#v", err, string(*v))
+				return
+			}
+			h.certificates, err = parseCertificateChain(c)
+			if err != nil {
+				err = fmt.Errorf("failed to unmarshal x5c header: %v: %#v", err, string(*v))
+				return
+			}
+		default:
+			if h.ExtraHeaders == nil {
+				h.ExtraHeaders = map[HeaderKey]interface{}{}
+			}
+			var v2 interface{}
+			err = json.Unmarshal(*v, &v2)
+			if err != nil {
+				err = fmt.Errorf("failed to unmarshal value: %v: %#v", err, string(*v))
+				return
+			}
+			h.ExtraHeaders[k] = v2
+		}
 	}
+	return
+}
+
+func parseCertificateChain(chain []string) ([]*x509.Certificate, error) {
+	out := make([]*x509.Certificate, len(chain))
+	for i, cert := range chain {
+		raw, err := base64.StdEncoding.DecodeString(cert)
+		if err != nil {
+			return nil, err
+		}
+		out[i], err = x509.ParseCertificate(raw)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func (dst rawHeader) isSet(k HeaderKey) bool {
+	dvr := dst[k]
+	if dvr == nil {
+		return false
+	}
+
+	var dv interface{}
+	err := json.Unmarshal(*dvr, &dv)
+	if err != nil {
+		return true
+	}
+
+	if dvStr, ok := dv.(string); ok {
+		return dvStr != ""
+	}
+
+	return true
 }
 
 // Merge headers from src into dst, giving precedence to headers from l.
-func (dst *rawHeader) merge(src *rawHeader) {
+func (dst rawHeader) merge(src *rawHeader) {
 	if src == nil {
 		return
 	}
 
-	if dst.Alg == "" {
-		dst.Alg = src.Alg
-	}
-	if dst.Enc == "" {
-		dst.Enc = src.Enc
-	}
-	if dst.Zip == "" {
-		dst.Zip = src.Zip
-	}
-	if dst.Crit == nil {
-		dst.Crit = src.Crit
-	}
-	if dst.Crit == nil {
-		dst.Crit = src.Crit
-	}
-	if dst.Apu == nil {
-		dst.Apu = src.Apu
-	}
-	if dst.Apv == nil {
-		dst.Apv = src.Apv
-	}
-	if dst.Epk == nil {
-		dst.Epk = src.Epk
-	}
-	if dst.Iv == nil {
-		dst.Iv = src.Iv
-	}
-	if dst.Tag == nil {
-		dst.Tag = src.Tag
-	}
-	if dst.Kid == "" {
-		dst.Kid = src.Kid
-	}
-	if dst.Jwk == nil {
-		dst.Jwk = src.Jwk
-	}
-	if dst.Nonce == "" {
-		dst.Nonce = src.Nonce
+	for k, v := range *src {
+		if dst.isSet(k) {
+			continue
+		}
+
+		dst[k] = v
 	}
 }
 
@@ -221,4 +486,9 @@ func curveSize(crv elliptic.Curve) int {
 	}
 
 	return div + 1
+}
+
+func makeRawMessage(b []byte) *json.RawMessage {
+	rm := json.RawMessage(b)
+	return &rm
 }

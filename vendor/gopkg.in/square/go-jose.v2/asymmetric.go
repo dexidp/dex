@@ -28,7 +28,9 @@ import (
 	"fmt"
 	"math/big"
 
+	"golang.org/x/crypto/ed25519"
 	"gopkg.in/square/go-jose.v2/cipher"
+	"gopkg.in/square/go-jose.v2/json"
 )
 
 // A generic RSA-based encrypter/verifier
@@ -46,6 +48,10 @@ type ecEncrypterVerifier struct {
 	publicKey *ecdsa.PublicKey
 }
 
+type edEncrypterVerifier struct {
+	publicKey ed25519.PublicKey
+}
+
 // A key generator for ECDH-ES
 type ecKeyGenerator struct {
 	size      int
@@ -56,6 +62,10 @@ type ecKeyGenerator struct {
 // A generic EC-based decrypter/signer
 type ecDecrypterSigner struct {
 	privateKey *ecdsa.PrivateKey
+}
+
+type edDecrypterSigner struct {
+	privateKey ed25519.PrivateKey
 }
 
 // newRSARecipient creates recipientKeyInfo based on the given key.
@@ -94,10 +104,29 @@ func newRSASigner(sigAlg SignatureAlgorithm, privateKey *rsa.PrivateKey) (recipi
 
 	return recipientSigInfo{
 		sigAlg: sigAlg,
-		publicKey: &JSONWebKey{
-			Key: &privateKey.PublicKey,
-		},
+		publicKey: staticPublicKey(&JSONWebKey{
+			Key: privateKey.Public(),
+		}),
 		signer: &rsaDecrypterSigner{
+			privateKey: privateKey,
+		},
+	}, nil
+}
+
+func newEd25519Signer(sigAlg SignatureAlgorithm, privateKey ed25519.PrivateKey) (recipientSigInfo, error) {
+	if sigAlg != EdDSA {
+		return recipientSigInfo{}, ErrUnsupportedAlgorithm
+	}
+
+	if privateKey == nil {
+		return recipientSigInfo{}, errors.New("invalid private key")
+	}
+	return recipientSigInfo{
+		sigAlg: sigAlg,
+		publicKey: staticPublicKey(&JSONWebKey{
+			Key: privateKey.Public(),
+		}),
+		signer: &edDecrypterSigner{
 			privateKey: privateKey,
 		},
 	}, nil
@@ -139,9 +168,9 @@ func newECDSASigner(sigAlg SignatureAlgorithm, privateKey *ecdsa.PrivateKey) (re
 
 	return recipientSigInfo{
 		sigAlg: sigAlg,
-		publicKey: &JSONWebKey{
-			Key: &privateKey.PublicKey,
-		},
+		publicKey: staticPublicKey(&JSONWebKey{
+			Key: privateKey.Public(),
+		}),
 		signer: &ecDecrypterSigner{
 			privateKey: privateKey,
 		},
@@ -178,7 +207,7 @@ func (ctx rsaEncrypterVerifier) encrypt(cek []byte, alg KeyAlgorithm) ([]byte, e
 
 // Decrypt the given payload and return the content encryption key.
 func (ctx rsaDecrypterSigner) decryptKey(headers rawHeader, recipient *recipientInfo, generator keyGenerator) ([]byte, error) {
-	return ctx.decrypt(recipient.encryptedKey, KeyAlgorithm(headers.Alg), generator)
+	return ctx.decrypt(recipient.encryptedKey, headers.getAlgorithm(), generator)
 }
 
 // Decrypt the given payload. Based on the key encryption algorithm,
@@ -366,10 +395,15 @@ func (ctx ecKeyGenerator) genKey() ([]byte, rawHeader, error) {
 
 	out := josecipher.DeriveECDHES(ctx.algID, []byte{}, []byte{}, priv, ctx.publicKey, ctx.size)
 
+	b, err := json.Marshal(&JSONWebKey{
+		Key: &priv.PublicKey,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
 	headers := rawHeader{
-		Epk: &JSONWebKey{
-			Key: &priv.PublicKey,
-		},
+		headerEPK: makeRawMessage(b),
 	}
 
 	return out, headers, nil
@@ -377,11 +411,15 @@ func (ctx ecKeyGenerator) genKey() ([]byte, rawHeader, error) {
 
 // Decrypt the given payload and return the content encryption key.
 func (ctx ecDecrypterSigner) decryptKey(headers rawHeader, recipient *recipientInfo, generator keyGenerator) ([]byte, error) {
-	if headers.Epk == nil {
+	epk, err := headers.getEPK()
+	if err != nil {
+		return nil, errors.New("square/go-jose: invalid epk header")
+	}
+	if epk == nil {
 		return nil, errors.New("square/go-jose: missing epk header")
 	}
 
-	publicKey, ok := headers.Epk.Key.(*ecdsa.PublicKey)
+	publicKey, ok := epk.Key.(*ecdsa.PublicKey)
 	if publicKey == nil || !ok {
 		return nil, errors.New("square/go-jose: invalid epk header")
 	}
@@ -390,19 +428,26 @@ func (ctx ecDecrypterSigner) decryptKey(headers rawHeader, recipient *recipientI
 		return nil, errors.New("square/go-jose: invalid public key in epk header")
 	}
 
-	apuData := headers.Apu.bytes()
-	apvData := headers.Apv.bytes()
+	apuData, err := headers.getAPU()
+	if err != nil {
+		return nil, errors.New("square/go-jose: invalid apu header")
+	}
+	apvData, err := headers.getAPV()
+	if err != nil {
+		return nil, errors.New("square/go-jose: invalid apv header")
+	}
 
 	deriveKey := func(algID string, size int) []byte {
-		return josecipher.DeriveECDHES(algID, apuData, apvData, ctx.privateKey, publicKey, size)
+		return josecipher.DeriveECDHES(algID, apuData.bytes(), apvData.bytes(), ctx.privateKey, publicKey, size)
 	}
 
 	var keySize int
 
-	switch KeyAlgorithm(headers.Alg) {
+	algorithm := headers.getAlgorithm()
+	switch algorithm {
 	case ECDH_ES:
 		// ECDH-ES uses direct key agreement, no key unwrapping necessary.
-		return deriveKey(string(headers.Enc), generator.keySize()), nil
+		return deriveKey(string(headers.getEncryption()), generator.keySize()), nil
 	case ECDH_ES_A128KW:
 		keySize = 16
 	case ECDH_ES_A192KW:
@@ -413,13 +458,40 @@ func (ctx ecDecrypterSigner) decryptKey(headers rawHeader, recipient *recipientI
 		return nil, ErrUnsupportedAlgorithm
 	}
 
-	key := deriveKey(headers.Alg, keySize)
+	key := deriveKey(string(algorithm), keySize)
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
 
 	return josecipher.KeyUnwrap(block, recipient.encryptedKey)
+}
+
+func (ctx edDecrypterSigner) signPayload(payload []byte, alg SignatureAlgorithm) (Signature, error) {
+	if alg != EdDSA {
+		return Signature{}, ErrUnsupportedAlgorithm
+	}
+
+	sig, err := ctx.privateKey.Sign(randReader, payload, crypto.Hash(0))
+	if err != nil {
+		return Signature{}, err
+	}
+
+	return Signature{
+		Signature: sig,
+		protected: &rawHeader{},
+	}, nil
+}
+
+func (ctx edEncrypterVerifier) verifyPayload(payload []byte, signature []byte, alg SignatureAlgorithm) error {
+	if alg != EdDSA {
+		return ErrUnsupportedAlgorithm
+	}
+	ok := ed25519.Verify(ctx.publicKey, payload, signature)
+	if !ok {
+		return errors.New("square/go-jose: ed25519 signature failed to verify")
+	}
+	return nil
 }
 
 // Sign the given payload
@@ -460,7 +532,7 @@ func (ctx ecDecrypterSigner) signPayload(payload []byte, alg SignatureAlgorithm)
 		keyBytes++
 	}
 
-	// We serialize the outpus (r and s) into big-endian byte arrays and pad
+	// We serialize the outputs (r and s) into big-endian byte arrays and pad
 	// them with zeros on the left to make sure the sizes work out. Both arrays
 	// must be keyBytes long, and the output must be 2*keyBytes long.
 	rBytes := r.Bytes()
