@@ -31,6 +31,7 @@ import (
 	"github.com/dexidp/dex/connector/microsoft"
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/connector/oidc"
+	"github.com/dexidp/dex/connector/plugin"
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/storage"
 )
@@ -429,6 +430,7 @@ type ConnectorConfig interface {
 // ConnectorsConfig variable provides an easy way to return a config struct
 // depending on the connector type.
 var ConnectorsConfig = map[string]func() ConnectorConfig{
+	"plugin":       func() ConnectorConfig { return new(plugin.Config) },
 	"mockCallback": func() ConnectorConfig { return new(mock.CallbackConfig) },
 	"mockPassword": func() ConnectorConfig { return new(mock.PasswordConfig) },
 	"ldap":         func() ConnectorConfig { return new(ldap.Config) },
