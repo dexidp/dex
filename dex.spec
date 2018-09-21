@@ -1,5 +1,5 @@
 Name: dex
-Version: v2.11.0
+Version: v2.12.0
 Release: 1%{?dist}
 License: ASL 2.0
 Summary: OpenID Connect Identity (OIDC) Provider
