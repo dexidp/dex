@@ -6,6 +6,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+func main() {}
+
 type plugin struct{}
 
 // Open prints provided config and returns a mock CallbackConnector
