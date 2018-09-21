@@ -16,5 +16,5 @@ func (plugin) Open(config interface{}, id string, logger logrus.FieldLogger) (co
 	return mock.NewCallbackConnector(logger), nil
 }
 
-// Exports the plugin for loading
+// Open exports the plugin for loading
 var Open plugin
