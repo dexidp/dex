@@ -36,6 +36,16 @@ type Config struct {
 	// Optional list of whitelisted domains when using Google
 	// If this field is nonempty, only users from a listed domain will be allowed to log in
 	HostedDomains []string `json:"hostedDomains"`
+
+	// In case the IdP does not support OIDC Discovery, manual setup of the URLs is required
+	ManualIssuer bool   `json:"manualIssuer"`
+	UserInfoURL  string `json:"userInfoURI"`
+	AuthURL      string `json:"authURI"`
+	TokenURL     string `json:"tokenURI"`
+	JwksURL      string `json:"jwksURI"`
+
+	// RequestUserInfo determines if additional information is pulled from the OIDC UserInfoEndpoint
+	RequestUserInfo bool `json:"requestUserProfile"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -73,12 +83,21 @@ func registerBrokenAuthHeaderProvider(url string) {
 	oauth2.RegisterBrokenAuthHeaderProvider(url)
 }
 
+// getProvider abstracts the different types of providers (with/without OIDC discovery)
+func (c *Config) getProvider(ctx context.Context) (*oidc.Provider, error) {
+	if c.ManualIssuer {
+		return oidc.NewProviderWithoutDiscovery(ctx, c.Issuer, c.AuthURL, c.TokenURL, c.UserInfoURL, c.JwksURL)
+	} else {
+		return oidc.NewProvider(ctx, c.Issuer)
+	}
+}
+
 // Open returns a connector which can be used to login users through an upstream
 // OpenID Connect provider.
 func (c *Config) Open(id string, logger logrus.FieldLogger) (conn connector.Connector, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	provider, err := oidc.NewProvider(ctx, c.Issuer)
+	provider, err := c.getProvider(ctx)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("failed to get provider: %v", err)

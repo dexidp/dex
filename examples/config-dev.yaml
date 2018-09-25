@@ -73,6 +73,20 @@ connectors:
 #     redirectURI: http://127.0.0.1:5556/dex/callback
 #     hostedDomains:
 #     - $GOOGLE_HOSTED_DOMAIN
+# - type: oidc
+#   id: manual_provider
+#   name: manual_provider
+#   config:
+#     manualIssuer: true
+#     issuer: "https://issuer.url.com"
+#     clientID: "abcdef"
+#     clientSecret: "xyz123"
+#     redirectURI: "https://redirect.url.com/callback"
+#     userInfoURI: "https://userinfo.url.com/idp/userinfo.openid"
+#     authURI: "https://auth.url.com/as/authorization.oauth2"
+#     tokenURI: "https://token.url.com/as/token.oauth2"
+#     jwksURI: "https://jwks.url.com/pf/JWKS"
+
 
 # Let dex keep a list of passwords which can be used to login to dex.
 enablePasswordDB: true
