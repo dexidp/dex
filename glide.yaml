@@ -69,7 +69,8 @@ import:
 
 # Used for server integration tests and OpenID Connect connector.
 - package: github.com/coreos/go-oidc
-  version: be73733bb8cc830d0205609b95d125215f8e9c70
+  version: 8ae1da518bd4d9d5a5909090a184af30f336436d
+  # version: be73733bb8cc830d0205609b95d125215f8e9c70
 - package: github.com/pquerna/cachecontrol
   version: c97913dcbd76de40b051a9b4cd827f7eaeb7a868
 - package: golang.org/x/oauth2
