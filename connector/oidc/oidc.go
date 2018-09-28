@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/coreos/go-oidc"
+	oidc "github.com/coreos/go-oidc"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 
@@ -36,6 +36,11 @@ type Config struct {
 	// Optional list of whitelisted domains when using Google
 	// If this field is nonempty, only users from a listed domain will be allowed to log in
 	HostedDomains []string `json:"hostedDomains"`
+
+	// Manually provided endpoints.
+	AuthURL  string
+	TokenURL string
+	JWKURL   string
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -78,19 +83,41 @@ func registerBrokenAuthHeaderProvider(url string) {
 func (c *Config) Open(id string, logger logrus.FieldLogger) (conn connector.Connector, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	provider, err := oidc.NewProvider(ctx, c.Issuer)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to get provider: %v", err)
+	var (
+		endpoint        oauth2.Endpoint
+		idTokenVerifier *oidc.IDTokenVerifier
+		verifierConfig  = &oidc.Config{ClientID: c.ClientID}
+	)
+
+	if c.TokenURL == "" {
+		provider, err := oidc.NewProvider(ctx, c.Issuer)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("failed to get provider: %v", err)
+		}
+
+		endpoint = provider.Endpoint()
+		idTokenVerifier = provider.Verifier(verifierConfig)
+	} else {
+		endpoint = oauth2.Endpoint{
+			AuthURL:  c.AuthURL,
+			TokenURL: c.TokenURL,
+		}
+
+		idTokenVerifier = oidc.NewVerifier(
+			c.Issuer,
+			oidc.NewRemoteKeySet(ctx, c.JWKURL),
+			verifierConfig,
+		)
 	}
 
 	if c.BasicAuthUnsupported != nil {
 		// Setting "basicAuthUnsupported" always overrides our detection.
 		if *c.BasicAuthUnsupported {
-			registerBrokenAuthHeaderProvider(provider.Endpoint().TokenURL)
+			registerBrokenAuthHeaderProvider(endpoint.TokenURL)
 		}
 	} else if knownBrokenAuthHeaderProvider(c.Issuer) {
-		registerBrokenAuthHeaderProvider(provider.Endpoint().TokenURL)
+		registerBrokenAuthHeaderProvider(endpoint.TokenURL)
 	}
 
 	scopes := []string{oidc.ScopeOpenID}
@@ -100,19 +127,17 @@ func (c *Config) Open(id string, logger logrus.FieldLogger) (conn connector.Conn
 		scopes = append(scopes, "profile", "email")
 	}
 
-	clientID := c.ClientID
+	// clientID := c.ClientID
 	return &oidcConnector{
 		redirectURI: c.RedirectURI,
 		oauth2Config: &oauth2.Config{
-			ClientID:     clientID,
+			ClientID:     c.ClientID,
 			ClientSecret: c.ClientSecret,
-			Endpoint:     provider.Endpoint(),
+			Endpoint:     endpoint,
 			Scopes:       scopes,
 			RedirectURL:  c.RedirectURI,
 		},
-		verifier: provider.Verifier(
-			&oidc.Config{ClientID: clientID},
-		),
+		verifier:      idTokenVerifier,
 		logger:        logger,
 		cancel:        cancel,
 		hostedDomains: c.HostedDomains,
