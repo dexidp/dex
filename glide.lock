@@ -1,5 +1,5 @@
-hash: c41e5b1fbd68f04f14b6e9b2ebab8bf18b857b3dc3a5754e4adf7c1884981de7
-updated: 2018-09-05T08:40:39.486766558+02:00
+hash: 235996b89c7836e885a406f9938a9d9084d7972314fd05fc8e92de646be7a24e
+updated: 2018-09-25T09:39:15.743767+02:00
 imports:
 - name: github.com/beevik/etree
   version: 4cd0dd976db869f817248477718071a28e978df0
@@ -23,7 +23,8 @@ imports:
   - pkg/tlsutil
   - pkg/transport
 - name: github.com/coreos/go-oidc
-  version: be73733bb8cc830d0205609b95d125215f8e9c70
+  version: 47cb9cd7862174e431d706d009605109e3704127
+  repo: https://github.com/ingopansa/go-oidc
 - name: github.com/felixge/httpsnoop
   version: eadd4fad6aac69ae62379194fe0219f3dbc80fd3
 - name: github.com/ghodss/yaml
