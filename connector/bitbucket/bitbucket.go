@@ -357,9 +357,8 @@ func (b *bitbucketConnector) getGroups(ctx context.Context, client *http.Client,
 		filteredTeams := filterTeams(bitbucketTeams, b.teams)
 		if len(filteredTeams) == 0 {
 			return nil, fmt.Errorf("bitbucket: user %q not in required teams", userLogin)
-		} else {
-			return filteredTeams, nil
 		}
+		return filteredTeams, nil
 	} else if groupScope {
 		return bitbucketTeams, nil
 	}
