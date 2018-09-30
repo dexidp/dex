@@ -2,6 +2,7 @@
 package saml
 
 import (
+	"bytes"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -200,6 +201,10 @@ func (c *Config) openConnector(logger logrus.FieldLogger) (*provider, error) {
 		for {
 			block, caData = pem.Decode(caData)
 			if block == nil {
+				caData = bytes.TrimSpace(caData)
+				if len(caData) > 0 { // if there's some left, we've been given bad caData
+					return nil, fmt.Errorf("parse cert: trailing data: %q", string(caData))
+				}
 				break
 			}
 			cert, err := x509.ParseCertificate(block.Bytes)
