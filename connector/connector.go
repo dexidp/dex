@@ -97,3 +97,8 @@ type RefreshConnector interface {
 	// changes since the token was last refreshed.
 	Refresh(ctx context.Context, s Scopes, identity Identity) (Identity, error)
 }
+
+// UserInfoConnector represents connectors that support the user info endpoint
+type UserInfoConnector interface {
+	GetUserInfo(connData []byte, user *map[string]interface{}) (err error)
+}
