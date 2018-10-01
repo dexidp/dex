@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	jose "gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
@@ -1026,9 +1026,17 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, accessToken, r
 // Handler for the /userinfo endpoint
 func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 
-	// Extract token type and token value from Authorization header
-	authorizationSubstrs := strings.Split(r.Header.Get("Authorization"), " ")
-	token := authorizationSubstrs[1]
+	token := ""
+	if r.Header.Get("Authorization") != "" {
+		// Extract token type and token value from Authorization header
+		authorizationSubstrs := strings.Split(r.Header.Get("Authorization"), " ")
+		token = authorizationSubstrs[1]
+	} else if r.URL.Query().Get("access_token") != "" {
+		token = r.URL.Query().Get("access_token")
+	} else {
+		s.logger.Error("No token found")
+		return
+	}
 
 	decryptedToken, err := s.Decrypt(token)
 	if err != nil {
