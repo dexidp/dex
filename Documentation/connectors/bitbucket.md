@@ -14,7 +14,7 @@ The following is an example of a configuration for `examples/config-dev.yaml`:
 
 ```yaml
 connectors:
-- type: bitbucket
+- type: bitbucket-cloud
   # Required field for connector id.
   id: bitbucket
   # Required field for connector name.
@@ -22,9 +22,11 @@ connectors:
   config:
     # Credentials can be string literals or pulled from the environment.
     clientID: $BITBUCKET_CLIENT_ID
-    clientSecret: BITBUCKET_CLIENT_SECRET
+    clientSecret: $BITBUCKET_CLIENT_SECRET
     redirectURI: http://127.0.0.1:5556/dex/callback
-    # Optional teams, communicated through the "groups" scope.
+    # Optional teams whitelist, communicated through the "groups" scope.
+    # If `teams` is omitted, all of the user's Bitbucket teams are returned when the groups scope is present.
+    # If `teams` is provided, this acts as a whitelist - only the user's Bitbucket teams that are in the configured `teams` below will go into the groups claim.  Conversely, if the user is not in any of the configured `teams`, the user will not be authenticated.
     teams:
     - my-team
 ```

@@ -1,5 +1,5 @@
-// Package bitbucket provides authentication strategies using Bitbucket.
-package bitbucket
+// Package bitbucketcloud provides authentication strategies using Bitbucket Cloud.
+package bitbucketcloud
 
 import (
 	"context"
@@ -71,8 +71,7 @@ type bitbucketConnector struct {
 	clientID     string
 	clientSecret string
 	logger       logrus.FieldLogger
-	// apiURL defaults to "https://api.bitbucket.org/2.0"
-	apiURL string
+	apiURL       string
 
 	// the following are used only for tests
 	hostName   string
@@ -294,11 +293,11 @@ func (b *bitbucketConnector) user(ctx context.Context, client *http.Client) (use
 	)
 
 	if err = get(ctx, client, b.apiURL+"/user", &u); err != nil {
-		return u, err
+		return user{}, err
 	}
 
 	if u.Email, err = b.userEmail(ctx, client); err != nil {
-		return u, err
+		return user{}, err
 	}
 
 	return u, nil
@@ -309,7 +308,6 @@ func (b *bitbucketConnector) user(ctx context.Context, client *http.Client) (use
 type userEmail struct {
 	IsPrimary   bool   `json:"is_primary"`
 	IsConfirmed bool   `json:"is_confirmed"`
-	Type        string `json:"type"`
 	Email       string `json:"email"`
 }
 
@@ -356,7 +354,7 @@ func (b *bitbucketConnector) getGroups(ctx context.Context, client *http.Client,
 	if len(b.teams) > 0 {
 		filteredTeams := filterTeams(bitbucketTeams, b.teams)
 		if len(filteredTeams) == 0 {
-			return nil, fmt.Errorf("bitbucket: user %q not in required teams", userLogin)
+			return nil, fmt.Errorf("bitbucket: user %q is not in any of the required teams", userLogin)
 		}
 		return filteredTeams, nil
 	} else if groupScope {
@@ -367,23 +365,22 @@ func (b *bitbucketConnector) getGroups(ctx context.Context, client *http.Client,
 }
 
 // Filter the users' team memberships by 'teams' from config.
-func filterTeams(userTeams, configTeams []string) (teams []string) {
+func filterTeams(userTeams, configTeams []string) []string {
+	teams := []string{}
 	teamFilter := make(map[string]struct{})
 	for _, team := range configTeams {
-		if _, ok := teamFilter[team]; !ok {
-			teamFilter[team] = struct{}{}
-		}
+		teamFilter[team] = struct{}{}
 	}
 	for _, team := range userTeams {
 		if _, ok := teamFilter[team]; ok {
 			teams = append(teams, team)
 		}
 	}
-	return
+	return teams
 }
 
 type team struct {
-	Username string `json:"username"` // Username is actually the team name
+	Name string `json:"username"` // The "username" from Bitbucket Cloud is actually the team name here
 }
 
 type userTeamsResponse struct {
@@ -392,7 +389,10 @@ type userTeamsResponse struct {
 }
 
 func (b *bitbucketConnector) userTeams(ctx context.Context, client *http.Client) ([]string, error) {
-	apiURL, teams := b.apiURL+"/teams?role=member", []string{}
+
+	var teams []string
+	apiURL := b.apiURL + "/teams?role=member"
+
 	for {
 		// https://developer.atlassian.com/bitbucket/api/2/reference/resource/teams
 		var response userTeamsResponse
@@ -402,7 +402,7 @@ func (b *bitbucketConnector) userTeams(ctx context.Context, client *http.Client)
 		}
 
 		for _, team := range response.Values {
-			teams = append(teams, team.Username)
+			teams = append(teams, team.Name)
 		}
 
 		if response.Next == nil {
@@ -432,13 +432,13 @@ func get(ctx context.Context, client *http.Client, apiURL string, v interface{})
 	if resp.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return fmt.Errorf("bitbucket: read body: %v", err)
+			return fmt.Errorf("bitbucket: read body: %s: %v", resp.Status, err)
 		}
 		return fmt.Errorf("%s: %s", resp.Status, body)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
-		return fmt.Errorf("failed to decode response: %v", err)
+		return fmt.Errorf("bitbucket: failed to decode response: %v", err)
 	}
 
 	return nil

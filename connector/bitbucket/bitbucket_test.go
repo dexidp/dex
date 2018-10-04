@@ -1,4 +1,4 @@
-package bitbucket
+package bitbucketcloud
 
 import (
 	"context"
@@ -22,9 +22,9 @@ func TestUserGroups(t *testing.T) {
 			PageLen: 10,
 		},
 		Values: []team{
-			{Username: "team-1"},
-			{Username: "team-2"},
-			{Username: "team-3"},
+			{Name: "team-1"},
+			{Name: "team-2"},
+			{Name: "team-3"},
 		},
 	}
 
@@ -113,12 +113,12 @@ func newClient() *http.Client {
 
 func expectNil(t *testing.T, a interface{}) {
 	if a != nil {
-		t.Errorf("Expected %+v to equal nil", a)
+		t.Fatalf("Expected %+v to equal nil", a)
 	}
 }
 
 func expectEquals(t *testing.T, a interface{}, b interface{}) {
 	if !reflect.DeepEqual(a, b) {
-		t.Errorf("Expected %+v to equal %+v", a, b)
+		t.Fatalf("Expected %+v to equal %+v", a, b)
 	}
 }
