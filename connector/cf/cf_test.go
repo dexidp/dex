@@ -92,7 +92,7 @@ func testSetup() *httptest.Server {
 		url := fmt.Sprintf("http://%s", r.Host)
 
 		json.NewEncoder(w).Encode(map[string]string{
-			"token_endpoint": url,
+			"authorization_endpoint": url,
 		})
 	})
 

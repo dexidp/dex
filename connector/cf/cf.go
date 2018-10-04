@@ -97,7 +97,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 	var apiResult map[string]interface{}
 	json.NewDecoder(apiResp.Body).Decode(&apiResult)
 
-	uaaURL := strings.TrimRight(apiResult["token_endpoint"].(string), "/")
+	uaaURL := strings.TrimRight(apiResult["authorization_endpoint"].(string), "/")
 	uaaResp, err := cfConn.httpClient.Get(fmt.Sprintf("%s/.well-known/openid-configuration", uaaURL))
 
 	if err != nil {
