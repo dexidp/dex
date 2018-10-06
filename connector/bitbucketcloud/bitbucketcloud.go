@@ -275,10 +275,9 @@ type pagedResponse struct {
 // user holds Bitbucket user information (relevant to dex) as defined by
 // https://developer.atlassian.com/bitbucket/api/2/reference/resource/user
 type user struct {
-	Username    string `json:"username"`
-	DisplayName string `json:"display_name"`
-	UUID        string `json:"uuid"`
-	Email       string `json:"email"`
+	Username string `json:"username"`
+	UUID     string `json:"uuid"`
+	Email    string `json:"email"`
 }
 
 // user queries the Bitbucket API for profile information using the provided client.
