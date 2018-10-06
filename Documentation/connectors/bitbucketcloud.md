@@ -16,9 +16,9 @@ The following is an example of a configuration for `examples/config-dev.yaml`:
 connectors:
 - type: bitbucket-cloud
   # Required field for connector id.
-  id: bitbucket
+  id: bitbucket-cloud
   # Required field for connector name.
-  name: Bitbucket
+  name: Bitbucket Cloud
   config:
     # Credentials can be string literals or pulled from the environment.
     clientID: $BITBUCKET_CLIENT_ID
