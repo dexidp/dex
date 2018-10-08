@@ -634,9 +634,24 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		s.handleAuthCode(w, r, client)
 	case grantTypeRefreshToken:
 		s.handleRefreshToken(w, r, client)
+	case grantTypeClientCredentials:
+		s.handleClientCredentials(w, r, client)
 	default:
 		s.tokenErrHelper(w, errInvalidGrant, "", http.StatusBadRequest)
 	}
+}
+
+func (s *Server) handleClientCredentials(w http.ResponseWriter, r *http.Request, client storage.Client){
+	accessToken := storage.NewID()
+	idToken, expiry, err := s.newIDToken(client.ID, storage.Claims{UserID: client.ID}, []string{}, "", accessToken, "")
+	if err != nil {
+		s.logger.Errorf("failed to create ID token: %v", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
+		// No refresh token needed
+		s.writeAccessToken(w, idToken, accessToken, "", expiry)
 }
 
 // handle an access token request https://tools.ietf.org/html/rfc6749#section-4.1.3
