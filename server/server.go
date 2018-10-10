@@ -80,6 +80,15 @@ type Config struct {
 	Logger logrus.FieldLogger
 
 	PrometheusRegistry *prometheus.Registry
+
+	DRDConnection	DRDConnectionInfo
+}
+
+type DRDConnectionInfo struct {
+	Host 			string
+	InsecureNoSSL 	bool
+	BindDN			string
+	BindPW			string
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -139,6 +148,8 @@ type Server struct {
 	idTokensValidFor time.Duration
 
 	logger logrus.FieldLogger
+
+	drdConnectionInfo DRDConnectionInfo
 }
 
 // NewServer constructs a server from the provided config.
@@ -200,6 +211,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		now:                    now,
 		templates:              tmpls,
 		logger:                 c.Logger,
+		drdConnectionInfo:		c.DRDConnection,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors

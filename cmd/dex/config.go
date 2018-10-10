@@ -46,6 +46,8 @@ type Config struct {
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
+
+	DRDConnection DRDConnection `json:"drdConnectionInfo"`
 }
 
 type password storage.Password
@@ -86,6 +88,13 @@ func (p *password) UnmarshalJSON(b []byte) error {
 	}
 	p.Hash = hashBytes
 	return nil
+}
+
+type DRDConnection struct {
+	Host 			string	`json:"host"`
+	InsecureNoSSL 	bool	`json:"insecureNoSSL"`
+	BindDN			string	`json:"bindDN"`
+	BindPW			string	`json:"bindPW"`
 }
 
 // OAuth2 describes enabled OAuth2 extensions.

@@ -1,3 +1,26 @@
+drdConnectionInfo:
+  host: 127.0.0.1:389
+
+  # No TLS for this setup.
+  insecureNoSSL: true
+
+  # This would normally be a read-only user.
+  bindDN: cn=admin,dc=example,dc=org
+  bindPW: admin
+
+  userSearch:
+    baseDN: ou=People,dc=example,dc=org
+    filter: "(objectClass=person)"
+    username: mail
+    # "DN" (case sensitive) is a special attribute name. It indicates that
+    # this value should be taken from the entity's DN not an attribute on
+    # the entity.
+    idAttr: DN
+    emailAttr: mail
+    nameAttr: cn
+
+
+
 skipApprovalScreen: true
 
 # The base path of dex and the external name of the OpenID Connect service.

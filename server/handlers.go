@@ -642,6 +642,7 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleClientCredentials(w http.ResponseWriter, r *http.Request, client storage.Client){
+	s.logger.Debugf("calling handleClientCredentials()")
 	accessToken := storage.NewID()
 	idToken, expiry, err := s.newIDToken(client.ID, storage.Claims{UserID: client.ID}, []string{}, "", accessToken, "")
 	if err != nil {
@@ -650,8 +651,9 @@ func (s *Server) handleClientCredentials(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-		// No refresh token needed
-		s.writeAccessToken(w, idToken, accessToken, "", expiry)
+	s.logger.Debugf("handleClientCredentials(): %s", 	s.drdConnectionInfo.Host)
+	// No refresh token needed
+	s.writeAccessToken(w, idToken, accessToken, "", expiry)
 }
 
 // handle an access token request https://tools.ietf.org/html/rfc6749#section-4.1.3
