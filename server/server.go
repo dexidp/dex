@@ -83,7 +83,8 @@ type Config struct {
 
 	PrometheusRegistry *prometheus.Registry
 
-	Userinfo	userinfo.Userinfo
+	// Service to do all relevant LDAP operations for a given user.
+	Userinfo userinfo.Userinfo
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -144,6 +145,7 @@ type Server struct {
 
 	logger logrus.FieldLogger
 
+	// Service to do all relevant LDAP operations for a given user.
 	userinfoAdapter userinfo.Userinfo
 }
 
@@ -206,7 +208,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		now:                    now,
 		templates:              tmpls,
 		logger:                 c.Logger,
-		userinfoAdapter:		c.Userinfo,
+		userinfoAdapter:        c.Userinfo,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
