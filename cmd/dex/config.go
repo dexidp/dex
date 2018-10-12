@@ -9,6 +9,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/dexidp/dex/userinfo"
+	"github.com/dexidp/dex/userinfo/dai_drd"
+
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/etcd"
@@ -47,7 +50,7 @@ type Config struct {
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
 
-	DRDConnection DRDConnection `json:"drdConnectionInfo"`
+	Userinfo 		Userinfo `json:"userinfo"`
 }
 
 type password storage.Password
@@ -90,13 +93,6 @@ func (p *password) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type DRDConnection struct {
-	Host 			string	`json:"host"`
-	InsecureNoSSL 	bool	`json:"insecureNoSSL"`
-	BindDN			string	`json:"bindDN"`
-	BindPW			string	`json:"bindPW"`
-}
-
 // OAuth2 describes enabled OAuth2 extensions.
 type OAuth2 struct {
 	ResponseTypes []string `json:"responseTypes"`
@@ -127,6 +123,60 @@ type GRPC struct {
 	TLSKey      string `json:"tlsKey"`
 	TLSClientCA string `json:"tlsClientCA"`
 }
+
+type Userinfo struct {
+	Type			string  `json:"type"`
+	Config 			UserinfoConfig `json:"config"`
+	// Host 			string	`json:"host"`
+	// Network			string	`json:"network"`
+	// InsecureNoSSL 	bool	`json:"insecureNoSSL"`
+	// BindDN			string	`json:"bindDN"`
+	// BindPW			string	`json:"bindPW"`
+
+	// UserSearch		[]UserSearch `json:"userSearch"`
+}
+
+type UserinfoConfig interface {
+	Open(logrus.FieldLogger) (userinfo.Userinfo, error)
+}
+
+var userinfoAdapters = map[string]func() UserinfoConfig{
+	"dai_drd": func() UserinfoConfig {return new(dai_drd.LDAPConfig)},
+}
+
+// type UserSearch struct {
+// 	Type 	string `json:"type"`
+// 	BaseDN	string `json:"baseDN"`
+// 	Filter	string `json:"filter"`
+// }
+
+func (s *Userinfo) UnmarshalJSON(b []byte) error {
+	var adapter struct {
+		Type   string          `json:"type"`
+		Config json.RawMessage `json:"config"`
+	}
+	if err := json.Unmarshal(b, &adapter); err != nil {
+		return fmt.Errorf("parse adapter: %v", err)
+	}
+	f, ok := userinfoAdapters[adapter.Type]
+	if !ok {
+		return fmt.Errorf("unknown adapter type %q", adapter.Type)
+	}
+
+	adapterConfig := f()
+	if len(adapter.Config) != 0 {
+		data := []byte(os.ExpandEnv(string(adapter.Config)))
+		if err := json.Unmarshal(data, adapterConfig); err != nil {
+			return fmt.Errorf("parse adapter config: %v", err)
+		}
+	}
+	*s = Userinfo{
+		Type:   adapter.Type,
+		Config: adapterConfig,
+	}
+	return nil
+}
+
 
 // Storage holds app's storage configuration.
 type Storage struct {

@@ -1,24 +1,31 @@
-drdConnectionInfo:
-  host: 127.0.0.1:389
+userinfo:
+  type: dai_drd
+  config:
+    host: 127.0.0.1:389
+    network: "tcp"
 
-  # No TLS for this setup.
-  insecureNoSSL: true
+    # No TLS for this setup.
+    insecureNoSSL: true
 
-  # This would normally be a read-only user.
-  bindDN: cn=admin,dc=example,dc=org
-  bindPW: admin
+    # This would normally be a read-only user.
+    bindDN: cn=admin,dc=example,dc=org
+    bindPW: admin
 
-  userSearch:
-    baseDN: ou=People,dc=example,dc=org
-    filter: "(objectClass=person)"
-    username: mail
-    # "DN" (case sensitive) is a special attribute name. It indicates that
-    # this value should be taken from the entity's DN not an attribute on
-    # the entity.
-    idAttr: DN
-    emailAttr: mail
-    nameAttr: cn
-
+    userSearch:
+      - type: techuser
+        # baseDN: ou=technical,ou=people,o=iapdir
+        baseDN: dc=daime,dc=com
+        filter: "(objectClass=person)"
+      - type: humanuser
+        baseDN: ou=employees,ou=people,o=iapdir
+        filter: "(objectClass=person)"  
+    techUserSearch:
+      baseDN: ou=technical,ou=people,o=iapdir
+      filter: "(objectClass=person)"
+    humanUserSearch:
+      baseDN: ou=employees,ou=people,o=iapdir
+      filter: "(objectClass=person)"
+    
 
 
 skipApprovalScreen: true

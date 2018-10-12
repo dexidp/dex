@@ -152,6 +152,8 @@ func serve(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	c.Userinfo.Config.Open(logger)
+
 	s, err := c.Storage.Config.Open(logger)
 	if err != nil {
 		return fmt.Errorf("failed to initialize storage: %v", err)
@@ -225,12 +227,6 @@ func serve(cmd *cobra.Command, args []string) error {
 		Logger:                 logger,
 		Now:                    now,
 		PrometheusRegistry:     prometheusRegistry,
-		DRDConnection:			server.DRDConnectionInfo{
-			Host: c.DRDConnection.Host,
-			InsecureNoSSL: c.DRDConnection.InsecureNoSSL,
-			BindDN: c.DRDConnection.BindDN,
-			BindPW: c.DRDConnection.BindPW,
-		},
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
@@ -295,9 +291,6 @@ func serve(cmd *cobra.Command, args []string) error {
 			}()
 		}()
 	}
-
-	logger.Infof("ldap host: %s", c.DRDConnection.Host )
-	logger.Infof("bindDN: %s", c.DRDConnection.BindDN )
 
 	return <-errc
 }

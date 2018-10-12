@@ -651,7 +651,6 @@ func (s *Server) handleClientCredentials(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	s.logger.Debugf("handleClientCredentials(): %s", 	s.drdConnectionInfo.Host)
 	// No refresh token needed
 	s.writeAccessToken(w, idToken, accessToken, "", expiry)
 }

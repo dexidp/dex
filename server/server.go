@@ -33,6 +33,8 @@ import (
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/storage"
+
+	"github.com/dexidp/dex/userinfo"
 )
 
 // LocalConnector is the local passwordDB connector which is an internal
@@ -81,14 +83,7 @@ type Config struct {
 
 	PrometheusRegistry *prometheus.Registry
 
-	DRDConnection	DRDConnectionInfo
-}
-
-type DRDConnectionInfo struct {
-	Host 			string
-	InsecureNoSSL 	bool
-	BindDN			string
-	BindPW			string
+	Userinfo	userinfo.Userinfo
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -149,7 +144,7 @@ type Server struct {
 
 	logger logrus.FieldLogger
 
-	drdConnectionInfo DRDConnectionInfo
+	userinfoAdapter userinfo.Userinfo
 }
 
 // NewServer constructs a server from the provided config.
@@ -201,6 +196,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		now = time.Now
 	}
 
+	ui := c.Userinfo
+
 	s := &Server{
 		issuerURL:              *issuerURL,
 		connectors:             make(map[string]Connector),
@@ -211,7 +208,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		now:                    now,
 		templates:              tmpls,
 		logger:                 c.Logger,
-		drdConnectionInfo:		c.DRDConnection,
+		userinfoAdapter:		userinfo.Userinfo{},
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors

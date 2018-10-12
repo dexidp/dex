@@ -23,6 +23,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/storage"
+	// "github.com/dexidp/dex/userinfo"
 )
 
 // TODO(ericchiang): clean this file up and figure out more idiomatic error handling.
@@ -295,6 +296,8 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	// 	s.logger.Errorf("failed to marshal offline session ID: %v", err)
 	// 	return "", expiry, fmt.Errorf("failed to marshal offline session ID: %v", err)
 	// }
+
+	s.userinfoAdapter.GetUserInformation()
 
 	tok := idTokenClaims{
 		Issuer:   s.issuerURL.String(),
