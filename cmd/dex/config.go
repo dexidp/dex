@@ -127,13 +127,6 @@ type GRPC struct {
 type Userinfo struct {
 	Type			string  `json:"type"`
 	Config 			UserinfoConfig `json:"config"`
-	// Host 			string	`json:"host"`
-	// Network			string	`json:"network"`
-	// InsecureNoSSL 	bool	`json:"insecureNoSSL"`
-	// BindDN			string	`json:"bindDN"`
-	// BindPW			string	`json:"bindPW"`
-
-	// UserSearch		[]UserSearch `json:"userSearch"`
 }
 
 type UserinfoConfig interface {
@@ -143,12 +136,6 @@ type UserinfoConfig interface {
 var userinfoAdapters = map[string]func() UserinfoConfig{
 	"dai_drd": func() UserinfoConfig {return new(dai_drd.LDAPConfig)},
 }
-
-// type UserSearch struct {
-// 	Type 	string `json:"type"`
-// 	BaseDN	string `json:"baseDN"`
-// 	Filter	string `json:"filter"`
-// }
 
 func (s *Userinfo) UnmarshalJSON(b []byte) error {
 	var adapter struct {

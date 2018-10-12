@@ -297,7 +297,16 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	// 	return "", expiry, fmt.Errorf("failed to marshal offline session ID: %v", err)
 	// }
 
-	s.userinfoAdapter.GetUserInformation()
+	ldapEntry, err := s.userinfoAdapter.GetUserInformation( "techuser", claims.UserID)
+	if err != nil {
+		return "", expiry, fmt.Errorf("error retrieving userinfo: %v", err)
+	}
+
+	for _, entry := range ldapEntry.Entries {
+		s.logger.Debugf("dn: %s", entry.DN)
+	}
+	
+
 
 	tok := idTokenClaims{
 		Issuer:   s.issuerURL.String(),

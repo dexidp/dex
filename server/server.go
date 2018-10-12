@@ -196,8 +196,6 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		now = time.Now
 	}
 
-	ui := c.Userinfo
-
 	s := &Server{
 		issuerURL:              *issuerURL,
 		connectors:             make(map[string]Connector),
@@ -208,7 +206,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		now:                    now,
 		templates:              tmpls,
 		logger:                 c.Logger,
-		userinfoAdapter:		userinfo.Userinfo{},
+		userinfoAdapter:		c.Userinfo,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
