@@ -50,7 +50,8 @@ type Config struct {
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
 
-	Userinfo 		Userinfo `json:"userinfo"`
+	// Service to do all relevant LDAP operations for a given user.
+	Userinfo Userinfo `json:"userinfo"`
 }
 
 type password storage.Password
@@ -125,8 +126,8 @@ type GRPC struct {
 }
 
 type Userinfo struct {
-	Type			string  `json:"type"`
-	Config 			UserinfoConfig `json:"config"`
+	Type   string         `json:"type"`
+	Config UserinfoConfig `json:"config"`
 }
 
 type UserinfoConfig interface {
@@ -134,7 +135,7 @@ type UserinfoConfig interface {
 }
 
 var userinfoAdapters = map[string]func() UserinfoConfig{
-	"dai_drd": func() UserinfoConfig {return new(dai_drd.LDAPConfig)},
+	"dai_drd": func() UserinfoConfig { return new(dai_drd.LDAPConfig) },
 }
 
 func (s *Userinfo) UnmarshalJSON(b []byte) error {
@@ -163,7 +164,6 @@ func (s *Userinfo) UnmarshalJSON(b []byte) error {
 	}
 	return nil
 }
-
 
 // Storage holds app's storage configuration.
 type Storage struct {
