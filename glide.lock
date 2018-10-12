@@ -1,5 +1,5 @@
 hash: 12d0ad2fc0df4ab221e45c1ba7821708b908033c82741e250cc46dcd445b67eb
-updated: 2018-09-18T23:51:30.787348994+02:00
+updated: 2018-09-30T14:07:57.901347233-04:00
 imports:
 - name: github.com/beevik/etree
   version: 4cd0dd976db869f817248477718071a28e978df0
@@ -124,6 +124,7 @@ imports:
 - name: golang.org/x/oauth2
   version: 08c8d727d2392d18286f9f88ad775ad98f09ab33
   subpackages:
+  - bitbucket
   - github
   - internal
 - name: golang.org/x/sys

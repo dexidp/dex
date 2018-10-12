@@ -73,6 +73,7 @@ Dex implements the following connectors:
 | [LinkedIn](Documentation/connectors/linkedin.md) | yes | no | beta | |
 | [Microsoft](Documentation/connectors/microsoft.md) | yes | yes | beta | |
 | [AuthProxy](Documentation/connectors/authproxy.md) | no | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
+| [Bitbucket Cloud](Documentation/connectors/bitbucket.md) | yes | yes | alpha | |
 
 Stable, beta, and alpha are defined as:
 

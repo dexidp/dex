@@ -24,6 +24,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/authproxy"
+	"github.com/dexidp/dex/connector/bitbucketcloud"
 	"github.com/dexidp/dex/connector/github"
 	"github.com/dexidp/dex/connector/gitlab"
 	"github.com/dexidp/dex/connector/ldap"
@@ -429,16 +430,17 @@ type ConnectorConfig interface {
 // ConnectorsConfig variable provides an easy way to return a config struct
 // depending on the connector type.
 var ConnectorsConfig = map[string]func() ConnectorConfig{
-	"mockCallback": func() ConnectorConfig { return new(mock.CallbackConfig) },
-	"mockPassword": func() ConnectorConfig { return new(mock.PasswordConfig) },
-	"ldap":         func() ConnectorConfig { return new(ldap.Config) },
-	"github":       func() ConnectorConfig { return new(github.Config) },
-	"gitlab":       func() ConnectorConfig { return new(gitlab.Config) },
-	"oidc":         func() ConnectorConfig { return new(oidc.Config) },
-	"saml":         func() ConnectorConfig { return new(saml.Config) },
-	"authproxy":    func() ConnectorConfig { return new(authproxy.Config) },
-	"linkedin":     func() ConnectorConfig { return new(linkedin.Config) },
-	"microsoft":    func() ConnectorConfig { return new(microsoft.Config) },
+	"mockCallback":    func() ConnectorConfig { return new(mock.CallbackConfig) },
+	"mockPassword":    func() ConnectorConfig { return new(mock.PasswordConfig) },
+	"ldap":            func() ConnectorConfig { return new(ldap.Config) },
+	"github":          func() ConnectorConfig { return new(github.Config) },
+	"gitlab":          func() ConnectorConfig { return new(gitlab.Config) },
+	"oidc":            func() ConnectorConfig { return new(oidc.Config) },
+	"saml":            func() ConnectorConfig { return new(saml.Config) },
+	"authproxy":       func() ConnectorConfig { return new(authproxy.Config) },
+	"linkedin":        func() ConnectorConfig { return new(linkedin.Config) },
+	"microsoft":       func() ConnectorConfig { return new(microsoft.Config) },
+	"bitbucket-cloud": func() ConnectorConfig { return new(bitbucketcloud.Config) },
 	// Keep around for backwards compatibility.
 	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
 }
