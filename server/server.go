@@ -181,7 +181,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		theme:     c.Web.Theme,
 	}
 
-	static, theme, tmpls, err := loadWebConfig(web)
+	static, theme, tmpls, err := loadWebConfig(web, c.Storage)
 	if err != nil {
 		return nil, fmt.Errorf("server: failed to load web static: %v", err)
 	}
