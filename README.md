@@ -1,3 +1,19 @@
+# This fork
+
+This forked dex repository has been modified to:
+
+```
+    Made work with Cisco Ping Federate Public OIDC Implementation
+
+    * Smoothed over the quirks of Cisco Ping Federate
+    * The Cisco OIDC provider does not return email in claims.
+      * Get email from userInfo if it doesn't exist.
+    * Get groups from Ping Federate userinfo "memberof" key.
+      * Parse/filter groups to only match 'CN=(kube-.*?)'
+        groupnames such as 'kube-admin'
+    * Implemented the passthrough of Refresh token
+```
+
 # dex - A federated OpenID Connect provider
 
 [![Travis](https://api.travis-ci.org/dexidp/dex.svg)](https://travis-ci.org/dexidp/dex)

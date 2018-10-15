@@ -3,12 +3,15 @@ package oidc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/coreos/go-oidc"
 	"github.com/sirupsen/logrus"
@@ -36,6 +39,12 @@ type Config struct {
 	// Optional list of whitelisted domains when using Google
 	// If this field is nonempty, only users from a listed domain will be allowed to log in
 	HostedDomains []string `json:"hostedDomains"`
+}
+
+type connectorData struct {
+	AccessToken  string    `json:"accessToken"`
+	RefreshToken string    `json:"refreshToken"`
+	Expiry       time.Time `json:"expiry"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -116,6 +125,7 @@ func (c *Config) Open(id string, logger logrus.FieldLogger) (conn connector.Conn
 		logger:        logger,
 		cancel:        cancel,
 		hostedDomains: c.HostedDomains,
+		provider:      provider,
 	}, nil
 }
 
@@ -132,6 +142,7 @@ type oidcConnector struct {
 	cancel        context.CancelFunc
 	logger        logrus.FieldLogger
 	hostedDomains []string
+	provider      *oidc.Provider
 }
 
 func (c *oidcConnector) Close() error {
@@ -215,7 +226,97 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		Email:         claims.Email,
 		EmailVerified: claims.EmailVerified,
 	}
+
+	if claims.Email == "" || s.Groups {
+
+		userinfo, err := c.provider.UserInfo(r.Context(), oauth2.StaticTokenSource(token))
+		if err != nil {
+			fmt.Errorf("Failed to query userinfo for additional claims")
+			return identity, nil
+		}
+
+		// If the email did not come back in the JWT id_token, then
+		// there is a chance the userinfo contents at the profileURL
+		// contain the email.  Make a query to the userinfo endpoint
+		// and attempt to locate the email from there.
+		if claims.Email == "" {
+			identity.Email = userinfo.Email
+			// TODO: Add an option to only force this for misbehaving IDP
+			// identity.EmailVerified = userinfo.EmailVerified
+			identity.EmailVerified = true
+		}
+
+		// If downstream request included scope for "groups", return the groups
+		// TODO: Don't force this
+		if s.Groups || true {
+			groups, err := c.getGroups(userinfo)
+			if err != nil {
+				return identity, nil
+			}
+			identity.Groups = groups
+		}
+	}
+
+	if s.OfflineAccess {
+		data := connectorData{
+			AccessToken:  token.AccessToken,
+			RefreshToken: token.RefreshToken,
+			Expiry:       token.Expiry,
+		}
+		connData, err := json.Marshal(data)
+		if err != nil {
+			return identity, fmt.Errorf("microsoft: marshal connector data: %v", err)
+		}
+		identity.ConnectorData = connData
+	}
+
 	return identity, nil
+}
+
+func (c *oidcConnector) getGroups(userinfo *oidc.UserInfo) (groups []string, err error) {
+
+	// Unmarshal the claims into an anonymous struct
+	var userinfoClaims map[string]interface{}
+	if err := userinfo.Claims(&userinfoClaims); err != nil {
+		fmt.Printf("failed to unmarshal claims %v", err)
+		return nil, err
+	}
+
+	// Ping federate returns group claims in userInfo endpoint under the "memberof" key.
+	// Break early if no "memberof" key found in userinfoClaims.
+	if _, ok := userinfoClaims["memberof"]; !ok {
+		return nil, errors.New("userinfo claims did not contain 'memberof' groups")
+	}
+
+	// Get a list of raw, unprocessed groups
+        rawGroups := []string{}
+        for _, v := range userinfoClaims["memberof"].([]interface{}) {
+                rawGroups = append(rawGroups, v.(string))
+        }
+
+	/* This is implementation specific
+
+	   Process the raw group strings which look like this
+
+	    "CN=all-users,OU=Groups,O=department.example.com",
+	    "CN=kube-admin,OU=Groups,O=department.example.com",
+
+           To return only the CN names that start with kube-*
+
+	   This shortens the group claims so that it stays well under the 4000
+	   byte limit for cookies, so that browsers will not error.
+	*/
+	// TODO: make the filter pattern configurable
+        groups = []string{}
+        re := regexp.MustCompile("^CN=(kube-.*?),.*$")
+        for _, group := range rawGroups  {
+                match := re.FindStringSubmatch(group)
+                if match == nil { // no pattern match
+                        continue
+                }
+                groups = append(groups, match[1])
+        }
+	return groups, nil
 }
 
 // Refresh is implemented for backwards compatibility, even though it's a no-op.
