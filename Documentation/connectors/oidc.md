@@ -47,6 +47,14 @@ connectors:
     #
     # hostedDomains:
     #  - example.com
+
+    # List of additional scopes to request in token response
+    # Default is profile and email
+    # Full list at https://github.com/dexidp/dex/blob/master/Documentation/custom-scopes-claims-clients.md
+    # scopes:
+    #  - profile
+    #  - email
+    #  - groups
 ```
 
 [oidc-doc]: openid-connect.md
