@@ -1,5 +1,5 @@
 hash: 12d0ad2fc0df4ab221e45c1ba7821708b908033c82741e250cc46dcd445b67eb
-updated: 2018-09-30T14:07:57.901347233-04:00
+updated: 2018-10-12T19:01:28.4155524Z
 imports:
 - name: github.com/beevik/etree
   version: 4cd0dd976db869f817248477718071a28e978df0
@@ -24,6 +24,10 @@ imports:
   - pkg/transport
 - name: github.com/coreos/go-oidc
   version: be73733bb8cc830d0205609b95d125215f8e9c70
+- name: github.com/davecgh/go-spew
+  version: d8f796af33cc11cb798c1aaeb27a4ebc5099927d
+  subpackages:
+  - spew
 - name: github.com/felixge/httpsnoop
   version: eadd4fad6aac69ae62379194fe0219f3dbc80fd3
 - name: github.com/ghodss/yaml

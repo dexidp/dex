@@ -1,0 +1,14 @@
+FROM debian:latest
+
+RUN echo "Install OS packages" && \
+    apt-get -y update && apt-get --no-install-recommends -y install \
+        ca-certificates && \
+    apt-get -y clean && apt-get -y autoremove && rm -rf /var/lib/apt/lists/*
+
+# Import frontend assets and set the correct CWD directory so the assets
+# are in the default path.
+COPY web /web
+COPY dex /usr/local/bin/
+
+ENTRYPOINT ["/usr/local/bin/dex"]
+CMD ["version"]
