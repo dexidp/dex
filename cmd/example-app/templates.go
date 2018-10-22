@@ -36,6 +36,7 @@ type tokenTmplData struct {
 
 var tokenTmpl = template.Must(template.New("token.html").Parse(`<html>
   <head>
+    <meta name="google" content="notranslate">
     <style>
 /* make pre wrap */
 pre {
