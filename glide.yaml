@@ -97,6 +97,19 @@ import:
   - diff
   - pretty
 
+# Changes to golint have broken our build enough that it's worth vendoring.
+- package: golang.org/x/lint
+  version: 1baf3a9d7d675b3c7e974b7a00ded54b88a88379
+  subpackages:
+  - golint
+- package: golang.org/x/tools
+  version: a2dc47679d30b6c496245bafc6a166b46c5fe318
+  subpackages:
+  - go/ast/astutil
+  - go/gcexportdata
+  - go/internal/gcimporter
+
+
 # SQL drivers
 - package: github.com/mattn/go-sqlite3
   version: 3fb7a0e792edd47bf0cf1e919dfc14e2be412e15
