@@ -1,4 +1,4 @@
-FROM golang:1.10.2-alpine
+FROM golang:1.11.1-alpine
 
 RUN apk add --no-cache --update alpine-sdk
 
