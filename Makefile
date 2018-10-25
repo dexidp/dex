@@ -51,9 +51,9 @@ vet:
 fmt:
 	@./scripts/gofmt $(shell go list ./... | grep -v '/vendor/')
 
-lint:
+lint: bin/golint
 	@for package in $(shell go list ./... | grep -v '/vendor/' | grep -v '/api' | grep -v '/server/internal'); do \
-      golint -set_exit_status $$package $$i || exit 1; \
+      ./bin/golint -set_exit_status $$package $$i || exit 1; \
 	done
 
 .PHONY: docker-image
@@ -74,6 +74,9 @@ bin/protoc: scripts/get-protoc
 
 bin/protoc-gen-go:
 	@go install -v $(REPO_PATH)/vendor/github.com/golang/protobuf/protoc-gen-go
+
+bin/golint:
+	@go install -v $(REPO_PATH)/vendor/golang.org/x/lint/golint
 
 clean:
 	@rm -rf bin/

@@ -1,5 +1,5 @@
-hash: 12d0ad2fc0df4ab221e45c1ba7821708b908033c82741e250cc46dcd445b67eb
-updated: 2018-09-30T14:07:57.901347233-04:00
+hash: fe29de07f5c1580c51de0e78796bce522d933602d88a4c397b586bd88ca7ca76
+updated: 2018-10-24T14:58:32.448481302-07:00
 imports:
 - name: github.com/beevik/etree
   version: 4cd0dd976db869f817248477718071a28e978df0
@@ -111,6 +111,10 @@ imports:
   - ed25519
   - ed25519/internal/edwards25519
   - pbkdf2
+- name: golang.org/x/lint
+  version: 1baf3a9d7d675b3c7e974b7a00ded54b88a88379
+  subpackages:
+  - golint
 - name: golang.org/x/net
   version: 5602c733f70afc6dcec6766be0d5034d4c4f14de
   subpackages:
@@ -138,6 +142,12 @@ imports:
   - transform
   - unicode/bidi
   - unicode/norm
+- name: golang.org/x/tools
+  version: a2dc47679d30b6c496245bafc6a166b46c5fe318
+  subpackages:
+  - go/ast/astutil
+  - go/gcexportdata
+  - go/internal/gcimporter
 - name: google.golang.org/appengine
   version: 267c27e7492265b84fc6719503b14a1e17975d79
   subpackages:
