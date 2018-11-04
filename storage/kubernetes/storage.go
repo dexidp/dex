@@ -40,7 +40,6 @@ type Config struct {
 	InCluster      bool   `json:"inCluster"`
 	KubeConfigFile string `json:"kubeConfigFile"`
 	UseTPR         bool   `json:"useTPR"` // Flag option to use TPRs instead of CRDs
-	NoCrdCreation  bool   `json:"noCrdCreation"` // Flag to disable creation of CRDs at cluster level
 }
 
 // Open returns a storage using Kubernetes third party resource.
@@ -86,38 +85,37 @@ func (c *Config) open(logger logrus.FieldLogger, waitForResources bool) (*client
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	if !c.NoCrdCreation {
-		logger.Info("creating custom Kubernetes resources")
-		if !cli.registerCustomResources(c.UseTPR) {
-			if waitForResources {
-				cancel()
-				return nil, fmt.Errorf("failed creating custom resources")
-			}
 
-			// Try to synchronously create the custom resources once. This doesn't mean
-			// they'll immediately be available, but ensures that the client will actually try
-			// once.
-			logger.Errorf("failed creating custom resources: %v", err)
-			go func() {
-				for {
-					if cli.registerCustomResources(c.UseTPR) {
-						return
-					}
-
-					select {
-					case <-ctx.Done():
-						return
-					case <-time.After(30 * time.Second):
-					}
-				}
-			}()
+	logger.Info("creating custom Kubernetes resources")
+	if !cli.registerCustomResources(c.UseTPR) {
+		if waitForResources {
+			cancel()
+			return nil, fmt.Errorf("failed creating custom resources")
 		}
 
-		if waitForResources {
-			if err := cli.waitForCRDs(ctx); err != nil {
-				cancel()
-				return nil, err
+		// Try to synchronously create the custom resources once. This doesn't mean
+		// they'll immediately be available, but ensures that the client will actually try
+		// once.
+		logger.Errorf("failed creating custom resources: %v", err)
+		go func() {
+			for {
+				if cli.registerCustomResources(c.UseTPR) {
+					return
+				}
+
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(30 * time.Second):
+				}
 			}
+		}()
+	}
+
+	if waitForResources {
+		if err := cli.waitForCRDs(ctx); err != nil {
+			cancel()
+			return nil, err
 		}
 	}
 
@@ -150,6 +148,12 @@ func (cli *client) registerCustomResources(useTPR bool) (ok bool) {
 			resourceName = r.ObjectMeta.Name
 		} else {
 			r := customResourceDefinitions[i]
+			var i interface{}
+			cli.logger.Infof("checking if resource %s has been created already...", r.ObjectMeta.Name)
+			if err := cli.list(r.Spec.Names.Plural, &i); err == nil {
+				cli.logger.Infof("The custom resource already created %s, hence continue", r.ObjectMeta.Name)
+				continue
+			}
 			err = cli.postResource("apiextensions.k8s.io/v1beta1", "", "customresourcedefinitions", r)
 			resourceName = r.ObjectMeta.Name
 		}
