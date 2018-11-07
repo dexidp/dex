@@ -60,7 +60,7 @@ To run dex on Kubernetes perform the following steps:
 2. Spin up a Kubernetes cluster with the appropriate flags and CA volume mount.
 3. Create a secret containing your [GitHub OAuth2 client credentials][github-oauth2].
 4. Deploy dex.
-5. Create and assign 'dex' cluster role to dex service account (if RBAC authorization is used).
+5. Create and assign 'dex' cluster role to dex service account ([to enable dex to manage its CRDs, if RBAC authorization is used](https://github.com/dexidp/dex/blob/master/Documentation/storage.md#kubernetes-custom-resource-definitions-crds)).
 
 The TLS assets can be created using the following command:
 
