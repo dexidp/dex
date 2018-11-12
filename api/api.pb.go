@@ -654,7 +654,7 @@ const _ = grpc.SupportPackageIsVersion4
 type DexClient interface {
 	// CreateClient creates a client.
 	CreateClient(ctx context.Context, in *CreateClientReq, opts ...grpc.CallOption) (*CreateClientResp, error)
-	// UpdateClient updates an exisitng client
+	// UpdateClient updates an existing client
 	UpdateClient(ctx context.Context, in *UpdateClientReq, opts ...grpc.CallOption) (*UpdateClientResp, error)
 	// DeleteClient deletes the provided client.
 	DeleteClient(ctx context.Context, in *DeleteClientReq, opts ...grpc.CallOption) (*DeleteClientResp, error)
@@ -779,7 +779,7 @@ func (c *dexClient) RevokeRefresh(ctx context.Context, in *RevokeRefreshReq, opt
 type DexServer interface {
 	// CreateClient creates a client.
 	CreateClient(context.Context, *CreateClientReq) (*CreateClientResp, error)
-	// UpdateClient updates an exisitng client
+	// UpdateClient updates an existing client
 	UpdateClient(context.Context, *UpdateClientReq) (*UpdateClientResp, error)
 	// DeleteClient deletes the provided client.
 	DeleteClient(context.Context, *DeleteClientReq) (*DeleteClientResp, error)
