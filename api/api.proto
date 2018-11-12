@@ -153,7 +153,7 @@ message RevokeRefreshResp {
 service Dex {
   // CreateClient creates a client.
   rpc CreateClient(CreateClientReq) returns (CreateClientResp) {};
-  // UpdateClient updates an exisitng client
+  // UpdateClient updates an existing client
   rpc UpdateClient(UpdateClientReq) returns (UpdateClientResp) {};
   // DeleteClient deletes the provided client.
   rpc DeleteClient(DeleteClientReq) returns (DeleteClientResp) {};
