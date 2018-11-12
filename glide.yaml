@@ -19,7 +19,7 @@ import:
 
 # LDAP dependencies.
 - package: gopkg.in/ldap.v2
-  version: 0e7db8eb77695b5a952f0e5d78df9ab160050c73
+  version: v2.5.1
 - package: gopkg.in/asn1-ber.v1
   version: 4e86f4367175e39f69d9358a5f17b4dda270378d
 
