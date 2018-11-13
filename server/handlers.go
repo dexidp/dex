@@ -386,7 +386,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 
 	if err != nil {
 		s.logger.Errorf("Failed to authenticate: %v", err)
-		s.renderError(w, http.StatusInternalServerError, "Failed to return user's identity.")
+		s.renderError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to authenticate: %v", err))
 		return
 	}
 
