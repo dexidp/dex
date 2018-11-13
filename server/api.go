@@ -86,13 +86,12 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 	}
 
 	err := d.s.UpdateClient(req.Id, func(old storage.Client) (storage.Client, error) {
-		if req.RedirectUris != nil && len(req.RedirectUris) > 0 {
+		if req.RedirectUris != nil {
 			old.RedirectURIs = req.RedirectUris
 		}
-		if req.TrustedPeers != nil && len(req.TrustedPeers) > 0 {
+		if req.TrustedPeers != nil {
 			old.TrustedPeers = req.TrustedPeers
 		}
-		old.Public = req.Public
 		if req.Name != "" {
 			old.Name = req.Name
 		}
