@@ -293,6 +293,9 @@ func (c *ldapConnector) do(ctx context.Context, f func(c *ldap.Conn) error) erro
 
 	// If bindDN and bindPW are empty this will default to an anonymous bind.
 	if err := conn.Bind(c.BindDN, c.BindPW); err != nil {
+		if c.BindDN == "" && c.BindPW == "" {
+			return fmt.Errorf("ldap: initial anonymous bind failed: %v", err)
+		}
 		return fmt.Errorf("ldap: initial bind for user %q failed: %v", c.BindDN, err)
 	}
 
@@ -472,7 +475,7 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
 	var data refreshData
 	if err := json.Unmarshal(ident.ConnectorData, &data); err != nil {
-		return ident, fmt.Errorf("ldap: failed to unamrshal internal data: %v", err)
+		return ident, fmt.Errorf("ldap: failed to unmarshal internal data: %v", err)
 	}
 
 	var user ldap.Entry
