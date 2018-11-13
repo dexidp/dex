@@ -87,11 +87,12 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 
 	err := d.s.UpdateClient(req.Id, func(old storage.Client) (storage.Client, error) {
 		if req.RedirectUris != nil && len(req.RedirectUris) > 0 {
-			old.RedirectURIs = mergeSlice(old.RedirectURIs, req.RedirectUris)
+			old.RedirectURIs = req.RedirectUris
 		}
 		if req.TrustedPeers != nil && len(req.TrustedPeers) > 0 {
-			old.TrustedPeers = mergeSlice(old.TrustedPeers, req.TrustedPeers)
+			old.TrustedPeers = req.TrustedPeers
 		}
+		old.Public = req.Public
 		if req.Name != "" {
 			old.Name = req.Name
 		}
@@ -109,23 +110,6 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 		return nil, fmt.Errorf("update client: %v", err)
 	}
 	return &api.UpdateClientResp{}, nil
-}
-
-func mergeSlice(s1 []string, s2 []string) []string {
-	isPresent := func(i string, s []string) bool {
-		for _, j := range s {
-			if j == i {
-				return true
-			}
-		}
-		return false
-	}
-	for _, i := range s2 {
-		if !isPresent(i, s1) {
-			s1 = append(s1, i)
-		}
-	}
-	return s1
 }
 
 func (d dexAPI) DeleteClient(ctx context.Context, req *api.DeleteClientReq) (*api.DeleteClientResp, error) {
