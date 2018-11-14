@@ -48,6 +48,7 @@ Finally run the Dex client providing the CA certificate, client certificate and 
 Running the gRPC client will cause the following API calls to be made to the server
 1. CreatePassword
 2. ListPasswords
+3. GetPassword
 3. DeletePassword
 
 ## Cleaning up

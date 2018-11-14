@@ -76,11 +76,25 @@ func createPassword(cli api.DexClient) error {
 		log.Printf("%+v", pass)
 	}
 
+	// Get specific password created.
+	getRep := &api.GetPasswordReq{
+		Email: p.Email,
+	}
+	getResp, err := cli.GetPassword(context.TODO(), getRep)
+	if err != nil || getResp.NotFound {
+		if getResp.NotFound {
+			return fmt.Errorf("Password %s not found", getRep.Email)
+		}
+		return fmt.Errorf("failed to get password: %v", err)
+	}
+	log.Print("Got Created Password:\n")
+	log.Printf("%+v", getResp.Password)
+
+	// Delete password with email = test@example.com.
 	deleteReq := &api.DeletePasswordReq{
 		Email: p.Email,
 	}
 
-	// Delete password with email = test@example.com.
 	if resp, err := cli.DeletePassword(context.TODO(), deleteReq); err != nil || resp.NotFound {
 		if resp.NotFound {
 			return fmt.Errorf("Password %s not found", deleteReq.Email)

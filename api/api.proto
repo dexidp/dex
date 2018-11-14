@@ -22,7 +22,7 @@ message CreateClientReq {
 // CreateClientResp returns the response from creating a client.
 message CreateClientResp {
   bool already_exists = 1;
-  Client client = 2; 
+  Client client = 2;
 }
 
 // DeleteClientReq is a request to delete a client.
@@ -31,7 +31,7 @@ message DeleteClientReq {
   string id = 1;
 }
 
-// DeleteClientResp determines if the client is deleted successfully. 
+// DeleteClientResp determines if the client is deleted successfully.
 message DeleteClientResp {
   bool not_found = 1;
 }
@@ -66,7 +66,7 @@ message UpdatePasswordReq {
   string new_username = 3;
 }
 
-// UpdatePasswordResp returns the response from modifying an existing password. 
+// UpdatePasswordResp returns the response from modifying an existing password.
 message UpdatePasswordResp {
   bool not_found = 1;
 }
@@ -76,7 +76,7 @@ message DeletePasswordReq {
   string email = 1;
 }
 
-// DeletePasswordResp returns the response from deleting a password. 
+// DeletePasswordResp returns the response from deleting a password.
 message DeletePasswordResp {
   bool not_found = 1;
 }
@@ -128,10 +128,21 @@ message RevokeRefreshReq {
   string client_id = 2;
 }
 
-// RevokeRefreshResp determines if the refresh token is revoked successfully. 
+// RevokeRefreshResp determines if the refresh token is revoked successfully.
 message RevokeRefreshResp {
   // Set to true is refresh token was not found and token could not be revoked.
   bool not_found = 1;
+}
+
+// GetPasswordReq is a request get a specific password by email.
+message GetPasswordReq {
+  string email = 1;
+}
+
+// GetPasswordResp a specific password by email.
+message GetPasswordResp {
+  Password password = 1;
+  bool not_found = 2;
 }
 
 // Dex represents the dex gRPC service.
@@ -156,4 +167,6 @@ service Dex {
   //
   // Note that each user-client pair can have only one refresh token at a time.
   rpc RevokeRefresh(RevokeRefreshReq) returns (RevokeRefreshResp) {};
+  // GetPassword returns the password entry for a specific email.
+  rpc GetPassword(GetPasswordReq) returns (GetPasswordResp) {};
 }
