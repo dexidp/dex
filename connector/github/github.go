@@ -325,8 +325,15 @@ func (c *githubConnector) getGroups(ctx context.Context, client *http.Client, gr
 		return c.groupsForOrgs(ctx, client, userLogin)
 	} else if c.org != "" {
 		return c.teamsForOrg(ctx, client, c.org)
+	} else if groupScope {
+		return c.userGroups(ctx, client)
 	}
 	return nil, nil
+}
+
+// formatTeamName return unique team name: prgs might have the same team names team name should be prefixed with org name to make team names unique across orgs.
+func formatTeamName(org string, team string) string {
+	return fmt.Sprintf("%s:%s", org, team)
 }
 
 // groupsForOrgs enforces org and team constraints on user authorization
@@ -359,17 +366,89 @@ func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client
 			c.logger.Infof("github: user %q in org %q but no teams", userName, org.Name)
 		}
 
-		// Orgs might have the same team names. We append orgPrefix to team name,
-		// i.e. "org:team", to make team names unique across orgs.
-		orgPrefix := org.Name + ":"
 		for _, teamName := range teams {
-			groups = append(groups, orgPrefix+teamName)
+			groups = append(groups, formatTeamName(org.Name, teamName))
 		}
 	}
 	if inOrgNoTeams || len(groups) > 0 {
 		return
 	}
 	return groups, fmt.Errorf("github: user %q not in required orgs or teams", userName)
+}
+
+func (c *githubConnector) userGroups(ctx context.Context, client *http.Client) (groups []string, err error) {
+	orgs, err := c.userOrgs(ctx, client)
+	if err != nil {
+		return groups, err
+	}
+
+	orgTeams, err := c.userOrgTeams(ctx, client)
+	if err != nil {
+		return groups, err
+	}
+
+	for _, org := range orgs {
+		if teams, ok := orgTeams[org]; !ok {
+			groups = append(groups, org)
+		} else {
+			for _, team := range teams {
+				groups = append(groups, formatTeamName(org, team))
+			}
+		}
+	}
+
+	return groups, err
+}
+
+// userOrgs retrieves list of current user orgs
+func (c *githubConnector) userOrgs(ctx context.Context, client *http.Client) ([]string, error) {
+	apiURL, groups := c.apiURL+"/user/orgs", []string{}
+	for {
+		// https://developer.github.com/v3/orgs/#list-your-organizations
+		var (
+			orgs []org
+			err  error
+		)
+		if apiURL, err = get(ctx, client, apiURL, &orgs); err != nil {
+			return nil, fmt.Errorf("github: get orgs: %v", err)
+		}
+
+		for _, org := range orgs {
+			groups = append(groups, org.Login)
+		}
+
+		if apiURL == "" {
+			break
+		}
+	}
+
+	return groups, nil
+}
+
+// userOrgTeams retrieves teams which current user belongs to.
+// Method returns a map where key is an org name and value list of teams under the org.
+func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client) (map[string][]string, error) {
+	apiURL, groups := c.apiURL+"/user/teams", map[string][]string{}
+	for {
+		// https://developer.github.com/v3/orgs/teams/#list-user-teams
+		var (
+			teams []team
+			err   error
+		)
+		if apiURL, err = get(ctx, client, apiURL, &teams); err != nil {
+			return nil, fmt.Errorf("github: get teams: %v", err)
+		}
+
+		for _, team := range teams {
+			groups[team.Org.Login] = append(groups[team.Org.Login], team.Name)
+		}
+
+		if apiURL == "" {
+			break
+		}
+	}
+
+	return groups, nil
 }
 
 // Filter the users' team memberships by 'teams' from config.
@@ -572,10 +651,12 @@ func (c *githubConnector) userInOrg(ctx context.Context, client *http.Client, us
 // https://developer.github.com/v3/orgs/teams/#response-12
 type team struct {
 	Name string `json:"name"`
-	Org  struct {
-		Login string `json:"login"`
-	} `json:"organization"`
+	Org  org    `json:"organization"`
 	Slug string `json:"slug"`
+}
+
+type org struct {
+	Login string `json:"login"`
 }
 
 // teamsForOrg queries the GitHub API for team membership within a specific organization.
