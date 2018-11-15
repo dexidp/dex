@@ -6,10 +6,10 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/sirupsen/logrus"
 
 	// import third party drivers
-	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -51,19 +51,34 @@ var (
 		// NOTE(ericchiang): For some reason using `SET SESSION CHARACTERISTICS AS TRANSACTION` at a
 		// session level didn't work for some edge cases. Might be something worth exploring.
 		executeTx: func(db *sql.DB, fn func(sqlTx *sql.Tx) error) error {
-			tx, err := db.Begin()
-			if err != nil {
-				return err
-			}
-			defer tx.Rollback()
+			for {
+				tx, err := db.Begin()
+				if err != nil {
+					return err
+				}
 
-			if _, err := tx.Exec(`SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;`); err != nil {
-				return err
+				defer tx.Rollback()
+
+				if _, err := tx.Exec(`SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;`); err != nil {
+					return err
+				}
+
+				if err := fn(tx); err != nil {
+					return err
+				}
+
+				err = tx.Commit()
+				if err != nil {
+					if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "40001" {
+						// serialization error; retry
+						continue
+					}
+
+					return err
+				}
+
+				return nil
 			}
-			if err := fn(tx); err != nil {
-				return err
-			}
-			return tx.Commit()
 		},
 
 		supportsTimezones: true,
