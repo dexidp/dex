@@ -53,9 +53,11 @@ func TestUserGroups(t *testing.T) {
 
 	expectNil(t, err)
 	expectEquals(t, groups, []string{
+		"org-1",
 		"org-1:team-1",
 		"org-1:team-2",
 		"org-1:team-3",
+		"org-2",
 		"org-2:team-4",
 		"org-3",
 	})
@@ -95,6 +97,7 @@ func TestUserGroupsWithTeamNameFieldConfig(t *testing.T) {
 
 	expectNil(t, err)
 	expectEquals(t, groups, []string{
+		"org-1",
 		"org-1:team-1",
 	})
 }

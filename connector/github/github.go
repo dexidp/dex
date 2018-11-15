@@ -391,9 +391,8 @@ func (c *githubConnector) userGroups(ctx context.Context, client *http.Client) (
 
 	groups := make([]string, 0)
 	for _, o := range orgs {
-		if teams, ok := orgTeams[o]; !ok {
-			groups = append(groups, o)
-		} else {
+		groups = append(groups, o)
+		if teams, ok := orgTeams[o]; ok {
 			for _, t := range teams {
 				groups = append(groups, formatTeamName(o, t))
 			}
