@@ -445,7 +445,7 @@ func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client)
 		}
 
 		for _, t := range teams {
-			groups[t.Org.Login] = append(groups[t.Org.Login], t.Name)
+			groups[t.Org.Login] = append(groups[t.Org.Login], c.teamGroupClaim(t))
 		}
 
 		if apiURL == "" {
@@ -680,14 +680,9 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 			return nil, fmt.Errorf("github: get teams: %v", err)
 		}
 
-		for _, team := range teams {
-			if team.Org.Login == orgName {
-				switch c.teamNameField {
-				case "name", "":
-					groups = append(groups, team.Name)
-				case "slug":
-					groups = append(groups, team.Slug)
-				}
+		for _, t := range teams {
+			if t.Org.Login == orgName {
+				groups = append(groups, c.teamGroupClaim(t))
 			}
 		}
 
@@ -697,4 +692,14 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 	}
 
 	return groups, nil
+}
+
+// teamGroupClaim returns team slag if 'teamNameField; option is set to 'slug' otherwise returns team name.
+func (c *githubConnector) teamGroupClaim(t team) string {
+	switch c.teamNameField {
+	case "slug":
+		return t.Slug
+	default:
+		return t.Name
+	}
 }

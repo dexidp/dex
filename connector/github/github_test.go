@@ -77,6 +77,28 @@ func TestUserGroupsWithoutOrgs(t *testing.T) {
 
 }
 
+func TestUserGroupsWithTeamNameFieldConfig(t *testing.T) {
+	s := newTestServer(map[string]testResponse{
+		"/user/orgs": {
+			data: []org{{Login: "org-1"}},
+		},
+		"/user/teams": {
+			data: []team{
+				{Name: "Team 1", Slug: "team-1", Org: org{Login: "org-1"}},
+			},
+		},
+	})
+	defer s.Close()
+
+	c := githubConnector{apiURL: s.URL, teamNameField: "slug"}
+	groups, err := c.userGroups(context.Background(), newClient())
+
+	expectNil(t, err)
+	expectEquals(t, groups, []string{
+		"org-1:team-1",
+	})
+}
+
 func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 
 	s := newTestServer(map[string]testResponse{
