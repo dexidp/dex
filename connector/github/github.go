@@ -503,10 +503,10 @@ func get(ctx context.Context, client *http.Client, apiURL string, v interface{})
 	return getPagination(apiURL, resp), nil
 }
 
-// getPagination checks the "Link" header field for "next" or "last" pagination
-// URLs, and returns true only if a "next" URL is found. The next pages' URL is
-// returned if a "next" URL is found. apiURL is returned if apiURL equals the
-// "last" URL or no "next" or "last" URL are found.
+// getPagination checks the "Link" header field for "next" or "last" pagination URLs,
+// and returns "next" page URL or empty string to indicate that there are no more pages.
+// Non empty next pages' URL is returned if both "last" and "next" URLs are found and next page
+// URL is not equal to last.
 //
 // https://developer.github.com/v3/#pagination
 func getPagination(apiURL string, resp *http.Response) string {
