@@ -4,37 +4,52 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/dexidp/dex/connector"
 )
 
+type testResponse struct {
+	data     interface{}
+	nextLink string
+	lastLink string
+}
+
 func TestUserGroups(t *testing.T) {
-
-	orgs := []org{
-		{Login: "org-1"},
-		{Login: "org-2"},
-		{Login: "org-3"},
-	}
-
-	teams := []team{
-		{Name: "team-1", Org: org{Login: "org-1"}},
-		{Name: "team-2", Org: org{Login: "org-1"}},
-		{Name: "team-3", Org: org{Login: "org-1"}},
-		{Name: "team-4", Org: org{Login: "org-2"}},
-	}
-
-	s := newTestServer(map[string]interface{}{
-		"/user/orgs":  orgs,
-		"/user/teams": teams,
+	s := newTestServer(map[string]testResponse{
+		"/user/orgs": {
+			data:     []org{{Login: "org-1"}, {Login: "org-2"}},
+			nextLink: "/user/orgs?since=2",
+			lastLink: "/user/orgs?since=2",
+		},
+		"/user/orgs?since=2": {data: []org{{Login: "org-3"}}},
+		"/user/teams": {
+			data: []team{
+				{Name: "team-1", Org: org{Login: "org-1"}},
+				{Name: "team-2", Org: org{Login: "org-1"}},
+			},
+			nextLink: "/user/teams?since=2",
+			lastLink: "/user/teams?since=2",
+		},
+		"/user/teams?since=2": {
+			data: []team{
+				{Name: "team-3", Org: org{Login: "org-1"}},
+				{Name: "team-4", Org: org{Login: "org-2"}},
+			},
+			nextLink: "/user/teams?since=2",
+			lastLink: "/user/teams?since=2",
+		},
 	})
+	defer s.Close()
 
-	connector := githubConnector{apiURL: s.URL}
-	groups, err := connector.userGroups(context.Background(), newClient())
+	c := githubConnector{apiURL: s.URL}
+	groups, err := c.userGroups(context.Background(), newClient())
 
 	expectNil(t, err)
 	expectEquals(t, groups, []string{
@@ -44,40 +59,39 @@ func TestUserGroups(t *testing.T) {
 		"org-2:team-4",
 		"org-3",
 	})
-
-	s.Close()
 }
 
 func TestUserGroupsWithoutOrgs(t *testing.T) {
 
-	s := newTestServer(map[string]interface{}{
-		"/user/orgs":  []org{},
-		"/user/teams": []team{},
+	s := newTestServer(map[string]testResponse{
+		"/user/orgs":  {data: []org{}},
+		"/user/teams": {data: []team{}},
 	})
+	defer s.Close()
 
-	connector := githubConnector{apiURL: s.URL}
-	groups, err := connector.userGroups(context.Background(), newClient())
+	c := githubConnector{apiURL: s.URL}
+	groups, err := c.userGroups(context.Background(), newClient())
 
 	expectNil(t, err)
 	expectEquals(t, len(groups), 0)
 
-	s.Close()
 }
 
 func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 
-	s := newTestServer(map[string]interface{}{
-		"/user": user{Login: "some-login"},
-		"/user/emails": []userEmail{{
+	s := newTestServer(map[string]testResponse{
+		"/user": {data: user{Login: "some-login"}},
+		"/user/emails": {data: []userEmail{{
 			Email:    "some@email.com",
 			Verified: true,
 			Primary:  true,
-		}},
-		"/login/oauth/access_token": map[string]interface{}{
+		}}},
+		"/login/oauth/access_token": {data: map[string]interface{}{
 			"access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
 			"expires_in":   "30",
-		},
+		}},
 	})
+	defer s.Close()
 
 	hostURL, err := url.Parse(s.URL)
 	expectNil(t, err)
@@ -85,20 +99,32 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 	req, err := http.NewRequest("GET", hostURL.String(), nil)
 	expectNil(t, err)
 
-	githubConnector := githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: newClient()}
-	identity, err := githubConnector.HandleCallback(connector.Scopes{}, req)
+	c := githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: newClient()}
+	identity, err := c.HandleCallback(connector.Scopes{}, req)
 
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "some-login")
 
-	s.Close()
 }
 
-func newTestServer(responses map[string]interface{}) *httptest.Server {
-	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func newTestServer(responses map[string]testResponse) *httptest.Server {
+	var s *httptest.Server
+	s = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		response := responses[r.RequestURI]
+		linkParts := make([]string, 0)
+		if response.nextLink != "" {
+			linkParts = append(linkParts, fmt.Sprintf("<%s%s>; rel=\"next\"", s.URL, response.nextLink))
+		}
+		if response.lastLink != "" {
+			linkParts = append(linkParts, fmt.Sprintf("<%s%s>; rel=\"last\"", s.URL, response.lastLink))
+		}
+		if len(linkParts) > 0 {
+			w.Header().Add("Link", strings.Join(linkParts, ", "))
+		}
 		w.Header().Add("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responses[r.URL.Path])
+		json.NewEncoder(w).Encode(response.data)
 	}))
+	return s
 }
 
 func newClient() *http.Client {

@@ -331,7 +331,8 @@ func (c *githubConnector) getGroups(ctx context.Context, client *http.Client, gr
 	return nil, nil
 }
 
-// formatTeamName return unique team name: prgs might have the same team names team name should be prefixed with org name to make team names unique across orgs.
+// formatTeamName returns unique team name.
+// Orgs might have the same team names. To make team name unique it should be prefixed with the org name.
 func formatTeamName(org string, team string) string {
 	return fmt.Sprintf("%s:%s", org, team)
 }
@@ -342,12 +343,13 @@ func formatTeamName(org string, team string) string {
 // 	N orgs, M teams per org: user is member of any team from at least 1 org
 // 	N-1 orgs, M teams per org, 1 org with no teams: user is member of any team
 // from at least 1 org, or member of org with no teams
-func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client, userName string) (groups []string, err error) {
+func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client, userName string) ([]string, error) {
+	groups := make([]string, 0)
 	var inOrgNoTeams bool
 	for _, org := range c.orgs {
 		inOrg, err := c.userInOrg(ctx, client, userName, org.Name)
 		if err != nil {
-			return groups, err
+			return nil, err
 		}
 		if !inOrg {
 			continue
@@ -355,7 +357,7 @@ func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client
 
 		teams, err := c.teamsForOrg(ctx, client, org.Name)
 		if err != nil {
-			return groups, err
+			return nil, err
 		}
 		// User is in at least one org. User is authorized if no teams are specified
 		// in config; include all teams in claim. Otherwise filter out teams not in
@@ -371,22 +373,23 @@ func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client
 		}
 	}
 	if inOrgNoTeams || len(groups) > 0 {
-		return
+		return groups, nil
 	}
 	return groups, fmt.Errorf("github: user %q not in required orgs or teams", userName)
 }
 
-func (c *githubConnector) userGroups(ctx context.Context, client *http.Client) (groups []string, err error) {
+func (c *githubConnector) userGroups(ctx context.Context, client *http.Client) ([]string, error) {
 	orgs, err := c.userOrgs(ctx, client)
 	if err != nil {
-		return groups, err
+		return nil, err
 	}
 
 	orgTeams, err := c.userOrgTeams(ctx, client)
 	if err != nil {
-		return groups, err
+		return nil, err
 	}
 
+	groups := make([]string, 0)
 	for _, org := range orgs {
 		if teams, ok := orgTeams[org]; !ok {
 			groups = append(groups, org)
@@ -397,12 +400,13 @@ func (c *githubConnector) userGroups(ctx context.Context, client *http.Client) (
 		}
 	}
 
-	return groups, err
+	return groups, nil
 }
 
 // userOrgs retrieves list of current user orgs
 func (c *githubConnector) userOrgs(ctx context.Context, client *http.Client) ([]string, error) {
-	apiURL, groups := c.apiURL+"/user/orgs", []string{}
+	groups := make([]string, 0)
+	apiURL := c.apiURL + "/user/orgs"
 	for {
 		// https://developer.github.com/v3/orgs/#list-your-organizations
 		var (
@@ -413,8 +417,8 @@ func (c *githubConnector) userOrgs(ctx context.Context, client *http.Client) ([]
 			return nil, fmt.Errorf("github: get orgs: %v", err)
 		}
 
-		for _, org := range orgs {
-			groups = append(groups, org.Login)
+		for _, o := range orgs {
+			groups = append(groups, o.Login)
 		}
 
 		if apiURL == "" {
@@ -428,7 +432,8 @@ func (c *githubConnector) userOrgs(ctx context.Context, client *http.Client) ([]
 // userOrgTeams retrieves teams which current user belongs to.
 // Method returns a map where key is an org name and value list of teams under the org.
 func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client) (map[string][]string, error) {
-	apiURL, groups := c.apiURL+"/user/teams", map[string][]string{}
+	groups := make(map[string][]string, 0)
+	apiURL := c.apiURL + "/user/teams"
 	for {
 		// https://developer.github.com/v3/orgs/teams/#list-user-teams
 		var (
@@ -439,8 +444,8 @@ func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client)
 			return nil, fmt.Errorf("github: get teams: %v", err)
 		}
 
-		for _, team := range teams {
-			groups[team.Org.Login] = append(groups[team.Org.Login], team.Name)
+		for _, t := range teams {
+			groups[t.Org.Login] = append(groups[t.Org.Login], t.Name)
 		}
 
 		if apiURL == "" {
