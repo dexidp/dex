@@ -2,6 +2,7 @@
 package sql
 
 import (
+	"context"
 	"database/sql"
 	"regexp"
 	"time"
@@ -51,15 +52,16 @@ var (
 		// NOTE(ericchiang): For some reason using `SET SESSION CHARACTERISTICS AS TRANSACTION` at a
 		// session level didn't work for some edge cases. Might be something worth exploring.
 		executeTx: func(db *sql.DB, fn func(sqlTx *sql.Tx) error) error {
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			opts := &sql.TxOptions{
+				Isolation: sql.LevelSerializable,
+			}
+
 			for {
-				tx, err := db.Begin()
+				tx, err := db.BeginTx(ctx, opts)
 				if err != nil {
-					return err
-				}
-
-				defer tx.Rollback()
-
-				if _, err := tx.Exec(`SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;`); err != nil {
 					return err
 				}
 
