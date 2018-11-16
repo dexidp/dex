@@ -42,8 +42,12 @@ connectors:
     # For example if a user is part of the "engineering" team of the "coreos"
     # org, the group claim would include "coreos:engineering".
     #
-    # A user MUST be a member of at least one of the following orgs to
+    # If orgs are specified in the config then user MUST be a member of at least one of the specified orgs to
     # authenticate with dex.
+    #
+    # If neither 'org' nor 'orgs' are specified in the config then user authenticate with ALL user's Github groups.
+    # Typical use case for this setup:
+    # provide read-only access to everyone and give full permissions if user has 'my-organization:admins-team' group claim.  
     orgs:
     - name: my-organization
       # Include all teams as claims.
