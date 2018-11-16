@@ -71,7 +71,7 @@ var (
 
 				err = tx.Commit()
 				if err != nil {
-					if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "40001" {
+					if pqErr, ok := err.(*pq.Error); ok && pqErr.Code.Name() == "serialization_failure" {
 						// serialization error; retry
 						continue
 					}
