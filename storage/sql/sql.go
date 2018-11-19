@@ -44,13 +44,14 @@ var (
 	// The "github.com/lib/pq" driver is the default flavor. All others are
 	// translations of this.
 	flavorPostgres = flavor{
-		// The default behavior for Postgres transactions is consistent reads, not consistent writes.
-		// For each transaction opened, ensure it has the correct isolation level.
+		// The default behavior for Postgres transactions is consistent reads, not
+		// consistent writes. For each transaction opened, ensure it has the
+		// correct isolation level.
 		//
 		// See: https://www.postgresql.org/docs/9.3/static/sql-set-transaction.html
 		//
-		// NOTE(ericchiang): For some reason using `SET SESSION CHARACTERISTICS AS TRANSACTION` at a
-		// session level didn't work for some edge cases. Might be something worth exploring.
+		// Be careful not to wrap sql errors in the callback 'fn', otherwise
+		// serialization failures will not be detected and retried.
 		executeTx: func(db *sql.DB, fn func(sqlTx *sql.Tx) error) error {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
@@ -66,6 +67,11 @@ var (
 				}
 
 				if err := fn(tx); err != nil {
+					if pqErr, ok := err.(*pq.Error); ok && pqErr.Code.Name() == "serialization_failure" {
+						// serialization error; retry
+						continue
+					}
+
 					return err
 				}
 
