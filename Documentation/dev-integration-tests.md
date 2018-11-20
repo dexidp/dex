@@ -18,39 +18,48 @@ $ ./scripts/test-k8s.sh
 
 ## Postgres
 
-Running database tests locally require:
+Running database tests locally requires:
 
-* A systemd based Linux distro.
-* A recent version of [rkt](https://github.com/coreos/rkt) installed.
+* Docker
 
-The `standup.sh` script in the SQL directory is used to run databases in containers with systemd daemonizing the process.
+To run the database integration tests:
 
-```
-$ sudo ./storage/sql/standup.sh create postgres
-Starting postgres. To view progress run
+- start a postgres container:
 
-  journalctl -fu dex-postgres
+  `docker run --name dex-postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=dex -p 5432:5432 -d postgres:11`
+- export the required environment variables:
 
-Running as unit dex-postgres.service.
-To run tests export the following environment variables:
+  `export DEX_POSTGRES_DATABASE=dex DEX_POSTGRES_USER=postgres DEX_POSTGRES_PASSWORD=postgres DEX_POSTGRES_HOST=127.0.0.1:5432`
 
-  export DEX_POSTGRES_DATABASE=postgres; export DEX_POSTGRES_USER=postgres; export DEX_POSTGRES_PASSWORD=postgres; export DEX_POSTGRES_HOST=172.16.28.3:5432
+- run the storage/sql tests:
 
-```
+  ```
+  $ # sqlite3 takes forever to compile, be sure to install test dependencies
+  $ go test -v -i ./storage/sql
+  $ go test -v ./storage/sql
+  ```
 
-Exporting the variables will cause the database tests to be run, rather than skipped.
+- clean up the postgres container: `docker rm -f dex-postgres`
 
-```
-$ # sqlite3 takes forever to compile, be sure to install test dependencies
-$ go test -v -i ./storage/sql
-$ go test -v ./storage/sql
-```
+## Etcd
 
-When you're done, tear down the unit using the `standup.sh` script.
+These tests can also be executed using docker:
 
-```
-$ sudo ./storage/sql/standup.sh destroy postgres
-```
+- start the container (where `NODE1` is set to the host IP address):
+
+  ```
+  $ export NODE1=0.0.0.0
+  $ docker run --name dex-etcd -p 2379:2379 -p 2380:2380 gcr.io/etcd-development/etcd:v3.3.10 \
+    /usr/local/bin/etcd --name node1 \
+    --initial-advertise-peer-urls http://${NODE1}:2380 --listen-peer-urls http://${NODE1}:2380 \
+    --advertise-client-urls http://${NODE1}:2379 --listen-client-urls http://${NODE1}:2379 \
+    --initial-cluster node1=http://${NODE1}:2380
+  ```
+
+- run the tests, passing the correct endpoint for this etcd instance in `DEX_ETCD_ENDPOINTS`:
+
+  `DEX_ETCD_ENDPOINTS=http://localhost:2379 go test -v ./storage/etcd`
+- clean up the etcd container: `docker rm -f dex-etcd`
 
 ## LDAP
 
