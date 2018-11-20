@@ -48,6 +48,7 @@ type Config struct {
 	HostName      string `json:"hostName"`
 	RootCA        string `json:"rootCA"`
 	TeamNameField string `json:"teamNameField"`
+	LoadAllGroups bool   `json:"loadAllGroups"`
 }
 
 // Org holds org-team filters, in which teams are optional.
@@ -107,6 +108,7 @@ func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector
 		}
 
 	}
+	g.loadAllGroups = c.LoadAllGroups
 
 	switch c.TeamNameField {
 	case "name", "slug", "":
@@ -142,8 +144,11 @@ type githubConnector struct {
 	// Used to support untrusted/self-signed CA certs.
 	rootCA string
 	// HTTP Client that trusts the custom delcared rootCA cert.
-	httpClient    *http.Client
+	httpClient *http.Client
+	// optional choice between 'name' (default) or 'slug'
 	teamNameField string
+	// if set to true and no orgs are configured then connector loads all user claims (all orgs and team)
+	loadAllGroups bool
 }
 
 // groupsRequired returns whether dex requires GitHub's 'read:org' scope. Dex
@@ -325,7 +330,7 @@ func (c *githubConnector) getGroups(ctx context.Context, client *http.Client, gr
 		return c.groupsForOrgs(ctx, client, userLogin)
 	} else if c.org != "" {
 		return c.teamsForOrg(ctx, client, c.org)
-	} else if groupScope {
+	} else if groupScope && c.loadAllGroups {
 		return c.userGroups(ctx, client)
 	}
 	return nil, nil
