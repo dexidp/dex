@@ -64,7 +64,6 @@ func TestUserGroups(t *testing.T) {
 }
 
 func TestUserGroupsWithoutOrgs(t *testing.T) {
-
 	s := newTestServer(map[string]testResponse{
 		"/user/orgs":  {data: []org{}},
 		"/user/teams": {data: []team{}},
@@ -76,7 +75,6 @@ func TestUserGroupsWithoutOrgs(t *testing.T) {
 
 	expectNil(t, err)
 	expectEquals(t, len(groups), 0)
-
 }
 
 func TestUserGroupsWithTeamNameFieldConfig(t *testing.T) {
@@ -98,6 +96,30 @@ func TestUserGroupsWithTeamNameFieldConfig(t *testing.T) {
 	expectNil(t, err)
 	expectEquals(t, groups, []string{
 		"org-1",
+		"org-1:team-1",
+	})
+}
+
+func TestUserGroupsWithTeamNameAndSlugFieldConfig(t *testing.T) {
+	s := newTestServer(map[string]testResponse{
+		"/user/orgs": {
+			data: []org{{Login: "org-1"}},
+		},
+		"/user/teams": {
+			data: []team{
+				{Name: "Team 1", Slug: "team-1", Org: org{Login: "org-1"}},
+			},
+		},
+	})
+	defer s.Close()
+
+	c := githubConnector{apiURL: s.URL, teamNameField: "both"}
+	groups, err := c.userGroups(context.Background(), newClient())
+
+	expectNil(t, err)
+	expectEquals(t, groups, []string{
+		"org-1",
+		"org-1:Team 1",
 		"org-1:team-1",
 	})
 }

@@ -59,12 +59,13 @@ connectors:
     # Flag which indicates that all user groups and teams should be loaded.
     loadAllGroups: false
 
-    # Optional choice between 'name' (default) or 'slug'.
+    # Optional choice between 'name' (default), 'slug', or 'both'.
     #
     # As an example, group claims for member of 'Site Reliability Engineers' in
     # Acme organization would yield:
     #   - ['acme:Site Reliability Engineers'] for 'name'
     #   - ['acme:site-reliability-engineers'] for 'slug'
+    #   - ['acme:Site Reliability Engineers', 'acme:site-reliability-engineers'] for 'both'
     teamNameField: slug
 ```
 
