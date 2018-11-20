@@ -120,6 +120,13 @@ func TestCreateDataSourceName(t *testing.T) {
 			expected: "connect_timeout=0 host='coreos.com' sslmode='disable'",
 		},
 		{
+			description: "with tcp host:port",
+			input: &Postgres{
+				Host: "coreos.com:6543",
+			},
+			expected: "connect_timeout=0 host='coreos.com' port=6543 sslmode='verify-full'",
+		},
+		{
 			description: "with tcp host and port",
 			input: &Postgres{
 				Host: "coreos.com",
