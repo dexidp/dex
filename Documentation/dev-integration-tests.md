@@ -41,6 +41,26 @@ To run the database integration tests:
 
 - clean up the postgres container: `docker rm -f dex-postgres`
 
+## Etcd
+
+These tests can also be executed using docker:
+
+- start the container (where `NODE1` is set to the host IP address):
+
+  ```
+  $ export NODE1=0.0.0.0
+  $ docker run --name dex-etcd -p 2379:2379 -p 2380:2380 gcr.io/etcd-development/etcd:v3.3.10 \
+    /usr/local/bin/etcd --name node1 \
+    --initial-advertise-peer-urls http://${NODE1}:2380 --listen-peer-urls http://${NODE1}:2380 \
+    --advertise-client-urls http://${NODE1}:2379 --listen-client-urls http://${NODE1}:2379 \
+    --initial-cluster node1=http://${NODE1}:2380
+  ```
+
+- run the tests, passing the correct endpoint for this etcd instance in `DEX_ETCD_ENDPOINTS`:
+
+  `DEX_ETCD_ENDPOINTS=http://localhost:2379 go test -v ./storage/etcd`
+- clean up the etcd container: `docker rm -f dex-etcd`
+
 ## LDAP
 
 The LDAP integration tests require [OpenLDAP][openldap] installed on the host machine. To run them, use `go test`:
