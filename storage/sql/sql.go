@@ -40,6 +40,21 @@ func matchLiteral(s string) *regexp.Regexp {
 	return regexp.MustCompile(`\b` + regexp.QuoteMeta(s) + `\b`)
 }
 
+// Detect a serialization failure, which should trigger retrying the
+// transaction according to PostgreSQL docs:
+//
+// https://www.postgresql.org/docs/current/transaction-iso.html#XACT-SERIALIZABLE
+//
+// "applications using this level must be prepared to retry transactions due to
+// serialization failures"
+func isRetryableSerializationFailure(err error) bool {
+	if pqErr, ok := err.(*pq.Error); ok {
+		return pqErr.Code.Name() == "serialization_failure"
+	}
+
+	return false
+}
+
 var (
 	// The "github.com/lib/pq" driver is the default flavor. All others are
 	// translations of this.
@@ -67,8 +82,7 @@ var (
 				}
 
 				if err := fn(tx); err != nil {
-					if pqErr, ok := err.(*pq.Error); ok && pqErr.Code.Name() == "serialization_failure" {
-						// serialization error; retry
+					if isRetryableSerializationFailure(err) {
 						continue
 					}
 
@@ -77,8 +91,7 @@ var (
 
 				err = tx.Commit()
 				if err != nil {
-					if pqErr, ok := err.(*pq.Error); ok && pqErr.Code.Name() == "serialization_failure" {
-						// serialization error; retry
+					if isRetryableSerializationFailure(err) {
 						continue
 					}
 
