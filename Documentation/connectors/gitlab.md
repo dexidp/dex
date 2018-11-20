@@ -10,6 +10,8 @@ When a client redeems a refresh token through dex, dex will re-query GitLab to u
 
 Register a new application via `User Settings -> Applications` ensuring the callback URL is `(dex issuer)/callback`. For example if dex is listening at the non-root path `https://auth.example.com/dex` the callback would be `https://auth.example.com/dex/callback`.
 
+The application requires the user to grant the `read_user` and `openid` scopes. The latter is required only if group membership is a desired claim.
+
 The following is an example of a configuration for `examples/config-dev.yaml`:
 
 ```yaml
@@ -20,10 +22,10 @@ connectors:
     # Required field for connector name.
     name: GitLab
     config:
-      # optional, default = https://gitlab.com 
+      # optional, default = https://gitlab.com
       baseURL: https://gitlab.com
-      # Credentials can be string literals or pulled from the environment.  
-      clientID: $GITLAB_APPLICATION_ID 
+      # Credentials can be string literals or pulled from the environment.
+      clientID: $GITLAB_APPLICATION_ID
       clientSecret: $GITLAB_CLIENT_SECRET
       redirectURI: http://127.0.0.1:5556/dex/callback
 ```
