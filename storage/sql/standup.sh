@@ -7,7 +7,7 @@ fi
 
 function usage {
   cat << EOF >> /dev/stderr
-Usage: sudo ./standup.sh [create|destroy] [postgres|mysql|cockroach]
+Usage: sudo ./standup.sh [create|destroy] [postgres]
 
 This is a script for standing up test databases. It uses systemd to daemonize
 rkt containers running on a local loopback IP.
@@ -36,25 +36,21 @@ function main {
      case "$2" in
      "postgres")
         create_postgres;;
-     "mysql")
-        create_mysql;;
      *)
        usage
        exit 2
        ;;
-     esac        
+     esac
      ;;
   "destroy")
      case "$2" in
      "postgres")
         destroy_postgres;;
-     "mysql")
-        destroy_mysql;;
      *)
        usage
        exit 2
        ;;
-     esac        
+     esac
      ;;
   *)
     usage

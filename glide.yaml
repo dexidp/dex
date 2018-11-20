@@ -115,12 +115,6 @@ import:
   version: 3fb7a0e792edd47bf0cf1e919dfc14e2be412e15
 - package: github.com/lib/pq
   version: 50761b0867bd1d9d069276790bcd4a3bccf2324a
-- package: github.com/go-sql-driver/mysql
-  version: 0b58b37b664c21f3010e836f1b931e1d0b0b0685
-- package: github.com/cockroachdb/cockroach-go
-  version: 31611c0501c812f437d4861d87d117053967c955
-  subpackages:
-  - crdb
 
 # etcd driver
 - package: github.com/coreos/etcd

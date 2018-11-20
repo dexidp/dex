@@ -7,10 +7,6 @@ imports:
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
   subpackages:
   - quantile
-- name: github.com/cockroachdb/cockroach-go
-  version: 31611c0501c812f437d4861d87d117053967c955
-  subpackages:
-  - crdb
 - name: github.com/coreos/etcd
   version: f1d7dd87da3e8feab4aaf675b8e29c6a5ed5f58b
   subpackages:
@@ -28,8 +24,6 @@ imports:
   version: eadd4fad6aac69ae62379194fe0219f3dbc80fd3
 - name: github.com/ghodss/yaml
   version: bea76d6a4713e18b7f5321a2b020738552def3ea
-- name: github.com/go-sql-driver/mysql
-  version: 0b58b37b664c21f3010e836f1b931e1d0b0b0685
 - name: github.com/golang/protobuf
   version: 1e59b77b52bf8e4b449a57e6f79f21226d571845
   subpackages:
