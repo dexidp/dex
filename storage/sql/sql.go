@@ -4,6 +4,7 @@ package sql
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"regexp"
 	"time"
 
@@ -55,6 +56,8 @@ func isRetryableSerializationFailure(err error) bool {
 	return false
 }
 
+const maxRetries = 2
+
 var (
 	// The "github.com/lib/pq" driver is the default flavor. All others are
 	// translations of this.
@@ -75,14 +78,14 @@ var (
 				Isolation: sql.LevelSerializable,
 			}
 
-			for {
+			for i := 0; i < maxRetries; i++ {
 				tx, err := db.BeginTx(ctx, opts)
 				if err != nil {
 					return err
 				}
 
 				if err := fn(tx); err != nil {
-					if isRetryableSerializationFailure(err) {
+					if isRetryableSerializationFailure(err) && i != maxRetries {
 						continue
 					}
 
@@ -91,7 +94,7 @@ var (
 
 				err = tx.Commit()
 				if err != nil {
-					if isRetryableSerializationFailure(err) {
+					if isRetryableSerializationFailure(err) && i != maxRetries {
 						continue
 					}
 
@@ -100,6 +103,8 @@ var (
 
 				return nil
 			}
+
+			return errors.New("unable to resolve serialization failure")
 		},
 
 		supportsTimezones: true,
