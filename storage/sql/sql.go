@@ -2,14 +2,15 @@
 package sql
 
 import (
+	"context"
 	"database/sql"
 	"regexp"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/sirupsen/logrus"
 
 	// import third party drivers
-	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -39,31 +40,66 @@ func matchLiteral(s string) *regexp.Regexp {
 	return regexp.MustCompile(`\b` + regexp.QuoteMeta(s) + `\b`)
 }
 
+// Detect a serialization failure, which should trigger retrying the
+// transaction according to PostgreSQL docs:
+//
+// https://www.postgresql.org/docs/current/transaction-iso.html#XACT-SERIALIZABLE
+//
+// "applications using this level must be prepared to retry transactions due to
+// serialization failures"
+func isRetryableSerializationFailure(err error) bool {
+	if pqErr, ok := err.(*pq.Error); ok {
+		return pqErr.Code.Name() == "serialization_failure"
+	}
+
+	return false
+}
+
 var (
 	// The "github.com/lib/pq" driver is the default flavor. All others are
 	// translations of this.
 	flavorPostgres = flavor{
-		// The default behavior for Postgres transactions is consistent reads, not consistent writes.
-		// For each transaction opened, ensure it has the correct isolation level.
+		// The default behavior for Postgres transactions is consistent reads, not
+		// consistent writes. For each transaction opened, ensure it has the
+		// correct isolation level.
 		//
 		// See: https://www.postgresql.org/docs/9.3/static/sql-set-transaction.html
 		//
-		// NOTE(ericchiang): For some reason using `SET SESSION CHARACTERISTICS AS TRANSACTION` at a
-		// session level didn't work for some edge cases. Might be something worth exploring.
+		// Be careful not to wrap sql errors in the callback 'fn', otherwise
+		// serialization failures will not be detected and retried.
 		executeTx: func(db *sql.DB, fn func(sqlTx *sql.Tx) error) error {
-			tx, err := db.Begin()
-			if err != nil {
-				return err
-			}
-			defer tx.Rollback()
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
 
-			if _, err := tx.Exec(`SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;`); err != nil {
-				return err
+			opts := &sql.TxOptions{
+				Isolation: sql.LevelSerializable,
 			}
-			if err := fn(tx); err != nil {
-				return err
+
+			for {
+				tx, err := db.BeginTx(ctx, opts)
+				if err != nil {
+					return err
+				}
+
+				if err := fn(tx); err != nil {
+					if isRetryableSerializationFailure(err) {
+						continue
+					}
+
+					return err
+				}
+
+				err = tx.Commit()
+				if err != nil {
+					if isRetryableSerializationFailure(err) {
+						continue
+					}
+
+					return err
+				}
+
+				return nil
 			}
-			return tx.Commit()
 		},
 
 		supportsTimezones: true,
