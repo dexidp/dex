@@ -3,6 +3,7 @@
 ## Overview
 
 This document covers setting up the [Kubernetes OpenID Connect token authenticator plugin][k8s-oidc] with dex.
+It also contains a worked example showing how the Dex server can be deployed within Kubernetes.
 
 Token responses from OpenID Connect providers include a signed JWT called an ID Token. ID Tokens contain names, emails, unique identifiers, and in dex's case, a set of groups that can be used to identify the user. OpenID Connect providers, like dex, publish public keys; the Kubernetes API server understands how to use these to verify ID Tokens.
 
@@ -21,7 +22,7 @@ Configuring the API server to use the OpenID Connect [authentication plugin][k8s
 
 * Deploying an API server with specific flags.
 * Dex is running on HTTPS.
-  * Custom CA files must be accessible by the API server (likely through volume mounts).
+  * Custom CA files must be accessible by the API server.
 * Dex is accessible to both your browser and the Kubernetes API server.
 
 Use the following flags to point your API server(s) at dex. `dex.example.com` should be replaced by whatever DNS name or IP address dex is running under.
@@ -29,7 +30,7 @@ Use the following flags to point your API server(s) at dex. `dex.example.com` sh
 ```
 --oidc-issuer-url=https://dex.example.com:32000
 --oidc-client-id=example-app
---oidc-ca-file=/etc/kubernetes/ssl/openid-ca.pem
+--oidc-ca-file=/etc/ssl/certs/openid-ca.pem
 --oidc-username-claim=email
 --oidc-groups-claim=groups
 ```
@@ -58,18 +59,65 @@ To run dex on Kubernetes perform the following steps:
 
 1. Generate TLS assets for dex.
 2. Spin up a Kubernetes cluster with the appropriate flags and CA volume mount.
-3. Create a secret containing your [GitHub OAuth2 client credentials][github-oauth2].
+3. Create secrets for TLS and for your [GitHub OAuth2 client credentials][github-oauth2].
 4. Deploy dex.
 5. Create and assign 'dex' cluster role to dex service account ([to enable dex to manage its CRDs, if RBAC authorization is used](https://github.com/dexidp/dex/blob/master/Documentation/storage.md#kubernetes-custom-resource-definitions-crds)).
 
-The TLS assets can be created using the following command:
+### Generate TLS assets
+
+Running Dex with HTTPS enabled requires a valid SSL certificate, and the API server needs to trust the certificate of the signing CA using the `--oidc-ca-file` flag.
+
+For our example use case, the TLS assets can be created using the following command:
 
 ```
 $ cd examples/k8s
 $ ./gencert.sh
 ```
 
-The created `ssl/ca.pem` must then be mounted into your API server deployment. Once the cluster is up and correctly configured, use kubectl to add the serving certs as secrets.
+This will generate several files under the `ssl` directory, the important ones being `cert.pem` ,`key.pem` and `ca.pem`. The generated SSL certificate is for 'dex.example.com', although you could change this by editing `gencert.sh` if required.
+
+### Configure the API server
+
+#### Ensure the CA certificate is available to the API server
+
+
+The CA file which was used to sign the SSL certificates for Dex needs to be copied to a location where the API server can read it, and the API server configured to look for it with the flag `--oidc-ca-file`. 
+
+There are several options here but if you run your API server as a container probably the easiest method is to use a [hostPath](https://kubernetes.io/docs/concepts/storage/volumes/#hostpath) volume to mount the CA file directly from the host.
+
+The example pod manifest below assumes that you copied the CA file into `/etc/ssl/certs`. Adjust as necessary:
+
+```
+spec:
+  containers:
+
+    [...]
+
+    volumeMounts:
+    - mountPath: /etc/ssl/certs
+      name: etc-ssl-certs
+      readOnly: true
+
+    [...]
+
+  volumes:
+   - name: ca-certs
+     hostPath:
+       path: /etc/ssl/certs
+       type: DirectoryOrCreate
+```
+
+Depending on your installation you may also find that certain folders are already mounted in this way and that you can simply copy the CA file into an existing folder for the same effect.
+
+#### Configure API server flags
+
+Configure the API server as in [Configuring the OpenID Connect Plugin](#configuring-the-openid-connect-plugin) above.
+
+Note that the `ca.pem` from above has been renamed to `openid-ca.pem` in this example - this is just to separate it from any other CA certificates that may be in use.
+
+### Create cluster secrets
+
+Once the cluster is up and correctly configured, use kubectl to add the serving certs as secrets.
 
 ```
 $ kubectl create secret tls dex.example.com.tls --cert=ssl/cert.pem --key=ssl/key.pem
@@ -83,6 +131,8 @@ $ kubectl create secret \
     --from-literal=client-id=$GITHUB_CLIENT_ID \
     --from-literal=client-secret=$GITHUB_CLIENT_SECRET
 ```
+
+### Deploy the Dex server
 
 Create the dex deployment, configmap, and node port service.
 
