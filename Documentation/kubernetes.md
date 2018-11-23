@@ -48,7 +48,7 @@ Additional notes:
 
 The dex repo contains scripts for running dex on a Kubernetes cluster with authentication through GitHub. The dex service is exposed using a [node port][node-port] on port 32000. This likely requires a custom `/etc/hosts` entry pointed at one of the cluster's workers.
 
-Because dex uses `ThirdPartyResources` to store state, no external database is needed. For more details see the [storage documentation](storage.md#kubernetes-third-party-resources).
+Because dex uses [CRDs](https://kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definitions/) to store state, no external database is needed. For more details see the [storage documentation](storage.md#kubernetes-third-party-resources).
 
 There are many different ways to spin up a Kubernetes development cluster, each with different host requirements and support for API server reconfiguration. At this time, this guide does not have copy-pastable examples, but can recommend the following methods for spinning up a cluster:
 
@@ -61,7 +61,6 @@ To run dex on Kubernetes perform the following steps:
 2. Spin up a Kubernetes cluster with the appropriate flags and CA volume mount.
 3. Create secrets for TLS and for your [GitHub OAuth2 client credentials][github-oauth2].
 4. Deploy dex.
-5. Create and assign 'dex' cluster role to dex service account ([to enable dex to manage its CRDs, if RBAC authorization is used](https://github.com/dexidp/dex/blob/master/Documentation/storage.md#kubernetes-custom-resource-definitions-crds)).
 
 ### Generate TLS assets
 
@@ -140,7 +139,7 @@ Create the dex deployment, configmap, and node port service.
 $ kubectl create -f dex.yaml
 ```
 
-Assign cluster role to dex service account so it can create third party resources [Kubernetes third party resources](storage.md).
+The Dex pod requires access to manage [Custom Resource Definitions](https://github.com/dexidp/dex/blob/master/Documentation/storage.md#kubernetes-custom-resource-definitions-crds) within Kubernetes, so the example manifest also creates a service account and RBAC role bindings to provide these permissions.
 
 __Caveats:__ No health checking is configured because dex does its own TLS termination complicating the setup. This is a known issue and can be tracked [here][dex-healthz].
 

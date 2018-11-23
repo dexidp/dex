@@ -115,11 +115,15 @@ subjects:
 ```
 
 
-## Kubernetes third party resources(TPRs)
+## DEPRECATED: Kubernetes third party resources(TPRs)
 
-__NOTE:__ TPRs will be deprecated by Kubernetes version 1.8.
+__NOTE:__ TPRs are deprecated as of Kubernetes version 1.8.
 
-The default behavior of dex from release v2.7.0 onwards is to utitlize CRDs to manage its custom resources. If users would like to use dex with a Kubernetes version lower than 1.7, they will have to force dex to use TPRs instead of CRDs by setting the `UseTPR` flag in the storage configuration as shown below:
+The default behavior of dex from release v2.7.0 onwards is to utilize CRDs to manage its custom resources. If users would like to use dex with a Kubernetes version lower than 1.7, they will have to force dex to use TPRs instead of CRDs.
+
+These instructions have been preserved for anybody who needs to use an older version of Dex and/or Kubernetes, but this is not the recommended approach. See [Migrating from TPRs to CRDs](#migrating-from-tprs-to-crds) below for information on migrating an existing installation to the new approach.
+
+If you do wish to use TPRs, you may do so by setting the `UseTPR` flag in the storage configuration as shown below:
 
 ```
 storage:
