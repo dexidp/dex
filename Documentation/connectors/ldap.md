@@ -262,7 +262,7 @@ connectors:
     # freeIPA server's CA
     rootCA: ca.crt
     userSearch:
-      # Would translate to the query "(&(objectClass=person)(uid=<username>))".
+      # Would translate to the query "(&(objectClass=posixAccount)(uid=<username>))".
       baseDN: cn=users,dc=freeipa,dc=example,dc=com
       filter: "(objectClass=posixAccount)"
       username: uid
