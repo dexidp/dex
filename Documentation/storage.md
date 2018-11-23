@@ -38,9 +38,9 @@ Etcd storage can be customized further using the following options:
 
 ## Kubernetes custom resource definitions (CRDs)
 
-__NOTE:__ CRDs are only supported by Kubernetes version 1.7+.
+Kubernetes [custom resource definitions](crd) are a way for applications to create new resources types in the Kubernetes API.
 
-Kubernetes [custom resource definitions](crd) are a way for applications to create new resources types in the Kubernetes API. The Custom Resource Definition (CRD) API object was introduced in Kubernetes version 1.7 to replace the Third Party Resource (TPR) extension. CRDs allows dex to run on top of an existing Kubernetes cluster without the need for an external database. While this storage may not be appropriate for a large number of users, it's extremely effective for many Kubernetes use cases.
+The Custom Resource Definition (CRD) API object was introduced in Kubernetes version 1.7 to replace the Third Party Resource (TPR) extension. CRDs allow dex to run on top of an existing Kubernetes cluster without the need for an external database. While this storage may not be appropriate for a large number of users, it's extremely effective for many Kubernetes use cases.
 
 The rest of this section will explore internal details of how dex uses CRDs. __Admins should not interact with these resources directly__, except while debugging. These resources are only designed to store state and aren't meant to be consumed by end users. For modifying dex's state dynamically see the [API documentation](api.md).
 

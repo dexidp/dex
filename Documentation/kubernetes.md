@@ -14,7 +14,7 @@ The authentication flow looks like:
 3. Kubernetes uses dex's public keys to verify the ID Token.
 4. A claim designated as the username (and optionally group information) will be associated with that request.
 
-Username and group information can be combined with Kubernetes [authorization plugins][k8s-authz], such as roles based access control (RBAC), to enforce policy.
+Username and group information can be combined with Kubernetes [authorization plugins][k8s-authz], such as role based access control (RBAC), to enforce policy.
 
 ## Configuring the OpenID Connect plugin
 
@@ -133,13 +133,11 @@ $ kubectl create secret \
 
 ### Deploy the Dex server
 
-Create the dex deployment, configmap, and node port service.
+Create the dex deployment, configmap, and node port service. This will also create RBAC bindings allowing the Dex pod access to manage [Custom Resource Definitions](https://github.com/dexidp/dex/blob/master/Documentation/storage.md#kubernetes-custom-resource-definitions-crds) within Kubernetes.
 
 ```
 $ kubectl create -f dex.yaml
 ```
-
-The Dex pod requires access to manage [Custom Resource Definitions](https://github.com/dexidp/dex/blob/master/Documentation/storage.md#kubernetes-custom-resource-definitions-crds) within Kubernetes, so the example manifest also creates a service account and RBAC role bindings to provide these permissions.
 
 __Caveats:__ No health checking is configured because dex does its own TLS termination complicating the setup. This is a known issue and can be tracked [here][dex-healthz].
 
