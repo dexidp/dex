@@ -133,7 +133,7 @@ $ kubectl create secret \
 
 ### Deploy the Dex server
 
-Create the dex deployment, configmap, and node port service. This will also create RBAC bindings allowing the Dex pod access to manage [Custom Resource Definitions](https://github.com/dexidp/dex/blob/master/Documentation/storage.md#kubernetes-custom-resource-definitions-crds) within Kubernetes.
+Create the dex deployment, configmap, and node port service. This will also create RBAC bindings allowing the Dex pod access to manage [Custom Resource Definitions](storage.md#kubernetes-custom-resource-definitions-crds) within Kubernetes.
 
 ```
 $ kubectl create -f dex.yaml
