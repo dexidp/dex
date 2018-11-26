@@ -41,9 +41,8 @@ message UpdateClientReq {
     string id = 1;
     repeated string redirect_uris = 2;
     repeated string trusted_peers = 3;
-    bool public = 4;
-    string name = 5;
-    string logo_url = 6;
+    string name = 4;
+    string logo_url = 5;
 }
 
 // UpdateClientResp returns the reponse form updating a client.
