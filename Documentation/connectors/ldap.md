@@ -43,7 +43,7 @@ Dex currently allows insecure connections because the project is still verifying
 
 User entries are expected to have an email attribute (configurable through `emailAttr`), and a display name attribute (configurable through `nameAttr`). `*Attr` attributes could be set to "DN" in situations where it is needed but not available elsewhere, and if "DN" attribute does not exist in the record.
 
-For the purposes of configuring this connector, "DN" is case-sensitive and should always be capitalised. This is treated as a special case because, while all other configuration values refer to single attributes on an entity, an LDAP Distinguished Name consists of multiple attributes which uniquely identify a resource.
+For the purposes of configuring this connector, "DN" is case-sensitive and should always be capitalised.
 
 The following is an example config file that can be used by the LDAP connector to authenticate a user.
 
