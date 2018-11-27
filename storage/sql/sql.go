@@ -82,6 +82,8 @@ var (
 				}
 
 				if err := fn(tx); err != nil {
+					_ = tx.Rollback()
+
 					if isRetryableSerializationFailure(err) {
 						continue
 					}

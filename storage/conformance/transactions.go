@@ -40,17 +40,24 @@ func testClientConcurrentUpdate(t *testing.T, s storage.Storage) {
 
 	var err1, err2 error
 
+	attempts := 0
 	err1 = s.UpdateClient(c.ID, func(old storage.Client) (storage.Client, error) {
 		old.Secret = "new secret 1"
-		err2 = s.UpdateClient(c.ID, func(old storage.Client) (storage.Client, error) {
-			old.Secret = "new secret 2"
-			return old, nil
-		})
+
+		attempts++
+
+		if attempts < 10 {
+			err2 = s.UpdateClient(c.ID, func(old storage.Client) (storage.Client, error) {
+				old.Secret = "new secret 2"
+				return old, nil
+			})
+		}
+
 		return old, nil
 	})
 
-	if (err1 == nil) == (err2 == nil) {
-		t.Errorf("update client:\nupdate1: %v\nupdate2: %v\n", err1, err2)
+	if attempts != 10 {
+		t.Errorf("update should have succeeded after 10 attempts\n\nupdate1: %v\nupdate2: %v\n", err1, err2)
 	}
 }
 
@@ -83,17 +90,24 @@ func testAuthRequestConcurrentUpdate(t *testing.T, s storage.Storage) {
 
 	var err1, err2 error
 
+	attempts := 0
 	err1 = s.UpdateAuthRequest(a.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
 		old.State = "state 1"
-		err2 = s.UpdateAuthRequest(a.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
-			old.State = "state 2"
-			return old, nil
-		})
+
+		attempts++
+
+		if attempts < 10 {
+			err2 = s.UpdateAuthRequest(a.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
+				old.State = "state 2"
+				return old, nil
+			})
+		}
+
 		return old, nil
 	})
 
-	if (err1 == nil) == (err2 == nil) {
-		t.Errorf("update auth request:\nupdate1: %v\nupdate2: %v\n", err1, err2)
+	if attempts != 10 {
+		t.Errorf("update should have succeeded after 10 attempts\n\nupdate1: %v\nupdate2: %v\n", err1, err2)
 	}
 }
 
@@ -116,17 +130,24 @@ func testPasswordConcurrentUpdate(t *testing.T, s storage.Storage) {
 
 	var err1, err2 error
 
+	attempts := 0
 	err1 = s.UpdatePassword(password.Email, func(old storage.Password) (storage.Password, error) {
 		old.Username = "user 1"
-		err2 = s.UpdatePassword(password.Email, func(old storage.Password) (storage.Password, error) {
-			old.Username = "user 2"
-			return old, nil
-		})
+
+		attempts++
+
+		if attempts < 10 {
+			err2 = s.UpdatePassword(password.Email, func(old storage.Password) (storage.Password, error) {
+				old.Username = "user 2"
+				return old, nil
+			})
+		}
+
 		return old, nil
 	})
 
-	if (err1 == nil) == (err2 == nil) {
-		t.Errorf("update password: concurrent updates both returned no error")
+	if attempts != 10 {
+		t.Errorf("update should have succeeded after 10 attempts\n\nupdate1: %v\nupdate2: %v\n", err1, err2)
 	}
 }
 
@@ -158,15 +179,21 @@ func testKeysConcurrentUpdate(t *testing.T, s storage.Storage) {
 
 		var err1, err2 error
 
+		attempts := 0
 		err1 = s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
-			err2 = s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
-				return keys1, nil
-			})
+			attempts++
+
+			if attempts < 10 {
+				err2 = s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
+					return keys1, nil
+				})
+			}
+
 			return keys2, nil
 		})
 
-		if (err1 == nil) == (err2 == nil) {
-			t.Errorf("update keys: concurrent updates both returned no error")
+		if attempts != 10 {
+			t.Errorf("update should have succeeded after 10 attempts\n\nupdate1: %v\nupdate2: %v\n", err1, err2)
 		}
 	}
 }
