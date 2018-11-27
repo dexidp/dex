@@ -80,6 +80,37 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 	}, nil
 }
 
+func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*api.UpdateClientResp, error) {
+	if req.Id == "" {
+		return nil, errors.New("update client: no client ID supplied")
+	}
+
+	err := d.s.UpdateClient(req.Id, func(old storage.Client) (storage.Client, error) {
+		if req.RedirectUris != nil {
+			old.RedirectURIs = req.RedirectUris
+		}
+		if req.TrustedPeers != nil {
+			old.TrustedPeers = req.TrustedPeers
+		}
+		if req.Name != "" {
+			old.Name = req.Name
+		}
+		if req.LogoUrl != "" {
+			old.LogoURL = req.LogoUrl
+		}
+		return old, nil
+	})
+
+	if err != nil {
+		if err == storage.ErrNotFound {
+			return &api.UpdateClientResp{NotFound: true}, nil
+		}
+		d.logger.Errorf("api: failed to update the client: %v", err)
+		return nil, fmt.Errorf("update client: %v", err)
+	}
+	return &api.UpdateClientResp{}, nil
+}
+
 func (d dexAPI) DeleteClient(ctx context.Context, req *api.DeleteClientReq) (*api.DeleteClientResp, error) {
 	err := d.s.DeleteClient(req.Id)
 	if err != nil {
