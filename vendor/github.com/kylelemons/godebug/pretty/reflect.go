@@ -38,12 +38,19 @@ func (c *Config) val2node(val reflect.Value) node {
 
 	if val.CanInterface() {
 		v := val.Interface()
-		if s, ok := v.(fmt.Stringer); ok && c.PrintStringers {
-			return stringVal(s.String())
-		}
-		if t, ok := v.(encoding.TextMarshaler); ok && c.PrintTextMarshalers {
-			if raw, err := t.MarshalText(); err == nil { // if NOT an error
-				return stringVal(string(raw))
+		if formatter, ok := c.Formatter[val.Type()]; ok {
+			if formatter != nil {
+				res := reflect.ValueOf(formatter).Call([]reflect.Value{val})
+				return rawVal(res[0].Interface().(string))
+			}
+		} else {
+			if s, ok := v.(fmt.Stringer); ok && c.PrintStringers {
+				return stringVal(s.String())
+			}
+			if t, ok := v.(encoding.TextMarshaler); ok && c.PrintTextMarshalers {
+				if raw, err := t.MarshalText(); err == nil { // if NOT an error
+					return stringVal(string(raw))
+				}
 			}
 		}
 	}
