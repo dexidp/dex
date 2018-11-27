@@ -34,8 +34,7 @@ release-binary:
 
 .PHONY: revendor
 revendor:
-	@glide up -v
-	@glide-vc --use-lock-file --no-tests --only-code
+	@dep ensure -update -v
 
 test:
 	@go test -v -i $(shell go list ./... | grep -v '/vendor/')

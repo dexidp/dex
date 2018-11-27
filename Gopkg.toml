@@ -1,0 +1,89 @@
+# Gopkg.toml example
+#
+# Refer to https://golang.github.io/dep/docs/Gopkg.toml.html
+# for detailed Gopkg.toml documentation.
+#
+
+# etcd driver
+
+[[constraint]]
+  name = "github.com/coreos/etcd"
+  version = "3.2.9"
+
+# Monitoring
+
+[[constraint]]
+  name = "github.com/felixge/httpsnoop"
+  version = "1.0.0"
+
+[[constraint]]
+  name = "github.com/grpc-ecosystem/go-grpc-prometheus"
+  version = "1.1.0"
+
+[[constraint]]
+  name = "github.com/prometheus/client_golang"
+  version = "0.8.0"
+
+# Structured logging
+
+[[constraint]]
+  name = "github.com/sirupsen/logrus"
+  version = "1.0.2"
+
+# Used for parsing configs
+
+[[constraint]]
+  name = "github.com/ghodss/yaml"
+  version = "1.0.0"
+
+# Router used by the server
+
+[[constraint]]
+  name = "github.com/gorilla/handlers"
+  version = "1.2.0"
+
+# Command Line Interface (CLI)
+
+[[override]]
+  name = "github.com/inconshreveable/mousetrap"
+  version = "1.0.0"
+
+# XML signature validation for SAML connector
+
+[[override]]
+  name = "github.com/jonboulle/clockwork"
+  version = "0.1.0"
+
+# SQL drivers
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/lib/pq"
+
+# gRPC API
+
+[[constraint]]
+  name = "google.golang.org/grpc"
+  version = "1.2.1"
+
+# LDAP
+
+[[override]]
+  name = "gopkg.in/asn1-ber.v1"
+  version = "1.1.0"
+
+[[constraint]]
+  name = "gopkg.in/ldap.v2"
+  version = "2.5.1"
+
+# JOSE functionality (JWKs, JWTs, etc.)
+
+[[constraint]]
+  name = "gopkg.in/square/go-jose.v2"
+  version = "2.1.8"
+
+
+[prune]
+  go-tests = true
+  non-go = true
+  unused-packages = true
