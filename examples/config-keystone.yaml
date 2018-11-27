@@ -14,7 +14,11 @@ storage:
 
 # Configuration for the HTTP endpoints.
 web:
-  http: 0.0.0.0:5556
+  https: 0.0.0.0:5556
+  # Uncomment for HTTPS options.
+  # https: 127.0.0.1:5554
+  tlsCert: ./ssl/dex.crt
+  tlsKey: ./ssl/dex.key
 
 # Configuration for telemetry
 telemetry:
@@ -32,13 +36,20 @@ staticClients:
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
 
 #Provide Keystone connector and its config here
+# /v3/auth/tokens
 connectors:
-- type: ksconfig
+- type: keystone
   id: keystone
   name: Keystone
   config:
-    keystoneURI: http://example:5000/v3/auth/tokens
+    keystoneHost: http://localhost:5000
     domain: default
+    keystoneUsername: demo
+    keystonePassword: DEMO_PASS
 
 # Let dex keep a list of passwords which can be used to login to dex.
 enablePasswordDB: true
+
+oauth2:
+  skipApprovalScreen: true
+

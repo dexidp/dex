@@ -434,7 +434,7 @@ type ConnectorConfig interface {
 // ConnectorsConfig variable provides an easy way to return a config struct
 // depending on the connector type.
 var ConnectorsConfig = map[string]func() ConnectorConfig{
-	"ksconfig":        func() ConnectorConfig { return new(keystone.Config) },
+	"keystone":        func() ConnectorConfig { return new(keystone.Config) },
 	"mockCallback":    func() ConnectorConfig { return new(mock.CallbackConfig) },
 	"mockPassword":    func() ConnectorConfig { return new(mock.PasswordConfig) },
 	"ldap":            func() ConnectorConfig { return new(ldap.Config) },
@@ -456,7 +456,7 @@ func openConnector(logger logrus.FieldLogger, conn storage.Connector) (connector
 
 	f, ok := ConnectorsConfig[conn.Type]
 	if !ok {
-		return c, fmt.Errorf("unknown connector type %q", conn.Type)
+		return c, fmt.Errorf("xunknown connector type %q", conn.Type)
 	}
 
 	connConfig := f()
