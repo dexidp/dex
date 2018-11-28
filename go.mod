@@ -46,12 +46,14 @@ require (
 	github.com/ugorji/go/codec v0.0.0-20181127175209-856da096dbdf // indirect
 	github.com/xiang90/probing v0.0.0-20160813154853-07dd2e8dfe18 // indirect
 	golang.org/x/crypto v0.0.0-20160711182412-2c99acdd1e9b
+	golang.org/x/lint v0.0.0-20181026193005-c67002cb31c3
 	golang.org/x/net v0.0.0-20170413175226-5602c733f70a
 	golang.org/x/oauth2 v0.0.0-20160718223228-08c8d727d239
 	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f // indirect
 	golang.org/x/sys v0.0.0-20151211033651-833a04a10549 // indirect
 	golang.org/x/text v0.0.0-20170401064109-f4b4367115ec // indirect
 	golang.org/x/time v0.0.0-20181108054448-85acf8d2951c // indirect
+	golang.org/x/tools v0.0.0-20181201035826-d0ca3933b724 // indirect
 	google.golang.org/appengine v0.0.0-20160621060416-267c27e74922 // indirect
 	google.golang.org/genproto v0.0.0-20170404132009-411e09b969b1 // indirect
 	google.golang.org/grpc v0.0.0-20170413033559-0e8b58d22f34

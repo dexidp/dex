@@ -1,0 +1,10 @@
+language: go
+
+install:
+  - go get -d -v ./...
+  - go get -u github.com/stretchr/testify/require
+
+go:
+  - 1.5
+  - 1.6
+  - tip
