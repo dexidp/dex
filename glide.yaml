@@ -114,7 +114,7 @@ import:
 - package: github.com/mattn/go-sqlite3
   version: 3fb7a0e792edd47bf0cf1e919dfc14e2be412e15
 - package: github.com/lib/pq
-  version: 9eb73efc1fcc404148b56765b0d3f61d9a5ef8ee
+  version: 50761b0867bd1d9d069276790bcd4a3bccf2324a
 
 # etcd driver
 - package: github.com/coreos/etcd
