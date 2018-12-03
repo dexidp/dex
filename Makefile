@@ -39,23 +39,19 @@ revendor:
 	@go mod verify
 
 test:
-	@go test -v -i $(shell go list ./... | grep -v '/vendor/')
-	@go test -v $(shell go list ./... | grep -v '/vendor/')
+	@go test -v ./...
 
 testrace:
-	@go test -v -i --race $(shell go list ./... | grep -v '/vendor/')
-	@go test -v --race $(shell go list ./... | grep -v '/vendor/')
+	@go test -v --race ./...
 
 vet:
-	@go vet $(shell go list ./... | grep -v '/vendor/')
+	@go vet ./...
 
 fmt:
-	@./scripts/gofmt $(shell go list ./... | grep -v '/vendor/')
+	@./scripts/gofmt ./...
 
 lint: bin/golint
-	@for package in $(shell go list ./... | grep -v '/vendor/' | grep -v '/api' | grep -v '/server/internal'); do \
-      ./bin/golint -set_exit_status $$package $$i || exit 1; \
-	done
+	@./bin/golint -set_exit_status $(shell go list ./...)
 
 .PHONY: docker-image
 docker-image:
