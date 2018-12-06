@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/lib/pq"
 	sqlite3 "github.com/mattn/go-sqlite3"
@@ -88,6 +89,13 @@ type Postgres struct {
 	SSL PostgresSSL `json:"ssl" yaml:"ssl"`
 
 	ConnectionTimeout int // Seconds
+
+	// database/sql tunables, see
+	// https://golang.org/pkg/database/sql/#DB.SetConnMaxLifetime and below
+	// Note: defaults will be set if these are 0
+	MaxOpenConns    int // default: 5
+	MaxIdleConns    int // default: 5
+	ConnMaxLifetime int // Seconds, default: not set
 }
 
 // Open creates a new storage implementation backed by Postgres.
@@ -175,6 +183,23 @@ func (p *Postgres) open(logger logrus.FieldLogger, dataSourceName string) (*conn
 	db, err := sql.Open("postgres", dataSourceName)
 	if err != nil {
 		return nil, err
+	}
+
+	// set database/sql tunables if configured
+	if p.ConnMaxLifetime != 0 {
+		db.SetConnMaxLifetime(time.Duration(p.ConnMaxLifetime) * time.Second)
+	}
+
+	if p.MaxIdleConns == 0 {
+		db.SetMaxIdleConns(5)
+	} else {
+		db.SetMaxIdleConns(p.MaxIdleConns)
+	}
+
+	if p.MaxOpenConns == 0 {
+		db.SetMaxOpenConns(5)
+	} else {
+		db.SetMaxOpenConns(p.MaxOpenConns)
 	}
 
 	errCheck := func(err error) bool {
