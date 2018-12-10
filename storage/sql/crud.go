@@ -140,10 +140,16 @@ func (c *conn) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) 
 			return err
 		}
 
+        err = c.flavor.lockForUpdate(tx, "auth_request", "id", r.ID)
+        if err != nil {
+                return fmt.Errorf("update auth request: %v", err)
+        }
+
 		a, err := updater(r)
 		if err != nil {
 			return err
 		}
+
 		_, err = tx.Exec(`
 			update auth_request
 			set
@@ -380,14 +386,24 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 		firstUpdate := false
 		// TODO(ericchiang): errors may cause a transaction be rolled back by the SQL
 		// server. Test this, and consider adding a COUNT() command beforehand.
-		old, err := getKeys(tx)
-		if err != nil {
-			if err != storage.ErrNotFound {
-				return fmt.Errorf("get keys: %v", err)
-			}
-			firstUpdate = true
-			old = storage.Keys{}
-		}
+        old := storage.Keys{}
+        err := c.flavor.lockForUpdate(tx, "keys", "id", keysRowID)
+        if err != nil {
+            if err != storage.ErrNotFound {
+                return fmt.Errorf("get keys: %v", err)
+            }
+
+            firstUpdate = true
+        } else {
+            old, err = getKeys(tx)
+            if err != nil {
+                if err != storage.ErrNotFound {
+                    return fmt.Errorf("get keys: %v", err)
+                }
+
+                firstUpdate = true
+            }
+        }
 
 		nk, err := updater(old)
 		if err != nil {
@@ -457,6 +473,12 @@ func (c *conn) UpdateClient(id string, updater func(old storage.Client) (storage
 		if err != nil {
 			return err
 		}
+
+        err = c.flavor.lockForUpdate(tx, "client", "id", id)
+        if err != nil {
+                return fmt.Errorf("update client: %v", err)
+        }
+
 		nc, err := updater(cli)
 		if err != nil {
 			return err
@@ -576,6 +598,11 @@ func (c *conn) UpdatePassword(email string, updater func(p storage.Password) (st
 		if err != nil {
 			return err
 		}
+
+        err = c.flavor.lockForUpdate(tx, "password", "email", p.Email)
+        if err != nil {
+            return fmt.Errorf("update password: %v", err)
+        }
 
 		np, err := updater(p)
 		if err != nil {
