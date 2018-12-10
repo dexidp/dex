@@ -47,10 +47,10 @@ var (
 	// The "github.com/lib/pq" driver is the default flavor. All others are
 	// translations of this.
 	flavorPostgres = flavor{
-	lockForUpdate: func(tx *trans, table, column, value string) error {
-	    _, err := tx.Exec("SELECT 1 FROM "+table+" WHERE "+column+" = $1 FOR UPDATE NOWAIT;", value)
-	    return err
-	},
+		lockForUpdate: func(tx *trans, table, column, value string) error {
+			_, err := tx.Exec("SELECT 1 FROM "+table+" WHERE "+column+" = $1 FOR UPDATE NOWAIT;", value)
+			return err
+		},
 
 		supportsTimezones: true,
 	}
