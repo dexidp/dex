@@ -19,11 +19,9 @@ import (
 type flavor struct {
 	queryReplacers []replacer
 
-	// Optional function to create and finish a transaction.
-	executeTx func(db *sql.DB, fn func(*sql.Tx) error) error
-
-	// Function for locking rows. It must return error if locking failed. If underlying
-	// database doesn't support locking (sqlite3) just make an empty implementation.
+	// Function for locking specific rows in table, which column has specified value. It must
+	// return error if locking failed. If underlying database doesn't support locking (sqlite3)
+	// just make an empty implementation.
 	lockForUpdate func(tx *trans, table, column, value string) error
 
 	// Does the flavor support timezones?
@@ -131,12 +129,6 @@ func (c *conn) QueryRow(query string, args ...interface{}) *sql.Row {
 
 // ExecTx runs a method which operates on a transaction.
 func (c *conn) ExecTx(fn func(tx *trans) error) error {
-	if c.flavor.executeTx != nil {
-		return c.flavor.executeTx(c.db, func(sqlTx *sql.Tx) error {
-			return fn(&trans{sqlTx, c})
-		})
-	}
-
 	sqlTx, err := c.db.Begin()
 	if err != nil {
 		return err
