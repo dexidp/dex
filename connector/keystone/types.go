@@ -4,133 +4,84 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type Connector struct {
-	Domain 			 string
-	KeystoneHost 	 string
+type keystoneConnector struct {
+	Domain           string
+	KeystoneHost     string
 	KeystoneUsername string
 	KeystonePassword string
-	Logger 			 logrus.FieldLogger
+	Logger           logrus.FieldLogger
 }
 
-type ConnectorData struct {
-	AccessToken string `json:"accessToken"`
+type userKeystone struct {
+	Domain domainKeystone `json:"domain"`
+	ID     string         `json:"id"`
+	Name   string         `json:"name"`
 }
 
-type KeystoneUser struct {
-	Domain KeystoneDomain `json:"domain"`
-	ID 	   string 		  `json:"id"`
-	Name   string 		  `json:"name"`
-}
-
-type KeystoneDomain struct {
-	ID string   `json:"id"`
+type domainKeystone struct {
+	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
+// Config holds the configuration parameters for Keystone connector.
+// Keystone should expose API v3
+// An example config:
+//	connectors:
+//		type: keystone
+//		id: keystone
+//		name: Keystone
+//		config:
+//			keystoneHost: http://example:5000
+//			domain: default
+//      keystoneUsername: demo
+//      keystonePassword: DEMO_PASS
 type Config struct {
-	Domain 			 string `json:"domain"`
-	KeystoneHost 	 string `json:"keystoneHost"`
+	Domain           string `json:"domain"`
+	KeystoneHost     string `json:"keystoneHost"`
 	KeystoneUsername string `json:"keystoneUsername"`
 	KeystonePassword string `json:"keystonePassword"`
 }
 
-type LoginRequestData struct {
-	Auth `json:"auth"`
+type loginRequestData struct {
+	auth `json:"auth"`
 }
 
-type Auth struct {
-	Identity `json:"identity"`
+type auth struct {
+	Identity identity `json:"identity"`
 }
 
-type Identity struct {
+type identity struct {
 	Methods  []string `json:"methods"`
-	Password 		  `json:"password"`
+	Password password `json:"password"`
 }
 
-type Password struct {
-	User `json:"user"`
+type password struct {
+	User user `json:"user"`
 }
 
-type User struct {
-	Name   string 	`json:"name"`
-	Domain 			`json:"domain"`
-	Password string `json:"password"`
-}
-
-type Domain struct {
-	ID string `json:"id"`
-}
-
-type Token struct {
-	IssuedAt  string 	   			 `json:"issued_at"`
-	Extras 	  map[string]interface{} `json:"extras"`
-	Methods   []string 	   			 `json:"methods"`
-	ExpiresAt string 	   			 `json:"expires_at"`
-	User 	  KeystoneUser 			 `json:"user"`
-}
-
-type TokenResponse struct {
-	Token Token `json:"token"`
-}
-
-type CreateUserRequest struct {
-	CreateUser CreateUserForm  `json:"user"`
-}
-
-type CreateUserForm struct {
+type user struct {
 	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Enabled  bool   `json:"enabled"`
+	Domain   domain `json:"domain"`
 	Password string `json:"password"`
-	Roles  []string `json:"roles"`
 }
 
-type UserResponse struct {
-	User CreateUserResponse `json:"user"`
-}
-
-type CreateUserResponse struct {
-	Username string   `json:"username"`
-	Name 	 string   `json:"name"`
-	Roles 	 []string `json:"roles"`
-	Enabled  bool     `json:"enabled"`
-	Options  string   `json:"options"`
-	ID 		 string   `json:"id"`
-	Email 	 string   `json:"email"`
-}
-
-type CreateGroup struct {
-	Group CreateGroupForm `json:"group"`
-}
-
-type CreateGroupForm struct {
-	Description string `json:"description"`
-	Name 		string `json:"name"`
-}
-
-type GroupID struct {
-	Group GroupIDForm `json:"group"`
-}
-
-type GroupIDForm struct {
+type domain struct {
 	ID string `json:"id"`
 }
 
-type Links struct {
-	Self string `json:"self"`
-	Previous string `json:"previous"`
-	Next string `json:"next"`
+type token struct {
+	User userKeystone `json:"user"`
 }
 
-type Group struct {
-	DomainID 	string `json:"domain_id`
-	Description string `json:"description"`
-	ID 			string `json:"id"`
-	Links 		Links  `json:"links"`
-	Name 		string `json:"name"`
+type tokenResponse struct {
+	Token token `json:"token"`
 }
 
-type GroupsResponse struct {
-	Links  Links   `json:"links"`
-	Groups []Group `json:"groups"`
+type group struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type groupsResponse struct {
+	Groups []group `json:"groups"`
 }

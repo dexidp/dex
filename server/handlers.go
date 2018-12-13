@@ -211,7 +211,6 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	authReqID := r.FormValue("req")
-  s.logger.Errorf("Auth req id %v", authReqID)
 
 	authReq, err := s.storage.GetAuthRequest(authReqID)
 	if err != nil {
@@ -346,7 +345,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 			s.renderError(w, http.StatusInternalServerError, "Requested resource does not exist.")
 			return
 		}
-		s.logger.Errorf("2Failed to get auth request: %v", err)
+		s.logger.Errorf("Failed to get auth request: %v", err)
 		s.renderError(w, http.StatusInternalServerError, "Database error.")
 		return
 	}
@@ -358,7 +357,6 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	}
 
 	conn, err := s.getConnector(authReq.ConnectorID)
-  s.logger.Errorf("X Connector %v", conn)
 	if err != nil {
 		s.logger.Errorf("Failed to get connector with id %q : %v", authReq.ConnectorID, err)
 		s.renderError(w, http.StatusInternalServerError, "Requested resource does not exist.")
@@ -437,7 +435,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 	authReq, err := s.storage.GetAuthRequest(r.FormValue("req"))
 	if err != nil {
-		s.logger.Errorf("3Failed to get auth request: %v", err)
+		s.logger.Errorf("Failed to get auth request: %v", err)
 		s.renderError(w, http.StatusInternalServerError, "Database error.")
 		return
 	}

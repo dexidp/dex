@@ -35,7 +35,6 @@ type Identity struct {
 	//
 	// This data is never shared with end users, OAuth clients, or through the API.
 	ConnectorData []byte
-	Password string
 }
 
 // PasswordConnector is an interface implemented by connectors which take a

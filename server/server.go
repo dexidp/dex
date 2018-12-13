@@ -27,6 +27,7 @@ import (
 	"github.com/dexidp/dex/connector/bitbucketcloud"
 	"github.com/dexidp/dex/connector/github"
 	"github.com/dexidp/dex/connector/gitlab"
+	"github.com/dexidp/dex/connector/keystone"
 	"github.com/dexidp/dex/connector/ldap"
 	"github.com/dexidp/dex/connector/linkedin"
 	"github.com/dexidp/dex/connector/microsoft"
@@ -34,7 +35,6 @@ import (
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/storage"
-  "github.com/dexidp/dex/connector/keystone"
 )
 
 // LocalConnector is the local passwordDB connector which is an internal
@@ -456,7 +456,7 @@ func openConnector(logger logrus.FieldLogger, conn storage.Connector) (connector
 
 	f, ok := ConnectorsConfig[conn.Type]
 	if !ok {
-		return c, fmt.Errorf("xunknown connector type %q", conn.Type)
+		return c, fmt.Errorf("unknown connector type %q", conn.Type)
 	}
 
 	connConfig := f()
