@@ -68,8 +68,9 @@ type Config struct {
 	// Logging in implies approval.
 	SkipApprovalScreen bool
 
-	RotateKeysAfter  time.Duration // Defaults to 6 hours.
-	IDTokensValidFor time.Duration // Defaults to 24 hours
+	RotateKeysAfter      time.Duration // Defaults to 6 hours.
+	IDTokensValidFor     time.Duration // Defaults to 24 hours
+	AuthRequestsValidFor time.Duration // Defaults to 24 hours
 
 	GCFrequency time.Duration // Defaults to 5 minutes
 
@@ -137,7 +138,8 @@ type Server struct {
 
 	now func() time.Time
 
-	idTokensValidFor time.Duration
+	idTokensValidFor     time.Duration
+	authRequestsValidFor time.Duration
 
 	logger logrus.FieldLogger
 }
@@ -197,6 +199,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		storage:                newKeyCacher(c.Storage, now),
 		supportedResponseTypes: supported,
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
+		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
 		skipApproval:           c.SkipApprovalScreen,
 		now:                    now,
 		templates:              tmpls,

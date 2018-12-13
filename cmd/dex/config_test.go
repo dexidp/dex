@@ -62,8 +62,9 @@ staticPasswords:
   userID: "41331323-6f44-45e6-b3b9-2c4b60c02be5"
 
 expiry:
-  signingKeys: "6h"
-  idTokens: "24h"
+  signingKeys: "7h"
+  idTokens: "25h"
+  authRequests: "25h"
 
 logger:
   level: "debug"
@@ -131,8 +132,9 @@ logger:
 			},
 		},
 		Expiry: Expiry{
-			SigningKeys: "6h",
-			IDTokens:    "24h",
+			SigningKeys:  "7h",
+			IDTokens:     "25h",
+			AuthRequests: "25h",
 		},
 		Logger: Logger{
 			Level:  "debug",

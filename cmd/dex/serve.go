@@ -242,6 +242,14 @@ func serve(cmd *cobra.Command, args []string) error {
 		logger.Infof("config id tokens valid for: %v", idTokens)
 		serverConfig.IDTokensValidFor = idTokens
 	}
+	if c.Expiry.AuthRequests != "" {
+		authRequests, err := time.ParseDuration(c.Expiry.AuthRequests)
+		if err != nil {
+			return fmt.Errorf("invalid config value %q for auth request expiry: %v", c.Expiry.AuthRequests, err)
+		}
+		logger.Infof("config auth requests valid for: %v", authRequests)
+		serverConfig.AuthRequestsValidFor = authRequests
+	}
 
 	serv, err := server.NewServer(context.Background(), serverConfig)
 	if err != nil {
