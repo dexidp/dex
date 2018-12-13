@@ -64,6 +64,7 @@ staticPasswords:
 expiry:
   signingKeys: "6h"
   idTokens: "24h"
+  authRequests: "24h"
 
 logger:
   level: "debug"
@@ -131,8 +132,9 @@ logger:
 			},
 		},
 		Expiry: Expiry{
-			SigningKeys: "6h",
-			IDTokens:    "24h",
+			SigningKeys:  "6h",
+			IDTokens:     "24h",
+			AuthRequests: "24h",
 		},
 		Logger: Logger{
 			Level:  "debug",

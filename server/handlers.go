@@ -160,7 +160,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	// screen too long.
 	//
 	// See: https://github.com/dexidp/dex/issues/646
-	authReq.Expiry = s.now().Add(24 * time.Hour) // Totally arbitrary value.
+	authReq.Expiry = s.now().Add(s.authRequestsValidFor)
 	if err := s.storage.CreateAuthRequest(authReq); err != nil {
 		s.logger.Errorf("Failed to create authorization request: %v", err)
 		s.renderError(w, http.StatusInternalServerError, "Failed to connect to the database.")

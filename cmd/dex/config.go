@@ -233,6 +233,9 @@ type Expiry struct {
 
 	// IdTokens defines the duration of time for which the IdTokens will be valid.
 	IDTokens string `json:"idTokens"`
+
+	// AuthRequests defines the duration of time for which the AuthRequests will be valid.
+	AuthRequests string `json:"authRequests"`
 }
 
 // Logger holds configuration required to customize logging for dex.
