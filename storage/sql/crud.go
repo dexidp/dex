@@ -389,20 +389,16 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 		old := storage.Keys{}
 		err := c.flavor.lockForUpdate(tx, "keys", "id", keysRowID)
 		if err != nil {
+			return fmt.Errorf("get keys: %v", err)
+		}
+
+		old, err = getKeys(tx)
+		if err != nil {
 			if err != storage.ErrNotFound {
 				return fmt.Errorf("get keys: %v", err)
 			}
 
 			firstUpdate = true
-		} else {
-			old, err = getKeys(tx)
-			if err != nil {
-				if err != storage.ErrNotFound {
-					return fmt.Errorf("get keys: %v", err)
-				}
-
-				firstUpdate = true
-			}
 		}
 
 		nk, err := updater(old)
