@@ -386,13 +386,12 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 		firstUpdate := false
 		// TODO(ericchiang): errors may cause a transaction be rolled back by the SQL
 		// server. Test this, and consider adding a COUNT() command beforehand.
-		old := storage.Keys{}
 		err := c.flavor.lockForUpdate(tx, "keys", "id", keysRowID)
 		if err != nil {
 			return fmt.Errorf("get keys: %v", err)
 		}
 
-		old, err = getKeys(tx)
+		old, err := getKeys(tx)
 		if err != nil {
 			if err != storage.ErrNotFound {
 				return fmt.Errorf("get keys: %v", err)
