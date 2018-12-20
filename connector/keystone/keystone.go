@@ -14,65 +14,148 @@ import (
 	"github.com/dexidp/dex/connector"
 )
 
+type conn struct {
+	Domain        string
+	Host          string
+	AdminUsername string
+	AdminPassword string
+	Logger        logrus.FieldLogger
+}
+
+type userKeystone struct {
+	Domain domainKeystone `json:"domain"`
+	ID     string         `json:"id"`
+	Name   string         `json:"name"`
+}
+
+type domainKeystone struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// Config holds the configuration parameters for Keystone connector.
+// Keystone should expose API v3
+// An example config:
+//	connectors:
+//		type: keystone
+//		id: keystone
+//		name: Keystone
+//		config:
+//			keystoneHost: http://example:5000
+//			domain: default
+//      keystoneUsername: demo
+//      keystonePassword: DEMO_PASS
+type Config struct {
+	Domain        string `json:"domain"`
+	Host          string `json:"keystoneHost"`
+	AdminUsername string `json:"keystoneUsername"`
+	AdminPassword string `json:"keystonePassword"`
+}
+
+type loginRequestData struct {
+	auth `json:"auth"`
+}
+
+type auth struct {
+	Identity identity `json:"identity"`
+}
+
+type identity struct {
+	Methods  []string `json:"methods"`
+	Password password `json:"password"`
+}
+
+type password struct {
+	User user `json:"user"`
+}
+
+type user struct {
+	Name     string `json:"name"`
+	Domain   domain `json:"domain"`
+	Password string `json:"password"`
+}
+
+type domain struct {
+	ID string `json:"id"`
+}
+
+type token struct {
+	User userKeystone `json:"user"`
+}
+
+type tokenResponse struct {
+	Token token `json:"token"`
+}
+
+type group struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type groupsResponse struct {
+	Groups []group `json:"groups"`
+}
+
 var (
-	_ connector.PasswordConnector = &keystoneConnector{}
-	_ connector.RefreshConnector  = &keystoneConnector{}
+	_ connector.PasswordConnector = &conn{}
+	_ connector.RefreshConnector  = &conn{}
 )
 
 // Open returns an authentication strategy using Keystone.
 func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
-	return &keystoneConnector{c.Domain, c.KeystoneHost,
-		c.KeystoneUsername, c.KeystonePassword, logger}, nil
+	return &conn{
+		c.Domain,
+		c.Host,
+		c.AdminUsername,
+		c.AdminPassword,
+		logger}, nil
 }
 
-func (p *keystoneConnector) Close() error { return nil }
+func (p *conn) Close() error { return nil }
 
-func (p *keystoneConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (
-	identity connector.Identity, validPassword bool, err error) {
+func (p *conn) Login(ctx context.Context, scopes connector.Scopes, username, password string) (identity connector.Identity, validPassword bool, err error) {
 	resp, err := p.getTokenResponse(ctx, username, password)
 	if err != nil {
 		return identity, false, fmt.Errorf("keystone: error %v", err)
 	}
-
-	// Providing wrong password or wrong keystone URI throws error
-	if resp.StatusCode == 201 {
-		token := resp.Header.Get("X-Subject-Token")
-		data, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return identity, false, err
-		}
-		defer resp.Body.Close()
-
-		var tokenResp = new(tokenResponse)
-		err = json.Unmarshal(data, &tokenResp)
-		if err != nil {
-			return identity, false, fmt.Errorf("keystone: invalid token response: %v", err)
-		}
+	if resp.StatusCode/100 != 2 {
+		return identity, false, fmt.Errorf("keystone login: error %v", resp.StatusCode)
+	}
+	if resp.StatusCode != 201 {
+		return identity, false, nil
+	}
+	token := resp.Header.Get("X-Subject-Token")
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return identity, false, err
+	}
+	defer resp.Body.Close()
+	var tokenResp = new(tokenResponse)
+	err = json.Unmarshal(data, &tokenResp)
+	if err != nil {
+		return identity, false, fmt.Errorf("keystone: invalid token response: %v", err)
+	}
+	if scopes.Groups {
 		groups, err := p.getUserGroups(ctx, tokenResp.Token.User.ID, token)
 		if err != nil {
 			return identity, false, err
 		}
-
-		identity.Username = username
-		identity.UserID = tokenResp.Token.User.ID
 		identity.Groups = groups
-		return identity, true, nil
-
 	}
-
-	return identity, false, nil
+	identity.Username = username
+	identity.UserID = tokenResp.Token.User.ID
+	return identity, true, nil
 }
 
-func (p *keystoneConnector) Prompt() string { return "username" }
+func (p *conn) Prompt() string { return "username" }
 
-func (p *keystoneConnector) Refresh(
-	ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+func (p *conn) Refresh(
+	ctx context.Context, scopes connector.Scopes, identity connector.Identity) (connector.Identity, error) {
 
 	token, err := p.getAdminToken(ctx)
 	if err != nil {
 		return identity, fmt.Errorf("keystone: failed to obtain admin token: %v", err)
 	}
-
 	ok, err := p.checkIfUserExists(ctx, identity.UserID, token)
 	if err != nil {
 		return identity, err
@@ -80,17 +163,17 @@ func (p *keystoneConnector) Refresh(
 	if !ok {
 		return identity, fmt.Errorf("keystone: user %q does not exist", identity.UserID)
 	}
-
-	groups, err := p.getUserGroups(ctx, identity.UserID, token)
-	if err != nil {
-		return identity, err
+	if scopes.Groups {
+		groups, err := p.getUserGroups(ctx, identity.UserID, token)
+		if err != nil {
+			return identity, err
+		}
+		identity.Groups = groups
 	}
-
-	identity.Groups = groups
 	return identity, nil
 }
 
-func (p *keystoneConnector) getTokenResponse(ctx context.Context, username, pass string) (response *http.Response, err error) {
+func (p *conn) getTokenResponse(ctx context.Context, username, pass string) (response *http.Response, err error) {
 	client := &http.Client{}
 	jsonData := loginRequestData{
 		auth: auth{
@@ -110,8 +193,8 @@ func (p *keystoneConnector) getTokenResponse(ctx context.Context, username, pass
 	if err != nil {
 		return nil, err
 	}
-
-	authTokenURL := p.KeystoneHost + "/v3/auth/tokens/"
+	// https://developer.openstack.org/api-ref/identity/v3/#password-authentication-with-unscoped-authorization
+	authTokenURL := p.Host + "/v3/auth/tokens/"
 	req, err := http.NewRequest("POST", authTokenURL, bytes.NewBuffer(jsonValue))
 	if err != nil {
 		return nil, err
@@ -123,8 +206,8 @@ func (p *keystoneConnector) getTokenResponse(ctx context.Context, username, pass
 	return client.Do(req)
 }
 
-func (p *keystoneConnector) getAdminToken(ctx context.Context) (string, error) {
-	resp, err := p.getTokenResponse(ctx, p.KeystoneUsername, p.KeystonePassword)
+func (p *conn) getAdminToken(ctx context.Context) (string, error) {
+	resp, err := p.getTokenResponse(ctx, p.AdminUsername, p.AdminPassword)
 	if err != nil {
 		return "", err
 	}
@@ -132,8 +215,9 @@ func (p *keystoneConnector) getAdminToken(ctx context.Context) (string, error) {
 	return token, nil
 }
 
-func (p *keystoneConnector) checkIfUserExists(ctx context.Context, userID string, token string) (bool, error) {
-	userURL := p.KeystoneHost + "/v3/users/" + userID
+func (p *conn) checkIfUserExists(ctx context.Context, userID string, token string) (bool, error) {
+	// https://developer.openstack.org/api-ref/identity/v3/#show-user-details
+	userURL := p.Host + "/v3/users/" + userID
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", userURL, nil)
 	if err != nil {
@@ -153,10 +237,10 @@ func (p *keystoneConnector) checkIfUserExists(ctx context.Context, userID string
 	return false, err
 }
 
-func (p *keystoneConnector) getUserGroups(ctx context.Context, userID string, token string) ([]string, error) {
+func (p *conn) getUserGroups(ctx context.Context, userID string, token string) ([]string, error) {
 	client := &http.Client{}
-	groupsURL := p.KeystoneHost + "/v3/users/" + userID + "/groups"
-
+	// https://developer.openstack.org/api-ref/identity/v3/#list-groups-to-which-a-user-belongs
+	groupsURL := p.Host + "/v3/users/" + userID + "/groups"
 	req, err := http.NewRequest("GET", groupsURL, nil)
 	req.Header.Set("X-Auth-Token", token)
 	req = req.WithContext(ctx)

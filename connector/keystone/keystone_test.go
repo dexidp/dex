@@ -16,8 +16,6 @@ import (
 )
 
 const (
-	adminUser   = "demo"
-	adminPass   = "DEMO_PASS"
 	invalidPass = "WRONG_PASS"
 
 	testUser   = "test_user"
@@ -30,6 +28,8 @@ const (
 var (
 	keystoneURL      = ""
 	keystoneAdminURL = ""
+	adminUser        = ""
+	adminPass        = ""
 	authTokenURL     = ""
 	usersURL         = ""
 	groupsURL        = ""
@@ -213,24 +213,31 @@ func addUserToGroup(t *testing.T, token, groupID, userID string) error {
 }
 
 func TestIncorrectCredentialsLogin(t *testing.T) {
-	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: testDomain,
-		KeystoneUsername: adminUser, KeystonePassword: adminPass}
+	setupVariables(t)
+	c := conn{Host: keystoneURL, Domain: testDomain,
+		AdminUsername: adminUser, AdminPassword: adminPass}
 	s := connector.Scopes{OfflineAccess: true, Groups: true}
 	_, validPW, err := c.Login(context.Background(), s, adminUser, invalidPass)
-	if err != nil {
-		t.Fatal(err.Error())
-	}
 
 	if validPW {
-		t.Fail()
+		t.Fatal("Incorrect password check")
+	}
+
+	if err == nil {
+		t.Fatal("Error should be returned when invalid password is provided")
+	}
+
+	if !strings.Contains(err.Error(), "401") {
+		t.Fatal("Unrecognized error, expecting 401")
 	}
 }
 
 func TestValidUserLogin(t *testing.T) {
+	setupVariables(t)
 	token, _ := getAdminToken(t, adminUser, adminPass)
 	userID := createUser(t, token, testUser, testEmail, testPass)
-	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: testDomain,
-		KeystoneUsername: adminUser, KeystonePassword: adminPass}
+	c := conn{Host: keystoneURL, Domain: testDomain,
+		AdminUsername: adminUser, AdminPassword: adminPass}
 	s := connector.Scopes{OfflineAccess: true, Groups: true}
 	identity, validPW, err := c.Login(context.Background(), s, testUser, testPass)
 	if err != nil {
@@ -239,18 +246,19 @@ func TestValidUserLogin(t *testing.T) {
 	t.Log(identity)
 
 	if !validPW {
-		t.Fail()
+		t.Fatal("Valid password was not accepted")
 	}
 	delete(t, token, userID, usersURL)
 }
 
 func TestUseRefreshToken(t *testing.T) {
+	setupVariables(t)
 	token, adminID := getAdminToken(t, adminUser, adminPass)
 	groupID := createGroup(t, token, "Test group description", testGroup)
 	addUserToGroup(t, token, groupID, adminID)
 
-	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: testDomain,
-		KeystoneUsername: adminUser, KeystonePassword: adminPass}
+	c := conn{Host: keystoneURL, Domain: testDomain,
+		AdminUsername: adminUser, AdminPassword: adminPass}
 	s := connector.Scopes{OfflineAccess: true, Groups: true}
 
 	identityLogin, _, err := c.Login(context.Background(), s, adminUser, adminPass)
@@ -270,11 +278,12 @@ func TestUseRefreshToken(t *testing.T) {
 }
 
 func TestUseRefreshTokenUserDeleted(t *testing.T) {
+	setupVariables(t)
 	token, _ := getAdminToken(t, adminUser, adminPass)
 	userID := createUser(t, token, testUser, testEmail, testPass)
 
-	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: testDomain,
-		KeystoneUsername: adminUser, KeystonePassword: adminPass}
+	c := conn{Host: keystoneURL, Domain: testDomain,
+		AdminUsername: adminUser, AdminPassword: adminPass}
 	s := connector.Scopes{OfflineAccess: true, Groups: true}
 
 	identityLogin, _, err := c.Login(context.Background(), s, testUser, testPass)
@@ -296,11 +305,12 @@ func TestUseRefreshTokenUserDeleted(t *testing.T) {
 }
 
 func TestUseRefreshTokenGroupsChanged(t *testing.T) {
+	setupVariables(t)
 	token, _ := getAdminToken(t, adminUser, adminPass)
 	userID := createUser(t, token, testUser, testEmail, testPass)
 
-	c := keystoneConnector{KeystoneHost: keystoneURL, Domain: testDomain,
-		KeystoneUsername: adminUser, KeystonePassword: adminPass}
+	c := conn{Host: keystoneURL, Domain: testDomain,
+		AdminUsername: adminUser, AdminPassword: adminPass}
 	s := connector.Scopes{OfflineAccess: true, Groups: true}
 
 	identityLogin, _, err := c.Login(context.Background(), s, testUser, testPass)
@@ -315,7 +325,7 @@ func TestUseRefreshTokenGroupsChanged(t *testing.T) {
 
 	expectEquals(t, 0, len(identityRefresh.Groups))
 
-	groupID := createGroup(t, token, "Test group description", testGroup)
+	groupID := createGroup(t, token, "Test group", testGroup)
 	addUserToGroup(t, token, groupID, userID)
 
 	identityRefresh, err = c.Refresh(context.Background(), s, identityLogin)
@@ -329,26 +339,62 @@ func TestUseRefreshTokenGroupsChanged(t *testing.T) {
 	expectEquals(t, 1, len(identityRefresh.Groups))
 }
 
-func TestMain(m *testing.M) {
+func TestNoGroupsInScope(t *testing.T) {
+	setupVariables(t)
+	token, _ := getAdminToken(t, adminUser, adminPass)
+	userID := createUser(t, token, testUser, testEmail, testPass)
+
+	c := conn{Host: keystoneURL, Domain: testDomain,
+		AdminUsername: adminUser, AdminPassword: adminPass}
+	s := connector.Scopes{OfflineAccess: true, Groups: false}
+
+	groupID := createGroup(t, token, "Test group", testGroup)
+	addUserToGroup(t, token, groupID, userID)
+
+	identityLogin, _, err := c.Login(context.Background(), s, testUser, testPass)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	expectEquals(t, 0, len(identityLogin.Groups))
+
+	identityRefresh, err := c.Refresh(context.Background(), s, identityLogin)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	expectEquals(t, 0, len(identityRefresh.Groups))
+
+	delete(t, token, groupID, groupsURL)
+	delete(t, token, userID, usersURL)
+}
+
+func setupVariables(t *testing.T) {
 	keystoneURLEnv := "DEX_KEYSTONE_URL"
 	keystoneAdminURLEnv := "DEX_KEYSTONE_ADMIN_URL"
+	keystoneAdminUserEnv := "DEX_KEYSTONE_ADMIN_USER"
+	keystoneAdminPassEnv := "DEX_KEYSTONE_ADMIN_PASS"
 	keystoneURL = os.Getenv(keystoneURLEnv)
 	if keystoneURL == "" {
-		fmt.Printf("variable %q not set, skipping keystone connector tests\n", keystoneURLEnv)
+		t.Skip(fmt.Sprintf("variable %q not set, skipping keystone connector tests\n", keystoneURLEnv))
 		return
 	}
-	keystoneAdminURL := os.Getenv(keystoneAdminURLEnv)
+	keystoneAdminURL = os.Getenv(keystoneAdminURLEnv)
 	if keystoneAdminURL == "" {
-		fmt.Printf("variable %q not set, skipping keystone connector tests\n", keystoneAdminURLEnv)
+		t.Skip(fmt.Sprintf("variable %q not set, skipping keystone connector tests\n", keystoneAdminURLEnv))
+		return
+	}
+	adminUser = os.Getenv(keystoneAdminUserEnv)
+	if adminUser == "" {
+		t.Skip(fmt.Sprintf("variable %q not set, skipping keystone connector tests\n", keystoneAdminUserEnv))
+		return
+	}
+	adminPass = os.Getenv(keystoneAdminPassEnv)
+	if adminPass == "" {
+		t.Skip(fmt.Sprintf("variable %q not set, skipping keystone connector tests\n", keystoneAdminPassEnv))
 		return
 	}
 	authTokenURL = keystoneURL + "/v3/auth/tokens/"
-	fmt.Printf("Auth token url %q\n", authTokenURL)
-	fmt.Printf("Keystone URL %q\n", keystoneURL)
 	usersURL = keystoneAdminURL + "/v3/users/"
 	groupsURL = keystoneAdminURL + "/v3/groups/"
-	// run all tests
-	m.Run()
 }
 
 func expectEquals(t *testing.T, a interface{}, b interface{}) {
