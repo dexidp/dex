@@ -261,7 +261,7 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := oidc.ClientContext(r.Context(), a.client)
 	oauth2Config := a.oauth2Config(nil)
 	switch r.Method {
-	case "GET":
+	case http.MethodGet:
 		// Authorization redirect callback from OAuth2 auth flow.
 		if errMsg := r.FormValue("error"); errMsg != "" {
 			http.Error(w, errMsg+": "+r.FormValue("error_description"), http.StatusBadRequest)
@@ -277,7 +277,7 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		token, err = oauth2Config.Exchange(ctx, code)
-	case "POST":
+	case http.MethodPost:
 		// Form request from frontend to refresh a token.
 		refresh := r.FormValue("refresh_token")
 		if refresh == "" {
