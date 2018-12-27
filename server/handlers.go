@@ -240,7 +240,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	showBacklink := len(s.connectors) > 1
 
 	switch r.Method {
-	case "GET":
+	case http.MethodGet:
 		switch conn := conn.Connector.(type) {
 		case connector.CallbackConnector:
 			// Use the auth request ID as the "state" token.
@@ -285,7 +285,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		default:
 			s.renderError(w, http.StatusBadRequest, "Requested resource does not exist.")
 		}
-	case "POST":
+	case http.MethodPost:
 		passwordConnector, ok := conn.Connector.(connector.PasswordConnector)
 		if !ok {
 			s.renderError(w, http.StatusBadRequest, "Requested resource does not exist.")
@@ -323,12 +323,12 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request) {
 	var authID string
 	switch r.Method {
-	case "GET": // OAuth2 callback
+	case http.MethodGet: // OAuth2 callback
 		if authID = r.URL.Query().Get("state"); authID == "" {
 			s.renderError(w, http.StatusBadRequest, "User session error.")
 			return
 		}
-	case "POST": // SAML POST binding
+	case http.MethodPost: // SAML POST binding
 		if authID = r.PostFormValue("RelayState"); authID == "" {
 			s.renderError(w, http.StatusBadRequest, "User session error.")
 			return
@@ -366,14 +366,14 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	var identity connector.Identity
 	switch conn := conn.Connector.(type) {
 	case connector.CallbackConnector:
-		if r.Method != "GET" {
+		if r.Method != http.MethodGet {
 			s.logger.Errorf("SAML request mapped to OAuth2 connector")
 			s.renderError(w, http.StatusBadRequest, "Invalid request")
 			return
 		}
 		identity, err = conn.HandleCallback(parseScopes(authReq.Scopes), r)
 	case connector.SAMLConnector:
-		if r.Method != "POST" {
+		if r.Method != http.MethodPost {
 			s.logger.Errorf("OAuth2 request mapped to SAML connector")
 			s.renderError(w, http.StatusBadRequest, "Invalid request")
 			return
@@ -446,7 +446,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch r.Method {
-	case "GET":
+	case http.MethodGet:
 		if s.skipApproval {
 			s.sendCodeResponse(w, r, authReq)
 			return
@@ -460,7 +460,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		if err := s.templates.approval(w, authReq.ID, authReq.Claims.Username, client.Name, authReq.Scopes); err != nil {
 			s.logger.Errorf("Server template error: %v", err)
 		}
-	case "POST":
+	case http.MethodPost:
 		if r.FormValue("approval") != "approve" {
 			s.renderError(w, http.StatusInternalServerError, "Approval rejected.")
 			return
