@@ -123,6 +123,68 @@ userpassword: bar
 	runTests(t, schema, connectLDAP, c, tests)
 }
 
+func TestQueryWithEmailSuffix(t *testing.T) {
+	schema := `
+dn: dc=example,dc=org
+objectClass: dcObject
+objectClass: organization
+o: Example Company
+dc: example
+
+dn: ou=People,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+
+dn: cn=john,ou=People,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: john
+userpassword: bar
+`
+	c := &Config{}
+	c.UserSearch.BaseDN = "ou=People,dc=example,dc=org"
+	c.UserSearch.NameAttr = "cn"
+	c.UserSearch.EmailSuffix = "test.example.com"
+	c.UserSearch.IDAttr = "DN"
+	c.UserSearch.Username = "cn"
+
+	tests := []subtest{
+		{
+			name:     "ignoremailattr",
+			username: "jane",
+			password: "foo",
+			want: connector.Identity{
+				UserID:        "cn=jane,ou=People,dc=example,dc=org",
+				Username:      "jane",
+				Email:         "jane@test.example.com",
+				EmailVerified: true,
+			},
+		},
+		{
+			name:     "nomailattr",
+			username: "john",
+			password: "bar",
+			want: connector.Identity{
+				UserID:        "cn=john,ou=People,dc=example,dc=org",
+				Username:      "john",
+				Email:         "john@test.example.com",
+				EmailVerified: true,
+			},
+		},
+	}
+
+	runTests(t, schema, connectLDAP, c, tests)
+}
+
 func TestGroupQuery(t *testing.T) {
 	schema := `
 dn: dc=example,dc=org
