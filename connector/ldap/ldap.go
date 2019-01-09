@@ -107,6 +107,10 @@ type Config struct {
 		IDAttr    string `json:"idAttr"`    // Defaults to "uid"
 		EmailAttr string `json:"emailAttr"` // Defaults to "mail"
 		NameAttr  string `json:"nameAttr"`  // No default.
+
+		// If this is set, the email claim of the id token will be constructed from the idAttr and
+		// value of emailSuffix. This should not include the @ character.
+		EmailSuffix string `json:"emailSuffix"` // No default.
 	} `json:"userSearch"`
 
 	// Group search configuration.
@@ -331,17 +335,20 @@ func (c *ldapConnector) identityFromEntry(user ldap.Entry) (ident connector.Iden
 	if ident.UserID = getAttr(user, c.UserSearch.IDAttr); ident.UserID == "" {
 		missing = append(missing, c.UserSearch.IDAttr)
 	}
-	if ident.Email = getAttr(user, c.UserSearch.EmailAttr); ident.Email == "" {
-		missing = append(missing, c.UserSearch.EmailAttr)
-	}
-	// TODO(ericchiang): Let this value be set from an attribute.
-	ident.EmailVerified = true
 
 	if c.UserSearch.NameAttr != "" {
 		if ident.Username = getAttr(user, c.UserSearch.NameAttr); ident.Username == "" {
 			missing = append(missing, c.UserSearch.NameAttr)
 		}
 	}
+
+	if c.UserSearch.EmailSuffix != "" {
+		ident.Email = ident.Username + "@" + c.UserSearch.EmailSuffix
+	} else if ident.Email = getAttr(user, c.UserSearch.EmailAttr); ident.Email == "" {
+		missing = append(missing, c.UserSearch.EmailAttr)
+	}
+	// TODO(ericchiang): Let this value be set from an attribute.
+	ident.EmailVerified = true
 
 	if len(missing) != 0 {
 		err := fmt.Errorf("ldap: entry %q missing following required attribute(s): %q", user.DN, missing)
