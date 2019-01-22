@@ -646,7 +646,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 
 	authCode, err := s.storage.GetAuthCode(code)
 	if err != nil || s.now().After(authCode.Expiry) || authCode.ClientID != client.ID {
-		if err != storage.ErrNotFound {
+		if err == storage.ErrNotFound {
 			s.logger.Errorf("failed to get auth code: %v", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		} else {
