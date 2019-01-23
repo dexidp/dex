@@ -110,18 +110,18 @@ func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
 			force_approval_prompt, logged_in,
 			claims_user_id, claims_username, claims_email, claims_email_verified,
 			claims_groups,
-			connector_id,
+			connector_id, connector_data,
 			expiry
 		)
 		values (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
 		);
 	`,
 		a.ID, a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
 		a.ForceApprovalPrompt, a.LoggedIn,
 		a.Claims.UserID, a.Claims.Username, a.Claims.Email, a.Claims.EmailVerified,
 		encoder(a.Claims.Groups),
-		a.ConnectorID,
+		a.ConnectorID, a.ConnectorData,
 		a.Expiry,
 	)
 	if err != nil {
@@ -152,15 +152,15 @@ func (c *conn) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) 
 				claims_user_id = $9, claims_username = $10, claims_email = $11,
 				claims_email_verified = $12,
 				claims_groups = $13,
-				connector_id = $14,
-				expiry = $15
-			where id = $16;
+				connector_id = $14, connector_data = $15,
+				expiry = $16
+			where id = $17;
 		`,
 			a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
 			a.ForceApprovalPrompt, a.LoggedIn,
 			a.Claims.UserID, a.Claims.Username, a.Claims.Email, a.Claims.EmailVerified,
 			encoder(a.Claims.Groups),
-			a.ConnectorID,
+			a.ConnectorID, a.ConnectorData,
 			a.Expiry, r.ID,
 		)
 		if err != nil {
@@ -182,14 +182,14 @@ func getAuthRequest(q querier, id string) (a storage.AuthRequest, err error) {
 			force_approval_prompt, logged_in,
 			claims_user_id, claims_username, claims_email, claims_email_verified,
 			claims_groups,
-			connector_id, expiry
+			connector_id, connector_data, expiry
 		from auth_request where id = $1;
 	`, id).Scan(
 		&a.ID, &a.ClientID, decoder(&a.ResponseTypes), decoder(&a.Scopes), &a.RedirectURI, &a.Nonce, &a.State,
 		&a.ForceApprovalPrompt, &a.LoggedIn,
 		&a.Claims.UserID, &a.Claims.Username, &a.Claims.Email, &a.Claims.EmailVerified,
 		decoder(&a.Claims.Groups),
-		&a.ConnectorID, &a.Expiry,
+		&a.ConnectorID, &a.ConnectorData, &a.Expiry,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {

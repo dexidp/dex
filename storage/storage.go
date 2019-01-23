@@ -181,6 +181,10 @@ type AuthRequest struct {
 	// The connector used to login the user and any data the connector wishes to persists.
 	// Set when the user authenticates.
 	ConnectorID string
+	// Set when the user starts authenticating upstream
+	// Used for OIDC flows that require state saved between starting
+	// the authorization flow and getting the callback
+	ConnectorData []byte
 }
 
 // AuthCode represents a code which can be exchanged for an OAuth2 token response.

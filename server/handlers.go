@@ -302,12 +302,22 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			// Use the auth request ID as the "state" token.
 			//
 			// TODO(ericchiang): Is this appropriate or should we also be using a nonce?
-			callbackURL, err := conn.LoginURL(scopes, s.absURL("/callback"), authReqID)
+			callbackURL, connectorData, err := conn.LoginURL(scopes, s.absURL("/callback"), authReqID)
 			if err != nil {
 				s.logger.Errorf("Connector %q returned error when creating callback: %v", connID, err)
 				s.renderError(w, http.StatusInternalServerError, "Login error.")
 				return
 			}
+
+			updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
+				a.ConnectorData = connectorData
+				return a, nil
+			}
+			if err := s.storage.UpdateAuthRequest(authReq.ID, updater); err != nil {
+				s.logger.Errorf("Failed to set connector Data on auth request: %v", err)
+				s.renderError(w, http.StatusInternalServerError, "Database error.")
+			}
+
 			http.Redirect(w, r, callbackURL, http.StatusFound)
 		case connector.PasswordConnector:
 			if err := s.templates.password(w, r.URL.String(), "", usernamePrompt(conn), false, showBacklink); err != nil {
@@ -378,6 +388,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request) {
 	var authID string
+	var isPostFormResponse bool
 	switch r.Method {
 	case http.MethodGet: // OAuth2 callback
 		if authID = r.URL.Query().Get("state"); authID == "" {
@@ -386,8 +397,11 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		}
 	case http.MethodPost: // SAML POST binding
 		if authID = r.PostFormValue("RelayState"); authID == "" {
-			s.renderError(w, http.StatusBadRequest, "User session error.")
-			return
+			isPostFormResponse = true
+			if authID = r.PostFormValue("state"); authID == "" {
+				s.renderError(w, http.StatusBadRequest, "User session error.")
+				return
+			}
 		}
 	default:
 		s.renderError(w, http.StatusBadRequest, "Method not supported")
@@ -422,12 +436,12 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	var identity connector.Identity
 	switch conn := conn.Connector.(type) {
 	case connector.CallbackConnector:
-		if r.Method != http.MethodGet {
+		if r.Method != http.MethodGet && !isPostFormResponse {
 			s.logger.Errorf("SAML request mapped to OAuth2 connector")
 			s.renderError(w, http.StatusBadRequest, "Invalid request")
 			return
 		}
-		identity, err = conn.HandleCallback(parseScopes(authReq.Scopes), r)
+		identity, err = conn.HandleCallback(parseScopes(authReq.Scopes), r, authReq.ConnectorData)
 	case connector.SAMLConnector:
 		if r.Method != http.MethodPost {
 			s.logger.Errorf("OAuth2 request mapped to SAML connector")

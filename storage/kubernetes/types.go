@@ -337,6 +337,8 @@ type AuthRequest struct {
 	Claims Claims `json:"claims,omitempty"`
 	// The connector used to login the user. Set when the user authenticates.
 	ConnectorID string `json:"connectorID,omitempty"`
+	// Connector Data for auth requests in flight
+	ConnectorData []byte `json:"connectorData,omitempty"`
 
 	Expiry time.Time `json:"expiry"`
 }
@@ -385,6 +387,7 @@ func (cli *client) fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		LoggedIn:            a.LoggedIn,
 		ForceApprovalPrompt: a.ForceApprovalPrompt,
 		ConnectorID:         a.ConnectorID,
+		ConnectorData:       a.ConnectorData,
 		Expiry:              a.Expiry,
 		Claims:              fromStorageClaims(a.Claims),
 	}
@@ -634,8 +637,8 @@ func (cli *client) fromStorageOfflineSessions(o storage.OfflineSessions) Offline
 		},
 		UserID:        o.UserID,
 		ConnID:        o.ConnID,
-		Refresh:       o.Refresh,
 		ConnectorData: o.ConnectorData,
+		Refresh:       o.Refresh,
 	}
 }
 

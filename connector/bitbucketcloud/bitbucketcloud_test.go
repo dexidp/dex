@@ -89,7 +89,7 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 	expectNil(t, err)
 
 	bitbucketConnector := bitbucketConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: newClient()}
-	identity, err := bitbucketConnector.HandleCallback(connector.Scopes{}, req)
+	identity, err := bitbucketConnector.HandleCallback(connector.Scopes{}, req, nil)
 
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "some-login")

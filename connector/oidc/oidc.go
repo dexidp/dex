@@ -3,6 +3,7 @@ package oidc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,7 +17,11 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/storage"
 )
+
+// NoRefreshTokenDummy is a placeholder for a lack of refresh token
+const NoRefreshTokenDummy = "no-refresh-token"
 
 // Config holds configuration options for OpenID Connect logins.
 type Config struct {
@@ -34,9 +39,17 @@ type Config struct {
 
 	Scopes []string `json:"scopes"` // defaults to "profile" and "email"
 
+	ResponseType string `json:"responseType"` // Default to "code"
+
 	// Optional list of whitelisted domains when using Google
 	// If this field is nonempty, only users from a listed domain will be allowed to log in
 	HostedDomains []string `json:"hostedDomains"`
+}
+
+// connectorData holds state that is needed between starting
+// the auth flow, and validating the response
+type connectorData struct {
+	Nonce string
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -94,15 +107,25 @@ func (c *Config) Open(id string, logger logrus.FieldLogger) (conn connector.Conn
 		registerBrokenAuthHeaderProvider(provider.Endpoint().TokenURL)
 	}
 
-	scopes := []string{oidc.ScopeOpenID}
-	if len(c.Scopes) > 0 {
-		scopes = append(scopes, c.Scopes...)
-	} else {
-		scopes = append(scopes, "profile", "email")
+	// if the user specifies scope, respect it
+	scopes := c.Scopes
+	if len(c.Scopes) == 0 {
+		scopes = []string{oidc.ScopeOpenID, "profile", "email"}
+		fmt.Println(c.Scopes)
+	}
+
+	if c.ResponseType == "" {
+		c.ResponseType = "code"
+	}
+
+	if c.ResponseType != "id_token" && c.ResponseType != "code" {
+		err := fmt.Errorf("failed to create %s provider, unsupported response_type '%s'", id, c.ResponseType)
+		cancel()
+		return nil, err
 	}
 
 	clientID := c.ClientID
-	return &oidcConnector{
+	connector := &oidcConnector{
 		redirectURI: c.RedirectURI,
 		oauth2Config: &oauth2.Config{
 			ClientID:     clientID,
@@ -114,10 +137,13 @@ func (c *Config) Open(id string, logger logrus.FieldLogger) (conn connector.Conn
 		verifier: provider.Verifier(
 			&oidc.Config{ClientID: clientID},
 		),
+		responseType:  c.ResponseType,
 		logger:        logger,
+		ctx:           ctx,
 		cancel:        cancel,
 		hostedDomains: c.HostedDomains,
-	}, nil
+	}
+	return connector, nil
 }
 
 var (
@@ -133,6 +159,7 @@ type oidcConnector struct {
 	cancel        context.CancelFunc
 	logger        logrus.FieldLogger
 	hostedDomains []string
+	responseType  string
 }
 
 func (c *oidcConnector) Close() error {
@@ -140,9 +167,10 @@ func (c *oidcConnector) Close() error {
 	return nil
 }
 
-func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) (string, error) {
+func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) (string, []byte, error) {
+	connData := connectorData{}
 	if c.redirectURI != callbackURL {
-		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
+		return "", nil, fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
 
 	var opts []oauth2.AuthCodeOption
@@ -157,7 +185,19 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 	if s.OfflineAccess {
 		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "consent"))
 	}
-	return c.oauth2Config.AuthCodeURL(state, opts...), nil
+	if c.responseType == "id_token" {
+		connData.Nonce = storage.NewID()
+		opts = append(opts, oauth2.SetAuthURLParam("response_type", c.responseType))
+		opts = append(opts, oauth2.SetAuthURLParam("response_mode", "form_post"))
+		opts = append(opts, oauth2.SetAuthURLParam("nonce", connData.Nonce))
+	}
+	authCodeURL := c.oauth2Config.AuthCodeURL(state, opts...)
+
+	connDataBytes, err := json.Marshal(connData)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to encode connector data: %v", err)
+	}
+	return authCodeURL, connDataBytes, nil
 }
 
 type oauth2Error struct {
@@ -172,21 +212,49 @@ func (e *oauth2Error) Error() string {
 	return e.error + ": " + e.errorDescription
 }
 
-func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
+func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request, connDataBytes []byte) (identity connector.Identity, err error) {
+	if len(connDataBytes) == 0 {
+		return identity, fmt.Errorf("connector data was unexpectedly empty")
+	}
+
+	var connData connectorData
+	err = json.Unmarshal(connDataBytes, &connData)
+	if err != nil {
+		return identity, fmt.Errorf("failed to parse connector data: %v", err)
+	}
+
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, &oauth2Error{errType, q.Get("error_description")}
 	}
+
+	if c.responseType == "id_token" {
+		rawIDToken := r.FormValue("id_token")
+		if rawIDToken == "" {
+			return identity, fmt.Errorf("authorization response lacked id_token despite using the implicit flow")
+		}
+		return c.createIdentity(r.Context(), rawIDToken, connData, NoRefreshTokenDummy)
+	}
+
 	token, err := c.oauth2Config.Exchange(r.Context(), q.Get("code"))
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
 	}
 
-	return c.createIdentity(r.Context(), identity, token)
+	rawIDToken, ok := token.Extra("id_token").(string)
+	if !ok {
+		return identity, errors.New("oidc: no id_token in token response")
+	}
+
+	return c.createIdentity(r.Context(), rawIDToken, connData, token.RefreshToken)
 }
 
 // Refresh is implemented for backwards compatibility, even though it's a no-op.
 func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+	if c.responseType == "id_token" {
+		return identity, fmt.Errorf("oidc: there is no refresh_token with implict flow")
+	}
+
 	t := &oauth2.Token{
 		RefreshToken: string(identity.ConnectorData),
 		Expiry:       time.Now().Add(-time.Hour),
@@ -196,17 +264,31 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
 	}
 
-	return c.createIdentity(ctx, identity, token)
-}
-
-func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token) (connector.Identity, error) {
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
 		return identity, errors.New("oidc: no id_token in token response")
 	}
+
+	return c.createIdentity(ctx, rawIDToken, connectorData{}, token.RefreshToken)
+}
+
+func (c *oidcConnector) createIdentity(ctx context.Context, rawIDToken string, connData connectorData, refreshToken string) (identity connector.Identity, err error) {
 	idToken, err := c.verifier.Verify(ctx, rawIDToken)
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to verify ID Token: %v", err)
+	}
+
+	if c.responseType == "id_token" {
+		// validate the nonce, we're in the implicit flow
+		var nonceClaim struct {
+			Nonce string `json:"nonce"`
+		}
+		if err := idToken.Claims(&nonceClaim); err != nil {
+			return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
+		}
+		if nonceClaim.Nonce != connData.Nonce {
+			return identity, fmt.Errorf("oidc: invalid nonce from provider")
+		}
 	}
 
 	var claims struct {
@@ -215,7 +297,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		EmailVerified bool   `json:"email_verified"`
 		HostedDomain  string `json:"hd"`
 	}
-	if err := idToken.Claims(&claims); err != nil {
+	if err = idToken.Claims(&claims); err != nil {
 		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
 	}
 
@@ -238,7 +320,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		Username:      claims.Username,
 		Email:         claims.Email,
 		EmailVerified: claims.EmailVerified,
-		ConnectorData: []byte(token.RefreshToken),
+		ConnectorData: []byte(refreshToken),
 	}
 	return identity, nil
 }
