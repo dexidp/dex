@@ -40,10 +40,10 @@ subjectAltName = @alt_names
 DNS.1 = dex.example.com
 ```
 
-Please replace dex.example.com to your favorit hostname.
+Please replace dex.example.com to your favorite hostname.
 Generate certificate and private key by following command.
 
-```
+```console
 $ openssl req -new -x509 -sha256 -days 3650 -newkey rsa:4096 -extensions v3_req -out openid-ca.pem -keyout openid-key.pem -config req.cnf -subj "/CN=kube-ca" -nodes
 $ ls openid*
 openid-ca.pem openid-key.pem
@@ -53,7 +53,7 @@ openid-ca.pem openid-key.pem
 
 Modify following host, bindDN and bindPW in examples/config-ad-kubelogin.yaml.
 
-```
+```yaml
 connectors:
 - type: ldap
   name: OpenLDAP
@@ -99,27 +99,27 @@ See https://kubernetes.io/docs/reference/access-authn-authz/authentication/ for 
 
 Create context for dex authentication:
 
-```
+```console
 $ kubectl config set-context oidc-ctx --cluster=cluster.local --user=test
-$ kubectl config set-credentials test 
+$ kubectl config set-credentials test \
   --auth-provider=oidc \
   --auth-provider-arg=idp-issuer-url=https://dex.example.com:32000/dex \
   --auth-provider-arg=client-id=kubernetes \
   --auth-provider-arg=client-secret=ZXhhbXBsZS1hcHAtc2VjcmV0 \
   --auth-provider-arg=idp-certificate-authority-data=$(base64 -w 0 openid-ca.pem) \
-  "--auth-provider-arg=extra-scopes=offline_access openid profile email group"
+  --auth-provider-arg=extra-scopes="offline_access openid profile email group"
 $ kubectl config use-context oidc-ctx
 ```
 
-Please confirm idp-issuer-url, cleint-id, client-secret and idp-certificate-authority-data value is same as config-ad-kubelogin.yaml's value.
+Please confirm idp-issuer-url, client-id, client-secret and idp-certificate-authority-data value is same as config-ad-kubelogin.yaml's value.
 
 Then run kubelogin:
 
-```
+```console
 $ kubelogin
 ```
 
-Access http://localhost:8000 by web browser and login with your AD account(eg. test@example.com) and password.
+Access http://localhost:8000 by web browser and login with your AD account (eg. test@example.com) and password.
 After login and grant, you have following token in ~/.kube/config:
 
 ```

@@ -253,7 +253,6 @@ groupSearch:
 The following configuration will allow the LDAP connector to search a FreeIPA directory using an LDAP filter.
 
 ```yaml
-
 connectors:
 - type: ldap
   id: ldap
@@ -290,7 +289,6 @@ If the search finds an entry, it will attempt to use the provided password to bi
 The following configuration will allow the LDAP connector to search a Active Directory using an LDAP filter.
 
 ```yaml
-
 connectors:
 - type: ldap
   name: ActiveDirectory
@@ -320,6 +318,5 @@ connectors:
       userAttr: DN
       groupAttr: member
       nameAttr: cn
-
 ```
 
