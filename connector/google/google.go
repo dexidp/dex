@@ -231,6 +231,7 @@ func (c *googleConnector) getGroups(email string) ([]string, error) {
 
 	var userGroups []string
 	for _, group := range groupsList.Groups {
+		// TODO (joelspeed): Make desried group key configurable
 		userGroups = append(userGroups, group.Email)
 	}
 
