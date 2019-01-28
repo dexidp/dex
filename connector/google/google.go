@@ -62,6 +62,12 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		scopes = append(scopes, "profile", "email")
 	}
 
+	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not create directory service: %v", err)
+	}
+
 	clientID := c.ClientID
 	return &googleConnector{
 		redirectURI: c.RedirectURI,
@@ -80,6 +86,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		hostedDomains:          c.HostedDomains,
 		serviceAccountFilePath: c.ServiceAccountFilePath,
 		adminEmail:             c.AdminEmail,
+		adminSrv:               srv,
 	}, nil
 }
 
@@ -98,6 +105,7 @@ type googleConnector struct {
 	hostedDomains          []string
 	serviceAccountFilePath string
 	adminEmail             string
+	adminSrv               *admin.Service
 }
 
 func (c *googleConnector) Close() error {
@@ -219,12 +227,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 // getGroups creates a connection to the admin directory service and lists
 // all groups the user is a member of
 func (c *googleConnector) getGroups(email string) ([]string, error) {
-	srv, err := createDirectoryService(c.serviceAccountFilePath, c.adminEmail)
-	if err != nil {
-		return nil, fmt.Errorf("could not create directory service: %v", err)
-	}
-
-	groupsList, err := srv.Groups.List().UserKey(email).Do()
+	groupsList, err := c.adminSrv.Groups.List().UserKey(email).Do()
 	if err != nil {
 		return nil, fmt.Errorf("could not list groups: %v", err)
 	}
