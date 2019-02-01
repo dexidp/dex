@@ -167,11 +167,10 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 	expectEquals(t, identity.Groups, []string{"org-1"})
 }
 
-
 func TestLoginUsedAsIDWhenConfigured(t *testing.T) {
 
 	s := newTestServer(map[string]testResponse{
-		"/user": {data: user{Login: "some-login", ID: 12345678, Name:"Joe Bloggs"}},
+		"/user": {data: user{Login: "some-login", ID: 12345678, Name: "Joe Bloggs"}},
 		"/user/emails": {data: []userEmail{{
 			Email:    "some@email.com",
 			Verified: true,
