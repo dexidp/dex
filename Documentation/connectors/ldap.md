@@ -253,7 +253,6 @@ groupSearch:
 The following configuration will allow the LDAP connector to search a FreeIPA directory using an LDAP filter.
 
 ```yaml
-
 connectors:
 - type: ldap
   id: ldap
@@ -284,3 +283,40 @@ connectors:
 If the search finds an entry, it will attempt to use the provided password to bind as that user entry.
 
 [openldap]: https://www.openldap.org/
+
+## Example: Searching a Active Directory server with groups
+
+The following configuration will allow the LDAP connector to search a Active Directory using an LDAP filter.
+
+```yaml
+connectors:
+- type: ldap
+  name: ActiveDirectory
+  id: ad
+  config:
+    host: ad.example.com:636
+
+    insecureNoSSL: false
+    insecureSkipVerify: true
+
+    bindDN: cn=Administrator,cn=users,dc=example,dc=com
+    bindPW: admin0!
+
+    usernamePrompt: Email Address
+
+    userSearch:
+      baseDN: cn=Users,dc=example,dc=com
+      filter: "(objectClass=person)"
+      username: userPrincipalName
+      idAttr: DN
+      emailAttr: userPrincipalName
+      nameAttr: cn
+
+    groupSearch:
+      baseDN: cn=Users,dc=example,dc=com
+      filter: "(objectClass=group)"
+      userAttr: DN
+      groupAttr: member
+      nameAttr: cn
+```
+

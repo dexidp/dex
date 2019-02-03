@@ -1,0 +1,58 @@
+# Active Directory and kubelogin Integration sample
+issuer: https://dex.example.com:32000/dex
+storage:
+  type: sqlite3
+  config:
+    file: examples/dex.db
+web:
+  https: 0.0.0.0:32000
+  tlsCert: openid-ca.pem
+  tlsKey: openid-key.pem
+
+connectors:
+- type: ldap
+  name: OpenLDAP
+  id: ldap
+  config:
+    host: localhost:636
+
+    # No TLS for this setup.
+    insecureNoSSL: false
+    insecureSkipVerify: true
+
+    # This would normally be a read-only user.
+    bindDN: cn=Administrator,cn=users,dc=example,dc=com
+    bindPW: admin0!
+
+    usernamePrompt: Email Address
+
+    userSearch:
+      baseDN: cn=Users,dc=example,dc=com
+      filter: "(objectClass=person)"
+      username: userPrincipalName
+      # "DN" (case sensitive) is a special attribute name. It indicates that
+      # this value should be taken from the entity's DN not an attribute on
+      # the entity.
+      idAttr: DN
+      emailAttr: userPrincipalName
+      nameAttr: cn
+
+    groupSearch:
+      baseDN: cn=Users,dc=example,dc=com
+      filter: "(objectClass=group)"
+
+      # A user is a member of a group when their DN matches
+      # the value of a "member" attribute on the group entity.
+      userAttr: DN
+      groupAttr: member
+
+      # The group name should be the "cn" value.
+      nameAttr: cn
+
+staticClients:
+- id: kubernetes
+  redirectURIs:
+  - 'http://localhost:8000'
+  name: 'Kubernetes'
+  secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+
