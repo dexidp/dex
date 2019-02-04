@@ -192,7 +192,7 @@ func TestLoginUsedAsIDWhenConfigured(t *testing.T) {
 	req, err := http.NewRequest("GET", hostURL.String(), nil)
 	expectNil(t, err)
 
-	c := githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: newClient(), useLoginAsId: true}
+	c := githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: newClient(), useLoginAsID: true}
 	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
 
 	expectNil(t, err)

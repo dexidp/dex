@@ -69,7 +69,7 @@ connectors:
     teamNameField: slug
     # flag which will switch from using the internal GitHub id to the users handle (@mention) as the user id.
     # It is possible for a user to change their own user name but it is very rare for them to do so
-    useLoginAsId: false
+    useLoginAsID: false
 ```
 
 ## GitHub Enterprise
