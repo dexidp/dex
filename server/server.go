@@ -242,8 +242,11 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 
 	r := mux.NewRouter()
+	handle := func(p string, h http.Handler) {
+		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, h))
+	}
 	handleFunc := func(p string, h http.HandlerFunc) {
-		r.HandleFunc(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, h))
+		handle(p, h)
 	}
 	handlePrefix := func(p string, h http.Handler) {
 		prefix := path.Join(issuerURL.Path, p)
@@ -284,7 +287,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	// "authproxy" connector.
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
-	handleFunc("/healthz", s.handleHealth)
+	handle("/healthz", s.newHealthChecker(ctx))
 	handlePrefix("/static", static)
 	handlePrefix("/theme", theme)
 	s.mux = r
