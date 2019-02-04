@@ -310,11 +310,18 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Failed to verify ID token: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	accessToken, ok := token.Extra("access_token").(string)
+	if !ok {
+		http.Error(w, "no access_token in token response", http.StatusInternalServerError)
+		return
+	}
+
 	var claims json.RawMessage
 	idToken.Claims(&claims)
 
 	buff := new(bytes.Buffer)
 	json.Indent(buff, []byte(claims), "", "  ")
 
-	renderToken(w, a.redirectURI, rawIDToken, token.RefreshToken, buff.Bytes())
+	renderToken(w, a.redirectURI, rawIDToken, accessToken, token.RefreshToken, buff.Bytes())
 }
