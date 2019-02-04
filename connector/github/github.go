@@ -275,7 +275,6 @@ func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 		identity.UserID = user.Login
 	}
 
-
 	// Only set identity.Groups if 'orgs', 'org', or 'groups' scope are specified.
 	if c.groupsRequired(s.Groups) {
 		groups, err := c.getGroups(ctx, client, s.Groups, user.Login)
