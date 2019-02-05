@@ -67,6 +67,9 @@ connectors:
     #   - ['acme:site-reliability-engineers'] for 'slug'
     #   - ['acme:Site Reliability Engineers', 'acme:site-reliability-engineers'] for 'both'
     teamNameField: slug
+    # flag which will switch from using the internal GitHub id to the users handle (@mention) as the user id.
+    # It is possible for a user to change their own user name but it is very rare for them to do so
+    useLoginAsID: false
 ```
 
 ## GitHub Enterprise

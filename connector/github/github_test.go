@@ -124,10 +124,11 @@ func TestUserGroupsWithTeamNameAndSlugFieldConfig(t *testing.T) {
 	})
 }
 
+// tests that the users login is used as their username when they have no username set
 func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 
 	s := newTestServer(map[string]testResponse{
-		"/user": {data: user{Login: "some-login"}},
+		"/user": {data: user{Login: "some-login", ID: 12345678}},
 		"/user/emails": {data: []userEmail{{
 			Email:    "some@email.com",
 			Verified: true,
@@ -154,6 +155,7 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "some-login")
+	expectEquals(t, identity.UserID, "12345678")
 	expectEquals(t, 0, len(identity.Groups))
 
 	c = githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: newClient(), loadAllGroups: true}
@@ -161,8 +163,41 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "some-login")
+	expectEquals(t, identity.UserID, "12345678")
 	expectEquals(t, identity.Groups, []string{"org-1"})
+}
 
+func TestLoginUsedAsIDWhenConfigured(t *testing.T) {
+
+	s := newTestServer(map[string]testResponse{
+		"/user": {data: user{Login: "some-login", ID: 12345678, Name: "Joe Bloggs"}},
+		"/user/emails": {data: []userEmail{{
+			Email:    "some@email.com",
+			Verified: true,
+			Primary:  true,
+		}}},
+		"/login/oauth/access_token": {data: map[string]interface{}{
+			"access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
+			"expires_in":   "30",
+		}},
+		"/user/orgs": {
+			data: []org{{Login: "org-1"}},
+		},
+	})
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	req, err := http.NewRequest("GET", hostURL.String(), nil)
+	expectNil(t, err)
+
+	c := githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: newClient(), useLoginAsID: true}
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
+
+	expectNil(t, err)
+	expectEquals(t, identity.UserID, "some-login")
+	expectEquals(t, identity.Username, "Joe Bloggs")
 }
 
 func newTestServer(responses map[string]testResponse) *httptest.Server {
