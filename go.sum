@@ -6,7 +6,7 @@ github.com/boltdb/bolt v1.3.1 h1:JQmyP4ZBrce+ZQu0dY660FMfatumYDLun9hBCUVIkF4=
 github.com/boltdb/bolt v1.3.1/go.mod h1:clJnj/oiGkjum5o1McbSZDSLxVThjynRyGBgiAx27Ps=
 github.com/cockroachdb/cmux v0.0.0-20170110192607-30d10be49292 h1:dzj1/xcivGjNPwwifh/dWTczkwcuqsXXFHY1X/TZMtw=
 github.com/cockroachdb/cmux v0.0.0-20170110192607-30d10be49292/go.mod h1:qRiX68mZX1lGBkTWyp3CLcenw9I94W2dLeRvMzcn9N4=
-github.com/coreos/etcd v3.2.9+incompatible h1:rK6tzefpypqZLvs9aX7R5vcl4u1xucf2esUzFvJM6vw=
+github.com/coreos/etcd v3.2.9+incompatible h1:3TbjfK5+aSRLTU/KgBC1xlgA2dn2ddYQngRqX6HFwlQ=
 github.com/coreos/etcd v3.2.9+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-oidc v0.0.0-20170307191026-be73733bb8cc h1:9yuvA19Q5WFkLwJcMDoYm8m89ilzqZ5zEHqdvU+Zbds=
 github.com/coreos/go-oidc v0.0.0-20170307191026-be73733bb8cc/go.mod h1:CgnwVTmzoESiwO9qyAFEMiHoZ1nMCKZlZ9V6mm3/LKc=
@@ -71,7 +71,7 @@ github.com/prometheus/client_model v0.0.0-20150212101744-fa8ad6fec335 h1:0E/5GnG
 github.com/prometheus/client_model v0.0.0-20150212101744-fa8ad6fec335/go.mod h1:MbSGuTsp3dbXC40dX6PRTWyKYBIrTGTE9sqQNg2J8bo=
 github.com/prometheus/common v0.0.0-20170220103846-49fee292b27b h1:nure2StBXEgV+CtAOZSggLGJ7bfuSfvuitPnwEQSKWQ=
 github.com/prometheus/common v0.0.0-20170220103846-49fee292b27b/go.mod h1:daVV7qP5qjZbuso7PdcryaAu0sAZbrN9i7WWcTMWvro=
-github.com/prometheus/procfs v0.0.0-20170216223256-a1dba9ce8bae h1:4W6eGKy6DVCKy+vFPt2wtCifCjfzvHgOomhDsv/n58Y=
+github.com/prometheus/procfs v0.0.0-20170216223256-a1dba9ce8bae h1:nbLP9B5vU3a/0hOXzolmZHxr2SQ2MEu6vhZappUZY9c=
 github.com/prometheus/procfs v0.0.0-20170216223256-a1dba9ce8bae/go.mod h1:c3At6R/oaqEKCNdg8wHV1ftS6bRYblBhIjjI8uT2IGk=
 github.com/russellhaering/goxmldsig v0.0.0-20170324122954-eaac44c63fe0 h1:jhWWGMYDGjj/PmvsUkFkhlvBhOR0y8ZJW7OY/21F8FY=
 github.com/russellhaering/goxmldsig v0.0.0-20170324122954-eaac44c63fe0/go.mod h1:Oz4y6ImuOQZxynhbSXk7btjEfNBtGlj2dcaOvXl2FSM=
