@@ -99,7 +99,7 @@ var migrations = []migration{
 		
 				connector_id text not null,
 				connector_data bytea,
-		
+
 				expiry timestamptz not null
 			);
 		
@@ -118,7 +118,7 @@ var migrations = []migration{
 		
 				connector_id text not null,
 				connector_data bytea,
-		
+
 				expiry timestamptz not null
 			);
 		
@@ -185,6 +185,12 @@ var migrations = []migration{
 				resource_version text not null,
 				config bytea
 			);
+		`,
+	},
+	{
+		stmt: `
+			alter table offline_session
+				add column connector_data bytea not null default '';
 		`,
 	},
 }

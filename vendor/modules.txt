@@ -11,7 +11,7 @@ github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes
 github.com/coreos/etcd/etcdserver/etcdserverpb
 github.com/coreos/etcd/mvcc/mvccpb
 github.com/coreos/etcd/pkg/tlsutil
-# github.com/coreos/go-oidc v0.0.0-20170307191026-be73733bb8cc
+# github.com/coreos/go-oidc v2.0.0+incompatible
 github.com/coreos/go-oidc
 # github.com/felixge/httpsnoop v1.0.0
 github.com/felixge/httpsnoop

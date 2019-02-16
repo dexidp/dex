@@ -336,7 +336,8 @@ type AuthRequest struct {
 	// with a backend.
 	Claims Claims `json:"claims,omitempty"`
 	// The connector used to login the user. Set when the user authenticates.
-	ConnectorID   string `json:"connectorID,omitempty"`
+	ConnectorID string `json:"connectorID,omitempty"`
+	// Connector Data for auth requests in flight
 	ConnectorData []byte `json:"connectorData,omitempty"`
 
 	Expiry time.Time `json:"expiry"`
@@ -361,7 +362,6 @@ func toStorageAuthRequest(req AuthRequest) storage.AuthRequest {
 		ForceApprovalPrompt: req.ForceApprovalPrompt,
 		LoggedIn:            req.LoggedIn,
 		ConnectorID:         req.ConnectorID,
-		ConnectorData:       req.ConnectorData,
 		Expiry:              req.Expiry,
 		Claims:              toStorageClaims(req.Claims),
 	}
@@ -482,28 +482,26 @@ func (cli *client) fromStorageAuthCode(a storage.AuthCode) AuthCode {
 			Name:      a.ID,
 			Namespace: cli.namespace,
 		},
-		ClientID:      a.ClientID,
-		RedirectURI:   a.RedirectURI,
-		ConnectorID:   a.ConnectorID,
-		ConnectorData: a.ConnectorData,
-		Nonce:         a.Nonce,
-		Scopes:        a.Scopes,
-		Claims:        fromStorageClaims(a.Claims),
-		Expiry:        a.Expiry,
+		ClientID:    a.ClientID,
+		RedirectURI: a.RedirectURI,
+		ConnectorID: a.ConnectorID,
+		Nonce:       a.Nonce,
+		Scopes:      a.Scopes,
+		Claims:      fromStorageClaims(a.Claims),
+		Expiry:      a.Expiry,
 	}
 }
 
 func toStorageAuthCode(a AuthCode) storage.AuthCode {
 	return storage.AuthCode{
-		ID:            a.ObjectMeta.Name,
-		ClientID:      a.ClientID,
-		RedirectURI:   a.RedirectURI,
-		ConnectorID:   a.ConnectorID,
-		ConnectorData: a.ConnectorData,
-		Nonce:         a.Nonce,
-		Scopes:        a.Scopes,
-		Claims:        toStorageClaims(a.Claims),
-		Expiry:        a.Expiry,
+		ID:          a.ObjectMeta.Name,
+		ClientID:    a.ClientID,
+		RedirectURI: a.RedirectURI,
+		ConnectorID: a.ConnectorID,
+		Nonce:       a.Nonce,
+		Scopes:      a.Scopes,
+		Claims:      toStorageClaims(a.Claims),
+		Expiry:      a.Expiry,
 	}
 }
 
@@ -537,16 +535,15 @@ type RefreshList struct {
 
 func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
 	return storage.RefreshToken{
-		ID:            r.ObjectMeta.Name,
-		Token:         r.Token,
-		CreatedAt:     r.CreatedAt,
-		LastUsed:      r.LastUsed,
-		ClientID:      r.ClientID,
-		ConnectorID:   r.ConnectorID,
-		ConnectorData: r.ConnectorData,
-		Scopes:        r.Scopes,
-		Nonce:         r.Nonce,
-		Claims:        toStorageClaims(r.Claims),
+		ID:          r.ObjectMeta.Name,
+		Token:       r.Token,
+		CreatedAt:   r.CreatedAt,
+		LastUsed:    r.LastUsed,
+		ClientID:    r.ClientID,
+		ConnectorID: r.ConnectorID,
+		Scopes:      r.Scopes,
+		Nonce:       r.Nonce,
+		Claims:      toStorageClaims(r.Claims),
 	}
 }
 
@@ -560,15 +557,14 @@ func (cli *client) fromStorageRefreshToken(r storage.RefreshToken) RefreshToken 
 			Name:      r.ID,
 			Namespace: cli.namespace,
 		},
-		Token:         r.Token,
-		CreatedAt:     r.CreatedAt,
-		LastUsed:      r.LastUsed,
-		ClientID:      r.ClientID,
-		ConnectorID:   r.ConnectorID,
-		ConnectorData: r.ConnectorData,
-		Scopes:        r.Scopes,
-		Nonce:         r.Nonce,
-		Claims:        fromStorageClaims(r.Claims),
+		Token:       r.Token,
+		CreatedAt:   r.CreatedAt,
+		LastUsed:    r.LastUsed,
+		ClientID:    r.ClientID,
+		ConnectorID: r.ConnectorID,
+		Scopes:      r.Scopes,
+		Nonce:       r.Nonce,
+		Claims:      fromStorageClaims(r.Claims),
 	}
 }
 
@@ -623,9 +619,10 @@ type OfflineSessions struct {
 	k8sapi.TypeMeta   `json:",inline"`
 	k8sapi.ObjectMeta `json:"metadata,omitempty"`
 
-	UserID  string                              `json:"userID,omitempty"`
-	ConnID  string                              `json:"connID,omitempty"`
-	Refresh map[string]*storage.RefreshTokenRef `json:"refresh,omitempty"`
+	UserID        string                              `json:"userID,omitempty"`
+	ConnID        string                              `json:"connID,omitempty"`
+	Refresh       map[string]*storage.RefreshTokenRef `json:"refresh,omitempty"`
+	ConnectorData []byte                              `json:"connectorData,omitempty"`
 }
 
 func (cli *client) fromStorageOfflineSessions(o storage.OfflineSessions) OfflineSessions {
@@ -638,17 +635,19 @@ func (cli *client) fromStorageOfflineSessions(o storage.OfflineSessions) Offline
 			Name:      cli.offlineTokenName(o.UserID, o.ConnID),
 			Namespace: cli.namespace,
 		},
-		UserID:  o.UserID,
-		ConnID:  o.ConnID,
-		Refresh: o.Refresh,
+		UserID:        o.UserID,
+		ConnID:        o.ConnID,
+		ConnectorData: o.ConnectorData,
+		Refresh:       o.Refresh,
 	}
 }
 
 func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
 	s := storage.OfflineSessions{
-		UserID:  o.UserID,
-		ConnID:  o.ConnID,
-		Refresh: o.Refresh,
+		UserID:        o.UserID,
+		ConnID:        o.ConnID,
+		Refresh:       o.Refresh,
+		ConnectorData: o.ConnectorData,
 	}
 	if s.Refresh == nil {
 		// Server code assumes this will be non-nil.

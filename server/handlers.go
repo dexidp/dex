@@ -302,12 +302,22 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			// Use the auth request ID as the "state" token.
 			//
 			// TODO(ericchiang): Is this appropriate or should we also be using a nonce?
-			callbackURL, err := conn.LoginURL(scopes, s.absURL("/callback"), authReqID)
+			callbackURL, connectorData, err := conn.LoginURL(scopes, s.absURL("/callback"), authReqID)
 			if err != nil {
 				s.logger.Errorf("Connector %q returned error when creating callback: %v", connID, err)
 				s.renderError(w, http.StatusInternalServerError, "Login error.")
 				return
 			}
+
+			updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
+				a.ConnectorData = connectorData
+				return a, nil
+			}
+			if err := s.storage.UpdateAuthRequest(authReq.ID, updater); err != nil {
+				s.logger.Errorf("Failed to set connector Data on auth request: %v", err)
+				s.renderError(w, http.StatusInternalServerError, "Database error.")
+			}
+
 			http.Redirect(w, r, callbackURL, http.StatusFound)
 		case connector.PasswordConnector:
 			if err := s.templates.password(w, r.URL.String(), "", usernamePrompt(conn), false, showBacklink); err != nil {
@@ -378,6 +388,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request) {
 	var authID string
+	var isPostFormResponse bool
 	switch r.Method {
 	case http.MethodGet: // OAuth2 callback
 		if authID = r.URL.Query().Get("state"); authID == "" {
@@ -386,8 +397,11 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		}
 	case http.MethodPost: // SAML POST binding
 		if authID = r.PostFormValue("RelayState"); authID == "" {
-			s.renderError(w, http.StatusBadRequest, "User session error.")
-			return
+			isPostFormResponse = true
+			if authID = r.PostFormValue("state"); authID == "" {
+				s.renderError(w, http.StatusBadRequest, "User session error.")
+				return
+			}
 		}
 	default:
 		s.renderError(w, http.StatusBadRequest, "Method not supported")
@@ -422,12 +436,12 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	var identity connector.Identity
 	switch conn := conn.Connector.(type) {
 	case connector.CallbackConnector:
-		if r.Method != http.MethodGet {
+		if r.Method != http.MethodGet && !isPostFormResponse {
 			s.logger.Errorf("SAML request mapped to OAuth2 connector")
 			s.renderError(w, http.StatusBadRequest, "Invalid request")
 			return
 		}
-		identity, err = conn.HandleCallback(parseScopes(authReq.Scopes), r)
+		identity, err = conn.HandleCallback(parseScopes(authReq.Scopes), r, authReq.ConnectorData)
 	case connector.SAMLConnector:
 		if r.Method != http.MethodPost {
 			s.logger.Errorf("OAuth2 request mapped to SAML connector")
@@ -470,7 +484,6 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 	updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
 		a.LoggedIn = true
 		a.Claims = claims
-		a.ConnectorData = identity.ConnectorData
 		return a, nil
 	}
 	if err := s.storage.UpdateAuthRequest(authReq.ID, updater); err != nil {
@@ -484,6 +497,41 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 
 	s.logger.Infof("login successful: connector %q, username=%q, email=%q, groups=%q",
 		authReq.ConnectorID, claims.Username, email, claims.Groups)
+
+	if _, ok := conn.(connector.RefreshConnector); ok {
+		// Try to retrieve an existing OfflineSession object for the corresponding user.
+		if session, err := s.storage.GetOfflineSessions(identity.UserID, authReq.ConnectorID); err != nil {
+			if err != storage.ErrNotFound {
+				s.logger.Errorf("failed to get offline session: %v", err)
+				return "", err
+			}
+			offlineSessions := storage.OfflineSessions{
+				UserID:        identity.UserID,
+				ConnID:        authReq.ConnectorID,
+				Refresh:       make(map[string]*storage.RefreshTokenRef),
+				ConnectorData: identity.ConnectorData,
+			}
+
+			// Create a new OfflineSession object for the user and add a reference object for
+			// the newly received refreshtoken.
+			if err := s.storage.CreateOfflineSessions(offlineSessions); err != nil {
+				s.logger.Errorf("failed to create offline session: %v", err)
+				return "", err
+			}
+		} else {
+			// Update existing OfflineSession obj with new RefreshTokenRef.
+			if err := s.storage.UpdateOfflineSessions(session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+				if len(identity.ConnectorData) > 0 {
+					old.ConnectorData = identity.ConnectorData
+				}
+				return old, nil
+			}); err != nil {
+				s.logger.Errorf("failed to update offline session: %v", err)
+				return "", err
+			}
+
+		}
+	}
 
 	return path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID, nil
 }
@@ -566,15 +614,14 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		switch responseType {
 		case responseTypeCode:
 			code = storage.AuthCode{
-				ID:            storage.NewID(),
-				ClientID:      authReq.ClientID,
-				ConnectorID:   authReq.ConnectorID,
-				Nonce:         authReq.Nonce,
-				Scopes:        authReq.Scopes,
-				Claims:        authReq.Claims,
-				Expiry:        s.now().Add(time.Minute * 30),
-				RedirectURI:   authReq.RedirectURI,
-				ConnectorData: authReq.ConnectorData,
+				ID:          storage.NewID(),
+				ClientID:    authReq.ClientID,
+				ConnectorID: authReq.ConnectorID,
+				Nonce:       authReq.Nonce,
+				Scopes:      authReq.Scopes,
+				Claims:      authReq.Claims,
+				Expiry:      s.now().Add(time.Minute * 30),
+				RedirectURI: authReq.RedirectURI,
 			}
 			if err := s.storage.CreateAuthCode(code); err != nil {
 				s.logger.Errorf("Failed to create auth code: %v", err)
@@ -756,16 +803,15 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	var refreshToken string
 	if reqRefresh {
 		refresh := storage.RefreshToken{
-			ID:            storage.NewID(),
-			Token:         storage.NewID(),
-			ClientID:      authCode.ClientID,
-			ConnectorID:   authCode.ConnectorID,
-			Scopes:        authCode.Scopes,
-			Claims:        authCode.Claims,
-			Nonce:         authCode.Nonce,
-			ConnectorData: authCode.ConnectorData,
-			CreatedAt:     s.now(),
-			LastUsed:      s.now(),
+			ID:          storage.NewID(),
+			Token:       storage.NewID(),
+			ClientID:    authCode.ClientID,
+			ConnectorID: authCode.ConnectorID,
+			Scopes:      authCode.Scopes,
+			Claims:      authCode.Claims,
+			Nonce:       authCode.Nonce,
+			CreatedAt:   s.now(),
+			LastUsed:    s.now(),
 		}
 		token := &internal.RefreshToken{
 			RefreshId: refresh.ID,
@@ -927,6 +973,16 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		scopes = requestedScopes
 	}
 
+	var connectorData []byte
+	if session, err := s.storage.GetOfflineSessions(refresh.Claims.UserID, refresh.ConnectorID); err != nil {
+		if err != storage.ErrNotFound {
+			s.logger.Errorf("failed to get offline session: %v", err)
+			return
+		}
+	} else {
+		connectorData = session.ConnectorData
+	}
+
 	conn, err := s.getConnector(refresh.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("connector with ID %q not found: %v", refresh.ConnectorID, err)
@@ -939,7 +995,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		Email:         refresh.Claims.Email,
 		EmailVerified: refresh.Claims.EmailVerified,
 		Groups:        refresh.Claims.Groups,
-		ConnectorData: refresh.ConnectorData,
+		ConnectorData: connectorData,
 	}
 
 	// Can the connector refresh the identity? If so, attempt to refresh the data
@@ -997,7 +1053,6 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		old.Claims.Email = ident.Email
 		old.Claims.EmailVerified = ident.EmailVerified
 		old.Claims.Groups = ident.Groups
-		old.ConnectorData = ident.ConnectorData
 		old.LastUsed = lastUsed
 		return old, nil
 	}
@@ -1009,6 +1064,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 			return old, errors.New("refresh token invalid")
 		}
 		old.Refresh[refresh.ClientID].LastUsed = lastUsed
+		old.ConnectorData = ident.ConnectorData
 		return old, nil
 	}); err != nil {
 		s.logger.Errorf("failed to update offline session: %v", err)

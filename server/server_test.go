@@ -623,11 +623,8 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
-	src := &nonceSource{nonce: nonce}
-
 	idTokenVerifier := p.Verifier(&oidc.Config{
-		ClientID:   client.ID,
-		ClaimNonce: src.ClaimNonce,
+		ClientID: client.ID,
 	})
 
 	oauth2Config = &oauth2.Config{
@@ -638,7 +635,7 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 		RedirectURL:  redirectURL,
 	}
 
-	checkIDToken := func(u *url.URL) error {
+	checkIDToken := func(u *url.URL, nonce string) error {
 		if u.Fragment == "" {
 			return fmt.Errorf("url has no fragment: %s", u)
 		}
@@ -650,8 +647,14 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 		if idToken == "" {
 			return errors.New("no id_token in fragment")
 		}
-		if _, err := idTokenVerifier.Verify(ctx, idToken); err != nil {
+		parsedToken, err := idTokenVerifier.Verify(ctx, idToken)
+		if err != nil {
 			return fmt.Errorf("failed to verify id_token: %v", err)
+		}
+		// check nonce since Verifier no longer does:
+		// retrieve from the connectordata?
+		if parsedToken.Nonce != nonce {
+			return fmt.Errorf("the id_token nonce was incorrect")
 		}
 		return nil
 	}
@@ -669,7 +672,7 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 			// for an ID Token.
 			u := req.URL.String()
 			if strings.HasPrefix(u, oauth2Server.URL) {
-				if err := checkIDToken(req.URL); err == nil {
+				if err := checkIDToken(req.URL, nonce); err == nil {
 					gotIDToken = true
 				} else {
 					t.Error(err)
