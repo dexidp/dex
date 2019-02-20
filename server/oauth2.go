@@ -126,6 +126,11 @@ const (
 	responseTypeIDToken = "id_token" // ID Token in url fragment
 )
 
+const (
+	codeChallengeSHA256 = "S256"
+	codeChallengePlain  = "plain"
+)
+
 func parseScopes(scopes []string) connector.Scopes {
 	var s connector.Scopes
 	for _, scope := range scopes {
@@ -503,6 +508,8 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 		Scopes:              scopes,
 		RedirectURI:         redirectURI,
 		ResponseTypes:       responseTypes,
+		CodeChallenge:       q.Get("code_challenge"),
+		CodeChallengeMethod: q.Get("code_challenge_method"),
 	}, nil
 }
 

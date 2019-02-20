@@ -182,6 +182,10 @@ type AuthRequest struct {
 	// Set when the user authenticates.
 	ConnectorID   string
 	ConnectorData []byte
+
+	// PKCE code challenge
+	CodeChallenge       string
+	CodeChallengeMethod string
 }
 
 // AuthCode represents a code which can be exchanged for an OAuth2 token response.
@@ -217,6 +221,10 @@ type AuthCode struct {
 	Claims        Claims
 
 	Expiry time.Time
+
+	// PKCE code challenge
+	CodeChallenge       string
+	CodeChallengeMethod string
 }
 
 // RefreshToken is an OAuth2 refresh token which allows a client to request new

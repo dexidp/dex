@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -566,15 +568,17 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		switch responseType {
 		case responseTypeCode:
 			code = storage.AuthCode{
-				ID:            storage.NewID(),
-				ClientID:      authReq.ClientID,
-				ConnectorID:   authReq.ConnectorID,
-				Nonce:         authReq.Nonce,
-				Scopes:        authReq.Scopes,
-				Claims:        authReq.Claims,
-				Expiry:        s.now().Add(time.Minute * 30),
-				RedirectURI:   authReq.RedirectURI,
-				ConnectorData: authReq.ConnectorData,
+				ID:                  storage.NewID(),
+				ClientID:            authReq.ClientID,
+				ConnectorID:         authReq.ConnectorID,
+				Nonce:               authReq.Nonce,
+				Scopes:              authReq.Scopes,
+				Claims:              authReq.Claims,
+				Expiry:              s.now().Add(time.Minute * 30),
+				RedirectURI:         authReq.RedirectURI,
+				ConnectorData:       authReq.ConnectorData,
+				CodeChallenge:       authReq.CodeChallenge,
+				CodeChallengeMethod: authReq.CodeChallengeMethod,
 			}
 			if err := s.storage.CreateAuthCode(code); err != nil {
 				s.logger.Errorf("Failed to create auth code: %v", err)
@@ -699,6 +703,7 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client storage.Client) {
 	code := r.PostFormValue("code")
 	redirectURI := r.PostFormValue("redirect_uri")
+	verifier := r.PostFormValue("code_verifier")
 
 	authCode, err := s.storage.GetAuthCode(code)
 	if err != nil || s.now().After(authCode.Expiry) || authCode.ClientID != client.ID {
@@ -714,6 +719,30 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	if authCode.RedirectURI != redirectURI {
 		s.tokenErrHelper(w, errInvalidRequest, "redirect_uri did not match URI from initial request.", http.StatusBadRequest)
 		return
+	}
+
+	// Check for code challenge validity
+	if authCode.CodeChallenge != "" {
+		if verifier == "" {
+			s.tokenErrHelper(w, errInvalidRequest, "Require code_verifier", http.StatusUnauthorized)
+			return
+		}
+		var challenge string
+		switch authCode.CodeChallengeMethod {
+		case codeChallengeSHA256:
+			sum := sha256.Sum256([]byte(verifier))
+			challenge = base64.RawURLEncoding.EncodeToString(sum[:])
+		// default to plain: insecure
+		case codeChallengePlain:
+			challenge = verifier
+		default:
+			s.tokenErrHelper(w, errServerError, "Unsupported code challenge method", http.StatusInternalServerError)
+			return
+		}
+		if challenge != authCode.CodeChallenge {
+			s.tokenErrHelper(w, errInvalidGrant, "code_verifier doesn't have the same hash as code_challenge", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	accessToken := storage.NewID()

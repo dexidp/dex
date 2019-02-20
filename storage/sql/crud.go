@@ -111,10 +111,10 @@ func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
 			claims_user_id, claims_username, claims_email, claims_email_verified,
 			claims_groups,
 			connector_id, connector_data,
-			expiry
+			expiry, code_challenge, code_challenge_method
 		)
 		values (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
 		);
 	`,
 		a.ID, a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
@@ -122,7 +122,7 @@ func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
 		a.Claims.UserID, a.Claims.Username, a.Claims.Email, a.Claims.EmailVerified,
 		encoder(a.Claims.Groups),
 		a.ConnectorID, a.ConnectorData,
-		a.Expiry,
+		a.Expiry, a.CodeChallenge, a.CodeChallengeMethod,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -153,15 +153,15 @@ func (c *conn) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) 
 				claims_email_verified = $12,
 				claims_groups = $13,
 				connector_id = $14, connector_data = $15,
-				expiry = $16
-			where id = $17;
+				expiry = $16, code_challenge = $17, code_challenge_method = $18
+			where id = $19;
 		`,
 			a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
 			a.ForceApprovalPrompt, a.LoggedIn,
 			a.Claims.UserID, a.Claims.Username, a.Claims.Email, a.Claims.EmailVerified,
 			encoder(a.Claims.Groups),
 			a.ConnectorID, a.ConnectorData,
-			a.Expiry, r.ID,
+			a.Expiry, a.CodeChallenge, a.CodeChallengeMethod, r.ID,
 		)
 		if err != nil {
 			return fmt.Errorf("update auth request: %v", err)
@@ -182,14 +182,14 @@ func getAuthRequest(q querier, id string) (a storage.AuthRequest, err error) {
 			force_approval_prompt, logged_in,
 			claims_user_id, claims_username, claims_email, claims_email_verified,
 			claims_groups,
-			connector_id, connector_data, expiry
+			connector_id, connector_data, expiry, code_challenge, code_challenge_method
 		from auth_request where id = $1;
 	`, id).Scan(
 		&a.ID, &a.ClientID, decoder(&a.ResponseTypes), decoder(&a.Scopes), &a.RedirectURI, &a.Nonce, &a.State,
 		&a.ForceApprovalPrompt, &a.LoggedIn,
 		&a.Claims.UserID, &a.Claims.Username, &a.Claims.Email, &a.Claims.EmailVerified,
 		decoder(&a.Claims.Groups),
-		&a.ConnectorID, &a.ConnectorData, &a.Expiry,
+		&a.ConnectorID, &a.ConnectorData, &a.Expiry, &a.CodeChallenge, &a.CodeChallengeMethod,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -207,13 +207,13 @@ func (c *conn) CreateAuthCode(a storage.AuthCode) error {
 			claims_user_id, claims_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
-			expiry
+			expiry, code_challenge, code_challenge_method
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
 	`,
 		a.ID, a.ClientID, encoder(a.Scopes), a.Nonce, a.RedirectURI, a.Claims.UserID,
 		a.Claims.Username, a.Claims.Email, a.Claims.EmailVerified, encoder(a.Claims.Groups),
-		a.ConnectorID, a.ConnectorData, a.Expiry,
+		a.ConnectorID, a.ConnectorData, a.Expiry, a.CodeChallenge, a.CodeChallengeMethod,
 	)
 
 	if err != nil {
@@ -232,12 +232,12 @@ func (c *conn) GetAuthCode(id string) (a storage.AuthCode, err error) {
 			claims_user_id, claims_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
-			expiry
+			expiry, code_challenge, code_challenge_method
 		from auth_code where id = $1;
 	`, id).Scan(
 		&a.ID, &a.ClientID, decoder(&a.Scopes), &a.Nonce, &a.RedirectURI, &a.Claims.UserID,
 		&a.Claims.Username, &a.Claims.Email, &a.Claims.EmailVerified, decoder(&a.Claims.Groups),
-		&a.ConnectorID, &a.ConnectorData, &a.Expiry,
+		&a.ConnectorID, &a.ConnectorData, &a.Expiry, &a.CodeChallenge, &a.CodeChallengeMethod,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {

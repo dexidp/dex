@@ -100,7 +100,10 @@ var migrations = []migration{
 				connector_id text not null,
 				connector_data bytea,
 		
-				expiry timestamptz not null
+				expiry timestamptz not null,
+
+				code_challenge text,
+				code_challenge_method text
 			);
 		
 			create table auth_code (
@@ -119,7 +122,10 @@ var migrations = []migration{
 				connector_id text not null,
 				connector_data bytea,
 		
-				expiry timestamptz not null
+				expiry timestamptz not null,
+
+				code_challenge text,
+				code_challenge_method text
 			);
 		
 			create table refresh_token (
