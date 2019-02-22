@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/dexidp/dex/pkg/log"
 	"io/ioutil"
 	"net/http"
 	"sync"
@@ -13,8 +14,6 @@ import (
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/bitbucket"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/dexidp/dex/connector"
 )
@@ -40,7 +39,7 @@ type Config struct {
 }
 
 // Open returns a strategy for logging in through Bitbucket.
-func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 
 	b := bitbucketConnector{
 		redirectURI:  c.RedirectURI,
@@ -70,7 +69,7 @@ type bitbucketConnector struct {
 	teams        []string
 	clientID     string
 	clientSecret string
-	logger       logrus.FieldLogger
+	logger       log.Logger
 	apiURL       string
 
 	// the following are used only for tests

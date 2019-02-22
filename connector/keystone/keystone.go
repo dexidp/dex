@@ -9,9 +9,8 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/log"
 )
 
 type conn struct {
@@ -19,7 +18,7 @@ type conn struct {
 	Host          string
 	AdminUsername string
 	AdminPassword string
-	Logger        logrus.FieldLogger
+	Logger        log.Logger
 }
 
 type userKeystone struct {
@@ -102,7 +101,7 @@ var (
 )
 
 // Open returns an authentication strategy using Keystone.
-func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	return &conn{
 		c.Domain,
 		c.Host,

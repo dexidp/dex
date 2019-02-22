@@ -11,10 +11,10 @@ import (
 	"sync"
 
 	"github.com/coreos/go-oidc"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/log"
 )
 
 // Config holds configuration options for OpenID Connect logins.
@@ -75,7 +75,7 @@ func registerBrokenAuthHeaderProvider(url string) {
 
 // Open returns a connector which can be used to login users through an upstream
 // OpenID Connect provider.
-func (c *Config) Open(id string, logger logrus.FieldLogger) (conn connector.Connector, err error) {
+func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	provider, err := oidc.NewProvider(ctx, c.Issuer)
@@ -130,7 +130,7 @@ type oidcConnector struct {
 	verifier      *oidc.IDTokenVerifier
 	ctx           context.Context
 	cancel        context.CancelFunc
-	logger        logrus.FieldLogger
+	logger        log.Logger
 	hostedDomains []string
 }
 

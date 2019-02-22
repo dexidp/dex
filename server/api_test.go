@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/dexidp/dex/api"
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
@@ -28,7 +29,7 @@ type apiClient struct {
 }
 
 // newAPI constructs a gRCP client connected to a backing server.
-func newAPI(s storage.Storage, logger logrus.FieldLogger, t *testing.T) *apiClient {
+func newAPI(s storage.Storage, logger log.Logger, t *testing.T) *apiClient {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

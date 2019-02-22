@@ -6,13 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
 
 // New returns an in memory storage.
-func New(logger logrus.FieldLogger) storage.Storage {
+func New(logger log.Logger) storage.Storage {
 	return &memStorage{
 		clients:         make(map[string]storage.Client),
 		authCodes:       make(map[string]storage.AuthCode),
@@ -33,7 +32,7 @@ type Config struct {
 }
 
 // Open always returns a new in memory storage.
-func (c *Config) Open(logger logrus.FieldLogger) (storage.Storage, error) {
+func (c *Config) Open(logger log.Logger) (storage.Storage, error) {
 	return New(logger), nil
 }
 
@@ -50,7 +49,7 @@ type memStorage struct {
 
 	keys storage.Keys
 
-	logger logrus.FieldLogger
+	logger log.Logger
 }
 
 type offlineSessionID struct {

@@ -10,10 +10,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/log"
 )
 
 const (
@@ -42,7 +42,7 @@ type gitlabUser struct {
 }
 
 // Open returns a strategy for logging in through GitLab.
-func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	if c.BaseURL == "" {
 		c.BaseURL = "https://gitlab.com"
 	}
@@ -71,7 +71,7 @@ type gitlabConnector struct {
 	org          string
 	clientID     string
 	clientSecret string
-	logger       logrus.FieldLogger
+	logger       log.Logger
 }
 
 func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {

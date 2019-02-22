@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/dexidp/dex/api"
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
 )
@@ -324,7 +325,7 @@ func (f *utcFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	return f.f.Format(e)
 }
 
-func newLogger(level string, format string) (logrus.FieldLogger, error) {
+func newLogger(level string, format string) (log.Logger, error) {
 	var logLevel logrus.Level
 	switch strings.ToLower(level) {
 	case "debug":

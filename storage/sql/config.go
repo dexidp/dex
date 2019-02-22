@@ -11,8 +11,8 @@ import (
 
 	"github.com/lib/pq"
 	sqlite3 "github.com/mattn/go-sqlite3"
-	"github.com/sirupsen/logrus"
 
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -28,7 +28,7 @@ type SQLite3 struct {
 }
 
 // Open creates a new storage implementation backed by SQLite3
-func (s *SQLite3) Open(logger logrus.FieldLogger) (storage.Storage, error) {
+func (s *SQLite3) Open(logger log.Logger) (storage.Storage, error) {
 	conn, err := s.open(logger)
 	if err != nil {
 		return nil, err
@@ -36,7 +36,7 @@ func (s *SQLite3) Open(logger logrus.FieldLogger) (storage.Storage, error) {
 	return conn, nil
 }
 
-func (s *SQLite3) open(logger logrus.FieldLogger) (*conn, error) {
+func (s *SQLite3) open(logger log.Logger) (*conn, error) {
 	db, err := sql.Open("sqlite3", s.File)
 	if err != nil {
 		return nil, err
@@ -99,7 +99,7 @@ type Postgres struct {
 }
 
 // Open creates a new storage implementation backed by Postgres.
-func (p *Postgres) Open(logger logrus.FieldLogger) (storage.Storage, error) {
+func (p *Postgres) Open(logger log.Logger) (storage.Storage, error) {
 	conn, err := p.open(logger, p.createDataSourceName())
 	if err != nil {
 		return nil, err
@@ -179,7 +179,7 @@ func (p *Postgres) createDataSourceName() string {
 	return strings.Join(parameters, " ")
 }
 
-func (p *Postgres) open(logger logrus.FieldLogger, dataSourceName string) (*conn, error) {
+func (p *Postgres) open(logger log.Logger, dataSourceName string) (*conn, error) {
 	db, err := sql.Open("postgres", dataSourceName)
 	if err != nil {
 		return nil, err

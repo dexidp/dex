@@ -6,8 +6,8 @@ import (
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/namespace"
 	"github.com/coreos/etcd/pkg/transport"
-	"github.com/sirupsen/logrus"
 
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -36,11 +36,11 @@ type Etcd struct {
 }
 
 // Open creates a new storage implementation backed by Etcd
-func (p *Etcd) Open(logger logrus.FieldLogger) (storage.Storage, error) {
+func (p *Etcd) Open(logger log.Logger) (storage.Storage, error) {
 	return p.open(logger)
 }
 
-func (p *Etcd) open(logger logrus.FieldLogger) (*conn, error) {
+func (p *Etcd) open(logger log.Logger) (*conn, error) {
 	cfg := clientv3.Config{
 		Endpoints:   p.Endpoints,
 		DialTimeout: defaultDialTimeout,
