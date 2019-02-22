@@ -58,11 +58,11 @@ func newAPI(s storage.Storage, logger log.Logger, t *testing.T) *apiClient {
 
 // Attempts to create, update and delete a test Password
 func TestPassword(t *testing.T) {
-	logger := log.NewLogrusLogger(&logrus.Logger{
+	logger := &logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
-	})
+	}
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)
@@ -123,11 +123,11 @@ func TestPassword(t *testing.T) {
 
 // Ensures checkCost returns expected values
 func TestCheckCost(t *testing.T) {
-	logger := log.NewLogrusLogger(&logrus.Logger{
+	logger := &logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
-	})
+	}
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)
@@ -180,11 +180,11 @@ func TestCheckCost(t *testing.T) {
 
 // Attempts to list and revoke an exisiting refresh token.
 func TestRefreshToken(t *testing.T) {
-	logger := log.NewLogrusLogger(&logrus.Logger{
+	logger := &logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
-	})
+	}
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)
@@ -293,11 +293,11 @@ func TestRefreshToken(t *testing.T) {
 }
 
 func TestUpdateClient(t *testing.T) {
-	logger := log.NewLogrusLogger(&logrus.Logger{
+	logger := &logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
-	})
+	}
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)

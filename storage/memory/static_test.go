@@ -8,16 +8,15 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
 
 func TestStaticClients(t *testing.T) {
-	logger := log.NewLogrusLogger(&logrus.Logger{
+	logger := &logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
-	})
+	}
 	backing := New(logger)
 
 	c1 := storage.Client{ID: "foo", Secret: "foo_secret"}
@@ -100,11 +99,11 @@ func TestStaticClients(t *testing.T) {
 }
 
 func TestStaticPasswords(t *testing.T) {
-	logger := log.NewLogrusLogger(&logrus.Logger{
+	logger := &logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
-	})
+	}
 	backing := New(logger)
 
 	p1 := storage.Password{Email: "foo@example.com", Username: "foo_secret"}
@@ -212,11 +211,11 @@ func TestStaticPasswords(t *testing.T) {
 }
 
 func TestStaticConnectors(t *testing.T) {
-	logger := log.NewLogrusLogger(&logrus.Logger{
+	logger := &logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
-	})
+	}
 	backing := New(logger)
 
 	config1 := []byte(`{"issuer": "https://accounts.google.com"}`)

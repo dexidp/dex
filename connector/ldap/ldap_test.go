@@ -17,7 +17,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 const envVar = "DEX_LDAP_TESTS"
@@ -876,7 +875,7 @@ func runTests(t *testing.T, schema string, connMethod connectionMethod, config *
 	c.BindDN = "cn=admin,dc=example,dc=org"
 	c.BindPW = "admin"
 
-	l := log.NewLogrusLogger(&logrus.Logger{Out: ioutil.Discard, Formatter: &logrus.TextFormatter{}})
+	l := &logrus.Logger{Out: ioutil.Discard, Formatter: &logrus.TextFormatter{}}
 
 	conn, err := c.openConnector(l)
 	if err != nil {

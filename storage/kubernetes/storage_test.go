@@ -7,7 +7,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/conformance"
 )
@@ -25,11 +24,11 @@ func loadClient(t *testing.T) *client {
 	if config.KubeConfigFile == "" {
 		t.Skipf("test environment variable %q not set, skipping", testKubeConfigEnv)
 	}
-	logger := log.NewLogrusLogger(&logrus.Logger{
+	logger := &logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
-	})
+	}
 	s, err := config.open(logger, true)
 	if err != nil {
 		t.Fatal(err)

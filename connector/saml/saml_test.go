@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
-	"github.com/dexidp/dex/pkg/log"
 	"io/ioutil"
 	"sort"
 	"testing"
@@ -305,7 +304,7 @@ func (r responseTest) run(t *testing.T) {
 		t.Fatalf("parse test time: %v", err)
 	}
 
-	conn, err := c.openConnector(log.NewLogrusLogger(logrus.New()))
+	conn, err := c.openConnector(logrus.New())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -339,7 +338,7 @@ func (r responseTest) run(t *testing.T) {
 }
 
 func TestConfigCAData(t *testing.T) {
-	logger := log.NewLogrusLogger(logrus.New())
+	logger := logrus.New()
 	validPEM, err := ioutil.ReadFile("testdata/ca.crt")
 	if err != nil {
 		t.Fatal(err)
@@ -476,7 +475,7 @@ func newProvider(ssoIssuer string, redirectURI string) *provider {
 		usernameAttr: "user",
 		emailAttr:    "email",
 		redirectURI:  redirectURI,
-		logger:       log.NewLogrusLogger(logrus.New()),
+		logger:       logrus.New(),
 	}
 }
 

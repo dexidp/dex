@@ -6,17 +6,16 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/conformance"
 )
 
 func TestStorage(t *testing.T) {
-	logger := log.NewLogrusLogger(&logrus.Logger{
+	logger := &logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
-	})
+	}
 
 	newStorage := func() storage.Storage {
 		return New(logger)

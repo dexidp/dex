@@ -348,9 +348,9 @@ func newLogger(level string, format string) (log.Logger, error) {
 		return nil, fmt.Errorf("log format is not one of the supported values (%s): %s", strings.Join(logFormats, ", "), format)
 	}
 
-	return log.NewLogrusLogger(&logrus.Logger{
+	return &logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &formatter,
 		Level:     logLevel,
-	}), nil
+	}, nil
 }

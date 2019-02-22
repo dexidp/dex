@@ -7,8 +7,6 @@ import (
 
 	sqlite3 "github.com/mattn/go-sqlite3"
 	"github.com/sirupsen/logrus"
-
-	"github.com/dexidp/dex/pkg/log"
 )
 
 func TestMigrate(t *testing.T) {
@@ -18,11 +16,11 @@ func TestMigrate(t *testing.T) {
 	}
 	defer db.Close()
 
-	logger := log.NewLogrusLogger(&logrus.Logger{
+	logger := &logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
-	})
+	}
 
 	errCheck := func(err error) bool {
 		sqlErr, ok := err.(sqlite3.Error)

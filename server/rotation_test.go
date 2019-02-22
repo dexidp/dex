@@ -8,7 +8,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -68,11 +67,11 @@ func TestKeyRotater(t *testing.T) {
 	// Only the last 5 verification keys are expected to be kept around.
 	maxVerificationKeys := 5
 
-	l := log.NewLogrusLogger(&logrus.Logger{
+	l := &logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
-	})
+	}
 
 	r := &keyRotater{
 		Storage:  memory.New(l),
