@@ -14,11 +14,6 @@ func NewLogrusLogger(logger logrus.FieldLogger) *LogrusLogger {
 	}
 }
 
-// WithField adds a field to the log entry.
-func (l *LogrusLogger) WithField(key string, value interface{}) Logger {
-	return NewLogrusLogger(l.logger.WithField(key, value))
-}
-
 // Info logs an Info level event.
 func (l *LogrusLogger) Info(msg string) {
 	l.logger.Info(msg)

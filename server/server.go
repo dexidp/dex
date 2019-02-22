@@ -485,7 +485,7 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 		c = newPasswordDB(s.storage)
 	} else {
 		var err error
-		c, err = openConnector(s.logger.WithField("connector", conn.Name), conn)
+		c, err = openConnector(s.logger, conn)
 		if err != nil {
 			return Connector{}, fmt.Errorf("failed to open connector: %v", err)
 		}
