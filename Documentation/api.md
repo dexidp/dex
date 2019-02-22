@@ -62,7 +62,7 @@ func newDexClient(hostAndPort, caPath string) (api.DexClient, error) {
 
     conn, err := grpc.Dial(hostAndPort, grpc.WithTransportCredentials(creds))
     if err != nil {
-        return nil, fmt.Errorf("dail: %v", err)
+        return nil, fmt.Errorf("dial: %v", err)
     }
     return api.NewDexClient(conn), nil
 }
