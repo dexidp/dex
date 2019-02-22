@@ -6,8 +6,8 @@ package log
 // Logger serves as an adapter interface for logger libraries
 // so that dex does not depend on any of them directly.
 type Logger interface {
-	Info(msg string)
-	Warn(msg string)
+	Info(args ...interface{})
+	Warn(args ...interface{})
 
 	Debugf(format string, args ...interface{})
 	Infof(format string, args ...interface{})

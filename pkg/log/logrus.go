@@ -15,13 +15,13 @@ func NewLogrusLogger(logger logrus.FieldLogger) *LogrusLogger {
 }
 
 // Info logs an Info level event.
-func (l *LogrusLogger) Info(msg string) {
-	l.logger.Info(msg)
+func (l *LogrusLogger) Info(args ...interface{}) {
+	l.logger.Info(args...)
 }
 
 // Warn logs a Warn level event.
-func (l *LogrusLogger) Warn(msg string) {
-	l.logger.Warn(msg)
+func (l *LogrusLogger) Warn(args ...interface{}) {
+	l.logger.Warn(args...)
 }
 
 // Debugf formats and logs a Debug level event.
