@@ -3,13 +3,14 @@ package sql
 
 import (
 	"database/sql"
-	"github.com/dexidp/dex/pkg/log"
 	"regexp"
 	"time"
 
 	// import third party drivers
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/dexidp/dex/pkg/log"
 )
 
 // flavor represents a specific SQL implementation, and is used to translate query strings
