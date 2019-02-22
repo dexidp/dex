@@ -60,7 +60,7 @@ func CheckHMAC(data, suppliedMAC []byte, key *[32]byte) bool {
 	return hmac.Equal(expectedMAC, suppliedMAC)
 }
 
-// GenerateSigningKey generates a random P-256 ECDSA private key.
+// NewSigningKey generates a random P-256 ECDSA private key.
 func NewSigningKey() (*ecdsa.PrivateKey, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	return key, err
