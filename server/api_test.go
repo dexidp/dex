@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/dexidp/dex/api"
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
@@ -28,7 +29,7 @@ type apiClient struct {
 }
 
 // newAPI constructs a gRCP client connected to a backing server.
-func newAPI(s storage.Storage, logger logrus.FieldLogger, t *testing.T) *apiClient {
+func newAPI(s storage.Storage, logger log.Logger, t *testing.T) *apiClient {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -57,11 +58,11 @@ func newAPI(s storage.Storage, logger logrus.FieldLogger, t *testing.T) *apiClie
 
 // Attempts to create, update and delete a test Password
 func TestPassword(t *testing.T) {
-	logger := &logrus.Logger{
+	logger := log.NewLogrusLogger(&logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
-	}
+	})
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)
@@ -122,11 +123,11 @@ func TestPassword(t *testing.T) {
 
 // Ensures checkCost returns expected values
 func TestCheckCost(t *testing.T) {
-	logger := &logrus.Logger{
+	logger := log.NewLogrusLogger(&logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
-	}
+	})
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)
@@ -179,11 +180,11 @@ func TestCheckCost(t *testing.T) {
 
 // Attempts to list and revoke an exisiting refresh token.
 func TestRefreshToken(t *testing.T) {
-	logger := &logrus.Logger{
+	logger := log.NewLogrusLogger(&logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
-	}
+	})
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)
@@ -292,11 +293,11 @@ func TestRefreshToken(t *testing.T) {
 }
 
 func TestUpdateClient(t *testing.T) {
-	logger := &logrus.Logger{
+	logger := log.NewLogrusLogger(&logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
-	}
+	})
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)

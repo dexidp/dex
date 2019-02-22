@@ -9,6 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/conformance"
 )
@@ -43,11 +44,11 @@ func cleanDB(c *conn) error {
 	return err
 }
 
-var logger = &logrus.Logger{
+var logger = log.NewLogrusLogger(&logrus.Logger{
 	Out:       os.Stderr,
 	Formatter: &logrus.TextFormatter{DisableColors: true},
 	Level:     logrus.DebugLevel,
-}
+})
 
 func TestSQLite3(t *testing.T) {
 	newStorage := func() storage.Storage {

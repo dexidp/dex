@@ -7,8 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
@@ -43,7 +42,7 @@ type Config struct {
 }
 
 // Open returns a storage using Kubernetes third party resource.
-func (c *Config) Open(logger logrus.FieldLogger) (storage.Storage, error) {
+func (c *Config) Open(logger log.Logger) (storage.Storage, error) {
 	cli, err := c.open(logger, false)
 	if err != nil {
 		return nil, err
@@ -56,7 +55,7 @@ func (c *Config) Open(logger logrus.FieldLogger) (storage.Storage, error) {
 //
 // waitForResources controls if errors creating the resources cause this method to return
 // immediately (used during testing), or if the client will asynchronously retry.
-func (c *Config) open(logger logrus.FieldLogger, waitForResources bool) (*client, error) {
+func (c *Config) open(logger log.Logger, waitForResources bool) (*client, error) {
 	if c.InCluster && (c.KubeConfigFile != "") {
 		return nil, errors.New("cannot specify both 'inCluster' and 'kubeConfigFile'")
 	}

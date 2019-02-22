@@ -11,9 +11,8 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/log"
 )
 
 const (
@@ -30,7 +29,7 @@ type Config struct {
 }
 
 // Open returns a strategy for logging in through LinkedIn
-func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	return &linkedInConnector{
 		oauth2Config: &oauth2.Config{
 			ClientID:     c.ClientID,
@@ -52,7 +51,7 @@ type connectorData struct {
 
 type linkedInConnector struct {
 	oauth2Config *oauth2.Config
-	logger       logrus.FieldLogger
+	logger       log.Logger
 }
 
 // LinkedIn doesn't provide refresh tokens, so refresh tokens issued by Dex

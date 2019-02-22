@@ -16,11 +16,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/log"
 )
 
 const (
@@ -53,7 +53,6 @@ type Config struct {
 
 // Org holds org-team filters, in which teams are optional.
 type Org struct {
-
 	// Organization name in github (not slug, full name). Only users in this github
 	// organization can authenticate.
 	Name string `json:"name"`
@@ -66,14 +65,14 @@ type Org struct {
 }
 
 // Open returns a strategy for logging in through GitHub.
-func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 
 	if c.Org != "" {
 		// Return error if both 'org' and 'orgs' fields are used.
 		if len(c.Orgs) > 0 {
 			return nil, errors.New("github: cannot use both 'org' and 'orgs' fields simultaneously")
 		}
-		logger.Warnln("github: legacy field 'org' being used. Switch to the newer 'orgs' field structure")
+		logger.Warn("github: legacy field 'org' being used. Switch to the newer 'orgs' field structure")
 	}
 
 	g := githubConnector{
@@ -137,7 +136,7 @@ type githubConnector struct {
 	orgs         []Org
 	clientID     string
 	clientSecret string
-	logger       logrus.FieldLogger
+	logger       log.Logger
 	// apiURL defaults to "https://api.github.com"
 	apiURL string
 	// hostName of the GitHub enterprise account.

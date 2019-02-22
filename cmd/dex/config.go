@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/etcd"
@@ -127,7 +127,7 @@ type Storage struct {
 
 // StorageConfig is a configuration that can create a storage.
 type StorageConfig interface {
-	Open(logrus.FieldLogger) (storage.Storage, error)
+	Open(logger log.Logger) (storage.Storage, error)
 }
 
 var storages = map[string]func() StorageConfig{

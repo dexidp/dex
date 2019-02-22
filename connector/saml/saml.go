@@ -14,11 +14,10 @@ import (
 	"time"
 
 	"github.com/beevik/etree"
+	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/log"
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/russellhaering/goxmldsig/etreeutils"
-	"github.com/sirupsen/logrus"
-
-	"github.com/dexidp/dex/connector"
 )
 
 const (
@@ -126,11 +125,11 @@ func (c certStore) Certificates() (roots []*x509.Certificate, err error) {
 
 // Open validates the config and returns a connector. It does not actually
 // validate connectivity with the provider.
-func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	return c.openConnector(logger)
 }
 
-func (c *Config) openConnector(logger logrus.FieldLogger) (*provider, error) {
+func (c *Config) openConnector(logger log.Logger) (*provider, error) {
 	requiredFields := []struct {
 		name, val string
 	}{
@@ -241,7 +240,7 @@ type provider struct {
 
 	nameIDPolicyFormat string
 
-	logger logrus.FieldLogger
+	logger log.Logger
 }
 
 func (p *provider) POSTData(s connector.Scopes, id string) (action, value string, err error) {

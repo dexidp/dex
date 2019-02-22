@@ -16,12 +16,6 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/felixge/httpsnoop"
-	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
-
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/authproxy"
 	"github.com/dexidp/dex/connector/bitbucketcloud"
@@ -34,7 +28,12 @@ import (
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/saml"
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
+	"github.com/felixge/httpsnoop"
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // LocalConnector is the local passwordDB connector which is an internal
@@ -80,7 +79,7 @@ type Config struct {
 
 	Web WebConfig
 
-	Logger logrus.FieldLogger
+	Logger log.Logger
 
 	PrometheusRegistry *prometheus.Registry
 }
@@ -142,7 +141,7 @@ type Server struct {
 	idTokensValidFor     time.Duration
 	authRequestsValidFor time.Duration
 
-	logger logrus.FieldLogger
+	logger log.Logger
 }
 
 // NewServer constructs a server from the provided config.
@@ -431,7 +430,7 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 
 // ConnectorConfig is a configuration that can open a connector.
 type ConnectorConfig interface {
-	Open(id string, logger logrus.FieldLogger) (connector.Connector, error)
+	Open(id string, logger log.Logger) (connector.Connector, error)
 }
 
 // ConnectorsConfig variable provides an easy way to return a config struct
@@ -454,7 +453,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 }
 
 // openConnector will parse the connector config and open the connector.
-func openConnector(logger logrus.FieldLogger, conn storage.Connector) (connector.Connector, error) {
+func openConnector(logger log.Logger, conn storage.Connector) (connector.Connector, error) {
 	var c connector.Connector
 
 	f, ok := ConnectorsConfig[conn.Type]
