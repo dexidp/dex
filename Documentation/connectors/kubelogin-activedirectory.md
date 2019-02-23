@@ -107,7 +107,7 @@ $ kubectl config set-credentials test \
   --auth-provider-arg=client-id=kubernetes \
   --auth-provider-arg=client-secret=ZXhhbXBsZS1hcHAtc2VjcmV0 \
   --auth-provider-arg=idp-certificate-authority-data=$(base64 -w 0 openid-ca.pem) \
-  --auth-provider-arg=extra-scopes="offline_access openid profile email group"
+  --auth-provider-arg=extra-scopes="offline_access openid profile email groups"
 $ kubectl config use-context oidc-ctx
 ```
 
