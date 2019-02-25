@@ -5,8 +5,18 @@ sudo: required
 matrix:
   include:
     - go: '1.10.x'
+      os: linux # x86_64 queue name
     - go: '1.11.x'
+      os: linux # x86_64 queue name
     - go: '1.11.x'
+      os: linux # x86_64 queue name
+      env: GO111MODULE=on
+    - go: '1.10.x'
+      os: linux-ppc64le # power queue name
+    - go: '1.11.x'
+      os: linux-ppc64le # power queue name
+    - go: '1.11.x'
+      os: linux-ppc64le # power queue name
       env: GO111MODULE=on
 
 env:
@@ -21,18 +31,23 @@ services:
 install:
   - sudo -E apt-get install -y --force-yes slapd time ldap-utils
   - sudo /etc/init.d/slapd stop
-  - docker run -d --net=host gcr.io/etcd-development/etcd:v3.2.9
-  - docker run -d -p 0.0.0.0:5000:5000 -p 0.0.0.0:35357:35357 openio/openstack-keystone:pike
+  - if [ ${HOSTTYPE} = "powerpc64le" ]; then
+        docker run -d --net=host gcr.io/etcd-development/etcd:v3.2.9-ppc64le;
+    else
+        docker run -d --net=host gcr.io/etcd-development/etcd:v3.2.9;
+    fi
+  - if [ ${HOSTTYPE} = "x86_64" ]; then docker run -d -p 0.0.0.0:5000:5000 -p 0.0.0.0:35357:35357 openio/openstack-keystone:pike; fi
   - |
-    until curl --fail http://localhost:5000/v3; do
-      echo 'Waiting for keystone...'
-      sleep 1;
-    done;
-
+    if [ ${HOSTTYPE} = "x86_64" ]; then
+        until curl --fail http://localhost:5000/v3; do
+          echo 'Waiting for keystone...';
+          sleep 1;
+        done;
+    fi
 script:
-  - make testall
+  - if [ ${HOSTTYPE} = "x86_64" ]; then make testall;fi
   - ./scripts/test-k8s.sh
-  - make verify-proto # Ensure proto generation doesn't depend on external packages.
+  - if [ ${HOSTTYPE} = "x86_64" ]; then make verify-proto;fi # Ensure proto generation doesn't depend on external packages.
 
 notifications:
   email: false
