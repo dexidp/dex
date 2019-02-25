@@ -1,6 +1,9 @@
 #!/bin/bash -e
 
 TEMPDIR=$( mktemp -d )
+ARCH_TYPE=$( arch )
+ETCDIMAGE_NAME="gcr.io/google_containers/etcd:3.1.10"
+KUBEAPISERVERIMAGE_NAME="gcr.io/google_containers/kube-apiserver-amd64:v1.7.4"
 
 cat << EOF > $TEMPDIR/kubeconfig
 apiVersion: v1
@@ -26,11 +29,16 @@ cleanup () {
 
 trap "{ CODE=$?; cleanup ; exit $CODE; }" EXIT
 
+if [ $ARCH_TYPE == "ppc64le" ]; then
+  ETCDIMAGE_NAME="gcr.io/google-containers/etcd-ppc64le:3.1.10"
+  KUBEAPISERVERIMAGE_NAME="gcr.io/google-containers/kube-apiserver-ppc64le:v1.7.4"
+fi
+
 docker run \
     --cidfile=$TEMPDIR/etcd \
     -d \
     --net=host \
-    gcr.io/google_containers/etcd:3.1.10 \
+    $ETCDIMAGE_NAME \
     etcd
 
 docker run \
@@ -38,7 +46,7 @@ docker run \
     -d \
     -v $TEMPDIR:/var/run/kube-test:ro \
     --net=host \
-    gcr.io/google_containers/kube-apiserver-amd64:v1.7.4 \
+    $KUBEAPISERVERIMAGE_NAME \
     kube-apiserver \
     --etcd-servers=http://localhost:2379 \
     --service-cluster-ip-range=10.0.0.1/16 \
