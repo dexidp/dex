@@ -28,6 +28,8 @@ type oauthConnector struct {
 	userInfoURL      string
 	scopes           []string
 	groupsKey        string
+	userIDKey        string
+	userNameKey      string
 	httpClient       *http.Client
 	logger           log.Logger
 }
@@ -45,6 +47,8 @@ type Config struct {
 	UserInfoURL        string   `json:"userInfoURL"`
 	Scopes             []string `json:"scopes"`
 	GroupsKey          string   `json:"groupsKey"`
+	UserIDKey          string   `json:"userIDKey"`
+	UserNameKey        string   `json:"userNameKey"`
 	RootCAs            []string `json:"rootCAs"`
 	InsecureSkipVerify bool     `json:"insecureSkipVerify"`
 }
@@ -60,6 +64,8 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		userInfoURL:      c.UserInfoURL,
 		scopes:           c.Scopes,
 		groupsKey:        c.GroupsKey,
+		userIDKey:        c.UserIDKey,
+		userNameKey:      c.UserNameKey,
 		redirectURI:      c.RedirectURI,
 		logger:           logger,
 	}
@@ -165,17 +171,25 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 		return identity, fmt.Errorf("OAuth Connector: failed to parse userinfo: %v", err)
 	}
 
-	identity.UserID, _ = userInfoResult["user_id"].(string)
+	if c.userIDKey == "" {
+		c.userIDKey = "user_id"
+	}
+
+	if c.userNameKey == "" {
+		c.userNameKey = "user_name"
+	}
+
+	if c.groupsKey == "" {
+		c.groupsKey = "groups"
+	}
+
+	identity.UserID, _ = userInfoResult[c.userIDKey].(string)
+	identity.Username, _ = userInfoResult[c.userNameKey].(string)
 	identity.Name, _ = userInfoResult["name"].(string)
-	identity.Username, _ = userInfoResult["user_name"].(string)
 	identity.Email, _ = userInfoResult["email"].(string)
 	identity.EmailVerified, _ = userInfoResult["email_verified"].(bool)
 
 	if s.Groups {
-		if c.groupsKey == "" {
-			c.groupsKey = "groups"
-		}
-
 		groups := map[string]bool{}
 
 		c.addGroupsFromMap(groups, userInfoResult)

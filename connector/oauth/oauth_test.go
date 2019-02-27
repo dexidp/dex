@@ -72,8 +72,8 @@ func TestHandleCallBackForGroupsInUserInfo(t *testing.T) {
 
 	userInfoClaims := map[string]interface{}{
 		"name":           "test-name",
-		"user_name":      "test-username",
-		"user_id":        "test-user-id",
+		"user_id_key":    "test-user-id",
+		"user_name_key":  "test-username",
 		"email":          "test-email",
 		"email_verified": true,
 		"groups_key":     []string{"admin-group", "user-group"},
@@ -93,6 +93,7 @@ func TestHandleCallBackForGroupsInUserInfo(t *testing.T) {
 	expectEqual(t, identity.Groups[0], "admin-group")
 	expectEqual(t, identity.Groups[1], "user-group")
 	expectEqual(t, identity.Name, "test-name")
+	expectEqual(t, identity.UserID, "test-user-id")
 	expectEqual(t, identity.Username, "test-username")
 	expectEqual(t, identity.Email, "test-email")
 	expectEqual(t, identity.EmailVerified, true)
@@ -106,8 +107,8 @@ func TestHandleCallBackForGroupsInToken(t *testing.T) {
 
 	userInfoClaims := map[string]interface{}{
 		"name":           "test-name",
-		"user_name":      "test-username",
-		"user_id":        "test-user-id",
+		"user_id_key":    "test-user-id",
+		"user_name_key":  "test-username",
 		"email":          "test-email",
 		"email_verified": true,
 	}
@@ -124,6 +125,7 @@ func TestHandleCallBackForGroupsInToken(t *testing.T) {
 	expectEqual(t, len(identity.Groups), 1)
 	expectEqual(t, identity.Groups[0], "test-group")
 	expectEqual(t, identity.Name, "test-name")
+	expectEqual(t, identity.UserID, "test-user-id")
 	expectEqual(t, identity.Username, "test-username")
 	expectEqual(t, identity.Email, "test-email")
 	expectEqual(t, identity.EmailVerified, true)
@@ -197,6 +199,8 @@ func newConnector(t *testing.T, serverURL string) *oauthConnector {
 		UserInfoURL:      serverURL + "/userinfo",
 		Scopes:           []string{"openid", "groups"},
 		GroupsKey:        "groups_key",
+		UserIDKey:        "user_id_key",
+		UserNameKey:      "user_name_key",
 	}
 
 	log := logrus.New()
