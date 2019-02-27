@@ -49,10 +49,12 @@ func TestHandleCallback(t *testing.T) {
 		name                      string
 		userIDKey                 string
 		userNameKey               string
+		preferredUsernameKey      string
 		insecureSkipEmailVerified bool
 		scopes                    []string
 		expectUserID              string
 		expectUserName            string
+		expectPreferredUsername   string
 		expectedEmailField        string
 		token                     map[string]interface{}
 	}{
@@ -109,6 +111,21 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
+			name:                    "withPreferredUsernameKey",
+			preferredUsernameKey:    "preferred_username",
+			expectUserID:            "subvalue",
+			expectUserName:          "namevalue",
+			expectPreferredUsername: "usernamevalue",
+			expectedEmailField:      "emailvalue",
+			token: map[string]interface{}{
+				"sub":                "subvalue",
+				"name":               "namevalue",
+				"preferred_username": "usernamevalue",
+				"email":              "emailvalue",
+				"email_verified":     true,
+			},
+		},
+		{
 			name:                      "emptyEmailScope",
 			expectUserID:              "subvalue",
 			expectUserName:            "namevalue",
@@ -161,6 +178,7 @@ func TestHandleCallback(t *testing.T) {
 				RedirectURI:               fmt.Sprintf("%s/callback", serverURL),
 				UserIDKey:                 tc.userIDKey,
 				UserNameKey:               tc.userNameKey,
+				PreferredUsernameKey:      tc.preferredUsernameKey,
 				InsecureSkipEmailVerified: tc.insecureSkipEmailVerified,
 				BasicAuthUnsupported:      &basicAuth,
 			}
@@ -182,6 +200,7 @@ func TestHandleCallback(t *testing.T) {
 
 			expectEquals(t, identity.UserID, tc.expectUserID)
 			expectEquals(t, identity.Username, tc.expectUserName)
+			expectEquals(t, identity.PreferredUsername, tc.expectPreferredUsername)
 			expectEquals(t, identity.Email, tc.expectedEmailField)
 			expectEquals(t, identity.EmailVerified, true)
 		})

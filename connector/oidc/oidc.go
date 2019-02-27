@@ -55,6 +55,9 @@ type Config struct {
 	// Configurable key which contains the user name claim
 	UserNameKey string `json:"userNameKey"`
 
+	// Configurable key which contains the username claims
+	PreferredUsernameKey string `json:"preferredUsernameKey"` // defaults to "username"
+
 	// PromptType will be used fot the prompt parameter (when offline_access, by default prompt=consent)
 	PromptType string `json:"promptType"`
 }
@@ -143,6 +146,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		getUserInfo:               c.GetUserInfo,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
+		preferredUsernameKey:      c.PreferredUsernameKey,
 		promptType:                c.PromptType,
 	}, nil
 }
@@ -165,6 +169,7 @@ type oidcConnector struct {
 	getUserInfo               bool
 	userIDKey                 string
 	userNameKey               string
+	preferredUsernameKey      string
 	promptType                string
 }
 
@@ -296,6 +301,11 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 	hostedDomain, _ := claims["hd"].(string)
 
+	if c.preferredUsernameKey == "" {
+		c.preferredUsernameKey = "username"
+	}
+	username, _ := claims[c.preferredUsernameKey].(string)
+
 	if len(c.hostedDomains) > 0 {
 		found := false
 		for _, domain := range c.hostedDomains {
@@ -320,11 +330,12 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	identity = connector.Identity{
-		UserID:        idToken.Subject,
-		Username:      name,
-		Email:         email,
-		EmailVerified: emailVerified,
-		ConnectorData: connData,
+		UserID:            idToken.Subject,
+		Username:          name,
+		PreferredUsername: username,
+		Email:             email,
+		EmailVerified:     emailVerified,
+		ConnectorData:     connData,
 	}
 
 	if c.userIDKey != "" {
