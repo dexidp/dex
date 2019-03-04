@@ -90,6 +90,7 @@ userpassword: bar
 			password: "foo",
 			want: connector.Identity{
 				UserID:        "cn=jane,ou=People,dc=example,dc=org",
+				Name:          "jane",
 				Username:      "jane",
 				Email:         "janedoe@example.com",
 				EmailVerified: true,
@@ -101,6 +102,7 @@ userpassword: bar
 			password: "bar",
 			want: connector.Identity{
 				UserID:        "cn=john,ou=People,dc=example,dc=org",
+				Name:          "john",
 				Username:      "john",
 				Email:         "johndoe@example.com",
 				EmailVerified: true,
@@ -164,6 +166,7 @@ userpassword: bar
 			password: "foo",
 			want: connector.Identity{
 				UserID:        "cn=jane,ou=People,dc=example,dc=org",
+				Name:          "jane",
 				Username:      "jane",
 				Email:         "jane@test.example.com",
 				EmailVerified: true,
@@ -175,6 +178,7 @@ userpassword: bar
 			password: "bar",
 			want: connector.Identity{
 				UserID:        "cn=john,ou=People,dc=example,dc=org",
+				Name:          "john",
 				Username:      "john",
 				Email:         "john@test.example.com",
 				EmailVerified: true,
@@ -248,6 +252,7 @@ userpassword: bar
 			password: "foo",
 			want: connector.Identity{
 				UserID:        "cn=jane,ou=People,ou=Seattle,dc=example,dc=org",
+				Name:          "jane",
 				Username:      "jane",
 				Email:         "janedoe@example.com",
 				EmailVerified: true,
@@ -259,6 +264,7 @@ userpassword: bar
 			password: "bar",
 			want: connector.Identity{
 				UserID:        "cn=john,ou=People,ou=Seattle,dc=example,dc=org",
+				Name:          "john",
 				Username:      "john",
 				Email:         "johndoe@example.com",
 				EmailVerified: true,
@@ -345,6 +351,7 @@ member: cn=jane,ou=People,dc=example,dc=org
 			groups:   true,
 			want: connector.Identity{
 				UserID:        "cn=jane,ou=People,dc=example,dc=org",
+				Name:          "jane",
 				Username:      "jane",
 				Email:         "janedoe@example.com",
 				EmailVerified: true,
@@ -358,6 +365,7 @@ member: cn=jane,ou=People,dc=example,dc=org
 			groups:   true,
 			want: connector.Identity{
 				UserID:        "cn=john,ou=People,dc=example,dc=org",
+				Name:          "john",
 				Username:      "john",
 				Email:         "johndoe@example.com",
 				EmailVerified: true,
@@ -443,6 +451,7 @@ gidNumber: 1002
 			groups:   true,
 			want: connector.Identity{
 				UserID:        "cn=jane,ou=People,dc=example,dc=org",
+				Name:          "jane",
 				Username:      "jane",
 				Email:         "janedoe@example.com",
 				EmailVerified: true,
@@ -456,6 +465,7 @@ gidNumber: 1002
 			groups:   true,
 			want: connector.Identity{
 				UserID:        "cn=john,ou=People,dc=example,dc=org",
+				Name:          "john",
 				Username:      "john",
 				Email:         "johndoe@example.com",
 				EmailVerified: true,
@@ -548,6 +558,7 @@ member: cn=jane,ou=People,dc=example,dc=org
 			groups:   true,
 			want: connector.Identity{
 				UserID:        "cn=jane,ou=People,dc=example,dc=org",
+				Name:          "jane",
 				Username:      "jane",
 				Email:         "janedoe@example.com",
 				EmailVerified: true,
@@ -561,6 +572,7 @@ member: cn=jane,ou=People,dc=example,dc=org
 			groups:   true,
 			want: connector.Identity{
 				UserID:        "cn=john,ou=People,dc=example,dc=org",
+				Name:          "john",
 				Username:      "john",
 				Email:         "johndoe@example.com",
 				EmailVerified: true,
@@ -606,6 +618,7 @@ userpassword: foo
 			password: "foo",
 			want: connector.Identity{
 				UserID:        "cn=jane,ou=People,dc=example,dc=org",
+				Name:          "jane",
 				Username:      "jane",
 				Email:         "janedoe@example.com",
 				EmailVerified: true,
@@ -649,6 +662,7 @@ userpassword: foo
 			password: "foo",
 			want: connector.Identity{
 				UserID:        "cn=jane,ou=People,dc=example,dc=org",
+				Name:          "jane",
 				Username:      "jane",
 				Email:         "janedoe@example.com",
 				EmailVerified: true,
@@ -692,6 +706,7 @@ userpassword: foo
 			password: "foo",
 			want: connector.Identity{
 				UserID:        "cn=jane,ou=People,dc=example,dc=org",
+				Name:          "jane",
 				Username:      "jane",
 				Email:         "janedoe@example.com",
 				EmailVerified: true,
