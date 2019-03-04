@@ -383,12 +383,13 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	ident.EmailVerified = true
 
 	// Grab the username.
-	if name, _ := attributes.get(p.usernameAttr); name == "" {
+	name, _ := attributes.get(p.usernameAttr)
+	if name == "" {
 		return ident, fmt.Errorf("no attribute with name %q: %s", p.usernameAttr, attributes.names())
-	} else {
-		ident.Name = name
-		ident.Username = name
 	}
+
+	ident.Name = name
+	ident.Username = name
 
 	if !s.Groups || p.groupsAttr == "" {
 		// Groups not requested or not configured. We're done.
