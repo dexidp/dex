@@ -36,6 +36,9 @@ type Config struct {
 	// Optional list of whitelisted domains when using Google
 	// If this field is nonempty, only users from a listed domain will be allowed to log in
 	HostedDomains []string `json:"hostedDomains"`
+
+	// Override the value of email_verifed to true in the returned claims
+	InsecureSkipEmailVerified bool `json:"insecureSkipEmailVerified"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -113,9 +116,10 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		verifier: provider.Verifier(
 			&oidc.Config{ClientID: clientID},
 		),
-		logger:        logger,
-		cancel:        cancel,
-		hostedDomains: c.HostedDomains,
+		logger:                    logger,
+		cancel:                    cancel,
+		hostedDomains:             c.HostedDomains,
+		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
 	}, nil
 }
 
@@ -125,13 +129,14 @@ var (
 )
 
 type oidcConnector struct {
-	redirectURI   string
-	oauth2Config  *oauth2.Config
-	verifier      *oidc.IDTokenVerifier
-	ctx           context.Context
-	cancel        context.CancelFunc
-	logger        log.Logger
-	hostedDomains []string
+	redirectURI               string
+	oauth2Config              *oauth2.Config
+	verifier                  *oidc.IDTokenVerifier
+	ctx                       context.Context
+	cancel                    context.CancelFunc
+	logger                    log.Logger
+	hostedDomains             []string
+	insecureSkipEmailVerified bool
 }
 
 func (c *oidcConnector) Close() error {
@@ -207,6 +212,11 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		if !found {
 			return identity, fmt.Errorf("oidc: unexpected hd claim %v", claims.HostedDomain)
 		}
+	}
+
+	if c.insecureSkipEmailVerified {
+		claims.EmailVerified = true
+
 	}
 
 	identity = connector.Identity{

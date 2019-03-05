@@ -55,6 +55,11 @@ connectors:
     #  - profile
     #  - email
     #  - groups
+
+    # Some providers return claims without "email_verified", when they had no usage of emails verification in enrollement process
+    # or if they are acting as a proxy for another IDP etc AWS Cognito with an upstream SAML IDP
+    # This can be overridden with the below option
+    # insecureSkipEmailVerified: true 
 ```
 
 [oidc-doc]: openid-connect.md
