@@ -46,7 +46,7 @@ install:
     fi
 script:
   - if [ ${HOSTTYPE} = "x86_64" ]; then make testall;fi
-  - ./scripts/test-k8s.sh
+  - if [ ${HOSTTYPE} = "x86_64" ]; then ./scripts/test-k8s.sh;fi
   - if [ ${HOSTTYPE} = "x86_64" ]; then make verify-proto;fi # Ensure proto generation doesn't depend on external packages.
 
 notifications:
