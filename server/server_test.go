@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -187,6 +189,10 @@ func TestOAuth2CodeFlow(t *testing.T) {
 		scopes []string
 		// handleToken provides the OAuth2 token response for the integration test.
 		handleToken func(context.Context, *oidc.Provider, *oauth2.Config, *oauth2.Token) error
+		// If specified this code challenge will be used during the test case.
+		codeChallenge       string
+		codeChallengeMethod string
+		codeVerifier        string
 	}{
 		{
 			name: "verify ID Token",
@@ -412,6 +418,35 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				return nil
 			},
 		},
+		{
+			name: "code challenge plain",
+			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
+				_, err := config.TokenSource(ctx, token).Token()
+				if err != nil {
+					return fmt.Errorf("failed to get token: %v", err)
+				}
+				return nil
+			},
+			codeChallenge:       "test-code-challenge",
+			codeChallengeMethod: codeChallengePlain,
+			codeVerifier:        "test-code-challenge",
+		},
+		{
+			name: "code challenge sha256",
+			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
+				_, err := config.TokenSource(ctx, token).Token()
+				if err != nil {
+					return fmt.Errorf("failed to get token: %v", err)
+				}
+				return nil
+			},
+			codeChallenge: func() string {
+				sum := sha256.Sum256([]byte("test-code-challenge"))
+				return base64.RawURLEncoding.EncodeToString(sum[:])
+			}(),
+			codeChallengeMethod: codeChallengeSHA256,
+			codeVerifier:        "test-code-challenge",
+		},
 	}
 
 	for _, tc := range tests {
@@ -453,8 +488,15 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			var oauth2Config *oauth2.Config
 			oauth2Client := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path != "/callback" {
+					options := make([]oauth2.AuthCodeOption, 0, 2)
+					if tc.codeChallenge != "" {
+						options = append(options, oauth2.SetAuthURLParam("code_challenge", tc.codeChallenge))
+					}
+					if tc.codeChallengeMethod != "" {
+						options = append(options, oauth2.SetAuthURLParam("code_challenge_method", tc.codeChallengeMethod))
+					}
 					// User is visiting app first time. Redirect to dex.
-					http.Redirect(w, r, oauth2Config.AuthCodeURL(state), http.StatusSeeOther)
+					http.Redirect(w, r, oauth2Config.AuthCodeURL(state, options...), http.StatusSeeOther)
 					return
 				}
 
@@ -475,7 +517,11 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				// Grab code, exchange for token.
 				if code := q.Get("code"); code != "" {
 					gotCode = true
-					token, err := oauth2Config.Exchange(ctx, code)
+					options := make([]oauth2.AuthCodeOption, 0, 1)
+					if tc.codeVerifier != "" {
+						options = append(options, oauth2.SetAuthURLParam("code_verifier", tc.codeVerifier))
+					}
+					token, err := oauth2Config.Exchange(ctx, code, options...)
 					if err != nil {
 						t.Errorf("failed to exchange code for token: %v", err)
 						return
