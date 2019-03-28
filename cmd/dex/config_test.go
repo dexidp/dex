@@ -3,12 +3,13 @@ package main
 import (
 	"testing"
 
-	"github.com/coreos/dex/connector/mock"
-	"github.com/coreos/dex/connector/oidc"
-	"github.com/coreos/dex/storage"
-	"github.com/coreos/dex/storage/sql"
 	"github.com/ghodss/yaml"
 	"github.com/kylelemons/godebug/pretty"
+
+	"github.com/dexidp/dex/connector/mock"
+	"github.com/dexidp/dex/connector/oidc"
+	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/sql"
 )
 
 var _ = yaml.YAMLToJSON
@@ -17,10 +18,14 @@ func TestUnmarshalConfig(t *testing.T) {
 	rawConfig := []byte(`
 issuer: http://127.0.0.1:5556/dex
 storage:
-  type: sqlite3
+  type: postgres
   config:
-    file: examples/dex.db
-
+    host: 10.0.0.1
+    port: 65432
+    maxOpenConns: 5
+    maxIdleConns: 3
+    connMaxLifetime: 30
+    connectionTimeout: 3
 web:
   http: 127.0.0.1:5556
 staticClients:
@@ -57,8 +62,9 @@ staticPasswords:
   userID: "41331323-6f44-45e6-b3b9-2c4b60c02be5"
 
 expiry:
-  signingKeys: "6h"
-  idTokens: "24h"
+  signingKeys: "7h"
+  idTokens: "25h"
+  authRequests: "25h"
 
 logger:
   level: "debug"
@@ -68,9 +74,14 @@ logger:
 	want := Config{
 		Issuer: "http://127.0.0.1:5556/dex",
 		Storage: Storage{
-			Type: "sqlite3",
-			Config: &sql.SQLite3{
-				File: "examples/dex.db",
+			Type: "postgres",
+			Config: &sql.Postgres{
+				Host:              "10.0.0.1",
+				Port:              65432,
+				MaxOpenConns:      5,
+				MaxIdleConns:      3,
+				ConnMaxLifetime:   30,
+				ConnectionTimeout: 3,
 			},
 		},
 		Web: Web{
@@ -121,8 +132,9 @@ logger:
 			},
 		},
 		Expiry: Expiry{
-			SigningKeys: "6h",
-			IDTokens:    "24h",
+			SigningKeys:  "7h",
+			IDTokens:     "25h",
+			AuthRequests: "25h",
 		},
 		Logger: Logger{
 			Level:  "debug",

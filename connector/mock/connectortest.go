@@ -8,13 +8,13 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/coreos/dex/connector"
-	"github.com/sirupsen/logrus"
+	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/log"
 )
 
 // NewCallbackConnector returns a mock connector which requires no user interaction. It always returns
 // the same (fake) identity.
-func NewCallbackConnector(logger logrus.FieldLogger) connector.Connector {
+func NewCallbackConnector(logger log.Logger) connector.Connector {
 	return &Callback{
 		Identity: connector.Identity{
 			UserID:        "0-385-28089-0",
@@ -32,13 +32,14 @@ var (
 	_ connector.CallbackConnector = &Callback{}
 
 	_ connector.PasswordConnector = passwordConnector{}
+	_ connector.RefreshConnector  = passwordConnector{}
 )
 
 // Callback is a connector that requires no user interaction and always returns the same identity.
 type Callback struct {
 	// The returned identity.
 	Identity connector.Identity
-	Logger   logrus.FieldLogger
+	Logger   log.Logger
 }
 
 // LoginURL returns the URL to redirect the user to login with.
@@ -69,7 +70,7 @@ func (m *Callback) Refresh(ctx context.Context, s connector.Scopes, identity con
 type CallbackConfig struct{}
 
 // Open returns an authentication strategy which requires no user interaction.
-func (c *CallbackConfig) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
+func (c *CallbackConfig) Open(id string, logger log.Logger) (connector.Connector, error) {
 	return NewCallbackConnector(logger), nil
 }
 
@@ -81,7 +82,7 @@ type PasswordConfig struct {
 }
 
 // Open returns an authentication strategy which prompts for a predefined username and password.
-func (c *PasswordConfig) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
+func (c *PasswordConfig) Open(id string, logger log.Logger) (connector.Connector, error) {
 	if c.Username == "" {
 		return nil, errors.New("no username supplied")
 	}
@@ -94,7 +95,7 @@ func (c *PasswordConfig) Open(id string, logger logrus.FieldLogger) (connector.C
 type passwordConnector struct {
 	username string
 	password string
-	logger   logrus.FieldLogger
+	logger   log.Logger
 }
 
 func (p passwordConnector) Close() error { return nil }
@@ -112,3 +113,7 @@ func (p passwordConnector) Login(ctx context.Context, s connector.Scopes, userna
 }
 
 func (p passwordConnector) Prompt() string { return "" }
+
+func (p passwordConnector) Refresh(_ context.Context, _ connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+	return identity, nil
+}

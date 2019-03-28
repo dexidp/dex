@@ -12,8 +12,8 @@ import (
 
 	"gopkg.in/square/go-jose.v2"
 
-	"github.com/coreos/dex/storage"
-	"github.com/sirupsen/logrus"
+	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/storage"
 )
 
 var errAlreadyRotated = errors.New("keys already rotated by another server instance")
@@ -61,7 +61,7 @@ type keyRotater struct {
 	strategy rotationStrategy
 	now      func() time.Time
 
-	logger logrus.FieldLogger
+	logger log.Logger
 }
 
 // startKeyRotation begins key rotation in a new goroutine, closing once the context is canceled.

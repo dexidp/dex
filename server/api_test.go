@@ -7,12 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/dex/api"
-	"github.com/coreos/dex/server/internal"
-	"github.com/coreos/dex/storage"
-	"github.com/coreos/dex/storage/memory"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+
+	"github.com/dexidp/dex/api"
+	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/memory"
 )
 
 // apiClient is a test gRPC client. When constructed, it runs a server in
@@ -27,7 +29,7 @@ type apiClient struct {
 }
 
 // newAPI constructs a gRCP client connected to a backing server.
-func newAPI(s storage.Storage, logger logrus.FieldLogger, t *testing.T) *apiClient {
+func newAPI(s storage.Storage, logger log.Logger, t *testing.T) *apiClient {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -276,7 +278,7 @@ func TestRefreshToken(t *testing.T) {
 
 	// Try to delete again.
 	//
-	// See https://github.com/coreos/dex/issues/1055
+	// See https://github.com/dexidp/dex/issues/1055
 	resp, err = client.RevokeRefresh(ctx, &revokeReq)
 	if err != nil {
 		t.Fatalf("Unable to revoke refresh tokens for user: %v", err)
@@ -288,4 +290,172 @@ func TestRefreshToken(t *testing.T) {
 	if resp, _ := client.ListRefresh(ctx, &listReq); len(resp.RefreshTokens) != 0 {
 		t.Fatalf("Refresh token returned inspite of revoking it.")
 	}
+}
+
+func TestUpdateClient(t *testing.T) {
+	logger := &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level:     logrus.DebugLevel,
+	}
+
+	s := memory.New(logger)
+	client := newAPI(s, logger, t)
+	defer client.Close()
+	ctx := context.Background()
+
+	createClient := func(t *testing.T, clientId string) {
+		resp, err := client.CreateClient(ctx, &api.CreateClientReq{
+			Client: &api.Client{
+				Id:           clientId,
+				Secret:       "",
+				RedirectUris: []string{},
+				TrustedPeers: nil,
+				Public:       true,
+				Name:         "",
+				LogoUrl:      "",
+			},
+		})
+		if err != nil {
+			t.Fatalf("unable to create the client: %v", err)
+		}
+
+		if resp == nil {
+			t.Fatalf("create client returned no response")
+		}
+		if resp.AlreadyExists {
+			t.Error("existing client was found")
+		}
+
+		if resp.Client == nil {
+			t.Fatalf("no client created")
+		}
+	}
+
+	deleteClient := func(t *testing.T, clientId string) {
+		resp, err := client.DeleteClient(ctx, &api.DeleteClientReq{
+			Id: clientId,
+		})
+		if err != nil {
+			t.Fatalf("unable to delete the client: %v", err)
+		}
+		if resp == nil {
+			t.Fatalf("delete client delete client returned no response")
+		}
+	}
+
+	tests := map[string]struct {
+		setup   func(t *testing.T, clientId string)
+		cleanup func(t *testing.T, clientId string)
+		req     *api.UpdateClientReq
+		wantErr bool
+		want    *api.UpdateClientResp
+	}{
+		"update client": {
+			setup:   createClient,
+			cleanup: deleteClient,
+			req: &api.UpdateClientReq{
+				Id:           "test",
+				RedirectUris: []string{"https://redirect"},
+				TrustedPeers: []string{"test"},
+				Name:         "test",
+				LogoUrl:      "https://logout",
+			},
+			wantErr: false,
+			want: &api.UpdateClientResp{
+				NotFound: false,
+			},
+		},
+		"update client without ID": {
+			setup:   createClient,
+			cleanup: deleteClient,
+			req: &api.UpdateClientReq{
+				Id:           "",
+				RedirectUris: nil,
+				TrustedPeers: nil,
+				Name:         "test",
+				LogoUrl:      "test",
+			},
+			wantErr: true,
+			want: &api.UpdateClientResp{
+				NotFound: false,
+			},
+		},
+		"update client which not exists ": {
+			req: &api.UpdateClientReq{
+				Id:           "test",
+				RedirectUris: nil,
+				TrustedPeers: nil,
+				Name:         "test",
+				LogoUrl:      "test",
+			},
+			wantErr: true,
+			want: &api.UpdateClientResp{
+				NotFound: false,
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			if tc.setup != nil {
+				tc.setup(t, tc.req.Id)
+			}
+			resp, err := client.UpdateClient(ctx, tc.req)
+			if err != nil && !tc.wantErr {
+				t.Fatalf("failed to update the client: %v", err)
+			}
+
+			if !tc.wantErr {
+				if resp == nil {
+					t.Fatalf("update client response not found")
+				}
+
+				if tc.want.NotFound != resp.NotFound {
+					t.Errorf("expected in response NotFound: %t", tc.want.NotFound)
+				}
+
+				client, err := s.GetClient(tc.req.Id)
+				if err != nil {
+					t.Errorf("no client found in the storage: %v", err)
+				}
+
+				if tc.req.Id != client.ID {
+					t.Errorf("expected stored client with ID: %s, found %s", tc.req.Id, client.ID)
+				}
+				if tc.req.Name != client.Name {
+					t.Errorf("expected stored client with Name: %s, found %s", tc.req.Name, client.Name)
+				}
+				if tc.req.LogoUrl != client.LogoURL {
+					t.Errorf("expected stored client with LogoURL: %s, found %s", tc.req.LogoUrl, client.LogoURL)
+				}
+				for _, redirectURI := range tc.req.RedirectUris {
+					found := find(redirectURI, client.RedirectURIs)
+					if !found {
+						t.Errorf("expected redirect URI: %s", redirectURI)
+					}
+				}
+				for _, peer := range tc.req.TrustedPeers {
+					found := find(peer, client.TrustedPeers)
+					if !found {
+						t.Errorf("expected trusted peer: %s", peer)
+					}
+				}
+			}
+
+			if tc.cleanup != nil {
+				tc.cleanup(t, tc.req.Id)
+			}
+
+		})
+	}
+}
+
+func find(item string, items []string) bool {
+	for _, i := range items {
+		if item == i {
+			return true
+		}
+	}
+	return false
 }

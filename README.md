@@ -1,8 +1,8 @@
 # dex - A federated OpenID Connect provider
 
-[![Travis](https://api.travis-ci.org/coreos/dex.svg)](https://travis-ci.org/coreos/dex)
-[![GoDoc](https://godoc.org/github.com/coreos/dex?status.svg)](https://godoc.org/github.com/coreos/dex)
-[![Go Report Card](https://goreportcard.com/badge/github.com/coreos/dex)](https://goreportcard.com/report/github.com/coreos/dex)
+[![Travis](https://api.travis-ci.org/dexidp/dex.svg)](https://travis-ci.org/dexidp/dex)
+[![GoDoc](https://godoc.org/github.com/dexidp/dex?status.svg)](https://godoc.org/github.com/dexidp/dex)
+[![Go Report Card](https://goreportcard.com/badge/github.com/dexidp/dex)](https://goreportcard.com/report/github.com/dexidp/dex)
 
 ![logo](Documentation/logos/dex-horizontal-color.png)
 
@@ -53,7 +53,7 @@ More docs for running dex as a Kubernetes authenticator can be found [here](Docu
 
 ## Connectors
 
-When a user logs in through dex, the user's identity is usually stored in another user-management system: a LDAP directory, a GitHub org, etc. Dex acts a shim between a client app and the upstream identity provider. The client only needs to understand OpenID Connect to query dex, while dex implements an array of protocols for querying other user-management systems.
+When a user logs in through dex, the user's identity is usually stored in another user-management system: a LDAP directory, a GitHub org, etc. Dex acts as a shim between a client app and the upstream identity provider. The client only needs to understand OpenID Connect to query dex, while dex implements an array of protocols for querying other user-management systems.
 
 ![](Documentation/img/dex-flow.png)
 
@@ -73,6 +73,7 @@ Dex implements the following connectors:
 | [LinkedIn](Documentation/connectors/linkedin.md) | yes | no | beta | |
 | [Microsoft](Documentation/connectors/microsoft.md) | yes | yes | beta | |
 | [AuthProxy](Documentation/connectors/authproxy.md) | no | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
+| [Bitbucket Cloud](Documentation/connectors/bitbucketcloud.md) | yes | yes | alpha | |
 
 Stable, beta, and alpha are defined as:
 
@@ -114,8 +115,8 @@ Due to their public nature, GitHub and mailing lists are NOT appropriate places 
 [tectonic]: https://tectonic.com/
 [tectonic-console]: https://tectonic.com/enterprise/docs/latest/usage/index.html#tectonic-console
 [go-oidc]: https://github.com/coreos/go-oidc
-[issue-1065]: https://github.com/coreos/dex/issues/1065
-[release-notes]: https://github.com/coreos/dex/releases
-[issues]: https://github.com/coreos/dex/issues
+[issue-1065]: https://github.com/dexidp/dex/issues/1065
+[release-notes]: https://github.com/dexidp/dex/releases
+[issues]: https://github.com/dexidp/dex/issues
 [dex-dev]: https://groups.google.com/forum/#!forum/dex-dev
 [disclosure]: https://coreos.com/security/disclosure/

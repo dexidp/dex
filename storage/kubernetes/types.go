@@ -6,8 +6,8 @@ import (
 
 	jose "gopkg.in/square/go-jose.v2"
 
-	"github.com/coreos/dex/storage"
-	"github.com/coreos/dex/storage/kubernetes/k8sapi"
+	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
 
 var tprMeta = k8sapi.TypeMeta{

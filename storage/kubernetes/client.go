@@ -24,18 +24,18 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gtank/cryptopasta"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 
-	"github.com/coreos/dex/storage"
-	"github.com/coreos/dex/storage/kubernetes/k8sapi"
+	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
 
 type client struct {
 	client    *http.Client
 	baseURL   string
 	namespace string
-	logger    logrus.FieldLogger
+	logger    log.Logger
 
 	// Hash function to map IDs (which could span a large range) to Kubernetes names.
 	// While this is not currently upgradable, it could be in the future.
@@ -137,7 +137,7 @@ func checkHTTPErr(r *http.Response, validStatusCodes ...int) error {
 	if r.StatusCode == http.StatusNotFound {
 		return storage.ErrNotFound
 	}
-	if r.Request.Method == "POST" && r.StatusCode == http.StatusConflict {
+	if r.Request.Method == http.MethodPost && r.StatusCode == http.StatusConflict {
 		return storage.ErrAlreadyExists
 	}
 
@@ -253,7 +253,7 @@ func (c *client) put(resource, name string, v interface{}) error {
 	return checkHTTPErr(resp, http.StatusOK)
 }
 
-func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, logger logrus.FieldLogger, useTPR bool) (*client, error) {
+func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, logger log.Logger, useTPR bool) (*client, error) {
 	tlsConfig := cryptopasta.DefaultTLSConfig()
 	data := func(b string, file string) ([]byte, error) {
 		if b != "" {

@@ -14,7 +14,7 @@ import (
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/sirupsen/logrus"
 
-	"github.com/coreos/dex/connector"
+	"github.com/dexidp/dex/connector"
 )
 
 // responseTest maps a SAML 2.0 response object to a set of expected values.
@@ -334,6 +334,93 @@ func (r responseTest) run(t *testing.T) {
 	sort.Strings(r.wantIdent.Groups)
 	if diff := pretty.Compare(ident, r.wantIdent); diff != "" {
 		t.Error(diff)
+	}
+}
+
+func TestConfigCAData(t *testing.T) {
+	logger := logrus.New()
+	validPEM, err := ioutil.ReadFile("testdata/ca.crt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	valid2ndPEM, err := ioutil.ReadFile("testdata/okta-ca.pem")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// copy helper, avoid messing with the byte slice among different cases
+	c := func(bs []byte) []byte {
+		return append([]byte(nil), bs...)
+	}
+
+	tests := []struct {
+		name    string
+		caData  []byte
+		wantErr bool
+	}{
+		{
+			name:   "one valid PEM entry",
+			caData: c(validPEM),
+		},
+		{
+			name:   "one valid PEM entry with trailing newline",
+			caData: append(c(validPEM), []byte("\n")...),
+		},
+		{
+			name:   "one valid PEM entry with trailing spaces",
+			caData: append(c(validPEM), []byte("   ")...),
+		},
+		{
+			name:   "one valid PEM entry with two trailing newlines",
+			caData: append(c(validPEM), []byte("\n\n")...),
+		},
+		{
+			name:   "two valid PEM entries",
+			caData: append(c(validPEM), c(valid2ndPEM)...),
+		},
+		{
+			name:   "two valid PEM entries with newline in between",
+			caData: append(append(c(validPEM), []byte("\n")...), c(valid2ndPEM)...),
+		},
+		{
+			name:   "two valid PEM entries with trailing newline",
+			caData: append(c(valid2ndPEM), append(c(validPEM), []byte("\n")...)...),
+		},
+		{
+			name:    "empty",
+			caData:  []byte{},
+			wantErr: true,
+		},
+		{
+			name:    "one valid PEM entry with trailing data",
+			caData:  append(c(validPEM), []byte("yaddayadda")...),
+			wantErr: true,
+		},
+		{
+			name:    "one valid PEM entry with bad data before",
+			caData:  append([]byte("yaddayadda"), c(validPEM)...),
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := Config{
+				CAData:       tc.caData,
+				UsernameAttr: "user",
+				EmailAttr:    "email",
+				RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+				SSOURL:       "http://foo.bar/",
+			}
+			_, err := (&c).Open("samltest", logger)
+			if tc.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+			} else if err != nil {
+				t.Errorf("expected no error, got %v", err)
+			}
+		})
 	}
 }
 

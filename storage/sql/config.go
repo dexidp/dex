@@ -3,13 +3,17 @@ package sql
 import (
 	"database/sql"
 	"fmt"
-	"net/url"
+	"net"
+	"regexp"
 	"strconv"
+	"strings"
+	"time"
 
-	"github.com/coreos/dex/storage"
 	"github.com/lib/pq"
 	sqlite3 "github.com/mattn/go-sqlite3"
-	"github.com/sirupsen/logrus"
+
+	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/storage"
 )
 
 const (
@@ -24,7 +28,7 @@ type SQLite3 struct {
 }
 
 // Open creates a new storage implementation backed by SQLite3
-func (s *SQLite3) Open(logger logrus.FieldLogger) (storage.Storage, error) {
+func (s *SQLite3) Open(logger log.Logger) (storage.Storage, error) {
 	conn, err := s.open(logger)
 	if err != nil {
 		return nil, err
@@ -32,7 +36,7 @@ func (s *SQLite3) Open(logger logrus.FieldLogger) (storage.Storage, error) {
 	return conn, nil
 }
 
-func (s *SQLite3) open(logger logrus.FieldLogger) (*conn, error) {
+func (s *SQLite3) open(logger log.Logger) (*conn, error) {
 	db, err := sql.Open("sqlite3", s.File)
 	if err != nil {
 		return nil, err
@@ -80,55 +84,122 @@ type Postgres struct {
 	User     string
 	Password string
 	Host     string
+	Port     uint16
 
 	SSL PostgresSSL `json:"ssl" yaml:"ssl"`
 
 	ConnectionTimeout int // Seconds
+
+	// database/sql tunables, see
+	// https://golang.org/pkg/database/sql/#DB.SetConnMaxLifetime and below
+	// Note: defaults will be set if these are 0
+	MaxOpenConns    int // default: 5
+	MaxIdleConns    int // default: 5
+	ConnMaxLifetime int // Seconds, default: not set
 }
 
 // Open creates a new storage implementation backed by Postgres.
-func (p *Postgres) Open(logger logrus.FieldLogger) (storage.Storage, error) {
-	conn, err := p.open(logger)
+func (p *Postgres) Open(logger log.Logger) (storage.Storage, error) {
+	conn, err := p.open(logger, p.createDataSourceName())
 	if err != nil {
 		return nil, err
 	}
 	return conn, nil
 }
 
-func (p *Postgres) open(logger logrus.FieldLogger) (*conn, error) {
-	v := url.Values{}
-	set := func(key, val string) {
-		if val != "" {
-			v.Set(key, val)
+var strEsc = regexp.MustCompile(`([\\'])`)
+
+func dataSourceStr(str string) string {
+	return "'" + strEsc.ReplaceAllString(str, `\$1`) + "'"
+}
+
+// createDataSourceName takes the configuration provided via the Postgres
+// struct to create a data-source name that Go's database/sql package can
+// make use of.
+func (p *Postgres) createDataSourceName() string {
+	parameters := []string{}
+
+	addParam := func(key, val string) {
+		parameters = append(parameters, fmt.Sprintf("%s=%s", key, val))
+	}
+
+	addParam("connect_timeout", strconv.Itoa(p.ConnectionTimeout))
+
+	// detect host:port for backwards-compatibility
+	host, port, err := net.SplitHostPort(p.Host)
+	if err != nil {
+		// not host:port, probably unix socket or bare address
+
+		host = p.Host
+
+		if p.Port != 0 {
+			port = strconv.Itoa(int(p.Port))
 		}
 	}
-	set("connect_timeout", strconv.Itoa(p.ConnectionTimeout))
-	set("sslkey", p.SSL.KeyFile)
-	set("sslcert", p.SSL.CertFile)
-	set("sslrootcert", p.SSL.CAFile)
-	if p.SSL.Mode == "" {
-		// Assume the strictest mode if unspecified.
-		p.SSL.Mode = sslVerifyFull
-	}
-	set("sslmode", p.SSL.Mode)
 
-	u := url.URL{
-		Scheme:   "postgres",
-		Host:     p.Host,
-		Path:     "/" + p.Database,
-		RawQuery: v.Encode(),
+	if host != "" {
+		addParam("host", dataSourceStr(host))
+	}
+
+	if port != "" {
+		addParam("port", port)
 	}
 
 	if p.User != "" {
-		if p.Password != "" {
-			u.User = url.UserPassword(p.User, p.Password)
-		} else {
-			u.User = url.User(p.User)
-		}
+		addParam("user", dataSourceStr(p.User))
 	}
-	db, err := sql.Open("postgres", u.String())
+
+	if p.Password != "" {
+		addParam("password", dataSourceStr(p.Password))
+	}
+
+	if p.Database != "" {
+		addParam("dbname", dataSourceStr(p.Database))
+	}
+
+	if p.SSL.Mode == "" {
+		// Assume the strictest mode if unspecified.
+		addParam("sslmode", dataSourceStr(sslVerifyFull))
+	} else {
+		addParam("sslmode", dataSourceStr(p.SSL.Mode))
+	}
+
+	if p.SSL.CAFile != "" {
+		addParam("sslrootcert", dataSourceStr(p.SSL.CAFile))
+	}
+
+	if p.SSL.CertFile != "" {
+		addParam("sslcert", dataSourceStr(p.SSL.CertFile))
+	}
+
+	if p.SSL.KeyFile != "" {
+		addParam("sslkey", dataSourceStr(p.SSL.KeyFile))
+	}
+
+	return strings.Join(parameters, " ")
+}
+
+func (p *Postgres) open(logger log.Logger, dataSourceName string) (*conn, error) {
+	db, err := sql.Open("postgres", dataSourceName)
 	if err != nil {
 		return nil, err
+	}
+
+	// set database/sql tunables if configured
+	if p.ConnMaxLifetime != 0 {
+		db.SetConnMaxLifetime(time.Duration(p.ConnMaxLifetime) * time.Second)
+	}
+
+	if p.MaxIdleConns == 0 {
+		db.SetMaxIdleConns(5)
+	} else {
+		db.SetMaxIdleConns(p.MaxIdleConns)
+	}
+
+	if p.MaxOpenConns == 0 {
+		db.SetMaxOpenConns(5)
+	} else {
+		db.SetMaxOpenConns(p.MaxOpenConns)
 	}
 
 	errCheck := func(err error) bool {

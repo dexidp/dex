@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/dex/storage"
-	"github.com/coreos/dex/storage/kubernetes/k8sapi"
-	"github.com/sirupsen/logrus"
+	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
 
 const (
@@ -42,7 +42,7 @@ type Config struct {
 }
 
 // Open returns a storage using Kubernetes third party resource.
-func (c *Config) Open(logger logrus.FieldLogger) (storage.Storage, error) {
+func (c *Config) Open(logger log.Logger) (storage.Storage, error) {
 	cli, err := c.open(logger, false)
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func (c *Config) Open(logger logrus.FieldLogger) (storage.Storage, error) {
 //
 // waitForResources controls if errors creating the resources cause this method to return
 // immediately (used during testing), or if the client will asynchronously retry.
-func (c *Config) open(logger logrus.FieldLogger, waitForResources bool) (*client, error) {
+func (c *Config) open(logger log.Logger, waitForResources bool) (*client, error) {
 	if c.InCluster && (c.KubeConfigFile != "") {
 		return nil, errors.New("cannot specify both 'inCluster' and 'kubeConfigFile'")
 	}
@@ -147,6 +147,14 @@ func (cli *client) registerCustomResources(useTPR bool) (ok bool) {
 			resourceName = r.ObjectMeta.Name
 		} else {
 			r := customResourceDefinitions[i]
+			var i interface{}
+			cli.logger.Infof("checking if custom resource %s has been created already...", r.ObjectMeta.Name)
+			if err := cli.list(r.Spec.Names.Plural, &i); err == nil {
+				cli.logger.Infof("The custom resource %s already available, skipping create", r.ObjectMeta.Name)
+				continue
+			} else {
+				cli.logger.Infof("failed to list custom resource %s, attempting to create: %v", r.ObjectMeta.Name, err)
+			}
 			err = cli.postResource("apiextensions.k8s.io/v1beta1", "", "customresourcedefinitions", r)
 			resourceName = r.ObjectMeta.Name
 		}

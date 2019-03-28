@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/dex/storage"
-	"github.com/coreos/dex/storage/conformance"
 	"github.com/sirupsen/logrus"
+
+	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/conformance"
 )
 
 func withTimeout(t time.Duration, f func()) {
@@ -76,6 +77,110 @@ func getenv(key, defaultVal string) string {
 
 const testPostgresEnv = "DEX_POSTGRES_HOST"
 
+func TestCreateDataSourceName(t *testing.T) {
+	var testCases = []struct {
+		description string
+		input       *Postgres
+		expected    string
+	}{
+		{
+			description: "with no configuration",
+			input:       &Postgres{},
+			expected:    "connect_timeout=0 sslmode='verify-full'",
+		},
+		{
+			description: "with typical configuration",
+			input: &Postgres{
+				Host:     "1.2.3.4",
+				Port:     6543,
+				User:     "some-user",
+				Password: "some-password",
+				Database: "some-db",
+			},
+			expected: "connect_timeout=0 host='1.2.3.4' port=6543 user='some-user' password='some-password' dbname='some-db' sslmode='verify-full'",
+		},
+		{
+			description: "with unix socket host",
+			input: &Postgres{
+				Host: "/var/run/postgres",
+				SSL: PostgresSSL{
+					Mode: "disable",
+				},
+			},
+			expected: "connect_timeout=0 host='/var/run/postgres' sslmode='disable'",
+		},
+		{
+			description: "with tcp host",
+			input: &Postgres{
+				Host: "coreos.com",
+				SSL: PostgresSSL{
+					Mode: "disable",
+				},
+			},
+			expected: "connect_timeout=0 host='coreos.com' sslmode='disable'",
+		},
+		{
+			description: "with tcp host:port",
+			input: &Postgres{
+				Host: "coreos.com:6543",
+			},
+			expected: "connect_timeout=0 host='coreos.com' port=6543 sslmode='verify-full'",
+		},
+		{
+			description: "with tcp host and port",
+			input: &Postgres{
+				Host: "coreos.com",
+				Port: 6543,
+			},
+			expected: "connect_timeout=0 host='coreos.com' port=6543 sslmode='verify-full'",
+		},
+		{
+			description: "with ssl ca cert",
+			input: &Postgres{
+				Host: "coreos.com",
+				SSL: PostgresSSL{
+					Mode:   "verify-ca",
+					CAFile: "/some/file/path",
+				},
+			},
+			expected: "connect_timeout=0 host='coreos.com' sslmode='verify-ca' sslrootcert='/some/file/path'",
+		},
+		{
+			description: "with ssl client cert",
+			input: &Postgres{
+				Host: "coreos.com",
+				SSL: PostgresSSL{
+					Mode:     "verify-ca",
+					CAFile:   "/some/ca/path",
+					CertFile: "/some/cert/path",
+					KeyFile:  "/some/key/path",
+				},
+			},
+			expected: "connect_timeout=0 host='coreos.com' sslmode='verify-ca' sslrootcert='/some/ca/path' sslcert='/some/cert/path' sslkey='/some/key/path'",
+		},
+		{
+			description: "with funny characters in credentials",
+			input: &Postgres{
+				Host:     "coreos.com",
+				User:     `some'user\slashed`,
+				Password: "some'password!",
+			},
+			expected: `connect_timeout=0 host='coreos.com' user='some\'user\\slashed' password='some\'password!' sslmode='verify-full'`,
+		},
+	}
+
+	var actual string
+	for _, testCase := range testCases {
+		t.Run(testCase.description, func(t *testing.T) {
+			actual = testCase.input.createDataSourceName()
+
+			if actual != testCase.expected {
+				t.Fatalf("%s != %s", actual, testCase.expected)
+			}
+		})
+	}
+}
+
 func TestPostgres(t *testing.T) {
 	host := os.Getenv(testPostgresEnv)
 	if host == "" {
@@ -99,7 +204,7 @@ func TestPostgres(t *testing.T) {
 	}
 
 	newStorage := func() storage.Storage {
-		conn, err := p.open(logger)
+		conn, err := p.open(logger, p.createDataSourceName())
 		if err != nil {
 			fatal(err)
 		}

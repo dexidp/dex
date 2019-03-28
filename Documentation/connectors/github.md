@@ -28,6 +28,7 @@ connectors:
     clientID: $GITHUB_CLIENT_ID
     clientSecret: $GITHUB_CLIENT_SECRET
     redirectURI: http://127.0.0.1:5556/dex/callback
+
     # Optional organizations and teams, communicated through the "groups" scope.
     #
     # NOTE: This is an EXPERIMENTAL config option and will likely change.
@@ -41,8 +42,12 @@ connectors:
     # For example if a user is part of the "engineering" team of the "coreos"
     # org, the group claim would include "coreos:engineering".
     #
-    # A user MUST be a member of at least one of the following orgs to
+    # If orgs are specified in the config then user MUST be a member of at least one of the specified orgs to
     # authenticate with dex.
+    #
+    # If neither 'org' nor 'orgs' are specified in the config and 'loadAllGroups' setting set to true then user
+    # authenticate with ALL user's Github groups. Typical use case for this setup:
+    # provide read-only access to everyone and give full permissions if user has 'my-organization:admins-team' group claim.  
     orgs:
     - name: my-organization
       # Include all teams as claims.
@@ -51,6 +56,20 @@ connectors:
       teams:
       - red-team
       - blue-team
+    # Flag which indicates that all user groups and teams should be loaded.
+    loadAllGroups: false
+
+    # Optional choice between 'name' (default), 'slug', or 'both'.
+    #
+    # As an example, group claims for member of 'Site Reliability Engineers' in
+    # Acme organization would yield:
+    #   - ['acme:Site Reliability Engineers'] for 'name'
+    #   - ['acme:site-reliability-engineers'] for 'slug'
+    #   - ['acme:Site Reliability Engineers', 'acme:site-reliability-engineers'] for 'both'
+    teamNameField: slug
+    # flag which will switch from using the internal GitHub id to the users handle (@mention) as the user id.
+    # It is possible for a user to change their own user name but it is very rare for them to do so
+    useLoginAsID: false
 ```
 
 ## GitHub Enterprise

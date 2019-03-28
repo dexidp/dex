@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/coreos/dex/connector"
-	"github.com/sirupsen/logrus"
+	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/log"
 )
 
 // Config holds the configuration parameters for a connector which returns an
@@ -17,14 +17,14 @@ import (
 type Config struct{}
 
 // Open returns an authentication strategy which requires no user interaction.
-func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	return &callback{logger: logger, pathSuffix: "/" + id}, nil
 }
 
 // Callback is a connector which returns an identity with the HTTP header
 // X-Remote-User as verified email.
 type callback struct {
-	logger     logrus.FieldLogger
+	logger     log.Logger
 	pathSuffix string
 }
 

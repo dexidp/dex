@@ -31,7 +31,7 @@ $ go get -u github.com/golang/protobuf/{proto,protoc-gen-go}
 
 # Download api.proto for a given version.
 $ DEX_VERSION=v2.0.0-alpha.5
-$ wget https://raw.githubusercontent.com/coreos/dex/${DEX_VERSION}/api/api.proto
+$ wget https://raw.githubusercontent.com/dexidp/dex/${DEX_VERSION}/api/api.proto
 
 # Generate the Go client bindings.
 $ protoc --go_out=import_path=dexapi:. api.proto
@@ -39,7 +39,7 @@ $ protoc --go_out=import_path=dexapi:. api.proto
 
 Client programs can then be written using the generated code. A Go client which uses dex's internally generated code might look like the following:
 
-__NOTE:__ Because dex has the `google.golang.org/grpc` package in its `vendor` directory, gRPC code in `github.com/coreos/dex/api` refers to the vendored copy, not copies in a developers GOPATH. Clients must either regenerate the gRPC Go code or vendor dex and remove its `vendor` directory to run this program.
+__NOTE:__ Because dex has the `google.golang.org/grpc` package in its `vendor` directory, gRPC code in `github.com/dexidp/dex/api` refers to the vendored copy, not copies in a developers GOPATH. Clients must either regenerate the gRPC Go code or vendor dex and remove its `vendor` directory to run this program.
 
 ```
 package main
@@ -49,7 +49,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/coreos/dex/api"
+    "github.com/dexidp/dex/api"
     "google.golang.org/grpc"
     "google.golang.org/grpc/credentials"
 )
@@ -62,7 +62,7 @@ func newDexClient(hostAndPort, caPath string) (api.DexClient, error) {
 
     conn, err := grpc.Dial(hostAndPort, grpc.WithTransportCredentials(creds))
     if err != nil {
-        return nil, fmt.Errorf("dail: %v", err)
+        return nil, fmt.Errorf("dial: %v", err)
     }
     return api.NewDexClient(conn), nil
 }

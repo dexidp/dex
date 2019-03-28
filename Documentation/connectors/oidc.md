@@ -2,7 +2,7 @@
 
 ## Overview
 
-Dex is able to use another OpenID Connect provider as an authentication source. When logging in, dex will redirect to the upstream provider and perform the necessary OAuth2 flows to determine the end users email, username, etc. More details on the OpenID Connect protocol can be found in [_An overview of OpenID Connect_][oidc-doc].
+Dex is able to use another OpenID Connect provider as an authentication source. When logging in, dex will redirect to the upstream provider and perform the necessary OAuth2 flows to determine the end users email, username, etc. More details on the OpenID Connect protocol can be found in [_An overview of OpenID Connect_](../openid-connect.md).
 
 Prominent examples of OpenID Connect providers include Google Accounts, Salesforce, and Azure AD v2 ([not v1][azure-ad-v1]).
 
@@ -47,9 +47,22 @@ connectors:
     #
     # hostedDomains:
     #  - example.com
+
+    # List of additional scopes to request in token response
+    # Default is profile and email
+    # Full list at https://github.com/dexidp/dex/blob/master/Documentation/custom-scopes-claims-clients.md
+    # scopes:
+    #  - profile
+    #  - email
+    #  - groups
+
+    # Some providers return claims without "email_verified", when they had no usage of emails verification in enrollement process
+    # or if they are acting as a proxy for another IDP etc AWS Cognito with an upstream SAML IDP
+    # This can be overridden with the below option
+    # insecureSkipEmailVerified: true 
 ```
 
 [oidc-doc]: openid-connect.md
-[issue-863]: https://github.com/coreos/dex/issues/863
-[issue-1065]: https://github.com/coreos/dex/issues/1065
+[issue-863]: https://github.com/dexidp/dex/issues/863
+[issue-1065]: https://github.com/dexidp/dex/issues/1065
 [azure-ad-v1]: https://github.com/coreos/go-oidc/issues/133

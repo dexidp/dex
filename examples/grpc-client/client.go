@@ -9,9 +9,10 @@ import (
 	"io/ioutil"
 	"log"
 
-	"github.com/coreos/dex/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+
+	"github.com/dexidp/dex/api"
 )
 
 func newDexClient(hostAndPort, caPath, clientCrt, clientKey string) (api.DexClient, error) {
@@ -37,7 +38,7 @@ func newDexClient(hostAndPort, caPath, clientCrt, clientKey string) (api.DexClie
 
 	conn, err := grpc.Dial(hostAndPort, grpc.WithTransportCredentials(creds))
 	if err != nil {
-		return nil, fmt.Errorf("dail: %v", err)
+		return nil, fmt.Errorf("dial: %v", err)
 	}
 	return api.NewDexClient(conn), nil
 }
