@@ -100,10 +100,7 @@ var migrations = []migration{
 				connector_id text not null,
 				connector_data bytea,
 		
-				expiry timestamptz not null,
-
-				code_challenge text,
-				code_challenge_method text
+				expiry timestamptz not null
 			);
 		
 			create table auth_code (
@@ -122,10 +119,7 @@ var migrations = []migration{
 				connector_id text not null,
 				connector_data bytea,
 		
-				expiry timestamptz not null,
-
-				code_challenge text,
-				code_challenge_method text
+				expiry timestamptz not null
 			);
 		
 			create table refresh_token (
@@ -191,6 +185,18 @@ var migrations = []migration{
 				resource_version text not null,
 				config bytea
 			);
+		`,
+	},
+	{
+		stmt: `
+			alter table auth_request
+				add column code_challenge text;
+			alter table auth_request
+				add column code_challenge_method text;
+			alter table auth_code
+				add column code_challenge text;
+			alter table auth_code
+				add column code_challenge_method text;
 		`,
 	},
 }
