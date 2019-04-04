@@ -44,6 +44,7 @@ type Config struct {
 }
 
 type CCResponse struct {
+	NextUrl      string     `json:"next_url"`
 	Resources    []Resource `json:"resources"`
 	TotalResults int        `json:"total_results"`
 }
@@ -227,54 +228,68 @@ func (c *cfConnector) HandleCallback(s connector.Scopes, r *http.Request) (ident
 	identity.Email, _ = userInfoResult["email"].(string)
 	identity.EmailVerified, _ = userInfoResult["email_verified"].(bool)
 
+	var orgMap = make(map[string]string)
+	var orgSpaces = make(map[string][]string)
+	var groupsClaims []string
+
 	if s.Groups {
 		// fetch orgs
-		orgsResp, err := client.Get(fmt.Sprintf("%s/v2/users/%s/organizations", c.apiURL, identity.UserID))
-		if err != nil {
-			return identity, fmt.Errorf("CF Connector: failed to execute request for orgs: %v", err)
-		}
-		if orgsResp.StatusCode != http.StatusOK {
-			return identity, fmt.Errorf("CF Connector: failed to execute request for orgs: status %d", orgsResp.StatusCode)
-		}
 
 		var orgs CCResponse
+		var nextUrl = fmt.Sprintf("%s/v2/users/%s/organizations", c.apiURL, identity.UserID)
+		for moreResults := true; moreResults; moreResults = orgs.NextUrl != "" {
+			orgsResp, err := client.Get(nextUrl)
+			if err != nil {
+				return identity, fmt.Errorf("CF Connector: failed to execute request for orgs: %v", err)
+			}
+			if orgsResp.StatusCode != http.StatusOK {
+				return identity, fmt.Errorf("CF Connector: failed to execute request for orgs: status %d", orgsResp.StatusCode)
+			}
 
-		err = json.NewDecoder(orgsResp.Body).Decode(&orgs)
-		if err != nil {
-			return identity, fmt.Errorf("CF Connector: failed to parse orgs: %v", err)
-		}
+			orgs = CCResponse{}
+			err = json.NewDecoder(orgsResp.Body).Decode(&orgs)
+			if err != nil {
+				return identity, fmt.Errorf("CF Connector: failed to parse orgs: %v", err)
+			}
 
-		var orgMap = make(map[string]string)
-		var orgSpaces = make(map[string][]string)
+			for _, resource := range orgs.Resources {
+				orgMap[resource.Metadata.Guid] = resource.Entity.Name
+				orgSpaces[resource.Entity.Name] = []string{}
+			}
 
-		for _, resource := range orgs.Resources {
-			orgMap[resource.Metadata.Guid] = resource.Entity.Name
-			orgSpaces[resource.Entity.Name] = []string{}
+			if orgs.NextUrl != "" {
+				nextUrl = fmt.Sprintf("%s%s", c.apiURL, orgs.NextUrl)
+			}
 		}
 
 		// fetch spaces
-		spacesResp, err := client.Get(fmt.Sprintf("%s/v2/users/%s/spaces", c.apiURL, identity.UserID))
-		if err != nil {
-			return identity, fmt.Errorf("CF Connector: failed to execute request for spaces: %v", err)
-		}
-		if spacesResp.StatusCode != http.StatusOK {
-			return identity, fmt.Errorf("CF Connector: failed to execute request for spaces: status %d", spacesResp.StatusCode)
-		}
-
 		var spaces CCResponse
+		nextUrl = fmt.Sprintf("%s/v2/users/%s/spaces", c.apiURL, identity.UserID)
+		for moreResults := true; moreResults; moreResults = spaces.NextUrl != "" {
+			spacesResp, err := client.Get(nextUrl)
+			if err != nil {
+				return identity, fmt.Errorf("CF Connector: failed to execute request for spaces: %v", err)
+			}
+			if spacesResp.StatusCode != http.StatusOK {
+				return identity, fmt.Errorf("CF Connector: failed to execute request for spaces: status %d", spacesResp.StatusCode)
+			}
 
-		err = json.NewDecoder(spacesResp.Body).Decode(&spaces)
-		if err != nil {
-			return identity, fmt.Errorf("CF Connector: failed to parse spaces: %v", err)
-		}
+			spaces = CCResponse{}
+			err = json.NewDecoder(spacesResp.Body).Decode(&spaces)
+			if err != nil {
+				return identity, fmt.Errorf("CF Connector: failed to parse spaces: %v", err)
+			}
 
-		var groupsClaims []string
+			for _, resource := range spaces.Resources {
+				orgName := orgMap[resource.Entity.OrganizationGuid]
+				orgSpaces[orgName] = append(orgSpaces[orgName], resource.Entity.Name)
 
-		for _, resource := range spaces.Resources {
-			orgName := orgMap[resource.Entity.OrganizationGuid]
-			orgSpaces[orgName] = append(orgSpaces[orgName], resource.Entity.Name)
+				groupsClaims = append(groupsClaims, resource.Metadata.Guid)
+			}
 
-			groupsClaims = append(groupsClaims, resource.Metadata.Guid)
+			if spaces.NextUrl != "" {
+				nextUrl = fmt.Sprintf("%s%s", c.apiURL, spaces.NextUrl)
+			}
 		}
 
 		for orgName, spaceNames := range orgSpaces {
