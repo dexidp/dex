@@ -308,7 +308,7 @@ type Connector struct {
 	ResourceVersion string `json:"resourceVersion"`
 	// Config holds all the configuration information specific to the connector type. Since there
 	// no generic struct we can use for this purpose, it is stored as a byte stream.
-	Config []byte `json:"email"`
+	Config []byte `json:"config"`
 }
 
 // VerificationKey is a rotated signing key which can still be used to verify
