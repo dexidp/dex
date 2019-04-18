@@ -160,7 +160,28 @@ func serve(cmd *cobra.Command, args []string) error {
 	logger.Infof("config storage: %s", c.Storage.Type)
 
 	if len(c.StaticClients) > 0 {
-		for _, client := range c.StaticClients {
+		for i, client := range c.StaticClients {
+			if client.Name == "" {
+				return fmt.Errorf("invalid config: Name field is required for a client")
+			}
+			if client.ID == "" && client.IDEnv == "" {
+				return fmt.Errorf("invalid config: ID or IDEnv field is required for a client")
+			}
+			if client.IDEnv != "" {
+				if client.ID != "" {
+					return fmt.Errorf("invalid config: ID and IDEnv fields are exclusive for client %q", client.ID)
+				}
+				c.StaticClients[i].ID = os.Getenv(client.IDEnv)
+			}
+			if client.Secret == "" && client.SecretEnv == "" {
+				return fmt.Errorf("invalid config: Secret or SecretEnv field is required for client %q", client.ID)
+			}
+			if client.SecretEnv != "" {
+				if client.Secret != "" {
+					return fmt.Errorf("invalid config: Secret and SecretEnv fields are exclusive for client %q", client.ID)
+				}
+				c.StaticClients[i].Secret = os.Getenv(client.SecretEnv)
+			}
 			logger.Infof("config static client: %s", client.Name)
 		}
 		s = storage.WithStaticClients(s, c.StaticClients)
