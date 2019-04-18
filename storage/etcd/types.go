@@ -16,22 +16,24 @@ type AuthCode struct {
 	Nonce       string   `json:"nonce,omitempty"`
 	Scopes      []string `json:"scopes,omitempty"`
 
-	ConnectorID string `json:"connectorID,omitempty"`
-	Claims      Claims `json:"claims,omitempty"`
+	ConnectorID   string `json:"connectorID,omitempty"`
+	ConnectorData []byte `json:"connectorData,omitempty"`
+	Claims        Claims `json:"claims,omitempty"`
 
 	Expiry time.Time `json:"expiry"`
 }
 
 func fromStorageAuthCode(a storage.AuthCode) AuthCode {
 	return AuthCode{
-		ID:          a.ID,
-		ClientID:    a.ClientID,
-		RedirectURI: a.RedirectURI,
-		ConnectorID: a.ConnectorID,
-		Nonce:       a.Nonce,
-		Scopes:      a.Scopes,
-		Claims:      fromStorageClaims(a.Claims),
-		Expiry:      a.Expiry,
+		ID:            a.ID,
+		ClientID:      a.ClientID,
+		RedirectURI:   a.RedirectURI,
+		ConnectorID:   a.ConnectorID,
+		ConnectorData: a.ConnectorData,
+		Nonce:         a.Nonce,
+		Scopes:        a.Scopes,
+		Claims:        fromStorageClaims(a.Claims),
+		Expiry:        a.Expiry,
 	}
 }
 
@@ -72,6 +74,7 @@ func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		LoggedIn:            a.LoggedIn,
 		Claims:              fromStorageClaims(a.Claims),
 		ConnectorID:         a.ConnectorID,
+		ConnectorData:       a.ConnectorData,
 	}
 }
 
@@ -87,6 +90,7 @@ func toStorageAuthRequest(a AuthRequest) storage.AuthRequest {
 		ForceApprovalPrompt: a.ForceApprovalPrompt,
 		LoggedIn:            a.LoggedIn,
 		ConnectorID:         a.ConnectorID,
+		ConnectorData:       a.ConnectorData,
 		Expiry:              a.Expiry,
 		Claims:              toStorageClaims(a.Claims),
 	}
@@ -114,29 +118,31 @@ type RefreshToken struct {
 
 func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
 	return storage.RefreshToken{
-		ID:          r.ID,
-		Token:       r.Token,
-		CreatedAt:   r.CreatedAt,
-		LastUsed:    r.LastUsed,
-		ClientID:    r.ClientID,
-		ConnectorID: r.ConnectorID,
-		Scopes:      r.Scopes,
-		Nonce:       r.Nonce,
-		Claims:      toStorageClaims(r.Claims),
+		ID:            r.ID,
+		Token:         r.Token,
+		CreatedAt:     r.CreatedAt,
+		LastUsed:      r.LastUsed,
+		ClientID:      r.ClientID,
+		ConnectorID:   r.ConnectorID,
+		ConnectorData: r.ConnectorData,
+		Scopes:        r.Scopes,
+		Nonce:         r.Nonce,
+		Claims:        toStorageClaims(r.Claims),
 	}
 }
 
 func fromStorageRefreshToken(r storage.RefreshToken) RefreshToken {
 	return RefreshToken{
-		ID:          r.ID,
-		Token:       r.Token,
-		CreatedAt:   r.CreatedAt,
-		LastUsed:    r.LastUsed,
-		ClientID:    r.ClientID,
-		ConnectorID: r.ConnectorID,
-		Scopes:      r.Scopes,
-		Nonce:       r.Nonce,
-		Claims:      fromStorageClaims(r.Claims),
+		ID:            r.ID,
+		Token:         r.Token,
+		CreatedAt:     r.CreatedAt,
+		LastUsed:      r.LastUsed,
+		ClientID:      r.ClientID,
+		ConnectorID:   r.ConnectorID,
+		ConnectorData: r.ConnectorData,
+		Scopes:        r.Scopes,
+		Nonce:         r.Nonce,
+		Claims:        fromStorageClaims(r.Claims),
 	}
 }
 
