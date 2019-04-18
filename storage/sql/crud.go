@@ -110,18 +110,18 @@ func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
 			force_approval_prompt, logged_in,
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
-			connector_id,
+			connector_id, connector_data,
 			expiry
 		)
 		values (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
 		);
 	`,
 		a.ID, a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
 		a.ForceApprovalPrompt, a.LoggedIn,
 		a.Claims.UserID, a.Claims.Username, a.Claims.PreferredUsername,
 		a.Claims.Email, a.Claims.EmailVerified, encoder(a.Claims.Groups),
-		a.ConnectorID,
+		a.ConnectorID, a.ConnectorData,
 		a.Expiry,
 	)
 	if err != nil {
@@ -152,16 +152,16 @@ func (c *conn) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) 
 				claims_user_id = $9, claims_username = $10, claims_preferred_username = $11,
 				claims_email = $12, claims_email_verified = $13,
 				claims_groups = $14,
-				connector_id = $15,
-				expiry = $16
-			where id = $17;
+				connector_id = $15, connector_data = $16,
+				expiry = $17
+			where id = $18;
 		`,
 			a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
 			a.ForceApprovalPrompt, a.LoggedIn,
 			a.Claims.UserID, a.Claims.Username, a.Claims.PreferredUsername,
 			a.Claims.Email, a.Claims.EmailVerified,
 			encoder(a.Claims.Groups),
-			a.ConnectorID,
+			a.ConnectorID, a.ConnectorData,
 			a.Expiry, r.ID,
 		)
 		if err != nil {
@@ -183,7 +183,7 @@ func getAuthRequest(q querier, id string) (a storage.AuthRequest, err error) {
 			force_approval_prompt, logged_in,
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
-			connector_id, expiry
+			connector_id, connector_data, expiry
 		from auth_request where id = $1;
 	`, id).Scan(
 		&a.ID, &a.ClientID, decoder(&a.ResponseTypes), decoder(&a.Scopes), &a.RedirectURI, &a.Nonce, &a.State,
@@ -191,7 +191,7 @@ func getAuthRequest(q querier, id string) (a storage.AuthRequest, err error) {
 		&a.Claims.UserID, &a.Claims.Username, &a.Claims.PreferredUsername,
 		&a.Claims.Email, &a.Claims.EmailVerified,
 		decoder(&a.Claims.Groups),
-		&a.ConnectorID, &a.Expiry,
+		&a.ConnectorID, &a.ConnectorData, &a.Expiry,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -208,14 +208,14 @@ func (c *conn) CreateAuthCode(a storage.AuthCode) error {
 			id, client_id, scopes, nonce, redirect_uri,
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
-			connector_id,
+			connector_id, connector_data,
 			expiry
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
 	`,
 		a.ID, a.ClientID, encoder(a.Scopes), a.Nonce, a.RedirectURI, a.Claims.UserID,
 		a.Claims.Username, a.Claims.PreferredUsername, a.Claims.Email, a.Claims.EmailVerified,
-		encoder(a.Claims.Groups), a.ConnectorID, a.Expiry,
+		encoder(a.Claims.Groups), a.ConnectorID, a.ConnectorData, a.Expiry,
 	)
 
 	if err != nil {
@@ -233,13 +233,13 @@ func (c *conn) GetAuthCode(id string) (a storage.AuthCode, err error) {
 			id, client_id, scopes, nonce, redirect_uri,
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
-			connector_id,
+			connector_id, connector_data,
 			expiry
 		from auth_code where id = $1;
 	`, id).Scan(
 		&a.ID, &a.ClientID, decoder(&a.Scopes), &a.Nonce, &a.RedirectURI, &a.Claims.UserID,
 		&a.Claims.Username, &a.Claims.PreferredUsername, &a.Claims.Email, &a.Claims.EmailVerified,
-		decoder(&a.Claims.Groups), &a.ConnectorID, &a.Expiry,
+		decoder(&a.Claims.Groups), &a.ConnectorID, &a.ConnectorData, &a.Expiry,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -256,16 +256,16 @@ func (c *conn) CreateRefresh(r storage.RefreshToken) error {
 			id, client_id, scopes, nonce,
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
-			connector_id,
+			connector_id, connector_data,
 			token, created_at, last_used
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
 	`,
 		r.ID, r.ClientID, encoder(r.Scopes), r.Nonce,
 		r.Claims.UserID, r.Claims.Username, r.Claims.PreferredUsername,
 		r.Claims.Email, r.Claims.EmailVerified,
 		encoder(r.Claims.Groups),
-		r.ConnectorID,
+		r.ConnectorID, r.ConnectorData,
 		r.Token, r.CreatedAt, r.LastUsed,
 	)
 	if err != nil {
@@ -299,17 +299,18 @@ func (c *conn) UpdateRefreshToken(id string, updater func(old storage.RefreshTok
 				claims_email_verified = $8,
 				claims_groups = $9,
 				connector_id = $10,
-				token = $11,
-				created_at = $12,
-				last_used = $13
+								connector_data = $11,
+				token = $12,
+				created_at = $13,
+				last_used = $14
 			where
-				id = $14
+				id = $15
 		`,
 			r.ClientID, encoder(r.Scopes), r.Nonce,
 			r.Claims.UserID, r.Claims.Username, r.Claims.PreferredUsername,
 			r.Claims.Email, r.Claims.EmailVerified,
 			encoder(r.Claims.Groups),
-			r.ConnectorID,
+			r.ConnectorID, r.ConnectorData,
 			r.Token, r.CreatedAt, r.LastUsed, id,
 		)
 		if err != nil {
@@ -330,7 +331,7 @@ func getRefresh(q querier, id string) (storage.RefreshToken, error) {
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified,
 			claims_groups,
-			connector_id,
+			connector_id, connector_data,
 			token, created_at, last_used
 		from refresh_token where id = $1;
 	`, id))
@@ -369,7 +370,7 @@ func scanRefresh(s scanner) (r storage.RefreshToken, err error) {
 		&r.Claims.UserID, &r.Claims.Username, &r.Claims.PreferredUsername,
 		&r.Claims.Email, &r.Claims.EmailVerified,
 		decoder(&r.Claims.Groups),
-		&r.ConnectorID,
+		&r.ConnectorID, &r.ConnectorData,
 		&r.Token, &r.CreatedAt, &r.LastUsed,
 	)
 	if err != nil {
