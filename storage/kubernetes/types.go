@@ -265,7 +265,8 @@ type AuthRequest struct {
 	// with a backend.
 	Claims Claims `json:"claims,omitempty"`
 	// The connector used to login the user. Set when the user authenticates.
-	ConnectorID string `json:"connectorID,omitempty"`
+	ConnectorID   string `json:"connectorID,omitempty"`
+	ConnectorData []byte `json:"connectorData,omitempty"`
 
 	Expiry time.Time `json:"expiry"`
 }
@@ -289,6 +290,7 @@ func toStorageAuthRequest(req AuthRequest) storage.AuthRequest {
 		ForceApprovalPrompt: req.ForceApprovalPrompt,
 		LoggedIn:            req.LoggedIn,
 		ConnectorID:         req.ConnectorID,
+		ConnectorData:       req.ConnectorData,
 		Expiry:              req.Expiry,
 		Claims:              toStorageClaims(req.Claims),
 	}
@@ -314,6 +316,7 @@ func (cli *client) fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		LoggedIn:            a.LoggedIn,
 		ForceApprovalPrompt: a.ForceApprovalPrompt,
 		ConnectorID:         a.ConnectorID,
+		ConnectorData:       a.ConnectorData,
 		Expiry:              a.Expiry,
 		Claims:              fromStorageClaims(a.Claims),
 	}
@@ -408,26 +411,28 @@ func (cli *client) fromStorageAuthCode(a storage.AuthCode) AuthCode {
 			Name:      a.ID,
 			Namespace: cli.namespace,
 		},
-		ClientID:    a.ClientID,
-		RedirectURI: a.RedirectURI,
-		ConnectorID: a.ConnectorID,
-		Nonce:       a.Nonce,
-		Scopes:      a.Scopes,
-		Claims:      fromStorageClaims(a.Claims),
-		Expiry:      a.Expiry,
+		ClientID:      a.ClientID,
+		RedirectURI:   a.RedirectURI,
+		ConnectorID:   a.ConnectorID,
+		ConnectorData: a.ConnectorData,
+		Nonce:         a.Nonce,
+		Scopes:        a.Scopes,
+		Claims:        fromStorageClaims(a.Claims),
+		Expiry:        a.Expiry,
 	}
 }
 
 func toStorageAuthCode(a AuthCode) storage.AuthCode {
 	return storage.AuthCode{
-		ID:          a.ObjectMeta.Name,
-		ClientID:    a.ClientID,
-		RedirectURI: a.RedirectURI,
-		ConnectorID: a.ConnectorID,
-		Nonce:       a.Nonce,
-		Scopes:      a.Scopes,
-		Claims:      toStorageClaims(a.Claims),
-		Expiry:      a.Expiry,
+		ID:            a.ObjectMeta.Name,
+		ClientID:      a.ClientID,
+		RedirectURI:   a.RedirectURI,
+		ConnectorID:   a.ConnectorID,
+		ConnectorData: a.ConnectorData,
+		Nonce:         a.Nonce,
+		Scopes:        a.Scopes,
+		Claims:        toStorageClaims(a.Claims),
+		Expiry:        a.Expiry,
 	}
 }
 
@@ -461,15 +466,16 @@ type RefreshList struct {
 
 func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
 	return storage.RefreshToken{
-		ID:          r.ObjectMeta.Name,
-		Token:       r.Token,
-		CreatedAt:   r.CreatedAt,
-		LastUsed:    r.LastUsed,
-		ClientID:    r.ClientID,
-		ConnectorID: r.ConnectorID,
-		Scopes:      r.Scopes,
-		Nonce:       r.Nonce,
-		Claims:      toStorageClaims(r.Claims),
+		ID:            r.ObjectMeta.Name,
+		Token:         r.Token,
+		CreatedAt:     r.CreatedAt,
+		LastUsed:      r.LastUsed,
+		ClientID:      r.ClientID,
+		ConnectorID:   r.ConnectorID,
+		ConnectorData: r.ConnectorData,
+		Scopes:        r.Scopes,
+		Nonce:         r.Nonce,
+		Claims:        toStorageClaims(r.Claims),
 	}
 }
 
@@ -483,14 +489,15 @@ func (cli *client) fromStorageRefreshToken(r storage.RefreshToken) RefreshToken 
 			Name:      r.ID,
 			Namespace: cli.namespace,
 		},
-		Token:       r.Token,
-		CreatedAt:   r.CreatedAt,
-		LastUsed:    r.LastUsed,
-		ClientID:    r.ClientID,
-		ConnectorID: r.ConnectorID,
-		Scopes:      r.Scopes,
-		Nonce:       r.Nonce,
-		Claims:      fromStorageClaims(r.Claims),
+		Token:         r.Token,
+		CreatedAt:     r.CreatedAt,
+		LastUsed:      r.LastUsed,
+		ClientID:      r.ClientID,
+		ConnectorID:   r.ConnectorID,
+		ConnectorData: r.ConnectorData,
+		Scopes:        r.Scopes,
+		Nonce:         r.Nonce,
+		Claims:        fromStorageClaims(r.Claims),
 	}
 }
 
