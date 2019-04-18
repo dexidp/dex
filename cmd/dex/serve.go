@@ -161,7 +161,7 @@ func serve(cmd *cobra.Command, args []string) error {
 
 	if len(c.StaticClients) > 0 {
 		for _, client := range c.StaticClients {
-			logger.Infof("config static client: %s", client.ID)
+			logger.Infof("config static client: %s", client.Name)
 		}
 		s = storage.WithStaticClients(s, c.StaticClients)
 	}
