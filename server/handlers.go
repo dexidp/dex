@@ -1003,6 +1003,9 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 			s.logger.Errorf("failed to get offline session: %v", err)
 			return
 		}
+	} else if len(refresh.ConnectorData) > 0 {
+		// Use the old connector data if it exists, should be deleted once used
+		connectorData = session.ConnectorData
 	} else {
 		connectorData = session.ConnectorData
 	}
@@ -1087,6 +1090,9 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		old.Claims.EmailVerified = ident.EmailVerified
 		old.Claims.Groups = ident.Groups
 		old.LastUsed = lastUsed
+
+		// ConnectorData has been moved to OfflineSession
+		old.ConnectorData = []byte{}
 		return old, nil
 	}
 
