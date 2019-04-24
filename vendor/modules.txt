@@ -1,3 +1,8 @@
+# github.com/alicebob/gopher-json v0.0.0-20180125190556-5a6b3ba71ee6
+github.com/alicebob/gopher-json
+# github.com/alicebob/miniredis v2.5.0+incompatible
+github.com/alicebob/miniredis
+github.com/alicebob/miniredis/server
 # github.com/beevik/etree v0.0.0-20161216042344-4cd0dd976db8
 github.com/beevik/etree
 # github.com/beorn7/perks v0.0.0-20160229213445-3ac7bf7a47d1
@@ -17,6 +22,14 @@ github.com/coreos/go-oidc
 github.com/felixge/httpsnoop
 # github.com/ghodss/yaml v0.0.0-20161020005002-bea76d6a4713
 github.com/ghodss/yaml
+# github.com/go-redis/redis v6.15.2+incompatible
+github.com/go-redis/redis
+github.com/go-redis/redis/internal
+github.com/go-redis/redis/internal/consistenthash
+github.com/go-redis/redis/internal/hashtag
+github.com/go-redis/redis/internal/pool
+github.com/go-redis/redis/internal/proto
+github.com/go-redis/redis/internal/util
 # github.com/golang/protobuf v0.0.0-20171113180720-1e59b77b52bf
 github.com/golang/protobuf/protoc-gen-go
 github.com/golang/protobuf/proto
@@ -25,6 +38,9 @@ github.com/golang/protobuf/protoc-gen-go/grpc
 github.com/golang/protobuf/protoc-gen-go/descriptor
 github.com/golang/protobuf/protoc-gen-go/plugin
 github.com/golang/protobuf/ptypes/any
+# github.com/gomodule/redigo v2.0.0+incompatible
+github.com/gomodule/redigo/redis
+github.com/gomodule/redigo/internal
 # github.com/gorilla/context v0.0.0-20160525203319-aed02d124ae4
 github.com/gorilla/context
 # github.com/gorilla/handlers v0.0.0-20161206055144-3a5767ca75ec
@@ -74,6 +90,11 @@ github.com/sirupsen/logrus
 github.com/spf13/cobra
 # github.com/spf13/pflag v0.0.0-20160610190902-367864438f1b
 github.com/spf13/pflag
+# github.com/yuin/gopher-lua v0.0.0-20190206043414-8bfc7677f583
+github.com/yuin/gopher-lua
+github.com/yuin/gopher-lua/parse
+github.com/yuin/gopher-lua/ast
+github.com/yuin/gopher-lua/pm
 # golang.org/x/crypto v0.0.0-20160711182412-2c99acdd1e9b
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish
@@ -96,7 +117,7 @@ golang.org/x/oauth2
 golang.org/x/oauth2/bitbucket
 golang.org/x/oauth2/github
 golang.org/x/oauth2/internal
-# golang.org/x/sys v0.0.0-20151211033651-833a04a10549
+# golang.org/x/sys v0.0.0-20190204203706-41f3e6584952
 golang.org/x/sys/unix
 # golang.org/x/text v0.0.0-20170401064109-f4b4367115ec
 golang.org/x/text/secure/bidirule
