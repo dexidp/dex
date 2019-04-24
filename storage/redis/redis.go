@@ -22,7 +22,7 @@ func decode(i string, out interface{}) error {
 // Config contains options to create a Redis client
 type Config redis.Options
 
-// Open creates a new storage implementation backend by Redis
+// Open creates a new storage implementation backed by Redis
 func (c *Config) Open(logger log.Logger) (storage.Storage, error) {
 	db := redis.NewClient((*redis.Options)(c))
 	err := db.Ping().Err()
