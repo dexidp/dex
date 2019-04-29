@@ -47,7 +47,7 @@ func TestInvalidConfiguration(t *testing.T) {
 		t.Fatal("this configuration should be invalid")
 	}
 	got := err.Error()
-	wanted := `Invalid Config:
+	wanted := `invalid Config:
 	-	no issuer specified in config file
 	-	no storage supplied in config file
 	-	must supply a HTTP/HTTPS  address to listen on`

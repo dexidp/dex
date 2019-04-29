@@ -76,7 +76,7 @@ func (c Config) Validate() error {
 		}
 	}
 	if len(checkErrors) != 0 {
-		return fmt.Errorf("Invalid Config:\n\t-\t%s", strings.Join(checkErrors, "\n\t-\t"))
+		return fmt.Errorf("invalid Config:\n\t-\t%s", strings.Join(checkErrors, "\n\t-\t"))
 	}
 	return nil
 }
