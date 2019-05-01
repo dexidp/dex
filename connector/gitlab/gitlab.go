@@ -74,6 +74,7 @@ type gitlabConnector struct {
 	clientID     string
 	clientSecret string
 	logger       log.Logger
+	httpClient   *http.Client
 }
 
 func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
@@ -118,7 +119,11 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 	}
 
 	oauth2Config := c.oauth2Config(s)
+
 	ctx := r.Context()
+	if c.httpClient != nil {
+		ctx = context.WithValue(r.Context(), oauth2.HTTPClient, c.httpClient)
+	}
 
 	token, err := oauth2Config.Exchange(ctx, q.Get("code"))
 	if err != nil {
@@ -226,6 +231,10 @@ func (c *gitlabConnector) user(ctx context.Context, client *http.Client) (gitlab
 	return u, nil
 }
 
+type userInfo struct {
+	Groups []string
+}
+
 // userGroups queries the GitLab API for group membership.
 //
 // The HTTP passed client is expected to be constructed by the golang.org/x/oauth2 package,
@@ -249,9 +258,7 @@ func (c *gitlabConnector) userGroups(ctx context.Context, client *http.Client) (
 		}
 		return nil, fmt.Errorf("%s: %s", resp.Status, body)
 	}
-	u := struct {
-		Groups []string
-	}{}
+	var u userInfo
 	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %v", err)
 	}
