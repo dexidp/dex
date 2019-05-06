@@ -234,13 +234,7 @@ func (p *conn) getAdminToken(ctx context.Context) (string, error) {
 
 func (p *conn) checkIfUserExists(ctx context.Context, userID string, token string) (bool, error) {
 	user, err := p.getUser(ctx, userID, token)
-	if err != nil {
-		return false, err
-	}
-	if user == nil {
-		return false, err
-	}
-	return true, nil
+	return user != nil, err
 }
 
 func (p *conn) getUser(ctx context.Context, userID string, token string) (*userResponse, error) {
