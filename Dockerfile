@@ -11,7 +11,9 @@ FROM alpine:3.9
 # experience when this doesn't work out of the box.
 #
 # OpenSSL is required so wget can query HTTPS endpoints for health checking.
-RUN apk add --update ca-certificates openssl
+RUN apk add --update ca-certificates openssl\
+  && addgroup --gid 1001 dex\
+  && adduser --disabled-password --no-create-home --home "$(pwd)" -u 1001 -G dex dex
 
 USER 1001:1001
 COPY --from=0 /go/bin/dex /usr/local/bin/dex
