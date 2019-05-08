@@ -26,10 +26,11 @@ const (
 
 // Config holds configuration options for gilab logins.
 type Config struct {
-	BaseURL      string `json:"baseURL"`
-	ClientID     string `json:"clientID"`
-	ClientSecret string `json:"clientSecret"`
-	RedirectURI  string `json:"redirectURI"`
+	BaseURL      string   `json:"baseURL"`
+	ClientID     string   `json:"clientID"`
+	ClientSecret string   `json:"clientSecret"`
+	RedirectURI  string   `json:"redirectURI"`
+	Groups       []string `json:"groups"`
 }
 
 type gitlabUser struct {
@@ -52,6 +53,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		clientID:     c.ClientID,
 		clientSecret: c.ClientSecret,
 		logger:       logger,
+		groups:       c.Groups,
 	}, nil
 }
 
@@ -68,10 +70,11 @@ var (
 type gitlabConnector struct {
 	baseURL      string
 	redirectURI  string
-	org          string
+	groups       []string
 	clientID     string
 	clientSecret string
 	logger       log.Logger
+	httpClient   *http.Client
 }
 
 func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
@@ -116,7 +119,11 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 	}
 
 	oauth2Config := c.oauth2Config(s)
+
 	ctx := r.Context()
+	if c.httpClient != nil {
+		ctx = context.WithValue(r.Context(), oauth2.HTTPClient, c.httpClient)
+	}
 
 	token, err := oauth2Config.Exchange(ctx, q.Get("code"))
 	if err != nil {
@@ -142,7 +149,7 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 	}
 
 	if s.Groups {
-		groups, err := c.groups(ctx, client)
+		groups, err := c.getGroups(ctx, client, s.Groups, user.Username)
 		if err != nil {
 			return identity, fmt.Errorf("gitlab: get groups: %v", err)
 		}
@@ -185,7 +192,7 @@ func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 	ident.Email = user.Email
 
 	if s.Groups {
-		groups, err := c.groups(ctx, client)
+		groups, err := c.getGroups(ctx, client, s.Groups, user.Username)
 		if err != nil {
 			return ident, fmt.Errorf("gitlab: get groups: %v", err)
 		}
@@ -224,11 +231,15 @@ func (c *gitlabConnector) user(ctx context.Context, client *http.Client) (gitlab
 	return u, nil
 }
 
-// groups queries the GitLab API for group membership.
+type userInfo struct {
+	Groups []string
+}
+
+// userGroups queries the GitLab API for group membership.
 //
 // The HTTP passed client is expected to be constructed by the golang.org/x/oauth2 package,
 // which inserts a bearer token as part of the request.
-func (c *gitlabConnector) groups(ctx context.Context, client *http.Client) ([]string, error) {
+func (c *gitlabConnector) userGroups(ctx context.Context, client *http.Client) ([]string, error) {
 	req, err := http.NewRequest("GET", c.baseURL+"/oauth/userinfo", nil)
 	if err != nil {
 		return nil, fmt.Errorf("gitlab: new req: %v", err)
@@ -247,12 +258,44 @@ func (c *gitlabConnector) groups(ctx context.Context, client *http.Client) ([]st
 		}
 		return nil, fmt.Errorf("%s: %s", resp.Status, body)
 	}
-	u := struct {
-		Groups []string
-	}{}
+	var u userInfo
 	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %v", err)
 	}
 
 	return u.Groups, nil
+}
+
+func (c *gitlabConnector) getGroups(ctx context.Context, client *http.Client, groupScope bool, userLogin string) ([]string, error) {
+	gitlabGroups, err := c.userGroups(ctx, client)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(c.groups) > 0 {
+		filteredGroups := filterGroups(gitlabGroups, c.groups)
+		if len(filteredGroups) == 0 {
+			return nil, fmt.Errorf("gitlab: user %q is not in any of the required groups", userLogin)
+		}
+		return filteredGroups, nil
+	} else if groupScope {
+		return gitlabGroups, nil
+	}
+
+	return nil, nil
+}
+
+// Filter the users' group memberships by 'groups' from config.
+func filterGroups(userGroups, configGroups []string) []string {
+	groups := []string{}
+	groupFilter := make(map[string]struct{})
+	for _, group := range configGroups {
+		groupFilter[group] = struct{}{}
+	}
+	for _, group := range userGroups {
+		if _, ok := groupFilter[group]; ok {
+			groups = append(groups, group)
+		}
+	}
+	return groups
 }
