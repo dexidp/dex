@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -20,31 +22,85 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	start := s.now()
-	err := func() error {
-		// Instead of trying to introspect health, just try to use the underlying storage.
-		a := storage.AuthRequest{
-			ID:       storage.NewID(),
-			ClientID: storage.NewID(),
+// newHealthChecker returns the healthz handler. The handler runs until the
+// provided context is canceled.
+func (s *Server) newHealthChecker(ctx context.Context) http.Handler {
+	h := &healthChecker{s: s}
 
-			// Set a short expiry so if the delete fails this will be cleaned up quickly by garbage collection.
-			Expiry: s.now().Add(time.Minute),
-		}
+	// Perform one health check synchronously so the returned handler returns
+	// valid data immediately.
+	h.runHealthCheck()
 
-		if err := s.storage.CreateAuthRequest(a); err != nil {
-			return fmt.Errorf("create auth request: %v", err)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Second * 15):
+			}
+			h.runHealthCheck()
 		}
-		if err := s.storage.DeleteAuthRequest(a.ID); err != nil {
-			return fmt.Errorf("delete auth request: %v", err)
-		}
-		return nil
 	}()
+	return h
+}
 
-	t := s.now().Sub(start)
+// healthChecker periodically performs health checks on server dependenices.
+// Currently, it only checks that the storage layer is avialable.
+type healthChecker struct {
+	s *Server
+
+	// Result of the last health check: any error and the amount of time it took
+	// to query the storage.
+	mu sync.RWMutex
+	// Guarded by the mutex
+	err    error
+	passed time.Duration
+}
+
+// runHealthCheck performs a single health check and makes the result available
+// for any clients performing and HTTP request against the healthChecker.
+func (h *healthChecker) runHealthCheck() {
+	t := h.s.now()
+	err := checkStorageHealth(h.s.storage, h.s.now)
+	passed := h.s.now().Sub(t)
 	if err != nil {
-		s.logger.Errorf("Storage health check failed: %v", err)
-		s.renderError(w, http.StatusInternalServerError, "Health check failed.")
+		h.s.logger.Errorf("Storage health check failed: %v", err)
+	}
+
+	// Make sure to only hold the mutex to access the fields, and not while
+	// we're querying the storage object.
+	h.mu.Lock()
+	h.err = err
+	h.passed = passed
+	h.mu.Unlock()
+}
+
+func checkStorageHealth(s storage.Storage, now func() time.Time) error {
+	a := storage.AuthRequest{
+		ID:       storage.NewID(),
+		ClientID: storage.NewID(),
+
+		// Set a short expiry so if the delete fails this will be cleaned up quickly by garbage collection.
+		Expiry: now().Add(time.Minute),
+	}
+
+	if err := s.CreateAuthRequest(a); err != nil {
+		return fmt.Errorf("create auth request: %v", err)
+	}
+	if err := s.DeleteAuthRequest(a.ID); err != nil {
+		return fmt.Errorf("delete auth request: %v", err)
+	}
+	return nil
+}
+
+func (h *healthChecker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.mu.RLock()
+	err := h.err
+	t := h.passed
+	h.mu.RUnlock()
+
+	if err != nil {
+		h.s.renderError(w, http.StatusInternalServerError, "Health check failed.")
 		return
 	}
 	fmt.Fprintf(w, "Health check passed in %s", t)
@@ -160,7 +216,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	// screen too long.
 	//
 	// See: https://github.com/dexidp/dex/issues/646
-	authReq.Expiry = s.now().Add(24 * time.Hour) // Totally arbitrary value.
+	authReq.Expiry = s.now().Add(s.authRequestsValidFor)
 	if err := s.storage.CreateAuthRequest(authReq); err != nil {
 		s.logger.Errorf("Failed to create authorization request: %v", err)
 		s.renderError(w, http.StatusInternalServerError, "Failed to connect to the database.")
@@ -240,7 +296,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	showBacklink := len(s.connectors) > 1
 
 	switch r.Method {
-	case "GET":
+	case http.MethodGet:
 		switch conn := conn.Connector.(type) {
 		case connector.CallbackConnector:
 			// Use the auth request ID as the "state" token.
@@ -285,7 +341,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		default:
 			s.renderError(w, http.StatusBadRequest, "Requested resource does not exist.")
 		}
-	case "POST":
+	case http.MethodPost:
 		passwordConnector, ok := conn.Connector.(connector.PasswordConnector)
 		if !ok {
 			s.renderError(w, http.StatusBadRequest, "Requested resource does not exist.")
@@ -323,12 +379,12 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request) {
 	var authID string
 	switch r.Method {
-	case "GET": // OAuth2 callback
+	case http.MethodGet: // OAuth2 callback
 		if authID = r.URL.Query().Get("state"); authID == "" {
 			s.renderError(w, http.StatusBadRequest, "User session error.")
 			return
 		}
-	case "POST": // SAML POST binding
+	case http.MethodPost: // SAML POST binding
 		if authID = r.PostFormValue("RelayState"); authID == "" {
 			s.renderError(w, http.StatusBadRequest, "User session error.")
 			return
@@ -366,14 +422,14 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	var identity connector.Identity
 	switch conn := conn.Connector.(type) {
 	case connector.CallbackConnector:
-		if r.Method != "GET" {
+		if r.Method != http.MethodGet {
 			s.logger.Errorf("SAML request mapped to OAuth2 connector")
 			s.renderError(w, http.StatusBadRequest, "Invalid request")
 			return
 		}
 		identity, err = conn.HandleCallback(parseScopes(authReq.Scopes), r)
 	case connector.SAMLConnector:
-		if r.Method != "POST" {
+		if r.Method != http.MethodPost {
 			s.logger.Errorf("OAuth2 request mapped to SAML connector")
 			s.renderError(w, http.StatusBadRequest, "Invalid request")
 			return
@@ -386,7 +442,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 
 	if err != nil {
 		s.logger.Errorf("Failed to authenticate: %v", err)
-		s.renderError(w, http.StatusInternalServerError, "Failed to return user's identity.")
+		s.renderError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to authenticate: %v", err))
 		return
 	}
 
@@ -446,7 +502,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch r.Method {
-	case "GET":
+	case http.MethodGet:
 		if s.skipApproval {
 			s.sendCodeResponse(w, r, authReq)
 			return
@@ -460,7 +516,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		if err := s.templates.approval(w, authReq.ID, authReq.Claims.Username, client.Name, authReq.Scopes); err != nil {
 			s.logger.Errorf("Server template error: %v", err)
 		}
-	case "POST":
+	case http.MethodPost:
 		if r.FormValue("approval") != "approve" {
 			s.renderError(w, http.StatusInternalServerError, "Approval rejected.")
 			return

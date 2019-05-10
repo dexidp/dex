@@ -261,7 +261,7 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := oidc.ClientContext(r.Context(), a.client)
 	oauth2Config := a.oauth2Config(nil)
 	switch r.Method {
-	case "GET":
+	case http.MethodGet:
 		// Authorization redirect callback from OAuth2 auth flow.
 		if errMsg := r.FormValue("error"); errMsg != "" {
 			http.Error(w, errMsg+": "+r.FormValue("error_description"), http.StatusBadRequest)
@@ -277,7 +277,7 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		token, err = oauth2Config.Exchange(ctx, code)
-	case "POST":
+	case http.MethodPost:
 		// Form request from frontend to refresh a token.
 		refresh := r.FormValue("refresh_token")
 		if refresh == "" {
@@ -310,11 +310,18 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Failed to verify ID token: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	accessToken, ok := token.Extra("access_token").(string)
+	if !ok {
+		http.Error(w, "no access_token in token response", http.StatusInternalServerError)
+		return
+	}
+
 	var claims json.RawMessage
 	idToken.Claims(&claims)
 
 	buff := new(bytes.Buffer)
 	json.Indent(buff, []byte(claims), "", "  ")
 
-	renderToken(w, a.redirectURI, rawIDToken, token.RefreshToken, buff.Bytes())
+	renderToken(w, a.redirectURI, rawIDToken, accessToken, token.RefreshToken, buff.Bytes())
 }

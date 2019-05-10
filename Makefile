@@ -34,27 +34,24 @@ release-binary:
 
 .PHONY: revendor
 revendor:
-	@glide up -v
-	@glide-vc --use-lock-file --no-tests --only-code
+	@go mod tidy -v
+	@go mod vendor -v
+	@go mod verify
 
 test:
-	@go test -v -i $(shell go list ./... | grep -v '/vendor/')
-	@go test -v $(shell go list ./... | grep -v '/vendor/')
+	@go test -v ./...
 
 testrace:
-	@go test -v -i --race $(shell go list ./... | grep -v '/vendor/')
-	@go test -v --race $(shell go list ./... | grep -v '/vendor/')
+	@go test -v --race ./...
 
 vet:
-	@go vet $(shell go list ./... | grep -v '/vendor/')
+	@go vet ./...
 
 fmt:
-	@./scripts/gofmt $(shell go list ./... | grep -v '/vendor/')
+	@./scripts/gofmt ./...
 
-lint:
-	@for package in $(shell go list ./... | grep -v '/vendor/' | grep -v '/api' | grep -v '/server/internal'); do \
-      golint -set_exit_status $$package $$i || exit 1; \
-	done
+lint: bin/golint
+	@./bin/golint -set_exit_status $(shell go list ./...)
 
 .PHONY: docker-image
 docker-image:
@@ -74,6 +71,9 @@ bin/protoc: scripts/get-protoc
 
 bin/protoc-gen-go:
 	@go install -v $(REPO_PATH)/vendor/github.com/golang/protobuf/protoc-gen-go
+
+bin/golint:
+	@go install -v $(REPO_PATH)/vendor/golang.org/x/lint/golint
 
 clean:
 	@rm -rf bin/

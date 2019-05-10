@@ -19,9 +19,8 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/log"
 )
 
 const (
@@ -48,11 +47,12 @@ type Config struct {
 	HostName      string `json:"hostName"`
 	RootCA        string `json:"rootCA"`
 	TeamNameField string `json:"teamNameField"`
+	LoadAllGroups bool   `json:"loadAllGroups"`
+	UseLoginAsID  bool   `json:"useLoginAsID"`
 }
 
 // Org holds org-team filters, in which teams are optional.
 type Org struct {
-
 	// Organization name in github (not slug, full name). Only users in this github
 	// organization can authenticate.
 	Name string `json:"name"`
@@ -65,14 +65,14 @@ type Org struct {
 }
 
 // Open returns a strategy for logging in through GitHub.
-func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 
 	if c.Org != "" {
 		// Return error if both 'org' and 'orgs' fields are used.
 		if len(c.Orgs) > 0 {
 			return nil, errors.New("github: cannot use both 'org' and 'orgs' fields simultaneously")
 		}
-		logger.Warnln("github: legacy field 'org' being used. Switch to the newer 'orgs' field structure")
+		logger.Warn("github: legacy field 'org' being used. Switch to the newer 'orgs' field structure")
 	}
 
 	g := githubConnector{
@@ -83,6 +83,7 @@ func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector
 		clientSecret: c.ClientSecret,
 		apiURL:       apiURL,
 		logger:       logger,
+		useLoginAsID: c.UseLoginAsID,
 	}
 
 	if c.HostName != "" {
@@ -107,9 +108,10 @@ func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector
 		}
 
 	}
+	g.loadAllGroups = c.LoadAllGroups
 
 	switch c.TeamNameField {
-	case "name", "slug", "":
+	case "name", "slug", "both", "":
 		g.teamNameField = c.TeamNameField
 	default:
 		return nil, fmt.Errorf("invalid connector config: unsupported team name field value `%s`", c.TeamNameField)
@@ -134,7 +136,7 @@ type githubConnector struct {
 	orgs         []Org
 	clientID     string
 	clientSecret string
-	logger       logrus.FieldLogger
+	logger       log.Logger
 	// apiURL defaults to "https://api.github.com"
 	apiURL string
 	// hostName of the GitHub enterprise account.
@@ -142,8 +144,13 @@ type githubConnector struct {
 	// Used to support untrusted/self-signed CA certs.
 	rootCA string
 	// HTTP Client that trusts the custom delcared rootCA cert.
-	httpClient    *http.Client
+	httpClient *http.Client
+	// optional choice between 'name' (default) or 'slug'
 	teamNameField string
+	// if set to true and no orgs are configured then connector loads all user claims (all orgs and team)
+	loadAllGroups bool
+	// if set to true will use the users handle rather than their numeric id as the ID
+	useLoginAsID bool
 }
 
 // groupsRequired returns whether dex requires GitHub's 'read:org' scope. Dex
@@ -256,11 +263,15 @@ func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 	if username == "" {
 		username = user.Login
 	}
+
 	identity = connector.Identity{
 		UserID:        strconv.Itoa(user.ID),
 		Username:      username,
 		Email:         user.Email,
 		EmailVerified: true,
+	}
+	if c.useLoginAsID {
+		identity.UserID = user.Login
 	}
 
 	// Only set identity.Groups if 'orgs', 'org', or 'groups' scope are specified.
@@ -325,8 +336,16 @@ func (c *githubConnector) getGroups(ctx context.Context, client *http.Client, gr
 		return c.groupsForOrgs(ctx, client, userLogin)
 	} else if c.org != "" {
 		return c.teamsForOrg(ctx, client, c.org)
+	} else if groupScope && c.loadAllGroups {
+		return c.userGroups(ctx, client)
 	}
 	return nil, nil
+}
+
+// formatTeamName returns unique team name.
+// Orgs might have the same team names. To make team name unique it should be prefixed with the org name.
+func formatTeamName(org string, team string) string {
+	return fmt.Sprintf("%s:%s", org, team)
 }
 
 // groupsForOrgs enforces org and team constraints on user authorization
@@ -335,12 +354,13 @@ func (c *githubConnector) getGroups(ctx context.Context, client *http.Client, gr
 // 	N orgs, M teams per org: user is member of any team from at least 1 org
 // 	N-1 orgs, M teams per org, 1 org with no teams: user is member of any team
 // from at least 1 org, or member of org with no teams
-func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client, userName string) (groups []string, err error) {
+func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client, userName string) ([]string, error) {
+	groups := make([]string, 0)
 	var inOrgNoTeams bool
 	for _, org := range c.orgs {
 		inOrg, err := c.userInOrg(ctx, client, userName, org.Name)
 		if err != nil {
-			return groups, err
+			return nil, err
 		}
 		if !inOrg {
 			continue
@@ -348,7 +368,7 @@ func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client
 
 		teams, err := c.teamsForOrg(ctx, client, org.Name)
 		if err != nil {
-			return groups, err
+			return nil, err
 		}
 		// User is in at least one org. User is authorized if no teams are specified
 		// in config; include all teams in claim. Otherwise filter out teams not in
@@ -359,17 +379,91 @@ func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client
 			c.logger.Infof("github: user %q in org %q but no teams", userName, org.Name)
 		}
 
-		// Orgs might have the same team names. We append orgPrefix to team name,
-		// i.e. "org:team", to make team names unique across orgs.
-		orgPrefix := org.Name + ":"
 		for _, teamName := range teams {
-			groups = append(groups, orgPrefix+teamName)
+			groups = append(groups, formatTeamName(org.Name, teamName))
 		}
 	}
 	if inOrgNoTeams || len(groups) > 0 {
-		return
+		return groups, nil
 	}
 	return groups, fmt.Errorf("github: user %q not in required orgs or teams", userName)
+}
+
+func (c *githubConnector) userGroups(ctx context.Context, client *http.Client) ([]string, error) {
+	orgs, err := c.userOrgs(ctx, client)
+	if err != nil {
+		return nil, err
+	}
+
+	orgTeams, err := c.userOrgTeams(ctx, client)
+	if err != nil {
+		return nil, err
+	}
+
+	groups := make([]string, 0)
+	for _, o := range orgs {
+		groups = append(groups, o)
+		if teams, ok := orgTeams[o]; ok {
+			for _, t := range teams {
+				groups = append(groups, formatTeamName(o, t))
+			}
+		}
+	}
+
+	return groups, nil
+}
+
+// userOrgs retrieves list of current user orgs
+func (c *githubConnector) userOrgs(ctx context.Context, client *http.Client) ([]string, error) {
+	groups := make([]string, 0)
+	apiURL := c.apiURL + "/user/orgs"
+	for {
+		// https://developer.github.com/v3/orgs/#list-your-organizations
+		var (
+			orgs []org
+			err  error
+		)
+		if apiURL, err = get(ctx, client, apiURL, &orgs); err != nil {
+			return nil, fmt.Errorf("github: get orgs: %v", err)
+		}
+
+		for _, o := range orgs {
+			groups = append(groups, o.Login)
+		}
+
+		if apiURL == "" {
+			break
+		}
+	}
+
+	return groups, nil
+}
+
+// userOrgTeams retrieves teams which current user belongs to.
+// Method returns a map where key is an org name and value list of teams under the org.
+func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client) (map[string][]string, error) {
+	groups := make(map[string][]string, 0)
+	apiURL := c.apiURL + "/user/teams"
+	for {
+		// https://developer.github.com/v3/orgs/teams/#list-user-teams
+		var (
+			teams []team
+			err   error
+		)
+		if apiURL, err = get(ctx, client, apiURL, &teams); err != nil {
+			return nil, fmt.Errorf("github: get teams: %v", err)
+		}
+
+		for _, t := range teams {
+			groups[t.Org.Login] = append(groups[t.Org.Login], c.teamGroupClaims(t)...)
+		}
+
+		if apiURL == "" {
+			break
+		}
+	}
+
+	return groups, nil
 }
 
 // Filter the users' team memberships by 'teams' from config.
@@ -419,10 +513,10 @@ func get(ctx context.Context, client *http.Client, apiURL string, v interface{})
 	return getPagination(apiURL, resp), nil
 }
 
-// getPagination checks the "Link" header field for "next" or "last" pagination
-// URLs, and returns true only if a "next" URL is found. The next pages' URL is
-// returned if a "next" URL is found. apiURL is returned if apiURL equals the
-// "last" URL or no "next" or "last" URL are found.
+// getPagination checks the "Link" header field for "next" or "last" pagination URLs,
+// and returns "next" page URL or empty string to indicate that there are no more pages.
+// Non empty next pages' URL is returned if both "last" and "next" URLs are found and next page
+// URL is not equal to last.
 //
 // https://developer.github.com/v3/#pagination
 func getPagination(apiURL string, resp *http.Response) string {
@@ -572,10 +666,12 @@ func (c *githubConnector) userInOrg(ctx context.Context, client *http.Client, us
 // https://developer.github.com/v3/orgs/teams/#response-12
 type team struct {
 	Name string `json:"name"`
-	Org  struct {
-		Login string `json:"login"`
-	} `json:"organization"`
+	Org  org    `json:"organization"`
 	Slug string `json:"slug"`
+}
+
+type org struct {
+	Login string `json:"login"`
 }
 
 // teamsForOrg queries the GitHub API for team membership within a specific organization.
@@ -594,14 +690,9 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 			return nil, fmt.Errorf("github: get teams: %v", err)
 		}
 
-		for _, team := range teams {
-			if team.Org.Login == orgName {
-				switch c.teamNameField {
-				case "name", "":
-					groups = append(groups, team.Name)
-				case "slug":
-					groups = append(groups, team.Slug)
-				}
+		for _, t := range teams {
+			if t.Org.Login == orgName {
+				groups = append(groups, c.teamGroupClaims(t)...)
 			}
 		}
 
@@ -611,4 +702,18 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 	}
 
 	return groups, nil
+}
+
+// teamGroupClaims returns team slug if 'teamNameField' option is set to
+// 'slug', returns the slug *and* name if set to 'both', otherwise returns team
+// name.
+func (c *githubConnector) teamGroupClaims(t team) []string {
+	switch c.teamNameField {
+	case "both":
+		return []string{t.Name, t.Slug}
+	case "slug":
+		return []string{t.Slug}
+	default:
+		return []string{t.Name}
+	}
 }

@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/dexidp/dex/api"
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
 )
@@ -116,13 +117,19 @@ func serve(cmd *cobra.Command, args []string) error {
 	var grpcOptions []grpc.ServerOption
 
 	if c.GRPC.TLSCert != "" {
-		if c.GRPC.TLSClientCA != "" {
-			// Parse certificates from certificate file and key file for server.
-			cert, err := tls.LoadX509KeyPair(c.GRPC.TLSCert, c.GRPC.TLSKey)
-			if err != nil {
-				return fmt.Errorf("invalid config: error parsing gRPC certificate file: %v", err)
-			}
+		// Parse certificates from certificate file and key file for server.
+		cert, err := tls.LoadX509KeyPair(c.GRPC.TLSCert, c.GRPC.TLSKey)
+		if err != nil {
+			return fmt.Errorf("invalid config: error parsing gRPC certificate file: %v", err)
+		}
 
+		tlsConfig := tls.Config{
+			Certificates:             []tls.Certificate{cert},
+			MinVersion:               tls.VersionTLS12,
+			PreferServerCipherSuites: true,
+		}
+
+		if c.GRPC.TLSClientCA != "" {
 			// Parse certificates from client CA file to a new CertPool.
 			cPool := x509.NewCertPool()
 			clientCert, err := ioutil.ReadFile(c.GRPC.TLSClientCA)
@@ -133,23 +140,17 @@ func serve(cmd *cobra.Command, args []string) error {
 				return errors.New("invalid config: failed to parse client CA")
 			}
 
-			tlsConfig := tls.Config{
-				Certificates: []tls.Certificate{cert},
-				ClientAuth:   tls.RequireAndVerifyClientCert,
-				ClientCAs:    cPool,
-			}
+			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+			tlsConfig.ClientCAs = cPool
+
+			// Only add metrics if client auth is enabled
 			grpcOptions = append(grpcOptions,
-				grpc.Creds(credentials.NewTLS(&tlsConfig)),
 				grpc.StreamInterceptor(grpcMetrics.StreamServerInterceptor()),
 				grpc.UnaryInterceptor(grpcMetrics.UnaryServerInterceptor()),
 			)
-		} else {
-			opt, err := credentials.NewServerTLSFromFile(c.GRPC.TLSCert, c.GRPC.TLSKey)
-			if err != nil {
-				return fmt.Errorf("invalid config: load grpc certs: %v", err)
-			}
-			grpcOptions = append(grpcOptions, grpc.Creds(opt))
 		}
+
+		grpcOptions = append(grpcOptions, grpc.Creds(credentials.NewTLS(&tlsConfig)))
 	}
 
 	s, err := c.Storage.Config.Open(logger)
@@ -160,7 +161,7 @@ func serve(cmd *cobra.Command, args []string) error {
 
 	if len(c.StaticClients) > 0 {
 		for _, client := range c.StaticClients {
-			logger.Infof("config static client: %s", client.ID)
+			logger.Infof("config static client: %s", client.Name)
 		}
 		s = storage.WithStaticClients(s, c.StaticClients)
 	}
@@ -242,6 +243,14 @@ func serve(cmd *cobra.Command, args []string) error {
 		logger.Infof("config id tokens valid for: %v", idTokens)
 		serverConfig.IDTokensValidFor = idTokens
 	}
+	if c.Expiry.AuthRequests != "" {
+		authRequests, err := time.ParseDuration(c.Expiry.AuthRequests)
+		if err != nil {
+			return fmt.Errorf("invalid config value %q for auth request expiry: %v", c.Expiry.AuthRequests, err)
+		}
+		logger.Infof("config auth requests valid for: %v", authRequests)
+		serverConfig.AuthRequestsValidFor = authRequests
+	}
 
 	serv, err := server.NewServer(context.Background(), serverConfig)
 	if err != nil {
@@ -267,9 +276,18 @@ func serve(cmd *cobra.Command, args []string) error {
 		}()
 	}
 	if c.Web.HTTPS != "" {
+		httpsSrv := &http.Server{
+			Addr:    c.Web.HTTPS,
+			Handler: serv,
+			TLSConfig: &tls.Config{
+				PreferServerCipherSuites: true,
+				MinVersion:               tls.VersionTLS12,
+			},
+		}
+
 		logger.Infof("listening (https) on %s", c.Web.HTTPS)
 		go func() {
-			err := http.ListenAndServeTLS(c.Web.HTTPS, c.Web.TLSCert, c.Web.TLSKey, serv)
+			err = httpsSrv.ListenAndServeTLS(c.Web.TLSCert, c.Web.TLSKey)
 			errc <- fmt.Errorf("listening on %s failed: %v", c.Web.HTTPS, err)
 		}()
 	}
@@ -307,7 +325,7 @@ func (f *utcFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	return f.f.Format(e)
 }
 
-func newLogger(level string, format string) (logrus.FieldLogger, error) {
+func newLogger(level string, format string) (log.Logger, error) {
 	var logLevel logrus.Level
 	switch strings.ToLower(level) {
 	case "debug":

@@ -56,6 +56,7 @@ const (
 	ErrorUnexpectedResponse = 205
 )
 
+// LDAPResultCodeMap contains string descriptions for LDAP error codes
 var LDAPResultCodeMap = map[uint8]string{
 	LDAPResultSuccess:                      "Success",
 	LDAPResultOperationsError:              "Operations Error",
@@ -96,6 +97,13 @@ var LDAPResultCodeMap = map[uint8]string{
 	LDAPResultObjectClassModsProhibited:    "Object Class Mods Prohibited",
 	LDAPResultAffectsMultipleDSAs:          "Affects Multiple DSAs",
 	LDAPResultOther:                        "Other",
+
+	ErrorNetwork:            "Network Error",
+	ErrorFilterCompile:      "Filter Compile Error",
+	ErrorFilterDecompile:    "Filter Decompile Error",
+	ErrorDebugging:          "Debugging Error",
+	ErrorUnexpectedMessage:  "Unexpected Message",
+	ErrorUnexpectedResponse: "Unexpected Response",
 }
 
 func getLDAPResultCode(packet *ber.Packet) (code uint8, description string) {
@@ -115,8 +123,11 @@ func getLDAPResultCode(packet *ber.Packet) (code uint8, description string) {
 	return ErrorNetwork, "Invalid packet format"
 }
 
+// Error holds LDAP error information
 type Error struct {
-	Err        error
+	// Err is the underlying error
+	Err error
+	// ResultCode is the LDAP error code
 	ResultCode uint8
 }
 
@@ -124,10 +135,12 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("LDAP Result Code %d %q: %s", e.ResultCode, LDAPResultCodeMap[e.ResultCode], e.Err.Error())
 }
 
+// NewError creates an LDAP error with the given code and underlying error
 func NewError(resultCode uint8, err error) error {
 	return &Error{ResultCode: resultCode, Err: err}
 }
 
+// IsErrorWithCode returns true if the given error is an LDAP error with the given result code
 func IsErrorWithCode(err error, desiredResultCode uint8) bool {
 	if err == nil {
 		return false

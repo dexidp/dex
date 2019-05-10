@@ -43,6 +43,8 @@ Dex currently allows insecure connections because the project is still verifying
 
 User entries are expected to have an email attribute (configurable through `emailAttr`), and a display name attribute (configurable through `nameAttr`). `*Attr` attributes could be set to "DN" in situations where it is needed but not available elsewhere, and if "DN" attribute does not exist in the record.
 
+For the purposes of configuring this connector, "DN" is case-sensitive and should always be capitalised.
+
 The following is an example config file that can be used by the LDAP connector to authenticate a user.
 
 ```yaml
@@ -251,7 +253,6 @@ groupSearch:
 The following configuration will allow the LDAP connector to search a FreeIPA directory using an LDAP filter.
 
 ```yaml
-
 connectors:
 - type: ldap
   id: ldap
@@ -262,7 +263,7 @@ connectors:
     # freeIPA server's CA
     rootCA: ca.crt
     userSearch:
-      # Would translate to the query "(&(objectClass=person)(uid=<username>))".
+      # Would translate to the query "(&(objectClass=posixAccount)(uid=<username>))".
       baseDN: cn=users,dc=freeipa,dc=example,dc=com
       filter: "(objectClass=posixAccount)"
       username: uid
@@ -282,3 +283,40 @@ connectors:
 If the search finds an entry, it will attempt to use the provided password to bind as that user entry.
 
 [openldap]: https://www.openldap.org/
+
+## Example: Searching a Active Directory server with groups
+
+The following configuration will allow the LDAP connector to search a Active Directory using an LDAP filter.
+
+```yaml
+connectors:
+- type: ldap
+  name: ActiveDirectory
+  id: ad
+  config:
+    host: ad.example.com:636
+
+    insecureNoSSL: false
+    insecureSkipVerify: true
+
+    bindDN: cn=Administrator,cn=users,dc=example,dc=com
+    bindPW: admin0!
+
+    usernamePrompt: Email Address
+
+    userSearch:
+      baseDN: cn=Users,dc=example,dc=com
+      filter: "(objectClass=person)"
+      username: userPrincipalName
+      idAttr: DN
+      emailAttr: userPrincipalName
+      nameAttr: cn
+
+    groupSearch:
+      baseDN: cn=Users,dc=example,dc=com
+      filter: "(objectClass=group)"
+      userAttr: DN
+      groupAttr: member
+      nameAttr: cn
+```
+

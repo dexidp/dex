@@ -187,7 +187,7 @@ func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []by
 	return signature.CompactSerialize()
 }
 
-// The hash algorithm for the at_hash is detemrined by the signing
+// The hash algorithm for the at_hash is determined by the signing
 // algorithm used for the id_token. From the spec:
 //
 //    ...the hash algorithm used is the hash algorithm used in the alg Header
