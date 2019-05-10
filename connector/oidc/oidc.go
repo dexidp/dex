@@ -208,7 +208,7 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 	return c.createIdentity(r.Context(), identity, token)
 }
 
-// Refresh is implemented for backwards compatibility, even though it's a no-op.
+// Refresh is used to refresh a session with the refresh token provided by the IdP
 func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
 	t := &oauth2.Token{
 		RefreshToken: string(identity.ConnectorData),
