@@ -225,7 +225,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 
 	connectors, e := s.storage.ListConnectors()
 	if e != nil {
-		s.logger.Errorf("Failed to get list of connectors: %v", err)
+		s.logger.Errorf("Failed to get list of connectors: %v", e)
 		s.renderError(w, http.StatusInternalServerError, "Failed to retrieve connector list.")
 		return
 	}
