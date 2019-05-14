@@ -263,13 +263,13 @@ func (p *conn) getUser(ctx context.Context, userID string, token string) (*userR
 		return nil, err
 	}
 
-	user := new(userResponse)
-	err = json.Unmarshal(data, user)
+	user := userResponse{}
+	err = json.Unmarshal(data, &user)
 	if err != nil {
 		return nil, err
 	}
 
-	return user, nil
+	return &user, nil
 }
 
 func (p *conn) getUserGroups(ctx context.Context, userID string, token string) ([]string, error) {
