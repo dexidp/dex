@@ -39,6 +39,11 @@ type Config struct {
 
 	// Override the value of email_verifed to true in the returned claims
 	InsecureSkipEmailVerified bool `json:"insecureSkipEmailVerified"`
+
+	// GetUserInfo uses the userinfo endpoint to get additional claims for
+	// the token. This is especially useful where upstreams return "thin"
+	// id tokens
+	GetUserInfo bool `json:"getUserInfo"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -105,6 +110,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 
 	clientID := c.ClientID
 	return &oidcConnector{
+		provider:    provider,
 		redirectURI: c.RedirectURI,
 		oauth2Config: &oauth2.Config{
 			ClientID:     clientID,
@@ -120,6 +126,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		cancel:                    cancel,
 		hostedDomains:             c.HostedDomains,
 		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
+		getUserInfo:               c.GetUserInfo,
 	}, nil
 }
 
@@ -129,6 +136,7 @@ var (
 )
 
 type oidcConnector struct {
+	provider                  *oidc.Provider
 	redirectURI               string
 	oauth2Config              *oauth2.Config
 	verifier                  *oidc.IDTokenVerifier
@@ -137,6 +145,7 @@ type oidcConnector struct {
 	logger                    log.Logger
 	hostedDomains             []string
 	insecureSkipEmailVerified bool
+	getUserInfo               bool
 }
 
 func (c *oidcConnector) Close() error {
@@ -217,6 +226,16 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 	if c.insecureSkipEmailVerified {
 		claims.EmailVerified = true
 
+	}
+
+	if c.getUserInfo {
+		userInfo, err := c.provider.UserInfo(r.Context(), oauth2.StaticTokenSource(token))
+		if err != nil {
+			return identity, fmt.Errorf("oidc: error loading userinfo: %v", err)
+		}
+		if err := userInfo.Claims(&claims); err != nil {
+			return identity, fmt.Errorf("oidc: failed to decode userinfo claims: %v", err)
+		}
 	}
 
 	identity = connector.Identity{
