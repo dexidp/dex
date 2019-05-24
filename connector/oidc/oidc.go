@@ -44,6 +44,9 @@ type Config struct {
 	// the token. This is especially useful where upstreams return "thin"
 	// id tokens
 	GetUserInfo bool `json:"getUserInfo"`
+
+	// Configurable key which contains the user id claim
+	UserIDKey string `json:"userIDKey"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -127,6 +130,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		hostedDomains:             c.HostedDomains,
 		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
 		getUserInfo:               c.GetUserInfo,
+		userIDKey:                 c.UserIDKey,
 	}, nil
 }
 
@@ -146,6 +150,7 @@ type oidcConnector struct {
 	hostedDomains             []string
 	insecureSkipEmailVerified bool
 	getUserInfo               bool
+	userIDKey                 string
 }
 
 func (c *oidcConnector) Close() error {
@@ -199,33 +204,41 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		return identity, fmt.Errorf("oidc: failed to verify ID Token: %v", err)
 	}
 
-	var claims struct {
-		Username      string `json:"name"`
-		Email         string `json:"email"`
-		EmailVerified bool   `json:"email_verified"`
-		HostedDomain  string `json:"hd"`
-	}
+	var claims map[string]interface{}
 	if err := idToken.Claims(&claims); err != nil {
 		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
 	}
 
+	name, found := claims["name"].(string)
+	if !found {
+		return identity, errors.New("missing \"name\" claim")
+	}
+	email, found := claims["email"].(string)
+	if !found {
+		return identity, errors.New("missing \"email\" claim")
+	}
+	emailVerified, found := claims["email_verified"].(bool)
+	if !found {
+		return identity, errors.New("missing \"email_verified\" claim")
+	}
+	hostedDomain, _ := claims["hd"].(string)
+
 	if len(c.hostedDomains) > 0 {
 		found := false
 		for _, domain := range c.hostedDomains {
-			if claims.HostedDomain == domain {
+			if hostedDomain == domain {
 				found = true
 				break
 			}
 		}
 
 		if !found {
-			return identity, fmt.Errorf("oidc: unexpected hd claim %v", claims.HostedDomain)
+			return identity, fmt.Errorf("oidc: unexpected hd claim %v", hostedDomain)
 		}
 	}
 
 	if c.insecureSkipEmailVerified {
-		claims.EmailVerified = true
-
+		emailVerified = true
 	}
 
 	if c.getUserInfo {
@@ -240,10 +253,19 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 
 	identity = connector.Identity{
 		UserID:        idToken.Subject,
-		Username:      claims.Username,
-		Email:         claims.Email,
-		EmailVerified: claims.EmailVerified,
+		Username:      name,
+		Email:         email,
+		EmailVerified: emailVerified,
 	}
+
+	if c.userIDKey != "" {
+		userID, found := claims[c.userIDKey].(string)
+		if !found {
+			return identity, fmt.Errorf("oidc: not found %v claim", c.userIDKey)
+		}
+		identity.UserID = userID
+	}
+
 	return identity, nil
 }
 

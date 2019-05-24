@@ -66,6 +66,12 @@ connectors:
     # all the claims requested.
     # https://openid.net/specs/openid-connect-core-1_0.html#UserInfo
     # getUserInfo: true
+
+    # The set claim is used as user id.
+    # Default: sub
+    # Claims list at https://openid.net/specs/openid-connect-core-1_0.html#Claims
+    #
+    # userIdKey: nickname
 ```
 
 [oidc-doc]: openid-connect.md
