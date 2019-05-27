@@ -265,6 +265,11 @@ type federatedIDClaims struct {
 	UserID      string `json:"user_id,omitempty"`
 }
 
+func (s *Server) newAccessToken(clientID string, claims storage.Claims, scopes []string, nonce, connID string) (accessToken string, err error) {
+	idToken, _, err := s.newIDToken(clientID, claims, scopes, nonce, storage.NewID(), connID)
+	return idToken, err
+}
+
 func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, connID string) (idToken string, expiry time.Time, err error) {
 	keys, err := s.storage.GetKeys()
 	if err != nil {
