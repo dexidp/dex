@@ -171,7 +171,7 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 		Auth:        s.absURL("/auth"),
 		Token:       s.absURL("/token"),
 		Keys:        s.absURL("/keys"),
-		Keys:        s.absURL("/userinfo"),
+		UserInfo:    s.absURL("/userinfo"),
 		Subjects:    []string{"public"},
 		IDTokenAlgs: []string{string(jose.RS256)},
 		Scopes:      []string{"openid", "email", "groups", "profile", "offline_access"},
@@ -566,12 +566,8 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		idToken       string
 		idTokenExpiry time.Time
 
-i		accessToken, err := s.newAccessToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID)
-		if err != nil {
-			s.logger.Errorf("failed to create new access token: %v", err)
-			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-			return
-		}
+		// Access token
+		accessToken   string
 	)
 
 	for _, responseType := range authReq.ResponseTypes {
@@ -607,6 +603,14 @@ i		accessToken, err := s.newAccessToken(client.ID, authCode.Claims, authCode.Sco
 		case responseTypeIDToken:
 			implicitOrHybrid = true
 			var err error
+
+			accessToken, err := s.newAccessToken(authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, authReq.ConnectorID)
+			if err != nil {
+				s.logger.Errorf("failed to create new access token: %v", err)
+				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+				return
+			}
+
 			idToken, idTokenExpiry, err = s.newIDToken(authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, accessToken, authReq.ConnectorID)
 			if err != nil {
 				s.logger.Errorf("failed to create ID token: %v", err)
@@ -728,7 +732,13 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		return
 	}
 
-	accessToken := storage.NewID()
+	accessToken, err := s.newAccessToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID)
+	if err != nil {
+		s.logger.Errorf("failed to create new access token: %v", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
 	idToken, expiry, err := s.newIDToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, accessToken, authCode.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create ID token: %v", err)
