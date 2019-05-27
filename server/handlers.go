@@ -2,8 +2,8 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -567,7 +567,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		idTokenExpiry time.Time
 
 		// Access token
-		accessToken   string
+		accessToken string
 	)
 
 	for _, responseType := range authReq.ResponseTypes {
@@ -1079,7 +1079,7 @@ func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(verified)
-	}
+}
 
 func (s *Server) verify(token string) ([]byte, error) {
 	keys, err := s.storage.GetKeys()
