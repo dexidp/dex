@@ -45,29 +45,62 @@ func TestHandleCallback(t *testing.T) {
 	t.Helper()
 
 	tests := []struct {
-		name         string
-		userIDKey    string
-		expectUserID string
+		name                      string
+		userIDKey                 string
+		insecureSkipEmailVerified bool
+		expectUserID              string
+		token                     map[string]interface{}
 	}{
-		{"simpleCase", "", "sub"},
-		{"withUserIDKey", "name", "name"},
+		{
+			name:         "simpleCase",
+			userIDKey:    "", // not configured
+			expectUserID: "subvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
+			name:                      "email_verified not in claims, configured to be skipped",
+			insecureSkipEmailVerified: true,
+			expectUserID:              "subvalue",
+			token: map[string]interface{}{
+				"sub":   "subvalue",
+				"name":  "namevalue",
+				"email": "emailvalue",
+			},
+		},
+		{
+			name:         "withUserIDKey",
+			userIDKey:    "name",
+			expectUserID: "namevalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			testServer, err := setupServer()
+			testServer, err := setupServer(tc.token)
 			if err != nil {
 				t.Fatal("failed to setup test server", err)
 			}
 			defer testServer.Close()
 			serverURL := testServer.URL
 			config := Config{
-				Issuer:       serverURL,
-				ClientID:     "clientID",
-				ClientSecret: "clientSecret",
-				Scopes:       []string{"groups"},
-				RedirectURI:  fmt.Sprintf("%s/callback", serverURL),
-				UserIDKey:    tc.userIDKey,
+				Issuer:                    serverURL,
+				ClientID:                  "clientID",
+				ClientSecret:              "clientSecret",
+				Scopes:                    []string{"groups"},
+				RedirectURI:               fmt.Sprintf("%s/callback", serverURL),
+				UserIDKey:                 tc.userIDKey,
+				InsecureSkipEmailVerified: tc.insecureSkipEmailVerified,
 			}
 
 			conn, err := newConnector(config)
@@ -86,14 +119,14 @@ func TestHandleCallback(t *testing.T) {
 			}
 
 			expectEquals(t, identity.UserID, tc.expectUserID)
-			expectEquals(t, identity.Username, "name")
-			expectEquals(t, identity.Email, "email")
+			expectEquals(t, identity.Username, "namevalue")
+			expectEquals(t, identity.Email, "emailvalue")
 			expectEquals(t, identity.EmailVerified, true)
 		})
 	}
 }
 
-func setupServer() (*httptest.Server, error) {
+func setupServer(tok map[string]interface{}) (*httptest.Server, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate rsa key: %v", err)
@@ -121,16 +154,10 @@ func setupServer() (*httptest.Server, error) {
 
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		url := fmt.Sprintf("http://%s", r.Host)
-
-		token, err := newToken(&jwk, map[string]interface{}{
-			"iss":            url,
-			"aud":            "clientID",
-			"exp":            time.Now().Add(time.Hour).Unix(),
-			"sub":            "sub",
-			"name":           "name",
-			"email":          "email",
-			"email_verified": true,
-		})
+		tok["iss"] = url
+		tok["exp"] = time.Now().Add(time.Hour).Unix()
+		tok["aud"] = "clientID"
+		token, err := newToken(&jwk, tok)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 		}

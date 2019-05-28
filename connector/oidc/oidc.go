@@ -219,7 +219,11 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 	}
 	emailVerified, found := claims["email_verified"].(bool)
 	if !found {
-		return identity, errors.New("missing \"email_verified\" claim")
+		if c.insecureSkipEmailVerified {
+			emailVerified = true
+		} else {
+			return identity, errors.New("missing \"email_verified\" claim")
+		}
 	}
 	hostedDomain, _ := claims["hd"].(string)
 
@@ -235,10 +239,6 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		if !found {
 			return identity, fmt.Errorf("oidc: unexpected hd claim %v", hostedDomain)
 		}
-	}
-
-	if c.insecureSkipEmailVerified {
-		emailVerified = true
 	}
 
 	if c.getUserInfo {
