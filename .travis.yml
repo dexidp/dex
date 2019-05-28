@@ -4,10 +4,7 @@ sudo: required
 
 matrix:
   include:
-    - go: '1.10.x'
-    - go: '1.11.x'
-    - go: '1.11.x'
-      env: GO111MODULE=on
+    - go: '1.12.x'
 
 env:
   global: DEX_POSTGRES_DATABASE=postgres DEX_POSTGRES_USER=postgres DEX_POSTGRES_HOST="localhost" DEX_ETCD_ENDPOINTS=http://localhost:2379 DEX_LDAP_TESTS=1 DEBIAN_FRONTEND=noninteractive DEX_KEYSTONE_URL=http://localhost:5000 DEX_KEYSTONE_ADMIN_URL=http://localhost:35357 DEX_KEYSTONE_ADMIN_USER=demo DEX_KEYSTONE_ADMIN_PASS=DEMO_PASS
