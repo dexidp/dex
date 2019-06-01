@@ -25,6 +25,18 @@ message CreateClientResp {
   Client client = 2; 
 }
 
+// GetClientReq is a request to get a client.
+message GetClientReq {
+  // The ID of the client.
+  string id = 1;
+}
+
+// GetClientResp returns the response from getting a client.
+message GetClientResp {
+  Client client = 1; 
+  bool not_found = 2;
+}
+
 // DeleteClientReq is a request to delete a client.
 message DeleteClientReq {
   // The ID of the client.
@@ -34,6 +46,14 @@ message DeleteClientReq {
 // DeleteClientResp determines if the client is deleted successfully. 
 message DeleteClientResp {
   bool not_found = 1;
+}
+
+// ListClientReq is a request to enumerate clients.
+message ListClientReq {}
+
+// ListClientResp returns a list of clients.
+message ListClientResp {
+    repeated Client clients = 1;
 }
 
 // UpdateClientReq is a request to update an exisitng client.
@@ -152,10 +172,14 @@ message RevokeRefreshResp {
 service Dex {
   // CreateClient creates a client.
   rpc CreateClient(CreateClientReq) returns (CreateClientResp) {};
+  // GetClient gets a client.
+  rpc GetClient(GetClientReq) returns (GetClientResp) {};
   // UpdateClient updates an existing client
   rpc UpdateClient(UpdateClientReq) returns (UpdateClientResp) {};
   // DeleteClient deletes the provided client.
   rpc DeleteClient(DeleteClientReq) returns (DeleteClientResp) {};
+  // ListClients gets all client entries.
+  rpc ListClients(ListClientReq) returns (ListClientResp) {};
   // CreatePassword creates a password.
   rpc CreatePassword(CreatePasswordReq) returns (CreatePasswordResp) {};
   // UpdatePassword modifies existing password.
