@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coreos/dex/storage"
+	"github.com/dexidp/dex/storage"
 )
 
 func TestHandleHealth(t *testing.T) {
