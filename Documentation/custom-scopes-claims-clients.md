@@ -94,6 +94,13 @@ Instead of traditional redirect URIs, public clients are limited to either redir
 
 When using the "out-of-browser" flow, an ID Token nonce is strongly recommended.
 
+## Selecting connector
+
+If multiple connectors are defined DEX displays the page with the list of options. It is possible to skip that step providing connector ID in the authorization request. Sample request using connector with ID `google`:
+
+    GET https://dex-url/auth?connector=google&response_type=code&scope=openid&client_id=testid&redirect_uri=http://localhost/callback
+
+
 [saml-connector]: saml-connector.md
 [core-claims]: https://openid.net/specs/openid-connect-core-1_0.html#IDToken
 [standard-claims]: https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
