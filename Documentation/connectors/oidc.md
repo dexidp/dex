@@ -71,7 +71,11 @@ connectors:
     # Default: sub
     # Claims list at https://openid.net/specs/openid-connect-core-1_0.html#Claims
     #
-    # userIdKey: nickname
+    # userIDKey: nickname
+    
+    # The set claim is used as user name.
+    # Default: name
+    # userNameKey: nickname
 ```
 
 [oidc-doc]: openid-connect.md

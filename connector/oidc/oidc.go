@@ -47,6 +47,9 @@ type Config struct {
 
 	// Configurable key which contains the user id claim
 	UserIDKey string `json:"userIDKey"`
+
+	// Configurable key which contains the user name claim
+	UserNameKey string `json:"userNameKey"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -131,6 +134,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
 		getUserInfo:               c.GetUserInfo,
 		userIDKey:                 c.UserIDKey,
+		userNameKey:               c.UserNameKey,
 	}, nil
 }
 
@@ -151,6 +155,7 @@ type oidcConnector struct {
 	insecureSkipEmailVerified bool
 	getUserInfo               bool
 	userIDKey                 string
+	userNameKey               string
 }
 
 func (c *oidcConnector) Close() error {
@@ -209,9 +214,13 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
 	}
 
-	name, found := claims["name"].(string)
+	userNameKey := "name"
+	if c.userNameKey != "" {
+		userNameKey = c.userNameKey
+	}
+	name, found := claims[userNameKey].(string)
 	if !found {
-		return identity, errors.New("missing \"name\" claim")
+		return identity, fmt.Errorf("missing \"%s\" claim", userNameKey)
 	}
 	email, found := claims["email"].(string)
 	if !found {
