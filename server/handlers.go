@@ -1096,10 +1096,9 @@ func (s *Server) verify(token string) ([]byte, error) {
 		return nil, fmt.Errorf("unable to parse signed message")
 	}
 
-	// Parse the message to check expiry, as it jose doesn't distinguish expiry error from others
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		return nil, fmt.Errorf("square/go-jose: compact JWS format must have three parts")
+		return nil, fmt.Errorf("compact JWS format must have three parts")
 	}
 
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
