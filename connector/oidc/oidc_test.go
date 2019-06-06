@@ -105,7 +105,7 @@ func TestHandleCallback(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			testServer, err := setupServer(tc.token)
+			testServer, err := setupServer(tc.token, nil)
 			if err != nil {
 				t.Fatal("failed to setup test server", err)
 			}
@@ -145,7 +145,74 @@ func TestHandleCallback(t *testing.T) {
 	}
 }
 
-func setupServer(tok map[string]interface{}) (*httptest.Server, error) {
+func TestUserInfoOverride(t *testing.T) {
+	t.Helper()
+
+	tests := []struct {
+		name                      string
+		insecureSkipEmailVerified bool
+		expectUserID              string
+		expectUserName            string
+		token                     map[string]interface{}
+	}{
+		{
+			name:           "userinfoCase",
+			expectUserID:   "subvalue",
+			expectUserName: "namevalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"email_verified": true,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			expectedEmailValue := "JohnDoe@mycompany.com"
+			testServer, err := setupServer(tc.token, map[string]interface{}{
+				"email": expectedEmailValue,
+			})
+			if err != nil {
+				t.Fatal("failed to setup test server", err)
+			}
+			defer testServer.Close()
+			serverURL := testServer.URL
+			userinfoURL := fmt.Sprintf("%s/userinfo", serverURL)
+			config := Config{
+				Issuer:                    serverURL,
+				ClientID:                  "clientID",
+				ClientSecret:              "clientSecret",
+				Scopes:                    []string{"groups"},
+				RedirectURI:               fmt.Sprintf("%s/callback", serverURL),
+				InsecureSkipEmailVerified: true,
+				UserInfoURI:               userinfoURL,
+				GetUserInfo:               true,
+			}
+
+			conn, err := newConnector(config)
+			if err != nil {
+				t.Fatal("failed to create new connector", err)
+			}
+
+			req, err := newRequestWithAuthCode(testServer.URL, "someCode")
+			if err != nil {
+				t.Fatal("failed to create request", err)
+			}
+
+			identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
+			if err != nil {
+				t.Fatal("handle callback failed", err)
+			}
+
+			expectEquals(t, identity.Email, expectedEmailValue)
+			expectEquals(t, identity.UserID, tc.expectUserID)
+			expectEquals(t, identity.Username, tc.expectUserName)
+		})
+	}
+}
+
+func setupServer(tok map[string]interface{}, userdata map[string]interface{}) (*httptest.Server, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate rsa key: %v", err)
@@ -199,6 +266,10 @@ func setupServer(tok map[string]interface{}) (*httptest.Server, error) {
 			"userinfo_endpoint":      fmt.Sprintf("%s/userinfo", url),
 			"jwks_uri":               fmt.Sprintf("%s/keys", url),
 		})
+	})
+
+	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(userdata)
 	})
 
 	return httptest.NewServer(mux), nil
