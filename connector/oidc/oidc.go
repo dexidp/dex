@@ -288,6 +288,14 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		EmailVerified: emailVerified,
 	}
 
+	if c.userIDKey != "" {
+		userID, found := claims[c.userIDKey].(string)
+		if !found {
+			return identity, fmt.Errorf("oidc: not found %v claim", c.userIDKey)
+		}
+		identity.UserID = userID
+	}
+
 	// Add AccessToken to user identity for future requests
 	connData, err := json.Marshal(connectorData{
 		AccessToken: token.AccessToken,
