@@ -42,6 +42,27 @@ type Config struct {
 	// Optional list of whitelisted domains when using Google
 	// If this field is nonempty, only users from a listed domain will be allowed to log in
 	HostedDomains []string `json:"hostedDomains"`
+
+	// Override the value of email_verifed to true in the returned claims
+	InsecureSkipEmailVerified bool `json:"insecureSkipEmailVerified"`
+
+	// GetUserInfo uses the userinfo endpoint to get additional claims for
+	// the token. This is especially useful where upstreams return "thin"
+	// id tokens
+	GetUserInfo bool `json:"getUserInfo"`
+
+	// Optional list of whitelisted groups
+	Groups []string `json:"groups"`
+
+	// Configurable key which contains the groups claim
+	GroupsKey string `json:"groupsKey"`
+
+	// Configurable key which contains the user id claim
+	UserIDKey string `json:"userIDKey"`
+
+	// Configurable key which contains the user name claim
+	UserNameKey string `json:"userNameKey"`
+
 	// Userinfo endpoint for Relying Parties that need details about the authenticated user
 	UserInfoURI string `json:"userInfoURI"`
 }
@@ -121,10 +142,16 @@ func (c *Config) Open(id string, logger logrus.FieldLogger) (conn connector.Conn
 		verifier: provider.Verifier(
 			&oidc.Config{ClientID: clientID},
 		),
-		logger:        logger,
-		cancel:        cancel,
-		hostedDomains: c.HostedDomains,
-		userInfoURI:   c.UserInfoURI,
+		logger:                    logger,
+		cancel:                    cancel,
+		hostedDomains:             c.HostedDomains,
+		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
+		getUserInfo:               c.GetUserInfo,
+		groups:                    c.Groups,
+		groupsKey:                 c.GroupsKey,
+		userIDKey:                 c.UserIDKey,
+		userNameKey:               c.UserNameKey,
+		userInfoURI:               c.UserInfoURI,
 	}, nil
 }
 
@@ -134,14 +161,21 @@ var (
 )
 
 type oidcConnector struct {
-	redirectURI   string
-	oauth2Config  *oauth2.Config
-	verifier      *oidc.IDTokenVerifier
-	ctx           context.Context
-	cancel        context.CancelFunc
-	logger        logrus.FieldLogger
-	hostedDomains []string
-	userInfoURI   string
+	provider                  *oidc.Provider
+	redirectURI               string
+	oauth2Config              *oauth2.Config
+	verifier                  *oidc.IDTokenVerifier
+	ctx                       context.Context
+	cancel                    context.CancelFunc
+	logger                    log.Logger
+	hostedDomains             []string
+	insecureSkipEmailVerified bool
+	getUserInfo               bool
+	groups                    []string
+	groupsKey                 string
+	userIDKey                 string
+	userNameKey               string
+	userInfoURI               string
 }
 
 func (c *oidcConnector) Close() error {
@@ -205,6 +239,38 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
 	}
 
+	if c.getUserInfo {
+		userInfo, err := c.provider.UserInfo(r.Context(), oauth2.StaticTokenSource(token))
+		if err != nil {
+			return identity, fmt.Errorf("oidc: error loading userinfo: %v", err)
+		}
+		if err := userInfo.Claims(&claims); err != nil {
+			return identity, fmt.Errorf("oidc: failed to decode userinfo claims: %v", err)
+		}
+	}
+
+	userNameKey := "name"
+	if c.userNameKey != "" {
+		userNameKey = c.userNameKey
+	}
+	name, found := claims[userNameKey].(string)
+	if !found {
+		return identity, fmt.Errorf("missing \"%s\" claim", userNameKey)
+	}
+	email, found := claims["email"].(string)
+	if !found {
+		return identity, errors.New("missing \"email\" claim")
+	}
+	emailVerified, found := claims["email_verified"].(bool)
+	if !found {
+		if c.insecureSkipEmailVerified {
+			emailVerified = true
+		} else {
+			return identity, errors.New("missing \"email_verified\" claim")
+		}
+	}
+	hostedDomain, _ := claims["hd"].(string)
+
 	if len(c.hostedDomains) > 0 {
 		found := false
 		for _, domain := range c.hostedDomains {
@@ -215,7 +281,7 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		}
 
 		if !found {
-			return identity, fmt.Errorf("oidc: unexpected hd claim %v", claims.HostedDomain)
+			return identity, fmt.Errorf("oidc: unexpected hd claim %v", hostedDomain)
 		}
 	}
 
@@ -224,6 +290,36 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		Username:      claims.Username,
 		Email:         claims.Email,
 		EmailVerified: claims.EmailVerified,
+	}
+
+	// Add AccessToken to user identity for future requests
+	connData, err := json.Marshal(connectorData{
+		AccessToken: token.AccessToken,
+	})
+	if err != nil {
+		return identity, fmt.Errorf("marshal connector data: %v", err)
+	}
+
+	if c.groupsKey != "" {
+		groups, err := c.getGroups(claims)
+		if err != nil {
+			return identity, fmt.Errorf("failed to parse group data: %v", err)
+		}
+
+		if len(c.groups) > 0 {
+			var whitelisted []string
+			for _, group := range groups {
+				for _, whitelistedGroup := range c.groups {
+					if strings.ToLower(whitelistedGroup) == strings.ToLower(group) {
+						whitelisted = append(whitelisted, group)
+						break
+					}
+				}
+			}
+			groups = whitelisted
+		}
+
+		identity.Groups = groups
 	}
 
 	// Add AccessToken to user identity for future requests
@@ -258,7 +354,6 @@ func (c *oidcConnector) GetUserInfo(connData []byte, user *map[string]interface{
 	authorization := fmt.Sprintf("bearer %s", cData.AccessToken)
 	// Prepare get request including Authorization header from RP
 	req, err := http.NewRequest("GET", c.userInfoURI, nil)
-
 	if err != nil {
 		return fmt.Errorf("Error Creating GET request: %v", err)
 	}
@@ -275,7 +370,28 @@ func (c *oidcConnector) GetUserInfo(connData []byte, user *map[string]interface{
 		return fmt.Errorf("Error Executing GET request: %v", err)
 	}
 
-	json.NewDecoder(resp.Body).Decode(user)
+	err = json.NewDecoder(resp.Body).Decode(user)
+	if err != nil {
+		return err
+	}
 
 	return nil
+}
+
+func (c *oidcConnector) getGroups(claims map[string]interface{}) (groups []string, err error) {
+
+	if rawGroup, ok := claims[c.groupsKey]; ok {
+		if groupList, ok := rawGroup.([]interface{}); ok {
+			for _, group := range groupList {
+				monikers := strings.Split(group.(string), ",")
+				for _, moniker := range monikers {
+					monikerkv := strings.Split(moniker, "=")
+					if len(monikerkv) > 1 && monikerkv[0] == "CN" {
+						groups = append(groups, monikerkv[1])
+					}
+				}
+			}
+		}
+	}
+	return groups, err
 }

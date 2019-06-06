@@ -20,7 +20,6 @@ func (s *Server) Encrypt(message string) (string, error) {
 	// Instantiate an encrypter using RSA-OAEP with AES128-GCM. An error would
 	// indicate that the selected algorithm(s) are not currently supported.
 	encrypter, err := jose.NewEncrypter(jose.A128GCM, jose.Recipient{Algorithm: jose.RSA_OAEP, Key: keys.SigningKeyPub}, nil)
-	// encrypter, err := jose.NewEncrypter(jose.RSA_OAEP, jose.A128GCM, &keys.SigningKeyPub)
 	if err != nil {
 		return "", fmt.Errorf("unable to create encrypter: %v", err)
 	}

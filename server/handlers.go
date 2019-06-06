@@ -643,7 +643,6 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 
 // handle an access token request https://tools.ietf.org/html/rfc6749#section-4.1.3
 func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client storage.Client) {
-
 	code := r.PostFormValue("code")
 	redirectURI := r.PostFormValue("redirect_uri")
 
@@ -677,7 +676,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	// The accessToken is build from claims
 	accessToken, err := internal.Marshal(token)
 
-	// Encrypt access token to hide sensible data
+	// Encrypt access token to hide sensitive data
 	accessToken, err = s.Encrypt(accessToken)
 	if err != nil {
 		s.logger.Errorf("Internal server error: %v", err)
@@ -998,7 +997,6 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, accessToken, r
 	// TODO(ericchiang): figure out an access token story and support the user info
 	// endpoint. For now use a random value so no one depends on the access_token
 	// holding a specific structure.
-
 	resp := struct {
 		AccessToken  string `json:"access_token"`
 		TokenType    string `json:"token_type"`
@@ -1045,7 +1043,7 @@ func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken := new(internal.AccessToken)
+	accessToken := &internal.AccessToken{}
 	if err := internal.Unmarshal(decryptedToken, accessToken); err != nil {
 		s.logger.Errorf("Failed to unmarshal access token: %v", err)
 	}
