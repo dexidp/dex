@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	jose "gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
@@ -151,6 +151,7 @@ type discovery struct {
 	Auth          string   `json:"authorization_endpoint"`
 	Token         string   `json:"token_endpoint"`
 	Keys          string   `json:"jwks_uri"`
+	UserInfo      string   `json:"userinfo_endpoint"`
 	ResponseTypes []string `json:"response_types_supported"`
 	Subjects      []string `json:"subject_types_supported"`
 	IDTokenAlgs   []string `json:"id_token_signing_alg_values_supported"`
@@ -165,6 +166,7 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 		Auth:        s.absURL("/auth"),
 		Token:       s.absURL("/token"),
 		Keys:        s.absURL("/keys"),
+		UserInfo:    s.absURL("/userinfo"),
 		Subjects:    []string{"public"},
 		IDTokenAlgs: []string{string(jose.RS256)},
 		Scopes:      []string{"openid", "email", "groups", "profile", "offline_access"},
@@ -697,6 +699,7 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 
 // handle an access token request https://tools.ietf.org/html/rfc6749#section-4.1.3
 func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client storage.Client) {
+
 	code := r.PostFormValue("code")
 	redirectURI := r.PostFormValue("redirect_uri")
 
@@ -716,7 +719,28 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		return
 	}
 
-	accessToken := storage.NewID()
+	token := &internal.AccessToken{
+		Subject:       authCode.Claims.UserID,
+		Username:      authCode.Claims.Username,
+		Email:         authCode.Claims.Email,
+		EmailVerified: authCode.Claims.EmailVerified,
+		Groups:        authCode.Claims.Groups,
+		ConnectorData: string(authCode.ConnectorData),
+		ConnectorId:   authCode.ConnectorID,
+		Expiry:        authCode.Expiry.Unix(),
+	}
+
+	// The accessToken is build from claims
+	accessToken, err := internal.Marshal(token)
+
+	// Encrypt access token to hide sensible data
+	accessToken, err = s.Encrypt(accessToken)
+	if err != nil {
+		s.logger.Errorf("Internal server error: %v", err)
+		s.renderError(w, http.StatusInternalServerError, "Internal server error.")
+		return
+	}
+
 	idToken, expiry, err := s.newIDToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, accessToken, authCode.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create ID token: %v", err)
@@ -1030,6 +1054,7 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, accessToken, r
 	// TODO(ericchiang): figure out an access token story and support the user info
 	// endpoint. For now use a random value so no one depends on the access_token
 	// holding a specific structure.
+
 	resp := struct {
 		AccessToken  string `json:"access_token"`
 		TokenType    string `json:"token_type"`
@@ -1044,6 +1069,84 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, accessToken, r
 		idToken,
 	}
 	data, err := json.Marshal(resp)
+	if err != nil {
+		s.logger.Errorf("failed to marshal access token response: %v", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.Write(data)
+}
+
+// Handler for the /userinfo endpoint
+func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
+
+	token := ""
+	if r.Header.Get("Authorization") != "" {
+		// Extract token type and token value from Authorization header
+		authorizationSubstrs := strings.Split(r.Header.Get("Authorization"), " ")
+		token = authorizationSubstrs[1]
+	} else if r.URL.Query().Get("access_token") != "" {
+		token = r.URL.Query().Get("access_token")
+	} else {
+		s.logger.Error("No token found")
+		return
+	}
+
+	decryptedToken, err := s.Decrypt(token)
+	if err != nil {
+		s.logger.Errorf("Internal server error: %v", err)
+		s.renderError(w, http.StatusInternalServerError, "Internal server error.")
+		return
+	}
+
+	accessToken := new(internal.AccessToken)
+	if err := internal.Unmarshal(decryptedToken, accessToken); err != nil {
+		s.logger.Errorf("Failed to unmarshal access token: %v", err)
+	}
+
+	// Find the connector used in this auth flow
+	conn, err := s.getConnector(accessToken.ConnectorId)
+
+	if err != nil {
+		s.logger.Errorf("Failed to get connector with id %q : %v", accessToken.ConnectorId, err)
+		s.renderError(w, http.StatusBadRequest, "Requested resource does not exist")
+		return
+	}
+
+	// Create a flexible map initialized with the existing accessToken data
+	// If the connector does not implement a GetUserInfo, this map is
+	// returned as is
+	user := map[string]interface{}{
+		"sub":            accessToken.Subject,
+		"name":           accessToken.Username,
+		"email":          accessToken.Email,
+		"email_verified": accessToken.EmailVerified,
+		"groups":         accessToken.Groups,
+		"expiry":         accessToken.Expiry,
+	}
+
+	switch conn := conn.Connector.(type) {
+	// Delegate the responsibility of coming up with the user info
+	// to the connector if it is a UserInfoConnector
+	// e.g. oidc connector
+	case connector.UserInfoConnector:
+
+		connData := []byte(accessToken.ConnectorData)
+		err = conn.GetUserInfo(connData, &user)
+
+		if err != nil {
+			s.logger.Errorf("Failed to retrieve user info: %v", err)
+		}
+	}
+
+	s.writeUserInfo(w, user)
+}
+
+func (s *Server) writeUserInfo(w http.ResponseWriter, user map[string]interface{}) {
+
+	data, err := json.Marshal(user)
 	if err != nil {
 		s.logger.Errorf("failed to marshal access token response: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)

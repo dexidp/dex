@@ -3,6 +3,7 @@ package oidc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,6 +17,11 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
 )
+
+type connectorData struct {
+	// Store token, even if it eventually expires
+	AccessToken string `json:"accessToken"`
+}
 
 // Config holds configuration options for OpenID Connect logins.
 type Config struct {
@@ -45,11 +51,20 @@ type Config struct {
 	// id tokens
 	GetUserInfo bool `json:"getUserInfo"`
 
+	// Optional list of whitelisted groups
+	Groups []string `json:"groups"`
+
+	// Configurable key which contains the groups claim
+	GroupsKey string `json:"groupsKey"`
+
 	// Configurable key which contains the user id claim
 	UserIDKey string `json:"userIDKey"`
 
 	// Configurable key which contains the user name claim
 	UserNameKey string `json:"userNameKey"`
+
+	// Userinfo endpoint for Relying Parties that need details about the authenticated user
+	UserInfoURI string `json:"userInfoURI"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -133,8 +148,11 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		hostedDomains:             c.HostedDomains,
 		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
 		getUserInfo:               c.GetUserInfo,
+		groups:                    c.Groups,
+		groupsKey:                 c.GroupsKey,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
+		userInfoURI:               c.UserInfoURI,
 	}, nil
 }
 
@@ -154,8 +172,11 @@ type oidcConnector struct {
 	hostedDomains             []string
 	insecureSkipEmailVerified bool
 	getUserInfo               bool
+	groups                    []string
+	groupsKey                 string
 	userIDKey                 string
 	userNameKey               string
+	userInfoURI               string
 }
 
 func (c *oidcConnector) Close() error {
@@ -214,6 +235,16 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
 	}
 
+	if c.getUserInfo {
+		userInfo, err := c.provider.UserInfo(r.Context(), oauth2.StaticTokenSource(token))
+		if err != nil {
+			return identity, fmt.Errorf("oidc: error loading userinfo: %v", err)
+		}
+		if err := userInfo.Claims(&claims); err != nil {
+			return identity, fmt.Errorf("oidc: failed to decode userinfo claims: %v", err)
+		}
+	}
+
 	userNameKey := "name"
 	if c.userNameKey != "" {
 		userNameKey = c.userNameKey
@@ -250,16 +281,6 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		}
 	}
 
-	if c.getUserInfo {
-		userInfo, err := c.provider.UserInfo(r.Context(), oauth2.StaticTokenSource(token))
-		if err != nil {
-			return identity, fmt.Errorf("oidc: error loading userinfo: %v", err)
-		}
-		if err := userInfo.Claims(&claims); err != nil {
-			return identity, fmt.Errorf("oidc: failed to decode userinfo claims: %v", err)
-		}
-	}
-
 	identity = connector.Identity{
 		UserID:        idToken.Subject,
 		Username:      name,
@@ -275,10 +296,97 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		identity.UserID = userID
 	}
 
+	if c.groupsKey != "" {
+		groups, err := c.getGroups(claims)
+		if err != nil {
+			return identity, fmt.Errorf("failed to parse group data: %v", err)
+		}
+
+		if len(c.groups) > 0 {
+			var whitelisted []string
+			for _, group := range groups {
+				for _, whitelistedGroup := range c.groups {
+					if strings.ToLower(whitelistedGroup) == strings.ToLower(group) {
+						whitelisted = append(whitelisted, group)
+						break
+					}
+				}
+			}
+			groups = whitelisted
+		}
+
+		identity.Groups = groups
+	}
+
+	// Add AccessToken to user identity for future requests
+	connData, err := json.Marshal(connectorData{
+		AccessToken: token.AccessToken,
+	})
+	if err != nil {
+		return identity, fmt.Errorf("marshal connector data: %v", err)
+	}
+
+	identity.ConnectorData = connData
+
 	return identity, nil
 }
 
 // Refresh is implemented for backwards compatibility, even though it's a no-op.
 func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
 	return identity, nil
+}
+
+func (c *oidcConnector) GetUserInfo(connData []byte, user *map[string]interface{}) (err error) {
+
+	// Extract Access Token that was stored while the connector handled the OIDC handshake
+	var cData connectorData
+
+	if err := json.Unmarshal(connData, &cData); err != nil {
+		c.logger.Errorf("Failed to read connector data : %v", err)
+		return err
+	}
+
+	// Format Authorization header to request user info on behalf of the client
+	authorization := fmt.Sprintf("bearer %s", cData.AccessToken)
+	// Prepare get request including Authorization header from RP
+	req, err := http.NewRequest("GET", c.userInfoURI, nil)
+
+	if err != nil {
+		return fmt.Errorf("Error Creating GET request: %v", err)
+	}
+
+	req.Header.Add("Accept", `application/json`)
+	req.Header.Add("Content-Type", `application/json`)
+	req.Header.Add("Authorization", authorization)
+
+	// Prepare http client to execute get request
+	client := &http.Client{}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("Error Executing GET request: %v", err)
+	}
+
+	json.NewDecoder(resp.Body).Decode(user)
+
+	return nil
+}
+
+func (c *oidcConnector) getGroups(claims map[string]interface{}) (groups []string, err error) {
+
+	if rawGroup, ok := claims[c.groupsKey]; ok {
+		if groupList, ok := rawGroup.([]interface{}); ok {
+			for _, group := range groupList {
+				//CN=cxp_calo_users,OU=Grouper,OU=Groups,O=cco.cisco.com
+				monikers := strings.Split(group.(string), ",")
+				for _, moniker := range monikers {
+					monikerkv := strings.Split(moniker, "=")
+					if len(monikerkv) > 1 && monikerkv[0] == "CN" {
+						groups = append(groups, monikerkv[1])
+					}
+				}
+			}
+		}
+	}
+	return groups, err
 }
