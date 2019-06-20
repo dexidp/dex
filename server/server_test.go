@@ -16,7 +16,6 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -541,23 +540,6 @@ func TestOAuth2CodeFlow(t *testing.T) {
 	}
 }
 
-type nonceSource struct {
-	nonce string
-	once  sync.Once
-}
-
-func (n *nonceSource) ClaimNonce(nonce string) error {
-	if n.nonce != nonce {
-		return errors.New("invalid nonce")
-	}
-	ok := false
-	n.once.Do(func() { ok = true })
-	if !ok {
-		return errors.New("invalid nonce")
-	}
-	return nil
-}
-
 func TestOAuth2ImplicitFlow(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -623,11 +605,8 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
-	src := &nonceSource{nonce: nonce}
-
 	idTokenVerifier := p.Verifier(&oidc.Config{
-		ClientID:   client.ID,
-		ClaimNonce: src.ClaimNonce,
+		ClientID: client.ID,
 	})
 
 	oauth2Config = &oauth2.Config{
@@ -646,12 +625,16 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 		if err != nil {
 			return fmt.Errorf("failed to parse fragment: %v", err)
 		}
-		idToken := v.Get("id_token")
-		if idToken == "" {
+		rawIDToken := v.Get("id_token")
+		if rawIDToken == "" {
 			return errors.New("no id_token in fragment")
 		}
-		if _, err := idTokenVerifier.Verify(ctx, idToken); err != nil {
+		idToken, err := idTokenVerifier.Verify(ctx, rawIDToken)
+		if err != nil {
 			return fmt.Errorf("failed to verify id_token: %v", err)
+		}
+		if idToken.Nonce != nonce {
+			return fmt.Errorf("failed to verify id_token: nonce was %v, but want %v", idToken.Nonce, nonce)
 		}
 		return nil
 	}

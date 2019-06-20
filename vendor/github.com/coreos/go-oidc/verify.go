@@ -19,11 +19,52 @@ const (
 	issuerGoogleAccountsNoScheme = "accounts.google.com"
 )
 
+// KeySet is a set of publc JSON Web Keys that can be used to validate the signature
+// of JSON web tokens. This is expected to be backed by a remote key set through
+// provider metadata discovery or an in-memory set of keys delivered out-of-band.
+type KeySet interface {
+	// VerifySignature parses the JSON web token, verifies the signature, and returns
+	// the raw payload. Header and claim fields are validated by other parts of the
+	// package. For example, the KeySet does not need to check values such as signature
+	// algorithm, issuer, and audience since the IDTokenVerifier validates these values
+	// independently.
+	//
+	// If VerifySignature makes HTTP requests to verify the token, it's expected to
+	// use any HTTP client associated with the context through ClientContext.
+	VerifySignature(ctx context.Context, jwt string) (payload []byte, err error)
+}
+
 // IDTokenVerifier provides verification for ID Tokens.
 type IDTokenVerifier struct {
-	keySet *remoteKeySet
+	keySet KeySet
 	config *Config
 	issuer string
+}
+
+// NewVerifier returns a verifier manually constructed from a key set and issuer URL.
+//
+// It's easier to use provider discovery to construct an IDTokenVerifier than creating
+// one directly. This method is intended to be used with provider that don't support
+// metadata discovery, or avoiding round trips when the key set URL is already known.
+//
+// This constructor can be used to create a verifier directly using the issuer URL and
+// JSON Web Key Set URL without using discovery:
+//
+//		keySet := oidc.NewRemoteKeySet(ctx, "https://www.googleapis.com/oauth2/v3/certs")
+//		verifier := oidc.NewVerifier("https://accounts.google.com", keySet, config)
+//
+// Since KeySet is an interface, this constructor can also be used to supply custom
+// public key sources. For example, if a user wanted to supply public keys out-of-band
+// and hold them statically in-memory:
+//
+//		// Custom KeySet implementation.
+//		keySet := newStatisKeySet(publicKeys...)
+//
+//		// Verifier uses the custom KeySet implementation.
+//		verifier := oidc.NewVerifier("https://auth.example.com", keySet, config)
+//
+func NewVerifier(issuerURL string, keySet KeySet, config *Config) *IDTokenVerifier {
+	return &IDTokenVerifier{keySet: keySet, config: config, issuer: issuerURL}
 }
 
 // Config is the configuration for an IDTokenVerifier.
@@ -34,12 +75,6 @@ type Config struct {
 	//
 	// If not provided, users must explicitly set SkipClientIDCheck.
 	ClientID string
-	// Method to verify the ID Token nonce. If a nonce is present and this method
-	// is nil, users must explicitly set SkipNonceCheck.
-	//
-	// If the ID Token nonce is empty, for example if the client didn't provide a nonce in
-	// the initial redirect, this may be nil.
-	ClaimNonce func(nonce string) error
 	// If specified, only this set of algorithms may be used to sign the JWT.
 	//
 	// Since many providers only support RS256, SupportedSigningAlgs defaults to this value.
@@ -49,8 +84,6 @@ type Config struct {
 	SkipClientIDCheck bool
 	// If true, token expiry is not checked.
 	SkipExpiryCheck bool
-	// If true, nonce claim is not checked. Must be true if ClaimNonce field is empty.
-	SkipNonceCheck bool
 
 	// Time function to check Token expiry. Defaults to time.Now
 	Now func() time.Time
@@ -61,21 +94,7 @@ type Config struct {
 // The returned IDTokenVerifier is tied to the Provider's context and its behavior is
 // undefined once the Provider's context is canceled.
 func (p *Provider) Verifier(config *Config) *IDTokenVerifier {
-
-	return newVerifier(p.remoteKeySet, config, p.issuer)
-}
-
-func newVerifier(keySet *remoteKeySet, config *Config, issuer string) *IDTokenVerifier {
-	// If SupportedSigningAlgs is empty defaults to only support RS256.
-	if len(config.SupportedSigningAlgs) == 0 {
-		config.SupportedSigningAlgs = []string{RS256}
-	}
-
-	return &IDTokenVerifier{
-		keySet: keySet,
-		config: config,
-		issuer: issuer,
-	}
+	return NewVerifier(p.issuer, p.remoteKeySet, config)
 }
 
 func parseJWT(p string) ([]byte, error) {
@@ -102,6 +121,8 @@ func contains(sli []string, ele string) bool {
 // Verify parses a raw ID Token, verifies it's been signed by the provider, preforms
 // any additional checks depending on the Config, and returns the payload.
 //
+// Verify does NOT do nonce validation, which is the callers responsibility.
+//
 // See: https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
 //
 //    oauth2Token, err := oauth2Config.Exchange(ctx, r.URL.Query().Get("code"))
@@ -120,7 +141,7 @@ func contains(sli []string, ele string) bool {
 func (v *IDTokenVerifier) Verify(ctx context.Context, rawIDToken string) (*IDToken, error) {
 	jws, err := jose.ParseSigned(rawIDToken)
 	if err != nil {
-		return nil, fmt.Errorf("oidc: mallformed jwt: %v", err)
+		return nil, fmt.Errorf("oidc: malformed jwt: %v", err)
 	}
 
 	// Throw out tokens with invalid claims before trying to verify the token. This lets
@@ -135,13 +156,14 @@ func (v *IDTokenVerifier) Verify(ctx context.Context, rawIDToken string) (*IDTok
 	}
 
 	t := &IDToken{
-		Issuer:   token.Issuer,
-		Subject:  token.Subject,
-		Audience: []string(token.Audience),
-		Expiry:   time.Time(token.Expiry),
-		IssuedAt: time.Time(token.IssuedAt),
-		Nonce:    token.Nonce,
-		claims:   payload,
+		Issuer:          token.Issuer,
+		Subject:         token.Subject,
+		Audience:        []string(token.Audience),
+		Expiry:          time.Time(token.Expiry),
+		IssuedAt:        time.Time(token.IssuedAt),
+		Nonce:           token.Nonce,
+		AccessTokenHash: token.AtHash,
+		claims:          payload,
 	}
 
 	// Check issuer.
@@ -165,7 +187,7 @@ func (v *IDTokenVerifier) Verify(ctx context.Context, rawIDToken string) (*IDTok
 				return nil, fmt.Errorf("oidc: expected audience %q got %q", v.config.ClientID, t.Audience)
 			}
 		} else {
-			return nil, fmt.Errorf("oidc: Invalid configuration. ClientID must be provided or SkipClientIDCheck must be set.")
+			return nil, fmt.Errorf("oidc: invalid configuration, clientID must be provided or SkipClientIDCheck must be set")
 		}
 	}
 
@@ -181,55 +203,34 @@ func (v *IDTokenVerifier) Verify(ctx context.Context, rawIDToken string) (*IDTok
 		}
 	}
 
-	// If a set of required algorithms has been provided, ensure that the signatures use those.
-	var keyIDs, gotAlgs []string
-	for _, sig := range jws.Signatures {
-		if len(v.config.SupportedSigningAlgs) == 0 || contains(v.config.SupportedSigningAlgs, sig.Header.Algorithm) {
-			keyIDs = append(keyIDs, sig.Header.KeyID)
-		} else {
-			gotAlgs = append(gotAlgs, sig.Header.Algorithm)
-		}
-	}
-	if len(keyIDs) == 0 {
-		return nil, fmt.Errorf("oidc: no signatures use a supported algorithm, expected %q got %q", v.config.SupportedSigningAlgs, gotAlgs)
+	switch len(jws.Signatures) {
+	case 0:
+		return nil, fmt.Errorf("oidc: id token not signed")
+	case 1:
+	default:
+		return nil, fmt.Errorf("oidc: multiple signatures on id token not supported")
 	}
 
-	// Get keys from the remote key set. This may trigger a re-sync.
-	keys, err := v.keySet.keysWithID(ctx, keyIDs)
+	sig := jws.Signatures[0]
+	supportedSigAlgs := v.config.SupportedSigningAlgs
+	if len(supportedSigAlgs) == 0 {
+		supportedSigAlgs = []string{RS256}
+	}
+
+	if !contains(supportedSigAlgs, sig.Header.Algorithm) {
+		return nil, fmt.Errorf("oidc: id token signed with unsupported algorithm, expected %q got %q", supportedSigAlgs, sig.Header.Algorithm)
+	}
+
+	t.sigAlgorithm = sig.Header.Algorithm
+
+	gotPayload, err := v.keySet.VerifySignature(ctx, rawIDToken)
 	if err != nil {
-		return nil, fmt.Errorf("oidc: get keys for id token: %v", err)
-	}
-	if len(keys) == 0 {
-		return nil, fmt.Errorf("oidc: no keys match signature ID(s) %q", keyIDs)
-	}
-
-	// Try to use a key to validate the signature.
-	var gotPayload []byte
-	for _, key := range keys {
-		if p, err := jws.Verify(&key); err == nil {
-			gotPayload = p
-		}
-	}
-	if len(gotPayload) == 0 {
-		return nil, fmt.Errorf("oidc: failed to verify id token")
+		return nil, fmt.Errorf("failed to verify signature: %v", err)
 	}
 
 	// Ensure that the payload returned by the square actually matches the payload parsed earlier.
 	if !bytes.Equal(gotPayload, payload) {
 		return nil, errors.New("oidc: internal error, payload parsed did not match previous payload")
-	}
-
-	// Check the nonce after we've verified the token. We don't want to allow unverified
-	// payloads to trigger a nonce lookup.
-	// If SkipNonceCheck is not set ClaimNonce cannot be Nil.
-	if !v.config.SkipNonceCheck && t.Nonce != "" {
-		if v.config.ClaimNonce != nil {
-			if err := v.config.ClaimNonce(t.Nonce); err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, fmt.Errorf("oidc: Invalid configuration. ClaimNonce must be provided or SkipNonceCheck must be set.")
-		}
 	}
 
 	return t, nil
