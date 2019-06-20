@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,16 +14,13 @@ import (
 	"sync"
 	"time"
 
+	oidc "github.com/coreos/go-oidc"
 	"github.com/gorilla/mux"
 	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
-)
-
-var (
-	errTokenExpired = errors.New("token has expired")
 )
 
 // newHealthChecker returns the healthz handler. The handler runs until the
@@ -1055,84 +1051,31 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 }
 
 func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
-	authorization := r.Header.Get("Authorization")
-	parts := strings.Fields(authorization)
+	const prefix = "Bearer "
 
-	if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
-		msg := "invalid authorization header"
-		w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Bearer realm="dex", error="%s", error_description="%s"`, errInvalidRequest, msg))
-		s.tokenErrHelper(w, errInvalidRequest, msg, http.StatusBadRequest)
+	auth := r.Header.Get("authorization")
+	if len(auth) < len(prefix) || !strings.EqualFold(prefix, auth[:len(prefix)]) {
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		s.tokenErrHelper(w, errAccessDenied, "Invalid bearer token.", http.StatusUnauthorized)
+		return
+	}
+	rawIDToken := auth[len(prefix):]
+
+	verifier := oidc.NewVerifier(s.issuerURL.String(), &storageKeySet{s.storage}, &oidc.Config{SkipClientIDCheck: true})
+	idToken, err := verifier.Verify(r.Context(), rawIDToken)
+	if err != nil {
+		s.tokenErrHelper(w, errAccessDenied, err.Error(), http.StatusForbidden)
 		return
 	}
 
-	token := parts[1]
-
-	verified, err := s.verify(token)
-	if err != nil {
-		if err == errTokenExpired {
-			s.tokenErrHelper(w, errAccessDenied, err.Error(), http.StatusUnauthorized)
-			return
-		}
-		s.tokenErrHelper(w, errInvalidRequest, err.Error(), http.StatusBadRequest)
+	var claims json.RawMessage
+	if err := idToken.Claims(&claims); err != nil {
+		s.tokenErrHelper(w, errServerError, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(verified)
-}
-
-func (s *Server) verify(token string) ([]byte, error) {
-	keys, err := s.storage.GetKeys()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get keys: %v", err)
-	}
-
-	if keys.SigningKey == nil {
-		return nil, fmt.Errorf("no private keys found")
-	}
-
-	object, err := jose.ParseSigned(token)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse signed message")
-	}
-
-	parts := strings.Split(token, ".")
-	if len(parts) != 3 {
-		return nil, fmt.Errorf("compact JWS format must have three parts")
-	}
-
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: check other claims
-	var tokenInfo struct {
-		Expiry int64 `json:"exp"`
-	}
-
-	if err := json.Unmarshal(payload, &tokenInfo); err != nil {
-		return nil, err
-	}
-
-	if tokenInfo.Expiry < s.now().Unix() {
-		return nil, errTokenExpired
-	}
-
-	var allKeys []*jose.JSONWebKey
-
-	allKeys = append(allKeys, keys.SigningKeyPub)
-	for _, key := range keys.VerificationKeys {
-		allKeys = append(allKeys, key.PublicKey)
-	}
-
-	for _, pubKey := range allKeys {
-		verified, err := object.Verify(pubKey)
-		if err == nil {
-			return verified, nil
-		}
-	}
-	return nil, errors.New("unable to verify jwt")
+	w.Write(claims)
 }
 
 func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, accessToken, refreshToken string, expiry time.Time) {

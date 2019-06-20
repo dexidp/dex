@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rsa"
@@ -565,4 +566,42 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 	}
 	host, _, err := net.SplitHostPort(u.Host)
 	return err == nil && host == "localhost"
+}
+
+// storageKeySet implements the oidc.KeySet interface backed by Dex storage
+type storageKeySet struct {
+	storage.Storage
+}
+
+func (s *storageKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
+	jws, err := jose.ParseSigned(jwt)
+	if err != nil {
+		return nil, err
+	}
+
+	keyID := ""
+	for _, sig := range jws.Signatures {
+		keyID = sig.Header.KeyID
+		break
+	}
+
+	skeys, err := s.Storage.GetKeys()
+	if err != nil {
+		return nil, err
+	}
+
+	keys := []*jose.JSONWebKey{skeys.SigningKeyPub}
+	for _, vk := range skeys.VerificationKeys {
+		keys = append(keys, vk.PublicKey)
+	}
+
+	for _, key := range keys {
+		if keyID == "" || key.KeyID == keyID {
+			if payload, err := jws.Verify(key); err == nil {
+				return payload, nil
+			}
+		}
+	}
+
+	return nil, errors.New("failed to verify id token signature")
 }

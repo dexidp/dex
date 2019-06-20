@@ -201,6 +201,16 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			},
 		},
 		{
+			name: "fetch userinfo",
+			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
+				_, err := p.UserInfo(ctx, config.TokenSource(ctx, token))
+				if err != nil {
+					return fmt.Errorf("failed to fetch userinfo: %v", err)
+				}
+				return nil
+			},
+		},
+		{
 			name: "verify id token and oauth2 token expiry",
 			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
 				expectedExpiry := now().Add(idTokensValidFor)
