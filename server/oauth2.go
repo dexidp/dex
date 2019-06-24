@@ -573,7 +573,7 @@ type storageKeySet struct {
 	storage.Storage
 }
 
-func (s *storageKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
+func (s *storageKeySet) VerifySignature(_ context.Context, jwt string) (payload []byte, err error) {
 	jws, err := jose.ParseSigned(jwt)
 	if err != nil {
 		return nil, err
