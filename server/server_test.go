@@ -203,9 +203,12 @@ func TestOAuth2CodeFlow(t *testing.T) {
 		{
 			name: "fetch userinfo",
 			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
-				_, err := p.UserInfo(ctx, config.TokenSource(ctx, token))
+				ui, err := p.UserInfo(ctx, config.TokenSource(ctx, token))
 				if err != nil {
 					return fmt.Errorf("failed to fetch userinfo: %v", err)
+				}
+				if conn.Identity.Email != ui.Email {
+					return fmt.Errorf("expected email to be %v, got %v", conn.Identity.Email, ui.Email)
 				}
 				return nil
 			},
