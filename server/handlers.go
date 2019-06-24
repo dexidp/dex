@@ -1079,9 +1079,6 @@ func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, accessToken, refreshToken string, expiry time.Time) {
-	// TODO(ericchiang): figure out an access token story and support the user info
-	// endpoint. For now use a random value so no one depends on the access_token
-	// holding a specific structure.
 	resp := struct {
 		AccessToken  string `json:"access_token"`
 		TokenType    string `json:"token_type"`
