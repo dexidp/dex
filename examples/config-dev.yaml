@@ -3,6 +3,14 @@
 # path is provided, dex's HTTP service will listen at a non-root URL.
 issuer: http://127.0.0.1:5556/dex
 
+# The publicURL allows to complete user authorization over different HTTP server
+# than token retrieval. This may be useful in scenarios where token endpoint
+# can be accesssible over the internal networks to internal authorization clients
+# while users still need to complete login flow over public web browser accessible
+# URL.
+# If not provided the value of `issuer` is used.
+# publicURL: https://example.com/dex
+
 # The storage configuration determines where dex stores its state. Supported
 # options include SQL flavors and Kubernetes third party resources.
 #

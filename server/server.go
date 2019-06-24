@@ -50,7 +50,8 @@ type Connector struct {
 //
 // Multiple servers using the same storage are expected to be configured identically.
 type Config struct {
-	Issuer string
+	Issuer    string
+	PublicURL string
 
 	// The backing persistence layer.
 	Storage storage.Storage
@@ -119,6 +120,7 @@ func value(val, defaultValue time.Duration) time.Duration {
 // Server is the top level object.
 type Server struct {
 	issuerURL url.URL
+	publicURL url.URL
 
 	// mutex for the connectors map.
 	mu sync.Mutex
@@ -158,6 +160,15 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		return nil, fmt.Errorf("server: can't parse issuer URL")
 	}
 
+	if len(c.PublicURL) == 0 {
+		c.PublicURL = c.Issuer
+	}
+
+	publicURL, err := url.Parse(c.PublicURL)
+	if err != nil {
+		return nil, fmt.Errorf("server: can't parse auth URL")
+	}
+
 	if c.Storage == nil {
 		return nil, errors.New("server: storage cannot be nil")
 	}
@@ -178,7 +189,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	web := webConfig{
 		dir:       c.Web.Dir,
 		logoURL:   c.Web.LogoURL,
-		issuerURL: c.Issuer,
+		issuerURL: c.PublicURL,
 		issuer:    c.Web.Issuer,
 		theme:     c.Web.Theme,
 	}
@@ -195,6 +206,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	s := &Server{
 		issuerURL:              *issuerURL,
+		publicURL:              *publicURL,
 		connectors:             make(map[string]Connector),
 		storage:                newKeyCacher(c.Storage, now),
 		supportedResponseTypes: supported,
@@ -247,6 +259,9 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleFunc := func(p string, h http.HandlerFunc) {
 		handle(p, h)
 	}
+	handlePublicFunc := func(p string, h http.HandlerFunc) {
+		r.Handle(path.Join(publicURL.Path, p), instrumentHandlerCounter(p, h))
+	}
 	handlePrefix := func(p string, h http.Handler) {
 		prefix := path.Join(issuerURL.Path, p)
 		r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, h))
@@ -271,9 +286,9 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS("/token", s.handleToken)
 	handleWithCORS("/keys", s.handlePublicKeys)
 	handleWithCORS("/userinfo", s.handleUserInfo)
-	handleFunc("/auth", s.handleAuthorization)
-	handleFunc("/auth/{connector}", s.handleConnectorLogin)
-	r.HandleFunc(path.Join(issuerURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {
+	handlePublicFunc("/auth", s.handleAuthorization)
+	handlePublicFunc("/auth/{connector}", s.handleConnectorLogin)
+	r.HandleFunc(path.Join(publicURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on
 		// misconfigured authproxy connector setups.
 		for key := range r.Header {
@@ -312,6 +327,19 @@ func (s *Server) absPath(pathItems ...string) string {
 func (s *Server) absURL(pathItems ...string) string {
 	u := s.issuerURL
 	u.Path = s.absPath(pathItems...)
+	return u.String()
+}
+
+func (s *Server) absPublicPath(pathItems ...string) string {
+	paths := make([]string, len(pathItems)+1)
+	paths[0] = s.publicURL.Path
+	copy(paths[1:], pathItems)
+	return path.Join(paths...)
+}
+
+func (s *Server) absPublicURL(pathItems ...string) string {
+	u := s.publicURL
+	u.Path = s.absPublicPath(pathItems...)
 	return u.String()
 }
 

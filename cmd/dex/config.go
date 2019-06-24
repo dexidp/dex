@@ -28,6 +28,10 @@ type Config struct {
 	Expiry    Expiry    `json:"expiry"`
 	Logger    Logger    `json:"logger"`
 
+	// Allow to announce and expose auth and callback endpoints on different URL
+	// than token and issuer URLs.
+	PublicURL string `json:"publicURL"`
+
 	Frontend server.WebConfig `json:"frontend"`
 
 	// StaticConnectors are user defined connectors specified in the ConfigMap

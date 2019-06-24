@@ -156,6 +156,36 @@ func TestDiscovery(t *testing.T) {
 	}
 }
 
+func TestPublicURL(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	publicServer := httptest.NewServer(nil)
+	defer publicServer.Close()
+
+	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+		c.PublicURL = publicServer.URL
+	})
+	defer httpServer.Close()
+
+	// Connect auth url to same Dex server and let it handle request
+	publicServer.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.ServeHTTP(w, r)
+	})
+
+	p, err := oidc.NewProvider(ctx, httpServer.URL)
+	if err != nil {
+		t.Fatalf("failed to get provider: %v", err)
+	}
+
+	if !strings.HasPrefix(p.Endpoint().AuthURL, publicServer.URL) {
+		t.Errorf("server discovery auth URL should be announced on public URL")
+	}
+	if strings.HasPrefix(p.Endpoint().TokenURL, publicServer.URL) {
+		t.Errorf("server discovery token URL should be announced on main server URL")
+	}
+}
+
 // TestOAuth2CodeFlow runs integration tests against a test server. The tests stand up a server
 // which requires no interaction to login, logs in through a test client, then passes the client
 // and returned token to the test.
@@ -1114,6 +1144,112 @@ func TestRefreshTokenFlow(t *testing.T) {
 		c.Now = now
 	})
 	defer httpServer.Close()
+
+	p, err := oidc.NewProvider(ctx, httpServer.URL)
+	if err != nil {
+		t.Fatalf("failed to get provider: %v", err)
+	}
+
+	var oauth2Client oauth2Client
+
+	oauth2Client.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/callback" {
+			// User is visiting app first time. Redirect to dex.
+			http.Redirect(w, r, oauth2Client.config.AuthCodeURL(state), http.StatusSeeOther)
+			return
+		}
+
+		// User is at '/callback' so they were just redirected _from_ dex.
+		q := r.URL.Query()
+
+		if errType := q.Get("error"); errType != "" {
+			if desc := q.Get("error_description"); desc != "" {
+				t.Errorf("got error from server %s: %s", errType, desc)
+			} else {
+				t.Errorf("got error from server %s", errType)
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		// Grab code, exchange for token.
+		if code := q.Get("code"); code != "" {
+			token, err := oauth2Client.config.Exchange(ctx, code)
+			if err != nil {
+				t.Errorf("failed to exchange code for token: %v", err)
+				return
+			}
+			oauth2Client.token = token
+		}
+
+		// Ensure state matches.
+		if gotState := q.Get("state"); gotState != state {
+			t.Errorf("state did not match, want=%q got=%q", state, gotState)
+		}
+		w.WriteHeader(http.StatusOK)
+		return
+	}))
+	defer oauth2Client.server.Close()
+
+	// Register the client above with dex.
+	redirectURL := oauth2Client.server.URL + "/callback"
+	client := storage.Client{
+		ID:           "testclient",
+		Secret:       "testclientsecret",
+		RedirectURIs: []string{redirectURL},
+	}
+	if err := s.storage.CreateClient(client); err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	oauth2Client.config = &oauth2.Config{
+		ClientID:     client.ID,
+		ClientSecret: client.Secret,
+		Endpoint:     p.Endpoint(),
+		Scopes:       []string{oidc.ScopeOpenID, "email", "offline_access"},
+		RedirectURL:  redirectURL,
+	}
+
+	if _, err = http.Get(oauth2Client.server.URL + "/login"); err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+
+	tok := &oauth2.Token{
+		RefreshToken: oauth2Client.token.RefreshToken,
+		Expiry:       time.Now().Add(-time.Hour),
+	}
+
+	// Login in again to receive a new token.
+	if _, err = http.Get(oauth2Client.server.URL + "/login"); err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+
+	// try to refresh expired token with old refresh token.
+	newToken, err := oauth2Client.config.TokenSource(ctx, tok).Token()
+	if newToken != nil {
+		t.Errorf("Token refreshed with invalid refresh token.")
+	}
+}
+
+func TestAuthEndpointDifferentFromIssuerURL(t *testing.T) {
+	state := "state"
+	now := func() time.Time { return time.Now() }
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	publicServer := httptest.NewServer(nil)
+	defer publicServer.Close()
+
+	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+		c.PublicURL = publicServer.URL
+		c.Now = now
+	})
+	defer httpServer.Close()
+
+	// Connect auth url to same Dex server and let it handle request
+	publicServer.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.ServeHTTP(w, r)
+	})
 
 	p, err := oidc.NewProvider(ctx, httpServer.URL)
 	if err != nil {
