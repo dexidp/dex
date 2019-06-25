@@ -147,6 +147,7 @@ func TestDiscovery(t *testing.T) {
 		"authorization_endpoint",
 		"token_endpoint",
 		"jwks_uri",
+		"userinfo_endpoint",
 	}
 	for _, field := range required {
 		if _, ok := got[field]; !ok {
