@@ -256,7 +256,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		if len(c.AllowedOrigins) > 0 {
 			// corsOptions := handlers.IgnoreOptions()
 			corsSettings := handlers.AllowedOrigins(c.AllowedOrigins)
-			handler = handlers.CORS(corsSettings, corsOptions)(handler)
+			corsMethods := handlers.AllowedMethods([]string{"GET", "HEAD", "DELETE", "PUT", "POST", "OPTIONS"})
+			handler = handlers.CORS(corsSettings, corsMethods)(handler)
 		}
 		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, handler))
 	}
