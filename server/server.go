@@ -248,6 +248,17 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		return func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == "OPTIONS" {
 				//handle preflight in here
+				headers := w.Header()
+				headers.Add("Access-Control-Allow-Origin", strings.Join(c.AllowedOrigins, ","))
+				headers.Add("Vary", "Origin")
+				headers.Add("Vary", "Access-Control-Request-Method")
+				headers.Add("Vary", "Access-Control-Request-Headers")
+				headers.Add("Access-Control-Allow-Headers", "Content-Type, Origin, authorization, Accept, token")
+				headers.Add("Access-Control-Allow-Methods", "PUT,DELETE,GET,POST,OPTIONS")
+
+				w.WriteHeader(http.StatusOK)
+
+				return
 			} else {
 				h.ServeHTTP(w, r)
 			}
