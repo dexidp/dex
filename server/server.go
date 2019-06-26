@@ -270,7 +270,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS("/token", s.handleToken)
 	handleWithCORS("/keys", s.handlePublicKeys)
 	handleWithCORS("/auth", s.handleAuthorization)
-	handleFunc("/auth/{connector}", s.handleConnectorLogin)
+	handleWithCORS("/auth/{connector}", s.handleConnectorLogin)
 	r.HandleFunc(path.Join(issuerURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on
 		// misconfigured authproxy connector setups.
@@ -283,8 +283,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	})
 	// For easier connector-specific web server configuration, e.g. for the
 	// "authproxy" connector.
-	handleFunc("/callback/{connector}", s.handleConnectorCallback)
-	handleFunc("/approval", s.handleApproval)
+	handleWithCORS("/callback/{connector}", s.handleConnectorCallback)
+	handleWithCORS("/approval", s.handleApproval)
 	handle("/healthz", s.newHealthChecker(ctx))
 	handlePrefix("/static", static)
 	handlePrefix("/theme", theme)
