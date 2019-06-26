@@ -1,3 +1,8 @@
+# local build
+
+`make docker-image`
+`docker push quay.io/profects/dex:_______your_builded_tag___________`
+
 # dex - A federated OpenID Connect provider
 
 [![Travis](https://api.travis-ci.org/dexidp/dex.svg)](https://travis-ci.org/dexidp/dex)
@@ -30,18 +35,15 @@ ID Tokens contains standard claims assert which client app logged the user in, w
   "at_hash": "bi96gOXZShvlWYtal9Eqiw",
   "email": "jane.doe@coreos.com",
   "email_verified": true,
-  "groups": [
-    "admins",
-    "developers"
-  ],
+  "groups": ["admins", "developers"],
   "name": "Jane Doe"
 }
 ```
 
 Because these tokens are signed by dex and [contain standard-based claims][standard-claims] other services can consume them as service-to-service credentials. Systems that can already consume OpenID Connect ID Tokens issued by dex include:
 
-* [Kubernetes][kubernetes]
-* [AWS STS][aws-sts]
+- [Kubernetes][kubernetes]
+- [AWS STS][aws-sts]
 
 For details on how to request or validate an ID Token, see [_"Writing apps that use dex"_][using-dex].
 
@@ -63,38 +65,38 @@ Depending on the connectors limitations in protocols can prevent dex from issuin
 
 Dex implements the following connectors:
 
-| Name | supports refresh tokens | supports groups claim | status | notes |
-| ---- | ----------------------- | --------------------- | ------ | ----- |
-| [LDAP](Documentation/connectors/ldap.md) | yes | yes | stable | |
-| [GitHub](Documentation/connectors/github.md) | yes | yes | stable | |
-| [SAML 2.0](Documentation/connectors/saml.md) | no | yes | stable |
-| [GitLab](Documentation/connectors/gitlab.md) | yes | yes | beta | |
-| [OpenID Connect](Documentation/connectors/oidc.md) | yes | no ([#1065][issue-1065]) | beta | Includes Google, Salesforce, Azure, etc. |
-| [LinkedIn](Documentation/connectors/linkedin.md) | yes | no | beta | |
-| [Microsoft](Documentation/connectors/microsoft.md) | yes | yes | beta | |
-| [AuthProxy](Documentation/connectors/authproxy.md) | no | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
-| [Bitbucket Cloud](Documentation/connectors/bitbucketcloud.md) | yes | yes | alpha | |
+| Name                                                          | supports refresh tokens | supports groups claim    | status | notes                                                 |
+| ------------------------------------------------------------- | ----------------------- | ------------------------ | ------ | ----------------------------------------------------- |
+| [LDAP](Documentation/connectors/ldap.md)                      | yes                     | yes                      | stable |                                                       |
+| [GitHub](Documentation/connectors/github.md)                  | yes                     | yes                      | stable |                                                       |
+| [SAML 2.0](Documentation/connectors/saml.md)                  | no                      | yes                      | stable |
+| [GitLab](Documentation/connectors/gitlab.md)                  | yes                     | yes                      | beta   |                                                       |
+| [OpenID Connect](Documentation/connectors/oidc.md)            | yes                     | no ([#1065][issue-1065]) | beta   | Includes Google, Salesforce, Azure, etc.              |
+| [LinkedIn](Documentation/connectors/linkedin.md)              | yes                     | no                       | beta   |                                                       |
+| [Microsoft](Documentation/connectors/microsoft.md)            | yes                     | yes                      | beta   |                                                       |
+| [AuthProxy](Documentation/connectors/authproxy.md)            | no                      | no                       | alpha  | Authentication proxies such as Apache2 mod_auth, etc. |
+| [Bitbucket Cloud](Documentation/connectors/bitbucketcloud.md) | yes                     | yes                      | alpha  |                                                       |
 
 Stable, beta, and alpha are defined as:
 
-* Stable: well tested, in active use, and will not change in backward incompatible ways.
-* Beta: tested and unlikely to change in backward incompatible ways.
-* Alpha: may be untested by core maintainers and is subject to change in backward incompatible ways.
+- Stable: well tested, in active use, and will not change in backward incompatible ways.
+- Beta: tested and unlikely to change in backward incompatible ways.
+- Alpha: may be untested by core maintainers and is subject to change in backward incompatible ways.
 
 All changes or deprecations of connector features will be announced in the [release notes][release-notes].
 
 ## Documentation
 
-* [Getting started](Documentation/getting-started.md)
-* [Intro to OpenID Connect](Documentation/openid-connect.md)
-* [Writing apps that use dex][using-dex]
-* [What's new in v2](Documentation/v2.md)
-* [Custom scopes, claims, and client features](Documentation/custom-scopes-claims-clients.md)
-* [Storage options](Documentation/storage.md)
-* [gRPC API](Documentation/api.md)
-* [Using Kubernetes with dex](Documentation/kubernetes.md)
-* Client libraries
-  * [Go][go-oidc]
+- [Getting started](Documentation/getting-started.md)
+- [Intro to OpenID Connect](Documentation/openid-connect.md)
+- [Writing apps that use dex][using-dex]
+- [What's new in v2](Documentation/v2.md)
+- [Custom scopes, claims, and client features](Documentation/custom-scopes-claims-clients.md)
+- [Storage options](Documentation/storage.md)
+- [gRPC API](Documentation/api.md)
+- [Using Kubernetes with dex](Documentation/kubernetes.md)
+- Client libraries
+  - [Go][go-oidc]
 
 ## Reporting a security vulnerability
 
@@ -102,8 +104,8 @@ Due to their public nature, GitHub and mailing lists are NOT appropriate places 
 
 ## Getting help
 
-* For feature requests and bugs, file an [issue][issues].
-* For general discussion about both using and developing dex, join the [dex-dev][dex-dev] mailing list.
+- For feature requests and bugs, file an [issue][issues].
+- For general discussion about both using and developing dex, join the [dex-dev][dex-dev] mailing list.
 
 [openid-connect]: https://openid.net/connect/
 [standard-claims]: https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
