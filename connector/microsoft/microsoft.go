@@ -91,7 +91,9 @@ func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Confi
 	if c.groupsRequired(scopes.Groups) {
 		microsoftScopes = append(microsoftScopes, scopeGroups)
 	}
-
+	if scopes.OfflineAccess {
+		microsoftScopes = append(microsoftScopes, "offline_access")
+	}
 	return &oauth2.Config{
 		ClientID:     c.clientID,
 		ClientSecret: c.clientSecret,
