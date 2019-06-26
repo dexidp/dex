@@ -244,18 +244,19 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handle := func(p string, h http.Handler) {
 		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, h))
 	}
-	handleFunc := func(p string, h http.HandlerFunc) {
-		handle(p, h)
-	}
+	// handleFunc := func(p string, h http.HandlerFunc) {
+	// 	handle(p, h)
+	// }
 	handlePrefix := func(p string, h http.Handler) {
 		prefix := path.Join(issuerURL.Path, p)
 		r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, h))
 	}
 	handleWithCORS := func(p string, h http.HandlerFunc) {
 		var handler http.Handler = h
-		corsOptions := handlers.IgnoreOptions()
-		corsSettings := handlers.AllowedOrigins(c.AllowedOrigins)
-		handler = handlers.CORS(corsSettings, corsOptions)(handler)
+		// if len(c.AllowedOrigins) > 0 {
+		corsOption := handlers.AllowedOrigins(c.AllowedOrigins)
+		handler = handlers.CORS(corsOption)(handler)
+		// }
 		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, handler))
 	}
 	r.NotFoundHandler = http.HandlerFunc(http.NotFound)
