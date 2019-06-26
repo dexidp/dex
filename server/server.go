@@ -244,6 +244,15 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handle := func(p string, h http.Handler) {
 		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, h))
 	}
+	handleIgnore := func(h http.Handler) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "OPTIONS" {
+				//handle preflight in here
+			} else {
+				h.ServeHTTP(w, r)
+			}
+		}
+	}
 	// handleFunc := func(p string, h http.HandlerFunc) {
 	// 	handle(p, h)
 	// }
@@ -259,7 +268,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 			corsMethods := handlers.AllowedMethods([]string{"GET", "HEAD", "DELETE", "PUT", "POST", "OPTIONS"})
 			handler = handlers.CORS(corsSettings, corsMethods)(handler)
 		}
-		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, handler))
+
+		r.Handle(path.Join(issuerURL.Path, p), handleIgnore(instrumentHandlerCounter(p, handler)))
 	}
 	r.NotFoundHandler = http.HandlerFunc(http.NotFound)
 
