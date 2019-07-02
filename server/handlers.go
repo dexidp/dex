@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	oidc "github.com/coreos/go-oidc"
 	"github.com/gorilla/mux"
 	jose "gopkg.in/square/go-jose.v2"
 
@@ -151,6 +152,7 @@ type discovery struct {
 	Auth          string   `json:"authorization_endpoint"`
 	Token         string   `json:"token_endpoint"`
 	Keys          string   `json:"jwks_uri"`
+	UserInfo      string   `json:"userinfo_endpoint"`
 	ResponseTypes []string `json:"response_types_supported"`
 	Subjects      []string `json:"subject_types_supported"`
 	IDTokenAlgs   []string `json:"id_token_signing_alg_values_supported"`
@@ -165,6 +167,7 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 		Auth:        s.absURL("/auth"),
 		Token:       s.absURL("/token"),
 		Keys:        s.absURL("/keys"),
+		UserInfo:    s.absURL("/userinfo"),
 		Subjects:    []string{"public"},
 		IDTokenAlgs: []string{string(jose.RS256)},
 		Scopes:      []string{"openid", "email", "groups", "profile", "offline_access"},
@@ -559,7 +562,8 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		idToken       string
 		idTokenExpiry time.Time
 
-		accessToken = storage.NewID()
+		// Access token
+		accessToken string
 	)
 
 	for _, responseType := range authReq.ResponseTypes {
@@ -595,6 +599,14 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		case responseTypeIDToken:
 			implicitOrHybrid = true
 			var err error
+
+			accessToken, err = s.newAccessToken(authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, authReq.ConnectorID)
+			if err != nil {
+				s.logger.Errorf("failed to create new access token: %v", err)
+				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+				return
+			}
+
 			idToken, idTokenExpiry, err = s.newIDToken(authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, accessToken, authReq.ConnectorID)
 			if err != nil {
 				s.logger.Errorf("failed to create ID token: %v", err)
@@ -716,7 +728,13 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		return
 	}
 
-	accessToken := storage.NewID()
+	accessToken, err := s.newAccessToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID)
+	if err != nil {
+		s.logger.Errorf("failed to create new access token: %v", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
 	idToken, expiry, err := s.newIDToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, accessToken, authCode.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create ID token: %v", err)
@@ -965,7 +983,13 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		Groups:        ident.Groups,
 	}
 
-	accessToken := storage.NewID()
+	accessToken, err := s.newAccessToken(client.ID, claims, scopes, refresh.Nonce, refresh.ConnectorID)
+	if err != nil {
+		s.logger.Errorf("failed to create new access token: %v", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
 	idToken, expiry, err := s.newIDToken(client.ID, claims, scopes, refresh.Nonce, accessToken, refresh.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create ID token: %v", err)
@@ -1026,10 +1050,35 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 	s.writeAccessToken(w, idToken, accessToken, rawNewToken, expiry)
 }
 
+func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
+	const prefix = "Bearer "
+
+	auth := r.Header.Get("authorization")
+	if len(auth) < len(prefix) || !strings.EqualFold(prefix, auth[:len(prefix)]) {
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		s.tokenErrHelper(w, errAccessDenied, "Invalid bearer token.", http.StatusUnauthorized)
+		return
+	}
+	rawIDToken := auth[len(prefix):]
+
+	verifier := oidc.NewVerifier(s.issuerURL.String(), &storageKeySet{s.storage}, &oidc.Config{SkipClientIDCheck: true})
+	idToken, err := verifier.Verify(r.Context(), rawIDToken)
+	if err != nil {
+		s.tokenErrHelper(w, errAccessDenied, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	var claims json.RawMessage
+	if err := idToken.Claims(&claims); err != nil {
+		s.tokenErrHelper(w, errServerError, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(claims)
+}
+
 func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, accessToken, refreshToken string, expiry time.Time) {
-	// TODO(ericchiang): figure out an access token story and support the user info
-	// endpoint. For now use a random value so no one depends on the access_token
-	// holding a specific structure.
 	resp := struct {
 		AccessToken  string `json:"access_token"`
 		TokenType    string `json:"token_type"`

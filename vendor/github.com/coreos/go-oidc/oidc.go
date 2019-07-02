@@ -3,10 +3,15 @@ package oidc
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io/ioutil"
+	"mime"
 	"net/http"
 	"strings"
 	"time"
@@ -28,6 +33,11 @@ const (
 	//
 	// See: https://openid.net/specs/openid-connect-core-1_0.html#OfflineAccess
 	ScopeOfflineAccess = "offline_access"
+)
+
+var (
+	errNoAtHash      = errors.New("id token did not have an access token hash")
+	errInvalidAtHash = errors.New("access token hash does not match value in ID token")
 )
 
 // ClientContext returns a new Context that carries the provided HTTP client.
@@ -63,7 +73,7 @@ type Provider struct {
 	// Raw claims returned by the server.
 	rawClaims []byte
 
-	remoteKeySet *remoteKeySet
+	remoteKeySet KeySet
 }
 
 type cachedKeys struct {
@@ -93,18 +103,23 @@ func NewProvider(ctx context.Context, issuer string) (*Provider, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
+
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to read response body: %v", err)
 	}
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("%s: %s", resp.Status, body)
 	}
-	defer resp.Body.Close()
+
 	var p providerJSON
-	if err := json.Unmarshal(body, &p); err != nil {
+	err = unmarshalResp(resp, body, &p)
+	if err != nil {
 		return nil, fmt.Errorf("oidc: failed to decode provider discovery object: %v", err)
 	}
+
 	if p.Issuer != issuer {
 		return nil, fmt.Errorf("oidc: issuer did not match the issuer returned by provider, expected %q got %q", issuer, p.Issuer)
 	}
@@ -114,7 +129,7 @@ func NewProvider(ctx context.Context, issuer string) (*Provider, error) {
 		tokenURL:     p.TokenURL,
 		userInfoURL:  p.UserInfoURL,
 		rawClaims:    body,
-		remoteKeySet: newRemoteKeySet(ctx, p.JWKSURL, time.Now),
+		remoteKeySet: NewRemoteKeySet(ctx, p.JWKSURL),
 	}, nil
 }
 
@@ -232,8 +247,17 @@ type IDToken struct {
 
 	// Initial nonce provided during the authentication redirect.
 	//
-	// If present, this package ensures this is a valid nonce.
+	// This package does NOT provided verification on the value of this field
+	// and it's the user's responsibility to ensure it contains a valid value.
 	Nonce string
+
+	// at_hash claim, if set in the ID token. Callers can verify an access token
+	// that corresponds to the ID token using the VerifyAccessToken method.
+	AccessTokenHash string
+
+	// signature algorithm used for ID token, needed to compute a verification hash of an
+	// access token
+	sigAlgorithm string
 
 	// Raw payload of the id_token.
 	claims []byte
@@ -260,6 +284,34 @@ func (i *IDToken) Claims(v interface{}) error {
 	return json.Unmarshal(i.claims, v)
 }
 
+// VerifyAccessToken verifies that the hash of the access token that corresponds to the iD token
+// matches the hash in the id token. It returns an error if the hashes  don't match.
+// It is the caller's responsibility to ensure that the optional access token hash is present for the ID token
+// before calling this method. See https://openid.net/specs/openid-connect-core-1_0.html#CodeIDToken
+func (i *IDToken) VerifyAccessToken(accessToken string) error {
+	if i.AccessTokenHash == "" {
+		return errNoAtHash
+	}
+	var h hash.Hash
+	switch i.sigAlgorithm {
+	case RS256, ES256, PS256:
+		h = sha256.New()
+	case RS384, ES384, PS384:
+		h = sha512.New384()
+	case RS512, ES512, PS512:
+		h = sha512.New()
+	default:
+		return fmt.Errorf("oidc: unsupported signing algorithm %q", i.sigAlgorithm)
+	}
+	h.Write([]byte(accessToken)) // hash documents that Write will never return an error
+	sum := h.Sum(nil)[:h.Size()/2]
+	actual := base64.RawURLEncoding.EncodeToString(sum)
+	if actual != i.AccessTokenHash {
+		return errInvalidAtHash
+	}
+	return nil
+}
+
 type idToken struct {
 	Issuer   string   `json:"iss"`
 	Subject  string   `json:"sub"`
@@ -267,6 +319,7 @@ type idToken struct {
 	Expiry   jsonTime `json:"exp"`
 	IssuedAt jsonTime `json:"iat"`
 	Nonce    string   `json:"nonce"`
+	AtHash   string   `json:"at_hash"`
 }
 
 type audience []string
@@ -283,13 +336,6 @@ func (a *audience) UnmarshalJSON(b []byte) error {
 	}
 	*a = audience(auds)
 	return nil
-}
-
-func (a audience) MarshalJSON() ([]byte, error) {
-	if len(a) == 1 {
-		return json.Marshal(a[0])
-	}
-	return json.Marshal([]string(a))
 }
 
 type jsonTime time.Time
@@ -314,6 +360,15 @@ func (j *jsonTime) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (j jsonTime) MarshalJSON() ([]byte, error) {
-	return json.Marshal(time.Time(j).Unix())
+func unmarshalResp(r *http.Response, body []byte, v interface{}) error {
+	err := json.Unmarshal(body, &v)
+	if err == nil {
+		return nil
+	}
+	ct := r.Header.Get("Content-Type")
+	mediaType, _, parseErr := mime.ParseMediaType(ct)
+	if parseErr == nil && mediaType == "application/json" {
+		return fmt.Errorf("got Content-Type = application/json, but could not unmarshal as JSON: %v", err)
+	}
+	return fmt.Errorf("expected Content-Type = application/json, got %q: %v", ct, err)
 }
