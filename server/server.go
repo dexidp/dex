@@ -247,9 +247,16 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleIgnore := func(h http.Handler) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == "OPTIONS" {
+
 				//handle preflight in here
 				headers := w.Header()
-				headers.Add("Access-Control-Allow-Origin", strings.Join(c.AllowedOrigins, ","))
+
+				for _, allowedOrigin := range c.AllowedOrigins {
+					if strings.HasPrefix(r.Header.Get("Origin"), allowedOrigin) {
+						headers.Add("Access-Control-Allow-Origin", allowedOrigin)
+					}
+				}
+
 				headers.Add("Vary", "Origin")
 				headers.Add("Vary", "Access-Control-Request-Method")
 				headers.Add("Vary", "Access-Control-Request-Headers")
