@@ -10,8 +10,8 @@ import (
 	// https://github.com/grpc/grpc-go/issues/711
 	"golang.org/x/net/context"
 
+	"github.com/dexidp/dex/api"
 	"github.com/dexidp/dex/pkg/log"
-	"github.com/profects/dex/api"
 
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
