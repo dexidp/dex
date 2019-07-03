@@ -42,7 +42,7 @@ require (
 	github.com/sirupsen/logrus v0.0.0-20170713114250-a3f95b5c4235
 	github.com/spf13/cobra v0.0.0-20160615143614-bc81c21bd0d8
 	github.com/spf13/pflag v0.0.0-20160610190902-367864438f1b // indirect
-	github.com/stretchr/testify v1.2.2 // indirect
+	github.com/stretchr/testify v1.2.2
 	github.com/ugorji/go/codec v0.0.0-20181127175209-856da096dbdf // indirect
 	github.com/xiang90/probing v0.0.0-20160813154853-07dd2e8dfe18 // indirect
 	golang.org/x/crypto v0.0.0-20160711182412-2c99acdd1e9b
