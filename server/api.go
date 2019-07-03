@@ -10,8 +10,8 @@ import (
 	// https://github.com/grpc/grpc-go/issues/711
 	"golang.org/x/net/context"
 
-	"github.com/dexidp/dex/api"
 	"github.com/dexidp/dex/pkg/log"
+	"github.com/profects/dex/api"
 
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
@@ -192,6 +192,10 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 
 		if req.NewUsername != "" {
 			old.Username = req.NewUsername
+		}
+
+		if req.NewEmail != "" {
+			old.Email = req.NewEmail
 		}
 
 		return old, nil
