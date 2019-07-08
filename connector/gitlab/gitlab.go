@@ -13,6 +13,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/log"
 )
 
@@ -273,7 +274,7 @@ func (c *gitlabConnector) getGroups(ctx context.Context, client *http.Client, gr
 	}
 
 	if len(c.groups) > 0 {
-		filteredGroups := filterGroups(gitlabGroups, c.groups)
+		filteredGroups := groups.Filter(gitlabGroups, c.groups)
 		if len(filteredGroups) == 0 {
 			return nil, fmt.Errorf("gitlab: user %q is not in any of the required groups", userLogin)
 		}
@@ -283,19 +284,4 @@ func (c *gitlabConnector) getGroups(ctx context.Context, client *http.Client, gr
 	}
 
 	return nil, nil
-}
-
-// Filter the users' group memberships by 'groups' from config.
-func filterGroups(userGroups, configGroups []string) []string {
-	groups := []string{}
-	groupFilter := make(map[string]struct{})
-	for _, group := range configGroups {
-		groupFilter[group] = struct{}{}
-	}
-	for _, group := range userGroups {
-		if _, ok := groupFilter[group]; ok {
-			groups = append(groups, group)
-		}
-	}
-	return groups
 }
