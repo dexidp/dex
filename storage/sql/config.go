@@ -6,12 +6,12 @@ import (
 	"database/sql"
 	"fmt"
 	"io/ioutil"
-	"net/url"
+	"net"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
-	"github.com/Sirupsen/logrus"
-	"github.com/coreos/dex/storage"
 	"github.com/go-sql-driver/mysql"
 	"github.com/lib/pq"
 	sqlite3 "github.com/mattn/go-sqlite3"
@@ -124,7 +124,7 @@ type Postgres struct {
 
 // Open creates a new storage implementation backed by Postgres.
 func (p *Postgres) Open(logger log.Logger) (storage.Storage, error) {
-	conn, err := p.open(logger, p.createDataSourceName())
+	conn, err := p.open(logger)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +183,7 @@ func (p *Postgres) createDataSourceName() string {
 
 	if p.SSL.Mode == "" {
 		// Assume the strictest mode if unspecified.
-		addParam("sslmode", dataSourceStr(sslVerifyFull))
+		addParam("sslmode", dataSourceStr(pgSSLVerifyFull))
 	} else {
 		addParam("sslmode", dataSourceStr(p.SSL.Mode))
 	}
@@ -203,7 +203,9 @@ func (p *Postgres) createDataSourceName() string {
 	return strings.Join(parameters, " ")
 }
 
-func (p *Postgres) open(logger log.Logger, dataSourceName string) (*conn, error) {
+func (p *Postgres) open(logger log.Logger) (*conn, error) {
+	dataSourceName := p.createDataSourceName()
+
 	db, err := sql.Open("postgres", dataSourceName)
 	if err != nil {
 		return nil, err
@@ -253,7 +255,7 @@ type MySQL struct {
 }
 
 // Open creates a new storage implementation backed by MySQL.
-func (s *MySQL) Open(logger logrus.FieldLogger) (storage.Storage, error) {
+func (s *MySQL) Open(logger log.Logger) (storage.Storage, error) {
 	conn, err := s.open(logger)
 	if err != nil {
 		return nil, err
@@ -261,17 +263,18 @@ func (s *MySQL) Open(logger logrus.FieldLogger) (storage.Storage, error) {
 	return conn, nil
 }
 
-func (s *MySQL) open(logger logrus.FieldLogger) (*conn, error) {
+func (s *MySQL) open(logger log.Logger) (*conn, error) {
 	cfg := mysql.Config{
-		User:   s.User,
-		Passwd: s.Password,
-		DBName: s.Database,
+		User:                 s.User,
+		Passwd:               s.Password,
+		DBName:               s.Database,
+		AllowNativePasswords: true,
 
 		Timeout: time.Second * time.Duration(s.ConnectionTimeout),
 
 		ParseTime: true,
 		Params: map[string]string{
-			"tx_isolation": "'SERIALIZABLE'",
+			"transaction_isolation": "'SERIALIZABLE'",
 		},
 	}
 	if s.Host != "" {
@@ -288,6 +291,8 @@ func (s *MySQL) open(logger logrus.FieldLogger) (*conn, error) {
 			return nil, fmt.Errorf("failed to make TLS config: %v", err)
 		}
 		cfg.TLSConfig = mysqlSSLCustom
+	} else if s.SSL.Mode == "" {
+		cfg.TLSConfig = mysqlSSLTrue
 	} else {
 		cfg.TLSConfig = s.SSL.Mode
 	}

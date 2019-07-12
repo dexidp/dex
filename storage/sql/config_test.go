@@ -9,6 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/conformance"
 )
@@ -51,7 +52,7 @@ var logger = &logrus.Logger{
 }
 
 type opener interface {
-	open(logrus.FieldLogger) (*conn, error)
+	open(logger log.Logger) (*conn, error)
 }
 
 func testDB(t *testing.T, o opener, withTransactions bool) {
@@ -108,19 +109,23 @@ func TestCreateDataSourceName(t *testing.T) {
 		{
 			description: "with typical configuration",
 			input: &Postgres{
-				Host:     "1.2.3.4",
-				Port:     6543,
-				User:     "some-user",
-				Password: "some-password",
-				Database: "some-db",
+				NetworkDB: NetworkDB{
+					Host:     "1.2.3.4",
+					Port:     6543,
+					User:     "some-user",
+					Password: "some-password",
+					Database: "some-db",
+				},
 			},
 			expected: "connect_timeout=0 host='1.2.3.4' port=6543 user='some-user' password='some-password' dbname='some-db' sslmode='verify-full'",
 		},
 		{
 			description: "with unix socket host",
 			input: &Postgres{
-				Host: "/var/run/postgres",
-				SSL: PostgresSSL{
+				NetworkDB: NetworkDB{
+					Host: "/var/run/postgres",
+				},
+				SSL: SSL{
 					Mode: "disable",
 				},
 			},
@@ -129,8 +134,10 @@ func TestCreateDataSourceName(t *testing.T) {
 		{
 			description: "with tcp host",
 			input: &Postgres{
-				Host: "coreos.com",
-				SSL: PostgresSSL{
+				NetworkDB: NetworkDB{
+					Host: "coreos.com",
+				},
+				SSL: SSL{
 					Mode: "disable",
 				},
 			},
@@ -139,23 +146,29 @@ func TestCreateDataSourceName(t *testing.T) {
 		{
 			description: "with tcp host:port",
 			input: &Postgres{
-				Host: "coreos.com:6543",
+				NetworkDB: NetworkDB{
+					Host: "coreos.com:6543",
+				},
 			},
 			expected: "connect_timeout=0 host='coreos.com' port=6543 sslmode='verify-full'",
 		},
 		{
 			description: "with tcp host and port",
 			input: &Postgres{
-				Host: "coreos.com",
-				Port: 6543,
+				NetworkDB: NetworkDB{
+					Host: "coreos.com",
+					Port: 6543,
+				},
 			},
 			expected: "connect_timeout=0 host='coreos.com' port=6543 sslmode='verify-full'",
 		},
 		{
 			description: "with ssl ca cert",
 			input: &Postgres{
-				Host: "coreos.com",
-				SSL: PostgresSSL{
+				NetworkDB: NetworkDB{
+					Host: "coreos.com",
+				},
+				SSL: SSL{
 					Mode:   "verify-ca",
 					CAFile: "/some/file/path",
 				},
@@ -165,8 +178,10 @@ func TestCreateDataSourceName(t *testing.T) {
 		{
 			description: "with ssl client cert",
 			input: &Postgres{
-				Host: "coreos.com",
-				SSL: PostgresSSL{
+				NetworkDB: NetworkDB{
+					Host: "coreos.com",
+				},
+				SSL: SSL{
 					Mode:     "verify-ca",
 					CAFile:   "/some/ca/path",
 					CertFile: "/some/cert/path",
@@ -178,9 +193,11 @@ func TestCreateDataSourceName(t *testing.T) {
 		{
 			description: "with funny characters in credentials",
 			input: &Postgres{
-				Host:     "coreos.com",
-				User:     `some'user\slashed`,
-				Password: "some'password!",
+				NetworkDB: NetworkDB{
+					Host:     "coreos.com",
+					User:     `some'user\slashed`,
+					Password: "some'password!",
+				},
 			},
 			expected: `connect_timeout=0 host='coreos.com' user='some\'user\\slashed' password='some\'password!' sslmode='verify-full'`,
 		},

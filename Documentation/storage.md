@@ -298,6 +298,35 @@ storage:
 
 The SSL "mode" corresponds to the `github.com/lib/pq` package [connection options][psql-conn-options]. If unspecified, dex defaults to the strictest mode "verify-full".
 
+### MySQL
+
+Dex requires MySQL 5.7 or later version. When using MySQL, admins may want to dedicate a database to dex for the following reasons:
+
+1. Dex requires privileged access to its database because it performs migrations.
+2. Dex's database table names are not configurable; when shared with other applications there may be table name clashes.
+
+```
+CREATE DATABASE dex_db;
+CREATE USER dex WITH PASSWORD '66964843358242dbaaa7778d8477c288';
+GRANT ALL PRIVILEGES ON DATABASE dex_db TO dex;
+```
+
+An example config for MySQL setup using these values:
+
+```
+storage:
+  type: mysql
+  config:
+    database: dex_db
+    user: dex
+    password: 66964843358242dbaaa7778d8477c288
+    ssl:
+      mode: custom
+      caFile: /etc/dex/mysql.ca
+```
+
+The SSL "mode" corresponds to the `github.com/go-sql-driver/mysql` package [connection options][mysql-conn-options]. If unspecified, dex defaults to the strictest mode "true".
+
 ## Adding a new storage options
 
 Each storage implementation bears a large ongoing maintenance cost and needs to be updated every time a feature requires storing a new type. Bugs often require in depth knowledge of the backing software, and much of this work will be done by developers who are not the original author. Changes to dex which add new storage implementations are not merged lightly.
@@ -320,4 +349,5 @@ Any proposal to add a new implementation must address the following:
 [issues-transaction-tests]: https://github.com/dexidp/dex/issues/600
 [k8s-api]: https://github.com/kubernetes/kubernetes/blob/master/docs/devel/api-conventions.md#concurrency-control-and-consistency
 [psql-conn-options]: https://godoc.org/github.com/lib/pq#hdr-Connection_String_Parameters
+[mysql-conn-options]: https://github.com/go-sql-driver/mysql#tls
 [crd]: https://kubernetes.io/docs/tasks/access-kubernetes-api/extend-api-custom-resource-definitions/
