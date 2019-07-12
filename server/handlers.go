@@ -149,6 +149,7 @@ func (s *Server) handlePublicKeys(w http.ResponseWriter, r *http.Request) {
 
 type discovery struct {
 	Issuer        string   `json:"issuer"`
+	Callback      string   `json:"callback"`
 	Auth          string   `json:"authorization_endpoint"`
 	Token         string   `json:"token_endpoint"`
 	Keys          string   `json:"jwks_uri"`
@@ -164,6 +165,7 @@ type discovery struct {
 func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 	d := discovery{
 		Issuer:      s.issuerURL.String(),
+		Callback:    s.callbackConfig.String(),
 		Auth:        s.absURL("/auth"),
 		Token:       s.absURL("/token"),
 		Keys:        s.absURL("/keys"),

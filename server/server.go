@@ -51,6 +51,8 @@ type Connector struct {
 // Multiple servers using the same storage are expected to be configured identically.
 type Config struct {
 	Issuer string
+	
+	Callback string
 
 	// The backing persistence layer.
 	Storage storage.Storage
@@ -119,6 +121,8 @@ func value(val, defaultValue time.Duration) time.Duration {
 // Server is the top level object.
 type Server struct {
 	issuerURL url.URL
+	
+	callbackConfig url.URL
 
 	// mutex for the connectors map.
 	mu sync.Mutex
@@ -156,6 +160,11 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	issuerURL, err := url.Parse(c.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("server: can't parse issuer URL")
+	}
+	
+	callbackConfig, err := url.Parse(c.Callback)
+	if err !=nil {
+		return nil, fmt. Errorf("server: can't parse callback URL")
 	}
 
 	if c.Storage == nil {
@@ -195,6 +204,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	s := &Server{
 		issuerURL:              *issuerURL,
+		callbackConfig:         *callbackConfig,
 		connectors:             make(map[string]Connector),
 		storage:                newKeyCacher(c.Storage, now),
 		supportedResponseTypes: supported,
@@ -309,10 +319,38 @@ func (s *Server) absPath(pathItems ...string) string {
 	return path.Join(paths...)
 }
 
+func (s *Server) absCallbackPath(pathItems ...string) string {
+	paths:= make ([]string, len(pathItems)+1)
+	paths[0] = s.callbackConfig.Path
+	copy(paths[1:], pathItems)
+	return path.Join(paths...)
+}
+
 func (s *Server) absURL(pathItems ...string) string {
 	u := s.issuerURL
 	u.Path = s.absPath(pathItems...)
 	return u.String()
+}
+
+func (s *Server) useCallback(pathItems ...string) string {
+	u := s.callbackConfig
+	if u.String() == "" {
+		u := s.issuerURL
+		u.Path = s.absPath(pathItems...)
+		return u.String()
+	}else{
+		u.Path = s.absCallbackPath(pathItems ...)
+		return u.String()
+	}
+}
+
+func (s *Server) useCallback() string {
+        u := s.callbackConfig
+        if u.String() == "" {
+		return s.issuerURL.Path
+        }else{
+                return s.callbackConfig.Path
+        }
 }
 
 func newPasswordDB(s storage.Storage) interface {

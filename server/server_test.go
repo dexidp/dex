@@ -1200,3 +1200,87 @@ func TestRefreshTokenFlow(t *testing.T) {
 		t.Errorf("Token refreshed with invalid refresh token.")
 	}
 }
+func TestNonDefaultCallbackURL(t *testing.T) {
+
+	state := "state"
+	now := func() time.Time { return time.Now() }
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+		c.Now = now
+	})
+	defer httpServer.Close()
+
+	p, err := oidc.NewProvider(ctx, httpServer.URL)
+	if err != nil {
+		t.Fatalf("failed to get provider: %v", err)
+	}
+
+	var oauth2Client oauth2Client
+
+	callbackCheck := false
+
+	oauth2Client.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		if r.URL.Path != "/custom/callback" {
+			// User is visiting app first time. Redirect to dex.
+			url := oauth2Client.config.AuthCodeURL(state)
+			http.Redirect(w, r, url, http.StatusSeeOther)
+			return
+		}
+		
+		//Verify that the callback was changed
+		callbackCheck = true
+
+		q := r.URL.Query()
+
+		if errType := q.Get("error"); errType != "" {
+			if desc := q.Get("error_description"); desc != "" {
+				t.Errorf("got error from server %s: %s", errType, desc)
+			} else {
+				t.Errorf("got error from server %s", errType)
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		// Ensure state matches.
+		if gotState := q.Get("state"); gotState != state {
+			t.Errorf("state did not match, want=%q got=%q", state, gotState)
+		}
+		w.WriteHeader(http.StatusOK)
+
+		return
+	}))
+
+	defer oauth2Client.server.Close()
+
+	// Register the client above with dex.
+	redirectURL := oauth2Client.server.URL + "/custom/callback"
+	client := storage.Client{
+		ID:           "testclient",
+		Secret:       "testclientsecret",
+		RedirectURIs: []string{redirectURL},
+	}
+	if err := s.storage.CreateClient(client); err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	oauth2Client.config = &oauth2.Config{
+		ClientID:     client.ID,
+		ClientSecret: client.Secret,
+		Endpoint:     p.Endpoint(),
+		Scopes:       []string{oidc.ScopeOpenID, "email", "offline_access"},
+		RedirectURL:  redirectURL,
+	}
+
+	if _, err = http.Get(oauth2Client.server.URL + "/login"); err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+
+	if !callbackCheck {
+		t.Fatalf("callback failed")
+	}
+
+}
