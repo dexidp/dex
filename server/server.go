@@ -344,7 +344,7 @@ func (s *Server) useCallback(pathItems ...string) string {
 	}
 }
 
-func (s *Server) useCallback() string {
+func (s *Server) useCallbackURL() string {
         u := s.callbackConfig
         if u.String() == "" {
 		return s.issuerURL.Path
