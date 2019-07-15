@@ -1229,7 +1229,7 @@ func TestNonDefaultCallbackURL(t *testing.T) {
 			http.Redirect(w, r, url, http.StatusSeeOther)
 			return
 		}
-		
+
 		//Verify that the callback was changed
 		callbackCheck = true
 

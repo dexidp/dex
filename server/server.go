@@ -51,7 +51,7 @@ type Connector struct {
 // Multiple servers using the same storage are expected to be configured identically.
 type Config struct {
 	Issuer string
-	
+
 	Callback string
 
 	// The backing persistence layer.
@@ -121,7 +121,7 @@ func value(val, defaultValue time.Duration) time.Duration {
 // Server is the top level object.
 type Server struct {
 	issuerURL url.URL
-	
+
 	callbackConfig url.URL
 
 	// mutex for the connectors map.
@@ -161,10 +161,10 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	if err != nil {
 		return nil, fmt.Errorf("server: can't parse issuer URL")
 	}
-	
+
 	callbackConfig, err := url.Parse(c.Callback)
-	if err !=nil {
-		return nil, fmt. Errorf("server: can't parse callback URL")
+	if err != nil {
+		return nil, fmt.Errorf("server: can't parse callback URL")
 	}
 
 	if c.Storage == nil {
@@ -320,7 +320,7 @@ func (s *Server) absPath(pathItems ...string) string {
 }
 
 func (s *Server) absCallbackPath(pathItems ...string) string {
-	paths:= make ([]string, len(pathItems)+1)
+	paths := make([]string, len(pathItems)+1)
 	paths[0] = s.callbackConfig.Path
 	copy(paths[1:], pathItems)
 	return path.Join(paths...)
@@ -338,19 +338,17 @@ func (s *Server) useCallback(pathItems ...string) string {
 		u := s.issuerURL
 		u.Path = s.absPath(pathItems...)
 		return u.String()
-	}else{
-		u.Path = s.absCallbackPath(pathItems ...)
-		return u.String()
 	}
+	u.Path = s.absCallbackPath(pathItems...)
+	return u.String()
 }
 
 func (s *Server) useCallbackURL() string {
-        u := s.callbackConfig
-        if u.String() == "" {
+	u := s.callbackConfig
+	if u.String() == "" {
 		return s.issuerURL.Path
-        }else{
-                return s.callbackConfig.Path
-        }
+	}
+	return s.callbackConfig.Path
 }
 
 func newPasswordDB(s storage.Storage) interface {

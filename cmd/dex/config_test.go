@@ -208,7 +208,7 @@ logger:
 `)
 
 	wantWithCallback := Config{
-		Issuer: "http://127.0.0.1:5556/dex",
+		Issuer:   "http://127.0.0.1:5556/dex",
 		Callback: "http://127.0.0.1:5556/custom",
 		Storage: Storage{
 			Type: "postgres",
@@ -279,9 +279,9 @@ logger:
 		},
 	}
 
-  var c Config
-	if err := yaml.Unmarshal(rawConfigWithCallback, &c); err !=nil {
-	  t.Fatalf("failed to decode config: %v", err)
+	var c Config
+	if err := yaml.Unmarshal(rawConfigWithCallback, &c); err != nil {
+		t.Fatalf("failed to decode config: %v", err)
 	}
 	if diff := pretty.Compare(c, wantWithCallback); diff != "" {
 		t.Errorf("got!=want: %s", diff)
