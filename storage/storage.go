@@ -320,6 +320,14 @@ type Connector struct {
 	Config []byte `json:"email"`
 }
 
+// Validate validate if the connector configuration is valid
+func (c Connector) Validate() error {
+	if c.ID == "" || c.Type == "" || c.Name == "" {
+		return errors.New("Connector ID, Type, and Name are mandatory fields")
+	}
+	return nil
+}
+
 // VerificationKey is a rotated signing key which can still be used to verify
 // signatures.
 type VerificationKey struct {

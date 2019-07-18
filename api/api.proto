@@ -158,6 +158,30 @@ message VerifyPasswordResp {
   bool not_found = 2;
 }
 
+// Connector represents a mechanism for enabling login to dex via an identity service
+message Connector {
+  string type = 1;
+  string name = 2;
+  string id = 3;
+  bytes config = 4;
+}
+
+// ListRefreshResp returns a list of refresh tokens for a user.
+message ListConnectorResp {
+  repeated Connector connectors = 1;
+}
+
+// ListConnectorReq is a request to enumerate connectors.
+message ListConnectorReq {}
+
+// DeleteConnectorReq is a request to delete a connector with the given ID.
+message DeleteConnectorReq {
+  string id = 1;
+}
+
+message DeleteConnectorResp {
+}
+
 // Dex represents the dex gRPC service.
 service Dex {
   // CreateClient creates a client.
@@ -184,4 +208,12 @@ service Dex {
   rpc RevokeRefresh(RevokeRefreshReq) returns (RevokeRefreshResp) {};
   // VerifyPassword returns whether a password matches a hash for a specific email or not.
   rpc VerifyPassword(VerifyPasswordReq) returns (VerifyPasswordResp) {};
+  // Create Connector on the fly
+  rpc CreateConnector(Connector) returns (Connector) {};
+  // Update Connector on the fly
+  rpc UpdateConnector(Connector) returns (Connector) {};
+  // DeleteConnector deletes the corresponding connector
+  rpc DeleteConnector(DeleteConnectorReq) returns (DeleteConnectorResp) {};
+  // ListConnector lists the available connectors
+  rpc ListConnector(ListConnectorReq) returns (ListConnectorResp) {};
 }

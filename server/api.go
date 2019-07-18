@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -105,6 +106,73 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 		return nil, fmt.Errorf("update client: %v", err)
 	}
 	return &api.UpdateClientResp{}, nil
+}
+
+func (d dexAPI) CreateConnector(ctx context.Context, req *api.Connector) (*api.Connector, error) {
+	conn := storage.Connector{
+		ID:              req.GetId(),
+		Type:            req.GetType(),
+		Name:            req.GetName(),
+		Config:          req.GetConfig(),
+		ResourceVersion: fmt.Sprintf("%d", time.Now().Unix()),
+	}
+	err := conn.Validate()
+	if err != nil {
+		return nil, err
+	}
+	_, err = openConnector(nil, conn)
+	if err != nil {
+		return nil, err
+	}
+	err = d.s.CreateConnector(conn)
+	return req, err
+}
+
+func (d dexAPI) ListConnector(ctx context.Context, in *api.ListConnectorReq) (*api.ListConnectorResp, error) {
+	connectors, err := d.s.ListConnectors()
+	if err != nil {
+		return nil, err
+	}
+	ls := &api.ListConnectorResp{}
+	for i := range connectors {
+		ls.Connectors = append(ls.Connectors, &api.Connector{
+			Type:   connectors[i].Type,
+			Name:   connectors[i].Name,
+			Id:     connectors[i].ID,
+			Config: connectors[i].Config,
+		})
+	}
+	return ls, nil
+}
+
+func (d dexAPI) UpdateConnector(ctx context.Context, in *api.Connector) (*api.Connector, error) {
+	err := d.s.UpdateConnector(in.GetId(), func(c storage.Connector) (storage.Connector, error) {
+		if len(in.Config) != 0 {
+			c.Config = in.Config
+		}
+		if in.Name != "" {
+			c.Name = in.Name
+		}
+		if in.Type != "" {
+			c.Type = in.Type
+		}
+		err := c.Validate()
+		if err != nil {
+			return c, err
+		}
+		_, err = openConnector(nil, c)
+		if err != nil {
+			return c, err
+		}
+		c.ResourceVersion = fmt.Sprintf("%d", time.Now().Unix())
+		return c, nil
+	})
+	return in, err
+}
+
+func (d dexAPI) DeleteConnector(ctx context.Context, in *api.DeleteConnectorReq) (*api.DeleteConnectorResp, error) {
+	err := d.s.DeleteConnector(in.GetId())
+	return &api.DeleteConnectorResp{}, err
 }
 
 func (d dexAPI) DeleteClient(ctx context.Context, req *api.DeleteClientReq) (*api.DeleteClientResp, error) {
