@@ -14,6 +14,23 @@ message Client {
   string logo_url = 7;
 }
 
+
+// Connector represents a mechanism for enabling login to dex via an identity service
+message Connector {
+  string type = 1;
+  string name = 2;
+  string id = 3;
+  bytes config = 4;
+}
+
+// DeleteConnectorReq is a request to delete a connector with the given ID.
+message DeleteConnectorReq {
+  string id = 1;
+}
+
+message DeleteConnectorResp {
+}
+
 // CreateClientReq is a request to make a client.
 message CreateClientReq {
   Client client = 1;
@@ -172,4 +189,10 @@ service Dex {
   //
   // Note that each user-client pair can have only one refresh token at a time.
   rpc RevokeRefresh(RevokeRefreshReq) returns (RevokeRefreshResp) {};
+  // Create Connector on the fly
+  rpc CreateConnector(Connector) returns (Connector) {};
+  // Update Connector on the fly
+  rpc UpdateConnector(Connector) returns (Connector) {};
+  // DeleteConnector deletes the corresponding connector
+  rpc DeleteConnector(DeleteConnectorReq) returns (DeleteConnectorResp) {};
 }

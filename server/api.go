@@ -110,6 +110,30 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 	return &api.UpdateClientResp{}, nil
 }
 
+func (d dexAPI) CreateConnector(ctx context.Context, req *api.Connector) (*api.Connector, error) {
+	err := d.s.CreateConnector(storage.Connector{
+		ID:     req.GetId(),
+		Type:   req.GetType(),
+		Name:   req.GetName(),
+		Config: req.GetConfig(),
+	})
+	return req, err
+}
+
+func (d dexAPI) UpdateConnector(ctx context.Context, in *api.Connector) (*api.Connector, error) {
+	err := d.s.UpdateConnector(in.GetId(), func(c storage.Connector) (storage.Connector, error) {
+		c.Config = in.Config
+		c.Name = in.Name
+		return c, nil
+	})
+	return in, err
+}
+
+func (d dexAPI) DeleteConnector(ctx context.Context, in *api.DeleteConnectorReq) (*api.DeleteConnectorResp, error) {
+	err := d.s.DeleteConnector(in.GetId())
+	return &api.DeleteConnectorResp{}, err
+}
+
 func (d dexAPI) DeleteClient(ctx context.Context, req *api.DeleteClientReq) (*api.DeleteClientResp, error) {
 	err := d.s.DeleteClient(req.Id)
 	if err != nil {
