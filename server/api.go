@@ -111,12 +111,21 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 }
 
 func (d dexAPI) CreateConnector(ctx context.Context, req *api.Connector) (*api.Connector, error) {
-	err := d.s.CreateConnector(storage.Connector{
+	conn := storage.Connector{
 		ID:     req.GetId(),
 		Type:   req.GetType(),
 		Name:   req.GetName(),
 		Config: req.GetConfig(),
-	})
+	}
+	err := conn.Validate()
+	if err != nil {
+		return nil, err
+	}
+	_, err = openConnector(nil, conn)
+	if err != nil {
+		return nil, err
+	}
+	err = d.s.CreateConnector(conn)
 	return req, err
 }
 
@@ -124,6 +133,15 @@ func (d dexAPI) UpdateConnector(ctx context.Context, in *api.Connector) (*api.Co
 	err := d.s.UpdateConnector(in.GetId(), func(c storage.Connector) (storage.Connector, error) {
 		c.Config = in.Config
 		c.Name = in.Name
+		c.Type = in.Type
+		err := c.Validate()
+		if err != nil {
+			return c, err
+		}
+		_, err = openConnector(nil, c)
+		if err != nil {
+			return c, err
+		}
 		return c, nil
 	})
 	return in, err

@@ -292,7 +292,7 @@ func TestRefreshToken(t *testing.T) {
 	}
 }
 
-func TestCreateConnector(t *testing.T) {
+func TestConnector(t *testing.T) {
 	logger := &logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
@@ -303,6 +303,24 @@ func TestCreateConnector(t *testing.T) {
 	client := newAPI(s, logger, t)
 	defer client.Close()
 	ctx := context.Background()
+	_, err := client.CreateConnector(ctx, &api.Connector{})
+	if err == nil {
+		t.Errorf("This should have errored out since this is a invalid connector")
+	}
+	if err.Error() != `rpc error: code = Unknown desc = Connector ID, Type, and Name are mandatory fields` {
+		t.Errorf("Unexpected error : %s", err.Error())
+	}
+	_, err = client.CreateConnector(ctx, &api.Connector{
+		Type: "invalid_type",
+		Name: "one_awesome_connector",
+		Id:   "some_id",
+	})
+	if err == nil {
+		t.Errorf("This should have errored out since this is a invalid connector type")
+	}
+	if err.Error() != `rpc error: code = Unknown desc = unknown connector type "invalid_type"` {
+		t.Errorf("Unexpected error : %s", err.Error())
+	}
 	c, err := client.CreateConnector(ctx, &api.Connector{
 		Type:   "github",
 		Name:   "one_awesome_connector",
@@ -310,50 +328,74 @@ func TestCreateConnector(t *testing.T) {
 		Config: []byte(`{}`),
 	})
 	if err != nil {
-		t.Fatalf("Unable to create connector: %s", err)
+		t.Errorf("Unable to create connector: %s", err)
 	}
 	if c.Id != "some_id" {
-		t.Fatalf("The id should have matched, got %s", c.Id)
+		t.Errorf("The id should have matched, got %s", c.Id)
 	}
 	_, err = client.UpdateConnector(ctx, &api.Connector{
 		Id: "invalid_id",
 	})
 	if err == nil {
-		t.Fatal("This should have errored out since this is a invalid connector id")
+		t.Errorf("This should have errored out since this is a invalid connector id")
 	}
 	if err.Error() != `rpc error: code = Unknown desc = not found` {
-		t.Fatalf("Unexpected error : %s", err.Error())
+		t.Errorf("Unexpected error : %s", err.Error())
 	}
 
+	_, err = client.UpdateConnector(ctx, &api.Connector{
+		Id:   "some_id",
+		Name: "",
+	})
+	if err == nil {
+		t.Errorf("This should have errored out since this has invalid name")
+	}
+	if err.Error() != `rpc error: code = Unknown desc = Connector ID, Type, and Name are mandatory fields` {
+		t.Errorf("Unexpected error : %s", err.Error())
+	}
 	_, err = client.UpdateConnector(ctx, &api.Connector{
 		Id:     "some_id",
 		Config: []byte(`updated_config`),
 		Name:   "updated_name",
+		Type:   "invalid_type",
+	})
+	if err == nil {
+		t.Errorf("This should have errored out since this is a invalid connector type")
+	}
+	if err.Error() != `rpc error: code = Unknown desc = unknown connector type "invalid_type"` {
+		t.Errorf("Unexpected error : %s", err.Error())
+	}
+
+	_, err = client.UpdateConnector(ctx, &api.Connector{
+		Id:     "some_id",
+		Config: []byte(`{}`),
+		Name:   "updated_name",
+		Type:   "github",
 	})
 	if err != nil {
-		t.Fatalf("Unable to create connector: %s", err)
+		t.Errorf("Unable to create connector: %s", err)
 	}
 	updatedConnector, err := s.GetConnector("some_id")
 	if err != nil {
-		t.Fatalf("Unable to create connector: %s", err)
+		t.Errorf("Unable to create connector: %s", err)
 	}
 	if updatedConnector.Name != "updated_name" {
-		t.Fatalf("Name was not updated, its still %q", updatedConnector.Name)
+		t.Errorf("Name was not updated, its still %q", updatedConnector.Name)
 	}
-	if string(updatedConnector.Config) != `updated_config` {
-		t.Fatalf("config was not updated, its still %q", string(updatedConnector.Config))
+	if string(updatedConnector.Config) != `{}` {
+		t.Errorf("config was not updated, its still %q", string(updatedConnector.Config))
 	}
 	_, err = client.DeleteConnector(ctx, &api.DeleteConnectorReq{
 		Id: "invalid_id",
 	})
 	if err == nil {
-		t.Fatal("This should have errored out since this is a invalid connector id")
+		t.Errorf("This should have errored out since this is a invalid connector id")
 	}
 	_, err = client.DeleteConnector(ctx, &api.DeleteConnectorReq{
 		Id: "some_id",
 	})
 	if err != nil {
-		t.Fatalf("Unable to delete connector: %s", err)
+		t.Errorf("Unable to delete connector: %s", err)
 	}
 }
 func TestUpdateClient(t *testing.T) {
