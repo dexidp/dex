@@ -417,7 +417,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			s.logger.Errorf("Invalid 'state' parameter provided: %v", err)
-			s.renderError(w, http.StatusInternalServerError, "Requested resource does not exist.")
+			s.renderError(w, http.StatusBadRequest, "Requested resource does not exist.")
 			return
 		}
 		s.logger.Errorf("Failed to get auth request: %v", err)
