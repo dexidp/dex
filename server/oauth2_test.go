@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	jose "gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
@@ -145,6 +145,58 @@ func TestParseAuthorizationRequest(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "choose connector_id",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code", "id_token", "token"},
+			queryParams: map[string]string{
+				"connector_id":  "mock",
+				"client_id":     "bar",
+				"redirect_uri":  "https://example.com/bar",
+				"response_type": "code id_token",
+				"scope":         "openid email profile",
+			},
+		},
+		{
+			name: "choose second connector_id",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code", "id_token", "token"},
+			queryParams: map[string]string{
+				"connector_id":  "mock2",
+				"client_id":     "bar",
+				"redirect_uri":  "https://example.com/bar",
+				"response_type": "code id_token",
+				"scope":         "openid email profile",
+			},
+		},
+		{
+			name: "choose invalid connector_id",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code", "id_token", "token"},
+			queryParams: map[string]string{
+				"connector_id":  "bogus",
+				"client_id":     "bar",
+				"redirect_uri":  "https://example.com/bar",
+				"response_type": "code id_token",
+				"scope":         "openid email profile",
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -152,7 +204,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			httpServer, server := newTestServer(ctx, t, func(c *Config) {
+			httpServer, server := newTestServerMultipleConnectors(ctx, t, func(c *Config) {
 				c.SupportedResponseTypes = tc.supportedResponseTypes
 				c.Storage = storage.WithStaticClients(c.Storage, tc.clients)
 			})
@@ -162,7 +214,6 @@ func TestParseAuthorizationRequest(t *testing.T) {
 			for k, v := range tc.queryParams {
 				params.Set(k, v)
 			}
-
 			var req *http.Request
 			if tc.usePOST {
 				body := strings.NewReader(params.Encode())

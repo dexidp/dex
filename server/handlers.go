@@ -233,6 +233,18 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Redirect if a client chooses a specific connector_id
+	if authReq.ConnectorID != "" {
+		for _, c := range connectors {
+			if c.ID == authReq.ConnectorID {
+				http.Redirect(w, r, s.absPath("/auth", c.ID)+"?req="+authReq.ID, http.StatusFound)
+				return
+			}
+		}
+		s.tokenErrHelper(w, errInvalidConnectorID, "Connector ID does not match a valid Connector", http.StatusNotFound)
+		return
+	}
+
 	if len(connectors) == 1 {
 		for _, c := range connectors {
 			// TODO(ericchiang): Make this pass on r.URL.RawQuery and let something latter
