@@ -503,6 +503,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 	return storage.AuthRequest{
 		ID:                  storage.NewID(),
 		ClientID:            client.ID,
+		AllowedConnectors:   client.Connectors,
 		State:               state,
 		Nonce:               nonce,
 		ForceApprovalPrompt: q.Get("approval_prompt") == "force",
