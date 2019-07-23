@@ -5,6 +5,7 @@ require (
 	github.com/beorn7/perks v0.0.0-20160229213445-3ac7bf7a47d1 // indirect
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/cockroachdb/cmux v0.0.0-20170110192607-30d10be49292 // indirect
+	github.com/coreos/dex v2.13.0+incompatible // indirect
 	github.com/coreos/etcd v3.2.9+incompatible
 	github.com/coreos/go-oidc v2.0.0+incompatible
 	github.com/coreos/go-semver v0.2.0 // indirect
@@ -14,6 +15,7 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/felixge/httpsnoop v1.0.0
 	github.com/ghodss/yaml v0.0.0-20161020005002-bea76d6a4713
+	github.com/go-sql-driver/mysql v1.4.1
 	github.com/gogo/protobuf v1.1.1 // indirect
 	github.com/golang/groupcache v0.0.0-20181024230925-c65c006176ff // indirect
 	github.com/golang/protobuf v0.0.0-20171113180720-1e59b77b52bf

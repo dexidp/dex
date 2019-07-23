@@ -76,12 +76,14 @@ logger:
 		Storage: Storage{
 			Type: "postgres",
 			Config: &sql.Postgres{
-				Host:              "10.0.0.1",
-				Port:              65432,
-				MaxOpenConns:      5,
-				MaxIdleConns:      3,
-				ConnMaxLifetime:   30,
-				ConnectionTimeout: 3,
+				NetworkDB: sql.NetworkDB{
+					Host:              "10.0.0.1",
+					Port:              65432,
+					MaxOpenConns:      5,
+					MaxIdleConns:      3,
+					ConnMaxLifetime:   30,
+					ConnectionTimeout: 3,
+				},
 			},
 		},
 		Web: Web{

@@ -19,6 +19,8 @@ github.com/davecgh/go-spew/spew
 github.com/felixge/httpsnoop
 # github.com/ghodss/yaml v0.0.0-20161020005002-bea76d6a4713
 github.com/ghodss/yaml
+# github.com/go-sql-driver/mysql v1.4.1
+github.com/go-sql-driver/mysql
 # github.com/golang/protobuf v0.0.0-20171113180720-1e59b77b52bf
 github.com/golang/protobuf/protoc-gen-go
 github.com/golang/protobuf/proto
@@ -115,6 +117,7 @@ golang.org/x/tools/go/gcexportdata
 golang.org/x/tools/go/internal/gcimporter
 # google.golang.org/appengine v0.0.0-20160621060416-267c27e74922
 google.golang.org/appengine/urlfetch
+google.golang.org/appengine/cloudsql
 google.golang.org/appengine/internal
 google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/internal/base
