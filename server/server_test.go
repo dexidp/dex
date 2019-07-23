@@ -117,6 +117,53 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 	return s, server
 }
 
+func newTestServerMultipleConnectors(ctx context.Context, t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
+	var server *Server
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server.ServeHTTP(w, r)
+	}))
+
+	config := Config{
+		Issuer:  s.URL,
+		Storage: memory.New(logger),
+		Web: WebConfig{
+			Dir: "../web",
+		},
+		Logger:             logger,
+		PrometheusRegistry: prometheus.NewRegistry(),
+	}
+	if updateConfig != nil {
+		updateConfig(&config)
+	}
+	s.URL = config.Issuer
+
+	connector := storage.Connector{
+		ID:              "mock",
+		Type:            "mockCallback",
+		Name:            "Mock",
+		ResourceVersion: "1",
+	}
+	connector2 := storage.Connector{
+		ID:              "mock2",
+		Type:            "mockCallback",
+		Name:            "Mock",
+		ResourceVersion: "1",
+	}
+	if err := config.Storage.CreateConnector(connector); err != nil {
+		t.Fatalf("create connector: %v", err)
+	}
+	if err := config.Storage.CreateConnector(connector2); err != nil {
+		t.Fatalf("create connector: %v", err)
+	}
+
+	var err error
+	if server, err = newServer(ctx, config, staticRotationStrategy(testKey)); err != nil {
+		t.Fatal(err)
+	}
+	server.skipApproval = true // Don't prompt for approval, just immediately redirect with code.
+	return s, server
+}
+
 func TestNewTestServer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
