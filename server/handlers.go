@@ -200,17 +200,21 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	authReq, err := s.parseAuthorizationRequest(r)
 	if err != nil {
 		s.logger.Errorf("Failed to parse authorization request: %v", err)
-		if handler, ok := err.Handle(); ok {
-			// client_id and redirect_uri checked out and we can redirect back to
-			// the client with the error.
-			handler.ServeHTTP(w, r)
-			return
+		status := http.StatusInternalServerError
+
+		// If this is an authErr, let's let it handle the error, or update the HTTP
+		// status code
+		if err, ok := err.(*authErr); ok {
+			if handler, ok := err.Handle(); ok {
+				// client_id and redirect_uri checked out and we can redirect back to
+				// the client with the error.
+				handler.ServeHTTP(w, r)
+				return
+			}
+			status = err.Status()
 		}
 
-		// Otherwise render the error to the user.
-		//
-		// TODO(ericchiang): Should we just always render the error?
-		s.renderError(w, err.Status(), err.Error())
+		s.renderError(w, status, err.Error())
 		return
 	}
 
@@ -220,15 +224,15 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	//
 	// See: https://github.com/dexidp/dex/issues/646
 	authReq.Expiry = s.now().Add(s.authRequestsValidFor)
-	if err := s.storage.CreateAuthRequest(authReq); err != nil {
+	if err := s.storage.CreateAuthRequest(*authReq); err != nil {
 		s.logger.Errorf("Failed to create authorization request: %v", err)
 		s.renderError(w, http.StatusInternalServerError, "Failed to connect to the database.")
 		return
 	}
 
-	connectors, e := s.storage.ListConnectors()
-	if e != nil {
-		s.logger.Errorf("Failed to get list of connectors: %v", e)
+	connectors, err := s.storage.ListConnectors()
+	if err != nil {
+		s.logger.Errorf("Failed to get list of connectors: %v", err)
 		s.renderError(w, http.StatusInternalServerError, "Failed to retrieve connector list.")
 		return
 	}
