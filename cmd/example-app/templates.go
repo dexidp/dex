@@ -66,13 +66,13 @@ pre {
 </html>
 `))
 
-func renderToken(w http.ResponseWriter, redirectURL, idToken, accessToken, refreshToken string, claims []byte) {
+func renderToken(w http.ResponseWriter, redirectURL, idToken, accessToken, refreshToken, claims string) {
 	renderTemplate(w, tokenTmpl, tokenTmplData{
 		IDToken:      idToken,
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		RedirectURL:  redirectURL,
-		Claims:       string(claims),
+		Claims:       claims,
 	})
 }
 

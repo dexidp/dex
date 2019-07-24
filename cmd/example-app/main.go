@@ -314,7 +314,7 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	idToken, err := a.verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to verify ID token: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("failed to verify ID token: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -325,10 +325,16 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var claims json.RawMessage
-	idToken.Claims(&claims)
+	if err := idToken.Claims(&claims); err != nil {
+		http.Error(w, fmt.Sprintf("error decoding ID token claims: %v", err), http.StatusInternalServerError)
+		return
+	}
 
 	buff := new(bytes.Buffer)
-	json.Indent(buff, []byte(claims), "", "  ")
+	if err := json.Indent(buff, []byte(claims), "", "  "); err != nil {
+		http.Error(w, fmt.Sprintf("error indenting ID token claims: %v", err), http.StatusInternalServerError)
+		return
+	}
 
-	renderToken(w, a.redirectURI, rawIDToken, accessToken, token.RefreshToken, buff.Bytes())
+	renderToken(w, a.redirectURI, rawIDToken, accessToken, token.RefreshToken, buff.String())
 }
