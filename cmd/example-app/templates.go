@@ -15,8 +15,11 @@ var indexTmpl = template.Must(template.New("index.html").Parse(`<html>
        <p>
          Extra scopes:<input type="text" name="extra_scopes" placeholder="list of scopes">
        </p>
-	   <p>
-	     Request offline access:<input type="checkbox" name="offline_access" value="yes" checked>
+       <p>
+         Connector ID:<input type="text" name="connector_id" placeholder="connector id">
+       </p>
+       <p>
+         Request offline access:<input type="checkbox" name="offline_access" value="yes" checked>
        </p>
        <input type="submit" value="Login">
     </form>

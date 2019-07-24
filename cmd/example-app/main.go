@@ -237,6 +237,10 @@ func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
 	for _, client := range clients {
 		scopes = append(scopes, "audience:server:client_id:"+client)
 	}
+	connectorID := ""
+	if id := r.FormValue("connector_id"); id != "" {
+		connectorID = id
+	}
 
 	authCodeURL := ""
 	scopes = append(scopes, "openid", "profile", "email")
@@ -247,6 +251,9 @@ func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
 		authCodeURL = a.oauth2Config(scopes).AuthCodeURL(exampleAppState)
 	} else {
 		authCodeURL = a.oauth2Config(scopes).AuthCodeURL(exampleAppState, oauth2.AccessTypeOffline)
+	}
+	if connectorID != "" {
+		authCodeURL = authCodeURL + "&connector_id=" + connectorID
 	}
 
 	http.Redirect(w, r, authCodeURL, http.StatusSeeOther)
