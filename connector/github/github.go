@@ -150,7 +150,7 @@ type githubConnector struct {
 	teamNameField string
 	// if set to true and no orgs are configured then connector loads all user claims (all orgs and team)
 	loadAllGroups bool
-	// if set to true will use the users handle rather than their numeric id as the ID
+	// if set to true will use the user's handle rather than their numeric id as the ID
 	useLoginAsID bool
 }
 

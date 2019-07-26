@@ -104,7 +104,7 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 func TestLoginUsedAsIDWhenConfigured(t *testing.T) {
 
 	s := newTestServer(map[string]interface{}{
-		"/api/v4/user": gitlabUser{Email: "some@email.com", ID: 12345678, Name: "Joe Bloggs"},
+		"/api/v4/user": gitlabUser{Email: "some@email.com", ID: 12345678, Name: "Joe Bloggs", Username: "joebloggs"},
 		"/oauth/token": map[string]interface{}{
 			"access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
 			"expires_in":   "30",
@@ -121,11 +121,11 @@ func TestLoginUsedAsIDWhenConfigured(t *testing.T) {
 	req, err := http.NewRequest("GET", hostURL.String(), nil)
 	expectNil(t, err)
 
-	c := gitlabConnector{baseURL: s.URL, httpClient: newClient()}
+	c := gitlabConnector{baseURL: s.URL, httpClient: newClient(), useLoginAsID: true}
 	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
 
 	expectNil(t, err)
-	expectEquals(t, identity.UserID, "12345678")
+	expectEquals(t, identity.UserID, "joebloggs")
 	expectEquals(t, identity.Username, "Joe Bloggs")
 }
 
