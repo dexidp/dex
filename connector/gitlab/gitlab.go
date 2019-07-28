@@ -32,6 +32,7 @@ type Config struct {
 	ClientSecret string   `json:"clientSecret"`
 	RedirectURI  string   `json:"redirectURI"`
 	Groups       []string `json:"groups"`
+	UseLoginAsID bool     `json:"useLoginAsID"`
 }
 
 type gitlabUser struct {
@@ -55,6 +56,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		clientSecret: c.ClientSecret,
 		logger:       logger,
 		groups:       c.Groups,
+		useLoginAsID: c.UseLoginAsID,
 	}, nil
 }
 
@@ -76,6 +78,8 @@ type gitlabConnector struct {
 	clientSecret string
 	logger       log.Logger
 	httpClient   *http.Client
+	// if set to true will use the user's handle rather than their numeric id as the ID
+	useLoginAsID bool
 }
 
 func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
@@ -147,6 +151,9 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 		Username:      username,
 		Email:         user.Email,
 		EmailVerified: true,
+	}
+	if c.useLoginAsID {
+		identity.UserID = user.Username
 	}
 
 	if s.Groups {
