@@ -307,8 +307,8 @@ Dex requires MySQL 5.7 or later version. When using MySQL, admins may want to de
 
 ```
 CREATE DATABASE dex_db;
-CREATE USER dex WITH PASSWORD '66964843358242dbaaa7778d8477c288';
-GRANT ALL PRIVILEGES ON DATABASE dex_db TO dex;
+CREATE USER dex IDENTIFIED BY '66964843358242dbaaa7778d8477c288';
+GRANT ALL PRIVILEGES ON dex_db.* TO dex;
 ```
 
 An example config for MySQL setup using these values:
