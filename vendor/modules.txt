@@ -11,12 +11,16 @@ github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes
 github.com/coreos/etcd/etcdserver/etcdserverpb
 github.com/coreos/etcd/mvcc/mvccpb
 github.com/coreos/etcd/pkg/tlsutil
-# github.com/coreos/go-oidc v0.0.0-20170307191026-be73733bb8cc
+# github.com/coreos/go-oidc v2.0.0+incompatible
 github.com/coreos/go-oidc
+# github.com/davecgh/go-spew v1.1.1
+github.com/davecgh/go-spew/spew
 # github.com/felixge/httpsnoop v1.0.0
 github.com/felixge/httpsnoop
 # github.com/ghodss/yaml v0.0.0-20161020005002-bea76d6a4713
 github.com/ghodss/yaml
+# github.com/go-sql-driver/mysql v1.4.1
+github.com/go-sql-driver/mysql
 # github.com/golang/protobuf v0.0.0-20171113180720-1e59b77b52bf
 github.com/golang/protobuf/protoc-gen-go
 github.com/golang/protobuf/proto
@@ -49,6 +53,8 @@ github.com/lib/pq/oid
 github.com/mattn/go-sqlite3
 # github.com/matttproud/golang_protobuf_extensions v0.0.0-20150406173934-fc2b8d3a73c4
 github.com/matttproud/golang_protobuf_extensions/pbutil
+# github.com/pmezard/go-difflib v1.0.0
+github.com/pmezard/go-difflib/difflib
 # github.com/pquerna/cachecontrol v0.0.0-20160421231612-c97913dcbd76
 github.com/pquerna/cachecontrol
 github.com/pquerna/cachecontrol/cacheobject
@@ -74,6 +80,8 @@ github.com/sirupsen/logrus
 github.com/spf13/cobra
 # github.com/spf13/pflag v0.0.0-20160610190902-367864438f1b
 github.com/spf13/pflag
+# github.com/stretchr/testify v1.2.2
+github.com/stretchr/testify/assert
 # golang.org/x/crypto v0.0.0-20160711182412-2c99acdd1e9b
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish
@@ -109,6 +117,7 @@ golang.org/x/tools/go/gcexportdata
 golang.org/x/tools/go/internal/gcimporter
 # google.golang.org/appengine v0.0.0-20160621060416-267c27e74922
 google.golang.org/appengine/urlfetch
+google.golang.org/appengine/cloudsql
 google.golang.org/appengine/internal
 google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/internal/base

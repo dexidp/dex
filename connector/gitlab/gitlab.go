@@ -13,6 +13,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/log"
 )
 
@@ -31,6 +32,7 @@ type Config struct {
 	ClientSecret string   `json:"clientSecret"`
 	RedirectURI  string   `json:"redirectURI"`
 	Groups       []string `json:"groups"`
+	UseLoginAsID bool     `json:"useLoginAsID"`
 }
 
 type gitlabUser struct {
@@ -54,6 +56,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		clientSecret: c.ClientSecret,
 		logger:       logger,
 		groups:       c.Groups,
+		useLoginAsID: c.UseLoginAsID,
 	}, nil
 }
 
@@ -75,6 +78,8 @@ type gitlabConnector struct {
 	clientSecret string
 	logger       log.Logger
 	httpClient   *http.Client
+	// if set to true will use the user's handle rather than their numeric id as the ID
+	useLoginAsID bool
 }
 
 func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
@@ -146,6 +151,9 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 		Username:      username,
 		Email:         user.Email,
 		EmailVerified: true,
+	}
+	if c.useLoginAsID {
+		identity.UserID = user.Username
 	}
 
 	if s.Groups {
@@ -273,7 +281,7 @@ func (c *gitlabConnector) getGroups(ctx context.Context, client *http.Client, gr
 	}
 
 	if len(c.groups) > 0 {
-		filteredGroups := filterGroups(gitlabGroups, c.groups)
+		filteredGroups := groups.Filter(gitlabGroups, c.groups)
 		if len(filteredGroups) == 0 {
 			return nil, fmt.Errorf("gitlab: user %q is not in any of the required groups", userLogin)
 		}
@@ -283,19 +291,4 @@ func (c *gitlabConnector) getGroups(ctx context.Context, client *http.Client, gr
 	}
 
 	return nil, nil
-}
-
-// Filter the users' group memberships by 'groups' from config.
-func filterGroups(userGroups, configGroups []string) []string {
-	groups := []string{}
-	groupFilter := make(map[string]struct{})
-	for _, group := range configGroups {
-		groupFilter[group] = struct{}{}
-	}
-	for _, group := range userGroups {
-		if _, ok := groupFilter[group]; ok {
-			groups = append(groups, group)
-		}
-	}
-	return groups
 }

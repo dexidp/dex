@@ -5,8 +5,9 @@ require (
 	github.com/beorn7/perks v0.0.0-20160229213445-3ac7bf7a47d1 // indirect
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/cockroachdb/cmux v0.0.0-20170110192607-30d10be49292 // indirect
+	github.com/coreos/dex v2.13.0+incompatible // indirect
 	github.com/coreos/etcd v3.2.9+incompatible
-	github.com/coreos/go-oidc v0.0.0-20170307191026-be73733bb8cc
+	github.com/coreos/go-oidc v2.0.0+incompatible
 	github.com/coreos/go-semver v0.2.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20181031085051-9002847aa142 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
@@ -14,6 +15,7 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/felixge/httpsnoop v1.0.0
 	github.com/ghodss/yaml v0.0.0-20161020005002-bea76d6a4713
+	github.com/go-sql-driver/mysql v1.4.1
 	github.com/gogo/protobuf v1.1.1 // indirect
 	github.com/golang/groupcache v0.0.0-20181024230925-c65c006176ff // indirect
 	github.com/golang/protobuf v0.0.0-20171113180720-1e59b77b52bf
@@ -42,7 +44,7 @@ require (
 	github.com/sirupsen/logrus v0.0.0-20170713114250-a3f95b5c4235
 	github.com/spf13/cobra v0.0.0-20160615143614-bc81c21bd0d8
 	github.com/spf13/pflag v0.0.0-20160610190902-367864438f1b // indirect
-	github.com/stretchr/testify v1.2.2 // indirect
+	github.com/stretchr/testify v1.2.2
 	github.com/ugorji/go/codec v0.0.0-20181127175209-856da096dbdf // indirect
 	github.com/xiang90/probing v0.0.0-20160813154853-07dd2e8dfe18 // indirect
 	golang.org/x/crypto v0.0.0-20160711182412-2c99acdd1e9b

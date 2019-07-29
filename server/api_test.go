@@ -69,8 +69,9 @@ func TestPassword(t *testing.T) {
 	defer client.Close()
 
 	ctx := context.Background()
+	email := "test@example.com"
 	p := api.Password{
-		Email: "test@example.com",
+		Email: email,
 		// bcrypt hash of the value "test1" with cost 10
 		Hash:     []byte("$2a$10$XVMN/Fid.Ks4CXgzo8fpR.iU1khOMsP5g9xQeXuBm1wXjRX8pjUtO"),
 		Username: "test",
@@ -93,8 +94,56 @@ func TestPassword(t *testing.T) {
 		t.Fatalf("Created password %s twice", createReq.Password.Email)
 	}
 
+	// Attempt to verify valid password and email
+	goodVerifyReq := &api.VerifyPasswordReq{
+		Email:    email,
+		Password: "test1",
+	}
+	goodVerifyResp, err := client.VerifyPassword(ctx, goodVerifyReq)
+	if err != nil {
+		t.Fatalf("Unable to run verify password we expected to be valid for correct email: %v", err)
+	}
+	if !goodVerifyResp.Verified {
+		t.Fatalf("verify password failed for password expected to be valid for correct email. expected %t, found %t", true, goodVerifyResp.Verified)
+	}
+	if goodVerifyResp.NotFound {
+		t.Fatalf("verify password failed to return not found response. expected %t, found %t", false, goodVerifyResp.NotFound)
+	}
+
+	// Check not found response for valid password with wrong email
+	badEmailVerifyReq := &api.VerifyPasswordReq{
+		Email:    "somewrongaddress@email.com",
+		Password: "test1",
+	}
+	badEmailVerifyResp, err := client.VerifyPassword(ctx, badEmailVerifyReq)
+	if err != nil {
+		t.Fatalf("Unable to run verify password for incorrect email: %v", err)
+	}
+	if badEmailVerifyResp.Verified {
+		t.Fatalf("verify password passed for password expected to be not found. expected %t, found %t", false, badEmailVerifyResp.Verified)
+	}
+	if !badEmailVerifyResp.NotFound {
+		t.Fatalf("expected not found response for verify password with bad email. expected %t, found %t", true, badEmailVerifyResp.NotFound)
+	}
+
+	// Check that wrong password fails
+	badPassVerifyReq := &api.VerifyPasswordReq{
+		Email:    email,
+		Password: "wrong_password",
+	}
+	badPassVerifyResp, err := client.VerifyPassword(ctx, badPassVerifyReq)
+	if err != nil {
+		t.Fatalf("Unable to run verify password for password we expected to be invalid: %v", err)
+	}
+	if badPassVerifyResp.Verified {
+		t.Fatalf("verify password passed for password we expected to fail. expected %t, found %t", false, badPassVerifyResp.Verified)
+	}
+	if badPassVerifyResp.NotFound {
+		t.Fatalf("did not expect expected not found response for verify password with bad email. expected %t, found %t", false, badPassVerifyResp.NotFound)
+	}
+
 	updateReq := api.UpdatePasswordReq{
-		Email:       "test@example.com",
+		Email:       email,
 		NewUsername: "test1",
 	}
 

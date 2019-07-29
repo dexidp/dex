@@ -88,6 +88,9 @@ a member of. `onlySecurityGroups` configuration option restricts the list to
 include only security groups. By default all groups (security, Office 365,
 mailing lists) are included.
 
+By default, dex resolve groups ids to groups names, to keep groups ids, you can
+specify the configuration option `groupNameFormat: id`.
+
 It is possible to require a user to be a member of a particular group in order
 to be successfully authenticated in dex. For example, with the following
 configuration file only the users who are members of at least one of the listed
@@ -110,3 +113,6 @@ connectors:
         - developers
         - devops
 ```
+
+Also, `useGroupsAsWhitelist` configuration option, can restrict the groups
+claims to include only the user's groups that are in the configured `groups`.

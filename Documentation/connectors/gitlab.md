@@ -33,4 +33,7 @@ connectors:
       # If `groups` is provided, this acts as a whitelist - only the user's GitLab groups that are in the configured `groups` below will go into the groups claim.  Conversely, if the user is not in any of the configured `groups`, the user will not be authenticated.
       groups:
       - my-group
+      # flag which will switch from using the internal GitLab id to the users handle (@mention) as the user id.
+      # It is possible for a user to change their own user name but it is very rare for them to do so
+      useLoginAsID: false
 ```

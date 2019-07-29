@@ -1,14 +1,18 @@
 package sql
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/lib/pq"
 	sqlite3 "github.com/mattn/go-sqlite3"
 
@@ -19,6 +23,12 @@ import (
 const (
 	// postgres error codes
 	pgErrUniqueViolation = "23505" // unique_violation
+)
+
+const (
+	// MySQL error codes
+	mysqlErrDupEntry            = 1062
+	mysqlErrDupEntryWithKeyName = 1586
 )
 
 // SQLite3 options for creating an SQL db.
@@ -63,30 +73,28 @@ func (s *SQLite3) open(logger log.Logger) (*conn, error) {
 }
 
 const (
-	sslDisable    = "disable"
-	sslRequire    = "require"
-	sslVerifyCA   = "verify-ca"
-	sslVerifyFull = "verify-full"
+	// postgres SSL modes
+	pgSSLDisable    = "disable"
+	pgSSLRequire    = "require"
+	pgSSLVerifyCA   = "verify-ca"
+	pgSSLVerifyFull = "verify-full"
 )
 
-// PostgresSSL represents SSL options for Postgres databases.
-type PostgresSSL struct {
-	Mode   string
-	CAFile string
-	// Files for client auth.
-	KeyFile  string
-	CertFile string
-}
+const (
+	// MySQL SSL modes
+	mysqlSSLTrue       = "true"
+	mysqlSSLFalse      = "false"
+	mysqlSSLSkipVerify = "skip-verify"
+	mysqlSSLCustom     = "custom"
+)
 
-// Postgres options for creating an SQL db.
-type Postgres struct {
+// NetworkDB contains options common to SQL databases accessed over network.
+type NetworkDB struct {
 	Database string
 	User     string
 	Password string
 	Host     string
 	Port     uint16
-
-	SSL PostgresSSL `json:"ssl" yaml:"ssl"`
 
 	ConnectionTimeout int // Seconds
 
@@ -98,9 +106,25 @@ type Postgres struct {
 	ConnMaxLifetime int // Seconds, default: not set
 }
 
+// SSL represents SSL options for network databases.
+type SSL struct {
+	Mode   string
+	CAFile string
+	// Files for client auth.
+	KeyFile  string
+	CertFile string
+}
+
+// Postgres options for creating an SQL db.
+type Postgres struct {
+	NetworkDB
+
+	SSL SSL `json:"ssl" yaml:"ssl"`
+}
+
 // Open creates a new storage implementation backed by Postgres.
 func (p *Postgres) Open(logger log.Logger) (storage.Storage, error) {
-	conn, err := p.open(logger, p.createDataSourceName())
+	conn, err := p.open(logger)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +183,7 @@ func (p *Postgres) createDataSourceName() string {
 
 	if p.SSL.Mode == "" {
 		// Assume the strictest mode if unspecified.
-		addParam("sslmode", dataSourceStr(sslVerifyFull))
+		addParam("sslmode", dataSourceStr(pgSSLVerifyFull))
 	} else {
 		addParam("sslmode", dataSourceStr(p.SSL.Mode))
 	}
@@ -179,7 +203,9 @@ func (p *Postgres) createDataSourceName() string {
 	return strings.Join(parameters, " ")
 }
 
-func (p *Postgres) open(logger log.Logger, dataSourceName string) (*conn, error) {
+func (p *Postgres) open(logger log.Logger) (*conn, error) {
+	dataSourceName := p.createDataSourceName()
+
 	db, err := sql.Open("postgres", dataSourceName)
 	if err != nil {
 		return nil, err
@@ -215,4 +241,109 @@ func (p *Postgres) open(logger log.Logger, dataSourceName string) (*conn, error)
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}
 	return c, nil
+}
+
+// MySQL options for creating a MySQL db.
+type MySQL struct {
+	NetworkDB
+
+	SSL SSL `json:"ssl" yaml:"ssl"`
+
+	// TODO(pborzenkov): used by tests to reduce lock wait timeout. Should
+	// we make it exported and allow users to provide arbitrary params?
+	params map[string]string
+}
+
+// Open creates a new storage implementation backed by MySQL.
+func (s *MySQL) Open(logger log.Logger) (storage.Storage, error) {
+	conn, err := s.open(logger)
+	if err != nil {
+		return nil, err
+	}
+	return conn, nil
+}
+
+func (s *MySQL) open(logger log.Logger) (*conn, error) {
+	cfg := mysql.Config{
+		User:                 s.User,
+		Passwd:               s.Password,
+		DBName:               s.Database,
+		AllowNativePasswords: true,
+
+		Timeout: time.Second * time.Duration(s.ConnectionTimeout),
+
+		ParseTime: true,
+		Params: map[string]string{
+			"transaction_isolation": "'SERIALIZABLE'",
+		},
+	}
+	if s.Host != "" {
+		if s.Host[0] != '/' {
+			cfg.Net = "tcp"
+			cfg.Addr = s.Host
+		} else {
+			cfg.Net = "unix"
+			cfg.Addr = s.Host
+		}
+	}
+	if s.SSL.CAFile != "" || s.SSL.CertFile != "" || s.SSL.KeyFile != "" {
+		if err := s.makeTLSConfig(); err != nil {
+			return nil, fmt.Errorf("failed to make TLS config: %v", err)
+		}
+		cfg.TLSConfig = mysqlSSLCustom
+	} else if s.SSL.Mode == "" {
+		cfg.TLSConfig = mysqlSSLTrue
+	} else {
+		cfg.TLSConfig = s.SSL.Mode
+	}
+	for k, v := range s.params {
+		cfg.Params[k] = v
+	}
+
+	db, err := sql.Open("mysql", cfg.FormatDSN())
+	if err != nil {
+		return nil, err
+	}
+
+	errCheck := func(err error) bool {
+		sqlErr, ok := err.(*mysql.MySQLError)
+		if !ok {
+			return false
+		}
+		return sqlErr.Number == mysqlErrDupEntry ||
+			sqlErr.Number == mysqlErrDupEntryWithKeyName
+	}
+
+	c := &conn{db, flavorMySQL, logger, errCheck}
+	if _, err := c.migrate(); err != nil {
+		return nil, fmt.Errorf("failed to perform migrations: %v", err)
+	}
+	return c, nil
+}
+
+func (s *MySQL) makeTLSConfig() error {
+	cfg := &tls.Config{}
+	if s.SSL.CAFile != "" {
+		rootCertPool := x509.NewCertPool()
+		pem, err := ioutil.ReadFile(s.SSL.CAFile)
+		if err != nil {
+			return err
+		}
+		if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
+			return fmt.Errorf("failed to append PEM")
+		}
+		cfg.RootCAs = rootCertPool
+	}
+	if s.SSL.CertFile != "" && s.SSL.KeyFile != "" {
+		clientCert := make([]tls.Certificate, 0, 1)
+		certs, err := tls.LoadX509KeyPair(s.SSL.CertFile, s.SSL.KeyFile)
+		if err != nil {
+			return err
+		}
+		clientCert = append(clientCert, certs)
+		cfg.Certificates = clientCert
+	}
+
+	mysql.RegisterTLSConfig(mysqlSSLCustom, cfg)
+	return nil
 }

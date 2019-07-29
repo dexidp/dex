@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rsa"
@@ -99,6 +100,7 @@ const (
 	errUnsupportedGrantType    = "unsupported_grant_type"
 	errInvalidGrant            = "invalid_grant"
 	errInvalidClient           = "invalid_client"
+	errInvalidConnectorID      = "invalid_connector_id"
 )
 
 const (
@@ -265,6 +267,11 @@ type federatedIDClaims struct {
 	UserID      string `json:"user_id,omitempty"`
 }
 
+func (s *Server) newAccessToken(clientID string, claims storage.Claims, scopes []string, nonce, connID string) (accessToken string, err error) {
+	idToken, _, err := s.newIDToken(clientID, claims, scopes, nonce, storage.NewID(), connID)
+	return idToken, err
+}
+
 func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, connID string) (idToken string, expiry time.Time, err error) {
 	keys, err := s.storage.GetKeys()
 	if err != nil {
@@ -372,19 +379,20 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 }
 
 // parse the initial request from the OAuth2 client.
-func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthRequest, oauth2Err *authErr) {
+func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthRequest, error) {
 	if err := r.ParseForm(); err != nil {
-		return req, &authErr{"", "", errInvalidRequest, "Failed to parse request body."}
+		return nil, &authErr{"", "", errInvalidRequest, "Failed to parse request body."}
 	}
 	q := r.Form
 	redirectURI, err := url.QueryUnescape(q.Get("redirect_uri"))
 	if err != nil {
-		return req, &authErr{"", "", errInvalidRequest, "No redirect_uri provided."}
+		return nil, &authErr{"", "", errInvalidRequest, "No redirect_uri provided."}
 	}
 
 	clientID := q.Get("client_id")
 	state := q.Get("state")
 	nonce := q.Get("nonce")
+	connectorID := q.Get("connector_id")
 	// Some clients, like the old go-oidc, provide extra whitespace. Tolerate this.
 	scopes := strings.Fields(q.Get("scope"))
 	responseTypes := strings.Fields(q.Get("response_type"))
@@ -393,15 +401,25 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 	if err != nil {
 		if err == storage.ErrNotFound {
 			description := fmt.Sprintf("Invalid client_id (%q).", clientID)
-			return req, &authErr{"", "", errUnauthorizedClient, description}
+			return nil, &authErr{"", "", errUnauthorizedClient, description}
 		}
 		s.logger.Errorf("Failed to get client: %v", err)
-		return req, &authErr{"", "", errServerError, ""}
+		return nil, &authErr{"", "", errServerError, ""}
+	}
+
+	if connectorID != "" {
+		connectors, err := s.storage.ListConnectors()
+		if err != nil {
+			return nil, &authErr{"", "", errServerError, "Unable to retrieve connectors"}
+		}
+		if !validateConnectorID(connectors, connectorID) {
+			return nil, &authErr{"", "", errInvalidRequest, "Invalid ConnectorID"}
+		}
 	}
 
 	if !validateRedirectURI(client, redirectURI) {
 		description := fmt.Sprintf("Unregistered redirect_uri (%q).", redirectURI)
-		return req, &authErr{"", "", errInvalidRequest, description}
+		return nil, &authErr{"", "", errInvalidRequest, description}
 	}
 
 	// From here on out, we want to redirect back to the client with an error.
@@ -428,7 +446,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 
 			isTrusted, err := s.validateCrossClientTrust(clientID, peerID)
 			if err != nil {
-				return req, newErr(errServerError, "Internal server error.")
+				return nil, newErr(errServerError, "Internal server error.")
 			}
 			if !isTrusted {
 				invalidScopes = append(invalidScopes, scope)
@@ -436,13 +454,13 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 		}
 	}
 	if !hasOpenIDScope {
-		return req, newErr("invalid_scope", `Missing required scope(s) ["openid"].`)
+		return nil, newErr("invalid_scope", `Missing required scope(s) ["openid"].`)
 	}
 	if len(unrecognized) > 0 {
-		return req, newErr("invalid_scope", "Unrecognized scope(s) %q", unrecognized)
+		return nil, newErr("invalid_scope", "Unrecognized scope(s) %q", unrecognized)
 	}
 	if len(invalidScopes) > 0 {
-		return req, newErr("invalid_scope", "Client can't request scope(s) %q", invalidScopes)
+		return nil, newErr("invalid_scope", "Client can't request scope(s) %q", invalidScopes)
 	}
 
 	var rt struct {
@@ -460,23 +478,23 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 		case responseTypeToken:
 			rt.token = true
 		default:
-			return req, newErr("invalid_request", "Invalid response type %q", responseType)
+			return nil, newErr("invalid_request", "Invalid response type %q", responseType)
 		}
 
 		if !s.supportedResponseTypes[responseType] {
-			return req, newErr(errUnsupportedResponseType, "Unsupported response type %q", responseType)
+			return nil, newErr(errUnsupportedResponseType, "Unsupported response type %q", responseType)
 		}
 	}
 
 	if len(responseTypes) == 0 {
-		return req, newErr("invalid_requests", "No response_type provided")
+		return nil, newErr("invalid_requests", "No response_type provided")
 	}
 
 	if rt.token && !rt.code && !rt.idToken {
 		// "token" can't be provided by its own.
 		//
 		// https://openid.net/specs/openid-connect-core-1_0.html#Authentication
-		return req, newErr("invalid_request", "Response type 'token' must be provided with type 'id_token' and/or 'code'")
+		return nil, newErr("invalid_request", "Response type 'token' must be provided with type 'id_token' and/or 'code'")
 	}
 	if !rt.code {
 		// Either "id_token code" or "id_token" has been provided which implies the
@@ -484,17 +502,17 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 		//
 		// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitAuthRequest
 		if nonce == "" {
-			return req, newErr("invalid_request", "Response type 'token' requires a 'nonce' value.")
+			return nil, newErr("invalid_request", "Response type 'token' requires a 'nonce' value.")
 		}
 	}
 	if rt.token {
 		if redirectURI == redirectURIOOB {
 			err := fmt.Sprintf("Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
-			return req, newErr("invalid_request", err)
+			return nil, newErr("invalid_request", err)
 		}
 	}
 
-	return storage.AuthRequest{
+	return &storage.AuthRequest{
 		ID:                  storage.NewID(),
 		ClientID:            client.ID,
 		State:               state,
@@ -503,6 +521,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 		Scopes:              scopes,
 		RedirectURI:         redirectURI,
 		ResponseTypes:       responseTypes,
+		ConnectorID:         connectorID,
 	}, nil
 }
 
@@ -560,4 +579,51 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 	}
 	host, _, err := net.SplitHostPort(u.Host)
 	return err == nil && host == "localhost"
+}
+
+func validateConnectorID(connectors []storage.Connector, connectorID string) bool {
+	for _, c := range connectors {
+		if c.ID == connectorID {
+			return true
+		}
+	}
+	return false
+}
+
+// storageKeySet implements the oidc.KeySet interface backed by Dex storage
+type storageKeySet struct {
+	storage.Storage
+}
+
+func (s *storageKeySet) VerifySignature(_ context.Context, jwt string) (payload []byte, err error) {
+	jws, err := jose.ParseSigned(jwt)
+	if err != nil {
+		return nil, err
+	}
+
+	keyID := ""
+	for _, sig := range jws.Signatures {
+		keyID = sig.Header.KeyID
+		break
+	}
+
+	skeys, err := s.Storage.GetKeys()
+	if err != nil {
+		return nil, err
+	}
+
+	keys := []*jose.JSONWebKey{skeys.SigningKeyPub}
+	for _, vk := range skeys.VerificationKeys {
+		keys = append(keys, vk.PublicKey)
+	}
+
+	for _, key := range keys {
+		if keyID == "" || key.KeyID == keyID {
+			if payload, err := jws.Verify(key); err == nil {
+				return payload, nil
+			}
+		}
+	}
+
+	return nil, errors.New("failed to verify id token signature")
 }

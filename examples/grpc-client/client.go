@@ -76,6 +76,39 @@ func createPassword(cli api.DexClient) error {
 		log.Printf("%+v", pass)
 	}
 
+	// Verifying correct and incorrect passwords
+	log.Print("Verifying Password:\n")
+	verifyReq := &api.VerifyPasswordReq{
+		Email:    "test@example.com",
+		Password: "test1",
+	}
+	verifyResp, err := cli.VerifyPassword(context.TODO(), verifyReq)
+	if err != nil {
+		return fmt.Errorf("failed to run VerifyPassword for correct password: %v", err)
+	}
+	if !verifyResp.Verified {
+		return fmt.Errorf("failed to verify correct password: %v", verifyResp)
+	}
+	log.Printf("properly verified correct password: %t\n", verifyResp.Verified)
+
+	badVerifyReq := &api.VerifyPasswordReq{
+		Email:    "test@example.com",
+		Password: "wrong_password",
+	}
+	badVerifyResp, err := cli.VerifyPassword(context.TODO(), badVerifyReq)
+	if err != nil {
+		return fmt.Errorf("failed to run VerifyPassword for incorrect password: %v", err)
+	}
+	if badVerifyResp.Verified {
+		return fmt.Errorf("verify returned true for incorrect password: %v", badVerifyResp)
+	}
+	log.Printf("properly failed to verify incorrect password: %t\n", badVerifyResp.Verified)
+
+	log.Print("Listing Passwords:\n")
+	for _, pass := range resp.Passwords {
+		log.Printf("%+v", pass)
+	}
+
 	deleteReq := &api.DeletePasswordReq{
 		Email: p.Email,
 	}
