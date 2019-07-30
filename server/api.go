@@ -275,7 +275,7 @@ func (d dexAPI) VerifyPassword(ctx context.Context, req *api.VerifyPasswordReq) 
 	}
 
 	if err := bcrypt.CompareHashAndPassword(password.Hash, []byte(req.Password)); err != nil {
-		d.logger.Info("api: password check failed : %v", err)
+		d.logger.Infof("api: password check failed: %v", err)
 		return &api.VerifyPasswordResp{
 			Verified: false,
 		}, nil
