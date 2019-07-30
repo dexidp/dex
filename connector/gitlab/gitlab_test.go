@@ -185,13 +185,11 @@ func TestLoginWithTeamNonWhitelisted(t *testing.T) {
 }
 
 func newTestServer(responses map[string]interface{}) *httptest.Server {
-	var s *httptest.Server
-	s = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response := responses[r.RequestURI]
 		w.Header().Add("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
 	}))
-	return s
 }
 
 func newClient() *http.Client {

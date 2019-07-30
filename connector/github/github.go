@@ -443,7 +443,7 @@ func (c *githubConnector) userOrgs(ctx context.Context, client *http.Client) ([]
 // userOrgTeams retrieves teams which current user belongs to.
 // Method returns a map where key is an org name and value list of teams under the org.
 func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client) (map[string][]string, error) {
-	groups := make(map[string][]string, 0)
+	groups := make(map[string][]string)
 	apiURL := c.apiURL + "/user/teams"
 	for {
 		// https://developer.github.com/v3/orgs/teams/#list-user-teams

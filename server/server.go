@@ -426,7 +426,6 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 			}
 		}
 	}()
-	return
 }
 
 // ConnectorConfig is a configuration that can open a connector.

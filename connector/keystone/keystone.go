@@ -241,6 +241,9 @@ func (p *conn) getUserGroups(ctx context.Context, userID string, token string) (
 	// https://developer.openstack.org/api-ref/identity/v3/#list-groups-to-which-a-user-belongs
 	groupsURL := p.Host + "/v3/users/" + userID + "/groups"
 	req, err := http.NewRequest("GET", groupsURL, nil)
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Set("X-Auth-Token", token)
 	req = req.WithContext(ctx)
 	resp, err := client.Do(req)
