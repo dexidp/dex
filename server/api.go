@@ -79,6 +79,32 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 	}, nil
 }
 
+func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetClientResp, error) {
+	if req.Id == "" {
+		return nil, errors.New("get client: no client ID supplied")
+	}
+
+	client, err := d.s.GetClient(req.Id)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			return &api.GetClientResp{Client: nil, NotFound: true}, nil
+		}
+		d.logger.Errorf("api: failed to get client: %v", err)
+		return nil, fmt.Errorf("get client: %v", err)
+	}
+
+	c := api.Client{
+		Id:           client.ID,
+		Secret:       client.Secret,
+		RedirectUris: client.RedirectURIs,
+		TrustedPeers: client.TrustedPeers,
+		Public:       client.Public,
+		Name:         client.Name,
+		LogoUrl:      client.LogoURL,
+	}
+	return &api.GetClientResp{Client: &c, NotFound: false}, nil
+}
+
 func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*api.UpdateClientResp, error) {
 	if req.Id == "" {
 		return nil, errors.New("update client: no client ID supplied")
@@ -120,6 +146,33 @@ func (d dexAPI) DeleteClient(ctx context.Context, req *api.DeleteClientReq) (*ap
 		return nil, fmt.Errorf("delete client: %v", err)
 	}
 	return &api.DeleteClientResp{}, nil
+}
+
+func (d dexAPI) ListClients(ctx context.Context, req *api.ListClientReq) (*api.ListClientResp, error) {
+	clientList, err := d.s.ListClients()
+	if err != nil {
+		d.logger.Errorf("api: failed to list clients: %v", err)
+		return nil, fmt.Errorf("list clients: %v", err)
+	}
+
+	var clients []*api.Client
+	for _, client := range clientList {
+		c := api.Client{
+			Id:           client.ID,
+			Secret:       client.Secret,
+			RedirectUris: client.RedirectURIs,
+			TrustedPeers: client.TrustedPeers,
+			Public:       client.Public,
+			Name:         client.Name,
+			LogoUrl:      client.LogoURL,
+		}
+		clients = append(clients, &c)
+	}
+
+	return &api.ListClientResp{
+		Clients: clients,
+	}, nil
+
 }
 
 // checkCost returns an error if the hash provided does not meet lower or upper

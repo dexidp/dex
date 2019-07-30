@@ -2,19 +2,19 @@ package server
 
 import (
 	"context"
+	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 	"net"
 	"os"
 	"testing"
 	"time"
-
-	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 
 	"github.com/dexidp/dex/api"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
+	"reflect"
 )
 
 // apiClient is a test gRPC client. When constructed, it runs a server in
@@ -341,6 +341,161 @@ func TestRefreshToken(t *testing.T) {
 	}
 }
 
+func TestGetClient(t *testing.T) {
+	logger := &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level:     logrus.DebugLevel,
+	}
+
+	s := memory.New(logger)
+	client := newAPI(s, logger, t)
+	defer client.Close()
+	ctx := context.Background()
+
+	createClient := func(t *testing.T, clientId string) {
+		resp, err := client.CreateClient(ctx, &api.CreateClientReq{
+			Client: &api.Client{
+				Id:           clientId,
+				Secret:       "secret",
+				RedirectUris: []string{"http://redirect1", "http://redirect2"},
+				TrustedPeers: nil,
+				Public:       true,
+				Name:         "test",
+				LogoUrl:      "http://logo.ico",
+			},
+		})
+		if err != nil {
+			t.Fatalf("unable to create the client: %v", err)
+		}
+
+		if resp == nil {
+			t.Fatalf("create client returned no response")
+		}
+		if resp.AlreadyExists {
+			t.Error("existing client was found")
+		}
+
+		if resp.Client == nil {
+			t.Fatalf("no client created")
+		}
+	}
+
+	deleteClient := func(t *testing.T, clientId string) {
+		resp, err := client.DeleteClient(ctx, &api.DeleteClientReq{
+			Id: clientId,
+		})
+		if err != nil {
+			t.Fatalf("unable to delete the client: %v", err)
+		}
+		if resp == nil {
+			t.Fatalf("delete client delete client returned no response")
+		}
+	}
+
+	tests := map[string]struct {
+		setup   func(t *testing.T, clientId string)
+		cleanup func(t *testing.T, clientId string)
+		req     *api.GetClientReq
+		wantErr bool
+		want    *api.GetClientResp
+	}{
+		"get client": {
+			setup:   createClient,
+			cleanup: deleteClient,
+			req: &api.GetClientReq{
+				Id: "test",
+			},
+			wantErr: false,
+			want: &api.GetClientResp{
+				Client: &api.Client{
+					Id:           "test",
+					Secret:       "secret",
+					RedirectUris: []string{"http://redirect1", "http://redirect2"},
+					TrustedPeers: nil,
+					Public:       true,
+					Name:         "test",
+					LogoUrl:      "http://logo.ico",
+				},
+				NotFound: false,
+			},
+		},
+		"get client without ID": {
+			setup:   createClient,
+			cleanup: deleteClient,
+			req: &api.GetClientReq{
+				Id: "",
+			},
+			wantErr: true,
+			want: &api.GetClientResp{
+				Client:   nil,
+				NotFound: false,
+			},
+		},
+		"get client which not exists ": {
+			req: &api.GetClientReq{
+				Id: "test",
+			},
+			wantErr: false,
+			want: &api.GetClientResp{
+				Client:   nil,
+				NotFound: true,
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			if tc.setup != nil {
+				tc.setup(t, tc.req.Id)
+			}
+			resp, err := client.GetClient(ctx, tc.req)
+			if err != nil && !tc.wantErr {
+				t.Fatalf("failed to get the client: %v", err)
+			}
+
+			if !tc.wantErr {
+				if resp == nil {
+					t.Fatalf("get client response not found")
+				}
+
+				if tc.want.NotFound != resp.NotFound {
+					t.Errorf("expected in response NotFound: %t", tc.want.NotFound)
+				}
+
+				if tc.want.Client != nil {
+					if resp.Client.Id != tc.want.Client.Id {
+						t.Errorf("expected stored client with ID: %s, found %s", resp.Client.Id, tc.want.Client.Id)
+					}
+					if resp.Client.Name != tc.want.Client.Name {
+						t.Errorf("expected stored client with Name: %s, found %s", resp.Client.Name, tc.want.Client.Name)
+					}
+					if resp.Client.LogoUrl != tc.want.Client.LogoUrl {
+						t.Errorf("expected stored client with LogoURL: %s, found %s", resp.Client.LogoUrl, tc.want.Client.LogoUrl)
+					}
+					for _, redirectURI := range resp.Client.RedirectUris {
+						found := find(redirectURI, tc.want.Client.RedirectUris)
+						if !found {
+							t.Errorf("expected redirect URI: %s", redirectURI)
+						}
+					}
+					for _, peer := range resp.Client.TrustedPeers {
+						found := find(peer, tc.want.Client.TrustedPeers)
+						if !found {
+							t.Errorf("expected trusted peer: %s", peer)
+						}
+					}
+				}
+			}
+
+			if tc.cleanup != nil {
+				tc.cleanup(t, tc.req.Id)
+			}
+
+		})
+	}
+}
+
 func TestUpdateClient(t *testing.T) {
 	logger := &logrus.Logger{
 		Out:       os.Stderr,
@@ -438,9 +593,9 @@ func TestUpdateClient(t *testing.T) {
 				Name:         "test",
 				LogoUrl:      "test",
 			},
-			wantErr: true,
+			wantErr: false,
 			want: &api.UpdateClientResp{
-				NotFound: false,
+				NotFound: true,
 			},
 		},
 	}
@@ -464,30 +619,32 @@ func TestUpdateClient(t *testing.T) {
 					t.Errorf("expected in response NotFound: %t", tc.want.NotFound)
 				}
 
-				client, err := s.GetClient(tc.req.Id)
-				if err != nil {
-					t.Errorf("no client found in the storage: %v", err)
-				}
-
-				if tc.req.Id != client.ID {
-					t.Errorf("expected stored client with ID: %s, found %s", tc.req.Id, client.ID)
-				}
-				if tc.req.Name != client.Name {
-					t.Errorf("expected stored client with Name: %s, found %s", tc.req.Name, client.Name)
-				}
-				if tc.req.LogoUrl != client.LogoURL {
-					t.Errorf("expected stored client with LogoURL: %s, found %s", tc.req.LogoUrl, client.LogoURL)
-				}
-				for _, redirectURI := range tc.req.RedirectUris {
-					found := find(redirectURI, client.RedirectURIs)
-					if !found {
-						t.Errorf("expected redirect URI: %s", redirectURI)
+				if !tc.want.NotFound {
+					client, err := s.GetClient(tc.req.Id)
+					if err != nil {
+						t.Errorf("no client found in the storage: %v", err)
 					}
-				}
-				for _, peer := range tc.req.TrustedPeers {
-					found := find(peer, client.TrustedPeers)
-					if !found {
-						t.Errorf("expected trusted peer: %s", peer)
+
+					if tc.req.Id != client.ID {
+						t.Errorf("expected stored client with ID: %s, found %s", tc.req.Id, client.ID)
+					}
+					if tc.req.Name != client.Name {
+						t.Errorf("expected stored client with Name: %s, found %s", tc.req.Name, client.Name)
+					}
+					if tc.req.LogoUrl != client.LogoURL {
+						t.Errorf("expected stored client with LogoURL: %s, found %s", tc.req.LogoUrl, client.LogoURL)
+					}
+					for _, redirectURI := range tc.req.RedirectUris {
+						found := find(redirectURI, client.RedirectURIs)
+						if !found {
+							t.Errorf("expected redirect URI: %s", redirectURI)
+						}
+					}
+					for _, peer := range tc.req.TrustedPeers {
+						found := find(peer, client.TrustedPeers)
+						if !found {
+							t.Errorf("expected trusted peer: %s", peer)
+						}
 					}
 				}
 			}
@@ -500,9 +657,143 @@ func TestUpdateClient(t *testing.T) {
 	}
 }
 
+func TestListClients(t *testing.T) {
+	logger := &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level:     logrus.DebugLevel,
+	}
+
+	s := memory.New(logger)
+	client := newAPI(s, logger, t)
+	defer client.Close()
+	ctx := context.Background()
+
+	client1 := api.Client{
+		Id:           "test1",
+		Secret:       "secret1",
+		RedirectUris: []string{"http://redirect1"},
+		TrustedPeers: nil,
+		Public:       true,
+		Name:         "test1",
+		LogoUrl:      "http://logo1.ico",
+	}
+	client2 := api.Client{
+		Id:           "test2",
+		Secret:       "secret2",
+		RedirectUris: []string{"http://redirect2"},
+		TrustedPeers: nil,
+		Public:       false,
+		Name:         "test2",
+		LogoUrl:      "http://logo2.ico",
+	}
+
+	createClients := func(t *testing.T) {
+		for _, c := range []api.Client{client1, client2} {
+			resp, err := client.CreateClient(ctx, &api.CreateClientReq{
+				Client: &c})
+			if err != nil {
+				t.Fatalf("unable to create the client: %v", err)
+			}
+
+			if resp == nil {
+				t.Fatalf("create client returned no response")
+			}
+			if resp.AlreadyExists {
+				t.Error("existing client was found")
+			}
+
+			if resp.Client == nil {
+				t.Fatalf("no client created")
+			}
+
+		}
+	}
+
+	deleteClients := func(t *testing.T) {
+		for _, c := range []string{"test1", "test2"} {
+			resp, err := client.DeleteClient(ctx, &api.DeleteClientReq{
+				Id: c,
+			})
+			if err != nil {
+				t.Fatalf("unable to delete the client: %v", err)
+			}
+			if resp == nil {
+				t.Fatalf("delete client delete client returned no response")
+			}
+		}
+	}
+
+	tests := map[string]struct {
+		setup   func(t *testing.T)
+		cleanup func(t *testing.T)
+		req     *api.ListClientReq
+		wantErr bool
+		want    *api.ListClientResp
+	}{
+		"list clients": {
+			setup:   createClients,
+			cleanup: deleteClients,
+			wantErr: false,
+			want: &api.ListClientResp{
+				Clients: []*api.Client{
+					&client1,
+					&client2,
+				},
+			},
+		},
+		"list clients which is empty case": {
+			wantErr: false,
+			want: &api.ListClientResp{
+				Clients: nil,
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			if tc.setup != nil {
+				tc.setup(t)
+			}
+			resp, err := client.ListClients(ctx, &api.ListClientReq{})
+			if err != nil && !tc.wantErr {
+				t.Fatalf("failed to get the client list: %v", err)
+			}
+
+			if !tc.wantErr {
+				if resp == nil {
+					t.Fatalf("list client response not found")
+				}
+
+				if tc.setup != nil {
+					for _, c := range []api.Client{client1, client2} {
+						if !findClient(&c, resp.Clients) {
+							t.Errorf("expected contained client: %v", &c)
+						}
+					}
+				}
+			}
+
+			if tc.cleanup != nil {
+				tc.cleanup(t)
+			}
+
+		})
+	}
+}
+
 func find(item string, items []string) bool {
 	for _, i := range items {
 		if item == i {
+			return true
+		}
+	}
+	return false
+}
+
+func findClient(client *api.Client, clients []*api.Client) bool {
+	for _, c := range clients {
+		if reflect.DeepEqual(&c, &client) {
 			return true
 		}
 	}
