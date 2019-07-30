@@ -136,7 +136,7 @@ func serve(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return fmt.Errorf("invalid config: reading from client CA file: %v", err)
 			}
-			if cPool.AppendCertsFromPEM(clientCert) != true {
+			if !cPool.AppendCertsFromPEM(clientCert) {
 				return errors.New("invalid config: failed to parse client CA")
 			}
 

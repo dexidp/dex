@@ -72,6 +72,7 @@ func (s *SQLite3) open(logger log.Logger) (*conn, error) {
 	return c, nil
 }
 
+// nolint
 const (
 	// postgres SSL modes
 	pgSSLDisable    = "disable"
@@ -80,6 +81,7 @@ const (
 	pgSSLVerifyFull = "verify-full"
 )
 
+// nolint
 const (
 	// MySQL SSL modes
 	mysqlSSLTrue       = "true"

@@ -552,7 +552,6 @@ func TestOAuth2CodeFlow(t *testing.T) {
 					t.Errorf("state did not match, want=%q got=%q", state, gotState)
 				}
 				w.WriteHeader(http.StatusOK)
-				return
 			}))
 
 			defer oauth2Client.Close()
@@ -1204,7 +1203,6 @@ func TestRefreshTokenFlow(t *testing.T) {
 			t.Errorf("state did not match, want=%q got=%q", state, gotState)
 		}
 		w.WriteHeader(http.StatusOK)
-		return
 	}))
 	defer oauth2Client.server.Close()
 
@@ -1242,8 +1240,7 @@ func TestRefreshTokenFlow(t *testing.T) {
 	}
 
 	// try to refresh expired token with old refresh token.
-	newToken, err := oauth2Client.config.TokenSource(ctx, tok).Token()
-	if newToken != nil {
-		t.Errorf("Token refreshed with invalid refresh token.")
+	if _, err := oauth2Client.config.TokenSource(ctx, tok).Token(); err == nil {
+		t.Errorf("Token refreshed with invalid refresh token, error expected.")
 	}
 }
