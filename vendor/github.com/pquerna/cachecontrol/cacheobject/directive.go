@@ -41,6 +41,10 @@ var (
 	ErrMustRevalidateNoArgs  = errors.New("Unexpected argument to `must-revalidate`")
 	ErrPublicNoArgs          = errors.New("Unexpected argument to `public`")
 	ErrProxyRevalidateNoArgs = errors.New("Unexpected argument to `proxy-revalidate`")
+	// Experimental
+	ErrImmutableNoArgs                  = errors.New("Unexpected argument to `immutable`")
+	ErrStaleIfErrorDeltaSeconds         = errors.New("Failed to parse delta-seconds in `stale-if-error`")
+	ErrStaleWhileRevalidateDeltaSeconds = errors.New("Failed to parse delta-seconds in `stale-while-revalidate`")
 )
 
 func whitespace(b byte) bool {
@@ -70,7 +74,8 @@ func parse(value string, cd cacheDirective) error {
 			j++
 		}
 
-		token := value[i:j]
+		token := strings.ToLower(value[i:j])
+		tokenHasFields := hasFieldNames(token)
 		/*
 			println("GOT TOKEN:")
 			println("	i -> ", i)
@@ -92,15 +97,21 @@ func parse(value string, cd cacheDirective) error {
 			} else {
 				z := k
 				for z < len(value) {
-					if whitespace(value[z]) {
-						break
+					if tokenHasFields {
+						if whitespace(value[z]) {
+							break
+						}
+					} else {
+						if whitespace(value[z]) || value[z] == ',' {
+							break
+						}
 					}
 					z++
 				}
 				i = z
 
 				result := value[k:z]
-				if result[len(result)-1] == ',' {
+				if result != "" && result[len(result)-1] == ',' {
 					result = result[:len(result)-1]
 				}
 
@@ -253,10 +264,19 @@ func (cd *RequestCacheDirectives) addPair(token string, v string) error {
 	switch token {
 	case "max-age":
 		cd.MaxAge, err = parseDeltaSeconds(v)
+		if err != nil {
+			err = ErrMaxAgeDeltaSeconds
+		}
 	case "max-stale":
 		cd.MaxStale, err = parseDeltaSeconds(v)
+		if err != nil {
+			err = ErrMaxStaleDeltaSeconds
+		}
 	case "min-fresh":
 		cd.MinFresh, err = parseDeltaSeconds(v)
+		if err != nil {
+			err = ErrMinFreshDeltaSeconds
+		}
 	case "no-cache":
 		err = ErrNoCacheNoArgs
 	case "no-store":
@@ -387,6 +407,21 @@ type ResponseCacheDirectives struct {
 	// proxy-revalidate response directive.
 	SMaxAge DeltaSeconds
 
+	////
+	// Experimental features
+	// - https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control#Extension_Cache-Control_directives
+	// - https://www.fastly.com/blog/stale-while-revalidate-stale-if-error-available-today
+	////
+
+	// immutable(cast-to-bool): experimental feature
+	Immutable bool
+
+	// stale-if-error(delta seconds): experimental feature
+	StaleIfError DeltaSeconds
+
+	// stale-while-revalidate(delta seconds): experimental feature
+	StaleWhileRevalidate DeltaSeconds
+
 	// Extensions: http://tools.ietf.org/html/rfc7234#section-5.2.3
 	//
 	// The Cache-Control header field can be extended through the use of one
@@ -400,6 +435,9 @@ func ParseResponseCacheControl(value string) (*ResponseCacheDirectives, error) {
 	cd := &ResponseCacheDirectives{
 		MaxAge:  -1,
 		SMaxAge: -1,
+		// Exerimantal stale timeouts
+		StaleIfError:         -1,
+		StaleWhileRevalidate: -1,
 	}
 
 	err := parse(value, cd)
@@ -430,10 +468,27 @@ func (cd *ResponseCacheDirectives) addToken(token string) error {
 		err = ErrMaxAgeDeltaSeconds
 	case "s-maxage":
 		err = ErrSMaxAgeDeltaSeconds
+	// Experimental
+	case "immutable":
+		cd.Immutable = true
+	case "stale-if-error":
+		err = ErrMaxAgeDeltaSeconds
+	case "stale-while-revalidate":
+		err = ErrMaxAgeDeltaSeconds
 	default:
 		cd.Extensions = append(cd.Extensions, token)
 	}
 	return err
+}
+
+func hasFieldNames(token string) bool {
+	switch token {
+	case "no-cache":
+		return true
+	case "private":
+		return true
+	}
+	return false
 }
 
 func (cd *ResponseCacheDirectives) addPair(token string, v string) error {
@@ -474,6 +529,13 @@ func (cd *ResponseCacheDirectives) addPair(token string, v string) error {
 		cd.MaxAge, err = parseDeltaSeconds(v)
 	case "s-maxage":
 		cd.SMaxAge, err = parseDeltaSeconds(v)
+	// Experimental
+	case "immutable":
+		err = ErrImmutableNoArgs
+	case "stale-if-error":
+		cd.StaleIfError, err = parseDeltaSeconds(v)
+	case "stale-while-revalidate":
+		cd.StaleWhileRevalidate, err = parseDeltaSeconds(v)
 	default:
 		// TODO(pquerna): this sucks, making user re-parse, and its technically not 'quoted' like the original,
 		// but this is still easier, just a SplitN on "="
