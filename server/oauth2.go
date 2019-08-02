@@ -397,6 +397,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	// Some clients, like the old go-oidc, provide extra whitespace. Tolerate this.
 	scopes := strings.Fields(q.Get("scope"))
 	responseTypes := strings.Fields(q.Get("response_type"))
+	tokenHint := q.Get("id_token_hint")
 
 	client, err := s.storage.GetClient(clientID)
 	if err != nil {
@@ -406,6 +407,24 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		}
 		s.logger.Errorf("Failed to get client: %v", err)
 		return nil, &authErr{"", "", errServerError, ""}
+	}
+
+	// TODO: we don't currently handle prompt but should verify prompt=none
+	if tokenHint != "" {
+		keystore := &storageKeySet{s.storage}
+		payload, err := keystore.VerifySignature(context.TODO(), tokenHint)
+		if err != nil {
+			return nil, &authErr{"", "", errInvalidRequest, "Could not verify id_token_hint"}
+		}
+		claims := idTokenClaims{}
+		if err := json.Unmarshal(payload, &claims); err != nil {
+			return nil, &authErr{"", "", errInvalidRequest, "id_token_hint has invalid claims"}
+		}
+		sub := internal.IDTokenSubject{}
+		if err := internal.Unmarshal(claims.Subject, &sub); err != nil {
+			return nil, &authErr{"", "", errServerError, "Failed to unmarshal id_token_hint subject"}
+		}
+		connectorID = sub.ConnId
 	}
 
 	if connectorID != "" {
