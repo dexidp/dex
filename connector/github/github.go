@@ -20,6 +20,7 @@ import (
 	"golang.org/x/oauth2/github"
 
 	"github.com/dexidp/dex/connector"
+	groups_pkg "github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/log"
 )
 
@@ -149,7 +150,7 @@ type githubConnector struct {
 	teamNameField string
 	// if set to true and no orgs are configured then connector loads all user claims (all orgs and team)
 	loadAllGroups bool
-	// if set to true will use the users handle rather than their numeric id as the ID
+	// if set to true will use the user's handle rather than their numeric id as the ID
 	useLoginAsID bool
 }
 
@@ -375,7 +376,7 @@ func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client
 		// 'teams' list in config.
 		if len(org.Teams) == 0 {
 			inOrgNoTeams = true
-		} else if teams = filterTeams(teams, org.Teams); len(teams) == 0 {
+		} else if teams = groups_pkg.Filter(teams, org.Teams); len(teams) == 0 {
 			c.logger.Infof("github: user %q in org %q but no teams", userName, org.Name)
 		}
 
@@ -442,7 +443,7 @@ func (c *githubConnector) userOrgs(ctx context.Context, client *http.Client) ([]
 // userOrgTeams retrieves teams which current user belongs to.
 // Method returns a map where key is an org name and value list of teams under the org.
 func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client) (map[string][]string, error) {
-	groups := make(map[string][]string, 0)
+	groups := make(map[string][]string)
 	apiURL := c.apiURL + "/user/teams"
 	for {
 		// https://developer.github.com/v3/orgs/teams/#list-user-teams
@@ -464,22 +465,6 @@ func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client)
 	}
 
 	return groups, nil
-}
-
-// Filter the users' team memberships by 'teams' from config.
-func filterTeams(userTeams, configTeams []string) (teams []string) {
-	teamFilter := make(map[string]struct{})
-	for _, team := range configTeams {
-		if _, ok := teamFilter[team]; !ok {
-			teamFilter[team] = struct{}{}
-		}
-	}
-	for _, team := range userTeams {
-		if _, ok := teamFilter[team]; ok {
-			teams = append(teams, team)
-		}
-	}
-	return
 }
 
 // get creates a "GET `apiURL`" request with context, sends the request using

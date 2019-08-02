@@ -183,24 +183,6 @@ type Keys struct {
 	NextRotation     time.Time                 `json:"next_rotation"`
 }
 
-func fromStorageKeys(keys storage.Keys) Keys {
-	return Keys{
-		SigningKey:       keys.SigningKey,
-		SigningKeyPub:    keys.SigningKeyPub,
-		VerificationKeys: keys.VerificationKeys,
-		NextRotation:     keys.NextRotation,
-	}
-}
-
-func toStorageKeys(keys Keys) storage.Keys {
-	return storage.Keys{
-		SigningKey:       keys.SigningKey,
-		SigningKeyPub:    keys.SigningKeyPub,
-		VerificationKeys: keys.VerificationKeys,
-		NextRotation:     keys.NextRotation,
-	}
-}
-
 // OfflineSessions is a mirrored struct from storage with JSON struct tags
 type OfflineSessions struct {
 	UserID  string                              `json:"user_id,omitempty"`

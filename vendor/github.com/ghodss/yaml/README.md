@@ -14,7 +14,7 @@ This package uses [go-yaml](https://github.com/go-yaml/yaml) and therefore suppo
 
 ## Caveats
 
-**Caveat #1:** When using `yaml.Marshal` and `yaml.Unmarshal`, binary data should NOT be preceded with the `!!binary` YAML tag. If you do, candiedyaml will convert the binary data from base64 to native binary data, which is not compatible with JSON. You can still use binary in your YAML files though - just store them without the `!!binary` tag and decode the base64 in your code (e.g. in the custom JSON methods `MarshalJSON` and `UnmarshalJSON`). This also has the benefit that your YAML and your JSON binary data will be decoded exactly the same way. As an example:
+**Caveat #1:** When using `yaml.Marshal` and `yaml.Unmarshal`, binary data should NOT be preceded with the `!!binary` YAML tag. If you do, go-yaml will convert the binary data from base64 to native binary data, which is not compatible with JSON. You can still use binary in your YAML files though - just store them without the `!!binary` tag and decode the base64 in your code (e.g. in the custom JSON methods `MarshalJSON` and `UnmarshalJSON`). This also has the benefit that your YAML and your JSON binary data will be decoded exactly the same way. As an example:
 
 ```
 BAD:
@@ -53,8 +53,8 @@ import (
 )
 
 type Person struct {
-	Name string `json:"name"`  // Affects YAML field names too.
-	Age int `json:"age"`
+	Name string `json:"name"` // Affects YAML field names too.
+	Age  int    `json:"age"`
 }
 
 func main() {
@@ -95,6 +95,7 @@ import (
 
 	"github.com/ghodss/yaml"
 )
+
 func main() {
 	j := []byte(`{"name": "John", "age": 30}`)
 	y, err := yaml.JSONToYAML(j)

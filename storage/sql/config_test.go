@@ -9,6 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/conformance"
 )
@@ -32,15 +33,16 @@ func withTimeout(t time.Duration, f func()) {
 }
 
 func cleanDB(c *conn) error {
-	_, err := c.Exec(`
-		delete from client;
-		delete from auth_request;
-		delete from auth_code;
-		delete from refresh_token;
-		delete from keys;
-		delete from password;
-	`)
-	return err
+	tables := []string{"client", "auth_request", "auth_code",
+		"refresh_token", "keys", "password"}
+
+	for _, tbl := range tables {
+		_, err := c.Exec("delete from " + tbl)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 var logger = &logrus.Logger{
@@ -49,23 +51,39 @@ var logger = &logrus.Logger{
 	Level:     logrus.DebugLevel,
 }
 
-func TestSQLite3(t *testing.T) {
+type opener interface {
+	open(logger log.Logger) (*conn, error)
+}
+
+func testDB(t *testing.T, o opener, withTransactions bool) {
+	// t.Fatal has a bad habbit of not actually printing the error
+	fatal := func(i interface{}) {
+		fmt.Fprintln(os.Stdout, i)
+		t.Fatal(i)
+	}
+
 	newStorage := func() storage.Storage {
-		// NOTE(ericchiang): In memory means we only get one connection at a time. If we
-		// ever write tests that require using multiple connections, for instance to test
-		// transactions, we need to move to a file based system.
-		s := &SQLite3{":memory:"}
-		conn, err := s.open(logger)
+		conn, err := o.open(logger)
 		if err != nil {
-			fmt.Fprintln(os.Stdout, err)
-			t.Fatal(err)
+			fatal(err)
+		}
+		if err := cleanDB(conn); err != nil {
+			fatal(err)
 		}
 		return conn
 	}
-
-	withTimeout(time.Second*10, func() {
+	withTimeout(time.Minute*1, func() {
 		conformance.RunTests(t, newStorage)
 	})
+	if withTransactions {
+		withTimeout(time.Minute*1, func() {
+			conformance.RunTransactionTests(t, newStorage)
+		})
+	}
+}
+
+func TestSQLite3(t *testing.T) {
+	testDB(t, &SQLite3{":memory:"}, false)
 }
 
 func getenv(key, defaultVal string) string {
@@ -91,19 +109,23 @@ func TestCreateDataSourceName(t *testing.T) {
 		{
 			description: "with typical configuration",
 			input: &Postgres{
-				Host:     "1.2.3.4",
-				Port:     6543,
-				User:     "some-user",
-				Password: "some-password",
-				Database: "some-db",
+				NetworkDB: NetworkDB{
+					Host:     "1.2.3.4",
+					Port:     6543,
+					User:     "some-user",
+					Password: "some-password",
+					Database: "some-db",
+				},
 			},
 			expected: "connect_timeout=0 host='1.2.3.4' port=6543 user='some-user' password='some-password' dbname='some-db' sslmode='verify-full'",
 		},
 		{
 			description: "with unix socket host",
 			input: &Postgres{
-				Host: "/var/run/postgres",
-				SSL: PostgresSSL{
+				NetworkDB: NetworkDB{
+					Host: "/var/run/postgres",
+				},
+				SSL: SSL{
 					Mode: "disable",
 				},
 			},
@@ -112,8 +134,10 @@ func TestCreateDataSourceName(t *testing.T) {
 		{
 			description: "with tcp host",
 			input: &Postgres{
-				Host: "coreos.com",
-				SSL: PostgresSSL{
+				NetworkDB: NetworkDB{
+					Host: "coreos.com",
+				},
+				SSL: SSL{
 					Mode: "disable",
 				},
 			},
@@ -122,23 +146,29 @@ func TestCreateDataSourceName(t *testing.T) {
 		{
 			description: "with tcp host:port",
 			input: &Postgres{
-				Host: "coreos.com:6543",
+				NetworkDB: NetworkDB{
+					Host: "coreos.com:6543",
+				},
 			},
 			expected: "connect_timeout=0 host='coreos.com' port=6543 sslmode='verify-full'",
 		},
 		{
 			description: "with tcp host and port",
 			input: &Postgres{
-				Host: "coreos.com",
-				Port: 6543,
+				NetworkDB: NetworkDB{
+					Host: "coreos.com",
+					Port: 6543,
+				},
 			},
 			expected: "connect_timeout=0 host='coreos.com' port=6543 sslmode='verify-full'",
 		},
 		{
 			description: "with ssl ca cert",
 			input: &Postgres{
-				Host: "coreos.com",
-				SSL: PostgresSSL{
+				NetworkDB: NetworkDB{
+					Host: "coreos.com",
+				},
+				SSL: SSL{
 					Mode:   "verify-ca",
 					CAFile: "/some/file/path",
 				},
@@ -148,8 +178,10 @@ func TestCreateDataSourceName(t *testing.T) {
 		{
 			description: "with ssl client cert",
 			input: &Postgres{
-				Host: "coreos.com",
-				SSL: PostgresSSL{
+				NetworkDB: NetworkDB{
+					Host: "coreos.com",
+				},
+				SSL: SSL{
 					Mode:     "verify-ca",
 					CAFile:   "/some/ca/path",
 					CertFile: "/some/cert/path",
@@ -161,9 +193,11 @@ func TestCreateDataSourceName(t *testing.T) {
 		{
 			description: "with funny characters in credentials",
 			input: &Postgres{
-				Host:     "coreos.com",
-				User:     `some'user\slashed`,
-				Password: "some'password!",
+				NetworkDB: NetworkDB{
+					Host:     "coreos.com",
+					User:     `some'user\slashed`,
+					Password: "some'password!",
+				},
 			},
 			expected: `connect_timeout=0 host='coreos.com' user='some\'user\\slashed' password='some\'password!' sslmode='verify-full'`,
 		},
@@ -186,37 +220,42 @@ func TestPostgres(t *testing.T) {
 	if host == "" {
 		t.Skipf("test environment variable %q not set, skipping", testPostgresEnv)
 	}
-	p := Postgres{
-		Database: getenv("DEX_POSTGRES_DATABASE", "postgres"),
-		User:     getenv("DEX_POSTGRES_USER", "postgres"),
-		Password: getenv("DEX_POSTGRES_PASSWORD", "postgres"),
-		Host:     host,
-		SSL: PostgresSSL{
-			Mode: sslDisable, // Postgres container doesn't support SSL.
+	p := &Postgres{
+		NetworkDB: NetworkDB{
+			Database:          getenv("DEX_POSTGRES_DATABASE", "postgres"),
+			User:              getenv("DEX_POSTGRES_USER", "postgres"),
+			Password:          getenv("DEX_POSTGRES_PASSWORD", "postgres"),
+			Host:              host,
+			ConnectionTimeout: 5,
 		},
-		ConnectionTimeout: 5,
+		SSL: SSL{
+			Mode: pgSSLDisable, // Postgres container doesn't support SSL.
+		},
 	}
+	testDB(t, p, true)
+}
 
-	// t.Fatal has a bad habbit of not actually printing the error
-	fatal := func(i interface{}) {
-		fmt.Fprintln(os.Stdout, i)
-		t.Fatal(i)
-	}
+const testMySQLEnv = "DEX_MYSQL_HOST"
 
-	newStorage := func() storage.Storage {
-		conn, err := p.open(logger, p.createDataSourceName())
-		if err != nil {
-			fatal(err)
-		}
-		if err := cleanDB(conn); err != nil {
-			fatal(err)
-		}
-		return conn
+func TestMySQL(t *testing.T) {
+	host := os.Getenv(testMySQLEnv)
+	if host == "" {
+		t.Skipf("test environment variable %q not set, skipping", testMySQLEnv)
 	}
-	withTimeout(time.Minute*1, func() {
-		conformance.RunTests(t, newStorage)
-	})
-	withTimeout(time.Minute*1, func() {
-		conformance.RunTransactionTests(t, newStorage)
-	})
+	s := &MySQL{
+		NetworkDB: NetworkDB{
+			Database:          getenv("DEX_MYSQL_DATABASE", "mysql"),
+			User:              getenv("DEX_MYSQL_USER", "mysql"),
+			Password:          getenv("DEX_MYSQL_PASSWORD", ""),
+			Host:              host,
+			ConnectionTimeout: 5,
+		},
+		SSL: SSL{
+			Mode: mysqlSSLFalse,
+		},
+		params: map[string]string{
+			"innodb_lock_wait_timeout": "3",
+		},
+	}
+	testDB(t, s, true)
 }

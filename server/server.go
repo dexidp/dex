@@ -257,7 +257,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 			corsOption := handlers.AllowedOrigins(c.AllowedOrigins)
 			handler = handlers.CORS(corsOption)(handler)
 		}
-		r.Handle(path.Join(issuerURL.Path, p), handler)
+		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, handler))
 	}
 	r.NotFoundHandler = http.HandlerFunc(http.NotFound)
 
@@ -270,6 +270,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	// TODO(ericchiang): rate limit certain paths based on IP.
 	handleWithCORS("/token", s.handleToken)
 	handleWithCORS("/keys", s.handlePublicKeys)
+	handleWithCORS("/userinfo", s.handleUserInfo)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	r.HandleFunc(path.Join(issuerURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {
@@ -425,7 +426,6 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 			}
 		}
 	}()
-	return
 }
 
 // ConnectorConfig is a configuration that can open a connector.

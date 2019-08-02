@@ -71,28 +71,8 @@ func serve(cmd *cobra.Command, args []string) error {
 	if c.Logger.Level != "" {
 		logger.Infof("config using log level: %s", c.Logger.Level)
 	}
-
-	// Fast checks. Perform these first for a more responsive CLI.
-	checks := []struct {
-		bad    bool
-		errMsg string
-	}{
-		{c.Issuer == "", "no issuer specified in config file"},
-		{!c.EnablePasswordDB && len(c.StaticPasswords) != 0, "cannot specify static passwords without enabling password db"},
-		{c.Storage.Config == nil, "no storage supplied in config file"},
-		{c.Web.HTTP == "" && c.Web.HTTPS == "", "must supply a HTTP/HTTPS  address to listen on"},
-		{c.Web.HTTPS != "" && c.Web.TLSCert == "", "no cert specified for HTTPS"},
-		{c.Web.HTTPS != "" && c.Web.TLSKey == "", "no private key specified for HTTPS"},
-		{c.GRPC.TLSCert != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
-		{c.GRPC.TLSKey != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
-		{(c.GRPC.TLSCert == "") != (c.GRPC.TLSKey == ""), "must specific both a gRPC TLS cert and key"},
-		{c.GRPC.TLSCert == "" && c.GRPC.TLSClientCA != "", "cannot specify gRPC TLS client CA without a gRPC TLS cert"},
-	}
-
-	for _, check := range checks {
-		if check.bad {
-			return fmt.Errorf("invalid config: %s", check.errMsg)
-		}
+	if err := c.Validate(); err != nil {
+		return err
 	}
 
 	logger.Infof("config issuer: %s", c.Issuer)
@@ -103,7 +83,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to register Go runtime metrics: %v", err)
 	}
 
-	err = prometheusRegistry.Register(prometheus.NewProcessCollector(os.Getpid(), ""))
+	err = prometheusRegistry.Register(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
 	if err != nil {
 		return fmt.Errorf("failed to register process metrics: %v", err)
 	}
@@ -136,7 +116,7 @@ func serve(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return fmt.Errorf("invalid config: reading from client CA file: %v", err)
 			}
-			if cPool.AppendCertsFromPEM(clientCert) != true {
+			if !cPool.AppendCertsFromPEM(clientCert) {
 				return errors.New("invalid config: failed to parse client CA")
 			}
 
@@ -161,7 +141,7 @@ func serve(cmd *cobra.Command, args []string) error {
 
 	if len(c.StaticClients) > 0 {
 		for _, client := range c.StaticClients {
-			logger.Infof("config static client: %s", client.ID)
+			logger.Infof("config static client: %s", client.Name)
 		}
 		s = storage.WithStaticClients(s, c.StaticClients)
 	}

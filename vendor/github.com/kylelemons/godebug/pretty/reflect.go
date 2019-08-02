@@ -29,48 +29,164 @@ func isZeroVal(val reflect.Value) bool {
 	return reflect.DeepEqual(val.Interface(), z)
 }
 
-func (c *Config) val2node(val reflect.Value) node {
-	// TODO(kevlar): pointer tracking?
+// pointerTracker is a helper for tracking pointer chasing to detect cycles.
+type pointerTracker struct {
+	addrs map[uintptr]int // addr[address] = seen count
 
+	lastID int
+	ids    map[uintptr]int // ids[address] = id
+}
+
+// track tracks following a reference (pointer, slice, map, etc).  Every call to
+// track should be paired with a call to untrack.
+func (p *pointerTracker) track(ptr uintptr) {
+	if p.addrs == nil {
+		p.addrs = make(map[uintptr]int)
+	}
+	p.addrs[ptr]++
+}
+
+// untrack registers that we have backtracked over the reference to the pointer.
+func (p *pointerTracker) untrack(ptr uintptr) {
+	p.addrs[ptr]--
+	if p.addrs[ptr] == 0 {
+		delete(p.addrs, ptr)
+	}
+}
+
+// seen returns whether the pointer was previously seen along this path.
+func (p *pointerTracker) seen(ptr uintptr) bool {
+	_, ok := p.addrs[ptr]
+	return ok
+}
+
+// keep allocates an ID for the given address and returns it.
+func (p *pointerTracker) keep(ptr uintptr) int {
+	if p.ids == nil {
+		p.ids = make(map[uintptr]int)
+	}
+	if _, ok := p.ids[ptr]; !ok {
+		p.lastID++
+		p.ids[ptr] = p.lastID
+	}
+	return p.ids[ptr]
+}
+
+// id returns the ID for the given address.
+func (p *pointerTracker) id(ptr uintptr) (int, bool) {
+	if p.ids == nil {
+		p.ids = make(map[uintptr]int)
+	}
+	id, ok := p.ids[ptr]
+	return id, ok
+}
+
+// reflector adds local state to the recursive reflection logic.
+type reflector struct {
+	*Config
+	*pointerTracker
+}
+
+// follow handles following a possiblly-recursive reference to the given value
+// from the given ptr address.
+func (r *reflector) follow(ptr uintptr, val reflect.Value) node {
+	if r.pointerTracker == nil {
+		// Tracking disabled
+		return r.val2node(val)
+	}
+
+	// If a parent already followed this, emit a reference marker
+	if r.seen(ptr) {
+		id := r.keep(ptr)
+		return ref{id}
+	}
+
+	// Track the pointer we're following while on this recursive branch
+	r.track(ptr)
+	defer r.untrack(ptr)
+	n := r.val2node(val)
+
+	// If the recursion used this ptr, wrap it with a target marker
+	if id, ok := r.id(ptr); ok {
+		return target{id, n}
+	}
+
+	// Otherwise, return the node unadulterated
+	return n
+}
+
+func (r *reflector) val2node(val reflect.Value) node {
 	if !val.IsValid() {
 		return rawVal("nil")
 	}
 
 	if val.CanInterface() {
 		v := val.Interface()
-		if s, ok := v.(fmt.Stringer); ok && c.PrintStringers {
-			return stringVal(s.String())
-		}
-		if t, ok := v.(encoding.TextMarshaler); ok && c.PrintTextMarshalers {
-			if raw, err := t.MarshalText(); err == nil { // if NOT an error
-				return stringVal(string(raw))
+		if formatter, ok := r.Formatter[val.Type()]; ok {
+			if formatter != nil {
+				res := reflect.ValueOf(formatter).Call([]reflect.Value{val})
+				return rawVal(res[0].Interface().(string))
+			}
+		} else {
+			if s, ok := v.(fmt.Stringer); ok && r.PrintStringers {
+				return stringVal(s.String())
+			}
+			if t, ok := v.(encoding.TextMarshaler); ok && r.PrintTextMarshalers {
+				if raw, err := t.MarshalText(); err == nil { // if NOT an error
+					return stringVal(string(raw))
+				}
 			}
 		}
 	}
 
 	switch kind := val.Kind(); kind {
-	case reflect.Ptr, reflect.Interface:
+	case reflect.Ptr:
 		if val.IsNil() {
 			return rawVal("nil")
 		}
-		return c.val2node(val.Elem())
+		return r.follow(val.Pointer(), val.Elem())
+	case reflect.Interface:
+		if val.IsNil() {
+			return rawVal("nil")
+		}
+		return r.val2node(val.Elem())
 	case reflect.String:
 		return stringVal(val.String())
-	case reflect.Slice, reflect.Array:
+	case reflect.Slice:
+		n := list{}
+		length := val.Len()
+		ptr := val.Pointer()
+		for i := 0; i < length; i++ {
+			n = append(n, r.follow(ptr, val.Index(i)))
+		}
+		return n
+	case reflect.Array:
 		n := list{}
 		length := val.Len()
 		for i := 0; i < length; i++ {
-			n = append(n, c.val2node(val.Index(i)))
+			n = append(n, r.val2node(val.Index(i)))
 		}
 		return n
 	case reflect.Map:
-		n := keyvals{}
+		// Extract the keys and sort them for stable iteration
 		keys := val.MapKeys()
+		pairs := make([]mapPair, 0, len(keys))
 		for _, key := range keys {
-			// TODO(kevlar): Support arbitrary type keys?
-			n = append(n, keyval{compactString(c.val2node(key)), c.val2node(val.MapIndex(key))})
+			pairs = append(pairs, mapPair{
+				key:   new(formatter).compactString(r.val2node(key)), // can't be cyclic
+				value: val.MapIndex(key),
+			})
 		}
-		sort.Sort(n)
+		sort.Sort(byKey(pairs))
+
+		// Process the keys into the final representation
+		ptr, n := val.Pointer(), keyvals{}
+		for _, pair := range pairs {
+			n = append(n, keyval{
+				key: pair.key,
+				val: r.follow(ptr, pair.value),
+			})
+		}
 		return n
 	case reflect.Struct:
 		n := keyvals{}
@@ -78,14 +194,14 @@ func (c *Config) val2node(val reflect.Value) node {
 		fields := typ.NumField()
 		for i := 0; i < fields; i++ {
 			sf := typ.Field(i)
-			if !c.IncludeUnexported && sf.PkgPath != "" {
+			if !r.IncludeUnexported && sf.PkgPath != "" {
 				continue
 			}
 			field := val.Field(i)
-			if c.SkipZeroFields && isZeroVal(field) {
+			if r.SkipZeroFields && isZeroVal(field) {
 				continue
 			}
-			n = append(n, keyval{sf.Name, c.val2node(field)})
+			n = append(n, keyval{sf.Name, r.val2node(field)})
 		}
 		return n
 	case reflect.Bool:
@@ -112,3 +228,14 @@ func (c *Config) val2node(val reflect.Value) node {
 
 	return rawVal(val.String())
 }
+
+type mapPair struct {
+	key   string
+	value reflect.Value
+}
+
+type byKey []mapPair
+
+func (v byKey) Len() int           { return len(v) }
+func (v byKey) Swap(i, j int)      { v[i], v[j] = v[j], v[i] }
+func (v byKey) Less(i, j int) bool { return v[i].key < v[j].key }

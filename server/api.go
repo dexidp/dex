@@ -254,6 +254,37 @@ func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*a
 
 }
 
+func (d dexAPI) VerifyPassword(ctx context.Context, req *api.VerifyPasswordReq) (*api.VerifyPasswordResp, error) {
+	if req.Email == "" {
+		return nil, errors.New("no email supplied")
+	}
+
+	if req.Password == "" {
+		return nil, errors.New("no password to verify supplied")
+	}
+
+	password, err := d.s.GetPassword(req.Email)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			return &api.VerifyPasswordResp{
+				NotFound: true,
+			}, nil
+		}
+		d.logger.Errorf("api: there was an error retrieving the password: %v", err)
+		return nil, fmt.Errorf("verify password: %v", err)
+	}
+
+	if err := bcrypt.CompareHashAndPassword(password.Hash, []byte(req.Password)); err != nil {
+		d.logger.Infof("api: password check failed: %v", err)
+		return &api.VerifyPasswordResp{
+			Verified: false,
+		}, nil
+	}
+	return &api.VerifyPasswordResp{
+		Verified: true,
+	}, nil
+}
+
 func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.ListRefreshResp, error) {
 	id := new(internal.IDTokenSubject)
 	if err := internal.Unmarshal(req.UserId, id); err != nil {

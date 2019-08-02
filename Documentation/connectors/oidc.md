@@ -55,6 +55,27 @@ connectors:
     #  - profile
     #  - email
     #  - groups
+
+    # Some providers return claims without "email_verified", when they had no usage of emails verification in enrollement process
+    # or if they are acting as a proxy for another IDP etc AWS Cognito with an upstream SAML IDP
+    # This can be overridden with the below option
+    # insecureSkipEmailVerified: true 
+
+    # When enabled, the OpenID Connector will query the UserInfo endpoint for additional claims. UserInfo claims
+    # take priority over claims returned by the IDToken. This option should be used when the IDToken doesn't contain
+    # all the claims requested.
+    # https://openid.net/specs/openid-connect-core-1_0.html#UserInfo
+    # getUserInfo: true
+
+    # The set claim is used as user id.
+    # Default: sub
+    # Claims list at https://openid.net/specs/openid-connect-core-1_0.html#Claims
+    #
+    # userIDKey: nickname
+    
+    # The set claim is used as user name.
+    # Default: name
+    # userNameKey: nickname
 ```
 
 [oidc-doc]: openid-connect.md

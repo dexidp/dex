@@ -7,7 +7,9 @@ etree
 The etree package is a lightweight, pure go package that expresses XML in
 the form of an element tree.  Its design was inspired by the Python
 [ElementTree](http://docs.python.org/2/library/xml.etree.elementtree.html)
-module. Some of the package's features include:
+module.
+
+Some of the package's capabilities and features:
 
 * Represents XML documents as trees of elements for easy traversal.
 * Imports, serializes, modifies or creates XML documents from scratch.
@@ -191,13 +193,13 @@ Note that this example uses the FindElementsPath function, which takes as an
 argument a pre-compiled path object. Use precompiled paths when you plan to
 search with the same path more than once.
 
-###Other features
+### Other features
 
 These are just a few examples of the things the etree package can do. See the
 [documentation](http://godoc.org/github.com/beevik/etree) for a complete
 description of its capabilities.
 
-###Contributing
+### Contributing
 
 This project accepts contributions. Just fork the repo and submit a pull
 request!
