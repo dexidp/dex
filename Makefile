@@ -2,6 +2,7 @@ PROJ=dex
 ORG_PATH=github.com/dexidp
 REPO_PATH=$(ORG_PATH)/$(PROJ)
 export PATH := $(PWD)/bin:$(PATH)
+THIS_DIRECTORY:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 VERSION ?= $(shell ./scripts/git-version)
 
@@ -73,7 +74,7 @@ bin/protoc-gen-go:
 	@go install -v $(REPO_PATH)/vendor/github.com/golang/protobuf/protoc-gen-go
 
 bin/golint:
-	@go install -v $(REPO_PATH)/vendor/golang.org/x/lint/golint
+	@go install -v $(THIS_DIRECTORY)/vendor/golang.org/x/lint/golint
 
 clean:
 	@rm -rf bin/
