@@ -270,7 +270,7 @@ func TestMySQL(t *testing.T) {
 		NetworkDB: NetworkDB{
 			Database:          getenv("DEX_MYSQL_DATABASE", "mysql"),
 			User:              getenv("DEX_MYSQL_USER", "mysql"),
-			Password:          getenv("DEX_MYSQL_PASSWORD", ""),
+			Password:          getenv("DEX_MYSQL_PASSWORD", "mysql"),
 			Host:              host,
 			Port:              uint16(port),
 			ConnectionTimeout: 5,
