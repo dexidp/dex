@@ -411,14 +411,10 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 
 	// TODO: we don't currently handle prompt but should verify prompt=none
 	if tokenHint != "" {
-		keystore := &storageKeySet{s.storage}
-		payload, err := keystore.VerifySignature(context.TODO(), tokenHint)
+		claims, err := claimsFromJWT(tokenHint)
 		if err != nil {
-			return nil, &authErr{"", "", errInvalidRequest, "Could not verify id_token_hint"}
-		}
-		claims := idTokenClaims{}
-		if err := json.Unmarshal(payload, &claims); err != nil {
-			return nil, &authErr{"", "", errInvalidRequest, "id_token_hint has invalid claims"}
+			s.logger.Errorf("Failed to get claims from id_token_hint: %s", err)
+			return nil, &authErr{"", "", errInvalidRequest, "Malformed id_token_hint"}
 		}
 		sub := internal.IDTokenSubject{}
 		if err := internal.Unmarshal(claims.Subject, &sub); err != nil {
@@ -543,6 +539,24 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		ResponseTypes:       responseTypes,
 		ConnectorID:         connectorID,
 	}, nil
+}
+
+// claimsFromJWT returns the claims of a JWT without verifying the signature.
+// WARNING: without veryifying the signature, the claims should not be trusted.
+func claimsFromJWT(input string) (*idTokenClaims, error) {
+	parts := strings.Split(input, ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("JWT format must have three parts")
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("could not decode JWT payload: %s", err)
+	}
+	claims := &idTokenClaims{}
+	if err := json.Unmarshal(payload, claims); err != nil {
+		return nil, fmt.Errorf("JWT has invalid claims")
+	}
+	return claims, nil
 }
 
 func parseCrossClientScope(scope string) (peerID string, ok bool) {
