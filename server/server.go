@@ -107,6 +107,9 @@ type WebConfig struct {
 
 	// Defaults to "coreos"
 	Theme string
+
+	// Map of extra values passed into the templates
+	Extra map[string]string
 }
 
 func value(val, defaultValue time.Duration) time.Duration {
@@ -181,6 +184,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		issuerURL: c.Issuer,
 		issuer:    c.Web.Issuer,
 		theme:     c.Web.Theme,
+		extra:     c.Web.Extra,
 	}
 
 	static, theme, tmpls, err := loadWebConfig(web)
