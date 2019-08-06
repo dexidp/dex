@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/reflection"
 
 	"github.com/dexidp/dex/api"
 	"github.com/dexidp/dex/pkg/log"
@@ -282,6 +283,10 @@ func serve(cmd *cobra.Command, args []string) error {
 				s := grpc.NewServer(grpcOptions...)
 				api.RegisterDexServer(s, server.NewAPI(serverConfig.Storage, logger))
 				grpcMetrics.InitializeMetrics(s)
+				if c.GRPC.Reflection {
+					logger.Info("enabling reflection in grpc service")
+					reflection.Register(s)
+				}
 				err = s.Serve(list)
 				return fmt.Errorf("listening on %s failed: %v", c.GRPC.Addr, err)
 			}()
