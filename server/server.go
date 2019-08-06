@@ -68,6 +68,9 @@ type Config struct {
 	// Logging in implies approval.
 	SkipApprovalScreen bool
 
+	// If enabled, the connectors selection page will always be shown even if there's only one
+	AlwaysShowLoginScreen bool
+
 	RotateKeysAfter      time.Duration // Defaults to 6 hours.
 	IDTokensValidFor     time.Duration // Defaults to 24 hours
 	AuthRequestsValidFor time.Duration // Defaults to 24 hours
@@ -133,6 +136,9 @@ type Server struct {
 
 	// If enabled, don't prompt user for approval after logging in through connector.
 	skipApproval bool
+
+	// If enabled, show the connector selection screen even if there's only one
+	alwaysShowLogin bool
 
 	supportedResponseTypes map[string]bool
 
@@ -201,6 +207,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
 		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
 		skipApproval:           c.SkipApprovalScreen,
+		alwaysShowLogin:        c.AlwaysShowLoginScreen,
 		now:                    now,
 		templates:              tmpls,
 		logger:                 c.Logger,
