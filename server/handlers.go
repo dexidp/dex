@@ -249,7 +249,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(connectors) == 1 {
+	if len(connectors) == 1 && !s.alwaysShowLogin {
 		for _, c := range connectors {
 			// TODO(ericchiang): Make this pass on r.URL.RawQuery and let something latter
 			// on create the auth request.

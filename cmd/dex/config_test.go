@@ -83,6 +83,9 @@ staticClients:
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
 
+oauth2:
+  alwaysShowLoginScreen: true
+
 connectors:
 - type: mockCallback
   id: mock
@@ -152,6 +155,9 @@ logger:
 					"http://127.0.0.1:5555/callback",
 				},
 			},
+		},
+		OAuth2: OAuth2{
+			AlwaysShowLoginScreen: true,
 		},
 		StaticConnectors: []Connector{
 			{
