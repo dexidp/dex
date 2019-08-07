@@ -12,11 +12,13 @@ Admins that wish to expose the gRPC service must add the following entry to the 
 grpc:
   # Cannot be the same address as an HTTP(S) service.
   addr: 127.0.0.1:5557
-  # Server certs. If TLS credentials aren't provided dex will generate self-signed ones.
+  # Server certs. If TLS credentials aren't provided dex will run in plaintext (HTTP) mode.
   tlsCert: /etc/dex/grpc.crt
   tlsKey: /etc/dex/grpc.key
   # Client auth CA.
   tlsClientCA: /etc/dex/client.crt
+  # enable reflection
+  reflection: true
 ```
 
 ## Generating clients
