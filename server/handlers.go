@@ -21,6 +21,7 @@ import (
 	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -397,7 +398,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request) {
-	var authID string
+	var authID, samlInResponseTo string
 	switch r.Method {
 	case http.MethodGet: // OAuth2 callback
 		if authID = r.URL.Query().Get("state"); authID == "" {
@@ -405,8 +406,11 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 			return
 		}
 	case http.MethodPost: // SAML POST binding
-		if authID = r.PostFormValue("RelayState"); authID == "" {
-			s.renderError(r, w, http.StatusBadRequest, "User session error.")
+		var code int
+		var err error
+		authID, samlInResponseTo, code, err = s.handleSamlCallback(r)
+		if err != nil {
+			s.renderError(w, code, fmt.Sprintf("Error processing SAML callback: %s.", err))
 			return
 		}
 	default:
@@ -459,7 +463,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 			s.renderError(r, w, http.StatusBadRequest, "Invalid request")
 			return
 		}
-		identity, err = conn.HandlePOST(parseScopes(authReq.Scopes), r.PostFormValue("SAMLResponse"), authReq.ID)
+		identity, err = conn.HandlePOST(parseScopes(authReq.Scopes), r.PostFormValue("SAMLResponse"), samlInResponseTo)
 	default:
 		s.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
@@ -490,6 +494,94 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	}
 
 	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+}
+
+// handleSamlCallback handles a saml callback response with support for the IdP initiated flow.
+// if the RelayState is not one of our auth requests, we check to see if it is a valid redirectURI
+// for one of our clients. then, if the SAMLResponse is from a registered connector, we create a
+// new auth request in the database so we can contuine with our regular callback flow.
+func (s *Server) handleSamlCallback(r *http.Request) (string, string, int, error) {
+	relayState := r.PostFormValue("RelayState")
+	if relayState == "" {
+		return "", "", http.StatusBadRequest, fmt.Errorf("user session error")
+	}
+	// if our relaySate is a valid authId, this is not IdP initiated
+	if _, err := s.storage.GetAuthRequest(relayState); err == nil {
+		return relayState, relayState, http.StatusOK, nil
+	} else if err != storage.ErrNotFound {
+		s.logger.Errorf("Failed to get auth request: %v", err)
+		return "", "", http.StatusInternalServerError, fmt.Errorf("database error")
+	}
+	// find the client the RelayState is trying to send us to, stop when we match a redirectURI
+	// TODO: is it valid for differrent clients to have the same redirectURI? ¯\_(ツ)_/¯
+	clients, err := s.storage.ListClients()
+	if err != nil {
+		s.logger.Errorf("Failed to list clients: %v", err)
+		return "", "", http.StatusInternalServerError, fmt.Errorf("database error")
+	}
+	var client *storage.Client
+	for _, c := range clients {
+		for _, u := range c.RedirectURIs {
+			if relayState == u {
+				client = &c
+				break
+			}
+		}
+	}
+	if client == nil {
+		s.logger.Errorf("Cannot find client with redirectURI: %s", relayState)
+		return "", "", http.StatusInternalServerError, fmt.Errorf("bad saml response")
+	}
+	// find the issuer attribute in the SAMLResponse, use it to find the associated connector-id.
+	ssoIssuer, err := saml.GetSAMLIssuer(r.PostFormValue("SAMLResponse"))
+	if err != nil {
+		return "", "", http.StatusBadRequest, fmt.Errorf("bad saml response")
+	}
+	connectors, err := s.storage.ListConnectors()
+	if err != nil {
+		s.logger.Errorf("Failed to list connectors: %v", err)
+		return "", "", http.StatusInternalServerError, fmt.Errorf("database error")
+	}
+	var connID string
+	for _, c := range connectors {
+		if c.Type != "saml" {
+			continue
+		}
+		var cfg saml.Config
+		if err := json.Unmarshal(c.Config, &cfg); err != nil {
+			s.logger.Errorf("Cannot parse saml config for connector %s: %s", c.ID, err)
+			return "", "", http.StatusPreconditionFailed, fmt.Errorf("config error")
+		}
+		if cfg.SSOIssuer == ssoIssuer {
+			connID = c.ID
+			break
+		}
+	}
+	if connID == "" {
+		s.logger.Errorf("Cannot find the connector id associated with the issuer %s", ssoIssuer)
+		return "", "", http.StatusInternalServerError, fmt.Errorf("bad saml response")
+	}
+	// build our auth request (fake it til ya make it)
+	authID := storage.NewID()
+	req := storage.AuthRequest{
+		ID:                  authID,
+		ClientID:            client.ID,
+		State:               "",
+		Nonce:               "",
+		ForceApprovalPrompt: false,
+		// TODO: make IdP initiated scopes configurable as part of the saml connector
+		Scopes:        []string{"openid", "profile", "email", "groups"},
+		RedirectURI:   relayState,
+		ResponseTypes: []string{"code"},
+		ConnectorID:   connID,
+		Expiry:        s.now().Add(s.authRequestsValidFor),
+	}
+	if err := s.storage.CreateAuthRequest(req); err != nil {
+		s.logger.Errorf("Could not create SAML IDP initiated request: %v", err)
+		return "", "", http.StatusInternalServerError, fmt.Errorf("database error")
+	}
+	// empty InResponseTo value because this is IdP initiated, not in response to any request
+	return authID, "", http.StatusOK, nil
 }
 
 // finalizeLogin associates the user's identity with the current AuthRequest, then returns

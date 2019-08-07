@@ -450,6 +450,21 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	return ident, nil
 }
 
+// GetSAMLIssuer parses a SAML response and returns its 'Issuer' field.
+func GetSAMLIssuer(samlResponse string) (string, error) {
+	rawResp, err := base64.StdEncoding.DecodeString(samlResponse)
+	if err != nil {
+		return "", err
+	}
+
+	var resp response
+	if err := xml.Unmarshal(rawResp, &resp); err != nil {
+		return "", err
+	}
+
+	return resp.Issuer.Issuer, nil
+}
+
 // validateStatus verifies that the response has a good status code or
 // formats a human readable error based on the bad status.
 func (p *provider) validateStatus(status *status) error {
