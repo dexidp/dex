@@ -42,6 +42,7 @@ type webConfig struct {
 	issuer    string
 	theme     string
 	issuerURL string
+	extra     map[string]string
 }
 
 func join(base, path string) string {
@@ -140,6 +141,7 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		"logo":   func() string { return c.logoURL },
 		"url":    func(s string) string { return join(c.issuerURL, s) },
 		"lower":  strings.ToLower,
+		"extra":  func(k string) string { return c.extra[k] },
 	}
 
 	tmpls, err := template.New("").Funcs(funcs).ParseFiles(filenames...)

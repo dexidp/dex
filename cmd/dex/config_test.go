@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/dexidp/dex/server"
 	"testing"
 
 	"github.com/ghodss/yaml"
@@ -69,6 +70,12 @@ storage:
     connectionTimeout: 3
 web:
   http: 127.0.0.1:5556
+
+frontend:
+  dir: ./web
+  extra:
+    foo: bar
+
 staticClients:
 - id: example-app
   redirectURIs:
@@ -129,6 +136,12 @@ logger:
 		},
 		Web: Web{
 			HTTP: "127.0.0.1:5556",
+		},
+		Frontend: server.WebConfig{
+			Dir: "./web",
+			Extra: map[string]string{
+				"foo": "bar",
+			},
 		},
 		StaticClients: []storage.Client{
 			{
