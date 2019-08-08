@@ -3,20 +3,11 @@ package storage
 import (
 	"crypto/rand"
 	"encoding/base32"
-	"errors"
 	"io"
 	"strings"
 	"time"
 
-	jose "gopkg.in/square/go-jose.v2"
-)
-
-var (
-	// ErrNotFound is the error returned by storages if a resource cannot be found.
-	ErrNotFound = errors.New("not found")
-
-	// ErrAlreadyExists is the error returned by storages if a resource ID is taken during a create.
-	ErrAlreadyExists = errors.New("ID already exists")
+	"gopkg.in/square/go-jose.v2"
 )
 
 // Kubernetes only allows lower case letters for names.

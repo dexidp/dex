@@ -67,7 +67,7 @@ func (s *SQLite3) open(logger log.Logger) (*conn, error) {
 
 	c := &conn{db, flavorSQLite3, logger, errCheck}
 	if _, err := c.migrate(); err != nil {
-		return nil, fmt.Errorf("failed to perform migrations: %v", err)
+		return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("failed to perform migrations: %v", err)}
 	}
 	return c, nil
 }
@@ -240,7 +240,7 @@ func (p *Postgres) open(logger log.Logger) (*conn, error) {
 
 	c := &conn{db, flavorPostgres, logger, errCheck}
 	if _, err := c.migrate(); err != nil {
-		return nil, fmt.Errorf("failed to perform migrations: %v", err)
+		return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("failed to perform migrations: %v", err)}
 	}
 	return c, nil
 }
@@ -290,7 +290,7 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 	}
 	if s.SSL.CAFile != "" || s.SSL.CertFile != "" || s.SSL.KeyFile != "" {
 		if err := s.makeTLSConfig(); err != nil {
-			return nil, fmt.Errorf("failed to make TLS config: %v", err)
+			return nil, storage.Error{Code: storage.ErrStorageMisconfigured, Details: fmt.Sprintf("failed to make TLS config: %v", err)}
 		}
 		cfg.TLSConfig = mysqlSSLCustom
 	} else if s.SSL.Mode == "" {
@@ -304,7 +304,7 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 
 	db, err := sql.Open("mysql", cfg.FormatDSN())
 	if err != nil {
-		return nil, err
+		return nil, storage.Error{Code: storage.ErrStorageMisconfigured, Details: err.Error()}
 	}
 
 	errCheck := func(err error) bool {
@@ -318,7 +318,7 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 
 	c := &conn{db, flavorMySQL, logger, errCheck}
 	if _, err := c.migrate(); err != nil {
-		return nil, fmt.Errorf("failed to perform migrations: %v", err)
+		return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("failed to perform migrations: %v", err)}
 	}
 	return c, nil
 }
@@ -332,7 +332,7 @@ func (s *MySQL) makeTLSConfig() error {
 			return err
 		}
 		if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
-			return fmt.Errorf("failed to append PEM")
+			return storage.Error{Code: storage.ErrStorageMisconfigured, Details: "failed to append PEM"}
 		}
 		cfg.RootCAs = rootCertPool
 	}
@@ -340,12 +340,14 @@ func (s *MySQL) makeTLSConfig() error {
 		clientCert := make([]tls.Certificate, 0, 1)
 		certs, err := tls.LoadX509KeyPair(s.SSL.CertFile, s.SSL.KeyFile)
 		if err != nil {
-			return err
+			return storage.Error{Code: storage.ErrStorageMisconfigured, Details: err.Error()}
 		}
 		clientCert = append(clientCert, certs)
 		cfg.Certificates = clientCert
 	}
 
-	mysql.RegisterTLSConfig(mysqlSSLCustom, cfg)
+	if err := mysql.RegisterTLSConfig(mysqlSSLCustom, cfg); err != nil {
+		return storage.Error{Code: storage.ErrStorageMisconfigured, Details: err.Error()}
+	}
 	return nil
 }

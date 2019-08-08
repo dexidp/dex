@@ -73,14 +73,14 @@ func (p *Etcd) open(logger log.Logger) (*conn, error) {
 	if cfgtls != nil {
 		clientTLS, err := cfgtls.ClientConfig()
 		if err != nil {
-			return nil, err
+			return nil, storage.Error{Code: storage.ErrStorageMisconfigured, Details: err.Error()}
 		}
 		cfg.TLS = clientTLS
 	}
 
 	db, err := clientv3.New(cfg)
 	if err != nil {
-		return nil, err
+		return nil, storage.Error{Code: storage.ErrStorageMisconfigured, Details: err.Error()}
 	}
 	if len(p.Namespace) > 0 {
 		db.KV = namespace.NewKV(db.KV, p.Namespace)

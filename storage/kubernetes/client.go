@@ -8,7 +8,6 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"hash"
 	"hash/fnv"
@@ -16,13 +15,11 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"os"
 	"path"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/ghodss/yaml"
 	"github.com/gtank/cryptopasta"
 	"golang.org/x/net/http2"
 
@@ -30,6 +27,9 @@ import (
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
+
+// Kubernetes names must match the regexp '[a-z0-9]([-a-z0-9]*[a-z0-9])?'.
+var encoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567")
 
 type client struct {
 	client    *http.Client
@@ -52,205 +52,6 @@ type client struct {
 	// This is called once the client's Close method is called to signal goroutines,
 	// such as the one creating third party resources, to stop.
 	cancel context.CancelFunc
-}
-
-// idToName maps an arbitrary ID, such as an email or client ID to a Kubernetes object name.
-func (c *client) idToName(s string) string {
-	return idToName(s, c.hash)
-}
-
-// offlineTokenName maps two arbitrary IDs, to a single Kubernetes object name.
-// This is used when more than one field is used to uniquely identify the object.
-func (c *client) offlineTokenName(userID string, connID string) string {
-	return offlineTokenName(userID, connID, c.hash)
-}
-
-// Kubernetes names must match the regexp '[a-z0-9]([-a-z0-9]*[a-z0-9])?'.
-var encoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567")
-
-func idToName(s string, h func() hash.Hash) string {
-	return strings.TrimRight(encoding.EncodeToString(h().Sum([]byte(s))), "=")
-}
-
-func offlineTokenName(userID string, connID string, h func() hash.Hash) string {
-	hash := h()
-	hash.Write([]byte(userID))
-	hash.Write([]byte(connID))
-	return strings.TrimRight(encoding.EncodeToString(hash.Sum(nil)), "=")
-}
-
-func (c *client) urlFor(apiVersion, namespace, resource, name string) string {
-	basePath := "apis/"
-	if apiVersion == "v1" {
-		basePath = "api/"
-	}
-
-	var p string
-	if namespace != "" {
-		p = path.Join(basePath, apiVersion, "namespaces", namespace, resource, name)
-	} else {
-		p = path.Join(basePath, apiVersion, resource, name)
-	}
-	if strings.HasSuffix(c.baseURL, "/") {
-		return c.baseURL + p
-	}
-	return c.baseURL + "/" + p
-}
-
-// Define an error interface so we can get at the underlying status code if it's
-// absolutely necessary. For instance when we need to see if an error indicates
-// a resource already exists.
-type httpError interface {
-	StatusCode() int
-}
-
-var _ httpError = (*httpErr)(nil)
-
-type httpErr struct {
-	method string
-	url    string
-	status int
-	body   []byte
-}
-
-func (e *httpErr) StatusCode() int {
-	return e.status
-}
-
-func (e *httpErr) Error() string {
-	return fmt.Sprintf("%s %s %s: response from server \"%s\"", e.method, e.url, http.StatusText(e.status), bytes.TrimSpace(e.body))
-}
-
-func checkHTTPErr(r *http.Response, validStatusCodes ...int) error {
-	for _, status := range validStatusCodes {
-		if r.StatusCode == status {
-			return nil
-		}
-	}
-
-	body, err := ioutil.ReadAll(io.LimitReader(r.Body, 2<<15)) // 64 KiB
-	if err != nil {
-		return fmt.Errorf("read response body: %v", err)
-	}
-
-	// Check this case after we read the body so the connection can be reused.
-	if r.StatusCode == http.StatusNotFound {
-		return storage.ErrNotFound
-	}
-	if r.Request.Method == http.MethodPost && r.StatusCode == http.StatusConflict {
-		return storage.ErrAlreadyExists
-	}
-
-	var url, method string
-	if r.Request != nil {
-		method = r.Request.Method
-		url = r.Request.URL.String()
-	}
-	return &httpErr{method, url, r.StatusCode, body}
-}
-
-// Close the response body. The initial request is drained so the connection can
-// be reused.
-func closeResp(r *http.Response) {
-	io.Copy(ioutil.Discard, r.Body)
-	r.Body.Close()
-}
-
-func (c *client) get(resource, name string, v interface{}) error {
-	return c.getResource(c.apiVersion, c.namespace, resource, name, v)
-}
-
-func (c *client) getResource(apiVersion, namespace, resource, name string, v interface{}) error {
-	url := c.urlFor(apiVersion, namespace, resource, name)
-	resp, err := c.client.Get(url)
-	if err != nil {
-		return err
-	}
-	defer closeResp(resp)
-	if err := checkHTTPErr(resp, http.StatusOK); err != nil {
-		return err
-	}
-	return json.NewDecoder(resp.Body).Decode(v)
-}
-
-func (c *client) list(resource string, v interface{}) error {
-	return c.get(resource, "", v)
-}
-
-func (c *client) post(resource string, v interface{}) error {
-	return c.postResource(c.apiVersion, c.namespace, resource, v)
-}
-
-func (c *client) postResource(apiVersion, namespace, resource string, v interface{}) error {
-	body, err := json.Marshal(v)
-	if err != nil {
-		return fmt.Errorf("marshal object: %v", err)
-	}
-
-	url := c.urlFor(apiVersion, namespace, resource, "")
-	resp, err := c.client.Post(url, "application/json", bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	defer closeResp(resp)
-	return checkHTTPErr(resp, http.StatusCreated)
-}
-
-func (c *client) delete(resource, name string) error {
-	url := c.urlFor(c.apiVersion, c.namespace, resource, name)
-	req, err := http.NewRequest("DELETE", url, nil)
-	if err != nil {
-		return fmt.Errorf("create delete request: %v", err)
-	}
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("delete request: %v", err)
-	}
-	defer closeResp(resp)
-	return checkHTTPErr(resp, http.StatusOK)
-}
-
-func (c *client) deleteAll(resource string) error {
-	var list struct {
-		k8sapi.TypeMeta `json:",inline"`
-		k8sapi.ListMeta `json:"metadata,omitempty"`
-		Items           []struct {
-			k8sapi.TypeMeta   `json:",inline"`
-			k8sapi.ObjectMeta `json:"metadata,omitempty"`
-		} `json:"items"`
-	}
-	if err := c.list(resource, &list); err != nil {
-		return err
-	}
-	for _, item := range list.Items {
-		if err := c.delete(resource, item.Name); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (c *client) put(resource, name string, v interface{}) error {
-	body, err := json.Marshal(v)
-	if err != nil {
-		return fmt.Errorf("marshal object: %v", err)
-	}
-
-	url := c.urlFor(c.apiVersion, c.namespace, resource, name)
-	req, err := http.NewRequest("PUT", url, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("create patch request: %v", err)
-	}
-
-	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("patch request: %v", err)
-	}
-	defer closeResp(resp)
-
-	return checkHTTPErr(resp, http.StatusOK)
 }
 
 func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, logger log.Logger) (*client, error) {
@@ -329,9 +130,7 @@ func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, l
 		}
 	}
 
-	apiVersion := "dex.coreos.com/v1"
-
-	logger.Infof("kubernetes client apiVersion = %s", apiVersion)
+	logger.Infof("kubernetes client apiVersion = %s", apiFullPath)
 	return &client{
 		client: &http.Client{
 			Transport: t,
@@ -340,144 +139,196 @@ func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, l
 		baseURL:    cluster.Server,
 		hash:       func() hash.Hash { return fnv.New64() },
 		namespace:  namespace,
-		apiVersion: apiVersion,
+		apiVersion: apiFullPath,
 		logger:     logger,
 	}, nil
 }
 
-type transport struct {
-	updateReq func(r *http.Request)
-	base      http.RoundTripper
+// idToName maps an arbitrary ID, such as an email or client ID to a Kubernetes object name.
+func (cli *client) idToName(s string) string {
+	return idToName(s, cli.hash)
 }
 
-func (t transport) RoundTrip(r *http.Request) (*http.Response, error) {
-	// shallow copy of the struct
-	r2 := new(http.Request)
-	*r2 = *r
-	// deep copy of the Header
-	r2.Header = make(http.Header, len(r.Header))
-	for k, s := range r.Header {
-		r2.Header[k] = append([]string(nil), s...)
-	}
-	t.updateReq(r2)
-	return t.base.RoundTrip(r2)
+func idToName(s string, h func() hash.Hash) string {
+	return strings.TrimRight(encoding.EncodeToString(h().Sum([]byte(s))), "=")
 }
 
-func loadKubeConfig(kubeConfigPath string) (cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, err error) {
-	data, err := ioutil.ReadFile(kubeConfigPath)
-	if err != nil {
-		err = fmt.Errorf("read %s: %v", kubeConfigPath, err)
-		return
+func (cli *client) getClient(id string) (Client, error) {
+	var c Client
+	name := cli.idToName(id)
+	if err := cli.get(resourceClient, name, &c); err != nil {
+		return Client{}, err
 	}
+	if c.ID != id {
+		return Client{}, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("get client: ID %q mapped to client with ID %q", id, c.ID)}
+	}
+	return c, nil
+}
 
-	var c k8sapi.Config
-	if err = yaml.Unmarshal(data, &c); err != nil {
-		err = fmt.Errorf("unmarshal %s: %v", kubeConfigPath, err)
-		return
+func (cli *client) getPassword(email string) (Password, error) {
+	// TODO(ericchiang): Figure out whose job it is to lowercase emails.
+	email = strings.ToLower(email)
+	var p Password
+	name := cli.idToName(email)
+	if err := cli.get(resourcePassword, name, &p); err != nil {
+		return Password{}, err
 	}
+	if email != p.Email {
+		return Password{}, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("get email: email %q mapped to password with email %q", email, p.Email)}
+	}
+	return p, nil
+}
 
-	cluster, user, namespace, err = currentContext(&c)
-	if namespace == "" {
-		namespace = "default"
-	}
+func (cli *client) getRefreshToken(id string) (r RefreshToken, err error) {
+	err = cli.get(resourceRefreshToken, id, &r)
 	return
 }
 
-func namespaceFromServiceAccountJWT(s string) (string, error) {
-	// The service account token is just a JWT. Parse it as such.
-	parts := strings.Split(s, ".")
-	if len(parts) < 2 {
-		// It's extremely important we don't log the actual service account token.
-		return "", fmt.Errorf("malformed service account token: expected 3 parts got %d", len(parts))
+func (cli *client) getOfflineSessions(userID string, connID string) (o OfflineSessions, err error) {
+	name := cli.offlineTokenName(userID, connID)
+	if err = cli.get(resourceOfflineSessions, name, &o); err != nil {
+		return OfflineSessions{}, err
 	}
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return "", fmt.Errorf("malformed service account token: %v", err)
+	if userID != o.UserID || connID != o.ConnID {
+		return OfflineSessions{}, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: errWrongSessionRetrieved}
 	}
-	var data struct {
-		// The claim Kubernetes uses to identify which namespace a service account belongs to.
-		//
-		// See: https://github.com/kubernetes/kubernetes/blob/v1.4.3/pkg/serviceaccount/jwt.go#L42
-		Namespace string `json:"kubernetes.io/serviceaccount/namespace"`
-	}
-	if err := json.Unmarshal(payload, &data); err != nil {
-		return "", fmt.Errorf("malformed service account token: %v", err)
-	}
-	if data.Namespace == "" {
-		return "", errors.New(`jwt claim "kubernetes.io/serviceaccount/namespace" not found`)
-	}
-	return data.Namespace, nil
+	return o, nil
 }
 
-func inClusterConfig() (cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, err error) {
-	host, port := os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT")
-	if len(host) == 0 || len(port) == 0 {
-		err = fmt.Errorf("unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be defined")
-		return
-	}
-	cluster = k8sapi.Cluster{
-		Server:               "https://" + host + ":" + port,
-		CertificateAuthority: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
-	}
-	token, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
-	if err != nil {
-		return
-	}
-	user = k8sapi.AuthInfo{Token: string(token)}
-
-	if namespace = os.Getenv("KUBERNETES_POD_NAMESPACE"); namespace == "" {
-		namespace, err = namespaceFromServiceAccountJWT(user.Token)
-		if err != nil {
-			err = fmt.Errorf("failed to inspect service account token: %v", err)
-			return
-		}
-	}
-
-	return
+// offlineTokenName maps two arbitrary IDs, to a single Kubernetes object name.
+// This is used when more than one field is used to uniquely identify the object.
+func (cli *client) offlineTokenName(userID string, connID string) string {
+	return offlineTokenName(userID, connID, cli.hash)
 }
 
-func currentContext(config *k8sapi.Config) (cluster k8sapi.Cluster, user k8sapi.AuthInfo, ns string, err error) {
-	if config.CurrentContext == "" {
-		if len(config.Contexts) == 1 {
-			config.CurrentContext = config.Contexts[0].Name
-		} else {
-			return cluster, user, "", errors.New("kubeconfig has no current context")
-		}
+// TODO(venezia) - Does this still need to be a separate function since its only called within a (client).offlineTokenName ?
+func offlineTokenName(userID string, connID string, h func() hash.Hash) string {
+	hash := h()
+	hash.Write([]byte(userID))
+	hash.Write([]byte(connID))
+	return strings.TrimRight(encoding.EncodeToString(hash.Sum(nil)), "=")
+}
+
+// Kubernetes Resource CRUDers
+
+func (cli *client) get(resource, name string, v interface{}) error {
+	return cli.getResource(cli.apiVersion, cli.namespace, resource, name, v)
+}
+
+func (cli *client) getResource(apiVersion, namespace, resource, name string, v interface{}) error {
+	url := cli.urlFor(apiVersion, namespace, resource, name)
+	resp, err := cli.client.Get(url)
+	if err != nil {
+		return err
 	}
-	context, ok := func() (k8sapi.Context, bool) {
-		for _, namedContext := range config.Contexts {
-			if namedContext.Name == config.CurrentContext {
-				return namedContext.Context, true
-			}
-		}
-		return k8sapi.Context{}, false
-	}()
-	if !ok {
-		return cluster, user, "", fmt.Errorf("no context named %q found", config.CurrentContext)
+	defer closeResp(resp)
+	if err := checkHTTPErr(resp, http.StatusOK); err != nil {
+		return err
+	}
+	return json.NewDecoder(resp.Body).Decode(v)
+}
+
+func (cli *client) list(resource string, v interface{}) error {
+	return cli.get(resource, "", v)
+}
+
+func (cli *client) post(resource string, v interface{}) error {
+	return cli.postResource(cli.apiVersion, cli.namespace, resource, v)
+}
+
+func (cli *client) postResource(apiVersion, namespace, resource string, v interface{}) error {
+	body, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Errorf("marshal object: %v", err)
 	}
 
-	cluster, ok = func() (k8sapi.Cluster, bool) {
-		for _, namedCluster := range config.Clusters {
-			if namedCluster.Name == context.Cluster {
-				return namedCluster.Cluster, true
-			}
+	url := cli.urlFor(apiVersion, namespace, resource, "")
+	resp, err := cli.client.Post(url, "application/json", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	defer closeResp(resp)
+	return checkHTTPErr(resp, http.StatusCreated)
+}
+
+func (cli *client) delete(resource, name string) error {
+	url := cli.urlFor(cli.apiVersion, cli.namespace, resource, name)
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return fmt.Errorf("create delete request: %v", err)
+	}
+	resp, err := cli.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("delete request: %v", err)
+	}
+	defer closeResp(resp)
+	return checkHTTPErr(resp, http.StatusOK)
+}
+
+func (cli *client) deleteAll(resource string) error {
+	var list struct {
+		k8sapi.TypeMeta `json:",inline"`
+		k8sapi.ListMeta `json:"metadata,omitempty"`
+		Items           []struct {
+			k8sapi.TypeMeta   `json:",inline"`
+			k8sapi.ObjectMeta `json:"metadata,omitempty"`
+		} `json:"items"`
+	}
+	if err := cli.list(resource, &list); err != nil {
+		return err
+	}
+	for _, item := range list.Items {
+		if err := cli.delete(resource, item.Name); err != nil {
+			return err
 		}
-		return k8sapi.Cluster{}, false
-	}()
-	if !ok {
-		return cluster, user, "", fmt.Errorf("no cluster named %q found", context.Cluster)
+	}
+	return nil
+}
+
+func (cli *client) put(resource, name string, v interface{}) error {
+	body, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Errorf("marshal object: %v", err)
 	}
 
-	user, ok = func() (k8sapi.AuthInfo, bool) {
-		for _, namedAuthInfo := range config.AuthInfos {
-			if namedAuthInfo.Name == context.AuthInfo {
-				return namedAuthInfo.AuthInfo, true
-			}
-		}
-		return k8sapi.AuthInfo{}, false
-	}()
-	if !ok {
-		return cluster, user, "", fmt.Errorf("no user named %q found", context.AuthInfo)
+	url := cli.urlFor(cli.apiVersion, cli.namespace, resource, name)
+	req, err := http.NewRequest("PUT", url, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create patch request: %v", err)
 	}
-	return cluster, user, context.Namespace, nil
+
+	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
+
+	resp, err := cli.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("patch request: %v", err)
+	}
+	defer closeResp(resp)
+
+	return checkHTTPErr(resp, http.StatusOK)
+}
+
+// Close the response body. The initial request is drained so the connection can
+// be reused.
+func closeResp(r *http.Response) {
+	io.Copy(ioutil.Discard, r.Body)
+	r.Body.Close()
+}
+
+func (cli *client) urlFor(apiVersion, namespace, resource, name string) string {
+	basePath := "apis/"
+	if apiVersion == "v1" {
+		basePath = "api/"
+	}
+
+	var p string
+	if namespace != "" {
+		p = path.Join(basePath, apiVersion, "namespaces", namespace, resource, name)
+	} else {
+		p = path.Join(basePath, apiVersion, resource, name)
+	}
+	if strings.HasSuffix(cli.baseURL, "/") {
+		return cli.baseURL + p
+	}
+	return cli.baseURL + "/" + p
 }
