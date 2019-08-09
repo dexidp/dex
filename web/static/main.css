@@ -73,6 +73,11 @@ body {
   background-image: url(../static/img/bitbucket-icon.svg);
 }
 
+.dex-btn-icon--atlassian-crowd {
+  background-color: #CFDCEA;
+  background-image: url(../static/img/atlassian-crowd-icon.svg);
+}
+
 .dex-btn-icon--ldap {
   background-color: #84B6EF;
   background-image: url(../static/img/ldap-icon.svg);
