@@ -115,92 +115,16 @@ subjects:
 ```
 
 
-## DEPRECATED: Kubernetes third party resources(TPRs)
+### Removed: Kubernetes third party resources(TPRs)
 
-__NOTE:__ TPRs are deprecated as of Kubernetes version 1.8.
+TPR support in dex has been removed.  The last version to support TPR
+is [v2.17.0](https://github.com/dexidp/dex/tree/v2.17.0)
 
-The default behavior of dex from release v2.7.0 onwards is to utilize CRDs to manage its custom resources. If users would like to use dex with a Kubernetes version lower than 1.7, they will have to force dex to use TPRs instead of CRDs.
+If you are currently running dex using TPRs, you will need to [migrate to CRDs](https://github.com/dexidp/dex/blob/v2.17.0/Documentation/storage.md#migrating-from-tprs-to-crds)
+before you upgrade to a post v2.17 dex.  The script mentioned in the instructions can be [found here](https://github.com/dexidp/dex/blob/v2.17.0/scripts/dump-tprs)
 
-These instructions have been preserved for anybody who needs to use an older version of Dex and/or Kubernetes, but this is not the recommended approach. See [Migrating from TPRs to CRDs](#migrating-from-tprs-to-crds) below for information on migrating an existing installation to the new approach.
 
-If you do wish to use TPRs, you may do so by setting the `UseTPR` flag in the storage configuration as shown below:
-
-```
-storage:
-  type: kubernetes
-  config:
-    kubeConfigFile: kubeconfig
-    useTPR: true
-```
-
-The `ThirdPartyResource` type acts as a description for the new resource a user wishes to create. The following an example of a resource managed by dex:
-
-```
-kind: ThirdPartyResource
-apiVersion: extensions/v1beta1
-metadata:
-  name: o-auth2-client.oidc.coreos.com
-versions:
-  - name: v1
-description: "An OAuth2 client."
-```
-
-Once the `ThirdPartyResource` is created, custom resources can be created at a namespace level (though there will be a gap between the `ThirdPartyResource` being created and the API server accepting the custom resource). While most fields are user defined, the API server still respects the common `ObjectMeta` and `TypeMeta` values. For example names are still restricted to a small set of characters, and the `resourceVersion` field can be used for an [atomic compare and swap][k8s-api].
-
-The following is an example of a custom `OAuth2Client` resource:
-
-```
-# Standard Kubernetes resource fields
-kind: OAuth2Client
-apiVersion: oidc.coreos.com/v1
-metadata:
-  namespace: foobar
-  name: ( opaque hash )
-
-# Custom fields defined by dex.
-clientID: "aclientid"
-clientSecret: "clientsecret"
-redirectURIs:
-- "https://app.example.com/callback"
-```
-
-The `ThirdPartyResource` type and the custom resources can be queried, deleted, and edited like any other resource using `kubectl`.
-
-```
-kubectl get thirdpartyresources # list third party resources registered on the clusters
-kubectl get --namespace=foobar oauth2clients # list oauth2 clients in a given namespace
-```
-
-To reduce administrative overhead, dex creates and manages its own third party resources and may create new ones during upgrades. While not strictly required we feel this is important for reasonable updates. Though, as a result, dex requires access to the non-namespaced `ThirdPartyResource` type. For example, clusters using RBAC authorization would need to create the following roles and bindings:
-
-```
-kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1alpha1
-metadata:
-  name: dex
-rules:
-  - apiGroups: ["oidc.coreos.com"] # API group created by dex
-    resources: ["*"]
-    verbs: ["*"]
-    nonResourceURLs: []
-  - apiGroups: ["extensions"]
-    resources: ["thirdpartyresources"]
-    verbs: ["create"] # To manage its own resources identity must be able to create thirdpartyresources.
-    nonResourceURLs: []
----
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1alpha1
-metadata:
-  name: dex
-subjects:
-  - kind: ServiceAccount
-    name: dex                 # Service account assigned to the dex pod.
-    namespace: demo-namespace # The namespace dex is running in.
-roleRef:
-  kind: ClusterRole
-  name: identity
-  apiVersion: rbac.authorization.k8s.io/v1alpha1
-```
+### Configuration
 
 The storage configuration is extremely limited since installations running outside a Kubernetes cluster would likely prefer a different storage option. An example configuration for dex running inside Kubernetes:
 
@@ -212,39 +136,6 @@ storage:
 ```
 
 Dex determines the namespace it's running in by parsing the service account token automatically mounted into its pod.
-
-## Migrating from TPRs to CRDs
-
-This section descibes how users can migrate storage data in dex when upgrading from an older version of kubernetes (lower than 1.7). This involves creating new CRDs and moving over the data from TPRs.
-The flow of the migration process is as follows:
-1. Stop running old version of Dex (lower than v2.7.0).
-2. Create new CRDs by running the following command:
-   ```
-   kubectl apply -f scripts/manifests/crds/
-   ```
-   Note that the newly created CRDs have `dex.coreos.com` as their group and will not conflict with the existing TPR resources which have `oidc.coreos.com` as the group.
-3. Migrate data from existing TPRs to CRDs by running the following commands for each of the TPRs:
-   1. Export `DEX_NAMESPACE` to be the namespace in which the TPRs exist and run the following script to store TPR definition in a temporary yaml file:
-      ```
-      export DEX_NAMESPACE="<namespace-value>"
-      ./scripts/dump-tprs > out.yaml
-      ```
-   2. Update `out.yaml` to change the apiVersion to `apiVersion: dex.coreos.com/v1` and delete the `resourceVersion` field.
-      ```
-      sed 's/oidc.coreos.com/dex.coreos.com/' out.yaml
-      ```
-      ```
-      sed 's/resourceVersion: ".*"//' out.yaml
-      ```
-   3. Create the resource object using the following command:
-      ```
-      kubectl apply -f out.yaml
-      ```
-   4. Confirm that the resource got created using the following get command:
-      ```
-      kubectl get --namespace=tectonic-system <TPR-name>.dex.coreos.com  -o yaml
-      ```
-4. Update to new version of Dex (v2.7.0 or higher) which will use CRDs instead of TPRs.
 
 ## SQL
 

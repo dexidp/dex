@@ -253,7 +253,7 @@ func (c *client) put(resource, name string, v interface{}) error {
 	return checkHTTPErr(resp, http.StatusOK)
 }
 
-func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, logger log.Logger, useTPR bool) (*client, error) {
+func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, logger log.Logger) (*client, error) {
 	tlsConfig := cryptopasta.DefaultTLSConfig()
 	data := func(b string, file string) ([]byte, error) {
 		if b != "" {
@@ -329,11 +329,7 @@ func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, l
 		}
 	}
 
-	// the API Group and version differ depending on if CRDs or TPRs are used.
 	apiVersion := "dex.coreos.com/v1"
-	if useTPR {
-		apiVersion = "oidc.coreos.com/v1"
-	}
 
 	logger.Infof("kubernetes client apiVersion = %s", apiVersion)
 	return &client{
