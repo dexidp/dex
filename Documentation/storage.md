@@ -85,19 +85,20 @@ status:
 
 Once the `CustomResourceDefinition` is created, custom resources can be created and stored at a namespace level. The CRD type and the custom resources can be queried, deleted, and edited like any other resource using `kubectl`.
 
-dex requires access to the non-namespaced `CustomResourceDefinition` type. For example, clusters using RBAC authorization would need to create the following roles and bindings:
+### Permissions
+
+dex may require access to the non-namespaced `CustomResourceDefinition` type if it configured to create the necessary Custom Resource Definitions for you.
+For example, clusters using RBAC authorization would need to create the following roles and bindings:
+
 ```
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
   name: dex
 rules:
-- apiGroups: ["dex.coreos.com"] # API group created by dex
-  resources: ["*"]
-  verbs: ["*"]
 - apiGroups: ["apiextensions.k8s.io"]
   resources: ["customresourcedefinitions"]
-  verbs: ["create"] # To manage its own resources identity must be able to create customresourcedefinitions.
+  verbs: ["*"] # To manage its own resources identity must be able to create customresourcedefinitions.
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
@@ -111,7 +112,82 @@ subjects:
 - kind: ServiceAccount
   name: dex                 # Service account assigned to the dex pod.
   namespace: dex-namespace  # The namespace dex is running in.
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: Role
+metadata:
+  name: dex 
+  namespace: dex-namespace  # The namespace dex is running in. 
+rules:
+- apiGroups: ["dex.coreos.com"] # API group created by dex
+  resources: ["*"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: RoleBinding
+metadata:
+  name: dex
+  namespace: dex-namespace  # The namespace dex is running in.
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dex
+subjects:
+- kind: ServiceAccount
+  name: dex                 # Service account assigned to the dex pod.
+  namespace: dex-namespace  # The namespace dex is running in.
+```
 
+If you are not relying on dex to install the Custom Resource Definitions for you, you may want a more restrictive
+account permission profile:
+
+```
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: Role
+metadata:
+  name: dex 
+  namespace: dex-namespace  # The namespace dex is running in. 
+rules:
+- apiGroups: ["dex.coreos.com"] # API group created by dex
+  resources: ["*"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: RoleBinding
+metadata:
+  name: dex
+  namespace: dex-namespace  # The namespace dex is running in.
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dex
+subjects:
+- kind: ServiceAccount
+  name: dex                 # Service account assigned to the dex pod.
+  namespace: dex-namespace  # The namespace dex is running in.
+```
+
+Note: Dex determines the namespace it's running in by parsing the service account token automatically mounted into its pod.
+
+### Configuration
+
+The storage configuration is extremely limited since installations running outside a Kubernetes cluster would likely prefer a different storage option. An example configuration for dex running inside Kubernetes:
+
+#### Variables
+
+| Name | Type | Default Value | Description  |
+| --- | --- | --- | --- |
+| `inCluster` | `boolean` |  `false` | Should dex use the service account for the pod it is running in |
+| `kubeConfigFile` | `string` | `<empty>` | File that contains a valid kubeconfig to use to authenticate against the kubernetes api |
+| `skipCRDCreation` | `boolean` | `false` | Do not try to create Custom Resources for dex |
+
+#### Sample Configuration:
+
+```
+storage:
+  type: kubernetes
+  config:
+    inCluster: true
 ```
 
 
@@ -123,19 +199,6 @@ is [v2.17.0](https://github.com/dexidp/dex/tree/v2.17.0)
 If you are currently running dex using TPRs, you will need to [migrate to CRDs](https://github.com/dexidp/dex/blob/v2.17.0/Documentation/storage.md#migrating-from-tprs-to-crds)
 before you upgrade to a post v2.17 dex.  The script mentioned in the instructions can be [found here](https://github.com/dexidp/dex/blob/v2.17.0/scripts/dump-tprs)
 
-
-### Configuration
-
-The storage configuration is extremely limited since installations running outside a Kubernetes cluster would likely prefer a different storage option. An example configuration for dex running inside Kubernetes:
-
-```
-storage:
-  type: kubernetes
-  config:
-    inCluster: true
-```
-
-Dex determines the namespace it's running in by parsing the service account token automatically mounted into its pod.
 
 ## SQL
 

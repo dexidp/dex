@@ -36,8 +36,9 @@ const (
 
 // Config values for the Kubernetes storage type.
 type Config struct {
-	InCluster      bool   `json:"inCluster"`
-	KubeConfigFile string `json:"kubeConfigFile"`
+	InCluster       bool   `json:"inCluster"`
+	KubeConfigFile  string `json:"kubeConfigFile"`
+	SkipCRDCreation bool   `json:"skipCRDCreation"`
 }
 
 // Open returns a storage using Kubernetes third party resource.
@@ -84,37 +85,41 @@ func (c *Config) open(logger log.Logger, waitForResources bool) (*client, error)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	logger.Info("creating custom Kubernetes resources")
-	if !cli.registerCustomResources() {
-		if waitForResources {
-			cancel()
-			return nil, fmt.Errorf("failed creating custom resources")
-		}
-
-		// Try to synchronously create the custom resources once. This doesn't mean
-		// they'll immediately be available, but ensures that the client will actually try
-		// once.
-		logger.Errorf("failed creating custom resources: %v", err)
-		go func() {
-			for {
-				if cli.registerCustomResources() {
-					return
-				}
-
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(30 * time.Second):
-				}
+	if !c.SkipCRDCreation {
+		logger.Info("creating custom Kubernetes resources")
+		if !cli.registerCustomResources() {
+			if waitForResources {
+				cancel()
+				return nil, fmt.Errorf("failed creating custom resources")
 			}
-		}()
-	}
 
-	if waitForResources {
-		if err := cli.waitForCRDs(ctx); err != nil {
-			cancel()
-			return nil, err
+			// Try to synchronously create the custom resources once. This doesn't mean
+			// they'll immediately be available, but ensures that the client will actually try
+			// once.
+			logger.Errorf("failed creating custom resources: %v", err)
+			go func() {
+				for {
+					if cli.registerCustomResources() {
+						return
+					}
+
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(30 * time.Second):
+					}
+				}
+			}()
 		}
+
+		if waitForResources {
+			if err := cli.waitForCRDs(ctx); err != nil {
+				cancel()
+				return nil, err
+			}
+		}
+	} else {
+		logger.Info("skipping creation/maintenance of Kubernetes CRDs")
 	}
 
 	// If the client is closed, stop trying to create resources.
