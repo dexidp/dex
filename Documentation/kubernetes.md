@@ -43,6 +43,7 @@ Additional notes:
 * Kubernetes only trusts ID Tokens issued to a single client.
   * As a work around dex allows clients to [trust other clients][trusted-peers] to mint tokens on their behalf.
 * If a claim other than "email" is used for username, for example "sub", it will be prefixed by `"(value of --oidc-issuer-url)#"`. This is to namespace user controlled claims which may be used for privilege escalation.
+* The `/etc/ssl/certs/openid-ca.pem` used here is the CA from the [generated TLS assets](#generate-tls-assets), and is assumed to be present on the cluster nodes.
 
 ## Deploying dex on Kubernetes
 
