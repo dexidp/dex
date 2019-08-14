@@ -84,7 +84,7 @@ type gitlabConnector struct {
 
 func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
 	gitlabScopes := []string{scopeUser}
-	if scopes.Groups {
+	if c.groupsRequired(scopes.Groups) {
 		gitlabScopes = []string{scopeUser, scopeOpenID}
 	}
 
@@ -156,7 +156,7 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 		identity.UserID = user.Username
 	}
 
-	if s.Groups {
+	if c.groupsRequired(s.Groups) {
 		groups, err := c.getGroups(ctx, client, s.Groups, user.Username)
 		if err != nil {
 			return identity, fmt.Errorf("gitlab: get groups: %v", err)
@@ -199,7 +199,7 @@ func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 	ident.Username = username
 	ident.Email = user.Email
 
-	if s.Groups {
+	if c.groupsRequired(s.Groups) {
 		groups, err := c.getGroups(ctx, client, s.Groups, user.Username)
 		if err != nil {
 			return ident, fmt.Errorf("gitlab: get groups: %v", err)
@@ -207,6 +207,10 @@ func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 		ident.Groups = groups
 	}
 	return ident, nil
+}
+
+func (c *gitlabConnector) groupsRequired(groupScope bool) bool {
+	return len(c.groups) > 0 || groupScope
 }
 
 // user queries the GitLab API for profile information using the provided client. The HTTP
