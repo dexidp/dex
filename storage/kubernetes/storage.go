@@ -38,7 +38,6 @@ const (
 type Config struct {
 	InCluster      bool   `json:"inCluster"`
 	KubeConfigFile string `json:"kubeConfigFile"`
-	UseTPR         bool   `json:"useTPR"` // Flag option to use TPRs instead of CRDs
 }
 
 // Open returns a storage using Kubernetes third party resource.
@@ -78,7 +77,7 @@ func (c *Config) open(logger log.Logger, waitForResources bool) (*client, error)
 		return nil, err
 	}
 
-	cli, err := newClient(cluster, user, namespace, logger, c.UseTPR)
+	cli, err := newClient(cluster, user, namespace, logger)
 	if err != nil {
 		return nil, fmt.Errorf("create client: %v", err)
 	}
@@ -86,7 +85,7 @@ func (c *Config) open(logger log.Logger, waitForResources bool) (*client, error)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	logger.Info("creating custom Kubernetes resources")
-	if !cli.registerCustomResources(c.UseTPR) {
+	if !cli.registerCustomResources() {
 		if waitForResources {
 			cancel()
 			return nil, fmt.Errorf("failed creating custom resources")
@@ -98,7 +97,7 @@ func (c *Config) open(logger log.Logger, waitForResources bool) (*client, error)
 		logger.Errorf("failed creating custom resources: %v", err)
 		go func() {
 			for {
-				if cli.registerCustomResources(c.UseTPR) {
+				if cli.registerCustomResources() {
 					return
 				}
 
@@ -125,39 +124,28 @@ func (c *Config) open(logger log.Logger, waitForResources bool) (*client, error)
 
 // registerCustomResources attempts to create the custom resources dex
 // requires or identifies that they're already enabled. This function creates
-// third party resources(TPRs) or custom resource definitions(CRDs) depending
-// on the `useTPR` flag passed in as an argument.
+// custom resource definitions(CRDs)
 // It logs all errors, returning true if the resources were created successfully.
 //
 // Creating a custom resource does not mean that they'll be immediately available.
-func (cli *client) registerCustomResources(useTPR bool) (ok bool) {
+func (cli *client) registerCustomResources() (ok bool) {
 	ok = true
 	length := len(customResourceDefinitions)
-	if useTPR {
-		length = len(thirdPartyResources)
-	}
-
 	for i := 0; i < length; i++ {
 		var err error
 		var resourceName string
 
-		if useTPR {
-			r := thirdPartyResources[i]
-			err = cli.postResource("extensions/v1beta1", "", "thirdpartyresources", r)
-			resourceName = r.ObjectMeta.Name
+		r := customResourceDefinitions[i]
+		var i interface{}
+		cli.logger.Infof("checking if custom resource %s has been created already...", r.ObjectMeta.Name)
+		if err := cli.list(r.Spec.Names.Plural, &i); err == nil {
+			cli.logger.Infof("The custom resource %s already available, skipping create", r.ObjectMeta.Name)
+			continue
 		} else {
-			r := customResourceDefinitions[i]
-			var i interface{}
-			cli.logger.Infof("checking if custom resource %s has been created already...", r.ObjectMeta.Name)
-			if err := cli.list(r.Spec.Names.Plural, &i); err == nil {
-				cli.logger.Infof("The custom resource %s already available, skipping create", r.ObjectMeta.Name)
-				continue
-			} else {
-				cli.logger.Infof("failed to list custom resource %s, attempting to create: %v", r.ObjectMeta.Name, err)
-			}
-			err = cli.postResource("apiextensions.k8s.io/v1beta1", "", "customresourcedefinitions", r)
-			resourceName = r.ObjectMeta.Name
+			cli.logger.Infof("failed to list custom resource %s, attempting to create: %v", r.ObjectMeta.Name, err)
 		}
+		err = cli.postResource("apiextensions.k8s.io/v1beta1", "", "customresourcedefinitions", r)
+		resourceName = r.ObjectMeta.Name
 
 		if err != nil {
 			switch err {
@@ -424,7 +412,7 @@ func (cli *client) DeleteRefresh(id string) error {
 }
 
 func (cli *client) DeletePassword(email string) error {
-	// Check for hash collition.
+	// Check for hash collision.
 	p, err := cli.getPassword(email)
 	if err != nil {
 		return err
@@ -433,7 +421,7 @@ func (cli *client) DeletePassword(email string) error {
 }
 
 func (cli *client) DeleteOfflineSessions(userID string, connID string) error {
-	// Check for hash collition.
+	// Check for hash collision.
 	o, err := cli.getOfflineSessions(userID, connID)
 	if err != nil {
 		return err
