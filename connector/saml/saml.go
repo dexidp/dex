@@ -50,6 +50,10 @@ const (
 )
 
 var (
+	// DefaultIDPInitiatedScopes specifies scopes to use for IdP initiated flows
+	// if the target client does not have any configured
+	DefaultIDPInitiatedScopes = []string{"openid", "profile", "email", "groups"}
+
 	nameIDFormats = []string{
 		nameIDFormatEmailAddress,
 		nameIDFormatUnspecified,
@@ -460,6 +464,10 @@ func GetSAMLIssuer(samlResponse string) (string, error) {
 	var resp response
 	if err := xml.Unmarshal(rawResp, &resp); err != nil {
 		return "", err
+	}
+
+	if resp.Issuer == nil {
+		return "", errors.New("response is missing issuer")
 	}
 
 	return resp.Issuer.Issuer, nil

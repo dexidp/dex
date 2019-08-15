@@ -408,7 +408,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	case http.MethodPost: // SAML POST binding
 		var code int
 		var err error
-		authID, samlInResponseTo, code, err = s.handleSamlCallback(r)
+		authID, samlInResponseTo, code, err = s.handleSAMLCallback(r)
 		if err != nil {
 			s.renderError(w, code, fmt.Sprintf("Error processing SAML callback: %s.", err))
 			return
@@ -499,48 +499,51 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 // handleSamlCallback handles a saml callback response with support for the IdP initiated flow.
 // if the RelayState is not one of our auth requests, we check to see if it is a valid redirectURI
 // for one of our clients. then, if the SAMLResponse is from a registered connector, we create a
-// new auth request in the database so we can contuine with our regular callback flow.
-func (s *Server) handleSamlCallback(r *http.Request) (string, string, int, error) {
+// new auth request in the database so we can continue with our regular callback flow.
+func (s *Server) handleSAMLCallback(r *http.Request) (string, string, int, error) {
 	relayState := r.PostFormValue("RelayState")
 	if relayState == "" {
-		return "", "", http.StatusBadRequest, fmt.Errorf("user session error")
+		return "", "", http.StatusBadRequest, errors.New("user session error")
 	}
 	// if our relaySate is a valid authId, this is not IdP initiated
 	if _, err := s.storage.GetAuthRequest(relayState); err == nil {
 		return relayState, relayState, http.StatusOK, nil
 	} else if err != storage.ErrNotFound {
 		s.logger.Errorf("Failed to get auth request: %v", err)
-		return "", "", http.StatusInternalServerError, fmt.Errorf("database error")
+		return "", "", http.StatusInternalServerError, errors.New("database error")
 	}
-	// find the client the RelayState is trying to send us to, stop when we match a redirectURI
-	// TODO: is it valid for differrent clients to have the same redirectURI? ¯\_(ツ)_/¯
-	clients, err := s.storage.ListClients()
-	if err != nil {
-		s.logger.Errorf("Failed to list clients: %v", err)
-		return "", "", http.StatusInternalServerError, fmt.Errorf("database error")
+	// if relayState is a valid client_id, we'll check to see if that has config to
+	// allow the IdP initiated flow.
+	client, err := s.storage.GetClient(relayState)
+	if err == storage.ErrNotFound {
+		// this is not a valid client_id, we have a bogus relayState
+		s.logger.Warnf("SAML authentication recieved with unknown RelaySate %q", relayState)
+		return "", "", http.StatusBadRequest, errors.New("user session error")
+	} else if err != nil {
+		s.logger.Errorf("Failed to get client: %v", err)
+		return "", "", http.StatusInternalServerError, errors.New("database error")
 	}
-	var client *storage.Client
-	for _, c := range clients {
-		for _, u := range c.RedirectURIs {
-			if relayState == u {
-				client = &c
-				break
-			}
-		}
+	redirectURI := client.SAMLInitiated.RedirectURI
+	if redirectURI == "" {
+		// this client does not have support for IdP initiated login configured
+		s.logger.Warnf("SAML IdP initiated login attempt made to client %q, but support for this flow is not configured. Update the client config to support this login flow.", relayState)
+		return "", "", http.StatusBadRequest, errors.New("user session error")
 	}
-	if client == nil {
-		s.logger.Errorf("Cannot find client with redirectURI: %s", relayState)
-		return "", "", http.StatusInternalServerError, fmt.Errorf("bad saml response")
+	// TODO: should we check that 'idtoken' is one of the scopes? or just put the
+	// burden on the user to confiugre these scopes correctly?
+	scopes := client.SAMLInitiated.Scopes
+	if len(scopes) == 0 {
+		scopes = saml.DefaultIDPInitiatedScopes
 	}
 	// find the issuer attribute in the SAMLResponse, use it to find the associated connector-id.
 	ssoIssuer, err := saml.GetSAMLIssuer(r.PostFormValue("SAMLResponse"))
 	if err != nil {
-		return "", "", http.StatusBadRequest, fmt.Errorf("bad saml response")
+		return "", "", http.StatusBadRequest, errors.New("bad saml response")
 	}
 	connectors, err := s.storage.ListConnectors()
 	if err != nil {
 		s.logger.Errorf("Failed to list connectors: %v", err)
-		return "", "", http.StatusInternalServerError, fmt.Errorf("database error")
+		return "", "", http.StatusInternalServerError, errors.New("database error")
 	}
 	var connID string
 	for _, c := range connectors {
@@ -550,7 +553,7 @@ func (s *Server) handleSamlCallback(r *http.Request) (string, string, int, error
 		var cfg saml.Config
 		if err := json.Unmarshal(c.Config, &cfg); err != nil {
 			s.logger.Errorf("Cannot parse saml config for connector %s: %s", c.ID, err)
-			return "", "", http.StatusPreconditionFailed, fmt.Errorf("config error")
+			return "", "", http.StatusPreconditionFailed, errors.New("config error")
 		}
 		if cfg.SSOIssuer == ssoIssuer {
 			connID = c.ID
@@ -559,26 +562,22 @@ func (s *Server) handleSamlCallback(r *http.Request) (string, string, int, error
 	}
 	if connID == "" {
 		s.logger.Errorf("Cannot find the connector id associated with the issuer %s", ssoIssuer)
-		return "", "", http.StatusInternalServerError, fmt.Errorf("bad saml response")
+		return "", "", http.StatusInternalServerError, errors.New("bad saml response")
 	}
 	// build our auth request (fake it til ya make it)
 	authID := storage.NewID()
 	req := storage.AuthRequest{
-		ID:                  authID,
-		ClientID:            client.ID,
-		State:               "",
-		Nonce:               "",
-		ForceApprovalPrompt: false,
-		// TODO: make IdP initiated scopes configurable as part of the saml connector
-		Scopes:        []string{"openid", "profile", "email", "groups"},
-		RedirectURI:   relayState,
+		ID:            authID,
+		ClientID:      client.ID,
+		Scopes:        scopes,
+		RedirectURI:   redirectURI,
 		ResponseTypes: []string{"code"},
 		ConnectorID:   connID,
 		Expiry:        s.now().Add(s.authRequestsValidFor),
 	}
 	if err := s.storage.CreateAuthRequest(req); err != nil {
 		s.logger.Errorf("Could not create SAML IDP initiated request: %v", err)
-		return "", "", http.StatusInternalServerError, fmt.Errorf("database error")
+		return "", "", http.StatusInternalServerError, errors.New("database error")
 	}
 	// empty InResponseTo value because this is IdP initiated, not in response to any request
 	return authID, "", http.StatusOK, nil
