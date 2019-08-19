@@ -5,12 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // apiVersion increases every time a new call is added to the API. Clients should use this info
@@ -85,6 +84,10 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 		Name:         req.Client.Name,
 		LogoURL:      req.Client.LogoUrl,
 	}
+	if req.Client.SamlInitiated != nil {
+		c.SAMLInitiated.RedirectURI = req.Client.SamlInitiated.RedirectUri
+		c.SAMLInitiated.Scopes = req.Client.SamlInitiated.Scopes
+	}
 	if err := d.s.CreateClient(c); err != nil {
 		if err == storage.ErrAlreadyExists {
 			return &api.CreateClientResp{AlreadyExists: true}, nil
@@ -115,6 +118,14 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 		}
 		if req.LogoUrl != "" {
 			old.LogoURL = req.LogoUrl
+		}
+		if req.SamlInitiated != nil {
+			if req.SamlInitiated.RedirectUri != "" {
+				old.SAMLInitiated.RedirectURI = req.SamlInitiated.RedirectUri
+			}
+			if len(req.SamlInitiated.Scopes) > 0 {
+				old.SAMLInitiated.Scopes = req.SamlInitiated.Scopes
+			}
 		}
 		return old, nil
 	})

@@ -298,4 +298,13 @@ var migrations = []migration{
 				add column hmac_key bytea;`,
 		},
 	},
+	{
+		stmts: []string{`
+			alter table client
+				add column saml_init_redirect_uri text not null default '';`,
+			`
+			alter table client
+				add column saml_init_scopes bytea not null; -- JSON array of strings`,
+		},
+	},
 }

@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -410,7 +411,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		var err error
 		authID, samlInResponseTo, code, err = s.handleSAMLCallback(r)
 		if err != nil {
-			s.renderError(w, code, fmt.Sprintf("Error processing SAML callback: %s.", err))
+			s.renderError(r, w, code, fmt.Sprintf("Error processing SAML callback: %s.", err))
 			return
 		}
 	default:
