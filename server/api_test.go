@@ -409,6 +409,10 @@ func TestUpdateClient(t *testing.T) {
 				TrustedPeers: []string{"test"},
 				Name:         "test",
 				LogoUrl:      "https://logout",
+				SamlInitiated: &api.SamlInitiatedConfig{
+					RedirectUri: "https://redirect",
+					Scopes:      []string{"idtoken"},
+				},
 			},
 			wantErr: false,
 			want: &api.UpdateClientResp{
@@ -488,6 +492,17 @@ func TestUpdateClient(t *testing.T) {
 					found := find(peer, client.TrustedPeers)
 					if !found {
 						t.Errorf("expected trusted peer: %s", peer)
+					}
+				}
+				if tc.req.SamlInitiated != nil {
+					if tc.req.SamlInitiated.RedirectUri != client.SAMLInitiated.RedirectURI {
+						t.Errorf("expected stored client with SAML initiated redirectURI: %s, found %s", tc.req.SamlInitiated.RedirectUri, client.SAMLInitiated.RedirectURI)
+					}
+					for _, scope := range tc.req.SamlInitiated.Scopes {
+						found := find(scope, client.SAMLInitiated.Scopes)
+						if !found {
+							t.Errorf("expected SAML initiated scope: %s", scope)
+						}
 					}
 				}
 			}
