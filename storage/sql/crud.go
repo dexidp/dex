@@ -510,7 +510,7 @@ func (c *conn) UpdateClient(id string, updater func(old storage.Client) (storage
 				trusted_peers = $3,
 				public = $4,
 				name = $5,
-				logo_url = $6
+				logo_url = $6,
 				saml_init_redirect_uri = $7,
 				saml_init_scopes = $8
 			where id = $9;

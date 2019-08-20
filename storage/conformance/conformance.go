@@ -263,6 +263,10 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 		RedirectURIs: []string{"foo://bar.com/", "https://auth.example.com"},
 		Name:         "dex client",
 		LogoURL:      "https://goo.gl/JIyzIC",
+		SAMLInitiated: storage.SAMLInitiatedConfig{
+			RedirectURI: "foo://bar.com/",
+			Scopes:      []string{"idtoken", "profile", "email"},
+		},
 	}
 	err := s.DeleteClient(id1)
 	mustBeErrNotFound(t, "client", err)
@@ -282,6 +286,10 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 		RedirectURIs: []string{"foo://bar.com/", "https://auth.example.com"},
 		Name:         "dex client",
 		LogoURL:      "https://goo.gl/JIyzIC",
+		SAMLInitiated: storage.SAMLInitiatedConfig{
+			RedirectURI: "foo://bar.com/",
+			Scopes:      []string{"idtoken", "profile", "email"},
+		},
 	}
 
 	if err := s.CreateClient(c2); err != nil {

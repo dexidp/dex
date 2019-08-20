@@ -304,7 +304,7 @@ var migrations = []migration{
 				add column saml_init_redirect_uri text not null default '';`,
 			`
 			alter table client
-				add column saml_init_scopes bytea not null; -- JSON array of strings`,
+				add column saml_init_scopes bytea; -- JSON array of strings`,
 		},
 	},
 }
