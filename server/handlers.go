@@ -373,7 +373,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		identity, ok, err := passwordConnector.Login(r.Context(), scopes, username, password)
 		if err != nil {
 			s.logger.Errorf("Failed to login user: %v", err)
-			s.renderError(w, http.StatusInternalServerError, "Login error.")
+			s.renderError(w, http.StatusInternalServerError, fmt.Sprintf("Login error: %v", err))
 			return
 		}
 		if !ok {
