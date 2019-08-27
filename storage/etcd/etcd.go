@@ -702,6 +702,7 @@ func (c *conn) getKey(ctx context.Context, key string, value interface{}) error 
 	if err != nil {
 		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
+	return nil
 }
 
 func (c *conn) listAuthRequests(ctx context.Context) (reqs []AuthRequest, err error) {
