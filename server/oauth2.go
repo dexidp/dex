@@ -253,10 +253,10 @@ type idTokenClaims struct {
 
 	AccessTokenHash string `json:"at_hash,omitempty"`
 
-	Email         string `json:"email,omitempty"`
-	EmailVerified *bool  `json:"email_verified,omitempty"`
-
-	Groups []string `json:"groups,omitempty"`
+	Email         string   `json:"email,omitempty"`
+	EmailVerified *bool    `json:"email_verified,omitempty"`
+	Locale        string   `json:"locale,omitempty"`
+	Groups        []string `json:"groups,omitempty"`
 
 	Name string `json:"name,omitempty"`
 
@@ -329,6 +329,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 			tok.Groups = claims.Groups
 		case scope == scopeProfile:
 			tok.Name = claims.Username
+			tok.Locale = claims.Locale
 		case scope == scopeFederatedID:
 			tok.FederatedIDClaims = &federatedIDClaims{
 				ConnectorID: connID,

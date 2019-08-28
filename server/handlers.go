@@ -484,6 +484,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 		Email:         identity.Email,
 		EmailVerified: identity.EmailVerified,
 		Groups:        identity.Groups,
+		Locale:        identity.Locale,
 	}
 
 	updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
@@ -974,6 +975,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		EmailVerified: refresh.Claims.EmailVerified,
 		Groups:        refresh.Claims.Groups,
 		ConnectorData: refresh.ConnectorData,
+		Locale:        refresh.Claims.Locale,
 	}
 
 	// Can the connector refresh the identity? If so, attempt to refresh the data
@@ -997,6 +999,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		Email:         ident.Email,
 		EmailVerified: ident.EmailVerified,
 		Groups:        ident.Groups,
+		Locale:        ident.Locale,
 	}
 
 	accessToken, err := s.newAccessToken(client.ID, claims, scopes, refresh.Nonce, refresh.ConnectorID)

@@ -97,6 +97,7 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 			Username:      "jane",
 			Email:         "jane.doe@example.com",
 			EmailVerified: true,
+			Locale:        "en_US",
 			Groups:        []string{"a", "b"},
 		},
 	}
@@ -129,6 +130,7 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 			Username:      "john",
 			Email:         "john.doe@example.com",
 			EmailVerified: true,
+			Locale:        "en_US",
 			Groups:        []string{"a"},
 		},
 	}
@@ -178,6 +180,7 @@ func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 			Username:      "jane",
 			Email:         "jane.doe@example.com",
 			EmailVerified: true,
+			Locale:        "en_US",
 			Groups:        []string{"a", "b"},
 		},
 	}
@@ -200,6 +203,7 @@ func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 			Username:      "john",
 			Email:         "john.doe@example.com",
 			EmailVerified: true,
+			Locale:        "en_US",
 			Groups:        []string{"a"},
 		},
 	}
@@ -321,6 +325,7 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 			Username:      "jane",
 			Email:         "jane.doe@example.com",
 			EmailVerified: true,
+			Locale:        "en_US",
 			Groups:        []string{"a", "b"},
 		},
 		ConnectorData: []byte(`{"some":"data"}`),
@@ -375,6 +380,7 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 			Username:      "john",
 			Email:         "john.doe@example.com",
 			EmailVerified: true,
+			Locale:        "en_US",
 			Groups:        []string{"a", "b"},
 		},
 		ConnectorData: []byte(`{"some":"data"}`),
@@ -794,6 +800,7 @@ func testGC(t *testing.T, s storage.Storage) {
 			Username:      "jane",
 			Email:         "jane.doe@example.com",
 			EmailVerified: true,
+			Locale:        "en_US",
 			Groups:        []string{"a", "b"},
 		},
 	}
@@ -854,6 +861,7 @@ func testTimezones(t *testing.T, s storage.Storage) {
 			Username:      "jane",
 			Email:         "jane.doe@example.com",
 			EmailVerified: true,
+			Locale:        "en_US",
 			Groups:        []string{"a", "b"},
 		},
 	}

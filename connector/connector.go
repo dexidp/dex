@@ -27,8 +27,8 @@ type Identity struct {
 	Username      string
 	Email         string
 	EmailVerified bool
-
-	Groups []string
+	Locale        string
+	Groups        []string
 
 	// ConnectorData holds data used by the connector for subsequent requests after initial
 	// authentication, such as access tokens for upstream provides.
