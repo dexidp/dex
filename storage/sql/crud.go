@@ -302,7 +302,7 @@ func (c *conn) UpdateRefreshToken(id string, updater func(old storage.RefreshTok
 				created_at = $13,
 				last_used = $14
 			where
-				id = $14
+				id = $15
 		`,
 			r.ClientID, encoder(r.Scopes), r.Nonce,
 			r.Claims.UserID, r.Claims.Username, r.Claims.Email, r.Claims.EmailVerified,
