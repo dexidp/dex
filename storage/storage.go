@@ -141,8 +141,8 @@ type Claims struct {
 	Username      string
 	Email         string
 	EmailVerified bool
-	Locale        string
 	Groups        []string
+	Locale        string
 }
 
 // AuthRequest represents a OAuth2 client authorization request. It holds the state

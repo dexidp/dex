@@ -214,8 +214,8 @@ type Claims struct {
 	Username      string   `json:"username"`
 	Email         string   `json:"email"`
 	EmailVerified bool     `json:"emailVerified"`
-	Locale        string   `json:"locale,omitempty"`
 	Groups        []string `json:"groups,omitempty"`
+	Locale        string   `json:"locale,omitempty"`
 }
 
 func fromStorageClaims(i storage.Claims) Claims {
@@ -224,8 +224,8 @@ func fromStorageClaims(i storage.Claims) Claims {
 		Username:      i.Username,
 		Email:         i.Email,
 		EmailVerified: i.EmailVerified,
-		Locale:        i.Locale,
 		Groups:        i.Groups,
+		Locale:        i.Locale,
 	}
 }
 
@@ -235,8 +235,8 @@ func toStorageClaims(i Claims) storage.Claims {
 		Username:      i.Username,
 		Email:         i.Email,
 		EmailVerified: i.EmailVerified,
-		Locale:        i.Locale,
 		Groups:        i.Groups,
+		Locale:        i.Locale,
 	}
 }
 

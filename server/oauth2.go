@@ -255,8 +255,8 @@ type idTokenClaims struct {
 
 	Email         string   `json:"email,omitempty"`
 	EmailVerified *bool    `json:"email_verified,omitempty"`
-	Locale        string   `json:"locale,omitempty"`
 	Groups        []string `json:"groups,omitempty"`
+	Locale        string   `json:"locale,omitempty"`
 
 	Name string `json:"name,omitempty"`
 
