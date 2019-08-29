@@ -161,6 +161,7 @@ func (c *client) get(resource, name string, v interface{}) error {
 }
 
 func (c *client) getResource(apiVersion, namespace, resource, name string, v interface{}) error {
+	c.logger.Debugf("Retrieving resource: %s/%s %s/%s", apiVersion, namespace, resource, name)
 	url := c.urlFor(apiVersion, namespace, resource, name)
 	resp, err := c.client.Get(url)
 	if err != nil {
