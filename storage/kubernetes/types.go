@@ -667,8 +667,10 @@ type Connector struct {
 	Type            string `json:"type,omitempty"`
 	Name            string `json:"name,omitempty"`
 	ResourceVersion string `json:"resourceVersion,omitempty"`
-	// Config holds connector specific configuration information
-	Config []byte `json:"config,omitempty"`
+	// Config holds connector specific configuration information in a YAML or JSON struct
+	// The config here is a string rather than a byte-array to improve
+	// readability/editing in the k8s Connector CRD.
+	Config string `json:"config,omitempty"`
 }
 
 func (cli *client) fromStorageConnector(c storage.Connector) Connector {
@@ -685,7 +687,7 @@ func (cli *client) fromStorageConnector(c storage.Connector) Connector {
 		Type:            c.Type,
 		Name:            c.Name,
 		ResourceVersion: c.ResourceVersion,
-		Config:          c.Config,
+		Config:          string(c.Config),
 	}
 }
 
@@ -695,7 +697,7 @@ func toStorageConnector(c Connector) storage.Connector {
 		Type:            c.Type,
 		Name:            c.Name,
 		ResourceVersion: c.ResourceVersion,
-		Config:          c.Config,
+		Config:          []byte(c.Config),
 	}
 }
 
