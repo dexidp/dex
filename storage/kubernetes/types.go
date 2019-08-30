@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	jose "gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
@@ -667,13 +667,19 @@ type Connector struct {
 	Type            string `json:"type,omitempty"`
 	Name            string `json:"name,omitempty"`
 	ResourceVersion string `json:"resourceVersion,omitempty"`
-	// Config holds connector specific configuration information in a YAML or JSON struct
+
+	// Config holds connector specific configuration information in a JSON object.
+	// Deprecated: ConfigString is used instead.
+	Config []byte `json:"config,omitempty"`
+
+	// ConfigString is an alternative option to store the connector config.
 	// The config here is a string rather than a byte-array to improve
 	// readability/editing in the k8s Connector CRD.
-	Config string `json:"config,omitempty"`
+	ConfigString string `json:"configString,omitempty"`
 }
 
 func (cli *client) fromStorageConnector(c storage.Connector) Connector {
+
 	return Connector{
 		TypeMeta: k8sapi.TypeMeta{
 			Kind:       kindConnector,
@@ -687,17 +693,23 @@ func (cli *client) fromStorageConnector(c storage.Connector) Connector {
 		Type:            c.Type,
 		Name:            c.Name,
 		ResourceVersion: c.ResourceVersion,
-		Config:          string(c.Config),
+		ConfigString:    string(c.Config),
 	}
 }
 
 func toStorageConnector(c Connector) storage.Connector {
+	var cfg []byte
+	if len(c.ConfigString) > 0 {
+		cfg = []byte(c.ConfigString)
+	} else {
+		cfg = c.Config
+	}
 	return storage.Connector{
 		ID:              c.ID,
 		Type:            c.Type,
 		Name:            c.Name,
 		ResourceVersion: c.ResourceVersion,
-		Config:          []byte(c.Config),
+		Config:          cfg,
 	}
 }
 
