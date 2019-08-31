@@ -293,8 +293,16 @@ func serve(cmd *cobra.Command, args []string) error {
 			}()
 		}()
 	}
-
-	return <-errc
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	select {
+	case err = <-errc:
+		return err //there is error in stating service, return immediately
+	case <-stop:
+		//TODO: stop http/gRPC server in grachful style as well.
+		s.Close()
+	}
+	return nil
 }
 
 var (
