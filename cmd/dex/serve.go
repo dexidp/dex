@@ -97,6 +97,17 @@ func serve(cmd *cobra.Command, args []string) error {
 
 	var grpcOptions []grpc.ServerOption
 
+	allowedTLSCiphers := []uint16{
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+		tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+		tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+	}
+
 	if c.GRPC.TLSCert != "" {
 		// Parse certificates from certificate file and key file for server.
 		cert, err := tls.LoadX509KeyPair(c.GRPC.TLSCert, c.GRPC.TLSKey)
@@ -107,6 +118,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		tlsConfig := tls.Config{
 			Certificates:             []tls.Certificate{cert},
 			MinVersion:               tls.VersionTLS12,
+			CipherSuites:             allowedTLSCiphers,
 			PreferServerCipherSuites: true,
 		}
 
@@ -262,6 +274,7 @@ func serve(cmd *cobra.Command, args []string) error {
 			Addr:    c.Web.HTTPS,
 			Handler: serv,
 			TLSConfig: &tls.Config{
+				CipherSuites:             allowedTLSCiphers,
 				PreferServerCipherSuites: true,
 				MinVersion:               tls.VersionTLS12,
 			},
