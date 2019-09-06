@@ -131,7 +131,6 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 			Email:         "john.doe@example.com",
 			EmailVerified: true,
 			Groups:        []string{"a"},
-			Locale:        "en_US",
 		},
 	}
 
@@ -204,7 +203,6 @@ func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 			Email:         "john.doe@example.com",
 			EmailVerified: true,
 			Groups:        []string{"a"},
-			Locale:        "en_US",
 		},
 	}
 
@@ -381,7 +379,6 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 			Email:         "john.doe@example.com",
 			EmailVerified: true,
 			Groups:        []string{"a", "b"},
-			Locale:        "en_US",
 		},
 		ConnectorData: []byte(`{"some":"data"}`),
 	}

@@ -151,8 +151,7 @@ func (c *conn) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) 
 				nonce = $5, state = $6, force_approval_prompt = $7, logged_in = $8,
 				claims_user_id = $9, claims_username = $10, claims_email = $11,
 				claims_email_verified = $12,
-				claims_groups = $13,
-			    claims_locale = $14,
+				claims_groups = $13, claims_locale = $14,
 				connector_id = $15, connector_data = $16,
 				expiry = $17
 			where id = $18;
