@@ -15,8 +15,10 @@ import (
 // TODO(ericchiang): The update, insert, and select methods queries are all
 // very repetitive. Consider creating them programmatically.
 
-// keysRowID is the ID of the only row we expect to populate the "keys" table.
-const keysRowID = "keys"
+const (
+	// keysRowID is the ID of the only row we expect to populate the "keys" table.
+	keysRowID = "keys"
+)
 
 // encoder wraps the underlying value in a JSON marshaler which is automatically
 // called by the database/sql package.
@@ -126,9 +128,9 @@ func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
-			return storage.ErrAlreadyExists
+			return storage.Error{Code: storage.ErrAlreadyExists}
 		}
-		return fmt.Errorf("insert auth request: %v", err)
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("insert auth request: %v", err)}
 	}
 	return nil
 }
@@ -164,7 +166,7 @@ func (c *conn) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) 
 			a.Expiry, r.ID,
 		)
 		if err != nil {
-			return fmt.Errorf("update auth request: %v", err)
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("update auth request: %v", err)}
 		}
 		return nil
 	})
@@ -193,9 +195,9 @@ func getAuthRequest(q querier, id string) (a storage.AuthRequest, err error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return a, storage.ErrNotFound
+			return a, storage.Error{Code: storage.ErrNotFound}
 		}
-		return a, fmt.Errorf("select auth request: %v", err)
+		return a, storage.Error{Code: storage.ErrStorageMisconfigured, Details: fmt.Sprintf("select auth request: %v", err)}
 	}
 	return a, nil
 }
@@ -218,9 +220,9 @@ func (c *conn) CreateAuthCode(a storage.AuthCode) error {
 
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
-			return storage.ErrAlreadyExists
+			return storage.Error{Code: storage.ErrAlreadyExists}
 		}
-		return fmt.Errorf("insert auth code: %v", err)
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("insert auth code: %v", err)}
 	}
 	return nil
 }
@@ -241,9 +243,9 @@ func (c *conn) GetAuthCode(id string) (a storage.AuthCode, err error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return a, storage.ErrNotFound
+			return a, storage.Error{Code: storage.ErrNotFound}
 		}
-		return a, fmt.Errorf("select auth code: %v", err)
+		return a, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("select auth code: %v", err)}
 	}
 	return a, nil
 }
@@ -267,9 +269,9 @@ func (c *conn) CreateRefresh(r storage.RefreshToken) error {
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
-			return storage.ErrAlreadyExists
+			return storage.Error{Code: storage.ErrAlreadyExists}
 		}
-		return fmt.Errorf("insert refresh_token: %v", err)
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("insert refresh_token: %v", err)}
 	}
 	return nil
 }
@@ -278,10 +280,18 @@ func (c *conn) UpdateRefreshToken(id string, updater func(old storage.RefreshTok
 	return c.ExecTx(func(tx *trans) error {
 		r, err := getRefresh(tx, id)
 		if err != nil {
-			return err
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return err
+			}
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 		if r, err = updater(r); err != nil {
-			return err
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return err
+			}
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 		_, err = tx.Exec(`
 			update refresh_token
@@ -309,14 +319,27 @@ func (c *conn) UpdateRefreshToken(id string, updater func(old storage.RefreshTok
 			r.Token, r.CreatedAt, r.LastUsed, id,
 		)
 		if err != nil {
-			return fmt.Errorf("update refresh token: %v", err)
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return err
+			}
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("update refresh token: %v", err)}
 		}
 		return nil
 	})
 }
 
 func (c *conn) GetRefresh(id string) (storage.RefreshToken, error) {
-	return getRefresh(c, id)
+	token, err := getRefresh(c, id)
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return token, err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return token, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return token, nil
 }
 
 func getRefresh(q querier, id string) (storage.RefreshToken, error) {
@@ -342,18 +365,18 @@ func (c *conn) ListRefreshTokens() ([]storage.RefreshToken, error) {
 		from refresh_token;
 	`)
 	if err != nil {
-		return nil, fmt.Errorf("query: %v", err)
+		return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("query: %v", err)}
 	}
 	var tokens []storage.RefreshToken
 	for rows.Next() {
 		r, err := scanRefresh(rows)
 		if err != nil {
-			return nil, err
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 		tokens = append(tokens, r)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("scan: %v", err)
+		return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("scan: %v", err)}
 	}
 	return tokens, nil
 }
@@ -368,9 +391,9 @@ func scanRefresh(s scanner) (r storage.RefreshToken, err error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return r, storage.ErrNotFound
+			return r, storage.Error{Code: storage.ErrNotFound}
 		}
-		return r, fmt.Errorf("scan refresh_token: %v", err)
+		return r, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("scan refresh_token: %v", err)}
 	}
 	return r, nil
 }
@@ -382,8 +405,8 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 		// server. Test this, and consider adding a COUNT() command beforehand.
 		old, err := getKeys(tx)
 		if err != nil {
-			if err != storage.ErrNotFound {
-				return fmt.Errorf("get keys: %v", err)
+			if !storage.IsErrorCode(err, storage.ErrNotFound) {
+				return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("get keys: %v", err)}
 			}
 			firstUpdate = true
 			old = storage.Keys{}
@@ -391,7 +414,7 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 
 		nk, err := updater(old)
 		if err != nil {
-			return err
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 
 		if firstUpdate {
@@ -405,7 +428,7 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 				encoder(nk.SigningKeyPub), nk.NextRotation,
 			)
 			if err != nil {
-				return fmt.Errorf("insert: %v", err)
+				return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("insert: %v", err)}
 			}
 		} else {
 			_, err = tx.Exec(`
@@ -421,7 +444,7 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 				encoder(nk.SigningKeyPub), nk.NextRotation, keysRowID,
 			)
 			if err != nil {
-				return fmt.Errorf("update: %v", err)
+				return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("update: %v", err)}
 			}
 		}
 		return nil
@@ -444,9 +467,9 @@ func getKeys(q querier) (keys storage.Keys, err error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return keys, storage.ErrNotFound
+			return keys, storage.Error{Code: storage.ErrNotFound}
 		}
-		return keys, fmt.Errorf("query keys: %v", err)
+		return keys, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("query keys: %v", err)}
 	}
 	return keys, nil
 }
@@ -455,11 +478,11 @@ func (c *conn) UpdateClient(id string, updater func(old storage.Client) (storage
 	return c.ExecTx(func(tx *trans) error {
 		cli, err := getClient(tx, id)
 		if err != nil {
-			return err
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 		nc, err := updater(cli)
 		if err != nil {
-			return err
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 
 		_, err = tx.Exec(`
@@ -475,7 +498,7 @@ func (c *conn) UpdateClient(id string, updater func(old storage.Client) (storage
 		`, nc.Secret, encoder(nc.RedirectURIs), encoder(nc.TrustedPeers), nc.Public, nc.Name, nc.LogoURL, id,
 		)
 		if err != nil {
-			return fmt.Errorf("update client: %v", err)
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("update client: %v", err)}
 		}
 		return nil
 	})
@@ -493,9 +516,9 @@ func (c *conn) CreateClient(cli storage.Client) error {
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
-			return storage.ErrAlreadyExists
+			return storage.Error{Code: storage.ErrAlreadyExists}
 		}
-		return fmt.Errorf("insert client: %v", err)
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("insert client: %v", err)}
 	}
 	return nil
 }
@@ -509,7 +532,16 @@ func getClient(q querier, id string) (storage.Client, error) {
 }
 
 func (c *conn) GetClient(id string) (storage.Client, error) {
-	return getClient(c, id)
+	client, err := getClient(c, id)
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return client, err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return client, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return client, nil
 }
 
 func (c *conn) ListClients() ([]storage.Client, error) {
@@ -519,18 +551,18 @@ func (c *conn) ListClients() ([]storage.Client, error) {
 		from client;
 	`)
 	if err != nil {
-		return nil, err
+		return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	var clients []storage.Client
 	for rows.Next() {
 		cli, err := scanClient(rows)
 		if err != nil {
-			return nil, err
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 		clients = append(clients, cli)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	return clients, nil
 }
@@ -542,9 +574,9 @@ func scanClient(s scanner) (cli storage.Client, err error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return cli, storage.ErrNotFound
+			return cli, storage.Error{Code: storage.ErrNotFound}
 		}
-		return cli, fmt.Errorf("get client: %v", err)
+		return cli, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("get client: %v", err)}
 	}
 	return cli, nil
 }
@@ -563,9 +595,9 @@ func (c *conn) CreatePassword(p storage.Password) error {
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
-			return storage.ErrAlreadyExists
+			return storage.Error{Code: storage.ErrAlreadyExists}
 		}
-		return fmt.Errorf("insert password: %v", err)
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("insert password: %v", err)}
 	}
 	return nil
 }
@@ -574,12 +606,22 @@ func (c *conn) UpdatePassword(email string, updater func(p storage.Password) (st
 	return c.ExecTx(func(tx *trans) error {
 		p, err := getPassword(tx, email)
 		if err != nil {
-			return err
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return err
+			}
+			// Nope, let's make a generic storage.Error of it
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 
 		np, err := updater(p)
 		if err != nil {
-			return err
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return err
+			}
+			// Nope, let's make a generic storage.Error of it
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 		_, err = tx.Exec(`
 			update password
@@ -590,14 +632,23 @@ func (c *conn) UpdatePassword(email string, updater func(p storage.Password) (st
 			np.Hash, np.Username, np.UserID, p.Email,
 		)
 		if err != nil {
-			return fmt.Errorf("update password: %v", err)
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("update password: %v", err)}
 		}
 		return nil
 	})
 }
 
 func (c *conn) GetPassword(email string) (storage.Password, error) {
-	return getPassword(c, email)
+	password, err := getPassword(c, email)
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return password, err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return password, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return password, nil
 }
 
 func getPassword(q querier, email string) (p storage.Password, err error) {
@@ -615,19 +666,19 @@ func (c *conn) ListPasswords() ([]storage.Password, error) {
 		from password;
 	`)
 	if err != nil {
-		return nil, err
+		return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 
 	var passwords []storage.Password
 	for rows.Next() {
 		p, err := scanPassword(rows)
 		if err != nil {
-			return nil, err
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 		passwords = append(passwords, p)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	return passwords, nil
 }
@@ -638,9 +689,9 @@ func scanPassword(s scanner) (p storage.Password, err error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return p, storage.ErrNotFound
+			return p, storage.Error{Code: storage.ErrNotFound}
 		}
-		return p, fmt.Errorf("select password: %v", err)
+		return p, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("select password: %v", err)}
 	}
 	return p, nil
 }
@@ -658,9 +709,9 @@ func (c *conn) CreateOfflineSessions(s storage.OfflineSessions) error {
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
-			return storage.ErrAlreadyExists
+			return storage.Error{Code: storage.ErrAlreadyExists}
 		}
-		return fmt.Errorf("insert offline session: %v", err)
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("insert offline session: %v", err)}
 	}
 	return nil
 }
@@ -669,12 +720,22 @@ func (c *conn) UpdateOfflineSessions(userID string, connID string, updater func(
 	return c.ExecTx(func(tx *trans) error {
 		s, err := getOfflineSessions(tx, userID, connID)
 		if err != nil {
-			return err
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return err
+			}
+			// Nope, let's make a generic storage.Error of it
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 
 		newSession, err := updater(s)
 		if err != nil {
-			return err
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return err
+			}
+			// Nope, let's make a generic storage.Error of it
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 		_, err = tx.Exec(`
 			update offline_session
@@ -685,14 +746,23 @@ func (c *conn) UpdateOfflineSessions(userID string, connID string, updater func(
 			encoder(newSession.Refresh), s.UserID, s.ConnID,
 		)
 		if err != nil {
-			return fmt.Errorf("update offline session: %v", err)
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("update offline session: %v", err)}
 		}
 		return nil
 	})
 }
 
 func (c *conn) GetOfflineSessions(userID string, connID string) (storage.OfflineSessions, error) {
-	return getOfflineSessions(c, userID, connID)
+	session, err := getOfflineSessions(c, userID, connID)
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return session, err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return session, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return session, nil
 }
 
 func getOfflineSessions(q querier, userID string, connID string) (storage.OfflineSessions, error) {
@@ -710,9 +780,9 @@ func scanOfflineSessions(s scanner) (o storage.OfflineSessions, err error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return o, storage.ErrNotFound
+			return o, storage.Error{Code: storage.ErrNotFound}
 		}
-		return o, fmt.Errorf("select offline session: %v", err)
+		return o, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("select offline session: %v", err)}
 	}
 	return o, nil
 }
@@ -730,9 +800,9 @@ func (c *conn) CreateConnector(connector storage.Connector) error {
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
-			return storage.ErrAlreadyExists
+			return storage.Error{Code: storage.ErrAlreadyExists}
 		}
-		return fmt.Errorf("insert connector: %v", err)
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("insert connector: %v", err)}
 	}
 	return nil
 }
@@ -741,12 +811,22 @@ func (c *conn) UpdateConnector(id string, updater func(s storage.Connector) (sto
 	return c.ExecTx(func(tx *trans) error {
 		connector, err := getConnector(tx, id)
 		if err != nil {
-			return err
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return err
+			}
+			// Nope, let's make a generic storage.Error of it
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 
 		newConn, err := updater(connector)
 		if err != nil {
-			return err
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return err
+			}
+			// Nope, let's make a generic storage.Error of it
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 		_, err = tx.Exec(`
 			update connector
@@ -760,14 +840,23 @@ func (c *conn) UpdateConnector(id string, updater func(s storage.Connector) (sto
 			newConn.Type, newConn.Name, newConn.ResourceVersion, newConn.Config, connector.ID,
 		)
 		if err != nil {
-			return fmt.Errorf("update connector: %v", err)
+			return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("update connector: %v", err)}
 		}
 		return nil
 	})
 }
 
 func (c *conn) GetConnector(id string) (storage.Connector, error) {
-	return getConnector(c, id)
+	connector, err := getConnector(c, id)
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return connector, err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return connector, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return connector, nil
 }
 
 func getConnector(q querier, id string) (storage.Connector, error) {
@@ -785,9 +874,9 @@ func scanConnector(s scanner) (c storage.Connector, err error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return c, storage.ErrNotFound
+			return c, storage.Error{Code: storage.ErrNotFound}
 		}
-		return c, fmt.Errorf("select connector: %v", err)
+		return c, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("select connector: %v", err)}
 	}
 	return c, nil
 }
@@ -799,45 +888,139 @@ func (c *conn) ListConnectors() ([]storage.Connector, error) {
 		from connector;
 	`)
 	if err != nil {
-		return nil, err
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return nil, err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	var connectors []storage.Connector
 	for rows.Next() {
 		conn, err := scanConnector(rows)
 		if err != nil {
-			return nil, err
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return nil, err
+			}
+			// Nope, let's make a generic storage.Error of it
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 		connectors = append(connectors, conn)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return nil, err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	return connectors, nil
 }
 
-func (c *conn) DeleteAuthRequest(id string) error { return c.delete("auth_request", "id", id) }
-func (c *conn) DeleteAuthCode(id string) error    { return c.delete("auth_code", "id", id) }
-func (c *conn) DeleteClient(id string) error      { return c.delete("client", "id", id) }
-func (c *conn) DeleteRefresh(id string) error     { return c.delete("refresh_token", "id", id) }
-func (c *conn) DeletePassword(email string) error {
-	return c.delete("password", "email", strings.ToLower(email))
+func (c *conn) DeleteAuthRequest(id string) error {
+	err := c.delete("auth_request", "id", id)
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
-func (c *conn) DeleteConnector(id string) error { return c.delete("connector", "id", id) }
+
+func (c *conn) DeleteAuthCode(id string) error {
+	err := c.delete("auth_code", "id", id)
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
+}
+
+func (c *conn) DeleteClient(id string) error {
+	err := c.delete("client", "id", id)
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
+}
+
+func (c *conn) DeleteRefresh(id string) error {
+	err := c.delete("refresh_token", "id", id)
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
+}
+
+func (c *conn) DeletePassword(email string) error {
+	err := c.delete("password", "email", strings.ToLower(email))
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
+}
+
+func (c *conn) DeleteConnector(id string) error {
+	err := c.delete("connector", "id", id)
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
+}
 
 func (c *conn) DeleteOfflineSessions(userID string, connID string) error {
 	result, err := c.Exec(`delete from offline_session where user_id = $1 AND conn_id = $2`, userID, connID)
 	if err != nil {
-		return fmt.Errorf("delete offline_session: user_id = %s, conn_id = %s", userID, connID)
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("delete offline_session: user_id = %s, conn_id = %s", userID, connID)}
 	}
 
 	// For now mandate that the driver implements RowsAffected. If we ever need to support
 	// a driver that doesn't implement this, we can run this in a transaction with a get beforehand.
 	n, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("rows affected: %v", err)
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("rows affected: %v", err)}
 	}
 	if n < 1 {
-		return storage.ErrNotFound
+		return storage.Error{Code: storage.ErrNotFound}
 	}
 	return nil
 }
@@ -846,17 +1029,27 @@ func (c *conn) DeleteOfflineSessions(userID string, connID string) error {
 func (c *conn) delete(table, field, id string) error {
 	result, err := c.Exec(`delete from `+table+` where `+field+` = $1`, id)
 	if err != nil {
-		return fmt.Errorf("delete %s: %v", table, id)
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("delete %s: %v", table, id)}
 	}
 
 	// For now mandate that the driver implements RowsAffected. If we ever need to support
 	// a driver that doesn't implement this, we can run this in a transaction with a get beforehand.
 	n, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("rows affected: %v", err)
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		// Nope, let's make a generic storage.Error of it
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("rows affected: %v", err)}
 	}
 	if n < 1 {
-		return storage.ErrNotFound
+		return storage.Error{Code: storage.ErrNotFound}
 	}
 	return nil
 }

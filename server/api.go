@@ -64,7 +64,7 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 		LogoURL:      req.Client.LogoUrl,
 	}
 	if err := d.s.CreateClient(c); err != nil {
-		if err == storage.ErrAlreadyExists {
+		if storage.IsErrorCode(err, storage.ErrAlreadyExists) {
 			return &api.CreateClientResp{AlreadyExists: true}, nil
 		}
 		d.logger.Errorf("api: failed to create client: %v", err)
@@ -98,7 +98,7 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 	})
 
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if storage.IsErrorCode(err, storage.ErrNotFound) {
 			return &api.UpdateClientResp{NotFound: true}, nil
 		}
 		d.logger.Errorf("api: failed to update the client: %v", err)
@@ -110,7 +110,7 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 func (d dexAPI) DeleteClient(ctx context.Context, req *api.DeleteClientReq) (*api.DeleteClientResp, error) {
 	err := d.s.DeleteClient(req.Id)
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if storage.IsErrorCode(err, storage.ErrNotFound) {
 			return &api.DeleteClientResp{NotFound: true}, nil
 		}
 		d.logger.Errorf("api: failed to delete client: %v", err)
@@ -157,7 +157,7 @@ func (d dexAPI) CreatePassword(ctx context.Context, req *api.CreatePasswordReq) 
 		UserID:   req.Password.UserId,
 	}
 	if err := d.s.CreatePassword(p); err != nil {
-		if err == storage.ErrAlreadyExists {
+		if storage.IsErrorCode(err, storage.ErrAlreadyExists) {
 			return &api.CreatePasswordResp{AlreadyExists: true}, nil
 		}
 		d.logger.Errorf("api: failed to create password: %v", err)
@@ -194,7 +194,7 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 	}
 
 	if err := d.s.UpdatePassword(req.Email, updater); err != nil {
-		if err == storage.ErrNotFound {
+		if storage.IsErrorCode(err, storage.ErrNotFound) {
 			return &api.UpdatePasswordResp{NotFound: true}, nil
 		}
 		d.logger.Errorf("api: failed to update password: %v", err)
@@ -211,7 +211,7 @@ func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) 
 
 	err := d.s.DeletePassword(req.Email)
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if storage.IsErrorCode(err, storage.ErrNotFound) {
 			return &api.DeletePasswordResp{NotFound: true}, nil
 		}
 		d.logger.Errorf("api: failed to delete password: %v", err)
@@ -262,7 +262,7 @@ func (d dexAPI) VerifyPassword(ctx context.Context, req *api.VerifyPasswordReq) 
 
 	password, err := d.s.GetPassword(req.Email)
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if storage.IsErrorCode(err, storage.ErrNotFound) {
 			return &api.VerifyPasswordResp{
 				NotFound: true,
 			}, nil
@@ -292,14 +292,14 @@ func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.
 	var refreshTokenRefs []*api.RefreshTokenRef
 	offlineSessions, err := d.s.GetOfflineSessions(id.UserId, id.ConnId)
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if storage.IsErrorCode(err, storage.ErrNotFound) {
 			// This means that this user-client pair does not have a refresh token yet.
 			// An empty list should be returned instead of an error.
 			return &api.ListRefreshResp{
 				RefreshTokens: refreshTokenRefs,
 			}, nil
 		}
-		d.logger.Errorf("api: failed to list refresh tokens %t here : %v", err == storage.ErrNotFound, err)
+		d.logger.Errorf("api: failed to list refresh tokens %t here : %v", storage.IsErrorCode(err, storage.ErrNotFound), err)
 		return nil, err
 	}
 
@@ -334,7 +334,9 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 		if refreshRef == nil || refreshRef.ID == "" {
 			d.logger.Errorf("api: refresh token issued to client %q for user %q not found for deletion", req.ClientId, id.UserId)
 			notFound = true
-			return old, storage.ErrNotFound
+			//TODO(venezia) This is bad form - server shouldn't be creating storage errors
+			// return old, fmt.Errorf("not found")
+			return old, storage.Error{Code: storage.ErrNotFound}
 		}
 
 		refreshID = refreshRef.ID
@@ -346,7 +348,7 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 	}
 
 	if err := d.s.UpdateOfflineSessions(id.UserId, id.ConnId, updater); err != nil {
-		if err == storage.ErrNotFound {
+		if storage.IsErrorCode(err, storage.ErrNotFound) {
 			return &api.RevokeRefreshResp{NotFound: true}, nil
 		}
 		d.logger.Errorf("api: failed to update offline session object: %v", err)

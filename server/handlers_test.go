@@ -56,7 +56,7 @@ type emptyStorage struct {
 }
 
 func (*emptyStorage) GetAuthRequest(string) (storage.AuthRequest, error) {
-	return storage.AuthRequest{}, storage.ErrNotFound
+	return storage.AuthRequest{}, storage.Error{Code: storage.ErrNotFound}
 }
 
 func TestHandleInvalidOAuth2Callbacks(t *testing.T) {

@@ -86,7 +86,7 @@ func (s *memStorage) GarbageCollect(now time.Time) (result storage.GCResult, err
 func (s *memStorage) CreateClient(c storage.Client) (err error) {
 	s.tx(func() {
 		if _, ok := s.clients[c.ID]; ok {
-			err = storage.ErrAlreadyExists
+			err = storage.Error{Code: storage.ErrAlreadyExists}
 		} else {
 			s.clients[c.ID] = c
 		}
@@ -97,7 +97,7 @@ func (s *memStorage) CreateClient(c storage.Client) (err error) {
 func (s *memStorage) CreateAuthCode(c storage.AuthCode) (err error) {
 	s.tx(func() {
 		if _, ok := s.authCodes[c.ID]; ok {
-			err = storage.ErrAlreadyExists
+			err = storage.Error{Code: storage.ErrAlreadyExists}
 		} else {
 			s.authCodes[c.ID] = c
 		}
@@ -108,7 +108,7 @@ func (s *memStorage) CreateAuthCode(c storage.AuthCode) (err error) {
 func (s *memStorage) CreateRefresh(r storage.RefreshToken) (err error) {
 	s.tx(func() {
 		if _, ok := s.refreshTokens[r.ID]; ok {
-			err = storage.ErrAlreadyExists
+			err = storage.Error{Code: storage.ErrAlreadyExists}
 		} else {
 			s.refreshTokens[r.ID] = r
 		}
@@ -119,7 +119,7 @@ func (s *memStorage) CreateRefresh(r storage.RefreshToken) (err error) {
 func (s *memStorage) CreateAuthRequest(a storage.AuthRequest) (err error) {
 	s.tx(func() {
 		if _, ok := s.authReqs[a.ID]; ok {
-			err = storage.ErrAlreadyExists
+			err = storage.Error{Code: storage.ErrAlreadyExists}
 		} else {
 			s.authReqs[a.ID] = a
 		}
@@ -131,7 +131,7 @@ func (s *memStorage) CreatePassword(p storage.Password) (err error) {
 	lowerEmail := strings.ToLower(p.Email)
 	s.tx(func() {
 		if _, ok := s.passwords[lowerEmail]; ok {
-			err = storage.ErrAlreadyExists
+			err = storage.Error{Code: storage.ErrAlreadyExists}
 		} else {
 			s.passwords[lowerEmail] = p
 		}
@@ -146,7 +146,7 @@ func (s *memStorage) CreateOfflineSessions(o storage.OfflineSessions) (err error
 	}
 	s.tx(func() {
 		if _, ok := s.offlineSessions[id]; ok {
-			err = storage.ErrAlreadyExists
+			err = storage.Error{Code: storage.ErrAlreadyExists}
 		} else {
 			s.offlineSessions[id] = o
 		}
@@ -157,7 +157,7 @@ func (s *memStorage) CreateOfflineSessions(o storage.OfflineSessions) (err error
 func (s *memStorage) CreateConnector(connector storage.Connector) (err error) {
 	s.tx(func() {
 		if _, ok := s.connectors[connector.ID]; ok {
-			err = storage.ErrAlreadyExists
+			err = storage.Error{Code: storage.ErrAlreadyExists}
 		} else {
 			s.connectors[connector.ID] = connector
 		}
@@ -169,7 +169,7 @@ func (s *memStorage) GetAuthCode(id string) (c storage.AuthCode, err error) {
 	s.tx(func() {
 		var ok bool
 		if c, ok = s.authCodes[id]; !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 	})
@@ -181,7 +181,7 @@ func (s *memStorage) GetPassword(email string) (p storage.Password, err error) {
 	s.tx(func() {
 		var ok bool
 		if p, ok = s.passwords[email]; !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 		}
 	})
 	return
@@ -191,7 +191,7 @@ func (s *memStorage) GetClient(id string) (client storage.Client, err error) {
 	s.tx(func() {
 		var ok bool
 		if client, ok = s.clients[id]; !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 		}
 	})
 	return
@@ -206,7 +206,7 @@ func (s *memStorage) GetRefresh(id string) (tok storage.RefreshToken, err error)
 	s.tx(func() {
 		var ok bool
 		if tok, ok = s.refreshTokens[id]; !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 	})
@@ -217,7 +217,7 @@ func (s *memStorage) GetAuthRequest(id string) (req storage.AuthRequest, err err
 	s.tx(func() {
 		var ok bool
 		if req, ok = s.authReqs[id]; !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 	})
@@ -232,7 +232,7 @@ func (s *memStorage) GetOfflineSessions(userID string, connID string) (o storage
 	s.tx(func() {
 		var ok bool
 		if o, ok = s.offlineSessions[id]; !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 	})
@@ -243,7 +243,7 @@ func (s *memStorage) GetConnector(id string) (connector storage.Connector, err e
 	s.tx(func() {
 		var ok bool
 		if connector, ok = s.connectors[id]; !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 		}
 	})
 	return
@@ -289,7 +289,7 @@ func (s *memStorage) DeletePassword(email string) (err error) {
 	email = strings.ToLower(email)
 	s.tx(func() {
 		if _, ok := s.passwords[email]; !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 		delete(s.passwords, email)
@@ -300,7 +300,7 @@ func (s *memStorage) DeletePassword(email string) (err error) {
 func (s *memStorage) DeleteClient(id string) (err error) {
 	s.tx(func() {
 		if _, ok := s.clients[id]; !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 		delete(s.clients, id)
@@ -311,7 +311,7 @@ func (s *memStorage) DeleteClient(id string) (err error) {
 func (s *memStorage) DeleteRefresh(id string) (err error) {
 	s.tx(func() {
 		if _, ok := s.refreshTokens[id]; !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 		delete(s.refreshTokens, id)
@@ -322,7 +322,7 @@ func (s *memStorage) DeleteRefresh(id string) (err error) {
 func (s *memStorage) DeleteAuthCode(id string) (err error) {
 	s.tx(func() {
 		if _, ok := s.authCodes[id]; !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 		delete(s.authCodes, id)
@@ -333,7 +333,7 @@ func (s *memStorage) DeleteAuthCode(id string) (err error) {
 func (s *memStorage) DeleteAuthRequest(id string) (err error) {
 	s.tx(func() {
 		if _, ok := s.authReqs[id]; !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 		delete(s.authReqs, id)
@@ -348,7 +348,7 @@ func (s *memStorage) DeleteOfflineSessions(userID string, connID string) (err er
 	}
 	s.tx(func() {
 		if _, ok := s.offlineSessions[id]; !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 		delete(s.offlineSessions, id)
@@ -359,7 +359,7 @@ func (s *memStorage) DeleteOfflineSessions(userID string, connID string) (err er
 func (s *memStorage) DeleteConnector(id string) (err error) {
 	s.tx(func() {
 		if _, ok := s.connectors[id]; !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 		delete(s.connectors, id)
@@ -371,7 +371,7 @@ func (s *memStorage) UpdateClient(id string, updater func(old storage.Client) (s
 	s.tx(func() {
 		client, ok := s.clients[id]
 		if !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 		if client, err = updater(client); err == nil {
@@ -395,7 +395,7 @@ func (s *memStorage) UpdateAuthRequest(id string, updater func(old storage.AuthR
 	s.tx(func() {
 		req, ok := s.authReqs[id]
 		if !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 		if req, err = updater(req); err == nil {
@@ -410,7 +410,7 @@ func (s *memStorage) UpdatePassword(email string, updater func(p storage.Passwor
 	s.tx(func() {
 		req, ok := s.passwords[email]
 		if !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 		if req, err = updater(req); err == nil {
@@ -424,7 +424,7 @@ func (s *memStorage) UpdateRefreshToken(id string, updater func(p storage.Refres
 	s.tx(func() {
 		r, ok := s.refreshTokens[id]
 		if !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 		if r, err = updater(r); err == nil {
@@ -442,7 +442,7 @@ func (s *memStorage) UpdateOfflineSessions(userID string, connID string, updater
 	s.tx(func() {
 		r, ok := s.offlineSessions[id]
 		if !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 		if r, err = updater(r); err == nil {
@@ -456,7 +456,7 @@ func (s *memStorage) UpdateConnector(id string, updater func(c storage.Connector
 	s.tx(func() {
 		r, ok := s.connectors[id]
 		if !ok {
-			err = storage.ErrNotFound
+			err = storage.Error{Code: storage.ErrNotFound}
 			return
 		}
 		if r, err = updater(r); err == nil {

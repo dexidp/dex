@@ -33,7 +33,15 @@ type conn struct {
 }
 
 func (c *conn) Close() error {
-	return c.db.Close()
+	err := c.db.Close()
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
 
 func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error) {
@@ -41,7 +49,11 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 	defer cancel()
 	authRequests, err := c.listAuthRequests(ctx)
 	if err != nil {
-		return result, err
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return result, err
+		}
+		return result, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 
 	var delErr error
@@ -55,12 +67,20 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 		}
 	}
 	if delErr != nil {
-		return result, delErr
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := delErr.(storage.Error); ok {
+			return result, delErr
+		}
+		return result, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: delErr.Error()}
 	}
 
 	authCodes, err := c.listAuthCodes(ctx)
 	if err != nil {
-		return result, err
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return result, err
+		}
+		return result, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 
 	for _, authCode := range authCodes {
@@ -72,13 +92,27 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 			result.AuthCodes++
 		}
 	}
-	return result, delErr
+	if delErr != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := delErr.(storage.Error); ok {
+			return result, delErr
+		}
+		return result, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: delErr.Error()}
+	}
+	return result, nil
 }
 
 func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	return c.txnCreate(ctx, keyID(authRequestPrefix, a.ID), fromStorageAuthRequest(a))
+	if err := c.txnCreate(ctx, keyID(authRequestPrefix, a.ID), fromStorageAuthRequest(a)); err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
 
 func (c *conn) GetAuthRequest(id string) (a storage.AuthRequest, err error) {
@@ -86,6 +120,11 @@ func (c *conn) GetAuthRequest(id string) (a storage.AuthRequest, err error) {
 	defer cancel()
 	var req AuthRequest
 	if err = c.getKey(ctx, keyID(authRequestPrefix, id), &req); err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return
+		}
+		err = storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		return
 	}
 	return toStorageAuthRequest(req), nil
@@ -98,46 +137,93 @@ func (c *conn) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) 
 		var current AuthRequest
 		if len(currentValue) > 0 {
 			if err := json.Unmarshal(currentValue, &current); err != nil {
-				return nil, err
+				return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 			}
 		}
 		updated, err := updater(toStorageAuthRequest(current))
 		if err != nil {
-			return nil, err
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return nil, err
+			}
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
-		return json.Marshal(fromStorageAuthRequest(updated))
+		output, err := json.Marshal(fromStorageAuthRequest(updated))
+		if err != nil {
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+		}
+		return output, nil
 	})
 }
 
 func (c *conn) DeleteAuthRequest(id string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	return c.deleteKey(ctx, keyID(authRequestPrefix, id))
+	err := c.deleteKey(ctx, keyID(authRequestPrefix, id))
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
 
 func (c *conn) CreateAuthCode(a storage.AuthCode) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	return c.txnCreate(ctx, keyID(authCodePrefix, a.ID), fromStorageAuthCode(a))
+	err := c.txnCreate(ctx, keyID(authCodePrefix, a.ID), fromStorageAuthCode(a))
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
 
 func (c *conn) GetAuthCode(id string) (a storage.AuthCode, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
 	err = c.getKey(ctx, keyID(authCodePrefix, id), &a)
-	return a, err
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return a, err
+		}
+		return a, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return a, nil
 }
 
 func (c *conn) DeleteAuthCode(id string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	return c.deleteKey(ctx, keyID(authCodePrefix, id))
+	err := c.deleteKey(ctx, keyID(authCodePrefix, id))
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
 
 func (c *conn) CreateRefresh(r storage.RefreshToken) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	return c.txnCreate(ctx, keyID(refreshTokenPrefix, r.ID), fromStorageRefreshToken(r))
+	err := c.txnCreate(ctx, keyID(refreshTokenPrefix, r.ID), fromStorageRefreshToken(r))
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
 
 func (c *conn) GetRefresh(id string) (r storage.RefreshToken, err error) {
@@ -145,7 +231,11 @@ func (c *conn) GetRefresh(id string) (r storage.RefreshToken, err error) {
 	defer cancel()
 	var token RefreshToken
 	if err = c.getKey(ctx, keyID(refreshTokenPrefix, id), &token); err != nil {
-		return
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return r, err
+		}
+		return r, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	return toStorageRefreshToken(token), nil
 }
@@ -157,21 +247,37 @@ func (c *conn) UpdateRefreshToken(id string, updater func(old storage.RefreshTok
 		var current RefreshToken
 		if len(currentValue) > 0 {
 			if err := json.Unmarshal([]byte(currentValue), &current); err != nil {
-				return nil, err
+				return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 			}
 		}
 		updated, err := updater(toStorageRefreshToken(current))
 		if err != nil {
-			return nil, err
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return nil, err
+			}
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
-		return json.Marshal(fromStorageRefreshToken(updated))
+		output, err := json.Marshal(fromStorageRefreshToken(updated))
+		if err != nil {
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+		}
+		return output, nil
 	})
 }
 
 func (c *conn) DeleteRefresh(id string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	return c.deleteKey(ctx, keyID(refreshTokenPrefix, id))
+	err := c.deleteKey(ctx, keyID(refreshTokenPrefix, id))
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
 
 func (c *conn) ListRefreshTokens() (tokens []storage.RefreshToken, err error) {
@@ -179,12 +285,16 @@ func (c *conn) ListRefreshTokens() (tokens []storage.RefreshToken, err error) {
 	defer cancel()
 	res, err := c.db.Get(ctx, refreshTokenPrefix, clientv3.WithPrefix())
 	if err != nil {
-		return tokens, err
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return tokens, err
+		}
+		return tokens, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	for _, v := range res.Kvs {
 		var token RefreshToken
 		if err = json.Unmarshal(v.Value, &token); err != nil {
-			return tokens, err
+			return tokens, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 		tokens = append(tokens, toStorageRefreshToken(token))
 	}
@@ -194,13 +304,28 @@ func (c *conn) ListRefreshTokens() (tokens []storage.RefreshToken, err error) {
 func (c *conn) CreateClient(cli storage.Client) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	return c.txnCreate(ctx, keyID(clientPrefix, cli.ID), cli)
+	err := c.txnCreate(ctx, keyID(clientPrefix, cli.ID), cli)
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
 
 func (c *conn) GetClient(id string) (cli storage.Client, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
 	err = c.getKey(ctx, keyID(clientPrefix, id), &cli)
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return cli, err
+		}
+		return cli, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
 	return cli, err
 }
 
@@ -211,21 +336,37 @@ func (c *conn) UpdateClient(id string, updater func(old storage.Client) (storage
 		var current storage.Client
 		if len(currentValue) > 0 {
 			if err := json.Unmarshal(currentValue, &current); err != nil {
-				return nil, err
+				return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 			}
 		}
 		updated, err := updater(current)
 		if err != nil {
-			return nil, err
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return nil, err
+			}
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
-		return json.Marshal(updated)
+		output, err := json.Marshal(updated)
+		if err != nil {
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+		}
+		return output, nil
 	})
 }
 
 func (c *conn) DeleteClient(id string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	return c.deleteKey(ctx, keyID(clientPrefix, id))
+	err := c.deleteKey(ctx, keyID(clientPrefix, id))
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
 
 func (c *conn) ListClients() (clients []storage.Client, err error) {
@@ -233,12 +374,16 @@ func (c *conn) ListClients() (clients []storage.Client, err error) {
 	defer cancel()
 	res, err := c.db.Get(ctx, clientPrefix, clientv3.WithPrefix())
 	if err != nil {
-		return clients, err
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return clients, err
+		}
+		return clients, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	for _, v := range res.Kvs {
 		var cli storage.Client
 		if err = json.Unmarshal(v.Value, &cli); err != nil {
-			return clients, err
+			return clients, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 		clients = append(clients, cli)
 	}
@@ -248,14 +393,29 @@ func (c *conn) ListClients() (clients []storage.Client, err error) {
 func (c *conn) CreatePassword(p storage.Password) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	return c.txnCreate(ctx, passwordPrefix+strings.ToLower(p.Email), p)
+	err := c.txnCreate(ctx, passwordPrefix+strings.ToLower(p.Email), p)
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
 
 func (c *conn) GetPassword(email string) (p storage.Password, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
 	err = c.getKey(ctx, keyEmail(passwordPrefix, email), &p)
-	return p, err
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return p, err
+		}
+		return p, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return p, nil
 }
 
 func (c *conn) UpdatePassword(email string, updater func(p storage.Password) (storage.Password, error)) error {
@@ -265,21 +425,37 @@ func (c *conn) UpdatePassword(email string, updater func(p storage.Password) (st
 		var current storage.Password
 		if len(currentValue) > 0 {
 			if err := json.Unmarshal(currentValue, &current); err != nil {
-				return nil, err
+				return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 			}
 		}
 		updated, err := updater(current)
 		if err != nil {
-			return nil, err
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return nil, err
+			}
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
-		return json.Marshal(updated)
+		output, err := json.Marshal(updated)
+		if err != nil {
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+		}
+		return output, nil
 	})
 }
 
 func (c *conn) DeletePassword(email string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	return c.deleteKey(ctx, keyEmail(passwordPrefix, email))
+	err := c.deleteKey(ctx, keyEmail(passwordPrefix, email))
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
 
 func (c *conn) ListPasswords() (passwords []storage.Password, err error) {
@@ -287,12 +463,16 @@ func (c *conn) ListPasswords() (passwords []storage.Password, err error) {
 	defer cancel()
 	res, err := c.db.Get(ctx, passwordPrefix, clientv3.WithPrefix())
 	if err != nil {
-		return passwords, err
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return passwords, err
+		}
+		return passwords, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	for _, v := range res.Kvs {
 		var p storage.Password
 		if err = json.Unmarshal(v.Value, &p); err != nil {
-			return passwords, err
+			return passwords, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 		passwords = append(passwords, p)
 	}
@@ -302,7 +482,15 @@ func (c *conn) ListPasswords() (passwords []storage.Password, err error) {
 func (c *conn) CreateOfflineSessions(s storage.OfflineSessions) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	return c.txnCreate(ctx, keySession(offlineSessionPrefix, s.UserID, s.ConnID), fromStorageOfflineSessions(s))
+	err := c.txnCreate(ctx, keySession(offlineSessionPrefix, s.UserID, s.ConnID), fromStorageOfflineSessions(s))
+	if err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
 
 func (c *conn) UpdateOfflineSessions(userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
@@ -312,14 +500,26 @@ func (c *conn) UpdateOfflineSessions(userID string, connID string, updater func(
 		var current OfflineSessions
 		if len(currentValue) > 0 {
 			if err := json.Unmarshal(currentValue, &current); err != nil {
-				return nil, err
+				return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 			}
 		}
 		updated, err := updater(toStorageOfflineSessions(current))
 		if err != nil {
-			return nil, err
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return nil, err
+			}
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
-		return json.Marshal(fromStorageOfflineSessions(updated))
+		output, err := json.Marshal(fromStorageOfflineSessions(updated))
+		if err != nil {
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return nil, err
+			}
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+		}
+		return output, nil
 	})
 }
 
@@ -328,28 +528,52 @@ func (c *conn) GetOfflineSessions(userID string, connID string) (s storage.Offli
 	defer cancel()
 	var os OfflineSessions
 	if err = c.getKey(ctx, keySession(offlineSessionPrefix, userID, connID), &os); err != nil {
-		return
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return
+		}
+		return s, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
-	return toStorageOfflineSessions(os), nil
+	return toStorageOfflineSessions(os), err
 }
 
 func (c *conn) DeleteOfflineSessions(userID string, connID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	return c.deleteKey(ctx, keySession(offlineSessionPrefix, userID, connID))
+	if err := c.deleteKey(ctx, keySession(offlineSessionPrefix, userID, connID)); err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
 
 func (c *conn) CreateConnector(connector storage.Connector) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	return c.txnCreate(ctx, keyID(connectorPrefix, connector.ID), connector)
+	if err := c.txnCreate(ctx, keyID(connectorPrefix, connector.ID), connector); err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
 
 func (c *conn) GetConnector(id string) (conn storage.Connector, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	err = c.getKey(ctx, keyID(connectorPrefix, id), &conn)
-	return conn, err
+	if err = c.getKey(ctx, keyID(connectorPrefix, id), &conn); err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return
+		}
+		return conn, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return conn, nil
 }
 
 func (c *conn) UpdateConnector(id string, updater func(s storage.Connector) (storage.Connector, error)) error {
@@ -359,21 +583,36 @@ func (c *conn) UpdateConnector(id string, updater func(s storage.Connector) (sto
 		var current storage.Connector
 		if len(currentValue) > 0 {
 			if err := json.Unmarshal(currentValue, &current); err != nil {
-				return nil, err
+				return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 			}
 		}
 		updated, err := updater(current)
 		if err != nil {
-			return nil, err
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return nil, err
+			}
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
-		return json.Marshal(updated)
+		output, err := json.Marshal(updated)
+		if err != nil {
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+		}
+		return output, err
 	})
 }
 
 func (c *conn) DeleteConnector(id string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	return c.deleteKey(ctx, keyID(connectorPrefix, id))
+	if err := c.deleteKey(ctx, keyID(connectorPrefix, id)); err != nil {
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return err
+		}
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
 
 func (c *conn) ListConnectors() (connectors []storage.Connector, err error) {
@@ -381,12 +620,16 @@ func (c *conn) ListConnectors() (connectors []storage.Connector, err error) {
 	defer cancel()
 	res, err := c.db.Get(ctx, connectorPrefix, clientv3.WithPrefix())
 	if err != nil {
-		return nil, err
+		// Let's see if it is a storage.Error, if so just pass it on
+		if _, ok := err.(storage.Error); ok {
+			return nil, err
+		}
+		return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	for _, v := range res.Kvs {
 		var c storage.Connector
 		if err = json.Unmarshal(v.Value, &c); err != nil {
-			return nil, err
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 		connectors = append(connectors, c)
 	}
@@ -398,12 +641,12 @@ func (c *conn) GetKeys() (keys storage.Keys, err error) {
 	defer cancel()
 	res, err := c.db.Get(ctx, keysName)
 	if err != nil {
-		return keys, err
+		return keys, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	if res.Count > 0 && len(res.Kvs) > 0 {
 		err = json.Unmarshal(res.Kvs[0].Value, &keys)
 	}
-	return keys, err
+	return keys, nil
 }
 
 func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) error {
@@ -413,24 +656,36 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 		var current storage.Keys
 		if len(currentValue) > 0 {
 			if err := json.Unmarshal(currentValue, &current); err != nil {
-				return nil, err
+				return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 			}
 		}
 		updated, err := updater(current)
 		if err != nil {
-			return nil, err
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return nil, err
+			}
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
-		return json.Marshal(updated)
+		output, err := json.Marshal(updated)
+		if err != nil {
+			// Let's see if it is a storage.Error, if so just pass it on
+			if _, ok := err.(storage.Error); ok {
+				return nil, err
+			}
+			return nil, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+		}
+		return output, nil
 	})
 }
 
 func (c *conn) deleteKey(ctx context.Context, key string) error {
 	res, err := c.db.Delete(ctx, key)
 	if err != nil {
-		return err
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	if res.Deleted == 0 {
-		return storage.ErrNotFound
+		return storage.Error{Code: storage.ErrNotFound}
 	}
 	return nil
 }
@@ -438,23 +693,27 @@ func (c *conn) deleteKey(ctx context.Context, key string) error {
 func (c *conn) getKey(ctx context.Context, key string, value interface{}) error {
 	r, err := c.db.Get(ctx, key)
 	if err != nil {
-		return err
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	if r.Count == 0 {
-		return storage.ErrNotFound
+		return storage.Error{Code: storage.ErrNotFound}
 	}
-	return json.Unmarshal(r.Kvs[0].Value, value)
+	err = json.Unmarshal(r.Kvs[0].Value, value)
+	if err != nil {
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
+	}
+	return nil
 }
 
 func (c *conn) listAuthRequests(ctx context.Context) (reqs []AuthRequest, err error) {
 	res, err := c.db.Get(ctx, authRequestPrefix, clientv3.WithPrefix())
 	if err != nil {
-		return reqs, err
+		return reqs, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	for _, v := range res.Kvs {
 		var r AuthRequest
 		if err = json.Unmarshal(v.Value, &r); err != nil {
-			return reqs, err
+			return reqs, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 		reqs = append(reqs, r)
 	}
@@ -464,12 +723,12 @@ func (c *conn) listAuthRequests(ctx context.Context) (reqs []AuthRequest, err er
 func (c *conn) listAuthCodes(ctx context.Context) (codes []AuthCode, err error) {
 	res, err := c.db.Get(ctx, authCodePrefix, clientv3.WithPrefix())
 	if err != nil {
-		return codes, err
+		return codes, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	for _, v := range res.Kvs {
 		var c AuthCode
 		if err = json.Unmarshal(v.Value, &c); err != nil {
-			return codes, err
+			return codes, storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 		}
 		codes = append(codes, c)
 	}
@@ -479,7 +738,7 @@ func (c *conn) listAuthCodes(ctx context.Context) (codes []AuthCode, err error) 
 func (c *conn) txnCreate(ctx context.Context, key string, value interface{}) error {
 	b, err := json.Marshal(value)
 	if err != nil {
-		return err
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	txn := c.db.Txn(ctx)
 	res, err := txn.
@@ -487,10 +746,10 @@ func (c *conn) txnCreate(ctx context.Context, key string, value interface{}) err
 		Then(clientv3.OpPut(key, string(b))).
 		Commit()
 	if err != nil {
-		return err
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	if !res.Succeeded {
-		return storage.ErrAlreadyExists
+		return storage.Error{Code: storage.ErrAlreadyExists}
 	}
 	return nil
 }
@@ -498,7 +757,7 @@ func (c *conn) txnCreate(ctx context.Context, key string, value interface{}) err
 func (c *conn) txnUpdate(ctx context.Context, key string, update func(current []byte) ([]byte, error)) error {
 	getResp, err := c.db.Get(ctx, key)
 	if err != nil {
-		return err
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	var currentValue []byte
 	var modRev int64
@@ -509,7 +768,7 @@ func (c *conn) txnUpdate(ctx context.Context, key string, update func(current []
 
 	updatedValue, err := update(currentValue)
 	if err != nil {
-		return err
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 
 	txn := c.db.Txn(ctx)
@@ -518,10 +777,10 @@ func (c *conn) txnUpdate(ctx context.Context, key string, update func(current []
 		Then(clientv3.OpPut(key, string(updatedValue))).
 		Commit()
 	if err != nil {
-		return err
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: err.Error()}
 	}
 	if !updateResp.Succeeded {
-		return fmt.Errorf("failed to update key=%q: concurrent conflicting update happened", key)
+		return storage.Error{Code: storage.ErrStorageProviderInternalError, Details: fmt.Sprintf("failed to update key=%q: concurrent conflicting update happened", key)}
 	}
 	return nil
 }

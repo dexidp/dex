@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"errors"
 	"strings"
 
 	"github.com/dexidp/dex/pkg/log"
@@ -62,21 +61,21 @@ func (s staticClientsStorage) ListClients() ([]Client, error) {
 
 func (s staticClientsStorage) CreateClient(c Client) error {
 	if s.isStatic(c.ID) {
-		return errors.New("static clients: read-only cannot create client")
+		return Error{Code: ErrNotImplemented, Details: "static clients: read-only cannot create client"}
 	}
 	return s.Storage.CreateClient(c)
 }
 
 func (s staticClientsStorage) DeleteClient(id string) error {
 	if s.isStatic(id) {
-		return errors.New("static clients: read-only cannot delete client")
+		return Error{Code: ErrNotImplemented, Details: "static clients: read-only cannot delete client"}
 	}
 	return s.Storage.DeleteClient(id)
 }
 
 func (s staticClientsStorage) UpdateClient(id string, updater func(old Client) (Client, error)) error {
 	if s.isStatic(id) {
-		return errors.New("static clients: read-only cannot update client")
+		return Error{Code: ErrNotImplemented, Details: "static clients: read-only cannot update client"}
 	}
 	return s.Storage.UpdateClient(id, updater)
 }
@@ -142,21 +141,21 @@ func (s staticPasswordsStorage) ListPasswords() ([]Password, error) {
 
 func (s staticPasswordsStorage) CreatePassword(p Password) error {
 	if s.isStatic(p.Email) {
-		return errors.New("static passwords: read-only cannot create password")
+		return Error{Code: ErrNotImplemented, Details: "static passwords: read-only cannot create password"}
 	}
 	return s.Storage.CreatePassword(p)
 }
 
 func (s staticPasswordsStorage) DeletePassword(email string) error {
 	if s.isStatic(email) {
-		return errors.New("static passwords: read-only cannot delete password")
+		return Error{Code: ErrNotImplemented, Details: "static passwords: read-only cannot delete password"}
 	}
 	return s.Storage.DeletePassword(email)
 }
 
 func (s staticPasswordsStorage) UpdatePassword(email string, updater func(old Password) (Password, error)) error {
 	if s.isStatic(email) {
-		return errors.New("static passwords: read-only cannot update password")
+		return Error{Code: ErrNotImplemented, Details: "static passwords: read-only cannot update password"}
 	}
 	return s.Storage.UpdatePassword(email, updater)
 }
@@ -212,21 +211,21 @@ func (s staticConnectorsStorage) ListConnectors() ([]Connector, error) {
 
 func (s staticConnectorsStorage) CreateConnector(c Connector) error {
 	if s.isStatic(c.ID) {
-		return errors.New("static connectors: read-only cannot create connector")
+		return Error{Code: ErrNotImplemented, Details: "static connectors: read-only cannot create connector"}
 	}
 	return s.Storage.CreateConnector(c)
 }
 
 func (s staticConnectorsStorage) DeleteConnector(id string) error {
 	if s.isStatic(id) {
-		return errors.New("static connectors: read-only cannot delete connector")
+		return Error{Code: ErrNotImplemented, Details: "static connectors: read-only cannot delete connector"}
 	}
 	return s.Storage.DeleteConnector(id)
 }
 
 func (s staticConnectorsStorage) UpdateConnector(id string, updater func(old Connector) (Connector, error)) error {
 	if s.isStatic(id) {
-		return errors.New("static connectors: read-only cannot update connector")
+		return Error{Code: ErrNotImplemented, Details: "static connectors: read-only cannot update connector"}
 	}
 	return s.Storage.UpdateConnector(id, updater)
 }

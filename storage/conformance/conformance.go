@@ -64,7 +64,7 @@ func mustBeErrNotFound(t *testing.T, kind string, err error) {
 	switch {
 	case err == nil:
 		t.Errorf("deleting non-existent %s should return an error", kind)
-	case err != storage.ErrNotFound:
+	case !storage.IsErrorCode(err, storage.ErrNotFound):
 		t.Errorf("deleting %s expected storage.ErrNotFound, got %v", kind, err)
 	}
 }
@@ -73,7 +73,7 @@ func mustBeErrAlreadyExists(t *testing.T, kind string, err error) {
 	switch {
 	case err == nil:
 		t.Errorf("attempting to create an existing %s should return an error", kind)
-	case err != storage.ErrAlreadyExists:
+	case !storage.IsErrorCode(err, storage.ErrAlreadyExists):
 		t.Errorf("creating an existing %s expected storage.ErrAlreadyExists, got %v", kind, err)
 	}
 }
@@ -772,7 +772,7 @@ func testGC(t *testing.T, s storage.Storage) {
 
 	if _, err := s.GetAuthCode(c.ID); err == nil {
 		t.Errorf("expected auth code to be GC'd")
-	} else if err != storage.ErrNotFound {
+	} else if !storage.IsErrorCode(err, storage.ErrNotFound) {
 		t.Errorf("expected storage.ErrNotFound, got %v", err)
 	}
 
@@ -824,7 +824,7 @@ func testGC(t *testing.T, s storage.Storage) {
 
 	if _, err := s.GetAuthRequest(a.ID); err == nil {
 		t.Errorf("expected auth code to be GC'd")
-	} else if err != storage.ErrNotFound {
+	} else if !storage.IsErrorCode(err, storage.ErrNotFound) {
 		t.Errorf("expected storage.ErrNotFound, got %v", err)
 	}
 }

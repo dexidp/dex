@@ -340,7 +340,7 @@ type passwordDB struct {
 func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, password string) (connector.Identity, bool, error) {
 	p, err := db.s.GetPassword(email)
 	if err != nil {
-		if err != storage.ErrNotFound {
+		if !storage.IsErrorCode(err, storage.ErrNotFound) {
 			return connector.Identity{}, false, fmt.Errorf("get password: %v", err)
 		}
 		return connector.Identity{}, false, nil
@@ -365,7 +365,7 @@ func (db passwordDB) Refresh(ctx context.Context, s connector.Scopes, identity c
 	// If the user has been deleted, the refresh token will be rejected.
 	p, err := db.s.GetPassword(identity.Email)
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if storage.IsErrorCode(err, storage.ErrNotFound) {
 			return connector.Identity{}, errors.New("user not found")
 		}
 		return connector.Identity{}, fmt.Errorf("get password: %v", err)

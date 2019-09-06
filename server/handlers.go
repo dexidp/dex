@@ -290,7 +290,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	authReq, err := s.storage.GetAuthRequest(authReqID)
 	if err != nil {
 		s.logger.Errorf("Failed to get auth request: %v", err)
-		if err == storage.ErrNotFound {
+		if storage.IsErrorCode(err, storage.ErrNotFound) {
 			s.renderError(w, http.StatusBadRequest, "Login session expired.")
 		} else {
 			s.renderError(w, http.StatusInternalServerError, "Database error.")
@@ -415,7 +415,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 
 	authReq, err := s.storage.GetAuthRequest(authID)
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if storage.IsErrorCode(err, storage.ErrNotFound) {
 			s.logger.Errorf("Invalid 'state' parameter provided: %v", err)
 			s.renderError(w, http.StatusBadRequest, "Requested resource does not exist.")
 			return
@@ -551,7 +551,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 	}
 
 	if err := s.storage.DeleteAuthRequest(authReq.ID); err != nil {
-		if err != storage.ErrNotFound {
+		if !storage.IsErrorCode(err, storage.ErrNotFound) {
 			s.logger.Errorf("Failed to delete authorization request: %v", err)
 			s.renderError(w, http.StatusInternalServerError, "Internal server error.")
 		} else {
@@ -699,7 +699,7 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 
 	client, err := s.storage.GetClient(clientID)
 	if err != nil {
-		if err != storage.ErrNotFound {
+		if !storage.IsErrorCode(err, storage.ErrNotFound) {
 			s.logger.Errorf("failed to get client: %v", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		} else {
@@ -730,7 +730,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 
 	authCode, err := s.storage.GetAuthCode(code)
 	if err != nil || s.now().After(authCode.Expiry) || authCode.ClientID != client.ID {
-		if err != storage.ErrNotFound {
+		if !storage.IsErrorCode(err, storage.ErrNotFound) {
 			s.logger.Errorf("failed to get auth code: %v", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		} else {
@@ -841,7 +841,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 
 		// Try to retrieve an existing OfflineSession object for the corresponding user.
 		if session, err := s.storage.GetOfflineSessions(refresh.Claims.UserID, refresh.ConnectorID); err != nil {
-			if err != storage.ErrNotFound {
+			if !storage.IsErrorCode(err, storage.ErrNotFound) {
 				s.logger.Errorf("failed to get offline session: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 				deleteToken = true
@@ -912,7 +912,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 	refresh, err := s.storage.GetRefresh(token.RefreshId)
 	if err != nil {
 		s.logger.Errorf("failed to get refresh token: %v", err)
-		if err == storage.ErrNotFound {
+		if storage.IsErrorCode(err, storage.ErrNotFound) {
 			s.tokenErrHelper(w, errInvalidRequest, "Refresh token is invalid or has already been claimed by another client.", http.StatusBadRequest)
 		} else {
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)

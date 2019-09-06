@@ -400,7 +400,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 
 	client, err := s.storage.GetClient(clientID)
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if storage.IsErrorCode(err, storage.ErrNotFound) {
 			description := fmt.Sprintf("Invalid client_id (%q).", clientID)
 			return nil, &authErr{"", "", errUnauthorizedClient, description}
 		}
@@ -539,7 +539,7 @@ func (s *Server) validateCrossClientTrust(clientID, peerID string) (trusted bool
 	}
 	peer, err := s.storage.GetClient(peerID)
 	if err != nil {
-		if err != storage.ErrNotFound {
+		if !storage.IsErrorCode(err, storage.ErrNotFound) {
 			s.logger.Errorf("Failed to get client: %v", err)
 			return false, err
 		}
