@@ -445,7 +445,7 @@ func (p *provider) validateStatus(status *status) error {
 func (p *provider) validateSubject(subject *subject, inResponseTo string) error {
 	// Optional according to the spec, but again, we're going to be strict here.
 	if len(subject.SubjectConfirmations) == 0 {
-		return fmt.Errorf("Subject contained no SubjectConfrimations")
+		return fmt.Errorf("Subject contained no SubjectConfirmations")
 	}
 
 	var errs []error
