@@ -26,7 +26,7 @@ import (
 	"github.com/gtank/cryptopasta"
 	"golang.org/x/net/http2"
 
-	"github.com/dexidp/dex/pkg/log"
+	"github.com/profects/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )

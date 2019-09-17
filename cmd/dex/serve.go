@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/dexidp/dex/api"
-	"github.com/dexidp/dex/pkg/log"
+	"github.com/profects/dex/pkg/log"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
 )

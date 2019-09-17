@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/dexidp/dex/pkg/log"
+	"github.com/profects/dex/pkg/log"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/etcd"

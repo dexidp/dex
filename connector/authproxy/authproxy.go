@@ -9,7 +9,7 @@ import (
 	"net/url"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
+	"github.com/profects/dex/pkg/log"
 )
 
 // Config holds the configuration parameters for a connector which returns an

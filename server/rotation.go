@@ -12,7 +12,7 @@ import (
 
 	"gopkg.in/square/go-jose.v2"
 
-	"github.com/dexidp/dex/pkg/log"
+	"github.com/profects/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
 

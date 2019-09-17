@@ -10,7 +10,7 @@ import (
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/dexidp/dex/pkg/log"
+	"github.com/profects/dex/pkg/log"
 )
 
 // flavor represents a specific SQL implementation, and is used to translate query strings

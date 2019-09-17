@@ -11,7 +11,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/dexidp/dex/api"
-	"github.com/dexidp/dex/pkg/log"
+	"github.com/profects/dex/pkg/log"
 
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"

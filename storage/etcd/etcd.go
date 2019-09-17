@@ -9,7 +9,7 @@ import (
 
 	"github.com/coreos/etcd/clientv3"
 
-	"github.com/dexidp/dex/pkg/log"
+	"github.com/profects/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
 

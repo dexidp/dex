@@ -10,7 +10,7 @@ import (
 	"net/http"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
+	"github.com/profects/dex/pkg/log"
 )
 
 type conn struct {
