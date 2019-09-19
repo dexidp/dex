@@ -230,6 +230,23 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if authReq.Connector != "" {
+		filtered := connectors[:0]
+		for _, c := range connectors {
+			if c.ID == authReq.Connector {
+				filtered = append(filtered, c)
+			}
+		}
+		if len(filtered) == 0 {
+			s.logger.Errorf("Connection with the ID %s not defined", authReq.Connector)
+			s.renderError(w, http.StatusInternalServerError, "Connection "+ authReq.Connector+ " not found")
+			return
+		}
+		s.logger.Infof("Found connector  %s. Redirecting..", authReq.Connector)
+		http.Redirect(w, r, s.absPath("/auth", authReq.Connector)+"?req="+authReq.ID, http.StatusFound)
+		return
+	}
+
 	if len(connectors) == 1 {
 		for _, c := range connectors {
 			// TODO(ericchiang): Make this pass on r.URL.RawQuery and let something latter

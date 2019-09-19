@@ -388,6 +388,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 	// Some clients, like the old go-oidc, provide extra whitespace. Tolerate this.
 	scopes := strings.Fields(q.Get("scope"))
 	responseTypes := strings.Fields(q.Get("response_type"))
+	connector := q.Get("connector")
 
 	client, err := s.storage.GetClient(clientID)
 	if err != nil {
@@ -503,6 +504,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 		Scopes:              scopes,
 		RedirectURI:         redirectURI,
 		ResponseTypes:       responseTypes,
+		Connector:           connector,
 	}, nil
 }
 

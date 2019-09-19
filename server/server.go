@@ -507,7 +507,7 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 func (s *Server) getConnector(id string) (Connector, error) {
 	storageConnector, err := s.storage.GetConnector(id)
 	if err != nil {
-		return Connector{}, fmt.Errorf("failed to get connector object from storage: %v", err)
+		return Connector{}, fmt.Errorf("failed to get connector with id %s from storage: %v", id, err)
 	}
 
 	var conn Connector
