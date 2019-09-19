@@ -98,6 +98,7 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 			Email:         "jane.doe@example.com",
 			EmailVerified: true,
 			Groups:        []string{"a", "b"},
+			Locale:        "en_US",
 		},
 	}
 
@@ -179,6 +180,7 @@ func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 			Email:         "jane.doe@example.com",
 			EmailVerified: true,
 			Groups:        []string{"a", "b"},
+			Locale:        "en_US",
 		},
 	}
 
@@ -322,6 +324,7 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 			Email:         "jane.doe@example.com",
 			EmailVerified: true,
 			Groups:        []string{"a", "b"},
+			Locale:        "en_US",
 		},
 		ConnectorData: []byte(`{"some":"data"}`),
 	}
@@ -795,6 +798,7 @@ func testGC(t *testing.T, s storage.Storage) {
 			Email:         "jane.doe@example.com",
 			EmailVerified: true,
 			Groups:        []string{"a", "b"},
+			Locale:        "en_US",
 		},
 	}
 
@@ -855,6 +859,7 @@ func testTimezones(t *testing.T, s storage.Storage) {
 			Email:         "jane.doe@example.com",
 			EmailVerified: true,
 			Groups:        []string{"a", "b"},
+			Locale:        "en_US",
 		},
 	}
 	if err := s.CreateAuthCode(c); err != nil {
