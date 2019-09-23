@@ -29,6 +29,7 @@ const (
 	// MySQL error codes
 	mysqlErrDupEntry            = 1062
 	mysqlErrDupEntryWithKeyName = 1586
+	mysqlErrUnknownSysVar       = 1193
 )
 
 // SQLite3 options for creating an SQL db.
@@ -305,6 +306,26 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 	db, err := sql.Open("mysql", cfg.FormatDSN())
 	if err != nil {
 		return nil, err
+	}
+
+	err = db.Ping()
+	if err != nil {
+		if mysqlErr, ok := err.(*mysql.MySQLError); ok && mysqlErr.Number == mysqlErrUnknownSysVar {
+			logger.Info("reconnecting with MySQL pre-5.7.20 compatibilty mode")
+
+			// MySQL 5.7.20 introduced transaction_isolation and deprecated tx_isolation.
+			// MySQL 8.0 doesn't have tx_isolation at all.
+			// https://dev.mysql.com/doc/refman/5.7/en/server-system-variables.html#sysvar_transaction_isolation
+			delete(cfg.Params, "transaction_isolation")
+			cfg.Params["tx_isolation"] = "'SERIALIZABLE'"
+
+			db, err = sql.Open("mysql", cfg.FormatDSN())
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
 
 	errCheck := func(err error) bool {
