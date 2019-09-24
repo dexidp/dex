@@ -143,7 +143,7 @@ func cmd() *cobra.Command {
 			ctx := oidc.ClientContext(context.Background(), a.client)
 			provider, err := oidc.NewProvider(ctx, issuerURL)
 			if err != nil {
-				return fmt.Errorf("Failed to query provider %q: %v", issuerURL, err)
+				return fmt.Errorf("failed to query provider %q: %v", issuerURL, err)
 			}
 
 			var s struct {
@@ -153,7 +153,7 @@ func cmd() *cobra.Command {
 				ScopesSupported []string `json:"scopes_supported"`
 			}
 			if err := provider.Claims(&s); err != nil {
-				return fmt.Errorf("Failed to parse provider scopes_supported: %v", err)
+				return fmt.Errorf("failed to parse provider scopes_supported: %v", err)
 			}
 
 			if len(s.ScopesSupported) == 0 {

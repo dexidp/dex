@@ -14,11 +14,13 @@ Steps:
    ```yaml
    frontend:
      dir: /path/to/custom/web
+     issuer: my-dex
      extra:
        tos_footer_link: "https://example.com/terms"
        client_logo_url: "../theme/client-logo.png"
        foo: "bar"
    ```
 5. Set the `frontend.dir` value to your own `web` directory.
+6. Write the issuer in the `issuer` directory in order to modify the Dex title and the `Log in to <<dex>>` tag.
 
 To test your templates simply run Dex with a valid configuration and go through a login flow.

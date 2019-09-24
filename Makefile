@@ -1,86 +1,81 @@
-PROJ=dex
-ORG_PATH=github.com/dexidp
-REPO_PATH=$(ORG_PATH)/$(PROJ)
-export PATH := $(PWD)/bin:$(PATH)
-THIS_DIRECTORY:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
+APP_NAME = dex
+# BASE_PKG is a root packge of the component
+BASE_PKG := github.com/kyma-incubator/dex
+# IMG_GOPATH is a path to go path in the container
+IMG_GOPATH := /go
+BUILDPACK = eu.gcr.io/kyma-project/test-infra/buildpack-golang-toolbox:v20190913-65b55d1
 
-VERSION ?= $(shell ./scripts/git-version)
+IMG_NAME := $(DOCKER_PUSH_REPOSITORY)$(DOCKER_PUSH_DIRECTORY)/$(APP_NAME)
+TAG := $(DOCKER_TAG)
 
-DOCKER_REPO=quay.io/dexidp/dex
-DOCKER_IMAGE=$(DOCKER_REPO):$(VERSION)
+# COMPONENT_DIR is a local path to commponent
+COMPONENT_DIR = $(shell pwd)
+# WORKSPACE_LOCAL_DIR is a path to the scripts folder in the container
+WORKSPACE_LOCAL_DIR = $(IMG_GOPATH)/src/$(BASE_PKG)
+# WORKSPACE_COMPONENT_DIR is a path to commponent in the container
+WORKSPACE_COMPONENT_DIR = $(IMG_GOPATH)/src/$(BASE_PKG)
 
-$( shell mkdir -p bin )
+# Base docker configuration
+DOCKER_CREATE_OPTS := -v $(LOCAL_DIR):$(WORKSPACE_LOCAL_DIR):delegated --rm -w $(WORKSPACE_COMPONENT_DIR) $(BUILDPACK)
 
-user=$(shell id -u -n)
-group=$(shell id -g -n)
+# Check if go is available
+ifneq (,$(shell go version 2>/dev/null))
+DOCKER_CREATE_OPTS := -v $(shell go env GOCACHE):$(IMG_GOCACHE):delegated -v $(shell go env GOPATH)/pkg/dep:$(IMG_GOPATH)/pkg/dep:delegated $(DOCKER_CREATE_OPTS)
+endif
 
-export GOBIN=$(PWD)/bin
+# Check if running with TTY
+ifeq (1, $(shell [ -t 0 ] && echo 1))
+DOCKER_INTERACTIVE := -i
+DOCKER_CREATE_OPTS := -t $(DOCKER_CREATE_OPTS)
+else
+DOCKER_INTERACTIVE_START := --attach
+endif
 
-LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
+# Buildpack directives
+define buildpack-mount
+.PHONY: $(1)-local $(1)
+$(1):
+	@echo make $(1)
+	@docker run $(DOCKER_INTERACTIVE) \
+		-v $(COMPONENT_DIR):$(WORKSPACE_COMPONENT_DIR):delegated \
+		$(DOCKER_CREATE_OPTS) make $(1)-local
+endef
 
-build: bin/dex bin/example-app bin/grpc-client
+VERIFY_IGNORE := /vendor\|/automock
+DIRS_TO_CHECK = go list ./... | grep -v "$(VERIFY_IGNORE)"
+FILES_TO_CHECK = find . -type f -name "*.go" | grep -v "$(VERIFY_IGNORE)"
 
-bin/dex:
-	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
+release: test vet check-fmt build-image push-image
 
-bin/example-app:
-	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/example-app
+# Targets mounting sources to buildpack
+MOUNT_TARGETS = test vet check-fmt fmt fix-fmt
+$(foreach t,$(MOUNT_TARGETS),$(eval $(call buildpack-mount,$(t))))
 
-bin/grpc-client:
-	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/grpc-client
+test-local:
+	go test -v ./...
 
-.PHONY: release-binary
-release-binary:
-	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
+vet-local:
+	go vet $$($(DIRS_TO_CHECK))
 
-.PHONY: revendor
-revendor:
-	@go mod tidy -v
-	@go mod vendor -v
-	@go mod verify
+check-fmt-local:
+	exit $(shell gofmt -l $$($(FILES_TO_CHECK)) | wc -l | xargs)
 
-test:
-	@go test -v ./...
+fmt-local:
+	gofmt -l $$($(FILES_TO_CHECK))
 
-testrace:
-	@go test -v --race ./...
+fix-fmt-local:
+	gofmt -w $$($(FILES_TO_CHECK))
 
-vet:
-	@go vet ./...
+build-image: pull-licenses
+	docker build -t $(IMG_NAME) .
 
-fmt:
-	@./scripts/gofmt ./...
+push-image:
+	docker tag $(IMG_NAME) $(IMG_NAME):$(TAG)
+	docker push $(IMG_NAME):$(TAG)
 
-lint: bin/golint
-	@./bin/golint -set_exit_status $(shell go list ./...)
-
-.PHONY: docker-image
-docker-image:
-	@sudo docker build -t $(DOCKER_IMAGE) .
-
-.PHONY: proto
-proto: bin/protoc bin/protoc-gen-go
-	@./bin/protoc --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go api/*.proto
-	@./bin/protoc --go_out=. --plugin=protoc-gen-go=./bin/protoc-gen-go server/internal/*.proto
-
-.PHONY: verify-proto
-verify-proto: proto
-	@./scripts/git-diff
-
-bin/protoc: scripts/get-protoc
-	@./scripts/get-protoc bin/protoc
-
-bin/protoc-gen-go:
-	@go install -v $(REPO_PATH)/vendor/github.com/golang/protobuf/protoc-gen-go
-
-bin/golint:
-	@go install -v $(THIS_DIRECTORY)/vendor/golang.org/x/lint/golint
-
-clean:
-	@rm -rf bin/
-
-testall: testrace vet fmt lint
-
-FORCE:
-
-.PHONY: test testrace vet fmt lint testall
+pull-licenses:
+ifdef LICENSE_PULLER_PATH
+	bash $(LICENSE_PULLER_PATH)
+else
+	mkdir -p licenses
+endif

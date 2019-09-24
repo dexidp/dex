@@ -6,7 +6,7 @@ dist: xenial
 
 matrix:
   include:
-    - go: '1.12.x'
+    - go: '1.13.x'
 
 env:
   global:
@@ -48,7 +48,6 @@ install:
 
 script:
   - make testall
-  - ./scripts/test-k8s.sh
   - make verify-proto # Ensure proto generation doesn't depend on external packages.
 
 notifications:

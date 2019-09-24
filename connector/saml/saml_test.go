@@ -49,9 +49,10 @@ type responseTest struct {
 	entityIssuer string
 
 	// Attribute customization.
-	usernameAttr string
-	emailAttr    string
-	groupsAttr   string
+	usernameAttr  string
+	emailAttr     string
+	groupsAttr    string
+	allowedGroups []string
 
 	// Expected outcome of the test.
 	wantErr   bool
@@ -93,6 +94,96 @@ func TestGroups(t *testing.T) {
 			Email:         "eric.chiang+okta@coreos.com",
 			EmailVerified: true,
 			Groups:        []string{"Admins", "Everyone"},
+		},
+	}
+	test.run(t)
+}
+
+func TestGroupsWhitelist(t *testing.T) {
+	test := responseTest{
+		caFile:        "testdata/ca.crt",
+		respFile:      "testdata/good-resp.xml",
+		now:           "2017-04-04T04:34:59.330Z",
+		usernameAttr:  "Name",
+		emailAttr:     "email",
+		groupsAttr:    "groups",
+		allowedGroups: []string{"Admins"},
+		inResponseTo:  "6zmm5mguyebwvajyf2sdwwcw6m",
+		redirectURI:   "http://127.0.0.1:5556/dex/callback",
+		wantIdent: connector.Identity{
+			UserID:        "eric.chiang+okta@coreos.com",
+			Username:      "Eric",
+			Email:         "eric.chiang+okta@coreos.com",
+			EmailVerified: true,
+			Groups:        []string{"Admins", "Everyone"},
+		},
+	}
+	test.run(t)
+}
+
+func TestGroupsWhitelistEmpty(t *testing.T) {
+	test := responseTest{
+		caFile:        "testdata/ca.crt",
+		respFile:      "testdata/good-resp.xml",
+		now:           "2017-04-04T04:34:59.330Z",
+		usernameAttr:  "Name",
+		emailAttr:     "email",
+		groupsAttr:    "groups",
+		allowedGroups: []string{},
+		inResponseTo:  "6zmm5mguyebwvajyf2sdwwcw6m",
+		redirectURI:   "http://127.0.0.1:5556/dex/callback",
+		wantIdent: connector.Identity{
+			UserID:        "eric.chiang+okta@coreos.com",
+			Username:      "Eric",
+			Email:         "eric.chiang+okta@coreos.com",
+			EmailVerified: true,
+			Groups:        []string{"Admins", "Everyone"},
+		},
+	}
+	test.run(t)
+}
+
+func TestGroupsWhitelistDisallowed(t *testing.T) {
+	test := responseTest{
+		wantErr:       true,
+		caFile:        "testdata/ca.crt",
+		respFile:      "testdata/good-resp.xml",
+		now:           "2017-04-04T04:34:59.330Z",
+		usernameAttr:  "Name",
+		emailAttr:     "email",
+		groupsAttr:    "groups",
+		allowedGroups: []string{"Nope"},
+		inResponseTo:  "6zmm5mguyebwvajyf2sdwwcw6m",
+		redirectURI:   "http://127.0.0.1:5556/dex/callback",
+		wantIdent: connector.Identity{
+			UserID:        "eric.chiang+okta@coreos.com",
+			Username:      "Eric",
+			Email:         "eric.chiang+okta@coreos.com",
+			EmailVerified: true,
+			Groups:        []string{"Admins", "Everyone"},
+		},
+	}
+	test.run(t)
+}
+
+func TestGroupsWhitelistDisallowedNoGroupsOnIdent(t *testing.T) {
+	test := responseTest{
+		wantErr:       true,
+		caFile:        "testdata/ca.crt",
+		respFile:      "testdata/good-resp.xml",
+		now:           "2017-04-04T04:34:59.330Z",
+		usernameAttr:  "Name",
+		emailAttr:     "email",
+		groupsAttr:    "groups",
+		allowedGroups: []string{"Nope"},
+		inResponseTo:  "6zmm5mguyebwvajyf2sdwwcw6m",
+		redirectURI:   "http://127.0.0.1:5556/dex/callback",
+		wantIdent: connector.Identity{
+			UserID:        "eric.chiang+okta@coreos.com",
+			Username:      "Eric",
+			Email:         "eric.chiang+okta@coreos.com",
+			EmailVerified: true,
+			Groups:        []string{},
 		},
 	}
 	test.run(t)
@@ -290,12 +381,13 @@ func loadCert(ca string) (*x509.Certificate, error) {
 
 func (r responseTest) run(t *testing.T) {
 	c := Config{
-		CA:           r.caFile,
-		UsernameAttr: r.usernameAttr,
-		EmailAttr:    r.emailAttr,
-		GroupsAttr:   r.groupsAttr,
-		RedirectURI:  r.redirectURI,
-		EntityIssuer: r.entityIssuer,
+		CA:            r.caFile,
+		UsernameAttr:  r.usernameAttr,
+		EmailAttr:     r.emailAttr,
+		GroupsAttr:    r.groupsAttr,
+		RedirectURI:   r.redirectURI,
+		EntityIssuer:  r.entityIssuer,
+		AllowedGroups: r.allowedGroups,
 		// Never logging in, don't need this.
 		SSOURL: "http://foo.bar/",
 	}

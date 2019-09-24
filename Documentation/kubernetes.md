@@ -156,6 +156,9 @@ Once the example app is running, choose the GitHub option and grant access to de
 
 The default redirect uri is http://127.0.0.1:5555/callback and can be changed with the `--redirect-uri` flag and should correspond with your configmap.
 
+Please note the redirect uri is different from the one you filled when creating `GitHub OAuth2 client credentials`. 
+When you login, GitHub first redirects to dex (https://dex.example.com:32000/callback), then dex redirects to the redirect uri of exampl-app.
+
 The printed ID Token can then be used as a bearer token to authenticate against the API server.
 
 ```

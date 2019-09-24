@@ -47,19 +47,6 @@ type webConfig struct {
 	extra     map[string]string
 }
 
-func join(base, path string) string {
-	b := strings.HasSuffix(base, "/")
-	p := strings.HasPrefix(path, "/")
-	switch {
-	case b && p:
-		return base + path[1:]
-	case b || p:
-		return base + path
-	default:
-		return base + "/" + path
-	}
-}
-
 func dirExists(dir string) error {
 	stat, err := os.Stat(dir)
 	if err != nil {
@@ -189,7 +176,6 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 //assetPath is static/main.css
 //relativeURL("/dex", "/dex/auth", "static/main.css") = "../static/main.css"
 func relativeURL(serverPath, reqPath, assetPath string) string {
-
 	splitPath := func(p string) []string {
 		res := []string{}
 		parts := strings.Split(path.Clean(p), "/")
@@ -220,6 +206,7 @@ func relativeURL(serverPath, reqPath, assetPath string) string {
 	server, req, asset := splitPath(serverPath), splitPath(reqPath), splitPath(assetPath)
 
 	// Remove common prefix of request path with server path
+	// nolint: ineffassign
 	server, req = stripCommonParts(server, req)
 
 	// Remove common prefix of request path with asset path
@@ -246,6 +233,7 @@ type connectorInfo struct {
 	ID   string
 	Name string
 	URL  string
+	Type string
 }
 
 type byName []connectorInfo
