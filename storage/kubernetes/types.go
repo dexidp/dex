@@ -252,13 +252,13 @@ type Client struct {
 	Name    string `json:"name,omitempty"`
 	LogoURL string `json:"logoURL,omitempty"`
 
-	SAMLInitiated SAMLInitiatedConfig `json:"samlInitiated"`
+	SAMLInitiated SAMLInitiatedConfig `json:"samlInitiated,omitempty"`
 }
 
 // SAMLInitiatedConfig is mirrored from storage.SAMLInitiatedConfig
 type SAMLInitiatedConfig struct {
 	RedirectURI string   `json:"redirectURI"`
-	Scopes      []string `json:"scopes"`
+	Scopes      []string `json:"scopes,omitempty"`
 }
 
 // ClientList is a list of Clients.

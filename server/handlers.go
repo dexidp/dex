@@ -530,8 +530,8 @@ func (s *Server) handleSAMLCallback(r *http.Request) (string, string, int, error
 		s.logger.Warnf("SAML IdP initiated login attempt made to client %q, but support for this flow is not configured. Update the client config to support this login flow.", relayState)
 		return "", "", http.StatusBadRequest, errors.New("user session error")
 	}
-	// TODO: should we check that 'idtoken' is one of the scopes? or just put the
-	// burden on the user to confiugre these scopes correctly?
+	// TODO: should we check that 'openid' is one of the scopes? or just put the
+	// burden on the user to configure these scopes correctly?
 	scopes := client.SAMLInitiated.Scopes
 	if len(scopes) == 0 {
 		scopes = saml.DefaultIDPInitiatedScopes
