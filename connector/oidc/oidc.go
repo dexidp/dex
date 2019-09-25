@@ -3,6 +3,7 @@ package oidc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -59,6 +60,11 @@ var brokenAuthHeaderDomains = []string{
 	// See: https://github.com/dexidp/dex/issues/859
 	"okta.com",
 	"oktapreview.com",
+}
+
+// connectorData stores information for sessions authenticated by this connector
+type connectorData struct {
+	refreshToken []byte
 }
 
 // Detect auth header provider issues for known providers. This lets users
@@ -210,8 +216,14 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 
 // Refresh is used to refresh a session with the refresh token provided by the IdP
 func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+	cd := connectorData{}
+	err := json.Unmarshal(identity.ConnectorData, &cd)
+	if err != nil {
+		return identity, fmt.Errorf("oidc: failed to unmarshal connector data: %v", err)
+	}
+
 	t := &oauth2.Token{
-		RefreshToken: string(identity.ConnectorData),
+		RefreshToken: string(cd.refreshToken),
 		Expiry:       time.Now().Add(-time.Hour),
 	}
 	token, err := c.oauth2Config.TokenSource(ctx, t).Token()
@@ -284,12 +296,21 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 	}
 
+	cd := connectorData{
+		refreshToken: []byte(token.RefreshToken),
+	}
+
+	connData, err := json.Marshal(&cd)
+	if err != nil {
+		return identity, fmt.Errorf("oidc: failed to encode connector data: %v", err)
+	}
+
 	identity = connector.Identity{
 		UserID:        idToken.Subject,
 		Username:      name,
 		Email:         email,
 		EmailVerified: emailVerified,
-		ConnectorData: []byte(token.RefreshToken),
+		ConnectorData: connData,
 	}
 
 	if c.userIDKey != "" {
