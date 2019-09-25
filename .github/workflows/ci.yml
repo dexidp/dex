@@ -1,0 +1,63 @@
+name: Dex CI
+on: [push, pull_request]
+jobs:
+  build:
+    name: Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-16.04]
+        go: ['1.12.x']
+    services:
+      postgresql:
+        image: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v1
+
+      - name: Set up Go 
+        uses: actions/setup-go@v1
+        with:
+          go-version: ${{ matrix.go }}
+        id: go
+
+      - name: before_install
+        run: |
+          mysql -uroot -proot -e 'CREATE DATABASE dex;'
+
+      - name: install
+        run: |
+          sudo -E apt-get install -y --force-yes slapd time ldap-utils
+          sudo /etc/init.d/slapd stop
+          docker run -d --net=host gcr.io/etcd-development/etcd:v3.2.9
+          docker run -d -p 0.0.0.0:5000:5000 -p 0.0.0.0:35357:35357 openio/openstack-keystone:pike
+          until curl -sS --fail http://localhost:5000/v3; do \
+            echo 'Waiting for keystone...'; \
+            sleep 1; \
+          done;
+        env:
+          DEBIAN_FRONTEND: noninteractive
+
+      - name: script
+        run: |
+          make testall
+          ./scripts/test-k8s.sh
+          make verify-proto # Ensure proto generation doesn't depend on external packages.
+        env:
+          DEX_MYSQL_DATABASE: dex
+          DEX_MYSQL_USER: root
+          DEX_MYSQL_HOST: "localhost"
+          DEX_MYSQL_PASSWORD: "root"
+          DEX_POSTGRES_DATABASE: postgres
+          DEX_POSTGRES_USER: postgres
+          DEX_POSTGRES_HOST: "localhost"
+          DEX_ETCD_ENDPOINTS: http://localhost:2379
+          DEX_LDAP_TESTS: 0
+          DEX_KEYSTONE_URL: http://localhost:5000
+          DEX_KEYSTONE_ADMIN_URL: http://localhost:35357
+          DEX_KEYSTONE_ADMIN_USER: demo
+          DEX_KEYSTONE_ADMIN_PASS: DEMO_PASS

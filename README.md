@@ -1,6 +1,7 @@
 # dex - A federated OpenID Connect provider
 
 [![Travis](https://api.travis-ci.org/dexidp/dex.svg)](https://travis-ci.org/dexidp/dex)
+[![Actions](https://github.com/dexidp/dex/workflows/Dex%20CI/badge.svg)](https://github.com/dexidp/dex/actions)
 [![GoDoc](https://godoc.org/github.com/dexidp/dex?status.svg)](https://godoc.org/github.com/dexidp/dex)
 [![Go Report Card](https://goreportcard.com/badge/github.com/dexidp/dex)](https://goreportcard.com/report/github.com/dexidp/dex)
 
