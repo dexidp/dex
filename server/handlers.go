@@ -1008,7 +1008,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		}
 	} else if len(refresh.ConnectorData) > 0 {
 		// Use the old connector data if it exists, should be deleted once used
-		connectorData = session.ConnectorData
+		connectorData = refresh.ConnectorData
 	} else {
 		connectorData = session.ConnectorData
 	}
