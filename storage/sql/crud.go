@@ -6,14 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/dexidp/dex/storage"
 )
-
-// TODO(ericchiang): The update, insert, and select methods queries are all
-// very repetitive. Consider creating them programmatically.
 
 // keysRowID is the ID of the only row we expect to populate the "keys" table.
 const keysRowID = "keys"
@@ -76,6 +74,8 @@ func (j jsonDecoder) Scan(dest interface{}) error {
 
 // Abstract conn vs trans.
 type querier interface {
+	Exec(query string, args ...interface{}) (sql.Result, error)
+	Query(query string, args ...interface{}) (*sql.Rows, error)
 	QueryRow(query string, args ...interface{}) *sql.Row
 }
 
@@ -83,6 +83,9 @@ type querier interface {
 type scanner interface {
 	Scan(dest ...interface{}) error
 }
+
+type sqlValueMap map[string]driver.Value
+type sqlFieldMap map[string]interface{}
 
 func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error) {
 	r, err := c.Exec(`delete from auth_request where expiry < $1`, now)
@@ -103,27 +106,174 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 	return
 }
 
+func insert(c querier, tableName string, columns sqlValueMap) error {
+	var builder strings.Builder
+
+	builder.WriteString("INSERT INTO ")
+	builder.WriteString(tableName)
+	builder.WriteString(" (")
+
+	execArguments := make([]interface{}, len(columns))
+
+	execArgumentsPos := 0
+	for columnName, columnValue := range columns {
+		builder.WriteString(columnName)
+
+		if execArgumentsPos < len(columns)-1 {
+			builder.WriteString(", ")
+		}
+
+		execArguments[execArgumentsPos] = columnValue
+		execArgumentsPos++
+	}
+
+	builder.WriteString(") VALUES (")
+
+	for i := 0; i < len(columns); i++ {
+		builder.WriteString("$")
+		builder.WriteString(strconv.Itoa(i + 1))
+		if i < len(columns)-1 {
+			builder.WriteString(", ")
+		}
+	}
+
+	builder.WriteString(")")
+
+	_, err := c.Exec(builder.String(), execArguments...)
+
+	return err
+}
+func update(c querier, tableName string, toUpdate sqlValueMap, where sqlValueMap) error {
+	var builder strings.Builder
+
+	builder.WriteString("UPDATE ")
+	builder.WriteString(tableName)
+	builder.WriteString(" SET ")
+
+	paramList := make([]interface{}, len(toUpdate)+len(where))
+
+	paramListPos := 0
+
+	i := 1
+	for key, value := range toUpdate {
+		builder.WriteString(key)
+		builder.WriteString(" = $")
+		builder.WriteString(strconv.Itoa(paramListPos + 1))
+
+		if i < len(toUpdate) {
+			builder.WriteString(", ")
+		}
+
+		paramList[paramListPos] = value
+		paramListPos++
+		i++
+	}
+
+	builder.WriteString(" WHERE ")
+
+	i = 1
+	for key, value := range where {
+		builder.WriteString(key)
+		builder.WriteString(" = $")
+		builder.WriteString(strconv.Itoa(paramListPos + 1))
+
+		if i < len(where) {
+			builder.WriteString(" AND ")
+		}
+
+		paramList[paramListPos] = value
+		paramListPos++
+		i++
+	}
+
+	_, err := c.Exec(builder.String(), paramList...)
+
+	return err
+}
+
+func sselect(tableName string, fields []string, where sqlValueMap) (string, []interface{}) {
+	var builder strings.Builder
+
+	builder.WriteString("SELECT ")
+
+	for i, val := range fields {
+		builder.WriteString(val)
+
+		if i < len(fields)-1 {
+			builder.WriteString(", ")
+		}
+	}
+
+	builder.WriteString(" FROM ")
+	builder.WriteString(tableName)
+
+	paramList := make([]interface{}, len(where))
+
+	paramListPos := 0
+	if len(where) > 0 {
+		builder.WriteString(" WHERE ")
+		for key, value := range where {
+			builder.WriteString(key)
+			builder.WriteString(" = $")
+			builder.WriteString(strconv.Itoa(paramListPos + 1))
+
+			if paramListPos < len(where)-1 {
+				builder.WriteString(" AND ")
+			}
+
+			paramList[paramListPos] = value
+			paramListPos++
+		}
+	}
+
+	return builder.String(), paramList
+}
+
+func query(c querier, tableName string, fields []string) (*sql.Rows, error) {
+	qsql, _ := sselect(tableName, fields, sqlValueMap{})
+	return c.Query(qsql)
+}
+
+func queryRow(c querier, tableName string, fields []string, where sqlValueMap) scanner {
+	qsql, params := sselect(tableName, fields, where)
+	return c.QueryRow(qsql, params...)
+}
+
+func scanRow(c querier, tableName string, fieldMap sqlFieldMap, where sqlValueMap) error {
+	fields := make([]string, len(fieldMap))
+	outFields := make([]interface{}, len(fieldMap))
+
+	i := 0
+	for fieldName, fieldPtr := range fieldMap {
+		fields[i] = fieldName
+		outFields[i] = fieldPtr
+		i++
+	}
+
+	scan := queryRow(c, tableName, fields, where)
+	return scan.Scan(outFields...)
+}
+
 func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
-	_, err := c.Exec(`
-		insert into auth_request (
-			id, client_id, response_types, scopes, redirect_uri, nonce, state,
-			force_approval_prompt, logged_in,
-			claims_user_id, claims_username, claims_email, claims_email_verified,
-			claims_groups,
-			connector_id, connector_data,
-			expiry
-		)
-		values (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
-		);
-	`,
-		a.ID, a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
-		a.ForceApprovalPrompt, a.LoggedIn,
-		a.Claims.UserID, a.Claims.Username, a.Claims.Email, a.Claims.EmailVerified,
-		encoder(a.Claims.Groups),
-		a.ConnectorID, a.ConnectorData,
-		a.Expiry,
-	)
+	err := insert(c, "auth_request", sqlValueMap{
+		"id":                    a.ID,
+		"client_id":             a.ClientID,
+		"response_types":        encoder(a.ResponseTypes),
+		"scopes":                encoder(a.Scopes),
+		"redirect_uri":          a.RedirectURI,
+		"nonce":                 a.Nonce,
+		"state":                 a.State,
+		"force_approval_prompt": a.ForceApprovalPrompt,
+		"logged_in":             a.LoggedIn,
+		"claims_user_id":        a.Claims.UserID,
+		"claims_username":       a.Claims.Username,
+		"claims_email":          a.Claims.Email,
+		"claims_email_verified": a.Claims.EmailVerified,
+		"claims_groups":         encoder(a.Claims.Groups),
+		"connector_id":          a.ConnectorID,
+		"connector_data":        a.ConnectorData,
+		"expiry":                a.Expiry,
+	})
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
@@ -144,25 +294,27 @@ func (c *conn) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) 
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(`
-			update auth_request
-			set
-				client_id = $1, response_types = $2, scopes = $3, redirect_uri = $4,
-				nonce = $5, state = $6, force_approval_prompt = $7, logged_in = $8,
-				claims_user_id = $9, claims_username = $10, claims_email = $11,
-				claims_email_verified = $12,
-				claims_groups = $13,
-				connector_id = $14, connector_data = $15,
-				expiry = $16
-			where id = $17;
-		`,
-			a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
-			a.ForceApprovalPrompt, a.LoggedIn,
-			a.Claims.UserID, a.Claims.Username, a.Claims.Email, a.Claims.EmailVerified,
-			encoder(a.Claims.Groups),
-			a.ConnectorID, a.ConnectorData,
-			a.Expiry, r.ID,
-		)
+		err = update(tx, "auth_request", sqlValueMap{
+			"client_id":             a.ClientID,
+			"response_types":        encoder(a.ResponseTypes),
+			"scopes":                encoder(a.Scopes),
+			"redirect_uri":          a.RedirectURI,
+			"nonce":                 a.Nonce,
+			"state":                 a.State,
+			"force_approval_prompt": a.ForceApprovalPrompt,
+			"logged_in":             a.LoggedIn,
+			"claims_user_id":        a.Claims.UserID,
+			"claims_username":       a.Claims.Username,
+			"claims_email":          a.Claims.Email,
+			"claims_email_verified": a.Claims.EmailVerified,
+			"claims_groups":         encoder(a.Claims.Groups),
+			"connector_id":          a.ConnectorID,
+			"connector_data":        a.ConnectorData,
+			"expiry":                a.Expiry,
+		}, sqlValueMap{
+			"id": r.ID,
+		})
+
 		if err != nil {
 			return fmt.Errorf("update auth request: %v", err)
 		}
@@ -176,21 +328,28 @@ func (c *conn) GetAuthRequest(id string) (storage.AuthRequest, error) {
 }
 
 func getAuthRequest(q querier, id string) (a storage.AuthRequest, err error) {
-	err = q.QueryRow(`
-		select 
-			id, client_id, response_types, scopes, redirect_uri, nonce, state,
-			force_approval_prompt, logged_in,
-			claims_user_id, claims_username, claims_email, claims_email_verified,
-			claims_groups,
-			connector_id, connector_data, expiry
-		from auth_request where id = $1;
-	`, id).Scan(
-		&a.ID, &a.ClientID, decoder(&a.ResponseTypes), decoder(&a.Scopes), &a.RedirectURI, &a.Nonce, &a.State,
-		&a.ForceApprovalPrompt, &a.LoggedIn,
-		&a.Claims.UserID, &a.Claims.Username, &a.Claims.Email, &a.Claims.EmailVerified,
-		decoder(&a.Claims.Groups),
-		&a.ConnectorID, &a.ConnectorData, &a.Expiry,
-	)
+	err = scanRow(q, "auth_request", sqlFieldMap{
+		"id":                    &a.ID,
+		"client_id":             &a.ClientID,
+		"response_types":        decoder(&a.ResponseTypes),
+		"scopes":                decoder(&a.Scopes),
+		"redirect_uri":          &a.RedirectURI,
+		"nonce":                 &a.Nonce,
+		"state":                 &a.State,
+		"force_approval_prompt": &a.ForceApprovalPrompt,
+		"logged_in":             &a.LoggedIn,
+		"claims_user_id":        &a.Claims.UserID,
+		"claims_username":       &a.Claims.Username,
+		"claims_email":          &a.Claims.Email,
+		"claims_email_verified": &a.Claims.EmailVerified,
+		"claims_groups":         decoder(&a.Claims.Groups),
+		"connector_id":          &a.ConnectorID,
+		"connector_data":        &a.ConnectorData,
+		"expiry":                &a.Expiry,
+	}, sqlValueMap{
+		"id": id,
+	})
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return a, storage.ErrNotFound
@@ -201,20 +360,21 @@ func getAuthRequest(q querier, id string) (a storage.AuthRequest, err error) {
 }
 
 func (c *conn) CreateAuthCode(a storage.AuthCode) error {
-	_, err := c.Exec(`
-		insert into auth_code (
-			id, client_id, scopes, nonce, redirect_uri,
-			claims_user_id, claims_username,
-			claims_email, claims_email_verified, claims_groups,
-			connector_id, connector_data,
-			expiry
-		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
-	`,
-		a.ID, a.ClientID, encoder(a.Scopes), a.Nonce, a.RedirectURI, a.Claims.UserID,
-		a.Claims.Username, a.Claims.Email, a.Claims.EmailVerified, encoder(a.Claims.Groups),
-		a.ConnectorID, a.ConnectorData, a.Expiry,
-	)
+	err := insert(c, "auth_code", sqlValueMap{
+		"id":                    a.ID,
+		"client_id":             a.ClientID,
+		"scopes":                encoder(a.Scopes),
+		"nonce":                 a.Nonce,
+		"redirect_uri":          a.RedirectURI,
+		"claims_user_id":        a.Claims.UserID,
+		"claims_username":       a.Claims.Username,
+		"claims_email":          a.Claims.Email,
+		"claims_email_verified": a.Claims.EmailVerified,
+		"claims_groups":         encoder(a.Claims.Groups),
+		"connector_id":          a.ConnectorID,
+		"connector_data":        a.ConnectorData,
+		"expiry":                a.Expiry,
+	})
 
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -226,19 +386,24 @@ func (c *conn) CreateAuthCode(a storage.AuthCode) error {
 }
 
 func (c *conn) GetAuthCode(id string) (a storage.AuthCode, err error) {
-	err = c.QueryRow(`
-		select
-			id, client_id, scopes, nonce, redirect_uri,
-			claims_user_id, claims_username,
-			claims_email, claims_email_verified, claims_groups,
-			connector_id, connector_data,
-			expiry
-		from auth_code where id = $1;
-	`, id).Scan(
-		&a.ID, &a.ClientID, decoder(&a.Scopes), &a.Nonce, &a.RedirectURI, &a.Claims.UserID,
-		&a.Claims.Username, &a.Claims.Email, &a.Claims.EmailVerified, decoder(&a.Claims.Groups),
-		&a.ConnectorID, &a.ConnectorData, &a.Expiry,
-	)
+	err = scanRow(c, "auth_code", sqlFieldMap{
+		"id":                    &a.ID,
+		"client_id":             &a.ClientID,
+		"scopes":                decoder(&a.Scopes),
+		"nonce":                 &a.Nonce,
+		"redirect_uri":          &a.RedirectURI,
+		"claims_user_id":        &a.Claims.UserID,
+		"claims_username":       &a.Claims.Username,
+		"claims_email":          &a.Claims.Email,
+		"claims_email_verified": &a.Claims.EmailVerified,
+		"claims_groups":         decoder(&a.Claims.Groups),
+		"connector_id":          &a.ConnectorID,
+		"connector_data":        &a.ConnectorData,
+		"expiry":                &a.Expiry,
+	}, sqlValueMap{
+		"id": id,
+	})
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return a, storage.ErrNotFound
@@ -249,22 +414,23 @@ func (c *conn) GetAuthCode(id string) (a storage.AuthCode, err error) {
 }
 
 func (c *conn) CreateRefresh(r storage.RefreshToken) error {
-	_, err := c.Exec(`
-		insert into refresh_token (
-			id, client_id, scopes, nonce,
-			claims_user_id, claims_username, claims_email, claims_email_verified,
-			claims_groups,
-			connector_id, connector_data,
-			token, created_at, last_used
-		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
-	`,
-		r.ID, r.ClientID, encoder(r.Scopes), r.Nonce,
-		r.Claims.UserID, r.Claims.Username, r.Claims.Email, r.Claims.EmailVerified,
-		encoder(r.Claims.Groups),
-		r.ConnectorID, r.ConnectorData,
-		r.Token, r.CreatedAt, r.LastUsed,
-	)
+	err := insert(c, "refresh_token", sqlValueMap{
+		"id":                    r.ID,
+		"client_id":             r.ClientID,
+		"scopes":                encoder(r.Scopes),
+		"nonce":                 r.Nonce,
+		"claims_user_id":        r.Claims.UserID,
+		"claims_username":       r.Claims.Username,
+		"claims_email":          r.Claims.Email,
+		"claims_email_verified": r.Claims.EmailVerified,
+		"claims_groups":         encoder(r.Claims.Groups),
+		"connector_id":          r.ConnectorID,
+		"connector_data":        r.ConnectorData,
+		"token":                 r.Token,
+		"created_at":            r.CreatedAt,
+		"last_used":             r.LastUsed,
+	})
+
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
@@ -283,31 +449,24 @@ func (c *conn) UpdateRefreshToken(id string, updater func(old storage.RefreshTok
 		if r, err = updater(r); err != nil {
 			return err
 		}
-		_, err = tx.Exec(`
-			update refresh_token
-			set
-				client_id = $1,
-				scopes = $2,
-				nonce = $3,
-				claims_user_id = $4,
-				claims_username = $5,
-				claims_email = $6,
-				claims_email_verified = $7,
-				claims_groups = $8,
-				connector_id = $9,
-				connector_data = $10,
-				token = $11,
-				created_at = $12,
-				last_used = $13
-			where
-				id = $14
-		`,
-			r.ClientID, encoder(r.Scopes), r.Nonce,
-			r.Claims.UserID, r.Claims.Username, r.Claims.Email, r.Claims.EmailVerified,
-			encoder(r.Claims.Groups),
-			r.ConnectorID, r.ConnectorData,
-			r.Token, r.CreatedAt, r.LastUsed, id,
-		)
+		err = update(tx, "refresh_token", sqlValueMap{
+			"client_id":             r.ClientID,
+			"scopes":                encoder(r.Scopes),
+			"nonce":                 r.Nonce,
+			"claims_user_id":        r.Claims.UserID,
+			"claims_username":       r.Claims.Username,
+			"claims_email":          r.Claims.Email,
+			"claims_email_verified": r.Claims.EmailVerified,
+			"claims_groups":         encoder(r.Claims.Groups),
+			"connector_id":          r.ConnectorID,
+			"connector_data":        r.ConnectorData,
+			"token":                 r.Token,
+			"created_at":            r.CreatedAt,
+			"last_used":             r.LastUsed,
+		}, sqlValueMap{
+			"id": id,
+		})
+
 		if err != nil {
 			return fmt.Errorf("update refresh token: %v", err)
 		}
@@ -319,28 +478,32 @@ func (c *conn) GetRefresh(id string) (storage.RefreshToken, error) {
 	return getRefresh(c, id)
 }
 
+var refreshTokenFieldList = []string{
+	"id",
+	"client_id",
+	"scopes",
+	"nonce",
+	"claims_user_id",
+	"claims_username",
+	"claims_email",
+	"claims_email_verified",
+	"claims_groups",
+	"connector_id",
+	"connector_data",
+	"token",
+	"created_at",
+	"last_used",
+}
+
 func getRefresh(q querier, id string) (storage.RefreshToken, error) {
-	return scanRefresh(q.QueryRow(`
-		select
-			id, client_id, scopes, nonce,
-			claims_user_id, claims_username, claims_email, claims_email_verified,
-			claims_groups,
-			connector_id, connector_data,
-			token, created_at, last_used
-		from refresh_token where id = $1;
-	`, id))
+	return scanRefresh(queryRow(q, "refresh_token", refreshTokenFieldList, sqlValueMap{
+		"id": id,
+	}))
 }
 
 func (c *conn) ListRefreshTokens() ([]storage.RefreshToken, error) {
-	rows, err := c.Query(`
-		select
-			id, client_id, scopes, nonce,
-			claims_user_id, claims_username, claims_email, claims_email_verified,
-			claims_groups,
-			connector_id, connector_data,
-			token, created_at, last_used
-		from refresh_token;
-	`)
+	rows, err := query(c, "refresh_token", refreshTokenFieldList)
+
 	if err != nil {
 		return nil, fmt.Errorf("query: %v", err)
 	}
@@ -395,31 +558,26 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 		}
 
 		if firstUpdate {
-			_, err = tx.Exec(`
-				insert into keys (
-					id, verification_keys, signing_key, signing_key_pub, next_rotation
-				)
-				values ($1, $2, $3, $4, $5);
-			`,
-				keysRowID, encoder(nk.VerificationKeys), encoder(nk.SigningKey),
-				encoder(nk.SigningKeyPub), nk.NextRotation,
-			)
+			err := insert(tx, "keys", sqlValueMap{
+				"id":                keysRowID,
+				"verification_keys": encoder(nk.VerificationKeys),
+				"signing_key":       encoder(nk.SigningKey),
+				"signing_key_pub":   encoder(nk.SigningKeyPub),
+				"next_rotation":     nk.NextRotation,
+			})
+
 			if err != nil {
 				return fmt.Errorf("insert: %v", err)
 			}
 		} else {
-			_, err = tx.Exec(`
-				update keys
-				set 
-				    verification_keys = $1,
-					signing_key = $2,
-					signing_key_pub = $3,
-					next_rotation = $4
-				where id = $5;
-			`,
-				encoder(nk.VerificationKeys), encoder(nk.SigningKey),
-				encoder(nk.SigningKeyPub), nk.NextRotation, keysRowID,
-			)
+			err = update(tx, "keys", sqlValueMap{
+				"verification_keys": encoder(nk.VerificationKeys),
+				"signing_key":       encoder(nk.SigningKey),
+				"signing_key_pub":   encoder(nk.SigningKeyPub),
+				"next_rotation":     nk.NextRotation,
+			}, sqlValueMap{
+				"id": keysRowID,
+			})
 			if err != nil {
 				return fmt.Errorf("update: %v", err)
 			}
@@ -433,15 +591,15 @@ func (c *conn) GetKeys() (keys storage.Keys, err error) {
 }
 
 func getKeys(q querier) (keys storage.Keys, err error) {
-	err = q.QueryRow(`
-		select
-			verification_keys, signing_key, signing_key_pub, next_rotation
-		from keys
-		where id=$1
-	`, keysRowID).Scan(
-		decoder(&keys.VerificationKeys), decoder(&keys.SigningKey),
-		decoder(&keys.SigningKeyPub), &keys.NextRotation,
-	)
+	err = scanRow(q, "keys", sqlFieldMap{
+		"verification_keys": decoder(&keys.VerificationKeys),
+		"signing_key":       decoder(&keys.SigningKey),
+		"signing_key_pub":   decoder(&keys.SigningKeyPub),
+		"next_rotation":     &keys.NextRotation,
+	}, sqlValueMap{
+		"id": keysRowID,
+	})
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return keys, storage.ErrNotFound
@@ -462,18 +620,16 @@ func (c *conn) UpdateClient(id string, updater func(old storage.Client) (storage
 			return err
 		}
 
-		_, err = tx.Exec(`
-			update client
-			set
-				secret = $1,
-				redirect_uris = $2,
-				trusted_peers = $3,
-				public = $4,
-				name = $5,
-				logo_url = $6
-			where id = $7;
-		`, nc.Secret, encoder(nc.RedirectURIs), encoder(nc.TrustedPeers), nc.Public, nc.Name, nc.LogoURL, id,
-		)
+		err = update(tx, "client", sqlValueMap{
+			"secret":        nc.Secret,
+			"redirect_uris": encoder(nc.RedirectURIs),
+			"trusted_peers": encoder(nc.TrustedPeers),
+			"public":        nc.Public,
+			"name":          nc.Name,
+			"logo_url":      nc.LogoURL,
+		}, sqlValueMap{
+			"id": id,
+		})
 		if err != nil {
 			return fmt.Errorf("update client: %v", err)
 		}
@@ -482,15 +638,16 @@ func (c *conn) UpdateClient(id string, updater func(old storage.Client) (storage
 }
 
 func (c *conn) CreateClient(cli storage.Client) error {
-	_, err := c.Exec(`
-		insert into client (
-			id, secret, redirect_uris, trusted_peers, public, name, logo_url
-		)
-		values ($1, $2, $3, $4, $5, $6, $7);
-	`,
-		cli.ID, cli.Secret, encoder(cli.RedirectURIs), encoder(cli.TrustedPeers),
-		cli.Public, cli.Name, cli.LogoURL,
-	)
+	err := insert(c, "client", sqlValueMap{
+		"id":            cli.ID,
+		"secret":        cli.Secret,
+		"redirect_uris": encoder(cli.RedirectURIs),
+		"trusted_peers": encoder(cli.TrustedPeers),
+		"public":        cli.Public,
+		"name":          cli.Name,
+		"logo_url":      cli.LogoURL,
+	})
+
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
@@ -500,12 +657,20 @@ func (c *conn) CreateClient(cli storage.Client) error {
 	return nil
 }
 
+var clientFieldList = []string{
+	"id",
+	"secret",
+	"redirect_uris",
+	"trusted_peers",
+	"public",
+	"name",
+	"logo_url",
+}
+
 func getClient(q querier, id string) (storage.Client, error) {
-	return scanClient(q.QueryRow(`
-		select
-			id, secret, redirect_uris, trusted_peers, public, name, logo_url
-	    from client where id = $1;
-	`, id))
+	return scanClient(queryRow(q, "client", clientFieldList, sqlValueMap{
+		"id": id,
+	}))
 }
 
 func (c *conn) GetClient(id string) (storage.Client, error) {
@@ -513,11 +678,7 @@ func (c *conn) GetClient(id string) (storage.Client, error) {
 }
 
 func (c *conn) ListClients() ([]storage.Client, error) {
-	rows, err := c.Query(`
-		select
-			id, secret, redirect_uris, trusted_peers, public, name, logo_url
-		from client;
-	`)
+	rows, err := query(c, "client", clientFieldList)
 	if err != nil {
 		return nil, err
 	}
@@ -551,16 +712,13 @@ func scanClient(s scanner) (cli storage.Client, err error) {
 
 func (c *conn) CreatePassword(p storage.Password) error {
 	p.Email = strings.ToLower(p.Email)
-	_, err := c.Exec(`
-		insert into password (
-			email, hash, username, user_id
-		)
-		values (
-			$1, $2, $3, $4
-		);
-	`,
-		p.Email, p.Hash, p.Username, p.UserID,
-	)
+	err := insert(c, "password", sqlValueMap{
+		"email":    p.Email,
+		"hash":     p.Hash,
+		"username": p.Username,
+		"user_id":  p.UserID,
+	})
+
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
@@ -581,14 +739,13 @@ func (c *conn) UpdatePassword(email string, updater func(p storage.Password) (st
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(`
-			update password
-			set
-				hash = $1, username = $2, user_id = $3
-			where email = $4;
-		`,
-			np.Hash, np.Username, np.UserID, p.Email,
-		)
+		err = update(tx, "password", sqlValueMap{
+			"hash":     np.Hash,
+			"username": np.Username,
+			"user_id":  np.UserID,
+		}, sqlValueMap{
+			"email": p.Email,
+		})
 		if err != nil {
 			return fmt.Errorf("update password: %v", err)
 		}
@@ -600,20 +757,21 @@ func (c *conn) GetPassword(email string) (storage.Password, error) {
 	return getPassword(c, email)
 }
 
+var passwordFieldList = []string{
+	"email",
+	"hash",
+	"username",
+	"user_id",
+}
+
 func getPassword(q querier, email string) (p storage.Password, err error) {
-	return scanPassword(q.QueryRow(`
-		select
-			email, hash, username, user_id
-		from password where email = $1;
-	`, strings.ToLower(email)))
+	return scanPassword(queryRow(q, "password", passwordFieldList, sqlValueMap{
+		"email": strings.ToLower(email),
+	}))
 }
 
 func (c *conn) ListPasswords() ([]storage.Password, error) {
-	rows, err := c.Query(`
-		select
-			email, hash, username, user_id
-		from password;
-	`)
+	rows, err := query(c, "password", passwordFieldList)
 	if err != nil {
 		return nil, err
 	}
@@ -646,16 +804,11 @@ func scanPassword(s scanner) (p storage.Password, err error) {
 }
 
 func (c *conn) CreateOfflineSessions(s storage.OfflineSessions) error {
-	_, err := c.Exec(`
-		insert into offline_session (
-			user_id, conn_id, refresh
-		)
-		values (
-			$1, $2, $3
-		);
-	`,
-		s.UserID, s.ConnID, encoder(s.Refresh),
-	)
+	err := insert(c, "offline_session", sqlValueMap{
+		"user_id": s.UserID,
+		"conn_id": s.ConnID,
+		"refresh": encoder(s.Refresh),
+	})
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
@@ -676,14 +829,13 @@ func (c *conn) UpdateOfflineSessions(userID string, connID string, updater func(
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(`
-			update offline_session
-			set
-				refresh = $1
-			where user_id = $2 AND conn_id = $3;
-		`,
-			encoder(newSession.Refresh), s.UserID, s.ConnID,
-		)
+
+		err = update(tx, "offline_session", sqlValueMap{
+			"refresh": encoder(newSession.Refresh),
+		}, sqlValueMap{
+			"user_id": s.UserID,
+			"conn_id": s.ConnID,
+		})
 		if err != nil {
 			return fmt.Errorf("update offline session: %v", err)
 		}
@@ -695,39 +847,34 @@ func (c *conn) GetOfflineSessions(userID string, connID string) (storage.Offline
 	return getOfflineSessions(c, userID, connID)
 }
 
-func getOfflineSessions(q querier, userID string, connID string) (storage.OfflineSessions, error) {
-	return scanOfflineSessions(q.QueryRow(`
-		select
-			user_id, conn_id, refresh
-		from offline_session
-		where user_id = $1 AND conn_id = $2;
-		`, userID, connID))
-}
+func getOfflineSessions(q querier, userID string, connID string) (o storage.OfflineSessions, err error) {
+	err = scanRow(q, "offline_session", sqlFieldMap{
+		"user_id": &o.UserID,
+		"conn_id": &o.ConnID,
+		"refresh": decoder(&o.Refresh),
+	}, sqlValueMap{
+		"user_id": userID,
+		"conn_id": connID,
+	})
 
-func scanOfflineSessions(s scanner) (o storage.OfflineSessions, err error) {
-	err = s.Scan(
-		&o.UserID, &o.ConnID, decoder(&o.Refresh),
-	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return o, storage.ErrNotFound
 		}
 		return o, fmt.Errorf("select offline session: %v", err)
 	}
-	return o, nil
+	return
 }
 
 func (c *conn) CreateConnector(connector storage.Connector) error {
-	_, err := c.Exec(`
-		insert into connector (
-			id, type, name, resource_version, config
-		)
-		values (
-			$1, $2, $3, $4, $5
-		);
-	`,
-		connector.ID, connector.Type, connector.Name, connector.ResourceVersion, connector.Config,
-	)
+	err := insert(c, "connector", sqlValueMap{
+		"id":               connector.ID,
+		"type":             connector.Type,
+		"name":             connector.Name,
+		"resource_version": connector.ResourceVersion,
+		"config":           connector.Config,
+	})
+
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
@@ -748,17 +895,14 @@ func (c *conn) UpdateConnector(id string, updater func(s storage.Connector) (sto
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(`
-			update connector
-			set 
-			    type = $1,
-			    name = $2,
-			    resource_version = $3,
-			    config = $4
-			where id = $5;
-		`,
-			newConn.Type, newConn.Name, newConn.ResourceVersion, newConn.Config, connector.ID,
-		)
+		err = update(tx, "connector", sqlValueMap{
+			"type":             newConn.Type,
+			"name":             newConn.Name,
+			"resource_version": newConn.ResourceVersion,
+			"config":           newConn.Config,
+		}, sqlValueMap{
+			"id": connector.ID,
+		})
 		if err != nil {
 			return fmt.Errorf("update connector: %v", err)
 		}
@@ -770,13 +914,18 @@ func (c *conn) GetConnector(id string) (storage.Connector, error) {
 	return getConnector(c, id)
 }
 
+var connectorFieldList = []string{
+	"id",
+	"type",
+	"name",
+	"resource_version",
+	"config",
+}
+
 func getConnector(q querier, id string) (storage.Connector, error) {
-	return scanConnector(q.QueryRow(`
-		select
-			id, type, name, resource_version, config
-		from connector
-		where id = $1;
-		`, id))
+	return scanConnector(queryRow(q, "connector", connectorFieldList, sqlValueMap{
+		"id": id,
+	}))
 }
 
 func scanConnector(s scanner) (c storage.Connector, err error) {
@@ -793,11 +942,7 @@ func scanConnector(s scanner) (c storage.Connector, err error) {
 }
 
 func (c *conn) ListConnectors() ([]storage.Connector, error) {
-	rows, err := c.Query(`
-		select
-			id, type, name, resource_version, config
-		from connector;
-	`)
+	rows, err := query(c, "connector", connectorFieldList)
 	if err != nil {
 		return nil, err
 	}
