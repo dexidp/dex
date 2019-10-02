@@ -64,7 +64,7 @@ var brokenAuthHeaderDomains = []string{
 
 // connectorData stores information for sessions authenticated by this connector
 type connectorData struct {
-	refreshToken []byte
+	RefreshToken []byte
 }
 
 // Detect auth header provider issues for known providers. This lets users
@@ -223,7 +223,7 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 	}
 
 	t := &oauth2.Token{
-		RefreshToken: string(cd.refreshToken),
+		RefreshToken: string(cd.RefreshToken),
 		Expiry:       time.Now().Add(-time.Hour),
 	}
 	token, err := c.oauth2Config.TokenSource(ctx, t).Token()
@@ -297,7 +297,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	cd := connectorData{
-		refreshToken: []byte(token.RefreshToken),
+		RefreshToken: []byte(token.RefreshToken),
 	}
 
 	connData, err := json.Marshal(&cd)
