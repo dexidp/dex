@@ -10,7 +10,7 @@ Prominent examples of OpenID Connect providers include Google Accounts, Salesfor
 
 This connector does not support the "groups" claim. Progress for this is tracked in [issue #1065][issue-1065].
 
-When using refresh tokens, changes to the upstream claims aren't propegated to the id_token returned by dex. If a user's email changes, the "email" claim returned by dex won't change unless the user logs in again. Progress for this is tracked in [issue #863][issue-863].
+When using refresh tokens, changes to the upstream claims aren't propagated to the id_token returned by dex. If a user's email changes, the "email" claim returned by dex won't change unless the user logs in again. Progress for this is tracked in [issue #863][issue-863].
 
 ## Configuration
 
@@ -36,7 +36,7 @@ connectors:
 
     # Some providers require passing client_secret via POST parameters instead
     # of basic auth, despite the OAuth2 RFC discouraging it. Many of these
-    # cases are caught internally, but some may need to uncommented the
+    # cases are caught internally, but some may need to uncomment the
     # following field.
     #
     # basicAuthUnsupported: true
@@ -56,7 +56,7 @@ connectors:
     #  - email
     #  - groups
 
-    # Some providers return claims without "email_verified", when they had no usage of emails verification in enrollement process
+    # Some providers return claims without "email_verified", when they had no usage of emails verification in enrollment process
     # or if they are acting as a proxy for another IDP etc AWS Cognito with an upstream SAML IDP
     # This can be overridden with the below option
     # insecureSkipEmailVerified: true 
