@@ -3,6 +3,8 @@ package gitlab
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -127,6 +129,17 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 
 	ctx := r.Context()
 	if c.httpClient != nil {
+		ctx = context.WithValue(r.Context(), oauth2.HTTPClient, c.httpClient)
+	} else {
+		rootCAs, _ := x509.SystemCertPool()
+		if rootCAs == nil {
+			rootCAs = x509.NewCertPool()
+		}
+		c.httpClient = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{ClientCAs: rootCAs},
+			},
+		}
 		ctx = context.WithValue(r.Context(), oauth2.HTTPClient, c.httpClient)
 	}
 
