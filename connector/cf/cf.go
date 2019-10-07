@@ -64,6 +64,17 @@ type Entity struct {
 	OrganizationGuid string `json:"organization_guid"`
 }
 
+type Space struct {
+	Name    string
+	Guid    string
+	OrgGuid string
+}
+
+type Org struct {
+	Name string
+	Guid string
+}
+
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	var err error
 
@@ -181,6 +192,115 @@ func (c *cfConnector) LoginURL(scopes connector.Scopes, callbackURL, state strin
 	return oauth2Config.AuthCodeURL(state), nil
 }
 
+func fetchRoleSpaces(baseUrl, path string, client *http.Client) ([]Space, error) {
+	var spaces []Space
+
+	resources, err := fetchResources(baseUrl, path, client)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch resources: %v", err)
+	}
+
+	for _, resource := range resources {
+		spaces = append(spaces, Space{
+			Name:    resource.Entity.Name,
+			Guid:    resource.Metadata.Guid,
+			OrgGuid: resource.Entity.OrganizationGuid,
+		})
+	}
+
+	return spaces, nil
+}
+
+func fetchOrgs(baseUrl, path string, client *http.Client) ([]Org, error) {
+	var orgs []Org
+
+	resources, err := fetchResources(baseUrl, path, client)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch resources: %v", err)
+	}
+
+	for _, resource := range resources {
+		orgs = append(orgs, Org{
+			Name: resource.Entity.Name,
+			Guid: resource.Metadata.Guid,
+		})
+	}
+
+	return orgs, nil
+}
+
+func fetchResources(baseUrl, path string, client *http.Client) ([]Resource, error) {
+	var (
+		resources []Resource
+		url       string
+	)
+
+	for {
+		url = fmt.Sprintf("%s%s", baseUrl, path)
+
+		resp, err := client.Get(url)
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute request: %v", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("unsuccessful status code %d", resp.StatusCode)
+		}
+
+		response := CCResponse{}
+		err = json.NewDecoder(resp.Body).Decode(&response)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse spaces: %v", err)
+		}
+
+		resources = append(resources, response.Resources...)
+
+		path = response.NextUrl
+		if path == "" {
+			break
+		}
+	}
+
+	return resources, nil
+}
+
+func getGroupsClaims(orgs []Org, spaces []Space) []string {
+
+	var (
+		orgMap       = map[string]string{}
+		orgSpaces    = map[string][]string{}
+		groupsClaims = map[string]bool{}
+	)
+
+	for _, org := range orgs {
+		orgMap[org.Guid] = org.Name
+		orgSpaces[org.Name] = []string{}
+		groupsClaims[org.Guid] = true
+		groupsClaims[org.Name] = true
+	}
+
+	for _, space := range spaces {
+		orgName := orgMap[space.OrgGuid]
+		orgSpaces[orgName] = append(orgSpaces[orgName], space.Name)
+		groupsClaims[space.Guid] = true
+	}
+
+	for orgName, spaceNames := range orgSpaces {
+		for _, spaceName := range spaceNames {
+			groupsClaims[fmt.Sprintf("%s:%s", orgName, spaceName)] = true
+		}
+	}
+
+	var groups []string
+	for k, _ := range groupsClaims {
+		groups = append(groups, k)
+	}
+
+	sort.Strings(groups)
+
+	return groups
+}
+
 func (c *cfConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
 
 	q := r.URL.Query()
@@ -229,83 +349,37 @@ func (c *cfConnector) HandleCallback(s connector.Scopes, r *http.Request) (ident
 	identity.Email, _ = userInfoResult["email"].(string)
 	identity.EmailVerified, _ = userInfoResult["email_verified"].(bool)
 
-	var orgMap = make(map[string]string)
-	var orgSpaces = make(map[string][]string)
-	var groupsClaims []string
+	var (
+		devPath     = fmt.Sprintf("/v2/users/%s/spaces", identity.UserID)
+		auditorPath = fmt.Sprintf("/v2/users/%s/audited_spaces", identity.UserID)
+		managerPath = fmt.Sprintf("/v2/users/%s/managed_spaces", identity.UserID)
+		orgsPath    = fmt.Sprintf("/v2/users/%s/organizations", identity.UserID)
+	)
 
 	if s.Groups {
-		// fetch orgs
-
-		var orgs CCResponse
-		var nextUrl = fmt.Sprintf("%s/v2/users/%s/organizations", c.apiURL, identity.UserID)
-		for moreResults := true; moreResults; moreResults = orgs.NextUrl != "" {
-			orgsResp, err := client.Get(nextUrl)
-			if err != nil {
-				return identity, fmt.Errorf("CF Connector: failed to execute request for orgs: %v", err)
-			}
-			if orgsResp.StatusCode != http.StatusOK {
-				return identity, fmt.Errorf("CF Connector: failed to execute request for orgs: status %d", orgsResp.StatusCode)
-			}
-
-			orgs = CCResponse{}
-			err = json.NewDecoder(orgsResp.Body).Decode(&orgs)
-			if err != nil {
-				return identity, fmt.Errorf("CF Connector: failed to parse orgs: %v", err)
-			}
-
-			for _, resource := range orgs.Resources {
-				orgMap[resource.Metadata.Guid] = resource.Entity.Name
-				orgSpaces[resource.Entity.Name] = []string{}
-
-				groupsClaims = append(groupsClaims, resource.Metadata.Guid)
-				groupsClaims = append(groupsClaims, resource.Entity.Name)
-			}
-
-			if orgs.NextUrl != "" {
-				nextUrl = fmt.Sprintf("%s%s", c.apiURL, orgs.NextUrl)
-			}
+		orgs, err := fetchOrgs(c.apiURL, orgsPath, client)
+		if err != nil {
+			return identity, fmt.Errorf("failed to fetch organizaitons: %v", err)
 		}
 
-		// fetch spaces
-		var spaces CCResponse
-		nextUrl = fmt.Sprintf("%s/v2/users/%s/spaces", c.apiURL, identity.UserID)
-		for moreResults := true; moreResults; moreResults = spaces.NextUrl != "" {
-			spacesResp, err := client.Get(nextUrl)
-			if err != nil {
-				return identity, fmt.Errorf("CF Connector: failed to execute request for spaces: %v", err)
-			}
-			if spacesResp.StatusCode != http.StatusOK {
-				return identity, fmt.Errorf("CF Connector: failed to execute request for spaces: status %d", spacesResp.StatusCode)
-			}
-
-			spaces = CCResponse{}
-			err = json.NewDecoder(spacesResp.Body).Decode(&spaces)
-			if err != nil {
-				return identity, fmt.Errorf("CF Connector: failed to parse spaces: %v", err)
-			}
-
-			for _, resource := range spaces.Resources {
-				orgName := orgMap[resource.Entity.OrganizationGuid]
-				orgSpaces[orgName] = append(orgSpaces[orgName], resource.Entity.Name)
-
-				groupsClaims = append(groupsClaims, resource.Metadata.Guid)
-			}
-
-			if spaces.NextUrl != "" {
-				nextUrl = fmt.Sprintf("%s%s", c.apiURL, spaces.NextUrl)
-			}
+		developerSpaces, err := fetchRoleSpaces(c.apiURL, devPath, client)
+		if err != nil {
+			return identity, fmt.Errorf("failed to fetch spaces for developer roles: %v", err)
 		}
 
-		var orgSpaceClaims []string
-		for orgName, spaceNames := range orgSpaces {
-			for _, spaceName := range spaceNames {
-				orgSpaceClaims = append(orgSpaceClaims, fmt.Sprintf("%s:%s", orgName, spaceName))
-			}
+		auditorSpaces, err := fetchRoleSpaces(c.apiURL, auditorPath, client)
+		if err != nil {
+			return identity, fmt.Errorf("failed to fetch spaces for developer roles: %v", err)
 		}
 
-		sort.Strings(orgSpaceClaims)
+		managerSpaces, err := fetchRoleSpaces(c.apiURL, managerPath, client)
+		if err != nil {
+			return identity, fmt.Errorf("failed to fetch spaces for developer roles: %v", err)
+		}
 
-		identity.Groups = append(groupsClaims, orgSpaceClaims...)
+		spaces := append(developerSpaces, append(auditorSpaces, managerSpaces...)...)
+
+		identity.Groups = getGroupsClaims(orgs, spaces)
 	}
 
 	if s.OfflineAccess {
