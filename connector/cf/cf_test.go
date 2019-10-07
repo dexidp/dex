@@ -50,17 +50,17 @@ func TestHandleCallback(t *testing.T) {
 
 		expectEqual(t, len(identity.Groups), 12)
 		expectEqual(t, identity.Groups[0], "some-org-guid-1")
-		expectEqual(t, identity.Groups[1], "some-org-name-1")
-		expectEqual(t, identity.Groups[2], "some-org-guid-2")
-		expectEqual(t, identity.Groups[3], "some-org-name-2")
-		expectEqual(t, identity.Groups[4], "some-org-guid-3")
-		expectEqual(t, identity.Groups[5], "some-org-name-3")
-		expectEqual(t, identity.Groups[6], "some-org-guid-4")
-		expectEqual(t, identity.Groups[7], "some-org-name-4")
-		expectEqual(t, identity.Groups[8], "some-space-guid-1")
-		expectEqual(t, identity.Groups[9], "some-space-guid-2")
-		expectEqual(t, identity.Groups[10], "some-org-name-1:some-space-name-1")
-		expectEqual(t, identity.Groups[11], "some-org-name-2:some-space-name-2")
+		expectEqual(t, identity.Groups[1], "some-org-guid-2")
+		expectEqual(t, identity.Groups[2], "some-org-guid-3")
+		expectEqual(t, identity.Groups[3], "some-org-guid-4")
+		expectEqual(t, identity.Groups[4], "some-org-name-1")
+		expectEqual(t, identity.Groups[5], "some-org-name-1:some-space-name-1")
+		expectEqual(t, identity.Groups[6], "some-org-name-2")
+		expectEqual(t, identity.Groups[7], "some-org-name-2:some-space-name-2")
+		expectEqual(t, identity.Groups[8], "some-org-name-3")
+		expectEqual(t, identity.Groups[9], "some-org-name-4")
+		expectEqual(t, identity.Groups[10], "some-space-guid-1")
+		expectEqual(t, identity.Groups[11], "some-space-guid-2")
 	})
 
 	t.Run("CallbackWithoutGroupsScope", func(t *testing.T) {
@@ -83,6 +83,64 @@ func TestHandleCallback(t *testing.T) {
 		expectEqual(t, err, nil)
 		expectNotEqual(t, cData.AccessToken, "")
 	})
+}
+
+func testSpaceHandler(reqUrl, spaceApiEndpoint string) (result map[string]interface{}) {
+	fullUrl := fmt.Sprintf("%s?order-direction=asc&page=2&results-per-page=50", spaceApiEndpoint)
+	if strings.Contains(reqUrl, fullUrl) {
+		result = map[string]interface{}{
+			"resources": []map[string]interface{}{
+				{
+					"metadata": map[string]string{"guid": "some-space-guid-2"},
+					"entity":   map[string]string{"name": "some-space-name-2", "organization_guid": "some-org-guid-2"},
+				},
+			},
+		}
+	} else {
+		nextUrl := fmt.Sprintf("/v2/users/12345/%s?order-direction=asc&page=2&results-per-page=50", spaceApiEndpoint)
+		result = map[string]interface{}{
+			"next_url": nextUrl,
+			"resources": []map[string]interface{}{
+				{
+					"metadata": map[string]string{"guid": "some-space-guid-1"},
+					"entity":   map[string]string{"name": "some-space-name-1", "organization_guid": "some-org-guid-1"},
+				},
+			},
+		}
+	}
+	return result
+}
+
+func testOrgHandler(reqUrl string) (result map[string]interface{}) {
+	if strings.Contains(reqUrl, "organizations?order-direction=asc&page=2&results-per-page=50") {
+		result = map[string]interface{}{
+			"resources": []map[string]interface{}{
+				{
+					"metadata": map[string]string{"guid": "some-org-guid-3"},
+					"entity":   map[string]string{"name": "some-org-name-3"},
+				},
+				{
+					"metadata": map[string]string{"guid": "some-org-guid-4"},
+					"entity":   map[string]string{"name": "some-org-name-4"},
+				},
+			},
+		}
+	} else {
+		result = map[string]interface{}{
+			"next_url": "/v2/users/12345/organizations?order-direction=asc&page=2&results-per-page=50",
+			"resources": []map[string]interface{}{
+				{
+					"metadata": map[string]string{"guid": "some-org-guid-1"},
+					"entity":   map[string]string{"name": "some-org-name-1"},
+				},
+				{
+					"metadata": map[string]string{"guid": "some-org-guid-2"},
+					"entity":   map[string]string{"name": "some-org-name-2"},
+				},
+			},
+		}
+	}
+	return result
 }
 
 func testSetup() *httptest.Server {
@@ -127,58 +185,21 @@ func testSetup() *httptest.Server {
 	mux.HandleFunc("/v2/users/", func(w http.ResponseWriter, r *http.Request) {
 		var result map[string]interface{}
 
-		if strings.Contains(r.URL.String(), "spaces") {
-			if strings.Contains(r.URL.String(), "spaces?order-direction=asc&page=2&results-per-page=50") {
-				result = map[string]interface{}{
-					"resources": []map[string]interface{}{
-						{
-							"metadata": map[string]string{"guid": "some-space-guid-2"},
-							"entity":   map[string]string{"name": "some-space-name-2", "organization_guid": "some-org-guid-2"},
-						},
-					},
-				}
-			} else {
-				result = map[string]interface{}{
-					"next_url": "/v2/users/12345/spaces?order-direction=asc&page=2&results-per-page=50",
-					"resources": []map[string]interface{}{
-						{
-							"metadata": map[string]string{"guid": "some-space-guid-1"},
-							"entity":   map[string]string{"name": "some-space-name-1", "organization_guid": "some-org-guid-1"},
-						},
-					},
-				}
-			}
+		reqUrl := r.URL.String()
+		if strings.Contains(reqUrl, "/spaces") {
+			result = testSpaceHandler(reqUrl, "spaces")
 		}
 
-		if strings.Contains(r.URL.String(), "organizations") {
-			if strings.Contains(r.URL.String(), "organizations?order-direction=asc&page=2&results-per-page=50") {
-				result = map[string]interface{}{
-					"resources": []map[string]interface{}{
-						{
-							"metadata": map[string]string{"guid": "some-org-guid-3"},
-							"entity":   map[string]string{"name": "some-org-name-3"},
-						},
-						{
-							"metadata": map[string]string{"guid": "some-org-guid-4"},
-							"entity":   map[string]string{"name": "some-org-name-4"},
-						},
-					},
-				}
-			} else {
-				result = map[string]interface{}{
-					"next_url": "/v2/users/12345/organizations?order-direction=asc&page=2&results-per-page=50",
-					"resources": []map[string]interface{}{
-						{
-							"metadata": map[string]string{"guid": "some-org-guid-1"},
-							"entity":   map[string]string{"name": "some-org-name-1"},
-						},
-						{
-							"metadata": map[string]string{"guid": "some-org-guid-2"},
-							"entity":   map[string]string{"name": "some-org-name-2"},
-						},
-					},
-				}
-			}
+		if strings.Contains(reqUrl, "/audited_spaces") {
+			result = testSpaceHandler(reqUrl, "audited_spaces")
+		}
+
+		if strings.Contains(reqUrl, "/managed_spaces") {
+			result = testSpaceHandler(reqUrl, "managed_spaces")
+		}
+
+		if strings.Contains(reqUrl, "organizations") {
+			result = testOrgHandler(reqUrl)
 		}
 
 		json.NewEncoder(w).Encode(result)
