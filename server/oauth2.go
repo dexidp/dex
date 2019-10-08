@@ -39,7 +39,7 @@ type authErr struct {
 }
 
 func (err *authErr) Status() int {
-	if err.State == errServerError {
+	if err.Type == errServerError {
 		return http.StatusInternalServerError
 	}
 	return http.StatusBadRequest
