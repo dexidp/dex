@@ -63,3 +63,5 @@ require (
 	gopkg.in/square/go-jose.v2 v2.1.8
 	gopkg.in/yaml.v2 v2.0.0-20160301204022-a83829b6f129 // indirect
 )
+
+go 1.13

@@ -40,6 +40,8 @@ import (
 // connector maintained by the server.
 const LocalConnector = "local"
 
+var defaultRedirectURI string
+
 // Connector is a connector with resource version metadata.
 type Connector struct {
 	ResourceVersion string
@@ -205,6 +207,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		templates:              tmpls,
 		logger:                 c.Logger,
 	}
+
+	defaultRedirectURI = s.absURL("/callback")
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
 	// defined in the ConfigMap and dynamic connectors retrieved from the storage.
@@ -440,16 +444,16 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"mockCallback":    func() ConnectorConfig { return new(mock.CallbackConfig) },
 	"mockPassword":    func() ConnectorConfig { return new(mock.PasswordConfig) },
 	"ldap":            func() ConnectorConfig { return new(ldap.Config) },
-	"github":          func() ConnectorConfig { return new(github.Config) },
-	"gitlab":          func() ConnectorConfig { return new(gitlab.Config) },
-	"oidc":            func() ConnectorConfig { return new(oidc.Config) },
-	"saml":            func() ConnectorConfig { return new(saml.Config) },
+	"github":          func() ConnectorConfig { return &github.Config{RedirectURI: defaultRedirectURI} },
+	"gitlab":          func() ConnectorConfig { return &gitlab.Config{RedirectURI: defaultRedirectURI} },
+	"oidc":            func() ConnectorConfig { return &oidc.Config{RedirectURI: defaultRedirectURI} },
+	"saml":            func() ConnectorConfig { return &saml.Config{RedirectURI: defaultRedirectURI} },
 	"authproxy":       func() ConnectorConfig { return new(authproxy.Config) },
-	"linkedin":        func() ConnectorConfig { return new(linkedin.Config) },
-	"microsoft":       func() ConnectorConfig { return new(microsoft.Config) },
-	"bitbucket-cloud": func() ConnectorConfig { return new(bitbucketcloud.Config) },
+	"linkedin":        func() ConnectorConfig { return &linkedin.Config{RedirectURI: defaultRedirectURI} },
+	"microsoft":       func() ConnectorConfig { return &microsoft.Config{RedirectURI: defaultRedirectURI} },
+	"bitbucket-cloud": func() ConnectorConfig { return &bitbucketcloud.Config{RedirectURI: defaultRedirectURI} },
 	// Keep around for backwards compatibility.
-	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
+	"samlExperimental": func() ConnectorConfig { return &saml.Config{RedirectURI: defaultRedirectURI} },
 }
 
 // openConnector will parse the connector config and open the connector.
