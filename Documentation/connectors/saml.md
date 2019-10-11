@@ -43,6 +43,13 @@ connectors:
     usernameAttr: name
     emailAttr: email
     groupsAttr: groups # optional
+    
+    # Optional groups whitelist.
+    # If `groups` is omitted, all of the user's groups are returned when the groups scope is present.
+    # If `groups` is provided, this acts as a whitelist - only the user's groups that are in the configured `groups` below will go into the groups claim.  Conversely, if the user is not in any of the configured `groups`, the user will not be authenticated.
+    # groups:
+    # - Admins
+    # - Everyone
 
     # CA's can also be provided inline as a base64'd blob.
     #

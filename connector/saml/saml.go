@@ -15,6 +15,7 @@ import (
 
 	"github.com/beevik/etree"
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/log"
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/russellhaering/goxmldsig/etreeutils"
@@ -98,6 +99,9 @@ type Config struct {
 	// used split the groups string.
 	GroupsDelim string `json:"groupsDelim"`
 
+	// Groups whitelist, only groups from list are allowed.
+	Groups []string `json:"groups"`
+
 	RedirectURI string `json:"redirectURI"`
 
 	// Requested format of the NameID. The NameID value is is mapped to the ID Token
@@ -161,6 +165,7 @@ func (c *Config) openConnector(logger log.Logger) (*provider, error) {
 		emailAttr:    c.EmailAttr,
 		groupsAttr:   c.GroupsAttr,
 		groupsDelim:  c.GroupsDelim,
+		groups:       c.Groups,
 		redirectURI:  c.RedirectURI,
 		logger:       logger,
 
@@ -235,6 +240,7 @@ type provider struct {
 	emailAttr    string
 	groupsAttr   string
 	groupsDelim  string
+	groups       []string
 
 	redirectURI string
 
@@ -401,12 +407,21 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		// TODO(ericchiang): Do we need to further trim whitespace?
 		ident.Groups = strings.Split(groupsStr, p.groupsDelim)
 	} else {
-		groups, ok := attributes.all(p.groupsAttr)
+		groupsFromAttr, ok := attributes.all(p.groupsAttr)
 		if !ok {
 			return ident, fmt.Errorf("no attribute with name %q: %s", p.groupsAttr, attributes.names())
 		}
-		ident.Groups = groups
+		ident.Groups = groupsFromAttr
 	}
+	// Filter groups if required groups setting exists in config.
+	if len(p.groups) > 0 {
+		filteredGroups := groups.Filter(ident.Groups, p.groups)
+		if len(filteredGroups) == 0 {
+			return ident, fmt.Errorf("user %q is not in any of the required groups", ident.Username)
+		}
+		ident.Groups = filteredGroups
+	}
+
 	return ident, nil
 }
 

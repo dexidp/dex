@@ -52,6 +52,7 @@ type responseTest struct {
 	usernameAttr string
 	emailAttr    string
 	groupsAttr   string
+	groups       []string
 
 	// Expected outcome of the test.
 	wantErr   bool
@@ -85,6 +86,7 @@ func TestGroups(t *testing.T) {
 		usernameAttr: "Name",
 		emailAttr:    "email",
 		groupsAttr:   "groups",
+		groups:       []string{"Admins"},
 		inResponseTo: "6zmm5mguyebwvajyf2sdwwcw6m",
 		redirectURI:  "http://127.0.0.1:5556/dex/callback",
 		wantIdent: connector.Identity{
@@ -92,7 +94,7 @@ func TestGroups(t *testing.T) {
 			Username:      "Eric",
 			Email:         "eric.chiang+okta@coreos.com",
 			EmailVerified: true,
-			Groups:        []string{"Admins", "Everyone"},
+			Groups:        []string{"Admins"},
 		},
 	}
 	test.run(t)
@@ -294,6 +296,7 @@ func (r responseTest) run(t *testing.T) {
 		UsernameAttr: r.usernameAttr,
 		EmailAttr:    r.emailAttr,
 		GroupsAttr:   r.groupsAttr,
+		Groups:       r.groups,
 		RedirectURI:  r.redirectURI,
 		EntityIssuer: r.entityIssuer,
 		// Never logging in, don't need this.
