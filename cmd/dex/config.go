@@ -12,6 +12,7 @@ import (
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/couchbase"
 	"github.com/dexidp/dex/storage/etcd"
 	"github.com/dexidp/dex/storage/kubernetes"
 	"github.com/dexidp/dex/storage/memory"
@@ -173,6 +174,7 @@ var storages = map[string]func() StorageConfig{
 	"sqlite3":    func() StorageConfig { return new(sql.SQLite3) },
 	"postgres":   func() StorageConfig { return new(sql.Postgres) },
 	"mysql":      func() StorageConfig { return new(sql.MySQL) },
+	"couchbase":  func() StorageConfig { return new(couchbase.Couchbase) },
 }
 
 // UnmarshalJSON allows Storage to implement the unmarshaler interface to

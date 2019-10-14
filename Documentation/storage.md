@@ -218,6 +218,50 @@ storage:
 
 The SSL "mode" corresponds to the `github.com/go-sql-driver/mysql` package [connection options][mysql-conn-options]. If unspecified, dex defaults to the strictest mode "true".
 
+##Couchbase
+Dex requires Couchbase Server 5.1 or later version. When using Couchbase, admins must dedicate a bucket to dex for the following reason:
+
+- Dex's documents names are not configurable; when shared with other applications there may be document key name clashes.
+
+
+Dex bucket creation can be done manually using couchbase GUI, CLI or its API. More information can be found in the couchbase guide [create bucket](https://docs.couchbase.com/server/current/manage/manage-buckets/create-bucket.html) section.
+
+example to create a bucket using couchbase CLI:
+
+```
+couchbase-cli bucket-create -c 127.0.0.1:8091 --username dex \
+ --password 66964843358242dbaaa7778d8477c288 --bucket dex_bucket --bucket-type couchbase \
+ --bucket-ramsize 600
+```
+
+It is recommend create the dex bucket manually but it also can be created by dex if the argument "createifnotexists" is set in [true]() in the configuration.
+
+An example config for Couchbase setup using these values:
+
+```
+storage:
+  type: couchbase
+  config:
+    host: 127.0.0.1
+    bucket: dex_bucket
+    user: dex
+    password: 66964843358242dbaaa7778d8477c288
+    createifnotexists: true
+    quotaram: 600   // just needed if the property "createifnotexists" is set in true
+
+```
+
+* `bucket`: name of the bucket that is going to be used by dex
+* `host`: couchbase host for doing the connection with couchbase server. More information in the [couchbase connection](https://docs.couchbase.com/go-sdk/1.6/start-using-sdk.html) section CB official guide.
+* `username`: username for couchbase server authentication
+* `password`: password for couchbase server authentication
+* `createifnotexists`: create a couchbase type bucket with the name specified in the "bucket" property if it does not exist
+* `quotaram`: bucket-ramsize with the bucket is going to be created
+
+The SSL configuration connection is not supported by GO SDK. More information in [ssl couchbase](https://docs.couchbase.com/server/4.1/developer-guide/ssl-connections.html) section.
+
+The dex couchbase storage is implemented using couchbase [GO SKD](https://docs.couchbase.com/go-sdk/1.6/start-using-sdk.html)
+
 ## Adding a new storage options
 
 Each storage implementation bears a large ongoing maintenance cost and needs to be updated every time a feature requires storing a new type. Bugs often require in depth knowledge of the backing software, and much of this work will be done by developers who are not the original author. Changes to dex which add new storage implementations are not merged lightly.
