@@ -14,6 +14,9 @@ require (
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
 	github.com/golang/protobuf v1.3.2
+	github.com/golang/snappy v0.0.1 // indirect
+	github.com/google/btree v1.0.0 // indirect
+	github.com/google/uuid v1.1.1 // indirect
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/btree v1.0.0 // indirect
