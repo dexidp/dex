@@ -218,7 +218,9 @@ storage:
 
 The SSL "mode" corresponds to the `github.com/go-sql-driver/mysql` package [connection options][mysql-conn-options]. If unspecified, dex defaults to the strictest mode "true".
 
-##Couchbase
+
+## Couchbase
+
 Dex requires Couchbase Server 5.1 or later version. When using Couchbase, admins must dedicate a bucket to dex for the following reason:
 
 - Dex's documents names are not configurable; when shared with other applications there may be document key name clashes.
