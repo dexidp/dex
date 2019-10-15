@@ -250,7 +250,8 @@ storage:
     password: 66964843358242dbaaa7778d8477c288
     createifnotexists: true
     quotaram: 600   // just needed if the property "createifnotexists" is set in true
-
+    ssl:
+      certFile: /tmp/couchbase-ssl-certificate.pem
 ```
 
 * `bucket`: name of the bucket that is going to be used by dex
@@ -259,8 +260,11 @@ storage:
 * `password`: password for couchbase server authentication
 * `createifnotexists`: create a couchbase type bucket with the name specified in the "bucket" property if it does not exist
 * `quotaram`: bucket-ramsize with the bucket is going to be created
+* `ssl`: ssl setup for couchbase ssl connection
+  * `certFile`: path to the certificate
 
-The SSL configuration connection is not supported by GO SDK. More information in [ssl couchbase](https://docs.couchbase.com/server/4.1/developer-guide/ssl-connections.html) section.
+
+The SSL configuration connection is based in couchbase guide section [ssl couchbase](https://docs.couchbase.com/server/4.1/developer-guide/ssl-connections.html) section.
 
 The dex couchbase storage is implemented using couchbase [GO SKD](https://docs.couchbase.com/go-sdk/1.6/start-using-sdk.html)
 

@@ -30,10 +30,9 @@ type NetworkDB struct {
 	Port              uint16
 	QuotaRam          int  // default:0
 	CreateIfNotExists bool // default: false
-
 }
 
-//not implemente yet
+//not fully tested
 type SSL struct {
 	CertFile string
 }
@@ -80,8 +79,16 @@ func (cb *Couchbase) create_bucket(logger log.Logger, bucket_name string, cluste
 	return nil
 }
 
-func (cb *Couchbase) open(logger log.Logger) (*conn, error) {
+func (cb *Couchbase) get_connection_string() string {
 	connection_string := fmt.Sprintf("couchbase://%s", dataSourceStr(cb.Host))
+	if cb.SSL.CertFile != "" {
+		connection_string = fmt.Sprintf("couchbases://%s?certpath=%s", dataSourceStr(cb.Host), cb.SSL.CertFile)
+	}
+	return connection_string
+}
+
+func (cb *Couchbase) open(logger log.Logger) (*conn, error) {
+	connection_string := cb.get_connection_string()
 	cb_cluster, err := gocb.Connect(connection_string)
 	if err != nil {
 		return nil, err
