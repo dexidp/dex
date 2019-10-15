@@ -221,6 +221,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
 		AllowedOrigins:         c.Web.AllowedOrigins,
 		AllowedHeaders:         c.Web.AllowedHeaders,
+		IgnoreOptions:          c.Web.IgnoreOptions,
 		Issuer:                 c.Issuer,
 		Storage:                s,
 		Web:                    c.Frontend,
