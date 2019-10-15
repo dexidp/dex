@@ -218,6 +218,9 @@ func serve(cmd *cobra.Command, args []string) error {
 		logger.Infof("config CORS max age for preflights set to %d seconds", c.Web.MaxAge)
 
 	}
+	if c.Web.OptionsStatusCode > 0 {
+		logger.Infof("config CORS setting custom status code %d", c.Web.OptionsStatusCode)
+	}
 
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
@@ -231,6 +234,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		AllowedMethods:         c.Web.AllowedMethods,
 		IgnoreOptions:          c.Web.IgnoreOptions,
 		MaxAge:                 c.Web.MaxAge,
+		OptionsStatusCode:      c.Web.OptionsStatusCode,
 		Issuer:                 c.Issuer,
 		Storage:                s,
 		Web:                    c.Frontend,

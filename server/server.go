@@ -79,6 +79,9 @@ type Config struct {
 	// The maximum age in seconds between preflight requests.
 	MaxAge int
 
+	// Sets a custom OPTIONS status code by default it is set to 200
+	OptionsStatusCode int
+
 	// If enabled, the server won't prompt the user to approve authorization requests.
 	// Logging in implies approval.
 	SkipApprovalScreen bool
@@ -299,6 +302,10 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 			if c.MaxAge > 0 {
 				opts = append(opts, handlers.MaxAge(c.MaxAge))
+			}
+
+			if c.OptionsStatusCode > 0 {
+				opts = append(opts, handlers.OptionStatusCode(c.OptionsStatusCode))
 			}
 
 			handler = handlers.CORS(opts...)(handler)
