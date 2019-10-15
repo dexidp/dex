@@ -85,6 +85,10 @@ github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
+# github.com/golang/snappy v0.0.1
+github.com/golang/snappy
+# github.com/google/uuid v1.1.1
+github.com/google/uuid
 # github.com/google/uuid v1.1.1
 github.com/google/uuid
 # github.com/golang/snappy v0.0.1
@@ -246,6 +250,9 @@ golang.org/x/crypto/pbkdf2
 golang.org/x/lint
 golang.org/x/lint/golint
 # golang.org/x/net v0.0.0-20190813141303-74dc4d7220e7
+golang.org/x/net/http2
+golang.org/x/net/trace
+golang.org/x/net/context
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
 golang.org/x/net/html
