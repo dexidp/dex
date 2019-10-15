@@ -208,6 +208,9 @@ func serve(cmd *cobra.Command, args []string) error {
 	if len(c.Web.AllowedHeaders) > 0 {
 		logger.Infof("config allowed headers: %s", c.Web.AllowedHeaders)
 	}
+	if c.Web.IgnoreOptions {
+		logger.Infof("config ignoring OPTIONS requests")
+	}
 
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }

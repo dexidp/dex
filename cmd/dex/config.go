@@ -139,6 +139,7 @@ type Web struct {
 	TLSKey         string   `json:"tlsKey"`
 	AllowedOrigins []string `json:"allowedOrigins"`
 	AllowedHeaders []string `json:"allowedHeaders"`
+	IgnoreOptions  bool     `json:"ignoreOptions"`
 }
 
 // Telemetry is the config format for telemetry including the HTTP server config.

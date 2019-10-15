@@ -68,6 +68,10 @@ type Config struct {
 	// If none are indicated, CORS may not work properly.
 	AllowedHeaders []string
 
+	// If enabled, the server will not handle requests for OPTIONS from CORS handler.
+	// Instead passing them through to the next handler. This is useful when Dex can handle OPTIONS on its own.
+	IgnoreOptions bool
+
 	// If enabled, the server won't prompt the user to approve authorization requests.
 	// Logging in implies approval.
 	SkipApprovalScreen bool
@@ -276,6 +280,10 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 			if len(c.AllowedHeaders) > 0 {
 				opts = append(opts, handlers.AllowedHeaders(c.AllowedHeaders))
+			}
+
+			if c.IgnoreOptions {
+				opts = append(opts, handlers.IgnoreOptions())
 			}
 
 			handler = handlers.CORS(opts...)(handler)
