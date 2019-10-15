@@ -12,14 +12,14 @@ import (
 )
 
 const (
-	clientKey         = "client"
-	authCodeKey       = "authcode"
-	refreshTokenKey   = "refreshtoken"
-	authRequestKey    = "authreq"
-	passwordKey       = "password"
-	offlineSessionKey = "offlinesession"
-	connectorKey      = "connector"
-	keysName          = "openid-connect-keys"
+	clientKey         = "dex-client"
+	authCodeKey       = "dex-authcode"
+	refreshTokenKey   = "dex-refreshtoken"
+	authRequestKey    = "dex-authreq"
+	passwordKey       = "dex-password"
+	offlineSessionKey = "dex-offlinesession"
+	connectorKey      = "dex-connector"
+	keysName          = "dex-openid-connect-keys"
 )
 
 // conn is the main database connection.
@@ -126,7 +126,7 @@ func (c *conn) GetClient(id string) (cli storage.Client, err error) {
 
 func (c *conn) ListClients() ([]storage.Client, error) {
 	query := fmt.Sprintf("SELECT "+
-		"id, secret, redirectURIs, trustedPeers, public, name, logoURL "+
+		"`id`, `secret`, `redirectURIs`, `trustedPeers`, `public`, `name`, `logoURL` "+
 		"FROM `%s` WHERE %s='%s'", BucketName, dexType, clientKey)
 	myQuery := gocb.NewN1qlQuery(query)
 	rows, err := c.db.ExecuteN1qlQuery(myQuery, nil)
@@ -257,9 +257,9 @@ func (c *conn) GetRefresh(id string) (r storage.RefreshToken, err error) {
 
 func (c *conn) ListRefreshTokens() ([]storage.RefreshToken, error) {
 	query := fmt.Sprintf("SELECT "+
-		"id, client_id, scopes, nonce,"+
-		"claims, connector_id, connector_data,"+
-		"token, created_at, last_used "+
+		"`id`, `client_id`, `scopes`, `nonce`,"+
+		"`claims`, `connector_id`, `connector_data`,"+
+		"`token`, `created_at`, `last_used` "+
 		"FROM `%s` WHERE %s='%s'", BucketName, dexType, refreshTokenKey)
 
 	myQuery := gocb.NewN1qlQuery(query)
@@ -321,7 +321,7 @@ func (c *conn) GetPassword(email string) (p storage.Password, err error) {
 
 func (c *conn) ListPasswords() ([]storage.Password, error) {
 	query := fmt.Sprintf("SELECT "+
-		"email, hash, username, user_id "+
+		"`email`, `hash`, `username`, `user_id` "+
 		"FROM `%s` WHERE %s='%s'", BucketName, dexType, passwordKey)
 
 	myQuery := gocb.NewN1qlQuery(query)
@@ -428,7 +428,7 @@ func (c *conn) GetConnector(id string) (connector storage.Connector, err error) 
 
 func (c *conn) ListConnectors() ([]storage.Connector, error) {
 	query := fmt.Sprintf("SELECT "+
-		"id, type, name, resource_version, config "+
+		"`id`, `type`, `name`, `resource_version`, `config` "+
 		"FROM `%s` WHERE %s='%s'", BucketName, dexType, connectorKey)
 
 	myQuery := gocb.NewN1qlQuery(query)
@@ -503,6 +503,6 @@ func (c *conn) DeleteOfflineSessions(userID string, connID string) error {
 }
 
 func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error) {
-	// nothing here, becuase a expiry time is set for the authrequest and authcode documents using touch
+	// nothing here, becuase an expiry time is set for the authrequest and authcode documents using touch
 	return
 }

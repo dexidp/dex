@@ -221,14 +221,11 @@ The SSL "mode" corresponds to the `github.com/go-sql-driver/mysql` package [conn
 
 ## Couchbase
 
-Dex requires Couchbase Server 5.1 or later version. When using Couchbase, admins must dedicate a bucket to dex for the following reason:
+Dex requires Couchbase Server 5.1 or later version. When using Couchbase, admins should create the primary index for the bucket that is going to be used.
 
-- Dex's documents names are not configurable; when shared with other applications there may be document key name clashes.
+Couchbase bucket creation can be done manually using couchbase GUI, CLI or its API. More information can be found in the couchbase guide [create bucket](https://docs.couchbase.com/server/current/manage/manage-buckets/create-bucket.html) section.
 
-
-Dex bucket creation can be done manually using couchbase GUI, CLI or its API. More information can be found in the couchbase guide [create bucket](https://docs.couchbase.com/server/current/manage/manage-buckets/create-bucket.html) section.
-
-example to create a bucket using couchbase CLI:
+example to create a new bucket using couchbase CLI:
 
 ```
 couchbase-cli bucket-create -c 127.0.0.1:8091 --username dex \
@@ -236,7 +233,13 @@ couchbase-cli bucket-create -c 127.0.0.1:8091 --username dex \
  --bucket-ramsize 600
 ```
 
-It is recommend create the dex bucket manually but it also can be created by dex if the argument "createifnotexists" is set in [true]() in the configuration.
+Also a secondary index should be created manually for the "dex_type" column this for increasing query efficiency in the bucket. The following query can be execute for that purpose in couchbase server:
+
+```
+  CREATE INDEX idx_dex_dex_type_v01 ON `dex_bucket`(dex_type);
+```
+
+Other secondary indexes can be created for filtering clients, connectors, password and tokens. For more information review the dex couchbase module.
 
 An example config for Couchbase setup using these values:
 
@@ -248,8 +251,6 @@ storage:
     bucket: dex_bucket
     user: dex
     password: 66964843358242dbaaa7778d8477c288
-    createifnotexists: true
-    quotaram: 600   // just needed if the property "createifnotexists" is set in true
     ssl:
       certFile: /tmp/couchbase-ssl-certificate.pem
 ```
@@ -258,8 +259,6 @@ storage:
 * `host`: couchbase host for doing the connection with couchbase server. More information in the [couchbase connection](https://docs.couchbase.com/go-sdk/1.6/start-using-sdk.html) section CB official guide.
 * `username`: username for couchbase server authentication
 * `password`: password for couchbase server authentication
-* `createifnotexists`: create a couchbase type bucket with the name specified in the "bucket" property if it does not exist
-* `quotaram`: bucket-ramsize with the bucket is going to be created
 * `ssl`: ssl setup for couchbase ssl connection
   * `certFile`: path to the certificate
 

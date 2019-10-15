@@ -12,24 +12,23 @@ import (
 )
 
 const (
-	quotaBucket          = 600
-	dexType              = "dex_type"
-	dexSecondaryIndexPre = "idx_dex"
-	dexIndexTypeVersion  = "v01"
-	primaryIndex         = "#primary"
+	quotaBucket           = 600
+	dexType               = "dex_type"
+	dexSecondaryIndexName = "idx_dex_dex_type_v01"
 )
 
-var BucketName string = "dex"
+var BucketName string
+var createBucketIfNotExists bool = false
+var CreateSecondaryIndex bool = false
+var CreatePrimaryIndex bool = false
 
 // NetworkDB contains options to couchbase database accessed over network.
 type NetworkDB struct {
-	Bucket            string
-	User              string
-	Password          string
-	Host              string
-	Port              uint16
-	QuotaRam          int  // default:0
-	CreateIfNotExists bool // default: false
+	Bucket   string
+	User     string
+	Password string
+	Host     string
+	Port     uint16
 }
 
 //not fully tested
@@ -58,17 +57,14 @@ func (cb *Couchbase) Open(logger log.Logger) (storage.Storage, error) {
 	return conn, nil
 }
 
-func (cb *Couchbase) create_bucket(logger log.Logger, bucket_name string, cluster_manager *gocb.ClusterManager) error {
-	quotaRam := cb.QuotaRam
-	if quotaRam == 0 {
-		quotaRam = quotaBucket
-	}
+func (cb *Couchbase) create_bucket(logger log.Logger, bucket_name string, cb_cluster *gocb.Cluster) error {
+	cluster_manager := cb_cluster.Manager(cb.User, cb.Password)
 	bucketSettings := gocb.BucketSettings{
 		FlushEnabled:  false,
 		IndexReplicas: false,
 		Name:          bucket_name,
 		Password:      "",
-		Quota:         quotaRam,
+		Quota:         quotaBucket,
 		Replicas:      1,
 	}
 	err := cluster_manager.InsertBucket(&bucketSettings)
@@ -76,7 +72,37 @@ func (cb *Couchbase) create_bucket(logger log.Logger, bucket_name string, cluste
 		logger.Errorf(err.Error())
 		return err
 	}
+	time.Sleep(3 * time.Second)
 	return nil
+}
+
+func (cb *Couchbase) bucket_exists(cb_cluster *gocb.Cluster) bool {
+	cluster_manager := cb_cluster.Manager(cb.User, cb.Password)
+	list_buckets, err_list_bucket := cluster_manager.GetBuckets()
+	exists := false
+	if err_list_bucket == nil {
+		for _, bucket_var := range list_buckets {
+			if bucket_var.Name != "" && bucket_var.Name == BucketName {
+				exists = true
+				break
+			}
+		}
+
+	}
+	return exists
+}
+
+func (cb *Couchbase) create_indexes(bucket *gocb.Bucket) {
+	// create indexes
+	if CreatePrimaryIndex || CreateSecondaryIndex {
+		bucket_manager := bucket.Manager(cb.User, cb.Password)
+		if CreatePrimaryIndex {
+			bucket_manager.CreatePrimaryIndex("#primary", true, false)
+		}
+		if CreateSecondaryIndex {
+			bucket_manager.CreateIndex(dexSecondaryIndexName, []string{dexType}, true, false)
+		}
+	}
 }
 
 func (cb *Couchbase) get_connection_string() string {
@@ -88,6 +114,7 @@ func (cb *Couchbase) get_connection_string() string {
 }
 
 func (cb *Couchbase) open(logger log.Logger) (*conn, error) {
+	BucketName = cb.Bucket
 	connection_string := cb.get_connection_string()
 	cb_cluster, err := gocb.Connect(connection_string)
 	if err != nil {
@@ -97,40 +124,14 @@ func (cb *Couchbase) open(logger log.Logger) (*conn, error) {
 		Username: cb.User,
 		Password: cb.Password,
 	})
-	cluster_manager := cb_cluster.Manager(cb.User, cb.Password)
-
-	// Verify if a bucket with that name already exists
-	list_buckets, err_list_bucket := cluster_manager.GetBuckets()
-	BucketName = cb.Bucket
-	already_exists := false
-	if err_list_bucket == nil {
-		for _, bucket_var := range list_buckets {
-			if bucket_var.Name != "" && bucket_var.Name == BucketName {
-				already_exists = true
-				break
-			}
-		}
-
-	}
-	if !already_exists {
-		if cb.CreateIfNotExists {
-			err := cb.create_bucket(logger, BucketName, cluster_manager)
-			if err != nil {
-				return nil, err
-			}
-			// wait because indexex have to be created
-			time.Sleep(3 * time.Second)
-		} else {
-			return nil, fmt.Errorf("The bucket %s does not exist", BucketName)
-		}
+	if createBucketIfNotExists && !cb.bucket_exists(cb_cluster) {
+		cb.create_bucket(logger, BucketName, cb_cluster)
 	}
 	bucket, err := cb_cluster.OpenBucket(BucketName, "")
-
-	// create indexes
-	bucket_manager := bucket.Manager(cb.User, cb.Password)
-	bucket_manager.CreatePrimaryIndex(primaryIndex, true, false)
-	bucket_manager.CreateIndex(dexSecondaryIndexPre+"_"+dexType+"_"+dexIndexTypeVersion, []string{dexType}, true, false)
-
+	if err != nil {
+		return nil, err
+	}
+	cb.create_indexes(bucket)
 	c := &conn{
 		db:     bucket,
 		logger: logger,

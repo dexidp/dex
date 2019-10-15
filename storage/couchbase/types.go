@@ -203,7 +203,6 @@ type Claims struct {
 	Email         string   `json:"email"`
 	EmailVerified bool     `json:"emailVerified"`
 	Groups        []string `json:"groups,omitempty"`
-	DexType       string   `json:"dex_type"`
 }
 
 func fromStorageClaims(i storage.Claims) Claims {
