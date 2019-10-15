@@ -68,6 +68,10 @@ type Config struct {
 	// If none are indicated, CORS may not work properly.
 	AllowedHeaders []string
 
+	// List of allowed methods for CORS requests on discpver, token and keys endpoints.
+	// If none are indicated, CORS requests have the following allowed methods by default ()
+	AllowedMethods []string
+
 	// If enabled, the server will not handle requests for OPTIONS from CORS handler.
 	// Instead passing them through to the next handler. This is useful when Dex can handle OPTIONS on its own.
 	IgnoreOptions bool
@@ -284,6 +288,10 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 			if c.IgnoreOptions {
 				opts = append(opts, handlers.IgnoreOptions())
+			}
+
+			if len(c.AllowedMethods) > 0 {
+				opts = append(opts, handlers.AllowedMethods(c.AllowedMethods))
 			}
 
 			handler = handlers.CORS(opts...)(handler)

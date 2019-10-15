@@ -139,6 +139,7 @@ type Web struct {
 	TLSKey         string   `json:"tlsKey"`
 	AllowedOrigins []string `json:"allowedOrigins"`
 	AllowedHeaders []string `json:"allowedHeaders"`
+	AllowedMethods []string `json:"allowedMethods"`
 	IgnoreOptions  bool     `json:"ignoreOptions"`
 }
 

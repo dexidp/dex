@@ -208,6 +208,9 @@ func serve(cmd *cobra.Command, args []string) error {
 	if len(c.Web.AllowedHeaders) > 0 {
 		logger.Infof("config allowed headers: %s", c.Web.AllowedHeaders)
 	}
+	if len(c.Web.AllowedMethods) > 0 {
+		logger.Infof("config allowed methods: %s", c.Web.AllowedMethods)
+	}
 	if c.Web.IgnoreOptions {
 		logger.Infof("config ignoring OPTIONS requests")
 	}
@@ -221,6 +224,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
 		AllowedOrigins:         c.Web.AllowedOrigins,
 		AllowedHeaders:         c.Web.AllowedHeaders,
+		AllowedMethods:         c.Web.AllowedMethods,
 		IgnoreOptions:          c.Web.IgnoreOptions,
 		Issuer:                 c.Issuer,
 		Storage:                s,
