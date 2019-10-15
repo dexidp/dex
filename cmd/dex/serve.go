@@ -214,6 +214,10 @@ func serve(cmd *cobra.Command, args []string) error {
 	if c.Web.IgnoreOptions {
 		logger.Infof("config ignoring OPTIONS requests")
 	}
+	if c.Web.MaxAge > 0 {
+		logger.Infof("config CORS max age for preflights set to %d seconds", c.Web.MaxAge)
+
+	}
 
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
@@ -226,6 +230,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		AllowedHeaders:         c.Web.AllowedHeaders,
 		AllowedMethods:         c.Web.AllowedMethods,
 		IgnoreOptions:          c.Web.IgnoreOptions,
+		MaxAge:                 c.Web.MaxAge,
 		Issuer:                 c.Issuer,
 		Storage:                s,
 		Web:                    c.Frontend,

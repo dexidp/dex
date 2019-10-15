@@ -65,16 +65,19 @@ type Config struct {
 	AllowedOrigins []string
 
 	// List of allowed headers for CORS requests on discovery, token and keys endpoint.
-	// If none are indicated, CORS may not work properly.
+	// If none are indicated, CORS will be setup with the default ("Accept", "Accept-Language", "Content-Language", "Origin")
 	AllowedHeaders []string
 
 	// List of allowed methods for CORS requests on discpver, token and keys endpoints.
-	// If none are indicated, CORS requests have the following allowed methods by default ()
+	// If none are indicated, CORS requests have the following allowed methods by default ("GET", "HEAD", "POST")
 	AllowedMethods []string
 
 	// If enabled, the server will not handle requests for OPTIONS from CORS handler.
 	// Instead passing them through to the next handler. This is useful when Dex can handle OPTIONS on its own.
 	IgnoreOptions bool
+
+	// The maximum age in seconds between preflight requests.
+	MaxAge int
 
 	// If enabled, the server won't prompt the user to approve authorization requests.
 	// Logging in implies approval.
@@ -292,6 +295,10 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 			if len(c.AllowedMethods) > 0 {
 				opts = append(opts, handlers.AllowedMethods(c.AllowedMethods))
+			}
+
+			if c.MaxAge > 0 {
+				opts = append(opts, handlers.MaxAge(c.MaxAge))
 			}
 
 			handler = handlers.CORS(opts...)(handler)
