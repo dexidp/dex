@@ -214,6 +214,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
 		AllowedOrigins:         c.Web.AllowedOrigins,
+		AllowedHeaders:         c.Web.AllowedHeaders,
 		Issuer:                 c.Issuer,
 		Storage:                s,
 		Web:                    c.Frontend,
