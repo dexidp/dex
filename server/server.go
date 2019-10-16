@@ -79,6 +79,9 @@ type Config struct {
 	// The maximum age in seconds between preflight requests.
 	MaxAge int
 
+	// List of headers which the server will not strip out when requests are made
+	ExposedHeaders []string
+
 	// Sets a custom OPTIONS status code by default it is set to 200
 	OptionsStatusCode int
 
@@ -306,6 +309,11 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 			if c.OptionsStatusCode > 0 {
 				opts = append(opts, handlers.OptionStatusCode(c.OptionsStatusCode))
+			}
+
+			if len(c.ExposedHeaders) > 0 {
+				// Sets CORS header: Access-Control-Expose-Headers
+				opts = append(opts, handlers.ExposedHeaders(c.ExposedHeaders))
 			}
 
 			handler = handlers.CORS(opts...)(handler)

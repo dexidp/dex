@@ -143,6 +143,7 @@ type Web struct {
 	IgnoreOptions     bool     `json:"ignoreOptions"`
 	MaxAge            int      `json:"maxAge"`
 	OptionsStatusCode int      `json:"optionsStatusCode"`
+	ExposedHeaders    []string `json:"exposedHeaders"`
 }
 
 // Telemetry is the config format for telemetry including the HTTP server config.
