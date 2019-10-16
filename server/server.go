@@ -289,25 +289,31 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		if len(c.AllowedOrigins) > 0 {
 			var opts []handlers.CORSOption
 
+			// Sets CORS header: Access-Control-Allow-Origin
 			opts = append(opts, handlers.AllowedOrigins(c.AllowedOrigins))
 
 			if len(c.AllowedHeaders) > 0 {
+				// Sets CORS header: Access-Control-Allow-Headers
 				opts = append(opts, handlers.AllowedHeaders(c.AllowedHeaders))
 			}
 
 			if c.IgnoreOptions {
+				// Ignores the CORS request: OPTIONS
 				opts = append(opts, handlers.IgnoreOptions())
 			}
 
 			if len(c.AllowedMethods) > 0 {
+				// Sets CORS header: Access-Control-Allow-Methods
 				opts = append(opts, handlers.AllowedMethods(c.AllowedMethods))
 			}
 
 			if c.MaxAge > 0 {
+				// Sets the CORS header: Access-Control-Max-Age. This is the maximum age in seconds between preflight (OPTIONS) requests, default 0, max 600 seconds (10 minutes)
 				opts = append(opts, handlers.MaxAge(c.MaxAge))
 			}
 
 			if c.OptionsStatusCode > 0 {
+				// Sets a custom OPTIONS status response code. Default 200
 				opts = append(opts, handlers.OptionStatusCode(c.OptionsStatusCode))
 			}
 
