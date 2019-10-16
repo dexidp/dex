@@ -297,14 +297,19 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 				opts = append(opts, handlers.AllowedHeaders(c.AllowedHeaders))
 			}
 
-			if c.IgnoreOptions {
-				// Ignores the CORS request: OPTIONS
-				opts = append(opts, handlers.IgnoreOptions())
-			}
-
 			if len(c.AllowedMethods) > 0 {
 				// Sets CORS header: Access-Control-Allow-Methods
 				opts = append(opts, handlers.AllowedMethods(c.AllowedMethods))
+			}
+
+			if len(c.ExposedHeaders) > 0 {
+				// Sets CORS header: Access-Control-Expose-Headers
+				opts = append(opts, handlers.ExposedHeaders(c.ExposedHeaders))
+			}
+
+			if c.IgnoreOptions {
+				// Ignores the CORS request: OPTIONS
+				opts = append(opts, handlers.IgnoreOptions())
 			}
 
 			if c.MaxAge > 0 {
@@ -315,11 +320,6 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 			if c.OptionsStatusCode > 0 {
 				// Sets a custom OPTIONS status response code. Default 200
 				opts = append(opts, handlers.OptionStatusCode(c.OptionsStatusCode))
-			}
-
-			if len(c.ExposedHeaders) > 0 {
-				// Sets CORS header: Access-Control-Expose-Headers
-				opts = append(opts, handlers.ExposedHeaders(c.ExposedHeaders))
 			}
 
 			handler = handlers.CORS(opts...)(handler)
