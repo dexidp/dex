@@ -66,7 +66,7 @@ web:
 ## Swaggerui support with CORS
 Should you wish to test out Dex against a Swaggerui such as https://petstore.swagger.io then you must configure CORS on Dex to support the following:
  
- * allowedHeaders: ["api_key", "Authorization"]
+ * allowedHeaders: ["Content-Type", "api_key", "Authorization", "x-requested-with"]
 
 Additionally your swaggerui defintion file must contain the following:
 
