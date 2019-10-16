@@ -214,6 +214,9 @@ func serve(cmd *cobra.Command, args []string) error {
 	if c.Web.IgnoreOptions {
 		logger.Infof("config ignoring OPTIONS requests")
 	}
+	if c.Web.AllowCredentials {
+		logger.Infof("config allow credentials in CORS requests")
+	}
 	if c.Web.MaxAge > 0 {
 		logger.Infof("config CORS max age for preflights set to %d seconds", c.Web.MaxAge)
 	}
@@ -235,6 +238,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		AllowedHeaders:         c.Web.AllowedHeaders,
 		AllowedMethods:         c.Web.AllowedMethods,
 		IgnoreOptions:          c.Web.IgnoreOptions,
+		AllowCredentials:       c.Web.AllowCredentials,
 		MaxAge:                 c.Web.MaxAge,
 		OptionsStatusCode:      c.Web.OptionsStatusCode,
 		ExposedHeaders:         c.Web.ExposedHeaders,

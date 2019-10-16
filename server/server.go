@@ -76,6 +76,9 @@ type Config struct {
 	// Instead passing them through to the next handler. This is useful when Dex can handle OPTIONS on its own.
 	IgnoreOptions bool
 
+	// if enabled, the server will allow credentials to be passed along with the request.
+	AllowCredentials bool
+
 	// The maximum age in seconds between preflight requests.
 	MaxAge int
 
@@ -310,6 +313,11 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 			if c.IgnoreOptions {
 				// Ignores the CORS request: OPTIONS
 				opts = append(opts, handlers.IgnoreOptions())
+			}
+
+			if c.AllowCredentials {
+				// Sets CORS header: Access-Control-Allow-Credentials
+				opts = append(opts, handlers.AllowCredentials())
 			}
 
 			if c.MaxAge > 0 {

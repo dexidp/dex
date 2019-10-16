@@ -141,6 +141,7 @@ type Web struct {
 	AllowedHeaders    []string `json:"allowedHeaders"`
 	AllowedMethods    []string `json:"allowedMethods"`
 	IgnoreOptions     bool     `json:"ignoreOptions"`
+	AllowCredentials  bool     `json:"allowCredentials"`
 	MaxAge            int      `json:"maxAge"`
 	OptionsStatusCode int      `json:"optionsStatusCode"`
 	ExposedHeaders    []string `json:"exposedHeaders"`
