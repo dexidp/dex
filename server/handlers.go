@@ -23,6 +23,23 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
+const samlPOSTFormFmt = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <title>SAML login</title>
+  </head>
+  <body>
+    <form method="post" action="%s" >
+      <input type="hidden" name="SAMLRequest" value="%s" />
+      <input type="hidden" name="RelayState" value="%s" />
+    </form>
+    <script>
+      document.forms[0].submit();
+    </script>
+  </body>
+</html>`
+
 // newHealthChecker returns the healthz handler. The handler runs until the
 // provided context is canceled.
 func (s *Server) newHealthChecker(ctx context.Context) http.Handler {
@@ -333,30 +350,28 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 				s.logger.Errorf("Server template error: %v", err)
 			}
 		case connector.SAMLConnector:
-			action, value, err := conn.POSTData(scopes, authReqID)
+			ssoURL, authnReq, post, err := conn.AuthnRequest(scopes, authReqID)
 			if err != nil {
 				s.logger.Errorf("Creating SAML data: %v", err)
 				s.renderError(r, w, http.StatusInternalServerError, "Connector Login Error")
 				return
 			}
 
-			// TODO(ericchiang): Don't inline this.
-			fmt.Fprintf(w, `<!DOCTYPE html>
-			  <html lang="en">
-			  <head>
-			    <meta http-equiv="content-type" content="text/html; charset=utf-8">
-			    <title>SAML login</title>
-			  </head>
-			  <body>
-			    <form method="post" action="%s" >
-				    <input type="hidden" name="SAMLRequest" value="%s" />
-				    <input type="hidden" name="RelayState" value="%s" />
-			    </form>
-				<script>
-				    document.forms[0].submit();
-				</script>
-			  </body>
-			  </html>`, action, value, authReqID)
+			if post {
+				fmt.Fprintf(w, samlPOSTFormFmt, ssoURL, authnReq, authReqID)
+			} else { // HTTP Redirect Binding
+				u, err := url.Parse(ssoURL)
+				if err != nil {
+					s.logger.Errorf("Parse SSO URL: %v", err)
+					s.renderError(w, http.StatusInternalServerError, "Connector Login error.")
+					return
+				}
+				v := url.Values{}
+				v.Set("SAMLRequest", authnReq)
+				v.Set("RelayState", authReqID)
+				u.RawQuery = v.Encode()
+				http.Redirect(w, r, u.String(), http.StatusFound)
+			}
 		default:
 			s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
 		}

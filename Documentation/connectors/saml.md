@@ -2,7 +2,9 @@
 
 ## Overview
 
-The SAML provider allows authentication through the SAML 2.0 HTTP POST binding. The connector maps attribute values in the SAML assertion to user info, such as username, email, and groups.
+The SAML provider allows authentication through the SAML 2.0 HTTP POST Binding or HTTP Redirect Binding.
+The callback acts as the "Assertion Consumer Service", expecting assertions via the HTTP POST Binding.
+The connector maps attribute values in the SAML assertion to user info, such as username, email, and groups.
 
 The connector uses the value of the `NameID` element as the user's unique identifier which dex assumes is both unique and never changes. Use the `nameIDPolicyFormat` to ensure this is set to a value which satisfies these requirements.
 
@@ -26,6 +28,7 @@ connectors:
   config:
     # SSO URL used for POST value.
     ssoURL: https://saml.example.com/sso
+    redirectBinding: true # use HTTP Redirect Binding (defaults to false)
 
     # CA to use when validating the signature of the SAML response.
     ca: /path/to/ca.pem
