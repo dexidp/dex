@@ -86,7 +86,7 @@ func (c *conn) UpsertDocument(key_document string, document interface{}, ttl uin
 
 func (c *conn) ListIdsDocumentsByType(dex_type string) ([]string, error) {
 	query := fmt.Sprintf("SELECT meta().`id` FROM %s "+
-		"WHERE meta().`id` LIKE 'dex-%s%s'", BucketName, dex_type, "%")
+		"WHERE meta().`id` LIKE '%s%s'", BucketName, dex_type, "%")
 	myQuery := gocb.NewN1qlQuery(query)
 	rows, err := c.db.ExecuteN1qlQuery(myQuery, nil)
 	if err != nil {
