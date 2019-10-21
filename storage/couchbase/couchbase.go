@@ -12,14 +12,15 @@ import (
 )
 
 const (
-	clientKey         = "dex-client"
-	authCodeKey       = "dex-authcode"
-	refreshTokenKey   = "dex-refreshtoken"
-	authRequestKey    = "dex-authreq"
-	passwordKey       = "dex-password"
-	offlineSessionKey = "dex-offlinesession"
-	connectorKey      = "dex-connector"
-	keysName          = "dex-openid-connect-keys"
+	clientKey            = "dex-client"
+	authCodeKey          = "dex-authcode"
+	refreshTokenKey      = "dex-refreshtoken"
+	authRequestKey       = "dex-authreq"
+	passwordKey          = "dex-password"
+	offlineSessionKey    = "dex-offlinesession"
+	connectorKey         = "dex-connector"
+	keysName             = "dex-openid-connect-keys"
+	disableConsistencyRP = false
 )
 
 // conn is the main database connection.
@@ -87,8 +88,15 @@ func (c *conn) UpsertDocument(key_document string, document interface{}, ttl uin
 func (c *conn) ListIdsDocumentsByType(dex_type string) ([]string, error) {
 	query := fmt.Sprintf("SELECT meta().`id` FROM %s "+
 		"WHERE meta().`id` LIKE '%s%s'", BucketName, dex_type, "%")
-	myQuery := gocb.NewN1qlQuery(query)
-	rows, err := c.db.ExecuteN1qlQuery(myQuery, nil)
+
+	// create N1qlQuery using RequestPlus consistency option
+	CbN1qlQuery := gocb.NewN1qlQuery(query).Consistency(gocb.RequestPlus)
+
+	if disableConsistencyRP {
+		CbN1qlQuery = gocb.NewN1qlQuery(query)
+	}
+
+	rows, err := c.db.ExecuteN1qlQuery(CbN1qlQuery, nil)
 	if err != nil {
 		return nil, err
 	}
