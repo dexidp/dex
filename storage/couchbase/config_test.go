@@ -74,10 +74,11 @@ func TestCouchbase(t *testing.T) {
 	}
 	p := &Couchbase{
 		NetworkDB: NetworkDB{
-			Bucket:   getenv("DEX_COUCHBASE_DATABASE", "couchbase"),
-			User:     getenv("DEX_COUCHBASE_USER", "couchbase"),
-			Password: getenv("DEX_COUCHBASE_PASSWORD", "couchbase"),
-			Host:     host,
+			Bucket:      getenv("DEX_COUCHBASE_DATABASE", "couchbase"),
+			User:        getenv("DEX_COUCHBASE_USER", "couchbase"),
+			Password:    getenv("DEX_COUCHBASE_PASSWORD", "couchbase"),
+			Host:        host,
+			CreateIndex: false,
 		},
 		SSL: SSL{
 			CertFile: "/tmp/cert.pem", // Couchbase container doesn't support SSL.

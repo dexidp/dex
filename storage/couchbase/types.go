@@ -9,26 +9,11 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-type ClientCouchbase struct {
-	DexType string `json:"dex_type"`
-	storage.Client
-}
-
 type RefreshTokenRef struct {
 	ID        string `json:"ID"`
 	ClientID  string `json:"clientID"`
 	CreatedAt int64  `json:"created_at"`
 	LastUsed  int64  `json:"last_used"`
-}
-
-type PasswordCouchbase struct {
-	DexType string `json:"dex_type"`
-	storage.Password
-}
-
-type ConnectorCouchbase struct {
-	DexType string `json:"dex_type"`
-	storage.Connector
 }
 
 // AuthCode is a mirrored struct from storage with JSON struct tags
@@ -43,8 +28,7 @@ type AuthCode struct {
 	ConnectorData []byte `json:"connectorData,omitempty"`
 	Claims        Claims `json:"claims,omitempty"`
 
-	Expiry  int64  `json:"expiry"`
-	DexType string `json:"dex_type,omitempty"`
+	Expiry int64 `json:"expiry"`
 }
 
 func fromStorageAuthCode(a storage.AuthCode) AuthCode {
@@ -58,7 +42,6 @@ func fromStorageAuthCode(a storage.AuthCode) AuthCode {
 		Scopes:        a.Scopes,
 		Claims:        fromStorageClaims(a.Claims),
 		Expiry:        a.Expiry.Unix(),
-		DexType:       authCodeKey,
 	}
 }
 
@@ -99,7 +82,6 @@ type AuthRequest struct {
 
 	ConnectorID   string `json:"connector_id"`
 	ConnectorData []byte `json:"connector_data"`
-	DexType       string `json:"dex_type"`
 }
 
 func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
@@ -117,7 +99,6 @@ func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		Claims:              fromStorageClaims(a.Claims),
 		ConnectorID:         a.ConnectorID,
 		ConnectorData:       a.ConnectorData,
-		DexType:             authRequestKey,
 	}
 }
 
@@ -159,8 +140,7 @@ type RefreshToken struct {
 
 	Scopes []string `json:"scopes"`
 
-	Nonce   string `json:"nonce"`
-	DexType string `json:"dex_type"`
+	Nonce string `json:"nonce"`
 }
 
 func fromStorageRefreshToken(r storage.RefreshToken) RefreshToken {
@@ -175,7 +155,6 @@ func fromStorageRefreshToken(r storage.RefreshToken) RefreshToken {
 		Scopes:        r.Scopes,
 		Nonce:         r.Nonce,
 		Claims:        fromStorageClaims(r.Claims),
-		DexType:       refreshTokenKey,
 	}
 }
 
@@ -253,7 +232,6 @@ type Keys struct {
 	SigningKeyPub    *jose.JSONWebKey  `json:"signing_key_pub,omitempty"`
 	VerificationKeys []VerificationKey `json:"verification_keys"`
 	NextRotation     int64             `json:"next_rotation"`
-	DexType          string            `json:"dex_type"`
 }
 
 // OfflineSessions is a mirrored struct from storage with JSON struct tags
@@ -261,7 +239,6 @@ type OfflineSessions struct {
 	UserID  string                     `json:"user_id,omitempty"`
 	ConnID  string                     `json:"conn_id,omitempty"`
 	Refresh map[string]RefreshTokenRef `json:"refresh,omitempty"`
-	DexType string                     `json:"dex_type"`
 }
 
 func fromStorageOfflineSessions(o storage.OfflineSessions) OfflineSessions {
@@ -279,7 +256,6 @@ func fromStorageOfflineSessions(o storage.OfflineSessions) OfflineSessions {
 		UserID:  o.UserID,
 		ConnID:  o.ConnID,
 		Refresh: list_vk,
-		DexType: offlineSessionKey,
 	}
 }
 
@@ -321,7 +297,6 @@ func fromStorageKeys(o storage.Keys) Keys {
 		SigningKeyPub:    o.SigningKeyPub,
 		VerificationKeys: list_vk,
 		NextRotation:     o.NextRotation.Unix(),
-		DexType:          keysName,
 	}
 }
 

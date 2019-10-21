@@ -32,6 +32,10 @@ func (c *conn) Close() error {
 	return c.db.Close()
 }
 
+type KeyDocument struct {
+	Key string `json:"id"`
+}
+
 func keyID(prefix string, id string) string { return prefix + "-" + id }
 
 func keyEmail(prefix, email string) string { return prefix + "-" + strings.ToLower(email) }
@@ -80,13 +84,31 @@ func (c *conn) UpsertDocument(key_document string, document interface{}, ttl uin
 	return nil
 }
 
+func (c *conn) ListIdsDocumentsByType(dex_type string) ([]string, error) {
+	query := fmt.Sprintf("SELECT meta().`id` FROM %s "+
+		"WHERE meta().`id` LIKE 'dex-%s%s'", BucketName, dex_type, "%")
+	myQuery := gocb.NewN1qlQuery(query)
+	rows, err := c.db.ExecuteN1qlQuery(myQuery, nil)
+	if err != nil {
+		return nil, err
+	}
+	var list_ids []string
+
+	var row KeyDocument
+	for rows.Next(&row) {
+		if row.Key != "" {
+			list_ids = append(list_ids, row.Key)
+		}
+	}
+	if err = rows.Close(); err != nil {
+		c.logger.Infof("Couldn't get all the rows: %v\n", err)
+	}
+	return list_ids, nil
+}
+
 func (c *conn) CreateClient(cli storage.Client) error {
 	key_cb := keyID(clientKey, cli.ID)
-	var client_cb = new(ClientCouchbase)
-	client_cb.DexType = clientKey
-	client_cb.Client = cli
-
-	err := c.InsertDocument(key_cb, client_cb, 0)
+	err := c.InsertDocument(key_cb, cli, 0)
 
 	if err != nil {
 		if alreadyExistsCheck(err) {
@@ -99,9 +121,9 @@ func (c *conn) CreateClient(cli storage.Client) error {
 }
 
 func (c *conn) UpdateClient(id string, updater func(old storage.Client) (storage.Client, error)) error {
-	key_document := keyID(clientKey, id)
+	key_cb := keyID(clientKey, id)
 	var clicurrent storage.Client
-	err := c.getDocument(key_document, &clicurrent)
+	err := c.getDocument(key_cb, &clicurrent)
 	if err != nil {
 		return err
 	}
@@ -110,7 +132,7 @@ func (c *conn) UpdateClient(id string, updater func(old storage.Client) (storage
 		return err
 	}
 
-	err = c.UpsertDocument(key_document, nc, 0)
+	err = c.UpsertDocument(key_cb, nc, 0)
 	if err != nil {
 		return fmt.Errorf("update client: %v", err)
 	}
@@ -125,24 +147,21 @@ func (c *conn) GetClient(id string) (cli storage.Client, err error) {
 }
 
 func (c *conn) ListClients() ([]storage.Client, error) {
-	query := fmt.Sprintf("SELECT "+
-		"`id`, `secret`, `redirectURIs`, `trustedPeers`, `public`, `name`, `logoURL` "+
-		"FROM `%s` WHERE %s='%s'", BucketName, dexType, clientKey)
-	myQuery := gocb.NewN1qlQuery(query)
-	rows, err := c.db.ExecuteN1qlQuery(myQuery, nil)
+	rows, err := c.ListIdsDocumentsByType(clientKey)
+
 	if err != nil {
 		return nil, err
 	}
 	var clients []storage.Client
 
-	var row storage.Client
-	for rows.Next(&row) {
-		if row.ID != "" {
-			clients = append(clients, row)
+	var cli storage.Client
+	for _, v := range rows {
+		if v != "" {
+			err = c.getDocument(v, &cli)
+			if err == nil {
+				clients = append(clients, cli)
+			}
 		}
-	}
-	if err = rows.Close(); err != nil {
-		return nil, err
 	}
 	return clients, nil
 }
@@ -162,9 +181,9 @@ func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
 }
 
 func (c *conn) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) (storage.AuthRequest, error)) error {
-	key_document := keyID(authRequestKey, id)
+	key_cb := keyID(authRequestKey, id)
 	var authcurrent AuthRequest
-	err := c.getDocument(key_document, &authcurrent)
+	err := c.getDocument(key_cb, &authcurrent)
 	ar := toStorageAuthRequest(authcurrent)
 	ttl := uint32(int(time.Until(ar.Expiry).Seconds()))
 
@@ -175,7 +194,7 @@ func (c *conn) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) 
 	if err != nil {
 		return err
 	}
-	err = c.UpsertDocument(key_document, fromStorageAuthRequest(nauth), ttl)
+	err = c.UpsertDocument(key_cb, fromStorageAuthRequest(nauth), ttl)
 	if err != nil {
 		return fmt.Errorf("update auth request: %v", err)
 	}
@@ -230,7 +249,7 @@ func (c *conn) CreateRefresh(r storage.RefreshToken) error {
 }
 
 func (c *conn) UpdateRefreshToken(id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
-	key_document := keyID(refreshTokenKey, id)
+	key_cb := keyID(refreshTokenKey, id)
 	refcurrent, err := c.GetRefresh(id)
 	if err != nil {
 		return err
@@ -239,7 +258,7 @@ func (c *conn) UpdateRefreshToken(id string, updater func(old storage.RefreshTok
 	if err != nil {
 		return err
 	}
-	err = c.UpsertDocument(key_document, fromStorageRefreshToken(nauth), 0)
+	err = c.UpsertDocument(key_cb, fromStorageRefreshToken(nauth), 0)
 	if err != nil {
 		return fmt.Errorf("update refresh token: %v", err)
 	}
@@ -256,37 +275,30 @@ func (c *conn) GetRefresh(id string) (r storage.RefreshToken, err error) {
 }
 
 func (c *conn) ListRefreshTokens() ([]storage.RefreshToken, error) {
-	query := fmt.Sprintf("SELECT "+
-		"`id`, `client_id`, `scopes`, `nonce`,"+
-		"`claims`, `connector_id`, `connector_data`,"+
-		"`token`, `created_at`, `last_used` "+
-		"FROM `%s` WHERE %s='%s'", BucketName, dexType, refreshTokenKey)
+	rows, err := c.ListIdsDocumentsByType(refreshTokenKey)
 
-	myQuery := gocb.NewN1qlQuery(query)
-	rows, err := c.db.ExecuteN1qlQuery(myQuery, nil)
 	if err != nil {
-		return nil, fmt.Errorf("query: %v", err)
+		return nil, err
 	}
+
 	var tokens []storage.RefreshToken
 
 	var row RefreshToken
-	for rows.Next(&row) {
-		if row.ID != "" {
-			tokens = append(tokens, toStorageRefreshToken(row))
+	for _, v := range rows {
+		if v != "" {
+			err = c.getDocument(v, &row)
+			if err == nil {
+				tokens = append(tokens, toStorageRefreshToken(row))
+			}
 		}
-	}
-	if err = rows.Close(); err != nil {
-		return nil, err
 	}
 	return tokens, nil
 }
 
 func (c *conn) CreatePassword(p storage.Password) error {
 	p.Email = strings.ToLower(p.Email)
-	var pass_cb = new(PasswordCouchbase)
-	pass_cb.DexType = passwordKey
-	pass_cb.Password = p
-	err := c.InsertDocument(keyEmail(passwordKey, p.Email), pass_cb, 0)
+	key_cb := keyEmail(passwordKey, p.Email)
+	err := c.InsertDocument(key_cb, p, 0)
 	if err != nil {
 		if alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
@@ -297,9 +309,9 @@ func (c *conn) CreatePassword(p storage.Password) error {
 }
 
 func (c *conn) UpdatePassword(email string, updater func(p storage.Password) (storage.Password, error)) error {
-	key_document := keyEmail(passwordKey, email)
+	key_cb := keyEmail(passwordKey, email)
 	var refcurrent storage.Password
-	err := c.getDocument(key_document, &refcurrent)
+	err := c.getDocument(key_cb, &refcurrent)
 	if err != nil {
 		return err
 	}
@@ -307,7 +319,7 @@ func (c *conn) UpdatePassword(email string, updater func(p storage.Password) (st
 	if err != nil {
 		return err
 	}
-	err = c.UpsertDocument(key_document, nauth, 0)
+	err = c.UpsertDocument(key_cb, nauth, 0)
 	if err != nil {
 		return fmt.Errorf("update password: %v", err)
 	}
@@ -320,27 +332,21 @@ func (c *conn) GetPassword(email string) (p storage.Password, err error) {
 }
 
 func (c *conn) ListPasswords() ([]storage.Password, error) {
-	query := fmt.Sprintf("SELECT "+
-		"`email`, `hash`, `username`, `user_id` "+
-		"FROM `%s` WHERE %s='%s'", BucketName, dexType, passwordKey)
+	rows, err := c.ListIdsDocumentsByType(passwordKey)
 
-	myQuery := gocb.NewN1qlQuery(query)
-	rows, err := c.db.ExecuteN1qlQuery(myQuery, nil)
 	if err != nil {
-		return nil, fmt.Errorf("query: %v", err)
+		return nil, err
 	}
 	var passwords []storage.Password
 
 	var row storage.Password
-	for rows.Next(&row) {
-		if row.Email != "" {
-			fmt.Printf("Row: %+v\n", row)
-			passwords = append(passwords, row)
+	for _, v := range rows {
+		if v != "" {
+			err = c.getDocument(v, &row)
+			if err == nil {
+				passwords = append(passwords, row)
+			}
 		}
-	}
-	if err = rows.Close(); err != nil {
-		fmt.Printf("Couldn't get all the rows: %s\n", err)
-		return nil, err
 	}
 	return passwords, nil
 }
@@ -360,10 +366,10 @@ func (c *conn) CreateOfflineSessions(s storage.OfflineSessions) error {
 }
 
 func (c *conn) UpdateOfflineSessions(userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
-	key_document := keySession(offlineSessionKey, userID, connID)
+	key_cb := keySession(offlineSessionKey, userID, connID)
 
 	var refcurrent OfflineSessions
-	err := c.getDocument(key_document, &refcurrent)
+	err := c.getDocument(key_cb, &refcurrent)
 	if err != nil {
 		return err
 	}
@@ -371,7 +377,7 @@ func (c *conn) UpdateOfflineSessions(userID string, connID string, updater func(
 	if err != nil {
 		return err
 	}
-	err = c.UpsertDocument(key_document, fromStorageOfflineSessions(nauth), 0)
+	err = c.UpsertDocument(key_cb, fromStorageOfflineSessions(nauth), 0)
 	if err != nil {
 		return fmt.Errorf("update password: %v", err)
 	}
@@ -390,10 +396,7 @@ func (c *conn) GetOfflineSessions(userID string, connID string) (s storage.Offli
 
 func (c *conn) CreateConnector(connector storage.Connector) error {
 	key_cb := keyID(connectorKey, connector.ID)
-	var doc_cb = new(ConnectorCouchbase)
-	doc_cb.DexType = connectorKey
-	doc_cb.Connector = connector
-	err := c.InsertDocument(key_cb, doc_cb, 0)
+	err := c.InsertDocument(key_cb, connector, 0)
 	if err != nil {
 		if alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
@@ -404,9 +407,9 @@ func (c *conn) CreateConnector(connector storage.Connector) error {
 }
 
 func (c *conn) UpdateConnector(id string, updater func(s storage.Connector) (storage.Connector, error)) error {
-	key_document := keyID(connectorKey, id)
+	key_cb := keyID(connectorKey, id)
 	var refcurrent storage.Connector
-	err := c.getDocument(key_document, &refcurrent)
+	err := c.getDocument(key_cb, &refcurrent)
 	if err != nil {
 		return err
 	}
@@ -414,7 +417,7 @@ func (c *conn) UpdateConnector(id string, updater func(s storage.Connector) (sto
 	if err != nil {
 		return err
 	}
-	err = c.UpsertDocument(key_document, nauth, 0)
+	err = c.UpsertDocument(key_cb, nauth, 0)
 	if err != nil {
 		return fmt.Errorf("update password: %v", err)
 	}
@@ -427,25 +430,22 @@ func (c *conn) GetConnector(id string) (connector storage.Connector, err error) 
 }
 
 func (c *conn) ListConnectors() ([]storage.Connector, error) {
-	query := fmt.Sprintf("SELECT "+
-		"`id`, `type`, `name`, `resource_version`, `config` "+
-		"FROM `%s` WHERE %s='%s'", BucketName, dexType, connectorKey)
+	rows, err := c.ListIdsDocumentsByType(connectorKey)
 
-	myQuery := gocb.NewN1qlQuery(query)
-	rows, err := c.db.ExecuteN1qlQuery(myQuery, nil)
 	if err != nil {
-		return nil, fmt.Errorf("query: %v", err)
+		return nil, err
 	}
+
 	var connectors []storage.Connector
 
 	var row storage.Connector
-	for rows.Next(&row) {
-		if row.ID != "" {
-			connectors = append(connectors, row)
+	for _, v := range rows {
+		if v != "" {
+			err = c.getDocument(v, &row)
+			if err == nil {
+				connectors = append(connectors, row)
+			}
 		}
-	}
-	if err = rows.Close(); err != nil {
-		return nil, err
 	}
 	return connectors, nil
 }
@@ -460,9 +460,9 @@ func (c *conn) GetKeys() (keys storage.Keys, err error) {
 }
 
 func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) error {
-	key_document := keysName
+	key_cb := keysName
 	var current Keys
-	err := c.getDocument(key_document, &current)
+	err := c.getDocument(key_cb, &current)
 	if err != nil {
 		if err != storage.ErrNotFound {
 			return fmt.Errorf("get keys from updatekeys: %v", err)
@@ -473,7 +473,7 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 	if err != nil {
 		return err
 	}
-	err = c.UpsertDocument(key_document, fromStorageKeys(nc), 0)
+	err = c.UpsertDocument(key_cb, fromStorageKeys(nc), 0)
 	if err != nil {
 		return fmt.Errorf("update keys: %v", err)
 	}

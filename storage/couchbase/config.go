@@ -3,6 +3,7 @@ package couchbase
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/couchbase/gocb.v1"
@@ -12,23 +13,21 @@ import (
 )
 
 const (
-	quotaBucket           = 600
-	dexType               = "dex_type"
-	dexSecondaryIndexName = "idx_dex_dex_type_v01"
+	quotaBucket  = 600
+	dexIndexName = "idx_dex_dex_type_v01"
 )
 
 var BucketName string
 var createBucketIfNotExists bool = false
-var CreateSecondaryIndex bool = false
-var CreatePrimaryIndex bool = false
 
 // NetworkDB contains options to couchbase database accessed over network.
 type NetworkDB struct {
-	Bucket   string
-	User     string
-	Password string
-	Host     string
-	Port     uint16
+	Bucket      string
+	User        string
+	Password    string
+	Host        string
+	Port        uint16
+	CreateIndex bool
 }
 
 //not fully tested
@@ -92,17 +91,18 @@ func (cb *Couchbase) bucket_exists(cb_cluster *gocb.Cluster) bool {
 	return exists
 }
 
-func (cb *Couchbase) create_indexes(bucket *gocb.Bucket) {
-	// create indexes
-	if CreatePrimaryIndex || CreateSecondaryIndex {
-		bucket_manager := bucket.Manager(cb.User, cb.Password)
-		if CreatePrimaryIndex {
-			bucket_manager.CreatePrimaryIndex("#primary", true, false)
-		}
-		if CreateSecondaryIndex {
-			bucket_manager.CreateIndex(dexSecondaryIndexName, []string{dexType}, true, false)
+func (cb *Couchbase) create_index(bucket *gocb.Bucket) error {
+	query := fmt.Sprintf("CREATE INDEX `%s` ON `%s`((meta().`id`)) "+
+		"WHERE ((meta().`id`) like 'dex-%s') "+
+		"WITH { 'defer_build':false }", dexIndexName, BucketName, "%")
+	myQuery := gocb.NewN1qlQuery(query)
+	_, err := bucket.ExecuteN1qlQuery(myQuery, nil)
+	if err != nil {
+		if !strings.Contains(err.Error(), fmt.Sprintf("The index %s already exists", dexIndexName)) {
+			return err
 		}
 	}
+	return nil
 }
 
 func (cb *Couchbase) get_connection_string() string {
@@ -131,7 +131,12 @@ func (cb *Couchbase) open(logger log.Logger) (*conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	cb.create_indexes(bucket)
+	if cb.CreateIndex {
+		err = cb.create_index(bucket)
+		if err != nil {
+			return nil, err
+		}
+	}
 	c := &conn{
 		db:     bucket,
 		logger: logger,

@@ -7,7 +7,7 @@ import (
 
 func TestGenerateKeyID(t *testing.T) {
 	got := keyID(connectorKey, "id-connector")
-	wanted := "connector-id-connector"
+	wanted := "dex-connector-id-connector"
 	if got != wanted {
 		t.Fatalf("Expected key ID to be %q, got %q", wanted, got)
 	}
@@ -15,7 +15,7 @@ func TestGenerateKeyID(t *testing.T) {
 
 func TestGeneratekeyEmail(t *testing.T) {
 	got := keyEmail(passwordKey, "User@user.com")
-	wanted := "password-user@user.com"
+	wanted := "dex-password-user@user.com"
 	if got != wanted {
 		t.Fatalf("Expected keyEmail to be %q, got %q", wanted, got)
 	}
@@ -23,7 +23,7 @@ func TestGeneratekeyEmail(t *testing.T) {
 
 func TestGeneratekeySession(t *testing.T) {
 	got := keySession(offlineSessionKey, "userID", "connID")
-	wanted := "offlinesession-userid-connid"
+	wanted := "dex-offlinesession-userid-connid"
 	if got != wanted {
 		t.Fatalf("Expected keySession to be %q, got %q", wanted, got)
 	}
