@@ -38,6 +38,10 @@ github.com/golang/protobuf/protoc-gen-go/plugin
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
+# github.com/golang/snappy v0.0.1
+github.com/golang/snappy
+# github.com/google/uuid v1.1.1
+github.com/google/uuid
 # github.com/gorilla/handlers v1.4.2
 github.com/gorilla/handlers
 # github.com/gorilla/mux v1.7.3
@@ -63,6 +67,9 @@ github.com/lib/pq/scram
 github.com/mattn/go-sqlite3
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 github.com/matttproud/golang_protobuf_extensions/pbutil
+# github.com/opentracing/opentracing-go v1.1.0
+github.com/opentracing/opentracing-go
+github.com/opentracing/opentracing-go/log
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib
 # github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35
@@ -103,9 +110,9 @@ golang.org/x/crypto/ed25519/internal/edwards25519
 golang.org/x/lint/golint
 golang.org/x/lint
 # golang.org/x/net v0.0.0-20190813141303-74dc4d7220e7
-golang.org/x/net/context
 golang.org/x/net/http2
 golang.org/x/net/trace
+golang.org/x/net/context
 golang.org/x/net/http/httpguts
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
@@ -178,6 +185,14 @@ google.golang.org/grpc/binarylog/grpc_binarylog_v1
 google.golang.org/grpc/internal/syscall
 # gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d
 gopkg.in/asn1-ber.v1
+# gopkg.in/couchbase/gocb.v1 v1.6.3
+gopkg.in/couchbase/gocb.v1
+# gopkg.in/couchbase/gocbcore.v7 v7.1.14
+gopkg.in/couchbase/gocbcore.v7
+# gopkg.in/couchbaselabs/gocbconnstr.v1 v1.0.4
+gopkg.in/couchbaselabs/gocbconnstr.v1
+# gopkg.in/couchbaselabs/jsonx.v1 v1.0.0
+gopkg.in/couchbaselabs/jsonx.v1
 # gopkg.in/ldap.v2 v2.5.1
 gopkg.in/ldap.v2
 # gopkg.in/square/go-jose.v2 v2.3.1
