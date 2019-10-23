@@ -101,6 +101,43 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 	expectEquals(t, identity.Groups, []string{"team-1"})
 }
 
+func TestUsernameIncludedInFederatedIdentityGroupPrefix(t *testing.T) {
+
+	s := newTestServer(map[string]interface{}{
+		"/api/v4/user": gitlabUser{Email: "some@email.com", ID: 12345678},
+		"/oauth/token": map[string]interface{}{
+			"access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
+			"expires_in":   "30",
+		},
+		"/oauth/userinfo": userInfo{
+			Groups: []string{"team-1"},
+		},
+	})
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	req, err := http.NewRequest("GET", hostURL.String(), nil)
+	expectNil(t, err)
+
+	c := gitlabConnector{baseURL: s.URL, httpClient: newClient(), groupPrefix: "gl_"}
+	identity, err := c.HandleCallback(connector.Scopes{Groups: false}, req)
+
+	expectNil(t, err)
+	expectEquals(t, identity.Username, "some@email.com")
+	expectEquals(t, identity.UserID, "12345678")
+	expectEquals(t, 0, len(identity.Groups))
+
+	c = gitlabConnector{baseURL: s.URL, httpClient: newClient(), groupPrefix: "gl_"}
+	identity, err = c.HandleCallback(connector.Scopes{Groups: true}, req)
+
+	expectNil(t, err)
+	expectEquals(t, identity.Username, "some@email.com")
+	expectEquals(t, identity.UserID, "12345678")
+	expectEquals(t, identity.Groups, []string{"gl_team-1"})
+}
+
 func TestLoginUsedAsIDWhenConfigured(t *testing.T) {
 
 	s := newTestServer(map[string]interface{}{
@@ -157,6 +194,34 @@ func TestLoginWithTeamWhitelisted(t *testing.T) {
 	expectEquals(t, identity.Username, "Joe Bloggs")
 }
 
+func TestLoginWithTeamWhitelistedGroupPrefix(t *testing.T) {
+
+	s := newTestServer(map[string]interface{}{
+		"/api/v4/user": gitlabUser{Email: "some@email.com", ID: 12345678, Name: "Joe Bloggs"},
+		"/oauth/token": map[string]interface{}{
+			"access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
+			"expires_in":   "30",
+		},
+		"/oauth/userinfo": userInfo{
+			Groups: []string{"team-1"},
+		},
+	})
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	req, err := http.NewRequest("GET", hostURL.String(), nil)
+	expectNil(t, err)
+
+	c := gitlabConnector{baseURL: s.URL, httpClient: newClient(), groups: []string{"team-1"}, groupPrefix: "gl_"}
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
+
+	expectNil(t, err)
+	expectEquals(t, identity.UserID, "12345678")
+	expectEquals(t, identity.Username, "Joe Bloggs")
+}
+
 func TestLoginWithTeamNonWhitelisted(t *testing.T) {
 
 	s := newTestServer(map[string]interface{}{
@@ -178,6 +243,33 @@ func TestLoginWithTeamNonWhitelisted(t *testing.T) {
 	expectNil(t, err)
 
 	c := gitlabConnector{baseURL: s.URL, httpClient: newClient(), groups: []string{"team-2"}}
+	_, err = c.HandleCallback(connector.Scopes{Groups: true}, req)
+
+	expectNotNil(t, err, "HandleCallback error")
+	expectEquals(t, err.Error(), "gitlab: get groups: gitlab: user \"joebloggs\" is not in any of the required groups")
+}
+
+func TestLoginWithTeamNonWhitelistedGroupPrefix(t *testing.T) {
+
+	s := newTestServer(map[string]interface{}{
+		"/api/v4/user": gitlabUser{Email: "some@email.com", ID: 12345678, Name: "Joe Bloggs", Username: "joebloggs"},
+		"/oauth/token": map[string]interface{}{
+			"access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
+			"expires_in":   "30",
+		},
+		"/oauth/userinfo": userInfo{
+			Groups: []string{"team-1"},
+		},
+	})
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	req, err := http.NewRequest("GET", hostURL.String(), nil)
+	expectNil(t, err)
+
+	c := gitlabConnector{baseURL: s.URL, httpClient: newClient(), groups: []string{"team-2"}, groupPrefix: "gl_"}
 	_, err = c.HandleCallback(connector.Scopes{Groups: true}, req)
 
 	expectNotNil(t, err, "HandleCallback error")

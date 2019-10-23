@@ -33,6 +33,7 @@ type Config struct {
 	RedirectURI  string   `json:"redirectURI"`
 	Groups       []string `json:"groups"`
 	UseLoginAsID bool     `json:"useLoginAsID"`
+	GroupPrefix  string   `json:"groupPrefix"`
 }
 
 type gitlabUser struct {
@@ -57,6 +58,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		logger:       logger,
 		groups:       c.Groups,
 		useLoginAsID: c.UseLoginAsID,
+		groupPrefix:  c.GroupPrefix,
 	}, nil
 }
 
@@ -80,6 +82,7 @@ type gitlabConnector struct {
 	httpClient   *http.Client
 	// if set to true will use the user's handle rather than their numeric id as the ID
 	useLoginAsID bool
+	groupPrefix  string
 }
 
 func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
@@ -162,6 +165,13 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 		if err != nil {
 			return identity, fmt.Errorf("gitlab: get groups: %v", err)
 		}
+
+		if c.groupPrefix != "" {
+			for grpIdx := range groups {
+				groups[grpIdx] = c.groupPrefix + groups[grpIdx]
+			}
+		}
+
 		identity.Groups = groups
 	}
 
@@ -206,6 +216,13 @@ func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 		if err != nil {
 			return ident, fmt.Errorf("gitlab: get groups: %v", err)
 		}
+
+		if c.groupPrefix != "" {
+			for grpIdx := range groups {
+				groups[grpIdx] = c.groupPrefix + groups[grpIdx]
+			}
+		}
+
 		ident.Groups = groups
 	}
 	return ident, nil
