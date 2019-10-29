@@ -237,6 +237,25 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check whether we have a valid session.
+	if conn.Connector.(type) == connector.SessionConnector {
+		session, validSession, err := s.getActiveSession(r)
+		if err == nil && validSession {
+			for _, c := range connectors {
+				if c.ID == session.ConnectorID {
+					redirectURL, err := s.finalizeLogin(identity, authReq, c)
+					if err != nil {
+						s.logger.Errorf("Failed to finalize login (for session): %v", err)
+						// Don't abort login, but proceed as usual after logging error
+						break
+					}
+					http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+					return
+				}
+			}
+		}
+	}
+
 	// Redirect if a client chooses a specific connector_id
 	if authReq.ConnectorID != "" {
 		for _, c := range connectors {
@@ -387,6 +406,11 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			s.logger.Errorf("Failed to finalize login: %v", err)
 			s.renderError(r, w, http.StatusInternalServerError, "Login error.")
 			return
+		}
+
+		// Check whether we want to potentially store a session object.
+		if conn.Connector.(type) == connector.SessionConnector {
+			s.storeSession(w, connID, username, identity)
 		}
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)

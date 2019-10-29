@@ -33,6 +33,7 @@ var (
 
 	_ connector.PasswordConnector = passwordConnector{}
 	_ connector.RefreshConnector  = passwordConnector{}
+	_ connector.SessionConnector  = passwordConnector{}
 )
 
 // Callback is a connector that requires no user interaction and always returns the same identity.
@@ -116,4 +117,16 @@ func (p passwordConnector) Prompt() string { return "" }
 
 func (p passwordConnector) Refresh(_ context.Context, _ connector.Scopes, identity connector.Identity) (connector.Identity, error) {
 	return identity, nil
+}
+
+func (p passwordConnector) SessionValid(_ context.Context, _ connector.Scopes, session connector.Session) (connector.Identity, validSession bool, error) {
+	if session.Username == p.username {
+		return connector.Identity{
+			UserID:        "0-385-28089-0",
+			Username:      "Kilgore Trout",
+			Email:         "kilgore@kilgore.trout",
+			EmailVerified: true,
+		}, true, nil
+	}
+	return identity, false, nil
 }

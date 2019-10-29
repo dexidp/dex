@@ -539,3 +539,12 @@ func (s *Server) getConnector(id string) (Connector, error) {
 
 	return conn, nil
 }
+
+func (s *Server) getActiveSession(r *http.Request) (session connector.Session, validSession bool) {
+	// TODO: implement
+	return connector.Session{}, false
+}
+
+func (s *Server) storeSession(w http.ResponseWriter, connectorID string, username string, identity connector.Identity) {
+	// TODO: implement
+}

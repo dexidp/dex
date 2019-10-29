@@ -182,6 +182,7 @@ func (c *Config) OpenConnector(logger log.Logger) (interface {
 	connector.Connector
 	connector.PasswordConnector
 	connector.RefreshConnector
+	connector.SessionConnector
 }, error) {
 	return c.openConnector(logger)
 }
@@ -401,6 +402,34 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 	}
 }
 
+func (c *ldapConnector) completeLogin(ctx context.Context, s connector.Scopes, user ldap.Entry) (ident connector.Identity, ok bool, err error) {
+	if ident, err = c.identityFromEntry(user); err != nil {
+		return connector.Identity{}, false, err
+	}
+
+	if s.Groups {
+		groups, err := c.groups(ctx, user)
+		if err != nil {
+			return connector.Identity{}, false, fmt.Errorf("ldap: failed to query groups: %v", err)
+		}
+		ident.Groups = groups
+	}
+
+	if s.OfflineAccess {
+		refresh := refreshData{
+			Username: username,
+			Entry:    user,
+		}
+		// Encode entry for follow up requests such as the groups query and
+		// refresh attempts.
+		if ident.ConnectorData, err = json.Marshal(refresh); err != nil {
+			return connector.Identity{}, false, fmt.Errorf("ldap: marshal entry: %v", err)
+		}
+	}
+
+	return ident, true, nil
+}
+
 func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (ident connector.Identity, validPass bool, err error) {
 	// make this check to avoid unauthenticated bind to the LDAP server.
 	if password == "" {
@@ -451,31 +480,7 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 		return connector.Identity{}, false, nil
 	}
 
-	if ident, err = c.identityFromEntry(user); err != nil {
-		return connector.Identity{}, false, err
-	}
-
-	if s.Groups {
-		groups, err := c.groups(ctx, user)
-		if err != nil {
-			return connector.Identity{}, false, fmt.Errorf("ldap: failed to query groups: %v", err)
-		}
-		ident.Groups = groups
-	}
-
-	if s.OfflineAccess {
-		refresh := refreshData{
-			Username: username,
-			Entry:    user,
-		}
-		// Encode entry for follow up requests such as the groups query and
-		// refresh attempts.
-		if ident.ConnectorData, err = json.Marshal(refresh); err != nil {
-			return connector.Identity{}, false, fmt.Errorf("ldap: marshal entry: %v", err)
-		}
-	}
-
-	return ident, true, nil
+	return c.completeLogin(ctx, s, user)
 }
 
 func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
@@ -517,6 +522,36 @@ func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident c
 		newIdent.Groups = groups
 	}
 	return newIdent, nil
+}
+
+func (c *ldapConnector) SessionValid(ctx context.Context, s connector.Scopes, session connector.Session) (ident connector.Identity, validSession bool, err error) {
+	var (
+		// We want to return a different error if the user wasn't found vs
+		// if there was an error.
+		userNotFound = false
+		user          ldap.Entry
+	)
+
+	err = c.do(ctx, func(conn *ldap.Conn) error {
+		entry, found, err := c.userEntry(conn, session.Username)
+		if err != nil {
+			return err
+		}
+		if !found {
+			userNotFound = true
+			return nil
+		}
+		user = entry
+		return nil
+	})
+	if err != nil {
+		return connector.Identity{}, false, err
+	}
+	if userNotFound {
+		return connector.Identity{}, false, nil
+	}
+
+	return c.completeLogin(ctx, s, user)
 }
 
 func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, error) {

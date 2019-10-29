@@ -37,6 +37,12 @@ type Identity struct {
 	ConnectorData []byte
 }
 
+type Session struct {
+	ConnectorID string
+	Username    string
+	ValidUntil  string
+}
+
 // PasswordConnector is an interface implemented by connectors which take a
 // username and password.
 // Prompt() is used to inform the handler what to display in the password
@@ -96,4 +102,12 @@ type RefreshConnector interface {
 	// connector should attempt to update the identity object to reflect any
 	// changes since the token was last refreshed.
 	Refresh(ctx context.Context, s Scopes, identity Identity) (Identity, error)
+}
+
+// SessionConnector is an interface implemented by connectors which allow session
+// management.
+// SessionValid() is used to check whether an existing session is still valid.
+// It returns current identity information when called.
+type SessionConnector interface {
+	SessionValid(ctx context.Context, s Scopes, session Session) (identity Identity, validSession bool, err error)
 }
