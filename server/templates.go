@@ -246,6 +246,7 @@ type connectorInfo struct {
 	ID   string
 	Name string
 	URL  string
+	Type string
 }
 
 type byName []connectorInfo
