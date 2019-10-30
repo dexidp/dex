@@ -13,7 +13,7 @@ The connector executes two primary queries:
 
 The dex repo contains a basic LDAP setup using [OpenLDAP][openldap].
 
-First start the LDAP server using the example script. This will run the OpenLDAP daemon and seed it with a initial set of users.
+First start the LDAP server using the example script. This will run the OpenLDAP daemon and seed it with an initial set of users.
 
 ```
 ./scripts/slapd.sh
