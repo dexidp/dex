@@ -39,6 +39,7 @@ import (
 //         idAttr: uid
 //         emailAttr: mail
 //         nameAttr: name
+//         preferredUsernameAttr: uid
 //       groupSearch:
 //         # Would translate to the query "(&(objectClass=group)(member=<user uid>))"
 //         baseDN: cn=groups,dc=example,dc=com
@@ -103,9 +104,10 @@ type Config struct {
 		Scope string `json:"scope"`
 
 		// A mapping of attributes on the user entry to claims.
-		IDAttr    string `json:"idAttr"`    // Defaults to "uid"
-		EmailAttr string `json:"emailAttr"` // Defaults to "mail"
-		NameAttr  string `json:"nameAttr"`  // No default.
+		IDAttr                    string `json:"idAttr"`                // Defaults to "uid"
+		EmailAttr                 string `json:"emailAttr"`             // Defaults to "mail"
+		NameAttr                  string `json:"nameAttr"`              // No default.
+		PreferredUsernameAttrAttr string `json:"preferredUsernameAttr"` // No default.
 
 		// If this is set, the email claim of the id token will be constructed from the idAttr and
 		// value of emailSuffix. This should not include the @ character.
@@ -341,6 +343,12 @@ func (c *ldapConnector) identityFromEntry(user ldap.Entry) (ident connector.Iden
 		}
 	}
 
+	if c.UserSearch.PreferredUsernameAttrAttr != "" {
+		if ident.PreferredUsername = getAttr(user, c.UserSearch.PreferredUsernameAttrAttr); ident.PreferredUsername == "" {
+			missing = append(missing, c.UserSearch.PreferredUsernameAttrAttr)
+		}
+	}
+
 	if c.UserSearch.EmailSuffix != "" {
 		ident.Email = ident.Username + "@" + c.UserSearch.EmailSuffix
 	} else if ident.Email = getAttr(user, c.UserSearch.EmailAttr); ident.Email == "" {
@@ -379,6 +387,10 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 
 	if c.UserSearch.NameAttr != "" {
 		req.Attributes = append(req.Attributes, c.UserSearch.NameAttr)
+	}
+
+	if c.UserSearch.PreferredUsernameAttrAttr != "" {
+		req.Attributes = append(req.Attributes, c.UserSearch.PreferredUsernameAttrAttr)
 	}
 
 	c.logger.Infof("performing ldap search %s %s %s",
