@@ -15,6 +15,7 @@ import (
 
 	"github.com/beevik/etree"
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/log"
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/russellhaering/goxmldsig/etreeutils"
@@ -97,9 +98,9 @@ type Config struct {
 	// If GroupsDelim is supplied the connector assumes groups are returned as a
 	// single string instead of multiple attribute values. This delimiter will be
 	// used split the groups string.
-	GroupsDelim string `json:"groupsDelim"`
-
-	RedirectURI string `json:"redirectURI"`
+	GroupsDelim   string   `json:"groupsDelim"`
+	AllowedGroups []string `json:"allowedGroups"`
+	RedirectURI   string   `json:"redirectURI"`
 
 	// Requested format of the NameID. The NameID value is is mapped to the ID Token
 	// 'sub' claim.
@@ -154,16 +155,17 @@ func (c *Config) openConnector(logger log.Logger) (*provider, error) {
 	}
 
 	p := &provider{
-		entityIssuer: c.EntityIssuer,
-		ssoIssuer:    c.SSOIssuer,
-		ssoURL:       c.SSOURL,
-		now:          time.Now,
-		usernameAttr: c.UsernameAttr,
-		emailAttr:    c.EmailAttr,
-		groupsAttr:   c.GroupsAttr,
-		groupsDelim:  c.GroupsDelim,
-		redirectURI:  c.RedirectURI,
-		logger:       logger,
+		entityIssuer:  c.EntityIssuer,
+		ssoIssuer:     c.SSOIssuer,
+		ssoURL:        c.SSOURL,
+		now:           time.Now,
+		usernameAttr:  c.UsernameAttr,
+		emailAttr:     c.EmailAttr,
+		groupsAttr:    c.GroupsAttr,
+		groupsDelim:   c.GroupsDelim,
+		allowedGroups: c.AllowedGroups,
+		redirectURI:   c.RedirectURI,
+		logger:        logger,
 
 		nameIDPolicyFormat: c.NameIDPolicyFormat,
 	}
@@ -232,10 +234,11 @@ type provider struct {
 	validator *dsig.ValidationContext
 
 	// Attribute mappings
-	usernameAttr string
-	emailAttr    string
-	groupsAttr   string
-	groupsDelim  string
+	usernameAttr  string
+	emailAttr     string
+	groupsAttr    string
+	groupsDelim   string
+	allowedGroups []string
 
 	redirectURI string
 
@@ -388,9 +391,14 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		return ident, fmt.Errorf("no attribute with name %q: %s", p.usernameAttr, attributes.names())
 	}
 
-	if !s.Groups || p.groupsAttr == "" {
+	if len(p.allowedGroups) == 0 && (!s.Groups || p.groupsAttr == "") {
 		// Groups not requested or not configured. We're done.
 		return ident, nil
+	}
+
+	if len(p.allowedGroups) > 0 && (!s.Groups || p.groupsAttr == "") {
+		// allowedGroups set but no groups or groupsAttr. Disallowing.
+		return ident, fmt.Errorf("User not a member of allowed groups")
 	}
 
 	// Grab the groups.
@@ -408,6 +416,21 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		}
 		ident.Groups = groups
 	}
+
+	if len(p.allowedGroups) == 0 {
+		// No allowed groups set, just return the ident
+		return ident, nil
+	}
+
+	// Look for membership in one of the allowed groups
+	groupMatches := groups.Filter(ident.Groups, p.allowedGroups)
+
+	if len(groupMatches) == 0 {
+		// No group membership matches found, disallowing
+		return ident, fmt.Errorf("User not a member of allowed groups")
+	}
+
+	// Otherwise, we're good
 	return ident, nil
 }
 
