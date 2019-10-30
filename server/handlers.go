@@ -503,7 +503,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 	}
 
 	s.logger.Infof("login successful: connector %q, username=%q, preferred_username=%q, email=%q, groups=%q",
-		authReq.ConnectorID, claims.Username, claims.PreferredUsername, claims.Email, claims.Groups)
+		authReq.ConnectorID, claims.Username, claims.PreferredUsername, email, claims.Groups)
 
 	return path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID, nil
 }
