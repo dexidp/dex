@@ -48,7 +48,7 @@ func TestHandleCallback(t *testing.T) {
 		identity, err := cfConn.HandleCallback(connector.Scopes{Groups: true}, req)
 		expectEqual(t, err, nil)
 
-		expectEqual(t, len(identity.Groups), 12)
+		expectEqual(t, len(identity.Groups), 18)
 		expectEqual(t, identity.Groups[0], "some-org-guid-1")
 		expectEqual(t, identity.Groups[1], "some-org-guid-2")
 		expectEqual(t, identity.Groups[2], "some-org-guid-3")
@@ -60,7 +60,13 @@ func TestHandleCallback(t *testing.T) {
 		expectEqual(t, identity.Groups[8], "some-org-name-3")
 		expectEqual(t, identity.Groups[9], "some-org-name-4")
 		expectEqual(t, identity.Groups[10], "some-space-guid-1")
-		expectEqual(t, identity.Groups[11], "some-space-guid-2")
+		expectEqual(t, identity.Groups[11], "some-space-guid-1:auditor")
+		expectEqual(t, identity.Groups[12], "some-space-guid-1:developer")
+		expectEqual(t, identity.Groups[13], "some-space-guid-1:manager")
+		expectEqual(t, identity.Groups[14], "some-space-guid-2")
+		expectEqual(t, identity.Groups[15], "some-space-guid-2:auditor")
+		expectEqual(t, identity.Groups[16], "some-space-guid-2:developer")
+		expectEqual(t, identity.Groups[17], "some-space-guid-2:manager")
 	})
 
 	t.Run("CallbackWithoutGroupsScope", func(t *testing.T) {
