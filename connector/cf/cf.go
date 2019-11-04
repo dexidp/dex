@@ -68,6 +68,7 @@ type Space struct {
 	Name    string
 	Guid    string
 	OrgGuid string
+	Role    string
 }
 
 type Org struct {
@@ -192,7 +193,7 @@ func (c *cfConnector) LoginURL(scopes connector.Scopes, callbackURL, state strin
 	return oauth2Config.AuthCodeURL(state), nil
 }
 
-func fetchRoleSpaces(baseUrl, path string, client *http.Client) ([]Space, error) {
+func fetchRoleSpaces(baseUrl, path, role string, client *http.Client) ([]Space, error) {
 	var spaces []Space
 
 	resources, err := fetchResources(baseUrl, path, client)
@@ -205,6 +206,7 @@ func fetchRoleSpaces(baseUrl, path string, client *http.Client) ([]Space, error)
 			Name:    resource.Entity.Name,
 			Guid:    resource.Metadata.Guid,
 			OrgGuid: resource.Entity.OrganizationGuid,
+			Role:    role,
 		})
 	}
 
@@ -268,32 +270,33 @@ func getGroupsClaims(orgs []Org, spaces []Space) []string {
 
 	var (
 		orgMap       = map[string]string{}
-		orgSpaces    = map[string][]string{}
+		orgSpaces    = map[string][]Space{}
 		groupsClaims = map[string]bool{}
 	)
 
 	for _, org := range orgs {
 		orgMap[org.Guid] = org.Name
-		orgSpaces[org.Name] = []string{}
+		orgSpaces[org.Name] = []Space{}
 		groupsClaims[org.Guid] = true
 		groupsClaims[org.Name] = true
 	}
 
 	for _, space := range spaces {
 		orgName := orgMap[space.OrgGuid]
-		orgSpaces[orgName] = append(orgSpaces[orgName], space.Name)
+		orgSpaces[orgName] = append(orgSpaces[orgName], space)
 		groupsClaims[space.Guid] = true
+		groupsClaims[fmt.Sprintf("%s:%s", space.Guid, space.Role)] = true
 	}
 
-	for orgName, spaceNames := range orgSpaces {
-		for _, spaceName := range spaceNames {
-			groupsClaims[fmt.Sprintf("%s:%s", orgName, spaceName)] = true
+	for orgName, spaces := range orgSpaces {
+		for _, space := range spaces {
+			groupsClaims[fmt.Sprintf("%s:%s", orgName, space.Name)] = true
 		}
 	}
 
 	var groups []string
-	for k, _ := range groupsClaims {
-		groups = append(groups, k)
+	for group, _ := range groupsClaims {
+		groups = append(groups, group)
 	}
 
 	sort.Strings(groups)
@@ -362,17 +365,17 @@ func (c *cfConnector) HandleCallback(s connector.Scopes, r *http.Request) (ident
 			return identity, fmt.Errorf("failed to fetch organizaitons: %v", err)
 		}
 
-		developerSpaces, err := fetchRoleSpaces(c.apiURL, devPath, client)
+		developerSpaces, err := fetchRoleSpaces(c.apiURL, devPath, "developer", client)
 		if err != nil {
 			return identity, fmt.Errorf("failed to fetch spaces for developer roles: %v", err)
 		}
 
-		auditorSpaces, err := fetchRoleSpaces(c.apiURL, auditorPath, client)
+		auditorSpaces, err := fetchRoleSpaces(c.apiURL, auditorPath, "auditor", client)
 		if err != nil {
 			return identity, fmt.Errorf("failed to fetch spaces for developer roles: %v", err)
 		}
 
-		managerSpaces, err := fetchRoleSpaces(c.apiURL, managerPath, client)
+		managerSpaces, err := fetchRoleSpaces(c.apiURL, managerPath, "manager", client)
 		if err != nil {
 			return identity, fmt.Errorf("failed to fetch spaces for developer roles: %v", err)
 		}
