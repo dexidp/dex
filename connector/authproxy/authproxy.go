@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
@@ -47,11 +48,21 @@ func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connecto
 	if remoteUser == "" {
 		return connector.Identity{}, fmt.Errorf("required HTTP header X-Remote-User is not set")
 	}
-	// TODO: add support for X-Remote-Group, see
-	// https://kubernetes.io/docs/admin/authentication/#authenticating-proxy
+	remoteGroups, ok := r.Header["X-Remote-Group"]
+	if !ok {
+		remoteGroups = []string{}
+	}
+	if strings.Contains(remoteUser, "@") {
+		remoteUserName := strings.SplitN(remoteUser, "@", 2)[0]
+		return connector.Identity{
+			Username:      remoteUserName,
+			Email:         remoteUser,
+			EmailVerified: true,
+			Groups:        remoteGroups,
+		}, nil
+	}
 	return connector.Identity{
-		UserID:        remoteUser, // TODO: figure out if this is a bad ID value.
-		Email:         remoteUser,
-		EmailVerified: true,
+		Username: remoteUser,
+		Groups:   remoteGroups,
 	}, nil
 }

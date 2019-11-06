@@ -85,6 +85,8 @@ configuration will work for Apache 2.4.10+:
 
     # Requires Apache 2.4.10+
     RequestHeader set X-Remote-User expr=%{REMOTE_USER}@debian.org
+    RequestHeader set X-Remote-Group first-group
+    RequestHeader set X-Remote-Group second-group
 
     ProxyPass "http://localhost:5556/dex/callback/myBasicAuth"
     ProxyPassReverse "http://localhost:5556/dex/callback/myBasicAuth"
@@ -128,6 +130,8 @@ virtual host configuration in e.g. `/etc/apache2/sites-available/sso.conf`:
 
         # Requires Apache 2.4.10+
         RequestHeader set X-Remote-User expr=%{REMOTE_USER}@debian.org
+        RequestHeader set X-Remote-Group first-group
+        RequestHeader set X-Remote-Group second-group
 
         ProxyPass "http://localhost:5556/dex/callback/myBasicAuth"
         ProxyPassReverse "http://localhost:5556/dex/callback/myBasicAuth"
