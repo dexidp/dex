@@ -9,6 +9,7 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
+// RefreshTokenRef couchbase structure
 type RefreshTokenRef struct {
 	ID        string `json:"ID"`
 	ClientID  string `json:"clientID"`
@@ -159,13 +160,13 @@ func fromStorageRefreshToken(r storage.RefreshToken) RefreshToken {
 }
 
 func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
-	created_at, _ := strconv.ParseInt(strconv.FormatInt(r.CreatedAt, 10), 10, 64)
-	last_used, _ := strconv.ParseInt(strconv.FormatInt(r.LastUsed, 10), 10, 64)
+	createdAt, _ := strconv.ParseInt(strconv.FormatInt(r.CreatedAt, 10), 10, 64)
+	lastUsed, _ := strconv.ParseInt(strconv.FormatInt(r.LastUsed, 10), 10, 64)
 	return storage.RefreshToken{
 		ID:            r.ID,
 		Token:         r.Token,
-		CreatedAt:     time.Unix(created_at, 0),
-		LastUsed:      time.Unix(last_used, 0),
+		CreatedAt:     time.Unix(createdAt, 0),
+		LastUsed:      time.Unix(lastUsed, 0),
 		ClientID:      r.ClientID,
 		ConnectorID:   r.ConnectorID,
 		ConnectorData: r.ConnectorData,
@@ -204,7 +205,7 @@ func toStorageClaims(i Claims) storage.Claims {
 	}
 }
 
-// signatures.
+// VerificationKey signatures.
 type VerificationKey struct {
 	PublicKey *jose.JSONWebKey `json:"publicKey"`
 	Expiry    int64            `json:"expiry"`
@@ -242,7 +243,7 @@ type OfflineSessions struct {
 }
 
 func fromStorageOfflineSessions(o storage.OfflineSessions) OfflineSessions {
-	list_vk := make(map[string]RefreshTokenRef)
+	listVk := make(map[string]RefreshTokenRef)
 	for k, v := range o.Refresh {
 		obj := RefreshTokenRef{
 			ID:        v.ID,
@@ -250,35 +251,35 @@ func fromStorageOfflineSessions(o storage.OfflineSessions) OfflineSessions {
 			CreatedAt: v.CreatedAt.Unix(),
 			LastUsed:  v.LastUsed.Unix(),
 		}
-		list_vk[k] = obj
+		listVk[k] = obj
 	}
 	return OfflineSessions{
 		UserID:  o.UserID,
 		ConnID:  o.ConnID,
-		Refresh: list_vk,
+		Refresh: listVk,
 	}
 }
 
 func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
-	list_vk := make(map[string]*storage.RefreshTokenRef)
+	listVk := make(map[string]*storage.RefreshTokenRef)
 	for k, v := range o.Refresh {
-		created_at, _ := strconv.ParseInt(strconv.FormatInt(v.CreatedAt, 10), 10, 64)
-		last_used, _ := strconv.ParseInt(strconv.FormatInt(v.LastUsed, 10), 10, 64)
+		createdAt, _ := strconv.ParseInt(strconv.FormatInt(v.CreatedAt, 10), 10, 64)
+		lastUsed, _ := strconv.ParseInt(strconv.FormatInt(v.LastUsed, 10), 10, 64)
 
 		obj := storage.RefreshTokenRef{
 			ID:        v.ID,
 			ClientID:  v.ClientID,
-			CreatedAt: time.Unix(created_at, 0),
-			LastUsed:  time.Unix(last_used, 0),
+			CreatedAt: time.Unix(createdAt, 0),
+			LastUsed:  time.Unix(lastUsed, 0),
 		}
 
-		list_vk[k] = &obj
+		listVk[k] = &obj
 	}
 
 	s := storage.OfflineSessions{
 		UserID:  o.UserID,
 		ConnID:  o.ConnID,
-		Refresh: list_vk,
+		Refresh: listVk,
 	}
 	if s.Refresh == nil {
 		// Server code assumes this will be non-nil.
@@ -288,29 +289,29 @@ func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
 }
 
 func fromStorageKeys(o storage.Keys) Keys {
-	var list_vk []VerificationKey
+	var listVk []VerificationKey
 	for _, vk := range o.VerificationKeys {
-		list_vk = append(list_vk, fromStorageVerificationKey(vk))
+		listVk = append(listVk, fromStorageVerificationKey(vk))
 	}
 	return Keys{
 		SigningKey:       o.SigningKey,
 		SigningKeyPub:    o.SigningKeyPub,
-		VerificationKeys: list_vk,
+		VerificationKeys: listVk,
 		NextRotation:     o.NextRotation.Unix(),
 	}
 }
 
 func toStorageKeys(o Keys) storage.Keys {
-	time_parsed, _ := strconv.ParseInt(strconv.FormatInt(o.NextRotation, 10), 10, 64)
-	var list_vk []storage.VerificationKey
+	timeParsed, _ := strconv.ParseInt(strconv.FormatInt(o.NextRotation, 10), 10, 64)
+	var listVk []storage.VerificationKey
 	for _, vk := range o.VerificationKeys {
-		list_vk = append(list_vk, toStorageVerificationKey(vk))
+		listVk = append(listVk, toStorageVerificationKey(vk))
 	}
 	s := storage.Keys{
 		SigningKey:       o.SigningKey,
 		SigningKeyPub:    o.SigningKeyPub,
-		VerificationKeys: list_vk,
-		NextRotation:     time.Unix(time_parsed, 0),
+		VerificationKeys: listVk,
+		NextRotation:     time.Unix(timeParsed, 0),
 	}
 	return s
 }

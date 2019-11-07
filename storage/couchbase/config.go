@@ -17,6 +17,7 @@ const (
 	dexIndexName = "idx_dex_dex_type_v01"
 )
 
+// BucketName the name of the couchbase bucket is going to be used for saving dex data
 var BucketName string
 var createBucketIfNotExists bool = false
 
@@ -30,7 +31,7 @@ type NetworkDB struct {
 	CreateIndex bool
 }
 
-//not fully tested
+// SSL configurations is not fully tested
 type SSL struct {
 	CertFile string
 }
@@ -56,17 +57,17 @@ func (cb *Couchbase) Open(logger log.Logger) (storage.Storage, error) {
 	return conn, nil
 }
 
-func (cb *Couchbase) create_bucket(logger log.Logger, bucket_name string, cb_cluster *gocb.Cluster) error {
-	cluster_manager := cb_cluster.Manager(cb.User, cb.Password)
+func (cb *Couchbase) createBucket(logger log.Logger, bucketName string, cbCluster *gocb.Cluster) error {
+	clusterManager := cbCluster.Manager(cb.User, cb.Password)
 	bucketSettings := gocb.BucketSettings{
 		FlushEnabled:  false,
 		IndexReplicas: false,
-		Name:          bucket_name,
+		Name:          bucketName,
 		Password:      "",
 		Quota:         quotaBucket,
 		Replicas:      1,
 	}
-	err := cluster_manager.InsertBucket(&bucketSettings)
+	err := clusterManager.InsertBucket(&bucketSettings)
 	if err != nil {
 		logger.Errorf(err.Error())
 		return err
@@ -75,13 +76,13 @@ func (cb *Couchbase) create_bucket(logger log.Logger, bucket_name string, cb_clu
 	return nil
 }
 
-func (cb *Couchbase) bucket_exists(cb_cluster *gocb.Cluster) bool {
-	cluster_manager := cb_cluster.Manager(cb.User, cb.Password)
-	list_buckets, err_list_bucket := cluster_manager.GetBuckets()
+func (cb *Couchbase) bucketExists(cbCluster *gocb.Cluster) bool {
+	clusterManager := cbCluster.Manager(cb.User, cb.Password)
+	listBuckets, err := clusterManager.GetBuckets()
 	exists := false
-	if err_list_bucket == nil {
-		for _, bucket_var := range list_buckets {
-			if bucket_var.Name != "" && bucket_var.Name == BucketName {
+	if err == nil {
+		for _, bucketVar := range listBuckets {
+			if bucketVar.Name != "" && bucketVar.Name == BucketName {
 				exists = true
 				break
 			}
@@ -91,7 +92,7 @@ func (cb *Couchbase) bucket_exists(cb_cluster *gocb.Cluster) bool {
 	return exists
 }
 
-func (cb *Couchbase) create_index(bucket *gocb.Bucket) error {
+func (cb *Couchbase) createIndex(bucket *gocb.Bucket) error {
 	query := fmt.Sprintf("CREATE INDEX `%s` ON `%s`((meta().`id`)) "+
 		"WHERE ((meta().`id`) like 'dex-%s') "+
 		"WITH { 'defer_build':false }", dexIndexName, BucketName, "%")
@@ -105,34 +106,34 @@ func (cb *Couchbase) create_index(bucket *gocb.Bucket) error {
 	return nil
 }
 
-func (cb *Couchbase) get_connection_string() string {
-	connection_string := fmt.Sprintf("couchbase://%s", dataSourceStr(cb.Host))
+func (cb *Couchbase) getConnectionString() string {
+	connectionString := fmt.Sprintf("couchbase://%s", dataSourceStr(cb.Host))
 	if cb.SSL.CertFile != "" {
-		connection_string = fmt.Sprintf("couchbases://%s?certpath=%s", dataSourceStr(cb.Host), cb.SSL.CertFile)
+		connectionString = fmt.Sprintf("couchbases://%s?certpath=%s", dataSourceStr(cb.Host), cb.SSL.CertFile)
 	}
-	return connection_string
+	return connectionString
 }
 
 func (cb *Couchbase) open(logger log.Logger) (*conn, error) {
 	BucketName = cb.Bucket
-	connection_string := cb.get_connection_string()
-	cb_cluster, err := gocb.Connect(connection_string)
+	connectionString := cb.getConnectionString()
+	cbCluster, err := gocb.Connect(connectionString)
 	if err != nil {
 		return nil, err
 	}
-	cb_cluster.Authenticate(gocb.PasswordAuthenticator{
+	cbCluster.Authenticate(gocb.PasswordAuthenticator{
 		Username: cb.User,
 		Password: cb.Password,
 	})
-	if createBucketIfNotExists && !cb.bucket_exists(cb_cluster) {
-		cb.create_bucket(logger, BucketName, cb_cluster)
+	if createBucketIfNotExists && !cb.bucketExists(cbCluster) {
+		cb.createBucket(logger, BucketName, cbCluster)
 	}
-	bucket, err := cb_cluster.OpenBucket(BucketName, "")
+	bucket, err := cbCluster.OpenBucket(BucketName, "")
 	if err != nil {
 		return nil, err
 	}
 	if cb.CreateIndex {
-		err = cb.create_index(bucket)
+		err = cb.createIndex(bucket)
 		if err != nil {
 			return nil, err
 		}
