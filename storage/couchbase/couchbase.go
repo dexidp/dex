@@ -176,9 +176,9 @@ func (c *conn) ListClients() ([]storage.Client, error) {
 }
 
 func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
-	var ttl uint32 = uint32(int(time.Until(a.Expiry).Seconds()))
+	var ttl = uint32(int(time.Until(a.Expiry).Seconds()))
 	keyCb := keyID(authRequestKey, a.ID)
-	var authCb AuthRequest = fromStorageAuthRequest(a)
+	var authCb = fromStorageAuthRequest(a)
 	err := c.InsertDocument(keyCb, authCb, ttl)
 	if err != nil {
 		if alreadyExistsCheck(err) {
@@ -222,9 +222,9 @@ func (c *conn) GetAuthRequest(id string) (a storage.AuthRequest, err error) {
 }
 
 func (c *conn) CreateAuthCode(a storage.AuthCode) error {
-	var ttl uint32 = uint32(int(time.Until(a.Expiry).Seconds()))
+	var ttl = uint32(int(time.Until(a.Expiry).Seconds()))
 	keyCb := keyID(authCodeKey, a.ID)
-	var authCb AuthCode = fromStorageAuthCode(a)
+	var authCb = fromStorageAuthCode(a)
 	err := c.InsertDocument(keyCb, authCb, ttl)
 	if err != nil {
 		if alreadyExistsCheck(err) {
@@ -246,7 +246,7 @@ func (c *conn) GetAuthCode(id string) (a storage.AuthCode, err error) {
 }
 
 func (c *conn) CreateRefresh(r storage.RefreshToken) error {
-	var refreshTokenCb RefreshToken = fromStorageRefreshToken(r)
+	var refreshTokenCb = fromStorageRefreshToken(r)
 	err := c.InsertDocument(keyID(refreshTokenKey, r.ID), refreshTokenCb, 0)
 	if err != nil {
 		if alreadyExistsCheck(err) {
@@ -362,7 +362,7 @@ func (c *conn) ListPasswords() ([]storage.Password, error) {
 
 func (c *conn) CreateOfflineSessions(s storage.OfflineSessions) error {
 	keyCb := keySession(offlineSessionKey, s.UserID, s.ConnID)
-	var sessionCb OfflineSessions = fromStorageOfflineSessions(s)
+	var sessionCb = fromStorageOfflineSessions(s)
 	err := c.InsertDocument(keyCb, sessionCb, 0)
 
 	if err != nil {

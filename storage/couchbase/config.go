@@ -19,7 +19,7 @@ const (
 
 // BucketName the name of the couchbase bucket is going to be used for saving dex data
 var BucketName string
-var createBucketIfNotExists bool = false
+var createBucketIfNotExists = false
 
 // NetworkDB contains options to couchbase database accessed over network.
 type NetworkDB struct {
