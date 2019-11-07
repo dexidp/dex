@@ -50,13 +50,15 @@ func TestHandleCallback(t *testing.T) {
 		expectEqual(t, err, nil)
 
 		sort.Strings(identity.Groups)
-		expectEqual(t, len(identity.Groups), 6)
-		expectEqual(t, identity.Groups[0], "some-org-name-1:some-space-name-1")
-		expectEqual(t, identity.Groups[1], "some-org-name-2:some-space-name-2")
-		expectEqual(t, identity.Groups[2], "some-org-name-3")
-		expectEqual(t, identity.Groups[3], "some-org-name-4")
-		expectEqual(t, identity.Groups[4], "some-space-guid-1")
-		expectEqual(t, identity.Groups[5], "some-space-guid-2")
+		expectEqual(t, len(identity.Groups), 8)
+		expectEqual(t, identity.Groups[0], "some-org-name-1")
+		expectEqual(t, identity.Groups[1], "some-org-name-1:some-space-name-1")
+		expectEqual(t, identity.Groups[2], "some-org-name-2")
+		expectEqual(t, identity.Groups[3], "some-org-name-2:some-space-name-2")
+		expectEqual(t, identity.Groups[4], "some-org-name-3")
+		expectEqual(t, identity.Groups[5], "some-org-name-4")
+		expectEqual(t, identity.Groups[6], "some-space-guid-1")
+		expectEqual(t, identity.Groups[7], "some-space-guid-2")
 	})
 
 	t.Run("CallbackWithoutGroupsScope", func(t *testing.T) {

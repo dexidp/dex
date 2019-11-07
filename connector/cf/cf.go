@@ -293,12 +293,9 @@ func (c *cfConnector) HandleCallback(s connector.Scopes, r *http.Request) (ident
 		}
 
 		for orgName, spaceNames := range orgSpaces {
-			if len(spaceNames) > 0 {
-				for _, spaceName := range spaceNames {
-					groupsClaims = append(groupsClaims, fmt.Sprintf("%s:%s", orgName, spaceName))
-				}
-			} else {
-				groupsClaims = append(groupsClaims, fmt.Sprintf("%s", orgName))
+			groupsClaims = append(groupsClaims, fmt.Sprintf("%s", orgName))
+			for _, spaceName := range spaceNames {
+				groupsClaims = append(groupsClaims, fmt.Sprintf("%s:%s", orgName, spaceName))
 			}
 		}
 
