@@ -111,6 +111,7 @@ func TestHandleCallback(t *testing.T) {
 			}
 			defer testServer.Close()
 			serverURL := testServer.URL
+			basicAuth := true
 			config := Config{
 				Issuer:                    serverURL,
 				ClientID:                  "clientID",
@@ -120,6 +121,7 @@ func TestHandleCallback(t *testing.T) {
 				UserIDKey:                 tc.userIDKey,
 				UserNameKey:               tc.userNameKey,
 				InsecureSkipEmailVerified: tc.insecureSkipEmailVerified,
+				BasicAuthUnsupported:      &basicAuth,
 			}
 
 			conn, err := newConnector(config)
