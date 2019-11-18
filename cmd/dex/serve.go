@@ -78,6 +78,12 @@ func serve(cmd *cobra.Command, args []string) error {
 
 	logger.Infof("config issuer: %s", c.Issuer)
 
+	if c.Callback == "" {
+		logger.Infof("No callback url specified, using default %s/callback", c.Issuer)
+	} else {
+		logger.Infof("config callback url: %s", c.Callback)
+	}
+
 	prometheusRegistry := prometheus.NewRegistry()
 	err = prometheusRegistry.Register(prometheus.NewGoCollector())
 	if err != nil {
@@ -215,6 +221,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
 		AllowedOrigins:         c.Web.AllowedOrigins,
 		Issuer:                 c.Issuer,
+		Callback:               c.Callback,
 		Storage:                s,
 		Web:                    c.Frontend,
 		Logger:                 logger,

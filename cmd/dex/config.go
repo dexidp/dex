@@ -21,6 +21,7 @@ import (
 // Config is the config format for the main application.
 type Config struct {
 	Issuer    string    `json:"issuer"`
+	Callback  string    `json:"callback"`
 	Storage   Storage   `json:"storage"`
 	Web       Web       `json:"web"`
 	Telemetry Telemetry `json:"telemetry"`

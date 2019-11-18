@@ -149,6 +149,7 @@ func (s *Server) handlePublicKeys(w http.ResponseWriter, r *http.Request) {
 
 type discovery struct {
 	Issuer        string   `json:"issuer"`
+	Callback      string   `json:"callback"`
 	Auth          string   `json:"authorization_endpoint"`
 	Token         string   `json:"token_endpoint"`
 	Keys          string   `json:"jwks_uri"`
@@ -164,6 +165,7 @@ type discovery struct {
 func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 	d := discovery{
 		Issuer:      s.issuerURL.String(),
+		Callback:    s.callbackConfig.String(),
 		Auth:        s.absURL("/auth"),
 		Token:       s.absURL("/token"),
 		Keys:        s.absURL("/keys"),
@@ -321,7 +323,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			// Use the auth request ID as the "state" token.
 			//
 			// TODO(ericchiang): Is this appropriate or should we also be using a nonce?
-			callbackURL, err := conn.LoginURL(scopes, s.absURL("/callback"), authReqID)
+			callbackURL, err := conn.LoginURL(scopes, s.useCallback("/callback"), authReqID)
 			if err != nil {
 				s.logger.Errorf("Connector %q returned error when creating callback: %v", connID, err)
 				s.renderError(r, w, http.StatusInternalServerError, "Login error.")
@@ -505,7 +507,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 	s.logger.Infof("login successful: connector %q, username=%q, preferred_username=%q, email=%q, groups=%q",
 		authReq.ConnectorID, claims.Username, claims.PreferredUsername, email, claims.Groups)
 
-	return path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID, nil
+	return path.Join(s.useCallbackURL(), "/approval") + "?req=" + authReq.ID, nil
 }
 
 func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {

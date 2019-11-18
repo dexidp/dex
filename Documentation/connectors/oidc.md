@@ -30,7 +30,8 @@ connectors:
     clientID: $GOOGLE_CLIENT_ID
     clientSecret: $GOOGLE_CLIENT_SECRET
 
-    # Dex's issuer URL + "/callback"
+    # Dex's issuer URL + "/callback" or if a custom callback field is declared in 
+    # the config of the main application, Dex's callback URL + "/callback". 
     redirectURI: http://127.0.0.1:5556/callback
 
 
