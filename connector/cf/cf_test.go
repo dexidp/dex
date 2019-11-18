@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"sort"
 	"strings"
 	"testing"
 
@@ -49,16 +48,19 @@ func TestHandleCallback(t *testing.T) {
 		identity, err := cfConn.HandleCallback(connector.Scopes{Groups: true}, req)
 		expectEqual(t, err, nil)
 
-		sort.Strings(identity.Groups)
-		expectEqual(t, len(identity.Groups), 8)
-		expectEqual(t, identity.Groups[0], "some-org-name-1")
-		expectEqual(t, identity.Groups[1], "some-org-name-1:some-space-name-1")
-		expectEqual(t, identity.Groups[2], "some-org-name-2")
-		expectEqual(t, identity.Groups[3], "some-org-name-2:some-space-name-2")
-		expectEqual(t, identity.Groups[4], "some-org-name-3")
-		expectEqual(t, identity.Groups[5], "some-org-name-4")
-		expectEqual(t, identity.Groups[6], "some-space-guid-1")
-		expectEqual(t, identity.Groups[7], "some-space-guid-2")
+		expectEqual(t, len(identity.Groups), 12)
+		expectEqual(t, identity.Groups[0], "some-org-guid-1")
+		expectEqual(t, identity.Groups[1], "some-org-name-1")
+		expectEqual(t, identity.Groups[2], "some-org-guid-2")
+		expectEqual(t, identity.Groups[3], "some-org-name-2")
+		expectEqual(t, identity.Groups[4], "some-org-guid-3")
+		expectEqual(t, identity.Groups[5], "some-org-name-3")
+		expectEqual(t, identity.Groups[6], "some-org-guid-4")
+		expectEqual(t, identity.Groups[7], "some-org-name-4")
+		expectEqual(t, identity.Groups[8], "some-space-guid-1")
+		expectEqual(t, identity.Groups[9], "some-space-guid-2")
+		expectEqual(t, identity.Groups[10], "some-org-name-1:some-space-name-1")
+		expectEqual(t, identity.Groups[11], "some-org-name-2:some-space-name-2")
 	})
 
 	t.Run("CallbackWithoutGroupsScope", func(t *testing.T) {

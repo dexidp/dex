@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -255,6 +256,9 @@ func (c *cfConnector) HandleCallback(s connector.Scopes, r *http.Request) (ident
 			for _, resource := range orgs.Resources {
 				orgMap[resource.Metadata.Guid] = resource.Entity.Name
 				orgSpaces[resource.Entity.Name] = []string{}
+
+				groupsClaims = append(groupsClaims, resource.Metadata.Guid)
+				groupsClaims = append(groupsClaims, resource.Entity.Name)
 			}
 
 			if orgs.NextUrl != "" {
@@ -292,14 +296,16 @@ func (c *cfConnector) HandleCallback(s connector.Scopes, r *http.Request) (ident
 			}
 		}
 
+		var orgSpaceClaims []string
 		for orgName, spaceNames := range orgSpaces {
-			groupsClaims = append(groupsClaims, fmt.Sprintf("%s", orgName))
 			for _, spaceName := range spaceNames {
-				groupsClaims = append(groupsClaims, fmt.Sprintf("%s:%s", orgName, spaceName))
+				orgSpaceClaims = append(orgSpaceClaims, fmt.Sprintf("%s:%s", orgName, spaceName))
 			}
 		}
 
-		identity.Groups = groupsClaims
+		sort.Strings(orgSpaceClaims)
+
+		identity.Groups = append(groupsClaims, orgSpaceClaims...)
 	}
 
 	if s.OfflineAccess {
