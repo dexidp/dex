@@ -33,6 +33,10 @@ connectors:
     bindDN: cn=admin,dc=example,dc=org
     bindPW: admin
 
+    # for ldap simple bind mode.
+    # bindDNPrefix: cn=
+    # bindDNSuffix: ,dc=example,dc=org
+
     usernamePrompt: Email Address
 
     userSearch:
