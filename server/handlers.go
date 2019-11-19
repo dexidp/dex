@@ -969,12 +969,13 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 	ident := connector.Identity{
-		UserID:        refresh.Claims.UserID,
-		Username:      refresh.Claims.Username,
-		Email:         refresh.Claims.Email,
-		EmailVerified: refresh.Claims.EmailVerified,
-		Groups:        refresh.Claims.Groups,
-		ConnectorData: refresh.ConnectorData,
+		UserID:            refresh.Claims.UserID,
+		Username:          refresh.Claims.Username,
+		PreferredUsername: refresh.Claims.PreferredUsername,
+		Email:             refresh.Claims.Email,
+		EmailVerified:     refresh.Claims.EmailVerified,
+		Groups:            refresh.Claims.Groups,
+		ConnectorData:     refresh.ConnectorData,
 	}
 
 	// Can the connector refresh the identity? If so, attempt to refresh the data
@@ -1036,6 +1037,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		//
 		// UserID intentionally ignored for now.
 		old.Claims.Username = ident.Username
+		old.Claims.PreferredUsername = ident.PreferredUsername
 		old.Claims.Email = ident.Email
 		old.Claims.EmailVerified = ident.EmailVerified
 		old.Claims.Groups = ident.Groups
