@@ -108,7 +108,7 @@ func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
 		insert into auth_request (
 			id, client_id, response_types, scopes, redirect_uri, nonce, state,
 			force_approval_prompt, logged_in,
-			claims_user_id, claims_username, claims_preferred_username, 
+			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
 			expiry
@@ -178,7 +178,7 @@ func (c *conn) GetAuthRequest(id string) (storage.AuthRequest, error) {
 
 func getAuthRequest(q querier, id string) (a storage.AuthRequest, err error) {
 	err = q.QueryRow(`
-		select 
+		select
 			id, client_id, response_types, scopes, redirect_uri, nonce, state,
 			force_approval_prompt, logged_in,
 			claims_user_id, claims_username, claims_preferred_username,
@@ -299,7 +299,7 @@ func (c *conn) UpdateRefreshToken(id string, updater func(old storage.RefreshTok
 				claims_email_verified = $8,
 				claims_groups = $9,
 				connector_id = $10,
-				connector_data = $11,
+								connector_data = $11,
 				token = $12,
 				created_at = $13,
 				last_used = $14
@@ -417,7 +417,7 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 		} else {
 			_, err = tx.Exec(`
 				update keys
-				set 
+				set
 				    verification_keys = $1,
 					signing_key = $2,
 					signing_key_pub = $3,
@@ -655,13 +655,13 @@ func scanPassword(s scanner) (p storage.Password, err error) {
 func (c *conn) CreateOfflineSessions(s storage.OfflineSessions) error {
 	_, err := c.Exec(`
 		insert into offline_session (
-			user_id, conn_id, refresh
+			user_id, conn_id, refresh, connector_data
 		)
 		values (
-			$1, $2, $3
+			$1, $2, $3, $4
 		);
 	`,
-		s.UserID, s.ConnID, encoder(s.Refresh),
+		s.UserID, s.ConnID, encoder(s.Refresh), s.ConnectorData,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -686,10 +686,11 @@ func (c *conn) UpdateOfflineSessions(userID string, connID string, updater func(
 		_, err = tx.Exec(`
 			update offline_session
 			set
-				refresh = $1
-			where user_id = $2 AND conn_id = $3;
+				refresh = $1,
+				connector_data = $2
+			where user_id = $3 AND conn_id = $4;
 		`,
-			encoder(newSession.Refresh), s.UserID, s.ConnID,
+			encoder(newSession.Refresh), newSession.ConnectorData, s.UserID, s.ConnID,
 		)
 		if err != nil {
 			return fmt.Errorf("update offline session: %v", err)
@@ -705,7 +706,7 @@ func (c *conn) GetOfflineSessions(userID string, connID string) (storage.Offline
 func getOfflineSessions(q querier, userID string, connID string) (storage.OfflineSessions, error) {
 	return scanOfflineSessions(q.QueryRow(`
 		select
-			user_id, conn_id, refresh
+			user_id, conn_id, refresh, connector_data
 		from offline_session
 		where user_id = $1 AND conn_id = $2;
 		`, userID, connID))
@@ -713,7 +714,7 @@ func getOfflineSessions(q querier, userID string, connID string) (storage.Offlin
 
 func scanOfflineSessions(s scanner) (o storage.OfflineSessions, err error) {
 	err = s.Scan(
-		&o.UserID, &o.ConnID, decoder(&o.Refresh),
+		&o.UserID, &o.ConnID, decoder(&o.Refresh), &o.ConnectorData,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -757,7 +758,7 @@ func (c *conn) UpdateConnector(id string, updater func(s storage.Connector) (sto
 		}
 		_, err = tx.Exec(`
 			update connector
-			set 
+			set
 			    type = $1,
 			    name = $2,
 			    resource_version = $3,

@@ -505,7 +505,45 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 	s.logger.Infof("login successful: connector %q, username=%q, preferred_username=%q, email=%q, groups=%q",
 		authReq.ConnectorID, claims.Username, claims.PreferredUsername, email, claims.Groups)
 
-	return path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID, nil
+	returnURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID
+	_, ok := conn.(connector.RefreshConnector)
+	if !ok {
+		return returnURL, nil
+	}
+
+	// Try to retrieve an existing OfflineSession object for the corresponding user.
+	if session, err := s.storage.GetOfflineSessions(identity.UserID, authReq.ConnectorID); err != nil {
+		if err != storage.ErrNotFound {
+			s.logger.Errorf("failed to get offline session: %v", err)
+			return "", err
+		}
+		offlineSessions := storage.OfflineSessions{
+			UserID:        identity.UserID,
+			ConnID:        authReq.ConnectorID,
+			Refresh:       make(map[string]*storage.RefreshTokenRef),
+			ConnectorData: identity.ConnectorData,
+		}
+
+		// Create a new OfflineSession object for the user and add a reference object for
+		// the newly received refreshtoken.
+		if err := s.storage.CreateOfflineSessions(offlineSessions); err != nil {
+			s.logger.Errorf("failed to create offline session: %v", err)
+			return "", err
+		}
+	} else {
+		// Update existing OfflineSession obj with new RefreshTokenRef.
+		if err := s.storage.UpdateOfflineSessions(session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+			if len(identity.ConnectorData) > 0 {
+				old.ConnectorData = identity.ConnectorData
+			}
+			return old, nil
+		}); err != nil {
+			s.logger.Errorf("failed to update offline session: %v", err)
+			return "", err
+		}
+	}
+
+	return returnURL, nil
 }
 
 func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
@@ -962,6 +1000,19 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		scopes = requestedScopes
 	}
 
+	var connectorData []byte
+	if session, err := s.storage.GetOfflineSessions(refresh.Claims.UserID, refresh.ConnectorID); err != nil {
+		if err != storage.ErrNotFound {
+			s.logger.Errorf("failed to get offline session: %v", err)
+			return
+		}
+	} else if len(refresh.ConnectorData) > 0 {
+		// Use the old connector data if it exists, should be deleted once used
+		connectorData = refresh.ConnectorData
+	} else {
+		connectorData = session.ConnectorData
+	}
+
 	conn, err := s.getConnector(refresh.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("connector with ID %q not found: %v", refresh.ConnectorID, err)
@@ -975,7 +1026,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		Email:             refresh.Claims.Email,
 		EmailVerified:     refresh.Claims.EmailVerified,
 		Groups:            refresh.Claims.Groups,
-		ConnectorData:     refresh.ConnectorData,
+		ConnectorData:     connectorData,
 	}
 
 	// Can the connector refresh the identity? If so, attempt to refresh the data
@@ -1041,8 +1092,10 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		old.Claims.Email = ident.Email
 		old.Claims.EmailVerified = ident.EmailVerified
 		old.Claims.Groups = ident.Groups
-		old.ConnectorData = ident.ConnectorData
 		old.LastUsed = lastUsed
+
+		// ConnectorData has been moved to OfflineSession
+		old.ConnectorData = []byte{}
 		return old, nil
 	}
 
@@ -1053,6 +1106,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 			return old, errors.New("refresh token invalid")
 		}
 		old.Refresh[refresh.ClientID].LastUsed = lastUsed
+		old.ConnectorData = ident.ConnectorData
 		return old, nil
 	}); err != nil {
 		s.logger.Errorf("failed to update offline session: %v", err)
