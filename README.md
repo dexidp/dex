@@ -1,3 +1,8 @@
+# Changes in this fork by Profects
+
+- CORS issues fixed
+- Email can be updated in a Password
+
 # local build
 
 `make docker-image`
