@@ -311,8 +311,15 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	connectors, err := s.storage.ListConnectors()
+	if err != nil {
+		s.logger.Errorf("Failed to get list of connectors: %v", err)
+		s.renderError(r, w, http.StatusInternalServerError, "Failed to retrieve connector list.")
+		return
+	}
+
 	scopes := parseScopes(authReq.Scopes)
-	showBacklink := len(s.connectors) > 1
+	showBacklink := len(connectors) > 1
 
 	switch r.Method {
 	case http.MethodGet:
