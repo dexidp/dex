@@ -291,6 +291,7 @@ func getGroupsClaims(orgs []Org, spaces []Space) []string {
 	for orgName, spaces := range orgSpaces {
 		for _, space := range spaces {
 			groupsClaims[fmt.Sprintf("%s:%s", orgName, space.Name)] = true
+			groupsClaims[fmt.Sprintf("%s:%s:%s", orgName, space.Name, space.Role)] = true
 		}
 	}
 
