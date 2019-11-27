@@ -61,6 +61,13 @@ connectors:
     # This can be overridden with the below option
     # insecureSkipEmailVerified: true 
 
+    # Groups claims (like the rest of oidc claims through dex) only refresh when the id token is refreshed
+    # meaning the regular refresh flow doesn't update the groups claim. As such by default the oidc connector
+    # doesn't allow groups claims. If you are okay with having potentially stale group claims you can use
+    # this option to enable groups claims through the oidc connector on a per-connector basis.
+    # This can be overridden with the below option
+    # insecureEnableGroups: true
+
     # When enabled, the OpenID Connector will query the UserInfo endpoint for additional claims. UserInfo claims
     # take priority over claims returned by the IDToken. This option should be used when the IDToken doesn't contain
     # all the claims requested.

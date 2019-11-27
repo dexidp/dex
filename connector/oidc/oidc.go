@@ -42,6 +42,9 @@ type Config struct {
 	// Override the value of email_verifed to true in the returned claims
 	InsecureSkipEmailVerified bool `json:"insecureSkipEmailVerified"`
 
+	// InsecureEnableGroups enables groups claims. This is disabled by default until https://github.com/dexidp/dex/issues/1065 is resolved
+	InsecureEnableGroups bool `json:"insecureEnableGroups"`
+
 	// GetUserInfo uses the userinfo endpoint to get additional claims for
 	// the token. This is especially useful where upstreams return "thin"
 	// id tokens
@@ -139,6 +142,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		cancel:                    cancel,
 		hostedDomains:             c.HostedDomains,
 		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
+		insecureEnableGroups:      c.InsecureEnableGroups,
 		getUserInfo:               c.GetUserInfo,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
@@ -159,6 +163,7 @@ type oidcConnector struct {
 	logger                    log.Logger
 	hostedDomains             []string
 	insecureSkipEmailVerified bool
+	insecureEnableGroups      bool
 	getUserInfo               bool
 	userIDKey                 string
 	userNameKey               string
@@ -319,6 +324,19 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			return identity, fmt.Errorf("oidc: not found %v claim", c.userIDKey)
 		}
 		identity.UserID = userID
+	}
+
+	if c.insecureEnableGroups {
+		vs, ok := claims["groups"].([]interface{})
+		if ok {
+			for _, v := range vs {
+				if s, ok := v.(string); ok {
+					identity.Groups = append(identity.Groups, s)
+				} else {
+					return identity, errors.New("malformed \"groups\" claim")
+				}
+			}
+		}
 	}
 
 	return identity, nil
