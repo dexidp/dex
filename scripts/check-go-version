@@ -5,8 +5,8 @@ set -e
 VERSION=$( go version )
 
 # For development versions of Go, these will be empty.
-MAJOR_GOVERSION=$( echo -n "$VERSION" | grep -o 'go1\.[0-9]' || true )
-FULL_GOVERSION=$( echo -n "$VERSION" | grep -o 'go1\.[0-9|\.]*' || true )
+MAJOR_GOVERSION=$( echo -n "$VERSION" | grep -o 'go1\.[0-9][0-9]' || true )
+FULL_GOVERSION=$( echo -n "$VERSION" | grep -o 'go1\.[0-9|[0-9]\.]*' || true )
 
 # The list of unsupported major go versions.
 UNSUPPORTED=( "go1.0" "go1.1" "go1.2" "go1.3" "go1.4" "go1.5" "go1.6" )
@@ -14,12 +14,12 @@ UNSUPPORTED=( "go1.0" "go1.1" "go1.2" "go1.3" "go1.4" "go1.5" "go1.6" )
 # Minor go versions which have known security vulnerabilities. Refuse to build with these.
 #
 # There aren't any security issues that impact dex in 1.7 but minor versions should be
-# added here later if they do have issues. 
+# added here later if they do have issues.
 KNOWN_INSECURE=( )
 
 for V in "${UNSUPPORTED[@]}"; do
     if [ "$V" = "$MAJOR_GOVERSION" ]; then
-        >&2 echo "ERROR: dex requires Go version 1.7+. Please update your Go installation: https://golang.org/dl/" 
+        >&2 echo "ERROR: dex requires Go version 1.7+. Please update your Go installation: https://golang.org/dl/"
         exit 2
     fi
 done
@@ -30,4 +30,3 @@ for V in "${KNOWN_INSECURE[@]}"; do
         exit 2
     fi
 done
-
