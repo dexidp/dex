@@ -29,6 +29,13 @@ connectors:
     # hostedDomains:
     #  - example.com
 
+    # The Google connector supports whitelisting allowed groups when using G Suite
+    # (Google Apps). The following field can be set to a list of groups
+    # that can log in:
+    #
+    # groups:
+    #  - admins@example.com
+
     # Google does not support the OpenID Connect groups claim and only supports
     # fetching a user's group membership with a service account.
     # This service account requires an authentication JSON file and the email

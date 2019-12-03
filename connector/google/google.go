@@ -13,9 +13,10 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
+	pkg_groups "github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/log"
 	"golang.org/x/oauth2/google"
-	"google.golang.org/api/admin/directory/v1"
+	admin "google.golang.org/api/admin/directory/v1"
 )
 
 const (
@@ -33,6 +34,10 @@ type Config struct {
 	// Optional list of whitelisted domains
 	// If this field is nonempty, only users from a listed domain will be allowed to log in
 	HostedDomains []string `json:"hostedDomains"`
+
+	// Optional list of whitelisted groups
+	// If this field is nonempty, only users from a listed group will be allowed to log in
+	Groups []string `json:"groups"`
 
 	// Optional path to service account json
 	// If nonempty, and groups claim is made, will use authentication from file to
@@ -84,6 +89,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		logger:                 logger,
 		cancel:                 cancel,
 		hostedDomains:          c.HostedDomains,
+		groups:                 c.Groups,
 		serviceAccountFilePath: c.ServiceAccountFilePath,
 		adminEmail:             c.AdminEmail,
 		adminSrv:               srv,
@@ -103,6 +109,7 @@ type googleConnector struct {
 	cancel                 context.CancelFunc
 	logger                 log.Logger
 	hostedDomains          []string
+	groups                 []string
 	serviceAccountFilePath string
 	adminEmail             string
 	adminSrv               *admin.Service
@@ -210,6 +217,13 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		groups, err = c.getGroups(claims.Email)
 		if err != nil {
 			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
+		}
+
+		if len(c.groups) > 0 {
+			groups = pkg_groups.Filter(groups, c.groups)
+			if len(groups) == 0 {
+				return identity, fmt.Errorf("google: user %q is not in any of the required groups", claims.Username)
+			}
 		}
 	}
 
