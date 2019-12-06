@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 
@@ -220,12 +221,24 @@ func TestPostgres(t *testing.T) {
 	if host == "" {
 		t.Skipf("test environment variable %q not set, skipping", testPostgresEnv)
 	}
+
+	port := uint64(5432)
+	if rawPort := os.Getenv("DEX_POSTGRES_PORT"); rawPort != "" {
+		var err error
+
+		port, err = strconv.ParseUint(rawPort, 10, 32)
+		if err != nil {
+			t.Fatalf("invalid postgres port %q: %s", rawPort, err)
+		}
+	}
+
 	p := &Postgres{
 		NetworkDB: NetworkDB{
 			Database:          getenv("DEX_POSTGRES_DATABASE", "postgres"),
 			User:              getenv("DEX_POSTGRES_USER", "postgres"),
 			Password:          getenv("DEX_POSTGRES_PASSWORD", "postgres"),
 			Host:              host,
+			Port:              uint16(port),
 			ConnectionTimeout: 5,
 		},
 		SSL: SSL{
@@ -242,12 +255,24 @@ func TestMySQL(t *testing.T) {
 	if host == "" {
 		t.Skipf("test environment variable %q not set, skipping", testMySQLEnv)
 	}
+
+	port := uint64(3306)
+	if rawPort := os.Getenv("DEX_MYSQL_PORT"); rawPort != "" {
+		var err error
+
+		port, err = strconv.ParseUint(rawPort, 10, 32)
+		if err != nil {
+			t.Fatalf("invalid mysql port %q: %s", rawPort, err)
+		}
+	}
+
 	s := &MySQL{
 		NetworkDB: NetworkDB{
 			Database:          getenv("DEX_MYSQL_DATABASE", "mysql"),
 			User:              getenv("DEX_MYSQL_USER", "mysql"),
 			Password:          getenv("DEX_MYSQL_PASSWORD", ""),
 			Host:              host,
+			Port:              uint16(port),
 			ConnectionTimeout: 5,
 		},
 		SSL: SSL{
