@@ -6,7 +6,7 @@ dist: xenial
 
 matrix:
   include:
-    - go: '1.12.x'
+    - go: '1.13.x'
 
 env:
   global:
