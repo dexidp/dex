@@ -11,7 +11,7 @@ jobs:
     name: Build
     runs-on: ubuntu-16.04
     env:
-      GOFLAGS: -mod=vendor
+      GOFLAGS: -mod=readonly
 
     services:
       postgres:
