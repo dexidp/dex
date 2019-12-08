@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -32,6 +31,7 @@ import (
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/felixge/httpsnoop"
+	"github.com/ghodss/yaml"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
@@ -477,7 +477,7 @@ func openConnector(logger log.Logger, conn storage.Connector) (connector.Connect
 	connConfig := f()
 	if len(conn.Config) != 0 {
 		data := []byte(string(conn.Config))
-		if err := json.Unmarshal(data, connConfig); err != nil {
+		if err := yaml.Unmarshal(data, connConfig); err != nil {
 			return c, fmt.Errorf("parse connector config: %v", err)
 		}
 	}
