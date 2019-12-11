@@ -130,6 +130,7 @@ const (
 	grantTypeRefreshToken      = "refresh_token"
 	grantTypePassword          = "password"
 	grantTypeDeviceCode        = "urn:ietf:params:oauth:grant-type:device_code"
+	grantTypeClientCredentials = "client_credentials"
 )
 
 const (
