@@ -183,7 +183,7 @@ func (cli *client) fromStorageClient(c storage.Client) Client {
 			APIVersion: cli.apiVersion,
 		},
 		ObjectMeta: k8sapi.ObjectMeta{
-			Name:      cli.idToName(c.ID),
+			Name:      c.ID,
 			Namespace: cli.namespace,
 		},
 		ID:           c.ID,

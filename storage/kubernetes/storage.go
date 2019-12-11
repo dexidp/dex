@@ -269,8 +269,7 @@ func (cli *client) GetClient(id string) (storage.Client, error) {
 
 func (cli *client) getClient(id string) (Client, error) {
 	var c Client
-	name := cli.idToName(id)
-	if err := cli.get(resourceClient, name, &c); err != nil {
+	if err := cli.get(resourceClient, id, &c); err != nil {
 		return Client{}, err
 	}
 	if c.ID != id {
