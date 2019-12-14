@@ -4,6 +4,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/dexidp/dex/server"
+
 	"github.com/ghodss/yaml"
 	"github.com/kylelemons/godebug/pretty"
 
