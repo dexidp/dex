@@ -17,7 +17,7 @@ import (
 
 var _ = yaml.YAMLToJSON
 
-const testHashStaticPasswordEnv = "FOO_PASSWORD"
+const testHashStaticPasswordEnv = "DEX_FOO_USER_PASSWORD"
 
 func TestValidConfiguration(t *testing.T) {
 	configuration := Config{
@@ -273,7 +273,7 @@ staticPasswords:
   username: "admin"
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
 - email: "foo@example.com"
-  hashFromEnv: "FOO_PASSWORD"
+  hashFromEnv: "DEX_FOO_USER_PASSWORD"
   username: "foo"
   userID: "41331323-6f44-45e6-b3b9-2c4b60c02be5"
 
