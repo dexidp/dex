@@ -85,10 +85,11 @@ type password storage.Password
 
 func (p *password) UnmarshalJSON(b []byte) error {
 	var data struct {
-		Email    string `json:"email"`
-		Username string `json:"username"`
-		UserID   string `json:"userID"`
-		Hash     string `json:"hash"`
+		Email       string `json:"email"`
+		Username    string `json:"username"`
+		UserID      string `json:"userID"`
+		Hash        string `json:"hash"`
+		HashFromEnv string `json:"hashFromEnv"`
 	}
 	if err := json.Unmarshal(b, &data); err != nil {
 		return err
@@ -99,7 +100,11 @@ func (p *password) UnmarshalJSON(b []byte) error {
 		UserID:   data.UserID,
 	})
 	if len(data.Hash) == 0 {
-		return fmt.Errorf("no password hash provided")
+		if len(data.HashFromEnv) > 0 {
+			data.Hash = os.Getenv(data.HashFromEnv)
+		} else {
+			return fmt.Errorf("no password hash provided")
+		}
 	}
 
 	// If this value is a valid bcrypt, use it.
