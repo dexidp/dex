@@ -105,7 +105,6 @@ type googleConnector struct {
 	redirectURI            string
 	oauth2Config           *oauth2.Config
 	verifier               *oidc.IDTokenVerifier
-	ctx                    context.Context
 	cancel                 context.CancelFunc
 	logger                 log.Logger
 	hostedDomains          []string

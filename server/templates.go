@@ -47,19 +47,6 @@ type webConfig struct {
 	extra     map[string]string
 }
 
-func join(base, path string) string {
-	b := strings.HasSuffix(base, "/")
-	p := strings.HasPrefix(path, "/")
-	switch {
-	case b && p:
-		return base + path[1:]
-	case b || p:
-		return base + path
-	default:
-		return base + "/" + path
-	}
-}
-
 func dirExists(dir string) error {
 	stat, err := os.Stat(dir)
 	if err != nil {
