@@ -67,7 +67,6 @@ type Org struct {
 
 // Open returns a strategy for logging in through GitHub.
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
-
 	if c.Org != "" {
 		// Return error if both 'org' and 'orgs' fields are used.
 		if len(c.Orgs) > 0 {
@@ -107,7 +106,6 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		if g.httpClient, err = newHTTPClient(g.rootCA); err != nil {
 			return nil, fmt.Errorf("failed to create HTTP client: %v", err)
 		}
-
 	}
 	g.loadAllGroups = c.LoadAllGroups
 

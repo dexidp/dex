@@ -922,7 +922,6 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 				deleteToken = true
 				return
 			}
-
 		}
 	}
 	s.writeAccessToken(w, idToken, accessToken, refreshToken, expiry)

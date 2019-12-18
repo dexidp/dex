@@ -176,7 +176,6 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 //assetPath is static/main.css
 //relativeURL("/dex", "/dex/auth", "static/main.css") = "../static/main.css"
 func relativeURL(serverPath, reqPath, assetPath string) string {
-
 	splitPath := func(p string) []string {
 		res := []string{}
 		parts := strings.Split(path.Clean(p), "/")

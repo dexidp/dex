@@ -249,7 +249,6 @@ type provider struct {
 }
 
 func (p *provider) POSTData(s connector.Scopes, id string) (action, value string, err error) {
-
 	r := &authnRequest{
 		ProtocolBinding: bindingPOST,
 		ID:              id,

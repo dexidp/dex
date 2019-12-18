@@ -150,7 +150,6 @@ func (p *conn) Prompt() string { return "username" }
 
 func (p *conn) Refresh(
 	ctx context.Context, scopes connector.Scopes, identity connector.Identity) (connector.Identity, error) {
-
 	token, err := p.getAdminToken(ctx)
 	if err != nil {
 		return identity, fmt.Errorf("keystone: failed to obtain admin token: %v", err)

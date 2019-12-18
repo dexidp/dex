@@ -160,7 +160,6 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 	if err := s.DeleteAuthRequest(a2.ID); err != nil {
 		t.Fatalf("failed to delete auth request: %v", err)
 	}
-
 }
 
 func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
@@ -509,7 +508,6 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 
 	_, err = s.GetPassword(password1.Email)
 	mustBeErrNotFound(t, "password", err)
-
 }
 
 func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {

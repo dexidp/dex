@@ -182,7 +182,6 @@ func serve(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to initialize storage connectors: %v", err)
 		}
 		storageConnectors[i] = conn
-
 	}
 
 	if c.EnablePasswordDB {

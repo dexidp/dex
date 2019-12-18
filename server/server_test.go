@@ -799,7 +799,6 @@ func TestCrossClientScopes(t *testing.T) {
 				if !reflect.DeepEqual(idToken.Audience, expAudience) {
 					t.Errorf("expected audience %q, got %q", expAudience, idToken.Audience)
 				}
-
 			}
 			if gotState := q.Get("state"); gotState != state {
 				t.Errorf("state did not match, want=%q got=%q", state, gotState)
@@ -921,7 +920,6 @@ func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
 				if !reflect.DeepEqual(idToken.Audience, expAudience) {
 					t.Errorf("expected audience %q, got %q", expAudience, idToken.Audience)
 				}
-
 			}
 			if gotState := q.Get("state"); gotState != state {
 				t.Errorf("state did not match, want=%q got=%q", state, gotState)
@@ -1058,7 +1056,6 @@ func TestPasswordDB(t *testing.T) {
 			t.Errorf("%s: %s", tc.name, diff)
 		}
 	}
-
 }
 
 func TestPasswordDBUsernamePrompt(t *testing.T) {

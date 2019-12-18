@@ -18,7 +18,6 @@ linters:
         # TODO: fix me
         - unparam
         - golint
-        - whitespace
         - goconst
         - unconvert
         - bodyclose
