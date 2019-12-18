@@ -18,6 +18,9 @@ export GOBIN=$(PWD)/bin
 
 LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
 
+# Dependency versions
+GOLANGCI_VERSION = 1.21.0
+
 build: bin/dex bin/example-app bin/grpc-client
 
 bin/dex:
@@ -45,13 +48,27 @@ test:
 testrace:
 	@go test -v --race ./...
 
+bin/golangci-lint: bin/golangci-lint-${GOLANGCI_VERSION}
+	@ln -sf golangci-lint-${GOLANGCI_VERSION} bin/golangci-lint
+bin/golangci-lint-${GOLANGCI_VERSION}:
+	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | BINARY=golangci-lint bash -s -- v${GOLANGCI_VERSION}
+	@mv bin/golangci-lint $@
+
+.PHONY: lint
+lint: bin/golangci-lint ## Run linter
+	bin/golangci-lint run
+
+.PHONY: fix
+fix: bin/golangci-lint ## Fix lint violations
+	bin/golangci-lint run --fix
+
 vet:
 	@go vet ./...
 
 fmt:
 	@./scripts/gofmt ./...
 
-lint: bin/golint
+oldlint: bin/golint
 	@./bin/golint -set_exit_status $(shell go list ./...)
 
 .PHONY: docker-image
@@ -79,8 +96,8 @@ bin/golint:
 clean:
 	@rm -rf bin/
 
-testall: testrace vet fmt lint
+testall: testrace vet fmt oldlint
 
 FORCE:
 
-.PHONY: test testrace vet fmt lint testall
+.PHONY: test testrace vet fmt oldlint testall
