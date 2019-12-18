@@ -45,8 +45,8 @@ func (s *Server) newHealthChecker(ctx context.Context) http.Handler {
 	return h
 }
 
-// healthChecker periodically performs health checks on server dependenices.
-// Currently, it only checks that the storage layer is avialable.
+// healthChecker periodically performs health checks on server dependencies.
+// Currently, it only checks that the storage layer is available.
 type healthChecker struct {
 	s *Server
 

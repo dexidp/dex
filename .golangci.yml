@@ -16,7 +16,6 @@ linters:
         - wsl
 
         # TODO: fix me
-        - misspell
         - unparam
         - goimports
         - golint

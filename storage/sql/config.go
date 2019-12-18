@@ -311,7 +311,7 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 	err = db.Ping()
 	if err != nil {
 		if mysqlErr, ok := err.(*mysql.MySQLError); ok && mysqlErr.Number == mysqlErrUnknownSysVar {
-			logger.Info("reconnecting with MySQL pre-5.7.20 compatibilty mode")
+			logger.Info("reconnecting with MySQL pre-5.7.20 compatibility mode")
 
 			// MySQL 5.7.20 introduced transaction_isolation and deprecated tx_isolation.
 			// MySQL 8.0 doesn't have tx_isolation at all.
