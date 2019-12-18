@@ -209,6 +209,8 @@ func (p *conn) getAdminToken(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer resp.Body.Close()
+
 	token := resp.Header.Get("X-Subject-Token")
 	return token, nil
 }
@@ -228,6 +230,7 @@ func (p *conn) checkIfUserExists(ctx context.Context, userID string, token strin
 	if err != nil {
 		return false, err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode == 200 {
 		return true, nil

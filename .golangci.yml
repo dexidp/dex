@@ -19,7 +19,6 @@ linters:
         - unparam
         - golint
         - goconst
-        - bodyclose
         - staticcheck
         - nakedret
         - ineffassign
