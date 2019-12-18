@@ -48,7 +48,6 @@ install:
 
 script:
   - make testall
-  - ./scripts/test-k8s.sh
   - make verify-proto # Ensure proto generation doesn't depend on external packages.
 
 notifications:
