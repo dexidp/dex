@@ -206,6 +206,7 @@ func relativeURL(serverPath, reqPath, assetPath string) string {
 	server, req, asset := splitPath(serverPath), splitPath(reqPath), splitPath(assetPath)
 
 	// Remove common prefix of request path with server path
+	// nolint: ineffassign
 	server, req = stripCommonParts(server, req)
 
 	// Remove common prefix of request path with asset path

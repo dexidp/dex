@@ -21,7 +21,6 @@ linters:
         - goconst
         - staticcheck
         - nakedret
-        - ineffassign
         - errcheck
         - gosec
         - gochecknoinits
