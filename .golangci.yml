@@ -17,7 +17,6 @@ linters:
 
         # TODO: fix me
         - unparam
-        - goimports
         - golint
         - whitespace
         - goconst

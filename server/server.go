@@ -14,6 +14,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/felixge/httpsnoop"
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/connector"
@@ -31,10 +35,6 @@ import (
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
-	"github.com/felixge/httpsnoop"
-	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 // LocalConnector is the local passwordDB connector which is an internal
