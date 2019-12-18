@@ -1,0 +1,45 @@
+run:
+    skip-dirs:
+        - vendor
+
+linters-settings:
+    golint:
+        min-confidence: 0.1
+    goimports:
+        local-prefixes: github.com/dexidp/dex
+
+linters:
+    enable-all: true
+    disable:
+        - funlen
+        - maligned
+        - wsl
+
+        # TODO: fix me
+        - unused
+        - structcheck
+        - stylecheck
+        - deadcode
+        - misspell
+        - unparam
+        - goimports
+        - golint
+        - whitespace
+        - goconst
+        - unconvert
+        - bodyclose
+        - staticcheck
+        - nakedret
+        - ineffassign
+        - errcheck
+        - gosec
+        - gochecknoinits
+        - gochecknoglobals
+        - prealloc
+        - scopelint
+        - lll
+        - dupl
+        - gocritic
+        - gocyclo
+        - gocognit
+        - godox

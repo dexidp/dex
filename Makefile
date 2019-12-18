@@ -2,7 +2,6 @@ PROJ=dex
 ORG_PATH=github.com/dexidp
 REPO_PATH=$(ORG_PATH)/$(PROJ)
 export PATH := $(PWD)/bin:$(PATH)
-THIS_DIRECTORY:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 VERSION ?= $(shell ./scripts/git-version)
 
@@ -17,6 +16,9 @@ group=$(shell id -g -n)
 export GOBIN=$(PWD)/bin
 
 LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
+
+# Dependency versions
+GOLANGCI_VERSION = 1.21.0
 
 build: bin/dex bin/example-app bin/grpc-client
 
@@ -45,14 +47,19 @@ test:
 testrace:
 	@go test -v --race ./...
 
-vet:
-	@go vet ./...
+bin/golangci-lint: bin/golangci-lint-${GOLANGCI_VERSION}
+	@ln -sf golangci-lint-${GOLANGCI_VERSION} bin/golangci-lint
+bin/golangci-lint-${GOLANGCI_VERSION}:
+	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | BINARY=golangci-lint bash -s -- v${GOLANGCI_VERSION}
+	@mv bin/golangci-lint $@
 
-fmt:
-	@./scripts/gofmt ./...
+.PHONY: lint
+lint: bin/golangci-lint ## Run linter
+	bin/golangci-lint run
 
-lint: bin/golint
-	@./bin/golint -set_exit_status $(shell go list ./...)
+.PHONY: fix
+fix: bin/golangci-lint ## Fix lint violations
+	bin/golangci-lint run --fix
 
 .PHONY: docker-image
 docker-image:
@@ -73,14 +80,11 @@ bin/protoc: scripts/get-protoc
 bin/protoc-gen-go:
 	@go install -v $(REPO_PATH)/vendor/github.com/golang/protobuf/protoc-gen-go
 
-bin/golint:
-	@go install -v $(THIS_DIRECTORY)/vendor/golang.org/x/lint/golint
-
 clean:
 	@rm -rf bin/
 
-testall: testrace vet fmt lint
+testall: testrace
 
 FORCE:
 
-.PHONY: test testrace vet fmt lint testall
+.PHONY: test testrace testall
