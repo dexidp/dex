@@ -325,7 +325,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 
 		// Status is a required element.
 		if resp.Status == nil {
-			return ident, fmt.Errorf("Response did not contain a Status element")
+			return ident, fmt.Errorf("response did not contain a Status element")
 		}
 
 		if err = p.validateStatus(resp.Status); err != nil {
@@ -398,7 +398,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 
 	if len(p.allowedGroups) > 0 && (!s.Groups || p.groupsAttr == "") {
 		// allowedGroups set but no groups or groupsAttr. Disallowing.
-		return ident, fmt.Errorf("User not a member of allowed groups")
+		return ident, fmt.Errorf("user not a member of allowed groups")
 	}
 
 	// Grab the groups.
@@ -427,7 +427,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 
 	if len(groupMatches) == 0 {
 		// No group membership matches found, disallowing
-		return ident, fmt.Errorf("User not a member of allowed groups")
+		return ident, fmt.Errorf("user not a member of allowed groups")
 	}
 
 	// Otherwise, we're good
@@ -468,7 +468,7 @@ func (p *provider) validateStatus(status *status) error {
 func (p *provider) validateSubject(subject *subject, inResponseTo string) error {
 	// Optional according to the spec, but again, we're going to be strict here.
 	if len(subject.SubjectConfirmations) == 0 {
-		return fmt.Errorf("Subject contained no SubjectConfirmations")
+		return fmt.Errorf("subject contained no SubjectConfirmations")
 	}
 
 	var errs []error
