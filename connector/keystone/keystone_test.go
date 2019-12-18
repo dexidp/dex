@@ -274,7 +274,7 @@ func TestUseRefreshToken(t *testing.T) {
 	delete(t, token, groupID, groupsURL)
 
 	expectEquals(t, 1, len(identityRefresh.Groups))
-	expectEquals(t, testGroup, string(identityRefresh.Groups[0]))
+	expectEquals(t, testGroup, identityRefresh.Groups[0])
 }
 
 func TestUseRefreshTokenUserDeleted(t *testing.T) {
