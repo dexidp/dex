@@ -1,39 +1,104 @@
 package kubernetes
 
 import (
-	"fmt"
+	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/suite"
+	"sigs.k8s.io/testing_frameworks/integration"
 
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/conformance"
 )
 
-const testKubeConfigEnv = "DEX_KUBECONFIG"
+const kubeconfigTemplate = `apiVersion: v1
+kind: Config
+clusters:
+- name: local
+  cluster:
+    server: SERVERURL
+users:
+- name: local
+  user:
+contexts:
+- context:
+    cluster: local
+    user: local
+`
 
-func TestLoadClient(t *testing.T) {
-	loadClient(t)
+func TestStorage(t *testing.T) {
+	if os.Getenv("TEST_ASSET_KUBE_APISERVER") == "" || os.Getenv("TEST_ASSET_ETCD") == "" {
+		t.Skip("control plane binaries are missing")
+	}
+
+	suite.Run(t, new(StorageTestSuite))
 }
 
-func loadClient(t *testing.T) *client {
+type StorageTestSuite struct {
+	suite.Suite
+
+	controlPlane *integration.ControlPlane
+
+	client *client
+}
+
+func (s *StorageTestSuite) SetupSuite() {
+	s.controlPlane = &integration.ControlPlane{}
+
+	err := s.controlPlane.Start()
+	s.Require().NoError(err)
+}
+
+func (s *StorageTestSuite) TearDownSuite() {
+	s.controlPlane.Stop()
+}
+
+func (s *StorageTestSuite) SetupTest() {
+	f, err := ioutil.TempFile("", "dex-kubeconfig-*")
+	s.Require().NoError(err)
+	defer f.Close()
+
+	_, err = f.WriteString(strings.ReplaceAll(kubeconfigTemplate, "SERVERURL", s.controlPlane.APIURL().String()))
+	s.Require().NoError(err)
+
 	config := Config{
-		KubeConfigFile: os.Getenv(testKubeConfigEnv),
+		KubeConfigFile: f.Name(),
 	}
-	if config.KubeConfigFile == "" {
-		t.Skipf("test environment variable %q not set, skipping", testKubeConfigEnv)
-	}
+
 	logger := &logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 		Level:     logrus.DebugLevel,
 	}
-	s, err := config.open(logger, true)
-	if err != nil {
-		t.Fatal(err)
+
+	client, err := config.open(logger, true)
+	s.Require().NoError(err)
+
+	s.client = client
+}
+
+func (s *StorageTestSuite) TestStorage() {
+	newStorage := func() storage.Storage {
+		for _, resource := range []string{
+			resourceAuthCode,
+			resourceAuthRequest,
+			resourceClient,
+			resourceRefreshToken,
+			resourceKeys,
+			resourcePassword,
+		} {
+			if err := s.client.deleteAll(resource); err != nil {
+				s.T().Fatalf("delete all %q failed: %v", resource, err)
+			}
+		}
+		return s.client
 	}
-	return s
+
+	conformance.RunTests(s.T(), newStorage)
+	conformance.RunTransactionTests(s.T(), newStorage)
 }
 
 func TestURLFor(t *testing.T) {
@@ -82,28 +147,4 @@ func TestURLFor(t *testing.T) {
 			)
 		}
 	}
-}
-
-func TestStorage(t *testing.T) {
-	client := loadClient(t)
-	newStorage := func() storage.Storage {
-		for _, resource := range []string{
-			resourceAuthCode,
-			resourceAuthRequest,
-			resourceClient,
-			resourceRefreshToken,
-			resourceKeys,
-			resourcePassword,
-		} {
-			if err := client.deleteAll(resource); err != nil {
-				// Fatalf sometimes doesn't print the error message.
-				fmt.Fprintf(os.Stderr, "delete all %q failed: %v\n", resource, err)
-				t.Fatalf("delete all %q failed: %v", resource, err)
-			}
-		}
-		return client
-	}
-
-	conformance.RunTests(t, newStorage)
-	conformance.RunTransactionTests(t, newStorage)
 }
