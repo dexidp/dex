@@ -14,6 +14,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/felixge/httpsnoop"
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/connector"
@@ -21,6 +25,7 @@ import (
 	"github.com/dexidp/dex/connector/bitbucketcloud"
 	"github.com/dexidp/dex/connector/github"
 	"github.com/dexidp/dex/connector/gitlab"
+	"github.com/dexidp/dex/connector/google"
 	"github.com/dexidp/dex/connector/keystone"
 	"github.com/dexidp/dex/connector/ldap"
 	"github.com/dexidp/dex/connector/linkedin"
@@ -30,10 +35,6 @@ import (
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
-	"github.com/felixge/httpsnoop"
-	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 // LocalConnector is the local passwordDB connector which is an internal
@@ -453,6 +454,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"ldap":            func() ConnectorConfig { return new(ldap.Config) },
 	"github":          func() ConnectorConfig { return new(github.Config) },
 	"gitlab":          func() ConnectorConfig { return new(gitlab.Config) },
+	"google":          func() ConnectorConfig { return new(google.Config) },
 	"oidc":            func() ConnectorConfig { return new(oidc.Config) },
 	"saml":            func() ConnectorConfig { return new(saml.Config) },
 	"authproxy":       func() ConnectorConfig { return new(authproxy.Config) },

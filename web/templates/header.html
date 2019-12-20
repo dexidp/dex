@@ -5,15 +5,15 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
     <title>{{ issuer }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="{{ url "static/main.css" }}" rel="stylesheet">
-    <link href="{{ url "theme/styles.css" }}" rel="stylesheet">
-    <link rel="icon" href="{{ url "theme/favicon.png" }}">
+    <link href="{{ url .ReqPath "static/main.css" }}" rel="stylesheet">
+    <link href="{{ url .ReqPath "theme/styles.css" }}" rel="stylesheet">
+    <link rel="icon" href="{{ url .ReqPath "theme/favicon.png" }}">
   </head>
 
   <body class="theme-body">
     <div class="theme-navbar">
       <div class="theme-navbar__logo-wrap">
-        <img class="theme-navbar__logo" src="{{ logo }}">
+        <img class="theme-navbar__logo" src="{{ url .ReqPath logo }}">
       </div>
     </div>
 

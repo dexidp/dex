@@ -156,7 +156,7 @@ func (c *conn) UpdateRefreshToken(id string, updater func(old storage.RefreshTok
 	return c.txnUpdate(ctx, keyID(refreshTokenPrefix, id), func(currentValue []byte) ([]byte, error) {
 		var current RefreshToken
 		if len(currentValue) > 0 {
-			if err := json.Unmarshal([]byte(currentValue), &current); err != nil {
+			if err := json.Unmarshal(currentValue, &current); err != nil {
 				return nil, err
 			}
 		}

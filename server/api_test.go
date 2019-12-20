@@ -167,7 +167,6 @@ func TestPassword(t *testing.T) {
 	if _, err := client.DeletePassword(ctx, &deleteReq); err != nil {
 		t.Fatalf("Unable to delete password: %v", err)
 	}
-
 }
 
 // Ensures checkCost returns expected values
@@ -495,7 +494,6 @@ func TestUpdateClient(t *testing.T) {
 			if tc.cleanup != nil {
 				tc.cleanup(t, tc.req.Id)
 			}
-
 		})
 	}
 }

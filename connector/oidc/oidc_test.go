@@ -16,9 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dexidp/dex/connector"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/square/go-jose.v2"
+
+	"github.com/dexidp/dex/connector"
 )
 
 func TestKnownBrokenAuthHeaderProvider(t *testing.T) {
@@ -111,6 +112,7 @@ func TestHandleCallback(t *testing.T) {
 			}
 			defer testServer.Close()
 			serverURL := testServer.URL
+			basicAuth := true
 			config := Config{
 				Issuer:                    serverURL,
 				ClientID:                  "clientID",
@@ -120,6 +122,7 @@ func TestHandleCallback(t *testing.T) {
 				UserIDKey:                 tc.userIDKey,
 				UserNameKey:               tc.userNameKey,
 				InsecureSkipEmailVerified: tc.insecureSkipEmailVerified,
+				BasicAuthUnsupported:      &basicAuth,
 			}
 
 			conn, err := newConnector(config)

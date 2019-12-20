@@ -4,6 +4,7 @@ package sql
 
 import (
 	"os"
+	"strconv"
 	"testing"
 )
 
@@ -12,12 +13,24 @@ func TestPostgresTunables(t *testing.T) {
 	if host == "" {
 		t.Skipf("test environment variable %q not set, skipping", testPostgresEnv)
 	}
+
+	port := uint64(5432)
+	if rawPort := os.Getenv("DEX_POSTGRES_PORT"); rawPort != "" {
+		var err error
+
+		port, err = strconv.ParseUint(rawPort, 10, 32)
+		if err != nil {
+			t.Fatalf("invalid postgres port %q: %s", rawPort, err)
+		}
+	}
+
 	baseCfg := &Postgres{
 		NetworkDB: NetworkDB{
 			Database: getenv("DEX_POSTGRES_DATABASE", "postgres"),
 			User:     getenv("DEX_POSTGRES_USER", "postgres"),
 			Password: getenv("DEX_POSTGRES_PASSWORD", "postgres"),
 			Host:     host,
+			Port:     uint16(port),
 		},
 		SSL: SSL{
 			Mode: pgSSLDisable, // Postgres container doesn't support SSL.

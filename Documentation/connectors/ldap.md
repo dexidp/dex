@@ -13,7 +13,7 @@ The connector executes two primary queries:
 
 The dex repo contains a basic LDAP setup using [OpenLDAP][openldap].
 
-First start the LDAP server using the example script. This will run the OpenLDAP daemon and seed it with a initial set of users.
+First start the LDAP server using the example script. This will run the OpenLDAP daemon and seed it with an initial set of users.
 
 ```
 ./scripts/slapd.sh
@@ -89,7 +89,7 @@ connectors:
     # server provides access for anonymous auth.
     # Please note that if the bind password contains a `$`, it has to be saved in an
     # environment variable which should be given as the value to `bindPW`.
-    bindDN: uid=seviceaccount,cn=users,dc=example,dc=com
+    bindDN: uid=serviceaccount,cn=users,dc=example,dc=com
     bindPW: password
 
     # The attribute to display in the provided password prompt. If unset, will
