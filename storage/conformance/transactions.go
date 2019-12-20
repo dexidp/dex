@@ -135,8 +135,8 @@ func testKeysConcurrentUpdate(t *testing.T, s storage.Storage) {
 	for i := 0; i < 2; i++ {
 		n := time.Now().UTC().Round(time.Second)
 		keys1 := storage.Keys{
-			SigningKey:    jsonWebKeys[0].Private,
-			SigningKeyPub: jsonWebKeys[0].Public,
+			SigningKey:    jsonWebKeys[i].Private,
+			SigningKeyPub: jsonWebKeys[i].Public,
 			NextRotation:  n,
 		}
 
