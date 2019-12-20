@@ -67,7 +67,6 @@ type Org struct {
 
 // Open returns a strategy for logging in through GitHub.
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
-
 	if c.Org != "" {
 		// Return error if both 'org' and 'orgs' fields are used.
 		if len(c.Orgs) > 0 {
@@ -107,7 +106,6 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		if g.httpClient, err = newHTTPClient(g.rootCA); err != nil {
 			return nil, fmt.Errorf("failed to create HTTP client: %v", err)
 		}
-
 	}
 	g.loadAllGroups = c.LoadAllGroups
 
@@ -144,7 +142,7 @@ type githubConnector struct {
 	hostName string
 	// Used to support untrusted/self-signed CA certs.
 	rootCA string
-	// HTTP Client that trusts the custom delcared rootCA cert.
+	// HTTP Client that trusts the custom declared rootCA cert.
 	httpClient *http.Client
 	// optional choice between 'name' (default) or 'slug'
 	teamNameField string
@@ -206,7 +204,7 @@ func (e *oauth2Error) Error() string {
 	return e.error + ": " + e.errorDescription
 }
 
-// newHTTPClient returns a new HTTP client that trusts the custom delcared rootCA cert.
+// newHTTPClient returns a new HTTP client that trusts the custom declared rootCA cert.
 func newHTTPClient(rootCA string) (*http.Client, error) {
 	tlsConfig := tls.Config{RootCAs: x509.NewCertPool()}
 	rootCABytes, err := ioutil.ReadFile(rootCA)

@@ -16,21 +16,11 @@ linters:
         - wsl
 
         # TODO: fix me
-        - unused
-        - structcheck
-        - stylecheck
-        - deadcode
-        - misspell
         - unparam
-        - goimports
         - golint
-        - whitespace
         - goconst
-        - unconvert
-        - bodyclose
         - staticcheck
         - nakedret
-        - ineffassign
         - errcheck
         - gosec
         - gochecknoinits

@@ -11,12 +11,12 @@ import (
 
 	"github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	admin "google.golang.org/api/admin/directory/v1"
 
 	"github.com/dexidp/dex/connector"
 	pkg_groups "github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/log"
-	"golang.org/x/oauth2/google"
-	admin "google.golang.org/api/admin/directory/v1"
 )
 
 const (
@@ -105,7 +105,6 @@ type googleConnector struct {
 	redirectURI            string
 	oauth2Config           *oauth2.Config
 	verifier               *oidc.IDTokenVerifier
-	ctx                    context.Context
 	cancel                 context.CancelFunc
 	logger                 log.Logger
 	hostedDomains          []string

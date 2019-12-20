@@ -150,7 +150,6 @@ func (p *conn) Prompt() string { return "username" }
 
 func (p *conn) Refresh(
 	ctx context.Context, scopes connector.Scopes, identity connector.Identity) (connector.Identity, error) {
-
 	token, err := p.getAdminToken(ctx)
 	if err != nil {
 		return identity, fmt.Errorf("keystone: failed to obtain admin token: %v", err)
@@ -210,6 +209,8 @@ func (p *conn) getAdminToken(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer resp.Body.Close()
+
 	token := resp.Header.Get("X-Subject-Token")
 	return token, nil
 }
@@ -229,6 +230,7 @@ func (p *conn) checkIfUserExists(ctx context.Context, userID string, token strin
 	if err != nil {
 		return false, err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode == 200 {
 		return true, nil

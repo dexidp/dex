@@ -590,6 +590,8 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			if err != nil {
 				t.Fatalf("get failed: %v", err)
 			}
+			defer resp.Body.Close()
+
 			if reqDump, err = httputil.DumpRequest(resp.Request, false); err != nil {
 				t.Fatal(err)
 			}
@@ -726,6 +728,8 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
+	defer resp.Body.Close()
+
 	if reqDump, err = httputil.DumpRequest(resp.Request, false); err != nil {
 		t.Fatal(err)
 	}
@@ -799,7 +803,6 @@ func TestCrossClientScopes(t *testing.T) {
 				if !reflect.DeepEqual(idToken.Audience, expAudience) {
 					t.Errorf("expected audience %q, got %q", expAudience, idToken.Audience)
 				}
-
 			}
 			if gotState := q.Get("state"); gotState != state {
 				t.Errorf("state did not match, want=%q got=%q", state, gotState)
@@ -848,6 +851,8 @@ func TestCrossClientScopes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
+	defer resp.Body.Close()
+
 	if reqDump, err = httputil.DumpRequest(resp.Request, false); err != nil {
 		t.Fatal(err)
 	}
@@ -921,7 +926,6 @@ func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
 				if !reflect.DeepEqual(idToken.Audience, expAudience) {
 					t.Errorf("expected audience %q, got %q", expAudience, idToken.Audience)
 				}
-
 			}
 			if gotState := q.Get("state"); gotState != state {
 				t.Errorf("state did not match, want=%q got=%q", state, gotState)
@@ -969,6 +973,8 @@ func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
+	defer resp.Body.Close()
+
 	if reqDump, err = httputil.DumpRequest(resp.Request, false); err != nil {
 		t.Fatal(err)
 	}
@@ -1058,7 +1064,6 @@ func TestPasswordDB(t *testing.T) {
 			t.Errorf("%s: %s", tc.name, diff)
 		}
 	}
-
 }
 
 func TestPasswordDBUsernamePrompt(t *testing.T) {
@@ -1225,9 +1230,11 @@ func TestRefreshTokenFlow(t *testing.T) {
 		RedirectURL:  redirectURL,
 	}
 
-	if _, err = http.Get(oauth2Client.server.URL + "/login"); err != nil {
+	resp, err := http.Get(oauth2Client.server.URL + "/login")
+	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
+	defer resp.Body.Close()
 
 	tok := &oauth2.Token{
 		RefreshToken: oauth2Client.token.RefreshToken,
@@ -1235,9 +1242,11 @@ func TestRefreshTokenFlow(t *testing.T) {
 	}
 
 	// Login in again to receive a new token.
-	if _, err = http.Get(oauth2Client.server.URL + "/login"); err != nil {
+	resp, err = http.Get(oauth2Client.server.URL + "/login")
+	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
+	defer resp.Body.Close()
 
 	// try to refresh expired token with old refresh token.
 	if _, err := oauth2Client.config.TokenSource(ctx, tok).Token(); err == nil {

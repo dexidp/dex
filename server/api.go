@@ -218,7 +218,6 @@ func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) 
 		return nil, fmt.Errorf("delete password: %v", err)
 	}
 	return &api.DeletePasswordResp{}, nil
-
 }
 
 func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.VersionResp, error) {
@@ -248,7 +247,6 @@ func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*a
 	return &api.ListPasswordResp{
 		Passwords: passwords,
 	}, nil
-
 }
 
 func (d dexAPI) VerifyPassword(ctx context.Context, req *api.VerifyPasswordReq) (*api.VerifyPasswordResp, error) {
