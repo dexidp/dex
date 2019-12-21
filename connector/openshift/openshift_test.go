@@ -89,7 +89,7 @@ func TestGetUser(t *testing.T) {
 func TestVerifyGroupFn(t *testing.T) {
 
 	requiredGroups := []string{"users"}
-	groupMembership := []string{"users","org1"}
+	groupMembership := []string{"users", "org1"}
 
 	validGroupMembership := validateRequiredGroups(groupMembership, requiredGroups)
 
