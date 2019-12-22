@@ -59,7 +59,6 @@ type user struct {
 // Open returns a connector which can be used to login users through an upstream
 // OpenShift OAuth2 provider.
 func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	wellKnownURL := strings.TrimSuffix(c.Issuer, "/") + "/.well-known/oauth-authorization-server"
@@ -91,7 +90,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("Failed to query OpenShift Endpoint %v", err)
+		return nil, fmt.Errorf("failed to query OpenShift endpoint %v", err)
 	}
 
 	defer resp.Body.Close()
@@ -211,7 +210,6 @@ func (c *openshiftConnector) user(ctx context.Context, client *http.Client) (u u
 }
 
 func validateRequiredGroups(userGroups, requiredGroups []string) bool {
-
 	matchingGroups := groups.Filter(userGroups, requiredGroups)
 
 	return len(requiredGroups) == len(matchingGroups)

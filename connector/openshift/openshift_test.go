@@ -80,7 +80,6 @@ func TestGetUser(t *testing.T) {
 	expectEquals(t, u.Name, "jdoe")
 	expectEquals(t, u.FullName, "John Doe")
 	expectEquals(t, len(u.Groups), 1)
-
 }
 
 func TestVerifyGroupFn(t *testing.T) {
@@ -90,7 +89,6 @@ func TestVerifyGroupFn(t *testing.T) {
 	validGroupMembership := validateRequiredGroups(groupMembership, requiredGroups)
 
 	expectEquals(t, validGroupMembership, true)
-
 }
 
 func TestVerifyGroup(t *testing.T) {
@@ -122,7 +120,6 @@ func TestVerifyGroup(t *testing.T) {
 	expectEquals(t, u.Name, "jdoe")
 	expectEquals(t, u.FullName, "John Doe")
 	expectEquals(t, len(u.Groups), 1)
-
 }
 
 func TestCallbackIdentity(t *testing.T) {
@@ -169,7 +166,6 @@ func TestCallbackIdentity(t *testing.T) {
 }
 
 func newTestServer(responses map[string]interface{}) *httptest.Server {
-
 	var s *httptest.Server
 	s = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
