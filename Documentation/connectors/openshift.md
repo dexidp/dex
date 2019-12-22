@@ -6,7 +6,7 @@ Dex can make use of users and groups defined within OpenShift by querying the pl
 
 ## Configuration
 
-Create a new OAuth Client by following the steps described in the documentation for [Registering Additional OAuth Clients[(https://docs.openshift.com/container-platform/latest/authentication/configuring-internal-oauth.html#oauth-register-additional-client_configuring-internal-oauth)
+Create a new OAuth Client by following the steps described in the documentation for [Registering Additional OAuth Clients](https://docs.openshift.com/container-platform/latest/authentication/configuring-internal-oauth.html#oauth-register-additional-client_configuring-internal-oauth)
 
 This involves creating a resource similar the following
 
@@ -31,10 +31,10 @@ connectors:
     # Required field for connector id.
     id: openshift
     # Required field for connector name.
-    name: OppenShift
+    name: OpenShift
     config:
       # OpenShift API
-      baseURL: https://api.mycluster.example.com:6443
+      issuer: https://api.mycluster.example.com:6443
       # Credentials can be string literals or pulled from the environment.
       clientID: $OPENSHIFT_OAUTH_CLIENT_ID
       clientSecret: $OPENSHIFT_OAUTH_CLIENT_SECRET
