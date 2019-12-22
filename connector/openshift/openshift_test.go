@@ -52,7 +52,6 @@ func TestOpen(t *testing.T) {
 }
 
 func TestGetUser(t *testing.T) {
-
 	s := newTestServer(map[string]interface{}{
 		"/apis/user.openshift.io/v1/users/~": user{
 			ObjectMeta: k8sapi.ObjectMeta{
@@ -85,7 +84,6 @@ func TestGetUser(t *testing.T) {
 }
 
 func TestVerifyGroupFn(t *testing.T) {
-
 	requiredGroups := []string{"users"}
 	groupMembership := []string{"users", "org1"}
 
@@ -96,7 +94,6 @@ func TestVerifyGroupFn(t *testing.T) {
 }
 
 func TestVerifyGroup(t *testing.T) {
-
 	s := newTestServer(map[string]interface{}{
 		"/apis/user.openshift.io/v1/users/~": user{
 			ObjectMeta: k8sapi.ObjectMeta{
@@ -129,7 +126,6 @@ func TestVerifyGroup(t *testing.T) {
 }
 
 func TestCallbackIdentity(t *testing.T) {
-
 	s := newTestServer(map[string]interface{}{
 		"/apis/user.openshift.io/v1/users/~": user{
 			ObjectMeta: k8sapi.ObjectMeta{
