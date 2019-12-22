@@ -12,9 +12,8 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
-	"golang.org/x/oauth2"
-
 	"github.com/sirupsen/logrus"
+	"golang.org/x/oauth2"
 )
 
 func TestOpen(t *testing.T) {
@@ -168,7 +167,6 @@ func TestCallbackIdentity(t *testing.T) {
 func newTestServer(responses map[string]interface{}) *httptest.Server {
 	var s *httptest.Server
 	s = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		responses["/.well-known/oauth-authorization-server"] = map[string]interface{}{
 			"issuer":                           s.URL,
 			"authorization_endpoint":           fmt.Sprintf("%s/oauth/authorize", s.URL),
