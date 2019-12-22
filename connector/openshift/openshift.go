@@ -15,7 +15,9 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/log"
+
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
+
 	"golang.org/x/oauth2"
 )
 
