@@ -2,7 +2,6 @@ package openshift
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -19,7 +18,6 @@ import (
 )
 
 func TestOpen(t *testing.T) {
-
 	s := newTestServer(map[string]interface{}{})
 	defer s.Close()
 
@@ -180,7 +178,7 @@ func newTestServer(responses map[string]interface{}) *httptest.Server {
 	s = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		responses["/.well-known/oauth-authorization-server"] = map[string]interface{}{
-			"issuer":                           fmt.Sprintf("%s", s.URL),
+			"issuer":                           s.URL,
 			"authorization_endpoint":           fmt.Sprintf("%s/oauth/authorize", s.URL),
 			"token_endpoint":                   fmt.Sprintf("%s/oauth/token", s.URL),
 			"scopes_supported":                 []string{"user:full", "user:info", "user:check-access", "user:list-scoped-projects", "user:list-projects"},
@@ -197,22 +195,9 @@ func newTestServer(responses map[string]interface{}) *httptest.Server {
 	return s
 }
 
-func newClient() *http.Client {
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	return &http.Client{Transport: tr}
-}
-
 func expectNil(t *testing.T, a interface{}) {
 	if a != nil {
 		t.Errorf("Expected %+v to equal nil", a)
-	}
-}
-
-func expectNotNil(t *testing.T, a interface{}, msg string) {
-	if a == nil {
-		t.Errorf("Expected %+v to not to be nil", msg)
 	}
 }
 
