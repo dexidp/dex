@@ -259,16 +259,15 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 
 	connectorInfos := make([]connectorInfo, len(connectors))
-	i := 0
-	for _, conn := range connectors {
-		connectorInfos[i] = connectorInfo{
+	for index, conn := range connectors {
+		connectorInfos[index] = connectorInfo{
 			ID:   conn.ID,
 			Name: conn.Name,
+			Type: conn.Type,
 			// TODO(ericchiang): Make this pass on r.URL.RawQuery and let something latter
 			// on create the auth request.
 			URL: s.absPath("/auth", conn.ID) + "?req=" + authReq.ID,
 		}
-		i++
 	}
 
 	if err := s.templates.login(r, w, connectorInfos, r.URL.Path); err != nil {
