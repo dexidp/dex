@@ -6,7 +6,7 @@ Storage breaches are serious as they can affect applications that rely on dex. D
 
 ## Etcd
 
-Dex supports persisting state to [etcd v3](https://github.com/coreos/etcd).
+Dex supports persisting state to [etcd v3](https://github.com/etcd-io/etcd).
 
 An example etcd configuration is using these values:
 
