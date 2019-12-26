@@ -109,7 +109,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		Endpoint: oauth2.Endpoint{
 			AuthURL: metadata.Auth, TokenURL: metadata.Token,
 		},
-		Scopes:      []string{"user:info", "user:check-access", "user:full"},
+		Scopes:      []string{"user:info"},
 		RedirectURL: c.RedirectURI,
 	}
 	return &openshiftConnector, nil
@@ -168,7 +168,7 @@ func (c *openshiftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 	validGroups := validateRequiredGroups(user.Groups, c.groups)
 
 	if !validGroups {
-		return identity, fmt.Errorf("openshift: user %q is not in any of the required teams", user.Name)
+		return identity, fmt.Errorf("openshift: user %q is not in any of the required groups", user.Name)
 	}
 
 	identity = connector.Identity{
