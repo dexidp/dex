@@ -308,6 +308,13 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 		return nil, err
 	}
 
+	if s.MaxIdleConns == 0 {
+		/*Override default behaviour to fix https://github.com/dexidp/dex/issues/1608*/
+		db.SetMaxIdleConns(0)
+	} else {
+		db.SetMaxIdleConns(s.MaxIdleConns)
+	}
+
 	err = db.Ping()
 	if err != nil {
 		if mysqlErr, ok := err.(*mysql.MySQLError); ok && mysqlErr.Number == mysqlErrUnknownSysVar {
