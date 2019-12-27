@@ -83,11 +83,29 @@ func TestGetUser(t *testing.T) {
 	expectEquals(t, len(u.Groups), 1)
 }
 
-func TestVerifyGroupFn(t *testing.T) {
-	requiredGroups := []string{"users"}
+func TestVerifySingleGroupFn(t *testing.T) {
+	allowedGroups := []string{"users"}
 	groupMembership := []string{"users", "org1"}
 
-	validGroupMembership := validateRequiredGroups(groupMembership, requiredGroups)
+	validGroupMembership := validateAllowedGroups(groupMembership, allowedGroups)
+
+	expectEquals(t, validGroupMembership, true)
+}
+
+func TestVerifySingleGroupFailureFn(t *testing.T) {
+	allowedGroups := []string{"admins"}
+	groupMembership := []string{"users"}
+
+	validGroupMembership := validateAllowedGroups(groupMembership, allowedGroups)
+
+	expectEquals(t, validGroupMembership, false)
+}
+
+func TestVerifyMultipleGroupFn(t *testing.T) {
+	allowedGroups := []string{"users", "admins"}
+	groupMembership := []string{"users", "org1"}
+
+	validGroupMembership := validateAllowedGroups(groupMembership, allowedGroups)
 
 	expectEquals(t, validGroupMembership, true)
 }

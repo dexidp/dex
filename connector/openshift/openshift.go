@@ -165,10 +165,12 @@ func (c *openshiftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 		return identity, fmt.Errorf("openshift: get user: %v", err)
 	}
 
-	validGroups := validateRequiredGroups(user.Groups, c.groups)
+	if len(c.groups) > 0 {
+		validGroups := validateAllowedGroups(user.Groups, c.groups)
 
-	if !validGroups {
-		return identity, fmt.Errorf("openshift: user %q is not in any of the required groups", user.Name)
+		if !validGroups {
+			return identity, fmt.Errorf("openshift: user %q is not in any of the required groups", user.Name)
+		}
 	}
 
 	identity = connector.Identity{
@@ -211,10 +213,10 @@ func (c *openshiftConnector) user(ctx context.Context, client *http.Client) (u u
 	return u, err
 }
 
-func validateRequiredGroups(userGroups, requiredGroups []string) bool {
-	matchingGroups := groups.Filter(userGroups, requiredGroups)
+func validateAllowedGroups(userGroups, allowedGroups []string) bool {
+	matchingGroups := groups.Filter(userGroups, allowedGroups)
 
-	return len(requiredGroups) == len(matchingGroups)
+	return len(matchingGroups) != 0
 }
 
 // newHTTPClient returns a new HTTP client
