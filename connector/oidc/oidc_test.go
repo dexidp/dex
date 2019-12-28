@@ -50,16 +50,19 @@ func TestHandleCallback(t *testing.T) {
 		userIDKey                 string
 		userNameKey               string
 		insecureSkipEmailVerified bool
+		scopes                    []string
 		expectUserID              string
 		expectUserName            string
+		expectedEmailField        string
 		token                     map[string]interface{}
 	}{
 		{
-			name:           "simpleCase",
-			userIDKey:      "", // not configured
-			userNameKey:    "", // not configured
-			expectUserID:   "subvalue",
-			expectUserName: "namevalue",
+			name:               "simpleCase",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectedEmailField: "emailvalue",
 			token: map[string]interface{}{
 				"sub":            "subvalue",
 				"name":           "namevalue",
@@ -72,6 +75,7 @@ func TestHandleCallback(t *testing.T) {
 			insecureSkipEmailVerified: true,
 			expectUserID:              "subvalue",
 			expectUserName:            "namevalue",
+			expectedEmailField:        "emailvalue",
 			token: map[string]interface{}{
 				"sub":   "subvalue",
 				"name":  "namevalue",
@@ -79,10 +83,11 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name:           "withUserIDKey",
-			userIDKey:      "name",
-			expectUserID:   "namevalue",
-			expectUserName: "namevalue",
+			name:               "withUserIDKey",
+			userIDKey:          "name",
+			expectUserID:       "namevalue",
+			expectUserName:     "namevalue",
+			expectedEmailField: "emailvalue",
 			token: map[string]interface{}{
 				"sub":            "subvalue",
 				"name":           "namevalue",
@@ -91,15 +96,43 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name:           "withUserNameKey",
-			userNameKey:    "user_name",
-			expectUserID:   "subvalue",
-			expectUserName: "username",
+			name:               "withUserNameKey",
+			userNameKey:        "user_name",
+			expectUserID:       "subvalue",
+			expectUserName:     "username",
+			expectedEmailField: "emailvalue",
 			token: map[string]interface{}{
 				"sub":            "subvalue",
 				"user_name":      "username",
 				"email":          "emailvalue",
 				"email_verified": true,
+			},
+		},
+		{
+			name:                      "emptyEmailScope",
+			expectUserID:              "subvalue",
+			expectUserName:            "namevalue",
+			expectedEmailField:        "",
+			scopes:                    []string{"groups"},
+			insecureSkipEmailVerified: true,
+			token: map[string]interface{}{
+				"sub":       "subvalue",
+				"name":      "namevalue",
+				"user_name": "username",
+			},
+		},
+		{
+			name:                      "emptyEmailScopeButEmailProvided",
+			expectUserID:              "subvalue",
+			expectUserName:            "namevalue",
+			expectedEmailField:        "emailvalue",
+			scopes:                    []string{"groups"},
+			insecureSkipEmailVerified: true,
+			token: map[string]interface{}{
+				"sub":       "subvalue",
+				"name":      "namevalue",
+				"user_name": "username",
+				"email":     "emailvalue",
 			},
 		},
 	}
@@ -111,13 +144,20 @@ func TestHandleCallback(t *testing.T) {
 				t.Fatal("failed to setup test server", err)
 			}
 			defer testServer.Close()
+
+			var scopes []string
+			if len(tc.scopes) > 0 {
+				scopes = tc.scopes
+			} else {
+				scopes = []string{"email", "groups"}
+			}
 			serverURL := testServer.URL
 			basicAuth := true
 			config := Config{
 				Issuer:                    serverURL,
 				ClientID:                  "clientID",
 				ClientSecret:              "clientSecret",
-				Scopes:                    []string{"groups"},
+				Scopes:                    scopes,
 				RedirectURI:               fmt.Sprintf("%s/callback", serverURL),
 				UserIDKey:                 tc.userIDKey,
 				UserNameKey:               tc.userNameKey,
@@ -142,7 +182,7 @@ func TestHandleCallback(t *testing.T) {
 
 			expectEquals(t, identity.UserID, tc.expectUserID)
 			expectEquals(t, identity.Username, tc.expectUserName)
-			expectEquals(t, identity.Email, "emailvalue")
+			expectEquals(t, identity.Email, tc.expectedEmailField)
 			expectEquals(t, identity.EmailVerified, true)
 		})
 	}

@@ -262,15 +262,25 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	if !found {
 		return identity, fmt.Errorf("missing \"%s\" claim", userNameKey)
 	}
+
+	hasEmailScope := false
+	for _, s := range c.oauth2Config.Scopes {
+		if s == "email" {
+			hasEmailScope = true
+			break
+		}
+	}
+
 	email, found := claims["email"].(string)
-	if !found {
+	if !found && hasEmailScope {
 		return identity, errors.New("missing \"email\" claim")
 	}
+
 	emailVerified, found := claims["email_verified"].(bool)
 	if !found {
 		if c.insecureSkipEmailVerified {
 			emailVerified = true
-		} else {
+		} else if hasEmailScope {
 			return identity, errors.New("missing \"email_verified\" claim")
 		}
 	}
