@@ -69,8 +69,8 @@ jobs:
           DEX_KEYSTONE_ADMIN_USER: demo
           DEX_KEYSTONE_ADMIN_PASS: DEMO_PASS
 
-      - name: Run Kubernetes tests
-        run: ./scripts/test-k8s.sh
+      - name: Run linter
+        run: make lint
 
       # Ensure proto generation doesn't depend on external packages.
       - name: Verify proto

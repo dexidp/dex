@@ -74,6 +74,7 @@ Dex implements the following connectors:
 | [Microsoft](Documentation/connectors/microsoft.md) | yes | yes | no | beta | |
 | [AuthProxy](Documentation/connectors/authproxy.md) | no | no | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
 | [Bitbucket Cloud](Documentation/connectors/bitbucketcloud.md) | yes | yes | no | alpha | |
+| [OpenShift](Documentation/connectors/openshift.md) | no | yes | no | stable | |
 
 Stable, beta, and alpha are defined as:
 
