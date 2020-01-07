@@ -134,6 +134,12 @@ type Config struct {
 
 		Scope string `json:"scope"` // Defaults to "sub"
 
+		// DEPRECATED config options. Those are left for backward compatibility.
+		// See "UserMatchers" below for the current group to user matching implementation
+		// TODO: should be eventually removed from the code
+		UserAttr  string `json:"userAttr"`
+		GroupAttr string `json:"groupAttr"`
+
 		// Array of the field pairs used to match a user to a group.
 		// See the "UserMatcher" struct for the exact field names
 		//
@@ -173,6 +179,23 @@ func parseScope(s string) (int, bool) {
 		return ldap.ScopeSingleLevel, true
 	}
 	return 0, false
+}
+
+// Build a list of group attr name to user attr value matchers.
+// Function exists here to allow backward compatibility between old and new
+// group to user matching implementations.
+// See "Config.GroupSearch.UserMatchers" comments for the details
+func (c *ldapConnector) userMatchers() []UserMatcher {
+	if len(c.GroupSearch.UserMatchers) > 0 && c.GroupSearch.UserMatchers[0].UserAttr != "" {
+		return c.GroupSearch.UserMatchers[:]
+	} else {
+		return []UserMatcher{
+			{
+				UserAttr:  c.GroupSearch.UserAttr,
+				GroupAttr: c.GroupSearch.GroupAttr,
+			},
+		}
+	}
 }
 
 // Open returns an authentication strategy using LDAP.
@@ -392,7 +415,7 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 		},
 	}
 
-	for _, matcher := range c.GroupSearch.UserMatchers {
+	for _, matcher := range c.userMatchers() {
 		req.Attributes = append(req.Attributes, matcher.UserAttr)
 	}
 
@@ -549,7 +572,7 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 	}
 
 	var groups []*ldap.Entry
-	for _, matcher := range c.GroupSearch.UserMatchers {
+	for _, matcher := range c.userMatchers() {
 		for _, attr := range getAttrs(user, matcher.UserAttr) {
 			filter := fmt.Sprintf("(%s=%s)", matcher.GroupAttr, ldap.EscapeFilter(attr))
 			if c.GroupSearch.Filter != "" {
