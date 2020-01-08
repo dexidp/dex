@@ -374,5 +374,4 @@ logger:
 	if diff := pretty.Compare(c, want); diff != "" {
 		t.Errorf("got!=want: %s", diff)
 	}
-
 }
