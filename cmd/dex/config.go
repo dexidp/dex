@@ -198,9 +198,13 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 
 	storageConfig := f()
 	if len(store.Config) != 0 {
-		data := []byte(os.ExpandEnv(string(store.Config)))
-		if err := json.Unmarshal(data, storageConfig); err != nil {
+		if err := json.Unmarshal(store.Config, storageConfig); err != nil {
 			return fmt.Errorf("parse storage config: %v", err)
+		}
+
+		// Replace environment variables
+		if err := replaceEnvKeys(storageConfig, os.Getenv); err != nil {
+			return fmt.Errorf("replacing environment keys: %v", err)
 		}
 	}
 	*s = Storage{
@@ -240,9 +244,13 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 
 	connConfig := f()
 	if len(conn.Config) != 0 {
-		data := []byte(os.ExpandEnv(string(conn.Config)))
-		if err := json.Unmarshal(data, connConfig); err != nil {
+		if err := json.Unmarshal(conn.Config, connConfig); err != nil {
 			return fmt.Errorf("parse connector config: %v", err)
+		}
+
+		// Replace environment variables
+		if err := replaceEnvKeys(connConfig, os.Getenv); err != nil {
+			return fmt.Errorf("replacing environment keys: %v", err)
 		}
 	}
 	*c = Connector{
