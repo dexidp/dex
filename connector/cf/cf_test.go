@@ -10,8 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dexidp/dex/connector"
 	"github.com/sirupsen/logrus"
+
+	"github.com/dexidp/dex/connector"
 )
 
 func TestOpen(t *testing.T) {
@@ -26,7 +27,6 @@ func TestOpen(t *testing.T) {
 }
 
 func TestHandleCallback(t *testing.T) {
-
 	testServer := testSetup()
 	defer testServer.Close()
 
@@ -97,9 +97,9 @@ func TestHandleCallback(t *testing.T) {
 	})
 }
 
-func testSpaceHandler(reqUrl, spaceApiEndpoint string) (result map[string]interface{}) {
-	fullUrl := fmt.Sprintf("%s?order-direction=asc&page=2&results-per-page=50", spaceApiEndpoint)
-	if strings.Contains(reqUrl, fullUrl) {
+func testSpaceHandler(reqURL, spaceAPIEndpoint string) (result map[string]interface{}) {
+	fullURL := fmt.Sprintf("%s?order-direction=asc&page=2&results-per-page=50", spaceAPIEndpoint)
+	if strings.Contains(reqURL, fullURL) {
 		result = map[string]interface{}{
 			"resources": []map[string]interface{}{
 				{
@@ -109,9 +109,9 @@ func testSpaceHandler(reqUrl, spaceApiEndpoint string) (result map[string]interf
 			},
 		}
 	} else {
-		nextUrl := fmt.Sprintf("/v2/users/12345/%s?order-direction=asc&page=2&results-per-page=50", spaceApiEndpoint)
+		nextURL := fmt.Sprintf("/v2/users/12345/%s?order-direction=asc&page=2&results-per-page=50", spaceAPIEndpoint)
 		result = map[string]interface{}{
-			"next_url": nextUrl,
+			"next_url": nextURL,
 			"resources": []map[string]interface{}{
 				{
 					"metadata": map[string]string{"guid": "some-space-guid-1"},
@@ -123,8 +123,8 @@ func testSpaceHandler(reqUrl, spaceApiEndpoint string) (result map[string]interf
 	return result
 }
 
-func testOrgHandler(reqUrl string) (result map[string]interface{}) {
-	if strings.Contains(reqUrl, "organizations?order-direction=asc&page=2&results-per-page=50") {
+func testOrgHandler(reqURL string) (result map[string]interface{}) {
+	if strings.Contains(reqURL, "organizations?order-direction=asc&page=2&results-per-page=50") {
 		result = map[string]interface{}{
 			"resources": []map[string]interface{}{
 				{
@@ -197,21 +197,21 @@ func testSetup() *httptest.Server {
 	mux.HandleFunc("/v2/users/", func(w http.ResponseWriter, r *http.Request) {
 		var result map[string]interface{}
 
-		reqUrl := r.URL.String()
-		if strings.Contains(reqUrl, "/spaces") {
-			result = testSpaceHandler(reqUrl, "spaces")
+		reqURL := r.URL.String()
+		if strings.Contains(reqURL, "/spaces") {
+			result = testSpaceHandler(reqURL, "spaces")
 		}
 
-		if strings.Contains(reqUrl, "/audited_spaces") {
-			result = testSpaceHandler(reqUrl, "audited_spaces")
+		if strings.Contains(reqURL, "/audited_spaces") {
+			result = testSpaceHandler(reqURL, "audited_spaces")
 		}
 
-		if strings.Contains(reqUrl, "/managed_spaces") {
-			result = testSpaceHandler(reqUrl, "managed_spaces")
+		if strings.Contains(reqURL, "/managed_spaces") {
+			result = testSpaceHandler(reqURL, "managed_spaces")
 		}
 
-		if strings.Contains(reqUrl, "organizations") {
-			result = testOrgHandler(reqUrl)
+		if strings.Contains(reqURL, "organizations") {
+			result = testOrgHandler(reqURL)
 		}
 
 		json.NewEncoder(w).Encode(result)
@@ -221,7 +221,6 @@ func testSetup() *httptest.Server {
 }
 
 func newConnector(t *testing.T, serverURL string) *cfConnector {
-
 	callBackURL := fmt.Sprintf("%s/callback", serverURL)
 
 	testConfig := Config{
