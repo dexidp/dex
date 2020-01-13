@@ -80,6 +80,10 @@ connectors:
       tenant: organizations
 ```
 
+When Azure Active Directory is synchronized with an on-premises directory, the
+boolean configuration parameter `useOnPremSamAccountName` can be set to get the
+on-premises samAccountName as the `preferred_username` claim.
+
 ### Groups
 
 When the `groups` claim is present in a request to dex __and__ `tenant` is
