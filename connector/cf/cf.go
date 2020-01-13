@@ -14,9 +14,10 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/oauth2"
+
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
-	"golang.org/x/oauth2"
 )
 
 type cfConnector struct {
@@ -45,7 +46,7 @@ type Config struct {
 }
 
 type CCResponse struct {
-	NextUrl      string     `json:"next_url"`
+	NextURL      string     `json:"next_url"`
 	Resources    []Resource `json:"resources"`
 	TotalResults int        `json:"total_results"`
 }
@@ -56,24 +57,24 @@ type Resource struct {
 }
 
 type Metadata struct {
-	Guid string `json:"guid"`
+	GUID string `json:"guid"`
 }
 
 type Entity struct {
 	Name             string `json:"name"`
-	OrganizationGuid string `json:"organization_guid"`
+	OrganizationGUID string `json:"organization_guid"`
 }
 
 type Space struct {
 	Name    string
-	Guid    string
-	OrgGuid string
+	GUID    string
+	OrgGUID string
 	Role    string
 }
 
 type Org struct {
 	Name string
-	Guid string
+	GUID string
 }
 
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
@@ -94,7 +95,6 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 
 	apiURL := strings.TrimRight(c.APIURL, "/")
 	apiResp, err := cfConn.httpClient.Get(fmt.Sprintf("%s/v2/info", apiURL))
-
 	if err != nil {
 		logger.Errorf("failed-to-send-request-to-cloud-controller-api", err)
 		return nil, err
@@ -103,7 +103,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 	defer apiResp.Body.Close()
 
 	if apiResp.StatusCode != http.StatusOK {
-		err = errors.New(fmt.Sprintf("request failed with status %d", apiResp.StatusCode))
+		err = fmt.Errorf("request failed with status %d", apiResp.StatusCode)
 		logger.Errorf("failed-get-info-response-from-api", err)
 		return nil, err
 	}
@@ -113,15 +113,14 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 
 	uaaURL := strings.TrimRight(apiResult["authorization_endpoint"].(string), "/")
 	uaaResp, err := cfConn.httpClient.Get(fmt.Sprintf("%s/.well-known/openid-configuration", uaaURL))
-
 	if err != nil {
 		logger.Errorf("failed-to-send-request-to-uaa-api", err)
 		return nil, err
 	}
 
 	if apiResp.StatusCode != http.StatusOK {
-		err = errors.New(fmt.Sprintf("request failed with status %d", apiResp.StatusCode))
-		logger.Errorf("failed-to-get-well-known-config-repsonse-from-api", err)
+		err = fmt.Errorf("request failed with status %d", apiResp.StatusCode)
+		logger.Errorf("failed-to-get-well-known-config-response-from-api", err)
 		return nil, err
 	}
 
@@ -177,7 +176,6 @@ func newHTTPClient(rootCAs []string, insecureSkipVerify bool) (*http.Client, err
 }
 
 func (c *cfConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, error) {
-
 	if c.redirectURI != callbackURL {
 		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
@@ -193,10 +191,10 @@ func (c *cfConnector) LoginURL(scopes connector.Scopes, callbackURL, state strin
 	return oauth2Config.AuthCodeURL(state), nil
 }
 
-func fetchRoleSpaces(baseUrl, path, role string, client *http.Client) ([]Space, error) {
+func fetchRoleSpaces(baseURL, path, role string, client *http.Client) ([]Space, error) {
 	var spaces []Space
 
-	resources, err := fetchResources(baseUrl, path, client)
+	resources, err := fetchResources(baseURL, path, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch resources: %v", err)
 	}
@@ -204,8 +202,8 @@ func fetchRoleSpaces(baseUrl, path, role string, client *http.Client) ([]Space, 
 	for _, resource := range resources {
 		spaces = append(spaces, Space{
 			Name:    resource.Entity.Name,
-			Guid:    resource.Metadata.Guid,
-			OrgGuid: resource.Entity.OrganizationGuid,
+			GUID:    resource.Metadata.GUID,
+			OrgGUID: resource.Entity.OrganizationGUID,
 			Role:    role,
 		})
 	}
@@ -213,10 +211,10 @@ func fetchRoleSpaces(baseUrl, path, role string, client *http.Client) ([]Space, 
 	return spaces, nil
 }
 
-func fetchOrgs(baseUrl, path string, client *http.Client) ([]Org, error) {
+func fetchOrgs(baseURL, path string, client *http.Client) ([]Org, error) {
 	var orgs []Org
 
-	resources, err := fetchResources(baseUrl, path, client)
+	resources, err := fetchResources(baseURL, path, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch resources: %v", err)
 	}
@@ -224,26 +222,27 @@ func fetchOrgs(baseUrl, path string, client *http.Client) ([]Org, error) {
 	for _, resource := range resources {
 		orgs = append(orgs, Org{
 			Name: resource.Entity.Name,
-			Guid: resource.Metadata.Guid,
+			GUID: resource.Metadata.GUID,
 		})
 	}
 
 	return orgs, nil
 }
 
-func fetchResources(baseUrl, path string, client *http.Client) ([]Resource, error) {
+func fetchResources(baseURL, path string, client *http.Client) ([]Resource, error) {
 	var (
 		resources []Resource
 		url       string
 	)
 
 	for {
-		url = fmt.Sprintf("%s%s", baseUrl, path)
+		url = fmt.Sprintf("%s%s", baseURL, path)
 
 		resp, err := client.Get(url)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute request: %v", err)
 		}
+		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("unsuccessful status code %d", resp.StatusCode)
@@ -257,7 +256,7 @@ func fetchResources(baseUrl, path string, client *http.Client) ([]Resource, erro
 
 		resources = append(resources, response.Resources...)
 
-		path = response.NextUrl
+		path = response.NextURL
 		if path == "" {
 			break
 		}
@@ -267,7 +266,6 @@ func fetchResources(baseUrl, path string, client *http.Client) ([]Resource, erro
 }
 
 func getGroupsClaims(orgs []Org, spaces []Space) []string {
-
 	var (
 		orgMap       = map[string]string{}
 		orgSpaces    = map[string][]Space{}
@@ -275,17 +273,17 @@ func getGroupsClaims(orgs []Org, spaces []Space) []string {
 	)
 
 	for _, org := range orgs {
-		orgMap[org.Guid] = org.Name
+		orgMap[org.GUID] = org.Name
 		orgSpaces[org.Name] = []Space{}
-		groupsClaims[org.Guid] = true
+		groupsClaims[org.GUID] = true
 		groupsClaims[org.Name] = true
 	}
 
 	for _, space := range spaces {
-		orgName := orgMap[space.OrgGuid]
+		orgName := orgMap[space.OrgGUID]
 		orgSpaces[orgName] = append(orgSpaces[orgName], space)
-		groupsClaims[space.Guid] = true
-		groupsClaims[fmt.Sprintf("%s:%s", space.Guid, space.Role)] = true
+		groupsClaims[space.GUID] = true
+		groupsClaims[fmt.Sprintf("%s:%s", space.GUID, space.Role)] = true
 	}
 
 	for orgName, spaces := range orgSpaces {
@@ -296,7 +294,7 @@ func getGroupsClaims(orgs []Org, spaces []Space) []string {
 	}
 
 	var groups []string
-	for group, _ := range groupsClaims {
+	for group := range groupsClaims {
 		groups = append(groups, group)
 	}
 
@@ -306,7 +304,6 @@ func getGroupsClaims(orgs []Org, spaces []Space) []string {
 }
 
 func (c *cfConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
-
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, errors.New(q.Get("error_description"))
