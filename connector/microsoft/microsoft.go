@@ -40,30 +40,32 @@ const (
 
 // Config holds configuration options for microsoft logins.
 type Config struct {
-	ClientID             string          `json:"clientID"`
-	ClientSecret         string          `json:"clientSecret"`
-	RedirectURI          string          `json:"redirectURI"`
-	Tenant               string          `json:"tenant"`
-	OnlySecurityGroups   bool            `json:"onlySecurityGroups"`
-	Groups               []string        `json:"groups"`
-	GroupNameFormat      GroupNameFormat `json:"groupNameFormat"`
-	UseGroupsAsWhitelist bool            `json:"useGroupsAsWhitelist"`
+	ClientID                string          `json:"clientID"`
+	ClientSecret            string          `json:"clientSecret"`
+	RedirectURI             string          `json:"redirectURI"`
+	Tenant                  string          `json:"tenant"`
+	OnlySecurityGroups      bool            `json:"onlySecurityGroups"`
+	Groups                  []string        `json:"groups"`
+	GroupNameFormat         GroupNameFormat `json:"groupNameFormat"`
+	UseGroupsAsWhitelist    bool            `json:"useGroupsAsWhitelist"`
+	UseOnPremSamAccountName bool            `json:"useOnPremSamAccountName"`
 }
 
 // Open returns a strategy for logging in through Microsoft.
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	m := microsoftConnector{
-		apiURL:               "https://login.microsoftonline.com",
-		graphURL:             "https://graph.microsoft.com",
-		redirectURI:          c.RedirectURI,
-		clientID:             c.ClientID,
-		clientSecret:         c.ClientSecret,
-		tenant:               c.Tenant,
-		onlySecurityGroups:   c.OnlySecurityGroups,
-		groups:               c.Groups,
-		groupNameFormat:      c.GroupNameFormat,
-		useGroupsAsWhitelist: c.UseGroupsAsWhitelist,
-		logger:               logger,
+		apiURL:                  "https://login.microsoftonline.com",
+		graphURL:                "https://graph.microsoft.com",
+		redirectURI:             c.RedirectURI,
+		clientID:                c.ClientID,
+		clientSecret:            c.ClientSecret,
+		tenant:                  c.Tenant,
+		onlySecurityGroups:      c.OnlySecurityGroups,
+		groups:                  c.Groups,
+		groupNameFormat:         c.GroupNameFormat,
+		useGroupsAsWhitelist:    c.UseGroupsAsWhitelist,
+		useOnPremSamAccountName: c.UseOnPremSamAccountName,
+		logger:                  logger,
 	}
 	// By default allow logins from both personal and business/school
 	// accounts.
@@ -95,17 +97,18 @@ var (
 )
 
 type microsoftConnector struct {
-	apiURL               string
-	graphURL             string
-	redirectURI          string
-	clientID             string
-	clientSecret         string
-	tenant               string
-	onlySecurityGroups   bool
-	groupNameFormat      GroupNameFormat
-	groups               []string
-	useGroupsAsWhitelist bool
-	logger               log.Logger
+	apiURL                  string
+	graphURL                string
+	redirectURI             string
+	clientID                string
+	clientSecret            string
+	tenant                  string
+	onlySecurityGroups      bool
+	groupNameFormat         GroupNameFormat
+	groups                  []string
+	useGroupsAsWhitelist    bool
+	useOnPremSamAccountName bool
+	logger                  log.Logger
 }
 
 func (c *microsoftConnector) isOrgTenant() bool {
@@ -165,10 +168,15 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 	}
 
 	identity = connector.Identity{
-		UserID:        user.ID,
-		Username:      user.Name,
-		Email:         user.Email,
-		EmailVerified: true,
+		UserID:            user.ID,
+		Username:          user.Name,
+		PreferredUsername: user.OnPremisesSamAccountName,
+		Email:             user.Email,
+		EmailVerified:     true,
+	}
+
+	if c.useOnPremSamAccountName {
+		identity.PreferredUsername = user.OnPremisesSamAccountName
 	}
 
 	if c.groupsRequired(s.Groups) {
@@ -291,15 +299,25 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 //                     verified domains for the tenant can be accessed from the
 //                     verifiedDomains property of organization. Supports
 //                     $filter and $orderby.
+// onPremisesSamAccountName - Contains the on-premises samAccountName
+//                     synchronized from the on-premises directory. The property
+//                     is only populated for customers who are synchronizing
+//                     their on-premises directory to Azure Active Directory via
+//                     Azure AD Connect. Read-only.
 type user struct {
-	ID    string `json:"id"`
-	Name  string `json:"displayName"`
-	Email string `json:"userPrincipalName"`
+	ID                       string `json:"id"`
+	Name                     string `json:"displayName"`
+	Email                    string `json:"userPrincipalName"`
+	OnPremisesSamAccountName string `json:"onPremisesSamAccountName"`
 }
 
 func (c *microsoftConnector) user(ctx context.Context, client *http.Client) (u user, err error) {
 	// https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/api/user_get
-	req, err := http.NewRequest("GET", c.graphURL+"/v1.0/me?$select=id,displayName,userPrincipalName", nil)
+	var url = c.graphURL + "/v1.0/me?$select=id,displayName,userPrincipalName"
+	if c.useOnPremSamAccountName {
+		url += ",onPremisesSamAccountName"
+	}
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return u, fmt.Errorf("new req: %v", err)
 	}
