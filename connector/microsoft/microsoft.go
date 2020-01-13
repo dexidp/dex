@@ -31,7 +31,6 @@ const (
 )
 
 const (
-	apiURL = "https://graph.microsoft.com"
 	// Microsoft requires this scope to access user's profile
 	scopeUser = "user.read"
 	// Microsoft requires this scope to list groups the user is a member of
@@ -54,6 +53,8 @@ type Config struct {
 // Open returns a strategy for logging in through Microsoft.
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	m := microsoftConnector{
+		apiURL:               "https://login.microsoftonline.com",
+		graphURL:             "https://graph.microsoft.com",
 		redirectURI:          c.RedirectURI,
 		clientID:             c.ClientID,
 		clientSecret:         c.ClientSecret,
@@ -94,6 +95,8 @@ var (
 )
 
 type microsoftConnector struct {
+	apiURL               string
+	graphURL             string
 	redirectURI          string
 	clientID             string
 	clientSecret         string
@@ -123,8 +126,8 @@ func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Confi
 		ClientID:     c.clientID,
 		ClientSecret: c.clientSecret,
 		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://login.microsoftonline.com/" + c.tenant + "/oauth2/v2.0/authorize",
-			TokenURL: "https://login.microsoftonline.com/" + c.tenant + "/oauth2/v2.0/token",
+			AuthURL:  c.apiURL + "/" + c.tenant + "/oauth2/v2.0/authorize",
+			TokenURL: c.apiURL + "/" + c.tenant + "/oauth2/v2.0/token",
 		},
 		Scopes:      microsoftScopes,
 		RedirectURL: c.redirectURI,
@@ -296,7 +299,7 @@ type user struct {
 
 func (c *microsoftConnector) user(ctx context.Context, client *http.Client) (u user, err error) {
 	// https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/api/user_get
-	req, err := http.NewRequest("GET", apiURL+"/v1.0/me?$select=id,displayName,userPrincipalName", nil)
+	req, err := http.NewRequest("GET", c.graphURL+"/v1.0/me?$select=id,displayName,userPrincipalName", nil)
 	if err != nil {
 		return u, fmt.Errorf("new req: %v", err)
 	}
@@ -355,7 +358,7 @@ func (c *microsoftConnector) getGroupIDs(ctx context.Context, client *http.Clien
 	in := &struct {
 		SecurityEnabledOnly bool `json:"securityEnabledOnly"`
 	}{c.onlySecurityGroups}
-	reqURL := apiURL + "/v1.0/me/getMemberGroups"
+	reqURL := c.graphURL + "/v1.0/me/getMemberGroups"
 	for {
 		var out []string
 		var next string
@@ -383,7 +386,7 @@ func (c *microsoftConnector) getGroupNames(ctx context.Context, client *http.Cli
 		IDs   []string `json:"ids"`
 		Types []string `json:"types"`
 	}{ids, []string{"group"}}
-	reqURL := apiURL + "/v1.0/directoryObjects/getByIds"
+	reqURL := c.graphURL + "/v1.0/directoryObjects/getByIds"
 	for {
 		var out []group
 		var next string
