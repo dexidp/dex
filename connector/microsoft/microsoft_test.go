@@ -63,6 +63,30 @@ func TestUserGroupsFromGraphAPI(t *testing.T) {
 	expectEquals(t, identity.Groups, []string{"a", "b"})
 }
 
+func TestOnPremisesSamAccountName(t *testing.T) {
+	s := newTestServer(map[string]testResponse{
+		"/v1.0/me?$select=id,displayName,userPrincipalName,onPremisesSamAccountName": {
+			data: user{
+				ID:                       "S56767889",
+				Name:                     "Jane Doe",
+				Email:                    "jane.doe@example.com",
+				OnPremisesSamAccountName: "j.doe",
+			},
+		},
+		"/" + tenant + "/oauth2/v2.0/token": dummyToken,
+	})
+	defer s.Close()
+
+	req, _ := http.NewRequest("GET", s.URL, nil)
+
+	c := microsoftConnector{apiURL: s.URL, graphURL: s.URL, tenant: tenant, useOnPremSamAccountName: true}
+	identity, err := c.HandleCallback(connector.Scopes{Groups: false}, req)
+	expectNil(t, err)
+	expectEquals(t, identity.Username, "Jane Doe")
+	expectEquals(t, identity.UserID, "S56767889")
+	expectEquals(t, identity.PreferredUsername, "j.doe")
+}
+
 func newTestServer(responses map[string]testResponse) *httptest.Server {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response, found := responses[r.RequestURI]
