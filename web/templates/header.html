@@ -6,8 +6,8 @@
     <title>{{ issuer }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="{{ url .ReqPath "static/main.css" }}" rel="stylesheet">
-    <link href="{{ url .ReqPath "theme/styles.css" }}" rel="stylesheet">
-    <link rel="icon" href="{{ url .ReqPath "theme/favicon.png" }}">
+    <link href="{{ theme .ReqPath "theme/styles.css" }}" rel="stylesheet">
+    <link rel="icon" href="{{ theme .ReqPath "theme/favicon.png" }}">
   </head>
 
   <body class="theme-body">

@@ -74,7 +74,6 @@ web:
   http: 127.0.0.1:5556
 
 frontend:
-  dir: ./web
   extra:
     foo: bar
 
@@ -144,7 +143,6 @@ logger:
 			HTTP: "127.0.0.1:5556",
 		},
 		Frontend: server.WebConfig{
-			Dir: "./web",
 			Extra: map[string]string{
 				"foo": "bar",
 			},
@@ -274,7 +272,6 @@ web:
   http: 127.0.0.1:5556
 
 frontend:
-  dir: ./web
   extra:
     foo: bar
 
@@ -352,7 +349,6 @@ logger:
 			HTTP: "127.0.0.1:5556",
 		},
 		Frontend: server.WebConfig{
-			Dir: "./web",
 			Extra: map[string]string{
 				"foo": "bar",
 			},
