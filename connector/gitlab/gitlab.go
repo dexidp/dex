@@ -25,7 +25,7 @@ const (
 	scopeOpenID = "openid"
 )
 
-// Config holds configuration options for gilab logins.
+// Config holds configuration options for gitlab logins.
 type Config struct {
 	BaseURL      string   `json:"baseURL"`
 	ClientID     string   `json:"clientID"`
