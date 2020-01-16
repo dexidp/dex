@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/coreos/go-oidc"
@@ -38,6 +39,9 @@ type Config struct {
 	// Optional list of whitelisted groups
 	// If this field is nonempty, only users from a listed group will be allowed to log in
 	Groups []string `json:"groups"`
+
+	// Optional field to filter groups by regexp
+	GroupsFilter string `json:"groupsFilter"`
 
 	// Optional path to service account json
 	// If nonempty, and groups claim is made, will use authentication from file to
@@ -73,6 +77,18 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		return nil, fmt.Errorf("could not create directory service: %v", err)
 	}
 
+	var groupsFilter *regexp.Regexp
+	if c.GroupsFilter != "" {
+		var err error
+		groupsFilter, err = regexp.Compile(c.GroupsFilter)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("unable to compile the groupsFilter regexp. "+
+				"Input string: %q; error: %v", c.GroupsFilter, err,
+			)
+		}
+	}
+
 	clientID := c.ClientID
 	return &googleConnector{
 		redirectURI: c.RedirectURI,
@@ -90,6 +106,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		cancel:                 cancel,
 		hostedDomains:          c.HostedDomains,
 		groups:                 c.Groups,
+		groupsFilter:           groupsFilter,
 		serviceAccountFilePath: c.ServiceAccountFilePath,
 		adminEmail:             c.AdminEmail,
 		adminSrv:               srv,
@@ -109,6 +126,7 @@ type googleConnector struct {
 	logger                 log.Logger
 	hostedDomains          []string
 	groups                 []string
+	groupsFilter           *regexp.Regexp
 	serviceAccountFilePath string
 	adminEmail             string
 	adminSrv               *admin.Service
@@ -251,8 +269,9 @@ func (c *googleConnector) getGroups(email string) ([]string, error) {
 		}
 
 		for _, group := range groupsList.Groups {
-			// TODO (joelspeed): Make desried group key configurable
-			userGroups = append(userGroups, group.Email)
+			if c.groupsFilter == nil || c.groupsFilter.MatchString(group.Email) {
+				userGroups = append(userGroups, group.Email)
+			}
 		}
 
 		if groupsList.NextPageToken == "" {
