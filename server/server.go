@@ -301,6 +301,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS("/userinfo", s.handleUserInfo)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
+	handleFunc("/device/code", s.handleDeviceCode)
 	r.HandleFunc(path.Join(issuerURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on
 		// misconfigured authproxy connector setups.
@@ -449,7 +450,8 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 				if r, err := s.storage.GarbageCollect(now()); err != nil {
 					s.logger.Errorf("garbage collection failed: %v", err)
 				} else if r.AuthRequests > 0 || r.AuthCodes > 0 {
-					s.logger.Infof("garbage collection run, delete auth requests=%d, auth codes=%d", r.AuthRequests, r.AuthCodes)
+					s.logger.Infof("garbage collection run, delete auth requests=%d, auth codes=%d, device requests =%d, device tokens=%d",
+						r.AuthRequests, r.AuthCodes, r.DeviceRequests, r.DeviceTokens)
 				}
 			}
 		}

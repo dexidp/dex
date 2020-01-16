@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -15,12 +16,11 @@ import (
 	"time"
 
 	oidc "github.com/coreos/go-oidc"
-	"github.com/gorilla/mux"
-	jose "gopkg.in/square/go-jose.v2"
-
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
+	"github.com/gorilla/mux"
+	jose "gopkg.in/square/go-jose.v2"
 )
 
 // newHealthChecker returns the healthz handler. The handler runs until the
@@ -1414,4 +1414,113 @@ func usernamePrompt(conn connector.PasswordConnector) string {
 		return attr
 	}
 	return "Username"
+}
+
+type deviceCodeResponse struct {
+	//The unique device code for device authentication
+	DeviceCode string `json:"device_code"`
+	//The code the user will exchange via a browser and log in
+	UserCode string `json:"user_code"`
+	//The url to verify the user code.
+	VerificationURI string `json:"verification_uri"`
+	//The lifetime of the device code
+	ExpireTime int `json:"expires_in"`
+	//How often the device is allowed to poll to verify that the user login occurred
+	PollInterval int `json:"interval"`
+}
+
+func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
+	//TODO replace with configurable values
+	expireIntervalSeconds := 300
+	requestsPerMinute := 5
+
+	switch r.Method {
+	case http.MethodPost:
+		err := r.ParseForm()
+		if err != nil {
+			message := "Could not parse Device Request body"
+			s.logger.Errorf("%s : %v", message, err)
+			respondWithError(w, message, err)
+			return
+		}
+
+		//Get the client id and scopes from the post
+		clientID := r.Form.Get("client_id")
+		scopes := r.Form["scope"]
+
+		s.logger.Infof("Received device request for client %v with scopes %v", clientID, scopes)
+
+		//Make device code
+		deviceCode := storage.NewDeviceCode()
+
+		//make user code
+		userCode := storage.NewUserCode()
+
+		//make a pcke verification code
+		pkceCode := storage.NewID()
+
+		//Generate the expire time
+		expireTime := time.Now().Add(time.Second * time.Duration(expireIntervalSeconds))
+
+		//Store the Device Request
+		deviceReq := storage.DeviceRequest{
+			UserCode:     userCode,
+			DeviceCode:   deviceCode,
+			ClientID:     clientID,
+			Scopes:       scopes,
+			PkceVerifier: pkceCode,
+			Expiry:       expireTime,
+		}
+
+		if err := s.storage.CreateDeviceRequest(deviceReq); err != nil {
+			message := fmt.Sprintf("Failed to store device request %v", err)
+			s.logger.Errorf(message)
+			respondWithError(w, message, err)
+			return
+		}
+
+		//Store the device token
+		deviceToken := storage.DeviceToken{
+			DeviceCode: deviceCode,
+			Status:     "pending",
+			Token:      "",
+			Expiry:     expireTime,
+		}
+
+		if err := s.storage.CreateDeviceToken(deviceToken); err != nil {
+			message := fmt.Sprintf("Failed to store device token %v", err)
+			s.logger.Errorf(message)
+			respondWithError(w, message, err)
+			return
+		}
+
+		code := deviceCodeResponse{
+			DeviceCode:      deviceCode,
+			UserCode:        userCode,
+			VerificationURI: path.Join(s.issuerURL.String(), "/device"),
+			ExpireTime:      expireIntervalSeconds,
+			PollInterval:    requestsPerMinute,
+		}
+
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "   ")
+		enc.Encode(code)
+
+	default:
+		s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
+	}
+}
+
+func respondWithError(w io.Writer, errorMessage string, err error) {
+	resp := struct {
+		Error        string `json:"error"`
+		ErrorMessage string `json:"message"`
+	}{
+		Error:        err.Error(),
+		ErrorMessage: errorMessage,
+	}
+
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "   ")
+	enc.Encode(resp)
 }

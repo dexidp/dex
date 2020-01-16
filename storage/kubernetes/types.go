@@ -143,6 +143,36 @@ var customResourceDefinitions = []k8sapi.CustomResourceDefinition{
 			},
 		},
 	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "devicerequests.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "devicerequests",
+				Singular: "devicerequest",
+				Kind:     "DeviceRequest",
+			},
+		},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "devicetokens.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "devicetokens",
+				Singular: "devicetoken",
+				Kind:     "DeviceToken",
+			},
+		},
+	},
 }
 
 // There will only ever be a single keys resource. Maintain this by setting a
@@ -634,4 +664,78 @@ type ConnectorList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`
 	Connectors      []Connector `json:"items"`
+}
+
+// DeviceRequest is a mirrored struct from storage with JSON struct tags and
+// Kubernetes type metadata.
+type DeviceRequest struct {
+	k8sapi.TypeMeta   `json:",inline"`
+	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+
+	DeviceCode   string    `json:"device_code,omitempty"`
+	CLientID     string    `json:"client_id,omitempty"`
+	Scopes       []string  `json:"scopes,omitempty"`
+	PkceVerifier string    `json:"pkce_verifier,omitempty"`
+	Expiry       time.Time `json:"expiry"`
+}
+
+// AuthRequestList is a list of AuthRequests.
+type DeviceRequestList struct {
+	k8sapi.TypeMeta `json:",inline"`
+	k8sapi.ListMeta `json:"metadata,omitempty"`
+	DeviceRequests  []DeviceRequest `json:"items"`
+}
+
+func (cli *client) fromStorageDeviceRequest(a storage.DeviceRequest) DeviceRequest {
+	req := DeviceRequest{
+		TypeMeta: k8sapi.TypeMeta{
+			Kind:       kindDeviceRequest,
+			APIVersion: cli.apiVersion,
+		},
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name:      strings.ToLower(a.UserCode),
+			Namespace: cli.namespace,
+		},
+		DeviceCode:   a.DeviceCode,
+		CLientID:     a.ClientID,
+		Scopes:       a.Scopes,
+		PkceVerifier: a.PkceVerifier,
+		Expiry:       a.Expiry,
+	}
+	return req
+}
+
+// DeviceToken is a mirrored struct from storage with JSON struct tags and
+// Kubernetes type metadata.
+type DeviceToken struct {
+	k8sapi.TypeMeta   `json:",inline"`
+	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+
+	Status string    `json:"status,omitempty"`
+	Token  string    `json:"token,omitempty"`
+	Expiry time.Time `json:"expiry"`
+}
+
+// DeviceTokenList is a list of DeviceTokens.
+type DeviceTokenList struct {
+	k8sapi.TypeMeta `json:",inline"`
+	k8sapi.ListMeta `json:"metadata,omitempty"`
+	DeviceTokens    []DeviceToken `json:"items"`
+}
+
+func (cli *client) fromStorageDeviceToken(t storage.DeviceToken) DeviceToken {
+	req := DeviceToken{
+		TypeMeta: k8sapi.TypeMeta{
+			Kind:       kindDeviceToken,
+			APIVersion: cli.apiVersion,
+		},
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name:      t.DeviceCode,
+			Namespace: cli.namespace,
+		},
+		Status: t.Status,
+		Token:  t.Token,
+		Expiry: t.Expiry,
+	}
+	return req
 }
