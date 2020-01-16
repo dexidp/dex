@@ -100,6 +100,23 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 	if n, err := r.RowsAffected(); err == nil {
 		result.AuthCodes = n
 	}
+
+	r, err = c.Exec(`delete from device_request where expiry < $1`, now)
+	if err != nil {
+		return result, fmt.Errorf("gc device_request: %v", err)
+	}
+	if n, err := r.RowsAffected(); err == nil {
+		result.DeviceRequests = n
+	}
+
+	r, err = c.Exec(`delete from device_token where expiry < $1`, now)
+	if err != nil {
+		return result, fmt.Errorf("gc device_token: %v", err)
+	}
+	if n, err := r.RowsAffected(); err == nil {
+		result.DeviceTokens = n
+	}
+
 	return
 }
 
@@ -864,6 +881,44 @@ func (c *conn) delete(table, field, id string) error {
 	}
 	if n < 1 {
 		return storage.ErrNotFound
+	}
+	return nil
+}
+
+func (c *conn) CreateDeviceRequest(d storage.DeviceRequest) error {
+	_, err := c.Exec(`
+		insert into device_request (
+			user_code, device_code, client_id, scopes, pkce_verifier, expiry
+		)
+		values (
+			$1, $2, $3, $4, $5, $6
+		);`,
+		d.UserCode, d.DeviceCode, d.ClientID, encoder(d.Scopes), d.PkceVerifier, d.Expiry,
+	)
+	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
+		return fmt.Errorf("insert device request: %v", err)
+	}
+	return nil
+}
+
+func (c *conn) CreateDeviceToken(t storage.DeviceToken) error {
+	_, err := c.Exec(`
+		insert into device_token (
+			device_code, status, token, expiry
+		)
+		values (
+			$1, $2, $3, $4
+		);`,
+		t.DeviceCode, t.Status, t.Token, t.Expiry,
+	)
+	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
+		return fmt.Errorf("insert device token: %v", err)
 	}
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/base32"
 	"errors"
 	"io"
+	mrand "math/rand"
 	"strings"
 	"time"
 
@@ -24,9 +25,18 @@ var (
 // TODO(ericchiang): refactor ID creation onto the storage.
 var encoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567")
 
+// NewDeviceCode returns a 32 char alphanumeric cryptographically secure string
+func NewDeviceCode() string {
+	return newSecureID(32)
+}
+
 // NewID returns a random string which can be used as an ID for objects.
 func NewID() string {
-	buff := make([]byte, 16) // 128 bit random ID.
+	return newSecureID(16)
+}
+
+func newSecureID(len int) string {
+	buff := make([]byte, len) // 128 bit random ID.
 	if _, err := io.ReadFull(rand.Reader, buff); err != nil {
 		panic(err)
 	}
@@ -36,8 +46,10 @@ func NewID() string {
 
 // GCResult returns the number of objects deleted by garbage collection.
 type GCResult struct {
-	AuthRequests int64
-	AuthCodes    int64
+	AuthRequests   int64
+	AuthCodes      int64
+	DeviceRequests int64
+	DeviceTokens   int64
 }
 
 // Storage is the storage interface used by the server. Implementations are
@@ -54,6 +66,8 @@ type Storage interface {
 	CreatePassword(p Password) error
 	CreateOfflineSessions(s OfflineSessions) error
 	CreateConnector(c Connector) error
+	CreateDeviceRequest(d DeviceRequest) error
+	CreateDeviceToken(d DeviceToken) error
 
 	// TODO(ericchiang): return (T, bool, error) so we can indicate not found
 	// requests that way instead of using ErrNotFound.
@@ -102,7 +116,7 @@ type Storage interface {
 	UpdateOfflineSessions(userID string, connID string, updater func(s OfflineSessions) (OfflineSessions, error)) error
 	UpdateConnector(id string, updater func(c Connector) (Connector, error)) error
 
-	// GarbageCollect deletes all expired AuthCodes and AuthRequests.
+	// GarbageCollect deletes all expired AuthCodes,AuthRequests, DeviceRequests, and DeviceTokens.
 	GarbageCollect(now time.Time) (GCResult, error)
 }
 
@@ -341,4 +355,42 @@ type Keys struct {
 	//
 	// For caching purposes, implementations MUST NOT update keys before this time.
 	NextRotation time.Time
+}
+
+func NewUserCode() string {
+	mrand.Seed(time.Now().UnixNano())
+	return randomString(4) + "-" + randomString(4)
+}
+
+func randomString(n int) string {
+	var letter = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letter[mrand.Intn(len(letter))]
+	}
+	return string(b)
+}
+
+//DeviceRequest represents an OIDC device authorization request.  It holds the state of a device request until the user
+//authenticates using their user code or the expiry time passes.
+type DeviceRequest struct {
+	//The code the user will enter in a browser
+	UserCode string
+	//The unique device code for device authentication
+	DeviceCode string
+	//The client ID the code is for
+	ClientID string
+	//The scopes the device requests
+	Scopes []string
+	//PKCE Verification
+	PkceVerifier string
+	//The expire time
+	Expiry time.Time
+}
+
+type DeviceToken struct {
+	DeviceCode string
+	Status     string
+	Token      string
+	Expiry     time.Time
 }

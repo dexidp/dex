@@ -21,6 +21,8 @@ const (
 	kindPassword        = "Password"
 	kindOfflineSessions = "OfflineSessions"
 	kindConnector       = "Connector"
+	kindDeviceRequest   = "DeviceRequest"
+	kindDeviceToken     = "DeviceToken"
 )
 
 const (
@@ -32,6 +34,8 @@ const (
 	resourcePassword        = "passwords"
 	resourceOfflineSessions = "offlinesessionses" // Again attempts to pluralize.
 	resourceConnector       = "connectors"
+	resourceDeviceRequest   = "devicerequests"
+	resourceDeviceToken     = "devicetokens"
 )
 
 // Config values for the Kubernetes storage type.
@@ -593,5 +597,47 @@ func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err e
 			result.AuthCodes++
 		}
 	}
+
+	var deviceRequests DeviceRequestList
+	if err := cli.list(resourceDeviceRequest, &deviceRequests); err != nil {
+		return result, fmt.Errorf("failed to list device requests: %v", err)
+	}
+
+	for _, deviceRequest := range deviceRequests.DeviceRequests {
+		if now.After(deviceRequest.Expiry) {
+			if err := cli.delete(resourceDeviceRequest, deviceRequest.ObjectMeta.Name); err != nil {
+				cli.logger.Errorf("failed to delete device request: %v", err)
+				delErr = fmt.Errorf("failed to delete device request: %v", err)
+			}
+			result.DeviceRequests++
+		}
+	}
+
+	var deviceTokens DeviceTokenList
+	if err := cli.list(resourceDeviceToken, &deviceTokens); err != nil {
+		return result, fmt.Errorf("failed to list device tokens: %v", err)
+	}
+
+	for _, deviceToken := range deviceTokens.DeviceTokens {
+		if now.After(deviceToken.Expiry) {
+			if err := cli.delete(resourceDeviceToken, deviceToken.ObjectMeta.Name); err != nil {
+				cli.logger.Errorf("failed to delete device token: %v", err)
+				delErr = fmt.Errorf("failed to delete device token: %v", err)
+			}
+			result.DeviceTokens++
+		}
+	}
+
+	if delErr != nil {
+		return result, delErr
+	}
 	return result, delErr
+}
+
+func (cli *client) CreateDeviceRequest(d storage.DeviceRequest) error {
+	return cli.post(resourceDeviceRequest, cli.fromStorageDeviceRequest(d))
+}
+
+func (cli *client) CreateDeviceToken(t storage.DeviceToken) error {
+	return cli.post(resourceDeviceToken, cli.fromStorageDeviceToken(t))
 }
