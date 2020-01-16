@@ -14,9 +14,10 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/oauth2"
+
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
-	"golang.org/x/oauth2"
 )
 
 type oauthConnector struct {
@@ -113,7 +114,6 @@ func newHTTPClient(rootCAs []string, insecureSkipVerify bool) (*http.Client, err
 }
 
 func (c *oauthConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, error) {
-
 	if c.redirectURI != callbackURL {
 		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
@@ -130,7 +130,6 @@ func (c *oauthConnector) LoginURL(scopes connector.Scopes, callbackURL, state st
 }
 
 func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
-
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, errors.New(q.Get("error_description"))
@@ -185,7 +184,7 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 
 	identity.UserID, _ = userInfoResult[c.userIDKey].(string)
 	identity.Username, _ = userInfoResult[c.userNameKey].(string)
-	identity.Name, _ = userInfoResult["name"].(string)
+	identity.PreferredUsername, _ = userInfoResult["name"].(string)
 	identity.Email, _ = userInfoResult["email"].(string)
 	identity.EmailVerified, _ = userInfoResult["email_verified"].(bool)
 
@@ -195,7 +194,7 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 		c.addGroupsFromMap(groups, userInfoResult)
 		c.addGroupsFromToken(groups, token.AccessToken)
 
-		for groupName, _ := range groups {
+		for groupName := range groups {
 			identity.Groups = append(identity.Groups, groupName)
 		}
 	}
@@ -215,7 +214,7 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 func (c *oauthConnector) addGroupsFromMap(groups map[string]bool, result map[string]interface{}) error {
 	groupsClaim, ok := result[c.groupsKey].([]interface{})
 	if !ok {
-		return errors.New("Cant convert to array")
+		return errors.New("cant convert to array")
 	}
 
 	for _, group := range groupsClaim {
@@ -230,7 +229,7 @@ func (c *oauthConnector) addGroupsFromMap(groups map[string]bool, result map[str
 func (c *oauthConnector) addGroupsFromToken(groups map[string]bool, token string) error {
 	parts := strings.Split(token, ".")
 	if len(parts) < 2 {
-		return errors.New("Invalid token")
+		return errors.New("invalid token")
 	}
 
 	decoded, err := decode(parts[1])

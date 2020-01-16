@@ -13,9 +13,10 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/dexidp/dex/connector"
 	"github.com/sirupsen/logrus"
 	jose "gopkg.in/square/go-jose.v2"
+
+	"github.com/dexidp/dex/connector"
 )
 
 func TestOpen(t *testing.T) {
@@ -67,7 +68,6 @@ func TestLoginURL(t *testing.T) {
 }
 
 func TestHandleCallBackForGroupsInUserInfo(t *testing.T) {
-
 	tokenClaims := map[string]interface{}{}
 
 	userInfoClaims := map[string]interface{}{
@@ -92,7 +92,7 @@ func TestHandleCallBackForGroupsInUserInfo(t *testing.T) {
 	expectEqual(t, len(identity.Groups), 2)
 	expectEqual(t, identity.Groups[0], "admin-group")
 	expectEqual(t, identity.Groups[1], "user-group")
-	expectEqual(t, identity.Name, "test-name")
+	expectEqual(t, identity.PreferredUsername, "test-name")
 	expectEqual(t, identity.UserID, "test-user-id")
 	expectEqual(t, identity.Username, "test-username")
 	expectEqual(t, identity.Email, "test-email")
@@ -100,7 +100,6 @@ func TestHandleCallBackForGroupsInUserInfo(t *testing.T) {
 }
 
 func TestHandleCallBackForGroupsInToken(t *testing.T) {
-
 	tokenClaims := map[string]interface{}{
 		"groups_key": []string{"test-group"},
 	}
@@ -124,7 +123,7 @@ func TestHandleCallBackForGroupsInToken(t *testing.T) {
 
 	expectEqual(t, len(identity.Groups), 1)
 	expectEqual(t, identity.Groups[0], "test-group")
-	expectEqual(t, identity.Name, "test-name")
+	expectEqual(t, identity.PreferredUsername, "test-name")
 	expectEqual(t, identity.UserID, "test-user-id")
 	expectEqual(t, identity.Username, "test-username")
 	expectEqual(t, identity.Email, "test-email")
@@ -132,7 +131,6 @@ func TestHandleCallBackForGroupsInToken(t *testing.T) {
 }
 
 func testSetup(t *testing.T, tokenClaims map[string]interface{}, userInfoClaims map[string]interface{}) *httptest.Server {
-
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		t.Fatal("Failed to generate rsa key", err)
