@@ -1456,7 +1456,7 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 		//make user code
 		userCode := storage.NewUserCode()
 
-		//make a pcke verification code
+		//make a pkce verification code
 		pkceCode := storage.NewID()
 
 		//Generate the expire time
