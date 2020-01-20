@@ -11,7 +11,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -40,6 +42,73 @@ func TestKnownBrokenAuthHeaderProvider(t *testing.T) {
 			t.Errorf("knownBrokenAuthHeaderProvider(%q), want=%t, got=%t", tc.issuerURL, tc.expect, got)
 		}
 	}
+}
+
+func TestOpen(t *testing.T) {
+	testServer, err := setupServer(make(map[string]interface{}))
+	if err != nil {
+		t.Fatal("failed to setup test server", err)
+	}
+	defer testServer.Close()
+
+	conn, err := newConnector(Config{
+		Issuer:       testServer.URL,
+		ClientID:     "clientID",
+		ClientSecret: "clientSecret",
+		Scopes:       []string{"groups"},
+		RedirectURI:  fmt.Sprintf("%s/callback", testServer.URL),
+	})
+
+	if err != nil {
+		t.Fatal("failed to create new connector", err)
+	}
+
+	sort.Strings(conn.oauth2Config.Scopes)
+
+	expectEquals(t, conn.oauth2Config.ClientID, "clientID")
+	expectEquals(t, conn.oauth2Config.ClientSecret, "clientSecret")
+	expectEquals(t, conn.oauth2Config.RedirectURL, testServer.URL+"/callback")
+	expectEquals(t, conn.oauth2Config.Endpoint.TokenURL, testServer.URL+"/token")
+	expectEquals(t, conn.oauth2Config.Endpoint.AuthURL, testServer.URL+"/authorize")
+	expectEquals(t, len(conn.oauth2Config.Scopes), 2)
+	expectEquals(t, conn.oauth2Config.Scopes[0], "groups")
+	expectEquals(t, conn.oauth2Config.Scopes[1], "openid")
+}
+
+func TestLoginURL(t *testing.T) {
+	testServer, err := setupServer(make(map[string]interface{}))
+	if err != nil {
+		t.Fatal("failed to setup test server", err)
+	}
+	defer testServer.Close()
+
+	conn, err := newConnector(Config{
+		Issuer:       testServer.URL,
+		ClientID:     "clientID",
+		ClientSecret: "clientSecret",
+		Scopes:       []string{"groups"},
+		RedirectURI:  fmt.Sprintf("%s/callback", testServer.URL),
+	})
+
+	if err != nil {
+		t.Fatal("failed to create new connector", err)
+	}
+
+	loginURL, err := conn.LoginURL(connector.Scopes{}, conn.redirectURI, "some-state")
+	expectEquals(t, err, nil)
+
+	expectedURL, err := url.Parse(testServer.URL + "/authorize")
+	expectEquals(t, err, nil)
+
+	values := url.Values{}
+	values.Add("client_id", "clientID")
+	values.Add("redirect_uri", conn.redirectURI)
+	values.Add("response_type", "code")
+	values.Add("scope", "openid groups")
+	values.Add("state", "some-state")
+	expectedURL.RawQuery = values.Encode()
+
+	expectEquals(t, loginURL, expectedURL.String())
 }
 
 func TestHandleCallback(t *testing.T) {
