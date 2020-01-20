@@ -49,10 +49,13 @@ func TestHandleCallback(t *testing.T) {
 		name                      string
 		userIDKey                 string
 		userNameKey               string
+		groupsKey                 string
 		insecureSkipEmailVerified bool
+		insecureEnableGroups      bool
 		scopes                    []string
 		expectUserID              string
 		expectUserName            string
+		expectGroups              []string
 		expectedEmailField        string
 		token                     map[string]interface{}
 	}{
@@ -104,6 +107,22 @@ func TestHandleCallback(t *testing.T) {
 			token: map[string]interface{}{
 				"sub":            "subvalue",
 				"user_name":      "username",
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
+			name:                 "withGroupsKey",
+			insecureEnableGroups: true,
+			groupsKey:            "groups_key",
+			expectUserID:         "subvalue",
+			expectUserName:       "namevalue",
+			expectGroups:         []string{"group"},
+			expectedEmailField:   "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups_key":     []string{"group"},
 				"email":          "emailvalue",
 				"email_verified": true,
 			},
@@ -161,7 +180,9 @@ func TestHandleCallback(t *testing.T) {
 				RedirectURI:               fmt.Sprintf("%s/callback", serverURL),
 				UserIDKey:                 tc.userIDKey,
 				UserNameKey:               tc.userNameKey,
+				GroupsKey:                 tc.groupsKey,
 				InsecureSkipEmailVerified: tc.insecureSkipEmailVerified,
+				InsecureEnableGroups:      tc.insecureEnableGroups,
 				BasicAuthUnsupported:      &basicAuth,
 			}
 
@@ -182,6 +203,7 @@ func TestHandleCallback(t *testing.T) {
 
 			expectEquals(t, identity.UserID, tc.expectUserID)
 			expectEquals(t, identity.Username, tc.expectUserName)
+			expectEquals(t, identity.Groups, tc.expectGroups)
 			expectEquals(t, identity.Email, tc.expectedEmailField)
 			expectEquals(t, identity.EmailVerified, true)
 		})

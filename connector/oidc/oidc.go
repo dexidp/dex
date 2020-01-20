@@ -54,6 +54,9 @@ type Config struct {
 
 	// Configurable key which contains the user name claim
 	UserNameKey string `json:"userNameKey"`
+
+	// Configurable key which contains the groups claims
+	GroupsKey string `json:"groupsKey"` // defaults to "groups"
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -135,6 +138,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		getUserInfo:               c.GetUserInfo,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
+		groupsKey:                 c.GroupsKey,
 	}, nil
 }
 
@@ -156,6 +160,7 @@ type oidcConnector struct {
 	getUserInfo               bool
 	userIDKey                 string
 	userNameKey               string
+	groupsKey                 string
 }
 
 func (c *oidcConnector) Close() error {
@@ -326,7 +331,11 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	if c.insecureEnableGroups {
-		vs, ok := claims["groups"].([]interface{})
+		if c.groupsKey == "" {
+			c.groupsKey = "groups"
+		}
+
+		vs, ok := claims[c.groupsKey].([]interface{})
 		if ok {
 			for _, v := range vs {
 				if s, ok := v.(string); ok {
