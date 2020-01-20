@@ -230,21 +230,22 @@ var migrations = []migration{
 		flavor: &flavorMySQL,
 	},
 	{
-	stmts: []string{`
-		create table device_request (
-			user_code text not null primary key,
-			device_code text not null,
-			client_id text not null,
-			scopes bytea not null, -- JSON array of strings
-			pkce_verifier text not null,
-			expiry timestampz not null
-		);`,
-		`
-		create table device_token (
-			device_code text not null primary key,
-			status text not null,
-			token text,
-			expiry timestampz not null
-		);`,
+		stmts: []string{`
+			create table device_request (
+				user_code text not null primary key,
+				device_code text not null,
+				client_id text not null,
+				scopes bytea not null, -- JSON array of strings
+				pkce_verifier text not null,
+				expiry timestamptz not null
+			);`,
+			`
+			create table device_token (
+				device_code text not null primary key,
+				status text not null,
+				token text,
+				expiry timestamptz not null
+			);`,
+		},
 	},
 }
