@@ -591,6 +591,13 @@ func (c *conn) CreateDeviceToken(t storage.DeviceToken) error {
 	return c.txnCreate(ctx, keyID(deviceRequestPrefix, t.DeviceCode), fromStorageDeviceToken(t))
 }
 
+func (c *conn) GetDeviceToken(deviceCode string) (t storage.DeviceToken, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	err = c.getKey(ctx, keyID(deviceTokenPrefix, deviceCode), &t)
+	return t, err
+}
+
 func (c *conn) listDeviceTokens(ctx context.Context) (deviceTokens []DeviceToken, err error) {
 	res, err := c.db.Get(ctx, deviceTokenPrefix, clientv3.WithPrefix())
 	if err != nil {

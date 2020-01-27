@@ -641,3 +641,11 @@ func (cli *client) CreateDeviceRequest(d storage.DeviceRequest) error {
 func (cli *client) CreateDeviceToken(t storage.DeviceToken) error {
 	return cli.post(resourceDeviceToken, cli.fromStorageDeviceToken(t))
 }
+
+func (cli *client) GetDeviceToken(deviceCode string) (storage.DeviceToken, error) {
+	var token DeviceToken
+	if err := cli.get(resourceDeviceToken, deviceCode, &token); err != nil {
+		return storage.DeviceToken{}, err
+	}
+	return toStorageDeviceToken(token), nil
+}

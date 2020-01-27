@@ -739,3 +739,12 @@ func (cli *client) fromStorageDeviceToken(t storage.DeviceToken) DeviceToken {
 	}
 	return req
 }
+
+func toStorageDeviceToken(t DeviceToken) storage.DeviceToken {
+	return storage.DeviceToken{
+		DeviceCode: t.ObjectMeta.Name,
+		Status:     t.Status,
+		Token:      t.Token,
+		Expiry:     t.Expiry,
+	}
+}

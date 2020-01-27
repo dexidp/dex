@@ -837,8 +837,13 @@ func testGC(t *testing.T, s storage.Storage) {
 		t.Errorf("expected storage.ErrNotFound, got %v", err)
 	}
 
+	userCode, err := storage.NewUserCode()
+	if err != nil {
+		t.Errorf("Unexpected Error: %v", err)
+	}
+
 	d := storage.DeviceRequest{
-		UserCode:     storage.NewUserCode(),
+		UserCode:     userCode,
 		DeviceCode:   storage.NewID(),
 		ClientID:     "client1",
 		Scopes:       []string{"openid", "email"},
@@ -896,9 +901,9 @@ func testGC(t *testing.T, s storage.Storage) {
 				t.Errorf("expected no device token garbage collection results, got %#v", result)
 			}
 		}
-		//if _, err := s.GetDeviceRequest(d.UserCode); err != nil {
-		//	t.Errorf("expected to be able to get auth request after GC: %v", err)
-		//}
+		if _, err := s.GetDeviceToken(dt.DeviceCode); err != nil {
+			t.Errorf("expected to be able to get device token after GC: %v", err)
+		}
 	}
 	if r, err := s.GarbageCollect(expiry.Add(time.Hour)); err != nil {
 		t.Errorf("garbage collection failed: %v", err)
@@ -906,12 +911,11 @@ func testGC(t *testing.T, s storage.Storage) {
 		t.Errorf("expected to garbage collect 1 device token, got %d", r.DeviceTokens)
 	}
 
-	//TODO add this code back once Getters are written for device tokens
-	//if _, err := s.GetDeviceRequest(d.UserCode); err == nil {
-	//	t.Errorf("expected device request to be GC'd")
-	//} else if err != storage.ErrNotFound {
-	//	t.Errorf("expected storage.ErrNotFound, got %v", err)
-	//}
+	if _, err := s.GetDeviceToken(dt.DeviceCode); err == nil {
+		t.Errorf("expected device token to be GC'd")
+	} else if err != storage.ErrNotFound {
+		t.Errorf("expected storage.ErrNotFound, got %v", err)
+	}
 }
 
 // testTimezones tests that backends either fully support timezones or
@@ -961,8 +965,12 @@ func testTimezones(t *testing.T, s storage.Storage) {
 }
 
 func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
+	userCode, err := storage.NewUserCode()
+	if err != nil {
+		panic(err)
+	}
 	d1 := storage.DeviceRequest{
-		UserCode:     storage.NewUserCode(),
+		UserCode:     userCode,
 		DeviceCode:   storage.NewID(),
 		ClientID:     "client1",
 		Scopes:       []string{"openid", "email"},
@@ -975,7 +983,7 @@ func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
 	}
 
 	// Attempt to create same DeviceRequest twice.
-	err := s.CreateDeviceRequest(d1)
+	err = s.CreateDeviceRequest(d1)
 	mustBeErrAlreadyExists(t, "device request", err)
 
 	//No manual deletes for device requests, will be handled by garbage collection routines

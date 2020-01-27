@@ -5,7 +5,7 @@ import (
 	"encoding/base32"
 	"errors"
 	"io"
-	mrand "math/rand"
+	"math/big"
 	"strings"
 	"time"
 
@@ -24,6 +24,9 @@ var (
 //
 // TODO(ericchiang): refactor ID creation onto the storage.
 var encoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567")
+
+//Valid characters for user codes
+const validUserCharacters = "BCDFGHJKLMNPQRSTVWXZ"
 
 // NewDeviceCode returns a 32 char alphanumeric cryptographically secure string
 func NewDeviceCode() string {
@@ -79,6 +82,7 @@ type Storage interface {
 	GetPassword(email string) (Password, error)
 	GetOfflineSessions(userID string, connID string) (OfflineSessions, error)
 	GetConnector(id string) (Connector, error)
+	GetDeviceToken(deviceCode string) (DeviceToken, error)
 
 	ListClients() ([]Client, error)
 	ListRefreshTokens() ([]RefreshToken, error)
@@ -357,18 +361,24 @@ type Keys struct {
 	NextRotation time.Time
 }
 
-func NewUserCode() string {
-	mrand.Seed(time.Now().UnixNano())
-	return randomString(4) + "-" + randomString(4)
+// NewUserCode returns a randomized 8 character user code for the device flow.
+// No vowels are included to prevent accidental generation of words
+func NewUserCode() (string, error) {
+	code, err := randomString(8)
+	if err != nil {
+		return "", err
+	}
+	return code[:4] + "-" + code[4:], nil
 }
 
-func randomString(n int) string {
-	var letter = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letter[mrand.Intn(len(letter))]
+func randomString(n int) (string, error) {
+	v := big.NewInt(int64(len(validUserCharacters)))
+	bytes := make([]byte, n)
+	for i := 0; i < n; i++ {
+		c, _ := rand.Int(rand.Reader, v)
+		bytes[i] = validUserCharacters[c.Int64()]
 	}
-	return string(b)
+	return string(bytes), nil
 }
 
 //DeviceRequest represents an OIDC device authorization request.  It holds the state of a device request until the user
