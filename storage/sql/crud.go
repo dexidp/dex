@@ -922,3 +922,25 @@ func (c *conn) CreateDeviceToken(t storage.DeviceToken) error {
 	}
 	return nil
 }
+
+func (c *conn) GetDeviceToken(deviceCode string) (storage.DeviceToken, error) {
+	return getDeviceToken(c, deviceCode)
+}
+
+func getDeviceToken(q querier, deviceCode string) (a storage.DeviceToken, err error) {
+	err = q.QueryRow(`
+		select
+            status, token, expiry
+		from device_token where device_code = $1;
+	`, deviceCode).Scan(
+		&a.Status, &a.Token, &a.Expiry,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return a, storage.ErrNotFound
+		}
+		return a, fmt.Errorf("select device token: %v", err)
+	}
+	a.DeviceCode = deviceCode
+	return a, nil
+}

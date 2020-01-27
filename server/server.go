@@ -303,6 +303,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/device/code", s.handleDeviceCode)
+	handleFunc("/device/token", s.handleDeviceToken)
 	r.HandleFunc(path.Join(issuerURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on
 		// misconfigured authproxy connector setups.

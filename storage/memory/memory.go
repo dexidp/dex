@@ -503,3 +503,14 @@ func (s *memStorage) CreateDeviceToken(t storage.DeviceToken) (err error) {
 	})
 	return
 }
+
+func (s *memStorage) GetDeviceToken(deviceCode string) (t storage.DeviceToken, err error) {
+	s.tx(func() {
+		var ok bool
+		if t, ok = s.deviceTokens[deviceCode]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+	})
+	return
+}
