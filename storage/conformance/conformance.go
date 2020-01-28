@@ -843,12 +843,11 @@ func testGC(t *testing.T, s storage.Storage) {
 	}
 
 	d := storage.DeviceRequest{
-		UserCode:     userCode,
-		DeviceCode:   storage.NewID(),
-		ClientID:     "client1",
-		Scopes:       []string{"openid", "email"},
-		PkceVerifier: storage.NewID(),
-		Expiry:       expiry,
+		UserCode:   userCode,
+		DeviceCode: storage.NewID(),
+		ClientID:   "client1",
+		Scopes:     []string{"openid", "email"},
+		Expiry:     expiry,
 	}
 
 	if err := s.CreateDeviceRequest(d); err != nil {
@@ -970,12 +969,11 @@ func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
 		panic(err)
 	}
 	d1 := storage.DeviceRequest{
-		UserCode:     userCode,
-		DeviceCode:   storage.NewID(),
-		ClientID:     "client1",
-		Scopes:       []string{"openid", "email"},
-		PkceVerifier: storage.NewID(),
-		Expiry:       neverExpire,
+		UserCode:   userCode,
+		DeviceCode: storage.NewID(),
+		ClientID:   "client1",
+		Scopes:     []string{"openid", "email"},
+		Expiry:     neverExpire,
 	}
 
 	if err := s.CreateDeviceRequest(d1); err != nil {
@@ -991,20 +989,44 @@ func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
 }
 
 func testDeviceTokenCRUD(t *testing.T, s storage.Storage) {
+	//Create a Token
 	d1 := storage.DeviceToken{
-		DeviceCode: storage.NewID(),
-		Status:     "pending",
-		Token:      storage.NewID(),
-		Expiry:     neverExpire,
+		DeviceCode:          storage.NewID(),
+		Status:              "pending",
+		Token:               storage.NewID(),
+		Expiry:              neverExpire,
+		LastRequestTime:     time.Now(),
+		PollIntervalSeconds: 0,
 	}
 
 	if err := s.CreateDeviceToken(d1); err != nil {
 		t.Fatalf("failed creating device token: %v", err)
 	}
 
-	// Attempt to create same DeviceRequest twice.
+	// Attempt to create same Device Token twice.
 	err := s.CreateDeviceToken(d1)
 	mustBeErrAlreadyExists(t, "device token", err)
 
-	//TODO Add update / delete tests as functionality is put into main code
+	//Update the device token, simulate a redemption
+	if err := s.UpdateDeviceToken(d1.DeviceCode, func(old storage.DeviceToken) (storage.DeviceToken, error) {
+		old.Token = "token data"
+		old.Status = "complete"
+		return old, nil
+	}); err != nil {
+		t.Fatalf("failed to update device token: %v", err)
+	}
+
+	//Retrieve the device token
+	got, err := s.GetDeviceToken(d1.DeviceCode)
+	if err != nil {
+		t.Fatalf("failed to get device token: %v", err)
+	}
+
+	//Validate expected result set
+	if got.Status != "complete" {
+		t.Fatalf("update failed, wanted token status=%#v got %#v", "complete", got.Status)
+	}
+	if got.Token != "token data" {
+		t.Fatalf("update failed, wanted token =%#v got %#v", "token data", got.Token)
+	}
 }

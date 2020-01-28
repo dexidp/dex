@@ -283,6 +283,9 @@ type Expiry struct {
 
 	// AuthRequests defines the duration of time for which the AuthRequests will be valid.
 	AuthRequests string `json:"authRequests"`
+
+	// DeviceRequests defines the duration of time for which the DeviceRequests will be valid.
+	DeviceRequests string `json:"deviceRequests"`
 }
 
 // Logger holds configuration required to customize logging for dex.

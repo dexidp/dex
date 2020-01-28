@@ -638,6 +638,14 @@ func (cli *client) CreateDeviceRequest(d storage.DeviceRequest) error {
 	return cli.post(resourceDeviceRequest, cli.fromStorageDeviceRequest(d))
 }
 
+func (cli *client) GetDeviceRequest(userCode string) (storage.DeviceRequest, error) {
+	var req DeviceRequest
+	if err := cli.get(resourceDeviceRequest, strings.ToLower(userCode), &req); err != nil {
+		return storage.DeviceRequest{}, err
+	}
+	return toStorageDeviceRequest(req), nil
+}
+
 func (cli *client) CreateDeviceToken(t storage.DeviceToken) error {
 	return cli.post(resourceDeviceToken, cli.fromStorageDeviceToken(t))
 }
@@ -648,4 +656,25 @@ func (cli *client) GetDeviceToken(deviceCode string) (storage.DeviceToken, error
 		return storage.DeviceToken{}, err
 	}
 	return toStorageDeviceToken(token), nil
+}
+
+func (cli *client) getDeviceToken(deviceCode string) (t DeviceToken, err error) {
+	err = cli.get(resourceDeviceToken, deviceCode, &t)
+	return
+}
+
+func (cli *client) UpdateDeviceToken(deviceCode string, updater func(old storage.DeviceToken) (storage.DeviceToken, error)) error {
+	r, err := cli.getDeviceToken(deviceCode)
+	if err != nil {
+		return err
+	}
+	updated, err := updater(toStorageDeviceToken(r))
+	if err != nil {
+		return err
+	}
+	updated.DeviceCode = deviceCode
+
+	newToken := cli.fromStorageDeviceToken(updated)
+	newToken.ObjectMeta = r.ObjectMeta
+	return cli.put(resourceDeviceToken, r.ObjectMeta.Name, newToken)
 }

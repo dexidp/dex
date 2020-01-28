@@ -147,30 +147,34 @@ func (s *Server) handlePublicKeys(w http.ResponseWriter, r *http.Request) {
 }
 
 type discovery struct {
-	Issuer        string   `json:"issuer"`
-	Auth          string   `json:"authorization_endpoint"`
-	Token         string   `json:"token_endpoint"`
-	Keys          string   `json:"jwks_uri"`
-	UserInfo      string   `json:"userinfo_endpoint"`
-	ResponseTypes []string `json:"response_types_supported"`
-	Subjects      []string `json:"subject_types_supported"`
-	IDTokenAlgs   []string `json:"id_token_signing_alg_values_supported"`
-	Scopes        []string `json:"scopes_supported"`
-	AuthMethods   []string `json:"token_endpoint_auth_methods_supported"`
-	Claims        []string `json:"claims_supported"`
+	Issuer         string   `json:"issuer"`
+	Auth           string   `json:"authorization_endpoint"`
+	Token          string   `json:"token_endpoint"`
+	Keys           string   `json:"jwks_uri"`
+	UserInfo       string   `json:"userinfo_endpoint"`
+	DeviceEndpoint string   `json:"device_authorization_endpoint"`
+	GrantTypes     []string `json:"grant_types_supported"'`
+	ResponseTypes  []string `json:"response_types_supported"`
+	Subjects       []string `json:"subject_types_supported"`
+	IDTokenAlgs    []string `json:"id_token_signing_alg_values_supported"`
+	Scopes         []string `json:"scopes_supported"`
+	AuthMethods    []string `json:"token_endpoint_auth_methods_supported"`
+	Claims         []string `json:"claims_supported"`
 }
 
 func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 	d := discovery{
-		Issuer:      s.issuerURL.String(),
-		Auth:        s.absURL("/auth"),
-		Token:       s.absURL("/token"),
-		Keys:        s.absURL("/keys"),
-		UserInfo:    s.absURL("/userinfo"),
-		Subjects:    []string{"public"},
-		IDTokenAlgs: []string{string(jose.RS256)},
-		Scopes:      []string{"openid", "email", "groups", "profile", "offline_access"},
-		AuthMethods: []string{"client_secret_basic"},
+		Issuer:         s.issuerURL.String(),
+		Auth:           s.absURL("/auth"),
+		Token:          s.absURL("/token"),
+		Keys:           s.absURL("/keys"),
+		UserInfo:       s.absURL("/userinfo"),
+		DeviceEndpoint: s.absURL("/device/code"),
+		Subjects:       []string{"public"},
+		GrantTypes:     []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode},
+		IDTokenAlgs:    []string{string(jose.RS256)},
+		Scopes:         []string{"openid", "email", "groups", "profile", "offline_access"},
+		AuthMethods:    []string{"client_secret_basic"},
 		Claims: []string{
 			"aud", "email", "email_verified", "exp",
 			"iat", "iss", "locale", "name", "sub",
@@ -783,24 +787,33 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		return
 	}
 
+	tokenResponse, err := s.exchangeAuthCode(w, authCode, client)
+	if err != nil {
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+	s.writeAccessToken(w, tokenResponse)
+}
+
+func (s *Server) exchangeAuthCode(w http.ResponseWriter, authCode storage.AuthCode, client storage.Client) (*accessTokenReponse, error) {
 	accessToken, err := s.newAccessToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create new access token: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
 	idToken, expiry, err := s.newIDToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, accessToken, authCode.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create ID token: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
-	if err := s.storage.DeleteAuthCode(code); err != nil {
+	if err := s.storage.DeleteAuthCode(authCode.ID); err != nil {
 		s.logger.Errorf("failed to delete auth code: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
 	reqRefresh := func() bool {
@@ -847,13 +860,13 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		if refreshToken, err = internal.Marshal(token); err != nil {
 			s.logger.Errorf("failed to marshal refresh token: %v", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-			return
+			return nil, err
 		}
 
 		if err := s.storage.CreateRefresh(refresh); err != nil {
 			s.logger.Errorf("failed to create refresh token: %v", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-			return
+			return nil, err
 		}
 
 		// deleteToken determines if we need to delete the newly created refresh token
@@ -884,7 +897,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 				s.logger.Errorf("failed to get offline session: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 				deleteToken = true
-				return
+				return nil, err
 			}
 			offlineSessions := storage.OfflineSessions{
 				UserID:  refresh.Claims.UserID,
@@ -899,7 +912,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 				s.logger.Errorf("failed to create offline session: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 				deleteToken = true
-				return
+				return nil, err
 			}
 		} else {
 			if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
@@ -908,7 +921,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 					s.logger.Errorf("failed to delete refresh token: %v", err)
 					s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 					deleteToken = true
-					return
+					return nil, err
 				}
 			}
 
@@ -920,11 +933,11 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 				s.logger.Errorf("failed to update offline session: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 				deleteToken = true
-				return
+				return nil, err
 			}
 		}
 	}
-	s.writeAccessToken(w, idToken, accessToken, refreshToken, expiry)
+	return s.toAccessTokenResponse(idToken, accessToken, refreshToken, expiry), nil
 }
 
 // handle a refresh token request https://tools.ietf.org/html/rfc6749#section-6
@@ -1120,7 +1133,8 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 
-	s.writeAccessToken(w, idToken, accessToken, rawNewToken, expiry)
+	resp := s.toAccessTokenResponse(idToken, accessToken, rawNewToken, expiry)
+	s.writeAccessToken(w, resp)
 }
 
 func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
@@ -1378,12 +1392,26 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, accessToken, r
 		RefreshToken string `json:"refresh_token,omitempty"`
 		IDToken      string `json:"id_token"`
 	}{
+
+type accessTokenReponse struct {
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	IDToken      string `json:"id_token"`
+}
+
+func (s *Server) toAccessTokenResponse(idToken, accessToken, refreshToken string, expiry time.Time) *accessTokenReponse {
+	return &accessTokenReponse{
 		accessToken,
 		"bearer",
 		int(expiry.Sub(s.now()).Seconds()),
 		refreshToken,
 		idToken,
 	}
+}
+
+func (s *Server) writeAccessToken(w http.ResponseWriter, resp *accessTokenReponse) {
 	data, err := json.Marshal(resp)
 	if err != nil {
 		s.logger.Errorf("failed to marshal access token response: %v", err)
@@ -1413,146 +1441,4 @@ func usernamePrompt(conn connector.PasswordConnector) string {
 		return attr
 	}
 	return "Username"
-}
-
-type deviceCodeResponse struct {
-	//The unique device code for device authentication
-	DeviceCode string `json:"device_code"`
-	//The code the user will exchange via a browser and log in
-	UserCode string `json:"user_code"`
-	//The url to verify the user code.
-	VerificationURI string `json:"verification_uri"`
-	//The lifetime of the device code
-	ExpireTime int `json:"expires_in"`
-	//How often the device is allowed to poll to verify that the user login occurred
-	PollInterval int `json:"interval"`
-}
-
-func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
-	//TODO replace with configurable values
-	expireIntervalSeconds := 300
-	requestsPerMinute := 5
-
-	switch r.Method {
-	case http.MethodPost:
-		err := r.ParseForm()
-		if err != nil {
-			s.logger.Errorf("Could not parse Device Request body: %v", err)
-			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusNotFound)
-			return
-		}
-
-		//Get the client id and scopes from the post
-		clientID := r.Form.Get("client_id")
-		scopes := r.Form["scope"]
-
-		s.logger.Infof("Received device request for client %v with scopes %v", clientID, scopes)
-
-		//Make device code
-		deviceCode := storage.NewDeviceCode()
-
-		//make user code
-		userCode, err := storage.NewUserCode()
-		if err != nil {
-			s.logger.Errorf("Error generating user code: %v", err)
-			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusInternalServerError)
-		}
-
-		//make a pkce verification code
-		pkceCode := storage.NewID()
-
-		//Generate the expire time
-		expireTime := time.Now().Add(time.Second * time.Duration(expireIntervalSeconds))
-
-		//Store the Device Request
-		deviceReq := storage.DeviceRequest{
-			UserCode:     userCode,
-			DeviceCode:   deviceCode,
-			ClientID:     clientID,
-			Scopes:       scopes,
-			PkceVerifier: pkceCode,
-			Expiry:       expireTime,
-		}
-
-		if err := s.storage.CreateDeviceRequest(deviceReq); err != nil {
-			s.logger.Errorf("Failed to store device request; %v", err)
-			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusInternalServerError)
-			return
-		}
-
-		//Store the device token
-		deviceToken := storage.DeviceToken{
-			DeviceCode: deviceCode,
-			Status:     deviceTokenPending,
-			Expiry:     expireTime,
-		}
-
-		if err := s.storage.CreateDeviceToken(deviceToken); err != nil {
-			s.logger.Errorf("Failed to store device token %v", err)
-			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusInternalServerError)
-			return
-		}
-
-		code := deviceCodeResponse{
-			DeviceCode:      deviceCode,
-			UserCode:        userCode,
-			VerificationURI: path.Join(s.issuerURL.String(), "/device"),
-			ExpireTime:      expireIntervalSeconds,
-			PollInterval:    requestsPerMinute,
-		}
-
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "   ")
-		enc.Encode(code)
-
-	default:
-		s.renderError(r, w, http.StatusBadRequest, "Invalid device code request type")
-		s.tokenErrHelper(w, errInvalidRequest, "", http.StatusBadRequest)
-	}
-}
-
-func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	switch r.Method {
-	case http.MethodPost:
-		err := r.ParseForm()
-		if err != nil {
-			message := "Could not parse Device Token Request body"
-			s.logger.Warnf("%s : %v", message, err)
-			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusBadRequest)
-			return
-		}
-
-		deviceCode := r.Form.Get("device_code")
-		if deviceCode == "" {
-			message := "No device code received"
-			s.tokenErrHelper(w, errInvalidRequest, message, http.StatusBadRequest)
-			return
-		}
-
-		grantType := r.PostFormValue("grant_type")
-		if grantType != grantTypeDeviceCode {
-			s.tokenErrHelper(w, errInvalidGrant, "", http.StatusBadRequest)
-			return
-		}
-
-		//Grab the device token from the db
-		deviceToken, err := s.storage.GetDeviceToken(deviceCode)
-		if err != nil || s.now().After(deviceToken.Expiry) {
-			if err != storage.ErrNotFound {
-				s.logger.Errorf("failed to get device code: %v", err)
-			}
-			s.tokenErrHelper(w, errInvalidRequest, "Invalid or expired device code.", http.StatusBadRequest)
-			return
-		}
-
-		switch deviceToken.Status {
-		case deviceTokenPending:
-			s.tokenErrHelper(w, deviceTokenPending, "", http.StatusUnauthorized)
-		case deviceTokenComplete:
-			w.Write([]byte(deviceToken.Token))
-		}
-	default:
-		s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
-	}
 }

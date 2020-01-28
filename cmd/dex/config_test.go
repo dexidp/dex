@@ -119,6 +119,7 @@ expiry:
   signingKeys: "7h"
   idTokens: "25h"
   authRequests: "25h"
+  deviceRequests: "10m"
 
 logger:
   level: "debug"
@@ -197,9 +198,10 @@ logger:
 			},
 		},
 		Expiry: Expiry{
-			SigningKeys:  "7h",
-			IDTokens:     "25h",
-			AuthRequests: "25h",
+			SigningKeys:    "7h",
+			IDTokens:       "25h",
+			AuthRequests:   "25h",
+			DeviceRequests: "10m",
 		},
 		Logger: Logger{
 			Level:  "debug",

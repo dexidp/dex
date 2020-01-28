@@ -672,11 +672,10 @@ type DeviceRequest struct {
 	k8sapi.TypeMeta   `json:",inline"`
 	k8sapi.ObjectMeta `json:"metadata,omitempty"`
 
-	DeviceCode   string    `json:"device_code,omitempty"`
-	CLientID     string    `json:"client_id,omitempty"`
-	Scopes       []string  `json:"scopes,omitempty"`
-	PkceVerifier string    `json:"pkce_verifier,omitempty"`
-	Expiry       time.Time `json:"expiry"`
+	DeviceCode string    `json:"device_code,omitempty"`
+	CLientID   string    `json:"client_id,omitempty"`
+	Scopes     []string  `json:"scopes,omitempty"`
+	Expiry     time.Time `json:"expiry"`
 }
 
 // AuthRequestList is a list of AuthRequests.
@@ -696,13 +695,22 @@ func (cli *client) fromStorageDeviceRequest(a storage.DeviceRequest) DeviceReque
 			Name:      strings.ToLower(a.UserCode),
 			Namespace: cli.namespace,
 		},
-		DeviceCode:   a.DeviceCode,
-		CLientID:     a.ClientID,
-		Scopes:       a.Scopes,
-		PkceVerifier: a.PkceVerifier,
-		Expiry:       a.Expiry,
+		DeviceCode: a.DeviceCode,
+		CLientID:   a.ClientID,
+		Scopes:     a.Scopes,
+		Expiry:     a.Expiry,
 	}
 	return req
+}
+
+func toStorageDeviceRequest(req DeviceRequest) storage.DeviceRequest {
+	return storage.DeviceRequest{
+		UserCode:   strings.ToUpper(req.ObjectMeta.Name),
+		DeviceCode: req.DeviceCode,
+		ClientID:   req.CLientID,
+		Scopes:     req.Scopes,
+		Expiry:     req.Expiry,
+	}
 }
 
 // DeviceToken is a mirrored struct from storage with JSON struct tags and
@@ -711,9 +719,11 @@ type DeviceToken struct {
 	k8sapi.TypeMeta   `json:",inline"`
 	k8sapi.ObjectMeta `json:"metadata,omitempty"`
 
-	Status string    `json:"status,omitempty"`
-	Token  string    `json:"token,omitempty"`
-	Expiry time.Time `json:"expiry"`
+	Status              string    `json:"status,omitempty"`
+	Token               string    `json:"token,omitempty"`
+	Expiry              time.Time `json:"expiry"`
+	LastRequestTime     time.Time `json:"last_request"`
+	PollIntervalSeconds int       `json:"poll_interval"`
 }
 
 // DeviceTokenList is a list of DeviceTokens.
@@ -733,18 +743,22 @@ func (cli *client) fromStorageDeviceToken(t storage.DeviceToken) DeviceToken {
 			Name:      t.DeviceCode,
 			Namespace: cli.namespace,
 		},
-		Status: t.Status,
-		Token:  t.Token,
-		Expiry: t.Expiry,
+		Status:              t.Status,
+		Token:               t.Token,
+		Expiry:              t.Expiry,
+		LastRequestTime:     t.LastRequestTime,
+		PollIntervalSeconds: t.PollIntervalSeconds,
 	}
 	return req
 }
 
 func toStorageDeviceToken(t DeviceToken) storage.DeviceToken {
 	return storage.DeviceToken{
-		DeviceCode: t.ObjectMeta.Name,
-		Status:     t.Status,
-		Token:      t.Token,
-		Expiry:     t.Expiry,
+		DeviceCode:          t.ObjectMeta.Name,
+		Status:              t.Status,
+		Token:               t.Token,
+		Expiry:              t.Expiry,
+		LastRequestTime:     t.LastRequestTime,
+		PollIntervalSeconds: t.PollIntervalSeconds,
 	}
 }

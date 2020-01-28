@@ -570,6 +570,13 @@ func (c *conn) CreateDeviceRequest(d storage.DeviceRequest) error {
 	return c.txnCreate(ctx, keyID(deviceRequestPrefix, d.UserCode), fromStorageDeviceRequest(d))
 }
 
+func (c *conn) GetDeviceRequest(userCode string) (r storage.DeviceRequest, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	err = c.getKey(ctx, keyID(deviceRequestPrefix, userCode), &r)
+	return r, err
+}
+
 func (c *conn) listDeviceRequests(ctx context.Context) (requests []DeviceRequest, err error) {
 	res, err := c.db.Get(ctx, deviceRequestPrefix, clientv3.WithPrefix())
 	if err != nil {
@@ -611,4 +618,22 @@ func (c *conn) listDeviceTokens(ctx context.Context) (deviceTokens []DeviceToken
 		deviceTokens = append(deviceTokens, dt)
 	}
 	return deviceTokens, nil
+}
+
+func (c *conn) UpdateDeviceToken(deviceCode string, updater func(old storage.DeviceToken) (storage.DeviceToken, error)) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnUpdate(ctx, keyID(deviceTokenPrefix, deviceCode), func(currentValue []byte) ([]byte, error) {
+		var current DeviceToken
+		if len(currentValue) > 0 {
+			if err := json.Unmarshal(currentValue, &current); err != nil {
+				return nil, err
+			}
+		}
+		updated, err := updater(toStorageDeviceToken(current))
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(fromStorageDeviceToken(updated))
+	})
 }

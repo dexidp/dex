@@ -15,11 +15,13 @@ import (
 )
 
 const (
-	tmplApproval = "approval.html"
-	tmplLogin    = "login.html"
-	tmplPassword = "password.html"
-	tmplOOB      = "oob.html"
-	tmplError    = "error.html"
+	tmplApproval      = "approval.html"
+	tmplLogin         = "login.html"
+	tmplPassword      = "password.html"
+	tmplOOB           = "oob.html"
+	tmplError         = "error.html"
+	tmplDevice        = "device.html"
+	tmplDeviceSuccess = "device_success.html"
 )
 
 var requiredTmpls = []string{
@@ -28,14 +30,17 @@ var requiredTmpls = []string{
 	tmplPassword,
 	tmplOOB,
 	tmplError,
+	tmplDevice,
 }
 
 type templates struct {
-	loginTmpl    *template.Template
-	approvalTmpl *template.Template
-	passwordTmpl *template.Template
-	oobTmpl      *template.Template
-	errorTmpl    *template.Template
+	loginTmpl         *template.Template
+	approvalTmpl      *template.Template
+	passwordTmpl      *template.Template
+	oobTmpl           *template.Template
+	errorTmpl         *template.Template
+	deviceTmpl        *template.Template
+	deviceSuccessTmpl *template.Template
 }
 
 type webConfig struct {
@@ -152,11 +157,13 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		return nil, fmt.Errorf("missing template(s): %s", missingTmpls)
 	}
 	return &templates{
-		loginTmpl:    tmpls.Lookup(tmplLogin),
-		approvalTmpl: tmpls.Lookup(tmplApproval),
-		passwordTmpl: tmpls.Lookup(tmplPassword),
-		oobTmpl:      tmpls.Lookup(tmplOOB),
-		errorTmpl:    tmpls.Lookup(tmplError),
+		loginTmpl:         tmpls.Lookup(tmplLogin),
+		approvalTmpl:      tmpls.Lookup(tmplApproval),
+		passwordTmpl:      tmpls.Lookup(tmplPassword),
+		oobTmpl:           tmpls.Lookup(tmplOOB),
+		errorTmpl:         tmpls.Lookup(tmplError),
+		deviceTmpl:        tmpls.Lookup(tmplDevice),
+		deviceSuccessTmpl: tmpls.Lookup(tmplDeviceSuccess),
 	}, nil
 }
 
@@ -241,6 +248,24 @@ type byName []connectorInfo
 func (n byName) Len() int           { return len(n) }
 func (n byName) Less(i, j int) bool { return n[i].Name < n[j].Name }
 func (n byName) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
+
+func (t *templates) device(r *http.Request, w http.ResponseWriter, postURL string, userCode string, lastWasInvalid bool) error {
+	data := struct {
+		PostURL  string
+		UserCode string
+		Invalid  bool
+		ReqPath  string
+	}{postURL, userCode, lastWasInvalid, r.URL.Path}
+	return renderTemplate(w, t.deviceTmpl, data)
+}
+
+func (t *templates) deviceSuccess(r *http.Request, w http.ResponseWriter, clientName string) error {
+	data := struct {
+		ClientName string
+		ReqPath    string
+	}{clientName, r.URL.Path}
+	return renderTemplate(w, t.deviceSuccessTmpl, data)
+}
 
 func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []connectorInfo, reqPath string) error {
 	sort.Sort(byName(connectors))

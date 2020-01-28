@@ -64,6 +64,7 @@ telemetry:
 
 # Uncomment this block to enable configuration for the expiration time durations.
 # expiry:
+#   deviceRequests: "5m"
 #   signingKeys: "6h"
 #   idTokens: "24h"
 
