@@ -493,6 +493,17 @@ func (s *memStorage) CreateDeviceRequest(d storage.DeviceRequest) (err error) {
 	return
 }
 
+func (s *memStorage) GetDeviceRequest(userCode string) (req storage.DeviceRequest, err error) {
+	s.tx(func() {
+		var ok bool
+		if req, ok = s.deviceRequests[userCode]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+	})
+	return
+}
+
 func (s *memStorage) CreateDeviceToken(t storage.DeviceToken) (err error) {
 	s.tx(func() {
 		if _, ok := s.deviceTokens[t.DeviceCode]; ok {
@@ -510,6 +521,20 @@ func (s *memStorage) GetDeviceToken(deviceCode string) (t storage.DeviceToken, e
 		if t, ok = s.deviceTokens[deviceCode]; !ok {
 			err = storage.ErrNotFound
 			return
+		}
+	})
+	return
+}
+
+func (s *memStorage) UpdateDeviceToken(deviceCode string, updater func(p storage.DeviceToken) (storage.DeviceToken, error)) (err error) {
+	s.tx(func() {
+		r, ok := s.deviceTokens[deviceCode]
+		if !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		if r, err = updater(r); err == nil {
+			s.deviceTokens[deviceCode] = r
 		}
 	})
 	return

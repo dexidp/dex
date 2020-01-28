@@ -82,6 +82,7 @@ type Storage interface {
 	GetPassword(email string) (Password, error)
 	GetOfflineSessions(userID string, connID string) (OfflineSessions, error)
 	GetConnector(id string) (Connector, error)
+	GetDeviceRequest(userCode string) (DeviceRequest, error)
 	GetDeviceToken(deviceCode string) (DeviceToken, error)
 
 	ListClients() ([]Client, error)
@@ -119,6 +120,7 @@ type Storage interface {
 	UpdatePassword(email string, updater func(p Password) (Password, error)) error
 	UpdateOfflineSessions(userID string, connID string, updater func(s OfflineSessions) (OfflineSessions, error)) error
 	UpdateConnector(id string, updater func(c Connector) (Connector, error)) error
+	UpdateDeviceToken(deviceCode string, updater func(t DeviceToken) (DeviceToken, error)) error
 
 	// GarbageCollect deletes all expired AuthCodes,AuthRequests, DeviceRequests, and DeviceTokens.
 	GarbageCollect(now time.Time) (GCResult, error)
@@ -392,15 +394,15 @@ type DeviceRequest struct {
 	ClientID string
 	//The scopes the device requests
 	Scopes []string
-	//PKCE Verification
-	PkceVerifier string
 	//The expire time
 	Expiry time.Time
 }
 
 type DeviceToken struct {
-	DeviceCode string
-	Status     string
-	Token      string
-	Expiry     time.Time
+	DeviceCode          string
+	Status              string
+	Token               string
+	Expiry              time.Time
+	LastRequestTime     time.Time
+	PollIntervalSeconds int
 }

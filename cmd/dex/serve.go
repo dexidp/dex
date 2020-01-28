@@ -269,7 +269,14 @@ func serve(cmd *cobra.Command, args []string) error {
 		logger.Infof("config auth requests valid for: %v", authRequests)
 		serverConfig.AuthRequestsValidFor = authRequests
 	}
-
+	if c.Expiry.DeviceRequests != "" {
+		deviceRequests, err := time.ParseDuration(c.Expiry.DeviceRequests)
+		if err != nil {
+			return fmt.Errorf("invalid config value %q for device request expiry: %v", c.Expiry.AuthRequests, err)
+		}
+		logger.Infof("config device requests valid for: %v", deviceRequests)
+		serverConfig.DeviceRequestsValidFor = deviceRequests
+	}
 	serv, err := server.NewServer(context.Background(), serverConfig)
 	if err != nil {
 		return fmt.Errorf("failed to initialize server: %v", err)
