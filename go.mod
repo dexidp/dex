@@ -42,7 +42,7 @@ require (
 	golang.org/x/tools v0.0.0-20190813214729-9dba7caff850 // indirect
 	google.golang.org/api v0.15.0
 	google.golang.org/appengine v1.6.1 // indirect
-	google.golang.org/grpc v1.27.0
+	google.golang.org/grpc v1.26.0
 	gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d // indirect
 	gopkg.in/ldap.v2 v2.5.1
 	gopkg.in/square/go-jose.v2 v2.4.1
