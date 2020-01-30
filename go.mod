@@ -5,8 +5,6 @@ go 1.13
 require (
 	github.com/Microsoft/hcsshim v0.8.7 // indirect
 	github.com/beevik/etree v1.1.0
-	github.com/coreos/bbolt v1.3.3 // indirect
-	github.com/coreos/etcd v3.3.18+incompatible
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
