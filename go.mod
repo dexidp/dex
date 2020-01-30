@@ -27,7 +27,7 @@ require (
 	github.com/gtank/cryptopasta v0.0.0-20170601214702-1f550f6f2f69
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/kylelemons/godebug v1.1.0
-	github.com/lib/pq v1.2.0
+	github.com/lib/pq v1.3.0
 	github.com/mattn/go-sqlite3 v1.11.0
 	github.com/opentracing/opentracing-go v1.1.0 // indirect
 	github.com/pkg/errors v0.8.1 // indirect
