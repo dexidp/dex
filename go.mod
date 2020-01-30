@@ -1,5 +1,7 @@
 module github.com/dexidp/dex
 
+go 1.13
+
 require (
 	github.com/Microsoft/hcsshim v0.8.7 // indirect
 	github.com/beevik/etree v1.1.0
@@ -50,5 +52,3 @@ require (
 	gopkg.in/square/go-jose.v2 v2.3.1
 	sigs.k8s.io/testing_frameworks v0.1.2
 )
-
-go 1.13
