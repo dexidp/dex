@@ -292,6 +292,9 @@ type Password struct {
 	// Bcrypt encoded hash of the password. This package enforces a min cost value of 10
 	Hash []byte `json:"hash"`
 
+	// Bcrypt encoded hash of the password set in environment variable of this name.
+	HashFromEnv string `json:"hashFromEnv"`
+
 	// Optional username to display. NOT used during login.
 	Username string `json:"username"`
 
