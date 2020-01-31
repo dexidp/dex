@@ -1,0 +1,19 @@
+language: go
+go:
+  - 1.11.4
+
+install: true
+
+services:
+  - docker
+
+env:
+  - GO111MODULE=on
+
+script:
+  - go mod verify
+  - go mod tidy
+  - go fmt ./...
+  - go vet ./...
+  - go test ./...
+
