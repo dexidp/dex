@@ -81,7 +81,7 @@ type Config struct {
 	DeviceRequestsValidFor time.Duration // Defaults to 5 minutes
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
-	
+
 	GCFrequency time.Duration // Defaults to 5 minutes
 
 	// If specified, the server will use this function for determining time.

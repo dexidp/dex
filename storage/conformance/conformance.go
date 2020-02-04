@@ -843,11 +843,12 @@ func testGC(t *testing.T, s storage.Storage) {
 	}
 
 	d := storage.DeviceRequest{
-		UserCode:   userCode,
-		DeviceCode: storage.NewID(),
-		ClientID:   "client1",
-		Scopes:     []string{"openid", "email"},
-		Expiry:     expiry,
+		UserCode:     userCode,
+		DeviceCode:   storage.NewID(),
+		ClientID:     "client1",
+		ClientSecret: "secret1",
+		Scopes:       []string{"openid", "email"},
+		Expiry:       expiry,
 	}
 
 	if err := s.CreateDeviceRequest(d); err != nil {
@@ -863,9 +864,9 @@ func testGC(t *testing.T, s storage.Storage) {
 				t.Errorf("expected no device garbage collection results, got %#v", result)
 			}
 		}
-		//if _, err := s.GetDeviceRequest(d.UserCode); err != nil {
-		//	t.Errorf("expected to be able to get auth request after GC: %v", err)
-		//}
+		if _, err := s.GetDeviceRequest(d.UserCode); err != nil {
+			t.Errorf("expected to be able to get auth request after GC: %v", err)
+		}
 	}
 	if r, err := s.GarbageCollect(expiry.Add(time.Hour)); err != nil {
 		t.Errorf("garbage collection failed: %v", err)
@@ -873,18 +874,19 @@ func testGC(t *testing.T, s storage.Storage) {
 		t.Errorf("expected to garbage collect 1 device request, got %d", r.DeviceRequests)
 	}
 
-	//TODO add this code back once Getters are written for device requests
-	//if _, err := s.GetDeviceRequest(d.UserCode); err == nil {
-	//	t.Errorf("expected device request to be GC'd")
-	//} else if err != storage.ErrNotFound {
-	//	t.Errorf("expected storage.ErrNotFound, got %v", err)
-	//}
+	if _, err := s.GetDeviceRequest(d.UserCode); err == nil {
+		t.Errorf("expected device request to be GC'd")
+	} else if err != storage.ErrNotFound {
+		t.Errorf("expected storage.ErrNotFound, got %v", err)
+	}
 
 	dt := storage.DeviceToken{
-		DeviceCode: storage.NewID(),
-		Status:     "pending",
-		Token:      "foo",
-		Expiry:     expiry,
+		DeviceCode:          storage.NewID(),
+		Status:              "pending",
+		Token:               "foo",
+		Expiry:              expiry,
+		LastRequestTime:     time.Now(),
+		PollIntervalSeconds: 0,
 	}
 
 	if err := s.CreateDeviceToken(dt); err != nil {
@@ -969,11 +971,12 @@ func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
 		panic(err)
 	}
 	d1 := storage.DeviceRequest{
-		UserCode:   userCode,
-		DeviceCode: storage.NewID(),
-		ClientID:   "client1",
-		Scopes:     []string{"openid", "email"},
-		Expiry:     neverExpire,
+		UserCode:     userCode,
+		DeviceCode:   storage.NewID(),
+		ClientID:     "client1",
+		ClientSecret: "secret1",
+		Scopes:       []string{"openid", "email"},
+		Expiry:       neverExpire,
 	}
 
 	if err := s.CreateDeviceRequest(d1); err != nil {

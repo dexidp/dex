@@ -235,6 +235,7 @@ var migrations = []migration{
 				user_code text not null primary key,
 				device_code text not null,
 				client_id text not null,
+				client_secret text ,
 				scopes bytea not null, -- JSON array of strings
 				expiry timestamptz not null
 			);`,

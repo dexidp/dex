@@ -250,6 +250,9 @@ func (n byName) Less(i, j int) bool { return n[i].Name < n[j].Name }
 func (n byName) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
 
 func (t *templates) device(r *http.Request, w http.ResponseWriter, postURL string, userCode string, lastWasInvalid bool) error {
+	if lastWasInvalid {
+		w.WriteHeader(http.StatusBadRequest)
+	}
 	data := struct {
 		PostURL  string
 		UserCode string
