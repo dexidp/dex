@@ -392,6 +392,8 @@ type DeviceRequest struct {
 	DeviceCode string
 	//The client ID the code is for
 	ClientID string
+	//The Client Secret
+	ClientSecret string
 	//The scopes the device requests
 	Scopes []string
 	//The expire time

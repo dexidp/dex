@@ -15,11 +15,12 @@ import (
 	"time"
 
 	oidc "github.com/coreos/go-oidc"
+	"github.com/gorilla/mux"
+	jose "gopkg.in/square/go-jose.v2"
+
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
-	"github.com/gorilla/mux"
-	jose "gopkg.in/square/go-jose.v2"
 )
 
 // newHealthChecker returns the healthz handler. The handler runs until the
@@ -153,7 +154,7 @@ type discovery struct {
 	Keys           string   `json:"jwks_uri"`
 	UserInfo       string   `json:"userinfo_endpoint"`
 	DeviceEndpoint string   `json:"device_authorization_endpoint"`
-	GrantTypes     []string `json:"grant_types_supported"'`
+	GrantTypes     []string `json:"grant_types_supported"`
 	ResponseTypes  []string `json:"response_types_supported"`
 	Subjects       []string `json:"subject_types_supported"`
 	IDTokenAlgs    []string `json:"id_token_signing_alg_values_supported"`

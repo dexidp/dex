@@ -8,11 +8,13 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"path"
 	"reflect"
 	"sort"
 	"strings"
@@ -203,6 +205,274 @@ func TestDiscovery(t *testing.T) {
 	}
 }
 
+type oauth2Tests struct {
+	clientID string
+	tests    []test
+}
+
+type test struct {
+	name string
+	// If specified these set of scopes will be used during the test case.
+	scopes []string
+	// handleToken provides the OAuth2 token response for the integration test.
+	handleToken func(context.Context, *oidc.Provider, *oauth2.Config, *oauth2.Token, *mock.Callback) error
+}
+
+func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time) oauth2Tests {
+	requestedScopes := []string{oidc.ScopeOpenID, "email", "profile", "groups", "offline_access"}
+
+	// Used later when configuring test servers to set how long id_tokens will be valid for.
+	//
+	// The actual value of 30s is completely arbitrary. We just need to set a value
+	// so tests can compute the expected "expires_in" field.
+	idTokensValidFor := time.Second * 30
+
+	oidcConfig := &oidc.Config{SkipClientIDCheck: true}
+
+	return oauth2Tests{
+		clientID: clientID,
+		tests: []test{
+			{
+				name: "verify ID Token",
+				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+					idToken, ok := token.Extra("id_token").(string)
+					if !ok {
+						return fmt.Errorf("no id token found")
+					}
+					if _, err := p.Verifier(oidcConfig).Verify(ctx, idToken); err != nil {
+						return fmt.Errorf("failed to verify id token: %v", err)
+					}
+					return nil
+				},
+			},
+			{
+				name: "fetch userinfo",
+				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+					ui, err := p.UserInfo(ctx, config.TokenSource(ctx, token))
+					if err != nil {
+						return fmt.Errorf("failed to fetch userinfo: %v", err)
+					}
+					if conn.Identity.Email != ui.Email {
+						return fmt.Errorf("expected email to be %v, got %v", conn.Identity.Email, ui.Email)
+					}
+					return nil
+				},
+			},
+			{
+				name: "verify id token and oauth2 token expiry",
+				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+					expectedExpiry := now().Add(idTokensValidFor)
+
+					timeEq := func(t1, t2 time.Time, within time.Duration) bool {
+						return t1.Sub(t2) < within
+					}
+
+					if !timeEq(token.Expiry, expectedExpiry, time.Second) {
+						return fmt.Errorf("expected expired_in to be %s, got %s", expectedExpiry, token.Expiry)
+					}
+
+					rawIDToken, ok := token.Extra("id_token").(string)
+					if !ok {
+						return fmt.Errorf("no id token found")
+					}
+					idToken, err := p.Verifier(oidcConfig).Verify(ctx, rawIDToken)
+					if err != nil {
+						return fmt.Errorf("failed to verify id token: %v", err)
+					}
+					if !timeEq(idToken.Expiry, expectedExpiry, time.Second) {
+						return fmt.Errorf("expected id token expiry to be %s, got %s", expectedExpiry, token.Expiry)
+					}
+					return nil
+				},
+			},
+			{
+				name: "verify at_hash",
+				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+					rawIDToken, ok := token.Extra("id_token").(string)
+					if !ok {
+						return fmt.Errorf("no id token found")
+					}
+					idToken, err := p.Verifier(oidcConfig).Verify(ctx, rawIDToken)
+					if err != nil {
+						return fmt.Errorf("failed to verify id token: %v", err)
+					}
+
+					var claims struct {
+						AtHash string `json:"at_hash"`
+					}
+					if err := idToken.Claims(&claims); err != nil {
+						return fmt.Errorf("failed to decode raw claims: %v", err)
+					}
+					if claims.AtHash == "" {
+						return errors.New("no at_hash value in id_token")
+					}
+					wantAtHash, err := accessTokenHash(jose.RS256, token.AccessToken)
+					if err != nil {
+						return fmt.Errorf("computed expected at hash: %v", err)
+					}
+					if wantAtHash != claims.AtHash {
+						return fmt.Errorf("expected at_hash=%q got=%q", wantAtHash, claims.AtHash)
+					}
+
+					return nil
+				},
+			},
+			{
+				name: "refresh token",
+				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+					// have to use time.Now because the OAuth2 package uses it.
+					token.Expiry = time.Now().Add(time.Second * -10)
+					if token.Valid() {
+						return errors.New("token shouldn't be valid")
+					}
+
+					newToken, err := config.TokenSource(ctx, token).Token()
+					if err != nil {
+						return fmt.Errorf("failed to refresh token: %v", err)
+					}
+					if token.RefreshToken == newToken.RefreshToken {
+						return fmt.Errorf("old refresh token was the same as the new token %q", token.RefreshToken)
+					}
+
+					if _, err := config.TokenSource(ctx, token).Token(); err == nil {
+						return errors.New("was able to redeem the same refresh token twice")
+					}
+					return nil
+				},
+			},
+			{
+				name: "refresh with explicit scopes",
+				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+					v := url.Values{}
+					v.Add("client_id", clientID)
+					v.Add("client_secret", clientSecret)
+					v.Add("grant_type", "refresh_token")
+					v.Add("refresh_token", token.RefreshToken)
+					v.Add("scope", strings.Join(requestedScopes, " "))
+					resp, err := http.PostForm(p.Endpoint().TokenURL, v)
+					if err != nil {
+						return err
+					}
+					defer resp.Body.Close()
+					if resp.StatusCode != http.StatusOK {
+						dump, err := httputil.DumpResponse(resp, true)
+						if err != nil {
+							panic(err)
+						}
+						return fmt.Errorf("unexpected response: %s", dump)
+					}
+					return nil
+				},
+			},
+			{
+				name: "refresh with extra spaces",
+				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+					v := url.Values{}
+					v.Add("client_id", clientID)
+					v.Add("client_secret", clientSecret)
+					v.Add("grant_type", "refresh_token")
+					v.Add("refresh_token", token.RefreshToken)
+
+					// go-oidc adds an additional space before scopes when refreshing.
+					// Since we support that client we choose to be more relaxed about
+					// scope parsing, disregarding extra whitespace.
+					v.Add("scope", " "+strings.Join(requestedScopes, " "))
+					resp, err := http.PostForm(p.Endpoint().TokenURL, v)
+					if err != nil {
+						return err
+					}
+					defer resp.Body.Close()
+					if resp.StatusCode != http.StatusOK {
+						dump, err := httputil.DumpResponse(resp, true)
+						if err != nil {
+							panic(err)
+						}
+						return fmt.Errorf("unexpected response: %s", dump)
+					}
+					return nil
+				},
+			},
+			{
+				name:   "refresh with unauthorized scopes",
+				scopes: []string{"openid", "email"},
+				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+					v := url.Values{}
+					v.Add("client_id", clientID)
+					v.Add("client_secret", clientSecret)
+					v.Add("grant_type", "refresh_token")
+					v.Add("refresh_token", token.RefreshToken)
+					// Request a scope that wasn't requestd initially.
+					v.Add("scope", "oidc email profile")
+					resp, err := http.PostForm(p.Endpoint().TokenURL, v)
+					if err != nil {
+						return err
+					}
+					defer resp.Body.Close()
+					if resp.StatusCode == http.StatusOK {
+						dump, err := httputil.DumpResponse(resp, true)
+						if err != nil {
+							panic(err)
+						}
+						return fmt.Errorf("unexpected response: %s", dump)
+					}
+					return nil
+				},
+			},
+			{
+				// This test ensures that the connector.RefreshConnector interface is being
+				// used when clients request a refresh token.
+				name: "refresh with identity changes",
+				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+					// have to use time.Now because the OAuth2 package uses it.
+					token.Expiry = time.Now().Add(time.Second * -10)
+					if token.Valid() {
+						return errors.New("token shouldn't be valid")
+					}
+
+					ident := connector.Identity{
+						UserID:        "fooid",
+						Username:      "foo",
+						Email:         "foo@bar.com",
+						EmailVerified: true,
+						Groups:        []string{"foo", "bar"},
+					}
+					conn.Identity = ident
+
+					type claims struct {
+						Username      string   `json:"name"`
+						Email         string   `json:"email"`
+						EmailVerified bool     `json:"email_verified"`
+						Groups        []string `json:"groups"`
+					}
+					want := claims{ident.Username, ident.Email, ident.EmailVerified, ident.Groups}
+
+					newToken, err := config.TokenSource(ctx, token).Token()
+					if err != nil {
+						return fmt.Errorf("failed to refresh token: %v", err)
+					}
+					rawIDToken, ok := newToken.Extra("id_token").(string)
+					if !ok {
+						return fmt.Errorf("no id_token in refreshed token")
+					}
+					idToken, err := p.Verifier(oidcConfig).Verify(ctx, rawIDToken)
+					if err != nil {
+						return fmt.Errorf("failed to verify id token: %v", err)
+					}
+					var got claims
+					if err := idToken.Claims(&got); err != nil {
+						return fmt.Errorf("failed to unmarshal claims: %v", err)
+					}
+
+					if diff := pretty.Compare(want, got); diff != "" {
+						return fmt.Errorf("got identity != want identity: %s", diff)
+					}
+					return nil
+				},
+			},
+		},
+	}
+}
+
 // TestOAuth2CodeFlow runs integration tests against a test server. The tests stand up a server
 // which requires no interaction to login, logs in through a test client, then passes the client
 // and returned token to the test.
@@ -226,255 +496,8 @@ func TestOAuth2CodeFlow(t *testing.T) {
 	// Connector used by the tests.
 	var conn *mock.Callback
 
-	oidcConfig := &oidc.Config{SkipClientIDCheck: true}
-
-	tests := []struct {
-		name string
-		// If specified these set of scopes will be used during the test case.
-		scopes []string
-		// handleToken provides the OAuth2 token response for the integration test.
-		handleToken func(context.Context, *oidc.Provider, *oauth2.Config, *oauth2.Token) error
-	}{
-		{
-			name: "verify ID Token",
-			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
-				idToken, ok := token.Extra("id_token").(string)
-				if !ok {
-					return fmt.Errorf("no id token found")
-				}
-				if _, err := p.Verifier(oidcConfig).Verify(ctx, idToken); err != nil {
-					return fmt.Errorf("failed to verify id token: %v", err)
-				}
-				return nil
-			},
-		},
-		{
-			name: "fetch userinfo",
-			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
-				ui, err := p.UserInfo(ctx, config.TokenSource(ctx, token))
-				if err != nil {
-					return fmt.Errorf("failed to fetch userinfo: %v", err)
-				}
-				if conn.Identity.Email != ui.Email {
-					return fmt.Errorf("expected email to be %v, got %v", conn.Identity.Email, ui.Email)
-				}
-				return nil
-			},
-		},
-		{
-			name: "verify id token and oauth2 token expiry",
-			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
-				expectedExpiry := now().Add(idTokensValidFor)
-
-				timeEq := func(t1, t2 time.Time, within time.Duration) bool {
-					return t1.Sub(t2) < within
-				}
-
-				if !timeEq(token.Expiry, expectedExpiry, time.Second) {
-					return fmt.Errorf("expected expired_in to be %s, got %s", expectedExpiry, token.Expiry)
-				}
-
-				rawIDToken, ok := token.Extra("id_token").(string)
-				if !ok {
-					return fmt.Errorf("no id token found")
-				}
-				idToken, err := p.Verifier(oidcConfig).Verify(ctx, rawIDToken)
-				if err != nil {
-					return fmt.Errorf("failed to verify id token: %v", err)
-				}
-				if !timeEq(idToken.Expiry, expectedExpiry, time.Second) {
-					return fmt.Errorf("expected id token expiry to be %s, got %s", expectedExpiry, token.Expiry)
-				}
-				return nil
-			},
-		},
-		{
-			name: "verify at_hash",
-			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
-				rawIDToken, ok := token.Extra("id_token").(string)
-				if !ok {
-					return fmt.Errorf("no id token found")
-				}
-				idToken, err := p.Verifier(oidcConfig).Verify(ctx, rawIDToken)
-				if err != nil {
-					return fmt.Errorf("failed to verify id token: %v", err)
-				}
-
-				var claims struct {
-					AtHash string `json:"at_hash"`
-				}
-				if err := idToken.Claims(&claims); err != nil {
-					return fmt.Errorf("failed to decode raw claims: %v", err)
-				}
-				if claims.AtHash == "" {
-					return errors.New("no at_hash value in id_token")
-				}
-				wantAtHash, err := accessTokenHash(jose.RS256, token.AccessToken)
-				if err != nil {
-					return fmt.Errorf("computed expected at hash: %v", err)
-				}
-				if wantAtHash != claims.AtHash {
-					return fmt.Errorf("expected at_hash=%q got=%q", wantAtHash, claims.AtHash)
-				}
-
-				return nil
-			},
-		},
-		{
-			name: "refresh token",
-			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
-				// have to use time.Now because the OAuth2 package uses it.
-				token.Expiry = time.Now().Add(time.Second * -10)
-				if token.Valid() {
-					return errors.New("token shouldn't be valid")
-				}
-
-				newToken, err := config.TokenSource(ctx, token).Token()
-				if err != nil {
-					return fmt.Errorf("failed to refresh token: %v", err)
-				}
-				if token.RefreshToken == newToken.RefreshToken {
-					return fmt.Errorf("old refresh token was the same as the new token %q", token.RefreshToken)
-				}
-
-				if _, err := config.TokenSource(ctx, token).Token(); err == nil {
-					return errors.New("was able to redeem the same refresh token twice")
-				}
-				return nil
-			},
-		},
-		{
-			name: "refresh with explicit scopes",
-			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
-				v := url.Values{}
-				v.Add("client_id", clientID)
-				v.Add("client_secret", clientSecret)
-				v.Add("grant_type", "refresh_token")
-				v.Add("refresh_token", token.RefreshToken)
-				v.Add("scope", strings.Join(requestedScopes, " "))
-				resp, err := http.PostForm(p.Endpoint().TokenURL, v)
-				if err != nil {
-					return err
-				}
-				defer resp.Body.Close()
-				if resp.StatusCode != http.StatusOK {
-					dump, err := httputil.DumpResponse(resp, true)
-					if err != nil {
-						panic(err)
-					}
-					return fmt.Errorf("unexpected response: %s", dump)
-				}
-				return nil
-			},
-		},
-		{
-			name: "refresh with extra spaces",
-			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
-				v := url.Values{}
-				v.Add("client_id", clientID)
-				v.Add("client_secret", clientSecret)
-				v.Add("grant_type", "refresh_token")
-				v.Add("refresh_token", token.RefreshToken)
-
-				// go-oidc adds an additional space before scopes when refreshing.
-				// Since we support that client we choose to be more relaxed about
-				// scope parsing, disregarding extra whitespace.
-				v.Add("scope", " "+strings.Join(requestedScopes, " "))
-				resp, err := http.PostForm(p.Endpoint().TokenURL, v)
-				if err != nil {
-					return err
-				}
-				defer resp.Body.Close()
-				if resp.StatusCode != http.StatusOK {
-					dump, err := httputil.DumpResponse(resp, true)
-					if err != nil {
-						panic(err)
-					}
-					return fmt.Errorf("unexpected response: %s", dump)
-				}
-				return nil
-			},
-		},
-		{
-			name:   "refresh with unauthorized scopes",
-			scopes: []string{"openid", "email"},
-			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
-				v := url.Values{}
-				v.Add("client_id", clientID)
-				v.Add("client_secret", clientSecret)
-				v.Add("grant_type", "refresh_token")
-				v.Add("refresh_token", token.RefreshToken)
-				// Request a scope that wasn't requestd initially.
-				v.Add("scope", "oidc email profile")
-				resp, err := http.PostForm(p.Endpoint().TokenURL, v)
-				if err != nil {
-					return err
-				}
-				defer resp.Body.Close()
-				if resp.StatusCode == http.StatusOK {
-					dump, err := httputil.DumpResponse(resp, true)
-					if err != nil {
-						panic(err)
-					}
-					return fmt.Errorf("unexpected response: %s", dump)
-				}
-				return nil
-			},
-		},
-		{
-			// This test ensures that the connector.RefreshConnector interface is being
-			// used when clients request a refresh token.
-			name: "refresh with identity changes",
-			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
-				// have to use time.Now because the OAuth2 package uses it.
-				token.Expiry = time.Now().Add(time.Second * -10)
-				if token.Valid() {
-					return errors.New("token shouldn't be valid")
-				}
-
-				ident := connector.Identity{
-					UserID:        "fooid",
-					Username:      "foo",
-					Email:         "foo@bar.com",
-					EmailVerified: true,
-					Groups:        []string{"foo", "bar"},
-				}
-				conn.Identity = ident
-
-				type claims struct {
-					Username      string   `json:"name"`
-					Email         string   `json:"email"`
-					EmailVerified bool     `json:"email_verified"`
-					Groups        []string `json:"groups"`
-				}
-				want := claims{ident.Username, ident.Email, ident.EmailVerified, ident.Groups}
-
-				newToken, err := config.TokenSource(ctx, token).Token()
-				if err != nil {
-					return fmt.Errorf("failed to refresh token: %v", err)
-				}
-				rawIDToken, ok := newToken.Extra("id_token").(string)
-				if !ok {
-					return fmt.Errorf("no id_token in refreshed token")
-				}
-				idToken, err := p.Verifier(oidcConfig).Verify(ctx, rawIDToken)
-				if err != nil {
-					return fmt.Errorf("failed to verify id token: %v", err)
-				}
-				var got claims
-				if err := idToken.Claims(&got); err != nil {
-					return fmt.Errorf("failed to unmarshal claims: %v", err)
-				}
-
-				if diff := pretty.Compare(want, got); diff != "" {
-					return fmt.Errorf("got identity != want identity: %s", diff)
-				}
-				return nil
-			},
-		},
-	}
-
-	for _, tc := range tests {
+	tests := makeOAuth2Tests(clientID, clientSecret, now)
+	for _, tc := range tests.tests {
 		func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -540,7 +563,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 						t.Errorf("failed to exchange code for token: %v", err)
 						return
 					}
-					err = tc.handleToken(ctx, p, oauth2Config, token)
+					err = tc.handleToken(ctx, p, oauth2Config, token, conn)
 					if err != nil {
 						t.Errorf("%s: %v", tc.name, err)
 					}
@@ -1251,5 +1274,161 @@ func TestRefreshTokenFlow(t *testing.T) {
 	// try to refresh expired token with old refresh token.
 	if _, err := oauth2Client.config.TokenSource(ctx, tok).Token(); err == nil {
 		t.Errorf("Token refreshed with invalid refresh token, error expected.")
+	}
+}
+
+// TestOAuth2DeviceFlow runs device flow integration tests against a test server
+func TestOAuth2DeviceFlow(t *testing.T) {
+	clientID := "testclient"
+	clientSecret := ""
+	requestedScopes := []string{oidc.ScopeOpenID, "email", "profile", "groups", "offline_access"}
+
+	t0 := time.Now()
+
+	// Always have the time function used by the server return the same time so
+	// we can predict expected values of "expires_in" fields exactly.
+	now := func() time.Time { return t0 }
+
+	// Connector used by the tests.
+	var conn *mock.Callback
+	idTokensValidFor := time.Second * 30
+
+	for _, tc := range makeOAuth2Tests(clientID, clientSecret, now).tests {
+		func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			// Setup a dex server.
+			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+				c.Issuer = c.Issuer + "/non-root-path"
+				c.Now = now
+				c.IDTokensValidFor = idTokensValidFor
+			})
+			defer httpServer.Close()
+
+			mockConn := s.connectors["mock"]
+			conn = mockConn.Connector.(*mock.Callback)
+
+			p, err := oidc.NewProvider(ctx, httpServer.URL)
+			if err != nil {
+				t.Fatalf("failed to get provider: %v", err)
+			}
+
+			//Add the Clients to the test server
+			client := storage.Client{
+				ID: clientID,
+				//Secret:       "testclientsecret",
+				RedirectURIs: []string{"/non-root-path/device/callback"},
+			}
+			if err := s.storage.CreateClient(client); err != nil {
+				t.Fatalf("failed to create client: %v", err)
+			}
+
+			//Grab the issuer that we'll reuse for the different endpoints to hit
+			issuer, err := url.Parse(s.issuerURL.String())
+			if err != nil {
+				t.Errorf("Could not parse issuer URL %v", err)
+			}
+
+			//Send a new Device Request
+			codeURL, _ := url.Parse(issuer.String())
+			codeURL.Path = path.Join(codeURL.Path, "device/code")
+
+			data := url.Values{}
+			data.Set("client_id", clientID)
+			for _, scope := range requestedScopes {
+				data.Add("scope", scope)
+			}
+			resp, err := http.PostForm(codeURL.String(), data)
+			if err != nil {
+				t.Errorf("Could not request device code: %v", err)
+			}
+			defer resp.Body.Close()
+			responseBody, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				t.Errorf("Could read device code response %v", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("%v - Unexpected Response Type.  Expected 200 got  %v.  Response: %v", tc.name, resp.StatusCode, string(responseBody))
+			}
+
+			//Parse the code response
+			var deviceCode deviceCodeResponse
+			if err := json.Unmarshal(responseBody, &deviceCode); err != nil {
+				t.Errorf("Unexpected Device Code Response Format %v", string(responseBody))
+			}
+
+			//Mock the user hitting the verification URI and posting the form
+			verifyURL, _ := url.Parse(issuer.String())
+			verifyURL.Path = path.Join(verifyURL.Path, "/device/auth/verify_code")
+			urlData := url.Values{}
+			urlData.Set("user_code", deviceCode.UserCode)
+			resp, err = http.PostForm(verifyURL.String(), urlData)
+			if err != nil {
+				t.Errorf("Error Posting Form: %v", err)
+			}
+			defer resp.Body.Close()
+			responseBody, err = ioutil.ReadAll(resp.Body)
+			if err != nil {
+				t.Errorf("Could read verification response %v", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("%v - Unexpected Response Type.  Expected 200 got  %v.  Response: %v", tc.name, resp.StatusCode, string(responseBody))
+			}
+
+			//Hit the Token Endpoint, and try and get an access token
+			tokenURL, _ := url.Parse(issuer.String())
+			tokenURL.Path = path.Join(tokenURL.Path, "/device/token")
+			v := url.Values{}
+			v.Add("grant_type", grantTypeDeviceCode)
+			v.Add("device_code", deviceCode.DeviceCode)
+			resp, err = http.PostForm(tokenURL.String(), v)
+			if err != nil {
+				t.Errorf("Could not request device token: %v", err)
+			}
+			defer resp.Body.Close()
+			responseBody, err = ioutil.ReadAll(resp.Body)
+			if err != nil {
+				t.Errorf("Could read device token response %v", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("%v - Unexpected Token Response Type.  Expected 200 got  %v.  Response: %v", tc.name, resp.StatusCode, string(responseBody))
+			}
+
+			//Parse the response
+			var tokenRes accessTokenReponse
+			if err := json.Unmarshal(responseBody, &tokenRes); err != nil {
+				t.Errorf("Unexpected Device Access Token Response Format %v", string(responseBody))
+			}
+
+			token := &oauth2.Token{
+				AccessToken:  tokenRes.AccessToken,
+				TokenType:    tokenRes.TokenType,
+				RefreshToken: tokenRes.RefreshToken,
+			}
+			raw := make(map[string]interface{})
+			json.Unmarshal(responseBody, &raw) // no error checks for optional fields
+			token = token.WithExtra(raw)
+			if secs := tokenRes.ExpiresIn; secs > 0 {
+				token.Expiry = time.Now().Add(time.Duration(secs) * time.Second)
+			}
+
+			//Run token tests to validate info is correct
+			// Create the OAuth2 config.
+			oauth2Config := &oauth2.Config{
+				ClientID:     client.ID,
+				ClientSecret: client.Secret,
+				Endpoint:     p.Endpoint(),
+				Scopes:       requestedScopes,
+				RedirectURL:  "/non-root-path/device/callback",
+			}
+			if len(tc.scopes) != 0 {
+				oauth2Config.Scopes = tc.scopes
+			}
+			err = tc.handleToken(ctx, p, oauth2Config, token, conn)
+			if err != nil {
+				t.Errorf("%s: %v", tc.name, err)
+			}
+		}()
 	}
 }

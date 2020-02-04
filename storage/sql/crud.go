@@ -888,12 +888,12 @@ func (c *conn) delete(table, field, id string) error {
 func (c *conn) CreateDeviceRequest(d storage.DeviceRequest) error {
 	_, err := c.Exec(`
 		insert into device_request (
-			user_code, device_code, client_id, scopes, expiry
+			user_code, device_code, client_id, client_secret, scopes, expiry
 		)
 		values (
-			$1, $2, $3, $4, $5
+			$1, $2, $3, $4, $5, $6
 		);`,
-		d.UserCode, d.DeviceCode, d.ClientID, encoder(d.Scopes), d.Expiry,
+		d.UserCode, d.DeviceCode, d.ClientID, d.ClientSecret, encoder(d.Scopes), d.Expiry,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -930,10 +930,10 @@ func (c *conn) GetDeviceRequest(userCode string) (storage.DeviceRequest, error) 
 func getDeviceRequest(q querier, userCode string) (d storage.DeviceRequest, err error) {
 	err = q.QueryRow(`
 		select
-            device_code, client_id, scopes, expiry
+            device_code, client_id, client_secret, scopes, expiry
 		from device_request where user_code = $1;
 	`, userCode).Scan(
-		&d.DeviceCode, &d.ClientID, decoder(&d.Scopes), &d.Expiry,
+		&d.DeviceCode, &d.ClientID, &d.ClientSecret, decoder(&d.Scopes), &d.Expiry,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {

@@ -595,7 +595,7 @@ func (c *conn) listDeviceRequests(ctx context.Context) (requests []DeviceRequest
 func (c *conn) CreateDeviceToken(t storage.DeviceToken) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	return c.txnCreate(ctx, keyID(deviceRequestPrefix, t.DeviceCode), fromStorageDeviceToken(t))
+	return c.txnCreate(ctx, keyID(deviceTokenPrefix, t.DeviceCode), fromStorageDeviceToken(t))
 }
 
 func (c *conn) GetDeviceToken(deviceCode string) (t storage.DeviceToken, err error) {
