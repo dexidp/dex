@@ -95,35 +95,39 @@ Then restart API server(s).
 
 See https://kubernetes.io/docs/reference/access-authn-authz/authentication/ for more detail.
 
-### kubelogin
+### Set up kubeconfig
 
-Create context for dex authentication:
-
-```console
-$ kubectl config set-context oidc-ctx --cluster=cluster.local --user=test
-$ kubectl config set-credentials test \
-  --auth-provider=oidc \
-  --auth-provider-arg=idp-issuer-url=https://dex.example.com:32000/dex \
-  --auth-provider-arg=client-id=kubernetes \
-  --auth-provider-arg=client-secret=ZXhhbXBsZS1hcHAtc2VjcmV0 \
-  --auth-provider-arg=idp-certificate-authority-data=$(base64 -w 0 openid-ca.pem) \
-  --auth-provider-arg=extra-scopes="offline_access openid profile email groups"
-$ kubectl config use-context oidc-ctx
-```
-
-Please confirm idp-issuer-url, client-id, client-secret and idp-certificate-authority-data value is same as config-ad-kubelogin.yaml's value.
-
-Then run kubelogin:
+Add a new user to the kubeconfig for dex authentication:
 
 ```console
-$ kubelogin
+$ kubectl config set-credentials oidc \
+    --exec-api-version=client.authentication.k8s.io/v1beta1 \
+    --exec-command=kubectl \
+    --exec-arg=oidc-login \
+    --exec-arg=get-token \
+    --exec-arg=--oidc-issuer-url=https://dex.example.com:32000/dex \
+    --exec-arg=--oidc-client-id=kubernetes \
+    --exec-arg=--oidc-client-secret=ZXhhbXBsZS1hcHAtc2VjcmV0 \
+    --exec-arg=--extra-scope=profile \
+    --exec-arg=--extra-scope=email \
+    --exec-arg=--extra-scope=groups \
+    --exec-arg=--certificate-authority-data=$(base64 -w 0 openid-ca.pem)
 ```
 
-Access http://localhost:8000 by web browser and login with your AD account (eg. test@example.com) and password.
-After login and grant, you have following token in ~/.kube/config:
+Please confirm `--oidc-issuer-url`, `--oidc-client-id`, `--oidc-client-secret` and `--certificate-authority-data` are same as values in config-ad-kubelogin.yaml.
 
-```
-        id-token: eyJhbGciOiJSUzICuU4dCcilDDWlw2lfr8mg...
-        refresh-token: ChlxY2EzeGhKEB4492EzecdKJOElECK...
+Run the following command:
+
+```console
+$ kubectl --user=oidc cluster-info
 ```
 
+It launches the browser and navigates it to http://localhost:8000.
+Please log in with your AD account (eg. test@example.com) and password.
+After login and grant, you can access the cluster.
+
+You can switch the current context to dex authentication.
+
+```console
+$ kubectl config set-context --current --user=oidc
+```
