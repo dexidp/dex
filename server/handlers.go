@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +23,11 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
+)
+
+const (
+	CodeChallengeMethodPlain = "plain"
+	CodeChallengeMethodS256  = "S256"
 )
 
 // newHealthChecker returns the healthz handler. The handler runs until the
@@ -633,6 +640,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 				Expiry:        s.now().Add(time.Minute * 30),
 				RedirectURI:   authReq.RedirectURI,
 				ConnectorData: authReq.ConnectorData,
+				CodeChallenge: authReq.CodeChallenge,
 			}
 			if err := s.storage.CreateAuthCode(code); err != nil {
 				s.logger.Errorf("Failed to create auth code: %v", err)
@@ -761,6 +769,19 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) calculateCodeChallenge(codeVerifier, codeChallengeMethod string) (string, error) {
+	switch codeChallengeMethod {
+	case CodeChallengeMethodPlain:
+		return codeVerifier, nil
+	case CodeChallengeMethodS256:
+		shaSum := sha256.Sum256([]byte(codeVerifier))
+		return base64.RawURLEncoding.EncodeToString(shaSum[:]), nil
+	default:
+		s.logger.Errorf("unknown challenge method (%v)", codeChallengeMethod)
+		return "", fmt.Errorf("unknown challenge method (%v)", codeChallengeMethod)
+	}
+}
+
 // handle an access token request https://tools.ietf.org/html/rfc6749#section-4.1.3
 func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client storage.Client) {
 	code := r.PostFormValue("code")
@@ -775,6 +796,22 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 			s.tokenErrHelper(w, errInvalidRequest, "Invalid or expired code parameter.", http.StatusBadRequest)
 		}
 		return
+	}
+
+	// RFC 7636 (PKCE)
+	codeChallengeFromStorage := authCode.CodeChallenge.CodeChallenge
+	if codeChallengeFromStorage != "" {
+		providedCodeVerifier := r.PostFormValue("code_verifier")
+		calculatedCodeChallenge, err := s.calculateCodeChallenge(providedCodeVerifier, authCode.CodeChallenge.CodeChallengeMethod)
+		if err != nil {
+			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+			return
+		}
+
+		if codeChallengeFromStorage != calculatedCodeChallenge {
+			s.tokenErrHelper(w, errInvalidRequest, "invalid code_verifier.", http.StatusBadRequest)
+			return
+		}
 	}
 
 	if authCode.RedirectURI != redirectURI {

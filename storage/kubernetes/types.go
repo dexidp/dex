@@ -269,6 +269,9 @@ type AuthRequest struct {
 	ConnectorData []byte `json:"connectorData,omitempty"`
 
 	Expiry time.Time `json:"expiry"`
+
+	CodeChallenge       string `json:"code_challenge,omitempty"`
+	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 }
 
 // AuthRequestList is a list of AuthRequests.
@@ -293,6 +296,10 @@ func toStorageAuthRequest(req AuthRequest) storage.AuthRequest {
 		ConnectorData:       req.ConnectorData,
 		Expiry:              req.Expiry,
 		Claims:              toStorageClaims(req.Claims),
+		CodeChallenge: storage.CodeChallenge{
+			CodeChallenge:       req.CodeChallenge,
+			CodeChallengeMethod: req.CodeChallengeMethod,
+		},
 	}
 	return a
 }
@@ -319,6 +326,8 @@ func (cli *client) fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		ConnectorData:       a.ConnectorData,
 		Expiry:              a.Expiry,
 		Claims:              fromStorageClaims(a.Claims),
+		CodeChallenge:       a.CodeChallenge.CodeChallenge,
+		CodeChallengeMethod: a.CodeChallenge.CodeChallengeMethod,
 	}
 	return req
 }
@@ -392,6 +401,9 @@ type AuthCode struct {
 	ConnectorData []byte `json:"connectorData,omitempty"`
 
 	Expiry time.Time `json:"expiry"`
+
+	CodeChallenge       string `json:"code_challenge,omitempty"`
+	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 }
 
 // AuthCodeList is a list of AuthCodes.
@@ -411,14 +423,16 @@ func (cli *client) fromStorageAuthCode(a storage.AuthCode) AuthCode {
 			Name:      a.ID,
 			Namespace: cli.namespace,
 		},
-		ClientID:      a.ClientID,
-		RedirectURI:   a.RedirectURI,
-		ConnectorID:   a.ConnectorID,
-		ConnectorData: a.ConnectorData,
-		Nonce:         a.Nonce,
-		Scopes:        a.Scopes,
-		Claims:        fromStorageClaims(a.Claims),
-		Expiry:        a.Expiry,
+		ClientID:            a.ClientID,
+		RedirectURI:         a.RedirectURI,
+		ConnectorID:         a.ConnectorID,
+		ConnectorData:       a.ConnectorData,
+		Nonce:               a.Nonce,
+		Scopes:              a.Scopes,
+		Claims:              fromStorageClaims(a.Claims),
+		Expiry:              a.Expiry,
+		CodeChallenge:       a.CodeChallenge.CodeChallenge,
+		CodeChallengeMethod: a.CodeChallenge.CodeChallengeMethod,
 	}
 }
 
@@ -433,6 +447,10 @@ func toStorageAuthCode(a AuthCode) storage.AuthCode {
 		Scopes:        a.Scopes,
 		Claims:        toStorageClaims(a.Claims),
 		Expiry:        a.Expiry,
+		CodeChallenge: storage.CodeChallenge{
+			CodeChallenge:       a.CodeChallenge,
+			CodeChallengeMethod: a.CodeChallengeMethod,
+		},
 	}
 }
 

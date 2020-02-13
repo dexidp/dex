@@ -228,25 +228,33 @@ func TestOAuth2CodeFlow(t *testing.T) {
 
 	oidcConfig := &oidc.Config{SkipClientIDCheck: true}
 
+	basicIDTokenVerify := func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
+		idToken, ok := token.Extra("id_token").(string)
+		if !ok {
+			return fmt.Errorf("no id token found")
+		}
+		if _, err := p.Verifier(oidcConfig).Verify(ctx, idToken); err != nil {
+			return fmt.Errorf("failed to verify id token: %v", err)
+		}
+		return nil
+	}
+
 	tests := []struct {
 		name string
 		// If specified these set of scopes will be used during the test case.
 		scopes []string
 		// handleToken provides the OAuth2 token response for the integration test.
 		handleToken func(context.Context, *oidc.Provider, *oauth2.Config, *oauth2.Token) error
+
+		// extra parameters to pass when requesting auth_code
+		authCodeOptions []oauth2.AuthCodeOption
+
+		// extra parameters to pass when retrieving id token
+		retreiveTokenOptions []oauth2.AuthCodeOption
 	}{
 		{
-			name: "verify ID Token",
-			handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token) error {
-				idToken, ok := token.Extra("id_token").(string)
-				if !ok {
-					return fmt.Errorf("no id token found")
-				}
-				if _, err := p.Verifier(oidcConfig).Verify(ctx, idToken); err != nil {
-					return fmt.Errorf("failed to verify id token: %v", err)
-				}
-				return nil
-			},
+			name:        "verify ID Token",
+			handleToken: basicIDTokenVerify,
 		},
 		{
 			name: "fetch userinfo",
@@ -472,6 +480,29 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				return nil
 			},
 		},
+		{
+			// This test ensures that PKCE work in "plain" mode (no code_challenge_method specified)
+			name: "PKCE with plain",
+			authCodeOptions: []oauth2.AuthCodeOption{
+				oauth2.SetAuthURLParam("code_challenge", "challenge123"),
+			},
+			retreiveTokenOptions: []oauth2.AuthCodeOption{
+				oauth2.SetAuthURLParam("code_verifier", "challenge123"),
+			},
+			handleToken: basicIDTokenVerify,
+		},
+		{
+			// This test ensures that PKCE work in "S256" mode
+			name: "PKCE with S256",
+			authCodeOptions: []oauth2.AuthCodeOption{
+				oauth2.SetAuthURLParam("code_challenge", "lyyl-X4a69qrqgEfUL8wodWic3Be9ZZ5eovBgIKKi-w"),
+				oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+			},
+			retreiveTokenOptions: []oauth2.AuthCodeOption{
+				oauth2.SetAuthURLParam("code_verifier", "challenge123"),
+			},
+			handleToken: basicIDTokenVerify,
+		},
 	}
 
 	for _, tc := range tests {
@@ -514,7 +545,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			oauth2Client := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path != "/callback" {
 					// User is visiting app first time. Redirect to dex.
-					http.Redirect(w, r, oauth2Config.AuthCodeURL(state), http.StatusSeeOther)
+					http.Redirect(w, r, oauth2Config.AuthCodeURL(state, tc.authCodeOptions...), http.StatusSeeOther)
 					return
 				}
 
@@ -535,7 +566,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				// Grab code, exchange for token.
 				if code := q.Get("code"); code != "" {
 					gotCode = true
-					token, err := oauth2Config.Exchange(ctx, code)
+					token, err := oauth2Config.Exchange(ctx, code, tc.retreiveTokenOptions...)
 					if err != nil {
 						t.Errorf("failed to exchange code for token: %v", err)
 						return

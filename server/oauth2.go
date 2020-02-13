@@ -400,6 +400,18 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	scopes := strings.Fields(q.Get("scope"))
 	responseTypes := strings.Fields(q.Get("response_type"))
 
+	codeChallenge := q.Get("code_challenge")
+	codeChallengeMethod := q.Get("code_challenge_method")
+
+	if codeChallengeMethod == "" {
+		codeChallengeMethod = CodeChallengeMethodPlain
+	}
+
+	if codeChallengeMethod != CodeChallengeMethodS256 && codeChallengeMethod != CodeChallengeMethodPlain {
+		description := fmt.Sprintf("Unsupported PKCE challenge method (%q).", codeChallengeMethod)
+		return nil, &authErr{"", "", errInvalidRequest, description}
+	}
+
 	client, err := s.storage.GetClient(clientID)
 	if err != nil {
 		if err == storage.ErrNotFound {
@@ -525,6 +537,10 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		RedirectURI:         redirectURI,
 		ResponseTypes:       responseTypes,
 		ConnectorID:         connectorID,
+		CodeChallenge: storage.CodeChallenge{
+			CodeChallenge:       codeChallenge,
+			CodeChallengeMethod: codeChallengeMethod,
+		},
 	}, nil
 }
 
