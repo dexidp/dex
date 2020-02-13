@@ -152,18 +152,30 @@ $ ./bin/example-app --issuer https://dex.example.com:32000 --issuer-root-ca exam
 
 Please note that the `example-app` will listen at http://127.0.0.1:5555 and can be changed with the `--listen` flag.
 
-Once the example app is running, choose the GitHub option and grant access to dex to view your profile.
+Once the example app is running, open a browser and go to http://127.0.0.1:5555
+
+A page appears with fields such as scope and client-id. For the most basic case these are not required, so leave the form blank. Click login.
+
+On the next page, choose the GitHub option and grant access to dex to view your profile.
 
 The default redirect uri is http://127.0.0.1:5555/callback and can be changed with the `--redirect-uri` flag and should correspond with your configmap.
 
 Please note the redirect uri is different from the one you filled when creating `GitHub OAuth2 client credentials`. 
-When you login, GitHub first redirects to dex (https://dex.example.com:32000/callback), then dex redirects to the redirect uri of exampl-app.
+When you login, GitHub first redirects to dex (https://dex.example.com:32000/callback), then dex redirects to the redirect uri of example-app.
 
-The printed ID Token can then be used as a bearer token to authenticate against the API server.
+The printed "ID Token" can then be used as a bearer token to authenticate against the API server.
 
 ```
 $ token='(id token)'
 $ curl -H "Authorization: Bearer $token" -k https://( API server host ):443/api/v1/nodes
+```
+
+In the kubeconfig file ~/.kube/config, the format is:
+```
+users:
+- name: (USERNAME)
+  user:
+    token: (ID-TOKEN)
 ```
 
 [k8s-authz]: http://kubernetes.io/docs/admin/authorization/
