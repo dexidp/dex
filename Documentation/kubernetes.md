@@ -140,8 +140,6 @@ Create the dex deployment, configmap, and node port service. This will also crea
 $ kubectl create -f dex.yaml
 ```
 
-__Caveats:__ No health checking is configured because dex does its own TLS termination complicating the setup. This is a known issue and can be tracked [here][dex-healthz].
-
 ## Logging into the cluster
 
 The `example-app` can be used to log into the cluster and get an ID Token. To build the app, you can run `make` in the root of the repo and it will build the `example-app` binary in the repo's `bin` directory. To build the `example-app` requires at least a 1.7 version of Go.
@@ -171,7 +169,6 @@ $ curl -H "Authorization: Bearer $token" -k https://( API server host ):443/api/
 [trusted-peers]: https://godoc.org/github.com/dexidp/dex/storage#Client
 [coreos-kubernetes]: https://github.com/coreos/coreos-kubernetes/
 [coreos-baremetal]: https://github.com/coreos/coreos-baremetal/
-[dex-healthz]: https://github.com/dexidp/dex/issues/682
 [github-oauth2]: https://github.com/settings/applications/new
 [node-port]: http://kubernetes.io/docs/user-guide/services/#type-nodeport
 [coreos-kubernetes]: https://github.com/coreos/coreos-kubernetes
