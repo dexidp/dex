@@ -221,4 +221,12 @@ var migrations = []migration{
 			`,
 		},
 	},
+	{
+		stmts: []string{`
+			alter table auth_request
+				modify column state varchar(4096);
+			`,
+		},
+		flavor: &flavorMySQL,
+	},
 }
