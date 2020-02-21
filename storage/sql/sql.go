@@ -130,7 +130,7 @@ func (c *conn) translateArgs(args []interface{}) []interface{} {
 // conn is the main database connection.
 type conn struct {
 	db                 *sql.DB
-	flavor             flavor
+	flavor             *flavor
 	logger             log.Logger
 	alreadyExistsCheck func(err error) bool
 }
