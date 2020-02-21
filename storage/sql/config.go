@@ -66,7 +66,7 @@ func (s *SQLite3) open(logger log.Logger) (*conn, error) {
 		return sqlErr.ExtendedCode == sqlite3.ErrConstraintPrimaryKey
 	}
 
-	c := &conn{db, flavorSQLite3, logger, errCheck}
+	c := &conn{db, &flavorSQLite3, logger, errCheck}
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}
@@ -239,7 +239,7 @@ func (p *Postgres) open(logger log.Logger) (*conn, error) {
 		return sqlErr.Code == pgErrUniqueViolation
 	}
 
-	c := &conn{db, flavorPostgres, logger, errCheck}
+	c := &conn{db, &flavorPostgres, logger, errCheck}
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}
@@ -344,7 +344,7 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 			sqlErr.Number == mysqlErrDupEntryWithKeyName
 	}
 
-	c := &conn{db, flavorMySQL, logger, errCheck}
+	c := &conn{db, &flavorMySQL, logger, errCheck}
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}
