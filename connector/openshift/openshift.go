@@ -177,6 +177,7 @@ func (c *openshiftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 		UserID:            user.UID,
 		Username:          user.Name,
 		PreferredUsername: user.Name,
+		Email:             user.Name,
 		Groups:            user.Groups,
 	}
 
