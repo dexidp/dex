@@ -43,7 +43,7 @@ jobs:
           go-version: 1.13
 
       - name: Checkout code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
 
       - name: Setup MySQL database
         run: mysql -u root -proot -e 'CREATE DATABASE dex;'
