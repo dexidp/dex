@@ -267,6 +267,9 @@ func (c *googleConnector) getGroups(email string) ([]string, error) {
 // sets up super user impersonation and creates an admin client for calling
 // the google admin api
 func createDirectoryService(serviceAccountFilePath string, email string) (*admin.Service, error) {
+	if len(serviceAccountFilePath) == 0 && len(email) == 0 {
+		return nil, nil
+	}
 	jsonCredentials, err := ioutil.ReadFile(serviceAccountFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading credentials from file: %v", err)
