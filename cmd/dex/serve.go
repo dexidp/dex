@@ -65,6 +65,11 @@ func serve(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error parse config file %s: %v", configFile, err)
 	}
 
+	// Replace environment variables
+	if err := replaceEnvKeys(&c, os.Getenv); err != nil {
+		return fmt.Errorf("error replacing environment keys in config file %s: %v", configFile, err)
+	}
+
 	logger, err := newLogger(c.Logger.Level, c.Logger.Format)
 	if err != nil {
 		return fmt.Errorf("invalid config: %v", err)
