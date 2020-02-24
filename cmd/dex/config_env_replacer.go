@@ -23,7 +23,7 @@ func replaceEnvKeys(data interface{}, getenv func(string) string) error {
 	// Convert strings if they start with '$'
 	if s.Kind() == reflect.String {
 		value := s.Interface().(string)
-		if len(value) > 2 && string(value[0]) == "$" {
+		if len(value) > 2 && value[0] == '$' {
 			s.SetString(getenv(value[1:]))
 		}
 		return nil
