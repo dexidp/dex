@@ -17,6 +17,7 @@ import (
 var _ = yaml.YAMLToJSON
 
 const testHashStaticPasswordEnv = "DEX_FOO_USER_PASSWORD"
+const testHashStaticPasswordExpectedValue = "$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"
 
 func TestValidConfiguration(t *testing.T) {
 	configuration := Config{
@@ -220,6 +221,9 @@ func TestUnmarshalConfigWithEnv(t *testing.T) {
 	staticPasswordEnv := os.Getenv(testHashStaticPasswordEnv)
 	if staticPasswordEnv == "" {
 		t.Skipf("test environment variable %q not set, skipping", testHashStaticPasswordEnv)
+	}
+	if staticPasswordEnv != testHashStaticPasswordExpectedValue {
+		t.Fatalf("test environment variable %q should be set to %q", testHashStaticPasswordEnv, testHashStaticPasswordExpectedValue)
 	}
 	rawConfig := []byte(`
 issuer: http://127.0.0.1:5556/dex
