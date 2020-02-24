@@ -1,8 +1,9 @@
 package main
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/kylelemons/godebug/pretty"
 )
 
 type TestStruct struct {
@@ -43,7 +44,7 @@ func TestReplaceEnv(t *testing.T) {
 	}
 
 	expected := &Test{String: "foo", Struct: TestStruct{String: "bar"}}
-	if !reflect.DeepEqual(data, expected) {
-		t.Errorf("Unexpected data back:\n\t%+v\nExpected\n\t%+v", data, expected)
+	if diff := pretty.Compare(data, expected); diff != "" {
+		t.Errorf("got!=want: %s", diff)
 	}
 }
