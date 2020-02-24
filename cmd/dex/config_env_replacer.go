@@ -26,13 +26,22 @@ func replaceEnvKeys(data interface{}, getenv func(string) string) error {
 		if len(value) > 2 && value[0] == '$' {
 			s.SetString(getenv(value[1:]))
 		}
+
 		return nil
 	}
 
 	// Structs
 	if s.Kind() == reflect.Struct {
+		t := s.Type()
 		for i := 0; i < s.NumField(); i += 1 {
 			f := s.Field(i)
+			name := t.Field(i).Name
+
+			// Skip 'Hash' keys, as they typically contain password hashes
+			// starting with '$', but shouldn't be escaped.
+			if name == "Hash" {
+				continue
+			}
 
 			// Recurse through fields
 			err := replaceEnvKeys(f.Addr().Interface(), getenv)
