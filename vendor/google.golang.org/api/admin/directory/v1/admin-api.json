@@ -82,6 +82,9 @@
         },
         "https://www.googleapis.com/auth/admin.directory.userschema.readonly": {
           "description": "View user schemas on your domain"
+        },
+        "https://www.googleapis.com/auth/cloud-platform": {
+          "description": "View and manage your data across Google Cloud Platform services"
         }
       }
     }
@@ -93,7 +96,7 @@
   "description": "Manages enterprise resources such as users and groups, administrative notifications, security features, and more.",
   "discoveryVersion": "v1",
   "documentationLink": "https://developers.google.com/admin-sdk/directory/",
-  "etag": "\"9eZ1uxVRThTDhLJCZHhqs3eQWz4/5HuD5_WBYDvRWcfO5I5hjCFh4pY\"",
+  "etag": "\"LYADMvHWYH2ul9D6m9UT9gT77YM/NqxQAUkUIvUDCo2pCkVJ3_L6Gh4\"",
   "icons": {
     "x16": "https://www.gstatic.com/images/branding/product/1x/googleg_16dp.png",
     "x32": "https://www.gstatic.com/images/branding/product/1x/googleg_32dp.png"
@@ -252,7 +255,8 @@
             "https://www.googleapis.com/auth/admin.directory.user",
             "https://www.googleapis.com/auth/admin.directory.user.alias",
             "https://www.googleapis.com/auth/admin.directory.user.alias.readonly",
-            "https://www.googleapis.com/auth/admin.directory.user.readonly"
+            "https://www.googleapis.com/auth/admin.directory.user.readonly",
+            "https://www.googleapis.com/auth/cloud-platform"
           ]
         }
       }
@@ -3470,7 +3474,8 @@
           },
           "scopes": [
             "https://www.googleapis.com/auth/admin.directory.user",
-            "https://www.googleapis.com/auth/admin.directory.user.readonly"
+            "https://www.googleapis.com/auth/admin.directory.user.readonly",
+            "https://www.googleapis.com/auth/cloud-platform"
           ],
           "supportsSubscription": true
         },
@@ -3704,7 +3709,8 @@
           },
           "scopes": [
             "https://www.googleapis.com/auth/admin.directory.user",
-            "https://www.googleapis.com/auth/admin.directory.user.readonly"
+            "https://www.googleapis.com/auth/admin.directory.user.readonly",
+            "https://www.googleapis.com/auth/cloud-platform"
           ],
           "supportsSubscription": true
         }
@@ -4023,7 +4029,7 @@
       }
     }
   },
-  "revision": "20190806",
+  "revision": "20191003",
   "rootUrl": "https://www.googleapis.com/",
   "schemas": {
     "Alias": {
@@ -4623,7 +4629,7 @@
           "type": "string"
         },
         "ethernetMacAddress0": {
-          "description": "(Read-only) MAC address used by the Chromebook’s internal ethernet port, and for onboard network (ethernet) interface. The format is twelve (12) hexadecimal digits without any delimiter (uppercase letters). This is only relevant for Dell devices.",
+          "description": "(Read-only) MAC address used by the Chromebook’s internal ethernet port, and for onboard network (ethernet) interface. The format is twelve (12) hexadecimal digits without any delimiter (uppercase letters). This is only relevant for some devices.",
           "type": "string"
         },
         "firmwareVersion": {
@@ -4654,7 +4660,7 @@
           "type": "string"
         },
         "meid": {
-          "description": "Mobile Equipment identifier for the 3G mobile card in the Chromebook (Read-only)",
+          "description": "Contains either the Mobile Equipment identifier (MEID) or the International Mobile Equipment Identity (IMEI) for the 3G mobile card in the Chromebook (Read-only)",
           "type": "string"
         },
         "model": {

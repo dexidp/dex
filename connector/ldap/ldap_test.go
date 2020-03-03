@@ -307,8 +307,12 @@ member: cn=jane,ou=People,dc=example,dc=org
 	c.UserSearch.IDAttr = "DN"
 	c.UserSearch.Username = "cn"
 	c.GroupSearch.BaseDN = "ou=Groups,dc=example,dc=org"
-	c.GroupSearch.UserAttr = "DN"
-	c.GroupSearch.GroupAttr = "member"
+	c.GroupSearch.UserMatchers = []UserMatcher{
+		{
+			UserAttr:  "DN",
+			GroupAttr: "member",
+		},
+	}
 	c.GroupSearch.NameAttr = "cn"
 
 	tests := []subtest{
@@ -400,8 +404,12 @@ gidNumber: 1002
 	c.UserSearch.IDAttr = "DN"
 	c.UserSearch.Username = "cn"
 	c.GroupSearch.BaseDN = "ou=Groups,dc=example,dc=org"
-	c.GroupSearch.UserAttr = "departmentNumber"
-	c.GroupSearch.GroupAttr = "gidNumber"
+	c.GroupSearch.UserMatchers = []UserMatcher{
+		{
+			UserAttr:  "departmentNumber",
+			GroupAttr: "gidNumber",
+		},
+	}
 	c.GroupSearch.NameAttr = "cn"
 	tests := []subtest{
 		{
@@ -435,6 +443,243 @@ gidNumber: 1002
 }
 
 func TestGroupFilter(t *testing.T) {
+	schema := `
+dn: ou=People,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+
+dn: cn=john,ou=People,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: john
+mail: johndoe@example.com
+userpassword: bar
+
+# Group definitions.
+
+dn: ou=Seattle,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Seattle
+
+dn: ou=Portland,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Portland
+
+dn: ou=Groups,ou=Seattle,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: ou=Groups,ou=Portland,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: cn=qa,ou=Groups,ou=Portland,dc=example,dc=org
+objectClass: groupOfNames
+cn: qa
+member: cn=john,ou=People,dc=example,dc=org
+
+dn: cn=admins,ou=Groups,ou=Seattle,dc=example,dc=org
+objectClass: groupOfNames
+cn: admins
+member: cn=john,ou=People,dc=example,dc=org
+member: cn=jane,ou=People,dc=example,dc=org
+
+dn: cn=developers,ou=Groups,ou=Seattle,dc=example,dc=org
+objectClass: groupOfNames
+cn: developers
+member: cn=jane,ou=People,dc=example,dc=org
+`
+	c := &Config{}
+	c.UserSearch.BaseDN = "ou=People,dc=example,dc=org"
+	c.UserSearch.NameAttr = "cn"
+	c.UserSearch.EmailAttr = "mail"
+	c.UserSearch.IDAttr = "DN"
+	c.UserSearch.Username = "cn"
+	c.GroupSearch.BaseDN = "dc=example,dc=org"
+	c.GroupSearch.UserMatchers = []UserMatcher{
+		{
+			UserAttr:  "DN",
+			GroupAttr: "member",
+		},
+	}
+	c.GroupSearch.NameAttr = "cn"
+	c.GroupSearch.Filter = "(ou:dn:=Seattle)" // ignore other groups
+
+	tests := []subtest{
+		{
+			name:     "validpassword",
+			username: "jane",
+			password: "foo",
+			groups:   true,
+			want: connector.Identity{
+				UserID:        "cn=jane,ou=People,dc=example,dc=org",
+				Username:      "jane",
+				Email:         "janedoe@example.com",
+				EmailVerified: true,
+				Groups:        []string{"admins", "developers"},
+			},
+		},
+		{
+			name:     "validpassword2",
+			username: "john",
+			password: "bar",
+			groups:   true,
+			want: connector.Identity{
+				UserID:        "cn=john,ou=People,dc=example,dc=org",
+				Username:      "john",
+				Email:         "johndoe@example.com",
+				EmailVerified: true,
+				Groups:        []string{"admins"},
+			},
+		},
+	}
+
+	runTests(t, schema, connectLDAP, c, tests)
+}
+
+func TestGroupToUserMatchers(t *testing.T) {
+	schema := `
+dn: ou=People,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+uid: janedoe
+mail: janedoe@example.com
+userpassword: foo
+
+dn: cn=john,ou=People,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: john
+uid: johndoe
+mail: johndoe@example.com
+userpassword: bar
+
+# Group definitions.
+
+dn: ou=Seattle,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Seattle
+
+dn: ou=Portland,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Portland
+
+dn: ou=Groups,ou=Seattle,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: ou=UnixGroups,ou=Seattle,dc=example,dc=org
+objectClass: organizationalUnit
+ou: UnixGroups
+
+dn: ou=Groups,ou=Portland,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: ou=UnixGroups,ou=Portland,dc=example,dc=org
+objectClass: organizationalUnit
+ou: UnixGroups
+
+dn: cn=qa,ou=Groups,ou=Portland,dc=example,dc=org
+objectClass: groupOfNames
+cn: qa
+member: cn=john,ou=People,dc=example,dc=org
+
+dn: cn=logger,ou=UnixGroups,ou=Portland,dc=example,dc=org
+objectClass: posixGroup
+gidNumber: 1000
+cn: logger
+memberUid: johndoe
+
+dn: cn=admins,ou=Groups,ou=Seattle,dc=example,dc=org
+objectClass: groupOfNames
+cn: admins
+member: cn=john,ou=People,dc=example,dc=org
+member: cn=jane,ou=People,dc=example,dc=org
+
+dn: cn=developers,ou=Groups,ou=Seattle,dc=example,dc=org
+objectClass: groupOfNames
+cn: developers
+member: cn=jane,ou=People,dc=example,dc=org
+
+dn: cn=frontend,ou=UnixGroups,ou=Seattle,dc=example,dc=org
+objectClass: posixGroup
+gidNumber: 1001
+cn: frontend
+memberUid: janedoe
+`
+	c := &Config{}
+	c.UserSearch.BaseDN = "ou=People,dc=example,dc=org"
+	c.UserSearch.NameAttr = "cn"
+	c.UserSearch.EmailAttr = "mail"
+	c.UserSearch.IDAttr = "DN"
+	c.UserSearch.Username = "cn"
+	c.GroupSearch.BaseDN = "dc=example,dc=org"
+	c.GroupSearch.UserMatchers = []UserMatcher{
+		{
+			UserAttr:  "DN",
+			GroupAttr: "member",
+		},
+		{
+			UserAttr:  "uid",
+			GroupAttr: "memberUid",
+		},
+	}
+	c.GroupSearch.NameAttr = "cn"
+	c.GroupSearch.Filter = "(|(objectClass=posixGroup)(objectClass=groupOfNames))" // search all group types
+
+	tests := []subtest{
+		{
+			name:     "validpassword",
+			username: "jane",
+			password: "foo",
+			groups:   true,
+			want: connector.Identity{
+				UserID:        "cn=jane,ou=People,dc=example,dc=org",
+				Username:      "jane",
+				Email:         "janedoe@example.com",
+				EmailVerified: true,
+				Groups:        []string{"admins", "developers", "frontend"},
+			},
+		},
+		{
+			name:     "validpassword2",
+			username: "john",
+			password: "bar",
+			groups:   true,
+			want: connector.Identity{
+				UserID:        "cn=john,ou=People,dc=example,dc=org",
+				Username:      "john",
+				Email:         "johndoe@example.com",
+				EmailVerified: true,
+				Groups:        []string{"qa", "admins", "logger"},
+			},
+		},
+	}
+
+	runTests(t, schema, connectLDAP, c, tests)
+}
+
+// Test deprecated group to user matching implementation
+// which was left for backward compatibility.
+// See "Config.GroupSearch.UserMatchers" comments for the details
+func TestDeprecatedGroupToUserMatcher(t *testing.T) {
 	schema := `
 dn: ou=People,dc=example,dc=org
 objectClass: organizationalUnit

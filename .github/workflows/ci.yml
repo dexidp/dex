@@ -43,7 +43,7 @@ jobs:
           go-version: 1.13
 
       - name: Checkout code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
 
       - name: Setup MySQL database
         run: mysql -u root -proot -e 'CREATE DATABASE dex;'
@@ -51,6 +51,7 @@ jobs:
       - name: Run tests
         run: make testall
         env:
+          DEX_FOO_USER_PASSWORD: $2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy
           DEX_MYSQL_DATABASE: dex
           DEX_MYSQL_USER: root
           DEX_MYSQL_PASSWORD: root

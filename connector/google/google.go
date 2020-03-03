@@ -240,15 +240,24 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 // getGroups creates a connection to the admin directory service and lists
 // all groups the user is a member of
 func (c *googleConnector) getGroups(email string) ([]string, error) {
-	groupsList, err := c.adminSrv.Groups.List().UserKey(email).Do()
-	if err != nil {
-		return nil, fmt.Errorf("could not list groups: %v", err)
-	}
-
 	var userGroups []string
-	for _, group := range groupsList.Groups {
-		// TODO (joelspeed): Make desried group key configurable
-		userGroups = append(userGroups, group.Email)
+	var err error
+	groupsList := &admin.Groups{}
+	for {
+		groupsList, err = c.adminSrv.Groups.List().
+			UserKey(email).PageToken(groupsList.NextPageToken).Do()
+		if err != nil {
+			return nil, fmt.Errorf("could not list groups: %v", err)
+		}
+
+		for _, group := range groupsList.Groups {
+			// TODO (joelspeed): Make desried group key configurable
+			userGroups = append(userGroups, group.Email)
+		}
+
+		if groupsList.NextPageToken == "" {
+			break
+		}
 	}
 
 	return userGroups, nil
