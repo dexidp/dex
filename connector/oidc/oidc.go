@@ -58,7 +58,7 @@ type Config struct {
 	// PromptType will be used fot the prompt parameter (when offline_access, by default prompt=consent)
 	PromptType string `json:"promptType"`
 
-  // Configurable key which contains the groups claims
+	// Configurable key which contains the groups claims
 	GroupsKey string `json:"groupsKey"` // defaults to "groups"
 }
 
@@ -146,7 +146,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		getUserInfo:               c.GetUserInfo,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
-    promptType:                c.PromptType,
+		promptType:                c.PromptType,
 		groupsKey:                 c.GroupsKey,
 	}, nil
 }
