@@ -55,7 +55,10 @@ type Config struct {
 	// Configurable key which contains the user name claim
 	UserNameKey string `json:"userNameKey"`
 
-	// Configurable key which contains the groups claims
+	// PromptType will be used fot the prompt parameter (when offline_access, by default prompt=consent)
+	PromptType string `json:"promptType"`
+
+  // Configurable key which contains the groups claims
 	GroupsKey string `json:"groupsKey"` // defaults to "groups"
 }
 
@@ -116,6 +119,11 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		scopes = append(scopes, "profile", "email")
 	}
 
+	// PromptType should be "consent" by default, if not set
+	if c.PromptType == "" {
+		c.PromptType = "consent"
+	}
+
 	clientID := c.ClientID
 	return &oidcConnector{
 		provider:    provider,
@@ -138,6 +146,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		getUserInfo:               c.GetUserInfo,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
+    promptType:                c.PromptType,
 		groupsKey:                 c.GroupsKey,
 	}, nil
 }
@@ -160,6 +169,7 @@ type oidcConnector struct {
 	getUserInfo               bool
 	userIDKey                 string
 	userNameKey               string
+	promptType                string
 	groupsKey                 string
 }
 
@@ -183,7 +193,7 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 	}
 
 	if s.OfflineAccess {
-		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "consent"))
+		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", c.promptType))
 	}
 	return c.oauth2Config.AuthCodeURL(state, opts...), nil
 }

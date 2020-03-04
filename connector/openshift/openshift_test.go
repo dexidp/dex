@@ -180,6 +180,7 @@ func TestCallbackIdentity(t *testing.T) {
 	expectEquals(t, identity.UserID, "12345")
 	expectEquals(t, identity.Username, "jdoe")
 	expectEquals(t, identity.PreferredUsername, "jdoe")
+	expectEquals(t, identity.Email, "jdoe")
 	expectEquals(t, len(identity.Groups), 1)
 	expectEquals(t, identity.Groups[0], "users")
 }
