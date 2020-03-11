@@ -70,7 +70,7 @@ func (p sqlConnector) Close() error {
 func (p sqlConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (identity connector.Identity, validPassword bool, err error) {
 	p.logger.Infof("SQL Connector: Login scopes=%v username=%s", s, username)
 	validPassword, err = p.checkUsernameAndPassword(ctx, s, username, password)
-	p.logger.Infof("SQL Connector: Login password checked scopes=%v username=%s validPassword=%b", s, username, validPassword)
+	p.logger.Infof("SQL Connector: Login password checked scopes=%v username=%s validPassword=%t", s, username, validPassword)
 	if !validPassword {
 		return connector.Identity{}, false, nil
 	} else if err != nil {
@@ -79,7 +79,7 @@ func (p sqlConnector) Login(ctx context.Context, s connector.Scopes, username, p
 	}
 
 	id, err := p.createIdentity(ctx, s, username)
-	p.logger.Infof("SQL Connector: Login create identity scopes=%v username=%s id=%v", s, username, validPassword, id)
+	p.logger.Infof("SQL Connector: Login create identity scopes=%v username=%s id=%v", s, username, id)
 	if err != nil {
 		p.logger.Infof("SQL Connector: Error creating identity err=%s", err)
 	}
@@ -120,10 +120,13 @@ func (p *sqlConnector) createIdentity(ctx context.Context, s connector.Scopes, u
 
 func (p *sqlConnector) checkUsernameAndPassword(ctx context.Context, s connector.Scopes, username, password string) (bool, error) {
 	if password == "" {
+		p.logger.Info("SQL Connector: Checking password: rejecting empty password")
 		return false, nil
 	}
 
 	validPassword := false
+
+	p.logger.Infof("SQL Connector: Checking password scopes=%v username=%s password_length=%d query=%s", s, username, len(password), p.config.Login)
 
 	// Check password is valid
 	err := p.db.QueryRowContext(
