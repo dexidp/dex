@@ -47,7 +47,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 	db.SetConnMaxLifetime(0)
 	db.SetMaxOpenConns(5)
 
-	logger.Info("Open sql connector")
+	logger.Info("SQL Connector: Open")
 
 	return &sqlConnector{
 		db:     db,
@@ -63,24 +63,33 @@ type sqlConnector struct {
 }
 
 func (p sqlConnector) Close() error {
+	p.logger.Info("SQL Connector: Closing")
 	return p.db.Close()
 }
 
 func (p sqlConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (identity connector.Identity, validPassword bool, err error) {
+	p.logger.Infof("SQL Connector: Login scopes=%v username=%s", s, username)
 	validPassword, err = p.checkUsernameAndPassword(ctx, s, username, password)
+	p.logger.Infof("SQL Connector: Login password checked scopes=%v username=%s validPassword=%b", s, username, validPassword)
 	if !validPassword {
 		return connector.Identity{}, false, nil
 	} else if err != nil {
+		p.logger.Infof("SQL Connector: Error cheching password err=%s", err)
 		return connector.Identity{}, false, err
 	}
 
 	id, err := p.createIdentity(ctx, s, username)
+	p.logger.Infof("SQL Connector: Login create identity scopes=%v username=%s id=%v", s, username, validPassword, id)
+	if err != nil {
+		p.logger.Infof("SQL Connector: Error creating identity err=%s", err)
+	}
 	return id, true, err
 }
 
 func (p sqlConnector) Prompt() string { return p.config.Prompt }
 
 func (p sqlConnector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+	p.logger.Infof("SQL Connector: Refresh scopes=%v identity=%v", s, identity)
 	return p.createIdentity(ctx, s, string(identity.ConnectorData))
 }
 
