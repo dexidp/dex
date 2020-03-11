@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	// import third party drivers
 	_ "github.com/lib/pq"
@@ -27,6 +28,31 @@ type Config struct {
 
 	// Optional queries
 	GetGroups string `json:"groups"`
+}
+
+// Fix Postgres query parameters - other parts of Dex really likes to replace
+// environment-variables, messing with Postgres' use of $1, $2, ... $xxx as
+// query parameters (github.com/lib/pq doesn't support named paremters yet).
+//
+// Thus, we'll make a valliant effort to fix up other interpolation-methods
+// such as :xxx and @xxx to the postgres-syntax.
+func (c *Config) FixPostgresQueryParameters() *Config {
+	conf := *c
+	if c.Database != "postgres" {
+		return &conf
+	}
+
+	// TODO: We probably should use regexp.ReplaceAllFunc, but we'll setting
+	// for stupid string stuff for now
+	replacer := func(in string) string {
+		tmp := strings.ReplaceAll(in, " @", " $")
+		return strings.ReplaceAll(tmp, " :", " $")
+	}
+	conf.Login = replacer(conf.Login)
+	conf.GetIdentity = replacer(conf.GetIdentity)
+	conf.GetGroups = replacer(conf.GetGroups)
+
+	return &conf
 }
 
 // Open returns an authentication strategy which prompts for a predefined username and password.
@@ -53,11 +79,13 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 	db.SetConnMaxLifetime(0)
 	db.SetMaxOpenConns(5)
 
-	logger.Info("SQL Connector: Open")
+	config := c.FixPostgresQueryParameters()
+
+	logger.Infof("SQL Connector: Open config: %+v", config)
 
 	return &sqlConnector{
 		db:     db,
-		config: c,
+		config: config,
 		logger: logger,
 	}, nil
 }
@@ -132,14 +160,14 @@ func (p *sqlConnector) checkUsernameAndPassword(ctx context.Context, s connector
 
 	validPassword := false
 
-	p.logger.Infof("SQL Connector: Checking password scopes=%v username=%s password_length=%d query=%s", s, username, len(password), p.config.Login)
+	p.logger.Infof("SQL Connector: Checking password scopes=%v username=%s", s, username)
 
 	// Check password is valid
 	err := p.db.QueryRowContext(
 		ctx,
 		p.config.Login,
-		sql.Named("username", username),
-		sql.Named("password", password),
+		username,
+		password,
 	).Scan(&validPassword)
 
 	if err == sql.ErrNoRows || !validPassword {
@@ -158,7 +186,7 @@ func (p *sqlConnector) getIdentityFromUsername(ctx context.Context, s connector.
 	err := p.db.QueryRowContext(
 		ctx,
 		p.config.GetIdentity,
-		sql.Named("username", username),
+		username,
 	).Scan(
 		&id.UserID,
 		&id.Username,
@@ -180,7 +208,7 @@ func (p sqlConnector) getGroups(ctx context.Context, s connector.Scopes, usernam
 	rows, err := p.db.QueryContext(
 		ctx,
 		p.config.GetGroups,
-		sql.Named("username", username),
+		username,
 	)
 	if err != nil {
 		return []string{}, err
