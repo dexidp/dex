@@ -44,6 +44,12 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		return &sqlConnector{}, err
 	}
 
+	// Do a ping to check connection works
+	err = db.Ping()
+	if err != nil {
+		return nil, err
+	}
+
 	db.SetConnMaxLifetime(0)
 	db.SetMaxOpenConns(5)
 
@@ -139,6 +145,11 @@ func (p *sqlConnector) checkUsernameAndPassword(ctx context.Context, s connector
 	if err == sql.ErrNoRows || !validPassword {
 		return false, nil
 	}
+
+	if err != nil {
+		p.logger.Error("SQL Connector: Could not check password err=%s", err)
+	}
+
 	return validPassword, err
 }
 
