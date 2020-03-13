@@ -161,6 +161,8 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 		t.Fatalf("failed to delete auth request: %v", err)
 	}
 
+	_, err = s.GetAuthRequest(a1.ID)
+	mustBeErrNotFound(t, "auth request", err)
 }
 
 func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
@@ -214,7 +216,7 @@ func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 
 	got, err := s.GetAuthCode(a1.ID)
 	if err != nil {
-		t.Fatalf("failed to get auth req: %v", err)
+		t.Fatalf("failed to get auth code: %v", err)
 	}
 	if a1.Expiry.Unix() != got.Expiry.Unix() {
 		t.Errorf("auth code expiry did not match want=%s vs got=%s", a1.Expiry, got.Expiry)
@@ -509,15 +511,15 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 
 	_, err = s.GetPassword(password1.Email)
 	mustBeErrNotFound(t, "password", err)
-
 }
 
 func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {
 	userID1 := storage.NewID()
 	session1 := storage.OfflineSessions{
-		UserID:  userID1,
-		ConnID:  "Conn1",
-		Refresh: make(map[string]*storage.RefreshTokenRef),
+		UserID:        userID1,
+		ConnID:        "Conn1",
+		Refresh:       make(map[string]*storage.RefreshTokenRef),
+		ConnectorData: []byte(`{"some":"data"}`),
 	}
 
 	// Creating an OfflineSession with an empty Refresh list to ensure that
@@ -532,9 +534,10 @@ func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {
 
 	userID2 := storage.NewID()
 	session2 := storage.OfflineSessions{
-		UserID:  userID2,
-		ConnID:  "Conn2",
-		Refresh: make(map[string]*storage.RefreshTokenRef),
+		UserID:        userID2,
+		ConnID:        "Conn2",
+		Refresh:       make(map[string]*storage.RefreshTokenRef),
+		ConnectorData: []byte(`{"some":"data"}`),
 	}
 
 	if err := s.CreateOfflineSessions(session2); err != nil {
@@ -812,7 +815,7 @@ func testGC(t *testing.T, s storage.Storage) {
 			}
 		}
 		if _, err := s.GetAuthRequest(a.ID); err != nil {
-			t.Errorf("expected to be able to get auth code after GC: %v", err)
+			t.Errorf("expected to be able to get auth request after GC: %v", err)
 		}
 	}
 
@@ -823,7 +826,7 @@ func testGC(t *testing.T, s storage.Storage) {
 	}
 
 	if _, err := s.GetAuthRequest(a.ID); err == nil {
-		t.Errorf("expected auth code to be GC'd")
+		t.Errorf("expected auth request to be GC'd")
 	} else if err != storage.ErrNotFound {
 		t.Errorf("expected storage.ErrNotFound, got %v", err)
 	}

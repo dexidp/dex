@@ -1,21 +1,5 @@
 # Running integration tests
 
-## Kubernetes
-
-Kubernetes tests run against a Kubernetes API server, and are enabled by the `DEX_KUBECONFIG` environment variable:
-
-```
-$ export DEX_KUBECONFIG=~/.kube/config
-$ go test -v -i ./storage/kubernetes
-$ go test -v ./storage/kubernetes
-```
-
-These tests can be executed locally using docker by running the following script:
-
-```
-$ ./scripts/test-k8s.sh
-```
-
 ## Postgres
 
 Running database tests locally requires:

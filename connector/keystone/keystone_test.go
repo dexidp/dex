@@ -154,7 +154,12 @@ func delete(t *testing.T, token, id, uri string) {
 		t.Fatalf("error: %v", err)
 	}
 	req.Header.Set("X-Auth-Token", token)
-	client.Do(req)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	defer resp.Body.Close()
 }
 
 func createGroup(t *testing.T, token, description, name string) string {
@@ -208,7 +213,13 @@ func addUserToGroup(t *testing.T, token, groupID, userID string) error {
 		return err
 	}
 	req.Header.Set("X-Auth-Token", token)
-	client.Do(req)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	defer resp.Body.Close()
+
 	return nil
 }
 
@@ -274,7 +285,7 @@ func TestUseRefreshToken(t *testing.T) {
 	delete(t, token, groupID, groupsURL)
 
 	expectEquals(t, 1, len(identityRefresh.Groups))
-	expectEquals(t, testGroup, string(identityRefresh.Groups[0]))
+	expectEquals(t, testGroup, identityRefresh.Groups[0])
 }
 
 func TestUseRefreshTokenUserDeleted(t *testing.T) {

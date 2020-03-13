@@ -90,18 +90,18 @@ var migrations = []migration{
 				nonce text not null,
 				state text not null,
 				force_approval_prompt boolean not null,
-		
+
 				logged_in boolean not null,
-		
+
 				claims_user_id text not null,
 				claims_username text not null,
 				claims_email text not null,
 				claims_email_verified boolean not null,
 				claims_groups bytea not null, -- JSON array of strings
-		
+
 				connector_id text not null,
 				connector_data bytea,
-		
+
 				expiry timestamptz not null
 			);`,
 			`
@@ -111,16 +111,16 @@ var migrations = []migration{
 				scopes bytea not null, -- JSON array of strings
 				nonce text not null,
 				redirect_uri text not null,
-		
+
 				claims_user_id text not null,
 				claims_username text not null,
 				claims_email text not null,
 				claims_email_verified boolean not null,
 				claims_groups bytea not null, -- JSON array of strings
-		
+
 				connector_id text not null,
 				connector_data bytea,
-		
+
 				expiry timestamptz not null
 			);`,
 			`
@@ -129,13 +129,13 @@ var migrations = []migration{
 				client_id text not null,
 				scopes bytea not null, -- JSON array of strings
 				nonce text not null,
-		
+
 				claims_user_id text not null,
 				claims_username text not null,
 				claims_email text not null,
 				claims_email_verified boolean not null,
 				claims_groups bytea not null, -- JSON array of strings
-		
+
 				connector_id text not null,
 				connector_data bytea
 			);`,
@@ -188,6 +188,25 @@ var migrations = []migration{
 				resource_version text not null,
 				config bytea
 			);`,
+		},
+	},
+	{
+		stmts: []string{`
+			alter table auth_code
+				add column claims_preferred_username text not null default '';`,
+			`
+			alter table auth_request
+				add column claims_preferred_username text not null default '';`,
+			`
+			alter table refresh_token
+				add column claims_preferred_username text not null default '';`,
+		},
+	},
+	{
+		stmts: []string{`
+			alter table offline_session
+				add column connector_data bytea;
+			`,
 		},
 	},
 }

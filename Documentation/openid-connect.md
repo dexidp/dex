@@ -92,7 +92,7 @@ OpenID Connect servers have a discovery mechanism for OAuth2 endpoints, scopes
 supported, and indications of various other OpenID Connect features.
 
 ```
-$ curl http://127.0.0.1:5556/.well-known/openid-configuration
+$ curl http://127.0.0.1:5556/dex/.well-known/openid-configuration
 {
   "issuer": "http://127.0.0.1:5556",
   "authorization_endpoint": "http://127.0.0.1:5556/auth",
@@ -123,7 +123,7 @@ https://tools.ietf.org/html/rfc7517) Set of public keys that will look
 something like this:
 
 ```
-$ curl http://127.0.0.1:5556/keys
+$ curl http://127.0.0.1:5556/dex/keys
 {
   "keys": [
     {

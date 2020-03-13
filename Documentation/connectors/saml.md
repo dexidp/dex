@@ -14,6 +14,10 @@ __The connector doesn't support refresh tokens__ since the SAML 2.0 protocol doe
 
 The connector doesn't support signed AuthnRequests or encrypted attributes.
 
+## Group Filtering
+
+The SAML Connector supports providing a whitelist of SAML Groups to filter access based on, and when the `groupsattr` is set with a scope including groups, Dex will check for membership based on configured groups in the `allowedGroups` config setting for the SAML connector.
+
 ## Configuration
 
 ```yaml
@@ -43,6 +47,10 @@ connectors:
     usernameAttr: name
     emailAttr: email
     groupsAttr: groups # optional
+
+    # List of groups to filter access based on membership
+    # allowedGroups
+    #   - Admins
 
     # CA's can also be provided inline as a base64'd blob.
     #
