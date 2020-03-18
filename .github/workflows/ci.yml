@@ -20,6 +20,15 @@ jobs:
           - 5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: dex
+        ports:
+          - 3306:3306
+        options: --health-cmd "mysql -proot -e \"show databases;\"" --health-interval 10s --health-timeout 5s --health-retries 5
+
       etcd:
         image: gcr.io/etcd-development/etcd:v3.2.9
         ports:
@@ -44,9 +53,6 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v2
-
-      - name: Setup MySQL database
-        run: mysql -u root -proot -e 'CREATE DATABASE dex;'
 
       - name: Run tests
         run: make testall
