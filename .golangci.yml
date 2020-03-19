@@ -2,6 +2,8 @@ run:
     skip-dirs:
         - vendor
 
+    timeout: 2m
+
 linters-settings:
     golint:
         min-confidence: 0.1
