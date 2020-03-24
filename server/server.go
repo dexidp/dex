@@ -14,26 +14,29 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/felixge/httpsnoop"
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/connector/atlassiancrowd"
 	"github.com/dexidp/dex/connector/authproxy"
 	"github.com/dexidp/dex/connector/bitbucketcloud"
 	"github.com/dexidp/dex/connector/github"
 	"github.com/dexidp/dex/connector/gitlab"
+	"github.com/dexidp/dex/connector/google"
 	"github.com/dexidp/dex/connector/keystone"
 	"github.com/dexidp/dex/connector/ldap"
 	"github.com/dexidp/dex/connector/linkedin"
 	"github.com/dexidp/dex/connector/microsoft"
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/connector/oidc"
+	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
-	"github.com/felixge/httpsnoop"
-	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 // LocalConnector is the local passwordDB connector which is an internal
@@ -74,6 +77,8 @@ type Config struct {
 	RotateKeysAfter      time.Duration // Defaults to 6 hours.
 	IDTokensValidFor     time.Duration // Defaults to 24 hours
 	AuthRequestsValidFor time.Duration // Defaults to 24 hours
+	// If set, the server will use this connector to handle password grants
+	PasswordConnector string
 
 	GCFrequency time.Duration // Defaults to 5 minutes
 
@@ -142,6 +147,9 @@ type Server struct {
 
 	// If enabled, show the connector selection screen even if there's only one
 	alwaysShowLogin bool
+
+	// Used for password grant
+	passwordConnector string
 
 	supportedResponseTypes map[string]bool
 
@@ -214,6 +222,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		alwaysShowLogin:        c.AlwaysShowLoginScreen,
 		now:                    now,
 		templates:              tmpls,
+		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
 	}
 
@@ -234,21 +243,29 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 	}
 
-	requestCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "http_requests_total",
-		Help: "Count of all HTTP requests.",
-	}, []string{"handler", "code", "method"})
-
-	err = c.PrometheusRegistry.Register(requestCounter)
-	if err != nil {
-		return nil, fmt.Errorf("server: Failed to register Prometheus HTTP metrics: %v", err)
-	}
-
 	instrumentHandlerCounter := func(handlerName string, handler http.Handler) http.HandlerFunc {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			m := httpsnoop.CaptureMetrics(handler, w, r)
-			requestCounter.With(prometheus.Labels{"handler": handlerName, "code": strconv.Itoa(m.Code), "method": r.Method}).Inc()
+			handler.ServeHTTP(w, r)
 		})
+	}
+
+	if c.PrometheusRegistry != nil {
+		requestCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Count of all HTTP requests.",
+		}, []string{"handler", "code", "method"})
+
+		err = c.PrometheusRegistry.Register(requestCounter)
+		if err != nil {
+			return nil, fmt.Errorf("server: Failed to register Prometheus HTTP metrics: %v", err)
+		}
+
+		instrumentHandlerCounter = func(handlerName string, handler http.Handler) http.HandlerFunc {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				m := httpsnoop.CaptureMetrics(handler, w, r)
+				requestCounter.With(prometheus.Labels{"handler": handlerName, "code": strconv.Itoa(m.Code), "method": r.Method}).Inc()
+			})
+		}
 	}
 
 	r := mux.NewRouter()
@@ -453,12 +470,15 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"ldap":            func() ConnectorConfig { return new(ldap.Config) },
 	"github":          func() ConnectorConfig { return new(github.Config) },
 	"gitlab":          func() ConnectorConfig { return new(gitlab.Config) },
+	"google":          func() ConnectorConfig { return new(google.Config) },
 	"oidc":            func() ConnectorConfig { return new(oidc.Config) },
 	"saml":            func() ConnectorConfig { return new(saml.Config) },
 	"authproxy":       func() ConnectorConfig { return new(authproxy.Config) },
 	"linkedin":        func() ConnectorConfig { return new(linkedin.Config) },
 	"microsoft":       func() ConnectorConfig { return new(microsoft.Config) },
 	"bitbucket-cloud": func() ConnectorConfig { return new(bitbucketcloud.Config) },
+	"openshift":       func() ConnectorConfig { return new(openshift.Config) },
+	"atlassian-crowd": func() ConnectorConfig { return new(atlassiancrowd.Config) },
 	// Keep around for backwards compatibility.
 	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
 }

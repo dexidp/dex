@@ -41,7 +41,6 @@ type Config struct {
 
 // Open returns a strategy for logging in through Bitbucket.
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
-
 	b := bitbucketConnector{
 		redirectURI:  c.RedirectURI,
 		teams:        c.Teams,
@@ -373,7 +372,6 @@ type userTeamsResponse struct {
 }
 
 func (b *bitbucketConnector) userTeams(ctx context.Context, client *http.Client) ([]string, error) {
-
 	var teams []string
 	apiURL := b.apiURL + "/teams?role=member"
 

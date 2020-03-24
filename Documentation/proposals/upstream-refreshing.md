@@ -11,7 +11,7 @@ in with GitHub.
 
 ## The problem
 
-When dex is federaing to an upstream identity provider (IDP), we want to ensure
+When dex is federating to an upstream identity provider (IDP), we want to ensure
 claims being passed onto clients remain fresh. This includes data such as Google
 accounts display names, LDAP group membership, account deactivations. Changes to
 these on an upstream IDP should always be reflected in the claims dex passes to

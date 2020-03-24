@@ -39,17 +39,28 @@ import (
 //         idAttr: uid
 //         emailAttr: mail
 //         nameAttr: name
+//         preferredUsernameAttr: uid
 //       groupSearch:
-//         # Would translate to the query "(&(objectClass=group)(member=<user uid>))"
+//         # Would translate to the separate query per user matcher pair and aggregate results into a single group list:
+//         #  "(&(|(objectClass=posixGroup)(objectClass=groupOfNames))(memberUid=<user uid>))"
+//         #  "(&(|(objectClass=posixGroup)(objectClass=groupOfNames))(member=<user DN>))"
 //         baseDN: cn=groups,dc=example,dc=com
-//         filter: "(objectClass=group)"
-//         userAttr: uid
-//         # Use if full DN is needed and not available as any other attribute
-//         # Will only work if "DN" attribute does not exist in the record
-//         # userAttr: DN
-//         groupAttr: member
+//         filter: "(|(objectClass=posixGroup)(objectClass=groupOfNames))"
+//         userMatchers:
+//         - userAttr: uid
+//           groupAttr: memberUid
+//           # Use if full DN is needed and not available as any other attribute
+//           # Will only work if "DN" attribute does not exist in the record:
+//         - userAttr: DN
+//           groupAttr: member
 //         nameAttr: name
 //
+
+type UserMatcher struct {
+	UserAttr  string `json:"userAttr"`
+	GroupAttr string `json:"groupAttr"`
+}
+
 type Config struct {
 	// The host and optional port of the LDAP server. If port isn't supplied, it will be
 	// guessed based on the TLS configuration. 389 or 636.
@@ -103,9 +114,10 @@ type Config struct {
 		Scope string `json:"scope"`
 
 		// A mapping of attributes on the user entry to claims.
-		IDAttr    string `json:"idAttr"`    // Defaults to "uid"
-		EmailAttr string `json:"emailAttr"` // Defaults to "mail"
-		NameAttr  string `json:"nameAttr"`  // No default.
+		IDAttr                    string `json:"idAttr"`                // Defaults to "uid"
+		EmailAttr                 string `json:"emailAttr"`             // Defaults to "mail"
+		NameAttr                  string `json:"nameAttr"`              // No default.
+		PreferredUsernameAttrAttr string `json:"preferredUsernameAttr"` // No default.
 
 		// If this is set, the email claim of the id token will be constructed from the idAttr and
 		// value of emailSuffix. This should not include the @ character.
@@ -122,16 +134,22 @@ type Config struct {
 
 		Scope string `json:"scope"` // Defaults to "sub"
 
-		// These two fields are use to match a user to a group.
+		// DEPRECATED config options. Those are left for backward compatibility.
+		// See "UserMatchers" below for the current group to user matching implementation
+		// TODO: should be eventually removed from the code
+		UserAttr  string `json:"userAttr"`
+		GroupAttr string `json:"groupAttr"`
+
+		// Array of the field pairs used to match a user to a group.
+		// See the "UserMatcher" struct for the exact field names
 		//
-		// It adds an additional requirement to the filter that an attribute in the group
+		// Each pair adds an additional requirement to the filter that an attribute in the group
 		// match the user's attribute value. For example that the "members" attribute of
 		// a group matches the "uid" of the user. The exact filter being added is:
 		//
-		//   (<groupAttr>=<userAttr value>)
+		//   (userMatchers[n].<groupAttr>=userMatchers[n].<userAttr value>)
 		//
-		UserAttr  string `json:"userAttr"`
-		GroupAttr string `json:"groupAttr"`
+		UserMatchers []UserMatcher `json:"userMatchers"`
 
 		// The attribute of the group that represents its name.
 		NameAttr string `json:"nameAttr"`
@@ -163,6 +181,23 @@ func parseScope(s string) (int, bool) {
 	return 0, false
 }
 
+// Build a list of group attr name to user attr value matchers.
+// Function exists here to allow backward compatibility between old and new
+// group to user matching implementations.
+// See "Config.GroupSearch.UserMatchers" comments for the details
+func (c *ldapConnector) userMatchers() []UserMatcher {
+	if len(c.GroupSearch.UserMatchers) > 0 && c.GroupSearch.UserMatchers[0].UserAttr != "" {
+		return c.GroupSearch.UserMatchers[:]
+	} else {
+		return []UserMatcher{
+			{
+				UserAttr:  c.GroupSearch.UserAttr,
+				GroupAttr: c.GroupSearch.GroupAttr,
+			},
+		}
+	}
+}
+
 // Open returns an authentication strategy using LDAP.
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	conn, err := c.OpenConnector(logger)
@@ -187,7 +222,6 @@ func (c *Config) OpenConnector(logger log.Logger) (interface {
 }
 
 func (c *Config) openConnector(logger log.Logger) (*ldapConnector, error) {
-
 	requiredFields := []struct {
 		name string
 		val  string
@@ -341,6 +375,12 @@ func (c *ldapConnector) identityFromEntry(user ldap.Entry) (ident connector.Iden
 		}
 	}
 
+	if c.UserSearch.PreferredUsernameAttrAttr != "" {
+		if ident.PreferredUsername = getAttr(user, c.UserSearch.PreferredUsernameAttrAttr); ident.PreferredUsername == "" {
+			missing = append(missing, c.UserSearch.PreferredUsernameAttrAttr)
+		}
+	}
+
 	if c.UserSearch.EmailSuffix != "" {
 		ident.Email = ident.Username + "@" + c.UserSearch.EmailSuffix
 	} else if ident.Email = getAttr(user, c.UserSearch.EmailAttr); ident.Email == "" {
@@ -357,7 +397,6 @@ func (c *ldapConnector) identityFromEntry(user ldap.Entry) (ident connector.Iden
 }
 
 func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.Entry, found bool, err error) {
-
 	filter := fmt.Sprintf("(%s=%s)", c.UserSearch.Username, ldap.EscapeFilter(username))
 	if c.UserSearch.Filter != "" {
 		filter = fmt.Sprintf("(&%s%s)", c.UserSearch.Filter, filter)
@@ -372,13 +411,20 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 		Attributes: []string{
 			c.UserSearch.IDAttr,
 			c.UserSearch.EmailAttr,
-			c.GroupSearch.UserAttr,
 			// TODO(ericchiang): what if this contains duplicate values?
 		},
 	}
 
+	for _, matcher := range c.userMatchers() {
+		req.Attributes = append(req.Attributes, matcher.UserAttr)
+	}
+
 	if c.UserSearch.NameAttr != "" {
 		req.Attributes = append(req.Attributes, c.UserSearch.NameAttr)
+	}
+
+	if c.UserSearch.PreferredUsernameAttrAttr != "" {
+		req.Attributes = append(req.Attributes, c.UserSearch.PreferredUsernameAttrAttr)
 	}
 
 	c.logger.Infof("performing ldap search %s %s %s",
@@ -526,36 +572,38 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 	}
 
 	var groups []*ldap.Entry
-	for _, attr := range getAttrs(user, c.GroupSearch.UserAttr) {
-		filter := fmt.Sprintf("(%s=%s)", c.GroupSearch.GroupAttr, ldap.EscapeFilter(attr))
-		if c.GroupSearch.Filter != "" {
-			filter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, filter)
-		}
-
-		req := &ldap.SearchRequest{
-			BaseDN:     c.GroupSearch.BaseDN,
-			Filter:     filter,
-			Scope:      c.groupSearchScope,
-			Attributes: []string{c.GroupSearch.NameAttr},
-		}
-
-		gotGroups := false
-		if err := c.do(ctx, func(conn *ldap.Conn) error {
-			c.logger.Infof("performing ldap search %s %s %s",
-				req.BaseDN, scopeString(req.Scope), req.Filter)
-			resp, err := conn.Search(req)
-			if err != nil {
-				return fmt.Errorf("ldap: search failed: %v", err)
+	for _, matcher := range c.userMatchers() {
+		for _, attr := range getAttrs(user, matcher.UserAttr) {
+			filter := fmt.Sprintf("(%s=%s)", matcher.GroupAttr, ldap.EscapeFilter(attr))
+			if c.GroupSearch.Filter != "" {
+				filter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, filter)
 			}
-			gotGroups = len(resp.Entries) != 0
-			groups = append(groups, resp.Entries...)
-			return nil
-		}); err != nil {
-			return nil, err
-		}
-		if !gotGroups {
-			// TODO(ericchiang): Is this going to spam the logs?
-			c.logger.Errorf("ldap: groups search with filter %q returned no groups", filter)
+
+			req := &ldap.SearchRequest{
+				BaseDN:     c.GroupSearch.BaseDN,
+				Filter:     filter,
+				Scope:      c.groupSearchScope,
+				Attributes: []string{c.GroupSearch.NameAttr},
+			}
+
+			gotGroups := false
+			if err := c.do(ctx, func(conn *ldap.Conn) error {
+				c.logger.Infof("performing ldap search %s %s %s",
+					req.BaseDN, scopeString(req.Scope), req.Filter)
+				resp, err := conn.Search(req)
+				if err != nil {
+					return fmt.Errorf("ldap: search failed: %v", err)
+				}
+				gotGroups = len(resp.Entries) != 0
+				groups = append(groups, resp.Entries...)
+				return nil
+			}); err != nil {
+				return nil, err
+			}
+			if !gotGroups {
+				// TODO(ericchiang): Is this going to spam the logs?
+				c.logger.Errorf("ldap: groups search with filter %q returned no groups", filter)
+			}
 		}
 	}
 

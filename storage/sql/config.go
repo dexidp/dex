@@ -29,6 +29,7 @@ const (
 	// MySQL error codes
 	mysqlErrDupEntry            = 1062
 	mysqlErrDupEntryWithKeyName = 1586
+	mysqlErrUnknownSysVar       = 1193
 )
 
 // SQLite3 options for creating an SQL db.
@@ -65,7 +66,7 @@ func (s *SQLite3) open(logger log.Logger) (*conn, error) {
 		return sqlErr.ExtendedCode == sqlite3.ErrConstraintPrimaryKey
 	}
 
-	c := &conn{db, flavorSQLite3, logger, errCheck}
+	c := &conn{db, &flavorSQLite3, logger, errCheck}
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}
@@ -238,7 +239,7 @@ func (p *Postgres) open(logger log.Logger) (*conn, error) {
 		return sqlErr.Code == pgErrUniqueViolation
 	}
 
-	c := &conn{db, flavorPostgres, logger, errCheck}
+	c := &conn{db, &flavorPostgres, logger, errCheck}
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}
@@ -307,6 +308,33 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 		return nil, err
 	}
 
+	if s.MaxIdleConns == 0 {
+		/*Override default behaviour to fix https://github.com/dexidp/dex/issues/1608*/
+		db.SetMaxIdleConns(0)
+	} else {
+		db.SetMaxIdleConns(s.MaxIdleConns)
+	}
+
+	err = db.Ping()
+	if err != nil {
+		if mysqlErr, ok := err.(*mysql.MySQLError); ok && mysqlErr.Number == mysqlErrUnknownSysVar {
+			logger.Info("reconnecting with MySQL pre-5.7.20 compatibility mode")
+
+			// MySQL 5.7.20 introduced transaction_isolation and deprecated tx_isolation.
+			// MySQL 8.0 doesn't have tx_isolation at all.
+			// https://dev.mysql.com/doc/refman/5.7/en/server-system-variables.html#sysvar_transaction_isolation
+			delete(cfg.Params, "transaction_isolation")
+			cfg.Params["tx_isolation"] = "'SERIALIZABLE'"
+
+			db, err = sql.Open("mysql", cfg.FormatDSN())
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
+	}
+
 	errCheck := func(err error) bool {
 		sqlErr, ok := err.(*mysql.MySQLError)
 		if !ok {
@@ -316,7 +344,7 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 			sqlErr.Number == mysqlErrDupEntryWithKeyName
 	}
 
-	c := &conn{db, flavorMySQL, logger, errCheck}
+	c := &conn{db, &flavorMySQL, logger, errCheck}
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}

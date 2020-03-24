@@ -86,19 +86,29 @@ type password storage.Password
 
 func (p *password) UnmarshalJSON(b []byte) error {
 	var data struct {
-		Email    string `json:"email"`
-		Username string `json:"username"`
-		UserID   string `json:"userID"`
-		Hash     string `json:"hash"`
+		Email       string `json:"email"`
+		Username    string `json:"username"`
+		UserID      string `json:"userID"`
+		Hash        string `json:"hash"`
+		HashFromEnv string `json:"hashFromEnv"`
 	}
 	if err := json.Unmarshal(b, &data); err != nil {
 		return err
 	}
+
+	// Replace environment variables
+	//if err := replaceEnvKeys(&data, os.Getenv); err != nil {
+	//	return fmt.Errorf("replacing environment keys: %v", err)
+	//}
+
 	*p = password(storage.Password{
 		Email:    data.Email,
 		Username: data.Username,
 		UserID:   data.UserID,
 	})
+	if len(data.Hash) == 0 && len(data.HashFromEnv) > 0 {
+		data.Hash = os.Getenv(data.HashFromEnv)
+	}
 	if len(data.Hash) == 0 {
 		return fmt.Errorf("no password hash provided")
 	}
@@ -130,6 +140,8 @@ type OAuth2 struct {
 	SkipApprovalScreen bool `json:"skipApprovalScreen"`
 	// If specified, show the connector selection screen even if there's only one
 	AlwaysShowLoginScreen bool `json:"alwaysShowLoginScreen"`
+	// This is the connector that can be used for password grant
+	PasswordConnector string `json:"passwordConnector"`
 }
 
 // Web is the config format for the HTTP server.
@@ -187,6 +199,12 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &store); err != nil {
 		return fmt.Errorf("parse storage: %v", err)
 	}
+
+	// Replace environment variables
+	if err := replaceEnvKeys(&store, os.Getenv); err != nil {
+		return fmt.Errorf("replacing environment keys: %v", err)
+	}
+
 	f, ok := storages[store.Type]
 	if !ok {
 		return fmt.Errorf("unknown storage type %q", store.Type)
@@ -194,9 +212,13 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 
 	storageConfig := f()
 	if len(store.Config) != 0 {
-		data := []byte(os.ExpandEnv(string(store.Config)))
-		if err := json.Unmarshal(data, storageConfig); err != nil {
+		if err := json.Unmarshal(store.Config, storageConfig); err != nil {
 			return fmt.Errorf("parse storage config: %v", err)
+		}
+
+		// Replace environment variables
+		if err := replaceEnvKeys(storageConfig, os.Getenv); err != nil {
+			return fmt.Errorf("replacing environment keys: %v", err)
 		}
 	}
 	*s = Storage{
@@ -229,6 +251,11 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &conn); err != nil {
 		return fmt.Errorf("parse connector: %v", err)
 	}
+
+	// Replace environment variables
+	if err := replaceEnvKeys(&conn, os.Getenv); err != nil {
+		return fmt.Errorf("replacing environment keys: %v", err)
+	}
 	f, ok := server.ConnectorsConfig[conn.Type]
 	if !ok {
 		return fmt.Errorf("unknown connector type %q", conn.Type)
@@ -236,9 +263,13 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 
 	connConfig := f()
 	if len(conn.Config) != 0 {
-		data := []byte(os.ExpandEnv(string(conn.Config)))
-		if err := json.Unmarshal(data, connConfig); err != nil {
+		if err := json.Unmarshal(conn.Config, connConfig); err != nil {
 			return fmt.Errorf("parse connector config: %v", err)
+		}
+
+		// Replace environment variables
+		if err := replaceEnvKeys(connConfig, os.Getenv); err != nil {
+			return fmt.Errorf("replacing environment keys: %v", err)
 		}
 	}
 	*c = Connector{

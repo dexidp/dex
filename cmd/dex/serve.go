@@ -65,6 +65,11 @@ func serve(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error parse config file %s: %v", configFile, err)
 	}
 
+	// Replace environment variables
+	if err := replaceEnvKeys(&c, os.Getenv); err != nil {
+		return fmt.Errorf("error replacing environment keys in config file %s: %v", configFile, err)
+	}
+
 	logger, err := newLogger(c.Logger.Level, c.Logger.Format)
 	if err != nil {
 		return fmt.Errorf("invalid config: %v", err)
@@ -182,7 +187,6 @@ func serve(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to initialize storage connectors: %v", err)
 		}
 		storageConnectors[i] = conn
-
 	}
 
 	if c.EnablePasswordDB {
@@ -202,6 +206,9 @@ func serve(cmd *cobra.Command, args []string) error {
 	if c.OAuth2.SkipApprovalScreen {
 		logger.Infof("config skipping approval screen")
 	}
+	if c.OAuth2.PasswordConnector != "" {
+		logger.Infof("config using password grant connector: %s", c.OAuth2.PasswordConnector)
+	}
 	if len(c.Web.AllowedOrigins) > 0 {
 		logger.Infof("config allowed origins: %s", c.Web.AllowedOrigins)
 	}
@@ -213,6 +220,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		SupportedResponseTypes: c.OAuth2.ResponseTypes,
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
+		PasswordConnector:      c.OAuth2.PasswordConnector,
 		AllowedOrigins:         c.Web.AllowedOrigins,
 		Issuer:                 c.Issuer,
 		Storage:                s,
