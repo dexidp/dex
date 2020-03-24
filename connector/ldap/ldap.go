@@ -484,7 +484,6 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 }
 
 func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (ident connector.Identity, validPass bool, err error) {
-
 	c.uid = username
 	c.pass = []byte(password)
 
