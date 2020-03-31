@@ -133,6 +133,9 @@ type Client struct {
 	// Name and LogoURL used when displaying this client to the end user.
 	Name    string `json:"name" yaml:"name"`
 	LogoURL string `json:"logoURL" yaml:"logoURL"`
+
+	// Client allowed connectors
+	Connectors []string `json:"connectors" yaml:"connectors"`
 }
 
 // Claims represents the ID Token claims supported by the server.
@@ -182,6 +185,9 @@ type AuthRequest struct {
 	// Set when the user authenticates.
 	ConnectorID   string
 	ConnectorData []byte
+
+	// The connectors for user select
+	Connectors    []string
 }
 
 // AuthCode represents a code which can be exchanged for an OAuth2 token response.

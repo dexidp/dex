@@ -388,6 +388,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 	// Some clients, like the old go-oidc, provide extra whitespace. Tolerate this.
 	scopes := strings.Fields(q.Get("scope"))
 	responseTypes := strings.Fields(q.Get("response_type"))
+	connectors := strings.Fields(q.Get("connectors"))
 
 	client, err := s.storage.GetClient(clientID)
 	if err != nil {
@@ -401,6 +402,11 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 
 	if !validateRedirectURI(client, redirectURI) {
 		description := fmt.Sprintf("Unregistered redirect_uri (%q).", redirectURI)
+		return req, &authErr{"", "", errInvalidRequest, description}
+	}
+
+	if len(connectors) > 0 && len(client.Connectors) > 0 && !validateConnectors(client.Connectors, connectors) {
+		description := fmt.Sprintf("Unsupported connectors (%q).", connectors)
 		return req, &authErr{"", "", errInvalidRequest, description}
 	}
 
@@ -497,6 +503,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 	return storage.AuthRequest{
 		ID:                  storage.NewID(),
 		ClientID:            client.ID,
+		Connectors:          connectors,
 		State:               state,
 		Nonce:               nonce,
 		ForceApprovalPrompt: q.Get("approval_prompt") == "force",
@@ -560,4 +567,21 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 	}
 	host, _, err := net.SplitHostPort(u.Host)
 	return err == nil && host == "localhost"
+}
+
+func validateConnectors(allowConnectors, connectors []string) bool {
+	contain := func(a []string, x string) bool {
+		for _, n := range a {
+			if x == n {
+				return true
+			}
+		}
+		return false
+	}
+	for _, conn := range connectors {
+		if !contain(allowConnectors, conn) {
+			return false
+		}
+	}
+	return true
 }

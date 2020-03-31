@@ -223,11 +223,23 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	connectors, e := s.storage.ListConnectors()
+	connectorsAll, e := s.storage.ListConnectors()
 	if e != nil {
 		s.logger.Errorf("Failed to get list of connectors: %v", err)
 		s.renderError(w, http.StatusInternalServerError, "Failed to retrieve connector list.")
 		return
+	}
+	connectors := []storage.Connector{}
+	if len(authReq.Connectors) == 0 {
+		connectors = connectorsAll
+	} else {
+		for _, connectorID := range authReq.Connectors {
+			for _, connector := range connectorsAll {
+				if connectorID == connector.ID {
+					connectors = append(connectors, connector)
+				}
+			}
+		}
 	}
 
 	if len(connectors) == 1 {
