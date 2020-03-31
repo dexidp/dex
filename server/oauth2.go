@@ -405,9 +405,15 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (req storage.AuthReq
 		return req, &authErr{"", "", errInvalidRequest, description}
 	}
 
-	if len(connectors) > 0 && len(client.Connectors) > 0 && !validateConnectors(client.Connectors, connectors) {
-		description := fmt.Sprintf("Unsupported connectors (%q).", connectors)
-		return req, &authErr{"", "", errInvalidRequest, description}
+	if len(client.Connectors) > 0 {
+		if len(connectors) > 0 {
+			if !validateConnectors(client.Connectors, connectors) {
+				description := fmt.Sprintf("Unsupported connectors (%q).", connectors)
+				return req, &authErr{"", "", errInvalidRequest, description}
+			}
+		} else {
+			connectors = client.Connectors
+		}
 	}
 
 	// From here on out, we want to redirect back to the client with an error.
