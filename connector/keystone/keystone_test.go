@@ -433,7 +433,6 @@ func TestNoGroupsInScope(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 	expectEquals(t, 0, len(identityRefresh.Groups))
-
 }
 
 func setupVariables(t *testing.T) {
