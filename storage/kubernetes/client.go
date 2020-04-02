@@ -415,6 +415,9 @@ func inClusterConfig() (cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace 
 		err = fmt.Errorf("unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be defined")
 		return
 	}
+	// we need to wrap IPv6 addresses in square brackets
+	// IPv4 also works with square brackets
+	host = "[" + host + "]"
 	cluster = k8sapi.Cluster{
 		Server:               "https://" + host + ":" + port,
 		CertificateAuthority: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
