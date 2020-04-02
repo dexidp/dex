@@ -595,7 +595,6 @@ type Connector struct {
 	k8sapi.TypeMeta   `json:",inline"`
 	k8sapi.ObjectMeta `json:"metadata,omitempty"`
 
-	ID              string `json:"id,omitempty"`
 	Type            string `json:"type,omitempty"`
 	Name            string `json:"name,omitempty"`
 	ResourceVersion string `json:"resourceVersion,omitempty"`
@@ -613,7 +612,6 @@ func (cli *client) fromStorageConnector(c storage.Connector) Connector {
 			Name:      c.ID,
 			Namespace: cli.namespace,
 		},
-		ID:              c.ID,
 		Type:            c.Type,
 		Name:            c.Name,
 		ResourceVersion: c.ResourceVersion,
@@ -623,7 +621,7 @@ func (cli *client) fromStorageConnector(c storage.Connector) Connector {
 
 func toStorageConnector(c Connector) storage.Connector {
 	return storage.Connector{
-		ID:              c.ID,
+		ID:              c.ObjectMeta.Name,
 		Type:            c.Type,
 		Name:            c.Name,
 		ResourceVersion: c.ResourceVersion,
