@@ -44,14 +44,18 @@ func (m *callback) LoginURL(s connector.Scopes, callbackURL, state string) (stri
 // HandleCallback parses the request and returns the user's identity
 func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connector.Identity, error) {
 	remoteUser := r.Header.Get("X-Remote-User")
+
 	if remoteUser == "" {
 		return connector.Identity{}, fmt.Errorf("required HTTP header X-Remote-User is not set")
 	}
-	// TODO: add support for X-Remote-Group, see
+
+	remoteGroups := r.Header.Values("X-Remote-Group")
+
 	// https://kubernetes.io/docs/admin/authentication/#authenticating-proxy
 	return connector.Identity{
 		UserID:        remoteUser, // TODO: figure out if this is a bad ID value.
 		Email:         remoteUser,
 		EmailVerified: true,
+		Groups:        remoteGroups,
 	}, nil
 }
