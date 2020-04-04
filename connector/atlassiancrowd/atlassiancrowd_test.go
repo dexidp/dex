@@ -104,6 +104,53 @@ func TestUserPassword(t *testing.T) {
 	expectNil(t, err)
 }
 
+func TestIdentityFromCrowdUser(t *testing.T) {
+	user := crowdUser{
+		Key:    "12345",
+		Name:   "testuser",
+		Active: true,
+		Email:  "testuser@example.com",
+	}
+
+	c := newTestCrowdConnector("/")
+
+	// Sanity checks
+	expectEquals(t, user.Name, "testuser")
+	expectEquals(t, user.Email, "testuser@example.com")
+
+	// Test unconfigured behaviour
+	i, err := c.identityFromCrowdUser(user)
+	expectNil(t, err)
+	expectEquals(t, i.UserID, "12345")
+	expectEquals(t, i.Username, "testuser")
+	expectEquals(t, i.Email, "testuser@example.com")
+	expectEquals(t, i.EmailVerified, true)
+
+	// Test for various PreferredUsernameField settings
+	// unset
+	expectEquals(t, i.PreferredUsername, "")
+
+	c.Config.PreferredUsernameField = "key"
+	i, err = c.identityFromCrowdUser(user)
+	expectNil(t, err)
+	expectEquals(t, i.PreferredUsername, "12345")
+
+	c.Config.PreferredUsernameField = "name"
+	i, err = c.identityFromCrowdUser(user)
+	expectNil(t, err)
+	expectEquals(t, i.PreferredUsername, "testuser")
+
+	c.Config.PreferredUsernameField = "email"
+	i, err = c.identityFromCrowdUser(user)
+	expectNil(t, err)
+	expectEquals(t, i.PreferredUsername, "testuser@example.com")
+
+	c.Config.PreferredUsernameField = "invalidstring"
+	i, err = c.identityFromCrowdUser(user)
+	expectNil(t, err)
+	expectEquals(t, i.PreferredUsername, "")
+}
+
 type TestServerResponse struct {
 	Body interface{}
 	Code int
