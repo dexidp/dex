@@ -76,6 +76,7 @@ Dex implements the following connectors:
 | [AuthProxy](Documentation/connectors/authproxy.md) | no | no | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
 | [Bitbucket Cloud](Documentation/connectors/bitbucketcloud.md) | yes | yes | no | alpha | |
 | [OpenShift](Documentation/connectors/openshift.md) | no | yes | no | stable | |
+| [Atlassian Crowd](Documentation/connectors/atlassiancrowd.md) | yes | yes | yes *) | beta | preferred_username claim must be configured through config |
 
 Stable, beta, and alpha are defined as:
 
