@@ -106,7 +106,8 @@ Due to their public nature, GitHub and mailing lists are NOT appropriate places 
 ## Getting help
 
 * For feature requests and bugs, file an [issue][issues].
-* For general discussion about both using and developing dex, join the [dex-dev][dex-dev] mailing list.
+* For general discussion about both using and developing dex, you can join the [#dexidp channel][slack]
+on the Kubernetes Slack, or join the [dex-dev][dex-dev] mailing list.
 
 [openid-connect]: https://openid.net/connect/
 [standard-claims]: https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
@@ -122,4 +123,5 @@ Due to their public nature, GitHub and mailing lists are NOT appropriate places 
 [release-notes]: https://github.com/dexidp/dex/releases
 [issues]: https://github.com/dexidp/dex/issues
 [dex-dev]: https://groups.google.com/forum/#!forum/dex-dev
+[slack]: slack://channel?team=T09NY5SBT&id=C011URMR41W
 [disclosure]: https://coreos.com/security/disclosure/
