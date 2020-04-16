@@ -31,4 +31,8 @@ connectors:
     # If `teams` is provided, this acts as a whitelist - only the user's Bitbucket teams that are in the configured `teams` below will go into the groups claim.  Conversely, if the user is not in any of the configured `teams`, the user will not be authenticated.
     teams:
     - my-team
+    # Optional parameter to include team groups.
+    # If enabled, the groups claim of dex id_token will looks like this:
+    # ["my_team", "my_team/administrators", "my_team/members"]
+    includeTeamGroups: true
 ```

@@ -29,9 +29,12 @@ func TestUserGroups(t *testing.T) {
 
 	s := newTestServer(map[string]interface{}{
 		"/user/permissions/teams": teamsResponse,
+		"/groups/team-1":          []group{{Slug: "administrators"}, {Slug: "members"}},
+		"/groups/team-2":          []group{{Slug: "everyone"}},
+		"/groups/team-3":          []group{},
 	})
 
-	connector := bitbucketConnector{apiURL: s.URL}
+	connector := bitbucketConnector{apiURL: s.URL, legacyAPIURL: s.URL}
 	groups, err := connector.userTeams(context.Background(), newClient())
 
 	expectNil(t, err)
@@ -39,6 +42,19 @@ func TestUserGroups(t *testing.T) {
 		"team-1",
 		"team-2",
 		"team-3",
+	})
+
+	connector.includeTeamGroups = true
+	groups, err = connector.userTeams(context.Background(), newClient())
+
+	expectNil(t, err)
+	expectEquals(t, groups, []string{
+		"team-1",
+		"team-2",
+		"team-3",
+		"team-1/administrators",
+		"team-1/members",
+		"team-2/everyone",
 	})
 
 	s.Close()
