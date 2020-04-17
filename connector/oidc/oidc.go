@@ -55,6 +55,9 @@ type Config struct {
 	// Configurable key which contains the user name claim
 	UserNameKey string `json:"userNameKey"`
 
+	// EmailClaim override email claim key. Defaults to "email"
+	EmailClaim string `json:"emailClaim"`
+
 	// PromptType will be used fot the prompt parameter (when offline_access, by default prompt=consent)
 	PromptType string `json:"promptType"`
 }
@@ -109,6 +112,11 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		endpoint.AuthStyle = oauth2.AuthStyleInParams
 	}
 
+	emailClaim := "email"
+	if len(c.EmailClaim) > 0 {
+		emailClaim = c.EmailClaim
+	}
+
 	scopes := []string{oidc.ScopeOpenID}
 	if len(c.Scopes) > 0 {
 		scopes = append(scopes, c.Scopes...)
@@ -143,6 +151,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		getUserInfo:               c.GetUserInfo,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
+		emailClaim:                emailClaim,
 		promptType:                c.PromptType,
 	}, nil
 }
@@ -165,6 +174,7 @@ type oidcConnector struct {
 	getUserInfo               bool
 	userIDKey                 string
 	userNameKey               string
+	emailClaim                string
 	promptType                string
 }
 
@@ -281,9 +291,9 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 	}
 
-	email, found := claims["email"].(string)
+	email, found := claims[c.emailClaim].(string)
 	if !found && hasEmailScope {
-		return identity, errors.New("missing \"email\" claim")
+		return identity, fmt.Errorf("missing \"%s\" claim", c.emailClaim)
 	}
 
 	emailVerified, found := claims["email_verified"].(bool)

@@ -56,6 +56,11 @@ connectors:
     #  - email
     #  - groups
 
+    # Some providers return no standard email claim key (ex: 'mail')
+    # Override email claim key
+    # Default is "email"
+    # emailClaim: email
+
     # Some providers return claims without "email_verified", when they had no usage of emails verification in enrollment process
     # or if they are acting as a proxy for another IDP etc AWS Cognito with an upstream SAML IDP
     # This can be overridden with the below option
