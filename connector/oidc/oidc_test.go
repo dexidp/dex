@@ -52,6 +52,7 @@ func TestHandleCallback(t *testing.T) {
 		preferredUsernameKey      string
 		insecureSkipEmailVerified bool
 		scopes                    []string
+		emailClaim                string
 		expectUserID              string
 		expectUserName            string
 		expectPreferredUsername   string
@@ -69,6 +70,21 @@ func TestHandleCallback(t *testing.T) {
 				"sub":            "subvalue",
 				"name":           "namevalue",
 				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
+			name:               "customEmailClaim",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			emailClaim:         "mail",
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"mail":           "emailvalue",
 				"email_verified": true,
 			},
 		},
@@ -206,6 +222,7 @@ func TestHandleCallback(t *testing.T) {
 				UserIDKey:                 tc.userIDKey,
 				UserNameKey:               tc.userNameKey,
 				PreferredUsernameKey:      tc.preferredUsernameKey,
+				EmailClaim:                tc.emailClaim,
 				InsecureSkipEmailVerified: tc.insecureSkipEmailVerified,
 				BasicAuthUnsupported:      &basicAuth,
 			}
