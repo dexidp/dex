@@ -381,6 +381,10 @@ func (c *crowdConnector) identityFromCrowdUser(user crowdUser) (connector.Identi
 		identity.PreferredUsername = user.Name
 	case "email":
 		identity.PreferredUsername = user.Email
+	default:
+		if c.PreferredUsernameField != "" {
+			c.logger.Warnf("preferred_username left empty. Invalid crowd field mapped to preferred_username: %s", c.PreferredUsernameField)
+		}
 	}
 
 	return identity, nil
