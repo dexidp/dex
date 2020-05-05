@@ -166,7 +166,7 @@ func serve(cmd *cobra.Command, args []string) error {
 				}
 				c.StaticClients[i].ID = os.Getenv(client.IDEnv)
 			}
-			if client.Secret == "" && client.SecretEnv == "" {
+			if client.Secret == "" && client.SecretEnv == "" && !client.Public {
 				return fmt.Errorf("invalid config: Secret or SecretEnv field is required for client %q", client.ID)
 			}
 			if client.SecretEnv != "" {
