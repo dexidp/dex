@@ -76,6 +76,7 @@ Dex implements the following connectors:
 | [AuthProxy](Documentation/connectors/authproxy.md) | no | no | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
 | [Bitbucket Cloud](Documentation/connectors/bitbucketcloud.md) | yes | yes | no | alpha | |
 | [OpenShift](Documentation/connectors/openshift.md) | no | yes | no | stable | |
+| [Atlassian Crowd](Documentation/connectors/atlassiancrowd.md) | yes | yes | yes *) | beta | preferred_username claim must be configured through config |
 
 Stable, beta, and alpha are defined as:
 
@@ -105,7 +106,8 @@ Due to their public nature, GitHub and mailing lists are NOT appropriate places 
 ## Getting help
 
 * For feature requests and bugs, file an [issue][issues].
-* For general discussion about both using and developing dex, join the [dex-dev][dex-dev] mailing list.
+* For general discussion about both using and developing dex, you can join the [#dexidp channel][slack]
+on the Kubernetes Slack, or join the [dex-dev][dex-dev] mailing list.
 
 [openid-connect]: https://openid.net/connect/
 [standard-claims]: https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
@@ -121,4 +123,5 @@ Due to their public nature, GitHub and mailing lists are NOT appropriate places 
 [release-notes]: https://github.com/dexidp/dex/releases
 [issues]: https://github.com/dexidp/dex/issues
 [dex-dev]: https://groups.google.com/forum/#!forum/dex-dev
+[slack]: slack://channel?team=T09NY5SBT&id=C011URMR41W
 [disclosure]: https://coreos.com/security/disclosure/

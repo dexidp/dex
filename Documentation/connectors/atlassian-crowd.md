@@ -36,4 +36,9 @@ connectors:
     - my-group
     # Prompt for username field.
     usernamePrompt: Login
+    # Optionally set preferred_username claim.
+    # If `preferredUsernameField` is omitted or contains an invalid option, the `preferred_username` claim will be empty.
+    # If `preferredUsernameField` is set, the `preferred_username` claim will be set to the chosen Crowd user attribute value.
+    # Possible choices are: "key", "name", "email"
+    preferredUsernameField: name
 ```
