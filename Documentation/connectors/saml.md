@@ -18,6 +18,8 @@ The connector doesn't support signed AuthnRequests or encrypted attributes.
 
 The SAML Connector supports providing a whitelist of SAML Groups to filter access based on, and when the `groupsattr` is set with a scope including groups, Dex will check for membership based on configured groups in the `allowedGroups` config setting for the SAML connector.
 
+If `filterGroups` is set to true, any groups _not_ part of `allowedGroups` will be excluded.
+
 ## Configuration
 
 ```yaml
