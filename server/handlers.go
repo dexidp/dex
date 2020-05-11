@@ -1382,17 +1382,10 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		}
 	}
 
-	s.writeAccessToken(w, idToken, accessToken, refreshToken, expiry)
+	resp := s.toAccessTokenResponse(idToken, accessToken, refreshToken, expiry)
+	s.writeAccessToken(w, resp)
 }
 
-func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, accessToken, refreshToken string, expiry time.Time) {
-	resp := struct {
-		AccessToken  string `json:"access_token"`
-		TokenType    string `json:"token_type"`
-		ExpiresIn    int    `json:"expires_in"`
-		RefreshToken string `json:"refresh_token,omitempty"`
-		IDToken      string `json:"id_token"`
-	}{
 
 type accessTokenReponse struct {
 	AccessToken  string `json:"access_token"`
