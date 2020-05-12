@@ -101,6 +101,7 @@ type Config struct {
 	// used split the groups string.
 	GroupsDelim   string   `json:"groupsDelim"`
 	AllowedGroups []string `json:"allowedGroups"`
+	FilterGroups  bool     `json:"filterGroups"`
 	RedirectURI   string   `json:"redirectURI"`
 
 	// Requested format of the NameID. The NameID value is is mapped to the ID Token
@@ -165,6 +166,7 @@ func (c *Config) openConnector(logger log.Logger) (*provider, error) {
 		groupsAttr:    c.GroupsAttr,
 		groupsDelim:   c.GroupsDelim,
 		allowedGroups: c.AllowedGroups,
+		filterGroups:  c.FilterGroups,
 		redirectURI:   c.RedirectURI,
 		logger:        logger,
 
@@ -240,6 +242,7 @@ type provider struct {
 	groupsAttr    string
 	groupsDelim   string
 	allowedGroups []string
+	filterGroups  bool
 
 	redirectURI string
 
@@ -428,6 +431,10 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	if len(groupMatches) == 0 {
 		// No group membership matches found, disallowing
 		return ident, fmt.Errorf("user not a member of allowed groups")
+	}
+
+	if p.filterGroups {
+		ident.Groups = groupMatches
 	}
 
 	// Otherwise, we're good
