@@ -181,6 +181,7 @@ func (c *githubConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
 		ClientSecret: c.clientSecret,
 		Endpoint:     endpoint,
 		Scopes:       githubScopes,
+		RedirectURL:  c.redirectURI,
 	}
 }
 
