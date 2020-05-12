@@ -96,7 +96,10 @@ staticClients:
   - 'http://127.0.0.1:5555/callback'
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
-
+#  - id: example-device-client
+#    redirectURIs:
+#      - /dex/device/callback
+#    name: 'Static Client for Device Flow'
 connectors:
 - type: mockCallback
   id: mock
