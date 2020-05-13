@@ -128,7 +128,7 @@ func TestDeviceCallback(t *testing.T) {
 	baseAuthCode := storage.AuthCode{
 		ID:            "somecode",
 		ClientID:      "testclient",
-		RedirectURI:   "/device/callback",
+		RedirectURI:   deviceCallbackURI,
 		Nonce:         "",
 		Scopes:        []string{"openid", "profile", "email"},
 		ConnectorID:   "mock",
@@ -194,7 +194,7 @@ func TestDeviceCallback(t *testing.T) {
 			testAuthCode: storage.AuthCode{
 				ID:            "somecode",
 				ClientID:      "testclient",
-				RedirectURI:   "/device/callback",
+				RedirectURI:   deviceCallbackURI,
 				Nonce:         "",
 				Scopes:        []string{"openid", "profile", "email"},
 				ConnectorID:   "pic",
@@ -210,7 +210,7 @@ func TestDeviceCallback(t *testing.T) {
 			testAuthCode: storage.AuthCode{
 				ID:            "somecode",
 				ClientID:      "testclient",
-				RedirectURI:   "/device/callback",
+				RedirectURI:   deviceCallbackURI,
 				Nonce:         "",
 				Scopes:        []string{"openid", "profile", "email"},
 				ConnectorID:   "pic",
@@ -336,7 +336,7 @@ func TestDeviceCallback(t *testing.T) {
 			client := storage.Client{
 				ID:           "testclient",
 				Secret:       "",
-				RedirectURIs: []string{"/device/callback"},
+				RedirectURIs: []string{deviceCallbackURI},
 			}
 			if err := s.storage.CreateClient(client); err != nil {
 				t.Fatalf("failed to create client: %v", err)

@@ -115,6 +115,10 @@ const (
 )
 
 const (
+	deviceCallbackURI = "/device/callback"
+)
+
+const (
 	redirectURIOOB = "urn:ietf:wg:oauth:2.0:oob"
 )
 
@@ -433,6 +437,9 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		description := fmt.Sprintf("Unregistered redirect_uri (%q).", redirectURI)
 		return nil, &authErr{"", "", errInvalidRequest, description}
 	}
+	if redirectURI == deviceCallbackURI && client.Public {
+		redirectURI = s.issuerURL.Path + deviceCallbackURI
+	}
 
 	// From here on out, we want to redirect back to the client with an error.
 	newErr := func(typ, format string, a ...interface{}) *authErr {
@@ -574,7 +581,7 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 		return false
 	}
 
-	if redirectURI == redirectURIOOB {
+	if redirectURI == redirectURIOOB || redirectURI == deviceCallbackURI{
 		return true
 	}
 
