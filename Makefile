@@ -1,6 +1,6 @@
 PROJ=dex
 ORG_PATH=github.com/dexidp
-REPO_PATH=$(ORG_PATH)/$(PROJ)
+REPO_PATH=$(ORG_PATH)/$(PROJ)/v2
 export PATH := $(PWD)/bin:$(PATH)
 
 VERSION ?= $(shell ./scripts/git-version)

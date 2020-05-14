@@ -1,10 +1,11 @@
-module github.com/dexidp/dex
+module github.com/dexidp/dex/v2
 
 go 1.13
 
 require (
 	github.com/Microsoft/hcsshim v0.8.7 // indirect
 	github.com/beevik/etree v1.1.0
+	github.com/cockroachdb/cockroach-go v0.0.0-20200504194139-73ffeee90b62 // indirect
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
