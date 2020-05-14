@@ -581,7 +581,7 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 		return false
 	}
 
-	if redirectURI == redirectURIOOB || redirectURI == deviceCallbackURI{
+	if redirectURI == redirectURIOOB || redirectURI == deviceCallbackURI {
 		return true
 	}
 

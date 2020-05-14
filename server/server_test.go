@@ -1316,9 +1316,9 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 
 			//Add the Clients to the test server
 			client := storage.Client{
-				ID: clientID,
+				ID:           clientID,
 				RedirectURIs: []string{deviceCallbackURI},
-				Public: true,
+				Public:       true,
 			}
 			if err := s.storage.CreateClient(client); err != nil {
 				t.Fatalf("failed to create client: %v", err)
