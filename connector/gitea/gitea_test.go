@@ -65,12 +65,6 @@ func expectNil(t *testing.T, a interface{}) {
 	}
 }
 
-func expectNotNil(t *testing.T, a interface{}, msg string) {
-	if a == nil {
-		t.Errorf("Expected %+v to not to be nil", msg)
-	}
-}
-
 func expectEquals(t *testing.T, a interface{}, b interface{}) {
 	if !reflect.DeepEqual(a, b) {
 		t.Errorf("Expected %+v to equal %+v", a, b)
