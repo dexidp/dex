@@ -244,6 +244,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		Logger:                 logger,
 		Now:                    now,
 		PrometheusRegistry:     prometheusRegistry,
+		PublicURL:              c.PublicURL,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)

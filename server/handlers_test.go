@@ -119,3 +119,28 @@ func TestHandleInvalidSAMLCallbacks(t *testing.T) {
 		}
 	}
 }
+
+func TestHandleDiscoveryPublic(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	httpServer, server := newTestServer(ctx, t, func(c *Config) {
+		c.PublicURL = "https://dex.example.com/"
+	})
+	defer httpServer.Close()
+
+	rr := httptest.NewRecorder()
+	server.ServeHTTP(rr, httptest.NewRequest("GET", "/.well-known/openid-configuration", nil))
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 got %d", rr.Code)
+	}
+	config := map[string]interface{}{}
+	err := json.Unmarshal(rr.Body.Bytes(), &config)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	authURL := config["authorization_endpoint"].(string)
+	if authURL != "https://dex.example.com/auth" {
+		t.Errorf("expected https://dex.example.com/auth got %s", authURL)
+	}
+}

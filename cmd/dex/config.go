@@ -47,6 +47,9 @@ type Config struct {
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
+
+	// URL base to use for public-facing links and redirects. Defaults to Issuer.
+	PublicURL string `json:"publicURL"`
 }
 
 //Validate the configuration
