@@ -77,6 +77,7 @@ Dex implements the following connectors:
 | [Bitbucket Cloud](Documentation/connectors/bitbucketcloud.md) | yes | yes | no | alpha | |
 | [OpenShift](Documentation/connectors/openshift.md) | no | yes | no | stable | |
 | [Atlassian Crowd](Documentation/connectors/atlassiancrowd.md) | yes | yes | yes *) | beta | preferred_username claim must be configured through config |
+| [Gitea](Documentation/connectors/gitea.md) | yes | no | yes | alpha | |
 
 Stable, beta, and alpha are defined as:
 
