@@ -212,12 +212,17 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	}
 
 	var groups []string
-	if c.adminEmail != "" && c.serviceAccountFilePath != "" && len(c.groups) > 0 {
+	if len(c.groups) > 0 {
+		if c.adminEmail == "" {
+			return identity, errors.New("google: adminEmail is mandatory in order to check groups")
+		}
+		if c.serviceAccountFilePath == "" {
+			return identity, errors.New("google: serviceAccountFilePath is mandatory in order to check groups")
+		}
 		groups, err = c.getGroups(claims.Email)
 		if err != nil {
 			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
 		}
-
 		groups = pkg_groups.Filter(groups, c.groups)
 		if len(groups) == 0 {
 			return identity, fmt.Errorf("google: user %q is not in any of the required groups", claims.Username)
