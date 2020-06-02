@@ -31,6 +31,7 @@ var requiredTmpls = []string{
 	tmplOOB,
 	tmplError,
 	tmplDevice,
+	tmplDeviceSuccess,
 }
 
 type templates struct {

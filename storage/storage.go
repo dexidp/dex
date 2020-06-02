@@ -39,7 +39,7 @@ func NewID() string {
 }
 
 func newSecureID(len int) string {
-	buff := make([]byte, len) // 128 bit random ID.
+	buff := make([]byte, len) // random ID.
 	if _, err := io.ReadFull(rand.Reader, buff); err != nil {
 		panic(err)
 	}
@@ -122,7 +122,8 @@ type Storage interface {
 	UpdateConnector(id string, updater func(c Connector) (Connector, error)) error
 	UpdateDeviceToken(deviceCode string, updater func(t DeviceToken) (DeviceToken, error)) error
 
-	// GarbageCollect deletes all expired AuthCodes,AuthRequests, DeviceRequests, and DeviceTokens.
+	// GarbageCollect deletes all expired AuthCodes,
+	// AuthRequests, DeviceRequests, and DeviceTokens.
 	GarbageCollect(now time.Time) (GCResult, error)
 }
 

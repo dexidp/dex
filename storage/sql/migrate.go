@@ -243,7 +243,7 @@ var migrations = []migration{
 			create table device_token (
 				device_code text not null primary key,
 				status text not null,
-				token text,
+				token bytea,
 				expiry timestamptz not null,
 				last_request timestamptz not null,
                 poll_interval integer not null
