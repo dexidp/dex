@@ -43,6 +43,16 @@ connectors:
     #
     #serviceAccountFilePath: googleAuth.json
     #adminEmail: super-user@example.com
+
+    # When fetching groups, this field allows to add a regexp to filter the groups
+    # that will be returned and used.
+    # This can be useful when the user is registered on a lot of groups because
+    # he is part of multiple clusters. In this case, usually, the groups are named
+    # with a pattern and a regexp can be used to filter the groups per cluster,
+    # allowing to have a smaller group list retrieved for each cluster.
+    # Default to empty string, and no filtering will be done in this case.
+    #
+    # groupsFilter: '^regexp.*'
 ```
 
 ## Fetching groups from Google
