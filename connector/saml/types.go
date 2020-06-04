@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -202,7 +203,7 @@ type attributeStatement struct {
 
 func (a *attributeStatement) get(name string) (s string, ok bool) {
 	for _, attr := range a.Attributes {
-		if attr.Name == name {
+		if strings.ToUpper(attr.Name) == strings.ToUpper(name) {
 			ok = true
 			if len(attr.AttributeValues) > 0 {
 				return attr.AttributeValues[0].Value, true
@@ -214,7 +215,7 @@ func (a *attributeStatement) get(name string) (s string, ok bool) {
 
 func (a *attributeStatement) all(name string) (s []string, ok bool) {
 	for _, attr := range a.Attributes {
-		if attr.Name == name {
+		if strings.ToUpper(attr.Name) == strings.ToUpper(name) {
 			ok = true
 			for _, val := range attr.AttributeValues {
 				s = append(s, val.Value)
