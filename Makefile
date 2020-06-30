@@ -35,12 +35,6 @@ bin/grpc-client:
 release-binary:
 	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
-.PHONY: revendor
-revendor:
-	@go mod tidy -v
-	@go mod vendor -v
-	@go mod verify
-
 test: bin/test/kube-apiserver bin/test/etcd
 	@go test -v ./...
 
@@ -91,7 +85,7 @@ bin/protoc: scripts/get-protoc
 	@./scripts/get-protoc bin/protoc
 
 bin/protoc-gen-go:
-	@go install -v $(REPO_PATH)/vendor/github.com/golang/protobuf/protoc-gen-go
+	@go install -v github.com/golang/protobuf/protoc-gen-go
 
 clean:
 	@rm -rf bin/

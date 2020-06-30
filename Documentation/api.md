@@ -41,8 +41,6 @@ $ protoc --go_out=import_path=dexapi:. api.proto
 
 Client programs can then be written using the generated code. A Go client which uses dex's internally generated code might look like the following:
 
-__NOTE:__ Because dex has the `google.golang.org/grpc` package in its `vendor` directory, gRPC code in `github.com/dexidp/dex/api` refers to the vendored copy, not copies in a developers GOPATH. Clients must either regenerate the gRPC Go code or vendor dex and remove its `vendor` directory to run this program.
-
 ```
 package main
 

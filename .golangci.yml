@@ -1,7 +1,4 @@
 run:
-    skip-dirs:
-        - vendor
-
     timeout: 2m
 
 linters-settings:
