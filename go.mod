@@ -8,35 +8,42 @@ require (
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
-	github.com/dexidp/dex/api v0.0.0-20200630195039-eef8c0a60da5
+	github.com/dexidp/dex/api v0.0.0-00010101000000-000000000000
 	github.com/felixge/httpsnoop v1.0.1
 	github.com/ghodss/yaml v1.0.0
+	github.com/go-redis/redis v6.15.8+incompatible // indirect
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
 	github.com/golang/protobuf v1.4.2
+	github.com/google/uuid v1.1.1 // indirect
 	github.com/gorilla/handlers v1.4.2
 	github.com/gorilla/mux v1.7.4
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
+	github.com/json-iterator/go v1.1.10 // indirect
 	github.com/kylelemons/godebug v1.1.0
 	github.com/lib/pq v1.7.0
 	github.com/mattn/go-sqlite3 v1.11.0
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
-	github.com/prometheus/client_golang v1.7.1
+	github.com/prometheus/client_golang v1.5.1
+	github.com/prometheus/common v0.10.0 // indirect
+	github.com/prometheus/procfs v0.1.3 // indirect
 	github.com/russellhaering/goxmldsig v0.0.0-20180430223755-7acd5e4a6ef7
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.0.0
 	github.com/stretchr/testify v1.6.1
-	github.com/testcontainers/testcontainers-go v0.7.0
+	github.com/testcontainers/testcontainers-go v0.3.1
 	go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738
 	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
 	golang.org/x/net v0.0.0-20190813141303-74dc4d7220e7
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
+	golang.org/x/sys v0.0.0-20200615200032-f1bc736245b1 // indirect
 	google.golang.org/api v0.15.0
 	google.golang.org/appengine v1.6.1 // indirect
 	google.golang.org/grpc v1.26.0
 	gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d // indirect
 	gopkg.in/ldap.v2 v2.5.1
 	gopkg.in/square/go-jose.v2 v2.4.1
+	gopkg.in/yaml.v2 v2.3.0 // indirect
 	sigs.k8s.io/testing_frameworks v0.1.2
 )
 
