@@ -49,7 +49,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/dexidp/dex/api"
+    "github.com/dexidp/dex/api/v2"
     "google.golang.org/grpc"
     "google.golang.org/grpc/credentials"
 )
