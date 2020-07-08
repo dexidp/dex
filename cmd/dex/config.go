@@ -103,11 +103,7 @@ func (p *password) UnmarshalJSON(b []byte) error {
 		data.Hash = os.Getenv(data.HashFromEnv)
 	}
 	if len(data.Hash) == 0 {
-		if len(data.HashFromEnv) > 0 {
-			data.Hash = os.Getenv(data.HashFromEnv)
-		} else {
-			return fmt.Errorf("no password hash provided")
-		}
+		return fmt.Errorf("no password hash provided")
 	}
 
 	// If this value is a valid bcrypt, use it.
