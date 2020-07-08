@@ -61,7 +61,7 @@ func TestHandleDeviceCode(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		func() {
+		t.Run(tc.testName, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
@@ -105,7 +105,7 @@ func TestHandleDeviceCode(t *testing.T) {
 			if tc.expectedResponseCode == http.StatusBadRequest || tc.expectedResponseCode == http.StatusUnauthorized {
 				expectErrorResponse(tc.testName, body, tc.expectedServerResponse, t)
 			}
-		}()
+		})
 	}
 }
 
@@ -310,7 +310,7 @@ func TestDeviceCallback(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		func() {
+		t.Run(tc.testName, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
@@ -360,7 +360,7 @@ func TestDeviceCallback(t *testing.T) {
 			if rr.Code != tc.expectedResponseCode {
 				t.Errorf("%s: Unexpected Response Type.  Expected %v got %v", tc.testName, tc.expectedResponseCode, rr.Code)
 			}
-		}()
+		})
 	}
 }
 
@@ -494,7 +494,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		func() {
+		t.Run(tc.testName, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
@@ -544,7 +544,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			} else if string(body) != tc.expectedServerResponse {
 				t.Errorf("Unexpected Server Response.  Expected %v got %v", tc.expectedServerResponse, string(body))
 			}
-		}()
+		})
 	}
 }
 
@@ -625,7 +625,7 @@ func TestVerifyCodeResponse(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		func() {
+		t.Run(tc.testName, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
@@ -667,6 +667,6 @@ func TestVerifyCodeResponse(t *testing.T) {
 			if rr.Code == http.StatusFound && !strings.HasPrefix(location, u.Path) {
 				t.Errorf("Invalid Redirect.  Expected %v got %v", u.Path, location)
 			}
-		}()
+		})
 	}
 }

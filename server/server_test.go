@@ -1337,9 +1337,6 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 			data := url.Values{}
 			data.Set("client_id", clientID)
 			data.Add("scope", strings.Join(requestedScopes, " "))
-			//for _, scope := range requestedScopes {
-			//	data.Add("scope", scope)
-			//}
 			resp, err := http.PostForm(codeURL.String(), data)
 			if err != nil {
 				t.Errorf("Could not request device code: %v", err)
