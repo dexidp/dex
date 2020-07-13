@@ -1,8 +1,10 @@
-dn: dc=example,dc=org
-objectClass: dcObject
-objectClass: organization
-o: Example Company
-dc: example
+# Already included in default config of Docker image osixia/openldap:1.4.0.
+#
+# dn: dc=example,dc=org
+# objectClass: dcObject
+# objectClass: organization
+# o: Example Company
+# dc: example
 
 dn: ou=People,dc=example,dc=org
 objectClass: organizationalUnit
