@@ -36,6 +36,10 @@ func (s *Server) getDeviceVerificationURI() string {
 func (s *Server) handleDeviceExchange(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		// Grab the parameter(s) from the query.
+		// If "user_code" is set, pre-populate the user code text field.
+		// If "invalid" is set, set the invalidAttempt boolean, which will display a message to the user that they
+		// attempted to redeem an invalid or expired user code.
 		userCode := r.URL.Query().Get("user_code")
 		invalidAttempt, err := strconv.ParseBool(r.URL.Query().Get("invalid"))
 		if err != nil {

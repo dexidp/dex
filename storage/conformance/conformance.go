@@ -1030,6 +1030,6 @@ func testDeviceTokenCRUD(t *testing.T, s storage.Storage) {
 		t.Fatalf("update failed, wanted token status=%v got %v", "complete", got.Status)
 	}
 	if got.Token != "token data" {
-		t.Fatalf("update failed, wanted token =%v got %v", "token data", got.Token)
+		t.Fatalf("update failed, wanted token %v got %v", "token data", got.Token)
 	}
 }

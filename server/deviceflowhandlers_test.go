@@ -31,7 +31,7 @@ func TestDeviceVerificationURI(t *testing.T) {
 
 	u, err := url.Parse(s.issuerURL.String())
 	if err != nil {
-		t.Errorf("Could not parse issuer URL %v", err)
+		t.Fatalf("Could not parse issuer URL %v", err)
 	}
 	u.Path = path.Join(u.Path, "/device/auth/verify_code")
 
@@ -49,15 +49,24 @@ func TestHandleDeviceCode(t *testing.T) {
 	tests := []struct {
 		testName               string
 		clientID               string
+		requestType            string
 		scopes                 []string
 		expectedResponseCode   int
 		expectedServerResponse string
 	}{
 		{
-			testName:             "New Valid Code",
+			testName:             "New Code",
 			clientID:             "test",
+			requestType:          "POST",
 			scopes:               []string{"openid", "profile", "email"},
 			expectedResponseCode: http.StatusOK,
+		},
+		{
+			testName:             "Invalid request Type (GET)",
+			clientID:             "test",
+			requestType:          "GET",
+			scopes:               []string{"openid", "profile", "email"},
+			expectedResponseCode: http.StatusBadRequest,
 		},
 	}
 	for _, tc := range tests {
@@ -74,7 +83,7 @@ func TestHandleDeviceCode(t *testing.T) {
 
 			u, err := url.Parse(s.issuerURL.String())
 			if err != nil {
-				t.Errorf("Could not parse issuer URL %v", err)
+				t.Fatalf("Could not parse issuer URL %v", err)
 			}
 			u.Path = path.Join(u.Path, "device/code")
 
@@ -83,7 +92,7 @@ func TestHandleDeviceCode(t *testing.T) {
 			for _, scope := range tc.scopes {
 				data.Add("scope", scope)
 			}
-			req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(data.Encode()))
+			req, _ := http.NewRequest(tc.requestType, u.String(), bytes.NewBufferString(data.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
 
 			rr := httptest.NewRecorder()
@@ -101,9 +110,6 @@ func TestHandleDeviceCode(t *testing.T) {
 				if err := json.Unmarshal(body, &resp); err != nil {
 					t.Errorf("Unexpected Device Code Response Format %v", string(body))
 				}
-			}
-			if tc.expectedResponseCode == http.StatusBadRequest || tc.expectedResponseCode == http.StatusUnauthorized {
-				expectErrorResponse(tc.testName, body, tc.expectedServerResponse, t)
 			}
 		})
 	}
@@ -322,15 +328,15 @@ func TestDeviceCallback(t *testing.T) {
 			defer httpServer.Close()
 
 			if err := s.storage.CreateAuthCode(tc.testAuthCode); err != nil {
-				t.Errorf("failed to create auth code: %v", err)
+				t.Fatalf("failed to create auth code: %v", err)
 			}
 
 			if err := s.storage.CreateDeviceRequest(tc.testDeviceRequest); err != nil {
-				t.Errorf("failed to create device request: %v", err)
+				t.Fatalf("failed to create device request: %v", err)
 			}
 
 			if err := s.storage.CreateDeviceToken(tc.testDeviceToken); err != nil {
-				t.Errorf("failed to create device token: %v", err)
+				t.Fatalf("failed to create device token: %v", err)
 			}
 
 			client := storage.Client{
@@ -344,7 +350,7 @@ func TestDeviceCallback(t *testing.T) {
 
 			u, err := url.Parse(s.issuerURL.String())
 			if err != nil {
-				t.Errorf("Could not parse issuer URL %v", err)
+				t.Fatalf("Could not parse issuer URL %v", err)
 			}
 			u.Path = path.Join(u.Path, "device/callback")
 			q := u.Query()
@@ -506,16 +512,16 @@ func TestDeviceTokenResponse(t *testing.T) {
 			defer httpServer.Close()
 
 			if err := s.storage.CreateDeviceRequest(tc.testDeviceRequest); err != nil {
-				t.Errorf("Failed to store device token %v", err)
+				t.Fatalf("Failed to store device token %v", err)
 			}
 
 			if err := s.storage.CreateDeviceToken(tc.testDeviceToken); err != nil {
-				t.Errorf("Failed to store device token %v", err)
+				t.Fatalf("Failed to store device token %v", err)
 			}
 
 			u, err := url.Parse(s.issuerURL.String())
 			if err != nil {
-				t.Errorf("Could not parse issuer URL %v", err)
+				t.Fatalf("Could not parse issuer URL %v", err)
 			}
 			u.Path = path.Join(u.Path, "device/token")
 
@@ -540,7 +546,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 				t.Errorf("Could read token response %v", err)
 			}
 			if tc.expectedResponseCode == http.StatusBadRequest || tc.expectedResponseCode == http.StatusUnauthorized {
-				expectErrorResponse(tc.testName, body, tc.expectedServerResponse, t)
+				expectJsonErrorResponse(tc.testName, body, tc.expectedServerResponse, t)
 			} else if string(body) != tc.expectedServerResponse {
 				t.Errorf("Unexpected Server Response.  Expected %v got %v", tc.expectedServerResponse, string(body))
 			}
@@ -548,7 +554,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 	}
 }
 
-func expectErrorResponse(testCase string, body []byte, expectedError string, t *testing.T) {
+func expectJsonErrorResponse(testCase string, body []byte, expectedError string, t *testing.T) {
 	jsonMap := make(map[string]interface{})
 	err := json.Unmarshal(body, &jsonMap)
 	if err != nil {
@@ -637,12 +643,12 @@ func TestVerifyCodeResponse(t *testing.T) {
 			defer httpServer.Close()
 
 			if err := s.storage.CreateDeviceRequest(tc.testDeviceRequest); err != nil {
-				t.Errorf("Failed to store device token %v", err)
+				t.Fatalf("Failed to store device token %v", err)
 			}
 
 			u, err := url.Parse(s.issuerURL.String())
 			if err != nil {
-				t.Errorf("Could not parse issuer URL %v", err)
+				t.Fatalf("Could not parse issuer URL %v", err)
 			}
 
 			u.Path = path.Join(u.Path, "device/auth/verify_code")
