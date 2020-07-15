@@ -13,16 +13,17 @@ The connector executes two primary queries:
 
 The dex repo contains a basic LDAP setup using [OpenLDAP][openldap].
 
-First start the LDAP server using the example script. This will run the OpenLDAP daemon and seed it with an initial set of users.
+First start the LDAP server using docker-compose. This will run the OpenLDAP daemon in a Docker container, and seed it with an initial set of users.
 
 ```
-./scripts/slapd.sh
+cd examples/ldap
+docker-compose up
 ```
 
-This script sets the LDAP daemon to debug mode, and is expected to print several error messages which are normal. Once the server is up, run dex.
+This container is expected to print several warning messages which are normal. Once the server is up, run dex in another terminal.
 
 ```
-./bin/dex serve examples/config-ldap.yaml
+./bin/dex serve examples/ldap/config-ldap.yaml
 ```
 
 Then run the OAuth client in another terminal.
