@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dexidp/dex/pkg/groups"
+
 	oidc "github.com/coreos/go-oidc"
 	"github.com/gorilla/mux"
 	jose "gopkg.in/square/go-jose.v2"
@@ -312,6 +314,22 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 
 	scopes := parseScopes(authReq.Scopes)
 	showBacklink := len(s.connectors) > 1
+
+	client, err := s.storage.GetClient(authReq.ClientID)
+	if err != nil {
+		s.logger.Errorf("Failed to get client %q: %v", authReq.ClientID, err)
+		s.renderError(r, w, http.StatusInternalServerError, "Failed to retrieve client.")
+		return
+	}
+
+	if len(client.AllowedGroups) > 0 {
+		authReq.Claims.Groups = groups.Filter(authReq.Claims.Groups, client.AllowedGroups)
+		if len(authReq.Claims.Groups) == 0 {
+			s.logger.Errorf("user not in allowed groups: %v", client.AllowedGroups)
+			s.renderError(r, w, http.StatusInternalServerError, "User not in allowed groups.")
+			return
+		}
+	}
 
 	switch r.Method {
 	case http.MethodGet:
