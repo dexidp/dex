@@ -142,10 +142,17 @@ $ kubectl create -f dex.yaml
 
 ## Logging into the cluster
 
-The `example-app` can be used to log into the cluster and get an ID Token. To build the app, you can run `make` in the root of the repo and it will build the `example-app` binary in the repo's `bin` directory. To build the `example-app` requires at least a 1.7 version of Go.
+The `example-app` can be used to log into the cluster and get an ID Token. To build the app, run the following commands:
 
+```bash
+cd examples/example-app
+go install .
 ```
-$ ./bin/example-app --issuer https://dex.example.com:32000 --issuer-root-ca examples/k8s/ssl/ca.pem
+ 
+To build the `example-app` requires at least a 1.7 version of Go.
+
+```bash
+$ example-app --issuer https://dex.example.com:32000 --issuer-root-ca examples/k8s/ssl/ca.pem
 ```
 
 Please note that the `example-app` will listen at http://127.0.0.1:5555 and can be changed with the `--listen` flag.
