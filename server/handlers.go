@@ -754,7 +754,7 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.PostFormValue("code_verifier") != "" {
-		// RFC 7636 (PKCE) if code_verifier is received use PKCE where we do not use the client_secret
+		// RFC 7636 (PKCE) if code_verifier is received, use PKCE and not the client_secret
 	} else if client.Secret != clientSecret {
 		s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
 		return
@@ -802,7 +802,10 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 
 	// RFC 7636 (PKCE)
 	codeChallengeFromStorage := authCode.CodeChallenge.CodeChallenge
-	if codeChallengeFromStorage != "" {
+	providedCodeVerifier := r.PostFormValue("code_verifier")
+
+	if providedCodeVerifier != "" && codeChallengeFromStorage != "" {
+
 		providedCodeVerifier := r.PostFormValue("code_verifier")
 		calculatedCodeChallenge, err := s.calculateCodeChallenge(providedCodeVerifier, authCode.CodeChallenge.CodeChallengeMethod)
 		if err != nil {
@@ -811,9 +814,17 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		}
 
 		if codeChallengeFromStorage != calculatedCodeChallenge {
-			s.tokenErrHelper(w, errInvalidGrant, "invalid code_verifier.", http.StatusBadRequest)
+			s.tokenErrHelper(w, errInvalidGrant, "Invalid code_verifier.", http.StatusBadRequest)
 			return
 		}
+	} else if providedCodeVerifier != "" {
+		// Received PKCE request on /auth, but no code_verifier on /token
+		s.tokenErrHelper(w, errInvalidGrant, "Expecting code_verifier in PKCE flow.", http.StatusBadRequest)
+		return
+	} else if codeChallengeFromStorage != "" {
+		// Received no code_challenge on /auth, but a code_verifier on /token
+		s.tokenErrHelper(w, errInvalidRequest, "No PKCE flow started. Cannot check code_verifier.", http.StatusBadRequest)
+		return
 	}
 
 	if authCode.RedirectURI != redirectURI {
