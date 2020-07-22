@@ -753,7 +753,9 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if client.Secret != clientSecret {
+	if r.PostFormValue("code_verifier") != "" {
+		// RFC 7636 (PKCE) if code_verifier is received use PKCE where we do not use the client_secret
+	} else if client.Secret != clientSecret {
 		s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
 		return
 	}
