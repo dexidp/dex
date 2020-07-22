@@ -811,7 +811,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		}
 
 		if codeChallengeFromStorage != calculatedCodeChallenge {
-			s.tokenErrHelper(w, errInvalidRequest, "invalid code_verifier.", http.StatusBadRequest)
+			s.tokenErrHelper(w, errInvalidGrant, "invalid code_verifier.", http.StatusBadRequest)
 			return
 		}
 	}
