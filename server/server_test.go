@@ -203,6 +203,20 @@ func TestDiscovery(t *testing.T) {
 	}
 }
 
+// Defines an expected error by HTTP Status Code and
+// the OAuth2 error int the response json
+type ErrorResponse struct {
+	Error      string
+	StatusCode int
+}
+
+// https://tools.ietf.org/html/rfc6749#section-5.2
+type OAuth2ErrorResponse struct {
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
+	ErrorURI         string `json:"error_uri"`
+}
+
 // TestOAuth2CodeFlow runs integration tests against a test server. The tests stand up a server
 // which requires no interaction to login, logs in through a test client, then passes the client
 // and returned token to the test.
@@ -251,6 +265,9 @@ func TestOAuth2CodeFlow(t *testing.T) {
 
 		// extra parameters to pass when retrieving id token
 		retreiveTokenOptions []oauth2.AuthCodeOption
+
+		// define an error response, when the test expects a error on the token endpoint
+		tokenError ErrorResponse
 	}{
 		{
 			name:        "verify ID Token",
@@ -412,7 +429,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				v.Add("client_secret", clientSecret)
 				v.Add("grant_type", "refresh_token")
 				v.Add("refresh_token", token.RefreshToken)
-				// Request a scope that wasn't requestd initially.
+				// Request a scope that wasn't requested initially.
 				v.Add("scope", "oidc email profile")
 				resp, err := http.PostForm(p.Endpoint().TokenURL, v)
 				if err != nil {
@@ -503,6 +520,68 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			},
 			handleToken: basicIDTokenVerify,
 		},
+		{
+			// This test ensures that PKCE does fail with wrong code_verifier in "plain" mode
+			name: "PKCE with plain and wrong code_verifier",
+			authCodeOptions: []oauth2.AuthCodeOption{
+				oauth2.SetAuthURLParam("code_challenge", "challenge123"),
+			},
+			retreiveTokenOptions: []oauth2.AuthCodeOption{
+				oauth2.SetAuthURLParam("code_verifier", "challenge124"),
+			},
+			handleToken: basicIDTokenVerify,
+			tokenError: ErrorResponse{
+				Error:      errInvalidGrant,
+				StatusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			// This test ensures that PKCE fail with wrong code_verifier in "S256" mode
+			name: "PKCE with S256 and wrong code_verifier",
+			authCodeOptions: []oauth2.AuthCodeOption{
+				oauth2.SetAuthURLParam("code_challenge", "lyyl-X4a69qrqgEfUL8wodWic3Be9ZZ5eovBgIKKi-w"),
+				oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+			},
+			retreiveTokenOptions: []oauth2.AuthCodeOption{
+				oauth2.SetAuthURLParam("code_verifier", "challenge124"),
+			},
+			handleToken: basicIDTokenVerify,
+			tokenError: ErrorResponse{
+				Error:      errInvalidGrant,
+				StatusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			// Ensure that when no PKCE flow was started on /auth
+			// we cannot switch to PKCE on /token
+			name: "No PKCE flow started",
+			authCodeOptions: []oauth2.AuthCodeOption{
+				oauth2.SetAuthURLParam("code_challenge", "lyyl-X4a69qrqgEfUL8wodWic3Be9ZZ5eovBgIKKi-w"),
+				oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+			},
+			retreiveTokenOptions: []oauth2.AuthCodeOption{},
+			handleToken:          basicIDTokenVerify,
+			tokenError: ErrorResponse{
+				Error:      errInvalidGrant,
+				StatusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			// Ensure that, when PKCE flow started on /auth
+			// we stay in PKCE flow on /token
+			name:            "No PKCE flow started",
+			authCodeOptions: []oauth2.AuthCodeOption{
+				// No PKCE call on /auth
+			},
+			retreiveTokenOptions: []oauth2.AuthCodeOption{
+				oauth2.SetAuthURLParam("code_verifier", "challenge123"),
+			},
+			handleToken: basicIDTokenVerify,
+			tokenError: ErrorResponse{
+				Error:      errInvalidRequest,
+				StatusCode: http.StatusBadRequest,
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -567,6 +646,30 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				if code := q.Get("code"); code != "" {
 					gotCode = true
 					token, err := oauth2Config.Exchange(ctx, code, tc.retreiveTokenOptions...)
+					if tc.tokenError.StatusCode != 0 {
+						if err == nil {
+							t.Errorf("%s: DANGEROUS! got a token when we should not get one!", tc.name)
+							return
+						}
+						if rErr, ok := err.(*oauth2.RetrieveError); ok {
+							if rErr.Response.StatusCode != tc.tokenError.StatusCode {
+								t.Errorf("%s: got wrong StatusCode from server %d. expected %d",
+									tc.name, rErr.Response.StatusCode, tc.tokenError.StatusCode)
+							}
+							details := new(OAuth2ErrorResponse)
+							if err := json.Unmarshal(rErr.Body, details); err != nil {
+								t.Errorf("%s: could not parse return json: %s", tc.name, err)
+								return
+							}
+							if details.Error != tc.tokenError.Error {
+								t.Errorf("%s: got wrong Error in response: %s (%s). expected %s",
+									tc.name, details.Error, details.ErrorDescription, tc.tokenError.Error)
+							}
+						} else {
+							t.Errorf("%s: unexpedted error type: %s. expected *oauth2.RetrieveError", tc.name, reflect.TypeOf(err))
+						}
+						return
+					}
 					if err != nil {
 						t.Errorf("failed to exchange code for token: %v", err)
 						return
