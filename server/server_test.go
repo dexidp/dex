@@ -99,13 +99,13 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 	}
 	s.URL = config.Issuer
 
-	connector := storage.Connector{
+	connector1 := storage.Connector{
 		ID:              "mock",
 		Type:            "mockCallback",
 		Name:            "Mock",
 		ResourceVersion: "1",
 	}
-	if err := config.Storage.CreateConnector(connector); err != nil {
+	if err := config.Storage.CreateConnector(connector1); err != nil {
 		t.Fatalf("create connector: %v", err)
 	}
 
@@ -137,7 +137,7 @@ func newTestServerMultipleConnectors(ctx context.Context, t *testing.T, updateCo
 	}
 	s.URL = config.Issuer
 
-	connector := storage.Connector{
+	connector1 := storage.Connector{
 		ID:              "mock",
 		Type:            "mockCallback",
 		Name:            "Mock",
@@ -149,7 +149,7 @@ func newTestServerMultipleConnectors(ctx context.Context, t *testing.T, updateCo
 		Name:            "Mock",
 		ResourceVersion: "1",
 	}
-	if err := config.Storage.CreateConnector(connector); err != nil {
+	if err := config.Storage.CreateConnector(connector1); err != nil {
 		t.Fatalf("create connector: %v", err)
 	}
 	if err := config.Storage.CreateConnector(connector2); err != nil {
@@ -217,6 +217,23 @@ type OAuth2ErrorResponse struct {
 	ErrorURI         string `json:"error_uri"`
 }
 
+type TestDefinition struct {
+	name string
+	// If specified these set of scopes will be used during the test case.
+	scopes []string
+	// handleToken provides the OAuth2 token response for the integration test.
+	handleToken func(context.Context, *oidc.Provider, *oauth2.Config, *oauth2.Token) error
+
+	// extra parameters to pass when requesting auth_code
+	authCodeOptions []oauth2.AuthCodeOption
+
+	// extra parameters to pass when retrieving id token
+	retrieveTokenOptions []oauth2.AuthCodeOption
+
+	// define an error response, when the test expects an error on the token endpoint
+	tokenError ErrorResponse
+}
+
 // TestOAuth2CodeFlow runs integration tests against a test server. The tests stand up a server
 // which requires no interaction to login, logs in through a test client, then passes the client
 // and returned token to the test.
@@ -253,22 +270,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 		return nil
 	}
 
-	tests := []struct {
-		name string
-		// If specified these set of scopes will be used during the test case.
-		scopes []string
-		// handleToken provides the OAuth2 token response for the integration test.
-		handleToken func(context.Context, *oidc.Provider, *oauth2.Config, *oauth2.Token) error
-
-		// extra parameters to pass when requesting auth_code
-		authCodeOptions []oauth2.AuthCodeOption
-
-		// extra parameters to pass when retrieving id token
-		retreiveTokenOptions []oauth2.AuthCodeOption
-
-		// define an error response, when the test expects a error on the token endpoint
-		tokenError ErrorResponse
-	}{
+	tests := []TestDefinition{
 		{
 			name:        "verify ID Token",
 			handleToken: basicIDTokenVerify,
@@ -503,7 +505,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			authCodeOptions: []oauth2.AuthCodeOption{
 				oauth2.SetAuthURLParam("code_challenge", "challenge123"),
 			},
-			retreiveTokenOptions: []oauth2.AuthCodeOption{
+			retrieveTokenOptions: []oauth2.AuthCodeOption{
 				oauth2.SetAuthURLParam("code_verifier", "challenge123"),
 			},
 			handleToken: basicIDTokenVerify,
@@ -515,7 +517,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				oauth2.SetAuthURLParam("code_challenge", "lyyl-X4a69qrqgEfUL8wodWic3Be9ZZ5eovBgIKKi-w"),
 				oauth2.SetAuthURLParam("code_challenge_method", "S256"),
 			},
-			retreiveTokenOptions: []oauth2.AuthCodeOption{
+			retrieveTokenOptions: []oauth2.AuthCodeOption{
 				oauth2.SetAuthURLParam("code_verifier", "challenge123"),
 			},
 			handleToken: basicIDTokenVerify,
@@ -526,7 +528,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			authCodeOptions: []oauth2.AuthCodeOption{
 				oauth2.SetAuthURLParam("code_challenge", "challenge123"),
 			},
-			retreiveTokenOptions: []oauth2.AuthCodeOption{
+			retrieveTokenOptions: []oauth2.AuthCodeOption{
 				oauth2.SetAuthURLParam("code_verifier", "challenge124"),
 			},
 			handleToken: basicIDTokenVerify,
@@ -542,7 +544,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				oauth2.SetAuthURLParam("code_challenge", "lyyl-X4a69qrqgEfUL8wodWic3Be9ZZ5eovBgIKKi-w"),
 				oauth2.SetAuthURLParam("code_challenge_method", "S256"),
 			},
-			retreiveTokenOptions: []oauth2.AuthCodeOption{
+			retrieveTokenOptions: []oauth2.AuthCodeOption{
 				oauth2.SetAuthURLParam("code_verifier", "challenge124"),
 			},
 			handleToken: basicIDTokenVerify,
@@ -559,7 +561,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				oauth2.SetAuthURLParam("code_challenge", "lyyl-X4a69qrqgEfUL8wodWic3Be9ZZ5eovBgIKKi-w"),
 				oauth2.SetAuthURLParam("code_challenge_method", "S256"),
 			},
-			retreiveTokenOptions: []oauth2.AuthCodeOption{},
+			retrieveTokenOptions: []oauth2.AuthCodeOption{},
 			handleToken:          basicIDTokenVerify,
 			tokenError: ErrorResponse{
 				Error:      errInvalidGrant,
@@ -573,7 +575,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			authCodeOptions: []oauth2.AuthCodeOption{
 				// No PKCE call on /auth
 			},
-			retreiveTokenOptions: []oauth2.AuthCodeOption{
+			retrieveTokenOptions: []oauth2.AuthCodeOption{
 				oauth2.SetAuthURLParam("code_verifier", "challenge123"),
 			},
 			handleToken: basicIDTokenVerify,
@@ -645,29 +647,9 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				// Grab code, exchange for token.
 				if code := q.Get("code"); code != "" {
 					gotCode = true
-					token, err := oauth2Config.Exchange(ctx, code, tc.retreiveTokenOptions...)
+					token, err := oauth2Config.Exchange(ctx, code, tc.retrieveTokenOptions...)
 					if tc.tokenError.StatusCode != 0 {
-						if err == nil {
-							t.Errorf("%s: DANGEROUS! got a token when we should not get one!", tc.name)
-							return
-						}
-						if rErr, ok := err.(*oauth2.RetrieveError); ok {
-							if rErr.Response.StatusCode != tc.tokenError.StatusCode {
-								t.Errorf("%s: got wrong StatusCode from server %d. expected %d",
-									tc.name, rErr.Response.StatusCode, tc.tokenError.StatusCode)
-							}
-							details := new(OAuth2ErrorResponse)
-							if err := json.Unmarshal(rErr.Body, details); err != nil {
-								t.Errorf("%s: could not parse return json: %s", tc.name, err)
-								return
-							}
-							if details.Error != tc.tokenError.Error {
-								t.Errorf("%s: got wrong Error in response: %s (%s). expected %s",
-									tc.name, details.Error, details.ErrorDescription, tc.tokenError.Error)
-							}
-						} else {
-							t.Errorf("%s: unexpedted error type: %s. expected *oauth2.RetrieveError", tc.name, reflect.TypeOf(err))
-						}
+						checkErrorResponse(err, t, tc)
 						return
 					}
 					if err != nil {
@@ -733,6 +715,30 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				t.Fatal(err)
 			}
 		}()
+	}
+}
+
+func checkErrorResponse(err error, t *testing.T, tc TestDefinition) {
+	if err == nil {
+		t.Errorf("%s: DANGEROUS! got a token when we should not get one!", tc.name)
+		return
+	}
+	if rErr, ok := err.(*oauth2.RetrieveError); ok {
+		if rErr.Response.StatusCode != tc.tokenError.StatusCode {
+			t.Errorf("%s: got wrong StatusCode from server %d. expected %d",
+				tc.name, rErr.Response.StatusCode, tc.tokenError.StatusCode)
+		}
+		details := new(OAuth2ErrorResponse)
+		if err := json.Unmarshal(rErr.Body, details); err != nil {
+			t.Errorf("%s: could not parse return json: %s", tc.name, err)
+			return
+		}
+		if tc.tokenError.Error != "" && details.Error != tc.tokenError.Error {
+			t.Errorf("%s: got wrong Error in response: %s (%s). expected %s",
+				tc.name, details.Error, details.ErrorDescription, tc.tokenError.Error)
+		}
+	} else {
+		t.Errorf("%s: unexpedted error type: %s. expected *oauth2.RetrieveError", tc.name, reflect.TypeOf(err))
 	}
 }
 
