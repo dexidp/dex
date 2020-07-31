@@ -80,6 +80,7 @@ Dex implements the following connectors:
 | [Atlassian Crowd](https://dexidp.io/docs/connectors/atlassiancrowd/) | yes | yes | yes * | beta | preferred_username claim must be configured through config |
 | [Gitea](https://dexidp.io/docs/connectors/gitea/) | yes | no | yes | alpha | |
 | [OpenStack Keystone](https://dexidp.io/docs/connectors/keystone/) | yes | yes | no | alpha | |
+| [Generic OAuth 2.0](https://dexidp.io/docs/connectors/oauth/) | no | yes | yes | beta |
 
 Stable, beta, and alpha are defined as:
 
