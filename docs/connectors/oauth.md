@@ -35,15 +35,15 @@ connectors:
     # scopes:
     #  - identity
 
-    # Optional: Configurable keys for user id field look up
+    # Optional: Configurable keys for groups claim look up
     # Default: groups
     # groupsKey:
 
-    # Optional: Configurable keys for name field look up
+    # Optional: Configurable keys for user ID claim look up
     # Default: user_id
     # userIDKey:
 
-    # Optional: Configurable keys for username field look up
-    # Default: user_name
-    # userNameKey:
+    # Optional: Configurable keys for preferred username claim look up
+    # Default: preferred_username
+    # preferredUsernameKey:
 ```

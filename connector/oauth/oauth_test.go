@@ -71,12 +71,13 @@ func TestHandleCallBackForGroupsInUserInfo(t *testing.T) {
 	tokenClaims := map[string]interface{}{}
 
 	userInfoClaims := map[string]interface{}{
-		"name":           "test-name",
-		"user_id_key":    "test-user-id",
-		"user_name_key":  "test-username",
-		"email":          "test-email",
-		"email_verified": true,
-		"groups_key":     []string{"admin-group", "user-group"},
+		"name":               "test-name",
+		"user_id_key":        "test-user-id",
+		"user_name_key":      "test-username",
+		"preferred_username": "test-preferred-username",
+		"email":              "test-email",
+		"email_verified":     true,
+		"groups_key":         []string{"admin-group", "user-group"},
 	}
 
 	testServer := testSetup(t, tokenClaims, userInfoClaims)
@@ -92,9 +93,9 @@ func TestHandleCallBackForGroupsInUserInfo(t *testing.T) {
 	expectEqual(t, len(identity.Groups), 2)
 	expectEqual(t, identity.Groups[0], "admin-group")
 	expectEqual(t, identity.Groups[1], "user-group")
-	expectEqual(t, identity.PreferredUsername, "test-name")
 	expectEqual(t, identity.UserID, "test-user-id")
 	expectEqual(t, identity.Username, "test-username")
+	expectEqual(t, identity.PreferredUsername, "test-preferred-username")
 	expectEqual(t, identity.Email, "test-email")
 	expectEqual(t, identity.EmailVerified, true)
 }
@@ -105,11 +106,12 @@ func TestHandleCallBackForGroupsInToken(t *testing.T) {
 	}
 
 	userInfoClaims := map[string]interface{}{
-		"name":           "test-name",
-		"user_id_key":    "test-user-id",
-		"user_name_key":  "test-username",
-		"email":          "test-email",
-		"email_verified": true,
+		"name":               "test-name",
+		"user_id_key":        "test-user-id",
+		"user_name_key":      "test-username",
+		"preferred_username": "test-preferred-username",
+		"email":              "test-email",
+		"email_verified":     true,
 	}
 
 	testServer := testSetup(t, tokenClaims, userInfoClaims)
@@ -123,7 +125,7 @@ func TestHandleCallBackForGroupsInToken(t *testing.T) {
 
 	expectEqual(t, len(identity.Groups), 1)
 	expectEqual(t, identity.Groups[0], "test-group")
-	expectEqual(t, identity.PreferredUsername, "test-name")
+	expectEqual(t, identity.PreferredUsername, "test-preferred-username")
 	expectEqual(t, identity.UserID, "test-user-id")
 	expectEqual(t, identity.Username, "test-username")
 	expectEqual(t, identity.Email, "test-email")

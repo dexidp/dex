@@ -21,18 +21,19 @@ import (
 )
 
 type oauthConnector struct {
-	clientID         string
-	clientSecret     string
-	redirectURI      string
-	tokenURL         string
-	authorizationURL string
-	userInfoURL      string
-	scopes           []string
-	groupsKey        string
-	userIDKey        string
-	userNameKey      string
-	httpClient       *http.Client
-	logger           log.Logger
+	clientID             string
+	clientSecret         string
+	redirectURI          string
+	tokenURL             string
+	authorizationURL     string
+	userInfoURL          string
+	scopes               []string
+	groupsKey            string
+	userIDKey            string
+	userNameKey          string
+	preferredUsernameKey string
+	httpClient           *http.Client
+	logger               log.Logger
 }
 
 type connectorData struct {
@@ -40,18 +41,19 @@ type connectorData struct {
 }
 
 type Config struct {
-	ClientID           string   `json:"clientID"`
-	ClientSecret       string   `json:"clientSecret"`
-	RedirectURI        string   `json:"redirectURI"`
-	TokenURL           string   `json:"tokenURL"`
-	AuthorizationURL   string   `json:"authorizationURL"`
-	UserInfoURL        string   `json:"userInfoURL"`
-	Scopes             []string `json:"scopes"`
-	GroupsKey          string   `json:"groupsKey"`
-	UserIDKey          string   `json:"userIDKey"`
-	UserNameKey        string   `json:"userNameKey"`
-	RootCAs            []string `json:"rootCAs"`
-	InsecureSkipVerify bool     `json:"insecureSkipVerify"`
+	ClientID             string   `json:"clientID"`
+	ClientSecret         string   `json:"clientSecret"`
+	RedirectURI          string   `json:"redirectURI"`
+	TokenURL             string   `json:"tokenURL"`
+	AuthorizationURL     string   `json:"authorizationURL"`
+	UserInfoURL          string   `json:"userInfoURL"`
+	Scopes               []string `json:"scopes"`
+	GroupsKey            string   `json:"groupsKey"`
+	UserIDKey            string   `json:"userIDKey"`
+	UserNameKey          string   `json:"userNameKey"`
+	PreferredUsernameKey string   `json:"preferredUsernameKey"`
+	RootCAs              []string `json:"rootCAs"`
+	InsecureSkipVerify   bool     `json:"insecureSkipVerify"`
 }
 
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
@@ -182,9 +184,13 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 		c.groupsKey = "groups"
 	}
 
+	if c.preferredUsernameKey == "" {
+		c.preferredUsernameKey = "preferred_username"
+	}
+
 	identity.UserID, _ = userInfoResult[c.userIDKey].(string)
 	identity.Username, _ = userInfoResult[c.userNameKey].(string)
-	identity.PreferredUsername, _ = userInfoResult["name"].(string)
+	identity.PreferredUsername, _ = userInfoResult[c.preferredUsernameKey].(string)
 	identity.Email, _ = userInfoResult["email"].(string)
 	identity.EmailVerified, _ = userInfoResult["email_verified"].(bool)
 
