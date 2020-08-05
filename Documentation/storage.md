@@ -139,7 +139,7 @@ Dex determines the namespace it's running in by parsing the service account toke
 
 ## SQL
 
-Dex supports two flavors of SQL: SQLite3 and Postgres.
+Dex supports three flavors of SQL: SQLite3, Postgres, and MySQL.
 
 Migrations are performed automatically on the first connection to the SQL server (it does not support rolling back). Because of this dex requires privileges to add and alter the tables for its database.
 

@@ -277,7 +277,7 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 
 		ParseTime: true,
 		Params: map[string]string{
-			"transaction_isolation": "'SERIALIZABLE'",
+			"transaction_isolation": "'REPEATABLE-READ'",
 		},
 	}
 	if s.Host != "" {

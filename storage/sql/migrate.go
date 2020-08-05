@@ -8,7 +8,7 @@ import (
 func (c *conn) migrate() (int, error) {
 	_, err := c.Exec(`
 		create table if not exists migrations (
-			num integer not null,
+			num integer not null primary key,
 			at timestamptz not null
 		);
 	`)
