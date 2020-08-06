@@ -301,10 +301,10 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 	hostedDomain, _ := claims["hd"].(string)
 
-	if c.preferredUsernameKey == "" {
-		c.preferredUsernameKey = "preferred_username"
+	preferredUsername, found := claims["preferred_username"].(string)
+	if !found {
+		preferredUsername, _ = claims[c.preferredUsernameKey].(string)
 	}
-	preferredUsername, _ := claims[c.preferredUsernameKey].(string)
 
 	if len(c.hostedDomains) > 0 {
 		found := false
