@@ -68,6 +68,10 @@ connectors:
     # This can be overridden with the below option
     # insecureEnableGroups: true
 
+    # If an OIDC provider uses a different claim name than the standard "groups" claim to provide group information
+    # the claim to use can be specified
+    # groupsClaimMapping: "cognito:groups"
+
     # When enabled, the OpenID Connector will query the UserInfo endpoint for additional claims. UserInfo claims
     # take priority over claims returned by the IDToken. This option should be used when the IDToken doesn't contain
     # all the claims requested.

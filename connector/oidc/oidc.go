@@ -44,6 +44,9 @@ type Config struct {
 	// InsecureEnableGroups enables groups claims. This is disabled by default until https://github.com/dexidp/dex/issues/1065 is resolved
 	InsecureEnableGroups bool `json:"insecureEnableGroups"`
 
+	// GroupsClaimMapping sets the name of the claim which contains the users groups. InsecureEnableGroups must be enabled to use this setting
+	GroupsClaimMapping string `json:"groupsClaimMapping"` // defaults to "groups"
+
 	// GetUserInfo uses the userinfo endpoint to get additional claims for
 	// the token. This is especially useful where upstreams return "thin"
 	// id tokens
@@ -121,6 +124,11 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		c.PromptType = "consent"
 	}
 
+	// GroupsClaimMapping should be "groups" by default, if not set
+	if c.GroupsClaimMapping == "" {
+		c.GroupsClaimMapping = "groups"
+	}
+
 	clientID := c.ClientID
 	return &oidcConnector{
 		provider:    provider,
@@ -140,6 +148,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		hostedDomains:             c.HostedDomains,
 		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
 		insecureEnableGroups:      c.InsecureEnableGroups,
+		groupsClaimMapping:        c.GroupsClaimMapping,
 		getUserInfo:               c.GetUserInfo,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
@@ -162,6 +171,7 @@ type oidcConnector struct {
 	hostedDomains             []string
 	insecureSkipEmailVerified bool
 	insecureEnableGroups      bool
+	groupsClaimMapping        string
 	getUserInfo               bool
 	userIDKey                 string
 	userNameKey               string
@@ -336,13 +346,14 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	if c.insecureEnableGroups {
-		vs, ok := claims["groups"].([]interface{})
+
+		vs, ok := claims[c.groupsClaimMapping].([]interface{})
 		if ok {
 			for _, v := range vs {
 				if s, ok := v.(string); ok {
 					identity.Groups = append(identity.Groups, s)
 				} else {
-					return identity, errors.New("malformed \"groups\" claim")
+					return identity, fmt.Errorf("malformed \"%v\" claim", c.groupsClaimMapping)
 				}
 			}
 		}
