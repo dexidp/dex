@@ -8,8 +8,6 @@ Prominent examples of OpenID Connect providers include Google Accounts, Salesfor
 
 ## Caveats
 
-This connector does not support the "groups" claim. Progress for this is tracked in [issue #1065][issue-1065].
-
 When using refresh tokens, changes to the upstream claims aren't propagated to the id_token returned by dex. If a user's email changes, the "email" claim returned by dex won't change unless the user logs in again. Progress for this is tracked in [issue #863][issue-863].
 
 ## Configuration
@@ -56,11 +54,6 @@ connectors:
     #  - email
     #  - groups
 
-    # Some providers return no standard email claim key (ex: 'mail')
-    # Override email claim key
-    # Default is "email"
-    # emailClaim: email
-
     # Some providers return claims without "email_verified", when they had no usage of emails verification in enrollment process
     # or if they are acting as a proxy for another IDP etc AWS Cognito with an upstream SAML IDP
     # This can be overridden with the below option
@@ -73,33 +66,43 @@ connectors:
     # This can be overridden with the below option
     # insecureEnableGroups: true
 
-    # If an OIDC provider uses a different claim name than the standard "groups" claim to provide group information
-    # the claim to use can be specified
-    # groupsClaimMapping: "cognito:groups"
-
     # When enabled, the OpenID Connector will query the UserInfo endpoint for additional claims. UserInfo claims
     # take priority over claims returned by the IDToken. This option should be used when the IDToken doesn't contain
     # all the claims requested.
     # https://openid.net/specs/openid-connect-core-1_0.html#UserInfo
     # getUserInfo: true
 
-    # The set claim is used as user id.
-    # Default: sub
-    # Claims list at https://openid.net/specs/openid-connect-core-1_0.html#Claims
-    #
-    # userIDKey: nickname
-    
-    # The set claim is used as user name.
-    # Default: name
-    # userNameKey: nickname
-
     # For offline_access, the prompt parameter is set by default to "prompt=consent". 
     # However this is not supported by all OIDC providers, some of them support different
     # value for prompt, like "prompt=login" or "prompt=none"
     # promptType: consent
+
+
+    # Some providers return no standard claim that is different to 
+    # claims list at https://openid.net/specs/openid-connect-core-1_0.html#Claims
+    # Use claimMapping to specify custom claim names
+    claimMapping:
+      # The set claim is used as user id.
+      # Default: sub
+      # user_id: nickname
+
+      # The set claim is used as user name.
+      # Default: name
+      # user_name: nickname
+
+      # The set claim is used as preferred username.
+      # Default: preferred_username
+      # preferred_username: other_user_name
+
+      # The set claim is used as email.
+      # Default: "email"
+      # email: mail
+
+      # The set claim is used as groups.
+      # Default: "groups"
+      # groups: "cognito:groups"
 ```
 
 [oidc-doc]: openid-connect.md
 [issue-863]: https://github.com/dexidp/dex/issues/863
-[issue-1065]: https://github.com/dexidp/dex/issues/1065
 [azure-ad-v1]: https://github.com/coreos/go-oidc/issues/133

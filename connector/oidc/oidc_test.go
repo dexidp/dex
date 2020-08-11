@@ -50,11 +50,13 @@ func TestHandleCallback(t *testing.T) {
 		userIDKey                 string
 		userNameKey               string
 		preferredUsernameKey      string
+		emailKey                  string
+		groupsKey                 string
 		insecureSkipEmailVerified bool
 		scopes                    []string
-		emailClaim                string
 		expectUserID              string
 		expectUserName            string
+		expectGroups              []string
 		expectPreferredUsername   string
 		expectedEmailField        string
 		token                     map[string]interface{}
@@ -65,10 +67,12 @@ func TestHandleCallback(t *testing.T) {
 			userNameKey:        "", // not configured
 			expectUserID:       "subvalue",
 			expectUserName:     "namevalue",
+			expectGroups:       []string{"group1", "group2"},
 			expectedEmailField: "emailvalue",
 			token: map[string]interface{}{
 				"sub":            "subvalue",
 				"name":           "namevalue",
+				"groups":         []string{"group1", "group2"},
 				"email":          "emailvalue",
 				"email_verified": true,
 			},
@@ -77,7 +81,7 @@ func TestHandleCallback(t *testing.T) {
 			name:               "customEmailClaim",
 			userIDKey:          "", // not configured
 			userNameKey:        "", // not configured
-			emailClaim:         "mail",
+			emailKey:           "mail",
 			expectUserID:       "subvalue",
 			expectUserName:     "namevalue",
 			expectedEmailField: "emailvalue",
@@ -195,6 +199,41 @@ func TestHandleCallback(t *testing.T) {
 				"email":     "emailvalue",
 			},
 		},
+		{
+			name:                      "customGroupsKey",
+			groupsKey:                 "cognito:groups",
+			expectUserID:              "subvalue",
+			expectUserName:            "namevalue",
+			expectedEmailField:        "emailvalue",
+			expectGroups:              []string{"group3", "group4"},
+			scopes:                    []string{"groups"},
+			insecureSkipEmailVerified: true,
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"user_name":      "username",
+				"email":          "emailvalue",
+				"cognito:groups": []string{"group3", "group4"},
+			},
+		},
+		{
+			name:                      "customGroupsKeyButGroupsProvided",
+			groupsKey:                 "cognito:groups",
+			expectUserID:              "subvalue",
+			expectUserName:            "namevalue",
+			expectedEmailField:        "emailvalue",
+			expectGroups:              []string{"group1", "group2"},
+			scopes:                    []string{"groups"},
+			insecureSkipEmailVerified: true,
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"user_name":      "username",
+				"email":          "emailvalue",
+				"groups":         []string{"group1", "group2"},
+				"cognito:groups": []string{"group3", "group4"},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -219,13 +258,15 @@ func TestHandleCallback(t *testing.T) {
 				ClientSecret:              "clientSecret",
 				Scopes:                    scopes,
 				RedirectURI:               fmt.Sprintf("%s/callback", serverURL),
-				UserIDKey:                 tc.userIDKey,
-				UserNameKey:               tc.userNameKey,
-				PreferredUsernameKey:      tc.preferredUsernameKey,
-				EmailClaim:                tc.emailClaim,
 				InsecureSkipEmailVerified: tc.insecureSkipEmailVerified,
+				InsecureEnableGroups:      true,
 				BasicAuthUnsupported:      &basicAuth,
 			}
+			config.ClaimMapping.UserIDKey = tc.userIDKey
+			config.ClaimMapping.UserNameKey = tc.userNameKey
+			config.ClaimMapping.PreferredUsernameKey = tc.preferredUsernameKey
+			config.ClaimMapping.EmailKey = tc.emailKey
+			config.ClaimMapping.GroupsKey = tc.groupsKey
 
 			conn, err := newConnector(config)
 			if err != nil {
@@ -247,6 +288,7 @@ func TestHandleCallback(t *testing.T) {
 			expectEquals(t, identity.PreferredUsername, tc.expectPreferredUsername)
 			expectEquals(t, identity.Email, tc.expectedEmailField)
 			expectEquals(t, identity.EmailVerified, true)
+			expectEquals(t, identity.Groups, tc.expectGroups)
 		})
 	}
 }

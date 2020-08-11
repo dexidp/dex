@@ -44,28 +44,36 @@ type Config struct {
 	// InsecureEnableGroups enables groups claims. This is disabled by default until https://github.com/dexidp/dex/issues/1065 is resolved
 	InsecureEnableGroups bool `json:"insecureEnableGroups"`
 
-	// GroupsClaimMapping sets the name of the claim which contains the users groups. InsecureEnableGroups must be enabled to use this setting
-	GroupsClaimMapping string `json:"groupsClaimMapping"` // defaults to "groups"
-
 	// GetUserInfo uses the userinfo endpoint to get additional claims for
 	// the token. This is especially useful where upstreams return "thin"
 	// id tokens
 	GetUserInfo bool `json:"getUserInfo"`
 
-	// Configurable key which contains the user id claim
+	// Deprecated: use UserIDKey in claimMapping instead
 	UserIDKey string `json:"userIDKey"`
 
-	// Configurable key which contains the user name claim
+	// Deprecated: use UserNameKey in claimMapping instead
 	UserNameKey string `json:"userNameKey"`
-
-	// Configurable key which contains the preferred username claims
-	PreferredUsernameKey string `json:"preferredUsernameKey"`
-
-	// EmailClaim override email claim key. Defaults to "email"
-	EmailClaim string `json:"emailClaim"`
 
 	// PromptType will be used fot the prompt parameter (when offline_access, by default prompt=consent)
 	PromptType string `json:"promptType"`
+
+	ClaimMapping struct {
+		// Configurable key which contains the user id claim
+		UserIDKey string `json:"user_id"` // defaults to "sub"
+
+		// Configurable key which contains the username claim
+		UserNameKey string `json:"user_name"` // defaults to "name"
+
+		// Configurable key which contains the preferred username claims
+		PreferredUsernameKey string `json:"preferred_username"` // defaults to "preferred_username"
+
+		// Configurable key which contains the email claims
+		EmailKey string `json:"email"` // defaults to "email"
+
+		// Configurable key which contains the groups claims
+		GroupsKey string `json:"groups"` // defaults to "groups"
+	} `json:"claimMapping"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -118,11 +126,6 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		endpoint.AuthStyle = oauth2.AuthStyleInParams
 	}
 
-	emailClaim := "email"
-	if len(c.EmailClaim) > 0 {
-		emailClaim = c.EmailClaim
-	}
-
 	scopes := []string{oidc.ScopeOpenID}
 	if len(c.Scopes) > 0 {
 		scopes = append(scopes, c.Scopes...)
@@ -135,9 +138,16 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		c.PromptType = "consent"
 	}
 
-	// GroupsClaimMapping should be "groups" by default, if not set
-	if c.GroupsClaimMapping == "" {
-		c.GroupsClaimMapping = "groups"
+	// Backward compatibility
+	userIDKey := c.ClaimMapping.UserIDKey
+	if userIDKey == "" {
+		userIDKey = c.UserIDKey
+	}
+
+	// Backward compatibility
+	userNameKey := c.ClaimMapping.UserNameKey
+	if userNameKey == "" {
+		userNameKey = c.UserNameKey
 	}
 
 	clientID := c.ClientID
@@ -159,13 +169,13 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		hostedDomains:             c.HostedDomains,
 		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
 		insecureEnableGroups:      c.InsecureEnableGroups,
-		groupsClaimMapping:        c.GroupsClaimMapping,
 		getUserInfo:               c.GetUserInfo,
-		userIDKey:                 c.UserIDKey,
-		userNameKey:               c.UserNameKey,
-		preferredUsernameKey:      c.PreferredUsernameKey,
-		emailClaim:                emailClaim,
 		promptType:                c.PromptType,
+		userIDKey:                 userIDKey,
+		userNameKey:               userNameKey,
+		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
+		emailKey:                  c.ClaimMapping.EmailKey,
+		groupsKey:                 c.ClaimMapping.GroupsKey,
 	}, nil
 }
 
@@ -184,13 +194,13 @@ type oidcConnector struct {
 	hostedDomains             []string
 	insecureSkipEmailVerified bool
 	insecureEnableGroups      bool
-	groupsClaimMapping        string
 	getUserInfo               bool
+	promptType                string
 	userIDKey                 string
 	userNameKey               string
 	preferredUsernameKey      string
-	emailClaim                string
-	promptType                string
+	emailKey                  string
+	groupsKey                 string
 }
 
 func (c *oidcConnector) Close() error {
@@ -298,6 +308,11 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		return identity, fmt.Errorf("missing \"%s\" claim", userNameKey)
 	}
 
+	preferredUsername, found := claims["preferred_username"].(string)
+	if !found {
+		preferredUsername, _ = claims[c.preferredUsernameKey].(string)
+	}
+
 	hasEmailScope := false
 	for _, s := range c.oauth2Config.Scopes {
 		if s == "email" {
@@ -306,9 +321,16 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 	}
 
-	email, found := claims[c.emailClaim].(string)
+	var email string
+	emailKey := "email"
+	email, found = claims[emailKey].(string)
+	if !found && c.emailKey != "" {
+		emailKey = c.emailKey
+		email, found = claims[emailKey].(string)
+	}
+
 	if !found && hasEmailScope {
-		return identity, fmt.Errorf("missing \"%s\" claim", c.emailClaim)
+		return identity, fmt.Errorf("missing \"%s\" claim", emailKey)
 	}
 
 	emailVerified, found := claims["email_verified"].(bool)
@@ -319,13 +341,28 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			return identity, errors.New("missing \"email_verified\" claim")
 		}
 	}
-	hostedDomain, _ := claims["hd"].(string)
 
-	preferredUsername, found := claims["preferred_username"].(string)
-	if !found {
-		preferredUsername, _ = claims[c.preferredUsernameKey].(string)
+	var groups []string
+	if c.insecureEnableGroups {
+		groupsKey := "groups"
+		vs, found := claims[groupsKey].([]interface{})
+		if !found {
+			groupsKey = c.groupsKey
+			vs, found = claims[groupsKey].([]interface{})
+		}
+
+		if found {
+			for _, v := range vs {
+				if s, ok := v.(string); ok {
+					groups = append(groups, s)
+				} else {
+					return identity, fmt.Errorf("malformed \"%v\" claim", groupsKey)
+				}
+			}
+		}
 	}
 
+	hostedDomain, _ := claims["hd"].(string)
 	if len(c.hostedDomains) > 0 {
 		found := false
 		for _, domain := range c.hostedDomains {
@@ -355,6 +392,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		PreferredUsername: preferredUsername,
 		Email:             email,
 		EmailVerified:     emailVerified,
+		Groups:            groups,
 		ConnectorData:     connData,
 	}
 
@@ -364,20 +402,6 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			return identity, fmt.Errorf("oidc: not found %v claim", c.userIDKey)
 		}
 		identity.UserID = userID
-	}
-
-	if c.insecureEnableGroups {
-
-		vs, ok := claims[c.groupsClaimMapping].([]interface{})
-		if ok {
-			for _, v := range vs {
-				if s, ok := v.(string); ok {
-					identity.Groups = append(identity.Groups, s)
-				} else {
-					return identity, fmt.Errorf("malformed \"%v\" claim", c.groupsClaimMapping)
-				}
-			}
-		}
 	}
 
 	return identity, nil
