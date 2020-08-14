@@ -120,9 +120,7 @@ subjects:
 TPR support in dex has been removed.  The last version to support TPR
 is [v2.17.0](https://github.com/dexidp/dex/tree/v2.17.0)
 
-If you are currently running dex using TPRs, you will need to [migrate to CRDs](https://github.com/dexidp/dex/blob/v2.17.0/Documentation/storage.md#migrating-from-tprs-to-crds)
-before you upgrade to a post v2.17 dex.  The script mentioned in the instructions can be [found here](https://github.com/dexidp/dex/blob/v2.17.0/scripts/dump-tprs)
-
+If you are currently running dex using TPRs, you will need to [migrate to CRDs](https://github.com/dexidp/dex/blob/v2.17.0/Documentation/storage.md#migrating-from-tprs-to-crds) before you upgrade to a post v2.17 dex.  The script mentioned in the instructions can be [found here](https://github.com/dexidp/dex/blob/v2.17.0/scripts/dump-tprs)
 
 ### Configuration
 
@@ -139,7 +137,7 @@ Dex determines the namespace it's running in by parsing the service account toke
 
 ## SQL
 
-Dex supports two flavors of SQL: SQLite3 and Postgres.
+Dex supports three flavors of SQL: SQLite3, Postgres and MySQL.
 
 Migrations are performed automatically on the first connection to the SQL server (it does not support rolling back). Because of this dex requires privileges to add and alter the tables for its database.
 
@@ -220,7 +218,7 @@ The SSL "mode" corresponds to the `github.com/go-sql-driver/mysql` package [conn
 
 ## Adding a new storage options
 
-Each storage implementation bears a large ongoing maintenance cost and needs to be updated every time a feature requires storing a new type. Bugs often require in depth knowledge of the backing software, and much of this work will be done by developers who are not the original author. Changes to dex which add new storage implementations are not merged lightly.
+Each storage implementation bears a large ongoing maintenance cost and needs to be updated every time a feature requires storing a new type. Bugs often require in depth knowledge of the backing software, and much of this work will be done by developers who are not the original author. Changes to dex which add new storage implementations require a strong use case to be considered for inclusion.
 
 ### New storage option references
 
