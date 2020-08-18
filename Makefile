@@ -20,10 +20,13 @@ LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
 # Dependency versions
 GOLANGCI_VERSION = 1.21.0
 
-build: bin/dex bin/grpc-client
+build: bin/dex bin/example-app bin/grpc-client
 
 bin/dex:
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
+
+bin/example-app:
+	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/example-app
 
 bin/grpc-client:
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/grpc-client

@@ -48,3 +48,4 @@ require (
 )
 
 replace github.com/dexidp/dex/api/v2 => ./api/v2
+replace github.com/dexidp/dex/examples => ./examples
