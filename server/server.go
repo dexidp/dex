@@ -559,15 +559,15 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 		}
 	}
 
-	connector := Connector{
+	connectorInstance := Connector{
 		ResourceVersion: conn.ResourceVersion,
 		Connector:       c,
 	}
 	s.mu.Lock()
-	s.connectors[conn.ID] = connector
+	s.connectors[conn.ID] = connectorInstance
 	s.mu.Unlock()
 
-	return connector, nil
+	return connectorInstance, nil
 }
 
 // getConnector retrieves the connector object with the given id from the storage
