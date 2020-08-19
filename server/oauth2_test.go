@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/golang/groupcache/lru"
 	"gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/storage"
@@ -336,10 +337,69 @@ func TestValidRedirectURI(t *testing.T) {
 			wantValid:   true,
 		},
 		{
+			// check https is valid protocol
+			client: storage.Client{
+				RedirectURIs: []string{"https://foo.com/bar/baz"},
+			},
+			redirectURI: "https://foo.com/bar/baz",
+			wantValid:   true,
+		},
+		{
 			client: storage.Client{
 				RedirectURIs: []string{"http://foo.com/bar"},
 			},
 			redirectURI: "http://foo.com/bar/baz",
+			wantValid:   false,
+		},
+		{
+			client: storage.Client{
+				RedirectURIs: []string{"http://*.foo.com/bar"},
+			},
+			redirectURI: "http://abc.foo.com/bar",
+			wantValid:   true,
+		},
+		{
+			// URL must use http: or https: protocol
+			client: storage.Client{
+				RedirectURIs: []string{"unknown://*.foo.com/bar"},
+			},
+			redirectURI: "unknown://abc.foo.com/bar",
+			wantValid:   false,
+		},
+		{
+			// wildcard must be located in the subdomain furthest from the root domain.
+			//  https://abc.*.foo.com not ok.
+			client: storage.Client{
+				RedirectURIs: []string{"http://abc.*.foo.com/bar"},
+			},
+			redirectURI: "http://abc.123.foo.com/bar",
+			wantValid:   false,
+		},
+		{
+			// wildcard may be prefixed and/or suffixed with additional valid hostname characters
+			//  https://pre-*-post.foo.com will work
+			client: storage.Client{
+				RedirectURIs: []string{"http://pre-*-post.foo.com/bar"},
+			},
+			redirectURI: "http://pre-dinner-post.foo.com/bar",
+			wantValid:   true,
+		},
+		{
+			// valid wildcard will not match a URL more than one subdomain level in place of the wildcard
+			//  https://*.foo.com will not work with https://123.abc.foo.com.
+			client: storage.Client{
+				RedirectURIs: []string{"https://*.foo.com/"},
+			},
+			redirectURI: "https://123.abc.foo.com/bar",
+			wantValid:   false,
+		},
+		{
+			// wildcard must be located in a subdomain within a hostname component.  http://*.com is not permitted.
+			client: storage.Client{
+				RedirectURIs: []string{"http://*.com/bar"},
+			},
+			redirectURI: "http://foo.com/bar",
+			wantValid:   false,
 		},
 		{
 			client: storage.Client{
@@ -363,6 +423,14 @@ func TestValidRedirectURI(t *testing.T) {
 			wantValid:   true,
 		},
 		{
+			// github.com/dexidp/dex/issues/1300 allow public redirect URLs
+			client: storage.Client{
+				Public: true,
+			},
+			redirectURI: "https://localhost",
+			wantValid:   true,
+		},
+		{
 			client: storage.Client{
 				Public: true,
 			},
@@ -377,8 +445,12 @@ func TestValidRedirectURI(t *testing.T) {
 			wantValid:   false,
 		},
 	}
+
+	wildcardCache := lru.New(2)
+
 	for _, test := range tests {
-		got := validateRedirectURI(test.client, test.redirectURI)
+
+		got := validateRedirectURI(test.client, wildcardCache, test.redirectURI)
 		if got != test.wantValid {
 			t.Errorf("client=%#v, redirectURI=%q, wanted valid=%t, got=%t",
 				test.client, test.redirectURI, test.wantValid, got)

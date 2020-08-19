@@ -16,9 +16,12 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/golang/groupcache/lru"
 
 	jose "gopkg.in/square/go-jose.v2"
 
@@ -440,7 +443,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		}
 	}
 
-	if !validateRedirectURI(client, redirectURI) {
+	if !validateRedirectURI(client, s.wildcardMatcherCache, redirectURI) {
 		description := fmt.Sprintf("Unregistered redirect_uri (%q).", redirectURI)
 		return nil, &authErr{"", "", errInvalidRequest, description}
 	}
@@ -587,10 +590,15 @@ func (s *Server) validateCrossClientTrust(clientID, peerID string) (trusted bool
 	return false, nil
 }
 
-func validateRedirectURI(client storage.Client, redirectURI string) bool {
+func validateRedirectURI(client storage.Client, wildcardCache *lru.Cache, redirectURI string) bool {
 	if !client.Public {
 		for _, uri := range client.RedirectURIs {
 			if redirectURI == uri {
+				// exact match is valid
+				return true
+			}
+			if wildcardMatch(uri, redirectURI, wildcardCache) {
+				// found wildcard match
 				return true
 			}
 		}
@@ -606,7 +614,8 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 	if err != nil {
 		return false
 	}
-	if u.Scheme != "http" {
+	// public clients should use http or https (#1300)
+	if u.Scheme != "http" && u.Scheme != "https" {
 		return false
 	}
 	if u.Host == "localhost" {
@@ -614,6 +623,94 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 	}
 	host, _, err := net.SplitHostPort(u.Host)
 	return err == nil && host == "localhost"
+}
+
+func wildcardMatch(knownRedirectUri string, requestedRedirectUri string, wildcardCache *lru.Cache) bool {
+	if wildcardCache == nil {
+		return false
+	}
+	regExStr, ok := wildcardCache.Get(knownRedirectUri)
+	if ok && regExStr != nil {
+		// cache hit
+		return matchByRegEx(fmt.Sprintf("%s", regExStr), requestedRedirectUri)
+	} else {
+		// cache miss - calc and add to cache
+		calcResult := calculateWildcardRedirect(knownRedirectUri)
+		wildcardCache.Add(knownRedirectUri, calcResult)
+		return matchByRegEx(calcResult, requestedRedirectUri)
+	}
+}
+
+func matchByRegEx(regexStrVal string, knownRedirectUri string) bool {
+	if len(regexStrVal) == 0 {
+		return false
+	}
+	if re, err := regexp.Compile(regexStrVal); err == nil {
+		return re.MatchString(knownRedirectUri)
+	} else {
+		// issue with regex
+		return false
+	}
+}
+
+func calculateWildcardRedirect(uri string) string {
+	empty := ""
+	if len(uri) < 4 {
+		// empty or without protocol cannot be wildcard domain
+		return empty
+	}
+	re, err := regexp.Compile("\\*")
+	if err != nil {
+		// bad pattern
+		return empty
+	}
+
+	var wildcardCharCount = 0
+	starRes := re.FindAllString(uri, 3)
+	if starRes != nil {
+		wildcardCharCount = len(starRes)
+	}
+
+	if wildcardCharCount != 1 {
+		// only one wildcard is allowed
+		// zero wildcards also a non-match as wildcard definition
+		return empty
+	}
+
+	schemaRe, err := regexp.Compile("^[hH][tT]{2}[pP][sS]?://(.+?)(:\\d+)?/.*")
+	if err != nil {
+		return empty // bad regex pattern
+	}
+	splitSchemaRes := schemaRe.FindStringSubmatch(uri)
+	if splitSchemaRes == nil {
+		// not using http or https
+		return empty
+	}
+	hostPortion := splitSchemaRes[1]
+
+	// optional prefix/postfix ensure wildcard in first bracket, and 2 or more domains under root TLD
+	hostSplitRe, err := regexp.Compile("^([^.]*\\*[^.]*)(\\..+\\..+)$")
+	if err != nil {
+		return empty // bad regex pattern
+	}
+
+	if !hostSplitRe.MatchString(hostPortion) {
+		return empty // no match, cannot be valid wildcard domain
+	}
+
+	// all checks & rules passed, created regex representing wildcard match
+	regexStr := strings.ReplaceAll(regexp.QuoteMeta(uri), "\\*", "[^.]+")
+
+	regExStr := "^" + regexStr + "$"
+
+	// check valid regex before saving to cache
+	_, err = regexp.Compile(regExStr)
+	if err != nil {
+		// bad regex pattern (do not cache)
+		return empty
+	}
+
+	return regExStr
 }
 
 func validateConnectorID(connectors []storage.Connector, connectorID string) bool {
