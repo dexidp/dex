@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/golang/groupcache/lru"
+	"github.com/hashicorp/golang-lru"
 	"gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/storage"
@@ -359,6 +359,20 @@ func TestValidRedirectURI(t *testing.T) {
 			wantValid:   true,
 		},
 		{
+			client: storage.Client{
+				RedirectURIs: []string{"http://abc.foo.com/bar"},
+			},
+			redirectURI: "http://abc.foo.com/bar",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				RedirectURIs: []string{"http://b*.foo.com/bar"},
+			},
+			redirectURI: "http://abc.foo.com/bar",
+			wantValid:   false,
+		},
+		{
 			// URL must use http: or https: protocol
 			client: storage.Client{
 				RedirectURIs: []string{"unknown://*.foo.com/bar"},
@@ -446,15 +460,36 @@ func TestValidRedirectURI(t *testing.T) {
 		},
 	}
 
-	wildcardCache := lru.New(2)
+	maxCacheSize := 3
+	wildcardCache, _ := lru.NewARC(maxCacheSize)
 
-	for _, test := range tests {
+	if maxCacheSize >= len(tests) {
+		t.Errorf("cache tests pre-condition is that mac cache size is less than test suite size" +
+			" cacheMax=%d testItemsSize=%d", maxCacheSize, len(tests))
+	}
 
+	var firstWildcardCache = ""
+	for i, test := range tests {
 		got := validateRedirectURI(test.client, wildcardCache, test.redirectURI)
 		if got != test.wantValid {
 			t.Errorf("client=%#v, redirectURI=%q, wanted valid=%t, got=%t",
 				test.client, test.redirectURI, test.wantValid, got)
 		}
+
+		// expect redirectURI last used should be stored in cache
+		if !test.client.Public && len(test.client.RedirectURIs) > 0 && test.redirectURI != test.client.RedirectURIs[0] {
+			if !wildcardCache.Contains(test.client.RedirectURIs[0]) {
+				t.Errorf("test[%d] should contain redirectURI as cache key %s", i, test.client.RedirectURIs[0])
+			}
+			if len(firstWildcardCache) == 0 {
+				firstWildcardCache = test.client.RedirectURIs[0]
+			}
+		}
+	}
+
+	if wildcardCache.Contains(firstWildcardCache) {
+		// check eviction policed
+		t.Errorf("first redirectURI should have been evicted from cache %s", tests[0].client.RedirectURIs[0])
 	}
 }
 

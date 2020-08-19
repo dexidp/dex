@@ -21,9 +21,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/groupcache/lru"
-
 	jose "gopkg.in/square/go-jose.v2"
+
+	lru "github.com/hashicorp/golang-lru"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
@@ -590,7 +590,7 @@ func (s *Server) validateCrossClientTrust(clientID, peerID string) (trusted bool
 	return false, nil
 }
 
-func validateRedirectURI(client storage.Client, wildcardCache *lru.Cache, redirectURI string) bool {
+func validateRedirectURI(client storage.Client, wildcardCache *lru.ARCCache, redirectURI string) bool {
 	if !client.Public {
 		for _, uri := range client.RedirectURIs {
 			if redirectURI == uri {
@@ -625,7 +625,7 @@ func validateRedirectURI(client storage.Client, wildcardCache *lru.Cache, redire
 	return err == nil && host == "localhost"
 }
 
-func wildcardMatch(knownRedirectUri string, requestedRedirectUri string, wildcardCache *lru.Cache) bool {
+func wildcardMatch(knownRedirectUri string, requestedRedirectUri string, wildcardCache *lru.ARCCache) bool {
 	if wildcardCache == nil {
 		return false
 	}

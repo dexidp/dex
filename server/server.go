@@ -16,11 +16,12 @@ import (
 	"time"
 
 	"github.com/felixge/httpsnoop"
-	"github.com/golang/groupcache/lru"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/bcrypt"
+
+	lru "github.com/hashicorp/golang-lru"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/atlassiancrowd"
@@ -166,7 +167,7 @@ type Server struct {
 	logger log.Logger
 
 	// LRU cache of regex matchers for a given permitted redirect URI defined in Client
-	wildcardMatcherCache *lru.Cache
+	wildcardMatcherCache *lru.ARCCache
 }
 
 // NewServer constructs a server from the provided config.
@@ -226,6 +227,12 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		now = time.Now
 	}
 
+	arcCache, err := lru.NewARC(500)
+	if err != nil {
+		c.Logger.Infof("ARC LRU case failed to load, wildcard redirect URIs disabled: %v", err)
+	}
+
+
 	s := &Server{
 		issuerURL:              *issuerURL,
 		connectors:             make(map[string]Connector),
@@ -240,7 +247,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		templates:              tmpls,
 		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
-		wildcardMatcherCache:   lru.New(500),
+		wildcardMatcherCache:   arcCache,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
