@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/golang-lru"
+	"github.com/stretchr/testify/assert"
 	"gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/storage"
@@ -323,6 +324,76 @@ func TestAccessTokenHash(t *testing.T) {
 	}
 }
 
+func TestSplitHttpRedirectUrl(t *testing.T) {
+	//if strings.Index(clientRedirectUrlSpec, "*") == -1 {
+	//	// no wildcard characters to consider
+	//	return nil
+	//}
+
+	tests := []struct {
+		redirectURI     string
+		expectValid     bool
+		expectScheme    string
+		expectPath      string
+		expectHostSplit *HostSplit
+	}{
+		{
+			redirectURI:  "http://*.example.com/%23267#222",
+			expectValid:  true,
+			expectScheme: "http",
+			expectHostSplit: &HostSplit{
+				HostSuffix: "example.com",
+				SubDomainPrefix: "*",
+			},
+			expectPath:   "/%23267#222",
+		},
+		{
+			// ip addresses cannot
+			redirectURI:  "http://1.2.3.4/",
+			expectValid:  false,
+		},
+		{
+			// cannot act on top-level domain
+			redirectURI:  "http://*.com/",
+			expectValid:  false,
+		},
+		{
+			// no wildcard
+			redirectURI:  "http://example.com/",
+			expectValid:  false,
+		},
+		{
+			redirectURI: "http://1.2.3.4",
+			expectValid: false, // no trailing slash
+		},
+		{
+			redirectURI: "ftp://*.example.com/",
+			expectValid: false, // wrong schema
+		},
+		{
+			// ipv6 address not used for wildcard (dns only)
+			redirectURI:  "https://fdda:5cc1:23:4::1f/foo",
+			expectValid:  false,
+		},
+	}
+
+	tAssert := assert.New(t)
+	for _, test := range tests {
+		result := splitClobberHttpRedirectUrl(test.redirectURI)
+		if result == nil {
+			tAssert.False(test.expectValid, "Valid result expected")
+		} else {
+			tAssert.Equal(test.expectScheme,result.Scheme, "scheme should match")
+			tAssert.Equal(test.expectPath,result.RawPath, "path should match")
+			tAssert.Equal(test.expectHostSplit,result.HostPair, "DomainComponents should match")
+
+			fullResult := createClientRedirectClobberMatcher(test.redirectURI)
+			tAssert.True(fullResult.HostMatcher != nil)
+		}
+	}
+}
+
+
 func TestValidRedirectURI(t *testing.T) {
 	tests := []struct {
 		client      storage.Client
@@ -381,13 +452,27 @@ func TestValidRedirectURI(t *testing.T) {
 			wantValid:   false,
 		},
 		{
-			// wildcard must be located in the subdomain furthest from the root domain.
-			//  https://abc.*.foo.com not ok.
+			// wildcard can be located in subdomain as long as not in top two domains
+			//  https://abc.*.foo.com ok.
 			client: storage.Client{
 				RedirectURIs: []string{"http://abc.*.foo.com/bar"},
 			},
 			redirectURI: "http://abc.123.foo.com/bar",
-			wantValid:   false,
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				RedirectURIs: []string{"http://**.foo.com/bar"},
+			},
+			redirectURI: "http://abc.123.foo.com/bar",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				RedirectURIs: []string{"http://a**.foo.com/bar"},
+			},
+			redirectURI: "http://abc.123.foo.com/bar",
+			wantValid:   true,
 		},
 		{
 			// wildcard may be prefixed and/or suffixed with additional valid hostname characters
@@ -463,33 +548,17 @@ func TestValidRedirectURI(t *testing.T) {
 	maxCacheSize := 3
 	wildcardCache, _ := lru.NewARC(maxCacheSize)
 
-	if maxCacheSize >= len(tests) {
-		t.Errorf("cache tests pre-condition is that mac cache size is less than test suite size" +
-			" cacheMax=%d testItemsSize=%d", maxCacheSize, len(tests))
-	}
-
-	var firstWildcardCache = ""
-	for i, test := range tests {
+	for _, test := range tests {
 		got := validateRedirectURI(test.client, wildcardCache, test.redirectURI)
 		if got != test.wantValid {
 			t.Errorf("client=%#v, redirectURI=%q, wanted valid=%t, got=%t",
 				test.client, test.redirectURI, test.wantValid, got)
 		}
-
-		// expect redirectURI last used should be stored in cache
-		if !test.client.Public && len(test.client.RedirectURIs) > 0 && test.redirectURI != test.client.RedirectURIs[0] {
-			if !wildcardCache.Contains(test.client.RedirectURIs[0]) {
-				t.Errorf("test[%d] should contain redirectURI as cache key %s", i, test.client.RedirectURIs[0])
-			}
-			if len(firstWildcardCache) == 0 {
-				firstWildcardCache = test.client.RedirectURIs[0]
-			}
-		}
 	}
 
-	if wildcardCache.Contains(firstWildcardCache) {
+	if wildcardCache.Len() == 0 {
 		// check eviction policed
-		t.Errorf("first redirectURI should have been evicted from cache %s", tests[0].client.RedirectURIs[0])
+		t.Errorf("cache should be in use")
 	}
 }
 
