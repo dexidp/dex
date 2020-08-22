@@ -91,6 +91,8 @@ type Config struct {
 	Logger log.Logger
 
 	PrometheusRegistry *prometheus.Registry
+
+	PublicURL string
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -131,6 +133,7 @@ func value(val, defaultValue time.Duration) time.Duration {
 // Server is the top level object.
 type Server struct {
 	issuerURL url.URL
+	publicURL url.URL
 
 	// mutex for the connectors map.
 	mu sync.Mutex
@@ -174,6 +177,16 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	issuerURL, err := url.Parse(c.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("server: can't parse issuer URL")
+	}
+
+	var publicURL *url.URL
+	if c.PublicURL == "" {
+		publicURL = issuerURL
+	} else {
+		publicURL, err = url.Parse(c.PublicURL)
+		if err != nil {
+			return nil, fmt.Errorf("server: can't parse public URL")
+		}
 	}
 
 	if c.Storage == nil {
@@ -225,6 +238,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		templates:              tmpls,
 		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
+		publicURL:              *publicURL,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -331,17 +345,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mux.ServeHTTP(w, r)
 }
 
-func (s *Server) absPath(pathItems ...string) string {
+func (s *Server) absPath(base url.URL, pathItems ...string) string {
 	paths := make([]string, len(pathItems)+1)
-	paths[0] = s.issuerURL.Path
+	paths[0] = base.Path
 	copy(paths[1:], pathItems)
 	return path.Join(paths...)
 }
 
-func (s *Server) absURL(pathItems ...string) string {
-	u := s.issuerURL
-	u.Path = s.absPath(pathItems...)
-	return u.String()
+func (s *Server) absURL(base url.URL, pathItems ...string) string {
+	base.Path = s.absPath(base, pathItems...)
+	return base.String()
 }
 
 func newPasswordDB(s storage.Storage) interface {
