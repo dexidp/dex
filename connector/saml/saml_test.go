@@ -53,6 +53,7 @@ type responseTest struct {
 	emailAttr     string
 	groupsAttr    string
 	allowedGroups []string
+	filterGroups  bool
 
 	// Expected outcome of the test.
 	wantErr   bool
@@ -116,6 +117,29 @@ func TestGroupsWhitelist(t *testing.T) {
 			Email:         "eric.chiang+okta@coreos.com",
 			EmailVerified: true,
 			Groups:        []string{"Admins", "Everyone"},
+		},
+	}
+	test.run(t)
+}
+
+func TestGroupsWhitelistWithFiltering(t *testing.T) {
+	test := responseTest{
+		caFile:        "testdata/ca.crt",
+		respFile:      "testdata/good-resp.xml",
+		now:           "2017-04-04T04:34:59.330Z",
+		usernameAttr:  "Name",
+		emailAttr:     "email",
+		groupsAttr:    "groups",
+		allowedGroups: []string{"Admins"},
+		filterGroups:  true,
+		inResponseTo:  "6zmm5mguyebwvajyf2sdwwcw6m",
+		redirectURI:   "http://127.0.0.1:5556/dex/callback",
+		wantIdent: connector.Identity{
+			UserID:        "eric.chiang+okta@coreos.com",
+			Username:      "Eric",
+			Email:         "eric.chiang+okta@coreos.com",
+			EmailVerified: true,
+			Groups:        []string{"Admins"}, // "Everyone" is filtered
 		},
 	}
 	test.run(t)
@@ -388,6 +412,7 @@ func (r responseTest) run(t *testing.T) {
 		RedirectURI:   r.redirectURI,
 		EntityIssuer:  r.entityIssuer,
 		AllowedGroups: r.allowedGroups,
+		FilterGroups:  r.filterGroups,
 		// Never logging in, don't need this.
 		SSOURL: "http://foo.bar/",
 	}

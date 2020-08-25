@@ -18,6 +18,14 @@ func (c *conn) migrate() (int, error) {
 
 	i := 0
 	done := false
+
+	var flavorMigrations []migration
+	for _, m := range migrations {
+		if m.flavor == nil || m.flavor == c.flavor {
+			flavorMigrations = append(flavorMigrations, m)
+		}
+	}
+
 	for {
 		err := c.ExecTx(func(tx *trans) error {
 			// Within a transaction, perform a single migration.
@@ -31,13 +39,13 @@ func (c *conn) migrate() (int, error) {
 			if num.Valid {
 				n = int(num.Int64)
 			}
-			if n >= len(migrations) {
+			if n >= len(flavorMigrations) {
 				done = true
 				return nil
 			}
 
 			migrationNum := n + 1
-			m := migrations[n]
+			m := flavorMigrations[n]
 			for i := range m.stmts {
 				if _, err := tx.Exec(m.stmts[i]); err != nil {
 					return fmt.Errorf("migration %d statement %d failed: %v", migrationNum, i+1, err)
@@ -64,7 +72,11 @@ func (c *conn) migrate() (int, error) {
 
 type migration struct {
 	stmts []string
-	// TODO(ericchiang): consider adding additional fields like "forDrivers"
+
+	// If flavor is nil the migration will take place for all database backend flavors.
+	// If specified, only for that corresponding flavor, in that case stmts can be written
+	// in the specific SQL dialect.
+	flavor *flavor
 }
 
 // All SQL flavors share migration strategies.
@@ -208,6 +220,14 @@ var migrations = []migration{
 				add column connector_data bytea;
 			`,
 		},
+	},
+	{
+		stmts: []string{`
+			alter table auth_request
+				modify column state varchar(4096);
+			`,
+		},
+		flavor: &flavorMySQL,
 	},
 	{
 		stmts: []string{`

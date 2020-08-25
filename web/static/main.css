@@ -68,9 +68,19 @@ body {
   background-size: contain;
 }
 
+.dex-btn-icon--oidc {
+  background-image: url(../static/img/oidc-icon.svg);
+  background-size: contain;
+}
+
 .dex-btn-icon--bitbucket-cloud {
   background-color: #205081;
   background-image: url(../static/img/bitbucket-icon.svg);
+}
+
+.dex-btn-icon--atlassian-crowd {
+  background-color: #CFDCEA;
+  background-image: url(../static/img/atlassian-crowd-icon.svg);
 }
 
 .dex-btn-icon--ldap {

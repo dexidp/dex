@@ -613,10 +613,9 @@ type Connector struct {
 	k8sapi.TypeMeta   `json:",inline"`
 	k8sapi.ObjectMeta `json:"metadata,omitempty"`
 
-	ID              string `json:"id,omitempty"`
-	Type            string `json:"type,omitempty"`
-	Name            string `json:"name,omitempty"`
-	ResourceVersion string `json:"resourceVersion,omitempty"`
+	ID   string `json:"id,omitempty"`
+	Type string `json:"type,omitempty"`
+	Name string `json:"name,omitempty"`
 	// Config holds connector specific configuration information
 	Config []byte `json:"config,omitempty"`
 }
@@ -631,11 +630,10 @@ func (cli *client) fromStorageConnector(c storage.Connector) Connector {
 			Name:      c.ID,
 			Namespace: cli.namespace,
 		},
-		ID:              c.ID,
-		Type:            c.Type,
-		Name:            c.Name,
-		ResourceVersion: c.ResourceVersion,
-		Config:          c.Config,
+		ID:     c.ID,
+		Type:   c.Type,
+		Name:   c.Name,
+		Config: c.Config,
 	}
 }
 
@@ -644,7 +642,7 @@ func toStorageConnector(c Connector) storage.Connector {
 		ID:              c.ID,
 		Type:            c.Type,
 		Name:            c.Name,
-		ResourceVersion: c.ResourceVersion,
+		ResourceVersion: c.ObjectMeta.ResourceVersion,
 		Config:          c.Config,
 	}
 }

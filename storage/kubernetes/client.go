@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
-	"github.com/gtank/cryptopasta"
 	"golang.org/x/net/http2"
 
 	"github.com/dexidp/dex/pkg/log"
@@ -253,8 +252,23 @@ func (cli *client) put(resource, name string, v interface{}) error {
 	return checkHTTPErr(resp, http.StatusOK)
 }
 
+// Copied from https://github.com/gtank/cryptopasta
+func defaultTLSConfig() *tls.Config {
+	return &tls.Config{
+		// Avoids most of the memorably-named TLS attacks
+		MinVersion: tls.VersionTLS12,
+		// Causes servers to use Go's default ciphersuite preferences,
+		// which are tuned to avoid attacks. Does nothing on clients.
+		PreferServerCipherSuites: true,
+		// Only use curves which have constant-time implementations
+		CurvePreferences: []tls.CurveID{
+			tls.CurveP256,
+		},
+	}
+}
+
 func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, logger log.Logger) (*client, error) {
-	tlsConfig := cryptopasta.DefaultTLSConfig()
+	tlsConfig := defaultTLSConfig()
 	data := func(b string, file string) ([]byte, error) {
 		if b != "" {
 			return base64.StdEncoding.DecodeString(b)
@@ -415,6 +429,9 @@ func inClusterConfig() (cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace 
 		err = fmt.Errorf("unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be defined")
 		return
 	}
+	// we need to wrap IPv6 addresses in square brackets
+	// IPv4 also works with square brackets
+	host = "[" + host + "]"
 	cluster = k8sapi.Cluster{
 		Server:               "https://" + host + ":" + port,
 		CertificateAuthority: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",

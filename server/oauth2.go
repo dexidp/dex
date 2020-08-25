@@ -121,6 +121,7 @@ const (
 const (
 	grantTypeAuthorizationCode = "authorization_code"
 	grantTypeRefreshToken      = "refresh_token"
+	grantTypePassword          = "password"
 )
 
 const (
@@ -512,7 +513,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		return nil, newErr("invalid_request", "Response type 'token' must be provided with type 'id_token' and/or 'code'")
 	}
 	if !rt.code {
-		// Either "id_token code" or "id_token" has been provided which implies the
+		// Either "id_token token" or "id_token" has been provided which implies the
 		// implicit flow. Implicit flow requires a nonce value.
 		//
 		// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitAuthRequest

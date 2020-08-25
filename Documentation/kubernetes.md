@@ -140,30 +140,47 @@ Create the dex deployment, configmap, and node port service. This will also crea
 $ kubectl create -f dex.yaml
 ```
 
-__Caveats:__ No health checking is configured because dex does its own TLS termination complicating the setup. This is a known issue and can be tracked [here][dex-healthz].
-
 ## Logging into the cluster
 
-The `example-app` can be used to log into the cluster and get an ID Token. To build the app, you can run `make` in the root of the repo and it will build the `example-app` binary in the repo's `bin` directory. To build the `example-app` requires at least a 1.7 version of Go.
+The `example-app` can be used to log into the cluster and get an ID Token. To build the app, run the following commands:
 
+```bash
+cd examples/example-app
+go install .
 ```
-$ ./bin/example-app --issuer https://dex.example.com:32000 --issuer-root-ca examples/k8s/ssl/ca.pem
+ 
+To build the `example-app` requires at least a 1.7 version of Go.
+
+```bash
+$ example-app --issuer https://dex.example.com:32000 --issuer-root-ca examples/k8s/ssl/ca.pem
 ```
 
 Please note that the `example-app` will listen at http://127.0.0.1:5555 and can be changed with the `--listen` flag.
 
-Once the example app is running, choose the GitHub option and grant access to dex to view your profile.
+Once the example app is running, open a browser and go to http://127.0.0.1:5555
+
+A page appears with fields such as scope and client-id. For the most basic case these are not required, so leave the form blank. Click login.
+
+On the next page, choose the GitHub option and grant access to dex to view your profile.
 
 The default redirect uri is http://127.0.0.1:5555/callback and can be changed with the `--redirect-uri` flag and should correspond with your configmap.
 
 Please note the redirect uri is different from the one you filled when creating `GitHub OAuth2 client credentials`. 
-When you login, GitHub first redirects to dex (https://dex.example.com:32000/callback), then dex redirects to the redirect uri of exampl-app.
+When you login, GitHub first redirects to dex (https://dex.example.com:32000/callback), then dex redirects to the redirect uri of example-app.
 
-The printed ID Token can then be used as a bearer token to authenticate against the API server.
+The printed "ID Token" can then be used as a bearer token to authenticate against the API server.
 
 ```
 $ token='(id token)'
 $ curl -H "Authorization: Bearer $token" -k https://( API server host ):443/api/v1/nodes
+```
+
+In the kubeconfig file ~/.kube/config, the format is:
+```
+users:
+- name: (USERNAME)
+  user:
+    token: (ID-TOKEN)
 ```
 
 [k8s-authz]: http://kubernetes.io/docs/admin/authorization/
@@ -171,7 +188,6 @@ $ curl -H "Authorization: Bearer $token" -k https://( API server host ):443/api/
 [trusted-peers]: https://godoc.org/github.com/dexidp/dex/storage#Client
 [coreos-kubernetes]: https://github.com/coreos/coreos-kubernetes/
 [coreos-baremetal]: https://github.com/coreos/coreos-baremetal/
-[dex-healthz]: https://github.com/dexidp/dex/issues/682
 [github-oauth2]: https://github.com/settings/applications/new
 [node-port]: http://kubernetes.io/docs/user-guide/services/#type-nodeport
 [coreos-kubernetes]: https://github.com/coreos/coreos-kubernetes

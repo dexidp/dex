@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/dexidp/dex/api"
+	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
@@ -153,7 +153,28 @@ func serve(cmd *cobra.Command, args []string) error {
 	logger.Infof("config storage: %s", c.Storage.Type)
 
 	if len(c.StaticClients) > 0 {
-		for _, client := range c.StaticClients {
+		for i, client := range c.StaticClients {
+			if client.Name == "" {
+				return fmt.Errorf("invalid config: Name field is required for a client")
+			}
+			if client.ID == "" && client.IDEnv == "" {
+				return fmt.Errorf("invalid config: ID or IDEnv field is required for a client")
+			}
+			if client.IDEnv != "" {
+				if client.ID != "" {
+					return fmt.Errorf("invalid config: ID and IDEnv fields are exclusive for client %q", client.ID)
+				}
+				c.StaticClients[i].ID = os.Getenv(client.IDEnv)
+			}
+			if client.Secret == "" && client.SecretEnv == "" && !client.Public {
+				return fmt.Errorf("invalid config: Secret or SecretEnv field is required for client %q", client.ID)
+			}
+			if client.SecretEnv != "" {
+				if client.Secret != "" {
+					return fmt.Errorf("invalid config: Secret and SecretEnv fields are exclusive for client %q", client.ID)
+				}
+				c.StaticClients[i].Secret = os.Getenv(client.SecretEnv)
+			}
 			logger.Infof("config static client: %s", client.Name)
 		}
 		s = storage.WithStaticClients(s, c.StaticClients)
@@ -201,6 +222,9 @@ func serve(cmd *cobra.Command, args []string) error {
 	if c.OAuth2.SkipApprovalScreen {
 		logger.Infof("config skipping approval screen")
 	}
+	if c.OAuth2.PasswordConnector != "" {
+		logger.Infof("config using password grant connector: %s", c.OAuth2.PasswordConnector)
+	}
 	if len(c.Web.AllowedOrigins) > 0 {
 		logger.Infof("config allowed origins: %s", c.Web.AllowedOrigins)
 	}
@@ -212,6 +236,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		SupportedResponseTypes: c.OAuth2.ResponseTypes,
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
+		PasswordConnector:      c.OAuth2.PasswordConnector,
 		AllowedOrigins:         c.Web.AllowedOrigins,
 		Issuer:                 c.Issuer,
 		Storage:                s,

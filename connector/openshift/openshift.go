@@ -177,6 +177,7 @@ func (c *openshiftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 		UserID:            user.UID,
 		Username:          user.Name,
 		PreferredUsername: user.Name,
+		Email:             user.Name,
 		Groups:            user.Groups,
 	}
 
@@ -226,7 +227,7 @@ func newHTTPClient(insecureCA bool, rootCA string) (*http.Client, error) {
 	if insecureCA {
 		tlsConfig = tls.Config{InsecureSkipVerify: true}
 	} else if rootCA != "" {
-		tlsConfig := tls.Config{RootCAs: x509.NewCertPool()}
+		tlsConfig = tls.Config{RootCAs: x509.NewCertPool()}
 		rootCABytes, err := ioutil.ReadFile(rootCA)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read root-ca: %v", err)

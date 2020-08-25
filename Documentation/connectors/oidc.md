@@ -83,6 +83,11 @@ connectors:
     # The set claim is used as user name.
     # Default: name
     # userNameKey: nickname
+
+    # For offline_access, the prompt parameter is set by default to "prompt=consent". 
+    # However this is not supported by all OIDC providers, some of them support different
+    # value for prompt, like "prompt=login" or "prompt=none"
+    # promptType: consent
 ```
 
 [oidc-doc]: openid-connect.md

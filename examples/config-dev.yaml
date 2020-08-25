@@ -12,6 +12,36 @@ storage:
   config:
     file: examples/dex.db
 
+  # type: mysql
+  # config:
+  #   host: localhost
+  #   port: 3306
+  #   database: dex
+  #   user: mysql
+  #   password: mysql
+  #   ssl:
+  #     mode: "false"
+
+  # type: postgres
+  # config:
+  #   host: localhost
+  #   port: 5432
+  #   database: dex
+  #   user: postgres
+  #   password: postgres
+  #   ssl:
+  #     mode: disable
+
+  # type: etcd
+  # config:
+  #   endpoints:
+  #     - http://localhost:2379
+  #   namespace: dex/
+
+  # type: kubernetes
+  # config:
+  #   kubeConfigFile: $HOME/.kube/config
+
 # Configuration for the HTTP endpoints.
 web:
   http: 0.0.0.0:5556
@@ -53,6 +83,8 @@ telemetry:
     # go directly to it. For connected IdPs, this redirects the browser away
     # from application to upstream provider such as the Google login page
 #   alwaysShowLoginScreen: false
+    # Uncommend the passwordConnector to use a specific connector for password grants
+#   passwordConnector: local
 
 # Instead of reading from an external storage, use this list of clients.
 #
@@ -68,7 +100,7 @@ connectors:
 - type: mockCallback
   id: mock
   name: Example
-# - type: oidc
+# - type: google
 #   id: google
 #   name: Google
 #   config:

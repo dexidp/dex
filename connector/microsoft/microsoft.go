@@ -36,6 +36,9 @@ const (
 	// Microsoft requires this scope to list groups the user is a member of
 	// and resolve their ids to groups names.
 	scopeGroups = "directory.read.all"
+	// Microsoft requires this scope to return a refresh token
+	// see https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-permissions-and-consent#offline_access
+	scopeOfflineAccess = "offline_access"
 )
 
 // Config holds configuration options for microsoft logins.
@@ -120,6 +123,10 @@ func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Confi
 	microsoftScopes := []string{scopeUser}
 	if c.groupsRequired(scopes.Groups) {
 		microsoftScopes = append(microsoftScopes, scopeGroups)
+	}
+
+	if scopes.OfflineAccess {
+		microsoftScopes = append(microsoftScopes, scopeOfflineAccess)
 	}
 
 	return &oauth2.Config{

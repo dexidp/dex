@@ -20,13 +20,10 @@ LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
 # Dependency versions
 GOLANGCI_VERSION = 1.21.0
 
-build: bin/dex bin/example-app bin/grpc-client
+build: bin/dex bin/grpc-client
 
 bin/dex:
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
-
-bin/example-app:
-	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/example-app
 
 bin/grpc-client:
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/grpc-client
@@ -34,12 +31,6 @@ bin/grpc-client:
 .PHONY: release-binary
 release-binary:
 	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
-
-.PHONY: revendor
-revendor:
-	@go mod tidy -v
-	@go mod vendor -v
-	@go mod verify
 
 test: bin/test/kube-apiserver bin/test/etcd
 	@go test -v ./...
@@ -80,6 +71,8 @@ docker-image:
 
 .PHONY: proto
 proto: bin/protoc bin/protoc-gen-go
+	@./bin/protoc --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go api/v2/*.proto
+	@cp api/v2/*.proto api/
 	@./bin/protoc --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go api/*.proto
 	@./bin/protoc --go_out=. --plugin=protoc-gen-go=./bin/protoc-gen-go server/internal/*.proto
 
@@ -91,7 +84,7 @@ bin/protoc: scripts/get-protoc
 	@./scripts/get-protoc bin/protoc
 
 bin/protoc-gen-go:
-	@go install -v $(REPO_PATH)/vendor/github.com/golang/protobuf/protoc-gen-go
+	@go install -v github.com/golang/protobuf/protoc-gen-go
 
 clean:
 	@rm -rf bin/

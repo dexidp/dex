@@ -185,7 +185,7 @@ func authorize(ctx context.Context, bearerToken string) (*user, error) {
 [api-server]: https://kubernetes.io/docs/admin/authentication/#openid-connect-tokens
 [dex-flow]: img/dex-flow.png
 [dex-backend-flow]: img/dex-backend-flow.png
-[example-app]: ../cmd/example-app
+[example-app]: ../examples/example-app
 [oauth2-threat-model]: https://tools.ietf.org/html/rfc6819
 [go-oidc]: https://godoc.org/github.com/coreos/go-oidc
 [go-oauth2]: https://godoc.org/golang.org/x/oauth2

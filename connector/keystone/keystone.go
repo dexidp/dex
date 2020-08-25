@@ -95,6 +95,14 @@ type groupsResponse struct {
 	Groups []group `json:"groups"`
 }
 
+type userResponse struct {
+	User struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+		ID    string `json:"id"`
+	} `json:"user"`
+}
+
 var (
 	_ connector.PasswordConnector = &conn{}
 	_ connector.RefreshConnector  = &conn{}
@@ -143,6 +151,16 @@ func (p *conn) Login(ctx context.Context, scopes connector.Scopes, username, pas
 	}
 	identity.Username = username
 	identity.UserID = tokenResp.Token.User.ID
+
+	user, err := p.getUser(ctx, tokenResp.Token.User.ID, token)
+	if err != nil {
+		return identity, false, err
+	}
+	if user.User.Email != "" {
+		identity.Email = user.User.Email
+		identity.EmailVerified = true
+	}
+
 	return identity, true, nil
 }
 
@@ -216,26 +234,43 @@ func (p *conn) getAdminToken(ctx context.Context) (string, error) {
 }
 
 func (p *conn) checkIfUserExists(ctx context.Context, userID string, token string) (bool, error) {
+	user, err := p.getUser(ctx, userID, token)
+	return user != nil, err
+}
+
+func (p *conn) getUser(ctx context.Context, userID string, token string) (*userResponse, error) {
 	// https://developer.openstack.org/api-ref/identity/v3/#show-user-details
 	userURL := p.Host + "/v3/users/" + userID
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", userURL, nil)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	req.Header.Set("X-Auth-Token", token)
 	req = req.WithContext(ctx)
 	resp, err := client.Do(req)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == 200 {
-		return true, nil
+	if resp.StatusCode != 200 {
+		return nil, err
 	}
-	return false, err
+
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	user := userResponse{}
+	err = json.Unmarshal(data, &user)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
 }
 
 func (p *conn) getUserGroups(ctx context.Context, userID string, token string) ([]string, error) {

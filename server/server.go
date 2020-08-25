@@ -21,8 +21,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/connector/atlassiancrowd"
 	"github.com/dexidp/dex/connector/authproxy"
 	"github.com/dexidp/dex/connector/bitbucketcloud"
+	"github.com/dexidp/dex/connector/gitea"
 	"github.com/dexidp/dex/connector/github"
 	"github.com/dexidp/dex/connector/gitlab"
 	"github.com/dexidp/dex/connector/google"
@@ -76,6 +78,8 @@ type Config struct {
 	RotateKeysAfter      time.Duration // Defaults to 6 hours.
 	IDTokensValidFor     time.Duration // Defaults to 24 hours
 	AuthRequestsValidFor time.Duration // Defaults to 24 hours
+	// If set, the server will use this connector to handle password grants
+	PasswordConnector string
 
 	GCFrequency time.Duration // Defaults to 5 minutes
 
@@ -144,6 +148,9 @@ type Server struct {
 
 	// If enabled, show the connector selection screen even if there's only one
 	alwaysShowLogin bool
+
+	// Used for password grant
+	passwordConnector string
 
 	supportedResponseTypes map[string]bool
 
@@ -216,6 +223,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		alwaysShowLogin:        c.AlwaysShowLoginScreen,
 		now:                    now,
 		templates:              tmpls,
+		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
 	}
 
@@ -461,6 +469,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"mockCallback":    func() ConnectorConfig { return new(mock.CallbackConfig) },
 	"mockPassword":    func() ConnectorConfig { return new(mock.PasswordConfig) },
 	"ldap":            func() ConnectorConfig { return new(ldap.Config) },
+	"gitea":           func() ConnectorConfig { return new(gitea.Config) },
 	"github":          func() ConnectorConfig { return new(github.Config) },
 	"gitlab":          func() ConnectorConfig { return new(gitlab.Config) },
 	"google":          func() ConnectorConfig { return new(google.Config) },
@@ -471,6 +480,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"microsoft":       func() ConnectorConfig { return new(microsoft.Config) },
 	"bitbucket-cloud": func() ConnectorConfig { return new(bitbucketcloud.Config) },
 	"openshift":       func() ConnectorConfig { return new(openshift.Config) },
+	"atlassian-crowd": func() ConnectorConfig { return new(atlassiancrowd.Config) },
 	// Keep around for backwards compatibility.
 	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
 }

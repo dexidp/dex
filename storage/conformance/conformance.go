@@ -601,11 +601,10 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 	id1 := storage.NewID()
 	config1 := []byte(`{"issuer": "https://accounts.google.com"}`)
 	c1 := storage.Connector{
-		ID:              id1,
-		Type:            "Default",
-		Name:            "Default",
-		ResourceVersion: "1",
-		Config:          config1,
+		ID:     id1,
+		Type:   "Default",
+		Name:   "Default",
+		Config: config1,
 	}
 
 	if err := s.CreateConnector(c1); err != nil {
@@ -619,11 +618,10 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 	id2 := storage.NewID()
 	config2 := []byte(`{"redirectURIi": "http://127.0.0.1:5556/dex/callback"}`)
 	c2 := storage.Connector{
-		ID:              id2,
-		Type:            "Mock",
-		Name:            "Mock",
-		ResourceVersion: "2",
-		Config:          config2,
+		ID:     id2,
+		Type:   "Mock",
+		Name:   "Mock",
+		Config: config2,
 	}
 
 	if err := s.CreateConnector(c2); err != nil {
@@ -636,6 +634,8 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 			t.Errorf("get connector: %v", err)
 			return
 		}
+		// ignore resource version comparison
+		gr.ResourceVersion = ""
 		if diff := pretty.Compare(want, gr); diff != "" {
 			t.Errorf("connector retrieved from storage did not match: %s", diff)
 		}
@@ -660,11 +660,15 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 			t.Errorf("list connectors: %v", err)
 			return
 		}
+		// ignore resource version comparison
+		for i := range connectors {
+			connectors[i].ResourceVersion = ""
+		}
 		sort.Slice(connectors, func(i, j int) bool {
 			return connectors[i].Name < connectors[j].Name
 		})
 		if diff := pretty.Compare(want, connectors); diff != "" {
-			t.Errorf("password list retrieved from storage did not match: %s", diff)
+			t.Errorf("connector list retrieved from storage did not match: %s", diff)
 		}
 	}
 	listAndCompare(connectorList)

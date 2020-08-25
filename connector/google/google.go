@@ -212,7 +212,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	}
 
 	var groups []string
-	if s.Groups && c.adminEmail != "" && c.serviceAccountFilePath != "" {
+	if s.Groups && c.adminSrv != nil {
 		groups, err = c.getGroups(claims.Email)
 		if err != nil {
 			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
@@ -251,7 +251,7 @@ func (c *googleConnector) getGroups(email string) ([]string, error) {
 		}
 
 		for _, group := range groupsList.Groups {
-			// TODO (joelspeed): Make desried group key configurable
+			// TODO (joelspeed): Make desired group key configurable
 			userGroups = append(userGroups, group.Email)
 		}
 
@@ -267,6 +267,12 @@ func (c *googleConnector) getGroups(email string) ([]string, error) {
 // sets up super user impersonation and creates an admin client for calling
 // the google admin api
 func createDirectoryService(serviceAccountFilePath string, email string) (*admin.Service, error) {
+	if serviceAccountFilePath == "" && email == "" {
+		return nil, nil
+	}
+	if serviceAccountFilePath == "" || email == "" {
+		return nil, fmt.Errorf("directory service requires both serviceAccountFilePath and adminEmail")
+	}
 	jsonCredentials, err := ioutil.ReadFile(serviceAccountFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading credentials from file: %v", err)

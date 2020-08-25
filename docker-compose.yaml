@@ -1,0 +1,39 @@
+# This docker-compose file provides quick setups for testing different storage backend options.
+version: "3.8"
+services:
+  mysql:
+    # For using percona-xtradb you need to make strict mode permissive with:
+    # docker-compose exec mysql mysql -uroot -proot -e "SET GLOBAL pxc_strict_mode=PERMISSIVE;"
+    # See: https://www.percona.com/doc/percona-xtradb-cluster/5.7/features/pxc-strict-mode.html
+    # image: percona/percona-xtradb-cluster:5.7
+    # image: mariadb:10.5
+    # image: mysql:5.6
+    # image: mysql:8.0
+    image: mysql:5.7
+    environment:
+      MYSQL_DATABASE: dex
+      MYSQL_USER: mysql
+      MYSQL_PASSWORD: mysql
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "127.0.0.1:3306:3306"
+
+  postgres:
+    image: postgres:10.8
+    environment:
+      POSTGRES_DB: dex
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  etcd:
+    image: gcr.io/etcd-development/etcd:v3.2.9
+    environment:
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS: http://0.0.0.0:2379
+    ports:
+      - "127.0.0.1:2379:2379"
+
+  # For testing the Kubernetes storage backend we suggest https://kind.sigs.k8s.io/:
+  # kind create cluster

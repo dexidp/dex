@@ -113,8 +113,10 @@ type Storage interface {
 //   * Public clients: https://developers.google.com/api-client-library/python/auth/installed-app
 type Client struct {
 	// Client ID and secret used to identify the client.
-	ID     string `json:"id" yaml:"id"`
-	Secret string `json:"secret" yaml:"secret"`
+	ID        string `json:"id" yaml:"id"`
+	IDEnv     string `json:"idEnv" yaml:"idEnv"`
+	Secret    string `json:"secret" yaml:"secret"`
+	SecretEnv string `json:"secretEnv" yaml:"secretEnv"`
 
 	// A registered set of redirect URIs. When redirecting from dex to the client, the URI
 	// requested to redirect to MUST match one of these values, unless the client is "public".
