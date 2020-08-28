@@ -64,6 +64,7 @@ telemetry:
 
 # Uncomment this block to enable configuration for the expiration time durations.
 # expiry:
+#   deviceRequests: "5m"
 #   signingKeys: "6h"
 #   idTokens: "24h"
 
@@ -95,7 +96,11 @@ staticClients:
   - 'http://127.0.0.1:5555/callback'
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
-
+#  - id: example-device-client
+#    redirectURIs:
+#      - /device/callback
+#    name: 'Static Client for Device Flow'
+#    public: true
 connectors:
 - type: mockCallback
   id: mock

@@ -44,6 +44,8 @@ func cleanDB(c *conn) error {
 		passwordPrefix,
 		offlineSessionPrefix,
 		connectorPrefix,
+		deviceRequestPrefix,
+		deviceTokenPrefix,
 	} {
 		_, err := c.db.Delete(ctx, prefix, clientv3.WithPrefix())
 		if err != nil {
