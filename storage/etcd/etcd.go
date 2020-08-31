@@ -22,6 +22,8 @@ const (
 	offlineSessionPrefix = "offline_session/"
 	connectorPrefix      = "connector/"
 	keysName             = "openid-connect-keys"
+	deviceRequestPrefix  = "device_req/"
+	deviceTokenPrefix    = "device_token/"
 
 	// defaultStorageTimeout will be applied to all storage's operations.
 	defaultStorageTimeout = 5 * time.Second
@@ -70,6 +72,36 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 				delErr = fmt.Errorf("failed to delete auth code: %v", err)
 			}
 			result.AuthCodes++
+		}
+	}
+
+	deviceRequests, err := c.listDeviceRequests(ctx)
+	if err != nil {
+		return result, err
+	}
+
+	for _, deviceRequest := range deviceRequests {
+		if now.After(deviceRequest.Expiry) {
+			if err := c.deleteKey(ctx, keyID(deviceRequestPrefix, deviceRequest.UserCode)); err != nil {
+				c.logger.Errorf("failed to delete device request %v", err)
+				delErr = fmt.Errorf("failed to delete device request: %v", err)
+			}
+			result.DeviceRequests++
+		}
+	}
+
+	deviceTokens, err := c.listDeviceTokens(ctx)
+	if err != nil {
+		return result, err
+	}
+
+	for _, deviceToken := range deviceTokens {
+		if now.After(deviceToken.Expiry) {
+			if err := c.deleteKey(ctx, keyID(deviceTokenPrefix, deviceToken.DeviceCode)); err != nil {
+				c.logger.Errorf("failed to delete device token %v", err)
+				delErr = fmt.Errorf("failed to delete device token: %v", err)
+			}
+			result.DeviceTokens++
 		}
 	}
 	return result, delErr
@@ -530,4 +562,78 @@ func keyID(prefix, id string) string       { return prefix + id }
 func keyEmail(prefix, email string) string { return prefix + strings.ToLower(email) }
 func keySession(prefix, userID, connID string) string {
 	return prefix + strings.ToLower(userID+"|"+connID)
+}
+
+func (c *conn) CreateDeviceRequest(d storage.DeviceRequest) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnCreate(ctx, keyID(deviceRequestPrefix, d.UserCode), fromStorageDeviceRequest(d))
+}
+
+func (c *conn) GetDeviceRequest(userCode string) (r storage.DeviceRequest, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	err = c.getKey(ctx, keyID(deviceRequestPrefix, userCode), &r)
+	return r, err
+}
+
+func (c *conn) listDeviceRequests(ctx context.Context) (requests []DeviceRequest, err error) {
+	res, err := c.db.Get(ctx, deviceRequestPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return requests, err
+	}
+	for _, v := range res.Kvs {
+		var r DeviceRequest
+		if err = json.Unmarshal(v.Value, &r); err != nil {
+			return requests, err
+		}
+		requests = append(requests, r)
+	}
+	return requests, nil
+}
+
+func (c *conn) CreateDeviceToken(t storage.DeviceToken) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnCreate(ctx, keyID(deviceTokenPrefix, t.DeviceCode), fromStorageDeviceToken(t))
+}
+
+func (c *conn) GetDeviceToken(deviceCode string) (t storage.DeviceToken, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	err = c.getKey(ctx, keyID(deviceTokenPrefix, deviceCode), &t)
+	return t, err
+}
+
+func (c *conn) listDeviceTokens(ctx context.Context) (deviceTokens []DeviceToken, err error) {
+	res, err := c.db.Get(ctx, deviceTokenPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return deviceTokens, err
+	}
+	for _, v := range res.Kvs {
+		var dt DeviceToken
+		if err = json.Unmarshal(v.Value, &dt); err != nil {
+			return deviceTokens, err
+		}
+		deviceTokens = append(deviceTokens, dt)
+	}
+	return deviceTokens, nil
+}
+
+func (c *conn) UpdateDeviceToken(deviceCode string, updater func(old storage.DeviceToken) (storage.DeviceToken, error)) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnUpdate(ctx, keyID(deviceTokenPrefix, deviceCode), func(currentValue []byte) ([]byte, error) {
+		var current DeviceToken
+		if len(currentValue) > 0 {
+			if err := json.Unmarshal(currentValue, &current); err != nil {
+				return nil, err
+			}
+		}
+		updated, err := updater(toStorageDeviceToken(current))
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(fromStorageDeviceToken(updated))
+	})
 }

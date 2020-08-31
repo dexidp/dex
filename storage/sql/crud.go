@@ -100,6 +100,23 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 	if n, err := r.RowsAffected(); err == nil {
 		result.AuthCodes = n
 	}
+
+	r, err = c.Exec(`delete from device_request where expiry < $1`, now)
+	if err != nil {
+		return result, fmt.Errorf("gc device_request: %v", err)
+	}
+	if n, err := r.RowsAffected(); err == nil {
+		result.DeviceRequests = n
+	}
+
+	r, err = c.Exec(`delete from device_token where expiry < $1`, now)
+	if err != nil {
+		return result, fmt.Errorf("gc device_token: %v", err)
+	}
+	if n, err := r.RowsAffected(); err == nil {
+		result.DeviceTokens = n
+	}
+
 	return
 }
 
@@ -877,4 +894,114 @@ func (c *conn) delete(table, field, id string) error {
 		return storage.ErrNotFound
 	}
 	return nil
+}
+
+func (c *conn) CreateDeviceRequest(d storage.DeviceRequest) error {
+	_, err := c.Exec(`
+		insert into device_request (
+			user_code, device_code, client_id, client_secret, scopes, expiry
+		)
+		values (
+			$1, $2, $3, $4, $5, $6
+		);`,
+		d.UserCode, d.DeviceCode, d.ClientID, d.ClientSecret, encoder(d.Scopes), d.Expiry,
+	)
+	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
+		return fmt.Errorf("insert device request: %v", err)
+	}
+	return nil
+}
+
+func (c *conn) CreateDeviceToken(t storage.DeviceToken) error {
+	_, err := c.Exec(`
+		insert into device_token (
+			device_code, status, token, expiry, last_request, poll_interval
+		)
+		values (
+			$1, $2, $3, $4, $5, $6
+		);`,
+		t.DeviceCode, t.Status, t.Token, t.Expiry, t.LastRequestTime, t.PollIntervalSeconds,
+	)
+	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
+		return fmt.Errorf("insert device token: %v", err)
+	}
+	return nil
+}
+
+func (c *conn) GetDeviceRequest(userCode string) (storage.DeviceRequest, error) {
+	return getDeviceRequest(c, userCode)
+}
+
+func getDeviceRequest(q querier, userCode string) (d storage.DeviceRequest, err error) {
+	err = q.QueryRow(`
+		select
+            device_code, client_id, client_secret, scopes, expiry
+		from device_request where user_code = $1;
+	`, userCode).Scan(
+		&d.DeviceCode, &d.ClientID, &d.ClientSecret, decoder(&d.Scopes), &d.Expiry,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return d, storage.ErrNotFound
+		}
+		return d, fmt.Errorf("select device token: %v", err)
+	}
+	d.UserCode = userCode
+	return d, nil
+}
+
+func (c *conn) GetDeviceToken(deviceCode string) (storage.DeviceToken, error) {
+	return getDeviceToken(c, deviceCode)
+}
+
+func getDeviceToken(q querier, deviceCode string) (a storage.DeviceToken, err error) {
+	err = q.QueryRow(`
+		select
+            status, token, expiry, last_request, poll_interval
+		from device_token where device_code = $1;
+	`, deviceCode).Scan(
+		&a.Status, &a.Token, &a.Expiry, &a.LastRequestTime, &a.PollIntervalSeconds,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return a, storage.ErrNotFound
+		}
+		return a, fmt.Errorf("select device token: %v", err)
+	}
+	a.DeviceCode = deviceCode
+	return a, nil
+}
+
+func (c *conn) UpdateDeviceToken(deviceCode string, updater func(old storage.DeviceToken) (storage.DeviceToken, error)) error {
+	return c.ExecTx(func(tx *trans) error {
+		r, err := getDeviceToken(tx, deviceCode)
+		if err != nil {
+			return err
+		}
+		if r, err = updater(r); err != nil {
+			return err
+		}
+		_, err = tx.Exec(`
+			update device_token
+			set
+				status = $1, 
+				token = $2,
+				last_request = $3,
+				poll_interval = $4
+			where
+				device_code = $5
+		`,
+			r.Status, r.Token, r.LastRequestTime, r.PollIntervalSeconds, r.DeviceCode,
+		)
+		if err != nil {
+			return fmt.Errorf("update device token: %v", err)
+		}
+		return nil
+	})
 }

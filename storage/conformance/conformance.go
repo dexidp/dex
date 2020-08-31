@@ -49,6 +49,8 @@ func RunTests(t *testing.T, newStorage func() storage.Storage) {
 		{"ConnectorCRUD", testConnectorCRUD},
 		{"GarbageCollection", testGC},
 		{"TimezoneSupport", testTimezones},
+		{"DeviceRequestCRUD", testDeviceRequestCRUD},
+		{"DeviceTokenCRUD", testDeviceTokenCRUD},
 	})
 }
 
@@ -844,6 +846,87 @@ func testGC(t *testing.T, s storage.Storage) {
 	} else if err != storage.ErrNotFound {
 		t.Errorf("expected storage.ErrNotFound, got %v", err)
 	}
+
+	userCode, err := storage.NewUserCode()
+	if err != nil {
+		t.Errorf("Unexpected Error: %v", err)
+	}
+
+	d := storage.DeviceRequest{
+		UserCode:     userCode,
+		DeviceCode:   storage.NewID(),
+		ClientID:     "client1",
+		ClientSecret: "secret1",
+		Scopes:       []string{"openid", "email"},
+		Expiry:       expiry,
+	}
+
+	if err := s.CreateDeviceRequest(d); err != nil {
+		t.Fatalf("failed creating device request: %v", err)
+	}
+
+	for _, tz := range []*time.Location{time.UTC, est, pst} {
+		result, err := s.GarbageCollect(expiry.Add(-time.Hour).In(tz))
+		if err != nil {
+			t.Errorf("garbage collection failed: %v", err)
+		} else {
+			if result.DeviceRequests != 0 {
+				t.Errorf("expected no device garbage collection results, got %#v", result)
+			}
+		}
+		if _, err := s.GetDeviceRequest(d.UserCode); err != nil {
+			t.Errorf("expected to be able to get auth request after GC: %v", err)
+		}
+	}
+	if r, err := s.GarbageCollect(expiry.Add(time.Hour)); err != nil {
+		t.Errorf("garbage collection failed: %v", err)
+	} else if r.DeviceRequests != 1 {
+		t.Errorf("expected to garbage collect 1 device request, got %d", r.DeviceRequests)
+	}
+
+	if _, err := s.GetDeviceRequest(d.UserCode); err == nil {
+		t.Errorf("expected device request to be GC'd")
+	} else if err != storage.ErrNotFound {
+		t.Errorf("expected storage.ErrNotFound, got %v", err)
+	}
+
+	dt := storage.DeviceToken{
+		DeviceCode:          storage.NewID(),
+		Status:              "pending",
+		Token:               "foo",
+		Expiry:              expiry,
+		LastRequestTime:     time.Now(),
+		PollIntervalSeconds: 0,
+	}
+
+	if err := s.CreateDeviceToken(dt); err != nil {
+		t.Fatalf("failed creating device token: %v", err)
+	}
+
+	for _, tz := range []*time.Location{time.UTC, est, pst} {
+		result, err := s.GarbageCollect(expiry.Add(-time.Hour).In(tz))
+		if err != nil {
+			t.Errorf("garbage collection failed: %v", err)
+		} else {
+			if result.DeviceTokens != 0 {
+				t.Errorf("expected no device token garbage collection results, got %#v", result)
+			}
+		}
+		if _, err := s.GetDeviceToken(dt.DeviceCode); err != nil {
+			t.Errorf("expected to be able to get device token after GC: %v", err)
+		}
+	}
+	if r, err := s.GarbageCollect(expiry.Add(time.Hour)); err != nil {
+		t.Errorf("garbage collection failed: %v", err)
+	} else if r.DeviceTokens != 1 {
+		t.Errorf("expected to garbage collect 1 device token, got %d", r.DeviceTokens)
+	}
+
+	if _, err := s.GetDeviceToken(dt.DeviceCode); err == nil {
+		t.Errorf("expected device token to be GC'd")
+	} else if err != storage.ErrNotFound {
+		t.Errorf("expected storage.ErrNotFound, got %v", err)
+	}
 }
 
 // testTimezones tests that backends either fully support timezones or
@@ -889,5 +972,74 @@ func testTimezones(t *testing.T, s storage.Storage) {
 	wantTime := expiry
 	if !gotTime.Equal(wantTime) {
 		t.Fatalf("expected expiry %v got %v", wantTime, gotTime)
+	}
+}
+
+func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
+	userCode, err := storage.NewUserCode()
+	if err != nil {
+		panic(err)
+	}
+	d1 := storage.DeviceRequest{
+		UserCode:     userCode,
+		DeviceCode:   storage.NewID(),
+		ClientID:     "client1",
+		ClientSecret: "secret1",
+		Scopes:       []string{"openid", "email"},
+		Expiry:       neverExpire,
+	}
+
+	if err := s.CreateDeviceRequest(d1); err != nil {
+		t.Fatalf("failed creating device request: %v", err)
+	}
+
+	// Attempt to create same DeviceRequest twice.
+	err = s.CreateDeviceRequest(d1)
+	mustBeErrAlreadyExists(t, "device request", err)
+
+	//No manual deletes for device requests, will be handled by garbage collection routines
+	//see testGC
+}
+
+func testDeviceTokenCRUD(t *testing.T, s storage.Storage) {
+	//Create a Token
+	d1 := storage.DeviceToken{
+		DeviceCode:          storage.NewID(),
+		Status:              "pending",
+		Token:               storage.NewID(),
+		Expiry:              neverExpire,
+		LastRequestTime:     time.Now(),
+		PollIntervalSeconds: 0,
+	}
+
+	if err := s.CreateDeviceToken(d1); err != nil {
+		t.Fatalf("failed creating device token: %v", err)
+	}
+
+	// Attempt to create same Device Token twice.
+	err := s.CreateDeviceToken(d1)
+	mustBeErrAlreadyExists(t, "device token", err)
+
+	//Update the device token, simulate a redemption
+	if err := s.UpdateDeviceToken(d1.DeviceCode, func(old storage.DeviceToken) (storage.DeviceToken, error) {
+		old.Token = "token data"
+		old.Status = "complete"
+		return old, nil
+	}); err != nil {
+		t.Fatalf("failed to update device token: %v", err)
+	}
+
+	//Retrieve the device token
+	got, err := s.GetDeviceToken(d1.DeviceCode)
+	if err != nil {
+		t.Fatalf("failed to get device token: %v", err)
+	}
+
+	//Validate expected result set
+	if got.Status != "complete" {
+		t.Fatalf("update failed, wanted token status=%v got %v", "complete", got.Status)
+	}
+	if got.Token != "token data" {
+		t.Fatalf("update failed, wanted token %v got %v", "token data", got.Token)
 	}
 }

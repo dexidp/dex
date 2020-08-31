@@ -160,6 +160,8 @@ type discovery struct {
 	Token             string   `json:"token_endpoint"`
 	Keys              string   `json:"jwks_uri"`
 	UserInfo          string   `json:"userinfo_endpoint"`
+	DeviceEndpoint    string   `json:"device_authorization_endpoint"`
+	GrantTypes        []string `json:"grant_types_supported"`
 	ResponseTypes     []string `json:"response_types_supported"`
 	Subjects          []string `json:"subject_types_supported"`
 	IDTokenAlgs       []string `json:"id_token_signing_alg_values_supported"`
@@ -176,7 +178,9 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 		Token:             s.absURL("/token"),
 		Keys:              s.absURL("/keys"),
 		UserInfo:          s.absURL("/userinfo"),
+		DeviceEndpoint:    s.absURL("/device/code"),
 		Subjects:          []string{"public"},
+		GrantTypes:        []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode},
 		IDTokenAlgs:       []string{string(jose.RS256)},
 		CodeChallengeAlgs: []string{CodeChallengeMethodS256, CodeChallengeMethodPlain},
 		Scopes:            []string{"openid", "email", "groups", "profile", "offline_access"},
@@ -838,24 +842,33 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		return
 	}
 
+	tokenResponse, err := s.exchangeAuthCode(w, authCode, client)
+	if err != nil {
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+	s.writeAccessToken(w, tokenResponse)
+}
+
+func (s *Server) exchangeAuthCode(w http.ResponseWriter, authCode storage.AuthCode, client storage.Client) (*accessTokenReponse, error) {
 	accessToken, err := s.newAccessToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create new access token: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
 	idToken, expiry, err := s.newIDToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, accessToken, authCode.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create ID token: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
-	if err := s.storage.DeleteAuthCode(code); err != nil {
+	if err := s.storage.DeleteAuthCode(authCode.ID); err != nil {
 		s.logger.Errorf("failed to delete auth code: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
 	reqRefresh := func() bool {
@@ -902,13 +915,13 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		if refreshToken, err = internal.Marshal(token); err != nil {
 			s.logger.Errorf("failed to marshal refresh token: %v", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-			return
+			return nil, err
 		}
 
 		if err := s.storage.CreateRefresh(refresh); err != nil {
 			s.logger.Errorf("failed to create refresh token: %v", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-			return
+			return nil, err
 		}
 
 		// deleteToken determines if we need to delete the newly created refresh token
@@ -939,7 +952,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 				s.logger.Errorf("failed to get offline session: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 				deleteToken = true
-				return
+				return nil, err
 			}
 			offlineSessions := storage.OfflineSessions{
 				UserID:  refresh.Claims.UserID,
@@ -954,7 +967,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 				s.logger.Errorf("failed to create offline session: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 				deleteToken = true
-				return
+				return nil, err
 			}
 		} else {
 			if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
@@ -963,7 +976,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 					s.logger.Errorf("failed to delete refresh token: %v", err)
 					s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 					deleteToken = true
-					return
+					return nil, err
 				}
 			}
 
@@ -975,11 +988,11 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 				s.logger.Errorf("failed to update offline session: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 				deleteToken = true
-				return
+				return nil, err
 			}
 		}
 	}
-	s.writeAccessToken(w, idToken, accessToken, refreshToken, expiry)
+	return s.toAccessTokenResponse(idToken, accessToken, refreshToken, expiry), nil
 }
 
 // handle a refresh token request https://tools.ietf.org/html/rfc6749#section-6
@@ -1175,7 +1188,8 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 
-	s.writeAccessToken(w, idToken, accessToken, rawNewToken, expiry)
+	resp := s.toAccessTokenResponse(idToken, accessToken, rawNewToken, expiry)
+	s.writeAccessToken(w, resp)
 }
 
 func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
@@ -1422,23 +1436,29 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		}
 	}
 
-	s.writeAccessToken(w, idToken, accessToken, refreshToken, expiry)
+	resp := s.toAccessTokenResponse(idToken, accessToken, refreshToken, expiry)
+	s.writeAccessToken(w, resp)
 }
 
-func (s *Server) writeAccessToken(w http.ResponseWriter, idToken, accessToken, refreshToken string, expiry time.Time) {
-	resp := struct {
-		AccessToken  string `json:"access_token"`
-		TokenType    string `json:"token_type"`
-		ExpiresIn    int    `json:"expires_in"`
-		RefreshToken string `json:"refresh_token,omitempty"`
-		IDToken      string `json:"id_token"`
-	}{
+type accessTokenReponse struct {
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	IDToken      string `json:"id_token"`
+}
+
+func (s *Server) toAccessTokenResponse(idToken, accessToken, refreshToken string, expiry time.Time) *accessTokenReponse {
+	return &accessTokenReponse{
 		accessToken,
 		"bearer",
 		int(expiry.Sub(s.now()).Seconds()),
 		refreshToken,
 		idToken,
 	}
+}
+
+func (s *Server) writeAccessToken(w http.ResponseWriter, resp *accessTokenReponse) {
 	data, err := json.Marshal(resp)
 	if err != nil {
 		s.logger.Errorf("failed to marshal access token response: %v", err)

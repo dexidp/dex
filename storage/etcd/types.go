@@ -230,3 +230,56 @@ func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
 	}
 	return s
 }
+
+// DeviceRequest is a mirrored struct from storage with JSON struct tags
+type DeviceRequest struct {
+	UserCode     string    `json:"user_code"`
+	DeviceCode   string    `json:"device_code"`
+	ClientID     string    `json:"client_id"`
+	ClientSecret string    `json:"client_secret"`
+	Scopes       []string  `json:"scopes"`
+	Expiry       time.Time `json:"expiry"`
+}
+
+func fromStorageDeviceRequest(d storage.DeviceRequest) DeviceRequest {
+	return DeviceRequest{
+		UserCode:     d.UserCode,
+		DeviceCode:   d.DeviceCode,
+		ClientID:     d.ClientID,
+		ClientSecret: d.ClientSecret,
+		Scopes:       d.Scopes,
+		Expiry:       d.Expiry,
+	}
+}
+
+// DeviceToken is a mirrored struct from storage with JSON struct tags
+type DeviceToken struct {
+	DeviceCode          string    `json:"device_code"`
+	Status              string    `json:"status"`
+	Token               string    `json:"token"`
+	Expiry              time.Time `json:"expiry"`
+	LastRequestTime     time.Time `json:"last_request"`
+	PollIntervalSeconds int       `json:"poll_interval"`
+}
+
+func fromStorageDeviceToken(t storage.DeviceToken) DeviceToken {
+	return DeviceToken{
+		DeviceCode:          t.DeviceCode,
+		Status:              t.Status,
+		Token:               t.Token,
+		Expiry:              t.Expiry,
+		LastRequestTime:     t.LastRequestTime,
+		PollIntervalSeconds: t.PollIntervalSeconds,
+	}
+}
+
+func toStorageDeviceToken(t DeviceToken) storage.DeviceToken {
+	return storage.DeviceToken{
+		DeviceCode:          t.DeviceCode,
+		Status:              t.Status,
+		Token:               t.Token,
+		Expiry:              t.Expiry,
+		LastRequestTime:     t.LastRequestTime,
+		PollIntervalSeconds: t.PollIntervalSeconds,
+	}
+}

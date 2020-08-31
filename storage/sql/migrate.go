@@ -231,6 +231,27 @@ var migrations = []migration{
 	},
 	{
 		stmts: []string{`
+			create table device_request (
+				user_code text not null primary key,
+				device_code text not null,
+				client_id text not null,
+				client_secret text ,
+				scopes bytea not null, -- JSON array of strings
+				expiry timestamptz not null
+			);`,
+			`
+			create table device_token (
+				device_code text not null primary key,
+				status text not null,
+				token bytea,
+				expiry timestamptz not null,
+				last_request timestamptz not null,
+                poll_interval integer not null
+			);`,
+		},
+	},
+	{
+		stmts: []string{`
 			alter table auth_request
 				add column code_challenge text not null default '';`,
 			`
