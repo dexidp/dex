@@ -85,6 +85,8 @@ func (s *StorageTestSuite) TestStorage() {
 		for _, resource := range []string{
 			resourceAuthCode,
 			resourceAuthRequest,
+			resourceDeviceRequest,
+			resourceDeviceToken,
 			resourceClient,
 			resourceRefreshToken,
 			resourceKeys,
