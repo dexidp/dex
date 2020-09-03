@@ -601,7 +601,8 @@ func validateRedirectURI(client storage.Client, wildcardCache *lru.ARCCache, red
 			if urlRequested, err := url.Parse(redirectURI); err == nil && urlRequested != nil {
 				// validly-formed url
 				clobberMatcher := getClobberHostMatcher(uri, wildcardCache)
-				if clobberMatcher.HostMatcher != nil && matchesClobber(clobberMatcher, urlRequested) {
+				validClobber := clobberMatcher.HostMatcher != nil && clobberMatcher.ClientRedirectURL != nil
+				if validClobber && matchesClobber(clobberMatcher, urlRequested) {
 					// clobber match success
 					return true
 				}
@@ -631,16 +632,16 @@ func validateRedirectURI(client storage.Client, wildcardCache *lru.ARCCache, red
 }
 
 func matchesClobber(clobberMatcher ClientRedirectClobberMatcher, urlRequested *url.URL) bool {
-	if !clobberMatcher.HostMatcher.MatchString(urlRequested.Host) {
-		// failed host match
+	if clobberMatcher.ClientRedirectURL.Path != urlRequested.Path {
+		// failed path match
 		return false
 	}
-	if clobberMatcher.ClientRedirectURLSections.Scheme != urlRequested.Scheme {
+	if clobberMatcher.ClientRedirectURL.Scheme != urlRequested.Scheme {
 		// failed scheme match
 		return false
 	}
-	if clobberMatcher.ClientRedirectURLSections.RawPath != urlRequested.Path {
-		// failed path match
+	if !clobberMatcher.HostMatcher.MatchString(urlRequested.Host) {
+		// failed host match
 		return false
 	}
 	return true
@@ -651,108 +652,79 @@ type HostSplit struct {
 	SubDomainPrefix string // e.g.  dom.abc (from dom.abc.example.com)
 }
 
-type ClobberURLSectional struct {
-	Scheme   string     // scheme: `http` or `https`
-	HostPair *HostSplit // leading from top-level to subsequent subdomains
-	RawPath  string     // path: requires leading slash; and includes fragments and query params
-}
-
 type ClientRedirectClobberMatcher struct {
-	ClientRedirectURL string
-	ClientRedirectURLSections *ClobberURLSectional
-	HostMatcher *regexp.Regexp
+	ClientRedirectURL *url.URL
+	HostMatcher       *regexp.Regexp
 }
 
-// Returns a clobber/wildcard subdomain matcher struct.  The `ClientRedirectURLSections`
-// and `ClientRedirectURLSections` pointers will be nil if clientRedirectURI does not meet
-// the requirements to perform as a clobber/wildcard matcher.  ClientRedirectURL is always set.
+// Returns a clobber/wildcard subdomain matcher struct
 func createClientRedirectClobberMatcher(clientRedirectURI string) ClientRedirectClobberMatcher {
 
-	splitResult := splitClobberHttpRedirectUrl(clientRedirectURI)
-	if splitResult == nil || splitResult.HostPair == nil {
-		// does not meet basic wildcard usage requirements regarding scheme or path
-		return  ClientRedirectClobberMatcher{
-			ClientRedirectURL: clientRedirectURI,
-		}
+	redirectUrl, _ := url.Parse(clientRedirectURI)
+	if redirectUrl == nil {
+		return ClientRedirectClobberMatcher{}
 	}
-
-	clobberMatcher := ClientRedirectClobberMatcher{
-		ClientRedirectURL: clientRedirectURI,
-		ClientRedirectURLSections: splitResult,
+	splitResult := splitClobberHttpRedirectUrl(redirectUrl)
+	if splitResult == nil {
+		// not wildcard or invalid
+		return ClientRedirectClobberMatcher{}
 	}
 
 	// first replace double-asterisk globber with .+
-	var subdomain = strings.ReplaceAll(regexp.QuoteMeta(splitResult.HostPair.SubDomainPrefix), "\\*\\*", ".+")
+	var subdomain = strings.ReplaceAll(regexp.QuoteMeta(splitResult.SubDomainPrefix), "\\*\\*", ".+")
 	subdomain = strings.ReplaceAll(subdomain, "\\*", "[^.]+")
 
-	hostNameRegExStr := "^" + subdomain + "\\." + splitResult.HostPair.HostSuffix + "$"
+	hostNameRegExStr := "^" + subdomain + "\\." + regexp.QuoteMeta(splitResult.HostSuffix) + "$"
 
 	hostNameRegEx, err := regexp.Compile(hostNameRegExStr)
 	if err != nil {
 		// bad pattern - unexpected
-		return clobberMatcher
+		return ClientRedirectClobberMatcher{}
 	}
 
-	clobberMatcher.HostMatcher = hostNameRegEx
-	return clobberMatcher
+	return ClientRedirectClobberMatcher{
+		ClientRedirectURL: redirectUrl,
+		HostMatcher:       hostNameRegEx,
+	}
 }
 
-// This method is similar to url.Parse stdlib, expect that it does not validate a url, it is
-// used to extract the scheme, host and path for wildcard checks.
+// extract the scheme, host and path for wildcard checks.
 // If the scheme is not http or https, or does not specify an absolute path beginning with '/'
 // the parser will return nil.
-func splitClobberHttpRedirectUrl(clientRedirectUrlSpec string) *ClobberURLSectional {
-	schemaRe, err := regexp.Compile("^([hH][tT]{2}[pP][sS]?)://([^/]+?)(:\\d+)?(/.*)$")
-	if err != nil {
-		return nil // bad regex pattern
-	}
-	splitRes := schemaRe.FindStringSubmatch(clientRedirectUrlSpec)
-	if splitRes == nil {
-		// not using http or https
-		return nil
-	}
-
-	hostPortion := splitRes[2]
-	if !strings.Contains(hostPortion, "*") {
+func splitClobberHttpRedirectUrl(clientRedirectUrlSpec *url.URL) *HostSplit {
+	host := clientRedirectUrlSpec.Host
+	if !strings.Contains(host, "*") {
 		// for efficiency, check wildcard before DomainComponents
 		return nil
 	}
 
-	if strings.Contains(hostPortion, "***") {
-		// more than wildcards chars are not permitted
+	if strings.Contains(host, "***") {
+		// a maximum of 2 '*' characters are permitted in sequence
 		return nil
 	}
 
-	// port := splitRes[3]
-
 	// sub-domain portion is first portion (greedy)
-	hostSplit, err := regexp.Compile("^(.+)\\.([^.]*[A-Za-z][^.]*\\.[^.]*[A-Za-z][^.]*[^.])$")
+	hostSplit, _ := regexp.Compile("^(.+)\\.([^.]*[A-Za-z][^.]*\\.[^.]*[A-Za-z][^.]+)$")
 	if hostSplit == nil {
 		// unexpected issue with regex
 		return nil
 	}
-	hostRes := hostSplit.FindStringSubmatch(hostPortion)
+	hostRes := hostSplit.FindStringSubmatch(host)
 	if hostRes == nil {
 		// does not conform to requirements of a subdomain spec followed by two higher order domains
 		return nil
 	}
 
-	return &ClobberURLSectional {
-		Scheme: splitRes[1],
-		HostPair: &HostSplit{
-			HostSuffix: hostRes[2],
-			SubDomainPrefix: hostRes[1],
-		},
-		RawPath: splitRes[4],
+	return &HostSplit{
+		HostSuffix:      hostRes[2],
+		SubDomainPrefix: hostRes[1],
 	}
 }
 
 func getClobberHostMatcher(clientRedirectUri string, wildcardCache *lru.ARCCache) ClientRedirectClobberMatcher {
 	if wildcardCache == nil {
 		// unexpected error condition where cache is unavailable
-		return ClientRedirectClobberMatcher {
-			ClientRedirectURL: clientRedirectUri,
-		}
+		return ClientRedirectClobberMatcher{}
 	}
 
 	if redirectMatcherStruct, ok := wildcardCache.Get(clientRedirectUri); ok {

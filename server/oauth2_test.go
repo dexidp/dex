@@ -333,66 +333,59 @@ func TestSplitHttpRedirectUrl(t *testing.T) {
 	tests := []struct {
 		redirectURI     string
 		expectValid     bool
-		expectScheme    string
-		expectPath      string
 		expectHostSplit *HostSplit
 	}{
 		{
-			redirectURI:  "http://*.example.com/%23267#222",
-			expectValid:  true,
-			expectScheme: "http",
+			redirectURI: "http://*.example.com/%23267#222",
+			expectValid: true,
 			expectHostSplit: &HostSplit{
-				HostSuffix: "example.com",
+				HostSuffix:      "example.com",
 				SubDomainPrefix: "*",
 			},
-			expectPath:   "/%23267#222",
 		},
 		{
 			// ip addresses cannot
-			redirectURI:  "http://1.2.3.4/",
-			expectValid:  false,
+			redirectURI: "http://1.2.3.4/",
+			expectValid: false,
 		},
 		{
 			// cannot act on top-level domain
-			redirectURI:  "http://*.com/",
-			expectValid:  false,
+			redirectURI: "http://*.com/",
+			expectValid: false,
 		},
 		{
 			// no wildcard
-			redirectURI:  "http://example.com/",
-			expectValid:  false,
+			redirectURI: "http://example.com/",
+			expectValid: false,
 		},
 		{
 			redirectURI: "http://1.2.3.4",
 			expectValid: false, // no trailing slash
 		},
 		{
-			redirectURI: "ftp://*.example.com/",
-			expectValid: false, // wrong schema
-		},
-		{
 			// ipv6 address not used for wildcard (dns only)
-			redirectURI:  "https://fdda:5cc1:23:4::1f/foo",
-			expectValid:  false,
+			redirectURI: "https://[fdda:5cc1:23:4::1f]/foo",
+			expectValid: false,
 		},
 	}
 
 	tAssert := assert.New(t)
 	for _, test := range tests {
-		result := splitClobberHttpRedirectUrl(test.redirectURI)
-		if result == nil {
-			tAssert.False(test.expectValid, "Valid result expected")
-		} else {
-			tAssert.Equal(test.expectScheme,result.Scheme, "scheme should match")
-			tAssert.Equal(test.expectPath,result.RawPath, "path should match")
-			tAssert.Equal(test.expectHostSplit,result.HostPair, "DomainComponents should match")
-
+		testRedirectUrl, err := url.Parse(test.redirectURI)
+		tAssert.Nilf(err, "Invalid test url %v", test.redirectURI)
+		tAssert.NotNilf(testRedirectUrl, "Invalid test url %v", test.redirectURI)
+		result := splitClobberHttpRedirectUrl(testRedirectUrl)
+		tAssert.Equal(test.expectValid, result != nil, "Valid result expected for %v", test.redirectURI)
+		if test.expectHostSplit != nil {
+			tAssert.Equal(result, test.expectHostSplit, "Host split validation failed for %v", test.redirectURI)
+		}
+		if result != nil {
 			fullResult := createClientRedirectClobberMatcher(test.redirectURI)
 			tAssert.True(fullResult.HostMatcher != nil)
+			tAssert.Equal(fullResult.ClientRedirectURL, testRedirectUrl)
 		}
 	}
 }
-
 
 func TestValidRedirectURI(t *testing.T) {
 	tests := []struct {
@@ -408,6 +401,22 @@ func TestValidRedirectURI(t *testing.T) {
 			wantValid:   true,
 		},
 		{
+			// invalid schema
+			client: storage.Client{
+				RedirectURIs: []string{"http://foo.com/bar"},
+			},
+			redirectURI: "https://foo.com/bar",
+			wantValid:   false,
+		},
+		{
+			// invalid schema with pattern
+			client: storage.Client{
+				RedirectURIs: []string{"http://*.foo.com/bar"},
+			},
+			redirectURI: "https://test.foo.com/bar",
+			wantValid:   false,
+		},
+		{
 			// check https is valid protocol
 			client: storage.Client{
 				RedirectURIs: []string{"https://foo.com/bar/baz"},
@@ -420,6 +429,14 @@ func TestValidRedirectURI(t *testing.T) {
 				RedirectURIs: []string{"http://foo.com/bar"},
 			},
 			redirectURI: "http://foo.com/bar/baz",
+			wantValid:   false,
+		},
+		{
+			// invalid path with pattern
+			client: storage.Client{
+				RedirectURIs: []string{"http://*.foo.com/bar"},
+			},
+			redirectURI: "http://test.foo.com/baz",
 			wantValid:   false,
 		},
 		{
@@ -444,12 +461,26 @@ func TestValidRedirectURI(t *testing.T) {
 			wantValid:   false,
 		},
 		{
+			client: storage.Client{
+				RedirectURIs: []string{"http://b*.foo.com/bar"},
+			},
+			redirectURI: "http://b.foo.com/bar",
+			wantValid:   false,
+		},
+		{
+			client: storage.Client{
+				RedirectURIs: []string{"http://b*.foo.com/bar"},
+			},
+			redirectURI: "http://bar.foo.com/bar",
+			wantValid:   true,
+		},
+		{
 			// URL must use http: or https: protocol
 			client: storage.Client{
 				RedirectURIs: []string{"unknown://*.foo.com/bar"},
 			},
 			redirectURI: "unknown://abc.foo.com/bar",
-			wantValid:   false,
+			wantValid:   true,
 		},
 		{
 			// wildcard can be located in subdomain as long as not in top two domains
@@ -469,10 +500,24 @@ func TestValidRedirectURI(t *testing.T) {
 		},
 		{
 			client: storage.Client{
+				RedirectURIs: []string{"http://**.foo.com/bar"},
+			},
+			redirectURI: "http://test.foo.com/bar",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
 				RedirectURIs: []string{"http://a**.foo.com/bar"},
 			},
 			redirectURI: "http://abc.123.foo.com/bar",
 			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				RedirectURIs: []string{"http://a**.foo.com/bar"},
+			},
+			redirectURI: "http://a.foo.com/bar",
+			wantValid:   false,
 		},
 		{
 			// wildcard may be prefixed and/or suffixed with additional valid hostname characters
@@ -489,15 +534,63 @@ func TestValidRedirectURI(t *testing.T) {
 			client: storage.Client{
 				RedirectURIs: []string{"https://*.foo.com/"},
 			},
-			redirectURI: "https://123.abc.foo.com/bar",
+			redirectURI: "https://123.abc.foo.com/",
+			wantValid:   false,
+		},
+		{
+			// check escaping
+			client: storage.Client{
+				RedirectURIs: []string{"https://*.foo.com/"},
+			},
+			redirectURI: "https://abc.foo0com/",
+			wantValid:   false,
+		},
+		{
+			// with port
+			client: storage.Client{
+				RedirectURIs: []string{"http://*.sld.com:6000/path"},
+			},
+			redirectURI: "http://test.sld.com:6000/path",
+			wantValid:   true,
+		},
+		{
+			// negative logic with port
+			client: storage.Client{
+				RedirectURIs: []string{"http://*.sld.com:6000/path"},
+			},
+			redirectURI: "http://test.sld.com/path",
 			wantValid:   false,
 		},
 		{
 			// wildcard must be located in a subdomain within a hostname component.  http://*.com is not permitted.
 			client: storage.Client{
-				RedirectURIs: []string{"http://*.com/bar"},
+				RedirectURIs: []string{"http://*.*.com/bar"},
 			},
-			redirectURI: "http://foo.com/bar",
+			redirectURI: "http://test.foo.com/bar",
+			wantValid:   false,
+		},
+		{
+			// partial wildcard in SLD is prohibited
+			client: storage.Client{
+				RedirectURIs: []string{"http://*.foo*.com/bar"},
+			},
+			redirectURI: "http://test.foo.com/bar",
+			wantValid:   false,
+		},
+		{
+			// wildcard in TLD is prohibited
+			client: storage.Client{
+				RedirectURIs: []string{"http://*.example.*/bar"},
+			},
+			redirectURI: "http://test.foo.com/bar",
+			wantValid:   false,
+		},
+		{
+			// partial wildcard in TLD is prohibited
+			client: storage.Client{
+				RedirectURIs: []string{"http://*.example.io*/bar"},
+			},
+			redirectURI: "http://test.foo.com/bar",
 			wantValid:   false,
 		},
 		{
