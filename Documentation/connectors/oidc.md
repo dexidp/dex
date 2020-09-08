@@ -78,28 +78,21 @@ connectors:
     # promptType: consent
 
 
-    # Some providers return no standard claim that is different to 
-    # claims list at https://openid.net/specs/openid-connect-core-1_0.html#Claims
-    # Use claimMapping to specify custom claim names
+    # Some providers return non-standard claims (eg. mail).
+    # Use claimMapping to map those claims to standard claims:
+    # https://openid.net/specs/openid-connect-core-1_0.html#Claims
+    # claimMapping can only map a non-standard claim to a standard one if it's not returned in the id_token.
     claimMapping:
-      # The set claim is used as user id.
-      # Default: sub
-      # user_id: nickname
-
-      # The set claim is used as user name.
-      # Default: name
-      # user_name: nickname
-
       # The set claim is used as preferred username.
       # Default: preferred_username
       # preferred_username: other_user_name
 
       # The set claim is used as email.
-      # Default: "email"
+      # Default: email
       # email: mail
 
       # The set claim is used as groups.
-      # Default: "groups"
+      # Default: groups
       # groups: "cognito:groups"
 ```
 

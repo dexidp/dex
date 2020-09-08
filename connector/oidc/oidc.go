@@ -330,7 +330,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	if !found && hasEmailScope {
-		return identity, fmt.Errorf("missing \"%s\" claim", emailKey)
+		return identity, fmt.Errorf("missing email claim, not found \"%s\" key", emailKey)
 	}
 
 	emailVerified, found := claims["email_verified"].(bool)
