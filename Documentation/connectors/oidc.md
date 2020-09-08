@@ -8,8 +8,6 @@ Prominent examples of OpenID Connect providers include Google Accounts, Salesfor
 
 ## Caveats
 
-This connector does not support the "groups" claim. Progress for this is tracked in [issue #1065][issue-1065].
-
 When using refresh tokens, changes to the upstream claims aren't propagated to the id_token returned by dex. If a user's email changes, the "email" claim returned by dex won't change unless the user logs in again. Progress for this is tracked in [issue #863][issue-863].
 
 ## Configuration
@@ -75,11 +73,10 @@ connectors:
     # getUserInfo: true
 
     # The set claim is used as user id.
-    # Default: sub
     # Claims list at https://openid.net/specs/openid-connect-core-1_0.html#Claims
-    #
+    # Default: sub
     # userIDKey: nickname
-    
+
     # The set claim is used as user name.
     # Default: name
     # userNameKey: nickname
@@ -88,9 +85,25 @@ connectors:
     # However this is not supported by all OIDC providers, some of them support different
     # value for prompt, like "prompt=login" or "prompt=none"
     # promptType: consent
+
+    # Some providers return non-standard claims (eg. mail).
+    # Use claimMapping to map those claims to standard claims:
+    # https://openid.net/specs/openid-connect-core-1_0.html#Claims
+    # claimMapping can only map a non-standard claim to a standard one if it's not returned in the id_token.
+    claimMapping:
+      # The set claim is used as preferred username.
+      # Default: preferred_username
+      # preferred_username: other_user_name
+
+      # The set claim is used as email.
+      # Default: email
+      # email: mail
+
+      # The set claim is used as groups.
+      # Default: groups
+      # groups: "cognito:groups"
 ```
 
 [oidc-doc]: openid-connect.md
 [issue-863]: https://github.com/dexidp/dex/issues/863
-[issue-1065]: https://github.com/dexidp/dex/issues/1065
 [azure-ad-v1]: https://github.com/coreos/go-oidc/issues/133
