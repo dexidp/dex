@@ -258,12 +258,12 @@ func TestHandleCallback(t *testing.T) {
 				ClientSecret:              "clientSecret",
 				Scopes:                    scopes,
 				RedirectURI:               fmt.Sprintf("%s/callback", serverURL),
+				UserIDKey:                 tc.userIDKey,
+				UserNameKey:               tc.userNameKey,
 				InsecureSkipEmailVerified: tc.insecureSkipEmailVerified,
 				InsecureEnableGroups:      true,
 				BasicAuthUnsupported:      &basicAuth,
 			}
-			config.ClaimMapping.UserIDKey = tc.userIDKey
-			config.ClaimMapping.UserNameKey = tc.userNameKey
 			config.ClaimMapping.PreferredUsernameKey = tc.preferredUsernameKey
 			config.ClaimMapping.EmailKey = tc.emailKey
 			config.ClaimMapping.GroupsKey = tc.groupsKey

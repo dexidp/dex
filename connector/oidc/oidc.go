@@ -49,22 +49,14 @@ type Config struct {
 	// id tokens
 	GetUserInfo bool `json:"getUserInfo"`
 
-	// Deprecated: use UserIDKey in claimMapping instead
 	UserIDKey string `json:"userIDKey"`
 
-	// Deprecated: use UserNameKey in claimMapping instead
 	UserNameKey string `json:"userNameKey"`
 
 	// PromptType will be used fot the prompt parameter (when offline_access, by default prompt=consent)
 	PromptType string `json:"promptType"`
 
 	ClaimMapping struct {
-		// Configurable key which contains the user id claim
-		UserIDKey string `json:"user_id"` // defaults to "sub"
-
-		// Configurable key which contains the username claim
-		UserNameKey string `json:"user_name"` // defaults to "name"
-
 		// Configurable key which contains the preferred username claims
 		PreferredUsernameKey string `json:"preferred_username"` // defaults to "preferred_username"
 
@@ -138,18 +130,6 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		c.PromptType = "consent"
 	}
 
-	// Backward compatibility
-	userIDKey := c.ClaimMapping.UserIDKey
-	if userIDKey == "" {
-		userIDKey = c.UserIDKey
-	}
-
-	// Backward compatibility
-	userNameKey := c.ClaimMapping.UserNameKey
-	if userNameKey == "" {
-		userNameKey = c.UserNameKey
-	}
-
 	clientID := c.ClientID
 	return &oidcConnector{
 		provider:    provider,
@@ -171,8 +151,8 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		insecureEnableGroups:      c.InsecureEnableGroups,
 		getUserInfo:               c.GetUserInfo,
 		promptType:                c.PromptType,
-		userIDKey:                 userIDKey,
-		userNameKey:               userNameKey,
+		userIDKey:                 c.UserIDKey,
+		userNameKey:               c.UserNameKey,
 		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
 		emailKey:                  c.ClaimMapping.EmailKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,

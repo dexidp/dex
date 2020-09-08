@@ -72,11 +72,19 @@ connectors:
     # https://openid.net/specs/openid-connect-core-1_0.html#UserInfo
     # getUserInfo: true
 
+    # The set claim is used as user id.
+    # Claims list at https://openid.net/specs/openid-connect-core-1_0.html#Claims
+    # Default: sub
+    # userIDKey: nickname
+
+    # The set claim is used as user name.
+    # Default: name
+    # userNameKey: nickname
+
     # For offline_access, the prompt parameter is set by default to "prompt=consent". 
     # However this is not supported by all OIDC providers, some of them support different
     # value for prompt, like "prompt=login" or "prompt=none"
     # promptType: consent
-
 
     # Some providers return non-standard claims (eg. mail).
     # Use claimMapping to map those claims to standard claims:
