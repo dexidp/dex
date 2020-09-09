@@ -28,6 +28,11 @@ bin/dex:
 bin/grpc-client:
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/grpc-client
 
+buildexample: bin/example-app
+
+bin/example-app:
+	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/example-app
+
 .PHONY: release-binary
 release-binary:
 	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
