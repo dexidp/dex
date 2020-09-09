@@ -20,13 +20,21 @@ LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
 # Dependency versions
 GOLANGCI_VERSION = 1.21.0
 
-build: bin/dex bin/grpc-client
+build: bin/dex
 
 bin/dex:
+	@mkdir -p bin/
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
+examples: bin/grpc-client bin/example-app
+
 bin/grpc-client:
-	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/grpc-client
+	@mkdir -p bin/
+	@cd examples/ && go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/grpc-client
+
+bin/example-app:
+	@mkdir -p bin/
+	@cd examples/ && go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/example-app
 
 .PHONY: release-binary
 release-binary:
