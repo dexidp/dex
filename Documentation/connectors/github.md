@@ -122,6 +122,28 @@ connectors:
     rootCA: /etc/dex/ca.crt
 ```
 
+### Generate TLS assets
+
+Running Dex with HTTPS enabled requires a valid SSL certificate, and the API server needs to trust the certificate of the signing CA using the `--oidc-ca-file` flag.
+
+For our example use case, the TLS assets can be created using the following command:
+
+```
+$ ./examples/k8s/gencert.sh 
+```
+
+This will generate several files under the `ssl` directory, the important ones being `cert.pem` ,`key.pem` and `ca.pem`. The generated SSL certificate is for 'dex.example.com', although you could change this by editing `gencert.sh` if required.
+
+### Run example client app with Github config
+
+```
+./bin/example-app --issuer-root-ca examples/k8s/ssl/ca.pem
+```
+
+1. Open browser to http://127.0.0.1:5555
+2. Click Login
+3. Select Log in with GitHub and grant access to dex to view your profile
+
 [github-oauth2]: https://github.com/settings/applications/new
 [github-orgs]: https://developer.github.com/v3/orgs/
 [github-request-org-access]: https://help.github.com/articles/requesting-organization-approval-for-oauth-apps/

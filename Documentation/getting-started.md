@@ -22,7 +22,7 @@ The [example config][example-config] file documents many of the configuration op
 
 ## Running a client
 
-Dex operates like most other OAuth2 providers. Users are redirected from a client app to dex to login. Dex ships with an example client app (also built with the `make` command), for testing and demos.
+Dex operates like most other OAuth2 providers. Users are redirected from a client app to dex to login. Dex ships with an example client app (built with the `make examples` command), for testing and demos.
 
 By default, the example client is configured with the same OAuth2 credentials defined in `examples/config-dev.yaml` to talk to dex. Running the example app will cause it to query dex's [discovery endpoint][oidc-discovery] and determine the OAuth2 endpoints.
 
