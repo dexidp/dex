@@ -241,7 +241,6 @@ type OAuth2ErrorResponse struct {
 	ErrorURI         string `json:"error_uri"`
 }
 
-
 func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time) oauth2Tests {
 	requestedScopes := []string{oidc.ScopeOpenID, "email", "profile", "groups", "offline_access"}
 
@@ -559,24 +558,26 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 				},
 			},
 			{
-				// Ensure that when no PKCE flow was started on /auth
-				// we cannot switch to PKCE on /token
-				name: "No PKCE flow started on /auth",
+				// Ensure that, when PKCE flow started on /auth
+				// we stay in PKCE flow on /token
+				name: "PKCE flow expected on /token",
 				authCodeOptions: []oauth2.AuthCodeOption{
 					oauth2.SetAuthURLParam("code_challenge", "lyyl-X4a69qrqgEfUL8wodWic3Be9ZZ5eovBgIKKi-w"),
 					oauth2.SetAuthURLParam("code_challenge_method", "S256"),
 				},
-				retrieveTokenOptions: []oauth2.AuthCodeOption{},
-				handleToken:          basicIDTokenVerify,
+				retrieveTokenOptions: []oauth2.AuthCodeOption{
+					// No PKCE call on /token
+				},
+				handleToken: basicIDTokenVerify,
 				tokenError: ErrorResponse{
 					Error:      errInvalidGrant,
 					StatusCode: http.StatusBadRequest,
 				},
 			},
 			{
-				// Ensure that, when PKCE flow started on /auth
-				// we stay in PKCE flow on /token
-				name: "PKCE flow expected on /token",
+				// Ensure that when no PKCE flow was started on /auth
+				// we cannot switch to PKCE on /token
+				name:            "No PKCE flow started on /auth",
 				authCodeOptions: []oauth2.AuthCodeOption{
 					// No PKCE call on /auth
 				},
@@ -586,6 +587,23 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 				handleToken: basicIDTokenVerify,
 				tokenError: ErrorResponse{
 					Error:      errInvalidRequest,
+					StatusCode: http.StatusBadRequest,
+				},
+			},
+			{
+				// Make sure that, when we start with "S256" on /auth, we cannot downgrade to "plain" on /token
+				name: "PKCE with S256 and try to downgrade to plain",
+				authCodeOptions: []oauth2.AuthCodeOption{
+					oauth2.SetAuthURLParam("code_challenge", "lyyl-X4a69qrqgEfUL8wodWic3Be9ZZ5eovBgIKKi-w"),
+					oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+				},
+				retrieveTokenOptions: []oauth2.AuthCodeOption{
+					oauth2.SetAuthURLParam("code_verifier", "lyyl-X4a69qrqgEfUL8wodWic3Be9ZZ5eovBgIKKi-w"),
+					oauth2.SetAuthURLParam("code_challenge_method", "plain"),
+				},
+				handleToken: basicIDTokenVerify,
+				tokenError: ErrorResponse{
+					Error:      errInvalidGrant,
 					StatusCode: http.StatusBadRequest,
 				},
 			},
