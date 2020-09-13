@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"os"
 
 	"gopkg.in/ldap.v2"
 
@@ -88,8 +89,9 @@ type Config struct {
 
 	// BindDN and BindPW for an application service account. The connector uses these
 	// credentials to search for users and groups.
-	BindDN string `json:"bindDN"`
-	BindPW string `json:"bindPW"`
+	BindDN        string `json:"bindDN"`
+	BindPW        string `json:"bindPW"`
+	BindPWFromEnv string `json:bindPWFromEnv`
 
 	// UsernamePrompt allows users to override the username attribute (displayed
 	// in the username/password prompt). If unset, the handler will use
@@ -236,6 +238,18 @@ func (c *Config) openConnector(logger log.Logger) (*ldapConnector, error) {
 			return nil, fmt.Errorf("ldap: missing required field %q", field.name)
 		}
 	}
+
+	if c.BindPW == "" && c.BindPWFromEnv == "" {
+		return nil, fmt.Errorf("ldap: bindPW or bindPWFromEnv are required for the LDAP connector")
+	}
+	bindPW := c.BindPW
+	if c.BindPWFromEnv != "" {
+		if c.BindPW != "" {
+			return nil, fmt.Errorf("ldap: bindPW and bindPWFromEnv are exclusive for the LDAP connector")
+		}
+		bindPW = os.Getenv(c.BindPWFromEnv)
+	}
+	c.BindPW = bindPW
 
 	var (
 		host string

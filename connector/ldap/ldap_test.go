@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -44,6 +45,78 @@ type subtest struct {
 	wantErr   bool
 	wantBadPW bool
 	want      connector.Identity
+}
+
+func TestOpenForBindPW(t *testing.T) {
+	c := &Config{}
+	c.UserSearch.BaseDN = "ou=People,dc=example,dc=org"
+	c.UserSearch.NameAttr = "cn"
+	c.UserSearch.EmailAttr = "mail"
+	c.UserSearch.IDAttr = "DN"
+	c.UserSearch.Username = "cn"
+	c.Host = fmt.Sprintf("%s:%s", "127.0.0.1", "8080")
+	c.InsecureNoSSL = true
+	c.BindDN = "cn=admin,dc=example,dc=org"
+
+	tests := []struct {
+		bindPW        string
+		bindPWFromEnv string
+		expectedError error
+	}{
+		{
+			bindPW:        "",
+			bindPWFromEnv: "",
+			expectedError: fmt.Errorf("ldap: bindPW or bindPWFromEnv are required for the LDAP connector"),
+		},
+		{
+			bindPW:        "admin",
+			bindPWFromEnv: "admin",
+			expectedError: fmt.Errorf("ldap: bindPW and bindPWFromEnv are exclusive for the LDAP connector"),
+		},
+		{
+			bindPW:        "",
+			bindPWFromEnv: "LDAP_BIND_PW",
+			expectedError: nil,
+		},
+		{
+			bindPW:        "admin",
+			bindPWFromEnv: "",
+			expectedError: nil,
+		},
+	}
+
+	l := &logrus.Logger{Out: ioutil.Discard, Formatter: &logrus.TextFormatter{}}
+
+	for _, tc := range tests {
+		if tc.bindPWFromEnv != "" {
+			os.Setenv(tc.bindPWFromEnv, "admin")
+		}
+		c.BindPW = tc.bindPW
+		c.BindPWFromEnv = tc.bindPWFromEnv
+		conn, err := c.openConnector(l)
+		if tc.expectedError != nil {
+			if conn != nil {
+				t.Errorf("Expected conn to be nil")
+			}
+			expectEquals(t, err, tc.expectedError)
+		} else {
+			if err != nil {
+				t.Errorf("Expected err to be nil")
+			}
+			expectEquals(t, conn.Config.Host, c.Host)
+			expectEquals(t, conn.Config.InsecureNoSSL, c.InsecureNoSSL)
+			expectEquals(t, conn.Config.UserSearch, c.UserSearch)
+			expectEquals(t, conn.Config.BindDN, c.BindDN)
+			if tc.bindPW != "" {
+				expectEquals(t, conn.Config.BindPW, tc.bindPW)
+			} else {
+				expectEquals(t, conn.Config.BindPW, os.Getenv(tc.bindPWFromEnv))
+			}
+		}
+		if tc.bindPWFromEnv != "" {
+			os.Unsetenv(tc.bindPWFromEnv)
+		}
+	}
 }
 
 func TestQuery(t *testing.T) {
@@ -1079,5 +1152,11 @@ func runTests(t *testing.T, schema string, connMethod connectionMethod, config *
 				t.Errorf("after refresh: %s", diff)
 			}
 		})
+	}
+}
+
+func expectEquals(t *testing.T, a interface{}, b interface{}) {
+	if !reflect.DeepEqual(a, b) {
+		t.Errorf("Expected %+v to equal %+v", a, b)
 	}
 }
