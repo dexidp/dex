@@ -191,7 +191,7 @@ func (c *ldapConnector) userMatchers() []UserMatcher {
 	if len(c.GroupSearch.UserMatchers) > 0 && c.GroupSearch.UserMatchers[0].UserAttr != "" {
 		return c.GroupSearch.UserMatchers[:]
 	}
-	
+
 	return []UserMatcher{
 		{
 			UserAttr:  c.GroupSearch.UserAttr,
@@ -247,7 +247,11 @@ func (c *Config) openConnector(logger log.Logger) (*ldapConnector, error) {
 		if c.BindPW != "" {
 			return nil, fmt.Errorf("ldap: bindPW and bindPWFromEnv are exclusive for the LDAP connector")
 		}
-		bindPW = os.Getenv(c.BindPWFromEnv)
+		var ok bool
+		bindPW, ok = os.LookupEnv(c.BindPWFromEnv)
+		if !ok || bindPW == "" {
+			return nil, fmt.Errorf("ldap: environment variable for the bind password was not set to a valid")
+		}
 	}
 	c.BindPW = bindPW
 

@@ -61,27 +61,38 @@ func TestOpenForBindPW(t *testing.T) {
 	tests := []struct {
 		bindPW        string
 		bindPWFromEnv string
+		bindPWFromEnvVal string
 		expectedError error
 	}{
 		{
-			bindPW:        "",
-			bindPWFromEnv: "",
-			expectedError: fmt.Errorf("ldap: bindPW or bindPWFromEnv are required for the LDAP connector"),
+			bindPW:           "",
+			bindPWFromEnv:    "",
+			bindPWFromEnvVal: "",
+			expectedError:    fmt.Errorf("ldap: bindPW or bindPWFromEnv are required for the LDAP connector"),
 		},
 		{
-			bindPW:        "admin",
-			bindPWFromEnv: "admin",
-			expectedError: fmt.Errorf("ldap: bindPW and bindPWFromEnv are exclusive for the LDAP connector"),
+			bindPW:           "admin",
+			bindPWFromEnv:    "LDAP_BIND_PW",
+			bindPWFromEnvVal: "admin",
+			expectedError:    fmt.Errorf("ldap: bindPW and bindPWFromEnv are exclusive for the LDAP connector"),
 		},
 		{
-			bindPW:        "",
-			bindPWFromEnv: "LDAP_BIND_PW",
-			expectedError: nil,
+			bindPW:           "",
+			bindPWFromEnv:    "LDAP_BIND_PW",
+			bindPWFromEnvVal: "admin",
+			expectedError:    nil,
 		},
 		{
-			bindPW:        "admin",
-			bindPWFromEnv: "",
-			expectedError: nil,
+			bindPW:           "",
+			bindPWFromEnv:    "LDAP_BIND_PW",
+			bindPWFromEnvVal: "",
+			expectedError:    fmt.Errorf("ldap: environment variable for the bind password was not set to a valid"),
+		},
+		{
+			bindPW:           "admin",
+			bindPWFromEnv:    "",
+			bindPWFromEnvVal: "",
+			expectedError:    nil,
 		},
 	}
 
@@ -89,7 +100,7 @@ func TestOpenForBindPW(t *testing.T) {
 
 	for _, tc := range tests {
 		if tc.bindPWFromEnv != "" {
-			os.Setenv(tc.bindPWFromEnv, "admin")
+			os.Setenv(tc.bindPWFromEnv, tc.bindPWFromEnvVal)
 		}
 		c.BindPW = tc.bindPW
 		c.BindPWFromEnv = tc.bindPWFromEnv
