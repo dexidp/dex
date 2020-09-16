@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"reflect"
 	"testing"
 
@@ -50,6 +51,111 @@ func TestOpen(t *testing.T) {
 	expectEquals(t, oc.redirectURI, "https://localhost/callback")
 	expectEquals(t, oc.oauth2Config.Endpoint.AuthURL, fmt.Sprintf("%s/oauth/authorize", s.URL))
 	expectEquals(t, oc.oauth2Config.Endpoint.TokenURL, fmt.Sprintf("%s/oauth/token", s.URL))
+}
+
+func TestOpenWithEnvsSuccess(t *testing.T) {
+	s := newTestServer(map[string]interface{}{})
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	_, err = http.NewRequest("GET", hostURL.String(), nil)
+	expectNil(t, err)
+
+	os.Setenv("TEST_CLIENT_ID", "testClientId")
+	os.Setenv("TEST_CLIENT_SECRET", "testClientSecret")
+
+	c := Config{
+		Issuer:              s.URL,
+		ClientIDFromEnv:     "TEST_CLIENT_ID",
+		ClientSecretFromEnv: "TEST_CLIENT_SECRET",
+		RedirectURI:         "https://localhost/callback",
+		InsecureCA:          true,
+	}
+
+	logger := logrus.New()
+
+	oconfig, err := c.Open("id", logger)
+
+	oc, ok := oconfig.(*openshiftConnector)
+
+	expectNil(t, err)
+	expectEquals(t, ok, true)
+	expectEquals(t, oc.apiURL, s.URL)
+	expectEquals(t, oc.clientID, "testClientId")
+	expectEquals(t, oc.clientSecret, "testClientSecret")
+	expectEquals(t, oc.redirectURI, "https://localhost/callback")
+	expectEquals(t, oc.oauth2Config.Endpoint.AuthURL, fmt.Sprintf("%s/oauth/authorize", s.URL))
+	expectEquals(t, oc.oauth2Config.Endpoint.TokenURL, fmt.Sprintf("%s/oauth/token", s.URL))
+}
+
+func TestOpenFailuresForEnvCases(t *testing.T) {
+	s := newTestServer(map[string]interface{}{})
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	_, err = http.NewRequest("GET", hostURL.String(), nil)
+	expectNil(t, err)
+
+	tests := []struct {
+		clientID            string
+		clientIDFromEnv     string
+		clientSecret        string
+		clientSecretFromEnv string
+		expectedError       error
+	}{
+		{
+			clientID:            "",
+			clientIDFromEnv:     "",
+			clientSecret:        "testClientSecret",
+			clientSecretFromEnv: "",
+			expectedError:       fmt.Errorf("invalid config: clientID or clientIDEnv are required for the OpenShift connector"),
+		},
+		{
+			clientID:            "clientID",
+			clientIDFromEnv:     "TEST_CLIENT_ID",
+			clientSecret:        "",
+			clientSecretFromEnv: "TEST_CLIENT_SECRET",
+			expectedError:       fmt.Errorf("invalid config: clientID or clientIDEnv are exclusive for the OpenShift connector"),
+		},
+		{
+			clientID:            "clientID",
+			clientIDFromEnv:     "",
+			clientSecret:        "",
+			clientSecretFromEnv: "",
+			expectedError:       fmt.Errorf("invalid config: clientSecret or clientSecretEnv are required for the OpenShift connector"),
+		},
+		{
+			clientID:            "",
+			clientIDFromEnv:     "TEST_CLIENT_ID",
+			clientSecret:        "clientSecret",
+			clientSecretFromEnv: "TEST_CLIENT_SECRET",
+			expectedError:       fmt.Errorf("invalid config: clientSecret or clientSecretEnv are exclusive for the OpenShift connector"),
+		},
+	}
+
+	for _, tc := range tests {
+		c := Config{
+			Issuer:              s.URL,
+			ClientID:            tc.clientID,
+			ClientIDFromEnv:     tc.clientIDFromEnv,
+			ClientSecret:        tc.clientSecret,
+			ClientSecretFromEnv: tc.clientSecretFromEnv,
+			RedirectURI:         "https://localhost/callback",
+			InsecureCA:          true,
+		}
+
+		logger := logrus.New()
+
+		oconfig, err := c.Open("id", logger)
+		expectEquals(t, err, tc.expectedError)
+
+		_, ok := oconfig.(*openshiftConnector)
+		expectEquals(t, ok, false)
+	}
 }
 
 func TestGetUser(t *testing.T) {
