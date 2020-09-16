@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -23,13 +24,15 @@ import (
 
 // Config holds configuration options for OpenShift login
 type Config struct {
-	Issuer       string   `json:"issuer"`
-	ClientID     string   `json:"clientID"`
-	ClientSecret string   `json:"clientSecret"`
-	RedirectURI  string   `json:"redirectURI"`
-	Groups       []string `json:"groups"`
-	InsecureCA   bool     `json:"insecureCA"`
-	RootCA       string   `json:"rootCA"`
+	Issuer              string   `json:"issuer"`
+	ClientID            string   `json:"clientID"`
+	ClientIDFromEnv     string   `json:"clientIDFromEnv"`
+	ClientSecret        string   `json:"clientSecret"`
+	ClientSecretFromEnv string   `json:"clientSecretFromEnv"`
+	RedirectURI         string   `json:"redirectURI"`
+	Groups              []string `json:"groups"`
+	InsecureCA          bool     `json:"insecureCA"`
+	RootCA              string   `json:"rootCA"`
 }
 
 var (
@@ -66,11 +69,41 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 	wellKnownURL := strings.TrimSuffix(c.Issuer, "/") + "/.well-known/oauth-authorization-server"
 	req, err := http.NewRequest(http.MethodGet, wellKnownURL, nil)
 
+	if c.ClientIDFromEnv == "" && c.ClientID == "" {
+		return nil, fmt.Errorf("invalid config: clientID or clientIDEnv are required for the OpenShift connector")
+	}
+	clientID := c.ClientID
+	if c.ClientIDFromEnv != "" {
+		if c.ClientID != "" {
+			return nil, fmt.Errorf("invalid config: clientID and clientIDEnv are exclusive for the OpenShift connector")
+		}
+		var ok bool
+		clientID, ok = os.LookupEnv(c.ClientIDFromEnv)
+		if !ok || clientID == "" {
+			return nil, fmt.Errorf("invalid config: environment variable for the client ID was not set to a valid value")
+		}
+	}
+
+	if c.ClientSecretFromEnv == "" && c.ClientSecret == "" {
+		return nil, fmt.Errorf("invalid config: clientSecret or clientSecretEnv are required for the OpenShift connector")
+	}
+	clientSecret := c.ClientSecret
+	if c.ClientSecretFromEnv != "" {
+		if c.ClientSecret != "" {
+			return nil, fmt.Errorf("invalid config: clientSecret and clientSecretEnv are exclusive for the OpenShift connector")
+		}
+		var ok bool
+		clientSecret, ok = os.LookupEnv(c.ClientSecretFromEnv)
+		if !ok || clientSecret == "" {
+			return nil, fmt.Errorf("invalid config: environment variable for the client secret was not set to a valid value")
+		}
+	}
+
 	openshiftConnector := openshiftConnector{
 		apiURL:       c.Issuer,
 		cancel:       cancel,
-		clientID:     c.ClientID,
-		clientSecret: c.ClientSecret,
+		clientID:     clientID,
+		clientSecret: clientSecret,
 		insecureCA:   c.InsecureCA,
 		logger:       logger,
 		redirectURI:  c.RedirectURI,
@@ -104,8 +137,8 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 	}
 
 	openshiftConnector.oauth2Config = &oauth2.Config{
-		ClientID:     c.ClientID,
-		ClientSecret: c.ClientSecret,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
 		Endpoint: oauth2.Endpoint{
 			AuthURL: metadata.Auth, TokenURL: metadata.Token,
 		},
