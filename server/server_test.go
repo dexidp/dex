@@ -1332,7 +1332,7 @@ func checkErrorResponse(err error, t *testing.T, tc test) {
 				tc.name, details.Error, details.ErrorDescription, tc.tokenError.Error)
 		}
 	} else {
-		t.Errorf("%s: unexpedted error type: %s. expected *oauth2.RetrieveError", tc.name, reflect.TypeOf(err))
+		t.Errorf("%s: unexpected error type: %s. expected *oauth2.RetrieveError", tc.name, reflect.TypeOf(err))
 	}
 }
 

@@ -816,13 +816,11 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	providedCodeVerifier := r.PostFormValue("code_verifier")
 
 	if providedCodeVerifier != "" && codeChallengeFromStorage != "" {
-		providedCodeVerifier := r.PostFormValue("code_verifier")
 		calculatedCodeChallenge, err := s.calculateCodeChallenge(providedCodeVerifier, authCode.CodeChallenge.CodeChallengeMethod)
 		if err != nil {
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 			return
 		}
-
 		if codeChallengeFromStorage != calculatedCodeChallenge {
 			s.tokenErrHelper(w, errInvalidGrant, "Invalid code_verifier.", http.StatusBadRequest)
 			return
