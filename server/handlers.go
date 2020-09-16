@@ -283,7 +283,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	connID := mux.Vars(r)["connector"]
 	conn, err := s.getConnector(connID)
 	if err != nil {
-		s.logger.Errorf("Failed to create authorization request: %v", err)
+		s.logger.Errorf("Failed to get connector: %v", err)
 		s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist")
 		return
 	}
@@ -304,6 +304,9 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	// Set the connector being used for the login.
 	if authReq.ConnectorID != connID {
 		updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
+			if a.ConnectorID != "" {
+				return a, fmt.Errorf("connector is already set for this auth request")
+			}
 			a.ConnectorID = connID
 			return a, nil
 		}
