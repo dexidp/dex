@@ -81,7 +81,7 @@ func mustBeErrAlreadyExists(t *testing.T, kind string, err error) {
 }
 
 func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
-	codeChallenge := storage.CodeChallenge{
+	codeChallenge := storage.PKCE{
 		CodeChallenge:       "code_challenge_test",
 		CodeChallengeMethod: "plain",
 	}
@@ -106,7 +106,7 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 			EmailVerified: true,
 			Groups:        []string{"a", "b"},
 		},
-		CodeChallenge: codeChallenge,
+		PKCE: codeChallenge,
 	}
 
 	identity := storage.Claims{Email: "foobar"}
@@ -161,8 +161,8 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 		t.Fatalf("update failed, wanted identity=%#v got %#v", identity, got.Claims)
 	}
 
-	if !reflect.DeepEqual(got.CodeChallenge, codeChallenge) {
-		t.Fatalf("storage does not support PKCE, wanted challenge=%#v got %#v", codeChallenge, got.CodeChallenge)
+	if !reflect.DeepEqual(got.PKCE, codeChallenge) {
+		t.Fatalf("storage does not support PKCE, wanted challenge=%#v got %#v", codeChallenge, got.PKCE)
 	}
 
 	if err := s.DeleteAuthRequest(a1.ID); err != nil {

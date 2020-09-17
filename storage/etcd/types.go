@@ -37,8 +37,8 @@ func fromStorageAuthCode(a storage.AuthCode) AuthCode {
 		Scopes:              a.Scopes,
 		Claims:              fromStorageClaims(a.Claims),
 		Expiry:              a.Expiry,
-		CodeChallenge:       a.CodeChallenge.CodeChallenge,
-		CodeChallengeMethod: a.CodeChallenge.CodeChallengeMethod,
+		CodeChallenge:       a.PKCE.CodeChallenge,
+		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
 	}
 }
 
@@ -83,8 +83,8 @@ func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		Claims:              fromStorageClaims(a.Claims),
 		ConnectorID:         a.ConnectorID,
 		ConnectorData:       a.ConnectorData,
-		CodeChallenge:       a.CodeChallenge.CodeChallenge,
-		CodeChallengeMethod: a.CodeChallenge.CodeChallengeMethod,
+		CodeChallenge:       a.PKCE.CodeChallenge,
+		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
 	}
 }
 
@@ -103,7 +103,7 @@ func toStorageAuthRequest(a AuthRequest) storage.AuthRequest {
 		ConnectorData:       a.ConnectorData,
 		Expiry:              a.Expiry,
 		Claims:              toStorageClaims(a.Claims),
-		CodeChallenge: storage.CodeChallenge{
+		PKCE: storage.PKCE{
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},

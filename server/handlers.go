@@ -646,7 +646,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 				Expiry:        s.now().Add(time.Minute * 30),
 				RedirectURI:   authReq.RedirectURI,
 				ConnectorData: authReq.ConnectorData,
-				CodeChallenge: authReq.CodeChallenge,
+				PKCE:          authReq.PKCE,
 			}
 			if err := s.storage.CreateAuthCode(code); err != nil {
 				s.logger.Errorf("Failed to create auth code: %v", err)
@@ -812,11 +812,11 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	}
 
 	// RFC 7636 (PKCE)
-	codeChallengeFromStorage := authCode.CodeChallenge.CodeChallenge
+	codeChallengeFromStorage := authCode.PKCE.CodeChallenge
 	providedCodeVerifier := r.PostFormValue("code_verifier")
 
 	if providedCodeVerifier != "" && codeChallengeFromStorage != "" {
-		calculatedCodeChallenge, err := s.calculateCodeChallenge(providedCodeVerifier, authCode.CodeChallenge.CodeChallengeMethod)
+		calculatedCodeChallenge, err := s.calculateCodeChallenge(providedCodeVerifier, authCode.PKCE.CodeChallengeMethod)
 		if err != nil {
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 			return

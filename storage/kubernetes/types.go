@@ -326,7 +326,7 @@ func toStorageAuthRequest(req AuthRequest) storage.AuthRequest {
 		ConnectorData:       req.ConnectorData,
 		Expiry:              req.Expiry,
 		Claims:              toStorageClaims(req.Claims),
-		CodeChallenge: storage.CodeChallenge{
+		PKCE: storage.PKCE{
 			CodeChallenge:       req.CodeChallenge,
 			CodeChallengeMethod: req.CodeChallengeMethod,
 		},
@@ -356,8 +356,8 @@ func (cli *client) fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		ConnectorData:       a.ConnectorData,
 		Expiry:              a.Expiry,
 		Claims:              fromStorageClaims(a.Claims),
-		CodeChallenge:       a.CodeChallenge.CodeChallenge,
-		CodeChallengeMethod: a.CodeChallenge.CodeChallengeMethod,
+		CodeChallenge:       a.PKCE.CodeChallenge,
+		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
 	}
 	return req
 }
@@ -461,8 +461,8 @@ func (cli *client) fromStorageAuthCode(a storage.AuthCode) AuthCode {
 		Scopes:              a.Scopes,
 		Claims:              fromStorageClaims(a.Claims),
 		Expiry:              a.Expiry,
-		CodeChallenge:       a.CodeChallenge.CodeChallenge,
-		CodeChallengeMethod: a.CodeChallenge.CodeChallengeMethod,
+		CodeChallenge:       a.PKCE.CodeChallenge,
+		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
 	}
 }
 
@@ -477,7 +477,7 @@ func toStorageAuthCode(a AuthCode) storage.AuthCode {
 		Scopes:        a.Scopes,
 		Claims:        toStorageClaims(a.Claims),
 		Expiry:        a.Expiry,
-		CodeChallenge: storage.CodeChallenge{
+		PKCE: storage.PKCE{
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},

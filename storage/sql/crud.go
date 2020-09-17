@@ -141,7 +141,7 @@ func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
 		a.Claims.Email, a.Claims.EmailVerified, encoder(a.Claims.Groups),
 		a.ConnectorID, a.ConnectorData,
 		a.Expiry,
-		a.CodeChallenge.CodeChallenge, a.CodeChallenge.CodeChallengeMethod,
+		a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -183,7 +183,7 @@ func (c *conn) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) 
 			encoder(a.Claims.Groups),
 			a.ConnectorID, a.ConnectorData,
 			a.Expiry,
-			a.CodeChallenge.CodeChallenge, a.CodeChallenge.CodeChallengeMethod,
+			a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod,
 			r.ID,
 		)
 		if err != nil {
@@ -214,7 +214,7 @@ func getAuthRequest(q querier, id string) (a storage.AuthRequest, err error) {
 		&a.Claims.Email, &a.Claims.EmailVerified,
 		decoder(&a.Claims.Groups),
 		&a.ConnectorID, &a.ConnectorData, &a.Expiry,
-		&a.CodeChallenge.CodeChallenge, &a.CodeChallenge.CodeChallengeMethod,
+		&a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -240,7 +240,7 @@ func (c *conn) CreateAuthCode(a storage.AuthCode) error {
 		a.ID, a.ClientID, encoder(a.Scopes), a.Nonce, a.RedirectURI, a.Claims.UserID,
 		a.Claims.Username, a.Claims.PreferredUsername, a.Claims.Email, a.Claims.EmailVerified,
 		encoder(a.Claims.Groups), a.ConnectorID, a.ConnectorData, a.Expiry,
-		a.CodeChallenge.CodeChallenge, a.CodeChallenge.CodeChallengeMethod,
+		a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod,
 	)
 
 	if err != nil {
@@ -266,7 +266,7 @@ func (c *conn) GetAuthCode(id string) (a storage.AuthCode, err error) {
 		&a.ID, &a.ClientID, decoder(&a.Scopes), &a.Nonce, &a.RedirectURI, &a.Claims.UserID,
 		&a.Claims.Username, &a.Claims.PreferredUsername, &a.Claims.Email, &a.Claims.EmailVerified,
 		decoder(&a.Claims.Groups), &a.ConnectorID, &a.ConnectorData, &a.Expiry,
-		&a.CodeChallenge.CodeChallenge, &a.CodeChallenge.CodeChallengeMethod,
+		&a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
