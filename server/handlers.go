@@ -763,8 +763,8 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 	grantType := r.PostFormValue("grant_type")
 	codeVerifier := r.PostFormValue("code_verifier")
 
-	if grantType == grantTypeAuthorizationCode && codeVerifier != "" {
-		// RFC 7636 (PKCE) if code_verifier is received, use PKCE and not the client_secret
+	if grantType == grantTypeAuthorizationCode && codeVerifier != "" && clientSecret == "" {
+		// RFC 7636 (PKCE) if code_verifier is received, use PKCE and allow empty clientSecret
 	} else if client.Secret != clientSecret {
 		s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
 		return
