@@ -420,11 +420,6 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		codeChallengeMethod = CodeChallengeMethodPlain
 	}
 
-	if codeChallengeMethod != CodeChallengeMethodS256 && codeChallengeMethod != CodeChallengeMethodPlain {
-		description := fmt.Sprintf("Unsupported PKCE challenge method (%q).", codeChallengeMethod)
-		return nil, &authErr{"", "", errInvalidRequest, description}
-	}
-
 	client, err := s.storage.GetClient(clientID)
 	if err != nil {
 		if err == storage.ErrNotFound {
@@ -456,6 +451,11 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	// From here on out, we want to redirect back to the client with an error.
 	newErr := func(typ, format string, a ...interface{}) *authErr {
 		return &authErr{state, redirectURI, typ, fmt.Sprintf(format, a...)}
+	}
+
+	if codeChallengeMethod != CodeChallengeMethodS256 && codeChallengeMethod != CodeChallengeMethodPlain {
+		description := fmt.Sprintf("Unsupported PKCE challenge method (%q).", codeChallengeMethod)
+		return nil, newErr(errInvalidRequest, description)
 	}
 
 	var (
@@ -553,7 +553,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		RedirectURI:         redirectURI,
 		ResponseTypes:       responseTypes,
 		ConnectorID:         connectorID,
-		CodeChallenge: storage.CodeChallenge{
+		PKCE: storage.PKCE{
 			CodeChallenge:       codeChallenge,
 			CodeChallengeMethod: codeChallengeMethod,
 		},

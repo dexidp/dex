@@ -170,7 +170,7 @@ type Claims struct {
 }
 
 // Data needed for PKCE (RFC 7636)
-type CodeChallenge struct {
+type PKCE struct {
 	CodeChallenge       string
 	CodeChallengeMethod string
 }
@@ -213,7 +213,8 @@ type AuthRequest struct {
 	ConnectorID   string
 	ConnectorData []byte
 
-	CodeChallenge
+	// PKCE CodeChallenge and CodeChallengeMethod
+	PKCE PKCE
 }
 
 // AuthCode represents a code which can be exchanged for an OAuth2 token response.
@@ -250,7 +251,8 @@ type AuthCode struct {
 
 	Expiry time.Time
 
-	CodeChallenge
+	// PKCE CodeChallenge and CodeChallengeMethod
+	PKCE PKCE
 }
 
 // RefreshToken is an OAuth2 refresh token which allows a client to request new
