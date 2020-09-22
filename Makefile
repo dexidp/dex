@@ -74,11 +74,7 @@ fix: bin/golangci-lint ## Fix lint violations
 	bin/golangci-lint run --fix
 
 .PHONY: docker-image
-docker-image: ## Pull base images, then build the image.
-	@sudo docker build --pull -t $(DOCKER_IMAGE) .
-
-.PHONY: docker-image-no-pull
-docker-image-no-pull: ## Skip pulling the base images for development.
+docker-image:
 	@sudo docker build -t $(DOCKER_IMAGE) .
 
 .PHONY: proto
