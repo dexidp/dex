@@ -121,6 +121,9 @@ type WebConfig struct {
 
 	// Map of extra values passed into the templates
 	Extra map[string]string
+
+	// Defaults to issuer URL
+	HostURL string
 }
 
 func value(val, defaultValue time.Duration) time.Duration {

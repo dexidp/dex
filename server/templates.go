@@ -53,12 +53,17 @@ func loadTemplates(c WebConfig, issuerPath string) (*templates, error) {
 		c.LogoURL = "theme/logo.png"
 	}
 
+	hostURL := issuerPath
+	if c.HostURL != "" {
+		hostURL = c.HostURL
+	}
+
 	funcs := template.FuncMap{
 		"issuer": func() string { return c.Issuer },
 		"logo":   func() string { return c.LogoURL },
-		"url":    func(reqPath, assetPath string) string { return relativeURL(issuerPath, reqPath, assetPath) },
+		"url":    func(reqPath, assetPath string) string { return relativeURL(hostURL, reqPath, assetPath) },
 		"theme": func(reqPath, assetPath string) string {
-			return relativeURL(issuerPath, reqPath, path.Join("themes", c.Theme, assetPath))
+			return relativeURL(hostURL, reqPath, path.Join("themes", c.Theme, assetPath))
 		},
 		"lower": strings.ToLower,
 		"extra": func(k string) string { return c.Extra[k] },
