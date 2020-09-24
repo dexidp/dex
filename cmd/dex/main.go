@@ -21,6 +21,7 @@ func commandRoot() *cobra.Command {
 }
 
 func main() {
+	fmt.Println("Starting Dex with Redpesk patches")
 	if err := commandRoot().Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(2)
