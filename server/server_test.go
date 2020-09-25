@@ -1637,3 +1637,163 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 		}()
 	}
 }
+
+func TestClientSecretEncryption(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+		c.HashClientSecret = true
+	})
+	defer httpServer.Close()
+
+	clientID := "testclient"
+	clientSecret := "testclientsecret"
+	hash, err := bcrypt.GenerateFromPassword([]byte(clientSecret), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("failed to bcrypt: %s", err)
+	}
+
+	// Query server's provider metadata.
+	p, err := oidc.NewProvider(ctx, httpServer.URL)
+	if err != nil {
+		t.Fatalf("failed to get provider: %v", err)
+	}
+
+	var (
+		// If the OAuth2 client didn't get a response, we need
+		// to print the requests the user saw.
+		gotCode           bool
+		reqDump, respDump []byte // Auth step, not token.
+		state             = "a_state"
+	)
+	defer func() {
+		if !gotCode {
+			t.Errorf("never got a code in callback\n%s\n%s", reqDump, respDump)
+		}
+	}()
+
+	// Setup OAuth2 client.
+	var oauth2Config *oauth2.Config
+
+	requestedScopes := []string{oidc.ScopeOpenID, "email", "profile", "groups", "offline_access"}
+
+	// Create the OAuth2 config.
+	oauth2Config = &oauth2.Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Endpoint:     p.Endpoint(),
+		Scopes:       requestedScopes,
+	}
+
+	oauth2Client := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/callback" {
+			// User is visiting app first time. Redirect to dex.
+			http.Redirect(w, r, oauth2Config.AuthCodeURL(state), http.StatusSeeOther)
+			return
+		}
+
+		// User is at '/callback' so they were just redirected _from_ dex.
+		q := r.URL.Query()
+
+		// Grab code, exchange for token.
+		if code := q.Get("code"); code != "" {
+			gotCode = true
+			token, err := oauth2Config.Exchange(ctx, code)
+			if err != nil {
+				t.Errorf("failed to exchange code for token: %v", err)
+				return
+			}
+
+			oidcConfig := &oidc.Config{SkipClientIDCheck: true}
+
+			idToken, ok := token.Extra("id_token").(string)
+			if !ok {
+				t.Errorf("no id token found")
+				return
+			}
+			if _, err := p.Verifier(oidcConfig).Verify(ctx, idToken); err != nil {
+				t.Errorf("failed to verify id token: %v", err)
+				return
+			}
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	oauth2Config.RedirectURL = oauth2Client.URL + "/callback"
+
+	defer oauth2Client.Close()
+
+	// Regester the client above with dex.
+	client := storage.Client{
+		ID:           clientID,
+		Secret:       string(hash),
+		RedirectURIs: []string{oauth2Client.URL + "/callback"},
+	}
+	if err := s.storage.CreateClient(client); err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	// Login!
+	//
+	//   1. First request to client, redirects to dex.
+	//   2. Dex "logs in" the user, redirects to client with "code".
+	//   3. Client exchanges "code" for "token" (id_token, refresh_token, etc.).
+	//   4. Test is run with OAuth2 token response.
+	//
+	resp, err := http.Get(oauth2Client.URL + "/login")
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if reqDump, err = httputil.DumpRequest(resp.Request, false); err != nil {
+		t.Fatal(err)
+	}
+	if respDump, err = httputil.DumpResponse(resp, true); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestClientSecretEncryptionCost(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	clientID := "testclient"
+	clientSecret := "testclientsecret"
+	hash, err := bcrypt.GenerateFromPassword([]byte(clientSecret), 5)
+	if err != nil {
+		t.Fatalf("failed to bcrypt: %s", err)
+	}
+
+	// Register the client above with dex.
+	client := storage.Client{
+		ID:     clientID,
+		Secret: string(hash),
+	}
+
+	config := Config{
+		Storage: memory.New(logger),
+		Web: WebConfig{
+			Dir: "../web",
+		},
+		Logger:             logger,
+		PrometheusRegistry: prometheus.NewRegistry(),
+		HashClientSecret:   true,
+	}
+
+	err = config.Storage.CreateClient(client)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	_, err = newServer(ctx, config, staticRotationStrategy(testKey))
+	if err == nil {
+		t.Error("constructing server should have failed")
+	}
+
+	if !strings.Contains(err.Error(), "failed to check cost") {
+		t.Error("should have failed with cost error")
+	}
+}
