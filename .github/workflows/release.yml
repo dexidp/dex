@@ -18,6 +18,7 @@ jobs:
         run: |
           VERSION=$(shell ./scripts/git-version)
           echo ::set-output name=version::${VERSION}
+          echo ::set-output name=created::$(date -u +'%Y-%m-%dT%H:%M:%SZ')
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
@@ -30,6 +31,7 @@ jobs:
         with:
           install: true
           version: latest
+          # TODO: Remove driver-opts once fix is released docker/buildx#386
           driver-opts: image=moby/buildkit:master
 
       - name: Login to DockerHub
@@ -48,4 +50,12 @@ jobs:
           tags: |
             dexidp/dex:latest
             dexidp/dex:${{ steps.info.outputs.version }}
-
+          labels: |
+            org.opencontainers.image.title=${{ github.event.repository.name }}
+            org.opencontainers.image.description=${{ github.event.repository.description }}
+            org.opencontainers.image.url=${{ github.event.repository.html_url }}
+            org.opencontainers.image.source=${{ github.event.repository.clone_url }}
+            org.opencontainers.image.version=${{ steps.info.outputs.version }}
+            org.opencontainers.image.created=${{ steps.info.outputs.created }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=${{ github.event.repository.license.spdx_id }}
