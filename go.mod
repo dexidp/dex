@@ -1,6 +1,6 @@
 module github.com/dexidp/dex
 
-go 1.14
+go 1.15
 
 require (
 	github.com/Microsoft/hcsshim v0.8.7 // indirect
