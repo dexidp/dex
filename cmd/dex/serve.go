@@ -228,6 +228,27 @@ func serve(cmd *cobra.Command, args []string) error {
 	if len(c.Web.AllowedOrigins) > 0 {
 		logger.Infof("config allowed origins: %s", c.Web.AllowedOrigins)
 	}
+	if len(c.Web.AllowedHeaders) > 0 {
+		logger.Infof("config allowed headers: %s", c.Web.AllowedHeaders)
+	}
+	if len(c.Web.AllowedMethods) > 0 {
+		logger.Infof("config allowed methods: %s", c.Web.AllowedMethods)
+	}
+	if c.Web.IgnoreOptions {
+		logger.Infof("config ignoring OPTIONS requests")
+	}
+	if c.Web.AllowCredentials {
+		logger.Infof("config allow credentials in CORS requests")
+	}
+	if c.Web.MaxAge > 0 {
+		logger.Infof("config CORS max age for preflights set to %d seconds", c.Web.MaxAge)
+	}
+	if c.Web.OptionsStatusCode > 0 {
+		logger.Infof("config CORS setting custom status code %d", c.Web.OptionsStatusCode)
+	}
+	if len(c.Web.ExposedHeaders) > 0 {
+		logger.Infof("config exposed headers: %s", c.Web.ExposedHeaders)
+	}
 
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
@@ -238,6 +259,13 @@ func serve(cmd *cobra.Command, args []string) error {
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
 		PasswordConnector:      c.OAuth2.PasswordConnector,
 		AllowedOrigins:         c.Web.AllowedOrigins,
+		AllowedHeaders:         c.Web.AllowedHeaders,
+		AllowedMethods:         c.Web.AllowedMethods,
+		IgnoreOptions:          c.Web.IgnoreOptions,
+		AllowCredentials:       c.Web.AllowCredentials,
+		MaxAge:                 c.Web.MaxAge,
+		OptionsStatusCode:      c.Web.OptionsStatusCode,
+		ExposedHeaders:         c.Web.ExposedHeaders,
 		Issuer:                 c.Issuer,
 		Storage:                s,
 		Web:                    c.Frontend,

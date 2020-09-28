@@ -45,6 +45,15 @@ storage:
 # Configuration for the HTTP endpoints.
 web:
   http: 0.0.0.0:5556
+  # Uncomment for CORS see the CORS document at Documentation/cors.md for further information.
+  # allowedOrigins: ["*"]
+  # allowedHeaders: ["api_key", "Authorization", "x-requested-with"]
+  # allowedMethods: ["GET","PATCH", "POST"]
+  # exposedHeaders: ["header-1", "header-2"]
+  # allowCredentials: false
+  # ignoreOptions: false
+  # maxAge: 10
+  # optionsStatusCode: 204
   # Uncomment for HTTPS options.
   # https: 127.0.0.1:5554
   # tlsCert: /etc/dex/tls.crt

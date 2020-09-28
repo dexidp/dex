@@ -68,6 +68,30 @@ type Config struct {
 	// domain.
 	AllowedOrigins []string
 
+	// List of allowed headers for CORS requests on discovery, token and keys endpoint.
+	// If none are indicated, CORS will be setup with the default ("Accept", "Accept-Language", "Content-Language", "Origin")
+	AllowedHeaders []string
+
+	// List of allowed methods for CORS requests on discpver, token and keys endpoints.
+	// If none are indicated, CORS requests have the following allowed methods by default ("GET", "HEAD", "POST")
+	AllowedMethods []string
+
+	// If enabled, the server will not handle requests for OPTIONS from CORS handler.
+	// Instead passing them through to the next handler. This is useful when Dex can handle OPTIONS on its own.
+	IgnoreOptions bool
+
+	// if enabled, the server will allow credentials to be passed along with the request.
+	AllowCredentials bool
+
+	// The maximum age in seconds between preflight requests.
+	MaxAge int
+
+	// List of headers which the server will not strip out when requests are made
+	ExposedHeaders []string
+
+	// Sets a custom OPTIONS status code by default it is set to 200
+	OptionsStatusCode int
+
 	// If enabled, the server won't prompt the user to approve authorization requests.
 	// Logging in implies approval.
 	SkipApprovalScreen bool
@@ -285,9 +309,49 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 	handleWithCORS := func(p string, h http.HandlerFunc) {
 		var handler http.Handler = h
+
 		if len(c.AllowedOrigins) > 0 {
-			corsOption := handlers.AllowedOrigins(c.AllowedOrigins)
-			handler = handlers.CORS(corsOption)(handler)
+			var opts []handlers.CORSOption
+
+			// Sets CORS header: Access-Control-Allow-Origin
+			opts = append(opts, handlers.AllowedOrigins(c.AllowedOrigins))
+
+			if len(c.AllowedHeaders) > 0 {
+				// Sets CORS header: Access-Control-Allow-Headers
+				opts = append(opts, handlers.AllowedHeaders(c.AllowedHeaders))
+			}
+
+			if len(c.AllowedMethods) > 0 {
+				// Sets CORS header: Access-Control-Allow-Methods
+				opts = append(opts, handlers.AllowedMethods(c.AllowedMethods))
+			}
+
+			if len(c.ExposedHeaders) > 0 {
+				// Sets CORS header: Access-Control-Expose-Headers
+				opts = append(opts, handlers.ExposedHeaders(c.ExposedHeaders))
+			}
+
+			if c.IgnoreOptions {
+				// Ignores the CORS request: OPTIONS
+				opts = append(opts, handlers.IgnoreOptions())
+			}
+
+			if c.AllowCredentials {
+				// Sets CORS header: Access-Control-Allow-Credentials
+				opts = append(opts, handlers.AllowCredentials())
+			}
+
+			if c.MaxAge > 0 {
+				// Sets the CORS header: Access-Control-Max-Age. This is the maximum age in seconds between preflight (OPTIONS) requests, default 0, max 600 seconds (10 minutes)
+				opts = append(opts, handlers.MaxAge(c.MaxAge))
+			}
+
+			if c.OptionsStatusCode > 0 {
+				// Sets a custom OPTIONS status response code. Default 200
+				opts = append(opts, handlers.OptionStatusCode(c.OptionsStatusCode))
+			}
+
+			handler = handlers.CORS(opts...)(handler)
 		}
 		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, handler))
 	}

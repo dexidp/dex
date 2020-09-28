@@ -139,11 +139,18 @@ type OAuth2 struct {
 
 // Web is the config format for the HTTP server.
 type Web struct {
-	HTTP           string   `json:"http"`
-	HTTPS          string   `json:"https"`
-	TLSCert        string   `json:"tlsCert"`
-	TLSKey         string   `json:"tlsKey"`
-	AllowedOrigins []string `json:"allowedOrigins"`
+	HTTP              string   `json:"http"`
+	HTTPS             string   `json:"https"`
+	TLSCert           string   `json:"tlsCert"`
+	TLSKey            string   `json:"tlsKey"`
+	AllowedOrigins    []string `json:"allowedOrigins"`
+	AllowedHeaders    []string `json:"allowedHeaders"`
+	AllowedMethods    []string `json:"allowedMethods"`
+	IgnoreOptions     bool     `json:"ignoreOptions"`
+	AllowCredentials  bool     `json:"allowCredentials"`
+	MaxAge            int      `json:"maxAge"`
+	OptionsStatusCode int      `json:"optionsStatusCode"`
+	ExposedHeaders    []string `json:"exposedHeaders"`
 }
 
 // Telemetry is the config format for telemetry including the HTTP server config.
