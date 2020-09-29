@@ -184,6 +184,11 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 //assetPath is static/main.css
 //relativeURL("/dex", "/dex/auth", "static/main.css") = "../static/main.css"
 func relativeURL(serverPath, reqPath, assetPath string) string {
+	if u, err := url.ParseRequestURI(assetPath); err == nil && u.Scheme != "" {
+		// assetPath points to the external URL, no changes needed
+		return assetPath
+	}
+
 	splitPath := func(p string) []string {
 		res := []string{}
 		parts := strings.Split(path.Clean(p), "/")
