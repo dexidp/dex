@@ -49,7 +49,7 @@ For details on how to request or validate an ID Token, see [_"Writing apps that 
 
 Dex's main production use is as an auth-N addon in CoreOS's enterprise Kubernetes solution, [Tectonic][tectonic]. Dex runs natively on top of any Kubernetes cluster using Third Party Resources and can drive API server authentication through the OpenID Connect plugin. Clients, such as the [Tectonic Console][tectonic-console] and `kubectl`, can act on behalf users who can login to the cluster through any identity provider dex supports.
 
-More docs for running dex as a Kubernetes authenticator can be found [here](https://dexidp.org/docs/kubernetes/).
+More docs for running dex as a Kubernetes authenticator can be found [here](https://dexidp.io/docs/kubernetes/).
 
 ## Connectors
 
@@ -65,19 +65,19 @@ Dex implements the following connectors:
 
 | Name | supports refresh tokens | supports groups claim | supports preferred_username claim | status | notes |
 | ---- | ----------------------- | --------------------- | --------------------------------- | ------ | ----- |
-| [LDAP](https://dexidp.org/docs/connectors/ldap/) | yes | yes | yes | stable | |
-| [GitHub](https://dexidp.org/docs/connectors/github/) | yes | yes | yes | stable | |
-| [SAML 2.0](https://dexidp.org/docs/connectors/saml/) | no | yes | no | stable |
-| [GitLab](https://dexidp.org/docs/connectors/gitlab/) | yes | yes | yes | beta | |
-| [OpenID Connect](https://dexidp.org/docs/connectors/oidc/) | yes | yes | yes | beta | Includes Salesforce, Azure, etc. |
-| [Google](https://dexidp.org/docs/connectors/google/) | yes | yes | yes | alpha | |
-| [LinkedIn](https://dexidp.org/docs/connectors/linkedin/) | yes | no | no | beta | |
-| [Microsoft](https://dexidp.org/docs/connectors/microsoft/) | yes | yes | no | beta | |
-| [AuthProxy](https://dexidp.org/docs/connectors/authproxy/) | no | no | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
-| [Bitbucket Cloud](https://dexidp.org/docs/connectors/bitbucketcloud/) | yes | yes | no | alpha | |
-| [OpenShift](https://dexidp.org/docs/connectors/openshift/) | no | yes | no | stable | |
-| [Atlassian Crowd](https://dexidp.org/docs/connectors/atlassiancrowd/) | yes | yes | yes *) | beta | preferred_username claim must be configured through config |
-| [Gitea](https://dexidp.org/docs/connectors/gitea/) | yes | no | yes | alpha | |
+| [LDAP](https://dexidp.io/docs/connectors/ldap/) | yes | yes | yes | stable | |
+| [GitHub](https://dexidp.io/docs/connectors/github/) | yes | yes | yes | stable | |
+| [SAML 2.0](https://dexidp.io/docs/connectors/saml/) | no | yes | no | stable |
+| [GitLab](https://dexidp.io/docs/connectors/gitlab/) | yes | yes | yes | beta | |
+| [OpenID Connect](https://dexidp.io/docs/connectors/oidc/) | yes | yes | yes | beta | Includes Salesforce, Azure, etc. |
+| [Google](https://dexidp.io/docs/connectors/google/) | yes | yes | yes | alpha | |
+| [LinkedIn](https://dexidp.io/docs/connectors/linkedin/) | yes | no | no | beta | |
+| [Microsoft](https://dexidp.io/docs/connectors/microsoft/) | yes | yes | no | beta | |
+| [AuthProxy](https://dexidp.io/docs/connectors/authproxy/) | no | no | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
+| [Bitbucket Cloud](https://dexidp.io/docs/connectors/bitbucketcloud/) | yes | yes | no | alpha | |
+| [OpenShift](https://dexidp.io/docs/connectors/openshift/) | no | yes | no | stable | |
+| [Atlassian Crowd](https://dexidp.io/docs/connectors/atlassiancrowd/) | yes | yes | yes *) | beta | preferred_username claim must be configured through config |
+| [Gitea](https://dexidp.io/docs/connectors/gitea/) | yes | no | yes | alpha | |
 
 Stable, beta, and alpha are defined as:
 
@@ -89,14 +89,14 @@ All changes or deprecations of connector features will be announced in the [rele
 
 ## Documentation
 
-* [Getting started](https://dexidp.org/docs/getting-started/)
-* [Intro to OpenID Connect](https://dexidp.org/docs/openid-connect/)
+* [Getting started](https://dexidp.io/docs/getting-started/)
+* [Intro to OpenID Connect](https://dexidp.io/docs/openid-connect/)
 * [Writing apps that use dex][using-dex]
-* [What's new in v2](https://dexidp.org/docs/v2/)
-* [Custom scopes, claims, and client features](https://dexidp.org/docs/custom-scopes-claims-clients/)
-* [Storage options](https://dexidp.org/docs/storage/)
-* [gRPC API](https://dexidp.org/docs/api/)
-* [Using Kubernetes with dex](https://dexidp.org/docs/kubernetes/)
+* [What's new in v2](https://dexidp.io/docs/v2/)
+* [Custom scopes, claims, and client features](https://dexidp.io/docs/custom-scopes-claims-clients/)
+* [Storage options](https://dexidp.io/docs/storage/)
+* [gRPC API](https://dexidp.io/docs/api/)
+* [Using Kubernetes with dex](https://dexidp.io/docs/kubernetes/)
 * Client libraries
   * [Go][go-oidc]
 
