@@ -21,14 +21,14 @@ func TestUserGroups(t *testing.T) {
 			PageLen: 10,
 		},
 		Values: []team{
-			{Name: "team-1"},
-			{Name: "team-2"},
-			{Name: "team-3"},
+			{Team: teamName{Name: "team-1"}},
+			{Team: teamName{Name: "team-2"}},
+			{Team: teamName{Name: "team-3"}},
 		},
 	}
 
 	s := newTestServer(map[string]interface{}{
-		"/teams?role=member": teamsResponse,
+		"/user/permissions/teams": teamsResponse,
 	})
 
 	connector := bitbucketConnector{apiURL: s.URL}
@@ -46,7 +46,7 @@ func TestUserGroups(t *testing.T) {
 
 func TestUserWithoutTeams(t *testing.T) {
 	s := newTestServer(map[string]interface{}{
-		"/teams?role=member": userTeamsResponse{},
+		"/user/permissions/teams": userTeamsResponse{},
 	})
 
 	connector := bitbucketConnector{apiURL: s.URL}
