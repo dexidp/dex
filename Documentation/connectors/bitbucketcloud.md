@@ -10,7 +10,7 @@ When a client redeems a refresh token through dex, dex will re-query Bitbucket t
 
 Register a new OAuth consumer with [Bitbucket](https://confluence.atlassian.com/bitbucket/oauth-on-bitbucket-cloud-238027431.html) ensuring the callback URL is `(dex issuer)/callback`. For example if dex is listening at the non-root path `https://auth.example.com/dex` the callback would be `https://auth.example.com/dex/callback`.
 
-The application requires the user to grant the `Read Account` and `Read Team membership` permissions. The latter is required only if group membership is a desired claim.
+The application requires the user to grant only the `Read Account` permission.
 
 The following is an example of a configuration for `examples/config-dev.yaml`:
 

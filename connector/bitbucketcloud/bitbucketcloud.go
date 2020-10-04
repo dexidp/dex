@@ -362,8 +362,12 @@ func (b *bitbucketConnector) getGroups(ctx context.Context, client *http.Client,
 	return nil, nil
 }
 
-type team struct {
+type teamName struct {
 	Name string `json:"username"` // The "username" from Bitbucket Cloud is actually the team name here
+}
+
+type team struct {
+	Team teamName `json:"team"`
 }
 
 type userTeamsResponse struct {
@@ -373,18 +377,18 @@ type userTeamsResponse struct {
 
 func (b *bitbucketConnector) userTeams(ctx context.Context, client *http.Client) ([]string, error) {
 	var teams []string
-	apiURL := b.apiURL + "/teams?role=member"
+	apiURL := b.apiURL + "/user/permissions/teams"
 
 	for {
-		// https://developer.atlassian.com/bitbucket/api/2/reference/resource/teams
+		// https://developer.atlassian.com/bitbucket/api/2/reference/resource/user/permissions/teams
 		var response userTeamsResponse
 
 		if err := get(ctx, client, apiURL, &response); err != nil {
 			return nil, fmt.Errorf("bitbucket: get user teams: %v", err)
 		}
 
-		for _, team := range response.Values {
-			teams = append(teams, team.Name)
+		for _, value := range response.Values {
+			teams = append(teams, value.Team.Name)
 		}
 
 		if response.Next == nil {
