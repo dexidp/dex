@@ -340,7 +340,6 @@ func TestValidRedirectURI(t *testing.T) {
 				RedirectURIs: []string{"http://foo.com/bar"},
 			},
 			redirectURI: "http://foo.com/bar/baz",
-			wantValid:   false,
 		},
 		{
 			client: storage.Client{
@@ -369,30 +368,6 @@ func TestValidRedirectURI(t *testing.T) {
 			},
 			redirectURI: "http://localhost",
 			wantValid:   true,
-		},
-		// Both Public + RedirectURIs configured: Could e.g. be a PKCE-enabled web app.
-		{
-			client: storage.Client{
-				Public: true,
-				RedirectURIs: []string{"http://foo.com/bar"},
-			},
-			redirectURI: "http://foo.com/bar",
-			wantValid:   true,
-		},
-		{
-			client: storage.Client{
-				Public: true,
-				RedirectURIs: []string{"http://foo.com/bar"},
-			},
-			redirectURI: "http://foo.com/bar/baz",
-			wantValid:   false,
-		},
-		{
-			client: storage.Client{
-				Public: true,
-			},
-			redirectURI: "http://foo.com/bar",
-			wantValid:   false,
 		},
 		{
 			client: storage.Client{
