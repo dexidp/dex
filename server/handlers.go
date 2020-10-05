@@ -785,7 +785,6 @@ func (s *Server) calculateCodeChallenge(codeVerifier, codeChallengeMethod string
 		shaSum := sha256.Sum256([]byte(codeVerifier))
 		return base64.RawURLEncoding.EncodeToString(shaSum[:]), nil
 	default:
-		s.logger.Errorf("unknown challenge method (%v)", codeChallengeMethod)
 		return "", fmt.Errorf("unknown challenge method (%v)", codeChallengeMethod)
 	}
 }
@@ -813,6 +812,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	if providedCodeVerifier != "" && codeChallengeFromStorage != "" {
 		calculatedCodeChallenge, err := s.calculateCodeChallenge(providedCodeVerifier, authCode.PKCE.CodeChallengeMethod)
 		if err != nil {
+			s.logger.Error(err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 			return
 		}
