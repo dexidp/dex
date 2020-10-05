@@ -33,7 +33,7 @@ COPY --from=0 /go/bin/dex /usr/local/bin/dex
 
 # Import frontend assets and set the correct CWD directory so the assets
 # are in the default path.
-COPY web .
+COPY web web
 
 ENTRYPOINT ["dex"]
 
