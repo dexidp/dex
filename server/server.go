@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/rsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -172,6 +173,13 @@ func NewServer(ctx context.Context, c Config) (*Server, error) {
 	))
 }
 
+// NewServerWithKey constructs a server from the provided config and a static signing key.
+func NewServerWithKey(ctx context.Context, c Config, privateKey *rsa.PrivateKey) (*Server, error) {
+	return newServer(ctx, c, staticRotationStrategy(
+		privateKey,
+	))
+}
+
 func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy) (*Server, error) {
 	issuerURL, err := url.Parse(c.Issuer)
 	if err != nil {
@@ -286,8 +294,14 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS := func(p string, h http.HandlerFunc) {
 		var handler http.Handler = h
 		if len(c.AllowedOrigins) > 0 {
-			corsOption := handlers.AllowedOrigins(c.AllowedOrigins)
-			handler = handlers.CORS(corsOption)(handler)
+			allowedHeaders := []string{
+				"Authorization",
+			}
+			cors := handlers.CORS(
+				handlers.AllowedOrigins(c.AllowedOrigins),
+				handlers.AllowedHeaders(allowedHeaders),
+			)
+			handler = cors(handler)
 		}
 		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, handler))
 	}
