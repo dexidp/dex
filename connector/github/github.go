@@ -449,7 +449,7 @@ func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client)
 	for {
 		// https://developer.github.com/v3/orgs/teams/#list-user-teams
 		var (
-			teams []team
+			teams []teamWithParent
 			err   error
 		)
 		if apiURL, err = get(ctx, client, apiURL, &teams); err != nil {
@@ -656,6 +656,11 @@ type team struct {
 	Slug string `json:"slug"`
 }
 
+type teamWithParent struct {
+	team
+	Parent *team `json:"parent"`
+}
+
 type org struct {
 	Login string `json:"login"`
 }
@@ -669,7 +674,7 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 	for {
 		// https://developer.github.com/v3/orgs/teams/#list-user-teams
 		var (
-			teams []team
+			teams []teamWithParent
 			err   error
 		)
 		if apiURL, err = get(ctx, client, apiURL, &teams); err != nil {
@@ -693,13 +698,26 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 // teamGroupClaims returns team slug if 'teamNameField' option is set to
 // 'slug', returns the slug *and* name if set to 'both', otherwise returns team
 // name.
-func (c *githubConnector) teamGroupClaims(t team) []string {
+func (c *githubConnector) teamGroupClaims(t teamWithParent) []string {
+	var groups []string
+
 	switch c.teamNameField {
 	case "both":
-		return []string{t.Name, t.Slug}
+		if t.Parent != nil {
+			groups = append(groups, t.Parent.Name, t.Parent.Slug)
+		}
+		groups = append(groups, t.Name, t.Slug)
 	case "slug":
-		return []string{t.Slug}
+		if t.Parent != nil {
+			groups = append(groups, t.Parent.Slug)
+		}
+		groups = append(groups, t.Slug)
 	default:
-		return []string{t.Name}
+		if t.Parent != nil {
+			groups = append(groups, t.Parent.Name)
+		}
+		groups = append(groups, t.Name)
 	}
+
+	return groups
 }
