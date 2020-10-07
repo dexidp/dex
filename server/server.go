@@ -93,6 +93,8 @@ type Config struct {
 	Logger log.Logger
 
 	PrometheusRegistry *prometheus.Registry
+
+	EnableMultiRefreshTokens bool
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -163,6 +165,8 @@ type Server struct {
 	deviceRequestsValidFor time.Duration
 
 	logger log.Logger
+
+	enableMultiRefreshTokens bool
 }
 
 // NewServer constructs a server from the provided config.
@@ -223,19 +227,20 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 
 	s := &Server{
-		issuerURL:              *issuerURL,
-		connectors:             make(map[string]Connector),
-		storage:                newKeyCacher(c.Storage, now),
-		supportedResponseTypes: supported,
-		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
-		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
-		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
-		skipApproval:           c.SkipApprovalScreen,
-		alwaysShowLogin:        c.AlwaysShowLoginScreen,
-		now:                    now,
-		templates:              tmpls,
-		passwordConnector:      c.PasswordConnector,
-		logger:                 c.Logger,
+		issuerURL:                *issuerURL,
+		connectors:               make(map[string]Connector),
+		storage:                  newKeyCacher(c.Storage, now),
+		supportedResponseTypes:   supported,
+		idTokensValidFor:         value(c.IDTokensValidFor, 24*time.Hour),
+		authRequestsValidFor:     value(c.AuthRequestsValidFor, 24*time.Hour),
+		deviceRequestsValidFor:   value(c.DeviceRequestsValidFor, 5*time.Minute),
+		skipApproval:             c.SkipApprovalScreen,
+		alwaysShowLogin:          c.AlwaysShowLoginScreen,
+		now:                      now,
+		templates:                tmpls,
+		passwordConnector:        c.PasswordConnector,
+		logger:                   c.Logger,
+		enableMultiRefreshTokens: c.EnableMultiRefreshTokens,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors

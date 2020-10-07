@@ -233,17 +233,18 @@ func serve(cmd *cobra.Command, args []string) error {
 	now := func() time.Time { return time.Now().UTC() }
 
 	serverConfig := server.Config{
-		SupportedResponseTypes: c.OAuth2.ResponseTypes,
-		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
-		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
-		PasswordConnector:      c.OAuth2.PasswordConnector,
-		AllowedOrigins:         c.Web.AllowedOrigins,
-		Issuer:                 c.Issuer,
-		Storage:                s,
-		Web:                    c.Frontend,
-		Logger:                 logger,
-		Now:                    now,
-		PrometheusRegistry:     prometheusRegistry,
+		SupportedResponseTypes:   c.OAuth2.ResponseTypes,
+		SkipApprovalScreen:       c.OAuth2.SkipApprovalScreen,
+		AlwaysShowLoginScreen:    c.OAuth2.AlwaysShowLoginScreen,
+		PasswordConnector:        c.OAuth2.PasswordConnector,
+		AllowedOrigins:           c.Web.AllowedOrigins,
+		Issuer:                   c.Issuer,
+		Storage:                  s,
+		Web:                      c.Frontend,
+		Logger:                   logger,
+		Now:                      now,
+		PrometheusRegistry:       prometheusRegistry,
+		EnableMultiRefreshTokens: c.EnableMultiRefreshTokens,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
@@ -326,7 +327,7 @@ func serve(cmd *cobra.Command, args []string) error {
 					return fmt.Errorf("listening on %s failed: %v", c.GRPC.Addr, err)
 				}
 				s := grpc.NewServer(grpcOptions...)
-				api.RegisterDexServer(s, server.NewAPI(serverConfig.Storage, logger))
+				api.RegisterDexServer(s, server.NewAPI(serverConfig.Storage, logger, c.EnableMultiRefreshTokens))
 				grpcMetrics.InitializeMetrics(s)
 				if c.GRPC.Reflection {
 					logger.Info("enabling reflection in grpc service")

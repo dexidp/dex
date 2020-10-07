@@ -47,6 +47,8 @@ type Config struct {
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
+
+	EnableMultiRefreshTokens bool `json:"enableMultiRefreshTokens"`
 }
 
 //Validate the configuration

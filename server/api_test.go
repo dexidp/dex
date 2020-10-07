@@ -36,7 +36,7 @@ func newAPI(s storage.Storage, logger log.Logger, t *testing.T) *apiClient {
 	}
 
 	serv := grpc.NewServer()
-	api.RegisterDexServer(serv, NewAPI(s, logger))
+	api.RegisterDexServer(serv, NewAPI(s, logger, false))
 	go serv.Serve(l)
 
 	// Dial will retry automatically if the serv.Serve() goroutine

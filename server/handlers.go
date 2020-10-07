@@ -919,13 +919,15 @@ func (s *Server) exchangeAuthCode(w http.ResponseWriter, authCode storage.AuthCo
 				return nil, err
 			}
 		} else {
-			if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
-				// Delete old refresh token from storage.
-				if err := s.storage.DeleteRefresh(oldTokenRef.ID); err != nil && err != storage.ErrNotFound {
-					s.logger.Errorf("failed to delete refresh token: %v", err)
-					s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-					deleteToken = true
-					return nil, err
+			if !s.enableMultiRefreshTokens {
+				if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
+					// Delete old refresh token from storage.
+					if err := s.storage.DeleteRefresh(oldTokenRef.ID); err != nil && err != storage.ErrNotFound {
+						s.logger.Errorf("failed to delete refresh token: %v", err)
+						s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+						deleteToken = true
+						return nil, err
+					}
 				}
 			}
 
@@ -1119,7 +1121,11 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 	// in offline session for the user.
 	if err := s.storage.UpdateOfflineSessions(refresh.Claims.UserID, refresh.ConnectorID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 		if old.Refresh[refresh.ClientID].ID != refresh.ID {
-			return old, errors.New("refresh token invalid")
+			if s.enableMultiRefreshTokens {
+				return old, nil
+			} else {
+				return old, errors.New("refresh token invalid")
+			}
 		}
 		old.Refresh[refresh.ClientID].LastUsed = lastUsed
 		old.ConnectorData = ident.ConnectorData
@@ -1358,16 +1364,18 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 				return
 			}
 		} else {
-			if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
-				// Delete old refresh token from storage.
-				if err := s.storage.DeleteRefresh(oldTokenRef.ID); err != nil {
-					if err == storage.ErrNotFound {
-						s.logger.Warnf("database inconsistent, refresh token missing: %v", oldTokenRef.ID)
-					} else {
-						s.logger.Errorf("failed to delete refresh token: %v", err)
-						s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-						deleteToken = true
-						return
+			if !s.enableMultiRefreshTokens {
+				if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
+					// Delete old refresh token from storage.
+					if err := s.storage.DeleteRefresh(oldTokenRef.ID); err != nil {
+						if err == storage.ErrNotFound {
+							s.logger.Warnf("database inconsistent, refresh token missing: %v", oldTokenRef.ID)
+						} else {
+							s.logger.Errorf("failed to delete refresh token: %v", err)
+							s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+							deleteToken = true
+							return
+						}
 					}
 				}
 			}
