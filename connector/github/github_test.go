@@ -56,7 +56,6 @@ func TestUserGroups(t *testing.T) {
 		"org-1",
 		"org-1:team-0",
 		"org-1:team-1",
-		"org-1:team-0",
 		"org-1:team-2",
 		"org-1:team-3",
 		"org-2",

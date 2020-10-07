@@ -460,6 +460,20 @@ func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client)
 			groups[t.Org.Login] = append(groups[t.Org.Login], c.teamGroupClaims(t)...)
 		}
 
+		for _, t := range teams {
+			keys := make(map[string]bool)
+			uniqueGroups := []string{}
+
+			for _, group := range groups[t.Org.Login] {
+				if _, exists := keys[group]; !exists {
+					keys[group] = true
+					uniqueGroups = append(uniqueGroups, group)
+				}
+
+				groups[t.Org.Login] = uniqueGroups
+			}
+		}
+
 		if apiURL == "" {
 			break
 		}
@@ -686,6 +700,18 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 				groups = append(groups, c.teamGroupClaims(t)...)
 			}
 		}
+
+		keys := make(map[string]bool)
+		uniqueGroups := []string{}
+
+		for _, group := range groups {
+			if _, exists := keys[group]; !exists {
+				keys[group] = true
+				uniqueGroups = append(uniqueGroups, group)
+			}
+		}
+
+		groups = uniqueGroups
 
 		if apiURL == "" {
 			break
