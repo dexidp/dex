@@ -220,7 +220,7 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 func (c *oauthConnector) addGroupsFromMap(groups map[string]bool, result map[string]interface{}) error {
 	groupsClaim, ok := result[c.groupsKey].([]interface{})
 	if !ok {
-		return errors.New("cant convert to array")
+		return errors.New("cannot convert to slice")
 	}
 
 	for _, group := range groupsClaim {

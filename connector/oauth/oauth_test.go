@@ -9,11 +9,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"reflect"
 	"sort"
 	"testing"
 
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
@@ -30,15 +30,15 @@ func TestOpen(t *testing.T) {
 
 	sort.Strings(conn.scopes)
 
-	expectEqual(t, conn.clientID, "testClient")
-	expectEqual(t, conn.clientSecret, "testSecret")
-	expectEqual(t, conn.redirectURI, testServer.URL+"/callback")
-	expectEqual(t, conn.tokenURL, testServer.URL+"/token")
-	expectEqual(t, conn.authorizationURL, testServer.URL+"/authorize")
-	expectEqual(t, conn.userInfoURL, testServer.URL+"/userinfo")
-	expectEqual(t, len(conn.scopes), 2)
-	expectEqual(t, conn.scopes[0], "groups")
-	expectEqual(t, conn.scopes[1], "openid")
+	assert.Equal(t, conn.clientID, "testClient")
+	assert.Equal(t, conn.clientSecret, "testSecret")
+	assert.Equal(t, conn.redirectURI, testServer.URL+"/callback")
+	assert.Equal(t, conn.tokenURL, testServer.URL+"/token")
+	assert.Equal(t, conn.authorizationURL, testServer.URL+"/authorize")
+	assert.Equal(t, conn.userInfoURL, testServer.URL+"/userinfo")
+	assert.Equal(t, len(conn.scopes), 2)
+	assert.Equal(t, conn.scopes[0], "groups")
+	assert.Equal(t, conn.scopes[1], "openid")
 }
 
 func TestLoginURL(t *testing.T) {
@@ -51,10 +51,10 @@ func TestLoginURL(t *testing.T) {
 	conn := newConnector(t, testServer.URL)
 
 	loginURL, err := conn.LoginURL(connector.Scopes{}, conn.redirectURI, "some-state")
-	expectEqual(t, err, nil)
+	assert.Equal(t, err, nil)
 
 	expectedURL, err := url.Parse(testServer.URL + "/authorize")
-	expectEqual(t, err, nil)
+	assert.Equal(t, err, nil)
 
 	values := url.Values{}
 	values.Add("client_id", "testClient")
@@ -64,7 +64,7 @@ func TestLoginURL(t *testing.T) {
 	values.Add("state", "some-state")
 	expectedURL.RawQuery = values.Encode()
 
-	expectEqual(t, loginURL, expectedURL.String())
+	assert.Equal(t, loginURL, expectedURL.String())
 }
 
 func TestHandleCallBackForGroupsInUserInfo(t *testing.T) {
@@ -87,17 +87,17 @@ func TestHandleCallBackForGroupsInUserInfo(t *testing.T) {
 	req := newRequestWithAuthCode(t, testServer.URL, "some-code")
 
 	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
-	expectEqual(t, err, nil)
+	assert.Equal(t, err, nil)
 
 	sort.Strings(identity.Groups)
-	expectEqual(t, len(identity.Groups), 2)
-	expectEqual(t, identity.Groups[0], "admin-group")
-	expectEqual(t, identity.Groups[1], "user-group")
-	expectEqual(t, identity.UserID, "test-user-id")
-	expectEqual(t, identity.Username, "test-username")
-	expectEqual(t, identity.PreferredUsername, "test-preferred-username")
-	expectEqual(t, identity.Email, "test-email")
-	expectEqual(t, identity.EmailVerified, true)
+	assert.Equal(t, len(identity.Groups), 2)
+	assert.Equal(t, identity.Groups[0], "admin-group")
+	assert.Equal(t, identity.Groups[1], "user-group")
+	assert.Equal(t, identity.UserID, "test-user-id")
+	assert.Equal(t, identity.Username, "test-username")
+	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.Email, "test-email")
+	assert.Equal(t, identity.EmailVerified, true)
 }
 
 func TestHandleCallBackForGroupsInToken(t *testing.T) {
@@ -121,15 +121,15 @@ func TestHandleCallBackForGroupsInToken(t *testing.T) {
 	req := newRequestWithAuthCode(t, testServer.URL, "some-code")
 
 	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
-	expectEqual(t, err, nil)
+	assert.Equal(t, err, nil)
 
-	expectEqual(t, len(identity.Groups), 1)
-	expectEqual(t, identity.Groups[0], "test-group")
-	expectEqual(t, identity.PreferredUsername, "test-preferred-username")
-	expectEqual(t, identity.UserID, "test-user-id")
-	expectEqual(t, identity.Username, "test-username")
-	expectEqual(t, identity.Email, "test-email")
-	expectEqual(t, identity.EmailVerified, true)
+	assert.Equal(t, len(identity.Groups), 1)
+	assert.Equal(t, identity.Groups[0], "test-group")
+	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.UserID, "test-user-id")
+	assert.Equal(t, identity.Username, "test-username")
+	assert.Equal(t, identity.Email, "test-email")
+	assert.Equal(t, identity.EmailVerified, true)
 }
 
 func testSetup(t *testing.T, tokenClaims map[string]interface{}, userInfoClaims map[string]interface{}) *httptest.Server {
@@ -229,10 +229,4 @@ func newRequestWithAuthCode(t *testing.T, serverURL string, code string) *http.R
 	req.URL.RawQuery = values.Encode()
 
 	return req
-}
-
-func expectEqual(t *testing.T, a interface{}, b interface{}) {
-	if !reflect.DeepEqual(a, b) {
-		t.Fatalf("Expected %+v to equal %+v", a, b)
-	}
 }
