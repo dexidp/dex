@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"gopkg.in/hlandau/passlib.v1"
 	"golang.org/x/crypto/bcrypt"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -56,8 +57,8 @@ func (db *databaseBuilder) createUser(username string, name string,
 
 	userID := "u-" + uuid.String()
 
-	cryptPw, err := bcrypt.GenerateFromPassword([]byte(password),
-		bcrypt.DefaultCost)
+	// Deliberately use a low cost, to force passlib to update them
+	cryptPw, err := passlib.Hash(password)
 	if err != nil {
 		return "", err
 	}
@@ -251,7 +252,7 @@ func newDatabaseBuilder(ctx context.Context) *databaseBuilder {
 		DatabasePath: dbPath}
 }
 
-var dbuilder *databaseBuilder
+var testdb *sqlx.DB
 var cfg *Config
 var conn *sqlConnector
 
@@ -263,6 +264,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
+	testdb = dbuilder.db
 	defer dbuilder.Close()
 
 	cfg = &Config{
@@ -271,6 +273,7 @@ func TestMain(m *testing.M) {
 		UserQuery: UserQuery{
 			QueryByName:    "SELECT * FROM Users WHERE name=:username OR email=:username",
 			QueryByID:      "SELECT * FROM Users WHERE userID=:userid",
+			UpdatePassword: "UPDATE Users SET password=:password WHERE userID=:userid",
 			IDColumn:       "userID",
 			UsernameColumn: "name",
 			EmailColumn:    "email",
@@ -427,5 +430,54 @@ func TestRefresh(t *testing.T) {
 	if newIdent2.Groups == nil || len(newIdent2.Groups) != 1 ||
 		newIdent2.Groups[0] != "Blue Team" {
 		t.Errorf("refresh returned wrong groups")
+	}
+}
+
+func TestHashUpgrade(t *testing.T) {
+	ctx := context.Background()
+
+	weakHash, err := bcrypt.GenerateFromPassword([]byte("scaryAnt"), 5)
+	if err != nil {
+		t.Errorf("couldn't generate weak hash: %v", err)
+	}
+
+	_, err = testdb.NamedExecContext(ctx,
+		"UPDATE Users SET password=:password WHERE name=:username",
+		map[string]interface{}{
+			"username": "ajones",
+			"password": string(weakHash),
+		})
+	if err != nil {
+		t.Errorf("couldn't substitute weak hash: %v", err)
+	}
+
+	// Make sure we can log-in; this should also replace the hash
+	s := connector.Scopes{OfflineAccess: false, Groups: false}
+	mustLogin(t, ctx, s, "ajones", "scaryAnt")
+
+	rows, err := testdb.NamedQueryContext(ctx,
+		"SELECT password FROM Users WHERE name=:username",
+		map[string]interface{}{
+			"username": "ajones",
+		})
+	if err != nil {
+		t.Errorf("couldn't retrieve password hash: %v", err)
+	}
+
+	if !rows.Next() {
+		rows.Close()
+		t.Errorf("no password hash found: %v", err)
+	}
+
+	row := map[string]interface{}{}
+
+	err = rows.MapScan(row)
+	rows.Close()
+	if err != nil {
+		t.Errorf("couldn't retrieve password row: %v", err)
+	}
+
+	if row["password"] == string(weakHash) {
+		t.Errorf("password hash has not been upgraded: %q", row["password"])
 	}
 }

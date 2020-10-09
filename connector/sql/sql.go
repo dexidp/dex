@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	// Crypt
-	"golang.org/x/crypto/bcrypt"
+	// Crypt support
+	"gopkg.in/hlandau/passlib.v1"
 
 	// Database drivers
 	_ "github.com/go-sql-driver/mysql"
@@ -41,46 +41,65 @@ type Config struct {
 	// UsernamePrompt allows users to override the username attribute
 	// (displayed in the username/password prompt).  If unset, the handler
 	// wil use "Username".
-	UsernamePrompt string `json:"usernamePrompt"`
+	UsernamePrompt string `json:"usernamePrompt,omitempty"`
 
-	// User query, e.g.
+	// User queries, used to fetch user information
+	UserQuery UserQuery `json:"userQuery"`
+
+	// User groups query, used to fetch groups for a user
+	UserGroupsQuery UserGroupsQuery `json:"userGroupsQuery"`
+
+	// Passlib default schemes date
+	PasslibDefaultsDate string `json:"passlibDefaultsDate,omitempty"`
+}
+
+type UserQuery struct {
+	// SQL queries
+
+	// QueryByName will substitute a ":username" argument, e.g.
 	//
 	//   SELECT id, username, email, name, password
 	//   FROM Users
 	//   WHERE username=:username OR email=:username
 	//
-	// The identity column must be an integer or a string.  The other
-	// columns must all be strings.
-	//
-	// The password column is expected to be a crypt password.
-	//
-	UserQuery UserQuery `json:"userQuery"`
-
-	// User groups query, e.g.
-	//
-	//   SELECT name
-	//   FROM Groups INNER JOIN UserGroups
-	//   ON Groups.id=UserGroups.group
-	//   WHERE UserGroups.user=:userid
-	//
-	UserGroupsQuery UserGroupsQuery `json:"userGroupsQuery"`
-}
-
-type UserQuery struct {
-	// The actual SQL
 	QueryByName string `json:"queryByUsername"`
+
+	// QueryByID will substitute a ":userid" argument, e.g.
+	//
+	//   SELECT id, username, email, name, password
+	//   FROM Users
+	//   WHERE id=:userid
+	//
 	QueryByID   string `json:"queryById"`
+
+	// UpdatePassword updates the password; ":userid" and ":password"
+	// are substituted, e.g.
+	//
+	//   UPDATE Users SET password=:password WHERE id=:userid
+	//
+	// This is only used if it is non-empty, and allows passlib to
+	// automatically update passwords that have weak hashes.
+	//
+	// **NOTE THAT SETTING THIS WILL RESULT IN PASSLIB UPDATING YOUR HASHES
+	//   TO ITS PREFERRED CRYPT ALGORITHM**
+	//
+	// You probably only want to set this if your application is only using
+	// passlib.  If it uses any other software, it will need to support
+	// whatever hash passlib prefers as of the PasslibDefaultsDate.
+	UpdatePassword string `json:"updatePassword,omitempty"`
 
 	// The names of various columns
 	IDColumn       string `json:"idColumn"`
-	UsernameColumn string `json:"usernameColumn"`
-	EmailColumn    string `json:"emailColumn"`
-	NameColumn     string `json:"nameColumn"`
+	UsernameColumn string `json:"usernameColumn,omitempty"`
+	EmailColumn    string `json:"emailColumn,omitempty"`
+	NameColumn     string `json:"nameColumn,omitempty"`
 	PasswordColumn string `json:"password"`
 }
 
 type UserGroupsQuery struct {
-	// The actual SQL
+	// SQL queries
+
+	// QueryByUserID will substitute a ":userid" argument
 	QueryByUserID string `json:"queryByUserId"`
 
 	// Column names in the result
@@ -110,6 +129,12 @@ func (c *Config) openConnector(logger log.Logger) (*sqlConnector, error) {
 			c.DSN, c.Driver, err)
 		return nil, err
 	}
+	passlibDefaultsDate := c.PasslibDefaultsDate
+	if passlibDefaultsDate == "" {
+		passlibDefaultsDate = passlib.Defaults20180601
+	}
+	passlib.UseDefaults(passlibDefaultsDate)
+
 	return &sqlConnector{*c, db, logger}, nil
 }
 
@@ -186,16 +211,17 @@ func (c *sqlConnector) Login(ctx context.Context, s connector.Scopes,
 	if err != nil {
 		return connector.Identity{}, false, err
 	}
-	defer rows.Close()
 
 	if !rows.Next() {
 		err = rows.Err()
+		rows.Close()
 		return connector.Identity{}, false, err
 	}
 
 	row := map[string]interface{}{}
 
 	err = rows.MapScan(row)
+	rows.Close()
 	if err != nil {
 		return connector.Identity{}, false, err
 	}
@@ -212,9 +238,28 @@ func (c *sqlConnector) Login(ctx context.Context, s connector.Scopes,
 		return connector.Identity{}, false, err
 	}
 
-	if !c.validatePassword(password, cryptPassword) {
+	newPassword, err := passlib.Verify(password, cryptPassword)
+	if err != nil {
 		c.logger.Warnf("sql: incorrect password for user %s", ident.UserID)
 		return connector.Identity{}, false, nil
+	}
+
+	if newPassword != "" {
+		if c.UserQuery.UpdatePassword == "" {
+			c.logger.Warnf("sql: weak password hash for user %s", ident.UserID)
+		} else {
+			_, err = c.db.NamedExecContext(ctx, c.UserQuery.UpdatePassword,
+				map[string]interface{}{
+					"userid": ident.UserID,
+					"password": newPassword,
+				})
+
+			if err != nil {
+				c.logger.Warnf("sql: unable to update weak password hash for user %s: %v", ident.UserID, err)
+			} else {
+				c.logger.Infof("sql: updating password hash for user %s", ident.UserID)
+			}
+		}
 	}
 
 	if s.Groups {
@@ -275,36 +320,6 @@ func (c *sqlConnector) groups(ctx context.Context, userID string) ([]string,
 	}
 
 	return result, nil
-}
-
-func (c *sqlConnector) validatePassword(password, cryptPassword string) bool {
-	// Extract the algorithm identifier from cryptPassword
-	pwLen := len(cryptPassword)
-	if pwLen < 3 || cryptPassword[0] != '$' {
-		c.logger.Warnf("sql: password missing algorithm identifier")
-		return false
-	}
-
-	algEnd := 1
-	for algEnd < pwLen && cryptPassword[algEnd] != '$' {
-		algEnd += 1
-	}
-
-	if algEnd >= pwLen {
-		c.logger.Warnf("sql: password has unterminated algorithm identifier")
-		return false
-	}
-
-	algorithm := cryptPassword[1:algEnd]
-
-	switch algorithm {
-	case "2", "2a", "2b", "2x", "2y": // bcrypt
-		return bcrypt.CompareHashAndPassword([]byte(cryptPassword),
-			[]byte(password)) == nil
-	default:
-		c.logger.Warnf("sql: unsupported password algorithm $%s$", algorithm)
-		return false
-	}
 }
 
 func (c *sqlConnector) Refresh(ctx context.Context, s connector.Scopes,
