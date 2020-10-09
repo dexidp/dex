@@ -47,7 +47,7 @@ type Config struct {
 	UserQuery UserQuery `json:"userQuery"`
 
 	// User groups query, used to fetch groups for a user
-	UserGroupsQuery UserGroupsQuery `json:"userGroupsQuery"`
+	UserGroupsQuery UserGroupsQuery `json:"userGroupsQuery,omitempty"`
 
 	// Passlib default schemes date
 	PasslibDefaultsDate string `json:"passlibDefaultsDate,omitempty"`
