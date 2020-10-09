@@ -12,9 +12,12 @@ require (
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/golang/protobuf v1.3.2
+	github.com/google/uuid v1.0.0 // indirect
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
+	github.com/jmoiron/sqlx v1.2.0
+	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/kylelemons/godebug v1.1.0
 	github.com/lib/pq v1.10.0
 	github.com/mattermost/xml-roundtrip-validator v0.0.0-20201219040909-8fd2afad43d1
