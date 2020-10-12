@@ -43,7 +43,6 @@ require (
 	gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d // indirect
 	gopkg.in/hlandau/easymetric.v1 v1.0.0 // indirect
 	gopkg.in/hlandau/measurable.v1 v1.0.1 // indirect
-	gopkg.in/hlandau/passlib.v1 v1.0.10
 	gopkg.in/ldap.v2 v2.5.1
 	gopkg.in/square/go-jose.v2 v2.5.1
 	sigs.k8s.io/testing_frameworks v0.1.2
