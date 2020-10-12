@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gopkg.in/hlandau/passlib.v1"
+	"github.com/al45tair/passlib"
 	"golang.org/x/crypto/bcrypt"
 
 	_ "github.com/mattn/go-sqlite3"

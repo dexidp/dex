@@ -4,6 +4,8 @@ go 1.16
 
 require (
 	github.com/AppsFlyer/go-sundheit v0.3.1
+	github.com/Microsoft/hcsshim v0.8.7 // indirect
+	github.com/al45tair/passlib v1.1.0
 	github.com/beevik/etree v1.1.0
 	github.com/coreos/go-oidc/v3 v3.0.0
 	github.com/dexidp/dex/api/v2 v2.0.0

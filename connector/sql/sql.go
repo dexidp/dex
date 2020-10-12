@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	// Crypt support
-	"gopkg.in/hlandau/passlib.v1"
+	"github.com/al45tair/passlib"
 
 	// Database drivers
 	_ "github.com/go-sql-driver/mysql"
@@ -49,7 +49,10 @@ type Config struct {
 	// User groups query, used to fetch groups for a user
 	UserGroupsQuery UserGroupsQuery `json:"userGroupsQuery,omitempty"`
 
-	// Passlib default schemes date
+	// Hash schemes
+	HashSchemes []string `json:"hashSchemes,omitempty"`
+
+	// Only used if HashSchemes is not set
 	PasslibDefaultsDate string `json:"passlibDefaultsDate,omitempty"`
 }
 
@@ -83,9 +86,11 @@ type UserQuery struct {
 	// **NOTE THAT SETTING THIS WILL RESULT IN PASSLIB UPDATING YOUR HASHES
 	//   TO ITS PREFERRED CRYPT ALGORITHM**
 	//
-	// You probably only want to set this if your application is only using
-	// passlib.  If it uses any other software, it will need to support
-	// whatever hash passlib prefers as of the PasslibDefaultsDate.
+	// If you use any software besides passlib to do password hashing,
+	// you will very likely want to configure HashSchemes explicitly to
+	// ensure that passlib doesn't update the hashes to an algorithm the
+	// other software you are using does not support.
+	//
 	UpdatePassword string `json:"updatePassword,omitempty"`
 
 	// The names of various columns
@@ -129,17 +134,34 @@ func (c *Config) openConnector(logger log.Logger) (*sqlConnector, error) {
 			c.DSN, c.Driver, err)
 		return nil, err
 	}
-	passlibDefaultsDate := c.PasslibDefaultsDate
-	if passlibDefaultsDate == "" {
-		passlibDefaultsDate = passlib.Defaults20180601
-	}
-	passlib.UseDefaults(passlibDefaultsDate)
 
-	return &sqlConnector{*c, db, logger}, nil
+	ctx := &passlib.Context{}
+
+	if c.HashSchemes != nil {
+		ctx.Schemes, err = passlib.SchemesFromNames(c.HashSchemes)
+		if err != nil {
+			logger.Errorf("sql: %s", err)
+			return nil, err
+		}
+	} else {
+		date := c.PasslibDefaultsDate
+		if date == "" {
+			date = passlib.Defaults20180601
+		}
+		ctx.Schemes, err = passlib.DefaultSchemesFromDate(date)
+		if err != nil {
+			logger.Errorf("sql: %s", err)
+			return nil, err
+		}
+	}
+
+	return &sqlConnector{*c, ctx, db, logger}, nil
 }
 
 type sqlConnector struct {
 	Config
+
+	passlib *passlib.Context
 
 	db *sqlx.DB
 
@@ -238,7 +260,7 @@ func (c *sqlConnector) Login(ctx context.Context, s connector.Scopes,
 		return connector.Identity{}, false, err
 	}
 
-	newPassword, err := passlib.Verify(password, cryptPassword)
+	newPassword, err := c.passlib.Verify(password, cryptPassword)
 	if err != nil {
 		c.logger.Warnf("sql: incorrect password for user %s", ident.UserID)
 		return connector.Identity{}, false, nil
