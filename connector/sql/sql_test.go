@@ -64,7 +64,7 @@ func (db *databaseBuilder) createUser(username string, name string,
 	}
 
 	_, err = db.db.NamedExecContext(db.ctx,
-		"INSERT INTO Users VALUES (:userid,:name,:givenname,:email,:password)",
+		"INSERT INTO Users VALUES (:userid,:name,:givenname,:email,:password, 0, 0)",
 		user{
 			UserID:    userID,
 			Name:      username,
@@ -119,7 +119,9 @@ func (db *databaseBuilder) Build() error {
   name TEXT,
   givenName TEXT,
   email TEXT,
-  password TEXT
+  password TEXT,
+  successfulLogins INTEGER,
+  failedLogins INTEGER
 )`)
 	if err != nil {
 		return err
@@ -284,6 +286,10 @@ func TestMain(m *testing.M) {
 			QueryByUserID: "SELECT Groups.name FROM Groups INNER JOIN UserGroups ON Groups.groupID=UserGroups.groupID WHERE UserGroups.userID=:userid",
 			NameColumn:    "name",
 		},
+		Hooks: Hooks{
+			OnSuccess: "UPDATE Users SET successfulLogins=successfulLogins+1 WHERE userID=:userid",
+			OnFailure: "UPDATE Users SET failedLogins=failedLogins+1 WHERE userID=:userid",
+		},
 	}
 
 	log := &logrus.Logger{Out: ioutil.Discard, Formatter: &logrus.TextFormatter{}}
@@ -433,6 +439,9 @@ func TestRefresh(t *testing.T) {
 	}
 }
 
+// Check that auto-upgrading hashes works, by deliberately overwriting one
+// of the passwords with a weakly hashed version and then ensuring that it
+// has been updated after log-in.
 func TestHashUpgrade(t *testing.T) {
 	ctx := context.Background()
 
@@ -466,7 +475,7 @@ func TestHashUpgrade(t *testing.T) {
 
 	if !rows.Next() {
 		rows.Close()
-		t.Errorf("no password hash found: %v", err)
+		t.Errorf("no password hash found")
 	}
 
 	row := map[string]interface{}{}
@@ -481,3 +490,97 @@ func TestHashUpgrade(t *testing.T) {
 		t.Errorf("password hash has not been upgraded: %q", row["password"])
 	}
 }
+
+// Test the SQL login hooks by just making them count successful and failed
+// logins and check that that happens.
+//
+// In a real system, you might use more complex hooks and possibly change the
+// search queries to take account of things they do.
+func TestLoginHooks(t *testing.T) {
+	ctx := context.Background()
+
+	s := connector.Scopes{OfflineAccess: false, Groups: false}
+
+	// Reset the counters for jbloggs
+	_, err := testdb.NamedExecContext(ctx,
+		"UPDATE Users SET successfulLogins=0, failedLogins=0 WHERE name=:username",
+		map[string]interface{}{
+			"username": "jbloggs",
+		})
+	if err != nil {
+		t.Errorf("couldn't reset counters for jbloggs: %v", err)
+	}
+
+	// This login should fail, and should increment failedLogins
+	_, validPass, err := conn.Login(ctx, s, "jbloggs", "monkey123")
+	if err != nil {
+		t.Errorf("bad password test failed: %v", err)
+	}
+	if validPass {
+		t.Errorf("bad password should not be valid!")
+	}
+
+	rows, err := testdb.NamedQueryContext(ctx,
+		"SELECT failedLogins FROM Users WHERE name=:username",
+		map[string]interface{}{
+			"username": "jbloggs",
+		})
+	if err != nil {
+		t.Errorf("couldn't retrieve failed login count: %v", err)
+	}
+
+	if !rows.Next() {
+		rows.Close()
+		t.Errorf("failed login count not found")
+	}
+
+	row := map[string]interface{}{}
+
+	err = rows.MapScan(row)
+	rows.Close()
+	if err != nil {
+		t.Errorf("couldn't retrieve failed login row: %v", err)
+	}
+
+	failedLogins := row["failedLogins"].(int64)
+	if failedLogins != 1 {
+		t.Errorf("failed login count should be 1, got %d", failedLogins)
+	}
+
+	// This login should succeed, and should increment successfulLogins
+	_, validPass, err = conn.Login(ctx, s, "jbloggs", "alarmingLlama")
+	if err != nil {
+		t.Errorf("valid password test failed: %v", err)
+	}
+	if !validPass {
+		t.Errorf("valid password should be valid!")
+	}
+
+	rows, err = testdb.NamedQueryContext(ctx,
+		"SELECT successfulLogins FROM Users WHERE name=:username",
+		map[string]interface{}{
+			"username": "jbloggs",
+		})
+	if err != nil {
+		t.Errorf("couldn't retrieve successful login count: %v", err)
+	}
+
+	if !rows.Next() {
+		rows.Close()
+		t.Errorf("successful login count not found")
+	}
+
+	row = map[string]interface{}{}
+
+	err = rows.MapScan(row)
+	rows.Close()
+	if err != nil {
+		t.Errorf("couldn't retrieve successful login row: %v", err)
+	}
+
+	successfulLogins := row["successfulLogins"].(int64)
+	if successfulLogins != 1 {
+		t.Errorf("successful login count should be 1, got %d", successfulLogins)
+	}
+}
+

@@ -49,6 +49,11 @@ type Config struct {
 	// User groups query, used to fetch groups for a user
 	UserGroupsQuery UserGroupsQuery `json:"userGroupsQuery,omitempty"`
 
+	// SQL statements to run on login (successful or not); these can be used
+	// to implement tracking of last login times/attempts, automatic lockout
+	// and other similar features.
+	Hooks Hooks `json:"hooks,omitempty"`
+
 	// Hash schemes
 	HashSchemes []string `json:"hashSchemes,omitempty"`
 
@@ -109,6 +114,23 @@ type UserGroupsQuery struct {
 
 	// Column names in the result
 	NameColumn string `json:"nameColumn"`
+}
+
+type Hooks struct {
+	// If set, this SQL statement is executed on successful login, e.g.:
+	//
+	//   UPDATE Users SET lastLoginTime=NOW() WHERE id=:userid
+	//
+	OnSuccess string `json:"onSuccess,omitempty"`
+
+	// If set, this SQL statement is executed on failed login, e.g.:
+	//
+	//   UPDATE Users
+	//   SET lastFailedLoginTime=NOW(),
+	//       failedLoginAttempts=failedLoginAttempts+1
+	//   WHERE id=:userid
+	//
+	OnFailure string `json:"onFailure,omitempty"`
 }
 
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
@@ -262,6 +284,16 @@ func (c *sqlConnector) Login(ctx context.Context, s connector.Scopes,
 
 	newPassword, err := c.passlib.Verify(password, cryptPassword)
 	if err != nil {
+		if c.Hooks.OnFailure != "" {
+			_, err := c.db.NamedExecContext(ctx, c.Hooks.OnFailure,
+				map[string]interface{}{
+					"userid": ident.UserID,
+				})
+			if err != nil {
+				c.logger.Warnf("sql: unable to execute failure hook: %v", err)
+			}
+		}
+
 		c.logger.Warnf("sql: incorrect password for user %s", ident.UserID)
 		return connector.Identity{}, false, nil
 	}
@@ -281,6 +313,16 @@ func (c *sqlConnector) Login(ctx context.Context, s connector.Scopes,
 			} else {
 				c.logger.Infof("sql: updating password hash for user %s", ident.UserID)
 			}
+		}
+	}
+
+	if c.Hooks.OnSuccess != "" {
+		_, err := c.db.NamedExecContext(ctx, c.Hooks.OnSuccess,
+			map[string]interface{}{
+				"userid": ident.UserID,
+			})
+		if err != nil {
+			c.logger.Warnf("sql: unable to execute success hook: %v", err)
 		}
 	}
 
