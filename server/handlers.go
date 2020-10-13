@@ -1241,6 +1241,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	password := q.Get("password")
 	identity, ok, err := passwordConnector.Login(r.Context(), parseScopes(scopes), username, password)
 	if err != nil {
+		s.logger.Errorf("Failed to login user: %v", err)
 		s.tokenErrHelper(w, errInvalidRequest, "Could not login user", http.StatusBadRequest)
 		return
 	}
