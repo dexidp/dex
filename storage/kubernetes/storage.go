@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -512,6 +513,7 @@ func (cli *client) UpdateKeys(updater func(old storage.Keys) (storage.Keys, erro
 		}
 		firstUpdate = true
 	}
+
 	var oldKeys storage.Keys
 	if !firstUpdate {
 		oldKeys = toStorageKeys(keys)
@@ -521,12 +523,32 @@ func (cli *client) UpdateKeys(updater func(old storage.Keys) (storage.Keys, erro
 	if err != nil {
 		return err
 	}
+
 	newKeys := cli.fromStorageKeys(updated)
 	if firstUpdate {
-		return cli.post(resourceKeys, newKeys)
+		err = cli.post(resourceKeys, newKeys)
+		if err != nil && errors.Is(err, storage.ErrAlreadyExists) {
+			// We need to tolerate conflicts here in case of HA mode.
+			cli.logger.Debugf("Keys creation failed: %v. It is possible that keys have already been created by another dex instance.", err)
+			return errors.New("keys already created by another server instance")
+		}
+
+		return err
 	}
+
 	newKeys.ObjectMeta = keys.ObjectMeta
-	return cli.put(resourceKeys, keysName, newKeys)
+
+	err = cli.put(resourceKeys, keysName, newKeys)
+	if httpErr, ok := err.(httpError); ok {
+		// We need to tolerate conflicts here in case of HA mode.
+		// Dex instances run keys rotation at the same time because they use SigningKey.nextRotation CR field as a trigger.
+		if httpErr.StatusCode() == http.StatusConflict {
+			cli.logger.Debugf("Keys rotation failed: %v. It is possible that keys have already been rotated by another dex instance.", err)
+			return errors.New("keys already rotated by another server instance")
+		}
+	}
+
+	return err
 }
 
 func (cli *client) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) (storage.AuthRequest, error)) error {
