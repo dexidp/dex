@@ -759,6 +759,10 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	if clientSecret == "" && client.Secret != "" && r.PostFormValue("code_verifier") != "" {
+		s.tokenErrHelper(w, errInvalidClient, "Missing client credentials. If you want to use PKCE without client_secret, create a public dex client.", http.StatusUnauthorized)
+		return
+	}
 	if client.Secret != clientSecret {
 		s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
 		return
