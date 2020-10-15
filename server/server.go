@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"path"
@@ -19,7 +20,6 @@ import (
 	"github.com/felixge/httpsnoop"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/markbates/pkger"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/bcrypt"
 
@@ -101,7 +101,7 @@ type Config struct {
 
 // WebConfig holds the server's frontend templates and asset configuration.
 type WebConfig struct {
-	// A filepath to web static.
+	// A file path to web static. If set, WebFS will be ignored.
 	//
 	// It is expected to contain the following directories:
 	//
@@ -110,6 +110,10 @@ type WebConfig struct {
 	//   * themes/(theme) - Static static served at "( issuer URL )/theme".
 	//
 	Dir string
+
+	// A file system includes web static. Will be overwritten by Dir
+	// It is expected to contain the directories as Dir.
+	WebFS fs.FS
 
 	// Defaults to "( issuer URL )/theme/logo.png"
 	LogoURL string
@@ -122,9 +126,6 @@ type WebConfig struct {
 
 	// Map of extra values passed into the templates
 	Extra map[string]string
-
-	// Defaults to issuer URL
-	HostURL string
 }
 
 func value(val, defaultValue time.Duration) time.Duration {
@@ -207,13 +208,19 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		supported[respType] = true
 	}
 
-	if c.Web.Dir == "" {
-		c.Web.Dir = pkger.Include("/web")
+	web := webConfig{
+		dir:       c.Web.Dir,
+		webFS:     c.Web.WebFS,
+		logoURL:   c.Web.LogoURL,
+		issuerURL: c.Issuer,
+		issuer:    c.Web.Issuer,
+		theme:     c.Web.Theme,
+		extra:     c.Web.Extra,
 	}
 
-	tmpls, err := loadTemplates(c.Web, issuerURL.Path)
+	static, theme, tmpls, err := loadWebConfig(web)
 	if err != nil {
-		return nil, fmt.Errorf("server: failed to load templates: %v", err)
+		return nil, fmt.Errorf("server: failed to load web static: %v", err)
 	}
 
 	now := c.Now
@@ -343,11 +350,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		fmt.Fprintf(w, "Health check passed")
 	}))
 
-	staticDir := path.Join(c.Web.Dir, "static")
-	themeDir := path.Join(c.Web.Dir, "themes", c.Web.Theme)
-	handlePrefix("/static", http.FileServer(pkger.Dir(staticDir)))
-	handlePrefix(path.Join("/themes", c.Web.Theme), http.FileServer(pkger.Dir(themeDir)))
-
+	handlePrefix("/static", static)
+	handlePrefix("/theme", theme)
 	s.mux = r
 
 	s.startKeyRotation(ctx, rotationStrategy, now)
