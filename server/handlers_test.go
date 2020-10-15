@@ -135,7 +135,7 @@ func TestHandleInvalidSAMLCallbacks(t *testing.T) {
 func TestConnectorLoginDoesNotAllowToChangeConnectorForAuthRequest(t *testing.T) {
 	memStorage := memory.New(logger)
 
-	templates, err := loadTemplates(WebConfig{Dir: http.Dir("../web")}, "../web/templates")
+	templates, err := loadTemplates(WebConfig{Dir: "/web"}, "/web/templates")
 	if err != nil {
 		t.Fatal("failed to load templates")
 	}

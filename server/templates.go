@@ -6,11 +6,12 @@ import (
 	"html/template"
 	"io"
 	"net/http"
-	"net/url"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/markbates/pkger"
 )
 
 const (
@@ -61,9 +62,11 @@ func loadTemplates(c WebConfig, issuerPath string) (*templates, error) {
 	funcs := template.FuncMap{
 		"issuer": func() string { return c.Issuer },
 		"logo":   func() string { return c.LogoURL },
-		"url":    func(reqPath, assetPath string) string { return relativeURL(hostURL, reqPath, assetPath) },
-		"theme": func(reqPath, assetPath string) string {
-			return relativeURL(hostURL, reqPath, path.Join("themes", c.Theme, assetPath))
+		"static": func(assetPath string) string {
+			return path.Join(hostURL, "static", assetPath)
+		},
+		"theme": func(assetPath string) string {
+			return path.Join(hostURL, "themes", c.Theme, assetPath)
 		},
 		"lower": strings.ToLower,
 		"extra": func(k string) string { return c.Extra[k] },
@@ -130,76 +133,9 @@ func loadTemplates(c WebConfig, issuerPath string) (*templates, error) {
 	}, nil
 }
 
-// relativeURL returns the URL of the asset relative to the URL of the request path.
-// The serverPath is consulted to trim any prefix due in case it is not listening
-// to the root path.
-//
-// Algorithm:
-// 1. Remove common prefix of serverPath and reqPath
-// 2. Remove common prefix of assetPath and reqPath
-// 3. For each part of reqPath remaining(minus one), go up one level (..)
-// 4. For each part of assetPath remaining, append it to result
-//
-// eg
-// server listens at localhost/dex so serverPath is dex
-// reqPath is /dex/auth
-// assetPath is static/main.css
-// relativeURL("/dex", "/dex/auth", "static/main.css") = "../static/main.css"
-func relativeURL(serverPath, reqPath, assetPath string) string {
-	if u, err := url.ParseRequestURI(assetPath); err == nil && u.Scheme != "" {
-		// assetPath points to the external URL, no changes needed
-		return assetPath
-	}
-
-	splitPath := func(p string) []string {
-		res := []string{}
-		parts := strings.Split(path.Clean(p), "/")
-		for _, part := range parts {
-			if part != "" {
-				res = append(res, part)
-			}
-		}
-		return res
-	}
-
-	stripCommonParts := func(s1, s2 []string) ([]string, []string) {
-		min := len(s1)
-		if len(s2) < min {
-			min = len(s2)
-		}
-
-		splitIndex := min
-		for i := 0; i < min; i++ {
-			if s1[i] != s2[i] {
-				splitIndex = i
-				break
-			}
-		}
-		return s1[splitIndex:], s2[splitIndex:]
-	}
-
-	server, req, asset := splitPath(serverPath), splitPath(reqPath), splitPath(assetPath)
-
-	// Remove common prefix of request path with server path
-	_, req = stripCommonParts(server, req)
-
-	// Remove common prefix of request path with asset path
-	asset, req = stripCommonParts(asset, req)
-
-	// For each part of the request remaining (minus one) -> go up one level (..)
-	// For each part of the asset remaining               -> append it
-	var relativeURL string
-	for i := 0; i < len(req)-1; i++ {
-		relativeURL = path.Join("..", relativeURL)
-	}
-	relativeURL = path.Join(relativeURL, path.Join(asset...))
-
-	return relativeURL
-}
-
 // load a template by name from the templates dir
-func loadTemplate(dir http.FileSystem, name string, funcs template.FuncMap, group *template.Template) (*template.Template, error) {
-	file, err := dir.Open(filepath.Join("templates", name))
+func loadTemplate(dir string, name string, funcs template.FuncMap, group *template.Template) (*template.Template, error) {
+	file, err := pkger.Open(filepath.Join(dir, "templates", name))
 	if err != nil {
 		return nil, err
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/felixge/httpsnoop"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/markbates/pkger"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/bcrypt"
 
@@ -108,7 +109,7 @@ type WebConfig struct {
 	//   * templates - HTML templates controlled by dex.
 	//   * themes/(theme) - Static static served at "( issuer URL )/theme".
 	//
-	Dir http.FileSystem
+	Dir string
 
 	// Defaults to "( issuer URL )/theme/logo.png"
 	LogoURL string
@@ -204,6 +205,10 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 			return nil, fmt.Errorf("unsupported response_type %q", respType)
 		}
 		supported[respType] = true
+	}
+
+	if c.Web.Dir == "" {
+		c.Web.Dir = pkger.Include("/web")
 	}
 
 	tmpls, err := loadTemplates(c.Web, issuerURL.Path)
@@ -337,7 +342,11 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 		fmt.Fprintf(w, "Health check passed")
 	}))
-	handlePrefix("/", http.FileServer(c.Web.Dir))
+
+	staticDir := path.Join(c.Web.Dir, "static")
+	themeDir := path.Join(c.Web.Dir, "themes", c.Web.Theme)
+	handlePrefix("/static", http.FileServer(pkger.Dir(staticDir)))
+	handlePrefix(path.Join("/themes", c.Web.Theme), http.FileServer(pkger.Dir(themeDir)))
 
 	s.mux = r
 
