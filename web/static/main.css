@@ -99,6 +99,11 @@ body {
   background-image: url(../static/img/microsoft-icon.svg);
 }
 
+.dex-btn-icon--sql {
+  background-color: #84B6EF;
+  background-image: url(../static/img/sql-icon.svg);
+}
+
 .dex-btn-text {
   font-weight: 600;
   line-height: 36px;
