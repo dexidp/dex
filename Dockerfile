@@ -25,7 +25,7 @@ WORKDIR /
 # experience when this doesn't work out of the box.
 #
 # OpenSSL is required so wget can query HTTPS endpoints for health checking.
-RUN apk add --update ca-certificates openssl
+RUN apk add --no-cache --update ca-certificates openssl
 
 USER 1001:1001
 
