@@ -334,11 +334,12 @@ func (c *githubConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 
 // getGroups retrieves GitHub orgs and teams a user is in, if any.
 func (c *githubConnector) getGroups(ctx context.Context, client *http.Client, groupScope bool, userLogin string) ([]string, error) {
-	if len(c.orgs) > 0 {
+	switch {
+	case len(c.orgs) > 0:
 		return c.groupsForOrgs(ctx, client, userLogin)
-	} else if c.org != "" {
+	case c.org != "":
 		return c.teamsForOrg(ctx, client, c.org)
-	} else if groupScope && c.loadAllGroups {
+	case groupScope && c.loadAllGroups:
 		return c.userGroups(ctx, client)
 	}
 	return nil, nil

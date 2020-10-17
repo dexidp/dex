@@ -291,7 +291,7 @@ func TestRefreshToken(t *testing.T) {
 		t.Errorf("failed to marshal offline session ID: %v", err)
 	}
 
-	//Testing the api.
+	// Testing the api.
 	listReq := api.ListRefreshReq{
 		UserId: subjectString,
 	}

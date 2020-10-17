@@ -49,7 +49,7 @@ type Config struct {
 	StaticPasswords []password `json:"staticPasswords"`
 }
 
-//Validate the configuration
+// Validate the configuration
 func (c Config) Validate() error {
 	// Fast checks. Perform these first for a more responsive CLI.
 	checks := []struct {

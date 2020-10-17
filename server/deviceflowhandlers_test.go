@@ -24,7 +24,7 @@ func TestDeviceVerificationURI(t *testing.T) {
 	defer cancel()
 	// Setup a dex server.
 	httpServer, s := newTestServer(ctx, t, func(c *Config) {
-		c.Issuer = c.Issuer + "/non-root-path"
+		c.Issuer += "/non-root-path"
 		c.Now = now
 	})
 	defer httpServer.Close()
@@ -76,7 +76,7 @@ func TestHandleDeviceCode(t *testing.T) {
 
 			// Setup a dex server.
 			httpServer, s := newTestServer(ctx, t, func(c *Config) {
-				c.Issuer = c.Issuer + "/non-root-path"
+				c.Issuer += "/non-root-path"
 				c.Now = now
 			})
 			defer httpServer.Close()
@@ -322,7 +322,7 @@ func TestDeviceCallback(t *testing.T) {
 
 			// Setup a dex server.
 			httpServer, s := newTestServer(ctx, t, func(c *Config) {
-				//c.Issuer = c.Issuer + "/non-root-path"
+				// c.Issuer = c.Issuer + "/non-root-path"
 				c.Now = now
 			})
 			defer httpServer.Close()
@@ -506,7 +506,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 
 			// Setup a dex server.
 			httpServer, s := newTestServer(ctx, t, func(c *Config) {
-				c.Issuer = c.Issuer + "/non-root-path"
+				c.Issuer += "/non-root-path"
 				c.Now = now
 			})
 			defer httpServer.Close()
@@ -637,7 +637,7 @@ func TestVerifyCodeResponse(t *testing.T) {
 
 			// Setup a dex server.
 			httpServer, s := newTestServer(ctx, t, func(c *Config) {
-				c.Issuer = c.Issuer + "/non-root-path"
+				c.Issuer += "/non-root-path"
 				c.Now = now
 			})
 			defer httpServer.Close()

@@ -178,11 +178,11 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 // 3. For each part of reqPath remaining(minus one), go up one level (..)
 // 4. For each part of assetPath remaining, append it to result
 //
-//eg
-//server listens at localhost/dex so serverPath is dex
-//reqPath is /dex/auth
-//assetPath is static/main.css
-//relativeURL("/dex", "/dex/auth", "static/main.css") = "../static/main.css"
+// eg
+// server listens at localhost/dex so serverPath is dex
+// reqPath is /dex/auth
+// assetPath is static/main.css
+// relativeURL("/dex", "/dex/auth", "static/main.css") = "../static/main.css"
 func relativeURL(serverPath, reqPath, assetPath string) string {
 	if u, err := url.ParseRequestURI(assetPath); err == nil && u.Scheme != "" {
 		// assetPath points to the external URL, no changes needed

@@ -25,7 +25,7 @@ var (
 // TODO(ericchiang): refactor ID creation onto the storage.
 var encoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567")
 
-//Valid characters for user codes
+// Valid characters for user codes
 const validUserCharacters = "BCDFGHJKLMNPQRSTVWXZ"
 
 // NewDeviceCode returns a 32 char alphanumeric cryptographically secure string

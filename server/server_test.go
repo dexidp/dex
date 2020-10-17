@@ -177,7 +177,7 @@ func TestDiscovery(t *testing.T) {
 	defer cancel()
 
 	httpServer, _ := newTestServer(ctx, t, func(c *Config) {
-		c.Issuer = c.Issuer + "/non-root-path"
+		c.Issuer += "/non-root-path"
 	})
 	defer httpServer.Close()
 
@@ -504,7 +504,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 
 			// Setup a dex server.
 			httpServer, s := newTestServer(ctx, t, func(c *Config) {
-				c.Issuer = c.Issuer + "/non-root-path"
+				c.Issuer += "/non-root-path"
 				c.Now = now
 				c.IDTokensValidFor = idTokensValidFor
 			})
@@ -766,7 +766,7 @@ func TestCrossClientScopes(t *testing.T) {
 	defer cancel()
 
 	httpServer, s := newTestServer(ctx, t, func(c *Config) {
-		c.Issuer = c.Issuer + "/non-root-path"
+		c.Issuer += "/non-root-path"
 	})
 	defer httpServer.Close()
 
@@ -889,7 +889,7 @@ func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
 	defer cancel()
 
 	httpServer, s := newTestServer(ctx, t, func(c *Config) {
-		c.Issuer = c.Issuer + "/non-root-path"
+		c.Issuer += "/non-root-path"
 	})
 	defer httpServer.Close()
 
@@ -1180,7 +1180,7 @@ type oauth2Client struct {
 // that only valid refresh tokens can be used to refresh an expired token.
 func TestRefreshTokenFlow(t *testing.T) {
 	state := "state"
-	now := func() time.Time { return time.Now() }
+	now := time.Now
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -1300,7 +1300,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 
 			// Setup a dex server.
 			httpServer, s := newTestServer(ctx, t, func(c *Config) {
-				c.Issuer = c.Issuer + "/non-root-path"
+				c.Issuer += "/non-root-path"
 				c.Now = now
 				c.IDTokensValidFor = idTokensValidFor
 			})
@@ -1314,7 +1314,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				t.Fatalf("failed to get provider: %v", err)
 			}
 
-			//Add the Clients to the test server
+			// Add the Clients to the test server
 			client := storage.Client{
 				ID:           clientID,
 				RedirectURIs: []string{deviceCallbackURI},
@@ -1324,13 +1324,13 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				t.Fatalf("failed to create client: %v", err)
 			}
 
-			//Grab the issuer that we'll reuse for the different endpoints to hit
+			// Grab the issuer that we'll reuse for the different endpoints to hit
 			issuer, err := url.Parse(s.issuerURL.String())
 			if err != nil {
 				t.Errorf("Could not parse issuer URL %v", err)
 			}
 
-			//Send a new Device Request
+			// Send a new Device Request
 			codeURL, _ := url.Parse(issuer.String())
 			codeURL.Path = path.Join(codeURL.Path, "device/code")
 
@@ -1350,13 +1350,13 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				t.Errorf("%v - Unexpected Response Type.  Expected 200 got  %v.  Response: %v", tc.name, resp.StatusCode, string(responseBody))
 			}
 
-			//Parse the code response
+			// Parse the code response
 			var deviceCode deviceCodeResponse
 			if err := json.Unmarshal(responseBody, &deviceCode); err != nil {
 				t.Errorf("Unexpected Device Code Response Format %v", string(responseBody))
 			}
 
-			//Mock the user hitting the verification URI and posting the form
+			// Mock the user hitting the verification URI and posting the form
 			verifyURL, _ := url.Parse(issuer.String())
 			verifyURL.Path = path.Join(verifyURL.Path, "/device/auth/verify_code")
 			urlData := url.Values{}
@@ -1374,7 +1374,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				t.Errorf("%v - Unexpected Response Type.  Expected 200 got  %v.  Response: %v", tc.name, resp.StatusCode, string(responseBody))
 			}
 
-			//Hit the Token Endpoint, and try and get an access token
+			// Hit the Token Endpoint, and try and get an access token
 			tokenURL, _ := url.Parse(issuer.String())
 			tokenURL.Path = path.Join(tokenURL.Path, "/device/token")
 			v := url.Values{}
@@ -1393,7 +1393,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				t.Errorf("%v - Unexpected Token Response Type.  Expected 200 got  %v.  Response: %v", tc.name, resp.StatusCode, string(responseBody))
 			}
 
-			//Parse the response
+			// Parse the response
 			var tokenRes accessTokenReponse
 			if err := json.Unmarshal(responseBody, &tokenRes); err != nil {
 				t.Errorf("Unexpected Device Access Token Response Format %v", string(responseBody))
@@ -1411,7 +1411,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				token.Expiry = time.Now().Add(time.Duration(secs) * time.Second)
 			}
 
-			//Run token tests to validate info is correct
+			// Run token tests to validate info is correct
 			// Create the OAuth2 config.
 			oauth2Config := &oauth2.Config{
 				ClientID:     client.ID,
