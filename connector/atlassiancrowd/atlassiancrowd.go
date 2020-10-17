@@ -111,7 +111,7 @@ func (c *crowdConnector) Login(ctx context.Context, s connector.Scopes, username
 
 	// We want to return a different error if the user's password is incorrect vs
 	// if there was an error.
-	incorrectPass := false
+	var incorrectPass bool
 	var user crowdUser
 
 	client := c.crowdAPIClient()

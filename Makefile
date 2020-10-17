@@ -18,7 +18,7 @@ export GOBIN=$(PWD)/bin
 LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
 
 # Dependency versions
-GOLANGCI_VERSION = 1.21.0
+GOLANGCI_VERSION = 1.31.0
 
 build: bin/dex
 

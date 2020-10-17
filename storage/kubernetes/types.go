@@ -679,7 +679,7 @@ type DeviceRequest struct {
 	Expiry       time.Time `json:"expiry"`
 }
 
-// AuthRequestList is a list of AuthRequests.
+// DeviceRequestList is a list of DeviceRequests.
 type DeviceRequestList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`

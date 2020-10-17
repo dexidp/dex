@@ -546,7 +546,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 				t.Errorf("Could read token response %v", err)
 			}
 			if tc.expectedResponseCode == http.StatusBadRequest || tc.expectedResponseCode == http.StatusUnauthorized {
-				expectJsonErrorResponse(tc.testName, body, tc.expectedServerResponse, t)
+				expectJSONErrorResponse(tc.testName, body, tc.expectedServerResponse, t)
 			} else if string(body) != tc.expectedServerResponse {
 				t.Errorf("Unexpected Server Response.  Expected %v got %v", tc.expectedServerResponse, string(body))
 			}
@@ -554,7 +554,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 	}
 }
 
-func expectJsonErrorResponse(testCase string, body []byte, expectedError string, t *testing.T) {
+func expectJSONErrorResponse(testCase string, body []byte, expectedError string, t *testing.T) {
 	jsonMap := make(map[string]interface{})
 	err := json.Unmarshal(body, &jsonMap)
 	if err != nil {

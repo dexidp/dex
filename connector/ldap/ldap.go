@@ -56,6 +56,7 @@ import (
 //         nameAttr: name
 //
 
+// UserMatcher holds information about user and group matching.
 type UserMatcher struct {
 	UserAttr  string `json:"userAttr"`
 	GroupAttr string `json:"groupAttr"`
@@ -189,7 +190,7 @@ func (c *ldapConnector) userMatchers() []UserMatcher {
 	if len(c.GroupSearch.UserMatchers) > 0 && c.GroupSearch.UserMatchers[0].UserAttr != "" {
 		return c.GroupSearch.UserMatchers[:]
 	}
-	
+
 	return []UserMatcher{
 		{
 			UserAttr:  c.GroupSearch.UserAttr,
@@ -303,7 +304,7 @@ var (
 // do initializes a connection to the LDAP directory and passes it to the
 // provided function. It then performs appropriate teardown or reuse before
 // returning.
-func (c *ldapConnector) do(ctx context.Context, f func(c *ldap.Conn) error) error {
+func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error {
 	// TODO(ericchiang): support context here
 	var (
 		conn *ldap.Conn
