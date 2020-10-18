@@ -25,7 +25,7 @@ var (
 // TODO(ericchiang): refactor ID creation onto the storage.
 var encoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567")
 
-//Valid characters for user codes
+// Valid characters for user codes
 const validUserCharacters = "BCDFGHJKLMNPQRSTVWXZ"
 
 // NewDeviceCode returns a 32 char alphanumeric cryptographically secure string
@@ -384,23 +384,24 @@ func randomString(n int) (string, error) {
 	return string(bytes), nil
 }
 
-//DeviceRequest represents an OIDC device authorization request.  It holds the state of a device request until the user
-//authenticates using their user code or the expiry time passes.
+// DeviceRequest represents an OIDC device authorization request. It holds the state of a device request until the user
+// authenticates using their user code or the expiry time passes.
 type DeviceRequest struct {
-	//The code the user will enter in a browser
+	// The code the user will enter in a browser
 	UserCode string
-	//The unique device code for device authentication
+	// The unique device code for device authentication
 	DeviceCode string
-	//The client ID the code is for
+	// The client ID the code is for
 	ClientID string
-	//The Client Secret
+	// The Client Secret
 	ClientSecret string
-	//The scopes the device requests
+	// The scopes the device requests
 	Scopes []string
-	//The expire time
+	// The expire time
 	Expiry time.Time
 }
 
+// DeviceToken is a structure which represents the actual token of an authorized device and its rotation parameters
 type DeviceToken struct {
 	DeviceCode          string
 	Status              string

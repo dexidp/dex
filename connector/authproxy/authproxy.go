@@ -34,7 +34,7 @@ func (m *callback) LoginURL(s connector.Scopes, callbackURL, state string) (stri
 	if err != nil {
 		return "", fmt.Errorf("failed to parse callbackURL %q: %v", callbackURL, err)
 	}
-	u.Path = u.Path + m.pathSuffix
+	u.Path += m.pathSuffix
 	v := u.Query()
 	v.Set("state", state)
 	u.RawQuery = v.Encode()

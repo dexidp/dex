@@ -84,7 +84,9 @@ type scanner interface {
 	Scan(dest ...interface{}) error
 }
 
-func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error) {
+func (c *conn) GarbageCollect(now time.Time) (storage.GCResult, error) {
+	result := storage.GCResult{}
+
 	r, err := c.Exec(`delete from auth_request where expiry < $1`, now)
 	if err != nil {
 		return result, fmt.Errorf("gc auth_request: %v", err)
@@ -117,7 +119,7 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 		result.DeviceTokens = n
 	}
 
-	return
+	return result, err
 }
 
 func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {

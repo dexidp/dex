@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/beevik/etree"
@@ -60,20 +61,9 @@ var (
 		nameIDformatTransient,
 	}
 	nameIDFormatLookup = make(map[string]string)
-)
 
-func init() {
-	suffix := func(s, sep string) string {
-		if i := strings.LastIndex(s, sep); i > 0 {
-			return s[i+1:]
-		}
-		return s
-	}
-	for _, format := range nameIDFormats {
-		nameIDFormatLookup[suffix(format, ":")] = format
-		nameIDFormatLookup[format] = format
-	}
-}
+	lookupOnce sync.Once
+)
 
 // Config represents configuration options for the SAML provider.
 type Config struct {
@@ -176,6 +166,19 @@ func (c *Config) openConnector(logger log.Logger) (*provider, error) {
 	if p.nameIDPolicyFormat == "" {
 		p.nameIDPolicyFormat = nameIDFormatPersistent
 	} else {
+		lookupOnce.Do(func() {
+			suffix := func(s, sep string) string {
+				if i := strings.LastIndex(s, sep); i > 0 {
+					return s[i+1:]
+				}
+				return s
+			}
+			for _, format := range nameIDFormats {
+				nameIDFormatLookup[suffix(format, ":")] = format
+				nameIDFormatLookup[format] = format
+			}
+		})
+
 		if format, ok := nameIDFormatLookup[p.nameIDPolicyFormat]; ok {
 			p.nameIDPolicyFormat = format
 		} else {
@@ -364,7 +367,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	switch {
 	case subject.NameID != nil:
 		if ident.UserID = subject.NameID.Value; ident.UserID == "" {
-			return ident, fmt.Errorf("NameID element does not contain a value")
+			return ident, fmt.Errorf("element NameID does not contain a value")
 		}
 	default:
 		return ident, fmt.Errorf("subject does not contain an NameID element")
@@ -488,7 +491,7 @@ func (p *provider) validateSubject(subject *subject, inResponseTo string) error 
 
 			data := c.SubjectConfirmationData
 			if data == nil {
-				return fmt.Errorf("SubjectConfirmation contained no SubjectConfirmationData")
+				return fmt.Errorf("no SubjectConfirmationData field found in SubjectConfirmation")
 			}
 			if data.InResponseTo != inResponseTo {
 				return fmt.Errorf("expected SubjectConfirmationData InResponseTo value %q, got %q", inResponseTo, data.InResponseTo)

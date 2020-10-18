@@ -274,7 +274,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := s.templates.login(r, w, connectorInfos, r.URL.Path); err != nil {
+	if err := s.templates.login(r, w, connectorInfos); err != nil {
 		s.logger.Errorf("Server template error: %v", err)
 	}
 }
@@ -335,7 +335,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			}
 			http.Redirect(w, r, callbackURL, http.StatusFound)
 		case connector.PasswordConnector:
-			if err := s.templates.password(r, w, r.URL.String(), "", usernamePrompt(conn), false, showBacklink, r.URL.Path); err != nil {
+			if err := s.templates.password(r, w, r.URL.String(), "", usernamePrompt(conn), false, showBacklink); err != nil {
 				s.logger.Errorf("Server template error: %v", err)
 			}
 		case connector.SAMLConnector:
@@ -383,7 +383,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !ok {
-			if err := s.templates.password(r, w, r.URL.String(), username, usernamePrompt(passwordConnector), true, showBacklink, r.URL.Path); err != nil {
+			if err := s.templates.password(r, w, r.URL.String(), username, usernamePrompt(passwordConnector), true, showBacklink); err != nil {
 				s.logger.Errorf("Server template error: %v", err)
 			}
 			return
@@ -505,7 +505,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 
 	email := claims.Email
 	if !claims.EmailVerified {
-		email = email + " (unverified)"
+		email += " (unverified)"
 	}
 
 	s.logger.Infof("login successful: connector %q, username=%q, preferred_username=%q, email=%q, groups=%q",
@@ -518,7 +518,8 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 	}
 
 	// Try to retrieve an existing OfflineSession object for the corresponding user.
-	if session, err := s.storage.GetOfflineSessions(identity.UserID, authReq.ConnectorID); err != nil {
+	session, err := s.storage.GetOfflineSessions(identity.UserID, authReq.ConnectorID)
+	if err != nil {
 		if err != storage.ErrNotFound {
 			s.logger.Errorf("failed to get offline session: %v", err)
 			return "", err
@@ -536,17 +537,19 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 			s.logger.Errorf("failed to create offline session: %v", err)
 			return "", err
 		}
-	} else {
-		// Update existing OfflineSession obj with new RefreshTokenRef.
-		if err := s.storage.UpdateOfflineSessions(session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
-			if len(identity.ConnectorData) > 0 {
-				old.ConnectorData = identity.ConnectorData
-			}
-			return old, nil
-		}); err != nil {
-			s.logger.Errorf("failed to update offline session: %v", err)
-			return "", err
+
+		return returnURL, nil
+	}
+
+	// Update existing OfflineSession obj with new RefreshTokenRef.
+	if err := s.storage.UpdateOfflineSessions(session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+		if len(identity.ConnectorData) > 0 {
+			old.ConnectorData = identity.ConnectorData
 		}
+		return old, nil
+	}); err != nil {
+		s.logger.Errorf("failed to update offline session: %v", err)
+		return "", err
 	}
 
 	return returnURL, nil
@@ -577,7 +580,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 			s.renderError(r, w, http.StatusInternalServerError, "Failed to retrieve client.")
 			return
 		}
-		if err := s.templates.approval(r, w, authReq.ID, authReq.Claims.Username, client.Name, authReq.Scopes, r.URL.Path); err != nil {
+		if err := s.templates.approval(r, w, authReq.ID, authReq.Claims.Username, client.Name, authReq.Scopes); err != nil {
 			s.logger.Errorf("Server template error: %v", err)
 		}
 	case http.MethodPost:
@@ -650,7 +653,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			// Implicit and hybrid flows that try to use the OOB redirect URI are
 			// rejected earlier. If we got here we're using the code flow.
 			if authReq.RedirectURI == redirectURIOOB {
-				if err := s.templates.oob(r, w, code.ID, r.URL.Path); err != nil {
+				if err := s.templates.oob(r, w, code.ID); err != nil {
 					s.logger.Errorf("Server template error: %v", err)
 				}
 				return
@@ -1017,15 +1020,18 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 	}
 
 	var connectorData []byte
-	if session, err := s.storage.GetOfflineSessions(refresh.Claims.UserID, refresh.ConnectorID); err != nil {
+
+	session, err := s.storage.GetOfflineSessions(refresh.Claims.UserID, refresh.ConnectorID)
+	switch {
+	case err != nil:
 		if err != storage.ErrNotFound {
 			s.logger.Errorf("failed to get offline session: %v", err)
 			return
 		}
-	} else if len(refresh.ConnectorData) > 0 {
+	case len(refresh.ConnectorData) > 0:
 		// Use the old connector data if it exists, should be deleted once used
 		connectorData = refresh.ConnectorData
-	} else {
+	default:
 		connectorData = session.ConnectorData
 	}
 

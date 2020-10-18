@@ -13,6 +13,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	admin "google.golang.org/api/admin/directory/v1"
+	"google.golang.org/api/option"
 
 	"github.com/dexidp/dex/connector"
 	pkg_groups "github.com/dexidp/dex/pkg/groups"
@@ -289,7 +290,7 @@ func createDirectoryService(serviceAccountFilePath string, email string) (*admin
 	ctx := context.Background()
 	client := config.Client(ctx)
 
-	srv, err := admin.New(client)
+	srv, err := admin.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create directory service %v", err)
 	}

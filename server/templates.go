@@ -78,7 +78,7 @@ func dirExists(dir string) error {
 //    |  |- (theme name)
 //    |- templates
 //
-func loadWebConfig(c webConfig) (static, theme http.Handler, templates *templates, err error) {
+func loadWebConfig(c webConfig) (http.Handler, http.Handler, *templates, error) {
 	if c.theme == "" {
 		c.theme = "coreos"
 	}
@@ -106,11 +106,11 @@ func loadWebConfig(c webConfig) (static, theme http.Handler, templates *template
 		}
 	}
 
-	static = http.FileServer(http.Dir(staticDir))
-	theme = http.FileServer(http.Dir(themeDir))
+	static := http.FileServer(http.Dir(staticDir))
+	theme := http.FileServer(http.Dir(themeDir))
 
-	templates, err = loadTemplates(c, templatesDir)
-	return
+	templates, err := loadTemplates(c, templatesDir)
+	return static, theme, templates, err
 }
 
 // loadTemplates parses the expected templates from the provided directory.
@@ -178,11 +178,11 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 // 3. For each part of reqPath remaining(minus one), go up one level (..)
 // 4. For each part of assetPath remaining, append it to result
 //
-//eg
-//server listens at localhost/dex so serverPath is dex
-//reqPath is /dex/auth
-//assetPath is static/main.css
-//relativeURL("/dex", "/dex/auth", "static/main.css") = "../static/main.css"
+// eg
+// server listens at localhost/dex so serverPath is dex
+// reqPath is /dex/auth
+// assetPath is static/main.css
+// relativeURL("/dex", "/dex/auth", "static/main.css") = "../static/main.css"
 func relativeURL(serverPath, reqPath, assetPath string) string {
 	if u, err := url.ParseRequestURI(assetPath); err == nil && u.Scheme != "" {
 		// assetPath points to the external URL, no changes needed
@@ -219,8 +219,7 @@ func relativeURL(serverPath, reqPath, assetPath string) string {
 	server, req, asset := splitPath(serverPath), splitPath(reqPath), splitPath(assetPath)
 
 	// Remove common prefix of request path with server path
-	// nolint: ineffassign
-	server, req = stripCommonParts(server, req)
+	_, req = stripCommonParts(server, req)
 
 	// Remove common prefix of request path with asset path
 	asset, req = stripCommonParts(asset, req)
@@ -276,7 +275,7 @@ func (t *templates) deviceSuccess(r *http.Request, w http.ResponseWriter, client
 	return renderTemplate(w, t.deviceSuccessTmpl, data)
 }
 
-func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []connectorInfo, reqPath string) error {
+func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []connectorInfo) error {
 	sort.Sort(byName(connectors))
 	data := struct {
 		Connectors []connectorInfo
@@ -285,7 +284,7 @@ func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []c
 	return renderTemplate(w, t.loginTmpl, data)
 }
 
-func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid, showBacklink bool, reqPath string) error {
+func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid, showBacklink bool) error {
 	data := struct {
 		PostURL        string
 		BackLink       bool
@@ -297,7 +296,7 @@ func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, la
 	return renderTemplate(w, t.passwordTmpl, data)
 }
 
-func (t *templates) approval(r *http.Request, w http.ResponseWriter, authReqID, username, clientName string, scopes []string, reqPath string) error {
+func (t *templates) approval(r *http.Request, w http.ResponseWriter, authReqID, username, clientName string, scopes []string) error {
 	accesses := []string{}
 	for _, scope := range scopes {
 		access, ok := scopeDescriptions[scope]
@@ -316,7 +315,7 @@ func (t *templates) approval(r *http.Request, w http.ResponseWriter, authReqID, 
 	return renderTemplate(w, t.approvalTmpl, data)
 }
 
-func (t *templates) oob(r *http.Request, w http.ResponseWriter, code string, reqPath string) error {
+func (t *templates) oob(r *http.Request, w http.ResponseWriter, code string) error {
 	data := struct {
 		Code    string
 		ReqPath string
@@ -332,7 +331,7 @@ func (t *templates) err(r *http.Request, w http.ResponseWriter, errCode int, err
 		ReqPath string
 	}{http.StatusText(errCode), errMsg, r.URL.Path}
 	if err := t.errorTmpl.Execute(w, data); err != nil {
-		return fmt.Errorf("Error rendering template %s: %s", t.errorTmpl.Name(), err)
+		return fmt.Errorf("rendering template %s failed: %s", t.errorTmpl.Name(), err)
 	}
 	return nil
 }
@@ -355,7 +354,7 @@ func renderTemplate(w http.ResponseWriter, tmpl *template.Template, data interfa
 			// TODO(ericchiang): replace with better internal server error.
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
-		return fmt.Errorf("Error rendering template %s: %s", tmpl.Name(), err)
+		return fmt.Errorf("rendering template %s failed: %s", tmpl.Name(), err)
 	}
 	return nil
 }

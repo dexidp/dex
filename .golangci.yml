@@ -1,34 +1,45 @@
 run:
-    timeout: 2m
+  timeout: 2m
 
 linters-settings:
-    golint:
-        min-confidence: 0.1
-    goimports:
-        local-prefixes: github.com/dexidp/dex
+  golint:
+    min-confidence: 0.1
+  goimports:
+    local-prefixes: github.com/dexidp/dex
 
 linters:
-    enable-all: true
-    disable:
-        - funlen
-        - maligned
-        - wsl
+  disable-all: true
+  enable:
+  - bodyclose
+  - deadcode
+  - depguard
+  - dogsled
+  - gochecknoinits
+  - gofmt
+  - goimports
+  - golint
+  - gosimple
+  - gocritic
+  - govet
+  - ineffassign
+  - interfacer
+  - misspell
+  - nakedret
+  - staticcheck
+  - structcheck
+  - stylecheck
+  - typecheck
+  - unconvert
+  - unused
+  - varcheck
+  - whitespace
 
-        # TODO: fix me
-        - unparam
-        - golint
-        - goconst
-        - staticcheck
-        - nakedret
-        - errcheck
-        - gosec
-        - gochecknoinits
-        - gochecknoglobals
-        - prealloc
-        - scopelint
-        - lll
-        - dupl
-        - gocritic
-        - gocyclo
-        - gocognit
-        - godox
+  # TODO: fix linter errors before enabling
+  # - unparam
+  # - scopelint
+  # - gosec
+  # - gocyclo
+  # - lll
+  # - goconst
+  # - errcheck
+  # - dupl

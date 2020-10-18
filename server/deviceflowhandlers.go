@@ -15,17 +15,17 @@ import (
 )
 
 type deviceCodeResponse struct {
-	//The unique device code for device authentication
+	// The unique device code for device authentication
 	DeviceCode string `json:"device_code"`
-	//The code the user will exchange via a browser and log in
+	// The code the user will exchange via a browser and log in
 	UserCode string `json:"user_code"`
-	//The url to verify the user code.
+	// The url to verify the user code.
 	VerificationURI string `json:"verification_uri"`
-	//The verification uri with the user code appended for pre-filling form
+	// The verification uri with the user code appended for pre-filling form
 	VerificationURIComplete string `json:"verification_uri_complete"`
-	//The lifetime of the device code
+	// The lifetime of the device code
 	ExpireTime int `json:"expires_in"`
-	//How often the device is allowed to poll to verify that the user login occurred
+	// How often the device is allowed to poll to verify that the user login occurred
 	PollInterval int `json:"interval"`
 }
 
@@ -66,27 +66,27 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		//Get the client id and scopes from the post
+		// Get the client id and scopes from the post
 		clientID := r.Form.Get("client_id")
 		clientSecret := r.Form.Get("client_secret")
 		scopes := strings.Fields(r.Form.Get("scope"))
 
 		s.logger.Infof("Received device request for client %v with scopes %v", clientID, scopes)
 
-		//Make device code
+		// Make device code
 		deviceCode := storage.NewDeviceCode()
 
-		//make user code
+		// make user code
 		userCode, err := storage.NewUserCode()
 		if err != nil {
 			s.logger.Errorf("Error generating user code: %v", err)
 			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusInternalServerError)
 		}
 
-		//Generate the expire time
+		// Generate the expire time
 		expireTime := time.Now().Add(s.deviceRequestsValidFor)
 
-		//Store the Device Request
+		// Store the Device Request
 		deviceReq := storage.DeviceRequest{
 			UserCode:     userCode,
 			DeviceCode:   deviceCode,
@@ -102,7 +102,7 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		//Store the device token
+		// Store the device token
 		deviceToken := storage.DeviceToken{
 			DeviceCode:          deviceCode,
 			Status:              deviceTokenPending,
@@ -176,7 +176,7 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 
 		now := s.now()
 
-		//Grab the device token, check validity
+		// Grab the device token, check validity
 		deviceToken, err := s.storage.GetDeviceToken(deviceCode)
 		if err != nil {
 			if err != storage.ErrNotFound {
@@ -189,13 +189,13 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		//Rate Limiting check
+		// Rate Limiting check
 		slowDown := false
 		pollInterval := deviceToken.PollIntervalSeconds
 		minRequestTime := deviceToken.LastRequestTime.Add(time.Second * time.Duration(pollInterval))
 		if now.Before(minRequestTime) {
 			slowDown = true
-			//Continually increase the poll interval until the user waits the proper time
+			// Continually increase the poll interval until the user waits the proper time
 			pollInterval += 5
 		} else {
 			pollInterval = 5
@@ -255,7 +255,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		//Grab the device request from storage
+		// Grab the device request from storage
 		deviceReq, err := s.storage.GetDeviceRequest(userCode)
 		if err != nil || s.now().After(deviceReq.Expiry) {
 			errCode := http.StatusBadRequest
@@ -289,7 +289,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		//Grab the device token from storage
+		// Grab the device token from storage
 		old, err := s.storage.GetDeviceToken(deviceReq.DeviceCode)
 		if err != nil || s.now().After(old.Expiry) {
 			errCode := http.StatusBadRequest
@@ -353,7 +353,7 @@ func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 
 		userCode = strings.ToUpper(userCode)
 
-		//Find the user code in the available requests
+		// Find the user code in the available requests
 		deviceRequest, err := s.storage.GetDeviceRequest(userCode)
 		if err != nil || s.now().After(deviceRequest.Expiry) {
 			if err != nil && err != storage.ErrNotFound {
@@ -366,7 +366,7 @@ func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		//Redirect to Dex Auth Endpoint
+		// Redirect to Dex Auth Endpoint
 		authURL := path.Join(s.issuerURL.Path, "/auth")
 		u, err := url.Parse(authURL)
 		if err != nil {

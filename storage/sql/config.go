@@ -289,16 +289,19 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 			cfg.Addr = s.Host
 		}
 	}
-	if s.SSL.CAFile != "" || s.SSL.CertFile != "" || s.SSL.KeyFile != "" {
+
+	switch {
+	case s.SSL.CAFile != "" || s.SSL.CertFile != "" || s.SSL.KeyFile != "":
 		if err := s.makeTLSConfig(); err != nil {
 			return nil, fmt.Errorf("failed to make TLS config: %v", err)
 		}
 		cfg.TLSConfig = mysqlSSLCustom
-	} else if s.SSL.Mode == "" {
+	case s.SSL.Mode == "":
 		cfg.TLSConfig = mysqlSSLTrue
-	} else {
+	default:
 		cfg.TLSConfig = s.SSL.Mode
 	}
+
 	for k, v := range s.params {
 		cfg.Params[k] = v
 	}
