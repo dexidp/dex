@@ -35,15 +35,30 @@ connectors:
     # scopes:
     #  - identity
 
-    # Optional: Configurable keys for groups claim look up
-    # Default: groups
-    # groupsKey:
-
-    # Optional: Configurable keys for user ID claim look up
-    # Default: user_id
+    # Optional: Configurable keys for user ID look up
+    # Default: id
     # userIDKey:
 
-    # Optional: Configurable keys for preferred username claim look up
-    # Default: preferred_username
-    # preferredUsernameKey:
+    # Auth roviders return non-standard user identity profile
+    # Use claimMapping to map those user infomations to standard claims:
+    claimMapping:
+      # Optional: Configurable keys for user name look up
+      # Default: user_name
+      # userNameKey:
+
+      # Optional: Configurable keys for preferred username look up
+      # Default: preferred_username
+      # preferredUsernameKey:
+
+      # Optional: Configurable keys for user groups look up
+      # Default: groups
+      # groupsKey:
+
+      # Optional: Configurable keys for email look up
+      # Default: email
+      # emailKey:
+
+      # Optional: Configurable keys for email verified look up
+      # Default: email_verified
+      # emailVerifiedKey:
 ```

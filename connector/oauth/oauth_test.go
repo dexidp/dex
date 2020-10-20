@@ -75,8 +75,8 @@ func TestHandleCallBackForGroupsInUserInfo(t *testing.T) {
 		"user_id_key":        "test-user-id",
 		"user_name_key":      "test-username",
 		"preferred_username": "test-preferred-username",
-		"email":              "test-email",
-		"email_verified":     true,
+		"mail":               "mod_mail",
+		"has_verified_email": false,
 		"groups_key":         []string{"admin-group", "user-group"},
 	}
 
@@ -96,8 +96,8 @@ func TestHandleCallBackForGroupsInUserInfo(t *testing.T) {
 	assert.Equal(t, identity.UserID, "test-user-id")
 	assert.Equal(t, identity.Username, "test-username")
 	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
-	assert.Equal(t, identity.Email, "test-email")
-	assert.Equal(t, identity.EmailVerified, true)
+	assert.Equal(t, identity.Email, "mod_mail")
+	assert.Equal(t, identity.EmailVerified, false)
 }
 
 func TestHandleCallBackForGroupsInToken(t *testing.T) {
@@ -128,8 +128,8 @@ func TestHandleCallBackForGroupsInToken(t *testing.T) {
 	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
 	assert.Equal(t, identity.UserID, "test-user-id")
 	assert.Equal(t, identity.Username, "test-username")
-	assert.Equal(t, identity.Email, "test-email")
-	assert.Equal(t, identity.EmailVerified, true)
+	assert.Equal(t, identity.Email, "")
+	assert.Equal(t, identity.EmailVerified, false)
 }
 
 func testSetup(t *testing.T, tokenClaims map[string]interface{}, userInfoClaims map[string]interface{}) *httptest.Server {
@@ -198,10 +198,13 @@ func newConnector(t *testing.T, serverURL string) *oauthConnector {
 		AuthorizationURL: serverURL + "/authorize",
 		UserInfoURL:      serverURL + "/userinfo",
 		Scopes:           []string{"openid", "groups"},
-		GroupsKey:        "groups_key",
 		UserIDKey:        "user_id_key",
-		UserNameKey:      "user_name_key",
 	}
+
+	testConfig.ClaimMapping.UserNameKey = "user_name_key"
+	testConfig.ClaimMapping.GroupsKey = "groups_key"
+	testConfig.ClaimMapping.EmailKey = "mail"
+	testConfig.ClaimMapping.EmailVerifiedKey = "has_verified_email"
 
 	log := logrus.New()
 
