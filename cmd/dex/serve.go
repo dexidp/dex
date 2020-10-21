@@ -240,6 +240,28 @@ func runServe(options serveOptions) error {
 
 	s = storage.WithStaticConnectors(s, storageConnectors)
 
+	storageMiddleware := make([]storage.Middleware, len(c.StaticMiddleware))
+	for i, m := range c.StaticMiddleware {
+		if m.Type == "" {
+			return fmt.Errorf("invalid config: Type field is required for a middleware")
+		}
+		if m.Config == nil {
+			return fmt.Errorf("invalid config: no config field for middleware %d (%s)", i, m.Type)
+		}
+		logger.Infof("config middleware: %d (%s)", i, m.Type)
+
+		// convert to a storage middleware object
+		mware, err := ToStorageMiddleware(m)
+		if err != nil {
+			return fmt.Errorf("failed to initialize storage middleware: %v", err)
+		}
+		storageMiddleware[i] = mware
+	}
+
+	if len(storageMiddleware) > 0 {
+		s = storage.WithStaticMiddleware(s, storageMiddleware)
+	}
+
 	if len(c.OAuth2.ResponseTypes) > 0 {
 		logger.Infof("config response types accepted: %s", c.OAuth2.ResponseTypes)
 	}

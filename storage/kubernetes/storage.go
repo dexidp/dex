@@ -25,6 +25,7 @@ const (
 	kindConnector       = "Connector"
 	kindDeviceRequest   = "DeviceRequest"
 	kindDeviceToken     = "DeviceToken"
+	kindMiddlewareList  = "MiddlewareList"
 )
 
 const (
@@ -38,6 +39,7 @@ const (
 	resourceConnector       = "connectors"
 	resourceDeviceRequest   = "devicerequests"
 	resourceDeviceToken     = "devicetokens"
+	resourceMiddlewareList  = "middlewarelists"
 )
 
 // Config values for the Kubernetes storage type.
@@ -249,6 +251,54 @@ func (cli *client) CreateConnector(c storage.Connector) error {
 	return cli.post(resourceConnector, cli.fromStorageConnector(c))
 }
 
+func (cli *client) InsertMiddleware(ndx int, m storage.Middleware) error {
+	firstUpdate := false
+	var mwareList MiddlewareList
+	if err := cli.get(resourceMiddlewareList, middlewareName, &mwareList); err != nil {
+		if err != storage.ErrNotFound {
+			return err
+		}
+		firstUpdate = true
+		mwareList = MiddlewareList{
+			TypeMeta: k8sapi.TypeMeta{
+				Kind:       kindMiddlewareList,
+				APIVersion: cli.apiVersion,
+			},
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name:      middlewareName,
+				Namespace: cli.namespace,
+			},
+			Middleware: []Middleware{},
+		}
+	}
+
+	if ndx == -1 {
+		ndx = len(mwareList.Middleware)
+	}
+
+	if ndx < 0 || ndx > len(mwareList.Middleware) {
+		return storage.ErrOutOfRange
+	}
+
+	if ndx == len(mwareList.Middleware) {
+		mwareList.Middleware = append(mwareList.Middleware,
+			cli.fromStorageMiddleware(m))
+	} else {
+		last := len(mwareList.Middleware) - 1
+		mwareList.Middleware = append(mwareList.Middleware,
+			mwareList.Middleware[last])
+		copy(mwareList.Middleware[ndx+1:],
+			mwareList.Middleware[ndx:last])
+		mwareList.Middleware[ndx] = cli.fromStorageMiddleware(m)
+	}
+
+	if firstUpdate {
+		return cli.post(resourceMiddlewareList, mwareList)
+	}
+
+	return cli.put(resourceMiddlewareList, middlewareName, mwareList)
+}
+
 func (cli *client) GetAuthRequest(id string) (storage.AuthRequest, error) {
 	var req AuthRequest
 	if err := cli.get(resourceAuthRequest, id, &req); err != nil {
@@ -355,6 +405,23 @@ func (cli *client) GetConnector(id string) (storage.Connector, error) {
 	return toStorageConnector(c), nil
 }
 
+func (cli *client) GetMiddleware(ndx int) (storage.Middleware, error) {
+	var mwareList MiddlewareList
+	if err := cli.get(resourceMiddlewareList, middlewareName, &mwareList); err != nil {
+		if err == storage.ErrNotFound {
+			err = storage.ErrOutOfRange
+		}
+		return storage.Middleware{}, err
+	}
+
+	if ndx < 0 || ndx >= len(mwareList.Middleware) {
+		return storage.Middleware{}, storage.ErrOutOfRange
+	}
+
+	return toStorageMiddleware(mwareList.ObjectMeta.ResourceVersion,
+		mwareList.Middleware[ndx]), nil
+}
+
 func (cli *client) ListClients() ([]storage.Client, error) {
 	return nil, errors.New("not implemented")
 }
@@ -394,6 +461,18 @@ func (cli *client) ListConnectors() (connectors []storage.Connector, err error) 
 	}
 
 	return
+}
+
+func (cli *client) ListMiddleware() (middleware []storage.Middleware, err error) {
+	var middlewareList MiddlewareList
+	if err = cli.get(resourceMiddlewareList, middlewareName, &middlewareList); err != nil {
+		if err == storage.ErrNotFound {
+			return []storage.Middleware{}, nil
+		}
+		return []storage.Middleware{}, err
+	}
+	return toStorageMiddlewares(middlewareList.ObjectMeta.ResourceVersion,
+		middlewareList.Middleware), nil
 }
 
 func (cli *client) DeleteAuthRequest(id string) error {
@@ -437,6 +516,25 @@ func (cli *client) DeleteOfflineSessions(userID string, connID string) error {
 
 func (cli *client) DeleteConnector(id string) error {
 	return cli.delete(resourceConnector, id)
+}
+
+func (cli *client) DeleteMiddleware(ndx int) error {
+	var mwareList MiddlewareList
+	if err := cli.get(resourceMiddlewareList, middlewareName, &mwareList); err != nil {
+		if err == storage.ErrNotFound {
+			return storage.ErrOutOfRange
+		}
+		return err
+	}
+
+	if ndx < 0 || ndx >= len(mwareList.Middleware) {
+		return storage.ErrOutOfRange
+	}
+
+	copy(mwareList.Middleware[ndx:], mwareList.Middleware[ndx+1:])
+	mwareList.Middleware = mwareList.Middleware[:len(mwareList.Middleware)-1]
+
+	return cli.put(resourceMiddlewareList, middlewareName, mwareList)
 }
 
 func (cli *client) UpdateRefreshToken(id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
@@ -588,6 +686,30 @@ func (cli *client) UpdateConnector(id string, updater func(a storage.Connector) 
 		newConn.ObjectMeta = c.ObjectMeta
 		return cli.put(resourceConnector, id, newConn)
 	})
+}
+
+func (cli *client) UpdateMiddleware(ndx int, updater func(m storage.Middleware) (storage.Middleware, error)) (err error) {
+	var mwareList MiddlewareList
+	if err := cli.get(resourceMiddlewareList, middlewareName, &mwareList); err != nil {
+		if err == storage.ErrNotFound {
+			return storage.ErrOutOfRange
+		}
+		return err
+	}
+
+	if ndx < 0 || ndx >= len(mwareList.Middleware) {
+		return storage.ErrOutOfRange
+	}
+
+	updated, err := updater(toStorageMiddleware(mwareList.ObjectMeta.ResourceVersion,
+		mwareList.Middleware[ndx]))
+	if err != nil {
+		return err
+	}
+
+	mwareList.Middleware[ndx] = cli.fromStorageMiddleware(updated)
+
+	return cli.put(resourceMiddlewareList, middlewareName, mwareList)
 }
 
 func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err error) {

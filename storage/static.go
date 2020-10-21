@@ -230,3 +230,40 @@ func (s staticConnectorsStorage) UpdateConnector(id string, updater func(old Con
 	}
 	return s.Storage.UpdateConnector(id, updater)
 }
+
+// staticMiddlewareStorage represents a storage with a read-only set of middleware.
+type staticMiddlewareStorage struct {
+	Storage
+
+	// A read-only set of middleware
+	middleware []Middleware
+}
+
+// WithStaticMiddleware returns a storage with a read-only set of Middleware. Write actions,
+// such as updating existing Middleware, will fail.
+func WithStaticMiddleware(s Storage, staticMiddleware []Middleware) Storage {
+	return staticMiddlewareStorage{s, staticMiddleware}
+}
+
+func (s staticMiddlewareStorage) InsertMiddleware(ndx int, m Middleware) error {
+	return errors.New("static middleware: read-only cannot create middleware")
+}
+
+func (s staticMiddlewareStorage) GetMiddleware(ndx int) (Middleware, error) {
+	if ndx < 0 || ndx >= len(s.middleware) {
+		return Middleware{}, ErrOutOfRange
+	}
+	return s.middleware[ndx], nil
+}
+
+func (s staticMiddlewareStorage) ListMiddleware() ([]Middleware, error) {
+	return s.middleware, nil
+}
+
+func (s staticMiddlewareStorage) DeleteMiddleware(ndx int) error {
+	return errors.New("static middleware: read-only cannot delete middleware")
+}
+
+func (s staticMiddlewareStorage) UpdateMiddleware(ndx int, updater func(m Middleware) (Middleware, error)) error {
+	return errors.New("static middleware: read-only cannot update middleware")
+}

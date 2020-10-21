@@ -24,6 +24,7 @@ const (
 	keysName             = "openid-connect-keys"
 	deviceRequestPrefix  = "device_req/"
 	deviceTokenPrefix    = "device_token/"
+	middlewareName       = "middleware"
 
 	// defaultStorageTimeout will be applied to all storage's operations.
 	defaultStorageTimeout = 5 * time.Second
@@ -639,5 +640,133 @@ func (c *conn) UpdateDeviceToken(deviceCode string, updater func(old storage.Dev
 			return nil, err
 		}
 		return json.Marshal(fromStorageDeviceToken(updated))
+	})
+}
+
+func (c *conn) InsertMiddleware(ndx int, m storage.Middleware) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnUpdate(ctx, middlewareName, func(currentValue []byte) ([]byte, error) {
+		var middleware []storage.Middleware
+		if len(currentValue) > 0 {
+			if err := json.Unmarshal(currentValue, &middleware); err != nil {
+				return nil, err
+			}
+		}
+
+		if ndx == -1 {
+			ndx = len(middleware)
+		}
+
+		if ndx < 0 || ndx > len(middleware) {
+			return currentValue, storage.ErrOutOfRange
+		}
+
+		if ndx == len(middleware) {
+			middleware = append(middleware, m)
+		} else {
+			last := len(middleware) - 1
+			middleware = append(middleware, middleware[last])
+			copy(middleware[ndx+1:], middleware[ndx:last])
+			middleware[ndx] = m
+		}
+
+		return json.Marshal(middleware)
+	})
+}
+
+func (c *conn) GetMiddleware(ndx int) (storage.Middleware, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	var middleware []storage.Middleware
+	res, err := c.db.Get(ctx, middlewareName)
+	if err != nil {
+		return storage.Middleware{}, err
+	}
+	if res.Count == 0 || len(res.Kvs) == 0 {
+		return storage.Middleware{}, storage.ErrOutOfRange
+	}
+
+	err = json.Unmarshal(res.Kvs[0].Value, &middleware)
+	if err != nil {
+		return storage.Middleware{}, err
+	}
+
+	if ndx < 0 || ndx >= len(middleware) {
+		return storage.Middleware{}, storage.ErrOutOfRange
+	}
+
+	return middleware[ndx], nil
+}
+
+func (c *conn) ListMiddleware() ([]storage.Middleware, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	var middleware []storage.Middleware
+	res, err := c.db.Get(ctx, middlewareName)
+	if err != nil {
+		return []storage.Middleware{}, err
+	}
+	if res.Count == 0 || len(res.Kvs) == 0 {
+		return []storage.Middleware{}, nil
+	}
+
+	err = json.Unmarshal(res.Kvs[0].Value, &middleware)
+
+	return middleware, err
+}
+
+func (c *conn) DeleteMiddleware(ndx int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnUpdate(ctx, middlewareName, func(currentValue []byte) ([]byte, error) {
+		var middleware []storage.Middleware
+		if len(currentValue) > 0 {
+			if err := json.Unmarshal(currentValue, &middleware); err != nil {
+				return nil, err
+			}
+		}
+
+		if ndx == -1 {
+			ndx = len(middleware)
+		}
+
+		if ndx < 0 || ndx >= len(middleware) {
+			return currentValue, storage.ErrOutOfRange
+		}
+
+		copy(middleware[ndx:], middleware[ndx+1:])
+		middleware = middleware[:len(middleware)-1]
+
+		return json.Marshal(middleware)
+	})
+}
+
+func (c *conn) UpdateMiddleware(ndx int, updater func(m storage.Middleware) (storage.Middleware, error)) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnUpdate(ctx, middlewareName, func(currentValue []byte) ([]byte, error) {
+		var middleware []storage.Middleware
+		if len(currentValue) > 0 {
+			if err := json.Unmarshal(currentValue, &middleware); err != nil {
+				return nil, err
+			}
+		}
+
+		if ndx == -1 {
+			ndx = len(middleware)
+		}
+
+		if ndx < 0 || ndx >= len(middleware) {
+			return currentValue, storage.ErrOutOfRange
+		}
+
+		newMware, err := updater(middleware[ndx])
+		if err != nil {
+			return currentValue, err
+		}
+
+		middleware[ndx] = newMware
+		return json.Marshal(middleware)
 	})
 }

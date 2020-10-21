@@ -173,11 +173,29 @@ var customResourceDefinitions = []k8sapi.CustomResourceDefinition{
 			},
 		},
 	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "middlewarelists.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "middlewarelists",
+				Singular: "middlewarelist",
+				Kind:     "MiddlewareList",
+			},
+		},
+	},
 }
 
 // There will only ever be a single keys resource. Maintain this by setting a
 // common name.
 const keysName = "openid-connect-keys"
+
+// There will only ever be a single middleware resource.
+const middlewareName = "middleware"
 
 // Client is a mirrored struct from storage with JSON struct tags and
 // Kubernetes type metadata.
@@ -648,6 +666,9 @@ type Connector struct {
 	Name string `json:"name,omitempty"`
 	// Config holds connector specific configuration information
 	Config []byte `json:"config,omitempty"`
+
+	// The list of middleware configured for this connector
+	Middleware []Middleware `json:"middleware,omitempty"`
 }
 
 func (cli *client) fromStorageConnector(c storage.Connector) Connector {
@@ -660,10 +681,11 @@ func (cli *client) fromStorageConnector(c storage.Connector) Connector {
 			Name:      c.ID,
 			Namespace: cli.namespace,
 		},
-		ID:     c.ID,
-		Type:   c.Type,
-		Name:   c.Name,
-		Config: c.Config,
+		ID:         c.ID,
+		Type:       c.Type,
+		Name:       c.Name,
+		Config:     c.Config,
+		Middleware: cli.fromStorageMiddlewares(c.Middleware),
 	}
 }
 
@@ -674,7 +696,45 @@ func toStorageConnector(c Connector) storage.Connector {
 		Name:            c.Name,
 		ResourceVersion: c.ObjectMeta.ResourceVersion,
 		Config:          c.Config,
+		Middleware:      toStorageMiddlewares(c.ObjectMeta.ResourceVersion, c.Middleware),
 	}
+}
+
+// Middleware is a mirrored struct from storage with JSON struct tags
+type Middleware struct {
+	Type   string `json:"type,omitempty"`
+	Config []byte `json:"config,omitempty"`
+}
+
+func (cli *client) fromStorageMiddleware(m storage.Middleware) Middleware {
+	return Middleware{
+		Type:   m.Type,
+		Config: m.Config,
+	}
+}
+
+func (cli *client) fromStorageMiddlewares(ms []storage.Middleware) []Middleware {
+	result := make([]Middleware, len(ms))
+	for n, m := range ms {
+		result[n] = cli.fromStorageMiddleware(m)
+	}
+	return result
+}
+
+func toStorageMiddleware(version string, m Middleware) storage.Middleware {
+	return storage.Middleware{
+		Type:            m.Type,
+		ResourceVersion: version,
+		Config:          m.Config,
+	}
+}
+
+func toStorageMiddlewares(version string, ms []Middleware) []storage.Middleware {
+	result := make([]storage.Middleware, len(ms))
+	for n, m := range ms {
+		result[n] = toStorageMiddleware(version, m)
+	}
+	return result
 }
 
 // ConnectorList is a list of Connectors.
@@ -682,6 +742,13 @@ type ConnectorList struct {
 	k8sapi.TypeMeta `json:",inline"`
 	k8sapi.ListMeta `json:"metadata,omitempty"`
 	Connectors      []Connector `json:"items"`
+}
+
+// MiddlewareList is a list of Middlewares.
+type MiddlewareList struct {
+	k8sapi.TypeMeta   `json:",inline"`
+	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+	Middleware        []Middleware `json:"items"`
 }
 
 // DeviceRequest is a mirrored struct from storage with JSON struct tags and

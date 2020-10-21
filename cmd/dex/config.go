@@ -36,6 +36,9 @@ type Config struct {
 	// Write operations, like updating a connector, will fail.
 	StaticConnectors []Connector `json:"connectors"`
 
+	// StaticMiddleware are global middleware specified in the ConfigMap.
+	StaticMiddleware []Middleware `json:"middleware"`
+
 	// StaticClients cause the server to use this list of clients rather than
 	// querying the storage. Write operations, like creating a client, will fail.
 	StaticClients []storage.Client `json:"staticClients"`
@@ -236,6 +239,8 @@ type Connector struct {
 	ID   string `json:"id"`
 
 	Config server.ConnectorConfig `json:"config"`
+
+	Middleware []Middleware `json:"middleware"`
 }
 
 // UnmarshalJSON allows Connector to implement the unmarshaler interface to
@@ -247,6 +252,8 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 		ID   string `json:"id"`
 
 		Config json.RawMessage `json:"config"`
+
+		Middleware []Middleware `json:"middleware"`
 	}
 	if err := json.Unmarshal(b, &conn); err != nil {
 		return fmt.Errorf("parse connector: %v", err)
@@ -268,10 +275,11 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 		}
 	}
 	*c = Connector{
-		Type:   conn.Type,
-		Name:   conn.Name,
-		ID:     conn.ID,
-		Config: connConfig,
+		Type:       conn.Type,
+		Name:       conn.Name,
+		ID:         conn.ID,
+		Config:     connConfig,
+		Middleware: conn.Middleware,
 	}
 	return nil
 }
@@ -283,10 +291,70 @@ func ToStorageConnector(c Connector) (storage.Connector, error) {
 		return storage.Connector{}, fmt.Errorf("failed to marshal connector config: %v", err)
 	}
 
+	mwares := make([]storage.Middleware, len(c.Middleware))
+	for n, mware := range c.Middleware {
+		mwares[n], err = ToStorageMiddleware(mware)
+		if err != nil {
+			return storage.Connector{}, fmt.Errorf("failed to marshal connector middleware: %v", err)
+		}
+	}
+
 	return storage.Connector{
-		ID:     c.ID,
-		Type:   c.Type,
-		Name:   c.Name,
+		ID:         c.ID,
+		Type:       c.Type,
+		Name:       c.Name,
+		Config:     data,
+		Middleware: mwares,
+	}, nil
+}
+
+// Middleware is another magic type, like Connector, that can unmarshal YAML
+// dynamically.  The Type field determines the middleware type, which is then
+// customized for Config.
+type Middleware struct {
+	Type string `json:"type"`
+
+	Config server.MiddlewareConfig `json:"config"`
+}
+
+// UnmarshalJSON allows Connector to implement the unmarshaler interface to
+// dynamically determine the type of the middleware config.
+func (m *Middleware) UnmarshalJSON(b []byte) error {
+	var mware struct {
+		Type string `json:"type"`
+
+		Config json.RawMessage `json:"config"`
+	}
+	if err := json.Unmarshal(b, &mware); err != nil {
+		return fmt.Errorf("parse middleware: %v", err)
+	}
+	f, ok := server.MiddlewaresConfig[mware.Type]
+	if !ok {
+		return fmt.Errorf("unknown middleware type %q", mware.Type)
+	}
+
+	mwareConfig := f()
+	if len(mware.Config) != 0 {
+		if err := json.Unmarshal(mware.Config, mwareConfig); err != nil {
+			return fmt.Errorf("parse middleware config: %v", err)
+		}
+	}
+	*m = Middleware{
+		Type:   mware.Type,
+		Config: mwareConfig,
+	}
+	return nil
+}
+
+// ToStorageMiddleware converts an object to storage middleware type.
+func ToStorageMiddleware(m Middleware) (storage.Middleware, error) {
+	data, err := json.Marshal(m.Config)
+	if err != nil {
+		return storage.Middleware{}, fmt.Errorf("failed to marshal middleware config: %v", err)
+	}
+
+	return storage.Middleware{
+		Type:   m.Type,
 		Config: data,
 	}, nil
 }

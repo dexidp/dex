@@ -38,6 +38,9 @@ import (
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
+
+	"github.com/dexidp/dex/middleware"
+
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
@@ -50,6 +53,7 @@ const LocalConnector = "local"
 type Connector struct {
 	ResourceVersion string
 	Connector       connector.Connector
+	Middleware      []middleware.Middleware
 }
 
 // Config holds the server's configuration options.
@@ -139,6 +143,9 @@ type Server struct {
 	// Map of connector IDs to connectors.
 	connectors map[string]Connector
 
+	// Global middleware
+	middleware []Middleware
+
 	storage storage.Storage
 
 	mux http.Handler
@@ -225,6 +232,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	s := &Server{
 		issuerURL:              *issuerURL,
 		connectors:             make(map[string]Connector),
+		middleware:             []Middleware{},
 		storage:                newKeyCacher(c.Storage, now),
 		supportedResponseTypes: supported,
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
@@ -554,7 +562,17 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 	connector := Connector{
 		ResourceVersion: conn.ResourceVersion,
 		Connector:       c,
+		Middleware:      make([]middleware.Middleware, len(conn.Middleware)),
 	}
+
+	for n, mware := range conn.Middleware {
+		var err error
+		connector.Middleware[n], err = openMiddleware(s.logger, mware)
+		if err != nil {
+			return Connector{}, fmt.Errorf("failed to open connector middleware: %v", err)
+		}
+	}
+
 	s.mu.Lock()
 	s.connectors[conn.ID] = connector
 	s.mu.Unlock()

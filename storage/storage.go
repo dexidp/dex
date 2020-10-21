@@ -18,6 +18,9 @@ var (
 
 	// ErrAlreadyExists is the error returned by storages if a resource ID is taken during a create.
 	ErrAlreadyExists = errors.New("ID already exists")
+
+	// ErrOutOfRange is the error returned by storages if you attempt to insert at an out-of-range location.
+	ErrOutOfRange = errors.New("out of range")
 )
 
 // Kubernetes only allows lower case letters for names.
@@ -80,6 +83,13 @@ type Storage interface {
 	CreateDeviceRequest(d DeviceRequest) error
 	CreateDeviceToken(d DeviceToken) error
 
+	// Insert a new Middleware into the global middleware list
+	//
+	// ndx = 0 means insert at start
+	// ndx = -1 means insert at end
+	//
+	InsertMiddleware(ndx int, m Middleware) error
+
 	// TODO(ericchiang): return (T, bool, error) so we can indicate not found
 	// requests that way instead of using ErrNotFound.
 	GetAuthRequest(id string) (AuthRequest, error)
@@ -92,11 +102,13 @@ type Storage interface {
 	GetConnector(id string) (Connector, error)
 	GetDeviceRequest(userCode string) (DeviceRequest, error)
 	GetDeviceToken(deviceCode string) (DeviceToken, error)
+	GetMiddleware(ndx int) (Middleware, error)
 
 	ListClients() ([]Client, error)
 	ListRefreshTokens() ([]RefreshToken, error)
 	ListPasswords() ([]Password, error)
 	ListConnectors() ([]Connector, error)
+	ListMiddleware() ([]Middleware, error)
 
 	// Delete methods MUST be atomic.
 	DeleteAuthRequest(id string) error
@@ -106,6 +118,7 @@ type Storage interface {
 	DeletePassword(email string) error
 	DeleteOfflineSessions(userID string, connID string) error
 	DeleteConnector(id string) error
+	DeleteMiddleware(ndx int) error
 
 	// Update methods take a function for updating an object then performs that update within
 	// a transaction. "updater" functions may be called multiple times by a single update call.
@@ -128,6 +141,7 @@ type Storage interface {
 	UpdatePassword(email string, updater func(p Password) (Password, error)) error
 	UpdateOfflineSessions(userID string, connID string, updater func(s OfflineSessions) (OfflineSessions, error)) error
 	UpdateConnector(id string, updater func(c Connector) (Connector, error)) error
+	UpdateMiddleware(ndx int, updater func(m Middleware) (Middleware, error)) error
 	UpdateDeviceToken(deviceCode string, updater func(t DeviceToken) (DeviceToken, error)) error
 
 	// GarbageCollect deletes all expired AuthCodes,
@@ -358,7 +372,23 @@ type Connector struct {
 	ResourceVersion string `json:"resourceVersion"`
 	// Config holds all the configuration information specific to the connector type. Since there
 	// no generic struct we can use for this purpose, it is stored as a byte stream.
-	Config []byte `json:"email"`
+	Config []byte `json:"config"`
+
+	// Middleware configured for this connector
+	Middleware []Middleware `json:"middleware"`
+}
+
+// Middleware is an object that contains the metadata about middleware
+type Middleware struct {
+	// The type of the middleware, e.g. "groups"
+	Type string `json:"type"`
+
+	// ResourceVersion is the static versioning used to keep track of dynamic configuration
+	// changes to the middleware object made by the API calls.
+	ResourceVersion string `json:"resourceVersion"`
+
+	// Config holds middleware-specific configuration, as a byte stream.
+	Config []byte `json:"config"`
 }
 
 // VerificationKey is a rotated signing key which can still be used to verify

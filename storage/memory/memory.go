@@ -22,6 +22,7 @@ func New(logger log.Logger) storage.Storage {
 		connectors:      make(map[string]storage.Connector),
 		deviceRequests:  make(map[string]storage.DeviceRequest),
 		deviceTokens:    make(map[string]storage.DeviceToken),
+		middleware:      []storage.Middleware{},
 		logger:          logger,
 	}
 }
@@ -50,6 +51,7 @@ type memStorage struct {
 	connectors      map[string]storage.Connector
 	deviceRequests  map[string]storage.DeviceRequest
 	deviceTokens    map[string]storage.DeviceToken
+	middleware      []storage.Middleware
 
 	keys storage.Keys
 
@@ -181,6 +183,29 @@ func (s *memStorage) CreateConnector(connector storage.Connector) (err error) {
 	return
 }
 
+func (s *memStorage) InsertMiddleware(ndx int, middleware storage.Middleware) (err error) {
+	s.tx(func() {
+		if ndx == -1 {
+			ndx = len(s.middleware)
+		}
+
+		if ndx < 0 || ndx > len(s.middleware) {
+			err = storage.ErrOutOfRange
+			return
+		}
+
+		if ndx == len(s.middleware) {
+			s.middleware = append(s.middleware, middleware)
+		} else {
+			last := len(s.middleware) - 1
+			s.middleware = append(s.middleware, s.middleware[last])
+			copy(s.middleware[ndx+1:], s.middleware[ndx:last])
+			s.middleware[ndx] = middleware
+		}
+	})
+	return
+}
+
 func (s *memStorage) GetAuthCode(id string) (c storage.AuthCode, err error) {
 	s.tx(func() {
 		var ok bool
@@ -265,6 +290,17 @@ func (s *memStorage) GetConnector(id string) (connector storage.Connector, err e
 	return
 }
 
+func (s *memStorage) GetMiddleware(ndx int) (middleware storage.Middleware, err error) {
+	s.tx(func() {
+		if ndx < 0 || ndx >= len(s.middleware) {
+			err = storage.ErrOutOfRange
+		} else {
+			middleware = s.middleware[ndx]
+		}
+	})
+	return
+}
+
 func (s *memStorage) ListClients() (clients []storage.Client, err error) {
 	s.tx(func() {
 		for _, client := range s.clients {
@@ -297,6 +333,13 @@ func (s *memStorage) ListConnectors() (conns []storage.Connector, err error) {
 		for _, c := range s.connectors {
 			conns = append(conns, c)
 		}
+	})
+	return
+}
+
+func (s *memStorage) ListMiddleware() (mware []storage.Middleware, err error) {
+	s.tx(func() {
+		mware = s.middleware
 	})
 	return
 }
@@ -379,6 +422,18 @@ func (s *memStorage) DeleteConnector(id string) (err error) {
 			return
 		}
 		delete(s.connectors, id)
+	})
+	return
+}
+
+func (s *memStorage) DeleteMiddleware(ndx int) (err error) {
+	s.tx(func() {
+		if ndx < 0 || ndx >= len(s.middleware) {
+			err = storage.ErrOutOfRange
+		} else {
+			copy(s.middleware[ndx:], s.middleware[ndx+1:])
+			s.middleware = s.middleware[:len(s.middleware)-1]
+		}
 	})
 	return
 }
@@ -477,6 +532,20 @@ func (s *memStorage) UpdateConnector(id string, updater func(c storage.Connector
 		}
 		if r, err = updater(r); err == nil {
 			s.connectors[id] = r
+		}
+	})
+	return
+}
+
+func (s *memStorage) UpdateMiddleware(ndx int, updater func(m storage.Middleware) (storage.Middleware, error)) (err error) {
+	s.tx(func() {
+		if ndx < 0 || ndx >= len(s.middleware) {
+			err = storage.ErrOutOfRange
+		} else {
+			r := s.middleware[ndx]
+			if r, err = updater(r); err == nil {
+				s.middleware[ndx] = r
+			}
 		}
 	})
 	return
