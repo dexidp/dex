@@ -256,28 +256,28 @@ func (a audience) MarshalJSON() ([]byte, error) {
 	return json.Marshal([]string(a))
 }
 
-type idTokenClaims struct {
-	Issuer           string   `json:"iss"`
-	Subject          string   `json:"sub"`
-	Audience         audience `json:"aud"`
-	Expiry           int64    `json:"exp"`
-	IssuedAt         int64    `json:"iat"`
-	AuthorizingParty string   `json:"azp,omitempty"`
-	Nonce            string   `json:"nonce,omitempty"`
+const (
+	claimIssuer           = "iss"
+	claimSubject          = "sub"
+	claimAudience         = "aud"
+	claimExpiry           = "exp"
+	claimIssuedAt         = "iat"
+	claimAuthorizingParty = "azp"
+	claimNonce            = "nonce"
 
-	AccessTokenHash string `json:"at_hash,omitempty"`
-	CodeHash        string `json:"c_hash,omitempty"`
+	claimAccessTokenHash = "at_hash"
+	claimCodeHash        = "c_hash"
 
-	Email         string `json:"email,omitempty"`
-	EmailVerified *bool  `json:"email_verified,omitempty"`
+	claimEmail         = "email"
+	claimEmailVerified = "email_verified"
 
-	Groups []string `json:"groups,omitempty"`
+	claimGroups = "groups"
 
-	Name              string `json:"name,omitempty"`
-	PreferredUsername string `json:"preferred_username,omitempty"`
+	claimName              = "name"
+	claimPreferredUsername = "preferred_username"
 
-	FederatedIDClaims *federatedIDClaims `json:"federated_claims,omitempty"`
-}
+	claimFederatedID = "federated_claims"
+)
 
 type federatedIDClaims struct {
 	ConnectorID string `json:"connector_id,omitempty"`
@@ -319,12 +319,12 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		return "", expiry, fmt.Errorf("failed to marshal offline session ID: %v", err)
 	}
 
-	tok := idTokenClaims{
-		Issuer:   s.issuerURL.String(),
-		Subject:  subjectString,
-		Nonce:    nonce,
-		Expiry:   expiry.Unix(),
-		IssuedAt: issuedAt.Unix(),
+	tok := map[string]interface{}{
+		claimIssuer:   s.issuerURL.String(),
+		claimSubject:  subjectString,
+		claimNonce:    nonce,
+		claimExpiry:   expiry.Unix(),
+		claimIssuedAt: issuedAt.Unix(),
 	}
 
 	if accessToken != "" {
@@ -333,7 +333,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 			s.logger.Errorf("error computing at_hash: %v", err)
 			return "", expiry, fmt.Errorf("error computing at_hash: %v", err)
 		}
-		tok.AccessTokenHash = atHash
+		tok[claimAccessTokenHash] = atHash
 	}
 
 	if code != "" {
@@ -348,15 +348,15 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	for _, scope := range scopes {
 		switch {
 		case scope == scopeEmail:
-			tok.Email = claims.Email
-			tok.EmailVerified = &claims.EmailVerified
+			tok[claimEmail] = claims.Email
+			tok[claimEmailVerified] = claims.EmailVerified
 		case scope == scopeGroups:
-			tok.Groups = claims.Groups
+			tok[claimGroups] = claims.Groups
 		case scope == scopeProfile:
-			tok.Name = claims.Username
-			tok.PreferredUsername = claims.PreferredUsername
+			tok[claimName] = claims.Username
+			tok[claimPreferredUsername] = claims.PreferredUsername
 		case scope == scopeFederatedID:
-			tok.FederatedIDClaims = &federatedIDClaims{
+			tok[claimFederatedID] = &federatedIDClaims{
 				ConnectorID: connID,
 				UserID:      claims.UserID,
 			}
@@ -375,23 +375,34 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 				// TODO(ericchiang): propagate this error to the client.
 				return "", expiry, fmt.Errorf("peer (%s) does not trust client", peerID)
 			}
-			tok.Audience = append(tok.Audience, peerID)
+			if aud, found := tok[claimAudience]; !found {
+				tok[claimAudience] = audience{peerID}
+			} else {
+				audience := aud.(audience)
+				tok[claimAudience] = append(audience, peerID)
+			}
 		}
 	}
 
-	if len(tok.Audience) == 0 {
+	if aud, found := tok[claimAudience]; !found {
 		// Client didn't ask for cross client audience. Set the current
 		// client as the audience.
-		tok.Audience = audience{clientID}
+		tok[claimAudience] = audience{clientID}
 	} else {
+		audience := aud.(audience)
 		// Client asked for cross client audience:
 		// if the current client was not requested explicitly
-		if !tok.Audience.contains(clientID) {
+		if !audience.contains(clientID) {
 			// by default it becomes one of entries in Audience
-			tok.Audience = append(tok.Audience, clientID)
+			tok[claimAudience] = append(audience, clientID)
 		}
 		// The current client becomes the authorizing party.
-		tok.AuthorizingParty = clientID
+		tok[claimAuthorizingParty] = clientID
+	}
+
+	// Copy across custom claims
+	for claim, value := range claims.Custom {
+		tok[claim] = value
 	}
 
 	payload, err := json.Marshal(tok)

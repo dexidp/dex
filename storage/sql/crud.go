@@ -48,6 +48,11 @@ func decoder(i interface{}) sql.Scanner {
 	return jsonDecoder{i}
 }
 
+// defaultDecoder wraps the underlying value in a JSON unmarshaler that allows a default
+func defaultDecoder(i interface{}, defJSON []byte) sql.Scanner {
+	return jsonDefaultDecoder{i, defJSON}
+}
+
 type jsonEncoder struct {
 	i interface{}
 }
@@ -67,6 +72,25 @@ type jsonDecoder struct {
 func (j jsonDecoder) Scan(dest interface{}) error {
 	if dest == nil {
 		return errors.New("nil value")
+	}
+	b, ok := dest.([]byte)
+	if !ok {
+		return fmt.Errorf("expected []byte got %T", dest)
+	}
+	if err := json.Unmarshal(b, &j.i); err != nil {
+		return fmt.Errorf("unmarshal: %v", err)
+	}
+	return nil
+}
+
+type jsonDefaultDecoder struct {
+	i       interface{}
+	defJSON []byte
+}
+
+func (j jsonDefaultDecoder) Scan(dest interface{}) error {
+	if dest == nil {
+		dest = j.defJSON
 	}
 	b, ok := dest.([]byte)
 	if !ok {
@@ -220,7 +244,8 @@ func getAuthRequest(q querier, id string) (a storage.AuthRequest, err error) {
 		&a.ForceApprovalPrompt, &a.LoggedIn,
 		&a.Claims.UserID, &a.Claims.Username, &a.Claims.PreferredUsername,
 		&a.Claims.Email, &a.Claims.EmailVerified,
-		decoder(&a.Claims.Groups), decoder(&a.Claims.Custom),
+		decoder(&a.Claims.Groups),
+		defaultDecoder(&a.Claims.Custom, []byte("{}")),
 		&a.ConnectorID, &a.ConnectorData, &a.Expiry,
 		&a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod,
 	)
@@ -273,7 +298,8 @@ func (c *conn) GetAuthCode(id string) (a storage.AuthCode, err error) {
 	`, id).Scan(
 		&a.ID, &a.ClientID, decoder(&a.Scopes), &a.Nonce, &a.RedirectURI, &a.Claims.UserID,
 		&a.Claims.Username, &a.Claims.PreferredUsername, &a.Claims.Email, &a.Claims.EmailVerified,
-		decoder(&a.Claims.Groups), decoder(&a.Claims.Custom),
+		decoder(&a.Claims.Groups),
+		defaultDecoder(&a.Claims.Custom, []byte("{}")),
 		&a.ConnectorID, &a.ConnectorData, &a.Expiry,
 		&a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod,
 	)
@@ -295,7 +321,7 @@ func (c *conn) CreateRefresh(r storage.RefreshToken) error {
 			connector_id, connector_data,
 			token, created_at, last_used
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 16);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16);
 	`,
 		r.ID, r.ClientID, encoder(r.Scopes), r.Nonce,
 		r.Claims.UserID, r.Claims.Username, r.Claims.PreferredUsername,
@@ -408,7 +434,8 @@ func scanRefresh(s scanner) (r storage.RefreshToken, err error) {
 		&r.ID, &r.ClientID, decoder(&r.Scopes), &r.Nonce,
 		&r.Claims.UserID, &r.Claims.Username, &r.Claims.PreferredUsername,
 		&r.Claims.Email, &r.Claims.EmailVerified,
-		decoder(&r.Claims.Groups), decoder(&r.Claims.Custom),
+		decoder(&r.Claims.Groups),
+		defaultDecoder(&r.Claims.Custom, []byte("{}")),
 		&r.ConnectorID, &r.ConnectorData,
 		&r.Token, &r.CreatedAt, &r.LastUsed,
 	)

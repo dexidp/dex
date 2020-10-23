@@ -263,6 +263,19 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 	}
 
+	// Retrieves middleware objects in backend storage. This list includes the static connectors
+	// defined in the ConfigMap and dynamic connectors retrieved from the storage.
+	storageMiddleware, err := c.Storage.ListMiddleware()
+	if err != nil {
+		return nil, fmt.Errorf("server: failed to list middleware objects from storage: %v", err)
+	}
+
+	for n, mware := range storageMiddleware {
+		if _, err := s.OpenMiddleware(mware); err != nil {
+			return nil, fmt.Errorf("server: Failed to open connector %d (%q): %v", n, mware.Type, err)
+		}
+	}
+
 	instrumentHandlerCounter := func(_ string, handler http.Handler) http.HandlerFunc {
 		return handler.ServeHTTP
 	}

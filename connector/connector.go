@@ -31,6 +31,8 @@ type Identity struct {
 
 	Groups []string
 
+	CustomClaims map[string]interface{}
+
 	// ConnectorData holds data used by the connector for subsequent requests after initial
 	// authentication, such as access tokens for upstream provides.
 	//

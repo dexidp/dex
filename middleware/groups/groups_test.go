@@ -19,8 +19,7 @@ type subtest struct {
 	input connector.Identity
 
 	// Output
-	wantErr bool
-	want    connector.Identity
+	want connector.Identity
 }
 
 func TestDiscard(t *testing.T) {
@@ -814,13 +813,8 @@ func runTests(t *testing.T, config *Config, tests []subtest) {
 		t.Run(test.name, func(t *testing.T) {
 			got, err := mware.Process(ctx, test.input)
 			if err != nil {
-				if !test.wantErr {
-					t.Fatalf("middleware failed: %v", err)
-				}
+				t.Fatalf("middleware failed: %v", err)
 				return
-			}
-			if test.wantErr {
-				t.Fatal("middleware should have failed")
 			}
 
 			if diff := pretty.Compare(test.want, got); diff != "" {

@@ -289,13 +289,13 @@ var migrations = []migration{
 	{
 		stmts: []string{`
 			alter table auth_request
-				add column claims_custom bytea not null default '{}';`,
+				add column claims_custom bytea;`,
 			`
 			alter table auth_code
-				add column claims_custom bytea not null default '{}';`,
+				add column claims_custom bytea;`,
 			`
 			alter table refresh_token
-				add column claims_custom bytea not null default '{}';`,
+				add column claims_custom bytea;`,
 		},
 	},
 }
