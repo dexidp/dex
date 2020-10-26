@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +23,11 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
+)
+
+const (
+	CodeChallengeMethodPlain = "plain"
+	CodeChallengeMethodS256  = "S256"
 )
 
 // newHealthChecker returns the healthz handler. The handler runs until the
@@ -148,34 +155,36 @@ func (s *Server) handlePublicKeys(w http.ResponseWriter, r *http.Request) {
 }
 
 type discovery struct {
-	Issuer         string   `json:"issuer"`
-	Auth           string   `json:"authorization_endpoint"`
-	Token          string   `json:"token_endpoint"`
-	Keys           string   `json:"jwks_uri"`
-	UserInfo       string   `json:"userinfo_endpoint"`
-	DeviceEndpoint string   `json:"device_authorization_endpoint"`
-	GrantTypes     []string `json:"grant_types_supported"`
-	ResponseTypes  []string `json:"response_types_supported"`
-	Subjects       []string `json:"subject_types_supported"`
-	IDTokenAlgs    []string `json:"id_token_signing_alg_values_supported"`
-	Scopes         []string `json:"scopes_supported"`
-	AuthMethods    []string `json:"token_endpoint_auth_methods_supported"`
-	Claims         []string `json:"claims_supported"`
+	Issuer            string   `json:"issuer"`
+	Auth              string   `json:"authorization_endpoint"`
+	Token             string   `json:"token_endpoint"`
+	Keys              string   `json:"jwks_uri"`
+	UserInfo          string   `json:"userinfo_endpoint"`
+	DeviceEndpoint    string   `json:"device_authorization_endpoint"`
+	GrantTypes        []string `json:"grant_types_supported"`
+	ResponseTypes     []string `json:"response_types_supported"`
+	Subjects          []string `json:"subject_types_supported"`
+	IDTokenAlgs       []string `json:"id_token_signing_alg_values_supported"`
+	CodeChallengeAlgs []string `json:"code_challenge_methods_supported"`
+	Scopes            []string `json:"scopes_supported"`
+	AuthMethods       []string `json:"token_endpoint_auth_methods_supported"`
+	Claims            []string `json:"claims_supported"`
 }
 
 func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 	d := discovery{
-		Issuer:         s.issuerURL.String(),
-		Auth:           s.absURL("/auth"),
-		Token:          s.absURL("/token"),
-		Keys:           s.absURL("/keys"),
-		UserInfo:       s.absURL("/userinfo"),
-		DeviceEndpoint: s.absURL("/device/code"),
-		Subjects:       []string{"public"},
-		GrantTypes:     []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode},
-		IDTokenAlgs:    []string{string(jose.RS256)},
-		Scopes:         []string{"openid", "email", "groups", "profile", "offline_access"},
-		AuthMethods:    []string{"client_secret_basic"},
+		Issuer:            s.issuerURL.String(),
+		Auth:              s.absURL("/auth"),
+		Token:             s.absURL("/token"),
+		Keys:              s.absURL("/keys"),
+		UserInfo:          s.absURL("/userinfo"),
+		DeviceEndpoint:    s.absURL("/device/code"),
+		Subjects:          []string{"public"},
+		GrantTypes:        []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode},
+		IDTokenAlgs:       []string{string(jose.RS256)},
+		CodeChallengeAlgs: []string{CodeChallengeMethodS256, CodeChallengeMethodPlain},
+		Scopes:            []string{"openid", "email", "groups", "profile", "offline_access"},
+		AuthMethods:       []string{"client_secret_basic"},
 		Claims: []string{
 			"aud", "email", "email_verified", "exp",
 			"iat", "iss", "locale", "name", "sub",
@@ -643,6 +652,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 				Expiry:        s.now().Add(time.Minute * 30),
 				RedirectURI:   authReq.RedirectURI,
 				ConnectorData: authReq.ConnectorData,
+				PKCE:          authReq.PKCE,
 			}
 			if err := s.storage.CreateAuthCode(code); err != nil {
 				s.logger.Errorf("Failed to create auth code: %v", err)
@@ -756,6 +766,11 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if client.Secret != clientSecret {
+		if clientSecret == "" {
+			s.logger.Infof("missing client_secret on token request for client: %s", client.ID)
+		} else {
+			s.logger.Infof("invalid client_secret on token request for client: %s", client.ID)
+		}
 		s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
 		return
 	}
@@ -773,6 +788,18 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) calculateCodeChallenge(codeVerifier, codeChallengeMethod string) (string, error) {
+	switch codeChallengeMethod {
+	case CodeChallengeMethodPlain:
+		return codeVerifier, nil
+	case CodeChallengeMethodS256:
+		shaSum := sha256.Sum256([]byte(codeVerifier))
+		return base64.RawURLEncoding.EncodeToString(shaSum[:]), nil
+	default:
+		return "", fmt.Errorf("unknown challenge method (%v)", codeChallengeMethod)
+	}
+}
+
 // handle an access token request https://tools.ietf.org/html/rfc6749#section-4.1.3
 func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client storage.Client) {
 	code := r.PostFormValue("code")
@@ -786,6 +813,31 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		} else {
 			s.tokenErrHelper(w, errInvalidRequest, "Invalid or expired code parameter.", http.StatusBadRequest)
 		}
+		return
+	}
+
+	// RFC 7636 (PKCE)
+	codeChallengeFromStorage := authCode.PKCE.CodeChallenge
+	providedCodeVerifier := r.PostFormValue("code_verifier")
+
+	if providedCodeVerifier != "" && codeChallengeFromStorage != "" {
+		calculatedCodeChallenge, err := s.calculateCodeChallenge(providedCodeVerifier, authCode.PKCE.CodeChallengeMethod)
+		if err != nil {
+			s.logger.Error(err)
+			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+			return
+		}
+		if codeChallengeFromStorage != calculatedCodeChallenge {
+			s.tokenErrHelper(w, errInvalidGrant, "Invalid code_verifier.", http.StatusBadRequest)
+			return
+		}
+	} else if providedCodeVerifier != "" {
+		// Received no code_challenge on /auth, but a code_verifier on /token
+		s.tokenErrHelper(w, errInvalidRequest, "No PKCE flow started. Cannot check code_verifier.", http.StatusBadRequest)
+		return
+	} else if codeChallengeFromStorage != "" {
+		// Received PKCE request on /auth, but no code_verifier on /token
+		s.tokenErrHelper(w, errInvalidGrant, "Expecting parameter code_verifier in PKCE flow.", http.StatusBadRequest)
 		return
 	}
 

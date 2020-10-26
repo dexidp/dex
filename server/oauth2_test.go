@@ -197,6 +197,78 @@ func TestParseAuthorizationRequest(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "PKCE code_challenge_method plain",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id":             "bar",
+				"redirect_uri":          "https://example.com/bar",
+				"response_type":         "code",
+				"code_challenge":        "123",
+				"code_challenge_method": "plain",
+				"scope":                 "openid email profile",
+			},
+		},
+		{
+			name: "PKCE code_challenge_method default plain",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id":      "bar",
+				"redirect_uri":   "https://example.com/bar",
+				"response_type":  "code",
+				"code_challenge": "123",
+				"scope":          "openid email profile",
+			},
+		},
+		{
+			name: "PKCE code_challenge_method S256",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id":             "bar",
+				"redirect_uri":          "https://example.com/bar",
+				"response_type":         "code",
+				"code_challenge":        "123",
+				"code_challenge_method": "S256",
+				"scope":                 "openid email profile",
+			},
+		},
+		{
+			name: "PKCE invalid code_challenge_method",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id":             "bar",
+				"redirect_uri":          "https://example.com/bar",
+				"response_type":         "code",
+				"code_challenge":        "123",
+				"code_challenge_method": "invalid_method",
+				"scope":                 "openid email profile",
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range tests {

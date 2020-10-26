@@ -250,4 +250,19 @@ var migrations = []migration{
 			);`,
 		},
 	},
+	{
+		stmts: []string{`
+			alter table auth_request
+				add column code_challenge text not null default '';`,
+			`
+			alter table auth_request
+				add column code_challenge_method text not null default '';`,
+			`
+			alter table auth_code
+				add column code_challenge text not null default '';`,
+			`
+			alter table auth_code
+				add column code_challenge_method text not null default '';`,
+		},
+	},
 }
