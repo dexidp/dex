@@ -62,6 +62,7 @@ type UserMatcher struct {
 	GroupAttr string `json:"groupAttr"`
 }
 
+// Config holds configuration options for LDAP logins.
 type Config struct {
 	// The host and optional port of the LDAP server. If port isn't supplied, it will be
 	// guessed based on the TLS configuration. 389 or 636.
