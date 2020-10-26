@@ -820,7 +820,8 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	codeChallengeFromStorage := authCode.PKCE.CodeChallenge
 	providedCodeVerifier := r.PostFormValue("code_verifier")
 
-	if providedCodeVerifier != "" && codeChallengeFromStorage != "" {
+	switch {
+	case providedCodeVerifier != "" && codeChallengeFromStorage != "":
 		calculatedCodeChallenge, err := s.calculateCodeChallenge(providedCodeVerifier, authCode.PKCE.CodeChallengeMethod)
 		if err != nil {
 			s.logger.Error(err)
@@ -831,11 +832,11 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 			s.tokenErrHelper(w, errInvalidGrant, "Invalid code_verifier.", http.StatusBadRequest)
 			return
 		}
-	} else if providedCodeVerifier != "" {
+	case providedCodeVerifier != "":
 		// Received no code_challenge on /auth, but a code_verifier on /token
 		s.tokenErrHelper(w, errInvalidRequest, "No PKCE flow started. Cannot check code_verifier.", http.StatusBadRequest)
 		return
-	} else if codeChallengeFromStorage != "" {
+	case codeChallengeFromStorage != "":
 		// Received PKCE request on /auth, but no code_verifier on /token
 		s.tokenErrHelper(w, errInvalidGrant, "Expecting parameter code_verifier in PKCE flow.", http.StatusBadRequest)
 		return
