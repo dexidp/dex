@@ -802,7 +802,7 @@ func runTests(t *testing.T, config *Config, tests []subtest) {
 
 	mware, err := config.Open(l)
 	if err != nil {
-		t.Errorf("open middleware: %v", err)
+		t.Fatalf("open middleware: %v", err)
 	}
 
 	for _, test := range tests {
