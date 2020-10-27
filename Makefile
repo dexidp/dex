@@ -95,6 +95,7 @@ proto: bin/protoc bin/protoc-gen-go
 	@cp api/v2/*.proto api/
 	@./bin/protoc --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go api/*.proto
 	@./bin/protoc --go_out=. --plugin=protoc-gen-go=./bin/protoc-gen-go server/internal/*.proto
+	@./bin/protoc --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go middleware/grpc/api/*.proto
 
 .PHONY: verify-proto
 verify-proto: proto

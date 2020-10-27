@@ -1,0 +1,44 @@
+syntax = "proto3";
+option java_package = "com.coreos.dex.middleware.grpc.api";
+
+// Defines the gRPC protocol for Dex middleware.
+package api;
+
+// The dex gRPC middleware service.  Dex itself implements the *client* side
+// of this protocol; if you want to write an external middleware, you implement
+// the *server* side.
+service Middleware {
+  rpc GetInfo(ServerInfoReq) returns (ServerInfo) {}
+  rpc Process(ProcessReq) returns (Identity) {}
+}
+
+// Server information request.
+message ServerInfoReq {}
+
+// Version information.
+message ServerInfo {
+  // Name of the server.
+  string name = 1;
+  // Semantic version of the server.
+  string version = 2;
+  // API version (presently this should be 1).
+  int32 api = 3;
+}
+
+// Processing request.
+message ProcessReq {
+  Identity identity = 1;
+}
+
+// The identity information being processed.
+message Identity {
+  string user_id = 1;
+  string username = 2;
+  string preferred_username = 3;
+  string email = 4;
+  bool email_verified = 5;
+  repeated string groups = 6;
+
+  // Custom claims are sent as a JSON blob
+  bytes custom_claims = 7;
+}
