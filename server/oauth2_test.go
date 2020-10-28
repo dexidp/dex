@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/square/go-jose.v2"
 
@@ -325,9 +325,9 @@ func TestAccessTokenHash(t *testing.T) {
 }
 
 func TestSplitHttpRedirectUrl(t *testing.T) {
-	//if strings.Index(clientRedirectUrlSpec, "*") == -1 {
-	//	// no wildcard characters to consider
-	//	return nil
+	//  if strings.Index(clientRedirectUrlSpec, "*") == -1 {
+	//  no wildcard characters to consider
+	//  return nil
 	//}
 
 	tests := []struct {
@@ -371,10 +371,10 @@ func TestSplitHttpRedirectUrl(t *testing.T) {
 
 	tAssert := assert.New(t)
 	for _, test := range tests {
-		testRedirectUrl, err := url.Parse(test.redirectURI)
+		testRedirectURL, err := url.Parse(test.redirectURI)
 		tAssert.Nilf(err, "Invalid test url %v", test.redirectURI)
-		tAssert.NotNilf(testRedirectUrl, "Invalid test url %v", test.redirectURI)
-		result := splitClobberHttpRedirectUrl(testRedirectUrl)
+		tAssert.NotNilf(testRedirectURL, "Invalid test url %v", test.redirectURI)
+		result := splitClobberHTTPRedirectURL(testRedirectURL)
 		tAssert.Equal(test.expectValid, result != nil, "Valid result expected for %v", test.redirectURI)
 		if test.expectHostSplit != nil {
 			tAssert.Equal(result, test.expectHostSplit, "Host split validation failed for %v", test.redirectURI)
@@ -382,7 +382,7 @@ func TestSplitHttpRedirectUrl(t *testing.T) {
 		if result != nil {
 			fullResult := createClientRedirectClobberMatcher(test.redirectURI)
 			tAssert.True(fullResult.HostMatcher != nil)
-			tAssert.Equal(fullResult.ClientRedirectURL, testRedirectUrl)
+			tAssert.Equal(fullResult.ClientRedirectURL, testRedirectURL)
 		}
 	}
 }

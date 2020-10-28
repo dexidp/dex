@@ -232,7 +232,6 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		c.Logger.Infof("ARC LRU case failed to load, wildcard redirect URIs disabled: %v", err)
 	}
 
-
 	s := &Server{
 		issuerURL:              *issuerURL,
 		connectors:             make(map[string]Connector),

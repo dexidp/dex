@@ -659,12 +659,11 @@ type ClientRedirectClobberMatcher struct {
 
 // Returns a clobber/wildcard subdomain matcher struct
 func createClientRedirectClobberMatcher(clientRedirectURI string) ClientRedirectClobberMatcher {
-
-	redirectUrl, _ := url.Parse(clientRedirectURI)
-	if redirectUrl == nil {
+	redirectURL, _ := url.Parse(clientRedirectURI)
+	if redirectURL == nil {
 		return ClientRedirectClobberMatcher{}
 	}
-	splitResult := splitClobberHttpRedirectUrl(redirectUrl)
+	splitResult := splitClobberHTTPRedirectURL(redirectURL)
 	if splitResult == nil {
 		// not wildcard or invalid
 		return ClientRedirectClobberMatcher{}
@@ -683,7 +682,7 @@ func createClientRedirectClobberMatcher(clientRedirectURI string) ClientRedirect
 	}
 
 	return ClientRedirectClobberMatcher{
-		ClientRedirectURL: redirectUrl,
+		ClientRedirectURL: redirectURL,
 		HostMatcher:       hostNameRegEx,
 	}
 }
@@ -691,8 +690,8 @@ func createClientRedirectClobberMatcher(clientRedirectURI string) ClientRedirect
 // extract the scheme, host and path for wildcard checks.
 // If the scheme is not http or https, or does not specify an absolute path beginning with '/'
 // the parser will return nil.
-func splitClobberHttpRedirectUrl(clientRedirectUrlSpec *url.URL) *HostSplit {
-	host := clientRedirectUrlSpec.Host
+func splitClobberHTTPRedirectURL(clientRedirectURLSpec *url.URL) *HostSplit {
+	host := clientRedirectURLSpec.Host
 	if !strings.Contains(host, "*") {
 		// for efficiency, check wildcard before DomainComponents
 		return nil
@@ -704,11 +703,7 @@ func splitClobberHttpRedirectUrl(clientRedirectUrlSpec *url.URL) *HostSplit {
 	}
 
 	// sub-domain portion is first portion (greedy)
-	hostSplit, _ := regexp.Compile("^(.+)\\.([^.]*[A-Za-z][^.]*\\.[^.]*[A-Za-z][^.]+)$")
-	if hostSplit == nil {
-		// unexpected issue with regex
-		return nil
-	}
+	hostSplit := regexp.MustCompile(`^(.+)\.([^.]*[A-Za-z][^.]*\.[^.]*[A-Za-z][^.]+)$`)
 	hostRes := hostSplit.FindStringSubmatch(host)
 	if hostRes == nil {
 		// does not conform to requirements of a subdomain spec followed by two higher order domains
@@ -721,22 +716,21 @@ func splitClobberHttpRedirectUrl(clientRedirectUrlSpec *url.URL) *HostSplit {
 	}
 }
 
-func getClobberHostMatcher(clientRedirectUri string, wildcardCache *lru.ARCCache) ClientRedirectClobberMatcher {
+func getClobberHostMatcher(clientRedirectURI string, wildcardCache *lru.ARCCache) ClientRedirectClobberMatcher {
 	if wildcardCache == nil {
 		// unexpected error condition where cache is unavailable
 		return ClientRedirectClobberMatcher{}
 	}
 
-	if redirectMatcherStruct, ok := wildcardCache.Get(clientRedirectUri); ok {
+	if redirectMatcherStruct, ok := wildcardCache.Get(clientRedirectURI); ok {
 		// cache hit
 		return redirectMatcherStruct.(ClientRedirectClobberMatcher)
-	} else {
-		// cache miss - calc and add to cache
-		calcResult := createClientRedirectClobberMatcher(clientRedirectUri)
-		wildcardCache.Add(clientRedirectUri, calcResult)
-		// return cached result
-		return calcResult
 	}
+	// cache miss - calc and add to cache
+	calcResult := createClientRedirectClobberMatcher(clientRedirectURI)
+	wildcardCache.Add(clientRedirectURI, calcResult)
+	// return cached result
+	return calcResult
 }
 
 func validateConnectorID(connectors []storage.Connector, connectorID string) bool {
