@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
@@ -99,4 +100,31 @@ func TestKeyRotator(t *testing.T) {
 			expVerificationKeys = expVerificationKeys[n-maxVerificationKeys:]
 		}
 	}
+}
+
+func TestRefreshTokenPolicy(t *testing.T) {
+	lastTime := time.Now()
+	l := &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level:     logrus.DebugLevel,
+	}
+
+	r, err := NewRefreshTokenPolicyFromConfig(l, true, "1m", "1m", "1m")
+	require.NoError(t, err)
+
+	t.Run("Allowed", func(t *testing.T) {
+		r.Clock = func() time.Time { return lastTime }
+		require.Equal(t, true, r.AllowedToReuse(lastTime))
+		require.Equal(t, false, r.ExpiredBecauseUnused(lastTime))
+		require.Equal(t, false, r.CompletelyExpired(lastTime))
+	})
+
+	t.Run("Expired", func(t *testing.T) {
+		r.Clock = func() time.Time { return lastTime.Add(2 * time.Minute) }
+		time.Sleep(1 * time.Second)
+		require.Equal(t, false, r.AllowedToReuse(lastTime))
+		require.Equal(t, true, r.ExpiredBecauseUnused(lastTime))
+		require.Equal(t, true, r.CompletelyExpired(lastTime))
+	})
 }

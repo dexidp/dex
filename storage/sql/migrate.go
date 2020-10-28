@@ -177,6 +177,9 @@ var migrations = []migration{
 				add column token text not null default '';`,
 			`
 			alter table refresh_token
+				add column obsolete_token text default '';`,
+			`
+			alter table refresh_token
 				add column created_at timestamptz not null default '0001-01-01 00:00:00 UTC';`,
 			`
 			alter table refresh_token

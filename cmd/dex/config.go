@@ -304,6 +304,9 @@ type Expiry struct {
 
 	// DeviceRequests defines the duration of time for which the DeviceRequests will be valid.
 	DeviceRequests string `json:"deviceRequests"`
+
+	// RefreshToken defines refresh tokens expiry policy
+	RefreshToken RefreshTokenExpiry `json:"refreshTokens"`
 }
 
 // Logger holds configuration required to customize logging for dex.
@@ -313,4 +316,11 @@ type Logger struct {
 
 	// Format specifies the format to be used for logging.
 	Format string `json:"format"`
+}
+
+type RefreshTokenExpiry struct {
+	DisableRotation   bool   `json:"disableRotation"`
+	ReuseInterval     string `json:"reuseInterval"`
+	AbsoluteLifetime  string `json:"absoluteLifetime"`
+	ValidIfNotUsedFor string `json:"validIfNotUsedFor"`
 }

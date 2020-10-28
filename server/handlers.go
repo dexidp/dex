@@ -1035,14 +1035,27 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		}
 		return
 	}
+
 	if refresh.ClientID != client.ID {
 		s.logger.Errorf("client %s trying to claim token for client %s", client.ID, refresh.ClientID)
 		s.tokenErrHelper(w, errInvalidRequest, "Refresh token is invalid or has already been claimed by another client.", http.StatusBadRequest)
 		return
 	}
 	if refresh.Token != token.Token {
-		s.logger.Errorf("refresh token with id %s claimed twice", refresh.ID)
-		s.tokenErrHelper(w, errInvalidRequest, "Refresh token is invalid or has already been claimed by another client.", http.StatusBadRequest)
+		if !s.refreshTokenPolicy.AllowedToReuse(refresh.LastUsed) || refresh.ObsoleteToken != token.Token {
+			s.logger.Errorf("refresh token with id %s claimed twice", refresh.ID)
+			s.tokenErrHelper(w, errInvalidRequest, "Refresh token is invalid or has already been claimed by another client.", http.StatusBadRequest)
+			return
+		}
+	}
+	if s.refreshTokenPolicy.CompletelyExpired(refresh.CreatedAt) {
+		s.logger.Errorf("refresh token with id %s expired", refresh.ID)
+		s.tokenErrHelper(w, errInvalidRequest, "Refresh token expired.", http.StatusBadRequest)
+		return
+	}
+	if s.refreshTokenPolicy.ExpiredBecauseUnused(refresh.LastUsed) {
+		s.logger.Errorf("refresh token with id %s expired because being unused", refresh.ID)
+		s.tokenErrHelper(w, errInvalidRequest, "Refresh token expired.", http.StatusBadRequest)
 		return
 	}
 
@@ -1147,22 +1160,28 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 
-	newToken := &internal.RefreshToken{
-		RefreshId: refresh.ID,
-		Token:     storage.NewID(),
-	}
-	rawNewToken, err := internal.Marshal(newToken)
-	if err != nil {
-		s.logger.Errorf("failed to marshal refresh token: %v", err)
-		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-		return
+	newToken := token
+	if s.refreshTokenPolicy.RotationEnabled() {
+		newToken = &internal.RefreshToken{
+			RefreshId: refresh.ID,
+			Token:     storage.NewID(),
+		}
 	}
 
 	lastUsed := s.now()
 	updater := func(old storage.RefreshToken) (storage.RefreshToken, error) {
-		if old.Token != refresh.Token {
-			return old, errors.New("refresh token claimed twice")
+		if s.refreshTokenPolicy.RotationEnabled() {
+			if old.Token != refresh.Token {
+				if s.refreshTokenPolicy.AllowedToReuse(old.LastUsed) && old.ObsoleteToken == refresh.Token {
+					newToken.Token = old.Token
+					return old, nil
+				}
+				return old, errors.New("refresh token claimed twice")
+			}
+
+			old.ObsoleteToken = old.Token
 		}
+
 		old.Token = newToken.Token
 		// Update the claims of the refresh token.
 		//
@@ -1197,6 +1216,13 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 	// Update refresh token in the storage.
 	if err := s.storage.UpdateRefreshToken(refresh.ID, updater); err != nil {
 		s.logger.Errorf("failed to update refresh token: %v", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
+	rawNewToken, err := internal.Marshal(newToken)
+	if err != nil {
+		s.logger.Errorf("failed to marshal refresh token: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return
 	}

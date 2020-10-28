@@ -77,6 +77,10 @@ telemetry:
 #   deviceRequests: "5m"
 #   signingKeys: "6h"
 #   idTokens: "24h"
+#   refreshTokens:
+#     reuseInterval: "3s"
+#     validIfNotUsedFor: "2190h"
+#     absoluteLifetime: "5000h"
 
 # Options for controlling the logger.
 # logger:

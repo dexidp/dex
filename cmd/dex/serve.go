@@ -317,6 +317,18 @@ func runServe(options serveOptions) error {
 		logger.Infof("config device requests valid for: %v", deviceRequests)
 		serverConfig.DeviceRequestsValidFor = deviceRequests
 	}
+	refreshTokenPolicy, err := server.NewRefreshTokenPolicyFromConfig(
+		logger,
+		c.Expiry.RefreshToken.DisableRotation,
+		c.Expiry.RefreshToken.ValidIfNotUsedFor,
+		c.Expiry.RefreshToken.AbsoluteLifetime,
+		c.Expiry.RefreshToken.ReuseInterval,
+	)
+	if err != nil {
+		return fmt.Errorf("invalid refresh token expiration policy config: %v", err)
+	}
+
+	serverConfig.RefreshTokenPolicy = refreshTokenPolicy
 	serv, err := server.NewServer(context.Background(), serverConfig)
 	if err != nil {
 		return fmt.Errorf("failed to initialize server: %v", err)
