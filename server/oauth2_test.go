@@ -373,7 +373,7 @@ func TestValidRedirectURI(t *testing.T) {
 		// Both Public + RedirectURIs configured: Could e.g. be a PKCE-enabled web app.
 		{
 			client: storage.Client{
-				Public: true,
+				Public:       true,
 				RedirectURIs: []string{"http://foo.com/bar"},
 			},
 			redirectURI: "http://foo.com/bar",
@@ -381,7 +381,7 @@ func TestValidRedirectURI(t *testing.T) {
 		},
 		{
 			client: storage.Client{
-				Public: true,
+				Public:       true,
 				RedirectURIs: []string{"http://foo.com/bar"},
 			},
 			redirectURI: "http://foo.com/bar/baz",
