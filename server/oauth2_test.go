@@ -342,11 +342,19 @@ func TestValidRedirectURI(t *testing.T) {
 			redirectURI: "http://foo.com/bar/baz",
 			wantValid:   false,
 		},
+		// These special desktop + device + localhost URIs are allowed by default.
 		{
 			client: storage.Client{
 				Public: true,
 			},
 			redirectURI: "urn:ietf:wg:oauth:2.0:oob",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				Public: true,
+			},
+			redirectURI: "/device/callback",
 			wantValid:   true,
 		},
 		{
@@ -387,6 +395,48 @@ func TestValidRedirectURI(t *testing.T) {
 			redirectURI: "http://foo.com/bar/baz",
 			wantValid:   false,
 		},
+		// These special desktop + device + localhost URIs are allowed even when RedirectURIs is non-empty.
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar"},
+			},
+			redirectURI: "urn:ietf:wg:oauth:2.0:oob",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar"},
+			},
+			redirectURI: "/device/callback",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar"},
+			},
+			redirectURI: "http://localhost:8080/",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar"},
+			},
+			redirectURI: "http://localhost:991/bar",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar"},
+			},
+			redirectURI: "http://localhost",
+			wantValid:   true,
+		},
+		// Non-localhost URIs are not allowed implicitly.
 		{
 			client: storage.Client{
 				Public: true,
