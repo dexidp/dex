@@ -595,8 +595,9 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 			return true
 		}
 	}
-	// For non-public clients, only named RedirectURIs are allowed.
-	if !client.Public {
+	// For non-public clients or when RedirectURIs is set, we allow only explicitly named RedirectURIs.
+	// Otherwise, we check below for special URIs used for desktop or mobile apps.
+	if !client.Public || len(client.RedirectURIs) > 0 {
 		return false
 	}
 
