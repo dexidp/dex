@@ -34,6 +34,7 @@ linters:
         - staticcheck
         - structcheck
         - stylecheck
+        - tparallel
         - typecheck
         - unconvert
         - unused
@@ -41,8 +42,10 @@ linters:
         - whitespace
 
         # TODO: fix linter errors before enabling
+        # - exhaustivestruct
         # - gci
         # - gochecknoglobals
+        # - errorlint
         # - gocognit
         # - godot
         # - gofumpt
@@ -50,6 +53,7 @@ linters:
         # - noctx
         # - prealloc
         # - sqlclosecheck
+        # - wrapcheck
 
         # TODO: fix linter errors before enabling (from original config)
         # - dupl
