@@ -154,6 +154,10 @@ func (c *claimsMiddleware) Process(ctx context.Context, identity connector.Ident
 		}
 	}
 
+	for claim, value := range c.Inject {
+		newClaims[claim] = value
+	}
+
 	identity.CustomClaims = newClaims
 
 	return identity, nil

@@ -239,6 +239,49 @@ func TestAddPrefix(t *testing.T) {
 	runTests(t, c, tests)
 }
 
+func TestInject(t *testing.T) {
+	c := &Config{
+		Inject: map[string]interface{}{
+			"example.com/foo":    "bar",
+			"example.com/foobar": true,
+		},
+	}
+
+	tests := []subtest{
+		{
+			name:  "noclaims",
+			input: map[string]interface{}{},
+			want: map[string]interface{}{
+				"example.com/foo":    "bar",
+				"example.com/foobar": true,
+			},
+		},
+		{
+			name: "add",
+			input: map[string]interface{}{
+				"test": "fun/test",
+			},
+			want: map[string]interface{}{
+				"example.com/foo":    "bar",
+				"example.com/foobar": true,
+				"test":               "fun/test",
+			},
+		},
+		{
+			name: "overwrite",
+			input: map[string]interface{}{
+				"example.com/foo": "fun/test",
+			},
+			want: map[string]interface{}{
+				"example.com/foo":    "bar",
+				"example.com/foobar": true,
+			},
+		},
+	}
+
+	runTests(t, c, tests)
+}
+
 func runTests(t *testing.T, config *Config, tests []subtest) {
 	l := &logrus.Logger{Out: ioutil.Discard, Formatter: &logrus.TextFormatter{}}
 	ctx := context.Background()
