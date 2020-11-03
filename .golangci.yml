@@ -18,9 +18,11 @@ linters:
         - dogsled
         - exhaustive
         - exportloopref
+        - gci
         - gochecknoinits
         - gocritic
         - gofmt
+        - gofumpt
         - goimports
         - golint
         - goprintffuncname
@@ -43,12 +45,10 @@ linters:
 
         # TODO: fix linter errors before enabling
         # - exhaustivestruct
-        # - gci
         # - gochecknoglobals
         # - errorlint
         # - gocognit
         # - godot
-        # - gofumpt
         # - nlreturn
         # - noctx
         # - prealloc
