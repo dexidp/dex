@@ -34,8 +34,10 @@ func withTimeout(t time.Duration, f func()) {
 }
 
 func cleanDB(c *conn) error {
-	tables := []string{"client", "auth_request", "auth_code",
-		"refresh_token", "keys", "password"}
+	tables := []string{
+		"client", "auth_request", "auth_code",
+		"refresh_token", "keys", "password",
+	}
 
 	for _, tbl := range tables {
 		_, err := c.Exec("delete from " + tbl)
@@ -97,7 +99,7 @@ func getenv(key, defaultVal string) string {
 const testPostgresEnv = "DEX_POSTGRES_HOST"
 
 func TestCreateDataSourceName(t *testing.T) {
-	var testCases = []struct {
+	testCases := []struct {
 		description string
 		input       *Postgres
 		expected    string

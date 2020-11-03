@@ -11,9 +11,7 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-var (
-	defaultDialTimeout = 2 * time.Second
-)
+var defaultDialTimeout = 2 * time.Second
 
 // SSL represents SSL options for etcd databases.
 type SSL struct {

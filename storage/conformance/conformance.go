@@ -7,13 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kylelemons/godebug/pretty"
+	"golang.org/x/crypto/bcrypt"
 	jose "gopkg.in/square/go-jose.v2"
 
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/dexidp/dex/storage"
-
-	"github.com/kylelemons/godebug/pretty"
 )
 
 // ensure that values being tested on never expire.
