@@ -59,6 +59,7 @@ func TestInvalidConfiguration(t *testing.T) {
 		t.Fatalf("Expected error message to be %q, got %q", wanted, got)
 	}
 }
+
 func TestUnmarshalConfig(t *testing.T) {
 	rawConfig := []byte(`
 issuer: http://127.0.0.1:5556/dex

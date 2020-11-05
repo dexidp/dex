@@ -115,7 +115,8 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		c.Host,
 		c.AdminUsername,
 		c.AdminPassword,
-		logger}, nil
+		logger,
+	}, nil
 }
 
 func (p *conn) Close() error { return nil }
@@ -137,7 +138,7 @@ func (p *conn) Login(ctx context.Context, scopes connector.Scopes, username, pas
 		return identity, false, err
 	}
 	defer resp.Body.Close()
-	var tokenResp = new(tokenResponse)
+	tokenResp := new(tokenResponse)
 	err = json.Unmarshal(data, &tokenResp)
 	if err != nil {
 		return identity, false, fmt.Errorf("keystone: invalid token response: %v", err)
@@ -295,7 +296,7 @@ func (p *conn) getUserGroups(ctx context.Context, userID string, token string) (
 	}
 	defer resp.Body.Close()
 
-	var groupsResp = new(groupsResponse)
+	groupsResp := new(groupsResponse)
 
 	err = json.Unmarshal(data, &groupsResp)
 	if err != nil {

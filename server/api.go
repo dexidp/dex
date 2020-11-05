@@ -96,7 +96,6 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 		}
 		return old, nil
 	})
-
 	if err != nil {
 		if err == storage.ErrNotFound {
 			return &api.UpdateClientResp{NotFound: true}, nil

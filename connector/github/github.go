@@ -35,8 +35,10 @@ const (
 
 // Pagination URL patterns
 // https://developer.github.com/v3/#pagination
-var reNext = regexp.MustCompile("<([^>]+)>; rel=\"next\"")
-var reLast = regexp.MustCompile("<([^>]+)>; rel=\"last\"")
+var (
+	reNext = regexp.MustCompile("<([^>]+)>; rel=\"next\"")
+	reLast = regexp.MustCompile("<([^>]+)>; rel=\"last\"")
+)
 
 // Config holds configuration options for github logins.
 type Config struct {
@@ -626,7 +628,6 @@ func (c *githubConnector) userInOrg(ctx context.Context, client *http.Client, us
 	apiURL := fmt.Sprintf("%s/orgs/%s/members/%s", c.apiURL, orgName, userName)
 
 	req, err := http.NewRequest("GET", apiURL, nil)
-
 	if err != nil {
 		return false, fmt.Errorf("github: new req: %v", err)
 	}
