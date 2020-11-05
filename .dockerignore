@@ -1,1 +1,3 @@
-bin
+.github/
+bin/
+tmp/
