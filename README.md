@@ -71,6 +71,7 @@ Dex implements the following connectors:
 | [SAML 2.0](https://dexidp.io/docs/connectors/saml/) | no | yes | no | stable | WARNING: Unmaintained and likely vulnerable to auth bypasses ([#1884](https://github.com/dexidp/dex/discussions/1884)) |
 | [GitLab](https://dexidp.io/docs/connectors/gitlab/) | yes | yes | yes | beta | |
 | [OpenID Connect](https://dexidp.io/docs/connectors/oidc/) | yes | yes | yes | beta | Includes Salesforce, Azure, etc. |
+| [Generic OAuth 2.0](https://dexidp.io/docs/connectors/oauth.md) | no | yes | yes | beta | |
 | [Google](https://dexidp.io/docs/connectors/google/) | yes | yes | yes | alpha | |
 | [LinkedIn](https://dexidp.io/docs/connectors/linkedin/) | yes | no | no | beta | |
 | [Microsoft](https://dexidp.io/docs/connectors/microsoft/) | yes | yes | no | beta | |
@@ -80,7 +81,7 @@ Dex implements the following connectors:
 | [Atlassian Crowd](https://dexidp.io/docs/connectors/atlassiancrowd/) | yes | yes | yes * | beta | preferred_username claim must be configured through config |
 | [Gitea](https://dexidp.io/docs/connectors/gitea/) | yes | no | yes | alpha | |
 | [OpenStack Keystone](https://dexidp.io/docs/connectors/keystone/) | yes | yes | no | alpha | |
-| [Generic OAuth 2.0](https://dexidp.io/docs/connectors/oauth/) | no | yes | yes | beta |
+| [Generic OAuth 2.0](https://dexidp.io/docs/connectors/oauth/) | no | yes | yes | alpha |
 
 Stable, beta, and alpha are defined as:
 
