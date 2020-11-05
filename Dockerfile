@@ -12,6 +12,12 @@ ENV GOOS=${TARGETOS} \
 
 RUN apk add --no-cache --update alpine-sdk
 
+ARG GOPROXY
+
+COPY go.mod go.sum ./
+COPY api/v2/go.mod api/v2/go.sum ./api/v2/
+RUN go mod download
+
 COPY . .
 
 RUN make release-binary
