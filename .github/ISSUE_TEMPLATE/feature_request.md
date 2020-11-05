@@ -1,5 +1,9 @@
+---
+name: 🚀 Feature request
+about: Suggest an idea for this project
+---
 <!--
- Thank you for sending a feature request! 
+ Thank you for sending a feature request!
  Please describe in detail what do you want and why by filling the template below.
  -->
 

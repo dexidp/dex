@@ -1,3 +1,7 @@
+---
+name: 🐛 Bug report
+about: Create a report to help us improve our platform
+---
 <!--
 Thank you for sending a bug report! Here some tips:
 
