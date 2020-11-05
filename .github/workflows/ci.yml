@@ -13,7 +13,7 @@ on:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-latest
     env:
       GOFLAGS: -mod=readonly
 
