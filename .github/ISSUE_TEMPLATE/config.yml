@@ -1,5 +1,9 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Dex Slack channel
+  - name: 📚 Documentation
+    url: https://dexidp.io/docs/
+    about: Check the documentation for help
+
+  - name: 💬 Slack channel
     url: https://kubernetes.slack.com/messages/dexidp
-    about: Please ask and answer questions here.
+    about: Please ask and answer questions here
