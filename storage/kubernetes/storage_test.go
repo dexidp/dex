@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"sigs.k8s.io/testing_frameworks/integration"
 
@@ -270,5 +272,45 @@ func newStatusCodesResponseTestClient(getResponseCode, actionResponseCode int) *
 			Formatter: &logrus.TextFormatter{DisableColors: true},
 			Level:     logrus.DebugLevel,
 		},
+	}
+}
+
+func TestRetryOnConflict(t *testing.T) {
+	tests := []struct {
+		name     string
+		action   func() error
+		exactErr string
+	}{
+		{
+			"Timeout reached",
+			func() error { err := httpErr{status: 409}; return error(&err) },
+			"maximum timeout reached while retrying a conflicted request",
+		},
+		{
+			"HTTP Error",
+			func() error { err := httpErr{status: 500}; return error(&err) },
+			"  Internal Server Error: response from server \"\"",
+		},
+		{
+			"Error",
+			func() error { return errors.New("test") },
+			"test",
+		},
+		{
+			"OK",
+			func() error { return nil },
+			"",
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := retryOnConflict(context.TODO(), testCase.action)
+			if testCase.exactErr != "" {
+				require.EqualError(t, err, testCase.exactErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }
