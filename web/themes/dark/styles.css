@@ -1,11 +1,18 @@
 .theme-body {
-  background-color: #1C425B;
-  color: #333;
+  background-color: #1b282e;
+  color: #a6b7bf;
   font-family: 'Source Sans Pro', Helvetica, sans-serif;
 }
 
 .theme-navbar {
-  display: none;
+  background-color: #233239;
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+  color: #333;
+  font-size: 13px;
+  font-weight: 100;
+  height: 46px;
+  overflow: hidden;
+  padding: 0 10px;
 }
 
 .theme-navbar__logo-wrap {
@@ -24,47 +31,48 @@
 .theme-heading {
   font-size: 20px;
   font-weight: 500;
-  padding-bottom: 10px;
   margin-top: 0;
+  color: #a6b7bf;
 }
 
 .theme-panel {
-  background-color: #fff;
+  background-color: #233239;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
   padding: 30px;
 }
 
 .theme-btn-provider {
-  background-color: #fff;
-  color: #333;
+  background-color: #2a4349;
+  color: #a6b7bf;
   min-width: 250px;
 }
 
 .theme-btn-provider:hover {
-  color: #999;
+  background-color: #425f69;
+  color: #ffffff;
 }
 
 .theme-btn--primary {
-  background-color: #2fc98e;
+  background-color: #2a4549;
   border: none;
-  color: #fff;
+  color: #a6b7bf;
   min-width: 200px;
   padding: 6px 12px;
 }
 
 .theme-btn--primary:hover {
-  background-color: #25a071;
-  color: #fff;
+  background-color: #425f69;
+  color: #e9e9e9;
 }
 
 .theme-btn--success {
-  background-color: #2FC98E;
-  color: #fff;
+  background-color: #233239;
+  color: #e9e9e9;
   width: 250px;
 }
 
 .theme-btn--success:hover {
-  background-color: #49E3A8;
+  background-color: #46add0;
 }
 
 .theme-form-row {
@@ -78,10 +86,9 @@
   padding: 6px 12px;
   font-size: 14px;
   line-height: 1.42857143;
-  color: #666;
   border: 1px solid #CCC;
   border-radius: 4px;
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+  box-shadow: inset 0 1px 1px rgb(27, 40, 46);
   width: 250px;
   margin: auto;
 }
@@ -89,7 +96,7 @@
 .theme-form-input:focus,
 .theme-form-input:active {
   outline: none;
-  border-color: #66AFE9;
+  border-color: #1b282e;
 }
 
 .theme-form-label {
@@ -99,8 +106,13 @@
   position: relative;
   font-size: 13px;
   font-weight: 600;
+  color: #a6b7bf;
+}
+
+.theme-link-back {
+    margin-top: 4px;
 }
 
 .dex-container {
-  margin: 60px auto;
+  color: #a6b7bf;
 }
