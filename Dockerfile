@@ -1,16 +1,16 @@
-FROM golang:1.15-alpine
+FROM --platform=${BUILDPLATFORM} golang:1.15-alpine
+
+WORKDIR /go/src/github.com/dexidp/dex
+
+RUN apk add --no-cache --update alpine-sdk
 
 ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT=""
 
-WORKDIR /go/src/github.com/dexidp/dex
-
-ENV GOOS=${TARGETOS} \
-  GOARCH=${TARGETARCH} \
-  GOARM=${TARGETVARIANT}
-
-RUN apk add --no-cache --update alpine-sdk
+ENV GOOS=${TARGETOS}
+ENV GOARCH=${TARGETARCH}
+ENV GOARM=${TARGETVARIANT}
 
 ARG GOPROXY
 
