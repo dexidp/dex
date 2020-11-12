@@ -11,16 +11,14 @@ import (
 	"runtime"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/middleware"
 	"github.com/dexidp/dex/middleware/grpc/api"
-
 	"github.com/dexidp/dex/pkg/log"
-
 	"github.com/dexidp/dex/version"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 // The current API version; if you update this, you will need to update the

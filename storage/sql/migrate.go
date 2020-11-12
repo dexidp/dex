@@ -275,7 +275,8 @@ var migrations = []migration{
 		},
 	},
 	{
-		stmts: []string{`
+		stmts: []string{
+			`
             create table middleware (
 				conn_id text not null,
 				mw_order integer not null,
@@ -287,7 +288,8 @@ var migrations = []migration{
 		},
 	},
 	{
-		stmts: []string{`
+		stmts: []string{
+			`
 			alter table auth_request
 				add column claims_custom bytea;`,
 			`

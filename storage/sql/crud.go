@@ -1159,7 +1159,6 @@ func (c *conn) InsertMiddleware(ndx int, mware storage.Middleware) error {
     	`,
 			mware.Type, order, mware.ResourceVersion, mware.Config,
 		)
-
 		if err != nil {
 			return fmt.Errorf("insert middleware: %v", err)
 		}
@@ -1376,6 +1375,7 @@ func (c *conn) DeleteRefresh(id string) error     { return c.delete("refresh_tok
 func (c *conn) DeletePassword(email string) error {
 	return c.delete("password", "email", strings.ToLower(email))
 }
+
 func (c *conn) DeleteOfflineSessions(userID string, connID string) error {
 	result, err := c.Exec(`delete from offline_session where user_id = $1 AND conn_id = $2`, userID, connID)
 	if err != nil {

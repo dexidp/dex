@@ -10,7 +10,6 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/middleware"
-
 	"github.com/dexidp/dex/pkg/log"
 )
 
