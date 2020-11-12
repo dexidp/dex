@@ -30,11 +30,12 @@ type databaseBuilder struct {
 }
 
 type user struct {
-	UserID    string
-	Name      string
-	GivenName string
-	Email     string
-	Password  string
+	UserID     string
+	Name       string
+	FoldedName string
+	GivenName  string
+	Email      string
+	Password   string
 }
 
 type group struct {
@@ -64,13 +65,14 @@ func (db *databaseBuilder) createUser(username string, name string,
 	}
 
 	_, err = db.db.NamedExecContext(db.ctx,
-		"INSERT INTO Users VALUES (:userid,:name,:givenname,:email,:password, 0, 0)",
+		"INSERT INTO Users VALUES (:userid,:name,:foldedname,:givenname,:email,:password, 0, 0)",
 		user{
-			UserID:    userID,
-			Name:      username,
-			GivenName: name,
-			Email:     username + "@example.com",
-			Password:  string(cryptPw),
+			UserID:     userID,
+			Name:       username,
+			FoldedName: caseFolder.String(username),
+			GivenName:  name,
+			Email:      username + "@example.com",
+			Password:   string(cryptPw),
 		})
 	if err != nil {
 		return "", err
@@ -117,6 +119,7 @@ func (db *databaseBuilder) Build() error {
 	_, err := db.db.ExecContext(db.ctx, `CREATE TABLE Users (
   userID TEXT PRIMARY KEY,
   name TEXT,
+  name_folded TEXT,
   givenName TEXT,
   email TEXT,
   password TEXT,
@@ -172,6 +175,16 @@ func (db *databaseBuilder) Build() error {
 	}
 
 	lily_evans, err := db.createUser("levans", "Lily Evans", "irritablePig")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.createUser("FRANKSPENCER", "Frank Spencer", "terrifyingPorg")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.createUser("MaiseyGroß", "Maisey Groß", "direAnteater")
 	if err != nil {
 		return err
 	}
@@ -273,7 +286,7 @@ func TestMain(m *testing.M) {
 		Driver: "sqlite3",
 		DSN:    "file:" + dbuilder.DatabasePath,
 		UserQuery: UserQuery{
-			QueryByName:    "SELECT * FROM Users WHERE name=:username OR email=:username",
+			QueryByName:    "SELECT * FROM Users WHERE name=:username OR email=:username OR name=:username_lower OR name=:username_upper OR name_folded=:username_casefold",
 			QueryByID:      "SELECT * FROM Users WHERE userID=:userid",
 			UpdatePassword: "UPDATE Users SET password=:password WHERE userID=:userid",
 			IDColumn:       "userID",
@@ -336,6 +349,63 @@ func TestSimpleLogin(t *testing.T) {
 	if ident.PreferredUsername != "jbloggs" ||
 		ident.Email != "jbloggs@example.com" ||
 		ident.Username != "Joe Bloggs" {
+		t.Errorf("bad identity: %v", ident)
+	}
+}
+
+func TestLowercaseLogin(t *testing.T) {
+	ctx := context.Background()
+
+	s := connector.Scopes{OfflineAccess: false, Groups: false}
+
+	ident, validPass, err := conn.Login(ctx, s, "JBLOGGS", "alarmingLlama")
+	if err != nil {
+		t.Errorf("lowercase test failed: %v", err)
+	}
+	if !validPass {
+		t.Errorf("valid password should be valid!")
+	}
+	if ident.PreferredUsername != "jbloggs" ||
+		ident.Email != "jbloggs@example.com" ||
+		ident.Username != "Joe Bloggs" {
+		t.Errorf("bad identity: %v", ident)
+	}
+}
+
+func TestUppercaseLogin(t *testing.T) {
+	ctx := context.Background()
+
+	s := connector.Scopes{OfflineAccess: false, Groups: false}
+
+	ident, validPass, err := conn.Login(ctx, s, "frankspencer", "terrifyingPorg")
+	if err != nil {
+		t.Errorf("uppercase test failed: %v", err)
+	}
+	if !validPass {
+		t.Errorf("valid password should be valid!")
+	}
+	if ident.PreferredUsername != "FRANKSPENCER" ||
+		ident.Email != "FRANKSPENCER@example.com" ||
+		ident.Username != "Frank Spencer" {
+		t.Errorf("bad identity: %v", ident)
+	}
+}
+
+func TestCasefoldingLogin(t *testing.T) {
+	ctx := context.Background()
+
+	s := connector.Scopes{OfflineAccess: false, Groups: false}
+
+	ident, validPass, err := conn.Login(ctx, s, "MAISEYgross", "direAnteater")
+	if err != nil {
+		t.Errorf("case folding test failed: %v", err)
+	}
+	if !validPass {
+		t.Errorf("valid password should be valid!")
+	}
+	if ident.PreferredUsername != "MaiseyGroß" ||
+		ident.Email != "MaiseyGroß@example.com" ||
+		ident.Username != "Maisey Groß" {
 		t.Errorf("bad identity: %v", ident)
 	}
 }

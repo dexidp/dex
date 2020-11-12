@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+
+	"golang.org/x/text/cases"
 
 	// Crypt support
 	"github.com/al45tair/passlib"
@@ -69,6 +72,27 @@ type UserQuery struct {
 	//   SELECT id, username, email, name, password
 	//   FROM Users
 	//   WHERE username=:username OR email=:username
+	//
+	// It will also make the following additional substitutions:
+	//
+	//   :username_lower    - the username, transformed to lowercase
+	//   :username_upper    - the username, transformed to UPPERCASE
+	//   :username_casefold - the case-folded version of username
+	//
+	// These are Unicode aware.  The latter is NOT suitable for display to
+	// the user, but it *is* the right way to make usernames case-insensitive;
+	// that is, for proper Unicode case-sensitivity, you should store and
+	// search by *case-folded* username, but always display a non-case-folded
+	// username.
+	//
+	// A case-insensitive example is therefore:
+	//
+	//   SELECT id, username, email, name, password
+	//   FROM Users
+	//   WHERE folded_username=:username_casefold OR email=:username
+	//
+	// Note the extra column "folded_username" in addition to the normal
+	// "username" column.
 	//
 	QueryByName string `json:"queryByUsername"`
 
@@ -244,6 +268,8 @@ func (c *sqlConnector) identityFromRow(row map[string]interface{}) (ident connec
 	return ident, nil
 }
 
+var caseFolder = cases.Fold()
+
 func (c *sqlConnector) Login(ctx context.Context, s connector.Scopes,
 	username, password string) (ident connector.Identity,
 	validPass bool, err error) {
@@ -251,6 +277,9 @@ func (c *sqlConnector) Login(ctx context.Context, s connector.Scopes,
 	rows, err := c.db.NamedQueryContext(ctx, c.UserQuery.QueryByName,
 		map[string]interface{}{
 			"username": username,
+			"username_lower": strings.ToLower(username),
+			"username_upper": strings.ToUpper(username),
+			"username_casefold": caseFolder.String(username),
 		})
 	if err != nil {
 		return connector.Identity{}, false, err
