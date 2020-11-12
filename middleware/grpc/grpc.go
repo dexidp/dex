@@ -253,5 +253,6 @@ func (g *grpcMiddleware) Process(ctx context.Context, identity connector.Identit
 		EmailVerified:     ident.EmailVerified,
 		Groups:            ident.Groups,
 		CustomClaims:      claims,
+		ConnectorData:     identity.ConnectorData,
 	}, nil
 }

@@ -130,6 +130,30 @@ func TestGRPCMiddlewareCalls(t *testing.T) {
 		})
 }
 
+func TestGRPCMiddlewarePreservesConnectorData(t *testing.T) {
+	mwareServer := &testServer{APIVersion: 1}
+	runTestsWithServer(t, mwareServer,
+		func(ctx context.Context, mware middleware.Middleware) {
+			connectorData := []byte("This should be preserved")
+			input := connector.Identity{
+				UserID:        "test",
+				Username:      "test",
+				Email:         "test@example.com",
+				EmailVerified: true,
+				ConnectorData: connectorData,
+			}
+
+			got, err := mware.Process(ctx, input)
+			if err != nil {
+				t.Fatalf("middleware failed: %v", err)
+			}
+
+			if string(got.ConnectorData) != string(connectorData) {
+				t.Fatalf("connector data was not preserved")
+			}
+		})
+}
+
 type testServer struct {
 	api.UnimplementedMiddlewareServer
 
