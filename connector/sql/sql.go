@@ -7,17 +7,23 @@ import (
 	"fmt"
 	"strings"
 
-	"golang.org/x/text/cases"
-
 	// Crypt support
 	"github.com/al45tair/passlib"
 
-	// Database drivers
+	// Database driver
 	_ "github.com/go-sql-driver/mysql"
+
+	// Improved Go SQL support
+	"github.com/jmoiron/sqlx"
+
+	// Database driver
 	_ "github.com/lib/pq"
+
+	// Database driver
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/jmoiron/sqlx"
+	// Used to do case-folding
+	"golang.org/x/text/cases"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
@@ -102,7 +108,7 @@ type UserQuery struct {
 	//   FROM Users
 	//   WHERE id=:userid
 	//
-	QueryByID   string `json:"queryById"`
+	QueryByID string `json:"queryById"`
 
 	// UpdatePassword updates the password; ":userid" and ":password"
 	// are substituted, e.g.
@@ -224,7 +230,6 @@ var (
 )
 
 func (c *sqlConnector) identityFromRow(row map[string]interface{}) (ident connector.Identity, err error) {
-
 	var ok bool
 
 	id := row[c.UserQuery.IDColumn]
@@ -273,12 +278,11 @@ var caseFolder = cases.Fold()
 func (c *sqlConnector) Login(ctx context.Context, s connector.Scopes,
 	username, password string) (ident connector.Identity,
 	validPass bool, err error) {
-
 	rows, err := c.db.NamedQueryContext(ctx, c.UserQuery.QueryByName,
 		map[string]interface{}{
-			"username": username,
-			"username_lower": strings.ToLower(username),
-			"username_upper": strings.ToUpper(username),
+			"username":          username,
+			"username_lower":    strings.ToLower(username),
+			"username_upper":    strings.ToUpper(username),
 			"username_casefold": caseFolder.String(username),
 		})
 	if err != nil {
@@ -333,7 +337,7 @@ func (c *sqlConnector) Login(ctx context.Context, s connector.Scopes,
 		} else {
 			_, err = c.db.NamedExecContext(ctx, c.UserQuery.UpdatePassword,
 				map[string]interface{}{
-					"userid": ident.UserID,
+					"userid":   ident.UserID,
 					"password": newPassword,
 				})
 
@@ -417,7 +421,6 @@ func (c *sqlConnector) groups(ctx context.Context, userID string) ([]string,
 
 func (c *sqlConnector) Refresh(ctx context.Context, s connector.Scopes,
 	ident connector.Identity) (newIdent connector.Identity, err error) {
-
 	var refreshData sqlRefreshData
 	if err := json.Unmarshal(ident.ConnectorData, &refreshData); err != nil {
 		return ident,

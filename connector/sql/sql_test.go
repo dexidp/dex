@@ -8,18 +8,14 @@ import (
 	"testing"
 
 	"github.com/al45tair/passlib"
-	"golang.org/x/crypto/bcrypt"
-
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/connector"
 )
-
-var db *sqlx.DB
 
 type databaseBuilder struct {
 	tempDir string
@@ -50,7 +46,6 @@ type userGroup struct {
 
 func (db *databaseBuilder) createUser(username string, name string,
 	password string) (string, error) {
-
 	uuid, err := uuid.NewRandom()
 	if err != nil {
 		return "", err
@@ -72,7 +67,7 @@ func (db *databaseBuilder) createUser(username string, name string,
 			FoldedName: caseFolder.String(username),
 			GivenName:  name,
 			Email:      username + "@example.com",
-			Password:   string(cryptPw),
+			Password:   cryptPw,
 		})
 	if err != nil {
 		return "", err
@@ -82,7 +77,6 @@ func (db *databaseBuilder) createUser(username string, name string,
 }
 
 func (db *databaseBuilder) createGroup(groupName string) (string, error) {
-
 	uuid, err := uuid.NewRandom()
 	if err != nil {
 		return "", err
@@ -104,7 +98,6 @@ func (db *databaseBuilder) createGroup(groupName string) (string, error) {
 }
 
 func (db *databaseBuilder) addUserToGroup(userID string, groupID string) error {
-
 	_, err := db.db.NamedExecContext(db.ctx,
 		"INSERT INTO UserGroups VALUES (:userid, :groupid)",
 		userGroup{
@@ -154,27 +147,27 @@ func (db *databaseBuilder) Build() error {
 		return err
 	}
 
-	fred_smith, err := db.createUser("fsmith", "Fred Smith", "terribleCow")
+	fredSmith, err := db.createUser("fsmith", "Fred Smith", "terribleCow")
 	if err != nil {
 		return err
 	}
 
-	george_wilson, err := db.createUser("gwilson", "George Wilson", "awfulRaven")
+	georgeWilson, err := db.createUser("gwilson", "George Wilson", "awfulRaven")
 	if err != nil {
 		return err
 	}
 
-	amy_jones, err := db.createUser("ajones", "Amy Jones", "scaryAnt")
+	amyJones, err := db.createUser("ajones", "Amy Jones", "scaryAnt")
 	if err != nil {
 		return err
 	}
 
-	jane_hall, err := db.createUser("jhall", "Jane Hall", "fireyGoat")
+	janeHall, err := db.createUser("jhall", "Jane Hall", "fireyGoat")
 	if err != nil {
 		return err
 	}
 
-	lily_evans, err := db.createUser("levans", "Lily Evans", "irritablePig")
+	lilyEvans, err := db.createUser("levans", "Lily Evans", "irritablePig")
 	if err != nil {
 		return err
 	}
@@ -206,39 +199,39 @@ func (db *databaseBuilder) Build() error {
 	}
 
 	// Assign users to the groups
-	if err = db.addUserToGroup(fred_smith, red); err != nil {
+	if err = db.addUserToGroup(fredSmith, red); err != nil {
 		return err
 	}
 
-	if err = db.addUserToGroup(amy_jones, red); err != nil {
+	if err = db.addUserToGroup(amyJones, red); err != nil {
 		return err
 	}
 
-	if err = db.addUserToGroup(lily_evans, red); err != nil {
+	if err = db.addUserToGroup(lilyEvans, red); err != nil {
 		return err
 	}
 
-	if err = db.addUserToGroup(george_wilson, blue); err != nil {
+	if err = db.addUserToGroup(georgeWilson, blue); err != nil {
 		return err
 	}
 
-	if err = db.addUserToGroup(jane_hall, blue); err != nil {
+	if err = db.addUserToGroup(janeHall, blue); err != nil {
 		return err
 	}
 
-	if err = db.addUserToGroup(lily_evans, blue); err != nil {
+	if err = db.addUserToGroup(lilyEvans, blue); err != nil {
 		return err
 	}
 
-	if err = db.addUserToGroup(george_wilson, green); err != nil {
+	if err = db.addUserToGroup(georgeWilson, green); err != nil {
 		return err
 	}
 
-	if err = db.addUserToGroup(amy_jones, green); err != nil {
+	if err = db.addUserToGroup(amyJones, green); err != nil {
 		return err
 	}
 
-	if err = db.addUserToGroup(lily_evans, green); err != nil {
+	if err = db.addUserToGroup(lilyEvans, green); err != nil {
 		return err
 	}
 
@@ -263,15 +256,19 @@ func newDatabaseBuilder(ctx context.Context) *databaseBuilder {
 		panic(err)
 	}
 
-	return &databaseBuilder{tempDir: tempDir, db: db, ctx: ctx,
-		DatabasePath: dbPath}
+	return &databaseBuilder{
+		tempDir: tempDir, db: db, ctx: ctx,
+		DatabasePath: dbPath,
+	}
 }
 
-var testdb *sqlx.DB
-var cfg *Config
-var conn *sqlConnector
+var (
+	testdb *sqlx.DB
+	cfg    *Config
+	conn   *sqlConnector
+)
 
-func TestMain(m *testing.M) {
+func runAllTests(m *testing.M) int {
 	ctx := context.Background()
 
 	dbuilder := newDatabaseBuilder(ctx)
@@ -312,7 +309,11 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	m.Run()
+	return m.Run()
+}
+
+func TestMain(m *testing.M) {
+	os.Exit(runAllTests(m))
 }
 
 func TestSimpleLogin(t *testing.T) {
@@ -410,9 +411,8 @@ func TestCasefoldingLogin(t *testing.T) {
 	}
 }
 
-func mustLogin(t *testing.T, ctx context.Context, scopes connector.Scopes,
+func mustLogin(ctx context.Context, t *testing.T, scopes connector.Scopes,
 	username, password string) connector.Identity {
-
 	ident, validPass, err := conn.Login(ctx, scopes, username, password)
 	if err != nil {
 		t.Errorf("mustLogin failed: %v", err)
@@ -438,35 +438,32 @@ func TestGroups(t *testing.T) {
 	s := connector.Scopes{OfflineAccess: false, Groups: true}
 
 	// jbloggs is not in any groups
-	ident := mustLogin(t, ctx, s, "jbloggs", "alarmingLlama")
+	ident := mustLogin(ctx, t, s, "jbloggs", "alarmingLlama")
 	if ident.Groups == nil || len(ident.Groups) != 0 {
 		t.Errorf("groups should be empty")
 	}
 
 	// fsmith is in red
-	ident = mustLogin(t, ctx, s, "fsmith", "terribleCow")
+	ident = mustLogin(ctx, t, s, "fsmith", "terribleCow")
 	if ident.Groups == nil || len(ident.Groups) != 1 ||
 		ident.Groups[0] != "Red Team" {
-
 		t.Errorf("fsmith should be in Red Team")
 	}
 
 	// gwilson is in green and blue
-	ident = mustLogin(t, ctx, s, "gwilson", "awfulRaven")
+	ident = mustLogin(ctx, t, s, "gwilson", "awfulRaven")
 	if ident.Groups == nil || len(ident.Groups) != 2 ||
 		!contains(ident.Groups, "Blue Team") ||
 		!contains(ident.Groups, "Green Team") {
-
 		t.Errorf("gwilson should be in Blue Team and Green Team")
 	}
 
 	// levans is in red, green and blue
-	ident = mustLogin(t, ctx, s, "levans", "irritablePig")
+	ident = mustLogin(ctx, t, s, "levans", "irritablePig")
 	if ident.Groups == nil || len(ident.Groups) != 3 ||
 		!contains(ident.Groups, "Red Team") ||
 		!contains(ident.Groups, "Green Team") ||
 		!contains(ident.Groups, "Blue Team") {
-
 		t.Errorf("levans should be in Red Team, Green Team and Blue Team")
 	}
 }
@@ -477,7 +474,7 @@ func TestRefresh(t *testing.T) {
 	// First with Groups turned off
 	s := connector.Scopes{OfflineAccess: true, Groups: false}
 
-	ident := mustLogin(t, ctx, s, "jhall", "fireyGoat")
+	ident := mustLogin(ctx, t, s, "jhall", "fireyGoat")
 	if ident.ConnectorData == nil {
 		t.Errorf("there should be connector data")
 	}
@@ -532,7 +529,7 @@ func TestHashUpgrade(t *testing.T) {
 
 	// Make sure we can log-in; this should also replace the hash
 	s := connector.Scopes{OfflineAccess: false, Groups: false}
-	mustLogin(t, ctx, s, "ajones", "scaryAnt")
+	mustLogin(ctx, t, s, "ajones", "scaryAnt")
 
 	rows, err := testdb.NamedQueryContext(ctx,
 		"SELECT password FROM Users WHERE name=:username",
@@ -653,4 +650,3 @@ func TestLoginHooks(t *testing.T) {
 		t.Errorf("successful login count should be 1, got %d", successfulLogins)
 	}
 }
-
