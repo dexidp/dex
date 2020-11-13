@@ -9,13 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/middleware"
 	"github.com/dexidp/dex/middleware/grpc/api"
-
-	"google.golang.org/grpc"
-
-	"github.com/sirupsen/logrus"
 )
 
 func TestGPRCMiddlewareAPIVersion(t *testing.T) {

@@ -5,15 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/dexidp/dex/storage"
-
+	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/middleware"
 	"github.com/dexidp/dex/middleware/claims"
 	"github.com/dexidp/dex/middleware/groups"
 	"github.com/dexidp/dex/middleware/grpc"
-
-	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/storage"
 )
 
 // Middleware is a middleware with resource version metadata.
