@@ -317,12 +317,12 @@ func runServe(options serveOptions) error {
 		logger.Infof("config device requests valid for: %v", deviceRequests)
 		serverConfig.DeviceRequestsValidFor = deviceRequests
 	}
-	refreshTokenPolicy, err := server.NewRefreshTokenPolicyFromConfig(
+	refreshTokenPolicy, err := server.NewRefreshTokenPolicy(
 		logger,
-		c.Expiry.RefreshToken.DisableRotation,
-		c.Expiry.RefreshToken.ValidIfNotUsedFor,
-		c.Expiry.RefreshToken.AbsoluteLifetime,
-		c.Expiry.RefreshToken.ReuseInterval,
+		c.Expiry.RefreshTokens.DisableRotation,
+		c.Expiry.RefreshTokens.ValidIfNotUsedFor,
+		c.Expiry.RefreshTokens.AbsoluteLifetime,
+		c.Expiry.RefreshTokens.ReuseInterval,
 	)
 	if err != nil {
 		return fmt.Errorf("invalid refresh token expiration policy config: %v", err)

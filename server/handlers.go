@@ -1042,7 +1042,12 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 	if refresh.Token != token.Token {
-		if !s.refreshTokenPolicy.AllowedToReuse(refresh.LastUsed) || refresh.ObsoleteToken != token.Token {
+		switch {
+		case !s.refreshTokenPolicy.AllowedToReuse(refresh.LastUsed):
+			fallthrough
+		case refresh.ObsoleteToken != token.Token:
+			fallthrough
+		case refresh.ObsoleteToken == "":
 			s.logger.Errorf("refresh token with id %s claimed twice", refresh.ID)
 			s.tokenErrHelper(w, errInvalidRequest, "Refresh token is invalid or has already been claimed by another client.", http.StatusBadRequest)
 			return

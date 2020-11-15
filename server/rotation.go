@@ -185,13 +185,13 @@ type RefreshTokenPolicy struct {
 	validIfNotUsedFor time.Duration // interval from last token update to the end of its life
 	reuseInterval     time.Duration // interval within which old refresh token is allowed to be reused
 
-	Clock func() time.Time
+	now func() time.Time
 
 	logger log.Logger
 }
 
-func NewRefreshTokenPolicyFromConfig(logger log.Logger, rotation bool, validIfNotUsedFor, absoluteLifetime, reuseInterval string) (*RefreshTokenPolicy, error) {
-	r := RefreshTokenPolicy{Clock: time.Now, logger: logger}
+func NewRefreshTokenPolicy(logger log.Logger, rotation bool, validIfNotUsedFor, absoluteLifetime, reuseInterval string) (*RefreshTokenPolicy, error) {
+	r := RefreshTokenPolicy{now: time.Now, logger: logger}
 	var err error
 
 	if validIfNotUsedFor != "" {
@@ -231,19 +231,19 @@ func (r *RefreshTokenPolicy) CompletelyExpired(lastUsed time.Time) bool {
 	if r.absoluteLifetime == 0 {
 		return false // expiration disabled
 	}
-	return r.Clock().After(lastUsed.Add(r.absoluteLifetime))
+	return r.now().After(lastUsed.Add(r.absoluteLifetime))
 }
 
 func (r *RefreshTokenPolicy) ExpiredBecauseUnused(lastUsed time.Time) bool {
 	if r.validIfNotUsedFor == 0 {
 		return false // expiration disabled
 	}
-	return r.Clock().After(lastUsed.Add(r.validIfNotUsedFor))
+	return r.now().After(lastUsed.Add(r.validIfNotUsedFor))
 }
 
 func (r *RefreshTokenPolicy) AllowedToReuse(lastUsed time.Time) bool {
 	if r.reuseInterval == 0 {
 		return false // expiration disabled
 	}
-	return !r.Clock().After(lastUsed.Add(r.reuseInterval))
+	return !r.now().After(lastUsed.Add(r.reuseInterval))
 }

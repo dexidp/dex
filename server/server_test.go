@@ -117,6 +117,14 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 		t.Fatal(err)
 	}
 	server.skipApproval = true // Don't prompt for approval, just immediately redirect with code.
+
+	// Default rotation policy
+	server.refreshTokenPolicy, err = NewRefreshTokenPolicy(logger, false, "", "", "")
+	if err != nil {
+		t.Fatalf("failed to prepare rotation policy: %v", err)
+	}
+	server.refreshTokenPolicy.now = config.Now
+
 	return s, server
 }
 
@@ -676,13 +684,6 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				c.IDTokensValidFor = idTokensValidFor
 			})
 			defer httpServer.Close()
-
-			policy, err := NewRefreshTokenPolicyFromConfig(s.logger, false, "", "", "")
-			if err != nil {
-				t.Fatalf("failed to prepare rotation policy: %v", err)
-			}
-			policy.Clock = now
-			s.refreshTokenPolicy = policy
 
 			mockConn := s.connectors["mock"]
 			conn = mockConn.Connector.(*mock.Callback)
@@ -1514,13 +1515,6 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				c.IDTokensValidFor = idTokensValidFor
 			})
 			defer httpServer.Close()
-
-			policy, err := NewRefreshTokenPolicyFromConfig(s.logger, false, "", "", "")
-			if err != nil {
-				t.Fatalf("failed to prepare rotation policy: %v", err)
-			}
-			policy.Clock = now
-			s.refreshTokenPolicy = policy
 
 			mockConn := s.connectors["mock"]
 			conn = mockConn.Connector.(*mock.Callback)

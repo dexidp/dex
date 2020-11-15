@@ -305,8 +305,8 @@ type Expiry struct {
 	// DeviceRequests defines the duration of time for which the DeviceRequests will be valid.
 	DeviceRequests string `json:"deviceRequests"`
 
-	// RefreshToken defines refresh tokens expiry policy
-	RefreshToken RefreshTokenExpiry `json:"refreshTokens"`
+	// RefreshTokens defines refresh tokens expiry policy
+	RefreshTokens RefreshTokenExpiry `json:"refreshTokens"`
 }
 
 // Logger holds configuration required to customize logging for dex.
