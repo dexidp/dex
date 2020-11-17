@@ -85,10 +85,6 @@ func testDB(t *testing.T, o opener, withTransactions bool) {
 	}
 }
 
-func TestSQLite3(t *testing.T) {
-	testDB(t, &SQLite3{":memory:"}, false)
-}
-
 func getenv(key, defaultVal string) string {
 	if val := os.Getenv(key); val != "" {
 		return val
