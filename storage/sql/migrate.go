@@ -274,4 +274,34 @@ var migrations = []migration{
 				add column code_challenge_method text not null default '';`,
 		},
 	},
+	{
+		stmts: []string{
+			`
+			create table user_idp (
+				idp_id text not null primary key,
+				intern_id text not null references user(intern_id) ON DELETE CASCADE ON UPDATE CASCADE
+			);`,
+			`
+			create table user (
+				intern_id text not null primary key,
+				email text,
+				pseudo text,
+				acl_tokens bytea not null references acl_token(id) ON DELETE CASCADE ON UPDATE CASCADE -- JSON array of strings 
+			);`,
+			`
+			create table acl_token (
+				id text not null primary key,
+				desc text not null,
+				max_user integer,
+				client_tokens bytea not null references client_token(id) ON DELETE CASCADE ON UPDATE CASCADE -- JSON array of strings 
+			);`,
+			`
+			create table client_token (
+				id text not null primary key,
+				client_id text not null,
+				created_at timestamptz not null,
+				expired_at timestamptz not null
+			);`,
+		},
+	},
 }

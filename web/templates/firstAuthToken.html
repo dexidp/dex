@@ -1,0 +1,31 @@
+{{ template "header.html" . }}
+
+<div class="theme-panel">
+  <h2 class="theme-heading">Enter you Acl Token</h2>
+  <form method="post">
+    <div class="theme-form-row">
+      <div class="theme-form-label">
+        <label for="token">{{ .TokenPrompt }}</label>
+      </div>
+      <input type="hidden" name="invitation" value="none">
+      <input tabindex="1" id="token" name="aclToken" type="text" class="theme-form-input" placeholder="{{ .TokenPrompt | lower }}" {{ if .Token }} value="{{ .Token }}" {{ else }} autofocus {{ end }}/>
+      <div>
+        <button type="submit" class="dex-btn theme-btn--success">
+          <span class="dex-btn-text">Enter Token</span>
+        </button>
+      </div>
+    </div>
+  </form>
+  <hr class="dex-separator">
+  <div class="theme-form-row">
+    <form method="post">
+      <input type="hidden" name="req" value="{{ .AuthReqID }}"/>
+      <input type="hidden" name="invitation" value="asked">
+      <button type="submit" class="dex-btn theme-btn-provider">
+          <span class="dex-btn-text">Ask invitation</span>
+      </button>
+    </form>
+  </div>
+</div>
+
+{{ template "footer.html" . }}

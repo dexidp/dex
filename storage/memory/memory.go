@@ -22,6 +22,10 @@ func New(logger log.Logger) storage.Storage {
 		connectors:      make(map[string]storage.Connector),
 		deviceRequests:  make(map[string]storage.DeviceRequest),
 		deviceTokens:    make(map[string]storage.DeviceToken),
+		user_idps:       make(map[string]storage.UserIdp),
+		users:           make(map[string]storage.User),
+		acl_tokens:      make(map[string]storage.AclToken),
+		client_tokens:   make(map[string]storage.ClientToken),
 		logger:          logger,
 	}
 }
@@ -50,6 +54,10 @@ type memStorage struct {
 	connectors      map[string]storage.Connector
 	deviceRequests  map[string]storage.DeviceRequest
 	deviceTokens    map[string]storage.DeviceToken
+	user_idps       map[string]storage.UserIdp
+	users           map[string]storage.User
+	acl_tokens      map[string]storage.AclToken
+	client_tokens   map[string]storage.ClientToken
 
 	keys storage.Keys
 
@@ -535,6 +543,234 @@ func (s *memStorage) UpdateDeviceToken(deviceCode string, updater func(p storage
 		}
 		if r, err = updater(r); err == nil {
 			s.deviceTokens[deviceCode] = r
+		}
+	})
+	return
+}
+
+// Functions to manage user_idp
+
+func (s *memStorage) CreateUserIdp(u storage.UserIdp) (err error) {
+	s.tx(func() {
+		if _, ok := s.user_idps[u.IdpID]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.user_idps[u.IdpID] = u
+		}
+	})
+	return
+}
+
+func (s *memStorage) GetUserIdp(id string) (user storage.UserIdp, err error) {
+	s.tx(func() {
+		var ok bool
+		if user, ok = s.user_idps[id]; !ok {
+			err = storage.ErrNotFound
+		}
+	})
+	return
+}
+
+func (s *memStorage) ListUserIdp() (users []storage.UserIdp, err error) {
+	s.tx(func() {
+		for _, user := range s.user_idps {
+			users = append(users, user)
+		}
+	})
+	return
+}
+
+func (s *memStorage) DeleteUserIdp(id string) (err error) {
+	s.tx(func() {
+		if _, ok := s.user_idps[id]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		delete(s.user_idps, id)
+	})
+	return
+}
+
+func (s *memStorage) UpdateUserIdp(id string, updater func(old storage.UserIdp) (storage.UserIdp, error)) (err error) {
+	s.tx(func() {
+		user, ok := s.user_idps[id]
+		if !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		if user, err = updater(user); err == nil {
+			s.user_idps[id] = user
+		}
+	})
+	return
+}
+
+// Functions to manage user
+
+func (s *memStorage) CreateUser(u storage.User) (err error) {
+	s.tx(func() {
+		if _, ok := s.users[u.InternID]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.users[u.InternID] = u
+		}
+	})
+	return
+}
+
+func (s *memStorage) GetUser(id string) (user storage.User, err error) {
+	s.tx(func() {
+		var ok bool
+		if user, ok = s.users[id]; !ok {
+			err = storage.ErrNotFound
+		}
+	})
+	return
+}
+
+func (s *memStorage) ListUser() (users []storage.User, err error) {
+	s.tx(func() {
+		for _, user := range s.users {
+			users = append(users, user)
+		}
+	})
+	return
+}
+
+func (s *memStorage) DeleteUser(id string) (err error) {
+	s.tx(func() {
+		if _, ok := s.users[id]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		delete(s.users, id)
+	})
+	return
+}
+
+func (s *memStorage) UpdateUser(id string, updater func(old storage.User) (storage.User, error)) (err error) {
+	s.tx(func() {
+		user, ok := s.users[id]
+		if !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		if user, err = updater(user); err == nil {
+			s.users[id] = user
+		}
+	})
+	return
+}
+
+// Functions to manage acl_token
+
+func (s *memStorage) CreateAclToken(t storage.AclToken) (err error) {
+	s.tx(func() {
+		if _, ok := s.acl_tokens[t.ID]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.acl_tokens[t.ID] = t
+		}
+	})
+	return
+}
+
+func (s *memStorage) GetAclToken(id string) (token storage.AclToken, err error) {
+	s.tx(func() {
+		var ok bool
+		if token, ok = s.acl_tokens[id]; !ok {
+			err = storage.ErrNotFound
+		}
+	})
+	return
+}
+
+func (s *memStorage) ListAclToken() (tokens []storage.AclToken, err error) {
+	s.tx(func() {
+		for _, token := range s.acl_tokens {
+			tokens = append(tokens, token)
+		}
+	})
+	return
+}
+
+func (s *memStorage) DeleteAclToken(id string) (err error) {
+	s.tx(func() {
+		if _, ok := s.acl_tokens[id]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		delete(s.acl_tokens, id)
+	})
+	return
+}
+
+func (s *memStorage) UpdateAclToken(id string, updater func(old storage.AclToken) (storage.AclToken, error)) (err error) {
+	s.tx(func() {
+		token, ok := s.acl_tokens[id]
+		if !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		if token, err = updater(token); err == nil {
+			s.acl_tokens[id] = token
+		}
+	})
+	return
+}
+
+// Functions to manage client_token
+
+func (s *memStorage) CreateClientToken(t storage.ClientToken) (err error) {
+	s.tx(func() {
+		if _, ok := s.client_tokens[t.ID]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.client_tokens[t.ID] = t
+		}
+	})
+	return
+}
+
+func (s *memStorage) GetClientToken(id string) (token storage.ClientToken, err error) {
+	s.tx(func() {
+		var ok bool
+		if token, ok = s.client_tokens[id]; !ok {
+			err = storage.ErrNotFound
+		}
+	})
+	return
+}
+
+func (s *memStorage) ListClientToken() (tokens []storage.ClientToken, err error) {
+	s.tx(func() {
+		for _, token := range s.client_tokens {
+			tokens = append(tokens, token)
+		}
+	})
+	return
+}
+
+func (s *memStorage) DeleteClientToken(id string) (err error) {
+	s.tx(func() {
+		if _, ok := s.client_tokens[id]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		delete(s.client_tokens, id)
+	})
+	return
+}
+
+func (s *memStorage) UpdateClientToken(id string, updater func(old storage.ClientToken) (storage.ClientToken, error)) (err error) {
+	s.tx(func() {
+		token, ok := s.client_tokens[id]
+		if !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		if token, err = updater(token); err == nil {
+			s.client_tokens[id] = token
 		}
 	})
 	return

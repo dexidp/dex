@@ -71,6 +71,10 @@ type Storage interface {
 	CreateConnector(c Connector) error
 	CreateDeviceRequest(d DeviceRequest) error
 	CreateDeviceToken(d DeviceToken) error
+	CreateUserIdp(u UserIdp) error
+	CreateUser(u User) error
+	CreateAclToken(a AclToken) error
+	CreateClientToken(c ClientToken) error
 
 	// TODO(ericchiang): return (T, bool, error) so we can indicate not found
 	// requests that way instead of using ErrNotFound.
@@ -84,11 +88,19 @@ type Storage interface {
 	GetConnector(id string) (Connector, error)
 	GetDeviceRequest(userCode string) (DeviceRequest, error)
 	GetDeviceToken(deviceCode string) (DeviceToken, error)
+	GetUserIdp(id string) (UserIdp, error)
+	GetUser(id string) (User, error)
+	GetAclToken(id string) (AclToken, error)
+	GetClientToken(id string) (ClientToken, error)
 
 	ListClients() ([]Client, error)
 	ListRefreshTokens() ([]RefreshToken, error)
 	ListPasswords() ([]Password, error)
 	ListConnectors() ([]Connector, error)
+	ListUserIdp() ([]UserIdp, error)
+	ListUser() ([]User, error)
+	ListAclToken() ([]AclToken, error)
+	ListClientToken() ([]ClientToken, error)
 
 	// Delete methods MUST be atomic.
 	DeleteAuthRequest(id string) error
@@ -98,6 +110,10 @@ type Storage interface {
 	DeletePassword(email string) error
 	DeleteOfflineSessions(userID string, connID string) error
 	DeleteConnector(id string) error
+	DeleteUserIdp(id string) error
+	DeleteUser(id string) error
+	DeleteAclToken(id string) error
+	DeleteClientToken(id string) error
 
 	// Update methods take a function for updating an object then performs that update within
 	// a transaction. "updater" functions may be called multiple times by a single update call.
@@ -121,6 +137,10 @@ type Storage interface {
 	UpdateOfflineSessions(userID string, connID string, updater func(s OfflineSessions) (OfflineSessions, error)) error
 	UpdateConnector(id string, updater func(c Connector) (Connector, error)) error
 	UpdateDeviceToken(deviceCode string, updater func(t DeviceToken) (DeviceToken, error)) error
+	UpdateUserIdp(id string, updater func(old UserIdp) (UserIdp, error)) error
+	UpdateUser(id string, updater func(old User) (User, error)) error
+	UpdateAclToken(id string, updater func(old AclToken) (AclToken, error)) error
+	UpdateClientToken(id string, updater func(old ClientToken) (ClientToken, error)) error
 
 	// GarbageCollect deletes all expired AuthCodes,
 	// AuthRequests, DeviceRequests, and DeviceTokens.
@@ -421,4 +441,35 @@ type DeviceToken struct {
 	Expiry              time.Time
 	LastRequestTime     time.Time
 	PollIntervalSeconds int
+}
+
+// UserIdp map each id from an idp to an internal user
+type UserIdp struct {
+	IdpID    string `json:"idpid" yaml:"idpid"`
+	InternID string `json:"internid" yaml:"internid"`
+}
+
+// User represents all users already loggin into Dex
+type User struct {
+	InternID  string   `json:"internid" yaml:"internid"`
+	Pseudo    string   `json:"pseudo" yaml:"pseudo"`
+	Email     string   `json:"email" yaml:"email"`
+	Username  string   `json:"username" yaml:"username"`
+	AclTokens []string `json:"acltokens" yaml:"acltokens"`
+}
+
+// AclToken represents Acl Tokens available for users
+type AclToken struct {
+	ID           string   `json:"id" yaml:"id"`
+	Desc         string   `json:"desc" yaml:"desc"`
+	MaxUser      string   `json:"maxuser" yaml:"maxuser"`
+	ClientTokens []string `json:"clienttokens" yaml:"clienttokens"`
+}
+
+// ClientToken represents tokens with expiration for AclToken
+type ClientToken struct {
+	ID        string    `json:"id" yaml:"id"`
+	ClientID  string    `json:"clientid" yaml:"clientid"`
+	CreatedAt time.Time `json:"createdat" yaml:"createdat"`
+	ExpiredAt time.Time `json:"expiredat" yaml:"expiredat"`
 }

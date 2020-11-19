@@ -18,6 +18,7 @@ import (
 	"github.com/felixge/httpsnoop"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/bcrypt"
 
@@ -49,6 +50,39 @@ const LocalConnector = "local"
 type Connector struct {
 	ResourceVersion string
 	Connector       connector.Connector
+}
+
+// Mailer hold app's mailer configuration
+type Mailer struct {
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	User     string `json:"user"`
+	Password string `json:"password"`
+	Receiver string `json:"receiver"`
+}
+
+// FirstAuth hold app's firstauth configuration.
+type FirstAuth struct {
+	Enable  bool          `json:"enable"`
+	Mode    string        `json:"mode"`
+	Default []DefaultConn `json:"default"`
+	Mailer  Mailer        `json:"mailer"`
+}
+
+// DefaultConn hold app's default connector for first auth configuration
+type DefaultConn struct {
+	Connector string   `json:"connector"`
+	Clients   []string `json:"clients"`
+	AclToken  string
+}
+
+// SSO hold app's SSO configuration.
+type SSO struct {
+	Enable      bool   `json:"enable"`
+	Authkey     string `json:"authkey"`
+	EncryptKey  string `json:"encryptKey"`
+	SessionName string `json:"sessionName"`
+	MaxAge      int    `json:"maxage"`
 }
 
 // Config holds the server's configuration options.
@@ -93,6 +127,10 @@ type Config struct {
 	Logger log.Logger
 
 	PrometheusRegistry *prometheus.Registry
+
+	FirstAuth FirstAuth
+
+	Sso SSO
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -163,6 +201,12 @@ type Server struct {
 	deviceRequestsValidFor time.Duration
 
 	logger log.Logger
+
+	firstAuth FirstAuth
+
+	sso SSO
+
+	sessionStore *sessions.CookieStore
 }
 
 // NewServer constructs a server from the provided config.
@@ -222,6 +266,11 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		now = time.Now
 	}
 
+	sessionStore, err := NewSessionStore(c.Sso)
+	if err != nil {
+		return nil, fmt.Errorf("server: failed to create session sotre: %v", err)
+	}
+
 	s := &Server{
 		issuerURL:              *issuerURL,
 		connectors:             make(map[string]Connector),
@@ -236,6 +285,9 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		templates:              tmpls,
 		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
+		firstAuth:              c.FirstAuth,
+		sso:                    c.Sso,
+		sessionStore:           sessionStore,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -338,6 +390,9 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	// "authproxy" connector.
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
+	handleFunc("/firstauth/join", s.handleFirstAuthJoin)
+	handleFunc("/firstauth/acltoken", s.handleFirstAuthToken)
+	handleFunc("/firstauth/noaccess", s.handleFirstAuthNoAccess)
 	handle("/healthz", s.newHealthChecker(ctx))
 	handlePrefix("/static", static)
 	handlePrefix("/theme", theme)

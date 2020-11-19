@@ -1006,3 +1006,474 @@ func (c *conn) UpdateDeviceToken(deviceCode string, updater func(old storage.Dev
 		return nil
 	})
 }
+
+// Function to interact with user_idp table
+
+func (c *conn) CreateUserIdp(u storage.UserIdp) error {
+	_, err := c.Exec(`
+		insert into user_idp (
+			idp_id, intern_id
+		)
+		values ($1, $2);
+	`,
+		u.IdpID, u.InternID,
+	)
+	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
+		return fmt.Errorf("insert user_idp: %v", err)
+	}
+	return nil
+}
+
+func (c *conn) UpdateUserIdp(id string, updater func(old storage.UserIdp) (storage.UserIdp, error)) error {
+	return c.ExecTx(func(tx *trans) error {
+		user, err := getUserIdp(tx, id)
+		if err != nil {
+			return err
+		}
+		ui, err := updater(user)
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.Exec(`
+			update user_idp
+			set
+				intern_id = $1
+			where idp_id = $2;
+		`, ui.InternID, ui.IdpID,
+		)
+		if err != nil {
+			return fmt.Errorf("update user_idp: %v", err)
+		}
+		return nil
+	})
+}
+
+func getUserIdp(q querier, id string) (storage.UserIdp, error) {
+	return scanUserIdp(q.QueryRow(`
+		select
+			idp_id, intern_id
+	    from user_idp where idp_id = $1;
+	`, id))
+}
+
+func (c *conn) GetUserIdp(id string) (storage.UserIdp, error) {
+	return getUserIdp(c, id)
+}
+
+func (c *conn) ListUserIdp() ([]storage.UserIdp, error) {
+	rows, err := c.Query(`
+		select
+			idp_id, intern_id
+		from user_idp;
+	`)
+	if err != nil {
+		return nil, err
+	}
+	var users []storage.UserIdp
+	for rows.Next() {
+		user, err := scanUserIdp(rows)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+func scanUserIdp(s scanner) (user storage.UserIdp, err error) {
+	err = s.Scan(
+		&user.IdpID, &user.InternID,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return user, storage.ErrNotFound
+		}
+		return user, fmt.Errorf("scan user_idp: %v", err)
+	}
+	return user, nil
+}
+
+func (c *conn) DeleteUserIdp(id string) error { return c.delete("user_idp", "idp_id", id) }
+
+// Function to interact with user table
+
+func (c *conn) CreateUser(u storage.User) error {
+	_, err := c.Exec(`
+		insert into user (
+			intern_id, pseudo, email, acl_tokens
+		)
+		values ($1, $2, $3, $4);
+	`,
+		u.InternID, u.Pseudo, u.Email, encoder(u.AclTokens),
+	)
+	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
+		return fmt.Errorf("insert user: %v", err)
+	}
+	return nil
+}
+
+func (c *conn) UpdateUser(id string, updater func(old storage.User) (storage.User, error)) error {
+	return c.ExecTx(func(tx *trans) error {
+		user, err := getUser(tx, id)
+		if err != nil {
+			return err
+		}
+		u, err := updater(user)
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.Exec(`
+			update user
+			set
+				pseudo = $1,
+				email = $2,
+				acl_tokens = $3
+			where intern_id = $4;
+		`, u.Pseudo, u.Email, encoder(u.AclTokens), u.InternID,
+		)
+		if err != nil {
+			return fmt.Errorf("update user: %v", err)
+		}
+		return nil
+	})
+}
+
+func getUser(q querier, id string) (storage.User, error) {
+	return scanUser(q.QueryRow(`
+		select
+			intern_id, pseudo, email, acl_tokens
+	    from user where intern_id = $1;
+	`, id))
+}
+
+func (c *conn) GetUser(id string) (storage.User, error) {
+	return getUser(c, id)
+}
+
+func (c *conn) ListUser() ([]storage.User, error) {
+	rows, err := c.Query(`
+		select
+			intern_id, pseudo, email, acl_tokens
+		from user;
+	`)
+	if err != nil {
+		return nil, err
+	}
+	var users []storage.User
+	for rows.Next() {
+		user, err := scanUser(rows)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+func scanUser(s scanner) (user storage.User, err error) {
+	err = s.Scan(
+		&user.InternID, &user.Pseudo, &user.Email, decoder(&user.AclTokens),
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return user, storage.ErrNotFound
+		}
+		return user, fmt.Errorf("scan user: %v", err)
+	}
+	return user, nil
+}
+
+func (c *conn) DeleteUser(id string) error {
+	err := c.delete("user", "intern_id", id)
+	if err != nil {
+		return err
+	}
+	rows, err := c.Query(`
+		select
+			idp_id
+		from user_idp where intern_id=$1;
+	`, id)
+	if err != nil {
+		return err
+	}
+	var idp_id string
+	var idp_list []string
+	for rows.Next() {
+		err := rows.Scan(&idp_id)
+		if err != nil {
+			return err
+		}
+		idp_list = append(idp_list, idp_id)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, idp := range idp_list {
+		if err := c.delete("user_idp", "idp_id", idp); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Function to interact with acl_token table
+
+func (c *conn) CreateAclToken(t storage.AclToken) error {
+	_, err := c.Exec(`
+		insert into acl_token (
+			id, desc, max_user, client_tokens
+		)
+		values ($1, $2, $3, $4);
+	`,
+		t.ID, t.Desc, t.MaxUser, encoder(t.ClientTokens),
+	)
+	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
+		return fmt.Errorf("insert acl_token: %v", err)
+	}
+	return nil
+}
+
+func (c *conn) UpdateAclToken(id string, updater func(old storage.AclToken) (storage.AclToken, error)) error {
+	return c.ExecTx(func(tx *trans) error {
+		token, err := getAclToken(tx, id)
+		if err != nil {
+			return err
+		}
+		t, err := updater(token)
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.Exec(`
+			update acl_token
+			set
+				desc = $1,
+				max_user = $2,
+				client_tokens = $3
+			where id = $4;
+		`, t.Desc, t.MaxUser, encoder(t.ClientTokens), t.ID,
+		)
+		if err != nil {
+			return fmt.Errorf("update acl_token: %v", err)
+		}
+		return nil
+	})
+}
+
+func getAclToken(q querier, id string) (storage.AclToken, error) {
+	return scanAclToken(q.QueryRow(`
+		select
+			id, desc, max_user, client_tokens
+	    from acl_token where id = $1;
+	`, id))
+}
+
+func (c *conn) GetAclToken(id string) (storage.AclToken, error) {
+	return getAclToken(c, id)
+}
+
+func (c *conn) ListAclToken() ([]storage.AclToken, error) {
+	rows, err := c.Query(`
+		select
+			id, desc, max_user, client_tokens
+		from acl_token;
+	`)
+	if err != nil {
+		return nil, err
+	}
+	var tokens []storage.AclToken
+	for rows.Next() {
+		token, err := scanAclToken(rows)
+		if err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, token)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return tokens, nil
+}
+
+func scanAclToken(s scanner) (token storage.AclToken, err error) {
+	err = s.Scan(
+		&token.ID, &token.Desc, &token.MaxUser, decoder(&token.ClientTokens),
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return token, storage.ErrNotFound
+		}
+		return token, fmt.Errorf("scan acl_token: %v", err)
+	}
+	return token, nil
+}
+
+func (c *conn) DeleteAclToken(id string) error {
+	err := c.delete("acl_token", "id", id)
+	if err != nil {
+		return err
+	}
+
+	// Update each user using this acl token
+	uList, err := c.ListUser()
+	if err != nil {
+		return err
+	}
+	for _, u := range uList {
+		for index, at := range u.AclTokens {
+			if at == id {
+				updater := func(old storage.User) (storage.User, error) {
+					old.AclTokens = append(u.AclTokens[:index], u.AclTokens[index+1:]...)
+					return old, nil
+				}
+				// Update the user
+				if err := c.UpdateUser(u.InternID, updater); err != nil {
+					return err
+				}
+				break
+			}
+		}
+	}
+	return nil
+}
+
+// Function to interact with client_token table
+
+func (c *conn) CreateClientToken(t storage.ClientToken) error {
+	_, err := c.Exec(`
+		insert into client_token (
+			id, client_id, created_at, expired_at
+		)
+		values ($1, $2, $3, $4);
+	`,
+		t.ID, t.ClientID, t.CreatedAt, t.ExpiredAt,
+	)
+	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
+		return fmt.Errorf("insert client_token: %v", err)
+	}
+	return nil
+}
+
+func (c *conn) UpdateClientToken(id string, updater func(old storage.ClientToken) (storage.ClientToken, error)) error {
+	return c.ExecTx(func(tx *trans) error {
+		token, err := getClientToken(tx, id)
+		if err != nil {
+			return err
+		}
+		t, err := updater(token)
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.Exec(`
+			update client_token
+			set
+				client_id = $1,
+				created_at = $2,
+				expired_at = $3
+			where id = $4;
+		`, t.ClientID, t.CreatedAt, t.ExpiredAt, t.ID,
+		)
+		if err != nil {
+			return fmt.Errorf("update client_token: %v", err)
+		}
+		return nil
+	})
+}
+
+func getClientToken(q querier, id string) (storage.ClientToken, error) {
+	return scanClientToken(q.QueryRow(`
+		select
+			id, client_id, created_at, expired_at
+	    from client_token where id = $1;
+	`, id))
+}
+
+func (c *conn) GetClientToken(id string) (storage.ClientToken, error) {
+	return getClientToken(c, id)
+}
+
+func (c *conn) ListClientToken() ([]storage.ClientToken, error) {
+	rows, err := c.Query(`
+		select
+			id, client_id, created_at, expired_at
+		from client_token;
+	`)
+	if err != nil {
+		return nil, err
+	}
+	var tokens []storage.ClientToken
+	for rows.Next() {
+		token, err := scanClientToken(rows)
+		if err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, token)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return tokens, nil
+}
+
+func scanClientToken(s scanner) (token storage.ClientToken, err error) {
+	err = s.Scan(
+		&token.ID, &token.ClientID, &token.CreatedAt, &token.ExpiredAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return token, storage.ErrNotFound
+		}
+		return token, fmt.Errorf("scan client_token: %v", err)
+	}
+	return token, nil
+}
+
+func (c *conn) DeleteClientToken(id string) error {
+	err := c.delete("client_token", "id", id)
+	if err != nil {
+		return err
+	}
+	// Update each acl_token using this client token
+	atList, err := c.ListAclToken()
+	if err != nil {
+		return err
+	}
+	for _, at := range atList {
+		for index, ct := range at.ClientTokens {
+			if ct == id {
+				updater := func(old storage.AclToken) (storage.AclToken, error) {
+					old.ClientTokens = append(at.ClientTokens[:index], at.ClientTokens[index+1:]...)
+					return old, nil
+				}
+				// Update the acl_token
+				if err := c.UpdateAclToken(at.ID, updater); err != nil {
+					return err
+				}
+				break
+			}
+		}
+	}
+
+	return nil
+}

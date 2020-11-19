@@ -25,6 +25,10 @@ const (
 	kindConnector       = "Connector"
 	kindDeviceRequest   = "DeviceRequest"
 	kindDeviceToken     = "DeviceToken"
+	kindUserIdp         = "UserIdp"
+	kindUser            = "User"
+	kindAclToken        = "AclToken"
+	kindClientToken     = "ClientToken"
 )
 
 const (
@@ -38,6 +42,10 @@ const (
 	resourceConnector       = "connectors"
 	resourceDeviceRequest   = "devicerequests"
 	resourceDeviceToken     = "devicetokens"
+	resourceUserIdp         = "useridp"
+	resourceUser            = "user"
+	resourceAclToken        = "acltoken"
+	resourceClientToken     = "clienttoken"
 )
 
 // Config values for the Kubernetes storage type.
@@ -249,6 +257,22 @@ func (cli *client) CreateConnector(c storage.Connector) error {
 	return cli.post(resourceConnector, cli.fromStorageConnector(c))
 }
 
+func (cli *client) CreateUserIdp(u storage.UserIdp) error {
+	return cli.post(resourceUserIdp, cli.fromStorageUserIdp(u))
+}
+
+func (cli *client) CreateUser(u storage.User) error {
+	return cli.post(resourceUser, cli.fromStorageUser(u))
+}
+
+func (cli *client) CreateAclToken(t storage.AclToken) error {
+	return cli.post(resourceAclToken, cli.fromStorageAclToken(t))
+}
+
+func (cli *client) CreateClientToken(t storage.ClientToken) error {
+	return cli.post(resourceClientToken, cli.fromStorageClientToken(t))
+}
+
 func (cli *client) GetAuthRequest(id string) (storage.AuthRequest, error) {
 	var req AuthRequest
 	if err := cli.get(resourceAuthRequest, id, &req); err != nil {
@@ -355,6 +379,86 @@ func (cli *client) GetConnector(id string) (storage.Connector, error) {
 	return toStorageConnector(c), nil
 }
 
+func (cli *client) GetUserIdp(id string) (storage.UserIdp, error) {
+	u, err := cli.getUserIdp(id)
+	if err != nil {
+		return storage.UserIdp{}, err
+	}
+	return toStorageUserIdp(u), nil
+}
+
+func (cli *client) getUserIdp(id string) (UserIdp, error) {
+	var u UserIdp
+	name := cli.idToName(id)
+	if err := cli.get(resourceUserIdp, name, &u); err != nil {
+		return UserIdp{}, err
+	}
+	if u.IdpID != id {
+		return UserIdp{}, fmt.Errorf("get UserIdp: ID %q mapped to client with ID %q", id, u.IdpID)
+	}
+	return u, nil
+}
+
+func (cli *client) GetUser(id string) (storage.User, error) {
+	u, err := cli.getUser(id)
+	if err != nil {
+		return storage.User{}, err
+	}
+	return toStorageUser(u), nil
+}
+
+func (cli *client) getUser(id string) (User, error) {
+	var u User
+	name := cli.idToName(id)
+	if err := cli.get(resourceUser, name, &u); err != nil {
+		return User{}, err
+	}
+	if u.InternID != id {
+		return User{}, fmt.Errorf("get User: ID %q mapped to client with ID %q", id, u.InternID)
+	}
+	return u, nil
+}
+
+func (cli *client) GetAclToken(id string) (storage.AclToken, error) {
+	t, err := cli.getAclToken(id)
+	if err != nil {
+		return storage.AclToken{}, err
+	}
+	return toStorageAclToken(t), nil
+}
+
+func (cli *client) getAclToken(id string) (AclToken, error) {
+	var t AclToken
+	name := cli.idToName(id)
+	if err := cli.get(resourceAclToken, name, &t); err != nil {
+		return AclToken{}, err
+	}
+	if t.ID != id {
+		return AclToken{}, fmt.Errorf("get AclToken: ID %q mapped to client with ID %q", id, t.ID)
+	}
+	return t, nil
+}
+
+func (cli *client) GetClientToken(id string) (storage.ClientToken, error) {
+	t, err := cli.getClientToken(id)
+	if err != nil {
+		return storage.ClientToken{}, err
+	}
+	return toStorageClientToken(t), nil
+}
+
+func (cli *client) getClientToken(id string) (ClientToken, error) {
+	var t ClientToken
+	name := cli.idToName(id)
+	if err := cli.get(resourceClientToken, name, &t); err != nil {
+		return ClientToken{}, err
+	}
+	if t.ID != id {
+		return ClientToken{}, fmt.Errorf("get ClientToken: ID %q mapped to client with ID %q", id, t.ID)
+	}
+	return t, nil
+}
+
 func (cli *client) ListClients() ([]storage.Client, error) {
 	return nil, errors.New("not implemented")
 }
@@ -391,6 +495,80 @@ func (cli *client) ListConnectors() (connectors []storage.Connector, err error) 
 	connectors = make([]storage.Connector, len(connectorList.Connectors))
 	for i, connector := range connectorList.Connectors {
 		connectors[i] = toStorageConnector(connector)
+	}
+
+	return
+}
+
+func (cli *client) ListUserIdp() (userIdps []storage.UserIdp, err error) {
+	var userIdpList UserIdpList
+	if err = cli.list(resourceUserIdp, &userIdpList); err != nil {
+		return userIdps, fmt.Errorf("failed to list userIdps: %v", err)
+	}
+
+	for _, userIdp := range userIdpList.UserIdps {
+		u := storage.UserIdp{
+			IdpID:    userIdp.IdpID,
+			InternID: userIdp.InternID,
+		}
+		userIdps = append(userIdps, u)
+	}
+
+	return
+}
+
+func (cli *client) ListUser() (users []storage.User, err error) {
+	var userList UserList
+	if err = cli.list(resourceUser, &userList); err != nil {
+		return users, fmt.Errorf("failed to list users: %v", err)
+	}
+
+	for _, user := range userList.Users {
+		u := storage.User{
+			InternID:  user.InternID,
+			Pseudo:    user.Pseudo,
+			Email:     user.Email,
+			AclTokens: user.AclTokens,
+		}
+		users = append(users, u)
+	}
+
+	return
+}
+
+func (cli *client) ListAclToken() (aclTokens []storage.AclToken, err error) {
+	var aclTokenList AclTokenList
+	if err = cli.list(resourceAclToken, &aclTokenList); err != nil {
+		return aclTokens, fmt.Errorf("failed to list aclTokens: %v", err)
+	}
+
+	for _, token := range aclTokenList.AclTokens {
+		t := storage.AclToken{
+			ID:           token.ID,
+			Desc:         token.Desc,
+			MaxUser:      token.MaxUser,
+			ClientTokens: token.ClientTokens,
+		}
+		aclTokens = append(aclTokens, t)
+	}
+
+	return
+}
+
+func (cli *client) ListClientToken() (clientTokens []storage.ClientToken, err error) {
+	var clientTokenList ClientTokenList
+	if err = cli.list(resourceClientToken, &clientTokenList); err != nil {
+		return clientTokens, fmt.Errorf("failed to list clientTokens: %v", err)
+	}
+
+	for _, token := range clientTokenList.ClientTokens {
+		t := storage.ClientToken{
+			ID:        token.ID,
+			ClientID:  token.ClientID,
+			CreatedAt: token.CreatedAt,
+			ExpiredAt: token.ExpiredAt,
+		}
+		clientTokens = append(clientTokens, t)
 	}
 
 	return
@@ -437,6 +615,42 @@ func (cli *client) DeleteOfflineSessions(userID string, connID string) error {
 
 func (cli *client) DeleteConnector(id string) error {
 	return cli.delete(resourceConnector, id)
+}
+
+func (cli *client) DeleteUserIdp(id string) error {
+	// Check for hash collition.
+	u, err := cli.getUserIdp(id)
+	if err != nil {
+		return err
+	}
+	return cli.delete(resourceUserIdp, u.ObjectMeta.Name)
+}
+
+func (cli *client) DeleteUser(id string) error {
+	// Check for hash collition.
+	u, err := cli.getUser(id)
+	if err != nil {
+		return err
+	}
+	return cli.delete(resourceUser, u.ObjectMeta.Name)
+}
+
+func (cli *client) DeleteAclToken(id string) error {
+	// Check for hash collition.
+	u, err := cli.getAclToken(id)
+	if err != nil {
+		return err
+	}
+	return cli.delete(resourceAclToken, u.ObjectMeta.Name)
+}
+
+func (cli *client) DeleteClientToken(id string) error {
+	// Check for hash collition.
+	u, err := cli.getClientToken(id)
+	if err != nil {
+		return err
+	}
+	return cli.delete(resourceClientToken, u.ObjectMeta.Name)
 }
 
 func (cli *client) UpdateRefreshToken(id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
@@ -588,6 +802,74 @@ func (cli *client) UpdateConnector(id string, updater func(a storage.Connector) 
 		newConn.ObjectMeta = c.ObjectMeta
 		return cli.put(resourceConnector, id, newConn)
 	})
+}
+
+func (cli *client) UpdateUserIdp(id string, updater func(old storage.UserIdp) (storage.UserIdp, error)) error {
+	u, err := cli.getUserIdp(id)
+	if err != nil {
+		return err
+	}
+
+	updated, err := updater(toStorageUserIdp(u))
+	if err != nil {
+		return err
+	}
+	updated.IdpID = u.IdpID
+
+	newUserIdp := cli.fromStorageUserIdp(updated)
+	newUserIdp.ObjectMeta = u.ObjectMeta
+	return cli.put(resourceUserIdp, u.ObjectMeta.Name, newUserIdp)
+}
+
+func (cli *client) UpdateUser(id string, updater func(old storage.User) (storage.User, error)) error {
+	u, err := cli.getUser(id)
+	if err != nil {
+		return err
+	}
+
+	updated, err := updater(toStorageUser(u))
+	if err != nil {
+		return err
+	}
+	updated.InternID = u.InternID
+
+	newUser := cli.fromStorageUser(updated)
+	newUser.ObjectMeta = u.ObjectMeta
+	return cli.put(resourceUser, u.ObjectMeta.Name, newUser)
+}
+
+func (cli *client) UpdateAclToken(id string, updater func(old storage.AclToken) (storage.AclToken, error)) error {
+	t, err := cli.getAclToken(id)
+	if err != nil {
+		return err
+	}
+
+	updated, err := updater(toStorageAclToken(t))
+	if err != nil {
+		return err
+	}
+	updated.ID = t.ID
+
+	newAclToken := cli.fromStorageAclToken(updated)
+	newAclToken.ObjectMeta = t.ObjectMeta
+	return cli.put(resourceAclToken, t.ObjectMeta.Name, newAclToken)
+}
+
+func (cli *client) UpdateClientToken(id string, updater func(old storage.ClientToken) (storage.ClientToken, error)) error {
+	t, err := cli.getClientToken(id)
+	if err != nil {
+		return err
+	}
+
+	updated, err := updater(toStorageClientToken(t))
+	if err != nil {
+		return err
+	}
+	updated.ID = t.ID
+
+	newClientToken := cli.fromStorageClientToken(updated)
+	newClientToken.ObjectMeta = t.ObjectMeta
+	return cli.put(resourceClientToken, t.ObjectMeta.Name, newClientToken)
 }
 
 func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err error) {

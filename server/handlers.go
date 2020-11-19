@@ -283,6 +283,11 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Check the SSO
+	if s.sso.Enable {
+		s.sooCheckSess(w, r, authReq.ID)
+	}
+
 	if err := s.templates.login(r, w, connectorInfos); err != nil {
 		s.logger.Errorf("Server template error: %v", err)
 	}
@@ -404,6 +409,34 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if s.firstAuth.Enable {
+			var isAuth bool
+			isAuth, redirectURL, err = s.getFirstAuthentificate(r, authReq, identity, redirectURL)
+			if err != nil {
+				s.logger.Errorf("Failed to first authentificate: %v", err)
+				return
+			}
+			if isAuth {
+				if s.sso.Enable {
+					// store identity in session
+					if err := s.storeAuthenticateSession(w, r, identity, authReq); err != nil {
+						s.logger.Errorf("Failed to store session for SSO: %v", err)
+						s.renderError(r, w, http.StatusInternalServerError, "SSOerror.")
+						return
+					}
+				}
+			}
+		} else {
+			if s.sso.Enable {
+				// store identity in session
+				if err := s.storeAuthenticateSession(w, r, identity, authReq); err != nil {
+					s.logger.Errorf("Failed to store sessio for SSO: %v", err)
+					s.renderError(r, w, http.StatusInternalServerError, "SSOerror.")
+					return
+				}
+			}
+		}
+
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 	default:
 		s.renderError(r, w, http.StatusBadRequest, "Unsupported request method.")
@@ -474,12 +507,6 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err != nil {
-		s.logger.Errorf("Failed to authenticate: %v", err)
-		s.renderError(r, w, http.StatusInternalServerError, fmt.Sprintf("Failed to authenticate: %v", err))
-		return
-	}
-
 	redirectURL, err := s.finalizeLogin(identity, authReq, conn.Connector)
 	if err != nil {
 		s.logger.Errorf("Failed to finalize login: %v", err)
@@ -487,6 +514,33 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if s.firstAuth.Enable {
+		var isAuth bool
+		isAuth, redirectURL, err = s.getFirstAuthentificate(r, authReq, identity, redirectURL)
+		if err != nil {
+			s.logger.Errorf("Failed to first authentificate: %v", err)
+			return
+		}
+		if isAuth {
+			if s.sso.Enable {
+				// store identity in session
+				if err := s.storeAuthenticateSession(w, r, identity, authReq); err != nil {
+					s.logger.Errorf("Failed to store session for SSO: %v", err)
+					s.renderError(r, w, http.StatusInternalServerError, "SSOerror.")
+					return
+				}
+			}
+		}
+	} else {
+		if s.sso.Enable {
+			// store identity in session
+			if err := s.storeAuthenticateSession(w, r, identity, authReq); err != nil {
+				s.logger.Errorf("Failed to store sessio for SSO: %v", err)
+				s.renderError(r, w, http.StatusInternalServerError, "SSOerror.")
+				return
+			}
+		}
+	}
 	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
@@ -560,7 +614,6 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 		s.logger.Errorf("failed to update offline session: %v", err)
 		return "", err
 	}
-
 	return returnURL, nil
 }
 
@@ -580,6 +633,9 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		if s.skipApproval {
+			if s.sso.Enable {
+				s.authenticateSession(w, r, authReq)
+			}
 			s.sendCodeResponse(w, r, authReq)
 			return
 		}
@@ -596,6 +652,9 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		if r.FormValue("approval") != "approve" {
 			s.renderError(r, w, http.StatusInternalServerError, "Approval rejected.")
 			return
+		}
+		if s.sso.Enable {
+			s.authenticateSession(w, r, authReq)
 		}
 		s.sendCodeResponse(w, r, authReq)
 	}

@@ -15,17 +15,21 @@ import (
 )
 
 const (
-	tmplApproval      = "approval.html"
-	tmplLogin         = "login.html"
-	tmplPassword      = "password.html"
-	tmplOOB           = "oob.html"
-	tmplError         = "error.html"
-	tmplDevice        = "device.html"
-	tmplDeviceSuccess = "device_success.html"
+	tmplApproval       = "approval.html"
+	tmplFirstAuthToken = "firstAuthToken.html"
+	tmplFirstAuthJoin  = "firstAuthJoin.html"
+	tmplLogin          = "login.html"
+	tmplPassword       = "password.html"
+	tmplOOB            = "oob.html"
+	tmplError          = "error.html"
+	tmplDevice         = "device.html"
+	tmplDeviceSuccess  = "device_success.html"
 )
 
 var requiredTmpls = []string{
 	tmplApproval,
+	tmplFirstAuthToken,
+	tmplFirstAuthJoin,
 	tmplLogin,
 	tmplPassword,
 	tmplOOB,
@@ -35,13 +39,15 @@ var requiredTmpls = []string{
 }
 
 type templates struct {
-	loginTmpl         *template.Template
-	approvalTmpl      *template.Template
-	passwordTmpl      *template.Template
-	oobTmpl           *template.Template
-	errorTmpl         *template.Template
-	deviceTmpl        *template.Template
-	deviceSuccessTmpl *template.Template
+	loginTmpl          *template.Template
+	approvalTmpl       *template.Template
+	firstAuthTokenTmpl *template.Template
+	firstAuthJoinTmpl  *template.Template
+	passwordTmpl       *template.Template
+	oobTmpl            *template.Template
+	errorTmpl          *template.Template
+	deviceTmpl         *template.Template
+	deviceSuccessTmpl  *template.Template
 }
 
 type webConfig struct {
@@ -162,13 +168,15 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		return nil, fmt.Errorf("missing template(s): %s", missingTmpls)
 	}
 	return &templates{
-		loginTmpl:         tmpls.Lookup(tmplLogin),
-		approvalTmpl:      tmpls.Lookup(tmplApproval),
-		passwordTmpl:      tmpls.Lookup(tmplPassword),
-		oobTmpl:           tmpls.Lookup(tmplOOB),
-		errorTmpl:         tmpls.Lookup(tmplError),
-		deviceTmpl:        tmpls.Lookup(tmplDevice),
-		deviceSuccessTmpl: tmpls.Lookup(tmplDeviceSuccess),
+		loginTmpl:          tmpls.Lookup(tmplLogin),
+		approvalTmpl:       tmpls.Lookup(tmplApproval),
+		firstAuthTokenTmpl: tmpls.Lookup(tmplFirstAuthToken),
+		firstAuthJoinTmpl:  tmpls.Lookup(tmplFirstAuthJoin),
+		passwordTmpl:       tmpls.Lookup(tmplPassword),
+		oobTmpl:            tmpls.Lookup(tmplOOB),
+		errorTmpl:          tmpls.Lookup(tmplError),
+		deviceTmpl:         tmpls.Lookup(tmplDevice),
+		deviceSuccessTmpl:  tmpls.Lookup(tmplDeviceSuccess),
 	}, nil
 }
 

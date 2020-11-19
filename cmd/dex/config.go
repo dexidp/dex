@@ -21,14 +21,16 @@ import (
 
 // Config is the config format for the main application.
 type Config struct {
-	Issuer    string    `json:"issuer"`
-	Storage   Storage   `json:"storage"`
-	Web       Web       `json:"web"`
-	Telemetry Telemetry `json:"telemetry"`
-	OAuth2    OAuth2    `json:"oauth2"`
-	GRPC      GRPC      `json:"grpc"`
-	Expiry    Expiry    `json:"expiry"`
-	Logger    Logger    `json:"logger"`
+	Issuer    string           `json:"issuer"`
+	Storage   Storage          `json:"storage"`
+	Web       Web              `json:"web"`
+	Telemetry Telemetry        `json:"telemetry"`
+	OAuth2    OAuth2           `json:"oauth2"`
+	GRPC      GRPC             `json:"grpc"`
+	Expiry    Expiry           `json:"expiry"`
+	Logger    Logger           `json:"logger"`
+	FirstAuth server.FirstAuth `json:"firstauth"`
+	Sso       server.SSO       `json:"sso"`
 
 	Frontend server.WebConfig `json:"frontend"`
 
@@ -67,6 +69,16 @@ func (c Config) Validate() error {
 		{c.GRPC.TLSKey != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
 		{(c.GRPC.TLSCert == "") != (c.GRPC.TLSKey == ""), "must specific both a gRPC TLS cert and key"},
 		{c.GRPC.TLSCert == "" && c.GRPC.TLSClientCA != "", "cannot specify gRPC TLS client CA without a gRPC TLS cert"},
+		{c.FirstAuth.Enable && c.FirstAuth.Mode == "manual" && c.FirstAuth.Mailer.Host == "", "Need to specify the smtp host"},
+		{c.FirstAuth.Enable && c.FirstAuth.Mode == "manual" && c.FirstAuth.Mailer.Port == 0, "Need to specify the smtp port"},
+		{c.FirstAuth.Enable && c.FirstAuth.Mode == "manual" && c.FirstAuth.Mailer.User == "", "Need to specify the smtp user"},
+		{c.FirstAuth.Enable && c.FirstAuth.Mode == "manual" && c.FirstAuth.Mailer.Password == "", "Need to specify the smtp user's password"},
+		{c.FirstAuth.Enable && c.FirstAuth.Mode == "manual" && c.FirstAuth.Mailer.Receiver == "", "Need to specify the smtp receiver"},
+		{c.FirstAuth.Enable && (c.FirstAuth.Mode == "auto" || c.FirstAuth.Mode == "") && c.FirstAuth.Default == nil, "Need to specify default connectors in automatic mode"},
+		{c.Sso.Enable && c.Sso.SessionName == "", "No session name specified in config file"},
+		{c.Sso.Enable && c.Sso.Authkey == "", "No authenticate key specified in config file"},
+		{c.Sso.Enable && c.Sso.EncryptKey == "", "No encrypted key specified in config file"},
+		{c.Sso.Enable && c.Sso.MaxAge == 0, "No MaxAge specified in config file"},
 	}
 
 	var checkErrors []string

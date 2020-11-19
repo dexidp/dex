@@ -158,6 +158,206 @@ message VerifyPasswordResp {
   bool not_found = 2;
 }
 
+// UserIdp represents the ID of the user from an idp
+message UserIdp {
+  string idp_id = 1;
+  string intern_id = 2;
+}
+
+// CreateUserIdpReq is a request to make a UserIdp.
+message CreateUserIdpReq {
+  UserIdp user_idp = 1;
+}
+
+// CreateUserIdpResp returns the response from creating a UserIdp.
+message CreateUserIdpResp {
+  bool already_exists = 1;
+  UserIdp user_idp = 2; 
+}
+
+// DeleteUserIdpReq is a request to delete a UserIdp.
+message DeleteUserIdpReq {
+  // The ID of the UserIdp.
+  string idp_id = 1;
+}
+
+// DeleteUserIdpResp determines if the UserIdp is deleted successfully. 
+message DeleteUserIdpResp {
+  bool not_found = 1;
+}
+
+// UpdateUserIdpReq is a request to update an exisitng UserIdp.
+message UpdateUserIdpReq {
+    string idp_id = 1;
+    string intern_id = 2;
+}
+
+// UpdateUserIdpResp returns the reponse form updating a UserIdp.
+message UpdateUserIdpResp {
+    bool not_found = 1;
+}
+
+// ListUserIdpReq is a request to enumerate UserIdp.
+message ListUserIdpReq {}
+
+// ListUserIdpResp returns a list of UserIdp.
+message ListUserIdpResp {
+  repeated UserIdp user_idps = 1;
+}
+
+// User represents the User into Dex 
+message User {
+  string intern_id = 1;
+  string pseudo = 2;
+  string email = 3;
+  repeated string acl_tokens = 4;
+}
+
+// CreateUserReq is a request to make a User.
+message CreateUserReq {
+  User user = 1;
+}
+
+// CreateUserResp returns the response from creating a User.
+message CreateUserResp {
+  bool already_exists = 1;
+  User user = 2; 
+}
+
+// DeleteUserReq is a request to delete a User.
+message DeleteUserReq {
+  // The ID of the User.
+  string intern_id = 1;
+}
+
+// DeleteUserResp determines if the User is deleted successfully. 
+message DeleteUserResp {
+  bool not_found = 1;
+}
+
+// UpdateUserReq is a request to update an exisitng User.
+message UpdateUserReq {
+    string intern_id = 1;
+    string pseudo = 2;
+    string email = 3;
+    repeated string acl_tokens = 4;
+}
+
+// UpdateUserResp returns the reponse form updating a User.
+message UpdateUserResp {
+    bool not_found = 1;
+}
+
+// ListUserReq is a request to enumerate User.
+message ListUserReq {}
+
+// ListUserResp returns a list of User.
+message ListUserResp {
+  repeated User users = 1;
+}
+
+// AclToken represents the AclToken into Dex 
+message AclToken {
+  string id = 1;
+  string desc = 2;
+  string max_user = 3;
+  repeated string client_tokens = 4;
+}
+
+// CreateAclTokenReq is a request to make a AclToken.
+message CreateAclTokenReq {
+  AclToken acl_token = 1;
+}
+
+// CreateAclTokenResp returns the response from creating a AclToken.
+message CreateAclTokenResp {
+  bool already_exists = 1;
+  AclToken acl_token = 2; 
+}
+
+// DeleteAclTokenReq is a request to delete a AclToken.
+message DeleteAclTokenReq {
+  // The ID of the User.
+  string id = 1;
+}
+
+// DeleteAclTokenResp determines if the AclToken is deleted successfully. 
+message DeleteAclTokenResp {
+  bool not_found = 1;
+}
+
+// UpdateAclTokenReq is a request to update an exisitng AclToken.
+message UpdateAclTokenReq {
+    string id = 1;
+    string desc = 2;
+    string max_user = 3;
+    repeated string client_tokens = 4;
+}
+
+// UpdateAclTokenResp returns the reponse form updating a AclToken.
+message UpdateAclTokenResp {
+    bool not_found = 1;
+}
+
+// ListAclTokenReq is a request to enumerate AclToken.
+message ListAclTokenReq {}
+
+// ListAclTokenResp returns a list of AclToken.
+message ListAclTokenResp {
+  repeated AclToken acl_tokens = 1;
+}
+
+// ClientToken represents the ClientToken into Dex 
+message ClientToken {
+  string id = 1;
+  string client_id = 2;
+  int64 created_at = 3;
+  int64 expired_at = 4;
+}
+
+// CreateClientTokenReq is a request to make a ClientToken.
+message CreateClientTokenReq {
+  ClientToken client_token = 1;
+}
+
+// CreateClientTokenResp returns the response from creating a ClientToken.
+message CreateClientTokenResp {
+  bool already_exists = 1;
+  ClientToken client_token = 2; 
+}
+
+// DeleteClientTokenReq is a request to delete a ClientToken.
+message DeleteClientTokenReq {
+  // The ID of the ClientToken.
+  string id = 1;
+}
+
+// DeleteClientTokenResp determines if the ClientToken is deleted successfully. 
+message DeleteClientTokenResp {
+  bool not_found = 1;
+}
+
+// UpdateClientTokenReq is a request to update an exisitng ClientToken.
+message UpdateClientTokenReq {
+    string id = 1;
+    string client_id = 2;
+    int64 created_at = 3;
+    int64 expired_at = 4;
+}
+
+// UpdateClientTokenResp returns the reponse form updating a ClientToken.
+message UpdateClientTokenResp {
+    bool not_found = 1;
+}
+
+// ListClientTokenReq is a request to enumerate ClientToken.
+message ListClientTokenReq {}
+
+// ListClientTokenResp returns a list of ClientToken.
+message ListClientTokenResp {
+  repeated ClientToken client_tokens = 1;
+}
+
 // Dex represents the dex gRPC service.
 service Dex {
   // CreateClient creates a client.
@@ -184,4 +384,40 @@ service Dex {
   rpc RevokeRefresh(RevokeRefreshReq) returns (RevokeRefreshResp) {};
   // VerifyPassword returns whether a password matches a hash for a specific email or not.
   rpc VerifyPassword(VerifyPasswordReq) returns (VerifyPasswordResp) {};
+
+  // CreateUserIdp creates a UserIdp.
+  rpc CreateUserIdp(CreateUserIdpReq) returns (CreateUserIdpResp) {};
+  // UpdateUserIdp updates an existing UserIdp
+  rpc UpdateUserIdp(UpdateUserIdpReq) returns (UpdateUserIdpResp) {};
+  // ListUserIdp lists all existings UserIdp
+  rpc ListUserIdp(ListUserIdpReq) returns (ListUserIdpResp) {};
+  // DeleteUserIdp deletes the provided UserIdp.
+  rpc DeleteUserIdp(DeleteUserIdpReq) returns (DeleteUserIdpResp) {};
+
+  // CreateUser creates a User.
+  rpc CreateUser(CreateUserReq) returns (CreateUserResp) {};
+  // UpdateUser updates an existing User
+  rpc UpdateUser(UpdateUserReq) returns (UpdateUserResp) {};
+  // ListUser lists all existings User
+  rpc ListUser(ListUserReq) returns (ListUserResp) {};
+  // DeleteUser deletes the provided User.
+  rpc DeleteUser(DeleteUserReq) returns (DeleteUserResp) {};
+
+  // CreateAclToken creates a AclToken.
+  rpc CreateAclToken(CreateAclTokenReq) returns (CreateAclTokenResp) {};
+  // UpdateAclToken updates an existing AclToken
+  rpc UpdateAclToken(UpdateAclTokenReq) returns (UpdateAclTokenResp) {};
+  // ListAclToken lists all existings AclToken
+  rpc ListAclToken(ListAclTokenReq) returns (ListAclTokenResp) {};
+  // DeleteAclToken deletes the provided AclToken.
+  rpc DeleteAclToken(DeleteAclTokenReq) returns (DeleteAclTokenResp) {};
+
+  // CreateClientToken creates a ClientToken.
+  rpc CreateClientToken(CreateClientTokenReq) returns (CreateClientTokenResp) {};
+  // UpdateClientToken updates an existing ClientToken
+  rpc UpdateClientToken(UpdateClientTokenReq) returns (UpdateClientTokenResp) {};
+  // ListClientToken lists all existings ClientToken
+  rpc ListClientToken(ListClientTokenReq) returns (ListClientTokenResp) {};
+  // DeleteClientToken deletes the provided ClientToken.
+  rpc DeleteClientToken(DeleteClientTokenReq) returns (DeleteClientTokenResp) {};
 }

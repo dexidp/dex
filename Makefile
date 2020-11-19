@@ -1,5 +1,6 @@
 PROJ=dex
 ORG_PATH=github.com/dexidp
+#ORG_PATH=git.ovh.iot/redpesk-infra/redpesk
 REPO_PATH=$(ORG_PATH)/$(PROJ)
 export PATH := $(PWD)/bin:$(PATH)
 
@@ -20,11 +21,15 @@ LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
 # Dependency versions
 GOLANGCI_VERSION = 1.32.2
 
+export GOPRIVATE=git.ovh.iot 
+#export GOPROXY="https://proxy.golang.org,direct"
+
 build: bin/dex
 
 bin/dex:
 	@mkdir -p bin/
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
+	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/first-auth
 
 examples: bin/grpc-client bin/example-app
 

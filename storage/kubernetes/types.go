@@ -173,6 +173,66 @@ var customResourceDefinitions = []k8sapi.CustomResourceDefinition{
 			},
 		},
 	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "useridps.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "useridps",
+				Singular: "useridp",
+				Kind:     "useridp",
+			},
+		},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "users.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "users",
+				Singular: "user",
+				Kind:     "user",
+			},
+		},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "acltokens.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "acltokens",
+				Singular: "acltoken",
+				Kind:     "acltoken",
+			},
+		},
+	},
+	{
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name: "clienttokens.dex.coreos.com",
+		},
+		TypeMeta: crdMeta,
+		Spec: k8sapi.CustomResourceDefinitionSpec{
+			Group:   apiGroup,
+			Version: "v1",
+			Names: k8sapi.CustomResourceDefinitionNames{
+				Plural:   "clienttokens",
+				Singular: "clienttoken",
+				Kind:     "clienttoken",
+			},
+		},
+	},
 }
 
 // There will only ever be a single keys resource. Maintain this by setting a
@@ -781,5 +841,187 @@ func toStorageDeviceToken(t DeviceToken) storage.DeviceToken {
 		Expiry:              t.Expiry,
 		LastRequestTime:     t.LastRequestTime,
 		PollIntervalSeconds: t.PollIntervalSeconds,
+	}
+}
+
+// UserIdp is a mirrored struct from storage with JSON struct tags and
+// Kubernetes type metadata.
+type UserIdp struct {
+	// Name is a hash of the ID.
+	k8sapi.TypeMeta   `json:",inline"`
+	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+
+	// ID is immutable, since it's a primary key and should not be changed.
+	IdpID    string `json:"idp_id,omitempty"`
+	InternID string `json:"intern_id,omitempty"`
+}
+
+// UserIdpList is a list of UserIdp.
+type UserIdpList struct {
+	k8sapi.TypeMeta `json:",inline"`
+	k8sapi.ListMeta `json:"metadata,omitempty"`
+	UserIdps        []UserIdp `json:"items"`
+}
+
+func (cli *client) fromStorageUserIdp(u storage.UserIdp) UserIdp {
+	return UserIdp{
+		TypeMeta: k8sapi.TypeMeta{
+			Kind:       kindUserIdp,
+			APIVersion: cli.apiVersion,
+		},
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name:      cli.idToName(u.IdpID),
+			Namespace: cli.namespace,
+		},
+		IdpID:    u.IdpID,
+		InternID: u.InternID,
+	}
+}
+
+func toStorageUserIdp(u UserIdp) storage.UserIdp {
+	return storage.UserIdp{
+		IdpID:    u.IdpID,
+		InternID: u.InternID,
+	}
+}
+
+// User is a mirrored struct from storage with JSON struct tags and
+// Kubernetes type metadata.
+type User struct {
+	// Name is a hash of the ID.
+	k8sapi.TypeMeta   `json:",inline"`
+	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+
+	// ID is immutable, since it's a primary key and should not be changed.
+	InternID  string   `json:"intern_id,omitempty"`
+	Pseudo    string   `json:"pseudo,omitempty"`
+	Email     string   `json:"email,omitempty"`
+	AclTokens []string `json:"acl_tokens,omitempty"`
+}
+
+// UserList is a list of UserIdp.
+type UserList struct {
+	k8sapi.TypeMeta `json:",inline"`
+	k8sapi.ListMeta `json:"metadata,omitempty"`
+	Users           []User `json:"items"`
+}
+
+func (cli *client) fromStorageUser(u storage.User) User {
+	return User{
+		TypeMeta: k8sapi.TypeMeta{
+			Kind:       kindUser,
+			APIVersion: cli.apiVersion,
+		},
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name:      cli.idToName(u.InternID),
+			Namespace: cli.namespace,
+		},
+		InternID:  u.InternID,
+		Pseudo:    u.Pseudo,
+		Email:     u.Email,
+		AclTokens: u.AclTokens,
+	}
+}
+
+func toStorageUser(u User) storage.User {
+	return storage.User{
+		InternID:  u.InternID,
+		Pseudo:    u.Pseudo,
+		Email:     u.Email,
+		AclTokens: u.AclTokens,
+	}
+}
+
+// AclToken is a mirrored struct from storage with JSON struct tags and
+// Kubernetes type metadata.
+type AclToken struct {
+	// Name is a hash of the ID.
+	k8sapi.TypeMeta   `json:",inline"`
+	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+
+	// ID is immutable, since it's a primary key and should not be changed.
+	ID           string   `json:"id,omitempty"`
+	Desc         string   `json:"desc,omitempty"`
+	MaxUser      string   `json:"maxuser,omitempty"`
+	ClientTokens []string `json:"client_tokens,omitempty"`
+}
+
+// AclTokenList is a list of UserIdp.
+type AclTokenList struct {
+	k8sapi.TypeMeta `json:",inline"`
+	k8sapi.ListMeta `json:"metadata,omitempty"`
+	AclTokens       []AclToken `json:"items"`
+}
+
+func (cli *client) fromStorageAclToken(t storage.AclToken) AclToken {
+	return AclToken{
+		TypeMeta: k8sapi.TypeMeta{
+			Kind:       kindAclToken,
+			APIVersion: cli.apiVersion,
+		},
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name:      cli.idToName(t.ID),
+			Namespace: cli.namespace,
+		},
+		ID:           t.ID,
+		Desc:         t.Desc,
+		MaxUser:      t.MaxUser,
+		ClientTokens: t.ClientTokens,
+	}
+}
+
+func toStorageAclToken(t AclToken) storage.AclToken {
+	return storage.AclToken{
+		ID:           t.ID,
+		Desc:         t.Desc,
+		MaxUser:      t.MaxUser,
+		ClientTokens: t.ClientTokens,
+	}
+}
+
+// ClientToken is a mirrored struct from storage with JSON struct tags and
+// Kubernetes type metadata.
+type ClientToken struct {
+	// Name is a hash of the ID.
+	k8sapi.TypeMeta   `json:",inline"`
+	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+
+	// ID is immutable, since it's a primary key and should not be changed.
+	ID        string    `json:"id,omitempty"`
+	ClientID  string    `json:"client_id,omitempty"`
+	CreatedAt time.Time `json:"created_at,omitempty"`
+	ExpiredAt time.Time `json:"expired_at,omitempty"`
+}
+
+// ClientTokenList is a list of UserIdp.
+type ClientTokenList struct {
+	k8sapi.TypeMeta `json:",inline"`
+	k8sapi.ListMeta `json:"metadata,omitempty"`
+	ClientTokens    []ClientToken `json:"items"`
+}
+
+func (cli *client) fromStorageClientToken(t storage.ClientToken) ClientToken {
+	return ClientToken{
+		TypeMeta: k8sapi.TypeMeta{
+			Kind:       kindClientToken,
+			APIVersion: cli.apiVersion,
+		},
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name:      cli.idToName(t.ID),
+			Namespace: cli.namespace,
+		},
+		ID:        t.ID,
+		ClientID:  t.ClientID,
+		CreatedAt: t.CreatedAt,
+		ExpiredAt: t.ExpiredAt,
+	}
+}
+
+func toStorageClientToken(t ClientToken) storage.ClientToken {
+	return storage.ClientToken{
+		ID:        t.ID,
+		ClientID:  t.ClientID,
+		CreatedAt: t.CreatedAt,
+		ExpiredAt: t.ExpiredAt,
 	}
 }

@@ -135,7 +135,7 @@ func main() {
 		log.Fatal("Please provide CA & client certificates and client key. Usage: ./client --ca-crt=<path ca.crt> --client-crt=<path client.crt> --client-key=<path client key>")
 	}
 
-	client, err := newDexClient("127.0.0.1:5557", *caCrt, *clientCrt, *clientKey)
+	client, err := newDexClient("10.153.191.9:5557", *caCrt, *clientCrt, *clientKey)
 	if err != nil {
 		log.Fatalf("failed creating dex client: %v ", err)
 	}

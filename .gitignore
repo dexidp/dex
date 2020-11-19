@@ -3,3 +3,10 @@ dist
 _output
 .idea
 /vendor/
+*.crt
+*.key
+serial*
+index.*
+newcerts
+examples/config-rp.yaml
+examples/config-dev.yaml

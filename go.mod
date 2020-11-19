@@ -15,10 +15,12 @@ require (
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
 	github.com/golang/protobuf v1.3.2
-	github.com/google/uuid v1.1.1 // indirect
-	github.com/gorilla/handlers v1.5.1
-	github.com/gorilla/mux v1.8.0
-	github.com/gorilla/websocket v1.4.2 // indirect
+	github.com/google/uuid v1.1.1
+	github.com/gorilla/handlers v1.4.2
+	github.com/gorilla/mux v1.7.3
+	github.com/gorilla/securecookie v1.1.1
+	github.com/gorilla/sessions v1.2.1
+	github.com/gorilla/websocket v1.4.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/kylelemons/godebug v1.1.0
 	github.com/lib/pq v1.3.0
@@ -42,8 +44,10 @@ require (
 	google.golang.org/api v0.15.0
 	google.golang.org/appengine v1.6.1 // indirect
 	google.golang.org/grpc v1.26.0
+	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d // indirect
 	gopkg.in/ldap.v2 v2.5.1
+	gopkg.in/mail.v2 v2.3.1
 	gopkg.in/square/go-jose.v2 v2.4.1
 	sigs.k8s.io/testing_frameworks v0.1.2
 )

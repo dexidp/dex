@@ -1200,6 +1200,1610 @@ func (m *VerifyPasswordResp) GetNotFound() bool {
 	return false
 }
 
+// UserIdp represents the ID of the user from an idp
+type UserIdp struct {
+	IdpId                string   `protobuf:"bytes,1,opt,name=idp_id,json=idpId,proto3" json:"idp_id,omitempty"`
+	InternId             string   `protobuf:"bytes,2,opt,name=intern_id,json=internId,proto3" json:"intern_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UserIdp) Reset()         { *m = UserIdp{} }
+func (m *UserIdp) String() string { return proto.CompactTextString(m) }
+func (*UserIdp) ProtoMessage()    {}
+func (*UserIdp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{25}
+}
+
+func (m *UserIdp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UserIdp.Unmarshal(m, b)
+}
+func (m *UserIdp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UserIdp.Marshal(b, m, deterministic)
+}
+func (m *UserIdp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UserIdp.Merge(m, src)
+}
+func (m *UserIdp) XXX_Size() int {
+	return xxx_messageInfo_UserIdp.Size(m)
+}
+func (m *UserIdp) XXX_DiscardUnknown() {
+	xxx_messageInfo_UserIdp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UserIdp proto.InternalMessageInfo
+
+func (m *UserIdp) GetIdpId() string {
+	if m != nil {
+		return m.IdpId
+	}
+	return ""
+}
+
+func (m *UserIdp) GetInternId() string {
+	if m != nil {
+		return m.InternId
+	}
+	return ""
+}
+
+// CreateUserIdpReq is a request to make a UserIdp.
+type CreateUserIdpReq struct {
+	UserIdp              *UserIdp `protobuf:"bytes,1,opt,name=user_idp,json=userIdp,proto3" json:"user_idp,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *CreateUserIdpReq) Reset()         { *m = CreateUserIdpReq{} }
+func (m *CreateUserIdpReq) String() string { return proto.CompactTextString(m) }
+func (*CreateUserIdpReq) ProtoMessage()    {}
+func (*CreateUserIdpReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{26}
+}
+
+func (m *CreateUserIdpReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateUserIdpReq.Unmarshal(m, b)
+}
+func (m *CreateUserIdpReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateUserIdpReq.Marshal(b, m, deterministic)
+}
+func (m *CreateUserIdpReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateUserIdpReq.Merge(m, src)
+}
+func (m *CreateUserIdpReq) XXX_Size() int {
+	return xxx_messageInfo_CreateUserIdpReq.Size(m)
+}
+func (m *CreateUserIdpReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateUserIdpReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateUserIdpReq proto.InternalMessageInfo
+
+func (m *CreateUserIdpReq) GetUserIdp() *UserIdp {
+	if m != nil {
+		return m.UserIdp
+	}
+	return nil
+}
+
+// CreateUserIdpResp returns the response from creating a UserIdp.
+type CreateUserIdpResp struct {
+	AlreadyExists        bool     `protobuf:"varint,1,opt,name=already_exists,json=alreadyExists,proto3" json:"already_exists,omitempty"`
+	UserIdp              *UserIdp `protobuf:"bytes,2,opt,name=user_idp,json=userIdp,proto3" json:"user_idp,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *CreateUserIdpResp) Reset()         { *m = CreateUserIdpResp{} }
+func (m *CreateUserIdpResp) String() string { return proto.CompactTextString(m) }
+func (*CreateUserIdpResp) ProtoMessage()    {}
+func (*CreateUserIdpResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{27}
+}
+
+func (m *CreateUserIdpResp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateUserIdpResp.Unmarshal(m, b)
+}
+func (m *CreateUserIdpResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateUserIdpResp.Marshal(b, m, deterministic)
+}
+func (m *CreateUserIdpResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateUserIdpResp.Merge(m, src)
+}
+func (m *CreateUserIdpResp) XXX_Size() int {
+	return xxx_messageInfo_CreateUserIdpResp.Size(m)
+}
+func (m *CreateUserIdpResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateUserIdpResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateUserIdpResp proto.InternalMessageInfo
+
+func (m *CreateUserIdpResp) GetAlreadyExists() bool {
+	if m != nil {
+		return m.AlreadyExists
+	}
+	return false
+}
+
+func (m *CreateUserIdpResp) GetUserIdp() *UserIdp {
+	if m != nil {
+		return m.UserIdp
+	}
+	return nil
+}
+
+// DeleteUserIdpReq is a request to delete a UserIdp.
+type DeleteUserIdpReq struct {
+	// The ID of the UserIdp.
+	IdpId                string   `protobuf:"bytes,1,opt,name=idp_id,json=idpId,proto3" json:"idp_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteUserIdpReq) Reset()         { *m = DeleteUserIdpReq{} }
+func (m *DeleteUserIdpReq) String() string { return proto.CompactTextString(m) }
+func (*DeleteUserIdpReq) ProtoMessage()    {}
+func (*DeleteUserIdpReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{28}
+}
+
+func (m *DeleteUserIdpReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteUserIdpReq.Unmarshal(m, b)
+}
+func (m *DeleteUserIdpReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteUserIdpReq.Marshal(b, m, deterministic)
+}
+func (m *DeleteUserIdpReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteUserIdpReq.Merge(m, src)
+}
+func (m *DeleteUserIdpReq) XXX_Size() int {
+	return xxx_messageInfo_DeleteUserIdpReq.Size(m)
+}
+func (m *DeleteUserIdpReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteUserIdpReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteUserIdpReq proto.InternalMessageInfo
+
+func (m *DeleteUserIdpReq) GetIdpId() string {
+	if m != nil {
+		return m.IdpId
+	}
+	return ""
+}
+
+// DeleteUserIdpResp determines if the UserIdp is deleted successfully.
+type DeleteUserIdpResp struct {
+	NotFound             bool     `protobuf:"varint,1,opt,name=not_found,json=notFound,proto3" json:"not_found,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteUserIdpResp) Reset()         { *m = DeleteUserIdpResp{} }
+func (m *DeleteUserIdpResp) String() string { return proto.CompactTextString(m) }
+func (*DeleteUserIdpResp) ProtoMessage()    {}
+func (*DeleteUserIdpResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{29}
+}
+
+func (m *DeleteUserIdpResp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteUserIdpResp.Unmarshal(m, b)
+}
+func (m *DeleteUserIdpResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteUserIdpResp.Marshal(b, m, deterministic)
+}
+func (m *DeleteUserIdpResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteUserIdpResp.Merge(m, src)
+}
+func (m *DeleteUserIdpResp) XXX_Size() int {
+	return xxx_messageInfo_DeleteUserIdpResp.Size(m)
+}
+func (m *DeleteUserIdpResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteUserIdpResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteUserIdpResp proto.InternalMessageInfo
+
+func (m *DeleteUserIdpResp) GetNotFound() bool {
+	if m != nil {
+		return m.NotFound
+	}
+	return false
+}
+
+// UpdateUserIdpReq is a request to update an exisitng UserIdp.
+type UpdateUserIdpReq struct {
+	IdpId                string   `protobuf:"bytes,1,opt,name=idp_id,json=idpId,proto3" json:"idp_id,omitempty"`
+	InternId             string   `protobuf:"bytes,2,opt,name=intern_id,json=internId,proto3" json:"intern_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UpdateUserIdpReq) Reset()         { *m = UpdateUserIdpReq{} }
+func (m *UpdateUserIdpReq) String() string { return proto.CompactTextString(m) }
+func (*UpdateUserIdpReq) ProtoMessage()    {}
+func (*UpdateUserIdpReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{30}
+}
+
+func (m *UpdateUserIdpReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UpdateUserIdpReq.Unmarshal(m, b)
+}
+func (m *UpdateUserIdpReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UpdateUserIdpReq.Marshal(b, m, deterministic)
+}
+func (m *UpdateUserIdpReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateUserIdpReq.Merge(m, src)
+}
+func (m *UpdateUserIdpReq) XXX_Size() int {
+	return xxx_messageInfo_UpdateUserIdpReq.Size(m)
+}
+func (m *UpdateUserIdpReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateUserIdpReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpdateUserIdpReq proto.InternalMessageInfo
+
+func (m *UpdateUserIdpReq) GetIdpId() string {
+	if m != nil {
+		return m.IdpId
+	}
+	return ""
+}
+
+func (m *UpdateUserIdpReq) GetInternId() string {
+	if m != nil {
+		return m.InternId
+	}
+	return ""
+}
+
+// UpdateUserIdpResp returns the reponse form updating a UserIdp.
+type UpdateUserIdpResp struct {
+	NotFound             bool     `protobuf:"varint,1,opt,name=not_found,json=notFound,proto3" json:"not_found,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UpdateUserIdpResp) Reset()         { *m = UpdateUserIdpResp{} }
+func (m *UpdateUserIdpResp) String() string { return proto.CompactTextString(m) }
+func (*UpdateUserIdpResp) ProtoMessage()    {}
+func (*UpdateUserIdpResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{31}
+}
+
+func (m *UpdateUserIdpResp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UpdateUserIdpResp.Unmarshal(m, b)
+}
+func (m *UpdateUserIdpResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UpdateUserIdpResp.Marshal(b, m, deterministic)
+}
+func (m *UpdateUserIdpResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateUserIdpResp.Merge(m, src)
+}
+func (m *UpdateUserIdpResp) XXX_Size() int {
+	return xxx_messageInfo_UpdateUserIdpResp.Size(m)
+}
+func (m *UpdateUserIdpResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateUserIdpResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpdateUserIdpResp proto.InternalMessageInfo
+
+func (m *UpdateUserIdpResp) GetNotFound() bool {
+	if m != nil {
+		return m.NotFound
+	}
+	return false
+}
+
+// ListUserIdpReq is a request to enumerate UserIdp.
+type ListUserIdpReq struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListUserIdpReq) Reset()         { *m = ListUserIdpReq{} }
+func (m *ListUserIdpReq) String() string { return proto.CompactTextString(m) }
+func (*ListUserIdpReq) ProtoMessage()    {}
+func (*ListUserIdpReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{32}
+}
+
+func (m *ListUserIdpReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListUserIdpReq.Unmarshal(m, b)
+}
+func (m *ListUserIdpReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListUserIdpReq.Marshal(b, m, deterministic)
+}
+func (m *ListUserIdpReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListUserIdpReq.Merge(m, src)
+}
+func (m *ListUserIdpReq) XXX_Size() int {
+	return xxx_messageInfo_ListUserIdpReq.Size(m)
+}
+func (m *ListUserIdpReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListUserIdpReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListUserIdpReq proto.InternalMessageInfo
+
+// ListUserIdpResp returns a list of UserIdp.
+type ListUserIdpResp struct {
+	UserIdps             []*UserIdp `protobuf:"bytes,1,rep,name=user_idps,json=userIdps,proto3" json:"user_idps,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
+	XXX_unrecognized     []byte     `json:"-"`
+	XXX_sizecache        int32      `json:"-"`
+}
+
+func (m *ListUserIdpResp) Reset()         { *m = ListUserIdpResp{} }
+func (m *ListUserIdpResp) String() string { return proto.CompactTextString(m) }
+func (*ListUserIdpResp) ProtoMessage()    {}
+func (*ListUserIdpResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{33}
+}
+
+func (m *ListUserIdpResp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListUserIdpResp.Unmarshal(m, b)
+}
+func (m *ListUserIdpResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListUserIdpResp.Marshal(b, m, deterministic)
+}
+func (m *ListUserIdpResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListUserIdpResp.Merge(m, src)
+}
+func (m *ListUserIdpResp) XXX_Size() int {
+	return xxx_messageInfo_ListUserIdpResp.Size(m)
+}
+func (m *ListUserIdpResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListUserIdpResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListUserIdpResp proto.InternalMessageInfo
+
+func (m *ListUserIdpResp) GetUserIdps() []*UserIdp {
+	if m != nil {
+		return m.UserIdps
+	}
+	return nil
+}
+
+// User represents the User into Dex
+type User struct {
+	InternId             string   `protobuf:"bytes,1,opt,name=intern_id,json=internId,proto3" json:"intern_id,omitempty"`
+	Pseudo               string   `protobuf:"bytes,2,opt,name=pseudo,proto3" json:"pseudo,omitempty"`
+	Email                string   `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
+	AclTokens            []string `protobuf:"bytes,4,rep,name=acl_tokens,json=aclTokens,proto3" json:"acl_tokens,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *User) Reset()         { *m = User{} }
+func (m *User) String() string { return proto.CompactTextString(m) }
+func (*User) ProtoMessage()    {}
+func (*User) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{34}
+}
+
+func (m *User) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_User.Unmarshal(m, b)
+}
+func (m *User) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_User.Marshal(b, m, deterministic)
+}
+func (m *User) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_User.Merge(m, src)
+}
+func (m *User) XXX_Size() int {
+	return xxx_messageInfo_User.Size(m)
+}
+func (m *User) XXX_DiscardUnknown() {
+	xxx_messageInfo_User.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_User proto.InternalMessageInfo
+
+func (m *User) GetInternId() string {
+	if m != nil {
+		return m.InternId
+	}
+	return ""
+}
+
+func (m *User) GetPseudo() string {
+	if m != nil {
+		return m.Pseudo
+	}
+	return ""
+}
+
+func (m *User) GetEmail() string {
+	if m != nil {
+		return m.Email
+	}
+	return ""
+}
+
+func (m *User) GetAclTokens() []string {
+	if m != nil {
+		return m.AclTokens
+	}
+	return nil
+}
+
+// CreateUserReq is a request to make a User.
+type CreateUserReq struct {
+	User                 *User    `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *CreateUserReq) Reset()         { *m = CreateUserReq{} }
+func (m *CreateUserReq) String() string { return proto.CompactTextString(m) }
+func (*CreateUserReq) ProtoMessage()    {}
+func (*CreateUserReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{35}
+}
+
+func (m *CreateUserReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateUserReq.Unmarshal(m, b)
+}
+func (m *CreateUserReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateUserReq.Marshal(b, m, deterministic)
+}
+func (m *CreateUserReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateUserReq.Merge(m, src)
+}
+func (m *CreateUserReq) XXX_Size() int {
+	return xxx_messageInfo_CreateUserReq.Size(m)
+}
+func (m *CreateUserReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateUserReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateUserReq proto.InternalMessageInfo
+
+func (m *CreateUserReq) GetUser() *User {
+	if m != nil {
+		return m.User
+	}
+	return nil
+}
+
+// CreateUserResp returns the response from creating a User.
+type CreateUserResp struct {
+	AlreadyExists        bool     `protobuf:"varint,1,opt,name=already_exists,json=alreadyExists,proto3" json:"already_exists,omitempty"`
+	User                 *User    `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *CreateUserResp) Reset()         { *m = CreateUserResp{} }
+func (m *CreateUserResp) String() string { return proto.CompactTextString(m) }
+func (*CreateUserResp) ProtoMessage()    {}
+func (*CreateUserResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{36}
+}
+
+func (m *CreateUserResp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateUserResp.Unmarshal(m, b)
+}
+func (m *CreateUserResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateUserResp.Marshal(b, m, deterministic)
+}
+func (m *CreateUserResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateUserResp.Merge(m, src)
+}
+func (m *CreateUserResp) XXX_Size() int {
+	return xxx_messageInfo_CreateUserResp.Size(m)
+}
+func (m *CreateUserResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateUserResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateUserResp proto.InternalMessageInfo
+
+func (m *CreateUserResp) GetAlreadyExists() bool {
+	if m != nil {
+		return m.AlreadyExists
+	}
+	return false
+}
+
+func (m *CreateUserResp) GetUser() *User {
+	if m != nil {
+		return m.User
+	}
+	return nil
+}
+
+// DeleteUserReq is a request to delete a User.
+type DeleteUserReq struct {
+	// The ID of the User.
+	InternId             string   `protobuf:"bytes,1,opt,name=intern_id,json=internId,proto3" json:"intern_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteUserReq) Reset()         { *m = DeleteUserReq{} }
+func (m *DeleteUserReq) String() string { return proto.CompactTextString(m) }
+func (*DeleteUserReq) ProtoMessage()    {}
+func (*DeleteUserReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{37}
+}
+
+func (m *DeleteUserReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteUserReq.Unmarshal(m, b)
+}
+func (m *DeleteUserReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteUserReq.Marshal(b, m, deterministic)
+}
+func (m *DeleteUserReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteUserReq.Merge(m, src)
+}
+func (m *DeleteUserReq) XXX_Size() int {
+	return xxx_messageInfo_DeleteUserReq.Size(m)
+}
+func (m *DeleteUserReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteUserReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteUserReq proto.InternalMessageInfo
+
+func (m *DeleteUserReq) GetInternId() string {
+	if m != nil {
+		return m.InternId
+	}
+	return ""
+}
+
+// DeleteUserResp determines if the User is deleted successfully.
+type DeleteUserResp struct {
+	NotFound             bool     `protobuf:"varint,1,opt,name=not_found,json=notFound,proto3" json:"not_found,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteUserResp) Reset()         { *m = DeleteUserResp{} }
+func (m *DeleteUserResp) String() string { return proto.CompactTextString(m) }
+func (*DeleteUserResp) ProtoMessage()    {}
+func (*DeleteUserResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{38}
+}
+
+func (m *DeleteUserResp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteUserResp.Unmarshal(m, b)
+}
+func (m *DeleteUserResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteUserResp.Marshal(b, m, deterministic)
+}
+func (m *DeleteUserResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteUserResp.Merge(m, src)
+}
+func (m *DeleteUserResp) XXX_Size() int {
+	return xxx_messageInfo_DeleteUserResp.Size(m)
+}
+func (m *DeleteUserResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteUserResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteUserResp proto.InternalMessageInfo
+
+func (m *DeleteUserResp) GetNotFound() bool {
+	if m != nil {
+		return m.NotFound
+	}
+	return false
+}
+
+// UpdateUserReq is a request to update an exisitng User.
+type UpdateUserReq struct {
+	InternId             string   `protobuf:"bytes,1,opt,name=intern_id,json=internId,proto3" json:"intern_id,omitempty"`
+	Pseudo               string   `protobuf:"bytes,2,opt,name=pseudo,proto3" json:"pseudo,omitempty"`
+	Email                string   `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
+	AclTokens            []string `protobuf:"bytes,4,rep,name=acl_tokens,json=aclTokens,proto3" json:"acl_tokens,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UpdateUserReq) Reset()         { *m = UpdateUserReq{} }
+func (m *UpdateUserReq) String() string { return proto.CompactTextString(m) }
+func (*UpdateUserReq) ProtoMessage()    {}
+func (*UpdateUserReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{39}
+}
+
+func (m *UpdateUserReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UpdateUserReq.Unmarshal(m, b)
+}
+func (m *UpdateUserReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UpdateUserReq.Marshal(b, m, deterministic)
+}
+func (m *UpdateUserReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateUserReq.Merge(m, src)
+}
+func (m *UpdateUserReq) XXX_Size() int {
+	return xxx_messageInfo_UpdateUserReq.Size(m)
+}
+func (m *UpdateUserReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateUserReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpdateUserReq proto.InternalMessageInfo
+
+func (m *UpdateUserReq) GetInternId() string {
+	if m != nil {
+		return m.InternId
+	}
+	return ""
+}
+
+func (m *UpdateUserReq) GetPseudo() string {
+	if m != nil {
+		return m.Pseudo
+	}
+	return ""
+}
+
+func (m *UpdateUserReq) GetEmail() string {
+	if m != nil {
+		return m.Email
+	}
+	return ""
+}
+
+func (m *UpdateUserReq) GetAclTokens() []string {
+	if m != nil {
+		return m.AclTokens
+	}
+	return nil
+}
+
+// UpdateUserResp returns the reponse form updating a User.
+type UpdateUserResp struct {
+	NotFound             bool     `protobuf:"varint,1,opt,name=not_found,json=notFound,proto3" json:"not_found,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UpdateUserResp) Reset()         { *m = UpdateUserResp{} }
+func (m *UpdateUserResp) String() string { return proto.CompactTextString(m) }
+func (*UpdateUserResp) ProtoMessage()    {}
+func (*UpdateUserResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{40}
+}
+
+func (m *UpdateUserResp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UpdateUserResp.Unmarshal(m, b)
+}
+func (m *UpdateUserResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UpdateUserResp.Marshal(b, m, deterministic)
+}
+func (m *UpdateUserResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateUserResp.Merge(m, src)
+}
+func (m *UpdateUserResp) XXX_Size() int {
+	return xxx_messageInfo_UpdateUserResp.Size(m)
+}
+func (m *UpdateUserResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateUserResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpdateUserResp proto.InternalMessageInfo
+
+func (m *UpdateUserResp) GetNotFound() bool {
+	if m != nil {
+		return m.NotFound
+	}
+	return false
+}
+
+// ListUserReq is a request to enumerate User.
+type ListUserReq struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListUserReq) Reset()         { *m = ListUserReq{} }
+func (m *ListUserReq) String() string { return proto.CompactTextString(m) }
+func (*ListUserReq) ProtoMessage()    {}
+func (*ListUserReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{41}
+}
+
+func (m *ListUserReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListUserReq.Unmarshal(m, b)
+}
+func (m *ListUserReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListUserReq.Marshal(b, m, deterministic)
+}
+func (m *ListUserReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListUserReq.Merge(m, src)
+}
+func (m *ListUserReq) XXX_Size() int {
+	return xxx_messageInfo_ListUserReq.Size(m)
+}
+func (m *ListUserReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListUserReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListUserReq proto.InternalMessageInfo
+
+// ListUserResp returns a list of User.
+type ListUserResp struct {
+	Users                []*User  `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListUserResp) Reset()         { *m = ListUserResp{} }
+func (m *ListUserResp) String() string { return proto.CompactTextString(m) }
+func (*ListUserResp) ProtoMessage()    {}
+func (*ListUserResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{42}
+}
+
+func (m *ListUserResp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListUserResp.Unmarshal(m, b)
+}
+func (m *ListUserResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListUserResp.Marshal(b, m, deterministic)
+}
+func (m *ListUserResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListUserResp.Merge(m, src)
+}
+func (m *ListUserResp) XXX_Size() int {
+	return xxx_messageInfo_ListUserResp.Size(m)
+}
+func (m *ListUserResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListUserResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListUserResp proto.InternalMessageInfo
+
+func (m *ListUserResp) GetUsers() []*User {
+	if m != nil {
+		return m.Users
+	}
+	return nil
+}
+
+// AclToken represents the AclToken into Dex
+type AclToken struct {
+	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Desc                 string   `protobuf:"bytes,2,opt,name=desc,proto3" json:"desc,omitempty"`
+	MaxUser              string   `protobuf:"bytes,3,opt,name=max_user,json=maxUser,proto3" json:"max_user,omitempty"`
+	ClientTokens         []string `protobuf:"bytes,4,rep,name=client_tokens,json=clientTokens,proto3" json:"client_tokens,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *AclToken) Reset()         { *m = AclToken{} }
+func (m *AclToken) String() string { return proto.CompactTextString(m) }
+func (*AclToken) ProtoMessage()    {}
+func (*AclToken) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{43}
+}
+
+func (m *AclToken) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AclToken.Unmarshal(m, b)
+}
+func (m *AclToken) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AclToken.Marshal(b, m, deterministic)
+}
+func (m *AclToken) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AclToken.Merge(m, src)
+}
+func (m *AclToken) XXX_Size() int {
+	return xxx_messageInfo_AclToken.Size(m)
+}
+func (m *AclToken) XXX_DiscardUnknown() {
+	xxx_messageInfo_AclToken.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AclToken proto.InternalMessageInfo
+
+func (m *AclToken) GetId() string {
+	if m != nil {
+		return m.Id
+	}
+	return ""
+}
+
+func (m *AclToken) GetDesc() string {
+	if m != nil {
+		return m.Desc
+	}
+	return ""
+}
+
+func (m *AclToken) GetMaxUser() string {
+	if m != nil {
+		return m.MaxUser
+	}
+	return ""
+}
+
+func (m *AclToken) GetClientTokens() []string {
+	if m != nil {
+		return m.ClientTokens
+	}
+	return nil
+}
+
+// CreateAclTokenReq is a request to make a AclToken.
+type CreateAclTokenReq struct {
+	AclToken             *AclToken `protobuf:"bytes,1,opt,name=acl_token,json=aclToken,proto3" json:"acl_token,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
+	XXX_unrecognized     []byte    `json:"-"`
+	XXX_sizecache        int32     `json:"-"`
+}
+
+func (m *CreateAclTokenReq) Reset()         { *m = CreateAclTokenReq{} }
+func (m *CreateAclTokenReq) String() string { return proto.CompactTextString(m) }
+func (*CreateAclTokenReq) ProtoMessage()    {}
+func (*CreateAclTokenReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{44}
+}
+
+func (m *CreateAclTokenReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateAclTokenReq.Unmarshal(m, b)
+}
+func (m *CreateAclTokenReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateAclTokenReq.Marshal(b, m, deterministic)
+}
+func (m *CreateAclTokenReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateAclTokenReq.Merge(m, src)
+}
+func (m *CreateAclTokenReq) XXX_Size() int {
+	return xxx_messageInfo_CreateAclTokenReq.Size(m)
+}
+func (m *CreateAclTokenReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateAclTokenReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateAclTokenReq proto.InternalMessageInfo
+
+func (m *CreateAclTokenReq) GetAclToken() *AclToken {
+	if m != nil {
+		return m.AclToken
+	}
+	return nil
+}
+
+// CreateAclTokenResp returns the response from creating a AclToken.
+type CreateAclTokenResp struct {
+	AlreadyExists        bool      `protobuf:"varint,1,opt,name=already_exists,json=alreadyExists,proto3" json:"already_exists,omitempty"`
+	AclToken             *AclToken `protobuf:"bytes,2,opt,name=acl_token,json=aclToken,proto3" json:"acl_token,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
+	XXX_unrecognized     []byte    `json:"-"`
+	XXX_sizecache        int32     `json:"-"`
+}
+
+func (m *CreateAclTokenResp) Reset()         { *m = CreateAclTokenResp{} }
+func (m *CreateAclTokenResp) String() string { return proto.CompactTextString(m) }
+func (*CreateAclTokenResp) ProtoMessage()    {}
+func (*CreateAclTokenResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{45}
+}
+
+func (m *CreateAclTokenResp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateAclTokenResp.Unmarshal(m, b)
+}
+func (m *CreateAclTokenResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateAclTokenResp.Marshal(b, m, deterministic)
+}
+func (m *CreateAclTokenResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateAclTokenResp.Merge(m, src)
+}
+func (m *CreateAclTokenResp) XXX_Size() int {
+	return xxx_messageInfo_CreateAclTokenResp.Size(m)
+}
+func (m *CreateAclTokenResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateAclTokenResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateAclTokenResp proto.InternalMessageInfo
+
+func (m *CreateAclTokenResp) GetAlreadyExists() bool {
+	if m != nil {
+		return m.AlreadyExists
+	}
+	return false
+}
+
+func (m *CreateAclTokenResp) GetAclToken() *AclToken {
+	if m != nil {
+		return m.AclToken
+	}
+	return nil
+}
+
+// DeleteAclTokenReq is a request to delete a AclToken.
+type DeleteAclTokenReq struct {
+	// The ID of the User.
+	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteAclTokenReq) Reset()         { *m = DeleteAclTokenReq{} }
+func (m *DeleteAclTokenReq) String() string { return proto.CompactTextString(m) }
+func (*DeleteAclTokenReq) ProtoMessage()    {}
+func (*DeleteAclTokenReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{46}
+}
+
+func (m *DeleteAclTokenReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteAclTokenReq.Unmarshal(m, b)
+}
+func (m *DeleteAclTokenReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteAclTokenReq.Marshal(b, m, deterministic)
+}
+func (m *DeleteAclTokenReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteAclTokenReq.Merge(m, src)
+}
+func (m *DeleteAclTokenReq) XXX_Size() int {
+	return xxx_messageInfo_DeleteAclTokenReq.Size(m)
+}
+func (m *DeleteAclTokenReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteAclTokenReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteAclTokenReq proto.InternalMessageInfo
+
+func (m *DeleteAclTokenReq) GetId() string {
+	if m != nil {
+		return m.Id
+	}
+	return ""
+}
+
+// DeleteAclTokenResp determines if the AclToken is deleted successfully.
+type DeleteAclTokenResp struct {
+	NotFound             bool     `protobuf:"varint,1,opt,name=not_found,json=notFound,proto3" json:"not_found,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteAclTokenResp) Reset()         { *m = DeleteAclTokenResp{} }
+func (m *DeleteAclTokenResp) String() string { return proto.CompactTextString(m) }
+func (*DeleteAclTokenResp) ProtoMessage()    {}
+func (*DeleteAclTokenResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{47}
+}
+
+func (m *DeleteAclTokenResp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteAclTokenResp.Unmarshal(m, b)
+}
+func (m *DeleteAclTokenResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteAclTokenResp.Marshal(b, m, deterministic)
+}
+func (m *DeleteAclTokenResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteAclTokenResp.Merge(m, src)
+}
+func (m *DeleteAclTokenResp) XXX_Size() int {
+	return xxx_messageInfo_DeleteAclTokenResp.Size(m)
+}
+func (m *DeleteAclTokenResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteAclTokenResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteAclTokenResp proto.InternalMessageInfo
+
+func (m *DeleteAclTokenResp) GetNotFound() bool {
+	if m != nil {
+		return m.NotFound
+	}
+	return false
+}
+
+// UpdateAclTokenReq is a request to update an exisitng AclToken.
+type UpdateAclTokenReq struct {
+	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Desc                 string   `protobuf:"bytes,2,opt,name=desc,proto3" json:"desc,omitempty"`
+	MaxUser              string   `protobuf:"bytes,3,opt,name=max_user,json=maxUser,proto3" json:"max_user,omitempty"`
+	ClientTokens         []string `protobuf:"bytes,4,rep,name=client_tokens,json=clientTokens,proto3" json:"client_tokens,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UpdateAclTokenReq) Reset()         { *m = UpdateAclTokenReq{} }
+func (m *UpdateAclTokenReq) String() string { return proto.CompactTextString(m) }
+func (*UpdateAclTokenReq) ProtoMessage()    {}
+func (*UpdateAclTokenReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{48}
+}
+
+func (m *UpdateAclTokenReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UpdateAclTokenReq.Unmarshal(m, b)
+}
+func (m *UpdateAclTokenReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UpdateAclTokenReq.Marshal(b, m, deterministic)
+}
+func (m *UpdateAclTokenReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateAclTokenReq.Merge(m, src)
+}
+func (m *UpdateAclTokenReq) XXX_Size() int {
+	return xxx_messageInfo_UpdateAclTokenReq.Size(m)
+}
+func (m *UpdateAclTokenReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateAclTokenReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpdateAclTokenReq proto.InternalMessageInfo
+
+func (m *UpdateAclTokenReq) GetId() string {
+	if m != nil {
+		return m.Id
+	}
+	return ""
+}
+
+func (m *UpdateAclTokenReq) GetDesc() string {
+	if m != nil {
+		return m.Desc
+	}
+	return ""
+}
+
+func (m *UpdateAclTokenReq) GetMaxUser() string {
+	if m != nil {
+		return m.MaxUser
+	}
+	return ""
+}
+
+func (m *UpdateAclTokenReq) GetClientTokens() []string {
+	if m != nil {
+		return m.ClientTokens
+	}
+	return nil
+}
+
+// UpdateAclTokenResp returns the reponse form updating a AclToken.
+type UpdateAclTokenResp struct {
+	NotFound             bool     `protobuf:"varint,1,opt,name=not_found,json=notFound,proto3" json:"not_found,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UpdateAclTokenResp) Reset()         { *m = UpdateAclTokenResp{} }
+func (m *UpdateAclTokenResp) String() string { return proto.CompactTextString(m) }
+func (*UpdateAclTokenResp) ProtoMessage()    {}
+func (*UpdateAclTokenResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{49}
+}
+
+func (m *UpdateAclTokenResp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UpdateAclTokenResp.Unmarshal(m, b)
+}
+func (m *UpdateAclTokenResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UpdateAclTokenResp.Marshal(b, m, deterministic)
+}
+func (m *UpdateAclTokenResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateAclTokenResp.Merge(m, src)
+}
+func (m *UpdateAclTokenResp) XXX_Size() int {
+	return xxx_messageInfo_UpdateAclTokenResp.Size(m)
+}
+func (m *UpdateAclTokenResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateAclTokenResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpdateAclTokenResp proto.InternalMessageInfo
+
+func (m *UpdateAclTokenResp) GetNotFound() bool {
+	if m != nil {
+		return m.NotFound
+	}
+	return false
+}
+
+// ListAclTokenReq is a request to enumerate AclToken.
+type ListAclTokenReq struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListAclTokenReq) Reset()         { *m = ListAclTokenReq{} }
+func (m *ListAclTokenReq) String() string { return proto.CompactTextString(m) }
+func (*ListAclTokenReq) ProtoMessage()    {}
+func (*ListAclTokenReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{50}
+}
+
+func (m *ListAclTokenReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListAclTokenReq.Unmarshal(m, b)
+}
+func (m *ListAclTokenReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListAclTokenReq.Marshal(b, m, deterministic)
+}
+func (m *ListAclTokenReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListAclTokenReq.Merge(m, src)
+}
+func (m *ListAclTokenReq) XXX_Size() int {
+	return xxx_messageInfo_ListAclTokenReq.Size(m)
+}
+func (m *ListAclTokenReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListAclTokenReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListAclTokenReq proto.InternalMessageInfo
+
+// ListAclTokenResp returns a list of AclToken.
+type ListAclTokenResp struct {
+	AclTokens            []*AclToken `protobuf:"bytes,1,rep,name=acl_tokens,json=aclTokens,proto3" json:"acl_tokens,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
+	XXX_unrecognized     []byte      `json:"-"`
+	XXX_sizecache        int32       `json:"-"`
+}
+
+func (m *ListAclTokenResp) Reset()         { *m = ListAclTokenResp{} }
+func (m *ListAclTokenResp) String() string { return proto.CompactTextString(m) }
+func (*ListAclTokenResp) ProtoMessage()    {}
+func (*ListAclTokenResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{51}
+}
+
+func (m *ListAclTokenResp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListAclTokenResp.Unmarshal(m, b)
+}
+func (m *ListAclTokenResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListAclTokenResp.Marshal(b, m, deterministic)
+}
+func (m *ListAclTokenResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListAclTokenResp.Merge(m, src)
+}
+func (m *ListAclTokenResp) XXX_Size() int {
+	return xxx_messageInfo_ListAclTokenResp.Size(m)
+}
+func (m *ListAclTokenResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListAclTokenResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListAclTokenResp proto.InternalMessageInfo
+
+func (m *ListAclTokenResp) GetAclTokens() []*AclToken {
+	if m != nil {
+		return m.AclTokens
+	}
+	return nil
+}
+
+// ClientToken represents the ClientToken into Dex
+type ClientToken struct {
+	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ClientId             string   `protobuf:"bytes,2,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	CreatedAt            int64    `protobuf:"varint,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ExpiredAt            int64    `protobuf:"varint,4,opt,name=expired_at,json=expiredAt,proto3" json:"expired_at,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ClientToken) Reset()         { *m = ClientToken{} }
+func (m *ClientToken) String() string { return proto.CompactTextString(m) }
+func (*ClientToken) ProtoMessage()    {}
+func (*ClientToken) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{52}
+}
+
+func (m *ClientToken) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ClientToken.Unmarshal(m, b)
+}
+func (m *ClientToken) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ClientToken.Marshal(b, m, deterministic)
+}
+func (m *ClientToken) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ClientToken.Merge(m, src)
+}
+func (m *ClientToken) XXX_Size() int {
+	return xxx_messageInfo_ClientToken.Size(m)
+}
+func (m *ClientToken) XXX_DiscardUnknown() {
+	xxx_messageInfo_ClientToken.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ClientToken proto.InternalMessageInfo
+
+func (m *ClientToken) GetId() string {
+	if m != nil {
+		return m.Id
+	}
+	return ""
+}
+
+func (m *ClientToken) GetClientId() string {
+	if m != nil {
+		return m.ClientId
+	}
+	return ""
+}
+
+func (m *ClientToken) GetCreatedAt() int64 {
+	if m != nil {
+		return m.CreatedAt
+	}
+	return 0
+}
+
+func (m *ClientToken) GetExpiredAt() int64 {
+	if m != nil {
+		return m.ExpiredAt
+	}
+	return 0
+}
+
+// CreateClientTokenReq is a request to make a ClientToken.
+type CreateClientTokenReq struct {
+	ClientToken          *ClientToken `protobuf:"bytes,1,opt,name=client_token,json=clientToken,proto3" json:"client_token,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
+	XXX_unrecognized     []byte       `json:"-"`
+	XXX_sizecache        int32        `json:"-"`
+}
+
+func (m *CreateClientTokenReq) Reset()         { *m = CreateClientTokenReq{} }
+func (m *CreateClientTokenReq) String() string { return proto.CompactTextString(m) }
+func (*CreateClientTokenReq) ProtoMessage()    {}
+func (*CreateClientTokenReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{53}
+}
+
+func (m *CreateClientTokenReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateClientTokenReq.Unmarshal(m, b)
+}
+func (m *CreateClientTokenReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateClientTokenReq.Marshal(b, m, deterministic)
+}
+func (m *CreateClientTokenReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateClientTokenReq.Merge(m, src)
+}
+func (m *CreateClientTokenReq) XXX_Size() int {
+	return xxx_messageInfo_CreateClientTokenReq.Size(m)
+}
+func (m *CreateClientTokenReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateClientTokenReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateClientTokenReq proto.InternalMessageInfo
+
+func (m *CreateClientTokenReq) GetClientToken() *ClientToken {
+	if m != nil {
+		return m.ClientToken
+	}
+	return nil
+}
+
+// CreateClientTokenResp returns the response from creating a ClientToken.
+type CreateClientTokenResp struct {
+	AlreadyExists        bool         `protobuf:"varint,1,opt,name=already_exists,json=alreadyExists,proto3" json:"already_exists,omitempty"`
+	ClientToken          *ClientToken `protobuf:"bytes,2,opt,name=client_token,json=clientToken,proto3" json:"client_token,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
+	XXX_unrecognized     []byte       `json:"-"`
+	XXX_sizecache        int32        `json:"-"`
+}
+
+func (m *CreateClientTokenResp) Reset()         { *m = CreateClientTokenResp{} }
+func (m *CreateClientTokenResp) String() string { return proto.CompactTextString(m) }
+func (*CreateClientTokenResp) ProtoMessage()    {}
+func (*CreateClientTokenResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{54}
+}
+
+func (m *CreateClientTokenResp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateClientTokenResp.Unmarshal(m, b)
+}
+func (m *CreateClientTokenResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateClientTokenResp.Marshal(b, m, deterministic)
+}
+func (m *CreateClientTokenResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateClientTokenResp.Merge(m, src)
+}
+func (m *CreateClientTokenResp) XXX_Size() int {
+	return xxx_messageInfo_CreateClientTokenResp.Size(m)
+}
+func (m *CreateClientTokenResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateClientTokenResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateClientTokenResp proto.InternalMessageInfo
+
+func (m *CreateClientTokenResp) GetAlreadyExists() bool {
+	if m != nil {
+		return m.AlreadyExists
+	}
+	return false
+}
+
+func (m *CreateClientTokenResp) GetClientToken() *ClientToken {
+	if m != nil {
+		return m.ClientToken
+	}
+	return nil
+}
+
+// DeleteClientTokenReq is a request to delete a ClientToken.
+type DeleteClientTokenReq struct {
+	// The ID of the ClientToken.
+	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteClientTokenReq) Reset()         { *m = DeleteClientTokenReq{} }
+func (m *DeleteClientTokenReq) String() string { return proto.CompactTextString(m) }
+func (*DeleteClientTokenReq) ProtoMessage()    {}
+func (*DeleteClientTokenReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{55}
+}
+
+func (m *DeleteClientTokenReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteClientTokenReq.Unmarshal(m, b)
+}
+func (m *DeleteClientTokenReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteClientTokenReq.Marshal(b, m, deterministic)
+}
+func (m *DeleteClientTokenReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteClientTokenReq.Merge(m, src)
+}
+func (m *DeleteClientTokenReq) XXX_Size() int {
+	return xxx_messageInfo_DeleteClientTokenReq.Size(m)
+}
+func (m *DeleteClientTokenReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteClientTokenReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteClientTokenReq proto.InternalMessageInfo
+
+func (m *DeleteClientTokenReq) GetId() string {
+	if m != nil {
+		return m.Id
+	}
+	return ""
+}
+
+// DeleteClientTokenResp determines if the ClientToken is deleted successfully.
+type DeleteClientTokenResp struct {
+	NotFound             bool     `protobuf:"varint,1,opt,name=not_found,json=notFound,proto3" json:"not_found,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteClientTokenResp) Reset()         { *m = DeleteClientTokenResp{} }
+func (m *DeleteClientTokenResp) String() string { return proto.CompactTextString(m) }
+func (*DeleteClientTokenResp) ProtoMessage()    {}
+func (*DeleteClientTokenResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{56}
+}
+
+func (m *DeleteClientTokenResp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteClientTokenResp.Unmarshal(m, b)
+}
+func (m *DeleteClientTokenResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteClientTokenResp.Marshal(b, m, deterministic)
+}
+func (m *DeleteClientTokenResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteClientTokenResp.Merge(m, src)
+}
+func (m *DeleteClientTokenResp) XXX_Size() int {
+	return xxx_messageInfo_DeleteClientTokenResp.Size(m)
+}
+func (m *DeleteClientTokenResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteClientTokenResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteClientTokenResp proto.InternalMessageInfo
+
+func (m *DeleteClientTokenResp) GetNotFound() bool {
+	if m != nil {
+		return m.NotFound
+	}
+	return false
+}
+
+// UpdateClientTokenReq is a request to update an exisitng ClientToken.
+type UpdateClientTokenReq struct {
+	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ClientId             string   `protobuf:"bytes,2,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	CreatedAt            int64    `protobuf:"varint,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ExpiredAt            int64    `protobuf:"varint,4,opt,name=expired_at,json=expiredAt,proto3" json:"expired_at,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UpdateClientTokenReq) Reset()         { *m = UpdateClientTokenReq{} }
+func (m *UpdateClientTokenReq) String() string { return proto.CompactTextString(m) }
+func (*UpdateClientTokenReq) ProtoMessage()    {}
+func (*UpdateClientTokenReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{57}
+}
+
+func (m *UpdateClientTokenReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UpdateClientTokenReq.Unmarshal(m, b)
+}
+func (m *UpdateClientTokenReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UpdateClientTokenReq.Marshal(b, m, deterministic)
+}
+func (m *UpdateClientTokenReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateClientTokenReq.Merge(m, src)
+}
+func (m *UpdateClientTokenReq) XXX_Size() int {
+	return xxx_messageInfo_UpdateClientTokenReq.Size(m)
+}
+func (m *UpdateClientTokenReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateClientTokenReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpdateClientTokenReq proto.InternalMessageInfo
+
+func (m *UpdateClientTokenReq) GetId() string {
+	if m != nil {
+		return m.Id
+	}
+	return ""
+}
+
+func (m *UpdateClientTokenReq) GetClientId() string {
+	if m != nil {
+		return m.ClientId
+	}
+	return ""
+}
+
+func (m *UpdateClientTokenReq) GetCreatedAt() int64 {
+	if m != nil {
+		return m.CreatedAt
+	}
+	return 0
+}
+
+func (m *UpdateClientTokenReq) GetExpiredAt() int64 {
+	if m != nil {
+		return m.ExpiredAt
+	}
+	return 0
+}
+
+// UpdateClientTokenResp returns the reponse form updating a ClientToken.
+type UpdateClientTokenResp struct {
+	NotFound             bool     `protobuf:"varint,1,opt,name=not_found,json=notFound,proto3" json:"not_found,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UpdateClientTokenResp) Reset()         { *m = UpdateClientTokenResp{} }
+func (m *UpdateClientTokenResp) String() string { return proto.CompactTextString(m) }
+func (*UpdateClientTokenResp) ProtoMessage()    {}
+func (*UpdateClientTokenResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{58}
+}
+
+func (m *UpdateClientTokenResp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UpdateClientTokenResp.Unmarshal(m, b)
+}
+func (m *UpdateClientTokenResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UpdateClientTokenResp.Marshal(b, m, deterministic)
+}
+func (m *UpdateClientTokenResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateClientTokenResp.Merge(m, src)
+}
+func (m *UpdateClientTokenResp) XXX_Size() int {
+	return xxx_messageInfo_UpdateClientTokenResp.Size(m)
+}
+func (m *UpdateClientTokenResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateClientTokenResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpdateClientTokenResp proto.InternalMessageInfo
+
+func (m *UpdateClientTokenResp) GetNotFound() bool {
+	if m != nil {
+		return m.NotFound
+	}
+	return false
+}
+
+// ListClientTokenReq is a request to enumerate ClientToken.
+type ListClientTokenReq struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListClientTokenReq) Reset()         { *m = ListClientTokenReq{} }
+func (m *ListClientTokenReq) String() string { return proto.CompactTextString(m) }
+func (*ListClientTokenReq) ProtoMessage()    {}
+func (*ListClientTokenReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{59}
+}
+
+func (m *ListClientTokenReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListClientTokenReq.Unmarshal(m, b)
+}
+func (m *ListClientTokenReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListClientTokenReq.Marshal(b, m, deterministic)
+}
+func (m *ListClientTokenReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListClientTokenReq.Merge(m, src)
+}
+func (m *ListClientTokenReq) XXX_Size() int {
+	return xxx_messageInfo_ListClientTokenReq.Size(m)
+}
+func (m *ListClientTokenReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListClientTokenReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListClientTokenReq proto.InternalMessageInfo
+
+// ListClientTokenResp returns a list of ClientToken.
+type ListClientTokenResp struct {
+	ClientTokens         []*ClientToken `protobuf:"bytes,1,rep,name=client_tokens,json=clientTokens,proto3" json:"client_tokens,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
+	XXX_unrecognized     []byte         `json:"-"`
+	XXX_sizecache        int32          `json:"-"`
+}
+
+func (m *ListClientTokenResp) Reset()         { *m = ListClientTokenResp{} }
+func (m *ListClientTokenResp) String() string { return proto.CompactTextString(m) }
+func (*ListClientTokenResp) ProtoMessage()    {}
+func (*ListClientTokenResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1b40cafcd4234784, []int{60}
+}
+
+func (m *ListClientTokenResp) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListClientTokenResp.Unmarshal(m, b)
+}
+func (m *ListClientTokenResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListClientTokenResp.Marshal(b, m, deterministic)
+}
+func (m *ListClientTokenResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListClientTokenResp.Merge(m, src)
+}
+func (m *ListClientTokenResp) XXX_Size() int {
+	return xxx_messageInfo_ListClientTokenResp.Size(m)
+}
+func (m *ListClientTokenResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListClientTokenResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListClientTokenResp proto.InternalMessageInfo
+
+func (m *ListClientTokenResp) GetClientTokens() []*ClientToken {
+	if m != nil {
+		return m.ClientTokens
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*Client)(nil), "api.Client")
 	proto.RegisterType((*CreateClientReq)(nil), "api.CreateClientReq")
@@ -1226,69 +2830,149 @@ func init() {
 	proto.RegisterType((*RevokeRefreshResp)(nil), "api.RevokeRefreshResp")
 	proto.RegisterType((*VerifyPasswordReq)(nil), "api.VerifyPasswordReq")
 	proto.RegisterType((*VerifyPasswordResp)(nil), "api.VerifyPasswordResp")
+	proto.RegisterType((*UserIdp)(nil), "api.UserIdp")
+	proto.RegisterType((*CreateUserIdpReq)(nil), "api.CreateUserIdpReq")
+	proto.RegisterType((*CreateUserIdpResp)(nil), "api.CreateUserIdpResp")
+	proto.RegisterType((*DeleteUserIdpReq)(nil), "api.DeleteUserIdpReq")
+	proto.RegisterType((*DeleteUserIdpResp)(nil), "api.DeleteUserIdpResp")
+	proto.RegisterType((*UpdateUserIdpReq)(nil), "api.UpdateUserIdpReq")
+	proto.RegisterType((*UpdateUserIdpResp)(nil), "api.UpdateUserIdpResp")
+	proto.RegisterType((*ListUserIdpReq)(nil), "api.ListUserIdpReq")
+	proto.RegisterType((*ListUserIdpResp)(nil), "api.ListUserIdpResp")
+	proto.RegisterType((*User)(nil), "api.User")
+	proto.RegisterType((*CreateUserReq)(nil), "api.CreateUserReq")
+	proto.RegisterType((*CreateUserResp)(nil), "api.CreateUserResp")
+	proto.RegisterType((*DeleteUserReq)(nil), "api.DeleteUserReq")
+	proto.RegisterType((*DeleteUserResp)(nil), "api.DeleteUserResp")
+	proto.RegisterType((*UpdateUserReq)(nil), "api.UpdateUserReq")
+	proto.RegisterType((*UpdateUserResp)(nil), "api.UpdateUserResp")
+	proto.RegisterType((*ListUserReq)(nil), "api.ListUserReq")
+	proto.RegisterType((*ListUserResp)(nil), "api.ListUserResp")
+	proto.RegisterType((*AclToken)(nil), "api.AclToken")
+	proto.RegisterType((*CreateAclTokenReq)(nil), "api.CreateAclTokenReq")
+	proto.RegisterType((*CreateAclTokenResp)(nil), "api.CreateAclTokenResp")
+	proto.RegisterType((*DeleteAclTokenReq)(nil), "api.DeleteAclTokenReq")
+	proto.RegisterType((*DeleteAclTokenResp)(nil), "api.DeleteAclTokenResp")
+	proto.RegisterType((*UpdateAclTokenReq)(nil), "api.UpdateAclTokenReq")
+	proto.RegisterType((*UpdateAclTokenResp)(nil), "api.UpdateAclTokenResp")
+	proto.RegisterType((*ListAclTokenReq)(nil), "api.ListAclTokenReq")
+	proto.RegisterType((*ListAclTokenResp)(nil), "api.ListAclTokenResp")
+	proto.RegisterType((*ClientToken)(nil), "api.ClientToken")
+	proto.RegisterType((*CreateClientTokenReq)(nil), "api.CreateClientTokenReq")
+	proto.RegisterType((*CreateClientTokenResp)(nil), "api.CreateClientTokenResp")
+	proto.RegisterType((*DeleteClientTokenReq)(nil), "api.DeleteClientTokenReq")
+	proto.RegisterType((*DeleteClientTokenResp)(nil), "api.DeleteClientTokenResp")
+	proto.RegisterType((*UpdateClientTokenReq)(nil), "api.UpdateClientTokenReq")
+	proto.RegisterType((*UpdateClientTokenResp)(nil), "api.UpdateClientTokenResp")
+	proto.RegisterType((*ListClientTokenReq)(nil), "api.ListClientTokenReq")
+	proto.RegisterType((*ListClientTokenResp)(nil), "api.ListClientTokenResp")
 }
 
 func init() { proto.RegisterFile("api/api.proto", fileDescriptor_1b40cafcd4234784) }
 
 var fileDescriptor_1b40cafcd4234784 = []byte{
-	// 905 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x56, 0xeb, 0x6e, 0xdb, 0x36,
-	0x14, 0xb6, 0xad, 0xd8, 0x96, 0x8f, 0xef, 0x9c, 0x9b, 0xba, 0x2e, 0x06, 0xa4, 0x2c, 0x06, 0xa4,
-	0x18, 0xe0, 0xac, 0x1d, 0xb0, 0x01, 0x2b, 0xd6, 0x5d, 0xd2, 0x6e, 0x2d, 0xb0, 0x0d, 0x85, 0x30,
-	0xe7, 0xe7, 0x04, 0xc5, 0x3a, 0x4e, 0x88, 0x28, 0x92, 0x46, 0xd2, 0x71, 0xb2, 0x47, 0xd9, 0xdb,
-	0xec, 0xd7, 0x5e, 0xab, 0x20, 0x45, 0x29, 0xba, 0x38, 0x71, 0xfe, 0xf9, 0x7c, 0xe2, 0xb9, 0x7d,
-	0x87, 0xe7, 0xa3, 0xa1, 0xef, 0xc5, 0xec, 0xc8, 0x8b, 0xd9, 0x3c, 0xe6, 0x91, 0x8c, 0x88, 0xe5,
-	0xc5, 0x8c, 0xfe, 0x57, 0x87, 0xd6, 0x71, 0xc0, 0x30, 0x94, 0x64, 0x00, 0x0d, 0xe6, 0x4f, 0xeb,
-	0x07, 0xf5, 0xc3, 0x8e, 0xd3, 0x60, 0x3e, 0xd9, 0x87, 0x96, 0xc0, 0x25, 0x47, 0x39, 0x6d, 0x68,
-	0xcc, 0x58, 0xe4, 0x39, 0xf4, 0x39, 0xfa, 0x8c, 0xe3, 0x52, 0xba, 0x6b, 0xce, 0xc4, 0xd4, 0x3a,
-	0xb0, 0x0e, 0x3b, 0x4e, 0x2f, 0x05, 0x17, 0x9c, 0x09, 0x75, 0x48, 0xf2, 0xb5, 0x90, 0xe8, 0xbb,
-	0x31, 0x22, 0x17, 0xd3, 0xbd, 0xe4, 0x90, 0x01, 0x3f, 0x2a, 0x4c, 0x65, 0x88, 0xd7, 0xa7, 0x01,
-	0x5b, 0x4e, 0x9b, 0x07, 0xf5, 0x43, 0xdb, 0x31, 0x16, 0x21, 0xb0, 0x17, 0x7a, 0x97, 0x38, 0x6d,
-	0xe9, 0xbc, 0xfa, 0x37, 0x79, 0x02, 0x76, 0x10, 0x9d, 0x45, 0xee, 0x9a, 0x07, 0xd3, 0xb6, 0xc6,
-	0xdb, 0xca, 0x5e, 0xf0, 0x80, 0x7e, 0x03, 0xc3, 0x63, 0x8e, 0x9e, 0xc4, 0xa4, 0x11, 0x07, 0xff,
-	0x26, 0xcf, 0xa1, 0xb5, 0xd4, 0x86, 0xee, 0xa7, 0xfb, 0xaa, 0x3b, 0x57, 0x7d, 0x9b, 0xef, 0xe6,
-	0x13, 0xfd, 0x0b, 0x46, 0x45, 0x3f, 0x11, 0x93, 0x2f, 0x60, 0xe0, 0x05, 0x1c, 0x3d, 0xff, 0xc6,
-	0xc5, 0x6b, 0x26, 0xa4, 0xd0, 0x01, 0x6c, 0xa7, 0x6f, 0xd0, 0x77, 0x1a, 0xcc, 0xc5, 0x6f, 0xdc,
-	0x1d, 0xff, 0x19, 0x0c, 0xdf, 0x62, 0x80, 0xf9, 0xba, 0x4a, 0x1c, 0xd3, 0x23, 0x18, 0x15, 0x8f,
-	0x88, 0x98, 0x3c, 0x85, 0x4e, 0x18, 0x49, 0x77, 0x15, 0xad, 0x43, 0xdf, 0x64, 0xb7, 0xc3, 0x48,
-	0xfe, 0xa2, 0x6c, 0xfa, 0x6f, 0x1d, 0x86, 0x8b, 0xd8, 0xf7, 0xee, 0x09, 0x5a, 0x1d, 0x50, 0xe3,
-	0x21, 0x03, 0xb2, 0xb6, 0x0c, 0x28, 0x1d, 0xc4, 0xde, 0x1d, 0x83, 0x68, 0x16, 0x07, 0x71, 0x04,
-	0xa3, 0x62, 0x6d, 0xbb, 0xba, 0x61, 0x60, 0x7f, 0xf4, 0x84, 0xd8, 0x44, 0xdc, 0x27, 0x13, 0x68,
-	0xe2, 0xa5, 0xc7, 0x02, 0xd3, 0x48, 0x62, 0xa8, 0x0a, 0xce, 0x3d, 0x71, 0xae, 0x69, 0xee, 0x39,
-	0xfa, 0x37, 0x99, 0x81, 0xbd, 0x16, 0xc8, 0x75, 0x65, 0x96, 0x3e, 0x9c, 0xd9, 0xe4, 0x31, 0xb4,
-	0xd5, 0x6f, 0x97, 0xf9, 0xa6, 0xe8, 0x96, 0x32, 0x3f, 0xf8, 0xf4, 0x0d, 0x8c, 0x93, 0x61, 0xa7,
-	0x09, 0x15, 0x73, 0x2f, 0xc0, 0x8e, 0x8d, 0x69, 0x2e, 0x4a, 0x5f, 0x0f, 0x32, 0x3b, 0x93, 0x7d,
-	0xa6, 0xaf, 0x81, 0x94, 0xfd, 0x1f, 0x7c, 0x5d, 0xe8, 0x19, 0x8c, 0x13, 0x62, 0xf2, 0xc9, 0xb7,
-	0x37, 0xfc, 0x04, 0xec, 0x10, 0x37, 0x6e, 0xae, 0xe9, 0x76, 0x88, 0x9b, 0xf7, 0xaa, 0xef, 0x67,
-	0xd0, 0x53, 0x9f, 0x4a, 0xbd, 0x77, 0x43, 0xdc, 0x2c, 0x0c, 0x44, 0x5f, 0x02, 0x29, 0x27, 0xda,
-	0x35, 0x83, 0x17, 0x30, 0x4e, 0xae, 0xe0, 0xce, 0xda, 0x54, 0xf4, 0xf2, 0xd1, 0x5d, 0xd1, 0xc7,
-	0x30, 0xfc, 0x8d, 0x09, 0x99, 0x8b, 0x4d, 0x7f, 0x80, 0x51, 0x11, 0x12, 0x31, 0xf9, 0x12, 0x3a,
-	0x29, 0xd3, 0x8a, 0x42, 0xab, 0x3a, 0x89, 0xdb, 0xef, 0xb4, 0x07, 0x70, 0x82, 0x5c, 0xb0, 0x28,
-	0x54, 0xe1, 0xbe, 0x85, 0x6e, 0x66, 0x89, 0x38, 0x51, 0x2d, 0x7e, 0x85, 0xdc, 0x94, 0x6e, 0x2c,
-	0x32, 0x02, 0xa5, 0x77, 0x9a, 0xd2, 0xa6, 0xa3, 0xa5, 0xef, 0x1f, 0x18, 0x3a, 0xb8, 0xe2, 0x28,
-	0xce, 0xff, 0x8c, 0x2e, 0x30, 0x74, 0x70, 0x55, 0xd9, 0xa4, 0xa7, 0xd0, 0x49, 0x76, 0x59, 0xdd,
-	0xa7, 0x44, 0x05, 0xed, 0x04, 0xf8, 0xe0, 0x93, 0xcf, 0x01, 0x96, 0xfa, 0x46, 0xf8, 0xae, 0x27,
-	0xf5, 0x2a, 0x58, 0x4e, 0xc7, 0x20, 0x3f, 0x49, 0xe5, 0x1b, 0x78, 0x42, 0xaa, 0x71, 0xf9, 0x5a,
-	0xc9, 0x2c, 0xc7, 0x56, 0xc0, 0x42, 0xa0, 0x22, 0x7d, 0xa0, 0x38, 0x30, 0xf9, 0x15, 0xe3, 0xb9,
-	0x8b, 0x5b, 0x2f, 0x5c, 0xdc, 0x3f, 0x12, 0x06, 0xb3, 0xa3, 0x22, 0x26, 0xaf, 0x61, 0xc0, 0x13,
-	0xd3, 0x95, 0xaa, 0xf4, 0x94, 0xb2, 0x89, 0xa6, 0xac, 0xd4, 0x94, 0xd3, 0xe7, 0x39, 0x40, 0xd0,
-	0xf7, 0x30, 0x72, 0xf0, 0x2a, 0xba, 0xc0, 0x07, 0x24, 0xbf, 0x97, 0x00, 0xfa, 0x15, 0x8c, 0x4b,
-	0x91, 0x76, 0xdd, 0x86, 0x77, 0x30, 0x3e, 0x41, 0xce, 0x56, 0x37, 0xbb, 0xf7, 0x60, 0x96, 0x5b,
-	0x4d, 0x93, 0x38, 0xdb, 0xc5, 0xdf, 0x81, 0x94, 0xc3, 0x88, 0x58, 0x79, 0x5c, 0x29, 0x94, 0x61,
-	0x96, 0x38, 0xb5, 0x8b, 0x55, 0x35, 0x8a, 0x55, 0xbd, 0xfa, 0xbf, 0x09, 0xd6, 0x5b, 0xbc, 0x26,
-	0xdf, 0x43, 0x2f, 0xff, 0x1e, 0x90, 0x84, 0xce, 0xd2, 0xd3, 0x32, 0x7b, 0xb4, 0x05, 0x15, 0x31,
-	0xad, 0x29, 0xf7, 0xbc, 0xfa, 0x19, 0xf7, 0x92, 0x58, 0x1b, 0xf7, 0xb2, 0x4c, 0x26, 0xee, 0xf9,
-	0xa7, 0xc0, 0xb8, 0x97, 0x1e, 0x10, 0xe3, 0x5e, 0x7e, 0x33, 0x68, 0x8d, 0x1c, 0xc3, 0xa0, 0xa8,
-	0x4f, 0x64, 0x3f, 0x57, 0x68, 0x8e, 0xef, 0xd9, 0xe3, 0xad, 0x78, 0x1a, 0xa4, 0x28, 0x1f, 0x26,
-	0x48, 0x45, 0xbc, 0x4c, 0x90, 0xaa, 0xd6, 0x24, 0x41, 0x8a, 0x2a, 0x61, 0x82, 0x54, 0x54, 0xc6,
-	0x04, 0xa9, 0x4a, 0x0a, 0xad, 0x91, 0x37, 0xd0, 0xcf, 0x8b, 0x84, 0x30, 0x74, 0x94, 0xb4, 0xc4,
-	0xd0, 0x51, 0x96, 0x13, 0x5a, 0x23, 0x2f, 0x01, 0x7e, 0x45, 0x69, 0x84, 0x81, 0x0c, 0xf5, 0xb1,
-	0x5b, 0xd1, 0x98, 0x8d, 0x8a, 0x80, 0x76, 0xf9, 0x0e, 0xba, 0xb9, 0x45, 0x23, 0x9f, 0x65, 0xa1,
-	0x6f, 0x17, 0x65, 0x36, 0xa9, 0x82, 0xda, 0xf7, 0x47, 0xe8, 0x17, 0x56, 0x81, 0x3c, 0x32, 0xab,
-	0x58, 0x5c, 0xb4, 0xd9, 0xfe, 0x36, 0x38, 0x65, 0xad, 0x78, 0xa7, 0x0d, 0x6b, 0x95, 0x7d, 0x31,
-	0xac, 0x55, 0x17, 0x80, 0xd6, 0x7e, 0x9e, 0x00, 0x59, 0x46, 0x97, 0xf3, 0x65, 0xc4, 0x31, 0x12,
-	0x73, 0x1f, 0xaf, 0xd5, 0xd1, 0xd3, 0x96, 0xfe, 0xbf, 0xf7, 0xf5, 0xa7, 0x00, 0x00, 0x00, 0xff,
-	0xff, 0x49, 0x46, 0x0e, 0xa3, 0x00, 0x0a, 0x00, 0x00,
+	// 1616 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x58, 0xeb, 0x72, 0x13, 0xc7,
+	0x12, 0xd6, 0xcd, 0xd2, 0xaa, 0x75, 0xb1, 0x34, 0x48, 0x46, 0x88, 0x72, 0x1d, 0x18, 0xd7, 0x39,
+	0x07, 0x27, 0x60, 0x73, 0x4b, 0xa8, 0x0a, 0xe1, 0x16, 0x03, 0x81, 0x0a, 0x49, 0x51, 0x5b, 0x31,
+	0x3f, 0xa3, 0x5a, 0xb4, 0x63, 0xd8, 0x42, 0xd6, 0x6e, 0x76, 0x56, 0x58, 0xe4, 0x5f, 0x5e, 0x23,
+	0x6f, 0x93, 0xa7, 0xc9, 0x6b, 0xa4, 0xe6, 0xb6, 0x3b, 0x33, 0xbb, 0x96, 0x54, 0x95, 0xf0, 0x4f,
+	0xd3, 0x3b, 0xfd, 0x75, 0xf7, 0xd7, 0x3d, 0x33, 0xdd, 0x82, 0x8e, 0x17, 0x05, 0x87, 0x5e, 0x14,
+	0x1c, 0x44, 0x71, 0x98, 0x84, 0xa8, 0xea, 0x45, 0x01, 0xfe, 0xb3, 0x0c, 0xf5, 0xa3, 0x59, 0x40,
+	0xe6, 0x09, 0xea, 0x42, 0x25, 0xf0, 0x47, 0xe5, 0x2b, 0xe5, 0x6b, 0x4d, 0xb7, 0x12, 0xf8, 0x68,
+	0x07, 0xea, 0x94, 0x4c, 0x63, 0x92, 0x8c, 0x2a, 0x5c, 0x26, 0x57, 0x68, 0x0f, 0x3a, 0x31, 0xf1,
+	0x83, 0x98, 0x4c, 0x93, 0xc9, 0x22, 0x0e, 0xe8, 0xa8, 0x7a, 0xa5, 0x7a, 0xad, 0xe9, 0xb6, 0x95,
+	0xf0, 0x38, 0x0e, 0x28, 0xdb, 0x94, 0xc4, 0x0b, 0x9a, 0x10, 0x7f, 0x12, 0x11, 0x12, 0xd3, 0x51,
+	0x4d, 0x6c, 0x92, 0xc2, 0xd7, 0x4c, 0xc6, 0x2c, 0x44, 0x8b, 0xb7, 0xb3, 0x60, 0x3a, 0xda, 0xba,
+	0x52, 0xbe, 0xe6, 0xb8, 0x72, 0x85, 0x10, 0xd4, 0xe6, 0xde, 0x29, 0x19, 0xd5, 0xb9, 0x5d, 0xfe,
+	0x1b, 0x5d, 0x02, 0x67, 0x16, 0xbe, 0x0b, 0x27, 0x8b, 0x78, 0x36, 0x6a, 0x70, 0x79, 0x83, 0xad,
+	0x8f, 0xe3, 0x19, 0xfe, 0x1a, 0xb6, 0x8f, 0x62, 0xe2, 0x25, 0x44, 0x04, 0xe2, 0x92, 0x5f, 0xd1,
+	0x1e, 0xd4, 0xa7, 0x7c, 0xc1, 0xe3, 0x69, 0xdd, 0x6e, 0x1d, 0xb0, 0xb8, 0xe5, 0x77, 0xf9, 0x09,
+	0xff, 0x02, 0x3d, 0x53, 0x8f, 0x46, 0xe8, 0xbf, 0xd0, 0xf5, 0x66, 0x31, 0xf1, 0xfc, 0x4f, 0x13,
+	0xb2, 0x0c, 0x68, 0x42, 0x39, 0x80, 0xe3, 0x76, 0xa4, 0xf4, 0x19, 0x17, 0x6a, 0xf8, 0x95, 0xf3,
+	0xf1, 0xaf, 0xc2, 0xf6, 0x53, 0x32, 0x23, 0xba, 0x5f, 0x16, 0xc7, 0xf8, 0x10, 0x7a, 0xe6, 0x16,
+	0x1a, 0xa1, 0xcb, 0xd0, 0x9c, 0x87, 0xc9, 0xe4, 0x24, 0x5c, 0xcc, 0x7d, 0x69, 0xdd, 0x99, 0x87,
+	0xc9, 0x73, 0xb6, 0xc6, 0x7f, 0x94, 0x61, 0xfb, 0x38, 0xf2, 0xbd, 0x15, 0xa0, 0xf9, 0x04, 0x55,
+	0x36, 0x49, 0x50, 0xb5, 0x20, 0x41, 0x2a, 0x11, 0xb5, 0x73, 0x12, 0xb1, 0x65, 0x26, 0xe2, 0x10,
+	0x7a, 0xa6, 0x6f, 0xeb, 0xa2, 0x09, 0xc0, 0x79, 0xed, 0x51, 0x7a, 0x16, 0xc6, 0x3e, 0x1a, 0xc0,
+	0x16, 0x39, 0xf5, 0x82, 0x99, 0x0c, 0x44, 0x2c, 0x98, 0x07, 0xef, 0x3d, 0xfa, 0x9e, 0xd3, 0xdc,
+	0x76, 0xf9, 0x6f, 0x34, 0x06, 0x67, 0x41, 0x49, 0xcc, 0x3d, 0xab, 0xf2, 0xcd, 0xe9, 0x1a, 0x5d,
+	0x84, 0x06, 0xfb, 0x3d, 0x09, 0x7c, 0xe9, 0x74, 0x9d, 0x2d, 0x5f, 0xfa, 0xf8, 0x21, 0xf4, 0x45,
+	0xb2, 0x95, 0x41, 0xc6, 0xdc, 0x3e, 0x38, 0x91, 0x5c, 0xca, 0x42, 0xe9, 0xf0, 0x44, 0xa6, 0x7b,
+	0xd2, 0xcf, 0xf8, 0x3e, 0x20, 0x5b, 0x7f, 0xe3, 0x72, 0xc1, 0xef, 0xa0, 0x2f, 0x88, 0xd1, 0x8d,
+	0x17, 0x07, 0x7c, 0x09, 0x9c, 0x39, 0x39, 0x9b, 0x68, 0x41, 0x37, 0xe6, 0xe4, 0xec, 0x05, 0x8b,
+	0xfb, 0x2a, 0xb4, 0xd9, 0x27, 0x2b, 0xf6, 0xd6, 0x9c, 0x9c, 0x1d, 0x4b, 0x11, 0xbe, 0x05, 0xc8,
+	0x36, 0xb4, 0x2e, 0x07, 0xfb, 0xd0, 0x17, 0x25, 0xb8, 0xd6, 0x37, 0x86, 0x6e, 0x6f, 0x5d, 0x87,
+	0xde, 0x87, 0xed, 0x57, 0x01, 0x4d, 0x34, 0x6c, 0xfc, 0x08, 0x7a, 0xa6, 0x88, 0x46, 0xe8, 0x4b,
+	0x68, 0x2a, 0xa6, 0x19, 0x85, 0xd5, 0x7c, 0x26, 0xb2, 0xef, 0xb8, 0x0d, 0xf0, 0x86, 0xc4, 0x34,
+	0x08, 0xe7, 0x0c, 0xee, 0x1e, 0xb4, 0xd2, 0x15, 0x8d, 0xc4, 0xad, 0x15, 0x7f, 0x24, 0xb1, 0x74,
+	0x5d, 0xae, 0x50, 0x0f, 0xd8, 0x7d, 0xc7, 0x29, 0xdd, 0x72, 0xf9, 0xd5, 0xf7, 0x1b, 0x6c, 0xbb,
+	0xe4, 0x24, 0x26, 0xf4, 0xfd, 0xcf, 0xe1, 0x07, 0x32, 0x77, 0xc9, 0x49, 0xee, 0x24, 0x5d, 0x86,
+	0xa6, 0x38, 0xcb, 0xac, 0x9e, 0xc4, 0x2d, 0xe8, 0x08, 0xc1, 0x4b, 0x1f, 0xed, 0x02, 0x4c, 0x79,
+	0x45, 0xf8, 0x13, 0x2f, 0xe1, 0x47, 0xa1, 0xea, 0x36, 0xa5, 0xe4, 0x49, 0xc2, 0x74, 0x67, 0x1e,
+	0x4d, 0x58, 0xba, 0x7c, 0x7e, 0x93, 0x55, 0x5d, 0x87, 0x09, 0x8e, 0x29, 0x61, 0xa4, 0x77, 0x19,
+	0x07, 0xd2, 0x3e, 0x63, 0x5c, 0x2b, 0xdc, 0xb2, 0x51, 0xb8, 0x3f, 0x09, 0x06, 0xd3, 0xad, 0x34,
+	0x42, 0xf7, 0xa1, 0x1b, 0x8b, 0xe5, 0x24, 0x61, 0xae, 0x2b, 0xca, 0x06, 0x9c, 0x32, 0x2b, 0x28,
+	0xb7, 0x13, 0x6b, 0x02, 0x8a, 0x5f, 0x40, 0xcf, 0x25, 0x1f, 0xc3, 0x0f, 0x64, 0x03, 0xe3, 0x2b,
+	0x09, 0xc0, 0x37, 0xa1, 0x6f, 0x21, 0xad, 0xab, 0x86, 0x67, 0xd0, 0x7f, 0x43, 0xe2, 0xe0, 0xe4,
+	0xd3, 0xfa, 0x73, 0x30, 0xd6, 0x8e, 0xa6, 0x34, 0x9c, 0x9e, 0xc5, 0x1f, 0x01, 0xd9, 0x30, 0x34,
+	0x62, 0x1a, 0x1f, 0x99, 0x34, 0x20, 0xa9, 0x61, 0xb5, 0x36, 0xbd, 0xaa, 0x58, 0x5e, 0x3d, 0x80,
+	0xc6, 0x31, 0x0f, 0x37, 0x42, 0x43, 0xa8, 0x07, 0x7e, 0x94, 0xf1, 0xb0, 0x15, 0xf8, 0x91, 0xa0,
+	0x21, 0x98, 0x27, 0x24, 0x9e, 0x6b, 0x34, 0x08, 0xc1, 0x4b, 0x76, 0x33, 0xc8, 0x67, 0x44, 0x82,
+	0xb0, 0x98, 0xfe, 0x2f, 0xae, 0xa8, 0x49, 0xe0, 0x47, 0xf2, 0x62, 0x69, 0xf3, 0xdc, 0xa8, 0x2d,
+	0x0d, 0xc1, 0x6f, 0x84, 0xa7, 0xea, 0x5a, 0x4a, 0x95, 0x37, 0x7f, 0x84, 0x74, 0x23, 0x95, 0x55,
+	0x46, 0xf6, 0xd5, 0x2b, 0xa3, 0x79, 0x58, 0x1c, 0x29, 0xcb, 0xa9, 0xb5, 0x75, 0x5d, 0x4e, 0x9f,
+	0xab, 0x4b, 0x7f, 0x2d, 0xf8, 0x6a, 0x1a, 0x6f, 0xaa, 0x3b, 0x72, 0x63, 0xcb, 0x3d, 0x71, 0x88,
+	0x32, 0xbb, 0xf8, 0x5b, 0x71, 0x56, 0x74, 0x84, 0x7d, 0x68, 0x2a, 0x92, 0xd4, 0x31, 0x31, 0x59,
+	0x72, 0x24, 0x4b, 0x14, 0x47, 0x50, 0x63, 0x42, 0xd3, 0xcd, 0xb2, 0xe9, 0x26, 0xef, 0x59, 0x28,
+	0x59, 0xf8, 0xa1, 0xea, 0x8a, 0xc4, 0x2a, 0xab, 0xe2, 0xaa, 0x5e, 0xc5, 0xbb, 0x00, 0xde, 0x74,
+	0xa6, 0x4e, 0xa9, 0xe8, 0x81, 0x9a, 0xde, 0x74, 0x26, 0xcf, 0xe2, 0x01, 0x74, 0xb2, 0xec, 0x33,
+	0xe2, 0x76, 0xa1, 0xc6, 0xdc, 0x91, 0x35, 0xd3, 0x4c, 0x1d, 0x75, 0xb9, 0x18, 0xbf, 0x81, 0xae,
+	0xbe, 0x7f, 0xf3, 0x52, 0x51, 0xb8, 0x95, 0x62, 0xdc, 0xeb, 0xd0, 0xc9, 0xb2, 0xce, 0xfc, 0x58,
+	0x45, 0x01, 0xbe, 0x01, 0x5d, 0x7d, 0xf7, 0xba, 0x34, 0x7d, 0x82, 0x4e, 0x96, 0xd8, 0x75, 0xe0,
+	0xff, 0x2e, 0xbf, 0x37, 0xa0, 0xab, 0x9b, 0x5e, 0xe7, 0x69, 0x07, 0x5a, 0xaa, 0x7c, 0x58, 0x35,
+	0x1d, 0x42, 0x3b, 0x5b, 0xd2, 0x08, 0xfd, 0x07, 0xb6, 0x18, 0x5b, 0xaa, 0x8c, 0x34, 0x16, 0x85,
+	0x1c, 0xcf, 0xc1, 0x79, 0x22, 0x6d, 0xe7, 0x9e, 0x12, 0x04, 0x35, 0x9f, 0xd0, 0xa9, 0x8c, 0x8a,
+	0xff, 0x66, 0x6f, 0xfd, 0xa9, 0xb7, 0xe4, 0x0f, 0xba, 0x0c, 0xab, 0x71, 0xea, 0x2d, 0x79, 0x0d,
+	0xee, 0x41, 0x47, 0x5e, 0xbc, 0x46, 0x6c, 0x6d, 0x21, 0x94, 0xe1, 0x3d, 0x52, 0x97, 0x87, 0xb2,
+	0xca, 0xd8, 0xfd, 0x02, 0x9a, 0x29, 0x25, 0x46, 0x53, 0x93, 0x6e, 0x72, 0x14, 0x41, 0xf8, 0x9d,
+	0x6a, 0x6a, 0x32, 0x80, 0xcd, 0x6b, 0xca, 0x30, 0x54, 0x59, 0x6d, 0x68, 0x4f, 0x5d, 0x2b, 0xba,
+	0xa7, 0x76, 0x33, 0x9c, 0xb6, 0x17, 0x86, 0x37, 0x2b, 0x33, 0x76, 0xa6, 0x2e, 0x8d, 0x15, 0xb8,
+	0x9f, 0x85, 0xfa, 0xb4, 0xd1, 0xda, 0xdc, 0x57, 0xd9, 0x0a, 0x69, 0x9e, 0xe2, 0xc7, 0xa2, 0x15,
+	0x32, 0x30, 0xae, 0x1b, 0x25, 0xad, 0xf7, 0x42, 0xe9, 0x36, 0xad, 0xc2, 0x97, 0xd0, 0x3a, 0xca,
+	0xfc, 0xfa, 0x27, 0x0d, 0x4c, 0xd5, 0x6e, 0x60, 0x76, 0x01, 0xc8, 0x32, 0x0a, 0x62, 0xf1, 0xb9,
+	0x26, 0x3e, 0x4b, 0xc9, 0x93, 0x04, 0xff, 0x00, 0x03, 0x7d, 0x7a, 0x4a, 0xd9, 0xbf, 0x03, 0x6d,
+	0x9d, 0x3e, 0x59, 0x82, 0x3d, 0x6d, 0x40, 0x12, 0x5b, 0x5b, 0x1a, 0x9f, 0x98, 0xc2, 0xb0, 0x00,
+	0x6c, 0xf3, 0x5a, 0xb4, 0x8d, 0x56, 0x36, 0x31, 0xfa, 0x3f, 0x18, 0xe8, 0xc3, 0xd7, 0xb9, 0x75,
+	0x79, 0x17, 0x86, 0x05, 0xfb, 0xd6, 0xa5, 0xfb, 0xf7, 0x32, 0x0c, 0xf4, 0x69, 0xe8, 0xdc, 0xf2,
+	0xfc, 0x8c, 0x39, 0xba, 0x0b, 0xc3, 0x02, 0x17, 0xd6, 0x79, 0x3e, 0x00, 0xc4, 0xaa, 0xd2, 0x74,
+	0x1b, 0xbf, 0x82, 0x0b, 0x39, 0x29, 0x8d, 0xd0, 0x57, 0xf6, 0x69, 0x11, 0x15, 0x9b, 0xa7, 0xde,
+	0x38, 0x3f, 0xb7, 0xff, 0xea, 0x40, 0xf5, 0x29, 0x59, 0xa2, 0x07, 0xd0, 0xd6, 0x13, 0x8f, 0x44,
+	0x0b, 0x6b, 0x8d, 0xf3, 0xe3, 0x61, 0x81, 0x94, 0x46, 0xb8, 0xc4, 0xd4, 0xf5, 0x00, 0xa5, 0xba,
+	0x35, 0x20, 0x4b, 0x75, 0x7b, 0x34, 0x15, 0xea, 0x7a, 0x66, 0xa5, 0xba, 0x35, 0xb4, 0x4b, 0x75,
+	0x7b, 0x4e, 0xc7, 0x25, 0x74, 0xa4, 0x9e, 0xe3, 0x74, 0x88, 0xdd, 0xd1, 0x1c, 0xd5, 0x7a, 0xdc,
+	0xf1, 0xc5, 0x42, 0xb9, 0x02, 0x31, 0x47, 0x36, 0x09, 0x92, 0x1b, 0x18, 0x25, 0x48, 0x7e, 0xbe,
+	0x13, 0x20, 0xe6, 0x64, 0x26, 0x41, 0x72, 0x93, 0x9d, 0x04, 0xc9, 0x8f, 0x71, 0xb8, 0x84, 0x1e,
+	0x42, 0x47, 0x1f, 0xcc, 0xa8, 0xa4, 0xc3, 0x9a, 0xdf, 0x24, 0x1d, 0xf6, 0x08, 0x87, 0x4b, 0xe8,
+	0x16, 0xc0, 0xf7, 0x24, 0x91, 0xc3, 0x18, 0xda, 0xe6, 0xdb, 0xb2, 0x41, 0x6d, 0xdc, 0x33, 0x05,
+	0x5c, 0xe5, 0x1b, 0xf1, 0xe2, 0xca, 0x01, 0x02, 0x5d, 0x48, 0xa1, 0xb3, 0xe1, 0x64, 0x3c, 0xc8,
+	0x0b, 0xb9, 0xee, 0x63, 0xe8, 0x18, 0xe3, 0x07, 0x1a, 0xca, 0xf1, 0xc7, 0x1c, 0x6e, 0xc6, 0x3b,
+	0x45, 0x62, 0xc5, 0x9a, 0x39, 0x47, 0x48, 0xd6, 0x72, 0x33, 0x8a, 0x64, 0x2d, 0x3f, 0x74, 0x08,
+	0x37, 0x8c, 0x0e, 0x1e, 0xe9, 0xc5, 0x9a, 0xf5, 0xa6, 0xe3, 0x9d, 0x22, 0xb1, 0x42, 0x30, 0x3a,
+	0x5f, 0xa4, 0xd7, 0x6b, 0x0e, 0x21, 0xd7, 0x24, 0x67, 0x34, 0x2a, 0xfd, 0x8c, 0x46, 0x4d, 0x7b,
+	0x90, 0x17, 0x2a, 0xeb, 0x46, 0xc7, 0x8f, 0xf4, 0x72, 0xcf, 0x59, 0xcf, 0x0d, 0x07, 0xb8, 0x84,
+	0xee, 0x01, 0x64, 0x61, 0x21, 0x64, 0xc5, 0xc9, 0x74, 0x2f, 0xe4, 0x64, 0x4a, 0x31, 0x8b, 0x46,
+	0x2a, 0x1a, 0xad, 0xa2, 0x54, 0x34, 0x7b, 0x38, 0x5e, 0x69, 0x8e, 0x0a, 0x04, 0xf5, 0x8c, 0xb8,
+	0x98, 0x52, 0xdf, 0x92, 0x28, 0x5b, 0x99, 0xef, 0xd2, 0x96, 0xd1, 0xf3, 0x4a, 0x5b, 0x66, 0x67,
+	0xab, 0x1f, 0xf2, 0xb4, 0xb5, 0xd3, 0x33, 0xa9, 0xbd, 0xe6, 0xc6, 0x21, 0xd7, 0x9f, 0x74, 0xfd,
+	0x90, 0x5b, 0x20, 0xb9, 0xe6, 0xc5, 0x38, 0xe4, 0x16, 0xc8, 0x03, 0xd1, 0x8f, 0xa6, 0x10, 0x59,
+	0x46, 0x75, 0x80, 0x61, 0x81, 0xd4, 0xbc, 0x23, 0x2c, 0x1f, 0x72, 0x8d, 0x99, 0x71, 0x47, 0x58,
+	0x20, 0xaf, 0x54, 0xcb, 0xa9, 0x77, 0x1d, 0x97, 0x72, 0xd7, 0x73, 0x0a, 0x35, 0x3e, 0xef, 0x93,
+	0x42, 0xcb, 0xbd, 0x4f, 0x12, 0xad, 0xe8, 0xe9, 0x94, 0x68, 0x85, 0x4f, 0x1a, 0x2e, 0xa1, 0xe7,
+	0xa2, 0xc1, 0xd2, 0xb1, 0x2e, 0xa6, 0x64, 0x58, 0x48, 0xa3, 0xe2, 0x0f, 0xca, 0xab, 0xdc, 0x7b,
+	0x2f, 0xbd, 0x2a, 0xea, 0x17, 0xa4, 0x57, 0x85, 0x2d, 0x02, 0x2e, 0x7d, 0x37, 0x00, 0x34, 0x0d,
+	0x4f, 0x0f, 0xa6, 0x61, 0x4c, 0x42, 0x7a, 0xe0, 0x93, 0x25, 0xdb, 0xfd, 0xb6, 0xce, 0xff, 0x83,
+	0xbf, 0xf3, 0x77, 0x00, 0x00, 0x00, 0xff, 0xff, 0x4f, 0xe1, 0x64, 0x63, 0x94, 0x17, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1327,6 +3011,38 @@ type DexClient interface {
 	RevokeRefresh(ctx context.Context, in *RevokeRefreshReq, opts ...grpc.CallOption) (*RevokeRefreshResp, error)
 	// VerifyPassword returns whether a password matches a hash for a specific email or not.
 	VerifyPassword(ctx context.Context, in *VerifyPasswordReq, opts ...grpc.CallOption) (*VerifyPasswordResp, error)
+	// CreateUserIdp creates a UserIdp.
+	CreateUserIdp(ctx context.Context, in *CreateUserIdpReq, opts ...grpc.CallOption) (*CreateUserIdpResp, error)
+	// UpdateUserIdp updates an existing UserIdp
+	UpdateUserIdp(ctx context.Context, in *UpdateUserIdpReq, opts ...grpc.CallOption) (*UpdateUserIdpResp, error)
+	// ListUserIdp lists all existings UserIdp
+	ListUserIdp(ctx context.Context, in *ListUserIdpReq, opts ...grpc.CallOption) (*ListUserIdpResp, error)
+	// DeleteUserIdp deletes the provided UserIdp.
+	DeleteUserIdp(ctx context.Context, in *DeleteUserIdpReq, opts ...grpc.CallOption) (*DeleteUserIdpResp, error)
+	// CreateUser creates a User.
+	CreateUser(ctx context.Context, in *CreateUserReq, opts ...grpc.CallOption) (*CreateUserResp, error)
+	// UpdateUser updates an existing User
+	UpdateUser(ctx context.Context, in *UpdateUserReq, opts ...grpc.CallOption) (*UpdateUserResp, error)
+	// ListUser lists all existings User
+	ListUser(ctx context.Context, in *ListUserReq, opts ...grpc.CallOption) (*ListUserResp, error)
+	// DeleteUser deletes the provided User.
+	DeleteUser(ctx context.Context, in *DeleteUserReq, opts ...grpc.CallOption) (*DeleteUserResp, error)
+	// CreateAclToken creates a AclToken.
+	CreateAclToken(ctx context.Context, in *CreateAclTokenReq, opts ...grpc.CallOption) (*CreateAclTokenResp, error)
+	// UpdateAclToken updates an existing AclToken
+	UpdateAclToken(ctx context.Context, in *UpdateAclTokenReq, opts ...grpc.CallOption) (*UpdateAclTokenResp, error)
+	// ListAclToken lists all existings AclToken
+	ListAclToken(ctx context.Context, in *ListAclTokenReq, opts ...grpc.CallOption) (*ListAclTokenResp, error)
+	// DeleteAclToken deletes the provided AclToken.
+	DeleteAclToken(ctx context.Context, in *DeleteAclTokenReq, opts ...grpc.CallOption) (*DeleteAclTokenResp, error)
+	// CreateClientToken creates a ClientToken.
+	CreateClientToken(ctx context.Context, in *CreateClientTokenReq, opts ...grpc.CallOption) (*CreateClientTokenResp, error)
+	// UpdateClientToken updates an existing ClientToken
+	UpdateClientToken(ctx context.Context, in *UpdateClientTokenReq, opts ...grpc.CallOption) (*UpdateClientTokenResp, error)
+	// ListClientToken lists all existings ClientToken
+	ListClientToken(ctx context.Context, in *ListClientTokenReq, opts ...grpc.CallOption) (*ListClientTokenResp, error)
+	// DeleteClientToken deletes the provided ClientToken.
+	DeleteClientToken(ctx context.Context, in *DeleteClientTokenReq, opts ...grpc.CallOption) (*DeleteClientTokenResp, error)
 }
 
 type dexClient struct {
@@ -1436,6 +3152,150 @@ func (c *dexClient) VerifyPassword(ctx context.Context, in *VerifyPasswordReq, o
 	return out, nil
 }
 
+func (c *dexClient) CreateUserIdp(ctx context.Context, in *CreateUserIdpReq, opts ...grpc.CallOption) (*CreateUserIdpResp, error) {
+	out := new(CreateUserIdpResp)
+	err := c.cc.Invoke(ctx, "/api.Dex/CreateUserIdp", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) UpdateUserIdp(ctx context.Context, in *UpdateUserIdpReq, opts ...grpc.CallOption) (*UpdateUserIdpResp, error) {
+	out := new(UpdateUserIdpResp)
+	err := c.cc.Invoke(ctx, "/api.Dex/UpdateUserIdp", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) ListUserIdp(ctx context.Context, in *ListUserIdpReq, opts ...grpc.CallOption) (*ListUserIdpResp, error) {
+	out := new(ListUserIdpResp)
+	err := c.cc.Invoke(ctx, "/api.Dex/ListUserIdp", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) DeleteUserIdp(ctx context.Context, in *DeleteUserIdpReq, opts ...grpc.CallOption) (*DeleteUserIdpResp, error) {
+	out := new(DeleteUserIdpResp)
+	err := c.cc.Invoke(ctx, "/api.Dex/DeleteUserIdp", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) CreateUser(ctx context.Context, in *CreateUserReq, opts ...grpc.CallOption) (*CreateUserResp, error) {
+	out := new(CreateUserResp)
+	err := c.cc.Invoke(ctx, "/api.Dex/CreateUser", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) UpdateUser(ctx context.Context, in *UpdateUserReq, opts ...grpc.CallOption) (*UpdateUserResp, error) {
+	out := new(UpdateUserResp)
+	err := c.cc.Invoke(ctx, "/api.Dex/UpdateUser", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) ListUser(ctx context.Context, in *ListUserReq, opts ...grpc.CallOption) (*ListUserResp, error) {
+	out := new(ListUserResp)
+	err := c.cc.Invoke(ctx, "/api.Dex/ListUser", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) DeleteUser(ctx context.Context, in *DeleteUserReq, opts ...grpc.CallOption) (*DeleteUserResp, error) {
+	out := new(DeleteUserResp)
+	err := c.cc.Invoke(ctx, "/api.Dex/DeleteUser", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) CreateAclToken(ctx context.Context, in *CreateAclTokenReq, opts ...grpc.CallOption) (*CreateAclTokenResp, error) {
+	out := new(CreateAclTokenResp)
+	err := c.cc.Invoke(ctx, "/api.Dex/CreateAclToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) UpdateAclToken(ctx context.Context, in *UpdateAclTokenReq, opts ...grpc.CallOption) (*UpdateAclTokenResp, error) {
+	out := new(UpdateAclTokenResp)
+	err := c.cc.Invoke(ctx, "/api.Dex/UpdateAclToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) ListAclToken(ctx context.Context, in *ListAclTokenReq, opts ...grpc.CallOption) (*ListAclTokenResp, error) {
+	out := new(ListAclTokenResp)
+	err := c.cc.Invoke(ctx, "/api.Dex/ListAclToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) DeleteAclToken(ctx context.Context, in *DeleteAclTokenReq, opts ...grpc.CallOption) (*DeleteAclTokenResp, error) {
+	out := new(DeleteAclTokenResp)
+	err := c.cc.Invoke(ctx, "/api.Dex/DeleteAclToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) CreateClientToken(ctx context.Context, in *CreateClientTokenReq, opts ...grpc.CallOption) (*CreateClientTokenResp, error) {
+	out := new(CreateClientTokenResp)
+	err := c.cc.Invoke(ctx, "/api.Dex/CreateClientToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) UpdateClientToken(ctx context.Context, in *UpdateClientTokenReq, opts ...grpc.CallOption) (*UpdateClientTokenResp, error) {
+	out := new(UpdateClientTokenResp)
+	err := c.cc.Invoke(ctx, "/api.Dex/UpdateClientToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) ListClientToken(ctx context.Context, in *ListClientTokenReq, opts ...grpc.CallOption) (*ListClientTokenResp, error) {
+	out := new(ListClientTokenResp)
+	err := c.cc.Invoke(ctx, "/api.Dex/ListClientToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) DeleteClientToken(ctx context.Context, in *DeleteClientTokenReq, opts ...grpc.CallOption) (*DeleteClientTokenResp, error) {
+	out := new(DeleteClientTokenResp)
+	err := c.cc.Invoke(ctx, "/api.Dex/DeleteClientToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DexServer is the server API for Dex service.
 type DexServer interface {
 	// CreateClient creates a client.
@@ -1462,6 +3322,38 @@ type DexServer interface {
 	RevokeRefresh(context.Context, *RevokeRefreshReq) (*RevokeRefreshResp, error)
 	// VerifyPassword returns whether a password matches a hash for a specific email or not.
 	VerifyPassword(context.Context, *VerifyPasswordReq) (*VerifyPasswordResp, error)
+	// CreateUserIdp creates a UserIdp.
+	CreateUserIdp(context.Context, *CreateUserIdpReq) (*CreateUserIdpResp, error)
+	// UpdateUserIdp updates an existing UserIdp
+	UpdateUserIdp(context.Context, *UpdateUserIdpReq) (*UpdateUserIdpResp, error)
+	// ListUserIdp lists all existings UserIdp
+	ListUserIdp(context.Context, *ListUserIdpReq) (*ListUserIdpResp, error)
+	// DeleteUserIdp deletes the provided UserIdp.
+	DeleteUserIdp(context.Context, *DeleteUserIdpReq) (*DeleteUserIdpResp, error)
+	// CreateUser creates a User.
+	CreateUser(context.Context, *CreateUserReq) (*CreateUserResp, error)
+	// UpdateUser updates an existing User
+	UpdateUser(context.Context, *UpdateUserReq) (*UpdateUserResp, error)
+	// ListUser lists all existings User
+	ListUser(context.Context, *ListUserReq) (*ListUserResp, error)
+	// DeleteUser deletes the provided User.
+	DeleteUser(context.Context, *DeleteUserReq) (*DeleteUserResp, error)
+	// CreateAclToken creates a AclToken.
+	CreateAclToken(context.Context, *CreateAclTokenReq) (*CreateAclTokenResp, error)
+	// UpdateAclToken updates an existing AclToken
+	UpdateAclToken(context.Context, *UpdateAclTokenReq) (*UpdateAclTokenResp, error)
+	// ListAclToken lists all existings AclToken
+	ListAclToken(context.Context, *ListAclTokenReq) (*ListAclTokenResp, error)
+	// DeleteAclToken deletes the provided AclToken.
+	DeleteAclToken(context.Context, *DeleteAclTokenReq) (*DeleteAclTokenResp, error)
+	// CreateClientToken creates a ClientToken.
+	CreateClientToken(context.Context, *CreateClientTokenReq) (*CreateClientTokenResp, error)
+	// UpdateClientToken updates an existing ClientToken
+	UpdateClientToken(context.Context, *UpdateClientTokenReq) (*UpdateClientTokenResp, error)
+	// ListClientToken lists all existings ClientToken
+	ListClientToken(context.Context, *ListClientTokenReq) (*ListClientTokenResp, error)
+	// DeleteClientToken deletes the provided ClientToken.
+	DeleteClientToken(context.Context, *DeleteClientTokenReq) (*DeleteClientTokenResp, error)
 }
 
 // UnimplementedDexServer can be embedded to have forward compatible implementations.
@@ -1500,6 +3392,54 @@ func (*UnimplementedDexServer) RevokeRefresh(ctx context.Context, req *RevokeRef
 }
 func (*UnimplementedDexServer) VerifyPassword(ctx context.Context, req *VerifyPasswordReq) (*VerifyPasswordResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VerifyPassword not implemented")
+}
+func (*UnimplementedDexServer) CreateUserIdp(ctx context.Context, req *CreateUserIdpReq) (*CreateUserIdpResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateUserIdp not implemented")
+}
+func (*UnimplementedDexServer) UpdateUserIdp(ctx context.Context, req *UpdateUserIdpReq) (*UpdateUserIdpResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateUserIdp not implemented")
+}
+func (*UnimplementedDexServer) ListUserIdp(ctx context.Context, req *ListUserIdpReq) (*ListUserIdpResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListUserIdp not implemented")
+}
+func (*UnimplementedDexServer) DeleteUserIdp(ctx context.Context, req *DeleteUserIdpReq) (*DeleteUserIdpResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserIdp not implemented")
+}
+func (*UnimplementedDexServer) CreateUser(ctx context.Context, req *CreateUserReq) (*CreateUserResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateUser not implemented")
+}
+func (*UnimplementedDexServer) UpdateUser(ctx context.Context, req *UpdateUserReq) (*UpdateUserResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateUser not implemented")
+}
+func (*UnimplementedDexServer) ListUser(ctx context.Context, req *ListUserReq) (*ListUserResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListUser not implemented")
+}
+func (*UnimplementedDexServer) DeleteUser(ctx context.Context, req *DeleteUserReq) (*DeleteUserResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteUser not implemented")
+}
+func (*UnimplementedDexServer) CreateAclToken(ctx context.Context, req *CreateAclTokenReq) (*CreateAclTokenResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateAclToken not implemented")
+}
+func (*UnimplementedDexServer) UpdateAclToken(ctx context.Context, req *UpdateAclTokenReq) (*UpdateAclTokenResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateAclToken not implemented")
+}
+func (*UnimplementedDexServer) ListAclToken(ctx context.Context, req *ListAclTokenReq) (*ListAclTokenResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAclToken not implemented")
+}
+func (*UnimplementedDexServer) DeleteAclToken(ctx context.Context, req *DeleteAclTokenReq) (*DeleteAclTokenResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAclToken not implemented")
+}
+func (*UnimplementedDexServer) CreateClientToken(ctx context.Context, req *CreateClientTokenReq) (*CreateClientTokenResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateClientToken not implemented")
+}
+func (*UnimplementedDexServer) UpdateClientToken(ctx context.Context, req *UpdateClientTokenReq) (*UpdateClientTokenResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateClientToken not implemented")
+}
+func (*UnimplementedDexServer) ListClientToken(ctx context.Context, req *ListClientTokenReq) (*ListClientTokenResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListClientToken not implemented")
+}
+func (*UnimplementedDexServer) DeleteClientToken(ctx context.Context, req *DeleteClientTokenReq) (*DeleteClientTokenResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteClientToken not implemented")
 }
 
 func RegisterDexServer(s *grpc.Server, srv DexServer) {
@@ -1704,6 +3644,294 @@ func _Dex_VerifyPassword_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Dex_CreateUserIdp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateUserIdpReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).CreateUserIdp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Dex/CreateUserIdp",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).CreateUserIdp(ctx, req.(*CreateUserIdpReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_UpdateUserIdp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateUserIdpReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).UpdateUserIdp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Dex/UpdateUserIdp",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).UpdateUserIdp(ctx, req.(*UpdateUserIdpReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_ListUserIdp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUserIdpReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).ListUserIdp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Dex/ListUserIdp",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).ListUserIdp(ctx, req.(*ListUserIdpReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_DeleteUserIdp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteUserIdpReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).DeleteUserIdp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Dex/DeleteUserIdp",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).DeleteUserIdp(ctx, req.(*DeleteUserIdpReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_CreateUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateUserReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).CreateUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Dex/CreateUser",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).CreateUser(ctx, req.(*CreateUserReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_UpdateUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateUserReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).UpdateUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Dex/UpdateUser",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).UpdateUser(ctx, req.(*UpdateUserReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_ListUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUserReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).ListUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Dex/ListUser",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).ListUser(ctx, req.(*ListUserReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_DeleteUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteUserReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).DeleteUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Dex/DeleteUser",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).DeleteUser(ctx, req.(*DeleteUserReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_CreateAclToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAclTokenReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).CreateAclToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Dex/CreateAclToken",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).CreateAclToken(ctx, req.(*CreateAclTokenReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_UpdateAclToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAclTokenReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).UpdateAclToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Dex/UpdateAclToken",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).UpdateAclToken(ctx, req.(*UpdateAclTokenReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_ListAclToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAclTokenReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).ListAclToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Dex/ListAclToken",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).ListAclToken(ctx, req.(*ListAclTokenReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_DeleteAclToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAclTokenReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).DeleteAclToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Dex/DeleteAclToken",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).DeleteAclToken(ctx, req.(*DeleteAclTokenReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_CreateClientToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateClientTokenReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).CreateClientToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Dex/CreateClientToken",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).CreateClientToken(ctx, req.(*CreateClientTokenReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_UpdateClientToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateClientTokenReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).UpdateClientToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Dex/UpdateClientToken",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).UpdateClientToken(ctx, req.(*UpdateClientTokenReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_ListClientToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListClientTokenReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).ListClientToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Dex/ListClientToken",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).ListClientToken(ctx, req.(*ListClientTokenReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_DeleteClientToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteClientTokenReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).DeleteClientToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Dex/DeleteClientToken",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).DeleteClientToken(ctx, req.(*DeleteClientTokenReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _Dex_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "api.Dex",
 	HandlerType: (*DexServer)(nil),
@@ -1751,6 +3979,70 @@ var _Dex_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "VerifyPassword",
 			Handler:    _Dex_VerifyPassword_Handler,
+		},
+		{
+			MethodName: "CreateUserIdp",
+			Handler:    _Dex_CreateUserIdp_Handler,
+		},
+		{
+			MethodName: "UpdateUserIdp",
+			Handler:    _Dex_UpdateUserIdp_Handler,
+		},
+		{
+			MethodName: "ListUserIdp",
+			Handler:    _Dex_ListUserIdp_Handler,
+		},
+		{
+			MethodName: "DeleteUserIdp",
+			Handler:    _Dex_DeleteUserIdp_Handler,
+		},
+		{
+			MethodName: "CreateUser",
+			Handler:    _Dex_CreateUser_Handler,
+		},
+		{
+			MethodName: "UpdateUser",
+			Handler:    _Dex_UpdateUser_Handler,
+		},
+		{
+			MethodName: "ListUser",
+			Handler:    _Dex_ListUser_Handler,
+		},
+		{
+			MethodName: "DeleteUser",
+			Handler:    _Dex_DeleteUser_Handler,
+		},
+		{
+			MethodName: "CreateAclToken",
+			Handler:    _Dex_CreateAclToken_Handler,
+		},
+		{
+			MethodName: "UpdateAclToken",
+			Handler:    _Dex_UpdateAclToken_Handler,
+		},
+		{
+			MethodName: "ListAclToken",
+			Handler:    _Dex_ListAclToken_Handler,
+		},
+		{
+			MethodName: "DeleteAclToken",
+			Handler:    _Dex_DeleteAclToken_Handler,
+		},
+		{
+			MethodName: "CreateClientToken",
+			Handler:    _Dex_CreateClientToken_Handler,
+		},
+		{
+			MethodName: "UpdateClientToken",
+			Handler:    _Dex_UpdateClientToken_Handler,
+		},
+		{
+			MethodName: "ListClientToken",
+			Handler:    _Dex_ListClientToken_Handler,
+		},
+		{
+			MethodName: "DeleteClientToken",
+			Handler:    _Dex_DeleteClientToken_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

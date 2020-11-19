@@ -1,7 +1,7 @@
 # The base path of dex and the external name of the OpenID Connect service.
 # This is the canonical URL that all clients MUST use to refer to dex. If a
 # path is provided, dex's HTTP service will listen at a non-root URL.
-issuer: http://127.0.0.1:5556/dex
+issuer: http://10.153.191.9:5556/dex
 
 # The storage configuration determines where dex stores its state. Supported
 # options include SQL flavors and Kubernetes third party resources.
@@ -10,6 +10,7 @@ issuer: http://127.0.0.1:5556/dex
 storage:
   type: sqlite3
   config:
+    # file: /var/lib/auth-dex/redpesk.db
     file: examples/dex.db
 
   # type: mysql
@@ -43,8 +44,8 @@ storage:
   #   kubeConfigFile: $HOME/.kube/config
 
 # Configuration for the HTTP endpoints.
-web:
-  http: 0.0.0.0:5556
+web: 
+  http: 10.153.191.9:5556
   # Uncomment for HTTPS options.
   # https: 127.0.0.1:5554
   # tlsCert: /etc/dex/tls.crt
@@ -52,16 +53,45 @@ web:
 
 # Configuration for telemetry
 telemetry:
-  http: 0.0.0.0:5558
+  http: 10.153.191.9:5558
 
 # Uncomment this block to enable the gRPC API. This values MUST be different
 # from the HTTP endpoints.
-# grpc:
-#   addr: 127.0.0.1:5557
-#  tlsCert: examples/grpc-client/server.crt
-#  tlsKey: examples/grpc-client/server.key
-#  tlsClientCA: examples/grpc-client/ca.crt
+grpc:
+  # cannot be the same address as an HTTP(s) service)
+  addr: 10.153.191.9:5557
+  # Server certs. If TLS credentials aren't provided dex will run in plaintext (HTTP)
+  tlsCert: /etc/dex/server.crt
+  tlsKey: /etc/dex/server.key
 
+  # client auth CA
+  tlsClientCA: /etc/dex/ca.crt
+  # enable reflection
+  reflection: true
+
+firstauth:
+  enable: true
+  mode: auto
+  default:
+    - connector: 'iot'
+      clients:
+        - 'redmine'
+        - 'redpesk'
+    - connector: 'github' 
+      clients:
+        - 'redpesk'
+  mailer:
+    host: mail.iot.bzh
+    port: 587
+    user: noreply@redpesk.bzh
+    password: aDJVUFVKdFoyQ3R6S1AK
+    receiver: valentin.lefebvre@iot.bzh
+SSO:
+  enable: false
+  authkey: DEX_SESSION_AUTH_KEY
+  encryptKey: DEX_SESSION_ENCKEY 
+  sessionName: dex_sso_cookie
+  maxage: 86400
 # Uncomment this block to enable configuration for the expiration time durations.
 # expiry:
 #   deviceRequests: "5m"
@@ -91,20 +121,128 @@ telemetry:
 #
 # If this option isn't chosen clients may be added through the gRPC API.
 staticClients:
-- id: example-app
+
+- id: redmine
+  redirectURIS:
+    - 'http://10.153.191.117:3000/oic/local_login'
+    - 'http://10.153.191.117:3000/oic/local_logout'
+  name: 'Redmine Dev'
+  secret: redmine-secret
+
+- id: redpesk
   redirectURIs:
-  - 'http://127.0.0.1:5555/callback'
-  name: 'Example App'
-  secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+  - 'http://10.0.3.253:8000/oauth/callback'
+  name: 'redpesk web-server'
+  secret: tJdJPR83DaVquTF3gBBJ9x8SJzn
+
+
 #  - id: example-device-client
 #    redirectURIs:
 #      - /device/callback
 #    name: 'Static Client for Device Flow'
 #    public: true
 connectors:
-- type: mockCallback
-  id: mock
-  name: Example
+# - type: mockCallback
+#   id: mock
+#   name: Example
+
+# - type: ldap
+#   name: DEVEL Internal
+#   id: ldap
+#   config:
+#     host: 10.153.191.59:389
+#     insecureNoSSL: true
+#     usernamePrompt: Email Adress Devel
+    
+#     userSearch:
+#       baseDN: ou=People,dc=container-fedora-ldap-val,dc=lxd
+#       filter: "(objectClass=posixAccount)"
+#       username: mail
+#       idAttr: uid
+#       emailAttr: mail
+#       nameAttr: cn
+
+#     groupSearch: 
+#       baseDN: ou=Group,dc=container-fedora-ldap-val,dc=lxd
+#       filter: "(objectClass=posixGroup)"
+#       userMatchers:
+#         - userAttr: cn
+#           groupAttr: memberUid
+#       # The group name should be the "cn" value.
+#       nameAttr: cn
+
+- type: ldap
+  name: IOT Internal
+  id: iot
+  config:
+    host: vm-login.lorient.iot:389
+    insecureNoSSL: true
+    usernamePrompt: Email Address
+    userSearch:
+      baseDn: ou=People,dc=vannes,dc=iot
+      filter: "(objectClass=inetOrgPerson)"
+      idAttr: DN
+      emailAttr: mail
+      username: mail
+      nameAttr: cn
+    groupSearch:
+      baseDN: ou=Groups,dc=vannes,dc=iot
+      filter: "(objectClass=posixGroup)"
+      userMatchers:
+        - userAttr: cn
+          groupAttr: memberUid
+      # userAttr: DN
+      # groupAttr: member
+      nameAttr: cn
+
+- type: github
+  id: IOT Github
+  name: github
+  config: 
+    # Credentials can be string literals or pulled from the environment.
+    clientID: baa1c78490e5455d6dcd
+    clientSecret: e21d006d070cdb40452897c4e275fac2798d7220
+    redirectURI: http://10.153.191.9:5556/dex/callback
+
+- type: gitlab
+  # Required field for connector id.
+  id: gitlab
+  # Required field for connector name.
+  name: IOT GitLab
+  config:
+    # optional, default = https://gitlab.com
+    baseURL: http://git.ovh.iot
+    # Credentials can be string literals or pulled from the environment.
+    clientID: 304372075a89d882e7a37c06ed34ff87a2792df57eca32396d6de29725943446
+    clientSecret: 0655f4276bdf697fc74a32c7bd0d257bcbbe77fb8666d10ca02011b7de6c0c26
+    redirectURI: http://10.153.191.9:5556/dex/callback
+# - type: github
+#   id: github
+#   name: GitHub
+#   config:
+#     clientID: fd8a1c912f482b8ef39c
+#     clientSecret: ea944647a1200db78c5ba04dcc2e4327040e309c
+#     # redirectURI: https://auth2.iot.bzh/dex/callback
+#     redirectURI: 'http://10.153.191.9:5556/dex/callback'
+
+# - type: github
+#   id: github
+#   name: GitHub-nInDO
+#   config:
+#     clientID: 50a6a4c9ee8c082578db
+#     clientSecret: 56c95c5f6d83c2b5e3c5ed7ef361feff0cdf1a3e
+#     redirectURI: 'http://10.153.191.9:5556/dex/callback'
+#     orgs:
+#         - name: nInDO-team 
+
+# - type: gitlab
+#   id: gitlab
+#   name: Gitlab
+#   config:
+#     baseURL: https://git.ovh.iot
+#     clientID: ae4af964fa6f6e19e2a7682f58109fd0db611d5ce7af65e322d0a1d8b8eed38c
+#     clientSecret: 065e58b9f423ec27a9bbd03ca5700ad74932c079d6d260f8522173dc61948c4c
+#     redirectURI: http://10.153.191.9:5556/dex/callback
 # - type: google
 #   id: google
 #   name: Google
@@ -118,15 +256,19 @@ connectors:
 #     - $GOOGLE_HOSTED_DOMAIN
 
 # Let dex keep a list of passwords which can be used to login to dex.
-enablePasswordDB: true
+enablePasswordDB: false
 
 # A static list of passwords to login the end user. By identifying here, dex
 # won't look in its underlying storage for passwords.
 #
 # If this option isn't chosen users may be added through the gRPC API.
-staticPasswords:
-- email: "admin@example.com"
-  # bcrypt hash of the string "password"
-  hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
-  username: "admin"
-  userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+# staticPasswords:
+# - email: "admin@example.com"
+#   # bcrypt hash of the string "password"
+#   hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+#   username: "admin"
+#   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+
+frontend:
+  dir: "/home/devel/workspace/src/git.ovh.iot/dex-theme/"
+  issuer: "my-dex"

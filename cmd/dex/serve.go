@@ -228,6 +228,34 @@ func serve(cmd *cobra.Command, args []string) error {
 	if len(c.Web.AllowedOrigins) > 0 {
 		logger.Infof("config allowed origins: %s", c.Web.AllowedOrigins)
 	}
+	if c.FirstAuth.Enable {
+		if c.FirstAuth.Mode != "" {
+			logger.Infof("config allowed first Authentification with the %s mode.", c.FirstAuth.Mode)
+		} else {
+			logger.Infof("config allowed first Authentification with the mode auto.")
+		}
+		if c.FirstAuth.Mode == "" || c.FirstAuth.Mode == "auto" {
+			if c.FirstAuth.Default != nil && len(c.FirstAuth.Default) > 0 {
+				for index, defaultData := range c.FirstAuth.Default {
+					var clientTokens []string
+					for _, clientID := range defaultData.Clients {
+						newClientTokenID := storage.NewID()
+						err := s.CreateClientToken(storage.ClientToken{ID: newClientTokenID, ClientID: clientID, CreatedAt: time.Now(), ExpiredAt: time.Now().AddDate(0, 0, 10)})
+						if err != nil {
+							return fmt.Errorf("failed to initialize first auth client token auto mode: %v", err)
+						}
+						clientTokens = append(clientTokens, newClientTokenID)
+					}
+					newAclTokenID := storage.NewID()
+					s.CreateAclToken(storage.AclToken{ID: newAclTokenID, Desc: "Acl token generated for the automatic mode with connector: " + defaultData.Connector, MaxUser: "0", ClientTokens: clientTokens})
+					c.FirstAuth.Default[index].AclToken = newAclTokenID
+				}
+			}
+		}
+	}
+	if c.Sso.Enable {
+		logger.Infof("config allowed SSO")
+	}
 
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
@@ -244,6 +272,8 @@ func serve(cmd *cobra.Command, args []string) error {
 		Logger:                 logger,
 		Now:                    now,
 		PrometheusRegistry:     prometheusRegistry,
+		FirstAuth:              c.FirstAuth,
+		Sso:                    c.Sso,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
@@ -338,6 +368,9 @@ func serve(cmd *cobra.Command, args []string) error {
 		}()
 	}
 
+	if c.FirstAuth.Enable {
+		logger.Infof("smtp info:  %s:%d with %s", c.FirstAuth.Mailer.Host, c.FirstAuth.Mailer.Port, c.FirstAuth.Mailer.User)
+	}
 	return <-errc
 }
 

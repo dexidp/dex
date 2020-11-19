@@ -169,6 +169,139 @@ func TestPassword(t *testing.T) {
 	}
 }
 
+// Attempts to create, update and delete a first authentication token
+func TestFirstAuthTokens(t *testing.T) {
+	// logger := &logrus.Logger{
+	// 	Out:       os.Stderr,
+	// 	Formatter: &logrus.TextFormatter{DisableColors: true},
+	// 	Level:     logrus.DebugLevel,
+	// }
+
+	// s := memory.New(logger)
+	// client := newAPI(s, logger, t)
+	// defer client.Close()
+
+	// ctx := context.Background()
+	// tokenID := "IdOfTheToken"
+	// tok := api.FirstAuthTokens{
+	// 	Id:       tokenID,
+	// 	Status:   "pending",
+	// 	Services: []string{"services1", "services2"},
+	// }
+
+	// createReq := api.CreateFirstAuthTokensReq{
+	// 	FirstAuthTokens: &tok,
+	// }
+
+	// if resp, err := client.CreateFirstAuthTokens(ctx, &createReq); err != nil || resp.AlreadyExists {
+	// 	if resp.AlreadyExists {
+	// 		t.Fatalf("Unable to create first auth token since %s already exists", createReq.FirstAuthTokens.Id)
+	// 	}
+	// 	t.Fatalf("Unable to create first auth token: %v", err)
+	// }
+
+	// // Attempt to create a first token that already exists.
+	// if resp, _ := client.CreateFirstAuthTokens(ctx, &createReq); !resp.AlreadyExists {
+	// 	t.Fatalf("Created first auth token %s twice", createReq.FirstAuthTokens.Id)
+	// }
+
+	// // Attempt to update the token
+	// updateReq := api.UpdateFirstAuthTokensReq{
+	// 	Id:       tokenID,
+	// 	Status:   "used",
+	// 	Services: []string{"service1", "service2"},
+	// }
+
+	// if _, err := client.UpdateFirstAuthTokens(ctx, &updateReq); err != nil {
+	// 	t.Fatalf("Unable to update first auth token: %v", err)
+	// }
+
+	// firstTok, err := s.GetFirstAuthTokens(updateReq.Id)
+	// if err != nil {
+	// 	t.Fatalf("Unable to retrieve first auth token: %v", err)
+	// }
+
+	// if firstTok.Status != updateReq.Status {
+	// 	t.Fatalf("UpdateFirstAuthToken failed. Expected status %s retrieved %s", updateReq.Status, firstTok.Status)
+	// }
+
+	// // Attempt to delete the token
+	// deleteReq := api.DeleteFirstAuthTokensReq{
+	// 	Id: tokenID,
+	// }
+
+	// if _, err := client.DeleteFirstAuthTokens(ctx, &deleteReq); err != nil {
+	// 	t.Fatalf("Unable to delete first auth token: %v", err)
+	// }
+}
+
+// Attempts to create, update and delete a first authentication user
+func TestFirstAuthUsers(t *testing.T) {
+	// logger := &logrus.Logger{
+	// 	Out:       os.Stderr,
+	// 	Formatter: &logrus.TextFormatter{DisableColors: true},
+	// 	Level:     logrus.DebugLevel,
+	// }
+
+	// s := memory.New(logger)
+	// client := newAPI(s, logger, t)
+	// defer client.Close()
+
+	// ctx := context.Background()
+	// tokenID := "IdOfTheToken"
+	// userId := "IdOfTheUser"
+	// user := api.FirstAuthUsers{
+	// 	Id:       userId,
+	// 	Username: "user name",
+	// 	Token:    tokenID,
+	// }
+
+	// createReq := api.CreateFirstAuthUsersReq{
+	// 	FirstAuthUsers: &user,
+	// }
+
+	// if resp, err := client.CreateFirstAuthUsers(ctx, &createReq); err != nil || resp.AlreadyExists {
+	// 	if resp.AlreadyExists {
+	// 		t.Fatalf("Unable to create first auth user since %s already exists", createReq.FirstAuthUsers.Id)
+	// 	}
+	// 	t.Fatalf("Unable to create first auth user: %v", err)
+	// }
+
+	// // Attempt to create a first user that already exists.
+	// if resp, _ := client.CreateFirstAuthUsers(ctx, &createReq); !resp.AlreadyExists {
+	// 	t.Fatalf("Created first auth user %s twice", createReq.FirstAuthUsers.Id)
+	// }
+
+	// // Attempt to update the user
+	// updateReq := api.UpdateFirstAuthUsersReq{
+	// 	Id:       userId,
+	// 	Username: "user name updated",
+	// 	Token:    tokenID,
+	// }
+
+	// if _, err := client.UpdateFirstAuthUsers(ctx, &updateReq); err != nil {
+	// 	t.Fatalf("Unable to update first auth user: %v", err)
+	// }
+
+	// firstUser, err := s.GetFirstAuthUsers(updateReq.Id)
+	// if err != nil {
+	// 	t.Fatalf("Unable to retrieve first auth user: %v", err)
+	// }
+
+	// if firstUser.Username != updateReq.Username {
+	// 	t.Fatalf("UpdateFirstAuthUSers failed. Expected status %s retrieved %s", updateReq.Username, firstUser.Username)
+	// }
+
+	// // Attempt to delete the token
+	// deleteReq := api.DeleteFirstAuthUsersReq{
+	// 	Id: userId,
+	// }
+
+	// if _, err := client.DeleteFirstAuthUsers(ctx, &deleteReq); err != nil {
+	// 	t.Fatalf("Unable to delete first auth user: %v", err)
+	// }
+}
+
 // Ensures checkCost returns expected values
 func TestCheckCost(t *testing.T) {
 	logger := &logrus.Logger{

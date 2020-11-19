@@ -1,0 +1,76 @@
+{{ template "header.html" . }}
+
+<div class="theme-panel">
+  
+    <form method="post">
+        <div class="theme-heading">
+            <span style="color:#d70000; font: bold 2.5rem 'Roboto';">
+                <span style="color:black; font: bold 2.5rem 'Roboto';">Join </span>
+                <strong style="color: #af0505">program</strong>
+                <span style="color:black; font: bold 2.5rem 'Roboto';"> Beta</span>
+            </span>
+        </div>
+
+        <div class="section-intro">
+            <p>It's look like we don't know you, or your token is wrong, so send us a request to join this <sup
+                    style="font-size: 50%;">®</sup> project.
+                Please, complete the form and click on the button "Request an invitation". You will receive an
+                e-mail containing an invitation link. We will answer you as soon as possible.</p>
+        </div>
+
+        <div class="theme-form-row">
+            <label for="email"><b>Email</b></label>
+            <input class="input-form" type="text" placeholder="me@example.com" name="email" id="email" {{ if .Email }} value="{{ .Email }}" {{ else }} autofocus {{ end }}/>
+        </div>
+
+        <div>
+            <label for="firstname"><b>First name</b></label>
+            <input class="input-form" type="text" placeholder="Joh" name="firstname" id="firstname"
+            {{ if .Username }} value="{{ .Username }}" {{ else }} autofocus {{ end }}/>
+        </div>
+
+        <div class="theme-form-row">
+            <label for="lastname"><b>Last name</b></label>
+            <input class="input-form" type="text" placeholder="Doe" name="lastname" id="lastname"/>
+        </div>
+
+        <div class="theme-form-row">
+            <label for="company"><b>Company Name</b></label>
+            <input class="input-form" type="text" placeholder="Iot.bzh" name="company" id="company" />
+        </div>
+
+        <div class="theme-form-row">
+            <label for="companysize"><b>Company size</b></label>
+            <select class="custom-select-form" name="companysize">
+                <option value="0 - 10">0-10</option>
+                <option value="10 - 50">10-50</option>
+                <option value="+50">50+</option>
+            </select>
+            <span>employees.</span>
+        </div>
+
+        <div class="theme-form-row">
+            <label for="boards"><b>Used Boards</b></label>
+            <input class="input-form" type="text" placeholder="Intel, aarch64, etc" name="boards" id="boards"
+                value=""/>
+        </div>
+
+        <div class="theme-form-row">
+            <label for="aglmember"><b>Are you an AGL member ?</b></label>
+            <input class="radio-button-form" type="radio" name="aglmember" value="Yes" />Yes
+            <input class="radio-button-form" type="radio" name="aglmember" value="No" />No
+        </div>
+        
+        <div class="theme-form-row">
+            <label for="reason"><b>What is your reason for choosing this programm<sup style="font-size: 50%;">®</sup>
+                    ?</b></label>
+            <input class="input-form" type="text" name="reason" id="reason" value=""/>"
+        </div>
+
+        <div class="center-button">
+            <button type="submit" class="dex-btn theme-btn--success">Request an invitation</button>
+        </div>
+    </form>
+</div>
+
+{{ template "footer.html" . }}

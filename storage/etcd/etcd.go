@@ -24,6 +24,10 @@ const (
 	keysName             = "openid-connect-keys"
 	deviceRequestPrefix  = "device_req/"
 	deviceTokenPrefix    = "device_token/"
+	userIdpPrefix        = "user_idp/"
+	userPrefix           = "user/"
+	aclTokenPrefix       = "acl_token/"
+	clientTokenPrefix    = "client_token/"
 
 	// defaultStorageTimeout will be applied to all storage's operations.
 	defaultStorageTimeout = 5 * time.Second
@@ -636,4 +640,220 @@ func (c *conn) UpdateDeviceToken(deviceCode string, updater func(old storage.Dev
 		}
 		return json.Marshal(fromStorageDeviceToken(updated))
 	})
+}
+
+func (c *conn) CreateUserIdp(user storage.UserIdp) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnCreate(ctx, keyID(userIdpPrefix, user.IdpID), user)
+}
+
+func (c *conn) GetUserIdp(id string) (user storage.UserIdp, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	err = c.getKey(ctx, keyID(userIdpPrefix, id), &user)
+	return user, err
+}
+
+func (c *conn) UpdateUserIdp(id string, updater func(old storage.UserIdp) (storage.UserIdp, error)) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnUpdate(ctx, keyID(userIdpPrefix, id), func(currentValue []byte) ([]byte, error) {
+		var current storage.UserIdp
+		if len(currentValue) > 0 {
+			if err := json.Unmarshal(currentValue, &current); err != nil {
+				return nil, err
+			}
+		}
+		updated, err := updater(current)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(updated)
+	})
+}
+
+func (c *conn) DeleteUserIdp(id string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.deleteKey(ctx, keyID(userIdpPrefix, id))
+}
+
+func (c *conn) ListUserIdp() (users []storage.UserIdp, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	res, err := c.db.Get(ctx, userIdpPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return users, err
+	}
+	for _, v := range res.Kvs {
+		var user storage.UserIdp
+		if err = json.Unmarshal(v.Value, &user); err != nil {
+			return users, err
+		}
+		users = append(users, user)
+	}
+	return users, nil
+}
+
+func (c *conn) CreateUser(user storage.User) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnCreate(ctx, keyID(userIdpPrefix, user.InternID), user)
+}
+
+func (c *conn) GetUser(id string) (user storage.User, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	err = c.getKey(ctx, keyID(userPrefix, id), &user)
+	return user, err
+}
+
+func (c *conn) UpdateUser(id string, updater func(old storage.User) (storage.User, error)) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnUpdate(ctx, keyID(userPrefix, id), func(currentValue []byte) ([]byte, error) {
+		var current storage.User
+		if len(currentValue) > 0 {
+			if err := json.Unmarshal(currentValue, &current); err != nil {
+				return nil, err
+			}
+		}
+		updated, err := updater(current)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(updated)
+	})
+}
+
+func (c *conn) DeleteUser(id string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.deleteKey(ctx, keyID(userPrefix, id))
+}
+
+func (c *conn) ListUser() (users []storage.User, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	res, err := c.db.Get(ctx, userPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return users, err
+	}
+	for _, v := range res.Kvs {
+		var user storage.User
+		if err = json.Unmarshal(v.Value, &user); err != nil {
+			return users, err
+		}
+		users = append(users, user)
+	}
+	return users, nil
+}
+
+func (c *conn) CreateAclToken(token storage.AclToken) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnCreate(ctx, keyID(aclTokenPrefix, token.ID), token)
+}
+
+func (c *conn) GetAclToken(id string) (token storage.AclToken, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	err = c.getKey(ctx, keyID(aclTokenPrefix, id), &token)
+	return token, err
+}
+
+func (c *conn) UpdateAclToken(id string, updater func(old storage.AclToken) (storage.AclToken, error)) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnUpdate(ctx, keyID(aclTokenPrefix, id), func(currentValue []byte) ([]byte, error) {
+		var current storage.AclToken
+		if len(currentValue) > 0 {
+			if err := json.Unmarshal(currentValue, &current); err != nil {
+				return nil, err
+			}
+		}
+		updated, err := updater(current)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(updated)
+	})
+}
+
+func (c *conn) DeleteAclToken(id string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.deleteKey(ctx, keyID(aclTokenPrefix, id))
+}
+
+func (c *conn) ListAclToken() (tokens []storage.AclToken, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	res, err := c.db.Get(ctx, aclTokenPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return tokens, err
+	}
+	for _, v := range res.Kvs {
+		var token storage.AclToken
+		if err = json.Unmarshal(v.Value, &token); err != nil {
+			return tokens, err
+		}
+		tokens = append(tokens, token)
+	}
+	return tokens, nil
+}
+
+func (c *conn) CreateClientToken(token storage.ClientToken) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnCreate(ctx, keyID(aclTokenPrefix, token.ID), token)
+}
+
+func (c *conn) GetClientToken(id string) (token storage.ClientToken, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	err = c.getKey(ctx, keyID(clientTokenPrefix, id), &token)
+	return token, err
+}
+
+func (c *conn) UpdateClientToken(id string, updater func(old storage.ClientToken) (storage.ClientToken, error)) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.txnUpdate(ctx, keyID(clientTokenPrefix, id), func(currentValue []byte) ([]byte, error) {
+		var current storage.ClientToken
+		if len(currentValue) > 0 {
+			if err := json.Unmarshal(currentValue, &current); err != nil {
+				return nil, err
+			}
+		}
+		updated, err := updater(current)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(updated)
+	})
+}
+
+func (c *conn) DeleteClientToken(id string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	return c.deleteKey(ctx, keyID(clientTokenPrefix, id))
+}
+
+func (c *conn) ListClientToken() (tokens []storage.ClientToken, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	defer cancel()
+	res, err := c.db.Get(ctx, clientTokenPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return tokens, err
+	}
+	for _, v := range res.Kvs {
+		var token storage.ClientToken
+		if err = json.Unmarshal(v.Value, &token); err != nil {
+			return tokens, err
+		}
+		tokens = append(tokens, token)
+	}
+	return tokens, nil
 }
