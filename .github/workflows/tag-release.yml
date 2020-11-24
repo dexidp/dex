@@ -1,0 +1,26 @@
+name: Docker Tag Latest Release
+
+on:
+  release:
+    types: [ released ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Clone latest repository
+      uses: actions/checkout@v2
+    - name: Tag latest release in DockerHub
+      run: |
+        docker pull hathitrust/dex-shib-proxy-unstable:${{ github.sha }}
+        docker tag hathitrust/dex-shib-proxy-unstable:${{ github.sha }} hathitrust/dex-shib-proxy:${{ github.event.release.tag_name }}
+        docker tag hathitrust/dex-shib-proxy-unstable:${{ github.sha }} hathitrust/dex-shib-proxy:latest
+        docker push hathitrust/dex-shib-proxy:${{ github.event.release.tag_name }}
+        docker push hathitrust/dex-shib-proxy:latest

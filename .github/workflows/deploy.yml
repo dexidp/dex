@@ -1,0 +1,20 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: azure/setup-kubectl@v1
+    - name: Authenticate with kubernetes
+      run: |
+        mkdir -p ${HOME}/.kube/certs/cluster
+        echo ${{ secrets.KUBERNETES_CA }} | base64 -d > ${HOME}/.kube/certs/cluster/k8s-ca.crt
+        kubectl config set-cluster cluster --certificate-authority=${HOME}/.kube/certs/cluster/k8s-ca.crt --server=https://macc.kubernetes.hathitrust.org
+        kubectl config set-credentials default --token=${{ secrets.KUBERNETES_TOKEN }}
+        kubectl config set-context default --cluster=cluster --user=default --namespace=oidc-saml-proxy-production
+        kubectl config use-context default
+    - name: Manual Deploy
+      run: kubectl set image deployment web web=hathitrust/dex-shib-proxy:latest
