@@ -5,6 +5,7 @@ package authproxy
 
 import (
 	"fmt"
+  "strings"
 	"net/http"
 	"net/url"
 
@@ -43,15 +44,33 @@ func (m *callback) LoginURL(s connector.Scopes, callbackURL, state string) (stri
 
 // HandleCallback parses the request and returns the user's identity
 func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connector.Identity, error) {
+
+  m.logger.Debugf("Headers: %q", r.Header)
 	remoteUser := r.Header.Get("X-Remote-User")
 	if remoteUser == "" {
 		return connector.Identity{}, fmt.Errorf("required HTTP header X-Remote-User is not set")
 	}
-	// TODO: add support for X-Remote-Group, see
-	// https://kubernetes.io/docs/admin/authentication/#authenticating-proxy
-	return connector.Identity{
-		UserID:        remoteUser, // TODO: figure out if this is a bad ID value.
-		Email:         remoteUser,
-		EmailVerified: true,
-	}, nil
+
+  identity := connector.Identity{
+    UserID: remoteUser,
+  }
+
+  eppn := r.Header.Get("X-Shib-eduPersonPrincipalName")
+  if eppn != "" {
+    identity.Username = eppn
+    identity.PreferredUsername = eppn
+  }
+
+  shibMail := r.Header.Get("X-Shib-mail")
+  if shibMail != "" {
+    identity.Email = shibMail
+    identity.EmailVerified = true
+  }
+
+  shibAffiliation := r.Header.Get("X-Shib-eduPersonScopedAffiliation")
+  if shibAffiliation != "" {
+    identity.Groups = strings.Split(shibAffiliation,";")
+  }
+
+	return identity, nil
 }
