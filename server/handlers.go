@@ -474,7 +474,16 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err != nil {
+  if err != nil && err.Error() == "need login redirect" {
+    targetURL := r.URL
+    targetURL.Scheme = s.issuerURL.Scheme
+    targetURL.Host = s.issuerURL.Host
+    s.logger.Debugf("redirecting, request url was %v",r.URL)
+    s.logger.Debugf("redirecting, server url is %v",s.issuerURL)
+    s.logger.Debugf("redirecting, target url is %v",targetURL)
+    http.Redirect(w, r, fmt.Sprintf("/cgi/wayf?target=%s", url.QueryEscape(targetURL.String())), http.StatusSeeOther)
+    return
+  } else if err != nil {
 		s.logger.Errorf("Failed to authenticate: %v", err)
 		s.renderError(r, w, http.StatusInternalServerError, fmt.Sprintf("Failed to authenticate: %v", err))
 		return

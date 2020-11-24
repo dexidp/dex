@@ -45,10 +45,10 @@ func (m *callback) LoginURL(s connector.Scopes, callbackURL, state string) (stri
 // HandleCallback parses the request and returns the user's identity
 func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connector.Identity, error) {
 
-  m.logger.Debugf("Headers: %q", r.Header)
+  m.logger.Debugf("Headers: %v", r.Header)
 	remoteUser := r.Header.Get("X-Remote-User")
 	if remoteUser == "" {
-		return connector.Identity{}, fmt.Errorf("required HTTP header X-Remote-User is not set")
+		return connector.Identity{}, fmt.Errorf("need login redirect")
 	}
 
   identity := connector.Identity{
