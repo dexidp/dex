@@ -15,23 +15,18 @@ import (
 // Config holds the configuration parameters for a connector which returns an
 // identity with the HTTP header X-Remote-User as verified email.
 type Config struct {
-	HeaderName string   `json:"headerName"`
-	Groups     []string `json:"groups"`
+	UserHeader string `json:"userHeader"`
 }
 
 // Open returns an authentication strategy which requires no user interaction.
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
-	if c.HeaderName == "" {
-		c.HeaderName = "X-Remote-User"
-	}
-	return &callback{headerName: c.HeaderName, logger: logger, pathSuffix: "/" + id, groups: c.Groups}, nil
+	return &callback{UserHeader: c.UserHeader, logger: logger, pathSuffix: "/" + id}, nil
 }
 
 // Callback is a connector which returns an identity with the HTTP header
 // X-Remote-User as verified email.
 type callback struct {
-	headerName string
-	groups     []string
+	UserHeader string
 	logger     log.Logger
 	pathSuffix string
 }
@@ -51,9 +46,13 @@ func (m *callback) LoginURL(s connector.Scopes, callbackURL, state string) (stri
 
 // HandleCallback parses the request and returns the user's identity
 func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connector.Identity, error) {
-	remoteUser := r.Header.Get(m.headerName)
+	userHeader := "X-Remote-User" // Default value
+	if m.UserHeader != "" {
+		userHeader = m.UserHeader
+	}
+	remoteUser := r.Header.Get(userHeader)
 	if remoteUser == "" {
-		return connector.Identity{}, fmt.Errorf("required HTTP header %s is not set", m.headerName)
+		return connector.Identity{}, fmt.Errorf("required HTTP header %s is not set", m.UserHeader)
 	}
 	// TODO: add support for X-Remote-Group, see
 	// https://kubernetes.io/docs/admin/authentication/#authenticating-proxy
@@ -61,6 +60,5 @@ func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connecto
 		UserID:        remoteUser, // TODO: figure out if this is a bad ID value.
 		Email:         remoteUser,
 		EmailVerified: true,
-		Groups:        m.groups,
 	}, nil
 }
