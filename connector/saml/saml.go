@@ -3,6 +3,7 @@ package saml
 
 import (
 	"bytes"
+	"compress/flate"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -108,6 +109,17 @@ type Config struct {
 	//		urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
 	//
 	NameIDPolicyFormat string `json:"nameIDPolicyFormat"`
+
+	// Use HTTP Redirect Binding instead of HTTP Post Binding for AuthnRequest
+	// See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
+	// "3.4.4 Message Encoding" for HTTP Redirect Binding
+	// "3.5.4 Message Encoding" for HTTP POST Binding
+	//
+	// AuthnRequestBinding supports the following values:
+	//		request
+	//		post (default)
+	//
+	AuthnRequestBinding string `json:"authnRequestBinding"`
 }
 
 type certStore struct {
@@ -162,6 +174,8 @@ func (c *Config) openConnector(logger log.Logger) (*provider, error) {
 		logger:        logger,
 
 		nameIDPolicyFormat: c.NameIDPolicyFormat,
+
+		authnRequestBinding: c.AuthnRequestBinding,
 	}
 
 	if p.nameIDPolicyFormat == "" {
@@ -185,6 +199,12 @@ func (c *Config) openConnector(logger log.Logger) (*provider, error) {
 		} else {
 			return nil, fmt.Errorf("invalid nameIDPolicyFormat: %q", p.nameIDPolicyFormat)
 		}
+	}
+
+	if p.authnRequestBinding == "" {
+		p.authnRequestBinding = "post"
+	} else if p.authnRequestBinding != "redirect" && p.authnRequestBinding != "post" {
+		return nil, fmt.Errorf("invalid authnRequestBinding: %q", p.authnRequestBinding)
 	}
 
 	if !c.InsecureSkipSignatureValidation {
@@ -252,10 +272,12 @@ type provider struct {
 
 	nameIDPolicyFormat string
 
+	authnRequestBinding string
+
 	logger log.Logger
 }
 
-func (p *provider) POSTData(s connector.Scopes, id string) (action, value string, err error) {
+func (p *provider) AuthnRequest(s connector.Scopes, id string) (action, value string, redirect bool, err error) {
 	r := &authnRequest{
 		ProtocolBinding: bindingPOST,
 		ID:              id,
@@ -267,6 +289,7 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 		},
 		AssertionConsumerServiceURL: p.redirectURI,
 	}
+
 	if p.entityIssuer != "" {
 		// Issuer for the request is optional. For example, okta always ignores
 		// this value.
@@ -275,12 +298,27 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 
 	data, err := xml.MarshalIndent(r, "", "  ")
 	if err != nil {
-		return "", "", fmt.Errorf("marshal authn request: %v", err)
+		return "", "", false, fmt.Errorf("marshal authn request: %v", err)
+	}
+
+	// DEFLATE data according to specified binding
+	// See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
+	// "3.4.4 Message Encoding"
+	if p.authnRequestBinding == "redirect" {
+		b := new(bytes.Buffer)
+		compressor, err := flate.NewWriter(b, flate.DefaultCompression)
+		if err != nil {
+			return "", "", false, fmt.Errorf("encode authn request: %v", err)
+		}
+		compressor.Write(data)
+		compressor.Close()
+
+		data = b.Bytes()
 	}
 
 	// See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
-	// "3.5.4 Message Encoding"
-	return p.ssoURL, base64.StdEncoding.EncodeToString(data), nil
+	// "3.4.4 Message Encoding" and "3.5.4 Message Encoding"
+	return p.ssoURL, base64.StdEncoding.EncodeToString(data), p.authnRequestBinding == "redirect", nil
 }
 
 // HandlePOST interprets a request from a SAML provider attempting to verify a
