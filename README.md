@@ -113,8 +113,8 @@ on the Kubernetes Slack, or join the [dex-dev][dex-dev] mailing list.
 
 [openid-connect]: https://openid.net/connect/
 [standard-claims]: https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
-[scopes]: Documentation/custom-scopes-claims-clients.md#scopes
-[using-dex]: Documentation/using-dex.md
+[scopes]: https://dexidp.io/docs/custom-scopes-claims-clients/#scopes
+[using-dex]: https://dexidp.io/docs/using-dex/
 [jwt-io]: https://jwt.io/
 [kubernetes]: http://kubernetes.io/docs/admin/authentication/#openid-connect-tokens
 [aws-sts]: https://docs.aws.amazon.com/STS/latest/APIReference/Welcome.html
