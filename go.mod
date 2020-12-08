@@ -23,7 +23,9 @@ require (
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/kylelemons/godebug v1.1.0
 	github.com/lib/pq v1.3.0
+	github.com/mattermost/xml-roundtrip-validator v0.0.0-20201204154048-1a8688af4cf1
 	github.com/mattn/go-sqlite3 v1.11.0
+	github.com/pkg/errors v0.9.1
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/prometheus/client_golang v1.4.0
 	github.com/russellhaering/goxmldsig v1.1.0
