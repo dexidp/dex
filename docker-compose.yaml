@@ -19,7 +19,7 @@ services:
       - "127.0.0.1:3306:3306"
 
   postgres:
-    image: postgres:10.8
+    image: postgres:10.15
     environment:
       POSTGRES_DB: dex
       POSTGRES_USER: postgres
@@ -28,7 +28,7 @@ services:
       - "127.0.0.1:5432:5432"
 
   etcd:
-    image: gcr.io/etcd-development/etcd:v3.2.9
+    image: gcr.io/etcd-development/etcd:v3.4.9
     environment:
       ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
       ETCD_ADVERTISE_CLIENT_URLS: http://0.0.0.0:2379
