@@ -103,7 +103,11 @@ All changes or deprecations of connector features will be announced in the [rele
 
 ## Reporting a security vulnerability
 
-Due to their public nature, GitHub and mailing lists are NOT appropriate places for reporting vulnerabilities. Please refer to CoreOS's [security disclosure][disclosure] process when reporting issues that may be security related.
+Due to their public nature, GitHub and mailing lists are NOT appropriate places
+for reporting vulnerabilities.
+
+Please email the [maintainers list][maintainers-list] to report issues that may
+be security-related.
 
 ## Getting help
 
@@ -126,4 +130,4 @@ on the Kubernetes Slack, or join the [dex-dev][dex-dev] mailing list.
 [issues]: https://github.com/dexidp/dex/issues
 [dex-dev]: https://groups.google.com/forum/#!forum/dex-dev
 [slack]: slack://channel?team=T09NY5SBT&id=C011URMR41W
-[disclosure]: https://coreos.com/security/disclosure/
+[maintainers-list]: mailto:cncf-dex-maintainers@lists.cncf.io
