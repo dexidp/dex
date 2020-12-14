@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"encoding/xml"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"strings"
@@ -15,6 +14,8 @@ import (
 	"time"
 
 	"github.com/beevik/etree"
+	xrv "github.com/mattermost/xml-roundtrip-validator"
+	"github.com/pkg/errors"
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/russellhaering/goxmldsig/etreeutils"
 
@@ -287,6 +288,7 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 //
 // The steps taken are:
 //
+// * Validate XML document does not contain malicious inputs.
 // * Verify signature on XML document (or verify sig on assertion elements).
 // * Verify various parts of the Assertion element. Conditions, audience, etc.
 // * Map the Assertion's attribute elements to user info.
@@ -295,6 +297,11 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	rawResp, err := base64.StdEncoding.DecodeString(samlResponse)
 	if err != nil {
 		return ident, fmt.Errorf("decode response: %v", err)
+	}
+
+	byteReader := bytes.NewReader(rawResp)
+	if xrvErr := xrv.Validate(byteReader); xrvErr != nil {
+		return ident, errors.Wrap(xrvErr, "validating XML response")
 	}
 
 	// Root element is allowed to not be signed if the Assertion element is.
