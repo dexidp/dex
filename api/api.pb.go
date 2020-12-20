@@ -353,7 +353,7 @@ func (m *UpdateClientReq) GetLogoUrl() string {
 	return ""
 }
 
-// UpdateClientResp returns the reponse form updating a client.
+// UpdateClientResp returns the reponse from updating a client.
 type UpdateClientResp struct {
 	NotFound             bool     `protobuf:"varint,1,opt,name=not_found,json=notFound,proto3" json:"not_found,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`

@@ -45,7 +45,7 @@ message UpdateClientReq {
     string logo_url = 5;
 }
 
-// UpdateClientResp returns the reponse form updating a client.
+// UpdateClientResp returns the reponse from updating a client.
 message UpdateClientResp {
     bool not_found = 1;
 }
