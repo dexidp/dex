@@ -204,7 +204,7 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 
 type tokenNotifyFunc func(*oauth2.Token) error
 
-// notifyRefreshTokenSource is essentially `oauth2.ResuseTokenSource` with `TokenNotifyFunc` added.
+// notifyRefreshTokenSource is essentially `oauth2.ReuseTokenSource` with `TokenNotifyFunc` added.
 type notifyRefreshTokenSource struct {
 	new oauth2.TokenSource
 	mu  sync.Mutex // guards t
