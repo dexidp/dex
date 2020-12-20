@@ -406,7 +406,7 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 		return r, nil
 	}
 	if err := s.UpdateRefreshToken(id, updater); err != nil {
-		t.Errorf("failed to udpate refresh token: %v", err)
+		t.Errorf("failed to update refresh token: %v", err)
 	}
 	refresh.Token = "spam"
 	refresh.LastUsed = updatedAt
