@@ -721,7 +721,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 
 			defer oauth2Client.Close()
 
-			// Regester the client above with dex.
+			// Register the client above with dex.
 			redirectURL := oauth2Client.URL + "/callback"
 			client := storage.Client{
 				ID:           clientID,
@@ -1560,7 +1560,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 			}
 
 			// Parse the response
-			var tokenRes accessTokenReponse
+			var tokenRes accessTokenResponse
 			if err := json.Unmarshal(responseBody, &tokenRes); err != nil {
 				t.Errorf("Unexpected Device Access Token Response Format %v", string(responseBody))
 			}
