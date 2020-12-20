@@ -29,7 +29,7 @@ import (
 //       # The following field is required if using port 389.
 //       # insecureNoSSL: true
 //       rootCA: /etc/dex/ldap.ca
-//       bindDN: uid=seviceaccount,cn=users,dc=example,dc=com
+//       bindDN: uid=serviceaccount,cn=users,dc=example,dc=com
 //       bindPW: password
 //       userSearch:
 //         # Would translate to the query "(&(objectClass=person)(uid=<username>))"
