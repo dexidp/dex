@@ -25,7 +25,7 @@ type rotationStrategy struct {
 	rotationFrequency time.Duration
 
 	// After being rotated how long should the key be kept around for validating
-	// signatues?
+	// signatures?
 	idTokenValidFor time.Duration
 
 	// Keys are always RSA keys. Though cryptopasta recommends ECDSA keys, not every
