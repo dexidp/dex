@@ -23,7 +23,7 @@ import (
 type apiClient struct {
 	// Embedded gRPC client to talk to the server.
 	api.DexClient
-	// Close releases resources associated with this client, includuing shutting
+	// Close releases resources associated with this client, including shutting
 	// down the background server.
 	Close func()
 }
