@@ -452,7 +452,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 }
 
 // validateStatus verifies that the response has a good status code or
-// formats a human readble error based on the bad status.
+// formats a human readable error based on the bad status.
 func (p *provider) validateStatus(status *status) error {
 	// StatusCode is mandatory in the Status type
 	statusCode := status.StatusCode
