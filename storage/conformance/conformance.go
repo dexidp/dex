@@ -616,7 +616,7 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 	mustBeErrAlreadyExists(t, "connector", err)
 
 	id2 := storage.NewID()
-	config2 := []byte(`{"redirectURIi": "http://127.0.0.1:5556/dex/callback"}`)
+	config2 := []byte(`{"redirectURI": "http://127.0.0.1:5556/dex/callback"}`)
 	c2 := storage.Connector{
 		ID:     id2,
 		Type:   "Mock",
