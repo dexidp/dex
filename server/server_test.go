@@ -435,7 +435,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 					v.Add("client_secret", clientSecret)
 					v.Add("grant_type", "refresh_token")
 					v.Add("refresh_token", token.RefreshToken)
-					// Request a scope that wasn't requestd initially.
+					// Request a scope that wasn't requested initially.
 					v.Add("scope", "oidc email profile")
 					resp, err := http.PostForm(p.Endpoint().TokenURL, v)
 					if err != nil {
