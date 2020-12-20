@@ -281,7 +281,7 @@ func (m *DeleteClientResp) GetNotFound() bool {
 	return false
 }
 
-// UpdateClientReq is a request to update an exisitng client.
+// UpdateClientReq is a request to update an existing client.
 type UpdateClientReq struct {
 	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	RedirectUris         []string `protobuf:"bytes,2,rep,name=redirect_uris,json=redirectUris,proto3" json:"redirect_uris,omitempty"`

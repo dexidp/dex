@@ -36,7 +36,7 @@ message DeleteClientResp {
   bool not_found = 1;
 }
 
-// UpdateClientReq is a request to update an exisitng client.
+// UpdateClientReq is a request to update an existing client.
 message UpdateClientReq {
     string id = 1;
     repeated string redirect_uris = 2;
