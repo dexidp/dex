@@ -57,7 +57,7 @@ func slicesEq(s1, s2 []string) bool {
 	return true
 }
 
-func TestKeyRotater(t *testing.T) {
+func TestKeyRotator(t *testing.T) {
 	now := time.Now()
 
 	delta := time.Millisecond
@@ -73,7 +73,7 @@ func TestKeyRotater(t *testing.T) {
 		Level:     logrus.DebugLevel,
 	}
 
-	r := &keyRotater{
+	r := &keyRotator{
 		Storage:  memory.New(l),
 		strategy: defaultRotationStrategy(rotationFrequency, validFor),
 		now:      func() time.Time { return now },
