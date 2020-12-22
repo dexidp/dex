@@ -1,13 +1,13 @@
 .theme-body {
-  background-color: #1b282e;
-  color: #a6b7bf;
+  background-color: #0f1218;
+  color: #c8d1d9;
   font-family: 'Source Sans Pro', Helvetica, sans-serif;
 }
 
 .theme-navbar {
-  background-color: #233239;
+  background-color: #161b22;
   box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-  color: #333;
+  color: #161B2B;
   font-size: 13px;
   font-weight: 100;
   height: 46px;
@@ -32,30 +32,31 @@
   font-size: 20px;
   font-weight: 500;
   margin-top: 0;
-  color: #a6b7bf;
+  color: #c8d1d9;
 }
 
 .theme-panel {
-  background-color: #233239;
+  background-color: #161b22;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
   padding: 30px;
 }
 
 .theme-btn-provider {
-  background-color: #2a4349;
-  color: #a6b7bf;
+  background-color: #1e242d;
+  color: #c8d1d9;
+  border: 1px solid #30373c;
   min-width: 250px;
 }
 
 .theme-btn-provider:hover {
-  background-color: #425f69;
+  background-color: #25343a;
   color: #ffffff;
 }
 
 .theme-btn--primary {
-  background-color: #2a4549;
+  background-color: #1e242d;
   border: none;
-  color: #a6b7bf;
+  color: #c8d1d9;
   min-width: 200px;
   padding: 6px 12px;
 }
@@ -86,7 +87,7 @@
   padding: 6px 12px;
   font-size: 14px;
   line-height: 1.42857143;
-  border: 1px solid #CCC;
+  border: 1px solid #c8d1d9;
   border-radius: 4px;
   box-shadow: inset 0 1px 1px rgb(27, 40, 46);
   width: 250px;
@@ -106,13 +107,13 @@
   position: relative;
   font-size: 13px;
   font-weight: 600;
-  color: #a6b7bf;
+  color: #c8d1d9;
 }
 
 .theme-link-back {
-    margin-top: 4px;
+  margin-top: 4px;
 }
 
 .dex-container {
-  color: #a6b7bf;
+  color: #c8d1d9;
 }

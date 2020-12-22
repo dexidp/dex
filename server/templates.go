@@ -79,6 +79,10 @@ func dirExists(dir string) error {
 //    |- templates
 //
 func loadWebConfig(c webConfig) (http.Handler, http.Handler, *templates, error) {
+	// fallback to the default theme if the legacy theme name is provided
+	if c.theme == "coreos" || c.theme == "tectonic" {
+		c.theme = ""
+	}
 	if c.theme == "" {
 		c.theme = "light"
 	}
