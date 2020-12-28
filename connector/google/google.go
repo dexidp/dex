@@ -5,10 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"google.golang.org/api/cloudidentity/v1beta1"
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	cloudidentity "google.golang.org/api/cloudidentity/v1beta1"
 
 	"github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
