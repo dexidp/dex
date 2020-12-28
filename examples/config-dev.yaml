@@ -60,7 +60,7 @@ telemetry:
 #   addr: 127.0.0.1:5557
 #  tlsCert: examples/grpc-client/server.crt
 #  tlsKey: examples/grpc-client/server.key
-#  tlsClientCA: /etc/dex/client.crt
+#  tlsClientCA: examples/grpc-client/ca.crt
 
 # Uncomment this block to enable configuration for the expiration time durations.
 # expiry:
