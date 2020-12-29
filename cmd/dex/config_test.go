@@ -16,8 +16,6 @@ import (
 
 var _ = yaml.YAMLToJSON
 
-const testHashStaticPasswordEnv = "DEX_FOO_USER_PASSWORD"
-
 func TestValidConfiguration(t *testing.T) {
 	configuration := Config{
 		Issuer: "http://127.0.0.1:5556/dex",
@@ -110,7 +108,7 @@ staticPasswords:
   hash: "$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"
   username: "admin"
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
-- email: "foo@example.com"  
+- email: "foo@example.com"
   # base64'd value of the same bcrypt hash above. We want to be able to parse both of these
   hash: "JDJhJDEwJDMzRU1UMGNWWVZsUHk2V0FNQ0xzY2VMWWpXaHVIcGJ6NXl1Wnh1L0dBRmowM0o5THl0anV5"
   username: "foo"
@@ -219,17 +217,54 @@ logger:
 	}
 }
 
-func TestUnmarshalConfigWithEnv(t *testing.T) {
-	staticPasswordEnv := os.Getenv(testHashStaticPasswordEnv)
-	if staticPasswordEnv == "" {
-		t.Skipf("test environment variable %q not set, skipping", testHashStaticPasswordEnv)
+func TestUnmarshalConfigWithEnvNoExpand(t *testing.T) {
+	// If the env variable DEX_EXPAND_ENV is set and has a "falsy" value, os.ExpandEnv is disabled.
+	// ParseBool: "It accepts 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False."
+	checkUnmarshalConfigWithEnv(t, "0", false)
+	checkUnmarshalConfigWithEnv(t, "f", false)
+	checkUnmarshalConfigWithEnv(t, "F", false)
+	checkUnmarshalConfigWithEnv(t, "FALSE", false)
+	checkUnmarshalConfigWithEnv(t, "false", false)
+	checkUnmarshalConfigWithEnv(t, "False", false)
+	os.Unsetenv("DEX_EXPAND_ENV")
+}
+
+func TestUnmarshalConfigWithEnvExpand(t *testing.T) {
+	// If the env variable DEX_EXPAND_ENV is unset or has a "truthy" or unknown value, os.ExpandEnv is enabled.
+	// ParseBool: "It accepts 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False."
+	checkUnmarshalConfigWithEnv(t, "1", true)
+	checkUnmarshalConfigWithEnv(t, "t", true)
+	checkUnmarshalConfigWithEnv(t, "T", true)
+	checkUnmarshalConfigWithEnv(t, "TRUE", true)
+	checkUnmarshalConfigWithEnv(t, "true", true)
+	checkUnmarshalConfigWithEnv(t, "True", true)
+	// Values that can't be parsed as bool:
+	checkUnmarshalConfigWithEnv(t, "UNSET", true)
+	checkUnmarshalConfigWithEnv(t, "", true)
+	checkUnmarshalConfigWithEnv(t, "whatever - true is default", true)
+	os.Unsetenv("DEX_EXPAND_ENV")
+}
+
+func checkUnmarshalConfigWithEnv(t *testing.T, dexExpandEnv string, wantExpandEnv bool) {
+	// For hashFromEnv:
+	os.Setenv("DEX_FOO_USER_PASSWORD", "$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy")
+	// For os.ExpandEnv ($VAR -> value_of_VAR):
+	os.Setenv("DEX_FOO_POSTGRES_HOST", "10.0.0.1")
+	os.Setenv("DEX_FOO_OIDC_CLIENT_SECRET", "bar")
+	if dexExpandEnv != "UNSET" {
+		os.Setenv("DEX_EXPAND_ENV", dexExpandEnv)
+	} else {
+		os.Unsetenv("DEX_EXPAND_ENV")
 	}
+
 	rawConfig := []byte(`
 issuer: http://127.0.0.1:5556/dex
 storage:
   type: postgres
   config:
-    host: 10.0.0.1
+    # Env variables are expanded in raw YAML source.
+    # Single quotes work fine, as long as the env variable doesn't contain any.
+    host: '$DEX_FOO_POSTGRES_HOST'
     port: 65432
     maxOpenConns: 5
     maxIdleConns: 3
@@ -263,7 +298,9 @@ connectors:
   config:
     issuer: https://accounts.google.com
     clientID: foo
-    clientSecret: bar
+    # Env variables are expanded in raw YAML source.
+    # Single quotes work fine, as long as the env variable doesn't contain any.
+    clientSecret: '$DEX_FOO_OIDC_CLIENT_SECRET'
     redirectURI: http://127.0.0.1:5556/dex/callback/google
 
 enablePasswordDB: true
@@ -288,13 +325,21 @@ logger:
   format: "json"
 `)
 
+	// This is not a valid hostname. It's only used to check whether os.ExpandEnv was applied or not.
+	wantPostgresHost := "$DEX_FOO_POSTGRES_HOST"
+	wantOidcClientSecret := "$DEX_FOO_OIDC_CLIENT_SECRET"
+	if wantExpandEnv {
+		wantPostgresHost = "10.0.0.1"
+		wantOidcClientSecret = "bar"
+	}
+
 	want := Config{
 		Issuer: "http://127.0.0.1:5556/dex",
 		Storage: Storage{
 			Type: "postgres",
 			Config: &sql.Postgres{
 				NetworkDB: sql.NetworkDB{
-					Host:              "10.0.0.1",
+					Host:              wantPostgresHost,
 					Port:              65432,
 					MaxOpenConns:      5,
 					MaxIdleConns:      3,
@@ -339,7 +384,7 @@ logger:
 				Config: &oidc.Config{
 					Issuer:       "https://accounts.google.com",
 					ClientID:     "foo",
-					ClientSecret: "bar",
+					ClientSecret: wantOidcClientSecret,
 					RedirectURI:  "http://127.0.0.1:5556/dex/callback/google",
 				},
 			},
