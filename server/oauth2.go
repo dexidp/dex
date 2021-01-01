@@ -194,7 +194,7 @@ func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []by
 
 	signer, err := jose.NewSigner(signingKey, &jose.SignerOptions{})
 	if err != nil {
-		return "", fmt.Errorf("new signier: %v", err)
+		return "", fmt.Errorf("new signer: %v", err)
 	}
 	signature, err := signer.Sign(payload)
 	if err != nil {

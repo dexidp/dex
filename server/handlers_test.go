@@ -129,7 +129,7 @@ func TestConnectorLoginDoesNotAllowToChangeConnectorForAuthRequest(t *testing.T)
 
 	templates, err := loadTemplates(webConfig{}, "../web/templates")
 	if err != nil {
-		t.Fatal("failed to load tempalates")
+		t.Fatal("failed to load templates")
 	}
 
 	s := &Server{

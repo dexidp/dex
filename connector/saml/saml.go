@@ -452,7 +452,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 }
 
 // validateStatus verifies that the response has a good status code or
-// formats a human readble error based on the bad status.
+// formats a human readable error based on the bad status.
 func (p *provider) validateStatus(status *status) error {
 	// StatusCode is mandatory in the Status type
 	statusCode := status.StatusCode
@@ -480,7 +480,7 @@ func (p *provider) validateStatus(status *status) error {
 // see https://www.oasis-open.org/committees/download.php/35389/sstc-saml-profiles-errata-2.0-wd-06-diff.pdf
 //
 // Some of these fields are optional, but we're going to be strict here since
-// we have no other way of guarenteeing that this is actually the response to
+// we have no other way of guaranteeing that this is actually the response to
 // the request we expect.
 func (p *provider) validateSubject(subject *subject, inResponseTo string) error {
 	// Optional according to the spec, but again, we're going to be strict here.

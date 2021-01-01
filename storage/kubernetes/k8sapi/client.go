@@ -32,11 +32,11 @@ type Config struct {
 	APIVersion string `json:"apiVersion,omitempty"`
 	// Preferences holds general information to be use for cli interactions
 	Preferences Preferences `json:"preferences"`
-	// Clusters is a map of referencable names to cluster configs
+	// Clusters is a map of referenceable names to cluster configs
 	Clusters []NamedCluster `json:"clusters"`
-	// AuthInfos is a map of referencable names to user configs
+	// AuthInfos is a map of referenceable names to user configs
 	AuthInfos []NamedAuthInfo `json:"users"`
-	// Contexts is a map of referencable names to context configs
+	// Contexts is a map of referenceable names to context configs
 	Contexts []NamedContext `json:"contexts"`
 	// CurrentContext is the name of the context that you would like to use by default
 	CurrentContext string `json:"current-context"`
@@ -85,7 +85,7 @@ type AuthInfo struct {
 	ClientKeyData string `json:"client-key-data,omitempty"`
 	// Token is the bearer token for authentication to the kubernetes cluster.
 	Token string `json:"token,omitempty"`
-	// Impersonate is the username to imperonate.  The name matches the flag.
+	// Impersonate is the username to impersonate.  The name matches the flag.
 	Impersonate string `json:"as,omitempty"`
 	// Username is the username for basic authentication to the kubernetes cluster.
 	Username string `json:"username,omitempty"`
