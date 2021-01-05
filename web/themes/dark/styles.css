@@ -49,7 +49,7 @@
 }
 
 .theme-btn-provider:hover {
-  background-color: #25343a;
+  background-color: #212731;
   color: #ffffff;
 }
 
@@ -62,18 +62,18 @@
 }
 
 .theme-btn--primary:hover {
-  background-color: #425f69;
+  background-color: #212731;
   color: #e9e9e9;
 }
 
 .theme-btn--success {
-  background-color: #233239;
+  background-color: #1891bb;
   color: #e9e9e9;
   width: 250px;
 }
 
 .theme-btn--success:hover {
-  background-color: #46add0;
+  background-color: #1da5d4;
 }
 
 .theme-form-row {
@@ -87,8 +87,10 @@
   padding: 6px 12px;
   font-size: 14px;
   line-height: 1.42857143;
-  border: 1px solid #c8d1d9;
+  border: 1px solid #515559;
   border-radius: 4px;
+  color: #c8d1d9;
+  background-color: #0f1218;
   box-shadow: inset 0 1px 1px rgb(27, 40, 46);
   width: 250px;
   margin: auto;
@@ -97,7 +99,8 @@
 .theme-form-input:focus,
 .theme-form-input:active {
   outline: none;
-  border-color: #1b282e;
+  border-color: #f8f9f9;
+  color: #c8d1d9;
 }
 
 .theme-form-label {
