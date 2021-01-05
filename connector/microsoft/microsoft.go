@@ -52,7 +52,7 @@ type Config struct {
 	Groups               []string        `json:"groups"`
 	GroupNameFormat      GroupNameFormat `json:"groupNameFormat"`
 	UseGroupsAsWhitelist bool            `json:"useGroupsAsWhitelist"`
-	emailToLowercase     bool            `json:"emailToLowercase"`
+	EmailToLowercase     bool            `json:"emailToLowercase"`
 }
 
 // Open returns a strategy for logging in through Microsoft.
@@ -69,7 +69,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		groupNameFormat:      c.GroupNameFormat,
 		useGroupsAsWhitelist: c.UseGroupsAsWhitelist,
 		logger:               logger,
-		emailToLowercase:       c.EmailToLowercase,
+		emailToLowercase:     c.EmailToLowercase,
 	}
 	// By default allow logins from both personal and business/school
 	// accounts.
