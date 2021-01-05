@@ -185,6 +185,10 @@ func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 		Expiry:        neverExpire,
 		ConnectorID:   "ldap",
 		ConnectorData: []byte(`{"some":"data"}`),
+		PKCE: storage.PKCE{
+			CodeChallenge:       "12345",
+			CodeChallengeMethod: "Whatever",
+		},
 		Claims: storage.Claims{
 			UserID:        "1",
 			Username:      "jane",
