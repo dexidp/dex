@@ -119,11 +119,13 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 	server.skipApproval = true // Don't prompt for approval, just immediately redirect with code.
 
 	// Default rotation policy
-	server.refreshTokenPolicy, err = NewRefreshTokenPolicy(logger, false, "", "", "")
-	if err != nil {
-		t.Fatalf("failed to prepare rotation policy: %v", err)
+	if server.refreshTokenPolicy == nil {
+		server.refreshTokenPolicy, err = NewRefreshTokenPolicy(logger, false, "", "", "")
+		if err != nil {
+			t.Fatalf("failed to prepare rotation policy: %v", err)
+		}
+		server.refreshTokenPolicy.now = config.Now
 	}
-	server.refreshTokenPolicy.now = config.Now
 
 	return s, server
 }

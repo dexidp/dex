@@ -381,7 +381,7 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 	refresh2 := storage.RefreshToken{
 		ID:            id2,
 		Token:         "bar_2",
-		ObsoleteToken: "bar",
+		ObsoleteToken: refresh.Token,
 		Nonce:         "foo_2",
 		ClientID:      "client_id_2",
 		ConnectorID:   "client_secret",
