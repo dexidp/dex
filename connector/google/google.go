@@ -9,12 +9,11 @@ import (
 	"net/http"
 	"time"
 
-	cloudidentity "google.golang.org/api/cloudidentity/v1beta1"
-
 	"github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	admin "google.golang.org/api/admin/directory/v1"
+	cloudidentity "google.golang.org/api/cloudidentity/v1beta1"
 	"google.golang.org/api/option"
 
 	"github.com/dexidp/dex/connector"
