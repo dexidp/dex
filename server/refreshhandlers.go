@@ -91,6 +91,7 @@ func (s *Server) getRefreshTokenFromStorage(clientID string, token *internal.Ref
 		s.logger.Errorf("refresh token with id %s expired", refresh.ID)
 		return storage.RefreshToken{}, &rerr
 	}
+
 	if s.refreshTokenPolicy.ExpiredBecauseUnused(refresh.LastUsed) {
 		s.logger.Errorf("refresh token with id %s expired because being unused", refresh.ID)
 		return storage.RefreshToken{}, &rerr
@@ -131,7 +132,7 @@ func (s *Server) getRefreshScopes(r *http.Request, refresh *storage.RefreshToken
 	return requestedScopes, nil
 }
 
-func (s *Server) refreshWithConnector(ctx context.Context, refresh *storage.RefreshToken, scopes []string) (connector.Identity, *refreshError) {
+func (s *Server) refreshWithConnector(ctx context.Context, token *internal.RefreshToken, refresh *storage.RefreshToken, scopes []string) (connector.Identity, *refreshError) {
 	var connectorData []byte
 	rerr := refreshError{msg: errInvalidRequest, desc: "", code: http.StatusInternalServerError}
 
@@ -164,6 +165,12 @@ func (s *Server) refreshWithConnector(ctx context.Context, refresh *storage.Refr
 		EmailVerified:     refresh.Claims.EmailVerified,
 		Groups:            refresh.Claims.Groups,
 		ConnectorData:     connectorData,
+	}
+
+	// user's token was previously updated by a connector and is allowed to reuse
+	// it is excessive to refresh identity in upstream
+	if s.refreshTokenPolicy.AllowedToReuse(refresh.LastUsed) && token.Token == refresh.ObsoleteToken {
+		return ident, nil
 	}
 
 	// Can the connector refresh the identity? If so, attempt to refresh the data
@@ -272,7 +279,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 
-	ident, rerr := s.refreshWithConnector(r.Context(), &refresh, scopes)
+	ident, rerr := s.refreshWithConnector(r.Context(), token, &refresh, scopes)
 	if rerr != nil {
 		s.refreshTokenErrHelper(w, rerr)
 		return
