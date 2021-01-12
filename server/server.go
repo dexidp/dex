@@ -96,9 +96,6 @@ type Config struct {
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
-//
-// These are currently very custom to CoreOS and it's not recommended that
-// outside users attempt to customize these.
 type WebConfig struct {
 	// A filepath to web static.
 	//
@@ -116,7 +113,7 @@ type WebConfig struct {
 	// Defaults to "dex"
 	Issuer string
 
-	// Defaults to "coreos"
+	// Defaults to "light"
 	Theme string
 
 	// Map of extra values passed into the templates

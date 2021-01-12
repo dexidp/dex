@@ -50,6 +50,13 @@ web:
   # tlsCert: /etc/dex/tls.crt
   # tlsKey: /etc/dex/tls.key
 
+# Configuration for dex appearance
+# frontend:
+#   issuer: dex
+#   logoURL: theme/logo.png
+#   dir: web/
+#   theme: light
+
 # Configuration for telemetry
 telemetry:
   http: 0.0.0.0:5558
@@ -58,9 +65,9 @@ telemetry:
 # from the HTTP endpoints.
 # grpc:
 #   addr: 127.0.0.1:5557
-#  tlsCert: examples/grpc-client/server.crt
-#  tlsKey: examples/grpc-client/server.key
-#  tlsClientCA: examples/grpc-client/ca.crt
+#   tlsCert: examples/grpc-client/server.crt
+#   tlsKey: examples/grpc-client/server.key
+#   tlsClientCA: examples/grpc-client/ca.crt
 
 # Uncomment this block to enable configuration for the expiration time durations.
 # expiry:
@@ -84,7 +91,7 @@ telemetry:
     # go directly to it. For connected IdPs, this redirects the browser away
     # from application to upstream provider such as the Google login page
 #   alwaysShowLoginScreen: false
-    # Uncommend the passwordConnector to use a specific connector for password grants
+    # Uncomment the passwordConnector to use a specific connector for password grants
 #   passwordConnector: local
 
 # Instead of reading from an external storage, use this list of clients.
