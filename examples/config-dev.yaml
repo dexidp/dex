@@ -52,11 +52,10 @@ web:
 
 # Configuration for dex appearance
 # frontend:
-  # issuer: Dex
-  # issuerUrl: http://localhost:5556
-  # logoURL: theme/logo.png
-  # dir: web/
-  # theme: light
+#   issuer: dex
+#   logoURL: theme/logo.png
+#   dir: web/
+#   theme: light
 
 # Configuration for telemetry
 telemetry:
@@ -66,9 +65,9 @@ telemetry:
 # from the HTTP endpoints.
 # grpc:
 #   addr: 127.0.0.1:5557
-#  tlsCert: examples/grpc-client/server.crt
-#  tlsKey: examples/grpc-client/server.key
-#  tlsClientCA: examples/grpc-client/ca.crt
+#   tlsCert: examples/grpc-client/server.crt
+#   tlsKey: examples/grpc-client/server.key
+#   tlsClientCA: examples/grpc-client/ca.crt
 
 # Uncomment this block to enable configuration for the expiration time durations.
 # expiry:
