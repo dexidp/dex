@@ -13,6 +13,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	admin "google.golang.org/api/admin/directory/v1"
+	cloudidentity "google.golang.org/api/cloudidentity/v1beta1"
 	"google.golang.org/api/option"
 
 	"github.com/dexidp/dex/connector"
@@ -188,12 +189,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		return identity, fmt.Errorf("google: failed to verify ID Token: %v", err)
 	}
 
-	var claims struct {
-		Username      string `json:"name"`
-		Email         string `json:"email"`
-		EmailVerified bool   `json:"email_verified"`
-		HostedDomain  string `json:"hd"`
-	}
+	var claims tokenClaims
 	if err := idToken.Claims(&claims); err != nil {
 		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
 	}
@@ -213,8 +209,8 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	}
 
 	var groups []string
-	if s.Groups && c.adminSrv != nil {
-		groups, err = c.getGroups(claims.Email)
+	if s.Groups && c.isGroupConfigured() {
+		groups, err = c.getGroups(ctx, token, &claims)
 		if err != nil {
 			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
 		}
@@ -238,15 +234,39 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	return identity, nil
 }
 
-// getGroups creates a connection to the admin directory service and lists
+// isGroupConfigured return true if the operator has configured a way to get group info
+func (c *googleConnector) isGroupConfigured() bool {
+	return c.hasGroupScope() || c.adminSrv != nil
+}
+
+func (c *googleConnector) hasGroupScope() bool {
+	for _, s := range c.oauth2Config.Scopes {
+		if s == cloudidentity.CloudPlatformScope || s == cloudidentity.CloudIdentityGroupsScope || s == cloudidentity.CloudIdentityGroupsReadonlyScope {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *googleConnector) getGroups(ctx context.Context, token *oauth2.Token, claims *tokenClaims) ([]string, error) {
+	if c.hasGroupScope() {
+		return c.getGroupsUsingUser(ctx, token, claims.Email)
+	}
+	if c.adminSrv != nil {
+		return c.getGroupsUsingAdmin(ctx, claims.Email)
+	}
+	return nil, errors.New("no group method configured")
+}
+
+// getGroupsUsingAdmin creates a connection to the admin directory service and lists
 // all groups the user is a member of
-func (c *googleConnector) getGroups(email string) ([]string, error) {
+func (c *googleConnector) getGroupsUsingAdmin(ctx context.Context, email string) ([]string, error) {
 	var userGroups []string
 	var err error
 	groupsList := &admin.Groups{}
 	for {
 		groupsList, err = c.adminSrv.Groups.List().
-			UserKey(email).PageToken(groupsList.NextPageToken).Do()
+			Context(ctx).UserKey(email).PageToken(groupsList.NextPageToken).Do()
 		if err != nil {
 			return nil, fmt.Errorf("could not list groups: %v", err)
 		}
@@ -295,4 +315,33 @@ func createDirectoryService(serviceAccountFilePath string, email string) (*admin
 		return nil, fmt.Errorf("unable to create directory service %v", err)
 	}
 	return srv, nil
+}
+
+func (c *googleConnector) getGroupsUsingUser(ctx context.Context, token *oauth2.Token, email string) ([]string, error) {
+	client := c.oauth2Config.Client(ctx, token)
+	svc, err := cloudidentity.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return nil, err
+	}
+
+	var userGroups []string
+	groupsList := &cloudidentity.SearchTransitiveGroupsResponse{}
+	query := fmt.Sprintf("member_key_id == '%s' && 'cloudidentity.googleapis.com/groups.discussion_forum' in labels", email)
+	for {
+		groupsList, err = svc.Groups.Memberships.SearchTransitiveGroups("groups/-").
+			Query(query).Context(ctx).PageToken(groupsList.NextPageToken).Do()
+		if err != nil {
+			return nil, fmt.Errorf("could not list groups: %v", err)
+		}
+
+		for _, group := range groupsList.Memberships {
+			userGroups = append(userGroups, group.Group)
+		}
+
+		if groupsList.NextPageToken == "" {
+			break
+		}
+	}
+
+	return userGroups, nil
 }
