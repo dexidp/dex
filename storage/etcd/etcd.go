@@ -156,7 +156,11 @@ func (c *conn) CreateAuthCode(a storage.AuthCode) error {
 func (c *conn) GetAuthCode(id string) (a storage.AuthCode, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	err = c.getKey(ctx, keyID(authCodePrefix, id), &a)
+	var ac AuthCode
+	err = c.getKey(ctx, keyID(authCodePrefix, id), &ac)
+	if err == nil {
+		a = toStorageAuthCode(ac)
+	}
 	return a, err
 }
 

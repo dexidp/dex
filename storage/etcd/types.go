@@ -26,6 +26,24 @@ type AuthCode struct {
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 }
 
+func toStorageAuthCode(a AuthCode) storage.AuthCode {
+	return storage.AuthCode{
+		ID:            a.ID,
+		ClientID:      a.ClientID,
+		RedirectURI:   a.RedirectURI,
+		ConnectorID:   a.ConnectorID,
+		ConnectorData: a.ConnectorData,
+		Nonce:         a.Nonce,
+		Scopes:        a.Scopes,
+		Claims:        toStorageClaims(a.Claims),
+		Expiry:        a.Expiry,
+		PKCE: storage.PKCE{
+			CodeChallenge:       a.CodeChallenge,
+			CodeChallengeMethod: a.CodeChallengeMethod,
+		},
+	}
+}
+
 func fromStorageAuthCode(a storage.AuthCode) AuthCode {
 	return AuthCode{
 		ID:                  a.ID,
