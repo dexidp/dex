@@ -12,6 +12,7 @@ message Client {
   bool public = 5;
   string name = 6;
   string logo_url = 7;
+  repeated string allowed_groups = 8;
 }
 
 // CreateClientReq is a request to make a client.
@@ -43,6 +44,7 @@ message UpdateClientReq {
     repeated string trusted_peers = 3;
     string name = 4;
     string logo_url = 5;
+    repeated string allowed_groups = 6;
 }
 
 // UpdateClientResp returns the response from updating a client.
