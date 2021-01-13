@@ -5,7 +5,7 @@ go 1.15
 require (
 	github.com/Microsoft/hcsshim v0.8.14 // indirect
 	github.com/beevik/etree v1.1.0
-	github.com/coreos/go-oidc v2.2.1+incompatible
+	github.com/coreos/go-oidc/v3 v3.0.0
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
@@ -25,7 +25,6 @@ require (
 	github.com/mattermost/xml-roundtrip-validator v0.0.0-20201204154048-1a8688af4cf1
 	github.com/mattn/go-sqlite3 v1.11.0
 	github.com/pkg/errors v0.9.1
-	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/prometheus/client_golang v1.4.0
 	github.com/russellhaering/goxmldsig v1.1.0
 	github.com/sirupsen/logrus v1.4.2
@@ -36,15 +35,15 @@ require (
 	go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738
 	go.uber.org/atomic v1.4.0 // indirect
 	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
-	golang.org/x/net v0.0.0-20191004110552-13f9640d40b9
-	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
+	golang.org/x/net v0.0.0-20200505041828-1ed23360d12c
+	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4 // indirect
 	google.golang.org/api v0.15.0
 	google.golang.org/appengine v1.6.1 // indirect
 	google.golang.org/grpc v1.26.0
 	gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d // indirect
 	gopkg.in/ldap.v2 v2.5.1
-	gopkg.in/square/go-jose.v2 v2.4.1
+	gopkg.in/square/go-jose.v2 v2.5.1
 	sigs.k8s.io/testing_frameworks v0.1.2
 )
 
