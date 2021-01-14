@@ -1,5 +1,4 @@
-bin
-dist
-_output
-.idea
+/.idea/
+/bin/
+/docker-compose.override.yaml
 /vendor/

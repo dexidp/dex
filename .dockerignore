@@ -1,4 +1,4 @@
 .github/
+.gitpod.yml
 bin/
 tmp/
-.gitpod.yml
