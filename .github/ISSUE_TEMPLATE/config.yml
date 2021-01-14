@@ -9,5 +9,5 @@ contact_links:
     about: Check the documentation for help
 
   - name: 💬 Slack channel
-    url: https://kubernetes.slack.com/messages/dexidp
+    url: https://cloud-native.slack.com/messages/dexidp
     about: Please ask and answer questions here

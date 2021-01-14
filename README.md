@@ -106,14 +106,16 @@ All changes or deprecations of connector features will be announced in the [rele
 Due to their public nature, GitHub and mailing lists are NOT appropriate places
 for reporting vulnerabilities.
 
-Please email the [maintainers list][maintainers-list] to report issues that may
+Please email the [maintainers list][mailto:cncf-dex-maintainers@lists.cncf.io] to report issues that may
 be security-related.
 
 ## Getting help
 
-* For feature requests and bugs, file an [issue][issues].
-* For general discussion about both using and developing dex, you can join the [#dexidp channel][slack]
-on the Kubernetes Slack, or join the [dex-dev][dex-dev] mailing list.
+- For feature requests and bugs, file an [issue][https://github.com/dexidp/dex/issues].
+- For general discussion about both using and developing Dex:
+    - join the [#dexidp][https://cloud-native.slack.com/messages/dexidp] on the CNCF Slack
+    - open a new [discussion](https://github.com/dexidp/dex/discussions)
+    - join the [dex-dev][https://groups.google.com/forum/#!forum/dex-dev] mailing list
 
 [openid-connect]: https://openid.net/connect/
 [standard-claims]: https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
@@ -127,7 +129,3 @@ on the Kubernetes Slack, or join the [dex-dev][dex-dev] mailing list.
 [go-oidc]: https://github.com/coreos/go-oidc
 [issue-1065]: https://github.com/dexidp/dex/issues/1065
 [release-notes]: https://github.com/dexidp/dex/releases
-[issues]: https://github.com/dexidp/dex/issues
-[dex-dev]: https://groups.google.com/forum/#!forum/dex-dev
-[slack]: slack://channel?team=T09NY5SBT&id=C011URMR41W
-[maintainers-list]: mailto:cncf-dex-maintainers@lists.cncf.io
