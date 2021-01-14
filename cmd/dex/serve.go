@@ -30,13 +30,20 @@ import (
 )
 
 type serveOptions struct {
+	// Config file path
 	config string
+
+	// Flags
+	webHTTPAddr   string
+	webHTTPSAddr  string
+	telemetryAddr string
+	grpcAddr      string
 }
 
 func commandServe() *cobra.Command {
 	options := serveOptions{}
 
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:     "serve [flags] [config file]",
 		Short:   "Launch Dex",
 		Example: "dex serve config.yaml",
@@ -50,6 +57,15 @@ func commandServe() *cobra.Command {
 			return runServe(options)
 		},
 	}
+
+	flags := cmd.Flags()
+
+	flags.StringVar(&options.webHTTPAddr, "web-http-addr", "", "Web HTTP address")
+	flags.StringVar(&options.webHTTPSAddr, "web-https-addr", "", "Web HTTPS address")
+	flags.StringVar(&options.telemetryAddr, "telemetry-addr", "", "Telemetry address")
+	flags.StringVar(&options.grpcAddr, "grpc-addr", "", "gRPC API address")
+
+	return cmd
 }
 
 func runServe(options serveOptions) error {
@@ -63,6 +79,8 @@ func runServe(options serveOptions) error {
 	if err := yaml.Unmarshal(configData, &c); err != nil {
 		return fmt.Errorf("error parse config file %s: %v", configFile, err)
 	}
+
+	applyConfigOverrides(options, &c)
 
 	logger, err := newLogger(c.Logger.Level, c.Logger.Format)
 	if err != nil {
@@ -382,4 +400,22 @@ func newLogger(level string, format string) (log.Logger, error) {
 		Formatter: &formatter,
 		Level:     logLevel,
 	}, nil
+}
+
+func applyConfigOverrides(options serveOptions, config *Config) {
+	if options.webHTTPAddr != "" {
+		config.Web.HTTP = options.webHTTPAddr
+	}
+
+	if options.webHTTPSAddr != "" {
+		config.Web.HTTPS = options.webHTTPSAddr
+	}
+
+	if options.telemetryAddr != "" {
+		config.Telemetry.HTTP = options.telemetryAddr
+	}
+
+	if options.grpcAddr != "" {
+		config.GRPC.Addr = options.grpcAddr
+	}
 }
