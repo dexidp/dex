@@ -4,7 +4,7 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT=""
 
-WORKDIR /go/src/github.com/dexidp/dex
+WORKDIR /usr/local/src/dex
 
 ENV GOOS=${TARGETOS} \
   GOARCH=${TARGETARCH} \
