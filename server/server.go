@@ -468,8 +468,8 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 			case <-time.After(frequency):
 				if r, err := s.storage.GarbageCollect(now()); err != nil {
 					s.logger.Errorf("garbage collection failed: %v", err)
-				} else if r.AuthRequests > 0 || r.AuthCodes > 0 {
-					s.logger.Infof("garbage collection run, delete auth requests=%d, auth codes=%d, device requests =%d, device tokens=%d",
+				} else if !r.IsEmpty() {
+					s.logger.Infof("garbage collection run, delete auth requests=%d, auth codes=%d, device requests=%d, device tokens=%d",
 						r.AuthRequests, r.AuthCodes, r.DeviceRequests, r.DeviceTokens)
 				}
 			}

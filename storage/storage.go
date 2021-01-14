@@ -55,6 +55,14 @@ type GCResult struct {
 	DeviceTokens   int64
 }
 
+// IsEmpty returns whether the garbage collection result is empty or not.
+func (g *GCResult) IsEmpty() bool {
+	return g.AuthRequests == 0 &&
+		g.AuthCodes == 0 &&
+		g.DeviceRequests == 0 &&
+		g.DeviceTokens == 0
+}
+
 // Storage is the storage interface used by the server. Implementations are
 // required to be able to perform atomic compare-and-swap updates and either
 // support timezones or standardize on UTC.
