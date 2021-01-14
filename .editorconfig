@@ -13,3 +13,6 @@ indent_style = tab
 
 [*.proto]
 indent_size = 2
+
+[{Makefile,*.mk}]
+indent_style = tab
