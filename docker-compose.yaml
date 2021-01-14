@@ -16,8 +16,6 @@ services:
             MYSQL_USER: mysql
             MYSQL_PASSWORD: mysql
             MYSQL_ROOT_PASSWORD: root
-        ports:
-            - "127.0.0.1:3306:3306"
 
     postgres:
         image: postgres:10.15
@@ -25,16 +23,12 @@ services:
             POSTGRES_DB: dex
             POSTGRES_USER: postgres
             POSTGRES_PASSWORD: postgres
-        ports:
-            - "127.0.0.1:5432:5432"
 
     etcd:
         image: gcr.io/etcd-development/etcd:v3.4.9
         environment:
             ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
             ETCD_ADVERTISE_CLIENT_URLS: http://0.0.0.0:2379
-        ports:
-            - "127.0.0.1:2379:2379"
 
     # For testing the Kubernetes storage backend we suggest https://kind.sigs.k8s.io/:
     # kind create cluster
