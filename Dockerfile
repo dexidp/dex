@@ -22,7 +22,7 @@ COPY . .
 
 RUN make release-binary
 
-FROM alpine:3.12
+FROM alpine:3.12.2
 
 WORKDIR /
 
