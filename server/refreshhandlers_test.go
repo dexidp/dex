@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,6 +16,67 @@ import (
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
+
+func mockRefreshTokenTestStorage(t *testing.T, s storage.Storage, useObsolete bool) {
+	c := storage.Client{
+		ID:           "test",
+		Secret:       "barfoo",
+		RedirectURIs: []string{"foo://bar.com/", "https://auth.example.com"},
+		Name:         "dex client",
+		LogoURL:      "https://goo.gl/JIyzIC",
+	}
+
+	err := s.CreateClient(c)
+	require.NoError(t, err)
+
+	c1 := storage.Connector{
+		ID:     "test",
+		Type:   "mockCallback",
+		Name:   "mockCallback",
+		Config: nil,
+	}
+
+	err = s.CreateConnector(c1)
+	require.NoError(t, err)
+
+	refresh := storage.RefreshToken{
+		ID:            "test",
+		Token:         "bar",
+		ObsoleteToken: "",
+		Nonce:         "foo",
+		ClientID:      "test",
+		ConnectorID:   "test",
+		Scopes:        []string{"openid", "email", "profile"},
+		CreatedAt:     time.Now().UTC().Round(time.Millisecond),
+		LastUsed:      time.Now().UTC().Round(time.Millisecond),
+		Claims: storage.Claims{
+			UserID:        "1",
+			Username:      "jane",
+			Email:         "jane.doe@example.com",
+			EmailVerified: true,
+			Groups:        []string{"a", "b"},
+		},
+		ConnectorData: []byte(`{"some":"data"}`),
+	}
+
+	if useObsolete {
+		refresh.Token = "testtest"
+		refresh.ObsoleteToken = "bar"
+	}
+
+	err = s.CreateRefresh(refresh)
+	require.NoError(t, err)
+
+	offlineSessions := storage.OfflineSessions{
+		UserID:        "1",
+		ConnID:        "test",
+		Refresh:       map[string]*storage.RefreshTokenRef{"test": {ID: "test", ClientID: "test"}},
+		ConnectorData: nil,
+	}
+
+	err = s.CreateOfflineSessions(offlineSessions)
+	require.NoError(t, err)
+}
 
 func TestRefreshTokenExpirationScenarios(t *testing.T) {
 	t0 := time.Now()
@@ -57,15 +119,6 @@ func TestRefreshTokenExpirationScenarios(t *testing.T) {
 			error: `{"error":"invalid_request","error_description":"Refresh token expired."}`,
 		},
 		{
-			name:        "Obsolete tokens are not allowed",
-			useObsolete: true,
-			policy: &RefreshTokenPolicy{
-				rotateRefreshTokens: true,
-				now:                 func() time.Time { return t0.Add(time.Second * 25) },
-			},
-			error: `{"error":"invalid_request","error_description":"Refresh token is invalid or has already been claimed by another client."}`,
-		},
-		{
 			name:        "Obsolete tokens are allowed",
 			useObsolete: true,
 			policy: &RefreshTokenPolicy{
@@ -74,6 +127,15 @@ func TestRefreshTokenExpirationScenarios(t *testing.T) {
 				now:                 func() time.Time { return t0.Add(time.Second * 25) },
 			},
 			error: ``,
+		},
+		{
+			name:        "Obsolete tokens are not allowed",
+			useObsolete: true,
+			policy: &RefreshTokenPolicy{
+				rotateRefreshTokens: true,
+				now:                 func() time.Time { return t0.Add(time.Second * 25) },
+			},
+			error: `{"error":"invalid_request","error_description":"Refresh token is invalid or has already been claimed by another client."}`,
 		},
 		{
 			name:        "Obsolete tokens are allowed but token is expired globally",
@@ -100,64 +162,7 @@ func TestRefreshTokenExpirationScenarios(t *testing.T) {
 			})
 			defer httpServer.Close()
 
-			c := storage.Client{
-				ID:           "test",
-				Secret:       "barfoo",
-				RedirectURIs: []string{"foo://bar.com/", "https://auth.example.com"},
-				Name:         "dex client",
-				LogoURL:      "https://goo.gl/JIyzIC",
-			}
-
-			err := s.storage.CreateClient(c)
-			require.NoError(t, err)
-
-			c1 := storage.Connector{
-				ID:     "test",
-				Type:   "mockCallback",
-				Name:   "mockCallback",
-				Config: nil,
-			}
-
-			err = s.storage.CreateConnector(c1)
-			require.NoError(t, err)
-
-			refresh := storage.RefreshToken{
-				ID:            "test",
-				Token:         "bar",
-				ObsoleteToken: "",
-				Nonce:         "foo",
-				ClientID:      "test",
-				ConnectorID:   "test",
-				Scopes:        []string{"openid", "email", "profile"},
-				CreatedAt:     time.Now().UTC().Round(time.Millisecond),
-				LastUsed:      time.Now().UTC().Round(time.Millisecond),
-				Claims: storage.Claims{
-					UserID:        "1",
-					Username:      "jane",
-					Email:         "jane.doe@example.com",
-					EmailVerified: true,
-					Groups:        []string{"a", "b"},
-				},
-				ConnectorData: []byte(`{"some":"data"}`),
-			}
-
-			if tc.useObsolete {
-				refresh.Token = "testtest"
-				refresh.ObsoleteToken = "bar"
-			}
-
-			err = s.storage.CreateRefresh(refresh)
-			require.NoError(t, err)
-
-			offlineSessions := storage.OfflineSessions{
-				UserID:        "1",
-				ConnID:        "test",
-				Refresh:       map[string]*storage.RefreshTokenRef{"test": {ID: "test", ClientID: "test"}},
-				ConnectorData: nil,
-			}
-
-			err = s.storage.CreateOfflineSessions(offlineSessions)
-			require.NoError(t, err)
+			mockRefreshTokenTestStorage(t, s.storage, tc.useObsolete)
 
 			u, err := url.Parse(s.issuerURL.String())
 			require.NoError(t, err)
@@ -181,6 +186,26 @@ func TestRefreshTokenExpirationScenarios(t *testing.T) {
 				require.Equal(t, 200, rr.Code)
 			} else {
 				require.Equal(t, rr.Body.String(), tc.error)
+				return
+			}
+
+			// Check that we received expected refresh token
+			var ref struct {
+				Token string `json:"refresh_token"`
+			}
+			err = json.Unmarshal(rr.Body.Bytes(), &ref)
+			require.NoError(t, err)
+
+			if tc.policy.rotateRefreshTokens == false {
+				require.Equal(t, tokenData, ref.Token)
+			} else {
+				require.NotEqual(t, tokenData, ref.Token)
+			}
+
+			if tc.useObsolete {
+				updatedTokenData, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "testtest"})
+				require.NoError(t, err)
+				require.Equal(t, updatedTokenData, ref.Token)
 			}
 		})
 	}
