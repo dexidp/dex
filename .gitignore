@@ -1,5 +1,3 @@
-bin
-dist
-_output
-.idea
+/.idea/
+/bin/
 /vendor/
