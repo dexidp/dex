@@ -4,20 +4,20 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/"
     labels:
-      - "kind/dependencies"
+      - "area/dependencies"
     schedule:
       interval: "daily"
 
   - package-ecosystem: "docker"
     directory: "/"
     labels:
-      - "kind/dependencies"
+      - "area/dependencies"
     schedule:
       interval: "daily"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     labels:
-      - "kind/dependencies"
+      - "area/dependencies"
     schedule:
       interval: "daily"
