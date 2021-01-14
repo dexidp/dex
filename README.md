@@ -5,7 +5,7 @@
 [![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/mod/github.com/dexidp/dex)
 [![Gitpod ready-to-code](https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod&style=flat-square)](https://gitpod.io/#https://github.com/dexidp/dex)
 
-![logo](Documentation/logos/dex-horizontal-color.png)
+![logo](docs/logos/dex-horizontal-color.png)
 
 Dex is an identity service that uses [OpenID Connect][openid-connect] to drive authentication for other apps.
 
@@ -56,7 +56,7 @@ More docs for running dex as a Kubernetes authenticator can be found [here](http
 
 When a user logs in through dex, the user's identity is usually stored in another user-management system: a LDAP directory, a GitHub org, etc. Dex acts as a shim between a client app and the upstream identity provider. The client only needs to understand OpenID Connect to query dex, while dex implements an array of protocols for querying other user-management systems.
 
-![](Documentation/img/dex-flow.png)
+![](docs/img/dex-flow.png)
 
 A "connector" is a strategy used by dex for authenticating a user against another identity provider. Dex implements connectors that target specific platforms such as GitHub, LinkedIn, and Microsoft as well as established protocols like LDAP and SAML.
 

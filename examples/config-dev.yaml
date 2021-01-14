@@ -6,7 +6,7 @@ issuer: http://127.0.0.1:5556/dex
 # The storage configuration determines where dex stores its state. Supported
 # options include SQL flavors and Kubernetes third party resources.
 #
-# See the storage document at Documentation/storage.md for further information.
+# See the documentation (https://dexidp.io/docs/storage/) for further information.
 storage:
   type: sqlite3
   config:
