@@ -29,32 +29,31 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
+type serveOptions struct {
+	config string
+}
+
 func commandServe() *cobra.Command {
+	options := serveOptions{}
+
 	return &cobra.Command{
-		Use:     "serve [ config file ]",
-		Short:   "Connect to the storage and begin serving requests.",
-		Long:    ``,
+		Use:     "serve [flags] [config file]",
+		Short:   "Launch Dex",
 		Example: "dex serve config.yaml",
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := serve(cmd, args); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(2)
-			}
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cmd.SilenceUsage = true
+			cmd.SilenceErrors = true
+
+			options.config = args[0]
+
+			return runServe(options)
 		},
 	}
 }
 
-func serve(cmd *cobra.Command, args []string) error {
-	switch len(args) {
-	default:
-		return errors.New("surplus arguments")
-	case 0:
-		// TODO(ericchiang): Consider having a default config file location.
-		return errors.New("no arguments provided")
-	case 1:
-	}
-
-	configFile := args[0]
+func runServe(options serveOptions) error {
+	configFile := options.config
 	configData, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return fmt.Errorf("failed to read config file %s: %v", configFile, err)
