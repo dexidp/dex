@@ -252,10 +252,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 	}
 
-	instrumentHandlerCounter := func(handlerName string, handler http.Handler) http.HandlerFunc {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			handler.ServeHTTP(w, r)
-		})
+	instrumentHandlerCounter := func(_ string, handler http.Handler) http.HandlerFunc {
+		return handler.ServeHTTP
 	}
 
 	if c.PrometheusRegistry != nil {
@@ -270,10 +268,10 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 
 		instrumentHandlerCounter = func(handlerName string, handler http.Handler) http.HandlerFunc {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			return func(w http.ResponseWriter, r *http.Request) {
 				m := httpsnoop.CaptureMetrics(handler, w, r)
 				requestCounter.With(prometheus.Labels{"handler": handlerName, "code": strconv.Itoa(m.Code), "method": r.Method}).Inc()
-			})
+			}
 		}
 	}
 

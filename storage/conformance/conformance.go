@@ -285,7 +285,7 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 		t.Fatalf("create client: %v", err)
 	}
 
-	getAndCompare := func(id string, want storage.Client) {
+	getAndCompare := func(_ string, want storage.Client) {
 		gc, err := s.GetClient(id1)
 		if err != nil {
 			t.Errorf("get client: %v", err)
@@ -845,13 +845,8 @@ func testGC(t *testing.T, s storage.Storage) {
 		t.Errorf("expected storage.ErrNotFound, got %v", err)
 	}
 
-	userCode, err := storage.NewUserCode()
-	if err != nil {
-		t.Errorf("Unexpected Error: %v", err)
-	}
-
 	d := storage.DeviceRequest{
-		UserCode:     userCode,
+		UserCode:     storage.NewUserCode(),
 		DeviceCode:   storage.NewID(),
 		ClientID:     "client1",
 		ClientSecret: "secret1",
@@ -970,12 +965,8 @@ func testTimezones(t *testing.T, s storage.Storage) {
 }
 
 func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
-	userCode, err := storage.NewUserCode()
-	if err != nil {
-		panic(err)
-	}
 	d1 := storage.DeviceRequest{
-		UserCode:     userCode,
+		UserCode:     storage.NewUserCode(),
 		DeviceCode:   storage.NewID(),
 		ClientID:     "client1",
 		ClientSecret: "secret1",
@@ -988,7 +979,7 @@ func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
 	}
 
 	// Attempt to create same DeviceRequest twice.
-	err = s.CreateDeviceRequest(d1)
+	err := s.CreateDeviceRequest(d1)
 	mustBeErrAlreadyExists(t, "device request", err)
 
 	// No manual deletes for device requests, will be handled by garbage collection routines
