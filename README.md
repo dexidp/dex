@@ -106,7 +106,7 @@ All changes or deprecations of connector features will be announced in the [rele
 Due to their public nature, GitHub and mailing lists are NOT appropriate places
 for reporting vulnerabilities.
 
-Please email the [maintainers list][mailto:cncf-dex-maintainers@lists.cncf.io] to report issues that may
+Please email the [maintainers list](mailto:cncf-dex-maintainers@lists.cncf.io) to report issues that may
 be security-related.
 
 ## Getting help
