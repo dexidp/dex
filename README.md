@@ -111,11 +111,11 @@ be security-related.
 
 ## Getting help
 
-- For feature requests and bugs, file an [issue][https://github.com/dexidp/dex/issues].
+- For feature requests and bugs, file an [issue](https://github.com/dexidp/dex/issues).
 - For general discussion about both using and developing Dex:
-    - join the [#dexidp][https://cloud-native.slack.com/messages/dexidp] on the CNCF Slack
+    - join the [#dexidp](https://cloud-native.slack.com/messages/dexidp) on the CNCF Slack
     - open a new [discussion](https://github.com/dexidp/dex/discussions)
-    - join the [dex-dev][https://groups.google.com/forum/#!forum/dex-dev] mailing list
+    - join the [dex-dev](https://groups.google.com/forum/#!forum/dex-dev) mailing list
 
 [openid-connect]: https://openid.net/connect/
 [standard-claims]: https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
