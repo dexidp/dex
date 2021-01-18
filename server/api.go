@@ -143,7 +143,7 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 	if req.Email == "" {
 		return nil, errors.New("no email supplied")
 	}
-	if req.NewHash == nil && req.NewUsername == "" {
+	if req.NewHash == nil && req.NewUsername == "" && req.NewEmail == "" {
 		return nil, errors.New("nothing to update")
 	}
 
@@ -160,6 +160,10 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 
 		if req.NewUsername != "" {
 			old.Username = req.NewUsername
+		}
+
+		if req.NewEmail != "" {
+			old.Email = req.NewEmail
 		}
 
 		return old, nil

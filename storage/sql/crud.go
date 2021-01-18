@@ -584,10 +584,10 @@ func (c *conn) UpdatePassword(email string, updater func(p storage.Password) (st
 		_, err = tx.Exec(`
 			update password
 			set
-				hash = $1, username = $2, user_id = $3
-			where email = $4;
+				hash = $1, username = $2, user_id = $3, email = $4
+			where email = $5;
 		`,
-			np.Hash, np.Username, np.UserID, p.Email,
+			np.Hash, np.Username, np.UserID, np.Email, p.Email,
 		)
 		if err != nil {
 			return fmt.Errorf("update password: %v", err)

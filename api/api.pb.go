@@ -172,6 +172,7 @@ type UpdatePasswordReq struct {
 	Email       string `protobuf:"bytes,1,opt,name=email" json:"email,omitempty"`
 	NewHash     []byte `protobuf:"bytes,2,opt,name=new_hash,json=newHash,proto3" json:"new_hash,omitempty"`
 	NewUsername string `protobuf:"bytes,3,opt,name=new_username,json=newUsername" json:"new_username,omitempty"`
+	NewEmail    string `protobuf:"bytes,4,opt,name=new_email,json=newEmail" json:"new_email,omitempty"`
 }
 
 func (m *UpdatePasswordReq) Reset()                    { *m = UpdatePasswordReq{} }
