@@ -140,6 +140,10 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 			PollInterval:            pollIntervalSeconds,
 		}
 
+		// Device Authorization Response can contain cache control header according to
+		// https://tools.ietf.org/html/rfc8628#section-3.2
+		w.Header().Set("Cache-Control", "no-store")
+
 		enc := json.NewEncoder(w)
 		enc.SetEscapeHTML(false)
 		enc.SetIndent("", "   ")

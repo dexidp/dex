@@ -1476,6 +1476,10 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, resp *accessTokenRespon
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+
+	// Token response must include cache headers https://tools.ietf.org/html/rfc6749#section-5.1
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
 	w.Write(data)
 }
 
