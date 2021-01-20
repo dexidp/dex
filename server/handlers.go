@@ -184,10 +184,10 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 		IDTokenAlgs:       []string{string(jose.RS256)},
 		CodeChallengeAlgs: []string{CodeChallengeMethodS256, CodeChallengeMethodPlain},
 		Scopes:            []string{"openid", "email", "groups", "profile", "offline_access"},
-		AuthMethods:       []string{"client_secret_basic"},
+		AuthMethods:       []string{"client_secret_basic", "client_secret_post"},
 		Claims: []string{
-			"aud", "email", "email_verified", "exp",
-			"iat", "iss", "locale", "name", "sub",
+			"iss", "sub", "aud", "iat", "exp", "email", "email_verified",
+			"locale", "name", "preferred_username", "at_hash",
 		},
 	}
 
