@@ -10,7 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/mux"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
@@ -203,4 +206,71 @@ func TestConnectorLoginDoesNotAllowToChangeConnectorForAuthRequest(t *testing.T)
 	if recorder2.Code != 500 {
 		t.Error("attempt to overwrite connector on auth request should fail")
 	}
+}
+
+// TestHandleCodeReuse checks that it is forbidden to use same code twice
+func TestHandleCodeReuse(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	httpServer, s := newTestServer(ctx, t, func(c *Config) { c.Issuer += "/non-root-path" })
+	defer httpServer.Close()
+
+	p, err := oidc.NewProvider(ctx, httpServer.URL)
+	require.NoError(t, err)
+
+	var oauth2Client oauth2Client
+	oauth2Client.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/callback" {
+			http.Redirect(w, r, oauth2Client.config.AuthCodeURL(""), http.StatusSeeOther)
+			return
+		}
+
+		q := r.URL.Query()
+		require.Equal(t, q.Get("error"), "", q.Get("error_description"))
+
+		if code := q.Get("code"); code != "" {
+			_, err := oauth2Client.config.Exchange(ctx, code)
+			require.NoError(t, err)
+
+			_, err = oauth2Client.config.Exchange(ctx, code)
+			require.Error(t, err)
+
+			oauth2Err, ok := err.(*oauth2.RetrieveError)
+			require.True(t, ok)
+
+			var errResponse struct{ Error string }
+			err = json.Unmarshal(oauth2Err.Body, &errResponse)
+			require.NoError(t, err)
+
+			// invalid_grant must be returned for invalid values
+			// https://tools.ietf.org/html/rfc6749#section-5.2
+			require.Equal(t, errInvalidGrant, errResponse.Error)
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer oauth2Client.server.Close()
+
+	redirectURL := oauth2Client.server.URL + "/callback"
+	client := storage.Client{
+		ID:           "testclient",
+		Secret:       "testclientsecret",
+		RedirectURIs: []string{redirectURL},
+	}
+	err = s.storage.CreateClient(client)
+	require.NoError(t, err)
+
+	oauth2Client.config = &oauth2.Config{
+		ClientID:     client.ID,
+		ClientSecret: client.Secret,
+		Endpoint:     p.Endpoint(),
+		Scopes:       []string{oidc.ScopeOpenID, "email", "offline_access"},
+		RedirectURL:  redirectURL,
+	}
+
+	resp, err := http.Get(oauth2Client.server.URL + "/login")
+	require.NoError(t, err)
+
+	resp.Body.Close()
 }
