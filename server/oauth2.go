@@ -95,6 +95,7 @@ const (
 	errUnauthorizedClient      = "unauthorized_client"
 	errAccessDenied            = "access_denied"
 	errUnsupportedResponseType = "unsupported_response_type"
+	errRequestNotSupported     = "request_not_supported"
 	errInvalidScope            = "invalid_scope"
 	errServerError             = "server_error"
 	errTemporarilyUnavailable  = "temporarily_unavailable"
@@ -451,6 +452,12 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	// From here on out, we want to redirect back to the client with an error.
 	newErr := func(typ, format string, a ...interface{}) *authErr {
 		return &authErr{state, redirectURI, typ, fmt.Sprintf(format, a...)}
+	}
+
+	// dex doesn't support request parameter and must return request_not_supported error
+	// https://openid.net/specs/openid-connect-core-1_0.html#6.1
+	if q.Get("request") != "" {
+		return nil, newErr(errRequestNotSupported, "Server does not support request parameter.")
 	}
 
 	if codeChallengeMethod != CodeChallengeMethodS256 && codeChallengeMethod != CodeChallengeMethodPlain {
