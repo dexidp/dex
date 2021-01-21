@@ -94,6 +94,7 @@ func TestPassword(t *testing.T) {
 	updateReq := api.UpdatePasswordReq{
 		Email:       "test@example.com",
 		NewUsername: "test1",
+		NewEmail:    "test1@example.com",
 	}
 
 	if _, err := client.UpdatePassword(ctx, &updateReq); err != nil {
@@ -107,6 +108,10 @@ func TestPassword(t *testing.T) {
 
 	if pass.Username != updateReq.NewUsername {
 		t.Fatalf("UpdatePassword failed. Expected username %s retrieved %s", updateReq.NewUsername, pass.Username)
+	}
+
+	if pass.Email != updateReq.NewEmail {
+		t.Fatalf("UpdatePassword failed. Expected email %s retrieved %s", updateReq.NewEmail, pass.Email)
 	}
 
 	deleteReq := api.DeletePasswordReq{
