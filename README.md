@@ -74,7 +74,8 @@ More docs for running dex as a Kubernetes authenticator can be found [here](Docu
 
 ## Reporting a security vulnerability
 
-Due to their public nature, GitHub and mailing lists are NOT appropriate places for reporting vulnerabilities. Please refer to CoreOS's [security disclosure][disclosure] process when reporting issues that may be security related.
+Due to their public nature, GitHub and mailing lists are NOT appropriate places for reporting vulnerabilities. Please
+refer to CoreOS's [security disclosure][disclosure] process when reporting issues that may be security related.
 
 ## Getting help
 
@@ -82,13 +83,36 @@ Due to their public nature, GitHub and mailing lists are NOT appropriate places 
 * For general discussion about both using and developing dex, join the [dex-dev][dex-dev] mailing list.
 * For more details on dex development plans, check out the GitHub [milestones][milestones].
 
+## Differences from dexidp/dex
+
+Currently, dex is only supporting update `Password` and `Username` by using `UpdatePassword()` function. There is no way
+to update an `email` of user. To update an `email` by `UpdatePassword()` applied some changes in
+current `UpdatePassword()` function.
+
+* Update `api/api.pb.go` file to update the `UpdatePasswordReq` struct. Add `NewEmail` in the struct.
+  ```
+  NewEmail    string `protobuf:"bytes,4,opt,name=new_email,json=newEmail" json:"new_email,omitempty"`
+  ```
+* Update `api/api.proto` file to update the `UpdatePasswordReq` struct. Add `NewEmail` string in the struct.
+  ```
+  string new_email = 4;
+  ```
+* Update the `UpdatePassword()` function with respect to above struct changes and SQL update statement for an email.
+
 [openid-connect]: https://openid.net/connect/
+
 [standard-claims]: https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
+
 [using-dex]: Documentation/using-dex.md
+
 [jwt-io]: https://jwt.io/
+
 [kubernetes]: http://kubernetes.io/docs/admin/authentication/#openid-connect-tokens
+
 [aws-sts]: https://docs.aws.amazon.com/STS/latest/APIReference/Welcome.html
+
 [tectonic]: https://tectonic.com/
+
 [tectonic-console]: https://tectonic.com/enterprise/docs/latest/usage/index.html#tectonic-console
 [go-oidc]: https://github.com/coreos/go-oidc
 [issues]: https://github.com/coreos/dex/issues
