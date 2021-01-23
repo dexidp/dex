@@ -36,13 +36,13 @@ RUN apk add --no-cache --update ca-certificates openssl
 RUN mkdir -p /var/dex
 RUN chown -R 1001:1001 /var/dex
 
+# Copy module files for CVE scanning / dependency analysis.
+COPY --from=0 /usr/local/src/dex/go.mod /usr/local/src/dex/go.sum /usr/local/src/dex/
+COPY --from=0 /usr/local/src/dex/api/v2/go.mod /usr/local/src/dex/api/v2/go.sum /usr/local/src/dex/api/v2/
+
 USER 1001:1001
 
 COPY --from=0 /go/bin/dex /usr/local/bin/dex
-
-# Copy module dependencies for CVE scanning / dependency analysis.
-COPY go.mod go.sum                 /opt/dex/dependencies/
-COPY api/v2/go.mod api/v2/go.sum   /opt/dex/dependencies/api/v2/
 
 # Import frontend assets and set the correct CWD directory so the assets
 # are in the default path.
