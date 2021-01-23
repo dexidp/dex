@@ -33,6 +33,9 @@ WORKDIR /
 # OpenSSL is required so wget can query HTTPS endpoints for health checking.
 RUN apk add --no-cache --update ca-certificates openssl
 
+RUN mkdir -p /var/dex
+RUN chown -R 1001:1001 /var/dex
+
 USER 1001:1001
 
 COPY --from=0 /go/bin/dex /usr/local/bin/dex
