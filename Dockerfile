@@ -22,8 +22,6 @@ RUN make release-binary
 
 FROM alpine:3.13.0
 
-WORKDIR /
-
 # Dex connectors, such as GitHub and Google logins require root certificates.
 # Proper installations should manage those certificates, but it's a bad user
 # experience when this doesn't work out of the box.
