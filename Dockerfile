@@ -40,9 +40,9 @@ RUN chown -R 1001:1001 /var/dex
 COPY --from=0 /usr/local/src/dex/go.mod /usr/local/src/dex/go.sum /usr/local/src/dex/
 COPY --from=0 /usr/local/src/dex/api/v2/go.mod /usr/local/src/dex/api/v2/go.sum /usr/local/src/dex/api/v2/
 
-USER 1001:1001
-
 COPY --from=0 /go/bin/dex /usr/local/bin/dex
+
+USER 1001:1001
 
 # Import frontend assets and set the correct CWD directory so the assets
 # are in the default path.
