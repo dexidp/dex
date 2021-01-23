@@ -48,6 +48,8 @@ USER 1001:1001
 # are in the default path.
 COPY --from=builder /usr/local/src/dex/web web
 
+USER 1001:1001
+
 ENTRYPOINT ["dex"]
 
 CMD ["version"]
