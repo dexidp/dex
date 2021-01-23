@@ -1,4 +1,4 @@
-FROM golang:1.15.7-alpine3.13
+FROM golang:1.15.7-alpine3.13 AS builder
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -37,10 +37,10 @@ RUN mkdir -p /var/dex
 RUN chown -R 1001:1001 /var/dex
 
 # Copy module files for CVE scanning / dependency analysis.
-COPY --from=0 /usr/local/src/dex/go.mod /usr/local/src/dex/go.sum /usr/local/src/dex/
-COPY --from=0 /usr/local/src/dex/api/v2/go.mod /usr/local/src/dex/api/v2/go.sum /usr/local/src/dex/api/v2/
+COPY --from=builder /usr/local/src/dex/go.mod /usr/local/src/dex/go.sum /usr/local/src/dex/
+COPY --from=builder /usr/local/src/dex/api/v2/go.mod /usr/local/src/dex/api/v2/go.sum /usr/local/src/dex/api/v2/
 
-COPY --from=0 /go/bin/dex /usr/local/bin/dex
+COPY --from=builder /go/bin/dex /usr/local/bin/dex
 
 USER 1001:1001
 
