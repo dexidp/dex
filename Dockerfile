@@ -42,7 +42,7 @@ USER 1001:1001
 
 # Import frontend assets and set the correct CWD directory so the assets
 # are in the default path.
-COPY --from=builder /usr/local/src/dex/web web
+COPY --from=builder /usr/local/src/dex/web /web
 
 USER 1001:1001
 
