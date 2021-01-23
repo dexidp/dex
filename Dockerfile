@@ -1,16 +1,14 @@
 FROM golang:1.15.7-alpine3.13 AS builder
 
+WORKDIR /usr/local/src/dex
+
+RUN apk add --no-cache --update alpine-sdk
+
 ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT=""
 
-WORKDIR /usr/local/src/dex
-
-ENV GOOS=${TARGETOS} \
-  GOARCH=${TARGETARCH} \
-  GOARM=${TARGETVARIANT}
-
-RUN apk add --no-cache --update alpine-sdk
+ENV GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT}
 
 ARG GOPROXY
 
