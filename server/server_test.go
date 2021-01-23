@@ -395,6 +395,12 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 						}
 						return fmt.Errorf("unexpected response: %s", dump)
 					}
+					if resp.Header.Get("Cache-Control") != "no-store" {
+						return fmt.Errorf("cache-control header doesn't included in token response")
+					}
+					if resp.Header.Get("Pragma") != "no-cache" {
+						return fmt.Errorf("pragma header doesn't included in token response")
+					}
 					return nil
 				},
 			},
@@ -422,6 +428,12 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 							panic(err)
 						}
 						return fmt.Errorf("unexpected response: %s", dump)
+					}
+					if resp.Header.Get("Cache-Control") != "no-store" {
+						return fmt.Errorf("cache-control header doesn't included in token response")
+					}
+					if resp.Header.Get("Pragma") != "no-cache" {
+						return fmt.Errorf("pragma header doesn't included in token response")
 					}
 					return nil
 				},
@@ -701,6 +713,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 						checkErrorResponse(err, t, tc)
 						return
 					}
+
 					if err != nil {
 						t.Errorf("failed to exchange code for token: %v", err)
 						return
@@ -1514,6 +1527,9 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 			}
 			if resp.StatusCode != http.StatusOK {
 				t.Errorf("%v - Unexpected Response Type.  Expected 200 got  %v.  Response: %v", tc.name, resp.StatusCode, string(responseBody))
+			}
+			if resp.Header.Get("Cache-Control") != "no-store" {
+				t.Errorf("Cache-Control header doesn't exist in Device Code Response")
 			}
 
 			// Parse the code response
