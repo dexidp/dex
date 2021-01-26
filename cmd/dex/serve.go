@@ -10,11 +10,14 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/ghodss/yaml"
 	grpcprometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
@@ -66,6 +69,28 @@ func commandServe() *cobra.Command {
 	flags.StringVar(&options.grpcAddr, "grpc-addr", "", "gRPC API address")
 
 	return cmd
+}
+
+func listenAndShutdownGracefully(logger log.Logger, gr *run.Group, srv *http.Server, name string) error {
+	l, err := net.Listen("tcp", srv.Addr)
+	if err != nil {
+		return fmt.Errorf("listening (%s) on %s: %v", name, srv.Addr, err)
+	}
+
+	gr.Add(func() error {
+		logger.Infof("listening (%s) on %s", name, srv.Addr)
+		return srv.Serve(l)
+	}, func(err error) {
+		logger.Debugf("starting gracefully shutdown (%s)", name)
+		if err := l.Close(); err != nil {
+			logger.Errorf("gracefully close (%s) listener: %v", name, err)
+		}
+
+		if err := srv.Shutdown(context.Background()); err != nil {
+			logger.Errorf("gracefully shutdown (%s): %v", name, err)
+		}
+	})
+	return nil
 }
 
 func runServe(options serveOptions) error {
@@ -302,21 +327,21 @@ func runServe(options serveOptions) error {
 	telemetryServ := http.NewServeMux()
 	telemetryServ.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
 
-	errc := make(chan error, 3)
+	var gr run.Group
 	if c.Telemetry.HTTP != "" {
-		logger.Infof("listening (http/telemetry) on %s", c.Telemetry.HTTP)
-		go func() {
-			err := http.ListenAndServe(c.Telemetry.HTTP, telemetryServ)
-			errc <- fmt.Errorf("listening on %s failed: %v", c.Telemetry.HTTP, err)
-		}()
+		telemetrySrv := &http.Server{Addr: c.Telemetry.HTTP, Handler: telemetryServ}
+		if err := listenAndShutdownGracefully(logger, &gr, telemetrySrv, "http/telemetry"); err != nil {
+			return err
+		}
 	}
+
 	if c.Web.HTTP != "" {
-		logger.Infof("listening (http) on %s", c.Web.HTTP)
-		go func() {
-			err := http.ListenAndServe(c.Web.HTTP, serv)
-			errc <- fmt.Errorf("listening on %s failed: %v", c.Web.HTTP, err)
-		}()
+		httpSrv := &http.Server{Addr: c.Web.HTTP, Handler: serv}
+		if err := listenAndShutdownGracefully(logger, &gr, httpSrv, "http"); err != nil {
+			return err
+		}
 	}
+
 	if c.Web.HTTPS != "" {
 		httpsSrv := &http.Server{
 			Addr:    c.Web.HTTPS,
@@ -327,35 +352,51 @@ func runServe(options serveOptions) error {
 				MinVersion:               tls.VersionTLS12,
 			},
 		}
-
-		logger.Infof("listening (https) on %s", c.Web.HTTPS)
-		go func() {
-			err = httpsSrv.ListenAndServeTLS(c.Web.TLSCert, c.Web.TLSKey)
-			errc <- fmt.Errorf("listening on %s failed: %v", c.Web.HTTPS, err)
-		}()
+		if err := listenAndShutdownGracefully(logger, &gr, httpsSrv, "https"); err != nil {
+			return err
+		}
 	}
+
 	if c.GRPC.Addr != "" {
-		logger.Infof("listening (grpc) on %s", c.GRPC.Addr)
-		go func() {
-			errc <- func() error {
-				list, err := net.Listen("tcp", c.GRPC.Addr)
-				if err != nil {
-					return fmt.Errorf("listening on %s failed: %v", c.GRPC.Addr, err)
-				}
-				s := grpc.NewServer(grpcOptions...)
-				api.RegisterDexServer(s, server.NewAPI(serverConfig.Storage, logger))
-				grpcMetrics.InitializeMetrics(s)
-				if c.GRPC.Reflection {
-					logger.Info("enabling reflection in grpc service")
-					reflection.Register(s)
-				}
-				err = s.Serve(list)
-				return fmt.Errorf("listening on %s failed: %v", c.GRPC.Addr, err)
-			}()
-		}()
+		grpcListener, err := net.Listen("tcp", c.GRPC.Addr)
+		if err != nil {
+			return fmt.Errorf("listening (grcp) on %s: %w", c.GRPC.Addr, err)
+		}
+
+		grpcSrv := grpc.NewServer(grpcOptions...)
+		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger))
+		grpcMetrics.InitializeMetrics(grpcSrv)
+		if c.GRPC.Reflection {
+			logger.Info("enabling reflection in grpc service")
+			reflection.Register(grpcSrv)
+		}
+
+		gr.Add(func() error {
+			logger.Infof("listening (grpc) on %s", c.GRPC.Addr)
+			return grpcSrv.Serve(grpcListener)
+		}, func(err error) {
+			logger.Debugf("starting gracefully shutdown (grpc)")
+			if err := grpcListener.Close(); err != nil {
+				logger.Errorf("failed to gracefully close (grpc) listener: %v", err)
+			}
+			grpcSrv.GracefulStop()
+		})
 	}
 
-	return <-errc
+	sig := make(chan os.Signal)
+	gr.Add(func() error {
+		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+		receivedSig := <-sig
+		logger.Infof("received %s signal, shutting down", receivedSig)
+		return nil
+	}, func(err error) {
+		close(sig)
+	})
+
+	if err := gr.Run(); err != nil {
+		return fmt.Errorf("run groups: %w", err)
+	}
+	return nil
 }
 
 var (
