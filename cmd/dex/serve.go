@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"strings"
 	"syscall"
 	"time"
@@ -81,12 +80,11 @@ func listenAndShutdownGracefully(logger log.Logger, gr *run.Group, srv *http.Ser
 		logger.Infof("listening (%s) on %s", name, srv.Addr)
 		return srv.Serve(l)
 	}, func(err error) {
-		logger.Debugf("starting gracefully shutdown (%s)", name)
-		if err := l.Close(); err != nil {
-			logger.Errorf("gracefully close (%s) listener: %v", name, err)
-		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
 
-		if err := srv.Shutdown(context.Background()); err != nil {
+		logger.Debugf("starting gracefully shutdown (%s)", name)
+		if err := srv.Shutdown(ctx); err != nil {
 			logger.Errorf("gracefully shutdown (%s): %v", name, err)
 		}
 	})
@@ -330,6 +328,8 @@ func runServe(options serveOptions) error {
 	var gr run.Group
 	if c.Telemetry.HTTP != "" {
 		telemetrySrv := &http.Server{Addr: c.Telemetry.HTTP, Handler: telemetryServ}
+
+		defer telemetrySrv.Close()
 		if err := listenAndShutdownGracefully(logger, &gr, telemetrySrv, "http/telemetry"); err != nil {
 			return err
 		}
@@ -337,6 +337,8 @@ func runServe(options serveOptions) error {
 
 	if c.Web.HTTP != "" {
 		httpSrv := &http.Server{Addr: c.Web.HTTP, Handler: serv}
+
+		defer httpSrv.Close()
 		if err := listenAndShutdownGracefully(logger, &gr, httpSrv, "http"); err != nil {
 			return err
 		}
@@ -352,6 +354,8 @@ func runServe(options serveOptions) error {
 				MinVersion:               tls.VersionTLS12,
 			},
 		}
+
+		defer httpsSrv.Close()
 		if err := listenAndShutdownGracefully(logger, &gr, httpsSrv, "https"); err != nil {
 			return err
 		}
@@ -365,6 +369,7 @@ func runServe(options serveOptions) error {
 
 		grpcSrv := grpc.NewServer(grpcOptions...)
 		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger))
+
 		grpcMetrics.InitializeMetrics(grpcSrv)
 		if c.GRPC.Reflection {
 			logger.Info("enabling reflection in grpc service")
@@ -376,25 +381,16 @@ func runServe(options serveOptions) error {
 			return grpcSrv.Serve(grpcListener)
 		}, func(err error) {
 			logger.Debugf("starting gracefully shutdown (grpc)")
-			if err := grpcListener.Close(); err != nil {
-				logger.Errorf("failed to gracefully close (grpc) listener: %v", err)
-			}
 			grpcSrv.GracefulStop()
 		})
 	}
 
-	sig := make(chan os.Signal)
-	gr.Add(func() error {
-		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-		receivedSig := <-sig
-		logger.Infof("received %s signal, shutting down", receivedSig)
-		return nil
-	}, func(err error) {
-		close(sig)
-	})
-
+	gr.Add(run.SignalHandler(context.Background(), os.Interrupt, syscall.SIGTERM))
 	if err := gr.Run(); err != nil {
-		return fmt.Errorf("run groups: %w", err)
+		if _, ok := err.(run.SignalError); !ok {
+			return fmt.Errorf("run groups: %w", err)
+		}
+		logger.Infof("%v, shutdown now", err)
 	}
 	return nil
 }
