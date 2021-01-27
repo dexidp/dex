@@ -356,6 +356,7 @@ type passwordDB struct {
 }
 
 func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, password string) (connector.Identity, bool, error) {
+	remote := ctx.Value("remote").(string)
 	p, err := db.s.GetPassword(email)
 	if err != nil {
 		if err != storage.ErrNotFound {
@@ -372,7 +373,8 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 		return connector.Identity{}, false, err
 	}
 	if err := bcrypt.CompareHashAndPassword(p.Hash, []byte(password)); err != nil {
-		db.l.Errorf("Login password mismatch in local password connector")
+		db.l.Errorf("Login password mismatch in local password connector for email: %s from remote: %s",
+					email, remote)
 		return connector.Identity{}, false, nil
 	}
 	return connector.Identity{

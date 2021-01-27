@@ -368,8 +368,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 
 		username := r.FormValue("login")
 		password := r.FormValue("password")
-
-		identity, ok, err := passwordConnector.Login(r.Context(), scopes, username, password)
+		identity, ok, err := passwordConnector.Login(context.WithValue(r.Context(), "remote", r.RemoteAddr), scopes, username, password)
 		if err != nil {
 			s.logger.Errorf("Failed to login user: %v", err)
 			s.renderError(r, w, http.StatusInternalServerError, fmt.Sprintf("Login error: %v", err))
