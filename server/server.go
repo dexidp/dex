@@ -355,16 +355,16 @@ type passwordDB struct {
 	l log.Logger
 }
 
-func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, password string) (connector.Identity, bool, error) {
+func (db passwordDB) Login(ctx context.Context, s connector.Scopes, username, password string) (connector.Identity, bool, error) {
 	remote := ctx.Value("remote").(string)
-	p, err := db.s.GetPassword(email)
+	p, err := db.s.GetPassword(username)
 	if err != nil {
 		if err != storage.ErrNotFound {
 			db.l.Errorf("Login error in local password connector while getting password to compare against: %v", err)
 			return connector.Identity{}, false, fmt.Errorf("get password: %v", err)
 		} else {
-			db.l.Errorf("Login username not found in local password connector for email: %s from remote endpoint: %s",
-				        email, remote)
+			db.l.Errorf("Login username not found in local password connector for username: %s from remote endpoint: %s",
+				        username, remote)
 			return connector.Identity{}, false, nil
 		}
 	}
@@ -376,8 +376,8 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 		return connector.Identity{}, false, err
 	}
 	if err := bcrypt.CompareHashAndPassword(p.Hash, []byte(password)); err != nil {
-		db.l.Errorf("Login password mismatch in local password connector for email: %s from remote endpoint: %s",
-					email, remote)
+		db.l.Errorf("Login password mismatch in local password connector for username: %s from remote endpoint: %s",
+			        username, remote)
 		return connector.Identity{}, false, nil
 	}
 	return connector.Identity{
