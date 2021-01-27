@@ -362,8 +362,11 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 		if err != storage.ErrNotFound {
 			db.l.Errorf("Login error in local password connector while getting password to compare against: %v", err)
 			return connector.Identity{}, false, fmt.Errorf("get password: %v", err)
+		} else {
+			db.l.Errorf("Login username not found in local password connector for email: %s from remote endpoint: %s",
+				        email, remote)
+			return connector.Identity{}, false, nil
 		}
-		return connector.Identity{}, false, nil
 	}
 	// This check prevents dex users from logging in using static passwords
 	// configured with hash costs that are too high or low.
@@ -373,7 +376,7 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 		return connector.Identity{}, false, err
 	}
 	if err := bcrypt.CompareHashAndPassword(p.Hash, []byte(password)); err != nil {
-		db.l.Errorf("Login password mismatch in local password connector for email: %s from remote: %s",
+		db.l.Errorf("Login password mismatch in local password connector for email: %s from remote endpoint: %s",
 					email, remote)
 		return connector.Identity{}, false, nil
 	}
