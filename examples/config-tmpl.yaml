@@ -1,0 +1,56 @@
+issuer: {{ env "DEX_ISSUER" | default "http://127.0.0.1:5556/dex" }}
+
+storage:
+  type: sqlite3
+  config:
+    file: {{ env "DEX_STORAGE_SQLITE3_CONFIG_FILE" | default "/etc/dex/dex.db" }}
+
+web:
+{{- if env "DEX_WEB_HTTPS" }}
+  https: {{ env "DEX_WEB_HTTPS" }}
+  {{- if env "DEX_WEB_TLS_KEY" }}
+  tlsKey: {{ env "DEX_WEB_TLS_KEY" }}
+  {{- else }}
+{{- fail "DEX_WEB_TLS_KEY is required" }}
+  {{- end }}
+  {{- if env "DEX_WEB_TLS_CERT" }}
+  tlsCert: {{ env "DEX_WEB_TLS_CERT" }}
+  {{- else }}
+{{- fail "$DEX_WEB_TLS_CERT is required" }}
+  {{- end }}
+{{- end }}
+  http: {{ env "DEX_WEB_HTTP" | default "0.0.0.0:5556" }}
+
+
+
+{{- if env "DEX_TELEMETRY_HTTP" }}
+telemetry:
+  http: {{ env "DEX_TELEMETRY_HTTP" }}
+{{- end }}
+
+expiry:
+  deviceRequests: {{ env "DEX_EXPIRY_DEVICE_REQUESTS" | default "5m" }}
+  signingKeys: {{ env "DEX_EXPIRY_SIGNING_KEYS" | default "6h" }}
+  idTokens: {{ env "DEX_EXPIRY_ID_TOKENS" | default "24h" }}
+  authRequests: {{ env "DEX_EXPIRY_AUTH_REQUESTS" | default "24h" }}
+
+logger:
+  level: {{ env "DEX_LOGGER_LEVEL" | default "info" }}
+  format: {{ env "DEX_LOGGER_FORMAT" | default "text" }}
+
+oauth2:
+  responseTypes: {{ env "DEX_OAUTH2_RESPONSE_TYPES" | default "[code]" }}
+  skipApprovalScreen: {{ env "DEX_OAUTH2_SKIP_APPROVAL_SCREEN" | default "false" }}
+  alwaysShowLoginScreen: {{ env "DEX_OAUTH2_ALWAYS_SHOW_LOGIN_SCREEN" | default  "false" }}
+{{- if env "DEX_OAUTH2_PASSWORD_CONNECTOR" }}
+  passwordConnector: {{ env "DEX_OAUTH2_PASSWORD_CONNECTOR" }}
+{{- end }}
+
+enablePasswordDB: {{ env "DEX_ENABLE_PASSWORD_DB" | default "true" }}
+
+connectors:
+{{- if env "DEX_CONNECTORS_ENABLE_MOCK" }}
+- type: mockCallback
+  id: mock
+  name: Example
+{{- end }}

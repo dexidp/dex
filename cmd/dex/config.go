@@ -1,13 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
+	"text/template"
 
+	"github.com/Masterminds/sprig/v3"
+	"github.com/ghodss/yaml"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/pkg/log"
@@ -48,6 +53,45 @@ type Config struct {
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
+}
+
+func newConfigByPath(configFile string, options serveOptions) (*Config, error) {
+	configData, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file %s: %w", configFile, err)
+	}
+
+	config, err := newConfigFromData(configData, options)
+	if err != nil {
+		return nil, fmt.Errorf("error parse config file %s: %w", configFile, err)
+	}
+
+	return config, nil
+}
+
+func newConfigFromData(configData []byte, options serveOptions) (*Config, error) {
+	tmpls, err := template.New("dex").Funcs(sprig.TxtFuncMap()).Parse(string(configData))
+	if err != nil {
+		return nil, fmt.Errorf("parse template: %w", err)
+	}
+
+	buff := new(bytes.Buffer)
+	err = tmpls.Execute(buff, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var config Config
+	if err := yaml.Unmarshal(buff.Bytes(), &config); err != nil {
+		return nil, err
+	}
+
+	applyConfigOverrides(options, &config)
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+
+	return &config, nil
 }
 
 // Validate the configuration

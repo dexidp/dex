@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ghodss/yaml"
 	grpcprometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -70,17 +69,11 @@ func commandServe() *cobra.Command {
 
 func runServe(options serveOptions) error {
 	configFile := options.config
-	configData, err := ioutil.ReadFile(configFile)
+
+	c, err := newConfigByPath(configFile, options)
 	if err != nil {
-		return fmt.Errorf("failed to read config file %s: %v", configFile, err)
+		return err
 	}
-
-	var c Config
-	if err := yaml.Unmarshal(configData, &c); err != nil {
-		return fmt.Errorf("error parse config file %s: %v", configFile, err)
-	}
-
-	applyConfigOverrides(options, &c)
 
 	logger, err := newLogger(c.Logger.Level, c.Logger.Format)
 	if err != nil {
@@ -88,9 +81,6 @@ func runServe(options serveOptions) error {
 	}
 	if c.Logger.Level != "" {
 		logger.Infof("config using log level: %s", c.Logger.Level)
-	}
-	if err := c.Validate(); err != nil {
-		return err
 	}
 
 	logger.Infof("config issuer: %s", c.Issuer)

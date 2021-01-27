@@ -6,6 +6,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/kylelemons/godebug/pretty"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/connector/oidc"
@@ -422,4 +423,45 @@ logger:
 	if diff := pretty.Compare(c, want); diff != "" {
 		t.Errorf("got!=want: %s", diff)
 	}
+}
+
+func TestUnmarshalConfigTemplate(t *testing.T) {
+	err := os.Setenv("DEX_TEST_ENV_ISSUER_BASE64", "aHR0cDovLzEyNy4wLjAuMTo1NTU2L2RleC10ZXN0Cg==")
+	require.NoError(t, err)
+
+	rawConfig := []byte(`
+{{ $ := fromJson "{}" }}
+{{ $_ := set $ "http" "0.0.0.0:5555" }}
+{{ $_ := set $ "https" "0.0.0.0:6666" }}
+{{ $_ := set $ "tlsCert" "tls.crt" }}
+{{ $_ := set $ "tlsKey" "tls.key" }}
+
+issuer: {{ env "DEX_TEST_ENV_ISSUER_BASE64" | b64dec }}
+storage:
+  type: {{ env "NON_EXISTED_ENV" | default "sqlite3" }}
+  config:
+    file: {{ base "/etc/test.db" }}
+web: {{ $ | toJson }}
+`)
+	want := Config{
+		Issuer: "http://127.0.0.1:5556/dex-test",
+		Storage: Storage{
+			Type: "sqlite3",
+			Config: &sql.SQLite3{
+				File: "test.db",
+			},
+		},
+		Web: Web{
+			HTTP:    "0.0.0.0:5555",
+			HTTPS:   "0.0.0.0:6666",
+			TLSCert: "tls.crt",
+			TLSKey:  "tls.key",
+		},
+	}
+
+	c, err := newConfigFromData(rawConfig, serveOptions{})
+	require.NoError(t, err)
+
+	diff := pretty.Compare(c, want)
+	require.Equal(t, "", diff)
 }
