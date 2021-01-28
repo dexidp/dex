@@ -1,3 +1,6 @@
+# DEPRECATED: use config.yaml.dist and config.dev.yaml examples in the repository root.
+# TODO: keep this until all references are updated.
+
 # The base path of dex and the external name of the OpenID Connect service.
 # This is the canonical URL that all clients MUST use to refer to dex. If a
 # path is provided, dex's HTTP service will listen at a non-root URL.
