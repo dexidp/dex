@@ -27,10 +27,21 @@ FROM alpine:3.13.1
 # experience when this doesn't work out of the box.
 #
 # OpenSSL is required so wget can query HTTPS endpoints for health checking.
+ARG TARGETARCH
+ARG TARGETVARIANT=""
+ARG GOMPLATE_VERSION=v3.9.0
+
 RUN apk add --no-cache --update ca-certificates openssl
+RUN wget -O /usr/local/bin/gomplate \
+  "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_linux-${TARGETARCH:-amd64}${TARGETVARIANT}" \
+  && chmod +x /usr/local/bin/gomplate
 
 RUN mkdir -p /var/dex
 RUN chown -R 1001:1001 /var/dex
+
+RUN mkdir -p /etc/dex
+COPY examples/config-example.tmpl /etc/dex/config.tmpl
+RUN chown -R 1001:1001 /etc/dex
 
 # Copy module files for CVE scanning / dependency analysis.
 COPY --from=builder /usr/local/src/dex/go.mod /usr/local/src/dex/go.sum /usr/local/src/dex/
@@ -46,6 +57,7 @@ COPY --from=builder /usr/local/src/dex/web /web
 
 USER 1001:1001
 
-ENTRYPOINT ["dex"]
+COPY entrypoint.sh /
 
-CMD ["version"]
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["serve", "/etc/dex/config.tmpl"]
