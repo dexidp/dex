@@ -3,25 +3,17 @@ issuer: {{ getenv "DEX_ISSUER" "http://127.0.0.1:5556/dex" }}
 storage:
   type: sqlite3
   config:
-    file: {{ getenv "DEX_STORAGE_SQLITE3_CONFIG_FILE" "/etc/dex/dex.db" }}
+    file: {{ getenv "DEX_STORAGE_SQLITE3_CONFIG_FILE" "/var/dex/dex.db" }}
 
 web:
 {{- if getenv "DEX_WEB_HTTPS" "" }}
   https: {{ .Env.DEX_WEB_HTTPS }}
-  {{- if getenv "DEX_WEB_TLS_KEY" }}
-  tlsKey: {{ .Env.DEX_WEB_TLS_KEY }}
-  {{- else }}
-{{- fail "$DEX_WEB_TLS_KEY is required" }}
-  {{- end }}
-  {{- if getenv "DEX_WEB_TLS_CERT" "" }}
-  tlsCert: {{ .Env.DEX_WEB_TLS_CERT }}
-  {{- else }}
-{{- fail "$DEX_WEB_TLS_CERT is required" }}
-  {{- end }}
+  tlsKey: {{ getenv "DEX_WEB_TLS_KEY" | required "$DEX_WEB_TLS_KEY in case of web.https is enabled" }}
+  tlsCert: {{ getenv "DEX_WEB_TLS_CERT" | required "$DEX_WEB_TLS_CERT in case of web.https is enabled" }}
 {{- end }}
   http: {{ getenv "DEX_WEB_HTTP" "0.0.0.0:5556" }}
 
-{{- if getenv "DEX_TELEMETRY_HTTP" "" }}
+{{- if getenv "DEX_TELEMETRY_HTTP" }}
 telemetry:
   http: {{ .Env.DEX_TELEMETRY_HTTP }}
 {{- end }}
@@ -33,8 +25,8 @@ expiry:
   authRequests: {{ getenv "DEX_EXPIRY_AUTH_REQUESTS" "24h" }}
 
 logger:
-  level: {{ getenv "DEX_LOGGER_LEVEL" "info" }}
-  format: {{ getenv "DEX_LOGGER_FORMAT" "text" }}
+  level: {{ getenv "DEX_LOG_LEVEL" "info" }}
+  format: {{ getenv "DEX_LOG_FORMAT" "text" }}
 
 oauth2:
   responseTypes: {{ getenv "DEX_OAUTH2_RESPONSE_TYPES" "[code]" }}
@@ -47,7 +39,7 @@ oauth2:
 enablePasswordDB: {{ getenv "DEX_ENABLE_PASSWORD_DB" "true" }}
 
 connectors:
-{{- if getenv "DEX_CONNECTORS_ENABLE_MOCK" "" }}
+{{- if getenv "DEX_CONNECTORS_ENABLE_MOCK" }}
 - type: mockCallback
   id: mock
   name: Example
