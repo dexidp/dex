@@ -9,7 +9,6 @@ case "$command" in
       if test -f "$file_candidate"; then
         tmpfile=$(mktemp /tmp/dex.config.yaml-XXXXXX)
         gomplate -f "$file_candidate" -o "$tmpfile"
-        echo "config rendered successfully into the tmp file ${tmpfile}"
 
         args="${args} ${tmpfile}"
       else
