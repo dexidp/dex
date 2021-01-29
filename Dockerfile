@@ -22,18 +22,20 @@ RUN make release-binary
 
 FROM alpine:3.13.1
 
-ARG TARGETOS="linux"
-ARG TARGETARCH="amd64"
-ARG TARGETVARIANT=""
-ARG GOMPLATE_VERSION=v3.9.0
 # Dex connectors, such as GitHub and Google logins require root certificates.
 # Proper installations should manage those certificates, but it's a bad user
 # experience when this doesn't work out of the box.
 #
 # OpenSSL is required so wget can query HTTPS endpoints for health checking.
 RUN apk add --no-cache --update ca-certificates openssl
+
+ARG TARGETOS
+ARG TARGETARCH
+ARG TARGETVARIANT
+ARG GOMPLATE_VERSION=v3.9.0
+
 RUN wget -O /usr/local/bin/gomplate \
-  "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS}-${TARGETARCH}${TARGETVARIANT}" \
+  "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT}" \
   && chmod +x /usr/local/bin/gomplate
 
 RUN mkdir -p /var/dex
