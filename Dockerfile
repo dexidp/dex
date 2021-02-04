@@ -25,7 +25,8 @@ FROM alpine:3.13.1 AS gomplate
 ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
-ARG GOMPLATE_VERSION=v3.9.0
+
+ENV GOMPLATE_VERSION=v3.9.0
 
 RUN wget -O /usr/local/bin/gomplate \
   "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT}" \
@@ -45,7 +46,7 @@ RUN mkdir -p /var/dex
 RUN chown -R 1001:1001 /var/dex
 
 RUN mkdir -p /etc/dex
-COPY config.docker.yaml /etc/dex/config.docker.yaml
+COPY config.docker.yaml /etc/dex/
 RUN chown -R 1001:1001 /etc/dex
 
 # Copy module files for CVE scanning / dependency analysis.
@@ -63,7 +64,7 @@ COPY --from=builder /usr/local/src/dex/web /web
 
 USER 1001:1001
 
-COPY docker-entrypoint.sh /
+COPY docker-entrypoint.sh /entrypoint.sh
 
-ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["serve", "/etc/dex/config.docker.yaml"]
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["dex", "serve", "/etc/dex/config.docker.yaml"]
