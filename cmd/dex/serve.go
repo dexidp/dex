@@ -83,9 +83,9 @@ func listenAndShutdownGracefully(logger log.Logger, gr *run.Group, srv *http.Ser
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 
-		logger.Debugf("starting gracefully shutdown (%s)", name)
+		logger.Debugf("starting graceful shutdown (%s)", name)
 		if err := srv.Shutdown(ctx); err != nil {
-			logger.Errorf("gracefully shutdown (%s): %v", name, err)
+			logger.Errorf("graceful shutdown (%s): %v", name, err)
 		}
 	})
 	return nil
@@ -380,7 +380,7 @@ func runServe(options serveOptions) error {
 			logger.Infof("listening (grpc) on %s", c.GRPC.Addr)
 			return grpcSrv.Serve(grpcListener)
 		}, func(err error) {
-			logger.Debugf("starting gracefully shutdown (grpc)")
+			logger.Debugf("starting graceful shutdown (grpc)")
 			grpcSrv.GracefulStop()
 		})
 	}
