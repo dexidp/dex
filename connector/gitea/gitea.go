@@ -72,7 +72,7 @@ type giteaConnector struct {
 	useLoginAsID bool
 }
 
-func (c *giteaConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
+func (c *giteaConnector) oauth2Config(_ connector.Scopes) *oauth2.Config {
 	giteaEndpoint := oauth2.Endpoint{AuthURL: c.baseURL + "/login/oauth/authorize", TokenURL: c.baseURL + "/login/oauth/access_token"}
 	return &oauth2.Config{
 		ClientID:     c.clientID,

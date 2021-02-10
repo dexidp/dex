@@ -488,7 +488,7 @@ func (p *provider) validateSubject(subject *subject, inResponseTo string) error 
 		return fmt.Errorf("subject contained no SubjectConfirmations")
 	}
 
-	var errs []error
+	errs := make([]error, 0, len(subject.SubjectConfirmations))
 	// One of these must match our assumptions, not all.
 	for _, c := range subject.SubjectConfirmations {
 		err := func() error {

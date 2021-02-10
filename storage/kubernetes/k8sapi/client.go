@@ -19,7 +19,7 @@ package k8sapi
 // Where possible, json tags match the cli argument names.
 // Top level config objects and all values required for proper functioning are not "omitempty".  Any truly optional piece of config is allowed to be omitted.
 
-// Config holds the information needed to build connect to remote kubernetes clusters as a given user
+// Config holds the information needed to build connect to remote kubernetes clusters as a given user.
 type Config struct {
 	// Legacy field from pkg/api/types.go TypeMeta.
 	// TODO(jlowdermilk): remove this after eliminating downstream dependencies.
@@ -51,7 +51,7 @@ type Preferences struct {
 	Extensions []NamedExtension `json:"extensions,omitempty"`
 }
 
-// Cluster contains information about how to communicate with a kubernetes cluster
+// Cluster contains information about how to communicate with a kubernetes cluster.
 type Cluster struct {
 	// Server is the address of the kubernetes cluster (https://hostname:port).
 	Server string `json:"server"`
@@ -97,7 +97,8 @@ type AuthInfo struct {
 	Extensions []NamedExtension `json:"extensions,omitempty"`
 }
 
-// Context is a tuple of references to a cluster (how do I communicate with a kubernetes cluster), a user (how do I identify myself), and a namespace (what subset of resources do I want to work with)
+// Context is a tuple of references to a cluster (how do I communicate with a kubernetes cluster),
+// a user (how do I identify myself), and a namespace (what subset of resources do I want to work with).
 type Context struct {
 	// Cluster is the name of the cluster for this context
 	Cluster string `json:"cluster"`

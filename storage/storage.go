@@ -386,22 +386,19 @@ type Keys struct {
 
 // NewUserCode returns a randomized 8 character user code for the device flow.
 // No vowels are included to prevent accidental generation of words
-func NewUserCode() (string, error) {
-	code, err := randomString(8)
-	if err != nil {
-		return "", err
-	}
-	return code[:4] + "-" + code[4:], nil
+func NewUserCode() string {
+	code := randomString(8)
+	return code[:4] + "-" + code[4:]
 }
 
-func randomString(n int) (string, error) {
+func randomString(n int) string {
 	v := big.NewInt(int64(len(validUserCharacters)))
 	bytes := make([]byte, n)
 	for i := 0; i < n; i++ {
 		c, _ := rand.Int(rand.Reader, v)
 		bytes[i] = validUserCharacters[c.Int64()]
 	}
-	return string(bytes), nil
+	return string(bytes)
 }
 
 // DeviceRequest represents an OIDC device authorization request. It holds the state of a device request until the user
