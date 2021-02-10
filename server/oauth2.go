@@ -230,11 +230,11 @@ func accessTokenHash(alg jose.SignatureAlgorithm, accessToken string) (string, e
 		return "", fmt.Errorf("unsupported signature algorithm: %s", alg)
 	}
 
-	hash := newHash()
-	if _, err := io.WriteString(hash, accessToken); err != nil {
+	hashFunc := newHash()
+	if _, err := io.WriteString(hashFunc, accessToken); err != nil {
 		return "", fmt.Errorf("computing hash: %v", err)
 	}
-	sum := hash.Sum(nil)
+	sum := hashFunc.Sum(nil)
 	return base64.RawURLEncoding.EncodeToString(sum[:len(sum)/2]), nil
 }
 
@@ -266,6 +266,7 @@ type idTokenClaims struct {
 	Nonce            string   `json:"nonce,omitempty"`
 
 	AccessTokenHash string `json:"at_hash,omitempty"`
+	CodeHash        string `json:"c_hash,omitempty"`
 
 	Email         string `json:"email,omitempty"`
 	EmailVerified *bool  `json:"email_verified,omitempty"`
@@ -284,11 +285,11 @@ type federatedIDClaims struct {
 }
 
 func (s *Server) newAccessToken(clientID string, claims storage.Claims, scopes []string, nonce, connID string) (accessToken string, err error) {
-	idToken, _, err := s.newIDToken(clientID, claims, scopes, nonce, storage.NewID(), connID)
+	idToken, _, err := s.newIDToken(clientID, claims, scopes, nonce, storage.NewID(), "", connID)
 	return idToken, err
 }
 
-func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, connID string) (idToken string, expiry time.Time, err error) {
+func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string) (idToken string, expiry time.Time, err error) {
 	keys, err := s.storage.GetKeys()
 	if err != nil {
 		s.logger.Errorf("Failed to get keys: %v", err)
@@ -333,6 +334,15 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 			return "", expiry, fmt.Errorf("error computing at_hash: %v", err)
 		}
 		tok.AccessTokenHash = atHash
+	}
+
+	if code != "" {
+		cHash, err := accessTokenHash(signingAlg, code)
+		if err != nil {
+			s.logger.Errorf("error computing c_hash: %v", err)
+			return "", expiry, fmt.Errorf("error computing c_hash: #{err}")
+		}
+		tok.CodeHash = cHash
 	}
 
 	for _, scope := range scopes {
