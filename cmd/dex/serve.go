@@ -325,20 +325,20 @@ func runServe(options serveOptions) error {
 		return fmt.Errorf("failed to initialize server: %v", err)
 	}
 
-	telemetryServ := http.NewServeMux()
-	telemetryServ.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
+	telemetryRouter := http.NewServeMux()
+	telemetryRouter.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
 
 	// Configure health checker
 	healthChecker := gosundheit.New()
 	{
 		handler := gosundheithttp.HandleHealthJSON(healthChecker)
-		telemetryServ.Handle("/healthz", handler)
+		telemetryRouter.Handle("/healthz", handler)
 
 		// Kubernetes style health checks
-		telemetryServ.HandleFunc("/healthz/live", func(w http.ResponseWriter, _ *http.Request) {
+		telemetryRouter.HandleFunc("/healthz/live", func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte("ok"))
 		})
-		telemetryServ.Handle("/healthz/ready", handler)
+		telemetryRouter.Handle("/healthz/ready", handler)
 	}
 
 	healthChecker.RegisterCheck(&gosundheit.Config{
@@ -352,7 +352,7 @@ func runServe(options serveOptions) error {
 
 	var gr run.Group
 	if c.Telemetry.HTTP != "" {
-		telemetrySrv := &http.Server{Addr: c.Telemetry.HTTP, Handler: telemetryServ}
+		telemetrySrv := &http.Server{Addr: c.Telemetry.HTTP, Handler: telemetryRouter}
 
 		defer telemetrySrv.Close()
 		if err := listenAndShutdownGracefully(logger, &gr, telemetrySrv, "http/telemetry"); err != nil {
