@@ -1,3 +1,5 @@
+{{- /* NOTE: This configuration file is an example and exists only for development purposes. */ -}}
+{{- /* To find more about gomplate formatting, please visit its documentation site - https://docs.gomplate.ca/ */ -}}
 issuer: {{ getenv "DEX_ISSUER" "http://127.0.0.1:5556/dex" }}
 
 storage:
