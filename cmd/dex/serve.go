@@ -275,6 +275,8 @@ func runServe(options serveOptions) error {
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
 
+	healthChecker := gosundheit.New()
+
 	serverConfig := server.Config{
 		SupportedResponseTypes: c.OAuth2.ResponseTypes,
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
@@ -287,6 +289,7 @@ func runServe(options serveOptions) error {
 		Logger:                 logger,
 		Now:                    now,
 		PrometheusRegistry:     prometheusRegistry,
+		HealthChecker:          healthChecker,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
@@ -329,7 +332,6 @@ func runServe(options serveOptions) error {
 	telemetryRouter.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
 
 	// Configure health checker
-	healthChecker := gosundheit.New()
 	{
 		handler := gosundheithttp.HandleHealthJSON(healthChecker)
 		telemetryRouter.Handle("/healthz", handler)
