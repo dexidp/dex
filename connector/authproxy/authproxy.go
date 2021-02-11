@@ -15,16 +15,24 @@ import (
 
 // Config holds the configuration parameters for a connector which returns an
 // identity with the HTTP header X-Remote-User as verified email.
-type Config struct{}
+type Config struct {
+	UserHeader string `json:"userHeader"`
+}
 
 // Open returns an authentication strategy which requires no user interaction.
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
-	return &callback{logger: logger, pathSuffix: "/" + id}, nil
+	userHeader := c.UserHeader
+	if userHeader == "" {
+		userHeader = "X-Remote-User"
+	}
+
+	return &callback{userHeader: userHeader, logger: logger, pathSuffix: "/" + id}, nil
 }
 
 // Callback is a connector which returns an identity with the HTTP header
 // X-Remote-User as verified email.
 type callback struct {
+	userHeader string
 	logger     log.Logger
 	pathSuffix string
 }
@@ -46,7 +54,7 @@ func (m *callback) LoginURL(s connector.Scopes, callbackURL, state string) (stri
 func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connector.Identity, error) {
 
   m.logger.Debugf("Headers: %v", r.Header)
-	remoteUser := r.Header.Get("X-Remote-User")
+	remoteUser := r.Header.Get(m.userHeader)
 	if remoteUser == "" {
 		return connector.Identity{}, fmt.Errorf("need login redirect")
 	}

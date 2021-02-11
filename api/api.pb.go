@@ -281,7 +281,7 @@ func (m *DeleteClientResp) GetNotFound() bool {
 	return false
 }
 
-// UpdateClientReq is a request to update an exisitng client.
+// UpdateClientReq is a request to update an existing client.
 type UpdateClientReq struct {
 	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	RedirectUris         []string `protobuf:"bytes,2,rep,name=redirect_uris,json=redirectUris,proto3" json:"redirect_uris,omitempty"`
@@ -353,7 +353,7 @@ func (m *UpdateClientReq) GetLogoUrl() string {
 	return ""
 }
 
-// UpdateClientResp returns the reponse form updating a client.
+// UpdateClientResp returns the response from updating a client.
 type UpdateClientResp struct {
 	NotFound             bool     `protobuf:"varint,1,opt,name=not_found,json=notFound,proto3" json:"not_found,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`

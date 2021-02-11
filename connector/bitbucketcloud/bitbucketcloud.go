@@ -421,7 +421,6 @@ type group struct {
 }
 
 func (b *bitbucketConnector) userTeamGroups(ctx context.Context, client *http.Client, teamName string) ([]string, error) {
-	var teamGroups []string
 	apiURL := b.legacyAPIURL + "/groups/" + teamName
 
 	var response []group
@@ -429,6 +428,7 @@ func (b *bitbucketConnector) userTeamGroups(ctx context.Context, client *http.Cl
 		return nil, fmt.Errorf("get user team %q groups: %v", teamName, err)
 	}
 
+	teamGroups := make([]string, 0, len(response))
 	for _, group := range response {
 		teamGroups = append(teamGroups, teamName+"/"+group.Slug)
 	}

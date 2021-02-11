@@ -95,6 +95,7 @@ const (
 	errUnauthorizedClient      = "unauthorized_client"
 	errAccessDenied            = "access_denied"
 	errUnsupportedResponseType = "unsupported_response_type"
+	errRequestNotSupported     = "request_not_supported"
 	errInvalidScope            = "invalid_scope"
 	errServerError             = "server_error"
 	errTemporarilyUnavailable  = "temporarily_unavailable"
@@ -194,7 +195,7 @@ func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []by
 
 	signer, err := jose.NewSigner(signingKey, &jose.SignerOptions{})
 	if err != nil {
-		return "", fmt.Errorf("new signier: %v", err)
+		return "", fmt.Errorf("new signer: %v", err)
 	}
 	signature, err := signer.Sign(payload)
 	if err != nil {
@@ -229,11 +230,11 @@ func accessTokenHash(alg jose.SignatureAlgorithm, accessToken string) (string, e
 		return "", fmt.Errorf("unsupported signature algorithm: %s", alg)
 	}
 
-	hash := newHash()
-	if _, err := io.WriteString(hash, accessToken); err != nil {
+	hashFunc := newHash()
+	if _, err := io.WriteString(hashFunc, accessToken); err != nil {
 		return "", fmt.Errorf("computing hash: %v", err)
 	}
-	sum := hash.Sum(nil)
+	sum := hashFunc.Sum(nil)
 	return base64.RawURLEncoding.EncodeToString(sum[:len(sum)/2]), nil
 }
 
@@ -265,6 +266,7 @@ type idTokenClaims struct {
 	Nonce            string   `json:"nonce,omitempty"`
 
 	AccessTokenHash string `json:"at_hash,omitempty"`
+	CodeHash        string `json:"c_hash,omitempty"`
 
 	Email         string `json:"email,omitempty"`
 	EmailVerified *bool  `json:"email_verified,omitempty"`
@@ -283,11 +285,11 @@ type federatedIDClaims struct {
 }
 
 func (s *Server) newAccessToken(clientID string, claims storage.Claims, scopes []string, nonce, connID string) (accessToken string, err error) {
-	idToken, _, err := s.newIDToken(clientID, claims, scopes, nonce, storage.NewID(), connID)
+	idToken, _, err := s.newIDToken(clientID, claims, scopes, nonce, storage.NewID(), "", connID)
 	return idToken, err
 }
 
-func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, connID string) (idToken string, expiry time.Time, err error) {
+func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string) (idToken string, expiry time.Time, err error) {
 	keys, err := s.storage.GetKeys()
 	if err != nil {
 		s.logger.Errorf("Failed to get keys: %v", err)
@@ -332,6 +334,15 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 			return "", expiry, fmt.Errorf("error computing at_hash: %v", err)
 		}
 		tok.AccessTokenHash = atHash
+	}
+
+	if code != "" {
+		cHash, err := accessTokenHash(signingAlg, code)
+		if err != nil {
+			s.logger.Errorf("error computing c_hash: %v", err)
+			return "", expiry, fmt.Errorf("error computing c_hash: #{err}")
+		}
+		tok.CodeHash = cHash
 	}
 
 	for _, scope := range scopes {
@@ -453,6 +464,12 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		return &authErr{state, redirectURI, typ, fmt.Sprintf(format, a...)}
 	}
 
+	// dex doesn't support request parameter and must return request_not_supported error
+	// https://openid.net/specs/openid-connect-core-1_0.html#6.1
+	if q.Get("request") != "" {
+		return nil, newErr(errRequestNotSupported, "Server does not support request parameter.")
+	}
+
 	if codeChallengeMethod != CodeChallengeMethodS256 && codeChallengeMethod != CodeChallengeMethodPlain {
 		description := fmt.Sprintf("Unsupported PKCE challenge method (%q).", codeChallengeMethod)
 		return nil, newErr(errInvalidRequest, description)
@@ -485,13 +502,13 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		}
 	}
 	if !hasOpenIDScope {
-		return nil, newErr("invalid_scope", `Missing required scope(s) ["openid"].`)
+		return nil, newErr(errInvalidScope, `Missing required scope(s) ["openid"].`)
 	}
 	if len(unrecognized) > 0 {
-		return nil, newErr("invalid_scope", "Unrecognized scope(s) %q", unrecognized)
+		return nil, newErr(errInvalidScope, "Unrecognized scope(s) %q", unrecognized)
 	}
 	if len(invalidScopes) > 0 {
-		return nil, newErr("invalid_scope", "Client can't request scope(s) %q", invalidScopes)
+		return nil, newErr(errInvalidScope, "Client can't request scope(s) %q", invalidScopes)
 	}
 
 	var rt struct {
@@ -509,7 +526,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		case responseTypeToken:
 			rt.token = true
 		default:
-			return nil, newErr("invalid_request", "Invalid response type %q", responseType)
+			return nil, newErr(errInvalidRequest, "Invalid response type %q", responseType)
 		}
 
 		if !s.supportedResponseTypes[responseType] {
@@ -518,14 +535,14 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	}
 
 	if len(responseTypes) == 0 {
-		return nil, newErr("invalid_requests", "No response_type provided")
+		return nil, newErr(errInvalidRequest, "No response_type provided")
 	}
 
 	if rt.token && !rt.code && !rt.idToken {
 		// "token" can't be provided by its own.
 		//
 		// https://openid.net/specs/openid-connect-core-1_0.html#Authentication
-		return nil, newErr("invalid_request", "Response type 'token' must be provided with type 'id_token' and/or 'code'")
+		return nil, newErr(errInvalidRequest, "Response type 'token' must be provided with type 'id_token' and/or 'code'")
 	}
 	if !rt.code {
 		// Either "id_token token" or "id_token" has been provided which implies the
@@ -533,13 +550,13 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		//
 		// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitAuthRequest
 		if nonce == "" {
-			return nil, newErr("invalid_request", "Response type 'token' requires a 'nonce' value.")
+			return nil, newErr(errInvalidRequest, "Response type 'token' requires a 'nonce' value.")
 		}
 	}
 	if rt.token {
 		if redirectURI == redirectURIOOB {
 			err := fmt.Sprintf("Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
-			return nil, newErr("invalid_request", err)
+			return nil, newErr(errInvalidRequest, err)
 		}
 	}
 

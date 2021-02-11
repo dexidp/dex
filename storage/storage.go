@@ -55,6 +55,14 @@ type GCResult struct {
 	DeviceTokens   int64
 }
 
+// IsEmpty returns whether the garbage collection result is empty or not.
+func (g *GCResult) IsEmpty() bool {
+	return g.AuthRequests == 0 &&
+		g.AuthCodes == 0 &&
+		g.DeviceRequests == 0 &&
+		g.DeviceTokens == 0
+}
+
 // Storage is the storage interface used by the server. Implementations are
 // required to be able to perform atomic compare-and-swap updates and either
 // support timezones or standardize on UTC.
@@ -378,22 +386,19 @@ type Keys struct {
 
 // NewUserCode returns a randomized 8 character user code for the device flow.
 // No vowels are included to prevent accidental generation of words
-func NewUserCode() (string, error) {
-	code, err := randomString(8)
-	if err != nil {
-		return "", err
-	}
-	return code[:4] + "-" + code[4:], nil
+func NewUserCode() string {
+	code := randomString(8)
+	return code[:4] + "-" + code[4:]
 }
 
-func randomString(n int) (string, error) {
+func randomString(n int) string {
 	v := big.NewInt(int64(len(validUserCharacters)))
 	bytes := make([]byte, n)
 	for i := 0; i < n; i++ {
 		c, _ := rand.Int(rand.Reader, v)
 		bytes[i] = validUserCharacters[c.Int64()]
 	}
-	return string(bytes), nil
+	return string(bytes)
 }
 
 // DeviceRequest represents an OIDC device authorization request. It holds the state of a device request until the user

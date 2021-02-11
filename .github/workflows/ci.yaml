@@ -47,17 +47,16 @@ jobs:
 
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v1
+        uses: actions/setup-go@v2
         with:
           go-version: 1.15
 
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Run tests
+      - name: Test
         run: make testall
         env:
-          DEX_FOO_USER_PASSWORD: $2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy
           DEX_MYSQL_DATABASE: dex
           DEX_MYSQL_USER: root
           DEX_MYSQL_PASSWORD: root
@@ -75,7 +74,7 @@ jobs:
           DEX_KEYSTONE_ADMIN_USER: demo
           DEX_KEYSTONE_ADMIN_PASS: DEMO_PASS
 
-      - name: Run linter
+      - name: Lint
         run: make lint
 
       # Ensure proto generation doesn't depend on external packages.

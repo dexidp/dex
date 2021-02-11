@@ -9,23 +9,25 @@ Thank you for sending a bug report! Here are some tips:
 2. If you are not sure if it is a bug or not, you can ask in the Kubernetes slack channel `#dexidp`.
 -->
 
-**Expected behavior (what you expected to happen)**:
+#### Expected behavior (what you expected to happen)
 
-**Actual behavior (what actually happened)**:
+#### Actual behavior (what actually happened)
 
-**Steps to reproduce**:
+#### Steps to reproduce
+
 1. ...
 2. ...
 3. ...
 
-**Environment**:
+#### Environment
+
 - Dex version:
 - Storage type:
 - Installation type (official docker image, helm chart, etc.):
 
-**Anything else we should know?**:
+#### Anything else we should know?
 
-**Additional information for debugging (if necessary)**:
+#### Additional information for debugging (if necessary)
 
 <details><summary>Configuration</summary><br><pre>
 

@@ -7,21 +7,35 @@ import (
 )
 
 var indexTmpl = template.Must(template.New("index.html").Parse(`<html>
+  <head>
+    <style>
+form  { display: table;      }
+p     { display: table-row;  }
+label { display: table-cell; }
+input { display: table-cell; }
+    </style>
+  </head>
   <body>
     <form action="/login" method="post">
-       <p>
-         Authenticate for:<input type="text" name="cross_client" placeholder="list of client-ids">
-       </p>
-       <p>
-         Extra scopes:<input type="text" name="extra_scopes" placeholder="list of scopes">
-       </p>
-       <p>
-         Connector ID:<input type="text" name="connector_id" placeholder="connector id">
-       </p>
-       <p>
-         Request offline access:<input type="checkbox" name="offline_access" value="yes" checked>
-       </p>
-       <input type="submit" value="Login">
+      <p>
+        <label> Authenticate for: </label>
+        <input type="text" name="cross_client" placeholder="list of client-ids">
+      </p>
+      <p>
+        <label>Extra scopes: </label>
+        <input type="text" name="extra_scopes" placeholder="list of scopes">
+      </p>
+      <p>
+        <label>Connector ID: </label>
+        <input type="text" name="connector_id" placeholder="connector id">
+      </p>
+      <p>
+        <label>Request offline access: </label>
+        <input type="checkbox" name="offline_access" value="yes" checked>
+      </p>
+      <p>
+	    <input type="submit" value="Login">
+      </p>
     </form>
   </body>
 </html>`))

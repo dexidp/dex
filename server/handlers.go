@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -13,10 +12,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	oidc "github.com/coreos/go-oidc"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/mux"
 	jose "gopkg.in/square/go-jose.v2"
 
@@ -29,90 +27,6 @@ const (
 	CodeChallengeMethodPlain = "plain"
 	CodeChallengeMethodS256  = "S256"
 )
-
-// newHealthChecker returns the healthz handler. The handler runs until the
-// provided context is canceled.
-func (s *Server) newHealthChecker(ctx context.Context) http.Handler {
-	h := &healthChecker{s: s}
-
-	// Perform one health check synchronously so the returned handler returns
-	// valid data immediately.
-	h.runHealthCheck()
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(time.Second * 15):
-			}
-			h.runHealthCheck()
-		}
-	}()
-	return h
-}
-
-// healthChecker periodically performs health checks on server dependencies.
-// Currently, it only checks that the storage layer is available.
-type healthChecker struct {
-	s *Server
-
-	// Result of the last health check: any error and the amount of time it took
-	// to query the storage.
-	mu sync.RWMutex
-	// Guarded by the mutex
-	err    error
-	passed time.Duration
-}
-
-// runHealthCheck performs a single health check and makes the result available
-// for any clients performing and HTTP request against the healthChecker.
-func (h *healthChecker) runHealthCheck() {
-	t := h.s.now()
-	err := checkStorageHealth(h.s.storage, h.s.now)
-	passed := h.s.now().Sub(t)
-	if err != nil {
-		h.s.logger.Errorf("Storage health check failed: %v", err)
-	}
-
-	// Make sure to only hold the mutex to access the fields, and not while
-	// we're querying the storage object.
-	h.mu.Lock()
-	h.err = err
-	h.passed = passed
-	h.mu.Unlock()
-}
-
-func checkStorageHealth(s storage.Storage, now func() time.Time) error {
-	a := storage.AuthRequest{
-		ID:       storage.NewID(),
-		ClientID: storage.NewID(),
-
-		// Set a short expiry so if the delete fails this will be cleaned up quickly by garbage collection.
-		Expiry: now().Add(time.Minute),
-	}
-
-	if err := s.CreateAuthRequest(a); err != nil {
-		return fmt.Errorf("create auth request: %v", err)
-	}
-	if err := s.DeleteAuthRequest(a.ID); err != nil {
-		return fmt.Errorf("delete auth request: %v", err)
-	}
-	return nil
-}
-
-func (h *healthChecker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.mu.RLock()
-	err := h.err
-	t := h.passed
-	h.mu.RUnlock()
-
-	if err != nil {
-		h.s.renderError(r, w, http.StatusInternalServerError, "Health check failed.")
-		return
-	}
-	fmt.Fprintf(w, "Health check passed in %s", t)
-}
 
 func (s *Server) handlePublicKeys(w http.ResponseWriter, r *http.Request) {
 	// TODO(ericchiang): Cache this.
@@ -184,10 +98,10 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 		IDTokenAlgs:       []string{string(jose.RS256)},
 		CodeChallengeAlgs: []string{CodeChallengeMethodS256, CodeChallengeMethodPlain},
 		Scopes:            []string{"openid", "email", "groups", "profile", "offline_access"},
-		AuthMethods:       []string{"client_secret_basic"},
+		AuthMethods:       []string{"client_secret_basic", "client_secret_post"},
 		Claims: []string{
-			"aud", "email", "email_verified", "exp",
-			"iat", "iss", "locale", "name", "sub",
+			"iss", "sub", "aud", "iat", "exp", "email", "email_verified",
+			"locale", "name", "preferred_username", "at_hash",
 		},
 	}
 
@@ -690,7 +604,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 				return
 			}
 
-			idToken, idTokenExpiry, err = s.newIDToken(authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, accessToken, authReq.ConnectorID)
+			idToken, idTokenExpiry, err = s.newIDToken(authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, accessToken, code.ID, authReq.ConnectorID)
 			if err != nil {
 				s.logger.Errorf("failed to create ID token: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -814,13 +728,18 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	code := r.PostFormValue("code")
 	redirectURI := r.PostFormValue("redirect_uri")
 
+	if code == "" {
+		s.tokenErrHelper(w, errInvalidRequest, `Required param: code.`, http.StatusBadRequest)
+		return
+	}
+
 	authCode, err := s.storage.GetAuthCode(code)
 	if err != nil || s.now().After(authCode.Expiry) || authCode.ClientID != client.ID {
 		if err != storage.ErrNotFound {
 			s.logger.Errorf("failed to get auth code: %v", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		} else {
-			s.tokenErrHelper(w, errInvalidRequest, "Invalid or expired code parameter.", http.StatusBadRequest)
+			s.tokenErrHelper(w, errInvalidGrant, "Invalid or expired code parameter.", http.StatusBadRequest)
 		}
 		return
 	}
@@ -864,7 +783,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	s.writeAccessToken(w, tokenResponse)
 }
 
-func (s *Server) exchangeAuthCode(w http.ResponseWriter, authCode storage.AuthCode, client storage.Client) (*accessTokenReponse, error) {
+func (s *Server) exchangeAuthCode(w http.ResponseWriter, authCode storage.AuthCode, client storage.Client) (*accessTokenResponse, error) {
 	accessToken, err := s.newAccessToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create new access token: %v", err)
@@ -872,7 +791,7 @@ func (s *Server) exchangeAuthCode(w http.ResponseWriter, authCode storage.AuthCo
 		return nil, err
 	}
 
-	idToken, expiry, err := s.newIDToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, accessToken, authCode.ConnectorID)
+	idToken, expiry, err := s.newIDToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, accessToken, authCode.ID, authCode.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create ID token: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1144,7 +1063,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 
-	idToken, expiry, err := s.newIDToken(client.ID, claims, scopes, refresh.Nonce, accessToken, refresh.ConnectorID)
+	idToken, expiry, err := s.newIDToken(client.ID, claims, scopes, refresh.Nonce, accessToken, "", refresh.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create ID token: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1329,7 +1248,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	}
 
 	accessToken := storage.NewID()
-	idToken, expiry, err := s.newIDToken(client.ID, claims, scopes, nonce, accessToken, connID)
+	idToken, expiry, err := s.newIDToken(client.ID, claims, scopes, nonce, accessToken, "", connID)
 	if err != nil {
 		s.tokenErrHelper(w, errServerError, fmt.Sprintf("failed to create ID token: %v", err), http.StatusInternalServerError)
 		return
@@ -1458,7 +1377,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	s.writeAccessToken(w, resp)
 }
 
-type accessTokenReponse struct {
+type accessTokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	TokenType    string `json:"token_type"`
 	ExpiresIn    int    `json:"expires_in"`
@@ -1466,8 +1385,8 @@ type accessTokenReponse struct {
 	IDToken      string `json:"id_token"`
 }
 
-func (s *Server) toAccessTokenResponse(idToken, accessToken, refreshToken string, expiry time.Time) *accessTokenReponse {
-	return &accessTokenReponse{
+func (s *Server) toAccessTokenResponse(idToken, accessToken, refreshToken string, expiry time.Time) *accessTokenResponse {
+	return &accessTokenResponse{
 		accessToken,
 		"bearer",
 		int(expiry.Sub(s.now()).Seconds()),
@@ -1476,7 +1395,7 @@ func (s *Server) toAccessTokenResponse(idToken, accessToken, refreshToken string
 	}
 }
 
-func (s *Server) writeAccessToken(w http.ResponseWriter, resp *accessTokenReponse) {
+func (s *Server) writeAccessToken(w http.ResponseWriter, resp *accessTokenResponse) {
 	data, err := json.Marshal(resp)
 	if err != nil {
 		s.logger.Errorf("failed to marshal access token response: %v", err)
@@ -1485,6 +1404,10 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, resp *accessTokenRepons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+
+	// Token response must include cache headers https://tools.ietf.org/html/rfc6749#section-5.1
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
 	w.Write(data)
 }
 

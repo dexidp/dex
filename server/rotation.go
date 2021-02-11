@@ -25,7 +25,7 @@ type rotationStrategy struct {
 	rotationFrequency time.Duration
 
 	// After being rotated how long should the key be kept around for validating
-	// signatues?
+	// signatures?
 	idTokenValidFor time.Duration
 
 	// Keys are always RSA keys. Though cryptopasta recommends ECDSA keys, not every
@@ -55,7 +55,7 @@ func defaultRotationStrategy(rotationFrequency, idTokenValidFor time.Duration) r
 	}
 }
 
-type keyRotater struct {
+type keyRotator struct {
 	storage.Storage
 
 	strategy rotationStrategy
@@ -69,10 +69,10 @@ type keyRotater struct {
 // The method blocks until after the first attempt to rotate keys has completed. That way
 // healthy storages will return from this call with valid keys.
 func (s *Server) startKeyRotation(ctx context.Context, strategy rotationStrategy, now func() time.Time) {
-	rotater := keyRotater{s.storage, strategy, now, s.logger}
+	rotator := keyRotator{s.storage, strategy, now, s.logger}
 
 	// Try to rotate immediately so properly configured storages will have keys.
-	if err := rotater.rotate(); err != nil {
+	if err := rotator.rotate(); err != nil {
 		if err == errAlreadyRotated {
 			s.logger.Infof("Key rotation not needed: %v", err)
 		} else {
@@ -86,7 +86,7 @@ func (s *Server) startKeyRotation(ctx context.Context, strategy rotationStrategy
 			case <-ctx.Done():
 				return
 			case <-time.After(time.Second * 30):
-				if err := rotater.rotate(); err != nil {
+				if err := rotator.rotate(); err != nil {
 					s.logger.Errorf("failed to rotate keys: %v", err)
 				}
 			}
@@ -94,7 +94,7 @@ func (s *Server) startKeyRotation(ctx context.Context, strategy rotationStrategy
 	}()
 }
 
-func (k keyRotater) rotate() error {
+func (k keyRotator) rotate() error {
 	keys, err := k.GetKeys()
 	if err != nil && err != storage.ErrNotFound {
 		return fmt.Errorf("get keys: %v", err)

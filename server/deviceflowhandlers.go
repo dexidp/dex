@@ -77,11 +77,7 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 		deviceCode := storage.NewDeviceCode()
 
 		// make user code
-		userCode, err := storage.NewUserCode()
-		if err != nil {
-			s.logger.Errorf("Error generating user code: %v", err)
-			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusInternalServerError)
-		}
+		userCode := storage.NewUserCode()
 
 		// Generate the expire time
 		expireTime := time.Now().Add(s.deviceRequestsValidFor)
@@ -139,6 +135,10 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 			ExpireTime:              int(s.deviceRequestsValidFor.Seconds()),
 			PollInterval:            pollIntervalSeconds,
 		}
+
+		// Device Authorization Response can contain cache control header according to
+		// https://tools.ietf.org/html/rfc8628#section-3.2
+		w.Header().Set("Cache-Control", "no-store")
 
 		enc := json.NewEncoder(w)
 		enc.SetEscapeHTML(false)

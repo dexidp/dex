@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"encoding/xml"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"strings"
@@ -15,6 +14,8 @@ import (
 	"time"
 
 	"github.com/beevik/etree"
+	xrv "github.com/mattermost/xml-roundtrip-validator"
+	"github.com/pkg/errors"
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/russellhaering/goxmldsig/etreeutils"
 
@@ -287,6 +288,7 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 //
 // The steps taken are:
 //
+// * Validate XML document does not contain malicious inputs.
 // * Verify signature on XML document (or verify sig on assertion elements).
 // * Verify various parts of the Assertion element. Conditions, audience, etc.
 // * Map the Assertion's attribute elements to user info.
@@ -295,6 +297,11 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	rawResp, err := base64.StdEncoding.DecodeString(samlResponse)
 	if err != nil {
 		return ident, fmt.Errorf("decode response: %v", err)
+	}
+
+	byteReader := bytes.NewReader(rawResp)
+	if xrvErr := xrv.Validate(byteReader); xrvErr != nil {
+		return ident, errors.Wrap(xrvErr, "validating XML response")
 	}
 
 	// Root element is allowed to not be signed if the Assertion element is.
@@ -445,7 +452,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 }
 
 // validateStatus verifies that the response has a good status code or
-// formats a human readble error based on the bad status.
+// formats a human readable error based on the bad status.
 func (p *provider) validateStatus(status *status) error {
 	// StatusCode is mandatory in the Status type
 	statusCode := status.StatusCode
@@ -473,7 +480,7 @@ func (p *provider) validateStatus(status *status) error {
 // see https://www.oasis-open.org/committees/download.php/35389/sstc-saml-profiles-errata-2.0-wd-06-diff.pdf
 //
 // Some of these fields are optional, but we're going to be strict here since
-// we have no other way of guarenteeing that this is actually the response to
+// we have no other way of guaranteeing that this is actually the response to
 // the request we expect.
 func (p *provider) validateSubject(subject *subject, inResponseTo string) error {
 	// Optional according to the spec, but again, we're going to be strict here.
@@ -481,7 +488,7 @@ func (p *provider) validateSubject(subject *subject, inResponseTo string) error 
 		return fmt.Errorf("subject contained no SubjectConfirmations")
 	}
 
-	var errs []error
+	errs := make([]error, 0, len(subject.SubjectConfirmations))
 	// One of these must match our assumptions, not all.
 	for _, c := range subject.SubjectConfirmations {
 		err := func() error {

@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	gosundheit "github.com/AppsFlyer/go-sundheit"
 	"github.com/felixge/httpsnoop"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -93,12 +94,11 @@ type Config struct {
 	Logger log.Logger
 
 	PrometheusRegistry *prometheus.Registry
+
+	HealthChecker gosundheit.Health
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
-//
-// These are currently very custom to CoreOS and it's not recommended that
-// outside users attempt to customize these.
 type WebConfig struct {
 	// A filepath to web static.
 	//
@@ -116,7 +116,7 @@ type WebConfig struct {
 	// Defaults to "dex"
 	Issuer string
 
-	// Defaults to "coreos"
+	// Defaults to "light"
 	Theme string
 
 	// Map of extra values passed into the templates
@@ -255,10 +255,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 	}
 
-	instrumentHandlerCounter := func(handlerName string, handler http.Handler) http.HandlerFunc {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			handler.ServeHTTP(w, r)
-		})
+	instrumentHandlerCounter := func(_ string, handler http.Handler) http.HandlerFunc {
+		return handler.ServeHTTP
 	}
 
 	if c.PrometheusRegistry != nil {
@@ -273,10 +271,10 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 
 		instrumentHandlerCounter = func(handlerName string, handler http.Handler) http.HandlerFunc {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			return func(w http.ResponseWriter, r *http.Request) {
 				m := httpsnoop.CaptureMetrics(handler, w, r)
 				requestCounter.With(prometheus.Labels{"handler": handlerName, "code": strconv.Itoa(m.Code), "method": r.Method}).Inc()
-			})
+			}
 		}
 	}
 
@@ -338,7 +336,13 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	// "authproxy" connector.
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
-	handle("/healthz", s.newHealthChecker(ctx))
+	handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !c.HealthChecker.IsHealthy() {
+			s.renderError(r, w, http.StatusInternalServerError, "Health check failed.")
+			return
+		}
+		fmt.Fprintf(w, "Health check passed")
+	}))
 	handlePrefix("/static", static)
 	handlePrefix("/theme", theme)
 	s.mux = r
@@ -471,8 +475,8 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 			case <-time.After(frequency):
 				if r, err := s.storage.GarbageCollect(now()); err != nil {
 					s.logger.Errorf("garbage collection failed: %v", err)
-				} else if r.AuthRequests > 0 || r.AuthCodes > 0 {
-					s.logger.Infof("garbage collection run, delete auth requests=%d, auth codes=%d, device requests =%d, device tokens=%d",
+				} else if !r.IsEmpty() {
+					s.logger.Infof("garbage collection run, delete auth requests=%d, auth codes=%d, device requests=%d, device tokens=%d",
 						r.AuthRequests, r.AuthCodes, r.DeviceRequests, r.DeviceTokens)
 				}
 			}

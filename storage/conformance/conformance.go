@@ -185,6 +185,10 @@ func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 		Expiry:        neverExpire,
 		ConnectorID:   "ldap",
 		ConnectorData: []byte(`{"some":"data"}`),
+		PKCE: storage.PKCE{
+			CodeChallenge:       "12345",
+			CodeChallengeMethod: "Whatever",
+		},
 		Claims: storage.Claims{
 			UserID:        "1",
 			Username:      "jane",
@@ -281,7 +285,7 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 		t.Fatalf("create client: %v", err)
 	}
 
-	getAndCompare := func(id string, want storage.Client) {
+	getAndCompare := func(_ string, want storage.Client) {
 		gc, err := s.GetClient(id1)
 		if err != nil {
 			t.Errorf("get client: %v", err)
@@ -406,7 +410,7 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 		return r, nil
 	}
 	if err := s.UpdateRefreshToken(id, updater); err != nil {
-		t.Errorf("failed to udpate refresh token: %v", err)
+		t.Errorf("failed to update refresh token: %v", err)
 	}
 	refresh.Token = "spam"
 	refresh.LastUsed = updatedAt
@@ -616,7 +620,7 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 	mustBeErrAlreadyExists(t, "connector", err)
 
 	id2 := storage.NewID()
-	config2 := []byte(`{"redirectURIi": "http://127.0.0.1:5556/dex/callback"}`)
+	config2 := []byte(`{"redirectURI": "http://127.0.0.1:5556/dex/callback"}`)
 	c2 := storage.Connector{
 		ID:     id2,
 		Type:   "Mock",
@@ -841,13 +845,8 @@ func testGC(t *testing.T, s storage.Storage) {
 		t.Errorf("expected storage.ErrNotFound, got %v", err)
 	}
 
-	userCode, err := storage.NewUserCode()
-	if err != nil {
-		t.Errorf("Unexpected Error: %v", err)
-	}
-
 	d := storage.DeviceRequest{
-		UserCode:     userCode,
+		UserCode:     storage.NewUserCode(),
 		DeviceCode:   storage.NewID(),
 		ClientID:     "client1",
 		ClientSecret: "secret1",
@@ -966,12 +965,8 @@ func testTimezones(t *testing.T, s storage.Storage) {
 }
 
 func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
-	userCode, err := storage.NewUserCode()
-	if err != nil {
-		panic(err)
-	}
 	d1 := storage.DeviceRequest{
-		UserCode:     userCode,
+		UserCode:     storage.NewUserCode(),
 		DeviceCode:   storage.NewID(),
 		ClientID:     "client1",
 		ClientSecret: "secret1",
@@ -984,7 +979,7 @@ func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
 	}
 
 	// Attempt to create same DeviceRequest twice.
-	err = s.CreateDeviceRequest(d1)
+	err := s.CreateDeviceRequest(d1)
 	mustBeErrAlreadyExists(t, "device request", err)
 
 	// No manual deletes for device requests, will be handled by garbage collection routines

@@ -21,10 +21,12 @@ import (
 	"testing"
 	"time"
 
-	oidc "github.com/coreos/go-oidc"
+	gosundheit "github.com/AppsFlyer/go-sundheit"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 	jose "gopkg.in/square/go-jose.v2"
@@ -95,6 +97,7 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 		},
 		Logger:             logger,
 		PrometheusRegistry: prometheus.NewRegistry(),
+		HealthChecker:      gosundheit.New(),
 	}
 	if updateConfig != nil {
 		updateConfig(&config)
@@ -222,6 +225,9 @@ type test struct {
 
 	// extra parameters to pass when retrieving id token
 	retrieveTokenOptions []oauth2.AuthCodeOption
+
+	// define an error response, when the test expects an error on the auth endpoint
+	authError *OAuth2ErrorResponse
 
 	// define an error response, when the test expects an error on the token endpoint
 	tokenError ErrorResponse
@@ -395,6 +401,12 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 						}
 						return fmt.Errorf("unexpected response: %s", dump)
 					}
+					if resp.Header.Get("Cache-Control") != "no-store" {
+						return fmt.Errorf("cache-control header doesn't included in token response")
+					}
+					if resp.Header.Get("Pragma") != "no-cache" {
+						return fmt.Errorf("pragma header doesn't included in token response")
+					}
 					return nil
 				},
 			},
@@ -423,6 +435,12 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 						}
 						return fmt.Errorf("unexpected response: %s", dump)
 					}
+					if resp.Header.Get("Cache-Control") != "no-store" {
+						return fmt.Errorf("cache-control header doesn't included in token response")
+					}
+					if resp.Header.Get("Pragma") != "no-cache" {
+						return fmt.Errorf("pragma header doesn't included in token response")
+					}
 					return nil
 				},
 			},
@@ -435,7 +453,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 					v.Add("client_secret", clientSecret)
 					v.Add("grant_type", "refresh_token")
 					v.Add("refresh_token", token.RefreshToken)
-					// Request a scope that wasn't requestd initially.
+					// Request a scope that wasn't requested initially.
 					v.Add("scope", "oidc email profile")
 					resp, err := http.PostForm(p.Endpoint().TokenURL, v)
 					if err != nil {
@@ -607,6 +625,19 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 					StatusCode: http.StatusBadRequest,
 				},
 			},
+			{
+				name: "Request parameter in authorization query",
+				authCodeOptions: []oauth2.AuthCodeOption{
+					oauth2.SetAuthURLParam("request", "anything"),
+				},
+				authError: &OAuth2ErrorResponse{
+					Error:            errRequestNotSupported,
+					ErrorDescription: "Server does not support request parameter.",
+				},
+				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+					return nil
+				},
+			},
 		},
 	}
 }
@@ -665,7 +696,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				state             = "a_state"
 			)
 			defer func() {
-				if !gotCode {
+				if !gotCode && tc.authError == nil {
 					t.Errorf("never got a code in callback\n%s\n%s", reqDump, respDump)
 				}
 			}()
@@ -684,12 +715,18 @@ func TestOAuth2CodeFlow(t *testing.T) {
 
 				// Did dex return an error?
 				if errType := q.Get("error"); errType != "" {
-					if desc := q.Get("error_description"); desc != "" {
-						t.Errorf("got error from server %s: %s", errType, desc)
-					} else {
-						t.Errorf("got error from server %s", errType)
+					description := q.Get("error_description")
+
+					if tc.authError == nil {
+						if description != "" {
+							t.Errorf("got error from server %s: %s", errType, description)
+						} else {
+							t.Errorf("got error from server %s", errType)
+						}
+						w.WriteHeader(http.StatusInternalServerError)
+						return
 					}
-					w.WriteHeader(http.StatusInternalServerError)
+					require.Equal(t, *tc.authError, OAuth2ErrorResponse{Error: errType, ErrorDescription: description})
 					return
 				}
 
@@ -701,6 +738,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 						checkErrorResponse(err, t, tc)
 						return
 					}
+
 					if err != nil {
 						t.Errorf("failed to exchange code for token: %v", err)
 						return
@@ -721,7 +759,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 
 			defer oauth2Client.Close()
 
-			// Regester the client above with dex.
+			// Register the client above with dex.
 			redirectURL := oauth2Client.URL + "/callback"
 			client := storage.Client{
 				ID:           clientID,
@@ -1515,6 +1553,9 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 			if resp.StatusCode != http.StatusOK {
 				t.Errorf("%v - Unexpected Response Type.  Expected 200 got  %v.  Response: %v", tc.name, resp.StatusCode, string(responseBody))
 			}
+			if resp.Header.Get("Cache-Control") != "no-store" {
+				t.Errorf("Cache-Control header doesn't exist in Device Code Response")
+			}
 
 			// Parse the code response
 			var deviceCode deviceCodeResponse
@@ -1560,7 +1601,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 			}
 
 			// Parse the response
-			var tokenRes accessTokenReponse
+			var tokenRes accessTokenResponse
 			if err := json.Unmarshal(responseBody, &tokenRes); err != nil {
 				t.Errorf("Unexpected Device Access Token Response Format %v", string(responseBody))
 			}

@@ -562,7 +562,7 @@ func runVerify(t *testing.T, ca string, resp string, shouldSucceed bool) {
 		}
 	} else {
 		if !shouldSucceed {
-			t.Fatalf("expected an invalid signatrue but verification has been successful")
+			t.Fatalf("expected an invalid signature but verification has been successful")
 		}
 	}
 }

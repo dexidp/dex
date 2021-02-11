@@ -11,10 +11,15 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 
+	gosundheit "github.com/AppsFlyer/go-sundheit"
+	"github.com/AppsFlyer/go-sundheit/checks"
+	gosundheithttp "github.com/AppsFlyer/go-sundheit/http"
 	"github.com/ghodss/yaml"
 	grpcprometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
@@ -29,32 +34,68 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-func commandServe() *cobra.Command {
-	return &cobra.Command{
-		Use:     "serve [ config file ]",
-		Short:   "Connect to the storage and begin serving requests.",
-		Long:    ``,
-		Example: "dex serve config.yaml",
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := serve(cmd, args); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(2)
-			}
-		},
-	}
+type serveOptions struct {
+	// Config file path
+	config string
+
+	// Flags
+	webHTTPAddr   string
+	webHTTPSAddr  string
+	telemetryAddr string
+	grpcAddr      string
 }
 
-func serve(cmd *cobra.Command, args []string) error {
-	switch len(args) {
-	default:
-		return errors.New("surplus arguments")
-	case 0:
-		// TODO(ericchiang): Consider having a default config file location.
-		return errors.New("no arguments provided")
-	case 1:
+func commandServe() *cobra.Command {
+	options := serveOptions{}
+
+	cmd := &cobra.Command{
+		Use:     "serve [flags] [config file]",
+		Short:   "Launch Dex",
+		Example: "dex serve config.yaml",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cmd.SilenceUsage = true
+			cmd.SilenceErrors = true
+
+			options.config = args[0]
+
+			return runServe(options)
+		},
 	}
 
-	configFile := args[0]
+	flags := cmd.Flags()
+
+	flags.StringVar(&options.webHTTPAddr, "web-http-addr", "", "Web HTTP address")
+	flags.StringVar(&options.webHTTPSAddr, "web-https-addr", "", "Web HTTPS address")
+	flags.StringVar(&options.telemetryAddr, "telemetry-addr", "", "Telemetry address")
+	flags.StringVar(&options.grpcAddr, "grpc-addr", "", "gRPC API address")
+
+	return cmd
+}
+
+func listenAndShutdownGracefully(logger log.Logger, gr *run.Group, srv *http.Server, name string) error {
+	l, err := net.Listen("tcp", srv.Addr)
+	if err != nil {
+		return fmt.Errorf("listening (%s) on %s: %v", name, srv.Addr, err)
+	}
+
+	gr.Add(func() error {
+		logger.Infof("listening (%s) on %s", name, srv.Addr)
+		return srv.Serve(l)
+	}, func(err error) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+
+		logger.Debugf("starting graceful shutdown (%s)", name)
+		if err := srv.Shutdown(ctx); err != nil {
+			logger.Errorf("graceful shutdown (%s): %v", name, err)
+		}
+	})
+	return nil
+}
+
+func runServe(options serveOptions) error {
+	configFile := options.config
 	configData, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return fmt.Errorf("failed to read config file %s: %v", configFile, err)
@@ -64,6 +105,8 @@ func serve(cmd *cobra.Command, args []string) error {
 	if err := yaml.Unmarshal(configData, &c); err != nil {
 		return fmt.Errorf("error parse config file %s: %v", configFile, err)
 	}
+
+	applyConfigOverrides(options, &c)
 
 	logger, err := newLogger(c.Logger.Level, c.Logger.Format)
 	if err != nil {
@@ -232,6 +275,8 @@ func serve(cmd *cobra.Command, args []string) error {
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
 
+	healthChecker := gosundheit.New()
+
 	serverConfig := server.Config{
 		SupportedResponseTypes: c.OAuth2.ResponseTypes,
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
@@ -244,6 +289,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		Logger:                 logger,
 		Now:                    now,
 		PrometheusRegistry:     prometheusRegistry,
+		HealthChecker:          healthChecker,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
@@ -282,24 +328,49 @@ func serve(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize server: %v", err)
 	}
 
-	telemetryServ := http.NewServeMux()
-	telemetryServ.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
+	telemetryRouter := http.NewServeMux()
+	telemetryRouter.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
 
-	errc := make(chan error, 3)
+	// Configure health checker
+	{
+		handler := gosundheithttp.HandleHealthJSON(healthChecker)
+		telemetryRouter.Handle("/healthz", handler)
+
+		// Kubernetes style health checks
+		telemetryRouter.HandleFunc("/healthz/live", func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("ok"))
+		})
+		telemetryRouter.Handle("/healthz/ready", handler)
+	}
+
+	healthChecker.RegisterCheck(&gosundheit.Config{
+		Check: &checks.CustomCheck{
+			CheckName: "storage",
+			CheckFunc: storage.NewCustomHealthCheckFunc(serverConfig.Storage, serverConfig.Now),
+		},
+		ExecutionPeriod:  15 * time.Second,
+		InitiallyPassing: true,
+	})
+
+	var gr run.Group
 	if c.Telemetry.HTTP != "" {
-		logger.Infof("listening (http/telemetry) on %s", c.Telemetry.HTTP)
-		go func() {
-			err := http.ListenAndServe(c.Telemetry.HTTP, telemetryServ)
-			errc <- fmt.Errorf("listening on %s failed: %v", c.Telemetry.HTTP, err)
-		}()
+		telemetrySrv := &http.Server{Addr: c.Telemetry.HTTP, Handler: telemetryRouter}
+
+		defer telemetrySrv.Close()
+		if err := listenAndShutdownGracefully(logger, &gr, telemetrySrv, "http/telemetry"); err != nil {
+			return err
+		}
 	}
+
 	if c.Web.HTTP != "" {
-		logger.Infof("listening (http) on %s", c.Web.HTTP)
-		go func() {
-			err := http.ListenAndServe(c.Web.HTTP, serv)
-			errc <- fmt.Errorf("listening on %s failed: %v", c.Web.HTTP, err)
-		}()
+		httpSrv := &http.Server{Addr: c.Web.HTTP, Handler: serv}
+
+		defer httpSrv.Close()
+		if err := listenAndShutdownGracefully(logger, &gr, httpSrv, "http"); err != nil {
+			return err
+		}
 	}
+
 	if c.Web.HTTPS != "" {
 		httpsSrv := &http.Server{
 			Addr:    c.Web.HTTPS,
@@ -311,34 +382,44 @@ func serve(cmd *cobra.Command, args []string) error {
 			},
 		}
 
-		logger.Infof("listening (https) on %s", c.Web.HTTPS)
-		go func() {
-			err = httpsSrv.ListenAndServeTLS(c.Web.TLSCert, c.Web.TLSKey)
-			errc <- fmt.Errorf("listening on %s failed: %v", c.Web.HTTPS, err)
-		}()
-	}
-	if c.GRPC.Addr != "" {
-		logger.Infof("listening (grpc) on %s", c.GRPC.Addr)
-		go func() {
-			errc <- func() error {
-				list, err := net.Listen("tcp", c.GRPC.Addr)
-				if err != nil {
-					return fmt.Errorf("listening on %s failed: %v", c.GRPC.Addr, err)
-				}
-				s := grpc.NewServer(grpcOptions...)
-				api.RegisterDexServer(s, server.NewAPI(serverConfig.Storage, logger))
-				grpcMetrics.InitializeMetrics(s)
-				if c.GRPC.Reflection {
-					logger.Info("enabling reflection in grpc service")
-					reflection.Register(s)
-				}
-				err = s.Serve(list)
-				return fmt.Errorf("listening on %s failed: %v", c.GRPC.Addr, err)
-			}()
-		}()
+		defer httpsSrv.Close()
+		if err := listenAndShutdownGracefully(logger, &gr, httpsSrv, "https"); err != nil {
+			return err
+		}
 	}
 
-	return <-errc
+	if c.GRPC.Addr != "" {
+		grpcListener, err := net.Listen("tcp", c.GRPC.Addr)
+		if err != nil {
+			return fmt.Errorf("listening (grcp) on %s: %w", c.GRPC.Addr, err)
+		}
+
+		grpcSrv := grpc.NewServer(grpcOptions...)
+		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger))
+
+		grpcMetrics.InitializeMetrics(grpcSrv)
+		if c.GRPC.Reflection {
+			logger.Info("enabling reflection in grpc service")
+			reflection.Register(grpcSrv)
+		}
+
+		gr.Add(func() error {
+			logger.Infof("listening (grpc) on %s", c.GRPC.Addr)
+			return grpcSrv.Serve(grpcListener)
+		}, func(err error) {
+			logger.Debugf("starting graceful shutdown (grpc)")
+			grpcSrv.GracefulStop()
+		})
+	}
+
+	gr.Add(run.SignalHandler(context.Background(), os.Interrupt, syscall.SIGTERM))
+	if err := gr.Run(); err != nil {
+		if _, ok := err.(run.SignalError); !ok {
+			return fmt.Errorf("run groups: %w", err)
+		}
+		logger.Infof("%v, shutdown now", err)
+	}
+	return nil
 }
 
 var (
@@ -383,4 +464,22 @@ func newLogger(level string, format string) (log.Logger, error) {
 		Formatter: &formatter,
 		Level:     logLevel,
 	}, nil
+}
+
+func applyConfigOverrides(options serveOptions, config *Config) {
+	if options.webHTTPAddr != "" {
+		config.Web.HTTP = options.webHTTPAddr
+	}
+
+	if options.webHTTPSAddr != "" {
+		config.Web.HTTPS = options.webHTTPSAddr
+	}
+
+	if options.telemetryAddr != "" {
+		config.Telemetry.HTTP = options.telemetryAddr
+	}
+
+	if options.grpcAddr != "" {
+		config.GRPC.Addr = options.grpcAddr
+	}
 }

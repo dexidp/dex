@@ -5,7 +5,7 @@
 [![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/mod/github.com/dexidp/dex)
 [![Gitpod ready-to-code](https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod&style=flat-square)](https://gitpod.io/#https://github.com/dexidp/dex)
 
-![logo](Documentation/logos/dex-horizontal-color.png)
+![logo](docs/logos/dex-horizontal-color.png)
 
 Dex is an identity service that uses [OpenID Connect][openid-connect] to drive authentication for other apps.
 
@@ -56,7 +56,7 @@ More docs for running dex as a Kubernetes authenticator can be found [here](http
 
 When a user logs in through dex, the user's identity is usually stored in another user-management system: a LDAP directory, a GitHub org, etc. Dex acts as a shim between a client app and the upstream identity provider. The client only needs to understand OpenID Connect to query dex, while dex implements an array of protocols for querying other user-management systems.
 
-![](Documentation/img/dex-flow.png)
+![](docs/img/dex-flow.png)
 
 A "connector" is a strategy used by dex for authenticating a user against another identity provider. Dex implements connectors that target specific platforms such as GitHub, LinkedIn, and Microsoft as well as established protocols like LDAP and SAML.
 
@@ -68,7 +68,7 @@ Dex implements the following connectors:
 | ---- | ----------------------- | --------------------- | --------------------------------- | ------ | ----- |
 | [LDAP](https://dexidp.io/docs/connectors/ldap/) | yes | yes | yes | stable | |
 | [GitHub](https://dexidp.io/docs/connectors/github/) | yes | yes | yes | stable | |
-| [SAML 2.0](https://dexidp.io/docs/connectors/saml/) | no | yes | no | stable |
+| [SAML 2.0](https://dexidp.io/docs/connectors/saml/) | no | yes | no | stable | WARNING: Unmaintained and likely vulnerable to auth bypasses ([#1884](https://github.com/dexidp/dex/discussions/1884)) |
 | [GitLab](https://dexidp.io/docs/connectors/gitlab/) | yes | yes | yes | beta | |
 | [OpenID Connect](https://dexidp.io/docs/connectors/oidc/) | yes | yes | yes | beta | Includes Salesforce, Azure, etc. |
 | [Google](https://dexidp.io/docs/connectors/google/) | yes | yes | yes | alpha | |
@@ -103,18 +103,24 @@ All changes or deprecations of connector features will be announced in the [rele
 
 ## Reporting a security vulnerability
 
-Due to their public nature, GitHub and mailing lists are NOT appropriate places for reporting vulnerabilities. Please refer to CoreOS's [security disclosure][disclosure] process when reporting issues that may be security related.
+Due to their public nature, GitHub and mailing lists are NOT appropriate places
+for reporting vulnerabilities.
+
+Please email the [maintainers list](mailto:cncf-dex-maintainers@lists.cncf.io) to report issues that may
+be security-related.
 
 ## Getting help
 
-* For feature requests and bugs, file an [issue][issues].
-* For general discussion about both using and developing dex, you can join the [#dexidp channel][slack]
-on the Kubernetes Slack, or join the [dex-dev][dex-dev] mailing list.
+- For feature requests and bugs, file an [issue](https://github.com/dexidp/dex/issues).
+- For general discussion about both using and developing Dex:
+    - join the [#dexidp](https://cloud-native.slack.com/messages/dexidp) on the CNCF Slack
+    - open a new [discussion](https://github.com/dexidp/dex/discussions)
+    - join the [dex-dev](https://groups.google.com/forum/#!forum/dex-dev) mailing list
 
 [openid-connect]: https://openid.net/connect/
 [standard-claims]: https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
-[scopes]: Documentation/custom-scopes-claims-clients.md#scopes
-[using-dex]: Documentation/using-dex.md
+[scopes]: https://dexidp.io/docs/custom-scopes-claims-clients/#scopes
+[using-dex]: https://dexidp.io/docs/using-dex/
 [jwt-io]: https://jwt.io/
 [kubernetes]: http://kubernetes.io/docs/admin/authentication/#openid-connect-tokens
 [aws-sts]: https://docs.aws.amazon.com/STS/latest/APIReference/Welcome.html
@@ -123,7 +129,3 @@ on the Kubernetes Slack, or join the [dex-dev][dex-dev] mailing list.
 [go-oidc]: https://github.com/coreos/go-oidc
 [issue-1065]: https://github.com/dexidp/dex/issues/1065
 [release-notes]: https://github.com/dexidp/dex/releases
-[issues]: https://github.com/dexidp/dex/issues
-[dex-dev]: https://groups.google.com/forum/#!forum/dex-dev
-[slack]: slack://channel?team=T09NY5SBT&id=C011URMR41W
-[disclosure]: https://coreos.com/security/disclosure/

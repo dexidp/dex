@@ -362,7 +362,7 @@ func (cli *client) fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 	return req
 }
 
-// Password is a mirrored struct from the stroage with JSON struct tags and
+// Password is a mirrored struct from the storage with JSON struct tags and
 // Kubernetes type metadata.
 type Password struct {
 	k8sapi.TypeMeta   `json:",inline"`

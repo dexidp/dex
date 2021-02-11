@@ -378,6 +378,8 @@ func (c *conn) ListRefreshTokens() ([]storage.RefreshToken, error) {
 	if err != nil {
 		return nil, fmt.Errorf("query: %v", err)
 	}
+	defer rows.Close()
+
 	var tokens []storage.RefreshToken
 	for rows.Next() {
 		r, err := scanRefresh(rows)
@@ -556,6 +558,8 @@ func (c *conn) ListClients() ([]storage.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
+
 	var clients []storage.Client
 	for rows.Next() {
 		cli, err := scanClient(rows)
@@ -652,6 +656,7 @@ func (c *conn) ListPasswords() ([]storage.Password, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	var passwords []storage.Password
 	for rows.Next() {
@@ -837,6 +842,8 @@ func (c *conn) ListConnectors() ([]storage.Connector, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
+
 	var connectors []storage.Connector
 	for rows.Next() {
 		conn, err := scanConnector(rows)
