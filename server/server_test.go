@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	gosundheit "github.com/AppsFlyer/go-sundheit"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/prometheus/client_golang/prometheus"
@@ -96,6 +97,7 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 		},
 		Logger:             logger,
 		PrometheusRegistry: prometheus.NewRegistry(),
+		HealthChecker:      gosundheit.New(),
 	}
 	if updateConfig != nil {
 		updateConfig(&config)

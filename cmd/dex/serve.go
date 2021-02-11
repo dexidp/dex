@@ -14,6 +14,9 @@ import (
 	"syscall"
 	"time"
 
+	gosundheit "github.com/AppsFlyer/go-sundheit"
+	"github.com/AppsFlyer/go-sundheit/checks"
+	gosundheithttp "github.com/AppsFlyer/go-sundheit/http"
 	"github.com/ghodss/yaml"
 	grpcprometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/oklog/run"
@@ -272,6 +275,8 @@ func runServe(options serveOptions) error {
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
 
+	healthChecker := gosundheit.New()
+
 	serverConfig := server.Config{
 		SupportedResponseTypes: c.OAuth2.ResponseTypes,
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
@@ -284,6 +289,7 @@ func runServe(options serveOptions) error {
 		Logger:                 logger,
 		Now:                    now,
 		PrometheusRegistry:     prometheusRegistry,
+		HealthChecker:          healthChecker,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
@@ -322,12 +328,33 @@ func runServe(options serveOptions) error {
 		return fmt.Errorf("failed to initialize server: %v", err)
 	}
 
-	telemetryServ := http.NewServeMux()
-	telemetryServ.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
+	telemetryRouter := http.NewServeMux()
+	telemetryRouter.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
+
+	// Configure health checker
+	{
+		handler := gosundheithttp.HandleHealthJSON(healthChecker)
+		telemetryRouter.Handle("/healthz", handler)
+
+		// Kubernetes style health checks
+		telemetryRouter.HandleFunc("/healthz/live", func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("ok"))
+		})
+		telemetryRouter.Handle("/healthz/ready", handler)
+	}
+
+	healthChecker.RegisterCheck(&gosundheit.Config{
+		Check: &checks.CustomCheck{
+			CheckName: "storage",
+			CheckFunc: storage.NewCustomHealthCheckFunc(serverConfig.Storage, serverConfig.Now),
+		},
+		ExecutionPeriod:  15 * time.Second,
+		InitiallyPassing: true,
+	})
 
 	var gr run.Group
 	if c.Telemetry.HTTP != "" {
-		telemetrySrv := &http.Server{Addr: c.Telemetry.HTTP, Handler: telemetryServ}
+		telemetrySrv := &http.Server{Addr: c.Telemetry.HTTP, Handler: telemetryRouter}
 
 		defer telemetrySrv.Close()
 		if err := listenAndShutdownGracefully(logger, &gr, telemetrySrv, "http/telemetry"); err != nil {

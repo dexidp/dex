@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -13,7 +12,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -29,90 +27,6 @@ const (
 	CodeChallengeMethodPlain = "plain"
 	CodeChallengeMethodS256  = "S256"
 )
-
-// newHealthChecker returns the healthz handler. The handler runs until the
-// provided context is canceled.
-func (s *Server) newHealthChecker(ctx context.Context) http.Handler {
-	h := &healthChecker{s: s}
-
-	// Perform one health check synchronously so the returned handler returns
-	// valid data immediately.
-	h.runHealthCheck()
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(time.Second * 15):
-			}
-			h.runHealthCheck()
-		}
-	}()
-	return h
-}
-
-// healthChecker periodically performs health checks on server dependencies.
-// Currently, it only checks that the storage layer is available.
-type healthChecker struct {
-	s *Server
-
-	// Result of the last health check: any error and the amount of time it took
-	// to query the storage.
-	mu sync.RWMutex
-	// Guarded by the mutex
-	err    error
-	passed time.Duration
-}
-
-// runHealthCheck performs a single health check and makes the result available
-// for any clients performing and HTTP request against the healthChecker.
-func (h *healthChecker) runHealthCheck() {
-	t := h.s.now()
-	err := checkStorageHealth(h.s.storage, h.s.now)
-	passed := h.s.now().Sub(t)
-	if err != nil {
-		h.s.logger.Errorf("Storage health check failed: %v", err)
-	}
-
-	// Make sure to only hold the mutex to access the fields, and not while
-	// we're querying the storage object.
-	h.mu.Lock()
-	h.err = err
-	h.passed = passed
-	h.mu.Unlock()
-}
-
-func checkStorageHealth(s storage.Storage, now func() time.Time) error {
-	a := storage.AuthRequest{
-		ID:       storage.NewID(),
-		ClientID: storage.NewID(),
-
-		// Set a short expiry so if the delete fails this will be cleaned up quickly by garbage collection.
-		Expiry: now().Add(time.Minute),
-	}
-
-	if err := s.CreateAuthRequest(a); err != nil {
-		return fmt.Errorf("create auth request: %v", err)
-	}
-	if err := s.DeleteAuthRequest(a.ID); err != nil {
-		return fmt.Errorf("delete auth request: %v", err)
-	}
-	return nil
-}
-
-func (h *healthChecker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.mu.RLock()
-	err := h.err
-	t := h.passed
-	h.mu.RUnlock()
-
-	if err != nil {
-		h.s.renderError(r, w, http.StatusInternalServerError, "Health check failed.")
-		return
-	}
-	fmt.Fprintf(w, "Health check passed in %s", t)
-}
 
 func (s *Server) handlePublicKeys(w http.ResponseWriter, r *http.Request) {
 	// TODO(ericchiang): Cache this.
