@@ -193,6 +193,8 @@ func runServe(options serveOptions) error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize storage: %v", err)
 	}
+	defer s.Close()
+
 	logger.Infof("config storage: %s", c.Storage.Type)
 
 	if len(c.StaticClients) > 0 {
