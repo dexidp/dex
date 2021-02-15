@@ -54,6 +54,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
+      - name: Start services
+        run: docker-compose -f docker-compose.test.yaml up -d
+
       - name: Test
         run: make testall
         env:
@@ -69,6 +72,9 @@ jobs:
           DEX_POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }}
           DEX_ETCD_ENDPOINTS: http://localhost:${{ job.services.etcd.ports[2379] }}
           DEX_LDAP_TESTS: 1
+          DEX_LDAP_HOST: localhost
+          DEX_LDAP_PORT: 389
+          DEX_LDAP_TLS_PORT: 636
           DEX_KEYSTONE_URL: http://localhost:${{ job.services.keystone.ports[5000] }}
           DEX_KEYSTONE_ADMIN_URL: http://localhost:${{ job.services.keystone.ports[35357] }}
           DEX_KEYSTONE_ADMIN_USER: demo
