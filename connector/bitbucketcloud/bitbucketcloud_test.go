@@ -7,71 +7,96 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/connector"
 )
 
 func TestUserGroups(t *testing.T) {
-	teamsResponse := userTeamsResponse{
+	workspaceResponse := userWorkspacesResponse{
 		pagedResponse: pagedResponse{
 			Size:    3,
 			Page:    1,
 			PageLen: 10,
 		},
-		Values: []team{
-			{Team: teamName{Name: "team-1"}},
-			{Team: teamName{Name: "team-2"}},
-			{Team: teamName{Name: "team-3"}},
+		Values: []workspace{
+			{Name: "workspace-1"},
+			{Name: "workspace-2"},
+			{Name: "workspace-3"},
 		},
 	}
 
 	s := newTestServer(map[string]interface{}{
-		"/user/permissions/teams": teamsResponse,
-		"/groups/team-1":          []group{{Slug: "administrators"}, {Slug: "members"}},
-		"/groups/team-2":          []group{{Slug: "everyone"}},
-		"/groups/team-3":          []group{},
+		"/workspaces?role=member": workspaceResponse,
+		"/groups/workspace-1":     []group{{Slug: "administrators"}, {Slug: "members"}},
+		"/groups/workspace-2":     []group{{Slug: "everyone"}},
+		"/groups/workspace-3":     []group{},
 	})
+	defer s.Close()
 
-	connector := bitbucketConnector{apiURL: s.URL, legacyAPIURL: s.URL}
-	groups, err := connector.userTeams(context.Background(), newClient())
+	c := bitbucketConnector{apiURL: s.URL, legacyAPIURL: s.URL}
+	groups, err := c.userWorkspaces(context.Background(), newClient())
 
-	expectNil(t, err)
-	expectEquals(t, groups, []string{
-		"team-1",
-		"team-2",
-		"team-3",
-	})
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"workspace-1",
+		"workspace-2",
+		"workspace-3",
+	}, groups)
 
-	connector.includeTeamGroups = true
-	groups, err = connector.userTeams(context.Background(), newClient())
+	c.includeTeamGroups = true
+	groups, err = c.userWorkspaces(context.Background(), newClient())
 
-	expectNil(t, err)
-	expectEquals(t, groups, []string{
-		"team-1",
-		"team-2",
-		"team-3",
-		"team-1/administrators",
-		"team-1/members",
-		"team-2/everyone",
-	})
-
-	s.Close()
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"workspace-1",
+		"workspace-2",
+		"workspace-3",
+		"workspace-1/administrators",
+		"workspace-1/members",
+		"workspace-2/everyone",
+	}, groups)
 }
 
-func TestUserWithoutTeams(t *testing.T) {
+func TestUserWithoutWorkspaces(t *testing.T) {
 	s := newTestServer(map[string]interface{}{
-		"/user/permissions/teams": userTeamsResponse{},
+		"/workspaces?role=member": userWorkspacesResponse{},
 	})
+	defer s.Close()
 
-	connector := bitbucketConnector{apiURL: s.URL}
-	groups, err := connector.userTeams(context.Background(), newClient())
+	c := bitbucketConnector{apiURL: s.URL}
+	groups, err := c.userWorkspaces(context.Background(), newClient())
 
-	expectNil(t, err)
-	expectEquals(t, len(groups), 0)
+	require.NoError(t, err)
+	require.Len(t, groups, 0)
+}
 
-	s.Close()
+func TestUserWithWorkspaces(t *testing.T) {
+	s := newTestServer(map[string]interface{}{
+		"/workspaces?role=member": userWorkspacesResponse{
+			pagedResponse: pagedResponse{
+				Size:    3,
+				Page:    1,
+				PageLen: 10,
+			},
+			Values: []workspace{
+				{Name: "workspace-1"},
+				{Name: "workspace-2"},
+				{Name: "workspace-3"},
+			},
+		},
+	})
+	defer s.Close()
+
+	c := bitbucketConnector{apiURL: s.URL, workspaces: []string{"workspace-1"}}
+	groups, err := c.getGroups(context.Background(), newClient(), true, "test")
+
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"workspace-1",
+	}, groups)
 }
 
 func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
@@ -94,20 +119,19 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 			"expires_in":   "30",
 		},
 	})
+	defer s.Close()
 
 	hostURL, err := url.Parse(s.URL)
-	expectNil(t, err)
+	require.NoError(t, err)
 
 	req, err := http.NewRequest("GET", hostURL.String(), nil)
-	expectNil(t, err)
+	require.NoError(t, err)
 
-	bitbucketConnector := bitbucketConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: newClient()}
-	identity, err := bitbucketConnector.HandleCallback(connector.Scopes{}, req)
+	c := bitbucketConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: newClient()}
+	identity, err := c.HandleCallback(connector.Scopes{}, req)
 
-	expectNil(t, err)
-	expectEquals(t, identity.Username, "some-login")
-
-	s.Close()
+	require.NoError(t, err)
+	require.Equal(t, "some-login", identity.Username)
 }
 
 func newTestServer(responses map[string]interface{}) *httptest.Server {
@@ -122,16 +146,4 @@ func newClient() *http.Client {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	return &http.Client{Transport: tr}
-}
-
-func expectNil(t *testing.T, a interface{}) {
-	if a != nil {
-		t.Fatalf("Expected %+v to equal nil", a)
-	}
-}
-
-func expectEquals(t *testing.T, a interface{}, b interface{}) {
-	if !reflect.DeepEqual(a, b) {
-		t.Fatalf("Expected %+v to equal %+v", a, b)
-	}
 }
