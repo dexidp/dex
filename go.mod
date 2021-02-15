@@ -24,7 +24,7 @@ require (
 	github.com/prometheus/client_golang v1.4.0
 	github.com/russellhaering/goxmldsig v1.1.0
 	github.com/sirupsen/logrus v1.7.0
-	github.com/spf13/cobra v1.1.1
+	github.com/spf13/cobra v1.1.3
 	github.com/stretchr/testify v1.7.0
 	github.com/testcontainers/testcontainers-go v0.0.9
 	go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738
