@@ -13,8 +13,6 @@ import (
 	"github.com/dexidp/dex/connector"
 )
 
-const envVar = "DEX_LDAP_TESTS"
-
 // connectionMethod indicates how the test should connect to the LDAP server.
 type connectionMethod int32
 
@@ -527,13 +525,7 @@ func getenv(key, defaultVal string) string {
 //
 // The tests require LDAP to be runnning.
 // You can use the provided docker-compose file to setup an LDAP server.
-//
-// The DEX_LDAP_TESTS must be set to "1"
 func runTests(t *testing.T, connMethod connectionMethod, config *Config, tests []subtest) {
-	if os.Getenv(envVar) != "1" {
-		t.Skipf("%s not set. Skipping test (run 'export %s=1' to run tests)", envVar, envVar)
-	}
-
 	// Shallow copy.
 	c := *config
 
