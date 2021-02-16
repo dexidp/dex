@@ -124,7 +124,7 @@ func (p *conn) Close() error { return nil }
 func (p *conn) Login(ctx context.Context, scopes connector.Scopes, username, password string) (identity connector.Identity, validPassword bool, err error) {
 	resp, err := p.getTokenResponse(ctx, username, password)
 	if err != nil {
-		return identity, false, fmt.Errorf("keystone: error %v", err)
+		return identity, false, fmt.Errorf("keystone: error %w", err)
 	}
 	if resp.StatusCode/100 != 2 {
 		return identity, false, fmt.Errorf("keystone login: error %v", resp.StatusCode)
@@ -141,7 +141,7 @@ func (p *conn) Login(ctx context.Context, scopes connector.Scopes, username, pas
 	tokenResp := new(tokenResponse)
 	err = json.Unmarshal(data, &tokenResp)
 	if err != nil {
-		return identity, false, fmt.Errorf("keystone: invalid token response: %v", err)
+		return identity, false, fmt.Errorf("keystone: invalid token response: %w", err)
 	}
 	if scopes.Groups {
 		groups, err := p.getUserGroups(ctx, tokenResp.Token.User.ID, token)
@@ -171,7 +171,7 @@ func (p *conn) Refresh(
 	ctx context.Context, scopes connector.Scopes, identity connector.Identity) (connector.Identity, error) {
 	token, err := p.getAdminToken(ctx)
 	if err != nil {
-		return identity, fmt.Errorf("keystone: failed to obtain admin token: %v", err)
+		return identity, fmt.Errorf("keystone: failed to obtain admin token: %w", err)
 	}
 	ok, err := p.checkIfUserExists(ctx, identity.UserID, token)
 	if err != nil {

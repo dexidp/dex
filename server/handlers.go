@@ -112,7 +112,7 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 
 	data, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal discovery data: %v", err)
+		return nil, fmt.Errorf("failed to marshal discovery data: %w", err)
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -131,14 +131,15 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 
 		// If this is an authErr, let's let it handle the error, or update the HTTP
 		// status code
-		if err, ok := err.(*authErr); ok {
-			if handler, ok := err.Handle(); ok {
+		var authError *authErr
+		if errors.As(err, &authError) {
+			if handler, ok := authError.Handle(); ok {
 				// client_id and redirect_uri checked out and we can redirect back to
 				// the client with the error.
 				handler.ServeHTTP(w, r)
 				return
 			}
-			status = err.Status()
+			status = authError.Status()
 		}
 
 		s.renderError(r, w, status, err.Error())
@@ -216,7 +217,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	authReq, err := s.storage.GetAuthRequest(authReqID)
 	if err != nil {
 		s.logger.Errorf("Failed to get auth request: %v", err)
-		if err == storage.ErrNotFound {
+		if errors.Is(err, storage.ErrNotFound) {
 			s.renderError(r, w, http.StatusBadRequest, "Login session expired.")
 		} else {
 			s.renderError(r, w, http.StatusInternalServerError, "Database error.")
@@ -344,7 +345,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 
 	authReq, err := s.storage.GetAuthRequest(authID)
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if errors.Is(err, storage.ErrNotFound) {
 			s.logger.Errorf("Invalid 'state' parameter provided: %v", err)
 			s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
 			return
@@ -423,7 +424,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 		return a, nil
 	}
 	if err := s.storage.UpdateAuthRequest(authReq.ID, updater); err != nil {
-		return "", fmt.Errorf("failed to update auth request: %v", err)
+		return "", fmt.Errorf("failed to update auth request: %w", err)
 	}
 
 	email := claims.Email
@@ -443,7 +444,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 	// Try to retrieve an existing OfflineSession object for the corresponding user.
 	session, err := s.storage.GetOfflineSessions(identity.UserID, authReq.ConnectorID)
 	if err != nil {
-		if err != storage.ErrNotFound {
+		if !errors.Is(err, storage.ErrNotFound) {
 			s.logger.Errorf("failed to get offline session: %v", err)
 			return "", err
 		}
@@ -522,7 +523,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 	}
 
 	if err := s.storage.DeleteAuthRequest(authReq.ID); err != nil {
-		if err != storage.ErrNotFound {
+		if !errors.Is(err, storage.ErrNotFound) {
 			s.logger.Errorf("Failed to delete authorization request: %v", err)
 			s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		} else {
@@ -671,7 +672,7 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 
 	client, err := s.storage.GetClient(clientID)
 	if err != nil {
-		if err != storage.ErrNotFound {
+		if !errors.Is(err, storage.ErrNotFound) {
 			s.logger.Errorf("failed to get client: %v", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		} else {
@@ -726,7 +727,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 
 	authCode, err := s.storage.GetAuthCode(code)
 	if err != nil || s.now().After(authCode.Expiry) || authCode.ClientID != client.ID {
-		if err != storage.ErrNotFound {
+		if !errors.Is(err, storage.ErrNotFound) {
 			s.logger.Errorf("failed to get auth code: %v", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		} else {
@@ -872,7 +873,7 @@ func (s *Server) exchangeAuthCode(w http.ResponseWriter, authCode storage.AuthCo
 
 		// Try to retrieve an existing OfflineSession object for the corresponding user.
 		if session, err := s.storage.GetOfflineSessions(refresh.Claims.UserID, refresh.ConnectorID); err != nil {
-			if err != storage.ErrNotFound {
+			if !errors.Is(err, storage.ErrNotFound) {
 				s.logger.Errorf("failed to get offline session: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 				deleteToken = true
@@ -896,7 +897,7 @@ func (s *Server) exchangeAuthCode(w http.ResponseWriter, authCode storage.AuthCo
 		} else {
 			if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
 				// Delete old refresh token from storage.
-				if err := s.storage.DeleteRefresh(oldTokenRef.ID); err != nil && err != storage.ErrNotFound {
+				if err := s.storage.DeleteRefresh(oldTokenRef.ID); err != nil && !errors.Is(err, storage.ErrNotFound) {
 					s.logger.Errorf("failed to delete refresh token: %v", err)
 					s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 					deleteToken = true
@@ -942,7 +943,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 	refresh, err := s.storage.GetRefresh(token.RefreshId)
 	if err != nil {
 		s.logger.Errorf("failed to get refresh token: %v", err)
-		if err == storage.ErrNotFound {
+		if errors.Is(err, storage.ErrNotFound) {
 			s.tokenErrHelper(w, errInvalidRequest, "Refresh token is invalid or has already been claimed by another client.", http.StatusBadRequest)
 		} else {
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -996,7 +997,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 	session, err := s.storage.GetOfflineSessions(refresh.Claims.UserID, refresh.ConnectorID)
 	switch {
 	case err != nil:
-		if err != storage.ErrNotFound {
+		if !errors.Is(err, storage.ErrNotFound) {
 			s.logger.Errorf("failed to get offline session: %v", err)
 			return
 		}
@@ -1315,7 +1316,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 
 		// Try to retrieve an existing OfflineSession object for the corresponding user.
 		if session, err := s.storage.GetOfflineSessions(refresh.Claims.UserID, refresh.ConnectorID); err != nil {
-			if err != storage.ErrNotFound {
+			if !errors.Is(err, storage.ErrNotFound) {
 				s.logger.Errorf("failed to get offline session: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 				deleteToken = true
@@ -1340,7 +1341,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 			if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
 				// Delete old refresh token from storage.
 				if err := s.storage.DeleteRefresh(oldTokenRef.ID); err != nil {
-					if err == storage.ErrNotFound {
+					if errors.Is(err, storage.ErrNotFound) {
 						s.logger.Warnf("database inconsistent, refresh token missing: %v", oldTokenRef.ID)
 					} else {
 						s.logger.Errorf("failed to delete refresh token: %v", err)

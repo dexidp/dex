@@ -214,7 +214,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	static, theme, tmpls, err := loadWebConfig(web)
 	if err != nil {
-		return nil, fmt.Errorf("server: failed to load web static: %v", err)
+		return nil, fmt.Errorf("server: failed to load web static: %w", err)
 	}
 
 	now := c.Now
@@ -242,7 +242,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	// defined in the ConfigMap and dynamic connectors retrieved from the storage.
 	storageConnectors, err := c.Storage.ListConnectors()
 	if err != nil {
-		return nil, fmt.Errorf("server: failed to list connector objects from storage: %v", err)
+		return nil, fmt.Errorf("server: failed to list connector objects from storage: %w", err)
 	}
 
 	if len(storageConnectors) == 0 && len(s.connectors) == 0 {
@@ -251,7 +251,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	for _, conn := range storageConnectors {
 		if _, err := s.OpenConnector(conn); err != nil {
-			return nil, fmt.Errorf("server: Failed to open connector %s: %v", conn.ID, err)
+			return nil, fmt.Errorf("server: Failed to open connector %s: %w", conn.ID, err)
 		}
 	}
 
@@ -267,7 +267,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 		err = c.PrometheusRegistry.Register(requestCounter)
 		if err != nil {
-			return nil, fmt.Errorf("server: Failed to register Prometheus HTTP metrics: %v", err)
+			return nil, fmt.Errorf("server: Failed to register Prometheus HTTP metrics: %w", err)
 		}
 
 		instrumentHandlerCounter = func(handlerName string, handler http.Handler) http.HandlerFunc {
@@ -384,8 +384,8 @@ type passwordDB struct {
 func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, password string) (connector.Identity, bool, error) {
 	p, err := db.s.GetPassword(email)
 	if err != nil {
-		if err != storage.ErrNotFound {
-			return connector.Identity{}, false, fmt.Errorf("get password: %v", err)
+		if !errors.Is(err, storage.ErrNotFound) {
+			return connector.Identity{}, false, fmt.Errorf("get password: %w", err)
 		}
 		return connector.Identity{}, false, nil
 	}
@@ -409,10 +409,10 @@ func (db passwordDB) Refresh(ctx context.Context, s connector.Scopes, identity c
 	// If the user has been deleted, the refresh token will be rejected.
 	p, err := db.s.GetPassword(identity.Email)
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if errors.Is(err, storage.ErrNotFound) {
 			return connector.Identity{}, errors.New("user not found")
 		}
-		return connector.Identity{}, fmt.Errorf("get password: %v", err)
+		return connector.Identity{}, fmt.Errorf("get password: %w", err)
 	}
 
 	// User removed but a new user with the same email exists.
@@ -525,13 +525,13 @@ func openConnector(logger log.Logger, conn storage.Connector) (connector.Connect
 	if len(conn.Config) != 0 {
 		data := []byte(string(conn.Config))
 		if err := json.Unmarshal(data, connConfig); err != nil {
-			return c, fmt.Errorf("parse connector config: %v", err)
+			return c, fmt.Errorf("parse connector config: %w", err)
 		}
 	}
 
 	c, err := connConfig.Open(conn.ID, logger)
 	if err != nil {
-		return c, fmt.Errorf("failed to create connector %s: %v", conn.ID, err)
+		return c, fmt.Errorf("failed to create connector %s: %w", conn.ID, err)
 	}
 
 	return c, nil
@@ -547,7 +547,7 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 		var err error
 		c, err = openConnector(s.logger, conn)
 		if err != nil {
-			return Connector{}, fmt.Errorf("failed to open connector: %v", err)
+			return Connector{}, fmt.Errorf("failed to open connector: %w", err)
 		}
 	}
 
@@ -567,7 +567,7 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 func (s *Server) getConnector(id string) (Connector, error) {
 	storageConnector, err := s.storage.GetConnector(id)
 	if err != nil {
-		return Connector{}, fmt.Errorf("failed to get connector object from storage: %v", err)
+		return Connector{}, fmt.Errorf("failed to get connector object from storage: %w", err)
 	}
 
 	var conn Connector
@@ -581,7 +581,7 @@ func (s *Server) getConnector(id string) (Connector, error) {
 		// has been updated in the storage. Need to get latest.
 		conn, err := s.OpenConnector(storageConnector)
 		if err != nil {
-			return Connector{}, fmt.Errorf("failed to open connector: %v", err)
+			return Connector{}, fmt.Errorf("failed to open connector: %w", err)
 		}
 		return conn, nil
 	}

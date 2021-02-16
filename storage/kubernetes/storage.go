@@ -85,7 +85,7 @@ func (c *Config) open(logger log.Logger, waitForResources bool) (*client, error)
 
 	cli, err := newClient(cluster, user, namespace, logger)
 	if err != nil {
-		return nil, fmt.Errorf("create client: %v", err)
+		return nil, fmt.Errorf("create client: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -154,10 +154,10 @@ func (cli *client) registerCustomResources() (ok bool) {
 		resourceName = r.ObjectMeta.Name
 
 		if err != nil {
-			switch err {
-			case storage.ErrAlreadyExists:
+			switch {
+			case errors.Is(err, storage.ErrAlreadyExists):
 				cli.logger.Infof("custom resource already created %s", resourceName)
-			case storage.ErrNotFound:
+			case errors.Is(err, storage.ErrNotFound):
 				cli.logger.Errorf("custom resources not found, please enable the respective API group")
 				ok = false
 			default:
@@ -201,7 +201,7 @@ func (cli *client) isCRDReady(name string) error {
 	var r k8sapi.CustomResourceDefinition
 	err := cli.getResource("apiextensions.k8s.io/v1beta1", "", "customresourcedefinitions", name, &r)
 	if err != nil {
-		return fmt.Errorf("get crd %s: %v", name, err)
+		return fmt.Errorf("get crd %s: %w", name, err)
 	}
 
 	conds := make(map[string]string) // For debugging, keep the conditions around.
@@ -366,7 +366,7 @@ func (cli *client) ListRefreshTokens() ([]storage.RefreshToken, error) {
 func (cli *client) ListPasswords() (passwords []storage.Password, err error) {
 	var passwordList PasswordList
 	if err = cli.list(resourcePassword, &passwordList); err != nil {
-		return passwords, fmt.Errorf("failed to list passwords: %v", err)
+		return passwords, fmt.Errorf("failed to list passwords: %w", err)
 	}
 
 	for _, password := range passwordList.Passwords {
@@ -385,7 +385,7 @@ func (cli *client) ListPasswords() (passwords []storage.Password, err error) {
 func (cli *client) ListConnectors() (connectors []storage.Connector, err error) {
 	var connectorList ConnectorList
 	if err = cli.list(resourceConnector, &connectorList); err != nil {
-		return connectors, fmt.Errorf("failed to list connectors: %v", err)
+		return connectors, fmt.Errorf("failed to list connectors: %w", err)
 	}
 
 	connectors = make([]storage.Connector, len(connectorList.Connectors))
@@ -513,7 +513,7 @@ func (cli *client) UpdateKeys(updater func(old storage.Keys) (storage.Keys, erro
 	firstUpdate := false
 	var keys Keys
 	if err := cli.get(resourceKeys, keysName, &keys); err != nil {
-		if err != storage.ErrNotFound {
+		if !errors.Is(err, storage.ErrNotFound) {
 			return err
 		}
 		firstUpdate = true
@@ -593,7 +593,7 @@ func (cli *client) UpdateConnector(id string, updater func(a storage.Connector) 
 func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err error) {
 	var authRequests AuthRequestList
 	if err := cli.list(resourceAuthRequest, &authRequests); err != nil {
-		return result, fmt.Errorf("failed to list auth requests: %v", err)
+		return result, fmt.Errorf("failed to list auth requests: %w", err)
 	}
 
 	var delErr error
@@ -601,7 +601,7 @@ func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err e
 		if now.After(authRequest.Expiry) {
 			if err := cli.delete(resourceAuthRequest, authRequest.ObjectMeta.Name); err != nil {
 				cli.logger.Errorf("failed to delete auth request: %v", err)
-				delErr = fmt.Errorf("failed to delete auth request: %v", err)
+				delErr = fmt.Errorf("failed to delete auth request: %w", err)
 			}
 			result.AuthRequests++
 		}
@@ -612,14 +612,14 @@ func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err e
 
 	var authCodes AuthCodeList
 	if err := cli.list(resourceAuthCode, &authCodes); err != nil {
-		return result, fmt.Errorf("failed to list auth codes: %v", err)
+		return result, fmt.Errorf("failed to list auth codes: %w", err)
 	}
 
 	for _, authCode := range authCodes.AuthCodes {
 		if now.After(authCode.Expiry) {
 			if err := cli.delete(resourceAuthCode, authCode.ObjectMeta.Name); err != nil {
 				cli.logger.Errorf("failed to delete auth code %v", err)
-				delErr = fmt.Errorf("failed to delete auth code: %v", err)
+				delErr = fmt.Errorf("failed to delete auth code: %w", err)
 			}
 			result.AuthCodes++
 		}
@@ -627,14 +627,14 @@ func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err e
 
 	var deviceRequests DeviceRequestList
 	if err := cli.list(resourceDeviceRequest, &deviceRequests); err != nil {
-		return result, fmt.Errorf("failed to list device requests: %v", err)
+		return result, fmt.Errorf("failed to list device requests: %w", err)
 	}
 
 	for _, deviceRequest := range deviceRequests.DeviceRequests {
 		if now.After(deviceRequest.Expiry) {
 			if err := cli.delete(resourceDeviceRequest, deviceRequest.ObjectMeta.Name); err != nil {
 				cli.logger.Errorf("failed to delete device request: %v", err)
-				delErr = fmt.Errorf("failed to delete device request: %v", err)
+				delErr = fmt.Errorf("failed to delete device request: %w", err)
 			}
 			result.DeviceRequests++
 		}
@@ -642,14 +642,14 @@ func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err e
 
 	var deviceTokens DeviceTokenList
 	if err := cli.list(resourceDeviceToken, &deviceTokens); err != nil {
-		return result, fmt.Errorf("failed to list device tokens: %v", err)
+		return result, fmt.Errorf("failed to list device tokens: %w", err)
 	}
 
 	for _, deviceToken := range deviceTokens.DeviceTokens {
 		if now.After(deviceToken.Expiry) {
 			if err := cli.delete(resourceDeviceToken, deviceToken.ObjectMeta.Name); err != nil {
 				cli.logger.Errorf("failed to delete device token: %v", err)
-				delErr = fmt.Errorf("failed to delete device token: %v", err)
+				delErr = fmt.Errorf("failed to delete device token: %w", err)
 			}
 			result.DeviceTokens++
 		}
@@ -709,7 +709,8 @@ func (cli *client) UpdateDeviceToken(deviceCode string, updater func(old storage
 }
 
 func isKubernetesAPIConflictError(err error) bool {
-	if httpErr, ok := err.(httpError); ok {
+	var httpErr httpError
+	if errors.As(err, &httpErr) {
 		if httpErr.StatusCode() == http.StatusConflict {
 			return true
 		}

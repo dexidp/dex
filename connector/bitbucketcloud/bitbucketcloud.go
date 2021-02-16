@@ -146,14 +146,14 @@ func (b *bitbucketConnector) HandleCallback(s connector.Scopes, r *http.Request)
 
 	token, err := oauth2Config.Exchange(ctx, q.Get("code"))
 	if err != nil {
-		return identity, fmt.Errorf("bitbucket: failed to get token: %v", err)
+		return identity, fmt.Errorf("bitbucket: failed to get token: %w", err)
 	}
 
 	client := oauth2Config.Client(ctx, token)
 
 	user, err := b.user(ctx, client)
 	if err != nil {
-		return identity, fmt.Errorf("bitbucket: get user: %v", err)
+		return identity, fmt.Errorf("bitbucket: get user: %w", err)
 	}
 
 	identity = connector.Identity{
@@ -179,7 +179,7 @@ func (b *bitbucketConnector) HandleCallback(s connector.Scopes, r *http.Request)
 		}
 		connData, err := json.Marshal(data)
 		if err != nil {
-			return identity, fmt.Errorf("bitbucket: marshal connector data: %v", err)
+			return identity, fmt.Errorf("bitbucket: marshal connector data: %w", err)
 		}
 		identity.ConnectorData = connData
 	}
@@ -223,7 +223,7 @@ func (b *bitbucketConnector) Refresh(ctx context.Context, s connector.Scopes, id
 
 	var data connectorData
 	if err := json.Unmarshal(identity.ConnectorData, &data); err != nil {
-		return identity, fmt.Errorf("bitbucket: unmarshal access token: %v", err)
+		return identity, fmt.Errorf("bitbucket: unmarshal access token: %w", err)
 	}
 
 	tok := &oauth2.Token{
@@ -243,7 +243,7 @@ func (b *bitbucketConnector) Refresh(ctx context.Context, s connector.Scopes, id
 			}
 			connData, err := json.Marshal(data)
 			if err != nil {
-				return fmt.Errorf("bitbucket: marshal connector data: %v", err)
+				return fmt.Errorf("bitbucket: marshal connector data: %w", err)
 			}
 			identity.ConnectorData = connData
 			return nil
@@ -252,7 +252,7 @@ func (b *bitbucketConnector) Refresh(ctx context.Context, s connector.Scopes, id
 
 	user, err := b.user(ctx, client)
 	if err != nil {
-		return identity, fmt.Errorf("bitbucket: get user: %v", err)
+		return identity, fmt.Errorf("bitbucket: get user: %w", err)
 	}
 
 	identity.Username = user.Username
@@ -391,7 +391,7 @@ func (b *bitbucketConnector) userTeams(ctx context.Context, client *http.Client)
 		var response userTeamsResponse
 
 		if err := get(ctx, client, apiURL, &response); err != nil {
-			return nil, fmt.Errorf("bitbucket: get user teams: %v", err)
+			return nil, fmt.Errorf("bitbucket: get user teams: %w", err)
 		}
 
 		for _, value := range response.Values {
@@ -407,7 +407,7 @@ func (b *bitbucketConnector) userTeams(ctx context.Context, client *http.Client)
 		for _, team := range teams {
 			teamGroups, err := b.userTeamGroups(ctx, client, team)
 			if err != nil {
-				return nil, fmt.Errorf("bitbucket: %v", err)
+				return nil, fmt.Errorf("bitbucket: %w", err)
 			}
 			teams = append(teams, teamGroups...)
 		}
@@ -425,7 +425,7 @@ func (b *bitbucketConnector) userTeamGroups(ctx context.Context, client *http.Cl
 
 	var response []group
 	if err := get(ctx, client, apiURL, &response); err != nil {
-		return nil, fmt.Errorf("get user team %q groups: %v", teamName, err)
+		return nil, fmt.Errorf("get user team %q groups: %w", teamName, err)
 	}
 
 	teamGroups := make([]string, 0, len(response))
@@ -443,25 +443,25 @@ func (b *bitbucketConnector) userTeamGroups(ctx context.Context, client *http.Cl
 func get(ctx context.Context, client *http.Client, apiURL string, v interface{}) error {
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		return fmt.Errorf("bitbucket: new req: %v", err)
+		return fmt.Errorf("bitbucket: new req: %w", err)
 	}
 	req = req.WithContext(ctx)
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("bitbucket: get URL %v", err)
+		return fmt.Errorf("bitbucket: get URL %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return fmt.Errorf("bitbucket: read body: %s: %v", resp.Status, err)
+			return fmt.Errorf("bitbucket: read body: %s: %w", resp.Status, err)
 		}
 		return fmt.Errorf("%s: %s", resp.Status, body)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
-		return fmt.Errorf("bitbucket: failed to decode response: %v", err)
+		return fmt.Errorf("bitbucket: failed to decode response: %w", err)
 	}
 
 	return nil

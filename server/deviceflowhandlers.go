@@ -179,7 +179,7 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 		// Grab the device token, check validity
 		deviceToken, err := s.storage.GetDeviceToken(deviceCode)
 		if err != nil {
-			if err != storage.ErrNotFound {
+			if !errors.Is(err, storage.ErrNotFound) {
 				s.logger.Errorf("failed to get device code: %v", err)
 			}
 			s.tokenErrHelper(w, errInvalidRequest, "Invalid Device code.", http.StatusBadRequest)
@@ -247,7 +247,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 		authCode, err := s.storage.GetAuthCode(code)
 		if err != nil || s.now().After(authCode.Expiry) {
 			errCode := http.StatusBadRequest
-			if err != nil && err != storage.ErrNotFound {
+			if err != nil && !errors.Is(err, storage.ErrNotFound) {
 				s.logger.Errorf("failed to get auth code: %v", err)
 				errCode = http.StatusInternalServerError
 			}
@@ -259,7 +259,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 		deviceReq, err := s.storage.GetDeviceRequest(userCode)
 		if err != nil || s.now().After(deviceReq.Expiry) {
 			errCode := http.StatusBadRequest
-			if err != nil && err != storage.ErrNotFound {
+			if err != nil && !errors.Is(err, storage.ErrNotFound) {
 				s.logger.Errorf("failed to get device code: %v", err)
 				errCode = http.StatusInternalServerError
 			}
@@ -269,7 +269,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 
 		client, err := s.storage.GetClient(deviceReq.ClientID)
 		if err != nil {
-			if err != storage.ErrNotFound {
+			if !errors.Is(err, storage.ErrNotFound) {
 				s.logger.Errorf("failed to get client: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 			} else {
@@ -293,7 +293,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 		old, err := s.storage.GetDeviceToken(deviceReq.DeviceCode)
 		if err != nil || s.now().After(old.Expiry) {
 			errCode := http.StatusBadRequest
-			if err != nil && err != storage.ErrNotFound {
+			if err != nil && !errors.Is(err, storage.ErrNotFound) {
 				s.logger.Errorf("failed to get device token: %v", err)
 				errCode = http.StatusInternalServerError
 			}
@@ -356,7 +356,7 @@ func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 		// Find the user code in the available requests
 		deviceRequest, err := s.storage.GetDeviceRequest(userCode)
 		if err != nil || s.now().After(deviceRequest.Expiry) {
-			if err != nil && err != storage.ErrNotFound {
+			if err != nil && !errors.Is(err, storage.ErrNotFound) {
 				s.logger.Errorf("failed to get device request: %v", err)
 			}
 			if err := s.templates.device(r, w, s.getDeviceVerificationURI(), userCode, true); err != nil {

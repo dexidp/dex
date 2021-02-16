@@ -106,7 +106,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 
 		var err error
 		if g.httpClient, err = newHTTPClient(g.rootCA); err != nil {
-			return nil, fmt.Errorf("failed to create HTTP client: %v", err)
+			return nil, fmt.Errorf("failed to create HTTP client: %w", err)
 		}
 	}
 	g.loadAllGroups = c.LoadAllGroups
@@ -212,7 +212,7 @@ func newHTTPClient(rootCA string) (*http.Client, error) {
 	tlsConfig := tls.Config{RootCAs: x509.NewCertPool()}
 	rootCABytes, err := ioutil.ReadFile(rootCA)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read root-ca: %v", err)
+		return nil, fmt.Errorf("failed to read root-ca: %w", err)
 	}
 	if !tlsConfig.RootCAs.AppendCertsFromPEM(rootCABytes) {
 		return nil, fmt.Errorf("no certs found in root CA file %q", rootCA)
@@ -251,14 +251,14 @@ func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 
 	token, err := oauth2Config.Exchange(ctx, q.Get("code"))
 	if err != nil {
-		return identity, fmt.Errorf("github: failed to get token: %v", err)
+		return identity, fmt.Errorf("github: failed to get token: %w", err)
 	}
 
 	client := oauth2Config.Client(ctx, token)
 
 	user, err := c.user(ctx, client)
 	if err != nil {
-		return identity, fmt.Errorf("github: get user: %v", err)
+		return identity, fmt.Errorf("github: get user: %w", err)
 	}
 
 	username := user.Name
@@ -290,7 +290,7 @@ func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 		data := connectorData{AccessToken: token.AccessToken}
 		connData, err := json.Marshal(data)
 		if err != nil {
-			return identity, fmt.Errorf("marshal connector data: %v", err)
+			return identity, fmt.Errorf("marshal connector data: %w", err)
 		}
 		identity.ConnectorData = connData
 	}
@@ -305,13 +305,13 @@ func (c *githubConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 
 	var data connectorData
 	if err := json.Unmarshal(identity.ConnectorData, &data); err != nil {
-		return identity, fmt.Errorf("github: unmarshal access token: %v", err)
+		return identity, fmt.Errorf("github: unmarshal access token: %w", err)
 	}
 
 	client := c.oauth2Config(s).Client(ctx, &oauth2.Token{AccessToken: data.AccessToken})
 	user, err := c.user(ctx, client)
 	if err != nil {
-		return identity, fmt.Errorf("github: get user: %v", err)
+		return identity, fmt.Errorf("github: get user: %w", err)
 	}
 
 	username := user.Name
@@ -429,7 +429,7 @@ func (c *githubConnector) userOrgs(ctx context.Context, client *http.Client) ([]
 			err  error
 		)
 		if apiURL, err = get(ctx, client, apiURL, &orgs); err != nil {
-			return nil, fmt.Errorf("github: get orgs: %v", err)
+			return nil, fmt.Errorf("github: get orgs: %w", err)
 		}
 
 		for _, o := range orgs {
@@ -456,7 +456,7 @@ func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client)
 			err   error
 		)
 		if apiURL, err = get(ctx, client, apiURL, &teams); err != nil {
-			return nil, fmt.Errorf("github: get teams: %v", err)
+			return nil, fmt.Errorf("github: get teams: %w", err)
 		}
 
 		for _, t := range teams {
@@ -478,25 +478,25 @@ func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client)
 func get(ctx context.Context, client *http.Client, apiURL string, v interface{}) (string, error) {
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		return "", fmt.Errorf("github: new req: %v", err)
+		return "", fmt.Errorf("github: new req: %w", err)
 	}
 	req = req.WithContext(ctx)
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("github: get URL %v", err)
+		return "", fmt.Errorf("github: get URL %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return "", fmt.Errorf("github: read body: %v", err)
+			return "", fmt.Errorf("github: read body: %w", err)
 		}
 		return "", fmt.Errorf("%s: %s", resp.Status, body)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
-		return "", fmt.Errorf("failed to decode response: %v", err)
+		return "", fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	return getPagination(apiURL, resp), nil
@@ -629,12 +629,12 @@ func (c *githubConnector) userInOrg(ctx context.Context, client *http.Client, us
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		return false, fmt.Errorf("github: new req: %v", err)
+		return false, fmt.Errorf("github: new req: %w", err)
 	}
 	req = req.WithContext(ctx)
 	resp, err := client.Do(req)
 	if err != nil {
-		return false, fmt.Errorf("github: get teams: %v", err)
+		return false, fmt.Errorf("github: get teams: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -675,7 +675,7 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 			err   error
 		)
 		if apiURL, err = get(ctx, client, apiURL, &teams); err != nil {
-			return nil, fmt.Errorf("github: get teams: %v", err)
+			return nil, fmt.Errorf("github: get teams: %w", err)
 		}
 
 		for _, t := range teams {

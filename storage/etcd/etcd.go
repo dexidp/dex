@@ -51,7 +51,7 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 		if now.After(authRequest.Expiry) {
 			if err := c.deleteKey(ctx, keyID(authRequestPrefix, authRequest.ID)); err != nil {
 				c.logger.Errorf("failed to delete auth request: %v", err)
-				delErr = fmt.Errorf("failed to delete auth request: %v", err)
+				delErr = fmt.Errorf("failed to delete auth request: %w", err)
 			}
 			result.AuthRequests++
 		}
@@ -69,7 +69,7 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 		if now.After(authCode.Expiry) {
 			if err := c.deleteKey(ctx, keyID(authCodePrefix, authCode.ID)); err != nil {
 				c.logger.Errorf("failed to delete auth code %v", err)
-				delErr = fmt.Errorf("failed to delete auth code: %v", err)
+				delErr = fmt.Errorf("failed to delete auth code: %w", err)
 			}
 			result.AuthCodes++
 		}
@@ -84,7 +84,7 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 		if now.After(deviceRequest.Expiry) {
 			if err := c.deleteKey(ctx, keyID(deviceRequestPrefix, deviceRequest.UserCode)); err != nil {
 				c.logger.Errorf("failed to delete device request %v", err)
-				delErr = fmt.Errorf("failed to delete device request: %v", err)
+				delErr = fmt.Errorf("failed to delete device request: %w", err)
 			}
 			result.DeviceRequests++
 		}
@@ -99,7 +99,7 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 		if now.After(deviceToken.Expiry) {
 			if err := c.deleteKey(ctx, keyID(deviceTokenPrefix, deviceToken.DeviceCode)); err != nil {
 				c.logger.Errorf("failed to delete device token %v", err)
-				delErr = fmt.Errorf("failed to delete device token: %v", err)
+				delErr = fmt.Errorf("failed to delete device token: %w", err)
 			}
 			result.DeviceTokens++
 		}

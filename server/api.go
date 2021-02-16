@@ -64,11 +64,11 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 		LogoURL:      req.Client.LogoUrl,
 	}
 	if err := d.s.CreateClient(c); err != nil {
-		if err == storage.ErrAlreadyExists {
+		if errors.Is(err, storage.ErrAlreadyExists) {
 			return &api.CreateClientResp{AlreadyExists: true}, nil
 		}
 		d.logger.Errorf("api: failed to create client: %v", err)
-		return nil, fmt.Errorf("create client: %v", err)
+		return nil, fmt.Errorf("create client: %w", err)
 	}
 
 	return &api.CreateClientResp{
@@ -97,11 +97,11 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 		return old, nil
 	})
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if errors.Is(err, storage.ErrNotFound) {
 			return &api.UpdateClientResp{NotFound: true}, nil
 		}
 		d.logger.Errorf("api: failed to update the client: %v", err)
-		return nil, fmt.Errorf("update client: %v", err)
+		return nil, fmt.Errorf("update client: %w", err)
 	}
 	return &api.UpdateClientResp{}, nil
 }
@@ -109,11 +109,11 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 func (d dexAPI) DeleteClient(ctx context.Context, req *api.DeleteClientReq) (*api.DeleteClientResp, error) {
 	err := d.s.DeleteClient(req.Id)
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if errors.Is(err, storage.ErrNotFound) {
 			return &api.DeleteClientResp{NotFound: true}, nil
 		}
 		d.logger.Errorf("api: failed to delete client: %v", err)
-		return nil, fmt.Errorf("delete client: %v", err)
+		return nil, fmt.Errorf("delete client: %w", err)
 	}
 	return &api.DeleteClientResp{}, nil
 }
@@ -123,7 +123,7 @@ func (d dexAPI) DeleteClient(ctx context.Context, req *api.DeleteClientReq) (*ap
 func checkCost(hash []byte) error {
 	actual, err := bcrypt.Cost(hash)
 	if err != nil {
-		return fmt.Errorf("parsing bcrypt hash: %v", err)
+		return fmt.Errorf("parsing bcrypt hash: %w", err)
 	}
 	if actual < bcrypt.DefaultCost {
 		return fmt.Errorf("given hash cost = %d does not meet minimum cost requirement = %d", actual, bcrypt.DefaultCost)
@@ -156,11 +156,11 @@ func (d dexAPI) CreatePassword(ctx context.Context, req *api.CreatePasswordReq) 
 		UserID:   req.Password.UserId,
 	}
 	if err := d.s.CreatePassword(p); err != nil {
-		if err == storage.ErrAlreadyExists {
+		if errors.Is(err, storage.ErrAlreadyExists) {
 			return &api.CreatePasswordResp{AlreadyExists: true}, nil
 		}
 		d.logger.Errorf("api: failed to create password: %v", err)
-		return nil, fmt.Errorf("create password: %v", err)
+		return nil, fmt.Errorf("create password: %w", err)
 	}
 
 	return &api.CreatePasswordResp{}, nil
@@ -193,11 +193,11 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 	}
 
 	if err := d.s.UpdatePassword(req.Email, updater); err != nil {
-		if err == storage.ErrNotFound {
+		if errors.Is(err, storage.ErrNotFound) {
 			return &api.UpdatePasswordResp{NotFound: true}, nil
 		}
 		d.logger.Errorf("api: failed to update password: %v", err)
-		return nil, fmt.Errorf("update password: %v", err)
+		return nil, fmt.Errorf("update password: %w", err)
 	}
 
 	return &api.UpdatePasswordResp{}, nil
@@ -210,11 +210,11 @@ func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) 
 
 	err := d.s.DeletePassword(req.Email)
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if errors.Is(err, storage.ErrNotFound) {
 			return &api.DeletePasswordResp{NotFound: true}, nil
 		}
 		d.logger.Errorf("api: failed to delete password: %v", err)
-		return nil, fmt.Errorf("delete password: %v", err)
+		return nil, fmt.Errorf("delete password: %w", err)
 	}
 	return &api.DeletePasswordResp{}, nil
 }
@@ -230,7 +230,7 @@ func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*a
 	passwordList, err := d.s.ListPasswords()
 	if err != nil {
 		d.logger.Errorf("api: failed to list passwords: %v", err)
-		return nil, fmt.Errorf("list passwords: %v", err)
+		return nil, fmt.Errorf("list passwords: %w", err)
 	}
 
 	passwords := make([]*api.Password, 0, len(passwordList))
@@ -259,13 +259,13 @@ func (d dexAPI) VerifyPassword(ctx context.Context, req *api.VerifyPasswordReq) 
 
 	password, err := d.s.GetPassword(req.Email)
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if errors.Is(err, storage.ErrNotFound) {
 			return &api.VerifyPasswordResp{
 				NotFound: true,
 			}, nil
 		}
 		d.logger.Errorf("api: there was an error retrieving the password: %v", err)
-		return nil, fmt.Errorf("verify password: %v", err)
+		return nil, fmt.Errorf("verify password: %w", err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword(password.Hash, []byte(req.Password)); err != nil {
@@ -288,12 +288,12 @@ func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.
 
 	offlineSessions, err := d.s.GetOfflineSessions(id.UserId, id.ConnId)
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if errors.Is(err, storage.ErrNotFound) {
 			// This means that this user-client pair does not have a refresh token yet.
 			// An empty list should be returned instead of an error.
 			return &api.ListRefreshResp{}, nil
 		}
-		d.logger.Errorf("api: failed to list refresh tokens %t here : %v", err == storage.ErrNotFound, err)
+		d.logger.Errorf("api: failed to list refresh tokens %t here : %v", errors.Is(err, storage.ErrNotFound), err)
 		return nil, err
 	}
 
@@ -341,7 +341,7 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 	}
 
 	if err := d.s.UpdateOfflineSessions(id.UserId, id.ConnId, updater); err != nil {
-		if err == storage.ErrNotFound {
+		if errors.Is(err, storage.ErrNotFound) {
 			return &api.RevokeRefreshResp{NotFound: true}, nil
 		}
 		d.logger.Errorf("api: failed to update offline session object: %v", err)

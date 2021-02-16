@@ -58,7 +58,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 	provider, err := oidc.NewProvider(ctx, issuerURL)
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("failed to get provider: %v", err)
+		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
 
 	scopes := []string{oidc.ScopeOpenID}
@@ -71,7 +71,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail)
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("could not create directory service: %v", err)
+		return nil, fmt.Errorf("could not create directory service: %w", err)
 	}
 
 	clientID := c.ClientID
@@ -159,7 +159,7 @@ func (c *googleConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 	}
 	token, err := c.oauth2Config.Exchange(r.Context(), q.Get("code"))
 	if err != nil {
-		return identity, fmt.Errorf("google: failed to get token: %v", err)
+		return identity, fmt.Errorf("google: failed to get token: %w", err)
 	}
 
 	return c.createIdentity(r.Context(), identity, s, token)
@@ -172,7 +172,7 @@ func (c *googleConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 	}
 	token, err := c.oauth2Config.TokenSource(ctx, t).Token()
 	if err != nil {
-		return identity, fmt.Errorf("google: failed to get token: %v", err)
+		return identity, fmt.Errorf("google: failed to get token: %w", err)
 	}
 
 	return c.createIdentity(ctx, identity, s, token)
@@ -185,7 +185,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	}
 	idToken, err := c.verifier.Verify(ctx, rawIDToken)
 	if err != nil {
-		return identity, fmt.Errorf("google: failed to verify ID Token: %v", err)
+		return identity, fmt.Errorf("google: failed to verify ID Token: %w", err)
 	}
 
 	var claims struct {
@@ -195,7 +195,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		HostedDomain  string `json:"hd"`
 	}
 	if err := idToken.Claims(&claims); err != nil {
-		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
+		return identity, fmt.Errorf("oidc: failed to decode claims: %w", err)
 	}
 
 	if len(c.hostedDomains) > 0 {
@@ -216,7 +216,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	if s.Groups && c.adminSrv != nil {
 		groups, err = c.getGroups(claims.Email)
 		if err != nil {
-			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
+			return identity, fmt.Errorf("google: could not retrieve groups: %w", err)
 		}
 
 		if len(c.groups) > 0 {
@@ -248,7 +248,7 @@ func (c *googleConnector) getGroups(email string) ([]string, error) {
 		groupsList, err = c.adminSrv.Groups.List().
 			UserKey(email).PageToken(groupsList.NextPageToken).Do()
 		if err != nil {
-			return nil, fmt.Errorf("could not list groups: %v", err)
+			return nil, fmt.Errorf("could not list groups: %w", err)
 		}
 
 		for _, group := range groupsList.Groups {
@@ -276,12 +276,12 @@ func createDirectoryService(serviceAccountFilePath string, email string) (*admin
 	}
 	jsonCredentials, err := ioutil.ReadFile(serviceAccountFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("error reading credentials from file: %v", err)
+		return nil, fmt.Errorf("error reading credentials from file: %w", err)
 	}
 
 	config, err := google.JWTConfigFromJSON(jsonCredentials, admin.AdminDirectoryGroupReadonlyScope)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
+		return nil, fmt.Errorf("unable to parse client secret file to config: %w", err)
 	}
 
 	// Impersonate an admin. This is mandatory for the admin APIs.
@@ -292,7 +292,7 @@ func createDirectoryService(serviceAccountFilePath string, email string) (*admin
 
 	srv, err := admin.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
-		return nil, fmt.Errorf("unable to create directory service %v", err)
+		return nil, fmt.Errorf("unable to create directory service %w", err)
 	}
 	return srv, nil
 }

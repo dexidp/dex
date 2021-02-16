@@ -132,14 +132,14 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 
 	token, err := oauth2Config.Exchange(ctx, q.Get("code"))
 	if err != nil {
-		return identity, fmt.Errorf("gitlab: failed to get token: %v", err)
+		return identity, fmt.Errorf("gitlab: failed to get token: %w", err)
 	}
 
 	client := oauth2Config.Client(ctx, token)
 
 	user, err := c.user(ctx, client)
 	if err != nil {
-		return identity, fmt.Errorf("gitlab: get user: %v", err)
+		return identity, fmt.Errorf("gitlab: get user: %w", err)
 	}
 
 	username := user.Name
@@ -160,7 +160,7 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 	if c.groupsRequired(s.Groups) {
 		groups, err := c.getGroups(ctx, client, s.Groups, user.Username)
 		if err != nil {
-			return identity, fmt.Errorf("gitlab: get groups: %v", err)
+			return identity, fmt.Errorf("gitlab: get groups: %w", err)
 		}
 		identity.Groups = groups
 	}
@@ -169,7 +169,7 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 		data := connectorData{AccessToken: token.AccessToken}
 		connData, err := json.Marshal(data)
 		if err != nil {
-			return identity, fmt.Errorf("marshal connector data: %v", err)
+			return identity, fmt.Errorf("marshal connector data: %w", err)
 		}
 		identity.ConnectorData = connData
 	}
@@ -184,13 +184,13 @@ func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 
 	var data connectorData
 	if err := json.Unmarshal(ident.ConnectorData, &data); err != nil {
-		return ident, fmt.Errorf("gitlab: unmarshal access token: %v", err)
+		return ident, fmt.Errorf("gitlab: unmarshal access token: %w", err)
 	}
 
 	client := c.oauth2Config(s).Client(ctx, &oauth2.Token{AccessToken: data.AccessToken})
 	user, err := c.user(ctx, client)
 	if err != nil {
-		return ident, fmt.Errorf("gitlab: get user: %v", err)
+		return ident, fmt.Errorf("gitlab: get user: %w", err)
 	}
 
 	username := user.Name
@@ -204,7 +204,7 @@ func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 	if c.groupsRequired(s.Groups) {
 		groups, err := c.getGroups(ctx, client, s.Groups, user.Username)
 		if err != nil {
-			return ident, fmt.Errorf("gitlab: get groups: %v", err)
+			return ident, fmt.Errorf("gitlab: get groups: %w", err)
 		}
 		ident.Groups = groups
 	}
@@ -222,25 +222,25 @@ func (c *gitlabConnector) user(ctx context.Context, client *http.Client) (gitlab
 	var u gitlabUser
 	req, err := http.NewRequest("GET", c.baseURL+"/api/v4/user", nil)
 	if err != nil {
-		return u, fmt.Errorf("gitlab: new req: %v", err)
+		return u, fmt.Errorf("gitlab: new req: %w", err)
 	}
 	req = req.WithContext(ctx)
 	resp, err := client.Do(req)
 	if err != nil {
-		return u, fmt.Errorf("gitlab: get URL %v", err)
+		return u, fmt.Errorf("gitlab: get URL %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return u, fmt.Errorf("gitlab: read body: %v", err)
+			return u, fmt.Errorf("gitlab: read body: %w", err)
 		}
 		return u, fmt.Errorf("%s: %s", resp.Status, body)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
-		return u, fmt.Errorf("failed to decode response: %v", err)
+		return u, fmt.Errorf("failed to decode response: %w", err)
 	}
 	return u, nil
 }
@@ -256,25 +256,25 @@ type userInfo struct {
 func (c *gitlabConnector) userGroups(ctx context.Context, client *http.Client) ([]string, error) {
 	req, err := http.NewRequest("GET", c.baseURL+"/oauth/userinfo", nil)
 	if err != nil {
-		return nil, fmt.Errorf("gitlab: new req: %v", err)
+		return nil, fmt.Errorf("gitlab: new req: %w", err)
 	}
 	req = req.WithContext(ctx)
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("gitlab: get URL %v", err)
+		return nil, fmt.Errorf("gitlab: get URL %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("gitlab: read body: %v", err)
+			return nil, fmt.Errorf("gitlab: read body: %w", err)
 		}
 		return nil, fmt.Errorf("%s: %s", resp.Status, body)
 	}
 	var u userInfo
 	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %v", err)
+		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	return u.Groups, nil

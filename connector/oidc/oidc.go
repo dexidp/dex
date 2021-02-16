@@ -104,7 +104,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 	provider, err := oidc.NewProvider(ctx, c.Issuer)
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("failed to get provider: %v", err)
+		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
 
 	endpoint := provider.Endpoint()
@@ -227,7 +227,7 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 	}
 	token, err := c.oauth2Config.Exchange(r.Context(), q.Get("code"))
 	if err != nil {
-		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
+		return identity, fmt.Errorf("oidc: failed to get token: %w", err)
 	}
 
 	return c.createIdentity(r.Context(), identity, token)
@@ -238,7 +238,7 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 	cd := connectorData{}
 	err := json.Unmarshal(identity.ConnectorData, &cd)
 	if err != nil {
-		return identity, fmt.Errorf("oidc: failed to unmarshal connector data: %v", err)
+		return identity, fmt.Errorf("oidc: failed to unmarshal connector data: %w", err)
 	}
 
 	t := &oauth2.Token{
@@ -247,7 +247,7 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 	}
 	token, err := c.oauth2Config.TokenSource(ctx, t).Token()
 	if err != nil {
-		return identity, fmt.Errorf("oidc: failed to get refresh token: %v", err)
+		return identity, fmt.Errorf("oidc: failed to get refresh token: %w", err)
 	}
 
 	return c.createIdentity(ctx, identity, token)
@@ -260,22 +260,22 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 	idToken, err := c.verifier.Verify(ctx, rawIDToken)
 	if err != nil {
-		return identity, fmt.Errorf("oidc: failed to verify ID Token: %v", err)
+		return identity, fmt.Errorf("oidc: failed to verify ID Token: %w", err)
 	}
 
 	var claims map[string]interface{}
 	if err := idToken.Claims(&claims); err != nil {
-		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
+		return identity, fmt.Errorf("oidc: failed to decode claims: %w", err)
 	}
 
 	// We immediately want to run getUserInfo if configured before we validate the claims
 	if c.getUserInfo {
 		userInfo, err := c.provider.UserInfo(ctx, oauth2.StaticTokenSource(token))
 		if err != nil {
-			return identity, fmt.Errorf("oidc: error loading userinfo: %v", err)
+			return identity, fmt.Errorf("oidc: error loading userinfo: %w", err)
 		}
 		if err := userInfo.Claims(&claims); err != nil {
-			return identity, fmt.Errorf("oidc: failed to decode userinfo claims: %v", err)
+			return identity, fmt.Errorf("oidc: failed to decode userinfo claims: %w", err)
 		}
 	}
 
@@ -363,7 +363,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 
 	connData, err := json.Marshal(&cd)
 	if err != nil {
-		return identity, fmt.Errorf("oidc: failed to encode connector data: %v", err)
+		return identity, fmt.Errorf("oidc: failed to encode connector data: %w", err)
 	}
 
 	identity = connector.Identity{

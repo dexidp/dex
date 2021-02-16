@@ -117,10 +117,10 @@ func (p *password) UnmarshalJSON(b []byte) error {
 	// For backwards compatibility try to base64 decode this value.
 	hashBytes, err := base64.StdEncoding.DecodeString(data.Hash)
 	if err != nil {
-		return fmt.Errorf("malformed bcrypt hash: %v", bcryptErr)
+		return fmt.Errorf("malformed bcrypt hash: %w", bcryptErr)
 	}
 	if _, err := bcrypt.Cost(hashBytes); err != nil {
-		return fmt.Errorf("malformed bcrypt hash: %v", err)
+		return fmt.Errorf("malformed bcrypt hash: %w", err)
 	}
 	p.Hash = hashBytes
 	return nil
@@ -203,7 +203,7 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 		Config json.RawMessage `json:"config"`
 	}
 	if err := json.Unmarshal(b, &store); err != nil {
-		return fmt.Errorf("parse storage: %v", err)
+		return fmt.Errorf("parse storage: %w", err)
 	}
 	f, ok := storages[store.Type]
 	if !ok {
@@ -218,7 +218,7 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 			data = []byte(os.ExpandEnv(string(store.Config)))
 		}
 		if err := json.Unmarshal(data, storageConfig); err != nil {
-			return fmt.Errorf("parse storage config: %v", err)
+			return fmt.Errorf("parse storage config: %w", err)
 		}
 	}
 	*s = Storage{
@@ -249,7 +249,7 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 		Config json.RawMessage `json:"config"`
 	}
 	if err := json.Unmarshal(b, &conn); err != nil {
-		return fmt.Errorf("parse connector: %v", err)
+		return fmt.Errorf("parse connector: %w", err)
 	}
 	f, ok := server.ConnectorsConfig[conn.Type]
 	if !ok {
@@ -264,7 +264,7 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 			data = []byte(os.ExpandEnv(string(conn.Config)))
 		}
 		if err := json.Unmarshal(data, connConfig); err != nil {
-			return fmt.Errorf("parse connector config: %v", err)
+			return fmt.Errorf("parse connector config: %w", err)
 		}
 	}
 	*c = Connector{
@@ -280,7 +280,7 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 func ToStorageConnector(c Connector) (storage.Connector, error) {
 	data, err := json.Marshal(c.Config)
 	if err != nil {
-		return storage.Connector{}, fmt.Errorf("failed to marshal connector config: %v", err)
+		return storage.Connector{}, fmt.Errorf("failed to marshal connector config: %w", err)
 	}
 
 	return storage.Connector{

@@ -228,7 +228,8 @@ func TestHandleAuthCode(t *testing.T) {
 				_, err = oauth2Config.Exchange(ctx, code)
 				require.Error(t, err)
 
-				oauth2Err, ok := err.(*oauth2.RetrieveError)
+				var oauth2Err *oauth2.RetrieveError
+				ok := errors.As(err, &oauth2Err)
 				require.True(t, ok)
 
 				var errResponse struct{ Error string }
@@ -246,7 +247,8 @@ func TestHandleAuthCode(t *testing.T) {
 				_, err := oauth2Config.Exchange(ctx, "")
 				require.Error(t, err)
 
-				oauth2Err, ok := err.(*oauth2.RetrieveError)
+				var oauth2Err *oauth2.RetrieveError
+				ok := errors.As(err, &oauth2Err)
 				require.True(t, ok)
 
 				var errResponse struct{ Error string }

@@ -13,7 +13,7 @@ func (c *conn) migrate() (int, error) {
 		);
 	`)
 	if err != nil {
-		return 0, fmt.Errorf("creating migration table: %v", err)
+		return 0, fmt.Errorf("creating migration table: %w", err)
 	}
 
 	i := 0
@@ -34,7 +34,7 @@ func (c *conn) migrate() (int, error) {
 				n   int
 			)
 			if err := tx.QueryRow(`select max(num) from migrations;`).Scan(&num); err != nil {
-				return fmt.Errorf("select max migration: %v", err)
+				return fmt.Errorf("select max migration: %w", err)
 			}
 			if num.Valid {
 				n = int(num.Int64)
@@ -48,13 +48,13 @@ func (c *conn) migrate() (int, error) {
 			m := flavorMigrations[n]
 			for i := range m.stmts {
 				if _, err := tx.Exec(m.stmts[i]); err != nil {
-					return fmt.Errorf("migration %d statement %d failed: %v", migrationNum, i+1, err)
+					return fmt.Errorf("migration %d statement %d failed: %w", migrationNum, i+1, err)
 				}
 			}
 
 			q := `insert into migrations (num, at) values ($1, now());`
 			if _, err := tx.Exec(q, migrationNum); err != nil {
-				return fmt.Errorf("update migration table: %v", err)
+				return fmt.Errorf("update migration table: %w", err)
 			}
 			return nil
 		})

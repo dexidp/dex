@@ -132,7 +132,7 @@ func (c *crowdConnector) Login(ctx context.Context, s connector.Scopes, username
 	if s.Groups {
 		userGroups, err := c.getGroups(ctx, client, s.Groups, ident.Username)
 		if err != nil {
-			return connector.Identity{}, false, fmt.Errorf("crowd: failed to query groups: %v", err)
+			return connector.Identity{}, false, fmt.Errorf("crowd: failed to query groups: %w", err)
 		}
 		ident.Groups = userGroups
 	}
@@ -141,7 +141,7 @@ func (c *crowdConnector) Login(ctx context.Context, s connector.Scopes, username
 		refresh := refreshData{Username: username}
 		// Encode entry for following up requests such as the groups query and refresh attempts.
 		if ident.ConnectorData, err = json.Marshal(refresh); err != nil {
-			return connector.Identity{}, false, fmt.Errorf("crowd: marshal refresh data: %v", err)
+			return connector.Identity{}, false, fmt.Errorf("crowd: marshal refresh data: %w", err)
 		}
 	}
 
@@ -151,7 +151,7 @@ func (c *crowdConnector) Login(ctx context.Context, s connector.Scopes, username
 func (c *crowdConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
 	var data refreshData
 	if err := json.Unmarshal(ident.ConnectorData, &data); err != nil {
-		return ident, fmt.Errorf("crowd: failed to unmarshal internal data: %v", err)
+		return ident, fmt.Errorf("crowd: failed to unmarshal internal data: %w", err)
 	}
 
 	var user crowdUser
@@ -159,7 +159,7 @@ func (c *crowdConnector) Refresh(ctx context.Context, s connector.Scopes, ident 
 
 	user, err := c.user(ctx, client, data.Username)
 	if err != nil {
-		return ident, fmt.Errorf("crowd: get user %q: %v", data.Username, err)
+		return ident, fmt.Errorf("crowd: get user %q: %w", data.Username, err)
 	}
 
 	newIdent := c.identityFromCrowdUser(user)
@@ -168,13 +168,13 @@ func (c *crowdConnector) Refresh(ctx context.Context, s connector.Scopes, ident 
 	// If user exists, authenticate it to prolong sso session.
 	err = c.authenticateUser(ctx, client, data.Username)
 	if err != nil {
-		return ident, fmt.Errorf("crowd: authenticate user: %v", err)
+		return ident, fmt.Errorf("crowd: authenticate user: %w", err)
 	}
 
 	if s.Groups {
 		userGroups, err := c.getGroups(ctx, client, s.Groups, newIdent.Username)
 		if err != nil {
-			return connector.Identity{}, fmt.Errorf("crowd: failed to query groups: %v", err)
+			return connector.Identity{}, fmt.Errorf("crowd: failed to query groups: %w", err)
 		}
 		newIdent.Groups = userGroups
 	}
@@ -212,12 +212,12 @@ func (c *crowdConnector) authenticateWithPassword(ctx context.Context, client *h
 		}{Username: username, Password: password},
 	)
 	if err != nil {
-		return false, fmt.Errorf("crowd: new auth pass api request %v", err)
+		return false, fmt.Errorf("crowd: new auth pass api request %w", err)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return false, fmt.Errorf("crowd: api request %v", err)
+		return false, fmt.Errorf("crowd: api request %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -229,7 +229,7 @@ func (c *crowdConnector) authenticateWithPassword(ctx context.Context, client *h
 	if resp.StatusCode != http.StatusCreated {
 		var authError crowdAuthenticationError
 		if err := json.Unmarshal(body, &authError); err != nil {
-			return false, fmt.Errorf("unmarshal auth pass response: %d %v %q", resp.StatusCode, err, string(body))
+			return false, fmt.Errorf("unmarshal auth pass response: %d %w %q", resp.StatusCode, err, string(body))
 		}
 
 		if authError.Reason == "INVALID_USER_AUTHENTICATION" {
@@ -242,7 +242,7 @@ func (c *crowdConnector) authenticateWithPassword(ctx context.Context, client *h
 	var authResponse crowdAuthentication
 
 	if err := json.Unmarshal(body, &authResponse); err != nil {
-		return false, fmt.Errorf("decode auth response: %v", err)
+		return false, fmt.Errorf("decode auth response: %w", err)
 	}
 
 	return false, nil
@@ -258,12 +258,12 @@ func (c *crowdConnector) authenticateUser(ctx context.Context, client *http.Clie
 		}{Username: username},
 	)
 	if err != nil {
-		return fmt.Errorf("crowd: new auth api request %v", err)
+		return fmt.Errorf("crowd: new auth api request %w", err)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("crowd: api request %v", err)
+		return fmt.Errorf("crowd: api request %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -279,7 +279,7 @@ func (c *crowdConnector) authenticateUser(ctx context.Context, client *http.Clie
 	var authResponse crowdAuthentication
 
 	if err := json.Unmarshal(body, &authResponse); err != nil {
-		return fmt.Errorf("decode auth response: %v", err)
+		return fmt.Errorf("decode auth response: %w", err)
 	}
 
 	return nil
@@ -295,12 +295,12 @@ func (c *crowdConnector) user(ctx context.Context, client *http.Client, username
 		nil,
 	)
 	if err != nil {
-		return user, fmt.Errorf("crowd: new user api request %v", err)
+		return user, fmt.Errorf("crowd: new user api request %w", err)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return user, fmt.Errorf("crowd: api request %v", err)
+		return user, fmt.Errorf("crowd: api request %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -314,7 +314,7 @@ func (c *crowdConnector) user(ctx context.Context, client *http.Client, username
 	}
 
 	if err := json.Unmarshal(body, &user); err != nil {
-		return user, fmt.Errorf("failed to decode response: %v", err)
+		return user, fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	return user, nil
@@ -330,12 +330,12 @@ func (c *crowdConnector) groups(ctx context.Context, client *http.Client, userna
 		nil,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("crowd: new groups api request %v", err)
+		return nil, fmt.Errorf("crowd: new groups api request %w", err)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("crowd: api request %v", err)
+		return nil, fmt.Errorf("crowd: api request %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -349,7 +349,7 @@ func (c *crowdConnector) groups(ctx context.Context, client *http.Client, userna
 	}
 
 	if err := json.Unmarshal(body, &crowdGroups); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %v", err)
+		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	for _, group := range crowdGroups.Groups {
@@ -410,14 +410,14 @@ func (c *crowdConnector) crowdUserManagementRequest(ctx context.Context, method 
 	if jsonPayload != nil {
 		jsonData, err := json.Marshal(jsonPayload)
 		if err != nil {
-			return nil, fmt.Errorf("crowd: marshal API json payload: %v", err)
+			return nil, fmt.Errorf("crowd: marshal API json payload: %w", err)
 		}
 		body = bytes.NewReader(jsonData)
 	}
 
 	req, err := http.NewRequest(method, fmt.Sprintf("%s/rest/usermanagement/1%s", c.BaseURL, apiURL), body)
 	if err != nil {
-		return nil, fmt.Errorf("new API req: %v", err)
+		return nil, fmt.Errorf("new API req: %w", err)
 	}
 	req = req.WithContext(ctx)
 
@@ -434,7 +434,7 @@ func (c *crowdConnector) crowdUserManagementRequest(ctx context.Context, method 
 func (c *crowdConnector) validateCrowdResponse(resp *http.Response) ([]byte, error) {
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("crowd: read user body: %v", err)
+		return nil, fmt.Errorf("crowd: read user body: %w", err)
 	}
 
 	if resp.StatusCode == http.StatusForbidden && strings.Contains(string(body), "The server understood the request but refuses to authorize it.") {

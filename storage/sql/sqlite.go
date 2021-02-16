@@ -4,6 +4,7 @@ package sql
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 
 	sqlite3 "github.com/mattn/go-sqlite3"
@@ -39,8 +40,8 @@ func (s *SQLite3) open(logger log.Logger) (*conn, error) {
 	}
 
 	errCheck := func(err error) bool {
-		sqlErr, ok := err.(sqlite3.Error)
-		if !ok {
+		var sqlErr sqlite3.Error
+		if ok := errors.As(err, &sqlErr); !ok {
 			return false
 		}
 		return sqlErr.ExtendedCode == sqlite3.ErrConstraintPrimaryKey
@@ -48,7 +49,7 @@ func (s *SQLite3) open(logger log.Logger) (*conn, error) {
 
 	c := &conn{db, &flavorSQLite3, logger, errCheck}
 	if _, err := c.migrate(); err != nil {
-		return nil, fmt.Errorf("failed to perform migrations: %v", err)
+		return nil, fmt.Errorf("failed to perform migrations: %w", err)
 	}
 	return c, nil
 }

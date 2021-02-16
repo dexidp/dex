@@ -81,13 +81,13 @@ func (c *linkedInConnector) HandleCallback(s connector.Scopes, r *http.Request) 
 	ctx := r.Context()
 	token, err := c.oauth2Config.Exchange(ctx, q.Get("code"))
 	if err != nil {
-		return identity, fmt.Errorf("linkedin: get token: %v", err)
+		return identity, fmt.Errorf("linkedin: get token: %w", err)
 	}
 
 	client := c.oauth2Config.Client(ctx, token)
 	profile, err := c.profile(ctx, client)
 	if err != nil {
-		return identity, fmt.Errorf("linkedin: get profile: %v", err)
+		return identity, fmt.Errorf("linkedin: get profile: %w", err)
 	}
 
 	identity = connector.Identity{
@@ -101,7 +101,7 @@ func (c *linkedInConnector) HandleCallback(s connector.Scopes, r *http.Request) 
 		data := connectorData{AccessToken: token.AccessToken}
 		connData, err := json.Marshal(data)
 		if err != nil {
-			return identity, fmt.Errorf("linkedin: marshal connector data: %v", err)
+			return identity, fmt.Errorf("linkedin: marshal connector data: %w", err)
 		}
 		identity.ConnectorData = connData
 	}
@@ -116,13 +116,13 @@ func (c *linkedInConnector) Refresh(ctx context.Context, s connector.Scopes, ide
 
 	var data connectorData
 	if err := json.Unmarshal(ident.ConnectorData, &data); err != nil {
-		return ident, fmt.Errorf("linkedin: unmarshal access token: %v", err)
+		return ident, fmt.Errorf("linkedin: unmarshal access token: %w", err)
 	}
 
 	client := c.oauth2Config.Client(ctx, &oauth2.Token{AccessToken: data.AccessToken})
 	profile, err := c.profile(ctx, client)
 	if err != nil {
-		return ident, fmt.Errorf("linkedin: get profile: %v", err)
+		return ident, fmt.Errorf("linkedin: get profile: %w", err)
 	}
 
 	ident.Username = profile.fullname()
@@ -160,18 +160,18 @@ func (p profile) fullname() string {
 func (c *linkedInConnector) primaryEmail(ctx context.Context, client *http.Client) (email string, err error) {
 	req, err := http.NewRequest("GET", apiURL+"/emailAddress?q=members&projection=(elements*(handle~))", nil)
 	if err != nil {
-		return email, fmt.Errorf("new req: %v", err)
+		return email, fmt.Errorf("new req: %w", err)
 	}
 
 	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
-		return email, fmt.Errorf("get URL %v", err)
+		return email, fmt.Errorf("get URL %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return email, fmt.Errorf("read body: %v", err)
+		return email, fmt.Errorf("read body: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -199,30 +199,30 @@ func (c *linkedInConnector) profile(ctx context.Context, client *http.Client) (p
 	// https://docs.microsoft.com/en-us/linkedin/consumer/integrations/self-serve/migration-faq#how-do-i-retrieve-the-members-email-address
 	req, err := http.NewRequest("GET", apiURL+"/me", nil)
 	if err != nil {
-		return p, fmt.Errorf("new req: %v", err)
+		return p, fmt.Errorf("new req: %w", err)
 	}
 
 	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
-		return p, fmt.Errorf("get URL %v", err)
+		return p, fmt.Errorf("get URL %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return p, fmt.Errorf("read body: %v", err)
+			return p, fmt.Errorf("read body: %w", err)
 		}
 		return p, fmt.Errorf("%s: %s", resp.Status, body)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&p); err != nil {
-		return p, fmt.Errorf("JSON decode: %v", err)
+		return p, fmt.Errorf("JSON decode: %w", err)
 	}
 
 	email, err := c.primaryEmail(ctx, client)
 	if err != nil {
-		return p, fmt.Errorf("fetching email: %v", err)
+		return p, fmt.Errorf("fetching email: %w", err)
 	}
 	p.Email = email
 

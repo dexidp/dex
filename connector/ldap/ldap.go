@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -258,7 +259,7 @@ func (c *Config) openConnector(logger log.Logger) (*ldapConnector, error) {
 		if len(data) == 0 {
 			var err error
 			if data, err = ioutil.ReadFile(c.RootCA); err != nil {
-				return nil, fmt.Errorf("ldap: read ca file: %v", err)
+				return nil, fmt.Errorf("ldap: read ca file: %w", err)
 			}
 		}
 		rootCAs := x509.NewCertPool()
@@ -271,7 +272,7 @@ func (c *Config) openConnector(logger log.Logger) (*ldapConnector, error) {
 	if c.ClientKey != "" && c.ClientCert != "" {
 		cert, err := tls.LoadX509KeyPair(c.ClientCert, c.ClientKey)
 		if err != nil {
-			return nil, fmt.Errorf("ldap: load client cert failed: %v", err)
+			return nil, fmt.Errorf("ldap: load client cert failed: %w", err)
 		}
 		tlsConfig.Certificates = append(tlsConfig.Certificates, cert)
 	}
@@ -317,25 +318,25 @@ func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error 
 	case c.StartTLS:
 		conn, err = ldap.Dial("tcp", c.Host)
 		if err != nil {
-			return fmt.Errorf("failed to connect: %v", err)
+			return fmt.Errorf("failed to connect: %w", err)
 		}
 		if err := conn.StartTLS(c.tlsConfig); err != nil {
-			return fmt.Errorf("start TLS failed: %v", err)
+			return fmt.Errorf("start TLS failed: %w", err)
 		}
 	default:
 		conn, err = ldap.DialTLS("tcp", c.Host, c.tlsConfig)
 	}
 	if err != nil {
-		return fmt.Errorf("failed to connect: %v", err)
+		return fmt.Errorf("failed to connect: %w", err)
 	}
 	defer conn.Close()
 
 	// If bindDN and bindPW are empty this will default to an anonymous bind.
 	if err := conn.Bind(c.BindDN, c.BindPW); err != nil {
 		if c.BindDN == "" && c.BindPW == "" {
-			return fmt.Errorf("ldap: initial anonymous bind failed: %v", err)
+			return fmt.Errorf("ldap: initial anonymous bind failed: %w", err)
 		}
-		return fmt.Errorf("ldap: initial bind for user %q failed: %v", c.BindDN, err)
+		return fmt.Errorf("ldap: initial bind for user %q failed: %w", c.BindDN, err)
 	}
 
 	return f(conn)
@@ -433,7 +434,7 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 		req.BaseDN, scopeString(req.Scope), req.Filter)
 	resp, err := conn.Search(req)
 	if err != nil {
-		return ldap.Entry{}, false, fmt.Errorf("ldap: search with filter %q failed: %v", req.Filter, err)
+		return ldap.Entry{}, false, fmt.Errorf("ldap: search with filter %q failed: %w", req.Filter, err)
 	}
 
 	switch n := len(resp.Entries); n {
@@ -476,7 +477,8 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 		// Try to authenticate as the distinguished name.
 		if err := conn.Bind(user.DN, password); err != nil {
 			// Detect a bad password through the LDAP error code.
-			if ldapErr, ok := err.(*ldap.Error); ok {
+			var ldapErr *ldap.Error
+			if errors.As(err, &ldapErr) {
 				switch ldapErr.ResultCode {
 				case ldap.LDAPResultInvalidCredentials:
 					c.logger.Errorf("ldap: invalid password for user %q", user.DN)
@@ -488,7 +490,7 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 					return nil
 				}
 			} // will also catch all ldap.Error without a case statement above
-			return fmt.Errorf("ldap: failed to bind as dn %q: %v", user.DN, err)
+			return fmt.Errorf("ldap: failed to bind as dn %q: %w", user.DN, err)
 		}
 		return nil
 	})
@@ -506,7 +508,7 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 	if s.Groups {
 		groups, err := c.groups(ctx, user)
 		if err != nil {
-			return connector.Identity{}, false, fmt.Errorf("ldap: failed to query groups: %v", err)
+			return connector.Identity{}, false, fmt.Errorf("ldap: failed to query groups: %w", err)
 		}
 		ident.Groups = groups
 	}
@@ -519,7 +521,7 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 		// Encode entry for follow up requests such as the groups query and
 		// refresh attempts.
 		if ident.ConnectorData, err = json.Marshal(refresh); err != nil {
-			return connector.Identity{}, false, fmt.Errorf("ldap: marshal entry: %v", err)
+			return connector.Identity{}, false, fmt.Errorf("ldap: marshal entry: %w", err)
 		}
 	}
 
@@ -529,7 +531,7 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
 	var data refreshData
 	if err := json.Unmarshal(ident.ConnectorData, &data); err != nil {
-		return ident, fmt.Errorf("ldap: failed to unmarshal internal data: %v", err)
+		return ident, fmt.Errorf("ldap: failed to unmarshal internal data: %w", err)
 	}
 
 	var user ldap.Entry
@@ -560,7 +562,7 @@ func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident c
 	if s.Groups {
 		groups, err := c.groups(ctx, user)
 		if err != nil {
-			return connector.Identity{}, fmt.Errorf("ldap: failed to query groups: %v", err)
+			return connector.Identity{}, fmt.Errorf("ldap: failed to query groups: %w", err)
 		}
 		newIdent.Groups = groups
 	}
@@ -594,7 +596,7 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 					req.BaseDN, scopeString(req.Scope), req.Filter)
 				resp, err := conn.Search(req)
 				if err != nil {
-					return fmt.Errorf("ldap: search failed: %v", err)
+					return fmt.Errorf("ldap: search failed: %w", err)
 				}
 				gotGroups = len(resp.Entries) != 0
 				groups = append(groups, resp.Entries...)

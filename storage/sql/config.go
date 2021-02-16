@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -190,8 +191,8 @@ func (p *Postgres) open(logger log.Logger) (*conn, error) {
 	}
 
 	errCheck := func(err error) bool {
-		sqlErr, ok := err.(*pq.Error)
-		if !ok {
+		var sqlErr *pq.Error
+		if !errors.As(err, &sqlErr) {
 			return false
 		}
 		return sqlErr.Code == pgErrUniqueViolation
@@ -199,7 +200,7 @@ func (p *Postgres) open(logger log.Logger) (*conn, error) {
 
 	c := &conn{db, &flavorPostgres, logger, errCheck}
 	if _, err := c.migrate(); err != nil {
-		return nil, fmt.Errorf("failed to perform migrations: %v", err)
+		return nil, fmt.Errorf("failed to perform migrations: %w", err)
 	}
 	return c, nil
 }
@@ -251,7 +252,7 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 	switch {
 	case s.SSL.CAFile != "" || s.SSL.CertFile != "" || s.SSL.KeyFile != "":
 		if err := s.makeTLSConfig(); err != nil {
-			return nil, fmt.Errorf("failed to make TLS config: %v", err)
+			return nil, fmt.Errorf("failed to make TLS config: %w", err)
 		}
 		cfg.TLSConfig = mysqlSSLCustom
 	case s.SSL.Mode == "":
@@ -278,7 +279,8 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 
 	err = db.Ping()
 	if err != nil {
-		if mysqlErr, ok := err.(*mysql.MySQLError); ok && mysqlErr.Number == mysqlErrUnknownSysVar {
+		var mysqlErr *mysql.MySQLError
+		if errors.As(err, &mysqlErr) && mysqlErr.Number == mysqlErrUnknownSysVar {
 			logger.Info("reconnecting with MySQL pre-5.7.20 compatibility mode")
 
 			// MySQL 5.7.20 introduced transaction_isolation and deprecated tx_isolation.
@@ -297,8 +299,8 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 	}
 
 	errCheck := func(err error) bool {
-		sqlErr, ok := err.(*mysql.MySQLError)
-		if !ok {
+		var sqlErr *mysql.MySQLError
+		if ok := errors.As(err, &sqlErr); !ok {
 			return false
 		}
 		return sqlErr.Number == mysqlErrDupEntry ||
@@ -307,7 +309,7 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 
 	c := &conn{db, &flavorMySQL, logger, errCheck}
 	if _, err := c.migrate(); err != nil {
-		return nil, fmt.Errorf("failed to perform migrations: %v", err)
+		return nil, fmt.Errorf("failed to perform migrations: %w", err)
 	}
 	return c, nil
 }

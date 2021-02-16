@@ -77,7 +77,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 
 	if openshiftConnector.httpClient, err = newHTTPClient(c.InsecureCA, c.RootCA); err != nil {
 		cancel()
-		return nil, fmt.Errorf("failed to create HTTP client: %v", err)
+		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
 	}
 
 	var metadata struct {
@@ -88,14 +88,14 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 	resp, err := openshiftConnector.httpClient.Do(req.WithContext(ctx))
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("failed to query OpenShift endpoint %v", err)
+		return nil, fmt.Errorf("failed to query OpenShift endpoint %w", err)
 	}
 
 	defer resp.Body.Close()
 
 	if err := json.NewDecoder(resp.Body).Decode(&metadata); err != nil {
 		cancel()
-		return nil, fmt.Errorf("discovery through endpoint %s failed to decode body: %v",
+		return nil, fmt.Errorf("discovery through endpoint %s failed to decode body: %w",
 			wellKnownURL, err)
 	}
 
@@ -150,14 +150,14 @@ func (c *openshiftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 
 	token, err := c.oauth2Config.Exchange(ctx, q.Get("code"))
 	if err != nil {
-		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
+		return identity, fmt.Errorf("oidc: failed to get token: %w", err)
 	}
 
 	client := c.oauth2Config.Client(ctx, token)
 
 	user, err := c.user(ctx, client)
 	if err != nil {
-		return identity, fmt.Errorf("openshift: get user: %v", err)
+		return identity, fmt.Errorf("openshift: get user: %w", err)
 	}
 
 	if len(c.groups) > 0 {
@@ -185,25 +185,25 @@ func (c *openshiftConnector) user(ctx context.Context, client *http.Client) (u u
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return u, fmt.Errorf("new req: %v", err)
+		return u, fmt.Errorf("new req: %w", err)
 	}
 
 	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
-		return u, fmt.Errorf("get URL %v", err)
+		return u, fmt.Errorf("get URL %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return u, fmt.Errorf("read body: %v", err)
+			return u, fmt.Errorf("read body: %w", err)
 		}
 		return u, fmt.Errorf("%s: %s", resp.Status, body)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
-		return u, fmt.Errorf("JSON decode: %v", err)
+		return u, fmt.Errorf("JSON decode: %w", err)
 	}
 
 	return u, err
@@ -225,7 +225,7 @@ func newHTTPClient(insecureCA bool, rootCA string) (*http.Client, error) {
 		tlsConfig = tls.Config{RootCAs: x509.NewCertPool()}
 		rootCABytes, err := ioutil.ReadFile(rootCA)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read root-ca: %v", err)
+			return nil, fmt.Errorf("failed to read root-ca: %w", err)
 		}
 		if !tlsConfig.RootCAs.AppendCertsFromPEM(rootCABytes) {
 			return nil, fmt.Errorf("no certs found in root CA file %q", rootCA)

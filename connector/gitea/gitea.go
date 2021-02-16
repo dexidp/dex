@@ -116,14 +116,14 @@ func (c *giteaConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 
 	token, err := oauth2Config.Exchange(ctx, q.Get("code"))
 	if err != nil {
-		return identity, fmt.Errorf("gitea: failed to get token: %v", err)
+		return identity, fmt.Errorf("gitea: failed to get token: %w", err)
 	}
 
 	client := oauth2Config.Client(ctx, token)
 
 	user, err := c.user(ctx, client)
 	if err != nil {
-		return identity, fmt.Errorf("gitea: get user: %v", err)
+		return identity, fmt.Errorf("gitea: get user: %w", err)
 	}
 
 	username := user.Name
@@ -149,7 +149,7 @@ func (c *giteaConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 		}
 		connData, err := json.Marshal(data)
 		if err != nil {
-			return identity, fmt.Errorf("gitea: marshal connector data: %v", err)
+			return identity, fmt.Errorf("gitea: marshal connector data: %w", err)
 		}
 		identity.ConnectorData = connData
 	}
@@ -193,7 +193,7 @@ func (c *giteaConnector) Refresh(ctx context.Context, s connector.Scopes, ident 
 
 	var data connectorData
 	if err := json.Unmarshal(ident.ConnectorData, &data); err != nil {
-		return ident, fmt.Errorf("gitea: unmarshal access token: %v", err)
+		return ident, fmt.Errorf("gitea: unmarshal access token: %w", err)
 	}
 
 	tok := &oauth2.Token{
@@ -213,7 +213,7 @@ func (c *giteaConnector) Refresh(ctx context.Context, s connector.Scopes, ident 
 			}
 			connData, err := json.Marshal(data)
 			if err != nil {
-				return fmt.Errorf("gitea: marshal connector data: %v", err)
+				return fmt.Errorf("gitea: marshal connector data: %w", err)
 			}
 			ident.ConnectorData = connData
 			return nil
@@ -221,7 +221,7 @@ func (c *giteaConnector) Refresh(ctx context.Context, s connector.Scopes, ident 
 	})
 	user, err := c.user(ctx, client)
 	if err != nil {
-		return ident, fmt.Errorf("gitea: get user: %v", err)
+		return ident, fmt.Errorf("gitea: get user: %w", err)
 	}
 
 	username := user.Name
@@ -242,25 +242,25 @@ func (c *giteaConnector) user(ctx context.Context, client *http.Client) (giteaUs
 	var u giteaUser
 	req, err := http.NewRequest("GET", c.baseURL+"/api/v1/user", nil)
 	if err != nil {
-		return u, fmt.Errorf("gitea: new req: %v", err)
+		return u, fmt.Errorf("gitea: new req: %w", err)
 	}
 	req = req.WithContext(ctx)
 	resp, err := client.Do(req)
 	if err != nil {
-		return u, fmt.Errorf("gitea: get URL %v", err)
+		return u, fmt.Errorf("gitea: get URL %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return u, fmt.Errorf("gitea: read body: %v", err)
+			return u, fmt.Errorf("gitea: read body: %w", err)
 		}
 		return u, fmt.Errorf("%s: %s", resp.Status, body)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
-		return u, fmt.Errorf("failed to decode response: %v", err)
+		return u, fmt.Errorf("failed to decode response: %w", err)
 	}
 	return u, nil
 }

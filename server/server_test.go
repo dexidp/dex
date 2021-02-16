@@ -264,7 +264,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 			return fmt.Errorf("no id token found")
 		}
 		if _, err := p.Verifier(oidcConfig).Verify(ctx, idToken); err != nil {
-			return fmt.Errorf("failed to verify id token: %v", err)
+			return fmt.Errorf("failed to verify id token: %w", err)
 		}
 		return nil
 	}
@@ -280,7 +280,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 						return fmt.Errorf("no id token found")
 					}
 					if _, err := p.Verifier(oidcConfig).Verify(ctx, idToken); err != nil {
-						return fmt.Errorf("failed to verify id token: %v", err)
+						return fmt.Errorf("failed to verify id token: %w", err)
 					}
 					return nil
 				},
@@ -290,7 +290,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
 					ui, err := p.UserInfo(ctx, config.TokenSource(ctx, token))
 					if err != nil {
-						return fmt.Errorf("failed to fetch userinfo: %v", err)
+						return fmt.Errorf("failed to fetch userinfo: %w", err)
 					}
 					if conn.Identity.Email != ui.Email {
 						return fmt.Errorf("expected email to be %v, got %v", conn.Identity.Email, ui.Email)
@@ -317,7 +317,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 					}
 					idToken, err := p.Verifier(oidcConfig).Verify(ctx, rawIDToken)
 					if err != nil {
-						return fmt.Errorf("failed to verify id token: %v", err)
+						return fmt.Errorf("failed to verify id token: %w", err)
 					}
 					if !timeEq(idToken.Expiry, expectedExpiry, time.Second) {
 						return fmt.Errorf("expected id token expiry to be %s, got %s", expectedExpiry, token.Expiry)
@@ -334,21 +334,21 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 					}
 					idToken, err := p.Verifier(oidcConfig).Verify(ctx, rawIDToken)
 					if err != nil {
-						return fmt.Errorf("failed to verify id token: %v", err)
+						return fmt.Errorf("failed to verify id token: %w", err)
 					}
 
 					var claims struct {
 						AtHash string `json:"at_hash"`
 					}
 					if err := idToken.Claims(&claims); err != nil {
-						return fmt.Errorf("failed to decode raw claims: %v", err)
+						return fmt.Errorf("failed to decode raw claims: %w", err)
 					}
 					if claims.AtHash == "" {
 						return errors.New("no at_hash value in id_token")
 					}
 					wantAtHash, err := accessTokenHash(jose.RS256, token.AccessToken)
 					if err != nil {
-						return fmt.Errorf("computed expected at hash: %v", err)
+						return fmt.Errorf("computed expected at hash: %w", err)
 					}
 					if wantAtHash != claims.AtHash {
 						return fmt.Errorf("expected at_hash=%q got=%q", wantAtHash, claims.AtHash)
@@ -368,7 +368,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 
 					newToken, err := config.TokenSource(ctx, token).Token()
 					if err != nil {
-						return fmt.Errorf("failed to refresh token: %v", err)
+						return fmt.Errorf("failed to refresh token: %w", err)
 					}
 					if token.RefreshToken == newToken.RefreshToken {
 						return fmt.Errorf("old refresh token was the same as the new token %q", token.RefreshToken)
@@ -500,7 +500,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 
 					newToken, err := config.TokenSource(ctx, token).Token()
 					if err != nil {
-						return fmt.Errorf("failed to refresh token: %v", err)
+						return fmt.Errorf("failed to refresh token: %w", err)
 					}
 					rawIDToken, ok := newToken.Extra("id_token").(string)
 					if !ok {
@@ -508,11 +508,11 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 					}
 					idToken, err := p.Verifier(oidcConfig).Verify(ctx, rawIDToken)
 					if err != nil {
-						return fmt.Errorf("failed to verify id token: %v", err)
+						return fmt.Errorf("failed to verify id token: %w", err)
 					}
 					var got claims
 					if err := idToken.Claims(&got); err != nil {
-						return fmt.Errorf("failed to unmarshal claims: %v", err)
+						return fmt.Errorf("failed to unmarshal claims: %w", err)
 					}
 
 					if diff := pretty.Compare(want, got); diff != "" {
@@ -888,7 +888,7 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 		}
 		v, err := url.ParseQuery(u.Fragment)
 		if err != nil {
-			return fmt.Errorf("failed to parse fragment: %v", err)
+			return fmt.Errorf("failed to parse fragment: %w", err)
 		}
 		rawIDToken := v.Get("id_token")
 		if rawIDToken == "" {
@@ -896,7 +896,7 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 		}
 		idToken, err := idTokenVerifier.Verify(ctx, rawIDToken)
 		if err != nil {
-			return fmt.Errorf("failed to verify id_token: %v", err)
+			return fmt.Errorf("failed to verify id_token: %w", err)
 		}
 		if idToken.Nonce != nonce {
 			return fmt.Errorf("failed to verify id_token: nonce was %v, but want %v", idToken.Nonce, nonce)
@@ -1355,7 +1355,9 @@ func checkErrorResponse(err error, t *testing.T, tc test) {
 		t.Errorf("%s: DANGEROUS! got a token when we should not get one!", tc.name)
 		return
 	}
-	if rErr, ok := err.(*oauth2.RetrieveError); ok {
+
+	var rErr *oauth2.RetrieveError
+	if errors.As(err, &rErr) {
 		if rErr.Response.StatusCode != tc.tokenError.StatusCode {
 			t.Errorf("%s: got wrong StatusCode from server %d. expected %d",
 				tc.name, rErr.Response.StatusCode, tc.tokenError.StatusCode)

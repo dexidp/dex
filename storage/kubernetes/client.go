@@ -129,7 +129,7 @@ func checkHTTPErr(r *http.Response, validStatusCodes ...int) error {
 
 	body, err := ioutil.ReadAll(io.LimitReader(r.Body, 2<<15)) // 64 KiB
 	if err != nil {
-		return fmt.Errorf("read response body: %v", err)
+		return fmt.Errorf("read response body: %w", err)
 	}
 
 	// Check this case after we read the body so the connection can be reused.
@@ -183,7 +183,7 @@ func (cli *client) post(resource string, v interface{}) error {
 func (cli *client) postResource(apiVersion, namespace, resource string, v interface{}) error {
 	body, err := json.Marshal(v)
 	if err != nil {
-		return fmt.Errorf("marshal object: %v", err)
+		return fmt.Errorf("marshal object: %w", err)
 	}
 
 	url := cli.urlFor(apiVersion, namespace, resource, "")
@@ -199,11 +199,11 @@ func (cli *client) delete(resource, name string) error {
 	url := cli.urlFor(cli.apiVersion, cli.namespace, resource, name)
 	req, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
-		return fmt.Errorf("create delete request: %v", err)
+		return fmt.Errorf("create delete request: %w", err)
 	}
 	resp, err := cli.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("delete request: %v", err)
+		return fmt.Errorf("delete request: %w", err)
 	}
 	defer closeResp(resp)
 	return checkHTTPErr(resp, http.StatusOK)
@@ -232,20 +232,20 @@ func (cli *client) deleteAll(resource string) error {
 func (cli *client) put(resource, name string, v interface{}) error {
 	body, err := json.Marshal(v)
 	if err != nil {
-		return fmt.Errorf("marshal object: %v", err)
+		return fmt.Errorf("marshal object: %w", err)
 	}
 
 	url := cli.urlFor(cli.apiVersion, cli.namespace, resource, name)
 	req, err := http.NewRequest("PUT", url, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("create patch request: %v", err)
+		return fmt.Errorf("create patch request: %w", err)
 	}
 
 	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 
 	resp, err := cli.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("patch request: %v", err)
+		return fmt.Errorf("patch request: %w", err)
 	}
 	defer closeResp(resp)
 
@@ -284,7 +284,7 @@ func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, l
 	} else if caData != nil {
 		tlsConfig.RootCAs = x509.NewCertPool()
 		if !tlsConfig.RootCAs.AppendCertsFromPEM(caData) {
-			return nil, fmt.Errorf("no certificate data found: %v", err)
+			return nil, fmt.Errorf("no certificate data found: %w", err)
 		}
 	}
 
@@ -299,7 +299,7 @@ func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, l
 	if clientCert != nil && clientKey != nil {
 		cert, err := tls.X509KeyPair(clientCert, clientKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load client cert: %v", err)
+			return nil, fmt.Errorf("failed to load client cert: %w", err)
 		}
 		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
@@ -380,13 +380,13 @@ func (t transport) RoundTrip(r *http.Request) (*http.Response, error) {
 func loadKubeConfig(kubeConfigPath string) (cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, err error) {
 	data, err := ioutil.ReadFile(kubeConfigPath)
 	if err != nil {
-		err = fmt.Errorf("read %s: %v", kubeConfigPath, err)
+		err = fmt.Errorf("read %s: %w", kubeConfigPath, err)
 		return
 	}
 
 	var c k8sapi.Config
 	if err = yaml.Unmarshal(data, &c); err != nil {
-		err = fmt.Errorf("unmarshal %s: %v", kubeConfigPath, err)
+		err = fmt.Errorf("unmarshal %s: %w", kubeConfigPath, err)
 		return
 	}
 
@@ -406,7 +406,7 @@ func namespaceFromServiceAccountJWT(s string) (string, error) {
 	}
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return "", fmt.Errorf("malformed service account token: %v", err)
+		return "", fmt.Errorf("malformed service account token: %w", err)
 	}
 	var data struct {
 		// The claim Kubernetes uses to identify which namespace a service account belongs to.
@@ -415,7 +415,7 @@ func namespaceFromServiceAccountJWT(s string) (string, error) {
 		Namespace string `json:"kubernetes.io/serviceaccount/namespace"`
 	}
 	if err := json.Unmarshal(payload, &data); err != nil {
-		return "", fmt.Errorf("malformed service account token: %v", err)
+		return "", fmt.Errorf("malformed service account token: %w", err)
 	}
 	if data.Namespace == "" {
 		return "", errors.New(`jwt claim "kubernetes.io/serviceaccount/namespace" not found`)
@@ -445,7 +445,7 @@ func inClusterConfig() (cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace 
 	if namespace = os.Getenv("KUBERNETES_POD_NAMESPACE"); namespace == "" {
 		namespace, err = namespaceFromServiceAccountJWT(user.Token)
 		if err != nil {
-			err = fmt.Errorf("failed to inspect service account token: %v", err)
+			err = fmt.Errorf("failed to inspect service account token: %w", err)
 			return
 		}
 	}

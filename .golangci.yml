@@ -16,6 +16,7 @@ linters:
         - bodyclose
         - deadcode
         - dogsled
+        - errorlint
         - exhaustive
         - exportloopref
         - gci
@@ -49,7 +50,6 @@ linters:
         # TODO: fix linter errors before enabling
         # - exhaustivestruct
         # - gochecknoglobals
-        # - errorlint
         # - gocognit
         # - godot
         # - nlreturn

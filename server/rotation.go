@@ -73,7 +73,7 @@ func (s *Server) startKeyRotation(ctx context.Context, strategy rotationStrategy
 
 	// Try to rotate immediately so properly configured storages will have keys.
 	if err := rotator.rotate(); err != nil {
-		if err == errAlreadyRotated {
+		if errors.Is(err, errAlreadyRotated) {
 			s.logger.Infof("Key rotation not needed: %v", err)
 		} else {
 			s.logger.Errorf("failed to rotate keys: %v", err)
@@ -96,8 +96,8 @@ func (s *Server) startKeyRotation(ctx context.Context, strategy rotationStrategy
 
 func (k keyRotator) rotate() error {
 	keys, err := k.GetKeys()
-	if err != nil && err != storage.ErrNotFound {
-		return fmt.Errorf("get keys: %v", err)
+	if err != nil && !errors.Is(err, storage.ErrNotFound) {
+		return fmt.Errorf("get keys: %w", err)
 	}
 	if k.now().Before(keys.NextRotation) {
 		return nil
@@ -107,7 +107,7 @@ func (k keyRotator) rotate() error {
 	// Generate the key outside of a storage transaction.
 	key, err := k.strategy.key()
 	if err != nil {
-		return fmt.Errorf("generate key: %v", err)
+		return fmt.Errorf("generate key: %w", err)
 	}
 	b := make([]byte, 20)
 	if _, err := io.ReadFull(rand.Reader, b); err != nil {

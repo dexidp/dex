@@ -4,6 +4,7 @@ package sql
 
 import (
 	"database/sql"
+	"errors"
 	"os"
 	"testing"
 
@@ -25,8 +26,8 @@ func TestMigrate(t *testing.T) {
 	}
 
 	errCheck := func(err error) bool {
-		sqlErr, ok := err.(sqlite3.Error)
-		if !ok {
+		var sqlErr sqlite3.Error
+		if ok := errors.As(err, &sqlErr); !ok {
 			return false
 		}
 		return sqlErr.ExtendedCode == sqlite3.ErrConstraintUnique

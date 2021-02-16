@@ -51,7 +51,7 @@ type jsonEncoder struct {
 func (j jsonEncoder) Value() (driver.Value, error) {
 	b, err := json.Marshal(j.i)
 	if err != nil {
-		return nil, fmt.Errorf("marshal: %v", err)
+		return nil, fmt.Errorf("marshal: %w", err)
 	}
 	return b, nil
 }
@@ -69,7 +69,7 @@ func (j jsonDecoder) Scan(dest interface{}) error {
 		return fmt.Errorf("expected []byte got %T", dest)
 	}
 	if err := json.Unmarshal(b, &j.i); err != nil {
-		return fmt.Errorf("unmarshal: %v", err)
+		return fmt.Errorf("unmarshal: %w", err)
 	}
 	return nil
 }
@@ -89,7 +89,7 @@ func (c *conn) GarbageCollect(now time.Time) (storage.GCResult, error) {
 
 	r, err := c.Exec(`delete from auth_request where expiry < $1`, now)
 	if err != nil {
-		return result, fmt.Errorf("gc auth_request: %v", err)
+		return result, fmt.Errorf("gc auth_request: %w", err)
 	}
 	if n, err := r.RowsAffected(); err == nil {
 		result.AuthRequests = n
@@ -97,7 +97,7 @@ func (c *conn) GarbageCollect(now time.Time) (storage.GCResult, error) {
 
 	r, err = c.Exec(`delete from auth_code where expiry < $1`, now)
 	if err != nil {
-		return result, fmt.Errorf("gc auth_code: %v", err)
+		return result, fmt.Errorf("gc auth_code: %w", err)
 	}
 	if n, err := r.RowsAffected(); err == nil {
 		result.AuthCodes = n
@@ -105,7 +105,7 @@ func (c *conn) GarbageCollect(now time.Time) (storage.GCResult, error) {
 
 	r, err = c.Exec(`delete from device_request where expiry < $1`, now)
 	if err != nil {
-		return result, fmt.Errorf("gc device_request: %v", err)
+		return result, fmt.Errorf("gc device_request: %w", err)
 	}
 	if n, err := r.RowsAffected(); err == nil {
 		result.DeviceRequests = n
@@ -113,7 +113,7 @@ func (c *conn) GarbageCollect(now time.Time) (storage.GCResult, error) {
 
 	r, err = c.Exec(`delete from device_token where expiry < $1`, now)
 	if err != nil {
-		return result, fmt.Errorf("gc device_token: %v", err)
+		return result, fmt.Errorf("gc device_token: %w", err)
 	}
 	if n, err := r.RowsAffected(); err == nil {
 		result.DeviceTokens = n
@@ -149,7 +149,7 @@ func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
 		if c.alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
 		}
-		return fmt.Errorf("insert auth request: %v", err)
+		return fmt.Errorf("insert auth request: %w", err)
 	}
 	return nil
 }
@@ -189,7 +189,7 @@ func (c *conn) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) 
 			r.ID,
 		)
 		if err != nil {
-			return fmt.Errorf("update auth request: %v", err)
+			return fmt.Errorf("update auth request: %w", err)
 		}
 		return nil
 	})
@@ -219,10 +219,10 @@ func getAuthRequest(q querier, id string) (a storage.AuthRequest, err error) {
 		&a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return a, storage.ErrNotFound
 		}
-		return a, fmt.Errorf("select auth request: %v", err)
+		return a, fmt.Errorf("select auth request: %w", err)
 	}
 	return a, nil
 }
@@ -248,7 +248,7 @@ func (c *conn) CreateAuthCode(a storage.AuthCode) error {
 		if c.alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
 		}
-		return fmt.Errorf("insert auth code: %v", err)
+		return fmt.Errorf("insert auth code: %w", err)
 	}
 	return nil
 }
@@ -270,10 +270,10 @@ func (c *conn) GetAuthCode(id string) (a storage.AuthCode, err error) {
 		&a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return a, storage.ErrNotFound
 		}
-		return a, fmt.Errorf("select auth code: %v", err)
+		return a, fmt.Errorf("select auth code: %w", err)
 	}
 	return a, nil
 }
@@ -300,7 +300,7 @@ func (c *conn) CreateRefresh(r storage.RefreshToken) error {
 		if c.alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
 		}
-		return fmt.Errorf("insert refresh_token: %v", err)
+		return fmt.Errorf("insert refresh_token: %w", err)
 	}
 	return nil
 }
@@ -342,7 +342,7 @@ func (c *conn) UpdateRefreshToken(id string, updater func(old storage.RefreshTok
 			r.Token, r.CreatedAt, r.LastUsed, id,
 		)
 		if err != nil {
-			return fmt.Errorf("update refresh token: %v", err)
+			return fmt.Errorf("update refresh token: %w", err)
 		}
 		return nil
 	})
@@ -376,7 +376,7 @@ func (c *conn) ListRefreshTokens() ([]storage.RefreshToken, error) {
 		from refresh_token;
 	`)
 	if err != nil {
-		return nil, fmt.Errorf("query: %v", err)
+		return nil, fmt.Errorf("query: %w", err)
 	}
 	defer rows.Close()
 
@@ -389,7 +389,7 @@ func (c *conn) ListRefreshTokens() ([]storage.RefreshToken, error) {
 		tokens = append(tokens, r)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("scan: %v", err)
+		return nil, fmt.Errorf("scan: %w", err)
 	}
 	return tokens, nil
 }
@@ -404,10 +404,10 @@ func scanRefresh(s scanner) (r storage.RefreshToken, err error) {
 		&r.Token, &r.CreatedAt, &r.LastUsed,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return r, storage.ErrNotFound
 		}
-		return r, fmt.Errorf("scan refresh_token: %v", err)
+		return r, fmt.Errorf("scan refresh_token: %w", err)
 	}
 	return r, nil
 }
@@ -419,8 +419,8 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 		// server. Test this, and consider adding a COUNT() command beforehand.
 		old, err := getKeys(tx)
 		if err != nil {
-			if err != storage.ErrNotFound {
-				return fmt.Errorf("get keys: %v", err)
+			if !errors.Is(err, storage.ErrNotFound) {
+				return fmt.Errorf("get keys: %w", err)
 			}
 			firstUpdate = true
 			old = storage.Keys{}
@@ -442,7 +442,7 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 				encoder(nk.SigningKeyPub), nk.NextRotation,
 			)
 			if err != nil {
-				return fmt.Errorf("insert: %v", err)
+				return fmt.Errorf("insert: %w", err)
 			}
 		} else {
 			_, err = tx.Exec(`
@@ -458,7 +458,7 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 				encoder(nk.SigningKeyPub), nk.NextRotation, keysRowID,
 			)
 			if err != nil {
-				return fmt.Errorf("update: %v", err)
+				return fmt.Errorf("update: %w", err)
 			}
 		}
 		return nil
@@ -480,10 +480,10 @@ func getKeys(q querier) (keys storage.Keys, err error) {
 		decoder(&keys.SigningKeyPub), &keys.NextRotation,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return keys, storage.ErrNotFound
 		}
-		return keys, fmt.Errorf("query keys: %v", err)
+		return keys, fmt.Errorf("query keys: %w", err)
 	}
 	return keys, nil
 }
@@ -512,7 +512,7 @@ func (c *conn) UpdateClient(id string, updater func(old storage.Client) (storage
 		`, nc.Secret, encoder(nc.RedirectURIs), encoder(nc.TrustedPeers), nc.Public, nc.Name, nc.LogoURL, id,
 		)
 		if err != nil {
-			return fmt.Errorf("update client: %v", err)
+			return fmt.Errorf("update client: %w", err)
 		}
 		return nil
 	})
@@ -532,7 +532,7 @@ func (c *conn) CreateClient(cli storage.Client) error {
 		if c.alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
 		}
-		return fmt.Errorf("insert client: %v", err)
+		return fmt.Errorf("insert client: %w", err)
 	}
 	return nil
 }
@@ -580,10 +580,10 @@ func scanClient(s scanner) (cli storage.Client, err error) {
 		&cli.Public, &cli.Name, &cli.LogoURL,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return cli, storage.ErrNotFound
 		}
-		return cli, fmt.Errorf("get client: %v", err)
+		return cli, fmt.Errorf("get client: %w", err)
 	}
 	return cli, nil
 }
@@ -604,7 +604,7 @@ func (c *conn) CreatePassword(p storage.Password) error {
 		if c.alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
 		}
-		return fmt.Errorf("insert password: %v", err)
+		return fmt.Errorf("insert password: %w", err)
 	}
 	return nil
 }
@@ -629,7 +629,7 @@ func (c *conn) UpdatePassword(email string, updater func(p storage.Password) (st
 			np.Hash, np.Username, np.UserID, p.Email,
 		)
 		if err != nil {
-			return fmt.Errorf("update password: %v", err)
+			return fmt.Errorf("update password: %w", err)
 		}
 		return nil
 	})
@@ -677,10 +677,10 @@ func scanPassword(s scanner) (p storage.Password, err error) {
 		&p.Email, &p.Hash, &p.Username, &p.UserID,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return p, storage.ErrNotFound
 		}
-		return p, fmt.Errorf("select password: %v", err)
+		return p, fmt.Errorf("select password: %w", err)
 	}
 	return p, nil
 }
@@ -700,7 +700,7 @@ func (c *conn) CreateOfflineSessions(s storage.OfflineSessions) error {
 		if c.alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
 		}
-		return fmt.Errorf("insert offline session: %v", err)
+		return fmt.Errorf("insert offline session: %w", err)
 	}
 	return nil
 }
@@ -726,7 +726,7 @@ func (c *conn) UpdateOfflineSessions(userID string, connID string, updater func(
 			encoder(newSession.Refresh), newSession.ConnectorData, s.UserID, s.ConnID,
 		)
 		if err != nil {
-			return fmt.Errorf("update offline session: %v", err)
+			return fmt.Errorf("update offline session: %w", err)
 		}
 		return nil
 	})
@@ -750,10 +750,10 @@ func scanOfflineSessions(s scanner) (o storage.OfflineSessions, err error) {
 		&o.UserID, &o.ConnID, decoder(&o.Refresh), &o.ConnectorData,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return o, storage.ErrNotFound
 		}
-		return o, fmt.Errorf("select offline session: %v", err)
+		return o, fmt.Errorf("select offline session: %w", err)
 	}
 	return o, nil
 }
@@ -773,7 +773,7 @@ func (c *conn) CreateConnector(connector storage.Connector) error {
 		if c.alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
 		}
-		return fmt.Errorf("insert connector: %v", err)
+		return fmt.Errorf("insert connector: %w", err)
 	}
 	return nil
 }
@@ -801,7 +801,7 @@ func (c *conn) UpdateConnector(id string, updater func(s storage.Connector) (sto
 			newConn.Type, newConn.Name, newConn.ResourceVersion, newConn.Config, connector.ID,
 		)
 		if err != nil {
-			return fmt.Errorf("update connector: %v", err)
+			return fmt.Errorf("update connector: %w", err)
 		}
 		return nil
 	})
@@ -825,10 +825,10 @@ func scanConnector(s scanner) (c storage.Connector, err error) {
 		&c.ID, &c.Type, &c.Name, &c.ResourceVersion, &c.Config,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return c, storage.ErrNotFound
 		}
-		return c, fmt.Errorf("select connector: %v", err)
+		return c, fmt.Errorf("select connector: %w", err)
 	}
 	return c, nil
 }
@@ -877,7 +877,7 @@ func (c *conn) DeleteOfflineSessions(userID string, connID string) error {
 	// a driver that doesn't implement this, we can run this in a transaction with a get beforehand.
 	n, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("rows affected: %v", err)
+		return fmt.Errorf("rows affected: %w", err)
 	}
 	if n < 1 {
 		return storage.ErrNotFound
@@ -896,7 +896,7 @@ func (c *conn) delete(table, field, id string) error {
 	// a driver that doesn't implement this, we can run this in a transaction with a get beforehand.
 	n, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("rows affected: %v", err)
+		return fmt.Errorf("rows affected: %w", err)
 	}
 	if n < 1 {
 		return storage.ErrNotFound
@@ -918,7 +918,7 @@ func (c *conn) CreateDeviceRequest(d storage.DeviceRequest) error {
 		if c.alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
 		}
-		return fmt.Errorf("insert device request: %v", err)
+		return fmt.Errorf("insert device request: %w", err)
 	}
 	return nil
 }
@@ -937,7 +937,7 @@ func (c *conn) CreateDeviceToken(t storage.DeviceToken) error {
 		if c.alreadyExistsCheck(err) {
 			return storage.ErrAlreadyExists
 		}
-		return fmt.Errorf("insert device token: %v", err)
+		return fmt.Errorf("insert device token: %w", err)
 	}
 	return nil
 }
@@ -955,10 +955,10 @@ func getDeviceRequest(q querier, userCode string) (d storage.DeviceRequest, err 
 		&d.DeviceCode, &d.ClientID, &d.ClientSecret, decoder(&d.Scopes), &d.Expiry,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return d, storage.ErrNotFound
 		}
-		return d, fmt.Errorf("select device token: %v", err)
+		return d, fmt.Errorf("select device token: %w", err)
 	}
 	d.UserCode = userCode
 	return d, nil
@@ -977,10 +977,10 @@ func getDeviceToken(q querier, deviceCode string) (a storage.DeviceToken, err er
 		&a.Status, &a.Token, &a.Expiry, &a.LastRequestTime, &a.PollIntervalSeconds,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return a, storage.ErrNotFound
 		}
-		return a, fmt.Errorf("select device token: %v", err)
+		return a, fmt.Errorf("select device token: %w", err)
 	}
 	a.DeviceCode = deviceCode
 	return a, nil
@@ -1008,7 +1008,7 @@ func (c *conn) UpdateDeviceToken(deviceCode string, updater func(old storage.Dev
 			r.Status, r.Token, r.LastRequestTime, r.PollIntervalSeconds, r.DeviceCode,
 		)
 		if err != nil {
-			return fmt.Errorf("update device token: %v", err)
+			return fmt.Errorf("update device token: %w", err)
 		}
 		return nil
 	})

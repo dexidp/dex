@@ -17,11 +17,11 @@ func NewCustomHealthCheckFunc(s Storage, now func() time.Time) func() (details i
 		}
 
 		if err := s.CreateAuthRequest(a); err != nil {
-			return nil, fmt.Errorf("create auth request: %v", err)
+			return nil, fmt.Errorf("create auth request: %w", err)
 		}
 
 		if err := s.DeleteAuthRequest(a.ID); err != nil {
-			return nil, fmt.Errorf("delete auth request: %v", err)
+			return nil, fmt.Errorf("delete auth request: %w", err)
 		}
 
 		return nil, nil

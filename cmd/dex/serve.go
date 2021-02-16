@@ -76,7 +76,7 @@ func commandServe() *cobra.Command {
 func listenAndShutdownGracefully(logger log.Logger, gr *run.Group, srv *http.Server, name string) error {
 	l, err := net.Listen("tcp", srv.Addr)
 	if err != nil {
-		return fmt.Errorf("listening (%s) on %s: %v", name, srv.Addr, err)
+		return fmt.Errorf("listening (%s) on %s: %w", name, srv.Addr, err)
 	}
 
 	gr.Add(func() error {
@@ -98,19 +98,19 @@ func runServe(options serveOptions) error {
 	configFile := options.config
 	configData, err := ioutil.ReadFile(configFile)
 	if err != nil {
-		return fmt.Errorf("failed to read config file %s: %v", configFile, err)
+		return fmt.Errorf("failed to read config file %s: %w", configFile, err)
 	}
 
 	var c Config
 	if err := yaml.Unmarshal(configData, &c); err != nil {
-		return fmt.Errorf("error parse config file %s: %v", configFile, err)
+		return fmt.Errorf("error parse config file %s: %w", configFile, err)
 	}
 
 	applyConfigOverrides(options, &c)
 
 	logger, err := newLogger(c.Logger.Level, c.Logger.Format)
 	if err != nil {
-		return fmt.Errorf("invalid config: %v", err)
+		return fmt.Errorf("invalid config: %w", err)
 	}
 	if c.Logger.Level != "" {
 		logger.Infof("config using log level: %s", c.Logger.Level)
@@ -124,18 +124,18 @@ func runServe(options serveOptions) error {
 	prometheusRegistry := prometheus.NewRegistry()
 	err = prometheusRegistry.Register(prometheus.NewGoCollector())
 	if err != nil {
-		return fmt.Errorf("failed to register Go runtime metrics: %v", err)
+		return fmt.Errorf("failed to register Go runtime metrics: %w", err)
 	}
 
 	err = prometheusRegistry.Register(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
 	if err != nil {
-		return fmt.Errorf("failed to register process metrics: %v", err)
+		return fmt.Errorf("failed to register process metrics: %w", err)
 	}
 
 	grpcMetrics := grpcprometheus.NewServerMetrics()
 	err = prometheusRegistry.Register(grpcMetrics)
 	if err != nil {
-		return fmt.Errorf("failed to register gRPC server metrics: %v", err)
+		return fmt.Errorf("failed to register gRPC server metrics: %w", err)
 	}
 
 	var grpcOptions []grpc.ServerOption
@@ -155,7 +155,7 @@ func runServe(options serveOptions) error {
 		// Parse certificates from certificate file and key file for server.
 		cert, err := tls.LoadX509KeyPair(c.GRPC.TLSCert, c.GRPC.TLSKey)
 		if err != nil {
-			return fmt.Errorf("invalid config: error parsing gRPC certificate file: %v", err)
+			return fmt.Errorf("invalid config: error parsing gRPC certificate file: %w", err)
 		}
 
 		tlsConfig := tls.Config{
@@ -170,7 +170,7 @@ func runServe(options serveOptions) error {
 			cPool := x509.NewCertPool()
 			clientCert, err := ioutil.ReadFile(c.GRPC.TLSClientCA)
 			if err != nil {
-				return fmt.Errorf("invalid config: reading from client CA file: %v", err)
+				return fmt.Errorf("invalid config: reading from client CA file: %w", err)
 			}
 			if !cPool.AppendCertsFromPEM(clientCert) {
 				return errors.New("invalid config: failed to parse client CA")
@@ -191,7 +191,7 @@ func runServe(options serveOptions) error {
 
 	s, err := c.Storage.Config.Open(logger)
 	if err != nil {
-		return fmt.Errorf("failed to initialize storage: %v", err)
+		return fmt.Errorf("failed to initialize storage: %w", err)
 	}
 	logger.Infof("config storage: %s", c.Storage.Type)
 
@@ -243,7 +243,7 @@ func runServe(options serveOptions) error {
 		// convert to a storage connector object
 		conn, err := ToStorageConnector(c)
 		if err != nil {
-			return fmt.Errorf("failed to initialize storage connectors: %v", err)
+			return fmt.Errorf("failed to initialize storage connectors: %w", err)
 		}
 		storageConnectors[i] = conn
 	}
@@ -294,7 +294,7 @@ func runServe(options serveOptions) error {
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
 		if err != nil {
-			return fmt.Errorf("invalid config value %q for signing keys expiry: %v", c.Expiry.SigningKeys, err)
+			return fmt.Errorf("invalid config value %q for signing keys expiry: %w", c.Expiry.SigningKeys, err)
 		}
 		logger.Infof("config signing keys expire after: %v", signingKeys)
 		serverConfig.RotateKeysAfter = signingKeys
@@ -302,7 +302,7 @@ func runServe(options serveOptions) error {
 	if c.Expiry.IDTokens != "" {
 		idTokens, err := time.ParseDuration(c.Expiry.IDTokens)
 		if err != nil {
-			return fmt.Errorf("invalid config value %q for id token expiry: %v", c.Expiry.IDTokens, err)
+			return fmt.Errorf("invalid config value %q for id token expiry: %w", c.Expiry.IDTokens, err)
 		}
 		logger.Infof("config id tokens valid for: %v", idTokens)
 		serverConfig.IDTokensValidFor = idTokens
@@ -310,7 +310,7 @@ func runServe(options serveOptions) error {
 	if c.Expiry.AuthRequests != "" {
 		authRequests, err := time.ParseDuration(c.Expiry.AuthRequests)
 		if err != nil {
-			return fmt.Errorf("invalid config value %q for auth request expiry: %v", c.Expiry.AuthRequests, err)
+			return fmt.Errorf("invalid config value %q for auth request expiry: %w", c.Expiry.AuthRequests, err)
 		}
 		logger.Infof("config auth requests valid for: %v", authRequests)
 		serverConfig.AuthRequestsValidFor = authRequests
@@ -318,14 +318,14 @@ func runServe(options serveOptions) error {
 	if c.Expiry.DeviceRequests != "" {
 		deviceRequests, err := time.ParseDuration(c.Expiry.DeviceRequests)
 		if err != nil {
-			return fmt.Errorf("invalid config value %q for device request expiry: %v", c.Expiry.AuthRequests, err)
+			return fmt.Errorf("invalid config value %q for device request expiry: %w", c.Expiry.AuthRequests, err)
 		}
 		logger.Infof("config device requests valid for: %v", deviceRequests)
 		serverConfig.DeviceRequestsValidFor = deviceRequests
 	}
 	serv, err := server.NewServer(context.Background(), serverConfig)
 	if err != nil {
-		return fmt.Errorf("failed to initialize server: %v", err)
+		return fmt.Errorf("failed to initialize server: %w", err)
 	}
 
 	telemetryRouter := http.NewServeMux()
@@ -414,8 +414,9 @@ func runServe(options serveOptions) error {
 
 	gr.Add(run.SignalHandler(context.Background(), os.Interrupt, syscall.SIGTERM))
 	if err := gr.Run(); err != nil {
-		if _, ok := err.(run.SignalError); !ok {
-			return fmt.Errorf("run groups: %w", err)
+		var signalErr run.SignalError
+		if errors.As(err, &signalErr) {
+			return fmt.Errorf("run groups: %w", signalErr)
 		}
 		logger.Infof("%v, shutdown now", err)
 	}

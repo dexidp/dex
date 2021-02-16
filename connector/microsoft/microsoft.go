@@ -165,14 +165,14 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 
 	token, err := oauth2Config.Exchange(ctx, q.Get("code"))
 	if err != nil {
-		return identity, fmt.Errorf("microsoft: failed to get token: %v", err)
+		return identity, fmt.Errorf("microsoft: failed to get token: %w", err)
 	}
 
 	client := oauth2Config.Client(ctx, token)
 
 	user, err := c.user(ctx, client)
 	if err != nil {
-		return identity, fmt.Errorf("microsoft: get user: %v", err)
+		return identity, fmt.Errorf("microsoft: get user: %w", err)
 	}
 
 	if c.emailToLowercase {
@@ -189,7 +189,7 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 	if c.groupsRequired(s.Groups) {
 		groups, err := c.getGroups(ctx, client, user.ID)
 		if err != nil {
-			return identity, fmt.Errorf("microsoft: get groups: %v", err)
+			return identity, fmt.Errorf("microsoft: get groups: %w", err)
 		}
 		identity.Groups = groups
 	}
@@ -202,7 +202,7 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 		}
 		connData, err := json.Marshal(data)
 		if err != nil {
-			return identity, fmt.Errorf("microsoft: marshal connector data: %v", err)
+			return identity, fmt.Errorf("microsoft: marshal connector data: %w", err)
 		}
 		identity.ConnectorData = connData
 	}
@@ -244,7 +244,7 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 
 	var data connectorData
 	if err := json.Unmarshal(identity.ConnectorData, &data); err != nil {
-		return identity, fmt.Errorf("microsoft: unmarshal access token: %v", err)
+		return identity, fmt.Errorf("microsoft: unmarshal access token: %w", err)
 	}
 	tok := &oauth2.Token{
 		AccessToken:  data.AccessToken,
@@ -263,7 +263,7 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 			}
 			connData, err := json.Marshal(data)
 			if err != nil {
-				return fmt.Errorf("microsoft: marshal connector data: %v", err)
+				return fmt.Errorf("microsoft: marshal connector data: %w", err)
 			}
 			identity.ConnectorData = connData
 			return nil
@@ -271,7 +271,7 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 	})
 	user, err := c.user(ctx, client)
 	if err != nil {
-		return identity, fmt.Errorf("microsoft: get user: %v", err)
+		return identity, fmt.Errorf("microsoft: get user: %w", err)
 	}
 
 	identity.Username = user.Name
@@ -280,7 +280,7 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 	if c.groupsRequired(s.Groups) {
 		groups, err := c.getGroups(ctx, client, user.ID)
 		if err != nil {
-			return identity, fmt.Errorf("microsoft: get groups: %v", err)
+			return identity, fmt.Errorf("microsoft: get groups: %w", err)
 		}
 		identity.Groups = groups
 	}
@@ -316,12 +316,12 @@ func (c *microsoftConnector) user(ctx context.Context, client *http.Client) (u u
 	// https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/api/user_get
 	req, err := http.NewRequest("GET", c.graphURL+"/v1.0/me?$select=id,displayName,userPrincipalName", nil)
 	if err != nil {
-		return u, fmt.Errorf("new req: %v", err)
+		return u, fmt.Errorf("new req: %w", err)
 	}
 
 	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
-		return u, fmt.Errorf("get URL %v", err)
+		return u, fmt.Errorf("get URL %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -330,7 +330,7 @@ func (c *microsoftConnector) user(ctx context.Context, client *http.Client) (u u
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
-		return u, fmt.Errorf("JSON decode: %v", err)
+		return u, fmt.Errorf("JSON decode: %w", err)
 	}
 
 	return u, err
@@ -426,18 +426,18 @@ func (c *microsoftConnector) post(ctx context.Context, client *http.Client, reqU
 
 	err := json.NewEncoder(&payload).Encode(in)
 	if err != nil {
-		return "", fmt.Errorf("microsoft: JSON encode: %v", err)
+		return "", fmt.Errorf("microsoft: JSON encode: %w", err)
 	}
 
 	req, err := http.NewRequest("POST", reqURL, &payload)
 	if err != nil {
-		return "", fmt.Errorf("new req: %v", err)
+		return "", fmt.Errorf("new req: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
-		return "", fmt.Errorf("post URL %v", err)
+		return "", fmt.Errorf("post URL %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -450,7 +450,7 @@ func (c *microsoftConnector) post(ctx context.Context, client *http.Client, reqU
 		NextLink *string     `json:"@odata.nextLink"`
 		Value    interface{} `json:"value"`
 	}{&next, out}); err != nil {
-		return "", fmt.Errorf("JSON decode: %v", err)
+		return "", fmt.Errorf("JSON decode: %w", err)
 	}
 
 	return next, nil
@@ -471,7 +471,7 @@ func newGraphError(r io.Reader) error {
 	if err := json.NewDecoder(r).Decode(&struct {
 		Error *graphError `json:"error"`
 	}{&ge}); err != nil {
-		return fmt.Errorf("JSON error decode: %v", err)
+		return fmt.Errorf("JSON error decode: %w", err)
 	}
 	return &ge
 }

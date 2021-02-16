@@ -59,7 +59,7 @@ func dirExists(dir string) error {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("directory %q does not exist", dir)
 		}
-		return fmt.Errorf("stat directory %q: %v", dir, err)
+		return fmt.Errorf("stat directory %q: %w", dir, err)
 	}
 	if !stat.IsDir() {
 		return fmt.Errorf("path %q is a file not a directory", dir)
@@ -97,7 +97,7 @@ func loadWebConfig(c webConfig) (http.Handler, http.Handler, *templates, error) 
 	}
 
 	if err := dirExists(c.dir); err != nil {
-		return nil, nil, nil, fmt.Errorf("load web dir: %v", err)
+		return nil, nil, nil, fmt.Errorf("load web dir: %w", err)
 	}
 
 	staticDir := filepath.Join(c.dir, "static")
@@ -106,7 +106,7 @@ func loadWebConfig(c webConfig) (http.Handler, http.Handler, *templates, error) 
 
 	for _, dir := range []string{staticDir, templatesDir, themeDir} {
 		if err := dirExists(dir); err != nil {
-			return nil, nil, nil, fmt.Errorf("load dir: %v", err)
+			return nil, nil, nil, fmt.Errorf("load dir: %w", err)
 		}
 	}
 
@@ -121,7 +121,7 @@ func loadWebConfig(c webConfig) (http.Handler, http.Handler, *templates, error) 
 func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 	files, err := ioutil.ReadDir(templatesDir)
 	if err != nil {
-		return nil, fmt.Errorf("read dir: %v", err)
+		return nil, fmt.Errorf("read dir: %w", err)
 	}
 
 	filenames := []string{}
@@ -137,7 +137,7 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 
 	issuerURL, err := url.Parse(c.issuerURL)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing issuerURL: %v", err)
+		return nil, fmt.Errorf("error parsing issuerURL: %w", err)
 	}
 
 	funcs := map[string]interface{}{
@@ -150,7 +150,7 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 
 	tmpls, err := template.New("").Funcs(funcs).ParseFiles(filenames...)
 	if err != nil {
-		return nil, fmt.Errorf("parse files: %v", err)
+		return nil, fmt.Errorf("parse files: %w", err)
 	}
 	missingTmpls := []string{}
 	for _, tmplName := range requiredTmpls {
@@ -335,7 +335,7 @@ func (t *templates) err(r *http.Request, w http.ResponseWriter, errCode int, err
 		ReqPath string
 	}{http.StatusText(errCode), errMsg, r.URL.Path}
 	if err := t.errorTmpl.Execute(w, data); err != nil {
-		return fmt.Errorf("rendering template %s failed: %s", t.errorTmpl.Name(), err)
+		return fmt.Errorf("rendering template %s failed: %w", t.errorTmpl.Name(), err)
 	}
 	return nil
 }
@@ -358,7 +358,7 @@ func renderTemplate(w http.ResponseWriter, tmpl *template.Template, data interfa
 			// TODO(ericchiang): replace with better internal server error.
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
-		return fmt.Errorf("rendering template %s failed: %s", tmpl.Name(), err)
+		return fmt.Errorf("rendering template %s failed: %w", tmpl.Name(), err)
 	}
 	return nil
 }

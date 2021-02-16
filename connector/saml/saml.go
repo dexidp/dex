@@ -196,7 +196,7 @@ func (c *Config) openConnector(logger log.Logger) (*provider, error) {
 		if c.CA != "" {
 			data, err := ioutil.ReadFile(c.CA)
 			if err != nil {
-				return nil, fmt.Errorf("read ca file: %v", err)
+				return nil, fmt.Errorf("read ca file: %w", err)
 			}
 			caData = data
 		} else {
@@ -218,7 +218,7 @@ func (c *Config) openConnector(logger log.Logger) (*provider, error) {
 			}
 			cert, err := x509.ParseCertificate(block.Bytes)
 			if err != nil {
-				return nil, fmt.Errorf("parse cert: %v", err)
+				return nil, fmt.Errorf("parse cert: %w", err)
 			}
 			certs = append(certs, cert)
 		}
@@ -275,7 +275,7 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 
 	data, err := xml.MarshalIndent(r, "", "  ")
 	if err != nil {
-		return "", "", fmt.Errorf("marshal authn request: %v", err)
+		return "", "", fmt.Errorf("marshal authn request: %w", err)
 	}
 
 	// See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
@@ -296,7 +296,7 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo string) (ident connector.Identity, err error) {
 	rawResp, err := base64.StdEncoding.DecodeString(samlResponse)
 	if err != nil {
-		return ident, fmt.Errorf("decode response: %v", err)
+		return ident, fmt.Errorf("decode response: %w", err)
 	}
 
 	byteReader := bytes.NewReader(rawResp)
@@ -309,13 +309,13 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	if p.validator != nil {
 		rawResp, rootElementSigned, err = verifyResponseSig(p.validator, rawResp)
 		if err != nil {
-			return ident, fmt.Errorf("verify signature: %v", err)
+			return ident, fmt.Errorf("verify signature: %w", err)
 		}
 	}
 
 	var resp response
 	if err := xml.Unmarshal(rawResp, &resp); err != nil {
-		return ident, fmt.Errorf("unmarshal response: %v", err)
+		return ident, fmt.Errorf("unmarshal response: %w", err)
 	}
 
 	// If the root element isn't signed, there's no reason to inspect these
@@ -526,7 +526,7 @@ func (p *provider) validateSubject(subject *subject, inResponseTo string) error 
 	}
 
 	if len(errs) == 1 {
-		return fmt.Errorf("failed to validate subject confirmation: %v", errs[0])
+		return fmt.Errorf("failed to validate subject confirmation: %w", errs[0])
 	}
 	return fmt.Errorf("failed to validate subject confirmation: %v", errs)
 }
@@ -594,7 +594,7 @@ func (p *provider) validateConditions(conditions *conditions) error {
 func verifyResponseSig(validator *dsig.ValidationContext, data []byte) (signed []byte, rootVerified bool, err error) {
 	doc := etree.NewDocument()
 	if err = doc.ReadFromBytes(data); err != nil {
-		return nil, false, fmt.Errorf("parse document: %v", err)
+		return nil, false, fmt.Errorf("parse document: %w", err)
 	}
 
 	response := doc.Root()
@@ -615,7 +615,7 @@ func verifyResponseSig(validator *dsig.ValidationContext, data []byte) (signed [
 	}
 	transformedAssertion, err := validator.Validate(assertion)
 	if err != nil {
-		return nil, false, fmt.Errorf("response does not contain a valid signature element: %v", err)
+		return nil, false, fmt.Errorf("response does not contain a valid signature element: %w", err)
 	}
 
 	// Verified an assertion but not the response. Can't trust any child elements,

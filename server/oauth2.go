@@ -80,7 +80,7 @@ func tokenErr(w http.ResponseWriter, typ, description string, statusCode int) er
 	}{typ, description}
 	body, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("failed to marshal token error response: %v", err)
+		return fmt.Errorf("failed to marshal token error response: %w", err)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
@@ -195,11 +195,11 @@ func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []by
 
 	signer, err := jose.NewSigner(signingKey, &jose.SignerOptions{})
 	if err != nil {
-		return "", fmt.Errorf("new signer: %v", err)
+		return "", fmt.Errorf("new signer: %w", err)
 	}
 	signature, err := signer.Sign(payload)
 	if err != nil {
-		return "", fmt.Errorf("signing payload: %v", err)
+		return "", fmt.Errorf("signing payload: %w", err)
 	}
 	return signature.CompactSerialize()
 }
@@ -232,7 +232,7 @@ func accessTokenHash(alg jose.SignatureAlgorithm, accessToken string) (string, e
 
 	hashFunc := newHash()
 	if _, err := io.WriteString(hashFunc, accessToken); err != nil {
-		return "", fmt.Errorf("computing hash: %v", err)
+		return "", fmt.Errorf("computing hash: %w", err)
 	}
 	sum := hashFunc.Sum(nil)
 	return base64.RawURLEncoding.EncodeToString(sum[:len(sum)/2]), nil
@@ -316,7 +316,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	subjectString, err := internal.Marshal(sub)
 	if err != nil {
 		s.logger.Errorf("failed to marshal offline session ID: %v", err)
-		return "", expiry, fmt.Errorf("failed to marshal offline session ID: %v", err)
+		return "", expiry, fmt.Errorf("failed to marshal offline session ID: %w", err)
 	}
 
 	tok := idTokenClaims{
@@ -331,7 +331,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		atHash, err := accessTokenHash(signingAlg, accessToken)
 		if err != nil {
 			s.logger.Errorf("error computing at_hash: %v", err)
-			return "", expiry, fmt.Errorf("error computing at_hash: %v", err)
+			return "", expiry, fmt.Errorf("error computing at_hash: %w", err)
 		}
 		tok.AccessTokenHash = atHash
 	}
@@ -396,11 +396,11 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 
 	payload, err := json.Marshal(tok)
 	if err != nil {
-		return "", expiry, fmt.Errorf("could not serialize claims: %v", err)
+		return "", expiry, fmt.Errorf("could not serialize claims: %w", err)
 	}
 
 	if idToken, err = signPayload(signingKey, signingAlg, payload); err != nil {
-		return "", expiry, fmt.Errorf("failed to sign payload: %v", err)
+		return "", expiry, fmt.Errorf("failed to sign payload: %w", err)
 	}
 	return idToken, expiry, nil
 }
@@ -433,7 +433,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 
 	client, err := s.storage.GetClient(clientID)
 	if err != nil {
-		if err == storage.ErrNotFound {
+		if errors.Is(err, storage.ErrNotFound) {
 			description := fmt.Sprintf("Invalid client_id (%q).", clientID)
 			return nil, &authErr{"", "", errUnauthorizedClient, description}
 		}
@@ -590,7 +590,7 @@ func (s *Server) validateCrossClientTrust(clientID, peerID string) (trusted bool
 	}
 	peer, err := s.storage.GetClient(peerID)
 	if err != nil {
-		if err != storage.ErrNotFound {
+		if !errors.Is(err, storage.ErrNotFound) {
 			s.logger.Errorf("Failed to get client: %v", err)
 			return false, err
 		}

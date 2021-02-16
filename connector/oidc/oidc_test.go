@@ -296,7 +296,7 @@ func TestHandleCallback(t *testing.T) {
 func setupServer(tok map[string]interface{}) (*httptest.Server, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate rsa key: %v", err)
+		return nil, fmt.Errorf("failed to generate rsa key: %w", err)
 	}
 
 	jwk := jose.JSONWebKey{
@@ -360,17 +360,17 @@ func newToken(key *jose.JSONWebKey, claims map[string]interface{}) (string, erro
 
 	signer, err := jose.NewSigner(signingKey, &jose.SignerOptions{})
 	if err != nil {
-		return "", fmt.Errorf("failed to create new signer: %v", err)
+		return "", fmt.Errorf("failed to create new signer: %w", err)
 	}
 
 	payload, err := json.Marshal(claims)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal claims: %v", err)
+		return "", fmt.Errorf("failed to marshal claims: %w", err)
 	}
 
 	signature, err := signer.Sign(payload)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign: %v", err)
+		return "", fmt.Errorf("failed to sign: %w", err)
 	}
 	return signature.CompactSerialize()
 }
@@ -379,7 +379,7 @@ func newConnector(config Config) (*oidcConnector, error) {
 	logger := logrus.New()
 	conn, err := config.Open("id", logger)
 	if err != nil {
-		return nil, fmt.Errorf("unable to open: %v", err)
+		return nil, fmt.Errorf("unable to open: %w", err)
 	}
 
 	oidcConn, ok := conn.(*oidcConnector)
@@ -393,7 +393,7 @@ func newConnector(config Config) (*oidcConnector, error) {
 func newRequestWithAuthCode(serverURL string, code string) (*http.Request, error) {
 	req, err := http.NewRequest("GET", serverURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	values := req.URL.Query()

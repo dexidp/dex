@@ -46,7 +46,7 @@ type Callback struct {
 func (m *Callback) LoginURL(s connector.Scopes, callbackURL, state string) (string, error) {
 	u, err := url.Parse(callbackURL)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse callbackURL %q: %v", callbackURL, err)
+		return "", fmt.Errorf("failed to parse callbackURL %q: %w", callbackURL, err)
 	}
 	v := u.Query()
 	v.Set("state", state)
