@@ -652,7 +652,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 	http.Redirect(w, r, u.String(), http.StatusSeeOther)
 }
 
-func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
+func (s *Server) withClientFromStorage(w http.ResponseWriter, r *http.Request, handler func(http.ResponseWriter, *http.Request, storage.Client)) {
 	clientID, clientSecret, ok := r.BasicAuth()
 	if ok {
 		var err error
@@ -689,14 +689,33 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	handler(w, r, client)
+}
+
+func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodPost {
+		s.tokenErrHelper(w, errInvalidRequest, "method not allowed", http.StatusBadRequest)
+		return
+	}
+
+	err := r.ParseForm()
+	if err != nil {
+		s.logger.Errorf("Could not parse request body: %v", err)
+		s.tokenErrHelper(w, errInvalidRequest, "", http.StatusBadRequest)
+		return
+	}
+
 	grantType := r.PostFormValue("grant_type")
 	switch grantType {
+	case grantTypeDeviceCode:
+		s.handleDeviceToken(w, r)
 	case grantTypeAuthorizationCode:
-		s.handleAuthCode(w, r, client)
+		s.withClientFromStorage(w, r, s.handleAuthCode)
 	case grantTypeRefreshToken:
-		s.handleRefreshToken(w, r, client)
+		s.withClientFromStorage(w, r, s.handleRefreshToken)
 	case grantTypePassword:
-		s.handlePasswordGrant(w, r, client)
+		s.withClientFromStorage(w, r, s.handlePasswordGrant)
 	default:
 		s.tokenErrHelper(w, errInvalidGrant, "", http.StatusBadRequest)
 	}

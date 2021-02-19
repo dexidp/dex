@@ -1583,7 +1583,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 
 			// Hit the Token Endpoint, and try and get an access token
 			tokenURL, _ := url.Parse(issuer.String())
-			tokenURL.Path = path.Join(tokenURL.Path, "/device/token")
+			tokenURL.Path = path.Join(tokenURL.Path, "/token")
 			v := url.Values{}
 			v.Add("grant_type", grantTypeDeviceCode)
 			v.Add("device_code", deviceCode.DeviceCode)
