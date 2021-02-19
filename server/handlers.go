@@ -275,6 +275,44 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+var lanPrefixes = []string{
+	"192.168.", "10.",
+	"172.16.", "172.17.", "172.18.", "172.19.",
+	"172.20.", "172.21.", "172.22.", "172.23.",
+	"172.24.", "172.25.", "172.26.", "172.27.",
+	"172.28.", "172.29.", "172.30.", "172.31.",
+}
+
+// isPrivate takes an address and tells whether the given address is private
+// (i.e. comes from an internal LAN proxy) or not.
+func (s *Server) isPrivate(address string) bool {
+	for _, prefix := range lanPrefixes {
+		if strings.HasPrefix(address, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// getTrueIPAddress takes two values: the immediate remoteAddress of the connection
+// and the X-Forwarded-For header (useful if the other endpoint is actually a proxy).
+// If the X-Forwarded-For value is empty, then the immediate remote address will be
+// used. However, if the X-Forwarded-For value is not empty, then the return value
+// must be the leftmost, non-private, ip address.
+func (s *Server) getTrueIPAddress(forwardedFor, remoteAddress string) string {
+	forwardedFor = strings.TrimSpace(forwardedFor)
+	if forwardedFor != "" {
+		for _, address := range strings.Split(forwardedFor, ", ") {
+			if !s.isPrivate(address) {
+				return address
+			}
+		}
+		// Actually, at least one non-private address should exist but, if it doesn't,
+		// then the remote address will be used in the end.
+	}
+	return remoteAddress
+}
+
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	connID := mux.Vars(r)["connector"]
 	conn, err := s.getConnector(connID)
@@ -368,7 +406,8 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 
 		username := r.FormValue("login")
 		password := r.FormValue("password")
-		identity, ok, err := passwordConnector.Login(context.WithValue(r.Context(), "remote", r.RemoteAddr), scopes, username, password)
+		trueAddress := s.getTrueIPAddress(r.Header.Get("X-Forwarded-For"), r.RemoteAddr)
+		identity, ok, err := passwordConnector.Login(context.WithValue(r.Context(), "remote", trueAddress), scopes, username, password)
 		if err != nil {
 			s.logger.Errorf("Failed to login user: %v", err)
 			s.renderError(r, w, http.StatusInternalServerError, fmt.Sprintf("Login error: %v", err))
