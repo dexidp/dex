@@ -50,7 +50,7 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 	if req.Client.Id == "" {
 		req.Client.Id = storage.NewID()
 	}
-	if req.Client.Secret == "" {
+	if req.Client.Secret == "" && !req.Client.Public {
 		req.Client.Secret = storage.NewID() + storage.NewID()
 	}
 
