@@ -526,8 +526,9 @@ func getenv(key, defaultVal string) string {
 // The tests require LDAP to be runnning.
 // You can use the provided docker-compose file to setup an LDAP server.
 func runTests(t *testing.T, connMethod connectionMethod, config *Config, tests []subtest) {
-	if os.Getenv("DEX_LDAP_TESTS") == "" {
-		t.Skip("Specify not-empty DEX_LDAP_TESTS env variable to enable LDAP tests")
+	ldapHost := os.Getenv("DEX_LDAP_HOST")
+	if ldapHost == "" {
+		t.Skipf(`test environment variable "DEX_LDAP_HOST" not set, skipping`)
 	}
 
 	// Shallow copy.
@@ -537,17 +538,17 @@ func runTests(t *testing.T, connMethod connectionMethod, config *Config, tests [
 	// group search configuration.
 	switch connMethod {
 	case connectStartTLS:
-		c.Host = fmt.Sprintf("%s:%s", getenv("DEX_LDAP_HOST", "localhost"), getenv("DEX_LDAP_PORT", "389"))
+		c.Host = fmt.Sprintf("%s:%s", ldapHost, getenv("DEX_LDAP_PORT", "389"))
 		c.RootCA = "testdata/certs/ca.crt"
 		c.StartTLS = true
 	case connectLDAPS:
-		c.Host = fmt.Sprintf("%s:%s", getenv("DEX_LDAP_HOST", "localhost"), getenv("DEX_LDAP_TLS_PORT", "636"))
+		c.Host = fmt.Sprintf("%s:%s", ldapHost, getenv("DEX_LDAP_TLS_PORT", "636"))
 		c.RootCA = "testdata/certs/ca.crt"
 	case connectInsecureSkipVerify:
-		c.Host = fmt.Sprintf("%s:%s", getenv("DEX_LDAP_HOST", "localhost"), getenv("DEX_LDAP_TLS_PORT", "636"))
+		c.Host = fmt.Sprintf("%s:%s", ldapHost, getenv("DEX_LDAP_TLS_PORT", "636"))
 		c.InsecureSkipVerify = true
 	case connectLDAP:
-		c.Host = fmt.Sprintf("%s:%s", getenv("DEX_LDAP_HOST", "localhost"), getenv("DEX_LDAP_PORT", "389"))
+		c.Host = fmt.Sprintf("%s:%s", ldapHost, getenv("DEX_LDAP_PORT", "389"))
 		c.InsecureNoSSL = true
 	}
 

@@ -71,7 +71,6 @@ jobs:
           DEX_POSTGRES_HOST: localhost
           DEX_POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }}
           DEX_ETCD_ENDPOINTS: http://localhost:${{ job.services.etcd.ports[2379] }}
-          DEX_LDAP_TESTS: yes
           DEX_LDAP_HOST: localhost
           DEX_LDAP_PORT: 389
           DEX_LDAP_TLS_PORT: 636
