@@ -125,8 +125,6 @@ be security-related.
 [jwt-io]: https://jwt.io/
 [kubernetes]: http://kubernetes.io/docs/admin/authentication/#openid-connect-tokens
 [aws-sts]: https://docs.aws.amazon.com/STS/latest/APIReference/Welcome.html
-[tectonic]: https://tectonic.com/
-[tectonic-console]: https://tectonic.com/enterprise/docs/latest/usage/index.html#tectonic-console
 [go-oidc]: https://github.com/coreos/go-oidc
 [issue-1065]: https://github.com/dexidp/dex/issues/1065
 [release-notes]: https://github.com/dexidp/dex/releases
