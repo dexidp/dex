@@ -526,6 +526,10 @@ func getenv(key, defaultVal string) string {
 // The tests require LDAP to be runnning.
 // You can use the provided docker-compose file to setup an LDAP server.
 func runTests(t *testing.T, connMethod connectionMethod, config *Config, tests []subtest) {
+	if os.Getenv("DEX_LDAP_TESTS") == "" {
+		t.Skip("Specify not-empty DEX_LDAP_TESTS env variable to enable LDAP tests")
+	}
+
 	// Shallow copy.
 	c := *config
 
