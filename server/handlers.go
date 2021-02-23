@@ -302,14 +302,18 @@ func (s *Server) isPrivate(address string) bool {
 func (s *Server) getTrueIPAddress(forwardedFor, remoteAddress string) string {
 	forwardedFor = strings.TrimSpace(forwardedFor)
 	if forwardedFor != "" {
-		for _, address := range strings.Split(forwardedFor, ", ") {
+		split := strings.Split(forwardedFor, ", ")
+		leftmost := split[0]
+		for _, address := range split {
 			if !s.isPrivate(address) {
 				return address
 			}
 		}
 		// Actually, at least one non-private address should exist but, if it doesn't,
-		// then the remote address will be used in the end.
+		// then the leftmost address will be used in the end.
+		return leftmost
 	}
+	// If no x-forwarded-for header exists
 	return remoteAddress
 }
 
