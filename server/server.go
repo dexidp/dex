@@ -320,7 +320,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleFunc("/device", s.handleDeviceExchange)
 	handleFunc("/device/auth/verify_code", s.verifyUserCode)
 	handleFunc("/device/code", s.handleDeviceCode)
-	// TODO(nabokihms): deprecate and remove this endpoint, use /token instead
+	// TODO(nabokihms): "/device/token" endpoint is deprecated, consider using /token endpoint instead
 	handleFunc("/device/token", s.handleDeviceTokenGrant)
 	handleFunc(deviceCallbackURI, s.handleDeviceCallback)
 	r.HandleFunc(path.Join(issuerURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {

@@ -152,6 +152,9 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeviceTokenGrant(w http.ResponseWriter, r *http.Request) {
+	s.logger.Warn(`Request to the deprecated "/device/token" endpoint was received.`)
+	s.logger.Warn(`The "/device/token" endpoint will be removed in a future release.`)
+
 	w.Header().Set("Content-Type", "application/json")
 	switch r.Method {
 	case http.MethodPost:
