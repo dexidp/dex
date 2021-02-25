@@ -333,7 +333,7 @@ func runServe(options serveOptions) error {
 		InitiallyPassing: true,
 	})
 
-	var gr run.Group
+	var group run.Group
 
 	// Set up telemetry server
 	if c.Telemetry.HTTP != "" {
@@ -351,7 +351,7 @@ func runServe(options serveOptions) error {
 		}
 		defer server.Close()
 
-		gr.Add(func() error {
+		group.Add(func() error {
 			return server.Serve(l)
 		}, func(err error) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -380,7 +380,7 @@ func runServe(options serveOptions) error {
 		}
 		defer server.Close()
 
-		gr.Add(func() error {
+		group.Add(func() error {
 			return server.Serve(l)
 		}, func(err error) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -414,7 +414,7 @@ func runServe(options serveOptions) error {
 		}
 		defer server.Close()
 
-		gr.Add(func() error {
+		group.Add(func() error {
 			return server.ServeTLS(l, c.Web.TLSCert, c.Web.TLSKey)
 		}, func(err error) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -445,7 +445,7 @@ func runServe(options serveOptions) error {
 			reflection.Register(grpcSrv)
 		}
 
-		gr.Add(func() error {
+		group.Add(func() error {
 			return grpcSrv.Serve(grpcListener)
 		}, func(err error) {
 			logger.Debugf("starting graceful shutdown (grpc)")
@@ -453,8 +453,8 @@ func runServe(options serveOptions) error {
 		})
 	}
 
-	gr.Add(run.SignalHandler(context.Background(), os.Interrupt, syscall.SIGTERM))
-	if err := gr.Run(); err != nil {
+	group.Add(run.SignalHandler(context.Background(), os.Interrupt, syscall.SIGTERM))
+	if err := group.Run(); err != nil {
 		if _, ok := err.(run.SignalError); !ok {
 			return fmt.Errorf("run groups: %w", err)
 		}
