@@ -321,7 +321,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleFunc("/device/auth/verify_code", s.verifyUserCode)
 	handleFunc("/device/code", s.handleDeviceCode)
 	// TODO(nabokihms): "/device/token" endpoint is deprecated, consider using /token endpoint instead
-	handleFunc("/device/token", s.handleDeviceTokenGrant)
+	handleFunc("/device/token", s.handleDeviceTokenDeprecated)
 	handleFunc(deviceCallbackURI, s.handleDeviceCallback)
 	r.HandleFunc(path.Join(issuerURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on
