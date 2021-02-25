@@ -73,22 +73,49 @@ func commandServe() *cobra.Command {
 	return cmd
 }
 
-func listenAndShutdownGracefully(logger log.Logger, gr *run.Group, srv *http.Server, name string) error {
-	l, err := net.Listen("tcp", srv.Addr)
+type serverRunner struct {
+	name string
+	srv  *http.Server
+
+	tlsCrt string
+	tlsKey string
+
+	logger log.Logger
+}
+
+func newServerRunner(name string, srv *http.Server, logger log.Logger) *serverRunner {
+	return &serverRunner{name: name, srv: srv, logger: logger}
+}
+
+func (s *serverRunner) WithTLS(crt, key string) *serverRunner {
+	s.tlsCrt = crt
+	s.tlsKey = key
+	return s
+}
+
+func (s *serverRunner) run(listener net.Listener) error {
+	if s.tlsCrt != "" && s.tlsKey != "" {
+		return s.srv.ServeTLS(listener, s.tlsCrt, s.tlsKey)
+	}
+	return s.srv.Serve(listener)
+}
+
+func (s *serverRunner) RunAndShutdownGracefully(gr *run.Group) error {
+	listener, err := net.Listen("tcp", s.srv.Addr)
 	if err != nil {
-		return fmt.Errorf("listening (%s) on %s: %v", name, srv.Addr, err)
+		return fmt.Errorf("listening (%s) on %s: %v", s.name, s.srv.Addr, err)
 	}
 
 	gr.Add(func() error {
-		logger.Infof("listening (%s) on %s", name, srv.Addr)
-		return srv.Serve(l)
+		s.logger.Infof("listening (%s) on %s", s.name, s.srv.Addr)
+		return s.run(listener)
 	}, func(err error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 
-		logger.Debugf("starting graceful shutdown (%s)", name)
-		if err := srv.Shutdown(ctx); err != nil {
-			logger.Errorf("graceful shutdown (%s): %v", name, err)
+		s.logger.Debugf("starting graceful shutdown (%s)", s.name)
+		if err := s.srv.Shutdown(ctx); err != nil {
+			s.logger.Errorf("graceful shutdown (%s): %v", s.name, err)
 		}
 	})
 	return nil
@@ -357,18 +384,20 @@ func runServe(options serveOptions) error {
 	var gr run.Group
 	if c.Telemetry.HTTP != "" {
 		telemetrySrv := &http.Server{Addr: c.Telemetry.HTTP, Handler: telemetryRouter}
-
 		defer telemetrySrv.Close()
-		if err := listenAndShutdownGracefully(logger, &gr, telemetrySrv, "http/telemetry"); err != nil {
+
+		telemetryRunner := newServerRunner("http/telemetry", telemetrySrv, logger)
+		if err := telemetryRunner.RunAndShutdownGracefully(&gr); err != nil {
 			return err
 		}
 	}
 
 	if c.Web.HTTP != "" {
 		httpSrv := &http.Server{Addr: c.Web.HTTP, Handler: serv}
-
 		defer httpSrv.Close()
-		if err := listenAndShutdownGracefully(logger, &gr, httpSrv, "http"); err != nil {
+
+		httpRunner := newServerRunner("http", httpSrv, logger)
+		if err := httpRunner.RunAndShutdownGracefully(&gr); err != nil {
 			return err
 		}
 	}
@@ -383,9 +412,10 @@ func runServe(options serveOptions) error {
 				MinVersion:               tls.VersionTLS12,
 			},
 		}
-
 		defer httpsSrv.Close()
-		if err := listenAndShutdownGracefully(logger, &gr, httpsSrv, "https"); err != nil {
+
+		httpsRunner := newServerRunner("https", httpsSrv, logger).WithTLS(c.Web.TLSCert, c.Web.TLSKey)
+		if err := httpsRunner.RunAndShutdownGracefully(&gr); err != nil {
 			return err
 		}
 	}
