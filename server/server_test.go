@@ -24,7 +24,6 @@ import (
 	gosundheit "github.com/AppsFlyer/go-sundheit"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/kylelemons/godebug/pretty"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
@@ -95,9 +94,8 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 		Web: WebConfig{
 			Dir: "../web",
 		},
-		Logger:             logger,
-		PrometheusRegistry: prometheus.NewRegistry(),
-		HealthChecker:      gosundheit.New(),
+		Logger:        logger,
+		HealthChecker: gosundheit.New(),
 	}
 	if updateConfig != nil {
 		updateConfig(&config)
@@ -144,8 +142,7 @@ func newTestServerMultipleConnectors(ctx context.Context, t *testing.T, updateCo
 		Web: WebConfig{
 			Dir: "../web",
 		},
-		Logger:             logger,
-		PrometheusRegistry: prometheus.NewRegistry(),
+		Logger: logger,
 	}
 	if updateConfig != nil {
 		updateConfig(&config)

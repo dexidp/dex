@@ -18,13 +18,14 @@ import (
 	"github.com/AppsFlyer/go-sundheit/checks"
 	gosundheithttp "github.com/AppsFlyer/go-sundheit/http"
 	"github.com/ghodss/yaml"
-	grpcprometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/oklog/run"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/runtime"
+	"go.opentelemetry.io/otel/exporters/metric/prometheus"
+	"go.opentelemetry.io/otel/sdk/metric/controller/basic"
+	"go.opentelemetry.io/otel/sdk/resource"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
@@ -100,22 +101,24 @@ func runServe(options serveOptions) error {
 	}
 
 	logger.Infof("config issuer: %s", c.Issuer)
-
-	prometheusRegistry := prometheus.NewRegistry()
-	err = prometheusRegistry.Register(collectors.NewGoCollector())
+	res, err := resource.New(
+		context.Background(),
+		resource.WithoutBuiltin(), // To avoid telemetry labels
+		// resource.WithAttributes(semconv.ServiceNameKey.String("dexidp")),
+	)
 	if err != nil {
-		return fmt.Errorf("failed to register Go runtime metrics: %v", err)
+		return fmt.Errorf("register prometheus metrics resources: %v", err)
+	}
+	promExporter, err := prometheus.InstallNewPipeline(prometheus.Config{
+		// nanoseconds
+		DefaultHistogramBoundaries: []float64{1000, 3000, 6000, 10000, 25000, 50000, 100000, 1000000, 50000000},
+	}, basic.WithResource(res))
+	if err != nil {
+		return fmt.Errorf("register prometheus exporter: %v", err)
 	}
 
-	err = prometheusRegistry.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-	if err != nil {
-		return fmt.Errorf("failed to register process metrics: %v", err)
-	}
-
-	grpcMetrics := grpcprometheus.NewServerMetrics()
-	err = prometheusRegistry.Register(grpcMetrics)
-	if err != nil {
-		return fmt.Errorf("failed to register gRPC server metrics: %v", err)
+	if err := runtime.Start(runtime.WithMinimumReadMemStatsInterval(time.Second)); err != nil {
+		return fmt.Errorf("register prometheus runtime metrics: %v", err)
 	}
 
 	var grpcOptions []grpc.ServerOption
@@ -159,13 +162,13 @@ func runServe(options serveOptions) error {
 			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 			tlsConfig.ClientCAs = cPool
 
-			// Only add metrics if client auth is enabled
+			// Only if client auth is enabled
+			// TODO(nabokihms): otelgrpc only provides tracing instrumentation
 			grpcOptions = append(grpcOptions,
-				grpc.StreamInterceptor(grpcMetrics.StreamServerInterceptor()),
-				grpc.UnaryInterceptor(grpcMetrics.UnaryServerInterceptor()),
+				grpc.StreamInterceptor(otelgrpc.StreamServerInterceptor()),
+				grpc.UnaryInterceptor(otelgrpc.UnaryServerInterceptor()),
 			)
 		}
-
 		grpcOptions = append(grpcOptions, grpc.Creds(credentials.NewTLS(&tlsConfig)))
 	}
 
@@ -270,7 +273,6 @@ func runServe(options serveOptions) error {
 		Web:                    c.Frontend,
 		Logger:                 logger,
 		Now:                    now,
-		PrometheusRegistry:     prometheusRegistry,
 		HealthChecker:          healthChecker,
 	}
 	if c.Expiry.SigningKeys != "" {
@@ -323,7 +325,7 @@ func runServe(options serveOptions) error {
 	}
 
 	telemetryRouter := http.NewServeMux()
-	telemetryRouter.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
+	telemetryRouter.Handle("/metrics", promExporter)
 
 	// Configure health checker
 	{
@@ -452,7 +454,6 @@ func runServe(options serveOptions) error {
 		grpcSrv := grpc.NewServer(grpcOptions...)
 		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger, version))
 
-		grpcMetrics.InitializeMetrics(grpcSrv)
 		if c.GRPC.Reflection {
 			logger.Info("enabling reflection in grpc service")
 			reflection.Register(grpcSrv)
