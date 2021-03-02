@@ -1,7 +1,7 @@
 version: "3.8"
 
 services:
-    ldap:
+    connector_ldap:
         image: osixia/openldap:1.4.0
         # Copying is required because the entrypoint modifies the *.ldif files.
         # For verbose output, use:  command: ["--copy-service", "--loglevel", "debug"]
@@ -16,3 +16,50 @@ services:
         volumes:
             - ./connector/ldap/testdata/certs:/container/service/slapd/assets/certs
             - ./connector/ldap/testdata/schema.ldif:/container/service/slapd/assets/config/bootstrap/ldif/99-schema.ldif
+
+    connector_keystone:
+        image: openio/openstack-keystone:pike
+        ports:
+            - 5000:5000
+            - 35357:35357
+        healthcheck:
+            test: [ "CMD-SHELL", "curl --fail http://localhost:5000/v3" ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    storage_postgres:
+        image: postgres:10.8
+        ports:
+            - 5432:5432
+        healthcheck:
+            test: [ "CMD-SHELL", "pg_isready" ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    storage_mysql:
+        image: mysql:5.7
+        environment:
+            MYSQL_ROOT_PASSWORD: root
+            MYSQL_DATABASE: dex
+        ports:
+            - 3306:3306
+        healthcheck:
+            test: [ "CMD-SHELL", "mysql -proot -e \"show databases;\"" ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    storage_etcd:
+        image: gcr.io/etcd-development/etcd:v3.2.9
+        ports:
+            - 2379:2379
+        environment:
+            ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+            ETCD_ADVERTISE_CLIENT_URLS: http://0.0.0.0:2379
+        healthcheck:
+            test: [ "CMD-SHELL", "ETCDCTL_API=3 etcdctl --endpoints http://localhost:2379 endpoint health" ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
