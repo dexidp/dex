@@ -111,8 +111,10 @@ type WebConfig struct {
 	//
 	Dir string
 
-	// A file system includes web static. Will be overwritten by Dir
-	// It is expected to contain the directories as Dir.
+	// Alternative way to configure web static filesystem. Dir overrides this.
+	// It's expected to contain the same files and directories as mentioned
+	// above in Dir doc.
+	//
 	WebFS fs.FS
 
 	// Defaults to "( issuer URL )/theme/logo.png"
