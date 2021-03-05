@@ -192,38 +192,36 @@ func (c *cfConnector) LoginURL(scopes connector.Scopes, callbackURL, state strin
 }
 
 func fetchRoleSpaces(baseURL, path, role string, client *http.Client) ([]Space, error) {
-	var spaces []Space
-
 	resources, err := fetchResources(baseURL, path, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch resources: %v", err)
 	}
 
-	for _, resource := range resources {
-		spaces = append(spaces, Space{
+	spaces := make([]Space, len(resources))
+	for i, resource := range resources {
+		spaces[i] = Space{
 			Name:    resource.Entity.Name,
 			GUID:    resource.Metadata.GUID,
 			OrgGUID: resource.Entity.OrganizationGUID,
 			Role:    role,
-		})
+		}
 	}
 
 	return spaces, nil
 }
 
 func fetchOrgs(baseURL, path string, client *http.Client) ([]Org, error) {
-	var orgs []Org
-
 	resources, err := fetchResources(baseURL, path, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch resources: %v", err)
 	}
 
-	for _, resource := range resources {
-		orgs = append(orgs, Org{
+	orgs := make([]Org, len(resources))
+	for i, resource := range resources {
+		orgs[i] = Org{
 			Name: resource.Entity.Name,
 			GUID: resource.Metadata.GUID,
-		})
+		}
 	}
 
 	return orgs, nil
@@ -293,7 +291,7 @@ func getGroupsClaims(orgs []Org, spaces []Space) []string {
 		}
 	}
 
-	var groups []string
+	groups := make([]string, 0, len(groupsClaims))
 	for group := range groupsClaims {
 		groups = append(groups, group)
 	}
