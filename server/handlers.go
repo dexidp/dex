@@ -295,26 +295,14 @@ func (s *Server) isPrivate(address string) bool {
 }
 
 // getTrueIPAddress takes two values: the immediate remoteAddress of the connection
-// and the X-Forwarded-For header (useful if the other endpoint is actually a proxy).
-// If the X-Forwarded-For value is empty, then the immediate remote address will be
-// used. However, if the X-Forwarded-For value is not empty, then the return value
-// must be the leftmost, non-private, ip address.
-func (s *Server) getTrueIPAddress(forwardedFor, remoteAddress string) string {
-	forwardedFor = strings.TrimSpace(forwardedFor)
-	if forwardedFor != "" {
-		split := strings.Split(forwardedFor, ", ")
-		leftmost := split[0]
-		for _, address := range split {
-			if !s.isPrivate(address) {
-				return address
-			}
-		}
-		// Actually, at least one non-private address should exist but, if it doesn't,
-		// then the leftmost address will be used in the end.
-		return leftmost
+// and the X-Real-IP header. Either the real ip header will be taken or the remote
+// address (which usually does not work well).
+func (s *Server) getTrueIPAddress(realIP, remoteAddress string) string {
+	if realIP != "" {
+		return realIP
+	} else {
+		return remoteAddress
 	}
-	// If no x-forwarded-for header exists
-	return remoteAddress
 }
 
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
@@ -410,7 +398,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 
 		username := r.FormValue("login")
 		password := r.FormValue("password")
-		trueAddress := s.getTrueIPAddress(r.Header.Get("X-Forwarded-For"), r.RemoteAddr)
+		trueAddress := s.getTrueIPAddress(r.Header.Get("X-Real-IP"), r.RemoteAddr)
 		identity, ok, err := passwordConnector.Login(context.WithValue(r.Context(), "remote", trueAddress), scopes, username, password)
 		if err != nil {
 			s.logger.Errorf("Failed to login user: %v", err)
