@@ -398,6 +398,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 
 		username := r.FormValue("login")
 		password := r.FormValue("password")
+		s.logger.Info("X-Real-IP is:" + r.Header.Get("X-Real-IP"))
 		trueAddress := s.getTrueIPAddress(r.Header.Get("X-Real-IP"), r.RemoteAddr)
 		identity, ok, err := passwordConnector.Login(context.WithValue(r.Context(), "remote", trueAddress), scopes, username, password)
 		if err != nil {
