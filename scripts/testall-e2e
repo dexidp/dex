@@ -2,7 +2,7 @@
 
 SERVICES=""
 
-function e2e_up() {
+e2e_up() {
   services=$1
   docker-compose -f docker-compose.test.yaml up --force-recreate -d $services
 
@@ -10,8 +10,9 @@ function e2e_up() {
   for i in $(seq 1 120); do
     for id in $(docker-compose -f docker-compose.test.yaml ps -q); do
       container=$(docker inspect "$id")
-      if [[ $(echo "$container" | grep '"Health"') != "" ]]; then
-        if [[ $(echo "$container" | grep '"Status": "healthy"') == "" ]]; then
+
+      if echo "$container" | grep '"Health"' >/dev/null 2>&1; then
+        if ! echo "$container" | grep '"Status": "healthy"' >/dev/null 2>&1; then
           printf "."
           sleep 1
           continue 2
@@ -26,15 +27,15 @@ function e2e_up() {
   return 1
 }
 
-function e2e_down() {
+e2e_down() {
   docker-compose -f docker-compose.test.yaml down --volumes --remove-orphans --rmi local
 }
 
-function e2e_tests() {
+e2e_tests() {
   go test -v --race ./...
 }
 
-function e2e_storage_mysql {
+e2e_storage_mysql() {
   export DEX_MYSQL_DATABASE=dex
   export DEX_MYSQL_USER=root
   export DEX_MYSQL_PASSWORD=root
@@ -44,7 +45,7 @@ function e2e_storage_mysql {
   SERVICES="$SERVICES storage_mysql"
 }
 
-function e2e_storage_postgres {
+e2e_storage_postgres() {
   export DEX_POSTGRES_DATABASE=postgres
   export DEX_POSTGRES_USER=postgres
   export DEX_POSTGRES_PASSWORD=postgres
@@ -54,20 +55,20 @@ function e2e_storage_postgres {
   SERVICES="$SERVICES storage_postgres"
 }
 
-function e2e_storage_etcd {
+e2e_storage_etcd() {
   export DEX_ETCD_ENDPOINTS=http://localhost:2379
 
   SERVICES="$SERVICES storage_etcd"
 }
 
-function e2e_connector_ldap {
+e2e_connector_ldap() {
   export DEX_LDAP_HOST=localhost
   export DEX_LDAP_TLS_PORT=636
 
   SERVICES="$SERVICES connector_ldap"
 }
 
-function e2e_connector_keystone {
+e2e_connector_keystone() {
   export DEX_KEYSTONE_URL=http://localhost:5000
   export DEX_KEYSTONE_ADMIN_URL=http://localhost:35357
   export DEX_KEYSTONE_ADMIN_USER=demo
@@ -76,7 +77,7 @@ function e2e_connector_keystone {
   SERVICES="$SERVICES connector_keystone"
 }
 
-function e2e_run() {
+e2e_run() {
   while [ $# -gt 0 ]; do
     case "$1" in
       "storage_mysql")
