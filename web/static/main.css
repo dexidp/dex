@@ -64,6 +64,12 @@ body {
   background-size: contain;
 }
 
+.dex-btn-icon--keystone {
+  background-color: #F5F5F5;
+  background-image: url(../static/img/keystone-icon.svg);
+  background-size: contain;
+}
+
 .dex-btn-icon--oidc {
   background-color: #EBEBEE;
   background-image: url(../static/img/oidc-icon.svg);

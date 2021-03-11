@@ -39,7 +39,7 @@ jobs:
         options: --health-cmd "ETCDCTL_API=3 etcdctl --endpoints http://localhost:2379 endpoint health" --health-interval 10s --health-timeout 5s --health-retries 5
 
       keystone:
-        image: openio/openstack-keystone:pike
+        image: openio/openstack-keystone:rocky
         ports:
           - 5000
           - 35357
