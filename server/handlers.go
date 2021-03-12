@@ -275,25 +275,6 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var lanPrefixes = []string{
-	"192.168.", "10.",
-	"172.16.", "172.17.", "172.18.", "172.19.",
-	"172.20.", "172.21.", "172.22.", "172.23.",
-	"172.24.", "172.25.", "172.26.", "172.27.",
-	"172.28.", "172.29.", "172.30.", "172.31.",
-}
-
-// isPrivate takes an address and tells whether the given address is private
-// (i.e. comes from an internal LAN proxy) or not.
-func (s *Server) isPrivate(address string) bool {
-	for _, prefix := range lanPrefixes {
-		if strings.HasPrefix(address, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
 // getTrueIPAddress takes two values: the immediate remoteAddress of the connection
 // and the X-Real-IP header. Either the real ip header will be taken or the remote
 // address (which usually does not work well).
