@@ -65,6 +65,30 @@ type Config struct {
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	var err error
 
+	if c.UserIDKey == "" {
+		c.UserIDKey = "id"
+	}
+
+	if c.ClaimMapping.UserNameKey == "" {
+		c.ClaimMapping.UserNameKey = "user_name"
+	}
+
+	if c.ClaimMapping.PreferredUsernameKey == "" {
+		c.ClaimMapping.PreferredUsernameKey = "preferred_username"
+	}
+
+	if c.ClaimMapping.GroupsKey == "" {
+		c.ClaimMapping.GroupsKey = "groups"
+	}
+
+	if c.ClaimMapping.EmailKey == "" {
+		c.ClaimMapping.EmailKey = "email"
+	}
+
+	if c.ClaimMapping.EmailVerifiedKey == "" {
+		c.ClaimMapping.EmailVerifiedKey = "email_verified"
+	}
+
 	oauthConn := &oauthConnector{
 		clientID:             c.ClientID,
 		clientSecret:         c.ClientSecret,
@@ -181,36 +205,12 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 		return identity, fmt.Errorf("OAuth Connector: failed to parse userinfo: %v", err)
 	}
 
-	if c.userIDKey == "" {
-		c.userIDKey = "id"
-	}
-
 	userID, found := userInfoResult[c.userIDKey].(string)
 	if !found {
 		return identity, fmt.Errorf("OAuth Connector: not found %v claim", c.userIDKey)
 	}
 
 	identity.UserID = userID
-	if c.userNameKey == "" {
-		c.userNameKey = "user_name"
-	}
-
-	if c.preferredUsernameKey == "" {
-		c.preferredUsernameKey = "preferred_username"
-	}
-
-	if c.groupsKey == "" {
-		c.groupsKey = "groups"
-	}
-
-	if c.emailKey == "" {
-		c.emailKey = "email"
-	}
-
-	if c.emailVerifiedKey == "" {
-		c.emailVerifiedKey = "email_verified"
-	}
-
 	identity.Username, _ = userInfoResult[c.userNameKey].(string)
 	identity.PreferredUsername, _ = userInfoResult[c.preferredUsernameKey].(string)
 	identity.Email, _ = userInfoResult[c.emailKey].(string)
