@@ -278,7 +278,7 @@ func TestHandleCallback(t *testing.T) {
 				t.Fatal("failed to create request", err)
 			}
 
-			identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
+			identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 			if err != nil {
 				t.Fatal("handle callback failed", err)
 			}

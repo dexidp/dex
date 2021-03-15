@@ -30,14 +30,14 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 	expectNil(t, err)
 
 	c := giteaConnector{baseURL: s.URL, httpClient: newClient()}
-	identity, err := c.HandleCallback(connector.Scopes{}, req)
+	identity, err := c.HandleCallback(connector.Scopes{}, nil, req)
 
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "some@email.com")
 	expectEquals(t, identity.UserID, "12345678")
 
 	c = giteaConnector{baseURL: s.URL, httpClient: newClient()}
-	identity, err = c.HandleCallback(connector.Scopes{}, req)
+	identity, err = c.HandleCallback(connector.Scopes{}, nil, req)
 
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "some@email.com")

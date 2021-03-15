@@ -35,7 +35,7 @@ func TestUserIdentityFromGraphAPI(t *testing.T) {
 	req, _ := http.NewRequest("GET", s.URL, nil)
 
 	c := microsoftConnector{apiURL: s.URL, graphURL: s.URL, tenant: tenant}
-	identity, err := c.HandleCallback(connector.Scopes{Groups: false}, req)
+	identity, err := c.HandleCallback(connector.Scopes{Groups: false}, nil, req)
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "Jane Doe")
 	expectEquals(t, identity.UserID, "S56767889")
@@ -58,7 +58,7 @@ func TestUserGroupsFromGraphAPI(t *testing.T) {
 	req, _ := http.NewRequest("GET", s.URL, nil)
 
 	c := microsoftConnector{apiURL: s.URL, graphURL: s.URL, tenant: tenant}
-	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 	expectNil(t, err)
 	expectEquals(t, identity.Groups, []string{"a", "b"})
 }

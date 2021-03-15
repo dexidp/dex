@@ -250,11 +250,22 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			// Use the auth request ID as the "state" token.
 			//
 			// TODO(ericchiang): Is this appropriate or should we also be using a nonce?
-			callbackURL, err := conn.LoginURL(scopes, s.absURL("/callback"), authReqID)
+			callbackURL, connectorData, err := conn.LoginURL(scopes, s.absURL("/callback"), authReqID)
 			if err != nil {
 				s.logger.Errorf("Connector %q returned error when creating callback: %v", connID, err)
 				s.renderError(r, w, http.StatusInternalServerError, "Login error.")
 				return
+			}
+			if len(connectorData) > 0 {
+				updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
+					a.ConnectorData = connectorData
+					return a, nil
+				}
+				if err := s.storage.UpdateAuthRequest(authReqID, updater); err != nil {
+					s.logger.Errorf("Failed to set connector data on auth request: %v", err)
+					s.renderError(r, w, http.StatusInternalServerError, "Database error.")
+					return
+				}
 			}
 			http.Redirect(w, r, callbackURL, http.StatusFound)
 		case connector.PasswordConnector:
@@ -375,7 +386,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 			s.renderError(r, w, http.StatusBadRequest, "Invalid request")
 			return
 		}
-		identity, err = conn.HandleCallback(parseScopes(authReq.Scopes), r)
+		identity, err = conn.HandleCallback(parseScopes(authReq.Scopes), authReq.ConnectorData, r)
 	case connector.SAMLConnector:
 		if r.Method != http.MethodPost {
 			s.logger.Errorf("OAuth2 request mapped to SAML connector")
