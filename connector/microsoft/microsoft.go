@@ -32,11 +32,11 @@ const (
 )
 
 const (
-	// Microsoft requires this scope to access user's profile
-	scopeUser = "user.read"
-	// Microsoft requires this scope to list groups the user is a member of
-	// and resolve their ids to groups names.
-	scopeGroups = "directory.read.all"
+	// Microsoft requires the scopes to start with openid
+	scopeOpenId = "openid"
+	// Get the permissions configured on the application registration
+	// see https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-permissions-and-consent#the-default-scope
+	scopeDefault = "https://graph.microsoft.com/.default"
 	// Microsoft requires this scope to return a refresh token
 	// see https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-permissions-and-consent#offline_access
 	scopeOfflineAccess = "offline_access"
@@ -124,10 +124,8 @@ func (c *microsoftConnector) groupsRequired(groupScope bool) bool {
 }
 
 func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
-	microsoftScopes := []string{scopeUser}
-	if c.groupsRequired(scopes.Groups) {
-		microsoftScopes = append(microsoftScopes, scopeGroups)
-	}
+	microsoftScopes := []string{scopeOpenId}
+	microsoftScopes = append(microsoftScopes, scopeDefault)
 
 	if scopes.OfflineAccess {
 		microsoftScopes = append(microsoftScopes, scopeOfflineAccess)
