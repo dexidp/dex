@@ -342,7 +342,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 			s.logger.Errorf("error computing c_hash: %v", err)
 			return "", expiry, fmt.Errorf("error computing c_hash: #{err}")
 		}
-		tok.CodeHash = cHash
+		tok[claimCodeHash] = cHash
 	}
 
 	for _, scope := range scopes {
