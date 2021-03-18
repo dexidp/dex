@@ -33,7 +33,7 @@ const (
 
 const (
 	// Microsoft requires the scopes to start with openid
-	scopeOpenId = "openid"
+	scopeOpenID = "openid"
 	// Get the permissions configured on the application registration
 	// see https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-permissions-and-consent#the-default-scope
 	scopeDefault = "https://graph.microsoft.com/.default"
@@ -124,7 +124,7 @@ func (c *microsoftConnector) groupsRequired(groupScope bool) bool {
 }
 
 func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
-	microsoftScopes := []string{scopeOpenId}
+	microsoftScopes := []string{scopeOpenID}
 	microsoftScopes = append(microsoftScopes, scopeDefault)
 
 	if scopes.OfflineAccess {
