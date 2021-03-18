@@ -275,9 +275,8 @@ func (c *sqlConnector) identityFromRow(row map[string]interface{}) (ident connec
 
 var caseFolder = cases.Fold()
 
-func (c *sqlConnector) Login(ctx context.Context, s connector.Scopes,
-	username, password string) (ident connector.Identity,
-	validPass bool, err error) {
+func (c *sqlConnector) rowFromUsername(ctx context.Context,
+	username string) (row map[string]interface{}, err error) {
 	rows, err := c.db.NamedQueryContext(ctx, c.UserQuery.QueryByName,
 		map[string]interface{}{
 			"username":          username,
@@ -286,20 +285,29 @@ func (c *sqlConnector) Login(ctx context.Context, s connector.Scopes,
 			"username_casefold": caseFolder.String(username),
 		})
 	if err != nil {
-		return connector.Identity{}, false, err
+		return nil, err
 	}
+	defer rows.Close()
 
 	if !rows.Next() {
 		err = rows.Err()
-		rows.Close()
-		return connector.Identity{}, false, err
+		return nil, err
 	}
 
-	row := map[string]interface{}{}
-
+	row = map[string]interface{}{}
 	err = rows.MapScan(row)
-	rows.Close()
 	if err != nil {
+		return nil, err
+	}
+
+	return row, nil
+}
+
+func (c *sqlConnector) Login(ctx context.Context, s connector.Scopes,
+	username, password string) (ident connector.Identity,
+	validPass bool, err error) {
+	row, err := c.rowFromUsername(ctx, username)
+	if err != nil || row == nil {
 		return connector.Identity{}, false, err
 	}
 

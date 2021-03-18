@@ -539,16 +539,15 @@ func TestHashUpgrade(t *testing.T) {
 	if err != nil {
 		t.Errorf("couldn't retrieve password hash: %v", err)
 	}
+	defer rows.Close()
 
 	if !rows.Next() {
-		rows.Close()
 		t.Errorf("no password hash found")
 	}
 
 	row := map[string]interface{}{}
 
 	err = rows.MapScan(row)
-	rows.Close()
 	if err != nil {
 		t.Errorf("couldn't retrieve password row: %v", err)
 	}
@@ -587,32 +586,33 @@ func TestLoginHooks(t *testing.T) {
 		t.Errorf("bad password should not be valid!")
 	}
 
-	rows, err := testdb.NamedQueryContext(ctx,
-		"SELECT failedLogins FROM Users WHERE name=:username",
-		map[string]interface{}{
-			"username": "jbloggs",
-		})
-	if err != nil {
-		t.Errorf("couldn't retrieve failed login count: %v", err)
-	}
+	func() {
+		rows, err := testdb.NamedQueryContext(ctx,
+			"SELECT failedLogins FROM Users WHERE name=:username",
+			map[string]interface{}{
+				"username": "jbloggs",
+			})
+		if err != nil {
+			t.Errorf("couldn't retrieve failed login count: %v", err)
+		}
+		defer rows.Close()
 
-	if !rows.Next() {
-		rows.Close()
-		t.Errorf("failed login count not found")
-	}
+		if !rows.Next() {
+			t.Errorf("failed login count not found")
+		}
 
-	row := map[string]interface{}{}
+		row := map[string]interface{}{}
 
-	err = rows.MapScan(row)
-	rows.Close()
-	if err != nil {
-		t.Errorf("couldn't retrieve failed login row: %v", err)
-	}
+		err = rows.MapScan(row)
+		if err != nil {
+			t.Errorf("couldn't retrieve failed login row: %v", err)
+		}
 
-	failedLogins := row["failedLogins"].(int64)
-	if failedLogins != 1 {
-		t.Errorf("failed login count should be 1, got %d", failedLogins)
-	}
+		failedLogins := row["failedLogins"].(int64)
+		if failedLogins != 1 {
+			t.Errorf("failed login count should be 1, got %d", failedLogins)
+		}
+	}()
 
 	// This login should succeed, and should increment successfulLogins
 	_, validPass, err = conn.Login(ctx, s, "jbloggs", "alarmingLlama")
@@ -623,30 +623,31 @@ func TestLoginHooks(t *testing.T) {
 		t.Errorf("valid password should be valid!")
 	}
 
-	rows, err = testdb.NamedQueryContext(ctx,
-		"SELECT successfulLogins FROM Users WHERE name=:username",
-		map[string]interface{}{
-			"username": "jbloggs",
-		})
-	if err != nil {
-		t.Errorf("couldn't retrieve successful login count: %v", err)
-	}
+	func() {
+		rows, err := testdb.NamedQueryContext(ctx,
+			"SELECT successfulLogins FROM Users WHERE name=:username",
+			map[string]interface{}{
+				"username": "jbloggs",
+			})
+		if err != nil {
+			t.Errorf("couldn't retrieve successful login count: %v", err)
+		}
+		defer rows.Close()
 
-	if !rows.Next() {
-		rows.Close()
-		t.Errorf("successful login count not found")
-	}
+		if !rows.Next() {
+			t.Errorf("successful login count not found")
+		}
 
-	row = map[string]interface{}{}
+		row := map[string]interface{}{}
 
-	err = rows.MapScan(row)
-	rows.Close()
-	if err != nil {
-		t.Errorf("couldn't retrieve successful login row: %v", err)
-	}
+		err = rows.MapScan(row)
+		if err != nil {
+			t.Errorf("couldn't retrieve successful login row: %v", err)
+		}
 
-	successfulLogins := row["successfulLogins"].(int64)
-	if successfulLogins != 1 {
-		t.Errorf("successful login count should be 1, got %d", successfulLogins)
-	}
+		successfulLogins := row["successfulLogins"].(int64)
+		if successfulLogins != 1 {
+			t.Errorf("successful login count should be 1, got %d", successfulLogins)
+		}
+	}()
 }
