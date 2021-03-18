@@ -949,6 +949,7 @@ func getConnectorMiddleware(q querier, id string) ([]storage.Middleware, error) 
 	if err != nil {
 		return []storage.Middleware{}, err
 	}
+	defer rows.Close()
 
 	middleware := []storage.Middleware{}
 	for rows.Next() {
@@ -991,6 +992,8 @@ func (c *conn) ListConnectors() ([]storage.Connector, error) {
 		if err != nil {
 			return err
 		}
+		defer rows.Close()
+
 		for rows.Next() {
 			conn, err := scanConnector(rows)
 			if err != nil {
@@ -1097,55 +1100,58 @@ func (c *conn) InsertMiddleware(ndx int, mware storage.Middleware) error {
 				order = orderStep
 			}
 		default:
-			rows, err := tx.Query(`
-				select
-					mw_order
-				from middleware
-				where conn_id = ''
-				order by mw_order asc
-				limit 2 offset $1
-			`, ndx)
-			if err != nil {
-				return fmt.Errorf("insert middleware find low/high: %v", err)
-			}
-			defer rows.Close()
-
-			if !rows.Next() {
-				return storage.ErrOutOfRange
-			}
-
-			var low int64
-			err = rows.Scan(&low)
-			if err != nil {
-				return fmt.Errorf("insert middleware scan low: %v", err)
-			}
-
-			if !rows.Next() {
-				order = low + 1024
-			} else {
-				var high int64
-				err = rows.Scan(&high)
+			err := func() error {
+				rows, err := tx.Query(`
+					select
+						mw_order
+					from middleware
+					where conn_id = ''
+					order by mw_order asc
+					limit 2 offset $1
+				`, ndx)
 				if err != nil {
-					return fmt.Errorf("insert middleware scan high: %v", err)
+					return fmt.Errorf("insert middleware find low/high: %v", err)
+				}
+				defer rows.Close()
+
+				if !rows.Next() {
+					return storage.ErrOutOfRange
 				}
 
-				if high == low+1 {
-					order, err = renumberMiddleware(ndx, tx)
-					if err != nil {
-						return err
-					}
-					order += orderStep / 2
+				var low int64
+				err = rows.Scan(&low)
+				if err != nil {
+					return fmt.Errorf("insert middleware scan low: %v", err)
+				}
+
+				if !rows.Next() {
+					order = low + 1024
 				} else {
-					order = low + (high-low)/2
+					var high int64
+					err = rows.Scan(&high)
+					if err != nil {
+						return fmt.Errorf("insert middleware scan high: %v", err)
+					}
+
+					if high == low+1 {
+						order, err = renumberMiddleware(ndx, tx)
+						if err != nil {
+							return err
+						}
+						order += orderStep / 2
+					} else {
+						order = low + (high-low)/2
+					}
 				}
-			}
 
-			if err := rows.Close(); err != nil {
-				return fmt.Errorf("insert middleware find low/high close: %v", err)
-			}
+				if err := rows.Err(); err != nil {
+					return fmt.Errorf("insert middleware find low/high err: %v", err)
+				}
 
-			if err := rows.Err(); err != nil {
-				return fmt.Errorf("insert middleware find low/high err: %v", err)
+				return nil
+			}()
+			if err != nil {
+				return err
 			}
 		}
 
@@ -1174,6 +1180,7 @@ func renumberMiddleware(ndx int, tx *trans) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("renumber middleware: %v", err)
 	}
+	defer rows.Close()
 
 	// The idea here is that since we know the minimum possible order is 0,
 	// and since the smallest it can increment by is 1, we can renumber the
