@@ -416,7 +416,6 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 				prefixedGroup := fmt.Sprintf("%s:%s", prefix, group)
 				oidcGroups = append(oidcGroups, prefixedGroup)
 			}
-
 		} else {
 			oidcGroups = identity.Groups
 		}
