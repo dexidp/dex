@@ -407,13 +407,28 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 // finalizeLogin associates the user's identity with the current AuthRequest, then returns
 // the approval page's path.
 func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (string, error) {
+	var oidcGroups []string
+	{
+		if s.oidcGroupsPrefix {
+			prefix := authReq.ConnectorID
+
+			for _, group := range identity.Groups {
+				prefixedGroup := fmt.Sprintf("%s:%s", prefix, group)
+				oidcGroups = append(oidcGroups, prefixedGroup)
+			}
+
+		} else {
+			oidcGroups = identity.Groups
+		}
+	}
+
 	claims := storage.Claims{
 		UserID:            identity.UserID,
 		Username:          identity.Username,
 		PreferredUsername: identity.PreferredUsername,
 		Email:             identity.Email,
 		EmailVerified:     identity.EmailVerified,
-		Groups:            identity.Groups,
+		Groups:            oidcGroups,
 	}
 
 	updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {

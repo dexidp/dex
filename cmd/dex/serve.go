@@ -249,6 +249,9 @@ func runServe(options serveOptions) error {
 	if c.OAuth2.PasswordConnector != "" {
 		logger.Infof("config using password grant connector: %s", c.OAuth2.PasswordConnector)
 	}
+	if c.OIDCGroupsPrefix {
+		logger.Infof("config user connector ID as oidc groups prefix")
+	}
 	if len(c.Web.AllowedOrigins) > 0 {
 		logger.Infof("config allowed origins: %s", c.Web.AllowedOrigins)
 	}
@@ -263,6 +266,7 @@ func runServe(options serveOptions) error {
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
 		PasswordConnector:      c.OAuth2.PasswordConnector,
+		OIDCGroupsPrefix:       c.OIDCGroupsPrefix,
 		AllowedOrigins:         c.Web.AllowedOrigins,
 		Issuer:                 c.Issuer,
 		Storage:                s,
