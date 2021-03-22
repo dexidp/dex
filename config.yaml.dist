@@ -60,7 +60,7 @@ web:
 # frontend:
 #   issuer: dex
 #   logoURL: theme/logo.png
-#   dir: web/
+#   dir: ""
 #   theme: light
 
 # Telemetry configuration

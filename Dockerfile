@@ -54,13 +54,9 @@ COPY --from=builder /usr/local/src/dex/go.mod /usr/local/src/dex/go.sum /usr/loc
 COPY --from=builder /usr/local/src/dex/api/v2/go.mod /usr/local/src/dex/api/v2/go.sum /usr/local/src/dex/api/v2/
 
 COPY --from=builder /go/bin/dex /usr/local/bin/dex
+COPY --from=builder /usr/local/src/dex/web /srv/dex/web
+
 COPY --from=gomplate /usr/local/bin/gomplate /usr/local/bin/gomplate
-
-USER 1001:1001
-
-# Import frontend assets and set the correct CWD directory so the assets
-# are in the default path.
-COPY --from=builder /usr/local/src/dex/web /web
 
 USER 1001:1001
 
