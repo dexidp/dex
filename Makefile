@@ -1,3 +1,5 @@
+OS = $(shell uname | tr A-Z a-z)
+
 PROJ=dex
 ORG_PATH=github.com/dexidp
 REPO_PATH=$(ORG_PATH)/$(PROJ)
@@ -19,6 +21,9 @@ LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
 
 # Dependency versions
 GOLANGCI_VERSION = 1.32.2
+
+PROTOC_VERSION = 3.15.6
+PROTOC_GEN_GO_VERSION = 1.26.0
 
 build: bin/dex
 
@@ -94,7 +99,6 @@ proto: bin/protoc-old bin/protoc-gen-go-old
 	@./bin/protoc-old --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go-old api/v2/*.proto
 	@cp api/v2/*.proto api/
 	@./bin/protoc-old --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go-old api/*.proto
-	@./bin/protoc-old --go_out=paths=source_relative:. --plugin=protoc-gen-go=./bin/protoc-gen-go-old server/internal/*.proto
 
 .PHONY: verify-proto
 verify-proto: proto
@@ -105,7 +109,7 @@ bin/protoc-old: scripts/get-protoc
 
 bin/protoc-gen-go-old:
 	@mkdir -p tmp
-	@GOBIN=$$PWD/tmp go install -v github.com/golang/protobuf/protoc-gen-go
+	@GOBIN=$$PWD/tmp go install -v github.com/golang/protobuf/protoc-gen-go@v1.3.2
 	@mv tmp/protoc-gen-go bin/protoc-gen-go-old
 
 clean:
@@ -116,3 +120,26 @@ testall: testrace
 FORCE:
 
 .PHONY: test testrace testall
+
+.PHONY: proto-internal
+proto-internal: bin/protoc bin/protoc-gen-go
+	@./bin/protoc --go_out=paths=source_relative:. --plugin=protoc-gen-go=./bin/protoc-gen-go server/internal/*.proto
+
+bin/protoc: bin/protoc-${PROTOC_VERSION}
+	@ln -sf protoc-${PROTOC_VERSION}/bin/protoc bin/protoc
+bin/protoc-${PROTOC_VERSION}:
+	@mkdir -p bin/protoc-${PROTOC_VERSION}
+ifeq (${OS}, darwin)
+	curl -L https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-osx-x86_64.zip > bin/protoc.zip
+endif
+ifeq (${OS}, linux)
+	curl -L https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip > bin/protoc.zip
+endif
+	unzip bin/protoc.zip -d bin/protoc-${PROTOC_VERSION}
+	rm bin/protoc.zip
+
+bin/protoc-gen-go: bin/protoc-gen-go-${PROTOC_GEN_GO_VERSION}
+	@ln -sf protoc-gen-go-${PROTOC_GEN_GO_VERSION} bin/protoc-gen-go
+bin/protoc-gen-go-${PROTOC_GEN_GO_VERSION}:
+	@mkdir -p bin
+	curl -L https://github.com/protocolbuffers/protobuf-go/releases/download/v${PROTOC_GEN_GO_VERSION}/protoc-gen-go.v${PROTOC_GEN_GO_VERSION}.${OS}.amd64.tar.gz | tar -zOxf - protoc-gen-go > ./bin/protoc-gen-go-${PROTOC_GEN_GO_VERSION} && chmod +x ./bin/protoc-gen-go-${PROTOC_GEN_GO_VERSION}
