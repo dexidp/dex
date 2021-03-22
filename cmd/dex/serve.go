@@ -523,4 +523,8 @@ func applyConfigOverrides(options serveOptions, config *Config) {
 	if options.grpcAddr != "" {
 		config.GRPC.Addr = options.grpcAddr
 	}
+
+	if config.Frontend.Dir == "" {
+		config.Frontend.Dir = os.Getenv("DEX_FRONTEND_DIR")
+	}
 }
