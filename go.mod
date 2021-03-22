@@ -18,7 +18,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/kylelemons/godebug v1.1.0
 	github.com/lib/pq v1.10.0
-	github.com/mattermost/xml-roundtrip-validator v0.0.0-20201219040909-8fd2afad43d1
+	github.com/mattermost/xml-roundtrip-validator v0.1.0
 	github.com/mattn/go-sqlite3 v1.14.6
 	github.com/oklog/run v1.1.0
 	github.com/onsi/ginkgo v1.8.0 // indirect
