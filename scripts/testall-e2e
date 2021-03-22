@@ -1,0 +1,127 @@
+#!/bin/sh -e
+
+SERVICES=""
+
+e2e_up() {
+  services=$1
+  docker-compose -f docker-compose.test.yaml up --force-recreate -d $services
+
+  printf "Waiting for services to become healthy "
+  for i in $(seq 1 120); do
+    for id in $(docker-compose -f docker-compose.test.yaml ps -q); do
+      container=$(docker inspect "$id")
+
+      if echo "$container" | grep '"Health"' >/dev/null 2>&1; then
+        if ! echo "$container" | grep '"Status": "healthy"' >/dev/null 2>&1; then
+          printf "."
+          sleep 1
+          continue 2
+        fi
+      fi
+    done
+    echo "OK!"
+    return
+  done
+
+  >&2 echo "Timeout!"
+  return 1
+}
+
+e2e_down() {
+  docker-compose -f docker-compose.test.yaml down --volumes --remove-orphans --rmi local
+}
+
+e2e_tests() {
+  go test -v --race ./...
+}
+
+e2e_storage_mysql() {
+  export DEX_MYSQL_DATABASE=dex
+  export DEX_MYSQL_USER=root
+  export DEX_MYSQL_PASSWORD=root
+  export DEX_MYSQL_HOST=127.0.0.1
+  export DEX_MYSQL_PORT=3306
+
+  SERVICES="$SERVICES storage_mysql"
+}
+
+e2e_storage_postgres() {
+  export DEX_POSTGRES_DATABASE=postgres
+  export DEX_POSTGRES_USER=postgres
+  export DEX_POSTGRES_PASSWORD=postgres
+  export DEX_POSTGRES_HOST=localhost
+  export DEX_POSTGRES_PORT=5432
+
+  SERVICES="$SERVICES storage_postgres"
+}
+
+e2e_storage_etcd() {
+  export DEX_ETCD_ENDPOINTS=http://localhost:2379
+
+  SERVICES="$SERVICES storage_etcd"
+}
+
+e2e_connector_ldap() {
+  export DEX_LDAP_HOST=localhost
+  export DEX_LDAP_TLS_PORT=636
+
+  SERVICES="$SERVICES connector_ldap"
+}
+
+e2e_connector_keystone() {
+  export DEX_KEYSTONE_URL=http://localhost:5000
+  export DEX_KEYSTONE_ADMIN_URL=http://localhost:35357
+  export DEX_KEYSTONE_ADMIN_USER=demo
+  export DEX_KEYSTONE_ADMIN_PASS=DEMO_PASS
+
+  SERVICES="$SERVICES connector_keystone"
+}
+
+e2e_run() {
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      "storage_mysql")
+        e2e_storage_mysql
+        shift
+        ;;
+      "storage_postgres")
+        e2e_storage_postgres
+        shift
+	      ;;
+      "storage_etcd")
+        e2e_storage_etcd
+        shift
+        ;;
+      "connector_ldap")
+        e2e_connector_ldap
+        shift
+	      ;;
+      "connector_keystone")
+        e2e_connector_keystone
+	      shift
+        ;;
+      "all")
+        e2e_storage_mysql
+        e2e_storage_postgres
+        e2e_storage_etcd
+        e2e_connector_ldap
+        e2e_connector_keystone
+        shift
+        ;;
+      *)
+        echo "Illegal option $1"
+        return 1
+        ;;
+    esac
+  done
+
+  EXIT_CODE=0
+
+  e2e_up "$SERVICES"
+  e2e_tests || EXIT_CODE=$?
+  e2e_down
+
+  exit "$EXIT_CODE"
+}
+
+e2e_run $@

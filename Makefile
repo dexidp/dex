@@ -49,7 +49,7 @@ up: docker-compose.override.yaml ## Launch the development environment
 	docker-compose up -d
 
 .PHONY: down
-down: clear ## Destroy the development environment
+down: clean ## Destroy the development environment
 	docker-compose down --volumes --remove-orphans --rmi local
 
 test: bin/test/kube-apiserver bin/test/etcd
@@ -111,6 +111,9 @@ clean:
 
 testall: testrace
 
+testall-e2e: bin/test/kube-apiserver bin/test/etcd
+	$(SHELL) ./scripts/testall-e2e all
+
 FORCE:
 
-.PHONY: test testrace testall
+.PHONY: test testrace testall testall-e2e
