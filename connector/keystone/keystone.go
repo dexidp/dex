@@ -42,8 +42,8 @@ type domainKeystone struct {
 //		config:
 //			keystoneHost: http://example:5000
 //			domain: default
-//      keystoneUsername: demo
-//      keystonePassword: DEMO_PASS
+//			keystoneUsername: demo
+//			keystonePassword: DEMO_PASS
 type Config struct {
 	Domain        string `json:"domain"`
 	Host          string `json:"keystoneHost"`
