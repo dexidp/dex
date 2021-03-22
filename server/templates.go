@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -46,6 +46,7 @@ type templates struct {
 
 type webConfig struct {
 	dir       string
+	webFS     fs.FS
 	logoURL   string
 	issuer    string
 	theme     string
@@ -53,22 +54,9 @@ type webConfig struct {
 	extra     map[string]string
 }
 
-func dirExists(dir string) error {
-	stat, err := os.Stat(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("directory %q does not exist", dir)
-		}
-		return fmt.Errorf("stat directory %q: %v", dir, err)
-	}
-	if !stat.IsDir() {
-		return fmt.Errorf("path %q is a file not a directory", dir)
-	}
-	return nil
-}
-
 // loadWebConfig returns static assets, theme assets, and templates used by the frontend by
-// reading the directory specified in the webConfig.
+// reading the dir specified in the webConfig. If directory is not specified it will
+// use the file system specified by webFS.
 //
 // The directory layout is expected to be:
 //
@@ -89,37 +77,34 @@ func loadWebConfig(c webConfig) (http.Handler, http.Handler, *templates, error) 
 	if c.issuer == "" {
 		c.issuer = "dex"
 	}
-	if c.dir == "" {
-		c.dir = "./web"
+	if c.dir != "" {
+		c.webFS = os.DirFS(c.dir)
+	} else if c.webFS == nil {
+		c.webFS = os.DirFS("./web")
 	}
 	if c.logoURL == "" {
 		c.logoURL = "theme/logo.png"
 	}
 
-	if err := dirExists(c.dir); err != nil {
-		return nil, nil, nil, fmt.Errorf("load web dir: %v", err)
+	staticFiles, err := fs.Sub(c.webFS, "static")
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("read static dir: %v", err)
+	}
+	themeFiles, err := fs.Sub(c.webFS, filepath.Join("themes", c.theme))
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("read themes dir: %v", err)
 	}
 
-	staticDir := filepath.Join(c.dir, "static")
-	templatesDir := filepath.Join(c.dir, "templates")
-	themeDir := filepath.Join(c.dir, "themes", c.theme)
+	static := http.FileServer(http.FS(staticFiles))
+	theme := http.FileServer(http.FS(themeFiles))
 
-	for _, dir := range []string{staticDir, templatesDir, themeDir} {
-		if err := dirExists(dir); err != nil {
-			return nil, nil, nil, fmt.Errorf("load dir: %v", err)
-		}
-	}
-
-	static := http.FileServer(http.Dir(staticDir))
-	theme := http.FileServer(http.Dir(themeDir))
-
-	templates, err := loadTemplates(c, templatesDir)
+	templates, err := loadTemplates(c, "templates")
 	return static, theme, templates, err
 }
 
 // loadTemplates parses the expected templates from the provided directory.
 func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
-	files, err := ioutil.ReadDir(templatesDir)
+	files, err := fs.ReadDir(c.webFS, templatesDir)
 	if err != nil {
 		return nil, fmt.Errorf("read dir: %v", err)
 	}
@@ -148,7 +133,7 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		"extra":  func(k string) string { return c.extra[k] },
 	}
 
-	tmpls, err := template.New("").Funcs(funcs).ParseFiles(filenames...)
+	tmpls, err := template.New("").Funcs(funcs).ParseFS(c.webFS, filenames...)
 	if err != nil {
 		return nil, fmt.Errorf("parse files: %v", err)
 	}
