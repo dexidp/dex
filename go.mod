@@ -12,7 +12,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.2.4
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gogo/protobuf v1.3.1 // indirect
-	github.com/golang/protobuf v1.3.2
+	github.com/golang/protobuf v1.4.2
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
@@ -35,7 +35,7 @@ require (
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/sys v0.0.0-20201201145000-ef89a241ccb3 // indirect
 	google.golang.org/api v0.15.0
-	google.golang.org/grpc v1.26.0
+	google.golang.org/grpc v1.36.0
 	gopkg.in/square/go-jose.v2 v2.5.1
 	sigs.k8s.io/testing_frameworks v0.1.2
 )
