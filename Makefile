@@ -90,21 +90,23 @@ docker-image:
 	@sudo docker build -t $(DOCKER_IMAGE) .
 
 .PHONY: proto
-proto: bin/protoc bin/protoc-gen-go
-	@./bin/protoc --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go api/v2/*.proto
+proto: bin/protoc-old bin/protoc-gen-go-old
+	@./bin/protoc-old --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go-old api/v2/*.proto
 	@cp api/v2/*.proto api/
-	@./bin/protoc --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go api/*.proto
-	@./bin/protoc --go_out=. --plugin=protoc-gen-go=./bin/protoc-gen-go server/internal/*.proto
+	@./bin/protoc-old --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go-old api/*.proto
+	@./bin/protoc-old --go_out=paths=source_relative:. --plugin=protoc-gen-go=./bin/protoc-gen-go-old server/internal/*.proto
 
 .PHONY: verify-proto
 verify-proto: proto
 	@./scripts/git-diff
 
-bin/protoc: scripts/get-protoc
-	@./scripts/get-protoc bin/protoc
+bin/protoc-old: scripts/get-protoc
+	@./scripts/get-protoc bin/protoc-old
 
-bin/protoc-gen-go:
-	@go install -v github.com/golang/protobuf/protoc-gen-go
+bin/protoc-gen-go-old:
+	@mkdir -p tmp
+	@GOBIN=$$PWD/tmp go install -v github.com/golang/protobuf/protoc-gen-go
+	@mv tmp/protoc-gen-go bin/protoc-gen-go-old
 
 clean:
 	@rm -rf bin/
