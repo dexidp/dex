@@ -3,9 +3,9 @@ package etcd
 import (
 	"time"
 
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/clientv3/namespace"
-	"go.etcd.io/etcd/pkg/transport"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/client/v3/namespace"
+	"go.etcd.io/etcd/pkg/v3/transport"
 
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
