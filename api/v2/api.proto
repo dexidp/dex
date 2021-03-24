@@ -1,7 +1,9 @@
 syntax = "proto3";
-option java_package = "com.coreos.dex.api";
 
 package api;
+
+option java_package = "com.coreos.dex.api";
+option go_package = "github.com/dexidp/dex/api/v2;api";
 
 // Client represents an OAuth2 client.
 message Client {
@@ -22,7 +24,7 @@ message CreateClientReq {
 // CreateClientResp returns the response from creating a client.
 message CreateClientResp {
   bool already_exists = 1;
-  Client client = 2; 
+  Client client = 2;
 }
 
 // DeleteClientReq is a request to delete a client.
@@ -31,7 +33,7 @@ message DeleteClientReq {
   string id = 1;
 }
 
-// DeleteClientResp determines if the client is deleted successfully. 
+// DeleteClientResp determines if the client is deleted successfully.
 message DeleteClientResp {
   bool not_found = 1;
 }
@@ -80,7 +82,7 @@ message UpdatePasswordReq {
   string new_username = 3;
 }
 
-// UpdatePasswordResp returns the response from modifying an existing password. 
+// UpdatePasswordResp returns the response from modifying an existing password.
 message UpdatePasswordResp {
   bool not_found = 1;
 }
@@ -90,7 +92,7 @@ message DeletePasswordReq {
   string email = 1;
 }
 
-// DeletePasswordResp returns the response from deleting a password. 
+// DeletePasswordResp returns the response from deleting a password.
 message DeletePasswordResp {
   bool not_found = 1;
 }
@@ -142,7 +144,7 @@ message RevokeRefreshReq {
   string client_id = 2;
 }
 
-// RevokeRefreshResp determines if the refresh token is revoked successfully. 
+// RevokeRefreshResp determines if the refresh token is revoked successfully.
 message RevokeRefreshResp {
   // Set to true is refresh token was not found and token could not be revoked.
   bool not_found = 1;

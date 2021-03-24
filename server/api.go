@@ -38,6 +38,8 @@ func NewAPI(s storage.Storage, logger log.Logger) api.DexServer {
 }
 
 type dexAPI struct {
+	api.UnimplementedDexServer
+
 	s      storage.Storage
 	logger log.Logger
 }
