@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/password"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
-	"github.com/facebook/ent/dialect/sql"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // PasswordQuery is the builder for querying Password entities.
@@ -261,7 +261,7 @@ func (pq *PasswordQuery) GroupBy(field string, fields ...string) *PasswordGroupB
 		if err := pq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		return pq.sqlQuery(), nil
+		return pq.sqlQuery(ctx), nil
 	}
 	return group
 }
@@ -334,7 +334,7 @@ func (pq *PasswordQuery) sqlCount(ctx context.Context) (int, error) {
 func (pq *PasswordQuery) sqlExist(ctx context.Context) (bool, error) {
 	n, err := pq.sqlCount(ctx)
 	if err != nil {
-		return false, fmt.Errorf("db: check existence: %v", err)
+		return false, fmt.Errorf("db: check existence: %w", err)
 	}
 	return n > 0, nil
 }
@@ -384,7 +384,7 @@ func (pq *PasswordQuery) querySpec() *sqlgraph.QuerySpec {
 	return _spec
 }
 
-func (pq *PasswordQuery) sqlQuery() *sql.Selector {
+func (pq *PasswordQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(pq.driver.Dialect())
 	t1 := builder.Table(password.Table)
 	selector := builder.Select(t1.Columns(password.Columns...)...).From(t1)
@@ -679,7 +679,7 @@ func (ps *PasswordSelect) Scan(ctx context.Context, v interface{}) error {
 	if err := ps.prepareQuery(ctx); err != nil {
 		return err
 	}
-	ps.sql = ps.PasswordQuery.sqlQuery()
+	ps.sql = ps.PasswordQuery.sqlQuery(ctx)
 	return ps.sqlScan(ctx, v)
 }
 

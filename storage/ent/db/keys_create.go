@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"time"
 
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/keys"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 	"gopkg.in/square/go-jose.v2"
 )
 

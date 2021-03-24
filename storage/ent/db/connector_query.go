@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/connector"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
-	"github.com/facebook/ent/dialect/sql"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // ConnectorQuery is the builder for querying Connector entities.
@@ -261,7 +261,7 @@ func (cq *ConnectorQuery) GroupBy(field string, fields ...string) *ConnectorGrou
 		if err := cq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		return cq.sqlQuery(), nil
+		return cq.sqlQuery(ctx), nil
 	}
 	return group
 }
@@ -334,7 +334,7 @@ func (cq *ConnectorQuery) sqlCount(ctx context.Context) (int, error) {
 func (cq *ConnectorQuery) sqlExist(ctx context.Context) (bool, error) {
 	n, err := cq.sqlCount(ctx)
 	if err != nil {
-		return false, fmt.Errorf("db: check existence: %v", err)
+		return false, fmt.Errorf("db: check existence: %w", err)
 	}
 	return n > 0, nil
 }
@@ -384,7 +384,7 @@ func (cq *ConnectorQuery) querySpec() *sqlgraph.QuerySpec {
 	return _spec
 }
 
-func (cq *ConnectorQuery) sqlQuery() *sql.Selector {
+func (cq *ConnectorQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(cq.driver.Dialect())
 	t1 := builder.Table(connector.Table)
 	selector := builder.Select(t1.Columns(connector.Columns...)...).From(t1)
@@ -679,7 +679,7 @@ func (cs *ConnectorSelect) Scan(ctx context.Context, v interface{}) error {
 	if err := cs.prepareQuery(ctx); err != nil {
 		return err
 	}
-	cs.sql = cs.ConnectorQuery.sqlQuery()
+	cs.sql = cs.ConnectorQuery.sqlQuery(ctx)
 	return cs.sqlScan(ctx, v)
 }
 

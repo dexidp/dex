@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
-	"github.com/facebook/ent/dialect/sql"
 )
 
 // RefreshToken is the model entity for the RefreshToken schema.
@@ -93,7 +93,7 @@ func (rt *RefreshToken) assignValues(columns []string, values []interface{}) err
 				return fmt.Errorf("unexpected type %T for field scopes", values[i])
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &rt.Scopes); err != nil {
-					return fmt.Errorf("unmarshal field scopes: %v", err)
+					return fmt.Errorf("unmarshal field scopes: %w", err)
 				}
 			}
 		case refreshtoken.FieldNonce:
@@ -132,7 +132,7 @@ func (rt *RefreshToken) assignValues(columns []string, values []interface{}) err
 				return fmt.Errorf("unexpected type %T for field claims_groups", values[i])
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &rt.ClaimsGroups); err != nil {
-					return fmt.Errorf("unmarshal field claims_groups: %v", err)
+					return fmt.Errorf("unmarshal field claims_groups: %w", err)
 				}
 			}
 		case refreshtoken.FieldClaimsPreferredUsername:

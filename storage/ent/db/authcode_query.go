@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/authcode"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
-	"github.com/facebook/ent/dialect/sql"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // AuthCodeQuery is the builder for querying AuthCode entities.
@@ -261,7 +261,7 @@ func (acq *AuthCodeQuery) GroupBy(field string, fields ...string) *AuthCodeGroup
 		if err := acq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		return acq.sqlQuery(), nil
+		return acq.sqlQuery(ctx), nil
 	}
 	return group
 }
@@ -334,7 +334,7 @@ func (acq *AuthCodeQuery) sqlCount(ctx context.Context) (int, error) {
 func (acq *AuthCodeQuery) sqlExist(ctx context.Context) (bool, error) {
 	n, err := acq.sqlCount(ctx)
 	if err != nil {
-		return false, fmt.Errorf("db: check existence: %v", err)
+		return false, fmt.Errorf("db: check existence: %w", err)
 	}
 	return n > 0, nil
 }
@@ -384,7 +384,7 @@ func (acq *AuthCodeQuery) querySpec() *sqlgraph.QuerySpec {
 	return _spec
 }
 
-func (acq *AuthCodeQuery) sqlQuery() *sql.Selector {
+func (acq *AuthCodeQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(acq.driver.Dialect())
 	t1 := builder.Table(authcode.Table)
 	selector := builder.Select(t1.Columns(authcode.Columns...)...).From(t1)
@@ -679,7 +679,7 @@ func (acs *AuthCodeSelect) Scan(ctx context.Context, v interface{}) error {
 	if err := acs.prepareQuery(ctx); err != nil {
 		return err
 	}
-	acs.sql = acs.AuthCodeQuery.sqlQuery()
+	acs.sql = acs.AuthCodeQuery.sqlQuery(ctx)
 	return acs.sqlScan(ctx, v)
 }
 

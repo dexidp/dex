@@ -15,7 +15,6 @@ const (
 	FieldSigningKeyPub = "signing_key_pub"
 	// FieldNextRotation holds the string denoting the next_rotation field in the database.
 	FieldNextRotation = "next_rotation"
-
 	// Table holds the table name of the keys in the database.
 	Table = "keys"
 )

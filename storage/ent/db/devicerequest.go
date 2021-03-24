@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/devicerequest"
-	"github.com/facebook/ent/dialect/sql"
 )
 
 // DeviceRequest is the model entity for the DeviceRequest schema.
@@ -95,7 +95,7 @@ func (dr *DeviceRequest) assignValues(columns []string, values []interface{}) er
 				return fmt.Errorf("unexpected type %T for field scopes", values[i])
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &dr.Scopes); err != nil {
-					return fmt.Errorf("unmarshal field scopes: %v", err)
+					return fmt.Errorf("unmarshal field scopes: %w", err)
 				}
 			}
 		case devicerequest.FieldExpiry:

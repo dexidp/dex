@@ -7,9 +7,9 @@ import (
 	"errors"
 	"fmt"
 
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/oauth2client"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // OAuth2ClientCreate is the builder for creating a OAuth2Client entity.

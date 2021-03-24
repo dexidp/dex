@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/devicetoken"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
-	"github.com/facebook/ent/dialect/sql"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // DeviceTokenUpdate is the builder for updating DeviceToken entities.
@@ -386,6 +386,13 @@ func (dtuo *DeviceTokenUpdateOne) sqlSave(ctx context.Context) (_node *DeviceTok
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing DeviceToken.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if ps := dtuo.mutation.predicates; len(ps) > 0 {
+		_spec.Predicate = func(selector *sql.Selector) {
+			for i := range ps {
+				ps[i](selector)
+			}
+		}
+	}
 	if value, ok := dtuo.mutation.DeviceCode(); ok {
 		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
 			Type:   field.TypeString,

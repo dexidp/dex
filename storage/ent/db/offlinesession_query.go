@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/offlinesession"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
-	"github.com/facebook/ent/dialect/sql"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // OfflineSessionQuery is the builder for querying OfflineSession entities.
@@ -261,7 +261,7 @@ func (osq *OfflineSessionQuery) GroupBy(field string, fields ...string) *Offline
 		if err := osq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		return osq.sqlQuery(), nil
+		return osq.sqlQuery(ctx), nil
 	}
 	return group
 }
@@ -334,7 +334,7 @@ func (osq *OfflineSessionQuery) sqlCount(ctx context.Context) (int, error) {
 func (osq *OfflineSessionQuery) sqlExist(ctx context.Context) (bool, error) {
 	n, err := osq.sqlCount(ctx)
 	if err != nil {
-		return false, fmt.Errorf("db: check existence: %v", err)
+		return false, fmt.Errorf("db: check existence: %w", err)
 	}
 	return n > 0, nil
 }
@@ -384,7 +384,7 @@ func (osq *OfflineSessionQuery) querySpec() *sqlgraph.QuerySpec {
 	return _spec
 }
 
-func (osq *OfflineSessionQuery) sqlQuery() *sql.Selector {
+func (osq *OfflineSessionQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(osq.driver.Dialect())
 	t1 := builder.Table(offlinesession.Table)
 	selector := builder.Select(t1.Columns(offlinesession.Columns...)...).From(t1)
@@ -679,7 +679,7 @@ func (oss *OfflineSessionSelect) Scan(ctx context.Context, v interface{}) error 
 	if err := oss.prepareQuery(ctx); err != nil {
 		return err
 	}
-	oss.sql = oss.OfflineSessionQuery.sqlQuery()
+	oss.sql = oss.OfflineSessionQuery.sqlQuery(ctx)
 	return oss.sqlScan(ctx, v)
 }
 

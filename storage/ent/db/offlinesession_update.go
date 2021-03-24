@@ -6,11 +6,11 @@ import (
 	"context"
 	"fmt"
 
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/offlinesession"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
-	"github.com/facebook/ent/dialect/sql"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // OfflineSessionUpdate is the builder for updating OfflineSession entities.
@@ -326,6 +326,13 @@ func (osuo *OfflineSessionUpdateOne) sqlSave(ctx context.Context) (_node *Offlin
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing OfflineSession.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if ps := osuo.mutation.predicates; len(ps) > 0 {
+		_spec.Predicate = func(selector *sql.Selector) {
+			for i := range ps {
+				ps[i](selector)
+			}
+		}
+	}
 	if value, ok := osuo.mutation.UserID(); ok {
 		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
 			Type:   field.TypeString,

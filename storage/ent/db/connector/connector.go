@@ -15,7 +15,6 @@ const (
 	FieldResourceVersion = "resource_version"
 	// FieldConfig holds the string denoting the config field in the database.
 	FieldConfig = "config"
-
 	// Table holds the table name of the connector in the database.
 	Table = "connectors"
 )

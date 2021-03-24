@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/keys"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
-	"github.com/facebook/ent/dialect/sql"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 	"gopkg.in/square/go-jose.v2"
 )
 
@@ -269,6 +269,13 @@ func (kuo *KeysUpdateOne) sqlSave(ctx context.Context) (_node *Keys, err error) 
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing Keys.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if ps := kuo.mutation.predicates; len(ps) > 0 {
+		_spec.Predicate = func(selector *sql.Selector) {
+			for i := range ps {
+				ps[i](selector)
+			}
+		}
+	}
 	if value, ok := kuo.mutation.VerificationKeys(); ok {
 		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
 			Type:   field.TypeJSON,

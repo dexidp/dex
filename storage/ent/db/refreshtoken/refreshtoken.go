@@ -39,7 +39,6 @@ const (
 	FieldCreatedAt = "created_at"
 	// FieldLastUsed holds the string denoting the last_used field in the database.
 	FieldLastUsed = "last_used"
-
 	// Table holds the table name of the refreshtoken in the database.
 	Table = "refresh_tokens"
 )

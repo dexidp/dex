@@ -19,7 +19,6 @@ const (
 	FieldLastRequest = "last_request"
 	// FieldPollInterval holds the string denoting the poll_interval field in the database.
 	FieldPollInterval = "poll_interval"
-
 	// Table holds the table name of the devicetoken in the database.
 	Table = "device_tokens"
 )

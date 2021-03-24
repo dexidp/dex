@@ -22,7 +22,7 @@ import (
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
 	"gopkg.in/square/go-jose.v2"
 
-	"github.com/facebook/ent"
+	"entgo.io/ent"
 )
 
 const (

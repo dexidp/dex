@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/authrequest"
-	"github.com/facebook/ent/dialect/sql"
 )
 
 // AuthRequest is the model entity for the AuthRequest schema.
@@ -103,7 +103,7 @@ func (ar *AuthRequest) assignValues(columns []string, values []interface{}) erro
 				return fmt.Errorf("unexpected type %T for field scopes", values[i])
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &ar.Scopes); err != nil {
-					return fmt.Errorf("unmarshal field scopes: %v", err)
+					return fmt.Errorf("unmarshal field scopes: %w", err)
 				}
 			}
 		case authrequest.FieldResponseTypes:
@@ -112,7 +112,7 @@ func (ar *AuthRequest) assignValues(columns []string, values []interface{}) erro
 				return fmt.Errorf("unexpected type %T for field response_types", values[i])
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &ar.ResponseTypes); err != nil {
-					return fmt.Errorf("unmarshal field response_types: %v", err)
+					return fmt.Errorf("unmarshal field response_types: %w", err)
 				}
 			}
 		case authrequest.FieldRedirectURI:
@@ -175,7 +175,7 @@ func (ar *AuthRequest) assignValues(columns []string, values []interface{}) erro
 				return fmt.Errorf("unexpected type %T for field claims_groups", values[i])
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &ar.ClaimsGroups); err != nil {
-					return fmt.Errorf("unmarshal field claims_groups: %v", err)
+					return fmt.Errorf("unmarshal field claims_groups: %w", err)
 				}
 			}
 		case authrequest.FieldClaimsPreferredUsername:

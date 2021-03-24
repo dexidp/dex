@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/keys"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
-	"github.com/facebook/ent/dialect/sql"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // KeysQuery is the builder for querying Keys entities.
@@ -261,7 +261,7 @@ func (kq *KeysQuery) GroupBy(field string, fields ...string) *KeysGroupBy {
 		if err := kq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		return kq.sqlQuery(), nil
+		return kq.sqlQuery(ctx), nil
 	}
 	return group
 }
@@ -334,7 +334,7 @@ func (kq *KeysQuery) sqlCount(ctx context.Context) (int, error) {
 func (kq *KeysQuery) sqlExist(ctx context.Context) (bool, error) {
 	n, err := kq.sqlCount(ctx)
 	if err != nil {
-		return false, fmt.Errorf("db: check existence: %v", err)
+		return false, fmt.Errorf("db: check existence: %w", err)
 	}
 	return n > 0, nil
 }
@@ -384,7 +384,7 @@ func (kq *KeysQuery) querySpec() *sqlgraph.QuerySpec {
 	return _spec
 }
 
-func (kq *KeysQuery) sqlQuery() *sql.Selector {
+func (kq *KeysQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(kq.driver.Dialect())
 	t1 := builder.Table(keys.Table)
 	selector := builder.Select(t1.Columns(keys.Columns...)...).From(t1)
@@ -679,7 +679,7 @@ func (ks *KeysSelect) Scan(ctx context.Context, v interface{}) error {
 	if err := ks.prepareQuery(ctx); err != nil {
 		return err
 	}
-	ks.sql = ks.KeysQuery.sqlQuery()
+	ks.sql = ks.KeysQuery.sqlQuery(ctx)
 	return ks.sqlScan(ctx, v)
 }
 

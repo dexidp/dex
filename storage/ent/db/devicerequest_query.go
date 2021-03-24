@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/devicerequest"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
-	"github.com/facebook/ent/dialect/sql"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // DeviceRequestQuery is the builder for querying DeviceRequest entities.
@@ -261,7 +261,7 @@ func (drq *DeviceRequestQuery) GroupBy(field string, fields ...string) *DeviceRe
 		if err := drq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		return drq.sqlQuery(), nil
+		return drq.sqlQuery(ctx), nil
 	}
 	return group
 }
@@ -334,7 +334,7 @@ func (drq *DeviceRequestQuery) sqlCount(ctx context.Context) (int, error) {
 func (drq *DeviceRequestQuery) sqlExist(ctx context.Context) (bool, error) {
 	n, err := drq.sqlCount(ctx)
 	if err != nil {
-		return false, fmt.Errorf("db: check existence: %v", err)
+		return false, fmt.Errorf("db: check existence: %w", err)
 	}
 	return n > 0, nil
 }
@@ -384,7 +384,7 @@ func (drq *DeviceRequestQuery) querySpec() *sqlgraph.QuerySpec {
 	return _spec
 }
 
-func (drq *DeviceRequestQuery) sqlQuery() *sql.Selector {
+func (drq *DeviceRequestQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(drq.driver.Dialect())
 	t1 := builder.Table(devicerequest.Table)
 	selector := builder.Select(t1.Columns(devicerequest.Columns...)...).From(t1)
@@ -679,7 +679,7 @@ func (drs *DeviceRequestSelect) Scan(ctx context.Context, v interface{}) error {
 	if err := drs.prepareQuery(ctx); err != nil {
 		return err
 	}
-	drs.sql = drs.DeviceRequestQuery.sqlQuery()
+	drs.sql = drs.DeviceRequestQuery.sqlQuery(ctx)
 	return drs.sqlScan(ctx, v)
 }
 

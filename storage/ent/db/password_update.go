@@ -6,11 +6,11 @@ import (
 	"context"
 	"fmt"
 
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/password"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
-	"github.com/facebook/ent/dialect/sql"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // PasswordUpdate is the builder for updating Password entities.
@@ -318,6 +318,13 @@ func (puo *PasswordUpdateOne) sqlSave(ctx context.Context) (_node *Password, err
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing Password.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if ps := puo.mutation.predicates; len(ps) > 0 {
+		_spec.Predicate = func(selector *sql.Selector) {
+			for i := range ps {
+				ps[i](selector)
+			}
+		}
+	}
 	if value, ok := puo.mutation.Email(); ok {
 		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
 			Type:   field.TypeString,

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/authcode"
-	"github.com/facebook/ent/dialect/sql"
 )
 
 // AuthCode is the model entity for the AuthCode schema.
@@ -95,7 +95,7 @@ func (ac *AuthCode) assignValues(columns []string, values []interface{}) error {
 				return fmt.Errorf("unexpected type %T for field scopes", values[i])
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &ac.Scopes); err != nil {
-					return fmt.Errorf("unmarshal field scopes: %v", err)
+					return fmt.Errorf("unmarshal field scopes: %w", err)
 				}
 			}
 		case authcode.FieldNonce:
@@ -140,7 +140,7 @@ func (ac *AuthCode) assignValues(columns []string, values []interface{}) error {
 				return fmt.Errorf("unexpected type %T for field claims_groups", values[i])
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &ac.ClaimsGroups); err != nil {
-					return fmt.Errorf("unmarshal field claims_groups: %v", err)
+					return fmt.Errorf("unmarshal field claims_groups: %w", err)
 				}
 			}
 		case authcode.FieldClaimsPreferredUsername:

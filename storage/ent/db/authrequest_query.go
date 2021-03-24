@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/authrequest"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
-	"github.com/facebook/ent/dialect/sql"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // AuthRequestQuery is the builder for querying AuthRequest entities.
@@ -261,7 +261,7 @@ func (arq *AuthRequestQuery) GroupBy(field string, fields ...string) *AuthReques
 		if err := arq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		return arq.sqlQuery(), nil
+		return arq.sqlQuery(ctx), nil
 	}
 	return group
 }
@@ -334,7 +334,7 @@ func (arq *AuthRequestQuery) sqlCount(ctx context.Context) (int, error) {
 func (arq *AuthRequestQuery) sqlExist(ctx context.Context) (bool, error) {
 	n, err := arq.sqlCount(ctx)
 	if err != nil {
-		return false, fmt.Errorf("db: check existence: %v", err)
+		return false, fmt.Errorf("db: check existence: %w", err)
 	}
 	return n > 0, nil
 }
@@ -384,7 +384,7 @@ func (arq *AuthRequestQuery) querySpec() *sqlgraph.QuerySpec {
 	return _spec
 }
 
-func (arq *AuthRequestQuery) sqlQuery() *sql.Selector {
+func (arq *AuthRequestQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(arq.driver.Dialect())
 	t1 := builder.Table(authrequest.Table)
 	selector := builder.Select(t1.Columns(authrequest.Columns...)...).From(t1)
@@ -679,7 +679,7 @@ func (ars *AuthRequestSelect) Scan(ctx context.Context, v interface{}) error {
 	if err := ars.prepareQuery(ctx); err != nil {
 		return err
 	}
-	ars.sql = ars.AuthRequestQuery.sqlQuery()
+	ars.sql = ars.AuthRequestQuery.sqlQuery(ctx)
 	return ars.sqlScan(ctx, v)
 }
 

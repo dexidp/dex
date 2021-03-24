@@ -1,7 +1,7 @@
 package schema
 
 import (
-	"github.com/facebook/ent/dialect"
+	"entgo.io/ent/dialect"
 )
 
 var textSchema = map[string]string{

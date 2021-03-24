@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"time"
 
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/authrequest"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // AuthRequestCreate is the builder for creating a AuthRequest entity.

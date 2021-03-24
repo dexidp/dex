@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"strings"
 
-	"github.com/facebook/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql"
 
 	// Register sqlite driver.
 	_ "github.com/mattn/go-sqlite3"

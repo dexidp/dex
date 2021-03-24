@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/keys"
-	"github.com/facebook/ent/dialect/sql"
 	"gopkg.in/square/go-jose.v2"
 )
 
@@ -67,7 +67,7 @@ func (k *Keys) assignValues(columns []string, values []interface{}) error {
 				return fmt.Errorf("unexpected type %T for field verification_keys", values[i])
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &k.VerificationKeys); err != nil {
-					return fmt.Errorf("unmarshal field verification_keys: %v", err)
+					return fmt.Errorf("unmarshal field verification_keys: %w", err)
 				}
 			}
 		case keys.FieldSigningKey:
@@ -76,7 +76,7 @@ func (k *Keys) assignValues(columns []string, values []interface{}) error {
 				return fmt.Errorf("unexpected type %T for field signing_key", values[i])
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &k.SigningKey); err != nil {
-					return fmt.Errorf("unmarshal field signing_key: %v", err)
+					return fmt.Errorf("unmarshal field signing_key: %w", err)
 				}
 			}
 		case keys.FieldSigningKeyPub:
@@ -85,7 +85,7 @@ func (k *Keys) assignValues(columns []string, values []interface{}) error {
 				return fmt.Errorf("unexpected type %T for field signing_key_pub", values[i])
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &k.SigningKeyPub); err != nil {
-					return fmt.Errorf("unmarshal field signing_key_pub: %v", err)
+					return fmt.Errorf("unmarshal field signing_key_pub: %w", err)
 				}
 			}
 		case keys.FieldNextRotation:

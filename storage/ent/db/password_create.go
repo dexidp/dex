@@ -7,9 +7,9 @@ import (
 	"errors"
 	"fmt"
 
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/password"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // PasswordCreate is the builder for creating a Password entity.

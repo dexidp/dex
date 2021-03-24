@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/connector"
-	"github.com/facebook/ent/dialect/sql"
 )
 
 // Connector is the model entity for the Connector schema.

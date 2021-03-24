@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
-	"github.com/facebook/ent/dialect/sql"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // RefreshTokenQuery is the builder for querying RefreshToken entities.
@@ -261,7 +261,7 @@ func (rtq *RefreshTokenQuery) GroupBy(field string, fields ...string) *RefreshTo
 		if err := rtq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		return rtq.sqlQuery(), nil
+		return rtq.sqlQuery(ctx), nil
 	}
 	return group
 }
@@ -334,7 +334,7 @@ func (rtq *RefreshTokenQuery) sqlCount(ctx context.Context) (int, error) {
 func (rtq *RefreshTokenQuery) sqlExist(ctx context.Context) (bool, error) {
 	n, err := rtq.sqlCount(ctx)
 	if err != nil {
-		return false, fmt.Errorf("db: check existence: %v", err)
+		return false, fmt.Errorf("db: check existence: %w", err)
 	}
 	return n > 0, nil
 }
@@ -384,7 +384,7 @@ func (rtq *RefreshTokenQuery) querySpec() *sqlgraph.QuerySpec {
 	return _spec
 }
 
-func (rtq *RefreshTokenQuery) sqlQuery() *sql.Selector {
+func (rtq *RefreshTokenQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(rtq.driver.Dialect())
 	t1 := builder.Table(refreshtoken.Table)
 	selector := builder.Select(t1.Columns(refreshtoken.Columns...)...).From(t1)
@@ -679,7 +679,7 @@ func (rts *RefreshTokenSelect) Scan(ctx context.Context, v interface{}) error {
 	if err := rts.prepareQuery(ctx); err != nil {
 		return err
 	}
-	rts.sql = rts.RefreshTokenQuery.sqlQuery()
+	rts.sql = rts.RefreshTokenQuery.sqlQuery(ctx)
 	return rts.sqlScan(ctx, v)
 }
 

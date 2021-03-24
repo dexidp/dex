@@ -37,7 +37,6 @@ const (
 	FieldCodeChallenge = "code_challenge"
 	// FieldCodeChallengeMethod holds the string denoting the code_challenge_method field in the database.
 	FieldCodeChallengeMethod = "code_challenge_method"
-
 	// Table holds the table name of the authcode in the database.
 	Table = "auth_codes"
 )

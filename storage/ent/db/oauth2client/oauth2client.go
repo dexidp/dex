@@ -19,7 +19,6 @@ const (
 	FieldName = "name"
 	// FieldLogoURL holds the string denoting the logo_url field in the database.
 	FieldLogoURL = "logo_url"
-
 	// Table holds the table name of the oauth2client in the database.
 	Table = "oauth2clients"
 )

@@ -15,7 +15,6 @@ const (
 	FieldUsername = "username"
 	// FieldUserID holds the string denoting the user_id field in the database.
 	FieldUserID = "user_id"
-
 	// Table holds the table name of the password in the database.
 	Table = "passwords"
 )

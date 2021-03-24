@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/devicetoken"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
-	"github.com/facebook/ent/dialect/sql"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // DeviceTokenQuery is the builder for querying DeviceToken entities.
@@ -261,7 +261,7 @@ func (dtq *DeviceTokenQuery) GroupBy(field string, fields ...string) *DeviceToke
 		if err := dtq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		return dtq.sqlQuery(), nil
+		return dtq.sqlQuery(ctx), nil
 	}
 	return group
 }
@@ -334,7 +334,7 @@ func (dtq *DeviceTokenQuery) sqlCount(ctx context.Context) (int, error) {
 func (dtq *DeviceTokenQuery) sqlExist(ctx context.Context) (bool, error) {
 	n, err := dtq.sqlCount(ctx)
 	if err != nil {
-		return false, fmt.Errorf("db: check existence: %v", err)
+		return false, fmt.Errorf("db: check existence: %w", err)
 	}
 	return n > 0, nil
 }
@@ -384,7 +384,7 @@ func (dtq *DeviceTokenQuery) querySpec() *sqlgraph.QuerySpec {
 	return _spec
 }
 
-func (dtq *DeviceTokenQuery) sqlQuery() *sql.Selector {
+func (dtq *DeviceTokenQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(dtq.driver.Dialect())
 	t1 := builder.Table(devicetoken.Table)
 	selector := builder.Select(t1.Columns(devicetoken.Columns...)...).From(t1)
@@ -679,7 +679,7 @@ func (dts *DeviceTokenSelect) Scan(ctx context.Context, v interface{}) error {
 	if err := dts.prepareQuery(ctx); err != nil {
 		return err
 	}
-	dts.sql = dts.DeviceTokenQuery.sqlQuery()
+	dts.sql = dts.DeviceTokenQuery.sqlQuery(ctx)
 	return dts.sqlScan(ctx, v)
 }
 

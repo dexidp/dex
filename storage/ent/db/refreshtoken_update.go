@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
-	"github.com/facebook/ent/dialect/sql"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // RefreshTokenUpdate is the builder for updating RefreshToken entities.
@@ -657,6 +657,13 @@ func (rtuo *RefreshTokenUpdateOne) sqlSave(ctx context.Context) (_node *RefreshT
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing RefreshToken.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if ps := rtuo.mutation.predicates; len(ps) > 0 {
+		_spec.Predicate = func(selector *sql.Selector) {
+			for i := range ps {
+				ps[i](selector)
+			}
+		}
+	}
 	if value, ok := rtuo.mutation.ClientID(); ok {
 		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
 			Type:   field.TypeString,

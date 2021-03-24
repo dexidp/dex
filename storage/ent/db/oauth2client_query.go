@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/oauth2client"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
-	"github.com/facebook/ent/dialect/sql"
-	"github.com/facebook/ent/dialect/sql/sqlgraph"
-	"github.com/facebook/ent/schema/field"
 )
 
 // OAuth2ClientQuery is the builder for querying OAuth2Client entities.
@@ -261,7 +261,7 @@ func (oq *OAuth2ClientQuery) GroupBy(field string, fields ...string) *OAuth2Clie
 		if err := oq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		return oq.sqlQuery(), nil
+		return oq.sqlQuery(ctx), nil
 	}
 	return group
 }
@@ -334,7 +334,7 @@ func (oq *OAuth2ClientQuery) sqlCount(ctx context.Context) (int, error) {
 func (oq *OAuth2ClientQuery) sqlExist(ctx context.Context) (bool, error) {
 	n, err := oq.sqlCount(ctx)
 	if err != nil {
-		return false, fmt.Errorf("db: check existence: %v", err)
+		return false, fmt.Errorf("db: check existence: %w", err)
 	}
 	return n > 0, nil
 }
@@ -384,7 +384,7 @@ func (oq *OAuth2ClientQuery) querySpec() *sqlgraph.QuerySpec {
 	return _spec
 }
 
-func (oq *OAuth2ClientQuery) sqlQuery() *sql.Selector {
+func (oq *OAuth2ClientQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(oq.driver.Dialect())
 	t1 := builder.Table(oauth2client.Table)
 	selector := builder.Select(t1.Columns(oauth2client.Columns...)...).From(t1)
@@ -679,7 +679,7 @@ func (os *OAuth2ClientSelect) Scan(ctx context.Context, v interface{}) error {
 	if err := os.prepareQuery(ctx); err != nil {
 		return err
 	}
-	os.sql = os.OAuth2ClientQuery.sqlQuery()
+	os.sql = os.OAuth2ClientQuery.sqlQuery(ctx)
 	return os.sqlScan(ctx, v)
 }
 

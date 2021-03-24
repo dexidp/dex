@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/oauth2client"
-	"github.com/facebook/ent/dialect/sql"
 )
 
 // OAuth2Client is the model entity for the OAuth2Client schema.
@@ -74,7 +74,7 @@ func (o *OAuth2Client) assignValues(columns []string, values []interface{}) erro
 				return fmt.Errorf("unexpected type %T for field redirect_uris", values[i])
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &o.RedirectUris); err != nil {
-					return fmt.Errorf("unmarshal field redirect_uris: %v", err)
+					return fmt.Errorf("unmarshal field redirect_uris: %w", err)
 				}
 			}
 		case oauth2client.FieldTrustedPeers:
@@ -83,7 +83,7 @@ func (o *OAuth2Client) assignValues(columns []string, values []interface{}) erro
 				return fmt.Errorf("unexpected type %T for field trusted_peers", values[i])
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &o.TrustedPeers); err != nil {
-					return fmt.Errorf("unmarshal field trusted_peers: %v", err)
+					return fmt.Errorf("unmarshal field trusted_peers: %w", err)
 				}
 			}
 		case oauth2client.FieldPublic:

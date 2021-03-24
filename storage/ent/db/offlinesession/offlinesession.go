@@ -15,7 +15,6 @@ const (
 	FieldRefresh = "refresh"
 	// FieldConnectorData holds the string denoting the connector_data field in the database.
 	FieldConnectorData = "connector_data"
-
 	// Table holds the table name of the offlinesession in the database.
 	Table = "offline_sessions"
 )

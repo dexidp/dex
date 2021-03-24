@@ -5,8 +5,8 @@ package refreshtoken
 import (
 	"time"
 
+	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
-	"github.com/facebook/ent/dialect/sql"
 )
 
 // ID filters vertices based on their ID field.

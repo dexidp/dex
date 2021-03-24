@@ -19,7 +19,6 @@ const (
 	FieldScopes = "scopes"
 	// FieldExpiry holds the string denoting the expiry field in the database.
 	FieldExpiry = "expiry"
-
 	// Table holds the table name of the devicerequest in the database.
 	Table = "device_requests"
 )
