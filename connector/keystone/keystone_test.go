@@ -52,7 +52,7 @@ func getAdminToken(t *testing.T, adminName, adminPass string) (token, id string)
 				Password: password{
 					User: user{
 						Name:     adminName,
-						Domain:   domain{ID: testDomain},
+						Domain:   domain{Name: testDomain},
 						Password: adminPass,
 					},
 				},

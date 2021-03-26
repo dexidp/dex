@@ -75,7 +75,7 @@ type user struct {
 }
 
 type domain struct {
-	ID string `json:"id"`
+	Name string `json:"name"`
 }
 
 type token struct {
@@ -199,7 +199,7 @@ func (p *conn) getTokenResponse(ctx context.Context, username, pass string) (res
 				Password: password{
 					User: user{
 						Name:     username,
-						Domain:   domain{ID: p.Domain},
+						Domain:   domain{Name: p.Domain},
 						Password: pass,
 					},
 				},
