@@ -1,0 +1,8 @@
+---
+steps:
+  - id: docker-build
+    name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'eu.gcr.io/$PROJECT_ID/dex:$SHORT_SHA', '--build-arg', 'VERSION=$SHORT_SHA', '.']
+
+images:
+  - 'eu.gcr.io/$PROJECT_ID/dex:$SHORT_SHA'
