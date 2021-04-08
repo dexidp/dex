@@ -110,6 +110,7 @@ type googleConnector struct {
 	logger                 log.Logger
 	hostedDomains          []string
 	groups                 []string
+	fetchedGroups          []string
 	serviceAccountFilePath string
 	adminEmail             string
 	adminSrv               *admin.Service
@@ -212,16 +213,15 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		}
 	}
 
-	var groups []string
 	if s.Groups && c.adminSrv != nil {
-		groups, err = c.getGroups(claims.Email)
+		err = c.getGroups(claims.Email)
 		if err != nil {
 			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
 		}
 
 		if len(c.groups) > 0 {
-			groups = pkg_groups.Filter(groups, c.groups)
-			if len(groups) == 0 {
+			c.fetchedGroups = pkg_groups.Filter(c.fetchedGroups, c.groups)
+			if len(c.fetchedGroups) == 0 {
 				return identity, fmt.Errorf("google: user %q is not in any of the required groups", claims.Username)
 			}
 		}
@@ -233,27 +233,26 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		Email:         claims.Email,
 		EmailVerified: claims.EmailVerified,
 		ConnectorData: []byte(token.RefreshToken),
-		Groups:        groups,
+		Groups:        c.fetchedGroups,
 	}
 	return identity, nil
 }
 
 // getGroups creates a connection to the admin directory service and lists
 // all groups the user is a member of
-func (c *googleConnector) getGroups(email string) ([]string, error) {
-	var userGroups []string
+func (c *googleConnector) getGroups(email string) error {
 	var err error
 	groupsList := &admin.Groups{}
 	for {
 		groupsList, err = c.adminSrv.Groups.List().
 			UserKey(email).PageToken(groupsList.NextPageToken).Do()
 		if err != nil {
-			return nil, fmt.Errorf("could not list groups: %v", err)
+			return fmt.Errorf("could not list groups: %v", err)
 		}
 
 		for _, group := range groupsList.Groups {
 			// TODO (joelspeed): Make desired group key configurable
-			userGroups = append(userGroups, group.Email)
+			c.fetchedGroups = append(c.fetchedGroups, group.Email)
 		}
 
 		if groupsList.NextPageToken == "" {
@@ -261,7 +260,7 @@ func (c *googleConnector) getGroups(email string) ([]string, error) {
 		}
 	}
 
-	return userGroups, nil
+	return nil
 }
 
 // createDirectoryService loads a google service account credentials file,
