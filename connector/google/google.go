@@ -204,6 +204,8 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
 	}
 
+	c.fetchedGroups = []string{}
+
 	if len(c.hostedDomains) > 0 {
 		found := false
 		for _, domain := range c.hostedDomains {
