@@ -114,7 +114,6 @@ type googleConnector struct {
 	logger                 log.Logger
 	hostedDomains          []string
 	groups                 []string
-	fetchedGroups          []string
 	serviceAccountFilePath string
 	adminEmail             string
 	groupsIndirectFetch    bool
@@ -204,8 +203,6 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
 	}
 
-	c.fetchedGroups = []string{}
-
 	if len(c.hostedDomains) > 0 {
 		found := false
 		for _, domain := range c.hostedDomains {
@@ -220,15 +217,16 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		}
 	}
 
+	var groups []string
 	if s.Groups && c.adminSrv != nil {
-		err = c.getGroups(claims.Email)
+		groups, err = c.getGroups(claims.Email, c.groupsIndirectFetch)
 		if err != nil {
 			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
 		}
 
 		if len(c.groups) > 0 {
-			c.fetchedGroups = pkg_groups.Filter(c.fetchedGroups, c.groups)
-			if len(c.fetchedGroups) == 0 {
+			filteredGroups := pkg_groups.Filter(groups, c.groups)
+			if len(filteredGroups) == 0 {
 				return identity, fmt.Errorf("google: user %q is not in any of the required groups", claims.Username)
 			}
 		}
@@ -240,32 +238,34 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		Email:         claims.Email,
 		EmailVerified: claims.EmailVerified,
 		ConnectorData: []byte(token.RefreshToken),
-		Groups:        c.fetchedGroups,
+		Groups:        groups,
 	}
 	return identity, nil
 }
 
 // getGroups creates a connection to the admin directory service and lists
 // all groups the user is a member of
-func (c *googleConnector) getGroups(email string) error {
+func (c *googleConnector) getGroups(email string, groupsIndirectFetch bool) ([]string, error) {
 	var err error
 	groupsList := &admin.Groups{}
+	groups := []string{}
 	for {
 		groupsList, err = c.adminSrv.Groups.List().
 			UserKey(email).PageToken(groupsList.NextPageToken).Do()
 		if err != nil {
-			return fmt.Errorf("could not list groups: %v", err)
+			return nil, fmt.Errorf("could not list groups: %v", err)
 		}
 
 		for _, group := range groupsList.Groups {
 			// TODO (joelspeed): Make desired group key configurable
-			c.fetchedGroups = append(c.fetchedGroups, group.Email)
+			groups = append(groups, group.Email)
 
-			if c.groupsIndirectFetch {
-				err = c.getGroups(group.Email)
+			if groupsIndirectFetch {
+				ancestors, err := c.getGroups(group.Email, groupsIndirectFetch)
 				if err != nil {
-					return fmt.Errorf("could not list indirect groups: %v", err)
+					return nil, fmt.Errorf("could not list indirect groups: %v", err)
 				}
+				groups = append(ancestors, groups...)
 			}
 		}
 
@@ -274,7 +274,19 @@ func (c *googleConnector) getGroups(email string) error {
 		}
 	}
 
-	return nil
+	return uniqueGroups(groups), nil
+}
+
+func uniqueGroups(intSlice []string) []string {
+	keys := make(map[string]bool)
+	list := []string{}
+	for _, entry := range intSlice {
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			list = append(list, entry)
+		}
+	}
+	return list
 }
 
 // createDirectoryService loads a google service account credentials file,
