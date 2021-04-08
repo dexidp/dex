@@ -49,6 +49,9 @@ type Config struct {
 	// The email of a GSuite super user which the service account will impersonate
 	// when listing groups
 	AdminEmail string
+
+	// If this field is true, both direct and indirect group memberships will be fetched
+	GroupsIndirectFetch bool `json:"groupsIndirectFetch"`
 }
 
 // Open returns a connector which can be used to login users through Google.
@@ -93,6 +96,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		groups:                 c.Groups,
 		serviceAccountFilePath: c.ServiceAccountFilePath,
 		adminEmail:             c.AdminEmail,
+		groupsIndirectFetch:    c.GroupsIndirectFetch,
 		adminSrv:               srv,
 	}, nil
 }
@@ -113,6 +117,7 @@ type googleConnector struct {
 	fetchedGroups          []string
 	serviceAccountFilePath string
 	adminEmail             string
+	groupsIndirectFetch    bool
 	adminSrv               *admin.Service
 }
 
@@ -253,6 +258,13 @@ func (c *googleConnector) getGroups(email string) error {
 		for _, group := range groupsList.Groups {
 			// TODO (joelspeed): Make desired group key configurable
 			c.fetchedGroups = append(c.fetchedGroups, group.Email)
+
+			if c.groupsIndirectFetch {
+				err = c.getGroups(group.Email)
+				if err != nil {
+					return fmt.Errorf("could not list indirect groups: %v", err)
+				}
+			}
 		}
 
 		if groupsList.NextPageToken == "" {
