@@ -247,6 +247,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 // all groups the user is a member of
 func (c *googleConnector) getGroups(email string) error {
 	var err error
+	c.fetchedGroups = []string{}
 	groupsList := &admin.Groups{}
 	for {
 		groupsList, err = c.adminSrv.Groups.List().
