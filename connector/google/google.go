@@ -49,6 +49,9 @@ type Config struct {
 	// The email of a GSuite super user which the service account will impersonate
 	// when listing groups
 	AdminEmail string
+
+	// If this field is true, both direct and indirect group memberships will be fetched
+	GroupsIndirectFetch bool `json:"groupsIndirectFetch"`
 }
 
 // Open returns a connector which can be used to login users through Google.
@@ -93,6 +96,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		groups:                 c.Groups,
 		serviceAccountFilePath: c.ServiceAccountFilePath,
 		adminEmail:             c.AdminEmail,
+		groupsIndirectFetch:    c.GroupsIndirectFetch,
 		adminSrv:               srv,
 	}, nil
 }
@@ -112,6 +116,7 @@ type googleConnector struct {
 	groups                 []string
 	serviceAccountFilePath string
 	adminEmail             string
+	groupsIndirectFetch    bool
 	adminSrv               *admin.Service
 }
 
@@ -214,7 +219,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 
 	var groups []string
 	if s.Groups && c.adminSrv != nil {
-		groups, err = c.getGroups(claims.Email)
+		groups, err = c.getGroups(claims.Email, c.groupsIndirectFetch)
 		if err != nil {
 			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
 		}
@@ -240,7 +245,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 
 // getGroups creates a connection to the admin directory service and lists
 // all groups the user is a member of
-func (c *googleConnector) getGroups(email string) ([]string, error) {
+func (c *googleConnector) getGroups(email string, groupsIndirectFetch bool) ([]string, error) {
 	var userGroups []string
 	var err error
 	groupsList := &admin.Groups{}
@@ -254,6 +259,15 @@ func (c *googleConnector) getGroups(email string) ([]string, error) {
 		for _, group := range groupsList.Groups {
 			// TODO (joelspeed): Make desired group key configurable
 			userGroups = append(userGroups, group.Email)
+
+			if groupsIndirectFetch {
+				indirectGroups, err := c.getGroups(group.Email, groupsIndirectFetch)
+				if err != nil {
+					return nil, fmt.Errorf("could not list indirect groups: %v", err)
+				}
+
+				userGroups = append(userGroups, indirectGroups...)
+			}
 		}
 
 		if groupsList.NextPageToken == "" {
@@ -261,7 +275,7 @@ func (c *googleConnector) getGroups(email string) ([]string, error) {
 		}
 	}
 
-	return userGroups, nil
+	return uniqueGroups(userGroups), nil
 }
 
 // createDirectoryService loads a google service account credentials file,
@@ -295,4 +309,19 @@ func createDirectoryService(serviceAccountFilePath string, email string) (*admin
 		return nil, fmt.Errorf("unable to create directory service %v", err)
 	}
 	return srv, nil
+}
+
+// uniqueGroups returns the unique groups of a slice
+func uniqueGroups(groups []string) []string {
+	keys := make(map[string]bool)
+	unique := []string{}
+
+	for _, group := range groups {
+		if _, value := keys[group]; !value {
+			keys[group] = true
+			unique = append(unique, group)
+		}
+	}
+
+	return unique
 }
