@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/v2/connector"
+	"github.com/dexidp/dex/v2/pkg/log"
 )
 
 // NewCallbackConnector returns a mock connector which requires no user interaction. It always returns

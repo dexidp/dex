@@ -15,8 +15,8 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/lib/pq"
 
-	"github.com/dexidp/dex/pkg/log"
-	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/v2/pkg/log"
+	"github.com/dexidp/dex/v2/storage"
 )
 
 const (

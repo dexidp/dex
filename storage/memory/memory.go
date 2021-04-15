@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dexidp/dex/pkg/log"
-	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/v2/pkg/log"
+	"github.com/dexidp/dex/v2/storage"
 )
 
 // New returns an in memory storage.
@@ -29,8 +29,7 @@ func New(logger log.Logger) storage.Storage {
 // Config is an implementation of a storage configuration.
 //
 // TODO(ericchiang): Actually define a storage config interface and have registration.
-type Config struct {
-	// The in memory implementation has no config.
+type Config struct { // The in memory implementation has no config.
 }
 
 // Open always returns a new in memory storage.

@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/v2/connector"
 )
 
 // tests that the email is used as their username when they have no username set

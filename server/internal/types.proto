@@ -3,7 +3,7 @@ syntax = "proto3";
 // Package internal holds protobuf types used by the server.
 package internal;
 
-option go_package = "github.com/dexidp/dex/server/internal";
+option go_package = "github.com/dexidp/dex/v2/server/internal";
 
 // RefreshToken is a message that holds refresh token data used by dex.
 message RefreshToken {

@@ -10,7 +10,7 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/sirupsen/logrus"
 
-	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/v2/connector"
 )
 
 // connectionMethod indicates how the test should connect to the LDAP server.

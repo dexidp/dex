@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/v2/storage"
 )
 
 // TODO(ericchiang): The update, insert, and select methods queries are all
@@ -998,7 +998,7 @@ func (c *conn) UpdateDeviceToken(deviceCode string, updater func(old storage.Dev
 		_, err = tx.Exec(`
 			update device_token
 			set
-				status = $1, 
+				status = $1,
 				token = $2,
 				last_request = $3,
 				poll_interval = $4

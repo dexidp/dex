@@ -10,9 +10,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/dexidp/dex/pkg/log"
-	"github.com/dexidp/dex/storage"
-	"github.com/dexidp/dex/storage/conformance"
+	"github.com/dexidp/dex/v2/pkg/log"
+	"github.com/dexidp/dex/v2/storage"
+	"github.com/dexidp/dex/v2/storage/conformance"
 )
 
 func withTimeout(t time.Duration, f func()) {

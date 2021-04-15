@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/v2/connector"
 )
 
 func TestUserGroups(t *testing.T) {

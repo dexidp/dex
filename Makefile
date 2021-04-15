@@ -2,7 +2,7 @@ OS = $(shell uname | tr A-Z a-z)
 
 PROJ=dex
 ORG_PATH=github.com/dexidp
-REPO_PATH=$(ORG_PATH)/$(PROJ)
+REPO_PATH=$(ORG_PATH)/$(PROJ)/v2
 export PATH := $(PWD)/bin:$(PATH)
 
 VERSION ?= $(shell ./scripts/git-version)
@@ -30,7 +30,7 @@ build: bin/dex
 
 bin/dex:
 	@mkdir -p bin/
-	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
+	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex/
 
 examples: bin/grpc-client bin/example-app
 
@@ -44,7 +44,7 @@ bin/example-app:
 
 .PHONY: release-binary
 release-binary:
-	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
+	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex/
 
 docker-compose.override.yaml:
 	cp docker-compose.override.yaml.dist docker-compose.override.yaml

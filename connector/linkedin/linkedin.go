@@ -11,8 +11,8 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/v2/connector"
+	"github.com/dexidp/dex/v2/pkg/log"
 )
 
 const (

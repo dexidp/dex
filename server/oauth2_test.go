@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/square/go-jose.v2"
 
-	"github.com/dexidp/dex/storage"
-	"github.com/dexidp/dex/storage/memory"
+	"github.com/dexidp/dex/v2/storage"
+	"github.com/dexidp/dex/v2/storage/memory"
 )
 
 func TestParseAuthorizationRequest(t *testing.T) {
