@@ -57,6 +57,12 @@ jobs:
       - name: Start services
         run: docker-compose -f docker-compose.test.yaml up -d
 
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.0.0
+        with:
+          version: v0.10.0
+          node_image: kindest/node:v1.19.7@sha256:a70639454e97a4b733f9d9b67e12c01f6b0297449d5b9cbbef87473458e26dca
+
       - name: Test
         run: make testall
         env:
@@ -78,6 +84,7 @@ jobs:
           DEX_KEYSTONE_ADMIN_URL: http://localhost:${{ job.services.keystone.ports[35357] }}
           DEX_KEYSTONE_ADMIN_USER: demo
           DEX_KEYSTONE_ADMIN_PASS: DEMO_PASS
+          DEX_KUBERNETES_CONFIG_PATH: ~/.kube/config
 
       - name: Lint
         run: make lint

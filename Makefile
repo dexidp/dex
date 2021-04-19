@@ -61,24 +61,11 @@ up: docker-compose.override.yaml ## Launch the development environment
 down: clear ## Destroy the development environment
 	docker-compose down --volumes --remove-orphans --rmi local
 
-test: bin/test/kube-apiserver bin/test/etcd
+test:
 	@go test -v ./...
 
-testrace: bin/test/kube-apiserver bin/test/etcd
+testrace:
 	@go test -v --race ./...
-
-export TEST_ASSET_KUBE_APISERVER=$(abspath bin/test/kube-apiserver)
-export TEST_ASSET_ETCD=$(abspath bin/test/etcd)
-
-bin/test/kube-apiserver:
-	@mkdir -p bin/test
-	curl -L https://storage.googleapis.com/k8s-c10s-test-binaries/kube-apiserver-$(shell uname)-x86_64 > bin/test/kube-apiserver
-	chmod +x bin/test/kube-apiserver
-
-bin/test/etcd:
-	@mkdir -p bin/test
-	curl -L https://storage.googleapis.com/k8s-c10s-test-binaries/etcd-$(shell uname)-x86_64 > bin/test/etcd
-	chmod +x bin/test/etcd
 
 bin/golangci-lint: bin/golangci-lint-${GOLANGCI_VERSION}
 	@ln -sf golangci-lint-${GOLANGCI_VERSION} bin/golangci-lint

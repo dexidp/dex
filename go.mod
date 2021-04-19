@@ -35,7 +35,6 @@ require (
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.26.0
 	gopkg.in/square/go-jose.v2 v2.5.1
-	sigs.k8s.io/testing_frameworks v0.1.2
 )
 
 replace github.com/dexidp/dex/api/v2 => ./api/v2
