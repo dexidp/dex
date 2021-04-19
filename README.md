@@ -102,13 +102,9 @@ All changes or deprecations of connector features will be announced in the [rele
 * Client libraries
   * [Go][go-oidc]
 
-## Reporting a security vulnerability
+## Reporting a vulnerability
 
-Due to their public nature, GitHub and mailing lists are NOT appropriate places
-for reporting vulnerabilities.
-
-Please email the [maintainers list](mailto:cncf-dex-maintainers@lists.cncf.io) to report issues that may
-be security-related.
+Please see our [security policy](.github/SECURITY.md) for details about reporting vulnerabilities.
 
 ## Getting help
 
