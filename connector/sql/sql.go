@@ -65,14 +65,17 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 	}
 
 	// Connect
+	logger.Infof("SQL Connector: Opening config %+v", c)
 	db, err := sql.Open(c.Database, c.Connection)
 	if err != nil {
+		logger.Errorf("SQL Connector: Failed to open database: %s", err)
 		return &sqlConnector{}, err
 	}
 
 	// Do a ping to check connection works
 	err = db.Ping()
 	if err != nil {
+		logger.Errorf("SQL Connector: Failed to ping database: %s", err)
 		return nil, err
 	}
 
@@ -81,7 +84,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 
 	config := c.FixPostgresQueryParameters()
 
-	logger.Infof("SQL Connector: Open config: %+v", config)
+	logger.Infof("SQL Connector: Connection successful, config is: %+v", config)
 
 	return &sqlConnector{
 		db:     db,
