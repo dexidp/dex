@@ -6,7 +6,7 @@ export PATH := $(PWD)/bin:$(PATH)
 VERSION ?= $(shell ./scripts/git-version)
 
 DOCKER_REPO=quay.io/giantswarm/dex
-DOCKER_IMAGE=$(DOCKER_REPO):$(VERSION)-giantswarm
+DOCKER_IMAGE=$(DOCKER_REPO):$(VERSION)
 
 $( shell mkdir -p bin )
 
