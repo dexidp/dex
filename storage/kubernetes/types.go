@@ -496,7 +496,8 @@ type RefreshToken struct {
 	ClientID string   `json:"clientID"`
 	Scopes   []string `json:"scopes,omitempty"`
 
-	Token string `json:"token,omitempty"`
+	Token         string `json:"token,omitempty"`
+	ObsoleteToken string `json:"obsoleteToken,omitempty"`
 
 	Nonce string `json:"nonce,omitempty"`
 
@@ -516,6 +517,7 @@ func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
 	return storage.RefreshToken{
 		ID:            r.ObjectMeta.Name,
 		Token:         r.Token,
+		ObsoleteToken: r.ObsoleteToken,
 		CreatedAt:     r.CreatedAt,
 		LastUsed:      r.LastUsed,
 		ClientID:      r.ClientID,
@@ -538,6 +540,7 @@ func (cli *client) fromStorageRefreshToken(r storage.RefreshToken) RefreshToken 
 			Namespace: cli.namespace,
 		},
 		Token:         r.Token,
+		ObsoleteToken: r.ObsoleteToken,
 		CreatedAt:     r.CreatedAt,
 		LastUsed:      r.LastUsed,
 		ClientID:      r.ClientID,
