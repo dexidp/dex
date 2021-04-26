@@ -31,6 +31,7 @@ import (
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server"
+	storagesigner "github.com/dexidp/dex/signer/storage"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -175,6 +176,7 @@ func runServe(options serveOptions) error {
 	defer s.Close()
 
 	logger.Infof("config storage: %s", c.Storage.Type)
+	baseStorage := s
 
 	if len(c.StaticClients) > 0 {
 		for i, client := range c.StaticClients {
@@ -271,6 +273,10 @@ func runServe(options serveOptions) error {
 		Now:                    now,
 		PrometheusRegistry:     prometheusRegistry,
 		HealthChecker:          healthChecker,
+		RotateKeysAfter:        6 * time.Hour,
+		IDTokensValidFor:       24 * time.Hour,
+		AuthRequestsValidFor:   24 * time.Hour,
+		DeviceRequestsValidFor: 5 * time.Minute,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
@@ -316,6 +322,28 @@ func runServe(options serveOptions) error {
 	}
 
 	serverConfig.RefreshTokenPolicy = refreshTokenPolicy
+
+	if c.Signer.Type == "" {
+		c.Signer.Type = "storage"
+		c.Signer.Config = &storagesigner.Config{}
+		logger.Info("config no signer, using storage")
+	}
+
+	// inject storage into storagesigner if active
+	if storageConfig, ok := c.Signer.Config.(*storagesigner.Config); ok {
+		keyStorage, ok := baseStorage.(storage.KeyStorage)
+		if !ok {
+			return errors.New("storage signer was configured, but the storage engine does not support key storage")
+		}
+		storageConfig.Storage = keyStorage
+	}
+
+	signer, err := c.Signer.Config.Open(logger, serverConfig.IDTokensValidFor, serverConfig.RotateKeysAfter)
+	if err != nil {
+		return fmt.Errorf("failed to initialize signer: %v", err)
+	}
+	serverConfig.Signer = signer
+
 	serv, err := server.NewServer(context.Background(), serverConfig)
 	if err != nil {
 		return fmt.Errorf("failed to initialize server: %v", err)

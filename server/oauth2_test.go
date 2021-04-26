@@ -2,8 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,10 +9,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/storage"
-	"github.com/dexidp/dex/storage/memory"
 )
 
 func TestParseAuthorizationRequest(t *testing.T) {
@@ -333,23 +329,6 @@ func TestParseAuthorizationRequest(t *testing.T) {
 	}
 }
 
-const (
-	// at_hash value and access_token returned by Google.
-	googleAccessTokenHash = "piwt8oCH-K2D9pXlaS1Y-w"
-	googleAccessToken     = "ya29.CjHSA1l5WUn8xZ6HanHFzzdHdbXm-14rxnC7JHch9eFIsZkQEGoWzaYG4o7k5f6BnPLj"
-	googleSigningAlg      = jose.RS256
-)
-
-func TestAccessTokenHash(t *testing.T) {
-	atHash, err := accessTokenHash(googleSigningAlg, googleAccessToken)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if atHash != googleAccessTokenHash {
-		t.Errorf("expected %q got %q", googleAccessTokenHash, atHash)
-	}
-}
-
 func TestValidRedirectURI(t *testing.T) {
 	tests := []struct {
 		client      storage.Client
@@ -527,89 +506,5 @@ func TestValidRedirectURI(t *testing.T) {
 			t.Errorf("client=%#v, redirectURI=%q, wanted valid=%t, got=%t",
 				test.client, test.redirectURI, test.wantValid, got)
 		}
-	}
-}
-
-func TestStorageKeySet(t *testing.T) {
-	s := memory.New(logger)
-	if err := s.UpdateKeys(func(keys storage.Keys) (storage.Keys, error) {
-		keys.SigningKey = &jose.JSONWebKey{
-			Key:       testKey,
-			KeyID:     "testkey",
-			Algorithm: "RS256",
-			Use:       "sig",
-		}
-		keys.SigningKeyPub = &jose.JSONWebKey{
-			Key:       testKey.Public(),
-			KeyID:     "testkey",
-			Algorithm: "RS256",
-			Use:       "sig",
-		}
-		return keys, nil
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	tests := []struct {
-		name           string
-		tokenGenerator func() (jwt string, err error)
-		wantErr        bool
-	}{
-		{
-			name: "valid token",
-			tokenGenerator: func() (string, error) {
-				signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: testKey}, nil)
-				if err != nil {
-					return "", err
-				}
-
-				jws, err := signer.Sign([]byte("payload"))
-				if err != nil {
-					return "", err
-				}
-
-				return jws.CompactSerialize()
-			},
-			wantErr: false,
-		},
-		{
-			name: "token signed by different key",
-			tokenGenerator: func() (string, error) {
-				key, err := rsa.GenerateKey(rand.Reader, 2048)
-				if err != nil {
-					return "", err
-				}
-
-				signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: key}, nil)
-				if err != nil {
-					return "", err
-				}
-
-				jws, err := signer.Sign([]byte("payload"))
-				if err != nil {
-					return "", err
-				}
-
-				return jws.CompactSerialize()
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range tests {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			jwt, err := tc.tokenGenerator()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			keySet := &storageKeySet{s}
-
-			_, err = keySet.VerifySignature(context.Background(), jwt)
-			if (err != nil && !tc.wantErr) || (err == nil && tc.wantErr) {
-				t.Fatalf("wantErr = %v, but got err = %v", tc.wantErr, err)
-			}
-		})
 	}
 }

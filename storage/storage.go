@@ -85,7 +85,6 @@ type Storage interface {
 	GetAuthRequest(id string) (AuthRequest, error)
 	GetAuthCode(id string) (AuthCode, error)
 	GetClient(id string) (Client, error)
-	GetKeys() (Keys, error)
 	GetRefresh(id string) (RefreshToken, error)
 	GetPassword(email string) (Password, error)
 	GetOfflineSessions(userID string, connID string) (OfflineSessions, error)
@@ -122,7 +121,6 @@ type Storage interface {
 	//		}
 	//
 	UpdateClient(id string, updater func(old Client) (Client, error)) error
-	UpdateKeys(updater func(old Keys) (Keys, error)) error
 	UpdateAuthRequest(id string, updater func(a AuthRequest) (AuthRequest, error)) error
 	UpdateRefreshToken(id string, updater func(r RefreshToken) (RefreshToken, error)) error
 	UpdatePassword(email string, updater func(p Password) (Password, error)) error
@@ -133,6 +131,12 @@ type Storage interface {
 	// GarbageCollect deletes all expired AuthCodes,
 	// AuthRequests, DeviceRequests, and DeviceTokens.
 	GarbageCollect(now time.Time) (GCResult, error)
+}
+
+type KeyStorage interface {
+	GetKeys() (Keys, error)
+	UpdateKeys(updater func(old Keys) (Keys, error)) error
+	Close() error
 }
 
 // Client represents an OAuth2 client.

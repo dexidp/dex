@@ -2,10 +2,7 @@ package server
 
 import (
 	"context"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -26,56 +23,15 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
-	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/mock"
+	storagesigner "github.com/dexidp/dex/signer/storage"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
-
-func mustLoad(s string) *rsa.PrivateKey {
-	block, _ := pem.Decode([]byte(s))
-	if block == nil {
-		panic("no pem data found")
-	}
-	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	if err != nil {
-		panic(err)
-	}
-	return key
-}
-
-var testKey = mustLoad(`-----BEGIN RSA PRIVATE KEY-----
-MIIEogIBAAKCAQEArmoiX5G36MKPiVGS1sicruEaGRrbhPbIKOf97aGGQRjXVngo
-Knwd2L4T9CRyABgQm3tLHHcT5crODoy46wX2g9onTZWViWWuhJ5wxXNmUbCAPWHb
-j9SunW53WuLYZ/IJLNZt5XYCAFPjAakWp8uMuuDwWo5EyFaw85X3FSMhVmmaYDd0
-cn+1H4+NS/52wX7tWmyvGUNJ8lzjFAnnOtBJByvkyIC7HDphkLQV4j//sMNY1mPX
-HbsYgFv2J/LIJtkjdYO2UoDhZG3Gvj16fMy2JE2owA8IX4/s+XAmA2PiTfd0J5b4
-drAKEcdDl83G6L3depEkTkfvp0ZLsh9xupAvIwIDAQABAoIBABKGgWonPyKA7+AF
-AxS/MC0/CZebC6/+ylnV8lm4K1tkuRKdJp8EmeL4pYPsDxPFepYZLWwzlbB1rxdK
-iSWld36fwEb0WXLDkxrQ/Wdrj3Wjyqs6ZqjLTVS5dAH6UEQSKDlT+U5DD4lbX6RA
-goCGFUeQNtdXfyTMWHU2+4yKM7NKzUpczFky+0d10Mg0ANj3/4IILdr3hqkmMSI9
-1TB9ksWBXJxt3nGxAjzSFihQFUlc231cey/HhYbvAX5fN0xhLxOk88adDcdXE7br
-3Ser1q6XaaFQSMj4oi1+h3RAT9MUjJ6johEqjw0PbEZtOqXvA1x5vfFdei6SqgKn
-Am3BspkCgYEA2lIiKEkT/Je6ZH4Omhv9atbGoBdETAstL3FnNQjkyVau9f6bxQkl
-4/sz985JpaiasORQBiTGY8JDT/hXjROkut91agi2Vafhr29L/mto7KZglfDsT4b2
-9z/EZH8wHw7eYhvdoBbMbqNDSI8RrGa4mpLpuN+E0wsFTzSZEL+QMQUCgYEAzIQh
-xnreQvDAhNradMqLmxRpayn1ORaPReD4/off+mi7hZRLKtP0iNgEVEWHJ6HEqqi1
-r38XAc8ap/lfOVMar2MLyCFOhYspdHZ+TGLZfr8gg/Fzeq9IRGKYadmIKVwjMeyH
-REPqg1tyrvMOE0HI5oqkko8JTDJ0OyVC0Vc6+AcCgYAqCzkywugLc/jcU35iZVOH
-WLdFq1Vmw5w/D7rNdtoAgCYPj6nV5y4Z2o2mgl6ifXbU7BMRK9Hc8lNeOjg6HfdS
-WahV9DmRA1SuIWPkKjE5qczd81i+9AHpmakrpWbSBF4FTNKAewOBpwVVGuBPcDTK
-59IE3V7J+cxa9YkotYuCNQKBgCwGla7AbHBEm2z+H+DcaUktD7R+B8gOTzFfyLoi
-Tdj+CsAquDO0BQQgXG43uWySql+CifoJhc5h4v8d853HggsXa0XdxaWB256yk2Wm
-MePTCRDePVm/ufLetqiyp1kf+IOaw1Oyux0j5oA62mDS3Iikd+EE4Z+BjPvefY/L
-E2qpAoGAZo5Wwwk7q8b1n9n/ACh4LpE+QgbFdlJxlfFLJCKstl37atzS8UewOSZj
-FDWV28nTP9sqbtsmU8Tem2jzMvZ7C/Q0AuDoKELFUpux8shm8wfIhyaPnXUGZoAZ
-Np4vUwMSYV5mopESLWOg3loBxKyLGFtgGKVCjGiQvy6zISQ4fQo=
------END RSA PRIVATE KEY-----`)
 
 var logger = &logrus.Logger{
 	Out:       os.Stderr,
@@ -89,15 +45,17 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 		server.ServeHTTP(w, r)
 	}))
 
+	store := memory.New(logger)
 	config := Config{
 		Issuer:  s.URL,
-		Storage: memory.New(logger),
+		Storage: store,
 		Web: WebConfig{
 			Dir: "../web",
 		},
 		Logger:             logger,
 		PrometheusRegistry: prometheus.NewRegistry(),
 		HealthChecker:      gosundheit.New(),
+		Signer:             storagesigner.New(store.(storage.KeyStorage), logger, storagesigner.StaticRotationStrategy(testKey)),
 	}
 	if updateConfig != nil {
 		updateConfig(&config)
@@ -115,7 +73,7 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 	}
 
 	var err error
-	if server, err = newServer(ctx, config, staticRotationStrategy(testKey)); err != nil {
+	if server, err = newServer(ctx, config); err != nil {
 		t.Fatal(err)
 	}
 	server.skipApproval = true // Don't prompt for approval, just immediately redirect with code.
@@ -138,9 +96,11 @@ func newTestServerMultipleConnectors(ctx context.Context, t *testing.T, updateCo
 		server.ServeHTTP(w, r)
 	}))
 
+	store := memory.New(logger)
 	config := Config{
 		Issuer:  s.URL,
-		Storage: memory.New(logger),
+		Storage: store,
+		Signer:  storagesigner.New(store.(storage.KeyStorage), logger, storagesigner.StaticRotationStrategy(testKey)),
 		Web: WebConfig{
 			Dir: "../web",
 		},
@@ -172,7 +132,7 @@ func newTestServerMultipleConnectors(ctx context.Context, t *testing.T, updateCo
 	}
 
 	var err error
-	if server, err = newServer(ctx, config, staticRotationStrategy(testKey)); err != nil {
+	if server, err = newServer(ctx, config); err != nil {
 		t.Fatal(err)
 	}
 	server.skipApproval = true // Don't prompt for approval, just immediately redirect with code.
@@ -228,16 +188,13 @@ type test struct {
 	// If specified these set of scopes will be used during the test case.
 	scopes []string
 	// handleToken provides the OAuth2 token response for the integration test.
-	handleToken func(context.Context, *oidc.Provider, *oauth2.Config, *oauth2.Token, *mock.Callback) error
+	handleToken func(context.Context, *Server, *oidc.Provider, *oauth2.Config, *oauth2.Token, *mock.Callback) error
 
 	// extra parameters to pass when requesting auth_code
 	authCodeOptions []oauth2.AuthCodeOption
 
 	// extra parameters to pass when retrieving id token
 	retrieveTokenOptions []oauth2.AuthCodeOption
-
-	// define an error response, when the test expects an error on the auth endpoint
-	authError *OAuth2ErrorResponse
 
 	// define an error response, when the test expects an error on the token endpoint
 	tokenError ErrorResponse
@@ -268,7 +225,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 
 	oidcConfig := &oidc.Config{SkipClientIDCheck: true}
 
-	basicIDTokenVerify := func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+	basicIDTokenVerify := func(ctx context.Context, s *Server, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
 		idToken, ok := token.Extra("id_token").(string)
 		if !ok {
 			return fmt.Errorf("no id token found")
@@ -284,7 +241,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 		tests: []test{
 			{
 				name: "verify ID Token",
-				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+				handleToken: func(ctx context.Context, s *Server, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
 					idToken, ok := token.Extra("id_token").(string)
 					if !ok {
 						return fmt.Errorf("no id token found")
@@ -297,7 +254,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 			},
 			{
 				name: "fetch userinfo",
-				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+				handleToken: func(ctx context.Context, s *Server, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
 					ui, err := p.UserInfo(ctx, config.TokenSource(ctx, token))
 					if err != nil {
 						return fmt.Errorf("failed to fetch userinfo: %v", err)
@@ -310,7 +267,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 			},
 			{
 				name: "verify id token and oauth2 token expiry",
-				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+				handleToken: func(ctx context.Context, s *Server, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
 					expectedExpiry := now().Add(idTokensValidFor)
 
 					timeEq := func(t1, t2 time.Time, within time.Duration) bool {
@@ -337,7 +294,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 			},
 			{
 				name: "verify at_hash",
-				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+				handleToken: func(ctx context.Context, s *Server, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
 					rawIDToken, ok := token.Extra("id_token").(string)
 					if !ok {
 						return fmt.Errorf("no id token found")
@@ -356,7 +313,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 					if claims.AtHash == "" {
 						return errors.New("no at_hash value in id_token")
 					}
-					wantAtHash, err := accessTokenHash(jose.RS256, token.AccessToken)
+					wantAtHash, err := s.accessTokenHash(token.AccessToken)
 					if err != nil {
 						return fmt.Errorf("computed expected at hash: %v", err)
 					}
@@ -369,7 +326,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 			},
 			{
 				name: "refresh token",
-				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+				handleToken: func(ctx context.Context, s *Server, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
 					// have to use time.Now because the OAuth2 package uses it.
 					token.Expiry = time.Now().Add(time.Second * -10)
 					if token.Valid() {
@@ -392,7 +349,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 			},
 			{
 				name: "refresh with explicit scopes",
-				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+				handleToken: func(ctx context.Context, s *Server, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
 					v := url.Values{}
 					v.Add("client_id", clientID)
 					v.Add("client_secret", clientSecret)
@@ -411,18 +368,12 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 						}
 						return fmt.Errorf("unexpected response: %s", dump)
 					}
-					if resp.Header.Get("Cache-Control") != "no-store" {
-						return fmt.Errorf("cache-control header doesn't included in token response")
-					}
-					if resp.Header.Get("Pragma") != "no-cache" {
-						return fmt.Errorf("pragma header doesn't included in token response")
-					}
 					return nil
 				},
 			},
 			{
 				name: "refresh with extra spaces",
-				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+				handleToken: func(ctx context.Context, s *Server, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
 					v := url.Values{}
 					v.Add("client_id", clientID)
 					v.Add("client_secret", clientSecret)
@@ -445,19 +396,13 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 						}
 						return fmt.Errorf("unexpected response: %s", dump)
 					}
-					if resp.Header.Get("Cache-Control") != "no-store" {
-						return fmt.Errorf("cache-control header doesn't included in token response")
-					}
-					if resp.Header.Get("Pragma") != "no-cache" {
-						return fmt.Errorf("pragma header doesn't included in token response")
-					}
 					return nil
 				},
 			},
 			{
 				name:   "refresh with unauthorized scopes",
 				scopes: []string{"openid", "email"},
-				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+				handleToken: func(ctx context.Context, s *Server, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
 					v := url.Values{}
 					v.Add("client_id", clientID)
 					v.Add("client_secret", clientSecret)
@@ -484,7 +429,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 				// This test ensures that the connector.RefreshConnector interface is being
 				// used when clients request a refresh token.
 				name: "refresh with identity changes",
-				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+				handleToken: func(ctx context.Context, s *Server, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
 					// have to use time.Now because the OAuth2 package uses it.
 					token.Expiry = time.Now().Add(time.Second * -10)
 					if token.Valid() {
@@ -635,19 +580,6 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 					StatusCode: http.StatusBadRequest,
 				},
 			},
-			{
-				name: "Request parameter in authorization query",
-				authCodeOptions: []oauth2.AuthCodeOption{
-					oauth2.SetAuthURLParam("request", "anything"),
-				},
-				authError: &OAuth2ErrorResponse{
-					Error:            errRequestNotSupported,
-					ErrorDescription: "Server does not support request parameter.",
-				},
-				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
-					return nil
-				},
-			},
 		},
 	}
 }
@@ -706,7 +638,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				state             = "a_state"
 			)
 			defer func() {
-				if !gotCode && tc.authError == nil {
+				if !gotCode {
 					t.Errorf("never got a code in callback\n%s\n%s", reqDump, respDump)
 				}
 			}()
@@ -725,18 +657,12 @@ func TestOAuth2CodeFlow(t *testing.T) {
 
 				// Did dex return an error?
 				if errType := q.Get("error"); errType != "" {
-					description := q.Get("error_description")
-
-					if tc.authError == nil {
-						if description != "" {
-							t.Errorf("got error from server %s: %s", errType, description)
-						} else {
-							t.Errorf("got error from server %s", errType)
-						}
-						w.WriteHeader(http.StatusInternalServerError)
-						return
+					if desc := q.Get("error_description"); desc != "" {
+						t.Errorf("got error from server %s: %s", errType, desc)
+					} else {
+						t.Errorf("got error from server %s", errType)
 					}
-					require.Equal(t, *tc.authError, OAuth2ErrorResponse{Error: errType, ErrorDescription: description})
+					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
 
@@ -748,12 +674,11 @@ func TestOAuth2CodeFlow(t *testing.T) {
 						checkErrorResponse(err, t, tc)
 						return
 					}
-
 					if err != nil {
 						t.Errorf("failed to exchange code for token: %v", err)
 						return
 					}
-					err = tc.handleToken(ctx, p, oauth2Config, token, conn)
+					err = tc.handleToken(ctx, s, p, oauth2Config, token, conn)
 					if err != nil {
 						t.Errorf("%s: %v", tc.name, err)
 					}
@@ -1289,77 +1214,6 @@ func TestPasswordDBUsernamePrompt(t *testing.T) {
 	}
 }
 
-type storageWithKeysTrigger struct {
-	storage.Storage
-	f func()
-}
-
-func (s storageWithKeysTrigger) GetKeys() (storage.Keys, error) {
-	s.f()
-	return s.Storage.GetKeys()
-}
-
-func TestKeyCacher(t *testing.T) {
-	tNow := time.Now()
-	now := func() time.Time { return tNow }
-
-	s := memory.New(logger)
-
-	tests := []struct {
-		before            func()
-		wantCallToStorage bool
-	}{
-		{
-			before:            func() {},
-			wantCallToStorage: true,
-		},
-		{
-			before: func() {
-				s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
-					old.NextRotation = tNow.Add(time.Minute)
-					return old, nil
-				})
-			},
-			wantCallToStorage: true,
-		},
-		{
-			before:            func() {},
-			wantCallToStorage: false,
-		},
-		{
-			before: func() {
-				tNow = tNow.Add(time.Hour)
-			},
-			wantCallToStorage: true,
-		},
-		{
-			before: func() {
-				tNow = tNow.Add(time.Hour)
-				s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
-					old.NextRotation = tNow.Add(time.Minute)
-					return old, nil
-				})
-			},
-			wantCallToStorage: true,
-		},
-		{
-			before:            func() {},
-			wantCallToStorage: false,
-		},
-	}
-
-	gotCall := false
-	s = newKeyCacher(storageWithKeysTrigger{s, func() { gotCall = true }}, now)
-	for i, tc := range tests {
-		gotCall = false
-		tc.before()
-		s.GetKeys()
-		if gotCall != tc.wantCallToStorage {
-			t.Errorf("case %d: expected call to storage=%t got call to storage=%t", i, tc.wantCallToStorage, gotCall)
-		}
-	}
-}
-
 func checkErrorResponse(err error, t *testing.T, tc test) {
 	if err == nil {
 		t.Errorf("%s: DANGEROUS! got a token when we should not get one!", tc.name)
@@ -1563,9 +1417,6 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 			if resp.StatusCode != http.StatusOK {
 				t.Errorf("%v - Unexpected Response Type.  Expected 200 got  %v.  Response: %v", tc.name, resp.StatusCode, string(responseBody))
 			}
-			if resp.Header.Get("Cache-Control") != "no-store" {
-				t.Errorf("Cache-Control header doesn't exist in Device Code Response")
-			}
 
 			// Parse the code response
 			var deviceCode deviceCodeResponse
@@ -1640,7 +1491,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 			if len(tc.scopes) != 0 {
 				oauth2Config.Scopes = tc.scopes
 			}
-			err = tc.handleToken(ctx, p, oauth2Config, token, conn)
+			err = tc.handleToken(ctx, s, p, oauth2Config, token, conn)
 			if err != nil {
 				t.Errorf("%s: %v", tc.name, err)
 			}

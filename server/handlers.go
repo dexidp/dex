@@ -28,40 +28,29 @@ const (
 )
 
 func (s *Server) handlePublicKeys(w http.ResponseWriter, r *http.Request) {
-	// TODO(ericchiang): Cache this.
-	keys, err := s.storage.GetKeys()
+	keys, err := s.signer.GetSigningKeys()
 	if err != nil {
 		s.logger.Errorf("failed to get keys: %v", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
 
-	if keys.SigningKeyPub == nil {
-		s.logger.Errorf("No public keys found.")
-		s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
-		return
-	}
-
-	jwks := jose.JSONWebKeySet{
-		Keys: make([]jose.JSONWebKey, len(keys.VerificationKeys)+1),
-	}
-	jwks.Keys[0] = *keys.SigningKeyPub
-	for i, verificationKey := range keys.VerificationKeys {
-		jwks.Keys[i+1] = *verificationKey.PublicKey
-	}
-
-	data, err := json.MarshalIndent(jwks, "", "  ")
+	data, err := json.MarshalIndent(keys.Jwks, "", "  ")
 	if err != nil {
 		s.logger.Errorf("failed to marshal discovery data: %v", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
-	maxAge := keys.NextRotation.Sub(s.now())
-	if maxAge < (time.Minute * 2) {
-		maxAge = time.Minute * 2
+
+	if keys.NextRotation != nil {
+		maxAge := keys.NextRotation.Sub(s.now())
+		if maxAge < (time.Minute * 2) {
+			maxAge = time.Minute * 2
+		}
+
+		w.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d, must-revalidate", int(maxAge.Seconds())))
 	}
 
-	w.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d, must-revalidate", int(maxAge.Seconds())))
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	w.Write(data)
@@ -921,6 +910,12 @@ func (s *Server) exchangeAuthCode(w http.ResponseWriter, authCode storage.AuthCo
 func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 	const prefix = "Bearer "
 
+	keySet, err := s.signer.GetKeySet()
+	if err != nil {
+		s.tokenErrHelper(w, errServerError, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	auth := r.Header.Get("authorization")
 	if len(auth) < len(prefix) || !strings.EqualFold(prefix, auth[:len(prefix)]) {
 		w.Header().Set("WWW-Authenticate", "Bearer")
@@ -929,7 +924,7 @@ func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	rawIDToken := auth[len(prefix):]
 
-	verifier := oidc.NewVerifier(s.issuerURL.String(), &storageKeySet{s.storage}, &oidc.Config{SkipClientIDCheck: true})
+	verifier := oidc.NewVerifier(s.issuerURL.String(), keySet, &oidc.Config{SkipClientIDCheck: true})
 	idToken, err := verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
 		s.tokenErrHelper(w, errAccessDenied, err.Error(), http.StatusForbidden)

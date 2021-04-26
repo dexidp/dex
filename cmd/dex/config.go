@@ -7,11 +7,15 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server"
+	"github.com/dexidp/dex/signer"
+	storagesigner "github.com/dexidp/dex/signer/storage"
+	"github.com/dexidp/dex/signer/vault"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/etcd"
 	"github.com/dexidp/dex/storage/kubernetes"
@@ -23,6 +27,7 @@ import (
 type Config struct {
 	Issuer    string    `json:"issuer"`
 	Storage   Storage   `json:"storage"`
+	Signer    Signer    `json:"signer"`
 	Web       Web       `json:"web"`
 	Telemetry Telemetry `json:"telemetry"`
 	OAuth2    OAuth2    `json:"oauth2"`
@@ -224,6 +229,50 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 	*s = Storage{
 		Type:   store.Type,
 		Config: storageConfig,
+	}
+	return nil
+}
+
+// Signer holds app's signer configuration.
+type Signer struct {
+	Type   string       `json:"type"`
+	Config SignerConfig `json:"config"`
+}
+
+type SignerConfig interface {
+	Open(logger log.Logger, tokenValid time.Duration, rotationPeriod time.Duration) (signer.Signer, error)
+}
+
+var signers = map[string]func() SignerConfig{
+	"storage": func() SignerConfig { return new(storagesigner.Config) },
+	"vault":   func() SignerConfig { return new(vault.Config) },
+}
+
+// UnmarshalJSON allows Signer to implement the unmarshaler interface to
+// dynamically determine the type of the signer config.
+func (s *Signer) UnmarshalJSON(b []byte) error {
+	var sign struct {
+		Type   string          `json:"type"`
+		Config json.RawMessage `json:"config"`
+	}
+	if err := json.Unmarshal(b, &sign); err != nil {
+		return fmt.Errorf("parse storage: %v", err)
+	}
+	f, ok := signers[sign.Type]
+	if !ok {
+		return fmt.Errorf("unknown storage type %q", sign.Type)
+	}
+
+	signerConfig := f()
+	if len(sign.Config) != 0 {
+		data := []byte(os.ExpandEnv(string(sign.Config)))
+		if err := json.Unmarshal(data, signerConfig); err != nil {
+			return fmt.Errorf("parse storage config: %v", err)
+		}
+	}
+	*s = Signer{
+		Type:   sign.Type,
+		Config: signerConfig,
 	}
 	return nil
 }

@@ -107,7 +107,9 @@ func (s *StorageTestSuite) TestStorage() {
 	}
 
 	conformance.RunTests(s.T(), newStorage)
+	conformance.RunKeyTests(s.T(), newStorage)
 	conformance.RunTransactionTests(s.T(), newStorage)
+	conformance.RunKeyTransactionTests(s.T(), newStorage)
 }
 
 func TestURLFor(t *testing.T) {
