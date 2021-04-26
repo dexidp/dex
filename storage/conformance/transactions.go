@@ -2,7 +2,6 @@ package conformance
 
 import (
 	"testing"
-	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -21,7 +20,6 @@ func RunTransactionTests(t *testing.T, newStorage func() storage.Storage) {
 		{"AuthRequestConcurrentUpdate", testAuthRequestConcurrentUpdate},
 		{"ClientConcurrentUpdate", testClientConcurrentUpdate},
 		{"PasswordConcurrentUpdate", testPasswordConcurrentUpdate},
-		{"KeysConcurrentUpdate", testKeysConcurrentUpdate},
 	})
 }
 
@@ -127,46 +125,5 @@ func testPasswordConcurrentUpdate(t *testing.T, s storage.Storage) {
 
 	if (err1 == nil) == (err2 == nil) {
 		t.Errorf("update password: concurrent updates both returned no error")
-	}
-}
-
-func testKeysConcurrentUpdate(t *testing.T, s storage.Storage) {
-	// Test twice. Once for a create, once for an update.
-	for i := 0; i < 2; i++ {
-		n := time.Now().UTC().Round(time.Second)
-		keys1 := storage.Keys{
-			SigningKey:    jsonWebKeys[i].Private,
-			SigningKeyPub: jsonWebKeys[i].Public,
-			NextRotation:  n,
-		}
-
-		keys2 := storage.Keys{
-			SigningKey:    jsonWebKeys[2].Private,
-			SigningKeyPub: jsonWebKeys[2].Public,
-			NextRotation:  n.Add(time.Hour),
-			VerificationKeys: []storage.VerificationKey{
-				{
-					PublicKey: jsonWebKeys[0].Public,
-					Expiry:    n.Add(time.Hour),
-				},
-				{
-					PublicKey: jsonWebKeys[1].Public,
-					Expiry:    n.Add(time.Hour * 2),
-				},
-			},
-		}
-
-		var err1, err2 error
-
-		err1 = s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
-			err2 = s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
-				return keys1, nil
-			})
-			return keys2, nil
-		})
-
-		if (err1 == nil) == (err2 == nil) {
-			t.Errorf("update keys: concurrent updates both returned no error")
-		}
 	}
 }

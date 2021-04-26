@@ -21,4 +21,5 @@ func TestStorage(t *testing.T) {
 		return New(logger)
 	}
 	conformance.RunTests(t, newStorage)
+	conformance.RunKeyTests(t, newStorage)
 }

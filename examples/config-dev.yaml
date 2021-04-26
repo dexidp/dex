@@ -45,6 +45,14 @@ storage:
   # config:
   #   kubeConfigFile: $HOME/.kube/config
 
+# signer:
+  # Supported key types: ecdsa-p256, ecdsa-p384, ecdsa-p521, rsa-2048, rsa-3072, rsa-4096
+  # type: vault
+  # config:
+  #   address: https://vault.example.com:8200
+  #   mount: /transit
+  #   key: key-name
+
 # Configuration for the HTTP endpoints.
 web:
   http: 0.0.0.0:5556

@@ -91,7 +91,15 @@ func TestEtcd(t *testing.T) {
 		conformance.RunTests(t, newStorage)
 	})
 
+	withTimeout(time.Second*10, func() {
+		conformance.RunKeyTests(t, newStorage)
+	})
+
 	withTimeout(time.Minute*1, func() {
 		conformance.RunTransactionTests(t, newStorage)
+	})
+
+	withTimeout(time.Minute*1, func() {
+		conformance.RunKeyTransactionTests(t, newStorage)
 	})
 }

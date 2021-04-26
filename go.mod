@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/AppsFlyer/go-sundheit v0.3.1
 	github.com/beevik/etree v1.1.0
+	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/go-oidc/v3 v3.0.0
 	github.com/dexidp/dex/api/v2 v2.0.0
 	github.com/felixge/httpsnoop v1.0.1
@@ -14,12 +15,15 @@ require (
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
+	github.com/hashicorp/vault/api v1.0.4
 	github.com/kylelemons/godebug v1.1.0
 	github.com/lib/pq v1.10.1
 	github.com/mattermost/xml-roundtrip-validator v0.1.0
 	github.com/mattn/go-sqlite3 v1.14.7
+	github.com/mitchellh/mapstructure v1.1.2
 	github.com/oklog/run v1.1.0
 	github.com/pkg/errors v0.9.1
+	github.com/pquerna/cachecontrol v0.1.0 // indirect
 	github.com/prometheus/client_golang v1.10.0
 	github.com/russellhaering/goxmldsig v1.1.0
 	github.com/sirupsen/logrus v1.8.1
@@ -30,6 +34,7 @@ require (
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
 	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
 	golang.org/x/oauth2 v0.0.0-20210413134643-5e61552d6c78
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	google.golang.org/api v0.45.0
 	google.golang.org/grpc v1.37.0
 	google.golang.org/protobuf v1.26.0

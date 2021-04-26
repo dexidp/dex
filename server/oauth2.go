@@ -1,17 +1,9 @@
 package server
 
 import (
-	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rsa"
-	"crypto/sha256"
-	"crypto/sha512"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"hash"
 	"io"
 	"net"
 	"net/http"
@@ -19,8 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
@@ -156,88 +146,6 @@ func parseScopes(scopes []string) connector.Scopes {
 	return s
 }
 
-// Determine the signature algorithm for a JWT.
-func signatureAlgorithm(jwk *jose.JSONWebKey) (alg jose.SignatureAlgorithm, err error) {
-	if jwk.Key == nil {
-		return alg, errors.New("no signing key")
-	}
-	switch key := jwk.Key.(type) {
-	case *rsa.PrivateKey:
-		// Because OIDC mandates that we support RS256, we always return that
-		// value. In the future, we might want to make this configurable on a
-		// per client basis. For example allowing PS256 or ECDSA variants.
-		//
-		// See https://github.com/dexidp/dex/issues/692
-		return jose.RS256, nil
-	case *ecdsa.PrivateKey:
-		// We don't actually support ECDSA keys yet, but they're tested for
-		// in case we want to in the future.
-		//
-		// These values are prescribed depending on the ECDSA key type. We
-		// can't return different values.
-		switch key.Params() {
-		case elliptic.P256().Params():
-			return jose.ES256, nil
-		case elliptic.P384().Params():
-			return jose.ES384, nil
-		case elliptic.P521().Params():
-			return jose.ES512, nil
-		default:
-			return alg, errors.New("unsupported ecdsa curve")
-		}
-	default:
-		return alg, fmt.Errorf("unsupported signing key type %T", key)
-	}
-}
-
-func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []byte) (jws string, err error) {
-	signingKey := jose.SigningKey{Key: key, Algorithm: alg}
-
-	signer, err := jose.NewSigner(signingKey, &jose.SignerOptions{})
-	if err != nil {
-		return "", fmt.Errorf("new signer: %v", err)
-	}
-	signature, err := signer.Sign(payload)
-	if err != nil {
-		return "", fmt.Errorf("signing payload: %v", err)
-	}
-	return signature.CompactSerialize()
-}
-
-// The hash algorithm for the at_hash is determined by the signing
-// algorithm used for the id_token. From the spec:
-//
-//    ...the hash algorithm used is the hash algorithm used in the alg Header
-//    Parameter of the ID Token's JOSE Header. For instance, if the alg is RS256,
-//    hash the access_token value with SHA-256
-//
-// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDToken
-var hashForSigAlg = map[jose.SignatureAlgorithm]func() hash.Hash{
-	jose.RS256: sha256.New,
-	jose.RS384: sha512.New384,
-	jose.RS512: sha512.New,
-	jose.ES256: sha256.New,
-	jose.ES384: sha512.New384,
-	jose.ES512: sha512.New,
-}
-
-// Compute an at_hash from a raw access token and a signature algorithm
-//
-// See: https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDToken
-func accessTokenHash(alg jose.SignatureAlgorithm, accessToken string) (string, error) {
-	newHash, ok := hashForSigAlg[alg]
-	if !ok {
-		return "", fmt.Errorf("unsupported signature algorithm: %s", alg)
-	}
-
-	hashFunc := newHash()
-	if _, err := io.WriteString(hashFunc, accessToken); err != nil {
-		return "", fmt.Errorf("computing hash: %v", err)
-	}
-	sum := hashFunc.Sum(nil)
-	return base64.RawURLEncoding.EncodeToString(sum[:len(sum)/2]), nil
-}
-
 type audience []string
 
 func (a audience) contains(aud string) bool {
@@ -290,21 +198,6 @@ func (s *Server) newAccessToken(clientID string, claims storage.Claims, scopes [
 }
 
 func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string) (idToken string, expiry time.Time, err error) {
-	keys, err := s.storage.GetKeys()
-	if err != nil {
-		s.logger.Errorf("Failed to get keys: %v", err)
-		return "", expiry, err
-	}
-
-	signingKey := keys.SigningKey
-	if signingKey == nil {
-		return "", expiry, fmt.Errorf("no key to sign payload with")
-	}
-	signingAlg, err := signatureAlgorithm(signingKey)
-	if err != nil {
-		return "", expiry, err
-	}
-
 	issuedAt := s.now()
 	expiry = issuedAt.Add(s.idTokensValidFor)
 
@@ -328,7 +221,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	}
 
 	if accessToken != "" {
-		atHash, err := accessTokenHash(signingAlg, accessToken)
+		atHash, err := s.accessTokenHash(accessToken)
 		if err != nil {
 			s.logger.Errorf("error computing at_hash: %v", err)
 			return "", expiry, fmt.Errorf("error computing at_hash: %v", err)
@@ -337,7 +230,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	}
 
 	if code != "" {
-		cHash, err := accessTokenHash(signingAlg, code)
+		cHash, err := s.accessTokenHash(code)
 		if err != nil {
 			s.logger.Errorf("error computing c_hash: %v", err)
 			return "", expiry, fmt.Errorf("error computing c_hash: #{err}")
@@ -399,10 +292,25 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		return "", expiry, fmt.Errorf("could not serialize claims: %v", err)
 	}
 
-	if idToken, err = signPayload(signingKey, signingAlg, payload); err != nil {
+	if idToken, err = s.signer.Sign(payload); err != nil {
 		return "", expiry, fmt.Errorf("failed to sign payload: %v", err)
 	}
 	return idToken, expiry, nil
+}
+
+// Compute an at_hash from a raw access token and a signature algorithm
+//
+// See: https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDToken
+func (s *Server) accessTokenHash(accessToken string) (string, error) {
+	hash, err := s.signer.Hasher()
+	if err != nil {
+		return "", err
+	}
+	if _, err := io.WriteString(hash, accessToken); err != nil {
+		return "", fmt.Errorf("computing hash: %v", err)
+	}
+	sum := hash.Sum(nil)
+	return base64.RawURLEncoding.EncodeToString(sum[:len(sum)/2]), nil
 }
 
 // parse the initial request from the OAuth2 client.
@@ -644,42 +552,4 @@ func validateConnectorID(connectors []storage.Connector, connectorID string) boo
 		}
 	}
 	return false
-}
-
-// storageKeySet implements the oidc.KeySet interface backed by Dex storage
-type storageKeySet struct {
-	storage.Storage
-}
-
-func (s *storageKeySet) VerifySignature(_ context.Context, jwt string) (payload []byte, err error) {
-	jws, err := jose.ParseSigned(jwt)
-	if err != nil {
-		return nil, err
-	}
-
-	keyID := ""
-	for _, sig := range jws.Signatures {
-		keyID = sig.Header.KeyID
-		break
-	}
-
-	skeys, err := s.Storage.GetKeys()
-	if err != nil {
-		return nil, err
-	}
-
-	keys := []*jose.JSONWebKey{skeys.SigningKeyPub}
-	for _, vk := range skeys.VerificationKeys {
-		keys = append(keys, vk.PublicKey)
-	}
-
-	for _, key := range keys {
-		if keyID == "" || key.KeyID == keyID {
-			if payload, err := jws.Verify(key); err == nil {
-				return payload, nil
-			}
-		}
-	}
-
-	return nil, errors.New("failed to verify id token signature")
 }

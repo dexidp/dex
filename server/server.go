@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -14,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
@@ -41,6 +42,7 @@ import (
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
 )
@@ -63,6 +65,7 @@ type Config struct {
 
 	// The backing persistence layer.
 	Storage storage.Storage
+	Signer  signer.Signer
 
 	// Valid values are "code" to enable the code flow and "token" to enable the implicit
 	// flow. If no response types are supplied this value defaults to "code".
@@ -143,6 +146,46 @@ func value(val, defaultValue time.Duration) time.Duration {
 	return val
 }
 
+func mustLoad(s string) *rsa.PrivateKey {
+	block, _ := pem.Decode([]byte(s))
+	if block == nil {
+		panic("no pem data found")
+	}
+	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		panic(err)
+	}
+	return key
+}
+
+var testKey = mustLoad(`-----BEGIN RSA PRIVATE KEY-----
+MIIEogIBAAKCAQEArmoiX5G36MKPiVGS1sicruEaGRrbhPbIKOf97aGGQRjXVngo
+Knwd2L4T9CRyABgQm3tLHHcT5crODoy46wX2g9onTZWViWWuhJ5wxXNmUbCAPWHb
+j9SunW53WuLYZ/IJLNZt5XYCAFPjAakWp8uMuuDwWo5EyFaw85X3FSMhVmmaYDd0
+cn+1H4+NS/52wX7tWmyvGUNJ8lzjFAnnOtBJByvkyIC7HDphkLQV4j//sMNY1mPX
+HbsYgFv2J/LIJtkjdYO2UoDhZG3Gvj16fMy2JE2owA8IX4/s+XAmA2PiTfd0J5b4
+drAKEcdDl83G6L3depEkTkfvp0ZLsh9xupAvIwIDAQABAoIBABKGgWonPyKA7+AF
+AxS/MC0/CZebC6/+ylnV8lm4K1tkuRKdJp8EmeL4pYPsDxPFepYZLWwzlbB1rxdK
+iSWld36fwEb0WXLDkxrQ/Wdrj3Wjyqs6ZqjLTVS5dAH6UEQSKDlT+U5DD4lbX6RA
+goCGFUeQNtdXfyTMWHU2+4yKM7NKzUpczFky+0d10Mg0ANj3/4IILdr3hqkmMSI9
+1TB9ksWBXJxt3nGxAjzSFihQFUlc231cey/HhYbvAX5fN0xhLxOk88adDcdXE7br
+3Ser1q6XaaFQSMj4oi1+h3RAT9MUjJ6johEqjw0PbEZtOqXvA1x5vfFdei6SqgKn
+Am3BspkCgYEA2lIiKEkT/Je6ZH4Omhv9atbGoBdETAstL3FnNQjkyVau9f6bxQkl
+4/sz985JpaiasORQBiTGY8JDT/hXjROkut91agi2Vafhr29L/mto7KZglfDsT4b2
+9z/EZH8wHw7eYhvdoBbMbqNDSI8RrGa4mpLpuN+E0wsFTzSZEL+QMQUCgYEAzIQh
+xnreQvDAhNradMqLmxRpayn1ORaPReD4/off+mi7hZRLKtP0iNgEVEWHJ6HEqqi1
+r38XAc8ap/lfOVMar2MLyCFOhYspdHZ+TGLZfr8gg/Fzeq9IRGKYadmIKVwjMeyH
+REPqg1tyrvMOE0HI5oqkko8JTDJ0OyVC0Vc6+AcCgYAqCzkywugLc/jcU35iZVOH
+WLdFq1Vmw5w/D7rNdtoAgCYPj6nV5y4Z2o2mgl6ifXbU7BMRK9Hc8lNeOjg6HfdS
+WahV9DmRA1SuIWPkKjE5qczd81i+9AHpmakrpWbSBF4FTNKAewOBpwVVGuBPcDTK
+59IE3V7J+cxa9YkotYuCNQKBgCwGla7AbHBEm2z+H+DcaUktD7R+B8gOTzFfyLoi
+Tdj+CsAquDO0BQQgXG43uWySql+CifoJhc5h4v8d853HggsXa0XdxaWB256yk2Wm
+MePTCRDePVm/ufLetqiyp1kf+IOaw1Oyux0j5oA62mDS3Iikd+EE4Z+BjPvefY/L
+E2qpAoGAZo5Wwwk7q8b1n9n/ACh4LpE+QgbFdlJxlfFLJCKstl37atzS8UewOSZj
+FDWV28nTP9sqbtsmU8Tem2jzMvZ7C/Q0AuDoKELFUpux8shm8wfIhyaPnXUGZoAZ
+Np4vUwMSYV5mopESLWOg3loBxKyLGFtgGKVCjGiQvy6zISQ4fQo=
+-----END RSA PRIVATE KEY-----`)
+
 // Server is the top level object.
 type Server struct {
 	issuerURL url.URL
@@ -153,6 +196,7 @@ type Server struct {
 	connectors map[string]Connector
 
 	storage storage.Storage
+	signer  signer.Signer
 
 	mux http.Handler
 
@@ -182,20 +226,10 @@ type Server struct {
 
 // NewServer constructs a server from the provided config.
 func NewServer(ctx context.Context, c Config) (*Server, error) {
-	return newServer(ctx, c, defaultRotationStrategy(
-		value(c.RotateKeysAfter, 6*time.Hour),
-		value(c.IDTokensValidFor, 24*time.Hour),
-	))
+	return newServer(ctx, c)
 }
 
-// NewServerWithKey constructs a server from the provided config and a static signing key.
-func NewServerWithKey(ctx context.Context, c Config, privateKey *rsa.PrivateKey) (*Server, error) {
-	return newServer(ctx, c, staticRotationStrategy(
-		privateKey,
-	))
-}
-
-func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy) (*Server, error) {
+func newServer(ctx context.Context, c Config) (*Server, error) {
 	issuerURL, err := url.Parse(c.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("server: can't parse issuer URL")
@@ -203,6 +237,9 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	if c.Storage == nil {
 		return nil, errors.New("server: storage cannot be nil")
+	}
+	if c.Signer == nil {
+		return nil, errors.New("server: signer cannot be nil")
 	}
 	if len(c.SupportedResponseTypes) == 0 {
 		c.SupportedResponseTypes = []string{responseTypeCode}
@@ -247,7 +284,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	s := &Server{
 		issuerURL:              *issuerURL,
 		connectors:             make(map[string]Connector),
-		storage:                newKeyCacher(c.Storage, now),
+		storage:                c.Storage,
+		signer:                 c.Signer,
 		supportedResponseTypes: supported,
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
 		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
@@ -371,7 +409,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handlePrefix("/theme", theme)
 	s.mux = r
 
-	s.startKeyRotation(ctx, rotationStrategy, now)
+	s.startKeyRotation(ctx)
 	s.startGarbageCollection(ctx, value(c.GCFrequency, 5*time.Minute), now)
 
 	return s, nil
@@ -456,38 +494,6 @@ func (db passwordDB) Refresh(ctx context.Context, s connector.Scopes, identity c
 
 func (db passwordDB) Prompt() string {
 	return "Email Address"
-}
-
-// newKeyCacher returns a storage which caches keys so long as the next
-func newKeyCacher(s storage.Storage, now func() time.Time) storage.Storage {
-	if now == nil {
-		now = time.Now
-	}
-	return &keyCacher{Storage: s, now: now}
-}
-
-type keyCacher struct {
-	storage.Storage
-
-	now  func() time.Time
-	keys atomic.Value // Always holds nil or type *storage.Keys.
-}
-
-func (k *keyCacher) GetKeys() (storage.Keys, error) {
-	keys, ok := k.keys.Load().(*storage.Keys)
-	if ok && keys != nil && k.now().Before(keys.NextRotation) {
-		return *keys, nil
-	}
-
-	storageKeys, err := k.Storage.GetKeys()
-	if err != nil {
-		return storageKeys, err
-	}
-
-	if k.now().Before(storageKeys.NextRotation) {
-		k.keys.Store(&storageKeys)
-	}
-	return storageKeys, nil
 }
 
 func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Duration, now func() time.Time) {
