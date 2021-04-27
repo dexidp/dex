@@ -26,7 +26,7 @@ jobs:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: dex
         ports:
-          - 3306:3306
+          - 3306
         options: --health-cmd "mysql -proot -e \"show databases;\"" --health-interval 10s --health-timeout 5s --health-retries 5
 
       etcd:
@@ -64,7 +64,7 @@ jobs:
           DEX_MYSQL_USER: root
           DEX_MYSQL_PASSWORD: root
           DEX_MYSQL_HOST: 127.0.0.1
-          DEX_MYSQL_PORT: 3306
+          DEX_MYSQL_PORT: ${{ job.services.mysql.ports[3306] }}
           DEX_POSTGRES_DATABASE: postgres
           DEX_POSTGRES_USER: postgres
           DEX_POSTGRES_PASSWORD: postgres

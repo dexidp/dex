@@ -242,6 +242,10 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 		if s.Host[0] != '/' {
 			cfg.Net = "tcp"
 			cfg.Addr = s.Host
+
+			if s.Port != 0 {
+				cfg.Addr = net.JoinHostPort(s.Host, strconv.Itoa(int(s.Port)))
+			}
 		} else {
 			cfg.Net = "unix"
 			cfg.Addr = s.Host
