@@ -22,6 +22,7 @@ func (d *Database) CreateRefresh(refresh storage.RefreshToken) error {
 		SetConnectorID(refresh.ConnectorID).
 		SetConnectorData(refresh.ConnectorData).
 		SetToken(refresh.Token).
+		SetObsoleteToken(refresh.ObsoleteToken).
 		// Save utc time into database because ent doesn't support comparing dates with different timezones
 		SetLastUsed(refresh.LastUsed.UTC()).
 		SetCreatedAt(refresh.CreatedAt.UTC()).
@@ -94,6 +95,7 @@ func (d *Database) UpdateRefreshToken(id string, updater func(old storage.Refres
 		SetConnectorID(newtToken.ConnectorID).
 		SetConnectorData(newtToken.ConnectorData).
 		SetToken(newtToken.Token).
+		SetObsoleteToken(newtToken.ObsoleteToken).
 		// Save utc time into database because ent doesn't support comparing dates with different timezones
 		SetLastUsed(newtToken.LastUsed.UTC()).
 		SetCreatedAt(newtToken.CreatedAt.UTC()).

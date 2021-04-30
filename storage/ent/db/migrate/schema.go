@@ -190,6 +190,7 @@ var (
 		{Name: "connector_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"sqlite3": "text"}},
 		{Name: "connector_data", Type: field.TypeBytes, Nullable: true},
 		{Name: "token", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"sqlite3": "text"}},
+		{Name: "obsolete_token", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"sqlite3": "text"}},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "last_used", Type: field.TypeTime},
 	}

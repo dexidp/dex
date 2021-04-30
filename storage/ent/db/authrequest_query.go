@@ -20,6 +20,7 @@ type AuthRequestQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.AuthRequest
@@ -43,6 +44,13 @@ func (arq *AuthRequestQuery) Limit(limit int) *AuthRequestQuery {
 // Offset adds an offset step to the query.
 func (arq *AuthRequestQuery) Offset(offset int) *AuthRequestQuery {
 	arq.offset = &offset
+	return arq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (arq *AuthRequestQuery) Unique(unique bool) *AuthRequestQuery {
+	arq.unique = &unique
 	return arq
 }
 
@@ -352,6 +360,9 @@ func (arq *AuthRequestQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   arq.sql,
 		Unique: true,
 	}
+	if unique := arq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := arq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, authrequest.FieldID)
@@ -377,7 +388,7 @@ func (arq *AuthRequestQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := arq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, authrequest.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -396,7 +407,7 @@ func (arq *AuthRequestQuery) sqlQuery(ctx context.Context) *sql.Selector {
 		p(selector)
 	}
 	for _, p := range arq.order {
-		p(selector, authrequest.ValidColumn)
+		p(selector)
 	}
 	if offset := arq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -662,7 +673,7 @@ func (argb *AuthRequestGroupBy) sqlQuery() *sql.Selector {
 	columns := make([]string, 0, len(argb.fields)+len(argb.fns))
 	columns = append(columns, argb.fields...)
 	for _, fn := range argb.fns {
-		columns = append(columns, fn(selector, authrequest.ValidColumn))
+		columns = append(columns, fn(selector))
 	}
 	return selector.Select(columns...).GroupBy(argb.fields...)
 }

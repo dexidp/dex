@@ -20,6 +20,7 @@ type AuthCodeQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.AuthCode
@@ -43,6 +44,13 @@ func (acq *AuthCodeQuery) Limit(limit int) *AuthCodeQuery {
 // Offset adds an offset step to the query.
 func (acq *AuthCodeQuery) Offset(offset int) *AuthCodeQuery {
 	acq.offset = &offset
+	return acq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (acq *AuthCodeQuery) Unique(unique bool) *AuthCodeQuery {
+	acq.unique = &unique
 	return acq
 }
 
@@ -352,6 +360,9 @@ func (acq *AuthCodeQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   acq.sql,
 		Unique: true,
 	}
+	if unique := acq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := acq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, authcode.FieldID)
@@ -377,7 +388,7 @@ func (acq *AuthCodeQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := acq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, authcode.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -396,7 +407,7 @@ func (acq *AuthCodeQuery) sqlQuery(ctx context.Context) *sql.Selector {
 		p(selector)
 	}
 	for _, p := range acq.order {
-		p(selector, authcode.ValidColumn)
+		p(selector)
 	}
 	if offset := acq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -662,7 +673,7 @@ func (acgb *AuthCodeGroupBy) sqlQuery() *sql.Selector {
 	columns := make([]string, 0, len(acgb.fields)+len(acgb.fns))
 	columns = append(columns, acgb.fields...)
 	for _, fn := range acgb.fns {
-		columns = append(columns, fn(selector, authcode.ValidColumn))
+		columns = append(columns, fn(selector))
 	}
 	return selector.Select(columns...).GroupBy(acgb.fields...)
 }

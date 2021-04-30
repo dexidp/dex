@@ -199,6 +199,7 @@ func (osu *OfflineSessionUpdate) sqlSave(ctx context.Context) (n int, err error)
 // OfflineSessionUpdateOne is the builder for updating a single OfflineSession entity.
 type OfflineSessionUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *OfflineSessionMutation
 }
@@ -236,6 +237,13 @@ func (osuo *OfflineSessionUpdateOne) ClearConnectorData() *OfflineSessionUpdateO
 // Mutation returns the OfflineSessionMutation object of the builder.
 func (osuo *OfflineSessionUpdateOne) Mutation() *OfflineSessionMutation {
 	return osuo.mutation
+}
+
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (osuo *OfflineSessionUpdateOne) Select(field string, fields ...string) *OfflineSessionUpdateOne {
+	osuo.fields = append([]string{field}, fields...)
+	return osuo
 }
 
 // Save executes the query and returns the updated OfflineSession entity.
@@ -326,6 +334,18 @@ func (osuo *OfflineSessionUpdateOne) sqlSave(ctx context.Context) (_node *Offlin
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing OfflineSession.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := osuo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, offlinesession.FieldID)
+		for _, f := range fields {
+			if !offlinesession.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("db: invalid field %q for query", f)}
+			}
+			if f != offlinesession.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := osuo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {

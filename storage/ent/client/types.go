@@ -117,6 +117,7 @@ func toStorageRefreshToken(r *db.RefreshToken) storage.RefreshToken {
 	return storage.RefreshToken{
 		ID:            r.ID,
 		Token:         r.Token,
+		ObsoleteToken: r.ObsoleteToken,
 		CreatedAt:     r.CreatedAt,
 		LastUsed:      r.LastUsed,
 		ClientID:      r.ClientID,

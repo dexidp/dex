@@ -20,6 +20,7 @@ type RefreshTokenQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.RefreshToken
@@ -43,6 +44,13 @@ func (rtq *RefreshTokenQuery) Limit(limit int) *RefreshTokenQuery {
 // Offset adds an offset step to the query.
 func (rtq *RefreshTokenQuery) Offset(offset int) *RefreshTokenQuery {
 	rtq.offset = &offset
+	return rtq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (rtq *RefreshTokenQuery) Unique(unique bool) *RefreshTokenQuery {
+	rtq.unique = &unique
 	return rtq
 }
 
@@ -352,6 +360,9 @@ func (rtq *RefreshTokenQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   rtq.sql,
 		Unique: true,
 	}
+	if unique := rtq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := rtq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, refreshtoken.FieldID)
@@ -377,7 +388,7 @@ func (rtq *RefreshTokenQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := rtq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, refreshtoken.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -396,7 +407,7 @@ func (rtq *RefreshTokenQuery) sqlQuery(ctx context.Context) *sql.Selector {
 		p(selector)
 	}
 	for _, p := range rtq.order {
-		p(selector, refreshtoken.ValidColumn)
+		p(selector)
 	}
 	if offset := rtq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -662,7 +673,7 @@ func (rtgb *RefreshTokenGroupBy) sqlQuery() *sql.Selector {
 	columns := make([]string, 0, len(rtgb.fields)+len(rtgb.fns))
 	columns = append(columns, rtgb.fields...)
 	for _, fn := range rtgb.fns {
-		columns = append(columns, fn(selector, refreshtoken.ValidColumn))
+		columns = append(columns, fn(selector))
 	}
 	return selector.Select(columns...).GroupBy(rtgb.fields...)
 }

@@ -20,6 +20,7 @@ type DeviceRequestQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.DeviceRequest
@@ -43,6 +44,13 @@ func (drq *DeviceRequestQuery) Limit(limit int) *DeviceRequestQuery {
 // Offset adds an offset step to the query.
 func (drq *DeviceRequestQuery) Offset(offset int) *DeviceRequestQuery {
 	drq.offset = &offset
+	return drq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (drq *DeviceRequestQuery) Unique(unique bool) *DeviceRequestQuery {
+	drq.unique = &unique
 	return drq
 }
 
@@ -352,6 +360,9 @@ func (drq *DeviceRequestQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   drq.sql,
 		Unique: true,
 	}
+	if unique := drq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := drq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, devicerequest.FieldID)
@@ -377,7 +388,7 @@ func (drq *DeviceRequestQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := drq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, devicerequest.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -396,7 +407,7 @@ func (drq *DeviceRequestQuery) sqlQuery(ctx context.Context) *sql.Selector {
 		p(selector)
 	}
 	for _, p := range drq.order {
-		p(selector, devicerequest.ValidColumn)
+		p(selector)
 	}
 	if offset := drq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -662,7 +673,7 @@ func (drgb *DeviceRequestGroupBy) sqlQuery() *sql.Selector {
 	columns := make([]string, 0, len(drgb.fields)+len(drgb.fns))
 	columns = append(columns, drgb.fields...)
 	for _, fn := range drgb.fns {
-		columns = append(columns, fn(selector, devicerequest.ValidColumn))
+		columns = append(columns, fn(selector))
 	}
 	return selector.Select(columns...).GroupBy(drgb.fields...)
 }

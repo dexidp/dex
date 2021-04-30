@@ -55,13 +55,13 @@ func (*AuthCode) scanValues(columns []string) ([]interface{}, error) {
 	for i := range columns {
 		switch columns[i] {
 		case authcode.FieldScopes, authcode.FieldClaimsGroups, authcode.FieldConnectorData:
-			values[i] = &[]byte{}
+			values[i] = new([]byte)
 		case authcode.FieldClaimsEmailVerified:
-			values[i] = &sql.NullBool{}
+			values[i] = new(sql.NullBool)
 		case authcode.FieldID, authcode.FieldClientID, authcode.FieldNonce, authcode.FieldRedirectURI, authcode.FieldClaimsUserID, authcode.FieldClaimsUsername, authcode.FieldClaimsEmail, authcode.FieldClaimsPreferredUsername, authcode.FieldConnectorID, authcode.FieldCodeChallenge, authcode.FieldCodeChallengeMethod:
-			values[i] = &sql.NullString{}
+			values[i] = new(sql.NullString)
 		case authcode.FieldExpiry:
-			values[i] = &sql.NullTime{}
+			values[i] = new(sql.NullTime)
 		default:
 			return nil, fmt.Errorf("unexpected column %q for type AuthCode", columns[i])
 		}

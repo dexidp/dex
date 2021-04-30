@@ -250,7 +250,9 @@ func (c *AuthCodeClient) DeleteOneID(id string) *AuthCodeDeleteOne {
 
 // Query returns a query builder for AuthCode.
 func (c *AuthCodeClient) Query() *AuthCodeQuery {
-	return &AuthCodeQuery{config: c.config}
+	return &AuthCodeQuery{
+		config: c.config,
+	}
 }
 
 // Get returns a AuthCode entity by its id.
@@ -338,7 +340,9 @@ func (c *AuthRequestClient) DeleteOneID(id string) *AuthRequestDeleteOne {
 
 // Query returns a query builder for AuthRequest.
 func (c *AuthRequestClient) Query() *AuthRequestQuery {
-	return &AuthRequestQuery{config: c.config}
+	return &AuthRequestQuery{
+		config: c.config,
+	}
 }
 
 // Get returns a AuthRequest entity by its id.
@@ -426,7 +430,9 @@ func (c *ConnectorClient) DeleteOneID(id string) *ConnectorDeleteOne {
 
 // Query returns a query builder for Connector.
 func (c *ConnectorClient) Query() *ConnectorQuery {
-	return &ConnectorQuery{config: c.config}
+	return &ConnectorQuery{
+		config: c.config,
+	}
 }
 
 // Get returns a Connector entity by its id.
@@ -514,7 +520,9 @@ func (c *DeviceRequestClient) DeleteOneID(id int) *DeviceRequestDeleteOne {
 
 // Query returns a query builder for DeviceRequest.
 func (c *DeviceRequestClient) Query() *DeviceRequestQuery {
-	return &DeviceRequestQuery{config: c.config}
+	return &DeviceRequestQuery{
+		config: c.config,
+	}
 }
 
 // Get returns a DeviceRequest entity by its id.
@@ -602,7 +610,9 @@ func (c *DeviceTokenClient) DeleteOneID(id int) *DeviceTokenDeleteOne {
 
 // Query returns a query builder for DeviceToken.
 func (c *DeviceTokenClient) Query() *DeviceTokenQuery {
-	return &DeviceTokenQuery{config: c.config}
+	return &DeviceTokenQuery{
+		config: c.config,
+	}
 }
 
 // Get returns a DeviceToken entity by its id.
@@ -690,7 +700,9 @@ func (c *KeysClient) DeleteOneID(id string) *KeysDeleteOne {
 
 // Query returns a query builder for Keys.
 func (c *KeysClient) Query() *KeysQuery {
-	return &KeysQuery{config: c.config}
+	return &KeysQuery{
+		config: c.config,
+	}
 }
 
 // Get returns a Keys entity by its id.
@@ -778,7 +790,9 @@ func (c *OAuth2ClientClient) DeleteOneID(id string) *OAuth2ClientDeleteOne {
 
 // Query returns a query builder for OAuth2Client.
 func (c *OAuth2ClientClient) Query() *OAuth2ClientQuery {
-	return &OAuth2ClientQuery{config: c.config}
+	return &OAuth2ClientQuery{
+		config: c.config,
+	}
 }
 
 // Get returns a OAuth2Client entity by its id.
@@ -866,7 +880,9 @@ func (c *OfflineSessionClient) DeleteOneID(id string) *OfflineSessionDeleteOne {
 
 // Query returns a query builder for OfflineSession.
 func (c *OfflineSessionClient) Query() *OfflineSessionQuery {
-	return &OfflineSessionQuery{config: c.config}
+	return &OfflineSessionQuery{
+		config: c.config,
+	}
 }
 
 // Get returns a OfflineSession entity by its id.
@@ -954,7 +970,9 @@ func (c *PasswordClient) DeleteOneID(id int) *PasswordDeleteOne {
 
 // Query returns a query builder for Password.
 func (c *PasswordClient) Query() *PasswordQuery {
-	return &PasswordQuery{config: c.config}
+	return &PasswordQuery{
+		config: c.config,
+	}
 }
 
 // Get returns a Password entity by its id.
@@ -1042,7 +1060,9 @@ func (c *RefreshTokenClient) DeleteOneID(id string) *RefreshTokenDeleteOne {
 
 // Query returns a query builder for RefreshToken.
 func (c *RefreshTokenClient) Query() *RefreshTokenQuery {
-	return &RefreshTokenQuery{config: c.config}
+	return &RefreshTokenQuery{
+		config: c.config,
+	}
 }
 
 // Get returns a RefreshToken entity by its id.

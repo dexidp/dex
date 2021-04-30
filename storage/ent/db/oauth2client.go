@@ -36,11 +36,11 @@ func (*OAuth2Client) scanValues(columns []string) ([]interface{}, error) {
 	for i := range columns {
 		switch columns[i] {
 		case oauth2client.FieldRedirectUris, oauth2client.FieldTrustedPeers:
-			values[i] = &[]byte{}
+			values[i] = new([]byte)
 		case oauth2client.FieldPublic:
-			values[i] = &sql.NullBool{}
+			values[i] = new(sql.NullBool)
 		case oauth2client.FieldID, oauth2client.FieldSecret, oauth2client.FieldName, oauth2client.FieldLogoURL:
-			values[i] = &sql.NullString{}
+			values[i] = new(sql.NullString)
 		default:
 			return nil, fmt.Errorf("unexpected column %q for type OAuth2Client", columns[i])
 		}

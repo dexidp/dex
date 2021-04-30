@@ -169,6 +169,7 @@ func (ku *KeysUpdate) sqlSave(ctx context.Context) (n int, err error) {
 // KeysUpdateOne is the builder for updating a single Keys entity.
 type KeysUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *KeysMutation
 }
@@ -200,6 +201,13 @@ func (kuo *KeysUpdateOne) SetNextRotation(t time.Time) *KeysUpdateOne {
 // Mutation returns the KeysMutation object of the builder.
 func (kuo *KeysUpdateOne) Mutation() *KeysMutation {
 	return kuo.mutation
+}
+
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (kuo *KeysUpdateOne) Select(field string, fields ...string) *KeysUpdateOne {
+	kuo.fields = append([]string{field}, fields...)
+	return kuo
 }
 
 // Save executes the query and returns the updated Keys entity.
@@ -269,6 +277,18 @@ func (kuo *KeysUpdateOne) sqlSave(ctx context.Context) (_node *Keys, err error) 
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing Keys.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := kuo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, keys.FieldID)
+		for _, f := range fields {
+			if !keys.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("db: invalid field %q for query", f)}
+			}
+			if f != keys.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := kuo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {

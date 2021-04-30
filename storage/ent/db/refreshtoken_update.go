@@ -133,6 +133,20 @@ func (rtu *RefreshTokenUpdate) SetNillableToken(s *string) *RefreshTokenUpdate {
 	return rtu
 }
 
+// SetObsoleteToken sets the "obsolete_token" field.
+func (rtu *RefreshTokenUpdate) SetObsoleteToken(s string) *RefreshTokenUpdate {
+	rtu.mutation.SetObsoleteToken(s)
+	return rtu
+}
+
+// SetNillableObsoleteToken sets the "obsolete_token" field if the given value is not nil.
+func (rtu *RefreshTokenUpdate) SetNillableObsoleteToken(s *string) *RefreshTokenUpdate {
+	if s != nil {
+		rtu.SetObsoleteToken(*s)
+	}
+	return rtu
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (rtu *RefreshTokenUpdate) SetCreatedAt(t time.Time) *RefreshTokenUpdate {
 	rtu.mutation.SetCreatedAt(t)
@@ -378,6 +392,13 @@ func (rtu *RefreshTokenUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			Column: refreshtoken.FieldToken,
 		})
 	}
+	if value, ok := rtu.mutation.ObsoleteToken(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeString,
+			Value:  value,
+			Column: refreshtoken.FieldObsoleteToken,
+		})
+	}
 	if value, ok := rtu.mutation.CreatedAt(); ok {
 		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
 			Type:   field.TypeTime,
@@ -406,6 +427,7 @@ func (rtu *RefreshTokenUpdate) sqlSave(ctx context.Context) (n int, err error) {
 // RefreshTokenUpdateOne is the builder for updating a single RefreshToken entity.
 type RefreshTokenUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *RefreshTokenMutation
 }
@@ -516,6 +538,20 @@ func (rtuo *RefreshTokenUpdateOne) SetNillableToken(s *string) *RefreshTokenUpda
 	return rtuo
 }
 
+// SetObsoleteToken sets the "obsolete_token" field.
+func (rtuo *RefreshTokenUpdateOne) SetObsoleteToken(s string) *RefreshTokenUpdateOne {
+	rtuo.mutation.SetObsoleteToken(s)
+	return rtuo
+}
+
+// SetNillableObsoleteToken sets the "obsolete_token" field if the given value is not nil.
+func (rtuo *RefreshTokenUpdateOne) SetNillableObsoleteToken(s *string) *RefreshTokenUpdateOne {
+	if s != nil {
+		rtuo.SetObsoleteToken(*s)
+	}
+	return rtuo
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (rtuo *RefreshTokenUpdateOne) SetCreatedAt(t time.Time) *RefreshTokenUpdateOne {
 	rtuo.mutation.SetCreatedAt(t)
@@ -547,6 +583,13 @@ func (rtuo *RefreshTokenUpdateOne) SetNillableLastUsed(t *time.Time) *RefreshTok
 // Mutation returns the RefreshTokenMutation object of the builder.
 func (rtuo *RefreshTokenUpdateOne) Mutation() *RefreshTokenMutation {
 	return rtuo.mutation
+}
+
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (rtuo *RefreshTokenUpdateOne) Select(field string, fields ...string) *RefreshTokenUpdateOne {
+	rtuo.fields = append([]string{field}, fields...)
+	return rtuo
 }
 
 // Save executes the query and returns the updated RefreshToken entity.
@@ -657,6 +700,18 @@ func (rtuo *RefreshTokenUpdateOne) sqlSave(ctx context.Context) (_node *RefreshT
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing RefreshToken.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := rtuo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, refreshtoken.FieldID)
+		for _, f := range fields {
+			if !refreshtoken.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("db: invalid field %q for query", f)}
+			}
+			if f != refreshtoken.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := rtuo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -764,6 +819,13 @@ func (rtuo *RefreshTokenUpdateOne) sqlSave(ctx context.Context) (_node *RefreshT
 			Type:   field.TypeString,
 			Value:  value,
 			Column: refreshtoken.FieldToken,
+		})
+	}
+	if value, ok := rtuo.mutation.ObsoleteToken(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeString,
+			Value:  value,
+			Column: refreshtoken.FieldObsoleteToken,
 		})
 	}
 	if value, ok := rtuo.mutation.CreatedAt(); ok {

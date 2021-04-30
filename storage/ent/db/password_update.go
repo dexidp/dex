@@ -192,6 +192,7 @@ func (pu *PasswordUpdate) sqlSave(ctx context.Context) (n int, err error) {
 // PasswordUpdateOne is the builder for updating a single Password entity.
 type PasswordUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *PasswordMutation
 }
@@ -223,6 +224,13 @@ func (puo *PasswordUpdateOne) SetUserID(s string) *PasswordUpdateOne {
 // Mutation returns the PasswordMutation object of the builder.
 func (puo *PasswordUpdateOne) Mutation() *PasswordMutation {
 	return puo.mutation
+}
+
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (puo *PasswordUpdateOne) Select(field string, fields ...string) *PasswordUpdateOne {
+	puo.fields = append([]string{field}, fields...)
+	return puo
 }
 
 // Save executes the query and returns the updated Password entity.
@@ -318,6 +326,18 @@ func (puo *PasswordUpdateOne) sqlSave(ctx context.Context) (_node *Password, err
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing Password.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := puo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, password.FieldID)
+		for _, f := range fields {
+			if !password.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("db: invalid field %q for query", f)}
+			}
+			if f != password.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := puo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {

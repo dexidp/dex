@@ -24,7 +24,8 @@ create table refresh_token
     token                     text      default '' not null,
     created_at                timestamp default '0001-01-01 00:00:00 UTC' not null,
     last_used                 timestamp default '0001-01-01 00:00:00 UTC' not null,
-    claims_preferred_username text      default '' not null
+    claims_preferred_username text      default '' not null,
+    obsolete_token            text      default ''
 );
 */
 
@@ -73,6 +74,9 @@ func (RefreshToken) Fields() []ent.Field {
 			Optional(),
 
 		field.Text("token").
+			SchemaType(textSchema).
+			Default(""),
+		field.Text("obsolete_token").
 			SchemaType(textSchema).
 			Default(""),
 

@@ -236,6 +236,7 @@ func (dru *DeviceRequestUpdate) sqlSave(ctx context.Context) (n int, err error) 
 // DeviceRequestUpdateOne is the builder for updating a single DeviceRequest entity.
 type DeviceRequestUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *DeviceRequestMutation
 }
@@ -285,6 +286,13 @@ func (druo *DeviceRequestUpdateOne) SetExpiry(t time.Time) *DeviceRequestUpdateO
 // Mutation returns the DeviceRequestMutation object of the builder.
 func (druo *DeviceRequestUpdateOne) Mutation() *DeviceRequestMutation {
 	return druo.mutation
+}
+
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (druo *DeviceRequestUpdateOne) Select(field string, fields ...string) *DeviceRequestUpdateOne {
+	druo.fields = append([]string{field}, fields...)
+	return druo
 }
 
 // Save executes the query and returns the updated DeviceRequest entity.
@@ -385,6 +393,18 @@ func (druo *DeviceRequestUpdateOne) sqlSave(ctx context.Context) (_node *DeviceR
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing DeviceRequest.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := druo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, devicerequest.FieldID)
+		for _, f := range fields {
+			if !devicerequest.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("db: invalid field %q for query", f)}
+			}
+			if f != devicerequest.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := druo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {

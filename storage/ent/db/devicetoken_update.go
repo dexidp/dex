@@ -240,6 +240,7 @@ func (dtu *DeviceTokenUpdate) sqlSave(ctx context.Context) (n int, err error) {
 // DeviceTokenUpdateOne is the builder for updating a single DeviceToken entity.
 type DeviceTokenUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *DeviceTokenMutation
 }
@@ -296,6 +297,13 @@ func (dtuo *DeviceTokenUpdateOne) AddPollInterval(i int) *DeviceTokenUpdateOne {
 // Mutation returns the DeviceTokenMutation object of the builder.
 func (dtuo *DeviceTokenUpdateOne) Mutation() *DeviceTokenMutation {
 	return dtuo.mutation
+}
+
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (dtuo *DeviceTokenUpdateOne) Select(field string, fields ...string) *DeviceTokenUpdateOne {
+	dtuo.fields = append([]string{field}, fields...)
+	return dtuo
 }
 
 // Save executes the query and returns the updated DeviceToken entity.
@@ -386,6 +394,18 @@ func (dtuo *DeviceTokenUpdateOne) sqlSave(ctx context.Context) (_node *DeviceTok
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing DeviceToken.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := dtuo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, devicetoken.FieldID)
+		for _, f := range fields {
+			if !devicetoken.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("db: invalid field %q for query", f)}
+			}
+			if f != devicetoken.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := dtuo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {

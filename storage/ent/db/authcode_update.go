@@ -416,6 +416,7 @@ func (acu *AuthCodeUpdate) sqlSave(ctx context.Context) (n int, err error) {
 // AuthCodeUpdateOne is the builder for updating a single AuthCode entity.
 type AuthCodeUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *AuthCodeMutation
 }
@@ -557,6 +558,13 @@ func (acuo *AuthCodeUpdateOne) Mutation() *AuthCodeMutation {
 	return acuo.mutation
 }
 
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (acuo *AuthCodeUpdateOne) Select(field string, fields ...string) *AuthCodeUpdateOne {
+	acuo.fields = append([]string{field}, fields...)
+	return acuo
+}
+
 // Save executes the query and returns the updated AuthCode entity.
 func (acuo *AuthCodeUpdateOne) Save(ctx context.Context) (*AuthCode, error) {
 	var (
@@ -670,6 +678,18 @@ func (acuo *AuthCodeUpdateOne) sqlSave(ctx context.Context) (_node *AuthCode, er
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing AuthCode.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := acuo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, authcode.FieldID)
+		for _, f := range fields {
+			if !authcode.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("db: invalid field %q for query", f)}
+			}
+			if f != authcode.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := acuo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {

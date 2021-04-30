@@ -162,6 +162,13 @@ func Token(v string) predicate.RefreshToken {
 	})
 }
 
+// ObsoleteToken applies equality check predicate on the "obsolete_token" field. It's identical to ObsoleteTokenEQ.
+func ObsoleteToken(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(func(s *sql.Selector) {
+		s.Where(sql.EQ(s.C(FieldObsoleteToken), v))
+	})
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.RefreshToken {
 	return predicate.RefreshToken(func(s *sql.Selector) {
@@ -1193,6 +1200,117 @@ func TokenEqualFold(v string) predicate.RefreshToken {
 func TokenContainsFold(v string) predicate.RefreshToken {
 	return predicate.RefreshToken(func(s *sql.Selector) {
 		s.Where(sql.ContainsFold(s.C(FieldToken), v))
+	})
+}
+
+// ObsoleteTokenEQ applies the EQ predicate on the "obsolete_token" field.
+func ObsoleteTokenEQ(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(func(s *sql.Selector) {
+		s.Where(sql.EQ(s.C(FieldObsoleteToken), v))
+	})
+}
+
+// ObsoleteTokenNEQ applies the NEQ predicate on the "obsolete_token" field.
+func ObsoleteTokenNEQ(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(func(s *sql.Selector) {
+		s.Where(sql.NEQ(s.C(FieldObsoleteToken), v))
+	})
+}
+
+// ObsoleteTokenIn applies the In predicate on the "obsolete_token" field.
+func ObsoleteTokenIn(vs ...string) predicate.RefreshToken {
+	v := make([]interface{}, len(vs))
+	for i := range v {
+		v[i] = vs[i]
+	}
+	return predicate.RefreshToken(func(s *sql.Selector) {
+		// if not arguments were provided, append the FALSE constants,
+		// since we can't apply "IN ()". This will make this predicate falsy.
+		if len(v) == 0 {
+			s.Where(sql.False())
+			return
+		}
+		s.Where(sql.In(s.C(FieldObsoleteToken), v...))
+	})
+}
+
+// ObsoleteTokenNotIn applies the NotIn predicate on the "obsolete_token" field.
+func ObsoleteTokenNotIn(vs ...string) predicate.RefreshToken {
+	v := make([]interface{}, len(vs))
+	for i := range v {
+		v[i] = vs[i]
+	}
+	return predicate.RefreshToken(func(s *sql.Selector) {
+		// if not arguments were provided, append the FALSE constants,
+		// since we can't apply "IN ()". This will make this predicate falsy.
+		if len(v) == 0 {
+			s.Where(sql.False())
+			return
+		}
+		s.Where(sql.NotIn(s.C(FieldObsoleteToken), v...))
+	})
+}
+
+// ObsoleteTokenGT applies the GT predicate on the "obsolete_token" field.
+func ObsoleteTokenGT(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(func(s *sql.Selector) {
+		s.Where(sql.GT(s.C(FieldObsoleteToken), v))
+	})
+}
+
+// ObsoleteTokenGTE applies the GTE predicate on the "obsolete_token" field.
+func ObsoleteTokenGTE(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(func(s *sql.Selector) {
+		s.Where(sql.GTE(s.C(FieldObsoleteToken), v))
+	})
+}
+
+// ObsoleteTokenLT applies the LT predicate on the "obsolete_token" field.
+func ObsoleteTokenLT(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(func(s *sql.Selector) {
+		s.Where(sql.LT(s.C(FieldObsoleteToken), v))
+	})
+}
+
+// ObsoleteTokenLTE applies the LTE predicate on the "obsolete_token" field.
+func ObsoleteTokenLTE(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(func(s *sql.Selector) {
+		s.Where(sql.LTE(s.C(FieldObsoleteToken), v))
+	})
+}
+
+// ObsoleteTokenContains applies the Contains predicate on the "obsolete_token" field.
+func ObsoleteTokenContains(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(func(s *sql.Selector) {
+		s.Where(sql.Contains(s.C(FieldObsoleteToken), v))
+	})
+}
+
+// ObsoleteTokenHasPrefix applies the HasPrefix predicate on the "obsolete_token" field.
+func ObsoleteTokenHasPrefix(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(func(s *sql.Selector) {
+		s.Where(sql.HasPrefix(s.C(FieldObsoleteToken), v))
+	})
+}
+
+// ObsoleteTokenHasSuffix applies the HasSuffix predicate on the "obsolete_token" field.
+func ObsoleteTokenHasSuffix(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(func(s *sql.Selector) {
+		s.Where(sql.HasSuffix(s.C(FieldObsoleteToken), v))
+	})
+}
+
+// ObsoleteTokenEqualFold applies the EqualFold predicate on the "obsolete_token" field.
+func ObsoleteTokenEqualFold(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(func(s *sql.Selector) {
+		s.Where(sql.EqualFold(s.C(FieldObsoleteToken), v))
+	})
+}
+
+// ObsoleteTokenContainsFold applies the ContainsFold predicate on the "obsolete_token" field.
+func ObsoleteTokenContainsFold(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(func(s *sql.Selector) {
+		s.Where(sql.ContainsFold(s.C(FieldObsoleteToken), v))
 	})
 }
 

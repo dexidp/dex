@@ -187,6 +187,7 @@ func (cu *ConnectorUpdate) sqlSave(ctx context.Context) (n int, err error) {
 // ConnectorUpdateOne is the builder for updating a single Connector entity.
 type ConnectorUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *ConnectorMutation
 }
@@ -218,6 +219,13 @@ func (cuo *ConnectorUpdateOne) SetConfig(b []byte) *ConnectorUpdateOne {
 // Mutation returns the ConnectorMutation object of the builder.
 func (cuo *ConnectorUpdateOne) Mutation() *ConnectorMutation {
 	return cuo.mutation
+}
+
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (cuo *ConnectorUpdateOne) Select(field string, fields ...string) *ConnectorUpdateOne {
+	cuo.fields = append([]string{field}, fields...)
+	return cuo
 }
 
 // Save executes the query and returns the updated Connector entity.
@@ -308,6 +316,18 @@ func (cuo *ConnectorUpdateOne) sqlSave(ctx context.Context) (_node *Connector, e
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing Connector.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := cuo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, connector.FieldID)
+		for _, f := range fields {
+			if !connector.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("db: invalid field %q for query", f)}
+			}
+			if f != connector.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := cuo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {

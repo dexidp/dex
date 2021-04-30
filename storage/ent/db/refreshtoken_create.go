@@ -108,6 +108,20 @@ func (rtc *RefreshTokenCreate) SetNillableToken(s *string) *RefreshTokenCreate {
 	return rtc
 }
 
+// SetObsoleteToken sets the "obsolete_token" field.
+func (rtc *RefreshTokenCreate) SetObsoleteToken(s string) *RefreshTokenCreate {
+	rtc.mutation.SetObsoleteToken(s)
+	return rtc
+}
+
+// SetNillableObsoleteToken sets the "obsolete_token" field if the given value is not nil.
+func (rtc *RefreshTokenCreate) SetNillableObsoleteToken(s *string) *RefreshTokenCreate {
+	if s != nil {
+		rtc.SetObsoleteToken(*s)
+	}
+	return rtc
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (rtc *RefreshTokenCreate) SetCreatedAt(t time.Time) *RefreshTokenCreate {
 	rtc.mutation.SetCreatedAt(t)
@@ -202,6 +216,10 @@ func (rtc *RefreshTokenCreate) defaults() {
 		v := refreshtoken.DefaultToken
 		rtc.mutation.SetToken(v)
 	}
+	if _, ok := rtc.mutation.ObsoleteToken(); !ok {
+		v := refreshtoken.DefaultObsoleteToken
+		rtc.mutation.SetObsoleteToken(v)
+	}
 	if _, ok := rtc.mutation.CreatedAt(); !ok {
 		v := refreshtoken.DefaultCreatedAt()
 		rtc.mutation.SetCreatedAt(v)
@@ -270,6 +288,9 @@ func (rtc *RefreshTokenCreate) check() error {
 	}
 	if _, ok := rtc.mutation.Token(); !ok {
 		return &ValidationError{Name: "token", err: errors.New("db: missing required field \"token\"")}
+	}
+	if _, ok := rtc.mutation.ObsoleteToken(); !ok {
+		return &ValidationError{Name: "obsolete_token", err: errors.New("db: missing required field \"obsolete_token\"")}
 	}
 	if _, ok := rtc.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New("db: missing required field \"created_at\"")}
@@ -406,6 +427,14 @@ func (rtc *RefreshTokenCreate) createSpec() (*RefreshToken, *sqlgraph.CreateSpec
 			Column: refreshtoken.FieldToken,
 		})
 		_node.Token = value
+	}
+	if value, ok := rtc.mutation.ObsoleteToken(); ok {
+		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
+			Type:   field.TypeString,
+			Value:  value,
+			Column: refreshtoken.FieldObsoleteToken,
+		})
+		_node.ObsoleteToken = value
 	}
 	if value, ok := rtc.mutation.CreatedAt(); ok {
 		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{

@@ -31,9 +31,9 @@ func (*OfflineSession) scanValues(columns []string) ([]interface{}, error) {
 	for i := range columns {
 		switch columns[i] {
 		case offlinesession.FieldRefresh, offlinesession.FieldConnectorData:
-			values[i] = &[]byte{}
+			values[i] = new([]byte)
 		case offlinesession.FieldID, offlinesession.FieldUserID, offlinesession.FieldConnID:
-			values[i] = &sql.NullString{}
+			values[i] = new(sql.NullString)
 		default:
 			return nil, fmt.Errorf("unexpected column %q for type OfflineSession", columns[i])
 		}

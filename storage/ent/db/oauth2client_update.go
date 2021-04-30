@@ -242,6 +242,7 @@ func (ou *OAuth2ClientUpdate) sqlSave(ctx context.Context) (n int, err error) {
 // OAuth2ClientUpdateOne is the builder for updating a single OAuth2Client entity.
 type OAuth2ClientUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *OAuth2ClientMutation
 }
@@ -297,6 +298,13 @@ func (ouo *OAuth2ClientUpdateOne) SetLogoURL(s string) *OAuth2ClientUpdateOne {
 // Mutation returns the OAuth2ClientMutation object of the builder.
 func (ouo *OAuth2ClientUpdateOne) Mutation() *OAuth2ClientMutation {
 	return ouo.mutation
+}
+
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (ouo *OAuth2ClientUpdateOne) Select(field string, fields ...string) *OAuth2ClientUpdateOne {
+	ouo.fields = append([]string{field}, fields...)
+	return ouo
 }
 
 // Save executes the query and returns the updated OAuth2Client entity.
@@ -392,6 +400,18 @@ func (ouo *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Cli
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing OAuth2Client.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := ouo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, oauth2client.FieldID)
+		for _, f := range fields {
+			if !oauth2client.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("db: invalid field %q for query", f)}
+			}
+			if f != oauth2client.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := ouo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {

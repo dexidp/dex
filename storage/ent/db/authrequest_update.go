@@ -434,6 +434,7 @@ func (aru *AuthRequestUpdate) sqlSave(ctx context.Context) (n int, err error) {
 // AuthRequestUpdateOne is the builder for updating a single AuthRequest entity.
 type AuthRequestUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *AuthRequestMutation
 }
@@ -605,6 +606,13 @@ func (aruo *AuthRequestUpdateOne) Mutation() *AuthRequestMutation {
 	return aruo.mutation
 }
 
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (aruo *AuthRequestUpdateOne) Select(field string, fields ...string) *AuthRequestUpdateOne {
+	aruo.fields = append([]string{field}, fields...)
+	return aruo
+}
+
 // Save executes the query and returns the updated AuthRequest entity.
 func (aruo *AuthRequestUpdateOne) Save(ctx context.Context) (*AuthRequest, error) {
 	var (
@@ -672,6 +680,18 @@ func (aruo *AuthRequestUpdateOne) sqlSave(ctx context.Context) (_node *AuthReque
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing AuthRequest.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := aruo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, authrequest.FieldID)
+		for _, f := range fields {
+			if !authrequest.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("db: invalid field %q for query", f)}
+			}
+			if f != authrequest.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := aruo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {

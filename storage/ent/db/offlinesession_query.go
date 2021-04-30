@@ -20,6 +20,7 @@ type OfflineSessionQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.OfflineSession
@@ -43,6 +44,13 @@ func (osq *OfflineSessionQuery) Limit(limit int) *OfflineSessionQuery {
 // Offset adds an offset step to the query.
 func (osq *OfflineSessionQuery) Offset(offset int) *OfflineSessionQuery {
 	osq.offset = &offset
+	return osq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (osq *OfflineSessionQuery) Unique(unique bool) *OfflineSessionQuery {
+	osq.unique = &unique
 	return osq
 }
 
@@ -352,6 +360,9 @@ func (osq *OfflineSessionQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   osq.sql,
 		Unique: true,
 	}
+	if unique := osq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := osq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, offlinesession.FieldID)
@@ -377,7 +388,7 @@ func (osq *OfflineSessionQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := osq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, offlinesession.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -396,7 +407,7 @@ func (osq *OfflineSessionQuery) sqlQuery(ctx context.Context) *sql.Selector {
 		p(selector)
 	}
 	for _, p := range osq.order {
-		p(selector, offlinesession.ValidColumn)
+		p(selector)
 	}
 	if offset := osq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -662,7 +673,7 @@ func (osgb *OfflineSessionGroupBy) sqlQuery() *sql.Selector {
 	columns := make([]string, 0, len(osgb.fields)+len(osgb.fns))
 	columns = append(columns, osgb.fields...)
 	for _, fn := range osgb.fns {
-		columns = append(columns, fn(selector, offlinesession.ValidColumn))
+		columns = append(columns, fn(selector))
 	}
 	return selector.Select(columns...).GroupBy(osgb.fields...)
 }

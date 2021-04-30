@@ -20,6 +20,7 @@ type DeviceTokenQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.DeviceToken
@@ -43,6 +44,13 @@ func (dtq *DeviceTokenQuery) Limit(limit int) *DeviceTokenQuery {
 // Offset adds an offset step to the query.
 func (dtq *DeviceTokenQuery) Offset(offset int) *DeviceTokenQuery {
 	dtq.offset = &offset
+	return dtq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (dtq *DeviceTokenQuery) Unique(unique bool) *DeviceTokenQuery {
+	dtq.unique = &unique
 	return dtq
 }
 
@@ -352,6 +360,9 @@ func (dtq *DeviceTokenQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   dtq.sql,
 		Unique: true,
 	}
+	if unique := dtq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := dtq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, devicetoken.FieldID)
@@ -377,7 +388,7 @@ func (dtq *DeviceTokenQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := dtq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, devicetoken.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -396,7 +407,7 @@ func (dtq *DeviceTokenQuery) sqlQuery(ctx context.Context) *sql.Selector {
 		p(selector)
 	}
 	for _, p := range dtq.order {
-		p(selector, devicetoken.ValidColumn)
+		p(selector)
 	}
 	if offset := dtq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -662,7 +673,7 @@ func (dtgb *DeviceTokenGroupBy) sqlQuery() *sql.Selector {
 	columns := make([]string, 0, len(dtgb.fields)+len(dtgb.fns))
 	columns = append(columns, dtgb.fields...)
 	for _, fn := range dtgb.fns {
-		columns = append(columns, fn(selector, devicetoken.ValidColumn))
+		columns = append(columns, fn(selector))
 	}
 	return selector.Select(columns...).GroupBy(dtgb.fields...)
 }

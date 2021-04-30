@@ -35,6 +35,8 @@ const (
 	FieldConnectorData = "connector_data"
 	// FieldToken holds the string denoting the token field in the database.
 	FieldToken = "token"
+	// FieldObsoleteToken holds the string denoting the obsolete_token field in the database.
+	FieldObsoleteToken = "obsolete_token"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldLastUsed holds the string denoting the last_used field in the database.
@@ -58,6 +60,7 @@ var Columns = []string{
 	FieldConnectorID,
 	FieldConnectorData,
 	FieldToken,
+	FieldObsoleteToken,
 	FieldCreatedAt,
 	FieldLastUsed,
 }
@@ -89,6 +92,8 @@ var (
 	ConnectorIDValidator func(string) error
 	// DefaultToken holds the default value on creation for the "token" field.
 	DefaultToken string
+	// DefaultObsoleteToken holds the default value on creation for the "obsolete_token" field.
+	DefaultObsoleteToken string
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultLastUsed holds the default value on creation for the "last_used" field.

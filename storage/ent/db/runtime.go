@@ -214,12 +214,16 @@ func init() {
 	refreshtokenDescToken := refreshtokenFields[12].Descriptor()
 	// refreshtoken.DefaultToken holds the default value on creation for the token field.
 	refreshtoken.DefaultToken = refreshtokenDescToken.Default.(string)
+	// refreshtokenDescObsoleteToken is the schema descriptor for obsolete_token field.
+	refreshtokenDescObsoleteToken := refreshtokenFields[13].Descriptor()
+	// refreshtoken.DefaultObsoleteToken holds the default value on creation for the obsolete_token field.
+	refreshtoken.DefaultObsoleteToken = refreshtokenDescObsoleteToken.Default.(string)
 	// refreshtokenDescCreatedAt is the schema descriptor for created_at field.
-	refreshtokenDescCreatedAt := refreshtokenFields[13].Descriptor()
+	refreshtokenDescCreatedAt := refreshtokenFields[14].Descriptor()
 	// refreshtoken.DefaultCreatedAt holds the default value on creation for the created_at field.
 	refreshtoken.DefaultCreatedAt = refreshtokenDescCreatedAt.Default.(func() time.Time)
 	// refreshtokenDescLastUsed is the schema descriptor for last_used field.
-	refreshtokenDescLastUsed := refreshtokenFields[14].Descriptor()
+	refreshtokenDescLastUsed := refreshtokenFields[15].Descriptor()
 	// refreshtoken.DefaultLastUsed holds the default value on creation for the last_used field.
 	refreshtoken.DefaultLastUsed = refreshtokenDescLastUsed.Default.(func() time.Time)
 	// refreshtokenDescID is the schema descriptor for id field.

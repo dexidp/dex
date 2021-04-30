@@ -37,13 +37,13 @@ func (*DeviceRequest) scanValues(columns []string) ([]interface{}, error) {
 	for i := range columns {
 		switch columns[i] {
 		case devicerequest.FieldScopes:
-			values[i] = &[]byte{}
+			values[i] = new([]byte)
 		case devicerequest.FieldID:
-			values[i] = &sql.NullInt64{}
+			values[i] = new(sql.NullInt64)
 		case devicerequest.FieldUserCode, devicerequest.FieldDeviceCode, devicerequest.FieldClientID, devicerequest.FieldClientSecret:
-			values[i] = &sql.NullString{}
+			values[i] = new(sql.NullString)
 		case devicerequest.FieldExpiry:
-			values[i] = &sql.NullTime{}
+			values[i] = new(sql.NullTime)
 		default:
 			return nil, fmt.Errorf("unexpected column %q for type DeviceRequest", columns[i])
 		}

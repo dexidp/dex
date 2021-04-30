@@ -20,6 +20,7 @@ type OAuth2ClientQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.OAuth2Client
@@ -43,6 +44,13 @@ func (oq *OAuth2ClientQuery) Limit(limit int) *OAuth2ClientQuery {
 // Offset adds an offset step to the query.
 func (oq *OAuth2ClientQuery) Offset(offset int) *OAuth2ClientQuery {
 	oq.offset = &offset
+	return oq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (oq *OAuth2ClientQuery) Unique(unique bool) *OAuth2ClientQuery {
+	oq.unique = &unique
 	return oq
 }
 
@@ -352,6 +360,9 @@ func (oq *OAuth2ClientQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   oq.sql,
 		Unique: true,
 	}
+	if unique := oq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := oq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, oauth2client.FieldID)
@@ -377,7 +388,7 @@ func (oq *OAuth2ClientQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := oq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, oauth2client.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -396,7 +407,7 @@ func (oq *OAuth2ClientQuery) sqlQuery(ctx context.Context) *sql.Selector {
 		p(selector)
 	}
 	for _, p := range oq.order {
-		p(selector, oauth2client.ValidColumn)
+		p(selector)
 	}
 	if offset := oq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -662,7 +673,7 @@ func (ogb *OAuth2ClientGroupBy) sqlQuery() *sql.Selector {
 	columns := make([]string, 0, len(ogb.fields)+len(ogb.fns))
 	columns = append(columns, ogb.fields...)
 	for _, fn := range ogb.fns {
-		columns = append(columns, fn(selector, oauth2client.ValidColumn))
+		columns = append(columns, fn(selector))
 	}
 	return selector.Select(columns...).GroupBy(ogb.fields...)
 }

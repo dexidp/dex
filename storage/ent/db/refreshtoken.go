@@ -41,6 +41,8 @@ type RefreshToken struct {
 	ConnectorData *[]byte `json:"connector_data,omitempty"`
 	// Token holds the value of the "token" field.
 	Token string `json:"token,omitempty"`
+	// ObsoleteToken holds the value of the "obsolete_token" field.
+	ObsoleteToken string `json:"obsolete_token,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// LastUsed holds the value of the "last_used" field.
@@ -53,13 +55,13 @@ func (*RefreshToken) scanValues(columns []string) ([]interface{}, error) {
 	for i := range columns {
 		switch columns[i] {
 		case refreshtoken.FieldScopes, refreshtoken.FieldClaimsGroups, refreshtoken.FieldConnectorData:
-			values[i] = &[]byte{}
+			values[i] = new([]byte)
 		case refreshtoken.FieldClaimsEmailVerified:
-			values[i] = &sql.NullBool{}
-		case refreshtoken.FieldID, refreshtoken.FieldClientID, refreshtoken.FieldNonce, refreshtoken.FieldClaimsUserID, refreshtoken.FieldClaimsUsername, refreshtoken.FieldClaimsEmail, refreshtoken.FieldClaimsPreferredUsername, refreshtoken.FieldConnectorID, refreshtoken.FieldToken:
-			values[i] = &sql.NullString{}
+			values[i] = new(sql.NullBool)
+		case refreshtoken.FieldID, refreshtoken.FieldClientID, refreshtoken.FieldNonce, refreshtoken.FieldClaimsUserID, refreshtoken.FieldClaimsUsername, refreshtoken.FieldClaimsEmail, refreshtoken.FieldClaimsPreferredUsername, refreshtoken.FieldConnectorID, refreshtoken.FieldToken, refreshtoken.FieldObsoleteToken:
+			values[i] = new(sql.NullString)
 		case refreshtoken.FieldCreatedAt, refreshtoken.FieldLastUsed:
-			values[i] = &sql.NullTime{}
+			values[i] = new(sql.NullTime)
 		default:
 			return nil, fmt.Errorf("unexpected column %q for type RefreshToken", columns[i])
 		}
@@ -159,6 +161,12 @@ func (rt *RefreshToken) assignValues(columns []string, values []interface{}) err
 			} else if value.Valid {
 				rt.Token = value.String
 			}
+		case refreshtoken.FieldObsoleteToken:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field obsolete_token", values[i])
+			} else if value.Valid {
+				rt.ObsoleteToken = value.String
+			}
 		case refreshtoken.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -225,6 +233,8 @@ func (rt *RefreshToken) String() string {
 	}
 	builder.WriteString(", token=")
 	builder.WriteString(rt.Token)
+	builder.WriteString(", obsolete_token=")
+	builder.WriteString(rt.ObsoleteToken)
 	builder.WriteString(", created_at=")
 	builder.WriteString(rt.CreatedAt.Format(time.ANSIC))
 	builder.WriteString(", last_used=")

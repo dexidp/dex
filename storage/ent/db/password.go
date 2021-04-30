@@ -31,11 +31,11 @@ func (*Password) scanValues(columns []string) ([]interface{}, error) {
 	for i := range columns {
 		switch columns[i] {
 		case password.FieldHash:
-			values[i] = &[]byte{}
+			values[i] = new([]byte)
 		case password.FieldID:
-			values[i] = &sql.NullInt64{}
+			values[i] = new(sql.NullInt64)
 		case password.FieldEmail, password.FieldUsername, password.FieldUserID:
-			values[i] = &sql.NullString{}
+			values[i] = new(sql.NullString)
 		default:
 			return nil, fmt.Errorf("unexpected column %q for type Password", columns[i])
 		}
