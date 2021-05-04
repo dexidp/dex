@@ -11,7 +11,6 @@ import (
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
-	"github.com/dexidp/dex/version"
 )
 
 // apiVersion increases every time a new call is added to the API. Clients should use this info
@@ -28,6 +27,9 @@ const (
 	// load on a dex server.
 	upBoundCost = 16
 )
+
+// version is the version of the Dex server. It is injected during build stage.
+var version = "was not built properly"
 
 // NewAPI returns a server which implements the gRPC API interface.
 func NewAPI(s storage.Storage, logger log.Logger) api.DexServer {
@@ -223,7 +225,7 @@ func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) 
 
 func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.VersionResp, error) {
 	return &api.VersionResp{
-		Server: version.Version,
+		Server: version,
 		Api:    apiVersion,
 	}, nil
 }

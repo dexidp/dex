@@ -17,7 +17,7 @@ group=$(shell id -g -n)
 
 export GOBIN=$(PWD)/bin
 
-LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
+LD_FLAGS="-w -X main.version=$(VERSION) -X $(REPO_PATH)/server.version=$(VERSION)"
 
 # Dependency versions
 GOLANGCI_VERSION = 1.32.2
