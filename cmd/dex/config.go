@@ -13,6 +13,7 @@ import (
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/ent"
 	"github.com/dexidp/dex/storage/etcd"
 	"github.com/dexidp/dex/storage/kubernetes"
 	"github.com/dexidp/dex/storage/memory"
@@ -173,13 +174,32 @@ type StorageConfig interface {
 	Open(logger log.Logger) (storage.Storage, error)
 }
 
+var (
+	_ StorageConfig = (*etcd.Etcd)(nil)
+	_ StorageConfig = (*kubernetes.Config)(nil)
+	_ StorageConfig = (*memory.Config)(nil)
+	_ StorageConfig = (*sql.SQLite3)(nil)
+	_ StorageConfig = (*sql.Postgres)(nil)
+	_ StorageConfig = (*sql.MySQL)(nil)
+	_ StorageConfig = (*ent.SQLite3)(nil)
+)
+
+func getORMBasedSQLiteStorage() StorageConfig {
+	switch os.Getenv("DEX_ENT_ENABLED") {
+	case "true", "yes":
+		return new(ent.SQLite3)
+	default:
+		return new(sql.SQLite3)
+	}
+}
+
 var storages = map[string]func() StorageConfig{
 	"etcd":       func() StorageConfig { return new(etcd.Etcd) },
 	"kubernetes": func() StorageConfig { return new(kubernetes.Config) },
 	"memory":     func() StorageConfig { return new(memory.Config) },
-	"sqlite3":    func() StorageConfig { return new(sql.SQLite3) },
 	"postgres":   func() StorageConfig { return new(sql.Postgres) },
 	"mysql":      func() StorageConfig { return new(sql.MySQL) },
+	"sqlite3":    getORMBasedSQLiteStorage,
 }
 
 // isExpandEnvEnabled returns if os.ExpandEnv should be used for each storage and connector config.

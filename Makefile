@@ -26,7 +26,10 @@ PROTOC_VERSION = 3.15.6
 PROTOC_GEN_GO_VERSION = 1.26.0
 PROTOC_GEN_GO_GRPC_VERSION = 1.1.0
 
-build: bin/dex
+generate:
+	@go generate $(REPO_PATH)/storage/ent/
+
+build: generate bin/dex
 
 bin/dex:
 	@mkdir -p bin/
@@ -42,7 +45,7 @@ bin/example-app:
 	@mkdir -p bin/
 	@cd examples/ && go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/example-app
 
-.PHONY: release-binary
+.PHONY: generate release-binary
 release-binary:
 	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
