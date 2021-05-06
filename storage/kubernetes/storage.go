@@ -83,7 +83,7 @@ func (c *Config) open(logger log.Logger, waitForResources bool) (*client, error)
 		return nil, err
 	}
 
-	cli, err := newClient(cluster, user, namespace, logger)
+	cli, err := newClient(cluster, user, namespace, logger, c.InCluster)
 	if err != nil {
 		return nil, fmt.Errorf("create client: %v", err)
 	}
