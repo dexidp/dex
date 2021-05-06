@@ -28,8 +28,8 @@ const (
 	upBoundCost = 16
 )
 
-// version is the version of the Dex server. It is injected during build stage.
-var version = "was not built properly"
+// Version is the version of the Dex server. It is injected during main package initialization.
+var Version = "DEV"
 
 // NewAPI returns a server which implements the gRPC API interface.
 func NewAPI(s storage.Storage, logger log.Logger) api.DexServer {
@@ -225,7 +225,7 @@ func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) 
 
 func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.VersionResp, error) {
 	return &api.VersionResp{
-		Server: version,
+		Server: Version,
 		Api:    apiVersion,
 	}, nil
 }
