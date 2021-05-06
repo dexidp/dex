@@ -244,29 +244,38 @@ func (c *sqlConnector) identityFromRow(row map[string]interface{}) (ident connec
 	}
 
 	if c.UserQuery.UsernameColumn != "" {
-		ident.PreferredUsername, ok = row[c.UserQuery.UsernameColumn].(string)
-		if !ok {
-			err = fmt.Errorf("sql: UsernameColumn %s must be a string",
-				c.UserQuery.UsernameColumn)
-			return connector.Identity{}, err
+		data := row[c.UserQuery.UsernameColumn]
+		if data != nil {
+			ident.PreferredUsername, ok = data.(string)
+			if !ok {
+				err = fmt.Errorf("sql: UsernameColumn %s must be a string",
+					c.UserQuery.UsernameColumn)
+				return connector.Identity{}, err
+			}
 		}
 	}
 
 	if c.UserQuery.EmailColumn != "" {
-		ident.Email, ok = row[c.UserQuery.EmailColumn].(string)
-		if !ok {
-			err = fmt.Errorf("sql: EmailColumn %s must be a string",
-				c.UserQuery.EmailColumn)
-			return connector.Identity{}, err
+		data := row[c.UserQuery.EmailColumn]
+		if data != nil {
+			ident.Email, ok = data.(string)
+			if !ok {
+				err = fmt.Errorf("sql: EmailColumn %s must be a string",
+					c.UserQuery.EmailColumn)
+				return connector.Identity{}, err
+			}
 		}
 	}
 
 	if c.UserQuery.NameColumn != "" {
-		ident.Username, ok = row[c.UserQuery.NameColumn].(string)
-		if !ok {
-			err = fmt.Errorf("sql: NameColumn %s must be a string",
-				c.UserQuery.NameColumn)
-			return connector.Identity{}, err
+		data := row[c.UserQuery.NameColumn]
+		if data != nil {
+			ident.Username, ok = data.(string)
+			if !ok {
+				err = fmt.Errorf("sql: NameColumn %s must be a string",
+					c.UserQuery.NameColumn)
+				return connector.Identity{}, err
+			}
 		}
 	}
 
