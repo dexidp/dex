@@ -3,12 +3,8 @@ package kubernetes
 import (
 	"hash"
 	"hash/fnv"
-	"io/ioutil"
-	"os"
 	"sync"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 // This test does not have an explicit error condition but is used
@@ -43,6 +39,81 @@ func TestOfflineTokenName(t *testing.T) {
 	id2 := offlineTokenName(userID2, "local", h)
 	if id1 == id2 {
 		t.Errorf("expected offlineTokenName to produce different hashes")
+	}
+}
+
+func TestInClusterTransport(t *testing.T) {
+	logger := &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level:     logrus.DebugLevel,
+	}
+
+	user := k8sapi.AuthInfo{Token: "abc"}
+	cli, err := newClient(
+		k8sapi.Cluster{},
+		user,
+		"test",
+		logger,
+		true,
+	)
+	require.NoError(t, err)
+
+	fpath := filepath.Join(os.TempDir(), "test.in_cluster")
+	defer os.RemoveAll(fpath)
+
+	err = ioutil.WriteFile(fpath, []byte("def"), 0644)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		time     func() time.Time
+		expected string
+	}{
+		{
+			name: "Stale token",
+			time: func() time.Time {
+				return time.Now().Add(-24 * time.Hour)
+			},
+			expected: "def",
+		},
+		{
+			name: "Normal token",
+			time: func() time.Time {
+				return time.Time{}
+			},
+			expected: "abc",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			helper := newInClusterTransportHelper(user)
+			helper.now = tc.time
+			helper.tokenLocation = fpath
+
+			cli.client.Transport = transport{
+				updateReq: func(r *http.Request) {
+					helper.UpdateToken()
+					r.Header.Set("Authorization", "Bearer "+helper.GetToken())
+				},
+				base: cli.client.Transport,
+			}
+
+			_ = cli.isCRDReady("test")
+			require.Equal(t, tc.expected, helper.info.Token)
+		})
+	}
+}
+
+func TestNamespaceFromServiceAccountJWT(t *testing.T) {
+	namespace, err := namespaceFromServiceAccountJWT(serviceAccountToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantNamespace := "dex-test-namespace"
+	if namespace != wantNamespace {
+		t.Errorf("expected namespace %q got %q", wantNamespace, namespace)
 	}
 }
 
