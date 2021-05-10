@@ -191,16 +191,14 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 	if err != nil {
 		return identity, fmt.Errorf("OAuth Connector: failed to execute request to userinfo: %v", err)
 	}
+	defer userInfoResp.Body.Close()
 
 	if userInfoResp.StatusCode != http.StatusOK {
 		return identity, fmt.Errorf("OAuth Connector: failed to execute request to userinfo: status %d", userInfoResp.StatusCode)
 	}
 
-	defer userInfoResp.Body.Close()
-
 	var userInfoResult map[string]interface{}
 	err = json.NewDecoder(userInfoResp.Body).Decode(&userInfoResult)
-
 	if err != nil {
 		return identity, fmt.Errorf("OAuth Connector: failed to parse userinfo: %v", err)
 	}
@@ -217,7 +215,7 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 	identity.EmailVerified, _ = userInfoResult[c.emailVerifiedKey].(bool)
 
 	if s.Groups {
-		groups := map[string]bool{}
+		groups := map[string]struct{}{}
 
 		c.addGroupsFromMap(groups, userInfoResult)
 		c.addGroupsFromToken(groups, token.AccessToken)
@@ -239,7 +237,7 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 	return identity, nil
 }
 
-func (c *oauthConnector) addGroupsFromMap(groups map[string]bool, result map[string]interface{}) error {
+func (c *oauthConnector) addGroupsFromMap(groups map[string]struct{}, result map[string]interface{}) error {
 	groupsClaim, ok := result[c.groupsKey].([]interface{})
 	if !ok {
 		return errors.New("cannot convert to slice")
@@ -247,14 +245,14 @@ func (c *oauthConnector) addGroupsFromMap(groups map[string]bool, result map[str
 
 	for _, group := range groupsClaim {
 		if groupString, ok := group.(string); ok {
-			groups[groupString] = true
+			groups[groupString] = struct{}{}
 		}
 	}
 
 	return nil
 }
 
-func (c *oauthConnector) addGroupsFromToken(groups map[string]bool, token string) error {
+func (c *oauthConnector) addGroupsFromToken(groups map[string]struct{}, token string) error {
 	parts := strings.Split(token, ".")
 	if len(parts) < 2 {
 		return errors.New("invalid token")
