@@ -52,7 +52,7 @@ jobs:
           go-version: 1.16
 
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
 
       - name: Start services
         run: docker-compose -f docker-compose.test.yaml up -d
