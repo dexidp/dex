@@ -26,10 +26,10 @@ PROTOC_VERSION = 3.15.6
 PROTOC_GEN_GO_VERSION = 1.26.0
 PROTOC_GEN_GO_GRPC_VERSION = 1.1.0
 
-generate:
-	@go generate $(REPO_PATH)/storage/ent/
+KIND_NODE_IMAGE = "kindest/node:v1.19.7@sha256:a70639454e97a4b733f9d9b67e12c01f6b0297449d5b9cbbef87473458e26dca"
+KIND_TMP_DIR = "/tmp/dex-kind-kubeconfig"
 
-build: generate bin/dex
+build: bin/dex
 
 bin/dex:
 	@mkdir -p bin/
@@ -45,7 +45,7 @@ bin/example-app:
 	@mkdir -p bin/
 	@cd examples/ && go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/example-app
 
-.PHONY: generate release-binary
+.PHONY: release-binary
 release-binary:
 	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
@@ -66,6 +66,17 @@ test:
 
 testrace:
 	@go test -v --race ./...
+
+.PHONY: kind-up kind-down kind-tests
+kind-up:
+	@kind create cluster --image ${KIND_NODE_IMAGE} --kubeconfig ${KIND_TMP_DIR}
+
+kind-down:
+	@kind delete cluster
+	rm ${KIND_TMP_DIR}
+
+kind-tests: export DEX_KUBERNETES_CONFIG_PATH=${KIND_TMP_DIR}
+kind-tests: testall
 
 bin/golangci-lint: bin/golangci-lint-${GOLANGCI_VERSION}
 	@ln -sf golangci-lint-${GOLANGCI_VERSION} bin/golangci-lint

@@ -36,6 +36,7 @@ type StorageTestSuite struct {
 }
 
 func (s *StorageTestSuite) expandDir(dir string) string {
+	dir = strings.Trim(dir, `"`)
 	if strings.HasPrefix(dir, "~/") {
 		homedir, err := os.UserHomeDir()
 		s.Require().NoError(err)
