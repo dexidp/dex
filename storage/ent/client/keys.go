@@ -26,7 +26,7 @@ func (d *Database) GetKeys() (storage.Keys, error) {
 func (d *Database) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) error {
 	firstUpdate := false
 
-	tx, err := d.client.Tx(context.TODO())
+	tx, err := d.BeginTx(context.TODO())
 	if err != nil {
 		return convertDBError("update keys tx: %w", err)
 	}

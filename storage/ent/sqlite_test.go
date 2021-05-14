@@ -10,7 +10,7 @@ import (
 	"github.com/dexidp/dex/storage/conformance"
 )
 
-func newStorage() storage.Storage {
+func newSQLiteStorage() storage.Storage {
 	logger := &logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
@@ -26,6 +26,6 @@ func newStorage() storage.Storage {
 }
 
 func TestSQLite3(t *testing.T) {
-	conformance.RunTests(t, newStorage)
-	conformance.RunTransactionTests(t, newStorage)
+	conformance.RunTests(t, newSQLiteStorage)
+	conformance.RunTransactionTests(t, newSQLiteStorage)
 }

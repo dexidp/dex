@@ -37,7 +37,7 @@ func (d *Database) GetDeviceToken(deviceCode string) (storage.DeviceToken, error
 
 // UpdateDeviceToken changes a token by device code using an updater function and saves it to the database.
 func (d *Database) UpdateDeviceToken(deviceCode string, updater func(old storage.DeviceToken) (storage.DeviceToken, error)) error {
-	tx, err := d.client.Tx(context.TODO())
+	tx, err := d.BeginTx(context.TODO())
 	if err != nil {
 		return convertDBError("update device token tx: %w", err)
 	}

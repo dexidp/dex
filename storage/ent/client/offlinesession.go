@@ -55,7 +55,7 @@ func (d *Database) DeleteOfflineSessions(userID, connID string) error {
 func (d *Database) UpdateOfflineSessions(userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
 	id := offlineSessionID(userID, connID, d.hasher)
 
-	tx, err := d.client.Tx(context.TODO())
+	tx, err := d.BeginTx(context.TODO())
 	if err != nil {
 		return convertDBError("update offline session tx: %w", err)
 	}

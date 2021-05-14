@@ -64,7 +64,7 @@ func (d *Database) DeletePassword(email string) error {
 func (d *Database) UpdatePassword(email string, updater func(old storage.Password) (storage.Password, error)) error {
 	email = strings.ToLower(email)
 
-	tx, err := d.client.Tx(context.TODO())
+	tx, err := d.BeginTx(context.TODO())
 	if err != nil {
 		return convertDBError("update connector tx: %w", err)
 	}
