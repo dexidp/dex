@@ -1681,7 +1681,7 @@ func TestClientSecretEncryption(t *testing.T) {
 	// Create the OAuth2 config.
 	oauth2Config = &oauth2.Config{
 		ClientID:     clientID,
-		ClientSecret: clientSecret,
+		ClientSecret: string(hash),
 		Endpoint:     p.Endpoint(),
 		Scopes:       requestedScopes,
 	}
@@ -1728,7 +1728,7 @@ func TestClientSecretEncryption(t *testing.T) {
 	// Regester the client above with dex.
 	client := storage.Client{
 		ID:           clientID,
-		Secret:       string(hash),
+		Secret:       clientSecret,
 		RedirectURIs: []string{oauth2Client.URL + "/callback"},
 	}
 	if err := s.storage.CreateClient(client); err != nil {

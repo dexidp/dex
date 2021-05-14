@@ -683,7 +683,7 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.hashClientSecret {
-		if err := bcrypt.CompareHashAndPassword([]byte(client.Secret), []byte(clientSecret)); err != nil {
+		if err := bcrypt.CompareHashAndPassword([]byte(clientSecret), []byte(client.Secret)); err != nil {
 			s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
 			return
 		}
