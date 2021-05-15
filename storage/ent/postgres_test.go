@@ -12,6 +12,14 @@ import (
 	"github.com/dexidp/dex/storage/conformance"
 )
 
+const (
+	PostgresEntHostEnv     = "DEX_POSTGRES_ENT_HOST"
+	PostgresEntPortEnv     = "DEX_POSTGRES_ENT_PORT"
+	PostgresEntDatabaseEnv = "DEX_POSTGRES_ENT_DATABASE"
+	PostgresEntUserEnv     = "DEX_POSTGRES_ENT_USER"
+	PostgresEntPasswordEnv = "DEX_POSTGRES_ENT_PASSWORD"
+)
+
 func getenv(key, defaultVal string) string {
 	if val := os.Getenv(key); val != "" {
 		return val
@@ -22,9 +30,9 @@ func getenv(key, defaultVal string) string {
 func postgresTestConfig(host string, port uint64) *Postgres {
 	return &Postgres{
 		NetworkDB: NetworkDB{
-			Database: getenv("DEX_POSTGRES_DATABASE", "postgres"),
-			User:     getenv("DEX_POSTGRES_USER", "postgres"),
-			Password: getenv("DEX_POSTGRES_PASSWORD", "postgres"),
+			Database: getenv(PostgresEntDatabaseEnv, "postgres"),
+			User:     getenv(PostgresEntUserEnv, "postgres"),
+			Password: getenv(PostgresEntPasswordEnv, "postgres"),
 			Host:     host,
 			Port:     uint16(port),
 		},
@@ -50,13 +58,13 @@ func newPostgresStorage(host string, port uint64) storage.Storage {
 }
 
 func TestPostgres(t *testing.T) {
-	host := os.Getenv("DEX_POSTGRES_HOST")
+	host := os.Getenv(PostgresEntHostEnv)
 	if host == "" {
-		t.Skipf("test environment variable DEX_POSTGRES_HOST not set, skipping")
+		t.Skipf("test environment variable %s not set, skipping", PostgresEntHostEnv)
 	}
 
 	port := uint64(5432)
-	if rawPort := os.Getenv("DEX_POSTGRES_PORT"); rawPort != "" {
+	if rawPort := os.Getenv(PostgresEntPortEnv); rawPort != "" {
 		var err error
 
 		port, err = strconv.ParseUint(rawPort, 10, 32)
@@ -138,13 +146,13 @@ func TestPostgresDSN(t *testing.T) {
 }
 
 func TestPostgresDriver(t *testing.T) {
-	host := os.Getenv("DEX_POSTGRES_HOST")
+	host := os.Getenv(PostgresEntHostEnv)
 	if host == "" {
-		t.Skipf("test environment variable DEX_POSTGRES_HOST not set, skipping")
+		t.Skipf("test environment variable %s not set, skipping", PostgresEntHostEnv)
 	}
 
 	port := uint64(5432)
-	if rawPort := os.Getenv("DEX_POSTGRES_PORT"); rawPort != "" {
+	if rawPort := os.Getenv(PostgresEntPortEnv); rawPort != "" {
 		var err error
 
 		port, err = strconv.ParseUint(rawPort, 10, 32)

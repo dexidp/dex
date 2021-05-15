@@ -11,10 +11,11 @@ import (
 	"strings"
 	"time"
 
+	entSQL "entgo.io/ent/dialect/sql"
+
 	// Register postgres driver.
 	_ "github.com/lib/pq"
 
-	entSQL "entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/client"
