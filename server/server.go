@@ -204,6 +204,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	if c.Storage == nil {
 		return nil, errors.New("server: storage cannot be nil")
 	}
+
 	if len(c.SupportedResponseTypes) == 0 {
 		c.SupportedResponseTypes = []string{responseTypeCode}
 	}

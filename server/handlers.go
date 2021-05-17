@@ -2,6 +2,7 @@ package server
 
 import (
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -678,7 +679,8 @@ func (s *Server) withClientFromStorage(w http.ResponseWriter, r *http.Request, h
 		}
 		return
 	}
-	if client.Secret != clientSecret {
+
+	if subtle.ConstantTimeCompare([]byte(client.Secret), []byte(clientSecret)) != 1 {
 		if clientSecret == "" {
 			s.logger.Infof("missing client_secret on token request for client: %s", client.ID)
 		} else {
