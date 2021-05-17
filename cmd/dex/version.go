@@ -5,17 +5,9 @@ import (
 	"runtime"
 
 	"github.com/spf13/cobra"
-
-	"github.com/dexidp/dex/server"
 )
 
 var version = "DEV"
-
-// nolint:gochecknoinits
-func init() {
-	// inject version for API endpoint
-	server.Version = version
-}
 
 func commandVersion() *cobra.Command {
 	return &cobra.Command{

@@ -28,22 +28,21 @@ const (
 	upBoundCost = 16
 )
 
-// Version is the version of the Dex server. It is injected during main package initialization.
-var Version = "DEV"
-
 // NewAPI returns a server which implements the gRPC API interface.
-func NewAPI(s storage.Storage, logger log.Logger) api.DexServer {
+func NewAPI(s storage.Storage, logger log.Logger, version string) api.DexServer {
 	return dexAPI{
-		s:      s,
-		logger: logger,
+		s:       s,
+		logger:  logger,
+		version: version,
 	}
 }
 
 type dexAPI struct {
 	api.UnimplementedDexServer
 
-	s      storage.Storage
-	logger log.Logger
+	s       storage.Storage
+	logger  log.Logger
+	version string
 }
 
 func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*api.CreateClientResp, error) {
@@ -225,7 +224,7 @@ func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) 
 
 func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.VersionResp, error) {
 	return &api.VersionResp{
-		Server: Version,
+		Server: d.version,
 		Api:    apiVersion,
 	}, nil
 }
