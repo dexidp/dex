@@ -11,7 +11,6 @@ import (
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
-	"github.com/dexidp/dex/version"
 )
 
 // apiVersion increases every time a new call is added to the API. Clients should use this info
@@ -30,18 +29,20 @@ const (
 )
 
 // NewAPI returns a server which implements the gRPC API interface.
-func NewAPI(s storage.Storage, logger log.Logger) api.DexServer {
+func NewAPI(s storage.Storage, logger log.Logger, version string) api.DexServer {
 	return dexAPI{
-		s:      s,
-		logger: logger,
+		s:       s,
+		logger:  logger,
+		version: version,
 	}
 }
 
 type dexAPI struct {
 	api.UnimplementedDexServer
 
-	s      storage.Storage
-	logger log.Logger
+	s       storage.Storage
+	logger  log.Logger
+	version string
 }
 
 func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*api.CreateClientResp, error) {
@@ -223,7 +224,7 @@ func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) 
 
 func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.VersionResp, error) {
 	return &api.VersionResp{
-		Server: version.Version,
+		Server: d.version,
 		Api:    apiVersion,
 	}, nil
 }
