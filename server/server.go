@@ -77,9 +77,6 @@ type Config struct {
 	// If enabled, the connectors selection page will always be shown even if there's only one
 	AlwaysShowLoginScreen bool
 
-	// If enabled, the client secret is expected to be encrypted
-	HashClientSecret bool
-
 	RotateKeysAfter        time.Duration // Defaults to 6 hours.
 	IDTokensValidFor       time.Duration // Defaults to 24 hours
 	AuthRequestsValidFor   time.Duration // Defaults to 24 hours
@@ -154,9 +151,6 @@ type Server struct {
 	// If enabled, show the connector selection screen even if there's only one
 	alwaysShowLogin bool
 
-	// If enabled, the client secret is expected to be encrypted
-	hashClientSecret bool
-
 	// Used for password grant
 	passwordConnector string
 
@@ -194,23 +188,6 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	if c.Storage == nil {
 		return nil, errors.New("server: storage cannot be nil")
-	}
-
-	if c.HashClientSecret {
-		clients, err := c.Storage.ListClients()
-		if err != nil {
-			return nil, fmt.Errorf("server: failed to list clients")
-		}
-
-		for _, client := range clients {
-			if client.Secret == "" {
-				return nil, fmt.Errorf("server: client secret can't be empty")
-			}
-
-			if err = checkCost([]byte(client.Secret)); err != nil {
-				return nil, fmt.Errorf("server: failed to check cost of client secret: %v", err)
-			}
-		}
 	}
 
 	if len(c.SupportedResponseTypes) == 0 {
@@ -256,7 +233,6 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
 		skipApproval:           c.SkipApprovalScreen,
 		alwaysShowLogin:        c.AlwaysShowLoginScreen,
-		hashClientSecret:       c.HashClientSecret,
 		now:                    now,
 		templates:              tmpls,
 		passwordConnector:      c.PasswordConnector,

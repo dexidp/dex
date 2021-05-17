@@ -17,7 +17,6 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/mux"
-	"golang.org/x/crypto/bcrypt"
 	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
@@ -682,21 +681,14 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.hashClientSecret {
-		if err := bcrypt.CompareHashAndPassword([]byte(clientSecret), []byte(client.Secret)); err != nil {
-			s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
-			return
+	if subtle.ConstantTimeCompare([]byte(client.Secret), []byte(clientSecret)) != 1 {
+		if clientSecret == "" {
+			s.logger.Infof("missing client_secret on token request for client: %s", client.ID)
+		} else {
+			s.logger.Infof("invalid client_secret on token request for client: %s", client.ID)
 		}
-	} else {
-		if subtle.ConstantTimeCompare([]byte(client.Secret), []byte(clientSecret)) != 1 {
-			if clientSecret == "" {
-				s.logger.Infof("missing client_secret on token request for client: %s", client.ID)
-			} else {
-				s.logger.Infof("invalid client_secret on token request for client: %s", client.ID)
-			}
-			s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
-			return
-		}
+		s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
+		return
 	}
 
 	grantType := r.PostFormValue("grant_type")
