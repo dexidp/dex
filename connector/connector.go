@@ -38,6 +38,15 @@ type Identity struct {
 	ConnectorData []byte
 }
 
+// Link is a pair of a URL (as a string) and descriptive text
+type Link struct {
+	// The URL that the link should point at
+	HRef string `json:"href"`
+
+	// The text to show on the user's display
+	Text string `json:"text"`
+}
+
 // PasswordConnector is an interface implemented by connectors which take a
 // username and password.
 // Prompt() is used to inform the handler what to display in the password
@@ -45,6 +54,7 @@ type Identity struct {
 type PasswordConnector interface {
 	Prompt() string
 	Login(ctx context.Context, s Scopes, username, password string) (identity Identity, validPassword bool, err error)
+	ForgotPassword() *Link
 }
 
 // CallbackConnector is an interface implemented by connectors which use an OAuth

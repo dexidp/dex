@@ -98,6 +98,10 @@ type Config struct {
 	// "Username".
 	UsernamePrompt string `json:"usernamePrompt"`
 
+	// ForgotPassword allows users to specify a link that will appear on the
+	// password login page.
+	ForgotPassword *connector.Link `json:"forgotPassword,omitempty"`
+
 	// User entry search configuration.
 	UserSearch struct {
 		// BaseDN to start the search from. For example "cn=users,dc=example,dc=com"
@@ -524,6 +528,10 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 	}
 
 	return ident, true, nil
+}
+
+func (c *ldapConnector) ForgotPassword() *connector.Link {
+	return c.Config.ForgotPassword
 }
 
 func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {

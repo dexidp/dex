@@ -35,6 +35,10 @@ connectors:
 
     usernamePrompt: Email Address
 
+    forgotPassword:
+      href: https://google.com
+      text: Send me to Google.
+
     userSearch:
       baseDN: ou=People,dc=example,dc=org
       filter: "(objectClass=person)"

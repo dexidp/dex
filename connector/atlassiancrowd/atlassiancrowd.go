@@ -52,6 +52,10 @@ type Config struct {
 	// in the username/password prompt). If unset, the handler will use.
 	// "Username".
 	UsernamePrompt string `json:"usernamePrompt"`
+
+	// ForgotPassword allows users to specify a link that will appear on the
+	// password login page.
+	ForgotPassword *connector.Link `json:"forgotPassword,omitempty"`
 }
 
 type crowdUser struct {
@@ -179,6 +183,10 @@ func (c *crowdConnector) Refresh(ctx context.Context, s connector.Scopes, ident 
 		newIdent.Groups = userGroups
 	}
 	return newIdent, nil
+}
+
+func (c *crowdConnector) ForgotPassword() *connector.Link {
+	return c.Config.ForgotPassword
 }
 
 func (c *crowdConnector) Prompt() string {

@@ -460,6 +460,8 @@ func (db passwordDB) Prompt() string {
 	return "Email Address"
 }
 
+func (db passwordDB) ForgotPassword() *connector.Link { return nil }
+
 // newKeyCacher returns a storage which caches keys so long as the next
 func newKeyCacher(s storage.Storage, now func() time.Time) storage.Storage {
 	if now == nil {

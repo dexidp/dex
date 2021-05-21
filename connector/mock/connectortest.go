@@ -112,6 +112,8 @@ func (p passwordConnector) Login(ctx context.Context, s connector.Scopes, userna
 	return identity, false, nil
 }
 
+func (p passwordConnector) ForgotPassword() *connector.Link { return nil }
+
 func (p passwordConnector) Prompt() string { return "" }
 
 func (p passwordConnector) Refresh(_ context.Context, _ connector.Scopes, identity connector.Identity) (connector.Identity, error) {

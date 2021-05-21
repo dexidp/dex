@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/dexidp/dex/connector"
 )
 
 const (
@@ -266,7 +268,7 @@ func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []c
 	return renderTemplate(w, t.loginTmpl, data)
 }
 
-func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid, showBacklink bool) error {
+func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid, showBacklink bool, forgotPassword *connector.Link) error {
 	data := struct {
 		PostURL        string
 		BackLink       bool
@@ -274,7 +276,8 @@ func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, la
 		UsernamePrompt string
 		Invalid        bool
 		ReqPath        string
-	}{postURL, showBacklink, lastUsername, usernamePrompt, lastWasInvalid, r.URL.Path}
+		ForgotPassword *connector.Link
+	}{postURL, showBacklink, lastUsername, usernamePrompt, lastWasInvalid, r.URL.Path, forgotPassword}
 	return renderTemplate(w, t.passwordTmpl, data)
 }
 

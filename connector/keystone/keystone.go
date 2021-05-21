@@ -14,11 +14,12 @@ import (
 )
 
 type conn struct {
-	Domain        string
-	Host          string
-	AdminUsername string
-	AdminPassword string
-	Logger        log.Logger
+	Domain         string
+	Host           string
+	AdminUsername  string
+	AdminPassword  string
+	forgotPassword *connector.Link
+	Logger         log.Logger
 }
 
 type userKeystone struct {
@@ -45,10 +46,11 @@ type domainKeystone struct {
 //			keystoneUsername: demo
 //			keystonePassword: DEMO_PASS
 type Config struct {
-	Domain        string `json:"domain"`
-	Host          string `json:"keystoneHost"`
-	AdminUsername string `json:"keystoneUsername"`
-	AdminPassword string `json:"keystonePassword"`
+	Domain         string          `json:"domain"`
+	Host           string          `json:"keystoneHost"`
+	AdminUsername  string          `json:"keystoneUsername"`
+	AdminPassword  string          `json:"keystonePassword"`
+	ForgotPassword *connector.Link `json:"forgotPassword,omitempty"`
 }
 
 type loginRequestData struct {
@@ -115,6 +117,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		c.Host,
 		c.AdminUsername,
 		c.AdminPassword,
+		c.ForgotPassword,
 		logger,
 	}, nil
 }
@@ -164,6 +167,8 @@ func (p *conn) Login(ctx context.Context, scopes connector.Scopes, username, pas
 
 	return identity, true, nil
 }
+
+func (p *conn) ForgotPassword() *connector.Link { return p.forgotPassword }
 
 func (p *conn) Prompt() string { return "username" }
 
