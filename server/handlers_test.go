@@ -13,6 +13,9 @@ import (
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
 	"github.com/AppsFlyer/go-sundheit/checks"
+	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/storage"
 )
