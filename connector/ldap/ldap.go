@@ -192,7 +192,7 @@ func userMatchers(c *Config, logger log.Logger) []UserMatcher {
 		return c.GroupSearch.UserMatchers
 	}
 
-	logger.Warn(`ldap: fields groupSearch userAttr/groupAttr are deprecated, use groupSearch.userMatchers instead.`)
+	log.Deprecated(logger, `LDAP: use groupSearch.userMatchers option instead of "userAttr/groupAttr" fields.`)
 	return []UserMatcher{
 		{
 			UserAttr:  c.GroupSearch.UserAttr,
