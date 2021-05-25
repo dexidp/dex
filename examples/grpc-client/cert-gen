@@ -1,35 +1,59 @@
 #!/bin/bash
 
-if [ -z $SAN ]
-  then echo "Set SAN with a DNS or IP(e.g. export SAN=IP.1:127.0.0.1,IP.2:172.18.0.2)."
-  exit 1
+set -e
+if [ -z $CFSSL_HOSTS ]; then
+  CFSSL_HOSTS='["127.0.0.1", "172.18.0.2"]'
 fi
 
 echo "Creating CA, server cert/key, and client cert/key..."
 
-# Creating basic files/directories
-mkdir -p {certs,crl,newcerts}
-touch index.txt
-echo 1000 > serial
+command=$(cat <<EOF
+set -e
 
-# CA private key (unencrypted)
-openssl genrsa -out ca.key 4096
-# Certificate Authority (self-signed certificate)
-openssl req -config examples/grpc-client/openssl.conf -new -x509 -days 3650 -sha256 -key ca.key -extensions v3_ca -out ca.crt -subj "/CN=fake-ca"
+echo '{
+  "CN": "fake-ca",
+  "key": { "algo": "ecdsa", "size": 256 },
+  "ca": { "expiry": "87600h" }
+}' | cfssl gencert -initca - | cfssljson -bare ca
 
-# Server private key (unencrypted)
-openssl genrsa -out server.key 2048
-# Server certificate signing request (CSR)
-openssl req -config examples/grpc-client/openssl.conf -new -sha256 -key server.key -out server.csr -subj "/CN=fake-server"
-# Certificate Authority signs CSR to grant a certificate
-openssl ca -batch -config examples/grpc-client/openssl.conf -extensions server_cert -days 365 -notext -md sha256 -in server.csr -out server.crt -cert ca.crt -keyfile ca.key
+echo '{
+  "signing": {
+    "default": {
+      "expiry": "87600h",
+      "usages": [
+        "critical",
+        "signing",
+        "key encipherment",
+        "requestheader-client",
+        "digital signature"
+      ]
+    }
+  }
+}' > config.json
 
-# Client private key (unencrypted)
-openssl genrsa -out client.key 2048
-# Signed client certificate signing request (CSR)
-openssl req -config examples/grpc-client/openssl.conf -new -sha256 -key client.key -out client.csr -subj "/CN=fake-client"
-# Certificate Authority signs CSR to grant a certificate
-openssl ca -batch -config examples/grpc-client/openssl.conf -extensions usr_cert -days 365 -notext -md sha256 -in client.csr -out client.crt -cert ca.crt -keyfile ca.key
+echo '{
+  "CN": "fake-server",
+  "hosts": $CFSSL_HOSTS,
+  "key": { "algo": "ecdsa", "size": 256 }
+}' | cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=config.json - | cfssljson -bare server
 
-# Remove CSR's
-rm *.csr
+echo '{
+  "CN": "fake-client",
+  "hosts": $CFSSL_HOSTS,
+  "key": { "algo": "ecdsa", "size": 256 }
+}' | cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=config.json - | cfssljson -bare client
+
+# Prepare certificates
+rm *.csr config.json
+
+mv ca-key.pem ca.key
+mv ca.pem ca.crt
+
+mv server-key.pem server.key
+mv server.pem server.crt
+
+mv client-key.pem client.key
+mv client.pem client.crt
+EOF)
+
+docker run --rm -v $(pwd):/workdir --entrypoint bash -w /workdir cfssl/cfssl:1.5.0 -c "$command"
