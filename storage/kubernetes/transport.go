@@ -82,13 +82,15 @@ type inClusterTransportHelper struct {
 }
 
 func newInClusterTransportHelper(info k8sapi.AuthInfo) *inClusterTransportHelper {
-	user := inClusterTransportHelper{
+	user := &inClusterTransportHelper{
 		info:          info,
 		now:           time.Now,
 		tokenLocation: "/var/run/secrets/kubernetes.io/serviceaccount/token",
 	}
+
 	user.UpdateToken()
-	return &user
+
+	return user
 }
 
 func (c *inClusterTransportHelper) UpdateToken() {

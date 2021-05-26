@@ -3,8 +3,18 @@ package kubernetes
 import (
 	"hash"
 	"hash/fnv"
+	"io/ioutil"
+	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
 
 // This test does not have an explicit error condition but is used
