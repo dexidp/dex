@@ -43,16 +43,16 @@ func TestHandleHealthFailure(t *testing.T) {
 	httpServer, server := newTestServer(ctx, t, func(c *Config) {
 		c.HealthChecker = gosundheit.New()
 
-		c.HealthChecker.RegisterCheck(&gosundheit.Config{
-			Check: &checks.CustomCheck{
+		c.HealthChecker.RegisterCheck(
+			&checks.CustomCheck{
 				CheckName: "fail",
-				CheckFunc: func() (details interface{}, err error) {
+				CheckFunc: func(_ context.Context) (details interface{}, err error) {
 					return nil, errors.New("error")
 				},
 			},
-			InitiallyPassing: false,
-			ExecutionPeriod:  1 * time.Second,
-		})
+			gosundheit.InitiallyPassing(false),
+			gosundheit.ExecutionPeriod(1*time.Second),
+		)
 	})
 	defer httpServer.Close()
 

@@ -336,14 +336,14 @@ func runServe(options serveOptions) error {
 		telemetryRouter.Handle("/healthz/ready", handler)
 	}
 
-	healthChecker.RegisterCheck(&gosundheit.Config{
-		Check: &checks.CustomCheck{
+	healthChecker.RegisterCheck(
+		&checks.CustomCheck{
 			CheckName: "storage",
 			CheckFunc: storage.NewCustomHealthCheckFunc(serverConfig.Storage, serverConfig.Now),
 		},
-		ExecutionPeriod:  15 * time.Second,
-		InitiallyPassing: true,
-	})
+		gosundheit.ExecutionPeriod(15*time.Second),
+		gosundheit.InitiallyPassing(true),
+	)
 
 	var group run.Group
 

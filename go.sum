@@ -40,8 +40,8 @@ cloud.google.com/go/storage v1.10.0/go.mod h1:FLPqc6j+Ki4BU591ie1oL6qBQGu2Bl/tZ9
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
 entgo.io/ent v0.8.0 h1:xirrW//1oda7pp0bz+XssSOv4/C3nmgYQOxjIfljFt8=
 entgo.io/ent v0.8.0/go.mod h1:KNjsukat/NJi6zJh1utwRadsbGOZsBbAZNDxkW7tMCc=
-github.com/AppsFlyer/go-sundheit v0.3.1 h1:Zqnr3wV3WQmXonc234k9XZAoV2KHUHw3osR5k2iHQZE=
-github.com/AppsFlyer/go-sundheit v0.3.1/go.mod h1:iZ8zWMS7idcvmqewf5mEymWWgoOiG/0WD4+aeh+heX4=
+github.com/AppsFlyer/go-sundheit v0.4.0 h1:7ECd0YWaXJQ9LzdCFrpGxJVeAgXvNarN6uwxrJsh69A=
+github.com/AppsFlyer/go-sundheit v0.4.0/go.mod h1:iZ8zWMS7idcvmqewf5mEymWWgoOiG/0WD4+aeh+heX4=
 github.com/Azure/go-ntlmssp v0.0.0-20200615164410-66371956d46c h1:/IBSNwUN8+eKzUzbJPqhK839ygXJ82sde8x3ogr6R28=
 github.com/Azure/go-ntlmssp v0.0.0-20200615164410-66371956d46c/go.mod h1:chxPXzSsl7ZWRAuOIE23GDNzjWuZquvFlgA8xmpunjU=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
