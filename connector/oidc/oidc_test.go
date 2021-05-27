@@ -49,6 +49,7 @@ func TestHandleCallback(t *testing.T) {
 		name                      string
 		userIDKey                 string
 		userNameKey               string
+		userNameOptional          bool
 		preferredUsernameKey      string
 		emailKey                  string
 		groupsKey                 string
@@ -65,6 +66,7 @@ func TestHandleCallback(t *testing.T) {
 			name:               "simpleCase",
 			userIDKey:          "", // not configured
 			userNameKey:        "", // not configured
+			userNameOptional:   false,
 			expectUserID:       "subvalue",
 			expectUserName:     "namevalue",
 			expectGroups:       []string{"group1", "group2"},
@@ -126,6 +128,18 @@ func TestHandleCallback(t *testing.T) {
 			token: map[string]interface{}{
 				"sub":            "subvalue",
 				"user_name":      "username",
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
+			name:               "withUserNameOptional",
+			userNameOptional:   true,
+			expectUserID:       "subvalue",
+			expectUserName:     "",
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
 				"email":          "emailvalue",
 				"email_verified": true,
 			},
@@ -260,6 +274,7 @@ func TestHandleCallback(t *testing.T) {
 				RedirectURI:               fmt.Sprintf("%s/callback", serverURL),
 				UserIDKey:                 tc.userIDKey,
 				UserNameKey:               tc.userNameKey,
+				UserNameOptional:          tc.userNameOptional,
 				InsecureSkipEmailVerified: tc.insecureSkipEmailVerified,
 				InsecureEnableGroups:      true,
 				BasicAuthUnsupported:      &basicAuth,
