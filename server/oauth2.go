@@ -428,7 +428,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	codeChallengeMethod := q.Get("code_challenge_method")
 
 	if codeChallengeMethod == "" {
-		codeChallengeMethod = CodeChallengeMethodPlain
+		codeChallengeMethod = codeChallengeMethodPlain
 	}
 
 	client, err := s.storage.GetClient(clientID)
@@ -470,7 +470,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		return nil, newErr(errRequestNotSupported, "Server does not support request parameter.")
 	}
 
-	if codeChallengeMethod != CodeChallengeMethodS256 && codeChallengeMethod != CodeChallengeMethodPlain {
+	if codeChallengeMethod != codeChallengeMethodS256 && codeChallengeMethod != codeChallengeMethodPlain {
 		description := fmt.Sprintf("Unsupported PKCE challenge method (%q).", codeChallengeMethod)
 		return nil, newErr(errInvalidRequest, description)
 	}

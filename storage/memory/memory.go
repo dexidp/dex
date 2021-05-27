@@ -29,8 +29,7 @@ func New(logger log.Logger) storage.Storage {
 // Config is an implementation of a storage configuration.
 //
 // TODO(ericchiang): Actually define a storage config interface and have registration.
-type Config struct {
-	// The in memory implementation has no config.
+type Config struct { // The in memory implementation has no config.
 }
 
 // Open always returns a new in memory storage.

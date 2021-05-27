@@ -6,8 +6,6 @@ linters-settings:
         local-prefixes: github.com/dexidp/dex
     goimports:
         local-prefixes: github.com/dexidp/dex
-    golint:
-        min-confidence: 0
 
 
 linters:
@@ -24,7 +22,6 @@ linters:
         - gofmt
         - gofumpt
         - goimports
-        - golint
         - goprintffuncname
         - gosimple
         - govet
@@ -33,6 +30,7 @@ linters:
         - nakedret
         - nolintlint
         - prealloc
+        - revive
         - rowserrcheck
         - sqlclosecheck
         - staticcheck

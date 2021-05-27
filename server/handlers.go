@@ -24,8 +24,8 @@ import (
 )
 
 const (
-	CodeChallengeMethodPlain = "plain"
-	CodeChallengeMethodS256  = "S256"
+	codeChallengeMethodPlain = "plain"
+	codeChallengeMethodS256  = "S256"
 )
 
 func (s *Server) handlePublicKeys(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +96,7 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 		Subjects:          []string{"public"},
 		GrantTypes:        []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode},
 		IDTokenAlgs:       []string{string(jose.RS256)},
-		CodeChallengeAlgs: []string{CodeChallengeMethodS256, CodeChallengeMethodPlain},
+		CodeChallengeAlgs: []string{codeChallengeMethodS256, codeChallengeMethodPlain},
 		Scopes:            []string{"openid", "email", "groups", "profile", "offline_access"},
 		AuthMethods:       []string{"client_secret_basic", "client_secret_post"},
 		Claims: []string{
@@ -724,9 +724,9 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) calculateCodeChallenge(codeVerifier, codeChallengeMethod string) (string, error) {
 	switch codeChallengeMethod {
-	case CodeChallengeMethodPlain:
+	case codeChallengeMethodPlain:
 		return codeVerifier, nil
-	case CodeChallengeMethodS256:
+	case codeChallengeMethodS256:
 		shaSum := sha256.Sum256([]byte(codeVerifier))
 		return base64.RawURLEncoding.EncodeToString(shaSum[:]), nil
 	default:
