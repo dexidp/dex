@@ -20,7 +20,7 @@ export GOBIN=$(PWD)/bin
 LD_FLAGS="-w -X main.version=$(VERSION)"
 
 # Dependency versions
-GOLANGCI_VERSION = 1.32.2
+GOLANGCI_VERSION = 1.40.1
 
 PROTOC_VERSION = 3.15.6
 PROTOC_GEN_GO_VERSION = 1.26.0
@@ -86,9 +86,12 @@ bin/golangci-lint-${GOLANGCI_VERSION}:
 	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | BINARY=golangci-lint bash -s -- v${GOLANGCI_VERSION}
 	@mv bin/golangci-lint $@
 
-.PHONY: lint
+.PHONY: lint lint-fix
 lint: bin/golangci-lint ## Run linter
 	bin/golangci-lint run
+
+lint-fix: bin/golangci-lint ## Run linter and fix issues
+	bin/golangci-lint run --fix
 
 .PHONY: fix
 fix: bin/golangci-lint ## Fix lint violations

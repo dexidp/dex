@@ -51,7 +51,7 @@ func (d *Database) DeleteOfflineSessions(userID, connID string) error {
 	return nil
 }
 
-// UpdatePassword changes an offline session by user id and connector id using an updater function.
+// UpdateOfflineSessions changes an offline session by user id and connector id using an updater function.
 func (d *Database) UpdateOfflineSessions(userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
 	id := offlineSessionID(userID, connID, d.hasher)
 
@@ -86,7 +86,7 @@ func (d *Database) UpdateOfflineSessions(userID string, connID string, updater f
 	}
 
 	if err = tx.Commit(); err != nil {
-		return rollback(tx, "update password commit: %w", err)
+		return rollback(tx, "update offline session commit: %w", err)
 	}
 
 	return nil

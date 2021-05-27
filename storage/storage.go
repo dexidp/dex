@@ -177,7 +177,7 @@ type Claims struct {
 	Groups []string
 }
 
-// Data needed for PKCE (RFC 7636)
+// PKCE is a container for the data needed to perform Proof Key for Code Exchange (RFC 7636) auth flow
 type PKCE struct {
 	CodeChallenge       string
 	CodeChallengeMethod string
