@@ -44,6 +44,12 @@ type Config struct {
 	// InsecureEnableGroups enables groups claims. This is disabled by default until https://github.com/dexidp/dex/issues/1065 is resolved
 	InsecureEnableGroups bool `json:"insecureEnableGroups"`
 
+	// AuthURL provides a way to user overwrite the Auth URL from .well-known/openid-configuration
+	AuthURL string `json:"authURL"`
+
+	// TokenURL provides a way to user overwrite the Token URL from .well-known/openid-configuration
+	TokenURL string `json:"tokenURL"`
+
 	// GetUserInfo uses the userinfo endpoint to get additional claims for
 	// the token. This is especially useful where upstreams return "thin"
 	// id tokens
@@ -108,6 +114,14 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 	}
 
 	endpoint := provider.Endpoint()
+
+	if c.AuthURL != "" {
+		endpoint.AuthURL = c.AuthURL
+	}
+
+	if c.TokenURL != "" {
+		endpoint.TokenURL = c.TokenURL
+	}
 
 	if c.BasicAuthUnsupported != nil {
 		// Setting "basicAuthUnsupported" always overrides our detection.
