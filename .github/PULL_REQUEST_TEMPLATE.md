@@ -1,5 +1,5 @@
 <!--
-Thank you for sending a pull request! Here some tips for contributors:
+Thank you for sending a pull request! Here are some tips for contributors:
 
 1. Fill the description template below.
 2. Sign a DCO (if you haven't already signed it).
