@@ -26,8 +26,8 @@ PROTOC_VERSION = 3.15.6
 PROTOC_GEN_GO_VERSION = 1.26.0
 PROTOC_GEN_GO_GRPC_VERSION = 1.1.0
 
-KIND_NODE_IMAGE = "kindest/node:v1.19.7@sha256:a70639454e97a4b733f9d9b67e12c01f6b0297449d5b9cbbef87473458e26dca"
-KIND_TMP_DIR = "/tmp/dex-kind-kubeconfig"
+KIND_NODE_IMAGE = "kindest/node:v1.19.11@sha256:07db187ae84b4b7de440a73886f008cf903fcf5764ba8106a9fd5243d6f32729"
+KIND_TMP_DIR = "$(PWD)/bin/test/dex-kind-kubeconfig"
 
 build: bin/dex
 
@@ -69,6 +69,7 @@ testrace:
 
 .PHONY: kind-up kind-down kind-tests
 kind-up:
+	@mkdir -p bin/test
 	@kind create cluster --image ${KIND_NODE_IMAGE} --kubeconfig ${KIND_TMP_DIR}
 
 kind-down:
