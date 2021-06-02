@@ -29,7 +29,11 @@ PROTOC_GEN_GO_GRPC_VERSION = 1.1.0
 KIND_NODE_IMAGE = "kindest/node:v1.19.11@sha256:07db187ae84b4b7de440a73886f008cf903fcf5764ba8106a9fd5243d6f32729"
 KIND_TMP_DIR = "$(PWD)/bin/test/dex-kind-kubeconfig"
 
-build: bin/dex
+.PHONY: generate
+generate:
+	@go generate $(REPO_PATH)/storage/ent/
+
+build: generate bin/dex
 
 bin/dex:
 	@mkdir -p bin/
@@ -46,7 +50,7 @@ bin/example-app:
 	@cd examples/ && go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/example-app
 
 .PHONY: release-binary
-release-binary:
+release-binary: generate
 	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
 docker-compose.override.yaml:
@@ -88,9 +92,6 @@ bin/golangci-lint-${GOLANGCI_VERSION}:
 .PHONY: lint lint-fix
 lint: bin/golangci-lint ## Run linter
 	bin/golangci-lint run
-
-lint-fix: bin/golangci-lint ## Run linter and fix issues
-	bin/golangci-lint run --fix
 
 .PHONY: fix
 fix: bin/golangci-lint ## Fix lint violations
