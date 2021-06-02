@@ -5,40 +5,26 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"sigs.k8s.io/testing_frameworks/integration"
 
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/conformance"
 )
 
-const kubeconfigTemplate = `apiVersion: v1
-kind: Config
-clusters:
-- name: local
-  cluster:
-    server: SERVERURL
-users:
-- name: local
-  user:
-contexts:
-- context:
-    cluster: local
-    user: local
-`
+const kubeconfigPathVariableName = "DEX_KUBERNETES_CONFIG_PATH"
 
 func TestStorage(t *testing.T) {
-	if os.Getenv("TEST_ASSET_KUBE_APISERVER") == "" || os.Getenv("TEST_ASSET_ETCD") == "" {
-		t.Skip("control plane binaries are missing")
+	if os.Getenv(kubeconfigPathVariableName) == "" {
+		t.Skip(fmt.Sprintf("variable %q not set, skipping kubernetes storage tests\n", kubeconfigPathVariableName))
 	}
 
 	suite.Run(t, new(StorageTestSuite))
@@ -46,33 +32,25 @@ func TestStorage(t *testing.T) {
 
 type StorageTestSuite struct {
 	suite.Suite
-
-	controlPlane *integration.ControlPlane
-
 	client *client
 }
 
-func (s *StorageTestSuite) SetupSuite() {
-	s.controlPlane = &integration.ControlPlane{}
+func (s *StorageTestSuite) expandDir(dir string) string {
+	dir = strings.Trim(dir, `"`)
+	if strings.HasPrefix(dir, "~/") {
+		homedir, err := os.UserHomeDir()
+		s.Require().NoError(err)
 
-	err := s.controlPlane.Start()
-	s.Require().NoError(err)
-}
-
-func (s *StorageTestSuite) TearDownSuite() {
-	s.controlPlane.Stop()
+		dir = filepath.Join(homedir, strings.TrimPrefix(dir, "~/"))
+	}
+	return dir
 }
 
 func (s *StorageTestSuite) SetupTest() {
-	f, err := ioutil.TempFile("", "dex-kubeconfig-*")
-	s.Require().NoError(err)
-	defer f.Close()
-
-	_, err = f.WriteString(strings.ReplaceAll(kubeconfigTemplate, "SERVERURL", s.controlPlane.APIURL().String()))
-	s.Require().NoError(err)
+	kubeconfigPath := s.expandDir(os.Getenv(kubeconfigPathVariableName))
 
 	config := Config{
-		KubeConfigFile: f.Name(),
+		KubeConfigFile: kubeconfigPath,
 	}
 
 	logger := &logrus.Logger{
@@ -81,10 +59,10 @@ func (s *StorageTestSuite) SetupTest() {
 		Level:     logrus.DebugLevel,
 	}
 
-	client, err := config.open(logger, true)
+	kubeClient, err := config.open(logger, true)
 	s.Require().NoError(err)
 
-	s.client = client
+	s.client = kubeClient
 }
 
 func (s *StorageTestSuite) TestStorage() {
