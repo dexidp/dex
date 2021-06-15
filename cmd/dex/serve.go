@@ -21,6 +21,7 @@ import (
 	grpcprometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -101,12 +102,12 @@ func runServe(options serveOptions) error {
 	logger.Infof("config issuer: %s", c.Issuer)
 
 	prometheusRegistry := prometheus.NewRegistry()
-	err = prometheusRegistry.Register(prometheus.NewGoCollector())
+	err = prometheusRegistry.Register(collectors.NewGoCollector())
 	if err != nil {
 		return fmt.Errorf("failed to register Go runtime metrics: %v", err)
 	}
 
-	err = prometheusRegistry.Register(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+	err = prometheusRegistry.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	if err != nil {
 		return fmt.Errorf("failed to register process metrics: %v", err)
 	}
