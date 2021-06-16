@@ -508,8 +508,9 @@ go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738 h1:VcrIfasaLFkyjk6KNlXQSzO+B0
 go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738/go.mod h1:dnLIgRNXwCJa5e+c6mIZCrds/GIG4ncV9HhK5PX7jPg=
 go.etcd.io/etcd/api/v3 v3.5.0-rc.0 h1:oPIG9qBFXiGJFM1StoFd5EVllfVIhd7pPjB/mcMCzCg=
 go.etcd.io/etcd/api/v3 v3.5.0-rc.0/go.mod h1:cbVKeC6lCfl7j/8jBhAK6aIYO9XOjdptoxU/nLQcPvs=
-go.etcd.io/etcd/client/pkg/v3 v3.5.0-rc.0 h1:7mW2vCG+tthhWwORSD/G0eesRZ6ZkOh19P7CyrT9xfA=
 go.etcd.io/etcd/client/pkg/v3 v3.5.0-rc.0/go.mod h1:IJHfcCEKxYu1Os13ZdwCwIUTUVGYTSAM3YSwc9/Ac1g=
+go.etcd.io/etcd/client/pkg/v3 v3.5.0 h1:2aQv6F436YnN7I4VbI8PPYrBhu+SmrTaADcf8Mi/6PU=
+go.etcd.io/etcd/client/pkg/v3 v3.5.0/go.mod h1:IJHfcCEKxYu1Os13ZdwCwIUTUVGYTSAM3YSwc9/Ac1g=
 go.etcd.io/etcd/client/v3 v3.5.0-rc.0 h1:W2gUtoUho3+X5tCffYA3VfA7fH9DokrhGMscvZskuXc=
 go.etcd.io/etcd/client/v3 v3.5.0-rc.0/go.mod h1:5+cKiK2IEMa230cLFrLL3+3sKlPPKASjiLOmG8tZ8vY=
 go.opencensus.io v0.20.1/go.mod h1:6WKK9ahsWS3RSO+PY9ZHZUfv2irvY6gN279GOPZjmmk=
