@@ -53,6 +53,7 @@ spec:
           httpGet:
             path: /healthz
             port: 5556
+            scheme: HTTPS
       volumes:
       - name: config
         configMap:
