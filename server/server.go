@@ -25,6 +25,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/connector/apple"
 	"github.com/dexidp/dex/connector/atlassiancrowd"
 	"github.com/dexidp/dex/connector/authproxy"
 	"github.com/dexidp/dex/connector/bitbucketcloud"
@@ -534,6 +535,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"bitbucket-cloud": func() ConnectorConfig { return new(bitbucketcloud.Config) },
 	"openshift":       func() ConnectorConfig { return new(openshift.Config) },
 	"atlassian-crowd": func() ConnectorConfig { return new(atlassiancrowd.Config) },
+	"apple":           func() ConnectorConfig { return new(apple.Config) },
 	// Keep around for backwards compatibility.
 	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
 }
