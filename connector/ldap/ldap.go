@@ -331,10 +331,11 @@ func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error 
 	defer conn.Close()
 
 	// If bindDN and bindPW are empty this will default to an anonymous bind.
-	if err := conn.Bind(c.BindDN, c.BindPW); err != nil {
-		if c.BindDN == "" && c.BindPW == "" {
+	if c.BindDN == "" && c.BindPW == "" {
+		if err := conn.UnauthenticatedBind(""); err != nil {
 			return fmt.Errorf("ldap: initial anonymous bind failed: %v", err)
 		}
+	} else if err := conn.Bind(c.BindDN, c.BindPW); err != nil {
 		return fmt.Errorf("ldap: initial bind for user %q failed: %v", c.BindDN, err)
 	}
 
