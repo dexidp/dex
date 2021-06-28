@@ -1,5 +1,5 @@
 name: 🚀 Feature request
-about: Suggest an idea for Dex
+description: Suggest an idea for Dex
 body:
 - type: markdown
   attributes:
