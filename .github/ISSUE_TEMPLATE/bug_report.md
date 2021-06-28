@@ -1,5 +1,5 @@
 name: 🐛 Bug report
-description: Report a bug to help us improve Dex
+about: Report a bug to help us improve Dex
 body:
 - type: markdown
   attributes:
