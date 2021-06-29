@@ -11,17 +11,14 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
-	"github.com/felixge/httpsnoop"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/connector"
@@ -99,8 +96,6 @@ type Config struct {
 	Web WebConfig
 
 	Logger log.Logger
-
-	PrometheusRegistry *prometheus.Registry
 
 	HealthChecker gosundheit.Health
 }
@@ -279,32 +274,9 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 	}
 
-	instrumentHandlerCounter := func(_ string, handler http.Handler) http.HandlerFunc {
-		return handler.ServeHTTP
-	}
-
-	if c.PrometheusRegistry != nil {
-		requestCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "http_requests_total",
-			Help: "Count of all HTTP requests.",
-		}, []string{"handler", "code", "method"})
-
-		err = c.PrometheusRegistry.Register(requestCounter)
-		if err != nil {
-			return nil, fmt.Errorf("server: Failed to register Prometheus HTTP metrics: %v", err)
-		}
-
-		instrumentHandlerCounter = func(handlerName string, handler http.Handler) http.HandlerFunc {
-			return func(w http.ResponseWriter, r *http.Request) {
-				m := httpsnoop.CaptureMetrics(handler, w, r)
-				requestCounter.With(prometheus.Labels{"handler": handlerName, "code": strconv.Itoa(m.Code), "method": r.Method}).Inc()
-			}
-		}
-	}
-
 	r := mux.NewRouter()
 	handle := func(p string, h http.Handler) {
-		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, h))
+		r.Handle(path.Join(issuerURL.Path, p), wrapWithMetrics(p, h))
 	}
 	handleFunc := func(p string, h http.HandlerFunc) {
 		handle(p, h)
@@ -325,7 +297,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 			)
 			handler = cors(handler)
 		}
-		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, handler))
+		r.Handle(path.Join(issuerURL.Path, p), wrapWithMetrics(p, handler))
 	}
 	r.NotFoundHandler = http.NotFoundHandler()
 
