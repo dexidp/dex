@@ -111,6 +111,7 @@ const (
 	scopeOfflineAccess     = "offline_access" // Request a refresh token.
 	scopeOpenID            = "openid"
 	scopeGroups            = "groups"
+	scopeRoles             = "roles"
 	scopeEmail             = "email"
 	scopeProfile           = "profile"
 	scopeFederatedID       = "federated:id"
@@ -153,6 +154,8 @@ func parseScopes(scopes []string) connector.Scopes {
 			s.OfflineAccess = true
 		case scopeGroups:
 			s.Groups = true
+		case scopeRoles:
+			s.Roles = true
 		}
 	}
 	return s
@@ -279,6 +282,8 @@ type idTokenClaims struct {
 	PreferredUsername string `json:"preferred_username,omitempty"`
 
 	FederatedIDClaims *federatedIDClaims `json:"federated_claims,omitempty"`
+
+	Roles []string `json:"roles,omitempty"`
 }
 
 type federatedIDClaims struct {
@@ -362,6 +367,8 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 				ConnectorID: connID,
 				UserID:      claims.UserID,
 			}
+		case scope == scopeRoles:
+			tok.Roles = claims.Roles
 		default:
 			peerID, ok := parseCrossClientScope(scope)
 			if !ok {

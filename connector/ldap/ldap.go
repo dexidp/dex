@@ -156,6 +156,23 @@ type Config struct {
 		// The attribute of the group that represents its name.
 		NameAttr string `json:"nameAttr"`
 	} `json:"groupSearch"`
+
+	/*
+		This configuration provides the mapping of any kind of group to a list
+		of roles. By this the groups from multiple connectors may apply a list
+		of roles for the current user. This roles can be added to the token.
+		By this you may use different federations with a different group setup
+		but match them to your distinct user roles.
+		Example:
+		- Group1:
+			- frontend
+		- Group2:
+			- admin
+		- Group3:
+			- frontend
+			- admin
+	*/
+	AppliedRoles map[string][]string `json:"appliedRoles"`
 }
 
 func scopeString(i int) string {
@@ -504,12 +521,39 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 		return connector.Identity{}, false, err
 	}
 
+	var groups []string
+
 	if s.Groups {
-		groups, err := c.groups(ctx, user)
+		groups, err = c.groups(ctx, user)
 		if err != nil {
 			return connector.Identity{}, false, fmt.Errorf("ldap: failed to query groups: %v", err)
 		}
 		ident.Groups = groups
+	}
+
+	if s.Roles {
+		if groups == nil {
+			groups, err = c.groups(ctx, user)
+			if err != nil {
+				return connector.Identity{}, false, fmt.Errorf("ldap: failed to query groups: %v", err)
+			}
+		}
+		if groups != nil && c.Config.AppliedRoles != nil {
+			var identRoles []string
+			uniqueRoles := make(map[string]int)
+			identRoles = make([]string, 0)
+			for _, group := range groups {
+				if rolesToAdd, ok := c.AppliedRoles[group]; ok {
+					for _, element := range rolesToAdd {
+						uniqueRoles[element] = 1
+					}
+				}
+			}
+			for role := range uniqueRoles {
+				identRoles = append(identRoles, role)
+			}
+			ident.Roles = identRoles
+		}
 	}
 
 	if s.OfflineAccess {

@@ -19,6 +19,9 @@ type Scopes struct {
 
 	// The client has requested group information about the end user.
 	Groups bool
+
+	// The client has requested the mapped roles based on the federated user groups
+	Roles bool
 }
 
 // Identity represents the ID Token claims supported by the server.
@@ -30,6 +33,9 @@ type Identity struct {
 	EmailVerified     bool
 
 	Groups []string
+
+	// Contains all scopes, that were assigned by the matching groups from the federation user import.
+	Roles []string
 
 	// ConnectorData holds data used by the connector for subsequent requests after initial
 	// authentication, such as access tokens for upstream provides.
