@@ -29,10 +29,11 @@ type subtest struct {
 	name string
 
 	// Password credentials, and if the connector should request
-	// groups as well.
+	// groups and roles as well.
 	username string
 	password string
 	groups   bool
+	roles    bool
 
 	// Expected result of the login.
 	wantErr   bool
@@ -261,6 +262,76 @@ func TestGroupsOnUserEntity(t *testing.T) {
 				Email:         "johndoe@example.com",
 				EmailVerified: true,
 				Groups:        []string{"admins", "designers"},
+			},
+		},
+	}
+	runTests(t, connectLDAP, c, tests)
+}
+
+func TestRolesOnUserEntity(t *testing.T) {
+	c := &Config{}
+	c.UserSearch.BaseDN = "ou=People,ou=TestGroupsOnUserEntity,dc=example,dc=org"
+	c.UserSearch.NameAttr = "cn"
+	c.UserSearch.EmailAttr = "mail"
+	c.UserSearch.IDAttr = "DN"
+	c.UserSearch.Username = "cn"
+	c.GroupSearch.BaseDN = "ou=Groups,ou=TestGroupsOnUserEntity,dc=example,dc=org"
+	c.GroupSearch.UserMatchers = []UserMatcher{
+		{
+			UserAttr:  "departmentNumber",
+			GroupAttr: "gidNumber",
+		},
+	}
+	c.GroupSearch.NameAttr = "cn"
+	c.AppliedRoles = map[string][]string{
+		"designers":  {"designer-role", "ui-role"},
+		"unknown":    {"special-role"},
+		"admins":     {"admin-role", "ui-role"},
+		"developers": {"ui-role", "api-metric-role"},
+	}
+
+	tests := []subtest{
+		{
+			name:     "validroles1",
+			username: "jane",
+			password: "foo",
+			roles:    true,
+			want: connector.Identity{
+				UserID:        "cn=jane,ou=People,ou=TestGroupsOnUserEntity,dc=example,dc=org",
+				Username:      "jane",
+				Email:         "janedoe@example.com",
+				EmailVerified: true,
+				Groups:        nil,
+				Roles:         []string{"admin-role", "api-metric-role", "ui-role"},
+			},
+		},
+		{
+			name:     "validroles2",
+			username: "john",
+			password: "bar",
+			roles:    true,
+			want: connector.Identity{
+				UserID:        "cn=john,ou=People,ou=TestGroupsOnUserEntity,dc=example,dc=org",
+				Username:      "john",
+				Email:         "johndoe@example.com",
+				EmailVerified: true,
+				Groups:        nil,
+				Roles:         []string{"admin-role", "designer-role", "ui-role"},
+			},
+		},
+		{
+			name:     "validroles3",
+			username: "john",
+			password: "bar",
+			roles:    true,
+			groups:   true,
+			want: connector.Identity{
+				UserID:        "cn=john,ou=People,ou=TestGroupsOnUserEntity,dc=example,dc=org",
+				Username:      "john",
+				Email:         "johndoe@example.com",
+				EmailVerified: true,
+				Groups:        []string{"admins", "designers"},
+				Roles:         []string{"admin-role", "designer-role", "ui-role"},
 			},
 		},
 	}
@@ -569,7 +640,7 @@ func runTests(t *testing.T, connMethod connectionMethod, config *Config, tests [
 
 		// Run the subtest.
 		t.Run(test.name, func(t *testing.T) {
-			s := connector.Scopes{OfflineAccess: true, Groups: test.groups}
+			s := connector.Scopes{OfflineAccess: true, Groups: test.groups, Roles: test.roles}
 			ident, validPW, err := conn.Login(context.Background(), s, test.username, test.password)
 			if err != nil {
 				if !test.wantErr {

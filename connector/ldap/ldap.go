@@ -7,10 +7,10 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"github.com/go-ldap/ldap/v3"
 	"io/ioutil"
 	"net"
-
-	"github.com/go-ldap/ldap/v3"
+	"sort"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
@@ -541,7 +541,6 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 		if groups != nil && c.Config.AppliedRoles != nil {
 			var identRoles []string
 			uniqueRoles := make(map[string]int)
-			identRoles = make([]string, 0)
 			for _, group := range groups {
 				if rolesToAdd, ok := c.AppliedRoles[group]; ok {
 					for _, element := range rolesToAdd {
@@ -549,9 +548,11 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 					}
 				}
 			}
+			identRoles = make([]string, 0)
 			for role := range uniqueRoles {
 				identRoles = append(identRoles, role)
 			}
+			sort.Strings(identRoles)
 			ident.Roles = identRoles
 		}
 	}
@@ -602,12 +603,40 @@ func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident c
 	}
 	newIdent.ConnectorData = ident.ConnectorData
 
+	var groups []string
+
 	if s.Groups {
-		groups, err := c.groups(ctx, user)
+		groups, err = c.groups(ctx, user)
 		if err != nil {
 			return connector.Identity{}, fmt.Errorf("ldap: failed to query groups: %v", err)
 		}
 		newIdent.Groups = groups
+	}
+
+	if s.Roles {
+		if groups == nil {
+			groups, err = c.groups(ctx, user)
+			if err != nil {
+				return connector.Identity{}, fmt.Errorf("ldap: failed to query groups: %v", err)
+			}
+		}
+		if groups != nil && c.Config.AppliedRoles != nil {
+			var identRoles []string
+			uniqueRoles := make(map[string]int)
+			identRoles = make([]string, 0)
+			for _, group := range groups {
+				if rolesToAdd, ok := c.AppliedRoles[group]; ok {
+					for _, element := range rolesToAdd {
+						uniqueRoles[element] = 1
+					}
+				}
+			}
+			for role := range uniqueRoles {
+				identRoles = append(identRoles, role)
+			}
+			sort.Strings(identRoles)
+			newIdent.Roles = identRoles
+		}
 	}
 	return newIdent, nil
 }
