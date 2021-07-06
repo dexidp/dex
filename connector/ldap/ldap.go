@@ -7,13 +7,12 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/pkg/roles"
 	"github.com/go-ldap/ldap/v3"
 	"io/ioutil"
 	"net"
-	"sort"
-
-	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 // Config holds the configuration parameters for the LDAP connector. The LDAP
@@ -538,23 +537,7 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 				return connector.Identity{}, false, fmt.Errorf("ldap: failed to query groups: %v", err)
 			}
 		}
-		if groups != nil && c.Config.AppliedRoles != nil {
-			var identRoles []string
-			uniqueRoles := make(map[string]int)
-			for _, group := range groups {
-				if rolesToAdd, ok := c.AppliedRoles[group]; ok {
-					for _, element := range rolesToAdd {
-						uniqueRoles[element] = 1
-					}
-				}
-			}
-			identRoles = make([]string, 0)
-			for role := range uniqueRoles {
-				identRoles = append(identRoles, role)
-			}
-			sort.Strings(identRoles)
-			ident.Roles = identRoles
-		}
+		roles.ApplyRoles(groups, c.AppliedRoles, &ident)
 	}
 
 	if s.OfflineAccess {
@@ -620,23 +603,7 @@ func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident c
 				return connector.Identity{}, fmt.Errorf("ldap: failed to query groups: %v", err)
 			}
 		}
-		if groups != nil && c.Config.AppliedRoles != nil {
-			var identRoles []string
-			uniqueRoles := make(map[string]int)
-			identRoles = make([]string, 0)
-			for _, group := range groups {
-				if rolesToAdd, ok := c.AppliedRoles[group]; ok {
-					for _, element := range rolesToAdd {
-						uniqueRoles[element] = 1
-					}
-				}
-			}
-			for role := range uniqueRoles {
-				identRoles = append(identRoles, role)
-			}
-			sort.Strings(identRoles)
-			newIdent.Roles = identRoles
-		}
+		roles.ApplyRoles(groups, c.AppliedRoles, &newIdent)
 	}
 	return newIdent, nil
 }
