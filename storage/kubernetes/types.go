@@ -10,169 +10,223 @@ import (
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
 
-var crdMeta = k8sapi.TypeMeta{
-	APIVersion: "apiextensions.k8s.io/v1beta1",
-	Kind:       "CustomResourceDefinition",
-}
+const (
+	apiGroup = "dex.coreos.com"
 
-const apiGroup = "dex.coreos.com"
+	legacyCRDAPIVersion = "apiextensions.k8s.io/v1beta1"
+	crdAPIVersion       = "apiextensions.k8s.io/v1"
+)
 
 // The set of custom resource definitions required by the storage. These are managed by
 // the storage so it can migrate itself by creating new resources.
-var customResourceDefinitions = []k8sapi.CustomResourceDefinition{
-	{
-		ObjectMeta: k8sapi.ObjectMeta{
-			Name: "authcodes.dex.coreos.com",
-		},
-		TypeMeta: crdMeta,
-		Spec: k8sapi.CustomResourceDefinitionSpec{
-			Group:   apiGroup,
-			Version: "v1",
-			Names: k8sapi.CustomResourceDefinitionNames{
-				Plural:   "authcodes",
-				Singular: "authcode",
-				Kind:     "AuthCode",
+func customResourceDefinitions(apiVersion string) []k8sapi.CustomResourceDefinition {
+	crdMeta := k8sapi.TypeMeta{
+		APIVersion: apiVersion,
+		Kind:       "CustomResourceDefinition",
+	}
+
+	var version string
+	var scope k8sapi.ResourceScope
+	var versions []k8sapi.CustomResourceDefinitionVersion
+
+	switch apiVersion {
+	case crdAPIVersion:
+		preserveUnknownFields := true
+		versions = []k8sapi.CustomResourceDefinitionVersion{
+			{
+				Name:    "v1",
+				Served:  true,
+				Storage: true,
+				Schema: &k8sapi.CustomResourceValidation{
+					OpenAPIV3Schema: &k8sapi.JSONSchemaProps{
+						Type:                   "object",
+						XPreserveUnknownFields: &preserveUnknownFields,
+					},
+				},
+			},
+		}
+		scope = k8sapi.NamespaceScoped
+	case legacyCRDAPIVersion:
+		version = "v1"
+	default:
+		panic("unknown apiVersion " + apiVersion)
+	}
+
+	return []k8sapi.CustomResourceDefinition{
+		{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "authcodes.dex.coreos.com",
+			},
+			TypeMeta: crdMeta,
+			Spec: k8sapi.CustomResourceDefinitionSpec{
+				Group:    apiGroup,
+				Version:  version,
+				Versions: versions,
+				Scope:    scope,
+				Names: k8sapi.CustomResourceDefinitionNames{
+					Plural:   "authcodes",
+					Singular: "authcode",
+					Kind:     "AuthCode",
+				},
 			},
 		},
-	},
-	{
-		ObjectMeta: k8sapi.ObjectMeta{
-			Name: "authrequests.dex.coreos.com",
-		},
-		TypeMeta: crdMeta,
-		Spec: k8sapi.CustomResourceDefinitionSpec{
-			Group:   apiGroup,
-			Version: "v1",
-			Names: k8sapi.CustomResourceDefinitionNames{
-				Plural:   "authrequests",
-				Singular: "authrequest",
-				Kind:     "AuthRequest",
+		{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "authrequests.dex.coreos.com",
+			},
+			TypeMeta: crdMeta,
+			Spec: k8sapi.CustomResourceDefinitionSpec{
+				Group:    apiGroup,
+				Version:  version,
+				Versions: versions,
+				Scope:    scope,
+				Names: k8sapi.CustomResourceDefinitionNames{
+					Plural:   "authrequests",
+					Singular: "authrequest",
+					Kind:     "AuthRequest",
+				},
 			},
 		},
-	},
-	{
-		ObjectMeta: k8sapi.ObjectMeta{
-			Name: "oauth2clients.dex.coreos.com",
-		},
-		TypeMeta: crdMeta,
-		Spec: k8sapi.CustomResourceDefinitionSpec{
-			Group:   apiGroup,
-			Version: "v1",
-			Names: k8sapi.CustomResourceDefinitionNames{
-				Plural:   "oauth2clients",
-				Singular: "oauth2client",
-				Kind:     "OAuth2Client",
+		{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "oauth2clients.dex.coreos.com",
+			},
+			TypeMeta: crdMeta,
+			Spec: k8sapi.CustomResourceDefinitionSpec{
+				Group:    apiGroup,
+				Version:  version,
+				Versions: versions,
+				Scope:    scope,
+				Names: k8sapi.CustomResourceDefinitionNames{
+					Plural:   "oauth2clients",
+					Singular: "oauth2client",
+					Kind:     "OAuth2Client",
+				},
 			},
 		},
-	},
-	{
-		ObjectMeta: k8sapi.ObjectMeta{
-			Name: "signingkeies.dex.coreos.com",
-		},
-		TypeMeta: crdMeta,
-		Spec: k8sapi.CustomResourceDefinitionSpec{
-			Group:   apiGroup,
-			Version: "v1",
-			Names: k8sapi.CustomResourceDefinitionNames{
-				// `signingkeies` is an artifact from the old TPR pluralization.
-				// Users don't directly interact with this value, hence leaving it
-				// as is.
-				Plural:   "signingkeies",
-				Singular: "signingkey",
-				Kind:     "SigningKey",
+		{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "signingkeies.dex.coreos.com",
+			},
+			TypeMeta: crdMeta,
+			Spec: k8sapi.CustomResourceDefinitionSpec{
+				Group:    apiGroup,
+				Version:  version,
+				Versions: versions,
+				Scope:    scope,
+				Names: k8sapi.CustomResourceDefinitionNames{
+					// `signingkeies` is an artifact from the old TPR pluralization.
+					// Users don't directly interact with this value, hence leaving it
+					// as is.
+					Plural:   "signingkeies",
+					Singular: "signingkey",
+					Kind:     "SigningKey",
+				},
 			},
 		},
-	},
-	{
-		ObjectMeta: k8sapi.ObjectMeta{
-			Name: "refreshtokens.dex.coreos.com",
-		},
-		TypeMeta: crdMeta,
-		Spec: k8sapi.CustomResourceDefinitionSpec{
-			Group:   apiGroup,
-			Version: "v1",
-			Names: k8sapi.CustomResourceDefinitionNames{
-				Plural:   "refreshtokens",
-				Singular: "refreshtoken",
-				Kind:     "RefreshToken",
+		{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "refreshtokens.dex.coreos.com",
+			},
+			TypeMeta: crdMeta,
+			Spec: k8sapi.CustomResourceDefinitionSpec{
+				Group:    apiGroup,
+				Version:  version,
+				Versions: versions,
+				Scope:    scope,
+				Names: k8sapi.CustomResourceDefinitionNames{
+					Plural:   "refreshtokens",
+					Singular: "refreshtoken",
+					Kind:     "RefreshToken",
+				},
 			},
 		},
-	},
-	{
-		ObjectMeta: k8sapi.ObjectMeta{
-			Name: "passwords.dex.coreos.com",
-		},
-		TypeMeta: crdMeta,
-		Spec: k8sapi.CustomResourceDefinitionSpec{
-			Group:   apiGroup,
-			Version: "v1",
-			Names: k8sapi.CustomResourceDefinitionNames{
-				Plural:   "passwords",
-				Singular: "password",
-				Kind:     "Password",
+		{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "passwords.dex.coreos.com",
+			},
+			TypeMeta: crdMeta,
+			Spec: k8sapi.CustomResourceDefinitionSpec{
+				Group:    apiGroup,
+				Version:  version,
+				Versions: versions,
+				Scope:    scope,
+				Names: k8sapi.CustomResourceDefinitionNames{
+					Plural:   "passwords",
+					Singular: "password",
+					Kind:     "Password",
+				},
 			},
 		},
-	},
-	{
-		ObjectMeta: k8sapi.ObjectMeta{
-			Name: "offlinesessionses.dex.coreos.com",
-		},
-		TypeMeta: crdMeta,
-		Spec: k8sapi.CustomResourceDefinitionSpec{
-			Group:   apiGroup,
-			Version: "v1",
-			Names: k8sapi.CustomResourceDefinitionNames{
-				Plural:   "offlinesessionses",
-				Singular: "offlinesessions",
-				Kind:     "OfflineSessions",
+		{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "offlinesessionses.dex.coreos.com",
+			},
+			TypeMeta: crdMeta,
+			Spec: k8sapi.CustomResourceDefinitionSpec{
+				Group:    apiGroup,
+				Version:  version,
+				Versions: versions,
+				Scope:    scope,
+				Names: k8sapi.CustomResourceDefinitionNames{
+					Plural:   "offlinesessionses",
+					Singular: "offlinesessions",
+					Kind:     "OfflineSessions",
+				},
 			},
 		},
-	},
-	{
-		ObjectMeta: k8sapi.ObjectMeta{
-			Name: "connectors.dex.coreos.com",
-		},
-		TypeMeta: crdMeta,
-		Spec: k8sapi.CustomResourceDefinitionSpec{
-			Group:   apiGroup,
-			Version: "v1",
-			Names: k8sapi.CustomResourceDefinitionNames{
-				Plural:   "connectors",
-				Singular: "connector",
-				Kind:     "Connector",
+		{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "connectors.dex.coreos.com",
+			},
+			TypeMeta: crdMeta,
+			Spec: k8sapi.CustomResourceDefinitionSpec{
+				Group:    apiGroup,
+				Version:  version,
+				Versions: versions,
+				Scope:    scope,
+				Names: k8sapi.CustomResourceDefinitionNames{
+					Plural:   "connectors",
+					Singular: "connector",
+					Kind:     "Connector",
+				},
 			},
 		},
-	},
-	{
-		ObjectMeta: k8sapi.ObjectMeta{
-			Name: "devicerequests.dex.coreos.com",
-		},
-		TypeMeta: crdMeta,
-		Spec: k8sapi.CustomResourceDefinitionSpec{
-			Group:   apiGroup,
-			Version: "v1",
-			Names: k8sapi.CustomResourceDefinitionNames{
-				Plural:   "devicerequests",
-				Singular: "devicerequest",
-				Kind:     "DeviceRequest",
+		{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "devicerequests.dex.coreos.com",
+			},
+			TypeMeta: crdMeta,
+			Spec: k8sapi.CustomResourceDefinitionSpec{
+				Group:    apiGroup,
+				Version:  version,
+				Versions: versions,
+				Scope:    scope,
+				Names: k8sapi.CustomResourceDefinitionNames{
+					Plural:   "devicerequests",
+					Singular: "devicerequest",
+					Kind:     "DeviceRequest",
+				},
 			},
 		},
-	},
-	{
-		ObjectMeta: k8sapi.ObjectMeta{
-			Name: "devicetokens.dex.coreos.com",
-		},
-		TypeMeta: crdMeta,
-		Spec: k8sapi.CustomResourceDefinitionSpec{
-			Group:   apiGroup,
-			Version: "v1",
-			Names: k8sapi.CustomResourceDefinitionNames{
-				Plural:   "devicetokens",
-				Singular: "devicetoken",
-				Kind:     "DeviceToken",
+		{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "devicetokens.dex.coreos.com",
+			},
+			TypeMeta: crdMeta,
+			Spec: k8sapi.CustomResourceDefinitionSpec{
+				Group:    apiGroup,
+				Version:  version,
+				Versions: versions,
+				Scope:    scope,
+				Names: k8sapi.CustomResourceDefinitionNames{
+					Plural:   "devicetokens",
+					Singular: "devicetoken",
+					Kind:     "DeviceToken",
+				},
 			},
 		},
-	},
+	}
 }
 
 // There will only ever be a single keys resource. Maintain this by setting a

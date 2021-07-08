@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Masterminds/semver"
 	"github.com/ghodss/yaml"
 	"golang.org/x/net/http2"
 
@@ -47,6 +48,10 @@ type client struct {
 	// API version of the oidc resources. For example "oidc.coreos.com". This is
 	// currently not configurable, but could be in the future.
 	apiVersion string
+	// API version of the custom resource definitions.
+	// Different Kubernetes version requires to create CRD in certain API. It will be discovered automatically on
+	// storage opening.
+	crdAPIVersion string
 
 	// This is called once the client's Close method is called to signal goroutines,
 	// such as the one creating third party resources, to stop.
@@ -193,6 +198,37 @@ func (cli *client) postResource(apiVersion, namespace, resource string, v interf
 	}
 	defer closeResp(resp)
 	return checkHTTPErr(resp, http.StatusCreated)
+}
+
+func (cli *client) detectKubernetesVersion() error {
+	var version struct{ GitVersion string }
+
+	url := cli.baseURL + "/version"
+	resp, err := cli.client.Get(url)
+	if err != nil {
+		return err
+	}
+
+	defer closeResp(resp)
+	if err := checkHTTPErr(resp, http.StatusOK); err != nil {
+		return err
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&version); err != nil {
+		return err
+	}
+
+	clusterVersion, err := semver.NewVersion(version.GitVersion)
+	if err != nil {
+		cli.logger.Warnf("cannot detect Kubernetes version (%s): %v", clusterVersion, err)
+		return nil
+	}
+
+	if clusterVersion.LessThan(semver.MustParse("v1.16.0")) {
+		cli.crdAPIVersion = legacyCRDAPIVersion
+	}
+
+	return nil
 }
 
 func (cli *client) delete(resource, name string) error {
@@ -351,11 +387,12 @@ func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, l
 			Transport: t,
 			Timeout:   15 * time.Second,
 		},
-		baseURL:    cluster.Server,
-		hash:       func() hash.Hash { return fnv.New64() },
-		namespace:  namespace,
-		apiVersion: apiVersion,
-		logger:     logger,
+		baseURL:       cluster.Server,
+		hash:          func() hash.Hash { return fnv.New64() },
+		namespace:     namespace,
+		apiVersion:    apiVersion,
+		crdAPIVersion: crdAPIVersion,
+		logger:        logger,
 	}, nil
 }
 
