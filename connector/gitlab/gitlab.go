@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/dexidp/dex/pkg/roles"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -27,12 +28,13 @@ const (
 
 // Config holds configuration options for gitlab logins.
 type Config struct {
-	BaseURL      string   `json:"baseURL"`
-	ClientID     string   `json:"clientID"`
-	ClientSecret string   `json:"clientSecret"`
-	RedirectURI  string   `json:"redirectURI"`
-	Groups       []string `json:"groups"`
-	UseLoginAsID bool     `json:"useLoginAsID"`
+	BaseURL      string              `json:"baseURL"`
+	ClientID     string              `json:"clientID"`
+	ClientSecret string              `json:"clientSecret"`
+	RedirectURI  string              `json:"redirectURI"`
+	Groups       []string            `json:"groups"`
+	UseLoginAsID bool                `json:"useLoginAsID"`
+	AppliedRoles map[string][]string `json:"appliedRoles"`
 }
 
 type gitlabUser struct {
@@ -57,6 +59,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		logger:       logger,
 		groups:       c.Groups,
 		useLoginAsID: c.UseLoginAsID,
+		appliedRoles: c.AppliedRoles,
 	}, nil
 }
 
@@ -80,6 +83,7 @@ type gitlabConnector struct {
 	httpClient   *http.Client
 	// if set to true will use the user's handle rather than their numeric id as the ID
 	useLoginAsID bool
+	appliedRoles map[string][]string
 }
 
 func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
@@ -158,11 +162,19 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 	}
 
 	if c.groupsRequired(s.Groups) {
-		groups, err := c.getGroups(ctx, client, s.Groups, user.Username)
+		filteredGroups, err := c.getGroups(ctx, client, s.Groups, user.Username)
 		if err != nil {
 			return identity, fmt.Errorf("gitlab: get groups: %v", err)
 		}
-		identity.Groups = groups
+		identity.Groups = filteredGroups
+	}
+
+	if s.Roles {
+		rolesGroups, err := c.userGroups(ctx, client)
+		if err != nil {
+			return identity, fmt.Errorf("gitlab: get groups: %v", err)
+		}
+		roles.ApplyRoles(rolesGroups, c.appliedRoles, &identity)
 	}
 
 	if s.OfflineAccess {
@@ -202,12 +214,21 @@ func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 	ident.Email = user.Email
 
 	if c.groupsRequired(s.Groups) {
-		groups, err := c.getGroups(ctx, client, s.Groups, user.Username)
+		rolesGroups, err := c.getGroups(ctx, client, s.Groups, user.Username)
 		if err != nil {
 			return ident, fmt.Errorf("gitlab: get groups: %v", err)
 		}
-		ident.Groups = groups
+		ident.Groups = rolesGroups
 	}
+
+	if s.Roles {
+		rolesGroups, err := c.userGroups(ctx, client)
+		if err != nil {
+			return ident, fmt.Errorf("gitlab: get groups: %v", err)
+		}
+		roles.ApplyRoles(rolesGroups, c.appliedRoles, &ident)
+	}
+
 	return ident, nil
 }
 

@@ -22,6 +22,7 @@ func NewCallbackConnector(logger log.Logger) connector.Connector {
 			Email:         "kilgore@kilgore.trout",
 			EmailVerified: true,
 			Groups:        []string{"authors"},
+			Roles:         []string{"author-access"},
 			ConnectorData: connectorData,
 		},
 		Logger: logger,

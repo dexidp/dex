@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/dexidp/dex/pkg/roles"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -42,16 +43,17 @@ var (
 
 // Config holds configuration options for github logins.
 type Config struct {
-	ClientID      string `json:"clientID"`
-	ClientSecret  string `json:"clientSecret"`
-	RedirectURI   string `json:"redirectURI"`
-	Org           string `json:"org"`
-	Orgs          []Org  `json:"orgs"`
-	HostName      string `json:"hostName"`
-	RootCA        string `json:"rootCA"`
-	TeamNameField string `json:"teamNameField"`
-	LoadAllGroups bool   `json:"loadAllGroups"`
-	UseLoginAsID  bool   `json:"useLoginAsID"`
+	ClientID      string              `json:"clientID"`
+	ClientSecret  string              `json:"clientSecret"`
+	RedirectURI   string              `json:"redirectURI"`
+	Org           string              `json:"org"`
+	Orgs          []Org               `json:"orgs"`
+	HostName      string              `json:"hostName"`
+	RootCA        string              `json:"rootCA"`
+	TeamNameField string              `json:"teamNameField"`
+	LoadAllGroups bool                `json:"loadAllGroups"`
+	UseLoginAsID  bool                `json:"useLoginAsID"`
+	AppliedRoles  map[string][]string `json:"appliedRoles"`
 }
 
 // Org holds org-team filters, in which teams are optional.
@@ -86,6 +88,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		apiURL:       apiURL,
 		logger:       logger,
 		useLoginAsID: c.UseLoginAsID,
+		appliedRoles: c.AppliedRoles,
 	}
 
 	if c.HostName != "" {
@@ -152,6 +155,8 @@ type githubConnector struct {
 	loadAllGroups bool
 	// if set to true will use the user's handle rather than their numeric id as the ID
 	useLoginAsID bool
+	// the groups with its correlated groups
+	appliedRoles map[string][]string
 }
 
 // groupsRequired returns whether dex requires GitHub's 'read:org' scope. Dex
@@ -286,6 +291,14 @@ func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 		identity.Groups = groups
 	}
 
+	if s.Roles {
+		rolesGroups, err := c.userGroups(ctx, client)
+		if err != nil {
+			return identity, fmt.Errorf("gitlab: get groups: %v", err)
+		}
+		roles.ApplyRoles(rolesGroups, c.appliedRoles, &identity)
+	}
+
 	if s.OfflineAccess {
 		data := connectorData{AccessToken: token.AccessToken}
 		connData, err := json.Marshal(data)
@@ -329,6 +342,14 @@ func (c *githubConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 			return identity, err
 		}
 		identity.Groups = groups
+	}
+
+	if s.Roles {
+		rolesGroups, err := c.userGroups(ctx, client)
+		if err != nil {
+			return identity, fmt.Errorf("gitlab: get groups: %v", err)
+		}
+		roles.ApplyRoles(rolesGroups, c.appliedRoles, &identity)
 	}
 
 	return identity, nil

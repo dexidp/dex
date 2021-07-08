@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"encoding/xml"
 	"fmt"
+	"github.com/dexidp/dex/pkg/roles"
 	"io/ioutil"
 	"strings"
 	"sync"
@@ -108,6 +109,23 @@ type Config struct {
 	//		urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
 	//
 	NameIDPolicyFormat string `json:"nameIDPolicyFormat"`
+
+	/*
+		This configuration provides the mapping of any kind of group to a list
+		of roles. By this the groups from multiple connectors may apply a list
+		of roles for the current user. This roles can be added to the token.
+		By this you may use different federations with a different group setup
+		but match them to your distinct user roles.
+		Example:
+		- Group1:
+			- frontend
+		- Group2:
+			- admin
+		- Group3:
+			- frontend
+			- admin
+	*/
+	AppliedRoles map[string][]string `json:"appliedRoles"`
 }
 
 type certStore struct {
@@ -162,6 +180,7 @@ func (c *Config) openConnector(logger log.Logger) (*provider, error) {
 		logger:        logger,
 
 		nameIDPolicyFormat: c.NameIDPolicyFormat,
+		appliedRoles:       c.AppliedRoles,
 	}
 
 	if p.nameIDPolicyFormat == "" {
@@ -253,6 +272,8 @@ type provider struct {
 	nameIDPolicyFormat string
 
 	logger log.Logger
+
+	appliedRoles map[string][]string
 }
 
 func (p *provider) POSTData(s connector.Scopes, id string) (action, value string, err error) {
@@ -423,11 +444,17 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		// TODO(ericchiang): Do we need to further trim whitespace?
 		ident.Groups = strings.Split(groupsStr, p.groupsDelim)
 	} else {
-		groups, ok := attributes.all(p.groupsAttr)
+		groupsStr, ok := attributes.all(p.groupsAttr)
 		if !ok {
 			return ident, fmt.Errorf("no attribute with name %q: %s", p.groupsAttr, attributes.names())
 		}
-		ident.Groups = groups
+		ident.Groups = groupsStr
+	}
+
+	if s.Roles {
+		if ident.Groups != nil {
+			roles.ApplyRoles(ident.Groups, p.appliedRoles, &ident)
+		}
 	}
 
 	if len(p.allowedGroups) == 0 {

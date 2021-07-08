@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/dexidp/dex/pkg/roles"
 	"net/http"
 	"net/url"
 	"strings"
@@ -66,6 +67,23 @@ type Config struct {
 		// Configurable key which contains the groups claims
 		GroupsKey string `json:"groups"` // defaults to "groups"
 	} `json:"claimMapping"`
+
+	/*
+		This configuration provides the mapping of any kind of group to a list
+		of roles. By this the groups from multiple connectors may apply a list
+		of roles for the current user. This roles can be added to the token.
+		By this you may use different federations with a different group setup
+		but match them to your distinct user roles.
+		Example:
+		- Group1:
+			- frontend
+		- Group2:
+			- admin
+		- Group3:
+			- frontend
+			- admin
+	*/
+	AppliedRoles map[string][]string `json:"appliedRoles"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -156,6 +174,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
 		emailKey:                  c.ClaimMapping.EmailKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
+		appliedRoles:              c.AppliedRoles,
 	}, nil
 }
 
@@ -181,6 +200,7 @@ type oidcConnector struct {
 	preferredUsernameKey      string
 	emailKey                  string
 	groupsKey                 string
+	appliedRoles              map[string][]string
 }
 
 func (c *oidcConnector) Close() error {
@@ -230,7 +250,7 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
 	}
 
-	return c.createIdentity(r.Context(), identity, token)
+	return c.createIdentity(r.Context(), identity, token, s)
 }
 
 // Refresh is used to refresh a session with the refresh token provided by the IdP
@@ -250,10 +270,10 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 		return identity, fmt.Errorf("oidc: failed to get refresh token: %v", err)
 	}
 
-	return c.createIdentity(ctx, identity, token)
+	return c.createIdentity(ctx, identity, token, s)
 }
 
-func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token) (connector.Identity, error) {
+func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token, s connector.Scopes) (connector.Identity, error) {
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
 		return identity, errors.New("oidc: no id_token in token response")
@@ -342,6 +362,12 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 	}
 
+	if s.Roles {
+		if groups != nil {
+			roles.ApplyRoles(groups, c.appliedRoles, &identity)
+		}
+	}
+
 	hostedDomain, _ := claims["hd"].(string)
 	if len(c.hostedDomains) > 0 {
 		found := false
@@ -374,6 +400,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		EmailVerified:     emailVerified,
 		Groups:            groups,
 		ConnectorData:     connData,
+		Roles:             identity.Roles,
 	}
 
 	if c.userIDKey != "" {

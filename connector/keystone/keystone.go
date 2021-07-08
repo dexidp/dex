@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/dexidp/dex/pkg/roles"
 	"io/ioutil"
 	"net/http"
 
@@ -19,6 +20,7 @@ type conn struct {
 	AdminUsername string
 	AdminPassword string
 	Logger        log.Logger
+	AppliedRoles  map[string][]string
 }
 
 type userKeystone struct {
@@ -45,10 +47,11 @@ type domainKeystone struct {
 //			keystoneUsername: demo
 //			keystonePassword: DEMO_PASS
 type Config struct {
-	Domain        string `json:"domain"`
-	Host          string `json:"keystoneHost"`
-	AdminUsername string `json:"keystoneUsername"`
-	AdminPassword string `json:"keystonePassword"`
+	Domain        string              `json:"domain"`
+	Host          string              `json:"keystoneHost"`
+	AdminUsername string              `json:"keystoneUsername"`
+	AdminPassword string              `json:"keystonePassword"`
+	AppliedRoles  map[string][]string `json:"appliedRoles"`
 }
 
 type loginRequestData struct {
@@ -116,6 +119,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		c.AdminUsername,
 		c.AdminPassword,
 		logger,
+		c.AppliedRoles,
 	}, nil
 }
 
@@ -143,13 +147,26 @@ func (p *conn) Login(ctx context.Context, scopes connector.Scopes, username, pas
 	if err != nil {
 		return identity, false, fmt.Errorf("keystone: invalid token response: %v", err)
 	}
+
+	var groups []string
 	if scopes.Groups {
-		groups, err := p.getUserGroups(ctx, tokenResp.Token.User.ID, token)
+		groups, err = p.getUserGroups(ctx, tokenResp.Token.User.ID, token)
 		if err != nil {
 			return identity, false, err
 		}
 		identity.Groups = groups
 	}
+
+	if scopes.Roles {
+		if groups == nil {
+			groups, err = p.getUserGroups(ctx, tokenResp.Token.User.ID, token)
+			if err != nil {
+				return identity, false, err
+			}
+		}
+		roles.ApplyRoles(groups, p.AppliedRoles, &identity)
+	}
+
 	identity.Username = username
 	identity.UserID = tokenResp.Token.User.ID
 
@@ -180,13 +197,25 @@ func (p *conn) Refresh(
 	if !ok {
 		return identity, fmt.Errorf("keystone: user %q does not exist", identity.UserID)
 	}
+
+	var groups []string
 	if scopes.Groups {
-		groups, err := p.getUserGroups(ctx, identity.UserID, token)
+		groups, err = p.getUserGroups(ctx, identity.UserID, token)
 		if err != nil {
 			return identity, err
 		}
 		identity.Groups = groups
 	}
+	if scopes.Roles {
+		if groups == nil {
+			groups, err = p.getUserGroups(ctx, identity.UserID, token)
+			if err != nil {
+				return identity, err
+			}
+		}
+		roles.ApplyRoles(groups, p.AppliedRoles, &identity)
+	}
+
 	return identity, nil
 }
 

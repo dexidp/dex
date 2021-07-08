@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/dexidp/dex/pkg/roles"
 	"io/ioutil"
 	"net/http"
 	"sync"
@@ -34,11 +35,12 @@ const (
 
 // Config holds configuration options for Bitbucket logins.
 type Config struct {
-	ClientID          string   `json:"clientID"`
-	ClientSecret      string   `json:"clientSecret"`
-	RedirectURI       string   `json:"redirectURI"`
-	Teams             []string `json:"teams"`
-	IncludeTeamGroups bool     `json:"includeTeamGroups,omitempty"`
+	ClientID          string              `json:"clientID"`
+	ClientSecret      string              `json:"clientSecret"`
+	RedirectURI       string              `json:"redirectURI"`
+	Teams             []string            `json:"teams"`
+	IncludeTeamGroups bool                `json:"includeTeamGroups,omitempty"`
+	AppliedRoles      map[string][]string `json:"appliedRoles"`
 }
 
 // Open returns a strategy for logging in through Bitbucket.
@@ -52,6 +54,7 @@ func (c *Config) Open(_ string, logger log.Logger) (connector.Connector, error) 
 		apiURL:            apiURL,
 		legacyAPIURL:      legacyAPIURL,
 		logger:            logger,
+		appliedRoles:      c.AppliedRoles,
 	}
 
 	return &b, nil
@@ -82,6 +85,7 @@ type bitbucketConnector struct {
 	httpClient *http.Client
 
 	includeTeamGroups bool
+	appliedRoles      map[string][]string
 }
 
 // groupsRequired returns whether dex requires Bitbucket's 'team' scope.
@@ -163,12 +167,23 @@ func (b *bitbucketConnector) HandleCallback(s connector.Scopes, r *http.Request)
 		EmailVerified: true,
 	}
 
+	var identityGroups []string
 	if b.groupsRequired(s.Groups) {
-		groups, err := b.getGroups(ctx, client, s.Groups, user.Username)
+		identityGroups, err = b.getGroups(ctx, client, s.Groups, user.Username)
 		if err != nil {
 			return identity, err
 		}
-		identity.Groups = groups
+		identity.Groups = identityGroups
+	}
+
+	if s.Roles {
+		if identityGroups == nil {
+			identityGroups, err = b.getGroups(ctx, client, s.Groups, user.Username)
+			if err != nil {
+				return identity, err
+			}
+		}
+		roles.ApplyRoles(identityGroups, b.appliedRoles, &identity)
 	}
 
 	if s.OfflineAccess {
@@ -258,12 +273,23 @@ func (b *bitbucketConnector) Refresh(ctx context.Context, s connector.Scopes, id
 	identity.Username = user.Username
 	identity.Email = user.Email
 
+	var identityGroups []string
 	if b.groupsRequired(s.Groups) {
-		groups, err := b.getGroups(ctx, client, s.Groups, user.Username)
+		identityGroups, err = b.getGroups(ctx, client, s.Groups, user.Username)
 		if err != nil {
 			return identity, err
 		}
-		identity.Groups = groups
+		identity.Groups = identityGroups
+	}
+
+	if s.Roles {
+		if identityGroups == nil {
+			identityGroups, err = b.getGroups(ctx, client, s.Groups, user.Username)
+			if err != nil {
+				return identity, err
+			}
+		}
+		roles.ApplyRoles(identityGroups, b.appliedRoles, &identity)
 	}
 
 	return identity, nil

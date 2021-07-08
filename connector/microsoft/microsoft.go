@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/dexidp/dex/pkg/roles"
 	"io"
 	"net/http"
 	"strings"
@@ -57,6 +58,23 @@ type Config struct {
 	// PromptType is used for the prompt query parameter.
 	// For valid values, see https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow#request-an-authorization-code.
 	PromptType string `json:"promptType"`
+
+	/*
+		This configuration provides the mapping of any kind of group to a list
+		of roles. By this the groups from multiple connectors may apply a list
+		of roles for the current user. This roles can be added to the token.
+		By this you may use different federations with a different group setup
+		but match them to your distinct user roles.
+		Example:
+		- Group1:
+			- frontend
+		- Group2:
+			- admin
+		- Group3:
+			- frontend
+			- admin
+	*/
+	AppliedRoles map[string][]string `json:"appliedRoles"`
 }
 
 // Open returns a strategy for logging in through Microsoft.
@@ -75,6 +93,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		logger:               logger,
 		emailToLowercase:     c.EmailToLowercase,
 		promptType:           c.PromptType,
+		appliedRoles:         c.AppliedRoles,
 	}
 	// By default allow logins from both personal and business/school
 	// accounts.
@@ -119,6 +138,7 @@ type microsoftConnector struct {
 	logger               log.Logger
 	emailToLowercase     bool
 	promptType           string
+	appliedRoles         map[string][]string
 }
 
 func (c *microsoftConnector) isOrgTenant() bool {
@@ -197,12 +217,24 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 		EmailVerified: true,
 	}
 
+	var groups []string
+
 	if c.groupsRequired(s.Groups) {
-		groups, err := c.getGroups(ctx, client, user.ID)
+		groups, err = c.getGroups(ctx, client, user.ID)
 		if err != nil {
 			return identity, fmt.Errorf("microsoft: get groups: %v", err)
 		}
 		identity.Groups = groups
+	}
+
+	if s.Roles {
+		if groups == nil {
+			groups, err = c.getGroups(ctx, client, user.ID)
+			if err != nil {
+				return identity, fmt.Errorf("microsoft: get groups: %v", err)
+			}
+		}
+		roles.ApplyRoles(groups, c.appliedRoles, &identity)
 	}
 
 	if s.OfflineAccess {
@@ -288,12 +320,23 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 	identity.Username = user.Name
 	identity.Email = user.Email
 
+	var groups []string
 	if c.groupsRequired(s.Groups) {
-		groups, err := c.getGroups(ctx, client, user.ID)
+		groups, err = c.getGroups(ctx, client, user.ID)
 		if err != nil {
 			return identity, fmt.Errorf("microsoft: get groups: %v", err)
 		}
 		identity.Groups = groups
+	}
+
+	if s.Roles {
+		if groups == nil {
+			groups, err = c.getGroups(ctx, client, user.ID)
+			if err != nil {
+				return identity, fmt.Errorf("microsoft: get groups: %v", err)
+			}
+		}
+		roles.ApplyRoles(groups, c.appliedRoles, &identity)
 	}
 
 	return identity, nil

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/dexidp/dex/pkg/roles"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -49,6 +50,23 @@ type Config struct {
 	// The email of a GSuite super user which the service account will impersonate
 	// when listing groups
 	AdminEmail string
+
+	/*
+		This configuration provides the mapping of any kind of group to a list
+		of roles. By this the groups from multiple connectors may apply a list
+		of roles for the current user. This roles can be added to the token.
+		By this you may use different federations with a different group setup
+		but match them to your distinct user roles.
+		Example:
+		- Group1:
+			- frontend
+		- Group2:
+			- admin
+		- Group3:
+			- frontend
+			- admin
+	*/
+	AppliedRoles map[string][]string `json:"appliedRoles"`
 }
 
 // Open returns a connector which can be used to login users through Google.
@@ -94,6 +112,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		serviceAccountFilePath: c.ServiceAccountFilePath,
 		adminEmail:             c.AdminEmail,
 		adminSrv:               srv,
+		appliedRoles:           c.AppliedRoles,
 	}, nil
 }
 
@@ -113,6 +132,7 @@ type googleConnector struct {
 	serviceAccountFilePath string
 	adminEmail             string
 	adminSrv               *admin.Service
+	appliedRoles           map[string][]string
 }
 
 func (c *googleConnector) Close() error {
@@ -219,6 +239,10 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
 		}
 
+		if s.Roles {
+			roles.ApplyRoles(groups, c.appliedRoles, &identity)
+		}
+
 		if len(c.groups) > 0 {
 			groups = pkg_groups.Filter(groups, c.groups)
 			if len(groups) == 0 {
@@ -234,6 +258,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		EmailVerified: claims.EmailVerified,
 		ConnectorData: []byte(token.RefreshToken),
 		Groups:        groups,
+		Roles:         identity.Roles,
 	}
 	return identity, nil
 }

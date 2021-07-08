@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"github.com/dexidp/dex/pkg/roles"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -29,6 +30,23 @@ type Config struct {
 	Groups       []string `json:"groups"`
 	InsecureCA   bool     `json:"insecureCA"`
 	RootCA       string   `json:"rootCA"`
+
+	/*
+		This configuration provides the mapping of any kind of group to a list
+		of roles. By this the groups from multiple connectors may apply a list
+		of roles for the current user. This roles can be added to the token.
+		By this you may use different federations with a different group setup
+		but match them to your distinct user roles.
+		Example:
+		- Group1:
+			- frontend
+		- Group2:
+			- admin
+		- Group3:
+			- frontend
+			- admin
+	*/
+	AppliedRoles map[string][]string `json:"appliedRoles"`
 }
 
 var _ connector.CallbackConnector = (*openshiftConnector)(nil)
@@ -45,6 +63,7 @@ type openshiftConnector struct {
 	insecureCA   bool
 	rootCA       string
 	groups       []string
+	appliedRoles map[string][]string
 }
 
 type user struct {
@@ -73,6 +92,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		redirectURI:  c.RedirectURI,
 		rootCA:       c.RootCA,
 		groups:       c.Groups,
+		appliedRoles: c.AppliedRoles,
 	}
 
 	if openshiftConnector.httpClient, err = newHTTPClient(c.InsecureCA, c.RootCA); err != nil {
@@ -166,6 +186,10 @@ func (c *openshiftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 		if !validGroups {
 			return identity, fmt.Errorf("openshift: user %q is not in any of the required groups", user.Name)
 		}
+
+		if s.Roles {
+			roles.ApplyRoles(user.Groups, c.appliedRoles, &identity)
+		}
 	}
 
 	identity = connector.Identity{
@@ -174,6 +198,7 @@ func (c *openshiftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 		PreferredUsername: user.Name,
 		Email:             user.Name,
 		Groups:            user.Groups,
+		Roles:             identity.Roles,
 	}
 
 	return identity, nil

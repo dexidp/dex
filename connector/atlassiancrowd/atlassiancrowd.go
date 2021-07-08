@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/dexidp/dex/pkg/roles"
 	"io"
 	"io/ioutil"
 	"net"
@@ -52,6 +53,8 @@ type Config struct {
 	// in the username/password prompt). If unset, the handler will use.
 	// "Username".
 	UsernamePrompt string `json:"usernamePrompt"`
+
+	AppliedRoles map[string][]string `json:"appliedRoles"`
 }
 
 type crowdUser struct {
@@ -129,12 +132,24 @@ func (c *crowdConnector) Login(ctx context.Context, s connector.Scopes, username
 	}
 
 	ident = c.identityFromCrowdUser(user)
+
+	var userGroups []string
 	if s.Groups {
-		userGroups, err := c.getGroups(ctx, client, s.Groups, ident.Username)
+		userGroups, err = c.getGroups(ctx, client, s.Groups, ident.Username)
 		if err != nil {
 			return connector.Identity{}, false, fmt.Errorf("crowd: failed to query groups: %v", err)
 		}
 		ident.Groups = userGroups
+	}
+
+	if s.Roles {
+		if userGroups == nil {
+			userGroups, err = c.getGroups(ctx, client, s.Groups, ident.Username)
+			if err != nil {
+				return connector.Identity{}, false, fmt.Errorf("crowd: failed to query groups: %v", err)
+			}
+		}
+		roles.ApplyRoles(userGroups, c.AppliedRoles, &ident)
 	}
 
 	if s.OfflineAccess {
@@ -171,13 +186,25 @@ func (c *crowdConnector) Refresh(ctx context.Context, s connector.Scopes, ident 
 		return ident, fmt.Errorf("crowd: authenticate user: %v", err)
 	}
 
+	var userGroups []string
 	if s.Groups {
-		userGroups, err := c.getGroups(ctx, client, s.Groups, newIdent.Username)
+		userGroups, err = c.getGroups(ctx, client, s.Groups, newIdent.Username)
 		if err != nil {
 			return connector.Identity{}, fmt.Errorf("crowd: failed to query groups: %v", err)
 		}
 		newIdent.Groups = userGroups
 	}
+
+	if s.Roles {
+		if userGroups == nil {
+			userGroups, err = c.getGroups(ctx, client, s.Groups, ident.Username)
+			if err != nil {
+				return connector.Identity{}, fmt.Errorf("crowd: failed to query groups: %v", err)
+			}
+		}
+		roles.ApplyRoles(userGroups, c.AppliedRoles, &newIdent)
+	}
+
 	return newIdent, nil
 }
 
