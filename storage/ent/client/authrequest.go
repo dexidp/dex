@@ -58,7 +58,7 @@ func (d *Database) DeleteAuthRequest(id string) error {
 
 // UpdateAuthRequest changes an auth request by id using an updater function and saves it to the database.
 func (d *Database) UpdateAuthRequest(id string, updater func(old storage.AuthRequest) (storage.AuthRequest, error)) error {
-	tx, err := d.client.Tx(context.TODO())
+	tx, err := d.BeginTx(context.TODO())
 	if err != nil {
 		return fmt.Errorf("update auth request tx: %w", err)
 	}

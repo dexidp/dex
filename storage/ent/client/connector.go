@@ -55,7 +55,7 @@ func (d *Database) DeleteConnector(id string) error {
 
 // UpdateConnector changes a connector by id using an updater function and saves it to the database.
 func (d *Database) UpdateConnector(id string, updater func(old storage.Connector) (storage.Connector, error)) error {
-	tx, err := d.client.Tx(context.TODO())
+	tx, err := d.BeginTx(context.TODO())
 	if err != nil {
 		return convertDBError("update connector tx: %w", err)
 	}

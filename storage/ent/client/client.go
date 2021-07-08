@@ -57,7 +57,7 @@ func (d *Database) DeleteClient(id string) error {
 
 // UpdateClient changes an oauth2 client by id using an updater function and saves it to the database.
 func (d *Database) UpdateClient(id string, updater func(old storage.Client) (storage.Client, error)) error {
-	tx, err := d.client.Tx(context.TODO())
+	tx, err := d.BeginTx(context.TODO())
 	if err != nil {
 		return convertDBError("update client tx: %w", err)
 	}

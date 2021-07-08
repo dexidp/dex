@@ -67,7 +67,7 @@ func (d *Database) DeleteRefresh(id string) error {
 
 // UpdateRefreshToken changes a refresh token by id using an updater function and saves it to the database.
 func (d *Database) UpdateRefreshToken(id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
-	tx, err := d.client.Tx(context.TODO())
+	tx, err := d.BeginTx(context.TODO())
 	if err != nil {
 		return convertDBError("update refresh token tx: %w", err)
 	}

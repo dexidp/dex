@@ -20,6 +20,12 @@ jobs:
           - 5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
+      postgres-ent:
+        image: postgres:10.8
+        ports:
+          - 5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
       mysql:
         image: mysql:5.7
         env:
@@ -76,6 +82,11 @@ jobs:
           DEX_POSTGRES_PASSWORD: postgres
           DEX_POSTGRES_HOST: localhost
           DEX_POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }}
+          DEX_POSTGRES_ENT_DATABASE: postgres
+          DEX_POSTGRES_ENT_USER: postgres
+          DEX_POSTGRES_ENT_PASSWORD: postgres
+          DEX_POSTGRES_ENT_HOST: localhost
+          DEX_POSTGRES_ENT_PORT: ${{ job.services.postgres-ent.ports[5432] }}
           DEX_ETCD_ENDPOINTS: http://localhost:${{ job.services.etcd.ports[2379] }}
           DEX_LDAP_HOST: localhost
           DEX_LDAP_PORT: 389
