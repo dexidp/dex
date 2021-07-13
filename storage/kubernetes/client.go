@@ -303,7 +303,7 @@ func defaultTLSConfig() *tls.Config {
 	}
 }
 
-func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, logger log.Logger) (*client, error) {
+func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, logger log.Logger, inCluster bool) (*client, error) {
 	tlsConfig := defaultTLSConfig()
 	data := func(b string, file string) ([]byte, error) {
 		if b != "" {
@@ -359,25 +359,7 @@ func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, l
 	if err := http2.ConfigureTransport(httpTransport); err != nil {
 		return nil, err
 	}
-	t = httpTransport
-
-	if user.Token != "" {
-		t = transport{
-			updateReq: func(r *http.Request) {
-				r.Header.Set("Authorization", "Bearer "+user.Token)
-			},
-			base: t,
-		}
-	}
-
-	if user.Username != "" && user.Password != "" {
-		t = transport{
-			updateReq: func(r *http.Request) {
-				r.SetBasicAuth(user.Username, user.Password)
-			},
-			base: t,
-		}
-	}
+	t = wrapRoundTripper(httpTransport, user, inCluster)
 
 	apiVersion := "dex.coreos.com/v1"
 
@@ -394,24 +376,6 @@ func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, l
 		crdAPIVersion: crdAPIVersion,
 		logger:        logger,
 	}, nil
-}
-
-type transport struct {
-	updateReq func(r *http.Request)
-	base      http.RoundTripper
-}
-
-func (t transport) RoundTrip(r *http.Request) (*http.Response, error) {
-	// shallow copy of the struct
-	r2 := new(http.Request)
-	*r2 = *r
-	// deep copy of the Header
-	r2.Header = make(http.Header, len(r.Header))
-	for k, s := range r.Header {
-		r2.Header[k] = append([]string(nil), s...)
-	}
-	t.updateReq(r2)
-	return t.base.RoundTrip(r2)
 }
 
 func loadKubeConfig(kubeConfigPath string) (cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, err error) {
