@@ -2,7 +2,7 @@ blank_issues_enabled: false
 contact_links:
   - name: ❓ Ask a question
     url: https://github.com/dexidp/dex/discussions/new?category=q-a
-    about:  Ask and discuss questions with other Dex community members
+    about: Ask and discuss questions with other Dex community members
 
   - name: 📚 Documentation
     url: https://dexidp.io/docs/
