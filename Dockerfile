@@ -1,4 +1,4 @@
-FROM golang:1.16.5-alpine3.13 AS builder
+FROM golang:1.16.6-alpine3.13 AS builder
 
 WORKDIR /usr/local/src/dex
 
