@@ -256,7 +256,7 @@ func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
 	require.NoError(t, err)
 }
 
-func TestConnectorDataNotEmpty(t *testing.T) {
+func TestPasswordConnectorDataNotEmpty(t *testing.T) {
 	t0 := time.Now()
 
 	ctx, cancel := context.WithCancel(context.Background())
