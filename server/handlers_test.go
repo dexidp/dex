@@ -7,6 +7,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"path"
 	"testing"
 	"time"
 
@@ -226,4 +228,76 @@ func TestHandleAuthCode(t *testing.T) {
 			resp.Body.Close()
 		})
 	}
+}
+
+func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
+	c := storage.Client{
+		ID:           "test",
+		Secret:       "barfoo",
+		RedirectURIs: []string{"foo://bar.com/", "https://auth.example.com"},
+		Name:         "dex client",
+		LogoURL:      "https://goo.gl/JIyzIC",
+	}
+
+	err := s.CreateClient(c)
+	require.NoError(t, err)
+
+	c1 := storage.Connector{
+		ID:   "test",
+		Type: "mockPassword",
+		Name: "mockPassword",
+		Config: []byte(`{
+"username": "test",
+"password": "test"
+}`),
+	}
+
+	err = s.CreateConnector(c1)
+	require.NoError(t, err)
+}
+
+func TestPasswordConnectorDataNotEmpty(t *testing.T) {
+	t0 := time.Now()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Setup a dex server.
+	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+		c.PasswordConnector = "test"
+		c.Now = func() time.Time { return t0 }
+	})
+	defer httpServer.Close()
+
+	mockConnectorDataTestStorage(t, s.storage)
+
+	u, err := url.Parse(s.issuerURL.String())
+	require.NoError(t, err)
+
+	u.Path = path.Join(u.Path, "/token")
+	v := url.Values{}
+	v.Add("scope", "openid offline_access email")
+	v.Add("grant_type", "password")
+	v.Add("username", "test")
+	v.Add("password", "test")
+
+	req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
+	req.SetBasicAuth("test", "barfoo")
+
+	rr := httptest.NewRecorder()
+	s.ServeHTTP(rr, req)
+
+	require.Equal(t, 200, rr.Code)
+
+	// Check that we received expected refresh token
+	var ref struct {
+		Token string `json:"refresh_token"`
+	}
+	err = json.Unmarshal(rr.Body.Bytes(), &ref)
+	require.NoError(t, err)
+
+	newSess, err := s.storage.GetOfflineSessions("0-385-28089-0", "test")
+	require.NoError(t, err)
+	require.Equal(t, `{"test": "true"}`, string(newSess.ConnectorData))
 }
