@@ -32,12 +32,10 @@ func (s *SQLite3) open(logger log.Logger) (*conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	if s.File == ":memory:" {
-		// sqlite3 uses file locks to coordinate concurrent access. In memory
-		// doesn't support this, so limit the number of connections to 1.
-		db.SetMaxOpenConns(1)
-	}
 
+	// always allow only one connection to sqlite3, any other thread/go-routine
+	// attempting concurrent access will have to wait
+	db.SetMaxOpenConns(1)
 	errCheck := func(err error) bool {
 		sqlErr, ok := err.(sqlite3.Error)
 		if !ok {
