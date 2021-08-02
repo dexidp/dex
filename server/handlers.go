@@ -158,7 +158,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		s.tokenErrHelper(w, errInvalidConnectorID, "Connector ID does not match a valid Connector", http.StatusNotFound)
+		s.renderError(r, w, http.StatusBadRequest, "Connector ID does not match a valid Connector")
 		return
 	}
 
@@ -187,21 +187,16 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	authReq, err := s.parseAuthorizationRequest(r)
 	if err != nil {
 		s.logger.Errorf("Failed to parse authorization request: %v", err)
-		status := http.StatusInternalServerError
 
-		// If this is an authErr, let's let it handle the error, or update the HTTP
-		// status code
-		if err, ok := err.(*authErr); ok {
-			if handler, ok := err.Handle(); ok {
-				// client_id and redirect_uri checked out and we can redirect back to
-				// the client with the error.
-				handler.ServeHTTP(w, r)
-				return
-			}
-			status = err.Status()
+		switch authErr := err.(type) {
+		case *redirectedAuthErr:
+			authErr.Handler().ServeHTTP(w, r)
+		case *displayedAuthErr:
+			s.renderError(r, w, authErr.Status, err.Error())
+		default:
+			panic("unsupported error type")
 		}
 
-		s.renderError(r, w, status, err.Error())
 		return
 	}
 
@@ -770,7 +765,7 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 	case grantTypePassword:
 		s.withClientFromStorage(w, r, s.handlePasswordGrant)
 	default:
-		s.tokenErrHelper(w, errInvalidGrant, "", http.StatusBadRequest)
+		s.tokenErrHelper(w, errUnsupportedGrantType, "", http.StatusBadRequest)
 	}
 }
 
