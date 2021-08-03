@@ -362,12 +362,32 @@ func (cli *client) GetConnector(id string) (storage.Connector, error) {
 	return toStorageConnector(c), nil
 }
 
-func (cli *client) ListClients() ([]storage.Client, error) {
-	return nil, errors.New("not implemented")
+func (cli *client) ListClients() (clients []storage.Client, err error) {
+	var clientList ClientList
+	if err := cli.list(resourceClient, &clientList); err != nil {
+		return clients, fmt.Errorf("failed to list clients: %v", err)
+	}
+
+	clients = make([]storage.Client, len(clientList.Clients))
+	for i, client := range clientList.Clients {
+		clients[i] = toStorageClient(client)
+	}
+
+	return
 }
 
-func (cli *client) ListRefreshTokens() ([]storage.RefreshToken, error) {
-	return nil, errors.New("not implemented")
+func (cli *client) ListRefreshTokens() (refreshTokens []storage.RefreshToken, err error) {
+	var refreshTokenList RefreshList
+	if err = cli.list(resourceRefreshToken, &refreshTokenList); err != nil {
+		return refreshTokens, fmt.Errorf("failed to list refresh tokens: %v", err)
+	}
+
+	refreshTokens = make([]storage.RefreshToken, len(refreshTokenList.RefreshTokens))
+	for i, refreshToken := range refreshTokenList.RefreshTokens {
+		refreshTokens[i] = toStorageRefreshToken(refreshToken)
+	}
+
+	return
 }
 
 func (cli *client) ListPasswords() (passwords []storage.Password, err error) {
@@ -376,14 +396,9 @@ func (cli *client) ListPasswords() (passwords []storage.Password, err error) {
 		return passwords, fmt.Errorf("failed to list passwords: %v", err)
 	}
 
-	for _, password := range passwordList.Passwords {
-		p := storage.Password{
-			Email:    password.Email,
-			Hash:     password.Hash,
-			Username: password.Username,
-			UserID:   password.UserID,
-		}
-		passwords = append(passwords, p)
+	passwords = make([]storage.Password, len(passwordList.Passwords))
+	for i, password := range passwordList.Passwords {
+		passwords[i] = toStoragePassword(password)
 	}
 
 	return
