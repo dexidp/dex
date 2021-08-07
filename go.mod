@@ -3,7 +3,7 @@ module github.com/dexidp/dex
 go 1.16
 
 require (
-	entgo.io/ent v0.8.0
+	entgo.io/ent v0.9.0
 	github.com/AppsFlyer/go-sundheit v0.4.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig/v3 v3.2.2
