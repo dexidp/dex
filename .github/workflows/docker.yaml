@@ -20,7 +20,7 @@ jobs:
       - name: Calculate Docker image tags
         id: tags
         env:
-          DOCKER_IMAGES: "ghcr.io/dexidp/dex dexidp/dex"
+          DOCKER_IMAGES: "ghcr.io/macstab/dex macstab/dex"
         run: |
           case $GITHUB_REF in
             refs/tags/*)  VERSION=${GITHUB_REF#refs/tags/};;
