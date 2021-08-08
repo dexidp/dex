@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"github.com/dexidp/dex/pkg/roles"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -18,6 +17,7 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/pkg/roles"
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
 

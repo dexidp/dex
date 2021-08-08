@@ -7,12 +7,14 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net"
+
+	"github.com/go-ldap/ldap/v3"
+
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/pkg/roles"
-	"github.com/go-ldap/ldap/v3"
-	"io/ioutil"
-	"net"
 )
 
 // Config holds the configuration parameters for the LDAP connector. The LDAP

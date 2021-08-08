@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/dexidp/dex/pkg/roles"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -23,6 +22,7 @@ import (
 	"github.com/dexidp/dex/connector"
 	groups_pkg "github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/pkg/roles"
 )
 
 const (

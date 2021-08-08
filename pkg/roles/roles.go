@@ -1,8 +1,9 @@
 package roles
 
 import (
-	"github.com/dexidp/dex/connector"
 	"sort"
+
+	"github.com/dexidp/dex/connector"
 )
 
 func ApplyRoles(groups []string, appliedRoles map[string][]string, newIdent *connector.Identity) {

@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/dexidp/dex/pkg/roles"
 	"io"
 	"io/ioutil"
 	"net"
@@ -17,6 +16,7 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/pkg/roles"
 )
 
 // Config holds configuration options for Atlassian Crowd connector.

@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/dexidp/dex/pkg/roles"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -19,6 +18,7 @@ import (
 	"github.com/dexidp/dex/connector"
 	pkg_groups "github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/pkg/roles"
 )
 
 const (

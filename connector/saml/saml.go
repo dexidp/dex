@@ -8,7 +8,6 @@ import (
 	"encoding/pem"
 	"encoding/xml"
 	"fmt"
-	"github.com/dexidp/dex/pkg/roles"
 	"io/ioutil"
 	"strings"
 	"sync"
@@ -23,6 +22,7 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/pkg/roles"
 )
 
 // nolint
