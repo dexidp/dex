@@ -8,6 +8,20 @@
 
 Dex is an identity service that uses [OpenID Connect][openid-connect] to drive authentication for other apps.
 
+<hr>
+
+**This repository is a fork of dex**, that contains [additional features](FEATURES.MD), that are [documented right here](FEATURES.MD) like a transparent roles layer of any kind of connector.
+
+The images can be used for the architectures:
+* AMD64
+* ARM64
+* ARM/V7
+
+The images are reachable in the repositories:
+* [ghcr.io/macstab/dex:latest](ghcr.io/macstab/dex:latest)
+* [docker pull macstab/dex:latest](docker pull macstab/dex:latest)
+
+<hr>
 Dex acts as a portal to other identity providers through ["connectors."](#connectors) This lets dex defer authentication to LDAP servers, SAML providers, or established identity providers like GitHub, Google, and Active Directory. Clients write their authentication logic once to talk to dex, then dex handles the protocols for a given backend.
 
 ## ID Tokens
