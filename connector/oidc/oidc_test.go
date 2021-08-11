@@ -49,9 +49,7 @@ func TestHandleCallback(t *testing.T) {
 		name                      string
 		userIDKey                 string
 		userNameKey               string
-		preferredUsernameKey      string
-		emailKey                  string
-		groupsKey                 string
+		claimMapping              ClaimMapping
 		insecureSkipEmailVerified bool
 		scopes                    []string
 		expectUserID              string
@@ -78,10 +76,12 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name:               "customEmailClaim",
-			userIDKey:          "", // not configured
-			userNameKey:        "", // not configured
-			emailKey:           "mail",
+			name:        "customEmailClaim",
+			userIDKey:   "", // not configured
+			userNameKey: "", // not configured
+			claimMapping: ClaimMapping{
+				EmailKey: "mail",
+			},
 			expectUserID:       "subvalue",
 			expectUserName:     "namevalue",
 			expectedEmailField: "emailvalue",
@@ -89,6 +89,25 @@ func TestHandleCallback(t *testing.T) {
 				"sub":            "subvalue",
 				"name":           "namevalue",
 				"mail":           "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
+			name:        "enforceCustomEmailClaim",
+			userIDKey:   "", // not configured
+			userNameKey: "", // not configured
+			claimMapping: ClaimMapping{
+				Enforce:  true,
+				EmailKey: "custommail",
+			},
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectedEmailField: "customemailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"mail":           "emailvalue",
+				"custommail":     "customemailvalue",
 				"email_verified": true,
 			},
 		},
@@ -131,8 +150,10 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name:                    "withPreferredUsernameKey",
-			preferredUsernameKey:    "username_key",
+			name: "withPreferredUsernameKey",
+			claimMapping: ClaimMapping{
+				PreferredUsernameKey: "username_key",
+			},
 			expectUserID:            "subvalue",
 			expectUserName:          "namevalue",
 			expectPreferredUsername: "username_value",
@@ -200,8 +221,10 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name:                      "customGroupsKey",
-			groupsKey:                 "cognito:groups",
+			name: "customGroupsKey",
+			claimMapping: ClaimMapping{
+				GroupsKey: "cognito:groups",
+			},
 			expectUserID:              "subvalue",
 			expectUserName:            "namevalue",
 			expectedEmailField:        "emailvalue",
@@ -217,12 +240,35 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name:                      "customGroupsKeyButGroupsProvided",
-			groupsKey:                 "cognito:groups",
+			name: "customGroupsKeyButGroupsProvided",
+			claimMapping: ClaimMapping{
+				GroupsKey: "cognito:groups",
+			},
 			expectUserID:              "subvalue",
 			expectUserName:            "namevalue",
 			expectedEmailField:        "emailvalue",
 			expectGroups:              []string{"group1", "group2"},
+			scopes:                    []string{"groups"},
+			insecureSkipEmailVerified: true,
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"user_name":      "username",
+				"email":          "emailvalue",
+				"groups":         []string{"group1", "group2"},
+				"cognito:groups": []string{"group3", "group4"},
+			},
+		},
+		{
+			name: "customGroupsKeyButGroupsProvidedButEnforced",
+			claimMapping: ClaimMapping{
+				Enforce:   true,
+				GroupsKey: "cognito:groups",
+			},
+			expectUserID:              "subvalue",
+			expectUserName:            "namevalue",
+			expectedEmailField:        "emailvalue",
+			expectGroups:              []string{"group3", "group4"},
 			scopes:                    []string{"groups"},
 			insecureSkipEmailVerified: true,
 			token: map[string]interface{}{
@@ -264,9 +310,7 @@ func TestHandleCallback(t *testing.T) {
 				InsecureEnableGroups:      true,
 				BasicAuthUnsupported:      &basicAuth,
 			}
-			config.ClaimMapping.PreferredUsernameKey = tc.preferredUsernameKey
-			config.ClaimMapping.EmailKey = tc.emailKey
-			config.ClaimMapping.GroupsKey = tc.groupsKey
+			config.ClaimMapping = tc.claimMapping
 
 			conn, err := newConnector(config)
 			if err != nil {

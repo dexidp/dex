@@ -56,16 +56,23 @@ type Config struct {
 	// PromptType will be used fot the prompt parameter (when offline_access, by default prompt=consent)
 	PromptType string `json:"promptType"`
 
-	ClaimMapping struct {
-		// Configurable key which contains the preferred username claims
-		PreferredUsernameKey string `json:"preferred_username"` // defaults to "preferred_username"
+	ClaimMapping ClaimMapping `json:"claimMapping"`
+}
 
-		// Configurable key which contains the email claims
-		EmailKey string `json:"email"` // defaults to "email"
+type ClaimMapping struct {
+	// Enforce the ClaimMapping.
+	// i.e. an 'email' claim will always be taken if available,
+	// irrelevant of the settings in EmailKey. This option will enforce the ClaimMapping options independent of the existing claims.
+	Enforce bool `json:"enforce"` // defaults to false
 
-		// Configurable key which contains the groups claims
-		GroupsKey string `json:"groups"` // defaults to "groups"
-	} `json:"claimMapping"`
+	// Configurable key which contains the preferred username claims
+	PreferredUsernameKey string `json:"preferred_username"` // defaults to "preferred_username"
+
+	// Configurable key which contains the email claims
+	EmailKey string `json:"email"` // defaults to "email"
+
+	// Configurable key which contains the groups claims
+	GroupsKey string `json:"groups"` // defaults to "groups"
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -153,9 +160,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		promptType:                c.PromptType,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
-		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
-		emailKey:                  c.ClaimMapping.EmailKey,
-		groupsKey:                 c.ClaimMapping.GroupsKey,
+		claimMapping:              c.ClaimMapping,
 	}, nil
 }
 
@@ -178,9 +183,7 @@ type oidcConnector struct {
 	promptType                string
 	userIDKey                 string
 	userNameKey               string
-	preferredUsernameKey      string
-	emailKey                  string
-	groupsKey                 string
+	claimMapping              ClaimMapping
 }
 
 func (c *oidcConnector) Close() error {
@@ -288,9 +291,14 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		return identity, fmt.Errorf("missing \"%s\" claim", userNameKey)
 	}
 
-	preferredUsername, found := claims["preferred_username"].(string)
-	if !found {
-		preferredUsername, _ = claims[c.preferredUsernameKey].(string)
+	prefUsername := "preferred_username"
+	preferredUsername, found := claims[prefUsername].(string)
+	if (!found || c.claimMapping.Enforce) && c.claimMapping.PreferredUsernameKey != "" {
+		prefUsername = c.claimMapping.PreferredUsernameKey
+		preferredUsername, found = claims[prefUsername].(string)
+		if !found {
+			return identity, fmt.Errorf("missing \"%s\" claim", prefUsername)
+		}
 	}
 
 	hasEmailScope := false
@@ -304,9 +312,12 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	var email string
 	emailKey := "email"
 	email, found = claims[emailKey].(string)
-	if !found && c.emailKey != "" {
-		emailKey = c.emailKey
+	if (!found || c.claimMapping.Enforce) && c.claimMapping.EmailKey != "" {
+		emailKey = c.claimMapping.EmailKey
 		email, found = claims[emailKey].(string)
+		if !found {
+			return identity, fmt.Errorf("missing \"%s\" claim", emailKey)
+		}
 	}
 
 	if !found && hasEmailScope {
@@ -326,8 +337,8 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	if c.insecureEnableGroups {
 		groupsKey := "groups"
 		vs, found := claims[groupsKey].([]interface{})
-		if !found {
-			groupsKey = c.groupsKey
+		if (!found || c.claimMapping.Enforce) && c.claimMapping.GroupsKey != "" {
+			groupsKey = c.claimMapping.GroupsKey
 			vs, found = claims[groupsKey].([]interface{})
 		}
 
