@@ -1105,10 +1105,17 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		Groups:            identity.Groups,
 	}
 
-	accessToken := storage.NewID()
+	accessToken, err := s.newAccessToken(client.ID, claims, scopes, nonce, connID)
+	if err != nil {
+		s.logger.Errorf("password grant failed to create new access token: %v", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
 	idToken, expiry, err := s.newIDToken(client.ID, claims, scopes, nonce, accessToken, "", connID)
 	if err != nil {
-		s.tokenErrHelper(w, errServerError, fmt.Sprintf("failed to create ID token: %v", err), http.StatusInternalServerError)
+		s.logger.Errorf("password grant failed to create new ID token: %v", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return
 	}
 
