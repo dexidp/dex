@@ -49,6 +49,7 @@ func TestHandleCallback(t *testing.T) {
 		name                      string
 		userIDKey                 string
 		userNameKey               string
+		overrideClaimMapping      bool
 		claimMapping              ClaimMapping
 		insecureSkipEmailVerified bool
 		scopes                    []string
@@ -93,11 +94,11 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name:        "enforceCustomEmailClaim",
-			userIDKey:   "", // not configured
-			userNameKey: "", // not configured
+			name:                 "overrideWithCustomEmailClaim",
+			userIDKey:            "", // not configured
+			userNameKey:          "", // not configured
+			overrideClaimMapping: true,
 			claimMapping: ClaimMapping{
-				Enforce:  true,
 				EmailKey: "custommail",
 			},
 			expectUserID:       "subvalue",
@@ -260,9 +261,9 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name: "customGroupsKeyButGroupsProvidedButEnforced",
+			name:                 "customGroupsKeyButGroupsProvidedButOverride",
+			overrideClaimMapping: true,
 			claimMapping: ClaimMapping{
-				Enforce:   true,
 				GroupsKey: "cognito:groups",
 			},
 			expectUserID:              "subvalue",
@@ -309,6 +310,7 @@ func TestHandleCallback(t *testing.T) {
 				InsecureSkipEmailVerified: tc.insecureSkipEmailVerified,
 				InsecureEnableGroups:      true,
 				BasicAuthUnsupported:      &basicAuth,
+				OverrideClaimMapping:      tc.overrideClaimMapping,
 			}
 			config.ClaimMapping = tc.claimMapping
 

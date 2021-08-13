@@ -56,14 +56,15 @@ type Config struct {
 	// PromptType will be used fot the prompt parameter (when offline_access, by default prompt=consent)
 	PromptType string `json:"promptType"`
 
+	// OverrideClaimMapping will be used to override the options defined in claimMappings.
+	// i.e. if there are 'email' and `preferred_email` claims available, by default Dex will always use the `email` claim independent of the ClaimMapping.EmailKey.
+	// This setting allows you to override the default behavior of Dex and enforce the mappings defined in `claimMapping`.
+	OverrideClaimMapping bool `json:"overrideClaimMapping"` // defaults to false
+
 	ClaimMapping ClaimMapping `json:"claimMapping"`
 }
 
 type ClaimMapping struct {
-	// Enforce the ClaimMapping.
-	// i.e. an 'email' claim will always be taken if available,
-	// irrelevant of the settings in EmailKey. This option will enforce the ClaimMapping options independent of the existing claims.
-	Enforce bool `json:"enforce"` // defaults to false
 
 	// Configurable key which contains the preferred username claims
 	PreferredUsernameKey string `json:"preferred_username"` // defaults to "preferred_username"
@@ -160,6 +161,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		promptType:                c.PromptType,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
+		overrideClaimMapping:      c.OverrideClaimMapping,
 		claimMapping:              c.ClaimMapping,
 	}, nil
 }
@@ -183,6 +185,7 @@ type oidcConnector struct {
 	promptType                string
 	userIDKey                 string
 	userNameKey               string
+	overrideClaimMapping      bool
 	claimMapping              ClaimMapping
 }
 
@@ -293,7 +296,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 
 	prefUsername := "preferred_username"
 	preferredUsername, found := claims[prefUsername].(string)
-	if (!found || c.claimMapping.Enforce) && c.claimMapping.PreferredUsernameKey != "" {
+	if (!found || c.overrideClaimMapping) && c.claimMapping.PreferredUsernameKey != "" {
 		prefUsername = c.claimMapping.PreferredUsernameKey
 		preferredUsername, found = claims[prefUsername].(string)
 		if !found {
@@ -312,7 +315,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	var email string
 	emailKey := "email"
 	email, found = claims[emailKey].(string)
-	if (!found || c.claimMapping.Enforce) && c.claimMapping.EmailKey != "" {
+	if (!found || c.overrideClaimMapping) && c.claimMapping.EmailKey != "" {
 		emailKey = c.claimMapping.EmailKey
 		email, found = claims[emailKey].(string)
 		if !found {
@@ -337,7 +340,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	if c.insecureEnableGroups {
 		groupsKey := "groups"
 		vs, found := claims[groupsKey].([]interface{})
-		if (!found || c.claimMapping.Enforce) && c.claimMapping.GroupsKey != "" {
+		if (!found || c.overrideClaimMapping) && c.claimMapping.GroupsKey != "" {
 			groupsKey = c.claimMapping.GroupsKey
 			vs, found = claims[groupsKey].([]interface{})
 		}
