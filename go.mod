@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	entgo.io/ent v0.9.0
-	github.com/AppsFlyer/go-sundheit v0.4.0
+	github.com/AppsFlyer/go-sundheit v0.5.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig/v3 v3.2.2
 	github.com/beevik/etree v1.1.0
