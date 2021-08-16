@@ -8,6 +8,13 @@ updates:
     schedule:
       interval: "daily"
 
+  - package-ecosystem: "gomod"
+    directory: "/api/v2"
+    labels:
+      - "area/dependencies"
+    schedule:
+      interval: "daily"
+
   - package-ecosystem: "docker"
     directory: "/"
     labels:
