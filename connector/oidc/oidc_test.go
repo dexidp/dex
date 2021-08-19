@@ -253,7 +253,7 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name:                      "customGroupsKeyButGroupsProvidedButOverride",
+			name:                      "customGroupsKeyDespiteGroupsProvidedButOverride",
 			overrideClaimMapping:      true,
 			groupsKey:                 "cognito:groups",
 			expectUserID:              "subvalue",
