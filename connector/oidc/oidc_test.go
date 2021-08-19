@@ -50,7 +50,9 @@ func TestHandleCallback(t *testing.T) {
 		userIDKey                 string
 		userNameKey               string
 		overrideClaimMapping      bool
-		claimMapping              ClaimMapping
+		preferredUsernameKey      string
+		emailKey                  string
+		groupsKey                 string
 		insecureSkipEmailVerified bool
 		scopes                    []string
 		expectUserID              string
@@ -77,12 +79,10 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name:        "customEmailClaim",
-			userIDKey:   "", // not configured
-			userNameKey: "", // not configured
-			claimMapping: ClaimMapping{
-				EmailKey: "mail",
-			},
+			name:               "customEmailClaim",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			emailKey:           "mail",
 			expectUserID:       "subvalue",
 			expectUserName:     "namevalue",
 			expectedEmailField: "emailvalue",
@@ -98,16 +98,14 @@ func TestHandleCallback(t *testing.T) {
 			userIDKey:            "", // not configured
 			userNameKey:          "", // not configured
 			overrideClaimMapping: true,
-			claimMapping: ClaimMapping{
-				EmailKey: "custommail",
-			},
-			expectUserID:       "subvalue",
-			expectUserName:     "namevalue",
-			expectedEmailField: "customemailvalue",
+			emailKey:             "custommail",
+			expectUserID:         "subvalue",
+			expectUserName:       "namevalue",
+			expectedEmailField:   "customemailvalue",
 			token: map[string]interface{}{
 				"sub":            "subvalue",
 				"name":           "namevalue",
-				"mail":           "emailvalue",
+				"email":          "emailvalue",
 				"custommail":     "customemailvalue",
 				"email_verified": true,
 			},
@@ -151,10 +149,8 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name: "withPreferredUsernameKey",
-			claimMapping: ClaimMapping{
-				PreferredUsernameKey: "username_key",
-			},
+			name:                    "withPreferredUsernameKey",
+			preferredUsernameKey:    "username_key",
 			expectUserID:            "subvalue",
 			expectUserName:          "namevalue",
 			expectPreferredUsername: "username_value",
@@ -222,10 +218,8 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name: "customGroupsKey",
-			claimMapping: ClaimMapping{
-				GroupsKey: "cognito:groups",
-			},
+			name:                      "customGroupsKey",
+			groupsKey:                 "cognito:groups",
 			expectUserID:              "subvalue",
 			expectUserName:            "namevalue",
 			expectedEmailField:        "emailvalue",
@@ -241,10 +235,8 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name: "customGroupsKeyButGroupsProvided",
-			claimMapping: ClaimMapping{
-				GroupsKey: "cognito:groups",
-			},
+			name:                      "customGroupsKeyButGroupsProvided",
+			groupsKey:                 "cognito:groups",
 			expectUserID:              "subvalue",
 			expectUserName:            "namevalue",
 			expectedEmailField:        "emailvalue",
@@ -261,11 +253,9 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name:                 "customGroupsKeyButGroupsProvidedButOverride",
-			overrideClaimMapping: true,
-			claimMapping: ClaimMapping{
-				GroupsKey: "cognito:groups",
-			},
+			name:                      "customGroupsKeyButGroupsProvidedButOverride",
+			overrideClaimMapping:      true,
+			groupsKey:                 "cognito:groups",
 			expectUserID:              "subvalue",
 			expectUserName:            "namevalue",
 			expectedEmailField:        "emailvalue",
@@ -312,7 +302,9 @@ func TestHandleCallback(t *testing.T) {
 				BasicAuthUnsupported:      &basicAuth,
 				OverrideClaimMapping:      tc.overrideClaimMapping,
 			}
-			config.ClaimMapping = tc.claimMapping
+			config.ClaimMapping.PreferredUsernameKey = tc.preferredUsernameKey
+			config.ClaimMapping.EmailKey = tc.emailKey
+			config.ClaimMapping.GroupsKey = tc.groupsKey
 
 			conn, err := newConnector(config)
 			if err != nil {
