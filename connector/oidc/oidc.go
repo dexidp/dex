@@ -295,11 +295,9 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		return identity, fmt.Errorf("missing \"%s\" claim", userNameKey)
 	}
 
-	prefUsername := "preferred_username"
-	preferredUsername, found := claims[prefUsername].(string)
+	preferredUsername, found := claims["preferred_username"].(string)
 	if (!found || c.overrideClaimMapping) && c.preferredUsernameKey != "" {
-		prefUsername = c.preferredUsernameKey
-		preferredUsername, _ = claims[prefUsername].(string)
+		preferredUsername, _ = claims[c.preferredUsernameKey].(string)
 	}
 
 	hasEmailScope := false
