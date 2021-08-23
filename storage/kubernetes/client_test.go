@@ -72,7 +72,7 @@ func TestInClusterTransport(t *testing.T) {
 	fpath := filepath.Join(os.TempDir(), "test.in_cluster")
 	defer os.RemoveAll(fpath)
 
-	err = ioutil.WriteFile(fpath, []byte("def"), 0644)
+	err = ioutil.WriteFile(fpath, []byte("def"), 0o644)
 	require.NoError(t, err)
 
 	tests := []struct {
