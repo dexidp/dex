@@ -48,6 +48,8 @@ type Config struct {
 	ClientSecret         string          `json:"clientSecret"`
 	RedirectURI          string          `json:"redirectURI"`
 	Tenant               string          `json:"tenant"`
+	Policy               string          `json:"policy"`
+	B2C                  bool            `json:"b2c"`
 	OnlySecurityGroups   bool            `json:"onlySecurityGroups"`
 	Groups               []string        `json:"groups"`
 	GroupNameFormat      GroupNameFormat `json:"groupNameFormat"`
@@ -68,6 +70,8 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		clientID:             c.ClientID,
 		clientSecret:         c.ClientSecret,
 		tenant:               c.Tenant,
+		policy:               c.Policy,
+		b2C:                  c.B2C,
 		onlySecurityGroups:   c.OnlySecurityGroups,
 		groups:               c.Groups,
 		groupNameFormat:      c.GroupNameFormat,
@@ -76,6 +80,17 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		emailToLowercase:     c.EmailToLowercase,
 		promptType:           c.PromptType,
 	}
+
+	// Azure AD B2C requires tenant and policy names
+	if m.b2C {
+		if m.tenant == "" {
+			return nil, fmt.Errorf("invalid connector config: tenant is required for Azure AD B2C")
+		}
+		if m.policy == "" {
+			return nil, fmt.Errorf("invalid connector config: policy is required for Azure AD B2C")
+		}
+	}
+
 	// By default allow logins from both personal and business/school
 	// accounts.
 	if m.tenant == "" {
@@ -112,6 +127,8 @@ type microsoftConnector struct {
 	clientID             string
 	clientSecret         string
 	tenant               string
+	policy               string
+	b2C                  bool
 	onlySecurityGroups   bool
 	groupNameFormat      GroupNameFormat
 	groups               []string
@@ -139,15 +156,22 @@ func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Confi
 		microsoftScopes = append(microsoftScopes, scopeOfflineAccess)
 	}
 
+	endpoint := oauth2.Endpoint{}
+	if c.b2C {
+		// https://docs.microsoft.com/en-us/azure/active-directory-b2c/b2clogin
+		endpoint.AuthURL = "https://" + c.tenant + ".b2clogin.com/" + c.tenant + ".onmicrosoft.com/" + c.policy + "/oauth2/v2.0/authorize"
+		endpoint.TokenURL = "https://" + c.tenant + ".b2clogin.com/" + c.tenant + ".onmicrosoft.com/" + c.policy + "/oauth2/v2.0/token"
+	} else {
+		endpoint.AuthURL = c.apiURL + "/" + c.tenant + "/oauth2/v2.0/authorize"
+		endpoint.TokenURL = c.apiURL + "/" + c.tenant + "/oauth2/v2.0/token"
+	}
+
 	return &oauth2.Config{
 		ClientID:     c.clientID,
 		ClientSecret: c.clientSecret,
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  c.apiURL + "/" + c.tenant + "/oauth2/v2.0/authorize",
-			TokenURL: c.apiURL + "/" + c.tenant + "/oauth2/v2.0/token",
-		},
-		Scopes:      microsoftScopes,
-		RedirectURL: c.redirectURI,
+		Endpoint:     endpoint,
+		Scopes:       microsoftScopes,
+		RedirectURL:  c.redirectURI,
 	}
 }
 
