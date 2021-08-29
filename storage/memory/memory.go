@@ -20,6 +20,8 @@ func New(logger log.Logger) storage.Storage {
 		passwords:       make(map[string]storage.Password),
 		offlineSessions: make(map[offlineSessionID]storage.OfflineSessions),
 		connectors:      make(map[string]storage.Connector),
+		deviceRequests:  make(map[string]storage.DeviceRequest),
+		deviceTokens:    make(map[string]storage.DeviceToken),
 		logger:          logger,
 	}
 }
@@ -27,8 +29,7 @@ func New(logger log.Logger) storage.Storage {
 // Config is an implementation of a storage configuration.
 //
 // TODO(ericchiang): Actually define a storage config interface and have registration.
-type Config struct {
-	// The in memory implementation has no config.
+type Config struct { // The in memory implementation has no config.
 }
 
 // Open always returns a new in memory storage.
@@ -46,6 +47,8 @@ type memStorage struct {
 	passwords       map[string]storage.Password
 	offlineSessions map[offlineSessionID]storage.OfflineSessions
 	connectors      map[string]storage.Connector
+	deviceRequests  map[string]storage.DeviceRequest
+	deviceTokens    map[string]storage.DeviceToken
 
 	keys storage.Keys
 
@@ -77,6 +80,18 @@ func (s *memStorage) GarbageCollect(now time.Time) (result storage.GCResult, err
 			if now.After(a.Expiry) {
 				delete(s.authReqs, id)
 				result.AuthRequests++
+			}
+		}
+		for id, a := range s.deviceRequests {
+			if now.After(a.Expiry) {
+				delete(s.deviceRequests, id)
+				result.DeviceRequests++
+			}
+		}
+		for id, a := range s.deviceTokens {
+			if now.After(a.Expiry) {
+				delete(s.deviceTokens, id)
+				result.DeviceTokens++
 			}
 		}
 	})
@@ -461,6 +476,64 @@ func (s *memStorage) UpdateConnector(id string, updater func(c storage.Connector
 		}
 		if r, err = updater(r); err == nil {
 			s.connectors[id] = r
+		}
+	})
+	return
+}
+
+func (s *memStorage) CreateDeviceRequest(d storage.DeviceRequest) (err error) {
+	s.tx(func() {
+		if _, ok := s.deviceRequests[d.UserCode]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.deviceRequests[d.UserCode] = d
+		}
+	})
+	return
+}
+
+func (s *memStorage) GetDeviceRequest(userCode string) (req storage.DeviceRequest, err error) {
+	s.tx(func() {
+		var ok bool
+		if req, ok = s.deviceRequests[userCode]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+	})
+	return
+}
+
+func (s *memStorage) CreateDeviceToken(t storage.DeviceToken) (err error) {
+	s.tx(func() {
+		if _, ok := s.deviceTokens[t.DeviceCode]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.deviceTokens[t.DeviceCode] = t
+		}
+	})
+	return
+}
+
+func (s *memStorage) GetDeviceToken(deviceCode string) (t storage.DeviceToken, err error) {
+	s.tx(func() {
+		var ok bool
+		if t, ok = s.deviceTokens[deviceCode]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+	})
+	return
+}
+
+func (s *memStorage) UpdateDeviceToken(deviceCode string, updater func(p storage.DeviceToken) (storage.DeviceToken, error)) (err error) {
+	s.tx(func() {
+		r, ok := s.deviceTokens[deviceCode]
+		if !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		if r, err = updater(r); err == nil {
+			s.deviceTokens[deviceCode] = r
 		}
 	})
 	return

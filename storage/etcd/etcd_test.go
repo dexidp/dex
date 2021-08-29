@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"go.etcd.io/etcd/clientv3"
+	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/conformance"
@@ -44,6 +44,8 @@ func cleanDB(c *conn) error {
 		passwordPrefix,
 		offlineSessionPrefix,
 		connectorPrefix,
+		deviceRequestPrefix,
+		deviceTokenPrefix,
 	} {
 		_, err := c.db.Delete(ctx, prefix, clientv3.WithPrefix())
 		if err != nil {

@@ -11,11 +11,17 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 
+	gosundheit "github.com/AppsFlyer/go-sundheit"
+	"github.com/AppsFlyer/go-sundheit/checks"
+	gosundheithttp "github.com/AppsFlyer/go-sundheit/http"
 	"github.com/ghodss/yaml"
 	grpcprometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -29,32 +35,47 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-func commandServe() *cobra.Command {
-	return &cobra.Command{
-		Use:     "serve [ config file ]",
-		Short:   "Connect to the storage and begin serving requests.",
-		Long:    ``,
-		Example: "dex serve config.yaml",
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := serve(cmd, args); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(2)
-			}
-		},
-	}
+type serveOptions struct {
+	// Config file path
+	config string
+
+	// Flags
+	webHTTPAddr   string
+	webHTTPSAddr  string
+	telemetryAddr string
+	grpcAddr      string
 }
 
-func serve(cmd *cobra.Command, args []string) error {
-	switch len(args) {
-	default:
-		return errors.New("surplus arguments")
-	case 0:
-		// TODO(ericchiang): Consider having a default config file location.
-		return errors.New("no arguments provided")
-	case 1:
+func commandServe() *cobra.Command {
+	options := serveOptions{}
+
+	cmd := &cobra.Command{
+		Use:     "serve [flags] [config file]",
+		Short:   "Launch Dex",
+		Example: "dex serve config.yaml",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cmd.SilenceUsage = true
+			cmd.SilenceErrors = true
+
+			options.config = args[0]
+
+			return runServe(options)
+		},
 	}
 
-	configFile := args[0]
+	flags := cmd.Flags()
+
+	flags.StringVar(&options.webHTTPAddr, "web-http-addr", "", "Web HTTP address")
+	flags.StringVar(&options.webHTTPSAddr, "web-https-addr", "", "Web HTTPS address")
+	flags.StringVar(&options.telemetryAddr, "telemetry-addr", "", "Telemetry address")
+	flags.StringVar(&options.grpcAddr, "grpc-addr", "", "gRPC API address")
+
+	return cmd
+}
+
+func runServe(options serveOptions) error {
+	configFile := options.config
 	configData, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return fmt.Errorf("failed to read config file %s: %v", configFile, err)
@@ -64,6 +85,8 @@ func serve(cmd *cobra.Command, args []string) error {
 	if err := yaml.Unmarshal(configData, &c); err != nil {
 		return fmt.Errorf("error parse config file %s: %v", configFile, err)
 	}
+
+	applyConfigOverrides(options, &c)
 
 	logger, err := newLogger(c.Logger.Level, c.Logger.Format)
 	if err != nil {
@@ -79,12 +102,12 @@ func serve(cmd *cobra.Command, args []string) error {
 	logger.Infof("config issuer: %s", c.Issuer)
 
 	prometheusRegistry := prometheus.NewRegistry()
-	err = prometheusRegistry.Register(prometheus.NewGoCollector())
+	err = prometheusRegistry.Register(collectors.NewGoCollector())
 	if err != nil {
 		return fmt.Errorf("failed to register Go runtime metrics: %v", err)
 	}
 
-	err = prometheusRegistry.Register(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+	err = prometheusRegistry.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	if err != nil {
 		return fmt.Errorf("failed to register process metrics: %v", err)
 	}
@@ -150,6 +173,8 @@ func serve(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize storage: %v", err)
 	}
+	defer s.Close()
+
 	logger.Infof("config storage: %s", c.Storage.Type)
 
 	if len(c.StaticClients) > 0 {
@@ -232,6 +257,8 @@ func serve(cmd *cobra.Command, args []string) error {
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
 
+	healthChecker := gosundheit.New()
+
 	serverConfig := server.Config{
 		SupportedResponseTypes: c.OAuth2.ResponseTypes,
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
@@ -244,6 +271,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		Logger:                 logger,
 		Now:                    now,
 		PrometheusRegistry:     prometheusRegistry,
+		HealthChecker:          healthChecker,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
@@ -269,33 +297,127 @@ func serve(cmd *cobra.Command, args []string) error {
 		logger.Infof("config auth requests valid for: %v", authRequests)
 		serverConfig.AuthRequestsValidFor = authRequests
 	}
+	if c.Expiry.DeviceRequests != "" {
+		deviceRequests, err := time.ParseDuration(c.Expiry.DeviceRequests)
+		if err != nil {
+			return fmt.Errorf("invalid config value %q for device request expiry: %v", c.Expiry.AuthRequests, err)
+		}
+		logger.Infof("config device requests valid for: %v", deviceRequests)
+		serverConfig.DeviceRequestsValidFor = deviceRequests
+	}
+	refreshTokenPolicy, err := server.NewRefreshTokenPolicy(
+		logger,
+		c.Expiry.RefreshTokens.DisableRotation,
+		c.Expiry.RefreshTokens.ValidIfNotUsedFor,
+		c.Expiry.RefreshTokens.AbsoluteLifetime,
+		c.Expiry.RefreshTokens.ReuseInterval,
+	)
+	if err != nil {
+		return fmt.Errorf("invalid refresh token expiration policy config: %v", err)
+	}
 
+	serverConfig.RefreshTokenPolicy = refreshTokenPolicy
 	serv, err := server.NewServer(context.Background(), serverConfig)
 	if err != nil {
 		return fmt.Errorf("failed to initialize server: %v", err)
 	}
 
-	telemetryServ := http.NewServeMux()
-	telemetryServ.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
+	telemetryRouter := http.NewServeMux()
+	telemetryRouter.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
 
-	errc := make(chan error, 3)
+	// Configure health checker
+	{
+		handler := gosundheithttp.HandleHealthJSON(healthChecker)
+		telemetryRouter.Handle("/healthz", handler)
+
+		// Kubernetes style health checks
+		telemetryRouter.HandleFunc("/healthz/live", func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("ok"))
+		})
+		telemetryRouter.Handle("/healthz/ready", handler)
+	}
+
+	healthChecker.RegisterCheck(
+		&checks.CustomCheck{
+			CheckName: "storage",
+			CheckFunc: storage.NewCustomHealthCheckFunc(serverConfig.Storage, serverConfig.Now),
+		},
+		gosundheit.ExecutionPeriod(15*time.Second),
+		gosundheit.InitiallyPassing(true),
+	)
+
+	var group run.Group
+
+	// Set up telemetry server
 	if c.Telemetry.HTTP != "" {
-		logger.Infof("listening (http/telemetry) on %s", c.Telemetry.HTTP)
-		go func() {
-			err := http.ListenAndServe(c.Telemetry.HTTP, telemetryServ)
-			errc <- fmt.Errorf("listening on %s failed: %v", c.Telemetry.HTTP, err)
-		}()
+		const name = "telemetry"
+
+		logger.Infof("listening (%s) on %s", name, c.Telemetry.HTTP)
+
+		l, err := net.Listen("tcp", c.Telemetry.HTTP)
+		if err != nil {
+			return fmt.Errorf("listening (%s) on %s: %v", name, c.Telemetry.HTTP, err)
+		}
+
+		server := &http.Server{
+			Handler: telemetryRouter,
+		}
+		defer server.Close()
+
+		group.Add(func() error {
+			return server.Serve(l)
+		}, func(err error) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+
+			logger.Debugf("starting graceful shutdown (%s)", name)
+			if err := server.Shutdown(ctx); err != nil {
+				logger.Errorf("graceful shutdown (%s): %v", name, err)
+			}
+		})
 	}
+
+	// Set up http server
 	if c.Web.HTTP != "" {
-		logger.Infof("listening (http) on %s", c.Web.HTTP)
-		go func() {
-			err := http.ListenAndServe(c.Web.HTTP, serv)
-			errc <- fmt.Errorf("listening on %s failed: %v", c.Web.HTTP, err)
-		}()
+		const name = "http"
+
+		logger.Infof("listening (%s) on %s", name, c.Web.HTTP)
+
+		l, err := net.Listen("tcp", c.Web.HTTP)
+		if err != nil {
+			return fmt.Errorf("listening (%s) on %s: %v", name, c.Web.HTTP, err)
+		}
+
+		server := &http.Server{
+			Handler: serv,
+		}
+		defer server.Close()
+
+		group.Add(func() error {
+			return server.Serve(l)
+		}, func(err error) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+
+			logger.Debugf("starting graceful shutdown (%s)", name)
+			if err := server.Shutdown(ctx); err != nil {
+				logger.Errorf("graceful shutdown (%s): %v", name, err)
+			}
+		})
 	}
+
+	// Set up https server
 	if c.Web.HTTPS != "" {
-		httpsSrv := &http.Server{
-			Addr:    c.Web.HTTPS,
+		const name = "https"
+
+		logger.Infof("listening (%s) on %s", name, c.Web.HTTPS)
+
+		l, err := net.Listen("tcp", c.Web.HTTPS)
+		if err != nil {
+			return fmt.Errorf("listening (%s) on %s: %v", name, c.Web.HTTPS, err)
+		}
+
+		server := &http.Server{
 			Handler: serv,
 			TLSConfig: &tls.Config{
 				CipherSuites:             allowedTLSCiphers,
@@ -303,35 +425,55 @@ func serve(cmd *cobra.Command, args []string) error {
 				MinVersion:               tls.VersionTLS12,
 			},
 		}
+		defer server.Close()
 
-		logger.Infof("listening (https) on %s", c.Web.HTTPS)
-		go func() {
-			err = httpsSrv.ListenAndServeTLS(c.Web.TLSCert, c.Web.TLSKey)
-			errc <- fmt.Errorf("listening on %s failed: %v", c.Web.HTTPS, err)
-		}()
+		group.Add(func() error {
+			return server.ServeTLS(l, c.Web.TLSCert, c.Web.TLSKey)
+		}, func(err error) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+
+			logger.Debugf("starting graceful shutdown (%s)", name)
+			if err := server.Shutdown(ctx); err != nil {
+				logger.Errorf("graceful shutdown (%s): %v", name, err)
+			}
+		})
 	}
+
+	// Set up grpc server
 	if c.GRPC.Addr != "" {
 		logger.Infof("listening (grpc) on %s", c.GRPC.Addr)
-		go func() {
-			errc <- func() error {
-				list, err := net.Listen("tcp", c.GRPC.Addr)
-				if err != nil {
-					return fmt.Errorf("listening on %s failed: %v", c.GRPC.Addr, err)
-				}
-				s := grpc.NewServer(grpcOptions...)
-				api.RegisterDexServer(s, server.NewAPI(serverConfig.Storage, logger))
-				grpcMetrics.InitializeMetrics(s)
-				if c.GRPC.Reflection {
-					logger.Info("enabling reflection in grpc service")
-					reflection.Register(s)
-				}
-				err = s.Serve(list)
-				return fmt.Errorf("listening on %s failed: %v", c.GRPC.Addr, err)
-			}()
-		}()
+
+		grpcListener, err := net.Listen("tcp", c.GRPC.Addr)
+		if err != nil {
+			return fmt.Errorf("listening (grcp) on %s: %w", c.GRPC.Addr, err)
+		}
+
+		grpcSrv := grpc.NewServer(grpcOptions...)
+		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger, version))
+
+		grpcMetrics.InitializeMetrics(grpcSrv)
+		if c.GRPC.Reflection {
+			logger.Info("enabling reflection in grpc service")
+			reflection.Register(grpcSrv)
+		}
+
+		group.Add(func() error {
+			return grpcSrv.Serve(grpcListener)
+		}, func(err error) {
+			logger.Debugf("starting graceful shutdown (grpc)")
+			grpcSrv.GracefulStop()
+		})
 	}
 
-	return <-errc
+	group.Add(run.SignalHandler(context.Background(), os.Interrupt, syscall.SIGTERM))
+	if err := group.Run(); err != nil {
+		if _, ok := err.(run.SignalError); !ok {
+			return fmt.Errorf("run groups: %w", err)
+		}
+		logger.Infof("%v, shutdown now", err)
+	}
+	return nil
 }
 
 var (
@@ -376,4 +518,26 @@ func newLogger(level string, format string) (log.Logger, error) {
 		Formatter: &formatter,
 		Level:     logLevel,
 	}, nil
+}
+
+func applyConfigOverrides(options serveOptions, config *Config) {
+	if options.webHTTPAddr != "" {
+		config.Web.HTTP = options.webHTTPAddr
+	}
+
+	if options.webHTTPSAddr != "" {
+		config.Web.HTTPS = options.webHTTPSAddr
+	}
+
+	if options.telemetryAddr != "" {
+		config.Telemetry.HTTP = options.telemetryAddr
+	}
+
+	if options.grpcAddr != "" {
+		config.GRPC.Addr = options.grpcAddr
+	}
+
+	if config.Frontend.Dir == "" {
+		config.Frontend.Dir = os.Getenv("DEX_FRONTEND_DIR")
+	}
 }

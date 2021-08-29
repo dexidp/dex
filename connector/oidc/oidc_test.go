@@ -49,10 +49,15 @@ func TestHandleCallback(t *testing.T) {
 		name                      string
 		userIDKey                 string
 		userNameKey               string
+		preferredUsernameKey      string
+		emailKey                  string
+		groupsKey                 string
 		insecureSkipEmailVerified bool
 		scopes                    []string
 		expectUserID              string
 		expectUserName            string
+		expectGroups              []string
+		expectPreferredUsername   string
 		expectedEmailField        string
 		token                     map[string]interface{}
 	}{
@@ -62,11 +67,28 @@ func TestHandleCallback(t *testing.T) {
 			userNameKey:        "", // not configured
 			expectUserID:       "subvalue",
 			expectUserName:     "namevalue",
+			expectGroups:       []string{"group1", "group2"},
 			expectedEmailField: "emailvalue",
 			token: map[string]interface{}{
 				"sub":            "subvalue",
 				"name":           "namevalue",
+				"groups":         []string{"group1", "group2"},
 				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
+			name:               "customEmailClaim",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			emailKey:           "mail",
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"mail":           "emailvalue",
 				"email_verified": true,
 			},
 		},
@@ -109,6 +131,48 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
+			name:                    "withPreferredUsernameKey",
+			preferredUsernameKey:    "username_key",
+			expectUserID:            "subvalue",
+			expectUserName:          "namevalue",
+			expectPreferredUsername: "username_value",
+			expectedEmailField:      "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"username_key":   "username_value",
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
+			name:                    "withoutPreferredUsernameKeyAndBackendReturns",
+			expectUserID:            "subvalue",
+			expectUserName:          "namevalue",
+			expectPreferredUsername: "preferredusernamevalue",
+			expectedEmailField:      "emailvalue",
+			token: map[string]interface{}{
+				"sub":                "subvalue",
+				"name":               "namevalue",
+				"preferred_username": "preferredusernamevalue",
+				"email":              "emailvalue",
+				"email_verified":     true,
+			},
+		},
+		{
+			name:                    "withoutPreferredUsernameKeyAndBackendNotReturn",
+			expectUserID:            "subvalue",
+			expectUserName:          "namevalue",
+			expectPreferredUsername: "",
+			expectedEmailField:      "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
 			name:                      "emptyEmailScope",
 			expectUserID:              "subvalue",
 			expectUserName:            "namevalue",
@@ -133,6 +197,41 @@ func TestHandleCallback(t *testing.T) {
 				"name":      "namevalue",
 				"user_name": "username",
 				"email":     "emailvalue",
+			},
+		},
+		{
+			name:                      "customGroupsKey",
+			groupsKey:                 "cognito:groups",
+			expectUserID:              "subvalue",
+			expectUserName:            "namevalue",
+			expectedEmailField:        "emailvalue",
+			expectGroups:              []string{"group3", "group4"},
+			scopes:                    []string{"groups"},
+			insecureSkipEmailVerified: true,
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"user_name":      "username",
+				"email":          "emailvalue",
+				"cognito:groups": []string{"group3", "group4"},
+			},
+		},
+		{
+			name:                      "customGroupsKeyButGroupsProvided",
+			groupsKey:                 "cognito:groups",
+			expectUserID:              "subvalue",
+			expectUserName:            "namevalue",
+			expectedEmailField:        "emailvalue",
+			expectGroups:              []string{"group1", "group2"},
+			scopes:                    []string{"groups"},
+			insecureSkipEmailVerified: true,
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"user_name":      "username",
+				"email":          "emailvalue",
+				"groups":         []string{"group1", "group2"},
+				"cognito:groups": []string{"group3", "group4"},
 			},
 		},
 	}
@@ -162,8 +261,12 @@ func TestHandleCallback(t *testing.T) {
 				UserIDKey:                 tc.userIDKey,
 				UserNameKey:               tc.userNameKey,
 				InsecureSkipEmailVerified: tc.insecureSkipEmailVerified,
+				InsecureEnableGroups:      true,
 				BasicAuthUnsupported:      &basicAuth,
 			}
+			config.ClaimMapping.PreferredUsernameKey = tc.preferredUsernameKey
+			config.ClaimMapping.EmailKey = tc.emailKey
+			config.ClaimMapping.GroupsKey = tc.groupsKey
 
 			conn, err := newConnector(config)
 			if err != nil {
@@ -182,8 +285,10 @@ func TestHandleCallback(t *testing.T) {
 
 			expectEquals(t, identity.UserID, tc.expectUserID)
 			expectEquals(t, identity.Username, tc.expectUserName)
+			expectEquals(t, identity.PreferredUsername, tc.expectPreferredUsername)
 			expectEquals(t, identity.Email, tc.expectedEmailField)
 			expectEquals(t, identity.EmailVerified, true)
+			expectEquals(t, identity.Groups, tc.expectGroups)
 		})
 	}
 }

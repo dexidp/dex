@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,6 +52,11 @@ type Config struct {
 	Groups               []string        `json:"groups"`
 	GroupNameFormat      GroupNameFormat `json:"groupNameFormat"`
 	UseGroupsAsWhitelist bool            `json:"useGroupsAsWhitelist"`
+	EmailToLowercase     bool            `json:"emailToLowercase"`
+
+	// PromptType is used for the prompt query parameter.
+	// For valid values, see https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow#request-an-authorization-code.
+	PromptType string `json:"promptType"`
 }
 
 // Open returns a strategy for logging in through Microsoft.
@@ -67,6 +73,8 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		groupNameFormat:      c.GroupNameFormat,
 		useGroupsAsWhitelist: c.UseGroupsAsWhitelist,
 		logger:               logger,
+		emailToLowercase:     c.EmailToLowercase,
+		promptType:           c.PromptType,
 	}
 	// By default allow logins from both personal and business/school
 	// accounts.
@@ -109,6 +117,8 @@ type microsoftConnector struct {
 	groups               []string
 	useGroupsAsWhitelist bool
 	logger               log.Logger
+	emailToLowercase     bool
+	promptType           string
 }
 
 func (c *microsoftConnector) isOrgTenant() bool {
@@ -146,7 +156,12 @@ func (c *microsoftConnector) LoginURL(scopes connector.Scopes, callbackURL, stat
 		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
 
-	return c.oauth2Config(scopes).AuthCodeURL(state), nil
+	var options []oauth2.AuthCodeOption
+	if c.promptType != "" {
+		options = append(options, oauth2.SetAuthURLParam("prompt", c.promptType))
+	}
+
+	return c.oauth2Config(scopes).AuthCodeURL(state, options...), nil
 }
 
 func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
@@ -169,6 +184,10 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 	user, err := c.user(ctx, client)
 	if err != nil {
 		return identity, fmt.Errorf("microsoft: get user: %v", err)
+	}
+
+	if c.emailToLowercase {
+		user.Email = strings.ToLower(user.Email)
 	}
 
 	identity = connector.Identity{
@@ -204,7 +223,7 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 
 type tokenNotifyFunc func(*oauth2.Token) error
 
-// notifyRefreshTokenSource is essentially `oauth2.ResuseTokenSource` with `TokenNotifyFunc` added.
+// notifyRefreshTokenSource is essentially `oauth2.ReuseTokenSource` with `TokenNotifyFunc` added.
 type notifyRefreshTokenSource struct {
 	new oauth2.TokenSource
 	mu  sync.Mutex // guards t

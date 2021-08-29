@@ -25,7 +25,7 @@ type rotationStrategy struct {
 	rotationFrequency time.Duration
 
 	// After being rotated how long should the key be kept around for validating
-	// signatues?
+	// signatures?
 	idTokenValidFor time.Duration
 
 	// Keys are always RSA keys. Though cryptopasta recommends ECDSA keys, not every
@@ -55,7 +55,7 @@ func defaultRotationStrategy(rotationFrequency, idTokenValidFor time.Duration) r
 	}
 }
 
-type keyRotater struct {
+type keyRotator struct {
 	storage.Storage
 
 	strategy rotationStrategy
@@ -69,10 +69,10 @@ type keyRotater struct {
 // The method blocks until after the first attempt to rotate keys has completed. That way
 // healthy storages will return from this call with valid keys.
 func (s *Server) startKeyRotation(ctx context.Context, strategy rotationStrategy, now func() time.Time) {
-	rotater := keyRotater{s.storage, strategy, now, s.logger}
+	rotator := keyRotator{s.storage, strategy, now, s.logger}
 
 	// Try to rotate immediately so properly configured storages will have keys.
-	if err := rotater.rotate(); err != nil {
+	if err := rotator.rotate(); err != nil {
 		if err == errAlreadyRotated {
 			s.logger.Infof("Key rotation not needed: %v", err)
 		} else {
@@ -86,7 +86,7 @@ func (s *Server) startKeyRotation(ctx context.Context, strategy rotationStrategy
 			case <-ctx.Done():
 				return
 			case <-time.After(time.Second * 30):
-				if err := rotater.rotate(); err != nil {
+				if err := rotator.rotate(); err != nil {
 					s.logger.Errorf("failed to rotate keys: %v", err)
 				}
 			}
@@ -94,7 +94,7 @@ func (s *Server) startKeyRotation(ctx context.Context, strategy rotationStrategy
 	}()
 }
 
-func (k keyRotater) rotate() error {
+func (k keyRotator) rotate() error {
 	keys, err := k.GetKeys()
 	if err != nil && err != storage.ErrNotFound {
 		return fmt.Errorf("get keys: %v", err)
@@ -176,4 +176,74 @@ func (k keyRotater) rotate() error {
 	}
 	k.logger.Infof("keys rotated, next rotation: %s", nextRotation)
 	return nil
+}
+
+type RefreshTokenPolicy struct {
+	rotateRefreshTokens bool // enable rotation
+
+	absoluteLifetime  time.Duration // interval from token creation to the end of its life
+	validIfNotUsedFor time.Duration // interval from last token update to the end of its life
+	reuseInterval     time.Duration // interval within which old refresh token is allowed to be reused
+
+	now func() time.Time
+
+	logger log.Logger
+}
+
+func NewRefreshTokenPolicy(logger log.Logger, rotation bool, validIfNotUsedFor, absoluteLifetime, reuseInterval string) (*RefreshTokenPolicy, error) {
+	r := RefreshTokenPolicy{now: time.Now, logger: logger}
+	var err error
+
+	if validIfNotUsedFor != "" {
+		r.validIfNotUsedFor, err = time.ParseDuration(validIfNotUsedFor)
+		if err != nil {
+			return nil, fmt.Errorf("invalid config value %q for refresh token valid if not used for: %v", validIfNotUsedFor, err)
+		}
+		logger.Infof("config refresh tokens valid if not used for: %v", validIfNotUsedFor)
+	}
+
+	if absoluteLifetime != "" {
+		r.absoluteLifetime, err = time.ParseDuration(absoluteLifetime)
+		if err != nil {
+			return nil, fmt.Errorf("invalid config value %q for refresh tokens absolute lifetime: %v", absoluteLifetime, err)
+		}
+		logger.Infof("config refresh tokens absolute lifetime: %v", absoluteLifetime)
+	}
+
+	if reuseInterval != "" {
+		r.reuseInterval, err = time.ParseDuration(reuseInterval)
+		if err != nil {
+			return nil, fmt.Errorf("invalid config value %q for refresh tokens reuse interval: %v", reuseInterval, err)
+		}
+		logger.Infof("config refresh tokens reuse interval: %v", reuseInterval)
+	}
+
+	r.rotateRefreshTokens = !rotation
+	logger.Infof("config refresh tokens rotation enabled: %v", r.rotateRefreshTokens)
+	return &r, nil
+}
+
+func (r *RefreshTokenPolicy) RotationEnabled() bool {
+	return r.rotateRefreshTokens
+}
+
+func (r *RefreshTokenPolicy) CompletelyExpired(lastUsed time.Time) bool {
+	if r.absoluteLifetime == 0 {
+		return false // expiration disabled
+	}
+	return r.now().After(lastUsed.Add(r.absoluteLifetime))
+}
+
+func (r *RefreshTokenPolicy) ExpiredBecauseUnused(lastUsed time.Time) bool {
+	if r.validIfNotUsedFor == 0 {
+		return false // expiration disabled
+	}
+	return r.now().After(lastUsed.Add(r.validIfNotUsedFor))
+}
+
+func (r *RefreshTokenPolicy) AllowedToReuse(lastUsed time.Time) bool {
+	if r.reuseInterval == 0 {
+		return false // expiration disabled
+	}
+	return !r.now().After(lastUsed.Add(r.reuseInterval))
 }

@@ -1,0 +1,30 @@
+version: 2
+
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    labels:
+      - "area/dependencies"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "gomod"
+    directory: "/api/v2"
+    labels:
+      - "area/dependencies"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    labels:
+      - "area/dependencies"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    labels:
+      - "area/dependencies"
+    schedule:
+      interval: "daily"

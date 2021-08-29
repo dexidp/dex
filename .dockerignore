@@ -1,1 +1,4 @@
-bin
+.github/
+.gitpod.yml
+bin/
+tmp/

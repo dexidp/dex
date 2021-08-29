@@ -14,16 +14,24 @@ import (
 
 // Config holds the configuration parameters for a connector which returns an
 // identity with the HTTP header X-Remote-User as verified email.
-type Config struct{}
+type Config struct {
+	UserHeader string `json:"userHeader"`
+}
 
 // Open returns an authentication strategy which requires no user interaction.
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
-	return &callback{logger: logger, pathSuffix: "/" + id}, nil
+	userHeader := c.UserHeader
+	if userHeader == "" {
+		userHeader = "X-Remote-User"
+	}
+
+	return &callback{userHeader: userHeader, logger: logger, pathSuffix: "/" + id}, nil
 }
 
 // Callback is a connector which returns an identity with the HTTP header
 // X-Remote-User as verified email.
 type callback struct {
+	userHeader string
 	logger     log.Logger
 	pathSuffix string
 }
@@ -34,7 +42,7 @@ func (m *callback) LoginURL(s connector.Scopes, callbackURL, state string) (stri
 	if err != nil {
 		return "", fmt.Errorf("failed to parse callbackURL %q: %v", callbackURL, err)
 	}
-	u.Path = u.Path + m.pathSuffix
+	u.Path += m.pathSuffix
 	v := u.Query()
 	v.Set("state", state)
 	u.RawQuery = v.Encode()
@@ -43,9 +51,9 @@ func (m *callback) LoginURL(s connector.Scopes, callbackURL, state string) (stri
 
 // HandleCallback parses the request and returns the user's identity
 func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connector.Identity, error) {
-	remoteUser := r.Header.Get("X-Remote-User")
+	remoteUser := r.Header.Get(m.userHeader)
 	if remoteUser == "" {
-		return connector.Identity{}, fmt.Errorf("required HTTP header X-Remote-User is not set")
+		return connector.Identity{}, fmt.Errorf("required HTTP header %s is not set", m.userHeader)
 	}
 	// TODO: add support for X-Remote-Group, see
 	// https://kubernetes.io/docs/admin/authentication/#authenticating-proxy

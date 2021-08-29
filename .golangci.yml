@@ -2,33 +2,80 @@ run:
     timeout: 2m
 
 linters-settings:
-    golint:
-        min-confidence: 0.1
+    gci:
+        local-prefixes: github.com/dexidp/dex
     goimports:
         local-prefixes: github.com/dexidp/dex
 
-linters:
-    enable-all: true
-    disable:
-        - funlen
-        - maligned
-        - wsl
 
-        # TODO: fix me
-        - unparam
-        - golint
-        - goconst
-        - staticcheck
-        - nakedret
-        - errcheck
-        - gosec
+linters:
+    disable-all: true
+    enable:
+        - bodyclose
+        - deadcode
+        - dogsled
+        - exhaustive
+        - exportloopref
+        - gci
         - gochecknoinits
-        - gochecknoglobals
-        - prealloc
-        - scopelint
-        - lll
-        - dupl
         - gocritic
-        - gocyclo
-        - gocognit
-        - godox
+        - gofmt
+        - gofumpt
+        - goimports
+        - goprintffuncname
+        - gosimple
+        - govet
+        - ineffassign
+        - misspell
+        - nakedret
+        - nolintlint
+        - prealloc
+        - revive
+        - rowserrcheck
+        - sqlclosecheck
+        - staticcheck
+        - structcheck
+        - stylecheck
+        - tparallel
+        - typecheck
+        - unconvert
+        - unparam
+        - unused
+        - varcheck
+        - whitespace
+
+        # TODO: fix linter errors before enabling
+        # - exhaustivestruct
+        # - gochecknoglobals
+        # - errorlint
+        # - gocognit
+        # - godot
+        # - nlreturn
+        # - noctx
+        # - wrapcheck
+
+        # TODO: fix linter errors before enabling (from original config)
+        # - dupl
+        # - errcheck
+        # - goconst
+        # - gocyclo
+        # - gosec
+        # - lll
+        # - scopelint
+
+        # unused
+        # - depguard
+        # - goheader
+        # - gomodguard
+
+        # don't enable:
+        # - asciicheck
+        # - funlen
+        # - godox
+        # - goerr113
+        # - gomnd
+        # - interfacer
+        # - maligned
+        # - nestif
+        # - testpackage
+        # - wsl

@@ -5,6 +5,7 @@ import (
 	"encoding/base32"
 	"errors"
 	"io"
+	"math/big"
 	"strings"
 	"time"
 
@@ -24,9 +25,21 @@ var (
 // TODO(ericchiang): refactor ID creation onto the storage.
 var encoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567")
 
+// Valid characters for user codes
+const validUserCharacters = "BCDFGHJKLMNPQRSTVWXZ"
+
+// NewDeviceCode returns a 32 char alphanumeric cryptographically secure string
+func NewDeviceCode() string {
+	return newSecureID(32)
+}
+
 // NewID returns a random string which can be used as an ID for objects.
 func NewID() string {
-	buff := make([]byte, 16) // 128 bit random ID.
+	return newSecureID(16)
+}
+
+func newSecureID(len int) string {
+	buff := make([]byte, len) // random ID.
 	if _, err := io.ReadFull(rand.Reader, buff); err != nil {
 		panic(err)
 	}
@@ -36,8 +49,18 @@ func NewID() string {
 
 // GCResult returns the number of objects deleted by garbage collection.
 type GCResult struct {
-	AuthRequests int64
-	AuthCodes    int64
+	AuthRequests   int64
+	AuthCodes      int64
+	DeviceRequests int64
+	DeviceTokens   int64
+}
+
+// IsEmpty returns whether the garbage collection result is empty or not.
+func (g *GCResult) IsEmpty() bool {
+	return g.AuthRequests == 0 &&
+		g.AuthCodes == 0 &&
+		g.DeviceRequests == 0 &&
+		g.DeviceTokens == 0
 }
 
 // Storage is the storage interface used by the server. Implementations are
@@ -54,6 +77,8 @@ type Storage interface {
 	CreatePassword(p Password) error
 	CreateOfflineSessions(s OfflineSessions) error
 	CreateConnector(c Connector) error
+	CreateDeviceRequest(d DeviceRequest) error
+	CreateDeviceToken(d DeviceToken) error
 
 	// TODO(ericchiang): return (T, bool, error) so we can indicate not found
 	// requests that way instead of using ErrNotFound.
@@ -65,6 +90,8 @@ type Storage interface {
 	GetPassword(email string) (Password, error)
 	GetOfflineSessions(userID string, connID string) (OfflineSessions, error)
 	GetConnector(id string) (Connector, error)
+	GetDeviceRequest(userCode string) (DeviceRequest, error)
+	GetDeviceToken(deviceCode string) (DeviceToken, error)
 
 	ListClients() ([]Client, error)
 	ListRefreshTokens() ([]RefreshToken, error)
@@ -101,8 +128,10 @@ type Storage interface {
 	UpdatePassword(email string, updater func(p Password) (Password, error)) error
 	UpdateOfflineSessions(userID string, connID string, updater func(s OfflineSessions) (OfflineSessions, error)) error
 	UpdateConnector(id string, updater func(c Connector) (Connector, error)) error
+	UpdateDeviceToken(deviceCode string, updater func(t DeviceToken) (DeviceToken, error)) error
 
-	// GarbageCollect deletes all expired AuthCodes and AuthRequests.
+	// GarbageCollect deletes all expired AuthCodes,
+	// AuthRequests, DeviceRequests, and DeviceTokens.
 	GarbageCollect(now time.Time) (GCResult, error)
 }
 
@@ -148,6 +177,12 @@ type Claims struct {
 	Groups []string
 }
 
+// PKCE is a container for the data needed to perform Proof Key for Code Exchange (RFC 7636) auth flow
+type PKCE struct {
+	CodeChallenge       string
+	CodeChallengeMethod string
+}
+
 // AuthRequest represents a OAuth2 client authorization request. It holds the state
 // of a single auth flow up to the point that the user authorizes the client.
 type AuthRequest struct {
@@ -185,6 +220,9 @@ type AuthRequest struct {
 	// Set when the user authenticates.
 	ConnectorID   string
 	ConnectorData []byte
+
+	// PKCE CodeChallenge and CodeChallengeMethod
+	PKCE PKCE
 }
 
 // AuthCode represents a code which can be exchanged for an OAuth2 token response.
@@ -220,6 +258,9 @@ type AuthCode struct {
 	Claims        Claims
 
 	Expiry time.Time
+
+	// PKCE CodeChallenge and CodeChallengeMethod
+	PKCE PKCE
 }
 
 // RefreshToken is an OAuth2 refresh token which allows a client to request new
@@ -230,7 +271,8 @@ type RefreshToken struct {
 	// A single token that's rotated every time the refresh token is refreshed.
 	//
 	// May be empty.
-	Token string
+	Token         string
+	ObsoleteToken string
 
 	CreatedAt time.Time
 	LastUsed  time.Time
@@ -349,4 +391,48 @@ type Keys struct {
 	//
 	// For caching purposes, implementations MUST NOT update keys before this time.
 	NextRotation time.Time
+}
+
+// NewUserCode returns a randomized 8 character user code for the device flow.
+// No vowels are included to prevent accidental generation of words
+func NewUserCode() string {
+	code := randomString(8)
+	return code[:4] + "-" + code[4:]
+}
+
+func randomString(n int) string {
+	v := big.NewInt(int64(len(validUserCharacters)))
+	bytes := make([]byte, n)
+	for i := 0; i < n; i++ {
+		c, _ := rand.Int(rand.Reader, v)
+		bytes[i] = validUserCharacters[c.Int64()]
+	}
+	return string(bytes)
+}
+
+// DeviceRequest represents an OIDC device authorization request. It holds the state of a device request until the user
+// authenticates using their user code or the expiry time passes.
+type DeviceRequest struct {
+	// The code the user will enter in a browser
+	UserCode string
+	// The unique device code for device authentication
+	DeviceCode string
+	// The client ID the code is for
+	ClientID string
+	// The Client Secret
+	ClientSecret string
+	// The scopes the device requests
+	Scopes []string
+	// The expire time
+	Expiry time.Time
+}
+
+// DeviceToken is a structure which represents the actual token of an authorized device and its rotation parameters
+type DeviceToken struct {
+	DeviceCode          string
+	Status              string
+	Token               string
+	Expiry              time.Time
+	LastRequestTime     time.Time
+	PollIntervalSeconds int
 }

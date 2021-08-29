@@ -3,17 +3,15 @@ package etcd
 import (
 	"time"
 
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/clientv3/namespace"
-	"go.etcd.io/etcd/pkg/transport"
+	"go.etcd.io/etcd/client/pkg/v3/transport"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/client/v3/namespace"
 
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
 
-var (
-	defaultDialTimeout = 2 * time.Second
-)
+var defaultDialTimeout = 2 * time.Second
 
 // SSL represents SSL options for etcd databases.
 type SSL struct {

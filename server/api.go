@@ -12,7 +12,6 @@ import (
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
-	"github.com/dexidp/dex/version"
 )
 
 // apiVersion increases every time a new call is added to the API. Clients should use this info
@@ -31,16 +30,20 @@ const (
 )
 
 // NewAPI returns a server which implements the gRPC API interface.
-func NewAPI(s storage.Storage, logger log.Logger) api.DexServer {
+func NewAPI(s storage.Storage, logger log.Logger, version string) api.DexServer {
 	return dexAPI{
-		s:      s,
-		logger: logger,
+		s:       s,
+		logger:  logger,
+		version: version,
 	}
 }
 
 type dexAPI struct {
-	s      storage.Storage
-	logger log.Logger
+	api.UnimplementedDexServer
+
+	s       storage.Storage
+	logger  log.Logger
+	version string
 }
 
 func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*api.CreateClientResp, error) {
@@ -51,7 +54,7 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 	if req.Client.Id == "" {
 		req.Client.Id = storage.NewID()
 	}
-	if req.Client.Secret == "" {
+	if req.Client.Secret == "" && !req.Client.Public {
 		req.Client.Secret = storage.NewID() + storage.NewID()
 	}
 
@@ -97,7 +100,6 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 		}
 		return old, nil
 	})
-
 	if err != nil {
 		if err == storage.ErrNotFound {
 			return &api.UpdateClientResp{NotFound: true}, nil
@@ -290,7 +292,7 @@ func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) 
 
 func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.VersionResp, error) {
 	return &api.VersionResp{
-		Server: version.Version,
+		Server: d.version,
 		Api:    apiVersion,
 	}, nil
 }
@@ -302,7 +304,7 @@ func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*a
 		return nil, fmt.Errorf("list passwords: %v", err)
 	}
 
-	var passwords []*api.Password
+	passwords := make([]*api.Password, 0, len(passwordList))
 	for _, password := range passwordList {
 		p := api.Password{
 			Email:    password.Email,
@@ -355,20 +357,18 @@ func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.
 		return nil, err
 	}
 
-	var refreshTokenRefs []*api.RefreshTokenRef
 	offlineSessions, err := d.s.GetOfflineSessions(id.UserId, id.ConnId)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			// This means that this user-client pair does not have a refresh token yet.
 			// An empty list should be returned instead of an error.
-			return &api.ListRefreshResp{
-				RefreshTokens: refreshTokenRefs,
-			}, nil
+			return &api.ListRefreshResp{}, nil
 		}
 		d.logger.Errorf("api: failed to list refresh tokens %t here : %v", err == storage.ErrNotFound, err)
 		return nil, err
 	}
 
+	refreshTokenRefs := make([]*api.RefreshTokenRef, 0, len(offlineSessions.Refresh))
 	for _, session := range offlineSessions.Refresh {
 		r := api.RefreshTokenRef{
 			Id:        session.ID,

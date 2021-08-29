@@ -1,0 +1,131 @@
+# The base path of Dex and the external name of the OpenID Connect service.
+# This is the canonical URL that all clients MUST use to refer to Dex. If a
+# path is provided, Dex's HTTP service will listen at a non-root URL.
+issuer: http://127.0.0.1:5556/dex
+
+# The storage configuration determines where Dex stores its state.
+# Supported options include:
+#   - SQL flavors
+#   - key-value stores (eg. etcd)
+#   - Kubernetes Custom Resources
+#
+# See the documentation (https://dexidp.io/docs/storage/) for further information.
+storage:
+  type: memory
+
+  # type: sqlite3
+  # config:
+  #   file: /var/dex/dex.db
+
+  # type: mysql
+  # config:
+  #   host: 127.0.0.1
+  #   port: 3306
+  #   database: dex
+  #   user: mysql
+  #   password: mysql
+  #   ssl:
+  #     mode: "false"
+
+  # type: postgres
+  # config:
+  #   host: 127.0.0.1
+  #   port: 5432
+  #   database: dex
+  #   user: postgres
+  #   password: postgres
+  #   ssl:
+  #     mode: disable
+
+  # type: etcd
+  # config:
+  #   endpoints:
+  #     - http://127.0.0.1:2379
+  #   namespace: dex/
+
+  # type: kubernetes
+  # config:
+  #   kubeConfigFile: $HOME/.kube/config
+
+# HTTP service configuration
+web:
+  http: 127.0.0.1:5556
+
+  # Uncomment to enable HTTPS endpoint.
+  # https: 127.0.0.1:5554
+  # tlsCert: /etc/dex/tls.crt
+  # tlsKey: /etc/dex/tls.key
+
+# Dex UI configuration
+# frontend:
+#   issuer: dex
+#   logoURL: theme/logo.png
+#   dir: ""
+#   theme: light
+
+# Telemetry configuration
+# telemetry:
+#   http: 127.0.0.1:5558
+
+# logger:
+#   level: "debug"
+#   format: "text" # can also be "json"
+
+# gRPC API configuration
+# Uncomment this block to enable the gRPC API.
+# See the documentation (https://dexidp.io/docs/api/) for further information.
+# grpc:
+#   addr: 127.0.0.1:5557
+#   tlsCert: examples/grpc-client/server.crt
+#   tlsKey: examples/grpc-client/server.key
+#   tlsClientCA: examples/grpc-client/ca.crt
+
+# Expiration configuration for tokens, signing keys, etc.
+# expiry:
+#   deviceRequests: "5m"
+#   signingKeys: "6h"
+#   idTokens: "24h"
+
+# OAuth2 configuration
+# oauth2:
+#   # use ["code", "token", "id_token"] to enable implicit flow for web-only clients
+#   responseTypes: [ "code" ] # also allowed are "token" and "id_token"
+#
+#   # By default, Dex will ask for approval to share data with application
+#   # (approval for sharing data from connected IdP to Dex is separate process on IdP)
+#   skipApprovalScreen: false
+#
+#   # If only one authentication method is enabled, the default behavior is to
+#   # go directly to it. For connected IdPs, this redirects the browser away
+#   # from application to upstream provider such as the Google login page
+#   alwaysShowLoginScreen: false
+#
+#   # Uncomment to use a specific connector for password grants
+#   passwordConnector: local
+
+# Static clients registered in Dex by default.
+#
+# Alternatively, clients may be added through the gRPC API.
+# staticClients:
+#   - id: example-app
+#     redirectURIs:
+#       - 'http://127.0.0.1:5555/callback'
+#     name: 'Example App'
+#     secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+
+# Connectors are used to authenticate users agains upstream identity providers.
+#
+# See the documentation (https://dexidp.io/docs/connectors/) for further information.
+# connectors: []
+
+# Enable the password database.
+#
+# It's a "virtual" connector (identity provider) that stores
+# login credentials in Dex's store.
+enablePasswordDB: true
+
+# If this option isn't chosen users may be added through the gRPC API.
+# A static list of passwords for the password connector.
+#
+# Alternatively, passwords my be added/updated through the gRPC API.
+# staticPasswords: []

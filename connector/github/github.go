@@ -35,8 +35,10 @@ const (
 
 // Pagination URL patterns
 // https://developer.github.com/v3/#pagination
-var reNext = regexp.MustCompile("<([^>]+)>; rel=\"next\"")
-var reLast = regexp.MustCompile("<([^>]+)>; rel=\"last\"")
+var (
+	reNext = regexp.MustCompile("<([^>]+)>; rel=\"next\"")
+	reLast = regexp.MustCompile("<([^>]+)>; rel=\"last\"")
+)
 
 // Config holds configuration options for github logins.
 type Config struct {
@@ -334,11 +336,12 @@ func (c *githubConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 
 // getGroups retrieves GitHub orgs and teams a user is in, if any.
 func (c *githubConnector) getGroups(ctx context.Context, client *http.Client, groupScope bool, userLogin string) ([]string, error) {
-	if len(c.orgs) > 0 {
+	switch {
+	case len(c.orgs) > 0:
 		return c.groupsForOrgs(ctx, client, userLogin)
-	} else if c.org != "" {
+	case c.org != "":
 		return c.teamsForOrg(ctx, client, c.org)
-	} else if groupScope && c.loadAllGroups {
+	case groupScope && c.loadAllGroups:
 		return c.userGroups(ctx, client)
 	}
 	return nil, nil
@@ -625,7 +628,6 @@ func (c *githubConnector) userInOrg(ctx context.Context, client *http.Client, us
 	apiURL := fmt.Sprintf("%s/orgs/%s/members/%s", c.apiURL, orgName, userName)
 
 	req, err := http.NewRequest("GET", apiURL, nil)
-
 	if err != nil {
 		return false, fmt.Errorf("github: new req: %v", err)
 	}

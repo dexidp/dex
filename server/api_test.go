@@ -4,7 +4,6 @@ import (
 	"context"
 	"net"
 	"os"
-	"reflect"
 	"testing"
 	"time"
 
@@ -24,7 +23,7 @@ import (
 type apiClient struct {
 	// Embedded gRPC client to talk to the server.
 	api.DexClient
-	// Close releases resources associated with this client, includuing shutting
+	// Close releases resources associated with this client, including shutting
 	// down the background server.
 	Close func()
 }
@@ -37,7 +36,7 @@ func newAPI(s storage.Storage, logger log.Logger, t *testing.T) *apiClient {
 	}
 
 	serv := grpc.NewServer()
-	api.RegisterDexServer(serv, NewAPI(s, logger))
+	api.RegisterDexServer(serv, NewAPI(s, logger, "test"))
 	go serv.Serve(l)
 
 	// Dial will retry automatically if the serv.Serve() goroutine
@@ -227,7 +226,7 @@ func TestCheckCost(t *testing.T) {
 	}
 }
 
-// Attempts to list and revoke an exisiting refresh token.
+// Attempts to list and revoke an existing refresh token.
 func TestRefreshToken(t *testing.T) {
 	logger := &logrus.Logger{
 		Out:       os.Stderr,
@@ -292,7 +291,7 @@ func TestRefreshToken(t *testing.T) {
 		t.Errorf("failed to marshal offline session ID: %v", err)
 	}
 
-	//Testing the api.
+	// Testing the api.
 	listReq := api.ListRefreshReq{
 		UserId: subjectString,
 	}
@@ -370,23 +369,27 @@ func TestConnector(t *testing.T) {
 	if err.Error() != `rpc error: code = Unknown desc = unknown connector type "invalid_type"` {
 		t.Errorf("Unexpected error : %s", err.Error())
 	}
-	c, err := client.CreateConnector(ctx, &api.Connector{
+	connectorInfo := api.Connector{
 		Type:   "github",
 		Name:   "one_awesome_connector",
 		Id:     "some_id",
 		Config: []byte(`{}`),
-	})
+	}
+	c, err := client.CreateConnector(ctx, &connectorInfo)
 	if err != nil {
 		t.Errorf("Unable to create connector: %s", err)
 	}
-	ok := reflect.DeepEqual(*c, api.Connector{
-		Type:   "github",
-		Name:   "one_awesome_connector",
-		Id:     "some_id",
-		Config: []byte(`{}`),
-	})
-	if !ok {
-		t.Errorf("The connector should be the same as that we had persisted moments ago, but got %+v", c)
+	if c.Type != connectorInfo.Type {
+		t.Errorf("expected stored connector type: %s, found %s", connectorInfo.Type, c.Type)
+	}
+	if c.Name != connectorInfo.Name {
+		t.Errorf("expected stored connector name: %s, found %s", connectorInfo.Name, c.Name)
+	}
+	if c.Id != connectorInfo.Id {
+		t.Errorf("expected stored connector Id: %s, found %s", connectorInfo.Id, c.Id)
+	}
+	if string(c.Config) != string(connectorInfo.Config) {
+		t.Errorf("expected stored connector configu: %s, found %s", string(connectorInfo.Config), string(c.Config))
 	}
 	connectors, err := client.ListConnector(ctx, &api.ListConnectorReq{})
 	if err != nil {
@@ -395,14 +398,17 @@ func TestConnector(t *testing.T) {
 	if len(connectors.Connectors) != 1 {
 		t.Errorf("Expected to have one connector, but got %d", len(connectors.Connectors))
 	}
-	ok = reflect.DeepEqual(*connectors.Connectors[0], api.Connector{
-		Type:   "github",
-		Name:   "one_awesome_connector",
-		Id:     "some_id",
-		Config: []byte(`{}`),
-	})
-	if !ok {
-		t.Errorf("The connector should be the same as that we had persisted moments ago, but got %+v", *connectors.Connectors[0])
+	if c.Type != connectorInfo.Type {
+		t.Errorf("expected stored connector type: %s, found %s", connectorInfo.Type, c.Type)
+	}
+	if c.Name != connectorInfo.Name {
+		t.Errorf("expected stored connector name: %s, found %s", connectorInfo.Name, c.Name)
+	}
+	if c.Id != connectorInfo.Id {
+		t.Errorf("expected stored connector Id: %s, found %s", connectorInfo.Id, c.Id)
+	}
+	if string(c.Config) != string(connectorInfo.Config) {
+		t.Errorf("expected stored connector configu: %s, found %s", string(connectorInfo.Config), string(c.Config))
 	}
 	_, err = client.UpdateConnector(ctx, &api.Connector{
 		Id: "invalid_id",
@@ -467,6 +473,7 @@ func TestConnector(t *testing.T) {
 		t.Errorf("All the connectors should be deleted by now, but got %d", len(connectors.Connectors))
 	}
 }
+
 func TestUpdateClient(t *testing.T) {
 	logger := &logrus.Logger{
 		Out:       os.Stderr,
