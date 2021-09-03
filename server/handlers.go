@@ -94,7 +94,6 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 		UserInfo:          s.absURL("/userinfo"),
 		DeviceEndpoint:    s.absURL("/device/code"),
 		Subjects:          []string{"public"},
-		GrantTypes:        []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode},
 		IDTokenAlgs:       []string{string(jose.RS256)},
 		CodeChallengeAlgs: []string{codeChallengeMethodS256, codeChallengeMethodPlain},
 		Scopes:            []string{"openid", "email", "groups", "profile", "offline_access"},
@@ -109,6 +108,9 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 		d.ResponseTypes = append(d.ResponseTypes, responseType)
 	}
 	sort.Strings(d.ResponseTypes)
+
+	d.GrantTypes = s.supportedGrantTypes
+	sort.Strings(d.GrantTypes)
 
 	data, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
