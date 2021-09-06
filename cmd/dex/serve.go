@@ -253,6 +253,10 @@ func runServe(options serveOptions) error {
 		logger.Infof("config allowed origins: %s", c.Web.AllowedOrigins)
 	}
 
+	if len(c.Web.FrameAncestors) > 0 {
+		logger.Infof("config allowed frame ancestors: %s", c.Web.FrameAncestors)
+	}
+
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
 
@@ -264,6 +268,7 @@ func runServe(options serveOptions) error {
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
 		PasswordConnector:      c.OAuth2.PasswordConnector,
 		AllowedOrigins:         c.Web.AllowedOrigins,
+		FrameAncestors:         c.Web.FrameAncestors,
 		Issuer:                 c.Issuer,
 		Storage:                s,
 		Web:                    c.Frontend,

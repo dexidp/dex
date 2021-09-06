@@ -74,6 +74,11 @@ type Config struct {
 	// domain.
 	AllowedOrigins []string
 
+	// List of domain allowed to frame the content of the application.
+	// By default no one is accepted to prevent against clickjacking.
+	// Passing in "*" will allow any domain
+	FrameAncestors []string
+
 	// If enabled, the server won't prompt the user to approve authorization requests.
 	// Logging in implies approval.
 	SkipApprovalScreen bool
@@ -312,7 +317,27 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 	}
 
+	// frame-ancestors middleware
+	frameAncestorsMidldleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var ancestors string
+			if len(c.FrameAncestors) > 0 {
+				for i := 0; i < len(c.FrameAncestors); i++ {
+					if c.FrameAncestors[i] == issuerURL.String() {
+						c.FrameAncestors[i] = "'self'"
+					}
+				}
+				ancestors = strings.Join(c.FrameAncestors, " ")
+			} else {
+				ancestors = "'none'"
+			}
+			w.Header().Set("Content-Security-Policy", "frame-ancestors "+ancestors)
+			next.ServeHTTP(w, r)
+		})
+	}
+
 	r := mux.NewRouter()
+	r.Use(frameAncestorsMidldleware)
 	handle := func(p string, h http.Handler) {
 		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, h))
 	}

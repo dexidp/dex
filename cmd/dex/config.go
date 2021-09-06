@@ -146,6 +146,7 @@ type Web struct {
 	TLSCert        string   `json:"tlsCert"`
 	TLSKey         string   `json:"tlsKey"`
 	AllowedOrigins []string `json:"allowedOrigins"`
+	FrameAncestors []string `json:"frameAncestors"`
 }
 
 // Telemetry is the config format for telemetry including the HTTP server config.
