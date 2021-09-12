@@ -40,12 +40,16 @@ type Config struct {
 	// If this field is nonempty, only users from a listed group will be allowed to log in
 	Groups []string `json:"groups"`
 
-	// Optional path to service account json
+	// Optional path to service account JSON
 	// If nonempty, and groups claim is made, will use authentication from file to
 	// check groups with the admin directory api
 	ServiceAccountFilePath string `json:"serviceAccountFilePath"`
 
-	// Required if ServiceAccountFilePath
+	// Recommended when running inside Google Cloud Platform
+	// Use this instead of ServiceAccountFilePath to use default credentials
+	UseGoogleDefaultCredentials bool `json:"useGoogleDefaultCredentials"`
+
+	// Required if ServiceAccountFilePath or UseGoogleDefaultCredentials is set
 	// The email of a GSuite super user which the service account will impersonate
 	// when listing groups
 	AdminEmail string
@@ -68,10 +72,20 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		scopes = append(scopes, "profile", "email")
 	}
 
-	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not create directory service: %v", err)
+	var srv *admin.Service
+
+	if c.UseGoogleDefaultCredentials {
+		srv, err = createDirectoryServiceWithDefaultCredentials(c.AdminEmail)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("could not create directory service with default credentials: %v", err)
+		}
+	} else {
+		srv, err = createDirectoryServiceWithJSON(c.ServiceAccountFilePath, c.AdminEmail)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("could not create directory service with JSON key: %v", err)
+		}
 	}
 
 	clientID := c.ClientID
@@ -87,13 +101,14 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		verifier: provider.Verifier(
 			&oidc.Config{ClientID: clientID},
 		),
-		logger:                 logger,
-		cancel:                 cancel,
-		hostedDomains:          c.HostedDomains,
-		groups:                 c.Groups,
-		serviceAccountFilePath: c.ServiceAccountFilePath,
-		adminEmail:             c.AdminEmail,
-		adminSrv:               srv,
+		logger:                      logger,
+		cancel:                      cancel,
+		hostedDomains:               c.HostedDomains,
+		groups:                      c.Groups,
+		serviceAccountFilePath:      c.ServiceAccountFilePath,
+		useDefaultGoogleCredentials: c.UseGoogleDefaultCredentials,
+		adminEmail:                  c.AdminEmail,
+		adminSrv:                    srv,
 	}, nil
 }
 
@@ -103,16 +118,17 @@ var (
 )
 
 type googleConnector struct {
-	redirectURI            string
-	oauth2Config           *oauth2.Config
-	verifier               *oidc.IDTokenVerifier
-	cancel                 context.CancelFunc
-	logger                 log.Logger
-	hostedDomains          []string
-	groups                 []string
-	serviceAccountFilePath string
-	adminEmail             string
-	adminSrv               *admin.Service
+	redirectURI                 string
+	oauth2Config                *oauth2.Config
+	verifier                    *oidc.IDTokenVerifier
+	cancel                      context.CancelFunc
+	logger                      log.Logger
+	hostedDomains               []string
+	groups                      []string
+	serviceAccountFilePath      string
+	useDefaultGoogleCredentials bool
+	adminEmail                  string
+	adminSrv                    *admin.Service
 }
 
 func (c *googleConnector) Close() error {
@@ -264,16 +280,18 @@ func (c *googleConnector) getGroups(email string) ([]string, error) {
 	return userGroups, nil
 }
 
-// createDirectoryService loads a google service account credentials file,
+// createDirectoryServiceWithJSON loads a google service account credentials file,
 // sets up super user impersonation and creates an admin client for calling
 // the google admin api
-func createDirectoryService(serviceAccountFilePath string, email string) (*admin.Service, error) {
-	if serviceAccountFilePath == "" && email == "" {
-		return nil, nil
+func createDirectoryServiceWithJSON(serviceAccountFilePath string, email string) (*admin.Service, error) {
+	if email == "" {
+		return nil, fmt.Errorf("directory service requires adminEmail to be set")
 	}
-	if serviceAccountFilePath == "" || email == "" {
-		return nil, fmt.Errorf("directory service requires both serviceAccountFilePath and adminEmail")
+
+	if serviceAccountFilePath == "" {
+		return nil, fmt.Errorf("directory service requires serviceAccountFilePath when not using default Google credentials")
 	}
+
 	jsonCredentials, err := ioutil.ReadFile(serviceAccountFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading credentials from file: %v", err)
@@ -294,5 +312,23 @@ func createDirectoryService(serviceAccountFilePath string, email string) (*admin
 	if err != nil {
 		return nil, fmt.Errorf("unable to create directory service %v", err)
 	}
+
+	return srv, nil
+}
+
+// createDirectoryServiceWithDefaultCredentials sets up super user impersonation and
+// creates an admin client for calling the google admin api
+func createDirectoryServiceWithDefaultCredentials(email string) (*admin.Service, error) {
+	if email == "" {
+		return nil, fmt.Errorf("directory service requires adminEmail to be set")
+	}
+
+	ctx := context.Background()
+
+	srv, err := admin.NewService(ctx, option.ImpersonateCredentials(email), option.WithScopes(admin.AdminDirectoryGroupReadonlyScope))
+	if err != nil {
+		return nil, fmt.Errorf("unable to create directory service %v", err)
+	}
+
 	return srv, nil
 }
