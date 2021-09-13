@@ -24,7 +24,6 @@ import (
 	"github.com/dexidp/dex/storage/ent/db"
 )
 
-// nolint
 const (
 	// MySQL SSL modes
 	mysqlSSLTrue       = "true"
