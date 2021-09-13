@@ -35,6 +35,15 @@ jobs:
           - 3306
         options: --health-cmd "mysql -proot -e \"show databases;\"" --health-interval 10s --health-timeout 5s --health-retries 5
 
+      mysql-ent:
+        image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: dex
+        ports:
+          - 3306
+        options: --health-cmd "mysql -proot -e \"show databases;\"" --health-interval 10s --health-timeout 5s --health-retries 5
+
       etcd:
         image: gcr.io/etcd-development/etcd:v3.5.0
         ports:
@@ -77,6 +86,11 @@ jobs:
           DEX_MYSQL_PASSWORD: root
           DEX_MYSQL_HOST: 127.0.0.1
           DEX_MYSQL_PORT: ${{ job.services.mysql.ports[3306] }}
+          DEX_MYSQL_ENT_DATABASE: dex
+          DEX_MYSQL_ENT_USER: root
+          DEX_MYSQL_ENT_PASSWORD: root
+          DEX_MYSQL_ENT_HOST: 127.0.0.1
+          DEX_MYSQL_ENT_PORT: ${{ job.services.mysql-ent.ports[3306] }}
           DEX_POSTGRES_DATABASE: postgres
           DEX_POSTGRES_USER: postgres
           DEX_POSTGRES_PASSWORD: postgres
