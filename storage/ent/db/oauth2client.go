@@ -69,7 +69,6 @@ func (o *OAuth2Client) assignValues(columns []string, values []interface{}) erro
 				o.Secret = value.String
 			}
 		case oauth2client.FieldRedirectUris:
-
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field redirect_uris", values[i])
 			} else if value != nil && len(*value) > 0 {
@@ -78,7 +77,6 @@ func (o *OAuth2Client) assignValues(columns []string, values []interface{}) erro
 				}
 			}
 		case oauth2client.FieldTrustedPeers:
-
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field trusted_peers", values[i])
 			} else if value != nil && len(*value) > 0 {

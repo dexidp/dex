@@ -20,9 +20,9 @@ type AuthRequestDelete struct {
 	mutation *AuthRequestMutation
 }
 
-// Where adds a new predicate to the AuthRequestDelete builder.
+// Where appends a list predicates to the AuthRequestDelete builder.
 func (ard *AuthRequestDelete) Where(ps ...predicate.AuthRequest) *AuthRequestDelete {
-	ard.mutation.predicates = append(ard.mutation.predicates, ps...)
+	ard.mutation.Where(ps...)
 	return ard
 }
 
@@ -46,6 +46,9 @@ func (ard *AuthRequestDelete) Exec(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(ard.hooks) - 1; i >= 0; i-- {
+			if ard.hooks[i] == nil {
+				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = ard.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, ard.mutation); err != nil {

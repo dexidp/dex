@@ -149,8 +149,8 @@ func (m *AuthCodeMutation) SetID(id string) {
 	m.id = &id
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *AuthCodeMutation) ID() (id string, exists bool) {
 	if m.id == nil {
 		return
@@ -737,6 +737,11 @@ func (m *AuthCodeMutation) ResetCodeChallengeMethod() {
 	m.code_challenge_method = nil
 }
 
+// Where appends a list predicates to the AuthCodeMutation builder.
+func (m *AuthCodeMutation) Where(ps ...predicate.AuthCode) {
+	m.predicates = append(m.predicates, ps...)
+}
+
 // Op returns the operation name.
 func (m *AuthCodeMutation) Op() Op {
 	return m.op
@@ -1262,8 +1267,8 @@ func (m *AuthRequestMutation) SetID(id string) {
 	m.id = &id
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *AuthRequestMutation) ID() (id string, exists bool) {
 	if m.id == nil {
 		return
@@ -2007,6 +2012,11 @@ func (m *AuthRequestMutation) ResetCodeChallengeMethod() {
 	m.code_challenge_method = nil
 }
 
+// Where appends a list predicates to the AuthRequestMutation builder.
+func (m *AuthRequestMutation) Where(ps ...predicate.AuthRequest) {
+	m.predicates = append(m.predicates, ps...)
+}
+
 // Op returns the operation name.
 func (m *AuthRequestMutation) Op() Op {
 	return m.op
@@ -2591,8 +2601,8 @@ func (m *ConnectorMutation) SetID(id string) {
 	m.id = &id
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *ConnectorMutation) ID() (id string, exists bool) {
 	if m.id == nil {
 		return
@@ -2742,6 +2752,11 @@ func (m *ConnectorMutation) OldConfig(ctx context.Context) (v []byte, err error)
 // ResetConfig resets all changes to the "config" field.
 func (m *ConnectorMutation) ResetConfig() {
 	m._config = nil
+}
+
+// Where appends a list predicates to the ConnectorMutation builder.
+func (m *ConnectorMutation) Where(ps ...predicate.Connector) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -3042,8 +3057,8 @@ func (m DeviceRequestMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *DeviceRequestMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
@@ -3278,6 +3293,11 @@ func (m *DeviceRequestMutation) OldExpiry(ctx context.Context) (v time.Time, err
 // ResetExpiry resets all changes to the "expiry" field.
 func (m *DeviceRequestMutation) ResetExpiry() {
 	m.expiry = nil
+}
+
+// Where appends a list predicates to the DeviceRequestMutation builder.
+func (m *DeviceRequestMutation) Where(ps ...predicate.DeviceRequest) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -3622,8 +3642,8 @@ func (m DeviceTokenMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *DeviceTokenMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
@@ -3878,6 +3898,11 @@ func (m *DeviceTokenMutation) AddedPollInterval() (r int, exists bool) {
 func (m *DeviceTokenMutation) ResetPollInterval() {
 	m.poll_interval = nil
 	m.addpoll_interval = nil
+}
+
+// Where appends a list predicates to the DeviceTokenMutation builder.
+func (m *DeviceTokenMutation) Where(ps ...predicate.DeviceToken) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -4240,8 +4265,8 @@ func (m *KeysMutation) SetID(id string) {
 	m.id = &id
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *KeysMutation) ID() (id string, exists bool) {
 	if m.id == nil {
 		return
@@ -4391,6 +4416,11 @@ func (m *KeysMutation) OldNextRotation(ctx context.Context) (v time.Time, err er
 // ResetNextRotation resets all changes to the "next_rotation" field.
 func (m *KeysMutation) ResetNextRotation() {
 	m.next_rotation = nil
+}
+
+// Where appends a list predicates to the KeysMutation builder.
+func (m *KeysMutation) Where(ps ...predicate.Keys) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -4697,8 +4727,8 @@ func (m *OAuth2ClientMutation) SetID(id string) {
 	m.id = &id
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *OAuth2ClientMutation) ID() (id string, exists bool) {
 	if m.id == nil {
 		return
@@ -4946,6 +4976,11 @@ func (m *OAuth2ClientMutation) OldLogoURL(ctx context.Context) (v string, err er
 // ResetLogoURL resets all changes to the "logo_url" field.
 func (m *OAuth2ClientMutation) ResetLogoURL() {
 	m.logo_url = nil
+}
+
+// Where appends a list predicates to the OAuth2ClientMutation builder.
+func (m *OAuth2ClientMutation) Where(ps ...predicate.OAuth2Client) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -5299,8 +5334,8 @@ func (m *OfflineSessionMutation) SetID(id string) {
 	m.id = &id
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *OfflineSessionMutation) ID() (id string, exists bool) {
 	if m.id == nil {
 		return
@@ -5463,6 +5498,11 @@ func (m *OfflineSessionMutation) ConnectorDataCleared() bool {
 func (m *OfflineSessionMutation) ResetConnectorData() {
 	m.connector_data = nil
 	delete(m.clearedFields, offlinesession.FieldConnectorData)
+}
+
+// Where appends a list predicates to the OfflineSessionMutation builder.
+func (m *OfflineSessionMutation) Where(ps ...predicate.OfflineSession) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -5770,8 +5810,8 @@ func (m PasswordMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *PasswordMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
@@ -5921,6 +5961,11 @@ func (m *PasswordMutation) OldUserID(ctx context.Context) (v string, err error) 
 // ResetUserID resets all changes to the "user_id" field.
 func (m *PasswordMutation) ResetUserID() {
 	m.user_id = nil
+}
+
+// Where appends a list predicates to the PasswordMutation builder.
+func (m *PasswordMutation) Where(ps ...predicate.Password) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -6236,8 +6281,8 @@ func (m *RefreshTokenMutation) SetID(id string) {
 	m.id = &id
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *RefreshTokenMutation) ID() (id string, exists bool) {
 	if m.id == nil {
 		return
@@ -6822,6 +6867,11 @@ func (m *RefreshTokenMutation) OldLastUsed(ctx context.Context) (v time.Time, er
 // ResetLastUsed resets all changes to the "last_used" field.
 func (m *RefreshTokenMutation) ResetLastUsed() {
 	m.last_used = nil
+}
+
+// Where appends a list predicates to the RefreshTokenMutation builder.
+func (m *RefreshTokenMutation) Where(ps ...predicate.RefreshToken) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.

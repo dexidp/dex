@@ -106,7 +106,7 @@ func (m *MySQL) dsn(tlsConfig string) string {
 		TLSConfig: tlsConfig,
 
 		ParseTime: true,
-		Params: make(map[string]string),
+		Params:    make(map[string]string),
 	}
 
 	if m.Host != "" {

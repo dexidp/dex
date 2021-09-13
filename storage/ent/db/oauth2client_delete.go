@@ -20,9 +20,9 @@ type OAuth2ClientDelete struct {
 	mutation *OAuth2ClientMutation
 }
 
-// Where adds a new predicate to the OAuth2ClientDelete builder.
+// Where appends a list predicates to the OAuth2ClientDelete builder.
 func (od *OAuth2ClientDelete) Where(ps ...predicate.OAuth2Client) *OAuth2ClientDelete {
-	od.mutation.predicates = append(od.mutation.predicates, ps...)
+	od.mutation.Where(ps...)
 	return od
 }
 
@@ -46,6 +46,9 @@ func (od *OAuth2ClientDelete) Exec(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(od.hooks) - 1; i >= 0; i-- {
+			if od.hooks[i] == nil {
+				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = od.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, od.mutation); err != nil {

@@ -32,6 +32,9 @@ func mysqlTestConfig(host string, port uint64) *MySQL {
 		SSL: SSL{
 			Mode: mysqlSSLSkipVerify,
 		},
+		params: map[string]string{
+			"innodb_lock_wait_timeout": "1",
+		},
 	}
 }
 
@@ -127,6 +130,15 @@ func TestMySQLDSN(t *testing.T) {
 				},
 			},
 			desiredDSN: "/?checkConnLiveness=false&parseTime=true&tls=false&maxAllowedPacket=0",
+		},
+		{
+			name: "With Params",
+			cfg: &MySQL{
+				params: map[string]string{
+					"innodb_lock_wait_timeout": "1",
+				},
+			},
+			desiredDSN: "/?checkConnLiveness=false&parseTime=true&tls=false&maxAllowedPacket=0&innodb_lock_wait_timeout=1",
 		},
 	}
 

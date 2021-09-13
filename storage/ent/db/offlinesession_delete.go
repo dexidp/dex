@@ -20,9 +20,9 @@ type OfflineSessionDelete struct {
 	mutation *OfflineSessionMutation
 }
 
-// Where adds a new predicate to the OfflineSessionDelete builder.
+// Where appends a list predicates to the OfflineSessionDelete builder.
 func (osd *OfflineSessionDelete) Where(ps ...predicate.OfflineSession) *OfflineSessionDelete {
-	osd.mutation.predicates = append(osd.mutation.predicates, ps...)
+	osd.mutation.Where(ps...)
 	return osd
 }
 
@@ -46,6 +46,9 @@ func (osd *OfflineSessionDelete) Exec(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(osd.hooks) - 1; i >= 0; i-- {
+			if osd.hooks[i] == nil {
+				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = osd.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, osd.mutation); err != nil {

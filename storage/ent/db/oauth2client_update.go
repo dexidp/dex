@@ -20,9 +20,9 @@ type OAuth2ClientUpdate struct {
 	mutation *OAuth2ClientMutation
 }
 
-// Where adds a new predicate for the OAuth2ClientUpdate builder.
+// Where appends a list predicates to the OAuth2ClientUpdate builder.
 func (ou *OAuth2ClientUpdate) Where(ps ...predicate.OAuth2Client) *OAuth2ClientUpdate {
-	ou.mutation.predicates = append(ou.mutation.predicates, ps...)
+	ou.mutation.Where(ps...)
 	return ou
 }
 
@@ -105,6 +105,9 @@ func (ou *OAuth2ClientUpdate) Save(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(ou.hooks) - 1; i >= 0; i-- {
+			if ou.hooks[i] == nil {
+				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = ou.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, ou.mutation); err != nil {
@@ -231,8 +234,8 @@ func (ou *OAuth2ClientUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if n, err = sqlgraph.UpdateNodes(ctx, ou.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{oauth2client.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return 0, err
 	}
@@ -333,6 +336,9 @@ func (ouo *OAuth2ClientUpdateOne) Save(ctx context.Context) (*OAuth2Client, erro
 			return node, err
 		})
 		for i := len(ouo.hooks) - 1; i >= 0; i-- {
+			if ouo.hooks[i] == nil {
+				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = ouo.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, ouo.mutation); err != nil {
@@ -479,8 +485,8 @@ func (ouo *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Cli
 	if err = sqlgraph.UpdateNode(ctx, ouo.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{oauth2client.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}
