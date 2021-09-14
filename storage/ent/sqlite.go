@@ -36,7 +36,7 @@ func (s *SQLite3) Open(logger log.Logger) (storage.Storage, error) {
 	// always allow only one connection to sqlite3, any other thread/go-routine
 	// attempting concurrent access will have to wait
 	pool := drv.DB()
-	pool.SetMaxOpenConns(5)
+	pool.SetMaxOpenConns(1)
 
 	databaseClient := client.NewDatabase(
 		client.WithClient(db.NewClient(db.Driver(drv))),
