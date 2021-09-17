@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"sync"
@@ -252,7 +252,7 @@ func (c *giteaConnector) user(ctx context.Context, client *http.Client) (giteaUs
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return u, fmt.Errorf("gitea: read body: %v", err)
 		}

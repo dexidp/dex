@@ -1,8 +1,8 @@
 package kubernetes
 
 import (
-	"io/ioutil"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -103,7 +103,7 @@ func (c *inClusterTransportHelper) UpdateToken() {
 		return
 	}
 
-	token, err := ioutil.ReadFile(c.tokenLocation)
+	token, err := os.ReadFile(c.tokenLocation)
 	if err != nil {
 		return
 	}
