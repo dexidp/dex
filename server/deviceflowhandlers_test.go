@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -101,7 +101,7 @@ func TestHandleDeviceCode(t *testing.T) {
 				t.Errorf("Unexpected Response Type.  Expected %v got %v", tc.expectedResponseCode, rr.Code)
 			}
 
-			body, err := ioutil.ReadAll(rr.Body)
+			body, err := io.ReadAll(rr.Body)
 			if err != nil {
 				t.Errorf("Could read token response %v", err)
 			}
@@ -541,7 +541,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 				t.Errorf("Unexpected Response Type.  Expected %v got %v", tc.expectedResponseCode, rr.Code)
 			}
 
-			body, err := ioutil.ReadAll(rr.Body)
+			body, err := io.ReadAll(rr.Body)
 			if err != nil {
 				t.Errorf("Could read token response %v", err)
 			}
