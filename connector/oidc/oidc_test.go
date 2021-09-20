@@ -111,23 +111,6 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name:                 "overrideWithMissingCustomEmailClaim",
-			userIDKey:            "", // not configured
-			userNameKey:          "", // not configured
-			overrideClaimMapping: true,
-			emailKey:             "custommail",
-			expectUserID:         "subvalue",
-			expectUserName:       "namevalue",
-			expectedEmailField:   "",
-			token: map[string]interface{}{
-				// no "custommail" claim
-				"sub":            "subvalue",
-				"name":           "namevalue",
-				"email":          "emailvalue",
-				"email_verified": true,
-			},
-		},
-		{
 			name:                      "email_verified not in claims, configured to be skipped",
 			insecureSkipEmailVerified: true,
 			expectUserID:              "subvalue",

@@ -314,10 +314,6 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	if (!found || c.overrideClaimMapping) && c.emailKey != "" {
 		emailKey = c.emailKey
 		email, found = claims[emailKey].(string)
-		if !found && c.overrideClaimMapping {
-			// If override is enabled but claim was not found, empty string is preferred over fallback.
-			email, found = "", true
-		}
 	}
 
 	if !found && hasEmailScope {
