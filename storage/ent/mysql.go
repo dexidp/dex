@@ -7,8 +7,8 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 	"strconv"
 	"time"
 
@@ -135,7 +135,7 @@ func (m *MySQL) makeTLSConfig() error {
 	if m.SSL.CAFile != "" {
 		rootCertPool := x509.NewCertPool()
 
-		pem, err := ioutil.ReadFile(m.SSL.CAFile)
+		pem, err := os.ReadFile(m.SSL.CAFile)
 		if err != nil {
 			return err
 		}
