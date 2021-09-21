@@ -183,11 +183,17 @@ func (rtc *RefreshTokenCreate) Save(ctx context.Context) (*RefreshToken, error) 
 				return nil, err
 			}
 			rtc.mutation = mutation
-			node, err = rtc.sqlSave(ctx)
+			if node, err = rtc.sqlSave(ctx); err != nil {
+				return nil, err
+			}
+			mutation.id = &node.ID
 			mutation.done = true
 			return node, err
 		})
 		for i := len(rtc.hooks) - 1; i >= 0; i-- {
+			if rtc.hooks[i] == nil {
+				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = rtc.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, rtc.mutation); err != nil {
@@ -204,6 +210,19 @@ func (rtc *RefreshTokenCreate) SaveX(ctx context.Context) *RefreshToken {
 		panic(err)
 	}
 	return v
+}
+
+// Exec executes the query.
+func (rtc *RefreshTokenCreate) Exec(ctx context.Context) error {
+	_, err := rtc.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (rtc *RefreshTokenCreate) ExecX(ctx context.Context) {
+	if err := rtc.Exec(ctx); err != nil {
+		panic(err)
+	}
 }
 
 // defaults sets the default values of the builder before save.
@@ -233,74 +252,74 @@ func (rtc *RefreshTokenCreate) defaults() {
 // check runs all checks and user-defined validators on the builder.
 func (rtc *RefreshTokenCreate) check() error {
 	if _, ok := rtc.mutation.ClientID(); !ok {
-		return &ValidationError{Name: "client_id", err: errors.New("db: missing required field \"client_id\"")}
+		return &ValidationError{Name: "client_id", err: errors.New(`db: missing required field "client_id"`)}
 	}
 	if v, ok := rtc.mutation.ClientID(); ok {
 		if err := refreshtoken.ClientIDValidator(v); err != nil {
-			return &ValidationError{Name: "client_id", err: fmt.Errorf("db: validator failed for field \"client_id\": %w", err)}
+			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "client_id": %w`, err)}
 		}
 	}
 	if _, ok := rtc.mutation.Nonce(); !ok {
-		return &ValidationError{Name: "nonce", err: errors.New("db: missing required field \"nonce\"")}
+		return &ValidationError{Name: "nonce", err: errors.New(`db: missing required field "nonce"`)}
 	}
 	if v, ok := rtc.mutation.Nonce(); ok {
 		if err := refreshtoken.NonceValidator(v); err != nil {
-			return &ValidationError{Name: "nonce", err: fmt.Errorf("db: validator failed for field \"nonce\": %w", err)}
+			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "nonce": %w`, err)}
 		}
 	}
 	if _, ok := rtc.mutation.ClaimsUserID(); !ok {
-		return &ValidationError{Name: "claims_user_id", err: errors.New("db: missing required field \"claims_user_id\"")}
+		return &ValidationError{Name: "claims_user_id", err: errors.New(`db: missing required field "claims_user_id"`)}
 	}
 	if v, ok := rtc.mutation.ClaimsUserID(); ok {
 		if err := refreshtoken.ClaimsUserIDValidator(v); err != nil {
-			return &ValidationError{Name: "claims_user_id", err: fmt.Errorf("db: validator failed for field \"claims_user_id\": %w", err)}
+			return &ValidationError{Name: "claims_user_id", err: fmt.Errorf(`db: validator failed for field "claims_user_id": %w`, err)}
 		}
 	}
 	if _, ok := rtc.mutation.ClaimsUsername(); !ok {
-		return &ValidationError{Name: "claims_username", err: errors.New("db: missing required field \"claims_username\"")}
+		return &ValidationError{Name: "claims_username", err: errors.New(`db: missing required field "claims_username"`)}
 	}
 	if v, ok := rtc.mutation.ClaimsUsername(); ok {
 		if err := refreshtoken.ClaimsUsernameValidator(v); err != nil {
-			return &ValidationError{Name: "claims_username", err: fmt.Errorf("db: validator failed for field \"claims_username\": %w", err)}
+			return &ValidationError{Name: "claims_username", err: fmt.Errorf(`db: validator failed for field "claims_username": %w`, err)}
 		}
 	}
 	if _, ok := rtc.mutation.ClaimsEmail(); !ok {
-		return &ValidationError{Name: "claims_email", err: errors.New("db: missing required field \"claims_email\"")}
+		return &ValidationError{Name: "claims_email", err: errors.New(`db: missing required field "claims_email"`)}
 	}
 	if v, ok := rtc.mutation.ClaimsEmail(); ok {
 		if err := refreshtoken.ClaimsEmailValidator(v); err != nil {
-			return &ValidationError{Name: "claims_email", err: fmt.Errorf("db: validator failed for field \"claims_email\": %w", err)}
+			return &ValidationError{Name: "claims_email", err: fmt.Errorf(`db: validator failed for field "claims_email": %w`, err)}
 		}
 	}
 	if _, ok := rtc.mutation.ClaimsEmailVerified(); !ok {
-		return &ValidationError{Name: "claims_email_verified", err: errors.New("db: missing required field \"claims_email_verified\"")}
+		return &ValidationError{Name: "claims_email_verified", err: errors.New(`db: missing required field "claims_email_verified"`)}
 	}
 	if _, ok := rtc.mutation.ClaimsPreferredUsername(); !ok {
-		return &ValidationError{Name: "claims_preferred_username", err: errors.New("db: missing required field \"claims_preferred_username\"")}
+		return &ValidationError{Name: "claims_preferred_username", err: errors.New(`db: missing required field "claims_preferred_username"`)}
 	}
 	if _, ok := rtc.mutation.ConnectorID(); !ok {
-		return &ValidationError{Name: "connector_id", err: errors.New("db: missing required field \"connector_id\"")}
+		return &ValidationError{Name: "connector_id", err: errors.New(`db: missing required field "connector_id"`)}
 	}
 	if v, ok := rtc.mutation.ConnectorID(); ok {
 		if err := refreshtoken.ConnectorIDValidator(v); err != nil {
-			return &ValidationError{Name: "connector_id", err: fmt.Errorf("db: validator failed for field \"connector_id\": %w", err)}
+			return &ValidationError{Name: "connector_id", err: fmt.Errorf(`db: validator failed for field "connector_id": %w`, err)}
 		}
 	}
 	if _, ok := rtc.mutation.Token(); !ok {
-		return &ValidationError{Name: "token", err: errors.New("db: missing required field \"token\"")}
+		return &ValidationError{Name: "token", err: errors.New(`db: missing required field "token"`)}
 	}
 	if _, ok := rtc.mutation.ObsoleteToken(); !ok {
-		return &ValidationError{Name: "obsolete_token", err: errors.New("db: missing required field \"obsolete_token\"")}
+		return &ValidationError{Name: "obsolete_token", err: errors.New(`db: missing required field "obsolete_token"`)}
 	}
 	if _, ok := rtc.mutation.CreatedAt(); !ok {
-		return &ValidationError{Name: "created_at", err: errors.New("db: missing required field \"created_at\"")}
+		return &ValidationError{Name: "created_at", err: errors.New(`db: missing required field "created_at"`)}
 	}
 	if _, ok := rtc.mutation.LastUsed(); !ok {
-		return &ValidationError{Name: "last_used", err: errors.New("db: missing required field \"last_used\"")}
+		return &ValidationError{Name: "last_used", err: errors.New(`db: missing required field "last_used"`)}
 	}
 	if v, ok := rtc.mutation.ID(); ok {
 		if err := refreshtoken.IDValidator(v); err != nil {
-			return &ValidationError{Name: "id", err: fmt.Errorf("db: validator failed for field \"id\": %w", err)}
+			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "id": %w`, err)}
 		}
 	}
 	return nil
@@ -309,8 +328,8 @@ func (rtc *RefreshTokenCreate) check() error {
 func (rtc *RefreshTokenCreate) sqlSave(ctx context.Context) (*RefreshToken, error) {
 	_node, _spec := rtc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, rtc.driver, _spec); err != nil {
-		if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}
@@ -484,17 +503,19 @@ func (rtcb *RefreshTokenCreateBulk) Save(ctx context.Context) ([]*RefreshToken, 
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, rtcb.builders[i+1].mutation)
 				} else {
+					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
 					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, rtcb.driver, &sqlgraph.BatchCreateSpec{Nodes: specs}); err != nil {
-						if cerr, ok := isSQLConstraintError(err); ok {
-							err = cerr
+					if err = sqlgraph.BatchCreate(ctx, rtcb.driver, spec); err != nil {
+						if sqlgraph.IsConstraintError(err) {
+							err = &ConstraintError{err.Error(), err}
 						}
 					}
 				}
-				mutation.done = true
 				if err != nil {
 					return nil, err
 				}
+				mutation.id = &nodes[i].ID
+				mutation.done = true
 				return nodes[i], nil
 			})
 			for i := len(builder.hooks) - 1; i >= 0; i-- {
@@ -518,4 +539,17 @@ func (rtcb *RefreshTokenCreateBulk) SaveX(ctx context.Context) []*RefreshToken {
 		panic(err)
 	}
 	return v
+}
+
+// Exec executes the query.
+func (rtcb *RefreshTokenCreateBulk) Exec(ctx context.Context) error {
+	_, err := rtcb.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (rtcb *RefreshTokenCreateBulk) ExecX(ctx context.Context) {
+	if err := rtcb.Exec(ctx); err != nil {
+		panic(err)
+	}
 }

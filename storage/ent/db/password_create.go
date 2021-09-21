@@ -69,11 +69,17 @@ func (pc *PasswordCreate) Save(ctx context.Context) (*Password, error) {
 				return nil, err
 			}
 			pc.mutation = mutation
-			node, err = pc.sqlSave(ctx)
+			if node, err = pc.sqlSave(ctx); err != nil {
+				return nil, err
+			}
+			mutation.id = &node.ID
 			mutation.done = true
 			return node, err
 		})
 		for i := len(pc.hooks) - 1; i >= 0; i-- {
+			if pc.hooks[i] == nil {
+				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = pc.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, pc.mutation); err != nil {
@@ -92,33 +98,46 @@ func (pc *PasswordCreate) SaveX(ctx context.Context) *Password {
 	return v
 }
 
+// Exec executes the query.
+func (pc *PasswordCreate) Exec(ctx context.Context) error {
+	_, err := pc.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (pc *PasswordCreate) ExecX(ctx context.Context) {
+	if err := pc.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
 // check runs all checks and user-defined validators on the builder.
 func (pc *PasswordCreate) check() error {
 	if _, ok := pc.mutation.Email(); !ok {
-		return &ValidationError{Name: "email", err: errors.New("db: missing required field \"email\"")}
+		return &ValidationError{Name: "email", err: errors.New(`db: missing required field "email"`)}
 	}
 	if v, ok := pc.mutation.Email(); ok {
 		if err := password.EmailValidator(v); err != nil {
-			return &ValidationError{Name: "email", err: fmt.Errorf("db: validator failed for field \"email\": %w", err)}
+			return &ValidationError{Name: "email", err: fmt.Errorf(`db: validator failed for field "email": %w`, err)}
 		}
 	}
 	if _, ok := pc.mutation.Hash(); !ok {
-		return &ValidationError{Name: "hash", err: errors.New("db: missing required field \"hash\"")}
+		return &ValidationError{Name: "hash", err: errors.New(`db: missing required field "hash"`)}
 	}
 	if _, ok := pc.mutation.Username(); !ok {
-		return &ValidationError{Name: "username", err: errors.New("db: missing required field \"username\"")}
+		return &ValidationError{Name: "username", err: errors.New(`db: missing required field "username"`)}
 	}
 	if v, ok := pc.mutation.Username(); ok {
 		if err := password.UsernameValidator(v); err != nil {
-			return &ValidationError{Name: "username", err: fmt.Errorf("db: validator failed for field \"username\": %w", err)}
+			return &ValidationError{Name: "username", err: fmt.Errorf(`db: validator failed for field "username": %w`, err)}
 		}
 	}
 	if _, ok := pc.mutation.UserID(); !ok {
-		return &ValidationError{Name: "user_id", err: errors.New("db: missing required field \"user_id\"")}
+		return &ValidationError{Name: "user_id", err: errors.New(`db: missing required field "user_id"`)}
 	}
 	if v, ok := pc.mutation.UserID(); ok {
 		if err := password.UserIDValidator(v); err != nil {
-			return &ValidationError{Name: "user_id", err: fmt.Errorf("db: validator failed for field \"user_id\": %w", err)}
+			return &ValidationError{Name: "user_id", err: fmt.Errorf(`db: validator failed for field "user_id": %w`, err)}
 		}
 	}
 	return nil
@@ -127,8 +146,8 @@ func (pc *PasswordCreate) check() error {
 func (pc *PasswordCreate) sqlSave(ctx context.Context) (*Password, error) {
 	_node, _spec := pc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, pc.driver, _spec); err != nil {
-		if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}
@@ -211,19 +230,23 @@ func (pcb *PasswordCreateBulk) Save(ctx context.Context) ([]*Password, error) {
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, pcb.builders[i+1].mutation)
 				} else {
+					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
 					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, pcb.driver, &sqlgraph.BatchCreateSpec{Nodes: specs}); err != nil {
-						if cerr, ok := isSQLConstraintError(err); ok {
-							err = cerr
+					if err = sqlgraph.BatchCreate(ctx, pcb.driver, spec); err != nil {
+						if sqlgraph.IsConstraintError(err) {
+							err = &ConstraintError{err.Error(), err}
 						}
 					}
 				}
-				mutation.done = true
 				if err != nil {
 					return nil, err
 				}
-				id := specs[i].ID.Value.(int64)
-				nodes[i].ID = int(id)
+				mutation.id = &nodes[i].ID
+				mutation.done = true
+				if specs[i].ID.Value != nil {
+					id := specs[i].ID.Value.(int64)
+					nodes[i].ID = int(id)
+				}
 				return nodes[i], nil
 			})
 			for i := len(builder.hooks) - 1; i >= 0; i-- {
@@ -247,4 +270,17 @@ func (pcb *PasswordCreateBulk) SaveX(ctx context.Context) []*Password {
 		panic(err)
 	}
 	return v
+}
+
+// Exec executes the query.
+func (pcb *PasswordCreateBulk) Exec(ctx context.Context) error {
+	_, err := pcb.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (pcb *PasswordCreateBulk) ExecX(ctx context.Context) {
+	if err := pcb.Exec(ctx); err != nil {
+		panic(err)
+	}
 }

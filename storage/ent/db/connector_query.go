@@ -287,8 +287,8 @@ func (cq *ConnectorQuery) GroupBy(field string, fields ...string) *ConnectorGrou
 //		Select(connector.FieldType).
 //		Scan(ctx, &v)
 //
-func (cq *ConnectorQuery) Select(field string, fields ...string) *ConnectorSelect {
-	cq.fields = append([]string{field}, fields...)
+func (cq *ConnectorQuery) Select(fields ...string) *ConnectorSelect {
+	cq.fields = append(cq.fields, fields...)
 	return &ConnectorSelect{ConnectorQuery: cq}
 }
 
@@ -398,10 +398,14 @@ func (cq *ConnectorQuery) querySpec() *sqlgraph.QuerySpec {
 func (cq *ConnectorQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(cq.driver.Dialect())
 	t1 := builder.Table(connector.Table)
-	selector := builder.Select(t1.Columns(connector.Columns...)...).From(t1)
+	columns := cq.fields
+	if len(columns) == 0 {
+		columns = connector.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if cq.sql != nil {
 		selector = cq.sql
-		selector.Select(selector.Columns(connector.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range cq.predicates {
 		p(selector)
@@ -669,13 +673,24 @@ func (cgb *ConnectorGroupBy) sqlScan(ctx context.Context, v interface{}) error {
 }
 
 func (cgb *ConnectorGroupBy) sqlQuery() *sql.Selector {
-	selector := cgb.sql
-	columns := make([]string, 0, len(cgb.fields)+len(cgb.fns))
-	columns = append(columns, cgb.fields...)
+	selector := cgb.sql.Select()
+	aggregation := make([]string, 0, len(cgb.fns))
 	for _, fn := range cgb.fns {
-		columns = append(columns, fn(selector))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(cgb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(cgb.fields)+len(cgb.fns))
+		for _, f := range cgb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(cgb.fields...)...)
 }
 
 // ConnectorSelect is the builder for selecting fields of Connector entities.
@@ -891,16 +906,10 @@ func (cs *ConnectorSelect) BoolX(ctx context.Context) bool {
 
 func (cs *ConnectorSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := cs.sqlQuery().Query()
+	query, args := cs.sql.Query()
 	if err := cs.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (cs *ConnectorSelect) sqlQuery() sql.Querier {
-	selector := cs.sql
-	selector.Select(selector.Columns(cs.fields...)...)
-	return selector
 }

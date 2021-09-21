@@ -90,7 +90,6 @@ func (dr *DeviceRequest) assignValues(columns []string, values []interface{}) er
 				dr.ClientSecret = value.String
 			}
 		case devicerequest.FieldScopes:
-
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field scopes", values[i])
 			} else if value != nil && len(*value) > 0 {

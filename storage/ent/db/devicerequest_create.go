@@ -82,11 +82,17 @@ func (drc *DeviceRequestCreate) Save(ctx context.Context) (*DeviceRequest, error
 				return nil, err
 			}
 			drc.mutation = mutation
-			node, err = drc.sqlSave(ctx)
+			if node, err = drc.sqlSave(ctx); err != nil {
+				return nil, err
+			}
+			mutation.id = &node.ID
 			mutation.done = true
 			return node, err
 		})
 		for i := len(drc.hooks) - 1; i >= 0; i-- {
+			if drc.hooks[i] == nil {
+				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = drc.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, drc.mutation); err != nil {
@@ -105,42 +111,55 @@ func (drc *DeviceRequestCreate) SaveX(ctx context.Context) *DeviceRequest {
 	return v
 }
 
+// Exec executes the query.
+func (drc *DeviceRequestCreate) Exec(ctx context.Context) error {
+	_, err := drc.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (drc *DeviceRequestCreate) ExecX(ctx context.Context) {
+	if err := drc.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
 // check runs all checks and user-defined validators on the builder.
 func (drc *DeviceRequestCreate) check() error {
 	if _, ok := drc.mutation.UserCode(); !ok {
-		return &ValidationError{Name: "user_code", err: errors.New("db: missing required field \"user_code\"")}
+		return &ValidationError{Name: "user_code", err: errors.New(`db: missing required field "user_code"`)}
 	}
 	if v, ok := drc.mutation.UserCode(); ok {
 		if err := devicerequest.UserCodeValidator(v); err != nil {
-			return &ValidationError{Name: "user_code", err: fmt.Errorf("db: validator failed for field \"user_code\": %w", err)}
+			return &ValidationError{Name: "user_code", err: fmt.Errorf(`db: validator failed for field "user_code": %w`, err)}
 		}
 	}
 	if _, ok := drc.mutation.DeviceCode(); !ok {
-		return &ValidationError{Name: "device_code", err: errors.New("db: missing required field \"device_code\"")}
+		return &ValidationError{Name: "device_code", err: errors.New(`db: missing required field "device_code"`)}
 	}
 	if v, ok := drc.mutation.DeviceCode(); ok {
 		if err := devicerequest.DeviceCodeValidator(v); err != nil {
-			return &ValidationError{Name: "device_code", err: fmt.Errorf("db: validator failed for field \"device_code\": %w", err)}
+			return &ValidationError{Name: "device_code", err: fmt.Errorf(`db: validator failed for field "device_code": %w`, err)}
 		}
 	}
 	if _, ok := drc.mutation.ClientID(); !ok {
-		return &ValidationError{Name: "client_id", err: errors.New("db: missing required field \"client_id\"")}
+		return &ValidationError{Name: "client_id", err: errors.New(`db: missing required field "client_id"`)}
 	}
 	if v, ok := drc.mutation.ClientID(); ok {
 		if err := devicerequest.ClientIDValidator(v); err != nil {
-			return &ValidationError{Name: "client_id", err: fmt.Errorf("db: validator failed for field \"client_id\": %w", err)}
+			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "client_id": %w`, err)}
 		}
 	}
 	if _, ok := drc.mutation.ClientSecret(); !ok {
-		return &ValidationError{Name: "client_secret", err: errors.New("db: missing required field \"client_secret\"")}
+		return &ValidationError{Name: "client_secret", err: errors.New(`db: missing required field "client_secret"`)}
 	}
 	if v, ok := drc.mutation.ClientSecret(); ok {
 		if err := devicerequest.ClientSecretValidator(v); err != nil {
-			return &ValidationError{Name: "client_secret", err: fmt.Errorf("db: validator failed for field \"client_secret\": %w", err)}
+			return &ValidationError{Name: "client_secret", err: fmt.Errorf(`db: validator failed for field "client_secret": %w`, err)}
 		}
 	}
 	if _, ok := drc.mutation.Expiry(); !ok {
-		return &ValidationError{Name: "expiry", err: errors.New("db: missing required field \"expiry\"")}
+		return &ValidationError{Name: "expiry", err: errors.New(`db: missing required field "expiry"`)}
 	}
 	return nil
 }
@@ -148,8 +167,8 @@ func (drc *DeviceRequestCreate) check() error {
 func (drc *DeviceRequestCreate) sqlSave(ctx context.Context) (*DeviceRequest, error) {
 	_node, _spec := drc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, drc.driver, _spec); err != nil {
-		if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}
@@ -248,19 +267,23 @@ func (drcb *DeviceRequestCreateBulk) Save(ctx context.Context) ([]*DeviceRequest
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, drcb.builders[i+1].mutation)
 				} else {
+					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
 					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, drcb.driver, &sqlgraph.BatchCreateSpec{Nodes: specs}); err != nil {
-						if cerr, ok := isSQLConstraintError(err); ok {
-							err = cerr
+					if err = sqlgraph.BatchCreate(ctx, drcb.driver, spec); err != nil {
+						if sqlgraph.IsConstraintError(err) {
+							err = &ConstraintError{err.Error(), err}
 						}
 					}
 				}
-				mutation.done = true
 				if err != nil {
 					return nil, err
 				}
-				id := specs[i].ID.Value.(int64)
-				nodes[i].ID = int(id)
+				mutation.id = &nodes[i].ID
+				mutation.done = true
+				if specs[i].ID.Value != nil {
+					id := specs[i].ID.Value.(int64)
+					nodes[i].ID = int(id)
+				}
 				return nodes[i], nil
 			})
 			for i := len(builder.hooks) - 1; i >= 0; i-- {
@@ -284,4 +307,17 @@ func (drcb *DeviceRequestCreateBulk) SaveX(ctx context.Context) []*DeviceRequest
 		panic(err)
 	}
 	return v
+}
+
+// Exec executes the query.
+func (drcb *DeviceRequestCreateBulk) Exec(ctx context.Context) error {
+	_, err := drcb.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (drcb *DeviceRequestCreateBulk) ExecX(ctx context.Context) {
+	if err := drcb.Exec(ctx); err != nil {
+		panic(err)
+	}
 }

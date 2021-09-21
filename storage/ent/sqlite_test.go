@@ -27,5 +27,4 @@ func newSQLiteStorage() storage.Storage {
 
 func TestSQLite3(t *testing.T) {
 	conformance.RunTests(t, newSQLiteStorage)
-	conformance.RunTransactionTests(t, newSQLiteStorage)
 }

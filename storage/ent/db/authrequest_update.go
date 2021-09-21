@@ -21,9 +21,9 @@ type AuthRequestUpdate struct {
 	mutation *AuthRequestMutation
 }
 
-// Where adds a new predicate for the AuthRequestUpdate builder.
+// Where appends a list predicates to the AuthRequestUpdate builder.
 func (aru *AuthRequestUpdate) Where(ps ...predicate.AuthRequest) *AuthRequestUpdate {
-	aru.mutation.predicates = append(aru.mutation.predicates, ps...)
+	aru.mutation.Where(ps...)
 	return aru
 }
 
@@ -214,6 +214,9 @@ func (aru *AuthRequestUpdate) Save(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(aru.hooks) - 1; i >= 0; i-- {
+			if aru.hooks[i] == nil {
+				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = aru.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, aru.mutation); err != nil {
@@ -423,8 +426,8 @@ func (aru *AuthRequestUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if n, err = sqlgraph.UpdateNodes(ctx, aru.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{authrequest.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return 0, err
 	}
@@ -633,6 +636,9 @@ func (aruo *AuthRequestUpdateOne) Save(ctx context.Context) (*AuthRequest, error
 			return node, err
 		})
 		for i := len(aruo.hooks) - 1; i >= 0; i-- {
+			if aruo.hooks[i] == nil {
+				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = aruo.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, aruo.mutation); err != nil {
@@ -862,8 +868,8 @@ func (aruo *AuthRequestUpdateOne) sqlSave(ctx context.Context) (_node *AuthReque
 	if err = sqlgraph.UpdateNode(ctx, aruo.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{authrequest.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}

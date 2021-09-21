@@ -35,6 +35,15 @@ jobs:
           - 3306
         options: --health-cmd "mysql -proot -e \"show databases;\"" --health-interval 10s --health-timeout 5s --health-retries 5
 
+      mysql-ent:
+        image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: dex
+        ports:
+          - 3306
+        options: --health-cmd "mysql -proot -e \"show databases;\"" --health-interval 10s --health-timeout 5s --health-retries 5
+
       etcd:
         image: gcr.io/etcd-development/etcd:v3.5.0
         ports:
@@ -77,24 +86,36 @@ jobs:
           DEX_MYSQL_PASSWORD: root
           DEX_MYSQL_HOST: 127.0.0.1
           DEX_MYSQL_PORT: ${{ job.services.mysql.ports[3306] }}
+
+          DEX_MYSQL_ENT_DATABASE: dex
+          DEX_MYSQL_ENT_USER: root
+          DEX_MYSQL_ENT_PASSWORD: root
+          DEX_MYSQL_ENT_HOST: 127.0.0.1
+          DEX_MYSQL_ENT_PORT: ${{ job.services.mysql-ent.ports[3306] }}
+
           DEX_POSTGRES_DATABASE: postgres
           DEX_POSTGRES_USER: postgres
           DEX_POSTGRES_PASSWORD: postgres
           DEX_POSTGRES_HOST: localhost
           DEX_POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }}
+
           DEX_POSTGRES_ENT_DATABASE: postgres
           DEX_POSTGRES_ENT_USER: postgres
           DEX_POSTGRES_ENT_PASSWORD: postgres
           DEX_POSTGRES_ENT_HOST: localhost
           DEX_POSTGRES_ENT_PORT: ${{ job.services.postgres-ent.ports[5432] }}
+
           DEX_ETCD_ENDPOINTS: http://localhost:${{ job.services.etcd.ports[2379] }}
+
           DEX_LDAP_HOST: localhost
           DEX_LDAP_PORT: 389
           DEX_LDAP_TLS_PORT: 636
+
           DEX_KEYSTONE_URL: http://localhost:${{ job.services.keystone.ports[5000] }}
           DEX_KEYSTONE_ADMIN_URL: http://localhost:${{ job.services.keystone.ports[35357] }}
           DEX_KEYSTONE_ADMIN_USER: demo
           DEX_KEYSTONE_ADMIN_PASS: DEMO_PASS
+
           DEX_KUBERNETES_CONFIG_PATH: ~/.kube/config
 
       - name: Lint
