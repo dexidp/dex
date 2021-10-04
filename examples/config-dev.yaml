@@ -73,10 +73,15 @@ telemetry:
 #   tlsClientCA: examples/grpc-client/ca.crt
 
 # Uncomment this block to enable configuration for the expiration time durations.
+# Is possible to specify units using only s, m and h suffixes.
 # expiry:
 #   deviceRequests: "5m"
 #   signingKeys: "6h"
 #   idTokens: "24h"
+#   refreshTokens:
+#     reuseInterval: "3s"
+#     validIfNotUsedFor: "2160h" # 90 days
+#     absoluteLifetime: "3960h" # 165 days
 
 # Options for controlling the logger.
 # logger:
@@ -136,7 +141,7 @@ enablePasswordDB: true
 # If this option isn't chosen users may be added through the gRPC API.
 staticPasswords:
 - email: "admin@example.com"
-  # bcrypt hash of the string "password"
+  # bcrypt hash of the string "password": $(echo password | htpasswd -BinC 10 admin | cut -d: -f2)
   hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
   username: "admin"
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"

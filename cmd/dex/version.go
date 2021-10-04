@@ -5,9 +5,9 @@ import (
 	"runtime"
 
 	"github.com/spf13/cobra"
-
-	"github.com/dexidp/dex/version"
 )
+
+var version = "DEV"
 
 func commandVersion() *cobra.Command {
 	return &cobra.Command{
@@ -16,7 +16,7 @@ func commandVersion() *cobra.Command {
 		Run: func(_ *cobra.Command, _ []string) {
 			fmt.Printf(
 				"Dex Version: %s\nGo Version: %s\nGo OS/ARCH: %s %s\n",
-				version.Version,
+				version,
 				runtime.Version(),
 				runtime.GOOS,
 				runtime.GOARCH,

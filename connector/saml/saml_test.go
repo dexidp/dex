@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
-	"io/ioutil"
+	"os"
 	"sort"
 	"testing"
 	"time"
@@ -392,7 +392,7 @@ func TestTamperedResponseNameID(t *testing.T) {
 }
 
 func loadCert(ca string) (*x509.Certificate, error) {
-	data, err := ioutil.ReadFile(ca)
+	data, err := os.ReadFile(ca)
 	if err != nil {
 		return nil, err
 	}
@@ -426,7 +426,7 @@ func (r responseTest) run(t *testing.T) {
 		t.Fatal(err)
 	}
 	conn.now = func() time.Time { return now }
-	resp, err := ioutil.ReadFile(r.respFile)
+	resp, err := os.ReadFile(r.respFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -456,11 +456,11 @@ func (r responseTest) run(t *testing.T) {
 
 func TestConfigCAData(t *testing.T) {
 	logger := logrus.New()
-	validPEM, err := ioutil.ReadFile("testdata/ca.crt")
+	validPEM, err := os.ReadFile("testdata/ca.crt")
 	if err != nil {
 		t.Fatal(err)
 	}
-	valid2ndPEM, err := ioutil.ReadFile("testdata/okta-ca.pem")
+	valid2ndPEM, err := os.ReadFile("testdata/okta-ca.pem")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -551,7 +551,7 @@ func runVerify(t *testing.T, ca string, resp string, shouldSucceed bool) {
 
 	validator := dsig.NewDefaultValidationContext(s)
 
-	data, err := ioutil.ReadFile(resp)
+	data, err := os.ReadFile(resp)
 	if err != nil {
 		t.Fatal(err)
 	}

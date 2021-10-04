@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
@@ -432,7 +431,7 @@ func (c *crowdConnector) crowdUserManagementRequest(ctx context.Context, method 
 
 // validateCrowdResponse validates unique not JSON responses from API
 func (c *crowdConnector) validateCrowdResponse(resp *http.Response) ([]byte, error) {
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("crowd: read user body: %v", err)
 	}
