@@ -2,12 +2,17 @@ run:
     timeout: 2m
 
 linters-settings:
+    depguard:
+        list-type: blacklist
+        include-go-root: true
+        packages:
+            - io/ioutil
+        packages-with-error-message:
+            - io/ioutil: "The 'io/ioutil' package is deprecated. Use corresponding 'os' or 'io' functions instead."
     gci:
         local-prefixes: github.com/dexidp/dex
     goimports:
         local-prefixes: github.com/dexidp/dex
-    golint:
-        min-confidence: 0
 
 
 linters:
@@ -15,6 +20,7 @@ linters:
     enable:
         - bodyclose
         - deadcode
+        - depguard
         - dogsled
         - exhaustive
         - exportloopref
@@ -24,7 +30,6 @@ linters:
         - gofmt
         - gofumpt
         - goimports
-        - golint
         - goprintffuncname
         - gosimple
         - govet
@@ -33,6 +38,7 @@ linters:
         - nakedret
         - nolintlint
         - prealloc
+        - revive
         - rowserrcheck
         - sqlclosecheck
         - staticcheck
@@ -66,7 +72,6 @@ linters:
         # - scopelint
 
         # unused
-        # - depguard
         # - goheader
         # - gomodguard
 

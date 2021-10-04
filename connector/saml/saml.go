@@ -8,7 +8,7 @@ import (
 	"encoding/pem"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -194,7 +194,7 @@ func (c *Config) openConnector(logger log.Logger) (*provider, error) {
 
 		var caData []byte
 		if c.CA != "" {
-			data, err := ioutil.ReadFile(c.CA)
+			data, err := os.ReadFile(c.CA)
 			if err != nil {
 				return nil, fmt.Errorf("read ca file: %v", err)
 			}

@@ -132,7 +132,8 @@ func toStorageAuthRequest(a AuthRequest) storage.AuthRequest {
 type RefreshToken struct {
 	ID string `json:"id"`
 
-	Token string `json:"token"`
+	Token         string `json:"token"`
+	ObsoleteToken string `json:"obsolete_token"`
 
 	CreatedAt time.Time `json:"created_at"`
 	LastUsed  time.Time `json:"last_used"`
@@ -152,6 +153,7 @@ func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
 	return storage.RefreshToken{
 		ID:            r.ID,
 		Token:         r.Token,
+		ObsoleteToken: r.ObsoleteToken,
 		CreatedAt:     r.CreatedAt,
 		LastUsed:      r.LastUsed,
 		ClientID:      r.ClientID,
@@ -167,6 +169,7 @@ func fromStorageRefreshToken(r storage.RefreshToken) RefreshToken {
 	return RefreshToken{
 		ID:            r.ID,
 		Token:         r.Token,
+		ObsoleteToken: r.ObsoleteToken,
 		CreatedAt:     r.CreatedAt,
 		LastUsed:      r.LastUsed,
 		ClientID:      r.ClientID,

@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
+	"io/fs"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/Masterminds/sprig/v3"
 )
 
 const (
@@ -45,7 +46,7 @@ type templates struct {
 }
 
 type webConfig struct {
-	dir       string
+	webFS     fs.FS
 	logoURL   string
 	issuer    string
 	theme     string
@@ -53,22 +54,33 @@ type webConfig struct {
 	extra     map[string]string
 }
 
-func dirExists(dir string) error {
-	stat, err := os.Stat(dir)
+func getFuncMap(c webConfig) (template.FuncMap, error) {
+	funcs := sprig.FuncMap()
+
+	issuerURL, err := url.Parse(c.issuerURL)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("directory %q does not exist", dir)
-		}
-		return fmt.Errorf("stat directory %q: %v", dir, err)
+		return nil, fmt.Errorf("error parsing issuerURL: %v", err)
 	}
-	if !stat.IsDir() {
-		return fmt.Errorf("path %q is a file not a directory", dir)
+
+	additionalFuncs := map[string]interface{}{
+		"extra":  func(k string) string { return c.extra[k] },
+		"issuer": func() string { return c.issuer },
+		"logo":   func() string { return c.logoURL },
+		"url": func(reqPath, assetPath string) string {
+			return relativeURL(issuerURL.Path, reqPath, assetPath)
+		},
 	}
-	return nil
+
+	for k, v := range additionalFuncs {
+		funcs[k] = v
+	}
+
+	return funcs, nil
 }
 
 // loadWebConfig returns static assets, theme assets, and templates used by the frontend by
-// reading the directory specified in the webConfig.
+// reading the dir specified in the webConfig. If directory is not specified it will
+// use the file system specified by webFS.
 //
 // The directory layout is expected to be:
 //
@@ -89,37 +101,29 @@ func loadWebConfig(c webConfig) (http.Handler, http.Handler, *templates, error) 
 	if c.issuer == "" {
 		c.issuer = "dex"
 	}
-	if c.dir == "" {
-		c.dir = "./web"
-	}
 	if c.logoURL == "" {
 		c.logoURL = "theme/logo.png"
 	}
 
-	if err := dirExists(c.dir); err != nil {
-		return nil, nil, nil, fmt.Errorf("load web dir: %v", err)
+	staticFiles, err := fs.Sub(c.webFS, "static")
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("read static dir: %v", err)
+	}
+	themeFiles, err := fs.Sub(c.webFS, filepath.Join("themes", c.theme))
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("read themes dir: %v", err)
 	}
 
-	staticDir := filepath.Join(c.dir, "static")
-	templatesDir := filepath.Join(c.dir, "templates")
-	themeDir := filepath.Join(c.dir, "themes", c.theme)
+	static := http.FileServer(http.FS(staticFiles))
+	theme := http.FileServer(http.FS(themeFiles))
 
-	for _, dir := range []string{staticDir, templatesDir, themeDir} {
-		if err := dirExists(dir); err != nil {
-			return nil, nil, nil, fmt.Errorf("load dir: %v", err)
-		}
-	}
-
-	static := http.FileServer(http.Dir(staticDir))
-	theme := http.FileServer(http.Dir(themeDir))
-
-	templates, err := loadTemplates(c, templatesDir)
+	templates, err := loadTemplates(c, "templates")
 	return static, theme, templates, err
 }
 
 // loadTemplates parses the expected templates from the provided directory.
 func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
-	files, err := ioutil.ReadDir(templatesDir)
+	files, err := fs.ReadDir(c.webFS, templatesDir)
 	if err != nil {
 		return nil, fmt.Errorf("read dir: %v", err)
 	}
@@ -135,20 +139,12 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		return nil, fmt.Errorf("no files in template dir %q", templatesDir)
 	}
 
-	issuerURL, err := url.Parse(c.issuerURL)
+	funcs, err := getFuncMap(c)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing issuerURL: %v", err)
+		return nil, err
 	}
 
-	funcs := map[string]interface{}{
-		"issuer": func() string { return c.issuer },
-		"logo":   func() string { return c.logoURL },
-		"url":    func(reqPath, assetPath string) string { return relativeURL(issuerURL.Path, reqPath, assetPath) },
-		"lower":  strings.ToLower,
-		"extra":  func(k string) string { return c.extra[k] },
-	}
-
-	tmpls, err := template.New("").Funcs(funcs).ParseFiles(filenames...)
+	tmpls, err := template.New("").Funcs(funcs).ParseFS(c.webFS, filenames...)
 	if err != nil {
 		return nil, fmt.Errorf("parse files: %v", err)
 	}
@@ -288,15 +284,15 @@ func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []c
 	return renderTemplate(w, t.loginTmpl, data)
 }
 
-func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid, showBacklink bool) error {
+func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid bool, backLink string) error {
 	data := struct {
 		PostURL        string
-		BackLink       bool
+		BackLink       string
 		Username       string
 		UsernamePrompt string
 		Invalid        bool
 		ReqPath        string
-	}{postURL, showBacklink, lastUsername, usernamePrompt, lastWasInvalid, r.URL.Path}
+	}{postURL, backLink, lastUsername, usernamePrompt, lastWasInvalid, r.URL.Path}
 	return renderTemplate(w, t.passwordTmpl, data)
 }
 

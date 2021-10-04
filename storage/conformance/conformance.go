@@ -324,14 +324,15 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 	id := storage.NewID()
 	refresh := storage.RefreshToken{
-		ID:          id,
-		Token:       "bar",
-		Nonce:       "foo",
-		ClientID:    "client_id",
-		ConnectorID: "client_secret",
-		Scopes:      []string{"openid", "email", "profile"},
-		CreatedAt:   time.Now().UTC().Round(time.Millisecond),
-		LastUsed:    time.Now().UTC().Round(time.Millisecond),
+		ID:            id,
+		Token:         "bar",
+		ObsoleteToken: "",
+		Nonce:         "foo",
+		ClientID:      "client_id",
+		ConnectorID:   "client_secret",
+		Scopes:        []string{"openid", "email", "profile"},
+		CreatedAt:     time.Now().UTC().Round(time.Millisecond),
+		LastUsed:      time.Now().UTC().Round(time.Millisecond),
 		Claims: storage.Claims{
 			UserID:        "1",
 			Username:      "jane",
@@ -378,14 +379,15 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 
 	id2 := storage.NewID()
 	refresh2 := storage.RefreshToken{
-		ID:          id2,
-		Token:       "bar_2",
-		Nonce:       "foo_2",
-		ClientID:    "client_id_2",
-		ConnectorID: "client_secret",
-		Scopes:      []string{"openid", "email", "profile"},
-		CreatedAt:   time.Now().UTC().Round(time.Millisecond),
-		LastUsed:    time.Now().UTC().Round(time.Millisecond),
+		ID:            id2,
+		Token:         "bar_2",
+		ObsoleteToken: refresh.Token,
+		Nonce:         "foo_2",
+		ClientID:      "client_id_2",
+		ConnectorID:   "client_secret",
+		Scopes:        []string{"openid", "email", "profile"},
+		CreatedAt:     time.Now().UTC().Round(time.Millisecond),
+		LastUsed:      time.Now().UTC().Round(time.Millisecond),
 		Claims: storage.Claims{
 			UserID:        "2",
 			Username:      "john",

@@ -7,10 +7,10 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 
-	"gopkg.in/ldap.v2"
+	"github.com/go-ldap/ldap/v3"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
@@ -257,7 +257,7 @@ func (c *Config) openConnector(logger log.Logger) (*ldapConnector, error) {
 		data := c.RootCAData
 		if len(data) == 0 {
 			var err error
-			if data, err = ioutil.ReadFile(c.RootCA); err != nil {
+			if data, err = os.ReadFile(c.RootCA); err != nil {
 				return nil, fmt.Errorf("ldap: read ca file: %v", err)
 			}
 		}
@@ -331,10 +331,11 @@ func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error 
 	defer conn.Close()
 
 	// If bindDN and bindPW are empty this will default to an anonymous bind.
-	if err := conn.Bind(c.BindDN, c.BindPW); err != nil {
-		if c.BindDN == "" && c.BindPW == "" {
+	if c.BindDN == "" && c.BindPW == "" {
+		if err := conn.UnauthenticatedBind(""); err != nil {
 			return fmt.Errorf("ldap: initial anonymous bind failed: %v", err)
 		}
+	} else if err := conn.Bind(c.BindDN, c.BindPW); err != nil {
 		return fmt.Errorf("ldap: initial bind for user %q failed: %v", c.BindDN, err)
 	}
 

@@ -5,8 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -274,7 +274,7 @@ func createDirectoryService(serviceAccountFilePath string, email string) (*admin
 	if serviceAccountFilePath == "" || email == "" {
 		return nil, fmt.Errorf("directory service requires both serviceAccountFilePath and adminEmail")
 	}
-	jsonCredentials, err := ioutil.ReadFile(serviceAccountFilePath)
+	jsonCredentials, err := os.ReadFile(serviceAccountFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading credentials from file: %v", err)
 	}

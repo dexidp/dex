@@ -6,7 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/dexidp/dex/connector"
@@ -42,8 +42,8 @@ type domainKeystone struct {
 //		config:
 //			keystoneHost: http://example:5000
 //			domain: default
-//      keystoneUsername: demo
-//      keystonePassword: DEMO_PASS
+//			keystoneUsername: demo
+//			keystonePassword: DEMO_PASS
 type Config struct {
 	Domain        string `json:"domain"`
 	Host          string `json:"keystoneHost"`
@@ -133,7 +133,7 @@ func (p *conn) Login(ctx context.Context, scopes connector.Scopes, username, pas
 		return identity, false, nil
 	}
 	token := resp.Header.Get("X-Subject-Token")
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return identity, false, err
 	}
@@ -260,7 +260,7 @@ func (p *conn) getUser(ctx context.Context, userID string, token string) (*userR
 		return nil, err
 	}
 
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -290,7 +290,7 @@ func (p *conn) getUserGroups(ctx context.Context, userID string, token string) (
 		return nil, err
 	}
 
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}

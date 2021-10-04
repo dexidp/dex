@@ -7,18 +7,18 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"path"
 	"testing"
 	"time"
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
 	"github.com/AppsFlyer/go-sundheit/checks"
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/storage"
-	"github.com/dexidp/dex/storage/memory"
 )
 
 func TestHandleHealth(t *testing.T) {
@@ -42,16 +42,16 @@ func TestHandleHealthFailure(t *testing.T) {
 	httpServer, server := newTestServer(ctx, t, func(c *Config) {
 		c.HealthChecker = gosundheit.New()
 
-		c.HealthChecker.RegisterCheck(&gosundheit.Config{
-			Check: &checks.CustomCheck{
+		c.HealthChecker.RegisterCheck(
+			&checks.CustomCheck{
 				CheckName: "fail",
-				CheckFunc: func() (details interface{}, err error) {
+				CheckFunc: func(_ context.Context) (details interface{}, err error) {
 					return nil, errors.New("error")
 				},
 			},
-			InitiallyPassing: false,
-			ExecutionPeriod:  1 * time.Second,
-		})
+			gosundheit.InitiallyPassing(false),
+			gosundheit.ExecutionPeriod(1*time.Second),
+		)
 	})
 	defer httpServer.Close()
 
@@ -129,87 +129,6 @@ func TestHandleInvalidSAMLCallbacks(t *testing.T) {
 		if rr.Code != r.ExpectedCode {
 			t.Fatalf("test %d expected %d, got %d", i, r.ExpectedCode, rr.Code)
 		}
-	}
-}
-
-func TestConnectorLoginDoesNotAllowToChangeConnectorForAuthRequest(t *testing.T) {
-	memStorage := memory.New(logger)
-
-	templates, err := loadTemplates(webConfig{}, "../web/templates")
-	if err != nil {
-		t.Fatal("failed to load templates")
-	}
-
-	s := &Server{
-		storage:                memStorage,
-		logger:                 logger,
-		templates:              templates,
-		supportedResponseTypes: map[string]bool{"code": true},
-		now:                    time.Now,
-		connectors:             make(map[string]Connector),
-	}
-
-	r := mux.NewRouter()
-	r.HandleFunc("/auth/{connector}", s.handleConnectorLogin)
-	s.mux = r
-
-	clientID := "clientID"
-	clientSecret := "secret"
-	redirectURL := "localhost:5555" + "/callback"
-	client := storage.Client{
-		ID:           clientID,
-		Secret:       clientSecret,
-		RedirectURIs: []string{redirectURL},
-	}
-	if err := memStorage.CreateClient(client); err != nil {
-		t.Fatal("failed to create client")
-	}
-
-	createConnector := func(t *testing.T, id string) storage.Connector {
-		connector := storage.Connector{
-			ID:              id,
-			Type:            "mockCallback",
-			Name:            "Mock",
-			ResourceVersion: "1",
-		}
-		if err := memStorage.CreateConnector(connector); err != nil {
-			t.Fatalf("failed to create connector %v", id)
-		}
-
-		return connector
-	}
-
-	connector1 := createConnector(t, "mock1")
-	connector2 := createConnector(t, "mock2")
-
-	authReq := storage.AuthRequest{
-		ID: storage.NewID(),
-	}
-	if err := memStorage.CreateAuthRequest(authReq); err != nil {
-		t.Fatal("failed to create auth request")
-	}
-
-	createConnectorLoginRequest := func(connID string) *http.Request {
-		req := httptest.NewRequest("GET", "/auth/"+connID, nil)
-		q := req.URL.Query()
-		q.Add("req", authReq.ID)
-		q.Add("redirect_uri", redirectURL)
-		q.Add("scope", "openid")
-		q.Add("response_type", "code")
-		req.URL.RawQuery = q.Encode()
-		return req
-	}
-
-	recorder := httptest.NewRecorder()
-	s.ServeHTTP(recorder, createConnectorLoginRequest(connector1.ID))
-	if recorder.Code != 302 {
-		t.Fatal("failed to process request")
-	}
-
-	recorder2 := httptest.NewRecorder()
-	s.ServeHTTP(recorder2, createConnectorLoginRequest(connector2.ID))
-	if recorder2.Code != 500 {
-		t.Error("attempt to overwrite connector on auth request should fail")
 	}
 }
 
@@ -309,4 +228,76 @@ func TestHandleAuthCode(t *testing.T) {
 			resp.Body.Close()
 		})
 	}
+}
+
+func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
+	c := storage.Client{
+		ID:           "test",
+		Secret:       "barfoo",
+		RedirectURIs: []string{"foo://bar.com/", "https://auth.example.com"},
+		Name:         "dex client",
+		LogoURL:      "https://goo.gl/JIyzIC",
+	}
+
+	err := s.CreateClient(c)
+	require.NoError(t, err)
+
+	c1 := storage.Connector{
+		ID:   "test",
+		Type: "mockPassword",
+		Name: "mockPassword",
+		Config: []byte(`{
+"username": "test",
+"password": "test"
+}`),
+	}
+
+	err = s.CreateConnector(c1)
+	require.NoError(t, err)
+}
+
+func TestPasswordConnectorDataNotEmpty(t *testing.T) {
+	t0 := time.Now()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Setup a dex server.
+	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+		c.PasswordConnector = "test"
+		c.Now = func() time.Time { return t0 }
+	})
+	defer httpServer.Close()
+
+	mockConnectorDataTestStorage(t, s.storage)
+
+	u, err := url.Parse(s.issuerURL.String())
+	require.NoError(t, err)
+
+	u.Path = path.Join(u.Path, "/token")
+	v := url.Values{}
+	v.Add("scope", "openid offline_access email")
+	v.Add("grant_type", "password")
+	v.Add("username", "test")
+	v.Add("password", "test")
+
+	req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
+	req.SetBasicAuth("test", "barfoo")
+
+	rr := httptest.NewRecorder()
+	s.ServeHTTP(rr, req)
+
+	require.Equal(t, 200, rr.Code)
+
+	// Check that we received expected refresh token
+	var ref struct {
+		Token string `json:"refresh_token"`
+	}
+	err = json.Unmarshal(rr.Body.Bytes(), &ref)
+	require.NoError(t, err)
+
+	newSess, err := s.storage.GetOfflineSessions("0-385-28089-0", "test")
+	require.NoError(t, err)
+	require.Equal(t, `{"test": "true"}`, string(newSess.ConnectorData))
 }

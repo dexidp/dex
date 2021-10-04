@@ -5,8 +5,8 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -242,6 +242,10 @@ func (s *MySQL) open(logger log.Logger) (*conn, error) {
 		if s.Host[0] != '/' {
 			cfg.Net = "tcp"
 			cfg.Addr = s.Host
+
+			if s.Port != 0 {
+				cfg.Addr = net.JoinHostPort(s.Host, strconv.Itoa(int(s.Port)))
+			}
 		} else {
 			cfg.Net = "unix"
 			cfg.Addr = s.Host
@@ -316,7 +320,7 @@ func (s *MySQL) makeTLSConfig() error {
 	cfg := &tls.Config{}
 	if s.SSL.CAFile != "" {
 		rootCertPool := x509.NewCertPool()
-		pem, err := ioutil.ReadFile(s.SSL.CAFile)
+		pem, err := os.ReadFile(s.SSL.CAFile)
 		if err != nil {
 			return err
 		}
