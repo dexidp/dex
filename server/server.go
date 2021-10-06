@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -225,6 +226,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	if c.PasswordConnector != "" {
 		supportedGrant = append(supportedGrant, grantTypePassword)
 	}
+	sort.Strings(supportedGrant)
 
 	webFS := web.FS()
 	if c.Web.Dir != "" {

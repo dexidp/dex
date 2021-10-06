@@ -110,7 +110,6 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 	sort.Strings(d.ResponseTypes)
 
 	d.GrantTypes = s.supportedGrantTypes
-	sort.Strings(d.GrantTypes)
 
 	data, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
