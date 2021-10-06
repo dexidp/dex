@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/url"
 	"path"
@@ -174,7 +175,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 			ID:   conn.ID,
 			Name: conn.Name,
 			Type: conn.Type,
-			URL:  connURL.String(),
+			URL:  template.URL(connURL.String()),
 		}
 	}
 
