@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/Masterminds/sprig/v3"
 )
 
 const (
@@ -50,6 +52,30 @@ type webConfig struct {
 	theme     string
 	issuerURL string
 	extra     map[string]string
+}
+
+func getFuncMap(c webConfig) (template.FuncMap, error) {
+	funcs := sprig.FuncMap()
+
+	issuerURL, err := url.Parse(c.issuerURL)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing issuerURL: %v", err)
+	}
+
+	additionalFuncs := map[string]interface{}{
+		"extra":  func(k string) string { return c.extra[k] },
+		"issuer": func() string { return c.issuer },
+		"logo":   func() string { return c.logoURL },
+		"url": func(reqPath, assetPath string) string {
+			return relativeURL(issuerURL.Path, reqPath, assetPath)
+		},
+	}
+
+	for k, v := range additionalFuncs {
+		funcs[k] = v
+	}
+
+	return funcs, nil
 }
 
 // loadWebConfig returns static assets, theme assets, and templates used by the frontend by
@@ -113,17 +139,9 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		return nil, fmt.Errorf("no files in template dir %q", templatesDir)
 	}
 
-	issuerURL, err := url.Parse(c.issuerURL)
+	funcs, err := getFuncMap(c)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing issuerURL: %v", err)
-	}
-
-	funcs := map[string]interface{}{
-		"issuer": func() string { return c.issuer },
-		"logo":   func() string { return c.logoURL },
-		"url":    func(reqPath, assetPath string) string { return relativeURL(issuerURL.Path, reqPath, assetPath) },
-		"lower":  strings.ToLower,
-		"extra":  func(k string) string { return c.extra[k] },
+		return nil, err
 	}
 
 	tmpls, err := template.New("").Funcs(funcs).ParseFS(c.webFS, filenames...)
@@ -266,15 +284,15 @@ func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []c
 	return renderTemplate(w, t.loginTmpl, data)
 }
 
-func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid, showBacklink bool) error {
+func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid bool, backLink string) error {
 	data := struct {
 		PostURL        string
-		BackLink       bool
+		BackLink       string
 		Username       string
 		UsernamePrompt string
 		Invalid        bool
 		ReqPath        string
-	}{postURL, showBacklink, lastUsername, usernamePrompt, lastWasInvalid, r.URL.Path}
+	}{postURL, backLink, lastUsername, usernamePrompt, lastWasInvalid, r.URL.Path}
 	return renderTemplate(w, t.passwordTmpl, data)
 }
 

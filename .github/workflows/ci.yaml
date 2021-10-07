@@ -20,17 +20,23 @@ jobs:
           - 5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
+      postgres-ent:
+        image: postgres:10.8
+        ports:
+          - 5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
       mysql:
         image: mysql:5.7
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: dex
         ports:
-          - 3306:3306
+          - 3306
         options: --health-cmd "mysql -proot -e \"show databases;\"" --health-interval 10s --health-timeout 5s --health-retries 5
 
       etcd:
-        image: gcr.io/etcd-development/etcd:v3.2.9
+        image: gcr.io/etcd-development/etcd:v3.5.0
         ports:
           - 2379
         env:
@@ -57,6 +63,12 @@ jobs:
       - name: Start services
         run: docker-compose -f docker-compose.test.yaml up -d
 
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.2.0
+        with:
+          version: v0.11.1
+          node_image: kindest/node:v1.19.11@sha256:07db187ae84b4b7de440a73886f008cf903fcf5764ba8106a9fd5243d6f32729
+
       - name: Test
         run: make testall
         env:
@@ -64,12 +76,17 @@ jobs:
           DEX_MYSQL_USER: root
           DEX_MYSQL_PASSWORD: root
           DEX_MYSQL_HOST: 127.0.0.1
-          DEX_MYSQL_PORT: 3306
+          DEX_MYSQL_PORT: ${{ job.services.mysql.ports[3306] }}
           DEX_POSTGRES_DATABASE: postgres
           DEX_POSTGRES_USER: postgres
           DEX_POSTGRES_PASSWORD: postgres
           DEX_POSTGRES_HOST: localhost
           DEX_POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }}
+          DEX_POSTGRES_ENT_DATABASE: postgres
+          DEX_POSTGRES_ENT_USER: postgres
+          DEX_POSTGRES_ENT_PASSWORD: postgres
+          DEX_POSTGRES_ENT_HOST: localhost
+          DEX_POSTGRES_ENT_PORT: ${{ job.services.postgres-ent.ports[5432] }}
           DEX_ETCD_ENDPOINTS: http://localhost:${{ job.services.etcd.ports[2379] }}
           DEX_LDAP_HOST: localhost
           DEX_LDAP_PORT: 389
@@ -78,6 +95,7 @@ jobs:
           DEX_KEYSTONE_ADMIN_URL: http://localhost:${{ job.services.keystone.ports[35357] }}
           DEX_KEYSTONE_ADMIN_USER: demo
           DEX_KEYSTONE_ADMIN_PASS: DEMO_PASS
+          DEX_KUBERNETES_CONFIG_PATH: ~/.kube/config
 
       - name: Lint
         run: make lint

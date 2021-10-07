@@ -285,16 +285,16 @@ func (c *conn) CreateRefresh(r storage.RefreshToken) error {
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
-			token, created_at, last_used
+			token, obsolete_token, created_at, last_used
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16);
 	`,
 		r.ID, r.ClientID, encoder(r.Scopes), r.Nonce,
 		r.Claims.UserID, r.Claims.Username, r.Claims.PreferredUsername,
 		r.Claims.Email, r.Claims.EmailVerified,
 		encoder(r.Claims.Groups),
 		r.ConnectorID, r.ConnectorData,
-		r.Token, r.CreatedAt, r.LastUsed,
+		r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -329,17 +329,18 @@ func (c *conn) UpdateRefreshToken(id string, updater func(old storage.RefreshTok
 				connector_id = $10,
 				connector_data = $11,
 				token = $12,
-				created_at = $13,
-				last_used = $14
+                obsolete_token = $13,
+				created_at = $14,
+				last_used = $15
 			where
-				id = $15
+				id = $16
 		`,
 			r.ClientID, encoder(r.Scopes), r.Nonce,
 			r.Claims.UserID, r.Claims.Username, r.Claims.PreferredUsername,
 			r.Claims.Email, r.Claims.EmailVerified,
 			encoder(r.Claims.Groups),
 			r.ConnectorID, r.ConnectorData,
-			r.Token, r.CreatedAt, r.LastUsed, id,
+			r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed, id,
 		)
 		if err != nil {
 			return fmt.Errorf("update refresh token: %v", err)
@@ -360,7 +361,7 @@ func getRefresh(q querier, id string) (storage.RefreshToken, error) {
 			claims_email, claims_email_verified,
 			claims_groups,
 			connector_id, connector_data,
-			token, created_at, last_used
+			token, obsolete_token, created_at, last_used
 		from refresh_token where id = $1;
 	`, id))
 }
@@ -372,7 +373,7 @@ func (c *conn) ListRefreshTokens() ([]storage.RefreshToken, error) {
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
-			token, created_at, last_used
+			token, obsolete_token, created_at, last_used
 		from refresh_token;
 	`)
 	if err != nil {
@@ -401,7 +402,7 @@ func scanRefresh(s scanner) (r storage.RefreshToken, err error) {
 		&r.Claims.Email, &r.Claims.EmailVerified,
 		decoder(&r.Claims.Groups),
 		&r.ConnectorID, &r.ConnectorData,
-		&r.Token, &r.CreatedAt, &r.LastUsed,
+		&r.Token, &r.ObsoleteToken, &r.CreatedAt, &r.LastUsed,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {

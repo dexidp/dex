@@ -1,13 +1,14 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
 
 // NewCustomHealthCheckFunc returns a new health check function.
-func NewCustomHealthCheckFunc(s Storage, now func() time.Time) func() (details interface{}, err error) {
-	return func() (details interface{}, err error) {
+func NewCustomHealthCheckFunc(s Storage, now func() time.Time) func(context.Context) (details interface{}, err error) {
+	return func(_ context.Context) (details interface{}, err error) {
 		a := AuthRequest{
 			ID:       NewID(),
 			ClientID: NewID(),

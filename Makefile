@@ -17,16 +17,23 @@ group=$(shell id -g -n)
 
 export GOBIN=$(PWD)/bin
 
-LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
+LD_FLAGS="-w -X main.version=$(VERSION)"
 
 # Dependency versions
-GOLANGCI_VERSION = 1.32.2
+GOLANGCI_VERSION = 1.40.1
 
 PROTOC_VERSION = 3.15.6
 PROTOC_GEN_GO_VERSION = 1.26.0
 PROTOC_GEN_GO_GRPC_VERSION = 1.1.0
 
-build: bin/dex
+KIND_NODE_IMAGE = "kindest/node:v1.19.11@sha256:07db187ae84b4b7de440a73886f008cf903fcf5764ba8106a9fd5243d6f32729"
+KIND_TMP_DIR = "$(PWD)/bin/test/dex-kind-kubeconfig"
+
+.PHONY: generate
+generate:
+	@go generate $(REPO_PATH)/storage/ent/
+
+build: generate bin/dex
 
 bin/dex:
 	@mkdir -p bin/
@@ -43,7 +50,7 @@ bin/example-app:
 	@cd examples/ && go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/example-app
 
 .PHONY: release-binary
-release-binary:
+release-binary: generate
 	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
 docker-compose.override.yaml:
@@ -58,24 +65,23 @@ up: docker-compose.override.yaml ## Launch the development environment
 down: clear ## Destroy the development environment
 	docker-compose down --volumes --remove-orphans --rmi local
 
-test: bin/test/kube-apiserver bin/test/etcd
+test:
 	@go test -v ./...
 
-testrace: bin/test/kube-apiserver bin/test/etcd
+testrace:
 	@go test -v --race ./...
 
-export TEST_ASSET_KUBE_APISERVER=$(abspath bin/test/kube-apiserver)
-export TEST_ASSET_ETCD=$(abspath bin/test/etcd)
-
-bin/test/kube-apiserver:
+.PHONY: kind-up kind-down kind-tests
+kind-up:
 	@mkdir -p bin/test
-	curl -L https://storage.googleapis.com/k8s-c10s-test-binaries/kube-apiserver-$(shell uname)-x86_64 > bin/test/kube-apiserver
-	chmod +x bin/test/kube-apiserver
+	@kind create cluster --image ${KIND_NODE_IMAGE} --kubeconfig ${KIND_TMP_DIR}
 
-bin/test/etcd:
-	@mkdir -p bin/test
-	curl -L https://storage.googleapis.com/k8s-c10s-test-binaries/etcd-$(shell uname)-x86_64 > bin/test/etcd
-	chmod +x bin/test/etcd
+kind-down:
+	@kind delete cluster
+	rm ${KIND_TMP_DIR}
+
+kind-tests: export DEX_KUBERNETES_CONFIG_PATH=${KIND_TMP_DIR}
+kind-tests: testall
 
 bin/golangci-lint: bin/golangci-lint-${GOLANGCI_VERSION}
 	@ln -sf golangci-lint-${GOLANGCI_VERSION} bin/golangci-lint
@@ -83,7 +89,7 @@ bin/golangci-lint-${GOLANGCI_VERSION}:
 	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | BINARY=golangci-lint bash -s -- v${GOLANGCI_VERSION}
 	@mv bin/golangci-lint $@
 
-.PHONY: lint
+.PHONY: lint lint-fix
 lint: bin/golangci-lint ## Run linter
 	bin/golangci-lint run
 

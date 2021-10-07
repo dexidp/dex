@@ -274,4 +274,11 @@ var migrations = []migration{
 				add column code_challenge_method text not null default '';`,
 		},
 	},
+	{
+		stmts: []string{
+			`
+			alter table refresh_token
+				add column obsolete_token text default '';`,
+		},
+	},
 }

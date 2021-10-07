@@ -84,8 +84,15 @@ type Config struct {
 	IDTokensValidFor       time.Duration // Defaults to 24 hours
 	AuthRequestsValidFor   time.Duration // Defaults to 24 hours
 	DeviceRequestsValidFor time.Duration // Defaults to 5 minutes
+
+	// Refresh token expiration settings
+	RefreshTokenPolicy *RefreshTokenPolicy
+
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
+
+	// If enabled, add connector ID as prefix for groups from auth response.
+	OIDCGroupsPrefix bool
 
 	GCFrequency time.Duration // Defaults to 5 minutes
 
@@ -163,6 +170,9 @@ type Server struct {
 	// Used for password grant
 	passwordConnector string
 
+	// If enabled, add connector ID as prefix for groups from auth response.
+	oidcGroupsPrefix bool
+
 	supportedResponseTypes map[string]bool
 
 	now func() time.Time
@@ -170,6 +180,8 @@ type Server struct {
 	idTokensValidFor       time.Duration
 	authRequestsValidFor   time.Duration
 	deviceRequestsValidFor time.Duration
+
+	refreshTokenPolicy *RefreshTokenPolicy
 
 	logger log.Logger
 }
@@ -198,6 +210,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	if c.Storage == nil {
 		return nil, errors.New("server: storage cannot be nil")
 	}
+
 	if len(c.SupportedResponseTypes) == 0 {
 		c.SupportedResponseTypes = []string{responseTypeCode}
 	}
@@ -246,10 +259,12 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
 		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
 		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
+		refreshTokenPolicy:     c.RefreshTokenPolicy,
 		skipApproval:           c.SkipApprovalScreen,
 		alwaysShowLogin:        c.AlwaysShowLoginScreen,
 		now:                    now,
 		templates:              tmpls,
+		oidcGroupsPrefix:       c.OIDCGroupsPrefix,
 		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
 	}
@@ -333,10 +348,12 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS("/userinfo", s.handleUserInfo)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
+	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)
 	handleFunc("/device", s.handleDeviceExchange)
 	handleFunc("/device/auth/verify_code", s.verifyUserCode)
 	handleFunc("/device/code", s.handleDeviceCode)
-	handleFunc("/device/token", s.handleDeviceToken)
+	// TODO(nabokihms): "/device/token" endpoint is deprecated, consider using /token endpoint instead
+	handleFunc("/device/token", s.handleDeviceTokenDeprecated)
 	handleFunc(deviceCallbackURI, s.handleDeviceCallback)
 	r.HandleFunc(path.Join(issuerURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on

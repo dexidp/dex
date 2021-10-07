@@ -1,4 +1,4 @@
-FROM golang:1.16.3-alpine3.13 AS builder
+FROM golang:1.16.6-alpine3.13 AS builder
 
 WORKDIR /usr/local/src/dex
 
@@ -20,7 +20,7 @@ COPY . .
 
 RUN make release-binary
 
-FROM alpine:3.13.5 AS gomplate
+FROM alpine:3.14.0 AS gomplate
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -33,7 +33,7 @@ RUN wget -O /usr/local/bin/gomplate \
   && chmod +x /usr/local/bin/gomplate
 
 
-FROM alpine:3.13.5
+FROM alpine:3.14.0
 
 # Dex connectors, such as GitHub and Google logins require root certificates.
 # Proper installations should manage those certificates, but it's a bad user

@@ -21,6 +21,7 @@ import (
 	grpcprometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -101,12 +102,12 @@ func runServe(options serveOptions) error {
 	logger.Infof("config issuer: %s", c.Issuer)
 
 	prometheusRegistry := prometheus.NewRegistry()
-	err = prometheusRegistry.Register(prometheus.NewGoCollector())
+	err = prometheusRegistry.Register(collectors.NewGoCollector())
 	if err != nil {
 		return fmt.Errorf("failed to register Go runtime metrics: %v", err)
 	}
 
-	err = prometheusRegistry.Register(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+	err = prometheusRegistry.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	if err != nil {
 		return fmt.Errorf("failed to register process metrics: %v", err)
 	}
@@ -240,6 +241,9 @@ func runServe(options serveOptions) error {
 
 	s = storage.WithStaticConnectors(s, storageConnectors)
 
+	if c.OIDCGroupsPrefix {
+		logger.Infof("config using connector ID as oidc groups prefix")
+	}
 	if len(c.OAuth2.ResponseTypes) > 0 {
 		logger.Infof("config response types accepted: %s", c.OAuth2.ResponseTypes)
 	}
@@ -263,6 +267,7 @@ func runServe(options serveOptions) error {
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
 		PasswordConnector:      c.OAuth2.PasswordConnector,
+		OIDCGroupsPrefix:       c.OIDCGroupsPrefix,
 		AllowedOrigins:         c.Web.AllowedOrigins,
 		Issuer:                 c.Issuer,
 		Storage:                s,
@@ -304,6 +309,18 @@ func runServe(options serveOptions) error {
 		logger.Infof("config device requests valid for: %v", deviceRequests)
 		serverConfig.DeviceRequestsValidFor = deviceRequests
 	}
+	refreshTokenPolicy, err := server.NewRefreshTokenPolicy(
+		logger,
+		c.Expiry.RefreshTokens.DisableRotation,
+		c.Expiry.RefreshTokens.ValidIfNotUsedFor,
+		c.Expiry.RefreshTokens.AbsoluteLifetime,
+		c.Expiry.RefreshTokens.ReuseInterval,
+	)
+	if err != nil {
+		return fmt.Errorf("invalid refresh token expiration policy config: %v", err)
+	}
+
+	serverConfig.RefreshTokenPolicy = refreshTokenPolicy
 	serv, err := server.NewServer(context.Background(), serverConfig)
 	if err != nil {
 		return fmt.Errorf("failed to initialize server: %v", err)
@@ -324,14 +341,14 @@ func runServe(options serveOptions) error {
 		telemetryRouter.Handle("/healthz/ready", handler)
 	}
 
-	healthChecker.RegisterCheck(&gosundheit.Config{
-		Check: &checks.CustomCheck{
+	healthChecker.RegisterCheck(
+		&checks.CustomCheck{
 			CheckName: "storage",
 			CheckFunc: storage.NewCustomHealthCheckFunc(serverConfig.Storage, serverConfig.Now),
 		},
-		ExecutionPeriod:  15 * time.Second,
-		InitiallyPassing: true,
-	})
+		gosundheit.ExecutionPeriod(15*time.Second),
+		gosundheit.InitiallyPassing(true),
+	)
 
 	var group run.Group
 
@@ -437,7 +454,7 @@ func runServe(options serveOptions) error {
 		}
 
 		grpcSrv := grpc.NewServer(grpcOptions...)
-		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger))
+		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger, version))
 
 		grpcMetrics.InitializeMetrics(grpcSrv)
 		if c.GRPC.Reflection {
