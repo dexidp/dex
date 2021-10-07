@@ -33,6 +33,9 @@ type Config struct {
 
 	Frontend server.WebConfig `json:"frontend"`
 
+	// If enabled, add connector ID as prefix for groups from auth response.
+	OIDCGroupsPrefix bool `json:"oidcGroupsPrefix,omitempty"`
+
 	// StaticConnectors are user defined connectors specified in the ConfigMap
 	// Write operations, like updating a connector, will fail.
 	StaticConnectors []Connector `json:"connectors"`
