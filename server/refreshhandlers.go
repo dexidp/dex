@@ -190,6 +190,19 @@ func (s *Server) refreshWithConnector(ctx context.Context, token *internal.Refre
 		ident = newIdent
 	}
 
+	{
+		var oidcGroups []string
+		if s.oidcGroupsPrefix {
+			prefix := refresh.ConnectorID
+
+			for _, group := range ident.Groups {
+				prefixedGroup := fmt.Sprintf("%s:%s", prefix, group)
+				oidcGroups = append(oidcGroups, prefixedGroup)
+			}
+			ident.Groups = oidcGroups
+		}
+	}
+
 	return ident, nil
 }
 
