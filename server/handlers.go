@@ -442,6 +442,19 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	{
+		var oidcGroups []string
+		if s.oidcGroupsPrefix {
+			prefix := authReq.ConnectorID
+
+			for _, group := range identity.Groups {
+				prefixedGroup := fmt.Sprintf("%s:%s", prefix, group)
+				oidcGroups = append(oidcGroups, prefixedGroup)
+			}
+			identity.Groups = oidcGroups
+		}
+	}
+
 	redirectURL, err := s.finalizeLogin(identity, authReq, conn.Connector)
 	if err != nil {
 		s.logger.Errorf("Failed to finalize login: %v", err)
