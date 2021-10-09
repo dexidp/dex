@@ -241,6 +241,9 @@ func runServe(options serveOptions) error {
 
 	s = storage.WithStaticConnectors(s, storageConnectors)
 
+	if c.OIDCGroupsPrefix {
+		logger.Infof("config using connector ID as oidc groups prefix")
+	}
 	if len(c.OAuth2.ResponseTypes) > 0 {
 		logger.Infof("config response types accepted: %s", c.OAuth2.ResponseTypes)
 	}
@@ -264,6 +267,7 @@ func runServe(options serveOptions) error {
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
 		PasswordConnector:      c.OAuth2.PasswordConnector,
+		OIDCGroupsPrefix:       c.OIDCGroupsPrefix,
 		AllowedOrigins:         c.Web.AllowedOrigins,
 		Issuer:                 c.Issuer,
 		Storage:                s,
