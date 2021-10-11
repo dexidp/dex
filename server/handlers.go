@@ -441,6 +441,10 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	/*
+	 * Giant Swarm custom code to inject connector prefix in the group names, so it enables us
+	 * to use dex in shared installations
+	 */
 	if s.oidcGroupsPrefix {
 		var oidcGroups []string
 
@@ -451,6 +455,9 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		}
 		identity.Groups = oidcGroups
 	}
+	/*
+	 * END custom code
+	 */
 
 	redirectURL, err := s.finalizeLogin(identity, authReq, conn.Connector)
 	if err != nil {
