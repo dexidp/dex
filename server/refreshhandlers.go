@@ -227,16 +227,13 @@ func (s *Server) updateRefreshToken(token *internal.RefreshToken, refresh *stora
 
 	lastUsed := s.now()
 
-	rerr := s.updateOfflineSession(refresh, ident, lastUsed)
-	if rerr != nil {
-		return nil, rerr
-	}
-
 	refreshTokenUpdater := func(old storage.RefreshToken) (storage.RefreshToken, error) {
 		if s.refreshTokenPolicy.RotationEnabled() {
 			if old.Token != token.Token {
 				if s.refreshTokenPolicy.AllowedToReuse(old.LastUsed) && old.ObsoleteToken == token.Token {
 					newToken.Token = old.Token
+					// Do not update last used time for offline session if token is allowed to be reused
+					lastUsed = old.LastUsed
 					return old, nil
 				}
 				return old, errors.New("refresh token claimed twice")
@@ -266,6 +263,11 @@ func (s *Server) updateRefreshToken(token *internal.RefreshToken, refresh *stora
 	if err != nil {
 		s.logger.Errorf("failed to update refresh token: %v", err)
 		return nil, newInternalServerError()
+	}
+
+	rerr := s.updateOfflineSession(refresh, ident, lastUsed)
+	if rerr != nil {
+		return nil, rerr
 	}
 
 	return newToken, nil
