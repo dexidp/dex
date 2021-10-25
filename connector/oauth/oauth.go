@@ -247,6 +247,9 @@ func (c *oauthConnector) addGroupsFromMap(groups map[string]struct{}, result map
 		if groupString, ok := group.(string); ok {
 			groups[groupString] = struct{}{}
 		}
+		if groupMap, ok := group.(map[string]interface{}); ok {
+			groups[groupMap["name"]] = true
+		}
 	}
 
 	return nil
