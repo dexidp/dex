@@ -298,6 +298,13 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 
+	// Giant Swarm's custom group name prefixing
+	if s.oidcGroupsPrefix {
+		for idx, group := range ident.Groups {
+			ident.Groups[idx] = fmt.Sprintf("%s:%s", refresh.ConnectorID, group)
+		}
+	}
+
 	claims := storage.Claims{
 		UserID:            ident.UserID,
 		Username:          ident.Username,
