@@ -114,7 +114,7 @@ type Config struct {
 		// * "sub" - search the whole sub tree
 		// * "one" - only search one level
 		Scope string `json:"scope"`
-		
+
 		// Can be:
 		// * "never"
 		// * "searching"
@@ -143,7 +143,7 @@ type Config struct {
 		Filter string `json:"filter"`
 
 		Scope string `json:"scope"` // Defaults to "sub"
-		
+
 		// Can be:
 		// * "never"
 		// * "searching"
@@ -208,7 +208,7 @@ func derefString(i int) string {
 	case ldap.DerefFindingBaseObj:
 		return "finding"
 	case ldap.DerefAlways:
-		return "always"	
+		return "always"
 	default:
 		return ""
 	}
@@ -487,7 +487,7 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 	}
 
 	c.logger.Infof("performing ldap search %s %s %s %s",
-				   req.BaseDN, scopeString(req.Scope), derefString(req.Deref), req.Filter)
+				   req.BaseDN, scopeString(req.Scope), derefString(req.DerefAliases), req.Filter)
 	resp, err := conn.Search(req)
 	if err != nil {
 		return ldap.Entry{}, false, fmt.Errorf("ldap: search with filter %q failed: %v", req.Filter, err)
@@ -649,7 +649,7 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 			gotGroups := false
 			if err := c.do(ctx, func(conn *ldap.Conn) error {
 				c.logger.Infof("performing ldap search %s %s %s %s",
-							   req.BaseDN, scopeString(req.Scope), derefString(req.Deref), req.Filter)
+							   req.BaseDN, scopeString(req.Scope), derefString(req.DerefAliases), req.Filter)
 				resp, err := conn.Search(req)
 				if err != nil {
 					return fmt.Errorf("ldap: search failed: %v", err)
