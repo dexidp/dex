@@ -284,6 +284,10 @@ func (c *Config) openConnector(logger log.Logger) (*ldapConnector, error) {
 		}
 	}
 
+	if c.UserSearch.EmailAttr == "" && c.UserSearch.EmailSuffix == "" {
+		return nil, fmt.Errorf("ldap: either emailAttr or emailSuffix must be provided")
+	}
+
 	var (
 		host string
 		err  error
