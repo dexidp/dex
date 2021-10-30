@@ -197,8 +197,13 @@ func (s *Server) refreshWithConnector(ctx context.Context, token *internal.Refre
 func (s *Server) updateOfflineSession(refresh *storage.RefreshToken, ident connector.Identity, lastUsed time.Time) *refreshError {
 	offlineSessionUpdater := func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 		if old.Refresh[refresh.ClientID].ID != refresh.ID {
+			// For multiple tokens only latest one is referred in offline session
+			if s.refreshTokenPolicy.allowMultiple {
+				return old, nil
+			}
 			return old, errors.New("refresh token invalid")
 		}
+
 		old.Refresh[refresh.ClientID].LastUsed = lastUsed
 		old.ConnectorData = ident.ConnectorData
 		return old, nil
