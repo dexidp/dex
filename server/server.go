@@ -343,31 +343,41 @@ func (s *Server) absURL(pathItems ...string) string {
 	return u.String()
 }
 
-func newPasswordDB(s storage.Storage) interface {
+func newPasswordDB(s storage.Storage, l log.Logger) interface {
 	connector.Connector
 	connector.PasswordConnector
 } {
-	return passwordDB{s}
+	return passwordDB{s, l}
 }
 
 type passwordDB struct {
 	s storage.Storage
+	l log.Logger
 }
 
-func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, password string) (connector.Identity, bool, error) {
-	p, err := db.s.GetPassword(email)
+func (db passwordDB) Login(ctx context.Context, s connector.Scopes, username, password string) (connector.Identity, bool, error) {
+	remote := ctx.Value("remote").(string)
+	p, err := db.s.GetPassword(username)
 	if err != nil {
 		if err != storage.ErrNotFound {
+			db.l.Errorf("Login error in local password connector while getting password to compare against: %v", err)
 			return connector.Identity{}, false, fmt.Errorf("get password: %v", err)
+		} else {
+			db.l.Errorf("Login username not found in local password connector for username: %s from remote endpoint: %s",
+				        username, remote)
+			return connector.Identity{}, false, nil
 		}
-		return connector.Identity{}, false, nil
 	}
 	// This check prevents dex users from logging in using static passwords
 	// configured with hash costs that are too high or low.
 	if err := checkCost(p.Hash); err != nil {
+		db.l.Errorf("Login error in local password connector while checking the hash cost of the password to " +
+			        "compare against: %v", err)
 		return connector.Identity{}, false, err
 	}
 	if err := bcrypt.CompareHashAndPassword(p.Hash, []byte(password)); err != nil {
+		db.l.Errorf("Login password mismatch in local password connector for username: %s from remote endpoint: %s",
+			        username, remote)
 		return connector.Identity{}, false, nil
 	}
 	return connector.Identity{
@@ -513,7 +523,7 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 	var c connector.Connector
 
 	if conn.Type == LocalConnector {
-		c = newPasswordDB(s.storage)
+		c = newPasswordDB(s.storage, s.logger)
 	} else {
 		var err error
 		c, err = openConnector(s.logger, conn)

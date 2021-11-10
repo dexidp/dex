@@ -275,6 +275,17 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// getTrueIPAddress takes two values: the immediate remoteAddress of the connection
+// and the X-Real-IP header. Either the real ip header will be taken or the remote
+// address (which usually does not work well).
+func (s *Server) getTrueIPAddress(realIP, remoteAddress string) string {
+	if realIP != "" {
+		return realIP
+	} else {
+		return remoteAddress
+	}
+}
+
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	connID := mux.Vars(r)["connector"]
 	conn, err := s.getConnector(connID)
@@ -368,8 +379,9 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 
 		username := r.FormValue("login")
 		password := r.FormValue("password")
-
-		identity, ok, err := passwordConnector.Login(r.Context(), scopes, username, password)
+		s.logger.Info("X-Real-IP is:" + r.Header.Get("X-Real-IP"))
+		trueAddress := s.getTrueIPAddress(r.Header.Get("X-Real-IP"), r.RemoteAddr)
+		identity, ok, err := passwordConnector.Login(context.WithValue(r.Context(), "remote", trueAddress), scopes, username, password)
 		if err != nil {
 			s.logger.Errorf("Failed to login user: %v", err)
 			s.renderError(r, w, http.StatusInternalServerError, fmt.Sprintf("Login error: %v", err))
