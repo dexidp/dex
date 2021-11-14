@@ -136,3 +136,7 @@ make testall
 For the best developer experience, install [Nix](https://builtwithnix.org/) and [direnv](https://direnv.net/).
 
 Alternatively, install Go and Docker manually or using a package manager. Install the rest of the dependencies by running `make deps`.
+
+## License
+
+The project is licensed under the [Apache License, Version 2.0](LICENSE).
