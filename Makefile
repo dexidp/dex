@@ -101,23 +101,9 @@ fix: bin/golangci-lint ## Fix lint violations
 docker-image:
 	@sudo docker build -t $(DOCKER_IMAGE) .
 
-.PHONY: proto-old
-proto-old: bin/protoc-old bin/protoc-gen-go-old
-	@./bin/protoc-old --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go-old api/v2/*.proto
-	@cp api/v2/*.proto api/
-	@./bin/protoc-old --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go-old api/*.proto
-
 .PHONY: verify-proto
 verify-proto: proto
 	@./scripts/git-diff
-
-bin/protoc-old: scripts/get-protoc
-	@./scripts/get-protoc bin/protoc-old
-
-bin/protoc-gen-go-old:
-	@mkdir -p tmp
-	@GOBIN=$$PWD/tmp go install -v github.com/golang/protobuf/protoc-gen-go@v1.3.2
-	@mv tmp/protoc-gen-go bin/protoc-gen-go-old
 
 clean:
 	@rm -rf bin/
