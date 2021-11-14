@@ -18,6 +18,7 @@
             protobuf
             protoc-gen-go
             protoc-gen-go-grpc
+            kind
           ];
       in
       { devShell = pkgs.mkShell { buildInputs = devDeps; }; });

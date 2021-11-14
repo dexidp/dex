@@ -120,8 +120,9 @@ GOTESTSUM_VERSION ?= 1.7.0
 PROTOC_VERSION = 3.15.6
 PROTOC_GEN_GO_VERSION = 1.26.0
 PROTOC_GEN_GO_GRPC_VERSION = 1.1.0
+KIND_VERSION = 0.11.1
 
-deps: bin/gotestsum bin/golangci-lint bin/protoc bin/protoc-gen-go bin/protoc-gen-go-grpc
+deps: bin/gotestsum bin/golangci-lint bin/protoc bin/protoc-gen-go bin/protoc-gen-go-grpc bin/kind
 
 bin/gotestsum:
 	@mkdir -p bin
@@ -152,3 +153,8 @@ bin/protoc-gen-go-grpc:
 	@mkdir -p bin
 	curl -L https://github.com/grpc/grpc-go/releases/download/cmd/protoc-gen-go-grpc/v${PROTOC_GEN_GO_GRPC_VERSION}/protoc-gen-go-grpc.v${PROTOC_GEN_GO_GRPC_VERSION}.$(shell uname | tr A-Z a-z).amd64.tar.gz | tar -zOxf - ./protoc-gen-go-grpc > ./bin/protoc-gen-go-grpc
 	@chmod +x ./bin/protoc-gen-go-grpc
+
+bin/kind:
+	@mkdir -p bin
+	curl -L https://github.com/kubernetes-sigs/kind/releases/download/v${KIND_VERSION}/kind-$(shell uname | tr A-Z a-z)-amd64 > ./bin/kind
+	@chmod +x ./bin/kind
