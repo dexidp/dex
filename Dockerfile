@@ -1,4 +1,4 @@
-FROM golang:1.16.6-alpine3.13 AS builder
+FROM golang:1.16.6-alpine3.14 AS builder
 
 WORKDIR /usr/local/src/dex
 
@@ -29,11 +29,11 @@ ARG TARGETVARIANT
 ENV GOMPLATE_VERSION=v3.9.0
 
 RUN wget -O /usr/local/bin/gomplate \
-  "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT}" \
-  && chmod +x /usr/local/bin/gomplate
+    "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT}" \
+    && chmod +x /usr/local/bin/gomplate
 
 
-FROM alpine:3.14.0
+FROM alpine:3.14.3
 
 # Dex connectors, such as GitHub and Google logins require root certificates.
 # Proper installations should manage those certificates, but it's a bad user
