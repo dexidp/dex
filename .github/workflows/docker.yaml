@@ -12,6 +12,8 @@ jobs:
   docker:
     name: Docker
     runs-on: ubuntu-latest
+    permissions:
+      packages: "write"
 
     steps:
       - name: Checkout
