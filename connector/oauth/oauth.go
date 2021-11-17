@@ -8,9 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -122,7 +122,7 @@ func newHTTPClient(rootCAs []string, insecureSkipVerify bool) (*http.Client, err
 
 	tlsConfig := tls.Config{RootCAs: pool, InsecureSkipVerify: insecureSkipVerify}
 	for _, rootCA := range rootCAs {
-		rootCABytes, err := ioutil.ReadFile(rootCA)
+		rootCABytes, err := os.ReadFile(rootCA)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read root-ca: %v", err)
 		}
@@ -249,7 +249,7 @@ func (c *oauthConnector) addGroupsFromMap(groups map[string]struct{}, result map
 		}
 		if groupMap, ok := group.(map[string]interface{}); ok {
 			if groupName, ok := groupMap["name"].(string); ok {
-				groups[groupName] = true
+				groups[groupName] = struct{}{}
 			}
 		}
 	}
