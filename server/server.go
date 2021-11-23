@@ -566,7 +566,6 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 func openConnector(logger log.Logger, conn storage.Connector) (connector.Connector, error) {
 	var c connector.Connector
 
-	fmt.Println("AA", conn.Type)
 	f, ok := ConnectorsConfig[conn.Type]
 	if !ok {
 		return c, fmt.Errorf("unknown connector type %q", conn.Type)
