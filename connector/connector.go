@@ -98,3 +98,7 @@ type RefreshConnector interface {
 	// changes since the token was last refreshed.
 	Refresh(ctx context.Context, s Scopes, identity Identity) (Identity, error)
 }
+
+type Web3Connector interface {
+	A() int
+}

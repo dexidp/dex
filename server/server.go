@@ -41,6 +41,7 @@ import (
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
+	"github.com/dexidp/dex/connector/web3"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
@@ -352,6 +353,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)
+	handleFunc("/auth/{connector}/nonce", s.handleNonce)
+	handleFunc("/auth/{connector}/verify", s.handleVerify)
 	handleFunc("/device", s.handleDeviceExchange)
 	handleFunc("/device/auth/verify_code", s.verifyUserCode)
 	handleFunc("/device/code", s.handleDeviceCode)
@@ -545,6 +548,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"bitbucket-cloud": func() ConnectorConfig { return new(bitbucketcloud.Config) },
 	"openshift":       func() ConnectorConfig { return new(openshift.Config) },
 	"atlassian-crowd": func() ConnectorConfig { return new(atlassiancrowd.Config) },
+	"web3":            func() ConnectorConfig { return new(web3.Config) },
 	// Keep around for backwards compatibility.
 	"samlExperimental": func() ConnectorConfig { return new(saml.Config) },
 }
@@ -553,6 +557,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 func openConnector(logger log.Logger, conn storage.Connector) (connector.Connector, error) {
 	var c connector.Connector
 
+	fmt.Println("AA", conn.Type)
 	f, ok := ConnectorsConfig[conn.Type]
 	if !ok {
 		return c, fmt.Errorf("unknown connector type %q", conn.Type)
