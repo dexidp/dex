@@ -390,7 +390,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			  <body>
 			    <form method="post" action="%s" >
 				    <input type="hidden" name="SAMLRequest" value="%s" />
-				    <input type="hidden" name="RelayState" value="%s" />n
+				    <input type="hidden" name="RelayState" value="%s" />
 			    </form>
 				<script>
 				    document.forms[0].submit();
