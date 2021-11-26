@@ -28,13 +28,14 @@ const (
 
 // Config holds configuration options for OpenShift login
 type Config struct {
-	Issuer       string   `json:"issuer"`
-	ClientID     string   `json:"clientID"`
-	ClientSecret string   `json:"clientSecret"`
-	RedirectURI  string   `json:"redirectURI"`
-	Groups       []string `json:"groups"`
-	InsecureCA   bool     `json:"insecureCA"`
-	RootCA       string   `json:"rootCA"`
+	Issuer               string   `json:"issuer"`
+	ClientID             string   `json:"clientID"`
+	ClientSecret         string   `json:"clientSecret"`
+	RedirectURI          string   `json:"redirectURI"`
+	Groups               []string `json:"groups"`
+	InsecureCA           bool     `json:"insecureCA"`
+	RootCA               string   `json:"rootCA"`
+	IncludeSystemRootCAs bool     `json:"includeSystemRootCAs"`
 }
 
 var (
@@ -43,17 +44,18 @@ var (
 )
 
 type openshiftConnector struct {
-	apiURL       string
-	redirectURI  string
-	clientID     string
-	clientSecret string
-	cancel       context.CancelFunc
-	logger       log.Logger
-	httpClient   *http.Client
-	oauth2Config *oauth2.Config
-	insecureCA   bool
-	rootCA       string
-	groups       []string
+	apiURL               string
+	redirectURI          string
+	clientID             string
+	clientSecret         string
+	cancel               context.CancelFunc
+	logger               log.Logger
+	httpClient           *http.Client
+	oauth2Config         *oauth2.Config
+	insecureCA           bool
+	rootCA               string
+	includeSystemRootCAs bool
+	groups               []string
 }
 
 type user struct {
@@ -73,18 +75,19 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 	req, err := http.NewRequest(http.MethodGet, wellKnownURL, nil)
 
 	openshiftConnector := openshiftConnector{
-		apiURL:       c.Issuer,
-		cancel:       cancel,
-		clientID:     c.ClientID,
-		clientSecret: c.ClientSecret,
-		insecureCA:   c.InsecureCA,
-		logger:       logger,
-		redirectURI:  c.RedirectURI,
-		rootCA:       c.RootCA,
-		groups:       c.Groups,
+		apiURL:               c.Issuer,
+		cancel:               cancel,
+		clientID:             c.ClientID,
+		clientSecret:         c.ClientSecret,
+		insecureCA:           c.InsecureCA,
+		logger:               logger,
+		redirectURI:          c.RedirectURI,
+		rootCA:               c.RootCA,
+		includeSystemRootCAs: c.IncludeSystemRootCAs,
+		groups:               c.Groups,
 	}
 
-	if openshiftConnector.httpClient, err = newHTTPClient(c.InsecureCA, c.RootCA); err != nil {
+	if openshiftConnector.httpClient, err = newHTTPClient(c.InsecureCA, c.RootCA, c.IncludeSystemRootCAs); err != nil {
 		cancel()
 		return nil, fmt.Errorf("failed to create HTTP client: %v", err)
 	}
@@ -248,16 +251,24 @@ func validateAllowedGroups(userGroups, allowedGroups []string) bool {
 }
 
 // newHTTPClient returns a new HTTP client
-func newHTTPClient(insecureCA bool, rootCA string) (*http.Client, error) {
+func newHTTPClient(insecureCA bool, rootCA string, includeSystemRootCAs bool) (*http.Client, error) {
 	tlsConfig := tls.Config{}
 
 	if insecureCA {
 		tlsConfig = tls.Config{InsecureSkipVerify: true}
 	} else if rootCA != "" {
-		tlsConfig = tls.Config{RootCAs: x509.NewCertPool()}
+		if !includeSystemRootCAs {
+			tlsConfig = tls.Config{RootCAs: x509.NewCertPool()}
+		} else {
+			systemCAs, err := x509.SystemCertPool()
+			if err != nil {
+				return nil, fmt.Errorf("failed to read host CA: %w", err)
+			}
+			tlsConfig = tls.Config{RootCAs: systemCAs}
+		}
 		rootCABytes, err := os.ReadFile(rootCA)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read root-ca: %v", err)
+			return nil, fmt.Errorf("failed to read root-ca: %w", err)
 		}
 		if !tlsConfig.RootCAs.AppendCertsFromPEM(rootCABytes) {
 			return nil, fmt.Errorf("no certs found in root CA file %q", rootCA)
