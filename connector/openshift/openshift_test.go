@@ -257,6 +257,30 @@ func TestRefreshIdentityFailure(t *testing.T) {
 	expectEquals(t, connector.Identity{}, identity)
 }
 
+func TestCheckEndpoint(t *testing.T) {
+	s := newTestServer(map[string]interface{}{
+		"/oauth/authorize": nil,
+		"/oauth/token":     nil,
+	})
+	defer s.Close()
+
+	h, err := newHTTPClient(true, "")
+	expectNil(t, err)
+
+	oc := openshiftConnector{apiURL: s.URL, httpClient: h, oauth2Config: &oauth2.Config{
+		Endpoint: oauth2.Endpoint{
+			AuthURL: s.URL + "/oauth/authorize", TokenURL: s.URL + "/oauth/token",
+		},
+	}}
+	err = oc.CheckEndpoint(context.Background())
+	expectNil(t, err)
+
+	s.Close()
+
+	err = oc.CheckEndpoint(context.Background())
+	expectNotNil(t, err)
+}
+
 func newTestServer(responses map[string]interface{}) *httptest.Server {
 	var s *httptest.Server
 	s = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

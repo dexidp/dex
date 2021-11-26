@@ -38,8 +38,9 @@ type Config struct {
 }
 
 var (
-	_ connector.CallbackConnector = (*openshiftConnector)(nil)
-	_ connector.RefreshConnector  = (*openshiftConnector)(nil)
+	_ connector.CallbackConnector      = (*openshiftConnector)(nil)
+	_ connector.RefreshConnector       = (*openshiftConnector)(nil)
+	_ connector.CheckEndpointConnector = (*openshiftConnector)(nil)
 )
 
 type openshiftConnector struct {
@@ -126,6 +127,7 @@ func (c *Config) OpenWithHTTPClient(id string, logger log.Logger,
 		Scopes:      []string{"user:info"},
 		RedirectURL: c.RedirectURI,
 	}
+
 	return &openshiftConnector, nil
 }
 
@@ -255,6 +257,25 @@ func (c *openshiftConnector) user(ctx context.Context, client *http.Client) (u u
 	}
 
 	return u, err
+}
+
+func (c *openshiftConnector) CheckEndpoint(ctx context.Context) error {
+	return c.checkOAuth2EndpointsAvailability(ctx)
+}
+
+func (c *openshiftConnector) checkOAuth2EndpointsAvailability(ctx context.Context) error {
+	for _, endpoint := range []string{c.oauth2Config.Endpoint.AuthURL, c.oauth2Config.Endpoint.TokenURL} {
+		req, err := http.NewRequest(http.MethodHead, endpoint, nil)
+		if err != nil {
+			return err
+		}
+		resp, err := c.httpClient.Do(req.WithContext(ctx))
+		if err != nil {
+			return err
+		}
+		resp.Body.Close()
+	}
+	return nil
 }
 
 func validateAllowedGroups(userGroups, allowedGroups []string) bool {
