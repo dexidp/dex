@@ -395,59 +395,9 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			  </body>
 			  </html>`, action, value, authReq.ID)
 		case connector.Web3Connector:
-			nonceURL := url.URL{
-				Path: s.absPath("/auth", connID, "nonce"),
-			}
-			verifyURL := url.URL{
-				Path: s.absPath("/auth", connID, "verify"),
-			}
-			fmt.Fprintf(w, `
-			<script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
-			<script src="https://unpkg.com/web3modal@1.9.4/dist/index.js"></script>
-
-			<script>
-			const Web3Modal = window.Web3Modal.default;
-			const Web3 = window.Web3;
-			let web3;
-			async function init() {
-			const web3Modal = new Web3Modal({
-				cacheProvider: false, // optional
-				providerOptions: {}, // required
-				disableInjectedProvider: false, // optional. For MetaMask / Brave / Opera.
-			  });
-			const ethProvider = await web3Modal.connect();
-			web3 = new Web3(ethProvider);
-			let accs = await web3.eth.getAccounts();
-			let acc = accs[0];
-				document.getElementById("test").innerHTML = acc;
-			let resp = await fetch("%s", {method: "POST", body: JSON.stringify({address: acc, state: "%s"}),       headers: {
-					"Content-Type": "application/json",
-				  }});
-				  let body = await resp.json();
-				  web3.eth.personal.sign(
-					body.nonce,
-					acc,
-					async (error, signature) => {
-						// Handle if wallet returns error
-						if (error) {
-						  return;
-						}
-						let xx = await fetch("%s", {method: "POST", body: JSON.stringify({signed: signature, state: "%s"}),       headers: {
-							"Content-Type": "application/json",
-						  }})
-						let yy = await xx.json();
-						window.location = yy.redirect;
-					  }
-				  );
-			}
-
-
-			window.addEventListener('load', async () => {
-				init();
-			});
-			</script>
-			<div id="test"></div>
-			`, nonceURL.String(), authReq.ID, verifyURL.String(), authReq.ID)
+			nonceURL := url.URL{Path: s.absPath("/auth", connID, "nonce")}
+			verifyURL := url.URL{Path: s.absPath("/auth", connID, "verify")}
+			s.templates.web3login(r, w, nonceURL.String(), verifyURL.String(), authReq.ID)
 		default:
 			s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
 		}
