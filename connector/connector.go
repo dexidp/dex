@@ -99,6 +99,9 @@ type RefreshConnector interface {
 	Refresh(ctx context.Context, s Scopes, identity Identity) (Identity, error)
 }
 
+// A Web3Connector verifies ownership of an Ethereum account.
 type Web3Connector interface {
-	A() int
+	// Verify checks that the given message was signed by the private key of the given
+	// account.
+	Verify(address, msg, signedMsg string) (identity Identity, err error)
 }
