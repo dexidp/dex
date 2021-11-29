@@ -24,8 +24,6 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
-
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
@@ -284,11 +282,6 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 	s.renderJSON(r, w, struct {
 		Redirect string `json:"redirect"`
 	}{Redirect: redirectURL})
-}
-
-func signHash(data []byte) []byte {
-	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(data), data)
-	return crypto.Keccak256([]byte(msg))
 }
 
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
