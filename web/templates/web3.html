@@ -1,0 +1,50 @@
+{{ template "header.html" . }}
+
+<script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+<script src="https://unpkg.com/web3modal@1.9.4/dist/index.js"></script>
+
+<script>
+const Web3Modal = window.Web3Modal.default;
+const Web3 = window.Web3;
+async function init() {
+  const web3Modal = new Web3Modal({
+    cacheProvider: false, // optional
+    providerOptions: {}, // required
+    disableInjectedProvider: false, // optional. For MetaMask / Brave / Opera.
+  });
+  const ethProvider = await web3Modal.connect();
+  const web3 = new Web3(ethProvider);
+  let accs = await web3.eth.getAccounts();
+  let acc = accs[0];
+  let resp = await fetch("{{ .NonceURL }}", {
+    method: "POST",
+    body: JSON.stringify({address: acc, state: "%s"}),
+    headers: {"Content-Type": "application/json"},
+  });
+  let body = await resp.json();
+  web3.eth.personal.sign(body.nonce, acc, async (error, signature) => {
+    // Handle if wallet returns error
+    if (error) {
+      return;
+    }
+    let xx = await fetch("{{ .VerifyURL }}", {
+      method: "POST",
+      body: JSON.stringify({signed: signature, state: "%s"}),
+      headers: {"Content-Type": "application/json"},
+    });
+    let yy = await xx.json();
+    window.location = yy.redirect;
+  });
+}
+
+window.addEventListener('load', init);
+</script>
+
+<div class="theme-panel">
+  <h2 class="theme-heading">Log in to {{ issuer }} </h2>
+  <div>
+    <div class="dex-subtle-text">Attempting to login with your browser wallet</div>
+  </div>
+</div>
+
+{{ template "footer.html" . }}
