@@ -25,8 +25,6 @@ import (
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -191,45 +189,34 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type NonceReq struct {
-	Address string `json:"address"`
-	State   string `json:"state"`
-}
-
-type Web3ConnectorData struct {
+type web3ConnectorData struct {
 	Address string `json:"address"`
 	Nonce   string `json:"nonce"`
 }
 
-type NonceResp struct {
-	Nonce string `json:"nonce"`
-}
-
-type VerifyReq struct {
-	Signed string `json:"signed"`
-	State  string `json:"state"`
-}
-
-const allowedChars = "abcdefghijklmnopqrstuvwxyz0123456789"
-
 func (s *Server) handleNonce(w http.ResponseWriter, r *http.Request) {
-	nonceReq := NonceReq{}
-	json.NewDecoder(r.Body).Decode(&nonceReq)
-	_, err := s.storage.GetAuthRequest(nonceReq.State)
+	var nonceReq struct {
+		Address string `json:"address"`
+		State   string `json:"state"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&nonceReq); err != nil {
+		s.renderErrorJSON(r, w, http.StatusBadRequest, "Could not parse request body JSON.")
+		return
+	}
 
+	authReq, err := s.storage.GetAuthRequest(nonceReq.State)
 	if err != nil {
-		fmt.Println("Yikes!")
+		s.renderErrorJSON(r, w, http.StatusBadRequest, "Requested resource does not exist.")
+		return
 	}
 
-	b := make([]byte, 8)
-	for i := range b {
-		b[i] = allowedChars[rand.Intn(len(allowedChars))]
+	nonce := generateNonce()
+	bts, err := json.Marshal(web3ConnectorData{Address: nonceReq.Address, Nonce: nonce})
+	if err != nil {
+		s.renderErrorJSON(r, w, http.StatusInternalServerError, "Failed to create auth request.")
+		return
 	}
-	nonce := string(b)
-	data := Web3ConnectorData{Address: nonceReq.Address, Nonce: nonce}
-	bts, _ := json.Marshal(data)
-
-	s.storage.UpdateAuthRequest(nonceReq.State, func(a storage.AuthRequest) (storage.AuthRequest, error) {
+	s.storage.UpdateAuthRequest(authReq.ID, func(a storage.AuthRequest) (storage.AuthRequest, error) {
 		a.ConnectorData = bts
 		return a, nil
 	})
@@ -237,62 +224,71 @@ func (s *Server) handleNonce(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 
-	json.NewEncoder(w).Encode(NonceResp{Nonce: nonce})
+	s.renderJSON(r, w, struct {
+		Nonce string `json:"nonce"`
+	}{Nonce: nonce})
+}
+
+func generateNonce() string {
+	const allowedChars = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+	b := make([]byte, 8)
+	for i := range b {
+		b[i] = allowedChars[rand.Intn(len(allowedChars))]
+	}
+	return string(b)
+}
+
+func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
+	var verifyReq struct {
+		Signed string `json:"signed"`
+		State  string `json:"state"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&verifyReq); err != nil {
+		s.renderErrorJSON(r, w, http.StatusBadRequest, "Could not parse request body JSON.")
+		return
+	}
+
+	authReq, err := s.storage.GetAuthRequest(verifyReq.State)
+	if err != nil {
+		s.renderErrorJSON(r, w, http.StatusBadRequest, "Requested resource does not exist.")
+		return
+	}
+
+	var data web3ConnectorData
+	json.Unmarshal(authReq.ConnectorData, &data)
+
+	conn, err := s.getConnector(authReq.ConnectorID)
+	if err != nil {
+		s.renderErrorJSON(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
+		return
+	}
+
+	w3Conn, ok := conn.Connector.(connector.Web3Connector)
+	if !ok {
+		s.renderErrorJSON(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
+		return
+	}
+
+	identity, err := w3Conn.Verify(data.Address, data.Nonce, verifyReq.Signed)
+	if err != nil {
+		s.renderErrorJSON(r, w, http.StatusBadRequest, "Could not verify signature.")
+		return
+	}
+
+	redirectURL, err := s.finalizeLogin(identity, authReq, conn)
+	if err != nil {
+		s.renderErrorJSON(r, w, http.StatusInternalServerError, "Login failure.")
+	}
+
+	s.renderJSON(r, w, struct {
+		Redirect string `json:"redirect"`
+	}{Redirect: redirectURL})
 }
 
 func signHash(data []byte) []byte {
 	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(data), data)
 	return crypto.Keccak256([]byte(msg))
-}
-
-type VerifyResp struct {
-	Redirect string `json:"redirect"`
-}
-
-func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
-	verifyReq := VerifyReq{}
-	json.NewDecoder(r.Body).Decode(&verifyReq)
-	authReq, err := s.storage.GetAuthRequest(verifyReq.State)
-
-	if err != nil {
-		fmt.Println("Yikes!")
-	}
-
-	var data Web3ConnectorData
-
-	json.Unmarshal(authReq.ConnectorData, &data)
-
-	fromAddr := common.HexToAddress(data.Address)
-
-	sig := hexutil.MustDecode(verifyReq.Signed)
-	if sig[64] != 27 && sig[64] != 28 {
-		panic("AHHHH")
-	}
-	sig[64] -= 27
-
-	pubKey, err := crypto.SigToPub(signHash([]byte(data.Nonce)), sig)
-	if err != nil {
-		panic("AHHHHH")
-	}
-
-	recoveredAddr := crypto.PubkeyToAddress(*pubKey)
-
-	if recoveredAddr == fromAddr {
-		fmt.Println("YAYYY")
-	} else {
-		fmt.Println("Boooo")
-	}
-
-	identity := connector.Identity{
-		UserID:   data.Address,
-		Username: data.Address,
-	}
-
-	conn, err := s.getConnector(authReq.ConnectorID)
-
-	redirectURL, _ := s.finalizeLogin(identity, authReq, conn)
-
-	json.NewEncoder(w).Encode(VerifyResp{Redirect: redirectURL})
 }
 
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
@@ -435,8 +431,6 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 					"Content-Type": "application/json",
 				  }});
 				  let body = await resp.json();
-				alert(acc);
-				  alert(body.nonce);
 				  web3.eth.personal.sign(
 					body.nonce,
 					acc,
@@ -1521,6 +1515,27 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, resp *accessTokenRespon
 func (s *Server) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
 	if err := s.templates.err(r, w, status, description); err != nil {
 		s.logger.Errorf("Server template error: %v", err)
+	}
+}
+
+func (s *Server) renderJSON(r *http.Request, w http.ResponseWriter, body interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		s.logger.Errorf("Failed to write JSON response: %v", err)
+	}
+}
+
+func (s *Server) renderErrorJSON(r *http.Request, w http.ResponseWriter, status int, message string) {
+	w.WriteHeader(status)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(struct {
+		Status  int    `json:"status"`
+		Message string `json:"message"`
+	}{
+		Status:  status,
+		Message: message,
+	}); err != nil {
+		s.logger.Errorf("Failed to write JSON error response: %v", err)
 	}
 }
 
