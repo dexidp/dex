@@ -121,6 +121,9 @@ connectors:
 - type: mockCallback
   id: mock
   name: Example
+- type: web3
+  id: web3
+  name: Web3
 # - type: google
 #   id: google
 #   name: Google
