@@ -17,7 +17,7 @@ import (
 const (
 	tmplApproval      = "approval.html"
 	tmplLogin         = "login.html"
-	templWeb3         = "web3.html"
+	tmplWeb3          = "web3.html"
 	tmplPassword      = "password.html"
 	tmplOOB           = "oob.html"
 	tmplError         = "error.html"
@@ -33,6 +33,7 @@ var requiredTmpls = []string{
 	tmplError,
 	tmplDevice,
 	tmplDeviceSuccess,
+	tmplWeb3,
 }
 
 type templates struct {
@@ -160,7 +161,7 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 	}
 	return &templates{
 		loginTmpl:         tmpls.Lookup(tmplLogin),
-		web3Tmpl:          tmpls.Lookup(templWeb3),
+		web3Tmpl:          tmpls.Lookup(tmplWeb3),
 		approvalTmpl:      tmpls.Lookup(tmplApproval),
 		passwordTmpl:      tmpls.Lookup(tmplPassword),
 		oobTmpl:           tmpls.Lookup(tmplOOB),
@@ -291,7 +292,8 @@ func (t *templates) web3login(r *http.Request, w http.ResponseWriter, nonceURL s
 		NonceURL  string
 		VerifyURL string
 		AuthID    string
-	}{nonceURL, verifyURL, authID}
+		ReqPath   string
+	}{nonceURL, verifyURL, authID, r.URL.Path}
 	return renderTemplate(w, t.web3Tmpl, data)
 }
 

@@ -222,7 +222,7 @@ func (s *Server) handleNonce(w http.ResponseWriter, r *http.Request) {
 
 	s.renderJSON(r, w, struct {
 		Nonce string `json:"nonce"`
-	}{Nonce: nonce})
+	}{nonce})
 }
 
 func generateNonce() string {
@@ -268,6 +268,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 
 	identity, err := w3Conn.Verify(data.Address, data.Nonce, verifyReq.Signed)
 	if err != nil {
+		fmt.Println(err)
 		s.renderErrorJSON(r, w, http.StatusBadRequest, "Could not verify signature.")
 		return
 	}
@@ -277,9 +278,11 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		s.renderErrorJSON(r, w, http.StatusInternalServerError, "Login failure.")
 	}
 
+	fmt.Printf("Redirect to: %s\n", redirectURL)
+
 	s.renderJSON(r, w, struct {
 		Redirect string `json:"redirect"`
-	}{Redirect: redirectURL})
+	}{redirectURL})
 }
 
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
