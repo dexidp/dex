@@ -105,6 +105,12 @@ body {
   background-image: url(../static/img/microsoft-icon.svg);
 }
 
+.dex-btn-icon--web3 {
+  background-color: #FFFFFF;
+  background-image: url(../static/img/metamask-icon.svg);
+  background-size: contain;
+}
+
 .dex-btn-text {
   font-weight: 600;
   line-height: 36px;
