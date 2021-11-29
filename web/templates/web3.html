@@ -18,8 +18,8 @@ async function init() {
   let acc = accs[0];
   let resp = await fetch("{{ .NonceURL }}", {
     method: "POST",
-    body: JSON.stringify({address: acc, state: "%s"}),
     headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({address: acc, state: "{{ .AuthID }}"}),
   });
   let body = await resp.json();
   web3.eth.personal.sign(body.nonce, acc, async (error, signature) => {
@@ -29,8 +29,8 @@ async function init() {
     }
     let xx = await fetch("{{ .VerifyURL }}", {
       method: "POST",
-      body: JSON.stringify({signed: signature, state: "%s"}),
       headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({signed: signature, state: "{{ .AuthID }}"}),
     });
     let yy = await xx.json();
     window.location = yy.redirect;
@@ -43,7 +43,7 @@ window.addEventListener('load', init);
 <div class="theme-panel">
   <h2 class="theme-heading">Log in to {{ issuer }} </h2>
   <div>
-    <div class="dex-subtle-text">Attempting to login with your browser wallet</div>
+    <div class="dex-subtle-text">Attempting to log in with your browser wallet</div>
   </div>
 </div>
 

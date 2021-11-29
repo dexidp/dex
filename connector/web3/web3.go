@@ -31,6 +31,7 @@ func (c *Web3Connector) Verify(address, msg, signedMsg string) (identity connect
 	if signb[64] != 27 && signb[64] != 28 {
 		return identity, fmt.Errorf("Byte at index 64 of signed message should be 27 or 28: %s", signedMsg)
 	}
+	signb[64] -= 27
 
 	pubKey, err := crypto.SigToPub(signHash([]byte(msg)), signb)
 	if err != nil {
