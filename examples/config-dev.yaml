@@ -48,14 +48,15 @@ storage:
 # Configuration for the HTTP endpoints.
 web:
   http: 0.0.0.0:5556
+  allowedOrigins: ['*']
   # Uncomment for HTTPS options.
   # https: 127.0.0.1:5554
   # tlsCert: /etc/dex/tls.crt
   # tlsKey: /etc/dex/tls.key
 
 # Configuration for dex appearance
-# frontend:
-#   issuer: dex
+frontend:
+  issuer: DIMO
 #   logoURL: theme/logo.png
 #   dir: web/
 #   theme: light
@@ -112,6 +113,11 @@ staticClients:
   - 'http://127.0.0.1:5555/callback'
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+- id: IrbblpeZJRMewq8suTx0PcmHlporj6yZ
+  redirectURIs:
+  - 'http://localhost:3000'
+  name: 'Example App'
+  public: true
 #  - id: example-device-client
 #    redirectURIs:
 #      - /device/callback
