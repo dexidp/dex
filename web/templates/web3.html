@@ -15,27 +15,36 @@ async function postJson(url, obj) {
   })
 }
 
-async function init() {
-  const web3Modal = new Web3Modal({providerOptions: {}});
-  const provider = await web3Modal.connect();
-  const web3 = new Web3(ethProvider);
+function displayError(msg) {
+  const errorBox = document.getElementById("web3-error");
+  errorBox.style.display = "block";
+  errorBox.textContent = msg;
+}
 
-  const accounts = await web3.eth.getAccounts();
-  if (!accounts.length) {
-    return;
+async function init() {
+  try {
+    const web3Modal = new Web3Modal({providerOptions: {}});
+    const provider = await web3Modal.connect();
+    const web3 = new Web3(provider);
+
+    const accounts = await web3.eth.getAccounts();
+    const selectedAccount = accounts[0];
+
+    const nonceResp = await postJson("{{ .NonceURL }}", {address: selectedAccount, state: "{{ .AuthID }}"});
+    const nonceBody = await nonceResp.json();
+
+    web3.eth.personal.sign(nonceBody.nonce, selectedAccount, "", async (error, signature) => {
+      // Handle if wallet returns error
+      if (error) {
+        return;
+      }
+      const verifyResp = await postJson("{{ .VerifyURL }}", {signed: signature, state: "{{ .AuthID }}"});
+      const verifyBody = await verifyResp.json();
+      window.location.replace(verifyBody.redirect);
+    });
+  } catch (e) {
+    displayError(e.toString());
   }
-  const selectedAccount = accounts[0];
-  const nonceResp = await postJson("{{ .NonceURL }}", {address: selectedAccount, state: "{{ .AuthID }}"});
-  const nonceBody = await nonceResp.json();
-  web3.eth.personal.sign(nonceBody.nonce, selectedAccount, "", async (error, signature) => {
-    // Handle if wallet returns error
-    if (error) {
-      return;
-    }
-    const verifyResp = await postJson("{{ .VerifyURL }}", {signed: signature, state: "{{ .AuthID }}"});
-    const verifyBody = await verifyResp.json();
-    window.location = verifyBody.redirect;
-  });
 }
 
 window.addEventListener('load', init);
@@ -45,7 +54,7 @@ window.addEventListener('load', init);
   <h2 class="theme-heading">Log in to {{ issuer }} </h2>
   <div>
     <div class="dex-subtle-text">Attempting to log in with your browser wallet</div>
-    <div id="web3-error" class="dex-error-box"></div>
+    <div id="web3-error" class="dex-error-box" style="display: none;"> </div>
   </div>
 </div>
 
