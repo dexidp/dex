@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -149,7 +149,7 @@ func newHTTPClient(rootCAs []string, insecureSkipVerify bool) (*http.Client, err
 
 	tlsConfig := tls.Config{RootCAs: pool, InsecureSkipVerify: insecureSkipVerify}
 	for _, rootCA := range rootCAs {
-		rootCABytes, err := ioutil.ReadFile(rootCA)
+		rootCABytes, err := os.ReadFile(rootCA)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read root-ca: %v", err)
 		}
@@ -376,9 +376,9 @@ func (c *cfConnector) HandleCallback(s connector.Scopes, r *http.Request) (ident
 			return identity, fmt.Errorf("failed to fetch spaces for developer roles: %v", err)
 		}
 
-		spaces := append(developerSpaces, append(auditorSpaces, managerSpaces...)...)
+		developerSpaces = append(developerSpaces, append(auditorSpaces, managerSpaces...)...)
 
-		identity.Groups = getGroupsClaims(orgs, spaces)
+		identity.Groups = getGroupsClaims(orgs, developerSpaces)
 	}
 
 	if s.OfflineAccess {
