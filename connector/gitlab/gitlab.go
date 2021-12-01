@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -232,7 +232,7 @@ func (c *gitlabConnector) user(ctx context.Context, client *http.Client) (gitlab
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return u, fmt.Errorf("gitlab: read body: %v", err)
 		}
@@ -266,7 +266,7 @@ func (c *gitlabConnector) userGroups(ctx context.Context, client *http.Client) (
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("gitlab: read body: %v", err)
 		}

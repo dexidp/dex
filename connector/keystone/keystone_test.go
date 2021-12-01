@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"reflect"
@@ -78,7 +78,7 @@ func getAdminToken(t *testing.T, adminName, adminPass string) (token, id string)
 
 	token = resp.Header.Get("X-Subject-Token")
 
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func createUser(t *testing.T, token, userName, userEmail, userPass string) strin
 		t.Fatal(err)
 	}
 
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func createGroup(t *testing.T, token, description, name string) string {
 		t.Fatal(err)
 	}
 
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}

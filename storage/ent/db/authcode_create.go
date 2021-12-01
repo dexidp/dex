@@ -167,11 +167,17 @@ func (acc *AuthCodeCreate) Save(ctx context.Context) (*AuthCode, error) {
 				return nil, err
 			}
 			acc.mutation = mutation
-			node, err = acc.sqlSave(ctx)
+			if node, err = acc.sqlSave(ctx); err != nil {
+				return nil, err
+			}
+			mutation.id = &node.ID
 			mutation.done = true
 			return node, err
 		})
 		for i := len(acc.hooks) - 1; i >= 0; i-- {
+			if acc.hooks[i] == nil {
+				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = acc.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, acc.mutation); err != nil {
@@ -188,6 +194,19 @@ func (acc *AuthCodeCreate) SaveX(ctx context.Context) *AuthCode {
 		panic(err)
 	}
 	return v
+}
+
+// Exec executes the query.
+func (acc *AuthCodeCreate) Exec(ctx context.Context) error {
+	_, err := acc.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (acc *AuthCodeCreate) ExecX(ctx context.Context) {
+	if err := acc.Exec(ctx); err != nil {
+		panic(err)
+	}
 }
 
 // defaults sets the default values of the builder before save.
@@ -209,79 +228,79 @@ func (acc *AuthCodeCreate) defaults() {
 // check runs all checks and user-defined validators on the builder.
 func (acc *AuthCodeCreate) check() error {
 	if _, ok := acc.mutation.ClientID(); !ok {
-		return &ValidationError{Name: "client_id", err: errors.New("db: missing required field \"client_id\"")}
+		return &ValidationError{Name: "client_id", err: errors.New(`db: missing required field "client_id"`)}
 	}
 	if v, ok := acc.mutation.ClientID(); ok {
 		if err := authcode.ClientIDValidator(v); err != nil {
-			return &ValidationError{Name: "client_id", err: fmt.Errorf("db: validator failed for field \"client_id\": %w", err)}
+			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "client_id": %w`, err)}
 		}
 	}
 	if _, ok := acc.mutation.Nonce(); !ok {
-		return &ValidationError{Name: "nonce", err: errors.New("db: missing required field \"nonce\"")}
+		return &ValidationError{Name: "nonce", err: errors.New(`db: missing required field "nonce"`)}
 	}
 	if v, ok := acc.mutation.Nonce(); ok {
 		if err := authcode.NonceValidator(v); err != nil {
-			return &ValidationError{Name: "nonce", err: fmt.Errorf("db: validator failed for field \"nonce\": %w", err)}
+			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "nonce": %w`, err)}
 		}
 	}
 	if _, ok := acc.mutation.RedirectURI(); !ok {
-		return &ValidationError{Name: "redirect_uri", err: errors.New("db: missing required field \"redirect_uri\"")}
+		return &ValidationError{Name: "redirect_uri", err: errors.New(`db: missing required field "redirect_uri"`)}
 	}
 	if v, ok := acc.mutation.RedirectURI(); ok {
 		if err := authcode.RedirectURIValidator(v); err != nil {
-			return &ValidationError{Name: "redirect_uri", err: fmt.Errorf("db: validator failed for field \"redirect_uri\": %w", err)}
+			return &ValidationError{Name: "redirect_uri", err: fmt.Errorf(`db: validator failed for field "redirect_uri": %w`, err)}
 		}
 	}
 	if _, ok := acc.mutation.ClaimsUserID(); !ok {
-		return &ValidationError{Name: "claims_user_id", err: errors.New("db: missing required field \"claims_user_id\"")}
+		return &ValidationError{Name: "claims_user_id", err: errors.New(`db: missing required field "claims_user_id"`)}
 	}
 	if v, ok := acc.mutation.ClaimsUserID(); ok {
 		if err := authcode.ClaimsUserIDValidator(v); err != nil {
-			return &ValidationError{Name: "claims_user_id", err: fmt.Errorf("db: validator failed for field \"claims_user_id\": %w", err)}
+			return &ValidationError{Name: "claims_user_id", err: fmt.Errorf(`db: validator failed for field "claims_user_id": %w`, err)}
 		}
 	}
 	if _, ok := acc.mutation.ClaimsUsername(); !ok {
-		return &ValidationError{Name: "claims_username", err: errors.New("db: missing required field \"claims_username\"")}
+		return &ValidationError{Name: "claims_username", err: errors.New(`db: missing required field "claims_username"`)}
 	}
 	if v, ok := acc.mutation.ClaimsUsername(); ok {
 		if err := authcode.ClaimsUsernameValidator(v); err != nil {
-			return &ValidationError{Name: "claims_username", err: fmt.Errorf("db: validator failed for field \"claims_username\": %w", err)}
+			return &ValidationError{Name: "claims_username", err: fmt.Errorf(`db: validator failed for field "claims_username": %w`, err)}
 		}
 	}
 	if _, ok := acc.mutation.ClaimsEmail(); !ok {
-		return &ValidationError{Name: "claims_email", err: errors.New("db: missing required field \"claims_email\"")}
+		return &ValidationError{Name: "claims_email", err: errors.New(`db: missing required field "claims_email"`)}
 	}
 	if v, ok := acc.mutation.ClaimsEmail(); ok {
 		if err := authcode.ClaimsEmailValidator(v); err != nil {
-			return &ValidationError{Name: "claims_email", err: fmt.Errorf("db: validator failed for field \"claims_email\": %w", err)}
+			return &ValidationError{Name: "claims_email", err: fmt.Errorf(`db: validator failed for field "claims_email": %w`, err)}
 		}
 	}
 	if _, ok := acc.mutation.ClaimsEmailVerified(); !ok {
-		return &ValidationError{Name: "claims_email_verified", err: errors.New("db: missing required field \"claims_email_verified\"")}
+		return &ValidationError{Name: "claims_email_verified", err: errors.New(`db: missing required field "claims_email_verified"`)}
 	}
 	if _, ok := acc.mutation.ClaimsPreferredUsername(); !ok {
-		return &ValidationError{Name: "claims_preferred_username", err: errors.New("db: missing required field \"claims_preferred_username\"")}
+		return &ValidationError{Name: "claims_preferred_username", err: errors.New(`db: missing required field "claims_preferred_username"`)}
 	}
 	if _, ok := acc.mutation.ConnectorID(); !ok {
-		return &ValidationError{Name: "connector_id", err: errors.New("db: missing required field \"connector_id\"")}
+		return &ValidationError{Name: "connector_id", err: errors.New(`db: missing required field "connector_id"`)}
 	}
 	if v, ok := acc.mutation.ConnectorID(); ok {
 		if err := authcode.ConnectorIDValidator(v); err != nil {
-			return &ValidationError{Name: "connector_id", err: fmt.Errorf("db: validator failed for field \"connector_id\": %w", err)}
+			return &ValidationError{Name: "connector_id", err: fmt.Errorf(`db: validator failed for field "connector_id": %w`, err)}
 		}
 	}
 	if _, ok := acc.mutation.Expiry(); !ok {
-		return &ValidationError{Name: "expiry", err: errors.New("db: missing required field \"expiry\"")}
+		return &ValidationError{Name: "expiry", err: errors.New(`db: missing required field "expiry"`)}
 	}
 	if _, ok := acc.mutation.CodeChallenge(); !ok {
-		return &ValidationError{Name: "code_challenge", err: errors.New("db: missing required field \"code_challenge\"")}
+		return &ValidationError{Name: "code_challenge", err: errors.New(`db: missing required field "code_challenge"`)}
 	}
 	if _, ok := acc.mutation.CodeChallengeMethod(); !ok {
-		return &ValidationError{Name: "code_challenge_method", err: errors.New("db: missing required field \"code_challenge_method\"")}
+		return &ValidationError{Name: "code_challenge_method", err: errors.New(`db: missing required field "code_challenge_method"`)}
 	}
 	if v, ok := acc.mutation.ID(); ok {
 		if err := authcode.IDValidator(v); err != nil {
-			return &ValidationError{Name: "id", err: fmt.Errorf("db: validator failed for field \"id\": %w", err)}
+			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "id": %w`, err)}
 		}
 	}
 	return nil
@@ -290,8 +309,8 @@ func (acc *AuthCodeCreate) check() error {
 func (acc *AuthCodeCreate) sqlSave(ctx context.Context) (*AuthCode, error) {
 	_node, _spec := acc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, acc.driver, _spec); err != nil {
-		if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}
@@ -465,17 +484,19 @@ func (accb *AuthCodeCreateBulk) Save(ctx context.Context) ([]*AuthCode, error) {
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, accb.builders[i+1].mutation)
 				} else {
+					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
 					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, accb.driver, &sqlgraph.BatchCreateSpec{Nodes: specs}); err != nil {
-						if cerr, ok := isSQLConstraintError(err); ok {
-							err = cerr
+					if err = sqlgraph.BatchCreate(ctx, accb.driver, spec); err != nil {
+						if sqlgraph.IsConstraintError(err) {
+							err = &ConstraintError{err.Error(), err}
 						}
 					}
 				}
-				mutation.done = true
 				if err != nil {
 					return nil, err
 				}
+				mutation.id = &nodes[i].ID
+				mutation.done = true
 				return nodes[i], nil
 			})
 			for i := len(builder.hooks) - 1; i >= 0; i-- {
@@ -499,4 +520,17 @@ func (accb *AuthCodeCreateBulk) SaveX(ctx context.Context) []*AuthCode {
 		panic(err)
 	}
 	return v
+}
+
+// Exec executes the query.
+func (accb *AuthCodeCreateBulk) Exec(ctx context.Context) error {
+	_, err := accb.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (accb *AuthCodeCreateBulk) ExecX(ctx context.Context) {
+	if err := accb.Exec(ctx); err != nil {
+		panic(err)
+	}
 }

@@ -82,11 +82,17 @@ func (dtc *DeviceTokenCreate) Save(ctx context.Context) (*DeviceToken, error) {
 				return nil, err
 			}
 			dtc.mutation = mutation
-			node, err = dtc.sqlSave(ctx)
+			if node, err = dtc.sqlSave(ctx); err != nil {
+				return nil, err
+			}
+			mutation.id = &node.ID
 			mutation.done = true
 			return node, err
 		})
 		for i := len(dtc.hooks) - 1; i >= 0; i-- {
+			if dtc.hooks[i] == nil {
+				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = dtc.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, dtc.mutation); err != nil {
@@ -105,32 +111,45 @@ func (dtc *DeviceTokenCreate) SaveX(ctx context.Context) *DeviceToken {
 	return v
 }
 
+// Exec executes the query.
+func (dtc *DeviceTokenCreate) Exec(ctx context.Context) error {
+	_, err := dtc.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (dtc *DeviceTokenCreate) ExecX(ctx context.Context) {
+	if err := dtc.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
 // check runs all checks and user-defined validators on the builder.
 func (dtc *DeviceTokenCreate) check() error {
 	if _, ok := dtc.mutation.DeviceCode(); !ok {
-		return &ValidationError{Name: "device_code", err: errors.New("db: missing required field \"device_code\"")}
+		return &ValidationError{Name: "device_code", err: errors.New(`db: missing required field "device_code"`)}
 	}
 	if v, ok := dtc.mutation.DeviceCode(); ok {
 		if err := devicetoken.DeviceCodeValidator(v); err != nil {
-			return &ValidationError{Name: "device_code", err: fmt.Errorf("db: validator failed for field \"device_code\": %w", err)}
+			return &ValidationError{Name: "device_code", err: fmt.Errorf(`db: validator failed for field "device_code": %w`, err)}
 		}
 	}
 	if _, ok := dtc.mutation.Status(); !ok {
-		return &ValidationError{Name: "status", err: errors.New("db: missing required field \"status\"")}
+		return &ValidationError{Name: "status", err: errors.New(`db: missing required field "status"`)}
 	}
 	if v, ok := dtc.mutation.Status(); ok {
 		if err := devicetoken.StatusValidator(v); err != nil {
-			return &ValidationError{Name: "status", err: fmt.Errorf("db: validator failed for field \"status\": %w", err)}
+			return &ValidationError{Name: "status", err: fmt.Errorf(`db: validator failed for field "status": %w`, err)}
 		}
 	}
 	if _, ok := dtc.mutation.Expiry(); !ok {
-		return &ValidationError{Name: "expiry", err: errors.New("db: missing required field \"expiry\"")}
+		return &ValidationError{Name: "expiry", err: errors.New(`db: missing required field "expiry"`)}
 	}
 	if _, ok := dtc.mutation.LastRequest(); !ok {
-		return &ValidationError{Name: "last_request", err: errors.New("db: missing required field \"last_request\"")}
+		return &ValidationError{Name: "last_request", err: errors.New(`db: missing required field "last_request"`)}
 	}
 	if _, ok := dtc.mutation.PollInterval(); !ok {
-		return &ValidationError{Name: "poll_interval", err: errors.New("db: missing required field \"poll_interval\"")}
+		return &ValidationError{Name: "poll_interval", err: errors.New(`db: missing required field "poll_interval"`)}
 	}
 	return nil
 }
@@ -138,8 +157,8 @@ func (dtc *DeviceTokenCreate) check() error {
 func (dtc *DeviceTokenCreate) sqlSave(ctx context.Context) (*DeviceToken, error) {
 	_node, _spec := dtc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, dtc.driver, _spec); err != nil {
-		if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}
@@ -238,19 +257,23 @@ func (dtcb *DeviceTokenCreateBulk) Save(ctx context.Context) ([]*DeviceToken, er
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, dtcb.builders[i+1].mutation)
 				} else {
+					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
 					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, dtcb.driver, &sqlgraph.BatchCreateSpec{Nodes: specs}); err != nil {
-						if cerr, ok := isSQLConstraintError(err); ok {
-							err = cerr
+					if err = sqlgraph.BatchCreate(ctx, dtcb.driver, spec); err != nil {
+						if sqlgraph.IsConstraintError(err) {
+							err = &ConstraintError{err.Error(), err}
 						}
 					}
 				}
-				mutation.done = true
 				if err != nil {
 					return nil, err
 				}
-				id := specs[i].ID.Value.(int64)
-				nodes[i].ID = int(id)
+				mutation.id = &nodes[i].ID
+				mutation.done = true
+				if specs[i].ID.Value != nil {
+					id := specs[i].ID.Value.(int64)
+					nodes[i].ID = int(id)
+				}
 				return nodes[i], nil
 			})
 			for i := len(builder.hooks) - 1; i >= 0; i-- {
@@ -274,4 +297,17 @@ func (dtcb *DeviceTokenCreateBulk) SaveX(ctx context.Context) []*DeviceToken {
 		panic(err)
 	}
 	return v
+}
+
+// Exec executes the query.
+func (dtcb *DeviceTokenCreateBulk) Exec(ctx context.Context) error {
+	_, err := dtcb.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (dtcb *DeviceTokenCreateBulk) ExecX(ctx context.Context) {
+	if err := dtcb.Exec(ctx); err != nil {
+		panic(err)
+	}
 }

@@ -20,9 +20,9 @@ type DeviceRequestDelete struct {
 	mutation *DeviceRequestMutation
 }
 
-// Where adds a new predicate to the DeviceRequestDelete builder.
+// Where appends a list predicates to the DeviceRequestDelete builder.
 func (drd *DeviceRequestDelete) Where(ps ...predicate.DeviceRequest) *DeviceRequestDelete {
-	drd.mutation.predicates = append(drd.mutation.predicates, ps...)
+	drd.mutation.Where(ps...)
 	return drd
 }
 
@@ -46,6 +46,9 @@ func (drd *DeviceRequestDelete) Exec(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(drd.hooks) - 1; i >= 0; i-- {
+			if drd.hooks[i] == nil {
+				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = drd.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, drd.mutation); err != nil {

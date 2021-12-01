@@ -20,9 +20,9 @@ type AuthCodeDelete struct {
 	mutation *AuthCodeMutation
 }
 
-// Where adds a new predicate to the AuthCodeDelete builder.
+// Where appends a list predicates to the AuthCodeDelete builder.
 func (acd *AuthCodeDelete) Where(ps ...predicate.AuthCode) *AuthCodeDelete {
-	acd.mutation.predicates = append(acd.mutation.predicates, ps...)
+	acd.mutation.Where(ps...)
 	return acd
 }
 
@@ -46,6 +46,9 @@ func (acd *AuthCodeDelete) Exec(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(acd.hooks) - 1; i >= 0; i-- {
+			if acd.hooks[i] == nil {
+				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = acd.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, acd.mutation); err != nil {

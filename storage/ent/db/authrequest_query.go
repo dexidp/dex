@@ -287,8 +287,8 @@ func (arq *AuthRequestQuery) GroupBy(field string, fields ...string) *AuthReques
 //		Select(authrequest.FieldClientID).
 //		Scan(ctx, &v)
 //
-func (arq *AuthRequestQuery) Select(field string, fields ...string) *AuthRequestSelect {
-	arq.fields = append([]string{field}, fields...)
+func (arq *AuthRequestQuery) Select(fields ...string) *AuthRequestSelect {
+	arq.fields = append(arq.fields, fields...)
 	return &AuthRequestSelect{AuthRequestQuery: arq}
 }
 
@@ -398,10 +398,14 @@ func (arq *AuthRequestQuery) querySpec() *sqlgraph.QuerySpec {
 func (arq *AuthRequestQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(arq.driver.Dialect())
 	t1 := builder.Table(authrequest.Table)
-	selector := builder.Select(t1.Columns(authrequest.Columns...)...).From(t1)
+	columns := arq.fields
+	if len(columns) == 0 {
+		columns = authrequest.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if arq.sql != nil {
 		selector = arq.sql
-		selector.Select(selector.Columns(authrequest.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range arq.predicates {
 		p(selector)
@@ -669,13 +673,24 @@ func (argb *AuthRequestGroupBy) sqlScan(ctx context.Context, v interface{}) erro
 }
 
 func (argb *AuthRequestGroupBy) sqlQuery() *sql.Selector {
-	selector := argb.sql
-	columns := make([]string, 0, len(argb.fields)+len(argb.fns))
-	columns = append(columns, argb.fields...)
+	selector := argb.sql.Select()
+	aggregation := make([]string, 0, len(argb.fns))
 	for _, fn := range argb.fns {
-		columns = append(columns, fn(selector))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(argb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(argb.fields)+len(argb.fns))
+		for _, f := range argb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(argb.fields...)...)
 }
 
 // AuthRequestSelect is the builder for selecting fields of AuthRequest entities.
@@ -891,16 +906,10 @@ func (ars *AuthRequestSelect) BoolX(ctx context.Context) bool {
 
 func (ars *AuthRequestSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := ars.sqlQuery().Query()
+	query, args := ars.sql.Query()
 	if err := ars.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (ars *AuthRequestSelect) sqlQuery() sql.Querier {
-	selector := ars.sql
-	selector.Select(selector.Columns(ars.fields...)...)
-	return selector
 }

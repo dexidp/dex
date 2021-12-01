@@ -20,9 +20,9 @@ type RefreshTokenDelete struct {
 	mutation *RefreshTokenMutation
 }
 
-// Where adds a new predicate to the RefreshTokenDelete builder.
+// Where appends a list predicates to the RefreshTokenDelete builder.
 func (rtd *RefreshTokenDelete) Where(ps ...predicate.RefreshToken) *RefreshTokenDelete {
-	rtd.mutation.predicates = append(rtd.mutation.predicates, ps...)
+	rtd.mutation.Where(ps...)
 	return rtd
 }
 
@@ -46,6 +46,9 @@ func (rtd *RefreshTokenDelete) Exec(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(rtd.hooks) - 1; i >= 0; i-- {
+			if rtd.hooks[i] == nil {
+				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = rtd.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, rtd.mutation); err != nil {

@@ -186,6 +186,7 @@ var (
 	_ StorageConfig = (*sql.MySQL)(nil)
 	_ StorageConfig = (*ent.SQLite3)(nil)
 	_ StorageConfig = (*ent.Postgres)(nil)
+	_ StorageConfig = (*ent.MySQL)(nil)
 )
 
 func getORMBasedSQLStorage(normal, entBased StorageConfig) func() StorageConfig {
@@ -203,9 +204,9 @@ var storages = map[string]func() StorageConfig{
 	"etcd":       func() StorageConfig { return new(etcd.Etcd) },
 	"kubernetes": func() StorageConfig { return new(kubernetes.Config) },
 	"memory":     func() StorageConfig { return new(memory.Config) },
-	"mysql":      func() StorageConfig { return new(sql.MySQL) },
 	"sqlite3":    getORMBasedSQLStorage(&sql.SQLite3{}, &ent.SQLite3{}),
 	"postgres":   getORMBasedSQLStorage(&sql.Postgres{}, &ent.Postgres{}),
+	"mysql":      getORMBasedSQLStorage(&sql.MySQL{}, &ent.MySQL{}),
 }
 
 // isExpandEnvEnabled returns if os.ExpandEnv should be used for each storage and connector config.

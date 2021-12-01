@@ -191,11 +191,17 @@ func (arc *AuthRequestCreate) Save(ctx context.Context) (*AuthRequest, error) {
 				return nil, err
 			}
 			arc.mutation = mutation
-			node, err = arc.sqlSave(ctx)
+			if node, err = arc.sqlSave(ctx); err != nil {
+				return nil, err
+			}
+			mutation.id = &node.ID
 			mutation.done = true
 			return node, err
 		})
 		for i := len(arc.hooks) - 1; i >= 0; i-- {
+			if arc.hooks[i] == nil {
+				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = arc.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, arc.mutation); err != nil {
@@ -212,6 +218,19 @@ func (arc *AuthRequestCreate) SaveX(ctx context.Context) *AuthRequest {
 		panic(err)
 	}
 	return v
+}
+
+// Exec executes the query.
+func (arc *AuthRequestCreate) Exec(ctx context.Context) error {
+	_, err := arc.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (arc *AuthRequestCreate) ExecX(ctx context.Context) {
+	if err := arc.Exec(ctx); err != nil {
+		panic(err)
+	}
 }
 
 // defaults sets the default values of the builder before save.
@@ -233,53 +252,53 @@ func (arc *AuthRequestCreate) defaults() {
 // check runs all checks and user-defined validators on the builder.
 func (arc *AuthRequestCreate) check() error {
 	if _, ok := arc.mutation.ClientID(); !ok {
-		return &ValidationError{Name: "client_id", err: errors.New("db: missing required field \"client_id\"")}
+		return &ValidationError{Name: "client_id", err: errors.New(`db: missing required field "client_id"`)}
 	}
 	if _, ok := arc.mutation.RedirectURI(); !ok {
-		return &ValidationError{Name: "redirect_uri", err: errors.New("db: missing required field \"redirect_uri\"")}
+		return &ValidationError{Name: "redirect_uri", err: errors.New(`db: missing required field "redirect_uri"`)}
 	}
 	if _, ok := arc.mutation.Nonce(); !ok {
-		return &ValidationError{Name: "nonce", err: errors.New("db: missing required field \"nonce\"")}
+		return &ValidationError{Name: "nonce", err: errors.New(`db: missing required field "nonce"`)}
 	}
 	if _, ok := arc.mutation.State(); !ok {
-		return &ValidationError{Name: "state", err: errors.New("db: missing required field \"state\"")}
+		return &ValidationError{Name: "state", err: errors.New(`db: missing required field "state"`)}
 	}
 	if _, ok := arc.mutation.ForceApprovalPrompt(); !ok {
-		return &ValidationError{Name: "force_approval_prompt", err: errors.New("db: missing required field \"force_approval_prompt\"")}
+		return &ValidationError{Name: "force_approval_prompt", err: errors.New(`db: missing required field "force_approval_prompt"`)}
 	}
 	if _, ok := arc.mutation.LoggedIn(); !ok {
-		return &ValidationError{Name: "logged_in", err: errors.New("db: missing required field \"logged_in\"")}
+		return &ValidationError{Name: "logged_in", err: errors.New(`db: missing required field "logged_in"`)}
 	}
 	if _, ok := arc.mutation.ClaimsUserID(); !ok {
-		return &ValidationError{Name: "claims_user_id", err: errors.New("db: missing required field \"claims_user_id\"")}
+		return &ValidationError{Name: "claims_user_id", err: errors.New(`db: missing required field "claims_user_id"`)}
 	}
 	if _, ok := arc.mutation.ClaimsUsername(); !ok {
-		return &ValidationError{Name: "claims_username", err: errors.New("db: missing required field \"claims_username\"")}
+		return &ValidationError{Name: "claims_username", err: errors.New(`db: missing required field "claims_username"`)}
 	}
 	if _, ok := arc.mutation.ClaimsEmail(); !ok {
-		return &ValidationError{Name: "claims_email", err: errors.New("db: missing required field \"claims_email\"")}
+		return &ValidationError{Name: "claims_email", err: errors.New(`db: missing required field "claims_email"`)}
 	}
 	if _, ok := arc.mutation.ClaimsEmailVerified(); !ok {
-		return &ValidationError{Name: "claims_email_verified", err: errors.New("db: missing required field \"claims_email_verified\"")}
+		return &ValidationError{Name: "claims_email_verified", err: errors.New(`db: missing required field "claims_email_verified"`)}
 	}
 	if _, ok := arc.mutation.ClaimsPreferredUsername(); !ok {
-		return &ValidationError{Name: "claims_preferred_username", err: errors.New("db: missing required field \"claims_preferred_username\"")}
+		return &ValidationError{Name: "claims_preferred_username", err: errors.New(`db: missing required field "claims_preferred_username"`)}
 	}
 	if _, ok := arc.mutation.ConnectorID(); !ok {
-		return &ValidationError{Name: "connector_id", err: errors.New("db: missing required field \"connector_id\"")}
+		return &ValidationError{Name: "connector_id", err: errors.New(`db: missing required field "connector_id"`)}
 	}
 	if _, ok := arc.mutation.Expiry(); !ok {
-		return &ValidationError{Name: "expiry", err: errors.New("db: missing required field \"expiry\"")}
+		return &ValidationError{Name: "expiry", err: errors.New(`db: missing required field "expiry"`)}
 	}
 	if _, ok := arc.mutation.CodeChallenge(); !ok {
-		return &ValidationError{Name: "code_challenge", err: errors.New("db: missing required field \"code_challenge\"")}
+		return &ValidationError{Name: "code_challenge", err: errors.New(`db: missing required field "code_challenge"`)}
 	}
 	if _, ok := arc.mutation.CodeChallengeMethod(); !ok {
-		return &ValidationError{Name: "code_challenge_method", err: errors.New("db: missing required field \"code_challenge_method\"")}
+		return &ValidationError{Name: "code_challenge_method", err: errors.New(`db: missing required field "code_challenge_method"`)}
 	}
 	if v, ok := arc.mutation.ID(); ok {
 		if err := authrequest.IDValidator(v); err != nil {
-			return &ValidationError{Name: "id", err: fmt.Errorf("db: validator failed for field \"id\": %w", err)}
+			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "id": %w`, err)}
 		}
 	}
 	return nil
@@ -288,8 +307,8 @@ func (arc *AuthRequestCreate) check() error {
 func (arc *AuthRequestCreate) sqlSave(ctx context.Context) (*AuthRequest, error) {
 	_node, _spec := arc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, arc.driver, _spec); err != nil {
-		if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}
@@ -495,17 +514,19 @@ func (arcb *AuthRequestCreateBulk) Save(ctx context.Context) ([]*AuthRequest, er
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, arcb.builders[i+1].mutation)
 				} else {
+					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
 					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, arcb.driver, &sqlgraph.BatchCreateSpec{Nodes: specs}); err != nil {
-						if cerr, ok := isSQLConstraintError(err); ok {
-							err = cerr
+					if err = sqlgraph.BatchCreate(ctx, arcb.driver, spec); err != nil {
+						if sqlgraph.IsConstraintError(err) {
+							err = &ConstraintError{err.Error(), err}
 						}
 					}
 				}
-				mutation.done = true
 				if err != nil {
 					return nil, err
 				}
+				mutation.id = &nodes[i].ID
+				mutation.done = true
 				return nodes[i], nil
 			})
 			for i := len(builder.hooks) - 1; i >= 0; i-- {
@@ -529,4 +550,17 @@ func (arcb *AuthRequestCreateBulk) SaveX(ctx context.Context) []*AuthRequest {
 		panic(err)
 	}
 	return v
+}
+
+// Exec executes the query.
+func (arcb *AuthRequestCreateBulk) Exec(ctx context.Context) error {
+	_, err := arcb.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (arcb *AuthRequestCreateBulk) ExecX(ctx context.Context) {
+	if err := arcb.Exec(ctx); err != nil {
+		panic(err)
+	}
 }

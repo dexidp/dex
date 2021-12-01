@@ -287,8 +287,8 @@ func (osq *OfflineSessionQuery) GroupBy(field string, fields ...string) *Offline
 //		Select(offlinesession.FieldUserID).
 //		Scan(ctx, &v)
 //
-func (osq *OfflineSessionQuery) Select(field string, fields ...string) *OfflineSessionSelect {
-	osq.fields = append([]string{field}, fields...)
+func (osq *OfflineSessionQuery) Select(fields ...string) *OfflineSessionSelect {
+	osq.fields = append(osq.fields, fields...)
 	return &OfflineSessionSelect{OfflineSessionQuery: osq}
 }
 
@@ -398,10 +398,14 @@ func (osq *OfflineSessionQuery) querySpec() *sqlgraph.QuerySpec {
 func (osq *OfflineSessionQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(osq.driver.Dialect())
 	t1 := builder.Table(offlinesession.Table)
-	selector := builder.Select(t1.Columns(offlinesession.Columns...)...).From(t1)
+	columns := osq.fields
+	if len(columns) == 0 {
+		columns = offlinesession.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if osq.sql != nil {
 		selector = osq.sql
-		selector.Select(selector.Columns(offlinesession.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range osq.predicates {
 		p(selector)
@@ -669,13 +673,24 @@ func (osgb *OfflineSessionGroupBy) sqlScan(ctx context.Context, v interface{}) e
 }
 
 func (osgb *OfflineSessionGroupBy) sqlQuery() *sql.Selector {
-	selector := osgb.sql
-	columns := make([]string, 0, len(osgb.fields)+len(osgb.fns))
-	columns = append(columns, osgb.fields...)
+	selector := osgb.sql.Select()
+	aggregation := make([]string, 0, len(osgb.fns))
 	for _, fn := range osgb.fns {
-		columns = append(columns, fn(selector))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(osgb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(osgb.fields)+len(osgb.fns))
+		for _, f := range osgb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(osgb.fields...)...)
 }
 
 // OfflineSessionSelect is the builder for selecting fields of OfflineSession entities.
@@ -891,16 +906,10 @@ func (oss *OfflineSessionSelect) BoolX(ctx context.Context) bool {
 
 func (oss *OfflineSessionSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := oss.sqlQuery().Query()
+	query, args := oss.sql.Query()
 	if err := oss.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (oss *OfflineSessionSelect) sqlQuery() sql.Querier {
-	selector := oss.sql
-	selector.Select(selector.Columns(oss.fields...)...)
-	return selector
 }
