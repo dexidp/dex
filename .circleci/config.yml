@@ -1,0 +1,38 @@
+version: 2.1
+
+
+jobs:
+  build:
+    machine:
+      image: "ubuntu-2004:202010-01"
+    steps:
+      - checkout
+      - run:
+          environment:
+            REGISTRY: quay.io/giantswarm
+          name: Build dex docker image
+          command: |
+            TAG=$CIRCLE_SHA1 make -e docker-image
+      - run:
+          name: Login to quay
+          command: |
+            docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io
+      - run:
+          name: Push image to quay
+          command: |
+            docker push quay.io/giantswarm/dex:$CIRCLE_SHA1
+      - run:
+          name: Login to aliyun
+          command: |
+            docker login --username $ALIYUN_USERNAME --password $ALIYUN_PASSWORD registry-intl.cn-shanghai.aliyuncs.com
+      - run:
+          name: Push image to aliyun
+          command: |
+            docker push registry-intl.cn-shanghai.aliyuncs.com/giantswarm/dex:$CIRCLE_SHA1
+workflows:
+  version: 2
+  build_and_update:
+    jobs:
+      - build:
+          context:
+            - architect
