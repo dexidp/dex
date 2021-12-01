@@ -65,28 +65,34 @@ type Config struct {
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	var err error
 
-	if c.UserIDKey == "" {
-		c.UserIDKey = "id"
+	userIDKey := c.UserIDKey
+	if userIDKey == "" {
+		userIDKey = "id"
 	}
 
-	if c.ClaimMapping.UserNameKey == "" {
-		c.ClaimMapping.UserNameKey = "user_name"
+	userNameKey := c.ClaimMapping.UserNameKey
+	if userNameKey == "" {
+		userNameKey = "user_name"
 	}
 
-	if c.ClaimMapping.PreferredUsernameKey == "" {
-		c.ClaimMapping.PreferredUsernameKey = "preferred_username"
+	preferredUsernameKey := c.ClaimMapping.PreferredUsernameKey
+	if preferredUsernameKey == "" {
+		preferredUsernameKey = "preferred_username"
 	}
 
-	if c.ClaimMapping.GroupsKey == "" {
-		c.ClaimMapping.GroupsKey = "groups"
+	groupsKey := c.ClaimMapping.GroupsKey
+	if groupsKey == "" {
+		groupsKey = "groups"
 	}
 
-	if c.ClaimMapping.EmailKey == "" {
-		c.ClaimMapping.EmailKey = "email"
+	emailKey := c.ClaimMapping.EmailKey
+	if emailKey == "" {
+		emailKey = "email"
 	}
 
-	if c.ClaimMapping.EmailVerifiedKey == "" {
-		c.ClaimMapping.EmailVerifiedKey = "email_verified"
+	emailVerifiedKey := c.ClaimMapping.EmailVerifiedKey
+	if emailVerifiedKey == "" {
+		emailVerifiedKey = "email_verified"
 	}
 
 	oauthConn := &oauthConnector{
@@ -98,12 +104,12 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		scopes:               c.Scopes,
 		redirectURI:          c.RedirectURI,
 		logger:               logger,
-		userIDKey:            c.UserIDKey,
-		userNameKey:          c.ClaimMapping.UserNameKey,
-		preferredUsernameKey: c.ClaimMapping.PreferredUsernameKey,
-		groupsKey:            c.ClaimMapping.GroupsKey,
-		emailKey:             c.ClaimMapping.EmailKey,
-		emailVerifiedKey:     c.ClaimMapping.EmailVerifiedKey,
+		userIDKey:            userIDKey,
+		userNameKey:          userNameKey,
+		preferredUsernameKey: preferredUsernameKey,
+		groupsKey:            groupsKey,
+		emailKey:             emailKey,
+		emailVerifiedKey:     emailVerifiedKey,
 	}
 
 	oauthConn.httpClient, err = newHTTPClient(c.RootCAs, c.InsecureSkipVerify)
