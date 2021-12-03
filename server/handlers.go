@@ -222,7 +222,7 @@ func (s *Server) handleNonce(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 
-	s.renderJSON(r, w, struct {
+	s.renderJSON(w, struct {
 		Nonce string `json:"nonce"`
 	}{nonce})
 }
@@ -279,7 +279,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		s.renderErrorJSON(w, http.StatusInternalServerError, "Login failure.")
 	}
 
-	s.renderJSON(r, w, struct {
+	s.renderJSON(w, struct {
 		Redirect string `json:"redirect"`
 	}{redirectURL})
 }
@@ -1461,7 +1461,7 @@ func (s *Server) renderError(r *http.Request, w http.ResponseWriter, status int,
 	}
 }
 
-func (s *Server) renderJSON(r *http.Request, w http.ResponseWriter, body interface{}) {
+func (s *Server) renderJSON(w http.ResponseWriter, body interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		s.logger.Errorf("Failed to write JSON response: %v", err)
