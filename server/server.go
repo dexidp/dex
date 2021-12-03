@@ -233,6 +233,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		grantTypeRefreshToken:      true,
 		grantTypeDeviceCode:        true,
 		grantTypeTokenExchange:     true,
+		grantTypeClientCredentials: true,
 	}
 	supportedRes := make(map[string]bool)
 
