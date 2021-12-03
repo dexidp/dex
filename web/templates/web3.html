@@ -1,11 +1,13 @@
 {{ template "header.html" . }}
 
-<script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
-<script src="https://unpkg.com/web3modal@1.9.4/dist/index.js"></script>
+<script src="https://unpkg.com/web3@latest/dist/web3.min.js"></script>
+<script src="https://unpkg.com/web3modal"></script>
+<script src="https://unpkg.com/@walletconnect/web3-provider"></script>
 
 <script>
 const Web3 = window.Web3;
 const Web3Modal = window.Web3Modal.default;
+const WalletConnectProvider = window.WalletConnectProvider.default;
 
 async function postJson(url, obj) {
   return fetch(url, {
@@ -22,32 +24,39 @@ function displayError(msg) {
 }
 
 async function init() {
-  try {
-    const web3Modal = new Web3Modal({providerOptions: {}});
-    const provider = await web3Modal.connect();
-    const web3 = new Web3(provider);
-
-    const accounts = await web3.eth.getAccounts();
-    const selectedAccount = accounts[0];
-
-    const nonceResp = await postJson("{{ .NonceURL }}", {address: selectedAccount, state: "{{ .AuthID }}"});
-    const nonceBody = await nonceResp.json();
-
-    web3.eth.personal.sign(nonceBody.nonce, selectedAccount, "", async (error, signature) => {
-      // Handle if wallet returns error
-      if (error) {
-        return;
+  const web3Modal = new Web3Modal({
+    providerOptions: {
+      {{ if ne .InfuraID "" }}
+      walletconnect: {
+        package: WalletConnectProvider, 
+        options: {
+          infuraId: {{ .InfuraID }}
+        }
       }
-      const verifyResp = await postJson("{{ .VerifyURL }}", {signed: signature, state: "{{ .AuthID }}"});
-      const verifyBody = await verifyResp.json();
-      window.location.replace(verifyBody.redirect);
-    });
-  } catch (e) {
-    displayError(e.toString());
-  }
+      {{ end }}
+    }
+  });
+  const provider = await web3Modal.connect();
+  const web3 = new Web3(provider);
+
+  const accounts = await web3.eth.getAccounts();
+  const selectedAccount = accounts[0];
+
+  const nonceResp = await postJson("{{ .NonceURL }}", {address: selectedAccount, state: "{{ .AuthID }}"});
+  const nonceBody = await nonceResp.json();
+
+  web3.eth.personal.sign(nonceBody.nonce, selectedAccount, "", async (error, signature) => {
+    // Handle if wallet returns error
+    if (error) {
+      return;
+    }
+    const verifyResp = await postJson("{{ .VerifyURL }}", {signed: signature, state: "{{ .AuthID }}"});
+    const verifyBody = await verifyResp.json();
+    window.location.replace(verifyBody.redirect);
+  });
 }
 
-window.addEventListener('load', init);
+window.addEventListener("load", init);
 </script>
 
 <div class="theme-panel">
