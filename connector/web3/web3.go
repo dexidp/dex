@@ -34,17 +34,17 @@ func (c *web3Connector) Verify(address, msg, signedMsg string) (identity connect
 
 	signb, err := hexutil.Decode(signedMsg)
 	if err != nil {
-		return identity, fmt.Errorf("Could not decode hex string of signed nonce: %v", err)
+		return identity, fmt.Errorf("could not decode hex string of signed nonce: %v", err)
 	}
 
 	if signb[64] != 27 && signb[64] != 28 {
-		return identity, fmt.Errorf("Byte at index 64 of signed message should be 27 or 28: %s", signedMsg)
+		return identity, fmt.Errorf("byte at index 64 of signed message should be 27 or 28: %s", signedMsg)
 	}
 	signb[64] -= 27
 
 	pubKey, err := crypto.SigToPub(signHash([]byte(msg)), signb)
 	if err != nil {
-		return identity, fmt.Errorf("Failed to recover public key from signed message: %v", err)
+		return identity, fmt.Errorf("failed to recover public key from signed message: %v", err)
 	}
 
 	recoveredAddr := crypto.PubkeyToAddress(*pubKey)
@@ -54,7 +54,7 @@ func (c *web3Connector) Verify(address, msg, signedMsg string) (identity connect
 		return identity, nil
 	}
 
-	return identity, fmt.Errorf("Given address and address recovered from signed nonce do not match")
+	return identity, fmt.Errorf("given address and address recovered from signed nonce do not match")
 }
 
 func (c *web3Connector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {

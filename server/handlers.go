@@ -198,20 +198,20 @@ func (s *Server) handleNonce(w http.ResponseWriter, r *http.Request) {
 		State   string `json:"state"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&nonceReq); err != nil {
-		s.renderErrorJSON(r, w, http.StatusBadRequest, "Could not parse request body JSON.")
+		s.renderErrorJSON(w, http.StatusBadRequest, "Could not parse request body JSON.")
 		return
 	}
 
 	authReq, err := s.storage.GetAuthRequest(nonceReq.State)
 	if err != nil {
-		s.renderErrorJSON(r, w, http.StatusBadRequest, "Requested resource does not exist.")
+		s.renderErrorJSON(w, http.StatusBadRequest, "Requested resource does not exist.")
 		return
 	}
 
 	nonce := generateNonce()
 	bts, err := json.Marshal(web3ConnectorData{Address: nonceReq.Address, Nonce: nonce})
 	if err != nil {
-		s.renderErrorJSON(r, w, http.StatusInternalServerError, "Failed to create auth request.")
+		s.renderErrorJSON(w, http.StatusInternalServerError, "Failed to create auth request.")
 		return
 	}
 	s.storage.UpdateAuthRequest(authReq.ID, func(a storage.AuthRequest) (storage.AuthRequest, error) {
@@ -243,13 +243,13 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		State  string `json:"state"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&verifyReq); err != nil {
-		s.renderErrorJSON(r, w, http.StatusBadRequest, "Could not parse request body JSON.")
+		s.renderErrorJSON(w, http.StatusBadRequest, "Could not parse request body JSON.")
 		return
 	}
 
 	authReq, err := s.storage.GetAuthRequest(verifyReq.State)
 	if err != nil {
-		s.renderErrorJSON(r, w, http.StatusBadRequest, "Requested resource does not exist.")
+		s.renderErrorJSON(w, http.StatusBadRequest, "Requested resource does not exist.")
 		return
 	}
 
@@ -258,25 +258,25 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := s.getConnector(authReq.ConnectorID)
 	if err != nil {
-		s.renderErrorJSON(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
+		s.renderErrorJSON(w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
 	}
 
 	w3Conn, ok := conn.Connector.(connector.Web3Connector)
 	if !ok {
-		s.renderErrorJSON(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
+		s.renderErrorJSON(w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
 	}
 
 	identity, err := w3Conn.Verify(data.Address, data.Nonce, verifyReq.Signed)
 	if err != nil {
-		s.renderErrorJSON(r, w, http.StatusBadRequest, "Could not verify signature.")
+		s.renderErrorJSON(w, http.StatusBadRequest, "Could not verify signature.")
 		return
 	}
 
 	redirectURL, err := s.finalizeLogin(identity, authReq, conn)
 	if err != nil {
-		s.renderErrorJSON(r, w, http.StatusInternalServerError, "Login failure.")
+		s.renderErrorJSON(w, http.StatusInternalServerError, "Login failure.")
 	}
 
 	s.renderJSON(r, w, struct {
@@ -1468,7 +1468,7 @@ func (s *Server) renderJSON(r *http.Request, w http.ResponseWriter, body interfa
 	}
 }
 
-func (s *Server) renderErrorJSON(r *http.Request, w http.ResponseWriter, status int, message string) {
+func (s *Server) renderErrorJSON(w http.ResponseWriter, status int, message string) {
 	w.WriteHeader(status)
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(struct {
