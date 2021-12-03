@@ -9,7 +9,8 @@ jobs:
       - checkout
       - run:
           environment:
-            REGISTRY: quay.io/giantswarm
+            DOCKER_REPO: quay.io/giantswarm/dex
+            ORG_PATH: github.com/giantswarm
           name: Build dex docker image
           command: |
             TAG=$CIRCLE_SHA1 make -e docker-image
