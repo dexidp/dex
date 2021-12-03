@@ -222,7 +222,12 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		supportedRes[respType] = true
 	}
 
-	supportedGrant := []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode} // default
+	supportedGrant := []string{
+		grantTypeAuthorizationCode,
+		grantTypeRefreshToken,
+		grantTypeDeviceCode,
+		grantTypeClientCredentials,
+	} // default
 	if c.PasswordConnector != "" {
 		supportedGrant = append(supportedGrant, grantTypePassword)
 	}
