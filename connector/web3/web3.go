@@ -2,6 +2,7 @@
 package web3
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/dexidp/dex/connector"
@@ -54,6 +55,10 @@ func (c *web3Connector) Verify(address, msg, signedMsg string) (identity connect
 	}
 
 	return identity, fmt.Errorf("Given address and address recovered from signed nonce do not match")
+}
+
+func (c *web3Connector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+	return identity, nil
 }
 
 func signHash(data []byte) []byte {
