@@ -130,6 +130,8 @@ connectors:
 - type: web3
   id: web3
   name: Web3
+#  config:
+#    infuraId: $INFURA_ID
 # - type: google
 #   id: google
 #   name: Google
