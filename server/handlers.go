@@ -389,7 +389,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		case connector.Web3Connector:
 			nonceURL := url.URL{Path: s.absPath("/auth", connID, "nonce")}
 			verifyURL := url.URL{Path: s.absPath("/auth", connID, "verify")}
-			s.templates.web3login(r, w, nonceURL.String(), verifyURL.String(), authReq.ID)
+			s.templates.web3login(r, w, nonceURL.String(), verifyURL.String(), authReq.ID, conn.InfuraID())
 		default:
 			s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
 		}

@@ -11,16 +11,24 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-type Config struct{}
-
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
-	return &Web3Connector{}, nil
+type Config struct {
+	InfuraID string `json:"infuraId"`
 }
 
-type Web3Connector struct{}
+func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+	return &web3Connector{infuraID: c.InfuraID}, nil
+}
+
+type web3Connector struct {
+	infuraID string
+}
+
+func (c *web3Connector) InfuraID() string {
+	return c.infuraID
+}
 
 // https://gist.github.com/dcb9/385631846097e1f59e3cba3b1d42f3ed#file-eth_sign_verify-go
-func (c *Web3Connector) Verify(address, msg, signedMsg string) (identity connector.Identity, err error) {
+func (c *web3Connector) Verify(address, msg, signedMsg string) (identity connector.Identity, err error) {
 	addrb := common.HexToAddress(address)
 
 	signb, err := hexutil.Decode(signedMsg)
