@@ -482,6 +482,47 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 				},
 			},
 			{
+				name:   "refresh with different client id",
+				scopes: []string{"openid", "email"},
+				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+					v := url.Values{}
+					v.Add("client_id", clientID)
+					v.Add("client_secret", clientSecret)
+					v.Add("grant_type", "refresh_token")
+					v.Add("refresh_token", "existedrefrestoken")
+					v.Add("scope", "oidc email")
+					resp, err := http.PostForm(p.Endpoint().TokenURL, v)
+					if err != nil {
+						return err
+					}
+
+					defer resp.Body.Close()
+					if resp.StatusCode != http.StatusBadRequest {
+						return fmt.Errorf("expected status code %d, got %d", http.StatusBadRequest, resp.StatusCode)
+					}
+
+					var respErr struct {
+						Error       string `json:"error"`
+						Description string `json:"error_description"`
+					}
+
+					if err = json.NewDecoder(resp.Body).Decode(&respErr); err != nil {
+						return fmt.Errorf("cannot decode token response: %v", err)
+					}
+
+					if respErr.Error != errInvalidGrant {
+						return fmt.Errorf("expected error %q, got %q", errInvalidGrant, respErr.Error)
+					}
+
+					expectedMsg := "Refresh token is invalid or has already been claimed by another client."
+					if respErr.Description != expectedMsg {
+						return fmt.Errorf("expected error description %q, got %q", expectedMsg, respErr.Description)
+					}
+
+					return nil
+				},
+			},
+			{
 				// This test ensures that the connector.RefreshConnector interface is being
 				// used when clients request a refresh token.
 				name: "refresh with identity changes",
@@ -790,6 +831,13 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			}
 			if err := s.storage.CreateClient(client); err != nil {
 				t.Fatalf("failed to create client: %v", err)
+			}
+
+			if err := s.storage.CreateRefresh(storage.RefreshToken{
+				ID:       "existedrefrestoken",
+				ClientID: "unexcistedclientid",
+			}); err != nil {
+				t.Fatalf("failed to create existed refresh token: %v", err)
 			}
 
 			// Create the OAuth2 config.
@@ -1568,6 +1616,13 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				}
 				if err := s.storage.CreateClient(client); err != nil {
 					t.Fatalf("failed to create client: %v", err)
+				}
+
+				if err := s.storage.CreateRefresh(storage.RefreshToken{
+					ID:       "existedrefrestoken",
+					ClientID: "unexcistedclientid",
+				}); err != nil {
+					t.Fatalf("failed to create existed refresh token: %v", err)
 				}
 
 				// Grab the issuer that we'll reuse for the different endpoints to hit
