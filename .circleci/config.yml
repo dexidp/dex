@@ -1,39 +1,52 @@
 version: 2.1
 
+orbs:
+  architect: giantswarm/architect@4.8.1
 
-jobs:
-  build:
-    machine:
-      image: "ubuntu-2004:202010-01"
-    steps:
-      - checkout
-      - run:
-          environment:
-            DOCKER_REPO: quay.io/giantswarm/dex
-            ORG_PATH: github.com/giantswarm
-          name: Build dex docker image
-          command: |
-            TAG=$CIRCLE_SHA1 make -e docker-image
-      - run:
-          name: Login to quay
-          command: |
-            docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io
-      - run:
-          name: Push image to quay
-          command: |
-            docker push quay.io/giantswarm/dex:$CIRCLE_SHA1
-      - run:
-          name: Login to aliyun
-          command: |
-            docker login --username $ALIYUN_USERNAME --password $ALIYUN_PASSWORD registry-intl.cn-shanghai.aliyuncs.com
-      - run:
-          name: Push image to aliyun
-          command: |
-            docker push registry-intl.cn-shanghai.aliyuncs.com/giantswarm/dex:$CIRCLE_SHA1
 workflows:
-  version: 2
-  build_and_update:
+  test:
     jobs:
-      - build:
-          context:
-            - architect
+      - architect/go-build:
+          name: go-build
+          binary: dex
+          filters:
+            tags:
+              only: /^v.*/
+      - architect/push-to-docker:
+          context: "architect"
+          name: push-dex-to-docker
+          image: "docker.io/giantswarm/dex"
+          username_envar: "DOCKER_USERNAME"
+          password_envar: "DOCKER_PASSWORD"
+          requires:
+            - go-build
+          # Needed to trigger job also on git tag.
+          filters:
+            tags:
+              only: /^v.*/
+
+      - architect/push-to-docker:
+          context: "architect"
+          name: push-dex-to-quay
+          image: "quay.io/giantswarm/dex"
+          username_envar: "QUAY_USERNAME"
+          password_envar: "QUAY_PASSWORD"
+          requires:
+            - go-build
+          # Needed to trigger job also on git tag.
+          filters:
+            tags:
+              only: /^v.*/
+
+      - architect/push-to-docker:
+          context: "architect"
+          name: push-dex-to-aliyun
+          image: "registry-intl.cn-shanghai.aliyuncs.com/giantswarm/dex"
+          username_envar: "ALIYUN_USERNAME"
+          password_envar: "ALIYUN_PASSWORD"
+          requires:
+            - go-build
+          # Needed to trigger job also on git tag.
+          filters:
+            tags:
+              only: /^v.*/
