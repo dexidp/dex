@@ -41,7 +41,7 @@ jobs:
       - run:
           name: Login to aliyun
           command: |
-            if ! [[ -n $CIRCLE_TAG ]]; then docker login --username $ALIYUN_USERNAME --password $ALIYUN_PASSWORD registry-intl.cn-shanghai.aliyuncs.com; fi
+            docker login --username $ALIYUN_USERNAME --password $ALIYUN_PASSWORD registry-intl.cn-shanghai.aliyuncs.com
       - run:
           name: Push image to aliyun
           command: |
