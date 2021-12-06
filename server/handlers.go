@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"path"
@@ -184,6 +185,103 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type web3ConnectorData struct {
+	Address string `json:"address"`
+	Nonce   string `json:"nonce"`
+}
+
+func (s *Server) handleNonce(w http.ResponseWriter, r *http.Request) {
+	var nonceReq struct {
+		Address string `json:"address"`
+		State   string `json:"state"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&nonceReq); err != nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Could not parse request body JSON.")
+		return
+	}
+
+	authReq, err := s.storage.GetAuthRequest(nonceReq.State)
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Requested resource does not exist.")
+		return
+	}
+
+	nonce := generateNonce()
+	bts, err := json.Marshal(web3ConnectorData{Address: nonceReq.Address, Nonce: nonce})
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusInternalServerError, "Failed to create auth request.")
+		return
+	}
+	s.storage.UpdateAuthRequest(authReq.ID, func(a storage.AuthRequest) (storage.AuthRequest, error) {
+		a.ConnectorData = bts
+		return a, nil
+	})
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+
+	s.renderJSON(w, struct {
+		Nonce string `json:"nonce"`
+	}{nonce})
+}
+
+func generateNonce() string {
+	const allowedChars = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+	b := make([]byte, 8)
+	for i := range b {
+		b[i] = allowedChars[rand.Intn(len(allowedChars))]
+	}
+	return string(b)
+}
+
+func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
+	var verifyReq struct {
+		Signed string `json:"signed"`
+		State  string `json:"state"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&verifyReq); err != nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Could not parse request body JSON.")
+		return
+	}
+
+	authReq, err := s.storage.GetAuthRequest(verifyReq.State)
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Requested resource does not exist.")
+		return
+	}
+
+	var data web3ConnectorData
+	json.Unmarshal(authReq.ConnectorData, &data)
+
+	conn, err := s.getConnector(authReq.ConnectorID)
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusInternalServerError, "Requested resource does not exist.")
+		return
+	}
+
+	w3Conn, ok := conn.Connector.(connector.Web3Connector)
+	if !ok {
+		s.renderErrorJSON(w, http.StatusInternalServerError, "Requested resource does not exist.")
+		return
+	}
+
+	identity, err := w3Conn.Verify(data.Address, data.Nonce, verifyReq.Signed)
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Could not verify signature.")
+		return
+	}
+
+	redirectURL, err := s.finalizeLogin(identity, authReq, conn)
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusInternalServerError, "Login failure.")
+	}
+
+	s.renderJSON(w, struct {
+		Redirect string `json:"redirect"`
+	}{redirectURL})
+}
+
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	authReq, err := s.parseAuthorizationRequest(r)
 	if err != nil {
@@ -288,6 +386,10 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 				</script>
 			  </body>
 			  </html>`, action, value, authReq.ID)
+		case connector.Web3Connector:
+			nonceURL := url.URL{Path: s.absPath("/auth", connID, "nonce")}
+			verifyURL := url.URL{Path: s.absPath("/auth", connID, "verify")}
+			s.templates.web3login(r, w, nonceURL.String(), verifyURL.String(), authReq.ID, conn.InfuraID())
 		default:
 			s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
 		}
@@ -1282,6 +1384,27 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, resp *accessTokenRespon
 func (s *Server) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
 	if err := s.templates.err(r, w, status, description); err != nil {
 		s.logger.Errorf("Server template error: %v", err)
+	}
+}
+
+func (s *Server) renderJSON(w http.ResponseWriter, body interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		s.logger.Errorf("Failed to write JSON response: %v", err)
+	}
+}
+
+func (s *Server) renderErrorJSON(w http.ResponseWriter, status int, message string) {
+	w.WriteHeader(status)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(struct {
+		Status  int    `json:"status"`
+		Message string `json:"message"`
+	}{
+		Status:  status,
+		Message: message,
+	}); err != nil {
+		s.logger.Errorf("Failed to write JSON error response: %v", err)
 	}
 }
 

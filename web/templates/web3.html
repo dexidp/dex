@@ -1,0 +1,70 @@
+{{ template "header.html" . }}
+
+<script src="https://unpkg.com/web3@latest/dist/web3.min.js"></script>
+<script src="https://unpkg.com/web3modal"></script>
+<script src="https://unpkg.com/@walletconnect/web3-provider"></script>
+
+<script>
+const Web3 = window.Web3;
+const Web3Modal = window.Web3Modal.default;
+const WalletConnectProvider = window.WalletConnectProvider.default;
+
+async function postJson(url, obj) {
+  return fetch(url, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(obj),
+  })
+}
+
+function displayError(msg) {
+  const errorBox = document.getElementById("web3-error");
+  errorBox.style.display = "block";
+  errorBox.textContent = msg;
+}
+
+async function init() {
+  const web3Modal = new Web3Modal({
+    providerOptions: {
+      {{ if ne .InfuraID "" }}
+      walletconnect: {
+        package: WalletConnectProvider, 
+        options: {
+          infuraId: {{ .InfuraID }}
+        }
+      }
+      {{ end }}
+    }
+  });
+  const provider = await web3Modal.connect();
+  const web3 = new Web3(provider);
+
+  const accounts = await web3.eth.getAccounts();
+  const selectedAccount = accounts[0];
+
+  const nonceResp = await postJson("{{ .NonceURL }}", {address: selectedAccount, state: "{{ .AuthID }}"});
+  const nonceBody = await nonceResp.json();
+
+  web3.eth.personal.sign(nonceBody.nonce, selectedAccount, "", async (error, signature) => {
+    // Handle if wallet returns error
+    if (error) {
+      return;
+    }
+    const verifyResp = await postJson("{{ .VerifyURL }}", {signed: signature, state: "{{ .AuthID }}"});
+    const verifyBody = await verifyResp.json();
+    window.location.replace(verifyBody.redirect);
+  });
+}
+
+window.addEventListener("load", init);
+</script>
+
+<div class="theme-panel">
+  <h2 class="theme-heading">Log in to {{ issuer }} </h2>
+  <div>
+    <div class="dex-subtle-text">Attempting to log in with your browser wallet</div>
+    <div id="web3-error" class="dex-error-box" style="display: none;"> </div>
+  </div>
+</div>
+
+{{ template "footer.html" . }}
