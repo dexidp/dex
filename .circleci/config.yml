@@ -1,10 +1,9 @@
 version: 2.1
 
-
 jobs:
   build:
     machine:
-      image: "ubuntu-2004:202010-01"
+      image: cimg/go:1.17.4
     steps:
       - checkout
       - run:
