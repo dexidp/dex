@@ -1,3 +1,4 @@
+//go:build ignore
 // +build ignore
 
 // This file is used to generate static JWKs for tests.
