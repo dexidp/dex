@@ -1,9 +1,12 @@
 version: 2.1
 
+orbs:
+  architect: giantswarm/architect@4.6.0
+
 jobs:
   build:
     machine:
-      image: cimg/go:1.17.4
+      image: "ubuntu-2004:202010-01"
     steps:
       - checkout
       - run:
