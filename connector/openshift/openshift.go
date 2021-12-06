@@ -37,8 +37,10 @@ type Config struct {
 	RootCA       string   `json:"rootCA"`
 }
 
-var _ connector.CallbackConnector = (*openshiftConnector)(nil)
-var _ connector.RefreshConnector = (*openshiftConnector)(nil)
+var (
+	_ connector.CallbackConnector = (*openshiftConnector)(nil)
+	_ connector.RefreshConnector  = (*openshiftConnector)(nil)
+)
 
 type openshiftConnector struct {
 	apiURL       string

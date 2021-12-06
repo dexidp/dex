@@ -203,7 +203,7 @@ func TestRefreshIdentity(t *testing.T) {
 
 	oc := openshiftConnector{apiURL: s.URL, httpClient: h, oauth2Config: &oauth2.Config{
 		Endpoint: oauth2.Endpoint{
-			AuthURL: fmt.Sprintf("%s/oauth/authorize", s.URL),
+			AuthURL:  fmt.Sprintf("%s/oauth/authorize", s.URL),
 			TokenURL: fmt.Sprintf("%s/oauth/token", s.URL),
 		},
 	}}
@@ -242,7 +242,7 @@ func TestRefreshIdentityFailure(t *testing.T) {
 
 	oc := openshiftConnector{apiURL: s.URL, httpClient: h, oauth2Config: &oauth2.Config{
 		Endpoint: oauth2.Endpoint{
-			AuthURL: fmt.Sprintf("%s/oauth/authorize", s.URL),
+			AuthURL:  fmt.Sprintf("%s/oauth/authorize", s.URL),
 			TokenURL: fmt.Sprintf("%s/oauth/token", s.URL),
 		},
 	}}
