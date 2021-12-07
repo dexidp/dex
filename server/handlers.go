@@ -192,7 +192,7 @@ type web3ConnectorData struct {
 	Nonce   string `json:"nonce"`
 }
 
-func (s *Server) handleNonce(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleChallenge(w http.ResponseWriter, r *http.Request) {
 	var nonceReq struct {
 		Address string `json:"address"`
 		State   string `json:"state"`
