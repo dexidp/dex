@@ -282,6 +282,54 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 	}{redirectURL})
 }
 
+func (s *Server) handleCreateAuthorizationRequest(w http.ResponseWriter, r *http.Request) {
+	authReq, err := s.parseAuthorizationRequest(r)
+	if err != nil {
+		s.logger.Errorf("Failed to parse authorization request: %v", err)
+
+		switch authErr := err.(type) {
+		case *redirectedAuthErr:
+			authErr.Handler().ServeHTTP(w, r)
+		case *displayedAuthErr:
+			s.renderError(r, w, authErr.Status, err.Error())
+		default:
+			panic("unsupported error type")
+		}
+
+		return
+	}
+
+	connID := mux.Vars(r)["connector"]
+	_, err = s.getConnector(connID)
+	if err != nil {
+		s.logger.Errorf("Failed to get connector: %v", err)
+		s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist")
+		return
+	}
+
+	// Set the connector being used for the login.
+	if authReq.ConnectorID != "" && authReq.ConnectorID != connID {
+		s.logger.Errorf("Mismatched connector ID in auth request: %s vs %s",
+			authReq.ConnectorID, connID)
+		s.renderError(r, w, http.StatusBadRequest, "Bad connector ID")
+		return
+	}
+
+	authReq.ConnectorID = connID
+
+	// Actually create the auth request
+	authReq.Expiry = s.now().Add(s.authRequestsValidFor)
+	if err := s.storage.CreateAuthRequest(*authReq); err != nil {
+		s.logger.Errorf("Failed to create authorization request: %v", err)
+		s.renderError(r, w, http.StatusInternalServerError, "Failed to connect to the database.")
+		return
+	}
+
+	s.renderJSON(w, struct {
+		State string `json:"state"`
+	}{authReq.ID})
+}
+
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	authReq, err := s.parseAuthorizationRequest(r)
 	if err != nil {
