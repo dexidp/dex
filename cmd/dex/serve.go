@@ -17,6 +17,7 @@ import (
 	"github.com/AppsFlyer/go-sundheit/checks"
 	gosundheithttp "github.com/AppsFlyer/go-sundheit/http"
 	"github.com/ghodss/yaml"
+	grpcLogrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	grpcprometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
@@ -29,7 +30,6 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/dexidp/dex/api/v2"
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
 )
@@ -117,6 +117,9 @@ func runServe(options serveOptions) error {
 		return fmt.Errorf("failed to register gRPC server metrics: %v", err)
 	}
 
+	grpcLogEntry := logrus.NewEntry(logger)
+	grpcLogrus.ReplaceGrpcLogger(grpcLogEntry)
+
 	var grpcOptions []grpc.ServerOption
 
 	allowedTLSCiphers := []uint16{
@@ -160,8 +163,14 @@ func runServe(options serveOptions) error {
 
 			// Only add metrics if client auth is enabled
 			grpcOptions = append(grpcOptions,
-				grpc.StreamInterceptor(grpcMetrics.StreamServerInterceptor()),
-				grpc.UnaryInterceptor(grpcMetrics.UnaryServerInterceptor()),
+				grpc.ChainStreamInterceptor(
+					grpcMetrics.StreamServerInterceptor(),
+					grpcLogrus.StreamServerInterceptor(grpcLogEntry),
+				),
+				grpc.ChainUnaryInterceptor(
+					grpcMetrics.UnaryServerInterceptor(),
+					grpcLogrus.UnaryServerInterceptor(grpcLogEntry),
+				),
 			)
 		}
 
@@ -489,7 +498,7 @@ func (f *utcFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	return f.f.Format(e)
 }
 
-func newLogger(level string, format string) (log.Logger, error) {
+func newLogger(level string, format string) (*logrus.Logger, error) {
 	var logLevel logrus.Level
 	switch strings.ToLower(level) {
 	case "debug":
