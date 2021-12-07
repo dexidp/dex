@@ -52,10 +52,10 @@ async function init() {
   const accounts = await web3.eth.getAccounts();
   const selectedAccount = accounts[0];
 
-  const nonceResp = await postJson("{{ .NonceURL }}", {address: selectedAccount, state: "{{ .AuthID }}"});
-  const nonceBody = await nonceResp.json();
+  const challengeResp = await postJson("{{ .ChallengeURL }}", {address: selectedAccount, state: "{{ .AuthID }}"});
+  const challengeBody = await challengeResp.json();
 
-  web3.eth.personal.sign(nonceBody.nonce, selectedAccount, "", async (error, signature) => {
+  web3.eth.personal.sign(challengeBody.nonce, selectedAccount, "", async (error, signature) => {
     // Handle if wallet returns error
     if (error) {
       return;
