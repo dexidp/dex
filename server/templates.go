@@ -295,14 +295,14 @@ func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []c
 	return renderTemplate(w, t.loginTmpl, data)
 }
 
-func (t *templates) web3login(r *http.Request, w http.ResponseWriter, nonceURL string, verifyURL string, authID string, infuraID string) error {
+func (t *templates) web3login(r *http.Request, w http.ResponseWriter, challengeURL string, verifyURL string, authID string, infuraID string) error {
 	data := struct {
-		NonceURL  string
-		VerifyURL string
-		AuthID    string
-		ReqPath   string
-		InfuraID  string
-	}{nonceURL, verifyURL, authID, r.URL.Path, infuraID}
+		ChallengeURL string
+		VerifyURL    string
+		AuthID       string
+		ReqPath      string
+		InfuraID     string
+	}{challengeURL, verifyURL, authID, r.URL.Path, infuraID}
 	return renderTemplate(w, t.web3Tmpl, data)
 }
 
