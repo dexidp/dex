@@ -174,6 +174,9 @@ func (oc *OAuth2ClientCreate) sqlSave(ctx context.Context) (*OAuth2Client, error
 		}
 		return nil, err
 	}
+	if _spec.ID.Value != nil {
+		_node.ID = _spec.ID.Value.(string)
+	}
 	return _node, nil
 }
 

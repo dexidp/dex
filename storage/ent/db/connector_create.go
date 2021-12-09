@@ -157,6 +157,9 @@ func (cc *ConnectorCreate) sqlSave(ctx context.Context) (*Connector, error) {
 		}
 		return nil, err
 	}
+	if _spec.ID.Value != nil {
+		_node.ID = _spec.ID.Value.(string)
+	}
 	return _node, nil
 }
 
