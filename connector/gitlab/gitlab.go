@@ -4,11 +4,11 @@ package gitlab
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"golang.org/x/oauth2"
 
@@ -61,8 +61,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 }
 
 type connectorData struct {
-	// GitLab's OAuth2 tokens never expire. We don't need a refresh token.
-	AccessToken string `json:"accessToken"`
+	RefreshToken []byte
 }
 
 var (
@@ -135,6 +134,11 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 		return identity, fmt.Errorf("gitlab: failed to get token: %v", err)
 	}
 
+	return c.identity(ctx, s, token)
+}
+
+func (c *gitlabConnector) identity(ctx context.Context, s connector.Scopes, token *oauth2.Token) (identity connector.Identity, err error) {
+	oauth2Config := c.oauth2Config(s)
 	client := oauth2Config.Client(ctx, token)
 
 	user, err := c.user(ctx, client)
@@ -146,6 +150,7 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 	if username == "" {
 		username = user.Email
 	}
+
 	identity = connector.Identity{
 		UserID:            strconv.Itoa(user.ID),
 		Username:          username,
@@ -166,10 +171,10 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 	}
 
 	if s.OfflineAccess {
-		data := connectorData{AccessToken: token.AccessToken}
+		data := connectorData{RefreshToken: []byte(token.RefreshToken)}
 		connData, err := json.Marshal(data)
 		if err != nil {
-			return identity, fmt.Errorf("marshal connector data: %v", err)
+			return identity, fmt.Errorf("gitlab: marshal connector data: %v", err)
 		}
 		identity.ConnectorData = connData
 	}
@@ -178,37 +183,27 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 }
 
 func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
-	if len(ident.ConnectorData) == 0 {
-		return ident, errors.New("no upstream access token found")
-	}
-
 	var data connectorData
 	if err := json.Unmarshal(ident.ConnectorData, &data); err != nil {
-		return ident, fmt.Errorf("gitlab: unmarshal access token: %v", err)
+		return ident, fmt.Errorf("gitlab: unmarshal refresh token: %v", err)
 	}
 
-	client := c.oauth2Config(s).Client(ctx, &oauth2.Token{AccessToken: data.AccessToken})
-	user, err := c.user(ctx, client)
+	t := &oauth2.Token{
+		RefreshToken: string(data.RefreshToken),
+		Expiry:       time.Now().Add(-time.Hour),
+	}
+
+	oauth2Config := c.oauth2Config(s)
+
+	if c.httpClient != nil {
+		ctx = context.WithValue(ctx, oauth2.HTTPClient, c.httpClient)
+	}
+
+	token, err := oauth2Config.TokenSource(ctx, t).Token()
 	if err != nil {
-		return ident, fmt.Errorf("gitlab: get user: %v", err)
+		return ident, fmt.Errorf("gitlab: failed to get refresh token: %v", err)
 	}
-
-	username := user.Name
-	if username == "" {
-		username = user.Email
-	}
-	ident.Username = username
-	ident.PreferredUsername = user.Username
-	ident.Email = user.Email
-
-	if c.groupsRequired(s.Groups) {
-		groups, err := c.getGroups(ctx, client, s.Groups, user.Username)
-		if err != nil {
-			return ident, fmt.Errorf("gitlab: get groups: %v", err)
-		}
-		ident.Groups = groups
-	}
-	return ident, nil
+	return c.identity(ctx, s, token)
 }
 
 func (c *gitlabConnector) groupsRequired(groupScope bool) bool {
