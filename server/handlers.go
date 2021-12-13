@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -192,6 +193,8 @@ type web3ConnectorData struct {
 	Nonce   string `json:"nonce"`
 }
 
+var addressRegex = regexp.MustCompile("^0x[a-fA-F0-9]{40}$")
+
 func (s *Server) handleChallenge(w http.ResponseWriter, r *http.Request) {
 	var nonceReq struct {
 		Address string `json:"address"`
@@ -199,6 +202,10 @@ func (s *Server) handleChallenge(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&nonceReq); err != nil {
 		s.renderErrorJSON(w, http.StatusBadRequest, "Could not parse request body JSON.")
+		return
+	}
+	if !addressRegex.MatchString(nonceReq.Address) {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Invalid Ethereum address.")
 		return
 	}
 
