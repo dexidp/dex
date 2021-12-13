@@ -272,8 +272,9 @@ type idTokenClaims struct {
 	AccessTokenHash string `json:"at_hash,omitempty"`
 	CodeHash        string `json:"c_hash,omitempty"`
 
-	Email         string `json:"email,omitempty"`
-	EmailVerified *bool  `json:"email_verified,omitempty"`
+	Email           string `json:"email,omitempty"`
+	EmailVerified   *bool  `json:"email_verified,omitempty"`
+	EthereumAddress string `json:"ethereum_address,omitempty"`
 
 	Groups []string `json:"groups,omitempty"`
 
@@ -354,6 +355,10 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		case scope == scopeEmail:
 			tok.Email = claims.Email
 			tok.EmailVerified = &claims.EmailVerified
+			// This is a hack
+			if addressRegex.MatchString(claims.UserID) {
+				tok.EthereumAddress = claims.UserID
+			}
 		case scope == scopeGroups:
 			tok.Groups = claims.Groups
 		case scope == scopeProfile:
