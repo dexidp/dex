@@ -1,12 +1,13 @@
 package server
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"net/http"
 	"net/url"
 	"path"
@@ -213,8 +214,20 @@ func (s *Server) handleChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nonce := generateNonce()
-	bts, err := json.Marshal(web3ConnectorData{Address: nonceReq.Address, Nonce: nonce})
+	u, err := url.Parse(authReq.RedirectURI)
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Invalid redirect URI")
+	}
+
+	nonce, err := generateNonce()
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusInternalServerError, "No source of randomness.")
+		return
+	}
+
+	challenge := fmt.Sprintf("%s is asking you to please verify ownership of the address %s by signing this random string: %s", u.Hostname(), nonceReq.Address, nonce)
+
+	bts, err := json.Marshal(web3ConnectorData{Address: nonceReq.Address, Nonce: challenge})
 	if err != nil {
 		s.renderErrorJSON(w, http.StatusInternalServerError, "Failed to create auth request.")
 		return
@@ -229,17 +242,21 @@ func (s *Server) handleChallenge(w http.ResponseWriter, r *http.Request) {
 
 	s.renderJSON(w, struct {
 		Nonce string `json:"nonce"`
-	}{nonce})
+	}{challenge})
 }
 
-func generateNonce() string {
-	const allowedChars = "abcdefghijklmnopqrstuvwxyz0123456789"
-
-	b := make([]byte, 8)
+func generateNonce() (string, error) {
+	const alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	alphabetSize := big.NewInt(int64(len(alphabet)))
+	b := make([]byte, 30)
 	for i := range b {
-		b[i] = allowedChars[rand.Intn(len(allowedChars))]
+		c, err := rand.Int(rand.Reader, alphabetSize)
+		if err != nil {
+			return "", err
+		}
+		b[i] = alphabet[c.Int64()]
 	}
-	return string(b)
+	return string(b), nil
 }
 
 func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
