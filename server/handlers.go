@@ -1029,7 +1029,13 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 
 	claims := storage.Claims{UserID: client.ID}
 
-	accessToken := storage.NewID()
+	accessToken, err := s.newAccessToken(client.ID, claims, scopes, nonce, "client")
+	if err != nil {
+		s.logger.Errorf("failed to create new access token: %v", err)
+		s.tokenErrHelper(w, errServerError, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	idToken, expiry, err := s.newIDToken(client.ID, claims, scopes, nonce, accessToken, "", "client")
 	if err != nil {
 		s.tokenErrHelper(w, errServerError, fmt.Sprintf("failed to create ID token: %v", err), http.StatusInternalServerError)
