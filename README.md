@@ -125,3 +125,19 @@ Please see our [security policy](.github/SECURITY.md) for details about reportin
 [go-oidc]: https://github.com/coreos/go-oidc
 [issue-1065]: https://github.com/dexidp/dex/issues/1065
 [release-notes]: https://github.com/dexidp/dex/releases
+
+## Development
+
+When all coding and testing is done, please run the test suite:
+
+```shell
+make testall
+```
+
+For the best developer experience, install [Nix](https://builtwithnix.org/) and [direnv](https://direnv.net/).
+
+Alternatively, install Go and Docker manually or using a package manager. Install the rest of the dependencies by running `make deps`.
+
+## License
+
+The project is licensed under the [Apache License, Version 2.0](LICENSE).
