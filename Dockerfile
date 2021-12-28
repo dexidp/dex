@@ -14,6 +14,7 @@ ARG GOPROXY
 
 COPY go.mod go.sum ./
 COPY api/v2/go.mod api/v2/go.sum ./api/v2/
+COPY connector/external/sdk/go.mod connector/external/sdk/go.sum ./connector/external/sdk/
 RUN go mod download
 
 COPY . .
@@ -52,6 +53,7 @@ RUN chown -R 1001:1001 /etc/dex
 # Copy module files for CVE scanning / dependency analysis.
 COPY --from=builder /usr/local/src/dex/go.mod /usr/local/src/dex/go.sum /usr/local/src/dex/
 COPY --from=builder /usr/local/src/dex/api/v2/go.mod /usr/local/src/dex/api/v2/go.sum /usr/local/src/dex/api/v2/
+COPY --from=builder /usr/local/src/dex/connector/external/sdk/go.mod /usr/local/src/dex/connector/external/sdk//go.sum /usr/local/src/dex/connector/external/sdk/
 
 COPY --from=builder /go/bin/dex /usr/local/bin/dex
 COPY --from=builder /usr/local/src/dex/web /srv/dex/web

@@ -35,7 +35,7 @@ bin/dex:
 	@mkdir -p bin/
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
-examples: bin/grpc-client bin/example-app
+examples: bin/grpc-client bin/example-app bin/external-connector bin/external-gitlab
 
 bin/grpc-client:
 	@mkdir -p bin/
@@ -44,6 +44,14 @@ bin/grpc-client:
 bin/example-app:
 	@mkdir -p bin/
 	@cd examples/ && go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/example-app
+
+bin/external-connector:
+	@mkdir -p bin/
+	@cd examples/ && go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/external-connector
+
+bin/external-gitlab:
+	@mkdir -p bin/
+	@cd examples/ && go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/external-gitlab
 
 .PHONY: release-binary
 release-binary: generate
@@ -108,6 +116,7 @@ FORCE:
 proto:
 	@protoc --go_out=paths=source_relative:. --go-grpc_out=paths=source_relative:. api/v2/*.proto
 	@protoc --go_out=paths=source_relative:. --go-grpc_out=paths=source_relative:. api/*.proto
+	@protoc --go_out=paths=source_relative:. --go-grpc_out=paths=source_relative:. connector/external/sdk/*.proto
 	#@cp api/v2/*.proto api/
 
 .PHONY: proto-internal
