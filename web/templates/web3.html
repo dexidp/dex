@@ -56,13 +56,18 @@ async function init() {
   const challengeBody = await challengeResp.json();
 
   web3.eth.personal.sign(challengeBody.nonce, selectedAccount, "", async (error, signature) => {
-    // Handle if wallet returns error
     if (error) {
+      displayError("Wallet error: (Code " + error.code + ") " + error.message);
       return;
     }
     const verifyResp = await postJson("{{ .VerifyURL }}", {signed: signature, state: "{{ .AuthID }}"});
-    const verifyBody = await verifyResp.json();
-    window.location.replace(verifyBody.redirect);
+    if (verifyResp.ok) {
+      const verifyBody = await verifyResp.json();
+      window.location.replace(verifyBody.redirect);
+    } else {
+      const verifyBody = await verifyResp.json();
+      displayError("Verification error: " + verifyBody.message);
+    }
   });
 }
 
