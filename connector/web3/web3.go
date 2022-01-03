@@ -37,10 +37,14 @@ func (c *web3Connector) Verify(address, msg, signedMsg string) (identity connect
 		return identity, fmt.Errorf("could not decode hex string of signed nonce: %v", err)
 	}
 
-	if signb[64] != 27 && signb[64] != 28 {
+	// This is the v parameter in the signature. Per the yellow paper, 27 means even and 28
+	// means odd.
+	if signb[64] == 27 || signb[64] == 28 {
+		signb[64] -= 27
+	} else if signb[64] != 0 && signb[64] != 1 {
+		// We allow 0 or 1 because some non-conformant devices like Ledger use it.
 		return identity, fmt.Errorf("byte at index 64 of signed message should be 27 or 28: %s", signedMsg)
 	}
-	signb[64] -= 27
 
 	pubKey, err := crypto.SigToPub(signHash([]byte(msg)), signb)
 	if err != nil {
