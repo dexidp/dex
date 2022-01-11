@@ -52,13 +52,14 @@ func (c *web3Connector) Verify(address, msg, signedMsg string) (identity connect
 	}
 
 	recoveredAddr := crypto.PubkeyToAddress(*pubKey)
-	if recoveredAddr == addrb {
-		identity.UserID = address
-		identity.Username = address
-		return identity, nil
+	// These are byte arrays, so this is okay to do.
+	if recoveredAddr != addrb {
+		return identity, fmt.Errorf("given address and address recovered from signed nonce do not match")
 	}
 
-	return identity, fmt.Errorf("given address and address recovered from signed nonce do not match")
+	identity.UserID = address
+	identity.Username = address
+	return identity, nil
 }
 
 func signHash(data []byte) []byte {
