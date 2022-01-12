@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package sdk;
+
+option go_package = "github.com/dexidp/dex/connector/external/sdk;sdk";
+
+
+message ListOfStrings {
+  repeated string value = 1;
+}
+
+// Identity represents the ID Token claims supported by the server.
+message Identity {
+  string user_id = 1;
+  string username = 2;
+  string preferred_username = 3;
+  string email = 4;
+  bool email_verified = 5;
+  repeated string groups = 6;
+  // ConnectorData holds data used by the connector for subsequent requests after initial
+  // authentication, such as access tokens for upstream provides.
+  //
+  // This data is never shared with end users, OAuth clients, or through the API.
+  bytes connector_data = 7;
+}
+
+// Scopes represents additional data requested by the clients about the end user.
+message Scopes {
+  // The client has requested a refresh token from the server.
+  bool offline_access = 1;
+  // The client has requested group information about the end user.
+  bool groups = 2;
+}
+
+message RefreshReq {
+  Scopes scopes  = 1;
+  Identity identity = 2;
+}
+
+message RefreshResp {
+  Identity identity = 1;
+}
+
+message PromptReq {}
+
+message PromptResp {
+  string prompt = 1;
+}
+
+message LoginReq {
+  Scopes scopes = 1;
+  string username = 2;
+  string password = 3;
+}
+
+message LoginResp {
+  Identity identity = 1;
+  bool valid_password = 2;
+}
+
+message CallbackReq {
+  Scopes scopes = 1;
+  bytes Body = 2;
+
+  map<string, ListOfStrings> headers = 3;
+  string raw_query = 4;
+}
+
+message CallbackResp {
+  Identity identity = 1;
+}
+
+message LoginURLReq {
+  Scopes scopes = 1;
+  string callback_url = 2;
+  string state = 3;
+}
+
+message LoginURLResp {
+  string url = 1;
+}
+
+// PasswordConnector represents the dex external password connector gRPC service.
+service PasswordConnector {
+  rpc Prompt(PromptReq) returns (PromptResp) {};
+  rpc Login(LoginReq) returns (LoginResp) {};
+  rpc Refresh(RefreshReq) returns (RefreshResp) {};
+}
+
+// CallbackConnector represents the dex external callback connector gRPC service.
+service CallbackConnector {
+  rpc LoginURL(LoginURLReq) returns (LoginURLResp) {};
+  rpc HandleCallback(CallbackReq) returns (CallbackResp) {};
+  rpc Refresh(RefreshReq) returns (RefreshResp) {};
+}

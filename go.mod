@@ -10,6 +10,7 @@ require (
 	github.com/beevik/etree v1.1.0
 	github.com/coreos/go-oidc/v3 v3.1.0
 	github.com/dexidp/dex/api/v2 v2.0.0
+	github.com/dexidp/dex/connector/external/sdk v0.0.0
 	github.com/felixge/httpsnoop v1.0.2
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-ldap/ldap/v3 v3.4.1
@@ -83,3 +84,5 @@ require (
 )
 
 replace github.com/dexidp/dex/api/v2 => ./api/v2
+
+replace github.com/dexidp/dex/connector/external/sdk => ./connector/external/sdk
