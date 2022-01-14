@@ -53,6 +53,11 @@ type Config struct {
 
 	UserNameKey string `json:"userNameKey"`
 
+	// Some scenarios preserve user privacy by omitting, or simply do not have, a name attribute.
+	// When UserNameOptional is false, an error will be thrown if the claim specified by UserNameKey is absent or empty.
+	// When it is true, the configured claim value is not required, but will be included if present.
+	UserNameOptional bool `json:"userNameOptional"` // defaults to false
+
 	// PromptType will be used fot the prompt parameter (when offline_access, by default prompt=consent)
 	PromptType string `json:"promptType"`
 
@@ -153,6 +158,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		promptType:                c.PromptType,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
+		userNameOptional:          c.UserNameOptional,
 		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
 		emailKey:                  c.ClaimMapping.EmailKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
@@ -178,6 +184,7 @@ type oidcConnector struct {
 	promptType                string
 	userIDKey                 string
 	userNameKey               string
+	userNameOptional          bool
 	preferredUsernameKey      string
 	emailKey                  string
 	groupsKey                 string
@@ -284,7 +291,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		userNameKey = c.userNameKey
 	}
 	name, found := claims[userNameKey].(string)
-	if !found {
+	if !c.userNameOptional && (!found || name == "") {
 		return identity, fmt.Errorf("missing \"%s\" claim", userNameKey)
 	}
 
