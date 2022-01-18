@@ -2,7 +2,7 @@ FROM golang:1.17.6-alpine3.14 AS builder
 
 WORKDIR /usr/local/src/dex
 
-RUN apk add --no-cache --update alpine-sdk
+RUN apk add --no-cache --update alpine-sdk ca-certificates openssl
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -39,8 +39,8 @@ FROM alpine:3.15.0
 # Proper installations should manage those certificates, but it's a bad user
 # experience when this doesn't work out of the box.
 #
-# OpenSSL is required so wget can query HTTPS endpoints for health checking.
-RUN apk add --no-cache --update ca-certificates openssl
+# See https://go.dev/src/crypto/x509/root_linux.go for Go root CA bundle locations.
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 RUN mkdir -p /var/dex
 RUN chown -R 1001:1001 /var/dex
