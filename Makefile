@@ -1,9 +1,10 @@
 OS = $(shell uname | tr A-Z a-z)
 
+export PATH := $(abspath bin/protoc/bin/):$(abspath bin/):${PATH}
+
 PROJ=dex
 ORG_PATH=github.com/dexidp
 REPO_PATH=$(ORG_PATH)/$(PROJ)
-export PATH := $(PWD)/bin:$(PATH)
 
 VERSION ?= $(shell ./scripts/git-version)
 
@@ -20,11 +21,6 @@ export GOBIN=$(PWD)/bin
 LD_FLAGS="-w -X main.version=$(VERSION)"
 
 # Dependency versions
-GOLANGCI_VERSION = 1.42.0
-
-PROTOC_VERSION = 3.15.6
-PROTOC_GEN_GO_VERSION = 1.26.0
-PROTOC_GEN_GO_GRPC_VERSION = 1.1.0
 
 KIND_NODE_IMAGE = "kindest/node:v1.19.11@sha256:07db187ae84b4b7de440a73886f008cf903fcf5764ba8106a9fd5243d6f32729"
 KIND_TMP_DIR = "$(PWD)/bin/test/dex-kind-kubeconfig"
@@ -83,41 +79,21 @@ kind-down:
 kind-tests: export DEX_KUBERNETES_CONFIG_PATH=${KIND_TMP_DIR}
 kind-tests: testall
 
-bin/golangci-lint: bin/golangci-lint-${GOLANGCI_VERSION}
-	@ln -sf golangci-lint-${GOLANGCI_VERSION} bin/golangci-lint
-bin/golangci-lint-${GOLANGCI_VERSION}:
-	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | BINARY=golangci-lint bash -s -- v${GOLANGCI_VERSION}
-	@mv bin/golangci-lint $@
-
 .PHONY: lint lint-fix
-lint: bin/golangci-lint ## Run linter
-	bin/golangci-lint run
+lint: ## Run linter
+	golangci-lint run
 
 .PHONY: fix
-fix: bin/golangci-lint ## Fix lint violations
-	bin/golangci-lint run --fix
+fix: ## Fix lint violations
+	golangci-lint run --fix
 
 .PHONY: docker-image
 docker-image:
 	@sudo docker build -t $(DOCKER_IMAGE) .
 
-.PHONY: proto-old
-proto-old: bin/protoc-old bin/protoc-gen-go-old
-	@./bin/protoc-old --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go-old api/v2/*.proto
-	@cp api/v2/*.proto api/
-	@./bin/protoc-old --go_out=plugins=grpc:. --plugin=protoc-gen-go=./bin/protoc-gen-go-old api/*.proto
-
 .PHONY: verify-proto
 verify-proto: proto
 	@./scripts/git-diff
-
-bin/protoc-old: scripts/get-protoc
-	@./scripts/get-protoc bin/protoc-old
-
-bin/protoc-gen-go-old:
-	@mkdir -p tmp
-	@GOBIN=$$PWD/tmp go install -v github.com/golang/protobuf/protoc-gen-go@v1.3.2
-	@mv tmp/protoc-gen-go bin/protoc-gen-go-old
 
 clean:
 	@rm -rf bin/
@@ -129,36 +105,56 @@ FORCE:
 .PHONY: test testrace testall
 
 .PHONY: proto
-proto: bin/protoc bin/protoc-gen-go bin/protoc-gen-go-grpc
-	@./bin/protoc --go_out=paths=source_relative:. --go-grpc_out=paths=source_relative:. --plugin=protoc-gen-go=./bin/protoc-gen-go --plugin=protoc-gen-go-grpc=./bin/protoc-gen-go-grpc api/v2/*.proto
-	@./bin/protoc --go_out=paths=source_relative:. --go-grpc_out=paths=source_relative:. --plugin=protoc-gen-go=./bin/protoc-gen-go --plugin=protoc-gen-go-grpc=./bin/protoc-gen-go-grpc api/*.proto
+proto:
+	@protoc --go_out=paths=source_relative:. --go-grpc_out=paths=source_relative:. api/v2/*.proto
+	@protoc --go_out=paths=source_relative:. --go-grpc_out=paths=source_relative:. api/*.proto
 	#@cp api/v2/*.proto api/
 
 .PHONY: proto-internal
-proto-internal: bin/protoc bin/protoc-gen-go
-	@./bin/protoc --go_out=paths=source_relative:. --plugin=protoc-gen-go=./bin/protoc-gen-go server/internal/*.proto
+proto-internal:
+	@protoc --go_out=paths=source_relative:. server/internal/*.proto
 
-bin/protoc: bin/protoc-${PROTOC_VERSION}
-	@ln -sf protoc-${PROTOC_VERSION}/bin/protoc bin/protoc
-bin/protoc-${PROTOC_VERSION}:
-	@mkdir -p bin/protoc-${PROTOC_VERSION}
-ifeq (${OS}, darwin)
+# Dependency versions
+GOLANGCI_VERSION = 1.42.0
+GOTESTSUM_VERSION ?= 1.7.0
+PROTOC_VERSION = 3.15.6
+PROTOC_GEN_GO_VERSION = 1.26.0
+PROTOC_GEN_GO_GRPC_VERSION = 1.1.0
+KIND_VERSION = 0.11.1
+
+deps: bin/gotestsum bin/golangci-lint bin/protoc bin/protoc-gen-go bin/protoc-gen-go-grpc bin/kind
+
+bin/gotestsum:
+	@mkdir -p bin
+	curl -L https://github.com/gotestyourself/gotestsum/releases/download/v${GOTESTSUM_VERSION}/gotestsum_${GOTESTSUM_VERSION}_$(shell uname | tr A-Z a-z)_amd64.tar.gz | tar -zOxf - gotestsum > ./bin/gotestsum
+	@chmod +x ./bin/gotestsum
+
+bin/golangci-lint:
+	@mkdir -p bin
+	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | BINARY=golangci-lint bash -s -- v${GOLANGCI_VERSION}
+
+bin/protoc:
+	@mkdir -p bin/protoc
+ifeq ($(shell uname | tr A-Z a-z), darwin)
 	curl -L https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-osx-x86_64.zip > bin/protoc.zip
 endif
-ifeq (${OS}, linux)
+ifeq ($(shell uname | tr A-Z a-z), linux)
 	curl -L https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip > bin/protoc.zip
 endif
-	unzip bin/protoc.zip -d bin/protoc-${PROTOC_VERSION}
+	unzip bin/protoc.zip -d bin/protoc
 	rm bin/protoc.zip
 
-bin/protoc-gen-go: bin/protoc-gen-go-${PROTOC_GEN_GO_VERSION}
-	@ln -sf protoc-gen-go-${PROTOC_GEN_GO_VERSION} bin/protoc-gen-go
-bin/protoc-gen-go-${PROTOC_GEN_GO_VERSION}:
+bin/protoc-gen-go:
 	@mkdir -p bin
-	curl -L https://github.com/protocolbuffers/protobuf-go/releases/download/v${PROTOC_GEN_GO_VERSION}/protoc-gen-go.v${PROTOC_GEN_GO_VERSION}.${OS}.amd64.tar.gz | tar -zOxf - protoc-gen-go > ./bin/protoc-gen-go-${PROTOC_GEN_GO_VERSION} && chmod +x ./bin/protoc-gen-go-${PROTOC_GEN_GO_VERSION}
+	curl -L https://github.com/protocolbuffers/protobuf-go/releases/download/v${PROTOC_GEN_GO_VERSION}/protoc-gen-go.v${PROTOC_GEN_GO_VERSION}.$(shell uname | tr A-Z a-z).amd64.tar.gz | tar -zOxf - protoc-gen-go > ./bin/protoc-gen-go
+	@chmod +x ./bin/protoc-gen-go
 
-bin/protoc-gen-go-grpc: bin/protoc-gen-go-grpc-${PROTOC_GEN_GO_GRPC_VERSION}
-	@ln -sf protoc-gen-go-grpc-${PROTOC_GEN_GO_GRPC_VERSION} bin/protoc-gen-go-grpc
-bin/protoc-gen-go-grpc-${PROTOC_GEN_GO_GRPC_VERSION}:
+bin/protoc-gen-go-grpc:
 	@mkdir -p bin
-	curl -L https://github.com/grpc/grpc-go/releases/download/cmd%2Fprotoc-gen-go-grpc%2Fv${PROTOC_GEN_GO_GRPC_VERSION}/protoc-gen-go-grpc.v${PROTOC_GEN_GO_GRPC_VERSION}.${OS}.amd64.tar.gz | tar -zOxf - ./protoc-gen-go-grpc > ./bin/protoc-gen-go-grpc-${PROTOC_GEN_GO_GRPC_VERSION} && chmod +x ./bin/protoc-gen-go-grpc-${PROTOC_GEN_GO_GRPC_VERSION}
+	curl -L https://github.com/grpc/grpc-go/releases/download/cmd/protoc-gen-go-grpc/v${PROTOC_GEN_GO_GRPC_VERSION}/protoc-gen-go-grpc.v${PROTOC_GEN_GO_GRPC_VERSION}.$(shell uname | tr A-Z a-z).amd64.tar.gz | tar -zOxf - ./protoc-gen-go-grpc > ./bin/protoc-gen-go-grpc
+	@chmod +x ./bin/protoc-gen-go-grpc
+
+bin/kind:
+	@mkdir -p bin
+	curl -L https://github.com/kubernetes-sigs/kind/releases/download/v${KIND_VERSION}/kind-$(shell uname | tr A-Z a-z)-amd64 > ./bin/kind
+	@chmod +x ./bin/kind
