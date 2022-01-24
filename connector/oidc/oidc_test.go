@@ -49,6 +49,7 @@ func TestHandleCallback(t *testing.T) {
 		name                      string
 		userIDKey                 string
 		userNameKey               string
+		overrideClaimMapping      bool
 		preferredUsernameKey      string
 		emailKey                  string
 		groupsKey                 string
@@ -89,6 +90,23 @@ func TestHandleCallback(t *testing.T) {
 				"sub":            "subvalue",
 				"name":           "namevalue",
 				"mail":           "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
+			name:                 "overrideWithCustomEmailClaim",
+			userIDKey:            "", // not configured
+			userNameKey:          "", // not configured
+			overrideClaimMapping: true,
+			emailKey:             "custommail",
+			expectUserID:         "subvalue",
+			expectUserName:       "namevalue",
+			expectedEmailField:   "customemailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"email":          "emailvalue",
+				"custommail":     "customemailvalue",
 				"email_verified": true,
 			},
 		},
@@ -234,6 +252,25 @@ func TestHandleCallback(t *testing.T) {
 				"cognito:groups": []string{"group3", "group4"},
 			},
 		},
+		{
+			name:                      "customGroupsKeyDespiteGroupsProvidedButOverride",
+			overrideClaimMapping:      true,
+			groupsKey:                 "cognito:groups",
+			expectUserID:              "subvalue",
+			expectUserName:            "namevalue",
+			expectedEmailField:        "emailvalue",
+			expectGroups:              []string{"group3", "group4"},
+			scopes:                    []string{"groups"},
+			insecureSkipEmailVerified: true,
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"user_name":      "username",
+				"email":          "emailvalue",
+				"groups":         []string{"group1", "group2"},
+				"cognito:groups": []string{"group3", "group4"},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -263,6 +300,7 @@ func TestHandleCallback(t *testing.T) {
 				InsecureSkipEmailVerified: tc.insecureSkipEmailVerified,
 				InsecureEnableGroups:      true,
 				BasicAuthUnsupported:      &basicAuth,
+				OverrideClaimMapping:      tc.overrideClaimMapping,
 			}
 			config.ClaimMapping.PreferredUsernameKey = tc.preferredUsernameKey
 			config.ClaimMapping.EmailKey = tc.emailKey
