@@ -348,6 +348,14 @@ func (s *Server) handleVerifyDirect(w http.ResponseWriter, r *http.Request) {
 		s.renderErrorJSON(w, http.StatusInternalServerError, "Login failure.")
 	}
 
+	// Need to pick up the changes made by finalizeLogin. This is pretty gross!
+	authReq, err = s.storage.GetAuthRequest(verifyReq.State)
+	if err != nil {
+		s.logger.Errorf("Failed to get auth request: %v", err)
+		s.renderError(r, w, http.StatusInternalServerError, "Database error.")
+		return
+	}
+
 	if s.now().After(authReq.Expiry) {
 		s.renderErrorJSON(w, http.StatusBadRequest, "User session has expired.")
 		return
