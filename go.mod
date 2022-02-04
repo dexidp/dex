@@ -33,7 +33,7 @@ require (
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5
 	golang.org/x/net v0.0.0-20210813160813-60bc85c4be6d
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
-	google.golang.org/api v0.65.0
+	google.golang.org/api v0.67.0
 	google.golang.org/grpc v1.44.0
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/square/go-jose.v2 v2.6.0
@@ -74,10 +74,10 @@ require (
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.17.0 // indirect
-	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9 // indirect
+	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20220107163113-42d7afdf6368 // indirect
+	google.golang.org/genproto v0.0.0-20220126215142-9970aeb2e350 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
