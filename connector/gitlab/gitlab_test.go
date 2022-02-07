@@ -202,7 +202,10 @@ func TestRefresh(t *testing.T) {
 
 	c := gitlabConnector{baseURL: s.URL, httpClient: newClient()}
 
-	expectedConnectorData, err := json.Marshal(connectorData{RefreshToken: []byte("oRzxVjCnohYRHEYEhZshkmakKmoyVoTjfUGC")})
+	expectedConnectorData, err := json.Marshal(connectorData{
+		RefreshToken: []byte("oRzxVjCnohYRHEYEhZshkmakKmoyVoTjfUGC"),
+		AccessToken:  "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
+	})
 	expectNil(t, err)
 
 	identity, err := c.HandleCallback(connector.Scopes{OfflineAccess: true}, req)
