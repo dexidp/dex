@@ -188,7 +188,7 @@ func (c *gitlabConnector) identity(ctx context.Context, s connector.Scopes, toke
 func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
 	var data connectorData
 	if err := json.Unmarshal(ident.ConnectorData, &data); err != nil {
-		return ident, fmt.Errorf("gitlab: unmarshal refresh token: %v", err)
+		return ident, fmt.Errorf("gitlab: unmarshal connector data: %v", err)
 	}
 	oauth2Config := c.oauth2Config(s)
 
