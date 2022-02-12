@@ -321,6 +321,12 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 	mustBeErrNotFound(t, "client", err)
 }
 
+type byToken []storage.RefreshToken
+
+func (bt byToken) Len() int           { return len(bt) }
+func (bt byToken) Less(i, j int) bool { return bt[i].Token < bt[j].Token }
+func (bt byToken) Swap(i, j int)      { bt[i], bt[j] = bt[j], bt[i] }
+
 func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 	id := storage.NewID()
 	refresh := storage.RefreshToken{
@@ -420,6 +426,24 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 
 	// Ensure that updating the first token doesn't impact the second. Issue #847.
 	getAndCompare(id2, refresh2)
+
+	var refreshList []storage.RefreshToken
+	refreshList = append(refreshList, refresh, refresh2)
+
+	listAndCompare := func(want []storage.RefreshToken) {
+		refreshTokens, err := s.ListRefreshTokens()
+		if err != nil {
+			t.Errorf("list refresh tokens: %v", err)
+			return
+		}
+		sort.Sort(byToken(want))
+		sort.Sort(byToken(refreshTokens))
+		if diff := pretty.Compare(want, refreshTokens); diff != "" {
+			t.Errorf("refresh token list retrieved from storage did not match: %s", diff)
+		}
+	}
+
+	listAndCompare(refreshList)
 
 	if err := s.DeleteRefresh(id); err != nil {
 		t.Fatalf("failed to delete refresh request: %v", err)
