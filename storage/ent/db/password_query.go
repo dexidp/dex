@@ -287,8 +287,8 @@ func (pq *PasswordQuery) GroupBy(field string, fields ...string) *PasswordGroupB
 //		Select(password.FieldEmail).
 //		Scan(ctx, &v)
 //
-func (pq *PasswordQuery) Select(field string, fields ...string) *PasswordSelect {
-	pq.fields = append([]string{field}, fields...)
+func (pq *PasswordQuery) Select(fields ...string) *PasswordSelect {
+	pq.fields = append(pq.fields, fields...)
 	return &PasswordSelect{PasswordQuery: pq}
 }
 
@@ -398,10 +398,14 @@ func (pq *PasswordQuery) querySpec() *sqlgraph.QuerySpec {
 func (pq *PasswordQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(pq.driver.Dialect())
 	t1 := builder.Table(password.Table)
-	selector := builder.Select(t1.Columns(password.Columns...)...).From(t1)
+	columns := pq.fields
+	if len(columns) == 0 {
+		columns = password.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if pq.sql != nil {
 		selector = pq.sql
-		selector.Select(selector.Columns(password.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range pq.predicates {
 		p(selector)
@@ -669,13 +673,24 @@ func (pgb *PasswordGroupBy) sqlScan(ctx context.Context, v interface{}) error {
 }
 
 func (pgb *PasswordGroupBy) sqlQuery() *sql.Selector {
-	selector := pgb.sql
-	columns := make([]string, 0, len(pgb.fields)+len(pgb.fns))
-	columns = append(columns, pgb.fields...)
+	selector := pgb.sql.Select()
+	aggregation := make([]string, 0, len(pgb.fns))
 	for _, fn := range pgb.fns {
-		columns = append(columns, fn(selector))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(pgb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(pgb.fields)+len(pgb.fns))
+		for _, f := range pgb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(pgb.fields...)...)
 }
 
 // PasswordSelect is the builder for selecting fields of Password entities.
@@ -891,16 +906,10 @@ func (ps *PasswordSelect) BoolX(ctx context.Context) bool {
 
 func (ps *PasswordSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := ps.sqlQuery().Query()
+	query, args := ps.sql.Query()
 	if err := ps.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (ps *PasswordSelect) sqlQuery() sql.Querier {
-	selector := ps.sql
-	selector.Select(selector.Columns(ps.fields...)...)
-	return selector
 }

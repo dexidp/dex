@@ -3,7 +3,7 @@ package ldap
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 
@@ -555,7 +555,7 @@ func runTests(t *testing.T, connMethod connectionMethod, config *Config, tests [
 	c.BindDN = "cn=admin,dc=example,dc=org"
 	c.BindPW = "admin"
 
-	l := &logrus.Logger{Out: ioutil.Discard, Formatter: &logrus.TextFormatter{}}
+	l := &logrus.Logger{Out: io.Discard, Formatter: &logrus.TextFormatter{}}
 
 	conn, err := c.openConnector(l)
 	if err != nil {

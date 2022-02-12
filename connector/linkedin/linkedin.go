@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 
@@ -169,7 +169,7 @@ func (c *linkedInConnector) primaryEmail(ctx context.Context, client *http.Clien
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return email, fmt.Errorf("read body: %v", err)
 	}
@@ -209,7 +209,7 @@ func (c *linkedInConnector) profile(ctx context.Context, client *http.Client) (p
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return p, fmt.Errorf("read body: %v", err)
 		}

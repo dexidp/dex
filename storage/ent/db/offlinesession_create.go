@@ -75,11 +75,17 @@ func (osc *OfflineSessionCreate) Save(ctx context.Context) (*OfflineSession, err
 				return nil, err
 			}
 			osc.mutation = mutation
-			node, err = osc.sqlSave(ctx)
+			if node, err = osc.sqlSave(ctx); err != nil {
+				return nil, err
+			}
+			mutation.id = &node.ID
 			mutation.done = true
 			return node, err
 		})
 		for i := len(osc.hooks) - 1; i >= 0; i-- {
+			if osc.hooks[i] == nil {
+				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = osc.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, osc.mutation); err != nil {
@@ -98,30 +104,43 @@ func (osc *OfflineSessionCreate) SaveX(ctx context.Context) *OfflineSession {
 	return v
 }
 
+// Exec executes the query.
+func (osc *OfflineSessionCreate) Exec(ctx context.Context) error {
+	_, err := osc.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (osc *OfflineSessionCreate) ExecX(ctx context.Context) {
+	if err := osc.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
 // check runs all checks and user-defined validators on the builder.
 func (osc *OfflineSessionCreate) check() error {
 	if _, ok := osc.mutation.UserID(); !ok {
-		return &ValidationError{Name: "user_id", err: errors.New("db: missing required field \"user_id\"")}
+		return &ValidationError{Name: "user_id", err: errors.New(`db: missing required field "user_id"`)}
 	}
 	if v, ok := osc.mutation.UserID(); ok {
 		if err := offlinesession.UserIDValidator(v); err != nil {
-			return &ValidationError{Name: "user_id", err: fmt.Errorf("db: validator failed for field \"user_id\": %w", err)}
+			return &ValidationError{Name: "user_id", err: fmt.Errorf(`db: validator failed for field "user_id": %w`, err)}
 		}
 	}
 	if _, ok := osc.mutation.ConnID(); !ok {
-		return &ValidationError{Name: "conn_id", err: errors.New("db: missing required field \"conn_id\"")}
+		return &ValidationError{Name: "conn_id", err: errors.New(`db: missing required field "conn_id"`)}
 	}
 	if v, ok := osc.mutation.ConnID(); ok {
 		if err := offlinesession.ConnIDValidator(v); err != nil {
-			return &ValidationError{Name: "conn_id", err: fmt.Errorf("db: validator failed for field \"conn_id\": %w", err)}
+			return &ValidationError{Name: "conn_id", err: fmt.Errorf(`db: validator failed for field "conn_id": %w`, err)}
 		}
 	}
 	if _, ok := osc.mutation.Refresh(); !ok {
-		return &ValidationError{Name: "refresh", err: errors.New("db: missing required field \"refresh\"")}
+		return &ValidationError{Name: "refresh", err: errors.New(`db: missing required field "refresh"`)}
 	}
 	if v, ok := osc.mutation.ID(); ok {
 		if err := offlinesession.IDValidator(v); err != nil {
-			return &ValidationError{Name: "id", err: fmt.Errorf("db: validator failed for field \"id\": %w", err)}
+			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "id": %w`, err)}
 		}
 	}
 	return nil
@@ -130,8 +149,8 @@ func (osc *OfflineSessionCreate) check() error {
 func (osc *OfflineSessionCreate) sqlSave(ctx context.Context) (*OfflineSession, error) {
 	_node, _spec := osc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, osc.driver, _spec); err != nil {
-		if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}
@@ -216,17 +235,19 @@ func (oscb *OfflineSessionCreateBulk) Save(ctx context.Context) ([]*OfflineSessi
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, oscb.builders[i+1].mutation)
 				} else {
+					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
 					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, oscb.driver, &sqlgraph.BatchCreateSpec{Nodes: specs}); err != nil {
-						if cerr, ok := isSQLConstraintError(err); ok {
-							err = cerr
+					if err = sqlgraph.BatchCreate(ctx, oscb.driver, spec); err != nil {
+						if sqlgraph.IsConstraintError(err) {
+							err = &ConstraintError{err.Error(), err}
 						}
 					}
 				}
-				mutation.done = true
 				if err != nil {
 					return nil, err
 				}
+				mutation.id = &nodes[i].ID
+				mutation.done = true
 				return nodes[i], nil
 			})
 			for i := len(builder.hooks) - 1; i >= 0; i-- {
@@ -250,4 +271,17 @@ func (oscb *OfflineSessionCreateBulk) SaveX(ctx context.Context) []*OfflineSessi
 		panic(err)
 	}
 	return v
+}
+
+// Exec executes the query.
+func (oscb *OfflineSessionCreateBulk) Exec(ctx context.Context) error {
+	_, err := oscb.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (oscb *OfflineSessionCreateBulk) ExecX(ctx context.Context) {
+	if err := oscb.Exec(ctx); err != nil {
+		panic(err)
+	}
 }

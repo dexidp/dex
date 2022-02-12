@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -37,6 +38,7 @@ import (
 	"github.com/dexidp/dex/connector/linkedin"
 	"github.com/dexidp/dex/connector/microsoft"
 	"github.com/dexidp/dex/connector/mock"
+	"github.com/dexidp/dex/connector/oauth"
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
@@ -169,6 +171,8 @@ type Server struct {
 
 	supportedResponseTypes map[string]bool
 
+	supportedGrantTypes []string
+
 	now func() time.Time
 
 	idTokensValidFor       time.Duration
@@ -209,15 +213,21 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		c.SupportedResponseTypes = []string{responseTypeCode}
 	}
 
-	supported := make(map[string]bool)
+	supportedRes := make(map[string]bool)
 	for _, respType := range c.SupportedResponseTypes {
 		switch respType {
 		case responseTypeCode, responseTypeIDToken, responseTypeToken:
 		default:
 			return nil, fmt.Errorf("unsupported response_type %q", respType)
 		}
-		supported[respType] = true
+		supportedRes[respType] = true
 	}
+
+	supportedGrant := []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode} // default
+	if c.PasswordConnector != "" {
+		supportedGrant = append(supportedGrant, grantTypePassword)
+	}
+	sort.Strings(supportedGrant)
 
 	webFS := web.FS()
 	if c.Web.Dir != "" {
@@ -249,7 +259,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		issuerURL:              *issuerURL,
 		connectors:             make(map[string]Connector),
 		storage:                newKeyCacher(c.Storage, now),
-		supportedResponseTypes: supported,
+		supportedResponseTypes: supportedRes,
+		supportedGrantTypes:    supportedGrant,
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
 		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
 		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
@@ -528,6 +539,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"gitlab":          func() ConnectorConfig { return new(gitlab.Config) },
 	"google":          func() ConnectorConfig { return new(google.Config) },
 	"oidc":            func() ConnectorConfig { return new(oidc.Config) },
+	"oauth":           func() ConnectorConfig { return new(oauth.Config) },
 	"saml":            func() ConnectorConfig { return new(saml.Config) },
 	"authproxy":       func() ConnectorConfig { return new(authproxy.Config) },
 	"linkedin":        func() ConnectorConfig { return new(linkedin.Config) },

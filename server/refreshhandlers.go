@@ -76,7 +76,9 @@ func (s *Server) getRefreshTokenFromStorage(clientID string, token *internal.Ref
 
 	if refresh.ClientID != clientID {
 		s.logger.Errorf("client %s trying to claim token for client %s", clientID, refresh.ClientID)
-		return nil, invalidErr
+		// According to https://datatracker.ietf.org/doc/html/rfc6749#section-5.2 Dex should respond with an
+		//  invalid grant error if token has already been claimed by another client.
+		return nil, &refreshError{msg: errInvalidGrant, desc: invalidErr.desc, code: http.StatusBadRequest}
 	}
 
 	if refresh.Token != token.Token {
@@ -227,16 +229,13 @@ func (s *Server) updateRefreshToken(token *internal.RefreshToken, refresh *stora
 
 	lastUsed := s.now()
 
-	rerr := s.updateOfflineSession(refresh, ident, lastUsed)
-	if rerr != nil {
-		return nil, rerr
-	}
-
 	refreshTokenUpdater := func(old storage.RefreshToken) (storage.RefreshToken, error) {
 		if s.refreshTokenPolicy.RotationEnabled() {
 			if old.Token != token.Token {
 				if s.refreshTokenPolicy.AllowedToReuse(old.LastUsed) && old.ObsoleteToken == token.Token {
 					newToken.Token = old.Token
+					// Do not update last used time for offline session if token is allowed to be reused
+					lastUsed = old.LastUsed
 					return old, nil
 				}
 				return old, errors.New("refresh token claimed twice")
@@ -266,6 +265,11 @@ func (s *Server) updateRefreshToken(token *internal.RefreshToken, refresh *stora
 	if err != nil {
 		s.logger.Errorf("failed to update refresh token: %v", err)
 		return nil, newInternalServerError()
+	}
+
+	rerr := s.updateOfflineSession(refresh, ident, lastUsed)
+	if rerr != nil {
+		return nil, rerr
 	}
 
 	return newToken, nil

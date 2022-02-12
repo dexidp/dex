@@ -77,7 +77,8 @@ func (AuthRequest) Fields() []ent.Field {
 		field.Bytes("connector_data").
 			Nillable().
 			Optional(),
-		field.Time("expiry"),
+		field.Time("expiry").
+			SchemaType(timeSchema),
 
 		field.Text("code_challenge").
 			SchemaType(textSchema).

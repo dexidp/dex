@@ -34,7 +34,8 @@ func (Keys) Fields() []ent.Field {
 		field.JSON("verification_keys", []storage.VerificationKey{}),
 		field.JSON("signing_key", jose.JSONWebKey{}),
 		field.JSON("signing_key_pub", jose.JSONWebKey{}),
-		field.Time("next_rotation"),
+		field.Time("next_rotation").
+			SchemaType(timeSchema),
 	}
 }
 

@@ -78,11 +78,17 @@ func (kc *KeysCreate) Save(ctx context.Context) (*Keys, error) {
 				return nil, err
 			}
 			kc.mutation = mutation
-			node, err = kc.sqlSave(ctx)
+			if node, err = kc.sqlSave(ctx); err != nil {
+				return nil, err
+			}
+			mutation.id = &node.ID
 			mutation.done = true
 			return node, err
 		})
 		for i := len(kc.hooks) - 1; i >= 0; i-- {
+			if kc.hooks[i] == nil {
+				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
+			}
 			mut = kc.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, kc.mutation); err != nil {
@@ -101,23 +107,36 @@ func (kc *KeysCreate) SaveX(ctx context.Context) *Keys {
 	return v
 }
 
+// Exec executes the query.
+func (kc *KeysCreate) Exec(ctx context.Context) error {
+	_, err := kc.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (kc *KeysCreate) ExecX(ctx context.Context) {
+	if err := kc.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
 // check runs all checks and user-defined validators on the builder.
 func (kc *KeysCreate) check() error {
 	if _, ok := kc.mutation.VerificationKeys(); !ok {
-		return &ValidationError{Name: "verification_keys", err: errors.New("db: missing required field \"verification_keys\"")}
+		return &ValidationError{Name: "verification_keys", err: errors.New(`db: missing required field "verification_keys"`)}
 	}
 	if _, ok := kc.mutation.SigningKey(); !ok {
-		return &ValidationError{Name: "signing_key", err: errors.New("db: missing required field \"signing_key\"")}
+		return &ValidationError{Name: "signing_key", err: errors.New(`db: missing required field "signing_key"`)}
 	}
 	if _, ok := kc.mutation.SigningKeyPub(); !ok {
-		return &ValidationError{Name: "signing_key_pub", err: errors.New("db: missing required field \"signing_key_pub\"")}
+		return &ValidationError{Name: "signing_key_pub", err: errors.New(`db: missing required field "signing_key_pub"`)}
 	}
 	if _, ok := kc.mutation.NextRotation(); !ok {
-		return &ValidationError{Name: "next_rotation", err: errors.New("db: missing required field \"next_rotation\"")}
+		return &ValidationError{Name: "next_rotation", err: errors.New(`db: missing required field "next_rotation"`)}
 	}
 	if v, ok := kc.mutation.ID(); ok {
 		if err := keys.IDValidator(v); err != nil {
-			return &ValidationError{Name: "id", err: fmt.Errorf("db: validator failed for field \"id\": %w", err)}
+			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "id": %w`, err)}
 		}
 	}
 	return nil
@@ -126,8 +145,8 @@ func (kc *KeysCreate) check() error {
 func (kc *KeysCreate) sqlSave(ctx context.Context) (*Keys, error) {
 	_node, _spec := kc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, kc.driver, _spec); err != nil {
-		if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}
@@ -212,17 +231,19 @@ func (kcb *KeysCreateBulk) Save(ctx context.Context) ([]*Keys, error) {
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, kcb.builders[i+1].mutation)
 				} else {
+					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
 					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, kcb.driver, &sqlgraph.BatchCreateSpec{Nodes: specs}); err != nil {
-						if cerr, ok := isSQLConstraintError(err); ok {
-							err = cerr
+					if err = sqlgraph.BatchCreate(ctx, kcb.driver, spec); err != nil {
+						if sqlgraph.IsConstraintError(err) {
+							err = &ConstraintError{err.Error(), err}
 						}
 					}
 				}
-				mutation.done = true
 				if err != nil {
 					return nil, err
 				}
+				mutation.id = &nodes[i].ID
+				mutation.done = true
 				return nodes[i], nil
 			})
 			for i := len(builder.hooks) - 1; i >= 0; i-- {
@@ -246,4 +267,17 @@ func (kcb *KeysCreateBulk) SaveX(ctx context.Context) []*Keys {
 		panic(err)
 	}
 	return v
+}
+
+// Exec executes the query.
+func (kcb *KeysCreateBulk) Exec(ctx context.Context) error {
+	_, err := kcb.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (kcb *KeysCreateBulk) ExecX(ctx context.Context) {
+	if err := kcb.Exec(ctx); err != nil {
+		panic(err)
+	}
 }

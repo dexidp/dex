@@ -94,7 +94,6 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 		UserInfo:          s.absURL("/userinfo"),
 		DeviceEndpoint:    s.absURL("/device/code"),
 		Subjects:          []string{"public"},
-		GrantTypes:        []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode},
 		IDTokenAlgs:       []string{string(jose.RS256)},
 		CodeChallengeAlgs: []string{codeChallengeMethodS256, codeChallengeMethodPlain},
 		Scopes:            []string{"openid", "email", "groups", "profile", "offline_access"},
@@ -109,6 +108,8 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 		d.ResponseTypes = append(d.ResponseTypes, responseType)
 	}
 	sort.Strings(d.ResponseTypes)
+
+	d.GrantTypes = s.supportedGrantTypes
 
 	data, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
@@ -1105,10 +1106,17 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		Groups:            identity.Groups,
 	}
 
-	accessToken := storage.NewID()
+	accessToken, err := s.newAccessToken(client.ID, claims, scopes, nonce, connID)
+	if err != nil {
+		s.logger.Errorf("password grant failed to create new access token: %v", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
 	idToken, expiry, err := s.newIDToken(client.ID, claims, scopes, nonce, accessToken, "", connID)
 	if err != nil {
-		s.tokenErrHelper(w, errServerError, fmt.Sprintf("failed to create ID token: %v", err), http.StatusInternalServerError)
+		s.logger.Errorf("password grant failed to create new ID token: %v", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return
 	}
 
