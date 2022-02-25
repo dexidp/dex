@@ -5,9 +5,9 @@ ORG_PATH=github.com/dexidp
 REPO_PATH=$(ORG_PATH)/$(PROJ)
 export PATH := $(PWD)/bin:$(PATH)
 
-VERSION ?= $(shell ./scripts/git-version)
-
-DOCKER_REPO=quay.io/dexidp/dex
+#VERSION ?= $(shell ./scripts/git-version)
+VERSION=v2.30.2
+DOCKER_REPO=wysscenter/dex
 DOCKER_IMAGE=$(DOCKER_REPO):$(VERSION)
 
 $( shell mkdir -p bin )
@@ -99,7 +99,11 @@ fix: bin/golangci-lint ## Fix lint violations
 
 .PHONY: docker-image
 docker-image:
-	@sudo docker build -t $(DOCKER_IMAGE) .
+	@docker build -t $(DOCKER_IMAGE) .
+
+.PHONY: docker-push
+docker-push:
+	@docker push $(DOCKER_IMAGE)
 
 .PHONY: proto-old
 proto-old: bin/protoc-old bin/protoc-gen-go-old

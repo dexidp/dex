@@ -6,8 +6,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"sort"
 	"strconv"
@@ -345,6 +347,65 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		username := r.FormValue("login")
 		password := r.FormValue("password")
+
+		captchaSecretKey := os.Getenv("RECAPTCHA_SECRET_KEY")
+		if captchaSecretKey != "" {
+			// IF RECAPTCHA_SECRET_KEY is set, the reCAPTCHA widget is enabled
+			// You must now make an extra request to verify the captcha token
+			// is valid.
+			captchaResponse := r.FormValue("g-recaptcha-response")
+
+			if captchaResponse == "" {
+				s.logger.Errorf("reCAPTCHA was not completed for %s", username)
+				if err := s.templates.password(r, w, r.URL.String(), username, "reCAPTCHA", true, backLink); err != nil {
+					s.logger.Errorf("Failed to set response when reCAPTCHA was not completed %s", username)
+				}
+				return
+			}
+
+			resp, err := http.PostForm("https://www.google.com/recaptcha/api/siteverify",
+				url.Values{"secret": {captchaSecretKey}, "response": {captchaResponse}})
+			if err != nil {
+				s.logger.Errorf("Failed to make reCAPTCHA verification request: %v", err)
+				s.renderError(r, w, http.StatusInternalServerError, fmt.Sprintf("Failed to make reCAPTCHA verification request: %v", err))
+				return
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != 200 {
+				s.logger.Errorf("Failed to make reCAPTCHA verification request. Status Code: %v", resp.StatusCode)
+				s.renderError(r, w, http.StatusInternalServerError, fmt.Sprintf("Failed to make reCAPTCHA verification request: %v", err))
+				return
+			}
+
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				s.logger.Errorf("Failed to parse reCAPTCHA verification response: %v", err)
+				s.renderError(r, w, http.StatusInternalServerError, fmt.Sprintf("Failed to make reCAPTCHA verification request: %v", err))
+				return
+			}
+
+			type verifyResponse struct {
+				Success    bool     `json:"success"`
+				ErrorCodes []string `json:"error-codes"`
+			}
+			var decodedResponse verifyResponse
+			if err := json.Unmarshal(body, &decodedResponse); err != nil {
+				s.logger.Errorf("Failed to unmarshal reCAPTCHA verification response: %v", err)
+				s.renderError(r, w, http.StatusInternalServerError, fmt.Sprintf("Failed to make reCAPTCHA verification request: %v", err))
+				return
+			}
+
+			if !decodedResponse.Success {
+				s.logger.Infof("reCAPTCHA Verification failed for '%s'. Error Codes: %v", username, decodedResponse.ErrorCodes)
+				if err := s.templates.password(r, w, r.URL.String(), username, "reCAPTCHA", true, backLink); err != nil {
+					s.logger.Errorf("rendering error failed for %s - %v", username, err)
+				}
+				return
+			}
+
+		}
+
 		scopes := parseScopes(authReq.Scopes)
 
 		identity, ok, err := pwConn.Login(r.Context(), scopes, username, password)
