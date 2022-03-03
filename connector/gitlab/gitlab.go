@@ -4,11 +4,11 @@ package gitlab
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -64,7 +64,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 type connectorData struct {
 	// Support GitLab's Access Tokens and Refresh tokens.
 	AccessToken  string `json:"accessToken"`
-	RefreshToken []byte
+	RefreshToken string `json:"refreshToken"`
 }
 
 var (
@@ -174,7 +174,7 @@ func (c *gitlabConnector) identity(ctx context.Context, s connector.Scopes, toke
 	}
 
 	if s.OfflineAccess {
-		data := connectorData{RefreshToken: []byte(token.RefreshToken), AccessToken: token.AccessToken}
+		data := connectorData{RefreshToken: token.RefreshToken, AccessToken: token.AccessToken}
 		connData, err := json.Marshal(data)
 		if err != nil {
 			return identity, fmt.Errorf("gitlab: marshal connector data: %v", err)
@@ -196,29 +196,29 @@ func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 		ctx = context.WithValue(ctx, oauth2.HTTPClient, c.httpClient)
 	}
 
-	t := &oauth2.Token{
-		AccessToken:  data.AccessToken,
-		RefreshToken: string(data.RefreshToken),
+	switch {
+	case data.RefreshToken != "":
+		{
+			t := &oauth2.Token{
+				RefreshToken: data.RefreshToken,
+				Expiry:       time.Now().Add(-time.Hour),
+			}
+			token, err := oauth2Config.TokenSource(ctx, t).Token()
+			if err != nil {
+				return ident, fmt.Errorf("gitlab: failed to get refresh token: %v", err)
+			}
+			return c.identity(ctx, s, token)
+		}
+	case data.AccessToken != "":
+		{
+			token := &oauth2.Token{
+				AccessToken: data.AccessToken,
+			}
+			return c.identity(ctx, s, token)
+		}
+	default:
+		return ident, errors.New("no refresh or access token found")
 	}
-
-	// Try accessing the GitLab API without refreshing the token at first.
-	id, err := c.identity(ctx, s, t)
-	if err == nil {
-		return id, nil
-	}
-
-	// Do not retry with refreshing token if a non-unauthorized error occurred.
-	if !strings.Contains(err.Error(), strconv.Itoa(http.StatusUnauthorized)) {
-		return id, err
-	}
-
-	// Refresh the token and retry.
-	t.Expiry = time.Now().Add(-time.Hour)
-	token, err := oauth2Config.TokenSource(ctx, t).Token()
-	if err != nil {
-		return ident, fmt.Errorf("gitlab: failed to get refresh token: %v", err)
-	}
-	return c.identity(ctx, s, token)
 }
 
 func (c *gitlabConnector) groupsRequired(groupScope bool) bool {
