@@ -75,7 +75,7 @@ Dex implements the following connectors:
 | [Google](https://dexidp.io/docs/connectors/google/) | yes | yes | yes | alpha | |
 | [LinkedIn](https://dexidp.io/docs/connectors/linkedin/) | yes | no | no | beta | |
 | [Microsoft](https://dexidp.io/docs/connectors/microsoft/) | yes | yes | no | beta | |
-| [AuthProxy](https://dexidp.io/docs/connectors/authproxy/) | no | no | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
+| [AuthProxy](https://dexidp.io/docs/connectors/authproxy/) | no | yes | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
 | [Bitbucket Cloud](https://dexidp.io/docs/connectors/bitbucketcloud/) | yes | yes | no | alpha | |
 | [OpenShift](https://dexidp.io/docs/connectors/openshift/) | no | yes | no | alpha | |
 | [Atlassian Crowd](https://dexidp.io/docs/connectors/atlassiancrowd/) | yes | yes | yes * | beta | preferred_username claim must be configured through config |
