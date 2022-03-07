@@ -120,27 +120,27 @@ func (osc *OfflineSessionCreate) ExecX(ctx context.Context) {
 // check runs all checks and user-defined validators on the builder.
 func (osc *OfflineSessionCreate) check() error {
 	if _, ok := osc.mutation.UserID(); !ok {
-		return &ValidationError{Name: "user_id", err: errors.New(`db: missing required field "user_id"`)}
+		return &ValidationError{Name: "user_id", err: errors.New(`db: missing required field "OfflineSession.user_id"`)}
 	}
 	if v, ok := osc.mutation.UserID(); ok {
 		if err := offlinesession.UserIDValidator(v); err != nil {
-			return &ValidationError{Name: "user_id", err: fmt.Errorf(`db: validator failed for field "user_id": %w`, err)}
+			return &ValidationError{Name: "user_id", err: fmt.Errorf(`db: validator failed for field "OfflineSession.user_id": %w`, err)}
 		}
 	}
 	if _, ok := osc.mutation.ConnID(); !ok {
-		return &ValidationError{Name: "conn_id", err: errors.New(`db: missing required field "conn_id"`)}
+		return &ValidationError{Name: "conn_id", err: errors.New(`db: missing required field "OfflineSession.conn_id"`)}
 	}
 	if v, ok := osc.mutation.ConnID(); ok {
 		if err := offlinesession.ConnIDValidator(v); err != nil {
-			return &ValidationError{Name: "conn_id", err: fmt.Errorf(`db: validator failed for field "conn_id": %w`, err)}
+			return &ValidationError{Name: "conn_id", err: fmt.Errorf(`db: validator failed for field "OfflineSession.conn_id": %w`, err)}
 		}
 	}
 	if _, ok := osc.mutation.Refresh(); !ok {
-		return &ValidationError{Name: "refresh", err: errors.New(`db: missing required field "refresh"`)}
+		return &ValidationError{Name: "refresh", err: errors.New(`db: missing required field "OfflineSession.refresh"`)}
 	}
 	if v, ok := osc.mutation.ID(); ok {
 		if err := offlinesession.IDValidator(v); err != nil {
-			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "id": %w`, err)}
+			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "OfflineSession.id": %w`, err)}
 		}
 	}
 	return nil
@@ -153,6 +153,13 @@ func (osc *OfflineSessionCreate) sqlSave(ctx context.Context) (*OfflineSession, 
 			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
+	}
+	if _spec.ID.Value != nil {
+		if id, ok := _spec.ID.Value.(string); ok {
+			_node.ID = id
+		} else {
+			return nil, fmt.Errorf("unexpected OfflineSession.ID type: %T", _spec.ID.Value)
+		}
 	}
 	return _node, nil
 }

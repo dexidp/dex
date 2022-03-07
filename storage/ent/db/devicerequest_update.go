@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -138,22 +139,22 @@ func (dru *DeviceRequestUpdate) ExecX(ctx context.Context) {
 func (dru *DeviceRequestUpdate) check() error {
 	if v, ok := dru.mutation.UserCode(); ok {
 		if err := devicerequest.UserCodeValidator(v); err != nil {
-			return &ValidationError{Name: "user_code", err: fmt.Errorf("db: validator failed for field \"user_code\": %w", err)}
+			return &ValidationError{Name: "user_code", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.user_code": %w`, err)}
 		}
 	}
 	if v, ok := dru.mutation.DeviceCode(); ok {
 		if err := devicerequest.DeviceCodeValidator(v); err != nil {
-			return &ValidationError{Name: "device_code", err: fmt.Errorf("db: validator failed for field \"device_code\": %w", err)}
+			return &ValidationError{Name: "device_code", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.device_code": %w`, err)}
 		}
 	}
 	if v, ok := dru.mutation.ClientID(); ok {
 		if err := devicerequest.ClientIDValidator(v); err != nil {
-			return &ValidationError{Name: "client_id", err: fmt.Errorf("db: validator failed for field \"client_id\": %w", err)}
+			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.client_id": %w`, err)}
 		}
 	}
 	if v, ok := dru.mutation.ClientSecret(); ok {
 		if err := devicerequest.ClientSecretValidator(v); err != nil {
-			return &ValidationError{Name: "client_secret", err: fmt.Errorf("db: validator failed for field \"client_secret\": %w", err)}
+			return &ValidationError{Name: "client_secret", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.client_secret": %w`, err)}
 		}
 	}
 	return nil
@@ -362,22 +363,22 @@ func (druo *DeviceRequestUpdateOne) ExecX(ctx context.Context) {
 func (druo *DeviceRequestUpdateOne) check() error {
 	if v, ok := druo.mutation.UserCode(); ok {
 		if err := devicerequest.UserCodeValidator(v); err != nil {
-			return &ValidationError{Name: "user_code", err: fmt.Errorf("db: validator failed for field \"user_code\": %w", err)}
+			return &ValidationError{Name: "user_code", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.user_code": %w`, err)}
 		}
 	}
 	if v, ok := druo.mutation.DeviceCode(); ok {
 		if err := devicerequest.DeviceCodeValidator(v); err != nil {
-			return &ValidationError{Name: "device_code", err: fmt.Errorf("db: validator failed for field \"device_code\": %w", err)}
+			return &ValidationError{Name: "device_code", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.device_code": %w`, err)}
 		}
 	}
 	if v, ok := druo.mutation.ClientID(); ok {
 		if err := devicerequest.ClientIDValidator(v); err != nil {
-			return &ValidationError{Name: "client_id", err: fmt.Errorf("db: validator failed for field \"client_id\": %w", err)}
+			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.client_id": %w`, err)}
 		}
 	}
 	if v, ok := druo.mutation.ClientSecret(); ok {
 		if err := devicerequest.ClientSecretValidator(v); err != nil {
-			return &ValidationError{Name: "client_secret", err: fmt.Errorf("db: validator failed for field \"client_secret\": %w", err)}
+			return &ValidationError{Name: "client_secret", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.client_secret": %w`, err)}
 		}
 	}
 	return nil
@@ -396,7 +397,7 @@ func (druo *DeviceRequestUpdateOne) sqlSave(ctx context.Context) (_node *DeviceR
 	}
 	id, ok := druo.mutation.ID()
 	if !ok {
-		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing DeviceRequest.ID for update")}
+		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "DeviceRequest.id" for update`)}
 	}
 	_spec.Node.ID.Value = id
 	if fields := druo.fields; len(fields) > 0 {

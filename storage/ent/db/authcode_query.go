@@ -106,7 +106,7 @@ func (acq *AuthCodeQuery) FirstIDX(ctx context.Context) string {
 }
 
 // Only returns a single AuthCode entity found by the query, ensuring it only returns one.
-// Returns a *NotSingularError when exactly one AuthCode entity is not found.
+// Returns a *NotSingularError when more than one AuthCode entity is found.
 // Returns a *NotFoundError when no AuthCode entities are found.
 func (acq *AuthCodeQuery) Only(ctx context.Context) (*AuthCode, error) {
 	nodes, err := acq.Limit(2).All(ctx)
@@ -133,7 +133,7 @@ func (acq *AuthCodeQuery) OnlyX(ctx context.Context) *AuthCode {
 }
 
 // OnlyID is like Only, but returns the only AuthCode ID in the query.
-// Returns a *NotSingularError when exactly one AuthCode ID is not found.
+// Returns a *NotSingularError when more than one AuthCode ID is found.
 // Returns a *NotFoundError when no entities are found.
 func (acq *AuthCodeQuery) OnlyID(ctx context.Context) (id string, err error) {
 	var ids []string
@@ -242,8 +242,9 @@ func (acq *AuthCodeQuery) Clone() *AuthCodeQuery {
 		order:      append([]OrderFunc{}, acq.order...),
 		predicates: append([]predicate.AuthCode{}, acq.predicates...),
 		// clone intermediate query.
-		sql:  acq.sql.Clone(),
-		path: acq.path,
+		sql:    acq.sql.Clone(),
+		path:   acq.path,
+		unique: acq.unique,
 	}
 }
 
@@ -336,6 +337,10 @@ func (acq *AuthCodeQuery) sqlAll(ctx context.Context) ([]*AuthCode, error) {
 
 func (acq *AuthCodeQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := acq.querySpec()
+	_spec.Node.Columns = acq.fields
+	if len(acq.fields) > 0 {
+		_spec.Unique = acq.unique != nil && *acq.unique
+	}
 	return sqlgraph.CountNodes(ctx, acq.driver, _spec)
 }
 
@@ -406,6 +411,9 @@ func (acq *AuthCodeQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	if acq.sql != nil {
 		selector = acq.sql
 		selector.Select(selector.Columns(columns...)...)
+	}
+	if acq.unique != nil && *acq.unique {
+		selector.Distinct()
 	}
 	for _, p := range acq.predicates {
 		p(selector)
@@ -685,9 +693,7 @@ func (acgb *AuthCodeGroupBy) sqlQuery() *sql.Selector {
 		for _, f := range acgb.fields {
 			columns = append(columns, selector.C(f))
 		}
-		for _, c := range aggregation {
-			columns = append(columns, c)
-		}
+		columns = append(columns, aggregation...)
 		selector.Select(columns...)
 	}
 	return selector.GroupBy(selector.Columns(acgb.fields...)...)
