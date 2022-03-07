@@ -15,7 +15,7 @@ var textSchema = map[string]string{
 }
 
 var timeSchema = map[string]string{
-	dialect.Postgres: "timestamptz",
+	dialect.Postgres: "timestamptz(3)",
 	dialect.SQLite:   "timestamp",
 	dialect.MySQL:    "datetime(3)",
 }
