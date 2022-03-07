@@ -260,6 +260,7 @@ func (a audience) MarshalJSON() ([]byte, error) {
 
 type idTokenClaims struct {
 	Issuer           string   `json:"iss"`
+	ProviderID       string   `json:"provider_id"`
 	Subject          string   `json:"sub"`
 	Audience         audience `json:"aud"`
 	Expiry           int64    `json:"exp"`
@@ -342,11 +343,12 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	}
 
 	tok := idTokenClaims{
-		Issuer:   s.issuerURL.String(),
-		Subject:  subjectString,
-		Nonce:    nonce,
-		Expiry:   expiry.Unix(),
-		IssuedAt: issuedAt.Unix(),
+		Issuer:     s.issuerURL.String(),
+		Subject:    subjectString,
+		Nonce:      nonce,
+		Expiry:     expiry.Unix(),
+		IssuedAt:   issuedAt.Unix(),
+		ProviderID: client.ID,
 	}
 
 	if accessToken != "" {
