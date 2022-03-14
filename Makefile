@@ -20,6 +20,15 @@ export GOBIN=$(PWD)/bin
 
 LD_FLAGS="-w -X main.version=$(VERSION)"
 
+
+ARCHITECTURE ?= $(shell uname -m)
+PROTOC_x86_64 = x86_64
+PROTOC_s390x = s390x
+PROTOC_ppc64le = ppcle_64
+
+GOPATH ?= $(shell go env GOPATH)
+GOARCH ?= $(shell go env GOARCH)
+
 # Dependency versions
 
 KIND_NODE_IMAGE = "kindest/node:v1.19.11@sha256:07db187ae84b4b7de440a73886f008cf903fcf5764ba8106a9fd5243d6f32729"
@@ -128,7 +137,11 @@ deps: bin/gotestsum bin/golangci-lint bin/protoc bin/protoc-gen-go bin/protoc-ge
 
 bin/gotestsum:
 	@mkdir -p bin
+ifeq (${GOARCH}, amd64)
 	curl -L https://github.com/gotestyourself/gotestsum/releases/download/v${GOTESTSUM_VERSION}/gotestsum_${GOTESTSUM_VERSION}_$(shell uname | tr A-Z a-z)_amd64.tar.gz | tar -zOxf - gotestsum > ./bin/gotestsum
+else
+	go install gotest.tools/gotestsum@latest
+endif
 	@chmod +x ./bin/gotestsum
 
 bin/golangci-lint:
@@ -141,22 +154,30 @@ ifeq ($(shell uname | tr A-Z a-z), darwin)
 	curl -L https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-osx-x86_64.zip > bin/protoc.zip
 endif
 ifeq ($(shell uname | tr A-Z a-z), linux)
-	curl -L https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip > bin/protoc.zip
+	curl -L https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-${PROTOC_${ARCHITECTURE}}.zip > bin/protoc.zip
 endif
 	unzip bin/protoc.zip -d bin/protoc
 	rm bin/protoc.zip
 
 bin/protoc-gen-go:
 	@mkdir -p bin
-	curl -L https://github.com/protocolbuffers/protobuf-go/releases/download/v${PROTOC_GEN_GO_VERSION}/protoc-gen-go.v${PROTOC_GEN_GO_VERSION}.$(shell uname | tr A-Z a-z).amd64.tar.gz | tar -zOxf - protoc-gen-go > ./bin/protoc-gen-go
+ifeq (${GOARCH}, amd64)
+	curl -L https://github.com/protocolbuffers/protobuf-go/releases/download/v${PROTOC_GEN_GO_VERSION}/protoc-gen-go.v${PROTOC_GEN_GO_VERSION}.$(shell uname | tr A-Z a-z).${GOARCH}.tar.gz | tar -zOxf - protoc-gen-go > ./bin/protoc-gen-go
+else
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v${PROTOC_GEN_GO_VERSION}
+endif
 	@chmod +x ./bin/protoc-gen-go
 
 bin/protoc-gen-go-grpc:
 	@mkdir -p bin
-	curl -L https://github.com/grpc/grpc-go/releases/download/cmd/protoc-gen-go-grpc/v${PROTOC_GEN_GO_GRPC_VERSION}/protoc-gen-go-grpc.v${PROTOC_GEN_GO_GRPC_VERSION}.$(shell uname | tr A-Z a-z).amd64.tar.gz | tar -zOxf - ./protoc-gen-go-grpc > ./bin/protoc-gen-go-grpc
+ifeq (${GOARCH}, amd64)
+	curl -L https://github.com/grpc/grpc-go/releases/download/cmd/protoc-gen-go-grpc/v${PROTOC_GEN_GO_GRPC_VERSION}/protoc-gen-go-grpc.v${PROTOC_GEN_GO_GRPC_VERSION}.$(shell uname | tr A-Z a-z).${GOARCH}.tar.gz | tar -zOxf - ./protoc-gen-go-grpc > ./bin/protoc-gen-go-grpc
+else
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v${PROTOC_GEN_GO_GRPC_VERSION}
+endif
 	@chmod +x ./bin/protoc-gen-go-grpc
 
 bin/kind:
 	@mkdir -p bin
-	curl -L https://github.com/kubernetes-sigs/kind/releases/download/v${KIND_VERSION}/kind-$(shell uname | tr A-Z a-z)-amd64 > ./bin/kind
+	curl -L https://github.com/kubernetes-sigs/kind/releases/download/v${KIND_VERSION}/kind-$(shell uname | tr A-Z a-z)-${GOARCH} > ./bin/kind
 	@chmod +x ./bin/kind
