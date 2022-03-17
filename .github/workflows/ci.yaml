@@ -67,7 +67,7 @@ jobs:
           go-version: 1.17
 
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Start services
         run: docker-compose -f docker-compose.test.yaml up -d
@@ -77,6 +77,9 @@ jobs:
         with:
           version: v0.11.1
           node_image: kindest/node:v1.19.11@sha256:07db187ae84b4b7de440a73886f008cf903fcf5764ba8106a9fd5243d6f32729
+
+      - name: Download tool dependencies
+        run: make deps
 
       - name: Test
         run: make testall

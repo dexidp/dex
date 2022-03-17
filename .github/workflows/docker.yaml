@@ -12,12 +12,10 @@ jobs:
   docker:
     name: Docker
     runs-on: ubuntu-latest
-    permissions:
-      packages: "write"
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Calculate Docker image tags
         id: tags
@@ -78,6 +76,8 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm/v7,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |
@@ -94,3 +94,18 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.licenses=${{ github.event.repository.license.spdx_id }}
             org.opencontainers.image.documentation=https://dexidp.io/docs/
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.2.2
+        with:
+          image-ref: "ghcr.io/dexidp/dex:${{ steps.tags.outputs.version }}"
+          format: "template"
+          template: "@/contrib/sarif.tpl"
+          output: "trivy-results.sarif"
+        if: github.event_name == 'push'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v1
+        with:
+          sarif_file: "trivy-results.sarif"
+        if: github.event_name == 'push'

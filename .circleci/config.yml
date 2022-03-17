@@ -1,0 +1,62 @@
+version: 2.1
+
+jobs:
+  build:
+    machine:
+      image: "ubuntu-2004:202111-01"
+    steps:
+      - checkout
+      - run:
+          name: Print env vars
+          command: |
+            echo "CIRCLE_SHA1=${CIRCLE_SHA1}"
+            echo "CIRCLE_TAG=${CIRCLE_TAG}"
+      - run:
+          environment:
+            DOCKER_REPO: quay.io/giantswarm/dex
+            ORG_PATH: github.com/giantswarm
+          name: Build dex docker image
+          command: |
+            TAG=$CIRCLE_SHA1 make -e docker-image
+      - run:
+          name: Re-tag images for aliyun
+          command: |
+            if ! [[ -n $CIRCLE_TAG ]]; then docker tag quay.io/giantswarm/dex:$CIRCLE_SHA1 registry-intl.cn-shanghai.aliyuncs.com/giantswarm/dex:$CIRCLE_SHA1; fi
+      - run:
+          name: Re-tag images for git tags
+          command: |
+            if [[ -n $CIRCLE_TAG ]]; then docker tag quay.io/giantswarm/dex:$CIRCLE_TAG registry-intl.cn-shanghai.aliyuncs.com/giantswarm/dex:$CIRCLE_TAG; fi
+      - run:
+          name: Login to quay
+          command: |
+            docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io
+      - run:
+          name: Push image to quay
+          command: |
+            if ! [[ -n $CIRCLE_TAG ]]; then docker push quay.io/giantswarm/dex:$CIRCLE_SHA1; fi
+      - run:
+          name: Push images for git tags to quay
+          command: |
+            if [[ -n $CIRCLE_TAG ]]; then docker push quay.io/giantswarm/dex:$CIRCLE_TAG; fi
+      - run:
+          name: Login to aliyun
+          command: |
+            docker login --username $ALIYUN_USERNAME --password $ALIYUN_PASSWORD registry-intl.cn-shanghai.aliyuncs.com
+      - run:
+          name: Push image to aliyun
+          command: |
+            if ! [[ -n $CIRCLE_TAG ]]; then docker push registry-intl.cn-shanghai.aliyuncs.com/giantswarm/dex:$CIRCLE_SHA1; fi
+      - run:
+          name: Push image for git tags to aliyun
+          command: |
+            if [[ -n $CIRCLE_TAG ]]; then docker push registry-intl.cn-shanghai.aliyuncs.com/giantswarm/dex:$CIRCLE_TAG; fi
+workflows:
+  version: 2
+  build_and_update:
+    jobs:
+      - build:
+          context:
+            - architect
+          filters:
+            tags:
+              only: /^v.*/

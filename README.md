@@ -71,10 +71,11 @@ Dex implements the following connectors:
 | [SAML 2.0](https://dexidp.io/docs/connectors/saml/) | no | yes | no | stable | WARNING: Unmaintained and likely vulnerable to auth bypasses ([#1884](https://github.com/dexidp/dex/discussions/1884)) |
 | [GitLab](https://dexidp.io/docs/connectors/gitlab/) | yes | yes | yes | beta | |
 | [OpenID Connect](https://dexidp.io/docs/connectors/oidc/) | yes | yes | yes | beta | Includes Salesforce, Azure, etc. |
+| [OAuth 2.0](https://dexidp.io/docs/connectors/oauth/) | no | yes | yes | alpha | |
 | [Google](https://dexidp.io/docs/connectors/google/) | yes | yes | yes | alpha | |
 | [LinkedIn](https://dexidp.io/docs/connectors/linkedin/) | yes | no | no | beta | |
 | [Microsoft](https://dexidp.io/docs/connectors/microsoft/) | yes | yes | no | beta | |
-| [AuthProxy](https://dexidp.io/docs/connectors/authproxy/) | no | no | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
+| [AuthProxy](https://dexidp.io/docs/connectors/authproxy/) | no | yes | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
 | [Bitbucket Cloud](https://dexidp.io/docs/connectors/bitbucketcloud/) | yes | yes | no | alpha | |
 | [OpenShift](https://dexidp.io/docs/connectors/openshift/) | no | yes | no | alpha | |
 | [Atlassian Crowd](https://dexidp.io/docs/connectors/atlassiancrowd/) | yes | yes | yes * | beta | preferred_username claim must be configured through config |
@@ -124,3 +125,19 @@ Please see our [security policy](.github/SECURITY.md) for details about reportin
 [go-oidc]: https://github.com/coreos/go-oidc
 [issue-1065]: https://github.com/dexidp/dex/issues/1065
 [release-notes]: https://github.com/dexidp/dex/releases
+
+## Development
+
+When all coding and testing is done, please run the test suite:
+
+```shell
+make testall
+```
+
+For the best developer experience, install [Nix](https://builtwithnix.org/) and [direnv](https://direnv.net/).
+
+Alternatively, install Go and Docker manually or using a package manager. Install the rest of the dependencies by running `make deps`.
+
+## License
+
+The project is licensed under the [Apache License, Version 2.0](LICENSE).

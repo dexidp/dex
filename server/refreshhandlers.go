@@ -76,7 +76,9 @@ func (s *Server) getRefreshTokenFromStorage(clientID string, token *internal.Ref
 
 	if refresh.ClientID != clientID {
 		s.logger.Errorf("client %s trying to claim token for client %s", clientID, refresh.ClientID)
-		return nil, invalidErr
+		// According to https://datatracker.ietf.org/doc/html/rfc6749#section-5.2 Dex should respond with an
+		//  invalid grant error if token has already been claimed by another client.
+		return nil, &refreshError{msg: errInvalidGrant, desc: invalidErr.desc, code: http.StatusBadRequest}
 	}
 
 	if refresh.Token != token.Token {
@@ -190,19 +192,6 @@ func (s *Server) refreshWithConnector(ctx context.Context, token *internal.Refre
 		ident = newIdent
 	}
 
-	{
-		var oidcGroups []string
-		if s.oidcGroupsPrefix {
-			prefix := refresh.ConnectorID
-
-			for _, group := range ident.Groups {
-				prefixedGroup := fmt.Sprintf("%s:%s", prefix, group)
-				oidcGroups = append(oidcGroups, prefixedGroup)
-			}
-			ident.Groups = oidcGroups
-		}
-	}
-
 	return ident, nil
 }
 
@@ -311,6 +300,13 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 	if rerr != nil {
 		s.refreshTokenErrHelper(w, rerr)
 		return
+	}
+
+	// Giant Swarm's custom group name prefixing
+	if s.oidcGroupsPrefix {
+		for idx, group := range ident.Groups {
+			ident.Groups[idx] = fmt.Sprintf("%s:%s", refresh.ConnectorID, group)
+		}
 	}
 
 	claims := storage.Claims{
