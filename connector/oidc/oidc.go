@@ -44,6 +44,11 @@ type Config struct {
 	// InsecureEnableGroups enables groups claims. This is disabled by default until https://github.com/dexidp/dex/issues/1065 is resolved
 	InsecureEnableGroups bool `json:"insecureEnableGroups"`
 
+	// AcrValues (Authentication Context Class Reference Values) that specifies the Authentication Context Class Values
+	// within the Authentication Request that the Authorization Server is being requested to use for
+	// processing requests from this Client, with the values appearing in order of preference.
+	AcrValues []string `json:"acrValues"`
+
 	// GetUserInfo uses the userinfo endpoint to get additional claims for
 	// the token. This is especially useful where upstreams return "thin"
 	// id tokens
@@ -55,6 +60,11 @@ type Config struct {
 
 	// PromptType will be used fot the prompt parameter (when offline_access, by default prompt=consent)
 	PromptType string `json:"promptType"`
+
+	// OverrideClaimMapping will be used to override the options defined in claimMappings.
+	// i.e. if there are 'email' and `preferred_email` claims available, by default Dex will always use the `email` claim independent of the ClaimMapping.EmailKey.
+	// This setting allows you to override the default behavior of Dex and enforce the mappings defined in `claimMapping`.
+	OverrideClaimMapping bool `json:"overrideClaimMapping"` // defaults to false
 
 	ClaimMapping struct {
 		// Configurable key which contains the preferred username claims
@@ -149,10 +159,12 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		hostedDomains:             c.HostedDomains,
 		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
 		insecureEnableGroups:      c.InsecureEnableGroups,
+		acrValues:                 c.AcrValues,
 		getUserInfo:               c.GetUserInfo,
 		promptType:                c.PromptType,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
+		overrideClaimMapping:      c.OverrideClaimMapping,
 		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
 		emailKey:                  c.ClaimMapping.EmailKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
@@ -174,10 +186,12 @@ type oidcConnector struct {
 	hostedDomains             []string
 	insecureSkipEmailVerified bool
 	insecureEnableGroups      bool
+	acrValues                 []string
 	getUserInfo               bool
 	promptType                string
 	userIDKey                 string
 	userNameKey               string
+	overrideClaimMapping      bool
 	preferredUsernameKey      string
 	emailKey                  string
 	groupsKey                 string
@@ -200,6 +214,11 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 			preferredDomain = "*"
 		}
 		opts = append(opts, oauth2.SetAuthURLParam("hd", preferredDomain))
+	}
+
+	if len(c.acrValues) > 0 {
+		acrValues := strings.Join(c.acrValues, " ")
+		opts = append(opts, oauth2.SetAuthURLParam("acr_values", acrValues))
 	}
 
 	if s.OfflineAccess {
@@ -289,7 +308,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	preferredUsername, found := claims["preferred_username"].(string)
-	if !found {
+	if (!found || c.overrideClaimMapping) && c.preferredUsernameKey != "" {
 		preferredUsername, _ = claims[c.preferredUsernameKey].(string)
 	}
 
@@ -304,7 +323,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	var email string
 	emailKey := "email"
 	email, found = claims[emailKey].(string)
-	if !found && c.emailKey != "" {
+	if (!found || c.overrideClaimMapping) && c.emailKey != "" {
 		emailKey = c.emailKey
 		email, found = claims[emailKey].(string)
 	}
@@ -326,7 +345,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	if c.insecureEnableGroups {
 		groupsKey := "groups"
 		vs, found := claims[groupsKey].([]interface{})
-		if !found {
+		if (!found || c.overrideClaimMapping) && c.groupsKey != "" {
 			groupsKey = c.groupsKey
 			vs, found = claims[groupsKey].([]interface{})
 		}

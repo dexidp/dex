@@ -76,7 +76,9 @@ func (s *Server) getRefreshTokenFromStorage(clientID string, token *internal.Ref
 
 	if refresh.ClientID != clientID {
 		s.logger.Errorf("client %s trying to claim token for client %s", clientID, refresh.ClientID)
-		return nil, invalidErr
+		// According to https://datatracker.ietf.org/doc/html/rfc6749#section-5.2 Dex should respond with an
+		//  invalid grant error if token has already been claimed by another client.
+		return nil, &refreshError{msg: errInvalidGrant, desc: invalidErr.desc, code: http.StatusBadRequest}
 	}
 
 	if refresh.Token != token.Token {

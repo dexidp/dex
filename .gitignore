@@ -1,3 +1,4 @@
+/.direnv/
 /.idea/
 /bin/
 /docker-compose.override.yaml
