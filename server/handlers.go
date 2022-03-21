@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/gorilla/mux"
 	jose "gopkg.in/square/go-jose.v2"
 
@@ -205,9 +206,15 @@ func (s *Server) handleChallenge(w http.ResponseWriter, r *http.Request) {
 		s.renderErrorJSON(w, http.StatusBadRequest, "Could not parse request body JSON.")
 		return
 	}
-	if !addressRegex.MatchString(nonceReq.Address) {
-		s.renderErrorJSON(w, http.StatusBadRequest, "Invalid Ethereum address.")
-		return
+
+	// Check that this is a valid Ethereum address and convert it to checksum form.
+	mixAddr, err := common.NewMixedcaseAddressFromString(nonceReq.Address)
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, fmt.Sprintf("Invalid Ethereum address %s.", nonceReq.Address))
+	}
+	if !mixAddr.ValidChecksum() {
+		s.logger.Warnf("Incoming address %s not checksummed", mixAddr.Original())
+		nonceReq.Address = mixAddr.Address().Hex()
 	}
 
 	authReq, err := s.storage.GetAuthRequest(nonceReq.State)
