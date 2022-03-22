@@ -1,4 +1,4 @@
-ARG BASEIMAGE=alpine:3.15.0
+ARG BASEIMAGE=alpine:3.15.1
 
 FROM golang:1.17.8-alpine3.14 AS builder
 
