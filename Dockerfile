@@ -22,13 +22,13 @@ COPY . .
 
 RUN make release-binary
 
-FROM alpine:3.15.0 AS stager
+FROM alpine:3.15.1 AS stager
 
 RUN mkdir -p /var/dex
 RUN mkdir -p /etc/dex
 COPY config.docker.yaml /etc/dex/
 
-FROM alpine:3.15.0 AS gomplate
+FROM alpine:3.15.1 AS gomplate
 
 ARG TARGETOS
 ARG TARGETARCH
