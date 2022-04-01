@@ -44,6 +44,8 @@ const (
 
 // Config holds configuration options for microsoft logins.
 type Config struct {
+        ApiURL               string          `json:"apiURL"`
+        GraphURL             string          `json:"graphURL"`
 	ClientID             string          `json:"clientID"`
 	ClientSecret         string          `json:"clientSecret"`
 	RedirectURI          string          `json:"redirectURI"`
@@ -62,8 +64,8 @@ type Config struct {
 // Open returns a strategy for logging in through Microsoft.
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	m := microsoftConnector{
-		apiURL:               "https://login.microsoftonline.com",
-		graphURL:             "https://graph.microsoft.com",
+		apiURL:               c.ApiURL,
+		graphURL:             c.GraphURL,
 		redirectURI:          c.RedirectURI,
 		clientID:             c.ClientID,
 		clientSecret:         c.ClientSecret,
