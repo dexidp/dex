@@ -57,7 +57,7 @@ func (m *MySQL) Open(logger log.Logger) (storage.Storage, error) {
 		client.WithTxIsolationLevel(sql.LevelSerializable),
 	)
 
-	if err := databaseClient.Schema().Create(context.TODO(), schema.WithAtlas(true)); err != nil {
+	if err := databaseClient.Schema().Create(context.TODO(), schema.WithAtlas(false)); err != nil {
 		return nil, err
 	}
 

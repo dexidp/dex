@@ -44,7 +44,7 @@ func (s *SQLite3) Open(logger log.Logger) (storage.Storage, error) {
 		client.WithHasher(sha256.New),
 	)
 
-	if err := databaseClient.Schema().Create(context.TODO(), schema.WithAtlas(true)); err != nil {
+	if err := databaseClient.Schema().Create(context.TODO(), schema.WithAtlas(false)); err != nil {
 		return nil, err
 	}
 
