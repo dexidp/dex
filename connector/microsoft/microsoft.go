@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+        "unicode/utf8"
 
 	"golang.org/x/oauth2"
 
@@ -64,6 +65,13 @@ type Config struct {
 // Open returns a strategy for logging in through Microsoft.
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	m := microsoftConnector{
+                // default to standard API and Graph URLs if not provided
+                if (utf8.RuneCountInString(c.ApiURL < 1) {
+                    c.ApiURL = "https://login.microsoftonline.com"
+                }
+                if (utf8.RuneCountInString(c.GraphURL < 1) {
+                    c.GraphURL = "https://graph.microsoft.com"
+                }
 		apiURL:               c.ApiURL,
 		graphURL:             c.GraphURL,
 		redirectURI:          c.RedirectURI,
@@ -92,6 +100,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 	default:
 		return nil, fmt.Errorf("invalid groupNameFormat: %s", m.groupNameFormat)
 	}
+
 
 	return &m, nil
 }
