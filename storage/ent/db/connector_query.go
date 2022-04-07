@@ -106,7 +106,7 @@ func (cq *ConnectorQuery) FirstIDX(ctx context.Context) string {
 }
 
 // Only returns a single Connector entity found by the query, ensuring it only returns one.
-// Returns a *NotSingularError when exactly one Connector entity is not found.
+// Returns a *NotSingularError when more than one Connector entity is found.
 // Returns a *NotFoundError when no Connector entities are found.
 func (cq *ConnectorQuery) Only(ctx context.Context) (*Connector, error) {
 	nodes, err := cq.Limit(2).All(ctx)
@@ -133,7 +133,7 @@ func (cq *ConnectorQuery) OnlyX(ctx context.Context) *Connector {
 }
 
 // OnlyID is like Only, but returns the only Connector ID in the query.
-// Returns a *NotSingularError when exactly one Connector ID is not found.
+// Returns a *NotSingularError when more than one Connector ID is found.
 // Returns a *NotFoundError when no entities are found.
 func (cq *ConnectorQuery) OnlyID(ctx context.Context) (id string, err error) {
 	var ids []string
@@ -242,8 +242,9 @@ func (cq *ConnectorQuery) Clone() *ConnectorQuery {
 		order:      append([]OrderFunc{}, cq.order...),
 		predicates: append([]predicate.Connector{}, cq.predicates...),
 		// clone intermediate query.
-		sql:  cq.sql.Clone(),
-		path: cq.path,
+		sql:    cq.sql.Clone(),
+		path:   cq.path,
+		unique: cq.unique,
 	}
 }
 
@@ -336,6 +337,10 @@ func (cq *ConnectorQuery) sqlAll(ctx context.Context) ([]*Connector, error) {
 
 func (cq *ConnectorQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := cq.querySpec()
+	_spec.Node.Columns = cq.fields
+	if len(cq.fields) > 0 {
+		_spec.Unique = cq.unique != nil && *cq.unique
+	}
 	return sqlgraph.CountNodes(ctx, cq.driver, _spec)
 }
 
@@ -406,6 +411,9 @@ func (cq *ConnectorQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	if cq.sql != nil {
 		selector = cq.sql
 		selector.Select(selector.Columns(columns...)...)
+	}
+	if cq.unique != nil && *cq.unique {
+		selector.Distinct()
 	}
 	for _, p := range cq.predicates {
 		p(selector)
@@ -685,9 +693,7 @@ func (cgb *ConnectorGroupBy) sqlQuery() *sql.Selector {
 		for _, f := range cgb.fields {
 			columns = append(columns, selector.C(f))
 		}
-		for _, c := range aggregation {
-			columns = append(columns, c)
-		}
+		columns = append(columns, aggregation...)
 		selector.Select(columns...)
 	}
 	return selector.GroupBy(selector.Columns(cgb.fields...)...)

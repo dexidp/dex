@@ -106,7 +106,7 @@ func (kq *KeysQuery) FirstIDX(ctx context.Context) string {
 }
 
 // Only returns a single Keys entity found by the query, ensuring it only returns one.
-// Returns a *NotSingularError when exactly one Keys entity is not found.
+// Returns a *NotSingularError when more than one Keys entity is found.
 // Returns a *NotFoundError when no Keys entities are found.
 func (kq *KeysQuery) Only(ctx context.Context) (*Keys, error) {
 	nodes, err := kq.Limit(2).All(ctx)
@@ -133,7 +133,7 @@ func (kq *KeysQuery) OnlyX(ctx context.Context) *Keys {
 }
 
 // OnlyID is like Only, but returns the only Keys ID in the query.
-// Returns a *NotSingularError when exactly one Keys ID is not found.
+// Returns a *NotSingularError when more than one Keys ID is found.
 // Returns a *NotFoundError when no entities are found.
 func (kq *KeysQuery) OnlyID(ctx context.Context) (id string, err error) {
 	var ids []string
@@ -242,8 +242,9 @@ func (kq *KeysQuery) Clone() *KeysQuery {
 		order:      append([]OrderFunc{}, kq.order...),
 		predicates: append([]predicate.Keys{}, kq.predicates...),
 		// clone intermediate query.
-		sql:  kq.sql.Clone(),
-		path: kq.path,
+		sql:    kq.sql.Clone(),
+		path:   kq.path,
+		unique: kq.unique,
 	}
 }
 
@@ -336,6 +337,10 @@ func (kq *KeysQuery) sqlAll(ctx context.Context) ([]*Keys, error) {
 
 func (kq *KeysQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := kq.querySpec()
+	_spec.Node.Columns = kq.fields
+	if len(kq.fields) > 0 {
+		_spec.Unique = kq.unique != nil && *kq.unique
+	}
 	return sqlgraph.CountNodes(ctx, kq.driver, _spec)
 }
 
@@ -406,6 +411,9 @@ func (kq *KeysQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	if kq.sql != nil {
 		selector = kq.sql
 		selector.Select(selector.Columns(columns...)...)
+	}
+	if kq.unique != nil && *kq.unique {
+		selector.Distinct()
 	}
 	for _, p := range kq.predicates {
 		p(selector)
@@ -685,9 +693,7 @@ func (kgb *KeysGroupBy) sqlQuery() *sql.Selector {
 		for _, f := range kgb.fields {
 			columns = append(columns, selector.C(f))
 		}
-		for _, c := range aggregation {
-			columns = append(columns, c)
-		}
+		columns = append(columns, aggregation...)
 		selector.Select(columns...)
 	}
 	return selector.GroupBy(selector.Columns(kgb.fields...)...)
