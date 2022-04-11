@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/html"
+
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
@@ -247,7 +249,9 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 
 		// Authorization redirect callback from OAuth2 auth flow.
 		if errMsg := r.FormValue("error"); errMsg != "" {
-			http.Error(w, errMsg+": "+r.FormValue("error_description"), http.StatusBadRequest)
+			// escape the message to prevent cross-site scripting
+			msg := html.EscapeString(errMsg + ": " + r.FormValue("error_description"))
+			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
 
