@@ -129,7 +129,11 @@ func TestURLFor(t *testing.T) {
 
 	for _, test := range tests {
 		c := &client{baseURL: test.baseURL}
-		got := c.urlFor(test.apiVersion, test.namespace, test.resource, test.name)
+		got, err := c.urlFor(test.apiVersion, test.namespace, test.resource, test.name)
+		if err != nil {
+			t.Errorf("got error: %v", err)
+		}
+
 		if got != test.want {
 			t.Errorf("(&client{baseURL:%q}).urlFor(%q, %q, %q, %q): expected %q got %q",
 				test.baseURL,
