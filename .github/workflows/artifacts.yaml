@@ -106,11 +106,10 @@ jobs:
 
     steps:
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.2.3
+        uses: aquasecurity/trivy-action@0.2.4
         with:
           image-ref: "ghcr.io/dexidp/dex:${{ needs.container-images.outputs.version }}"
-          format: "template"
-          template: "@/contrib/sarif.tpl"
+          format: "sarif"
           output: "trivy-results.sarif"
 
       - name: Upload Trivy scan results to GitHub Security tab
