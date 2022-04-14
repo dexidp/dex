@@ -1,4 +1,4 @@
-ARG BASEIMAGE=alpine
+ARG BASE_IMAGE=alpine
 
 FROM golang:1.17.8-alpine3.14 AS builder
 
@@ -44,7 +44,7 @@ RUN wget -O /usr/local/bin/gomplate \
 FROM alpine:3.15.4 AS alpine
 FROM gcr.io/distroless/static:latest AS distroless
 
-FROM $BASEIMAGE
+FROM $BASE_IMAGE
 
 # Dex connectors, such as GitHub and Google logins require root certificates.
 # Proper installations should manage those certificates, but it's a bad user
