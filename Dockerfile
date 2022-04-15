@@ -1,4 +1,4 @@
-ARG BASEIMAGE=alpine:3.15.4
+ARG BASE_IMAGE=alpine
 
 FROM golang:1.17.8-alpine3.14 AS builder
 
@@ -40,8 +40,11 @@ RUN wget -O /usr/local/bin/gomplate \
     "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT}" \
     && chmod +x /usr/local/bin/gomplate
 
+# For Dependabot to detect base image versions
+FROM alpine:3.15.4 AS alpine
+FROM gcr.io/distroless/static:latest AS distroless
 
-FROM $BASEIMAGE
+FROM $BASE_IMAGE
 
 # Dex connectors, such as GitHub and Google logins require root certificates.
 # Proper installations should manage those certificates, but it's a bad user

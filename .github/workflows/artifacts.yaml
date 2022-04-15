@@ -18,6 +18,9 @@ jobs:
           - linux/amd64
           - linux/arm/v7
           - linux/arm64
+        variant:
+          - alpine
+          - distroless
     outputs:
       version: ${{ steps.details.outputs.version }}
 
@@ -37,12 +40,17 @@ jobs:
             *)            VERSION=sha-${GITHUB_SHA::8};;
           esac
 
+          VERSION_SUFFIX=""
+          if [[ "${{ matrix.variant }}" != "alpine" ]]; then
+            VERSION_SUFFIX="-${{ matrix.variant }}"
+          fi
+
           TAGS=()
           for image in $CONTAINER_IMAGES; do
-            TAGS+=("${image}:${VERSION}")
+            TAGS+=("${image}:${VERSION}${VERSION_SUFFIX}")
 
             if [[ "${{ github.event.repository.default_branch }}" == "$VERSION" ]]; then
-              TAGS+=("${image}:latest")
+              TAGS+=("${image}:latest${VERSION_SUFFIX}")
             fi
           done
 
@@ -84,6 +92,7 @@ jobs:
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.details.outputs.tags }}
           build-args: |
+            BASE_IMAGE=${{ matrix.variant }}
             VERSION=${{ steps.details.outputs.version }}
             COMMIT_HASH=${{ steps.details.outputs.commit_hash }}
             BUILD_DATE=${{ steps.details.outputs.build_date }}
@@ -103,12 +112,29 @@ jobs:
     runs-on: ubuntu-latest
     needs: container-images
     if: github.event_name == 'push'
+    strategy:
+      matrix:
+        variant:
+          - alpine
+          - distroless
 
     steps:
+      # Workaround for lack of matrix output support
+      - name: Calculate container image details
+        id: details
+        run: |
+          VERSION="${{ needs.container-images.outputs.version }}"
+
+          if [[ "${{ matrix.variant }}" != "alpine" ]]; then
+            VERSION="${VERSION}-${{ matrix.variant }}"
+          fi
+
+          echo ::set-output name=version::${VERSION}
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.2.4
         with:
-          image-ref: "ghcr.io/dexidp/dex:${{ needs.container-images.outputs.version }}"
+          image-ref: "ghcr.io/dexidp/dex:${{ steps.details.outputs.version }}"
           format: "sarif"
           output: "trivy-results.sarif"
 
