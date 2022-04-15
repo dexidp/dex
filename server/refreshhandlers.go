@@ -66,11 +66,10 @@ func (s *Server) getRefreshTokenFromStorage(clientID string, token *internal.Ref
 
 	refresh, err := s.storage.GetRefresh(token.RefreshId)
 	if err != nil {
-		s.logger.Errorf("failed to get refresh token: %v", err)
 		if err != storage.ErrNotFound {
+			s.logger.Errorf("failed to get refresh token: %v", err)
 			return nil, newInternalServerError()
 		}
-
 		return nil, invalidErr
 	}
 
