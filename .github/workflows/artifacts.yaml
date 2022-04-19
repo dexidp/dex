@@ -132,7 +132,7 @@ jobs:
           echo ::set-output name=version::${VERSION}
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.2.4
+        uses: aquasecurity/trivy-action@0.2.5
         with:
           image-ref: "ghcr.io/dexidp/dex:${{ steps.details.outputs.version }}"
           format: "sarif"
