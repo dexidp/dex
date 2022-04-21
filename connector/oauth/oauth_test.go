@@ -168,6 +168,34 @@ func TestHandleCallBackForGroupsInToken(t *testing.T) {
 	assert.Equal(t, identity.EmailVerified, false)
 }
 
+func TestHandleCallbackForNumericUserID(t *testing.T) {
+	tokenClaims := map[string]interface{}{}
+
+	userInfoClaims := map[string]interface{}{
+		"name":               "test-name",
+		"user_id_key":        1000,
+		"user_name_key":      "test-username",
+		"preferred_username": "test-preferred-username",
+		"mail":               "mod_mail",
+		"has_verified_email": false,
+	}
+
+	testServer := testSetup(t, tokenClaims, userInfoClaims)
+	defer testServer.Close()
+
+	conn := newConnector(t, testServer.URL)
+	req := newRequestWithAuthCode(t, testServer.URL, "some-code")
+
+	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
+	assert.Equal(t, err, nil)
+
+	assert.Equal(t, identity.UserID, "1000")
+	assert.Equal(t, identity.Username, "test-username")
+	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.Email, "mod_mail")
+	assert.Equal(t, identity.EmailVerified, false)
+}
+
 func testSetup(t *testing.T, tokenClaims map[string]interface{}, userInfoClaims map[string]interface{}) *httptest.Server {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
