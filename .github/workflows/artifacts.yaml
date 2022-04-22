@@ -53,6 +53,27 @@ jobs:
           echo ::set-output name=commit_hash::${GITHUB_SHA::8}
           echo ::set-output name=build_date::$(git show -s --format=%cI)
 
+      - name: Gather metadata
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: |
+            ghcr.io/dexidp/dex
+            dexidp/dex
+          flavor: |
+            latest = false
+          tags: |
+            type=ref,event=branch,enable=${{ matrix.variant == 'alpine' }}
+            type=ref,event=pr,enable=${{ matrix.variant == 'alpine' }}
+            type=semver,pattern={{raw}},enable=${{ matrix.variant == 'alpine' }}
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && matrix.variant == 'alpine' }}
+            type=ref,event=branch,suffix=-${{ matrix.variant }}
+            type=ref,event=pr,suffix=-${{ matrix.variant }}
+            type=semver,pattern={{raw}},suffix=-${{ matrix.variant }}
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }},suffix=-${{ matrix.variant }}
+          labels: |
+            org.opencontainers.image.documentation=https://dexidp.io/docs/
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
         with:
