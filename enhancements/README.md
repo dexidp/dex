@@ -1,17 +1,17 @@
-# Enhancement Proposal
+# Dex Enhancement Proposal
 
 ## Why do we need it?
 
-Enhancement Proposal (EP) is a design document providing information to the community, or describing a new feature for Dex.
+Dex Enhancement Proposal (DEP) is a design document providing information to the community, or describing a new feature for Dex.
 
-We intend EPs to be the primary mechanisms for proposing major new features.
-This will make it easier for community to describe, track, and look through the history of changes that a going to affect the future development of a product.
+We intend DEPs to be the primary mechanisms for proposing major new features or significant changes to existing ones.
+This will make it easier for the community to describe, track, and look through the history of changes that affected the development of the project.
 
 ## Process
 
 ### Before starting
-1. Search GitHub for [previous issues](https://github.com/dexidp/dex/issues) and [EPs](https://github.com/dexidp/dex/tree/master/enhancements).
-2. If an issue does not exist, [open it](https://github.com/dexidp/dex/issues/new?assignees=&labels=&template=feature_request.yaml).
+1. Search GitHub for previous [issues](https://github.com/dexidp/dex/issues), [discussions](https://github.com/dexidp/dex/discussions) and [DEPs](https://github.com/dexidp/dex/tree/master/enhancements).
+2. If a discussion does not exist, [open it](https://github.com/dexidp/dex/discussions/new?category=Ideas).
 3. Ensure that writing enhancement proposal is necessary for you change by discussing it with a community.
 
 ### Writing an enhancement proposal

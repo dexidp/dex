@@ -1,4 +1,4 @@
-# Enhancement Proposal (EP) <issue#> - <YYYY-MM-DD> - <title>
+# Dex Enhancement Proposal (DEP) <issue#> - <YYYY-MM-DD> - <title>
 
 ## Table of Contents
 
@@ -31,7 +31,7 @@
 
 ### Non-goals
 
-- List work that is entirely out of the scope of this enhancement. Use this to define EP borders to keep work focused.
+- List work that is entirely out of the scope of this enhancement. Use this to define DEP borders to keep work focused.
 - All planned future enhancements should be listed in one of the following blocks - Future Improvements.
 
 ## Proposal
