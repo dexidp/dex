@@ -1,11 +1,11 @@
 name: Docker
 
 on:
-  push:
-    branches:
-      - master
-    tags:
-      - v[0-9]+.[0-9]+.[0-9]+
+  # push:
+  #   branches:
+  #     - master
+  #   tags:
+  #     - v[0-9]+.[0-9]+.[0-9]+
   pull_request:
 
 jobs:
@@ -96,7 +96,7 @@ jobs:
             org.opencontainers.image.documentation=https://dexidp.io/docs/
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.2.2
+        uses: aquasecurity/trivy-action@0.2.5
         with:
           image-ref: "ghcr.io/dexidp/dex:${{ steps.tags.outputs.version }}"
           format: "template"
@@ -105,7 +105,7 @@ jobs:
         if: github.event_name == 'push'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v1
+        uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: "trivy-results.sarif"
         if: github.event_name == 'push'

@@ -1825,3 +1825,42 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 		}
 	}
 }
+
+func TestServerSupportedGrants(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    func(c *Config)
+		resGrants []string
+	}{
+		{
+			name:      "Simple",
+			config:    func(c *Config) {},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode},
+		},
+		{
+			name:      "With password connector",
+			config:    func(c *Config) { c.PasswordConnector = "local" },
+			resGrants: []string{grantTypeAuthorizationCode, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode},
+		},
+		{
+			name:      "With token response",
+			config:    func(c *Config) { c.SupportedResponseTypes = append(c.SupportedResponseTypes, responseTypeToken) },
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeImplicit, grantTypeRefreshToken, grantTypeDeviceCode},
+		},
+		{
+			name: "All",
+			config: func(c *Config) {
+				c.PasswordConnector = "local"
+				c.SupportedResponseTypes = append(c.SupportedResponseTypes, responseTypeToken)
+			},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeImplicit, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, srv := newTestServer(context.TODO(), t, tc.config)
+			require.Equal(t, srv.supportedGrantTypes, tc.resGrants)
+		})
+	}
+}

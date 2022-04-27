@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"entgo.io/ent/dialect/sql"
@@ -143,17 +144,17 @@ func (ou *OAuth2ClientUpdate) ExecX(ctx context.Context) {
 func (ou *OAuth2ClientUpdate) check() error {
 	if v, ok := ou.mutation.Secret(); ok {
 		if err := oauth2client.SecretValidator(v); err != nil {
-			return &ValidationError{Name: "secret", err: fmt.Errorf("db: validator failed for field \"secret\": %w", err)}
+			return &ValidationError{Name: "secret", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.secret": %w`, err)}
 		}
 	}
 	if v, ok := ou.mutation.Name(); ok {
 		if err := oauth2client.NameValidator(v); err != nil {
-			return &ValidationError{Name: "name", err: fmt.Errorf("db: validator failed for field \"name\": %w", err)}
+			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.name": %w`, err)}
 		}
 	}
 	if v, ok := ou.mutation.LogoURL(); ok {
 		if err := oauth2client.LogoURLValidator(v); err != nil {
-			return &ValidationError{Name: "logo_url", err: fmt.Errorf("db: validator failed for field \"logo_url\": %w", err)}
+			return &ValidationError{Name: "logo_url", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.logo_url": %w`, err)}
 		}
 	}
 	return nil
@@ -374,17 +375,17 @@ func (ouo *OAuth2ClientUpdateOne) ExecX(ctx context.Context) {
 func (ouo *OAuth2ClientUpdateOne) check() error {
 	if v, ok := ouo.mutation.Secret(); ok {
 		if err := oauth2client.SecretValidator(v); err != nil {
-			return &ValidationError{Name: "secret", err: fmt.Errorf("db: validator failed for field \"secret\": %w", err)}
+			return &ValidationError{Name: "secret", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.secret": %w`, err)}
 		}
 	}
 	if v, ok := ouo.mutation.Name(); ok {
 		if err := oauth2client.NameValidator(v); err != nil {
-			return &ValidationError{Name: "name", err: fmt.Errorf("db: validator failed for field \"name\": %w", err)}
+			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.name": %w`, err)}
 		}
 	}
 	if v, ok := ouo.mutation.LogoURL(); ok {
 		if err := oauth2client.LogoURLValidator(v); err != nil {
-			return &ValidationError{Name: "logo_url", err: fmt.Errorf("db: validator failed for field \"logo_url\": %w", err)}
+			return &ValidationError{Name: "logo_url", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.logo_url": %w`, err)}
 		}
 	}
 	return nil
@@ -403,7 +404,7 @@ func (ouo *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Cli
 	}
 	id, ok := ouo.mutation.ID()
 	if !ok {
-		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing OAuth2Client.ID for update")}
+		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "OAuth2Client.id" for update`)}
 	}
 	_spec.Node.ID.Value = id
 	if fields := ouo.fields; len(fields) > 0 {

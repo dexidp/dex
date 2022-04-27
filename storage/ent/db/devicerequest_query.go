@@ -106,7 +106,7 @@ func (drq *DeviceRequestQuery) FirstIDX(ctx context.Context) int {
 }
 
 // Only returns a single DeviceRequest entity found by the query, ensuring it only returns one.
-// Returns a *NotSingularError when exactly one DeviceRequest entity is not found.
+// Returns a *NotSingularError when more than one DeviceRequest entity is found.
 // Returns a *NotFoundError when no DeviceRequest entities are found.
 func (drq *DeviceRequestQuery) Only(ctx context.Context) (*DeviceRequest, error) {
 	nodes, err := drq.Limit(2).All(ctx)
@@ -133,7 +133,7 @@ func (drq *DeviceRequestQuery) OnlyX(ctx context.Context) *DeviceRequest {
 }
 
 // OnlyID is like Only, but returns the only DeviceRequest ID in the query.
-// Returns a *NotSingularError when exactly one DeviceRequest ID is not found.
+// Returns a *NotSingularError when more than one DeviceRequest ID is found.
 // Returns a *NotFoundError when no entities are found.
 func (drq *DeviceRequestQuery) OnlyID(ctx context.Context) (id int, err error) {
 	var ids []int
@@ -242,8 +242,9 @@ func (drq *DeviceRequestQuery) Clone() *DeviceRequestQuery {
 		order:      append([]OrderFunc{}, drq.order...),
 		predicates: append([]predicate.DeviceRequest{}, drq.predicates...),
 		// clone intermediate query.
-		sql:  drq.sql.Clone(),
-		path: drq.path,
+		sql:    drq.sql.Clone(),
+		path:   drq.path,
+		unique: drq.unique,
 	}
 }
 
@@ -336,6 +337,10 @@ func (drq *DeviceRequestQuery) sqlAll(ctx context.Context) ([]*DeviceRequest, er
 
 func (drq *DeviceRequestQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := drq.querySpec()
+	_spec.Node.Columns = drq.fields
+	if len(drq.fields) > 0 {
+		_spec.Unique = drq.unique != nil && *drq.unique
+	}
 	return sqlgraph.CountNodes(ctx, drq.driver, _spec)
 }
 
@@ -406,6 +411,9 @@ func (drq *DeviceRequestQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	if drq.sql != nil {
 		selector = drq.sql
 		selector.Select(selector.Columns(columns...)...)
+	}
+	if drq.unique != nil && *drq.unique {
+		selector.Distinct()
 	}
 	for _, p := range drq.predicates {
 		p(selector)
@@ -685,9 +693,7 @@ func (drgb *DeviceRequestGroupBy) sqlQuery() *sql.Selector {
 		for _, f := range drgb.fields {
 			columns = append(columns, selector.C(f))
 		}
-		for _, c := range aggregation {
-			columns = append(columns, c)
-		}
+		columns = append(columns, aggregation...)
 		selector.Select(columns...)
 	}
 	return selector.GroupBy(selector.Columns(drgb.fields...)...)

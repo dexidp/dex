@@ -106,7 +106,7 @@ func (pq *PasswordQuery) FirstIDX(ctx context.Context) int {
 }
 
 // Only returns a single Password entity found by the query, ensuring it only returns one.
-// Returns a *NotSingularError when exactly one Password entity is not found.
+// Returns a *NotSingularError when more than one Password entity is found.
 // Returns a *NotFoundError when no Password entities are found.
 func (pq *PasswordQuery) Only(ctx context.Context) (*Password, error) {
 	nodes, err := pq.Limit(2).All(ctx)
@@ -133,7 +133,7 @@ func (pq *PasswordQuery) OnlyX(ctx context.Context) *Password {
 }
 
 // OnlyID is like Only, but returns the only Password ID in the query.
-// Returns a *NotSingularError when exactly one Password ID is not found.
+// Returns a *NotSingularError when more than one Password ID is found.
 // Returns a *NotFoundError when no entities are found.
 func (pq *PasswordQuery) OnlyID(ctx context.Context) (id int, err error) {
 	var ids []int
@@ -242,8 +242,9 @@ func (pq *PasswordQuery) Clone() *PasswordQuery {
 		order:      append([]OrderFunc{}, pq.order...),
 		predicates: append([]predicate.Password{}, pq.predicates...),
 		// clone intermediate query.
-		sql:  pq.sql.Clone(),
-		path: pq.path,
+		sql:    pq.sql.Clone(),
+		path:   pq.path,
+		unique: pq.unique,
 	}
 }
 
@@ -336,6 +337,10 @@ func (pq *PasswordQuery) sqlAll(ctx context.Context) ([]*Password, error) {
 
 func (pq *PasswordQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := pq.querySpec()
+	_spec.Node.Columns = pq.fields
+	if len(pq.fields) > 0 {
+		_spec.Unique = pq.unique != nil && *pq.unique
+	}
 	return sqlgraph.CountNodes(ctx, pq.driver, _spec)
 }
 
@@ -406,6 +411,9 @@ func (pq *PasswordQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	if pq.sql != nil {
 		selector = pq.sql
 		selector.Select(selector.Columns(columns...)...)
+	}
+	if pq.unique != nil && *pq.unique {
+		selector.Distinct()
 	}
 	for _, p := range pq.predicates {
 		p(selector)
@@ -685,9 +693,7 @@ func (pgb *PasswordGroupBy) sqlQuery() *sql.Selector {
 		for _, f := range pgb.fields {
 			columns = append(columns, selector.C(f))
 		}
-		for _, c := range aggregation {
-			columns = append(columns, c)
-		}
+		columns = append(columns, aggregation...)
 		selector.Select(columns...)
 	}
 	return selector.GroupBy(selector.Columns(pgb.fields...)...)

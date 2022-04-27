@@ -252,53 +252,53 @@ func (arc *AuthRequestCreate) defaults() {
 // check runs all checks and user-defined validators on the builder.
 func (arc *AuthRequestCreate) check() error {
 	if _, ok := arc.mutation.ClientID(); !ok {
-		return &ValidationError{Name: "client_id", err: errors.New(`db: missing required field "client_id"`)}
+		return &ValidationError{Name: "client_id", err: errors.New(`db: missing required field "AuthRequest.client_id"`)}
 	}
 	if _, ok := arc.mutation.RedirectURI(); !ok {
-		return &ValidationError{Name: "redirect_uri", err: errors.New(`db: missing required field "redirect_uri"`)}
+		return &ValidationError{Name: "redirect_uri", err: errors.New(`db: missing required field "AuthRequest.redirect_uri"`)}
 	}
 	if _, ok := arc.mutation.Nonce(); !ok {
-		return &ValidationError{Name: "nonce", err: errors.New(`db: missing required field "nonce"`)}
+		return &ValidationError{Name: "nonce", err: errors.New(`db: missing required field "AuthRequest.nonce"`)}
 	}
 	if _, ok := arc.mutation.State(); !ok {
-		return &ValidationError{Name: "state", err: errors.New(`db: missing required field "state"`)}
+		return &ValidationError{Name: "state", err: errors.New(`db: missing required field "AuthRequest.state"`)}
 	}
 	if _, ok := arc.mutation.ForceApprovalPrompt(); !ok {
-		return &ValidationError{Name: "force_approval_prompt", err: errors.New(`db: missing required field "force_approval_prompt"`)}
+		return &ValidationError{Name: "force_approval_prompt", err: errors.New(`db: missing required field "AuthRequest.force_approval_prompt"`)}
 	}
 	if _, ok := arc.mutation.LoggedIn(); !ok {
-		return &ValidationError{Name: "logged_in", err: errors.New(`db: missing required field "logged_in"`)}
+		return &ValidationError{Name: "logged_in", err: errors.New(`db: missing required field "AuthRequest.logged_in"`)}
 	}
 	if _, ok := arc.mutation.ClaimsUserID(); !ok {
-		return &ValidationError{Name: "claims_user_id", err: errors.New(`db: missing required field "claims_user_id"`)}
+		return &ValidationError{Name: "claims_user_id", err: errors.New(`db: missing required field "AuthRequest.claims_user_id"`)}
 	}
 	if _, ok := arc.mutation.ClaimsUsername(); !ok {
-		return &ValidationError{Name: "claims_username", err: errors.New(`db: missing required field "claims_username"`)}
+		return &ValidationError{Name: "claims_username", err: errors.New(`db: missing required field "AuthRequest.claims_username"`)}
 	}
 	if _, ok := arc.mutation.ClaimsEmail(); !ok {
-		return &ValidationError{Name: "claims_email", err: errors.New(`db: missing required field "claims_email"`)}
+		return &ValidationError{Name: "claims_email", err: errors.New(`db: missing required field "AuthRequest.claims_email"`)}
 	}
 	if _, ok := arc.mutation.ClaimsEmailVerified(); !ok {
-		return &ValidationError{Name: "claims_email_verified", err: errors.New(`db: missing required field "claims_email_verified"`)}
+		return &ValidationError{Name: "claims_email_verified", err: errors.New(`db: missing required field "AuthRequest.claims_email_verified"`)}
 	}
 	if _, ok := arc.mutation.ClaimsPreferredUsername(); !ok {
-		return &ValidationError{Name: "claims_preferred_username", err: errors.New(`db: missing required field "claims_preferred_username"`)}
+		return &ValidationError{Name: "claims_preferred_username", err: errors.New(`db: missing required field "AuthRequest.claims_preferred_username"`)}
 	}
 	if _, ok := arc.mutation.ConnectorID(); !ok {
-		return &ValidationError{Name: "connector_id", err: errors.New(`db: missing required field "connector_id"`)}
+		return &ValidationError{Name: "connector_id", err: errors.New(`db: missing required field "AuthRequest.connector_id"`)}
 	}
 	if _, ok := arc.mutation.Expiry(); !ok {
-		return &ValidationError{Name: "expiry", err: errors.New(`db: missing required field "expiry"`)}
+		return &ValidationError{Name: "expiry", err: errors.New(`db: missing required field "AuthRequest.expiry"`)}
 	}
 	if _, ok := arc.mutation.CodeChallenge(); !ok {
-		return &ValidationError{Name: "code_challenge", err: errors.New(`db: missing required field "code_challenge"`)}
+		return &ValidationError{Name: "code_challenge", err: errors.New(`db: missing required field "AuthRequest.code_challenge"`)}
 	}
 	if _, ok := arc.mutation.CodeChallengeMethod(); !ok {
-		return &ValidationError{Name: "code_challenge_method", err: errors.New(`db: missing required field "code_challenge_method"`)}
+		return &ValidationError{Name: "code_challenge_method", err: errors.New(`db: missing required field "AuthRequest.code_challenge_method"`)}
 	}
 	if v, ok := arc.mutation.ID(); ok {
 		if err := authrequest.IDValidator(v); err != nil {
-			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "id": %w`, err)}
+			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "AuthRequest.id": %w`, err)}
 		}
 	}
 	return nil
@@ -311,6 +311,13 @@ func (arc *AuthRequestCreate) sqlSave(ctx context.Context) (*AuthRequest, error)
 			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
+	}
+	if _spec.ID.Value != nil {
+		if id, ok := _spec.ID.Value.(string); ok {
+			_node.ID = id
+		} else {
+			return nil, fmt.Errorf("unexpected AuthRequest.ID type: %T", _spec.ID.Value)
+		}
 	}
 	return _node, nil
 }
