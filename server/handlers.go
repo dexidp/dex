@@ -442,24 +442,6 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	/*
-	 * Giant Swarm custom code to inject connector prefix in the group names, so it enables us
-	 * to use dex in shared installations
-	 */
-	if s.oidcGroupsPrefix {
-		var oidcGroups []string
-
-		prefix := authReq.ConnectorID
-		for _, group := range identity.Groups {
-			prefixedGroup := fmt.Sprintf("%s:%s", prefix, group)
-			oidcGroups = append(oidcGroups, prefixedGroup)
-		}
-		identity.Groups = oidcGroups
-	}
-	/*
-	 * END custom code
-	 */
-
 	redirectURL, err := s.finalizeLogin(identity, authReq, conn.Connector)
 	if err != nil {
 		s.logger.Errorf("Failed to finalize login: %v", err)
@@ -473,6 +455,20 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 // finalizeLogin associates the user's identity with the current AuthRequest, then returns
 // the approval page's path.
 func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (string, error) {
+
+	/*
+	 * Giant Swarm custom code to inject connector prefix in the group names, so it enables us
+	 * to use dex in shared installations
+	 */
+	if s.oidcGroupsPrefix {
+		for idx, group := range identity.Groups {
+			identity.Groups[idx] = fmt.Sprintf("%s:%s", authReq.ConnectorID, group)
+		}
+	}
+	/*
+	 * END custom code
+	 */
+
 	claims := storage.Claims{
 		UserID:            identity.UserID,
 		Username:          identity.Username,
