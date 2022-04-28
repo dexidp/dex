@@ -604,7 +604,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 						return fmt.Errorf("expected error %q, got %q", errInvalidGrant, respErr.Error)
 					}
 
-					expectedMsg := "Refresh token is invalid or has already been claimed by another client."
+					expectedMsg := fmt.Sprintf("clientID %s refresh token (ID existedrefrestoken) is invalid or has already been claimed by another client.", clientID)
 					if respErr.Description != expectedMsg {
 						return fmt.Errorf("expected error description %q, got %q", expectedMsg, respErr.Description)
 					}
