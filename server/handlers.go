@@ -455,7 +455,6 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 // finalizeLogin associates the user's identity with the current AuthRequest, then returns
 // the approval page's path.
 func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (string, error) {
-
 	/*
 	 * Giant Swarm custom code to inject connector prefix in the group names, so it enables us
 	 * to use dex in shared installations
