@@ -322,6 +322,9 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 						if !strings.HasPrefix(group, "mock") {
 							return fmt.Errorf("expected group %q to have prefix %q", group, "mock")
 						}
+						if strings.HasPrefix(group, "mock:mock:") {
+							return fmt.Errorf("expected group %q to have prefix %q only once.", group, "mock")
+						}
 					}
 					return nil
 				},
@@ -418,65 +421,6 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 
 					if _, err := config.TokenSource(ctx, token).Token(); err == nil {
 						return errors.New("was able to redeem the same refresh token twice")
-					}
-					return nil
-				},
-			},
-			{
-				name: "verify OIDC group prefixing on refresh token",
-				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
-					// have to use time.Now because the OAuth2 package uses it.
-					token.Expiry = time.Now().Add(time.Second * -10)
-					if token.Valid() {
-						return errors.New("token shouldn't be valid")
-					}
-
-					newToken, err := config.TokenSource(ctx, token).Token()
-					if err != nil {
-						return fmt.Errorf("failed to refresh token: %v", err)
-					}
-					if token.RefreshToken == newToken.RefreshToken {
-						return fmt.Errorf("old refresh token was the same as the new token %q", token.RefreshToken)
-					}
-					if _, err := config.TokenSource(ctx, token).Token(); err == nil {
-						return errors.New("was able to redeem the same refresh token twice")
-					}
-					oldRawIDToken, ok := token.Extra("id_token").(string)
-					if !ok {
-						return fmt.Errorf("no id_token in refreshed token")
-					}
-					rawIDToken, ok := newToken.Extra("id_token").(string)
-					if !ok {
-						return fmt.Errorf("no id_token in refreshed token")
-					}
-					oldidToken, err := p.Verifier(oidcConfig).Verify(ctx, oldRawIDToken)
-					if err != nil {
-						return fmt.Errorf("failed to verify id token: %v", err)
-					}
-					idToken, err := p.Verifier(oidcConfig).Verify(ctx, rawIDToken)
-					if err != nil {
-						return fmt.Errorf("failed to verify id token: %v", err)
-					}
-					var claims struct {
-						Groups []string `json:"groups"`
-					}
-					oldClaims := claims
-					if err := oldidToken.Claims(&oldClaims); err != nil {
-						return fmt.Errorf("failed to decode raw claims: %v", err)
-					}
-					if err := idToken.Claims(&claims); err != nil {
-						return fmt.Errorf("failed to decode raw claims: %v", err)
-					}
-					if claims.Groups == nil || oldClaims.Groups == nil {
-						return errors.New("no groups value in id_token")
-					}
-					for _, group := range claims.Groups {
-						if !strings.HasPrefix(group, "mock") {
-							return fmt.Errorf("expected group %q to have prefix %q", group, "mock")
-						}
-					}
-					if diff := pretty.Compare(claims, oldClaims); diff != "" {
-						return fmt.Errorf("Groups changed after refresh. Got groups != want groups: %s", diff)
 					}
 					return nil
 				},
@@ -659,6 +603,63 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 
 					if diff := pretty.Compare(want, got); diff != "" {
 						return fmt.Errorf("got identity != want identity: %s", diff)
+					}
+					return nil
+				},
+			},
+			{
+				name: "verify OIDC group prefixing on refresh token",
+				handleToken: func(ctx context.Context, p *oidc.Provider, config *oauth2.Config, token *oauth2.Token, conn *mock.Callback) error {
+					// have to use time.Now because the OAuth2 package uses it.
+					token.Expiry = time.Now().Add(time.Second * -10)
+					if token.Valid() {
+						return errors.New("token shouldn't be valid")
+					}
+
+					ident := connector.Identity{
+						UserID:        "fooid",
+						Username:      "foo",
+						Email:         "foo@bar.com",
+						EmailVerified: true,
+						Groups:        []string{"foo", "bar"},
+					}
+					conn.Identity = ident
+
+					type claims struct {
+						Username      string   `json:"name"`
+						Email         string   `json:"email"`
+						EmailVerified bool     `json:"email_verified"`
+						Groups        []string `json:"groups"`
+					}
+					want := claims{ident.Username, ident.Email, ident.EmailVerified, ident.Groups}
+
+					newToken, err := config.TokenSource(ctx, token).Token()
+					if err != nil {
+						return fmt.Errorf("failed to refresh token: %v", err)
+					}
+					rawIDToken, ok := newToken.Extra("id_token").(string)
+					if !ok {
+						return fmt.Errorf("no id_token in refreshed token")
+					}
+					idToken, err := p.Verifier(oidcConfig).Verify(ctx, rawIDToken)
+					if err != nil {
+						return fmt.Errorf("failed to verify id token: %v", err)
+					}
+					var got claims
+					if err := idToken.Claims(&got); err != nil {
+						return fmt.Errorf("failed to unmarshal claims: %v", err)
+					}
+
+					if diff := pretty.Compare(want, got); diff != "" {
+						return fmt.Errorf("got identity != want identity: %s", diff)
+					}
+					for _, group := range got.Groups {
+						if !strings.HasPrefix(group, "mock") {
+							return fmt.Errorf("expected group %q to have prefix %q", group, "mock")
+						}
+						if strings.HasPrefix(group, "mock:mock:") {
+							return fmt.Errorf("expected group %q to have prefix %q only once.", group, "mock")
+						}
 					}
 					return nil
 				},
