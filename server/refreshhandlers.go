@@ -62,10 +62,11 @@ func (s *Server) extractRefreshTokenFromRequest(r *http.Request) (*internal.Refr
 
 // getRefreshTokenFromStorage checks that refresh token is valid and exists in the storage and gets its info
 func (s *Server) getRefreshTokenFromStorage(clientID string, token *internal.RefreshToken) (*storage.RefreshToken, *refreshError) {
-	invalidErr := newBadRequestError("Refresh token is invalid or has already been claimed by another client.")
+	invalidErr := newBadRequestError(fmt.Sprintf("clientID %s refresh token (ID %s) is invalid or has already been claimed by another client.", clientID, token.RefreshId))
 
 	refresh, err := s.storage.GetRefresh(token.RefreshId)
 	if err != nil {
+		s.logger.Errorf("clientID %s failed to get refresh token ID %s: %v", clientID, token.RefreshId, err)
 		if err != storage.ErrNotFound {
 			s.logger.Errorf("failed to get refresh token: %v", err)
 			return nil, newInternalServerError()
@@ -299,13 +300,6 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 	if rerr != nil {
 		s.refreshTokenErrHelper(w, rerr)
 		return
-	}
-
-	// Giant Swarm's custom group name prefixing
-	if s.oidcGroupsPrefix {
-		for idx, group := range ident.Groups {
-			ident.Groups[idx] = fmt.Sprintf("%s:%s", refresh.ConnectorID, group)
-		}
 	}
 
 	claims := storage.Claims{

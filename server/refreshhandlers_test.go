@@ -135,7 +135,7 @@ func TestRefreshTokenExpirationScenarios(t *testing.T) {
 				rotateRefreshTokens: true,
 				now:                 func() time.Time { return t0.Add(time.Second * 25) },
 			},
-			error: `{"error":"invalid_request","error_description":"Refresh token is invalid or has already been claimed by another client."}`,
+			error: `{"error":"invalid_request","error_description":"clientID test refresh token (ID test) is invalid or has already been claimed by another client."}`,
 		},
 		{
 			name:        "Obsolete tokens are allowed but token is expired globally",
