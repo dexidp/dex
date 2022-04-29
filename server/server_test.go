@@ -323,7 +323,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 							return fmt.Errorf("expected group %q to have prefix %q", group, "mock")
 						}
 						if strings.HasPrefix(group, "mock:mock:") {
-							return fmt.Errorf("expected group %q to have prefix %q only once.", group, "mock")
+							return fmt.Errorf("expected group %q to have prefix %q only once", group, "mock")
 						}
 					}
 					return nil
@@ -658,7 +658,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 							return fmt.Errorf("expected group %q to have prefix %q", group, "mock")
 						}
 						if strings.HasPrefix(group, "mock:mock:") {
-							return fmt.Errorf("expected group %q to have prefix %q only once.", group, "mock")
+							return fmt.Errorf("expected group %q to have prefix %q only once", group, "mock")
 						}
 					}
 					return nil
