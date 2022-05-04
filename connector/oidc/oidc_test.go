@@ -11,12 +11,14 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
@@ -55,6 +57,7 @@ func TestHandleCallback(t *testing.T) {
 		groupsKey                 string
 		insecureSkipEmailVerified bool
 		scopes                    []string
+		customAuthParams          map[string]string
 		expectUserID              string
 		expectUserName            string
 		expectGroups              []string
@@ -271,6 +274,25 @@ func TestHandleCallback(t *testing.T) {
 				"cognito:groups": []string{"group3", "group4"},
 			},
 		},
+		{
+			name:                      "customerAuthParams",
+			overrideClaimMapping:      true,
+			groupsKey:                 "cognito:groups",
+			expectUserID:              "subvalue",
+			expectUserName:            "namevalue",
+			expectedEmailField:        "emailvalue",
+			expectGroups:              []string{"group3", "group4"},
+			scopes:                    []string{"groups"},
+			insecureSkipEmailVerified: true,
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"user_name":      "username",
+				"email":          "emailvalue",
+				"groups":         []string{"group1", "group2"},
+				"cognito:groups": []string{"group3", "group4"},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -329,6 +351,102 @@ func TestHandleCallback(t *testing.T) {
 			expectEquals(t, identity.Groups, tc.expectGroups)
 		})
 	}
+}
+
+func TestCustomLoginURL(t *testing.T) {
+	token := map[string]interface{}{}
+
+	testServer, err := setupServer(token)
+	if err != nil {
+		t.Fatal("failed to setup test server", err)
+	}
+	defer testServer.Close()
+
+	serverUrl := testServer.URL
+
+	minConfig := Config{
+		Issuer:      serverUrl,
+		ClientID:    "my_client_id",
+		RedirectURI: fmt.Sprintf("%s/callback", serverUrl),
+		CustomAuthParams: map[string]string{
+			"organization": "myorg",
+			"connection":   "github",
+		},
+	}
+
+	conn, err := newConnector(minConfig)
+	if err != nil {
+		t.Fatal("failed to create new connector", err)
+	}
+
+	// what we are testing, generation of LoginURL
+	loginUrl, err := conn.LoginURL(connector.Scopes{OfflineAccess: false, Groups: false}, minConfig.RedirectURI, "1234")
+	if err != nil {
+		t.Fatal("failed to get login url", err)
+	}
+
+	u, err := url.Parse(loginUrl)
+	if err != nil {
+		t.Fatal("failed to parse login url", err)
+	}
+
+	values, err := url.ParseQuery(u.RawQuery)
+	if err != nil {
+		t.Fatal("failed to parse login url query params", err)
+	}
+
+	assertParamValue(t, values, "organization", "myorg")
+	assertParamValue(t, values, "connection", "github")
+	assertParamValue(t, values, "client_id", "my_client_id")
+	assertParamValue(t, values, "state", "1234")
+}
+
+func TestCustomLoginURLEmptyParams(t *testing.T) {
+	token := map[string]interface{}{}
+
+	testServer, err := setupServer(token)
+	if err != nil {
+		t.Fatal("failed to setup test server", err)
+	}
+	defer testServer.Close()
+
+	serverUrl := testServer.URL
+
+	minConfig := Config{
+		Issuer:           serverUrl,
+		ClientID:         "my_client_id",
+		RedirectURI:      fmt.Sprintf("%s/callback", serverUrl),
+		CustomAuthParams: map[string]string{},
+	}
+
+	conn, err := newConnector(minConfig)
+	if err != nil {
+		t.Fatal("failed to create new connector", err)
+	}
+
+	// what we are testing, generation of LoginURL
+	loginUrl, err := conn.LoginURL(connector.Scopes{OfflineAccess: false, Groups: false}, minConfig.RedirectURI, "1234")
+	if err != nil {
+		t.Fatal("failed to get login url", err)
+	}
+
+	u, err := url.Parse(loginUrl)
+	if err != nil {
+		t.Fatal("failed to parse login url", err)
+	}
+
+	values, err := url.ParseQuery(u.RawQuery)
+	if err != nil {
+		t.Fatal("failed to parse login url query params", err)
+	}
+
+	assertParamValue(t, values, "client_id", "my_client_id")
+	assertParamValue(t, values, "state", "1234")
+}
+
+func assertParamValue(t *testing.T, values url.Values, queryParam string, expectedValue string) {
+	assert.NotNil(t, values[queryParam])
+	assert.Equal(t, expectedValue, values[queryParam][0])
 }
 
 func setupServer(tok map[string]interface{}) (*httptest.Server, error) {

@@ -76,6 +76,8 @@ type Config struct {
 		// Configurable key which contains the groups claims
 		GroupsKey string `json:"groups"` // defaults to "groups"
 	} `json:"claimMapping"`
+
+	CustomAuthParams map[string]string `json:"customAuthParams"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -168,6 +170,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
 		emailKey:                  c.ClaimMapping.EmailKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
+		customAuthParams:          c.CustomAuthParams,
 	}, nil
 }
 
@@ -195,6 +198,7 @@ type oidcConnector struct {
 	preferredUsernameKey      string
 	emailKey                  string
 	groupsKey                 string
+	customAuthParams          map[string]string
 }
 
 func (c *oidcConnector) Close() error {
@@ -224,6 +228,13 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 	if s.OfflineAccess {
 		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", c.promptType))
 	}
+
+	if len(c.customAuthParams) > 0 {
+		for k, v := range c.customAuthParams {
+			opts = append(opts, oauth2.SetAuthURLParam(k, v))
+		}
+	}
+
 	return c.oauth2Config.AuthCodeURL(state, opts...), nil
 }
 
