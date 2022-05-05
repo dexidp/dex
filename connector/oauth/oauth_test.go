@@ -84,7 +84,7 @@ func TestHandleCallBackForGroupsInUserInfo(t *testing.T) {
 	defer testServer.Close()
 
 	conn := newConnector(t, testServer.URL)
-	req := newRequestWithAuthCode(t, testServer.URL, "some-code")
+	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallBackForGroupsInUserInfo")
 
 	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
 	assert.Equal(t, err, nil)
@@ -120,7 +120,7 @@ func TestHandleCallBackForGroupMapsInUserInfo(t *testing.T) {
 	defer testServer.Close()
 
 	conn := newConnector(t, testServer.URL)
-	req := newRequestWithAuthCode(t, testServer.URL, "some-code")
+	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallBackForGroupMapsInUserInfo")
 
 	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
 	assert.Equal(t, err, nil)
@@ -154,7 +154,7 @@ func TestHandleCallBackForGroupsInToken(t *testing.T) {
 	defer testServer.Close()
 
 	conn := newConnector(t, testServer.URL)
-	req := newRequestWithAuthCode(t, testServer.URL, "some-code")
+	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallBackForGroupsInToken")
 
 	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
 	assert.Equal(t, err, nil)
@@ -184,7 +184,7 @@ func TestHandleCallbackForNumericUserID(t *testing.T) {
 	defer testServer.Close()
 
 	conn := newConnector(t, testServer.URL)
-	req := newRequestWithAuthCode(t, testServer.URL, "some-code")
+	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallbackForNumericUserID")
 
 	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
 	assert.Equal(t, err, nil)
