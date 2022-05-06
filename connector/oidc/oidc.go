@@ -276,7 +276,7 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 }
 
 func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token, caller string) (connector.Identity, error) {
-	var sub_source string
+	var subSource string
 	var claims map[string]interface{}
 
 	rawIDToken, ok := token.Extra("id_token").(string)
@@ -294,7 +294,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		if err := idToken.Claims(&claims); err != nil {
 			return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
 		}
-		sub_source = idToken.Subject
+		subSource = idToken.Subject
 	}
 
 	// We immediately want to run getUserInfo if configured before we validate the claims
@@ -309,8 +309,8 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 
 		// If the subject wasn't assigned from the ID token, assign the sub from the userinfo endpoint
 		// Only if this is a refresh call, though
-		if sub_source == "" && caller == refreshCaller {
-			sub_source = userInfo.Subject
+		if subSource == "" && caller == refreshCaller {
+			subSource = userInfo.Subject
 		}
 
 	}
@@ -403,7 +403,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	identity = connector.Identity{
-		UserID:            sub_source,
+		UserID:            subSource,
 		Username:          name,
 		PreferredUsername: preferredUsername,
 		Email:             email,
