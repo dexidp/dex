@@ -280,9 +280,11 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	var claims map[string]interface{}
 
 	rawIDToken, ok := token.Extra("id_token").(string)
-	if !ok && caller != refreshCaller {
-		// ID tokens aren't mandatory in the reply when using a refresh_token grant
-		return identity, errors.New("oidc: no id_token in token response")
+	if !ok {
+		if caller != refreshCaller {
+			// ID tokens aren't mandatory in the reply when using a refresh_token grant
+			return identity, errors.New("oidc: no id_token in token response")
+		}
 	} else {
 		idToken, err := c.verifier.Verify(ctx, rawIDToken)
 		if err != nil {
