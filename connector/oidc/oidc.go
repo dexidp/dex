@@ -282,7 +282,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 
 	if !ok {
 		// ID tokens aren't mandatory in the reply when using a refresh_token grant
-		if caller != "refresh" {
+		if caller != refreshCaller {
 			return identity, errors.New("oidc: no id_token in token response")
 		}
 	} else {
