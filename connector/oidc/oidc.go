@@ -226,7 +226,6 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 	}
 	return c.oauth2Config.AuthCodeURL(state, opts...), nil
 }
-
 type oauth2Error struct {
 	error            string
 	errorDescription string
@@ -239,6 +238,11 @@ func (e *oauth2Error) Error() string {
 	return e.error + ": " + e.errorDescription
 }
 
+const (
+	createCaller = "create"
+	refreshCaller = "refresh"
+)
+
 func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
@@ -248,8 +252,7 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
 	}
-
-	return c.createIdentity(r.Context(), identity, token)
+	return c.createIdentity(r.Context(), identity, token, createCaller)
 }
 
 // Refresh is used to refresh a session with the refresh token provided by the IdP
@@ -268,23 +271,28 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to get refresh token: %v", err)
 	}
-
-	return c.createIdentity(ctx, identity, token)
+	return c.createIdentity(ctx, identity, token, refreshCaller)
 }
 
-func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token) (connector.Identity, error) {
+func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token, caller string) (connector.Identity, error) {
 	rawIDToken, ok := token.Extra("id_token").(string)
-	if !ok {
-		return identity, errors.New("oidc: no id_token in token response")
-	}
-	idToken, err := c.verifier.Verify(ctx, rawIDToken)
-	if err != nil {
-		return identity, fmt.Errorf("oidc: failed to verify ID Token: %v", err)
-	}
-
+	var sub_source string
 	var claims map[string]interface{}
-	if err := idToken.Claims(&claims); err != nil {
-		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
+	if !ok {
+		// ID tokens aren't mandatory in the reply when using a refresh_token grant
+		if caller != "refresh" {
+			return identity, errors.New("oidc: no id_token in token response")
+		}
+	} else {
+		idToken, err := c.verifier.Verify(ctx, rawIDToken)
+		if err != nil {
+			return identity, fmt.Errorf("oidc: failed to verify ID Token: %v", err)
+		}
+
+		if err := idToken.Claims(&claims); err != nil {
+			return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
+			sub_source = idToken.Subject
+		}
 	}
 
 	// We immediately want to run getUserInfo if configured before we validate the claims
@@ -296,6 +304,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		if err := userInfo.Claims(&claims); err != nil {
 			return identity, fmt.Errorf("oidc: failed to decode userinfo claims: %v", err)
 		}
+		sub_source = userInfo.Subject
 	}
 
 	userNameKey := "name"
@@ -386,7 +395,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	identity = connector.Identity{
-		UserID:            idToken.Subject,
+		UserID:            sub_source,
 		Username:          name,
 		PreferredUsername: preferredUsername,
 		Email:             email,
