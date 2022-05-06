@@ -226,6 +226,7 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 	}
 	return c.oauth2Config.AuthCodeURL(state, opts...), nil
 }
+
 type oauth2Error struct {
 	error            string
 	errorDescription string
