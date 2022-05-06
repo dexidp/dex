@@ -278,6 +278,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	rawIDToken, ok := token.Extra("id_token").(string)
 	var sub_source string
 	var claims map[string]interface{}
+
 	if !ok {
 		// ID tokens aren't mandatory in the reply when using a refresh_token grant
 		if caller != "refresh" {
@@ -304,7 +305,12 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		if err := userInfo.Claims(&claims); err != nil {
 			return identity, fmt.Errorf("oidc: failed to decode userinfo claims: %v", err)
 		}
-		sub_source = userInfo.Subject
+
+		// If the subject wasn't assigned from the ID token, assign the sub from the userinfo endpoint
+		if sub_source == "" {
+			sub_source = userInfo.Subject
+		}
+
 	}
 
 	userNameKey := "name"
