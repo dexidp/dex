@@ -34,10 +34,6 @@ type Config struct {
 
 	Scopes []string `json:"scopes"` // defaults to "profile" and "email"
 
-	// Optional list of whitelisted domains when using Google
-	// If this field is nonempty, only users from a listed domain will be allowed to log in
-	HostedDomains []string `json:"hostedDomains"`
-
 	// Override the value of email_verified to true in the returned claims
 	InsecureSkipEmailVerified bool `json:"insecureSkipEmailVerified"`
 
@@ -156,7 +152,6 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		),
 		logger:                    logger,
 		cancel:                    cancel,
-		hostedDomains:             c.HostedDomains,
 		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
 		insecureEnableGroups:      c.InsecureEnableGroups,
 		acrValues:                 c.AcrValues,
@@ -183,7 +178,6 @@ type oidcConnector struct {
 	verifier                  *oidc.IDTokenVerifier
 	cancel                    context.CancelFunc
 	logger                    log.Logger
-	hostedDomains             []string
 	insecureSkipEmailVerified bool
 	insecureEnableGroups      bool
 	acrValues                 []string
@@ -208,13 +202,6 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 	}
 
 	var opts []oauth2.AuthCodeOption
-	if len(c.hostedDomains) > 0 {
-		preferredDomain := c.hostedDomains[0]
-		if len(c.hostedDomains) > 1 {
-			preferredDomain = "*"
-		}
-		opts = append(opts, oauth2.SetAuthURLParam("hd", preferredDomain))
-	}
 
 	if len(c.acrValues) > 0 {
 		acrValues := strings.Join(c.acrValues, " ")
@@ -375,21 +362,6 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 					return identity, fmt.Errorf("malformed \"%v\" claim", groupsKey)
 				}
 			}
-		}
-	}
-
-	hostedDomain, _ := claims["hd"].(string)
-	if len(c.hostedDomains) > 0 {
-		found := false
-		for _, domain := range c.hostedDomains {
-			if hostedDomain == domain {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			return identity, fmt.Errorf("oidc: unexpected hd claim %v", hostedDomain)
 		}
 	}
 
