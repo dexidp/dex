@@ -71,7 +71,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		scopes = append(scopes, "profile", "email")
 	}
 
-	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, opts...)
+	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not create directory service: %v", err)
