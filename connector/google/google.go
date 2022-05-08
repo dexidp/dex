@@ -71,7 +71,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		scopes = append(scopes, "profile", "email")
 	}
 
-	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail)
+	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, opts...)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not create directory service: %v", err)
@@ -279,37 +279,36 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 	return uniqueGroups(userGroups), nil
 }
 
-// createDirectoryService loads a google service account credentials file,
-// sets up super user impersonation and creates an admin client for calling
-// the google admin api
-func createDirectoryService(serviceAccountFilePath string, email string) (*admin.Service, error) {
-	if serviceAccountFilePath == "" && email == "" {
-		return nil, nil
+// createDirectoryService sets up super user impersonation and creates an admin client for calling
+// the google admin api. If no serviceAccountFilePath is defined, the application default credential
+// is used.
+func createDirectoryService(serviceAccountFilePath, email string) (*admin.Service, error) {
+	if email == "" {
+		return nil, fmt.Errorf("directory service requires adminEmail")
 	}
-	if serviceAccountFilePath == "" || email == "" {
-		return nil, fmt.Errorf("directory service requires both serviceAccountFilePath and adminEmail")
+
+	ctx := context.Background()
+	if serviceAccountFilePath == "" {
+		creds, err := google.FindDefaultCredentialsWithParams(ctx, google.CredentialsParams{
+			Scopes:  []string{admin.AdminDirectoryGroupReadonlyScope},
+			Subject: email,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch application default credentials: %v\n", err)
+		}
+		return admin.NewService(ctx, option.WithTokenSource(creds.TokenSource))
 	}
+
 	jsonCredentials, err := os.ReadFile(serviceAccountFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading credentials from file: %v", err)
 	}
-
 	config, err := google.JWTConfigFromJSON(jsonCredentials, admin.AdminDirectoryGroupReadonlyScope)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
 	}
-
-	// Impersonate an admin. This is mandatory for the admin APIs.
 	config.Subject = email
-
-	ctx := context.Background()
-	client := config.Client(ctx)
-
-	srv, err := admin.NewService(ctx, option.WithHTTPClient(client))
-	if err != nil {
-		return nil, fmt.Errorf("unable to create directory service %v", err)
-	}
-	return srv, nil
+	return admin.NewService(ctx, option.WithHTTPClient(config.Client(ctx)))
 }
 
 // uniqueGroups returns the unique groups of a slice
