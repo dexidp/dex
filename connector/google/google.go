@@ -55,7 +55,7 @@ type Config struct {
 }
 
 // Open returns a connector which can be used to login users through Google.
-func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
+func (c *Config) Open(id string, logger log.Logger, opts ...option.ClientOption) (conn connector.Connector, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	provider, err := oidc.NewProvider(ctx, issuerURL)
@@ -71,7 +71,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		scopes = append(scopes, "profile", "email")
 	}
 
-	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail)
+	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, opts...)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not create directory service: %v", err)
@@ -282,7 +282,7 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 // createDirectoryService sets up super user impersonation and creates an admin client for calling
 // the google admin api. If no serviceAccountFilePath is defined, the application default credential
 // is used.
-func createDirectoryService(serviceAccountFilePath, email string) (*admin.Service, error) {
+func createDirectoryService(serviceAccountFilePath, email string, opts ...option.ClientOption) (*admin.Service, error) {
 	if email == "" {
 		return nil, fmt.Errorf("directory service requires adminEmail")
 	}
@@ -294,9 +294,9 @@ func createDirectoryService(serviceAccountFilePath, email string) (*admin.Servic
 			Subject: email,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch application default credentials: %v\n", err)
+			return nil, fmt.Errorf("failed to fetch application default credentials: %v", err)
 		}
-		return admin.NewService(ctx, option.WithTokenSource(creds.TokenSource))
+		return admin.NewService(ctx, append(opts, option.WithTokenSource(creds.TokenSource))...)
 	}
 
 	jsonCredentials, err := os.ReadFile(serviceAccountFilePath)
@@ -308,7 +308,7 @@ func createDirectoryService(serviceAccountFilePath, email string) (*admin.Servic
 		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
 	}
 	config.Subject = email
-	return admin.NewService(ctx, option.WithHTTPClient(config.Client(ctx)))
+	return admin.NewService(ctx, append(opts, option.WithHTTPClient(config.Client(ctx)))...)
 }
 
 // uniqueGroups returns the unique groups of a slice
