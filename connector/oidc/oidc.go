@@ -76,6 +76,10 @@ type Config struct {
 		// Configurable key which contains the groups claims
 		GroupsKey string `json:"groups"` // defaults to "groups"
 	} `json:"claimMapping"`
+
+	// Add additional authorization request parameters to acceess IdP specific features.
+	// Take care not to override standard OICD authorization requests parameters.
+	AdditionalAuthRequestParams map[string]string `json:"additionalAuthRequestParams"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -154,20 +158,21 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		verifier: provider.Verifier(
 			&oidc.Config{ClientID: clientID},
 		),
-		logger:                    logger,
-		cancel:                    cancel,
-		hostedDomains:             c.HostedDomains,
-		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
-		insecureEnableGroups:      c.InsecureEnableGroups,
-		acrValues:                 c.AcrValues,
-		getUserInfo:               c.GetUserInfo,
-		promptType:                c.PromptType,
-		userIDKey:                 c.UserIDKey,
-		userNameKey:               c.UserNameKey,
-		overrideClaimMapping:      c.OverrideClaimMapping,
-		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
-		emailKey:                  c.ClaimMapping.EmailKey,
-		groupsKey:                 c.ClaimMapping.GroupsKey,
+		logger:                      logger,
+		cancel:                      cancel,
+		hostedDomains:               c.HostedDomains,
+		insecureSkipEmailVerified:   c.InsecureSkipEmailVerified,
+		insecureEnableGroups:        c.InsecureEnableGroups,
+		acrValues:                   c.AcrValues,
+		getUserInfo:                 c.GetUserInfo,
+		promptType:                  c.PromptType,
+		userIDKey:                   c.UserIDKey,
+		userNameKey:                 c.UserNameKey,
+		overrideClaimMapping:        c.OverrideClaimMapping,
+		preferredUsernameKey:        c.ClaimMapping.PreferredUsernameKey,
+		emailKey:                    c.ClaimMapping.EmailKey,
+		groupsKey:                   c.ClaimMapping.GroupsKey,
+		additionalAuthRequestParams: c.AdditionalAuthRequestParams,
 	}, nil
 }
 
@@ -177,24 +182,25 @@ var (
 )
 
 type oidcConnector struct {
-	provider                  *oidc.Provider
-	redirectURI               string
-	oauth2Config              *oauth2.Config
-	verifier                  *oidc.IDTokenVerifier
-	cancel                    context.CancelFunc
-	logger                    log.Logger
-	hostedDomains             []string
-	insecureSkipEmailVerified bool
-	insecureEnableGroups      bool
-	acrValues                 []string
-	getUserInfo               bool
-	promptType                string
-	userIDKey                 string
-	userNameKey               string
-	overrideClaimMapping      bool
-	preferredUsernameKey      string
-	emailKey                  string
-	groupsKey                 string
+	provider                    *oidc.Provider
+	redirectURI                 string
+	oauth2Config                *oauth2.Config
+	verifier                    *oidc.IDTokenVerifier
+	cancel                      context.CancelFunc
+	logger                      log.Logger
+	hostedDomains               []string
+	insecureSkipEmailVerified   bool
+	insecureEnableGroups        bool
+	acrValues                   []string
+	getUserInfo                 bool
+	promptType                  string
+	userIDKey                   string
+	userNameKey                 string
+	overrideClaimMapping        bool
+	preferredUsernameKey        string
+	emailKey                    string
+	groupsKey                   string
+	additionalAuthRequestParams map[string]string
 }
 
 func (c *oidcConnector) Close() error {
@@ -224,6 +230,13 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 	if s.OfflineAccess {
 		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", c.promptType))
 	}
+
+	if len(c.additionalAuthRequestParams) > 0 {
+		for k, v := range c.additionalAuthRequestParams {
+			opts = append(opts, oauth2.SetAuthURLParam(k, v))
+		}
+	}
+
 	return c.oauth2Config.AuthCodeURL(state, opts...), nil
 }
 
