@@ -334,16 +334,6 @@ func TestHandleCallback(t *testing.T) {
 	}
 }
 
-type loginURLTestParams struct {
-	clientId                    string
-	state                       string
-	scopes                      connector.Scopes
-	callbackUrl                 string
-	additionalAuthRequestParams map[string]string
-	hostedDomains               []string
-	acrValues                   []string
-}
-
 func testLoginURL(t *testing.T, config Config, state string) (url.Values, error) {
 	token := map[string]interface{}{}
 
