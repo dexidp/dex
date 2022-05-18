@@ -26,6 +26,21 @@
     font-weight: 300;
     color: #fff;
   }
+
+  .theme-panel {
+    border-radius: 0.5rem;
+  }
+
+  .warning-box {
+    background-color: #FF6060;
+    padding: 1rem;
+    color: white;
+    border-radius: 0.5rem;
+    font-size: 13px;
+    text-align: left;
+    margin-top: 15px;
+
+  }
   
 </style>
 <script src="https://unpkg.com/web3@latest/dist/web3.min.js"></script>
@@ -153,7 +168,11 @@
   <h2 class="theme-heading">Log in to {{ issuer }} </h2>
   <div>
     <div class="dex-subtle-text">Attempting to log in with your browser wallet</div>
+
     <div id="web3-error" class="dex-error-box" style="display: none;"> </div>
+  </div>
+  <div class="warning-box">
+    Using a hardware wallet may NOT be supported in the mobile app. We currently recommend using a browser plug-in or mobile app wallet.
   </div>
   <div>
     <button class="web3-btn" id="connect-button">
