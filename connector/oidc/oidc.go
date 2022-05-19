@@ -226,9 +226,11 @@ func (e *oauth2Error) Error() string {
 	return e.error + ": " + e.errorDescription
 }
 
+type caller uint
+
 const (
-	createCaller = "create"
-	refreshCaller = "refresh"
+	createCaller caller = iota
+	refreshCaller
 )
 
 func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
@@ -262,17 +264,11 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 	return c.createIdentity(ctx, identity, token, refreshCaller)
 }
 
-func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token, caller string) (connector.Identity, error) {
-	var subSource string
+func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token, caller caller) (connector.Identity, error) {
 	var claims map[string]interface{}
 
 	rawIDToken, ok := token.Extra("id_token").(string)
-	if !ok {
-		if caller != refreshCaller {
-			// ID tokens aren't mandatory in the reply when using a refresh_token grant
-			return identity, errors.New("oidc: no id_token in token response")
-		}
-	} else {
+	if ok {
 		idToken, err := c.verifier.Verify(ctx, rawIDToken)
 		if err != nil {
 			return identity, fmt.Errorf("oidc: failed to verify ID Token: %v", err)
@@ -281,7 +277,9 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		if err := idToken.Claims(&claims); err != nil {
 			return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
 		}
-		subSource = idToken.Subject
+	} else if caller != refreshCaller {
+		// ID tokens aren't mandatory in the reply when using a refresh_token grant
+		return identity, errors.New("oidc: no id_token in token response")
 	}
 
 	// We immediately want to run getUserInfo if configured before we validate the claims
@@ -293,13 +291,12 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		if err := userInfo.Claims(&claims); err != nil {
 			return identity, fmt.Errorf("oidc: failed to decode userinfo claims: %v", err)
 		}
+	}
 
-		// If the subject wasn't assigned from the ID token, assign the sub from the userinfo endpoint
-		// Only if this is a refresh call, though
-		if subSource == "" && caller == refreshCaller {
-			subSource = userInfo.Subject
-		}
-
+	const subjectClaimKey = "sub"
+	subject, found := claims[subjectClaimKey].(string)
+	if !found {
+	    return identity, fmt.Errorf("missing \"%s\" claim", subjectClaimKey)
 	}
 
 	userNameKey := "name"
@@ -375,7 +372,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	identity = connector.Identity{
-		UserID:            subSource,
+		UserID:            subject,
 		Username:          name,
 		PreferredUsername: preferredUsername,
 		Email:             email,
