@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -228,37 +229,37 @@ func (acu *AuthCodeUpdate) ExecX(ctx context.Context) {
 func (acu *AuthCodeUpdate) check() error {
 	if v, ok := acu.mutation.ClientID(); ok {
 		if err := authcode.ClientIDValidator(v); err != nil {
-			return &ValidationError{Name: "client_id", err: fmt.Errorf("db: validator failed for field \"client_id\": %w", err)}
+			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "AuthCode.client_id": %w`, err)}
 		}
 	}
 	if v, ok := acu.mutation.Nonce(); ok {
 		if err := authcode.NonceValidator(v); err != nil {
-			return &ValidationError{Name: "nonce", err: fmt.Errorf("db: validator failed for field \"nonce\": %w", err)}
+			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "AuthCode.nonce": %w`, err)}
 		}
 	}
 	if v, ok := acu.mutation.RedirectURI(); ok {
 		if err := authcode.RedirectURIValidator(v); err != nil {
-			return &ValidationError{Name: "redirect_uri", err: fmt.Errorf("db: validator failed for field \"redirect_uri\": %w", err)}
+			return &ValidationError{Name: "redirect_uri", err: fmt.Errorf(`db: validator failed for field "AuthCode.redirect_uri": %w`, err)}
 		}
 	}
 	if v, ok := acu.mutation.ClaimsUserID(); ok {
 		if err := authcode.ClaimsUserIDValidator(v); err != nil {
-			return &ValidationError{Name: "claims_user_id", err: fmt.Errorf("db: validator failed for field \"claims_user_id\": %w", err)}
+			return &ValidationError{Name: "claims_user_id", err: fmt.Errorf(`db: validator failed for field "AuthCode.claims_user_id": %w`, err)}
 		}
 	}
 	if v, ok := acu.mutation.ClaimsUsername(); ok {
 		if err := authcode.ClaimsUsernameValidator(v); err != nil {
-			return &ValidationError{Name: "claims_username", err: fmt.Errorf("db: validator failed for field \"claims_username\": %w", err)}
+			return &ValidationError{Name: "claims_username", err: fmt.Errorf(`db: validator failed for field "AuthCode.claims_username": %w`, err)}
 		}
 	}
 	if v, ok := acu.mutation.ClaimsEmail(); ok {
 		if err := authcode.ClaimsEmailValidator(v); err != nil {
-			return &ValidationError{Name: "claims_email", err: fmt.Errorf("db: validator failed for field \"claims_email\": %w", err)}
+			return &ValidationError{Name: "claims_email", err: fmt.Errorf(`db: validator failed for field "AuthCode.claims_email": %w`, err)}
 		}
 	}
 	if v, ok := acu.mutation.ConnectorID(); ok {
 		if err := authcode.ConnectorIDValidator(v); err != nil {
-			return &ValidationError{Name: "connector_id", err: fmt.Errorf("db: validator failed for field \"connector_id\": %w", err)}
+			return &ValidationError{Name: "connector_id", err: fmt.Errorf(`db: validator failed for field "AuthCode.connector_id": %w`, err)}
 		}
 	}
 	return nil
@@ -632,37 +633,37 @@ func (acuo *AuthCodeUpdateOne) ExecX(ctx context.Context) {
 func (acuo *AuthCodeUpdateOne) check() error {
 	if v, ok := acuo.mutation.ClientID(); ok {
 		if err := authcode.ClientIDValidator(v); err != nil {
-			return &ValidationError{Name: "client_id", err: fmt.Errorf("db: validator failed for field \"client_id\": %w", err)}
+			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "AuthCode.client_id": %w`, err)}
 		}
 	}
 	if v, ok := acuo.mutation.Nonce(); ok {
 		if err := authcode.NonceValidator(v); err != nil {
-			return &ValidationError{Name: "nonce", err: fmt.Errorf("db: validator failed for field \"nonce\": %w", err)}
+			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "AuthCode.nonce": %w`, err)}
 		}
 	}
 	if v, ok := acuo.mutation.RedirectURI(); ok {
 		if err := authcode.RedirectURIValidator(v); err != nil {
-			return &ValidationError{Name: "redirect_uri", err: fmt.Errorf("db: validator failed for field \"redirect_uri\": %w", err)}
+			return &ValidationError{Name: "redirect_uri", err: fmt.Errorf(`db: validator failed for field "AuthCode.redirect_uri": %w`, err)}
 		}
 	}
 	if v, ok := acuo.mutation.ClaimsUserID(); ok {
 		if err := authcode.ClaimsUserIDValidator(v); err != nil {
-			return &ValidationError{Name: "claims_user_id", err: fmt.Errorf("db: validator failed for field \"claims_user_id\": %w", err)}
+			return &ValidationError{Name: "claims_user_id", err: fmt.Errorf(`db: validator failed for field "AuthCode.claims_user_id": %w`, err)}
 		}
 	}
 	if v, ok := acuo.mutation.ClaimsUsername(); ok {
 		if err := authcode.ClaimsUsernameValidator(v); err != nil {
-			return &ValidationError{Name: "claims_username", err: fmt.Errorf("db: validator failed for field \"claims_username\": %w", err)}
+			return &ValidationError{Name: "claims_username", err: fmt.Errorf(`db: validator failed for field "AuthCode.claims_username": %w`, err)}
 		}
 	}
 	if v, ok := acuo.mutation.ClaimsEmail(); ok {
 		if err := authcode.ClaimsEmailValidator(v); err != nil {
-			return &ValidationError{Name: "claims_email", err: fmt.Errorf("db: validator failed for field \"claims_email\": %w", err)}
+			return &ValidationError{Name: "claims_email", err: fmt.Errorf(`db: validator failed for field "AuthCode.claims_email": %w`, err)}
 		}
 	}
 	if v, ok := acuo.mutation.ConnectorID(); ok {
 		if err := authcode.ConnectorIDValidator(v); err != nil {
-			return &ValidationError{Name: "connector_id", err: fmt.Errorf("db: validator failed for field \"connector_id\": %w", err)}
+			return &ValidationError{Name: "connector_id", err: fmt.Errorf(`db: validator failed for field "AuthCode.connector_id": %w`, err)}
 		}
 	}
 	return nil
@@ -681,7 +682,7 @@ func (acuo *AuthCodeUpdateOne) sqlSave(ctx context.Context) (_node *AuthCode, er
 	}
 	id, ok := acuo.mutation.ID()
 	if !ok {
-		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing AuthCode.ID for update")}
+		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "AuthCode.id" for update`)}
 	}
 	_spec.Node.ID.Value = id
 	if fields := acuo.fields; len(fields) > 0 {

@@ -132,35 +132,35 @@ func (oc *OAuth2ClientCreate) ExecX(ctx context.Context) {
 // check runs all checks and user-defined validators on the builder.
 func (oc *OAuth2ClientCreate) check() error {
 	if _, ok := oc.mutation.Secret(); !ok {
-		return &ValidationError{Name: "secret", err: errors.New(`db: missing required field "secret"`)}
+		return &ValidationError{Name: "secret", err: errors.New(`db: missing required field "OAuth2Client.secret"`)}
 	}
 	if v, ok := oc.mutation.Secret(); ok {
 		if err := oauth2client.SecretValidator(v); err != nil {
-			return &ValidationError{Name: "secret", err: fmt.Errorf(`db: validator failed for field "secret": %w`, err)}
+			return &ValidationError{Name: "secret", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.secret": %w`, err)}
 		}
 	}
 	if _, ok := oc.mutation.Public(); !ok {
-		return &ValidationError{Name: "public", err: errors.New(`db: missing required field "public"`)}
+		return &ValidationError{Name: "public", err: errors.New(`db: missing required field "OAuth2Client.public"`)}
 	}
 	if _, ok := oc.mutation.Name(); !ok {
-		return &ValidationError{Name: "name", err: errors.New(`db: missing required field "name"`)}
+		return &ValidationError{Name: "name", err: errors.New(`db: missing required field "OAuth2Client.name"`)}
 	}
 	if v, ok := oc.mutation.Name(); ok {
 		if err := oauth2client.NameValidator(v); err != nil {
-			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "name": %w`, err)}
+			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.name": %w`, err)}
 		}
 	}
 	if _, ok := oc.mutation.LogoURL(); !ok {
-		return &ValidationError{Name: "logo_url", err: errors.New(`db: missing required field "logo_url"`)}
+		return &ValidationError{Name: "logo_url", err: errors.New(`db: missing required field "OAuth2Client.logo_url"`)}
 	}
 	if v, ok := oc.mutation.LogoURL(); ok {
 		if err := oauth2client.LogoURLValidator(v); err != nil {
-			return &ValidationError{Name: "logo_url", err: fmt.Errorf(`db: validator failed for field "logo_url": %w`, err)}
+			return &ValidationError{Name: "logo_url", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.logo_url": %w`, err)}
 		}
 	}
 	if v, ok := oc.mutation.ID(); ok {
 		if err := oauth2client.IDValidator(v); err != nil {
-			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "id": %w`, err)}
+			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.id": %w`, err)}
 		}
 	}
 	return nil
@@ -173,6 +173,13 @@ func (oc *OAuth2ClientCreate) sqlSave(ctx context.Context) (*OAuth2Client, error
 			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
+	}
+	if _spec.ID.Value != nil {
+		if id, ok := _spec.ID.Value.(string); ok {
+			_node.ID = id
+		} else {
+			return nil, fmt.Errorf("unexpected OAuth2Client.ID type: %T", _spec.ID.Value)
+		}
 	}
 	return _node, nil
 }

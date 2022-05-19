@@ -123,20 +123,20 @@ func (kc *KeysCreate) ExecX(ctx context.Context) {
 // check runs all checks and user-defined validators on the builder.
 func (kc *KeysCreate) check() error {
 	if _, ok := kc.mutation.VerificationKeys(); !ok {
-		return &ValidationError{Name: "verification_keys", err: errors.New(`db: missing required field "verification_keys"`)}
+		return &ValidationError{Name: "verification_keys", err: errors.New(`db: missing required field "Keys.verification_keys"`)}
 	}
 	if _, ok := kc.mutation.SigningKey(); !ok {
-		return &ValidationError{Name: "signing_key", err: errors.New(`db: missing required field "signing_key"`)}
+		return &ValidationError{Name: "signing_key", err: errors.New(`db: missing required field "Keys.signing_key"`)}
 	}
 	if _, ok := kc.mutation.SigningKeyPub(); !ok {
-		return &ValidationError{Name: "signing_key_pub", err: errors.New(`db: missing required field "signing_key_pub"`)}
+		return &ValidationError{Name: "signing_key_pub", err: errors.New(`db: missing required field "Keys.signing_key_pub"`)}
 	}
 	if _, ok := kc.mutation.NextRotation(); !ok {
-		return &ValidationError{Name: "next_rotation", err: errors.New(`db: missing required field "next_rotation"`)}
+		return &ValidationError{Name: "next_rotation", err: errors.New(`db: missing required field "Keys.next_rotation"`)}
 	}
 	if v, ok := kc.mutation.ID(); ok {
 		if err := keys.IDValidator(v); err != nil {
-			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "id": %w`, err)}
+			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "Keys.id": %w`, err)}
 		}
 	}
 	return nil
@@ -149,6 +149,13 @@ func (kc *KeysCreate) sqlSave(ctx context.Context) (*Keys, error) {
 			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
+	}
+	if _spec.ID.Value != nil {
+		if id, ok := _spec.ID.Value.(string); ok {
+			_node.ID = id
+		} else {
+			return nil, fmt.Errorf("unexpected Keys.ID type: %T", _spec.ID.Value)
+		}
 	}
 	return _node, nil
 }

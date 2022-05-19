@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -91,6 +92,15 @@ func runServe(options serveOptions) error {
 	if err != nil {
 		return fmt.Errorf("invalid config: %v", err)
 	}
+
+	logger.Infof(
+		"Dex Version: %s, Go Version: %s, Go OS/ARCH: %s %s",
+		version,
+		runtime.Version(),
+		runtime.GOOS,
+		runtime.GOARCH,
+	)
+
 	if c.Logger.Level != "" {
 		logger.Infof("config using log level: %s", c.Logger.Level)
 	}

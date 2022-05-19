@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -145,12 +146,12 @@ func (dtu *DeviceTokenUpdate) ExecX(ctx context.Context) {
 func (dtu *DeviceTokenUpdate) check() error {
 	if v, ok := dtu.mutation.DeviceCode(); ok {
 		if err := devicetoken.DeviceCodeValidator(v); err != nil {
-			return &ValidationError{Name: "device_code", err: fmt.Errorf("db: validator failed for field \"device_code\": %w", err)}
+			return &ValidationError{Name: "device_code", err: fmt.Errorf(`db: validator failed for field "DeviceToken.device_code": %w`, err)}
 		}
 	}
 	if v, ok := dtu.mutation.Status(); ok {
 		if err := devicetoken.StatusValidator(v); err != nil {
-			return &ValidationError{Name: "status", err: fmt.Errorf("db: validator failed for field \"status\": %w", err)}
+			return &ValidationError{Name: "status", err: fmt.Errorf(`db: validator failed for field "DeviceToken.status": %w`, err)}
 		}
 	}
 	return nil
@@ -373,12 +374,12 @@ func (dtuo *DeviceTokenUpdateOne) ExecX(ctx context.Context) {
 func (dtuo *DeviceTokenUpdateOne) check() error {
 	if v, ok := dtuo.mutation.DeviceCode(); ok {
 		if err := devicetoken.DeviceCodeValidator(v); err != nil {
-			return &ValidationError{Name: "device_code", err: fmt.Errorf("db: validator failed for field \"device_code\": %w", err)}
+			return &ValidationError{Name: "device_code", err: fmt.Errorf(`db: validator failed for field "DeviceToken.device_code": %w`, err)}
 		}
 	}
 	if v, ok := dtuo.mutation.Status(); ok {
 		if err := devicetoken.StatusValidator(v); err != nil {
-			return &ValidationError{Name: "status", err: fmt.Errorf("db: validator failed for field \"status\": %w", err)}
+			return &ValidationError{Name: "status", err: fmt.Errorf(`db: validator failed for field "DeviceToken.status": %w`, err)}
 		}
 	}
 	return nil
@@ -397,7 +398,7 @@ func (dtuo *DeviceTokenUpdateOne) sqlSave(ctx context.Context) (_node *DeviceTok
 	}
 	id, ok := dtuo.mutation.ID()
 	if !ok {
-		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing DeviceToken.ID for update")}
+		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "DeviceToken.id" for update`)}
 	}
 	_spec.Node.ID.Value = id
 	if fields := dtuo.fields; len(fields) > 0 {
