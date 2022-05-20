@@ -463,7 +463,7 @@ func setupServer(tok map[string]interface{}, IdTokenDesired bool) (*httptest.Ser
 
 	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
-		json.Marshal(tok)
+	        json.NewEncoder(w).Encode(tok)
 	})
 
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
