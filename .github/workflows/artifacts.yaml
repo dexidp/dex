@@ -44,7 +44,7 @@ jobs:
             org.opencontainers.image.documentation=https://dexidp.io/docs/
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v2
         with:
           platforms: all
 
