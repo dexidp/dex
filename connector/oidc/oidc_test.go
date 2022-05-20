@@ -453,17 +453,19 @@ func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Ser
 			json.NewEncoder(w).Encode(&map[string]string{
 				"access_token": token,
 				"id_token":     token,
-				"token_type":   "Bearer"})
+				"token_type":   "Bearer",
+			})
 		} else {
 			json.NewEncoder(w).Encode(&map[string]string{
 				"access_token": token,
-				"token_type":   "Bearer"})
+				"token_type":   "Bearer",
+			})
 		}
 	})
 
 	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
-	        json.NewEncoder(w).Encode(tok)
+		json.NewEncoder(w).Encode(tok)
 	})
 
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {

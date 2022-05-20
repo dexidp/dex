@@ -296,7 +296,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	const subjectClaimKey = "sub"
 	subject, found := claims[subjectClaimKey].(string)
 	if !found {
-	    return identity, fmt.Errorf("missing \"%s\" claim", subjectClaimKey)
+		return identity, fmt.Errorf("missing \"%s\" claim", subjectClaimKey)
 	}
 
 	userNameKey := "name"
