@@ -24,7 +24,7 @@ jobs:
 
       - name: Gather metadata
         id: meta
-        uses: docker/metadata-action@v3
+        uses: docker/metadata-action@v4
         with:
           images: |
             ghcr.io/dexidp/dex
