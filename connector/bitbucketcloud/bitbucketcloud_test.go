@@ -14,28 +14,28 @@ import (
 )
 
 func TestUserGroups(t *testing.T) {
-	teamsResponse := userTeamsResponse{
+	teamsResponse := userWorkspacesResponse{
 		pagedResponse: pagedResponse{
 			Size:    3,
 			Page:    1,
 			PageLen: 10,
 		},
-		Values: []team{
-			{Team: teamName{Name: "team-1"}},
-			{Team: teamName{Name: "team-2"}},
-			{Team: teamName{Name: "team-3"}},
+		Values: []workspace{
+			{Workspace: workspaceSlug{Slug: "team-1"}},
+			{Workspace: workspaceSlug{Slug: "team-2"}},
+			{Workspace: workspaceSlug{Slug: "team-3"}},
 		},
 	}
 
 	s := newTestServer(map[string]interface{}{
-		"/user/permissions/teams": teamsResponse,
-		"/groups/team-1":          []group{{Slug: "administrators"}, {Slug: "members"}},
-		"/groups/team-2":          []group{{Slug: "everyone"}},
-		"/groups/team-3":          []group{},
+		"/user/permissions/workspaces": teamsResponse,
+		"/groups/team-1":               []group{{Slug: "administrators"}, {Slug: "members"}},
+		"/groups/team-2":               []group{{Slug: "everyone"}},
+		"/groups/team-3":               []group{},
 	})
 
 	connector := bitbucketConnector{apiURL: s.URL, legacyAPIURL: s.URL}
-	groups, err := connector.userTeams(context.Background(), newClient())
+	groups, err := connector.userWorkspaces(context.Background(), newClient())
 
 	expectNil(t, err)
 	expectEquals(t, groups, []string{
@@ -45,7 +45,7 @@ func TestUserGroups(t *testing.T) {
 	})
 
 	connector.includeTeamGroups = true
-	groups, err = connector.userTeams(context.Background(), newClient())
+	groups, err = connector.userWorkspaces(context.Background(), newClient())
 
 	expectNil(t, err)
 	expectEquals(t, groups, []string{
@@ -62,11 +62,11 @@ func TestUserGroups(t *testing.T) {
 
 func TestUserWithoutTeams(t *testing.T) {
 	s := newTestServer(map[string]interface{}{
-		"/user/permissions/teams": userTeamsResponse{},
+		"/user/permissions/workspaces": userWorkspacesResponse{},
 	})
 
 	connector := bitbucketConnector{apiURL: s.URL}
-	groups, err := connector.userTeams(context.Background(), newClient())
+	groups, err := connector.userWorkspaces(context.Background(), newClient())
 
 	expectNil(t, err)
 	expectEquals(t, len(groups), 0)

@@ -187,11 +187,12 @@ func parseScope(s string) (int, bool) {
 // Function exists here to allow backward compatibility between old and new
 // group to user matching implementations.
 // See "Config.GroupSearch.UserMatchers" comments for the details
-func (c *ldapConnector) userMatchers() []UserMatcher {
+func userMatchers(c *Config, logger log.Logger) []UserMatcher {
 	if len(c.GroupSearch.UserMatchers) > 0 && c.GroupSearch.UserMatchers[0].UserAttr != "" {
 		return c.GroupSearch.UserMatchers
 	}
 
+	log.Deprecated(logger, `LDAP: use groupSearch.userMatchers option instead of "userAttr/groupAttr" fields.`)
 	return []UserMatcher{
 		{
 			UserAttr:  c.GroupSearch.UserAttr,
@@ -283,6 +284,9 @@ func (c *Config) openConnector(logger log.Logger) (*ldapConnector, error) {
 	if !ok {
 		return nil, fmt.Errorf("groupSearch.Scope unknown value %q", c.GroupSearch.Scope)
 	}
+
+	// TODO(nabokihms): remove it after deleting deprecated groupSearch options
+	c.GroupSearch.UserMatchers = userMatchers(c, logger)
 	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig, logger}, nil
 }
 
@@ -418,7 +422,7 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 		},
 	}
 
-	for _, matcher := range c.userMatchers() {
+	for _, matcher := range c.GroupSearch.UserMatchers {
 		req.Attributes = append(req.Attributes, matcher.UserAttr)
 	}
 
@@ -575,7 +579,7 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 	}
 
 	var groups []*ldap.Entry
-	for _, matcher := range c.userMatchers() {
+	for _, matcher := range c.GroupSearch.UserMatchers {
 		for _, attr := range getAttrs(user, matcher.UserAttr) {
 			filter := fmt.Sprintf("(%s=%s)", matcher.GroupAttr, ldap.EscapeFilter(attr))
 			if c.GroupSearch.Filter != "" {
