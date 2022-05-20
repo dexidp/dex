@@ -275,8 +275,8 @@ func TestHandleCallback(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			IdTokenDesired := true
-			testServer, err := setupServer(tc.token, IdTokenDesired)
+			idTokenDesired := true
+			testServer, err := setupServer(tc.token, idTokenDesired)
 			if err != nil {
 				t.Fatal("failed to setup test server", err)
 			}
@@ -339,14 +339,14 @@ func TestRefresh(t *testing.T) {
 		name           string
 		expectUserID   string
 		expectUserName string
-		IdTokenDesired bool
+		idTokenDesired bool
 		token          map[string]interface{}
 	}{
 		{
 			name:           "IDTokenOnRefresh",
 			expectUserID:   "subvalue",
 			expectUserName: "namevalue",
-			IdTokenDesired: true,
+			idTokenDesired: true,
 			token: map[string]interface{}{
 				"sub":  "subvalue",
 				"name": "namevalue",
@@ -356,7 +356,7 @@ func TestRefresh(t *testing.T) {
 			name:           "NoIDTokenOnRefresh",
 			expectUserID:   "subvalue",
 			expectUserName: "namevalue",
-			IdTokenDesired: false,
+			idTokenDesired: false,
 			token: map[string]interface{}{
 				"sub":  "subvalue",
 				"name": "namevalue",
@@ -365,7 +365,7 @@ func TestRefresh(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			testServer, err := setupServer(tc.token, tc.IdTokenDesired)
+			testServer, err := setupServer(tc.token, tc.idTokenDesired)
 			if err != nil {
 				t.Fatal("failed to setup test server", err)
 			}
@@ -392,27 +392,27 @@ func TestRefresh(t *testing.T) {
 				t.Fatal("failed to create request", err)
 			}
 
-			refresh_token_str := "{\"RefreshToken\":\"asdf\"}"
-			refresh_token := []byte(refresh_token_str)
+			refreshTokenStr := "{\"RefreshToken\":\"asdf\"}"
+			refreshToken := []byte(refreshTokenStr)
 
 			identity := connector.Identity{
 				UserID:        tc.expectUserID,
 				Username:      tc.expectUserName,
-				ConnectorData: refresh_token,
+				ConnectorData: refreshToken,
 			}
 
-			refresh_identity, err := conn.Refresh(req.Context(), connector.Scopes{OfflineAccess: true}, identity)
+			refreshIdentity, err := conn.Refresh(req.Context(), connector.Scopes{OfflineAccess: true}, identity)
 			if err != nil {
 				t.Fatal("Refresh failed", err)
 			}
 
-			expectEquals(t, refresh_identity.UserID, tc.expectUserID)
-			expectEquals(t, refresh_identity.Username, tc.expectUserName)
+			expectEquals(t, refreshIdentity.UserID, tc.expectUserID)
+			expectEquals(t, refreshIdentity.Username, tc.expectUserName)
 		})
 	}
 }
 
-func setupServer(tok map[string]interface{}, IdTokenDesired bool) (*httptest.Server, error) {
+func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Server, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate rsa key: %v", err)
@@ -449,7 +449,7 @@ func setupServer(tok map[string]interface{}, IdTokenDesired bool) (*httptest.Ser
 		}
 
 		w.Header().Add("Content-Type", "application/json")
-		if IdTokenDesired {
+		if idTokenDesired {
 			json.NewEncoder(w).Encode(&map[string]string{
 				"access_token": token,
 				"id_token":     token,
