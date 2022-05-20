@@ -76,8 +76,8 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm/v7,linux/arm64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |
