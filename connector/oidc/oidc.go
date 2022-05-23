@@ -78,7 +78,6 @@ type Config struct {
 	} `json:"claimMapping"`
 
 	// Add additional authorization request parameters to acceess IdP specific features.
-	// Take care not to override standard OICD authorization requests parameters.
 	AdditionalAuthRequestParams map[string]string `json:"additionalAuthRequestParams"`
 }
 
