@@ -177,7 +177,7 @@ func (cli *client) get(resource, name string, v interface{}) error {
 	return cli.getResource(cli.apiVersion, cli.namespace, resource, name, v)
 }
 
-func (cli *client) getUrl(url string, v interface{}) error {
+func (cli *client) getURL(url string, v interface{}) error {
 	resp, err := cli.client.Get(url)
 	if err != nil {
 		return err
@@ -190,14 +190,14 @@ func (cli *client) getUrl(url string, v interface{}) error {
 }
 
 func (cli *client) getResource(apiVersion, namespace, resource, name string, v interface{}) error {
-	return cli.getUrl(cli.urlFor(apiVersion, namespace, resource, name), v)
+	return cli.getURL(cli.urlFor(apiVersion, namespace, resource, name), v)
 }
 
 func (cli *client) listN(resource string, v interface{}, n int) error {
 	params := url.Values{}
 	params.Add("limit", fmt.Sprintf("%d", n))
 	u := cli.urlForWithParams(cli.apiVersion, cli.namespace, resource, "", params)
-	return cli.getUrl(u, v)
+	return cli.getURL(u, v)
 }
 
 func (cli *client) list(resource string, v interface{}) error {
