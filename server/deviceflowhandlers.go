@@ -141,6 +141,10 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 		// https://tools.ietf.org/html/rfc8628#section-3.2
 		w.Header().Set("Cache-Control", "no-store")
 
+		// Response type should be application/json according to
+		// https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
+		w.Header().Set("Content-Type", "application/json")
+
 		enc := json.NewEncoder(w)
 		enc.SetEscapeHTML(false)
 		enc.SetIndent("", "   ")
