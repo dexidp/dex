@@ -288,7 +288,10 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		if client.Secret != deviceReq.ClientSecret {
+
+		// Public clients won't send the client secret according to
+		// https://datatracker.ietf.org/doc/html/rfc8628#section-3.1
+		if !client.Public && (client.Secret != deviceReq.ClientSecret) {
 			s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
 			return
 		}
