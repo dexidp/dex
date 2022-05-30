@@ -49,6 +49,9 @@ type Config struct {
 	// The email of a GSuite super user which the service account will impersonate
 	// when listing groups
 	AdminEmail string
+
+	// If this field is true, fetch direct group membership and transitive group membership
+	FetchTransitiveGroupMembership bool `json:"fetchTransitiveGroupMembership"`
 }
 
 // Open returns a connector which can be used to login users through Google.
@@ -87,13 +90,14 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		verifier: provider.Verifier(
 			&oidc.Config{ClientID: clientID},
 		),
-		logger:                 logger,
-		cancel:                 cancel,
-		hostedDomains:          c.HostedDomains,
-		groups:                 c.Groups,
-		serviceAccountFilePath: c.ServiceAccountFilePath,
-		adminEmail:             c.AdminEmail,
-		adminSrv:               srv,
+		logger:                         logger,
+		cancel:                         cancel,
+		hostedDomains:                  c.HostedDomains,
+		groups:                         c.Groups,
+		serviceAccountFilePath:         c.ServiceAccountFilePath,
+		adminEmail:                     c.AdminEmail,
+		fetchTransitiveGroupMembership: c.FetchTransitiveGroupMembership,
+		adminSrv:                       srv,
 	}, nil
 }
 
@@ -103,16 +107,17 @@ var (
 )
 
 type googleConnector struct {
-	redirectURI            string
-	oauth2Config           *oauth2.Config
-	verifier               *oidc.IDTokenVerifier
-	cancel                 context.CancelFunc
-	logger                 log.Logger
-	hostedDomains          []string
-	groups                 []string
-	serviceAccountFilePath string
-	adminEmail             string
-	adminSrv               *admin.Service
+	redirectURI                    string
+	oauth2Config                   *oauth2.Config
+	verifier                       *oidc.IDTokenVerifier
+	cancel                         context.CancelFunc
+	logger                         log.Logger
+	hostedDomains                  []string
+	groups                         []string
+	serviceAccountFilePath         string
+	adminEmail                     string
+	fetchTransitiveGroupMembership bool
+	adminSrv                       *admin.Service
 }
 
 func (c *googleConnector) Close() error {
@@ -214,7 +219,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 
 	var groups []string
 	if s.Groups && c.adminSrv != nil {
-		groups, err = c.getGroups(claims.Email)
+		groups, err = c.getGroups(claims.Email, c.fetchTransitiveGroupMembership)
 		if err != nil {
 			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
 		}
@@ -240,7 +245,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 
 // getGroups creates a connection to the admin directory service and lists
 // all groups the user is a member of
-func (c *googleConnector) getGroups(email string) ([]string, error) {
+func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership bool) ([]string, error) {
 	var userGroups []string
 	var err error
 	groupsList := &admin.Groups{}
@@ -254,6 +259,16 @@ func (c *googleConnector) getGroups(email string) ([]string, error) {
 		for _, group := range groupsList.Groups {
 			// TODO (joelspeed): Make desired group key configurable
 			userGroups = append(userGroups, group.Email)
+
+			// getGroups takes a user's email/alias as well as a group's email/alias
+			if fetchTransitiveGroupMembership {
+				transitiveGroups, err := c.getGroups(group.Email, fetchTransitiveGroupMembership)
+				if err != nil {
+					return nil, fmt.Errorf("could not list transitive groups: %v", err)
+				}
+
+				userGroups = append(userGroups, transitiveGroups...)
+			}
 		}
 
 		if groupsList.NextPageToken == "" {
@@ -261,7 +276,7 @@ func (c *googleConnector) getGroups(email string) ([]string, error) {
 		}
 	}
 
-	return userGroups, nil
+	return uniqueGroups(userGroups), nil
 }
 
 // createDirectoryService loads a google service account credentials file,
@@ -295,4 +310,17 @@ func createDirectoryService(serviceAccountFilePath string, email string) (*admin
 		return nil, fmt.Errorf("unable to create directory service %v", err)
 	}
 	return srv, nil
+}
+
+// uniqueGroups returns the unique groups of a slice
+func uniqueGroups(groups []string) []string {
+	keys := make(map[string]struct{})
+	unique := []string{}
+	for _, group := range groups {
+		if _, exists := keys[group]; !exists {
+			keys[group] = struct{}{}
+			unique = append(unique, group)
+		}
+	}
+	return unique
 }

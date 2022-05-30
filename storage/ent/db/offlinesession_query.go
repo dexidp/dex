@@ -106,7 +106,7 @@ func (osq *OfflineSessionQuery) FirstIDX(ctx context.Context) string {
 }
 
 // Only returns a single OfflineSession entity found by the query, ensuring it only returns one.
-// Returns a *NotSingularError when exactly one OfflineSession entity is not found.
+// Returns a *NotSingularError when more than one OfflineSession entity is found.
 // Returns a *NotFoundError when no OfflineSession entities are found.
 func (osq *OfflineSessionQuery) Only(ctx context.Context) (*OfflineSession, error) {
 	nodes, err := osq.Limit(2).All(ctx)
@@ -133,7 +133,7 @@ func (osq *OfflineSessionQuery) OnlyX(ctx context.Context) *OfflineSession {
 }
 
 // OnlyID is like Only, but returns the only OfflineSession ID in the query.
-// Returns a *NotSingularError when exactly one OfflineSession ID is not found.
+// Returns a *NotSingularError when more than one OfflineSession ID is found.
 // Returns a *NotFoundError when no entities are found.
 func (osq *OfflineSessionQuery) OnlyID(ctx context.Context) (id string, err error) {
 	var ids []string
@@ -242,8 +242,9 @@ func (osq *OfflineSessionQuery) Clone() *OfflineSessionQuery {
 		order:      append([]OrderFunc{}, osq.order...),
 		predicates: append([]predicate.OfflineSession{}, osq.predicates...),
 		// clone intermediate query.
-		sql:  osq.sql.Clone(),
-		path: osq.path,
+		sql:    osq.sql.Clone(),
+		path:   osq.path,
+		unique: osq.unique,
 	}
 }
 
@@ -336,6 +337,10 @@ func (osq *OfflineSessionQuery) sqlAll(ctx context.Context) ([]*OfflineSession, 
 
 func (osq *OfflineSessionQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := osq.querySpec()
+	_spec.Node.Columns = osq.fields
+	if len(osq.fields) > 0 {
+		_spec.Unique = osq.unique != nil && *osq.unique
+	}
 	return sqlgraph.CountNodes(ctx, osq.driver, _spec)
 }
 
@@ -406,6 +411,9 @@ func (osq *OfflineSessionQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	if osq.sql != nil {
 		selector = osq.sql
 		selector.Select(selector.Columns(columns...)...)
+	}
+	if osq.unique != nil && *osq.unique {
+		selector.Distinct()
 	}
 	for _, p := range osq.predicates {
 		p(selector)
@@ -685,9 +693,7 @@ func (osgb *OfflineSessionGroupBy) sqlQuery() *sql.Selector {
 		for _, f := range osgb.fields {
 			columns = append(columns, selector.C(f))
 		}
-		for _, c := range aggregation {
-			columns = append(columns, c)
-		}
+		columns = append(columns, aggregation...)
 		selector.Select(columns...)
 	}
 	return selector.GroupBy(selector.Columns(osgb.fields...)...)

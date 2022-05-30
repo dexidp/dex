@@ -24,7 +24,7 @@ const kubeconfigPathVariableName = "DEX_KUBERNETES_CONFIG_PATH"
 
 func TestStorage(t *testing.T) {
 	if os.Getenv(kubeconfigPathVariableName) == "" {
-		t.Skip(fmt.Sprintf("variable %q not set, skipping kubernetes storage tests\n", kubeconfigPathVariableName))
+		t.Skipf("variable %q not set, skipping kubernetes storage tests\n", kubeconfigPathVariableName)
 	}
 
 	suite.Run(t, new(StorageTestSuite))
@@ -262,7 +262,7 @@ func TestRetryOnConflict(t *testing.T) {
 		{
 			"Timeout reached",
 			func() error { err := httpErr{status: 409}; return error(&err) },
-			"maximum timeout reached while retrying a conflicted request",
+			"maximum timeout reached while retrying a conflicted request:   Conflict: response from server \"\"",
 		},
 		{
 			"HTTP Error",

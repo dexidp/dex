@@ -52,6 +52,7 @@ func TestHandleDeviceCode(t *testing.T) {
 		requestType            string
 		scopes                 []string
 		expectedResponseCode   int
+		expectedContentType    string
 		expectedServerResponse string
 	}{
 		{
@@ -60,6 +61,7 @@ func TestHandleDeviceCode(t *testing.T) {
 			requestType:          "POST",
 			scopes:               []string{"openid", "profile", "email"},
 			expectedResponseCode: http.StatusOK,
+			expectedContentType:  "application/json",
 		},
 		{
 			testName:             "Invalid request Type (GET)",
@@ -67,6 +69,7 @@ func TestHandleDeviceCode(t *testing.T) {
 			requestType:          "GET",
 			scopes:               []string{"openid", "profile", "email"},
 			expectedResponseCode: http.StatusBadRequest,
+			expectedContentType:  "application/json",
 		},
 	}
 	for _, tc := range tests {
@@ -99,6 +102,10 @@ func TestHandleDeviceCode(t *testing.T) {
 			s.ServeHTTP(rr, req)
 			if rr.Code != tc.expectedResponseCode {
 				t.Errorf("Unexpected Response Type.  Expected %v got %v", tc.expectedResponseCode, rr.Code)
+			}
+
+			if rr.Header().Get("content-type") != tc.expectedContentType {
+				t.Errorf("Unexpected Response Content Type.  Expected %v got %v", tc.expectedContentType, rr.Header().Get("content-type"))
 			}
 
 			body, err := io.ReadAll(rr.Body)

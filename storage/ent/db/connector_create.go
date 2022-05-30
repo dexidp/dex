@@ -120,30 +120,30 @@ func (cc *ConnectorCreate) ExecX(ctx context.Context) {
 // check runs all checks and user-defined validators on the builder.
 func (cc *ConnectorCreate) check() error {
 	if _, ok := cc.mutation.GetType(); !ok {
-		return &ValidationError{Name: "type", err: errors.New(`db: missing required field "type"`)}
+		return &ValidationError{Name: "type", err: errors.New(`db: missing required field "Connector.type"`)}
 	}
 	if v, ok := cc.mutation.GetType(); ok {
 		if err := connector.TypeValidator(v); err != nil {
-			return &ValidationError{Name: "type", err: fmt.Errorf(`db: validator failed for field "type": %w`, err)}
+			return &ValidationError{Name: "type", err: fmt.Errorf(`db: validator failed for field "Connector.type": %w`, err)}
 		}
 	}
 	if _, ok := cc.mutation.Name(); !ok {
-		return &ValidationError{Name: "name", err: errors.New(`db: missing required field "name"`)}
+		return &ValidationError{Name: "name", err: errors.New(`db: missing required field "Connector.name"`)}
 	}
 	if v, ok := cc.mutation.Name(); ok {
 		if err := connector.NameValidator(v); err != nil {
-			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "name": %w`, err)}
+			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "Connector.name": %w`, err)}
 		}
 	}
 	if _, ok := cc.mutation.ResourceVersion(); !ok {
-		return &ValidationError{Name: "resource_version", err: errors.New(`db: missing required field "resource_version"`)}
+		return &ValidationError{Name: "resource_version", err: errors.New(`db: missing required field "Connector.resource_version"`)}
 	}
 	if _, ok := cc.mutation.Config(); !ok {
-		return &ValidationError{Name: "config", err: errors.New(`db: missing required field "config"`)}
+		return &ValidationError{Name: "config", err: errors.New(`db: missing required field "Connector.config"`)}
 	}
 	if v, ok := cc.mutation.ID(); ok {
 		if err := connector.IDValidator(v); err != nil {
-			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "id": %w`, err)}
+			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "Connector.id": %w`, err)}
 		}
 	}
 	return nil
@@ -156,6 +156,13 @@ func (cc *ConnectorCreate) sqlSave(ctx context.Context) (*Connector, error) {
 			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
+	}
+	if _spec.ID.Value != nil {
+		if id, ok := _spec.ID.Value.(string); ok {
+			_node.ID = id
+		} else {
+			return nil, fmt.Errorf("unexpected Connector.ID type: %T", _spec.ID.Value)
+		}
 	}
 	return _node, nil
 }

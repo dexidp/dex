@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -140,6 +141,10 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 		// https://tools.ietf.org/html/rfc8628#section-3.2
 		w.Header().Set("Cache-Control", "no-store")
 
+		// Response type should be application/json according to
+		// https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
+		w.Header().Set("Content-Type", "application/json")
+
 		enc := json.NewEncoder(w)
 		enc.SetEscapeHTML(false)
 		enc.SetIndent("", "   ")
@@ -152,7 +157,7 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeviceTokenDeprecated(w http.ResponseWriter, r *http.Request) {
-	s.logger.Warn(`The deprecated "/device/token" endpoint was called. It will be removed, use "/token" instead.`)
+	log.Deprecated(s.logger, `The /device/token endpoint was called. It will be removed, use /token instead.`)
 
 	w.Header().Set("Content-Type", "application/json")
 	switch r.Method {

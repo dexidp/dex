@@ -6,9 +6,8 @@ import (
 	"strings"
 
 	"entgo.io/ent/dialect/sql"
-
-	// Register sqlite driver.
-	_ "github.com/mattn/go-sqlite3"
+	"entgo.io/ent/dialect/sql/schema"
+	_ "github.com/mattn/go-sqlite3" // Register sqlite driver.
 
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
@@ -43,7 +42,7 @@ func (s *SQLite3) Open(logger log.Logger) (storage.Storage, error) {
 		client.WithHasher(sha256.New),
 	)
 
-	if err := databaseClient.Schema().Create(context.TODO()); err != nil {
+	if err := databaseClient.Schema().Create(context.TODO(), schema.WithAtlas(false)); err != nil {
 		return nil, err
 	}
 

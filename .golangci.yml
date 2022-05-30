@@ -1,5 +1,5 @@
 run:
-    timeout: 2m
+    timeout: 4m
 
 linters-settings:
     depguard:
@@ -45,12 +45,14 @@ linters:
         - structcheck
         - stylecheck
         - tparallel
-        - typecheck
         - unconvert
         - unparam
         - unused
         - varcheck
         - whitespace
+
+        # Disable temporarily until everything works with Go 1.18
+        # - typecheck
 
         # TODO: fix linter errors before enabling
         # - exhaustivestruct

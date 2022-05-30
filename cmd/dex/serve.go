@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"os"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -91,6 +93,15 @@ func runServe(options serveOptions) error {
 	if err != nil {
 		return fmt.Errorf("invalid config: %v", err)
 	}
+
+	logger.Infof(
+		"Dex Version: %s, Go Version: %s, Go OS/ARCH: %s %s",
+		version,
+		runtime.Version(),
+		runtime.GOOS,
+		runtime.GOARCH,
+	)
+
 	if c.Logger.Level != "" {
 		logger.Infof("config using log level: %s", c.Logger.Level)
 	}
@@ -358,6 +369,10 @@ func runServe(options serveOptions) error {
 			return fmt.Errorf("listening (%s) on %s: %v", name, c.Telemetry.HTTP, err)
 		}
 
+		if c.Telemetry.EnableProfiling {
+			pprofHandler(telemetryRouter)
+		}
+
 		server := &http.Server{
 			Handler: telemetryRouter,
 		}
@@ -539,4 +554,12 @@ func applyConfigOverrides(options serveOptions, config *Config) {
 	if config.Frontend.Dir == "" {
 		config.Frontend.Dir = os.Getenv("DEX_FRONTEND_DIR")
 	}
+}
+
+func pprofHandler(router *http.ServeMux) {
+	router.HandleFunc("/debug/pprof/", pprof.Index)
+	router.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	router.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	router.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	router.HandleFunc("/debug/pprof/trace", pprof.Trace)
 }

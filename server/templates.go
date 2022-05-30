@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -109,7 +108,7 @@ func loadWebConfig(c webConfig) (http.Handler, http.Handler, *templates, error) 
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("read static dir: %v", err)
 	}
-	themeFiles, err := fs.Sub(c.webFS, filepath.Join("themes", c.theme))
+	themeFiles, err := fs.Sub(c.webFS, path.Join("themes", c.theme))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("read themes dir: %v", err)
 	}
@@ -133,7 +132,7 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		if file.IsDir() {
 			continue
 		}
-		filenames = append(filenames, filepath.Join(templatesDir, file.Name()))
+		filenames = append(filenames, path.Join(templatesDir, file.Name()))
 	}
 	if len(filenames) == 0 {
 		return nil, fmt.Errorf("no files in template dir %q", templatesDir)
@@ -239,6 +238,9 @@ var scopeDescriptions = map[string]string{
 	"offline_access": "Have offline access",
 	"profile":        "View basic profile information",
 	"email":          "View your email address",
+	// 'groups' is not a standard OIDC scope, and Dex only returns groups only if the upstream provider does too.
+	// This warning is added for convenience to show that the user may expose some sensitive data to the application.
+	"groups": "View your groups",
 }
 
 type connectorInfo struct {

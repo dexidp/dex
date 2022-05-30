@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"entgo.io/ent/dialect/sql"
@@ -125,12 +126,12 @@ func (osu *OfflineSessionUpdate) ExecX(ctx context.Context) {
 func (osu *OfflineSessionUpdate) check() error {
 	if v, ok := osu.mutation.UserID(); ok {
 		if err := offlinesession.UserIDValidator(v); err != nil {
-			return &ValidationError{Name: "user_id", err: fmt.Errorf("db: validator failed for field \"user_id\": %w", err)}
+			return &ValidationError{Name: "user_id", err: fmt.Errorf(`db: validator failed for field "OfflineSession.user_id": %w`, err)}
 		}
 	}
 	if v, ok := osu.mutation.ConnID(); ok {
 		if err := offlinesession.ConnIDValidator(v); err != nil {
-			return &ValidationError{Name: "conn_id", err: fmt.Errorf("db: validator failed for field \"conn_id\": %w", err)}
+			return &ValidationError{Name: "conn_id", err: fmt.Errorf(`db: validator failed for field "OfflineSession.conn_id": %w`, err)}
 		}
 	}
 	return nil
@@ -313,12 +314,12 @@ func (osuo *OfflineSessionUpdateOne) ExecX(ctx context.Context) {
 func (osuo *OfflineSessionUpdateOne) check() error {
 	if v, ok := osuo.mutation.UserID(); ok {
 		if err := offlinesession.UserIDValidator(v); err != nil {
-			return &ValidationError{Name: "user_id", err: fmt.Errorf("db: validator failed for field \"user_id\": %w", err)}
+			return &ValidationError{Name: "user_id", err: fmt.Errorf(`db: validator failed for field "OfflineSession.user_id": %w`, err)}
 		}
 	}
 	if v, ok := osuo.mutation.ConnID(); ok {
 		if err := offlinesession.ConnIDValidator(v); err != nil {
-			return &ValidationError{Name: "conn_id", err: fmt.Errorf("db: validator failed for field \"conn_id\": %w", err)}
+			return &ValidationError{Name: "conn_id", err: fmt.Errorf(`db: validator failed for field "OfflineSession.conn_id": %w`, err)}
 		}
 	}
 	return nil
@@ -337,7 +338,7 @@ func (osuo *OfflineSessionUpdateOne) sqlSave(ctx context.Context) (_node *Offlin
 	}
 	id, ok := osuo.mutation.ID()
 	if !ok {
-		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing OfflineSession.ID for update")}
+		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "OfflineSession.id" for update`)}
 	}
 	_spec.Node.ID.Value = id
 	if fields := osuo.fields; len(fields) > 0 {

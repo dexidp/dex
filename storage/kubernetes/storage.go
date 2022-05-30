@@ -740,13 +740,14 @@ func retryOnConflict(ctx context.Context, action func() error) error {
 	for {
 		select {
 		case <-time.After(getNextStep()):
-			if err := action(); err == nil || !isKubernetesAPIConflictError(err) {
+			err := action()
+			if err == nil || !isKubernetesAPIConflictError(err) {
 				return err
 			}
 
 			attempts++
 			if attempts >= 4 {
-				return errors.New("maximum timeout reached while retrying a conflicted request")
+				return fmt.Errorf("maximum timeout reached while retrying a conflicted request: %w", err)
 			}
 		case <-ctx.Done():
 			return errors.New("canceled")

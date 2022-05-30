@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -244,32 +245,32 @@ func (rtu *RefreshTokenUpdate) ExecX(ctx context.Context) {
 func (rtu *RefreshTokenUpdate) check() error {
 	if v, ok := rtu.mutation.ClientID(); ok {
 		if err := refreshtoken.ClientIDValidator(v); err != nil {
-			return &ValidationError{Name: "client_id", err: fmt.Errorf("db: validator failed for field \"client_id\": %w", err)}
+			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "RefreshToken.client_id": %w`, err)}
 		}
 	}
 	if v, ok := rtu.mutation.Nonce(); ok {
 		if err := refreshtoken.NonceValidator(v); err != nil {
-			return &ValidationError{Name: "nonce", err: fmt.Errorf("db: validator failed for field \"nonce\": %w", err)}
+			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "RefreshToken.nonce": %w`, err)}
 		}
 	}
 	if v, ok := rtu.mutation.ClaimsUserID(); ok {
 		if err := refreshtoken.ClaimsUserIDValidator(v); err != nil {
-			return &ValidationError{Name: "claims_user_id", err: fmt.Errorf("db: validator failed for field \"claims_user_id\": %w", err)}
+			return &ValidationError{Name: "claims_user_id", err: fmt.Errorf(`db: validator failed for field "RefreshToken.claims_user_id": %w`, err)}
 		}
 	}
 	if v, ok := rtu.mutation.ClaimsUsername(); ok {
 		if err := refreshtoken.ClaimsUsernameValidator(v); err != nil {
-			return &ValidationError{Name: "claims_username", err: fmt.Errorf("db: validator failed for field \"claims_username\": %w", err)}
+			return &ValidationError{Name: "claims_username", err: fmt.Errorf(`db: validator failed for field "RefreshToken.claims_username": %w`, err)}
 		}
 	}
 	if v, ok := rtu.mutation.ClaimsEmail(); ok {
 		if err := refreshtoken.ClaimsEmailValidator(v); err != nil {
-			return &ValidationError{Name: "claims_email", err: fmt.Errorf("db: validator failed for field \"claims_email\": %w", err)}
+			return &ValidationError{Name: "claims_email", err: fmt.Errorf(`db: validator failed for field "RefreshToken.claims_email": %w`, err)}
 		}
 	}
 	if v, ok := rtu.mutation.ConnectorID(); ok {
 		if err := refreshtoken.ConnectorIDValidator(v); err != nil {
-			return &ValidationError{Name: "connector_id", err: fmt.Errorf("db: validator failed for field \"connector_id\": %w", err)}
+			return &ValidationError{Name: "connector_id", err: fmt.Errorf(`db: validator failed for field "RefreshToken.connector_id": %w`, err)}
 		}
 	}
 	return nil
@@ -659,32 +660,32 @@ func (rtuo *RefreshTokenUpdateOne) ExecX(ctx context.Context) {
 func (rtuo *RefreshTokenUpdateOne) check() error {
 	if v, ok := rtuo.mutation.ClientID(); ok {
 		if err := refreshtoken.ClientIDValidator(v); err != nil {
-			return &ValidationError{Name: "client_id", err: fmt.Errorf("db: validator failed for field \"client_id\": %w", err)}
+			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "RefreshToken.client_id": %w`, err)}
 		}
 	}
 	if v, ok := rtuo.mutation.Nonce(); ok {
 		if err := refreshtoken.NonceValidator(v); err != nil {
-			return &ValidationError{Name: "nonce", err: fmt.Errorf("db: validator failed for field \"nonce\": %w", err)}
+			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "RefreshToken.nonce": %w`, err)}
 		}
 	}
 	if v, ok := rtuo.mutation.ClaimsUserID(); ok {
 		if err := refreshtoken.ClaimsUserIDValidator(v); err != nil {
-			return &ValidationError{Name: "claims_user_id", err: fmt.Errorf("db: validator failed for field \"claims_user_id\": %w", err)}
+			return &ValidationError{Name: "claims_user_id", err: fmt.Errorf(`db: validator failed for field "RefreshToken.claims_user_id": %w`, err)}
 		}
 	}
 	if v, ok := rtuo.mutation.ClaimsUsername(); ok {
 		if err := refreshtoken.ClaimsUsernameValidator(v); err != nil {
-			return &ValidationError{Name: "claims_username", err: fmt.Errorf("db: validator failed for field \"claims_username\": %w", err)}
+			return &ValidationError{Name: "claims_username", err: fmt.Errorf(`db: validator failed for field "RefreshToken.claims_username": %w`, err)}
 		}
 	}
 	if v, ok := rtuo.mutation.ClaimsEmail(); ok {
 		if err := refreshtoken.ClaimsEmailValidator(v); err != nil {
-			return &ValidationError{Name: "claims_email", err: fmt.Errorf("db: validator failed for field \"claims_email\": %w", err)}
+			return &ValidationError{Name: "claims_email", err: fmt.Errorf(`db: validator failed for field "RefreshToken.claims_email": %w`, err)}
 		}
 	}
 	if v, ok := rtuo.mutation.ConnectorID(); ok {
 		if err := refreshtoken.ConnectorIDValidator(v); err != nil {
-			return &ValidationError{Name: "connector_id", err: fmt.Errorf("db: validator failed for field \"connector_id\": %w", err)}
+			return &ValidationError{Name: "connector_id", err: fmt.Errorf(`db: validator failed for field "RefreshToken.connector_id": %w`, err)}
 		}
 	}
 	return nil
@@ -703,7 +704,7 @@ func (rtuo *RefreshTokenUpdateOne) sqlSave(ctx context.Context) (_node *RefreshT
 	}
 	id, ok := rtuo.mutation.ID()
 	if !ok {
-		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing RefreshToken.ID for update")}
+		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "RefreshToken.id" for update`)}
 	}
 	_spec.Node.ID.Value = id
 	if fields := rtuo.fields; len(fields) > 0 {
