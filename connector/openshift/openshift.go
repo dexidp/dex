@@ -26,7 +26,7 @@ const (
 	usersURLPath     = "/apis/user.openshift.io/v1/users/~"
 )
 
-// Config holds configuration options for OpenShift login
+// Config holds configuration options for OpenShift login.
 type Config struct {
 	Issuer       string   `json:"issuer"`
 	ClientID     string   `json:"clientID"`
@@ -37,24 +37,27 @@ type Config struct {
 	RootCA       string   `json:"rootCA"`
 }
 
+// Option allows overriding default values of the openshift connector.
+type Option func(*openshiftConnector)
+
 var (
-	_ connector.CallbackConnector      = (*openshiftConnector)(nil)
-	_ connector.RefreshConnector       = (*openshiftConnector)(nil)
-	_ connector.CheckEndpointConnector = (*openshiftConnector)(nil)
+	_ connector.CallbackConnector = (*openshiftConnector)(nil)
+	_ connector.RefreshConnector  = (*openshiftConnector)(nil)
 )
 
 type openshiftConnector struct {
-	apiURL       string
-	redirectURI  string
-	clientID     string
-	clientSecret string
-	cancel       context.CancelFunc
-	logger       log.Logger
-	httpClient   *http.Client
-	oauth2Config *oauth2.Config
-	insecureCA   bool
-	rootCA       string
-	groups       []string
+	apiURL               string
+	redirectURI          string
+	clientID             string
+	clientSecret         string
+	cancel               context.CancelFunc
+	logger               log.Logger
+	httpClient           *http.Client
+	oauth2Config         *oauth2.Config
+	insecureCA           bool
+	rootCA               string
+	groups               []string
+	endpointsHealthCheck bool
 }
 
 type user struct {
@@ -65,6 +68,23 @@ type user struct {
 	Groups            []string `json:"groups" protobuf:"bytes,4,rep,name=groups"`
 }
 
+// WithHTTPClient will inject a http.Client for the OpenShift connector. This can be used to
+// add custom client specific settings.
+func WithHTTPClient(httpClient *http.Client) Option {
+	return func(o *openshiftConnector) {
+		o.httpClient = httpClient
+	}
+}
+
+// WithEndpointHealthChecks will enable health checks for OAuth endpoints during creation of the
+// OpenShift connector. If the endpoints are not reachable at the time of creation, the connector
+// will not be created and a respective error returned.
+func WithEndpointHealthChecks() Option {
+	return func(o *openshiftConnector) {
+		o.endpointsHealthCheck = true
+	}
+}
+
 // Open returns a connector which can be used to login users through an upstream
 // OpenShift OAuth2 provider.
 func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
@@ -73,20 +93,21 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
 	}
 
-	return c.OpenWithHTTPClient(id, logger, httpClient)
+	return c.OpenWithOptions(id, logger, WithHTTPClient(httpClient))
 }
 
-// OpenWithHTTPClient returns a connector which can be used to login users through an upstream
-// OpenShift OAuth2 provider. It provides the ability to inject a http.Client.
-func (c *Config) OpenWithHTTPClient(id string, logger log.Logger,
-	httpClient *http.Client,
+// OpenWithOptions returns a connector which can be used to login users through an upstream
+// OpenShift OAuth2 provider. It provides the ability to override or inject values based on
+// the given options.
+func (c *Config) OpenWithOptions(id string, logger log.Logger,
+	options ...Option,
 ) (conn connector.Connector, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	wellKnownURL := strings.TrimSuffix(c.Issuer, "/") + wellKnownURLPath
 	req, err := http.NewRequest(http.MethodGet, wellKnownURL, nil)
 
-	openshiftConnector := openshiftConnector{
+	openshiftConnector := &openshiftConnector{
 		apiURL:       c.Issuer,
 		cancel:       cancel,
 		clientID:     c.ClientID,
@@ -96,7 +117,10 @@ func (c *Config) OpenWithHTTPClient(id string, logger log.Logger,
 		redirectURI:  c.RedirectURI,
 		rootCA:       c.RootCA,
 		groups:       c.Groups,
-		httpClient:   httpClient,
+	}
+
+	for _, opt := range options {
+		opt(openshiftConnector)
 	}
 
 	var metadata struct {
@@ -128,6 +152,12 @@ func (c *Config) OpenWithHTTPClient(id string, logger log.Logger,
 		RedirectURL: c.RedirectURI,
 	}
 
+	if openshiftConnector.endpointsHealthCheck {
+		if err := openshiftConnector.oauth2EndpointsHealthCheck(ctx); err != nil {
+			return nil, fmt.Errorf("failed healthcheck for openshift oauth endpoints %w", err)
+		}
+	}
+
 	return &openshiftConnector, nil
 }
 
@@ -157,7 +187,7 @@ func (e *oauth2Error) Error() string {
 	return e.error + ": " + e.errorDescription
 }
 
-// HandleCallback parses the request and returns the user's identity
+// HandleCallback parses the request and returns the user's identity.
 func (c *openshiftConnector) HandleCallback(s connector.Scopes,
 	r *http.Request,
 ) (identity connector.Identity, err error) {
@@ -229,7 +259,7 @@ func (c *openshiftConnector) identity(ctx context.Context, s connector.Scopes,
 	return identity, nil
 }
 
-// user function returns the OpenShift user associated with the authenticated user
+// user function returns the OpenShift user associated with the authenticated user.
 func (c *openshiftConnector) user(ctx context.Context, client *http.Client) (u user, err error) {
 	url := c.apiURL + usersURLPath
 
@@ -259,11 +289,7 @@ func (c *openshiftConnector) user(ctx context.Context, client *http.Client) (u u
 	return u, err
 }
 
-func (c *openshiftConnector) CheckEndpoint(ctx context.Context) error {
-	return c.checkOAuth2EndpointsAvailability(ctx)
-}
-
-func (c *openshiftConnector) checkOAuth2EndpointsAvailability(ctx context.Context) error {
+func (c *openshiftConnector) oauth2EndpointsHealthCheck(ctx context.Context) error {
 	for _, endpoint := range []string{c.oauth2Config.Endpoint.AuthURL, c.oauth2Config.Endpoint.TokenURL} {
 		req, err := http.NewRequest(http.MethodHead, endpoint, nil)
 		if err != nil {

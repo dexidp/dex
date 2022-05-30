@@ -272,12 +272,12 @@ func TestCheckEndpoint(t *testing.T) {
 			AuthURL: s.URL + "/oauth/authorize", TokenURL: s.URL + "/oauth/token",
 		},
 	}}
-	err = oc.CheckEndpoint(context.Background())
+	err = oc.oauth2EndpointsHealthCheck(context.Background())
 	expectNil(t, err)
 
 	s.Close()
 
-	err = oc.CheckEndpoint(context.Background())
+	err = oc.oauth2EndpointsHealthCheck(context.Background())
 	expectNotNil(t, err)
 }
 
