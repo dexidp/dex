@@ -246,7 +246,7 @@ var scopeDescriptions = map[string]string{
 type connectorInfo struct {
 	ID   string
 	Name string
-	URL  string
+	URL  template.URL
 	Type string
 }
 
