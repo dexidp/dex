@@ -106,7 +106,7 @@ func (oq *OAuth2ClientQuery) FirstIDX(ctx context.Context) string {
 }
 
 // Only returns a single OAuth2Client entity found by the query, ensuring it only returns one.
-// Returns a *NotSingularError when exactly one OAuth2Client entity is not found.
+// Returns a *NotSingularError when more than one OAuth2Client entity is found.
 // Returns a *NotFoundError when no OAuth2Client entities are found.
 func (oq *OAuth2ClientQuery) Only(ctx context.Context) (*OAuth2Client, error) {
 	nodes, err := oq.Limit(2).All(ctx)
@@ -133,7 +133,7 @@ func (oq *OAuth2ClientQuery) OnlyX(ctx context.Context) *OAuth2Client {
 }
 
 // OnlyID is like Only, but returns the only OAuth2Client ID in the query.
-// Returns a *NotSingularError when exactly one OAuth2Client ID is not found.
+// Returns a *NotSingularError when more than one OAuth2Client ID is found.
 // Returns a *NotFoundError when no entities are found.
 func (oq *OAuth2ClientQuery) OnlyID(ctx context.Context) (id string, err error) {
 	var ids []string
@@ -242,8 +242,9 @@ func (oq *OAuth2ClientQuery) Clone() *OAuth2ClientQuery {
 		order:      append([]OrderFunc{}, oq.order...),
 		predicates: append([]predicate.OAuth2Client{}, oq.predicates...),
 		// clone intermediate query.
-		sql:  oq.sql.Clone(),
-		path: oq.path,
+		sql:    oq.sql.Clone(),
+		path:   oq.path,
+		unique: oq.unique,
 	}
 }
 
@@ -336,6 +337,10 @@ func (oq *OAuth2ClientQuery) sqlAll(ctx context.Context) ([]*OAuth2Client, error
 
 func (oq *OAuth2ClientQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := oq.querySpec()
+	_spec.Node.Columns = oq.fields
+	if len(oq.fields) > 0 {
+		_spec.Unique = oq.unique != nil && *oq.unique
+	}
 	return sqlgraph.CountNodes(ctx, oq.driver, _spec)
 }
 
@@ -406,6 +411,9 @@ func (oq *OAuth2ClientQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	if oq.sql != nil {
 		selector = oq.sql
 		selector.Select(selector.Columns(columns...)...)
+	}
+	if oq.unique != nil && *oq.unique {
+		selector.Distinct()
 	}
 	for _, p := range oq.predicates {
 		p(selector)
@@ -685,9 +693,7 @@ func (ogb *OAuth2ClientGroupBy) sqlQuery() *sql.Selector {
 		for _, f := range ogb.fields {
 			columns = append(columns, selector.C(f))
 		}
-		for _, c := range aggregation {
-			columns = append(columns, c)
-		}
+		columns = append(columns, aggregation...)
 		selector.Select(columns...)
 	}
 	return selector.GroupBy(selector.Columns(ogb.fields...)...)

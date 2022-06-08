@@ -106,7 +106,7 @@ func (dtq *DeviceTokenQuery) FirstIDX(ctx context.Context) int {
 }
 
 // Only returns a single DeviceToken entity found by the query, ensuring it only returns one.
-// Returns a *NotSingularError when exactly one DeviceToken entity is not found.
+// Returns a *NotSingularError when more than one DeviceToken entity is found.
 // Returns a *NotFoundError when no DeviceToken entities are found.
 func (dtq *DeviceTokenQuery) Only(ctx context.Context) (*DeviceToken, error) {
 	nodes, err := dtq.Limit(2).All(ctx)
@@ -133,7 +133,7 @@ func (dtq *DeviceTokenQuery) OnlyX(ctx context.Context) *DeviceToken {
 }
 
 // OnlyID is like Only, but returns the only DeviceToken ID in the query.
-// Returns a *NotSingularError when exactly one DeviceToken ID is not found.
+// Returns a *NotSingularError when more than one DeviceToken ID is found.
 // Returns a *NotFoundError when no entities are found.
 func (dtq *DeviceTokenQuery) OnlyID(ctx context.Context) (id int, err error) {
 	var ids []int
@@ -242,8 +242,9 @@ func (dtq *DeviceTokenQuery) Clone() *DeviceTokenQuery {
 		order:      append([]OrderFunc{}, dtq.order...),
 		predicates: append([]predicate.DeviceToken{}, dtq.predicates...),
 		// clone intermediate query.
-		sql:  dtq.sql.Clone(),
-		path: dtq.path,
+		sql:    dtq.sql.Clone(),
+		path:   dtq.path,
+		unique: dtq.unique,
 	}
 }
 
@@ -336,6 +337,10 @@ func (dtq *DeviceTokenQuery) sqlAll(ctx context.Context) ([]*DeviceToken, error)
 
 func (dtq *DeviceTokenQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := dtq.querySpec()
+	_spec.Node.Columns = dtq.fields
+	if len(dtq.fields) > 0 {
+		_spec.Unique = dtq.unique != nil && *dtq.unique
+	}
 	return sqlgraph.CountNodes(ctx, dtq.driver, _spec)
 }
 
@@ -406,6 +411,9 @@ func (dtq *DeviceTokenQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	if dtq.sql != nil {
 		selector = dtq.sql
 		selector.Select(selector.Columns(columns...)...)
+	}
+	if dtq.unique != nil && *dtq.unique {
+		selector.Distinct()
 	}
 	for _, p := range dtq.predicates {
 		p(selector)
@@ -685,9 +693,7 @@ func (dtgb *DeviceTokenGroupBy) sqlQuery() *sql.Selector {
 		for _, f := range dtgb.fields {
 			columns = append(columns, selector.C(f))
 		}
-		for _, c := range aggregation {
-			columns = append(columns, c)
-		}
+		columns = append(columns, aggregation...)
 		selector.Select(columns...)
 	}
 	return selector.GroupBy(selector.Columns(dtgb.fields...)...)
