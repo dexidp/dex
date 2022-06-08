@@ -220,7 +220,8 @@ func (c *Config) OpenConnector(logger log.Logger) (interface {
 	connector.Connector
 	connector.PasswordConnector
 	connector.RefreshConnector
-}, error) {
+}, error,
+) {
 	return c.openConnector(logger)
 }
 
