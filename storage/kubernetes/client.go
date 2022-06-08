@@ -96,18 +96,18 @@ func (cli *client) urlForWithParams(
 	} else {
 		p = path.Join(basePath, apiVersion, resource, name)
 	}
-	if strings.HasSuffix(cli.baseURL, "/") {
-		return cli.baseURL + p
-	}
-
-	r := cli.baseURL + "/" + p
 
 	encodedParams := params.Encode()
+	paramsSuffix := ""
 	if len(encodedParams) > 0 {
-		return r + "?" + encodedParams
+		paramsSuffix = "?" + encodedParams
 	}
 
-	return r
+	if strings.HasSuffix(cli.baseURL, "/") {
+		return cli.baseURL + p + paramsSuffix
+	}
+
+	return cli.baseURL + "/" + p + paramsSuffix
 }
 
 func (cli *client) urlFor(apiVersion, namespace, resource, name string) string {
@@ -201,7 +201,7 @@ func (cli *client) listN(resource string, v interface{}, n int) error {
 }
 
 func (cli *client) list(resource string, v interface{}) error {
-	return cli.listN(resource, v, -1)
+	return cli.get(resource, "", v)
 }
 
 func (cli *client) post(resource string, v interface{}) error {
