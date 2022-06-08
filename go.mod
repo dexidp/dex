@@ -33,7 +33,7 @@ require (
 	golang.org/x/crypto v0.0.0-20220208050332-20e1d8d225ab
 	golang.org/x/net v0.0.0-20220607020251-c690dde0001d
 	golang.org/x/oauth2 v0.0.0-20220524215830-622c5d57e401
-	google.golang.org/api v0.82.0
+	google.golang.org/api v0.83.0
 	google.golang.org/grpc v1.47.0
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/square/go-jose.v2 v2.6.0
