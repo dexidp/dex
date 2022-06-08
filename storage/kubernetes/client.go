@@ -84,7 +84,8 @@ func offlineTokenName(userID string, connID string, h func() hash.Hash) string {
 }
 
 func (cli *client) urlForWithParams(
-	apiVersion, namespace, resource, name string, params url.Values) string {
+	apiVersion, namespace, resource, name string, params url.Values,
+) string {
 	basePath := "apis/"
 	if apiVersion == "v1" {
 		basePath = "api/"
