@@ -15,6 +15,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strconv"
@@ -82,7 +83,9 @@ func offlineTokenName(userID string, connID string, h func() hash.Hash) string {
 	return strings.TrimRight(encoding.EncodeToString(hash.Sum(nil)), "=")
 }
 
-func (cli *client) urlFor(apiVersion, namespace, resource, name string) string {
+func (cli *client) urlForWithParams(
+	apiVersion, namespace, resource, name string, params url.Values,
+) string {
 	basePath := "apis/"
 	if apiVersion == "v1" {
 		basePath = "api/"
@@ -94,10 +97,22 @@ func (cli *client) urlFor(apiVersion, namespace, resource, name string) string {
 	} else {
 		p = path.Join(basePath, apiVersion, resource, name)
 	}
-	if strings.HasSuffix(cli.baseURL, "/") {
-		return cli.baseURL + p
+
+	encodedParams := params.Encode()
+	paramsSuffix := ""
+	if len(encodedParams) > 0 {
+		paramsSuffix = "?" + encodedParams
 	}
-	return cli.baseURL + "/" + p
+
+	if strings.HasSuffix(cli.baseURL, "/") {
+		return cli.baseURL + p + paramsSuffix
+	}
+
+	return cli.baseURL + "/" + p + paramsSuffix
+}
+
+func (cli *client) urlFor(apiVersion, namespace, resource, name string) string {
+	return cli.urlForWithParams(apiVersion, namespace, resource, name, url.Values{})
 }
 
 // Define an error interface so we can get at the underlying status code if it's
@@ -163,8 +178,7 @@ func (cli *client) get(resource, name string, v interface{}) error {
 	return cli.getResource(cli.apiVersion, cli.namespace, resource, name, v)
 }
 
-func (cli *client) getResource(apiVersion, namespace, resource, name string, v interface{}) error {
-	url := cli.urlFor(apiVersion, namespace, resource, name)
+func (cli *client) getURL(url string, v interface{}) error {
 	resp, err := cli.client.Get(url)
 	if err != nil {
 		return err
@@ -174,6 +188,17 @@ func (cli *client) getResource(apiVersion, namespace, resource, name string, v i
 		return err
 	}
 	return json.NewDecoder(resp.Body).Decode(v)
+}
+
+func (cli *client) getResource(apiVersion, namespace, resource, name string, v interface{}) error {
+	return cli.getURL(cli.urlFor(apiVersion, namespace, resource, name), v)
+}
+
+func (cli *client) listN(resource string, v interface{}, n int) error {
+	params := url.Values{}
+	params.Add("limit", fmt.Sprintf("%d", n))
+	u := cli.urlForWithParams(cli.apiVersion, cli.namespace, resource, "", params)
+	return cli.getURL(u, v)
 }
 
 func (cli *client) list(resource string, v interface{}) error {
