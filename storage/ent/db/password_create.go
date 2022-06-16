@@ -114,30 +114,30 @@ func (pc *PasswordCreate) ExecX(ctx context.Context) {
 // check runs all checks and user-defined validators on the builder.
 func (pc *PasswordCreate) check() error {
 	if _, ok := pc.mutation.Email(); !ok {
-		return &ValidationError{Name: "email", err: errors.New(`db: missing required field "email"`)}
+		return &ValidationError{Name: "email", err: errors.New(`db: missing required field "Password.email"`)}
 	}
 	if v, ok := pc.mutation.Email(); ok {
 		if err := password.EmailValidator(v); err != nil {
-			return &ValidationError{Name: "email", err: fmt.Errorf(`db: validator failed for field "email": %w`, err)}
+			return &ValidationError{Name: "email", err: fmt.Errorf(`db: validator failed for field "Password.email": %w`, err)}
 		}
 	}
 	if _, ok := pc.mutation.Hash(); !ok {
-		return &ValidationError{Name: "hash", err: errors.New(`db: missing required field "hash"`)}
+		return &ValidationError{Name: "hash", err: errors.New(`db: missing required field "Password.hash"`)}
 	}
 	if _, ok := pc.mutation.Username(); !ok {
-		return &ValidationError{Name: "username", err: errors.New(`db: missing required field "username"`)}
+		return &ValidationError{Name: "username", err: errors.New(`db: missing required field "Password.username"`)}
 	}
 	if v, ok := pc.mutation.Username(); ok {
 		if err := password.UsernameValidator(v); err != nil {
-			return &ValidationError{Name: "username", err: fmt.Errorf(`db: validator failed for field "username": %w`, err)}
+			return &ValidationError{Name: "username", err: fmt.Errorf(`db: validator failed for field "Password.username": %w`, err)}
 		}
 	}
 	if _, ok := pc.mutation.UserID(); !ok {
-		return &ValidationError{Name: "user_id", err: errors.New(`db: missing required field "user_id"`)}
+		return &ValidationError{Name: "user_id", err: errors.New(`db: missing required field "Password.user_id"`)}
 	}
 	if v, ok := pc.mutation.UserID(); ok {
 		if err := password.UserIDValidator(v); err != nil {
-			return &ValidationError{Name: "user_id", err: fmt.Errorf(`db: validator failed for field "user_id": %w`, err)}
+			return &ValidationError{Name: "user_id", err: fmt.Errorf(`db: validator failed for field "Password.user_id": %w`, err)}
 		}
 	}
 	return nil

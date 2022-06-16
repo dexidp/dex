@@ -127,39 +127,39 @@ func (drc *DeviceRequestCreate) ExecX(ctx context.Context) {
 // check runs all checks and user-defined validators on the builder.
 func (drc *DeviceRequestCreate) check() error {
 	if _, ok := drc.mutation.UserCode(); !ok {
-		return &ValidationError{Name: "user_code", err: errors.New(`db: missing required field "user_code"`)}
+		return &ValidationError{Name: "user_code", err: errors.New(`db: missing required field "DeviceRequest.user_code"`)}
 	}
 	if v, ok := drc.mutation.UserCode(); ok {
 		if err := devicerequest.UserCodeValidator(v); err != nil {
-			return &ValidationError{Name: "user_code", err: fmt.Errorf(`db: validator failed for field "user_code": %w`, err)}
+			return &ValidationError{Name: "user_code", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.user_code": %w`, err)}
 		}
 	}
 	if _, ok := drc.mutation.DeviceCode(); !ok {
-		return &ValidationError{Name: "device_code", err: errors.New(`db: missing required field "device_code"`)}
+		return &ValidationError{Name: "device_code", err: errors.New(`db: missing required field "DeviceRequest.device_code"`)}
 	}
 	if v, ok := drc.mutation.DeviceCode(); ok {
 		if err := devicerequest.DeviceCodeValidator(v); err != nil {
-			return &ValidationError{Name: "device_code", err: fmt.Errorf(`db: validator failed for field "device_code": %w`, err)}
+			return &ValidationError{Name: "device_code", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.device_code": %w`, err)}
 		}
 	}
 	if _, ok := drc.mutation.ClientID(); !ok {
-		return &ValidationError{Name: "client_id", err: errors.New(`db: missing required field "client_id"`)}
+		return &ValidationError{Name: "client_id", err: errors.New(`db: missing required field "DeviceRequest.client_id"`)}
 	}
 	if v, ok := drc.mutation.ClientID(); ok {
 		if err := devicerequest.ClientIDValidator(v); err != nil {
-			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "client_id": %w`, err)}
+			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.client_id": %w`, err)}
 		}
 	}
 	if _, ok := drc.mutation.ClientSecret(); !ok {
-		return &ValidationError{Name: "client_secret", err: errors.New(`db: missing required field "client_secret"`)}
+		return &ValidationError{Name: "client_secret", err: errors.New(`db: missing required field "DeviceRequest.client_secret"`)}
 	}
 	if v, ok := drc.mutation.ClientSecret(); ok {
 		if err := devicerequest.ClientSecretValidator(v); err != nil {
-			return &ValidationError{Name: "client_secret", err: fmt.Errorf(`db: validator failed for field "client_secret": %w`, err)}
+			return &ValidationError{Name: "client_secret", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.client_secret": %w`, err)}
 		}
 	}
 	if _, ok := drc.mutation.Expiry(); !ok {
-		return &ValidationError{Name: "expiry", err: errors.New(`db: missing required field "expiry"`)}
+		return &ValidationError{Name: "expiry", err: errors.New(`db: missing required field "DeviceRequest.expiry"`)}
 	}
 	return nil
 }

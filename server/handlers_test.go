@@ -254,6 +254,15 @@ func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
 
 	err = s.CreateConnector(c1)
 	require.NoError(t, err)
+
+	c2 := storage.Connector{
+		ID:   "http://any.valid.url/",
+		Type: "mock",
+		Name: "mockURLID",
+	}
+
+	err = s.CreateConnector(c2)
+	require.NoError(t, err)
 }
 
 func TestPasswordConnectorDataNotEmpty(t *testing.T) {

@@ -127,29 +127,29 @@ func (dtc *DeviceTokenCreate) ExecX(ctx context.Context) {
 // check runs all checks and user-defined validators on the builder.
 func (dtc *DeviceTokenCreate) check() error {
 	if _, ok := dtc.mutation.DeviceCode(); !ok {
-		return &ValidationError{Name: "device_code", err: errors.New(`db: missing required field "device_code"`)}
+		return &ValidationError{Name: "device_code", err: errors.New(`db: missing required field "DeviceToken.device_code"`)}
 	}
 	if v, ok := dtc.mutation.DeviceCode(); ok {
 		if err := devicetoken.DeviceCodeValidator(v); err != nil {
-			return &ValidationError{Name: "device_code", err: fmt.Errorf(`db: validator failed for field "device_code": %w`, err)}
+			return &ValidationError{Name: "device_code", err: fmt.Errorf(`db: validator failed for field "DeviceToken.device_code": %w`, err)}
 		}
 	}
 	if _, ok := dtc.mutation.Status(); !ok {
-		return &ValidationError{Name: "status", err: errors.New(`db: missing required field "status"`)}
+		return &ValidationError{Name: "status", err: errors.New(`db: missing required field "DeviceToken.status"`)}
 	}
 	if v, ok := dtc.mutation.Status(); ok {
 		if err := devicetoken.StatusValidator(v); err != nil {
-			return &ValidationError{Name: "status", err: fmt.Errorf(`db: validator failed for field "status": %w`, err)}
+			return &ValidationError{Name: "status", err: fmt.Errorf(`db: validator failed for field "DeviceToken.status": %w`, err)}
 		}
 	}
 	if _, ok := dtc.mutation.Expiry(); !ok {
-		return &ValidationError{Name: "expiry", err: errors.New(`db: missing required field "expiry"`)}
+		return &ValidationError{Name: "expiry", err: errors.New(`db: missing required field "DeviceToken.expiry"`)}
 	}
 	if _, ok := dtc.mutation.LastRequest(); !ok {
-		return &ValidationError{Name: "last_request", err: errors.New(`db: missing required field "last_request"`)}
+		return &ValidationError{Name: "last_request", err: errors.New(`db: missing required field "DeviceToken.last_request"`)}
 	}
 	if _, ok := dtc.mutation.PollInterval(); !ok {
-		return &ValidationError{Name: "poll_interval", err: errors.New(`db: missing required field "poll_interval"`)}
+		return &ValidationError{Name: "poll_interval", err: errors.New(`db: missing required field "DeviceToken.poll_interval"`)}
 	}
 	return nil
 }
