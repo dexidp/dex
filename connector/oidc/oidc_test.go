@@ -273,7 +273,23 @@ func TestHandleCallback(t *testing.T) {
 		},
 		{
 			name:                      "customGroupsString",
-			groupsKey:                 "cognito:groups",
+			groupsKey:                 "group",
+			expectUserID:              "subvalue",
+			expectUserName:            "namevalue",
+			expectedEmailField:        "emailvalue",
+			expectGroups:              []string{"group1"},
+			scopes:                    []string{"groups"},
+			insecureSkipEmailVerified: true,
+			token: map[string]interface{}{
+				"sub":       "subvalue",
+				"name":      "namevalue",
+				"user_name": "username",
+				"email":     "emailvalue",
+				"group":     "group1",
+			},
+		},
+		{
+			name:                      "groupsString",
 			expectUserID:              "subvalue",
 			expectUserName:            "namevalue",
 			expectedEmailField:        "emailvalue",
@@ -285,7 +301,7 @@ func TestHandleCallback(t *testing.T) {
 				"name":           "namevalue",
 				"user_name":      "username",
 				"email":          "emailvalue",
-				"cognito:groups": "group1",
+				"groups": "group1",
 			},
 		},
 	}

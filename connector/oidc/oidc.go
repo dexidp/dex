@@ -347,6 +347,11 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		s := ""
 		groupsKey := "groups"
 		vs, found := claims[groupsKey].([]interface{})
+
+		if !found {
+			s, found = claims[groupsKey].(string)
+		}
+
 		if (!found || c.overrideClaimMapping) && c.groupsKey != "" {
 			groupsKey = c.groupsKey
 			vs, found = claims[groupsKey].([]interface{})
