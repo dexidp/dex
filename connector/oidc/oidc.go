@@ -344,14 +344,22 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 
 	var groups []string
 	if c.insecureEnableGroups {
+		s := ""
 		groupsKey := "groups"
 		vs, found := claims[groupsKey].([]interface{})
 		if (!found || c.overrideClaimMapping) && c.groupsKey != "" {
 			groupsKey = c.groupsKey
 			vs, found = claims[groupsKey].([]interface{})
+
+			if !found {
+				s, found = claims[groupsKey].(string)
+			}
 		}
 
 		if found {
+			if s != "" {
+				groups = append(groups, s)
+			}
 			for _, v := range vs {
 				if s, ok := v.(string); ok {
 					groups = append(groups, s)
