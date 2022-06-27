@@ -64,6 +64,7 @@ frontend:
 # Configuration for telemetry
 telemetry:
   http: 0.0.0.0:5558
+  # enableProfiling: true
 
 # Uncomment this block to enable the gRPC API. This values MUST be different
 # from the HTTP endpoints.

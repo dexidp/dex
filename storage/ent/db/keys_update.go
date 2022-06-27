@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -280,7 +281,7 @@ func (kuo *KeysUpdateOne) sqlSave(ctx context.Context) (_node *Keys, err error) 
 	}
 	id, ok := kuo.mutation.ID()
 	if !ok {
-		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing Keys.ID for update")}
+		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "Keys.id" for update`)}
 	}
 	_spec.Node.ID.Value = id
 	if fields := kuo.fields; len(fields) > 0 {

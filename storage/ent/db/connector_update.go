@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"entgo.io/ent/dialect/sql"
@@ -119,12 +120,12 @@ func (cu *ConnectorUpdate) ExecX(ctx context.Context) {
 func (cu *ConnectorUpdate) check() error {
 	if v, ok := cu.mutation.GetType(); ok {
 		if err := connector.TypeValidator(v); err != nil {
-			return &ValidationError{Name: "type", err: fmt.Errorf("db: validator failed for field \"type\": %w", err)}
+			return &ValidationError{Name: "type", err: fmt.Errorf(`db: validator failed for field "Connector.type": %w`, err)}
 		}
 	}
 	if v, ok := cu.mutation.Name(); ok {
 		if err := connector.NameValidator(v); err != nil {
-			return &ValidationError{Name: "name", err: fmt.Errorf("db: validator failed for field \"name\": %w", err)}
+			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "Connector.name": %w`, err)}
 		}
 	}
 	return nil
@@ -295,12 +296,12 @@ func (cuo *ConnectorUpdateOne) ExecX(ctx context.Context) {
 func (cuo *ConnectorUpdateOne) check() error {
 	if v, ok := cuo.mutation.GetType(); ok {
 		if err := connector.TypeValidator(v); err != nil {
-			return &ValidationError{Name: "type", err: fmt.Errorf("db: validator failed for field \"type\": %w", err)}
+			return &ValidationError{Name: "type", err: fmt.Errorf(`db: validator failed for field "Connector.type": %w`, err)}
 		}
 	}
 	if v, ok := cuo.mutation.Name(); ok {
 		if err := connector.NameValidator(v); err != nil {
-			return &ValidationError{Name: "name", err: fmt.Errorf("db: validator failed for field \"name\": %w", err)}
+			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "Connector.name": %w`, err)}
 		}
 	}
 	return nil
@@ -319,7 +320,7 @@ func (cuo *ConnectorUpdateOne) sqlSave(ctx context.Context) (_node *Connector, e
 	}
 	id, ok := cuo.mutation.ID()
 	if !ok {
-		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing Connector.ID for update")}
+		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "Connector.id" for update`)}
 	}
 	_spec.Node.ID.Value = id
 	if fields := cuo.fields; len(fields) > 0 {

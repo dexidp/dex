@@ -215,20 +215,27 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		c.SupportedResponseTypes = []string{responseTypeCode}
 	}
 
+	supportedGrant := []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode} // default
 	supportedRes := make(map[string]bool)
+
 	for _, respType := range c.SupportedResponseTypes {
 		switch respType {
-		case responseTypeCode, responseTypeIDToken, responseTypeToken:
+		case responseTypeCode, responseTypeIDToken:
+			// continue
+		case responseTypeToken:
+			// response_type=token is an implicit flow, let's add it to the discovery info
+			// https://datatracker.ietf.org/doc/html/rfc6749#section-4.2.1
+			supportedGrant = append(supportedGrant, grantTypeImplicit)
 		default:
 			return nil, fmt.Errorf("unsupported response_type %q", respType)
 		}
 		supportedRes[respType] = true
 	}
 
-	supportedGrant := []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode} // default
 	if c.PasswordConnector != "" {
 		supportedGrant = append(supportedGrant, grantTypePassword)
 	}
+
 	sort.Strings(supportedGrant)
 
 	webFS := web.FS()
@@ -315,7 +322,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 	}
 
-	r := mux.NewRouter()
+	r := mux.NewRouter().SkipClean(true).UseEncodedPath()
 	handle := func(p string, h http.Handler) {
 		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, h))
 	}
