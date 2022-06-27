@@ -57,22 +57,23 @@ func createPassword(cli api.DexClient) error {
 	}
 
 	// Create password.
-	if resp, err := cli.CreatePassword(context.TODO(), createReq); err != nil || resp.AlreadyExists {
-		if resp.AlreadyExists {
-			return fmt.Errorf("Password %s already exists", createReq.Password.Email)
-		}
+	createResp, err := cli.CreatePassword(context.TODO(), createReq)
+	if err != nil {
 		return fmt.Errorf("failed to create password: %v", err)
+	}
+	if createResp.AlreadyExists {
+		return fmt.Errorf("Password %s already exists", createReq.Password.Email)
 	}
 	log.Printf("Created password with email %s", createReq.Password.Email)
 
 	// List all passwords.
-	resp, err := cli.ListPasswords(context.TODO(), &api.ListPasswordReq{})
+	listResp, err := cli.ListPasswords(context.TODO(), &api.ListPasswordReq{})
 	if err != nil {
 		return fmt.Errorf("failed to list password: %v", err)
 	}
 
 	log.Print("Listing Passwords:\n")
-	for _, pass := range resp.Passwords {
+	for _, pass := range listResp.Passwords {
 		log.Printf("%+v", pass)
 	}
 
@@ -105,7 +106,7 @@ func createPassword(cli api.DexClient) error {
 	log.Printf("properly failed to verify incorrect password: %t\n", badVerifyResp.Verified)
 
 	log.Print("Listing Passwords:\n")
-	for _, pass := range resp.Passwords {
+	for _, pass := range listResp.Passwords {
 		log.Printf("%+v", pass)
 	}
 
@@ -114,11 +115,12 @@ func createPassword(cli api.DexClient) error {
 	}
 
 	// Delete password with email = test@example.com.
-	if resp, err := cli.DeletePassword(context.TODO(), deleteReq); err != nil || resp.NotFound {
-		if resp.NotFound {
-			return fmt.Errorf("Password %s not found", deleteReq.Email)
-		}
+	deleteResp, err := cli.DeletePassword(context.TODO(), deleteReq)
+	if err != nil {
 		return fmt.Errorf("failed to delete password: %v", err)
+	}
+	if deleteResp.NotFound {
+		return fmt.Errorf("Password %s not found", deleteReq.Email)
 	}
 	log.Printf("Deleted password with email %s", deleteReq.Email)
 

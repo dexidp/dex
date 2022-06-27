@@ -8,16 +8,10 @@ Before running the client or the server, TLS credentials have to be setup for se
 
 ```
 # Used to set certificate subject alt names.
-export SAN=IP.1:127.0.0.1
+export CFSSL_HOSTS='["127.0.0.1", "192.168.99.1"]'
 
 # Run the script
 ./examples/grpc-client/cert-gen
-```
-To verify that the server and client certificates were signed by the CA, run the following commands:
-
-```
-openssl verify -CAfile ca.crt server.crt
-openssl verify -CAfile ca.crt client.crt
 ```
 
 ## Running the Dex server
