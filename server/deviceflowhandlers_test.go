@@ -384,10 +384,10 @@ func TestDeviceTokenResponse(t *testing.T) {
 
 	// Base PKCE values
 	// base64-urlencoded, sha256 digest of code_verifier
-	code_challenge := "L7ZqsT_zNwvrH8E7J0CqPHx1wgBaFiaE-fAZcKUUAbc"
-	code_challenge_method := "S256"
+	codeChallenge := "L7ZqsT_zNwvrH8E7J0CqPHx1wgBaFiaE-fAZcKUUAbc"
+	codeChallengeMethod := "S256"
 	// "random" string between 43 & 128 ASCII characters
-	code_verifier := "66114650f56cc45dee7ee03c49f048ddf9aa53cbf5b09985832fa4f790ff2604"
+	codeVerifier := "66114650f56cc45dee7ee03c49f048ddf9aa53cbf5b09985832fa4f790ff2604"
 
 	baseDeviceRequest := storage.DeviceRequest{
 		UserCode:   "ABCD-WXYZ",
@@ -523,12 +523,12 @@ func TestDeviceTokenResponse(t *testing.T) {
 				LastRequestTime:     time.Time{},
 				PollIntervalSeconds: 0,
 				PKCE: storage.PKCE{
-					CodeChallenge:       code_challenge,
-					CodeChallengeMethod: code_challenge_method,
+					CodeChallenge:       codeChallenge,
+					CodeChallengeMethod: codeChallengeMethod,
 				},
 			},
 			testDeviceCode:         "foo",
-			testCodeVerifier:       code_verifier,
+			testCodeVerifier:       codeVerifier,
 			testDeviceRequest:      baseDeviceRequest,
 			expectedServerResponse: "{\"access_token\": \"foobar\"}",
 			expectedResponseCode:   http.StatusOK,
@@ -543,8 +543,8 @@ func TestDeviceTokenResponse(t *testing.T) {
 				LastRequestTime:     time.Time{},
 				PollIntervalSeconds: 0,
 				PKCE: storage.PKCE{
-					CodeChallenge:       code_challenge,
-					CodeChallengeMethod: code_challenge_method,
+					CodeChallenge:       codeChallenge,
+					CodeChallengeMethod: codeChallengeMethod,
 				},
 			},
 			testDeviceCode:         "foo",
@@ -563,7 +563,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 				PollIntervalSeconds: 0,
 			},
 			testDeviceCode:         "foo",
-			testCodeVerifier:       code_verifier,
+			testCodeVerifier:       codeVerifier,
 			testDeviceRequest:      baseDeviceRequest,
 			expectedServerResponse: errInvalidRequest,
 			expectedResponseCode:   http.StatusBadRequest,
@@ -578,8 +578,8 @@ func TestDeviceTokenResponse(t *testing.T) {
 				LastRequestTime:     time.Time{},
 				PollIntervalSeconds: 0,
 				PKCE: storage.PKCE{
-					CodeChallenge:       code_challenge,
-					CodeChallengeMethod: code_challenge_method,
+					CodeChallenge:       codeChallenge,
+					CodeChallengeMethod: codeChallengeMethod,
 				},
 			},
 			testDeviceCode:         "foo",
@@ -599,11 +599,11 @@ func TestDeviceTokenResponse(t *testing.T) {
 				PollIntervalSeconds: 0,
 				PKCE: storage.PKCE{
 					CodeChallenge:       "invalid",
-					CodeChallengeMethod: code_challenge_method,
+					CodeChallengeMethod: codeChallengeMethod,
 				},
 			},
 			testDeviceCode:         "foo",
-			testCodeVerifier:       code_verifier,
+			testCodeVerifier:       codeVerifier,
 			testDeviceRequest:      baseDeviceRequest,
 			expectedServerResponse: errInvalidGrant,
 			expectedResponseCode:   http.StatusBadRequest,
