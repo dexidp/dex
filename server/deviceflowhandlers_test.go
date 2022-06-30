@@ -167,12 +167,13 @@ func TestDeviceCallback(t *testing.T) {
 	}
 
 	tests := []struct {
-		testName             string
-		expectedResponseCode int
-		values               formValues
-		testAuthCode         storage.AuthCode
-		testDeviceRequest    storage.DeviceRequest
-		testDeviceToken      storage.DeviceToken
+		testName               string
+		expectedResponseCode   int
+		expectedServerResponse string
+		values                 formValues
+		testAuthCode           storage.AuthCode
+		testDeviceRequest      storage.DeviceRequest
+		testDeviceToken        storage.DeviceToken
 	}{
 		{
 			testName: "Missing State",
@@ -199,7 +200,8 @@ func TestDeviceCallback(t *testing.T) {
 				code:  "somecode",
 				error: "Error Condition",
 			},
-			expectedResponseCode: http.StatusBadRequest,
+			expectedResponseCode:   http.StatusBadRequest,
+			expectedServerResponse: "Error Condition: \n",
 		},
 		{
 			testName: "Expired Auth Code",
@@ -321,6 +323,16 @@ func TestDeviceCallback(t *testing.T) {
 			testDeviceToken:      baseDeviceToken,
 			expectedResponseCode: http.StatusOK,
 		},
+		{
+			testName: "Prevent cross-site scripting",
+			values: formValues{
+				state: "XXXX-XXXX",
+				code:  "somecode",
+				error: "<script>console.log(window);</script>",
+			},
+			expectedResponseCode:   http.StatusBadRequest,
+			expectedServerResponse: "&lt;script&gt;console.log(window);&lt;/script&gt;: \n",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.testName, func(t *testing.T) {
@@ -372,6 +384,13 @@ func TestDeviceCallback(t *testing.T) {
 			s.ServeHTTP(rr, req)
 			if rr.Code != tc.expectedResponseCode {
 				t.Errorf("%s: Unexpected Response Type.  Expected %v got %v", tc.testName, tc.expectedResponseCode, rr.Code)
+			}
+
+			if len(tc.expectedServerResponse) > 0 {
+				result, _ := io.ReadAll(rr.Body)
+				if string(result) != tc.expectedServerResponse {
+					t.Errorf("%s: Unexpected Response.  Expected %q got %q", tc.testName, tc.expectedServerResponse, result)
+				}
 			}
 		})
 	}
