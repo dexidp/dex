@@ -43,16 +43,17 @@ var (
 
 // Config holds configuration options for github logins.
 type Config struct {
-	ClientID      string `json:"clientID"`
-	ClientSecret  string `json:"clientSecret"`
-	RedirectURI   string `json:"redirectURI"`
-	Org           string `json:"org"`
-	Orgs          []Org  `json:"orgs"`
-	HostName      string `json:"hostName"`
-	RootCA        string `json:"rootCA"`
-	TeamNameField string `json:"teamNameField"`
-	LoadAllGroups bool   `json:"loadAllGroups"`
-	UseLoginAsID  bool   `json:"useLoginAsID"`
+	ClientID         string `json:"clientID"`
+	ClientSecret     string `json:"clientSecret"`
+	RedirectURI      string `json:"redirectURI"`
+	Org              string `json:"org"`
+	Orgs             []Org  `json:"orgs"`
+	HostName         string `json:"hostName"`
+	RootCA           string `json:"rootCA"`
+	TeamNameField    string `json:"teamNameField"`
+	LoadAllGroups    bool   `json:"loadAllGroups"`
+	UseLoginAsID     bool   `json:"useLoginAsID"`
+	EmailToLowercase bool   `json:"emailToLowercase"`
 }
 
 // Org holds org-team filters, in which teams are optional.
@@ -79,14 +80,15 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 	}
 
 	g := githubConnector{
-		redirectURI:  c.RedirectURI,
-		org:          c.Org,
-		orgs:         c.Orgs,
-		clientID:     c.ClientID,
-		clientSecret: c.ClientSecret,
-		apiURL:       apiURL,
-		logger:       logger,
-		useLoginAsID: c.UseLoginAsID,
+		redirectURI:  	  c.RedirectURI,
+		org:          	  c.Org,
+		orgs:         	  c.Orgs,
+		clientID:     	  c.ClientID,
+		clientSecret: 	  c.ClientSecret,
+		apiURL:       	  apiURL,
+		logger:       	  logger,
+		useLoginAsID: 	  c.UseLoginAsID,
+		emailToLowercase: c.EmailToLowercase,
 	}
 
 	if c.HostName != "" {
@@ -153,6 +155,8 @@ type githubConnector struct {
 	loadAllGroups bool
 	// if set to true will use the user's handle rather than their numeric id as the ID
 	useLoginAsID bool
+	// if set to true will cast the user's email received from GitHub to lowercase
+	emailToLowercase bool
 }
 
 // groupsRequired returns whether dex requires GitHub's 'read:org' scope. Dex
@@ -262,6 +266,10 @@ func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 		return identity, fmt.Errorf("github: get user: %v", err)
 	}
 
+     if c.emailToLowercase {
+		user.Email = strings.ToLower(user.Email)
+	}
+     
 	username := user.Name
 	if username == "" {
 		username = user.Login
