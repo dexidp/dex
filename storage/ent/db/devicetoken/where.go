@@ -134,6 +134,20 @@ func PollInterval(v int) predicate.DeviceToken {
 	})
 }
 
+// CodeChallenge applies equality check predicate on the "code_challenge" field. It's identical to CodeChallengeEQ.
+func CodeChallenge(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.EQ(s.C(FieldCodeChallenge), v))
+	})
+}
+
+// CodeChallengeMethod applies equality check predicate on the "code_challenge_method" field. It's identical to CodeChallengeMethodEQ.
+func CodeChallengeMethod(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.EQ(s.C(FieldCodeChallengeMethod), v))
+	})
+}
+
 // DeviceCodeEQ applies the EQ predicate on the "device_code" field.
 func DeviceCodeEQ(v string) predicate.DeviceToken {
 	return predicate.DeviceToken(func(s *sql.Selector) {
@@ -671,6 +685,228 @@ func PollIntervalLT(v int) predicate.DeviceToken {
 func PollIntervalLTE(v int) predicate.DeviceToken {
 	return predicate.DeviceToken(func(s *sql.Selector) {
 		s.Where(sql.LTE(s.C(FieldPollInterval), v))
+	})
+}
+
+// CodeChallengeEQ applies the EQ predicate on the "code_challenge" field.
+func CodeChallengeEQ(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.EQ(s.C(FieldCodeChallenge), v))
+	})
+}
+
+// CodeChallengeNEQ applies the NEQ predicate on the "code_challenge" field.
+func CodeChallengeNEQ(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.NEQ(s.C(FieldCodeChallenge), v))
+	})
+}
+
+// CodeChallengeIn applies the In predicate on the "code_challenge" field.
+func CodeChallengeIn(vs ...string) predicate.DeviceToken {
+	v := make([]interface{}, len(vs))
+	for i := range v {
+		v[i] = vs[i]
+	}
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		// if not arguments were provided, append the FALSE constants,
+		// since we can't apply "IN ()". This will make this predicate falsy.
+		if len(v) == 0 {
+			s.Where(sql.False())
+			return
+		}
+		s.Where(sql.In(s.C(FieldCodeChallenge), v...))
+	})
+}
+
+// CodeChallengeNotIn applies the NotIn predicate on the "code_challenge" field.
+func CodeChallengeNotIn(vs ...string) predicate.DeviceToken {
+	v := make([]interface{}, len(vs))
+	for i := range v {
+		v[i] = vs[i]
+	}
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		// if not arguments were provided, append the FALSE constants,
+		// since we can't apply "IN ()". This will make this predicate falsy.
+		if len(v) == 0 {
+			s.Where(sql.False())
+			return
+		}
+		s.Where(sql.NotIn(s.C(FieldCodeChallenge), v...))
+	})
+}
+
+// CodeChallengeGT applies the GT predicate on the "code_challenge" field.
+func CodeChallengeGT(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.GT(s.C(FieldCodeChallenge), v))
+	})
+}
+
+// CodeChallengeGTE applies the GTE predicate on the "code_challenge" field.
+func CodeChallengeGTE(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.GTE(s.C(FieldCodeChallenge), v))
+	})
+}
+
+// CodeChallengeLT applies the LT predicate on the "code_challenge" field.
+func CodeChallengeLT(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.LT(s.C(FieldCodeChallenge), v))
+	})
+}
+
+// CodeChallengeLTE applies the LTE predicate on the "code_challenge" field.
+func CodeChallengeLTE(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.LTE(s.C(FieldCodeChallenge), v))
+	})
+}
+
+// CodeChallengeContains applies the Contains predicate on the "code_challenge" field.
+func CodeChallengeContains(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.Contains(s.C(FieldCodeChallenge), v))
+	})
+}
+
+// CodeChallengeHasPrefix applies the HasPrefix predicate on the "code_challenge" field.
+func CodeChallengeHasPrefix(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.HasPrefix(s.C(FieldCodeChallenge), v))
+	})
+}
+
+// CodeChallengeHasSuffix applies the HasSuffix predicate on the "code_challenge" field.
+func CodeChallengeHasSuffix(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.HasSuffix(s.C(FieldCodeChallenge), v))
+	})
+}
+
+// CodeChallengeEqualFold applies the EqualFold predicate on the "code_challenge" field.
+func CodeChallengeEqualFold(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.EqualFold(s.C(FieldCodeChallenge), v))
+	})
+}
+
+// CodeChallengeContainsFold applies the ContainsFold predicate on the "code_challenge" field.
+func CodeChallengeContainsFold(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.ContainsFold(s.C(FieldCodeChallenge), v))
+	})
+}
+
+// CodeChallengeMethodEQ applies the EQ predicate on the "code_challenge_method" field.
+func CodeChallengeMethodEQ(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.EQ(s.C(FieldCodeChallengeMethod), v))
+	})
+}
+
+// CodeChallengeMethodNEQ applies the NEQ predicate on the "code_challenge_method" field.
+func CodeChallengeMethodNEQ(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.NEQ(s.C(FieldCodeChallengeMethod), v))
+	})
+}
+
+// CodeChallengeMethodIn applies the In predicate on the "code_challenge_method" field.
+func CodeChallengeMethodIn(vs ...string) predicate.DeviceToken {
+	v := make([]interface{}, len(vs))
+	for i := range v {
+		v[i] = vs[i]
+	}
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		// if not arguments were provided, append the FALSE constants,
+		// since we can't apply "IN ()". This will make this predicate falsy.
+		if len(v) == 0 {
+			s.Where(sql.False())
+			return
+		}
+		s.Where(sql.In(s.C(FieldCodeChallengeMethod), v...))
+	})
+}
+
+// CodeChallengeMethodNotIn applies the NotIn predicate on the "code_challenge_method" field.
+func CodeChallengeMethodNotIn(vs ...string) predicate.DeviceToken {
+	v := make([]interface{}, len(vs))
+	for i := range v {
+		v[i] = vs[i]
+	}
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		// if not arguments were provided, append the FALSE constants,
+		// since we can't apply "IN ()". This will make this predicate falsy.
+		if len(v) == 0 {
+			s.Where(sql.False())
+			return
+		}
+		s.Where(sql.NotIn(s.C(FieldCodeChallengeMethod), v...))
+	})
+}
+
+// CodeChallengeMethodGT applies the GT predicate on the "code_challenge_method" field.
+func CodeChallengeMethodGT(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.GT(s.C(FieldCodeChallengeMethod), v))
+	})
+}
+
+// CodeChallengeMethodGTE applies the GTE predicate on the "code_challenge_method" field.
+func CodeChallengeMethodGTE(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.GTE(s.C(FieldCodeChallengeMethod), v))
+	})
+}
+
+// CodeChallengeMethodLT applies the LT predicate on the "code_challenge_method" field.
+func CodeChallengeMethodLT(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.LT(s.C(FieldCodeChallengeMethod), v))
+	})
+}
+
+// CodeChallengeMethodLTE applies the LTE predicate on the "code_challenge_method" field.
+func CodeChallengeMethodLTE(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.LTE(s.C(FieldCodeChallengeMethod), v))
+	})
+}
+
+// CodeChallengeMethodContains applies the Contains predicate on the "code_challenge_method" field.
+func CodeChallengeMethodContains(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.Contains(s.C(FieldCodeChallengeMethod), v))
+	})
+}
+
+// CodeChallengeMethodHasPrefix applies the HasPrefix predicate on the "code_challenge_method" field.
+func CodeChallengeMethodHasPrefix(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.HasPrefix(s.C(FieldCodeChallengeMethod), v))
+	})
+}
+
+// CodeChallengeMethodHasSuffix applies the HasSuffix predicate on the "code_challenge_method" field.
+func CodeChallengeMethodHasSuffix(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.HasSuffix(s.C(FieldCodeChallengeMethod), v))
+	})
+}
+
+// CodeChallengeMethodEqualFold applies the EqualFold predicate on the "code_challenge_method" field.
+func CodeChallengeMethodEqualFold(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.EqualFold(s.C(FieldCodeChallengeMethod), v))
+	})
+}
+
+// CodeChallengeMethodContainsFold applies the ContainsFold predicate on the "code_challenge_method" field.
+func CodeChallengeMethodContainsFold(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(func(s *sql.Selector) {
+		s.Where(sql.ContainsFold(s.C(FieldCodeChallengeMethod), v))
 	})
 }
 

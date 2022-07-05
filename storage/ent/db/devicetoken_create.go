@@ -56,6 +56,34 @@ func (dtc *DeviceTokenCreate) SetPollInterval(i int) *DeviceTokenCreate {
 	return dtc
 }
 
+// SetCodeChallenge sets the "code_challenge" field.
+func (dtc *DeviceTokenCreate) SetCodeChallenge(s string) *DeviceTokenCreate {
+	dtc.mutation.SetCodeChallenge(s)
+	return dtc
+}
+
+// SetNillableCodeChallenge sets the "code_challenge" field if the given value is not nil.
+func (dtc *DeviceTokenCreate) SetNillableCodeChallenge(s *string) *DeviceTokenCreate {
+	if s != nil {
+		dtc.SetCodeChallenge(*s)
+	}
+	return dtc
+}
+
+// SetCodeChallengeMethod sets the "code_challenge_method" field.
+func (dtc *DeviceTokenCreate) SetCodeChallengeMethod(s string) *DeviceTokenCreate {
+	dtc.mutation.SetCodeChallengeMethod(s)
+	return dtc
+}
+
+// SetNillableCodeChallengeMethod sets the "code_challenge_method" field if the given value is not nil.
+func (dtc *DeviceTokenCreate) SetNillableCodeChallengeMethod(s *string) *DeviceTokenCreate {
+	if s != nil {
+		dtc.SetCodeChallengeMethod(*s)
+	}
+	return dtc
+}
+
 // Mutation returns the DeviceTokenMutation object of the builder.
 func (dtc *DeviceTokenCreate) Mutation() *DeviceTokenMutation {
 	return dtc.mutation
@@ -67,6 +95,7 @@ func (dtc *DeviceTokenCreate) Save(ctx context.Context) (*DeviceToken, error) {
 		err  error
 		node *DeviceToken
 	)
+	dtc.defaults()
 	if len(dtc.hooks) == 0 {
 		if err = dtc.check(); err != nil {
 			return nil, err
@@ -124,6 +153,18 @@ func (dtc *DeviceTokenCreate) ExecX(ctx context.Context) {
 	}
 }
 
+// defaults sets the default values of the builder before save.
+func (dtc *DeviceTokenCreate) defaults() {
+	if _, ok := dtc.mutation.CodeChallenge(); !ok {
+		v := devicetoken.DefaultCodeChallenge
+		dtc.mutation.SetCodeChallenge(v)
+	}
+	if _, ok := dtc.mutation.CodeChallengeMethod(); !ok {
+		v := devicetoken.DefaultCodeChallengeMethod
+		dtc.mutation.SetCodeChallengeMethod(v)
+	}
+}
+
 // check runs all checks and user-defined validators on the builder.
 func (dtc *DeviceTokenCreate) check() error {
 	if _, ok := dtc.mutation.DeviceCode(); !ok {
@@ -150,6 +191,12 @@ func (dtc *DeviceTokenCreate) check() error {
 	}
 	if _, ok := dtc.mutation.PollInterval(); !ok {
 		return &ValidationError{Name: "poll_interval", err: errors.New(`db: missing required field "DeviceToken.poll_interval"`)}
+	}
+	if _, ok := dtc.mutation.CodeChallenge(); !ok {
+		return &ValidationError{Name: "code_challenge", err: errors.New(`db: missing required field "DeviceToken.code_challenge"`)}
+	}
+	if _, ok := dtc.mutation.CodeChallengeMethod(); !ok {
+		return &ValidationError{Name: "code_challenge_method", err: errors.New(`db: missing required field "DeviceToken.code_challenge_method"`)}
 	}
 	return nil
 }
@@ -226,6 +273,22 @@ func (dtc *DeviceTokenCreate) createSpec() (*DeviceToken, *sqlgraph.CreateSpec) 
 		})
 		_node.PollInterval = value
 	}
+	if value, ok := dtc.mutation.CodeChallenge(); ok {
+		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
+			Type:   field.TypeString,
+			Value:  value,
+			Column: devicetoken.FieldCodeChallenge,
+		})
+		_node.CodeChallenge = value
+	}
+	if value, ok := dtc.mutation.CodeChallengeMethod(); ok {
+		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
+			Type:   field.TypeString,
+			Value:  value,
+			Column: devicetoken.FieldCodeChallengeMethod,
+		})
+		_node.CodeChallengeMethod = value
+	}
 	return _node, _spec
 }
 
@@ -243,6 +306,7 @@ func (dtcb *DeviceTokenCreateBulk) Save(ctx context.Context) ([]*DeviceToken, er
 	for i := range dtcb.builders {
 		func(i int, root context.Context) {
 			builder := dtcb.builders[i]
+			builder.defaults()
 			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 				mutation, ok := m.(*DeviceTokenMutation)
 				if !ok {
