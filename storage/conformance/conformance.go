@@ -104,7 +104,8 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 			EmailVerified: true,
 			Groups:        []string{"a", "b"},
 		},
-		PKCE: codeChallenge,
+		PKCE:    codeChallenge,
+		HMACKey: []byte("hmac_key"),
 	}
 
 	identity := storage.Claims{Email: "foobar"}
@@ -137,6 +138,7 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 			EmailVerified: true,
 			Groups:        []string{"a"},
 		},
+		HMACKey: []byte("hmac_key"),
 	}
 
 	if err := s.CreateAuthRequest(a2); err != nil {
@@ -817,6 +819,7 @@ func testGC(t *testing.T, s storage.Storage) {
 			EmailVerified: true,
 			Groups:        []string{"a", "b"},
 		},
+		HMACKey: []byte("hmac_key"),
 	}
 
 	if err := s.CreateAuthRequest(a); err != nil {

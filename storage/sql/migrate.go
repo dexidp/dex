@@ -281,4 +281,11 @@ var migrations = []migration{
 				add column obsolete_token text default '';`,
 		},
 	},
+	{
+		stmts: []string{
+			`
+			alter table auth_request
+				add column hmac_key bytea;`,
+		},
+	},
 }

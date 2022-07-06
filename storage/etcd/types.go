@@ -84,6 +84,8 @@ type AuthRequest struct {
 
 	CodeChallenge       string `json:"code_challenge,omitempty"`
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
+
+	HMACKey []byte `json:"hmac_key"`
 }
 
 func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
@@ -103,6 +105,7 @@ func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		ConnectorData:       a.ConnectorData,
 		CodeChallenge:       a.PKCE.CodeChallenge,
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
+		HMACKey:             a.HMACKey,
 	}
 }
 
@@ -125,6 +128,7 @@ func toStorageAuthRequest(a AuthRequest) storage.AuthRequest {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
+		HMACKey: a.HMACKey,
 	}
 }
 

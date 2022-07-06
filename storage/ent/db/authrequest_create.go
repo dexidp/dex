@@ -158,6 +158,12 @@ func (arc *AuthRequestCreate) SetNillableCodeChallengeMethod(s *string) *AuthReq
 	return arc
 }
 
+// SetHmacKey sets the "hmac_key" field.
+func (arc *AuthRequestCreate) SetHmacKey(b []byte) *AuthRequestCreate {
+	arc.mutation.SetHmacKey(b)
+	return arc
+}
+
 // SetID sets the "id" field.
 func (arc *AuthRequestCreate) SetID(s string) *AuthRequestCreate {
 	arc.mutation.SetID(s)
@@ -295,6 +301,9 @@ func (arc *AuthRequestCreate) check() error {
 	}
 	if _, ok := arc.mutation.CodeChallengeMethod(); !ok {
 		return &ValidationError{Name: "code_challenge_method", err: errors.New(`db: missing required field "AuthRequest.code_challenge_method"`)}
+	}
+	if _, ok := arc.mutation.HmacKey(); !ok {
+		return &ValidationError{Name: "hmac_key", err: errors.New(`db: missing required field "AuthRequest.hmac_key"`)}
 	}
 	if v, ok := arc.mutation.ID(); ok {
 		if err := authrequest.IDValidator(v); err != nil {
@@ -488,6 +497,14 @@ func (arc *AuthRequestCreate) createSpec() (*AuthRequest, *sqlgraph.CreateSpec) 
 			Column: authrequest.FieldCodeChallengeMethod,
 		})
 		_node.CodeChallengeMethod = value
+	}
+	if value, ok := arc.mutation.HmacKey(); ok {
+		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
+			Type:   field.TypeBytes,
+			Value:  value,
+			Column: authrequest.FieldHmacKey,
+		})
+		_node.HmacKey = value
 	}
 	return _node, _spec
 }
