@@ -67,8 +67,8 @@ func TestMongo(t *testing.T) {
 		s := &Mongo{
 			URI:                   uri,
 			Database:              "oidc",
-			ConnectionTimeout:     time.Second * 200,
-			DatabaseTimeout:       time.Second * 200,
+			ConnectionTimeout:     time.Second * 2,
+			DatabaseTimeout:       time.Second * 2,
 			UseGCInsteadOfIndexes: true,
 		}
 		conn, err := s.open(logger)
