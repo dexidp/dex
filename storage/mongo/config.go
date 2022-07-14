@@ -2,9 +2,9 @@ package mongo
 
 import (
 	"context"
-	"log"
 	"time"
 
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -14,11 +14,12 @@ import (
 )
 
 type Mongo struct {
-	URI                   string        `json:"uri" yaml:"uri"`
-	Database              string        `json:"database" yaml:"database"`
-	ConnectionTimeout     time.Duration `json:"connection_timeout" yaml:"connection_timeout"`
-	DatabaseTimeout       time.Duration `json:"database_timeout" yaml:"database_timeout"`
-	UseGCInsteadOfIndexes bool          `json:"not_set_expire_index" yaml:"not_set_expire_index"`
+	URI               string        `json:"uri" yaml:"uri"`
+	Database          string        `json:"database" yaml:"database"`
+	ConnectionTimeout time.Duration `json:"connection_timeout" yaml:"connection_timeout"`
+	DatabaseTimeout   time.Duration `json:"database_timeout" yaml:"database_timeout"`
+	//HACK: config to use manual GC instead of mongodb TTL indexes
+	UseGCInsteadOfIndexes bool `json:"not_set_expire_index" yaml:"not_set_expire_index"`
 }
 
 func (p *Mongo) Open(logger log.Logger) (storage.Storage, error) {
