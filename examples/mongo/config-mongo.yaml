@@ -16,9 +16,9 @@ storage:
     uri: mongodb://localhost:27021/oidc?directConnection=true
     database: oidc
     # 2s
-    connection_timeout: 200000
+    connection_timeout: 2000000000
     # 2s
-    database_timeout: 2000000
+    database_timeout: 20000000000
 
 # Configuration for the HTTP endpoints.
 web:
