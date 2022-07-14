@@ -87,6 +87,9 @@ func (p *Mongo) open(logger log.Logger) (*mongoStorage, error) {
 	if err := c.initOfflineSessionCollection(ctx); err != nil {
 		return nil, errors.Wrap(err, "unable to initialize offline session collection")
 	}
+	if err := c.initConnectorCollection(ctx); err != nil {
+		return nil, errors.Wrap(err, "unable to initialize connector collection")
+	}
 
 	return c, nil
 }
