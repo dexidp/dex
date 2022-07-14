@@ -12,11 +12,16 @@ func (c *mongoStorage) authReqCollection() *Collection {
 	return &Collection{c.database.Collection("auth_request")}
 }
 
-func getUniqueIndex(key string) mongo.IndexModel {
+func getUniqueIndex(keys ...string) mongo.IndexModel {
 	index := mongo.IndexModel{
-		Keys:    bsonx.Doc{{Key: key, Value: bsonx.Int32(1)}},
+		Keys:    bsonx.Doc{},
 		Options: &options.IndexOptions{},
 	}
+	indexKeys := bsonx.Doc{}
+	for _, key := range keys {
+		indexKeys = indexKeys.Append(key, bsonx.Int32(1))
+	}
+	index.Keys = indexKeys
 
 	index.Options.SetUnique(true)
 
@@ -91,18 +96,23 @@ func (c *mongoStorage) offlineSessionCollection() *Collection {
 }
 
 func (c *mongoStorage) initOfflineSessionCollection(ctx context.Context) error {
-	indexUserConnUnique := mongo.IndexModel{
-		Keys:    bsonx.Doc{{Key: "user_id", Value: bsonx.Int32(1)}, {Key: "conn_id", Value: bsonx.Int32(1)}},
-		Options: &options.IndexOptions{},
-	}
+	indexes := []mongo.IndexModel{}
 
-	indexUserConnUnique.Options.SetUnique(true)
+	indexes = append(indexes, getUniqueIndex("user_id", "conn_id"))
 
-	return c.offlineSessionCollection().CreateIndexes(ctx, indexUserConnUnique)
+	return c.offlineSessionCollection().CreateIndexes(ctx, indexes...)
 }
 
 func (c *mongoStorage) connectorCollection() *Collection {
 	return &Collection{c.database.Collection("connector")}
+}
+
+func (c *mongoStorage) initConnectorCollection(ctx context.Context) error {
+	indexes := []mongo.IndexModel{}
+
+	indexes = append(indexes, getUniqueIndex("id"))
+
+	return c.connectorCollection().CreateIndexes(ctx, indexes...)
 }
 
 func (c *mongoStorage) keysCollection() *Collection {
@@ -116,14 +126,7 @@ func (c *mongoStorage) deviceRequestCollection() *Collection {
 func (c *mongoStorage) initDeviceRequestCollection(ctx context.Context) error {
 	indexes := []mongo.IndexModel{}
 
-	indexUserDeviceCodeUnique := mongo.IndexModel{
-		Keys:    bsonx.Doc{{Key: "user_code", Value: bsonx.Int32(1)}, {Key: "device_code", Value: bsonx.Int32(1)}},
-		Options: &options.IndexOptions{},
-	}
-
-	indexUserDeviceCodeUnique.Options.SetUnique(true)
-
-	indexes = append(indexes, indexUserDeviceCodeUnique)
+	indexes = append(indexes, getUniqueIndex("user_code", "device_code"))
 
 	if !c.config.UseGCInsteadOfIndexes {
 		indexes = append(indexes, getExpirationIndex("expiry", 0))

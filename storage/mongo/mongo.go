@@ -19,9 +19,9 @@ var (
 	filterMatchID = func(id string) bson.D {
 		return bson.D{{Key: "id", Value: id}}
 	}
-	filterMatch_ID = func(id string) bson.D { //nolint:golint,stylecheck // The underscore is needed to distinguish between mongo and DEX id format
-		return bson.D{{Key: "_id", Value: id}}
-	}
+	// filterMatch_ID = func(id string) bson.D { //nolint:golint,stylecheck // The underscore is needed to distinguish between mongo and DEX id format
+	// 	return bson.D{{Key: "_id", Value: id}}
+	// }
 	filterMatchEmail = func(email string) bson.D {
 		return bson.D{{Key: "email", Value: email}}
 	}
@@ -184,8 +184,6 @@ func (c *mongoStorage) CreateAuthCode(a storage.AuthCode) error {
 	defer cancel()
 
 	authCode := fromStorageAuthCode(a)
-
-	c.logger.Debug("[mongo.go] CreateAuthCode: ", authCode)
 
 	return c.session.Operate(ctx, func(ctx context.Context) error {
 		return c.authCodeCollection().Insert(ctx, authCode)
@@ -526,7 +524,7 @@ func (c *mongoStorage) GetConnector(id string) (storage.Connector, error) {
 	var storageConnector storage.Connector
 
 	if err := c.session.Operate(ctx, func(ctx context.Context) error {
-		return c.connectorCollection().FindOne(ctx, &storageConnector, filterMatch_ID(id))
+		return c.connectorCollection().FindOne(ctx, &storageConnector, filterMatchID(id))
 	}); err != nil {
 		return storage.Connector{}, err
 	}
@@ -541,7 +539,7 @@ func (c *mongoStorage) UpdateConnector(id string, updater func(s storage.Connect
 	return c.session.Operate(ctx, func(ctx context.Context) error {
 		var currentStorageConnector storage.Connector
 
-		err := c.connectorCollection().FindOne(ctx, &currentStorageConnector, filterMatch_ID(id))
+		err := c.connectorCollection().FindOne(ctx, &currentStorageConnector, filterMatchID(id))
 		if err != nil {
 			return err
 		}
@@ -551,7 +549,7 @@ func (c *mongoStorage) UpdateConnector(id string, updater func(s storage.Connect
 			return err
 		}
 
-		if err := c.connectorCollection().ReplaceOne(ctx, filterMatch_ID(id), updated); err != nil {
+		if err := c.connectorCollection().ReplaceOne(ctx, filterMatchID(id), updated); err != nil {
 			return err
 		}
 
@@ -564,7 +562,7 @@ func (c *mongoStorage) DeleteConnector(id string) error {
 	defer cancel()
 
 	return c.session.Operate(ctx, func(ctx context.Context) error {
-		return c.connectorCollection().DeleteOne(ctx, filterMatch_ID(id))
+		return c.connectorCollection().DeleteOne(ctx, filterMatchID(id))
 	})
 }
 

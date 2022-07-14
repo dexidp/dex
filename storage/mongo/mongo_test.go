@@ -55,12 +55,17 @@ var logger = &logrus.Logger{
 	Level:     logrus.DebugLevel,
 }
 
+const testMongoEnv = "DEX_MONGO_URI"
+
 func TestMongo(t *testing.T) {
-	testMongoUri := "mongodb://localhost:27021/core?directConnection=true"
+	uri := os.Getenv(testMongoEnv)
+	if uri == "" {
+		t.Skipf("test environment variable %q not set, skipping", testMongoEnv)
+	}
 
 	newStorage := func() storage.Storage {
 		s := &Mongo{
-			URI:                   testMongoUri,
+			URI:                   uri,
 			Database:              "oidc",
 			ConnectionTimeout:     time.Second * 200,
 			DatabaseTimeout:       time.Second * 200,
