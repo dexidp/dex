@@ -62,5 +62,30 @@ func (p *Mongo) open(logger log.Logger) (*mongoStorage, error) {
 		config:   *p,
 	}
 
+	if err := c.initAuthCodeCollection(ctx); err != nil {
+		return nil, errors.Wrap(err, "unable to initialize auth code collection")
+	}
+	if err := c.initAuthRequestCollection(ctx); err != nil {
+		return nil, errors.Wrap(err, "unable to initialize auth request collection")
+	}
+	if err := c.initPasswordCollection(ctx); err != nil {
+		return nil, errors.Wrap(err, "unable to initialize password collection")
+	}
+	if err := c.initDeviceRequestCollection(ctx); err != nil {
+		return nil, errors.Wrap(err, "unable to initialize device request collection")
+	}
+	if err := c.initDeviceTokenCollection(ctx); err != nil {
+		return nil, errors.Wrap(err, "unable to initialize device token collection")
+	}
+	if err := c.initClientCollection(ctx); err != nil {
+		return nil, errors.Wrap(err, "unable to initialize client collection")
+	}
+	if err := c.initRefreshTokenCollection(ctx); err != nil {
+		return nil, errors.Wrap(err, "unable to initialize refresh token collection")
+	}
+	if err := c.initOfflineSessionCollection(ctx); err != nil {
+		return nil, errors.Wrap(err, "unable to initialize offline session collection")
+	}
+
 	return c, nil
 }
