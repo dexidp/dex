@@ -7,6 +7,7 @@ import (
 )
 
 type mongoStorage struct {
+	session  *Session
 	database *mongo.Database
 
 	config Mongo

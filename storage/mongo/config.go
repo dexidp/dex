@@ -9,13 +9,16 @@ import (
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 )
 
 type Mongo struct {
-	URI               string        `json:"uri" yaml:"uri"`
-	Database          string        `json:"database" yaml:"database"`
-	ConnectionTimeout time.Duration `json:"connection_timeout" yaml:"connection_timeout"`
-	DatabaseTimeout   time.Duration `json:"database_timeout" yaml:"database_timeout"`
+	URI                   string        `json:"uri" yaml:"uri"`
+	Database              string        `json:"database" yaml:"database"`
+	ConnectionTimeout     time.Duration `json:"connection_timeout" yaml:"connection_timeout"`
+	DatabaseTimeout       time.Duration `json:"database_timeout" yaml:"database_timeout"`
+	UseGCInsteadOfIndexes bool          `json:"not_set_expire_index" yaml:"not_set_expire_index"`
 }
 
 func (p *Mongo) Open(logger log.Logger) (storage.Storage, error) {
@@ -24,9 +27,7 @@ func (p *Mongo) Open(logger log.Logger) (storage.Storage, error) {
 		return nil, err
 	}
 
-	//TODO: implement storage
-	_ = mongoStorage
-	return nil, nil
+	return mongoStorage, nil
 }
 
 func (p *Mongo) open(logger log.Logger) (*mongoStorage, error) {
@@ -44,7 +45,18 @@ func (p *Mongo) open(logger log.Logger) (*mongoStorage, error) {
 		return nil, errors.Wrap(err, "unable to ping mongo")
 	}
 
+	s, err := client.StartSession()
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to start a mongo session")
+	}
+
+	txOptions := options.
+		Transaction().
+		SetWriteConcern(writeconcern.New(writeconcern.WMajority())).
+		SetReadConcern(readconcern.Majority())
+
 	c := &mongoStorage{
+		session:  NewSession(s, txOptions),
 		database: client.Database(p.Database),
 		logger:   logger,
 		config:   *p,
