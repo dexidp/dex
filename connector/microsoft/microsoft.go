@@ -76,7 +76,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		logger:               logger,
 		emailToLowercase:     c.EmailToLowercase,
 		promptType:           c.PromptType,
-		domainHint:			  c.DomainHint,
+		domainHint:           c.DomainHint,
 	}
 	// By default allow logins from both personal and business/school
 	// accounts.
@@ -121,7 +121,7 @@ type microsoftConnector struct {
 	logger               log.Logger
 	emailToLowercase     bool
 	promptType           string
-	domainHint			 string
+	domainHint           string
 }
 
 func (c *microsoftConnector) isOrgTenant() bool {
