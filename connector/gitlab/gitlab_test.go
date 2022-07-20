@@ -180,6 +180,75 @@ func TestLoginWithTeamNonWhitelisted(t *testing.T) {
 	expectEquals(t, err.Error(), "gitlab: get groups: gitlab: user \"joebloggs\" is not in any of the required groups")
 }
 
+func TestRefresh(t *testing.T) {
+	s := newTestServer(map[string]interface{}{
+		"/api/v4/user": gitlabUser{Email: "some@email.com", ID: 12345678},
+		"/oauth/token": map[string]interface{}{
+			"access_token":  "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
+			"refresh_token": "oRzxVjCnohYRHEYEhZshkmakKmoyVoTjfUGC",
+			"expires_in":    "30",
+		},
+		"/oauth/userinfo": userInfo{
+			Groups: []string{"team-1"},
+		},
+	})
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	req, err := http.NewRequest("GET", hostURL.String(), nil)
+	expectNil(t, err)
+
+	c := gitlabConnector{baseURL: s.URL, httpClient: newClient()}
+
+	expectedConnectorData, err := json.Marshal(connectorData{
+		RefreshToken: "oRzxVjCnohYRHEYEhZshkmakKmoyVoTjfUGC",
+		AccessToken:  "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
+	})
+	expectNil(t, err)
+
+	identity, err := c.HandleCallback(connector.Scopes{OfflineAccess: true}, req)
+	expectNil(t, err)
+	expectEquals(t, identity.Username, "some@email.com")
+	expectEquals(t, identity.UserID, "12345678")
+	expectEquals(t, identity.ConnectorData, expectedConnectorData)
+
+	identity, err = c.Refresh(context.Background(), connector.Scopes{OfflineAccess: true}, identity)
+	expectNil(t, err)
+	expectEquals(t, identity.Username, "some@email.com")
+	expectEquals(t, identity.UserID, "12345678")
+	expectEquals(t, identity.ConnectorData, expectedConnectorData)
+}
+
+func TestRefreshWithEmptyConnectorData(t *testing.T) {
+	s := newTestServer(map[string]interface{}{
+		"/api/v4/user": gitlabUser{Email: "some@email.com", ID: 12345678},
+		"/oauth/token": map[string]interface{}{
+			"access_token":  "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
+			"refresh_token": "oRzxVjCnohYRHEYEhZshkmakKmoyVoTjfUGC",
+			"expires_in":    "30",
+		},
+		"/oauth/userinfo": userInfo{
+			Groups: []string{"team-1"},
+		},
+	})
+	defer s.Close()
+
+	emptyConnectorData, err := json.Marshal(connectorData{
+		RefreshToken: "",
+		AccessToken:  "",
+	})
+	expectNil(t, err)
+
+	c := gitlabConnector{baseURL: s.URL, httpClient: newClient()}
+	emptyIdentity := connector.Identity{ConnectorData: emptyConnectorData}
+
+	identity, err := c.Refresh(context.Background(), connector.Scopes{OfflineAccess: true}, emptyIdentity)
+	expectNotNil(t, err, "Refresh error")
+	expectEquals(t, emptyIdentity, identity)
+}
+
 func newTestServer(responses map[string]interface{}) *httptest.Server {
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response := responses[r.RequestURI]
