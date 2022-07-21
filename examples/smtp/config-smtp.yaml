@@ -11,7 +11,7 @@ connectors:
   name: SMTP Example
   id: smtp-example
   config:
-    host: mail.infomaniak.com
+    host: mail.example.com
 
 staticClients:
 - id: example-app
