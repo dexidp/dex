@@ -49,6 +49,7 @@ func TestHandleDeviceCode(t *testing.T) {
 	tests := []struct {
 		testName               string
 		clientID               string
+		codeChallengeMethod    string
 		requestType            string
 		scopes                 []string
 		expectedResponseCode   int
@@ -67,6 +68,24 @@ func TestHandleDeviceCode(t *testing.T) {
 			testName:             "Invalid request Type (GET)",
 			clientID:             "test",
 			requestType:          "GET",
+			scopes:               []string{"openid", "profile", "email"},
+			expectedResponseCode: http.StatusBadRequest,
+			expectedContentType:  "application/json",
+		},
+		{
+			testName:             "New Code with valid PKCE",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{"openid", "profile", "email"},
+			codeChallengeMethod:  "S256",
+			expectedResponseCode: http.StatusOK,
+			expectedContentType:  "application/json",
+		},
+		{
+			testName:             "Invalid code challenge method",
+			clientID:             "test",
+			requestType:          "POST",
+			codeChallengeMethod:  "invalid",
 			scopes:               []string{"openid", "profile", "email"},
 			expectedResponseCode: http.StatusBadRequest,
 			expectedContentType:  "application/json",
@@ -92,6 +111,7 @@ func TestHandleDeviceCode(t *testing.T) {
 
 			data := url.Values{}
 			data.Set("client_id", tc.clientID)
+			data.Set("code_challenge_method", tc.codeChallengeMethod)
 			for _, scope := range tc.scopes {
 				data.Add("scope", scope)
 			}

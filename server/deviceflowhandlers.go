@@ -77,6 +77,11 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 		if codeChallengeMethod == "" {
 			codeChallengeMethod = codeChallengeMethodPlain
 		}
+		if codeChallengeMethod != codeChallengeMethodS256 && codeChallengeMethod != codeChallengeMethodPlain {
+			description := fmt.Sprintf("Unsupported PKCE challenge method (%q).", codeChallengeMethod)
+			s.tokenErrHelper(w, errInvalidRequest, description, http.StatusBadRequest)
+			return
+		}
 
 		s.logger.Infof("Received device request for client %v with scopes %v", clientID, scopes)
 
