@@ -3633,20 +3633,22 @@ func (m *DeviceRequestMutation) ResetEdge(name string) error {
 // DeviceTokenMutation represents an operation that mutates the DeviceToken nodes in the graph.
 type DeviceTokenMutation struct {
 	config
-	op               Op
-	typ              string
-	id               *int
-	device_code      *string
-	status           *string
-	token            *[]byte
-	expiry           *time.Time
-	last_request     *time.Time
-	poll_interval    *int
-	addpoll_interval *int
-	clearedFields    map[string]struct{}
-	done             bool
-	oldValue         func(context.Context) (*DeviceToken, error)
-	predicates       []predicate.DeviceToken
+	op                    Op
+	typ                   string
+	id                    *int
+	device_code           *string
+	status                *string
+	token                 *[]byte
+	expiry                *time.Time
+	last_request          *time.Time
+	poll_interval         *int
+	addpoll_interval      *int
+	code_challenge        *string
+	code_challenge_method *string
+	clearedFields         map[string]struct{}
+	done                  bool
+	oldValue              func(context.Context) (*DeviceToken, error)
+	predicates            []predicate.DeviceToken
 }
 
 var _ ent.Mutation = (*DeviceTokenMutation)(nil)
@@ -3996,6 +3998,78 @@ func (m *DeviceTokenMutation) ResetPollInterval() {
 	m.addpoll_interval = nil
 }
 
+// SetCodeChallenge sets the "code_challenge" field.
+func (m *DeviceTokenMutation) SetCodeChallenge(s string) {
+	m.code_challenge = &s
+}
+
+// CodeChallenge returns the value of the "code_challenge" field in the mutation.
+func (m *DeviceTokenMutation) CodeChallenge() (r string, exists bool) {
+	v := m.code_challenge
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCodeChallenge returns the old "code_challenge" field's value of the DeviceToken entity.
+// If the DeviceToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeviceTokenMutation) OldCodeChallenge(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCodeChallenge is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCodeChallenge requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCodeChallenge: %w", err)
+	}
+	return oldValue.CodeChallenge, nil
+}
+
+// ResetCodeChallenge resets all changes to the "code_challenge" field.
+func (m *DeviceTokenMutation) ResetCodeChallenge() {
+	m.code_challenge = nil
+}
+
+// SetCodeChallengeMethod sets the "code_challenge_method" field.
+func (m *DeviceTokenMutation) SetCodeChallengeMethod(s string) {
+	m.code_challenge_method = &s
+}
+
+// CodeChallengeMethod returns the value of the "code_challenge_method" field in the mutation.
+func (m *DeviceTokenMutation) CodeChallengeMethod() (r string, exists bool) {
+	v := m.code_challenge_method
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCodeChallengeMethod returns the old "code_challenge_method" field's value of the DeviceToken entity.
+// If the DeviceToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeviceTokenMutation) OldCodeChallengeMethod(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCodeChallengeMethod is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCodeChallengeMethod requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCodeChallengeMethod: %w", err)
+	}
+	return oldValue.CodeChallengeMethod, nil
+}
+
+// ResetCodeChallengeMethod resets all changes to the "code_challenge_method" field.
+func (m *DeviceTokenMutation) ResetCodeChallengeMethod() {
+	m.code_challenge_method = nil
+}
+
 // Where appends a list predicates to the DeviceTokenMutation builder.
 func (m *DeviceTokenMutation) Where(ps ...predicate.DeviceToken) {
 	m.predicates = append(m.predicates, ps...)
@@ -4015,7 +4089,7 @@ func (m *DeviceTokenMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *DeviceTokenMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 8)
 	if m.device_code != nil {
 		fields = append(fields, devicetoken.FieldDeviceCode)
 	}
@@ -4033,6 +4107,12 @@ func (m *DeviceTokenMutation) Fields() []string {
 	}
 	if m.poll_interval != nil {
 		fields = append(fields, devicetoken.FieldPollInterval)
+	}
+	if m.code_challenge != nil {
+		fields = append(fields, devicetoken.FieldCodeChallenge)
+	}
+	if m.code_challenge_method != nil {
+		fields = append(fields, devicetoken.FieldCodeChallengeMethod)
 	}
 	return fields
 }
@@ -4054,6 +4134,10 @@ func (m *DeviceTokenMutation) Field(name string) (ent.Value, bool) {
 		return m.LastRequest()
 	case devicetoken.FieldPollInterval:
 		return m.PollInterval()
+	case devicetoken.FieldCodeChallenge:
+		return m.CodeChallenge()
+	case devicetoken.FieldCodeChallengeMethod:
+		return m.CodeChallengeMethod()
 	}
 	return nil, false
 }
@@ -4075,6 +4159,10 @@ func (m *DeviceTokenMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldLastRequest(ctx)
 	case devicetoken.FieldPollInterval:
 		return m.OldPollInterval(ctx)
+	case devicetoken.FieldCodeChallenge:
+		return m.OldCodeChallenge(ctx)
+	case devicetoken.FieldCodeChallengeMethod:
+		return m.OldCodeChallengeMethod(ctx)
 	}
 	return nil, fmt.Errorf("unknown DeviceToken field %s", name)
 }
@@ -4125,6 +4213,20 @@ func (m *DeviceTokenMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetPollInterval(v)
+		return nil
+	case devicetoken.FieldCodeChallenge:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCodeChallenge(v)
+		return nil
+	case devicetoken.FieldCodeChallengeMethod:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCodeChallengeMethod(v)
 		return nil
 	}
 	return fmt.Errorf("unknown DeviceToken field %s", name)
@@ -4216,6 +4318,12 @@ func (m *DeviceTokenMutation) ResetField(name string) error {
 		return nil
 	case devicetoken.FieldPollInterval:
 		m.ResetPollInterval()
+		return nil
+	case devicetoken.FieldCodeChallenge:
+		m.ResetCodeChallenge()
+		return nil
+	case devicetoken.FieldCodeChallengeMethod:
+		m.ResetCodeChallengeMethod()
 		return nil
 	}
 	return fmt.Errorf("unknown DeviceToken field %s", name)

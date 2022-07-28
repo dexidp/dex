@@ -77,6 +77,34 @@ func (dtu *DeviceTokenUpdate) AddPollInterval(i int) *DeviceTokenUpdate {
 	return dtu
 }
 
+// SetCodeChallenge sets the "code_challenge" field.
+func (dtu *DeviceTokenUpdate) SetCodeChallenge(s string) *DeviceTokenUpdate {
+	dtu.mutation.SetCodeChallenge(s)
+	return dtu
+}
+
+// SetNillableCodeChallenge sets the "code_challenge" field if the given value is not nil.
+func (dtu *DeviceTokenUpdate) SetNillableCodeChallenge(s *string) *DeviceTokenUpdate {
+	if s != nil {
+		dtu.SetCodeChallenge(*s)
+	}
+	return dtu
+}
+
+// SetCodeChallengeMethod sets the "code_challenge_method" field.
+func (dtu *DeviceTokenUpdate) SetCodeChallengeMethod(s string) *DeviceTokenUpdate {
+	dtu.mutation.SetCodeChallengeMethod(s)
+	return dtu
+}
+
+// SetNillableCodeChallengeMethod sets the "code_challenge_method" field if the given value is not nil.
+func (dtu *DeviceTokenUpdate) SetNillableCodeChallengeMethod(s *string) *DeviceTokenUpdate {
+	if s != nil {
+		dtu.SetCodeChallengeMethod(*s)
+	}
+	return dtu
+}
+
 // Mutation returns the DeviceTokenMutation object of the builder.
 func (dtu *DeviceTokenUpdate) Mutation() *DeviceTokenMutation {
 	return dtu.mutation
@@ -230,6 +258,20 @@ func (dtu *DeviceTokenUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			Column: devicetoken.FieldPollInterval,
 		})
 	}
+	if value, ok := dtu.mutation.CodeChallenge(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeString,
+			Value:  value,
+			Column: devicetoken.FieldCodeChallenge,
+		})
+	}
+	if value, ok := dtu.mutation.CodeChallengeMethod(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeString,
+			Value:  value,
+			Column: devicetoken.FieldCodeChallengeMethod,
+		})
+	}
 	if n, err = sqlgraph.UpdateNodes(ctx, dtu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{devicetoken.Label}
@@ -295,6 +337,34 @@ func (dtuo *DeviceTokenUpdateOne) SetPollInterval(i int) *DeviceTokenUpdateOne {
 // AddPollInterval adds i to the "poll_interval" field.
 func (dtuo *DeviceTokenUpdateOne) AddPollInterval(i int) *DeviceTokenUpdateOne {
 	dtuo.mutation.AddPollInterval(i)
+	return dtuo
+}
+
+// SetCodeChallenge sets the "code_challenge" field.
+func (dtuo *DeviceTokenUpdateOne) SetCodeChallenge(s string) *DeviceTokenUpdateOne {
+	dtuo.mutation.SetCodeChallenge(s)
+	return dtuo
+}
+
+// SetNillableCodeChallenge sets the "code_challenge" field if the given value is not nil.
+func (dtuo *DeviceTokenUpdateOne) SetNillableCodeChallenge(s *string) *DeviceTokenUpdateOne {
+	if s != nil {
+		dtuo.SetCodeChallenge(*s)
+	}
+	return dtuo
+}
+
+// SetCodeChallengeMethod sets the "code_challenge_method" field.
+func (dtuo *DeviceTokenUpdateOne) SetCodeChallengeMethod(s string) *DeviceTokenUpdateOne {
+	dtuo.mutation.SetCodeChallengeMethod(s)
+	return dtuo
+}
+
+// SetNillableCodeChallengeMethod sets the "code_challenge_method" field if the given value is not nil.
+func (dtuo *DeviceTokenUpdateOne) SetNillableCodeChallengeMethod(s *string) *DeviceTokenUpdateOne {
+	if s != nil {
+		dtuo.SetCodeChallengeMethod(*s)
+	}
 	return dtuo
 }
 
@@ -473,6 +543,20 @@ func (dtuo *DeviceTokenUpdateOne) sqlSave(ctx context.Context) (_node *DeviceTok
 			Type:   field.TypeInt,
 			Value:  value,
 			Column: devicetoken.FieldPollInterval,
+		})
+	}
+	if value, ok := dtuo.mutation.CodeChallenge(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeString,
+			Value:  value,
+			Column: devicetoken.FieldCodeChallenge,
+		})
+	}
+	if value, ok := dtuo.mutation.CodeChallengeMethod(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeString,
+			Value:  value,
+			Column: devicetoken.FieldCodeChallengeMethod,
 		})
 	}
 	_node = &DeviceToken{config: dtuo.config}

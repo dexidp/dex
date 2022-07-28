@@ -164,5 +164,9 @@ func toStorageDeviceToken(t *db.DeviceToken) storage.DeviceToken {
 		Expiry:              t.Expiry,
 		LastRequestTime:     t.LastRequest,
 		PollIntervalSeconds: t.PollInterval,
+		PKCE: storage.PKCE{
+			CodeChallenge:       t.CodeChallenge,
+			CodeChallengeMethod: t.CodeChallengeMethod,
+		},
 	}
 }

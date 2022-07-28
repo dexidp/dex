@@ -85,6 +85,11 @@ web:
 #   deviceRequests: "5m"
 #   signingKeys: "6h"
 #   idTokens: "24h"
+#   refreshTokens:
+#     disableRotation: false
+#     reuseInterval: "3s"
+#     validIfNotUsedFor: "2160h" # 90 days
+#     absoluteLifetime: "3960h" # 165 days
 
 # OAuth2 configuration
 # oauth2:
