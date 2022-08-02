@@ -8,10 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -196,7 +196,7 @@ func newHTTPClient(rootCAs []string, insecureSkipVerify bool) (*http.Client, err
 
 	tlsConfig := tls.Config{RootCAs: pool, InsecureSkipVerify: insecureSkipVerify}
 	for _, rootCA := range rootCAs {
-		rootCABytes, err := ioutil.ReadFile(rootCA)
+		rootCABytes, err := os.ReadFile(rootCA)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read root-ca: %v", err)
 		}
