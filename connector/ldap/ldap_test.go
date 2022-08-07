@@ -221,6 +221,57 @@ func TestGroupQuery(t *testing.T) {
 	runTests(t, connectLDAP, c, tests)
 }
 
+func TestIndirectGroupQuery(t *testing.T) {
+	c := &Config{}
+	c.UserSearch.BaseDN = "ou=People,ou=TestGroupQuery,dc=example,dc=org"
+	c.UserSearch.NameAttr = "cn"
+	c.UserSearch.EmailAttr = "mail"
+	c.UserSearch.IDAttr = "DN"
+	c.UserSearch.Username = "cn"
+	c.GroupSearch.BaseDN = "ou=Groups,ou=TestGroupQuery,dc=example,dc=org"
+	c.GroupSearch.UserMatchers = []UserMatcher{
+		{
+			UserAttr:  "DN",
+			GroupAttr: "member",
+		},
+	}
+	c.GroupSearch.NameAttr = "cn"
+	c.GroupSearch.Recursion.Level = 1
+	c.GroupSearch.Recursion.ParentAttr = "member"
+	c.GroupSearch.Recursion.ChildAttr = "DN"
+
+	tests := []subtest{
+		{
+			name:     "validpassword",
+			username: "jane",
+			password: "foo",
+			groups:   true,
+			want: connector.Identity{
+				UserID:        "cn=jane,ou=People,ou=TestGroupQuery,dc=example,dc=org",
+				Username:      "jane",
+				Email:         "janedoe@example.com",
+				EmailVerified: true,
+				Groups:        []string{"admins", "developers", "admin-staff", "technical-staff"},
+			},
+		},
+		{
+			name:     "validpassword2",
+			username: "john",
+			password: "bar",
+			groups:   true,
+			want: connector.Identity{
+				UserID:        "cn=john,ou=People,ou=TestGroupQuery,dc=example,dc=org",
+				Username:      "john",
+				Email:         "johndoe@example.com",
+				EmailVerified: true,
+				Groups:        []string{"admins", "admin-staff"},
+			},
+		},
+	}
+
+	runTests(t, connectLDAP, c, tests)
+}
+
 func TestGroupsOnUserEntity(t *testing.T) {
 	c := &Config{}
 	c.UserSearch.BaseDN = "ou=People,ou=TestGroupsOnUserEntity,dc=example,dc=org"
