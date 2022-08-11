@@ -154,6 +154,8 @@ type Web struct {
 // Telemetry is the config format for telemetry including the HTTP server config.
 type Telemetry struct {
 	HTTP string `json:"http"`
+	// EnableProfiling makes profiling endpoints available via web interface host:port/debug/pprof/
+	EnableProfiling bool `json:"enableProfiling"`
 }
 
 // GRPC is the config for the gRPC API.

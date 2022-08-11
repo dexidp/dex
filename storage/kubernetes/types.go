@@ -802,6 +802,8 @@ type DeviceToken struct {
 	Expiry              time.Time `json:"expiry"`
 	LastRequestTime     time.Time `json:"last_request"`
 	PollIntervalSeconds int       `json:"poll_interval"`
+	CodeChallenge       string    `json:"code_challenge,omitempty"`
+	CodeChallengeMethod string    `json:"code_challenge_method,omitempty"`
 }
 
 // DeviceTokenList is a list of DeviceTokens.
@@ -826,6 +828,8 @@ func (cli *client) fromStorageDeviceToken(t storage.DeviceToken) DeviceToken {
 		Expiry:              t.Expiry,
 		LastRequestTime:     t.LastRequestTime,
 		PollIntervalSeconds: t.PollIntervalSeconds,
+		CodeChallenge:       t.PKCE.CodeChallenge,
+		CodeChallengeMethod: t.PKCE.CodeChallengeMethod,
 	}
 	return req
 }
@@ -838,5 +842,9 @@ func toStorageDeviceToken(t DeviceToken) storage.DeviceToken {
 		Expiry:              t.Expiry,
 		LastRequestTime:     t.LastRequestTime,
 		PollIntervalSeconds: t.PollIntervalSeconds,
+		PKCE: storage.PKCE{
+			CodeChallenge:       t.CodeChallenge,
+			CodeChallengeMethod: t.CodeChallengeMethod,
+		},
 	}
 }

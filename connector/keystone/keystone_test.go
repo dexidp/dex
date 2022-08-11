@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -454,22 +453,22 @@ func setupVariables(t *testing.T) {
 	keystoneAdminPassEnv := "DEX_KEYSTONE_ADMIN_PASS"
 	keystoneURL = os.Getenv(keystoneURLEnv)
 	if keystoneURL == "" {
-		t.Skip(fmt.Sprintf("variable %q not set, skipping keystone connector tests\n", keystoneURLEnv))
+		t.Skipf("variable %q not set, skipping keystone connector tests\n", keystoneURLEnv)
 		return
 	}
 	keystoneAdminURL = os.Getenv(keystoneAdminURLEnv)
 	if keystoneAdminURL == "" {
-		t.Skip(fmt.Sprintf("variable %q not set, skipping keystone connector tests\n", keystoneAdminURLEnv))
+		t.Skipf("variable %q not set, skipping keystone connector tests\n", keystoneAdminURLEnv)
 		return
 	}
 	adminUser = os.Getenv(keystoneAdminUserEnv)
 	if adminUser == "" {
-		t.Skip(fmt.Sprintf("variable %q not set, skipping keystone connector tests\n", keystoneAdminUserEnv))
+		t.Skipf("variable %q not set, skipping keystone connector tests\n", keystoneAdminUserEnv)
 		return
 	}
 	adminPass = os.Getenv(keystoneAdminPassEnv)
 	if adminPass == "" {
-		t.Skip(fmt.Sprintf("variable %q not set, skipping keystone connector tests\n", keystoneAdminPassEnv))
+		t.Skipf("variable %q not set, skipping keystone connector tests\n", keystoneAdminPassEnv)
 		return
 	}
 	authTokenURL = keystoneURL + "/v3/auth/tokens/"

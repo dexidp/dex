@@ -57,6 +57,9 @@ type Config struct {
 	// PromptType is used for the prompt query parameter.
 	// For valid values, see https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow#request-an-authorization-code.
 	PromptType string `json:"promptType"`
+	DomainHint string `json:"domainHint"`
+
+	Scopes []string `json:"scopes"` // defaults to scopeUser (user.read)
 }
 
 // Open returns a strategy for logging in through Microsoft.
@@ -75,6 +78,8 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		logger:               logger,
 		emailToLowercase:     c.EmailToLowercase,
 		promptType:           c.PromptType,
+		domainHint:           c.DomainHint,
+		scopes:               c.Scopes,
 	}
 	// By default allow logins from both personal and business/school
 	// accounts.
@@ -119,6 +124,8 @@ type microsoftConnector struct {
 	logger               log.Logger
 	emailToLowercase     bool
 	promptType           string
+	domainHint           string
+	scopes               []string
 }
 
 func (c *microsoftConnector) isOrgTenant() bool {
@@ -130,7 +137,12 @@ func (c *microsoftConnector) groupsRequired(groupScope bool) bool {
 }
 
 func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
-	microsoftScopes := []string{scopeUser}
+	var microsoftScopes []string
+	if len(c.scopes) > 0 {
+		microsoftScopes = c.scopes
+	} else {
+		microsoftScopes = append(microsoftScopes, scopeUser)
+	}
 	if c.groupsRequired(scopes.Groups) {
 		microsoftScopes = append(microsoftScopes, scopeGroups)
 	}
@@ -159,6 +171,9 @@ func (c *microsoftConnector) LoginURL(scopes connector.Scopes, callbackURL, stat
 	var options []oauth2.AuthCodeOption
 	if c.promptType != "" {
 		options = append(options, oauth2.SetAuthURLParam("prompt", c.promptType))
+	}
+	if c.domainHint != "" {
+		options = append(options, oauth2.SetAuthURLParam("domain_hint", c.domainHint))
 	}
 
 	return c.oauth2Config(scopes).AuthCodeURL(state, options...), nil

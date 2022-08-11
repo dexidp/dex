@@ -209,12 +209,18 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 		return identity, fmt.Errorf("OAuth Connector: failed to parse userinfo: %v", err)
 	}
 
-	userID, found := userInfoResult[c.userIDKey].(string)
+	userID, found := userInfoResult[c.userIDKey]
 	if !found {
 		return identity, fmt.Errorf("OAuth Connector: not found %v claim", c.userIDKey)
 	}
 
-	identity.UserID = userID
+	switch userID.(type) {
+	case float64, int64, string:
+		identity.UserID = fmt.Sprintf("%v", userID)
+	default:
+		return identity, fmt.Errorf("OAuth Connector: %v claim should be string or number, got %T", c.userIDKey, userID)
+	}
+
 	identity.Username, _ = userInfoResult[c.userNameKey].(string)
 	identity.PreferredUsername, _ = userInfoResult[c.preferredUsernameKey].(string)
 	identity.Email, _ = userInfoResult[c.emailKey].(string)

@@ -605,8 +605,11 @@ func (c *conn) CreateDeviceToken(t storage.DeviceToken) error {
 func (c *conn) GetDeviceToken(deviceCode string) (t storage.DeviceToken, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	err = c.getKey(ctx, keyID(deviceTokenPrefix, deviceCode), &t)
-	return t, err
+	var dt DeviceToken
+	if err = c.getKey(ctx, keyID(deviceTokenPrefix, deviceCode), &dt); err == nil {
+		t = toStorageDeviceToken(dt)
+	}
+	return
 }
 
 func (c *conn) listDeviceTokens(ctx context.Context) (deviceTokens []DeviceToken, err error) {
