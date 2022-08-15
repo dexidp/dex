@@ -105,6 +105,10 @@ type Config struct {
 		NewGroupFromClaims []NewGroupFromClaims `json:"newGroupFromClaims"`
 		FilterGroupClaims  FilterGroupClaims    `json:"filterGroupClaims"`
 	} `json:"claimModifications"`
+
+	// Add additional authorization request parameters to acceess IdP specific features.
+	// Take care not to override standard OICD authorization requests parameters.
+	AdditionalAuthRequestParams map[string]string `json:"additionalAuthRequestParams"`
 }
 
 type ProviderDiscoveryOverrides struct {
@@ -200,6 +204,18 @@ var brokenAuthHeaderDomains = []string{
 // connectorData stores information for sessions authenticated by this connector
 type connectorData struct {
 	RefreshToken []byte
+}
+
+var managedAuthParams = []string{
+	// In this implementation and golang.org/x/oauth2
+	"client_id",
+	"state",
+	"hd",
+	"acr_values",
+	"response_type",
+	"scope",
+	"redirect_uri",
+	"prompt",
 }
 
 // Detect auth header provider issues for known providers. This lets users
@@ -307,6 +323,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
 		newGroupFromClaims:        c.ClaimMutations.NewGroupFromClaims,
 		groupsFilter:              groupsFilter,
+		additionalAuthRequestParams: c.AdditionalAuthRequestParams,
 	}, nil
 }
 
@@ -337,6 +354,7 @@ type oidcConnector struct {
 	groupsKey                 string
 	newGroupFromClaims        []NewGroupFromClaims
 	groupsFilter              *regexp.Regexp
+	additionalAuthRequestParams map[string]string
 }
 
 func (c *oidcConnector) Close() error {
@@ -358,6 +376,15 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 
 	if s.OfflineAccess {
 		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", c.promptType))
+	}
+
+	if len(c.additionalAuthRequestParams) > 0 {
+		for k, v := range c.additionalAuthRequestParams {
+			if contains(managedAuthParams, k) {
+				return "", fmt.Errorf("parameter '%s' is already managed by this connector", k)
+			}
+			opts = append(opts, oauth2.SetAuthURLParam(k, v))
+		}
 	}
 	return c.oauth2Config.AuthCodeURL(state, opts...), nil
 }
@@ -625,4 +652,13 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	return identity, nil
+}
+
+func contains(slice []string, value string) bool {
+	for _, v := range slice {
+		if v == value {
+			return true
+		}
+	}
+	return false
 }
