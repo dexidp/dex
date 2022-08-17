@@ -284,6 +284,86 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 	}{redirectURL})
 }
 
+func (s *Server) handleVerifyDirect(w http.ResponseWriter, r *http.Request) {
+	var verifyReq struct {
+		Signed string `json:"signed"`
+		State  string `json:"state"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&verifyReq); err != nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Could not parse request body JSON.")
+		return
+	}
+
+	authReq, err := s.storage.GetAuthRequest(verifyReq.State)
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Requested resource does not exist.")
+		return
+	}
+
+	var data web3ConnectorData
+	json.Unmarshal(authReq.ConnectorData, &data)
+
+	conn, err := s.getConnector(authReq.ConnectorID)
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusInternalServerError, "Requested resource does not exist.")
+		return
+	}
+
+	w3Conn, ok := conn.Connector.(connector.Web3Connector)
+	if !ok {
+		s.renderErrorJSON(w, http.StatusInternalServerError, "Requested resource does not exist.")
+		return
+	}
+
+	identity, err := w3Conn.Verify(data.Address, data.Nonce, verifyReq.Signed)
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Could not verify signature.")
+		return
+	}
+
+	_, err = s.finalizeLogin(identity, authReq, conn)
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusInternalServerError, "Login failure.")
+	}
+
+	if s.now().After(authReq.Expiry) {
+		s.renderErrorJSON(w, http.StatusBadRequest, "User session has expired.")
+		return
+	}
+
+	if err := s.storage.DeleteAuthRequest(authReq.ID); err != nil {
+		if err != storage.ErrNotFound {
+			s.logger.Errorf("Failed to delete authorization request: %v", err)
+			s.renderErrorJSON(w, http.StatusInternalServerError, "Internal server error.")
+		} else {
+			s.renderErrorJSON(w, http.StatusBadRequest, "User session error.")
+		}
+		return
+	}
+
+	code := storage.AuthCode{
+		ID:            storage.NewID(),
+		ClientID:      authReq.ClientID,
+		ConnectorID:   authReq.ConnectorID,
+		Nonce:         authReq.Nonce,
+		Scopes:        authReq.Scopes,
+		Claims:        authReq.Claims,
+		Expiry:        s.now().Add(time.Minute * 30),
+		RedirectURI:   authReq.RedirectURI,
+		ConnectorData: authReq.ConnectorData,
+		PKCE:          authReq.PKCE,
+	}
+	if err := s.storage.CreateAuthCode(code); err != nil {
+		s.logger.Errorf("Failed to create auth code: %v", err)
+		s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
+		return
+	}
+
+	s.renderJSON(w, struct {
+		Redirect string `json:"code"`
+	}{code.ID})
+}
+
 func (s *Server) handleCreateAuthorizationRequest(w http.ResponseWriter, r *http.Request) {
 	authReq, err := s.parseAuthorizationRequest(r)
 	if err != nil {
