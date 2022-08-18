@@ -424,8 +424,8 @@ func testLoginURL(t *testing.T, config Config, state string) (url.Values, error)
 	}
 	defer testServer.Close()
 
-	serverUrl := testServer.URL
-	config.Issuer = serverUrl
+	serverURL := testServer.URL
+	config.Issuer = serverURL
 
 	conn, err := newConnector(config)
 	if err != nil {
@@ -433,12 +433,12 @@ func testLoginURL(t *testing.T, config Config, state string) (url.Values, error)
 	}
 
 	// what we are testing, generation of LoginURL
-	loginUrl, err := conn.LoginURL(connector.Scopes{OfflineAccess: false, Groups: false}, config.RedirectURI, state)
+	loginURL, err := conn.LoginURL(connector.Scopes{OfflineAccess: false, Groups: false}, config.RedirectURI, state)
 	if err != nil {
 		return nil, err
 	}
 
-	u, err := url.Parse(loginUrl)
+	u, err := url.Parse(loginURL)
 	if err != nil {
 		return nil, err
 	}
