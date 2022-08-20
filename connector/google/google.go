@@ -81,7 +81,7 @@ func (c *Config) Open(id string, logger log.Logger, opts ...interface{}) (conn c
 		}
 	}
 
-	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, clientOpts...)
+	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, logger, clientOpts...)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not create directory service: %v", err)
@@ -292,7 +292,7 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 // createDirectoryService sets up super user impersonation and creates an admin client for calling
 // the google admin api. If no serviceAccountFilePath is defined, the application default credential
 // is used.
-func createDirectoryService(serviceAccountFilePath, email string, opts ...option.ClientOption) (*admin.Service, error) {
+func createDirectoryService(serviceAccountFilePath, email string, logger log.Logger, opts ...option.ClientOption) (*admin.Service, error) {
 	if email == "" {
 		return nil, fmt.Errorf("directory service requires adminEmail")
 	}
@@ -302,6 +302,7 @@ func createDirectoryService(serviceAccountFilePath, email string, opts ...option
 
 	ctx := context.Background()
 	if serviceAccountFilePath == "" {
+		logger.Warn("the application default credential is used since the service acocunt file path is not used")
 		credential, err := google.FindDefaultCredentials(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch application default credentials: %w", err)
