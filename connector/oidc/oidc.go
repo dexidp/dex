@@ -108,7 +108,7 @@ func knownBrokenAuthHeaderProvider(issuerURL string) bool {
 
 // Open returns a connector which can be used to login users through an upstream
 // OpenID Connect provider.
-func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
+func (c *Config) Open(id string, logger log.Logger, opts ...interface{}) (conn connector.Connector, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	provider, err := oidc.NewProvider(ctx, c.Issuer)

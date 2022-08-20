@@ -202,7 +202,7 @@ func userMatchers(c *Config, logger log.Logger) []UserMatcher {
 }
 
 // Open returns an authentication strategy using LDAP.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger log.Logger, opts ...interface{}) (connector.Connector, error) {
 	conn, err := c.OpenConnector(logger)
 	if err != nil {
 		return nil, err

@@ -66,7 +66,7 @@ type user struct {
 
 // Open returns a connector which can be used to login users through an upstream
 // OpenShift OAuth2 provider.
-func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
+func (c *Config) Open(id string, logger log.Logger, opts ...interface{}) (conn connector.Connector, err error) {
 	httpClient, err := newHTTPClient(c.InsecureCA, c.RootCA)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP client: %w", err)

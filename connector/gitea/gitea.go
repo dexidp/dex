@@ -51,7 +51,7 @@ type giteaUser struct {
 }
 
 // Open returns a strategy for logging in through Gitea
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger log.Logger, opts ...interface{}) (connector.Connector, error) {
 	if c.BaseURL == "" {
 		c.BaseURL = "https://gitea.com"
 	}

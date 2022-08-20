@@ -24,7 +24,7 @@ type Config struct {
 }
 
 // Open returns an authentication strategy which requires no user interaction.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger log.Logger, opts ...interface{}) (connector.Connector, error) {
 	userHeader := c.UserHeader
 	if userHeader == "" {
 		userHeader = "X-Remote-User"

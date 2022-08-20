@@ -60,7 +60,7 @@ type Config struct {
 }
 
 // Open returns a strategy for logging in through Microsoft.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger log.Logger, opts ...interface{}) (connector.Connector, error) {
 	m := microsoftConnector{
 		apiURL:               "https://login.microsoftonline.com",
 		graphURL:             "https://graph.microsoft.com",

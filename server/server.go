@@ -531,7 +531,7 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 
 // ConnectorConfig is a configuration that can open a connector.
 type ConnectorConfig interface {
-	Open(id string, logger log.Logger) (connector.Connector, error)
+	Open(id string, logger log.Logger, opts ...interface{}) (connector.Connector, error)
 }
 
 // ConnectorsConfig variable provides an easy way to return a config struct

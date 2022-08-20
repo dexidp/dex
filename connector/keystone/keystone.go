@@ -109,7 +109,7 @@ var (
 )
 
 // Open returns an authentication strategy using Keystone.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger log.Logger, opts ...interface{}) (connector.Connector, error) {
 	return &conn{
 		c.Domain,
 		c.Host,
