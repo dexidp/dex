@@ -62,7 +62,6 @@ func TestOpen(t *testing.T) {
 
 	type testCase struct {
 		config      *Config
-		connector   *googleConnector
 		expectedErr string
 
 		// string to set in GOOGLE_APPLICATION_CREDENTIALS. As local development environments can

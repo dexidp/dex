@@ -302,7 +302,7 @@ func createDirectoryService(serviceAccountFilePath, email string, logger log.Log
 
 	ctx := context.Background()
 	if serviceAccountFilePath == "" {
-		logger.Warn("the application default credential is used since the service acocunt file path is not used")
+		logger.Warn("the application default credential is used since the service account file path is not used")
 		credential, err := google.FindDefaultCredentials(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch application default credentials: %w", err)
