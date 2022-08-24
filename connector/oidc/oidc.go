@@ -348,6 +348,12 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		vs, found := claims[groupsKey].([]interface{})
 		if (!found || c.overrideClaimMapping) && c.groupsKey != "" {
 			groupsKey = c.groupsKey
+
+			// Fallback when claims[groupsKey] is a string instead of an array of strings.
+			if g, b := claims[groupsKey].(string); b {
+				groups = []string{g}
+			}
+
 			vs, found = claims[groupsKey].([]interface{})
 		}
 
