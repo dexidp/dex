@@ -351,6 +351,11 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			vs, found = claims[groupsKey].([]interface{})
 		}
 
+		// Fallback when claims[groupsKey] is a string instead of an array of strings.
+		if g, b := claims[groupsKey].(string); b {
+			groups = []string{g}
+		}
+
 		if found {
 			for _, v := range vs {
 				if s, ok := v.(string); ok {
