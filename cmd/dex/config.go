@@ -17,6 +17,7 @@ import (
 	"github.com/dexidp/dex/storage/etcd"
 	"github.com/dexidp/dex/storage/kubernetes"
 	"github.com/dexidp/dex/storage/memory"
+	"github.com/dexidp/dex/storage/mongo"
 	"github.com/dexidp/dex/storage/sql"
 )
 
@@ -186,6 +187,7 @@ var (
 	_ StorageConfig = (*ent.SQLite3)(nil)
 	_ StorageConfig = (*ent.Postgres)(nil)
 	_ StorageConfig = (*ent.MySQL)(nil)
+	_ StorageConfig = (*mongo.Mongo)(nil)
 )
 
 func getORMBasedSQLStorage(normal, entBased StorageConfig) func() StorageConfig {
@@ -206,6 +208,7 @@ var storages = map[string]func() StorageConfig{
 	"sqlite3":    getORMBasedSQLStorage(&sql.SQLite3{}, &ent.SQLite3{}),
 	"postgres":   getORMBasedSQLStorage(&sql.Postgres{}, &ent.Postgres{}),
 	"mysql":      getORMBasedSQLStorage(&sql.MySQL{}, &ent.MySQL{}),
+	"mongo":      func() StorageConfig { return new(mongo.Mongo) },
 }
 
 // isExpandEnvEnabled returns if os.ExpandEnv should be used for each storage and connector config.
