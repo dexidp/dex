@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
@@ -69,7 +70,7 @@ func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connecto
 	groups := m.groups
 	headerGroup := r.Header.Get(m.groupHeader)
 	if headerGroup != "" {
-		groups = append(groups, headerGroup)
+		groups = append(strings.Split(headerGroup, ","), groups...)
 	}
 	return connector.Identity{
 		UserID:        remoteUser, // TODO: figure out if this is a bad ID value.
