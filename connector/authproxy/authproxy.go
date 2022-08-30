@@ -70,7 +70,8 @@ func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connecto
 	groups := m.groups
 	headerGroup := r.Header.Get(m.groupHeader)
 	if headerGroup != "" {
-		groups = append(strings.Split(headerGroup, ","), groups...)
+		trimHeaderGroup := strings.Replace(headerGroup, " ", "", -1)
+		groups = append(strings.Split(trimHeaderGroup, ","), groups...)
 	}
 	return connector.Identity{
 		UserID:        remoteUser, // TODO: figure out if this is a bad ID value.
