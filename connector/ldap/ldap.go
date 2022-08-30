@@ -359,8 +359,6 @@ func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error 
 		bindPW = string(c.pass)
 	}
 
-	c.logger.Debugf("ldap: - bindDN=<%s>", bindDN)
-
 	// If bindDN and bindPW are empty this will default to an anonymous bind.
 	if bindDN == "" && bindPW == "" {
 		if err := conn.UnauthenticatedBind(""); err != nil {
