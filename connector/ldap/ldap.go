@@ -297,7 +297,7 @@ func (c *Config) openConnector(logger log.Logger) (*ldapConnector, error) {
 
 	// TODO(nabokihms): remove it after deleting deprecated groupSearch options
 	c.GroupSearch.UserMatchers = userMatchers(c, logger)
-	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig, logger, "", []byte{} }, nil
+	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig, logger, "", []byte{}}, nil
 }
 
 type ldapConnector struct {
