@@ -45,7 +45,7 @@ type gitlabUser struct {
 }
 
 // Open returns a strategy for logging in through GitLab.
-func (c *Config) Open(id string, logger log.Logger, opts ...interface{}) (connector.Connector, error) {
+func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	if c.BaseURL == "" {
 		c.BaseURL = "https://gitlab.com"
 	}

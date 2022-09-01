@@ -120,7 +120,7 @@ func (c certStore) Certificates() (roots []*x509.Certificate, err error) {
 
 // Open validates the config and returns a connector. It does not actually
 // validate connectivity with the provider.
-func (c *Config) Open(id string, logger log.Logger, opts ...interface{}) (connector.Connector, error) {
+func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	return c.openConnector(logger)
 }
 

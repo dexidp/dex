@@ -42,7 +42,7 @@ type Config struct {
 }
 
 // Open returns a strategy for logging in through Bitbucket.
-func (c *Config) Open(_ string, logger log.Logger, opts ...interface{}) (connector.Connector, error) {
+func (c *Config) Open(_ string, logger log.Logger) (connector.Connector, error) {
 	b := bitbucketConnector{
 		redirectURI:       c.RedirectURI,
 		teams:             c.Teams,

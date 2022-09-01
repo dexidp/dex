@@ -29,7 +29,7 @@ type Config struct {
 }
 
 // Open returns a strategy for logging in through LinkedIn
-func (c *Config) Open(id string, logger log.Logger, opts ...interface{}) (connector.Connector, error) {
+func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	return &linkedInConnector{
 		oauth2Config: &oauth2.Config{
 			ClientID:     c.ClientID,

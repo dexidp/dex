@@ -10,7 +10,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/api/option"
 )
 
 func testSetup(t *testing.T) *httptest.Server {
@@ -27,7 +26,7 @@ func testSetup(t *testing.T) *httptest.Server {
 
 func newConnector(config *Config, serverURL string) (*googleConnector, error) {
 	log := logrus.New()
-	conn, err := config.Open("id", log, option.WithEndpoint(serverURL))
+	conn, err := config.Open("id", log)
 	if err != nil {
 		return nil, err
 	}

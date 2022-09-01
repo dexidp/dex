@@ -55,7 +55,7 @@ type Config struct {
 }
 
 // Open returns a connector which can be used to login users through Google.
-func (c *Config) Open(id string, logger log.Logger, opts ...interface{}) (conn connector.Connector, err error) {
+func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	provider, err := oidc.NewProvider(ctx, issuerURL)
@@ -71,17 +71,7 @@ func (c *Config) Open(id string, logger log.Logger, opts ...interface{}) (conn c
 		scopes = append(scopes, "profile", "email")
 	}
 
-	var ok bool
-	clientOpts := make([]option.ClientOption, len(opts))
-	for i, opt := range opts {
-		clientOpts[i], ok = opt.(option.ClientOption)
-		if !ok {
-			cancel()
-			return nil, fmt.Errorf("options passed to google connector cannot be cast into option.ClientOptions")
-		}
-	}
-
-	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, logger, clientOpts...)
+	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, logger)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not create directory service: %v", err)
@@ -292,7 +282,7 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 // createDirectoryService sets up super user impersonation and creates an admin client for calling
 // the google admin api. If no serviceAccountFilePath is defined, the application default credential
 // is used.
-func createDirectoryService(serviceAccountFilePath, email string, logger log.Logger, opts ...option.ClientOption) (*admin.Service, error) {
+func createDirectoryService(serviceAccountFilePath, email string, logger log.Logger) (*admin.Service, error) {
 	if email == "" {
 		return nil, fmt.Errorf("directory service requires adminEmail")
 	}

@@ -81,7 +81,7 @@ type crowdAuthenticationError struct {
 }
 
 // Open returns a strategy for logging in through Atlassian Crowd
-func (c *Config) Open(_ string, logger log.Logger, opts ...interface{}) (connector.Connector, error) {
+func (c *Config) Open(_ string, logger log.Logger) (connector.Connector, error) {
 	if c.BaseURL == "" {
 		return nil, fmt.Errorf("crowd: no baseURL provided for crowd connector")
 	}
