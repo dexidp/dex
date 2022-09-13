@@ -48,8 +48,8 @@ bin/example-app:
 .PHONY: release-binary
 release-binary: LD_FLAGS = "-w -X main.version=$(VERSION) -extldflags \"-static\""
 release-binary: generate
-	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
-	@go build -o /go/bin/docker-entrypoint -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/docker-entrypoint
+	go build -o /go/bin/dex -v -buildvcs=false -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
+	go build -o /go/bin/docker-entrypoint -v -buildvcs=false -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/docker-entrypoint
 
 docker-compose.override.yaml:
 	cp docker-compose.override.yaml.dist docker-compose.override.yaml
