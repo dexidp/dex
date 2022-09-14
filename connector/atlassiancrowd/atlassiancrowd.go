@@ -54,10 +54,11 @@ type Config struct {
 }
 
 type crowdUser struct {
-	Key    string
-	Name   string
-	Active bool
-	Email  string
+	Key         string
+	Name        string
+	DisplayName string `json:"display-name"`
+	Active      bool
+	Email       string
 }
 
 type crowdGroups struct {
@@ -129,7 +130,7 @@ func (c *crowdConnector) Login(ctx context.Context, s connector.Scopes, username
 
 	ident = c.identityFromCrowdUser(user)
 	if s.Groups {
-		userGroups, err := c.getGroups(ctx, client, s.Groups, ident.Username)
+		userGroups, err := c.getGroups(ctx, client, s.Groups, username)
 		if err != nil {
 			return connector.Identity{}, false, fmt.Errorf("crowd: failed to query groups: %v", err)
 		}
@@ -171,7 +172,7 @@ func (c *crowdConnector) Refresh(ctx context.Context, s connector.Scopes, ident 
 	}
 
 	if s.Groups {
-		userGroups, err := c.getGroups(ctx, client, s.Groups, newIdent.Username)
+		userGroups, err := c.getGroups(ctx, client, s.Groups, data.Username)
 		if err != nil {
 			return connector.Identity{}, fmt.Errorf("crowd: failed to query groups: %v", err)
 		}
@@ -361,7 +362,7 @@ func (c *crowdConnector) groups(ctx context.Context, client *http.Client, userna
 // identityFromCrowdUser converts crowdUser to Identity
 func (c *crowdConnector) identityFromCrowdUser(user crowdUser) connector.Identity {
 	identity := connector.Identity{
-		Username:      user.Name,
+		Username:      user.DisplayName,
 		UserID:        user.Key,
 		Email:         user.Email,
 		EmailVerified: true,
