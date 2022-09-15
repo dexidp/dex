@@ -224,7 +224,14 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 	identity.Username, _ = userInfoResult[c.userNameKey].(string)
 	identity.PreferredUsername, _ = userInfoResult[c.preferredUsernameKey].(string)
 	identity.Email, _ = userInfoResult[c.emailKey].(string)
-	identity.EmailVerified, _ = userInfoResult[c.emailVerifiedKey].(bool)
+
+	emailVerified, found := userInfoResult[c.emailVerifiedKey].(bool)
+	if found {
+		identity.EmailVerified = emailVerified
+	} else {
+		identity.EmailVerified = true
+		c.logger.Infof(`OAuth Connector: unseted key %v for email %v by "userInfoURL", setting claim "EmailVerified" as true`, c.emailVerifiedKey, identity.Email)
+	}
 
 	if s.Groups {
 		groups := map[string]struct{}{}

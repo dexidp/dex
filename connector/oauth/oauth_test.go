@@ -165,7 +165,7 @@ func TestHandleCallBackForGroupsInToken(t *testing.T) {
 	assert.Equal(t, identity.UserID, "test-user-id")
 	assert.Equal(t, identity.Username, "test-username")
 	assert.Equal(t, identity.Email, "")
-	assert.Equal(t, identity.EmailVerified, false)
+	assert.Equal(t, identity.EmailVerified, true)
 }
 
 func TestHandleCallbackForNumericUserID(t *testing.T) {
@@ -194,6 +194,33 @@ func TestHandleCallbackForNumericUserID(t *testing.T) {
 	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
 	assert.Equal(t, identity.Email, "mod_mail")
 	assert.Equal(t, identity.EmailVerified, false)
+}
+
+func TestHandleCallBackForNoVerified_Email(t *testing.T) {
+	tokenClaims := map[string]interface{}{}
+
+	userInfoClaims := map[string]interface{}{
+		"name":               "test-name",
+		"user_id_key":        "test-user-id",
+		"user_name_key":      "test-username",
+		"preferred_username": "test-preferred-username",
+		"mail":               "mod_mail",
+	}
+
+	testServer := testSetup(t, tokenClaims, userInfoClaims)
+	defer testServer.Close()
+
+	conn := newConnector(t, testServer.URL)
+	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallbackForNumericUserID")
+
+	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
+	assert.Equal(t, err, nil)
+
+	assert.Equal(t, identity.UserID, "test-user-id")
+	assert.Equal(t, identity.Username, "test-username")
+	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.Email, "mod_mail")
+	assert.Equal(t, identity.EmailVerified, true)
 }
 
 func testSetup(t *testing.T, tokenClaims map[string]interface{}, userInfoClaims map[string]interface{}) *httptest.Server {
