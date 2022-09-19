@@ -165,7 +165,7 @@ func TestHandleCallBackForGroupsInToken(t *testing.T) {
 	assert.Equal(t, identity.UserID, "test-user-id")
 	assert.Equal(t, identity.Username, "test-username")
 	assert.Equal(t, identity.Email, "")
-	assert.Equal(t, identity.EmailVerified, true)
+	assert.Equal(t, identity.EmailVerified, false)
 }
 
 func TestHandleCallbackForNumericUserID(t *testing.T) {
@@ -220,7 +220,7 @@ func TestHandleCallBackForNoVerified_Email(t *testing.T) {
 	assert.Equal(t, identity.Username, "test-username")
 	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
 	assert.Equal(t, identity.Email, "mod_mail")
-	assert.Equal(t, identity.EmailVerified, true)
+	assert.Equal(t, identity.EmailVerified, false)
 }
 
 func testSetup(t *testing.T, tokenClaims map[string]interface{}, userInfoClaims map[string]interface{}) *httptest.Server {
