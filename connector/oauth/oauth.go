@@ -21,21 +21,22 @@ import (
 )
 
 type oauthConnector struct {
-	clientID             string
-	clientSecret         string
-	redirectURI          string
-	tokenURL             string
-	authorizationURL     string
-	userInfoURL          string
-	scopes               []string
-	userIDKey            string
-	userNameKey          string
-	preferredUsernameKey string
-	emailKey             string
-	emailVerifiedKey     string
-	groupsKey            string
-	httpClient           *http.Client
-	logger               log.Logger
+	clientID                  string
+	clientSecret              string
+	redirectURI               string
+	tokenURL                  string
+	authorizationURL          string
+	userInfoURL               string
+	scopes                    []string
+	userIDKey                 string
+	userNameKey               string
+	preferredUsernameKey      string
+	emailKey                  string
+	emailVerifiedKey          string
+	insecureSkipEmailVerified bool
+	groupsKey                 string
+	httpClient                *http.Client
+	logger                    log.Logger
 }
 
 type connectorData struct {
@@ -53,7 +54,9 @@ type Config struct {
 	RootCAs            []string `json:"rootCAs"`
 	InsecureSkipVerify bool     `json:"insecureSkipVerify"`
 	UserIDKey          string   `json:"userIDKey"` // defaults to "id"
-	ClaimMapping       struct {
+	// Override the value of email_verified to true in the returned claims
+	InsecureSkipEmailVerified bool `json:"insecureSkipEmailVerified"`
+	ClaimMapping              struct {
 		UserNameKey          string `json:"userNameKey"`          // defaults to "user_name"
 		PreferredUsernameKey string `json:"preferredUsernameKey"` // defaults to "preferred_username"
 		GroupsKey            string `json:"groupsKey"`            // defaults to "groups"
@@ -96,20 +99,21 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 	}
 
 	oauthConn := &oauthConnector{
-		clientID:             c.ClientID,
-		clientSecret:         c.ClientSecret,
-		tokenURL:             c.TokenURL,
-		authorizationURL:     c.AuthorizationURL,
-		userInfoURL:          c.UserInfoURL,
-		scopes:               c.Scopes,
-		redirectURI:          c.RedirectURI,
-		logger:               logger,
-		userIDKey:            userIDKey,
-		userNameKey:          userNameKey,
-		preferredUsernameKey: preferredUsernameKey,
-		groupsKey:            groupsKey,
-		emailKey:             emailKey,
-		emailVerifiedKey:     emailVerifiedKey,
+		clientID:                  c.ClientID,
+		clientSecret:              c.ClientSecret,
+		tokenURL:                  c.TokenURL,
+		authorizationURL:          c.AuthorizationURL,
+		userInfoURL:               c.UserInfoURL,
+		scopes:                    c.Scopes,
+		redirectURI:               c.RedirectURI,
+		logger:                    logger,
+		userIDKey:                 userIDKey,
+		userNameKey:               userNameKey,
+		preferredUsernameKey:      preferredUsernameKey,
+		groupsKey:                 groupsKey,
+		emailKey:                  emailKey,
+		emailVerifiedKey:          emailVerifiedKey,
+		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
 	}
 
 	oauthConn.httpClient, err = newHTTPClient(c.RootCAs, c.InsecureSkipVerify)
@@ -225,13 +229,23 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 	identity.PreferredUsername, _ = userInfoResult[c.preferredUsernameKey].(string)
 	identity.Email, _ = userInfoResult[c.emailKey].(string)
 
-	emailVerified, found := userInfoResult[c.emailVerifiedKey].(bool)
-	if found {
-		identity.EmailVerified = emailVerified
-	} else {
-		identity.EmailVerified = true
-		c.logger.Infof(`OAuth Connector: unseted key %v for email %v by "userInfoURL", setting claim "EmailVerified" as true`, c.emailVerifiedKey, identity.Email)
+	hasEmailScope := false
+	for _, s := range oauth2Config.Scopes {
+		if s == "email" {
+			hasEmailScope = true
+			break
+		}
 	}
+
+	emailVerified, found := userInfoResult[c.emailVerifiedKey].(bool)
+	if !found {
+		if c.insecureSkipEmailVerified {
+			emailVerified = true
+		} else if hasEmailScope {
+			return identity, fmt.Errorf("oidc: missing %v claim", c.emailVerifiedKey)
+		}
+	}
+	identity.EmailVerified = emailVerified
 
 	if s.Groups {
 		groups := map[string]struct{}{}
