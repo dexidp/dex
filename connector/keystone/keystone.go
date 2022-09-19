@@ -206,7 +206,6 @@ func (p *conn) authenticate(ctx context.Context, username, pass string) (string,
 	req = req.WithContext(ctx)
 
 	resp, err := client.Do(req)
-
 	if err != nil {
 		return "", nil, fmt.Errorf("keystone: error %v", err)
 	}
