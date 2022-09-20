@@ -1044,7 +1044,10 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 	nonce := q.Get("nonce")
 	scopes := strings.Fields(q.Get("scope"))
 
-	claims := storage.Claims{UserID: client.ID}
+	claims := storage.Claims{
+		UserID:   client.ID,
+		Username: client.Name,
+	}
 
 	accessToken, err := s.newAccessToken(client.ID, claims, scopes, nonce, "client")
 	if err != nil {
