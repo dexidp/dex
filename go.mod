@@ -1,6 +1,6 @@
 module github.com/dexidp/dex
 
-go 1.19
+go1.19.1
 
 require (
 	entgo.io/ent v0.11.2
