@@ -144,8 +144,7 @@ type roleAssignment struct {
 }
 
 type connectorData struct {
-	// TokenInfo is cached for SSO groups
-	TokenInfo *tokenInfo `json:"tokenInfo"`
+	Token string `json:"token"`
 }
 
 var (
@@ -204,7 +203,7 @@ func (p *conn) Login(ctx context.Context, scopes connector.Scopes, username, pas
 		identity.EmailVerified = true
 	}
 
-	data := connectorData{TokenInfo: tokenInfo}
+	data := connectorData{Token: token}
 	connData, err := json.Marshal(data)
 	if err != nil {
 		return identity, false, fmt.Errorf("marshal connector data: %v", err)
@@ -232,14 +231,27 @@ func (p *conn) Refresh(
 		return identity, fmt.Errorf("keystone: user %q does not exist", identity.UserID)
 	}
 
-	if p.groupsRequired(scopes.Groups) {
-		var data connectorData
-		if err := json.Unmarshal(identity.ConnectorData, &data); err != nil {
-			return identity, fmt.Errorf("keystone: unmarshal token info: %v", err)
+	tokenInfo := &tokenInfo{
+		User: userKeystone{
+			Name: identity.Username,
+			ID:   identity.UserID,
+		},
+	}
+	var data connectorData
+	if err := json.Unmarshal(identity.ConnectorData, &data); err != nil {
+		return identity, fmt.Errorf("keystone: unmarshal token info: %v", err)
+	}
+	// If there is a token associated with this refresh token, use that to look up the info.
+	if len(data.Token) > 0 {
+		tokenInfo, err = p.getTokenInfo(ctx, token)
+		if err != nil {
+			return identity, err
 		}
+	}
 
+	if p.groupsRequired(scopes.Groups) {
 		var err error
-		identity.Groups, err = p.getGroups(ctx, token, data.TokenInfo)
+		identity.Groups, err = p.getGroups(ctx, token, tokenInfo)
 		if err != nil {
 			return identity, err
 		}
