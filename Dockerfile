@@ -1,6 +1,6 @@
 ARG BASE_IMAGE=alpine
 
-FROM golang:1.18.4-alpine3.15 AS builder
+FROM golang:1.19.1-alpine3.16 AS builder
 
 WORKDIR /usr/local/src/dex
 
@@ -34,7 +34,7 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
 
-ENV GOMPLATE_VERSION=v3.10.0
+ENV GOMPLATE_VERSION=v3.11.2
 
 RUN wget -O /usr/local/bin/gomplate \
     "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT}" \

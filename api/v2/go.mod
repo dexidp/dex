@@ -3,8 +3,8 @@ module github.com/dexidp/dex/api/v2
 go 1.17
 
 require (
-	google.golang.org/grpc v1.47.0
-	google.golang.org/protobuf v1.28.0
+	google.golang.org/grpc v1.49.0
+	google.golang.org/protobuf v1.28.1
 )
 
 require (
