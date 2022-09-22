@@ -281,8 +281,11 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 
 // createDirectoryService sets up super user impersonation and creates an admin client for calling
 // the google admin api. If no serviceAccountFilePath is defined, the application default credential
-// is used.
+// is used. if no email or serviceAccountFilePath is specified, this quietly returns without error or directory service.
 func createDirectoryService(serviceAccountFilePath, email string, logger log.Logger) (*admin.Service, error) {
+	if serviceAccountFilePath == "" && email == "" {
+		return nil, nil
+	}
 	if email == "" {
 		return nil, fmt.Errorf("directory service requires adminEmail")
 	}
