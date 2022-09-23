@@ -13,6 +13,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	admin "google.golang.org/api/admin/directory/v1"
+	"google.golang.org/api/impersonate"
 	"google.golang.org/api/option"
 
 	"github.com/dexidp/dex/connector"
@@ -45,6 +46,11 @@ type Config struct {
 	// check groups with the admin directory api
 	ServiceAccountFilePath string `json:"serviceAccountFilePath"`
 
+	// Required if ServiceAccountFilePath empty
+	// If nonempty, the base google service account which will be used to impersonate
+	// the workspace super user.
+	TargetPrincipal string `json:"targetPrincipal"`
+
 	// Required if ServiceAccountFilePath
 	// The email of a GSuite super user which the service account will impersonate
 	// when listing groups
@@ -71,7 +77,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		scopes = append(scopes, "profile", "email")
 	}
 
-	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, logger)
+	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.TargetPrincipal, c.AdminEmail, logger)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not create directory service: %v", err)
@@ -282,27 +288,38 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 // createDirectoryService sets up super user impersonation and creates an admin client for calling
 // the google admin api. If no serviceAccountFilePath is defined, the application default credential
 // is used.
-func createDirectoryService(serviceAccountFilePath, email string, logger log.Logger) (*admin.Service, error) {
+func createDirectoryService(serviceAccountFilePath, targetPrincipal, email string, logger log.Logger) (*admin.Service, error) {
 	if email == "" {
 		return nil, fmt.Errorf("directory service requires adminEmail")
 	}
 
-	var jsonCredentials []byte
-	var err error
-
 	ctx := context.Background()
+
+	// If no service account file path is set, the following impersonation flow is attempted:
+	// - The base Application Default Credentials is used (SA1)
+	// - That service account (SA1) is then used to impersonate the service account designated by the targetPrincipal field (SA2)
+	// - SA2's token source is then used to impersonate the Google Workspace super user designated by adminEmail
 	if serviceAccountFilePath == "" {
 		logger.Warn("the application default credential is used since the service account file path is not used")
-		credential, err := google.FindDefaultCredentials(ctx)
+
+		if targetPrincipal == "" {
+			return nil, fmt.Errorf("application default credentials requires the targetPrincipal to be set")
+		}
+
+		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
+			TargetPrincipal: targetPrincipal,
+			Subject:         email,
+			Scopes:          []string{admin.AdminDirectoryGroupReadonlyScope},
+		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch application default credentials: %w", err)
 		}
-		jsonCredentials = credential.JSON
-	} else {
-		jsonCredentials, err = os.ReadFile(serviceAccountFilePath)
-		if err != nil {
-			return nil, fmt.Errorf("error reading credentials from file: %v", err)
-		}
+		return admin.NewService(ctx, option.WithTokenSource(ts))
+	}
+
+	jsonCredentials, err := os.ReadFile(serviceAccountFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading credentials from file: %v", err)
 	}
 	config, err := google.JWTConfigFromJSON(jsonCredentials, admin.AdminDirectoryGroupReadonlyScope)
 	if err != nil {
