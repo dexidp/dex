@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -196,6 +197,145 @@ func TestHandleCallbackForNumericUserID(t *testing.T) {
 	assert.Equal(t, identity.EmailVerified, false)
 }
 
+func TestHandleCallBackForAttrPathPrefix(t *testing.T) {
+	tokenClaims := map[string]interface{}{}
+
+	userInfoClaims := map[string]interface{}{
+		"data": map[string]interface{}{
+			"name":               "test-name",
+			"user_id_key":        "test-user-id",
+			"user_name_key":      "test-username",
+			"preferred_username": "test-preferred-username",
+			"mail":               "mod_mail",
+			"has_verified_email": false,
+		},
+	}
+
+	testServer := testSetup(t, tokenClaims, userInfoClaims)
+	defer testServer.Close()
+
+	conn := newConnector(t, testServer.URL, "data")
+	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallBackForAttrPathPrefix")
+
+	identity, err := conn.HandleCallback(connector.Scopes{}, req)
+	assert.Equal(t, err, nil)
+
+	assert.Equal(t, identity.UserID, "test-user-id")
+	assert.Equal(t, identity.Username, "test-username")
+	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.Email, "mod_mail")
+	assert.Equal(t, identity.EmailVerified, false)
+}
+
+func TestHandleCallBackForGroupsInUserInfoWithAttrPath(t *testing.T) {
+	tokenClaims := map[string]interface{}{}
+
+	userInfoClaims := map[string]interface{}{
+		"data": map[string]interface{}{
+			"name":               "test-name",
+			"user_id_key":        "test-user-id",
+			"user_name_key":      "test-username",
+			"preferred_username": "test-preferred-username",
+			"mail":               "mod_mail",
+			"has_verified_email": false,
+			"groups_key":         []string{"admin-group", "user-group"},
+		},
+	}
+
+	testServer := testSetup(t, tokenClaims, userInfoClaims)
+	defer testServer.Close()
+
+	conn := newConnector(t, testServer.URL, "data")
+	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallBackForGroupsInUserInfoWithAttrPath")
+
+	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
+	assert.Equal(t, err, nil)
+
+	sort.Strings(identity.Groups)
+	assert.Equal(t, len(identity.Groups), 2)
+	assert.Equal(t, identity.Groups[0], "admin-group")
+	assert.Equal(t, identity.Groups[1], "user-group")
+	assert.Equal(t, identity.UserID, "test-user-id")
+	assert.Equal(t, identity.Username, "test-username")
+	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.Email, "mod_mail")
+	assert.Equal(t, identity.EmailVerified, false)
+}
+
+func TestHandleCallBackForGroupMapsInUserInfoWithAttrPath(t *testing.T) {
+	tokenClaims := map[string]interface{}{}
+
+	userInfoClaims := map[string]interface{}{
+		"data": map[string]interface{}{
+			"name":               "test-name",
+			"user_id_key":        "test-user-id",
+			"user_name_key":      "test-username",
+			"preferred_username": "test-preferred-username",
+			"mail":               "mod_mail",
+			"has_verified_email": false,
+			"groups_key": []interface{}{
+				map[string]string{"name": "admin-group", "id": "111"},
+				map[string]string{"name": "user-group", "id": "222"},
+			},
+		},
+	}
+
+	testServer := testSetup(t, tokenClaims, userInfoClaims)
+	defer testServer.Close()
+
+	conn := newConnector(t, testServer.URL, "data")
+	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallBackForGroupMapsInUserInfoWithAttrPath")
+
+	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
+	assert.Equal(t, err, nil)
+
+	sort.Strings(identity.Groups)
+	assert.Equal(t, len(identity.Groups), 2)
+	assert.Equal(t, identity.Groups[0], "admin-group")
+	assert.Equal(t, identity.Groups[1], "user-group")
+	assert.Equal(t, identity.UserID, "test-user-id")
+	assert.Equal(t, identity.Username, "test-username")
+	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.Email, "mod_mail")
+	assert.Equal(t, identity.EmailVerified, false)
+}
+
+func TestHandleCallBackForGroupsInTokenWithAttrPath(t *testing.T) {
+	tokenClaims := map[string]interface{}{
+		"data": map[string]interface{}{
+			"groups_key": []string{"test-group"},
+		},
+	}
+
+	userInfoClaims := map[string]interface{}{
+		"data": map[string]interface{}{
+			"name":               "test-name",
+			"user_id_key":        "test-user-id",
+			"user_name_key":      "test-username",
+			"preferred_username": "test-preferred-username",
+			"email":              "test-email",
+			"email_verified":     true,
+		},
+	}
+
+	testServer := testSetup(t, tokenClaims, userInfoClaims)
+	defer testServer.Close()
+
+	conn := newConnector(t, testServer.URL, "data")
+	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallBackForGroupsInTokenWithAttrPath")
+
+	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
+	assert.Equal(t, err, nil)
+
+	assert.Equal(t, len(identity.Groups), 1)
+	assert.Equal(t, identity.Groups[0], "test-group")
+	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.UserID, "test-user-id")
+	assert.Equal(t, identity.Username, "test-username")
+	assert.Equal(t, identity.Email, "")
+	assert.Equal(t, identity.EmailVerified, false)
+}
+
 func testSetup(t *testing.T, tokenClaims map[string]interface{}, userInfoClaims map[string]interface{}) *httptest.Server {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
@@ -253,7 +393,12 @@ func newToken(key *jose.JSONWebKey, claims map[string]interface{}) (string, erro
 	return signature.CompactSerialize()
 }
 
-func newConnector(t *testing.T, serverURL string) *oauthConnector {
+func newConnector(t *testing.T, serverURL string, attrPathPrefix ...string) *oauthConnector {
+	prefix := strings.Join(attrPathPrefix, ".")
+	if prefix != "" {
+		prefix += "."
+	}
+
 	testConfig := Config{
 		ClientID:         "testClient",
 		ClientSecret:     "testSecret",
@@ -262,13 +407,14 @@ func newConnector(t *testing.T, serverURL string) *oauthConnector {
 		AuthorizationURL: serverURL + "/authorize",
 		UserInfoURL:      serverURL + "/userinfo",
 		Scopes:           []string{"openid", "groups"},
-		UserIDKey:        "user_id_key",
+		UserIDKey:        prefix + "user_id_key",
 	}
 
-	testConfig.ClaimMapping.UserNameKey = "user_name_key"
-	testConfig.ClaimMapping.GroupsKey = "groups_key"
-	testConfig.ClaimMapping.EmailKey = "mail"
-	testConfig.ClaimMapping.EmailVerifiedKey = "has_verified_email"
+	testConfig.ClaimMapping.UserNameKey = prefix + "user_name_key"
+	testConfig.ClaimMapping.GroupsKey = prefix + "groups_key"
+	testConfig.ClaimMapping.EmailKey = prefix + "mail"
+	testConfig.ClaimMapping.EmailVerifiedKey = prefix + "has_verified_email"
+	testConfig.ClaimMapping.PreferredUsernameKey = prefix + "preferred_username"
 
 	log := logrus.New()
 
