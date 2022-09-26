@@ -436,4 +436,5 @@ type DeviceToken struct {
 	Expiry              time.Time
 	LastRequestTime     time.Time
 	PollIntervalSeconds int
+	PKCE                PKCE
 }

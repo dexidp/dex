@@ -929,12 +929,12 @@ func (c *conn) CreateDeviceRequest(d storage.DeviceRequest) error {
 func (c *conn) CreateDeviceToken(t storage.DeviceToken) error {
 	_, err := c.Exec(`
 		insert into device_token (
-			device_code, status, token, expiry, last_request, poll_interval
+			device_code, status, token, expiry, last_request, poll_interval, code_challenge, code_challenge_method
 		)
 		values (
-			$1, $2, $3, $4, $5, $6
+			$1, $2, $3, $4, $5, $6, $7, $8
 		);`,
-		t.DeviceCode, t.Status, t.Token, t.Expiry, t.LastRequestTime, t.PollIntervalSeconds,
+		t.DeviceCode, t.Status, t.Token, t.Expiry, t.LastRequestTime, t.PollIntervalSeconds, t.PKCE.CodeChallenge, t.PKCE.CodeChallengeMethod,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -974,10 +974,10 @@ func (c *conn) GetDeviceToken(deviceCode string) (storage.DeviceToken, error) {
 func getDeviceToken(q querier, deviceCode string) (a storage.DeviceToken, err error) {
 	err = q.QueryRow(`
 		select
-            status, token, expiry, last_request, poll_interval
+            status, token, expiry, last_request, poll_interval, code_challenge, code_challenge_method
 		from device_token where device_code = $1;
 	`, deviceCode).Scan(
-		&a.Status, &a.Token, &a.Expiry, &a.LastRequestTime, &a.PollIntervalSeconds,
+		&a.Status, &a.Token, &a.Expiry, &a.LastRequestTime, &a.PollIntervalSeconds, &a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -1004,11 +1004,13 @@ func (c *conn) UpdateDeviceToken(deviceCode string, updater func(old storage.Dev
 				status = $1, 
 				token = $2,
 				last_request = $3,
-				poll_interval = $4
+				poll_interval = $4,
+				code_challenge = $5,
+				code_challenge_method = $6
 			where
-				device_code = $5
+				device_code = $7
 		`,
-			r.Status, r.Token, r.LastRequestTime, r.PollIntervalSeconds, r.DeviceCode,
+			r.Status, r.Token, r.LastRequestTime, r.PollIntervalSeconds, r.PKCE.CodeChallenge, r.PKCE.CodeChallengeMethod, r.DeviceCode,
 		)
 		if err != nil {
 			return fmt.Errorf("update device token: %v", err)

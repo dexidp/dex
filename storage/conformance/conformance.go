@@ -893,6 +893,10 @@ func testGC(t *testing.T, s storage.Storage) {
 		Expiry:              expiry,
 		LastRequestTime:     time.Now(),
 		PollIntervalSeconds: 0,
+		PKCE: storage.PKCE{
+			CodeChallenge:       "challenge",
+			CodeChallengeMethod: "S256",
+		},
 	}
 
 	if err := s.CreateDeviceToken(dt); err != nil {
@@ -992,6 +996,11 @@ func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
 }
 
 func testDeviceTokenCRUD(t *testing.T, s storage.Storage) {
+	codeChallenge := storage.PKCE{
+		CodeChallenge:       "code_challenge_test",
+		CodeChallengeMethod: "plain",
+	}
+
 	// Create a Token
 	d1 := storage.DeviceToken{
 		DeviceCode:          storage.NewID(),
@@ -1000,6 +1009,7 @@ func testDeviceTokenCRUD(t *testing.T, s storage.Storage) {
 		Expiry:              neverExpire,
 		LastRequestTime:     time.Now(),
 		PollIntervalSeconds: 0,
+		PKCE:                codeChallenge,
 	}
 
 	if err := s.CreateDeviceToken(d1); err != nil {
@@ -1031,5 +1041,8 @@ func testDeviceTokenCRUD(t *testing.T, s storage.Storage) {
 	}
 	if got.Token != "token data" {
 		t.Fatalf("update failed, wanted token %v got %v", "token data", got.Token)
+	}
+	if !reflect.DeepEqual(got.PKCE, codeChallenge) {
+		t.Fatalf("storage does not support PKCE, wanted challenge=%#v got %#v", codeChallenge, got.PKCE)
 	}
 }

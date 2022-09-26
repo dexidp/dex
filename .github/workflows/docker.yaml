@@ -75,7 +75,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
-          platforms: linux/amd64,linux/arm/v7,linux/arm64
+          platforms: linux/amd64,linux/arm/v7,linux/arm64,linux/ppc64le
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
           push: ${{ github.event_name == 'push' }}
@@ -96,7 +96,7 @@ jobs:
             org.opencontainers.image.documentation=https://dexidp.io/docs/
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.6.0
+        uses: aquasecurity/trivy-action@0.7.1
         with:
           image-ref: "ghcr.io/dexidp/dex:${{ steps.tags.outputs.version }}"
           format: "template"

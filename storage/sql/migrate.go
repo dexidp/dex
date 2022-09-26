@@ -284,6 +284,16 @@ var migrations = []migration{
 	{
 		stmts: []string{
 			`
+			alter table device_token
+				add column code_challenge text not null default '';`,
+			`
+			alter table device_token
+				add column code_challenge_method text not null default '';`,
+		},
+	},
+	{
+		stmts: []string{
+			`
 			alter table auth_request
 				add column hmac_key bytea;`,
 		},
