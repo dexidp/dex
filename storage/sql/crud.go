@@ -144,7 +144,8 @@ func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
 		a.Claims.Email, a.Claims.EmailVerified, encoder(a.Claims.Groups),
 		a.ConnectorID, a.ConnectorData,
 		a.Expiry,
-		a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod, a.HMACKey,
+		a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod,
+		a.HMACKey,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {

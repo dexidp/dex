@@ -502,6 +502,8 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 
 	// TODO: if s.skipApproval or !authReq.ForceApprovalPrompt, we can skip the redirect to /approval and go ahead and send code
 
+	// an HMAC is used here to ensure that the request ID is unpredictable, ensuring that an attacker who intercepted the original
+	// flow would be unable to poll for the result at the /approval endpoint
 	h := hmac.New(sha256.New, authReq.HMACKey)
 	h.Write([]byte(authReq.ID))
 	mac := h.Sum(nil)
@@ -576,7 +578,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 
 	// build expected hmac with secret key
 	h := hmac.New(sha256.New, authReq.HMACKey)
-	h.Write([]byte(r.FormValue("req")))
+	h.Write([]byte(authReq.ID))
 	expectedMAC := h.Sum(nil)
 	// constant time comparison
 	if !hmac.Equal(mac, expectedMAC) {
