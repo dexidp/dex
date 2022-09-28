@@ -105,11 +105,12 @@ func TestOpen(t *testing.T) {
 		},
 		"adc": {
 			config: &Config{
-				ClientID:     "testClient",
-				ClientSecret: "testSecret",
-				RedirectURI:  ts.URL + "/callback",
-				Scopes:       []string{"openid", "groups"},
-				AdminEmail:   "foo@bar.com",
+				ClientID:        "testClient",
+				ClientSecret:    "testSecret",
+				RedirectURI:     ts.URL + "/callback",
+				Scopes:          []string{"openid", "groups"},
+				AdminEmail:      "foo@bar.com",
+				TargetPrincipal: "foo@prj-bar.iam.gserviceaccount.com",
 			},
 			adc:         serviceAccountFilePath,
 			expectedErr: "",
@@ -122,9 +123,21 @@ func TestOpen(t *testing.T) {
 				Scopes:                 []string{"openid", "groups"},
 				AdminEmail:             "foo@bar.com",
 				ServiceAccountFilePath: serviceAccountFilePath,
+				TargetPrincipal:        "foo@prj-bar.iam.gserviceaccount.com",
 			},
 			adc:         "/dev/null",
 			expectedErr: "",
+		},
+		"adc_no_target_principal": {
+			config: &Config{
+				ClientID:     "testClient",
+				ClientSecret: "testSecret",
+				RedirectURI:  ts.URL + "/callback",
+				Scopes:       []string{"openid", "groups"},
+				AdminEmail:   "foo@bar.com",
+			},
+			adc:         serviceAccountFilePath,
+			expectedErr: "targetPrincipal",
 		},
 	} {
 		reference := reference
