@@ -2,6 +2,7 @@
 
 This is a list of production adopters of Dex (in alphabetical order):
 
+- [Argo CD](https://argoproj.github.io/cd) integrates Dex to provide convenient Single Sign On capabilities to its web UI and CLI
 - [Aspect](https://www.aspect.com/) uses Dex for authenticating users across their Kubernetes infrastructure (using Kubernetes OIDC support).
 - [Banzai Cloud](https://banzaicloud.com) is using Dex for authenticating to its Pipeline control plane and also to authenticate users against provisioned Kubernetes clusters (via Kubernetes OIDC support).
 - [Chef](https://chef.io) uses Dex for authenticating users in [Chef Automate](https://automate.chef.io/). The code is Open Source, available at [`github.com/chef/automate`](https://github.com/chef/automate).
