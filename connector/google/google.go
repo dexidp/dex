@@ -71,13 +71,10 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		scopes = append(scopes, "profile", "email")
 	}
 
-	var srv *admin.Service
-	if len(c.Groups) > 0 {
-		srv, err = createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, logger)
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not create directory service: %v", err)
-		}
+	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, logger)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not create directory service: %v", err)
 	}
 
 	clientID := c.ClientID
