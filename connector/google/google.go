@@ -71,13 +71,10 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		scopes = append(scopes, "profile", "email")
 	}
 
-	var srv *admin.Service
-	if len(c.Groups) > 0 {
-		srv, err = createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, logger)
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not create directory service: %v", err)
-		}
+	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, logger)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not create directory service: %v", err)
 	}
 
 	clientID := c.ClientID
@@ -286,7 +283,9 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 // the google admin api. If no serviceAccountFilePath is defined, the application default credential
 // is used.
 func createDirectoryService(serviceAccountFilePath, email string, logger log.Logger) (*admin.Service, error) {
-	if email == "" {
+	// We know impersonation is required when using a service account credential
+	// TODO: or is it?
+	if email == "" && serviceAccountFilePath != "" {
 		return nil, fmt.Errorf("directory service requires adminEmail")
 	}
 
@@ -311,7 +310,12 @@ func createDirectoryService(serviceAccountFilePath, email string, logger log.Log
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse credentials to config: %v", err)
 	}
-	config.Subject = email
+
+	// Only attempt impersonation when there is a user configured
+	if email != "" {
+		config.Subject = email
+	}
+
 	return admin.NewService(ctx, option.WithHTTPClient(config.Client(ctx)))
 }
 

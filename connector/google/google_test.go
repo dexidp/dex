@@ -72,22 +72,13 @@ func TestOpen(t *testing.T) {
 	assert.Nil(t, err)
 
 	for name, reference := range map[string]testCase{
-		"not_requesting_groups": {
-			config: &Config{
-				ClientID:     "testClient",
-				ClientSecret: "testSecret",
-				RedirectURI:  ts.URL + "/callback",
-				Scopes:       []string{"openid"},
-			},
-			expectedErr: "",
-		},
 		"missing_admin_email": {
 			config: &Config{
-				ClientID:     "testClient",
-				ClientSecret: "testSecret",
-				RedirectURI:  ts.URL + "/callback",
-				Scopes:       []string{"openid", "groups"},
-				Groups:       []string{"someGroup"},
+				ClientID:               "testClient",
+				ClientSecret:           "testSecret",
+				RedirectURI:            ts.URL + "/callback",
+				Scopes:                 []string{"openid", "groups"},
+				ServiceAccountFilePath: serviceAccountFilePath,
 			},
 			expectedErr: "requires adminEmail",
 		},
@@ -99,7 +90,6 @@ func TestOpen(t *testing.T) {
 				Scopes:                 []string{"openid", "groups"},
 				AdminEmail:             "foo@bar.com",
 				ServiceAccountFilePath: "not_found.json",
-				Groups:                 []string{"someGroup"},
 			},
 			expectedErr: "error reading credentials",
 		},
@@ -111,7 +101,6 @@ func TestOpen(t *testing.T) {
 				Scopes:                 []string{"openid", "groups"},
 				AdminEmail:             "foo@bar.com",
 				ServiceAccountFilePath: serviceAccountFilePath,
-				Groups:                 []string{"someGroup"},
 			},
 			expectedErr: "",
 		},
@@ -122,7 +111,6 @@ func TestOpen(t *testing.T) {
 				RedirectURI:  ts.URL + "/callback",
 				Scopes:       []string{"openid", "groups"},
 				AdminEmail:   "foo@bar.com",
-				Groups:       []string{"someGroup"},
 			},
 			adc:         serviceAccountFilePath,
 			expectedErr: "",
@@ -135,7 +123,6 @@ func TestOpen(t *testing.T) {
 				Scopes:                 []string{"openid", "groups"},
 				AdminEmail:             "foo@bar.com",
 				ServiceAccountFilePath: serviceAccountFilePath,
-				Groups:                 []string{"someGroup"},
 			},
 			adc:         "/dev/null",
 			expectedErr: "",
