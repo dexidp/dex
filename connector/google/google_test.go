@@ -74,10 +74,11 @@ func TestOpen(t *testing.T) {
 	for name, reference := range map[string]testCase{
 		"missing_admin_email": {
 			config: &Config{
-				ClientID:     "testClient",
-				ClientSecret: "testSecret",
-				RedirectURI:  ts.URL + "/callback",
-				Scopes:       []string{"openid", "groups"},
+				ClientID:               "testClient",
+				ClientSecret:           "testSecret",
+				RedirectURI:            ts.URL + "/callback",
+				Scopes:                 []string{"openid", "groups"},
+				ServiceAccountFilePath: serviceAccountFilePath,
 			},
 			expectedErr: "requires adminEmail",
 		},
