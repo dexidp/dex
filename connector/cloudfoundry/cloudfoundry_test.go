@@ -1,4 +1,4 @@
-package cf
+package cloudfoundry
 
 import (
 	"encoding/json"
@@ -30,7 +30,7 @@ func TestHandleCallback(t *testing.T) {
 	testServer := testSetup()
 	defer testServer.Close()
 
-	cfConn := &cfConnector{
+	cloudfoundryConn := &cloudfoundryConnector{
 		tokenURL:         fmt.Sprintf("%s/token", testServer.URL),
 		authorizationURL: fmt.Sprintf("%s/authorize", testServer.URL),
 		userInfoURL:      fmt.Sprintf("%s/userinfo", testServer.URL),
@@ -45,7 +45,7 @@ func TestHandleCallback(t *testing.T) {
 	expectEqual(t, err, nil)
 
 	t.Run("CallbackWithGroupsScope", func(t *testing.T) {
-		identity, err := cfConn.HandleCallback(connector.Scopes{Groups: true}, req)
+		identity, err := cloudfoundryConn.HandleCallback(connector.Scopes{Groups: true}, req)
 		expectEqual(t, err, nil)
 
 		expectEqual(t, len(identity.Groups), 24)
@@ -76,7 +76,7 @@ func TestHandleCallback(t *testing.T) {
 	})
 
 	t.Run("CallbackWithoutGroupsScope", func(t *testing.T) {
-		identity, err := cfConn.HandleCallback(connector.Scopes{}, req)
+		identity, err := cloudfoundryConn.HandleCallback(connector.Scopes{}, req)
 
 		expectEqual(t, err, nil)
 		expectEqual(t, identity.UserID, "12345")
@@ -84,7 +84,7 @@ func TestHandleCallback(t *testing.T) {
 	})
 
 	t.Run("CallbackWithOfflineAccessScope", func(t *testing.T) {
-		identity, err := cfConn.HandleCallback(connector.Scopes{OfflineAccess: true}, req)
+		identity, err := cloudfoundryConn.HandleCallback(connector.Scopes{OfflineAccess: true}, req)
 
 		expectEqual(t, err, nil)
 		expectNotEqual(t, len(identity.ConnectorData), 0)
@@ -220,7 +220,7 @@ func testSetup() *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
-func newConnector(t *testing.T, serverURL string) *cfConnector {
+func newConnector(t *testing.T, serverURL string) *cloudfoundryConnector {
 	callBackURL := fmt.Sprintf("%s/callback", serverURL)
 
 	testConfig := Config{
@@ -238,12 +238,12 @@ func newConnector(t *testing.T, serverURL string) *cfConnector {
 		t.Fatal(err)
 	}
 
-	cfConn, ok := conn.(*cfConnector)
+	cloudfoundryConn, ok := conn.(*cloudfoundryConnector)
 	if !ok {
-		t.Fatal(errors.New("it is not a cf conn"))
+		t.Fatal(errors.New("it is not a cloudfoundry conn"))
 	}
 
-	return cfConn
+	return cloudfoundryConn
 }
 
 func expectEqual(t *testing.T, a interface{}, b interface{}) {
