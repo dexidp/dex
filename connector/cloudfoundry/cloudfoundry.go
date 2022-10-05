@@ -1,4 +1,4 @@
-package cf
+package cloudfoundry
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 	"github.com/dexidp/dex/pkg/log"
 )
 
-type cfConnector struct {
+type cloudfoundryConnector struct {
 	clientID         string
 	clientSecret     string
 	redirectURI      string
@@ -45,34 +45,34 @@ type Config struct {
 	InsecureSkipVerify bool     `json:"insecureSkipVerify"`
 }
 
-type CCResponse struct {
+type ccResponse struct {
 	NextURL      string     `json:"next_url"`
-	Resources    []Resource `json:"resources"`
+	Resources    []resource `json:"resources"`
 	TotalResults int        `json:"total_results"`
 }
 
-type Resource struct {
-	Metadata Metadata `json:"metadata"`
-	Entity   Entity   `json:"entity"`
+type resource struct {
+	Metadata metadata `json:"metadata"`
+	Entity   entity   `json:"entity"`
 }
 
-type Metadata struct {
+type metadata struct {
 	GUID string `json:"guid"`
 }
 
-type Entity struct {
+type entity struct {
 	Name             string `json:"name"`
 	OrganizationGUID string `json:"organization_guid"`
 }
 
-type Space struct {
+type space struct {
 	Name    string
 	GUID    string
 	OrgGUID string
 	Role    string
 }
 
-type Org struct {
+type org struct {
 	Name string
 	GUID string
 }
@@ -80,7 +80,7 @@ type Org struct {
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	var err error
 
-	cfConn := &cfConnector{
+	cloudfoundryConn := &cloudfoundryConnector{
 		clientID:     c.ClientID,
 		clientSecret: c.ClientSecret,
 		apiURL:       c.APIURL,
@@ -88,13 +88,13 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		logger:       logger,
 	}
 
-	cfConn.httpClient, err = newHTTPClient(c.RootCAs, c.InsecureSkipVerify)
+	cloudfoundryConn.httpClient, err = newHTTPClient(c.RootCAs, c.InsecureSkipVerify)
 	if err != nil {
 		return nil, err
 	}
 
 	apiURL := strings.TrimRight(c.APIURL, "/")
-	apiResp, err := cfConn.httpClient.Get(fmt.Sprintf("%s/v2/info", apiURL))
+	apiResp, err := cloudfoundryConn.httpClient.Get(fmt.Sprintf("%s/v2/info", apiURL))
 	if err != nil {
 		logger.Errorf("failed-to-send-request-to-cloud-controller-api", err)
 		return nil, err
@@ -112,7 +112,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 	json.NewDecoder(apiResp.Body).Decode(&apiResult)
 
 	uaaURL := strings.TrimRight(apiResult["authorization_endpoint"].(string), "/")
-	uaaResp, err := cfConn.httpClient.Get(fmt.Sprintf("%s/.well-known/openid-configuration", uaaURL))
+	uaaResp, err := cloudfoundryConn.httpClient.Get(fmt.Sprintf("%s/.well-known/openid-configuration", uaaURL))
 	if err != nil {
 		logger.Errorf("failed-to-send-request-to-uaa-api", err)
 		return nil, err
@@ -134,11 +134,11 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		return nil, err
 	}
 
-	cfConn.tokenURL, _ = uaaResult["token_endpoint"].(string)
-	cfConn.authorizationURL, _ = uaaResult["authorization_endpoint"].(string)
-	cfConn.userInfoURL, _ = uaaResult["userinfo_endpoint"].(string)
+	cloudfoundryConn.tokenURL, _ = uaaResult["token_endpoint"].(string)
+	cloudfoundryConn.authorizationURL, _ = uaaResult["authorization_endpoint"].(string)
+	cloudfoundryConn.userInfoURL, _ = uaaResult["userinfo_endpoint"].(string)
 
-	return cfConn, err
+	return cloudfoundryConn, err
 }
 
 func newHTTPClient(rootCAs []string, insecureSkipVerify bool) (*http.Client, error) {
@@ -175,7 +175,7 @@ func newHTTPClient(rootCAs []string, insecureSkipVerify bool) (*http.Client, err
 	}, nil
 }
 
-func (c *cfConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, error) {
+func (c *cloudfoundryConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, error) {
 	if c.redirectURI != callbackURL {
 		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
@@ -191,15 +191,15 @@ func (c *cfConnector) LoginURL(scopes connector.Scopes, callbackURL, state strin
 	return oauth2Config.AuthCodeURL(state), nil
 }
 
-func fetchRoleSpaces(baseURL, path, role string, client *http.Client) ([]Space, error) {
+func fetchRoleSpaces(baseURL, path, role string, client *http.Client) ([]space, error) {
 	resources, err := fetchResources(baseURL, path, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch resources: %v", err)
 	}
 
-	spaces := make([]Space, len(resources))
+	spaces := make([]space, len(resources))
 	for i, resource := range resources {
-		spaces[i] = Space{
+		spaces[i] = space{
 			Name:    resource.Entity.Name,
 			GUID:    resource.Metadata.GUID,
 			OrgGUID: resource.Entity.OrganizationGUID,
@@ -210,15 +210,15 @@ func fetchRoleSpaces(baseURL, path, role string, client *http.Client) ([]Space, 
 	return spaces, nil
 }
 
-func fetchOrgs(baseURL, path string, client *http.Client) ([]Org, error) {
+func fetchOrgs(baseURL, path string, client *http.Client) ([]org, error) {
 	resources, err := fetchResources(baseURL, path, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch resources: %v", err)
 	}
 
-	orgs := make([]Org, len(resources))
+	orgs := make([]org, len(resources))
 	for i, resource := range resources {
-		orgs[i] = Org{
+		orgs[i] = org{
 			Name: resource.Entity.Name,
 			GUID: resource.Metadata.GUID,
 		}
@@ -227,9 +227,9 @@ func fetchOrgs(baseURL, path string, client *http.Client) ([]Org, error) {
 	return orgs, nil
 }
 
-func fetchResources(baseURL, path string, client *http.Client) ([]Resource, error) {
+func fetchResources(baseURL, path string, client *http.Client) ([]resource, error) {
 	var (
-		resources []Resource
+		resources []resource
 		url       string
 	)
 
@@ -246,7 +246,7 @@ func fetchResources(baseURL, path string, client *http.Client) ([]Resource, erro
 			return nil, fmt.Errorf("unsuccessful status code %d", resp.StatusCode)
 		}
 
-		response := CCResponse{}
+		response := ccResponse{}
 		err = json.NewDecoder(resp.Body).Decode(&response)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse spaces: %v", err)
@@ -263,16 +263,16 @@ func fetchResources(baseURL, path string, client *http.Client) ([]Resource, erro
 	return resources, nil
 }
 
-func getGroupsClaims(orgs []Org, spaces []Space) []string {
+func getGroupsClaims(orgs []org, spaces []space) []string {
 	var (
 		orgMap       = map[string]string{}
-		orgSpaces    = map[string][]Space{}
+		orgSpaces    = map[string][]space{}
 		groupsClaims = map[string]bool{}
 	)
 
 	for _, org := range orgs {
 		orgMap[org.GUID] = org.Name
-		orgSpaces[org.Name] = []Space{}
+		orgSpaces[org.Name] = []space{}
 		groupsClaims[org.GUID] = true
 		groupsClaims[org.Name] = true
 	}
@@ -301,7 +301,7 @@ func getGroupsClaims(orgs []Org, spaces []Space) []string {
 	return groups
 }
 
-func (c *cfConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
+func (c *cloudfoundryConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, errors.New(q.Get("error_description"))
