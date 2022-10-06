@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	admin "google.golang.org/api/admin/directory/v1"
@@ -71,10 +72,17 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		scopes = append(scopes, "profile", "email")
 	}
 
-	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, logger)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not create directory service: %v", err)
+	var adminSrv *admin.Service
+
+	// Fixing a regression caused by default config fallback: https://github.com/dexidp/dex/issues/2699
+	if (c.ServiceAccountFilePath != "" && c.AdminEmail != "") || slices.Contains(scopes, "groups") {
+		srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, logger)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("could not create directory service: %v", err)
+		}
+
+		adminSrv = srv
 	}
 
 	clientID := c.ClientID
@@ -97,7 +105,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		serviceAccountFilePath:         c.ServiceAccountFilePath,
 		adminEmail:                     c.AdminEmail,
 		fetchTransitiveGroupMembership: c.FetchTransitiveGroupMembership,
-		adminSrv:                       srv,
+		adminSrv:                       adminSrv,
 	}, nil
 }
 
