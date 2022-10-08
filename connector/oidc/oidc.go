@@ -3,15 +3,11 @@ package oidc
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -19,6 +15,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/httpclient"
 	"github.com/dexidp/dex/pkg/log"
 )
 
@@ -119,7 +116,7 @@ func knownBrokenAuthHeaderProvider(issuerURL string) bool {
 // Open returns a connector which can be used to login users through an upstream
 // OpenID Connect provider.
 func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
-	httpClient, err := newHTTPClient(c.RootCAs, c.InsecureSkipVerify)
+	httpClient, err := httpclient.NewHTTPClient(c.RootCAs, c.InsecureSkipVerify)
 	if err != nil {
 		return nil, err
 	}
@@ -185,40 +182,6 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
 		emailKey:                  c.ClaimMapping.EmailKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
-	}, nil
-}
-
-func newHTTPClient(rootCAs []string, insecureSkipVerify bool) (*http.Client, error) {
-	pool, err := x509.SystemCertPool()
-	if err != nil {
-		return nil, err
-	}
-
-	tlsConfig := tls.Config{RootCAs: pool, InsecureSkipVerify: insecureSkipVerify}
-	for _, rootCA := range rootCAs {
-		rootCABytes, err := os.ReadFile(rootCA)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read root-ca: %v", err)
-		}
-		if !tlsConfig.RootCAs.AppendCertsFromPEM(rootCABytes) {
-			return nil, fmt.Errorf("no certs found in root CA file %q", rootCA)
-		}
-	}
-
-	return &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tlsConfig,
-			Proxy:           http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second,
-				DualStack: true,
-			}).DialContext,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
 	}, nil
 }
 

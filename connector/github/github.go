@@ -3,25 +3,21 @@ package github
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 
 	"github.com/dexidp/dex/connector"
 	groups_pkg "github.com/dexidp/dex/pkg/groups"
+	"github.com/dexidp/dex/pkg/httpclient"
 	"github.com/dexidp/dex/pkg/log"
 )
 
@@ -106,7 +102,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		g.rootCA = c.RootCA
 
 		var err error
-		if g.httpClient, err = newHTTPClient(g.rootCA); err != nil {
+		if g.httpClient, err = httpclient.NewHTTPClient([]string{g.rootCA}, false); err != nil {
 			return nil, fmt.Errorf("failed to create HTTP client: %v", err)
 		}
 	}
@@ -206,34 +202,6 @@ func (e *oauth2Error) Error() string {
 		return e.error
 	}
 	return e.error + ": " + e.errorDescription
-}
-
-// newHTTPClient returns a new HTTP client that trusts the custom declared rootCA cert.
-func newHTTPClient(rootCA string) (*http.Client, error) {
-	tlsConfig := tls.Config{RootCAs: x509.NewCertPool()}
-	rootCABytes, err := os.ReadFile(rootCA)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read root-ca: %v", err)
-	}
-	if !tlsConfig.RootCAs.AppendCertsFromPEM(rootCABytes) {
-		return nil, fmt.Errorf("no certs found in root CA file %q", rootCA)
-	}
-
-	return &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tlsConfig,
-			Proxy:           http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second,
-				DualStack: true,
-			}).DialContext,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
-	}, nil
 }
 
 func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
@@ -356,9 +324,11 @@ func formatTeamName(org string, team string) string {
 
 // groupsForOrgs enforces org and team constraints on user authorization
 // Cases in which user is authorized:
-// 	N orgs, no teams: user is member of at least 1 org
-// 	N orgs, M teams per org: user is member of any team from at least 1 org
-// 	N-1 orgs, M teams per org, 1 org with no teams: user is member of any team
+//
+//	N orgs, no teams: user is member of at least 1 org
+//	N orgs, M teams per org: user is member of any team from at least 1 org
+//	N-1 orgs, M teams per org, 1 org with no teams: user is member of any team
+//
 // from at least 1 org, or member of org with no teams
 func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client, userName string) ([]string, error) {
 	groups := make([]string, 0)
