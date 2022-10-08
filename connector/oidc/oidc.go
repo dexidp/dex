@@ -35,10 +35,6 @@ type Config struct {
 
 	Scopes []string `json:"scopes"` // defaults to "profile" and "email"
 
-	// Optional list of whitelisted domains when using Google
-	// If this field is nonempty, only users from a listed domain will be allowed to log in
-	HostedDomains []string `json:"hostedDomains"`
-
 	// Certificates for SSL validation
 	RootCAs []string `json:"rootCAs"`
 
@@ -170,7 +166,6 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		logger:                    logger,
 		cancel:                    cancel,
 		httpClient:                httpClient,
-		hostedDomains:             c.HostedDomains,
 		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
 		insecureEnableGroups:      c.InsecureEnableGroups,
 		acrValues:                 c.AcrValues,
@@ -198,7 +193,6 @@ type oidcConnector struct {
 	cancel                    context.CancelFunc
 	logger                    log.Logger
 	httpClient                *http.Client
-	hostedDomains             []string
 	insecureSkipEmailVerified bool
 	insecureEnableGroups      bool
 	acrValues                 []string
