@@ -83,6 +83,7 @@ func (s *Server) getRefreshTokenFromStorage(clientID string, token *internal.Ref
 	// Get RefreshToken
 	refresh, err := s.storage.GetRefresh(token.RefreshId)
 	if err != nil {
+		s.logger.Errorf("clientID %s failed to get refresh token ID %s: %v", clientID, token.RefreshId, err)
 		if err != storage.ErrNotFound {
 			s.logger.Errorf("failed to get refresh token: %v", err)
 			return nil, newInternalServerError()
@@ -349,6 +350,19 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		s.refreshTokenErrHelper(w, rerr)
 		return
 	}
+
+	/*
+	 * Giant Swarm custom code to inject connector prefix in the group names, so it enables us
+	 * to use dex in shared installations
+	 */
+	if s.oidcGroupsPrefix {
+		for idx, group := range ident.Groups {
+			ident.Groups[idx] = fmt.Sprintf("%s:%s", refresh.ConnectorID, group)
+		}
+	}
+	/*
+	 * END custom code
+	 */
 
 	claims := storage.Claims{
 		UserID:            ident.UserID,
