@@ -55,6 +55,8 @@ type AuthRequest struct {
 	CodeChallenge string `json:"code_challenge,omitempty"`
 	// CodeChallengeMethod holds the value of the "code_challenge_method" field.
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
+	// HmacKey holds the value of the "hmac_key" field.
+	HmacKey []byte `json:"hmac_key,omitempty"`
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -62,7 +64,7 @@ func (*AuthRequest) scanValues(columns []string) ([]interface{}, error) {
 	values := make([]interface{}, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case authrequest.FieldScopes, authrequest.FieldResponseTypes, authrequest.FieldClaimsGroups, authrequest.FieldConnectorData:
+		case authrequest.FieldScopes, authrequest.FieldResponseTypes, authrequest.FieldClaimsGroups, authrequest.FieldConnectorData, authrequest.FieldHmacKey:
 			values[i] = new([]byte)
 		case authrequest.FieldForceApprovalPrompt, authrequest.FieldLoggedIn, authrequest.FieldClaimsEmailVerified:
 			values[i] = new(sql.NullBool)
@@ -211,6 +213,12 @@ func (ar *AuthRequest) assignValues(columns []string, values []interface{}) erro
 			} else if value.Valid {
 				ar.CodeChallengeMethod = value.String
 			}
+		case authrequest.FieldHmacKey:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field hmac_key", values[i])
+			} else if value != nil {
+				ar.HmacKey = *value
+			}
 		}
 	}
 	return nil
@@ -297,6 +305,8 @@ func (ar *AuthRequest) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("code_challenge_method=")
 	builder.WriteString(ar.CodeChallengeMethod)
+	builder.WriteString(", hmac_key=")
+	builder.WriteString(fmt.Sprintf("%v", ar.HmacKey))
 	builder.WriteByte(')')
 	return builder.String()
 }

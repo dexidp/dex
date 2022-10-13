@@ -1205,6 +1205,7 @@ type AuthRequestMutation struct {
 	expiry                    *time.Time
 	code_challenge            *string
 	code_challenge_method     *string
+	hmac_key                  *[]byte
 	clearedFields             map[string]struct{}
 	done                      bool
 	oldValue                  func(context.Context) (*AuthRequest, error)
@@ -2051,6 +2052,42 @@ func (m *AuthRequestMutation) ResetCodeChallengeMethod() {
 	m.code_challenge_method = nil
 }
 
+// SetHmacKey sets the "hmac_key" field.
+func (m *AuthRequestMutation) SetHmacKey(b []byte) {
+	m.hmac_key = &b
+}
+
+// HmacKey returns the value of the "hmac_key" field in the mutation.
+func (m *AuthRequestMutation) HmacKey() (r []byte, exists bool) {
+	v := m.hmac_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHmacKey returns the old "hmac_key" field's value of the AuthRequest entity.
+// If the AuthRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthRequestMutation) OldHmacKey(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHmacKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHmacKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHmacKey: %w", err)
+	}
+	return oldValue.HmacKey, nil
+}
+
+// ResetHmacKey resets all changes to the "hmac_key" field.
+func (m *AuthRequestMutation) ResetHmacKey() {
+	m.hmac_key = nil
+}
+
 // Where appends a list predicates to the AuthRequestMutation builder.
 func (m *AuthRequestMutation) Where(ps ...predicate.AuthRequest) {
 	m.predicates = append(m.predicates, ps...)
@@ -2070,7 +2107,7 @@ func (m *AuthRequestMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthRequestMutation) Fields() []string {
-	fields := make([]string, 0, 19)
+	fields := make([]string, 0, 20)
 	if m.client_id != nil {
 		fields = append(fields, authrequest.FieldClientID)
 	}
@@ -2128,6 +2165,9 @@ func (m *AuthRequestMutation) Fields() []string {
 	if m.code_challenge_method != nil {
 		fields = append(fields, authrequest.FieldCodeChallengeMethod)
 	}
+	if m.hmac_key != nil {
+		fields = append(fields, authrequest.FieldHmacKey)
+	}
 	return fields
 }
 
@@ -2174,6 +2214,8 @@ func (m *AuthRequestMutation) Field(name string) (ent.Value, bool) {
 		return m.CodeChallenge()
 	case authrequest.FieldCodeChallengeMethod:
 		return m.CodeChallengeMethod()
+	case authrequest.FieldHmacKey:
+		return m.HmacKey()
 	}
 	return nil, false
 }
@@ -2221,6 +2263,8 @@ func (m *AuthRequestMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldCodeChallenge(ctx)
 	case authrequest.FieldCodeChallengeMethod:
 		return m.OldCodeChallengeMethod(ctx)
+	case authrequest.FieldHmacKey:
+		return m.OldHmacKey(ctx)
 	}
 	return nil, fmt.Errorf("unknown AuthRequest field %s", name)
 }
@@ -2363,6 +2407,13 @@ func (m *AuthRequestMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetCodeChallengeMethod(v)
 		return nil
+	case authrequest.FieldHmacKey:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHmacKey(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AuthRequest field %s", name)
 }
@@ -2495,6 +2546,9 @@ func (m *AuthRequestMutation) ResetField(name string) error {
 		return nil
 	case authrequest.FieldCodeChallengeMethod:
 		m.ResetCodeChallengeMethod()
+		return nil
+	case authrequest.FieldHmacKey:
+		m.ResetHmacKey()
 		return nil
 	}
 	return fmt.Errorf("unknown AuthRequest field %s", name)

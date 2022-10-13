@@ -190,6 +190,12 @@ func (aru *AuthRequestUpdate) SetNillableCodeChallengeMethod(s *string) *AuthReq
 	return aru
 }
 
+// SetHmacKey sets the "hmac_key" field.
+func (aru *AuthRequestUpdate) SetHmacKey(b []byte) *AuthRequestUpdate {
+	aru.mutation.SetHmacKey(b)
+	return aru
+}
+
 // Mutation returns the AuthRequestMutation object of the builder.
 func (aru *AuthRequestUpdate) Mutation() *AuthRequestMutation {
 	return aru.mutation
@@ -424,6 +430,13 @@ func (aru *AuthRequestUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			Column: authrequest.FieldCodeChallengeMethod,
 		})
 	}
+	if value, ok := aru.mutation.HmacKey(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeBytes,
+			Value:  value,
+			Column: authrequest.FieldHmacKey,
+		})
+	}
 	if n, err = sqlgraph.UpdateNodes(ctx, aru.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{authrequest.Label}
@@ -602,6 +615,12 @@ func (aruo *AuthRequestUpdateOne) SetNillableCodeChallengeMethod(s *string) *Aut
 	if s != nil {
 		aruo.SetCodeChallengeMethod(*s)
 	}
+	return aruo
+}
+
+// SetHmacKey sets the "hmac_key" field.
+func (aruo *AuthRequestUpdateOne) SetHmacKey(b []byte) *AuthRequestUpdateOne {
+	aruo.mutation.SetHmacKey(b)
 	return aruo
 }
 
@@ -867,6 +886,13 @@ func (aruo *AuthRequestUpdateOne) sqlSave(ctx context.Context) (_node *AuthReque
 			Type:   field.TypeString,
 			Value:  value,
 			Column: authrequest.FieldCodeChallengeMethod,
+		})
+	}
+	if value, ok := aruo.mutation.HmacKey(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeBytes,
+			Value:  value,
+			Column: authrequest.FieldHmacKey,
 		})
 	}
 	_node = &AuthRequest{config: aruo.config}
