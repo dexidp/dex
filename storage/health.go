@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"crypto"
 	"fmt"
 	"time"
 )
@@ -14,7 +15,8 @@ func NewCustomHealthCheckFunc(s Storage, now func() time.Time) func(context.Cont
 			ClientID: NewID(),
 
 			// Set a short expiry so if the delete fails this will be cleaned up quickly by garbage collection.
-			Expiry: now().Add(time.Minute),
+			Expiry:  now().Add(time.Minute),
+			HMACKey: NewHMACKey(crypto.SHA256),
 		}
 
 		if err := s.CreateAuthRequest(a); err != nil {

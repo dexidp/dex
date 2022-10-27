@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	admin "google.golang.org/api/admin/directory/v1"
@@ -71,10 +72,17 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		scopes = append(scopes, "profile", "email")
 	}
 
-	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, logger)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not create directory service: %v", err)
+	var adminSrv *admin.Service
+
+	// Fixing a regression caused by default config fallback: https://github.com/dexidp/dex/issues/2699
+	if (c.ServiceAccountFilePath != "" && c.AdminEmail != "") || slices.Contains(scopes, "groups") {
+		srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, logger)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("could not create directory service: %v", err)
+		}
+
+		adminSrv = srv
 	}
 
 	clientID := c.ClientID
@@ -97,7 +105,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		serviceAccountFilePath:         c.ServiceAccountFilePath,
 		adminEmail:                     c.AdminEmail,
 		fetchTransitiveGroupMembership: c.FetchTransitiveGroupMembership,
-		adminSrv:                       srv,
+		adminSrv:                       adminSrv,
 	}, nil
 }
 
@@ -283,7 +291,9 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 // the google admin api. If no serviceAccountFilePath is defined, the application default credential
 // is used.
 func createDirectoryService(serviceAccountFilePath, email string, logger log.Logger) (*admin.Service, error) {
-	if email == "" {
+	// We know impersonation is required when using a service account credential
+	// TODO: or is it?
+	if email == "" && serviceAccountFilePath != "" {
 		return nil, fmt.Errorf("directory service requires adminEmail")
 	}
 
@@ -308,7 +318,12 @@ func createDirectoryService(serviceAccountFilePath, email string, logger log.Log
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse credentials to config: %v", err)
 	}
-	config.Subject = email
+
+	// Only attempt impersonation when there is a user configured
+	if email != "" {
+		config.Subject = email
+	}
+
 	return admin.NewService(ctx, option.WithHTTPClient(config.Client(ctx)))
 }
 

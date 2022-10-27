@@ -192,6 +192,13 @@ func CodeChallengeMethod(v string) predicate.AuthRequest {
 	})
 }
 
+// HmacKey applies equality check predicate on the "hmac_key" field. It's identical to HmacKeyEQ.
+func HmacKey(v []byte) predicate.AuthRequest {
+	return predicate.AuthRequest(func(s *sql.Selector) {
+		s.Where(sql.EQ(s.C(FieldHmacKey), v))
+	})
+}
+
 // ClientIDEQ applies the EQ predicate on the "client_id" field.
 func ClientIDEQ(v string) predicate.AuthRequest {
 	return predicate.AuthRequest(func(s *sql.Selector) {
@@ -1504,6 +1511,82 @@ func CodeChallengeMethodEqualFold(v string) predicate.AuthRequest {
 func CodeChallengeMethodContainsFold(v string) predicate.AuthRequest {
 	return predicate.AuthRequest(func(s *sql.Selector) {
 		s.Where(sql.ContainsFold(s.C(FieldCodeChallengeMethod), v))
+	})
+}
+
+// HmacKeyEQ applies the EQ predicate on the "hmac_key" field.
+func HmacKeyEQ(v []byte) predicate.AuthRequest {
+	return predicate.AuthRequest(func(s *sql.Selector) {
+		s.Where(sql.EQ(s.C(FieldHmacKey), v))
+	})
+}
+
+// HmacKeyNEQ applies the NEQ predicate on the "hmac_key" field.
+func HmacKeyNEQ(v []byte) predicate.AuthRequest {
+	return predicate.AuthRequest(func(s *sql.Selector) {
+		s.Where(sql.NEQ(s.C(FieldHmacKey), v))
+	})
+}
+
+// HmacKeyIn applies the In predicate on the "hmac_key" field.
+func HmacKeyIn(vs ...[]byte) predicate.AuthRequest {
+	v := make([]interface{}, len(vs))
+	for i := range v {
+		v[i] = vs[i]
+	}
+	return predicate.AuthRequest(func(s *sql.Selector) {
+		// if not arguments were provided, append the FALSE constants,
+		// since we can't apply "IN ()". This will make this predicate falsy.
+		if len(v) == 0 {
+			s.Where(sql.False())
+			return
+		}
+		s.Where(sql.In(s.C(FieldHmacKey), v...))
+	})
+}
+
+// HmacKeyNotIn applies the NotIn predicate on the "hmac_key" field.
+func HmacKeyNotIn(vs ...[]byte) predicate.AuthRequest {
+	v := make([]interface{}, len(vs))
+	for i := range v {
+		v[i] = vs[i]
+	}
+	return predicate.AuthRequest(func(s *sql.Selector) {
+		// if not arguments were provided, append the FALSE constants,
+		// since we can't apply "IN ()". This will make this predicate falsy.
+		if len(v) == 0 {
+			s.Where(sql.False())
+			return
+		}
+		s.Where(sql.NotIn(s.C(FieldHmacKey), v...))
+	})
+}
+
+// HmacKeyGT applies the GT predicate on the "hmac_key" field.
+func HmacKeyGT(v []byte) predicate.AuthRequest {
+	return predicate.AuthRequest(func(s *sql.Selector) {
+		s.Where(sql.GT(s.C(FieldHmacKey), v))
+	})
+}
+
+// HmacKeyGTE applies the GTE predicate on the "hmac_key" field.
+func HmacKeyGTE(v []byte) predicate.AuthRequest {
+	return predicate.AuthRequest(func(s *sql.Selector) {
+		s.Where(sql.GTE(s.C(FieldHmacKey), v))
+	})
+}
+
+// HmacKeyLT applies the LT predicate on the "hmac_key" field.
+func HmacKeyLT(v []byte) predicate.AuthRequest {
+	return predicate.AuthRequest(func(s *sql.Selector) {
+		s.Where(sql.LT(s.C(FieldHmacKey), v))
+	})
+}
+
+// HmacKeyLTE applies the LTE predicate on the "hmac_key" field.
+func HmacKeyLTE(v []byte) predicate.AuthRequest {
+	return predicate.AuthRequest(func(s *sql.Selector) {
+		s.Where(sql.LTE(s.C(FieldHmacKey), v))
 	})
 }
 
