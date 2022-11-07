@@ -15,6 +15,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/httpclient"
 	"github.com/dexidp/dex/pkg/log"
 )
 
@@ -34,7 +35,10 @@ type Config struct {
 
 	Scopes []string `json:"scopes"` // defaults to "profile" and "email"
 
-	// Override the value of email_verified to true in the returned claims
+	// Certificates for SSL validation
+	RootCAs []string `json:"rootCAs"`
+
+	// Override the value of email_verifed to true in the returned claims
 	InsecureSkipEmailVerified bool `json:"insecureSkipEmailVerified"`
 
 	// InsecureEnableGroups enables groups claims. This is disabled by default until https://github.com/dexidp/dex/issues/1065 is resolved
@@ -44,6 +48,9 @@ type Config struct {
 	// within the Authentication Request that the Authorization Server is being requested to use for
 	// processing requests from this Client, with the values appearing in order of preference.
 	AcrValues []string `json:"acrValues"`
+
+	// Disable certificate verification
+	InsecureSkipVerify bool `json:"insecureSkipVerify"`
 
 	// GetUserInfo uses the userinfo endpoint to get additional claims for
 	// the token. This is especially useful where upstreams return "thin"
@@ -105,7 +112,13 @@ func knownBrokenAuthHeaderProvider(issuerURL string) bool {
 // Open returns a connector which can be used to login users through an upstream
 // OpenID Connect provider.
 func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
+	httpClient, err := httpclient.NewHTTPClient(c.RootCAs, c.InsecureSkipVerify)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, httpClient)
 
 	provider, err := oidc.NewProvider(ctx, c.Issuer)
 	if err != nil {
@@ -152,6 +165,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		),
 		logger:                    logger,
 		cancel:                    cancel,
+		httpClient:                httpClient,
 		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
 		insecureEnableGroups:      c.InsecureEnableGroups,
 		acrValues:                 c.AcrValues,
@@ -178,6 +192,7 @@ type oidcConnector struct {
 	verifier                  *oidc.IDTokenVerifier
 	cancel                    context.CancelFunc
 	logger                    log.Logger
+	httpClient                *http.Client
 	insecureSkipEmailVerified bool
 	insecureEnableGroups      bool
 	acrValues                 []string
@@ -238,7 +253,10 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 	if errType := q.Get("error"); errType != "" {
 		return identity, &oauth2Error{errType, q.Get("error_description")}
 	}
-	token, err := c.oauth2Config.Exchange(r.Context(), q.Get("code"))
+
+	ctx := context.WithValue(r.Context(), oauth2.HTTPClient, c.httpClient)
+
+	token, err := c.oauth2Config.Exchange(ctx, q.Get("code"))
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
 	}
