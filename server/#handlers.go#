@@ -1,14 +1,11 @@
 package server
 
 import (
-	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"html/template"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"path"
@@ -24,10 +21,6 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
@@ -161,7 +154,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	if connectorID != "" {
 		for _, c := range connectors {
 			if c.ID == connectorID {
-				connURL.Path = s.absPath("/auth", url.PathEscape(c.ID))
+				connURL.Path = s.absPath("/auth", c.ID)
 				http.Redirect(w, r, connURL.String(), http.StatusFound)
 				return
 			}
@@ -171,128 +164,24 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(connectors) == 1 && !s.alwaysShowLogin {
-		connURL.Path = s.absPath("/auth", url.PathEscape(connectors[0].ID))
+		connURL.Path = s.absPath("/auth", connectors[0].ID)
 		http.Redirect(w, r, connURL.String(), http.StatusFound)
 	}
 
 	connectorInfos := make([]connectorInfo, len(connectors))
 	for index, conn := range connectors {
-		connURL.Path = s.absPath("/auth", url.PathEscape(conn.ID))
+		connURL.Path = s.absPath("/auth", conn.ID)
 		connectorInfos[index] = connectorInfo{
 			ID:   conn.ID,
 			Name: conn.Name,
 			Type: conn.Type,
-			URL:  template.URL(connURL.String()),
+			URL:  connURL.String(),
 		}
 	}
 
 	if err := s.templates.login(r, w, connectorInfos); err != nil {
 		s.logger.Errorf("Server template error: %v", err)
 	}
-}
-
-type NonceReq struct {
-	Address string `json:"address"`
-	State   string `json:"state"`
-}
-
-type Web3ConnectorData struct {
-	Address string `json:"address"`
-	Nonce   string `json:"nonce"`
-}
-
-type NonceResp struct {
-	Nonce string `json:"nonce"`
-}
-
-type VerifyReq struct {
-	Signed string `json:"signed"`
-	State  string `json:"state"`
-}
-
-const allowedChars = "abcdefghijklmnopqrstuvwxyz0123456789"
-
-func (s *Server) handleNonce(w http.ResponseWriter, r *http.Request) {
-	nonceReq := NonceReq{}
-	json.NewDecoder(r.Body).Decode(&nonceReq)
-	_, err := s.storage.GetAuthRequest(nonceReq.State)
-
-	if err != nil {
-		fmt.Println("Yikes!")
-	}
-
-	b := make([]byte, 8)
-	for i := range b {
-		b[i] = allowedChars[rand.Intn(len(allowedChars))]
-	}
-	nonce := string(b)
-	data := Web3ConnectorData{Address: nonceReq.Address, Nonce: nonce}
-	bts, _ := json.Marshal(data)
-
-	s.storage.UpdateAuthRequest(nonceReq.State, func(a storage.AuthRequest) (storage.AuthRequest, error) {
-		a.ConnectorData = bts
-		return a, nil
-	})
-
-	w.WriteHeader(http.StatusOK)
-	w.Header().Set("Content-Type", "application/json")
-
-	json.NewEncoder(w).Encode(NonceResp{Nonce: nonce})
-}
-
-func signHash(data []byte) []byte {
-	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(data), data)
-	return crypto.Keccak256([]byte(msg))
-}
-
-type VerifyResp struct {
-	Redirect string `json:"redirect"`
-}
-
-func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
-	verifyReq := VerifyReq{}
-	json.NewDecoder(r.Body).Decode(&verifyReq)
-	authReq, err := s.storage.GetAuthRequest(verifyReq.State)
-
-	if err != nil {
-		fmt.Println("Yikes!")
-	}
-
-	var data Web3ConnectorData
-
-	json.Unmarshal(authReq.ConnectorData, &data)
-
-	fromAddr := common.HexToAddress(data.Address)
-
-	sig := hexutil.MustDecode(verifyReq.Signed)
-	if sig[64] != 27 && sig[64] != 28 {
-		panic("AHHHH")
-	}
-	sig[64] -= 27
-
-	pubKey, err := crypto.SigToPub(signHash([]byte(data.Nonce)), sig)
-	if err != nil {
-		panic("AHHHHH")
-	}
-
-	recoveredAddr := crypto.PubkeyToAddress(*pubKey)
-
-	if recoveredAddr == fromAddr {
-		fmt.Println("YAYYY")
-	} else {
-		fmt.Println("Boooo")
-	}
-
-	identity := connector.Identity{
-		UserID:   data.Address,
-		Username: data.Address,
-	}
-
-	conn, err := s.getConnector(authReq.ConnectorID)
-
-	redirectURL, _ := s.finalizeLogin(identity, authReq, conn)
-
-	json.NewEncoder(w).Encode(VerifyResp{Redirect: redirectURL})
 }
 
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
@@ -312,13 +201,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	connID, err := url.PathUnescape(mux.Vars(r)["connector"])
-	if err != nil {
-		s.logger.Errorf("Failed to parse connector: %v", err)
-		s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist")
-		return
-	}
-
+	connID := mux.Vars(r)["connector"]
 	conn, err := s.getConnector(connID)
 	if err != nil {
 		s.logger.Errorf("Failed to get connector: %v", err)
@@ -398,69 +281,13 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			  <body>
 			    <form method="post" action="%s" >
 				    <input type="hidden" name="SAMLRequest" value="%s" />
-				    <input type="hidden" name="RelayState" value="%s" />n
+				    <input type="hidden" name="RelayState" value="%s" />
 			    </form>
 				<script>
 				    document.forms[0].submit();
 				</script>
 			  </body>
 			  </html>`, action, value, authReq.ID)
-		case connector.Web3Connector:
-			nonceURL := url.URL{
-				Path: s.absPath("/auth", connID, "nonce"),
-			}
-			verifyURL := url.URL{
-				Path: s.absPath("/auth", connID, "verify"),
-			}
-			fmt.Fprintf(w, `
-			<script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
-			<script src="https://unpkg.com/web3modal@1.9.4/dist/index.js"></script>
-
-			<script>
-			const Web3Modal = window.Web3Modal.default;
-			const Web3 = window.Web3;
-			let web3;
-			async function init() {
-			const web3Modal = new Web3Modal({
-				cacheProvider: false, // optional
-				providerOptions: {}, // required
-				disableInjectedProvider: false, // optional. For MetaMask / Brave / Opera.
-			  });
-			const ethProvider = await web3Modal.connect();
-			web3 = new Web3(ethProvider);
-			let accs = await web3.eth.getAccounts();
-			let acc = accs[0];
-				document.getElementById("test").innerHTML = acc;
-			let resp = await fetch("%s", {method: "POST", body: JSON.stringify({address: acc, state: "%s"}),       headers: {
-					"Content-Type": "application/json",
-				  }});
-				  let body = await resp.json();
-				alert(acc);
-				  alert(body.nonce);
-				  web3.eth.personal.sign(
-					body.nonce,
-					acc,
-					async (error, signature) => {
-						// Handle if wallet returns error
-						if (error) {
-						  return;
-						}
-						let xx = await fetch("%s", {method: "POST", body: JSON.stringify({signed: signature, state: "%s"}),       headers: {
-							"Content-Type": "application/json",
-						  }})
-						let yy = await xx.json();
-						window.location = yy.redirect;
-					  }
-				  );
-			}
-
-
-			window.addEventListener('load', async () => {
-				init();
-			});
-			</script>
-			<div id="test"></div>
-			`, nonceURL.String(), authReq.ID, verifyURL.String(), authReq.ID)
 		default:
 			s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
 		}
@@ -490,12 +317,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	connID, err := url.PathUnescape(mux.Vars(r)["connector"])
-	if err != nil {
-		s.logger.Errorf("Failed to parse connector: %v", err)
-		s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist")
-		return
-	} else if connID != "" && connID != authReq.ConnectorID {
+	if connID := mux.Vars(r)["connector"]; connID != "" && connID != authReq.ConnectorID {
 		s.logger.Errorf("Connector mismatch: authentication started with id %q, but password login for id %q was triggered", authReq.ConnectorID, connID)
 		s.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
@@ -537,21 +359,10 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		redirectURL, canSkipApproval, err := s.finalizeLogin(identity, authReq, conn.Connector)
+		redirectURL, err := s.finalizeLogin(identity, authReq, conn.Connector)
 		if err != nil {
 			s.logger.Errorf("Failed to finalize login: %v", err)
 			s.renderError(r, w, http.StatusInternalServerError, "Login error.")
-			return
-		}
-
-		if canSkipApproval {
-			authReq, err = s.storage.GetAuthRequest(authReq.ID)
-			if err != nil {
-				s.logger.Errorf("Failed to get finalized auth request: %v", err)
-				s.renderError(r, w, http.StatusInternalServerError, "Login error.")
-				return
-			}
-			s.sendCodeResponse(w, r, authReq)
 			return
 		}
 
@@ -591,12 +402,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	connID, err := url.PathUnescape(mux.Vars(r)["connector"])
-	if err != nil {
-		s.logger.Errorf("Failed to get connector with id %q : %v", authReq.ConnectorID, err)
-		s.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
-		return
-	} else if connID != "" && connID != authReq.ConnectorID {
+	if connID := mux.Vars(r)["connector"]; connID != "" && connID != authReq.ConnectorID {
 		s.logger.Errorf("Connector mismatch: authentication started with id %q, but callback for id %q was triggered", authReq.ConnectorID, connID)
 		s.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
@@ -636,21 +442,10 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	redirectURL, canSkipApproval, err := s.finalizeLogin(identity, authReq, conn.Connector)
+	redirectURL, err := s.finalizeLogin(identity, authReq, conn.Connector)
 	if err != nil {
 		s.logger.Errorf("Failed to finalize login: %v", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Login error.")
-		return
-	}
-
-	if canSkipApproval {
-		authReq, err = s.storage.GetAuthRequest(authReq.ID)
-		if err != nil {
-			s.logger.Errorf("Failed to get finalized auth request: %v", err)
-			s.renderError(r, w, http.StatusInternalServerError, "Login error.")
-			return
-		}
-		s.sendCodeResponse(w, r, authReq)
 		return
 	}
 
@@ -659,7 +454,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 
 // finalizeLogin associates the user's identity with the current AuthRequest, then returns
 // the approval page's path.
-func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (string, bool, error) {
+func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (string, error) {
 	claims := storage.Claims{
 		UserID:            identity.UserID,
 		Username:          identity.Username,
@@ -676,7 +471,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 		return a, nil
 	}
 	if err := s.storage.UpdateAuthRequest(authReq.ID, updater); err != nil {
-		return "", false, fmt.Errorf("failed to update auth request: %v", err)
+		return "", fmt.Errorf("failed to update auth request: %v", err)
 	}
 
 	email := claims.Email
@@ -687,21 +482,10 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 	s.logger.Infof("login successful: connector %q, username=%q, preferred_username=%q, email=%q, groups=%q",
 		authReq.ConnectorID, claims.Username, claims.PreferredUsername, email, claims.Groups)
 
-	// we can skip the redirect to /approval and go ahead and send code if it's not required
-	if s.skipApproval || !authReq.ForceApprovalPrompt {
-		return "", true, nil
-	}
-
-	// an HMAC is used here to ensure that the request ID is unpredictable, ensuring that an attacker who intercepted the original
-	// flow would be unable to poll for the result at the /approval endpoint
-	h := hmac.New(sha256.New, authReq.HMACKey)
-	h.Write([]byte(authReq.ID))
-	mac := h.Sum(nil)
-
-	returnURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID + "&hmac=" + base64.RawURLEncoding.EncodeToString(mac)
+	returnURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID
 	_, ok := conn.(connector.RefreshConnector)
 	if !ok {
-		return returnURL, false, nil
+		return returnURL, nil
 	}
 
 	// Try to retrieve an existing OfflineSession object for the corresponding user.
@@ -709,7 +493,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 	if err != nil {
 		if err != storage.ErrNotFound {
 			s.logger.Errorf("failed to get offline session: %v", err)
-			return "", false, err
+			return "", err
 		}
 		offlineSessions := storage.OfflineSessions{
 			UserID:        identity.UserID,
@@ -722,10 +506,10 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 		// the newly received refreshtoken.
 		if err := s.storage.CreateOfflineSessions(offlineSessions); err != nil {
 			s.logger.Errorf("failed to create offline session: %v", err)
-			return "", false, err
+			return "", err
 		}
 
-		return returnURL, false, nil
+		return returnURL, nil
 	}
 
 	// Update existing OfflineSession obj with new RefreshTokenRef.
@@ -736,24 +520,13 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 		return old, nil
 	}); err != nil {
 		s.logger.Errorf("failed to update offline session: %v", err)
-		return "", false, err
+		return "", err
 	}
 
-	return returnURL, false, nil
+	return returnURL, nil
 }
 
 func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
-	macEncoded := r.FormValue("hmac")
-	if macEncoded == "" {
-		s.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
-		return
-	}
-	mac, err := base64.RawURLEncoding.DecodeString(macEncoded)
-	if err != nil {
-		s.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
-		return
-	}
-
 	authReq, err := s.storage.GetAuthRequest(r.FormValue("req"))
 	if err != nil {
 		s.logger.Errorf("Failed to get auth request: %v", err)
@@ -766,20 +539,8 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// build expected hmac with secret key
-	h := hmac.New(sha256.New, authReq.HMACKey)
-	h.Write([]byte(authReq.ID))
-	expectedMAC := h.Sum(nil)
-	// constant time comparison
-	if !hmac.Equal(mac, expectedMAC) {
-		s.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
-		return
-	}
-
 	switch r.Method {
 	case http.MethodGet:
-		// TODO: `finalizeLogin()` now sends code directly to client without going through this endpoint,
-		//		 the `if skipApproval { ... }` block needs to be removed after a grace period.
 		if s.skipApproval {
 			s.sendCodeResponse(w, r, authReq)
 			return
