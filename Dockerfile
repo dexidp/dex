@@ -22,13 +22,13 @@ COPY . .
 
 RUN make release-binary
 
-FROM alpine:3.16.2 AS stager
+FROM alpine:3.16.3 AS stager
 
 RUN mkdir -p /var/dex
 RUN mkdir -p /etc/dex
 COPY config.docker.yaml /etc/dex/
 
-FROM alpine:3.16.2 AS gomplate
+FROM alpine:3.16.3 AS gomplate
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -41,7 +41,7 @@ RUN wget -O /usr/local/bin/gomplate \
     && chmod +x /usr/local/bin/gomplate
 
 # For Dependabot to detect base image versions
-FROM alpine:3.16.2 AS alpine
+FROM alpine:3.16.3 AS alpine
 FROM gcr.io/distroless/static:latest AS distroless
 
 FROM $BASE_IMAGE
