@@ -200,6 +200,16 @@ func TestCreateDataSourceName(t *testing.T) {
 			},
 			expected: `connect_timeout=0 host='coreos.com' user='some\'user\\slashed' password='some\'password!' sslmode='verify-full'`,
 		},
+		{
+			description: "with options string",
+			input: &Postgres{
+				NetworkDB: NetworkDB{
+					Host: "coreos.com:6543",
+				},
+				Options: "--cluster%3Dtest-cluster-123",
+			},
+			expected: "connect_timeout=0 host='coreos.com' port=6543 sslmode='verify-full' options='--cluster%3Dtest-cluster-123'",
+		},
 	}
 
 	var actual string
