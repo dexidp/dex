@@ -198,6 +198,112 @@ func TestLoginUsedAsIDWhenConfigured(t *testing.T) {
 	expectEquals(t, identity.Username, "Joe Bloggs")
 }
 
+func TestPreferredEmailDomainConfigured(t *testing.T) {
+	ctx := context.Background()
+	s := newTestServer(map[string]testResponse{
+		"/user": {data: user{Login: "some-login", ID: 12345678, Name: "Joe Bloggs"}},
+		"/user/emails": {
+			data: []userEmail{
+				{
+					Email:    "some@email.com",
+					Verified: true,
+					Primary:  true,
+				},
+				{
+					Email:    "another@email.com",
+					Verified: true,
+					Primary:  false,
+				},
+				{
+					Email:    "some@preferred-domain.com",
+					Verified: true,
+					Primary:  false,
+				},
+			},
+		},
+	})
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	client := newClient()
+	c := githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: client, preferredEmailDomain: "preferred-domain.com"}
+
+	u, err := c.user(ctx, client)
+	expectNil(t, err)
+	expectEquals(t, u.Email, "some@preferred-domain.com")
+}
+
+func TestPreferredEmailDomainConfigured_UserHasNoPreferredDomainEmail(t *testing.T) {
+	ctx := context.Background()
+	s := newTestServer(map[string]testResponse{
+		"/user": {data: user{Login: "some-login", ID: 12345678, Name: "Joe Bloggs"}},
+		"/user/emails": {
+			data: []userEmail{
+				{
+					Email:    "some@email.com",
+					Verified: true,
+					Primary:  true,
+				},
+				{
+					Email:    "another@email.com",
+					Verified: true,
+					Primary:  false,
+				},
+			},
+		},
+	})
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	client := newClient()
+	c := githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: client, preferredEmailDomain: "preferred-domain.com"}
+
+	u, err := c.user(ctx, client)
+	expectNil(t, err)
+	expectEquals(t, u.Email, "some@email.com")
+}
+
+func TestPreferredEmailDomainNotConfigured(t *testing.T) {
+	ctx := context.Background()
+	s := newTestServer(map[string]testResponse{
+		"/user": {data: user{Login: "some-login", ID: 12345678, Name: "Joe Bloggs"}},
+		"/user/emails": {
+			data: []userEmail{
+				{
+					Email:    "some@email.com",
+					Verified: true,
+					Primary:  true,
+				},
+				{
+					Email:    "another@email.com",
+					Verified: true,
+					Primary:  false,
+				},
+				{
+					Email:    "some@preferred-domain.com",
+					Verified: true,
+					Primary:  false,
+				},
+			},
+		},
+	})
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	client := newClient()
+	c := githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: client}
+
+	u, err := c.user(ctx, client)
+	expectNil(t, err)
+	expectEquals(t, u.Email, "some@email.com")
+}
+
 func newTestServer(responses map[string]testResponse) *httptest.Server {
 	var s *httptest.Server
 	s = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

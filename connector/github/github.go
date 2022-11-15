@@ -39,16 +39,17 @@ var (
 
 // Config holds configuration options for github logins.
 type Config struct {
-	ClientID      string `json:"clientID"`
-	ClientSecret  string `json:"clientSecret"`
-	RedirectURI   string `json:"redirectURI"`
-	Org           string `json:"org"`
-	Orgs          []Org  `json:"orgs"`
-	HostName      string `json:"hostName"`
-	RootCA        string `json:"rootCA"`
-	TeamNameField string `json:"teamNameField"`
-	LoadAllGroups bool   `json:"loadAllGroups"`
-	UseLoginAsID  bool   `json:"useLoginAsID"`
+	ClientID             string `json:"clientID"`
+	ClientSecret         string `json:"clientSecret"`
+	RedirectURI          string `json:"redirectURI"`
+	Org                  string `json:"org"`
+	Orgs                 []Org  `json:"orgs"`
+	HostName             string `json:"hostName"`
+	RootCA               string `json:"rootCA"`
+	TeamNameField        string `json:"teamNameField"`
+	LoadAllGroups        bool   `json:"loadAllGroups"`
+	UseLoginAsID         bool   `json:"useLoginAsID"`
+	PreferredEmailDomain string `json:"preferredEmailDomain"`
 }
 
 // Org holds org-team filters, in which teams are optional.
@@ -75,14 +76,15 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 	}
 
 	g := githubConnector{
-		redirectURI:  c.RedirectURI,
-		org:          c.Org,
-		orgs:         c.Orgs,
-		clientID:     c.ClientID,
-		clientSecret: c.ClientSecret,
-		apiURL:       apiURL,
-		logger:       logger,
-		useLoginAsID: c.UseLoginAsID,
+		redirectURI:          c.RedirectURI,
+		org:                  c.Org,
+		orgs:                 c.Orgs,
+		clientID:             c.ClientID,
+		clientSecret:         c.ClientSecret,
+		apiURL:               apiURL,
+		logger:               logger,
+		useLoginAsID:         c.UseLoginAsID,
+		preferredEmailDomain: c.PreferredEmailDomain,
 	}
 
 	if c.HostName != "" {
@@ -149,6 +151,8 @@ type githubConnector struct {
 	loadAllGroups bool
 	// if set to true will use the user's handle rather than their numeric id as the ID
 	useLoginAsID bool
+	// the domain to be preferred among the user's emails. e.g. "github.com"
+	preferredEmailDomain string
 }
 
 // groupsRequired returns whether dex requires GitHub's 'read:org' scope. Dex
@@ -552,14 +556,15 @@ func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (s
 	for {
 		// https://developer.github.com/v3/users/emails/#list-email-addresses-for-a-user
 		var (
-			emails []userEmail
-			err    error
+			emails       []userEmail
+			primaryEmail userEmail
+			err          error
 		)
 		if apiURL, err = get(ctx, client, apiURL, &emails); err != nil {
 			return "", err
 		}
 
-		for _, email := range emails {
+		for idx, email := range emails {
 			/*
 				if GitHub Enterprise, set email.Verified to true
 				This change being made because GitHub Enterprise does not
@@ -575,7 +580,21 @@ func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (s
 			}
 
 			if email.Verified && email.Primary {
-				return email.Email, nil
+				primaryEmail = email
+			}
+
+			if c.preferredEmailDomain != "" {
+				components := strings.Split(email.Email, "@")
+				if email.Verified && components[1] == c.preferredEmailDomain {
+					return email.Email, nil
+				}
+
+				// fallback to primary email if there is no preferred-domain email
+				if idx == len(emails)-1 {
+					return primaryEmail.Email, nil
+				}
+			} else {
+				return primaryEmail.Email, nil
 			}
 		}
 
