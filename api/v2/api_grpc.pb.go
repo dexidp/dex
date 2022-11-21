@@ -19,17 +19,18 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	Dex_CreateClient_FullMethodName   = "/api.Dex/CreateClient"
-	Dex_UpdateClient_FullMethodName   = "/api.Dex/UpdateClient"
-	Dex_DeleteClient_FullMethodName   = "/api.Dex/DeleteClient"
-	Dex_CreatePassword_FullMethodName = "/api.Dex/CreatePassword"
-	Dex_UpdatePassword_FullMethodName = "/api.Dex/UpdatePassword"
-	Dex_DeletePassword_FullMethodName = "/api.Dex/DeletePassword"
-	Dex_ListPasswords_FullMethodName  = "/api.Dex/ListPasswords"
-	Dex_GetVersion_FullMethodName     = "/api.Dex/GetVersion"
-	Dex_ListRefresh_FullMethodName    = "/api.Dex/ListRefresh"
-	Dex_RevokeRefresh_FullMethodName  = "/api.Dex/RevokeRefresh"
-	Dex_VerifyPassword_FullMethodName = "/api.Dex/VerifyPassword"
+	Dex_CreateClient_FullMethodName             = "/api.Dex/CreateClient"
+	Dex_UpdateClient_FullMethodName             = "/api.Dex/UpdateClient"
+	Dex_DeleteClient_FullMethodName             = "/api.Dex/DeleteClient"
+	Dex_CreatePassword_FullMethodName           = "/api.Dex/CreatePassword"
+	Dex_UpdatePassword_FullMethodName           = "/api.Dex/UpdatePassword"
+	Dex_DeletePassword_FullMethodName           = "/api.Dex/DeletePassword"
+	Dex_ListPasswords_FullMethodName            = "/api.Dex/ListPasswords"
+	Dex_GetVersion_FullMethodName               = "/api.Dex/GetVersion"
+	Dex_ListRefresh_FullMethodName              = "/api.Dex/ListRefresh"
+	Dex_RevokeRefresh_FullMethodName            = "/api.Dex/RevokeRefresh"
+	Dex_VerifyPassword_FullMethodName           = "/api.Dex/VerifyPassword"
+	Dex_GetVehiclePrivilegeToken_FullMethodName = "/api.Dex/GetVehiclePrivilegeToken"
 )
 
 // DexClient is the client API for Dex service.
@@ -60,6 +61,8 @@ type DexClient interface {
 	RevokeRefresh(ctx context.Context, in *RevokeRefreshReq, opts ...grpc.CallOption) (*RevokeRefreshResp, error)
 	// VerifyPassword returns whether a password matches a hash for a specific email or not.
 	VerifyPassword(ctx context.Context, in *VerifyPasswordReq, opts ...grpc.CallOption) (*VerifyPasswordResp, error)
+	// Sign Vehicle Token takes a valid JSON that includes the userID, Id for privileges requested and vehicleID and returns a token
+	GetVehiclePrivilegeToken(ctx context.Context, in *GetVehiclePrivilegeTokenReq, opts ...grpc.CallOption) (*GetVehiclePrivilegeTokenResp, error)
 }
 
 type dexClient struct {
@@ -169,6 +172,15 @@ func (c *dexClient) VerifyPassword(ctx context.Context, in *VerifyPasswordReq, o
 	return out, nil
 }
 
+func (c *dexClient) GetVehiclePrivilegeToken(ctx context.Context, in *GetVehiclePrivilegeTokenReq, opts ...grpc.CallOption) (*GetVehiclePrivilegeTokenResp, error) {
+	out := new(GetVehiclePrivilegeTokenResp)
+	err := c.cc.Invoke(ctx, Dex_GetVehiclePrivilegeToken_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DexServer is the server API for Dex service.
 // All implementations must embed UnimplementedDexServer
 // for forward compatibility
@@ -197,6 +209,8 @@ type DexServer interface {
 	RevokeRefresh(context.Context, *RevokeRefreshReq) (*RevokeRefreshResp, error)
 	// VerifyPassword returns whether a password matches a hash for a specific email or not.
 	VerifyPassword(context.Context, *VerifyPasswordReq) (*VerifyPasswordResp, error)
+	// Sign Vehicle Token takes a valid JSON that includes the userID, Id for privileges requested and vehicleID and returns a token
+	GetVehiclePrivilegeToken(context.Context, *GetVehiclePrivilegeTokenReq) (*GetVehiclePrivilegeTokenResp, error)
 	mustEmbedUnimplementedDexServer()
 }
 
@@ -236,6 +250,9 @@ func (UnimplementedDexServer) RevokeRefresh(context.Context, *RevokeRefreshReq) 
 }
 func (UnimplementedDexServer) VerifyPassword(context.Context, *VerifyPasswordReq) (*VerifyPasswordResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VerifyPassword not implemented")
+}
+func (UnimplementedDexServer) GetVehiclePrivilegeToken(context.Context, *GetVehiclePrivilegeTokenReq) (*GetVehiclePrivilegeTokenResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetVehiclePrivilegeToken not implemented")
 }
 func (UnimplementedDexServer) mustEmbedUnimplementedDexServer() {}
 
@@ -448,6 +465,24 @@ func _Dex_VerifyPassword_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Dex_GetVehiclePrivilegeToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetVehiclePrivilegeTokenReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).GetVehiclePrivilegeToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_GetVehiclePrivilegeToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).GetVehiclePrivilegeToken(ctx, req.(*GetVehiclePrivilegeTokenReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Dex_ServiceDesc is the grpc.ServiceDesc for Dex service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -498,6 +533,10 @@ var Dex_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "VerifyPassword",
 			Handler:    _Dex_VerifyPassword_Handler,
+		},
+		{
+			MethodName: "GetVehiclePrivilegeToken",
+			Handler:    _Dex_GetVehiclePrivilegeToken_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

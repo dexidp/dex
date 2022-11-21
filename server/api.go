@@ -366,3 +366,8 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 
 	return &api.RevokeRefreshResp{}, nil
 }
+
+func (d dexAPI) GetVehiclePrivilegeToken(ctx context.Context, req *api.GetVehiclePrivilegeTokenReq) (*api.GetVehiclePrivilegeTokenResp, error) {
+	d.logger.Info(req)
+	return &api.GetVehiclePrivilegeTokenResp{}, nil
+}
