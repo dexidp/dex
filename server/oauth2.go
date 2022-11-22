@@ -24,6 +24,7 @@ import (
 	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -206,6 +207,29 @@ func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []by
 		return "", fmt.Errorf("signing payload: %v", err)
 	}
 	return signature.CompactSerialize()
+}
+
+func GetVehicleToken(s storage.Storage, logger log.Logger, payload []byte) (string, error) {
+	keys, err := s.GetKeys()
+	if err != nil {
+		logger.Errorf("Failed to get keys: %v", err)
+		return "", err
+	}
+
+	signingKey := keys.SigningKey
+	if signingKey == nil {
+		return "", fmt.Errorf("no key to sign payload with")
+	}
+	signingAlg, err := signatureAlgorithm(signingKey)
+	if err != nil {
+		return "", err
+	}
+
+	tk, err := signPayload(signingKey, signingAlg, payload)
+	if err != nil {
+		return "", err
+	}
+	return tk, nil
 }
 
 // The hash algorithm for the at_hash is determined by the signing
