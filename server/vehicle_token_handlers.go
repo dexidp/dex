@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/api/v2"
-	i "github.com/dexidp/dex/server/internal"
 )
 
 type vehicleIDTokenClaims struct {
@@ -22,11 +21,6 @@ type vehicleIDTokenClaims struct {
 }
 
 func (d dexAPI) GetVehiclePrivilegeToken(ctx context.Context, req *api.GetVehiclePrivilegeTokenReq) (*api.GetVehiclePrivilegeTokenResp, error) {
-	j, err := i.NewJwtHelper(d.s, d.logger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate Jwt token: %v", err)
-	}
-
 	expiry := d.serverConfig.Now().Add(time.Minute * 10) // TODO - Discuss an appropriate time
 	v := vehicleIDTokenClaims{
 		Issuer:     d.serverConfig.Issuer,
@@ -36,17 +30,14 @@ func (d dexAPI) GetVehiclePrivilegeToken(ctx context.Context, req *api.GetVehicl
 		Privileges: req.PrivilegeIds,
 		UserID:     req.UserId,
 	}
-
 	payload, err := json.Marshal(v)
 	if err != nil {
 		return nil, fmt.Errorf("could not serialize claims: %v", err)
 	}
-
-	token, err := j.SignPayload(payload)
+	token, err := GetVehicleToken(d.s, d.logger, payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate Jwt token: %v", err)
 	}
-
 	return &api.GetVehiclePrivilegeTokenResp{
 		Token: token,
 	}, nil
