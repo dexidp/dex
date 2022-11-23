@@ -68,8 +68,8 @@ telemetry:
 
 # Uncomment this block to enable the gRPC API. This values MUST be different
 # from the HTTP endpoints.
-# grpc:
-#   addr: 127.0.0.1:5557
+grpc:
+   addr: 127.0.0.1:5557
 #   tlsCert: examples/grpc-client/server.crt
 #   tlsKey: examples/grpc-client/server.key
 #   tlsClientCA: examples/grpc-client/ca.crt

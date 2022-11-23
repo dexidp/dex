@@ -24,6 +24,7 @@ import (
 	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -208,12 +209,35 @@ func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []by
 	return signature.CompactSerialize()
 }
 
+func GetVehicleToken(s storage.Storage, logger log.Logger, payload []byte) (string, error) {
+	keys, err := s.GetKeys()
+	if err != nil {
+		logger.Errorf("Failed to get keys: %v", err)
+		return "", err
+	}
+
+	signingKey := keys.SigningKey
+	if signingKey == nil {
+		return "", fmt.Errorf("no key to sign payload with")
+	}
+	signingAlg, err := signatureAlgorithm(signingKey)
+	if err != nil {
+		return "", err
+	}
+
+	tk, err := signPayload(signingKey, signingAlg, payload)
+	if err != nil {
+		return "", err
+	}
+	return tk, nil
+}
+
 // The hash algorithm for the at_hash is determined by the signing
 // algorithm used for the id_token. From the spec:
 //
-//    ...the hash algorithm used is the hash algorithm used in the alg Header
-//    Parameter of the ID Token's JOSE Header. For instance, if the alg is RS256,
-//    hash the access_token value with SHA-256
+//	...the hash algorithm used is the hash algorithm used in the alg Header
+//	Parameter of the ID Token's JOSE Header. For instance, if the alg is RS256,
+//	hash the access_token value with SHA-256
 //
 // https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDToken
 var hashForSigAlg = map[jose.SignatureAlgorithm]func() hash.Hash{

@@ -160,6 +160,16 @@ message VerifyPasswordResp {
   bool not_found = 2;
 }
 
+message GetVehiclePrivilegeTokenReq {
+  string user_id = 1;
+  string  vehicle_token_id = 2;
+  repeated int64 privilege_ids = 3;
+}
+
+message GetVehiclePrivilegeTokenResp {
+  string token = 1;
+}
+
 // Dex represents the dex gRPC service.
 service Dex {
   // CreateClient creates a client.
@@ -186,4 +196,6 @@ service Dex {
   rpc RevokeRefresh(RevokeRefreshReq) returns (RevokeRefreshResp) {};
   // VerifyPassword returns whether a password matches a hash for a specific email or not.
   rpc VerifyPassword(VerifyPasswordReq) returns (VerifyPasswordResp) {};
+  // Sign Vehicle Token takes a valid JSON that includes the userID, Id for privileges requested and vehicleID and returns a token
+  rpc GetVehiclePrivilegeToken(GetVehiclePrivilegeTokenReq) returns (GetVehiclePrivilegeTokenResp) {};
 }

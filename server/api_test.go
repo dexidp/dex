@@ -30,7 +30,7 @@ type apiClient struct {
 }
 
 // newAPI constructs a gRCP client connected to a backing server.
-func newAPI(s storage.Storage, logger log.Logger, t *testing.T) *apiClient {
+func newAPI(s Config, logger log.Logger, t *testing.T) *apiClient {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +66,10 @@ func TestPassword(t *testing.T) {
 	}
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+	c := Config{
+		Storage: s,
+	}
+	client := newAPI(c, logger, t)
 	defer client.Close()
 
 	ctx := context.Background()
@@ -179,7 +182,10 @@ func TestCheckCost(t *testing.T) {
 	}
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+	c := Config{
+		Storage: s,
+	}
+	client := newAPI(c, logger, t)
 	defer client.Close()
 
 	tests := []struct {
@@ -236,7 +242,10 @@ func TestRefreshToken(t *testing.T) {
 	}
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+	c := Config{
+		Storage: s,
+	}
+	client := newAPI(c, logger, t)
 	defer client.Close()
 
 	ctx := context.Background()
@@ -349,7 +358,10 @@ func TestUpdateClient(t *testing.T) {
 	}
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+	c := Config{
+		Storage: s,
+	}
+	client := newAPI(c, logger, t)
 	defer client.Close()
 	ctx := context.Background()
 
