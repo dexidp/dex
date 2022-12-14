@@ -552,19 +552,31 @@ type userEmail struct {
 // The HTTP client is expected to be constructed by the golang.org/x/oauth2 package,
 // which inserts a bearer token as part of the request.
 func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (string, error) {
+	var (
+		preferredEmailDomainRegexp *regexp.Regexp
+		primaryEmail               userEmail
+		preferredEmails            []userEmail
+	)
+
 	apiURL := c.apiURL + "/user/emails"
+
+	if c.preferredEmailDomain != "" {
+		globExtracted := strings.ReplaceAll(c.preferredEmailDomain, "*", "[a-zA-Z0-9][A-Za-z0-9-][a-zA-Z0-9-]+")
+		patten := fmt.Sprintf("^%s$", globExtracted)
+		preferredEmailDomainRegexp = regexp.MustCompile(patten)
+	}
+
 	for {
 		// https://developer.github.com/v3/users/emails/#list-email-addresses-for-a-user
 		var (
-			emails       []userEmail
-			primaryEmail userEmail
-			err          error
+			emails []userEmail
+			err    error
 		)
 		if apiURL, err = get(ctx, client, apiURL, &emails); err != nil {
 			return "", err
 		}
 
-		for idx, email := range emails {
+		for _, email := range emails {
 			/*
 				if GitHub Enterprise, set email.Verified to true
 				This change being made because GitHub Enterprise does not
@@ -583,18 +595,14 @@ func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (s
 				primaryEmail = email
 			}
 
-			if c.preferredEmailDomain != "" {
-				components := strings.Split(email.Email, "@")
-				if email.Verified && components[1] == c.preferredEmailDomain {
-					return email.Email, nil
+			if preferredEmailDomainRegexp != nil {
+				_, domainPart, ok := strings.Cut(email.Email, "@")
+				if !ok {
+					return "", errors.New("github: invalid format email is detected")
 				}
-
-				// fallback to primary email if there is no preferred-domain email
-				if idx == len(emails)-1 {
-					return primaryEmail.Email, nil
+				if email.Verified && preferredEmailDomainRegexp.Match([]byte(domainPart)) {
+					preferredEmails = append(preferredEmails, email)
 				}
-			} else {
-				return primaryEmail.Email, nil
 			}
 		}
 
@@ -603,7 +611,15 @@ func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (s
 		}
 	}
 
-	return "", errors.New("github: user has no verified, primary email")
+	if len(preferredEmails) > 0 {
+		return preferredEmails[0].Email, nil
+	}
+
+	if (primaryEmail != userEmail{}) {
+		return primaryEmail.Email, nil
+	}
+
+	return "", errors.New("github: user has no verified, primary email or preferred-domain email")
 }
 
 // userInOrg queries the GitHub API for a users' org membership.

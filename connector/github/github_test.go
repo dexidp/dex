@@ -219,6 +219,11 @@ func TestPreferredEmailDomainConfigured(t *testing.T) {
 					Verified: true,
 					Primary:  false,
 				},
+				{
+					Email:    "another@preferred-domain.com",
+					Verified: true,
+					Primary:  false,
+				},
 			},
 		},
 	})
@@ -233,6 +238,48 @@ func TestPreferredEmailDomainConfigured(t *testing.T) {
 	u, err := c.user(ctx, client)
 	expectNil(t, err)
 	expectEquals(t, u.Email, "some@preferred-domain.com")
+}
+
+func TestPreferredEmailDomainConfiguredWithGlob(t *testing.T) {
+	ctx := context.Background()
+	s := newTestServer(map[string]testResponse{
+		"/user": {data: user{Login: "some-login", ID: 12345678, Name: "Joe Bloggs"}},
+		"/user/emails": {
+			data: []userEmail{
+				{
+					Email:    "some@email.com",
+					Verified: true,
+					Primary:  true,
+				},
+				{
+					Email:    "another@email.com",
+					Verified: true,
+					Primary:  false,
+				},
+				{
+					Email:    "some@another.preferred-domain.com",
+					Verified: true,
+					Primary:  false,
+				},
+				{
+					Email:    "some@sub-domain.preferred-domain.co",
+					Verified: true,
+					Primary:  false,
+				},
+			},
+		},
+	})
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	client := newClient()
+	c := githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: client, preferredEmailDomain: "*.preferred-domain.co"}
+
+	u, err := c.user(ctx, client)
+	expectNil(t, err)
+	expectEquals(t, u.Email, "some@sub-domain.preferred-domain.co")
 }
 
 func TestPreferredEmailDomainConfigured_UserHasNoPreferredDomainEmail(t *testing.T) {
@@ -304,6 +351,43 @@ func TestPreferredEmailDomainNotConfigured(t *testing.T) {
 	expectEquals(t, u.Email, "some@email.com")
 }
 
+func TestPreferredEmailDomainConfigured_Error_BothPrimaryAndPreferredDomainEmailNotFound(t *testing.T) {
+	ctx := context.Background()
+	s := newTestServer(map[string]testResponse{
+		"/user": {data: user{Login: "some-login", ID: 12345678, Name: "Joe Bloggs"}},
+		"/user/emails": {
+			data: []userEmail{
+				{
+					Email:    "some@email.com",
+					Verified: true,
+					Primary:  false,
+				},
+				{
+					Email:    "another@email.com",
+					Verified: true,
+					Primary:  false,
+				},
+				{
+					Email:    "some@preferred-domain.com",
+					Verified: true,
+					Primary:  false,
+				},
+			},
+		},
+	})
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	client := newClient()
+	c := githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: client, preferredEmailDomain: "foo.bar"}
+
+	_, err = c.user(ctx, client)
+	expectNotNil(t, err, "Email not found error")
+	expectEquals(t, err.Error(), "github: user has no verified, primary email or preferred-domain email")
+}
+
 func newTestServer(responses map[string]testResponse) *httptest.Server {
 	var s *httptest.Server
 	s = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -334,6 +418,12 @@ func newClient() *http.Client {
 func expectNil(t *testing.T, a interface{}) {
 	if a != nil {
 		t.Errorf("Expected %+v to equal nil", a)
+	}
+}
+
+func expectNotNil(t *testing.T, a interface{}, msg string) {
+	if a == nil {
+		t.Errorf("Expected %+v to not to be nil", msg)
 	}
 }
 
