@@ -7,6 +7,7 @@ import (
 	"net"
 	netsmtp "net/smtp"
 	"net/textproto"
+	"strings"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
@@ -28,6 +29,9 @@ func (sc *smtpConnector) Login(ctx context.Context, _ connector.Scopes, username
 	if err != nil {
 		return
 	}
+	if p == "" {
+		sc.cfg.Host += ":465"
+	}
 
 	var conn net.Conn
 
@@ -46,6 +50,10 @@ func (sc *smtpConnector) Login(ctx context.Context, _ connector.Scopes, username
 	cli, err := netsmtp.NewClient(conn, h)
 	if err != nil {
 		return
+	}
+
+	if !strings.Contains(username, "@") {
+		username = username + "@pieaeronefs.ch"
 	}
 
 	auth := netsmtp.PlainAuth("", username, password, h)
