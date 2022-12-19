@@ -52,8 +52,15 @@ func (sc *smtpConnector) Login(ctx context.Context, _ connector.Scopes, username
 		return
 	}
 
+	at := "@" + sc.cfg.Domain
 	if !strings.Contains(username, "@") {
-		username = username + "@pieaeronefs.ch"
+		username = username + at
+	}
+	if !strings.HasSuffix(username, at) {
+		// username ends in something other than @$DOMAIN, so we reject it.
+		valid = false
+		err = nil
+		return
 	}
 
 	auth := netsmtp.PlainAuth("", username, password, h)
@@ -86,6 +93,7 @@ func (sc *smtpConnector) Login(ctx context.Context, _ connector.Scopes, username
 type Config struct {
 	// The host and port of the SMTP server.
 	Host string `json:"host"`
+	Domain string `json:"domain"`
 }
 
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
