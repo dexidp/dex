@@ -600,7 +600,7 @@ func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (s
 				if !ok {
 					return "", errors.New("github: invalid format email is detected")
 				}
-				if email.Verified && preferredEmailDomainRegexp.Match([]byte(domainPart)) {
+				if email.Verified && preferredEmailDomainRegexp.MatchString(domainPart) {
 					preferredEmails = append(preferredEmails, email)
 				}
 			}
