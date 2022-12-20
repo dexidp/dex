@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -446,6 +447,42 @@ func Test_isPreferredEmailDomain(t *testing.T) {
 		})
 	}
 }
+
+func Test_Open_PreferredDomainConfig(t *testing.T) {
+	tests := []struct {
+		preferredEmailDomain string
+		email                string
+		expected             error
+	}{
+		{
+			preferredEmailDomain: "example.com",
+			expected:             nil,
+		},
+		{
+			preferredEmailDomain: "*.example.com",
+			expected:             nil,
+		},
+		{
+			preferredEmailDomain: "*.*.example.com",
+			expected:             nil,
+		},
+		{
+			preferredEmailDomain: "example.*",
+			expected:             errors.New("invalid PreferredEmailDomain: glob pattern cannot end with \"*\""),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.preferredEmailDomain, func(t *testing.T) {
+			c := Config{
+				PreferredEmailDomain: test.preferredEmailDomain,
+			}
+			_, err := c.Open("id", nil)
+
+			expectEquals(t, err, test.expected)
+		})
+	}
+}
+
 func newTestServer(responses map[string]testResponse) *httptest.Server {
 	var s *httptest.Server
 	s = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -117,6 +117,12 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		return nil, fmt.Errorf("invalid connector config: unsupported team name field value `%s`", c.TeamNameField)
 	}
 
+	if c.PreferredEmailDomain != "" {
+		if strings.HasSuffix(c.PreferredEmailDomain, "*") {
+			return nil, errors.New("invalid PreferredEmailDomain: glob pattern cannot end with \"*\"")
+		}
+	}
+
 	return &g, nil
 }
 
