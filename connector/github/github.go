@@ -615,7 +615,7 @@ func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (s
 		return preferredEmails[0].Email, nil
 	}
 
-	if (primaryEmail != userEmail{}) {
+	if (primaryEmail.Email != "") {
 		return primaryEmail.Email, nil
 	}
 
