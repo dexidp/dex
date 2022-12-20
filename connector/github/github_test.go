@@ -388,6 +388,64 @@ func TestPreferredEmailDomainConfigured_Error_BothPrimaryAndPreferredDomainEmail
 	expectEquals(t, err.Error(), "github: user has no verified, primary email or preferred-domain email")
 }
 
+func Test_isPreferredEmailDomain(t *testing.T) {
+	client := newClient()
+	tests := []struct {
+		preferredEmailDomain string
+		email                string
+		expected             bool
+	}{
+		{
+			preferredEmailDomain: "example.com",
+			email:                "test@example.com",
+			expected:             true,
+		},
+		{
+			preferredEmailDomain: "example.com",
+			email:                "test@another.com",
+			expected:             false,
+		},
+		{
+			preferredEmailDomain: "*.example.com",
+			email:                "test@my.example.com",
+			expected:             true,
+		},
+		{
+			preferredEmailDomain: "*.example.com",
+			email:                "test@my.another.com",
+			expected:             false,
+		},
+		{
+			preferredEmailDomain: "*.example.com",
+			email:                "test@my.domain.example.com",
+			expected:             false,
+		},
+		{
+			preferredEmailDomain: "*.example.com",
+			email:                "test@sub.domain.com",
+			expected:             false,
+		},
+		{
+			preferredEmailDomain: "*.*.example.com",
+			email:                "test@sub.my.example.com",
+			expected:             true,
+		},
+		{
+			preferredEmailDomain: "*.*.example.com",
+			email:                "test@a.my.google.com",
+			expected:             false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.preferredEmailDomain, func(t *testing.T) {
+			c := githubConnector{apiURL: "apiURL", hostName: "github.com", httpClient: client, preferredEmailDomain: test.preferredEmailDomain}
+			_, domainPart, _ := strings.Cut(test.email, "@")
+			res := c.isPreferredEmailDomain(domainPart)
+
+			expectEquals(t, res, test.expected)
+		})
+	}
+}
 func newTestServer(responses map[string]testResponse) *httptest.Server {
 	var s *httptest.Server
 	s = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

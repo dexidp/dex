@@ -553,18 +553,11 @@ type userEmail struct {
 // which inserts a bearer token as part of the request.
 func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (string, error) {
 	var (
-		preferredEmailDomainRegexp *regexp.Regexp
-		primaryEmail               userEmail
-		preferredEmails            []userEmail
+		primaryEmail    userEmail
+		preferredEmails []userEmail
 	)
 
 	apiURL := c.apiURL + "/user/emails"
-
-	if c.preferredEmailDomain != "" {
-		globExtracted := strings.ReplaceAll(c.preferredEmailDomain, "*", "[a-zA-Z0-9][A-Za-z0-9-][a-zA-Z0-9-]+")
-		patten := fmt.Sprintf("^%s$", globExtracted)
-		preferredEmailDomainRegexp = regexp.MustCompile(patten)
-	}
 
 	for {
 		// https://developer.github.com/v3/users/emails/#list-email-addresses-for-a-user
@@ -595,12 +588,12 @@ func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (s
 				primaryEmail = email
 			}
 
-			if preferredEmailDomainRegexp != nil {
+			if c.preferredEmailDomain != "" {
 				_, domainPart, ok := strings.Cut(email.Email, "@")
 				if !ok {
 					return "", errors.New("github: invalid format email is detected")
 				}
-				if email.Verified && preferredEmailDomainRegexp.MatchString(domainPart) {
+				if email.Verified && c.isPreferredEmailDomain(domainPart) {
 					preferredEmails = append(preferredEmails, email)
 				}
 			}
@@ -615,11 +608,32 @@ func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (s
 		return preferredEmails[0].Email, nil
 	}
 
-	if (primaryEmail.Email != "") {
+	if primaryEmail.Email != "" {
 		return primaryEmail.Email, nil
 	}
 
 	return "", errors.New("github: user has no verified, primary email or preferred-domain email")
+}
+
+// isPreferredEmailDomain checks the domain is matching with preferredEmailDomain.
+func (c *githubConnector) isPreferredEmailDomain(domain string) bool {
+	if domain == c.preferredEmailDomain {
+		return true
+	}
+
+	preferredDomainParts := strings.Split(c.preferredEmailDomain, ".")
+	domainParts := strings.Split(domain, ".")
+
+	if len(preferredDomainParts) != len(domainParts) {
+		return false
+	}
+
+	for i, v := range preferredDomainParts {
+		if domainParts[i] != v && v != "*" {
+			return false
+		}
+	}
+	return true
 }
 
 // userInOrg queries the GitHub API for a users' org membership.
