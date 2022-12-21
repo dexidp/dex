@@ -236,3 +236,45 @@ func expectEquals(t *testing.T, a interface{}, b interface{}) {
 		t.Errorf("Expected %+v to equal %+v", a, b)
 	}
 }
+
+func TestNoreplyUserEmail(t *testing.T) {
+	ctx := context.Background()
+	s := newTestServer(map[string]testResponse{
+		"/user": {data: user{Login: "some-login", ID: 12345678, Name: "Joe Bloggs"}},
+		"/user/emails": {data: []userEmail{{
+			Email:    "some@email.com",
+			Verified: true,
+			Primary:  true,
+		}}},
+	})
+	defer s.Close()
+	client := newClient()
+
+	for _, tc := range []struct {
+		host string
+		want string
+	}{
+		{
+			want: "12345678+some-login@users.noreply.github.com",
+		},
+		{
+			host: "github.com",
+			want: "12345678+some-login@users.noreply.github.com",
+		},
+		{
+			host: "example.com",
+			want: "some@email.com",
+		},
+	} {
+		t.Run(tc.host, func(t *testing.T) {
+			c := githubConnector{apiURL: s.URL, hostName: tc.host, httpClient: client, noreplyPrivateEmail: true}
+			u, err := c.user(ctx, client)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if u.Email != tc.want {
+				t.Errorf("want %s, got %s", tc.want, u.Email)
+			}
+		})
+	}
+}
