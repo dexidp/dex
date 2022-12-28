@@ -227,7 +227,8 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 
 	var groups []string
 	if s.Groups && c.adminSrv != nil {
-		groups, err = c.getGroups(claims.Email, c.fetchTransitiveGroupMembership)
+		checkedGroups := make(map[string]struct{})
+		groups, err = c.getGroups(claims.Email, c.fetchTransitiveGroupMembership, checkedGroups)
 		if err != nil {
 			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
 		}
@@ -253,7 +254,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 
 // getGroups creates a connection to the admin directory service and lists
 // all groups the user is a member of
-func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership bool) ([]string, error) {
+func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership bool, checkedGroups map[string]struct{}) ([]string, error) {
 	var userGroups []string
 	var err error
 	groupsList := &admin.Groups{}
@@ -265,18 +266,25 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 		}
 
 		for _, group := range groupsList.Groups {
+			if _, exists := checkedGroups[group.Email]; exists {
+				continue
+			}
+
+			checkedGroups[group.Email] = struct{}{}
 			// TODO (joelspeed): Make desired group key configurable
 			userGroups = append(userGroups, group.Email)
 
-			// getGroups takes a user's email/alias as well as a group's email/alias
-			if fetchTransitiveGroupMembership {
-				transitiveGroups, err := c.getGroups(group.Email, fetchTransitiveGroupMembership)
-				if err != nil {
-					return nil, fmt.Errorf("could not list transitive groups: %v", err)
-				}
-
-				userGroups = append(userGroups, transitiveGroups...)
+			if !fetchTransitiveGroupMembership {
+				continue
 			}
+
+			// getGroups takes a user's email/alias as well as a group's email/alias
+			transitiveGroups, err := c.getGroups(group.Email, fetchTransitiveGroupMembership, checkedGroups)
+			if err != nil {
+				return nil, fmt.Errorf("could not list transitive groups: %v", err)
+			}
+
+			userGroups = append(userGroups, transitiveGroups...)
 		}
 
 		if groupsList.NextPageToken == "" {
@@ -284,7 +292,7 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 		}
 	}
 
-	return uniqueGroups(userGroups), nil
+	return userGroups, nil
 }
 
 // createDirectoryService sets up super user impersonation and creates an admin client for calling
@@ -316,7 +324,7 @@ func createDirectoryService(serviceAccountFilePath, email string, logger log.Log
 	}
 	config, err := google.JWTConfigFromJSON(jsonCredentials, admin.AdminDirectoryGroupReadonlyScope)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse credentials to config: %v", err)
+		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
 	}
 
 	// Only attempt impersonation when there is a user configured
@@ -325,17 +333,4 @@ func createDirectoryService(serviceAccountFilePath, email string, logger log.Log
 	}
 
 	return admin.NewService(ctx, option.WithHTTPClient(config.Client(ctx)))
-}
-
-// uniqueGroups returns the unique groups of a slice
-func uniqueGroups(groups []string) []string {
-	keys := make(map[string]struct{})
-	unique := []string{}
-	for _, group := range groups {
-		if _, exists := keys[group]; !exists {
-			keys[group] = struct{}{}
-			unique = append(unique, group)
-		}
-	}
-	return unique
 }
