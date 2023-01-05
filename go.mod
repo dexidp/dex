@@ -30,7 +30,7 @@ require (
 	github.com/stretchr/testify v1.8.1
 	go.etcd.io/etcd/client/pkg/v3 v3.5.6
 	go.etcd.io/etcd/client/v3 v3.5.6
-	golang.org/x/crypto v0.4.0
+	golang.org/x/crypto v0.5.0
 	golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
 	golang.org/x/net v0.5.0
 	golang.org/x/oauth2 v0.3.0
