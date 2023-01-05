@@ -9,11 +9,18 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/go-ldap/ldap/v3"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
+)
+
+const (
+	secureLdapPort = "636"
+	ldapPort       = "389"
 )
 
 // Config holds the configuration parameters for the LDAP connector. The LDAP
@@ -65,7 +72,8 @@ type UserMatcher struct {
 // Config holds configuration options for LDAP logins.
 type Config struct {
 	// The host and optional port of the LDAP server. If port isn't supplied, it will be
-	// guessed based on the TLS configuration. 389 or 636.
+	// guessed based on the TLS configuration. 389 or 636. Can be a comma-separated list
+	// of hosts that will be tried iteratively.
 	Host string `json:"host"`
 
 	// Required if LDAP host does not use TLS.
@@ -241,19 +249,8 @@ func (c *Config) openConnector(logger log.Logger) (*ldapConnector, error) {
 		}
 	}
 
-	var (
-		host string
-		err  error
-	)
-	if host, _, err = net.SplitHostPort(c.Host); err != nil {
-		host = c.Host
-		if c.InsecureNoSSL {
-			c.Host += ":389"
-		} else {
-			c.Host += ":636"
-		}
-	}
-
+	host, port := c.getHostPort()
+	c.Host = net.JoinHostPort(host, port)
 	tlsConfig := &tls.Config{ServerName: host, InsecureSkipVerify: c.InsecureSkipVerify}
 	if c.RootCA != "" || len(c.RootCAData) != 0 {
 		data := c.RootCAData
@@ -634,4 +631,34 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 
 func (c *ldapConnector) Prompt() string {
 	return c.UsernamePrompt
+}
+
+// getHostPort splits the Host attribute on comma and tests each connection
+// if it fails, the next is set. The final host, port is returned if none succeed.
+// For single values of LDAP host, this functionality is the same as without
+// the commas
+func (c *Config) getHostPort() (host string, port string) {
+	for _, address := range strings.Split(c.Host, ",") {
+		if address == "" {
+			// If the user sets c.Host as "localhost,", the last value
+			// will be empty so return the value already in "host"
+			return host, port
+		}
+		var err error
+		host, port, err = net.SplitHostPort(address)
+		if err != nil {
+			host = address
+			port = secureLdapPort
+			if c.InsecureNoSSL {
+				port = ldapPort
+			}
+		}
+
+		conn, _ := net.DialTimeout("tcp", net.JoinHostPort(host, port), time.Second)
+		if conn != nil {
+			conn.Close()
+			break
+		}
+	}
+	return host, port
 }

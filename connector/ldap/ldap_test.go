@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"testing"
 
@@ -538,17 +539,17 @@ func runTests(t *testing.T, connMethod connectionMethod, config *Config, tests [
 	// group search configuration.
 	switch connMethod {
 	case connectStartTLS:
-		c.Host = fmt.Sprintf("%s:%s", ldapHost, getenv("DEX_LDAP_PORT", "389"))
+		c.Host = net.JoinHostPort(ldapHost, getenv("DEX_LDAP_PORT", ldapPort))
 		c.RootCA = "testdata/certs/ca.crt"
 		c.StartTLS = true
 	case connectLDAPS:
-		c.Host = fmt.Sprintf("%s:%s", ldapHost, getenv("DEX_LDAP_TLS_PORT", "636"))
+		c.Host = net.JoinHostPort(ldapHost, getenv("DEX_LDAP_TLS_PORT", secureLdapPort))
 		c.RootCA = "testdata/certs/ca.crt"
 	case connectInsecureSkipVerify:
-		c.Host = fmt.Sprintf("%s:%s", ldapHost, getenv("DEX_LDAP_TLS_PORT", "636"))
+		c.Host = net.JoinHostPort(ldapHost, getenv("DEX_LDAP_TLS_PORT", secureLdapPort))
 		c.InsecureSkipVerify = true
 	case connectLDAP:
-		c.Host = fmt.Sprintf("%s:%s", ldapHost, getenv("DEX_LDAP_PORT", "389"))
+		c.Host = net.JoinHostPort(ldapHost, getenv("DEX_LDAP_PORT", ldapPort))
 		c.InsecureNoSSL = true
 	}
 
@@ -612,5 +613,69 @@ func runTests(t *testing.T, connMethod connectionMethod, config *Config, tests [
 				t.Errorf("after refresh: %s", diff)
 			}
 		})
+	}
+}
+
+type ghpTestCase struct {
+	name         string
+	host         string
+	insecure     bool
+	expectedHost string
+	expectedPort string
+}
+
+func Test_getHostPort(t *testing.T) {
+	ldapHost := os.Getenv("DEX_LDAP_HOST")
+	if ldapHost == "" {
+		t.Skipf(`test environment variable "DEX_LDAP_HOST" not set, skipping`)
+	}
+
+	offlineLdapHost := os.Getenv("DEX_OFFLINE_LDAP_HOST")
+	if offlineLdapHost == "" {
+		t.Skipf(`test environment variable "DEX_OFFLINE_LDAP_HOST" not set, skipping`)
+	}
+	tests := []ghpTestCase{
+		{
+			name:         "single without port",
+			host:         ldapHost,
+			insecure:     false,
+			expectedHost: "localhost",
+			expectedPort: secureLdapPort,
+		},
+		{
+			name:         "multiple without port",
+			host:         fmt.Sprintf("%s,%s", offlineLdapHost, ldapHost),
+			insecure:     true,
+			expectedHost: ldapHost,
+			expectedPort: ldapPort,
+		},
+		{
+			name:         "multiple with port",
+			host:         fmt.Sprintf("%s:%s,%s:%s", offlineLdapHost, ldapPort, ldapHost, ldapPort),
+			insecure:     true,
+			expectedHost: ldapHost,
+			expectedPort: ldapPort,
+		},
+		{
+			name:         "single with trailing comma",
+			host:         ldapHost + ",",
+			insecure:     false,
+			expectedHost: ldapHost,
+			expectedPort: secureLdapPort,
+		},
+		{
+			name:         "single with non-standard port",
+			host:         ldapHost + ":1389",
+			insecure:     false,
+			expectedHost: ldapHost,
+			expectedPort: "1389",
+		},
+	}
+	for _, tc := range tests {
+		c := &Config{Host: tc.host, InsecureNoSSL: tc.insecure}
+		actualHost, actualPort := c.getHostPort()
+		if actualHost != tc.expectedHost || actualPort != tc.expectedPort {
+			t.Errorf("[%s] expected host:port to be %s:%s but was %s:%s", tc.name, tc.expectedHost, tc.expectedPort, actualHost, actualPort)
+		}
 	}
 }
