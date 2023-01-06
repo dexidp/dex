@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -383,11 +382,12 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 }
 
 func (d dexAPI) GetPrivilegeToken(ctx context.Context, req *api.GetPrivilegeTokenReq) (*api.GetPrivilegeTokenResp, error) {
-	expiry := d.serverConfig.Now().Add(time.Minute * 10) // TODO - Discuss an appropriate time
+	expiry := d.serverConfig.IDTokensValidFor.Milliseconds() // TODO - Discuss an appropriate time
+
 	v := vehicleIDTokenClaims{
 		Issuer:         d.serverConfig.Issuer,
 		Subject:        req.VehicleTokenId,
-		Expiry:         expiry.Unix(),
+		Expiry:         expiry,
 		IssuedAt:       d.serverConfig.Now().Unix(),
 		Privileges:     req.PrivilegeIds,
 		UserEthAddress: req.UserEthAddress,
