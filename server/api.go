@@ -55,7 +55,7 @@ type vehicleIDTokenClaims struct {
 	Audience       audience `json:"aud,omitempty"`
 	Expiry         int64    `json:"exp"`
 	IssuedAt       int64    `json:"iat"`
-	UserEthAddress string   `json:"userId"`
+	UserEthAddress string   `json:"userEthAddress"`
 
 	Privileges []int64 `json:"privileges,omitempty"`
 }
