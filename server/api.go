@@ -382,7 +382,7 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 	return &api.RevokeRefreshResp{}, nil
 }
 
-func (d dexAPI) GetVehiclePrivilegeToken(ctx context.Context, req *api.GetVehiclePrivilegeTokenReq) (*api.GetVehiclePrivilegeTokenResp, error) {
+func (d dexAPI) GetPrivilegeToken(ctx context.Context, req *api.GetPrivilegeTokenReq) (*api.GetPrivilegeTokenResp, error) {
 	expiry := d.serverConfig.Now().Add(time.Minute * 10) // TODO - Discuss an appropriate time
 	v := vehicleIDTokenClaims{
 		Issuer:         d.serverConfig.Issuer,
@@ -400,7 +400,7 @@ func (d dexAPI) GetVehiclePrivilegeToken(ctx context.Context, req *api.GetVehicl
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate Jwt token: %v", err)
 	}
-	return &api.GetVehiclePrivilegeTokenResp{
+	return &api.GetPrivilegeTokenResp{
 		Token: token,
 	}, nil
 }
