@@ -56,7 +56,7 @@ type vehicleIDTokenClaims struct {
 	IssuedAt       int64    `json:"iat"`
 	UserEthAddress string   `json:"user_eth_address"`
 
-	Privileges []int64 `json:"privileges,omitempty"`
+	PrivilegeIDs []int64 `json:"privileges,omitempty"`
 }
 
 func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*api.CreateClientResp, error) {
@@ -390,7 +390,7 @@ func (d dexAPI) GetPrivilegeToken(ctx context.Context, req *api.GetPrivilegeToke
 		Subject:        req.DeviceTokenId,
 		Expiry:         expiry.Unix(),
 		IssuedAt:       issuedAt.Unix(),
-		Privileges:     req.PrivilegeIds,
+		PrivilegeIDs:   req.PrivilegeIds,
 		UserEthAddress: req.UserEthAddress,
 	}
 	payload, err := json.Marshal(v)
