@@ -162,7 +162,7 @@ message VerifyPasswordResp {
 
 message GetPrivilegeTokenReq {
   string user_eth_address = 1;
-  string  vehicle_token_id = 2;
+  string  device_token_id = 2;
   repeated int64 privilege_ids = 3;
 }
 

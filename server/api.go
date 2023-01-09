@@ -382,13 +382,14 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 }
 
 func (d dexAPI) GetPrivilegeToken(ctx context.Context, req *api.GetPrivilegeTokenReq) (*api.GetPrivilegeTokenResp, error) {
-	expiry := d.serverConfig.IDTokensValidFor.Milliseconds() // TODO - Discuss an appropriate time
+	issuedAt := d.serverConfig.Now()
+	expiry := issuedAt.Add(d.serverConfig.IDTokensValidFor)
 
 	v := vehicleIDTokenClaims{
 		Issuer:         d.serverConfig.Issuer,
-		Subject:        req.VehicleTokenId,
-		Expiry:         expiry,
-		IssuedAt:       d.serverConfig.Now().Unix(),
+		Subject:        req.DeviceTokenId,
+		Expiry:         expiry.Unix(),
+		IssuedAt:       issuedAt.Unix(),
 		Privileges:     req.PrivilegeIds,
 		UserEthAddress: req.UserEthAddress,
 	}
