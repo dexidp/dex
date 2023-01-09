@@ -3,7 +3,7 @@ module github.com/dexidp/dex
 go 1.19
 
 require (
-	entgo.io/ent v0.11.4
+	entgo.io/ent v0.11.5
 	github.com/AppsFlyer/go-sundheit v0.5.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig/v3 v3.2.3
@@ -41,7 +41,7 @@ require (
 )
 
 require (
-	ariga.io/atlas v0.7.3-0.20221011160332-3ca609863edd // indirect
+	ariga.io/atlas v0.8.4-0.20221212165942-e53dd27a603d // indirect
 	cloud.google.com/go/compute v1.14.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20220621081337-cb9428e4ac1e // indirect
@@ -86,7 +86,7 @@ require (
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.17.0 // indirect
-	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
+	golang.org/x/mod v0.7.0 // indirect
 	golang.org/x/sys v0.4.0 // indirect
 	golang.org/x/text v0.6.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
