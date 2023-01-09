@@ -48,15 +48,15 @@ type dexAPI struct {
 	serverConfig Config
 }
 
-type vehicleIDTokenClaims struct {
-	Issuer         string   `json:"iss"`
-	Subject        string   `json:"sub"`
-	Audience       audience `json:"aud,omitempty"`
-	Expiry         int64    `json:"exp"`
-	IssuedAt       int64    `json:"iat"`
-	UserEthAddress string   `json:"user_eth_address"`
+type privilegeTokenClaims struct {
+	Issuer   string   `json:"iss"`
+	Subject  string   `json:"sub"`
+	Audience audience `json:"aud,omitempty"`
+	Expiry   int64    `json:"exp"`
+	IssuedAt int64    `json:"iat"`
 
-	PrivilegeIDs []int64 `json:"privileges,omitempty"`
+	UserEthAddress string  `json:"user_eth_address"`
+	PrivilegeIDs   []int64 `json:"privileges,omitempty"`
 }
 
 func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*api.CreateClientResp, error) {
@@ -385,7 +385,7 @@ func (d dexAPI) GetPrivilegeToken(ctx context.Context, req *api.GetPrivilegeToke
 	issuedAt := d.serverConfig.Now()
 	expiry := issuedAt.Add(d.serverConfig.IDTokensValidFor)
 
-	v := vehicleIDTokenClaims{
+	v := privilegeTokenClaims{
 		Issuer:         d.serverConfig.Issuer,
 		Subject:        req.DeviceTokenId,
 		Expiry:         expiry.Unix(),
