@@ -260,7 +260,7 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
 	}
-	return c.createIdentity(r.Context(), identity, token, createCaller)
+	return c.createIdentity(ctx, identity, token, createCaller)
 }
 
 // Refresh is used to refresh a session with the refresh token provided by the IdP
@@ -270,6 +270,8 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to unmarshal connector data: %v", err)
 	}
+
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.httpClient)
 
 	t := &oauth2.Token{
 		RefreshToken: string(cd.RefreshToken),
