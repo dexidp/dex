@@ -164,6 +164,7 @@ message GetPrivilegeTokenReq {
   string user_eth_address = 1;
   string  device_token_id = 2;
   repeated int64 privilege_ids = 3;
+  string  nft_contract_address = 4;
 }
 
 message GetPrivilegeTokenResp {

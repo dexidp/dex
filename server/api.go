@@ -55,8 +55,9 @@ type privilegeTokenClaims struct {
 	Expiry   int64    `json:"exp"`
 	IssuedAt int64    `json:"iat"`
 
-	UserEthAddress string  `json:"user_eth_address"`
-	PrivilegeIDs   []int64 `json:"privileges,omitempty"`
+	UserEthAddress     string  `json:"user_eth_address"`
+	PrivilegeIDs       []int64 `json:"privileges,omitempty"`
+	NFTContractAddress string  `json:"nft_contract_address"`
 }
 
 func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*api.CreateClientResp, error) {
@@ -386,12 +387,13 @@ func (d dexAPI) GetPrivilegeToken(ctx context.Context, req *api.GetPrivilegeToke
 	expiry := issuedAt.Add(d.serverConfig.IDTokensValidFor)
 
 	v := privilegeTokenClaims{
-		Issuer:         d.serverConfig.Issuer,
-		Subject:        req.DeviceTokenId,
-		Expiry:         expiry.Unix(),
-		IssuedAt:       issuedAt.Unix(),
-		PrivilegeIDs:   req.PrivilegeIds,
-		UserEthAddress: req.UserEthAddress,
+		Issuer:             d.serverConfig.Issuer,
+		Subject:            req.DeviceTokenId,
+		Expiry:             expiry.Unix(),
+		IssuedAt:           issuedAt.Unix(),
+		PrivilegeIDs:       req.PrivilegeIds,
+		UserEthAddress:     req.UserEthAddress,
+		NFTContractAddress: req.NftContractAddress,
 	}
 	payload, err := json.Marshal(v)
 	if err != nil {
