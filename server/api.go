@@ -403,7 +403,7 @@ func (d dexAPI) GetCustomToken(ctx context.Context, req *api.SignTokenRequest) (
 		return nil, fmt.Errorf("could not serialize claims: %v", err)
 	}
 
-	token, err := GetVehicleToken(d.s, d.logger, payload)
+	token, err := CreateCustomToken(d.s, d.logger, payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate Jwt token: %v", err)
 	}

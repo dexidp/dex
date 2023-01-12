@@ -209,7 +209,7 @@ func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []by
 	return signature.CompactSerialize()
 }
 
-func GetVehicleToken(s storage.Storage, logger log.Logger, payload []byte) (string, error) {
+func CreateCustomToken(s storage.Storage, logger log.Logger, payload []byte) (string, error) {
 	keys, err := s.GetKeys()
 	if err != nil {
 		logger.Errorf("Failed to get keys: %v", err)
