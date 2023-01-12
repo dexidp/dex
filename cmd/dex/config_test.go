@@ -123,6 +123,8 @@ expiry:
 logger:
   level: "debug"
   format: "json"
+
+lazyInitConnectors: true
 `)
 
 	want := Config{
@@ -206,6 +208,7 @@ logger:
 			Level:  "debug",
 			Format: "json",
 		},
+		LazyInitConnectors: true,
 	}
 
 	var c Config
@@ -323,6 +326,8 @@ expiry:
 logger:
   level: "debug"
   format: "json"
+
+lazyInitConnectors: true
 `)
 
 	// This is not a valid hostname. It's only used to check whether os.ExpandEnv was applied or not.
@@ -413,6 +418,7 @@ logger:
 			Level:  "debug",
 			Format: "json",
 		},
+		LazyInitConnectors: true,
 	}
 
 	var c Config

@@ -75,6 +75,9 @@ type Config struct {
 	// domain.
 	AllowedOrigins []string
 
+	// If enabled, do not initialize connectors when starting the server.
+	LazyInitConnectors bool
+
 	// If enabled, the server won't prompt the user to approve authorization requests.
 	// Logging in implies approval.
 	SkipApprovalScreen bool
@@ -159,6 +162,9 @@ type Server struct {
 	mux http.Handler
 
 	templates *templates
+
+	// If enabled, do not initialize connectors when starting the server.
+	lazyInitConnectors bool
 
 	// If enabled, don't prompt user for approval after logging in through connector.
 	skipApproval bool
@@ -272,6 +278,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
 		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
 		refreshTokenPolicy:     c.RefreshTokenPolicy,
+		lazyInitConnectors:     c.LazyInitConnectors,
 		skipApproval:           c.SkipApprovalScreen,
 		alwaysShowLogin:        c.AlwaysShowLoginScreen,
 		now:                    now,
@@ -292,6 +299,10 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 
 	for _, conn := range storageConnectors {
+		if s.lazyInitConnectors {
+			s.logger.Debugf("skipped opening connector %s", conn.ID)
+			continue
+		}
 		if _, err := s.OpenConnector(conn); err != nil {
 			return nil, fmt.Errorf("server: Failed to open connector %s: %v", conn.ID, err)
 		}

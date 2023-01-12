@@ -1785,3 +1785,13 @@ func TestServerSupportedGrants(t *testing.T) {
 		})
 	}
 }
+
+func TestServerLazyInitContainers(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, testServer := newTestServer(ctx, t, func(c *Config) {
+		c.LazyInitConnectors = true
+	})
+	require.Empty(t, testServer.connectors)
+}
