@@ -382,28 +382,33 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 	return &api.RevokeRefreshResp{}, nil
 }
 
-func (d dexAPI) GetPrivilegeToken(ctx context.Context, req *api.GetPrivilegeTokenReq) (*api.GetPrivilegeTokenResp, error) {
+func (d dexAPI) GetCustomToken(ctx context.Context, req *api.SignTokenRequest) (*api.SignTokenResp, error) {
 	issuedAt := d.serverConfig.Now()
 	expiry := issuedAt.Add(d.serverConfig.IDTokensValidFor)
 
-	v := privilegeTokenClaims{
-		Issuer:             d.serverConfig.Issuer,
-		Subject:            req.DeviceTokenId,
-		Expiry:             expiry.Unix(),
-		IssuedAt:           issuedAt.Unix(),
-		PrivilegeIDs:       req.PrivilegeIds,
-		UserEthAddress:     req.UserEthAddress,
-		NFTContractAddress: req.NftContractAddress,
+	baseClaims := map[string]any{
+		"sub": req.Subject,
+		"iat": issuedAt.Unix(),
+		"exp": expiry.Unix(),
 	}
-	payload, err := json.Marshal(v)
+
+	customClaims := req.CustomClaims.AsMap()
+
+	for k, v := range baseClaims {
+		customClaims[k] = v
+	}
+
+	payload, err := json.Marshal(customClaims)
 	if err != nil {
 		return nil, fmt.Errorf("could not serialize claims: %v", err)
 	}
+
 	token, err := GetVehicleToken(d.s, d.logger, payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate Jwt token: %v", err)
 	}
-	return &api.GetPrivilegeTokenResp{
+
+	return &api.SignTokenResp{
 		Token: token,
 	}, nil
 }

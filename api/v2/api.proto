@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package api;
 
+import "google/protobuf/struct.proto";
+
 option java_package = "com.coreos.dex.api";
 option go_package = "github.com/dexidp/dex/api/v2;api";
 
@@ -160,15 +162,13 @@ message VerifyPasswordResp {
   bool not_found = 2;
 }
 
-message GetPrivilegeTokenReq {
-  string user_eth_address = 1;
-  string  device_token_id = 2;
-  repeated int64 privilege_ids = 3;
-  string  nft_contract_address = 4;
+message SignTokenResp {
+  string token = 1;
 }
 
-message GetPrivilegeTokenResp {
-  string token = 1;
+message SignTokenRequest {
+  string subject = 1;
+  google.protobuf.Struct custom_claims = 2;
 }
 
 // Dex represents the dex gRPC service.
@@ -198,5 +198,5 @@ service Dex {
   // VerifyPassword returns whether a password matches a hash for a specific email or not.
   rpc VerifyPassword(VerifyPasswordReq) returns (VerifyPasswordResp) {};
   // Sign Vehicle Token takes a valid JSON that includes the userID, Id for privileges requested and vehicleID and returns a token
-  rpc GetPrivilegeToken(GetPrivilegeTokenReq) returns (GetPrivilegeTokenResp) {};
+  rpc GetCustomToken(SignTokenRequest) returns (SignTokenResp) {};
 }
