@@ -48,18 +48,6 @@ type dexAPI struct {
 	serverConfig Config
 }
 
-type privilegeTokenClaims struct {
-	Issuer   string   `json:"iss"`
-	Subject  string   `json:"sub"`
-	Audience audience `json:"aud,omitempty"`
-	Expiry   int64    `json:"exp"`
-	IssuedAt int64    `json:"iat"`
-
-	UserEthAddress     string  `json:"user_eth_address"`
-	PrivilegeIDs       []int64 `json:"privileges,omitempty"`
-	NFTContractAddress string  `json:"nft_contract_address"`
-}
-
 func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*api.CreateClientResp, error) {
 	if req.Client == nil {
 		return nil, errors.New("no client supplied")
@@ -390,15 +378,16 @@ func (d dexAPI) GetCustomToken(ctx context.Context, req *api.SignTokenRequest) (
 		"sub": req.Subject,
 		"iat": issuedAt.Unix(),
 		"exp": expiry.Unix(),
+		"iss": d.serverConfig.Issuer,
 	}
 
-	customClaims := req.CustomClaims.AsMap()
+	claims := req.CustomClaims.AsMap()
 
 	for k, v := range baseClaims {
-		customClaims[k] = v
+		claims[k] = v
 	}
 
-	payload, err := json.Marshal(customClaims)
+	payload, err := json.Marshal(claims)
 	if err != nil {
 		return nil, fmt.Errorf("could not serialize claims: %v", err)
 	}
