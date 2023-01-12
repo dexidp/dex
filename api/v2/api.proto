@@ -198,5 +198,5 @@ service Dex {
   // VerifyPassword returns whether a password matches a hash for a specific email or not.
   rpc VerifyPassword(VerifyPasswordReq) returns (VerifyPasswordResp) {};
   // Sign Vehicle Token takes a valid JSON that includes the userID, Id for privileges requested and vehicleID and returns a token
-  rpc GetCustomToken(SignTokenRequest) returns (SignTokenResp) {};
+  rpc SignToken(SignTokenReq) returns (SignTokenResp) {};
 }
