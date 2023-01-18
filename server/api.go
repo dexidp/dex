@@ -370,7 +370,7 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 	return &api.RevokeRefreshResp{}, nil
 }
 
-func (d dexAPI) GetCustomToken(ctx context.Context, req *api.SignTokenReq) (*api.SignTokenResp, error) {
+func (d dexAPI) SignToken(ctx context.Context, req *api.SignTokenReq) (*api.SignTokenResp, error) {
 	issuedAt := d.serverConfig.Now()
 	expiry := issuedAt.Add(d.serverConfig.IDTokensValidFor)
 
