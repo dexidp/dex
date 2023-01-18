@@ -31,7 +31,7 @@ var (
 	callCounter = make(map[string]int)
 )
 
-func testSetup(t *testing.T) *httptest.Server {
+func testSetup() *httptest.Server {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/admin/directory/v1/groups/", func(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +78,7 @@ func tempServiceAccountKey() (string, error) {
 }
 
 func TestOpen(t *testing.T) {
-	ts := testSetup(t)
+	ts := testSetup()
 	defer ts.Close()
 
 	type testCase struct {
@@ -168,7 +168,7 @@ func TestOpen(t *testing.T) {
 }
 
 func TestGetGroups(t *testing.T) {
-	ts := testSetup(t)
+	ts := testSetup()
 	defer ts.Close()
 
 	serviceAccountFilePath, err := tempServiceAccountKey()
