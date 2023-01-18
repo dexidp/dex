@@ -166,7 +166,7 @@ message SignTokenResp {
   string token = 1;
 }
 
-message SignTokenRequest {
+message SignTokenReq {
   string subject = 1;
   google.protobuf.Struct custom_claims = 2;
 }

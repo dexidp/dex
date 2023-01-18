@@ -30,7 +30,7 @@ const (
 	Dex_ListRefresh_FullMethodName    = "/api.Dex/ListRefresh"
 	Dex_RevokeRefresh_FullMethodName  = "/api.Dex/RevokeRefresh"
 	Dex_VerifyPassword_FullMethodName = "/api.Dex/VerifyPassword"
-	Dex_GetCustomToken_FullMethodName = "/api.Dex/GetCustomToken"
+	Dex_SignToken_FullMethodName      = "/api.Dex/SignToken"
 )
 
 // DexClient is the client API for Dex service.
@@ -62,7 +62,7 @@ type DexClient interface {
 	// VerifyPassword returns whether a password matches a hash for a specific email or not.
 	VerifyPassword(ctx context.Context, in *VerifyPasswordReq, opts ...grpc.CallOption) (*VerifyPasswordResp, error)
 	// Sign Vehicle Token takes a valid JSON that includes the userID, Id for privileges requested and vehicleID and returns a token
-	GetCustomToken(ctx context.Context, in *SignTokenRequest, opts ...grpc.CallOption) (*SignTokenResp, error)
+	SignToken(ctx context.Context, in *SignTokenReq, opts ...grpc.CallOption) (*SignTokenResp, error)
 }
 
 type dexClient struct {
@@ -172,9 +172,9 @@ func (c *dexClient) VerifyPassword(ctx context.Context, in *VerifyPasswordReq, o
 	return out, nil
 }
 
-func (c *dexClient) GetCustomToken(ctx context.Context, in *SignTokenRequest, opts ...grpc.CallOption) (*SignTokenResp, error) {
+func (c *dexClient) SignToken(ctx context.Context, in *SignTokenReq, opts ...grpc.CallOption) (*SignTokenResp, error) {
 	out := new(SignTokenResp)
-	err := c.cc.Invoke(ctx, Dex_GetCustomToken_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, Dex_SignToken_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +210,7 @@ type DexServer interface {
 	// VerifyPassword returns whether a password matches a hash for a specific email or not.
 	VerifyPassword(context.Context, *VerifyPasswordReq) (*VerifyPasswordResp, error)
 	// Sign Vehicle Token takes a valid JSON that includes the userID, Id for privileges requested and vehicleID and returns a token
-	GetCustomToken(context.Context, *SignTokenRequest) (*SignTokenResp, error)
+	SignToken(context.Context, *SignTokenReq) (*SignTokenResp, error)
 	mustEmbedUnimplementedDexServer()
 }
 
@@ -251,8 +251,8 @@ func (UnimplementedDexServer) RevokeRefresh(context.Context, *RevokeRefreshReq) 
 func (UnimplementedDexServer) VerifyPassword(context.Context, *VerifyPasswordReq) (*VerifyPasswordResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VerifyPassword not implemented")
 }
-func (UnimplementedDexServer) GetCustomToken(context.Context, *SignTokenRequest) (*SignTokenResp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetCustomToken not implemented")
+func (UnimplementedDexServer) SignToken(context.Context, *SignTokenReq) (*SignTokenResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignToken not implemented")
 }
 func (UnimplementedDexServer) mustEmbedUnimplementedDexServer() {}
 
@@ -465,20 +465,20 @@ func _Dex_VerifyPassword_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Dex_GetCustomToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SignTokenRequest)
+func _Dex_SignToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SignTokenReq)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DexServer).GetCustomToken(ctx, in)
+		return srv.(DexServer).SignToken(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Dex_GetCustomToken_FullMethodName,
+		FullMethod: Dex_SignToken_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DexServer).GetCustomToken(ctx, req.(*SignTokenRequest))
+		return srv.(DexServer).SignToken(ctx, req.(*SignTokenReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -535,8 +535,8 @@ var Dex_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Dex_VerifyPassword_Handler,
 		},
 		{
-			MethodName: "GetCustomToken",
-			Handler:    _Dex_GetCustomToken_Handler,
+			MethodName: "SignToken",
+			Handler:    _Dex_SignToken_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
