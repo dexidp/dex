@@ -83,12 +83,11 @@ func getFuncMap(c webConfig) (template.FuncMap, error) {
 //
 // The directory layout is expected to be:
 //
-//    ( web directory )
-//    |- static
-//    |- themes
-//    |  |- (theme name)
-//    |- templates
-//
+//	( web directory )
+//	|- static
+//	|- themes
+//	|  |- (theme name)
+//	|- templates
 func loadWebConfig(c webConfig) (http.Handler, http.Handler, *templates, error) {
 	// fallback to the default theme if the legacy theme name is provided
 	if c.theme == "coreos" || c.theme == "tectonic" {

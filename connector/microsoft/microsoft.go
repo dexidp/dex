@@ -316,22 +316,27 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 
 // https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/resources/user
 // id                - The unique identifier for the user. Inherited from
-//                     directoryObject. Key. Not nullable. Read-only.
+//
+//	directoryObject. Key. Not nullable. Read-only.
+//
 // displayName       - The name displayed in the address book for the user.
-//                     This is usually the combination of the user's first name,
-//                     middle initial and last name. This property is required
-//                     when a user is created and it cannot be cleared during
-//                     updates. Supports $filter and $orderby.
+//
+//	This is usually the combination of the user's first name,
+//	middle initial and last name. This property is required
+//	when a user is created and it cannot be cleared during
+//	updates. Supports $filter and $orderby.
+//
 // userPrincipalName - The user principal name (UPN) of the user.
-//                     The UPN is an Internet-style login name for the user
-//                     based on the Internet standard RFC 822. By convention,
-//                     this should map to the user's email name. The general
-//                     format is alias@domain, where domain must be present in
-//                     the tenant’s collection of verified domains. This
-//                     property is required when a user is created. The
-//                     verified domains for the tenant can be accessed from the
-//                     verifiedDomains property of organization. Supports
-//                     $filter and $orderby.
+//
+//	The UPN is an Internet-style login name for the user
+//	based on the Internet standard RFC 822. By convention,
+//	this should map to the user's email name. The general
+//	format is alias@domain, where domain must be present in
+//	the tenant’s collection of verified domains. This
+//	property is required when a user is created. The
+//	verified domains for the tenant can be accessed from the
+//	verifiedDomains property of organization. Supports
+//	$filter and $orderby.
 type user struct {
 	ID    string `json:"id"`
 	Name  string `json:"displayName"`
@@ -364,8 +369,9 @@ func (c *microsoftConnector) user(ctx context.Context, client *http.Client) (u u
 
 // https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/resources/group
 // displayName - The display name for the group. This property is required when
-//               a group is created and it cannot be cleared during updates.
-//               Supports $filter and $orderby.
+//
+//	a group is created and it cannot be cleared during updates.
+//	Supports $filter and $orderby.
 type group struct {
 	Name string `json:"displayName"`
 }
