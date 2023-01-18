@@ -49,7 +49,7 @@ linters:
         - whitespace
 
         # Disable temporarily until everything works with Go 1.18
-        # - typecheck
+        - typecheck
 
         # TODO: fix linter errors before enabling
         # - exhaustivestruct
