@@ -46,7 +46,7 @@ func testSetup() *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
-func newConnector(config *Config, serverURL string) (*googleConnector, error) {
+func newConnector(config *Config) (*googleConnector, error) {
 	log := logrus.New()
 	conn, err := config.Open("id", log)
 	if err != nil {
@@ -155,7 +155,7 @@ func TestOpen(t *testing.T) {
 			assert := assert.New(t)
 
 			os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", reference.adc)
-			conn, err := newConnector(reference.config, ts.URL)
+			conn, err := newConnector(reference.config)
 
 			if reference.expectedErr == "" {
 				assert.Nil(err)
@@ -181,7 +181,7 @@ func TestGetGroups(t *testing.T) {
 		RedirectURI:  ts.URL + "/callback",
 		Scopes:       []string{"openid", "groups"},
 		AdminEmail:   "admin@dexidp.com",
-	}, ts.URL)
+	})
 	assert.Nil(t, err)
 
 	conn.adminSrv, err = admin.NewService(context.Background(), option.WithoutAuthentication(), option.WithEndpoint(ts.URL))
