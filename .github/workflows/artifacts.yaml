@@ -11,7 +11,7 @@ on:
 jobs:
   container-images:
     name: Container images
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       matrix:
         variant:
