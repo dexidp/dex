@@ -62,15 +62,17 @@ func wrapRoundTripper(base http.RoundTripper, user k8sapi.AuthInfo, inCluster bo
 }
 
 // renewTokenPeriod is the interval after which dex will read the token from a well-known file.
-//   By Kubernetes documentation, this interval should be at least one minute long.
-//   Kubernetes client-go v0.15+ uses 10 seconds long interval.
-//   Dex uses the reasonable value between these two.
+//
+//	By Kubernetes documentation, this interval should be at least one minute long.
+//	Kubernetes client-go v0.15+ uses 10 seconds long interval.
+//	Dex uses the reasonable value between these two.
 const renewTokenPeriod = 30 * time.Second
 
 // inClusterTransportHelper is capable of safely updating the user token.
-//   BoundServiceAccountTokenVolume feature is enabled in Kubernetes >=1.21 by default.
-//   With this feature, the service account token in the pod becomes periodically updated.
-//   Therefore, Dex needs to re-read the token from the disk after some time to be sure that it uses the valid token.
+//
+//	BoundServiceAccountTokenVolume feature is enabled in Kubernetes >=1.21 by default.
+//	With this feature, the service account token in the pod becomes periodically updated.
+//	Therefore, Dex needs to re-read the token from the disk after some time to be sure that it uses the valid token.
 type inClusterTransportHelper struct {
 	mu   sync.RWMutex
 	info k8sapi.AuthInfo

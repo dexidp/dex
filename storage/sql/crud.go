@@ -21,19 +21,18 @@ const keysRowID = "keys"
 // encoder wraps the underlying value in a JSON marshaler which is automatically
 // called by the database/sql package.
 //
-//		s := []string{"planes", "bears"}
-//		err := db.Exec(`insert into t1 (id, things) values (1, $1)`, encoder(s))
-//		if err != nil {
-//			// handle error
-//		}
+//	s := []string{"planes", "bears"}
+//	err := db.Exec(`insert into t1 (id, things) values (1, $1)`, encoder(s))
+//	if err != nil {
+//		// handle error
+//	}
 //
-//		var r []byte
-//		err = db.QueryRow(`select things from t1 where id = 1;`).Scan(&r)
-//		if err != nil {
-//			// handle error
-//		}
-//		fmt.Printf("%s\n", r) // ["planes","bears"]
-//
+//	var r []byte
+//	err = db.QueryRow(`select things from t1 where id = 1;`).Scan(&r)
+//	if err != nil {
+//		// handle error
+//	}
+//	fmt.Printf("%s\n", r) // ["planes","bears"]
 func encoder(i interface{}) driver.Valuer {
 	return jsonEncoder{i}
 }

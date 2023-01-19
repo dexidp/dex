@@ -24,18 +24,17 @@ import (
 //
 // An example config:
 //
-//     type: atlassian-crowd
-//     config:
-//       baseURL: https://crowd.example.com/context
-//       clientID: applogin
-//       clientSecret: appP4$$w0rd
-//       # users can be restricted by a list of groups
-//       groups:
-//       - admin
-//       # Prompt for username field
-//       usernamePrompt: Login
-//		 preferredUsernameField: name
-//
+//	    type: atlassian-crowd
+//	    config:
+//	      baseURL: https://crowd.example.com/context
+//	      clientID: applogin
+//	      clientSecret: appP4$$w0rd
+//	      # users can be restricted by a list of groups
+//	      groups:
+//	      - admin
+//	      # Prompt for username field
+//	      usernamePrompt: Login
+//			 preferredUsernameField: name
 type Config struct {
 	BaseURL      string   `json:"baseURL"`
 	ClientID     string   `json:"clientID"`

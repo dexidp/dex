@@ -211,7 +211,7 @@ func (cli *client) getResource(apiVersion, namespace, resource, name string, v i
 	return cli.getURL(u, v)
 }
 
-func (cli *client) listN(resource string, v interface{}, n int) error {
+func (cli *client) listN(resource string, v interface{}, n int) error { //nolint:unparam // In practice, n is the gcResultLimit constant.
 	params := url.Values{}
 	params.Add("limit", fmt.Sprintf("%d", n))
 	u, err := cli.urlForWithParams(cli.apiVersion, cli.namespace, resource, "", params)

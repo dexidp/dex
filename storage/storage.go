@@ -144,8 +144,8 @@ type Storage interface {
 // Client represents an OAuth2 client.
 //
 // For further reading see:
-//   * Trusted peers: https://developers.google.com/identity/protocols/CrossClientAuth
-//   * Public clients: https://developers.google.com/api-client-library/python/auth/installed-app
+//   - Trusted peers: https://developers.google.com/identity/protocols/CrossClientAuth
+//   - Public clients: https://developers.google.com/api-client-library/python/auth/installed-app
 type Client struct {
 	// Client ID and secret used to identify the client.
 	ID        string `json:"id" yaml:"id"`

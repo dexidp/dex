@@ -19,7 +19,6 @@ linters:
     disable-all: true
     enable:
         - bodyclose
-        - deadcode
         - depguard
         - dogsled
         - exhaustive
@@ -42,17 +41,15 @@ linters:
         - rowserrcheck
         - sqlclosecheck
         - staticcheck
-        - structcheck
         - stylecheck
         - tparallel
         - unconvert
         - unparam
         - unused
-        - varcheck
         - whitespace
 
         # Disable temporarily until everything works with Go 1.18
-        # - typecheck
+        - typecheck
 
         # TODO: fix linter errors before enabling
         # - exhaustivestruct

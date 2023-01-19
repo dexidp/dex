@@ -20,7 +20,7 @@ import (
 	"github.com/dexidp/dex/storage/ent/db"
 )
 
-// nolint
+//nolint
 const (
 	// postgres SSL modes
 	pgSSLDisable    = "disable"

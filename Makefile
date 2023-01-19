@@ -117,7 +117,7 @@ proto-internal:
 	@protoc --go_out=paths=source_relative:. server/internal/*.proto
 
 # Dependency versions
-GOLANGCI_VERSION = 1.46.0
+GOLANGCI_VERSION = 1.50.1
 GOTESTSUM_VERSION ?= 1.7.0
 PROTOC_VERSION = 3.15.6
 PROTOC_GEN_GO_VERSION = 1.26.0
