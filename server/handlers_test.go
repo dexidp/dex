@@ -333,7 +333,7 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 	connID := "mockPw"
 	authReqID := "test"
 	expiry := time.Now().Add(100 * time.Second)
-	resTypes := []string{"code"}
+	resTypes := []string{responseTypeCode}
 
 	tests := []struct {
 		name         string
@@ -379,46 +379,47 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		httpServer, s := newTestServer(ctx, t, func(c *Config) {
-			c.SkipApprovalScreen = tc.skipApproval
-			c.Now = time.Now
+		t.Run(tc.name, func(t *testing.T) {
+			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+				c.SkipApprovalScreen = tc.skipApproval
+				c.Now = time.Now
+			})
+			defer httpServer.Close()
+
+			sc := storage.Connector{
+				ID:              connID,
+				Type:            "mockPassword",
+				Name:            "MockPassword",
+				ResourceVersion: "1",
+				Config:          []byte("{\"username\": \"foo\", \"password\": \"password\"}"),
+			}
+			if err := s.storage.CreateConnector(sc); err != nil {
+				t.Fatalf("create connector: %v", err)
+			}
+			if _, err := s.OpenConnector(sc); err != nil {
+				t.Fatalf("open connector: %v", err)
+			}
+			if err := s.storage.CreateAuthRequest(tc.authReq); err != nil {
+				t.Fatalf("failed to create AuthRequest: %v", err)
+			}
+
+			rr := httptest.NewRecorder()
+
+			path := fmt.Sprintf("/auth/%s/login?state=%s&back=&login=foo&password=password", connID, authReqID)
+			s.handlePasswordLogin(rr, httptest.NewRequest("POST", path, nil))
+
+			require.Equal(t, 303, rr.Code)
+
+			resp := rr.Result()
+			defer resp.Body.Close()
+			cbPath := strings.Split(resp.Header.Get("Location"), "?")[0]
+
+			if tc.skipApproval || !tc.authReq.ForceApprovalPrompt {
+				require.Equal(t, "/auth/mockPw/cb", cbPath)
+			} else {
+				require.Equal(t, "/approval", cbPath)
+			}
 		})
-		defer httpServer.Close()
-
-		sc := storage.Connector{
-			ID:              connID,
-			Type:            "mockPassword",
-			Name:            "MockPassword",
-			ResourceVersion: "1",
-			Config:          []byte("{\"username\": \"foo\", \"password\": \"password\"}"),
-		}
-		if err := s.storage.CreateConnector(sc); err != nil {
-			t.Fatalf("create connector: %v", err)
-		}
-		if _, err := s.OpenConnector(sc); err != nil {
-			t.Fatalf("open connector: %v", err)
-		}
-		if err := s.storage.CreateAuthRequest(tc.authReq); err != nil {
-			t.Fatalf("failed to create AuthRequest: %v", err)
-		}
-
-		rr := httptest.NewRecorder()
-
-		path := fmt.Sprintf("/auth/%s/login?state=%s&back=&login=foo&password=password", connID, authReqID)
-		s.handlePasswordLogin(rr, httptest.NewRequest("POST", path, nil))
-
-		require.Equal(t, 303, rr.Code)
-
-		resp := rr.Result()
-		cbPath := strings.Split(resp.Header.Get("Location"), "?")[0]
-
-		if tc.skipApproval || !tc.authReq.ForceApprovalPrompt {
-			require.Equal(t, "/auth/mockPw/cb", cbPath)
-		} else {
-			require.Equal(t, "/approval", cbPath)
-		}
-
-		resp.Body.Close()
 	}
 }
 
@@ -429,7 +430,7 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 	connID := "mock"
 	authReqID := "test"
 	expiry := time.Now().Add(100 * time.Second)
-	resTypes := []string{"code"}
+	resTypes := []string{responseTypeCode}
 
 	tests := []struct {
 		name         string
@@ -475,31 +476,144 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		httpServer, s := newTestServer(ctx, t, func(c *Config) {
-			c.SkipApprovalScreen = tc.skipApproval
-			c.Now = time.Now
+		t.Run(tc.name, func(t *testing.T) {
+			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+				c.SkipApprovalScreen = tc.skipApproval
+				c.Now = time.Now
+			})
+			defer httpServer.Close()
+
+			if err := s.storage.CreateAuthRequest(tc.authReq); err != nil {
+				t.Fatalf("failed to create AuthRequest: %v", err)
+			}
+			rr := httptest.NewRecorder()
+
+			path := fmt.Sprintf("/callback/%s?state=%s", connID, authReqID)
+			s.handleConnectorCallback(rr, httptest.NewRequest("GET", path, nil))
+
+			require.Equal(t, 303, rr.Code)
+
+			resp := rr.Result()
+			defer resp.Body.Close()
+			cbPath := strings.Split(resp.Header.Get("Location"), "?")[0]
+
+			if tc.skipApproval || !tc.authReq.ForceApprovalPrompt {
+				require.Equal(t, "/callback/cb", cbPath)
+			} else {
+				require.Equal(t, "/approval", cbPath)
+			}
 		})
-		defer httpServer.Close()
+	}
+}
 
-		if err := s.storage.CreateAuthRequest(tc.authReq); err != nil {
-			t.Fatalf("failed to create AuthRequest: %v", err)
-		}
-		rr := httptest.NewRecorder()
+func TestHandleTokenExchange(t *testing.T) {
+	tests := []struct {
+		name               string
+		resource           string
+		scope              string
+		requestedTokenType string
+		subjectTokenType   string
+		subjectToken       string
 
-		path := fmt.Sprintf("/callback/%s?state=%s", connID, authReqID)
-		s.handleConnectorCallback(rr, httptest.NewRequest("GET", path, nil))
+		expectedCode      int
+		expectedTokenType string
+	}{
+		{
+			"id-for-acccess",
+			"target-audience",
+			"openid",
+			tokenTypeAccess,
+			tokenTypeID,
+			"foobar",
+			http.StatusOK,
+			tokenTypeAccess,
+		},
+		{
+			"id-for-id",
+			"target-audience",
+			"openid",
+			tokenTypeID,
+			tokenTypeID,
+			"foobar",
+			http.StatusOK,
+			tokenTypeID,
+		},
+		{
+			"id-for-default",
+			"target-audience",
+			"openid",
+			"",
+			tokenTypeID,
+			"foobar",
+			http.StatusOK,
+			tokenTypeAccess,
+		},
+		{
+			"access-for-access",
+			"target-audience",
+			"openid",
+			tokenTypeAccess,
+			tokenTypeAccess,
+			"foobar",
+			http.StatusOK,
+			tokenTypeAccess,
+		},
+		{
+			"missing-subject_token_type",
+			"target-audience",
+			"openid",
+			tokenTypeAccess,
+			"",
+			"foobar",
+			http.StatusBadRequest,
+			"",
+		},
+		{
+			"missing-subject_token",
+			"target-audience",
+			"openid",
+			tokenTypeAccess,
+			tokenTypeAccess,
+			"",
+			http.StatusBadRequest,
+			"",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			httpServer, s := newTestServer(ctx, t, func(c *Config) {})
+			defer httpServer.Close()
+			vals := make(url.Values)
+			vals.Set("grant_type", grantTypeTokenExchange)
+			setNonEmpty(vals, "audience", "mock")
+			setNonEmpty(vals, "resource", tc.resource)
+			setNonEmpty(vals, "scope", tc.scope)
+			setNonEmpty(vals, "requested_token_type", tc.requestedTokenType)
+			setNonEmpty(vals, "subject_token_type", tc.subjectTokenType)
+			setNonEmpty(vals, "subject_token", tc.subjectToken)
 
-		require.Equal(t, 303, rr.Code)
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+			req.Header.Set("content-type", "application/x-www-form-urlencoded")
 
-		resp := rr.Result()
-		cbPath := strings.Split(resp.Header.Get("Location"), "?")[0]
+			s.handleToken(rr, req)
 
-		if tc.skipApproval || !tc.authReq.ForceApprovalPrompt {
-			require.Equal(t, "/callback/cb", cbPath)
-		} else {
-			require.Equal(t, "/approval", cbPath)
-		}
+			require.Equal(t, tc.expectedCode, rr.Code, rr.Body.String())
+			require.Equal(t, "application/json", rr.Result().Header.Get("content-type"))
+			if tc.expectedCode == http.StatusOK {
+				var res accessTokenResponse
+				err := json.NewDecoder(rr.Result().Body).Decode(&res)
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedTokenType, res.IssuedTokenType)
+			}
+		})
+	}
+}
 
-		resp.Body.Close()
+func setNonEmpty(vals url.Values, key, value string) {
+	if value != "" {
+		vals.Set(key, value)
 	}
 }

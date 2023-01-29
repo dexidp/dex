@@ -66,6 +66,8 @@ type Config struct {
 	// The backing persistence layer.
 	Storage storage.Storage
 
+	AllowedGrantTypes []string
+
 	// Valid values are "code" to enable the code flow and "token" to enable the implicit
 	// flow. If no response types are supplied this value defaults to "code".
 	SupportedResponseTypes []string
@@ -213,7 +215,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		c.SupportedResponseTypes = []string{responseTypeCode}
 	}
 
-	supportedGrant := []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode} // default
+	supportedGrant := c.AllowedGrantTypes
 	supportedRes := make(map[string]bool)
 
 	for _, respType := range c.SupportedResponseTypes {

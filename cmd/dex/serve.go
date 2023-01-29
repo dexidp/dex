@@ -270,6 +270,7 @@ func runServe(options serveOptions) error {
 	healthChecker := gosundheit.New()
 
 	serverConfig := server.Config{
+		AllowedGrantTypes:      c.OAuth2.GrantTypes,
 		SupportedResponseTypes: c.OAuth2.ResponseTypes,
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
@@ -553,6 +554,15 @@ func applyConfigOverrides(options serveOptions, config *Config) {
 
 	if config.Frontend.Dir == "" {
 		config.Frontend.Dir = os.Getenv("DEX_FRONTEND_DIR")
+	}
+
+	if len(config.OAuth2.GrantTypes) == 0 {
+		config.OAuth2.GrantTypes = []string{
+			"authorization_code",
+			"refresh_token",
+			"urn:ietf:params:oauth:grant-type:device_code",
+			"urn:ietf:params:oauth:grant-type:token-exchange",
+		}
 	}
 }
 
