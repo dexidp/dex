@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"golang.org/x/sync/errgroup"
 	admin "google.golang.org/api/admin/directory/v1"
 	"google.golang.org/api/option"
 
@@ -53,6 +55,10 @@ type Config struct {
 
 	// If this field is true, fetch direct group membership and transitive group membership
 	FetchTransitiveGroupMembership bool `json:"fetchTransitiveGroupMembership"`
+
+	// GroupDomain is the domain to fetch groups from. Groups will be fetched from the default
+	// domain if left empty.
+	GroupDomain string `json:"domain"`
 }
 
 // Open returns a connector which can be used to login users through Google.
@@ -104,6 +110,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		groups:                         c.Groups,
 		serviceAccountFilePath:         c.ServiceAccountFilePath,
 		adminEmail:                     c.AdminEmail,
+		groupDomain:                    c.GroupDomain,
 		fetchTransitiveGroupMembership: c.FetchTransitiveGroupMembership,
 		adminSrv:                       adminSrv,
 	}, nil
@@ -121,6 +128,7 @@ type googleConnector struct {
 	cancel                         context.CancelFunc
 	logger                         log.Logger
 	hostedDomains                  []string
+	groupDomain                    string
 	groups                         []string
 	serviceAccountFilePath         string
 	adminEmail                     string
@@ -227,8 +235,11 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 
 	var groups []string
 	if s.Groups && c.adminSrv != nil {
-		checkedGroups := make(map[string]struct{})
-		groups, err = c.getGroups(claims.Email, c.fetchTransitiveGroupMembership, checkedGroups)
+		if c.fetchTransitiveGroupMembership {
+			groups, err = c.getAllGroups(ctx, claims.Email)
+		} else {
+			groups, err = c.getGroups(ctx, claims.Email, &checkedGroups{})
+		}
 		if err != nil {
 			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
 		}
@@ -252,44 +263,132 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	return identity, nil
 }
 
-// getGroups creates a connection to the admin directory service and lists
-// all groups the user is a member of
-func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership bool, checkedGroups map[string]struct{}) ([]string, error) {
-	var userGroups []string
-	var err error
-	groupsList := &admin.Groups{}
-	for {
-		groupsList, err = c.adminSrv.Groups.List().
-			UserKey(email).PageToken(groupsList.NextPageToken).Do()
-		if err != nil {
-			return nil, fmt.Errorf("could not list groups: %v", err)
-		}
+func (c *googleConnector) getAllGroups(ctx context.Context, userKey string) ([]string, error) {
+	directMemberships, err := c.getGroupsAllPages(ctx, userKey, c.groupDomain)
+	if err != nil {
+		return nil, err
+	}
 
-		for _, group := range groupsList.Groups {
-			if _, exists := checkedGroups[group.Email]; exists {
-				continue
-			}
-
-			checkedGroups[group.Email] = struct{}{}
-			// TODO (joelspeed): Make desired group key configurable
-			userGroups = append(userGroups, group.Email)
-
-			if !fetchTransitiveGroupMembership {
-				continue
-			}
-
-			// getGroups takes a user's email/alias as well as a group's email/alias
-			transitiveGroups, err := c.getGroups(group.Email, fetchTransitiveGroupMembership, checkedGroups)
+	var groups []string
+	var groupsCh = make(chan string)
+	checkedGroups := checkedGroups{}
+	g, cctx := errgroup.WithContext(ctx)
+	for _, group := range directMemberships {
+		email := group
+		g.Go(func() error {
+			transitiveGroups, err := c.getGroups(cctx, email, &checkedGroups)
 			if err != nil {
-				return nil, fmt.Errorf("could not list transitive groups: %v", err)
+				return err
 			}
 
-			userGroups = append(userGroups, transitiveGroups...)
+			transitiveGroups = append(transitiveGroups, email)
+
+			for _, email := range transitiveGroups {
+				select {
+				case groupsCh <- email:
+				case <-cctx.Done():
+					return cctx.Err()
+				}
+			}
+
+			return nil
+		})
+	}
+
+	done := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-cctx.Done():
+				close(done)
+				return
+			case g := <-groupsCh:
+				groups = append(groups, g)
+			}
+		}
+	}()
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	<-done
+
+	return groups, nil
+}
+
+func (c *googleConnector) getGroupsAllPages(ctx context.Context, userKey, domain string) ([]string, error) {
+	var groups []string
+	call := c.adminSrv.Groups.List().
+		Context(ctx).
+		UserKey(userKey).
+		Domain(domain)
+
+	for {
+		page, err := call.Do()
+		if err != nil {
+			return nil, err
 		}
 
-		if groupsList.NextPageToken == "" {
+		for _, g := range page.Groups {
+			groups = append(groups, g.Email)
+		}
+		if page.NextPageToken == "" {
 			break
 		}
+
+		call.PageToken(page.NextPageToken)
+	}
+
+	return groups, nil
+}
+
+type checkedGroups struct {
+	mMu sync.Mutex
+	m   map[string]struct{}
+}
+
+func (g *checkedGroups) checked(k string) bool {
+	g.mMu.Lock()
+	defer g.mMu.Unlock()
+
+	if g.m == nil {
+		g.m = make(map[string]struct{})
+	}
+
+	_, ok := g.m[k]
+	g.m[k] = struct{}{}
+
+	return ok
+}
+
+// getGroups creates a connection to the admin directory service and lists
+// all groups the user is a member of
+func (c *googleConnector) getGroups(ctx context.Context, email string, checkedGroups *checkedGroups) ([]string, error) {
+	var userGroups []string
+	groups, err := c.getGroupsAllPages(ctx, email, c.groupDomain)
+	if err != nil {
+		return nil, fmt.Errorf("could not list groups: %v", err)
+	}
+
+	for _, group := range groups {
+		if checkedGroups.checked(group) {
+			continue
+		}
+
+		// TODO (joelspeed): Make desired group key configurable
+		userGroups = append(userGroups, group)
+
+		if !c.fetchTransitiveGroupMembership {
+			continue
+		}
+
+		// getGroups takes a user's email/alias as well as a group's email/alias
+		transitiveGroups, err := c.getGroups(ctx, group, checkedGroups)
+		if err != nil {
+			return nil, fmt.Errorf("could not list transitive groups: %v", err)
+		}
+
+		userGroups = append(userGroups, transitiveGroups...)
 	}
 
 	return userGroups, nil
