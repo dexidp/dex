@@ -494,7 +494,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 
 // finalizeLogin associates the user's identity with the current AuthRequest, then returns
 // the approval page's path.
-func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (returnURL string, canSkipApproval bool, err error) {
+func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (string, bool, error) {
 	claims := storage.Claims{
 		UserID:            identity.UserID,
 		Username:          identity.Username,
@@ -510,7 +510,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 		a.ConnectorData = identity.ConnectorData
 		return a, nil
 	}
-	if err = s.storage.UpdateAuthRequest(authReq.ID, updater); err != nil {
+	if err := s.storage.UpdateAuthRequest(authReq.ID, updater); err != nil {
 		return "", false, fmt.Errorf("failed to update auth request: %v", err)
 	}
 
@@ -533,7 +533,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 	h.Write([]byte(authReq.ID))
 	mac := h.Sum(nil)
 
-	returnURL = path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID + "&hmac=" + base64.RawURLEncoding.EncodeToString(mac)
+	returnURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID + "&hmac=" + base64.RawURLEncoding.EncodeToString(mac)
 	_, ok := conn.(connector.RefreshConnector)
 	if !ok {
 		return returnURL, false, nil
