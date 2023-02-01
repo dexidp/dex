@@ -171,24 +171,23 @@ var (
 )
 
 type oidcConnector struct {
-	provider                              *oidc.Provider
-	redirectURI                           string
-	oauth2Config                          *oauth2.Config
-	verifier                              *oidc.IDTokenVerifier
-	cancel                                context.CancelFunc
-	logger                                log.Logger
-	hostedDomains                         []string
-	redirectURIWhitelist                  []string
-	insecureSkipEmailVerified             bool
-	insecureEnableGroups                  bool
-	insecureSkipIssuerCallbackDomainCheck bool
-	getUserInfo                           bool
-	promptType                            string
-	userIDKey                             string
-	userNameKey                           string
-	preferredUsernameKey                  string
-	emailKey                              string
-	groupsKey                             string
+	provider                  *oidc.Provider
+	redirectURI               string
+	oauth2Config              *oauth2.Config
+	verifier                  *oidc.IDTokenVerifier
+	cancel                    context.CancelFunc
+	logger                    log.Logger
+	hostedDomains             []string
+	redirectURIWhitelist      []string
+	insecureSkipEmailVerified bool
+	insecureEnableGroups      bool
+	getUserInfo               bool
+	promptType                string
+	userIDKey                 string
+	userNameKey               string
+	preferredUsernameKey      string
+	emailKey                  string
+	groupsKey                 string
 }
 
 func (c *oidcConnector) Close() error {
