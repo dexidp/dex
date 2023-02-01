@@ -38,14 +38,16 @@ type Config struct {
 	// If this field is nonempty, only users from a listed domain will be allowed to log in
 	HostedDomains []string `json:"hostedDomains"`
 
+	// Optional list of whitelisted redirect URIs that a user can use to log in.
+	// If the field is non-empty, the whitelisted URIs will be matched against in
+	// addition to the redirectURI field during the login process.
+	RedirectURIWhitelist []string `json:"redirectURIWhitelist"`
+
 	// Override the value of email_verified to true in the returned claims
 	InsecureSkipEmailVerified bool `json:"insecureSkipEmailVerified"`
 
 	// InsecureEnableGroups enables groups claims. This is disabled by default until https://github.com/dexidp/dex/issues/1065 is resolved
 	InsecureEnableGroups bool `json:"insecureEnableGroups"`
-
-	// Skips checking whether the requested domain in the Login Callback matches the configured Issuer
-	InsecureSkipIssuerCallbackDomainCheck bool `json:"insecureSkipIssuerCallbackDomainCheck"`
 
 	// GetUserInfo uses the userinfo endpoint to get additional claims for
 	// the token. This is especially useful where upstreams return "thin"
@@ -147,19 +149,19 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		verifier: provider.Verifier(
 			&oidc.Config{ClientID: clientID},
 		),
-		logger:                                logger,
-		cancel:                                cancel,
-		hostedDomains:                         c.HostedDomains,
-		insecureSkipEmailVerified:             c.InsecureSkipEmailVerified,
-		insecureEnableGroups:                  c.InsecureEnableGroups,
-		insecureSkipIssuerCallbackDomainCheck: c.InsecureSkipIssuerCallbackDomainCheck,
-		getUserInfo:                           c.GetUserInfo,
-		promptType:                            c.PromptType,
-		userIDKey:                             c.UserIDKey,
-		userNameKey:                           c.UserNameKey,
-		preferredUsernameKey:                  c.ClaimMapping.PreferredUsernameKey,
-		emailKey:                              c.ClaimMapping.EmailKey,
-		groupsKey:                             c.ClaimMapping.GroupsKey,
+		logger:                    logger,
+		cancel:                    cancel,
+		hostedDomains:             c.HostedDomains,
+		redirectURIWhitelist:      c.RedirectURIWhitelist,
+		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
+		insecureEnableGroups:      c.InsecureEnableGroups,
+		getUserInfo:               c.GetUserInfo,
+		promptType:                c.PromptType,
+		userIDKey:                 c.UserIDKey,
+		userNameKey:               c.UserNameKey,
+		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
+		emailKey:                  c.ClaimMapping.EmailKey,
+		groupsKey:                 c.ClaimMapping.GroupsKey,
 	}, nil
 }
 
@@ -176,6 +178,7 @@ type oidcConnector struct {
 	cancel                                context.CancelFunc
 	logger                                log.Logger
 	hostedDomains                         []string
+	redirectURIWhitelist                  []string
 	insecureSkipEmailVerified             bool
 	insecureEnableGroups                  bool
 	insecureSkipIssuerCallbackDomainCheck bool
@@ -194,8 +197,16 @@ func (c *oidcConnector) Close() error {
 }
 
 func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) (string, error) {
-	if c.redirectURI != callbackURL && !c.insecureSkipIssuerCallbackDomainCheck {
-		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
+	if c.redirectURI != callbackURL {
+		match := false
+		for _, redirect := range c.redirectURIWhitelist {
+			if redirect == callbackURL {
+				match = true
+			}
+		}
+		if !match {
+			return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
+		}
 	}
 
 	var opts []oauth2.AuthCodeOption
