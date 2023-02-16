@@ -67,8 +67,17 @@ jobs:
         with:
           platforms: ${{ matrix.platform.target }}
 
+      - name: Build artifacts
+        run: make release-binary && ls bin
+        env:
+          GOOS: ${{ matrix.platform.os }}
+          GOARCH: ${{ matrix.platform.arch }}
+          GOARM: ${{ matrix.platform.arm }}
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
+        with:
+          buildkitd-flags: --debug
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v2
@@ -84,13 +93,6 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
         if: github.event_name == 'push'
-
-      - name: Build artifacts
-        run: make release-binary && ls bin
-        env:
-          GOOS: ${{ matrix.platform.os }}
-          GOARCH: ${{ matrix.platform.arch }}
-          GOARM: ${{ matrix.platform.arm }}
 
       - name: Build and push
         uses: docker/build-push-action@v4

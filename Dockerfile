@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=alpine
 
 #
-# -- Artifact: CA certificates and configs
+# --- Artifact: CA certificates and configs ---
 #
 FROM alpine:3.17.2 AS stager
 
@@ -15,7 +15,7 @@ COPY go.mod go.sum /usr/local/src/dex/
 COPY api/v2/go.mod api/v2/go.sum /usr/local/src/dex/api/v2/
 
 #
-# -- Artifact: Gomplate
+# --- Artifact: Gomplate ---
 #
 FROM alpine:3.17.2 AS gomplate
 
@@ -30,10 +30,11 @@ RUN wget -O /usr/local/bin/gomplate \
     && chmod +x /usr/local/bin/gomplate
 
 #
-# -- Final image: Dex
+# --- Final image: Dex ---
 #
 # For Dependabot to detect base image versions
 FROM alpine:3.17.2 AS alpine
+
 FROM gcr.io/distroless/static:latest AS distroless
 
 FROM $BASE_IMAGE
@@ -51,9 +52,9 @@ COPY --from=stager --chown=1001:1001 /etc/dex /etc/dex
 # Copy module files for CVE scanning / dependency analysis.
 COPY --from=stager --chown=1001:1001 /usr/local/src/dex/ /usr/local/src/dex/
 
+COPY --chown=1001:1001 ./web /srv/dex/web
 COPY --chown=1001:1001 ./bin/dex-${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT} /usr/local/bin/dex
 COPY --chown=1001:1001 ./bin/docker-entrypoint-${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT} /usr/local/bin/docker-entrypoint
-COPY --chown=1001:1001 ./web /srv/dex/web
 
 COPY --from=gomplate /usr/local/bin/gomplate /usr/local/bin/gomplate
 
