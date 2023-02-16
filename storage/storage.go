@@ -368,6 +368,10 @@ type Connector struct {
 	ResourceVersion string `json:"resourceVersion"`
 	// Config holds all the configuration information specific to the connector type. Since there
 	// no generic struct we can use for this purpose, it is stored as a byte stream.
+	//
+	// NOTE: This is a bug. The JSON tag should be `config`.
+	// However, fixing this requires migrating Kubernetes objects for all previously created connectors,
+	// or making Dex reading both tags and act accordingly.
 	Config []byte `json:"email"`
 }
 
