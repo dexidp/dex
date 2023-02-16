@@ -17,6 +17,11 @@ jobs:
         variant:
           - alpine
           - distroless
+        platform:
+          - linux/amd64
+          - linux/arm/v7
+          - linux/arm64
+          - linux/ppc64le
 
     steps:
       - name: Checkout
@@ -70,7 +75,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
-          platforms: linux/amd64,linux/arm/v7,linux/arm64,linux/ppc64le
+          platforms: ${{ matrix.platform }}
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
           push: ${{ github.event_name == 'push' }}
