@@ -95,7 +95,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
-          context: ${{ github.workspace }}
+          context: .
           platforms: ${{ matrix.platform.target }}
           # cache-from: type=gha
           # cache-to: type=gha,mode=max

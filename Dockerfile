@@ -51,9 +51,9 @@ COPY --from=stager --chown=1001:1001 /etc/dex /etc/dex
 # Copy module files for CVE scanning / dependency analysis.
 COPY --from=stager --chown=1001:1001 /usr/local/src/dex/ /usr/local/src/dex/
 
-COPY bin/dex-${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT} /usr/local/bin/dex
-COPY bin/docker-entrypoint-${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT} /usr/local/bin/docker-entrypoint
-COPY web /srv/dex/web
+COPY --chown=1001:1001 ./bin/dex-${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT} /usr/local/bin/dex
+COPY --chown=1001:1001 ./bin/docker-entrypoint-${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT} /usr/local/bin/docker-entrypoint
+COPY --chown=1001:1001 ./web /srv/dex/web
 
 COPY --from=gomplate /usr/local/bin/gomplate /usr/local/bin/gomplate
 
