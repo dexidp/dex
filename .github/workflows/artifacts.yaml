@@ -26,7 +26,7 @@ jobs:
             target: linux/arm64
           - os: linux
             arch: arm
-            arm: v7
+            arm: 7
             target: linux/arm/v7
           - os: linux
             arch: ppc64le
@@ -68,11 +68,17 @@ jobs:
           platforms: ${{ matrix.platform.target }}
 
       - name: Build artifacts
-        run: make release-binary && ls bin
+        run: |
+          mkdir -p bin/
+          version=$(git describe --exact-match --abbrev=0 --tags ${COMMIT} 2> /dev/null || true)
+
+          go build -o bin/dex-${GOOS}-${GOARCH}${GOARM} -v -ldflags "-w -X main.version=${version} -extldflags \"-static\"" ./cmd/dex
+          go build -o bin/docker-entrypoint-${GOOS}-${GOARCH}${GOARM} -v -ldflags "-X main.version=${version} -extldflags \"-static\"" ./cmd/docker-entrypoint
         env:
           GOOS: ${{ matrix.platform.os }}
           GOARCH: ${{ matrix.platform.arch }}
           GOARM: ${{ matrix.platform.arm }}
+          CGO_ENABLED: 1
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
