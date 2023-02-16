@@ -78,7 +78,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
         with:
-          driver: docker
           buildkitd-flags: --debug
 
       - name: Login to GitHub Container Registry
@@ -95,6 +94,10 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
         if: github.event_name == 'push'
+
+      - name: Check binaries
+        run: |
+          pwd && ls bin/
 
       - name: Build and push
         uses: docker/build-push-action@v4
