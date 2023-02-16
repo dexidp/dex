@@ -21,16 +21,9 @@ jobs:
           - os: linux
             arch: amd64
             target: linux/amd64
-          - os: linux
-            arch: arm64
-            target: linux/arm64
-          - os: linux
-            arch: arm
-            arm: 7
-            target: linux/arm/v7
-          - os: linux
-            arch: ppc64le
-            target: linux/ppc64le
+          # - { os: linux, arch: arm64, target: linux/arm64 },
+          # - { os: linux, arch: ppc64le, target: linux/ppc64le },
+          # - { os: linux, arch: arm, arm: 7, target: linux/arm/v7 },
 
     steps:
       - name: Checkout
@@ -74,6 +67,8 @@ jobs:
 
           go build -o bin/dex-${GOOS}-${GOARCH}${GOARM} -v -ldflags "-w -X main.version=${version} -extldflags \"-static\"" ./cmd/dex
           go build -o bin/docker-entrypoint-${GOOS}-${GOARCH}${GOARM} -v -ldflags "-X main.version=${version} -extldflags \"-static\"" ./cmd/docker-entrypoint
+
+          pwd && ls bin/
         env:
           GOOS: ${{ matrix.platform.os }}
           GOARCH: ${{ matrix.platform.arch }}
@@ -83,6 +78,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
         with:
+          driver: docker
           buildkitd-flags: --debug
 
       - name: Login to GitHub Container Registry
