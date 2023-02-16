@@ -62,13 +62,6 @@ jobs:
         with:
           go-version: "1.20"
 
-      - name: Build artifacts
-        run: make release-binary  && ls bin
-        env:
-          GOOS: ${{ matrix.platform.os }}
-          GOARCH: ${{ matrix.platform.arch }}
-          GOARM: ${{ matrix.platform.arm }}
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
         with:
@@ -91,6 +84,13 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
         if: github.event_name == 'push'
+
+      - name: Build artifacts
+        run: make release-binary && ls bin
+        env:
+          GOOS: ${{ matrix.platform.os }}
+          GOARCH: ${{ matrix.platform.arch }}
+          GOARM: ${{ matrix.platform.arm }}
 
       - name: Build and push
         uses: docker/build-push-action@v4
