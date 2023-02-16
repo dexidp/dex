@@ -9,6 +9,7 @@ RUN apk add --no-cache --update ca-certificates
 
 RUN mkdir -p /var/dex
 RUN mkdir -p /etc/dex
+RUN mkdir -p /usr/local/bin/
 
 COPY config.docker.yaml /etc/dex/
 COPY go.mod go.sum /usr/local/src/dex/
@@ -52,13 +53,14 @@ COPY --from=stager /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certific
 
 COPY --from=stager --chown=1001:1001 /var/dex /var/dex
 COPY --from=stager --chown=1001:1001 /etc/dex /etc/dex
+COPY --from=stager --chown=1001:1001 /usr/local/bin /usr/local/bin
 
 # Copy module files for CVE scanning / dependency analysis.
 COPY --from=stager --chown=1001:1001 /usr/local/src/dex/ /usr/local/src/dex/
 
-COPY --chown=1001:1001 ./web /srv/dex/web
-COPY --chown=1001:1001 ./bin/dex-${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT} /usr/local/bin/dex
-COPY --chown=1001:1001 ./bin/docker-entrypoint-${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT} /usr/local/bin/docker-entrypoint
+COPY --chown=1001:1001 web /srv/dex/web
+COPY --from=bin --chown=1001:1001 dex-${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT} /usr/local/bin/dex
+COPY --from=bin --chown=1001:1001 docker-entrypoint-${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT} /usr/local/bin/docker-entrypoint
 
 COPY --from=gomplate /usr/local/bin/gomplate /usr/local/bin/gomplate
 

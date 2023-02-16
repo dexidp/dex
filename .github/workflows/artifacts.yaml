@@ -97,12 +97,13 @@ jobs:
 
       - name: Check binaries
         run: |
-          pwd && ls bin/
+          pwd && ls -lah /home/runner/work/dex/dex/ && ls -lah /home/runner/work/dex/dex/bin
 
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
           context: .
+          build-contexts: bin=bin/
           platforms: ${{ matrix.platform.target }}
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
