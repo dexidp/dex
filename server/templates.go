@@ -286,6 +286,9 @@ func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []c
 }
 
 func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid bool, backLink string) error {
+	if lastWasInvalid {
+		w.WriteHeader(http.StatusUnauthorized)
+	}
 	data := struct {
 		PostURL        string
 		BackLink       string

@@ -265,7 +265,7 @@ func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
 	require.NoError(t, err)
 }
 
-func TestPasswordConnectorDataNotEmpty(t *testing.T) {
+func TestHandlePassword(t *testing.T) {
 	t0 := time.Now()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -280,33 +280,46 @@ func TestPasswordConnectorDataNotEmpty(t *testing.T) {
 
 	mockConnectorDataTestStorage(t, s.storage)
 
-	u, err := url.Parse(s.issuerURL.String())
-	require.NoError(t, err)
+	makeReq := func(username, password string) *httptest.ResponseRecorder {
+		u, err := url.Parse(s.issuerURL.String())
+		require.NoError(t, err)
 
-	u.Path = path.Join(u.Path, "/token")
-	v := url.Values{}
-	v.Add("scope", "openid offline_access email")
-	v.Add("grant_type", "password")
-	v.Add("username", "test")
-	v.Add("password", "test")
+		u.Path = path.Join(u.Path, "/token")
+		v := url.Values{}
+		v.Add("scope", "openid offline_access email")
+		v.Add("grant_type", "password")
+		v.Add("username", username)
+		v.Add("password", password)
 
-	req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
-	req.SetBasicAuth("test", "barfoo")
+		req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
+		req.SetBasicAuth("test", "barfoo")
 
-	rr := httptest.NewRecorder()
-	s.ServeHTTP(rr, req)
+		rr := httptest.NewRecorder()
+		s.ServeHTTP(rr, req)
 
-	require.Equal(t, 200, rr.Code)
+		return rr
+	}
+
+	// Check unauthorized error
+	{
+		rr := makeReq("test", "invalid")
+		require.Equal(t, 401, rr.Code)
+	}
 
 	// Check that we received expected refresh token
-	var ref struct {
-		Token string `json:"refresh_token"`
-	}
-	err = json.Unmarshal(rr.Body.Bytes(), &ref)
-	require.NoError(t, err)
+	{
+		rr := makeReq("test", "test")
+		require.Equal(t, 200, rr.Code)
 
-	newSess, err := s.storage.GetOfflineSessions("0-385-28089-0", "test")
-	require.NoError(t, err)
-	require.Equal(t, `{"test": "true"}`, string(newSess.ConnectorData))
+		var ref struct {
+			Token string `json:"refresh_token"`
+		}
+		err := json.Unmarshal(rr.Body.Bytes(), &ref)
+		require.NoError(t, err)
+
+		newSess, err := s.storage.GetOfflineSessions("0-385-28089-0", "test")
+		require.NoError(t, err)
+		require.Equal(t, `{"test": "true"}`, string(newSess.ConnectorData))
+	}
 }
