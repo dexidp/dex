@@ -122,9 +122,9 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
         if: github.event_name == 'push'
 
-      - name: Check binaries
+      - name: Check binaries # Debug info
         run: |
-          pwd && ls -lah /home/runner/work/dex/dex/ && ls -lah /home/runner/work/dex/dex/bin
+          pwd && ls -lah /home/runner/work/dex/dex/bin
 
       - name: Build and push
         uses: docker/build-push-action@v4
