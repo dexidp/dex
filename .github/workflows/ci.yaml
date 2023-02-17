@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-latest-32-cores
+    runs-on: ubuntu-latest
     env:
       GOFLAGS: -mod=readonly
 
