@@ -18,22 +18,32 @@ jobs:
           - alpine
           - distroless
         platform:
+          # amd64
           - os: linux
             arch: amd64
             target: linux/amd64
 
+          # arm64
           - os: linux
             arch: arm64
             target: linux/arm64
-            cc: gcc-aarch64-linux-gnu
+            compiler: gcc-aarch64-linux-gnu
+            cc: aarch64-linux-gnu-gcc
 
-          # - os: linux
-          #   arch: ppc64le
-          #   target: linux/ppc64le
-          #   cc: gcc-powerpc64le-linux-gnu
+          # armv7
+          - os: linux
+            arch: arm
+            arm: 7
+            target: linux/arm/v7
+            compiler: gcc-arm-linux-gnueabihf
+            cc: arm-linux-gnueabihf-gcc
 
-          # - { os: linux, arch: arm64, target: linux/arm64 },
-          # - { os: linux, arch: arm, arm: 7, target: linux/arm/v7 },
+          # ppc64le
+          - os: linux
+            arch: ppc64le
+            target: linux/ppc64le
+            compiler: gcc-powerpc64le-linux-gnu
+            cc: powerpc64le-linux-gnu-gcc
 
     steps:
       - name: Checkout
@@ -71,9 +81,9 @@ jobs:
           platforms: ${{ matrix.platform.target }}
 
       - name: Install cross compiler
-        if: matrix.platform.cc != ''
+        if: matrix.platform.compiler != ''
         run: |
-          sudo apt-get install ${{ matrix.platform.cc }}
+          sudo apt-get install ${{ matrix.platform.compiler }}
 
       - name: Build artifacts
         run: |
@@ -81,10 +91,12 @@ jobs:
           version=$(git describe --exact-match --abbrev=0 --tags ${COMMIT} 2> /dev/null || true)
           ld_flags="-w -X main.version=${version} -extldflags \"-static\""
 
-          go build -o bin/dex-${GOOS}-${GOARCH}${GOARM} -v -ldflags "${ld_flags}" ./cmd/dex
-          go build -o bin/docker-entrypoint-${GOOS}-${GOARCH}${GOARM} -v -ldflags "${ld_flags}" ./cmd/docker-entrypoint
+          if [[ x${GOARM} != "x" ]]; then
+            ARM="v${GOARM}"
+          fi
 
-          pwd && ls bin/
+          go build -o bin/dex-${GOOS}-${GOARCH}${ARM} -v -ldflags "${ld_flags}" ./cmd/dex
+          go build -o bin/docker-entrypoint-${GOOS}-${GOARCH}${ARM} -v -ldflags "${ld_flags}" ./cmd/docker-entrypoint
         env:
           GOOS: ${{ matrix.platform.os }}
           GOARCH: ${{ matrix.platform.arch }}
@@ -94,8 +106,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
-        with:
-          buildkitd-flags: --debug
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v2
