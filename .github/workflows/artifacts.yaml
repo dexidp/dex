@@ -21,8 +21,18 @@ jobs:
           - os: linux
             arch: amd64
             target: linux/amd64
+
+          - os: linux
+            arch: arm64
+            target: linux/arm64
+            cc: gcc-aarch64-linux-gnu
+
+          # - os: linux
+          #   arch: ppc64le
+          #   target: linux/ppc64le
+          #   cc: gcc-powerpc64le-linux-gnu
+
           # - { os: linux, arch: arm64, target: linux/arm64 },
-          # - { os: linux, arch: ppc64le, target: linux/ppc64le },
           # - { os: linux, arch: arm, arm: 7, target: linux/arm/v7 },
 
     steps:
@@ -60,19 +70,26 @@ jobs:
         with:
           platforms: ${{ matrix.platform.target }}
 
+      - name: Install cross compiler
+        if: matrix.platform.cc != ''
+        run: |
+          sudo apt-get install ${{ matrix.platform.cc }}
+
       - name: Build artifacts
         run: |
           mkdir -p bin/
           version=$(git describe --exact-match --abbrev=0 --tags ${COMMIT} 2> /dev/null || true)
+          ld_flags="-w -X main.version=${version} -extldflags \"-static\""
 
-          go build -o bin/dex-${GOOS}-${GOARCH}${GOARM} -v -ldflags "-w -X main.version=${version} -extldflags \"-static\"" ./cmd/dex
-          go build -o bin/docker-entrypoint-${GOOS}-${GOARCH}${GOARM} -v -ldflags "-X main.version=${version} -extldflags \"-static\"" ./cmd/docker-entrypoint
+          go build -o bin/dex-${GOOS}-${GOARCH}${GOARM} -v -ldflags "${ld_flags}" ./cmd/dex
+          go build -o bin/docker-entrypoint-${GOOS}-${GOARCH}${GOARM} -v -ldflags "${ld_flags}" ./cmd/docker-entrypoint
 
           pwd && ls bin/
         env:
           GOOS: ${{ matrix.platform.os }}
           GOARCH: ${{ matrix.platform.arch }}
           GOARM: ${{ matrix.platform.arm }}
+          CC: ${{ matrix.platform.cc }}
           CGO_ENABLED: 1
 
       - name: Set up Docker Buildx
