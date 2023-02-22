@@ -17,24 +17,40 @@ type config struct {
 	// debug enable a debug logging.
 	debug bool
 	// log used for logging on debug mode.
-	log func(...interface{})
+	log func(...any)
 	// hooks to execute on mutations.
 	hooks *hooks
+	// interceptors to execute on queries.
+	inters *inters
 }
 
-// hooks per client, for fast access.
-type hooks struct {
-	AuthCode       []ent.Hook
-	AuthRequest    []ent.Hook
-	Connector      []ent.Hook
-	DeviceRequest  []ent.Hook
-	DeviceToken    []ent.Hook
-	Keys           []ent.Hook
-	OAuth2Client   []ent.Hook
-	OfflineSession []ent.Hook
-	Password       []ent.Hook
-	RefreshToken   []ent.Hook
-}
+// hooks and interceptors per client, for fast access.
+type (
+	hooks struct {
+		AuthCode       []ent.Hook
+		AuthRequest    []ent.Hook
+		Connector      []ent.Hook
+		DeviceRequest  []ent.Hook
+		DeviceToken    []ent.Hook
+		Keys           []ent.Hook
+		OAuth2Client   []ent.Hook
+		OfflineSession []ent.Hook
+		Password       []ent.Hook
+		RefreshToken   []ent.Hook
+	}
+	inters struct {
+		AuthCode       []ent.Interceptor
+		AuthRequest    []ent.Interceptor
+		Connector      []ent.Interceptor
+		DeviceRequest  []ent.Interceptor
+		DeviceToken    []ent.Interceptor
+		Keys           []ent.Interceptor
+		OAuth2Client   []ent.Interceptor
+		OfflineSession []ent.Interceptor
+		Password       []ent.Interceptor
+		RefreshToken   []ent.Interceptor
+	}
+)
 
 // Options applies the options on the config object.
 func (c *config) options(opts ...Option) {
@@ -54,7 +70,7 @@ func Debug() Option {
 }
 
 // Log sets the logging function for debug mode.
-func Log(fn func(...interface{})) Option {
+func Log(fn func(...any)) Option {
 	return func(c *config) {
 		c.log = fn
 	}

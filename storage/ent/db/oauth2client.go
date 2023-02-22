@@ -31,8 +31,8 @@ type OAuth2Client struct {
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*OAuth2Client) scanValues(columns []string) ([]interface{}, error) {
-	values := make([]interface{}, len(columns))
+func (*OAuth2Client) scanValues(columns []string) ([]any, error) {
+	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
 		case oauth2client.FieldRedirectUris, oauth2client.FieldTrustedPeers:
@@ -50,7 +50,7 @@ func (*OAuth2Client) scanValues(columns []string) ([]interface{}, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the OAuth2Client fields.
-func (o *OAuth2Client) assignValues(columns []string, values []interface{}) error {
+func (o *OAuth2Client) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -111,7 +111,7 @@ func (o *OAuth2Client) assignValues(columns []string, values []interface{}) erro
 // Note that you need to call OAuth2Client.Unwrap() before calling this method if this OAuth2Client
 // was returned from a transaction, and the transaction was committed or rolled back.
 func (o *OAuth2Client) Update() *OAuth2ClientUpdateOne {
-	return (&OAuth2ClientClient{config: o.config}).UpdateOne(o)
+	return NewOAuth2ClientClient(o.config).UpdateOne(o)
 }
 
 // Unwrap unwraps the OAuth2Client entity that was returned from a transaction after it was closed,
@@ -153,9 +153,3 @@ func (o *OAuth2Client) String() string {
 
 // OAuth2Clients is a parsable slice of OAuth2Client.
 type OAuth2Clients []*OAuth2Client
-
-func (o OAuth2Clients) config(cfg config) {
-	for _i := range o {
-		o[_i].config = cfg
-	}
-}

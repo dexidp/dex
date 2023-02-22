@@ -32,8 +32,8 @@ type DeviceRequest struct {
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*DeviceRequest) scanValues(columns []string) ([]interface{}, error) {
-	values := make([]interface{}, len(columns))
+func (*DeviceRequest) scanValues(columns []string) ([]any, error) {
+	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
 		case devicerequest.FieldScopes:
@@ -53,7 +53,7 @@ func (*DeviceRequest) scanValues(columns []string) ([]interface{}, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the DeviceRequest fields.
-func (dr *DeviceRequest) assignValues(columns []string, values []interface{}) error {
+func (dr *DeviceRequest) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -112,7 +112,7 @@ func (dr *DeviceRequest) assignValues(columns []string, values []interface{}) er
 // Note that you need to call DeviceRequest.Unwrap() before calling this method if this DeviceRequest
 // was returned from a transaction, and the transaction was committed or rolled back.
 func (dr *DeviceRequest) Update() *DeviceRequestUpdateOne {
-	return (&DeviceRequestClient{config: dr.config}).UpdateOne(dr)
+	return NewDeviceRequestClient(dr.config).UpdateOne(dr)
 }
 
 // Unwrap unwraps the DeviceRequest entity that was returned from a transaction after it was closed,
@@ -154,9 +154,3 @@ func (dr *DeviceRequest) String() string {
 
 // DeviceRequests is a parsable slice of DeviceRequest.
 type DeviceRequests []*DeviceRequest
-
-func (dr DeviceRequests) config(cfg config) {
-	for _i := range dr {
-		dr[_i].config = cfg
-	}
-}

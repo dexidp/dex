@@ -60,8 +60,8 @@ type AuthRequest struct {
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*AuthRequest) scanValues(columns []string) ([]interface{}, error) {
-	values := make([]interface{}, len(columns))
+func (*AuthRequest) scanValues(columns []string) ([]any, error) {
+	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
 		case authrequest.FieldScopes, authrequest.FieldResponseTypes, authrequest.FieldClaimsGroups, authrequest.FieldConnectorData, authrequest.FieldHmacKey:
@@ -81,7 +81,7 @@ func (*AuthRequest) scanValues(columns []string) ([]interface{}, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the AuthRequest fields.
-func (ar *AuthRequest) assignValues(columns []string, values []interface{}) error {
+func (ar *AuthRequest) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -228,7 +228,7 @@ func (ar *AuthRequest) assignValues(columns []string, values []interface{}) erro
 // Note that you need to call AuthRequest.Unwrap() before calling this method if this AuthRequest
 // was returned from a transaction, and the transaction was committed or rolled back.
 func (ar *AuthRequest) Update() *AuthRequestUpdateOne {
-	return (&AuthRequestClient{config: ar.config}).UpdateOne(ar)
+	return NewAuthRequestClient(ar.config).UpdateOne(ar)
 }
 
 // Unwrap unwraps the AuthRequest entity that was returned from a transaction after it was closed,
@@ -305,7 +305,8 @@ func (ar *AuthRequest) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("code_challenge_method=")
 	builder.WriteString(ar.CodeChallengeMethod)
-	builder.WriteString(", hmac_key=")
+	builder.WriteString(", ")
+	builder.WriteString("hmac_key=")
 	builder.WriteString(fmt.Sprintf("%v", ar.HmacKey))
 	builder.WriteByte(')')
 	return builder.String()
@@ -313,9 +314,3 @@ func (ar *AuthRequest) String() string {
 
 // AuthRequests is a parsable slice of AuthRequest.
 type AuthRequests []*AuthRequest
-
-func (ar AuthRequests) config(cfg config) {
-	for _i := range ar {
-		ar[_i].config = cfg
-	}
-}

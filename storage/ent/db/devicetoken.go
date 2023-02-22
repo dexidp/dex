@@ -35,8 +35,8 @@ type DeviceToken struct {
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*DeviceToken) scanValues(columns []string) ([]interface{}, error) {
-	values := make([]interface{}, len(columns))
+func (*DeviceToken) scanValues(columns []string) ([]any, error) {
+	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
 		case devicetoken.FieldToken:
@@ -56,7 +56,7 @@ func (*DeviceToken) scanValues(columns []string) ([]interface{}, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the DeviceToken fields.
-func (dt *DeviceToken) assignValues(columns []string, values []interface{}) error {
+func (dt *DeviceToken) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -125,7 +125,7 @@ func (dt *DeviceToken) assignValues(columns []string, values []interface{}) erro
 // Note that you need to call DeviceToken.Unwrap() before calling this method if this DeviceToken
 // was returned from a transaction, and the transaction was committed or rolled back.
 func (dt *DeviceToken) Update() *DeviceTokenUpdateOne {
-	return (&DeviceTokenClient{config: dt.config}).UpdateOne(dt)
+	return NewDeviceTokenClient(dt.config).UpdateOne(dt)
 }
 
 // Unwrap unwraps the DeviceToken entity that was returned from a transaction after it was closed,
@@ -175,9 +175,3 @@ func (dt *DeviceToken) String() string {
 
 // DeviceTokens is a parsable slice of DeviceToken.
 type DeviceTokens []*DeviceToken
-
-func (dt DeviceTokens) config(cfg config) {
-	for _i := range dt {
-		dt[_i].config = cfg
-	}
-}
