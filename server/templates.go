@@ -88,7 +88,7 @@ func getFuncMap(c webConfig) (template.FuncMap, error) {
 //	|- themes
 //	|  |- (theme name)
 //	|- templates
-func loadWebConfig(c webConfig) (http.Handler, http.Handler, *templates, error) {
+func loadWebConfig(c webConfig) (http.Handler, http.Handler, http.HandlerFunc, *templates, error) {
 	// fallback to the default theme if the legacy theme name is provided
 	if c.theme == "coreos" || c.theme == "tectonic" {
 		c.theme = ""
@@ -105,18 +105,24 @@ func loadWebConfig(c webConfig) (http.Handler, http.Handler, *templates, error) 
 
 	staticFiles, err := fs.Sub(c.webFS, "static")
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("read static dir: %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("read static dir: %v", err)
 	}
 	themeFiles, err := fs.Sub(c.webFS, path.Join("themes", c.theme))
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("read themes dir: %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("read themes dir: %v", err)
+	}
+	robotsContent, err := fs.ReadFile(c.webFS, "robots.txt")
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("read robots.txt dir: %v", err)
 	}
 
 	static := http.FileServer(http.FS(staticFiles))
 	theme := http.FileServer(http.FS(themeFiles))
+	robots := func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, string(robotsContent)) }
 
 	templates, err := loadTemplates(c, "templates")
-	return static, theme, templates, err
+
+	return static, theme, robots, templates, err
 }
 
 // loadTemplates parses the expected templates from the provided directory.
