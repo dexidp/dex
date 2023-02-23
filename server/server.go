@@ -252,7 +252,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		extra:     c.Web.Extra,
 	}
 
-	static, theme, tmpls, err := loadWebConfig(web)
+	static, theme, robots, tmpls, err := loadWebConfig(web)
 	if err != nil {
 		return nil, fmt.Errorf("server: failed to load web static: %v", err)
 	}
@@ -390,6 +390,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	handlePrefix("/static", static)
 	handlePrefix("/theme", theme)
+	handleFunc("/robots.txt", robots)
+
 	s.mux = r
 
 	s.startKeyRotation(ctx, rotationStrategy, now)
