@@ -50,8 +50,8 @@ type AuthCode struct {
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*AuthCode) scanValues(columns []string) ([]interface{}, error) {
-	values := make([]interface{}, len(columns))
+func (*AuthCode) scanValues(columns []string) ([]any, error) {
+	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
 		case authcode.FieldScopes, authcode.FieldClaimsGroups, authcode.FieldConnectorData:
@@ -71,7 +71,7 @@ func (*AuthCode) scanValues(columns []string) ([]interface{}, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the AuthCode fields.
-func (ac *AuthCode) assignValues(columns []string, values []interface{}) error {
+func (ac *AuthCode) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -186,7 +186,7 @@ func (ac *AuthCode) assignValues(columns []string, values []interface{}) error {
 // Note that you need to call AuthCode.Unwrap() before calling this method if this AuthCode
 // was returned from a transaction, and the transaction was committed or rolled back.
 func (ac *AuthCode) Update() *AuthCodeUpdateOne {
-	return (&AuthCodeClient{config: ac.config}).UpdateOne(ac)
+	return NewAuthCodeClient(ac.config).UpdateOne(ac)
 }
 
 // Unwrap unwraps the AuthCode entity that was returned from a transaction after it was closed,
@@ -257,9 +257,3 @@ func (ac *AuthCode) String() string {
 
 // AuthCodes is a parsable slice of AuthCode.
 type AuthCodes []*AuthCode
-
-func (ac AuthCodes) config(cfg config) {
-	for _i := range ac {
-		ac[_i].config = cfg
-	}
-}

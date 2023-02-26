@@ -25,15 +25,21 @@ LD_FLAGS="-w -X main.version=$(VERSION)"
 KIND_NODE_IMAGE = "kindest/node:v1.19.11@sha256:07db187ae84b4b7de440a73886f008cf903fcf5764ba8106a9fd5243d6f32729"
 KIND_TMP_DIR = "$(PWD)/bin/test/dex-kind-kubeconfig"
 
-.PHONY: generate
-generate:
-	@go generate $(REPO_PATH)/storage/ent/
+build: bin/dex
 
-build: generate bin/dex
+verify: verify-proto verify-ent
 
 bin/dex:
 	@mkdir -p bin/
 	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
+
+.PHONY: ent-generate
+ent-generate:
+	@go generate $(REPO_PATH)/storage/ent/
+
+.PHONY: verify-ent
+verify-ent: ent-generate
+	@./scripts/git-diff
 
 examples: bin/grpc-client bin/example-app
 
@@ -47,7 +53,7 @@ bin/example-app:
 
 .PHONY: release-binary
 release-binary: LD_FLAGS = "-w -X main.version=$(VERSION) -extldflags \"-static\""
-release-binary: generate
+release-binary:
 	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 	@go build -o /go/bin/docker-entrypoint -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/docker-entrypoint
 

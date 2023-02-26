@@ -124,6 +124,6 @@ jobs:
       - name: Lint
         run: make lint
 
-      # Ensure proto generation doesn't depend on external packages.
-      - name: Verify proto
-        run: make verify-proto
+      # Ensure that generated files were committed.
+      - name: Verify
+        run: make verify

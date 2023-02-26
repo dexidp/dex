@@ -50,8 +50,8 @@ type RefreshToken struct {
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*RefreshToken) scanValues(columns []string) ([]interface{}, error) {
-	values := make([]interface{}, len(columns))
+func (*RefreshToken) scanValues(columns []string) ([]any, error) {
+	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
 		case refreshtoken.FieldScopes, refreshtoken.FieldClaimsGroups, refreshtoken.FieldConnectorData:
@@ -71,7 +71,7 @@ func (*RefreshToken) scanValues(columns []string) ([]interface{}, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the RefreshToken fields.
-func (rt *RefreshToken) assignValues(columns []string, values []interface{}) error {
+func (rt *RefreshToken) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -186,7 +186,7 @@ func (rt *RefreshToken) assignValues(columns []string, values []interface{}) err
 // Note that you need to call RefreshToken.Unwrap() before calling this method if this RefreshToken
 // was returned from a transaction, and the transaction was committed or rolled back.
 func (rt *RefreshToken) Update() *RefreshTokenUpdateOne {
-	return (&RefreshTokenClient{config: rt.config}).UpdateOne(rt)
+	return NewRefreshTokenClient(rt.config).UpdateOne(rt)
 }
 
 // Unwrap unwraps the RefreshToken entity that was returned from a transaction after it was closed,
@@ -257,9 +257,3 @@ func (rt *RefreshToken) String() string {
 
 // RefreshTokens is a parsable slice of RefreshToken.
 type RefreshTokens []*RefreshToken
-
-func (rt RefreshTokens) config(cfg config) {
-	for _i := range rt {
-		rt[_i].config = cfg
-	}
-}
