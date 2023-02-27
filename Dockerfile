@@ -34,7 +34,7 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
 
-ENV GOMPLATE_VERSION=v3.11.3
+ENV GOMPLATE_VERSION=v3.11.4
 
 RUN wget -O /usr/local/bin/gomplate \
     "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT}" \
