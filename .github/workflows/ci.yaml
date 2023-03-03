@@ -64,10 +64,17 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19
+          go-version: "1.20"
 
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Download tool dependencies
+        run: make deps
+
+      # Ensure that generated files were committed.
+      - name: Verify
+        run: make verify
 
       - name: Start services
         run: docker-compose -f docker-compose.test.yaml up -d
@@ -75,11 +82,8 @@ jobs:
       - name: Create kind cluster
         uses: helm/kind-action@v1.5.0
         with:
-          version: v0.11.1
-          node_image: kindest/node:v1.19.11@sha256:07db187ae84b4b7de440a73886f008cf903fcf5764ba8106a9fd5243d6f32729
-
-      - name: Download tool dependencies
-        run: make deps
+          version: "v0.17.0"
+          node_image: "kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5"
 
       - name: Test
         run: make testall
@@ -123,7 +127,3 @@ jobs:
 
       - name: Lint
         run: make lint
-
-      # Ensure that generated files were committed.
-      - name: Verify
-        run: make verify

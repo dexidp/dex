@@ -85,6 +85,10 @@ func (c *Config) OpenWithHTTPClient(id string, logger log.Logger,
 
 	wellKnownURL := strings.TrimSuffix(c.Issuer, "/") + wellKnownURLPath
 	req, err := http.NewRequest(http.MethodGet, wellKnownURL, nil)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to create a request to OpenShift endpoint %w", err)
+	}
 
 	openshiftConnector := openshiftConnector{
 		apiURL:       c.Issuer,
