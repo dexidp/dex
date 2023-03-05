@@ -73,6 +73,8 @@ jobs:
         run: make deps
 
       # Ensure that generated files were committed.
+      # It can help us determine, that the code is in the intermediate state, which should not be tested.
+      # Thus, heavy jobs like creating a kind cluster and testing / linting will be skipped.
       - name: Verify
         run: make verify
 
