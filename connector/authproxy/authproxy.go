@@ -106,7 +106,6 @@ func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connecto
 	}
 	return connector.Identity{
 		UserID:            remoteUserId,
-		Username:          remoteUser,
 		PreferredUsername: remoteUser,
 		Email:             remoteUserEmail,
 		EmailVerified:     true,
