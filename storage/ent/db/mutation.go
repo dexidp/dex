@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"entgo.io/ent"
+	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/authcode"
 	"github.com/dexidp/dex/storage/ent/db/authrequest"
@@ -22,9 +24,6 @@ import (
 	"github.com/dexidp/dex/storage/ent/db/predicate"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
 	jose "gopkg.in/square/go-jose.v2"
-
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
 )
 
 const (

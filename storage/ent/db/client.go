@@ -10,6 +10,9 @@ import (
 
 	"github.com/dexidp/dex/storage/ent/db/migrate"
 
+	"entgo.io/ent"
+	"entgo.io/ent/dialect"
+	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/authcode"
 	"github.com/dexidp/dex/storage/ent/db/authrequest"
 	"github.com/dexidp/dex/storage/ent/db/connector"
@@ -20,9 +23,6 @@ import (
 	"github.com/dexidp/dex/storage/ent/db/offlinesession"
 	"github.com/dexidp/dex/storage/ent/db/password"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
-
-	"entgo.io/ent/dialect"
-	"entgo.io/ent/dialect/sql"
 )
 
 // Client is the client that holds all ent builders.
@@ -73,6 +73,55 @@ func (c *Client) init() {
 	c.OfflineSession = NewOfflineSessionClient(c.config)
 	c.Password = NewPasswordClient(c.config)
 	c.RefreshToken = NewRefreshTokenClient(c.config)
+}
+
+type (
+	// config is the configuration for the client and its builder.
+	config struct {
+		// driver used for executing database requests.
+		driver dialect.Driver
+		// debug enable a debug logging.
+		debug bool
+		// log used for logging on debug mode.
+		log func(...any)
+		// hooks to execute on mutations.
+		hooks *hooks
+		// interceptors to execute on queries.
+		inters *inters
+	}
+	// Option function to configure the client.
+	Option func(*config)
+)
+
+// options applies the options on the config object.
+func (c *config) options(opts ...Option) {
+	for _, opt := range opts {
+		opt(c)
+	}
+	if c.debug {
+		c.driver = dialect.Debug(c.driver, c.log)
+	}
+}
+
+// Debug enables debug logging on the ent.Driver.
+func Debug() Option {
+	return func(c *config) {
+		c.debug = true
+	}
+}
+
+// Log sets the logging function for debug mode.
+func Log(fn func(...any)) Option {
+	return func(c *config) {
+		c.log = fn
+	}
+}
+
+// Driver configures the client driver.
+func Driver(driver dialect.Driver) Option {
+	return func(c *config) {
+		c.driver = driver
+	}
 }
 
 // Open opens a database/sql.DB specified by the driver name and
@@ -173,31 +222,23 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.AuthCode.Use(hooks...)
-	c.AuthRequest.Use(hooks...)
-	c.Connector.Use(hooks...)
-	c.DeviceRequest.Use(hooks...)
-	c.DeviceToken.Use(hooks...)
-	c.Keys.Use(hooks...)
-	c.OAuth2Client.Use(hooks...)
-	c.OfflineSession.Use(hooks...)
-	c.Password.Use(hooks...)
-	c.RefreshToken.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.AuthCode, c.AuthRequest, c.Connector, c.DeviceRequest, c.DeviceToken, c.Keys,
+		c.OAuth2Client, c.OfflineSession, c.Password, c.RefreshToken,
+	} {
+		n.Use(hooks...)
+	}
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.AuthCode.Intercept(interceptors...)
-	c.AuthRequest.Intercept(interceptors...)
-	c.Connector.Intercept(interceptors...)
-	c.DeviceRequest.Intercept(interceptors...)
-	c.DeviceToken.Intercept(interceptors...)
-	c.Keys.Intercept(interceptors...)
-	c.OAuth2Client.Intercept(interceptors...)
-	c.OfflineSession.Intercept(interceptors...)
-	c.Password.Intercept(interceptors...)
-	c.RefreshToken.Intercept(interceptors...)
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.AuthCode, c.AuthRequest, c.Connector, c.DeviceRequest, c.DeviceToken, c.Keys,
+		c.OAuth2Client, c.OfflineSession, c.Password, c.RefreshToken,
+	} {
+		n.Intercept(interceptors...)
+	}
 }
 
 // Mutate implements the ent.Mutator interface.
@@ -1407,3 +1448,15 @@ func (c *RefreshTokenClient) mutate(ctx context.Context, m *RefreshTokenMutation
 		return nil, fmt.Errorf("db: unknown RefreshToken mutation op: %q", m.Op())
 	}
 }
+
+// hooks and interceptors per client, for fast access.
+type (
+	hooks struct {
+		AuthCode, AuthRequest, Connector, DeviceRequest, DeviceToken, Keys,
+		OAuth2Client, OfflineSession, Password, RefreshToken []ent.Hook
+	}
+	inters struct {
+		AuthCode, AuthRequest, Connector, DeviceRequest, DeviceToken, Keys,
+		OAuth2Client, OfflineSession, Password, RefreshToken []ent.Interceptor
+	}
+)
