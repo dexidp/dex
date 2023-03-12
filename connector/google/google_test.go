@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -33,13 +34,32 @@ var (
 
 func testSetup() *httptest.Server {
 	mux := http.NewServeMux()
-
 	mux.HandleFunc("/admin/directory/v1/groups/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		userKey := r.URL.Query().Get("userKey")
 		if groups, ok := testGroups[userKey]; ok {
-			json.NewEncoder(w).Encode(admin.Groups{Groups: groups})
 			callCounter[userKey]++
+			if len(groups) > 1 {
+				var n int
+				pageToken := r.URL.Query().Get("pageToken")
+				if pageToken == "" {
+					n = 1
+				} else {
+					var err error
+					if n, err = strconv.Atoi(pageToken); err != nil {
+						panic(err)
+					}
+				}
+
+				nextPageToken := strconv.Itoa(n + 1)
+				if n == len(groups) {
+					nextPageToken = ""
+				}
+
+				json.NewEncoder(w).Encode(admin.Groups{Groups: groups[n-1 : n], NextPageToken: nextPageToken})
+				return
+			}
+			json.NewEncoder(w).Encode(admin.Groups{Groups: groups})
 		}
 	})
 
@@ -223,9 +243,16 @@ func TestGetGroups(t *testing.T) {
 		callCounter = map[string]int{}
 		t.Run(name, func(t *testing.T) {
 			assert := assert.New(t)
-			lookup := make(map[string]struct{})
 
-			groups, err := conn.getGroups(testCase.userKey, testCase.fetchTransitiveGroupMembership, lookup)
+			sm := checkedGroups{}
+			ctx := context.Background()
+			var groups []string
+			var err error
+			if testCase.fetchTransitiveGroupMembership {
+				groups, err = conn.getAllGroups(context.Background(), testCase.userKey)
+			} else {
+				groups, err = conn.getGroups(ctx, testCase.userKey, &sm)
+			}
 			if testCase.shouldErr {
 				assert.NotNil(err)
 			} else {
