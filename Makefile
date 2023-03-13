@@ -56,7 +56,7 @@ bin/example-app:
 ##@ Generate
 
 .PHONY: generate
-generate: go-mod-tidy generate-proto generate-proto-internal generate-ent ## Run all generators.
+generate: generate-proto generate-proto-internal generate-ent go-mod-tidy ## Run all generators.
 
 .PHONY: generate-ent
 generate-ent: ## Generate code for database ORM.
