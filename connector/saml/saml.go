@@ -3,25 +3,28 @@ package saml
 
 import (
 	"bytes"
+	"context"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
 	"encoding/xml"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/beevik/etree"
+	"github.com/crewjam/saml/samlsp"
+	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/groups"
+	"github.com/dexidp/dex/pkg/log"
 	xrv "github.com/mattermost/xml-roundtrip-validator"
 	"github.com/pkg/errors"
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/russellhaering/goxmldsig/etreeutils"
-
-	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/groups"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 //nolint
@@ -68,10 +71,8 @@ var (
 
 // Config represents configuration options for the SAML provider.
 type Config struct {
-	// TODO(ericchiang): A bunch of these fields could be auto-filled if
-	// we supported SAML metadata discovery.
-	//
-	// https://www.oasis-open.org/committees/download.php/35391/sstc-saml-metadata-errata-2.0-wd-04-diff.pdf
+	// SAML metadata xml discovery
+	IDPMetadataURL string `json:"idpMetadataURL"`
 
 	EntityIssuer string `json:"entityIssuer"`
 	SSOIssuer    string `json:"ssoIssuer"`
@@ -164,6 +165,43 @@ func (c *Config) openConnector(logger log.Logger) (*provider, error) {
 		nameIDPolicyFormat: c.NameIDPolicyFormat,
 	}
 
+	var caData []byte
+	if c.IDPMetadataURL != "" {
+		idpMetadataURL, err := url.Parse(c.IDPMetadataURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse IdPMetadataURL %q: %v", c.IDPMetadataURL, err)
+		}
+		idpMetadata, err := samlsp.FetchMetadata(context.Background(), http.DefaultClient, *idpMetadataURL)
+
+		for _, k := range idpMetadata.IDPSSODescriptors[0].KeyDescriptors {
+			for _, x := range k.KeyInfo.X509Data.X509Certificates {
+				caData = []byte(x.Data)
+				break
+			}
+
+			if len(caData) != 0 {
+				break
+			}
+		}
+
+		if len(caData) == 0 {
+			return nil, fmt.Errorf("failed to parse KeyDescriptors KeyInfo.X509Data.X509Certificates Data")
+		}
+
+		ssoURL := ""
+		for _, s := range idpMetadata.IDPSSODescriptors[0].SingleSignOnServices {
+			if s.Binding == bindingRedirect {
+				ssoURL = s.Location
+			}
+		}
+		if ssoURL == "" {
+			return nil, fmt.Errorf("failed to parse SingleSignOnServices %s Location", bindingRedirect)
+		}
+
+		p.entityIssuer = idpMetadata.EntityID
+		p.ssoURL = ssoURL
+	}
+
 	if p.nameIDPolicyFormat == "" {
 		p.nameIDPolicyFormat = nameIDFormatPersistent
 	} else {
@@ -188,19 +226,20 @@ func (c *Config) openConnector(logger log.Logger) (*provider, error) {
 	}
 
 	if !c.InsecureSkipSignatureValidation {
-		if (c.CA == "") == (c.CAData == nil) {
-			return nil, errors.New("must provide either 'ca' or 'caData'")
-		}
-
-		var caData []byte
-		if c.CA != "" {
-			data, err := os.ReadFile(c.CA)
-			if err != nil {
-				return nil, fmt.Errorf("read ca file: %v", err)
+		if len(caData) == 0 {
+			if (c.CA == "") == (c.CAData == nil) {
+				return nil, errors.New("must provide either 'ca' or 'caData'")
 			}
-			caData = data
-		} else {
-			caData = c.CAData
+
+			if c.CA != "" {
+				data, err := os.ReadFile(c.CA)
+				if err != nil {
+					return nil, fmt.Errorf("read ca file: %v", err)
+				}
+				caData = data
+			} else {
+				caData = c.CAData
+			}
 		}
 
 		var (
