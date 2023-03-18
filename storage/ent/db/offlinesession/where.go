@@ -52,6 +52,16 @@ func IDLTE(id string) predicate.OfflineSession {
 	return predicate.OfflineSession(sql.FieldLTE(FieldID, id))
 }
 
+// IDEqualFold applies the EqualFold predicate on the ID field.
+func IDEqualFold(id string) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldEqualFold(FieldID, id))
+}
+
+// IDContainsFold applies the ContainsFold predicate on the ID field.
+func IDContainsFold(id string) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldContainsFold(FieldID, id))
+}
+
 // UserID applies equality check predicate on the "user_id" field. It's identical to UserIDEQ.
 func UserID(v string) predicate.OfflineSession {
 	return predicate.OfflineSession(sql.FieldEQ(FieldUserID, v))

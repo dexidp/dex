@@ -54,6 +54,16 @@ func IDLTE(id string) predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldLTE(FieldID, id))
 }
 
+// IDEqualFold applies the EqualFold predicate on the ID field.
+func IDEqualFold(id string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEqualFold(FieldID, id))
+}
+
+// IDContainsFold applies the ContainsFold predicate on the ID field.
+func IDContainsFold(id string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldContainsFold(FieldID, id))
+}
+
 // ClientID applies equality check predicate on the "client_id" field. It's identical to ClientIDEQ.
 func ClientID(v string) predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldEQ(FieldClientID, v))

@@ -54,6 +54,16 @@ func IDLTE(id string) predicate.Keys {
 	return predicate.Keys(sql.FieldLTE(FieldID, id))
 }
 
+// IDEqualFold applies the EqualFold predicate on the ID field.
+func IDEqualFold(id string) predicate.Keys {
+	return predicate.Keys(sql.FieldEqualFold(FieldID, id))
+}
+
+// IDContainsFold applies the ContainsFold predicate on the ID field.
+func IDContainsFold(id string) predicate.Keys {
+	return predicate.Keys(sql.FieldContainsFold(FieldID, id))
+}
+
 // NextRotation applies equality check predicate on the "next_rotation" field. It's identical to NextRotationEQ.
 func NextRotation(v time.Time) predicate.Keys {
 	return predicate.Keys(sql.FieldEQ(FieldNextRotation, v))
