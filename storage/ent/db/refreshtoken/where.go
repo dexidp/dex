@@ -54,6 +54,16 @@ func IDLTE(id string) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldLTE(FieldID, id))
 }
 
+// IDEqualFold applies the EqualFold predicate on the ID field.
+func IDEqualFold(id string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEqualFold(FieldID, id))
+}
+
+// IDContainsFold applies the ContainsFold predicate on the ID field.
+func IDContainsFold(id string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldContainsFold(FieldID, id))
+}
+
 // ClientID applies equality check predicate on the "client_id" field. It's identical to ClientIDEQ.
 func ClientID(v string) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldEQ(FieldClientID, v))

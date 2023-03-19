@@ -38,8 +38,8 @@ linters:
         - nakedret
         - nolintlint
         - prealloc
-        - revive
-        - sqlclosecheck
+        # - revive
+        # - sqlclosecheck
         - staticcheck
         - stylecheck
         - unconvert
@@ -55,6 +55,9 @@ linters:
         # Disable temporarily until everything works with Go 1.18
         - typecheck
 
+        # Disable temporarily until the following issue is resolved: https://github.com/golangci/golangci-lint/issues/3086
+        # - sqlclosecheck
+
         # TODO: fix linter errors before enabling
         # - exhaustivestruct
         # - gochecknoglobals
@@ -63,6 +66,7 @@ linters:
         # - godot
         # - nlreturn
         # - noctx
+        # - revive
         # - wrapcheck
 
         # TODO: fix linter errors before enabling (from original config)

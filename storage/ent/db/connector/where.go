@@ -52,6 +52,16 @@ func IDLTE(id string) predicate.Connector {
 	return predicate.Connector(sql.FieldLTE(FieldID, id))
 }
 
+// IDEqualFold applies the EqualFold predicate on the ID field.
+func IDEqualFold(id string) predicate.Connector {
+	return predicate.Connector(sql.FieldEqualFold(FieldID, id))
+}
+
+// IDContainsFold applies the ContainsFold predicate on the ID field.
+func IDContainsFold(id string) predicate.Connector {
+	return predicate.Connector(sql.FieldContainsFold(FieldID, id))
+}
+
 // Type applies equality check predicate on the "type" field. It's identical to TypeEQ.
 func Type(v string) predicate.Connector {
 	return predicate.Connector(sql.FieldEQ(FieldType, v))

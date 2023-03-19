@@ -52,6 +52,16 @@ func IDLTE(id string) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldLTE(FieldID, id))
 }
 
+// IDEqualFold applies the EqualFold predicate on the ID field.
+func IDEqualFold(id string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEqualFold(FieldID, id))
+}
+
+// IDContainsFold applies the ContainsFold predicate on the ID field.
+func IDContainsFold(id string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldContainsFold(FieldID, id))
+}
+
 // Secret applies equality check predicate on the "secret" field. It's identical to SecretEQ.
 func Secret(v string) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldEQ(FieldSecret, v))
