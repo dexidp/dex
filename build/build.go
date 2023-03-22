@@ -59,7 +59,7 @@ func main() {
 		"docker-entrypoint",
 	}
 
-	_ = os.Mkdir(targetDir, 0777)
+	_ = os.Mkdir(targetDir, 0o777)
 
 	wg := sync.WaitGroup{}
 	for _, target := range targets {
@@ -95,8 +95,9 @@ func executeBuild(wg *sync.WaitGroup, name string, target Target) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	envCopy := append([]string{}, os.Environ()...)
-	cmd.Env = append(envCopy,
+	cmd.Env = append([]string{}, os.Environ()...)
+	cmd.Env = append(
+		cmd.Env,
 		"GOOS="+target.OS,
 		"GOARCH="+target.Arch,
 		"GOARM="+target.ARM,
