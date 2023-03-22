@@ -1,6 +1,7 @@
 /.direnv/
 /.idea/
 /bin/
+/build/target
 /config.yaml
 /docker-compose.override.yaml
 /var/

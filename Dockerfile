@@ -59,8 +59,8 @@ COPY --from=stager --chown=1001:1001 /usr/local/bin /usr/local/bin
 COPY --from=stager --chown=1001:1001 /usr/local/src/dex/ /usr/local/src/dex/
 
 COPY --chown=1001:1001 web /srv/dex/web
-COPY --from=bin --chown=1001:1001 dex-${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT} /usr/local/bin/dex
-COPY --from=bin --chown=1001:1001 docker-entrypoint-${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT} /usr/local/bin/docker-entrypoint
+COPY --from=target --chown=1001:1001 dex-${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT} /usr/local/bin/dex
+COPY --from=target --chown=1001:1001 docker-entrypoint-${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT} /usr/local/bin/docker-entrypoint
 
 COPY --from=gomplate /usr/local/bin/gomplate /usr/local/bin/gomplate
 

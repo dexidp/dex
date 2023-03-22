@@ -12,39 +12,6 @@ jobs:
   container-images:
     name: Container images
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        variant:
-          - alpine
-          - distroless
-        platform:
-          # amd64
-          - os: linux
-            arch: amd64
-            target: linux/amd64
-
-          # arm64
-          - os: linux
-            arch: arm64
-            target: linux/arm64
-            compiler: gcc-aarch64-linux-gnu
-            cc: aarch64-linux-gnu-gcc
-
-          # armv7
-          - os: linux
-            arch: arm
-            arm: 7
-            target: linux/arm/v7
-            compiler: gcc-arm-linux-gnueabihf
-            cc: arm-linux-gnueabihf-gcc
-
-          # ppc64le
-          - os: linux
-            arch: ppc64le
-            target: linux/ppc64le
-            compiler: gcc-powerpc64le-linux-gnu
-            cc: powerpc64le-linux-gnu-gcc
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -70,39 +37,14 @@ jobs:
           labels: |
             org.opencontainers.image.documentation=https://dexidp.io/docs/
 
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: "1.20"
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
         with:
           platforms: ${{ matrix.platform.target }}
 
-      - name: Install cross compiler
-        if: matrix.platform.compiler != ''
-        run: |
-          sudo apt-get install ${{ matrix.platform.compiler }}
-
       - name: Build artifacts
         run: |
-          mkdir -p bin/
-          version=$(git describe --exact-match --abbrev=0 --tags ${COMMIT} 2> /dev/null || true)
-          ld_flags="-w -X main.version=${version} -extldflags \"-static\""
-
-          if [[ x${GOARM} != "x" ]]; then
-            ARM="v${GOARM}"
-          fi
-
-          go build -o bin/dex-${GOOS}-${GOARCH}${ARM} -v -ldflags "${ld_flags}" ./cmd/dex
-          go build -o bin/docker-entrypoint-${GOOS}-${GOARCH}${ARM} -v -ldflags "${ld_flags}" ./cmd/docker-entrypoint
-        env:
-          GOOS: ${{ matrix.platform.os }}
-          GOARCH: ${{ matrix.platform.arch }}
-          GOARM: ${{ matrix.platform.arm }}
-          CC: ${{ matrix.platform.cc }}
-          CGO_ENABLED: 1
+          make release-binary
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -122,16 +64,12 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
         if: github.event_name == 'push'
 
-      - name: Check binaries # Debug info
-        run: |
-          pwd && ls -lah /home/runner/work/dex/dex/bin
-
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
           context: .
-          build-contexts: bin=bin/
-          platforms: ${{ matrix.platform.target }}
+          build-contexts: target=build/target/
+          platforms: linux/amd64,linux/arm/v7,linux/arm64,linux/ppc64le
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
           push: ${{ github.event_name == 'push' }}

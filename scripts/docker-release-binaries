@@ -1,0 +1,3 @@
+#!/bin/sh -e
+
+exec docker run -v "$(pwd)/build:/usr/local/src/dex/build" -e "VERSION=${1}" "$(docker build -q -f build/Dockerfile .)"
