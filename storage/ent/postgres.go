@@ -12,7 +12,6 @@ import (
 	"time"
 
 	entSQL "entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/schema"
 	_ "github.com/lib/pq" // Register postgres driver.
 
 	"github.com/dexidp/dex/pkg/log"
@@ -55,7 +54,7 @@ func (p *Postgres) Open(logger log.Logger) (storage.Storage, error) {
 		client.WithTxIsolationLevel(sql.LevelSerializable),
 	)
 
-	if err := databaseClient.Schema().Create(context.TODO(), schema.WithAtlas(false)); err != nil {
+	if err := databaseClient.Schema().Create(context.TODO()); err != nil {
 		return nil, err
 	}
 

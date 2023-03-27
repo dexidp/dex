@@ -84,6 +84,8 @@ type AuthRequest struct {
 
 	CodeChallenge       string `json:"code_challenge,omitempty"`
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
+
+	HMACKey []byte `json:"hmac_key"`
 }
 
 func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
@@ -103,6 +105,7 @@ func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		ConnectorData:       a.ConnectorData,
 		CodeChallenge:       a.PKCE.CodeChallenge,
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
+		HMACKey:             a.HMACKey,
 	}
 }
 
@@ -125,6 +128,7 @@ func toStorageAuthRequest(a AuthRequest) storage.AuthRequest {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
+		HMACKey: a.HMACKey,
 	}
 }
 
@@ -281,6 +285,8 @@ type DeviceToken struct {
 	Expiry              time.Time `json:"expiry"`
 	LastRequestTime     time.Time `json:"last_request"`
 	PollIntervalSeconds int       `json:"poll_interval"`
+	CodeChallenge       string    `json:"code_challenge,omitempty"`
+	CodeChallengeMethod string    `json:"code_challenge_method,omitempty"`
 }
 
 func fromStorageDeviceToken(t storage.DeviceToken) DeviceToken {
@@ -291,6 +297,8 @@ func fromStorageDeviceToken(t storage.DeviceToken) DeviceToken {
 		Expiry:              t.Expiry,
 		LastRequestTime:     t.LastRequestTime,
 		PollIntervalSeconds: t.PollIntervalSeconds,
+		CodeChallenge:       t.PKCE.CodeChallenge,
+		CodeChallengeMethod: t.PKCE.CodeChallengeMethod,
 	}
 }
 
@@ -302,5 +310,9 @@ func toStorageDeviceToken(t DeviceToken) storage.DeviceToken {
 		Expiry:              t.Expiry,
 		LastRequestTime:     t.LastRequestTime,
 		PollIntervalSeconds: t.PollIntervalSeconds,
+		PKCE: storage.PKCE{
+			CodeChallenge:       t.CodeChallenge,
+			CodeChallengeMethod: t.CodeChallengeMethod,
+		},
 	}
 }
