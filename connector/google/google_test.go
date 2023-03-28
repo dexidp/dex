@@ -31,7 +31,7 @@ var (
 	callCounter = make(map[string]int)
 )
 
-func testSetup(t *testing.T) *httptest.Server {
+func testSetup() *httptest.Server {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/admin/directory/v1/groups/", func(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +46,7 @@ func testSetup(t *testing.T) *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
-func newConnector(config *Config, serverURL string) (*googleConnector, error) {
+func newConnector(config *Config) (*googleConnector, error) {
 	log := logrus.New()
 	conn, err := config.Open("id", log)
 	if err != nil {
@@ -78,7 +78,7 @@ func tempServiceAccountKey() (string, error) {
 }
 
 func TestOpen(t *testing.T) {
-	ts := testSetup(t)
+	ts := testSetup()
 	defer ts.Close()
 
 	type testCase struct {
@@ -155,7 +155,7 @@ func TestOpen(t *testing.T) {
 			assert := assert.New(t)
 
 			os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", reference.adc)
-			conn, err := newConnector(reference.config, ts.URL)
+			conn, err := newConnector(reference.config)
 
 			if reference.expectedErr == "" {
 				assert.Nil(err)
@@ -168,7 +168,7 @@ func TestOpen(t *testing.T) {
 }
 
 func TestGetGroups(t *testing.T) {
-	ts := testSetup(t)
+	ts := testSetup()
 	defer ts.Close()
 
 	serviceAccountFilePath, err := tempServiceAccountKey()
@@ -181,7 +181,7 @@ func TestGetGroups(t *testing.T) {
 		RedirectURI:  ts.URL + "/callback",
 		Scopes:       []string{"openid", "groups"},
 		AdminEmail:   "admin@dexidp.com",
-	}, ts.URL)
+	})
 	assert.Nil(t, err)
 
 	conn.adminSrv, err = admin.NewService(context.Background(), option.WithoutAuthentication(), option.WithEndpoint(ts.URL))

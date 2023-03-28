@@ -26,8 +26,8 @@ type Password struct {
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*Password) scanValues(columns []string) ([]interface{}, error) {
-	values := make([]interface{}, len(columns))
+func (*Password) scanValues(columns []string) ([]any, error) {
+	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
 		case password.FieldHash:
@@ -45,7 +45,7 @@ func (*Password) scanValues(columns []string) ([]interface{}, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the Password fields.
-func (pa *Password) assignValues(columns []string, values []interface{}) error {
+func (pa *Password) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -90,7 +90,7 @@ func (pa *Password) assignValues(columns []string, values []interface{}) error {
 // Note that you need to call Password.Unwrap() before calling this method if this Password
 // was returned from a transaction, and the transaction was committed or rolled back.
 func (pa *Password) Update() *PasswordUpdateOne {
-	return (&PasswordClient{config: pa.config}).UpdateOne(pa)
+	return NewPasswordClient(pa.config).UpdateOne(pa)
 }
 
 // Unwrap unwraps the Password entity that was returned from a transaction after it was closed,
@@ -126,9 +126,3 @@ func (pa *Password) String() string {
 
 // Passwords is a parsable slice of Password.
 type Passwords []*Password
-
-func (pa Passwords) config(cfg config) {
-	for _i := range pa {
-		pa[_i].config = cfg
-	}
-}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
@@ -24,15 +25,48 @@ import (
 
 // ent aliases to avoid import conflicts in user's code.
 type (
-	Op         = ent.Op
-	Hook       = ent.Hook
-	Value      = ent.Value
-	Query      = ent.Query
-	Policy     = ent.Policy
-	Mutator    = ent.Mutator
-	Mutation   = ent.Mutation
-	MutateFunc = ent.MutateFunc
+	Op            = ent.Op
+	Hook          = ent.Hook
+	Value         = ent.Value
+	Query         = ent.Query
+	QueryContext  = ent.QueryContext
+	Querier       = ent.Querier
+	QuerierFunc   = ent.QuerierFunc
+	Interceptor   = ent.Interceptor
+	InterceptFunc = ent.InterceptFunc
+	Traverser     = ent.Traverser
+	TraverseFunc  = ent.TraverseFunc
+	Policy        = ent.Policy
+	Mutator       = ent.Mutator
+	Mutation      = ent.Mutation
+	MutateFunc    = ent.MutateFunc
 )
+
+type clientCtxKey struct{}
+
+// FromContext returns a Client stored inside a context, or nil if there isn't one.
+func FromContext(ctx context.Context) *Client {
+	c, _ := ctx.Value(clientCtxKey{}).(*Client)
+	return c
+}
+
+// NewContext returns a new context with the given Client attached.
+func NewContext(parent context.Context, c *Client) context.Context {
+	return context.WithValue(parent, clientCtxKey{}, c)
+}
+
+type txCtxKey struct{}
+
+// TxFromContext returns a Tx stored inside a context, or nil if there isn't one.
+func TxFromContext(ctx context.Context) *Tx {
+	tx, _ := ctx.Value(txCtxKey{}).(*Tx)
+	return tx
+}
+
+// NewTxContext returns a new context with the given Tx attached.
+func NewTxContext(parent context.Context, tx *Tx) context.Context {
+	return context.WithValue(parent, txCtxKey{}, tx)
+}
 
 // OrderFunc applies an ordering on the sql selector.
 type OrderFunc func(*sql.Selector)
@@ -99,7 +133,6 @@ type AggregateFunc func(*sql.Selector) string
 //	GroupBy(field1, field2).
 //	Aggregate(db.As(db.Sum(field1), "sum_field1"), (db.As(db.Sum(field2), "sum_field2")).
 //	Scan(ctx, &v)
-//
 func As(fn AggregateFunc, end string) AggregateFunc {
 	return func(s *sql.Selector) string {
 		return sql.As(fn(s), end)
@@ -282,11 +315,12 @@ func IsConstraintError(err error) bool {
 type selector struct {
 	label string
 	flds  *[]string
-	scan  func(context.Context, interface{}) error
+	fns   []AggregateFunc
+	scan  func(context.Context, any) error
 }
 
 // ScanX is like Scan, but panics if an error occurs.
-func (s *selector) ScanX(ctx context.Context, v interface{}) {
+func (s *selector) ScanX(ctx context.Context, v any) {
 	if err := s.scan(ctx, v); err != nil {
 		panic(err)
 	}
@@ -478,6 +512,122 @@ func (s *selector) BoolX(ctx context.Context) bool {
 		panic(err)
 	}
 	return v
+}
+
+// withHooks invokes the builder operation with the given hooks, if any.
+func withHooks[V Value, M any, PM interface {
+	*M
+	Mutation
+}](ctx context.Context, exec func(context.Context) (V, error), mutation PM, hooks []Hook) (value V, err error) {
+	if len(hooks) == 0 {
+		return exec(ctx)
+	}
+	var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
+		mutationT, ok := any(m).(PM)
+		if !ok {
+			return nil, fmt.Errorf("unexpected mutation type %T", m)
+		}
+		// Set the mutation to the builder.
+		*mutation = *mutationT
+		return exec(ctx)
+	})
+	for i := len(hooks) - 1; i >= 0; i-- {
+		if hooks[i] == nil {
+			return value, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+		}
+		mut = hooks[i](mut)
+	}
+	v, err := mut.Mutate(ctx, mutation)
+	if err != nil {
+		return value, err
+	}
+	nv, ok := v.(V)
+	if !ok {
+		return value, fmt.Errorf("unexpected node type %T returned from %T", v, mutation)
+	}
+	return nv, nil
+}
+
+// setContextOp returns a new context with the given QueryContext attached (including its op) in case it does not exist.
+func setContextOp(ctx context.Context, qc *QueryContext, op string) context.Context {
+	if ent.QueryFromContext(ctx) == nil {
+		qc.Op = op
+		ctx = ent.NewQueryContext(ctx, qc)
+	}
+	return ctx
+}
+
+func querierAll[V Value, Q interface {
+	sqlAll(context.Context, ...queryHook) (V, error)
+}]() Querier {
+	return QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
+		query, ok := q.(Q)
+		if !ok {
+			return nil, fmt.Errorf("unexpected query type %T", q)
+		}
+		return query.sqlAll(ctx)
+	})
+}
+
+func querierCount[Q interface {
+	sqlCount(context.Context) (int, error)
+}]() Querier {
+	return QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
+		query, ok := q.(Q)
+		if !ok {
+			return nil, fmt.Errorf("unexpected query type %T", q)
+		}
+		return query.sqlCount(ctx)
+	})
+}
+
+func withInterceptors[V Value](ctx context.Context, q Query, qr Querier, inters []Interceptor) (v V, err error) {
+	for i := len(inters) - 1; i >= 0; i-- {
+		qr = inters[i].Intercept(qr)
+	}
+	rv, err := qr.Query(ctx, q)
+	if err != nil {
+		return v, err
+	}
+	vt, ok := rv.(V)
+	if !ok {
+		return v, fmt.Errorf("unexpected type %T returned from %T. expected type: %T", vt, q, v)
+	}
+	return vt, nil
+}
+
+func scanWithInterceptors[Q1 ent.Query, Q2 interface {
+	sqlScan(context.Context, Q1, any) error
+}](ctx context.Context, rootQuery Q1, selectOrGroup Q2, inters []Interceptor, v any) error {
+	rv := reflect.ValueOf(v)
+	var qr Querier = QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
+		query, ok := q.(Q1)
+		if !ok {
+			return nil, fmt.Errorf("unexpected query type %T", q)
+		}
+		if err := selectOrGroup.sqlScan(ctx, query, v); err != nil {
+			return nil, err
+		}
+		if k := rv.Kind(); k == reflect.Pointer && rv.Elem().CanInterface() {
+			return rv.Elem().Interface(), nil
+		}
+		return v, nil
+	})
+	for i := len(inters) - 1; i >= 0; i-- {
+		qr = inters[i].Intercept(qr)
+	}
+	vv, err := qr.Query(ctx, rootQuery)
+	if err != nil {
+		return err
+	}
+	switch rv2 := reflect.ValueOf(vv); {
+	case rv.IsNil(), rv2.IsNil(), rv.Kind() != reflect.Pointer:
+	case rv.Type() == rv2.Type():
+		rv.Elem().Set(rv2.Elem())
+	case rv.Elem().Type() == rv2.Type():
+		rv.Elem().Set(rv2)
+	}
+	return nil
 }
 
 // queryHook describes an internal hook for the different sqlAll methods.

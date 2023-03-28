@@ -26,8 +26,8 @@ type OfflineSession struct {
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*OfflineSession) scanValues(columns []string) ([]interface{}, error) {
-	values := make([]interface{}, len(columns))
+func (*OfflineSession) scanValues(columns []string) ([]any, error) {
+	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
 		case offlinesession.FieldRefresh, offlinesession.FieldConnectorData:
@@ -43,7 +43,7 @@ func (*OfflineSession) scanValues(columns []string) ([]interface{}, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the OfflineSession fields.
-func (os *OfflineSession) assignValues(columns []string, values []interface{}) error {
+func (os *OfflineSession) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -88,7 +88,7 @@ func (os *OfflineSession) assignValues(columns []string, values []interface{}) e
 // Note that you need to call OfflineSession.Unwrap() before calling this method if this OfflineSession
 // was returned from a transaction, and the transaction was committed or rolled back.
 func (os *OfflineSession) Update() *OfflineSessionUpdateOne {
-	return (&OfflineSessionClient{config: os.config}).UpdateOne(os)
+	return NewOfflineSessionClient(os.config).UpdateOne(os)
 }
 
 // Unwrap unwraps the OfflineSession entity that was returned from a transaction after it was closed,
@@ -126,9 +126,3 @@ func (os *OfflineSession) String() string {
 
 // OfflineSessions is a parsable slice of OfflineSession.
 type OfflineSessions []*OfflineSession
-
-func (os OfflineSessions) config(cfg config) {
-	for _i := range os {
-		os[_i].config = cfg
-	}
-}
