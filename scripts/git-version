@@ -1,5 +1,4 @@
 #!/bin/sh -e
-# Since this script will be run in a rkt container, use "/bin/sh" instead of "/bin/bash"
 
 # parse the current git commit hash
 COMMIT=`git rev-parse HEAD`

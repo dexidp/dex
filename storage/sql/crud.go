@@ -21,19 +21,18 @@ const keysRowID = "keys"
 // encoder wraps the underlying value in a JSON marshaler which is automatically
 // called by the database/sql package.
 //
-//		s := []string{"planes", "bears"}
-//		err := db.Exec(`insert into t1 (id, things) values (1, $1)`, encoder(s))
-//		if err != nil {
-//			// handle error
-//		}
+//	s := []string{"planes", "bears"}
+//	err := db.Exec(`insert into t1 (id, things) values (1, $1)`, encoder(s))
+//	if err != nil {
+//		// handle error
+//	}
 //
-//		var r []byte
-//		err = db.QueryRow(`select things from t1 where id = 1;`).Scan(&r)
-//		if err != nil {
-//			// handle error
-//		}
-//		fmt.Printf("%s\n", r) // ["planes","bears"]
-//
+//	var r []byte
+//	err = db.QueryRow(`select things from t1 where id = 1;`).Scan(&r)
+//	if err != nil {
+//		// handle error
+//	}
+//	fmt.Printf("%s\n", r) // ["planes","bears"]
 func encoder(i interface{}) driver.Valuer {
 	return jsonEncoder{i}
 }
@@ -131,10 +130,11 @@ func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
 			expiry,
-			code_challenge, code_challenge_method
+			code_challenge, code_challenge_method,
+			hmac_key
 		)
 		values (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
 		);
 	`,
 		a.ID, a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
@@ -144,6 +144,7 @@ func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
 		a.ConnectorID, a.ConnectorData,
 		a.Expiry,
 		a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod,
+		a.HMACKey,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -175,8 +176,9 @@ func (c *conn) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) 
 				claims_groups = $14,
 				connector_id = $15, connector_data = $16,
 				expiry = $17,
-				code_challenge = $18, code_challenge_method = $19
-			where id = $20;
+				code_challenge = $18, code_challenge_method = $19,
+				hmac_key = $20
+			where id = $21;
 		`,
 			a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
 			a.ForceApprovalPrompt, a.LoggedIn,
@@ -185,7 +187,7 @@ func (c *conn) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) 
 			encoder(a.Claims.Groups),
 			a.ConnectorID, a.ConnectorData,
 			a.Expiry,
-			a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod,
+			a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod, a.HMACKey,
 			r.ID,
 		)
 		if err != nil {
@@ -207,7 +209,7 @@ func getAuthRequest(q querier, id string) (a storage.AuthRequest, err error) {
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data, expiry,
-			code_challenge, code_challenge_method
+			code_challenge, code_challenge_method, hmac_key
 		from auth_request where id = $1;
 	`, id).Scan(
 		&a.ID, &a.ClientID, decoder(&a.ResponseTypes), decoder(&a.Scopes), &a.RedirectURI, &a.Nonce, &a.State,
@@ -216,7 +218,7 @@ func getAuthRequest(q querier, id string) (a storage.AuthRequest, err error) {
 		&a.Claims.Email, &a.Claims.EmailVerified,
 		decoder(&a.Claims.Groups),
 		&a.ConnectorID, &a.ConnectorData, &a.Expiry,
-		&a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod,
+		&a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod, &a.HMACKey,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -927,12 +929,12 @@ func (c *conn) CreateDeviceRequest(d storage.DeviceRequest) error {
 func (c *conn) CreateDeviceToken(t storage.DeviceToken) error {
 	_, err := c.Exec(`
 		insert into device_token (
-			device_code, status, token, expiry, last_request, poll_interval
+			device_code, status, token, expiry, last_request, poll_interval, code_challenge, code_challenge_method
 		)
 		values (
-			$1, $2, $3, $4, $5, $6
+			$1, $2, $3, $4, $5, $6, $7, $8
 		);`,
-		t.DeviceCode, t.Status, t.Token, t.Expiry, t.LastRequestTime, t.PollIntervalSeconds,
+		t.DeviceCode, t.Status, t.Token, t.Expiry, t.LastRequestTime, t.PollIntervalSeconds, t.PKCE.CodeChallenge, t.PKCE.CodeChallengeMethod,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -972,10 +974,10 @@ func (c *conn) GetDeviceToken(deviceCode string) (storage.DeviceToken, error) {
 func getDeviceToken(q querier, deviceCode string) (a storage.DeviceToken, err error) {
 	err = q.QueryRow(`
 		select
-            status, token, expiry, last_request, poll_interval
+            status, token, expiry, last_request, poll_interval, code_challenge, code_challenge_method
 		from device_token where device_code = $1;
 	`, deviceCode).Scan(
-		&a.Status, &a.Token, &a.Expiry, &a.LastRequestTime, &a.PollIntervalSeconds,
+		&a.Status, &a.Token, &a.Expiry, &a.LastRequestTime, &a.PollIntervalSeconds, &a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -1002,11 +1004,13 @@ func (c *conn) UpdateDeviceToken(deviceCode string, updater func(old storage.Dev
 				status = $1, 
 				token = $2,
 				last_request = $3,
-				poll_interval = $4
+				poll_interval = $4,
+				code_challenge = $5,
+				code_challenge_method = $6
 			where
-				device_code = $5
+				device_code = $7
 		`,
-			r.Status, r.Token, r.LastRequestTime, r.PollIntervalSeconds, r.DeviceCode,
+			r.Status, r.Token, r.LastRequestTime, r.PollIntervalSeconds, r.PKCE.CodeChallenge, r.PKCE.CodeChallengeMethod, r.DeviceCode,
 		)
 		if err != nil {
 			return fmt.Errorf("update device token: %v", err)

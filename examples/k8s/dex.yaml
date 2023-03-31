@@ -23,7 +23,7 @@ spec:
     spec:
       serviceAccountName: dex # This is created below
       containers:
-      - image: ghcr.io/dexidp/dex:v2.30.0
+      - image: ghcr.io/dexidp/dex:v2.32.0
         name: dex
         command: ["/usr/local/bin/dex", "serve", "/etc/dex/cfg/config.yaml"]
 

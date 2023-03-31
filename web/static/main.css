@@ -53,6 +53,11 @@ body {
   background-image: url(../static/img/email-icon.svg);
 }
 
+.dex-btn-icon--gitea {
+  background-color: #F5F5F5;
+  background-image: url(../static/img/gitea-icon.svg);
+}
+
 .dex-btn-icon--github {
   background-color: #F5F5F5;
   background-image: url(../static/img/github-icon.svg);

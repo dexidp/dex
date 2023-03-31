@@ -451,11 +451,19 @@ func (cli *client) DeleteConnector(id string) error {
 }
 
 func (cli *client) UpdateRefreshToken(id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
+	lock := newRefreshTokenLock(cli)
+
+	if err := lock.Lock(id); err != nil {
+		return err
+	}
+	defer lock.Unlock(id)
+
 	return retryOnConflict(context.TODO(), func() error {
 		r, err := cli.getRefreshToken(id)
 		if err != nil {
 			return err
 		}
+
 		updated, err := updater(toStorageRefreshToken(r))
 		if err != nil {
 			return err
@@ -464,6 +472,7 @@ func (cli *client) UpdateRefreshToken(id string, updater func(old storage.Refres
 
 		newToken := cli.fromStorageRefreshToken(updated)
 		newToken.ObjectMeta = r.ObjectMeta
+
 		return cli.put(resourceRefreshToken, r.ObjectMeta.Name, newToken)
 	})
 }

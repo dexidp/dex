@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	admin "google.golang.org/api/admin/directory/v1"
@@ -75,10 +76,17 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		scopes = append(scopes, "profile", "email")
 	}
 
-	srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not create directory service: %v", err)
+	var adminSrv *admin.Service
+
+	// Fixing a regression caused by default config fallback: https://github.com/dexidp/dex/issues/2699
+	if (c.ServiceAccountFilePath != "" && c.AdminEmail != "") || slices.Contains(scopes, "groups") {
+		srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, logger)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("could not create directory service: %v", err)
+		}
+
+		adminSrv = srv
 	}
 
 	var groupsFilter *regexp.Regexp
@@ -114,7 +122,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		serviceAccountFilePath:         c.ServiceAccountFilePath,
 		adminEmail:                     c.AdminEmail,
 		fetchTransitiveGroupMembership: c.FetchTransitiveGroupMembership,
-		adminSrv:                       srv,
+		adminSrv:                       adminSrv,
 	}, nil
 }
 
@@ -237,7 +245,8 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 
 	var groups []string
 	if s.Groups && c.adminSrv != nil {
-		groups, err = c.getGroups(claims.Email, c.fetchTransitiveGroupMembership)
+		checkedGroups := make(map[string]struct{})
+		groups, err = c.getGroups(claims.Email, c.fetchTransitiveGroupMembership, checkedGroups)
 		if err != nil {
 			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
 		}
@@ -263,7 +272,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 
 // getGroups creates a connection to the admin directory service and lists
 // all groups the user is a member of
-func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership bool) ([]string, error) {
+func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership bool, checkedGroups map[string]struct{}) ([]string, error) {
 	var userGroups []string
 	var err error
 	groupsList := &admin.Groups{}
@@ -275,20 +284,29 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 		}
 
 		for _, group := range groupsList.Groups {
-			if c.groupsFilter == nil || c.groupsFilter.MatchString(group.Email) {
-				// TODO (joelspeed): Make desired group key configurable
-				userGroups = append(userGroups, group.Email)
+			if c.groupsFilter != nil && !c.groupsFilter.MatchString(group.Email) {
+				continue
+			}
+
+			if _, exists := checkedGroups[group.Email]; exists {
+				continue
+			}
+
+			checkedGroups[group.Email] = struct{}{}
+			// TODO (joelspeed): Make desired group key configurable
+			userGroups = append(userGroups, group.Email)
+
+			if !fetchTransitiveGroupMembership {
+				continue
 			}
 
 			// getGroups takes a user's email/alias as well as a group's email/alias
-			if fetchTransitiveGroupMembership {
-				transitiveGroups, err := c.getGroups(group.Email, fetchTransitiveGroupMembership)
-				if err != nil {
-					return nil, fmt.Errorf("could not list transitive groups: %v", err)
-				}
-
-				userGroups = append(userGroups, transitiveGroups...)
+			transitiveGroups, err := c.getGroups(group.Email, fetchTransitiveGroupMembership, checkedGroups)
+			if err != nil {
+				return nil, fmt.Errorf("could not list transitive groups: %v", err)
 			}
+
+			userGroups = append(userGroups, transitiveGroups...)
 		}
 
 		if groupsList.NextPageToken == "" {
@@ -296,51 +314,45 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 		}
 	}
 
-	return uniqueGroups(userGroups), nil
+	return userGroups, nil
 }
 
-// createDirectoryService loads a google service account credentials file,
-// sets up super user impersonation and creates an admin client for calling
-// the google admin api
-func createDirectoryService(serviceAccountFilePath string, email string) (*admin.Service, error) {
-	if serviceAccountFilePath == "" && email == "" {
-		return nil, nil
-	}
-	if serviceAccountFilePath == "" || email == "" {
-		return nil, fmt.Errorf("directory service requires both serviceAccountFilePath and adminEmail")
-	}
-	jsonCredentials, err := os.ReadFile(serviceAccountFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("error reading credentials from file: %v", err)
+// createDirectoryService sets up super user impersonation and creates an admin client for calling
+// the google admin api. If no serviceAccountFilePath is defined, the application default credential
+// is used.
+func createDirectoryService(serviceAccountFilePath, email string, logger log.Logger) (*admin.Service, error) {
+	// We know impersonation is required when using a service account credential
+	// TODO: or is it?
+	if email == "" && serviceAccountFilePath != "" {
+		return nil, fmt.Errorf("directory service requires adminEmail")
 	}
 
+	var jsonCredentials []byte
+	var err error
+
+	ctx := context.Background()
+	if serviceAccountFilePath == "" {
+		logger.Warn("the application default credential is used since the service account file path is not used")
+		credential, err := google.FindDefaultCredentials(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch application default credentials: %w", err)
+		}
+		jsonCredentials = credential.JSON
+	} else {
+		jsonCredentials, err = os.ReadFile(serviceAccountFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("error reading credentials from file: %v", err)
+		}
+	}
 	config, err := google.JWTConfigFromJSON(jsonCredentials, admin.AdminDirectoryGroupReadonlyScope)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
 	}
 
-	// Impersonate an admin. This is mandatory for the admin APIs.
-	config.Subject = email
-
-	ctx := context.Background()
-	client := config.Client(ctx)
-
-	srv, err := admin.NewService(ctx, option.WithHTTPClient(client))
-	if err != nil {
-		return nil, fmt.Errorf("unable to create directory service %v", err)
+	// Only attempt impersonation when there is a user configured
+	if email != "" {
+		config.Subject = email
 	}
-	return srv, nil
-}
 
-// uniqueGroups returns the unique groups of a slice
-func uniqueGroups(groups []string) []string {
-	keys := make(map[string]struct{})
-	unique := []string{}
-	for _, group := range groups {
-		if _, exists := keys[group]; !exists {
-			keys[group] = struct{}{}
-			unique = append(unique, group)
-		}
-	}
-	return unique
+	return admin.NewService(ctx, option.WithHTTPClient(config.Client(ctx)))
 }
