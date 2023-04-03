@@ -41,7 +41,7 @@ const (
 )
 
 const (
-	gcResultLimit = 500
+	gcResultLimit = 10000
 )
 
 // Config values for the Kubernetes storage type.
