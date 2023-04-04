@@ -499,7 +499,7 @@ func (s *Server) handleSubmitChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.Form.Set("redirect_uri", r.Form.Get("domain"))
+	r.PostForm.Set("redirect_uri", r.Form.Get("domain"))
 
 	authReqID := r.PostFormValue("state")
 	authReq, err := s.storage.GetAuthRequest(authReqID)
