@@ -222,14 +222,12 @@ func (s *Server) handleGenerateChallenge(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var gcReq struct {
-		Address common.Address `json:"address"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&gcReq); err != nil {
-		s.renderErrorJSON(w, http.StatusBadRequest, "Could not parse request body.")
+	rawAddr := r.Form.Get("address")
+	if !common.IsHexAddress(rawAddr) {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Invalid Ethereum address.")
 		return
 	}
+	addr := common.HexToAddress(rawAddr)
 
 	connID := mux.Vars(r)["connector"]
 	_, err = s.getConnector(connID)
@@ -255,9 +253,9 @@ func (s *Server) handleGenerateChallenge(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	challenge := fmt.Sprintf("%s is asking you to please verify ownership of the address %s by signing this random string: %s", u.Hostname(), gcReq.Address.Hex(), nonce)
+	challenge := fmt.Sprintf("%s is asking you to please verify ownership of the address %s by signing this random string: %s", u.Hostname(), addr.Hex(), nonce)
 
-	authReq.ConnectorData, err = json.Marshal(web3ConnectorData{Address: gcReq.Address.Hex(), Nonce: challenge})
+	authReq.ConnectorData, err = json.Marshal(web3ConnectorData{Address: addr.Hex(), Nonce: challenge})
 	if err != nil {
 		s.renderErrorJSON(w, http.StatusInternalServerError, "Failed to create auth request.")
 		return
