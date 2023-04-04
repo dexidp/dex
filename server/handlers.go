@@ -1818,14 +1818,15 @@ func (s *Server) renderError(r *http.Request, w http.ResponseWriter, status int,
 
 func (s *Server) renderJSON(w http.ResponseWriter, body interface{}) {
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		s.logger.Errorf("Failed to write JSON response: %v", err)
 	}
 }
 
 func (s *Server) renderErrorJSON(w http.ResponseWriter, status int, message string) {
-	w.WriteHeader(status)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(struct {
 		Status  int    `json:"status"`
 		Message string `json:"message"`
