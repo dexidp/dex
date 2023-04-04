@@ -523,7 +523,7 @@ func (s *Server) handleSubmitChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	identity, err := w3Conn.Verify(data.Address, data.Nonce, r.PostFormValue("signed"))
+	identity, err := w3Conn.Verify(data.Address, data.Nonce, r.PostFormValue("signature"))
 	if err != nil {
 		s.renderErrorJSON(w, http.StatusBadRequest, "Could not verify signature.")
 		return

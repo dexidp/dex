@@ -171,4 +171,4 @@ Sign the entire challenge string with the address you provided earlier, to obtai
 | `redirect_uri` | Same as in the first request |
 | `grant_type` | `authorization_code` |
 | `state` | The `state` identifier from the last response |
-| `signed` | The hex-encoded signature you just produced. This must be `0x`-prefixed. |
+| `signature` | The hex-encoded signature you just produced. This must be `0x`-prefixed. |
