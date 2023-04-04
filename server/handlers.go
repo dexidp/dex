@@ -305,7 +305,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectURL, err := s.finalizeLogin(identity, authReq, conn)
+	redirectURL, _, err := s.finalizeLogin(identity, authReq, conn)
 	if err != nil {
 		s.renderErrorJSON(w, http.StatusInternalServerError, "Login failure.")
 	}
@@ -352,7 +352,7 @@ func (s *Server) handleVerifyDirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = s.finalizeLogin(identity, authReq, conn)
+	_, _, err = s.finalizeLogin(identity, authReq, conn)
 	if err != nil {
 		s.renderErrorJSON(w, http.StatusInternalServerError, "Login failure.")
 	}
