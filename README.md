@@ -159,11 +159,11 @@ This will return with a message like
 ```json
 {
   "state": "rd7ubvnupq6tlkhxn3qdyu6b2",
-  "nonce": "<host> is asking you to please verify ownership of the address <address> by signing this random string: <nonce>"
+  "challenge": "<host> is asking you to please verify ownership of the address <address> by signing this random string: <nonce>"
 }
 ```
 
-Sign this with the address you provided to obtain a 65-byte signature. Then POST an `x-www-form-urlencoded` request to `auth/web3/submit_challenge` with the following
+Sign the entire nonce string (I am sorry for the field name) the address you provided to obtain a 65-byte signature. Then POST an `x-www-form-urlencoded` request to `auth/web3/submit_challenge` with the following
 
 | Key | Value |
 |-|-|

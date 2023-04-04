@@ -273,8 +273,8 @@ func (s *Server) handleGenerateChallenge(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "application/json")
 
 	s.renderJSON(w, struct {
-		State string `json:"state"`
-		Nonce string `json:"nonce"`
+		State     string `json:"state"`
+		Challenge string `json:"challenge"`
 	}{authReq.ID, challenge})
 }
 
