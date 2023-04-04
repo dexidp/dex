@@ -163,7 +163,7 @@ This will return with a message like
 }
 ```
 
-Sign the entire nonce string (I am sorry for the field name) the address you provided to obtain a 65-byte signature. Then POST an `x-www-form-urlencoded` request to `auth/web3/submit_challenge` with the following
+Sign the entire challenge string with the address you provided earlier, to obtain a 65-byte signature. Then POST an `x-www-form-urlencoded` request to `auth/web3/submit_challenge` with the following
 
 | Key | Value |
 |-|-|
