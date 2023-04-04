@@ -200,6 +200,13 @@ var addressRegex = regexp.MustCompile("^0x[a-fA-F0-9]{40}$")
 // Create an authorization request and nonce for a web3 login. Return state (the request id)
 // and a random nonce.
 func (s *Server) handleGenerateChallenge(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Couldn't parse parameters.")
+		return
+	}
+
+	r.Form.Set("redirect_uri", r.Form.Get("domain"))
+
 	authReq, err := s.parseAuthorizationRequest(r)
 	if err != nil {
 		s.logger.Errorf("Failed to parse authorization request: %v", err)
@@ -491,6 +498,8 @@ func (s *Server) handleSubmitChallenge(w http.ResponseWriter, r *http.Request) {
 		s.renderErrorJSON(w, http.StatusBadRequest, "Couldn't parse form.")
 		return
 	}
+
+	r.Form.Set("redirect_uri", r.Form.Get("domain"))
 
 	authReqID := r.PostFormValue("state")
 	authReq, err := s.storage.GetAuthRequest(authReqID)
