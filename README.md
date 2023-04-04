@@ -141,3 +141,34 @@ Alternatively, install Go and Docker manually or using a package manager. Instal
 ## License
 
 The project is licensed under the [Apache License, Version 2.0](LICENSE).
+
+## Ethereum login
+
+POST to `auth/web3/generate_challenge` with query parameters
+
+| Key | Value |
+|-|-|
+| `client_id` | Configured client id |
+| `redirect_uri` | A valid redirect URI for the client |
+| `scope` | Space-separated list of scopes. At the very least you want `openid` and `email` |
+| `response_type` | `code` |
+| `address` | A 20-byte Ethereum address, hex-encoded. `0x` prefix and casing don't matter, everything gets normalized. |
+
+This will return with a message like
+
+```json
+{
+  "state": "rd7ubvnupq6tlkhxn3qdyu6b2",
+  "nonce": "<host> is asking you to please verify ownership of the address <address> by signing this random string: <nonce>"
+}
+```
+
+Sign this with the address you provided to obtain a 65-byte signature. Then POST an `x-www-form-urlencoded` request to `auth/web3/submit_challenge` with the following
+
+| Key | Value |
+|-|-|
+| `client_id` | Same as in the first request |
+| `redirect_uri` | Same as in the first request |
+| `grant_type` | `authorization_code` |
+| `state` | The `state` identifier from the last response |
+| `signed` | The hex-encoded signature you just produced. This must be `0x`-prefixed. |
