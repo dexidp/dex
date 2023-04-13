@@ -4,7 +4,7 @@
 # The base path of dex and the external name of the OpenID Connect service.
 # This is the canonical URL that all clients MUST use to refer to dex. If a
 # path is provided, dex's HTTP service will listen at a non-root URL.
-issuer: http://47.100.113.76:5556/dex
+issuer: http://127.0.0.1:5556/dex
 
 # The storage configuration determines where dex stores its state. Supported
 # options include SQL flavors and Kubernetes third party resources.
@@ -13,7 +13,7 @@ issuer: http://47.100.113.76:5556/dex
 storage:
   type: sqlite3
   config:
-    file: ../../examples/dex.db
+    file: examples/dex.db
 
   # type: mysql
   # config:
@@ -109,7 +109,7 @@ telemetry:
 staticClients:
 - id: example-app
   redirectURIs:
-  - 'http://47.100.113.76:5555/callback'
+  - 'http://127.0.0.1:5555/callback'
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
 #  - id: example-device-client
@@ -118,9 +118,6 @@ staticClients:
 #    name: 'Static Client for Device Flow'
 #    public: true
 connectors:
-- type: mockCallback
-  id: mock
-  name: Example
 - type: gitlab
   id: gitlab
   name: Gitlab
@@ -131,17 +128,15 @@ connectors:
       # Credentials can be string literals or pulled from the environment.
     clientID: 7d9ef66cd6c9133b27fda315719a45b43e8ccd3714857eabac421f72cdd84088
     clientSecret: 51d1f031f7261d793e59a180671344d6cfc8f827380197e540ee01235f031676
-    redirectURI: http://47.100.113.76:5556/dex/callback
+    redirectURI: http://127.0.0.1:5556/dex/callback
       # Optional groups whitelist, communicated through the "groups" scope.
       # If `groups` is omitted, all of the user's GitLab groups are returned when the groups scope is present.
       # If `groups` is provided, this acts as a whitelist - only the user's GitLab groups that are in the configured `groups` below will go into the groups claim.  Conversely, if the user is not in any of the configured `groups`, the user will not be authenticated.
     groups:
-    - ubiquant-lyin
-    - OyutianO
+    - my-group
       # flag which will switch from using the internal GitLab id to the users handle (@mention) as the user id.
       # It is possible for a user to change their own user name but it is very rare for them to do so
-    useLoginAsID: true
-
+    useLoginAsID: false
 # - type: google
 #   id: google
 #   name: Google
@@ -167,4 +162,3 @@ staticPasswords:
   hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
   username: "admin"
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
-
