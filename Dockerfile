@@ -2,22 +2,23 @@ ARG BASE_IMAGE=alpine
 
 FROM --platform=$BUILDPLATFORM tonistiigi/xx AS xx
 
-FROM --platform=$BUILDPLATFORM golang:1.20.3-alpine3.16 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.20.3 AS builder
 
-RUN apk add --no-cache --update alpine-sdk ca-certificates openssl clang lld
+# RUN apk add --no-cache --update alpine-sdk ca-certificates openssl clang lld
+RUN apt-get update && apt-get install -y clang lld pkg-config
 
 COPY --from=xx / /
 
 ARG TARGETPLATFORM
 
-RUN CC=$(xx-info)-gcc
+# gcc is only installed for libgcc
+# RUN xx-apk --update --no-cache add musl-dev gcc
+RUN xx-apt-get install -y binutils gcc libc6-dev
+
 RUN xx-go --wrap
 
-# gcc is only installed for libgcc
-RUN xx-apk --update --no-cache add musl-dev gcc
-
 # lld has issues building static binaries for ppc so prefer ld for it
-RUN [ "$(xx-info arch)" != "ppc64le" ] || XX_CC_PREFER_LINKER=ld xx-clang --setup-target-triple
+# RUN [ "$(xx-info arch)" != "ppc64le" ] || XX_CC_PREFER_LINKER=ld xx-clang --setup-target-triple
 
 WORKDIR /usr/local/src/dex
 
