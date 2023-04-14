@@ -1,24 +1,21 @@
 ARG BASE_IMAGE=alpine
 
-FROM --platform=$BUILDPLATFORM tonistiigi/xx AS xx
+FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.2.1@sha256:8879a398dedf0aadaacfbd332b29ff2f84bc39ae6d4e9c0a1109db27ac5ba012 AS xx
 
-FROM --platform=$BUILDPLATFORM golang:1.20.3 AS builder
-
-# RUN apk add --no-cache --update alpine-sdk ca-certificates openssl clang lld
-RUN apt-get update && apt-get install -y clang lld pkg-config
+FROM --platform=$BUILDPLATFORM golang:1.20.3-alpine3.16 AS builder
 
 COPY --from=xx / /
 
+RUN apk add --update alpine-sdk ca-certificates openssl clang lld
+
 ARG TARGETPLATFORM
 
-# gcc is only installed for libgcc
-# RUN xx-apk --update --no-cache add musl-dev gcc
-RUN xx-apt-get install -y binutils gcc libc6-dev
-
-RUN xx-go --wrap
+RUN xx-apk --update add musl-dev gcc
 
 # lld has issues building static binaries for ppc so prefer ld for it
-# RUN [ "$(xx-info arch)" != "ppc64le" ] || XX_CC_PREFER_LINKER=ld xx-clang --setup-target-triple
+RUN [ "$(xx-info arch)" != "ppc64le" ] || XX_CC_PREFER_LINKER=ld xx-clang --setup-target-triple
+
+RUN xx-go --wrap
 
 WORKDIR /usr/local/src/dex
 
@@ -33,6 +30,7 @@ RUN go mod download
 COPY . .
 
 RUN make release-binary
+RUN xx-verify /go/bin/dex && xx-verify /go/bin/docker-entrypoint
 
 FROM alpine:3.17.3 AS stager
 
