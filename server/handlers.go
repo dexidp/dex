@@ -349,15 +349,19 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		s.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
 	}
-
+	// 这里强制指定方法为post，目的是屏蔽掉前端页面，直接发起post请求；
+	r.Method = http.MethodPost
 	switch r.Method {
 	case http.MethodGet:
 		if err := s.templates.password(r, w, r.URL.String(), "", usernamePrompt(pwConn), false, backLink); err != nil {
 			s.logger.Errorf("Server template error: %v", err)
 		}
 	case http.MethodPost:
-		username := r.FormValue("login")
-		password := r.FormValue("password")
+		// 这里随便写一个username和password，实际没有用
+		// username := r.FormValue("login")
+		// password := r.FormValue("password")
+		username := "a"
+		password := "b"
 		scopes := parseScopes(authReq.Scopes)
 
 		identity, ok, err := pwConn.Login(r.Context(), scopes, username, password)

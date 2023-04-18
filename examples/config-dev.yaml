@@ -46,19 +46,19 @@ storage:
   #   kubeConfigFile: $HOME/.kube/config
 
 # Configuration for the HTTP endpoints.
-web:
-  http: 0.0.0.0:5556
+# web:
+#   http: 0.0.0.0:5556
   # Uncomment for HTTPS options.
   # https: 127.0.0.1:5554
   # tlsCert: /etc/dex/tls.crt
   # tlsKey: /etc/dex/tls.key
 
 # Configuration for dex appearance
-# frontend:
-#   issuer: dex
-#   logoURL: theme/logo.png
-#   dir: web/
-#   theme: light
+frontend:
+  issuer: dex
+  logoURL: ../../theme/logo.png
+  dir: ../../web/
+  theme: light
 
 # Configuration for telemetry
 telemetry:
@@ -90,18 +90,19 @@ telemetry:
 #   format: "text" # can also be "json"
 
 # Default values shown below
-# oauth2:
-    # use ["code", "token", "id_token"] to enable implicit flow for web-only clients
-#   responseTypes: [ "code" ] # also allowed are "token" and "id_token"
-    # By default, Dex will ask for approval to share data with application
-    # (approval for sharing data from connected IdP to Dex is separate process on IdP)
-#   skipApprovalScreen: false
-    # If only one authentication method is enabled, the default behavior is to
-    # go directly to it. For connected IdPs, this redirects the browser away
-    # from application to upstream provider such as the Google login page
-#   alwaysShowLoginScreen: false
-    # Uncomment the passwordConnector to use a specific connector for password grants
-#   passwordConnector: local
+oauth2:
+    #use ["code", "token", "id_token"] to enable implicit flow for web-only clients
+  responseTypes: [ "code" ] # also allowed are "token" and "id_token"
+    #By default, Dex will ask for approval to share data with application
+    #(approval for sharing data from connected IdP to Dex is separate process on IdP)
+  skipApprovalScreen: true
+    #If only one authentication method is enabled, the default behavior is to
+   # go directly to it. For connected IdPs, this redirects the browser away
+    #from application to upstream provider such as the Google login page
+  alwaysShowLoginScreen: false
+   # Uncomment the passwordConnector to use a specific connector for password grants
+  passwordConnector: local
+  skipApproval: true
 
 # Instead of reading from an external storage, use this list of clients.
 #
@@ -112,6 +113,8 @@ staticClients:
   - 'http://47.100.113.76:5555/callback'
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+  public: false
+
 #  - id: example-device-client
 #    redirectURIs:
 #      - /device/callback
@@ -125,7 +128,7 @@ connectors:
   id: ubiucp
   name: UbiUCP
   config:
-    authURL: http://47.100.113.76:8080/login
+    authURL: http://47.100.113.76:8080/auth
 # - type: gitlab
 #   id: gitlab
 #   name: Gitlab

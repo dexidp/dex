@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 
 	"github.com/dexidp/dex/pkg/log"
 
@@ -46,36 +48,90 @@ func (u ubiucpConnector) Refresh(_ context.Context, _ connector.Scopes, identity
 
 // Login implements PasswordConnector interface
 func (u ubiucpConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (identity connector.Identity, validPassword bool, err error) {
-	// Encode username and password as a Basic Auth header value
-	// auth := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", username, password)))
-	requestBody, err := json.Marshal(map[string]string{
-		"username": username,
-		"password": password,
-	})
-
-	// Send HTTP request with Basic Auth header
-	req, err := http.NewRequestWithContext(ctx, "POST", u.authURL, bytes.NewReader(requestBody))
+	// Read the session cookie from the request
+	cookie, err := getSessionCookie("user", "pass")
 	if err != nil {
 		return connector.Identity{}, false, err
 	}
 
-	req.Header.Set("Content-Type", "application/json")
+	// Call the auth endpoint to validate the session cookie
+	req, err := http.NewRequest("GET", "http://localhost:8080/auth", nil)
 
-	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Errorf("err is %v", err)
+		return
+	}
+	req.AddCookie(cookie)
+	fmt.Printf("add cookie %s", cookie)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Errorf("err is %v", err)
+		return
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Errorf("err is %v", err)
+		return
+	}
+	// Return user info
+	userInfo := string(body)
+	fmt.Printf("userInfo is %s", userInfo)
+
+	defer resp.Body.Close()
+
 	if err != nil {
 		return connector.Identity{}, false, err
 	}
 	defer resp.Body.Close()
 
-	// Check HTTP response status code
-	if resp.StatusCode == http.StatusOK {
-		return connector.Identity{
-			UserID:   username,
-			Username: username,
-		}, true, nil
-	} else if resp.StatusCode == http.StatusBadRequest {
-		return connector.Identity{}, false, nil
-	} else {
-		return connector.Identity{}, false, fmt.Errorf("unexpected response code: %v", resp.StatusCode)
+	// If the auth endpoint returns a non-200 status code, the authentication failed
+	if resp.StatusCode != http.StatusOK {
+		return connector.Identity{}, false, fmt.Errorf("authentication failed: %v", resp.Status)
 	}
+
+	// If the authentication succeeded, create an identity object and return it
+	identity = connector.Identity{
+		UserID:   "user",
+		Username: "user@example.com",
+		Email:    "user@example.com",
+	}
+	return identity, true, nil
+}
+
+func getSessionCookie(username string, password string) (*http.Cookie, error) {
+	requestBody, err := json.Marshal(map[string]string{
+		"username": username,
+		"password": password,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", "http://localhost:8080/login", bytes.NewBuffer(requestBody))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := http.DefaultClient
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("login failed with status code: %d", resp.StatusCode)
+	}
+
+	cookies := resp.Cookies()
+	fmt.Println(cookies)
+	if len(cookies) == 0 {
+		return nil, errors.New("no cookie found")
+	}
+
+	return cookies[0], nil
 }
