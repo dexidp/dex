@@ -55,30 +55,30 @@ func (u ubiucpConnector) Login(ctx context.Context, s connector.Scopes, username
 	}
 
 	// Call the auth endpoint to validate the session cookie
-	req, err := http.NewRequest("GET", "http://localhost:8080/auth", nil)
+	req, err := http.NewRequest("GET", "http://47.100.113.76:8080/auth", nil)
 
 	if err != nil {
-		fmt.Errorf("err is %v", err)
+		fmt.Printf("err is %v", err)
 		return
 	}
 	req.AddCookie(cookie)
-	fmt.Printf("add cookie %s", cookie)
+	fmt.Printf("add cookie %s\n", cookie)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Errorf("err is %v", err)
+		fmt.Printf("err is %v", err)
 		return
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Errorf("err is %v", err)
+		fmt.Printf("err is %v", err)
 		return
 	}
 	// Return user info
 	userInfo := string(body)
-	fmt.Printf("userInfo is %s", userInfo)
+	fmt.Printf("userInfo is %s\n", userInfo)
 
 	defer resp.Body.Close()
 
@@ -94,9 +94,10 @@ func (u ubiucpConnector) Login(ctx context.Context, s connector.Scopes, username
 
 	// If the authentication succeeded, create an identity object and return it
 	identity = connector.Identity{
-		UserID:   "user",
-		Username: "user@example.com",
-		Email:    "user@example.com",
+		UserID:        "user",
+		Username:      "user@example.com",
+		Email:         "user@example.com",
+		ConnectorData: []byte(cookie.Value),
 	}
 	return identity, true, nil
 }

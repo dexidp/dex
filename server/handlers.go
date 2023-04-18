@@ -350,7 +350,16 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// 这里强制指定方法为post，目的是屏蔽掉前端页面，直接发起post请求；
-	r.Method = http.MethodPost
+	//r.Method = http.MethodPost
+	// cookie, err := r.Cookie("session_cookie")
+	// if err != nil {
+	// 	fmt.Printf("err is %v", err)
+
+	// 	// http.Error(w, "1111Unauthorized", http.StatusUnauthorized)
+	// 	// return
+	// }
+	// // fmt.Printf(cookie.Name, cookie.Value)
+
 	switch r.Method {
 	case http.MethodGet:
 		if err := s.templates.password(r, w, r.URL.String(), "", usernamePrompt(pwConn), false, backLink); err != nil {
@@ -358,10 +367,10 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		}
 	case http.MethodPost:
 		// 这里随便写一个username和password，实际没有用
-		// username := r.FormValue("login")
-		// password := r.FormValue("password")
-		username := "a"
-		password := "b"
+		username := r.FormValue("login")
+		password := r.FormValue("password")
+		// username := "a"
+		// password := "b"
 		scopes := parseScopes(authReq.Scopes)
 
 		identity, ok, err := pwConn.Login(r.Context(), scopes, username, password)
@@ -370,6 +379,18 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			s.renderError(r, w, http.StatusInternalServerError, fmt.Sprintf("Login error: %v", err))
 			return
 		}
+		fmt.Println(string(identity.ConnectorData))
+
+		cookie := &http.Cookie{
+			Name:    "dex-cookie",
+			Value:   string(identity.ConnectorData),
+			Path:    "/",
+			Expires: time.Now().Add(time.Hour * 24),
+		}
+		http.SetCookie(w, cookie)
+
+		fmt.Println(cookie.Name, cookie.Value)
+
 		if !ok {
 			if err := s.templates.password(r, w, r.URL.String(), username, usernamePrompt(pwConn), true, backLink); err != nil {
 				s.logger.Errorf("Server template error: %v", err)
