@@ -110,7 +110,7 @@ func TestOpen(t *testing.T) {
 				ClientSecret:           "testSecret",
 				RedirectURI:            ts.URL + "/callback",
 				Scopes:                 []string{"openid", "groups"},
-				AdminEmail:             "foo@bar.com",
+				DomainToAdminEmail:     map[string]string{"*": "foo@bar.com"},
 				ServiceAccountFilePath: "not_found.json",
 			},
 			expectedErr: "error reading credentials",
@@ -121,18 +121,18 @@ func TestOpen(t *testing.T) {
 				ClientSecret:           "testSecret",
 				RedirectURI:            ts.URL + "/callback",
 				Scopes:                 []string{"openid", "groups"},
-				AdminEmail:             "foo@bar.com",
+				DomainToAdminEmail:     map[string]string{"bar.com": "foo@bar.com"},
 				ServiceAccountFilePath: serviceAccountFilePath,
 			},
 			expectedErr: "",
 		},
 		"adc": {
 			config: &Config{
-				ClientID:     "testClient",
-				ClientSecret: "testSecret",
-				RedirectURI:  ts.URL + "/callback",
-				Scopes:       []string{"openid", "groups"},
-				AdminEmail:   "foo@bar.com",
+				ClientID:           "testClient",
+				ClientSecret:       "testSecret",
+				RedirectURI:        ts.URL + "/callback",
+				Scopes:             []string{"openid", "groups"},
+				DomainToAdminEmail: map[string]string{"*": "foo@bar.com"},
 			},
 			adc:         serviceAccountFilePath,
 			expectedErr: "",
@@ -143,7 +143,7 @@ func TestOpen(t *testing.T) {
 				ClientSecret:           "testSecret",
 				RedirectURI:            ts.URL + "/callback",
 				Scopes:                 []string{"openid", "groups"},
-				AdminEmail:             "foo@bar.com",
+				DomainToAdminEmail:     map[string]string{"*": "foo@bar.com"},
 				ServiceAccountFilePath: serviceAccountFilePath,
 			},
 			adc:         "/dev/null",
@@ -176,15 +176,15 @@ func TestGetGroups(t *testing.T) {
 
 	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", serviceAccountFilePath)
 	conn, err := newConnector(&Config{
-		ClientID:     "testClient",
-		ClientSecret: "testSecret",
-		RedirectURI:  ts.URL + "/callback",
-		Scopes:       []string{"openid", "groups"},
-		AdminEmail:   "admin@dexidp.com",
+		ClientID:           "testClient",
+		ClientSecret:       "testSecret",
+		RedirectURI:        ts.URL + "/callback",
+		Scopes:             []string{"openid", "groups"},
+		DomainToAdminEmail: map[string]string{"*": "admin@dexidp.com"},
 	})
 	assert.Nil(t, err)
 
-	conn.adminSrv, err = admin.NewService(context.Background(), option.WithoutAuthentication(), option.WithEndpoint(ts.URL))
+	conn.adminSrv[wildcardDomainToAdminEmail], err = admin.NewService(context.Background(), option.WithoutAuthentication(), option.WithEndpoint(ts.URL))
 	assert.Nil(t, err)
 	type testCase struct {
 		userKey                        string
