@@ -523,7 +523,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 		authReq.ConnectorID, claims.Username, claims.PreferredUsername, email, claims.Groups)
 
 	// we can skip the redirect to /approval and go ahead and send code if it's not required
-	if s.skipApproval || !authReq.ForceApprovalPrompt {
+	if s.skipApproval && !authReq.ForceApprovalPrompt {
 		return "", true, nil
 	}
 

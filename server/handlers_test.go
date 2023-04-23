@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path"
-	"strings"
 	"testing"
 	"time"
 
@@ -339,6 +338,7 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 		name         string
 		skipApproval bool
 		authReq      storage.AuthRequest
+		expectedRes  string
 	}{
 		{
 			name:         "Force approval",
@@ -351,6 +351,7 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 				ResponseTypes:       resTypes,
 				ForceApprovalPrompt: true,
 			},
+			expectedRes: "/approval",
 		},
 		{
 			name:         "Skip approval by server config",
@@ -363,9 +364,10 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 				ResponseTypes:       resTypes,
 				ForceApprovalPrompt: true,
 			},
+			expectedRes: "/approval",
 		},
 		{
-			name:         "Skip approval by auth request",
+			name:         "No skip",
 			skipApproval: false,
 			authReq: storage.AuthRequest{
 				ID:                  authReqID,
@@ -375,6 +377,20 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 				ResponseTypes:       resTypes,
 				ForceApprovalPrompt: false,
 			},
+			expectedRes: "/approval",
+		},
+		{
+			name:         "Skip approval",
+			skipApproval: true,
+			authReq: storage.AuthRequest{
+				ID:                  authReqID,
+				ConnectorID:         connID,
+				RedirectURI:         "cb",
+				Expiry:              expiry,
+				ResponseTypes:       resTypes,
+				ForceApprovalPrompt: false,
+			},
+			expectedRes: "/auth/mockPw/cb",
 		},
 	}
 
@@ -410,15 +426,11 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 		require.Equal(t, 303, rr.Code)
 
 		resp := rr.Result()
-		cbPath := strings.Split(resp.Header.Get("Location"), "?")[0]
 
-		if tc.skipApproval || !tc.authReq.ForceApprovalPrompt {
-			require.Equal(t, "/auth/mockPw/cb", cbPath)
-		} else {
-			require.Equal(t, "/approval", cbPath)
-		}
+		defer resp.Body.Close()
 
-		resp.Body.Close()
+		cb, _ := url.Parse(resp.Header.Get("Location"))
+		require.Equal(t, tc.expectedRes, cb.Path)
 	}
 }
 
@@ -435,6 +447,7 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 		name         string
 		skipApproval bool
 		authReq      storage.AuthRequest
+		expectedRes  string
 	}{
 		{
 			name:         "Force approval",
@@ -447,6 +460,7 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 				ResponseTypes:       resTypes,
 				ForceApprovalPrompt: true,
 			},
+			expectedRes: "/approval",
 		},
 		{
 			name:         "Skip approval by server config",
@@ -459,6 +473,7 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 				ResponseTypes:       resTypes,
 				ForceApprovalPrompt: true,
 			},
+			expectedRes: "/approval",
 		},
 		{
 			name:         "Skip approval by auth request",
@@ -471,6 +486,20 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 				ResponseTypes:       resTypes,
 				ForceApprovalPrompt: false,
 			},
+			expectedRes: "/approval",
+		},
+		{
+			name:         "Skip approval",
+			skipApproval: true,
+			authReq: storage.AuthRequest{
+				ID:                  authReqID,
+				ConnectorID:         connID,
+				RedirectURI:         "cb",
+				Expiry:              expiry,
+				ResponseTypes:       resTypes,
+				ForceApprovalPrompt: false,
+			},
+			expectedRes: "/callback/cb",
 		},
 	}
 
@@ -492,14 +521,9 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 		require.Equal(t, 303, rr.Code)
 
 		resp := rr.Result()
-		cbPath := strings.Split(resp.Header.Get("Location"), "?")[0]
+		defer resp.Body.Close()
 
-		if tc.skipApproval || !tc.authReq.ForceApprovalPrompt {
-			require.Equal(t, "/callback/cb", cbPath)
-		} else {
-			require.Equal(t, "/approval", cbPath)
-		}
-
-		resp.Body.Close()
+		cb, _ := url.Parse(resp.Header.Get("Location"))
+		require.Equal(t, tc.expectedRes, cb.Path)
 	}
 }
