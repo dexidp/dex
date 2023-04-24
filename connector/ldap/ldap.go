@@ -54,6 +54,13 @@ import (
 //         - userAttr: DN
 //           groupAttr: member
 //         nameAttr: name
+//         # Look for indirect group membership
+//         recursion:
+//           # 0 effectively disables recursion
+//           level: 2
+//           # Will only work if "DN" attribute does not exist in the record:
+//           parentAttr: member
+//           childAttr: DN
 //
 
 // UserMatcher holds information about user and group matching.
@@ -155,6 +162,13 @@ type Config struct {
 
 		// The attribute of the group that represents its name.
 		NameAttr string `json:"nameAttr"`
+
+		// Recursion configures indirect group membership lookup
+		Recursion struct {
+			Level      int    `json:"level"`
+			ParentAttr string `json:"parentAttr"`
+			ChildAttr  string `json:"childAttr"`
+		}
 	} `json:"groupSearch"`
 }
 
@@ -288,6 +302,12 @@ func (c *Config) openConnector(logger log.Logger) (*ldapConnector, error) {
 
 	// TODO(nabokihms): remove it after deleting deprecated groupSearch options
 	c.GroupSearch.UserMatchers = userMatchers(c, logger)
+
+	recursion := c.GroupSearch.Recursion
+	if recursion.Level > 0 && (recursion.ParentAttr == "" || recursion.ChildAttr == "") {
+		return nil, fmt.Errorf("groupSearch.Recursion.ParentAttr and groupSearch.Recursion.ParentAttr are mandatory when groupSearch.Recursion.Level is greater than 0")
+	}
+
 	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig, logger}, nil
 }
 
@@ -579,38 +599,74 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 		return nil, nil
 	}
 
+	recursion := c.GroupSearch.Recursion
+
 	var groups []*ldap.Entry
 	for _, matcher := range c.GroupSearch.UserMatchers {
 		for _, attr := range getAttrs(user, matcher.UserAttr) {
+			type search struct {
+				filter string
+				level  int
+			}
+
+			groupsMap := map[string]*ldap.Entry{}
 			filter := fmt.Sprintf("(%s=%s)", matcher.GroupAttr, ldap.EscapeFilter(attr))
-			if c.GroupSearch.Filter != "" {
-				filter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, filter)
-			}
+			level := 0
+			searches := []search{{filter, level}}
+			for len(searches) > 0 {
+				filter = searches[0].filter
+				level = searches[0].level
+				searches = searches[1:]
 
-			req := &ldap.SearchRequest{
-				BaseDN:     c.GroupSearch.BaseDN,
-				Filter:     filter,
-				Scope:      c.groupSearchScope,
-				Attributes: []string{c.GroupSearch.NameAttr},
-			}
-
-			gotGroups := false
-			if err := c.do(ctx, func(conn *ldap.Conn) error {
-				c.logger.Infof("performing ldap search %s %s %s",
-					req.BaseDN, scopeString(req.Scope), req.Filter)
-				resp, err := conn.Search(req)
-				if err != nil {
-					return fmt.Errorf("ldap: search failed: %v", err)
+				if c.GroupSearch.Filter != "" {
+					filter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, filter)
 				}
-				gotGroups = len(resp.Entries) != 0
-				groups = append(groups, resp.Entries...)
-				return nil
-			}); err != nil {
-				return nil, err
-			}
-			if !gotGroups {
-				// TODO(ericchiang): Is this going to spam the logs?
-				c.logger.Errorf("ldap: groups search with filter %q returned no groups", filter)
+
+				req := &ldap.SearchRequest{
+					BaseDN:     c.GroupSearch.BaseDN,
+					Filter:     filter,
+					Scope:      c.groupSearchScope,
+					Attributes: []string{c.GroupSearch.NameAttr},
+				}
+
+				var newGroups []*ldap.Entry
+				gotGroups := false
+				if err := c.do(ctx, func(conn *ldap.Conn) error {
+					c.logger.Infof("performing ldap search %s %s %s",
+						req.BaseDN, scopeString(req.Scope), req.Filter)
+					resp, err := conn.Search(req)
+					if err != nil {
+						return fmt.Errorf("ldap: search failed: %v", err)
+					}
+					gotGroups = len(resp.Entries) != 0
+					for _, group := range resp.Entries {
+						if _, ok := groupsMap[group.DN]; !ok {
+							newGroups = append(newGroups, group)
+							groupsMap[group.DN] = group
+						}
+					}
+					return nil
+				}); err != nil {
+					return nil, err
+				}
+				if !gotGroups {
+					// TODO(ericchiang): Is this going to spam the logs?
+					c.logger.Errorf("ldap: groups search with filter %q returned no groups", filter)
+				}
+
+				if level < recursion.Level && len(newGroups) > 0 {
+					filter := ""
+					level := level + 1
+					for _, group := range newGroups {
+						filter = fmt.Sprintf("%s(%s=%s)", filter, recursion.ParentAttr, getAttr(*group, recursion.ChildAttr))
+					}
+					if len(newGroups) > 1 {
+						filter = fmt.Sprintf("(|%s)", filter)
+					}
+					searches = append(searches, search{filter, level})
+				}
+
+				groups = append(groups, newGroups...)
 			}
 		}
 	}

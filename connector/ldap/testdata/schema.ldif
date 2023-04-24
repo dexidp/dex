@@ -136,6 +136,81 @@ objectClass: groupOfNames
 cn: developers
 member: cn=jane,ou=People,ou=TestGroupQuery,dc=example,dc=org
 
+dn: cn=technical-staff,ou=Groups,ou=TestGroupQuery,dc=example,dc=org
+objectClass: groupOfNames
+cn: technical-staff
+member: cn=developers,ou=Groups,ou=TestGroupQuery,dc=example,dc=org
+
+dn: cn=admin-staff,ou=Groups,ou=TestGroupQuery,dc=example,dc=org
+objectClass: groupOfNames
+cn: admin-staff
+member: cn=admins,ou=Groups,ou=TestGroupQuery,dc=example,dc=org
+
+dn: cn=staff,ou=Groups,ou=TestGroupQuery,dc=example,dc=org
+objectClass: groupOfNames
+cn: staff
+member: cn=technical-staff,ou=Groups,ou=TestGroupQuery,dc=example,dc=org
+member: cn=admin-staff,ou=Groups,ou=TestGroupQuery,dc=example,dc=org
+
+########################################################################
+
+dn: ou=TestIndirectGroupQuery,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestIndirectGroupQuery
+
+dn: ou=People,ou=TestIndirectGroupQuery,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=TestIndirectGroupQuery,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+
+dn: cn=john,ou=People,ou=TestIndirectGroupQuery,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: john
+mail: johndoe@example.com
+userpassword: bar
+
+# Group definitions.
+
+dn: ou=Groups,ou=TestIndirectGroupQuery,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: cn=admins,ou=Groups,ou=TestIndirectGroupQuery,dc=example,dc=org
+objectClass: groupOfNames
+cn: admins
+member: cn=john,ou=People,ou=TestIndirectGroupQuery,dc=example,dc=org
+member: cn=jane,ou=People,ou=TestIndirectGroupQuery,dc=example,dc=org
+
+dn: cn=developers,ou=Groups,ou=TestIndirectGroupQuery,dc=example,dc=org
+objectClass: groupOfNames
+cn: developers
+member: cn=jane,ou=People,ou=TestIndirectGroupQuery,dc=example,dc=org
+
+dn: cn=technical-staff,ou=Groups,ou=TestIndirectGroupQuery,dc=example,dc=org
+objectClass: groupOfNames
+cn: technical-staff
+member: cn=developers,ou=Groups,ou=TestIndirectGroupQuery,dc=example,dc=org
+
+dn: cn=admin-staff,ou=Groups,ou=TestIndirectGroupQuery,dc=example,dc=org
+objectClass: groupOfNames
+cn: admin-staff
+member: cn=admins,ou=Groups,ou=TestIndirectGroupQuery,dc=example,dc=org
+
+dn: cn=staff,ou=Groups,ou=TestIndirectGroupQuery,dc=example,dc=org
+objectClass: groupOfNames
+cn: staff
+member: cn=technical-staff,ou=Groups,ou=TestIndirectGroupQuery,dc=example,dc=org
+member: cn=admin-staff,ou=Groups,ou=TestIndirectGroupQuery,dc=example,dc=org
+
 ########################################################################
 
 dn: ou=TestGroupsOnUserEntity,dc=example,dc=org
