@@ -95,7 +95,7 @@ func (u ubiucpConnector) Login(ctx context.Context, s connector.Scopes, username
 	// If the authentication succeeded, create an identity object and return it
 	identity = connector.Identity{
 		UserID:        "user",
-		Username:      "user@example.com",
+		Username:      "user",
 		Email:         "user@example.com",
 		ConnectorData: []byte(cookie.Value),
 	}

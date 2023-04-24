@@ -353,8 +353,15 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 	//r.Method = http.MethodPost
 	// cookie, err := r.Cookie("session_cookie")
 	// if err != nil {
-	// 	fmt.Printf("err is %v", err)
-
+	// 	if err == http.ErrNoCookie {
+	// 		if err := s.templates.password(r, w, r.URL.String(), "", usernamePrompt(pwConn), false, backLink); err != nil {
+	// 			s.logger.Errorf("Server template error: %v", err)
+	// 		}
+	// 	} else {
+	// 		fmt.Println("err is %s", err)
+	// 		return
+	// 	}
+	// }
 	// 	// http.Error(w, "1111Unauthorized", http.StatusUnauthorized)
 	// 	// return
 	// }
