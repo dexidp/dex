@@ -226,7 +226,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	}
 
 	var groups []string
-	if s.Groups && c.adminSrv != nil {
+	if c.adminSrv != nil {
 		checkedGroups := make(map[string]struct{})
 		groups, err = c.getGroups(claims.Email, c.fetchTransitiveGroupMembership, checkedGroups)
 		if err != nil {
