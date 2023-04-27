@@ -118,7 +118,7 @@ web:
 #     name: 'Example App'
 #     secret: ZXhhbXBsZS1hcHAtc2VjcmV0
 
-# Connectors are used to authenticate users agains upstream identity providers.
+# Connectors are used to authenticate users against upstream identity providers.
 #
 # See the documentation (https://dexidp.io/docs/connectors/) for further information.
 # connectors: []
