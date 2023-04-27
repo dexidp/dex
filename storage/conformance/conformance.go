@@ -63,7 +63,7 @@ func mustLoadJWK(b string) *jose.JSONWebKey {
 func mustBeErrNotFound(t *testing.T, kind string, err error) {
 	switch {
 	case err == nil:
-		t.Errorf("deleting non-existent %s should return an error", kind)
+		t.Errorf("deleting nonexistent %s should return an error", kind)
 	case err != storage.ErrNotFound:
 		t.Errorf("deleting %s expected storage.ErrNotFound, got %v", kind, err)
 	}
