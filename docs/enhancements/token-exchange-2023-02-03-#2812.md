@@ -45,13 +45,13 @@ Examples of downstream issues:
 Other related Dex issues:
 
 - [#2450 Non-OIDC JWT Connector] is a functionally similar request, but expanded to arbitrary JWTs
-- [#1225 GitHub Non-Web application flow support] also asks for an exchange, but for an opaque Github PAT
+- [#1225 GitHub Non-Web application flow support] also asks for an exchange, but for an opaque GitHub PAT
 
 More broadly, this fits into recent movements to issue machine identities:
 
 - [GCP Service Identity](https://cloud.google.com/run/docs/securing/service-identity)
 - [AWS Execution Role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
-- [Github Actions OIDC](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect)
+- [GitHub Actions OIDC](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect)
 - [CircleCI OIDC](https://circleci.com/docs/openid-connect-tokens/)
 - [Kubernetes Service Accounts](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/)
 - [SPIFFE](https://spiffe.io/)
