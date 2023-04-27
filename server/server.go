@@ -118,7 +118,7 @@ type WebConfig struct {
 	//   * themes/(theme) - Static static served at "( issuer URL )/theme".
 	Dir string
 
-	// Alternative way to programatically configure static web assets.
+	// Alternative way to programmatically configure static web assets.
 	// If Dir is specified, WebFS is ignored.
 	// It's expected to contain the same files and directories as mentioned above.
 	//
