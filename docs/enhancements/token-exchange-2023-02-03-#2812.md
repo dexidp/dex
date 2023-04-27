@@ -166,7 +166,7 @@ Additionally, a new `allowedGrantTypes` would allow for disabling exchanges if t
 - The password connector could be switch to support this new endpoint, submitting passwords as access tokens,
   allowing for multiple password connectors to be configured
 - The `audience` field could be made optional if there is a single connector or the id token is inspected for issuer url
-- The `actor_token` and `actor_token_type` can be checked / validated if a suitable usecase is determined.
+- The `actor_token` and `actor_token_type` can be checked / validated if a suitable use case is determined.
 - A policy language like [cel] or [rego] as mentioned on [#1635 Connector Middleware] 
   would allow for stronger assertions of the provided identity against requested resource access.
 
