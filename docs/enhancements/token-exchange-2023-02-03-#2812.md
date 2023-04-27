@@ -40,7 +40,7 @@ without issuing long lived API tokens.
 
 Examples of downstream issues:
 
-- [argoproj/argo-cd#11632 Argocd SSO login via Azure AD Auth using OIDC not work for cli sso login]
+- [argoproj/argo-cd#11632 ArgoCD SSO login via Azure AD Auth using OIDC not work for cli sso login]
 
 Other related Dex issues:
 
@@ -64,7 +64,7 @@ and granting access to resources based on trusting federated identities:
 [#1484 Token exchange for external tokens]: https://github.com/dexidp/dex/issues/1484
 [#1668 Question: non-web based clients?]: https://github.com/dexidp/dex/issues/1668
 [#2657 Get OIDC token issued by Dex using a token issued by one of the connectors]: https://github.com/dexidp/dex/issues/2657
-[argoproj/argo-cd#11632 Argocd SSO login via Azure AD Auth using OIDC not work for cli sso login]: https://github.com/argoproj/argo-cd/issues/11632
+[argoproj/argo-cd#11632 ArgoCD SSO login via Azure AD Auth using OIDC not work for cli sso login]: https://github.com/argoproj/argo-cd/issues/11632
 [#2450 Non-OIDC JWT Connector]: https://github.com/dexidp/dex/issues/2450
 [#1225 GitHub Non-Web application flow support]: https://github.com/dexidp/dex/issues/1225
 
