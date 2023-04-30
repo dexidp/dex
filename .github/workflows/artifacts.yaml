@@ -140,7 +140,7 @@ jobs:
 
       # See https://github.com/anchore/syft/issues/1545
       - name: Extract image from multi-arch image
-        run: skopeo --override-os linux --override-arch amd64 --insecure-policy copy oci:image docker-archive:docker.tar
+        run: skopeo --override-os linux --override-arch amd64 --insecure-policy copy oci:image:${{ steps.image-ref.outputs.value }} docker-archive:docker.tar
 
       - name: Generate SBOM
         run: syft -o spdx-json=sbom-spdx.json docker-archive:docker.tar
