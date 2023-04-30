@@ -74,7 +74,7 @@ jobs:
             type=ref,event=branch,enable=${{ matrix.variant == 'alpine' }}
             type=ref,event=pr,prefix=pr-,enable=${{ matrix.variant == 'alpine' }}
             type=semver,pattern={{raw}},enable=${{ matrix.variant == 'alpine' }}
-            type=raw,value=latest,enable=${{ github.ref_name github.event.repository.default_branch && matrix.variant == 'alpine' }}
+            type=raw,value=latest,enable=${{ github.ref_name == github.event.repository.default_branch && matrix.variant == 'alpine' }}
             type=ref,event=branch,suffix=-${{ matrix.variant }}
             type=ref,event=pr,prefix=pr-,suffix=-${{ matrix.variant }}
             type=semver,pattern={{raw}},suffix=-${{ matrix.variant }}
