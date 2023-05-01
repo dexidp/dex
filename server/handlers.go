@@ -393,9 +393,18 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectURL, _, err := s.finalizeLogin(identity, authReq, conn)
+	redirectURL, canSkipApproval, err := s.finalizeLogin(identity, authReq, conn)
 	if err != nil {
 		s.renderErrorJSON(w, http.StatusInternalServerError, "Login failure.")
+	}
+
+	if canSkipApproval {
+		// We're overriding this. Always redirect.
+		h := hmac.New(sha256.New, authReq.HMACKey)
+		h.Write([]byte(authReq.ID))
+		mac := h.Sum(nil)
+
+		redirectURL = path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID + "&hmac=" + base64.RawURLEncoding.EncodeToString(mac)
 	}
 
 	s.renderJSON(w, struct {
