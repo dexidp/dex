@@ -38,7 +38,7 @@ type Config struct {
 	// Certificates for SSL validation
 	RootCAs []string `json:"rootCAs"`
 
-	// Override the value of email_verifed to true in the returned claims
+	// Override the value of email_verified to true in the returned claims
 	InsecureSkipEmailVerified bool `json:"insecureSkipEmailVerified"`
 
 	// InsecureEnableGroups enables groups claims. This is disabled by default until https://github.com/dexidp/dex/issues/1065 is resolved

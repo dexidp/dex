@@ -619,7 +619,7 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 	for _, group := range groups {
 		name := getAttr(*group, c.GroupSearch.NameAttr)
 		if name == "" {
-			// Be obnoxious about missing missing attributes. If the group entry is
+			// Be obnoxious about missing attributes. If the group entry is
 			// missing its name attribute, that indicates a misconfiguration.
 			//
 			// In the future we can add configuration options to just log these errors.
