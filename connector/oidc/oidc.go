@@ -21,10 +21,11 @@ import (
 
 // Config holds configuration options for OpenID Connect logins.
 type Config struct {
-	Issuer       string `json:"issuer"`
-	ClientID     string `json:"clientID"`
-	ClientSecret string `json:"clientSecret"`
-	RedirectURI  string `json:"redirectURI"`
+	Issuer         string `json:"issuer"`
+	ClientID       string `json:"clientID"`
+	ClientSecret   string `json:"clientSecret"`
+	RedirectURI    string `json:"redirectURI"`
+	OverrideIssuer string `json:"overrideIssuer"`
 
 	// Causes client_secret to be passed as POST parameters instead of basic
 	// auth. This is specifically "NOT RECOMMENDED" by the OAuth2 RFC, but some
@@ -119,6 +120,10 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, httpClient)
+
+	if c.OverrideIssuer != "" {
+		ctx = oidc.InsecureIssuerURLContext(ctx, c.OverrideIssuer)
+	}
 
 	provider, err := oidc.NewProvider(ctx, c.Issuer)
 	if err != nil {
