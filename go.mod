@@ -28,7 +28,7 @@ require (
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.2
-	go.etcd.io/etcd/client/pkg/v3 v3.5.7
+	go.etcd.io/etcd/client/pkg/v3 v3.5.8
 	go.etcd.io/etcd/client/v3 v3.5.7
 	golang.org/x/crypto v0.8.0
 	golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
