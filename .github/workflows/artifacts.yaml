@@ -133,27 +133,33 @@ jobs:
         run: skopeo --insecure-policy copy docker://${{ steps.image-ref.outputs.value }} oci-archive:image.tar
         if: inputs.publish
 
+      - name: Upload image as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: "[${{ github.job }}] OCI tarball"
+          path: image.tar
+
       - name: Extract OCI tarball
         run: |
           mkdir -p image
           tar -xf image.tar -C image
 
-      - name: List tags
-        run: skopeo --insecure-policy list-tags oci:image
-
-      # See https://github.com/anchore/syft/issues/1545
-      - name: Extract image from multi-arch image
-        run: skopeo --override-os linux --override-arch amd64 --insecure-policy copy oci:image:${{ steps.image-name.outputs.value }}:${{ steps.meta.outputs.version }} docker-archive:docker.tar
-
-      - name: Generate SBOM
-        run: syft -o spdx-json=sbom-spdx.json docker-archive:docker.tar
-
-      - name: Upload SBOM as artifact
-        uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # v3.1.2
-        with:
-          name: "[${{ github.job }}] SBOM"
-          path: sbom-spdx.json
-          retention-days: 5
+      # - name: List tags
+      #   run: skopeo --insecure-policy list-tags oci:image
+      #
+      # # See https://github.com/anchore/syft/issues/1545
+      # - name: Extract image from multi-arch image
+      #   run: skopeo --override-os linux --override-arch amd64 --insecure-policy copy oci:image:${{ steps.image-name.outputs.value }}:${{ steps.meta.outputs.version }} docker-archive:docker.tar
+      #
+      # - name: Generate SBOM
+      #   run: syft -o spdx-json=sbom-spdx.json docker-archive:docker.tar
+      #
+      # - name: Upload SBOM as artifact
+      #   uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # v3.1.2
+      #   with:
+      #     name: "[${{ github.job }}] SBOM"
+      #     path: sbom-spdx.json
+      #     retention-days: 5
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@e5f43133f6e8736992c9f3c1b3296e24b37e17f2 # 0.10.0
