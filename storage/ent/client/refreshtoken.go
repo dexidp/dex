@@ -7,7 +7,7 @@ import (
 )
 
 // CreateRefresh saves provided refresh token into the database.
-func (d *Database) CreateRefresh(refresh storage.RefreshToken) error {
+func (d *Database) CreateRefresh(ctx context.Context, refresh storage.RefreshToken) error {
 	_, err := d.client.RefreshToken.Create().
 		SetID(refresh.ID).
 		SetClientID(refresh.ClientID).
@@ -26,7 +26,7 @@ func (d *Database) CreateRefresh(refresh storage.RefreshToken) error {
 		// Save utc time into database because ent doesn't support comparing dates with different timezones
 		SetLastUsed(refresh.LastUsed.UTC()).
 		SetCreatedAt(refresh.CreatedAt.UTC()).
-		Save(context.TODO())
+		Save(ctx)
 	if err != nil {
 		return convertDBError("create refresh token: %w", err)
 	}

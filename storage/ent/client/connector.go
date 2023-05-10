@@ -7,14 +7,14 @@ import (
 )
 
 // CreateConnector saves a connector into the database.
-func (d *Database) CreateConnector(connector storage.Connector) error {
+func (d *Database) CreateConnector(ctx context.Context, connector storage.Connector) error {
 	_, err := d.client.Connector.Create().
 		SetID(connector.ID).
 		SetName(connector.Name).
 		SetType(connector.Type).
 		SetResourceVersion(connector.ResourceVersion).
 		SetConfig(connector.Config).
-		Save(context.TODO())
+		Save(ctx)
 	if err != nil {
 		return convertDBError("create connector: %w", err)
 	}
