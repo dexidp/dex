@@ -138,6 +138,9 @@ jobs:
           mkdir -p image
           tar -xf image.tar -C image
 
+      - name: List tags
+        run: skopeo --insecure-policy list-tags oci:image
+
       # See https://github.com/anchore/syft/issues/1545
       - name: Extract image from multi-arch image
         run: skopeo --override-os linux --override-arch amd64 --insecure-policy copy oci:image:${{ steps.image-name.outputs.value }}:${{ steps.meta.outputs.version }} docker-archive:docker.tar
