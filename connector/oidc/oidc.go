@@ -35,6 +35,13 @@ type Config struct {
 
 	Scopes []string `json:"scopes"` // defaults to "profile" and "email"
 
+	// Previously it was an optional list of whitelisted domains when using Google.
+	// Only users from a listed domain will be allowed to log in.
+	// Now this option does nothing. To work with Google, users should migrate to using the Google connector.
+	//
+	// Deprecated: will be removed in feature releases.
+	HostedDomains []string `json:"hostedDomains"`
+
 	// Certificates for SSL validation
 	RootCAs []string `json:"rootCAs"`
 
@@ -112,6 +119,10 @@ func knownBrokenAuthHeaderProvider(issuerURL string) bool {
 // Open returns a connector which can be used to login users through an upstream
 // OpenID Connect provider.
 func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
+	if len(c.HostedDomains) > 0 {
+		return nil, fmt.Errorf("hostedDomains option does not work anymore, consider switching to the Google connector")
+	}
+
 	httpClient, err := httpclient.NewHTTPClient(c.RootCAs, c.InsecureSkipVerify)
 	if err != nil {
 		return nil, err
