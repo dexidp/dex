@@ -18,6 +18,7 @@ import (
 )
 
 func mockRefreshTokenTestStorage(t *testing.T, s storage.Storage, useObsolete bool) {
+	ctx := context.Background()
 	c := storage.Client{
 		ID:           "test",
 		Secret:       "barfoo",
@@ -26,7 +27,7 @@ func mockRefreshTokenTestStorage(t *testing.T, s storage.Storage, useObsolete bo
 		LogoURL:      "https://goo.gl/JIyzIC",
 	}
 
-	err := s.CreateClient(c)
+	err := s.CreateClient(ctx, c)
 	require.NoError(t, err)
 
 	c1 := storage.Connector{
@@ -36,7 +37,7 @@ func mockRefreshTokenTestStorage(t *testing.T, s storage.Storage, useObsolete bo
 		Config: nil,
 	}
 
-	err = s.CreateConnector(c1)
+	err = s.CreateConnector(ctx, c1)
 	require.NoError(t, err)
 
 	refresh := storage.RefreshToken{
@@ -64,7 +65,7 @@ func mockRefreshTokenTestStorage(t *testing.T, s storage.Storage, useObsolete bo
 		refresh.ObsoleteToken = "bar"
 	}
 
-	err = s.CreateRefresh(refresh)
+	err = s.CreateRefresh(ctx, refresh)
 	require.NoError(t, err)
 
 	offlineSessions := storage.OfflineSessions{
@@ -74,7 +75,7 @@ func mockRefreshTokenTestStorage(t *testing.T, s storage.Storage, useObsolete bo
 		ConnectorData: nil,
 	}
 
-	err = s.CreateOfflineSessions(offlineSessions)
+	err = s.CreateOfflineSessions(ctx, offlineSessions)
 	require.NoError(t, err)
 }
 

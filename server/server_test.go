@@ -111,7 +111,7 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 		Name:            "Mock",
 		ResourceVersion: "1",
 	}
-	if err := config.Storage.CreateConnector(connector); err != nil {
+	if err := config.Storage.CreateConnector(ctx, connector); err != nil {
 		t.Fatalf("create connector: %v", err)
 	}
 
@@ -164,10 +164,10 @@ func newTestServerMultipleConnectors(ctx context.Context, t *testing.T, updateCo
 		Name:            "Mock",
 		ResourceVersion: "1",
 	}
-	if err := config.Storage.CreateConnector(connector); err != nil {
+	if err := config.Storage.CreateConnector(ctx, connector); err != nil {
 		t.Fatalf("create connector: %v", err)
 	}
-	if err := config.Storage.CreateConnector(connector2); err != nil {
+	if err := config.Storage.CreateConnector(ctx, connector2); err != nil {
 		t.Fatalf("create connector: %v", err)
 	}
 
@@ -829,11 +829,11 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				Secret:       clientSecret,
 				RedirectURIs: []string{redirectURL},
 			}
-			if err := s.storage.CreateClient(client); err != nil {
+			if err := s.storage.CreateClient(ctx, client); err != nil {
 				t.Fatalf("failed to create client: %v", err)
 			}
 
-			if err := s.storage.CreateRefresh(storage.RefreshToken{
+			if err := s.storage.CreateRefresh(ctx, storage.RefreshToken{
 				ID:       "existedrefrestoken",
 				ClientID: "unexcistedclientid",
 			}); err != nil {
@@ -947,7 +947,7 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 		Secret:       "testclientsecret",
 		RedirectURIs: []string{redirectURL},
 	}
-	if err := s.storage.CreateClient(client); err != nil {
+	if err := s.storage.CreateClient(ctx, client); err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
@@ -1105,7 +1105,7 @@ func TestCrossClientScopes(t *testing.T) {
 		Secret:       "testclientsecret",
 		RedirectURIs: []string{redirectURL},
 	}
-	if err := s.storage.CreateClient(client); err != nil {
+	if err := s.storage.CreateClient(ctx, client); err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
@@ -1115,7 +1115,7 @@ func TestCrossClientScopes(t *testing.T) {
 		TrustedPeers: []string{"testclient"},
 	}
 
-	if err := s.storage.CreateClient(peer); err != nil {
+	if err := s.storage.CreateClient(ctx, peer); err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
@@ -1228,7 +1228,7 @@ func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
 		Secret:       "testclientsecret",
 		RedirectURIs: []string{redirectURL},
 	}
-	if err := s.storage.CreateClient(client); err != nil {
+	if err := s.storage.CreateClient(ctx, client); err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
@@ -1238,7 +1238,7 @@ func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
 		TrustedPeers: []string{"testclient"},
 	}
 
-	if err := s.storage.CreateClient(peer); err != nil {
+	if err := s.storage.CreateClient(ctx, peer); err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
@@ -1268,6 +1268,7 @@ func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
 }
 
 func TestPasswordDB(t *testing.T) {
+	ctx := context.Background()
 	s := memory.New(logger)
 	conn := newPasswordDB(s)
 
@@ -1278,7 +1279,7 @@ func TestPasswordDB(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s.CreatePassword(storage.Password{
+	s.CreatePassword(ctx, storage.Password{
 		Email:    "jane@example.com",
 		Username: "jane",
 		UserID:   "foobar",
@@ -1526,7 +1527,7 @@ func TestRefreshTokenFlow(t *testing.T) {
 		Secret:       "testclientsecret",
 		RedirectURIs: []string{redirectURL},
 	}
-	if err := s.storage.CreateClient(client); err != nil {
+	if err := s.storage.CreateClient(ctx, client); err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
@@ -1625,11 +1626,11 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 					RedirectURIs: []string{deviceCallbackURI},
 					Public:       true,
 				}
-				if err := s.storage.CreateClient(client); err != nil {
+				if err := s.storage.CreateClient(ctx, client); err != nil {
 					t.Fatalf("failed to create client: %v", err)
 				}
 
-				if err := s.storage.CreateRefresh(storage.RefreshToken{
+				if err := s.storage.CreateRefresh(ctx, storage.RefreshToken{
 					ID:       "existedrefrestoken",
 					ClientID: "unexcistedclientid",
 				}); err != nil {

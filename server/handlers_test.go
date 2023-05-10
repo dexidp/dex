@@ -212,7 +212,7 @@ func TestHandleAuthCode(t *testing.T) {
 				Secret:       "testclientsecret",
 				RedirectURIs: []string{redirectURL},
 			}
-			err = s.storage.CreateClient(client)
+			err = s.storage.CreateClient(ctx, client)
 			require.NoError(t, err)
 
 			oauth2Client.config = &oauth2.Config{
@@ -232,6 +232,7 @@ func TestHandleAuthCode(t *testing.T) {
 }
 
 func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
+	ctx := context.Background()
 	c := storage.Client{
 		ID:           "test",
 		Secret:       "barfoo",
@@ -240,7 +241,7 @@ func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
 		LogoURL:      "https://goo.gl/JIyzIC",
 	}
 
-	err := s.CreateClient(c)
+	err := s.CreateClient(ctx, c)
 	require.NoError(t, err)
 
 	c1 := storage.Connector{
@@ -253,7 +254,7 @@ func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
 }`),
 	}
 
-	err = s.CreateConnector(c1)
+	err = s.CreateConnector(ctx, c1)
 	require.NoError(t, err)
 
 	c2 := storage.Connector{
@@ -262,7 +263,7 @@ func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
 		Name: "mockURLID",
 	}
 
-	err = s.CreateConnector(c2)
+	err = s.CreateConnector(ctx, c2)
 	require.NoError(t, err)
 }
 
@@ -408,13 +409,13 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 			ResourceVersion: "1",
 			Config:          []byte("{\"username\": \"foo\", \"password\": \"password\"}"),
 		}
-		if err := s.storage.CreateConnector(sc); err != nil {
+		if err := s.storage.CreateConnector(ctx, sc); err != nil {
 			t.Fatalf("create connector: %v", err)
 		}
 		if _, err := s.OpenConnector(sc); err != nil {
 			t.Fatalf("open connector: %v", err)
 		}
-		if err := s.storage.CreateAuthRequest(tc.authReq); err != nil {
+		if err := s.storage.CreateAuthRequest(ctx, tc.authReq); err != nil {
 			t.Fatalf("failed to create AuthRequest: %v", err)
 		}
 
@@ -510,7 +511,7 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 		})
 		defer httpServer.Close()
 
-		if err := s.storage.CreateAuthRequest(tc.authReq); err != nil {
+		if err := s.storage.CreateAuthRequest(ctx, tc.authReq); err != nil {
 			t.Fatalf("failed to create AuthRequest: %v", err)
 		}
 		rr := httptest.NewRecorder()
