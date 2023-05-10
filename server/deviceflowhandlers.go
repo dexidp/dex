@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -59,7 +58,7 @@ func (s *Server) handleDeviceExchange(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx := r.Context()
 	pollIntervalSeconds := 5
 
 	switch r.Method {
@@ -282,7 +281,7 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx := r.Context()
 	switch r.Method {
 	case http.MethodGet:
 		userCode := r.FormValue("state")
