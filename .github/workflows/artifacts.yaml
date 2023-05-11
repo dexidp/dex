@@ -8,6 +8,11 @@ on:
         default: false
         required: false
         type: boolean
+    secrets:
+      DOCKER_USERNAME:
+        required: true
+      DOCKER_PASSWORD:
+        required: true
     outputs:
       container-image-name:
         description: Container image name
