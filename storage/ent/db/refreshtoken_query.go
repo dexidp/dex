@@ -18,7 +18,7 @@ import (
 type RefreshTokenQuery struct {
 	config
 	ctx        *QueryContext
-	order      []OrderFunc
+	order      []refreshtoken.OrderOption
 	inters     []Interceptor
 	predicates []predicate.RefreshToken
 	// intermediate query (i.e. traversal path).
@@ -52,7 +52,7 @@ func (rtq *RefreshTokenQuery) Unique(unique bool) *RefreshTokenQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (rtq *RefreshTokenQuery) Order(o ...OrderFunc) *RefreshTokenQuery {
+func (rtq *RefreshTokenQuery) Order(o ...refreshtoken.OrderOption) *RefreshTokenQuery {
 	rtq.order = append(rtq.order, o...)
 	return rtq
 }
@@ -246,7 +246,7 @@ func (rtq *RefreshTokenQuery) Clone() *RefreshTokenQuery {
 	return &RefreshTokenQuery{
 		config:     rtq.config,
 		ctx:        rtq.ctx.Clone(),
-		order:      append([]OrderFunc{}, rtq.order...),
+		order:      append([]refreshtoken.OrderOption{}, rtq.order...),
 		inters:     append([]Interceptor{}, rtq.inters...),
 		predicates: append([]predicate.RefreshToken{}, rtq.predicates...),
 		// clone intermediate query.

@@ -84,7 +84,7 @@ func (dru *DeviceRequestUpdate) Mutation() *DeviceRequestMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (dru *DeviceRequestUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks[int, DeviceRequestMutation](ctx, dru.sqlSave, dru.mutation, dru.hooks)
+	return withHooks(ctx, dru.sqlSave, dru.mutation, dru.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -260,7 +260,7 @@ func (druo *DeviceRequestUpdateOne) Select(field string, fields ...string) *Devi
 
 // Save executes the query and returns the updated DeviceRequest entity.
 func (druo *DeviceRequestUpdateOne) Save(ctx context.Context) (*DeviceRequest, error) {
-	return withHooks[*DeviceRequest, DeviceRequestMutation](ctx, druo.sqlSave, druo.mutation, druo.hooks)
+	return withHooks(ctx, druo.sqlSave, druo.mutation, druo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.

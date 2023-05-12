@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/devicerequest"
 )
@@ -28,7 +29,8 @@ type DeviceRequest struct {
 	// Scopes holds the value of the "scopes" field.
 	Scopes []string `json:"scopes,omitempty"`
 	// Expiry holds the value of the "expiry" field.
-	Expiry time.Time `json:"expiry,omitempty"`
+	Expiry       time.Time `json:"expiry,omitempty"`
+	selectValues sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -45,7 +47,7 @@ func (*DeviceRequest) scanValues(columns []string) ([]any, error) {
 		case devicerequest.FieldExpiry:
 			values[i] = new(sql.NullTime)
 		default:
-			return nil, fmt.Errorf("unexpected column %q for type DeviceRequest", columns[i])
+			values[i] = new(sql.UnknownType)
 		}
 	}
 	return values, nil
@@ -103,9 +105,17 @@ func (dr *DeviceRequest) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				dr.Expiry = value.Time
 			}
+		default:
+			dr.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
+}
+
+// Value returns the ent.Value that was dynamically selected and assigned to the DeviceRequest.
+// This includes values selected through modifiers, order, etc.
+func (dr *DeviceRequest) Value(name string) (ent.Value, error) {
+	return dr.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this DeviceRequest.
