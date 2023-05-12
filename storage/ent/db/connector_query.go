@@ -18,7 +18,7 @@ import (
 type ConnectorQuery struct {
 	config
 	ctx        *QueryContext
-	order      []OrderFunc
+	order      []connector.OrderOption
 	inters     []Interceptor
 	predicates []predicate.Connector
 	// intermediate query (i.e. traversal path).
@@ -52,7 +52,7 @@ func (cq *ConnectorQuery) Unique(unique bool) *ConnectorQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (cq *ConnectorQuery) Order(o ...OrderFunc) *ConnectorQuery {
+func (cq *ConnectorQuery) Order(o ...connector.OrderOption) *ConnectorQuery {
 	cq.order = append(cq.order, o...)
 	return cq
 }
@@ -246,7 +246,7 @@ func (cq *ConnectorQuery) Clone() *ConnectorQuery {
 	return &ConnectorQuery{
 		config:     cq.config,
 		ctx:        cq.ctx.Clone(),
-		order:      append([]OrderFunc{}, cq.order...),
+		order:      append([]connector.OrderOption{}, cq.order...),
 		inters:     append([]Interceptor{}, cq.inters...),
 		predicates: append([]predicate.Connector{}, cq.predicates...),
 		// clone intermediate query.

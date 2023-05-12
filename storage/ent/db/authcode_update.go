@@ -180,7 +180,7 @@ func (acu *AuthCodeUpdate) Mutation() *AuthCodeMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (acu *AuthCodeUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks[int, AuthCodeMutation](ctx, acu.sqlSave, acu.mutation, acu.hooks)
+	return withHooks(ctx, acu.sqlSave, acu.mutation, acu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -505,7 +505,7 @@ func (acuo *AuthCodeUpdateOne) Select(field string, fields ...string) *AuthCodeU
 
 // Save executes the query and returns the updated AuthCode entity.
 func (acuo *AuthCodeUpdateOne) Save(ctx context.Context) (*AuthCode, error) {
-	return withHooks[*AuthCode, AuthCodeMutation](ctx, acuo.sqlSave, acuo.mutation, acuo.hooks)
+	return withHooks(ctx, acuo.sqlSave, acuo.mutation, acuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
