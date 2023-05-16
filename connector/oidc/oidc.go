@@ -35,11 +35,12 @@ type Config struct {
 
 	Scopes []string `json:"scopes"` // defaults to "profile" and "email"
 
-	// Previously it was an optional list of whitelisted domains when using Google.
-	// Only users from a listed domain will be allowed to log in.
-	// Now this option does nothing. To work with Google, users should migrate to using the Google connector.
+	// HostedDomains was an optional list of whitelisted domains when using the OIDC connector with Google.
+	// Only users from a whitelisted domain were allowed to log in.
+	// Support for this option was removed from the OIDC connector.
+	// Consider switching to the Google connector which supports this option.
 	//
-	// Deprecated: will be removed in feature releases.
+	// Deprecated: will be removed in future releases.
 	HostedDomains []string `json:"hostedDomains"`
 
 	// Certificates for SSL validation
@@ -120,7 +121,7 @@ func knownBrokenAuthHeaderProvider(issuerURL string) bool {
 // OpenID Connect provider.
 func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
 	if len(c.HostedDomains) > 0 {
-		return nil, fmt.Errorf("hostedDomains option does not work anymore, consider switching to the Google connector")
+		return nil, fmt.Errorf("support for the Hosted domains option had been deprecated and removed, consider switching to the Google connector")
 	}
 
 	httpClient, err := httpclient.NewHTTPClient(c.RootCAs, c.InsecureSkipVerify)
