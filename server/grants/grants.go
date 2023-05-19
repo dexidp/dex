@@ -161,6 +161,9 @@ type Handler struct {
 	Sessions            *session.Manager
 	SessionsEnabled     bool
 	SupportedGrantTypes []string
+	// AllowedScopePrefixes lists additional scope prefixes accepted as recognized
+	// beyond the fixed set and cross-client audience scopes.
+	AllowedScopePrefixes []string
 
 	grants map[string]Grant
 }
@@ -284,6 +287,10 @@ func (h *Handler) validateScopes(ctx context.Context, client storage.Client, req
 			return &oauth2.Error{Type: p.ErrorType, Description: msg, Status: http.StatusBadRequest}
 		}
 		if p.Standard[scope] {
+			continue
+		}
+
+		if tokens.HasAllowedScopePrefix(h.AllowedScopePrefixes, scope) {
 			continue
 		}
 
