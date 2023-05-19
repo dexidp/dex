@@ -245,6 +245,8 @@ type OAuth2 struct {
 	PasswordConnector string `json:"passwordConnector"`
 	// PKCE configuration
 	PKCE PKCE `json:"pkce"`
+	// List of additional scope prefixes to allow
+	AllowedScopePrefixes []string `json:"allowedScopePrefixes"`
 }
 
 // PKCE holds the PKCE (Proof Key for Code Exchange) configuration.

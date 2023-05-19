@@ -297,6 +297,9 @@ func runServe(options serveOptions) error {
 	if featureflags.ContinueOnConnectorFailure.Enabled() {
 		logger.Info("continue on connector failure feature flag enabled")
 	}
+	if len(c.OAuth2.AllowedScopePrefixes) > 0 {
+		logger.Info("config allowed scope prefixes", "prefixes", strings.Join(c.OAuth2.AllowedScopePrefixes, ","))
+	}
 
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
