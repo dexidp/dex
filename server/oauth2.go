@@ -296,8 +296,8 @@ type federatedIDClaims struct {
 	UserID      string `json:"user_id,omitempty"`
 }
 
-func (s *Server) newAccessToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, connID string, authTime time.Time) (accessToken string, expiry time.Time, err error) {
-	return s.newIDToken(ctx, clientID, claims, scopes, nonce, storage.NewID(), "", connID, authTime)
+func (s *Server) newAccessToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, connID string, authTime time.Time, connectorData []byte) (accessToken string, expiry time.Time, err error) {
+	return s.newIDToken(ctx, clientID, claims, scopes, nonce, storage.NewID(), "", connID, authTime, connectorData)
 }
 
 func getClientID(aud audience, azp string) (string, error) {
@@ -343,7 +343,7 @@ func genSubject(userID string, connID string) (string, error) {
 	return internal.Marshal(sub)
 }
 
-func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string, authTime time.Time) (idToken string, expiry time.Time, err error) {
+func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string, authTime time.Time, connectorData []byte) (idToken string, expiry time.Time, err error) {
 	issuedAt := s.now()
 	expiry = issuedAt.Add(s.idTokensValidFor)
 
@@ -434,6 +434,21 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 	payload, err := json.Marshal(tok)
 	if err != nil {
 		return "", expiry, fmt.Errorf("could not serialize claims: %v", err)
+	}
+
+	// Allow connectors to extend the payload with additional claims
+	if connID != "" && connectorData != nil {
+		conn, err := s.getConnector(ctx, connID)
+		if err == nil && conn.Connector != nil {
+			if c, ok := conn.Connector.(connector.PayloadExtender); ok {
+				extendedPayload, err := c.ExtendPayload(scopes, payload, connectorData)
+				if err != nil {
+					s.logger.WarnContext(ctx, "failed to enhance payload", "err", err)
+				} else {
+					payload = extendedPayload
+				}
+			}
+		}
 	}
 
 	if idToken, err = s.signer.Sign(ctx, payload); err != nil {

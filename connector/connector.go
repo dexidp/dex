@@ -136,3 +136,7 @@ type LogoutCallbackConnector interface {
 	// return nil.
 	HandleLogoutCallback(ctx context.Context, r *http.Request) error
 }
+
+type PayloadExtender interface {
+	ExtendPayload(scopes []string, payload []byte, connectorData []byte) ([]byte, error)
+}

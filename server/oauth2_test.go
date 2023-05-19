@@ -1068,6 +1068,7 @@ func TestNewIDTokenUsesStoredAlgorithmUntilNextRotation(t *testing.T) {
 		code,
 		"test",
 		time.Time{},
+		nil,
 	)
 	require.NoError(t, err)
 
@@ -1163,10 +1164,10 @@ func TestNewIDTokenContainsJTI(t *testing.T) {
 		return claims.JTI
 	}
 
-	token1, _, err := s.newIDToken(ctx, "client", storage.Claims{UserID: "1", Username: "alice"}, []string{"openid"}, "n1", "", "", "mock", time.Time{})
+	token1, _, err := s.newIDToken(ctx, "client", storage.Claims{UserID: "1", Username: "alice"}, []string{"openid"}, "n1", "", "", "mock", time.Time{}, nil)
 	require.NoError(t, err)
 
-	token2, _, err := s.newIDToken(ctx, "client", storage.Claims{UserID: "1", Username: "alice"}, []string{"openid"}, "n2", "", "", "mock", time.Time{})
+	token2, _, err := s.newIDToken(ctx, "client", storage.Claims{UserID: "1", Username: "alice"}, []string{"openid"}, "n2", "", "", "mock", time.Time{}, nil)
 	require.NoError(t, err)
 
 	jti1 := extractJTI(t, token1)
