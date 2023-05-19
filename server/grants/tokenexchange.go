@@ -76,10 +76,11 @@ func (g *tokenExchange) Authorize(ctx context.Context, req *Request, client stor
 		"subject_token_type", req.SubjectTokenType, "requested_token_type", reqType)
 
 	auth := tokens.Authorization{
-		Client:      client,
-		Claims:      tokens.ClaimsFromIdentity(identity),
-		Scopes:      req.Scopes,
-		ConnectorID: req.ConnectorID,
+		Client:        client,
+		Claims:        tokens.ClaimsFromIdentity(identity),
+		Scopes:        req.Scopes,
+		ConnectorID:   req.ConnectorID,
+		ConnectorData: identity.ConnectorData,
 	}
 
 	// RFC 8693 returns a single requested token plus issued_token_type, not the
