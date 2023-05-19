@@ -303,8 +303,8 @@ type federatedIDClaims struct {
 	UserID      string `json:"user_id,omitempty"`
 }
 
-func (s *Server) newAccessToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, connID string) (accessToken string, expiry time.Time, err error) {
-	return s.newIDToken(ctx, clientID, claims, scopes, nonce, storage.NewID(), "", connID)
+func (s *Server) newAccessToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, connID string, connectorData []byte) (accessToken string, expiry time.Time, err error) {
+	return s.newIDToken(ctx, clientID, claims, scopes, nonce, storage.NewID(), "", connID, connectorData)
 }
 
 func getClientID(aud audience, azp string) (string, error) {
@@ -350,10 +350,17 @@ func genSubject(userID string, connID string) (string, error) {
 	return internal.Marshal(sub)
 }
 
-func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string) (idToken string, expiry time.Time, err error) {
+
+func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string, connectorData []byte) (idToken string, expiry time.Time, err error) {
 	keys, err := s.storage.GetKeys()
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to get keys", "err", err)
+		return "", expiry, err
+	}
+
+	conn, err := s.getConnector(connID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get connector", "connector", connID, "err", err)
 		return "", expiry, err
 	}
 
@@ -443,6 +450,17 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 	payload, err := json.Marshal(tok)
 	if err != nil {
 		return "", expiry, fmt.Errorf("could not serialize claims: %v", err)
+	}
+
+	switch c := conn.Connector.(type) {
+	case connector.PayloadExtender:
+		extendedPayload, err := c.ExtendPayload(scopes, payload, connectorData)
+		if err != nil {
+			s.logger.WarnContext(ctx, "failed to enhance payload", "err", err)
+			break
+		}
+		payload = extendedPayload
+	default:
 	}
 
 	if idToken, err = signPayload(signingKey, signingAlg, payload); err != nil {

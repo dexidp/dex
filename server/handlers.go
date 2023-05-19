@@ -721,14 +721,14 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			implicitOrHybrid = true
 			var err error
 
-			accessToken, _, err = s.newAccessToken(r.Context(), authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, authReq.ConnectorID)
+			accessToken, _, err = s.newAccessToken(r.Context(), authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, authReq.ConnectorID, authReq.ConnectorData)
 			if err != nil {
 				s.logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 				return
 			}
 
-			idToken, idTokenExpiry, err = s.newIDToken(r.Context(), authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, accessToken, code.ID, authReq.ConnectorID)
+			idToken, idTokenExpiry, err = s.newIDToken(r.Context(), authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, accessToken, code.ID, authReq.ConnectorID, authReq.ConnectorData)
 			if err != nil {
 				s.logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -936,14 +936,14 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 }
 
 func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, authCode storage.AuthCode, client storage.Client) (*accessTokenResponse, error) {
-	accessToken, _, err := s.newAccessToken(ctx, client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID)
+	accessToken, _, err := s.newAccessToken(ctx, client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID, authCode.ConnectorData)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to create new access token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return nil, err
 	}
 
-	idToken, expiry, err := s.newIDToken(ctx, client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, accessToken, authCode.ID, authCode.ConnectorID)
+	idToken, expiry, err := s.newIDToken(ctx, client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, accessToken, authCode.ID, authCode.ConnectorID, authCode.ConnectorData)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to create ID token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1201,14 +1201,14 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		Groups:            identity.Groups,
 	}
 
-	accessToken, _, err := s.newAccessToken(r.Context(), client.ID, claims, scopes, nonce, connID)
+	accessToken, _, err := s.newAccessToken(r.Context(), client.ID, claims, scopes, nonce, connID, identity.ConnectorData)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "password grant failed to create new access token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return
 	}
 
-	idToken, expiry, err := s.newIDToken(r.Context(), client.ID, claims, scopes, nonce, accessToken, "", connID)
+	idToken, expiry, err := s.newIDToken(r.Context(), client.ID, claims, scopes, nonce, accessToken, "", connID, identity.ConnectorData)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "password grant failed to create new ID token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1405,9 +1405,9 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 	var expiry time.Time
 	switch requestedTokenType {
 	case tokenTypeID:
-		resp.AccessToken, expiry, err = s.newIDToken(r.Context(), client.ID, claims, scopes, "", "", "", connID)
+		resp.AccessToken, expiry, err = s.newIDToken(r.Context(), client.ID, claims, scopes, "", "", "", connID, identity.ConnectorData)
 	case tokenTypeAccess:
-		resp.AccessToken, expiry, err = s.newAccessToken(r.Context(), client.ID, claims, scopes, "", connID)
+		resp.AccessToken, expiry, err = s.newAccessToken(r.Context(), client.ID, claims, scopes, "", connID, identity.ConnectorData)
 	default:
 		s.tokenErrHelper(w, errRequestNotSupported, "Invalid requested_token_type.", http.StatusBadRequest)
 		return
