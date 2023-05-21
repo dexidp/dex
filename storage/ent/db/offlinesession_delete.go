@@ -27,7 +27,7 @@ func (osd *OfflineSessionDelete) Where(ps ...predicate.OfflineSession) *OfflineS
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (osd *OfflineSessionDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks[int, OfflineSessionMutation](ctx, osd.sqlExec, osd.mutation, osd.hooks)
+	return withHooks(ctx, osd.sqlExec, osd.mutation, osd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.

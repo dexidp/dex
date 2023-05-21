@@ -63,7 +63,7 @@ func (drc *DeviceRequestCreate) Mutation() *DeviceRequestMutation {
 
 // Save creates the DeviceRequest in the database.
 func (drc *DeviceRequestCreate) Save(ctx context.Context) (*DeviceRequest, error) {
-	return withHooks[*DeviceRequest, DeviceRequestMutation](ctx, drc.sqlSave, drc.mutation, drc.hooks)
+	return withHooks(ctx, drc.sqlSave, drc.mutation, drc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -201,8 +201,8 @@ func (drcb *DeviceRequestCreateBulk) Save(ctx context.Context) ([]*DeviceRequest
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, drcb.builders[i+1].mutation)
 				} else {

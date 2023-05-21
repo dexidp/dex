@@ -27,7 +27,7 @@ func (ard *AuthRequestDelete) Where(ps ...predicate.AuthRequest) *AuthRequestDel
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (ard *AuthRequestDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks[int, AuthRequestMutation](ctx, ard.sqlExec, ard.mutation, ard.hooks)
+	return withHooks(ctx, ard.sqlExec, ard.mutation, ard.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.

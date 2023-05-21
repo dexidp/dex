@@ -18,7 +18,7 @@ import (
 type PasswordQuery struct {
 	config
 	ctx        *QueryContext
-	order      []OrderFunc
+	order      []password.OrderOption
 	inters     []Interceptor
 	predicates []predicate.Password
 	// intermediate query (i.e. traversal path).
@@ -52,7 +52,7 @@ func (pq *PasswordQuery) Unique(unique bool) *PasswordQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (pq *PasswordQuery) Order(o ...OrderFunc) *PasswordQuery {
+func (pq *PasswordQuery) Order(o ...password.OrderOption) *PasswordQuery {
 	pq.order = append(pq.order, o...)
 	return pq
 }
@@ -246,7 +246,7 @@ func (pq *PasswordQuery) Clone() *PasswordQuery {
 	return &PasswordQuery{
 		config:     pq.config,
 		ctx:        pq.ctx.Clone(),
-		order:      append([]OrderFunc{}, pq.order...),
+		order:      append([]password.OrderOption{}, pq.order...),
 		inters:     append([]Interceptor{}, pq.inters...),
 		predicates: append([]predicate.Password{}, pq.predicates...),
 		// clone intermediate query.

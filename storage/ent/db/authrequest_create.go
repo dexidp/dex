@@ -178,7 +178,7 @@ func (arc *AuthRequestCreate) Mutation() *AuthRequestMutation {
 // Save creates the AuthRequest in the database.
 func (arc *AuthRequestCreate) Save(ctx context.Context) (*AuthRequest, error) {
 	arc.defaults()
-	return withHooks[*AuthRequest, AuthRequestMutation](ctx, arc.sqlSave, arc.mutation, arc.hooks)
+	return withHooks(ctx, arc.sqlSave, arc.mutation, arc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -416,8 +416,8 @@ func (arcb *AuthRequestCreateBulk) Save(ctx context.Context) ([]*AuthRequest, er
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, arcb.builders[i+1].mutation)
 				} else {

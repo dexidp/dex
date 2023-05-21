@@ -68,7 +68,7 @@ func (oc *OAuth2ClientCreate) Mutation() *OAuth2ClientMutation {
 
 // Save creates the OAuth2Client in the database.
 func (oc *OAuth2ClientCreate) Save(ctx context.Context) (*OAuth2Client, error) {
-	return withHooks[*OAuth2Client, OAuth2ClientMutation](ctx, oc.sqlSave, oc.mutation, oc.hooks)
+	return withHooks(ctx, oc.sqlSave, oc.mutation, oc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -212,8 +212,8 @@ func (ocb *OAuth2ClientCreateBulk) Save(ctx context.Context) ([]*OAuth2Client, e
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, ocb.builders[i+1].mutation)
 				} else {

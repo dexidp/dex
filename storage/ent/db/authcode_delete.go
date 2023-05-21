@@ -27,7 +27,7 @@ func (acd *AuthCodeDelete) Where(ps ...predicate.AuthCode) *AuthCodeDelete {
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (acd *AuthCodeDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks[int, AuthCodeMutation](ctx, acd.sqlExec, acd.mutation, acd.hooks)
+	return withHooks(ctx, acd.sqlExec, acd.mutation, acd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.

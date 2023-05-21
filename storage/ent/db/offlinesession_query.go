@@ -18,7 +18,7 @@ import (
 type OfflineSessionQuery struct {
 	config
 	ctx        *QueryContext
-	order      []OrderFunc
+	order      []offlinesession.OrderOption
 	inters     []Interceptor
 	predicates []predicate.OfflineSession
 	// intermediate query (i.e. traversal path).
@@ -52,7 +52,7 @@ func (osq *OfflineSessionQuery) Unique(unique bool) *OfflineSessionQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (osq *OfflineSessionQuery) Order(o ...OrderFunc) *OfflineSessionQuery {
+func (osq *OfflineSessionQuery) Order(o ...offlinesession.OrderOption) *OfflineSessionQuery {
 	osq.order = append(osq.order, o...)
 	return osq
 }
@@ -246,7 +246,7 @@ func (osq *OfflineSessionQuery) Clone() *OfflineSessionQuery {
 	return &OfflineSessionQuery{
 		config:     osq.config,
 		ctx:        osq.ctx.Clone(),
-		order:      append([]OrderFunc{}, osq.order...),
+		order:      append([]offlinesession.OrderOption{}, osq.order...),
 		inters:     append([]Interceptor{}, osq.inters...),
 		predicates: append([]predicate.OfflineSession{}, osq.predicates...),
 		// clone intermediate query.
