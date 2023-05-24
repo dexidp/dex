@@ -62,7 +62,7 @@ type Config struct {
 
 // Open returns a connector which can be used to login users through Google.
 func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
-	if len(c.AdminEmail) != 0 {
+	if c.AdminEmail != "" {
 		log.Deprecated(logger, `google: use "domainToAdminEmail.*: %s" option instead of "adminEmail: %s".`, c.AdminEmail, c.AdminEmail)
 		if c.DomainToAdminEmail == nil {
 			c.DomainToAdminEmail = make(map[string]string)
@@ -91,11 +91,11 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 	// TODO: or is it?
 	if len(c.DomainToAdminEmail) == 0 && c.ServiceAccountFilePath != "" {
 		cancel()
-		return nil, fmt.Errorf("directory service requires adminEmail")
+		return nil, fmt.Errorf("directory service requires the domainToAdminEmail option to be configured")
 	}
 
 	// Fixing a regression caused by default config fallback: https://github.com/dexidp/dex/issues/2699
-	if (c.ServiceAccountFilePath != "" && len(c.DomainToAdminEmail) != 0) || slices.Contains(scopes, "groups") {
+	if (c.ServiceAccountFilePath != "" && len(c.DomainToAdminEmail) > 0) || slices.Contains(scopes, "groups") {
 		for domain, adminEmail := range c.DomainToAdminEmail {
 			srv, err := createDirectoryService(c.ServiceAccountFilePath, adminEmail, logger)
 			if err != nil {
@@ -248,7 +248,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	}
 
 	var groups []string
-	if s.Groups && len(c.adminSrv) != 0 {
+	if s.Groups && len(c.adminSrv) > 0 {
 		checkedGroups := make(map[string]struct{})
 		groups, err = c.getGroups(claims.Email, c.fetchTransitiveGroupMembership, checkedGroups)
 		if err != nil {
