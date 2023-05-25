@@ -295,7 +295,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	for _, conn := range storageConnectors {
 		if _, err := s.OpenConnector(conn); err != nil {
-			return nil, fmt.Errorf("server: Failed to open connector %s: %v", conn.ID, err)
+			s.logger.Errorf("server: Failed to open connector %s: %v", conn.ID, err)
 		}
 	}
 
