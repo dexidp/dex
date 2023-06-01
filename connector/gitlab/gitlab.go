@@ -85,6 +85,7 @@ type gitlabConnector struct {
 	// if set to true will use the user's handle rather than their numeric id as the ID
 	useLoginAsID bool
 
+	// if set to true permissions will be added to list of groups
 	getGroupsPermission bool
 }
 
@@ -307,35 +308,41 @@ func (c *gitlabConnector) setGroupsPermission(u userInfo) []string {
 
 L1:
 	for _, g := range groups {
-		if len(u.OwnerPermission) > 0 {
-			for _, op := range u.OwnerPermission {
-				if len(g) >= len(op) {
-					if g[0:len(op)] == op {
-						groups = append(groups, fmt.Sprintf("%s:owner", g))
-						continue L1
-					}
+		for _, op := range u.OwnerPermission {
+			if g == op {
+				groups = append(groups, fmt.Sprintf("%s:owner", g))
+				continue L1
+			}
+			if len(g) > len(op) {
+				if g[0:len(op)] == op && string(g[len(op)]) == "/" {
+					groups = append(groups, fmt.Sprintf("%s:owner", g))
+					continue L1
 				}
 			}
 		}
 
-		if len(u.MaintainerPermission) > 0 {
-			for _, mp := range u.MaintainerPermission {
-				if len(g) >= len(mp) {
-					if g[0:len(mp)] == mp {
-						groups = append(groups, fmt.Sprintf("%s:maintainer", g))
-						continue L1
-					}
+		for _, mp := range u.MaintainerPermission {
+			if g == mp {
+				groups = append(groups, fmt.Sprintf("%s:maintainer", g))
+				continue L1
+			}
+			if len(g) > len(mp) {
+				if g[0:len(mp)] == mp && string(g[len(mp)]) == "/" {
+					groups = append(groups, fmt.Sprintf("%s:maintainer", g))
+					continue L1
 				}
 			}
 		}
 
-		if len(u.DeveloperPermission) > 0 {
-			for _, dp := range u.DeveloperPermission {
-				if len(g) >= len(dp) {
-					if g[0:len(dp)] == dp {
-						groups = append(groups, fmt.Sprintf("%s:developer", g))
-						continue L1
-					}
+		for _, dp := range u.DeveloperPermission {
+			if g == dp {
+				groups = append(groups, fmt.Sprintf("%s:developer", g))
+				continue L1
+			}
+			if len(g) > len(dp) {
+				if g[0:len(dp)] == dp && string(g[len(dp)]) == "/" {
+					groups = append(groups, fmt.Sprintf("%s:developer", g))
+					continue L1
 				}
 			}
 		}
