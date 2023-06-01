@@ -7,8 +7,8 @@ require (
 	github.com/AppsFlyer/go-sundheit v0.5.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig/v3 v3.2.3
-	github.com/beevik/etree v1.1.4
-	github.com/coreos/go-oidc/v3 v3.5.0
+	github.com/beevik/etree v1.2.0
+	github.com/coreos/go-oidc/v3 v3.6.0
 	github.com/dexidp/dex/api/v2 v2.1.0
 	github.com/felixge/httpsnoop v1.0.3
 	github.com/ghodss/yaml v1.0.0
@@ -27,14 +27,14 @@ require (
 	github.com/russellhaering/goxmldsig v1.4.0
 	github.com/sirupsen/logrus v1.9.2
 	github.com/spf13/cobra v1.7.0
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.8.3
 	go.etcd.io/etcd/client/pkg/v3 v3.5.9
 	go.etcd.io/etcd/client/v3 v3.5.9
-	golang.org/x/crypto v0.8.0
+	golang.org/x/crypto v0.9.0
 	golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
 	golang.org/x/net v0.10.0
 	golang.org/x/oauth2 v0.8.0
-	google.golang.org/api v0.122.0
+	google.golang.org/api v0.124.0
 	google.golang.org/grpc v1.55.0
 	google.golang.org/protobuf v1.30.0
 	gopkg.in/square/go-jose.v2 v2.6.0
@@ -61,7 +61,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
-	github.com/google/s2a-go v0.1.3 // indirect
+	github.com/google/s2a-go v0.1.4 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
 	github.com/googleapis/gax-go/v2 v2.8.0 // indirect
