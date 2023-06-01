@@ -132,14 +132,15 @@ testrace: ## Test go code and check for possible race conditions.
 testall: testrace ## Run all tests for go code.
 
 .PHONY: lint lint-fix
-lint: ## Run linter.
-	@golangci-lint version
-	@golangci-lint run
+lint: bin/golangci-lint ## Run linter.
+	@which golangci-lint
+	@$< version
+	@$< run
 
 .PHONY: fix
-fix: ## Fix lint violations.
-	@golangci-lint version
-	@golangci-lint run --fix
+fix: bin/golangci-lint ## Fix lint violations.
+	@$< version
+	@$< run --fix
 
 docker-compose.override.yaml:
 	cp docker-compose.override.yaml.dist docker-compose.override.yaml
