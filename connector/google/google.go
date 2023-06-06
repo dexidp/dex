@@ -14,6 +14,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	admin "google.golang.org/api/admin/directory/v1"
+	"google.golang.org/api/impersonate"
 	"google.golang.org/api/option"
 
 	"github.com/dexidp/dex/connector"
@@ -51,6 +52,13 @@ type Config struct {
 	// when listing groups
 	AdminEmail string
 
+	// Required if AdminEmail is set and performing authentication without a service
+	// account key. Should be set to the email of a service account that has permissions
+	// to impersonate AdminEmail. The service account dex is running under must be
+	// granted iam.serviceAccounts.signJwt on the specified service account (included in
+	// roles/iam.serviceAccountTokenCreator).
+	ImpersonatePrincipal string `json:"impersonatePrincipal"`
+
 	// If this field is true, fetch direct group membership and transitive group membership
 	FetchTransitiveGroupMembership bool `json:"fetchTransitiveGroupMembership"`
 }
@@ -76,13 +84,18 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 
 	// Fixing a regression caused by default config fallback: https://github.com/dexidp/dex/issues/2699
 	if (c.ServiceAccountFilePath != "" && c.AdminEmail != "") || slices.Contains(scopes, "groups") {
-		srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, logger)
+		srv, err := createDirectoryService(c.ServiceAccountFilePath, c.AdminEmail, c.ImpersonatePrincipal, logger)
 		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("could not create directory service: %v", err)
 		}
 
 		adminSrv = srv
+	}
+
+	// Remove the groups scope because the IdP chokes on it.
+	if i := slices.Index(scopes, "groups"); i != -1 {
+		slices.Delete(scopes, i, i+1)
 	}
 
 	clientID := c.ClientID
@@ -298,39 +311,55 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 // createDirectoryService sets up super user impersonation and creates an admin client for calling
 // the google admin api. If no serviceAccountFilePath is defined, the application default credential
 // is used.
-func createDirectoryService(serviceAccountFilePath, email string, logger log.Logger) (*admin.Service, error) {
-	// We know impersonation is required when using a service account credential
-	// TODO: or is it?
-	if email == "" && serviceAccountFilePath != "" {
-		return nil, fmt.Errorf("directory service requires adminEmail")
-	}
+func createDirectoryService(serviceAccountFilePath, adminEmail, impersonatePrincipal string, logger log.Logger) (*admin.Service, error) {
+	// NOTE(torfjor): impersonation is not required if the service account in question is granted
+	// a group administrator role, see https://cloud.google.com/identity/docs/how-to/setup#auth-no-dwd
 
-	var jsonCredentials []byte
-	var err error
-
+	// We have four usecases we want to support:
+	// 1. ADC (GKE, GCE, others...), service account has group admin, no impersonation
+	// 2. ADC (GKE, GCE, others...), service account must impersonate group admin through domain-wide delegation
+	// 3. Service account key (including workload identity federation), service account has group admin, no impersonation
+	// 4. Service account key (including workload identity federation), service account must impersonate group admin through domain-wide delegation
 	ctx := context.Background()
-	if serviceAccountFilePath == "" {
-		logger.Warn("the application default credential is used since the service account file path is not used")
-		credential, err := google.FindDefaultCredentials(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch application default credentials: %w", err)
-		}
-		jsonCredentials = credential.JSON
-	} else {
-		jsonCredentials, err = os.ReadFile(serviceAccountFilePath)
+
+	if serviceAccountFilePath != "" {
+		jsonCredentials, err := os.ReadFile(serviceAccountFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("error reading credentials from file: %v", err)
 		}
+
+		config, err := google.JWTConfigFromJSON(jsonCredentials, admin.AdminDirectoryGroupReadonlyScope)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
+		}
+		config.Subject = adminEmail
+
+		return admin.NewService(ctx, option.WithTokenSource(config.TokenSource(ctx)))
 	}
-	config, err := google.JWTConfigFromJSON(jsonCredentials, admin.AdminDirectoryGroupReadonlyScope)
+
+	logger.Warn("the application default credential is used since the service account file path is not used")
+	creds, err := google.FindDefaultCredentials(ctx, admin.AdminDirectoryGroupReadonlyScope)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
+		return nil, fmt.Errorf("failed to fetch application default credentials: %w", err)
 	}
 
-	// Only attempt impersonation when there is a user configured
-	if email != "" {
-		config.Subject = email
+	// No impersonation required.
+	if adminEmail == "" {
+		return admin.NewService(ctx, option.WithTokenSource(creds.TokenSource))
 	}
 
-	return admin.NewService(ctx, option.WithHTTPClient(config.Client(ctx)))
+	if impersonatePrincipal == "" {
+		return nil, fmt.Errorf("cannot perform impersonation with domain-wide delegation: no target principal specified")
+	}
+
+	its, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
+		TargetPrincipal: impersonatePrincipal,
+		Scopes:          []string{admin.AdminDirectoryGroupReadonlyScope},
+		Subject:         adminEmail,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("impersonate %q: %v", impersonatePrincipal, err)
+	}
+
+	return admin.NewService(ctx, option.WithTokenSource(its))
 }
