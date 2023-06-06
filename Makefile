@@ -100,23 +100,23 @@ bin/protoc-gen-go-grpc:
 ##@ Verify
 
 verify: generate ## Verify that all the code was generated and committed to repository.
-	@./scripts/git-diff
+	@git diff --exit-code
 
 .PHONY: verify-proto
 verify-proto: generate-proto ## Verify that the Dex client's protobuf code was generated.
-	@./scripts/git-diff
+	@git diff --exit-code
 
 .PHONY: verify-proto
 verify-proto-internal: generate-proto-internal ## Verify internal protobuf code for token encoding was generated.
-	@./scripts/git-diff
+	@git diff --exit-code
 
 .PHONY: verify-ent
 verify-ent: generate-ent ## Verify code for database ORM was generated.
-	@./scripts/git-diff
+	@git diff --exit-code
 
 .PHONY: verify-go-mod
 verify-go-mod: go-mod-tidy ## Check that go.mod and go.sum formatted according to the changes.
-	@./scripts/git-diff
+	@git diff --exit-code
 
 ##@ Test and Lint
 
