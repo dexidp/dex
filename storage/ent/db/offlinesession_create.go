@@ -56,7 +56,7 @@ func (osc *OfflineSessionCreate) Mutation() *OfflineSessionMutation {
 
 // Save creates the OfflineSession in the database.
 func (osc *OfflineSessionCreate) Save(ctx context.Context) (*OfflineSession, error) {
-	return withHooks[*OfflineSession, OfflineSessionMutation](ctx, osc.sqlSave, osc.mutation, osc.hooks)
+	return withHooks(ctx, osc.sqlSave, osc.mutation, osc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -184,8 +184,8 @@ func (oscb *OfflineSessionCreateBulk) Save(ctx context.Context) ([]*OfflineSessi
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, oscb.builders[i+1].mutation)
 				} else {

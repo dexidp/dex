@@ -58,7 +58,7 @@ func (cu *ConnectorUpdate) Mutation() *ConnectorMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (cu *ConnectorUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks[int, ConnectorMutation](ctx, cu.sqlSave, cu.mutation, cu.hooks)
+	return withHooks(ctx, cu.sqlSave, cu.mutation, cu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -186,7 +186,7 @@ func (cuo *ConnectorUpdateOne) Select(field string, fields ...string) *Connector
 
 // Save executes the query and returns the updated Connector entity.
 func (cuo *ConnectorUpdateOne) Save(ctx context.Context) (*Connector, error) {
-	return withHooks[*Connector, ConnectorMutation](ctx, cuo.sqlSave, cuo.mutation, cuo.hooks)
+	return withHooks(ctx, cuo.sqlSave, cuo.mutation, cuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.

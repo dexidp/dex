@@ -2,6 +2,10 @@
 
 package keys
 
+import (
+	"entgo.io/ent/dialect/sql"
+)
+
 const (
 	// Label holds the string label denoting the keys type in the database.
 	Label = "keys"
@@ -42,3 +46,16 @@ var (
 	// IDValidator is a validator for the "id" field. It is called by the builders before save.
 	IDValidator func(string) error
 )
+
+// OrderOption defines the ordering options for the Keys queries.
+type OrderOption func(*sql.Selector)
+
+// ByID orders the results by the id field.
+func ByID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldID, opts...).ToFunc()
+}
+
+// ByNextRotation orders the results by the next_rotation field.
+func ByNextRotation(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldNextRotation, opts...).ToFunc()
+}

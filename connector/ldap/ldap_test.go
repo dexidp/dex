@@ -277,7 +277,7 @@ func TestGroupFilter(t *testing.T) {
 	c.GroupSearch.BaseDN = "ou=TestGroupFilter,dc=example,dc=org"
 	c.GroupSearch.UserMatchers = []UserMatcher{
 		{
-			UserAttr:  "DN",
+			UserAttr:  "dn",
 			GroupAttr: "member",
 		},
 	}
@@ -523,7 +523,7 @@ func getenv(key, defaultVal string) string {
 
 // runTests runs a set of tests against an LDAP schema.
 //
-// The tests require LDAP to be runnning.
+// The tests require LDAP to be running.
 // You can use the provided docker-compose file to setup an LDAP server.
 func runTests(t *testing.T, connMethod connectionMethod, config *Config, tests []subtest) {
 	ldapHost := os.Getenv("DEX_LDAP_HOST")

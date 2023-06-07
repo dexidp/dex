@@ -35,10 +35,18 @@ type Config struct {
 
 	Scopes []string `json:"scopes"` // defaults to "profile" and "email"
 
+	// HostedDomains was an optional list of whitelisted domains when using the OIDC connector with Google.
+	// Only users from a whitelisted domain were allowed to log in.
+	// Support for this option was removed from the OIDC connector.
+	// Consider switching to the Google connector which supports this option.
+	//
+	// Deprecated: will be removed in future releases.
+	HostedDomains []string `json:"hostedDomains"`
+
 	// Certificates for SSL validation
 	RootCAs []string `json:"rootCAs"`
 
-	// Override the value of email_verifed to true in the returned claims
+	// Override the value of email_verified to true in the returned claims
 	InsecureSkipEmailVerified bool `json:"insecureSkipEmailVerified"`
 
 	// InsecureEnableGroups enables groups claims. This is disabled by default until https://github.com/dexidp/dex/issues/1065 is resolved
@@ -112,6 +120,10 @@ func knownBrokenAuthHeaderProvider(issuerURL string) bool {
 // Open returns a connector which can be used to login users through an upstream
 // OpenID Connect provider.
 func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
+	if len(c.HostedDomains) > 0 {
+		return nil, fmt.Errorf("support for the Hosted domains option had been deprecated and removed, consider switching to the Google connector")
+	}
+
 	httpClient, err := httpclient.NewHTTPClient(c.RootCAs, c.InsecureSkipVerify)
 	if err != nil {
 		return nil, err

@@ -2,6 +2,10 @@
 
 package offlinesession
 
+import (
+	"entgo.io/ent/dialect/sql"
+)
+
 const (
 	// Label holds the string label denoting the offlinesession type in the database.
 	Label = "offline_session"
@@ -46,3 +50,21 @@ var (
 	// IDValidator is a validator for the "id" field. It is called by the builders before save.
 	IDValidator func(string) error
 )
+
+// OrderOption defines the ordering options for the OfflineSession queries.
+type OrderOption func(*sql.Selector)
+
+// ByID orders the results by the id field.
+func ByID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldID, opts...).ToFunc()
+}
+
+// ByUserID orders the results by the user_id field.
+func ByUserID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUserID, opts...).ToFunc()
+}
+
+// ByConnID orders the results by the conn_id field.
+func ByConnID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldConnID, opts...).ToFunc()
+}

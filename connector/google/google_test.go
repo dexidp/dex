@@ -86,7 +86,7 @@ func TestOpen(t *testing.T) {
 		expectedErr string
 
 		// string to set in GOOGLE_APPLICATION_CREDENTIALS. As local development environments can
-		// already contain ADC, test cases will be built uppon this setting this env variable
+		// already contain ADC, test cases will be built upon this setting this env variable
 		adc string
 	}
 

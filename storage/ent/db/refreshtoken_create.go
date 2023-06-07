@@ -164,7 +164,7 @@ func (rtc *RefreshTokenCreate) Mutation() *RefreshTokenMutation {
 // Save creates the RefreshToken in the database.
 func (rtc *RefreshTokenCreate) Save(ctx context.Context) (*RefreshToken, error) {
 	rtc.defaults()
-	return withHooks[*RefreshToken, RefreshTokenMutation](ctx, rtc.sqlSave, rtc.mutation, rtc.hooks)
+	return withHooks(ctx, rtc.sqlSave, rtc.mutation, rtc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -408,8 +408,8 @@ func (rtcb *RefreshTokenCreateBulk) Save(ctx context.Context) ([]*RefreshToken, 
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, rtcb.builders[i+1].mutation)
 				} else {
