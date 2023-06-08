@@ -289,6 +289,7 @@ func TestHandlePassword(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+
 			// Setup a dex server.
 			httpServer, s := newTestServer(ctx, t, func(c *Config) {
 				c.DefaultPasswordConnector = "test"
