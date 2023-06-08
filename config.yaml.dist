@@ -106,7 +106,8 @@ web:
 #   alwaysShowLoginScreen: false
 #
 #   # Uncomment to use a specific connector for password grants
-#   passwordConnector: local
+#   passwordConnectors: 
+#     - local
 
 # Static clients registered in Dex by default.
 #

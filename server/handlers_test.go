@@ -275,7 +275,7 @@ func TestHandlePassword(t *testing.T) {
 
 	// Setup a dex server.
 	httpServer, s := newTestServer(ctx, t, func(c *Config) {
-		c.PasswordConnector = "test"
+		c.PasswordConnectors = []string{"foobar", "test", "mock"}
 		c.Now = func() time.Time { return t0 }
 	})
 	defer httpServer.Close()
