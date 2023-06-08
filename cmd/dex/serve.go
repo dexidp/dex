@@ -246,8 +246,8 @@ func runServe(options serveOptions) error {
 	if c.OAuth2.SkipApprovalScreen {
 		logger.Infof("config skipping approval screen")
 	}
-	if c.OAuth2.PasswordConnector != "" {
-		logger.Infof("config using password grant connector: %s", c.OAuth2.PasswordConnector)
+	if len(c.OAuth2.PasswordConnectors) > 0 {
+		logger.Infof("config using password grant connectors: %s", c.OAuth2.PasswordConnectors)
 	}
 	if len(c.Web.AllowedOrigins) > 0 {
 		logger.Infof("config allowed origins: %s", c.Web.AllowedOrigins)
@@ -263,7 +263,7 @@ func runServe(options serveOptions) error {
 		SupportedResponseTypes: c.OAuth2.ResponseTypes,
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
-		PasswordConnector:      c.OAuth2.PasswordConnector,
+		PasswordConnectors:     c.OAuth2.PasswordConnectors,
 		AllowedOrigins:         c.Web.AllowedOrigins,
 		Issuer:                 c.Issuer,
 		Storage:                s,

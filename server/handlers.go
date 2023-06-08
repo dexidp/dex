@@ -1149,31 +1149,60 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		return
 	}
 
-	// Which connector
-	connID := s.passwordConnector
-	conn, err := s.getConnector(connID)
-	if err != nil {
-		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
-		return
-	}
-
-	passwordConnector, ok := conn.Connector.(connector.PasswordConnector)
-	if !ok {
-		s.tokenErrHelper(w, errInvalidRequest, "Requested password connector does not correct type.", http.StatusBadRequest)
-		return
-	}
-
-	// Login
+	// Try out every connector in the passwordConnectors list
+	var connID string
+	var identity connector.Identity
+	var conn Connector
+	var err error
+	var httpErrMsg string
+	var statusCode int
+	userLoggedIn := false
 	username := q.Get("username")
 	password := q.Get("password")
-	identity, ok, err := passwordConnector.Login(r.Context(), parseScopes(scopes), username, password)
-	if err != nil {
-		s.logger.Errorf("Failed to login user: %v", err)
-		s.tokenErrHelper(w, errInvalidRequest, "Could not login user", http.StatusBadRequest)
-		return
+	for _, id := range s.passwordConnectors {
+		connID = id
+		s.logger.Infof("Trying to login user with password connector: %v", id)
+
+		// Get the connector
+		conn, err = s.getConnector(id)
+		if err != nil {
+			statusCode = http.StatusBadRequest
+			s.logger.Errorf("Requested connector does not exist.")
+			continue
+		}
+
+		passwordConnector, ok := conn.Connector.(connector.PasswordConnector)
+		if !ok {
+			statusCode = http.StatusBadRequest
+			s.logger.Errorf("Requested password connector does not correct type.")
+			continue
+		}
+
+		// Login
+		identity, ok, err = passwordConnector.Login(r.Context(), parseScopes(scopes), username, password)
+		if err != nil {
+			statusCode = http.StatusBadRequest
+			s.logger.Errorf("Could not login user")
+			continue
+		}
+		if !ok {
+			statusCode = http.StatusUnauthorized
+			httpErrMsg = "Invalid username or password"
+			s.logger.Errorf(httpErrMsg)
+			break
+		} else {
+			s.logger.Infof("User logged in successfully to password connector: %v", connID)
+			userLoggedIn = true
+			break
+		}
 	}
-	if !ok {
-		s.tokenErrHelper(w, errAccessDenied, "Invalid username or password", http.StatusUnauthorized)
+
+	if !userLoggedIn {
+		s.logger.Errorf("Failed to login user to valid password connectors.")
+		if len(httpErrMsg) == 0 {
+			httpErrMsg = "Unable to login user with any password connector."
+		}
+		s.tokenErrHelper(w, errInvalidRequest, httpErrMsg, statusCode)
 		return
 	}
 

@@ -139,8 +139,8 @@ type OAuth2 struct {
 	SkipApprovalScreen bool `json:"skipApprovalScreen"`
 	// If specified, show the connector selection screen even if there's only one
 	AlwaysShowLoginScreen bool `json:"alwaysShowLoginScreen"`
-	// This is the connector that can be used for password grant
-	PasswordConnector string `json:"passwordConnector"`
+	// This is a list of the connectors that can be used for password grant
+	PasswordConnectors []string `json:"passwordConnectors"`
 }
 
 // Web is the config format for the HTTP server.
