@@ -1191,7 +1191,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 			s.logger.Errorf(httpErrMsg)
 			break
 		} else {
-			s.logger.Infof("User logged in successfully to password connector: %v", connID)
+			s.logger.Infof("User '%v' logged in successfully with the password connector: %v", username, connID)
 			userLoggedIn = true
 			break
 		}
