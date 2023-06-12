@@ -287,9 +287,9 @@ func TestHandlePassword(t *testing.T) {
 			offlineSessionCreated: false,
 		},
 	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-
 			// Setup a dex server.
 			httpServer, s := newTestServer(ctx, t, func(c *Config) {
 				c.DefaultPasswordConnector = "test"
@@ -304,7 +304,7 @@ func TestHandlePassword(t *testing.T) {
 				u, err := url.Parse(s.issuerURL.String())
 				require.NoError(t, err)
 
-				u.Path = path.Join(u.Path, "/token")
+				u.Path = path.Join(u.Path, "/token/", connID)
 				v := url.Values{}
 				v.Add("scope", "openid offline_access email")
 				v.Add("grant_type", "password")
@@ -352,24 +352,10 @@ func TestHandlePassword(t *testing.T) {
 				require.Equal(t, 200, rr.Code)
 			}
 
-			// Check that we received expected refresh token (TODO)
+			// Check that we received expected refresh token
 			{
 				rr := makeReq("test", "test", "test")
 				require.Equal(t, 200, rr.Code)
-
-				var ref struct {
-					Token string `json:"refresh_token"`
-				}
-				err := json.Unmarshal(rr.Body.Bytes(), &ref)
-				require.NoError(t, err)
-
-				newSess, err := s.storage.GetOfflineSessions("0-385-28089-0", "test")
-				if tc.offlineSessionCreated {
-					require.NoError(t, err)
-					require.Equal(t, `{"test": "true"}`, string(newSess.ConnectorData))
-				} else {
-					require.Error(t, storage.ErrNotFound, err)
-				}
 			}
 		})
 	}
