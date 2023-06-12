@@ -374,6 +374,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
 	handleWithCORS("/token", s.handleToken)
+	handleWithCORS("/token/{connector}", s.handleTokenConnectorLogin)
 	handleWithCORS("/keys", s.handlePublicKeys)
 	handleWithCORS("/userinfo", s.handleUserInfo)
 	handleFunc("/auth", s.handleAuthorization)

@@ -282,11 +282,11 @@ func TestHandlePassword(t *testing.T) {
 
 	mockConnectorDataTestStorage(t, s.storage)
 
-	makeReq := func(username, password string) *httptest.ResponseRecorder {
+	makeReq := func(username, password string, connID string) *httptest.ResponseRecorder {
 		u, err := url.Parse(s.issuerURL.String())
 		require.NoError(t, err)
 
-		u.Path = path.Join(u.Path, "/token")
+		u.Path = path.Join(u.Path, "/token/", connID)
 		v := url.Values{}
 		v.Add("scope", "openid offline_access email")
 		v.Add("grant_type", "password")
@@ -303,15 +303,27 @@ func TestHandlePassword(t *testing.T) {
 		return rr
 	}
 
+	// Check bad request error (bad connector & invalid credentials)
+	{
+		rr := makeReq("test", "invalid", "foobar")
+		require.Equal(t, 400, rr.Code)
+	}
+
+	// Check bad request error (bad connector & correct credentials)
+	{
+		rr := makeReq("test", "test", "foobar")
+		require.Equal(t, 400, rr.Code)
+	}
+
 	// Check unauthorized error
 	{
-		rr := makeReq("test", "invalid")
+		rr := makeReq("test", "invalid", "test")
 		require.Equal(t, 401, rr.Code)
 	}
 
 	// Check that we received expected refresh token
 	{
-		rr := makeReq("test", "test")
+		rr := makeReq("test", "test", "test")
 		require.Equal(t, 200, rr.Code)
 
 		var ref struct {
