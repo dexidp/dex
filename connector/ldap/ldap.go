@@ -160,6 +160,10 @@ type Config struct {
 	} `json:"groupSearch"`
 }
 
+const (
+	SamAccountNameAttr = "sAMAccountName"
+)
+
 func scopeString(i int) string {
 	switch i {
 	case ldap.ScopeBaseObject:
@@ -390,12 +394,23 @@ func (c *ldapConnector) identityFromEntry(user ldap.Entry) (ident connector.Iden
 			missing = append(missing, c.UserSearch.PreferredUsernameAttrAttr)
 		}
 	}
-
+	var lSamName string
 	if c.UserSearch.EmailSuffix != "" {
 		ident.Email = ident.Username + "@" + c.UserSearch.EmailSuffix
-	} else if ident.Email = getAttr(user, c.UserSearch.EmailAttr); ident.Email == "" {
-		missing = append(missing, c.UserSearch.EmailAttr)
+	} else {
+		ident.Email = getAttr(user, c.UserSearch.EmailAttr)
+		lSamName = getAttr(user, SamAccountNameAttr)
+
+		// If username search is mailOrSAMAccountName, skip email validation if sAMAccountName is present
+		if c.UserSearch.Username == "mailOrSAMAccountName" {
+			if ident.Email == "" && lSamName == "" {
+				missing = append(missing, c.UserSearch.EmailAttr)
+			}
+		} else if ident.Email == "" {
+			missing = append(missing, c.UserSearch.EmailAttr)
+		}
 	}
+
 	// TODO(ericchiang): Let this value be set from an attribute.
 	ident.EmailVerified = true
 
@@ -411,6 +426,9 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 	if c.UserSearch.Filter != "" {
 		filter = fmt.Sprintf("(&%s%s)", c.UserSearch.Filter, filter)
 	}
+	if c.UserSearch.Username == "mailOrSAMAccountName" {
+		filter = fmt.Sprintf("(|(mail=%s)(sAMAccountName=%s))", ldap.EscapeFilter(username), ldap.EscapeFilter(username))
+	}
 
 	// Initial search.
 	req := &ldap.SearchRequest{
@@ -421,6 +439,7 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 		Attributes: []string{
 			c.UserSearch.IDAttr,
 			c.UserSearch.EmailAttr,
+			SamAccountNameAttr,
 			// TODO(ericchiang): what if this contains duplicate values?
 		},
 	}
