@@ -246,8 +246,10 @@ func runServe(options serveOptions) error {
 	if c.OAuth2.SkipApprovalScreen {
 		logger.Infof("config skipping approval screen")
 	}
-	if len(c.OAuth2.PasswordConnectors) > 0 {
-		logger.Infof("config using password grant connectors: %s", c.OAuth2.PasswordConnectors)
+	if c.OAuth2.DefaultPasswordConnector != "" {
+		logger.Infof("config using the default password grant connector: %s", c.OAuth2.DefaultPasswordConnector)
+	} else if c.OAuth2.PasswordConnector != "" {
+		logger.Infof("config using the password grant connector: %s", c.OAuth2.PasswordConnector)
 	}
 	if len(c.Web.AllowedOrigins) > 0 {
 		logger.Infof("config allowed origins: %s", c.Web.AllowedOrigins)
@@ -259,19 +261,19 @@ func runServe(options serveOptions) error {
 	healthChecker := gosundheit.New()
 
 	serverConfig := server.Config{
-		AllowedGrantTypes:      c.OAuth2.GrantTypes,
-		SupportedResponseTypes: c.OAuth2.ResponseTypes,
-		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
-		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
-		PasswordConnectors:     c.OAuth2.PasswordConnectors,
-		AllowedOrigins:         c.Web.AllowedOrigins,
-		Issuer:                 c.Issuer,
-		Storage:                s,
-		Web:                    c.Frontend,
-		Logger:                 logger,
-		Now:                    now,
-		PrometheusRegistry:     prometheusRegistry,
-		HealthChecker:          healthChecker,
+		SupportedResponseTypes:   c.OAuth2.ResponseTypes,
+		SkipApprovalScreen:       c.OAuth2.SkipApprovalScreen,
+		AlwaysShowLoginScreen:    c.OAuth2.AlwaysShowLoginScreen,
+		PasswordConnector:        c.OAuth2.PasswordConnector,
+		DefaultPasswordConnector: c.OAuth2.DefaultPasswordConnector,
+		AllowedOrigins:           c.Web.AllowedOrigins,
+		Issuer:                   c.Issuer,
+		Storage:                  s,
+		Web:                      c.Frontend,
+		Logger:                   logger,
+		Now:                      now,
+		PrometheusRegistry:       prometheusRegistry,
+		HealthChecker:            healthChecker,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)

@@ -92,8 +92,11 @@ type Config struct {
 	// Refresh token expiration settings
 	RefreshTokenPolicy *RefreshTokenPolicy
 
-	// If set, the server will attempt to use a valid connector from this list to handle password grants
-	PasswordConnectors []string
+	// This is the default connctor the server will use to handle password grants
+	DefaultPasswordConnector string
+
+	// If set, the server will  use this connector to handle password grants
+	PasswordConnector string
 
 	GCFrequency time.Duration // Defaults to 5 minutes
 
@@ -168,8 +171,11 @@ type Server struct {
 	// If enabled, show the connector selection screen even if there's only one
 	alwaysShowLogin bool
 
+	// Default connector used for password grant
+	defaultPasswordConnector string
+
 	// Used for password grant
-	passwordConnectors []string
+	passwordConnector string
 
 	supportedResponseTypes map[string]bool
 
@@ -249,7 +255,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 			supportedGrants = append(supportedGrants, grant)
 		}
 	}
-	if len(c.PasswordConnectors) > 0 {
+	if c.DefaultPasswordConnector != "" || c.PasswordConnector != "" {
 		supportedGrants = append(supportedGrants, grantTypePassword)
 	}
 
@@ -282,21 +288,22 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 
 	s := &Server{
-		issuerURL:              *issuerURL,
-		connectors:             make(map[string]Connector),
-		storage:                newKeyCacher(c.Storage, now),
-		supportedResponseTypes: supportedRes,
-		supportedGrantTypes:    supportedGrants,
-		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
-		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
-		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
-		refreshTokenPolicy:     c.RefreshTokenPolicy,
-		skipApproval:           c.SkipApprovalScreen,
-		alwaysShowLogin:        c.AlwaysShowLoginScreen,
-		now:                    now,
-		templates:              tmpls,
-		passwordConnectors:     c.PasswordConnectors,
-		logger:                 c.Logger,
+		issuerURL:                *issuerURL,
+		connectors:               make(map[string]Connector),
+		storage:                  newKeyCacher(c.Storage, now),
+		supportedResponseTypes:   supportedRes,
+		supportedGrantTypes:      supportedGrants,
+		idTokensValidFor:         value(c.IDTokensValidFor, 24*time.Hour),
+		authRequestsValidFor:     value(c.AuthRequestsValidFor, 24*time.Hour),
+		deviceRequestsValidFor:   value(c.DeviceRequestsValidFor, 5*time.Minute),
+		refreshTokenPolicy:       c.RefreshTokenPolicy,
+		skipApproval:             c.SkipApprovalScreen,
+		alwaysShowLogin:          c.AlwaysShowLoginScreen,
+		now:                      now,
+		templates:                tmpls,
+		defaultPasswordConnector: c.DefaultPasswordConnector,
+		passwordConnector:        c.PasswordConnector,
+		logger:                   c.Logger,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -374,7 +381,6 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
 	handleWithCORS("/token", s.handleToken)
-	handleWithCORS("/token/{connector}", s.handleTokenConnectorLogin)
 	handleWithCORS("/keys", s.handlePublicKeys)
 	handleWithCORS("/userinfo", s.handleUserInfo)
 	handleFunc("/auth", s.handleAuthorization)

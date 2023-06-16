@@ -275,7 +275,8 @@ func TestHandlePassword(t *testing.T) {
 
 	// Setup a dex server.
 	httpServer, s := newTestServer(ctx, t, func(c *Config) {
-		c.PasswordConnectors = []string{"foobar", "test", "mock"}
+		c.DefaultPasswordConnector = "test"
+		c.PasswordConnector = "test"
 		c.Now = func() time.Time { return t0 }
 	})
 	defer httpServer.Close()
@@ -286,12 +287,13 @@ func TestHandlePassword(t *testing.T) {
 		u, err := url.Parse(s.issuerURL.String())
 		require.NoError(t, err)
 
-		u.Path = path.Join(u.Path, "/token/", connID)
+		u.Path = path.Join(u.Path, "/token")
 		v := url.Values{}
 		v.Add("scope", "openid offline_access email")
 		v.Add("grant_type", "password")
 		v.Add("username", username)
 		v.Add("password", password)
+		v.Add("connector_id", connID)
 
 		req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
@@ -315,10 +317,22 @@ func TestHandlePassword(t *testing.T) {
 		require.Equal(t, 400, rr.Code)
 	}
 
-	// Check unauthorized error
+	// Check unauthorized error (valid connector & invalid credentials)
 	{
 		rr := makeReq("test", "invalid", "test")
 		require.Equal(t, 401, rr.Code)
+	}
+
+	// Check unauthorized error (default connector & invalid credentials)
+	{
+		rr := makeReq("test", "invalid", "")
+		require.Equal(t, 401, rr.Code)
+	}
+
+	// default connector & valid credentials
+	{
+		rr := makeReq("test", "test", "")
+		require.Equal(t, 200, rr.Code)
 	}
 
 	// Check that we received expected refresh token
