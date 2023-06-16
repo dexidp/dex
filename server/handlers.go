@@ -826,54 +826,6 @@ func (s *Server) withClientFromStorage(w http.ResponseWriter, r *http.Request, h
 	handler(w, r, client)
 }
 
-func (s *Server) withClientAndConnIDFromStorage(w http.ResponseWriter, r *http.Request, handler func(http.ResponseWriter, *http.Request, storage.Client, string)) {
-	clientID, clientSecret, ok := r.BasicAuth()
-	if ok {
-		var err error
-		if clientID, err = url.QueryUnescape(clientID); err != nil {
-			s.tokenErrHelper(w, errInvalidRequest, "client_id improperly encoded", http.StatusBadRequest)
-			return
-		}
-		if clientSecret, err = url.QueryUnescape(clientSecret); err != nil {
-			s.tokenErrHelper(w, errInvalidRequest, "client_secret improperly encoded", http.StatusBadRequest)
-			return
-		}
-	} else {
-		clientID = r.PostFormValue("client_id")
-		clientSecret = r.PostFormValue("client_secret")
-	}
-
-	client, err := s.storage.GetClient(clientID)
-	if err != nil {
-		if err != storage.ErrNotFound {
-			s.logger.Errorf("failed to get client: %v", err)
-			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-		} else {
-			s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
-		}
-		return
-	}
-
-	if subtle.ConstantTimeCompare([]byte(client.Secret), []byte(clientSecret)) != 1 {
-		if clientSecret == "" {
-			s.logger.Infof("missing client_secret on token request for client: %s", client.ID)
-		} else {
-			s.logger.Infof("invalid client_secret on token request for client: %s", client.ID)
-		}
-		s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
-		return
-	}
-
-	connID, err := url.PathUnescape(mux.Vars(r)["connector"])
-	if err != nil {
-		s.logger.Errorf("Failed to parse connector: %v", err)
-		s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist")
-		return
-	}
-
-	handler(w, r, client, connID)
-}
-
 func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if r.Method != http.MethodPost {
@@ -888,40 +840,9 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grantType := r.PostFormValue("grant_type")
-	if !contains(s.supportedGrantTypes, grantType) {
-		s.logger.Errorf("unsupported grant type: %v", grantType)
-		s.tokenErrHelper(w, errUnsupportedGrantType, "", http.StatusBadRequest)
-		return
-	}
-	switch grantType {
-	case grantTypeDeviceCode:
-		s.handleDeviceToken(w, r)
-	case grantTypeAuthorizationCode:
-		s.withClientFromStorage(w, r, s.handleAuthCode)
-	case grantTypeRefreshToken:
-		s.withClientFromStorage(w, r, s.handleRefreshToken)
-	case grantTypePassword:
-		s.withClientAndConnIDFromStorage(w, r, s.handlePasswordGrant)
-	case grantTypeTokenExchange:
-		s.withClientFromStorage(w, r, s.handleTokenExchange)
-	default:
-		s.tokenErrHelper(w, errUnsupportedGrantType, "", http.StatusBadRequest)
-	}
-}
-
-func (s *Server) handleTokenConnectorLogin(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	if r.Method != http.MethodPost {
-		s.tokenErrHelper(w, errInvalidRequest, "method not allowed", http.StatusBadRequest)
-		return
-	}
-
-	err := r.ParseForm()
-	if err != nil {
-		s.logger.Errorf("Could not parse request body: %v", err)
-		s.tokenErrHelper(w, errInvalidRequest, "", http.StatusBadRequest)
-		return
+	// Set the connector_id to the default value if it wasn't passed to the query
+	if !r.Form.Has("connector_id") || r.Form.Get("connector_id") == "" {
+		r.Form.Set("connector_id", s.defaultPasswordConnector)
 	}
 
 	grantType := r.PostFormValue("grant_type")
@@ -933,7 +854,7 @@ func (s *Server) handleTokenConnectorLogin(w http.ResponseWriter, r *http.Reques
 	case grantTypeRefreshToken:
 		s.withClientFromStorage(w, r, s.handleRefreshToken)
 	case grantTypePassword:
-		s.withClientAndConnIDFromStorage(w, r, s.handlePasswordGrant)
+		s.withClientFromStorage(w, r, s.handlePasswordGrant)
 	case grantTypeTokenExchange:
 		s.withClientFromStorage(w, r, s.handleTokenExchange)
 	default:
@@ -1186,7 +1107,7 @@ func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 	w.Write(claims)
 }
 
-func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, client storage.Client, connID string) {
+func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, client storage.Client) {
 	// Parse the fields
 	if err := r.ParseForm(); err != nil {
 		s.tokenErrHelper(w, errInvalidRequest, "Couldn't parse data", http.StatusBadRequest)
@@ -1240,6 +1161,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	}
 
 	// Get the connector
+	connID := q.Get("connector_id")
 	if connID == "" && s.defaultPasswordConnector != "" {
 		connID = s.defaultPasswordConnector
 	}

@@ -304,7 +304,7 @@ func TestHandlePassword(t *testing.T) {
 				u, err := url.Parse(s.issuerURL.String())
 				require.NoError(t, err)
 
-				u.Path = path.Join(u.Path, "/token/", connID)
+				u.Path = path.Join(u.Path, "/token")
 				v := url.Values{}
 				v.Add("scope", "openid offline_access email")
 				v.Add("grant_type", "password")

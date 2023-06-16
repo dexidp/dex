@@ -110,14 +110,20 @@ telemetry:
     # from application to upstream provider such as the Google login page
 #   alwaysShowLoginScreen: false
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> c24a9250 (include backward compatibility & improved logic)
     # Uncomment the defaultPasswordConnector to use a specific connector as default for password grants
 #   defaultPasswordConnector: local
     # Deprecated option
 #   passwordConnector: local
+<<<<<<< HEAD
 =======
     # Uncomment the passwordConnectors list to attempt authentication using multiple password connectors for password grants
 #   passwordConnectors: ['local']
 >>>>>>> 1a5241c1 (adapted tests & config files for multiple password connectors)
+=======
+>>>>>>> c24a9250 (include backward compatibility & improved logic)
 
 # Instead of reading from an external storage, use this list of clients.
 #

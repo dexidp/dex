@@ -34,16 +34,11 @@ oauth2:
   responseTypes: {{ getenv "DEX_OAUTH2_RESPONSE_TYPES" "[code]" }}
   skipApprovalScreen: {{ getenv "DEX_OAUTH2_SKIP_APPROVAL_SCREEN" "false" }}
   alwaysShowLoginScreen: {{ getenv "DEX_OAUTH2_ALWAYS_SHOW_LOGIN_SCREEN" "false" }}
-<<<<<<< HEAD
 {{- if getenv "DEX_OAUTH2_DEFAULT_PASSWORD_CONNECTOR" "" }}
   defaultPasswordConnector: {{ .Env.DEX_OAUTH2_DEFAULT_PASSWORD_CONNECTOR }}
 {{- end }}
 {{- if getenv "DEX_OAUTH2_PASSWORD_CONNECTOR" "" }}
   passwordConnector: {{ .Env.DEX_OAUTH2_PASSWORD_CONNECTOR }}
-=======
-{{- if getenv "DEX_OAUTH2_PASSWORD_CONNECTORS" "[]" }}
-  passwordConnectors: {{ .Env.DEX_OAUTH2_PASSWORD_CONNECTORS }}
->>>>>>> 1a5241c1 (adapted tests & config files for multiple password connectors)
 {{- end }}
 
 enablePasswordDB: {{ getenv "DEX_ENABLE_PASSWORD_DB" "true" }}
