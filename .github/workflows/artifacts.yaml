@@ -51,13 +51,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
+        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18 # v2.1.0
+        uses: docker/setup-qemu-action@2b82ce82d56a2a04d2637cd93a637ae1b359c0a7 # v2.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4b4e9c3e2d4531116a6f8ba8e71fc6e2cb6e6c8c # v2.5.0
+        uses: docker/setup-buildx-action@ecf95283f03858871ff00b787d79c419715afc34 # v2.7.0
 
       - name: Set up Syft
         uses: anchore/sbom-action/download-syft@4d571ad1038a9cc29d676154ef265ab8f9027042 # v0.14.2
@@ -68,7 +68,7 @@ jobs:
 
       - name: Gather build metadata
         id: meta
-        uses: docker/metadata-action@c4ee3adeed93b1fa6a762f209fb01608c1a22f1e # v4.4.0
+        uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175 # v4.6.0
         with:
           images: |
             ${{ steps.image-name.outputs.value }}
@@ -98,7 +98,7 @@ jobs:
           if_false: type=oci,dest=image.tar
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
+        uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2.2.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -106,7 +106,7 @@ jobs:
         if: inputs.publish
 
       - name: Login to Docker Hub
-        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
+        uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2.2.0
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
@@ -114,7 +114,7 @@ jobs:
 
       - name: Build and push image
         id: build
-        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
+        uses: docker/build-push-action@2eb1c1961a95fc15694676618e422e8ba1d63825 # v4.1.1
         with:
           context: .
           platforms: linux/amd64,linux/arm/v7,linux/arm64,linux/ppc64le
@@ -168,7 +168,7 @@ jobs:
       #     retention-days: 5
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@e5f43133f6e8736992c9f3c1b3296e24b37e17f2 # 0.10.0
+        uses: aquasecurity/trivy-action@41f05d9ecffa2ed3f1580af306000f734b733e54 # 0.11.2
         with:
           input: image
           format: sarif
@@ -182,6 +182,6 @@ jobs:
           retention-days: 5
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@0225834cc549ee0ca93cb085b92954821a145866 # v2.3.5
+        uses: github/codeql-action/upload-sarif@6c089f53dd51dc3fc7e599c3cb5356453a52ca9e # v2.20.0
         with:
           sarif_file: trivy-results.sarif

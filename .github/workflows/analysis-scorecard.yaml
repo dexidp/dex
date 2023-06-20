@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
+        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
         with:
           persist-credentials: false
 
@@ -42,6 +42,6 @@ jobs:
           retention-days: 5
 
       - name: Upload results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@0225834cc549ee0ca93cb085b92954821a145866 # v2.3.5
+        uses: github/codeql-action/upload-sarif@6c089f53dd51dc3fc7e599c3cb5356453a52ca9e # v2.20.0
         with:
           sarif_file: results.sarif
