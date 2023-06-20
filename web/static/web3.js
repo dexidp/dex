@@ -40,6 +40,10 @@
 
   }
 
+let infuraId = document.getElementById("tmpl-infura-id").value;
+let challengeUrl = document.getElementById("tmpl-challenge-url").value;
+let authId = document.getElementById("tmpl-auth-id").value;
+let verifyUrl = document.getElementById("tmpl-verify-url").value;
 
 
 
@@ -56,14 +60,12 @@
       disableInjectedProvider: false,
       cacheProvider: false,
       providerOptions: {
-      {{ if ne .InfuraID "" }}
   walletconnect: {
     package: WalletConnectProvider,
       options: {
-      infuraId: {{ .InfuraID }}
+      infuraId: infuraId,
     }
-  }
-  {{ end }}
+      }
     },
   theme: {
     background: "rgb(39, 49, 56)",
@@ -81,7 +83,7 @@
   const accounts = await web3.eth.getAccounts();
   const selectedAccount = accounts[0];
 
-  const challengeResp = await postJson("{{ .ChallengeURL }}", { address: selectedAccount, state: "{{ .AuthID }}" });
+  const challengeResp = await postJson(challengeUrl, { address: selectedAccount, state: authId });
   const challengeBody = await challengeResp.json();
 
   web3.eth.personal.sign(challengeBody.nonce, selectedAccount, "", async (error, signature) => {
@@ -89,7 +91,7 @@
       displayError("Wallet error: (Code " + error.code + ") " + error.message);
       return;
     }
-    const verifyResp = await postJson("{{ .VerifyURL }}", { signed: signature, state: "{{ .AuthID }}" });
+    const verifyResp = await postJson(verifyUrl, { signed: signature, state: authId });
     if (verifyResp.ok) {
       const verifyBody = await verifyResp.json();
       window.location.replace(verifyBody.redirect);
