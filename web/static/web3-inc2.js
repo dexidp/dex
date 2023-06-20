@@ -25,6 +25,12 @@
     errorBox.textContent = msg;
   }
   function init() {
+
+     infuraId = document.getElementById("tmpl-infura-id").value;
+challengeUrl = document.getElementById("tmpl-challenge-url").value;
+      authId = document.getElementById("tmpl-auth-id").value;
+verifyUrl = document.getElementById("tmpl-verify-url").value;
+      
     const connectButton = document.getElementById("connect-button");
     connectButton.onclick = function () {
       getSignature()
@@ -40,10 +46,10 @@
 
   }
 
-let infuraId = document.getElementById("tmpl-infura-id").value;
-let challengeUrl = document.getElementById("tmpl-challenge-url").value;
-let authId = document.getElementById("tmpl-auth-id").value;
-let verifyUrl = document.getElementById("tmpl-verify-url").value;
+let infuraId;
+let challengeUrl;
+let authId;
+let verifyUrl;
 
 
 
