@@ -112,7 +112,7 @@ func (dtu *DeviceTokenUpdate) Mutation() *DeviceTokenMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (dtu *DeviceTokenUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks[int, DeviceTokenMutation](ctx, dtu.sqlSave, dtu.mutation, dtu.hooks)
+	return withHooks(ctx, dtu.sqlSave, dtu.mutation, dtu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -311,7 +311,7 @@ func (dtuo *DeviceTokenUpdateOne) Select(field string, fields ...string) *Device
 
 // Save executes the query and returns the updated DeviceToken entity.
 func (dtuo *DeviceTokenUpdateOne) Save(ctx context.Context) (*DeviceToken, error) {
-	return withHooks[*DeviceToken, DeviceTokenMutation](ctx, dtuo.sqlSave, dtuo.mutation, dtuo.hooks)
+	return withHooks(ctx, dtuo.sqlSave, dtuo.mutation, dtuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.

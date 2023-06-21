@@ -59,7 +59,7 @@ func (kc *KeysCreate) Mutation() *KeysMutation {
 
 // Save creates the Keys in the database.
 func (kc *KeysCreate) Save(ctx context.Context) (*Keys, error) {
-	return withHooks[*Keys, KeysMutation](ctx, kc.sqlSave, kc.mutation, kc.hooks)
+	return withHooks(ctx, kc.sqlSave, kc.mutation, kc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -180,8 +180,8 @@ func (kcb *KeysCreateBulk) Save(ctx context.Context) ([]*Keys, error) {
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, kcb.builders[i+1].mutation)
 				} else {

@@ -222,7 +222,7 @@ func (aru *AuthRequestUpdate) Mutation() *AuthRequestMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (aru *AuthRequestUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks[int, AuthRequestMutation](ctx, aru.sqlSave, aru.mutation, aru.hooks)
+	return withHooks(ctx, aru.sqlSave, aru.mutation, aru.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -569,7 +569,7 @@ func (aruo *AuthRequestUpdateOne) Select(field string, fields ...string) *AuthRe
 
 // Save executes the query and returns the updated AuthRequest entity.
 func (aruo *AuthRequestUpdateOne) Save(ctx context.Context) (*AuthRequest, error) {
-	return withHooks[*AuthRequest, AuthRequestMutation](ctx, aruo.sqlSave, aruo.mutation, aruo.hooks)
+	return withHooks(ctx, aruo.sqlSave, aruo.mutation, aruo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.

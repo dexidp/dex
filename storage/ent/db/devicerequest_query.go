@@ -18,7 +18,7 @@ import (
 type DeviceRequestQuery struct {
 	config
 	ctx        *QueryContext
-	order      []OrderFunc
+	order      []devicerequest.OrderOption
 	inters     []Interceptor
 	predicates []predicate.DeviceRequest
 	// intermediate query (i.e. traversal path).
@@ -52,7 +52,7 @@ func (drq *DeviceRequestQuery) Unique(unique bool) *DeviceRequestQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (drq *DeviceRequestQuery) Order(o ...OrderFunc) *DeviceRequestQuery {
+func (drq *DeviceRequestQuery) Order(o ...devicerequest.OrderOption) *DeviceRequestQuery {
 	drq.order = append(drq.order, o...)
 	return drq
 }
@@ -246,7 +246,7 @@ func (drq *DeviceRequestQuery) Clone() *DeviceRequestQuery {
 	return &DeviceRequestQuery{
 		config:     drq.config,
 		ctx:        drq.ctx.Clone(),
-		order:      append([]OrderFunc{}, drq.order...),
+		order:      append([]devicerequest.OrderOption{}, drq.order...),
 		inters:     append([]Interceptor{}, drq.inters...),
 		predicates: append([]predicate.DeviceRequest{}, drq.predicates...),
 		// clone intermediate query.

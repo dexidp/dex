@@ -879,7 +879,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 
 			for _, token := range tokens {
 				if /* token was updated */ token.ObsoleteToken != "" && token.ConnectorData != nil {
-					t.Fatalf("token connectorDatawith id %q field is not nil: %s", token.ID, token.ConnectorData)
+					t.Fatalf("token connectorData with id %q field is not nil: %s", token.ID, token.ConnectorData)
 				}
 			}
 		})

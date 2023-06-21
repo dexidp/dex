@@ -68,7 +68,7 @@ func (ku *KeysUpdate) Mutation() *KeysMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (ku *KeysUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks[int, KeysMutation](ctx, ku.sqlSave, ku.mutation, ku.hooks)
+	return withHooks(ctx, ku.sqlSave, ku.mutation, ku.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -189,7 +189,7 @@ func (kuo *KeysUpdateOne) Select(field string, fields ...string) *KeysUpdateOne 
 
 // Save executes the query and returns the updated Keys entity.
 func (kuo *KeysUpdateOne) Save(ctx context.Context) (*Keys, error) {
-	return withHooks[*Keys, KeysMutation](ctx, kuo.sqlSave, kuo.mutation, kuo.hooks)
+	return withHooks(ctx, kuo.sqlSave, kuo.mutation, kuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.

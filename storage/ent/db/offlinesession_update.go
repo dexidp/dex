@@ -64,7 +64,7 @@ func (osu *OfflineSessionUpdate) Mutation() *OfflineSessionMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (osu *OfflineSessionUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks[int, OfflineSessionMutation](ctx, osu.sqlSave, osu.mutation, osu.hooks)
+	return withHooks(ctx, osu.sqlSave, osu.mutation, osu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -201,7 +201,7 @@ func (osuo *OfflineSessionUpdateOne) Select(field string, fields ...string) *Off
 
 // Save executes the query and returns the updated OfflineSession entity.
 func (osuo *OfflineSessionUpdateOne) Save(ctx context.Context) (*OfflineSession, error) {
-	return withHooks[*OfflineSession, OfflineSessionMutation](ctx, osuo.sqlSave, osuo.mutation, osuo.hooks)
+	return withHooks(ctx, osuo.sqlSave, osuo.mutation, osuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.

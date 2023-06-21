@@ -99,7 +99,7 @@ func (cli *client) urlForWithParams(
 	if name != "" && (len(name) > kubeResourceMaxLen || !kubeResourceNameRegex.MatchString(name)) {
 		// The actual name can be found in auth request or auth code objects and equals to the state value
 		return "", fmt.Errorf(
-			"invalid kubernetes resource name: must match the pattern %s and be no longer than %d charactes",
+			"invalid kubernetes resource name: must match the pattern %s and be no longer than %d characters",
 			kubeResourceNameRegex.String(),
 			kubeResourceMaxLen)
 	}

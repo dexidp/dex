@@ -957,7 +957,7 @@ type VersionResp struct {
 
 	// Semantic version of the server.
 	Server string `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
-	// Numeric version of the API. It increases everytime a new call is added to the API.
+	// Numeric version of the API. It increases every time a new call is added to the API.
 	// Clients should use this info to determine if the server supports specific features.
 	Api int32 `protobuf:"varint,2,opt,name=api,proto3" json:"api,omitempty"`
 }

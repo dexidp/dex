@@ -95,7 +95,7 @@ func (ou *OAuth2ClientUpdate) Mutation() *OAuth2ClientMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (ou *OAuth2ClientUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks[int, OAuth2ClientMutation](ctx, ou.sqlSave, ou.mutation, ou.hooks)
+	return withHooks(ctx, ou.sqlSave, ou.mutation, ou.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -286,7 +286,7 @@ func (ouo *OAuth2ClientUpdateOne) Select(field string, fields ...string) *OAuth2
 
 // Save executes the query and returns the updated OAuth2Client entity.
 func (ouo *OAuth2ClientUpdateOne) Save(ctx context.Context) (*OAuth2Client, error) {
-	return withHooks[*OAuth2Client, OAuth2ClientMutation](ctx, ouo.sqlSave, ouo.mutation, ouo.hooks)
+	return withHooks(ctx, ouo.sqlSave, ouo.mutation, ouo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.

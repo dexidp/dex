@@ -148,7 +148,7 @@ func (acc *AuthCodeCreate) Mutation() *AuthCodeMutation {
 // Save creates the AuthCode in the database.
 func (acc *AuthCodeCreate) Save(ctx context.Context) (*AuthCode, error) {
 	acc.defaults()
-	return withHooks[*AuthCode, AuthCodeMutation](ctx, acc.sqlSave, acc.mutation, acc.hooks)
+	return withHooks(ctx, acc.sqlSave, acc.mutation, acc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -389,8 +389,8 @@ func (accb *AuthCodeCreateBulk) Save(ctx context.Context) ([]*AuthCode, error) {
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, accb.builders[i+1].mutation)
 				} else {

@@ -1,18 +1,27 @@
 ARG BASE_IMAGE=alpine
 
-FROM golang:1.20.3-alpine3.16 AS builder
+FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.2.1@sha256:8879a398dedf0aadaacfbd332b29ff2f84bc39ae6d4e9c0a1109db27ac5ba012 AS xx
+
+FROM --platform=$BUILDPLATFORM golang:1.20.4-alpine3.16 AS builder
+
+COPY --from=xx / /
+
+RUN apk add --update alpine-sdk ca-certificates openssl clang lld
+
+ARG TARGETPLATFORM
+
+RUN xx-apk --update add musl-dev gcc
+
+# lld has issues building static binaries for ppc so prefer ld for it
+RUN [ "$(xx-info arch)" != "ppc64le" ] || XX_CC_PREFER_LINKER=ld xx-clang --setup-target-triple
+
+RUN xx-go --wrap
 
 WORKDIR /usr/local/src/dex
 
-RUN apk add --no-cache --update alpine-sdk ca-certificates openssl
-
-ARG TARGETOS
-ARG TARGETARCH
-ARG TARGETVARIANT=""
-
-ENV GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT}
-
 ARG GOPROXY
+
+ENV CGO_ENABLED=1
 
 COPY go.mod go.sum ./
 COPY api/v2/go.mod api/v2/go.sum ./api/v2/
@@ -21,14 +30,15 @@ RUN go mod download
 COPY . .
 
 RUN make release-binary
+RUN xx-verify /go/bin/dex && xx-verify /go/bin/docker-entrypoint
 
-FROM alpine:3.17.3 AS stager
+FROM alpine:3.18.2 AS stager
 
 RUN mkdir -p /var/dex
 RUN mkdir -p /etc/dex
 COPY config.docker.yaml /etc/dex/
 
-FROM alpine:3.17.3 AS gomplate
+FROM alpine:3.18.2 AS gomplate
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -37,11 +47,11 @@ ARG TARGETVARIANT
 ENV GOMPLATE_VERSION=v3.11.4
 
 RUN wget -O /usr/local/bin/gomplate \
-    "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT}" \
-    && chmod +x /usr/local/bin/gomplate
+  "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT}" \
+  && chmod +x /usr/local/bin/gomplate
 
 # For Dependabot to detect base image versions
-FROM alpine:3.17.3 AS alpine
+FROM alpine:3.18.2 AS alpine
 FROM gcr.io/distroless/static:latest AS distroless
 
 FROM $BASE_IMAGE

@@ -86,7 +86,7 @@ func TestOpen(t *testing.T) {
 		expectedErr string
 
 		// string to set in GOOGLE_APPLICATION_CREDENTIALS. As local development environments can
-		// already contain ADC, test cases will be built uppon this setting this env variable
+		// already contain ADC, test cases will be built upon this setting this env variable
 		adc string
 	}
 
@@ -102,7 +102,7 @@ func TestOpen(t *testing.T) {
 				Scopes:                 []string{"openid", "groups"},
 				ServiceAccountFilePath: serviceAccountFilePath,
 			},
-			expectedErr: "requires adminEmail",
+			expectedErr: "requires the domainToAdminEmail",
 		},
 		"service_account_key_not_found": {
 			config: &Config{
@@ -110,7 +110,7 @@ func TestOpen(t *testing.T) {
 				ClientSecret:           "testSecret",
 				RedirectURI:            ts.URL + "/callback",
 				Scopes:                 []string{"openid", "groups"},
-				AdminEmail:             "foo@bar.com",
+				DomainToAdminEmail:     map[string]string{"*": "foo@bar.com"},
 				ServiceAccountFilePath: "not_found.json",
 			},
 			expectedErr: "error reading credentials",
@@ -121,18 +121,18 @@ func TestOpen(t *testing.T) {
 				ClientSecret:           "testSecret",
 				RedirectURI:            ts.URL + "/callback",
 				Scopes:                 []string{"openid", "groups"},
-				AdminEmail:             "foo@bar.com",
+				DomainToAdminEmail:     map[string]string{"bar.com": "foo@bar.com"},
 				ServiceAccountFilePath: serviceAccountFilePath,
 			},
 			expectedErr: "",
 		},
 		"adc": {
 			config: &Config{
-				ClientID:     "testClient",
-				ClientSecret: "testSecret",
-				RedirectURI:  ts.URL + "/callback",
-				Scopes:       []string{"openid", "groups"},
-				AdminEmail:   "foo@bar.com",
+				ClientID:           "testClient",
+				ClientSecret:       "testSecret",
+				RedirectURI:        ts.URL + "/callback",
+				Scopes:             []string{"openid", "groups"},
+				DomainToAdminEmail: map[string]string{"*": "foo@bar.com"},
 			},
 			adc:         serviceAccountFilePath,
 			expectedErr: "",
@@ -143,7 +143,7 @@ func TestOpen(t *testing.T) {
 				ClientSecret:           "testSecret",
 				RedirectURI:            ts.URL + "/callback",
 				Scopes:                 []string{"openid", "groups"},
-				AdminEmail:             "foo@bar.com",
+				DomainToAdminEmail:     map[string]string{"*": "foo@bar.com"},
 				ServiceAccountFilePath: serviceAccountFilePath,
 			},
 			adc:         "/dev/null",
@@ -176,15 +176,15 @@ func TestGetGroups(t *testing.T) {
 
 	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", serviceAccountFilePath)
 	conn, err := newConnector(&Config{
-		ClientID:     "testClient",
-		ClientSecret: "testSecret",
-		RedirectURI:  ts.URL + "/callback",
-		Scopes:       []string{"openid", "groups"},
-		AdminEmail:   "admin@dexidp.com",
+		ClientID:           "testClient",
+		ClientSecret:       "testSecret",
+		RedirectURI:        ts.URL + "/callback",
+		Scopes:             []string{"openid", "groups"},
+		DomainToAdminEmail: map[string]string{"*": "admin@dexidp.com"},
 	})
 	assert.Nil(t, err)
 
-	conn.adminSrv, err = admin.NewService(context.Background(), option.WithoutAuthentication(), option.WithEndpoint(ts.URL))
+	conn.adminSrv[wildcardDomainToAdminEmail], err = admin.NewService(context.Background(), option.WithoutAuthentication(), option.WithEndpoint(ts.URL))
 	assert.Nil(t, err)
 	type testCase struct {
 		userKey                        string
@@ -232,6 +232,61 @@ func TestGetGroups(t *testing.T) {
 				assert.Nil(err)
 			}
 			assert.ElementsMatch(testCase.expectedGroups, groups)
+			t.Logf("[%s] Amount of API calls per userKey: %+v\n", t.Name(), callCounter)
+		})
+	}
+}
+
+func TestDomainToAdminEmailConfig(t *testing.T) {
+	ts := testSetup()
+	defer ts.Close()
+
+	serviceAccountFilePath, err := tempServiceAccountKey()
+	assert.Nil(t, err)
+
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", serviceAccountFilePath)
+	conn, err := newConnector(&Config{
+		ClientID:           "testClient",
+		ClientSecret:       "testSecret",
+		RedirectURI:        ts.URL + "/callback",
+		Scopes:             []string{"openid", "groups"},
+		DomainToAdminEmail: map[string]string{"dexidp.com": "admin@dexidp.com"},
+	})
+	assert.Nil(t, err)
+
+	conn.adminSrv["dexidp.com"], err = admin.NewService(context.Background(), option.WithoutAuthentication(), option.WithEndpoint(ts.URL))
+	assert.Nil(t, err)
+	type testCase struct {
+		userKey     string
+		expectedErr string
+	}
+
+	for name, testCase := range map[string]testCase{
+		"correct_user_request": {
+			userKey:     "user_1@dexidp.com",
+			expectedErr: "",
+		},
+		"wrong_user_request": {
+			userKey:     "user_1@foo.bar",
+			expectedErr: "unable to find super admin email",
+		},
+		"wrong_connector_response": {
+			userKey:     "user_1_foo.bar",
+			expectedErr: "unable to find super admin email",
+		},
+	} {
+		testCase := testCase
+		callCounter = map[string]int{}
+		t.Run(name, func(t *testing.T) {
+			assert := assert.New(t)
+			lookup := make(map[string]struct{})
+
+			_, err := conn.getGroups(testCase.userKey, true, lookup)
+			if testCase.expectedErr != "" {
+				assert.ErrorContains(err, testCase.expectedErr)
+			} else {
+				assert.Nil(err)
+			}
 			t.Logf("[%s] Amount of API calls per userKey: %+v\n", t.Name(), callCounter)
 		})
 	}

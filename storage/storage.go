@@ -317,7 +317,7 @@ type RefreshTokenRef struct {
 
 // OfflineSessions objects are sessions pertaining to users with refresh tokens.
 type OfflineSessions struct {
-	// UserID of an end user who has logged in to the server.
+	// UserID of an end user who has logged into the server.
 	UserID string
 
 	// The ID of the connector used to login the user.

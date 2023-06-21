@@ -196,7 +196,7 @@ func (rtu *RefreshTokenUpdate) Mutation() *RefreshTokenMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (rtu *RefreshTokenUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks[int, RefreshTokenMutation](ctx, rtu.sqlSave, rtu.mutation, rtu.hooks)
+	return withHooks(ctx, rtu.sqlSave, rtu.mutation, rtu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -532,7 +532,7 @@ func (rtuo *RefreshTokenUpdateOne) Select(field string, fields ...string) *Refre
 
 // Save executes the query and returns the updated RefreshToken entity.
 func (rtuo *RefreshTokenUpdateOne) Save(ctx context.Context) (*RefreshToken, error) {
-	return withHooks[*RefreshToken, RefreshTokenMutation](ctx, rtuo.sqlSave, rtuo.mutation, rtuo.hooks)
+	return withHooks(ctx, rtuo.sqlSave, rtuo.mutation, rtuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.

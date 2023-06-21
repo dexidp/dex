@@ -18,7 +18,7 @@ import (
 type AuthRequestQuery struct {
 	config
 	ctx        *QueryContext
-	order      []OrderFunc
+	order      []authrequest.OrderOption
 	inters     []Interceptor
 	predicates []predicate.AuthRequest
 	// intermediate query (i.e. traversal path).
@@ -52,7 +52,7 @@ func (arq *AuthRequestQuery) Unique(unique bool) *AuthRequestQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (arq *AuthRequestQuery) Order(o ...OrderFunc) *AuthRequestQuery {
+func (arq *AuthRequestQuery) Order(o ...authrequest.OrderOption) *AuthRequestQuery {
 	arq.order = append(arq.order, o...)
 	return arq
 }
@@ -246,7 +246,7 @@ func (arq *AuthRequestQuery) Clone() *AuthRequestQuery {
 	return &AuthRequestQuery{
 		config:     arq.config,
 		ctx:        arq.ctx.Clone(),
-		order:      append([]OrderFunc{}, arq.order...),
+		order:      append([]authrequest.OrderOption{}, arq.order...),
 		inters:     append([]Interceptor{}, arq.inters...),
 		predicates: append([]predicate.AuthRequest{}, arq.predicates...),
 		// clone intermediate query.
