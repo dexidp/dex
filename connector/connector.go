@@ -99,3 +99,11 @@ type RefreshConnector interface {
 	// changes since the token was last refreshed.
 	Refresh(ctx context.Context, s Scopes, identity Identity) (Identity, error)
 }
+
+// CheckEndpointConnector is a connector that can test its endpoints for availability.
+type CheckEndpointConnector interface {
+	// CheckEndpoint is called when a client wants to check the availability of
+	// endpoints used by the connector. If no error is returned, the connector
+	// can be assumed to be working.
+	CheckEndpoint(ctx context.Context) error
+}
