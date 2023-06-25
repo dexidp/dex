@@ -1329,8 +1329,6 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// TODO: check global allowed grant types?
-
 	if err := r.ParseForm(); err != nil {
 		s.logger.Errorf("could not parse request body: %v", err)
 		s.tokenErrHelper(w, errInvalidRequest, "", http.StatusBadRequest)
