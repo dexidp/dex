@@ -845,7 +845,7 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 	case grantTypePassword:
 		s.withClientFromStorage(w, r, s.handlePasswordGrant)
 	case grantTypeTokenExchange:
-		s.handleTokenExchange(w, r)
+		s.withClientFromStorage(w, r, s.handleTokenExchange)
 	default:
 		s.tokenErrHelper(w, errUnsupportedGrantType, "", http.StatusBadRequest)
 	}
@@ -1326,7 +1326,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	s.writeAccessToken(w, resp)
 }
 
-func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, client storage.Client) {
 	ctx := r.Context()
 
 	if err := r.ParseForm(); err != nil {
@@ -1336,15 +1336,14 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request) {
 	}
 	q := r.Form
 
-	resource := q.Get("resource")                       // OPTIONAL, use for issued token audience
-	scopes := strings.Fields(q.Get("scope"))            // OPTIONAL, map to issed token scope
+	scopes := strings.Fields(q.Get("scope"))            // OPTIONAL, map to issued token scope
 	requestedTokenType := q.Get("requested_token_type") // OPTIONAL, default to access token
 	if requestedTokenType == "" {
 		requestedTokenType = tokenTypeAccess
 	}
-	connID := q.Get("audience")                     // REQUIRED (RFC 8693 optional), use for connector ID
 	subjectToken := q.Get("subject_token")          // REQUIRED
 	subjectTokenType := q.Get("subject_token_type") // REQUIRED
+	connID := q.Get("connector_id")                 // REQUIRED, not in RFC
 
 	switch subjectTokenType {
 	case tokenTypeID, tokenTypeAccess: // ok, continue
@@ -1392,9 +1391,9 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request) {
 	var expiry time.Time
 	switch requestedTokenType {
 	case tokenTypeID:
-		resp.AccessToken, expiry, err = s.newIDToken(resource, claims, scopes, "", "", "", connID)
+		resp.AccessToken, expiry, err = s.newIDToken(client.ID, claims, scopes, "", "", "", connID)
 	case tokenTypeAccess:
-		resp.AccessToken, expiry, err = s.newAccessToken(resource, claims, scopes, "", connID)
+		resp.AccessToken, expiry, err = s.newAccessToken(client.ID, claims, scopes, "", connID)
 	default:
 		s.tokenErrHelper(w, errRequestNotSupported, "Invalid requested_token_type.", http.StatusBadRequest)
 		return

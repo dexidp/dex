@@ -532,7 +532,6 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 func TestHandleTokenExchange(t *testing.T) {
 	tests := []struct {
 		name               string
-		resource           string
 		scope              string
 		requestedTokenType string
 		subjectTokenType   string
@@ -543,7 +542,6 @@ func TestHandleTokenExchange(t *testing.T) {
 	}{
 		{
 			"id-for-acccess",
-			"target-audience",
 			"openid",
 			tokenTypeAccess,
 			tokenTypeID,
@@ -553,7 +551,6 @@ func TestHandleTokenExchange(t *testing.T) {
 		},
 		{
 			"id-for-id",
-			"target-audience",
 			"openid",
 			tokenTypeID,
 			tokenTypeID,
@@ -563,7 +560,6 @@ func TestHandleTokenExchange(t *testing.T) {
 		},
 		{
 			"id-for-default",
-			"target-audience",
 			"openid",
 			"",
 			tokenTypeID,
@@ -573,7 +569,6 @@ func TestHandleTokenExchange(t *testing.T) {
 		},
 		{
 			"access-for-access",
-			"target-audience",
 			"openid",
 			tokenTypeAccess,
 			tokenTypeAccess,
@@ -583,7 +578,6 @@ func TestHandleTokenExchange(t *testing.T) {
 		},
 		{
 			"missing-subject_token_type",
-			"target-audience",
 			"openid",
 			tokenTypeAccess,
 			"",
@@ -593,7 +587,6 @@ func TestHandleTokenExchange(t *testing.T) {
 		},
 		{
 			"missing-subject_token",
-			"target-audience",
 			"openid",
 			tokenTypeAccess,
 			tokenTypeAccess,
@@ -606,16 +599,22 @@ func TestHandleTokenExchange(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			httpServer, s := newTestServer(ctx, t, func(c *Config) {})
+			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+				c.Storage.CreateClient(storage.Client{
+					ID:     "client_1",
+					Secret: "secret_1",
+				})
+			})
 			defer httpServer.Close()
 			vals := make(url.Values)
 			vals.Set("grant_type", grantTypeTokenExchange)
-			setNonEmpty(vals, "audience", "mock")
-			setNonEmpty(vals, "resource", tc.resource)
+			setNonEmpty(vals, "connector_id", "mock")
 			setNonEmpty(vals, "scope", tc.scope)
 			setNonEmpty(vals, "requested_token_type", tc.requestedTokenType)
 			setNonEmpty(vals, "subject_token_type", tc.subjectTokenType)
 			setNonEmpty(vals, "subject_token", tc.subjectToken)
+			setNonEmpty(vals, "client_id", "client_1")
+			setNonEmpty(vals, "client_secret", "secret_1")
 
 			rr := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
