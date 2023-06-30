@@ -370,8 +370,17 @@ func (cli *client) ListClients() ([]storage.Client, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (cli *client) ListRefreshTokens() ([]storage.RefreshToken, error) {
-	return nil, errors.New("not implemented")
+func (cli *client) ListRefreshTokens() (refreshTokens []storage.RefreshToken, err error) {
+	var refreshList RefreshList
+	if err = cli.list(resourceRefreshToken, &refreshList); err != nil {
+		return refreshTokens, fmt.Errorf("failed to list refresh tokens: %v", err)
+	}
+
+	for _, refreshToken := range refreshList.RefreshTokens {
+		refreshTokens = append(refreshTokens, toStorageRefreshToken(refreshToken))
+	}
+
+	return
 }
 
 func (cli *client) ListPasswords() (passwords []storage.Password, err error) {

@@ -178,6 +178,13 @@ func (k keyRotator) rotate() error {
 	return nil
 }
 
+type tokenReplacementPolicy string
+
+const (
+	LRU  tokenReplacementPolicy = "LRU"
+	FCFS tokenReplacementPolicy = "FCFS"
+)
+
 type RefreshTokenPolicy struct {
 	rotateRefreshTokens bool // enable rotation
 
@@ -185,12 +192,17 @@ type RefreshTokenPolicy struct {
 	validIfNotUsedFor time.Duration // interval from last token update to the end of its life
 	reuseInterval     time.Duration // interval within which old refresh token is allowed to be reused
 
+	allowMultiple          bool
+	maxTokens              int
+	tokenReplacementPolicy tokenReplacementPolicy
+
 	now func() time.Time
 
 	logger log.Logger
 }
 
-func NewRefreshTokenPolicy(logger log.Logger, rotation bool, validIfNotUsedFor, absoluteLifetime, reuseInterval string) (*RefreshTokenPolicy, error) {
+func NewRefreshTokenPolicy(logger log.Logger, rotation bool, validIfNotUsedFor, absoluteLifetime, reuseInterval string,
+	allowMultiple bool, maxTokens int, tokenReplacementPolicy string) (*RefreshTokenPolicy, error) {
 	r := RefreshTokenPolicy{now: time.Now, logger: logger}
 	var err error
 
@@ -220,6 +232,33 @@ func NewRefreshTokenPolicy(logger log.Logger, rotation bool, validIfNotUsedFor, 
 
 	r.rotateRefreshTokens = !rotation
 	logger.Infof("config refresh tokens rotation enabled: %v", r.rotateRefreshTokens)
+
+	r.allowMultiple = allowMultiple
+	logger.Infof("config refresh tokens allow multiple: %v", allowMultiple)
+
+	if allowMultiple {
+		if maxTokens < 1 {
+			r.maxTokens = 50
+		} else {
+			r.maxTokens = maxTokens
+		}
+		logger.Infof("config refresh tokens max multiple tokens: %v", r.maxTokens)
+
+		if tokenReplacementPolicy != "" {
+			switch tokenReplacementPolicy {
+			case string(LRU):
+				r.tokenReplacementPolicy = LRU
+			case string(FCFS):
+				r.tokenReplacementPolicy = FCFS
+			default:
+				return nil, fmt.Errorf("invalid config value %q for token replacement policy", tokenReplacementPolicy)
+			}
+		} else {
+			r.tokenReplacementPolicy = LRU
+		}
+		logger.Infof("config refresh tokens token replacement policy: %v", r.tokenReplacementPolicy)
+	}
+
 	return &r, nil
 }
 

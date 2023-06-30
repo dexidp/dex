@@ -1036,13 +1036,19 @@ func (s *Server) exchangeAuthCode(w http.ResponseWriter, authCode storage.AuthCo
 				return nil, err
 			}
 		} else {
-			if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
-				// Delete old refresh token from storage.
-				if err := s.storage.DeleteRefresh(oldTokenRef.ID); err != nil && err != storage.ErrNotFound {
-					s.logger.Errorf("failed to delete refresh token: %v", err)
-					s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-					deleteToken = true
-					return nil, err
+			if !s.refreshTokenPolicy.allowMultiple {
+				if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
+					// Delete old refresh token from storage.
+					if err := s.storage.DeleteRefresh(oldTokenRef.ID); err != nil && err != storage.ErrNotFound {
+						s.logger.Errorf("failed to delete refresh token: %v", err)
+						s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+						deleteToken = true
+						return nil, err
+					}
+				}
+			} else {
+				if err := s.deleteRefreshTokens(refresh.ConnectorID, refresh.Claims.UserID); err != nil {
+					s.logger.Errorf("error while deleting refresh token: %v", err)
 				}
 			}
 
@@ -1287,17 +1293,23 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 				return
 			}
 		} else {
-			if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
-				// Delete old refresh token from storage.
-				if err := s.storage.DeleteRefresh(oldTokenRef.ID); err != nil {
-					if err == storage.ErrNotFound {
-						s.logger.Warnf("database inconsistent, refresh token missing: %v", oldTokenRef.ID)
-					} else {
-						s.logger.Errorf("failed to delete refresh token: %v", err)
-						s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-						deleteToken = true
-						return
+			if !s.refreshTokenPolicy.allowMultiple {
+				if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
+					// Delete old refresh token from storage.
+					if err := s.storage.DeleteRefresh(oldTokenRef.ID); err != nil {
+						if err == storage.ErrNotFound {
+							s.logger.Warnf("database inconsistent, refresh token missing: %v", oldTokenRef.ID)
+						} else {
+							s.logger.Errorf("failed to delete refresh token: %v", err)
+							s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+							deleteToken = true
+							return
+						}
 					}
+				}
+			} else {
+				if err := s.deleteRefreshTokens(refresh.ConnectorID, refresh.Claims.UserID); err != nil {
+					s.logger.Errorf("error while deleting refresh token: %v", err)
 				}
 			}
 
@@ -1317,6 +1329,48 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 
 	resp := s.toAccessTokenResponse(idToken, accessToken, refreshToken, expiry)
 	s.writeAccessToken(w, resp)
+}
+
+func (s *Server) deleteRefreshTokens(connectorID string, userID string) error {
+	refreshTokens, err := s.storage.ListRefreshTokens()
+	if err != nil {
+		return err
+	}
+
+	var userRefreshTokens []storage.RefreshToken
+	for index := range refreshTokens {
+		refreshToken := refreshTokens[index]
+		if refreshToken.ConnectorID == connectorID && refreshToken.Claims.UserID == userID {
+			userRefreshTokens = append(userRefreshTokens, refreshToken)
+		}
+	}
+
+	if len(userRefreshTokens) <= s.refreshTokenPolicy.maxTokens {
+		return nil
+	}
+
+	sort.SliceStable(userRefreshTokens, func(i, j int) bool {
+		if s.refreshTokenPolicy.tokenReplacementPolicy == FCFS {
+			return userRefreshTokens[i].CreatedAt.Before(userRefreshTokens[j].CreatedAt)
+		} else {
+			return userRefreshTokens[i].LastUsed.Before(userRefreshTokens[j].LastUsed)
+		}
+	})
+
+	tokensToDelete := userRefreshTokens[:len(userRefreshTokens)-s.refreshTokenPolicy.maxTokens]
+	var deletionError bool
+	for index := range tokensToDelete {
+		refreshToken := tokensToDelete[index]
+		if err := s.storage.DeleteRefresh(refreshToken.ID); err != nil {
+			deletionError = true
+			s.logger.Errorf("error while deleting refresh token: %v", err)
+		}
+	}
+
+	if deletionError {
+		return fmt.Errorf("error while deleting refresh token for userID %s of connector %s", userID, connectorID)
+	}
+	return nil
 }
 
 type accessTokenResponse struct {

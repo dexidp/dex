@@ -344,9 +344,16 @@ type Logger struct {
 	Format string `json:"format"`
 }
 
+type MultipleRefreshToken struct {
+	Allow             bool   `json:"allow"`
+	MaximumCount      int    `json:"maximumCount"`
+	ReplacementPolicy string `json:"replacementPolicy"`
+}
+
 type RefreshToken struct {
-	DisableRotation   bool   `json:"disableRotation"`
-	ReuseInterval     string `json:"reuseInterval"`
-	AbsoluteLifetime  string `json:"absoluteLifetime"`
-	ValidIfNotUsedFor string `json:"validIfNotUsedFor"`
+	DisableRotation   bool                 `json:"disableRotation"`
+	MultipleTokens    MultipleRefreshToken `json:"multipleTokens"`
+	ReuseInterval     string               `json:"reuseInterval"`
+	AbsoluteLifetime  string               `json:"absoluteLifetime"`
+	ValidIfNotUsedFor string               `json:"validIfNotUsedFor"`
 }

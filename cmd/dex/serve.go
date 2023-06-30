@@ -310,7 +310,9 @@ func runServe(options serveOptions) error {
 		c.Expiry.RefreshTokens.ValidIfNotUsedFor,
 		c.Expiry.RefreshTokens.AbsoluteLifetime,
 		c.Expiry.RefreshTokens.ReuseInterval,
-	)
+		c.Expiry.RefreshTokens.MultipleTokens.Allow,
+		c.Expiry.RefreshTokens.MultipleTokens.MaximumCount,
+		c.Expiry.RefreshTokens.MultipleTokens.ReplacementPolicy)
 	if err != nil {
 		return fmt.Errorf("invalid refresh token expiration policy config: %v", err)
 	}
@@ -460,7 +462,7 @@ func runServe(options serveOptions) error {
 		}
 
 		grpcSrv := grpc.NewServer(grpcOptions...)
-		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger, version))
+		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger, version, c.Expiry.RefreshTokens.MultipleTokens.Allow))
 
 		grpcMetrics.InitializeMetrics(grpcSrv)
 		if c.GRPC.Reflection {

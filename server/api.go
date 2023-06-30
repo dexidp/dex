@@ -29,11 +29,12 @@ const (
 )
 
 // NewAPI returns a server which implements the gRPC API interface.
-func NewAPI(s storage.Storage, logger log.Logger, version string) api.DexServer {
+func NewAPI(s storage.Storage, logger log.Logger, version string, multiRefreshTokens bool) api.DexServer {
 	return dexAPI{
-		s:       s,
-		logger:  logger,
-		version: version,
+		s:                  s,
+		logger:             logger,
+		version:            version,
+		multiRefreshTokens: multiRefreshTokens,
 	}
 }
 
@@ -43,6 +44,8 @@ type dexAPI struct {
 	s       storage.Storage
 	logger  log.Logger
 	version string
+
+	multiRefreshTokens bool
 }
 
 func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*api.CreateClientResp, error) {
@@ -283,6 +286,13 @@ func (d dexAPI) VerifyPassword(ctx context.Context, req *api.VerifyPasswordReq) 
 }
 
 func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.ListRefreshResp, error) {
+	if d.multiRefreshTokens {
+		return d.listMultipleRefreshTokensMode(ctx, req)
+	}
+	return d.listRefresh(ctx, req)
+}
+
+func (d dexAPI) listRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.ListRefreshResp, error) {
 	id := new(internal.IDTokenSubject)
 	if err := internal.Unmarshal(req.UserId, id); err != nil {
 		d.logger.Errorf("api: failed to unmarshal ID Token subject: %v", err)
@@ -316,7 +326,84 @@ func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.
 	}, nil
 }
 
+func (d dexAPI) listMultipleRefreshTokensMode(ctx context.Context, req *api.ListRefreshReq) (*api.ListRefreshResp, error) {
+	id := new(internal.IDTokenSubject)
+	if err := internal.Unmarshal(req.UserId, id); err != nil {
+		d.logger.Errorf("api: failed to unmarshal ID Token subject: %v", err)
+		return nil, err
+	}
+
+	var refreshTokenRefs []*api.RefreshTokenRef
+
+	// TODO: As OfflineSession has a reference to lastUpdated RefreshToken, listing add RefreshTokens and filtering
+	refreshTokens, err := d.s.ListRefreshTokens()
+	if err != nil {
+		return nil, err
+	}
+	for _, t := range refreshTokens {
+		if t.Claims.UserID == id.UserId && t.ConnectorID == id.ConnId {
+			r := api.RefreshTokenRef{
+				Id:        t.ID,
+				ClientId:  t.ClientID,
+				CreatedAt: t.CreatedAt.Unix(),
+				LastUsed:  t.LastUsed.Unix(),
+			}
+			refreshTokenRefs = append(refreshTokenRefs, &r)
+		}
+	}
+
+	return &api.ListRefreshResp{
+		RefreshTokens: refreshTokenRefs,
+	}, nil
+}
+
 func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*api.RevokeRefreshResp, error) {
+	if d.multiRefreshTokens {
+		return d.revokeMultipleRefreshTokensMode(ctx, req)
+	}
+	return d.revokeRefresh(ctx, req)
+}
+
+func (d dexAPI) revokeMultipleRefreshTokensMode(ctx context.Context, req *api.RevokeRefreshReq) (*api.RevokeRefreshResp, error) {
+	id := new(internal.IDTokenSubject)
+	if err := internal.Unmarshal(req.UserId, id); err != nil {
+		d.logger.Errorf("api: failed to unmarshal ID Token subject: %v", err)
+		return nil, err
+	}
+
+	// FIXME: listing all tokens can be slow
+	refreshTokens, err := d.s.ListRefreshTokens()
+	if err != nil {
+		return nil, err
+	}
+	if len(refreshTokens) == 0 {
+		return &api.RevokeRefreshResp{NotFound: true}, nil
+	}
+
+	for _, t := range refreshTokens {
+		if t.Claims.UserID == id.UserId && t.ConnectorID == id.ConnId && t.ClientID == req.ClientId {
+			if err := d.s.DeleteRefresh(t.ID); err != nil {
+				d.logger.Errorf("failed to delete refresh token: %v", err)
+				return nil, err
+			}
+		}
+	}
+
+	updater := func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+		// Remove entry from Refresh list of the OfflineSession object.
+		delete(old.Refresh, req.ClientId)
+		return old, nil
+	}
+
+	if err := d.s.UpdateOfflineSessions(id.UserId, id.ConnId, updater); err != nil {
+		d.logger.Errorf("api: failed to update offline session object: %v", err)
+		return nil, err
+	}
+
+	return &api.RevokeRefreshResp{}, nil
+}
+
+func (d dexAPI) revokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*api.RevokeRefreshResp, error) {
 	id := new(internal.IDTokenSubject)
 	if err := internal.Unmarshal(req.UserId, id); err != nil {
 		d.logger.Errorf("api: failed to unmarshal ID Token subject: %v", err)
