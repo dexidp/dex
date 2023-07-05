@@ -112,40 +112,7 @@ func (dtu *DeviceTokenUpdate) Mutation() *DeviceTokenMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (dtu *DeviceTokenUpdate) Save(ctx context.Context) (int, error) {
-	var (
-		err      error
-		affected int
-	)
-	if len(dtu.hooks) == 0 {
-		if err = dtu.check(); err != nil {
-			return 0, err
-		}
-		affected, err = dtu.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*DeviceTokenMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = dtu.check(); err != nil {
-				return 0, err
-			}
-			dtu.mutation = mutation
-			affected, err = dtu.sqlSave(ctx)
-			mutation.done = true
-			return affected, err
-		})
-		for i := len(dtu.hooks) - 1; i >= 0; i-- {
-			if dtu.hooks[i] == nil {
-				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = dtu.hooks[i](mut)
-		}
-		if _, err := mut.Mutate(ctx, dtu.mutation); err != nil {
-			return 0, err
-		}
-	}
-	return affected, err
+	return withHooks(ctx, dtu.sqlSave, dtu.mutation, dtu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -186,16 +153,10 @@ func (dtu *DeviceTokenUpdate) check() error {
 }
 
 func (dtu *DeviceTokenUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	_spec := &sqlgraph.UpdateSpec{
-		Node: &sqlgraph.NodeSpec{
-			Table:   devicetoken.Table,
-			Columns: devicetoken.Columns,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeInt,
-				Column: devicetoken.FieldID,
-			},
-		},
+	if err := dtu.check(); err != nil {
+		return n, err
 	}
+	_spec := sqlgraph.NewUpdateSpec(devicetoken.Table, devicetoken.Columns, sqlgraph.NewFieldSpec(devicetoken.FieldID, field.TypeInt))
 	if ps := dtu.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -204,73 +165,34 @@ func (dtu *DeviceTokenUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 	}
 	if value, ok := dtu.mutation.DeviceCode(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: devicetoken.FieldDeviceCode,
-		})
+		_spec.SetField(devicetoken.FieldDeviceCode, field.TypeString, value)
 	}
 	if value, ok := dtu.mutation.Status(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: devicetoken.FieldStatus,
-		})
+		_spec.SetField(devicetoken.FieldStatus, field.TypeString, value)
 	}
 	if value, ok := dtu.mutation.Token(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: devicetoken.FieldToken,
-		})
+		_spec.SetField(devicetoken.FieldToken, field.TypeBytes, value)
 	}
 	if dtu.mutation.TokenCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Column: devicetoken.FieldToken,
-		})
+		_spec.ClearField(devicetoken.FieldToken, field.TypeBytes)
 	}
 	if value, ok := dtu.mutation.Expiry(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: devicetoken.FieldExpiry,
-		})
+		_spec.SetField(devicetoken.FieldExpiry, field.TypeTime, value)
 	}
 	if value, ok := dtu.mutation.LastRequest(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: devicetoken.FieldLastRequest,
-		})
+		_spec.SetField(devicetoken.FieldLastRequest, field.TypeTime, value)
 	}
 	if value, ok := dtu.mutation.PollInterval(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeInt,
-			Value:  value,
-			Column: devicetoken.FieldPollInterval,
-		})
+		_spec.SetField(devicetoken.FieldPollInterval, field.TypeInt, value)
 	}
 	if value, ok := dtu.mutation.AddedPollInterval(); ok {
-		_spec.Fields.Add = append(_spec.Fields.Add, &sqlgraph.FieldSpec{
-			Type:   field.TypeInt,
-			Value:  value,
-			Column: devicetoken.FieldPollInterval,
-		})
+		_spec.AddField(devicetoken.FieldPollInterval, field.TypeInt, value)
 	}
 	if value, ok := dtu.mutation.CodeChallenge(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: devicetoken.FieldCodeChallenge,
-		})
+		_spec.SetField(devicetoken.FieldCodeChallenge, field.TypeString, value)
 	}
 	if value, ok := dtu.mutation.CodeChallengeMethod(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: devicetoken.FieldCodeChallengeMethod,
-		})
+		_spec.SetField(devicetoken.FieldCodeChallengeMethod, field.TypeString, value)
 	}
 	if n, err = sqlgraph.UpdateNodes(ctx, dtu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -280,6 +202,7 @@ func (dtu *DeviceTokenUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 		return 0, err
 	}
+	dtu.mutation.done = true
 	return n, nil
 }
 
@@ -373,6 +296,12 @@ func (dtuo *DeviceTokenUpdateOne) Mutation() *DeviceTokenMutation {
 	return dtuo.mutation
 }
 
+// Where appends a list predicates to the DeviceTokenUpdate builder.
+func (dtuo *DeviceTokenUpdateOne) Where(ps ...predicate.DeviceToken) *DeviceTokenUpdateOne {
+	dtuo.mutation.Where(ps...)
+	return dtuo
+}
+
 // Select allows selecting one or more fields (columns) of the returned entity.
 // The default is selecting all fields defined in the entity schema.
 func (dtuo *DeviceTokenUpdateOne) Select(field string, fields ...string) *DeviceTokenUpdateOne {
@@ -382,46 +311,7 @@ func (dtuo *DeviceTokenUpdateOne) Select(field string, fields ...string) *Device
 
 // Save executes the query and returns the updated DeviceToken entity.
 func (dtuo *DeviceTokenUpdateOne) Save(ctx context.Context) (*DeviceToken, error) {
-	var (
-		err  error
-		node *DeviceToken
-	)
-	if len(dtuo.hooks) == 0 {
-		if err = dtuo.check(); err != nil {
-			return nil, err
-		}
-		node, err = dtuo.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*DeviceTokenMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = dtuo.check(); err != nil {
-				return nil, err
-			}
-			dtuo.mutation = mutation
-			node, err = dtuo.sqlSave(ctx)
-			mutation.done = true
-			return node, err
-		})
-		for i := len(dtuo.hooks) - 1; i >= 0; i-- {
-			if dtuo.hooks[i] == nil {
-				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = dtuo.hooks[i](mut)
-		}
-		v, err := mut.Mutate(ctx, dtuo.mutation)
-		if err != nil {
-			return nil, err
-		}
-		nv, ok := v.(*DeviceToken)
-		if !ok {
-			return nil, fmt.Errorf("unexpected node type %T returned from DeviceTokenMutation", v)
-		}
-		node = nv
-	}
-	return node, err
+	return withHooks(ctx, dtuo.sqlSave, dtuo.mutation, dtuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -462,16 +352,10 @@ func (dtuo *DeviceTokenUpdateOne) check() error {
 }
 
 func (dtuo *DeviceTokenUpdateOne) sqlSave(ctx context.Context) (_node *DeviceToken, err error) {
-	_spec := &sqlgraph.UpdateSpec{
-		Node: &sqlgraph.NodeSpec{
-			Table:   devicetoken.Table,
-			Columns: devicetoken.Columns,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeInt,
-				Column: devicetoken.FieldID,
-			},
-		},
+	if err := dtuo.check(); err != nil {
+		return _node, err
 	}
+	_spec := sqlgraph.NewUpdateSpec(devicetoken.Table, devicetoken.Columns, sqlgraph.NewFieldSpec(devicetoken.FieldID, field.TypeInt))
 	id, ok := dtuo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "DeviceToken.id" for update`)}
@@ -497,73 +381,34 @@ func (dtuo *DeviceTokenUpdateOne) sqlSave(ctx context.Context) (_node *DeviceTok
 		}
 	}
 	if value, ok := dtuo.mutation.DeviceCode(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: devicetoken.FieldDeviceCode,
-		})
+		_spec.SetField(devicetoken.FieldDeviceCode, field.TypeString, value)
 	}
 	if value, ok := dtuo.mutation.Status(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: devicetoken.FieldStatus,
-		})
+		_spec.SetField(devicetoken.FieldStatus, field.TypeString, value)
 	}
 	if value, ok := dtuo.mutation.Token(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: devicetoken.FieldToken,
-		})
+		_spec.SetField(devicetoken.FieldToken, field.TypeBytes, value)
 	}
 	if dtuo.mutation.TokenCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Column: devicetoken.FieldToken,
-		})
+		_spec.ClearField(devicetoken.FieldToken, field.TypeBytes)
 	}
 	if value, ok := dtuo.mutation.Expiry(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: devicetoken.FieldExpiry,
-		})
+		_spec.SetField(devicetoken.FieldExpiry, field.TypeTime, value)
 	}
 	if value, ok := dtuo.mutation.LastRequest(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: devicetoken.FieldLastRequest,
-		})
+		_spec.SetField(devicetoken.FieldLastRequest, field.TypeTime, value)
 	}
 	if value, ok := dtuo.mutation.PollInterval(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeInt,
-			Value:  value,
-			Column: devicetoken.FieldPollInterval,
-		})
+		_spec.SetField(devicetoken.FieldPollInterval, field.TypeInt, value)
 	}
 	if value, ok := dtuo.mutation.AddedPollInterval(); ok {
-		_spec.Fields.Add = append(_spec.Fields.Add, &sqlgraph.FieldSpec{
-			Type:   field.TypeInt,
-			Value:  value,
-			Column: devicetoken.FieldPollInterval,
-		})
+		_spec.AddField(devicetoken.FieldPollInterval, field.TypeInt, value)
 	}
 	if value, ok := dtuo.mutation.CodeChallenge(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: devicetoken.FieldCodeChallenge,
-		})
+		_spec.SetField(devicetoken.FieldCodeChallenge, field.TypeString, value)
 	}
 	if value, ok := dtuo.mutation.CodeChallengeMethod(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: devicetoken.FieldCodeChallengeMethod,
-		})
+		_spec.SetField(devicetoken.FieldCodeChallengeMethod, field.TypeString, value)
 	}
 	_node = &DeviceToken{config: dtuo.config}
 	_spec.Assign = _node.assignValues
@@ -576,5 +421,6 @@ func (dtuo *DeviceTokenUpdateOne) sqlSave(ctx context.Context) (_node *DeviceTok
 		}
 		return nil, err
 	}
+	dtuo.mutation.done = true
 	return _node, nil
 }

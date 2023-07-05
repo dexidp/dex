@@ -50,49 +50,7 @@ func (pc *PasswordCreate) Mutation() *PasswordMutation {
 
 // Save creates the Password in the database.
 func (pc *PasswordCreate) Save(ctx context.Context) (*Password, error) {
-	var (
-		err  error
-		node *Password
-	)
-	if len(pc.hooks) == 0 {
-		if err = pc.check(); err != nil {
-			return nil, err
-		}
-		node, err = pc.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*PasswordMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = pc.check(); err != nil {
-				return nil, err
-			}
-			pc.mutation = mutation
-			if node, err = pc.sqlSave(ctx); err != nil {
-				return nil, err
-			}
-			mutation.id = &node.ID
-			mutation.done = true
-			return node, err
-		})
-		for i := len(pc.hooks) - 1; i >= 0; i-- {
-			if pc.hooks[i] == nil {
-				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = pc.hooks[i](mut)
-		}
-		v, err := mut.Mutate(ctx, pc.mutation)
-		if err != nil {
-			return nil, err
-		}
-		nv, ok := v.(*Password)
-		if !ok {
-			return nil, fmt.Errorf("unexpected node type %T returned from PasswordMutation", v)
-		}
-		node = nv
-	}
-	return node, err
+	return withHooks(ctx, pc.sqlSave, pc.mutation, pc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -150,6 +108,9 @@ func (pc *PasswordCreate) check() error {
 }
 
 func (pc *PasswordCreate) sqlSave(ctx context.Context) (*Password, error) {
+	if err := pc.check(); err != nil {
+		return nil, err
+	}
 	_node, _spec := pc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, pc.driver, _spec); err != nil {
 		if sqlgraph.IsConstraintError(err) {
@@ -159,50 +120,30 @@ func (pc *PasswordCreate) sqlSave(ctx context.Context) (*Password, error) {
 	}
 	id := _spec.ID.Value.(int64)
 	_node.ID = int(id)
+	pc.mutation.id = &_node.ID
+	pc.mutation.done = true
 	return _node, nil
 }
 
 func (pc *PasswordCreate) createSpec() (*Password, *sqlgraph.CreateSpec) {
 	var (
 		_node = &Password{config: pc.config}
-		_spec = &sqlgraph.CreateSpec{
-			Table: password.Table,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeInt,
-				Column: password.FieldID,
-			},
-		}
+		_spec = sqlgraph.NewCreateSpec(password.Table, sqlgraph.NewFieldSpec(password.FieldID, field.TypeInt))
 	)
 	if value, ok := pc.mutation.Email(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: password.FieldEmail,
-		})
+		_spec.SetField(password.FieldEmail, field.TypeString, value)
 		_node.Email = value
 	}
 	if value, ok := pc.mutation.Hash(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: password.FieldHash,
-		})
+		_spec.SetField(password.FieldHash, field.TypeBytes, value)
 		_node.Hash = value
 	}
 	if value, ok := pc.mutation.Username(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: password.FieldUsername,
-		})
+		_spec.SetField(password.FieldUsername, field.TypeString, value)
 		_node.Username = value
 	}
 	if value, ok := pc.mutation.UserID(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: password.FieldUserID,
-		})
+		_spec.SetField(password.FieldUserID, field.TypeString, value)
 		_node.UserID = value
 	}
 	return _node, _spec
@@ -231,8 +172,8 @@ func (pcb *PasswordCreateBulk) Save(ctx context.Context) ([]*Password, error) {
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, pcb.builders[i+1].mutation)
 				} else {

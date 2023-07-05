@@ -144,8 +144,8 @@ type Storage interface {
 // Client represents an OAuth2 client.
 //
 // For further reading see:
-//   * Trusted peers: https://developers.google.com/identity/protocols/CrossClientAuth
-//   * Public clients: https://developers.google.com/api-client-library/python/auth/installed-app
+//   - Trusted peers: https://developers.google.com/identity/protocols/CrossClientAuth
+//   - Public clients: https://developers.google.com/api-client-library/python/auth/installed-app
 type Client struct {
 	// Client ID and secret used to identify the client.
 	ID        string `json:"id" yaml:"id"`
@@ -317,7 +317,7 @@ type RefreshTokenRef struct {
 
 // OfflineSessions objects are sessions pertaining to users with refresh tokens.
 type OfflineSessions struct {
-	// UserID of an end user who has logged in to the server.
+	// UserID of an end user who has logged into the server.
 	UserID string
 
 	// The ID of the connector used to login the user.
@@ -368,6 +368,10 @@ type Connector struct {
 	ResourceVersion string `json:"resourceVersion"`
 	// Config holds all the configuration information specific to the connector type. Since there
 	// no generic struct we can use for this purpose, it is stored as a byte stream.
+	//
+	// NOTE: This is a bug. The JSON tag should be `config`.
+	// However, fixing this requires migrating Kubernetes objects for all previously created connectors,
+	// or making Dex reading both tags and act accordingly.
 	Config []byte `json:"email"`
 }
 

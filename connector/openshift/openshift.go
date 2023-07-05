@@ -2,21 +2,17 @@ package openshift
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"os"
 	"strings"
-	"time"
 
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/groups"
+	"github.com/dexidp/dex/pkg/httpclient"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
@@ -67,7 +63,12 @@ type user struct {
 // Open returns a connector which can be used to login users through an upstream
 // OpenShift OAuth2 provider.
 func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
-	httpClient, err := newHTTPClient(c.InsecureCA, c.RootCA)
+	var rootCAs []string
+	if c.RootCA != "" {
+		rootCAs = append(rootCAs, c.RootCA)
+	}
+
+	httpClient, err := httpclient.NewHTTPClient(rootCAs, c.InsecureCA)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
 	}
@@ -81,9 +82,13 @@ func (c *Config) OpenWithHTTPClient(id string, logger log.Logger,
 	httpClient *http.Client,
 ) (conn connector.Connector, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	wellKnownURL := strings.TrimSuffix(c.Issuer, "/") + wellKnownURLPath
 	req, err := http.NewRequest(http.MethodGet, wellKnownURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create a request to OpenShift endpoint %w", err)
+	}
 
 	openshiftConnector := openshiftConnector{
 		apiURL:       c.Issuer,
@@ -105,14 +110,12 @@ func (c *Config) OpenWithHTTPClient(id string, logger log.Logger,
 
 	resp, err := openshiftConnector.httpClient.Do(req.WithContext(ctx))
 	if err != nil {
-		cancel()
 		return nil, fmt.Errorf("failed to query OpenShift endpoint %w", err)
 	}
 
 	defer resp.Body.Close()
 
 	if err := json.NewDecoder(resp.Body).Decode(&metadata); err != nil {
-		cancel()
 		return nil, fmt.Errorf("discovery through endpoint %s failed to decode body: %w",
 			wellKnownURL, err)
 	}
@@ -261,37 +264,4 @@ func validateAllowedGroups(userGroups, allowedGroups []string) bool {
 	matchingGroups := groups.Filter(userGroups, allowedGroups)
 
 	return len(matchingGroups) != 0
-}
-
-// newHTTPClient returns a new HTTP client
-func newHTTPClient(insecureCA bool, rootCA string) (*http.Client, error) {
-	tlsConfig := tls.Config{}
-	if insecureCA {
-		tlsConfig = tls.Config{InsecureSkipVerify: true}
-	} else if rootCA != "" {
-		tlsConfig = tls.Config{RootCAs: x509.NewCertPool()}
-		rootCABytes, err := os.ReadFile(rootCA)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read root-ca: %w", err)
-		}
-		if !tlsConfig.RootCAs.AppendCertsFromPEM(rootCABytes) {
-			return nil, fmt.Errorf("no certs found in root CA file %q", rootCA)
-		}
-	}
-
-	return &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tlsConfig,
-			Proxy:           http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second,
-				DualStack: true,
-			}).DialContext,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
-	}, nil
 }

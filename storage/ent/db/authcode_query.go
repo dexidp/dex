@@ -17,11 +17,9 @@ import (
 // AuthCodeQuery is the builder for querying AuthCode entities.
 type AuthCodeQuery struct {
 	config
-	limit      *int
-	offset     *int
-	unique     *bool
-	order      []OrderFunc
-	fields     []string
+	ctx        *QueryContext
+	order      []authcode.OrderOption
+	inters     []Interceptor
 	predicates []predicate.AuthCode
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -34,27 +32,27 @@ func (acq *AuthCodeQuery) Where(ps ...predicate.AuthCode) *AuthCodeQuery {
 	return acq
 }
 
-// Limit adds a limit step to the query.
+// Limit the number of records to be returned by this query.
 func (acq *AuthCodeQuery) Limit(limit int) *AuthCodeQuery {
-	acq.limit = &limit
+	acq.ctx.Limit = &limit
 	return acq
 }
 
-// Offset adds an offset step to the query.
+// Offset to start from.
 func (acq *AuthCodeQuery) Offset(offset int) *AuthCodeQuery {
-	acq.offset = &offset
+	acq.ctx.Offset = &offset
 	return acq
 }
 
 // Unique configures the query builder to filter duplicate records on query.
 // By default, unique is set to true, and can be disabled using this method.
 func (acq *AuthCodeQuery) Unique(unique bool) *AuthCodeQuery {
-	acq.unique = &unique
+	acq.ctx.Unique = &unique
 	return acq
 }
 
-// Order adds an order step to the query.
-func (acq *AuthCodeQuery) Order(o ...OrderFunc) *AuthCodeQuery {
+// Order specifies how the records should be ordered.
+func (acq *AuthCodeQuery) Order(o ...authcode.OrderOption) *AuthCodeQuery {
 	acq.order = append(acq.order, o...)
 	return acq
 }
@@ -62,7 +60,7 @@ func (acq *AuthCodeQuery) Order(o ...OrderFunc) *AuthCodeQuery {
 // First returns the first AuthCode entity from the query.
 // Returns a *NotFoundError when no AuthCode was found.
 func (acq *AuthCodeQuery) First(ctx context.Context) (*AuthCode, error) {
-	nodes, err := acq.Limit(1).All(ctx)
+	nodes, err := acq.Limit(1).All(setContextOp(ctx, acq.ctx, "First"))
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +83,7 @@ func (acq *AuthCodeQuery) FirstX(ctx context.Context) *AuthCode {
 // Returns a *NotFoundError when no AuthCode ID was found.
 func (acq *AuthCodeQuery) FirstID(ctx context.Context) (id string, err error) {
 	var ids []string
-	if ids, err = acq.Limit(1).IDs(ctx); err != nil {
+	if ids, err = acq.Limit(1).IDs(setContextOp(ctx, acq.ctx, "FirstID")); err != nil {
 		return
 	}
 	if len(ids) == 0 {
@@ -108,7 +106,7 @@ func (acq *AuthCodeQuery) FirstIDX(ctx context.Context) string {
 // Returns a *NotSingularError when more than one AuthCode entity is found.
 // Returns a *NotFoundError when no AuthCode entities are found.
 func (acq *AuthCodeQuery) Only(ctx context.Context) (*AuthCode, error) {
-	nodes, err := acq.Limit(2).All(ctx)
+	nodes, err := acq.Limit(2).All(setContextOp(ctx, acq.ctx, "Only"))
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +134,7 @@ func (acq *AuthCodeQuery) OnlyX(ctx context.Context) *AuthCode {
 // Returns a *NotFoundError when no entities are found.
 func (acq *AuthCodeQuery) OnlyID(ctx context.Context) (id string, err error) {
 	var ids []string
-	if ids, err = acq.Limit(2).IDs(ctx); err != nil {
+	if ids, err = acq.Limit(2).IDs(setContextOp(ctx, acq.ctx, "OnlyID")); err != nil {
 		return
 	}
 	switch len(ids) {
@@ -161,10 +159,12 @@ func (acq *AuthCodeQuery) OnlyIDX(ctx context.Context) string {
 
 // All executes the query and returns a list of AuthCodes.
 func (acq *AuthCodeQuery) All(ctx context.Context) ([]*AuthCode, error) {
+	ctx = setContextOp(ctx, acq.ctx, "All")
 	if err := acq.prepareQuery(ctx); err != nil {
 		return nil, err
 	}
-	return acq.sqlAll(ctx)
+	qr := querierAll[[]*AuthCode, *AuthCodeQuery]()
+	return withInterceptors[[]*AuthCode](ctx, acq, qr, acq.inters)
 }
 
 // AllX is like All, but panics if an error occurs.
@@ -177,9 +177,12 @@ func (acq *AuthCodeQuery) AllX(ctx context.Context) []*AuthCode {
 }
 
 // IDs executes the query and returns a list of AuthCode IDs.
-func (acq *AuthCodeQuery) IDs(ctx context.Context) ([]string, error) {
-	var ids []string
-	if err := acq.Select(authcode.FieldID).Scan(ctx, &ids); err != nil {
+func (acq *AuthCodeQuery) IDs(ctx context.Context) (ids []string, err error) {
+	if acq.ctx.Unique == nil && acq.path != nil {
+		acq.Unique(true)
+	}
+	ctx = setContextOp(ctx, acq.ctx, "IDs")
+	if err = acq.Select(authcode.FieldID).Scan(ctx, &ids); err != nil {
 		return nil, err
 	}
 	return ids, nil
@@ -196,10 +199,11 @@ func (acq *AuthCodeQuery) IDsX(ctx context.Context) []string {
 
 // Count returns the count of the given query.
 func (acq *AuthCodeQuery) Count(ctx context.Context) (int, error) {
+	ctx = setContextOp(ctx, acq.ctx, "Count")
 	if err := acq.prepareQuery(ctx); err != nil {
 		return 0, err
 	}
-	return acq.sqlCount(ctx)
+	return withInterceptors[int](ctx, acq, querierCount[*AuthCodeQuery](), acq.inters)
 }
 
 // CountX is like Count, but panics if an error occurs.
@@ -213,10 +217,15 @@ func (acq *AuthCodeQuery) CountX(ctx context.Context) int {
 
 // Exist returns true if the query has elements in the graph.
 func (acq *AuthCodeQuery) Exist(ctx context.Context) (bool, error) {
-	if err := acq.prepareQuery(ctx); err != nil {
-		return false, err
+	ctx = setContextOp(ctx, acq.ctx, "Exist")
+	switch _, err := acq.FirstID(ctx); {
+	case IsNotFound(err):
+		return false, nil
+	case err != nil:
+		return false, fmt.Errorf("db: check existence: %w", err)
+	default:
+		return true, nil
 	}
-	return acq.sqlExist(ctx)
 }
 
 // ExistX is like Exist, but panics if an error occurs.
@@ -236,14 +245,13 @@ func (acq *AuthCodeQuery) Clone() *AuthCodeQuery {
 	}
 	return &AuthCodeQuery{
 		config:     acq.config,
-		limit:      acq.limit,
-		offset:     acq.offset,
-		order:      append([]OrderFunc{}, acq.order...),
+		ctx:        acq.ctx.Clone(),
+		order:      append([]authcode.OrderOption{}, acq.order...),
+		inters:     append([]Interceptor{}, acq.inters...),
 		predicates: append([]predicate.AuthCode{}, acq.predicates...),
 		// clone intermediate query.
-		sql:    acq.sql.Clone(),
-		path:   acq.path,
-		unique: acq.unique,
+		sql:  acq.sql.Clone(),
+		path: acq.path,
 	}
 }
 
@@ -261,18 +269,12 @@ func (acq *AuthCodeQuery) Clone() *AuthCodeQuery {
 //		GroupBy(authcode.FieldClientID).
 //		Aggregate(db.Count()).
 //		Scan(ctx, &v)
-//
 func (acq *AuthCodeQuery) GroupBy(field string, fields ...string) *AuthCodeGroupBy {
-	grbuild := &AuthCodeGroupBy{config: acq.config}
-	grbuild.fields = append([]string{field}, fields...)
-	grbuild.path = func(ctx context.Context) (prev *sql.Selector, err error) {
-		if err := acq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		return acq.sqlQuery(ctx), nil
-	}
+	acq.ctx.Fields = append([]string{field}, fields...)
+	grbuild := &AuthCodeGroupBy{build: acq}
+	grbuild.flds = &acq.ctx.Fields
 	grbuild.label = authcode.Label
-	grbuild.flds, grbuild.scan = &grbuild.fields, grbuild.Scan
+	grbuild.scan = grbuild.Scan
 	return grbuild
 }
 
@@ -288,17 +290,31 @@ func (acq *AuthCodeQuery) GroupBy(field string, fields ...string) *AuthCodeGroup
 //	client.AuthCode.Query().
 //		Select(authcode.FieldClientID).
 //		Scan(ctx, &v)
-//
 func (acq *AuthCodeQuery) Select(fields ...string) *AuthCodeSelect {
-	acq.fields = append(acq.fields, fields...)
-	selbuild := &AuthCodeSelect{AuthCodeQuery: acq}
-	selbuild.label = authcode.Label
-	selbuild.flds, selbuild.scan = &acq.fields, selbuild.Scan
-	return selbuild
+	acq.ctx.Fields = append(acq.ctx.Fields, fields...)
+	sbuild := &AuthCodeSelect{AuthCodeQuery: acq}
+	sbuild.label = authcode.Label
+	sbuild.flds, sbuild.scan = &acq.ctx.Fields, sbuild.Scan
+	return sbuild
+}
+
+// Aggregate returns a AuthCodeSelect configured with the given aggregations.
+func (acq *AuthCodeQuery) Aggregate(fns ...AggregateFunc) *AuthCodeSelect {
+	return acq.Select().Aggregate(fns...)
 }
 
 func (acq *AuthCodeQuery) prepareQuery(ctx context.Context) error {
-	for _, f := range acq.fields {
+	for _, inter := range acq.inters {
+		if inter == nil {
+			return fmt.Errorf("db: uninitialized interceptor (forgotten import db/runtime?)")
+		}
+		if trv, ok := inter.(Traverser); ok {
+			if err := trv.Traverse(ctx, acq); err != nil {
+				return err
+			}
+		}
+	}
+	for _, f := range acq.ctx.Fields {
 		if !authcode.ValidColumn(f) {
 			return &ValidationError{Name: f, err: fmt.Errorf("db: invalid field %q for query", f)}
 		}
@@ -318,10 +334,10 @@ func (acq *AuthCodeQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Au
 		nodes = []*AuthCode{}
 		_spec = acq.querySpec()
 	)
-	_spec.ScanValues = func(columns []string) ([]interface{}, error) {
+	_spec.ScanValues = func(columns []string) ([]any, error) {
 		return (*AuthCode).scanValues(nil, columns)
 	}
-	_spec.Assign = func(columns []string, values []interface{}) error {
+	_spec.Assign = func(columns []string, values []any) error {
 		node := &AuthCode{config: acq.config}
 		nodes = append(nodes, node)
 		return node.assignValues(columns, values)
@@ -340,38 +356,22 @@ func (acq *AuthCodeQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Au
 
 func (acq *AuthCodeQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := acq.querySpec()
-	_spec.Node.Columns = acq.fields
-	if len(acq.fields) > 0 {
-		_spec.Unique = acq.unique != nil && *acq.unique
+	_spec.Node.Columns = acq.ctx.Fields
+	if len(acq.ctx.Fields) > 0 {
+		_spec.Unique = acq.ctx.Unique != nil && *acq.ctx.Unique
 	}
 	return sqlgraph.CountNodes(ctx, acq.driver, _spec)
 }
 
-func (acq *AuthCodeQuery) sqlExist(ctx context.Context) (bool, error) {
-	n, err := acq.sqlCount(ctx)
-	if err != nil {
-		return false, fmt.Errorf("db: check existence: %w", err)
-	}
-	return n > 0, nil
-}
-
 func (acq *AuthCodeQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := &sqlgraph.QuerySpec{
-		Node: &sqlgraph.NodeSpec{
-			Table:   authcode.Table,
-			Columns: authcode.Columns,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: authcode.FieldID,
-			},
-		},
-		From:   acq.sql,
-		Unique: true,
-	}
-	if unique := acq.unique; unique != nil {
+	_spec := sqlgraph.NewQuerySpec(authcode.Table, authcode.Columns, sqlgraph.NewFieldSpec(authcode.FieldID, field.TypeString))
+	_spec.From = acq.sql
+	if unique := acq.ctx.Unique; unique != nil {
 		_spec.Unique = *unique
+	} else if acq.path != nil {
+		_spec.Unique = true
 	}
-	if fields := acq.fields; len(fields) > 0 {
+	if fields := acq.ctx.Fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, authcode.FieldID)
 		for i := range fields {
@@ -387,10 +387,10 @@ func (acq *AuthCodeQuery) querySpec() *sqlgraph.QuerySpec {
 			}
 		}
 	}
-	if limit := acq.limit; limit != nil {
+	if limit := acq.ctx.Limit; limit != nil {
 		_spec.Limit = *limit
 	}
-	if offset := acq.offset; offset != nil {
+	if offset := acq.ctx.Offset; offset != nil {
 		_spec.Offset = *offset
 	}
 	if ps := acq.order; len(ps) > 0 {
@@ -406,7 +406,7 @@ func (acq *AuthCodeQuery) querySpec() *sqlgraph.QuerySpec {
 func (acq *AuthCodeQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(acq.driver.Dialect())
 	t1 := builder.Table(authcode.Table)
-	columns := acq.fields
+	columns := acq.ctx.Fields
 	if len(columns) == 0 {
 		columns = authcode.Columns
 	}
@@ -415,7 +415,7 @@ func (acq *AuthCodeQuery) sqlQuery(ctx context.Context) *sql.Selector {
 		selector = acq.sql
 		selector.Select(selector.Columns(columns...)...)
 	}
-	if acq.unique != nil && *acq.unique {
+	if acq.ctx.Unique != nil && *acq.ctx.Unique {
 		selector.Distinct()
 	}
 	for _, p := range acq.predicates {
@@ -424,12 +424,12 @@ func (acq *AuthCodeQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	for _, p := range acq.order {
 		p(selector)
 	}
-	if offset := acq.offset; offset != nil {
+	if offset := acq.ctx.Offset; offset != nil {
 		// limit is mandatory for offset clause. We start
 		// with default value, and override it below if needed.
 		selector.Offset(*offset).Limit(math.MaxInt32)
 	}
-	if limit := acq.limit; limit != nil {
+	if limit := acq.ctx.Limit; limit != nil {
 		selector.Limit(*limit)
 	}
 	return selector
@@ -437,13 +437,8 @@ func (acq *AuthCodeQuery) sqlQuery(ctx context.Context) *sql.Selector {
 
 // AuthCodeGroupBy is the group-by builder for AuthCode entities.
 type AuthCodeGroupBy struct {
-	config
 	selector
-	fields []string
-	fns    []AggregateFunc
-	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	build *AuthCodeQuery
 }
 
 // Aggregate adds the given aggregation functions to the group-by query.
@@ -452,74 +447,77 @@ func (acgb *AuthCodeGroupBy) Aggregate(fns ...AggregateFunc) *AuthCodeGroupBy {
 	return acgb
 }
 
-// Scan applies the group-by query and scans the result into the given value.
-func (acgb *AuthCodeGroupBy) Scan(ctx context.Context, v interface{}) error {
-	query, err := acgb.path(ctx)
-	if err != nil {
+// Scan applies the selector query and scans the result into the given value.
+func (acgb *AuthCodeGroupBy) Scan(ctx context.Context, v any) error {
+	ctx = setContextOp(ctx, acgb.build.ctx, "GroupBy")
+	if err := acgb.build.prepareQuery(ctx); err != nil {
 		return err
 	}
-	acgb.sql = query
-	return acgb.sqlScan(ctx, v)
+	return scanWithInterceptors[*AuthCodeQuery, *AuthCodeGroupBy](ctx, acgb.build, acgb, acgb.build.inters, v)
 }
 
-func (acgb *AuthCodeGroupBy) sqlScan(ctx context.Context, v interface{}) error {
-	for _, f := range acgb.fields {
-		if !authcode.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("invalid field %q for group-by", f)}
-		}
+func (acgb *AuthCodeGroupBy) sqlScan(ctx context.Context, root *AuthCodeQuery, v any) error {
+	selector := root.sqlQuery(ctx).Select()
+	aggregation := make([]string, 0, len(acgb.fns))
+	for _, fn := range acgb.fns {
+		aggregation = append(aggregation, fn(selector))
 	}
-	selector := acgb.sqlQuery()
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(*acgb.flds)+len(acgb.fns))
+		for _, f := range *acgb.flds {
+			columns = append(columns, selector.C(f))
+		}
+		columns = append(columns, aggregation...)
+		selector.Select(columns...)
+	}
+	selector.GroupBy(selector.Columns(*acgb.flds...)...)
 	if err := selector.Err(); err != nil {
 		return err
 	}
 	rows := &sql.Rows{}
 	query, args := selector.Query()
-	if err := acgb.driver.Query(ctx, query, args, rows); err != nil {
+	if err := acgb.build.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
 }
 
-func (acgb *AuthCodeGroupBy) sqlQuery() *sql.Selector {
-	selector := acgb.sql.Select()
-	aggregation := make([]string, 0, len(acgb.fns))
-	for _, fn := range acgb.fns {
-		aggregation = append(aggregation, fn(selector))
-	}
-	// If no columns were selected in a custom aggregation function, the default
-	// selection is the fields used for "group-by", and the aggregation functions.
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(acgb.fields)+len(acgb.fns))
-		for _, f := range acgb.fields {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
-	}
-	return selector.GroupBy(selector.Columns(acgb.fields...)...)
-}
-
 // AuthCodeSelect is the builder for selecting fields of AuthCode entities.
 type AuthCodeSelect struct {
 	*AuthCodeQuery
 	selector
-	// intermediate query (i.e. traversal path).
-	sql *sql.Selector
+}
+
+// Aggregate adds the given aggregation functions to the selector query.
+func (acs *AuthCodeSelect) Aggregate(fns ...AggregateFunc) *AuthCodeSelect {
+	acs.fns = append(acs.fns, fns...)
+	return acs
 }
 
 // Scan applies the selector query and scans the result into the given value.
-func (acs *AuthCodeSelect) Scan(ctx context.Context, v interface{}) error {
+func (acs *AuthCodeSelect) Scan(ctx context.Context, v any) error {
+	ctx = setContextOp(ctx, acs.ctx, "Select")
 	if err := acs.prepareQuery(ctx); err != nil {
 		return err
 	}
-	acs.sql = acs.AuthCodeQuery.sqlQuery(ctx)
-	return acs.sqlScan(ctx, v)
+	return scanWithInterceptors[*AuthCodeQuery, *AuthCodeSelect](ctx, acs.AuthCodeQuery, acs, acs.inters, v)
 }
 
-func (acs *AuthCodeSelect) sqlScan(ctx context.Context, v interface{}) error {
+func (acs *AuthCodeSelect) sqlScan(ctx context.Context, root *AuthCodeQuery, v any) error {
+	selector := root.sqlQuery(ctx)
+	aggregation := make([]string, 0, len(acs.fns))
+	for _, fn := range acs.fns {
+		aggregation = append(aggregation, fn(selector))
+	}
+	switch n := len(*acs.selector.flds); {
+	case n == 0 && len(aggregation) > 0:
+		selector.Select(aggregation...)
+	case n != 0 && len(aggregation) > 0:
+		selector.AppendSelect(aggregation...)
+	}
 	rows := &sql.Rows{}
-	query, args := acs.sql.Query()
+	query, args := selector.Query()
 	if err := acs.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}

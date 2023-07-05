@@ -56,49 +56,7 @@ func (osc *OfflineSessionCreate) Mutation() *OfflineSessionMutation {
 
 // Save creates the OfflineSession in the database.
 func (osc *OfflineSessionCreate) Save(ctx context.Context) (*OfflineSession, error) {
-	var (
-		err  error
-		node *OfflineSession
-	)
-	if len(osc.hooks) == 0 {
-		if err = osc.check(); err != nil {
-			return nil, err
-		}
-		node, err = osc.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*OfflineSessionMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = osc.check(); err != nil {
-				return nil, err
-			}
-			osc.mutation = mutation
-			if node, err = osc.sqlSave(ctx); err != nil {
-				return nil, err
-			}
-			mutation.id = &node.ID
-			mutation.done = true
-			return node, err
-		})
-		for i := len(osc.hooks) - 1; i >= 0; i-- {
-			if osc.hooks[i] == nil {
-				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = osc.hooks[i](mut)
-		}
-		v, err := mut.Mutate(ctx, osc.mutation)
-		if err != nil {
-			return nil, err
-		}
-		nv, ok := v.(*OfflineSession)
-		if !ok {
-			return nil, fmt.Errorf("unexpected node type %T returned from OfflineSessionMutation", v)
-		}
-		node = nv
-	}
-	return node, err
+	return withHooks(ctx, osc.sqlSave, osc.mutation, osc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -153,6 +111,9 @@ func (osc *OfflineSessionCreate) check() error {
 }
 
 func (osc *OfflineSessionCreate) sqlSave(ctx context.Context) (*OfflineSession, error) {
+	if err := osc.check(); err != nil {
+		return nil, err
+	}
 	_node, _spec := osc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, osc.driver, _spec); err != nil {
 		if sqlgraph.IsConstraintError(err) {
@@ -167,54 +128,34 @@ func (osc *OfflineSessionCreate) sqlSave(ctx context.Context) (*OfflineSession, 
 			return nil, fmt.Errorf("unexpected OfflineSession.ID type: %T", _spec.ID.Value)
 		}
 	}
+	osc.mutation.id = &_node.ID
+	osc.mutation.done = true
 	return _node, nil
 }
 
 func (osc *OfflineSessionCreate) createSpec() (*OfflineSession, *sqlgraph.CreateSpec) {
 	var (
 		_node = &OfflineSession{config: osc.config}
-		_spec = &sqlgraph.CreateSpec{
-			Table: offlinesession.Table,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: offlinesession.FieldID,
-			},
-		}
+		_spec = sqlgraph.NewCreateSpec(offlinesession.Table, sqlgraph.NewFieldSpec(offlinesession.FieldID, field.TypeString))
 	)
 	if id, ok := osc.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
 	if value, ok := osc.mutation.UserID(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: offlinesession.FieldUserID,
-		})
+		_spec.SetField(offlinesession.FieldUserID, field.TypeString, value)
 		_node.UserID = value
 	}
 	if value, ok := osc.mutation.ConnID(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: offlinesession.FieldConnID,
-		})
+		_spec.SetField(offlinesession.FieldConnID, field.TypeString, value)
 		_node.ConnID = value
 	}
 	if value, ok := osc.mutation.Refresh(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: offlinesession.FieldRefresh,
-		})
+		_spec.SetField(offlinesession.FieldRefresh, field.TypeBytes, value)
 		_node.Refresh = value
 	}
 	if value, ok := osc.mutation.ConnectorData(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: offlinesession.FieldConnectorData,
-		})
+		_spec.SetField(offlinesession.FieldConnectorData, field.TypeBytes, value)
 		_node.ConnectorData = &value
 	}
 	return _node, _spec
@@ -243,8 +184,8 @@ func (oscb *OfflineSessionCreateBulk) Save(ctx context.Context) ([]*OfflineSessi
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, oscb.builders[i+1].mutation)
 				} else {

@@ -68,49 +68,7 @@ func (oc *OAuth2ClientCreate) Mutation() *OAuth2ClientMutation {
 
 // Save creates the OAuth2Client in the database.
 func (oc *OAuth2ClientCreate) Save(ctx context.Context) (*OAuth2Client, error) {
-	var (
-		err  error
-		node *OAuth2Client
-	)
-	if len(oc.hooks) == 0 {
-		if err = oc.check(); err != nil {
-			return nil, err
-		}
-		node, err = oc.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*OAuth2ClientMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = oc.check(); err != nil {
-				return nil, err
-			}
-			oc.mutation = mutation
-			if node, err = oc.sqlSave(ctx); err != nil {
-				return nil, err
-			}
-			mutation.id = &node.ID
-			mutation.done = true
-			return node, err
-		})
-		for i := len(oc.hooks) - 1; i >= 0; i-- {
-			if oc.hooks[i] == nil {
-				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = oc.hooks[i](mut)
-		}
-		v, err := mut.Mutate(ctx, oc.mutation)
-		if err != nil {
-			return nil, err
-		}
-		nv, ok := v.(*OAuth2Client)
-		if !ok {
-			return nil, fmt.Errorf("unexpected node type %T returned from OAuth2ClientMutation", v)
-		}
-		node = nv
-	}
-	return node, err
+	return withHooks(ctx, oc.sqlSave, oc.mutation, oc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -173,6 +131,9 @@ func (oc *OAuth2ClientCreate) check() error {
 }
 
 func (oc *OAuth2ClientCreate) sqlSave(ctx context.Context) (*OAuth2Client, error) {
+	if err := oc.check(); err != nil {
+		return nil, err
+	}
 	_node, _spec := oc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, oc.driver, _spec); err != nil {
 		if sqlgraph.IsConstraintError(err) {
@@ -187,70 +148,42 @@ func (oc *OAuth2ClientCreate) sqlSave(ctx context.Context) (*OAuth2Client, error
 			return nil, fmt.Errorf("unexpected OAuth2Client.ID type: %T", _spec.ID.Value)
 		}
 	}
+	oc.mutation.id = &_node.ID
+	oc.mutation.done = true
 	return _node, nil
 }
 
 func (oc *OAuth2ClientCreate) createSpec() (*OAuth2Client, *sqlgraph.CreateSpec) {
 	var (
 		_node = &OAuth2Client{config: oc.config}
-		_spec = &sqlgraph.CreateSpec{
-			Table: oauth2client.Table,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: oauth2client.FieldID,
-			},
-		}
+		_spec = sqlgraph.NewCreateSpec(oauth2client.Table, sqlgraph.NewFieldSpec(oauth2client.FieldID, field.TypeString))
 	)
 	if id, ok := oc.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
 	if value, ok := oc.mutation.Secret(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: oauth2client.FieldSecret,
-		})
+		_spec.SetField(oauth2client.FieldSecret, field.TypeString, value)
 		_node.Secret = value
 	}
 	if value, ok := oc.mutation.RedirectUris(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: oauth2client.FieldRedirectUris,
-		})
+		_spec.SetField(oauth2client.FieldRedirectUris, field.TypeJSON, value)
 		_node.RedirectUris = value
 	}
 	if value, ok := oc.mutation.TrustedPeers(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: oauth2client.FieldTrustedPeers,
-		})
+		_spec.SetField(oauth2client.FieldTrustedPeers, field.TypeJSON, value)
 		_node.TrustedPeers = value
 	}
 	if value, ok := oc.mutation.Public(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeBool,
-			Value:  value,
-			Column: oauth2client.FieldPublic,
-		})
+		_spec.SetField(oauth2client.FieldPublic, field.TypeBool, value)
 		_node.Public = value
 	}
 	if value, ok := oc.mutation.Name(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: oauth2client.FieldName,
-		})
+		_spec.SetField(oauth2client.FieldName, field.TypeString, value)
 		_node.Name = value
 	}
 	if value, ok := oc.mutation.LogoURL(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: oauth2client.FieldLogoURL,
-		})
+		_spec.SetField(oauth2client.FieldLogoURL, field.TypeString, value)
 		_node.LogoURL = value
 	}
 	return _node, _spec
@@ -279,8 +212,8 @@ func (ocb *OAuth2ClientCreateBulk) Save(ctx context.Context) ([]*OAuth2Client, e
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, ocb.builders[i+1].mutation)
 				} else {

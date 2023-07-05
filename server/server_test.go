@@ -99,6 +99,7 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 		Logger:             logger,
 		PrometheusRegistry: prometheus.NewRegistry(),
 		HealthChecker:      gosundheit.New(),
+		SkipApprovalScreen: true, // Don't prompt for approval, just immediately redirect with code.
 	}
 	if updateConfig != nil {
 		updateConfig(&config)
@@ -119,7 +120,6 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 	if server, err = newServer(ctx, config, staticRotationStrategy(testKey)); err != nil {
 		t.Fatal(err)
 	}
-	server.skipApproval = true // Don't prompt for approval, just immediately redirect with code.
 
 	// Default rotation policy
 	if server.refreshTokenPolicy == nil {
@@ -961,6 +961,17 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			}
 			if respDump, err = httputil.DumpResponse(resp, true); err != nil {
 				t.Fatal(err)
+			}
+
+			tokens, err := s.storage.ListRefreshTokens()
+			if err != nil {
+				t.Fatalf("failed to get existed refresh token: %v", err)
+			}
+
+			for _, token := range tokens {
+				if /* token was updated */ token.ObsoleteToken != "" && token.ConnectorData != nil {
+					t.Fatalf("token connectorData with id %q field is not nil: %s", token.ID, token.ConnectorData)
+				}
 			}
 		})
 	}

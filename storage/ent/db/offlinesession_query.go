@@ -17,11 +17,9 @@ import (
 // OfflineSessionQuery is the builder for querying OfflineSession entities.
 type OfflineSessionQuery struct {
 	config
-	limit      *int
-	offset     *int
-	unique     *bool
-	order      []OrderFunc
-	fields     []string
+	ctx        *QueryContext
+	order      []offlinesession.OrderOption
+	inters     []Interceptor
 	predicates []predicate.OfflineSession
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -34,27 +32,27 @@ func (osq *OfflineSessionQuery) Where(ps ...predicate.OfflineSession) *OfflineSe
 	return osq
 }
 
-// Limit adds a limit step to the query.
+// Limit the number of records to be returned by this query.
 func (osq *OfflineSessionQuery) Limit(limit int) *OfflineSessionQuery {
-	osq.limit = &limit
+	osq.ctx.Limit = &limit
 	return osq
 }
 
-// Offset adds an offset step to the query.
+// Offset to start from.
 func (osq *OfflineSessionQuery) Offset(offset int) *OfflineSessionQuery {
-	osq.offset = &offset
+	osq.ctx.Offset = &offset
 	return osq
 }
 
 // Unique configures the query builder to filter duplicate records on query.
 // By default, unique is set to true, and can be disabled using this method.
 func (osq *OfflineSessionQuery) Unique(unique bool) *OfflineSessionQuery {
-	osq.unique = &unique
+	osq.ctx.Unique = &unique
 	return osq
 }
 
-// Order adds an order step to the query.
-func (osq *OfflineSessionQuery) Order(o ...OrderFunc) *OfflineSessionQuery {
+// Order specifies how the records should be ordered.
+func (osq *OfflineSessionQuery) Order(o ...offlinesession.OrderOption) *OfflineSessionQuery {
 	osq.order = append(osq.order, o...)
 	return osq
 }
@@ -62,7 +60,7 @@ func (osq *OfflineSessionQuery) Order(o ...OrderFunc) *OfflineSessionQuery {
 // First returns the first OfflineSession entity from the query.
 // Returns a *NotFoundError when no OfflineSession was found.
 func (osq *OfflineSessionQuery) First(ctx context.Context) (*OfflineSession, error) {
-	nodes, err := osq.Limit(1).All(ctx)
+	nodes, err := osq.Limit(1).All(setContextOp(ctx, osq.ctx, "First"))
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +83,7 @@ func (osq *OfflineSessionQuery) FirstX(ctx context.Context) *OfflineSession {
 // Returns a *NotFoundError when no OfflineSession ID was found.
 func (osq *OfflineSessionQuery) FirstID(ctx context.Context) (id string, err error) {
 	var ids []string
-	if ids, err = osq.Limit(1).IDs(ctx); err != nil {
+	if ids, err = osq.Limit(1).IDs(setContextOp(ctx, osq.ctx, "FirstID")); err != nil {
 		return
 	}
 	if len(ids) == 0 {
@@ -108,7 +106,7 @@ func (osq *OfflineSessionQuery) FirstIDX(ctx context.Context) string {
 // Returns a *NotSingularError when more than one OfflineSession entity is found.
 // Returns a *NotFoundError when no OfflineSession entities are found.
 func (osq *OfflineSessionQuery) Only(ctx context.Context) (*OfflineSession, error) {
-	nodes, err := osq.Limit(2).All(ctx)
+	nodes, err := osq.Limit(2).All(setContextOp(ctx, osq.ctx, "Only"))
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +134,7 @@ func (osq *OfflineSessionQuery) OnlyX(ctx context.Context) *OfflineSession {
 // Returns a *NotFoundError when no entities are found.
 func (osq *OfflineSessionQuery) OnlyID(ctx context.Context) (id string, err error) {
 	var ids []string
-	if ids, err = osq.Limit(2).IDs(ctx); err != nil {
+	if ids, err = osq.Limit(2).IDs(setContextOp(ctx, osq.ctx, "OnlyID")); err != nil {
 		return
 	}
 	switch len(ids) {
@@ -161,10 +159,12 @@ func (osq *OfflineSessionQuery) OnlyIDX(ctx context.Context) string {
 
 // All executes the query and returns a list of OfflineSessions.
 func (osq *OfflineSessionQuery) All(ctx context.Context) ([]*OfflineSession, error) {
+	ctx = setContextOp(ctx, osq.ctx, "All")
 	if err := osq.prepareQuery(ctx); err != nil {
 		return nil, err
 	}
-	return osq.sqlAll(ctx)
+	qr := querierAll[[]*OfflineSession, *OfflineSessionQuery]()
+	return withInterceptors[[]*OfflineSession](ctx, osq, qr, osq.inters)
 }
 
 // AllX is like All, but panics if an error occurs.
@@ -177,9 +177,12 @@ func (osq *OfflineSessionQuery) AllX(ctx context.Context) []*OfflineSession {
 }
 
 // IDs executes the query and returns a list of OfflineSession IDs.
-func (osq *OfflineSessionQuery) IDs(ctx context.Context) ([]string, error) {
-	var ids []string
-	if err := osq.Select(offlinesession.FieldID).Scan(ctx, &ids); err != nil {
+func (osq *OfflineSessionQuery) IDs(ctx context.Context) (ids []string, err error) {
+	if osq.ctx.Unique == nil && osq.path != nil {
+		osq.Unique(true)
+	}
+	ctx = setContextOp(ctx, osq.ctx, "IDs")
+	if err = osq.Select(offlinesession.FieldID).Scan(ctx, &ids); err != nil {
 		return nil, err
 	}
 	return ids, nil
@@ -196,10 +199,11 @@ func (osq *OfflineSessionQuery) IDsX(ctx context.Context) []string {
 
 // Count returns the count of the given query.
 func (osq *OfflineSessionQuery) Count(ctx context.Context) (int, error) {
+	ctx = setContextOp(ctx, osq.ctx, "Count")
 	if err := osq.prepareQuery(ctx); err != nil {
 		return 0, err
 	}
-	return osq.sqlCount(ctx)
+	return withInterceptors[int](ctx, osq, querierCount[*OfflineSessionQuery](), osq.inters)
 }
 
 // CountX is like Count, but panics if an error occurs.
@@ -213,10 +217,15 @@ func (osq *OfflineSessionQuery) CountX(ctx context.Context) int {
 
 // Exist returns true if the query has elements in the graph.
 func (osq *OfflineSessionQuery) Exist(ctx context.Context) (bool, error) {
-	if err := osq.prepareQuery(ctx); err != nil {
-		return false, err
+	ctx = setContextOp(ctx, osq.ctx, "Exist")
+	switch _, err := osq.FirstID(ctx); {
+	case IsNotFound(err):
+		return false, nil
+	case err != nil:
+		return false, fmt.Errorf("db: check existence: %w", err)
+	default:
+		return true, nil
 	}
-	return osq.sqlExist(ctx)
 }
 
 // ExistX is like Exist, but panics if an error occurs.
@@ -236,14 +245,13 @@ func (osq *OfflineSessionQuery) Clone() *OfflineSessionQuery {
 	}
 	return &OfflineSessionQuery{
 		config:     osq.config,
-		limit:      osq.limit,
-		offset:     osq.offset,
-		order:      append([]OrderFunc{}, osq.order...),
+		ctx:        osq.ctx.Clone(),
+		order:      append([]offlinesession.OrderOption{}, osq.order...),
+		inters:     append([]Interceptor{}, osq.inters...),
 		predicates: append([]predicate.OfflineSession{}, osq.predicates...),
 		// clone intermediate query.
-		sql:    osq.sql.Clone(),
-		path:   osq.path,
-		unique: osq.unique,
+		sql:  osq.sql.Clone(),
+		path: osq.path,
 	}
 }
 
@@ -261,18 +269,12 @@ func (osq *OfflineSessionQuery) Clone() *OfflineSessionQuery {
 //		GroupBy(offlinesession.FieldUserID).
 //		Aggregate(db.Count()).
 //		Scan(ctx, &v)
-//
 func (osq *OfflineSessionQuery) GroupBy(field string, fields ...string) *OfflineSessionGroupBy {
-	grbuild := &OfflineSessionGroupBy{config: osq.config}
-	grbuild.fields = append([]string{field}, fields...)
-	grbuild.path = func(ctx context.Context) (prev *sql.Selector, err error) {
-		if err := osq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		return osq.sqlQuery(ctx), nil
-	}
+	osq.ctx.Fields = append([]string{field}, fields...)
+	grbuild := &OfflineSessionGroupBy{build: osq}
+	grbuild.flds = &osq.ctx.Fields
 	grbuild.label = offlinesession.Label
-	grbuild.flds, grbuild.scan = &grbuild.fields, grbuild.Scan
+	grbuild.scan = grbuild.Scan
 	return grbuild
 }
 
@@ -288,17 +290,31 @@ func (osq *OfflineSessionQuery) GroupBy(field string, fields ...string) *Offline
 //	client.OfflineSession.Query().
 //		Select(offlinesession.FieldUserID).
 //		Scan(ctx, &v)
-//
 func (osq *OfflineSessionQuery) Select(fields ...string) *OfflineSessionSelect {
-	osq.fields = append(osq.fields, fields...)
-	selbuild := &OfflineSessionSelect{OfflineSessionQuery: osq}
-	selbuild.label = offlinesession.Label
-	selbuild.flds, selbuild.scan = &osq.fields, selbuild.Scan
-	return selbuild
+	osq.ctx.Fields = append(osq.ctx.Fields, fields...)
+	sbuild := &OfflineSessionSelect{OfflineSessionQuery: osq}
+	sbuild.label = offlinesession.Label
+	sbuild.flds, sbuild.scan = &osq.ctx.Fields, sbuild.Scan
+	return sbuild
+}
+
+// Aggregate returns a OfflineSessionSelect configured with the given aggregations.
+func (osq *OfflineSessionQuery) Aggregate(fns ...AggregateFunc) *OfflineSessionSelect {
+	return osq.Select().Aggregate(fns...)
 }
 
 func (osq *OfflineSessionQuery) prepareQuery(ctx context.Context) error {
-	for _, f := range osq.fields {
+	for _, inter := range osq.inters {
+		if inter == nil {
+			return fmt.Errorf("db: uninitialized interceptor (forgotten import db/runtime?)")
+		}
+		if trv, ok := inter.(Traverser); ok {
+			if err := trv.Traverse(ctx, osq); err != nil {
+				return err
+			}
+		}
+	}
+	for _, f := range osq.ctx.Fields {
 		if !offlinesession.ValidColumn(f) {
 			return &ValidationError{Name: f, err: fmt.Errorf("db: invalid field %q for query", f)}
 		}
@@ -318,10 +334,10 @@ func (osq *OfflineSessionQuery) sqlAll(ctx context.Context, hooks ...queryHook) 
 		nodes = []*OfflineSession{}
 		_spec = osq.querySpec()
 	)
-	_spec.ScanValues = func(columns []string) ([]interface{}, error) {
+	_spec.ScanValues = func(columns []string) ([]any, error) {
 		return (*OfflineSession).scanValues(nil, columns)
 	}
-	_spec.Assign = func(columns []string, values []interface{}) error {
+	_spec.Assign = func(columns []string, values []any) error {
 		node := &OfflineSession{config: osq.config}
 		nodes = append(nodes, node)
 		return node.assignValues(columns, values)
@@ -340,38 +356,22 @@ func (osq *OfflineSessionQuery) sqlAll(ctx context.Context, hooks ...queryHook) 
 
 func (osq *OfflineSessionQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := osq.querySpec()
-	_spec.Node.Columns = osq.fields
-	if len(osq.fields) > 0 {
-		_spec.Unique = osq.unique != nil && *osq.unique
+	_spec.Node.Columns = osq.ctx.Fields
+	if len(osq.ctx.Fields) > 0 {
+		_spec.Unique = osq.ctx.Unique != nil && *osq.ctx.Unique
 	}
 	return sqlgraph.CountNodes(ctx, osq.driver, _spec)
 }
 
-func (osq *OfflineSessionQuery) sqlExist(ctx context.Context) (bool, error) {
-	n, err := osq.sqlCount(ctx)
-	if err != nil {
-		return false, fmt.Errorf("db: check existence: %w", err)
-	}
-	return n > 0, nil
-}
-
 func (osq *OfflineSessionQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := &sqlgraph.QuerySpec{
-		Node: &sqlgraph.NodeSpec{
-			Table:   offlinesession.Table,
-			Columns: offlinesession.Columns,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: offlinesession.FieldID,
-			},
-		},
-		From:   osq.sql,
-		Unique: true,
-	}
-	if unique := osq.unique; unique != nil {
+	_spec := sqlgraph.NewQuerySpec(offlinesession.Table, offlinesession.Columns, sqlgraph.NewFieldSpec(offlinesession.FieldID, field.TypeString))
+	_spec.From = osq.sql
+	if unique := osq.ctx.Unique; unique != nil {
 		_spec.Unique = *unique
+	} else if osq.path != nil {
+		_spec.Unique = true
 	}
-	if fields := osq.fields; len(fields) > 0 {
+	if fields := osq.ctx.Fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, offlinesession.FieldID)
 		for i := range fields {
@@ -387,10 +387,10 @@ func (osq *OfflineSessionQuery) querySpec() *sqlgraph.QuerySpec {
 			}
 		}
 	}
-	if limit := osq.limit; limit != nil {
+	if limit := osq.ctx.Limit; limit != nil {
 		_spec.Limit = *limit
 	}
-	if offset := osq.offset; offset != nil {
+	if offset := osq.ctx.Offset; offset != nil {
 		_spec.Offset = *offset
 	}
 	if ps := osq.order; len(ps) > 0 {
@@ -406,7 +406,7 @@ func (osq *OfflineSessionQuery) querySpec() *sqlgraph.QuerySpec {
 func (osq *OfflineSessionQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(osq.driver.Dialect())
 	t1 := builder.Table(offlinesession.Table)
-	columns := osq.fields
+	columns := osq.ctx.Fields
 	if len(columns) == 0 {
 		columns = offlinesession.Columns
 	}
@@ -415,7 +415,7 @@ func (osq *OfflineSessionQuery) sqlQuery(ctx context.Context) *sql.Selector {
 		selector = osq.sql
 		selector.Select(selector.Columns(columns...)...)
 	}
-	if osq.unique != nil && *osq.unique {
+	if osq.ctx.Unique != nil && *osq.ctx.Unique {
 		selector.Distinct()
 	}
 	for _, p := range osq.predicates {
@@ -424,12 +424,12 @@ func (osq *OfflineSessionQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	for _, p := range osq.order {
 		p(selector)
 	}
-	if offset := osq.offset; offset != nil {
+	if offset := osq.ctx.Offset; offset != nil {
 		// limit is mandatory for offset clause. We start
 		// with default value, and override it below if needed.
 		selector.Offset(*offset).Limit(math.MaxInt32)
 	}
-	if limit := osq.limit; limit != nil {
+	if limit := osq.ctx.Limit; limit != nil {
 		selector.Limit(*limit)
 	}
 	return selector
@@ -437,13 +437,8 @@ func (osq *OfflineSessionQuery) sqlQuery(ctx context.Context) *sql.Selector {
 
 // OfflineSessionGroupBy is the group-by builder for OfflineSession entities.
 type OfflineSessionGroupBy struct {
-	config
 	selector
-	fields []string
-	fns    []AggregateFunc
-	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	build *OfflineSessionQuery
 }
 
 // Aggregate adds the given aggregation functions to the group-by query.
@@ -452,74 +447,77 @@ func (osgb *OfflineSessionGroupBy) Aggregate(fns ...AggregateFunc) *OfflineSessi
 	return osgb
 }
 
-// Scan applies the group-by query and scans the result into the given value.
-func (osgb *OfflineSessionGroupBy) Scan(ctx context.Context, v interface{}) error {
-	query, err := osgb.path(ctx)
-	if err != nil {
+// Scan applies the selector query and scans the result into the given value.
+func (osgb *OfflineSessionGroupBy) Scan(ctx context.Context, v any) error {
+	ctx = setContextOp(ctx, osgb.build.ctx, "GroupBy")
+	if err := osgb.build.prepareQuery(ctx); err != nil {
 		return err
 	}
-	osgb.sql = query
-	return osgb.sqlScan(ctx, v)
+	return scanWithInterceptors[*OfflineSessionQuery, *OfflineSessionGroupBy](ctx, osgb.build, osgb, osgb.build.inters, v)
 }
 
-func (osgb *OfflineSessionGroupBy) sqlScan(ctx context.Context, v interface{}) error {
-	for _, f := range osgb.fields {
-		if !offlinesession.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("invalid field %q for group-by", f)}
-		}
+func (osgb *OfflineSessionGroupBy) sqlScan(ctx context.Context, root *OfflineSessionQuery, v any) error {
+	selector := root.sqlQuery(ctx).Select()
+	aggregation := make([]string, 0, len(osgb.fns))
+	for _, fn := range osgb.fns {
+		aggregation = append(aggregation, fn(selector))
 	}
-	selector := osgb.sqlQuery()
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(*osgb.flds)+len(osgb.fns))
+		for _, f := range *osgb.flds {
+			columns = append(columns, selector.C(f))
+		}
+		columns = append(columns, aggregation...)
+		selector.Select(columns...)
+	}
+	selector.GroupBy(selector.Columns(*osgb.flds...)...)
 	if err := selector.Err(); err != nil {
 		return err
 	}
 	rows := &sql.Rows{}
 	query, args := selector.Query()
-	if err := osgb.driver.Query(ctx, query, args, rows); err != nil {
+	if err := osgb.build.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
 }
 
-func (osgb *OfflineSessionGroupBy) sqlQuery() *sql.Selector {
-	selector := osgb.sql.Select()
-	aggregation := make([]string, 0, len(osgb.fns))
-	for _, fn := range osgb.fns {
-		aggregation = append(aggregation, fn(selector))
-	}
-	// If no columns were selected in a custom aggregation function, the default
-	// selection is the fields used for "group-by", and the aggregation functions.
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(osgb.fields)+len(osgb.fns))
-		for _, f := range osgb.fields {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
-	}
-	return selector.GroupBy(selector.Columns(osgb.fields...)...)
-}
-
 // OfflineSessionSelect is the builder for selecting fields of OfflineSession entities.
 type OfflineSessionSelect struct {
 	*OfflineSessionQuery
 	selector
-	// intermediate query (i.e. traversal path).
-	sql *sql.Selector
+}
+
+// Aggregate adds the given aggregation functions to the selector query.
+func (oss *OfflineSessionSelect) Aggregate(fns ...AggregateFunc) *OfflineSessionSelect {
+	oss.fns = append(oss.fns, fns...)
+	return oss
 }
 
 // Scan applies the selector query and scans the result into the given value.
-func (oss *OfflineSessionSelect) Scan(ctx context.Context, v interface{}) error {
+func (oss *OfflineSessionSelect) Scan(ctx context.Context, v any) error {
+	ctx = setContextOp(ctx, oss.ctx, "Select")
 	if err := oss.prepareQuery(ctx); err != nil {
 		return err
 	}
-	oss.sql = oss.OfflineSessionQuery.sqlQuery(ctx)
-	return oss.sqlScan(ctx, v)
+	return scanWithInterceptors[*OfflineSessionQuery, *OfflineSessionSelect](ctx, oss.OfflineSessionQuery, oss, oss.inters, v)
 }
 
-func (oss *OfflineSessionSelect) sqlScan(ctx context.Context, v interface{}) error {
+func (oss *OfflineSessionSelect) sqlScan(ctx context.Context, root *OfflineSessionQuery, v any) error {
+	selector := root.sqlQuery(ctx)
+	aggregation := make([]string, 0, len(oss.fns))
+	for _, fn := range oss.fns {
+		aggregation = append(aggregation, fn(selector))
+	}
+	switch n := len(*oss.selector.flds); {
+	case n == 0 && len(aggregation) > 0:
+		selector.Select(aggregation...)
+	case n != 0 && len(aggregation) > 0:
+		selector.AppendSelect(aggregation...)
+	}
 	rows := &sql.Rows{}
-	query, args := oss.sql.Query()
+	query, args := selector.Query()
 	if err := oss.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}

@@ -186,6 +186,8 @@ func (s *Server) refreshWithConnector(ctx context.Context, rCtx *refreshContext,
 	// TODO(ericchiang): We may want a strict mode where connectors that don't implement
 	// this interface can't perform refreshing.
 	if refreshConn, ok := rCtx.connector.Connector.(connector.RefreshConnector); ok {
+		// Set connector data to the one received from an offline session
+		ident.ConnectorData = rCtx.connectorData
 		s.logger.Debugf("connector data before refresh: %s", ident.ConnectorData)
 
 		newIdent, err := refreshConn.Refresh(ctx, parseScopes(rCtx.scopes), ident)
@@ -245,7 +247,6 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		Email:             rCtx.storageToken.Claims.Email,
 		EmailVerified:     rCtx.storageToken.Claims.EmailVerified,
 		Groups:            rCtx.storageToken.Claims.Groups,
-		ConnectorData:     rCtx.connectorData,
 	}
 
 	refreshTokenUpdater := func(old storage.RefreshToken) (storage.RefreshToken, error) {
@@ -255,6 +256,7 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		switch {
 		case !rotationEnabled && reusingAllowed:
 			// If rotation is disabled and the offline session was updated not so long ago - skip further actions.
+			old.ConnectorData = nil
 			return old, nil
 
 		case rotationEnabled && reusingAllowed:
@@ -269,7 +271,7 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 
 			// Do not update last used time for offline session if token is allowed to be reused
 			lastUsed = old.LastUsed
-			ident.ConnectorData = nil
+			old.ConnectorData = nil
 			return old, nil
 
 		case rotationEnabled && !reusingAllowed:
@@ -286,7 +288,7 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		old.LastUsed = lastUsed
 
 		// ConnectorData has been moved to OfflineSession
-		old.ConnectorData = []byte{}
+		old.ConnectorData = nil
 
 		// Call  only once if there is a request which is not in the reuse interval.
 		// This is required to avoid multiple calls to the external IdP for concurrent requests.

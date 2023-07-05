@@ -91,50 +91,8 @@ func (dtc *DeviceTokenCreate) Mutation() *DeviceTokenMutation {
 
 // Save creates the DeviceToken in the database.
 func (dtc *DeviceTokenCreate) Save(ctx context.Context) (*DeviceToken, error) {
-	var (
-		err  error
-		node *DeviceToken
-	)
 	dtc.defaults()
-	if len(dtc.hooks) == 0 {
-		if err = dtc.check(); err != nil {
-			return nil, err
-		}
-		node, err = dtc.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*DeviceTokenMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = dtc.check(); err != nil {
-				return nil, err
-			}
-			dtc.mutation = mutation
-			if node, err = dtc.sqlSave(ctx); err != nil {
-				return nil, err
-			}
-			mutation.id = &node.ID
-			mutation.done = true
-			return node, err
-		})
-		for i := len(dtc.hooks) - 1; i >= 0; i-- {
-			if dtc.hooks[i] == nil {
-				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = dtc.hooks[i](mut)
-		}
-		v, err := mut.Mutate(ctx, dtc.mutation)
-		if err != nil {
-			return nil, err
-		}
-		nv, ok := v.(*DeviceToken)
-		if !ok {
-			return nil, fmt.Errorf("unexpected node type %T returned from DeviceTokenMutation", v)
-		}
-		node = nv
-	}
-	return node, err
+	return withHooks(ctx, dtc.sqlSave, dtc.mutation, dtc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -208,6 +166,9 @@ func (dtc *DeviceTokenCreate) check() error {
 }
 
 func (dtc *DeviceTokenCreate) sqlSave(ctx context.Context) (*DeviceToken, error) {
+	if err := dtc.check(); err != nil {
+		return nil, err
+	}
 	_node, _spec := dtc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, dtc.driver, _spec); err != nil {
 		if sqlgraph.IsConstraintError(err) {
@@ -217,82 +178,46 @@ func (dtc *DeviceTokenCreate) sqlSave(ctx context.Context) (*DeviceToken, error)
 	}
 	id := _spec.ID.Value.(int64)
 	_node.ID = int(id)
+	dtc.mutation.id = &_node.ID
+	dtc.mutation.done = true
 	return _node, nil
 }
 
 func (dtc *DeviceTokenCreate) createSpec() (*DeviceToken, *sqlgraph.CreateSpec) {
 	var (
 		_node = &DeviceToken{config: dtc.config}
-		_spec = &sqlgraph.CreateSpec{
-			Table: devicetoken.Table,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeInt,
-				Column: devicetoken.FieldID,
-			},
-		}
+		_spec = sqlgraph.NewCreateSpec(devicetoken.Table, sqlgraph.NewFieldSpec(devicetoken.FieldID, field.TypeInt))
 	)
 	if value, ok := dtc.mutation.DeviceCode(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: devicetoken.FieldDeviceCode,
-		})
+		_spec.SetField(devicetoken.FieldDeviceCode, field.TypeString, value)
 		_node.DeviceCode = value
 	}
 	if value, ok := dtc.mutation.Status(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: devicetoken.FieldStatus,
-		})
+		_spec.SetField(devicetoken.FieldStatus, field.TypeString, value)
 		_node.Status = value
 	}
 	if value, ok := dtc.mutation.Token(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: devicetoken.FieldToken,
-		})
+		_spec.SetField(devicetoken.FieldToken, field.TypeBytes, value)
 		_node.Token = &value
 	}
 	if value, ok := dtc.mutation.Expiry(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: devicetoken.FieldExpiry,
-		})
+		_spec.SetField(devicetoken.FieldExpiry, field.TypeTime, value)
 		_node.Expiry = value
 	}
 	if value, ok := dtc.mutation.LastRequest(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: devicetoken.FieldLastRequest,
-		})
+		_spec.SetField(devicetoken.FieldLastRequest, field.TypeTime, value)
 		_node.LastRequest = value
 	}
 	if value, ok := dtc.mutation.PollInterval(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeInt,
-			Value:  value,
-			Column: devicetoken.FieldPollInterval,
-		})
+		_spec.SetField(devicetoken.FieldPollInterval, field.TypeInt, value)
 		_node.PollInterval = value
 	}
 	if value, ok := dtc.mutation.CodeChallenge(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: devicetoken.FieldCodeChallenge,
-		})
+		_spec.SetField(devicetoken.FieldCodeChallenge, field.TypeString, value)
 		_node.CodeChallenge = value
 	}
 	if value, ok := dtc.mutation.CodeChallengeMethod(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: devicetoken.FieldCodeChallengeMethod,
-		})
+		_spec.SetField(devicetoken.FieldCodeChallengeMethod, field.TypeString, value)
 		_node.CodeChallengeMethod = value
 	}
 	return _node, _spec
@@ -322,8 +247,8 @@ func (dtcb *DeviceTokenCreateBulk) Save(ctx context.Context) ([]*DeviceToken, er
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, dtcb.builders[i+1].mutation)
 				} else {

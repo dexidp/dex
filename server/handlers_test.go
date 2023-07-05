@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -265,7 +266,7 @@ func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
 	require.NoError(t, err)
 }
 
-func TestPasswordConnectorDataNotEmpty(t *testing.T) {
+func TestHandlePassword(t *testing.T) {
 	t0 := time.Now()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -280,33 +281,249 @@ func TestPasswordConnectorDataNotEmpty(t *testing.T) {
 
 	mockConnectorDataTestStorage(t, s.storage)
 
-	u, err := url.Parse(s.issuerURL.String())
-	require.NoError(t, err)
+	makeReq := func(username, password string) *httptest.ResponseRecorder {
+		u, err := url.Parse(s.issuerURL.String())
+		require.NoError(t, err)
 
-	u.Path = path.Join(u.Path, "/token")
-	v := url.Values{}
-	v.Add("scope", "openid offline_access email")
-	v.Add("grant_type", "password")
-	v.Add("username", "test")
-	v.Add("password", "test")
+		u.Path = path.Join(u.Path, "/token")
+		v := url.Values{}
+		v.Add("scope", "openid offline_access email")
+		v.Add("grant_type", "password")
+		v.Add("username", username)
+		v.Add("password", password)
 
-	req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
-	req.SetBasicAuth("test", "barfoo")
+		req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
+		req.SetBasicAuth("test", "barfoo")
 
-	rr := httptest.NewRecorder()
-	s.ServeHTTP(rr, req)
+		rr := httptest.NewRecorder()
+		s.ServeHTTP(rr, req)
 
-	require.Equal(t, 200, rr.Code)
+		return rr
+	}
+
+	// Check unauthorized error
+	{
+		rr := makeReq("test", "invalid")
+		require.Equal(t, 401, rr.Code)
+	}
 
 	// Check that we received expected refresh token
-	var ref struct {
-		Token string `json:"refresh_token"`
-	}
-	err = json.Unmarshal(rr.Body.Bytes(), &ref)
-	require.NoError(t, err)
+	{
+		rr := makeReq("test", "test")
+		require.Equal(t, 200, rr.Code)
 
-	newSess, err := s.storage.GetOfflineSessions("0-385-28089-0", "test")
-	require.NoError(t, err)
-	require.Equal(t, `{"test": "true"}`, string(newSess.ConnectorData))
+		var ref struct {
+			Token string `json:"refresh_token"`
+		}
+		err := json.Unmarshal(rr.Body.Bytes(), &ref)
+		require.NoError(t, err)
+
+		newSess, err := s.storage.GetOfflineSessions("0-385-28089-0", "test")
+		require.NoError(t, err)
+		require.Equal(t, `{"test": "true"}`, string(newSess.ConnectorData))
+	}
+}
+
+func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	connID := "mockPw"
+	authReqID := "test"
+	expiry := time.Now().Add(100 * time.Second)
+	resTypes := []string{"code"}
+
+	tests := []struct {
+		name         string
+		skipApproval bool
+		authReq      storage.AuthRequest
+		expectedRes  string
+	}{
+		{
+			name:         "Force approval",
+			skipApproval: false,
+			authReq: storage.AuthRequest{
+				ID:                  authReqID,
+				ConnectorID:         connID,
+				RedirectURI:         "cb",
+				Expiry:              expiry,
+				ResponseTypes:       resTypes,
+				ForceApprovalPrompt: true,
+			},
+			expectedRes: "/approval",
+		},
+		{
+			name:         "Skip approval by server config",
+			skipApproval: true,
+			authReq: storage.AuthRequest{
+				ID:                  authReqID,
+				ConnectorID:         connID,
+				RedirectURI:         "cb",
+				Expiry:              expiry,
+				ResponseTypes:       resTypes,
+				ForceApprovalPrompt: true,
+			},
+			expectedRes: "/approval",
+		},
+		{
+			name:         "No skip",
+			skipApproval: false,
+			authReq: storage.AuthRequest{
+				ID:                  authReqID,
+				ConnectorID:         connID,
+				RedirectURI:         "cb",
+				Expiry:              expiry,
+				ResponseTypes:       resTypes,
+				ForceApprovalPrompt: false,
+			},
+			expectedRes: "/approval",
+		},
+		{
+			name:         "Skip approval",
+			skipApproval: true,
+			authReq: storage.AuthRequest{
+				ID:                  authReqID,
+				ConnectorID:         connID,
+				RedirectURI:         "cb",
+				Expiry:              expiry,
+				ResponseTypes:       resTypes,
+				ForceApprovalPrompt: false,
+			},
+			expectedRes: "/auth/mockPw/cb",
+		},
+	}
+
+	for _, tc := range tests {
+		httpServer, s := newTestServer(ctx, t, func(c *Config) {
+			c.SkipApprovalScreen = tc.skipApproval
+			c.Now = time.Now
+		})
+		defer httpServer.Close()
+
+		sc := storage.Connector{
+			ID:              connID,
+			Type:            "mockPassword",
+			Name:            "MockPassword",
+			ResourceVersion: "1",
+			Config:          []byte("{\"username\": \"foo\", \"password\": \"password\"}"),
+		}
+		if err := s.storage.CreateConnector(sc); err != nil {
+			t.Fatalf("create connector: %v", err)
+		}
+		if _, err := s.OpenConnector(sc); err != nil {
+			t.Fatalf("open connector: %v", err)
+		}
+		if err := s.storage.CreateAuthRequest(tc.authReq); err != nil {
+			t.Fatalf("failed to create AuthRequest: %v", err)
+		}
+
+		rr := httptest.NewRecorder()
+
+		path := fmt.Sprintf("/auth/%s/login?state=%s&back=&login=foo&password=password", connID, authReqID)
+		s.handlePasswordLogin(rr, httptest.NewRequest("POST", path, nil))
+
+		require.Equal(t, 303, rr.Code)
+
+		resp := rr.Result()
+
+		defer resp.Body.Close()
+
+		cb, _ := url.Parse(resp.Header.Get("Location"))
+		require.Equal(t, tc.expectedRes, cb.Path)
+	}
+}
+
+func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	connID := "mock"
+	authReqID := "test"
+	expiry := time.Now().Add(100 * time.Second)
+	resTypes := []string{"code"}
+
+	tests := []struct {
+		name         string
+		skipApproval bool
+		authReq      storage.AuthRequest
+		expectedRes  string
+	}{
+		{
+			name:         "Force approval",
+			skipApproval: false,
+			authReq: storage.AuthRequest{
+				ID:                  authReqID,
+				ConnectorID:         connID,
+				RedirectURI:         "cb",
+				Expiry:              expiry,
+				ResponseTypes:       resTypes,
+				ForceApprovalPrompt: true,
+			},
+			expectedRes: "/approval",
+		},
+		{
+			name:         "Skip approval by server config",
+			skipApproval: true,
+			authReq: storage.AuthRequest{
+				ID:                  authReqID,
+				ConnectorID:         connID,
+				RedirectURI:         "cb",
+				Expiry:              expiry,
+				ResponseTypes:       resTypes,
+				ForceApprovalPrompt: true,
+			},
+			expectedRes: "/approval",
+		},
+		{
+			name:         "Skip approval by auth request",
+			skipApproval: false,
+			authReq: storage.AuthRequest{
+				ID:                  authReqID,
+				ConnectorID:         connID,
+				RedirectURI:         "cb",
+				Expiry:              expiry,
+				ResponseTypes:       resTypes,
+				ForceApprovalPrompt: false,
+			},
+			expectedRes: "/approval",
+		},
+		{
+			name:         "Skip approval",
+			skipApproval: true,
+			authReq: storage.AuthRequest{
+				ID:                  authReqID,
+				ConnectorID:         connID,
+				RedirectURI:         "cb",
+				Expiry:              expiry,
+				ResponseTypes:       resTypes,
+				ForceApprovalPrompt: false,
+			},
+			expectedRes: "/callback/cb",
+		},
+	}
+
+	for _, tc := range tests {
+		httpServer, s := newTestServer(ctx, t, func(c *Config) {
+			c.SkipApprovalScreen = tc.skipApproval
+			c.Now = time.Now
+		})
+		defer httpServer.Close()
+
+		if err := s.storage.CreateAuthRequest(tc.authReq); err != nil {
+			t.Fatalf("failed to create AuthRequest: %v", err)
+		}
+		rr := httptest.NewRecorder()
+
+		path := fmt.Sprintf("/callback/%s?state=%s", connID, authReqID)
+		s.handleConnectorCallback(rr, httptest.NewRequest("GET", path, nil))
+
+		require.Equal(t, 303, rr.Code)
+
+		resp := rr.Result()
+		defer resp.Body.Close()
+
+		cb, _ := url.Parse(resp.Header.Get("Location"))
+		require.Equal(t, tc.expectedRes, cb.Path)
+	}
 }

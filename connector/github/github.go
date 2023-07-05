@@ -3,25 +3,21 @@ package github
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 
 	"github.com/dexidp/dex/connector"
 	groups_pkg "github.com/dexidp/dex/pkg/groups"
+	"github.com/dexidp/dex/pkg/httpclient"
 	"github.com/dexidp/dex/pkg/log"
 )
 
@@ -43,16 +39,17 @@ var (
 
 // Config holds configuration options for github logins.
 type Config struct {
-	ClientID      string `json:"clientID"`
-	ClientSecret  string `json:"clientSecret"`
-	RedirectURI   string `json:"redirectURI"`
-	Org           string `json:"org"`
-	Orgs          []Org  `json:"orgs"`
-	HostName      string `json:"hostName"`
-	RootCA        string `json:"rootCA"`
-	TeamNameField string `json:"teamNameField"`
-	LoadAllGroups bool   `json:"loadAllGroups"`
-	UseLoginAsID  bool   `json:"useLoginAsID"`
+	ClientID             string `json:"clientID"`
+	ClientSecret         string `json:"clientSecret"`
+	RedirectURI          string `json:"redirectURI"`
+	Org                  string `json:"org"`
+	Orgs                 []Org  `json:"orgs"`
+	HostName             string `json:"hostName"`
+	RootCA               string `json:"rootCA"`
+	TeamNameField        string `json:"teamNameField"`
+	LoadAllGroups        bool   `json:"loadAllGroups"`
+	UseLoginAsID         bool   `json:"useLoginAsID"`
+	PreferredEmailDomain string `json:"preferredEmailDomain"`
 }
 
 // Org holds org-team filters, in which teams are optional.
@@ -79,14 +76,15 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 	}
 
 	g := githubConnector{
-		redirectURI:  c.RedirectURI,
-		org:          c.Org,
-		orgs:         c.Orgs,
-		clientID:     c.ClientID,
-		clientSecret: c.ClientSecret,
-		apiURL:       apiURL,
-		logger:       logger,
-		useLoginAsID: c.UseLoginAsID,
+		redirectURI:          c.RedirectURI,
+		org:                  c.Org,
+		orgs:                 c.Orgs,
+		clientID:             c.ClientID,
+		clientSecret:         c.ClientSecret,
+		apiURL:               apiURL,
+		logger:               logger,
+		useLoginAsID:         c.UseLoginAsID,
+		preferredEmailDomain: c.PreferredEmailDomain,
 	}
 
 	if c.HostName != "" {
@@ -106,7 +104,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		g.rootCA = c.RootCA
 
 		var err error
-		if g.httpClient, err = newHTTPClient(g.rootCA); err != nil {
+		if g.httpClient, err = httpclient.NewHTTPClient([]string{g.rootCA}, false); err != nil {
 			return nil, fmt.Errorf("failed to create HTTP client: %v", err)
 		}
 	}
@@ -117,6 +115,12 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		g.teamNameField = c.TeamNameField
 	default:
 		return nil, fmt.Errorf("invalid connector config: unsupported team name field value `%s`", c.TeamNameField)
+	}
+
+	if c.PreferredEmailDomain != "" {
+		if strings.HasSuffix(c.PreferredEmailDomain, "*") {
+			return nil, errors.New("invalid PreferredEmailDomain: glob pattern cannot end with \"*\"")
+		}
 	}
 
 	return &g, nil
@@ -153,6 +157,8 @@ type githubConnector struct {
 	loadAllGroups bool
 	// if set to true will use the user's handle rather than their numeric id as the ID
 	useLoginAsID bool
+	// the domain to be preferred among the user's emails. e.g. "github.com"
+	preferredEmailDomain string
 }
 
 // groupsRequired returns whether dex requires GitHub's 'read:org' scope. Dex
@@ -206,34 +212,6 @@ func (e *oauth2Error) Error() string {
 		return e.error
 	}
 	return e.error + ": " + e.errorDescription
-}
-
-// newHTTPClient returns a new HTTP client that trusts the custom declared rootCA cert.
-func newHTTPClient(rootCA string) (*http.Client, error) {
-	tlsConfig := tls.Config{RootCAs: x509.NewCertPool()}
-	rootCABytes, err := os.ReadFile(rootCA)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read root-ca: %v", err)
-	}
-	if !tlsConfig.RootCAs.AppendCertsFromPEM(rootCABytes) {
-		return nil, fmt.Errorf("no certs found in root CA file %q", rootCA)
-	}
-
-	return &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tlsConfig,
-			Proxy:           http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second,
-				DualStack: true,
-			}).DialContext,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
-	}, nil
 }
 
 func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
@@ -356,9 +334,11 @@ func formatTeamName(org string, team string) string {
 
 // groupsForOrgs enforces org and team constraints on user authorization
 // Cases in which user is authorized:
-// 	N orgs, no teams: user is member of at least 1 org
-// 	N orgs, M teams per org: user is member of any team from at least 1 org
-// 	N-1 orgs, M teams per org, 1 org with no teams: user is member of any team
+//
+//	N orgs, no teams: user is member of at least 1 org
+//	N orgs, M teams per org: user is member of any team from at least 1 org
+//	N-1 orgs, M teams per org, 1 org with no teams: user is member of any team
+//
 // from at least 1 org, or member of org with no teams
 func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client, userName string) ([]string, error) {
 	groups := make([]string, 0)
@@ -578,7 +558,13 @@ type userEmail struct {
 // The HTTP client is expected to be constructed by the golang.org/x/oauth2 package,
 // which inserts a bearer token as part of the request.
 func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (string, error) {
+	var (
+		primaryEmail    userEmail
+		preferredEmails []userEmail
+	)
+
 	apiURL := c.apiURL + "/user/emails"
+
 	for {
 		// https://developer.github.com/v3/users/emails/#list-email-addresses-for-a-user
 		var (
@@ -605,7 +591,17 @@ func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (s
 			}
 
 			if email.Verified && email.Primary {
-				return email.Email, nil
+				primaryEmail = email
+			}
+
+			if c.preferredEmailDomain != "" {
+				_, domainPart, ok := strings.Cut(email.Email, "@")
+				if !ok {
+					return "", errors.New("github: invalid format email is detected")
+				}
+				if email.Verified && c.isPreferredEmailDomain(domainPart) {
+					preferredEmails = append(preferredEmails, email)
+				}
 			}
 		}
 
@@ -614,7 +610,36 @@ func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (s
 		}
 	}
 
-	return "", errors.New("github: user has no verified, primary email")
+	if len(preferredEmails) > 0 {
+		return preferredEmails[0].Email, nil
+	}
+
+	if primaryEmail.Email != "" {
+		return primaryEmail.Email, nil
+	}
+
+	return "", errors.New("github: user has no verified, primary email or preferred-domain email")
+}
+
+// isPreferredEmailDomain checks the domain is matching with preferredEmailDomain.
+func (c *githubConnector) isPreferredEmailDomain(domain string) bool {
+	if domain == c.preferredEmailDomain {
+		return true
+	}
+
+	preferredDomainParts := strings.Split(c.preferredEmailDomain, ".")
+	domainParts := strings.Split(domain, ".")
+
+	if len(preferredDomainParts) != len(domainParts) {
+		return false
+	}
+
+	for i, v := range preferredDomainParts {
+		if domainParts[i] != v && v != "*" {
+			return false
+		}
+	}
+	return true
 }
 
 // userInOrg queries the GitHub API for a users' org membership.

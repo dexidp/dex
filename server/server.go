@@ -121,7 +121,7 @@ type WebConfig struct {
 	//   * themes/(theme) - Static static served at "( issuer URL )/theme".
 	Dir string
 
-	// Alternative way to programatically configure static web assets.
+	// Alternative way to programmatically configure static web assets.
 	// If Dir is specified, WebFS is ignored.
 	// It's expected to contain the same files and directories as mentioned above.
 	//
@@ -258,7 +258,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		extra:     c.Web.Extra,
 	}
 
-	static, theme, tmpls, err := loadWebConfig(web)
+	static, theme, robots, tmpls, err := loadWebConfig(web)
 	if err != nil {
 		return nil, fmt.Errorf("server: failed to load web static: %v", err)
 	}
@@ -397,6 +397,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	handlePrefix("/static", static)
 	handlePrefix("/theme", theme)
+	handleFunc("/robots.txt", robots)
+
 	s.mux = r
 
 	s.startKeyRotation(ctx, rotationStrategy, now)

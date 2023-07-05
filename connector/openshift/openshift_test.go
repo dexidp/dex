@@ -15,6 +15,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/httpclient"
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
 
@@ -70,7 +71,7 @@ func TestGetUser(t *testing.T) {
 	_, err = http.NewRequest("GET", hostURL.String(), nil)
 	expectNil(t, err)
 
-	h, err := newHTTPClient(true, "")
+	h, err := httpclient.NewHTTPClient(nil, true)
 
 	expectNil(t, err)
 
@@ -128,7 +129,7 @@ func TestVerifyGroup(t *testing.T) {
 	_, err = http.NewRequest("GET", hostURL.String(), nil)
 	expectNil(t, err)
 
-	h, err := newHTTPClient(true, "")
+	h, err := httpclient.NewHTTPClient(nil, true)
 
 	expectNil(t, err)
 
@@ -164,7 +165,7 @@ func TestCallbackIdentity(t *testing.T) {
 	req, err := http.NewRequest("GET", hostURL.String(), nil)
 	expectNil(t, err)
 
-	h, err := newHTTPClient(true, "")
+	h, err := httpclient.NewHTTPClient(nil, true)
 
 	expectNil(t, err)
 
@@ -198,7 +199,7 @@ func TestRefreshIdentity(t *testing.T) {
 	})
 	defer s.Close()
 
-	h, err := newHTTPClient(true, "")
+	h, err := httpclient.NewHTTPClient(nil, true)
 	expectNil(t, err)
 
 	oc := openshiftConnector{apiURL: s.URL, httpClient: h, oauth2Config: &oauth2.Config{
@@ -237,7 +238,7 @@ func TestRefreshIdentityFailure(t *testing.T) {
 	})
 	defer s.Close()
 
-	h, err := newHTTPClient(true, "")
+	h, err := httpclient.NewHTTPClient(nil, true)
 	expectNil(t, err)
 
 	oc := openshiftConnector{apiURL: s.URL, httpClient: h, oauth2Config: &oauth2.Config{
