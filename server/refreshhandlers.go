@@ -352,6 +352,19 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 
+	/*
+	 * Giant Swarm custom code to inject connector prefix in the group names, so it enables us
+	 * to use dex in shared installations
+	 */
+	if s.oidcGroupsPrefix {
+		for idx, group := range ident.Groups {
+			ident.Groups[idx] = fmt.Sprintf("%s:%s", rCtx.storageToken.ConnectorID, group)
+		}
+	}
+	/*
+	 * END custom code
+	 */
+
 	claims := storage.Claims{
 		UserID:            ident.UserID,
 		Username:          ident.Username,

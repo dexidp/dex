@@ -25,6 +25,7 @@ func TestValidConfiguration(t *testing.T) {
 				File: "examples/dex.db",
 			},
 		},
+		OIDCGroupsPrefix: true,
 		Web: Web{
 			HTTP: "127.0.0.1:5556",
 		},
