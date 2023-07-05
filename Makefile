@@ -11,6 +11,8 @@ ORG_PATH  = github.com/dexidp
 REPO_PATH = $(ORG_PATH)/$(PROJ)
 VERSION  ?= $(shell ./scripts/git-version)
 
+DOCKER_REPO?=quay.io/dexidp/dex
+DOCKER_IMAGE=$(DOCKER_REPO):$(VERSION)
 
 export GOBIN=$(PWD)/bin
 LD_FLAGS="-w -X main.version=$(VERSION)"
@@ -51,6 +53,10 @@ bin/grpc-client:
 bin/example-app:
 	@mkdir -p bin/
 	@cd examples/ && go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/example-app
+
+.phony: docker-image
+docker-image:
+	@sudo docker buildx build -t $(docker_image) .
 
 
 ##@ Generate

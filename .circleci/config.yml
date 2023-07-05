@@ -17,7 +17,7 @@ jobs:
             ORG_PATH: github.com/giantswarm
           name: Build dex docker image
           command: |
-            docker buildx build -t $CIRCLE_SHA1 .
+            TAG=$CIRCLE_SHA1 make -e docker-image
       - run:
           name: Re-tag images for aliyun
           command: |
