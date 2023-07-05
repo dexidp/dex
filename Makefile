@@ -56,7 +56,7 @@ bin/example-app:
 
 .phony: docker-image
 docker-image:
-	@sudo docker buildx build -t $DOCKER_IMAGE .
+	@sudo docker buildx build -t $(DOCKER_IMAGE) .
 
 
 ##@ Generate
