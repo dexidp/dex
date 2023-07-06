@@ -27,6 +27,7 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
+	"github.com/spruceid/siwe-go"
 )
 
 const (
@@ -259,8 +260,17 @@ func (s *Server) handleGenerateChallenge(w http.ResponseWriter, r *http.Request)
 		s.renderErrorJSON(w, http.StatusInternalServerError, "No source of randomness.")
 		return
 	}
+	options := map[string]interface{}{
+		"statement": fmt.Sprintf("%s is asking you sign in.", u.Hostname()),
+	}
 
-	challenge := fmt.Sprintf("%s is asking you to please verify ownership of the address %s by signing this random string: %s", u.Hostname(), addr.Hex(), nonce)
+	siweMessage, err := siwe.InitMessage(s.issuerURL.Host, addr.Hex(), s.issuerURL.String(), nonce, options)
+	if err != nil {
+		//asd
+		s.renderErrorJSON(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	challenge := siweMessage.String()
 
 	authReq.ConnectorData, err = json.Marshal(web3ConnectorData{Address: addr.Hex(), Nonce: challenge})
 	if err != nil {
@@ -321,8 +331,16 @@ func (s *Server) handleChallenge(w http.ResponseWriter, r *http.Request) {
 		s.renderErrorJSON(w, http.StatusInternalServerError, "No source of randomness.")
 		return
 	}
+	options := map[string]interface{}{
+		"statement": fmt.Sprintf("%s is asking you sign in.", u.Hostname()),
+	}
 
-	challenge := fmt.Sprintf("%s is asking you to please verify ownership of the address %s by signing this random string: %s", u.Hostname(), nonceReq.Address, nonce)
+	siweMessage, err := siwe.InitMessage(s.issuerURL.Host, nonceReq.Address, s.issuerURL.String(), nonce, options)
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	challenge := siweMessage.String()
 
 	bts, err := json.Marshal(web3ConnectorData{Address: nonceReq.Address, Nonce: challenge})
 	if err != nil {
