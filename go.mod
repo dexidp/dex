@@ -34,7 +34,7 @@ require (
 	golang.org/x/crypto v0.11.0
 	golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
 	golang.org/x/net v0.12.0
-	golang.org/x/oauth2 v0.9.0
+	golang.org/x/oauth2 v0.10.0
 	google.golang.org/api v0.130.0
 	google.golang.org/grpc v1.56.1
 	google.golang.org/protobuf v1.31.0
@@ -43,7 +43,7 @@ require (
 
 require (
 	ariga.io/atlas v0.10.2-0.20230427182402-87a07dfb83bf // indirect
-	cloud.google.com/go/compute v1.19.3 // indirect
+	cloud.google.com/go/compute v1.20.1 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
