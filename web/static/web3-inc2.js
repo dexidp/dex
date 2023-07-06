@@ -1,183 +1,122 @@
-import {
-  EthereumClient,
-  w3mConnectors,
-  w3mProvider,
-  WagmiCore,
-  WagmiCoreChains,
-  WagmiCoreConnectors,
-} from "https://unpkg.com/@web3modal/ethereum@2.6.2";
+ function mobileAndTabletCheck() {
+  let check = false;
+  (function(a){if(/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino|android|ipad|playbook|silk/i.test(a)||/1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(a.substr(0,4))) check = true;})(navigator.userAgent||navigator.vendor||window.opera);
+  return check;
+};
 
-import { Web3Modal } from "https://unpkg.com/@web3modal/html@2.6.2";
 
-// 0. Import wagmi dependencies
-const { mainnet, polygon, polygonMumbai, avalanche, arbitrum } =
-  WagmiCoreChains;
-const {
-  configureChains,
-  createConfig,
-  watchAccount,
-  watchSigner,
-  disconnect,
-  signMessage,
-  getAccount,
-} = WagmiCore;
+  let provider;
+  let Web3
+  let Web3Modal;
+  let web3Modal;
+  let web3;
+  let WalletConnectProvider;
+  async function postJson(url, obj) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(obj),
+    })
+  }
 
-//Define chains
-const chains = [mainnet, polygon, polygonMumbai];
-const projectId = "3d6930929763b3142513d912505eba46";
+  function displayError(msg) {
+    const errorBox = document.getElementById("web3-error");
+    errorBox.style.display = "block";
+    errorBox.textContent = msg;
+  }
+  function init() {
 
-//Configure wagmi client
-const { publicClient } = configureChains(chains, [w3mProvider({ projectId })]);
+     infuraId = document.getElementById("tmpl-infura-id").value;
+challengeUrl = document.getElementById("tmpl-challenge-url").value;
+      authId = document.getElementById("tmpl-auth-id").value;
+verifyUrl = document.getElementById("tmpl-verify-url").value;
+      
+    const connectButton = document.getElementById("connect-button");
+    connectButton.onclick = function () {
+      getSignature()
+    }
+    const resetButton = document.getElementById("reset-button");
+    resetButton.onclick = function () {
+      reset()
+    }
 
-const wagmiConfig = createConfig({
-  autoConnect: true,
-  connectors: [
-      ...w3mConnectors({ chains, version: 2, projectId }),
-      new WagmiCoreConnectors.CoinbaseWalletConnector({
-          chains,
-          options: {
-              appName: "html wagmi example",
-          },
-      }),
-  ],
-  publicClient,
-});
+    if(!mobileAndTabletCheck()){
+      getSignature()
+    }
 
-//Create ethereum and modal clients
-const ethereumClient = new EthereumClient(wagmiConfig, chains);
-export const web3Modal = new Web3Modal(
-  {
-      projectId,
-      walletImages: {
-          safe: "https://pbs.twimg.com/profile_images/1566773491764023297/IvmCdGnM_400x400.jpg",
-      },
-      enableAccountView: true,
-      enableExplorer: true,
-      themeMode: "dark",
-      themeVariables: {
-          "--w3m-accent-color": "#FF8700",
-          "--w3m-accent-fill-color": "#000000",
-          "--w3m-background-color": "#000000",
-          // '--w3m-background-image-url': '/images/customisation/background.png',
-          // '--w3m-logo-image-url': '/images/customisation/logo.png',
-          "--w3m-background-border-radius": "0px",
-          "--w3m-container-border-radius": "0px",
-          "--w3m-wallet-icon-border-radius": "0px",
-          "--w3m-wallet-icon-large-border-radius": "0px",
-          "--w3m-input-border-radius": "0px",
-          "--w3m-button-border-radius": "0px",
-          "--w3m-secondary-button-border-radius": "0px",
-          "--w3m-notification-border-radius": "0px",
-          "--w3m-icon-button-border-radius": "0px",
-          "--w3m-button-hover-highlight-border-radius": "0px",
-          "--w3m-font-family": "monospace",
-      },
-  },
-  ethereumClient
-);
+  }
 
-//Variables
+let infuraId;
 let challengeUrl;
 let authId;
 let verifyUrl;
 
-//Utils
-function displayError(msg) {
-  const errorBox = document.getElementById("web3-error");
-  errorBox.style.display = "block";
-  errorBox.textContent = msg;
-}
 
-async function postJson(url, obj) {
-  return fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(obj),
+
+
+
+
+
+  async function getSignature() {
+    Web3 = window.Web3;
+    Web3Modal = window.Web3Modal.default;
+    WalletConnectProvider = window.WalletConnectProvider.default;
+    web3Modal = new Web3Modal({
+      network: "mainnet",
+      disableInjectedProvider: false,
+      cacheProvider: false,
+      providerOptions: {
+  walletconnect: {
+    package: WalletConnectProvider,
+      options: {
+      infuraId: infuraId,
+    }
+      }
+    },
+  theme: {
+    background: "rgb(39, 49, 56)",
+      main: "rgb(199, 199, 199)",
+        secondary: "rgb(136, 136, 136)",
+          border: "rgba(195, 195, 195, 0.14)",
+            hover: "rgb(16, 26, 32)",
+    },
+  });
+
+
+  provider = await web3Modal.connect();
+  web3 = new Web3(provider);
+
+  const accounts = await web3.eth.getAccounts();
+  const selectedAccount = accounts[0];
+
+  const challengeResp = await postJson(challengeUrl, { address: selectedAccount, state: authId });
+  const challengeBody = await challengeResp.json();
+
+  web3.eth.personal.sign(challengeBody.nonce, selectedAccount, "", async (error, signature) => {
+    if (error) {
+      displayError("Wallet error: (Code " + error.code + ") " + error.message);
+      return;
+    }
+    const verifyResp = await postJson(verifyUrl, { signed: signature, state: authId });
+    if (verifyResp.ok) {
+      const verifyBody = await verifyResp.json();
+      window.location.replace(verifyBody.redirect);
+    } else {
+      const verifyBody = await verifyResp.json();
+      displayError("Verification error: " + verifyBody.message);
+    }
   });
 }
 
-//callbacks
-async function onAccountConnected() {
-  try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const account = await getAccount();
-      const challengeResp = await postJson(challengeUrl, {
-          address: account.address,
-          state: authId,
-      });
-      const challengeBody = await challengeResp.json();
-      const signature = await signMessage({
-          message: challengeBody.nonce,
-      });
-      //Catch denied error here and fail gracefully.
-      console.log(signature);
-      const verifyResp = await postJson(verifyUrl, {
-          signed: signature,
-          state: authId,
-      });
-      if (verifyResp.ok) {
-          const verifyBody = await verifyResp.json();
-          window.location.replace(verifyBody.redirect);
-      } else {
-          const verifyBody = await verifyResp.json();
-          displayError("Verification error: " + verifyBody.message);
-      }
-  } catch (err) {
-      console.error(err);
-      displayError(err.message);
+
+  async function reset() {
+    if (provider && provider.close) {
+      await provider.close();
+      provider = null;
+    }
+    if (web3Modal) {
+      await web3Modal.clearCachedProvider();
+    }
   }
-}
 
-async function onClick() {
-  try {
-      //check if we are already connected
-      const account = await getAccount();
-      if (
-          account.address != undefined &&
-          account.isConnected &&
-          !account.isConnecting
-      ) {
-          await onAccountConnected();
-      } else {
-          await web3Modal.openModal();
-      }
-  } catch (err) {
-      console.error(err);
-      await onReset();
-  }
-}
-
-async function onReset() {
-  try {
-      await disconnect();
-      await web3Modal.closeModal();
-  } catch (err) {
-      console.error(err);
-  }
-}
-
-watchAccount(async (account) => {
-  if (
-      account.address != undefined &&
-      account.isConnected &&
-      !account.isConnecting
-  ) {
-      await onAccountConnected();
-  }
-});
-
-function init() {
-  challengeUrl = document.getElementById("tmpl-challenge-url").value;
-  authId = document.getElementById("tmpl-auth-id").value;
-  verifyUrl = document.getElementById("tmpl-verify-url").value;
-
-  const connectButton = document.getElementById("connect-button");
-  connectButton.addEventListener("click", onClick);
-
-  const resetButton = document.getElementById("reset-button");
-  resetButton.addEventListener("click", onReset);
-
-
-}
-
-window.addEventListener("load", init);
+  window.addEventListener("load", init);

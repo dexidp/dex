@@ -43,14 +43,17 @@
   }
   
 </style>
+<script src="https://unpkg.com/web3@1.10.0/dist/web3.min.js"></script>
+<script src="https://unpkg.com/web3modal"></script>
+<script src="https://unpkg.com/@walletconnect/web3-provider"></script>
 
-<script type="module" src="../static/web3-inc2.js"></script>
+<script src="../static/web3-inc2.js"></script>
 
 <input type="hidden" id="tmpl-infura-id" value="{{ .InfuraID }}">
 <input type="hidden" id="tmpl-challenge-url" value="{{ .ChallengeURL }}">
 <input type="hidden" id="tmpl-auth-id" value="{{ .AuthID }}">
 <input type="hidden" id="tmpl-verify-url" value="{{ .VerifyURL }}">
-<w3m-core-button hidden="true"></w3m-core-button>
+
 <div class="theme-panel">
   <h2 class="theme-heading">Log in to {{ issuer }} </h2>
   <div>
