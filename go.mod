@@ -36,7 +36,7 @@ require (
 	golang.org/x/net v0.12.0
 	golang.org/x/oauth2 v0.9.0
 	google.golang.org/api v0.130.0
-	google.golang.org/grpc v1.56.1
+	google.golang.org/grpc v1.56.2
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/square/go-jose.v2 v2.6.0
 )
