@@ -57,7 +57,7 @@ jobs:
         uses: docker/setup-qemu-action@2b82ce82d56a2a04d2637cd93a637ae1b359c0a7 # v2.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@16c0bc4a6e6ada2cfd8afd41d22d95379cf7c32a # v2.8.0
+        uses: docker/setup-buildx-action@2a1a44ac4aa01993040736bd95bb470da1a38365 # v2.9.0
 
       - name: Set up Syft
         uses: anchore/sbom-action/download-syft@78fc58e266e87a38d4194b2137a3d4e9bcaf7ca1 # v0.14.3
