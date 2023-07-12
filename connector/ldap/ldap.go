@@ -445,7 +445,8 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 	switch n := len(resp.Entries); n {
 	case 0:
 		c.logger.Errorf("ldap: no results returned for filter: %q", filter)
-		return ldap.Entry{}, false, nil
+		return ldap.Entry{}, false, fmt.Errorf("ldap: no results returned for filter: %q LDAP Result Code %d %q: ", filter,
+			ldap.LDAPResultInvalidCredentials, ldap.LDAPResultCodeMap[ldap.LDAPResultInvalidCredentials])
 	case 1:
 		user = *resp.Entries[0]
 		c.logger.Infof("username %q mapped to entry %s", username, user.DN)
@@ -487,7 +488,8 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 				case ldap.LDAPResultInvalidCredentials:
 					c.logger.Errorf("ldap: invalid password for user %q", user.DN)
 					incorrectPass = true
-					return nil
+					return fmt.Errorf("invalid credentials for user %q LDAP Result Code %d %q: ", user.DN,
+						ldap.LDAPResultInvalidCredentials, ldap.LDAPResultCodeMap[ldap.LDAPResultInvalidCredentials])
 				case ldap.LDAPResultConstraintViolation:
 					c.logger.Errorf("ldap: constraint violation for user %q: %s", user.DN, ldapErr.Error())
 					incorrectPass = true
