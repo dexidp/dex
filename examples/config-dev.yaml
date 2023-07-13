@@ -91,7 +91,16 @@ telemetry:
 
 # Default values shown below
 # oauth2:
-    # use ["code", "token", "id_token"] to enable implicit flow for web-only clients
+    # grantTypes determines the allowed set of authorization flows.
+#   grantTypes:
+#     - "authorization_code"
+#     - "refresh_token"
+#     - "implicit"
+#     - "password"
+#     - "urn:ietf:params:oauth:grant-type:device_code"
+#     - "urn:ietf:params:oauth:grant-type:token-exchange"
+    # responseTypes determines the allowed response contents of a successful authorization flow.
+    # use ["code", "token", "id_token"] to enable implicit flow for web-only clients.
 #   responseTypes: [ "code" ] # also allowed are "token" and "id_token"
     # By default, Dex will ask for approval to share data with application
     # (approval for sharing data from connected IdP to Dex is separate process on IdP)

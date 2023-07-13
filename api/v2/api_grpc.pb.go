@@ -19,6 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
+	Dex_GetClient_FullMethodName      = "/api.Dex/GetClient"
 	Dex_CreateClient_FullMethodName   = "/api.Dex/CreateClient"
 	Dex_UpdateClient_FullMethodName   = "/api.Dex/UpdateClient"
 	Dex_DeleteClient_FullMethodName   = "/api.Dex/DeleteClient"
@@ -36,6 +37,8 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DexClient interface {
+	// GetClient gets a client.
+	GetClient(ctx context.Context, in *GetClientReq, opts ...grpc.CallOption) (*GetClientResp, error)
 	// CreateClient creates a client.
 	CreateClient(ctx context.Context, in *CreateClientReq, opts ...grpc.CallOption) (*CreateClientResp, error)
 	// UpdateClient updates an existing client
@@ -68,6 +71,15 @@ type dexClient struct {
 
 func NewDexClient(cc grpc.ClientConnInterface) DexClient {
 	return &dexClient{cc}
+}
+
+func (c *dexClient) GetClient(ctx context.Context, in *GetClientReq, opts ...grpc.CallOption) (*GetClientResp, error) {
+	out := new(GetClientResp)
+	err := c.cc.Invoke(ctx, Dex_GetClient_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *dexClient) CreateClient(ctx context.Context, in *CreateClientReq, opts ...grpc.CallOption) (*CreateClientResp, error) {
@@ -173,6 +185,8 @@ func (c *dexClient) VerifyPassword(ctx context.Context, in *VerifyPasswordReq, o
 // All implementations must embed UnimplementedDexServer
 // for forward compatibility
 type DexServer interface {
+	// GetClient gets a client.
+	GetClient(context.Context, *GetClientReq) (*GetClientResp, error)
 	// CreateClient creates a client.
 	CreateClient(context.Context, *CreateClientReq) (*CreateClientResp, error)
 	// UpdateClient updates an existing client
@@ -204,6 +218,9 @@ type DexServer interface {
 type UnimplementedDexServer struct {
 }
 
+func (UnimplementedDexServer) GetClient(context.Context, *GetClientReq) (*GetClientResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClient not implemented")
+}
 func (UnimplementedDexServer) CreateClient(context.Context, *CreateClientReq) (*CreateClientResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateClient not implemented")
 }
@@ -248,6 +265,24 @@ type UnsafeDexServer interface {
 
 func RegisterDexServer(s grpc.ServiceRegistrar, srv DexServer) {
 	s.RegisterService(&Dex_ServiceDesc, srv)
+}
+
+func _Dex_GetClient_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetClientReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).GetClient(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_GetClient_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).GetClient(ctx, req.(*GetClientReq))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Dex_CreateClient_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -455,6 +490,10 @@ var Dex_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "api.Dex",
 	HandlerType: (*DexServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetClient",
+			Handler:    _Dex_GetClient_Handler,
+		},
 		{
 			MethodName: "CreateClient",
 			Handler:    _Dex_CreateClient_Handler,

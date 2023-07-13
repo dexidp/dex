@@ -258,6 +258,7 @@ type caller uint
 const (
 	createCaller caller = iota
 	refreshCaller
+	exchangeCaller
 )
 
 func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
@@ -296,16 +297,32 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 	return c.createIdentity(ctx, identity, token, refreshCaller)
 }
 
+func (c *oidcConnector) TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (connector.Identity, error) {
+	var identity connector.Identity
+	token := &oauth2.Token{
+		AccessToken: subjectToken,
+	}
+	return c.createIdentity(ctx, identity, token, exchangeCaller)
+}
+
 func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token, caller caller) (connector.Identity, error) {
 	var claims map[string]interface{}
 
-	rawIDToken, ok := token.Extra("id_token").(string)
-	if ok {
+	if rawIDToken, ok := token.Extra("id_token").(string); ok {
 		idToken, err := c.verifier.Verify(ctx, rawIDToken)
 		if err != nil {
 			return identity, fmt.Errorf("oidc: failed to verify ID Token: %v", err)
 		}
 
+		if err := idToken.Claims(&claims); err != nil {
+			return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
+		}
+	} else if caller == exchangeCaller {
+		// AccessToken here could be either an id token or an access token
+		idToken, err := c.provider.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, token.AccessToken)
+		if err != nil {
+			return identity, fmt.Errorf("oidc: failed to verify token: %v", err)
+		}
 		if err := idToken.Claims(&claims); err != nil {
 			return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
 		}

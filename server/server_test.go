@@ -99,6 +99,14 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 		PrometheusRegistry: prometheus.NewRegistry(),
 		HealthChecker:      gosundheit.New(),
 		SkipApprovalScreen: true, // Don't prompt for approval, just immediately redirect with code.
+		AllowedGrantTypes: []string{ // all implemented types
+			grantTypeDeviceCode,
+			grantTypeAuthorizationCode,
+			grantTypeRefreshToken,
+			grantTypeTokenExchange,
+			grantTypeImplicit,
+			grantTypePassword,
+		},
 	}
 	if updateConfig != nil {
 		updateConfig(&config)
@@ -1756,17 +1764,22 @@ func TestServerSupportedGrants(t *testing.T) {
 		{
 			name:      "Simple",
 			config:    func(c *Config) {},
-			resGrants: []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
+		},
+		{
+			name:      "Minimal",
+			config:    func(c *Config) { c.AllowedGrantTypes = []string{grantTypeTokenExchange} },
+			resGrants: []string{grantTypeTokenExchange},
 		},
 		{
 			name:      "With password connector",
 			config:    func(c *Config) { c.PasswordConnector = "local" },
-			resGrants: []string{grantTypeAuthorizationCode, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
 		},
 		{
 			name:      "With token response",
 			config:    func(c *Config) { c.SupportedResponseTypes = append(c.SupportedResponseTypes, responseTypeToken) },
-			resGrants: []string{grantTypeAuthorizationCode, grantTypeImplicit, grantTypeRefreshToken, grantTypeDeviceCode},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeImplicit, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
 		},
 		{
 			name: "All",
@@ -1774,14 +1787,14 @@ func TestServerSupportedGrants(t *testing.T) {
 				c.PasswordConnector = "local"
 				c.SupportedResponseTypes = append(c.SupportedResponseTypes, responseTypeToken)
 			},
-			resGrants: []string{grantTypeAuthorizationCode, grantTypeImplicit, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeImplicit, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			_, srv := newTestServer(context.TODO(), t, tc.config)
-			require.Equal(t, srv.supportedGrantTypes, tc.resGrants)
+			require.Equal(t, tc.resGrants, srv.supportedGrantTypes)
 		})
 	}
 }
