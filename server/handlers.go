@@ -1327,8 +1327,13 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, resp *accessTokenRespon
 }
 
 func (s *Server) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
-	if err := s.templates.err(r, w, status, description); err != nil {
-		s.logger.Errorf("Server template error: %v", err)
+	// Write json based errors instead of using the template to render error.
+	if r == nil {
+		s.logger.Error("Cannot render error. Request not found.")
+		return
+	}
+	if err := tokenErr(w, errAccessDenied, description, status); err != nil {
+		s.logger.Errorf("Error rendering failed. Token error response: %v", err)
 	}
 }
 
