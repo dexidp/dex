@@ -143,6 +143,9 @@ type Config struct {
 		// TODO: should be eventually removed from the code
 		UserAttr  string `json:"userAttr"`
 		GroupAttr string `json:"groupAttr"`
+		//Look for parent groups recursively
+		Recursive          bool   `json:"recursive"`
+		RecursionGroupAttr string `json:"recursionGroupAttr"`
 
 		// Array of the field pairs used to match a user to a group.
 		// See the "UserMatcher" struct for the exact field names
@@ -201,8 +204,10 @@ func userMatchers(c *Config, logger log.Logger) []UserMatcher {
 	log.Deprecated(logger, `LDAP: use groupSearch.userMatchers option instead of "userAttr/groupAttr" fields.`)
 	return []UserMatcher{
 		{
-			UserAttr:  c.GroupSearch.UserAttr,
-			GroupAttr: c.GroupSearch.GroupAttr,
+			UserAttr:           c.GroupSearch.UserAttr,
+			GroupAttr:          c.GroupSearch.GroupAttr,
+			Recursive:          c.GroupSearch.Recursive,
+			RecursionGroupAttr: c.GroupSearch.RecursionGroupAttr,
 		},
 	}
 }
