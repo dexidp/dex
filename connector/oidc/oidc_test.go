@@ -62,6 +62,7 @@ func TestHandleCallback(t *testing.T) {
 		expectPreferredUsername   string
 		expectedEmailField        string
 		token                     map[string]interface{}
+		claimConcatenations       []ClaimConcatenation
 	}{
 		{
 			name:               "simpleCase",
@@ -288,6 +289,66 @@ func TestHandleCallback(t *testing.T) {
 				"email_verified": true,
 			},
 		},
+		{
+			name:               "concatinateClaim",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectGroups:       []string{"group1", "gh::acme::pipeline-one", "tfe-acme-foobar", "bk-emailvalue"},
+			expectedEmailField: "emailvalue",
+			claimConcatenations: []ClaimConcatenation{
+				{
+					ClaimList: []string{
+						"organization",
+						"pipeline",
+					},
+					Delimiter: "::",
+					Prefix:    "gh",
+				},
+				{
+					ClaimList: []string{
+						"non-existing1",
+						"non-existing2",
+					},
+					Delimiter: "::",
+					Prefix:    "tfe",
+				},
+				{
+					ClaimList: []string{
+						"organization",
+						"claim-with-delimiter",
+					},
+					Delimiter: "-",
+					Prefix:    "tfe",
+				},
+				{
+					ClaimList: []string{
+						"non-string-claim",
+						"non-string-claim2",
+						"email",
+					},
+					Delimiter: "-",
+					Prefix:    "bk",
+				},
+			},
+
+			token: map[string]interface{}{
+				"sub":                  "subvalue",
+				"name":                 "namevalue",
+				"groups":               "group1",
+				"organization":         "acme",
+				"pipeline":             "pipeline-one",
+				"email":                "emailvalue",
+				"email_verified":       true,
+				"claim-with-delimiter": "foo-bar",
+				"non-string-claim": []string{
+					"element1",
+					"element2",
+				},
+				"non-string-claim2": 666,
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -319,6 +380,7 @@ func TestHandleCallback(t *testing.T) {
 				InsecureEnableGroups:      true,
 				BasicAuthUnsupported:      &basicAuth,
 				OverrideClaimMapping:      tc.overrideClaimMapping,
+				ClaimConcatenations:       tc.claimConcatenations,
 			}
 			config.ClaimMapping.PreferredUsernameKey = tc.preferredUsernameKey
 			config.ClaimMapping.EmailKey = tc.emailKey

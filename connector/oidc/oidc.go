@@ -87,6 +87,21 @@ type Config struct {
 		// Configurable key which contains the groups claims
 		GroupsKey string `json:"groups"` // defaults to "groups"
 	} `json:"claimMapping"`
+
+	// List of new claim to generate based on concatinate existing claims
+	ClaimConcatenations []ClaimConcatenation `json:"claimConcatenations"`
+}
+
+// List of groups claim elements to create by concatenating other claims
+type ClaimConcatenation struct {
+	// List of claim to join together
+	ClaimList []string `json:"claimList"`
+
+	// String to separate the claims
+	Delimiter string `json:"delimiter"`
+
+	// String to place before the first claim
+	Prefix string `json:"prefix"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -189,6 +204,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
 		emailKey:                  c.ClaimMapping.EmailKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
+		claimConcatenations:       c.ClaimConcatenations,
 	}, nil
 }
 
@@ -216,6 +232,7 @@ type oidcConnector struct {
 	preferredUsernameKey      string
 	emailKey                  string
 	groupsKey                 string
+	claimConcatenations       []ClaimConcatenation
 }
 
 func (c *oidcConnector) Close() error {
@@ -413,6 +430,26 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 					return identity, fmt.Errorf("malformed \"%v\" claim", groupsKey)
 				}
 			}
+		}
+	}
+
+	for _, cc := range c.claimConcatenations {
+		newElement := ""
+		for _, clm := range cc.ClaimList {
+			// Non string claim value are ignored, concatenating them doesn't really make any sense
+			if claimValue, ok := claims[clm].(string); ok {
+				// Removing the delimiier string from the concatenated claim to ensure resulting claim structure
+				// is in full control of Dex operator
+				claimCleanedValue := strings.ReplaceAll(claimValue, cc.Delimiter, "")
+				if newElement == "" {
+					newElement = cc.Prefix + cc.Delimiter + claimCleanedValue
+				} else {
+					newElement = newElement + cc.Delimiter + claimCleanedValue
+				}
+			}
+		}
+		if newElement != "" {
+			groups = append(groups, newElement)
 		}
 	}
 
