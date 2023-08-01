@@ -441,6 +441,7 @@ func TestTokenIdentity(t *testing.T) {
 		name        string
 		subjectType string
 		userInfo    bool
+		expectError bool
 	}{
 		{
 			name:        "id_token",
@@ -448,6 +449,7 @@ func TestTokenIdentity(t *testing.T) {
 		}, {
 			name:        "access_token",
 			subjectType: tokenTypeAccess,
+			expectError: true,
 		}, {
 			name:        "id_token with user info",
 			subjectType: tokenTypeID,
@@ -494,6 +496,9 @@ func TestTokenIdentity(t *testing.T) {
 			origToken := tokenResponse[long2short[tc.subjectType]].(string)
 			identity, err := conn.TokenIdentity(ctx, tc.subjectType, origToken)
 			if err != nil {
+				if tc.expectError {
+					return
+				}
 				t.Fatal("failed to get token identity", err)
 			}
 

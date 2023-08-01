@@ -301,6 +301,7 @@ func (c *oidcConnector) TokenIdentity(ctx context.Context, subjectTokenType, sub
 	var identity connector.Identity
 	token := &oauth2.Token{
 		AccessToken: subjectToken,
+		TokenType:   subjectTokenType,
 	}
 	return c.createIdentity(ctx, identity, token, exchangeCaller)
 }
@@ -318,20 +319,30 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
 		}
 	} else if caller == exchangeCaller {
-		// AccessToken here could be either an id token or an access token
-		idToken, err := c.provider.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, token.AccessToken)
-		if err != nil {
-			return identity, fmt.Errorf("oidc: failed to verify token: %v", err)
-		}
-		if err := idToken.Claims(&claims); err != nil {
-			return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
+		switch token.TokenType {
+		case "urn:ietf:params:oauth:token-type:id_token":
+			// Verify only works on ID tokens
+			idToken, err := c.provider.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, token.AccessToken)
+			if err != nil {
+				return identity, fmt.Errorf("oidc: failed to verify token: %v", err)
+			}
+			if err := idToken.Claims(&claims); err != nil {
+				return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
+			}
+		case "urn:ietf:params:oauth:token-type:access_token":
+			if !c.getUserInfo {
+				return identity, fmt.Errorf("oidc: getUserInfo is required for access token exchange")
+			}
+		default:
+			return identity, fmt.Errorf("unknown token type for token exchange: %s", token.TokenType)
 		}
 	} else if caller != refreshCaller {
 		// ID tokens aren't mandatory in the reply when using a refresh_token grant
 		return identity, errors.New("oidc: no id_token in token response")
 	}
 
-	// We immediately want to run getUserInfo if configured before we validate the claims
+	// We immediately want to run getUserInfo if configured before we validate the claims.
+	// For token exchanges with access tokens, this is how we verify the token.
 	if c.getUserInfo {
 		userInfo, err := c.provider.UserInfo(ctx, oauth2.StaticTokenSource(token))
 		if err != nil {

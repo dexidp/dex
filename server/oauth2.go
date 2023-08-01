@@ -145,9 +145,13 @@ const (
 )
 
 const (
-	responseTypeCode    = "code"     // "Regular" flow
-	responseTypeToken   = "token"    // Implicit flow for frontend apps.
-	responseTypeIDToken = "id_token" // ID Token in url fragment
+	responseTypeCode             = "code"                // "Regular" flow
+	responseTypeToken            = "token"               // Implicit flow for frontend apps.
+	responseTypeIDToken          = "id_token"            // ID Token in url fragment
+	responseTypeCodeToken        = "code token"          // "Regular" flow + Implicit flow
+	responseTypeCodeIDToken      = "code id_token"       // "Regular" flow + ID Token
+	responseTypeIDTokenToken     = "id_token token"      // ID Token + Implicit flow
+	responseTypeCodeIDTokenToken = "code id_token token" // "Regular" flow + ID Token + Implicit flow
 )
 
 const (
