@@ -298,7 +298,7 @@ func TestHandleCallback(t *testing.T) {
 			expectGroups:       []string{"group1", "gh::acme::pipeline-one", "tfe-acme-foobar", "bk-emailvalue"},
 			expectedEmailField: "emailvalue",
 			claimConcatenations: []ClaimConcatenation{
-				{
+				{ // The basic functionality, should create "gh::acme::pipeline-one".
 					ClaimList: []string{
 						"organization",
 						"pipeline",
@@ -306,7 +306,7 @@ func TestHandleCallback(t *testing.T) {
 					Delimiter: "::",
 					Prefix:    "gh",
 				},
-				{
+				{ // Non existing claims, should not generate any any new group claim.
 					ClaimList: []string{
 						"non-existing1",
 						"non-existing2",
@@ -314,7 +314,9 @@ func TestHandleCallback(t *testing.T) {
 					Delimiter: "::",
 					Prefix:    "tfe",
 				},
-				{
+				{ // In this case the delimiter character("-") should be removed removed from "claim-with-delimiter" claim to ensure the resulting
+					// claim structure is in full control of the Dex operator and not the person creating a new pipeline.
+					// Should create "tfe-acme-foobar" and not "tfe-acme-foo-bar".
 					ClaimList: []string{
 						"organization",
 						"claim-with-delimiter",
@@ -322,7 +324,7 @@ func TestHandleCallback(t *testing.T) {
 					Delimiter: "-",
 					Prefix:    "tfe",
 				},
-				{
+				{ // Ignore non string claims (like arrays), this should result in "bk-emailvalue".
 					ClaimList: []string{
 						"non-string-claim",
 						"non-string-claim2",
