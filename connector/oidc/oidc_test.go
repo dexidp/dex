@@ -62,7 +62,7 @@ func TestHandleCallback(t *testing.T) {
 		expectPreferredUsername   string
 		expectedEmailField        string
 		token                     map[string]interface{}
-		claimConcatenations       []ClaimConcatenation
+		newGroupsFromClaims       []NewGroupsFromClaims
 	}{
 		{
 			name:               "simpleCase",
@@ -297,7 +297,7 @@ func TestHandleCallback(t *testing.T) {
 			expectUserName:     "namevalue",
 			expectGroups:       []string{"group1", "gh::acme::pipeline-one", "tfe-acme-foobar", "bk-emailvalue"},
 			expectedEmailField: "emailvalue",
-			claimConcatenations: []ClaimConcatenation{
+			newGroupsFromClaims: []NewGroupsFromClaims{
 				{ // The basic functionality, should create "gh::acme::pipeline-one".
 					ClaimList: []string{
 						"organization",
@@ -382,11 +382,11 @@ func TestHandleCallback(t *testing.T) {
 				InsecureEnableGroups:      true,
 				BasicAuthUnsupported:      &basicAuth,
 				OverrideClaimMapping:      tc.overrideClaimMapping,
-				ClaimConcatenations:       tc.claimConcatenations,
 			}
 			config.ClaimMapping.PreferredUsernameKey = tc.preferredUsernameKey
 			config.ClaimMapping.EmailKey = tc.emailKey
 			config.ClaimMapping.GroupsKey = tc.groupsKey
+			config.ClaimModifications.NewGroupsFromClaims = tc.newGroupsFromClaims
 
 			conn, err := newConnector(config)
 			if err != nil {

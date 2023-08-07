@@ -88,12 +88,14 @@ type Config struct {
 		GroupsKey string `json:"groups"` // defaults to "groups"
 	} `json:"claimMapping"`
 
-	// List of new claim to generate based on concatinate existing claims
-	ClaimConcatenations []ClaimConcatenation `json:"claimConcatenations"`
+	// ClaimModifications holds all claim modifications options, current has only newGroupsFromClaims
+	ClaimModifications struct {
+		NewGroupsFromClaims []NewGroupsFromClaims `json:"newGroupsFromClaims"`
+	}
 }
 
 // List of groups claim elements to create by concatenating other claims
-type ClaimConcatenation struct {
+type NewGroupsFromClaims struct {
 	// List of claim to join together
 	ClaimList []string `json:"claimList"`
 
@@ -204,7 +206,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
 		emailKey:                  c.ClaimMapping.EmailKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
-		claimConcatenations:       c.ClaimConcatenations,
+		newGroupsFromClaims:       c.ClaimModifications.NewGroupsFromClaims,
 	}, nil
 }
 
@@ -232,7 +234,7 @@ type oidcConnector struct {
 	preferredUsernameKey      string
 	emailKey                  string
 	groupsKey                 string
-	claimConcatenations       []ClaimConcatenation
+	newGroupsFromClaims       []NewGroupsFromClaims
 }
 
 func (c *oidcConnector) Close() error {
@@ -444,7 +446,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 	}
 
-	for _, cc := range c.claimConcatenations {
+	for _, cc := range c.newGroupsFromClaims {
 		newElement := ""
 		for _, clm := range cc.ClaimList {
 			// Non string claim value are ignored, concatenating them doesn't really make any sense
