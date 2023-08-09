@@ -24,6 +24,32 @@ userpassword: bar
 
 ########################################################################
 
+dn: ou=TestQueryWithSimpleBind,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestQuery
+
+dn: ou=People,ou=TestQueryWithSimpleBind,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=TestQueryWithSimpleBind,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+
+dn: cn=john,ou=People,ou=TestQueryWithSimpleBind,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: john
+mail: johndoe@example.com
+userpassword: bar
+
+########################################################################
+
 dn: ou=TestQueryWithEmailSuffix,dc=example,dc=org
 objectClass: organizationalUnit
 ou: TestQueryWithEmailSuffix
