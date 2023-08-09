@@ -221,6 +221,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 
 type refreshData struct {
 	Username string     `json:"username"`
+	Password string     `json:"password"`
 	Entry    ldap.Entry `json:"entry"`
 }
 
@@ -297,7 +298,7 @@ func (c *Config) openConnector(logger log.Logger) (*ldapConnector, error) {
 
 	// TODO(nabokihms): remove it after deleting deprecated groupSearch options
 	c.GroupSearch.UserMatchers = userMatchers(c, logger)
-	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig, logger, "", []byte{}}, nil
+	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig, logger}, nil
 }
 
 type ldapConnector struct {
@@ -309,9 +310,6 @@ type ldapConnector struct {
 	tlsConfig *tls.Config
 
 	logger log.Logger
-
-	uid  string
-	pass []byte
 }
 
 var (
@@ -322,7 +320,7 @@ var (
 // do initializes a connection to the LDAP directory and passes it to the
 // provided function. It then performs appropriate teardown or reuse before
 // returning.
-func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error {
+func (c *ldapConnector) do(_ context.Context, username, password string, f func(c *ldap.Conn) error) error {
 	// TODO(ericchiang): support context here
 	var (
 		conn *ldap.Conn
@@ -355,8 +353,8 @@ func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error 
 	bindPW = c.BindPW
 
 	if c.BindDNPrefix != "" || c.BindDNSuffix != "" {
-		bindDN = fmt.Sprintf("%s%s%s", c.BindDNPrefix, c.uid, c.BindDNSuffix)
-		bindPW = string(c.pass)
+		bindDN = fmt.Sprintf("%s%s%s", c.BindDNPrefix, username, c.BindDNSuffix)
+		bindPW = password
 	}
 
 	// If bindDN and bindPW are empty this will default to an anonymous bind.
@@ -482,9 +480,6 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 }
 
 func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (ident connector.Identity, validPass bool, err error) {
-	c.uid = username
-	c.pass = []byte(password)
-
 	// make this check to avoid unauthenticated bind to the LDAP server.
 	if password == "" {
 		return connector.Identity{}, false, nil
@@ -497,7 +492,7 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 		user          ldap.Entry
 	)
 
-	err = c.do(ctx, func(conn *ldap.Conn) error {
+	err = c.do(ctx, username, password, func(conn *ldap.Conn) error {
 		entry, found, err := c.userEntry(conn, username)
 		if err != nil {
 			return err
@@ -539,7 +534,7 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 	}
 
 	if s.Groups {
-		groups, err := c.groups(ctx, user)
+		groups, err := c.groups(ctx, username, password, user)
 		if err != nil {
 			return connector.Identity{}, false, fmt.Errorf("ldap: failed to query groups: %v", err)
 		}
@@ -549,6 +544,7 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 	if s.OfflineAccess {
 		refresh := refreshData{
 			Username: username,
+			Password: password,
 			Entry:    user,
 		}
 		// Encode entry for follow up requests such as the groups query and
@@ -568,7 +564,7 @@ func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident c
 	}
 
 	var user ldap.Entry
-	err := c.do(ctx, func(conn *ldap.Conn) error {
+	err := c.do(ctx, data.Username, data.Password, func(conn *ldap.Conn) error {
 		entry, found, err := c.userEntry(conn, data.Username)
 		if err != nil {
 			return err
@@ -593,7 +589,7 @@ func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident c
 	newIdent.ConnectorData = ident.ConnectorData
 
 	if s.Groups {
-		groups, err := c.groups(ctx, user)
+		groups, err := c.groups(ctx, data.Username, data.Password, user)
 		if err != nil {
 			return connector.Identity{}, fmt.Errorf("ldap: failed to query groups: %v", err)
 		}
@@ -602,7 +598,7 @@ func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident c
 	return newIdent, nil
 }
 
-func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, error) {
+func (c *ldapConnector) groups(ctx context.Context, username, password string, user ldap.Entry) ([]string, error) {
 	if c.GroupSearch.BaseDN == "" {
 		c.logger.Debugf("No groups returned for %q because no groups baseDN has been configured.", c.getAttr(user, c.UserSearch.NameAttr))
 		return nil, nil
@@ -624,7 +620,7 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 			}
 
 			gotGroups := false
-			if err := c.do(ctx, func(conn *ldap.Conn) error {
+			if err := c.do(ctx, username, password, func(conn *ldap.Conn) error {
 				c.logger.Infof("performing ldap search %s %s %s",
 					req.BaseDN, scopeString(req.Scope), req.Filter)
 				resp, err := conn.Search(req)
