@@ -829,10 +829,6 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set the connector_id to the default value if it wasn't passed to the query
-	if !r.Form.Has("connector_id") || r.Form.Get("connector_id") == "" {
-		r.Form.Set("connector_id", s.defaultPasswordConnector)
-	}
 
 	grantType := r.PostFormValue("grant_type")
 	switch grantType {
@@ -1151,8 +1147,12 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 
 	// Get the connector
 	connID := q.Get("connector_id")
-	if connID == "" {
-		//  backward compatibility support
+	if connID == "" && s.defaultPasswordConnector != ""	{
+		connID = s.defaultPasswordConnector
+	}
+
+	// backward compatibility support
+	if s.passwordConnector != "" {
 		connID = s.passwordConnector
 	}
 	conn, err := s.getConnector(connID)

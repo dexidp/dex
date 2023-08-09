@@ -250,6 +250,7 @@ func runServe(options serveOptions) error {
 		logger.Infof("config using the default password grant connector: %s", c.OAuth2.DefaultPasswordConnector)
 	} else if c.OAuth2.PasswordConnector != "" {
 		logger.Infof("config using the password grant connector: %s", c.OAuth2.PasswordConnector)
+		log.Deprecated(logger, "passwordConnector option is deprecated, use defaultPasswordConnector instead")
 	}
 	if len(c.Web.AllowedOrigins) > 0 {
 		logger.Infof("config allowed origins: %s", c.Web.AllowedOrigins)
