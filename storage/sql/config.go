@@ -80,7 +80,8 @@ type SSL struct {
 type Postgres struct {
 	NetworkDB
 
-	SSL SSL `json:"ssl" yaml:"ssl"`
+	SSL     SSL    `json:"ssl" yaml:"ssl"`
+	Options string `json:"options,omitempty" yaml:"options,omitempty"`
 }
 
 // Open creates a new storage implementation backed by Postgres.
@@ -159,6 +160,10 @@ func (p *Postgres) createDataSourceName() string {
 
 	if p.SSL.KeyFile != "" {
 		addParam("sslkey", dataSourceStr(p.SSL.KeyFile))
+	}
+
+	if p.Options != "" {
+		addParam("options", dataSourceStr(p.Options))
 	}
 
 	return strings.Join(parameters, " ")
