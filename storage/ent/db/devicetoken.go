@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/devicetoken"
 )
@@ -32,11 +33,12 @@ type DeviceToken struct {
 	CodeChallenge string `json:"code_challenge,omitempty"`
 	// CodeChallengeMethod holds the value of the "code_challenge_method" field.
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
+	selectValues        sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*DeviceToken) scanValues(columns []string) ([]interface{}, error) {
-	values := make([]interface{}, len(columns))
+func (*DeviceToken) scanValues(columns []string) ([]any, error) {
+	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
 		case devicetoken.FieldToken:
@@ -48,7 +50,7 @@ func (*DeviceToken) scanValues(columns []string) ([]interface{}, error) {
 		case devicetoken.FieldExpiry, devicetoken.FieldLastRequest:
 			values[i] = new(sql.NullTime)
 		default:
-			return nil, fmt.Errorf("unexpected column %q for type DeviceToken", columns[i])
+			values[i] = new(sql.UnknownType)
 		}
 	}
 	return values, nil
@@ -56,7 +58,7 @@ func (*DeviceToken) scanValues(columns []string) ([]interface{}, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the DeviceToken fields.
-func (dt *DeviceToken) assignValues(columns []string, values []interface{}) error {
+func (dt *DeviceToken) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -116,16 +118,24 @@ func (dt *DeviceToken) assignValues(columns []string, values []interface{}) erro
 			} else if value.Valid {
 				dt.CodeChallengeMethod = value.String
 			}
+		default:
+			dt.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
+}
+
+// Value returns the ent.Value that was dynamically selected and assigned to the DeviceToken.
+// This includes values selected through modifiers, order, etc.
+func (dt *DeviceToken) Value(name string) (ent.Value, error) {
+	return dt.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this DeviceToken.
 // Note that you need to call DeviceToken.Unwrap() before calling this method if this DeviceToken
 // was returned from a transaction, and the transaction was committed or rolled back.
 func (dt *DeviceToken) Update() *DeviceTokenUpdateOne {
-	return (&DeviceTokenClient{config: dt.config}).UpdateOne(dt)
+	return NewDeviceTokenClient(dt.config).UpdateOne(dt)
 }
 
 // Unwrap unwraps the DeviceToken entity that was returned from a transaction after it was closed,
@@ -175,9 +185,3 @@ func (dt *DeviceToken) String() string {
 
 // DeviceTokens is a parsable slice of DeviceToken.
 type DeviceTokens []*DeviceToken
-
-func (dt DeviceTokens) config(cfg config) {
-	for _i := range dt {
-		dt[_i].config = cfg
-	}
-}

@@ -56,49 +56,7 @@ func (cc *ConnectorCreate) Mutation() *ConnectorMutation {
 
 // Save creates the Connector in the database.
 func (cc *ConnectorCreate) Save(ctx context.Context) (*Connector, error) {
-	var (
-		err  error
-		node *Connector
-	)
-	if len(cc.hooks) == 0 {
-		if err = cc.check(); err != nil {
-			return nil, err
-		}
-		node, err = cc.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*ConnectorMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = cc.check(); err != nil {
-				return nil, err
-			}
-			cc.mutation = mutation
-			if node, err = cc.sqlSave(ctx); err != nil {
-				return nil, err
-			}
-			mutation.id = &node.ID
-			mutation.done = true
-			return node, err
-		})
-		for i := len(cc.hooks) - 1; i >= 0; i-- {
-			if cc.hooks[i] == nil {
-				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = cc.hooks[i](mut)
-		}
-		v, err := mut.Mutate(ctx, cc.mutation)
-		if err != nil {
-			return nil, err
-		}
-		nv, ok := v.(*Connector)
-		if !ok {
-			return nil, fmt.Errorf("unexpected node type %T returned from ConnectorMutation", v)
-		}
-		node = nv
-	}
-	return node, err
+	return withHooks(ctx, cc.sqlSave, cc.mutation, cc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -156,6 +114,9 @@ func (cc *ConnectorCreate) check() error {
 }
 
 func (cc *ConnectorCreate) sqlSave(ctx context.Context) (*Connector, error) {
+	if err := cc.check(); err != nil {
+		return nil, err
+	}
 	_node, _spec := cc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, cc.driver, _spec); err != nil {
 		if sqlgraph.IsConstraintError(err) {
@@ -170,54 +131,34 @@ func (cc *ConnectorCreate) sqlSave(ctx context.Context) (*Connector, error) {
 			return nil, fmt.Errorf("unexpected Connector.ID type: %T", _spec.ID.Value)
 		}
 	}
+	cc.mutation.id = &_node.ID
+	cc.mutation.done = true
 	return _node, nil
 }
 
 func (cc *ConnectorCreate) createSpec() (*Connector, *sqlgraph.CreateSpec) {
 	var (
 		_node = &Connector{config: cc.config}
-		_spec = &sqlgraph.CreateSpec{
-			Table: connector.Table,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: connector.FieldID,
-			},
-		}
+		_spec = sqlgraph.NewCreateSpec(connector.Table, sqlgraph.NewFieldSpec(connector.FieldID, field.TypeString))
 	)
 	if id, ok := cc.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
 	if value, ok := cc.mutation.GetType(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: connector.FieldType,
-		})
+		_spec.SetField(connector.FieldType, field.TypeString, value)
 		_node.Type = value
 	}
 	if value, ok := cc.mutation.Name(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: connector.FieldName,
-		})
+		_spec.SetField(connector.FieldName, field.TypeString, value)
 		_node.Name = value
 	}
 	if value, ok := cc.mutation.ResourceVersion(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: connector.FieldResourceVersion,
-		})
+		_spec.SetField(connector.FieldResourceVersion, field.TypeString, value)
 		_node.ResourceVersion = value
 	}
 	if value, ok := cc.mutation.Config(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: connector.FieldConfig,
-		})
+		_spec.SetField(connector.FieldConfig, field.TypeBytes, value)
 		_node.Config = value
 	}
 	return _node, _spec
@@ -246,8 +187,8 @@ func (ccb *ConnectorCreateBulk) Save(ctx context.Context) ([]*Connector, error) 
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, ccb.builders[i+1].mutation)
 				} else {

@@ -63,49 +63,7 @@ func (drc *DeviceRequestCreate) Mutation() *DeviceRequestMutation {
 
 // Save creates the DeviceRequest in the database.
 func (drc *DeviceRequestCreate) Save(ctx context.Context) (*DeviceRequest, error) {
-	var (
-		err  error
-		node *DeviceRequest
-	)
-	if len(drc.hooks) == 0 {
-		if err = drc.check(); err != nil {
-			return nil, err
-		}
-		node, err = drc.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*DeviceRequestMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = drc.check(); err != nil {
-				return nil, err
-			}
-			drc.mutation = mutation
-			if node, err = drc.sqlSave(ctx); err != nil {
-				return nil, err
-			}
-			mutation.id = &node.ID
-			mutation.done = true
-			return node, err
-		})
-		for i := len(drc.hooks) - 1; i >= 0; i-- {
-			if drc.hooks[i] == nil {
-				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = drc.hooks[i](mut)
-		}
-		v, err := mut.Mutate(ctx, drc.mutation)
-		if err != nil {
-			return nil, err
-		}
-		nv, ok := v.(*DeviceRequest)
-		if !ok {
-			return nil, fmt.Errorf("unexpected node type %T returned from DeviceRequestMutation", v)
-		}
-		node = nv
-	}
-	return node, err
+	return withHooks(ctx, drc.sqlSave, drc.mutation, drc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -171,6 +129,9 @@ func (drc *DeviceRequestCreate) check() error {
 }
 
 func (drc *DeviceRequestCreate) sqlSave(ctx context.Context) (*DeviceRequest, error) {
+	if err := drc.check(); err != nil {
+		return nil, err
+	}
 	_node, _spec := drc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, drc.driver, _spec); err != nil {
 		if sqlgraph.IsConstraintError(err) {
@@ -180,66 +141,38 @@ func (drc *DeviceRequestCreate) sqlSave(ctx context.Context) (*DeviceRequest, er
 	}
 	id := _spec.ID.Value.(int64)
 	_node.ID = int(id)
+	drc.mutation.id = &_node.ID
+	drc.mutation.done = true
 	return _node, nil
 }
 
 func (drc *DeviceRequestCreate) createSpec() (*DeviceRequest, *sqlgraph.CreateSpec) {
 	var (
 		_node = &DeviceRequest{config: drc.config}
-		_spec = &sqlgraph.CreateSpec{
-			Table: devicerequest.Table,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeInt,
-				Column: devicerequest.FieldID,
-			},
-		}
+		_spec = sqlgraph.NewCreateSpec(devicerequest.Table, sqlgraph.NewFieldSpec(devicerequest.FieldID, field.TypeInt))
 	)
 	if value, ok := drc.mutation.UserCode(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: devicerequest.FieldUserCode,
-		})
+		_spec.SetField(devicerequest.FieldUserCode, field.TypeString, value)
 		_node.UserCode = value
 	}
 	if value, ok := drc.mutation.DeviceCode(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: devicerequest.FieldDeviceCode,
-		})
+		_spec.SetField(devicerequest.FieldDeviceCode, field.TypeString, value)
 		_node.DeviceCode = value
 	}
 	if value, ok := drc.mutation.ClientID(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: devicerequest.FieldClientID,
-		})
+		_spec.SetField(devicerequest.FieldClientID, field.TypeString, value)
 		_node.ClientID = value
 	}
 	if value, ok := drc.mutation.ClientSecret(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: devicerequest.FieldClientSecret,
-		})
+		_spec.SetField(devicerequest.FieldClientSecret, field.TypeString, value)
 		_node.ClientSecret = value
 	}
 	if value, ok := drc.mutation.Scopes(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: devicerequest.FieldScopes,
-		})
+		_spec.SetField(devicerequest.FieldScopes, field.TypeJSON, value)
 		_node.Scopes = value
 	}
 	if value, ok := drc.mutation.Expiry(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: devicerequest.FieldExpiry,
-		})
+		_spec.SetField(devicerequest.FieldExpiry, field.TypeTime, value)
 		_node.Expiry = value
 	}
 	return _node, _spec
@@ -268,8 +201,8 @@ func (drcb *DeviceRequestCreateBulk) Save(ctx context.Context) ([]*DeviceRequest
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, drcb.builders[i+1].mutation)
 				} else {

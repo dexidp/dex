@@ -19,9 +19,9 @@ var (
 //
 // Refresh token contains data to refresh identity in external authentication system.
 // There is a requirement that refresh should be called only once because of several reasons:
-// * Some of OIDC providers could use the refresh token rotation feature which requires calling refresh only once.
-// * Providers can limit the rate of requests to the token endpoint, which will lead to the error
-//   in case of many concurrent requests.
+//   - Some of OIDC providers could use the refresh token rotation feature which requires calling refresh only once.
+//   - Providers can limit the rate of requests to the token endpoint, which will lead to the error
+//     in case of many concurrent requests.
 type refreshTokenLock struct {
 	cli          *client
 	waitingState bool

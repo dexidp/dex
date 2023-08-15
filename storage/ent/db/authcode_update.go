@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/authcode"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
@@ -37,6 +38,12 @@ func (acu *AuthCodeUpdate) SetClientID(s string) *AuthCodeUpdate {
 // SetScopes sets the "scopes" field.
 func (acu *AuthCodeUpdate) SetScopes(s []string) *AuthCodeUpdate {
 	acu.mutation.SetScopes(s)
+	return acu
+}
+
+// AppendScopes appends s to the "scopes" field.
+func (acu *AuthCodeUpdate) AppendScopes(s []string) *AuthCodeUpdate {
+	acu.mutation.AppendScopes(s)
 	return acu
 }
 
@@ -85,6 +92,12 @@ func (acu *AuthCodeUpdate) SetClaimsEmailVerified(b bool) *AuthCodeUpdate {
 // SetClaimsGroups sets the "claims_groups" field.
 func (acu *AuthCodeUpdate) SetClaimsGroups(s []string) *AuthCodeUpdate {
 	acu.mutation.SetClaimsGroups(s)
+	return acu
+}
+
+// AppendClaimsGroups appends s to the "claims_groups" field.
+func (acu *AuthCodeUpdate) AppendClaimsGroups(s []string) *AuthCodeUpdate {
+	acu.mutation.AppendClaimsGroups(s)
 	return acu
 }
 
@@ -167,40 +180,7 @@ func (acu *AuthCodeUpdate) Mutation() *AuthCodeMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (acu *AuthCodeUpdate) Save(ctx context.Context) (int, error) {
-	var (
-		err      error
-		affected int
-	)
-	if len(acu.hooks) == 0 {
-		if err = acu.check(); err != nil {
-			return 0, err
-		}
-		affected, err = acu.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*AuthCodeMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = acu.check(); err != nil {
-				return 0, err
-			}
-			acu.mutation = mutation
-			affected, err = acu.sqlSave(ctx)
-			mutation.done = true
-			return affected, err
-		})
-		for i := len(acu.hooks) - 1; i >= 0; i-- {
-			if acu.hooks[i] == nil {
-				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = acu.hooks[i](mut)
-		}
-		if _, err := mut.Mutate(ctx, acu.mutation); err != nil {
-			return 0, err
-		}
-	}
-	return affected, err
+	return withHooks(ctx, acu.sqlSave, acu.mutation, acu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -266,16 +246,10 @@ func (acu *AuthCodeUpdate) check() error {
 }
 
 func (acu *AuthCodeUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	_spec := &sqlgraph.UpdateSpec{
-		Node: &sqlgraph.NodeSpec{
-			Table:   authcode.Table,
-			Columns: authcode.Columns,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: authcode.FieldID,
-			},
-		},
+	if err := acu.check(); err != nil {
+		return n, err
 	}
+	_spec := sqlgraph.NewUpdateSpec(authcode.Table, authcode.Columns, sqlgraph.NewFieldSpec(authcode.FieldID, field.TypeString))
 	if ps := acu.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -284,127 +258,68 @@ func (acu *AuthCodeUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 	}
 	if value, ok := acu.mutation.ClientID(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldClientID,
-		})
+		_spec.SetField(authcode.FieldClientID, field.TypeString, value)
 	}
 	if value, ok := acu.mutation.Scopes(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: authcode.FieldScopes,
+		_spec.SetField(authcode.FieldScopes, field.TypeJSON, value)
+	}
+	if value, ok := acu.mutation.AppendedScopes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, authcode.FieldScopes, value)
 		})
 	}
 	if acu.mutation.ScopesCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Column: authcode.FieldScopes,
-		})
+		_spec.ClearField(authcode.FieldScopes, field.TypeJSON)
 	}
 	if value, ok := acu.mutation.Nonce(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldNonce,
-		})
+		_spec.SetField(authcode.FieldNonce, field.TypeString, value)
 	}
 	if value, ok := acu.mutation.RedirectURI(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldRedirectURI,
-		})
+		_spec.SetField(authcode.FieldRedirectURI, field.TypeString, value)
 	}
 	if value, ok := acu.mutation.ClaimsUserID(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldClaimsUserID,
-		})
+		_spec.SetField(authcode.FieldClaimsUserID, field.TypeString, value)
 	}
 	if value, ok := acu.mutation.ClaimsUsername(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldClaimsUsername,
-		})
+		_spec.SetField(authcode.FieldClaimsUsername, field.TypeString, value)
 	}
 	if value, ok := acu.mutation.ClaimsEmail(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldClaimsEmail,
-		})
+		_spec.SetField(authcode.FieldClaimsEmail, field.TypeString, value)
 	}
 	if value, ok := acu.mutation.ClaimsEmailVerified(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeBool,
-			Value:  value,
-			Column: authcode.FieldClaimsEmailVerified,
-		})
+		_spec.SetField(authcode.FieldClaimsEmailVerified, field.TypeBool, value)
 	}
 	if value, ok := acu.mutation.ClaimsGroups(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: authcode.FieldClaimsGroups,
+		_spec.SetField(authcode.FieldClaimsGroups, field.TypeJSON, value)
+	}
+	if value, ok := acu.mutation.AppendedClaimsGroups(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, authcode.FieldClaimsGroups, value)
 		})
 	}
 	if acu.mutation.ClaimsGroupsCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Column: authcode.FieldClaimsGroups,
-		})
+		_spec.ClearField(authcode.FieldClaimsGroups, field.TypeJSON)
 	}
 	if value, ok := acu.mutation.ClaimsPreferredUsername(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldClaimsPreferredUsername,
-		})
+		_spec.SetField(authcode.FieldClaimsPreferredUsername, field.TypeString, value)
 	}
 	if value, ok := acu.mutation.ConnectorID(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldConnectorID,
-		})
+		_spec.SetField(authcode.FieldConnectorID, field.TypeString, value)
 	}
 	if value, ok := acu.mutation.ConnectorData(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: authcode.FieldConnectorData,
-		})
+		_spec.SetField(authcode.FieldConnectorData, field.TypeBytes, value)
 	}
 	if acu.mutation.ConnectorDataCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Column: authcode.FieldConnectorData,
-		})
+		_spec.ClearField(authcode.FieldConnectorData, field.TypeBytes)
 	}
 	if value, ok := acu.mutation.Expiry(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: authcode.FieldExpiry,
-		})
+		_spec.SetField(authcode.FieldExpiry, field.TypeTime, value)
 	}
 	if value, ok := acu.mutation.CodeChallenge(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldCodeChallenge,
-		})
+		_spec.SetField(authcode.FieldCodeChallenge, field.TypeString, value)
 	}
 	if value, ok := acu.mutation.CodeChallengeMethod(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldCodeChallengeMethod,
-		})
+		_spec.SetField(authcode.FieldCodeChallengeMethod, field.TypeString, value)
 	}
 	if n, err = sqlgraph.UpdateNodes(ctx, acu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -414,6 +329,7 @@ func (acu *AuthCodeUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 		return 0, err
 	}
+	acu.mutation.done = true
 	return n, nil
 }
 
@@ -434,6 +350,12 @@ func (acuo *AuthCodeUpdateOne) SetClientID(s string) *AuthCodeUpdateOne {
 // SetScopes sets the "scopes" field.
 func (acuo *AuthCodeUpdateOne) SetScopes(s []string) *AuthCodeUpdateOne {
 	acuo.mutation.SetScopes(s)
+	return acuo
+}
+
+// AppendScopes appends s to the "scopes" field.
+func (acuo *AuthCodeUpdateOne) AppendScopes(s []string) *AuthCodeUpdateOne {
+	acuo.mutation.AppendScopes(s)
 	return acuo
 }
 
@@ -482,6 +404,12 @@ func (acuo *AuthCodeUpdateOne) SetClaimsEmailVerified(b bool) *AuthCodeUpdateOne
 // SetClaimsGroups sets the "claims_groups" field.
 func (acuo *AuthCodeUpdateOne) SetClaimsGroups(s []string) *AuthCodeUpdateOne {
 	acuo.mutation.SetClaimsGroups(s)
+	return acuo
+}
+
+// AppendClaimsGroups appends s to the "claims_groups" field.
+func (acuo *AuthCodeUpdateOne) AppendClaimsGroups(s []string) *AuthCodeUpdateOne {
+	acuo.mutation.AppendClaimsGroups(s)
 	return acuo
 }
 
@@ -562,6 +490,12 @@ func (acuo *AuthCodeUpdateOne) Mutation() *AuthCodeMutation {
 	return acuo.mutation
 }
 
+// Where appends a list predicates to the AuthCodeUpdate builder.
+func (acuo *AuthCodeUpdateOne) Where(ps ...predicate.AuthCode) *AuthCodeUpdateOne {
+	acuo.mutation.Where(ps...)
+	return acuo
+}
+
 // Select allows selecting one or more fields (columns) of the returned entity.
 // The default is selecting all fields defined in the entity schema.
 func (acuo *AuthCodeUpdateOne) Select(field string, fields ...string) *AuthCodeUpdateOne {
@@ -571,46 +505,7 @@ func (acuo *AuthCodeUpdateOne) Select(field string, fields ...string) *AuthCodeU
 
 // Save executes the query and returns the updated AuthCode entity.
 func (acuo *AuthCodeUpdateOne) Save(ctx context.Context) (*AuthCode, error) {
-	var (
-		err  error
-		node *AuthCode
-	)
-	if len(acuo.hooks) == 0 {
-		if err = acuo.check(); err != nil {
-			return nil, err
-		}
-		node, err = acuo.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*AuthCodeMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = acuo.check(); err != nil {
-				return nil, err
-			}
-			acuo.mutation = mutation
-			node, err = acuo.sqlSave(ctx)
-			mutation.done = true
-			return node, err
-		})
-		for i := len(acuo.hooks) - 1; i >= 0; i-- {
-			if acuo.hooks[i] == nil {
-				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = acuo.hooks[i](mut)
-		}
-		v, err := mut.Mutate(ctx, acuo.mutation)
-		if err != nil {
-			return nil, err
-		}
-		nv, ok := v.(*AuthCode)
-		if !ok {
-			return nil, fmt.Errorf("unexpected node type %T returned from AuthCodeMutation", v)
-		}
-		node = nv
-	}
-	return node, err
+	return withHooks(ctx, acuo.sqlSave, acuo.mutation, acuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -676,16 +571,10 @@ func (acuo *AuthCodeUpdateOne) check() error {
 }
 
 func (acuo *AuthCodeUpdateOne) sqlSave(ctx context.Context) (_node *AuthCode, err error) {
-	_spec := &sqlgraph.UpdateSpec{
-		Node: &sqlgraph.NodeSpec{
-			Table:   authcode.Table,
-			Columns: authcode.Columns,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: authcode.FieldID,
-			},
-		},
+	if err := acuo.check(); err != nil {
+		return _node, err
 	}
+	_spec := sqlgraph.NewUpdateSpec(authcode.Table, authcode.Columns, sqlgraph.NewFieldSpec(authcode.FieldID, field.TypeString))
 	id, ok := acuo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "AuthCode.id" for update`)}
@@ -711,127 +600,68 @@ func (acuo *AuthCodeUpdateOne) sqlSave(ctx context.Context) (_node *AuthCode, er
 		}
 	}
 	if value, ok := acuo.mutation.ClientID(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldClientID,
-		})
+		_spec.SetField(authcode.FieldClientID, field.TypeString, value)
 	}
 	if value, ok := acuo.mutation.Scopes(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: authcode.FieldScopes,
+		_spec.SetField(authcode.FieldScopes, field.TypeJSON, value)
+	}
+	if value, ok := acuo.mutation.AppendedScopes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, authcode.FieldScopes, value)
 		})
 	}
 	if acuo.mutation.ScopesCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Column: authcode.FieldScopes,
-		})
+		_spec.ClearField(authcode.FieldScopes, field.TypeJSON)
 	}
 	if value, ok := acuo.mutation.Nonce(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldNonce,
-		})
+		_spec.SetField(authcode.FieldNonce, field.TypeString, value)
 	}
 	if value, ok := acuo.mutation.RedirectURI(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldRedirectURI,
-		})
+		_spec.SetField(authcode.FieldRedirectURI, field.TypeString, value)
 	}
 	if value, ok := acuo.mutation.ClaimsUserID(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldClaimsUserID,
-		})
+		_spec.SetField(authcode.FieldClaimsUserID, field.TypeString, value)
 	}
 	if value, ok := acuo.mutation.ClaimsUsername(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldClaimsUsername,
-		})
+		_spec.SetField(authcode.FieldClaimsUsername, field.TypeString, value)
 	}
 	if value, ok := acuo.mutation.ClaimsEmail(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldClaimsEmail,
-		})
+		_spec.SetField(authcode.FieldClaimsEmail, field.TypeString, value)
 	}
 	if value, ok := acuo.mutation.ClaimsEmailVerified(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeBool,
-			Value:  value,
-			Column: authcode.FieldClaimsEmailVerified,
-		})
+		_spec.SetField(authcode.FieldClaimsEmailVerified, field.TypeBool, value)
 	}
 	if value, ok := acuo.mutation.ClaimsGroups(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: authcode.FieldClaimsGroups,
+		_spec.SetField(authcode.FieldClaimsGroups, field.TypeJSON, value)
+	}
+	if value, ok := acuo.mutation.AppendedClaimsGroups(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, authcode.FieldClaimsGroups, value)
 		})
 	}
 	if acuo.mutation.ClaimsGroupsCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Column: authcode.FieldClaimsGroups,
-		})
+		_spec.ClearField(authcode.FieldClaimsGroups, field.TypeJSON)
 	}
 	if value, ok := acuo.mutation.ClaimsPreferredUsername(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldClaimsPreferredUsername,
-		})
+		_spec.SetField(authcode.FieldClaimsPreferredUsername, field.TypeString, value)
 	}
 	if value, ok := acuo.mutation.ConnectorID(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldConnectorID,
-		})
+		_spec.SetField(authcode.FieldConnectorID, field.TypeString, value)
 	}
 	if value, ok := acuo.mutation.ConnectorData(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: authcode.FieldConnectorData,
-		})
+		_spec.SetField(authcode.FieldConnectorData, field.TypeBytes, value)
 	}
 	if acuo.mutation.ConnectorDataCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Column: authcode.FieldConnectorData,
-		})
+		_spec.ClearField(authcode.FieldConnectorData, field.TypeBytes)
 	}
 	if value, ok := acuo.mutation.Expiry(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: authcode.FieldExpiry,
-		})
+		_spec.SetField(authcode.FieldExpiry, field.TypeTime, value)
 	}
 	if value, ok := acuo.mutation.CodeChallenge(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldCodeChallenge,
-		})
+		_spec.SetField(authcode.FieldCodeChallenge, field.TypeString, value)
 	}
 	if value, ok := acuo.mutation.CodeChallengeMethod(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldCodeChallengeMethod,
-		})
+		_spec.SetField(authcode.FieldCodeChallengeMethod, field.TypeString, value)
 	}
 	_node = &AuthCode{config: acuo.config}
 	_spec.Assign = _node.assignValues
@@ -844,5 +674,6 @@ func (acuo *AuthCodeUpdateOne) sqlSave(ctx context.Context) (_node *AuthCode, er
 		}
 		return nil, err
 	}
+	acuo.mutation.done = true
 	return _node, nil
 }

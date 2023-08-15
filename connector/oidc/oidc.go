@@ -35,10 +35,18 @@ type Config struct {
 
 	Scopes []string `json:"scopes"` // defaults to "profile" and "email"
 
+	// HostedDomains was an optional list of whitelisted domains when using the OIDC connector with Google.
+	// Only users from a whitelisted domain were allowed to log in.
+	// Support for this option was removed from the OIDC connector.
+	// Consider switching to the Google connector which supports this option.
+	//
+	// Deprecated: will be removed in future releases.
+	HostedDomains []string `json:"hostedDomains"`
+
 	// Certificates for SSL validation
 	RootCAs []string `json:"rootCAs"`
 
-	// Override the value of email_verifed to true in the returned claims
+	// Override the value of email_verified to true in the returned claims
 	InsecureSkipEmailVerified bool `json:"insecureSkipEmailVerified"`
 
 	// InsecureEnableGroups enables groups claims. This is disabled by default until https://github.com/dexidp/dex/issues/1065 is resolved
@@ -112,6 +120,10 @@ func knownBrokenAuthHeaderProvider(issuerURL string) bool {
 // Open returns a connector which can be used to login users through an upstream
 // OpenID Connect provider.
 func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
+	if len(c.HostedDomains) > 0 {
+		return nil, fmt.Errorf("support for the Hosted domains option had been deprecated and removed, consider switching to the Google connector")
+	}
+
 	httpClient, err := httpclient.NewHTTPClient(c.RootCAs, c.InsecureSkipVerify)
 	if err != nil {
 		return nil, err
@@ -246,6 +258,7 @@ type caller uint
 const (
 	createCaller caller = iota
 	refreshCaller
+	exchangeCaller
 )
 
 func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
@@ -260,7 +273,7 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
 	}
-	return c.createIdentity(r.Context(), identity, token, createCaller)
+	return c.createIdentity(ctx, identity, token, createCaller)
 }
 
 // Refresh is used to refresh a session with the refresh token provided by the IdP
@@ -270,6 +283,8 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to unmarshal connector data: %v", err)
 	}
+
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.httpClient)
 
 	t := &oauth2.Token{
 		RefreshToken: string(cd.RefreshToken),
@@ -282,11 +297,19 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 	return c.createIdentity(ctx, identity, token, refreshCaller)
 }
 
+func (c *oidcConnector) TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (connector.Identity, error) {
+	var identity connector.Identity
+	token := &oauth2.Token{
+		AccessToken: subjectToken,
+		TokenType:   subjectTokenType,
+	}
+	return c.createIdentity(ctx, identity, token, exchangeCaller)
+}
+
 func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token, caller caller) (connector.Identity, error) {
 	var claims map[string]interface{}
 
-	rawIDToken, ok := token.Extra("id_token").(string)
-	if ok {
+	if rawIDToken, ok := token.Extra("id_token").(string); ok {
 		idToken, err := c.verifier.Verify(ctx, rawIDToken)
 		if err != nil {
 			return identity, fmt.Errorf("oidc: failed to verify ID Token: %v", err)
@@ -295,12 +318,31 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		if err := idToken.Claims(&claims); err != nil {
 			return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
 		}
+	} else if caller == exchangeCaller {
+		switch token.TokenType {
+		case "urn:ietf:params:oauth:token-type:id_token":
+			// Verify only works on ID tokens
+			idToken, err := c.provider.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, token.AccessToken)
+			if err != nil {
+				return identity, fmt.Errorf("oidc: failed to verify token: %v", err)
+			}
+			if err := idToken.Claims(&claims); err != nil {
+				return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
+			}
+		case "urn:ietf:params:oauth:token-type:access_token":
+			if !c.getUserInfo {
+				return identity, fmt.Errorf("oidc: getUserInfo is required for access token exchange")
+			}
+		default:
+			return identity, fmt.Errorf("unknown token type for token exchange: %s", token.TokenType)
+		}
 	} else if caller != refreshCaller {
 		// ID tokens aren't mandatory in the reply when using a refresh_token grant
 		return identity, errors.New("oidc: no id_token in token response")
 	}
 
-	// We immediately want to run getUserInfo if configured before we validate the claims
+	// We immediately want to run getUserInfo if configured before we validate the claims.
+	// For token exchanges with access tokens, this is how we verify the token.
 	if c.getUserInfo {
 		userInfo, err := c.provider.UserInfo(ctx, oauth2.StaticTokenSource(token))
 		if err != nil {

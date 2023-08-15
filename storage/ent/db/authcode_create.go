@@ -147,50 +147,8 @@ func (acc *AuthCodeCreate) Mutation() *AuthCodeMutation {
 
 // Save creates the AuthCode in the database.
 func (acc *AuthCodeCreate) Save(ctx context.Context) (*AuthCode, error) {
-	var (
-		err  error
-		node *AuthCode
-	)
 	acc.defaults()
-	if len(acc.hooks) == 0 {
-		if err = acc.check(); err != nil {
-			return nil, err
-		}
-		node, err = acc.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*AuthCodeMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = acc.check(); err != nil {
-				return nil, err
-			}
-			acc.mutation = mutation
-			if node, err = acc.sqlSave(ctx); err != nil {
-				return nil, err
-			}
-			mutation.id = &node.ID
-			mutation.done = true
-			return node, err
-		})
-		for i := len(acc.hooks) - 1; i >= 0; i-- {
-			if acc.hooks[i] == nil {
-				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = acc.hooks[i](mut)
-		}
-		v, err := mut.Mutate(ctx, acc.mutation)
-		if err != nil {
-			return nil, err
-		}
-		nv, ok := v.(*AuthCode)
-		if !ok {
-			return nil, fmt.Errorf("unexpected node type %T returned from AuthCodeMutation", v)
-		}
-		node = nv
-	}
-	return node, err
+	return withHooks(ctx, acc.sqlSave, acc.mutation, acc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -313,6 +271,9 @@ func (acc *AuthCodeCreate) check() error {
 }
 
 func (acc *AuthCodeCreate) sqlSave(ctx context.Context) (*AuthCode, error) {
+	if err := acc.check(); err != nil {
+		return nil, err
+	}
 	_node, _spec := acc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, acc.driver, _spec); err != nil {
 		if sqlgraph.IsConstraintError(err) {
@@ -327,142 +288,78 @@ func (acc *AuthCodeCreate) sqlSave(ctx context.Context) (*AuthCode, error) {
 			return nil, fmt.Errorf("unexpected AuthCode.ID type: %T", _spec.ID.Value)
 		}
 	}
+	acc.mutation.id = &_node.ID
+	acc.mutation.done = true
 	return _node, nil
 }
 
 func (acc *AuthCodeCreate) createSpec() (*AuthCode, *sqlgraph.CreateSpec) {
 	var (
 		_node = &AuthCode{config: acc.config}
-		_spec = &sqlgraph.CreateSpec{
-			Table: authcode.Table,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: authcode.FieldID,
-			},
-		}
+		_spec = sqlgraph.NewCreateSpec(authcode.Table, sqlgraph.NewFieldSpec(authcode.FieldID, field.TypeString))
 	)
 	if id, ok := acc.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
 	if value, ok := acc.mutation.ClientID(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldClientID,
-		})
+		_spec.SetField(authcode.FieldClientID, field.TypeString, value)
 		_node.ClientID = value
 	}
 	if value, ok := acc.mutation.Scopes(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: authcode.FieldScopes,
-		})
+		_spec.SetField(authcode.FieldScopes, field.TypeJSON, value)
 		_node.Scopes = value
 	}
 	if value, ok := acc.mutation.Nonce(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldNonce,
-		})
+		_spec.SetField(authcode.FieldNonce, field.TypeString, value)
 		_node.Nonce = value
 	}
 	if value, ok := acc.mutation.RedirectURI(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldRedirectURI,
-		})
+		_spec.SetField(authcode.FieldRedirectURI, field.TypeString, value)
 		_node.RedirectURI = value
 	}
 	if value, ok := acc.mutation.ClaimsUserID(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldClaimsUserID,
-		})
+		_spec.SetField(authcode.FieldClaimsUserID, field.TypeString, value)
 		_node.ClaimsUserID = value
 	}
 	if value, ok := acc.mutation.ClaimsUsername(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldClaimsUsername,
-		})
+		_spec.SetField(authcode.FieldClaimsUsername, field.TypeString, value)
 		_node.ClaimsUsername = value
 	}
 	if value, ok := acc.mutation.ClaimsEmail(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldClaimsEmail,
-		})
+		_spec.SetField(authcode.FieldClaimsEmail, field.TypeString, value)
 		_node.ClaimsEmail = value
 	}
 	if value, ok := acc.mutation.ClaimsEmailVerified(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeBool,
-			Value:  value,
-			Column: authcode.FieldClaimsEmailVerified,
-		})
+		_spec.SetField(authcode.FieldClaimsEmailVerified, field.TypeBool, value)
 		_node.ClaimsEmailVerified = value
 	}
 	if value, ok := acc.mutation.ClaimsGroups(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: authcode.FieldClaimsGroups,
-		})
+		_spec.SetField(authcode.FieldClaimsGroups, field.TypeJSON, value)
 		_node.ClaimsGroups = value
 	}
 	if value, ok := acc.mutation.ClaimsPreferredUsername(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldClaimsPreferredUsername,
-		})
+		_spec.SetField(authcode.FieldClaimsPreferredUsername, field.TypeString, value)
 		_node.ClaimsPreferredUsername = value
 	}
 	if value, ok := acc.mutation.ConnectorID(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldConnectorID,
-		})
+		_spec.SetField(authcode.FieldConnectorID, field.TypeString, value)
 		_node.ConnectorID = value
 	}
 	if value, ok := acc.mutation.ConnectorData(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: authcode.FieldConnectorData,
-		})
+		_spec.SetField(authcode.FieldConnectorData, field.TypeBytes, value)
 		_node.ConnectorData = &value
 	}
 	if value, ok := acc.mutation.Expiry(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: authcode.FieldExpiry,
-		})
+		_spec.SetField(authcode.FieldExpiry, field.TypeTime, value)
 		_node.Expiry = value
 	}
 	if value, ok := acc.mutation.CodeChallenge(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldCodeChallenge,
-		})
+		_spec.SetField(authcode.FieldCodeChallenge, field.TypeString, value)
 		_node.CodeChallenge = value
 	}
 	if value, ok := acc.mutation.CodeChallengeMethod(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: authcode.FieldCodeChallengeMethod,
-		})
+		_spec.SetField(authcode.FieldCodeChallengeMethod, field.TypeString, value)
 		_node.CodeChallengeMethod = value
 	}
 	return _node, _spec
@@ -492,8 +389,8 @@ func (accb *AuthCodeCreateBulk) Save(ctx context.Context) ([]*AuthCode, error) {
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, accb.builders[i+1].mutation)
 				} else {

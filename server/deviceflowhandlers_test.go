@@ -508,7 +508,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			expectedResponseCode:   http.StatusBadRequest,
 		},
 		{
-			testName:          "Test Non-existent Device Code",
+			testName:          "Test Nonexistent Device Code",
 			testDeviceRequest: baseDeviceRequest,
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "foo",

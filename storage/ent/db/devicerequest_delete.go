@@ -4,7 +4,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -28,34 +27,7 @@ func (drd *DeviceRequestDelete) Where(ps ...predicate.DeviceRequest) *DeviceRequ
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (drd *DeviceRequestDelete) Exec(ctx context.Context) (int, error) {
-	var (
-		err      error
-		affected int
-	)
-	if len(drd.hooks) == 0 {
-		affected, err = drd.sqlExec(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*DeviceRequestMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			drd.mutation = mutation
-			affected, err = drd.sqlExec(ctx)
-			mutation.done = true
-			return affected, err
-		})
-		for i := len(drd.hooks) - 1; i >= 0; i-- {
-			if drd.hooks[i] == nil {
-				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = drd.hooks[i](mut)
-		}
-		if _, err := mut.Mutate(ctx, drd.mutation); err != nil {
-			return 0, err
-		}
-	}
-	return affected, err
+	return withHooks(ctx, drd.sqlExec, drd.mutation, drd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -68,15 +40,7 @@ func (drd *DeviceRequestDelete) ExecX(ctx context.Context) int {
 }
 
 func (drd *DeviceRequestDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := &sqlgraph.DeleteSpec{
-		Node: &sqlgraph.NodeSpec{
-			Table: devicerequest.Table,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeInt,
-				Column: devicerequest.FieldID,
-			},
-		},
-	}
+	_spec := sqlgraph.NewDeleteSpec(devicerequest.Table, sqlgraph.NewFieldSpec(devicerequest.FieldID, field.TypeInt))
 	if ps := drd.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -88,12 +52,19 @@ func (drd *DeviceRequestDelete) sqlExec(ctx context.Context) (int, error) {
 	if err != nil && sqlgraph.IsConstraintError(err) {
 		err = &ConstraintError{msg: err.Error(), wrap: err}
 	}
+	drd.mutation.done = true
 	return affected, err
 }
 
 // DeviceRequestDeleteOne is the builder for deleting a single DeviceRequest entity.
 type DeviceRequestDeleteOne struct {
 	drd *DeviceRequestDelete
+}
+
+// Where appends a list predicates to the DeviceRequestDelete builder.
+func (drdo *DeviceRequestDeleteOne) Where(ps ...predicate.DeviceRequest) *DeviceRequestDeleteOne {
+	drdo.drd.mutation.Where(ps...)
+	return drdo
 }
 
 // Exec executes the deletion query.
@@ -111,5 +82,7 @@ func (drdo *DeviceRequestDeleteOne) Exec(ctx context.Context) error {
 
 // ExecX is like Exec, but panics if an error occurs.
 func (drdo *DeviceRequestDeleteOne) ExecX(ctx context.Context) {
-	drdo.drd.ExecX(ctx)
+	if err := drdo.Exec(ctx); err != nil {
+		panic(err)
+	}
 }

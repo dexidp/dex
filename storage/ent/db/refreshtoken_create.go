@@ -163,50 +163,8 @@ func (rtc *RefreshTokenCreate) Mutation() *RefreshTokenMutation {
 
 // Save creates the RefreshToken in the database.
 func (rtc *RefreshTokenCreate) Save(ctx context.Context) (*RefreshToken, error) {
-	var (
-		err  error
-		node *RefreshToken
-	)
 	rtc.defaults()
-	if len(rtc.hooks) == 0 {
-		if err = rtc.check(); err != nil {
-			return nil, err
-		}
-		node, err = rtc.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*RefreshTokenMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = rtc.check(); err != nil {
-				return nil, err
-			}
-			rtc.mutation = mutation
-			if node, err = rtc.sqlSave(ctx); err != nil {
-				return nil, err
-			}
-			mutation.id = &node.ID
-			mutation.done = true
-			return node, err
-		})
-		for i := len(rtc.hooks) - 1; i >= 0; i-- {
-			if rtc.hooks[i] == nil {
-				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = rtc.hooks[i](mut)
-		}
-		v, err := mut.Mutate(ctx, rtc.mutation)
-		if err != nil {
-			return nil, err
-		}
-		nv, ok := v.(*RefreshToken)
-		if !ok {
-			return nil, fmt.Errorf("unexpected node type %T returned from RefreshTokenMutation", v)
-		}
-		node = nv
-	}
-	return node, err
+	return withHooks(ctx, rtc.sqlSave, rtc.mutation, rtc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -332,6 +290,9 @@ func (rtc *RefreshTokenCreate) check() error {
 }
 
 func (rtc *RefreshTokenCreate) sqlSave(ctx context.Context) (*RefreshToken, error) {
+	if err := rtc.check(); err != nil {
+		return nil, err
+	}
 	_node, _spec := rtc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, rtc.driver, _spec); err != nil {
 		if sqlgraph.IsConstraintError(err) {
@@ -346,142 +307,78 @@ func (rtc *RefreshTokenCreate) sqlSave(ctx context.Context) (*RefreshToken, erro
 			return nil, fmt.Errorf("unexpected RefreshToken.ID type: %T", _spec.ID.Value)
 		}
 	}
+	rtc.mutation.id = &_node.ID
+	rtc.mutation.done = true
 	return _node, nil
 }
 
 func (rtc *RefreshTokenCreate) createSpec() (*RefreshToken, *sqlgraph.CreateSpec) {
 	var (
 		_node = &RefreshToken{config: rtc.config}
-		_spec = &sqlgraph.CreateSpec{
-			Table: refreshtoken.Table,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: refreshtoken.FieldID,
-			},
-		}
+		_spec = sqlgraph.NewCreateSpec(refreshtoken.Table, sqlgraph.NewFieldSpec(refreshtoken.FieldID, field.TypeString))
 	)
 	if id, ok := rtc.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
 	if value, ok := rtc.mutation.ClientID(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldClientID,
-		})
+		_spec.SetField(refreshtoken.FieldClientID, field.TypeString, value)
 		_node.ClientID = value
 	}
 	if value, ok := rtc.mutation.Scopes(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: refreshtoken.FieldScopes,
-		})
+		_spec.SetField(refreshtoken.FieldScopes, field.TypeJSON, value)
 		_node.Scopes = value
 	}
 	if value, ok := rtc.mutation.Nonce(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldNonce,
-		})
+		_spec.SetField(refreshtoken.FieldNonce, field.TypeString, value)
 		_node.Nonce = value
 	}
 	if value, ok := rtc.mutation.ClaimsUserID(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsUserID,
-		})
+		_spec.SetField(refreshtoken.FieldClaimsUserID, field.TypeString, value)
 		_node.ClaimsUserID = value
 	}
 	if value, ok := rtc.mutation.ClaimsUsername(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsUsername,
-		})
+		_spec.SetField(refreshtoken.FieldClaimsUsername, field.TypeString, value)
 		_node.ClaimsUsername = value
 	}
 	if value, ok := rtc.mutation.ClaimsEmail(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsEmail,
-		})
+		_spec.SetField(refreshtoken.FieldClaimsEmail, field.TypeString, value)
 		_node.ClaimsEmail = value
 	}
 	if value, ok := rtc.mutation.ClaimsEmailVerified(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeBool,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsEmailVerified,
-		})
+		_spec.SetField(refreshtoken.FieldClaimsEmailVerified, field.TypeBool, value)
 		_node.ClaimsEmailVerified = value
 	}
 	if value, ok := rtc.mutation.ClaimsGroups(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsGroups,
-		})
+		_spec.SetField(refreshtoken.FieldClaimsGroups, field.TypeJSON, value)
 		_node.ClaimsGroups = value
 	}
 	if value, ok := rtc.mutation.ClaimsPreferredUsername(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsPreferredUsername,
-		})
+		_spec.SetField(refreshtoken.FieldClaimsPreferredUsername, field.TypeString, value)
 		_node.ClaimsPreferredUsername = value
 	}
 	if value, ok := rtc.mutation.ConnectorID(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldConnectorID,
-		})
+		_spec.SetField(refreshtoken.FieldConnectorID, field.TypeString, value)
 		_node.ConnectorID = value
 	}
 	if value, ok := rtc.mutation.ConnectorData(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: refreshtoken.FieldConnectorData,
-		})
+		_spec.SetField(refreshtoken.FieldConnectorData, field.TypeBytes, value)
 		_node.ConnectorData = &value
 	}
 	if value, ok := rtc.mutation.Token(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldToken,
-		})
+		_spec.SetField(refreshtoken.FieldToken, field.TypeString, value)
 		_node.Token = value
 	}
 	if value, ok := rtc.mutation.ObsoleteToken(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldObsoleteToken,
-		})
+		_spec.SetField(refreshtoken.FieldObsoleteToken, field.TypeString, value)
 		_node.ObsoleteToken = value
 	}
 	if value, ok := rtc.mutation.CreatedAt(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: refreshtoken.FieldCreatedAt,
-		})
+		_spec.SetField(refreshtoken.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
 	}
 	if value, ok := rtc.mutation.LastUsed(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: refreshtoken.FieldLastUsed,
-		})
+		_spec.SetField(refreshtoken.FieldLastUsed, field.TypeTime, value)
 		_node.LastUsed = value
 	}
 	return _node, _spec
@@ -511,8 +408,8 @@ func (rtcb *RefreshTokenCreateBulk) Save(ctx context.Context) ([]*RefreshToken, 
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, rtcb.builders[i+1].mutation)
 				} else {
