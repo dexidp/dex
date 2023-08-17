@@ -91,7 +91,7 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 	d := discovery{
 		Issuer:            s.issuerURL.String(),
 		Auth:              s.absURL("/auth"),
-		Token:             s.absURL("/token"),
+		Token:             s.absTokenURL("/token"),
 		Keys:              s.absURL("/keys"),
 		UserInfo:          s.absURL("/userinfo"),
 		DeviceEndpoint:    s.absURL("/device/code"),
