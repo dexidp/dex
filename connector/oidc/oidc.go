@@ -91,7 +91,7 @@ type Config struct {
 	// ClaimModifications holds all claim modifications options, current has only newGroupsFromClaims
 	ClaimModifications struct {
 		NewGroupsFromClaims []NewGroupsFromClaims `json:"newGroupsFromClaims"`
-	}
+	} `json:"claimModifications"`
 }
 
 // List of groups claim elements to create by concatenating other claims
@@ -101,6 +101,10 @@ type NewGroupsFromClaims struct {
 
 	// String to separate the claims
 	Delimiter string `json:"delimiter"`
+
+	// Should Dex remove the Delimiter string from claim values
+	// This is done to keep resulting claim structure in full control of the Dex operator
+	ClearDelimiter bool `json:"clearDelimiter"`
 
 	// String to place before the first claim
 	Prefix string `json:"prefix"`
@@ -446,23 +450,26 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 	}
 
-	for _, cc := range c.newGroupsFromClaims {
-		newElement := ""
-		for _, clm := range cc.ClaimList {
+	for _, newGroupsElementConfig := range c.newGroupsFromClaims {
+		newGroupsElement := []string{
+			newGroupsElementConfig.Prefix,
+		}
+		for _, claimName := range newGroupsElementConfig.ClaimList {
 			// Non string claim value are ignored, concatenating them doesn't really make any sense
-			if claimValue, ok := claims[clm].(string); ok {
-				// Removing the delimiier string from the concatenated claim to ensure resulting claim structure
-				// is in full control of Dex operator
-				claimCleanedValue := strings.ReplaceAll(claimValue, cc.Delimiter, "")
-				if newElement == "" {
-					newElement = cc.Prefix + cc.Delimiter + claimCleanedValue
+			if claimValue, ok := claims[claimName].(string); ok {
+
+				if newGroupsElementConfig.ClearDelimiter {
+					// Removing the delimiier string from the concatenated claim to ensure resulting claim structure
+					// is in full control of Dex operator
+					claimCleanedValue := strings.ReplaceAll(claimValue, newGroupsElementConfig.Delimiter, "")
+					newGroupsElement = append(newGroupsElement, claimCleanedValue)
 				} else {
-					newElement = newElement + cc.Delimiter + claimCleanedValue
+					newGroupsElement = append(newGroupsElement, claimValue)
 				}
 			}
 		}
-		if newElement != "" {
-			groups = append(groups, newElement)
+		if len(newGroupsElement) > 1 {
+			groups = append(groups, strings.Join(newGroupsElement, newGroupsElementConfig.Delimiter))
 		}
 	}
 

@@ -295,7 +295,7 @@ func TestHandleCallback(t *testing.T) {
 			userNameKey:        "", // not configured
 			expectUserID:       "subvalue",
 			expectUserName:     "namevalue",
-			expectGroups:       []string{"group1", "gh::acme::pipeline-one", "tfe-acme-foobar", "bk-emailvalue"},
+			expectGroups:       []string{"group1", "gh::acme::pipeline-one", "clr_delim-acme-foobar", "keep_delim-acme-foo-bar", "bk-emailvalue"},
 			expectedEmailField: "emailvalue",
 			newGroupsFromClaims: []NewGroupsFromClaims{
 				{ // The basic functionality, should create "gh::acme::pipeline-one".
@@ -316,13 +316,24 @@ func TestHandleCallback(t *testing.T) {
 				},
 				{ // In this case the delimiter character("-") should be removed removed from "claim-with-delimiter" claim to ensure the resulting
 					// claim structure is in full control of the Dex operator and not the person creating a new pipeline.
-					// Should create "tfe-acme-foobar" and not "tfe-acme-foo-bar".
+					// Should create "clr_delim-acme-foobar" and not "tfe-acme-foo-bar".
+					ClaimList: []string{
+						"organization",
+						"claim-with-delimiter",
+					},
+					Delimiter:      "-",
+					ClearDelimiter: true,
+					Prefix:         "clr_delim",
+				},
+				{ // In this case the delimiter character("-") should be NOT removed from "claim-with-delimiter" claim.
+					// Should create  "keep_delim-acme-foo-bar".
 					ClaimList: []string{
 						"organization",
 						"claim-with-delimiter",
 					},
 					Delimiter: "-",
-					Prefix:    "tfe",
+					// ClearDelimiter: false,
+					Prefix: "keep_delim",
 				},
 				{ // Ignore non string claims (like arrays), this should result in "bk-emailvalue".
 					ClaimList: []string{
