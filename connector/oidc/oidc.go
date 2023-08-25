@@ -457,7 +457,6 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		for _, claimName := range newGroupsElementConfig.ClaimList {
 			// Non string claim value are ignored, concatenating them doesn't really make any sense
 			if claimValue, ok := claims[claimName].(string); ok {
-
 				if newGroupsElementConfig.ClearDelimiter {
 					// Removing the delimiier string from the concatenated claim to ensure resulting claim structure
 					// is in full control of Dex operator
