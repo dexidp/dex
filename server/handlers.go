@@ -613,12 +613,6 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		// TODO: `finalizeLogin()` now sends code directly to client without going through this endpoint,
-		//		 the `if skipApproval { ... }` block needs to be removed after a grace period.
-		if s.skipApproval {
-			s.sendCodeResponse(w, r, authReq)
-			return
-		}
 		client, err := s.storage.GetClient(authReq.ClientID)
 		if err != nil {
 			s.logger.Errorf("Failed to get client %q: %v", authReq.ClientID, err)
