@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"time"
 
@@ -17,6 +18,10 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/httpclient"
 	"github.com/dexidp/dex/pkg/log"
+
+	jsoniter "github.com/json-iterator/go"
+	lua "github.com/yuin/gopher-lua"
+	luar "layeh.com/gopher-luar"
 )
 
 // Config holds configuration options for OpenID Connect logins.
@@ -87,6 +92,8 @@ type Config struct {
 		// Configurable key which contains the groups claims
 		GroupsKey string `json:"groups"` // defaults to "groups"
 	} `json:"claimMapping"`
+
+	TokenFormatter string `json:"tokenMapper"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -100,6 +107,7 @@ var brokenAuthHeaderDomains = []string{
 // connectorData stores information for sessions authenticated by this connector
 type connectorData struct {
 	RefreshToken []byte
+	Claims       map[string]interface{}
 }
 
 // Detect auth header provider issues for known providers. This lets users
@@ -189,6 +197,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
 		emailKey:                  c.ClaimMapping.EmailKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
+		tokenFormatter:            c.TokenFormatter,
 	}, nil
 }
 
@@ -216,6 +225,7 @@ type oidcConnector struct {
 	preferredUsernameKey      string
 	emailKey                  string
 	groupsKey                 string
+	tokenFormatter            string
 }
 
 func (c *oidcConnector) Close() error {
@@ -429,6 +439,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 
 	cd := connectorData{
 		RefreshToken: []byte(token.RefreshToken),
+		Claims:       claims,
 	}
 
 	connData, err := json.Marshal(&cd)
@@ -455,4 +466,173 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	return identity, nil
+}
+
+func (c *oidcConnector) ExtendPayload(scopes []string, payload []byte, cdata []byte) ([]byte, error) {
+
+	// No-op
+	if c.tokenFormatter == "" {
+		return payload, nil
+	}
+
+	var cd connectorData
+	var claims map[string]interface{}
+
+	c.logger.Info("ExtendPayload called")
+
+	if err := json.Unmarshal(cdata, &cd); err != nil {
+		return payload, err
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return payload, err
+	}
+
+	L := lua.NewState()
+	defer L.Close()
+
+	L.SetGlobal("token", luar.New(L, claims))
+	L.SetGlobal("subject", luar.New(L, cd.Claims))
+
+	if err := L.DoString(c.tokenFormatter); err != nil {
+		return payload, err
+	}
+
+	//sanitizedClaims, err := castMap(reflect.ValueOf(claims))
+	//if err != nil {
+	//	return payload, err
+	//}
+
+	sanitized, err := castMap(reflect.ValueOf(claims))
+	if err != nil {
+		return payload, err
+	}
+
+	extendedPayload, err := jsoniter.Marshal(sanitized)
+	if err != nil {
+		return payload, err
+	}
+	return extendedPayload, nil
+}
+
+// // Serializable
+//
+//	type JSON struct {
+//		MAP    map[string]JSON
+//		ARRAY  []JSON
+//		STRING *string
+//		BOOL   *bool
+//		NUM    *int64
+//	}
+//
+//	func (x JSON) MarshalJSON() ([]byte, error) {
+//		if x.NUM != nil {
+//			return json.Marshal(x.NUM)
+//		}
+//
+//		if x.STRING != nil {
+//			return json.Marshal(x.STRING)
+//		}
+//
+//		if x.BOOL != nil {
+//			return json.Marshal(x.BOOL)
+//		}
+//
+//		if x.MAP != nil {
+//			return json.Marshal(x.MAP)
+//		}
+//
+//		if x.ARRAY != nil {
+//			return json.Marshal(x.ARRAY)
+//		}
+//
+//		return []byte{}, fmt.Errorf("should not happen")
+//	}
+//
+// "Casts" map values to the desired type recursively
+func castMap(x reflect.Value) (any, error) {
+
+	for x.Kind() == reflect.Ptr || x.Kind() == reflect.Interface {
+		x = x.Elem()
+	}
+
+	kind := x.Kind()
+
+	switch kind {
+	case reflect.Map:
+
+		isArray := true
+		for _, k := range x.MapKeys() {
+			isNumber := false
+			if k.Kind() == reflect.Interface {
+				if _, ok := k.Interface().(int); ok {
+					isNumber = true
+				}
+
+				if _, ok := k.Interface().(float64); ok {
+					isNumber = true
+				}
+			}
+
+			if k.Kind() == reflect.Float64 {
+				isNumber = true
+			}
+
+			if !isNumber {
+				isArray = false
+				break
+			}
+		}
+
+		if isArray {
+			newx := []any{}
+			for _, k := range x.MapKeys() {
+				newval, err := castMap(x.MapIndex(k))
+				if err != nil {
+					return nil, err
+				}
+				newx = append(newx, newval)
+			}
+
+			return newx, nil
+		}
+
+		// Otherwise, regular map
+		newx := map[string]any{}
+		for _, k := range x.MapKeys() {
+			v := x.MapIndex(k)
+
+			newval, err := castMap(v)
+			if err != nil {
+				return nil, err
+			}
+			newx[fmt.Sprintf("%v", k)] = newval
+		}
+
+		return newx, nil
+
+	case reflect.Array:
+		newx := []any{}
+		for i := 0; i < x.Len(); i++ {
+			newval, err := castMap(x.Index(i))
+			if err != nil {
+				return nil, err
+			}
+			newx = append(newx, newval)
+		}
+		return newx, nil
+
+	case reflect.Bool:
+		return x.Bool(), nil
+
+	case reflect.String:
+		return x.String(), nil
+
+	case reflect.Int:
+		return x.Int(), nil
+
+	case reflect.Float64:
+		return x.Float(), nil
+
+	}
+	return nil, fmt.Errorf("failed to match types: %v, %v", x.Kind(), x.Interface())
 }

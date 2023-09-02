@@ -25,4 +25,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(2)
 	}
+
+	// runServe(serveOptions{
+	// 	config: "config.yaml",
+	// })
+
+	// time.Sleep(10 * time.Minute)
 }
