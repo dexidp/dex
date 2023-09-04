@@ -93,7 +93,7 @@ type Config struct {
 		GroupsKey string `json:"groups"` // defaults to "groups"
 	} `json:"claimMapping"`
 
-	TokenFormatter string `json:"tokenMapper"`
+	TokenFormatter string `json:"tokenMapper.lua"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
