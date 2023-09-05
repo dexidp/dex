@@ -497,10 +497,10 @@ func (c *oidcConnector) ExtendPayload(scopes []string, payload []byte, cdata []b
 		return payload, err
 	}
 
-	//sanitizedClaims, err := castMap(reflect.ValueOf(claims))
-	//if err != nil {
-	//	return payload, err
-	//}
+	// sanitizedClaims, err := castMap(reflect.ValueOf(claims))
+	// if err != nil {
+	// 	return payload, err
+	// }
 
 	sanitized, err := castMap(reflect.ValueOf(claims))
 	if err != nil {
@@ -514,40 +514,6 @@ func (c *oidcConnector) ExtendPayload(scopes []string, payload []byte, cdata []b
 	return extendedPayload, nil
 }
 
-// // Serializable
-//
-//	type JSON struct {
-//		MAP    map[string]JSON
-//		ARRAY  []JSON
-//		STRING *string
-//		BOOL   *bool
-//		NUM    *int64
-//	}
-//
-//	func (x JSON) MarshalJSON() ([]byte, error) {
-//		if x.NUM != nil {
-//			return json.Marshal(x.NUM)
-//		}
-//
-//		if x.STRING != nil {
-//			return json.Marshal(x.STRING)
-//		}
-//
-//		if x.BOOL != nil {
-//			return json.Marshal(x.BOOL)
-//		}
-//
-//		if x.MAP != nil {
-//			return json.Marshal(x.MAP)
-//		}
-//
-//		if x.ARRAY != nil {
-//			return json.Marshal(x.ARRAY)
-//		}
-//
-//		return []byte{}, fmt.Errorf("should not happen")
-//	}
-//
 // "Casts" map values to the desired type recursively
 func castMap(x reflect.Value) (any, error) {
 
@@ -633,6 +599,7 @@ func castMap(x reflect.Value) (any, error) {
 	case reflect.Float64:
 		return x.Float(), nil
 
+	default:
+		return nil, fmt.Errorf("failed to match types: %v, %v", x.Kind(), x.Interface())
 	}
-	return nil, fmt.Errorf("failed to match types: %v, %v", x.Kind(), x.Interface())
 }
