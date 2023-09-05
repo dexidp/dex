@@ -13,14 +13,12 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"golang.org/x/oauth2"
-
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/httpclient"
 	"github.com/dexidp/dex/pkg/log"
-
 	jsoniter "github.com/json-iterator/go"
 	lua "github.com/yuin/gopher-lua"
+	"golang.org/x/oauth2"
 	luar "layeh.com/gopher-luar"
 )
 
@@ -469,7 +467,6 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 }
 
 func (c *oidcConnector) ExtendPayload(scopes []string, payload []byte, cdata []byte) ([]byte, error) {
-
 	// No-op
 	if c.tokenFormatter == "" {
 		return payload, nil
@@ -516,13 +513,13 @@ func (c *oidcConnector) ExtendPayload(scopes []string, payload []byte, cdata []b
 
 // "Casts" map values to the desired type recursively
 func castMap(x reflect.Value) (any, error) {
-
 	for x.Kind() == reflect.Ptr || x.Kind() == reflect.Interface {
 		x = x.Elem()
 	}
 
 	kind := x.Kind()
 
+	//nolint:all // This function is bad and we are aware
 	switch kind {
 	case reflect.Map:
 
