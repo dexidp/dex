@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kylelemons/godebug/pretty"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	jose "gopkg.in/square/go-jose.v2"
 
@@ -990,6 +991,13 @@ func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
 	// Attempt to create same DeviceRequest twice.
 	err := s.CreateDeviceRequest(d1)
 	mustBeErrAlreadyExists(t, "device request", err)
+
+	got, err := s.GetDeviceRequest(d1.UserCode)
+	if err != nil {
+		t.Fatalf("failed to get device request: %v", err)
+	}
+
+	require.Equal(t, d1, got)
 
 	// No manual deletes for device requests, will be handled by garbage collection routines
 	// see testGC
