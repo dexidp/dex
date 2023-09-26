@@ -981,7 +981,7 @@ func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
 		ClientID:     "client1",
 		ClientSecret: "secret1",
 		Scopes:       []string{"openid", "email"},
-		Expiry:       neverExpire,
+		Expiry:       neverExpire.Round(time.Second),
 	}
 
 	if err := s.CreateDeviceRequest(d1); err != nil {
