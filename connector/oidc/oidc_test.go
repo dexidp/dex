@@ -290,7 +290,7 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name:               "concatinateClaim",
+			name:               "newGroupFromClaims",
 			userIDKey:          "", // not configured
 			userNameKey:        "", // not configured
 			expectUserID:       "subvalue",

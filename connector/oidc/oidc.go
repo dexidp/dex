@@ -88,7 +88,7 @@ type Config struct {
 		GroupsKey string `json:"groups"` // defaults to "groups"
 	} `json:"claimMapping"`
 
-	// ClaimModifications holds all claim modifications options, current has only newGroupsFromClaims
+	// ClaimModifications holds all claim modifications options
 	ClaimModifications struct {
 		NewGroupsFromClaims []NewGroupsFromClaims `json:"newGroupsFromClaims"`
 	} `json:"claimModifications"`
@@ -450,25 +450,26 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 	}
 
-	for _, newGroupsElementConfig := range c.newGroupsFromClaims {
-		newGroupsElement := []string{
-			newGroupsElementConfig.Prefix,
+	for _, config := range c.newGroupsFromClaims {
+		newGroupSegments := []string{
+			config.Prefix,
 		}
-		for _, claimName := range newGroupsElementConfig.ClaimList {
+		for _, claimName := range config.ClaimList {
+			claimValue, ok := claims[claimName].(string)
 			// Non string claim value are ignored, concatenating them doesn't really make any sense
-			if claimValue, ok := claims[claimName].(string); ok {
-				if newGroupsElementConfig.ClearDelimiter {
-					// Removing the delimiier string from the concatenated claim to ensure resulting claim structure
-					// is in full control of Dex operator
-					claimCleanedValue := strings.ReplaceAll(claimValue, newGroupsElementConfig.Delimiter, "")
-					newGroupsElement = append(newGroupsElement, claimCleanedValue)
-				} else {
-					newGroupsElement = append(newGroupsElement, claimValue)
-				}
+			if !ok {
+				continue
 			}
+			if config.ClearDelimiter {
+				// Removing the delimiter string from the concatenated claim to ensure resulting claim structure
+				// is in full control of Dex operator
+				claimValue = strings.ReplaceAll(claimValue, config.Delimiter, "")
+			}
+			newGroupSegments = append(newGroupSegments, claimValue)
 		}
-		if len(newGroupsElement) > 1 {
-			groups = append(groups, strings.Join(newGroupsElement, newGroupsElementConfig.Delimiter))
+
+		if len(newGroupSegments) > 1 {
+			groups = append(groups, strings.Join(newGroupSegments, config.Delimiter))
 		}
 	}
 
