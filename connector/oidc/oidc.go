@@ -573,6 +573,8 @@ func castMap(x reflect.Value) (any, error) {
 
 		return newx, nil
 
+	case reflect.Slice:
+		fallthrough
 	case reflect.Array:
 		newx := []any{}
 		for i := 0; i < x.Len(); i++ {
