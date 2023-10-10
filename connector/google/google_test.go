@@ -9,11 +9,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	admin "google.golang.org/api/admin/directory/v1"
+	"google.golang.org/api/cloudidentity/v1"
 	"google.golang.org/api/option"
 
 	"github.com/dexidp/dex/connector"
@@ -37,12 +39,34 @@ var (
 
 func testSetup() *httptest.Server {
 	mux := http.NewServeMux()
+	re := regexp.MustCompile(`^member_key_id\s*==\s*'(.+)'$`)
 
 	mux.HandleFunc("/admin/directory/v1/groups/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		userKey := r.URL.Query().Get("userKey")
 		if groups, ok := testGroups[userKey]; ok {
 			json.NewEncoder(w).Encode(admin.Groups{Groups: groups})
+			callCounter[userKey]++
+		}
+	})
+
+	mux.HandleFunc("/v1/groups/-/memberships:searchDirectGroups", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
+		query := r.URL.Query().Get("query")
+		userKey := re.FindStringSubmatch(query)[1]
+		if groups, ok := testGroups[userKey]; ok {
+			var memberships []*cloudidentity.MembershipRelation
+
+			for _, group := range groups {
+				memberships = append(
+					memberships,
+					&cloudidentity.MembershipRelation{
+						GroupKey: &cloudidentity.EntityKey{Id: group.Email},
+					},
+				)
+			}
+
+			json.NewEncoder(w).Encode(cloudidentity.SearchDirectGroupsResponse{Memberships: memberships})
 			callCounter[userKey]++
 		}
 	})
@@ -75,8 +99,31 @@ func tempServiceAccountKey() (string, error) {
 		"project_id":           "sample-project",
 		"private_key_id":       "sample-key-id",
 		"private_key":          "-----BEGIN PRIVATE KEY-----\nsample-key\n-----END PRIVATE KEY-----\n",
+		"client_email":         "service-account@example.com",
 		"client_id":            "sample-client-id",
 		"client_x509_cert_url": "localhost",
+	})
+	return fd.Name(), err
+}
+
+func tempWorkloadIdentityFederation() (string, error) {
+	fd, err := os.CreateTemp("", "workload_identity_federation")
+	if err != nil {
+		return "", err
+	}
+	defer fd.Close()
+	err = json.NewEncoder(fd).Encode(map[string]any{
+		"type":                              "external_account",
+		"audience":                          "//iam.googleapis.com/projects/111111111111/locations/global/workloadIdentityPools/aws-pool/providers/aws-provider",
+		"subject_token_type":                "urn:ietf:params:aws:token-type:aws4_request",
+		"service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@my-google-project.iam.gserviceaccount.com:generateAccessToken",
+		"token_url":                         "https://sts.googleapis.com/v1/token",
+		"credential_source": map[string]string{
+			"environment_id":                 "aws1",
+			"region_url":                     "http://169.254.169.254/latest/meta-data/placement/availability-zone",
+			"url":                            "http://169.254.169.254/latest/meta-data/iam/security-credentials",
+			"regional_cred_verification_url": "https://sts.{region}.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15",
+		},
 	})
 	return fd.Name(), err
 }
@@ -229,7 +276,149 @@ func TestGetGroups(t *testing.T) {
 			assert := assert.New(t)
 			lookup := make(map[string]struct{})
 
-			groups, err := conn.getGroups(testCase.userKey, testCase.fetchTransitiveGroupMembership, lookup)
+			groups, err := conn.getGroupsFromAdminAPI(testCase.userKey, testCase.fetchTransitiveGroupMembership, lookup)
+			if testCase.shouldErr {
+				assert.NotNil(err)
+			} else {
+				assert.Nil(err)
+			}
+			assert.ElementsMatch(testCase.expectedGroups, groups)
+			t.Logf("[%s] Amount of API calls per userKey: %+v\n", t.Name(), callCounter)
+		})
+	}
+}
+
+func TestGetGroupsWithCloudIdentityApi(t *testing.T) {
+	ts := testSetup()
+	defer ts.Close()
+
+	serviceAccountFilePath, err := tempServiceAccountKey()
+	assert.Nil(t, err)
+
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", serviceAccountFilePath)
+	conn, err := newConnector(&Config{
+		ClientID:            "testClient",
+		ClientSecret:        "testSecret",
+		RedirectURI:         ts.URL + "/callback",
+		Scopes:              []string{"openid", "groups"},
+		UseCloudIdentityAPI: true,
+	})
+	assert.Nil(t, err)
+
+	cloudIdentityService, err := cloudidentity.NewService(context.Background(), option.WithoutAuthentication(), option.WithEndpoint(ts.URL))
+	assert.Nil(t, err)
+	conn.groupsMembershipsService = cloudidentity.NewGroupsMembershipsService(cloudIdentityService)
+	type testCase struct {
+		userKey                        string
+		fetchTransitiveGroupMembership bool
+		shouldErr                      bool
+		expectedGroups                 []string
+	}
+
+	for name, testCase := range map[string]testCase{
+		"user1_non_transitive_lookup": {
+			userKey:                        "user_1@dexidp.com",
+			fetchTransitiveGroupMembership: false,
+			shouldErr:                      false,
+			expectedGroups:                 []string{"groups_1@dexidp.com", "groups_2@dexidp.com"},
+		},
+		"user1_transitive_lookup": {
+			userKey:                        "user_1@dexidp.com",
+			fetchTransitiveGroupMembership: true,
+			shouldErr:                      false,
+			expectedGroups:                 []string{"groups_0@dexidp.com", "groups_1@dexidp.com", "groups_2@dexidp.com"},
+		},
+		"user2_non_transitive_lookup": {
+			userKey:                        "user_2@dexidp.com",
+			fetchTransitiveGroupMembership: false,
+			shouldErr:                      false,
+			expectedGroups:                 []string{"groups_1@dexidp.com"},
+		},
+		"user2_transitive_lookup": {
+			userKey:                        "user_2@dexidp.com",
+			fetchTransitiveGroupMembership: true,
+			shouldErr:                      false,
+			expectedGroups:                 []string{"groups_0@dexidp.com", "groups_1@dexidp.com"},
+		},
+	} {
+		testCase := testCase
+		callCounter = map[string]int{}
+		t.Run(name, func(t *testing.T) {
+			assert := assert.New(t)
+			lookup := make(map[string]struct{})
+
+			groups, err := conn.getGroupsFromCloudIdentityAPI(testCase.userKey, testCase.fetchTransitiveGroupMembership, lookup)
+			if testCase.shouldErr {
+				assert.NotNil(err)
+			} else {
+				assert.Nil(err)
+			}
+			assert.ElementsMatch(testCase.expectedGroups, groups)
+			t.Logf("[%s] Amount of API calls per userKey: %+v\n", t.Name(), callCounter)
+		})
+	}
+}
+
+func TestGetGroupsWithCloudIdentityApiAndWorkloadIdentityFederation(t *testing.T) {
+	ts := testSetup()
+	defer ts.Close()
+
+	workloadIdentityFederationFilePath, err := tempWorkloadIdentityFederation()
+	assert.Nil(t, err)
+
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", workloadIdentityFederationFilePath)
+	conn, err := newConnector(&Config{
+		ClientID:            "testClient",
+		ClientSecret:        "testSecret",
+		RedirectURI:         ts.URL + "/callback",
+		Scopes:              []string{"openid", "groups"},
+		UseCloudIdentityAPI: true,
+	})
+	assert.Nil(t, err)
+
+	cloudIdentityService, err := cloudidentity.NewService(context.Background(), option.WithoutAuthentication(), option.WithEndpoint(ts.URL))
+	assert.Nil(t, err)
+	conn.groupsMembershipsService = cloudidentity.NewGroupsMembershipsService(cloudIdentityService)
+	type testCase struct {
+		userKey                        string
+		fetchTransitiveGroupMembership bool
+		shouldErr                      bool
+		expectedGroups                 []string
+	}
+
+	for name, testCase := range map[string]testCase{
+		"user1_non_transitive_lookup": {
+			userKey:                        "user_1@dexidp.com",
+			fetchTransitiveGroupMembership: false,
+			shouldErr:                      false,
+			expectedGroups:                 []string{"groups_1@dexidp.com", "groups_2@dexidp.com"},
+		},
+		"user1_transitive_lookup": {
+			userKey:                        "user_1@dexidp.com",
+			fetchTransitiveGroupMembership: true,
+			shouldErr:                      false,
+			expectedGroups:                 []string{"groups_0@dexidp.com", "groups_1@dexidp.com", "groups_2@dexidp.com"},
+		},
+		"user2_non_transitive_lookup": {
+			userKey:                        "user_2@dexidp.com",
+			fetchTransitiveGroupMembership: false,
+			shouldErr:                      false,
+			expectedGroups:                 []string{"groups_1@dexidp.com"},
+		},
+		"user2_transitive_lookup": {
+			userKey:                        "user_2@dexidp.com",
+			fetchTransitiveGroupMembership: true,
+			shouldErr:                      false,
+			expectedGroups:                 []string{"groups_0@dexidp.com", "groups_1@dexidp.com"},
+		},
+	} {
+		testCase := testCase
+		callCounter = map[string]int{}
+		t.Run(name, func(t *testing.T) {
+			assert := assert.New(t)
+			lookup := make(map[string]struct{})
+
+			groups, err := conn.getGroupsFromCloudIdentityAPI(testCase.userKey, testCase.fetchTransitiveGroupMembership, lookup)
 			if testCase.shouldErr {
 				assert.NotNil(err)
 			} else {
@@ -285,7 +474,7 @@ func TestDomainToAdminEmailConfig(t *testing.T) {
 			assert := assert.New(t)
 			lookup := make(map[string]struct{})
 
-			_, err := conn.getGroups(testCase.userKey, true, lookup)
+			_, err := conn.getGroupsFromAdminAPI(testCase.userKey, true, lookup)
 			if testCase.expectedErr != "" {
 				assert.ErrorContains(err, testCase.expectedErr)
 			} else {
@@ -383,7 +572,7 @@ func TestGCEWorkloadIdentity(t *testing.T) {
 			assert := assert.New(t)
 			lookup := make(map[string]struct{})
 
-			_, err := conn.getGroups(testCase.userKey, true, lookup)
+			_, err := conn.getGroupsFromAdminAPI(testCase.userKey, true, lookup)
 			if testCase.expectedErr != "" {
 				assert.ErrorContains(err, testCase.expectedErr)
 			} else {
