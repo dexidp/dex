@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"google.golang.org/api/impersonate"
 	"net/http"
 	"os"
 	"strings"
@@ -56,8 +57,33 @@ type Config struct {
 	// when listing groups
 	DomainToAdminEmail map[string]string
 
+	// Optional email of the service account enabled for domain-wide delegation
+	// If nonempty, it is assumed that Workload Identity Federation is to be used. In that case, the
+	// specified service account needs to be configured for domain-wide delegation and the service account
+	// used for Workload Identity Federation must include "Service Account Token Creator" for the specified
+	// service account.
+	ServiceAccountToImpersonate string `json:"serviceAccountToImpersonate"`
+
 	// If this field is true, fetch direct group membership and transitive group membership
 	FetchTransitiveGroupMembership bool `json:"fetchTransitiveGroupMembership"`
+}
+
+func validateConfigAndPrintResult(c *Config, logger log.Logger) error {
+	if slices.Contains(c.Scopes, "groups") {
+		logger.Warnf("\"scopes\" contain \"groups\" which is not supported by Google. This will result in an error on request.")
+	}
+
+	if len(c.Groups) > 0 && len(c.DomainToAdminEmail) == 0 {
+		logger.Warnf("\"groups\" is specified in the configuration, but no Google service account has been configured to be used. \"groups\" will be ignored.")
+	}
+
+	// We know impersonation is required when using a service account credential
+	// TODO: or is it?
+	if len(c.DomainToAdminEmail) == 0 && (c.ServiceAccountFilePath != "" || c.ServiceAccountToImpersonate != "") {
+		return fmt.Errorf("directory service requires the domainToAdminEmail option to be configured")
+	}
+
+	return nil
 }
 
 // Open returns a connector which can be used to login users through Google.
@@ -87,17 +113,27 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 
 	adminSrv := make(map[string]*admin.Service)
 
-	// We know impersonation is required when using a service account credential
-	// TODO: or is it?
-	if len(c.DomainToAdminEmail) == 0 && c.ServiceAccountFilePath != "" {
+	if err := validateConfigAndPrintResult(c, logger); err != nil {
 		cancel()
-		return nil, fmt.Errorf("directory service requires the domainToAdminEmail option to be configured")
+		return nil, err
 	}
 
 	// Fixing a regression caused by default config fallback: https://github.com/dexidp/dex/issues/2699
-	if (c.ServiceAccountFilePath != "" && len(c.DomainToAdminEmail) > 0) || slices.Contains(scopes, "groups") {
+	// TODO: if scopes contain "group", the oauth request to Google will fail with "Some requested scopes were invalid ... invalid=[groups]"
+	if ((c.ServiceAccountFilePath != "" || c.ServiceAccountToImpersonate != "") && len(c.DomainToAdminEmail) > 0) || slices.Contains(scopes, "groups") {
+		logger.Debug("Directory service will be configured.")
+
 		for domain, adminEmail := range c.DomainToAdminEmail {
-			srv, err := createDirectoryService(c.ServiceAccountFilePath, adminEmail, logger)
+			var srv *admin.Service
+			var err error
+
+			if c.ServiceAccountToImpersonate == "" {
+				logger.Debugf("Using Service Account Key for domain '%s' impersonating '%s'.", domain, adminEmail)
+				srv, err = createDirectoryService(c.ServiceAccountFilePath, adminEmail, logger)
+			} else {
+				logger.Debugf("Using Workload Identity Federation with SA '%s' for domain '%s' impersonating '%s'.", c.ServiceAccountToImpersonate, domain, adminEmail)
+				srv, err = createDirectoryServiceForWorkloadIdentityFederation(c.ServiceAccountFilePath, c.ServiceAccountToImpersonate, adminEmail, logger)
+			}
 			if err != nil {
 				cancel()
 				return nil, fmt.Errorf("could not create directory service: %v", err)
@@ -105,6 +141,8 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 
 			adminSrv[domain] = srv
 		}
+	} else {
+		logger.Debug("Directory service will not be configured.")
 	}
 
 	clientID := c.ClientID
@@ -126,6 +164,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		groups:                         c.Groups,
 		serviceAccountFilePath:         c.ServiceAccountFilePath,
 		domainToAdminEmail:             c.DomainToAdminEmail,
+		serviceAccountToImpersonate:    c.ServiceAccountToImpersonate,
 		fetchTransitiveGroupMembership: c.FetchTransitiveGroupMembership,
 		adminSrv:                       adminSrv,
 	}, nil
@@ -146,6 +185,7 @@ type googleConnector struct {
 	groups                         []string
 	serviceAccountFilePath         string
 	domainToAdminEmail             map[string]string
+	serviceAccountToImpersonate    string
 	fetchTransitiveGroupMembership bool
 	adminSrv                       map[string]*admin.Service
 }
@@ -197,7 +237,7 @@ func (c *googleConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 		return identity, fmt.Errorf("google: failed to get token: %v", err)
 	}
 
-	return c.createIdentity(r.Context(), identity, s, token)
+	return c.createIdentity(r.Context(), identity, token)
 }
 
 func (c *googleConnector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
@@ -210,10 +250,10 @@ func (c *googleConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 		return identity, fmt.Errorf("google: failed to get token: %v", err)
 	}
 
-	return c.createIdentity(ctx, identity, s, token)
+	return c.createIdentity(ctx, identity, token)
 }
 
-func (c *googleConnector) createIdentity(ctx context.Context, identity connector.Identity, s connector.Scopes, token *oauth2.Token) (connector.Identity, error) {
+func (c *googleConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token) (connector.Identity, error) {
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
 		return identity, errors.New("google: no id_token in token response")
@@ -248,7 +288,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	}
 
 	var groups []string
-	if s.Groups && len(c.adminSrv) > 0 {
+	if len(c.adminSrv) > 0 {
 		checkedGroups := make(map[string]struct{})
 		groups, err = c.getGroups(claims.Email, c.fetchTransitiveGroupMembership, checkedGroups)
 		if err != nil {
@@ -382,4 +422,34 @@ func createDirectoryService(serviceAccountFilePath, email string, logger log.Log
 	}
 
 	return admin.NewService(ctx, option.WithHTTPClient(config.Client(ctx)))
+}
+
+func createDirectoryServiceForWorkloadIdentityFederation(serviceAccountFilePath, serviceAccountWithDWD, email string, logger log.Logger) (*admin.Service, error) {
+	var err error
+	var ts oauth2.TokenSource
+
+	ctx := context.Background()
+	var config = impersonate.CredentialsConfig{
+		Subject:         email,
+		Scopes:          []string{admin.AdminDirectoryGroupReadonlyScope},
+		TargetPrincipal: serviceAccountWithDWD,
+	}
+
+	if serviceAccountFilePath == "" {
+		logger.Debug("Using application default credentials.")
+		ts, err = impersonate.CredentialsTokenSource(ctx, config)
+	} else {
+		logger.Debugf("Using credentials at '%s'.", serviceAccountFilePath)
+		var jsonCredentials []byte
+		jsonCredentials, err = os.ReadFile(serviceAccountFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("error reading credentials from file: %v", err)
+		}
+		ts, err = impersonate.CredentialsTokenSource(ctx, config, option.WithCredentialsJSON(jsonCredentials))
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to create : %v", err)
+	}
+
+	return admin.NewService(ctx, option.WithTokenSource(ts))
 }
