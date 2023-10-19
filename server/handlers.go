@@ -829,8 +829,12 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-
 	grantType := r.PostFormValue("grant_type")
+	if !contains(s.supportedGrantTypes, grantType) {
+		s.logger.Errorf("unsupported grant type: %v", grantType)
+		s.tokenErrHelper(w, errUnsupportedGrantType, "", http.StatusBadRequest)
+		return
+	}
 	switch grantType {
 	case grantTypeDeviceCode:
 		s.handleDeviceToken(w, r)
@@ -1147,7 +1151,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 
 	// Get the connector
 	connID := q.Get("connector_id")
-	if connID == "" && s.defaultPasswordConnector != ""	{
+	if connID == "" && s.defaultPasswordConnector != "" {
 		connID = s.defaultPasswordConnector
 	}
 
