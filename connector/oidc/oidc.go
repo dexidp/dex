@@ -41,6 +41,11 @@ type Config struct {
 
 	Scopes []string `json:"scopes"` // defaults to "profile" and "email"
 
+	PKCE struct {
+		// Configurable key which controls if pkce challenge should be created or not
+		Enabled bool `json:"enabled"` // defaults to "false"
+	} `json:"pkce"`
+
 	// HostedDomains was an optional list of whitelisted domains when using the OIDC connector with Google.
 	// Only users from a whitelisted domain were allowed to log in.
 	// Support for this option was removed from the OIDC connector.
@@ -253,6 +258,12 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		promptType = *c.PromptType
 	}
 
+	// pkce
+	pkceVerifier := ""
+	if c.PKCE.Enabled {
+		pkceVerifier = oauth2.GenerateVerifier()
+	}
+
 	clientID := c.ClientID
 	return &oidcConnector{
 		provider:    provider,
@@ -268,6 +279,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 			&oidc.Config{ClientID: clientID},
 		),
 		logger:                    logger.With(slog.Group("connector", "type", "oidc", "id", id)),
+		pkceVerifier:              pkceVerifier,
 		cancel:                    cancel,
 		httpClient:                httpClient,
 		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
@@ -296,6 +308,7 @@ type oidcConnector struct {
 	redirectURI               string
 	oauth2Config              *oauth2.Config
 	verifier                  *oidc.IDTokenVerifier
+	pkceVerifier              string
 	cancel                    context.CancelFunc
 	logger                    *slog.Logger
 	httpClient                *http.Client
@@ -334,7 +347,12 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 	if s.OfflineAccess {
 		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", c.promptType))
 	}
-	return c.oauth2Config.AuthCodeURL(state, opts...), nil
+
+	if c.pkceVerifier != "" {
+		opts = append(opts, oauth2.S256ChallengeOption(c.pkceVerifier))
+	}
+	url := c.oauth2Config.AuthCodeURL(state, opts...)
+	return url, nil
 }
 
 type oauth2Error struct {
@@ -411,7 +429,13 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 	ctx := context.WithValue(r.Context(), oauth2.HTTPClient, c.httpClient)
 	if q.Has("code") {
 		// exchange code to token
-		token, err := c.oauth2Config.Exchange(ctx, q.Get("code"))
+		var opts []oauth2.AuthCodeOption
+
+		if c.pkceVerifier != "" {
+			opts = append(opts, oauth2.VerifierOption(c.pkceVerifier))
+		}
+
+		token, err := c.oauth2Config.Exchange(ctx, q.Get("code"), opts...)
 		if err != nil {
 			return identity, fmt.Errorf("oidc: failed to get token: %v", err)
 		}
