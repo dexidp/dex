@@ -433,7 +433,7 @@ func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 		q.Set("client_secret", deviceRequest.ClientSecret)
 		q.Set("state", deviceRequest.UserCode)
 		q.Set("response_type", "code")
-		q.Set("redirect_uri", "/device/callback")
+		q.Set("redirect_uri", s.issuerURL.Path+"/device/callback")
 		q.Set("scope", strings.Join(deviceRequest.Scopes, " "))
 		u.RawQuery = q.Encode()
 
