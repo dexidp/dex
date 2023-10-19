@@ -854,6 +854,8 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		s.handleDeviceToken(w, r)
 	case grantTypeAuthorizationCode:
 		s.withClientFromStorage(w, r, s.handleAuthCode)
+	case grantTypeClientCredentials:
+		s.withClientFromStorage(w, r, s.handleClientCredentials)
 	case grantTypeRefreshToken:
 		s.withClientFromStorage(w, r, s.handleRefreshToken)
 	case grantTypePassword:
@@ -1110,6 +1112,67 @@ func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(claims)
+}
+
+func (s *Server) handleClientCredentials(w http.ResponseWriter, r *http.Request, client storage.Client) {
+	// Parse the fields
+	if err := r.ParseForm(); err != nil {
+		s.tokenErrHelper(w, errInvalidRequest, "Couldn't parse data", http.StatusBadRequest)
+		return
+	}
+	q := r.Form
+
+	scopes := strings.Fields(q.Get("scope"))
+	nonce := ""
+	connID := q.Get("connector_id")
+
+	// Which connector
+	conn, err := s.getConnector(connID)
+	if err != nil {
+		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
+		return
+	}
+
+	callbackConnector, ok := conn.Connector.(connector.CallbackConnector)
+	if !ok {
+		s.tokenErrHelper(w, errInvalidRequest, "Requested callback connector does not correct type.", http.StatusBadRequest)
+		return
+	}
+
+	// Login
+	identity, err := callbackConnector.HandleCallback(parseScopes(scopes), r)
+	if err != nil {
+		s.logger.Errorf("Failed to login user: %v", err)
+		s.tokenErrHelper(w, errInvalidRequest, "Could not login user", http.StatusBadRequest)
+		return
+	}
+
+	// Build the claims to send the id token
+	claims := storage.Claims{
+		UserID:            identity.UserID,
+		Username:          identity.Username,
+		PreferredUsername: identity.PreferredUsername,
+		Email:             identity.Email,
+		EmailVerified:     identity.EmailVerified,
+		Groups:            identity.Groups,
+	}
+
+	accessToken, _, err := s.newAccessToken(client.ID, claims, scopes, nonce, connID)
+	if err != nil {
+		s.logger.Errorf("client grant failed to create new access token: %v", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
+	idToken, expiry, err := s.newIDToken(client.ID, claims, scopes, nonce, accessToken, "", connID)
+	if err != nil {
+		s.logger.Errorf("client grant failed to create new ID token: %v", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
+	resp := s.toAccessTokenResponse(idToken, accessToken, "", expiry)
+	s.writeAccessToken(w, resp)
 }
 
 func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, client storage.Client) {

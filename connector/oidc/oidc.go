@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -356,6 +357,51 @@ const (
 	exchangeCaller
 )
 
+func (c *oidcConnector) getTokenViaClientCredentials() (token *oauth2.Token, err error) {
+	data := url.Values{
+		"grant_type":    {"client_credentials"},
+		"client_id":     {c.oauth2Config.ClientID},
+		"client_secret": {c.oauth2Config.ClientSecret},
+		"scope":         {strings.Join(c.oauth2Config.Scopes, " ")},
+	}
+
+	resp, err := c.httpClient.PostForm(c.oauth2Config.Endpoint.TokenURL, data)
+	if err != nil {
+		return nil, fmt.Errorf("oidc: failed to get token: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("oidc: issuer returned an error: %v", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("oidc: failed to get read token body: %v", err)
+	}
+
+	type AccessTokenType struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		ExpiresIn   int    `json:"expires_in"`
+	}
+	response := AccessTokenType{}
+	if err = json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("oidc: unable to parse response: %v", err)
+	}
+
+	token = &oauth2.Token{
+		AccessToken: response.AccessToken,
+		TokenType:   "urn:ietf:params:oauth:token-type:id_token",
+		Expiry:      time.Now().Add(time.Second * time.Duration(response.ExpiresIn)),
+	}
+	raw := make(map[string]interface{})
+	json.Unmarshal(body, &raw) // no error checks for optional fields
+	token = token.WithExtra(raw)
+
+	return token, nil
+}
+
 func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
@@ -363,12 +409,21 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 	}
 
 	ctx := context.WithValue(r.Context(), oauth2.HTTPClient, c.httpClient)
-
-	token, err := c.oauth2Config.Exchange(ctx, q.Get("code"))
-	if err != nil {
-		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
+	if q.Has("code") {
+		// exchange code to token
+		token, err := c.oauth2Config.Exchange(ctx, q.Get("code"))
+		if err != nil {
+			return identity, fmt.Errorf("oidc: failed to get token: %v", err)
+		}
+		return c.createIdentity(ctx, identity, token, createCaller)
+	} else {
+		// get token via client_credentials
+		token, err := c.getTokenViaClientCredentials()
+		if err != nil {
+			return identity, err
+		}
+		return c.createIdentity(ctx, identity, token, exchangeCaller)
 	}
-	return c.createIdentity(ctx, identity, token, createCaller)
 }
 
 // Refresh is used to refresh a session with the refresh token provided by the IdP
