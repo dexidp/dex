@@ -121,7 +121,7 @@ Please see our [security policy](.github/SECURITY.md) for details about reportin
 [scopes]: https://dexidp.io/docs/custom-scopes-claims-clients/#scopes
 [using-dex]: https://dexidp.io/docs/using-dex/
 [jwt-io]: https://jwt.io/
-[kubernetes]: http://kubernetes.io/docs/admin/authentication/#openid-connect-tokens
+[kubernetes]: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#openid-connect-tokens
 [aws-sts]: https://docs.aws.amazon.com/STS/latest/APIReference/Welcome.html
 [go-oidc]: https://github.com/coreos/go-oidc
 [issue-1065]: https://github.com/dexidp/dex/issues/1065
