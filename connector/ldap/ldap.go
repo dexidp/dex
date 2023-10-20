@@ -11,10 +11,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/go-ldap/ldap/v3"
-
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
+	"github.com/go-ldap/ldap/v3"
 )
 
 // Config holds the configuration parameters for the LDAP connector. The LDAP
@@ -475,9 +474,9 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 
 	// Initial search.
 	req := &ldap.SearchRequest{
-		BaseDN: c.UserSearch.BaseDN,
-		Filter: filter,
-		Scope:  c.userSearchScope,
+		BaseDN:       c.UserSearch.BaseDN,
+		Filter:       filter,
+		Scope:        c.userSearchScope,
 		DerefAliases: c.userSearchDeref,
 		// We only need to search for these specific requests.
 		Attributes: []string{
