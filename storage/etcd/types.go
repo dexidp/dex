@@ -277,6 +277,17 @@ func fromStorageDeviceRequest(d storage.DeviceRequest) DeviceRequest {
 	}
 }
 
+func toStorageDeviceRequest(d DeviceRequest) storage.DeviceRequest {
+	return storage.DeviceRequest{
+		UserCode:     d.UserCode,
+		DeviceCode:   d.DeviceCode,
+		ClientID:     d.ClientID,
+		ClientSecret: d.ClientSecret,
+		Scopes:       d.Scopes,
+		Expiry:       d.Expiry,
+	}
+}
+
 // DeviceToken is a mirrored struct from storage with JSON struct tags
 type DeviceToken struct {
 	DeviceCode          string    `json:"device_code"`
