@@ -395,11 +395,15 @@ func (arc *AuthRequestCreate) createSpec() (*AuthRequest, *sqlgraph.CreateSpec) 
 // AuthRequestCreateBulk is the builder for creating many AuthRequest entities in bulk.
 type AuthRequestCreateBulk struct {
 	config
+	err      error
 	builders []*AuthRequestCreate
 }
 
 // Save creates the AuthRequest entities in the database.
 func (arcb *AuthRequestCreateBulk) Save(ctx context.Context) ([]*AuthRequest, error) {
+	if arcb.err != nil {
+		return nil, arcb.err
+	}
 	specs := make([]*sqlgraph.CreateSpec, len(arcb.builders))
 	nodes := make([]*AuthRequest, len(arcb.builders))
 	mutators := make([]Mutator, len(arcb.builders))

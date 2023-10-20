@@ -164,11 +164,15 @@ func (osc *OfflineSessionCreate) createSpec() (*OfflineSession, *sqlgraph.Create
 // OfflineSessionCreateBulk is the builder for creating many OfflineSession entities in bulk.
 type OfflineSessionCreateBulk struct {
 	config
+	err      error
 	builders []*OfflineSessionCreate
 }
 
 // Save creates the OfflineSession entities in the database.
 func (oscb *OfflineSessionCreateBulk) Save(ctx context.Context) ([]*OfflineSession, error) {
+	if oscb.err != nil {
+		return nil, oscb.err
+	}
 	specs := make([]*sqlgraph.CreateSpec, len(oscb.builders))
 	nodes := make([]*OfflineSession, len(oscb.builders))
 	mutators := make([]Mutator, len(oscb.builders))
