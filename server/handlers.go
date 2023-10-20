@@ -539,6 +539,17 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 		return returnURL, false, nil
 	}
 
+	offlineAccessRequested := false
+	for _, scope := range authReq.Scopes {
+		if scope == scopeOfflineAccess {
+			offlineAccessRequested = true
+			break
+		}
+	}
+	if !offlineAccessRequested {
+		return returnURL, false, nil
+	}
+
 	// Try to retrieve an existing OfflineSession object for the corresponding user.
 	session, err := s.storage.GetOfflineSessions(identity.UserID, authReq.ConnectorID)
 	if err != nil {
