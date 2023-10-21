@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/httpclient"
 	"github.com/dexidp/dex/pkg/log"
+	groups_pkg "github.com/dexidp/dex/pkg/groups"
 )
 
 // Config holds configuration options for OpenID Connect logins.
@@ -431,22 +431,15 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 
 		// Validate that the user is part of allowedGroups
-		accessAllowed := false
 		if len(c.allowedGroups) > 0 {
-			for _, group := range c.allowedGroups {
-				groupPresent := slices.Contains(groups, group)
-				if groupPresent {
-					accessAllowed = true
-					break
-				}
-			}
-		} else {
-			// don't check for groups if allowedGroups is not configured
-			accessAllowed = true
-		}
+			groupMatches := groups_pkg.Filter(groups, c.allowedGroups)
 
-		if !accessAllowed {
-			return identity, errors.New("user is not in the allowed group(s)")
+			if len(groupMatches) == 0 {
+				// No group membership matches found, disallowing
+				return identity, fmt.Errorf("user not a member of allowed groups")
+			}
+
+			groups = groupMatches
 		}
 	}
 
