@@ -15,6 +15,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
+	groups_pkg "github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/httpclient"
 	"github.com/dexidp/dex/pkg/log"
 )
@@ -50,7 +51,8 @@ type Config struct {
 	InsecureSkipEmailVerified bool `json:"insecureSkipEmailVerified"`
 
 	// InsecureEnableGroups enables groups claims. This is disabled by default until https://github.com/dexidp/dex/issues/1065 is resolved
-	InsecureEnableGroups bool `json:"insecureEnableGroups"`
+	InsecureEnableGroups bool     `json:"insecureEnableGroups"`
+	AllowedGroups        []string `json:"allowedGroups"`
 
 	// AcrValues (Authentication Context Class Reference Values) that specifies the Authentication Context Class Values
 	// within the Authentication Request that the Authorization Server is being requested to use for
@@ -180,6 +182,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		httpClient:                httpClient,
 		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
 		insecureEnableGroups:      c.InsecureEnableGroups,
+		allowedGroups:             c.AllowedGroups,
 		acrValues:                 c.AcrValues,
 		getUserInfo:               c.GetUserInfo,
 		promptType:                c.PromptType,
@@ -207,6 +210,7 @@ type oidcConnector struct {
 	httpClient                *http.Client
 	insecureSkipEmailVerified bool
 	insecureEnableGroups      bool
+	allowedGroups             []string
 	acrValues                 []string
 	getUserInfo               bool
 	promptType                string
@@ -424,6 +428,18 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 					return identity, fmt.Errorf("malformed \"%v\" claim", groupsKey)
 				}
 			}
+		}
+
+		// Validate that the user is part of allowedGroups
+		if len(c.allowedGroups) > 0 {
+			groupMatches := groups_pkg.Filter(groups, c.allowedGroups)
+
+			if len(groupMatches) == 0 {
+				// No group membership matches found, disallowing
+				return identity, fmt.Errorf("user not a member of allowed groups")
+			}
+
+			groups = groupMatches
 		}
 	}
 
