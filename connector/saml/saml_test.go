@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
-	"io/ioutil"
+	"os"
 	"sort"
 	"testing"
 	"time"
@@ -24,19 +24,18 @@ import (
 // To add a new test, define a new, unsigned SAML 2.0 response that exercises some
 // case, then sign it using the "testdata/gen.sh" script.
 //
-//     cp testdata/good-resp.tmpl testdata/( testname ).tmpl
-//     vim ( testname ).tmpl # Modify your template for your test case.
-//     vim testdata/gen.sh   # Add a xmlsec1 command to the generation script.
-//     ./testdata/gen.sh     # Sign your template.
+//	cp testdata/good-resp.tmpl testdata/( testname ).tmpl
+//	vim ( testname ).tmpl # Modify your template for your test case.
+//	vim testdata/gen.sh   # Add a xmlsec1 command to the generation script.
+//	./testdata/gen.sh     # Sign your template.
 //
 // To install xmlsec1 on Fedora run:
 //
-//     sudo dnf install xmlsec1 xmlsec1-openssl
+//	sudo dnf install xmlsec1 xmlsec1-openssl
 //
 // On mac:
 //
-//     brew install Libxmlsec1
-//
+//	brew install Libxmlsec1
 type responseTest struct {
 	// CA file and XML file of the response.
 	caFile   string
@@ -392,7 +391,7 @@ func TestTamperedResponseNameID(t *testing.T) {
 }
 
 func loadCert(ca string) (*x509.Certificate, error) {
-	data, err := ioutil.ReadFile(ca)
+	data, err := os.ReadFile(ca)
 	if err != nil {
 		return nil, err
 	}
@@ -426,7 +425,7 @@ func (r responseTest) run(t *testing.T) {
 		t.Fatal(err)
 	}
 	conn.now = func() time.Time { return now }
-	resp, err := ioutil.ReadFile(r.respFile)
+	resp, err := os.ReadFile(r.respFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -456,11 +455,11 @@ func (r responseTest) run(t *testing.T) {
 
 func TestConfigCAData(t *testing.T) {
 	logger := logrus.New()
-	validPEM, err := ioutil.ReadFile("testdata/ca.crt")
+	validPEM, err := os.ReadFile("testdata/ca.crt")
 	if err != nil {
 		t.Fatal(err)
 	}
-	valid2ndPEM, err := ioutil.ReadFile("testdata/okta-ca.pem")
+	valid2ndPEM, err := os.ReadFile("testdata/okta-ca.pem")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -551,7 +550,7 @@ func runVerify(t *testing.T, ca string, resp string, shouldSucceed bool) {
 
 	validator := dsig.NewDefaultValidationContext(s)
 
-	data, err := ioutil.ReadFile(resp)
+	data, err := os.ReadFile(resp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -562,7 +561,7 @@ func runVerify(t *testing.T, ca string, resp string, shouldSucceed bool) {
 		}
 	} else {
 		if !shouldSucceed {
-			t.Fatalf("expected an invalid signatrue but verification has been successful")
+			t.Fatalf("expected an invalid signature but verification has been successful")
 		}
 	}
 }

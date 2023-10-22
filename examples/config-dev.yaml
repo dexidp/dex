@@ -1,3 +1,6 @@
+# DEPRECATED: use config.yaml.dist and config.dev.yaml examples in the repository root.
+# TODO: keep this until all references are updated.
+
 # The base path of dex and the external name of the OpenID Connect service.
 # This is the canonical URL that all clients MUST use to refer to dex. If a
 # path is provided, dex's HTTP service will listen at a non-root URL.
@@ -6,11 +9,41 @@ issuer: http://127.0.0.1:5556/dex
 # The storage configuration determines where dex stores its state. Supported
 # options include SQL flavors and Kubernetes third party resources.
 #
-# See the storage document at Documentation/storage.md for further information.
+# See the documentation (https://dexidp.io/docs/storage/) for further information.
 storage:
   type: sqlite3
   config:
     file: examples/dex.db
+
+  # type: mysql
+  # config:
+  #   host: localhost
+  #   port: 3306
+  #   database: dex
+  #   user: mysql
+  #   password: mysql
+  #   ssl:
+  #     mode: "false"
+
+  # type: postgres
+  # config:
+  #   host: localhost
+  #   port: 5432
+  #   database: dex
+  #   user: postgres
+  #   password: postgres
+  #   ssl:
+  #     mode: disable
+
+  # type: etcd
+  # config:
+  #   endpoints:
+  #     - http://localhost:2379
+  #   namespace: dex/
+
+  # type: kubernetes
+  # config:
+  #   kubeConfigFile: $HOME/.kube/config
 
 # Configuration for the HTTP endpoints.
 web:
@@ -20,22 +53,36 @@ web:
   # tlsCert: /etc/dex/tls.crt
   # tlsKey: /etc/dex/tls.key
 
+# Configuration for dex appearance
+# frontend:
+#   issuer: dex
+#   logoURL: theme/logo.png
+#   dir: web/
+#   theme: light
+
 # Configuration for telemetry
 telemetry:
   http: 0.0.0.0:5558
+  # enableProfiling: true
 
 # Uncomment this block to enable the gRPC API. This values MUST be different
 # from the HTTP endpoints.
 # grpc:
 #   addr: 127.0.0.1:5557
-#  tlsCert: examples/grpc-client/server.crt
-#  tlsKey: examples/grpc-client/server.key
-#  tlsClientCA: /etc/dex/client.crt
+#   tlsCert: examples/grpc-client/server.crt
+#   tlsKey: examples/grpc-client/server.key
+#   tlsClientCA: examples/grpc-client/ca.crt
 
 # Uncomment this block to enable configuration for the expiration time durations.
+# Is possible to specify units using only s, m and h suffixes.
 # expiry:
+#   deviceRequests: "5m"
 #   signingKeys: "6h"
 #   idTokens: "24h"
+#   refreshTokens:
+#     reuseInterval: "3s"
+#     validIfNotUsedFor: "2160h" # 90 days
+#     absoluteLifetime: "3960h" # 165 days
 
 # Options for controlling the logger.
 # logger:
@@ -44,7 +91,16 @@ telemetry:
 
 # Default values shown below
 # oauth2:
-    # use ["code", "token", "id_token"] to enable implicit flow for web-only clients
+    # grantTypes determines the allowed set of authorization flows.
+#   grantTypes:
+#     - "authorization_code"
+#     - "refresh_token"
+#     - "implicit"
+#     - "password"
+#     - "urn:ietf:params:oauth:grant-type:device_code"
+#     - "urn:ietf:params:oauth:grant-type:token-exchange"
+    # responseTypes determines the allowed response contents of a successful authorization flow.
+    # use ["code", "token", "id_token"] to enable implicit flow for web-only clients.
 #   responseTypes: [ "code" ] # also allowed are "token" and "id_token"
     # By default, Dex will ask for approval to share data with application
     # (approval for sharing data from connected IdP to Dex is separate process on IdP)
@@ -53,7 +109,7 @@ telemetry:
     # go directly to it. For connected IdPs, this redirects the browser away
     # from application to upstream provider such as the Google login page
 #   alwaysShowLoginScreen: false
-    # Uncommend the passwordConnector to use a specific connector for password grants
+    # Uncomment the passwordConnector to use a specific connector for password grants
 #   passwordConnector: local
 
 # Instead of reading from an external storage, use this list of clients.
@@ -65,12 +121,16 @@ staticClients:
   - 'http://127.0.0.1:5555/callback'
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
-
+#  - id: example-device-client
+#    redirectURIs:
+#      - /device/callback
+#    name: 'Static Client for Device Flow'
+#    public: true
 connectors:
 - type: mockCallback
   id: mock
   name: Example
-# - type: oidc
+# - type: google
 #   id: google
 #   name: Google
 #   config:
@@ -91,7 +151,7 @@ enablePasswordDB: true
 # If this option isn't chosen users may be added through the gRPC API.
 staticPasswords:
 - email: "admin@example.com"
-  # bcrypt hash of the string "password"
+  # bcrypt hash of the string "password": $(echo password | htpasswd -BinC 10 admin | cut -d: -f2)
   hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
   username: "admin"
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"

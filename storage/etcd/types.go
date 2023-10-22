@@ -21,10 +21,13 @@ type AuthCode struct {
 	Claims        Claims `json:"claims,omitempty"`
 
 	Expiry time.Time `json:"expiry"`
+
+	CodeChallenge       string `json:"code_challenge,omitempty"`
+	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 }
 
-func fromStorageAuthCode(a storage.AuthCode) AuthCode {
-	return AuthCode{
+func toStorageAuthCode(a AuthCode) storage.AuthCode {
+	return storage.AuthCode{
 		ID:            a.ID,
 		ClientID:      a.ClientID,
 		RedirectURI:   a.RedirectURI,
@@ -32,8 +35,28 @@ func fromStorageAuthCode(a storage.AuthCode) AuthCode {
 		ConnectorData: a.ConnectorData,
 		Nonce:         a.Nonce,
 		Scopes:        a.Scopes,
-		Claims:        fromStorageClaims(a.Claims),
+		Claims:        toStorageClaims(a.Claims),
 		Expiry:        a.Expiry,
+		PKCE: storage.PKCE{
+			CodeChallenge:       a.CodeChallenge,
+			CodeChallengeMethod: a.CodeChallengeMethod,
+		},
+	}
+}
+
+func fromStorageAuthCode(a storage.AuthCode) AuthCode {
+	return AuthCode{
+		ID:                  a.ID,
+		ClientID:            a.ClientID,
+		RedirectURI:         a.RedirectURI,
+		ConnectorID:         a.ConnectorID,
+		ConnectorData:       a.ConnectorData,
+		Nonce:               a.Nonce,
+		Scopes:              a.Scopes,
+		Claims:              fromStorageClaims(a.Claims),
+		Expiry:              a.Expiry,
+		CodeChallenge:       a.PKCE.CodeChallenge,
+		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
 	}
 }
 
@@ -58,6 +81,11 @@ type AuthRequest struct {
 
 	ConnectorID   string `json:"connector_id"`
 	ConnectorData []byte `json:"connector_data"`
+
+	CodeChallenge       string `json:"code_challenge,omitempty"`
+	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
+
+	HMACKey []byte `json:"hmac_key"`
 }
 
 func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
@@ -75,6 +103,9 @@ func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		Claims:              fromStorageClaims(a.Claims),
 		ConnectorID:         a.ConnectorID,
 		ConnectorData:       a.ConnectorData,
+		CodeChallenge:       a.PKCE.CodeChallenge,
+		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
+		HMACKey:             a.HMACKey,
 	}
 }
 
@@ -93,6 +124,11 @@ func toStorageAuthRequest(a AuthRequest) storage.AuthRequest {
 		ConnectorData:       a.ConnectorData,
 		Expiry:              a.Expiry,
 		Claims:              toStorageClaims(a.Claims),
+		PKCE: storage.PKCE{
+			CodeChallenge:       a.CodeChallenge,
+			CodeChallengeMethod: a.CodeChallengeMethod,
+		},
+		HMACKey: a.HMACKey,
 	}
 }
 
@@ -100,7 +136,8 @@ func toStorageAuthRequest(a AuthRequest) storage.AuthRequest {
 type RefreshToken struct {
 	ID string `json:"id"`
 
-	Token string `json:"token"`
+	Token         string `json:"token"`
+	ObsoleteToken string `json:"obsolete_token"`
 
 	CreatedAt time.Time `json:"created_at"`
 	LastUsed  time.Time `json:"last_used"`
@@ -120,6 +157,7 @@ func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
 	return storage.RefreshToken{
 		ID:            r.ID,
 		Token:         r.Token,
+		ObsoleteToken: r.ObsoleteToken,
 		CreatedAt:     r.CreatedAt,
 		LastUsed:      r.LastUsed,
 		ClientID:      r.ClientID,
@@ -135,6 +173,7 @@ func fromStorageRefreshToken(r storage.RefreshToken) RefreshToken {
 	return RefreshToken{
 		ID:            r.ID,
 		Token:         r.Token,
+		ObsoleteToken: r.ObsoleteToken,
 		CreatedAt:     r.CreatedAt,
 		LastUsed:      r.LastUsed,
 		ClientID:      r.ClientID,
@@ -215,4 +254,76 @@ func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
 		s.Refresh = make(map[string]*storage.RefreshTokenRef)
 	}
 	return s
+}
+
+// DeviceRequest is a mirrored struct from storage with JSON struct tags
+type DeviceRequest struct {
+	UserCode     string    `json:"user_code"`
+	DeviceCode   string    `json:"device_code"`
+	ClientID     string    `json:"client_id"`
+	ClientSecret string    `json:"client_secret"`
+	Scopes       []string  `json:"scopes"`
+	Expiry       time.Time `json:"expiry"`
+}
+
+func fromStorageDeviceRequest(d storage.DeviceRequest) DeviceRequest {
+	return DeviceRequest{
+		UserCode:     d.UserCode,
+		DeviceCode:   d.DeviceCode,
+		ClientID:     d.ClientID,
+		ClientSecret: d.ClientSecret,
+		Scopes:       d.Scopes,
+		Expiry:       d.Expiry,
+	}
+}
+
+func toStorageDeviceRequest(d DeviceRequest) storage.DeviceRequest {
+	return storage.DeviceRequest{
+		UserCode:     d.UserCode,
+		DeviceCode:   d.DeviceCode,
+		ClientID:     d.ClientID,
+		ClientSecret: d.ClientSecret,
+		Scopes:       d.Scopes,
+		Expiry:       d.Expiry,
+	}
+}
+
+// DeviceToken is a mirrored struct from storage with JSON struct tags
+type DeviceToken struct {
+	DeviceCode          string    `json:"device_code"`
+	Status              string    `json:"status"`
+	Token               string    `json:"token"`
+	Expiry              time.Time `json:"expiry"`
+	LastRequestTime     time.Time `json:"last_request"`
+	PollIntervalSeconds int       `json:"poll_interval"`
+	CodeChallenge       string    `json:"code_challenge,omitempty"`
+	CodeChallengeMethod string    `json:"code_challenge_method,omitempty"`
+}
+
+func fromStorageDeviceToken(t storage.DeviceToken) DeviceToken {
+	return DeviceToken{
+		DeviceCode:          t.DeviceCode,
+		Status:              t.Status,
+		Token:               t.Token,
+		Expiry:              t.Expiry,
+		LastRequestTime:     t.LastRequestTime,
+		PollIntervalSeconds: t.PollIntervalSeconds,
+		CodeChallenge:       t.PKCE.CodeChallenge,
+		CodeChallengeMethod: t.PKCE.CodeChallengeMethod,
+	}
+}
+
+func toStorageDeviceToken(t DeviceToken) storage.DeviceToken {
+	return storage.DeviceToken{
+		DeviceCode:          t.DeviceCode,
+		Status:              t.Status,
+		Token:               t.Token,
+		Expiry:              t.Expiry,
+		LastRequestTime:     t.LastRequestTime,
+		PollIntervalSeconds: t.PollIntervalSeconds,
+		PKCE: storage.PKCE{
+			CodeChallenge:       t.CodeChallenge,
+			CodeChallengeMethod: t.CodeChallengeMethod,
+		},
+	}
 }

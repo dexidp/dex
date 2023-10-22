@@ -6,18 +6,18 @@ import (
 	"crypto/x509"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/dexidp/dex/api"
+	"github.com/dexidp/dex/api/v2"
 )
 
 func newDexClient(hostAndPort, caPath, clientCrt, clientKey string) (api.DexClient, error) {
 	cPool := x509.NewCertPool()
-	caCert, err := ioutil.ReadFile(caPath)
+	caCert, err := os.ReadFile(caPath)
 	if err != nil {
 		return nil, fmt.Errorf("invalid CA crt file: %s", caPath)
 	}
@@ -58,7 +58,7 @@ func createPassword(cli api.DexClient) error {
 
 	// Create password.
 	if resp, err := cli.CreatePassword(context.TODO(), createReq); err != nil || resp.AlreadyExists {
-		if resp.AlreadyExists {
+		if resp != nil &&  resp.AlreadyExists {
 			return fmt.Errorf("Password %s already exists", createReq.Password.Email)
 		}
 		return fmt.Errorf("failed to create password: %v", err)
@@ -115,7 +115,7 @@ func createPassword(cli api.DexClient) error {
 
 	// Delete password with email = test@example.com.
 	if resp, err := cli.DeletePassword(context.TODO(), deleteReq); err != nil || resp.NotFound {
-		if resp.NotFound {
+		if resp != nil && resp.NotFound {
 			return fmt.Errorf("Password %s not found", deleteReq.Email)
 		}
 		return fmt.Errorf("failed to delete password: %v", err)

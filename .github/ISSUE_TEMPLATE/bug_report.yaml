@@ -1,0 +1,102 @@
+name: 🐛 Bug report
+description: Report a bug to help us improve Dex
+body:
+- type: markdown
+  attributes:
+    value: |
+      Thank you for submitting a bug report!
+
+      Please fill out the template below to make it easier to debug your problem.
+
+      If you are not sure if it is a bug or not, you can contact us via the available [support channels](https://github.com/dexidp/dex/issues/new/choose).
+- type: checkboxes
+  attributes:
+    label: Preflight Checklist
+    description: Please ensure you've completed all of the following.
+    options:
+      - label: I agree to follow the [Code of Conduct](https://github.com/dexidp/dex/blob/master/.github/CODE_OF_CONDUCT.md) that this project adheres to.
+        required: true
+      - label: I have searched the [issue tracker](https://www.github.com/dexidp/dex/issues) for an issue that matches the one I want to file, without success.
+        required: true
+      - label: I am not looking for support or already pursued the available [support channels](https://github.com/dexidp/dex/issues/new/choose) without success.
+        required: true
+- type: input
+  attributes:
+    label: Version
+    description: What version of Dex are you running?
+    placeholder: 2.29.0
+  validations:
+    required: true
+- type: dropdown
+  attributes:
+    label: Storage Type
+    description: Which persistent storage type are you using?
+    options:
+      - etcd
+      - Kubernetes
+      - In-memory
+      - Postgres
+      - MySQL
+      - SQLite
+  validations:
+    required: true
+- type: dropdown
+  attributes:
+    label: Installation Type
+    description: How did you install Dex?
+    options:
+      - Binary
+      - Official container image
+      - Official Helm chart
+      - Custom container image
+      - Custom Helm chart
+      - Other (specify below)
+    multiple: true
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Expected Behavior
+    description: A clear and concise description of what you expected to happen.
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Actual Behavior
+    description: A clear description of what actually happens.
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Steps To Reproduce
+    description: Steps to reproduce the behavior if it is not self-explanatory.
+    placeholder: |
+      1. In this environment...
+      2. With this config...
+      3. Run '...'
+      4. See error...
+- type: textarea
+  attributes:
+    label: Additional Information
+    description: Links? References? Anything that will give us more context about the issue that you are encountering!
+- type: textarea
+  attributes:
+    label: Configuration
+    description: Contents of your configuration file (if relevant).
+    render: yaml
+    placeholder: |
+      issuer: http://127.0.0.1:5556/dex
+
+      storage:
+        # ...
+
+      connectors:
+        # ...
+
+      staticClients:
+        # ...
+- type: textarea
+  attributes:
+    label: Logs
+    description: Dex application logs (if relevant).
+    render: shell

@@ -1,0 +1,29 @@
+version: "3"
+
+# For LDAPS with certificate validation:
+# How to extract the TLS certificate from the OpenLDAP container, and encode it for the Dex config (`rootCAData`):
+#   $ docker-compose exec ldap cat /container/run/service/slapd/assets/certs/ca.crt | base64 -w 0
+# But note this issue: https://github.com/osixia/docker-openldap/issues/506
+
+services:
+  ldap:
+    image: osixia/openldap:1.4.0
+    # Copying is required because the entrypoint modifies the *.ldif files.
+    # For verbose output, use:  command: ["--copy-service", "--loglevel", "debug"]
+    command: ["--copy-service"]
+    environment:
+      # Required if using LDAPS:
+      # Since Dex doesn't use a client TLS certificate, downgrade from "demand" to "try".
+      LDAP_TLS_VERIFY_CLIENT: try
+    # The hostname is required if using LDAPS with certificate validation.
+    # In Dex, use the same hostname (with port) for `connectors[].config.host`.
+    #hostname: YOUR-HOSTNAME
+    #
+    # https://github.com/osixia/docker-openldap#seed-ldap-database-with-ldif
+    # Option 1: Add custom seed file -> mount to         /container/service/slapd/assets/config/bootstrap/ldif/custom/
+    # Option 2: Overwrite default seed file -> mount to  /container/service/slapd/assets/config/bootstrap/ldif/
+    volumes:
+    - ./config-ldap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/config-ldap.ldif
+    ports:
+    - 389:389
+    - 636:636

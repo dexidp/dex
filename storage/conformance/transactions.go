@@ -75,6 +75,7 @@ func testAuthRequestConcurrentUpdate(t *testing.T, s storage.Storage) {
 			EmailVerified: true,
 			Groups:        []string{"a", "b"},
 		},
+		HMACKey: []byte("hmac_key"),
 	}
 
 	if err := s.CreateAuthRequest(a); err != nil {

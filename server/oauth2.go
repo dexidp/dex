@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rsa"
@@ -29,32 +30,35 @@ import (
 
 // TODO(ericchiang): clean this file up and figure out more idiomatic error handling.
 
-// authErr is an error response to an authorization request.
 // See: https://tools.ietf.org/html/rfc6749#section-4.1.2.1
-type authErr struct {
+
+// displayedAuthErr is an error that should be displayed to the user as a web page
+type displayedAuthErr struct {
+	Status      int
+	Description string
+}
+
+func (err *displayedAuthErr) Error() string {
+	return err.Description
+}
+
+func newDisplayedErr(status int, format string, a ...interface{}) *displayedAuthErr {
+	return &displayedAuthErr{status, fmt.Sprintf(format, a...)}
+}
+
+// redirectedAuthErr is an error that should be reported back to the client by 302 redirect
+type redirectedAuthErr struct {
 	State       string
 	RedirectURI string
 	Type        string
 	Description string
 }
 
-func (err *authErr) Status() int {
-	if err.State == errServerError {
-		return http.StatusInternalServerError
-	}
-	return http.StatusBadRequest
-}
-
-func (err *authErr) Error() string {
+func (err *redirectedAuthErr) Error() string {
 	return err.Description
 }
 
-func (err *authErr) Handle() (http.Handler, bool) {
-	// Didn't get a valid redirect URI.
-	if err.RedirectURI == "" {
-		return nil, false
-	}
-
+func (err *redirectedAuthErr) Handler() http.Handler {
 	hf := func(w http.ResponseWriter, r *http.Request) {
 		v := url.Values{}
 		v.Add("state", err.State)
@@ -70,7 +74,7 @@ func (err *authErr) Handle() (http.Handler, bool) {
 		}
 		http.Redirect(w, r, redirectURI, http.StatusSeeOther)
 	}
-	return http.HandlerFunc(hf), true
+	return http.HandlerFunc(hf)
 }
 
 func tokenErr(w http.ResponseWriter, typ, description string, statusCode int) error {
@@ -89,19 +93,18 @@ func tokenErr(w http.ResponseWriter, typ, description string, statusCode int) er
 	return nil
 }
 
-// nolint
 const (
 	errInvalidRequest          = "invalid_request"
 	errUnauthorizedClient      = "unauthorized_client"
 	errAccessDenied            = "access_denied"
 	errUnsupportedResponseType = "unsupported_response_type"
+	errRequestNotSupported     = "request_not_supported"
 	errInvalidScope            = "invalid_scope"
 	errServerError             = "server_error"
 	errTemporarilyUnavailable  = "temporarily_unavailable"
 	errUnsupportedGrantType    = "unsupported_grant_type"
 	errInvalidGrant            = "invalid_grant"
 	errInvalidClient           = "invalid_client"
-	errInvalidConnectorID      = "invalid_connector_id"
 )
 
 const (
@@ -115,19 +118,47 @@ const (
 )
 
 const (
+	deviceCallbackURI = "/device/callback"
+)
+
+const (
 	redirectURIOOB = "urn:ietf:wg:oauth:2.0:oob"
 )
 
 const (
 	grantTypeAuthorizationCode = "authorization_code"
 	grantTypeRefreshToken      = "refresh_token"
+	grantTypeImplicit          = "implicit"
 	grantTypePassword          = "password"
+	grantTypeDeviceCode        = "urn:ietf:params:oauth:grant-type:device_code"
+	grantTypeTokenExchange     = "urn:ietf:params:oauth:grant-type:token-exchange"
 )
 
 const (
-	responseTypeCode    = "code"     // "Regular" flow
-	responseTypeToken   = "token"    // Implicit flow for frontend apps.
-	responseTypeIDToken = "id_token" // ID Token in url fragment
+	// https://www.rfc-editor.org/rfc/rfc8693.html#section-3
+	tokenTypeAccess  = "urn:ietf:params:oauth:token-type:access_token"
+	tokenTypeRefresh = "urn:ietf:params:oauth:token-type:refresh_token"
+	tokenTypeID      = "urn:ietf:params:oauth:token-type:id_token"
+	tokenTypeSAML1   = "urn:ietf:params:oauth:token-type:saml1"
+	tokenTypeSAML2   = "urn:ietf:params:oauth:token-type:saml2"
+	tokenTypeJWT     = "urn:ietf:params:oauth:token-type:jwt"
+)
+
+const (
+	responseTypeCode             = "code"                // "Regular" flow
+	responseTypeToken            = "token"               // Implicit flow for frontend apps.
+	responseTypeIDToken          = "id_token"            // ID Token in url fragment
+	responseTypeCodeToken        = "code token"          // "Regular" flow + Implicit flow
+	responseTypeCodeIDToken      = "code id_token"       // "Regular" flow + ID Token
+	responseTypeIDTokenToken     = "id_token token"      // ID Token + Implicit flow
+	responseTypeCodeIDTokenToken = "code id_token token" // "Regular" flow + ID Token + Implicit flow
+)
+
+const (
+	deviceTokenPending  = "authorization_pending"
+	deviceTokenComplete = "complete"
+	deviceTokenSlowDown = "slow_down"
+	deviceTokenExpired  = "expired_token"
 )
 
 func parseScopes(scopes []string) connector.Scopes {
@@ -182,7 +213,7 @@ func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []by
 
 	signer, err := jose.NewSigner(signingKey, &jose.SignerOptions{})
 	if err != nil {
-		return "", fmt.Errorf("new signier: %v", err)
+		return "", fmt.Errorf("new signer: %v", err)
 	}
 	signature, err := signer.Sign(payload)
 	if err != nil {
@@ -194,9 +225,9 @@ func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []by
 // The hash algorithm for the at_hash is determined by the signing
 // algorithm used for the id_token. From the spec:
 //
-//    ...the hash algorithm used is the hash algorithm used in the alg Header
-//    Parameter of the ID Token's JOSE Header. For instance, if the alg is RS256,
-//    hash the access_token value with SHA-256
+//	...the hash algorithm used is the hash algorithm used in the alg Header
+//	Parameter of the ID Token's JOSE Header. For instance, if the alg is RS256,
+//	hash the access_token value with SHA-256
 //
 // https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDToken
 var hashForSigAlg = map[jose.SignatureAlgorithm]func() hash.Hash{
@@ -217,11 +248,11 @@ func accessTokenHash(alg jose.SignatureAlgorithm, accessToken string) (string, e
 		return "", fmt.Errorf("unsupported signature algorithm: %s", alg)
 	}
 
-	hash := newHash()
-	if _, err := io.WriteString(hash, accessToken); err != nil {
+	hashFunc := newHash()
+	if _, err := io.WriteString(hashFunc, accessToken); err != nil {
 		return "", fmt.Errorf("computing hash: %v", err)
 	}
-	sum := hash.Sum(nil)
+	sum := hashFunc.Sum(nil)
 	return base64.RawURLEncoding.EncodeToString(sum[:len(sum)/2]), nil
 }
 
@@ -253,6 +284,7 @@ type idTokenClaims struct {
 	Nonce            string   `json:"nonce,omitempty"`
 
 	AccessTokenHash string `json:"at_hash,omitempty"`
+	CodeHash        string `json:"c_hash,omitempty"`
 
 	Email         string `json:"email,omitempty"`
 	EmailVerified *bool  `json:"email_verified,omitempty"`
@@ -270,12 +302,11 @@ type federatedIDClaims struct {
 	UserID      string `json:"user_id,omitempty"`
 }
 
-func (s *Server) newAccessToken(clientID string, claims storage.Claims, scopes []string, nonce, connID string) (accessToken string, err error) {
-	idToken, _, err := s.newIDToken(clientID, claims, scopes, nonce, storage.NewID(), connID)
-	return idToken, err
+func (s *Server) newAccessToken(clientID string, claims storage.Claims, scopes []string, nonce, connID string) (accessToken string, expiry time.Time, err error) {
+	return s.newIDToken(clientID, claims, scopes, nonce, storage.NewID(), "", connID)
 }
 
-func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, connID string) (idToken string, expiry time.Time, err error) {
+func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string) (idToken string, expiry time.Time, err error) {
 	keys, err := s.storage.GetKeys()
 	if err != nil {
 		s.logger.Errorf("Failed to get keys: %v", err)
@@ -320,6 +351,15 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 			return "", expiry, fmt.Errorf("error computing at_hash: %v", err)
 		}
 		tok.AccessTokenHash = atHash
+	}
+
+	if code != "" {
+		cHash, err := accessTokenHash(signingAlg, code)
+		if err != nil {
+			s.logger.Errorf("error computing c_hash: %v", err)
+			return "", expiry, fmt.Errorf("error computing c_hash: #{err}")
+		}
+		tok.CodeHash = cHash
 	}
 
 	for _, scope := range scopes {
@@ -385,12 +425,12 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 // parse the initial request from the OAuth2 client.
 func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthRequest, error) {
 	if err := r.ParseForm(); err != nil {
-		return nil, &authErr{"", "", errInvalidRequest, "Failed to parse request body."}
+		return nil, newDisplayedErr(http.StatusBadRequest, "Failed to parse request.")
 	}
 	q := r.Form
 	redirectURI, err := url.QueryUnescape(q.Get("redirect_uri"))
 	if err != nil {
-		return nil, &authErr{"", "", errInvalidRequest, "No redirect_uri provided."}
+		return nil, newDisplayedErr(http.StatusBadRequest, "No redirect_uri provided.")
 	}
 
 	clientID := q.Get("client_id")
@@ -401,34 +441,54 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	scopes := strings.Fields(q.Get("scope"))
 	responseTypes := strings.Fields(q.Get("response_type"))
 
+	codeChallenge := q.Get("code_challenge")
+	codeChallengeMethod := q.Get("code_challenge_method")
+
+	if codeChallengeMethod == "" {
+		codeChallengeMethod = codeChallengeMethodPlain
+	}
+
 	client, err := s.storage.GetClient(clientID)
 	if err != nil {
 		if err == storage.ErrNotFound {
-			description := fmt.Sprintf("Invalid client_id (%q).", clientID)
-			return nil, &authErr{"", "", errUnauthorizedClient, description}
+			return nil, newDisplayedErr(http.StatusNotFound, "Invalid client_id (%q).", clientID)
 		}
 		s.logger.Errorf("Failed to get client: %v", err)
-		return nil, &authErr{"", "", errServerError, ""}
+		return nil, newDisplayedErr(http.StatusInternalServerError, "Database error.")
+	}
+
+	if !validateRedirectURI(client, redirectURI) {
+		return nil, newDisplayedErr(http.StatusBadRequest, "Unregistered redirect_uri (%q).", redirectURI)
+	}
+	if redirectURI == deviceCallbackURI && client.Public {
+		redirectURI = s.issuerURL.Path + deviceCallbackURI
+	}
+
+	// From here on out, we want to redirect back to the client with an error.
+	newRedirectedErr := func(typ, format string, a ...interface{}) *redirectedAuthErr {
+		return &redirectedAuthErr{state, redirectURI, typ, fmt.Sprintf(format, a...)}
 	}
 
 	if connectorID != "" {
 		connectors, err := s.storage.ListConnectors()
 		if err != nil {
-			return nil, &authErr{"", "", errServerError, "Unable to retrieve connectors"}
+			s.logger.Errorf("Failed to list connectors: %v", err)
+			return nil, newRedirectedErr(errServerError, "Unable to retrieve connectors")
 		}
 		if !validateConnectorID(connectors, connectorID) {
-			return nil, &authErr{"", "", errInvalidRequest, "Invalid ConnectorID"}
+			return nil, newRedirectedErr(errInvalidRequest, "Invalid ConnectorID")
 		}
 	}
 
-	if !validateRedirectURI(client, redirectURI) {
-		description := fmt.Sprintf("Unregistered redirect_uri (%q).", redirectURI)
-		return nil, &authErr{"", "", errInvalidRequest, description}
+	// dex doesn't support request parameter and must return request_not_supported error
+	// https://openid.net/specs/openid-connect-core-1_0.html#6.1
+	if q.Get("request") != "" {
+		return nil, newRedirectedErr(errRequestNotSupported, "Server does not support request parameter.")
 	}
 
-	// From here on out, we want to redirect back to the client with an error.
-	newErr := func(typ, format string, a ...interface{}) *authErr {
-		return &authErr{state, redirectURI, typ, fmt.Sprintf(format, a...)}
+	if codeChallengeMethod != codeChallengeMethodS256 && codeChallengeMethod != codeChallengeMethodPlain {
+		description := fmt.Sprintf("Unsupported PKCE challenge method (%q).", codeChallengeMethod)
+		return nil, newRedirectedErr(errInvalidRequest, description)
 	}
 
 	var (
@@ -450,7 +510,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 
 			isTrusted, err := s.validateCrossClientTrust(clientID, peerID)
 			if err != nil {
-				return nil, newErr(errServerError, "Internal server error.")
+				return nil, newRedirectedErr(errServerError, "Internal server error.")
 			}
 			if !isTrusted {
 				invalidScopes = append(invalidScopes, scope)
@@ -458,13 +518,13 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		}
 	}
 	if !hasOpenIDScope {
-		return nil, newErr("invalid_scope", `Missing required scope(s) ["openid"].`)
+		return nil, newRedirectedErr(errInvalidScope, `Missing required scope(s) ["openid"].`)
 	}
 	if len(unrecognized) > 0 {
-		return nil, newErr("invalid_scope", "Unrecognized scope(s) %q", unrecognized)
+		return nil, newRedirectedErr(errInvalidScope, "Unrecognized scope(s) %q", unrecognized)
 	}
 	if len(invalidScopes) > 0 {
-		return nil, newErr("invalid_scope", "Client can't request scope(s) %q", invalidScopes)
+		return nil, newRedirectedErr(errInvalidScope, "Client can't request scope(s) %q", invalidScopes)
 	}
 
 	var rt struct {
@@ -482,23 +542,23 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		case responseTypeToken:
 			rt.token = true
 		default:
-			return nil, newErr("invalid_request", "Invalid response type %q", responseType)
+			return nil, newRedirectedErr(errInvalidRequest, "Invalid response type %q", responseType)
 		}
 
 		if !s.supportedResponseTypes[responseType] {
-			return nil, newErr(errUnsupportedResponseType, "Unsupported response type %q", responseType)
+			return nil, newRedirectedErr(errUnsupportedResponseType, "Unsupported response type %q", responseType)
 		}
 	}
 
 	if len(responseTypes) == 0 {
-		return nil, newErr("invalid_requests", "No response_type provided")
+		return nil, newRedirectedErr(errInvalidRequest, "No response_type provided")
 	}
 
 	if rt.token && !rt.code && !rt.idToken {
 		// "token" can't be provided by its own.
 		//
 		// https://openid.net/specs/openid-connect-core-1_0.html#Authentication
-		return nil, newErr("invalid_request", "Response type 'token' must be provided with type 'id_token' and/or 'code'")
+		return nil, newRedirectedErr(errInvalidRequest, "Response type 'token' must be provided with type 'id_token' and/or 'code'")
 	}
 	if !rt.code {
 		// Either "id_token token" or "id_token" has been provided which implies the
@@ -506,13 +566,13 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		//
 		// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitAuthRequest
 		if nonce == "" {
-			return nil, newErr("invalid_request", "Response type 'token' requires a 'nonce' value.")
+			return nil, newRedirectedErr(errInvalidRequest, "Response type 'token' requires a 'nonce' value.")
 		}
 	}
 	if rt.token {
 		if redirectURI == redirectURIOOB {
 			err := fmt.Sprintf("Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
-			return nil, newErr("invalid_request", err)
+			return nil, newRedirectedErr(errInvalidRequest, err)
 		}
 	}
 
@@ -526,6 +586,11 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		RedirectURI:         redirectURI,
 		ResponseTypes:       responseTypes,
 		ConnectorID:         connectorID,
+		PKCE: storage.PKCE{
+			CodeChallenge:       codeChallenge,
+			CodeChallengeMethod: codeChallengeMethod,
+		},
+		HMACKey: storage.NewHMACKey(crypto.SHA256),
 	}, nil
 }
 
@@ -557,16 +622,20 @@ func (s *Server) validateCrossClientTrust(clientID, peerID string) (trusted bool
 }
 
 func validateRedirectURI(client storage.Client, redirectURI string) bool {
-	if !client.Public {
-		for _, uri := range client.RedirectURIs {
-			if redirectURI == uri {
-				return true
-			}
+	// Allow named RedirectURIs for both public and non-public clients.
+	// This is required make PKCE-enabled web apps work, when configured as public clients.
+	for _, uri := range client.RedirectURIs {
+		if redirectURI == uri {
+			return true
 		}
+	}
+	// For non-public clients or when RedirectURIs is set, we allow only explicitly named RedirectURIs.
+	// Otherwise, we check below for special URIs used for desktop or mobile apps.
+	if !client.Public || len(client.RedirectURIs) > 0 {
 		return false
 	}
 
-	if redirectURI == redirectURIOOB {
+	if redirectURI == redirectURIOOB || redirectURI == deviceCallbackURI {
 		return true
 	}
 

@@ -31,6 +31,13 @@ func TestRelativeURL(t *testing.T) {
 			assetPath:  "assets/css/main.css",
 			expected:   "../assets/css/main.css",
 		},
+		{
+			name:       "external-url",
+			serverPath: "/dex",
+			reqPath:    "/dex/auth/connector",
+			assetPath:  "https://kubernetes.io/images/favicon.png",
+			expected:   "https://kubernetes.io/images/favicon.png",
+		},
 	}
 
 	for _, test := range tests {

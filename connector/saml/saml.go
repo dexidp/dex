@@ -7,13 +7,15 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"encoding/xml"
-	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/beevik/etree"
+	xrv "github.com/mattermost/xml-roundtrip-validator"
+	"github.com/pkg/errors"
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/russellhaering/goxmldsig/etreeutils"
 
@@ -22,7 +24,7 @@ import (
 	"github.com/dexidp/dex/pkg/log"
 )
 
-// nolint
+//nolint
 const (
 	bindingRedirect = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
 	bindingPOST     = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
@@ -60,20 +62,9 @@ var (
 		nameIDformatTransient,
 	}
 	nameIDFormatLookup = make(map[string]string)
-)
 
-func init() {
-	suffix := func(s, sep string) string {
-		if i := strings.LastIndex(s, sep); i > 0 {
-			return s[i+1:]
-		}
-		return s
-	}
-	for _, format := range nameIDFormats {
-		nameIDFormatLookup[suffix(format, ":")] = format
-		nameIDFormatLookup[format] = format
-	}
-}
+	lookupOnce sync.Once
+)
 
 // Config represents configuration options for the SAML provider.
 type Config struct {
@@ -176,6 +167,19 @@ func (c *Config) openConnector(logger log.Logger) (*provider, error) {
 	if p.nameIDPolicyFormat == "" {
 		p.nameIDPolicyFormat = nameIDFormatPersistent
 	} else {
+		lookupOnce.Do(func() {
+			suffix := func(s, sep string) string {
+				if i := strings.LastIndex(s, sep); i > 0 {
+					return s[i+1:]
+				}
+				return s
+			}
+			for _, format := range nameIDFormats {
+				nameIDFormatLookup[suffix(format, ":")] = format
+				nameIDFormatLookup[format] = format
+			}
+		})
+
 		if format, ok := nameIDFormatLookup[p.nameIDPolicyFormat]; ok {
 			p.nameIDPolicyFormat = format
 		} else {
@@ -190,7 +194,7 @@ func (c *Config) openConnector(logger log.Logger) (*provider, error) {
 
 		var caData []byte
 		if c.CA != "" {
-			data, err := ioutil.ReadFile(c.CA)
+			data, err := os.ReadFile(c.CA)
 			if err != nil {
 				return nil, fmt.Errorf("read ca file: %v", err)
 			}
@@ -284,14 +288,19 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 //
 // The steps taken are:
 //
+// * Validate XML document does not contain malicious inputs.
 // * Verify signature on XML document (or verify sig on assertion elements).
 // * Verify various parts of the Assertion element. Conditions, audience, etc.
 // * Map the Assertion's attribute elements to user info.
-//
 func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo string) (ident connector.Identity, err error) {
 	rawResp, err := base64.StdEncoding.DecodeString(samlResponse)
 	if err != nil {
 		return ident, fmt.Errorf("decode response: %v", err)
+	}
+
+	byteReader := bytes.NewReader(rawResp)
+	if xrvErr := xrv.Validate(byteReader); xrvErr != nil {
+		return ident, errors.Wrap(xrvErr, "validating XML response")
 	}
 
 	// Root element is allowed to not be signed if the Assertion element is.
@@ -364,7 +373,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	switch {
 	case subject.NameID != nil:
 		if ident.UserID = subject.NameID.Value; ident.UserID == "" {
-			return ident, fmt.Errorf("NameID element does not contain a value")
+			return ident, fmt.Errorf("element NameID does not contain a value")
 		}
 	default:
 		return ident, fmt.Errorf("subject does not contain an NameID element")
@@ -442,7 +451,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 }
 
 // validateStatus verifies that the response has a good status code or
-// formats a human readble error based on the bad status.
+// formats a human readable error based on the bad status.
 func (p *provider) validateStatus(status *status) error {
 	// StatusCode is mandatory in the Status type
 	statusCode := status.StatusCode
@@ -470,7 +479,7 @@ func (p *provider) validateStatus(status *status) error {
 // see https://www.oasis-open.org/committees/download.php/35389/sstc-saml-profiles-errata-2.0-wd-06-diff.pdf
 //
 // Some of these fields are optional, but we're going to be strict here since
-// we have no other way of guarenteeing that this is actually the response to
+// we have no other way of guaranteeing that this is actually the response to
 // the request we expect.
 func (p *provider) validateSubject(subject *subject, inResponseTo string) error {
 	// Optional according to the spec, but again, we're going to be strict here.
@@ -478,7 +487,7 @@ func (p *provider) validateSubject(subject *subject, inResponseTo string) error 
 		return fmt.Errorf("subject contained no SubjectConfirmations")
 	}
 
-	var errs []error
+	errs := make([]error, 0, len(subject.SubjectConfirmations))
 	// One of these must match our assumptions, not all.
 	for _, c := range subject.SubjectConfirmations {
 		err := func() error {
@@ -488,7 +497,7 @@ func (p *provider) validateSubject(subject *subject, inResponseTo string) error 
 
 			data := c.SubjectConfirmationData
 			if data == nil {
-				return fmt.Errorf("SubjectConfirmation contained no SubjectConfirmationData")
+				return fmt.Errorf("no SubjectConfirmationData field found in SubjectConfirmation")
 			}
 			if data.InResponseTo != inResponseTo {
 				return fmt.Errorf("expected SubjectConfirmationData InResponseTo value %q, got %q", inResponseTo, data.InResponseTo)

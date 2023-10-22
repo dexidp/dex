@@ -1,11 +1,21 @@
-apiVersion: extensions/v1beta1
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dex
+---
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
     app: dex
   name: dex
+  namespace: dex
 spec:
   replicas: 3
+  selector:
+    matchLabels:
+      app: dex
   template:
     metadata:
       labels:
@@ -13,7 +23,7 @@ spec:
     spec:
       serviceAccountName: dex # This is created below
       containers:
-      - image: quay.io/dexidp/dex:v2.10.0
+      - image: ghcr.io/dexidp/dex:v2.32.0
         name: dex
         command: ["/usr/local/bin/dex", "serve", "/etc/dex/cfg/config.yaml"]
 
@@ -38,6 +48,12 @@ spec:
             secretKeyRef:
               name: github-client
               key: client-secret
+
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 5556
+            scheme: HTTPS
       volumes:
       - name: config
         configMap:
@@ -53,6 +69,7 @@ kind: ConfigMap
 apiVersion: v1
 metadata:
   name: dex
+  namespace: dex
 data:
   config.yaml: |
     issuer: https://dex.example.com:32000
@@ -86,7 +103,7 @@ data:
     enablePasswordDB: true
     staticPasswords:
     - email: "admin@example.com"
-      # bcrypt hash of the string "password"
+      # bcrypt hash of the string "password": $(echo password | htpasswd -BinC 10 admin | cut -d: -f2)
       hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
       username: "admin"
       userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
@@ -95,6 +112,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: dex
+  namespace: dex
 spec:
   type: NodePort
   ports:
@@ -112,8 +130,9 @@ metadata:
   labels:
     app: dex
   name: dex
+  namespace: dex
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: dex
@@ -125,7 +144,7 @@ rules:
   resources: ["customresourcedefinitions"]
   verbs: ["create"] # To manage its own resources, dex must be able to create customresourcedefinitions
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: dex
@@ -136,4 +155,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: dex           # Service account assigned to the dex pod, created above
-  namespace: default  # The namespace dex is running in
+  namespace: dex  # The namespace dex is running in

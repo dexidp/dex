@@ -1,0 +1,447 @@
+dn: ou=TestQuery,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestQuery
+
+dn: ou=People,ou=TestQuery,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=TestQuery,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+
+dn: cn=john,ou=People,ou=TestQuery,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: john
+mail: johndoe@example.com
+userpassword: bar
+
+########################################################################
+
+dn: ou=TestQueryWithEmailSuffix,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestQueryWithEmailSuffix
+
+dn: ou=People,ou=TestQueryWithEmailSuffix,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=TestQueryWithEmailSuffix,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+
+dn: cn=john,ou=People,ou=TestQueryWithEmailSuffix,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: john
+userpassword: bar
+
+########################################################################
+
+dn: ou=TestUserFilter,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestUserFilter
+
+dn: ou=Seattle,ou=TestUserFilter,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Seattle
+
+dn: ou=Portland,ou=TestUserFilter,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Portland
+
+dn: ou=People,ou=Seattle,ou=TestUserFilter,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: ou=People,ou=Portland,ou=TestUserFilter,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=Seattle,ou=TestUserFilter,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+
+dn: cn=jane,ou=People,ou=Portland,ou=TestUserFilter,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoefromportland@example.com
+userpassword: baz
+
+dn: cn=john,ou=People,ou=Seattle,ou=TestUserFilter,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: john
+mail: johndoe@example.com
+userpassword: bar
+
+########################################################################
+
+dn: ou=TestGroupQuery,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestGroupQuery
+
+dn: ou=People,ou=TestGroupQuery,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=TestGroupQuery,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+
+dn: cn=john,ou=People,ou=TestGroupQuery,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: john
+mail: johndoe@example.com
+userpassword: bar
+
+# Group definitions.
+
+dn: ou=Groups,ou=TestGroupQuery,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: cn=admins,ou=Groups,ou=TestGroupQuery,dc=example,dc=org
+objectClass: groupOfNames
+cn: admins
+member: cn=john,ou=People,ou=TestGroupQuery,dc=example,dc=org
+member: cn=jane,ou=People,ou=TestGroupQuery,dc=example,dc=org
+
+dn: cn=developers,ou=Groups,ou=TestGroupQuery,dc=example,dc=org
+objectClass: groupOfNames
+cn: developers
+member: cn=jane,ou=People,ou=TestGroupQuery,dc=example,dc=org
+
+########################################################################
+
+dn: ou=TestGroupsOnUserEntity,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestGroupsOnUserEntity
+
+dn: ou=People,ou=TestGroupsOnUserEntity,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+# Groups are enumerated as part of the user entity instead of the members being
+# a list on the group entity.
+
+dn: cn=jane,ou=People,ou=TestGroupsOnUserEntity,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+departmentNumber: 1000
+departmentNumber: 1001
+
+dn: cn=john,ou=People,ou=TestGroupsOnUserEntity,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: john
+mail: johndoe@example.com
+userpassword: bar
+departmentNumber: 1000
+departmentNumber: 1002
+
+# Group definitions. Notice that they don't have any "member" field.
+
+dn: ou=Groups,ou=TestGroupsOnUserEntity,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: cn=admins,ou=Groups,ou=TestGroupsOnUserEntity,dc=example,dc=org
+objectClass: posixGroup
+cn: admins
+gidNumber: 1000
+
+dn: cn=developers,ou=Groups,ou=TestGroupsOnUserEntity,dc=example,dc=org
+objectClass: posixGroup
+cn: developers
+gidNumber: 1001
+
+dn: cn=designers,ou=Groups,ou=TestGroupsOnUserEntity,dc=example,dc=org
+objectClass: posixGroup
+cn: designers
+gidNumber: 1002
+
+########################################################################
+
+dn: ou=TestGroupFilter,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestGroupFilter
+
+dn: ou=People,ou=TestGroupFilter,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=TestGroupFilter,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+
+dn: cn=john,ou=People,ou=TestGroupFilter,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: john
+mail: johndoe@example.com
+userpassword: bar
+
+# Group definitions.
+
+dn: ou=Seattle,ou=TestGroupFilter,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Seattle
+
+dn: ou=Portland,ou=TestGroupFilter,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Portland
+
+dn: ou=Groups,ou=Seattle,ou=TestGroupFilter,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: ou=Groups,ou=Portland,ou=TestGroupFilter,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: cn=qa,ou=Groups,ou=Portland,ou=TestGroupFilter,dc=example,dc=org
+objectClass: groupOfNames
+cn: qa
+member: cn=john,ou=People,ou=TestGroupFilter,dc=example,dc=org
+
+dn: cn=admins,ou=Groups,ou=Seattle,ou=TestGroupFilter,dc=example,dc=org
+objectClass: groupOfNames
+cn: admins
+member: cn=john,ou=People,ou=TestGroupFilter,dc=example,dc=org
+member: cn=jane,ou=People,ou=TestGroupFilter,dc=example,dc=org
+
+dn: cn=developers,ou=Groups,ou=Seattle,ou=TestGroupFilter,dc=example,dc=org
+objectClass: groupOfNames
+cn: developers
+member: cn=jane,ou=People,ou=TestGroupFilter,dc=example,dc=org
+
+########################################################################
+
+dn: ou=TestGroupToUserMatchers,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestGroupToUserMatchers
+
+dn: ou=People,ou=TestGroupToUserMatchers,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=TestGroupToUserMatchers,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+uid: janedoe
+mail: janedoe@example.com
+userpassword: foo
+
+dn: cn=john,ou=People,ou=TestGroupToUserMatchers,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: john
+uid: johndoe
+mail: johndoe@example.com
+userpassword: bar
+
+# Group definitions.
+
+dn: ou=Seattle,ou=TestGroupToUserMatchers,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Seattle
+
+dn: ou=Portland,ou=TestGroupToUserMatchers,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Portland
+
+dn: ou=Groups,ou=Seattle,ou=TestGroupToUserMatchers,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: ou=UnixGroups,ou=Seattle,ou=TestGroupToUserMatchers,dc=example,dc=org
+objectClass: organizationalUnit
+ou: UnixGroups
+
+dn: ou=Groups,ou=Portland,ou=TestGroupToUserMatchers,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: ou=UnixGroups,ou=Portland,ou=TestGroupToUserMatchers,dc=example,dc=org
+objectClass: organizationalUnit
+ou: UnixGroups
+
+dn: cn=qa,ou=Groups,ou=Portland,ou=TestGroupToUserMatchers,dc=example,dc=org
+objectClass: groupOfNames
+cn: qa
+member: cn=john,ou=People,ou=TestGroupToUserMatchers,dc=example,dc=org
+
+dn: cn=logger,ou=UnixGroups,ou=Portland,ou=TestGroupToUserMatchers,dc=example,dc=org
+objectClass: posixGroup
+gidNumber: 1000
+cn: logger
+memberUid: johndoe
+
+dn: cn=admins,ou=Groups,ou=Seattle,ou=TestGroupToUserMatchers,dc=example,dc=org
+objectClass: groupOfNames
+cn: admins
+member: cn=john,ou=People,ou=TestGroupToUserMatchers,dc=example,dc=org
+member: cn=jane,ou=People,ou=TestGroupToUserMatchers,dc=example,dc=org
+
+dn: cn=developers,ou=Groups,ou=Seattle,ou=TestGroupToUserMatchers,dc=example,dc=org
+objectClass: groupOfNames
+cn: developers
+member: cn=jane,ou=People,ou=TestGroupToUserMatchers,dc=example,dc=org
+
+dn: cn=frontend,ou=UnixGroups,ou=Seattle,ou=TestGroupToUserMatchers,dc=example,dc=org
+objectClass: posixGroup
+gidNumber: 1001
+cn: frontend
+memberUid: janedoe
+
+########################################################################
+
+dn: ou=TestDeprecatedGroupToUserMatcher,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestDeprecatedGroupToUserMatcher
+
+dn: ou=People,ou=TestDeprecatedGroupToUserMatcher,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=TestDeprecatedGroupToUserMatcher,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+
+dn: cn=john,ou=People,ou=TestDeprecatedGroupToUserMatcher,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: john
+mail: johndoe@example.com
+userpassword: bar
+
+# Group definitions.
+
+dn: ou=Seattle,ou=TestDeprecatedGroupToUserMatcher,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Seattle
+
+dn: ou=Portland,ou=TestDeprecatedGroupToUserMatcher,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Portland
+
+dn: ou=Groups,ou=Seattle,ou=TestDeprecatedGroupToUserMatcher,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: ou=Groups,ou=Portland,ou=TestDeprecatedGroupToUserMatcher,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: cn=qa,ou=Groups,ou=Portland,ou=TestDeprecatedGroupToUserMatcher,dc=example,dc=org
+objectClass: groupOfNames
+cn: qa
+member: cn=john,ou=People,ou=TestDeprecatedGroupToUserMatcher,dc=example,dc=org
+
+dn: cn=admins,ou=Groups,ou=Seattle,ou=TestDeprecatedGroupToUserMatcher,dc=example,dc=org
+objectClass: groupOfNames
+cn: admins
+member: cn=john,ou=People,ou=TestDeprecatedGroupToUserMatcher,dc=example,dc=org
+member: cn=jane,ou=People,ou=TestDeprecatedGroupToUserMatcher,dc=example,dc=org
+
+dn: cn=developers,ou=Groups,ou=Seattle,ou=TestDeprecatedGroupToUserMatcher,dc=example,dc=org
+objectClass: groupOfNames
+cn: developers
+member: cn=jane,ou=People,ou=TestDeprecatedGroupToUserMatcher,dc=example,dc=org
+
+########################################################################
+
+dn: ou=TestStartTLS,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestStartTLS
+
+dn: ou=People,ou=TestStartTLS,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=TestStartTLS,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+
+########################################################################
+
+dn: ou=TestInsecureSkipVerify,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestInsecureSkipVerify
+
+dn: ou=People,ou=TestInsecureSkipVerify,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=TestInsecureSkipVerify,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+
+########################################################################
+
+dn: ou=TestLDAPS,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestLDAPS
+
+dn: ou=People,ou=TestLDAPS,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=TestLDAPS,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo

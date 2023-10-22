@@ -53,9 +53,9 @@ body {
   background-image: url(../static/img/email-icon.svg);
 }
 
-.dex-btn-icon--coreos {
-  /* B&W CoreOS SVG logo */
-  background-image: url(../static/img/coreos-icon.svg);
+.dex-btn-icon--gitea {
+  background-color: #F5F5F5;
+  background-image: url(../static/img/gitea-icon.svg);
 }
 
 .dex-btn-icon--github {
@@ -64,11 +64,19 @@ body {
 }
 
 .dex-btn-icon--gitlab {
+  background-color: #F5F5F5;
   background-image: url(../static/img/gitlab-icon.svg);
   background-size: contain;
 }
 
+.dex-btn-icon--keystone {
+  background-color: #F5F5F5;
+  background-image: url(../static/img/keystone-icon.svg);
+  background-size: contain;
+}
+
 .dex-btn-icon--oidc {
+  background-color: #EBEBEE;
   background-image: url(../static/img/oidc-icon.svg);
   background-size: contain;
 }

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,6 +37,9 @@ const (
 	// Microsoft requires this scope to list groups the user is a member of
 	// and resolve their ids to groups names.
 	scopeGroups = "directory.read.all"
+	// Microsoft requires this scope to return a refresh token
+	// see https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-permissions-and-consent#offline_access
+	scopeOfflineAccess = "offline_access"
 )
 
 // Config holds configuration options for microsoft logins.
@@ -48,6 +52,14 @@ type Config struct {
 	Groups               []string        `json:"groups"`
 	GroupNameFormat      GroupNameFormat `json:"groupNameFormat"`
 	UseGroupsAsWhitelist bool            `json:"useGroupsAsWhitelist"`
+	EmailToLowercase     bool            `json:"emailToLowercase"`
+
+	// PromptType is used for the prompt query parameter.
+	// For valid values, see https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow#request-an-authorization-code.
+	PromptType string `json:"promptType"`
+	DomainHint string `json:"domainHint"`
+
+	Scopes []string `json:"scopes"` // defaults to scopeUser (user.read)
 }
 
 // Open returns a strategy for logging in through Microsoft.
@@ -64,6 +76,10 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		groupNameFormat:      c.GroupNameFormat,
 		useGroupsAsWhitelist: c.UseGroupsAsWhitelist,
 		logger:               logger,
+		emailToLowercase:     c.EmailToLowercase,
+		promptType:           c.PromptType,
+		domainHint:           c.DomainHint,
+		scopes:               c.Scopes,
 	}
 	// By default allow logins from both personal and business/school
 	// accounts.
@@ -106,6 +122,10 @@ type microsoftConnector struct {
 	groups               []string
 	useGroupsAsWhitelist bool
 	logger               log.Logger
+	emailToLowercase     bool
+	promptType           string
+	domainHint           string
+	scopes               []string
 }
 
 func (c *microsoftConnector) isOrgTenant() bool {
@@ -117,9 +137,18 @@ func (c *microsoftConnector) groupsRequired(groupScope bool) bool {
 }
 
 func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
-	microsoftScopes := []string{scopeUser}
+	var microsoftScopes []string
+	if len(c.scopes) > 0 {
+		microsoftScopes = c.scopes
+	} else {
+		microsoftScopes = append(microsoftScopes, scopeUser)
+	}
 	if c.groupsRequired(scopes.Groups) {
 		microsoftScopes = append(microsoftScopes, scopeGroups)
+	}
+
+	if scopes.OfflineAccess {
+		microsoftScopes = append(microsoftScopes, scopeOfflineAccess)
 	}
 
 	return &oauth2.Config{
@@ -139,7 +168,15 @@ func (c *microsoftConnector) LoginURL(scopes connector.Scopes, callbackURL, stat
 		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
 
-	return c.oauth2Config(scopes).AuthCodeURL(state), nil
+	var options []oauth2.AuthCodeOption
+	if c.promptType != "" {
+		options = append(options, oauth2.SetAuthURLParam("prompt", c.promptType))
+	}
+	if c.domainHint != "" {
+		options = append(options, oauth2.SetAuthURLParam("domain_hint", c.domainHint))
+	}
+
+	return c.oauth2Config(scopes).AuthCodeURL(state, options...), nil
 }
 
 func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
@@ -162,6 +199,10 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 	user, err := c.user(ctx, client)
 	if err != nil {
 		return identity, fmt.Errorf("microsoft: get user: %v", err)
+	}
+
+	if c.emailToLowercase {
+		user.Email = strings.ToLower(user.Email)
 	}
 
 	identity = connector.Identity{
@@ -197,7 +238,7 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 
 type tokenNotifyFunc func(*oauth2.Token) error
 
-// notifyRefreshTokenSource is essentially `oauth2.ResuseTokenSource` with `TokenNotifyFunc` added.
+// notifyRefreshTokenSource is essentially `oauth2.ReuseTokenSource` with `TokenNotifyFunc` added.
 type notifyRefreshTokenSource struct {
 	new oauth2.TokenSource
 	mu  sync.Mutex // guards t
@@ -275,22 +316,27 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 
 // https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/resources/user
 // id                - The unique identifier for the user. Inherited from
-//                     directoryObject. Key. Not nullable. Read-only.
+//
+//	directoryObject. Key. Not nullable. Read-only.
+//
 // displayName       - The name displayed in the address book for the user.
-//                     This is usually the combination of the user's first name,
-//                     middle initial and last name. This property is required
-//                     when a user is created and it cannot be cleared during
-//                     updates. Supports $filter and $orderby.
+//
+//	This is usually the combination of the user's first name,
+//	middle initial and last name. This property is required
+//	when a user is created and it cannot be cleared during
+//	updates. Supports $filter and $orderby.
+//
 // userPrincipalName - The user principal name (UPN) of the user.
-//                     The UPN is an Internet-style login name for the user
-//                     based on the Internet standard RFC 822. By convention,
-//                     this should map to the user's email name. The general
-//                     format is alias@domain, where domain must be present in
-//                     the tenant’s collection of verified domains. This
-//                     property is required when a user is created. The
-//                     verified domains for the tenant can be accessed from the
-//                     verifiedDomains property of organization. Supports
-//                     $filter and $orderby.
+//
+//	The UPN is an Internet-style login name for the user
+//	based on the Internet standard RFC 822. By convention,
+//	this should map to the user's email name. The general
+//	format is alias@domain, where domain must be present in
+//	the tenant’s collection of verified domains. This
+//	property is required when a user is created. The
+//	verified domains for the tenant can be accessed from the
+//	verifiedDomains property of organization. Supports
+//	$filter and $orderby.
 type user struct {
 	ID    string `json:"id"`
 	Name  string `json:"displayName"`
@@ -323,8 +369,9 @@ func (c *microsoftConnector) user(ctx context.Context, client *http.Client) (u u
 
 // https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/resources/group
 // displayName - The display name for the group. This property is required when
-//               a group is created and it cannot be cleared during updates.
-//               Supports $filter and $orderby.
+//
+//	a group is created and it cannot be cleared during updates.
+//	Supports $filter and $orderby.
 type group struct {
 	Name string `json:"displayName"`
 }

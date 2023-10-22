@@ -6,7 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -71,9 +71,6 @@ func TestUserLoginFlow(t *testing.T) {
 	expectEquals(t, user.Name, "testuser")
 	expectEquals(t, user.Email, "testuser@example.com")
 
-	_, err = c.identityFromCrowdUser(user)
-	expectNil(t, err)
-
 	err = c.authenticateUser(context.Background(), newClient(), "testuser")
 	expectNil(t, err)
 
@@ -119,8 +116,7 @@ func TestIdentityFromCrowdUser(t *testing.T) {
 	expectEquals(t, user.Email, "testuser@example.com")
 
 	// Test unconfigured behaviour
-	i, err := c.identityFromCrowdUser(user)
-	expectNil(t, err)
+	i := c.identityFromCrowdUser(user)
 	expectEquals(t, i.UserID, "12345")
 	expectEquals(t, i.Username, "testuser")
 	expectEquals(t, i.Email, "testuser@example.com")
@@ -131,23 +127,19 @@ func TestIdentityFromCrowdUser(t *testing.T) {
 	expectEquals(t, i.PreferredUsername, "")
 
 	c.Config.PreferredUsernameField = "key"
-	i, err = c.identityFromCrowdUser(user)
-	expectNil(t, err)
+	i = c.identityFromCrowdUser(user)
 	expectEquals(t, i.PreferredUsername, "12345")
 
 	c.Config.PreferredUsernameField = "name"
-	i, err = c.identityFromCrowdUser(user)
-	expectNil(t, err)
+	i = c.identityFromCrowdUser(user)
 	expectEquals(t, i.PreferredUsername, "testuser")
 
 	c.Config.PreferredUsernameField = "email"
-	i, err = c.identityFromCrowdUser(user)
-	expectNil(t, err)
+	i = c.identityFromCrowdUser(user)
 	expectEquals(t, i.PreferredUsername, "testuser@example.com")
 
 	c.Config.PreferredUsernameField = "invalidstring"
-	i, err = c.identityFromCrowdUser(user)
-	expectNil(t, err)
+	i = c.identityFromCrowdUser(user)
 	expectEquals(t, i.PreferredUsername, "")
 }
 
@@ -160,7 +152,7 @@ func newTestCrowdConnector(baseURL string) crowdConnector {
 	connector := crowdConnector{}
 	connector.BaseURL = baseURL
 	connector.logger = &logrus.Logger{
-		Out:       ioutil.Discard,
+		Out:       io.Discard,
 		Level:     logrus.DebugLevel,
 		Formatter: &logrus.TextFormatter{DisableColors: true},
 	}

@@ -66,6 +66,10 @@ func (m *Callback) Refresh(ctx context.Context, s connector.Scopes, identity con
 	return m.Identity, nil
 }
 
+func (m *Callback) TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (connector.Identity, error) {
+	return m.Identity, nil
+}
+
 // CallbackConfig holds the configuration parameters for a connector which requires no interaction.
 type CallbackConfig struct{}
 
@@ -107,6 +111,7 @@ func (p passwordConnector) Login(ctx context.Context, s connector.Scopes, userna
 			Username:      "Kilgore Trout",
 			Email:         "kilgore@kilgore.trout",
 			EmailVerified: true,
+			ConnectorData: []byte(`{"test": "true"}`),
 		}, true, nil
 	}
 	return identity, false, nil

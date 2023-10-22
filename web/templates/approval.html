@@ -5,12 +5,16 @@
 
   <hr class="dex-separator">
   <div>
+    {{ if .Scopes }}
     <div class="dex-subtle-text">{{ .Client }} would like to:</div>
     <ul class="dex-list">
       {{ range $scope := .Scopes }}
       <li>{{ $scope }}</li>
       {{ end }}
     </ul>
+    {{ else }}
+    <div class="dex-subtle-text">{{ .Client }} has not requested any personal information</div>
+    {{ end }}
   </div>
   <hr class="dex-separator">
 

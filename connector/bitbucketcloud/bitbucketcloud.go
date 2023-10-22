@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -21,7 +21,8 @@ import (
 
 const (
 	apiURL = "https://api.bitbucket.org/2.0"
-
+	// Switch to API v2.0 when the Atlassian platform services are fully available in Bitbucket
+	legacyAPIURL = "https://api.bitbucket.org/1.0"
 	// Bitbucket requires this scope to access '/user' API endpoints.
 	scopeAccount = "account"
 	// Bitbucket requires this scope to access '/user/emails' API endpoints.
@@ -33,21 +34,24 @@ const (
 
 // Config holds configuration options for Bitbucket logins.
 type Config struct {
-	ClientID     string   `json:"clientID"`
-	ClientSecret string   `json:"clientSecret"`
-	RedirectURI  string   `json:"redirectURI"`
-	Teams        []string `json:"teams"`
+	ClientID          string   `json:"clientID"`
+	ClientSecret      string   `json:"clientSecret"`
+	RedirectURI       string   `json:"redirectURI"`
+	Teams             []string `json:"teams"`
+	IncludeTeamGroups bool     `json:"includeTeamGroups,omitempty"`
 }
 
 // Open returns a strategy for logging in through Bitbucket.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(_ string, logger log.Logger) (connector.Connector, error) {
 	b := bitbucketConnector{
-		redirectURI:  c.RedirectURI,
-		teams:        c.Teams,
-		clientID:     c.ClientID,
-		clientSecret: c.ClientSecret,
-		apiURL:       apiURL,
-		logger:       logger,
+		redirectURI:       c.RedirectURI,
+		teams:             c.Teams,
+		clientID:          c.ClientID,
+		clientSecret:      c.ClientSecret,
+		includeTeamGroups: c.IncludeTeamGroups,
+		apiURL:            apiURL,
+		legacyAPIURL:      legacyAPIURL,
+		logger:            logger,
 	}
 
 	return &b, nil
@@ -71,10 +75,13 @@ type bitbucketConnector struct {
 	clientSecret string
 	logger       log.Logger
 	apiURL       string
+	legacyAPIURL string
 
 	// the following are used only for tests
 	hostName   string
 	httpClient *http.Client
+
+	includeTeamGroups bool
 }
 
 // groupsRequired returns whether dex requires Bitbucket's 'team' scope.
@@ -344,7 +351,7 @@ func (b *bitbucketConnector) userEmail(ctx context.Context, client *http.Client)
 
 // getGroups retrieves Bitbucket teams a user is in, if any.
 func (b *bitbucketConnector) getGroups(ctx context.Context, client *http.Client, groupScope bool, userLogin string) ([]string, error) {
-	bitbucketTeams, err := b.userTeams(ctx, client)
+	bitbucketTeams, err := b.userWorkspaces(ctx, client)
 	if err != nil {
 		return nil, err
 	}
@@ -362,29 +369,33 @@ func (b *bitbucketConnector) getGroups(ctx context.Context, client *http.Client,
 	return nil, nil
 }
 
-type team struct {
-	Name string `json:"username"` // The "username" from Bitbucket Cloud is actually the team name here
+type workspaceSlug struct {
+	Slug string `json:"slug"`
 }
 
-type userTeamsResponse struct {
+type workspace struct {
+	Workspace workspaceSlug `json:"workspace"`
+}
+
+type userWorkspacesResponse struct {
 	pagedResponse
-	Values []team
+	Values []workspace `json:"values"`
 }
 
-func (b *bitbucketConnector) userTeams(ctx context.Context, client *http.Client) ([]string, error) {
+func (b *bitbucketConnector) userWorkspaces(ctx context.Context, client *http.Client) ([]string, error) {
 	var teams []string
-	apiURL := b.apiURL + "/teams?role=member"
+	apiURL := b.apiURL + "/user/permissions/workspaces"
 
 	for {
-		// https://developer.atlassian.com/bitbucket/api/2/reference/resource/teams
-		var response userTeamsResponse
+		// https://developer.atlassian.com/cloud/bitbucket/rest/api-group-workspaces/#api-workspaces-get
+		var response userWorkspacesResponse
 
 		if err := get(ctx, client, apiURL, &response); err != nil {
 			return nil, fmt.Errorf("bitbucket: get user teams: %v", err)
 		}
 
-		for _, team := range response.Values {
-			teams = append(teams, team.Name)
+		for _, value := range response.Values {
+			teams = append(teams, value.Workspace.Slug)
 		}
 
 		if response.Next == nil {
@@ -392,7 +403,37 @@ func (b *bitbucketConnector) userTeams(ctx context.Context, client *http.Client)
 		}
 	}
 
+	if b.includeTeamGroups {
+		for _, team := range teams {
+			teamGroups, err := b.userTeamGroups(ctx, client, team)
+			if err != nil {
+				return nil, fmt.Errorf("bitbucket: %v", err)
+			}
+			teams = append(teams, teamGroups...)
+		}
+	}
+
 	return teams, nil
+}
+
+type group struct {
+	Slug string `json:"slug"`
+}
+
+func (b *bitbucketConnector) userTeamGroups(ctx context.Context, client *http.Client, teamName string) ([]string, error) {
+	apiURL := b.legacyAPIURL + "/groups/" + teamName
+
+	var response []group
+	if err := get(ctx, client, apiURL, &response); err != nil {
+		return nil, fmt.Errorf("get user team %q groups: %v", teamName, err)
+	}
+
+	teamGroups := make([]string, 0, len(response))
+	for _, group := range response {
+		teamGroups = append(teamGroups, teamName+"/"+group.Slug)
+	}
+
+	return teamGroups, nil
 }
 
 // get creates a "GET `apiURL`" request with context, sends the request using
@@ -412,7 +453,7 @@ func get(ctx context.Context, client *http.Client, apiURL string, v interface{})
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return fmt.Errorf("bitbucket: read body: %s: %v", resp.Status, err)
 		}

@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+    ldap:
+        image: osixia/openldap:1.4.0
+        # Copying is required because the entrypoint modifies the *.ldif files.
+        # For verbose output, use:  command: ["--copy-service", "--loglevel", "debug"]
+        command: ["--copy-service"]
+        environment:
+            LDAP_BASE_DN: "dc=example,dc=org"
+            LDAP_TLS: "true"
+            LDAP_TLS_VERIFY_CLIENT: try
+        ports:
+            - 389:389
+            - 636:636
+        volumes:
+            - ./connector/ldap/testdata/certs:/container/service/slapd/assets/certs
+            - ./connector/ldap/testdata/schema.ldif:/container/service/slapd/assets/config/bootstrap/ldif/99-schema.ldif

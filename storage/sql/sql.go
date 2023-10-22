@@ -90,7 +90,7 @@ var (
 			// Translate types.
 			{matchLiteral("bytea"), "blob"},
 			{matchLiteral("timestamptz"), "datetime(3)"},
-			// MySQL doesn't support indicies on text fields w/o
+			// MySQL doesn't support indices on text fields w/o
 			// specifying key length. Use varchar instead (767 byte
 			// is the max key length for InnoDB with 4k pages).
 			// For compound indexes (with two keys) even less.

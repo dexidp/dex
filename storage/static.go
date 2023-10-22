@@ -96,7 +96,7 @@ type staticPasswordsStorage struct {
 func WithStaticPasswords(s Storage, staticPasswords []Password, logger log.Logger) Storage {
 	passwordsByEmail := make(map[string]Password, len(staticPasswords))
 	for _, p := range staticPasswords {
-		//Enable case insensitive email comparison.
+		// Enable case insensitive email comparison.
 		lowerEmail := strings.ToLower(p.Email)
 		if _, ok := passwordsByEmail[lowerEmail]; ok {
 			logger.Errorf("Attempting to create StaticPasswords with the same email id: %s", p.Email)

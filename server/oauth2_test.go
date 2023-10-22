@@ -26,7 +26,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 
 		queryParams map[string]string
 
-		wantErr bool
+		expectedError error
 	}{
 		{
 			name: "normal request",
@@ -76,7 +76,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "code",
 				"scope":         "openid email profile",
 			},
-			wantErr: true,
+			expectedError: &displayedAuthErr{Status: http.StatusNotFound},
 		},
 		{
 			name: "invalid redirect uri",
@@ -93,7 +93,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "code",
 				"scope":         "openid email profile",
 			},
-			wantErr: true,
+			expectedError: &displayedAuthErr{Status: http.StatusBadRequest},
 		},
 		{
 			name: "implicit flow",
@@ -126,7 +126,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "code id_token",
 				"scope":         "openid email profile",
 			},
-			wantErr: true,
+			expectedError: &redirectedAuthErr{Type: errUnsupportedResponseType},
 		},
 		{
 			name: "only token response type",
@@ -143,7 +143,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "token",
 				"scope":         "openid email profile",
 			},
-			wantErr: true,
+			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
 		},
 		{
 			name: "choose connector_id",
@@ -195,12 +195,102 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "code id_token",
 				"scope":         "openid email profile",
 			},
-			wantErr: true,
+			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
+		},
+		{
+			name: "PKCE code_challenge_method plain",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id":             "bar",
+				"redirect_uri":          "https://example.com/bar",
+				"response_type":         "code",
+				"code_challenge":        "123",
+				"code_challenge_method": "plain",
+				"scope":                 "openid email profile",
+			},
+		},
+		{
+			name: "PKCE code_challenge_method default plain",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id":      "bar",
+				"redirect_uri":   "https://example.com/bar",
+				"response_type":  "code",
+				"code_challenge": "123",
+				"scope":          "openid email profile",
+			},
+		},
+		{
+			name: "PKCE code_challenge_method S256",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id":             "bar",
+				"redirect_uri":          "https://example.com/bar",
+				"response_type":         "code",
+				"code_challenge":        "123",
+				"code_challenge_method": "S256",
+				"scope":                 "openid email profile",
+			},
+		},
+		{
+			name: "PKCE invalid code_challenge_method",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id":             "bar",
+				"redirect_uri":          "https://example.com/bar",
+				"response_type":         "code",
+				"code_challenge":        "123",
+				"code_challenge_method": "invalid_method",
+				"scope":                 "openid email profile",
+			},
+			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
+		},
+		{
+			name: "No response type",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id":             "bar",
+				"redirect_uri":          "https://example.com/bar",
+				"code_challenge":        "123",
+				"code_challenge_method": "plain",
+				"scope":                 "openid email profile",
+			},
+			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
 		},
 	}
 
 	for _, tc := range tests {
-		func() {
+		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
@@ -222,14 +312,38 @@ func TestParseAuthorizationRequest(t *testing.T) {
 			} else {
 				req = httptest.NewRequest("GET", httpServer.URL+"/auth?"+params.Encode(), nil)
 			}
+
 			_, err := server.parseAuthorizationRequest(req)
-			if err != nil && !tc.wantErr {
-				t.Errorf("%s: %v", tc.name, err)
+			if tc.expectedError == nil {
+				if err != nil {
+					t.Errorf("%s: expected no error", tc.name)
+				}
+			} else {
+				switch expectedErr := tc.expectedError.(type) {
+				case *redirectedAuthErr:
+					e, ok := err.(*redirectedAuthErr)
+					if !ok {
+						t.Fatalf("%s: expected redirectedAuthErr error", tc.name)
+					}
+					if e.Type != expectedErr.Type {
+						t.Errorf("%s: expected error type %v, got %v", tc.name, expectedErr.Type, e.Type)
+					}
+					if e.RedirectURI != tc.queryParams["redirect_uri"] {
+						t.Errorf("%s: expected error to be returned in redirect to %v", tc.name, tc.queryParams["redirect_uri"])
+					}
+				case *displayedAuthErr:
+					e, ok := err.(*displayedAuthErr)
+					if !ok {
+						t.Fatalf("%s: expected displayedAuthErr error", tc.name)
+					}
+					if e.Status != expectedErr.Status {
+						t.Errorf("%s: expected http status %v, got %v", tc.name, expectedErr.Status, e.Status)
+					}
+				default:
+					t.Fatalf("%s: unsupported error type", tc.name)
+				}
 			}
-			if err == nil && tc.wantErr {
-				t.Errorf("%s: expected error", tc.name)
-			}
-		}()
+		})
 	}
 }
 
@@ -268,12 +382,21 @@ func TestValidRedirectURI(t *testing.T) {
 				RedirectURIs: []string{"http://foo.com/bar"},
 			},
 			redirectURI: "http://foo.com/bar/baz",
+			wantValid:   false,
 		},
+		// These special desktop + device + localhost URIs are allowed by default.
 		{
 			client: storage.Client{
 				Public: true,
 			},
 			redirectURI: "urn:ietf:wg:oauth:2.0:oob",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				Public: true,
+			},
+			redirectURI: "/device/callback",
 			wantValid:   true,
 		},
 		{
@@ -296,6 +419,113 @@ func TestValidRedirectURI(t *testing.T) {
 			},
 			redirectURI: "http://localhost",
 			wantValid:   true,
+		},
+		// Both Public + RedirectURIs configured: Could e.g. be a PKCE-enabled web app.
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar"},
+			},
+			redirectURI: "http://foo.com/bar",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar"},
+			},
+			redirectURI: "http://foo.com/bar/baz",
+			wantValid:   false,
+		},
+		// These special desktop + device + localhost URIs are not allowed implicitly when RedirectURIs is non-empty.
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar"},
+			},
+			redirectURI: "urn:ietf:wg:oauth:2.0:oob",
+			wantValid:   false,
+		},
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar"},
+			},
+			redirectURI: "/device/callback",
+			wantValid:   false,
+		},
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar"},
+			},
+			redirectURI: "http://localhost:8080/",
+			wantValid:   false,
+		},
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar"},
+			},
+			redirectURI: "http://localhost:991/bar",
+			wantValid:   false,
+		},
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar"},
+			},
+			redirectURI: "http://localhost",
+			wantValid:   false,
+		},
+		// These special desktop + device + localhost URIs can still be specified explicitly.
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar", "urn:ietf:wg:oauth:2.0:oob"},
+			},
+			redirectURI: "urn:ietf:wg:oauth:2.0:oob",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar", "/device/callback"},
+			},
+			redirectURI: "/device/callback",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar", "http://localhost:8080/"},
+			},
+			redirectURI: "http://localhost:8080/",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar", "http://localhost:991/bar"},
+			},
+			redirectURI: "http://localhost:991/bar",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				Public:       true,
+				RedirectURIs: []string{"http://foo.com/bar", "http://localhost"},
+			},
+			redirectURI: "http://localhost",
+			wantValid:   true,
+		},
+		// Non-localhost URIs are not allowed implicitly.
+		{
+			client: storage.Client{
+				Public: true,
+			},
+			redirectURI: "http://foo.com/bar",
+			wantValid:   false,
 		},
 		{
 			client: storage.Client{

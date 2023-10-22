@@ -6,16 +6,27 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"os"
+	"os/signal"
+	"path/filepath"
+	"runtime"
 	"strings"
+	"sync/atomic"
+	"syscall"
 	"time"
 
+	gosundheit "github.com/AppsFlyer/go-sundheit"
+	"github.com/AppsFlyer/go-sundheit/checks"
+	gosundheithttp "github.com/AppsFlyer/go-sundheit/http"
+	"github.com/fsnotify/fsnotify"
 	"github.com/ghodss/yaml"
 	grpcprometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -23,39 +34,54 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/dexidp/dex/api"
+	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
 )
 
-func commandServe() *cobra.Command {
-	return &cobra.Command{
-		Use:     "serve [ config file ]",
-		Short:   "Connect to the storage and begin serving requests.",
-		Long:    ``,
-		Example: "dex serve config.yaml",
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := serve(cmd, args); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(2)
-			}
-		},
-	}
+type serveOptions struct {
+	// Config file path
+	config string
+
+	// Flags
+	webHTTPAddr   string
+	webHTTPSAddr  string
+	telemetryAddr string
+	grpcAddr      string
 }
 
-func serve(cmd *cobra.Command, args []string) error {
-	switch len(args) {
-	default:
-		return errors.New("surplus arguments")
-	case 0:
-		// TODO(ericchiang): Consider having a default config file location.
-		return errors.New("no arguments provided")
-	case 1:
+func commandServe() *cobra.Command {
+	options := serveOptions{}
+
+	cmd := &cobra.Command{
+		Use:     "serve [flags] [config file]",
+		Short:   "Launch Dex",
+		Example: "dex serve config.yaml",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cmd.SilenceUsage = true
+			cmd.SilenceErrors = true
+
+			options.config = args[0]
+
+			return runServe(options)
+		},
 	}
 
-	configFile := args[0]
-	configData, err := ioutil.ReadFile(configFile)
+	flags := cmd.Flags()
+
+	flags.StringVar(&options.webHTTPAddr, "web-http-addr", "", "Web HTTP address")
+	flags.StringVar(&options.webHTTPSAddr, "web-https-addr", "", "Web HTTPS address")
+	flags.StringVar(&options.telemetryAddr, "telemetry-addr", "", "Telemetry address")
+	flags.StringVar(&options.grpcAddr, "grpc-addr", "", "gRPC API address")
+
+	return cmd
+}
+
+func runServe(options serveOptions) error {
+	configFile := options.config
+	configData, err := os.ReadFile(configFile)
 	if err != nil {
 		return fmt.Errorf("failed to read config file %s: %v", configFile, err)
 	}
@@ -65,10 +91,21 @@ func serve(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error parse config file %s: %v", configFile, err)
 	}
 
+	applyConfigOverrides(options, &c)
+
 	logger, err := newLogger(c.Logger.Level, c.Logger.Format)
 	if err != nil {
 		return fmt.Errorf("invalid config: %v", err)
 	}
+
+	logger.Infof(
+		"Dex Version: %s, Go Version: %s, Go OS/ARCH: %s %s",
+		version,
+		runtime.Version(),
+		runtime.GOOS,
+		runtime.GOARCH,
+	)
+
 	if c.Logger.Level != "" {
 		logger.Infof("config using log level: %s", c.Logger.Level)
 	}
@@ -79,12 +116,12 @@ func serve(cmd *cobra.Command, args []string) error {
 	logger.Infof("config issuer: %s", c.Issuer)
 
 	prometheusRegistry := prometheus.NewRegistry()
-	err = prometheusRegistry.Register(prometheus.NewGoCollector())
+	err = prometheusRegistry.Register(collectors.NewGoCollector())
 	if err != nil {
 		return fmt.Errorf("failed to register Go runtime metrics: %v", err)
 	}
 
-	err = prometheusRegistry.Register(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+	err = prometheusRegistry.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	if err != nil {
 		return fmt.Errorf("failed to register process metrics: %v", err)
 	}
@@ -109,33 +146,18 @@ func serve(cmd *cobra.Command, args []string) error {
 	}
 
 	if c.GRPC.TLSCert != "" {
-		// Parse certificates from certificate file and key file for server.
-		cert, err := tls.LoadX509KeyPair(c.GRPC.TLSCert, c.GRPC.TLSKey)
-		if err != nil {
-			return fmt.Errorf("invalid config: error parsing gRPC certificate file: %v", err)
-		}
-
-		tlsConfig := tls.Config{
-			Certificates:             []tls.Certificate{cert},
+		baseTLSConfig := &tls.Config{
 			MinVersion:               tls.VersionTLS12,
 			CipherSuites:             allowedTLSCiphers,
 			PreferServerCipherSuites: true,
 		}
 
+		tlsConfig, err := newTLSReloader(logger, c.GRPC.TLSCert, c.GRPC.TLSKey, c.GRPC.TLSClientCA, baseTLSConfig)
+		if err != nil {
+			return fmt.Errorf("invalid config: get gRPC TLS: %v", err)
+		}
+
 		if c.GRPC.TLSClientCA != "" {
-			// Parse certificates from client CA file to a new CertPool.
-			cPool := x509.NewCertPool()
-			clientCert, err := ioutil.ReadFile(c.GRPC.TLSClientCA)
-			if err != nil {
-				return fmt.Errorf("invalid config: reading from client CA file: %v", err)
-			}
-			if !cPool.AppendCertsFromPEM(clientCert) {
-				return errors.New("invalid config: failed to parse client CA")
-			}
-
-			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-			tlsConfig.ClientCAs = cPool
-
 			// Only add metrics if client auth is enabled
 			grpcOptions = append(grpcOptions,
 				grpc.StreamInterceptor(grpcMetrics.StreamServerInterceptor()),
@@ -143,13 +165,15 @@ func serve(cmd *cobra.Command, args []string) error {
 			)
 		}
 
-		grpcOptions = append(grpcOptions, grpc.Creds(credentials.NewTLS(&tlsConfig)))
+		grpcOptions = append(grpcOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
 	}
 
 	s, err := c.Storage.Config.Open(logger)
 	if err != nil {
 		return fmt.Errorf("failed to initialize storage: %v", err)
 	}
+	defer s.Close()
+
 	logger.Infof("config storage: %s", c.Storage.Type)
 
 	if len(c.StaticClients) > 0 {
@@ -232,7 +256,10 @@ func serve(cmd *cobra.Command, args []string) error {
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
 
+	healthChecker := gosundheit.New()
+
 	serverConfig := server.Config{
+		AllowedGrantTypes:      c.OAuth2.GrantTypes,
 		SupportedResponseTypes: c.OAuth2.ResponseTypes,
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
@@ -244,6 +271,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		Logger:                 logger,
 		Now:                    now,
 		PrometheusRegistry:     prometheusRegistry,
+		HealthChecker:          healthChecker,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
@@ -269,69 +297,194 @@ func serve(cmd *cobra.Command, args []string) error {
 		logger.Infof("config auth requests valid for: %v", authRequests)
 		serverConfig.AuthRequestsValidFor = authRequests
 	}
+	if c.Expiry.DeviceRequests != "" {
+		deviceRequests, err := time.ParseDuration(c.Expiry.DeviceRequests)
+		if err != nil {
+			return fmt.Errorf("invalid config value %q for device request expiry: %v", c.Expiry.AuthRequests, err)
+		}
+		logger.Infof("config device requests valid for: %v", deviceRequests)
+		serverConfig.DeviceRequestsValidFor = deviceRequests
+	}
+	refreshTokenPolicy, err := server.NewRefreshTokenPolicy(
+		logger,
+		c.Expiry.RefreshTokens.DisableRotation,
+		c.Expiry.RefreshTokens.ValidIfNotUsedFor,
+		c.Expiry.RefreshTokens.AbsoluteLifetime,
+		c.Expiry.RefreshTokens.ReuseInterval,
+	)
+	if err != nil {
+		return fmt.Errorf("invalid refresh token expiration policy config: %v", err)
+	}
 
+	serverConfig.RefreshTokenPolicy = refreshTokenPolicy
 	serv, err := server.NewServer(context.Background(), serverConfig)
 	if err != nil {
 		return fmt.Errorf("failed to initialize server: %v", err)
 	}
 
-	telemetryServ := http.NewServeMux()
-	telemetryServ.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
+	telemetryRouter := http.NewServeMux()
+	telemetryRouter.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
 
-	errc := make(chan error, 3)
+	// Configure health checker
+	{
+		handler := gosundheithttp.HandleHealthJSON(healthChecker)
+		telemetryRouter.Handle("/healthz", handler)
+
+		// Kubernetes style health checks
+		telemetryRouter.HandleFunc("/healthz/live", func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("ok"))
+		})
+		telemetryRouter.Handle("/healthz/ready", handler)
+	}
+
+	healthChecker.RegisterCheck(
+		&checks.CustomCheck{
+			CheckName: "storage",
+			CheckFunc: storage.NewCustomHealthCheckFunc(serverConfig.Storage, serverConfig.Now),
+		},
+		gosundheit.ExecutionPeriod(15*time.Second),
+		gosundheit.InitiallyPassing(true),
+	)
+
+	var group run.Group
+
+	// Set up telemetry server
 	if c.Telemetry.HTTP != "" {
-		logger.Infof("listening (http/telemetry) on %s", c.Telemetry.HTTP)
-		go func() {
-			err := http.ListenAndServe(c.Telemetry.HTTP, telemetryServ)
-			errc <- fmt.Errorf("listening on %s failed: %v", c.Telemetry.HTTP, err)
-		}()
-	}
-	if c.Web.HTTP != "" {
-		logger.Infof("listening (http) on %s", c.Web.HTTP)
-		go func() {
-			err := http.ListenAndServe(c.Web.HTTP, serv)
-			errc <- fmt.Errorf("listening on %s failed: %v", c.Web.HTTP, err)
-		}()
-	}
-	if c.Web.HTTPS != "" {
-		httpsSrv := &http.Server{
-			Addr:    c.Web.HTTPS,
-			Handler: serv,
-			TLSConfig: &tls.Config{
-				CipherSuites:             allowedTLSCiphers,
-				PreferServerCipherSuites: true,
-				MinVersion:               tls.VersionTLS12,
-			},
+		const name = "telemetry"
+
+		logger.Infof("listening (%s) on %s", name, c.Telemetry.HTTP)
+
+		l, err := net.Listen("tcp", c.Telemetry.HTTP)
+		if err != nil {
+			return fmt.Errorf("listening (%s) on %s: %v", name, c.Telemetry.HTTP, err)
 		}
 
-		logger.Infof("listening (https) on %s", c.Web.HTTPS)
-		go func() {
-			err = httpsSrv.ListenAndServeTLS(c.Web.TLSCert, c.Web.TLSKey)
-			errc <- fmt.Errorf("listening on %s failed: %v", c.Web.HTTPS, err)
-		}()
-	}
-	if c.GRPC.Addr != "" {
-		logger.Infof("listening (grpc) on %s", c.GRPC.Addr)
-		go func() {
-			errc <- func() error {
-				list, err := net.Listen("tcp", c.GRPC.Addr)
-				if err != nil {
-					return fmt.Errorf("listening on %s failed: %v", c.GRPC.Addr, err)
-				}
-				s := grpc.NewServer(grpcOptions...)
-				api.RegisterDexServer(s, server.NewAPI(serverConfig.Storage, logger))
-				grpcMetrics.InitializeMetrics(s)
-				if c.GRPC.Reflection {
-					logger.Info("enabling reflection in grpc service")
-					reflection.Register(s)
-				}
-				err = s.Serve(list)
-				return fmt.Errorf("listening on %s failed: %v", c.GRPC.Addr, err)
-			}()
-		}()
+		if c.Telemetry.EnableProfiling {
+			pprofHandler(telemetryRouter)
+		}
+
+		server := &http.Server{
+			Handler: telemetryRouter,
+		}
+		defer server.Close()
+
+		group.Add(func() error {
+			return server.Serve(l)
+		}, func(err error) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+
+			logger.Debugf("starting graceful shutdown (%s)", name)
+			if err := server.Shutdown(ctx); err != nil {
+				logger.Errorf("graceful shutdown (%s): %v", name, err)
+			}
+		})
 	}
 
-	return <-errc
+	// Set up http server
+	if c.Web.HTTP != "" {
+		const name = "http"
+
+		logger.Infof("listening (%s) on %s", name, c.Web.HTTP)
+
+		l, err := net.Listen("tcp", c.Web.HTTP)
+		if err != nil {
+			return fmt.Errorf("listening (%s) on %s: %v", name, c.Web.HTTP, err)
+		}
+
+		server := &http.Server{
+			Handler: serv,
+		}
+		defer server.Close()
+
+		group.Add(func() error {
+			return server.Serve(l)
+		}, func(err error) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+
+			logger.Debugf("starting graceful shutdown (%s)", name)
+			if err := server.Shutdown(ctx); err != nil {
+				logger.Errorf("graceful shutdown (%s): %v", name, err)
+			}
+		})
+	}
+
+	// Set up https server
+	if c.Web.HTTPS != "" {
+		const name = "https"
+
+		logger.Infof("listening (%s) on %s", name, c.Web.HTTPS)
+
+		l, err := net.Listen("tcp", c.Web.HTTPS)
+		if err != nil {
+			return fmt.Errorf("listening (%s) on %s: %v", name, c.Web.HTTPS, err)
+		}
+
+		baseTLSConfig := &tls.Config{
+			MinVersion:               tls.VersionTLS12,
+			CipherSuites:             allowedTLSCiphers,
+			PreferServerCipherSuites: true,
+		}
+
+		tlsConfig, err := newTLSReloader(logger, c.Web.TLSCert, c.Web.TLSKey, "", baseTLSConfig)
+		if err != nil {
+			return fmt.Errorf("invalid config: get HTTP TLS: %v", err)
+		}
+
+		server := &http.Server{
+			Handler:   serv,
+			TLSConfig: tlsConfig,
+		}
+		defer server.Close()
+
+		group.Add(func() error {
+			return server.ServeTLS(l, "", "")
+		}, func(err error) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+
+			logger.Debugf("starting graceful shutdown (%s)", name)
+			if err := server.Shutdown(ctx); err != nil {
+				logger.Errorf("graceful shutdown (%s): %v", name, err)
+			}
+		})
+	}
+
+	// Set up grpc server
+	if c.GRPC.Addr != "" {
+		logger.Infof("listening (grpc) on %s", c.GRPC.Addr)
+
+		grpcListener, err := net.Listen("tcp", c.GRPC.Addr)
+		if err != nil {
+			return fmt.Errorf("listening (grcp) on %s: %w", c.GRPC.Addr, err)
+		}
+
+		grpcSrv := grpc.NewServer(grpcOptions...)
+		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger, version))
+
+		grpcMetrics.InitializeMetrics(grpcSrv)
+		if c.GRPC.Reflection {
+			logger.Info("enabling reflection in grpc service")
+			reflection.Register(grpcSrv)
+		}
+
+		group.Add(func() error {
+			return grpcSrv.Serve(grpcListener)
+		}, func(err error) {
+			logger.Debugf("starting graceful shutdown (grpc)")
+			grpcSrv.GracefulStop()
+		})
+	}
+
+	group.Add(run.SignalHandler(context.Background(), os.Interrupt, syscall.SIGTERM))
+	if err := group.Run(); err != nil {
+		if _, ok := err.(run.SignalError); !ok {
+			return fmt.Errorf("run groups: %w", err)
+		}
+		logger.Infof("%v, shutdown now", err)
+	}
+	return nil
 }
 
 var (
@@ -376,4 +529,156 @@ func newLogger(level string, format string) (log.Logger, error) {
 		Formatter: &formatter,
 		Level:     logLevel,
 	}, nil
+}
+
+func applyConfigOverrides(options serveOptions, config *Config) {
+	if options.webHTTPAddr != "" {
+		config.Web.HTTP = options.webHTTPAddr
+	}
+
+	if options.webHTTPSAddr != "" {
+		config.Web.HTTPS = options.webHTTPSAddr
+	}
+
+	if options.telemetryAddr != "" {
+		config.Telemetry.HTTP = options.telemetryAddr
+	}
+
+	if options.grpcAddr != "" {
+		config.GRPC.Addr = options.grpcAddr
+	}
+
+	if config.Frontend.Dir == "" {
+		config.Frontend.Dir = os.Getenv("DEX_FRONTEND_DIR")
+	}
+
+	if len(config.OAuth2.GrantTypes) == 0 {
+		config.OAuth2.GrantTypes = []string{
+			"authorization_code",
+			"implicit",
+			"password",
+			"refresh_token",
+			"urn:ietf:params:oauth:grant-type:device_code",
+			"urn:ietf:params:oauth:grant-type:token-exchange",
+		}
+	}
+}
+
+func pprofHandler(router *http.ServeMux) {
+	router.HandleFunc("/debug/pprof/", pprof.Index)
+	router.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	router.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	router.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	router.HandleFunc("/debug/pprof/trace", pprof.Trace)
+}
+
+// newTLSReloader returns a [tls.Config] with GetCertificate or GetConfigForClient set
+// to reload certificates from the given paths on SIGHUP or on file creates (atomic update via rename).
+func newTLSReloader(logger log.Logger, certFile, keyFile, caFile string, baseConfig *tls.Config) (*tls.Config, error) {
+	// trigger reload on channel
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, syscall.SIGHUP)
+
+	// files to watch
+	watchFiles := map[string]struct{}{
+		certFile: {},
+		keyFile:  {},
+	}
+	if caFile != "" {
+		watchFiles[caFile] = struct{}{}
+	}
+	watchDirs := make(map[string]struct{}) // dedupe dirs
+	for f := range watchFiles {
+		dir := filepath.Dir(f)
+		if !strings.HasPrefix(f, dir) {
+			// normalize name to have ./ prefix if only a local path was provided
+			// can't pass "" to watcher.Add
+			watchFiles[dir+string(filepath.Separator)+f] = struct{}{}
+		}
+		watchDirs[dir] = struct{}{}
+	}
+	// trigger reload on file change
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return nil, fmt.Errorf("create watcher for TLS reloader: %v", err)
+	}
+	// recommended by fsnotify: watch the dir to handle renames
+	// https://pkg.go.dev/github.com/fsnotify/fsnotify#hdr-Watching_files
+	for dir := range watchDirs {
+		logger.Debugf("watching dir: %v", dir)
+		err := watcher.Add(dir)
+		if err != nil {
+			return nil, fmt.Errorf("watch dir for TLS reloader: %v", err)
+		}
+	}
+
+	// load once outside the goroutine so we can return an error on misconfig
+	initialConfig, err := loadTLSConfig(certFile, keyFile, caFile, baseConfig)
+	if err != nil {
+		return nil, fmt.Errorf("load TLS config: %v", err)
+	}
+
+	// stored version of current tls config
+	ptr := &atomic.Pointer[tls.Config]{}
+	ptr.Store(initialConfig)
+
+	// start background worker to reload certs
+	go func() {
+	loop:
+		for {
+			select {
+			case sig := <-sigc:
+				logger.Debug("reloading cert from signal: %v", sig)
+			case evt := <-watcher.Events:
+				if _, ok := watchFiles[evt.Name]; !ok || !evt.Has(fsnotify.Create) {
+					continue loop
+				}
+				logger.Debug("reloading cert from fsnotify: %v %v", evt.Name, evt.Op.String())
+			case err := <-watcher.Errors:
+				logger.Errorf("TLS reloader watch: %v", err)
+			}
+
+			loaded, err := loadTLSConfig(certFile, keyFile, caFile, baseConfig)
+			if err != nil {
+				logger.Errorf("reload TLS config: %v", err)
+			}
+			ptr.Store(loaded)
+		}
+	}()
+
+	conf := &tls.Config{}
+	// https://pkg.go.dev/crypto/tls#baseConfig
+	// Server configurations must set one of Certificates, GetCertificate or GetConfigForClient.
+	if caFile != "" {
+		// grpc will use this via tls.Server for mTLS
+		conf.GetConfigForClient = func(chi *tls.ClientHelloInfo) (*tls.Config, error) { return ptr.Load(), nil }
+	} else {
+		// net/http only uses Certificates or GetCertificate
+		conf.GetCertificate = func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) { return &ptr.Load().Certificates[0], nil }
+	}
+	return conf, nil
+}
+
+// loadTLSConfig loads the given file paths into a [tls.Config]
+func loadTLSConfig(certFile, keyFile, caFile string, baseConfig *tls.Config) (*tls.Config, error) {
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("loading TLS keypair: %v", err)
+	}
+	loadedConfig := baseConfig.Clone() // copy
+	loadedConfig.Certificates = []tls.Certificate{cert}
+	if caFile != "" {
+		cPool := x509.NewCertPool()
+		clientCert, err := os.ReadFile(caFile)
+		if err != nil {
+			return nil, fmt.Errorf("reading from client CA file: %v", err)
+		}
+		if !cPool.AppendCertsFromPEM(clientCert) {
+			return nil, errors.New("failed to parse client CA")
+		}
+
+		loadedConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		loadedConfig.ClientCAs = cPool
+	}
+	return loadedConfig, nil
 }

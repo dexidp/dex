@@ -4,22 +4,24 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
+	"io/fs"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
-	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/Masterminds/sprig/v3"
 )
 
 const (
-	tmplApproval = "approval.html"
-	tmplLogin    = "login.html"
-	tmplPassword = "password.html"
-	tmplOOB      = "oob.html"
-	tmplError    = "error.html"
+	tmplApproval      = "approval.html"
+	tmplLogin         = "login.html"
+	tmplPassword      = "password.html"
+	tmplOOB           = "oob.html"
+	tmplError         = "error.html"
+	tmplDevice        = "device.html"
+	tmplDeviceSuccess = "device_success.html"
 )
 
 var requiredTmpls = []string{
@@ -28,18 +30,22 @@ var requiredTmpls = []string{
 	tmplPassword,
 	tmplOOB,
 	tmplError,
+	tmplDevice,
+	tmplDeviceSuccess,
 }
 
 type templates struct {
-	loginTmpl    *template.Template
-	approvalTmpl *template.Template
-	passwordTmpl *template.Template
-	oobTmpl      *template.Template
-	errorTmpl    *template.Template
+	loginTmpl         *template.Template
+	approvalTmpl      *template.Template
+	passwordTmpl      *template.Template
+	oobTmpl           *template.Template
+	errorTmpl         *template.Template
+	deviceTmpl        *template.Template
+	deviceSuccessTmpl *template.Template
 }
 
 type webConfig struct {
-	dir       string
+	webFS     fs.FS
 	logoURL   string
 	issuer    string
 	theme     string
@@ -47,69 +53,81 @@ type webConfig struct {
 	extra     map[string]string
 }
 
-func dirExists(dir string) error {
-	stat, err := os.Stat(dir)
+func getFuncMap(c webConfig) (template.FuncMap, error) {
+	funcs := sprig.FuncMap()
+
+	issuerURL, err := url.Parse(c.issuerURL)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("directory %q does not exist", dir)
-		}
-		return fmt.Errorf("stat directory %q: %v", dir, err)
+		return nil, fmt.Errorf("error parsing issuerURL: %v", err)
 	}
-	if !stat.IsDir() {
-		return fmt.Errorf("path %q is a file not a directory", dir)
+
+	additionalFuncs := map[string]interface{}{
+		"extra":  func(k string) string { return c.extra[k] },
+		"issuer": func() string { return c.issuer },
+		"logo":   func() string { return c.logoURL },
+		"url": func(reqPath, assetPath string) string {
+			return relativeURL(issuerURL.Path, reqPath, assetPath)
+		},
 	}
-	return nil
+
+	for k, v := range additionalFuncs {
+		funcs[k] = v
+	}
+
+	return funcs, nil
 }
 
 // loadWebConfig returns static assets, theme assets, and templates used by the frontend by
-// reading the directory specified in the webConfig.
+// reading the dir specified in the webConfig. If directory is not specified it will
+// use the file system specified by webFS.
 //
 // The directory layout is expected to be:
 //
-//    ( web directory )
-//    |- static
-//    |- themes
-//    |  |- (theme name)
-//    |- templates
-//
-func loadWebConfig(c webConfig) (static, theme http.Handler, templates *templates, err error) {
+//	( web directory )
+//	|- static
+//	|- themes
+//	|  |- (theme name)
+//	|- templates
+func loadWebConfig(c webConfig) (http.Handler, http.Handler, http.HandlerFunc, *templates, error) {
+	// fallback to the default theme if the legacy theme name is provided
+	if c.theme == "coreos" || c.theme == "tectonic" {
+		c.theme = ""
+	}
 	if c.theme == "" {
-		c.theme = "coreos"
+		c.theme = "light"
 	}
 	if c.issuer == "" {
 		c.issuer = "dex"
-	}
-	if c.dir == "" {
-		c.dir = "./web"
 	}
 	if c.logoURL == "" {
 		c.logoURL = "theme/logo.png"
 	}
 
-	if err := dirExists(c.dir); err != nil {
-		return nil, nil, nil, fmt.Errorf("load web dir: %v", err)
+	staticFiles, err := fs.Sub(c.webFS, "static")
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("read static dir: %v", err)
+	}
+	themeFiles, err := fs.Sub(c.webFS, path.Join("themes", c.theme))
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("read themes dir: %v", err)
+	}
+	robotsContent, err := fs.ReadFile(c.webFS, "robots.txt")
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("read robots.txt dir: %v", err)
 	}
 
-	staticDir := filepath.Join(c.dir, "static")
-	templatesDir := filepath.Join(c.dir, "templates")
-	themeDir := filepath.Join(c.dir, "themes", c.theme)
+	static := http.FileServer(http.FS(staticFiles))
+	theme := http.FileServer(http.FS(themeFiles))
+	robots := func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, string(robotsContent)) }
 
-	for _, dir := range []string{staticDir, templatesDir, themeDir} {
-		if err := dirExists(dir); err != nil {
-			return nil, nil, nil, fmt.Errorf("load dir: %v", err)
-		}
-	}
+	templates, err := loadTemplates(c, "templates")
 
-	static = http.FileServer(http.Dir(staticDir))
-	theme = http.FileServer(http.Dir(themeDir))
-
-	templates, err = loadTemplates(c, templatesDir)
-	return
+	return static, theme, robots, templates, err
 }
 
 // loadTemplates parses the expected templates from the provided directory.
 func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
-	files, err := ioutil.ReadDir(templatesDir)
+	files, err := fs.ReadDir(c.webFS, templatesDir)
 	if err != nil {
 		return nil, fmt.Errorf("read dir: %v", err)
 	}
@@ -119,26 +137,18 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		if file.IsDir() {
 			continue
 		}
-		filenames = append(filenames, filepath.Join(templatesDir, file.Name()))
+		filenames = append(filenames, path.Join(templatesDir, file.Name()))
 	}
 	if len(filenames) == 0 {
 		return nil, fmt.Errorf("no files in template dir %q", templatesDir)
 	}
 
-	issuerURL, err := url.Parse(c.issuerURL)
+	funcs, err := getFuncMap(c)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing issuerURL: %v", err)
+		return nil, err
 	}
 
-	funcs := map[string]interface{}{
-		"issuer": func() string { return c.issuer },
-		"logo":   func() string { return c.logoURL },
-		"url":    func(reqPath, assetPath string) string { return relativeURL(issuerURL.Path, reqPath, assetPath) },
-		"lower":  strings.ToLower,
-		"extra":  func(k string) string { return c.extra[k] },
-	}
-
-	tmpls, err := template.New("").Funcs(funcs).ParseFiles(filenames...)
+	tmpls, err := template.New("").Funcs(funcs).ParseFS(c.webFS, filenames...)
 	if err != nil {
 		return nil, fmt.Errorf("parse files: %v", err)
 	}
@@ -152,11 +162,13 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		return nil, fmt.Errorf("missing template(s): %s", missingTmpls)
 	}
 	return &templates{
-		loginTmpl:    tmpls.Lookup(tmplLogin),
-		approvalTmpl: tmpls.Lookup(tmplApproval),
-		passwordTmpl: tmpls.Lookup(tmplPassword),
-		oobTmpl:      tmpls.Lookup(tmplOOB),
-		errorTmpl:    tmpls.Lookup(tmplError),
+		loginTmpl:         tmpls.Lookup(tmplLogin),
+		approvalTmpl:      tmpls.Lookup(tmplApproval),
+		passwordTmpl:      tmpls.Lookup(tmplPassword),
+		oobTmpl:           tmpls.Lookup(tmplOOB),
+		errorTmpl:         tmpls.Lookup(tmplError),
+		deviceTmpl:        tmpls.Lookup(tmplDevice),
+		deviceSuccessTmpl: tmpls.Lookup(tmplDeviceSuccess),
 	}, nil
 }
 
@@ -170,12 +182,17 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 // 3. For each part of reqPath remaining(minus one), go up one level (..)
 // 4. For each part of assetPath remaining, append it to result
 //
-//eg
-//server listens at localhost/dex so serverPath is dex
-//reqPath is /dex/auth
-//assetPath is static/main.css
-//relativeURL("/dex", "/dex/auth", "static/main.css") = "../static/main.css"
+// eg
+// server listens at localhost/dex so serverPath is dex
+// reqPath is /dex/auth
+// assetPath is static/main.css
+// relativeURL("/dex", "/dex/auth", "static/main.css") = "../static/main.css"
 func relativeURL(serverPath, reqPath, assetPath string) string {
+	if u, err := url.ParseRequestURI(assetPath); err == nil && u.Scheme != "" {
+		// assetPath points to the external URL, no changes needed
+		return assetPath
+	}
+
 	splitPath := func(p string) []string {
 		res := []string{}
 		parts := strings.Split(path.Clean(p), "/")
@@ -206,8 +223,7 @@ func relativeURL(serverPath, reqPath, assetPath string) string {
 	server, req, asset := splitPath(serverPath), splitPath(reqPath), splitPath(assetPath)
 
 	// Remove common prefix of request path with server path
-	// nolint: ineffassign
-	server, req = stripCommonParts(server, req)
+	_, req = stripCommonParts(server, req)
 
 	// Remove common prefix of request path with asset path
 	asset, req = stripCommonParts(asset, req)
@@ -227,12 +243,15 @@ var scopeDescriptions = map[string]string{
 	"offline_access": "Have offline access",
 	"profile":        "View basic profile information",
 	"email":          "View your email address",
+	// 'groups' is not a standard OIDC scope, and Dex only returns groups only if the upstream provider does too.
+	// This warning is added for convenience to show that the user may expose some sensitive data to the application.
+	"groups": "View your groups",
 }
 
 type connectorInfo struct {
 	ID   string
 	Name string
-	URL  string
+	URL  template.URL
 	Type string
 }
 
@@ -242,7 +261,28 @@ func (n byName) Len() int           { return len(n) }
 func (n byName) Less(i, j int) bool { return n[i].Name < n[j].Name }
 func (n byName) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
 
-func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []connectorInfo, reqPath string) error {
+func (t *templates) device(r *http.Request, w http.ResponseWriter, postURL string, userCode string, lastWasInvalid bool) error {
+	if lastWasInvalid {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	data := struct {
+		PostURL  string
+		UserCode string
+		Invalid  bool
+		ReqPath  string
+	}{postURL, userCode, lastWasInvalid, r.URL.Path}
+	return renderTemplate(w, t.deviceTmpl, data)
+}
+
+func (t *templates) deviceSuccess(r *http.Request, w http.ResponseWriter, clientName string) error {
+	data := struct {
+		ClientName string
+		ReqPath    string
+	}{clientName, r.URL.Path}
+	return renderTemplate(w, t.deviceSuccessTmpl, data)
+}
+
+func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []connectorInfo) error {
 	sort.Sort(byName(connectors))
 	data := struct {
 		Connectors []connectorInfo
@@ -251,19 +291,22 @@ func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []c
 	return renderTemplate(w, t.loginTmpl, data)
 }
 
-func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid, showBacklink bool, reqPath string) error {
+func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid bool, backLink string) error {
+	if lastWasInvalid {
+		w.WriteHeader(http.StatusUnauthorized)
+	}
 	data := struct {
 		PostURL        string
-		BackLink       bool
+		BackLink       string
 		Username       string
 		UsernamePrompt string
 		Invalid        bool
 		ReqPath        string
-	}{postURL, showBacklink, lastUsername, usernamePrompt, lastWasInvalid, r.URL.Path}
+	}{postURL, backLink, lastUsername, usernamePrompt, lastWasInvalid, r.URL.Path}
 	return renderTemplate(w, t.passwordTmpl, data)
 }
 
-func (t *templates) approval(r *http.Request, w http.ResponseWriter, authReqID, username, clientName string, scopes []string, reqPath string) error {
+func (t *templates) approval(r *http.Request, w http.ResponseWriter, authReqID, username, clientName string, scopes []string) error {
 	accesses := []string{}
 	for _, scope := range scopes {
 		access, ok := scopeDescriptions[scope]
@@ -282,7 +325,7 @@ func (t *templates) approval(r *http.Request, w http.ResponseWriter, authReqID, 
 	return renderTemplate(w, t.approvalTmpl, data)
 }
 
-func (t *templates) oob(r *http.Request, w http.ResponseWriter, code string, reqPath string) error {
+func (t *templates) oob(r *http.Request, w http.ResponseWriter, code string) error {
 	data := struct {
 		Code    string
 		ReqPath string
@@ -298,7 +341,7 @@ func (t *templates) err(r *http.Request, w http.ResponseWriter, errCode int, err
 		ReqPath string
 	}{http.StatusText(errCode), errMsg, r.URL.Path}
 	if err := t.errorTmpl.Execute(w, data); err != nil {
-		return fmt.Errorf("Error rendering template %s: %s", t.errorTmpl.Name(), err)
+		return fmt.Errorf("rendering template %s failed: %s", t.errorTmpl.Name(), err)
 	}
 	return nil
 }
@@ -321,7 +364,7 @@ func renderTemplate(w http.ResponseWriter, tmpl *template.Template, data interfa
 			// TODO(ericchiang): replace with better internal server error.
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
-		return fmt.Errorf("Error rendering template %s: %s", tmpl.Name(), err)
+		return fmt.Errorf("rendering template %s failed: %s", tmpl.Name(), err)
 	}
 	return nil
 }

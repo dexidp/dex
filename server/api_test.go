@@ -9,8 +9,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/dexidp/dex/api"
+	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
@@ -23,7 +24,7 @@ import (
 type apiClient struct {
 	// Embedded gRPC client to talk to the server.
 	api.DexClient
-	// Close releases resources associated with this client, includuing shutting
+	// Close releases resources associated with this client, including shutting
 	// down the background server.
 	Close func()
 }
@@ -36,12 +37,12 @@ func newAPI(s storage.Storage, logger log.Logger, t *testing.T) *apiClient {
 	}
 
 	serv := grpc.NewServer()
-	api.RegisterDexServer(serv, NewAPI(s, logger))
+	api.RegisterDexServer(serv, NewAPI(s, logger, "test"))
 	go serv.Serve(l)
 
 	// Dial will retry automatically if the serv.Serve() goroutine
 	// hasn't started yet.
-	conn, err := grpc.Dial(l.Addr().String(), grpc.WithInsecure())
+	conn, err := grpc.Dial(l.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +227,7 @@ func TestCheckCost(t *testing.T) {
 	}
 }
 
-// Attempts to list and revoke an exisiting refresh token.
+// Attempts to list and revoke an existing refresh token.
 func TestRefreshToken(t *testing.T) {
 	logger := &logrus.Logger{
 		Out:       os.Stderr,
@@ -291,7 +292,7 @@ func TestRefreshToken(t *testing.T) {
 		t.Errorf("failed to marshal offline session ID: %v", err)
 	}
 
-	//Testing the api.
+	// Testing the api.
 	listReq := api.ListRefreshReq{
 		UserId: subjectString,
 	}
@@ -336,7 +337,7 @@ func TestRefreshToken(t *testing.T) {
 	}
 
 	if resp, _ := client.ListRefresh(ctx, &listReq); len(resp.RefreshTokens) != 0 {
-		t.Fatalf("Refresh token returned inspite of revoking it.")
+		t.Fatalf("Refresh token returned in spite of revoking it.")
 	}
 }
 

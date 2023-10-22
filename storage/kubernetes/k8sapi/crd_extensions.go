@@ -26,6 +26,15 @@ type CustomResourceDefinitionSpec struct {
 
 	// Scope indicates whether this resource is cluster or namespace scoped.  Default is namespaced
 	Scope ResourceScope `json:"scope" protobuf:"bytes,4,opt,name=scope,casttype=ResourceScope"`
+	// versions is the list of all API versions of the defined custom resource.
+	// Version names are used to compute the order in which served versions are listed in API discovery.
+	// If the version string is "kube-like", it will sort above non "kube-like" version strings, which are ordered
+	// lexicographically. "Kube-like" versions start with a "v", then are followed by a number (the major version),
+	// then optionally the string "alpha" or "beta" and another number (the minor version). These are sorted first
+	// by GA > beta > alpha (where GA is a version with no suffix such as beta or alpha), and then by comparing
+	// major version, then minor version. An example sorted list of versions:
+	// v10, v2, v1, v11beta2, v10beta3, v3beta1, v12alpha1, v11alpha2, foo1, foo10.
+	Versions []CustomResourceDefinitionVersion `json:"versions" protobuf:"bytes,7,rep,name=versions"`
 }
 
 // CustomResourceDefinitionNames indicates the names to serve this CustomResourceDefinition
@@ -138,4 +147,30 @@ type CustomResourceDefinitionList struct {
 
 	// Items individual CustomResourceDefinitions
 	Items []CustomResourceDefinition `json:"items" protobuf:"bytes,2,rep,name=items"`
+}
+
+type CustomResourceDefinitionVersion struct {
+	// name is the version name, e.g. “v1”, “v2beta1”, etc.
+	// The custom resources are served under this version at `/apis/<group>/<version>/...` if `served` is true.
+	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
+	// served is a flag enabling/disabling this version from being served via REST APIs
+	Served bool `json:"served" protobuf:"varint,2,opt,name=served"`
+	// storage indicates this version should be used when persisting custom resources to storage.
+	// There must be exactly one version with storage=true.
+	Storage bool `json:"storage" protobuf:"varint,3,opt,name=storage"`
+	// schema describes the schema used for validation, pruning, and defaulting of this version of the custom resource.
+	// +optional
+	Schema *CustomResourceValidation `json:"schema,omitempty" protobuf:"bytes,4,opt,name=schema"`
+}
+
+// CustomResourceValidation is a list of validation methods for CustomResources.
+type CustomResourceValidation struct {
+	// OpenAPIV3Schema is the OpenAPI v3 schema to be validated against.
+	OpenAPIV3Schema *JSONSchemaProps `json:"openAPIV3Schema,omitempty" protobuf:"bytes,1,opt,name=openAPIV3Schema"`
+}
+
+// JSONSchemaProps is a JSON-Schema following Specification Draft 4 (http://json-schema.org/).
+type JSONSchemaProps struct {
+	Type                   string `json:"type,omitempty" protobuf:"bytes,5,opt,name=type"`
+	XPreserveUnknownFields *bool  `json:"x-kubernetes-preserve-unknown-fields,omitempty" protobuf:"bytes,38,opt,name=xKubernetesPreserveUnknownFields"`
 }

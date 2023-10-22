@@ -34,8 +34,10 @@ func withTimeout(t time.Duration, f func()) {
 }
 
 func cleanDB(c *conn) error {
-	tables := []string{"client", "auth_request", "auth_code",
-		"refresh_token", "keys", "password"}
+	tables := []string{
+		"client", "auth_request", "auth_code",
+		"refresh_token", "keys", "password",
+	}
 
 	for _, tbl := range tables {
 		_, err := c.Exec("delete from " + tbl)
@@ -57,7 +59,7 @@ type opener interface {
 }
 
 func testDB(t *testing.T, o opener, withTransactions bool) {
-	// t.Fatal has a bad habbit of not actually printing the error
+	// t.Fatal has a bad habit of not actually printing the error
 	fatal := func(i interface{}) {
 		fmt.Fprintln(os.Stdout, i)
 		t.Fatal(i)
@@ -83,10 +85,6 @@ func testDB(t *testing.T, o opener, withTransactions bool) {
 	}
 }
 
-func TestSQLite3(t *testing.T) {
-	testDB(t, &SQLite3{":memory:"}, false)
-}
-
 func getenv(key, defaultVal string) string {
 	if val := os.Getenv(key); val != "" {
 		return val
@@ -97,7 +95,7 @@ func getenv(key, defaultVal string) string {
 const testPostgresEnv = "DEX_POSTGRES_HOST"
 
 func TestCreateDataSourceName(t *testing.T) {
-	var testCases = []struct {
+	testCases := []struct {
 		description string
 		input       *Postgres
 		expected    string
@@ -270,7 +268,7 @@ func TestMySQL(t *testing.T) {
 		NetworkDB: NetworkDB{
 			Database:          getenv("DEX_MYSQL_DATABASE", "mysql"),
 			User:              getenv("DEX_MYSQL_USER", "mysql"),
-			Password:          getenv("DEX_MYSQL_PASSWORD", ""),
+			Password:          getenv("DEX_MYSQL_PASSWORD", "mysql"),
 			Host:              host,
 			Port:              uint16(port),
 			ConnectionTimeout: 5,

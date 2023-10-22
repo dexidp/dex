@@ -1,0 +1,67 @@
+issuer: http://127.0.0.1:5556/dex
+storage:
+  type: sqlite3
+  config:
+    file: examples/dex.db
+web:
+  http: 0.0.0.0:5556
+
+connectors:
+- type: ldap
+  name: OpenLDAP
+  id: ldap
+  config:
+    # The following configurations seem to work with OpenLDAP:
+    #
+    # 1) Plain LDAP, without TLS:
+    host: localhost:389
+    insecureNoSSL: true
+    #
+    # 2) LDAPS without certificate validation:
+    #host: localhost:636
+    #insecureNoSSL: false
+    #insecureSkipVerify: true
+    #
+    # 3) LDAPS with certificate validation:
+    #host: YOUR-HOSTNAME:636
+    #insecureNoSSL: false
+    #insecureSkipVerify: false
+    #rootCAData: 'CERT'
+    # ...where CERT="$( base64 -w 0 your-cert.crt )"
+
+    # This would normally be a read-only user.
+    bindDN: cn=admin,dc=example,dc=org
+    bindPW: admin
+
+    usernamePrompt: Email Address
+
+    userSearch:
+      baseDN: ou=People,dc=example,dc=org
+      filter: "(objectClass=person)"
+      username: mail
+      # "DN" (case sensitive) is a special attribute name. It indicates that
+      # this value should be taken from the entity's DN not an attribute on
+      # the entity.
+      idAttr: DN
+      emailAttr: mail
+      nameAttr: cn
+
+    groupSearch:
+      baseDN: ou=Groups,dc=example,dc=org
+      filter: "(objectClass=groupOfNames)"
+
+      userMatchers:
+        # A user is a member of a group when their DN matches
+        # the value of a "member" attribute on the group entity.
+      - userAttr: DN
+        groupAttr: member
+
+      # The group name should be the "cn" value.
+      nameAttr: cn
+
+staticClients:
+- id: example-app
+  redirectURIs:
+  - 'http://127.0.0.1:5555/callback'
+  name: 'Example App'
+  secret: ZXhhbXBsZS1hcHAtc2VjcmV0

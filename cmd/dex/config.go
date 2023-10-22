@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
@@ -12,6 +13,7 @@ import (
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/ent"
 	"github.com/dexidp/dex/storage/etcd"
 	"github.com/dexidp/dex/storage/kubernetes"
 	"github.com/dexidp/dex/storage/memory"
@@ -49,7 +51,7 @@ type Config struct {
 	StaticPasswords []password `json:"staticPasswords"`
 }
 
-//Validate the configuration
+// Validate the configuration
 func (c Config) Validate() error {
 	// Fast checks. Perform these first for a more responsive CLI.
 	checks := []struct {
@@ -127,6 +129,10 @@ func (p *password) UnmarshalJSON(b []byte) error {
 
 // OAuth2 describes enabled OAuth2 extensions.
 type OAuth2 struct {
+	// list of allowed grant types,
+	// defaults to all supported types
+	GrantTypes []string `json:"grantTypes"`
+
 	ResponseTypes []string `json:"responseTypes"`
 	// If specified, do not prompt the user to approve client authorization. The
 	// act of logging in implies authorization.
@@ -149,6 +155,8 @@ type Web struct {
 // Telemetry is the config format for telemetry including the HTTP server config.
 type Telemetry struct {
 	HTTP string `json:"http"`
+	// EnableProfiling makes profiling endpoints available via web interface host:port/debug/pprof/
+	EnableProfiling bool `json:"enableProfiling"`
 }
 
 // GRPC is the config for the gRPC API.
@@ -172,13 +180,49 @@ type StorageConfig interface {
 	Open(logger log.Logger) (storage.Storage, error)
 }
 
+var (
+	_ StorageConfig = (*etcd.Etcd)(nil)
+	_ StorageConfig = (*kubernetes.Config)(nil)
+	_ StorageConfig = (*memory.Config)(nil)
+	_ StorageConfig = (*sql.SQLite3)(nil)
+	_ StorageConfig = (*sql.Postgres)(nil)
+	_ StorageConfig = (*sql.MySQL)(nil)
+	_ StorageConfig = (*ent.SQLite3)(nil)
+	_ StorageConfig = (*ent.Postgres)(nil)
+	_ StorageConfig = (*ent.MySQL)(nil)
+)
+
+func getORMBasedSQLStorage(normal, entBased StorageConfig) func() StorageConfig {
+	return func() StorageConfig {
+		switch os.Getenv("DEX_ENT_ENABLED") {
+		case "true", "yes":
+			return entBased
+		default:
+			return normal
+		}
+	}
+}
+
 var storages = map[string]func() StorageConfig{
 	"etcd":       func() StorageConfig { return new(etcd.Etcd) },
 	"kubernetes": func() StorageConfig { return new(kubernetes.Config) },
 	"memory":     func() StorageConfig { return new(memory.Config) },
-	"sqlite3":    func() StorageConfig { return new(sql.SQLite3) },
-	"postgres":   func() StorageConfig { return new(sql.Postgres) },
-	"mysql":      func() StorageConfig { return new(sql.MySQL) },
+	"sqlite3":    getORMBasedSQLStorage(&sql.SQLite3{}, &ent.SQLite3{}),
+	"postgres":   getORMBasedSQLStorage(&sql.Postgres{}, &ent.Postgres{}),
+	"mysql":      getORMBasedSQLStorage(&sql.MySQL{}, &ent.MySQL{}),
+}
+
+// isExpandEnvEnabled returns if os.ExpandEnv should be used for each storage and connector config.
+// Disabling this feature avoids surprises e.g. if the LDAP bind password contains a dollar character.
+// Returns false if the env variable "DEX_EXPAND_ENV" is a falsy string, e.g. "false".
+// Returns true if the env variable is unset or a truthy string, e.g. "true", or can't be parsed as bool.
+func isExpandEnvEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DEX_EXPAND_ENV"))
+	if err != nil {
+		// Unset, empty string or can't be parsed as bool: Default = true.
+		return true
+	}
+	return enabled
 }
 
 // UnmarshalJSON allows Storage to implement the unmarshaler interface to
@@ -198,7 +242,11 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 
 	storageConfig := f()
 	if len(store.Config) != 0 {
-		data := []byte(os.ExpandEnv(string(store.Config)))
+		data := []byte(store.Config)
+		if isExpandEnvEnabled() {
+			// Caution, we're expanding in the raw JSON/YAML source. This may not be what the admin expects.
+			data = []byte(os.ExpandEnv(string(store.Config)))
+		}
 		if err := json.Unmarshal(data, storageConfig); err != nil {
 			return fmt.Errorf("parse storage config: %v", err)
 		}
@@ -240,7 +288,11 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 
 	connConfig := f()
 	if len(conn.Config) != 0 {
-		data := []byte(os.ExpandEnv(string(conn.Config)))
+		data := []byte(conn.Config)
+		if isExpandEnvEnabled() {
+			// Caution, we're expanding in the raw JSON/YAML source. This may not be what the admin expects.
+			data = []byte(os.ExpandEnv(string(conn.Config)))
+		}
 		if err := json.Unmarshal(data, connConfig); err != nil {
 			return fmt.Errorf("parse connector config: %v", err)
 		}
@@ -279,6 +331,12 @@ type Expiry struct {
 
 	// AuthRequests defines the duration of time for which the AuthRequests will be valid.
 	AuthRequests string `json:"authRequests"`
+
+	// DeviceRequests defines the duration of time for which the DeviceRequests will be valid.
+	DeviceRequests string `json:"deviceRequests"`
+
+	// RefreshTokens defines refresh tokens expiry policy
+	RefreshTokens RefreshToken `json:"refreshTokens"`
 }
 
 // Logger holds configuration required to customize logging for dex.
@@ -288,4 +346,11 @@ type Logger struct {
 
 	// Format specifies the format to be used for logging.
 	Format string `json:"format"`
+}
+
+type RefreshToken struct {
+	DisableRotation   bool   `json:"disableRotation"`
+	ReuseInterval     string `json:"reuseInterval"`
+	AbsoluteLifetime  string `json:"absoluteLifetime"`
+	ValidIfNotUsedFor string `json:"validIfNotUsedFor"`
 }
