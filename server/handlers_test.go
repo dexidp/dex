@@ -306,7 +306,7 @@ func TestHandlePassword(t *testing.T) {
 
 				u.Path = path.Join(u.Path, "/token")
 				v := url.Values{}
-				v.Add("scope", "openid offline_access email")
+				v.Add("scope", tc.scopes)
 				v.Add("grant_type", "password")
 				v.Add("username", username)
 				v.Add("password", password)
@@ -356,6 +356,20 @@ func TestHandlePassword(t *testing.T) {
 			{
 				rr := makeReq("test", "test", "test")
 				require.Equal(t, 200, rr.Code)
+
+				var ref struct {
+					Token string `json:"refresh_token"`
+				}
+				err := json.Unmarshal(rr.Body.Bytes(), &ref)
+				require.NoError(t, err)
+
+				newSess, err := s.storage.GetOfflineSessions("0-385-28089-0", "test")
+				if tc.offlineSessionCreated {
+					require.NoError(t, err)
+					require.Equal(t, `{"test": "true"}`, string(newSess.ConnectorData))
+				} else {
+					require.Error(t, storage.ErrNotFound, err)
+				}
 			}
 		})
 	}
