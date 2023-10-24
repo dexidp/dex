@@ -152,11 +152,15 @@ func (pc *PasswordCreate) createSpec() (*Password, *sqlgraph.CreateSpec) {
 // PasswordCreateBulk is the builder for creating many Password entities in bulk.
 type PasswordCreateBulk struct {
 	config
+	err      error
 	builders []*PasswordCreate
 }
 
 // Save creates the Password entities in the database.
 func (pcb *PasswordCreateBulk) Save(ctx context.Context) ([]*Password, error) {
+	if pcb.err != nil {
+		return nil, pcb.err
+	}
 	specs := make([]*sqlgraph.CreateSpec, len(pcb.builders))
 	nodes := make([]*Password, len(pcb.builders))
 	mutators := make([]Mutator, len(pcb.builders))

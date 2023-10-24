@@ -66,6 +66,8 @@ type Config struct {
 	// The backing persistence layer.
 	Storage storage.Storage
 
+	AllowedGrantTypes []string
+
 	// Valid values are "code" to enable the code flow and "token" to enable the implicit
 	// flow. If no response types are supplied this value defaults to "code".
 	SupportedResponseTypes []string
@@ -213,17 +215,22 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		c.SupportedResponseTypes = []string{responseTypeCode}
 	}
 
-	supportedGrant := []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode} // default
+	allSupportedGrants := map[string]bool{
+		grantTypeAuthorizationCode: true,
+		grantTypeRefreshToken:      true,
+		grantTypeDeviceCode:        true,
+		grantTypeTokenExchange:     true,
+	}
 	supportedRes := make(map[string]bool)
 
 	for _, respType := range c.SupportedResponseTypes {
 		switch respType {
-		case responseTypeCode, responseTypeIDToken:
+		case responseTypeCode, responseTypeIDToken, responseTypeCodeIDToken:
 			// continue
-		case responseTypeToken:
+		case responseTypeToken, responseTypeCodeToken, responseTypeIDTokenToken, responseTypeCodeIDTokenToken:
 			// response_type=token is an implicit flow, let's add it to the discovery info
 			// https://datatracker.ietf.org/doc/html/rfc6749#section-4.2.1
-			supportedGrant = append(supportedGrant, grantTypeImplicit)
+			allSupportedGrants[grantTypeImplicit] = true
 		default:
 			return nil, fmt.Errorf("unsupported response_type %q", respType)
 		}
@@ -231,10 +238,22 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 
 	if c.PasswordConnector != "" {
-		supportedGrant = append(supportedGrant, grantTypePassword)
+		allSupportedGrants[grantTypePassword] = true
 	}
 
-	sort.Strings(supportedGrant)
+	var supportedGrants []string
+	if len(c.AllowedGrantTypes) > 0 {
+		for _, grant := range c.AllowedGrantTypes {
+			if allSupportedGrants[grant] {
+				supportedGrants = append(supportedGrants, grant)
+			}
+		}
+	} else {
+		for grant := range allSupportedGrants {
+			supportedGrants = append(supportedGrants, grant)
+		}
+	}
+	sort.Strings(supportedGrants)
 
 	webFS := web.FS()
 	if c.Web.Dir != "" {
@@ -267,7 +286,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		connectors:             make(map[string]Connector),
 		storage:                newKeyCacher(c.Storage, now),
 		supportedResponseTypes: supportedRes,
-		supportedGrantTypes:    supportedGrant,
+		supportedGrantTypes:    supportedGrants,
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
 		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
 		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),

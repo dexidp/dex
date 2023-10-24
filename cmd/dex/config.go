@@ -129,6 +129,10 @@ func (p *password) UnmarshalJSON(b []byte) error {
 
 // OAuth2 describes enabled OAuth2 extensions.
 type OAuth2 struct {
+	// list of allowed grant types,
+	// defaults to all supported types
+	GrantTypes []string `json:"grantTypes"`
+
 	ResponseTypes []string `json:"responseTypes"`
 	// If specified, do not prompt the user to approve client authorization. The
 	// act of logging in implies authorization.
