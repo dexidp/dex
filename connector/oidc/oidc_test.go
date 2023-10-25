@@ -62,7 +62,7 @@ func TestHandleCallback(t *testing.T) {
 		expectPreferredUsername   string
 		expectedEmailField        string
 		token                     map[string]interface{}
-		newGroupsFromClaims       []NewGroupsFromClaims
+		newGroupFromClaims       []NewGroupFromClaims
 	}{
 		{
 			name:               "simpleCase",
@@ -297,9 +297,9 @@ func TestHandleCallback(t *testing.T) {
 			expectUserName:     "namevalue",
 			expectGroups:       []string{"group1", "gh::acme::pipeline-one", "clr_delim-acme-foobar", "keep_delim-acme-foo-bar", "bk-emailvalue"},
 			expectedEmailField: "emailvalue",
-			newGroupsFromClaims: []NewGroupsFromClaims{
+			newGroupFromClaims: []NewGroupFromClaims{
 				{ // The basic functionality, should create "gh::acme::pipeline-one".
-					ClaimList: []string{
+					Claims: []string{
 						"organization",
 						"pipeline",
 					},
@@ -307,7 +307,7 @@ func TestHandleCallback(t *testing.T) {
 					Prefix:    "gh",
 				},
 				{ // Non existing claims, should not generate any any new group claim.
-					ClaimList: []string{
+					Claims: []string{
 						"non-existing1",
 						"non-existing2",
 					},
@@ -317,7 +317,7 @@ func TestHandleCallback(t *testing.T) {
 				{ // In this case the delimiter character("-") should be removed removed from "claim-with-delimiter" claim to ensure the resulting
 					// claim structure is in full control of the Dex operator and not the person creating a new pipeline.
 					// Should create "clr_delim-acme-foobar" and not "tfe-acme-foo-bar".
-					ClaimList: []string{
+					Claims: []string{
 						"organization",
 						"claim-with-delimiter",
 					},
@@ -327,7 +327,7 @@ func TestHandleCallback(t *testing.T) {
 				},
 				{ // In this case the delimiter character("-") should be NOT removed from "claim-with-delimiter" claim.
 					// Should create  "keep_delim-acme-foo-bar".
-					ClaimList: []string{
+					Claims: []string{
 						"organization",
 						"claim-with-delimiter",
 					},
@@ -336,7 +336,7 @@ func TestHandleCallback(t *testing.T) {
 					Prefix: "keep_delim",
 				},
 				{ // Ignore non string claims (like arrays), this should result in "bk-emailvalue".
-					ClaimList: []string{
+					Claims: []string{
 						"non-string-claim",
 						"non-string-claim2",
 						"email",
@@ -397,7 +397,7 @@ func TestHandleCallback(t *testing.T) {
 			config.ClaimMapping.PreferredUsernameKey = tc.preferredUsernameKey
 			config.ClaimMapping.EmailKey = tc.emailKey
 			config.ClaimMapping.GroupsKey = tc.groupsKey
-			config.ClaimModifications.NewGroupsFromClaims = tc.newGroupsFromClaims
+			config.ClaimMutations.NewGroupFromClaims = tc.newGroupFromClaims
 
 			conn, err := newConnector(config)
 			if err != nil {

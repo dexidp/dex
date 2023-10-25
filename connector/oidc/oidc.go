@@ -88,16 +88,16 @@ type Config struct {
 		GroupsKey string `json:"groups"` // defaults to "groups"
 	} `json:"claimMapping"`
 
-	// ClaimModifications holds all claim modifications options
-	ClaimModifications struct {
-		NewGroupsFromClaims []NewGroupsFromClaims `json:"newGroupsFromClaims"`
+	// ClaimMutations holds all claim mutations options
+	ClaimMutations struct {
+		NewGroupFromClaims []NewGroupFromClaims `json:"newGroupFromClaims"`
 	} `json:"claimModifications"`
 }
 
 // NewGroupFromClaims creates a new group from a list of claims and appends it to the list of existing groups.
-type NewGroupsFromClaims struct {
+type NewGroupFromClaims struct {
 	// List of claim to join together
-	ClaimList []string `json:"claimList"`
+	Claims []string `json:"claims"`
 
 	// String to separate the claims
 	Delimiter string `json:"delimiter"`
@@ -210,7 +210,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
 		emailKey:                  c.ClaimMapping.EmailKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
-		newGroupsFromClaims:       c.ClaimModifications.NewGroupsFromClaims,
+		newGroupFromClaims:        c.ClaimMutations.NewGroupFromClaims,
 	}, nil
 }
 
@@ -238,7 +238,7 @@ type oidcConnector struct {
 	preferredUsernameKey      string
 	emailKey                  string
 	groupsKey                 string
-	newGroupsFromClaims       []NewGroupsFromClaims
+	newGroupFromClaims        []NewGroupFromClaims
 }
 
 func (c *oidcConnector) Close() error {
@@ -450,11 +450,11 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 	}
 
-	for _, config := range c.newGroupsFromClaims {
+	for _, config := range c.newGroupFromClaims {
 		newGroupSegments := []string{
 			config.Prefix,
 		}
-		for _, claimName := range config.ClaimList {
+		for _, claimName := range config.Claims {
 			claimValue, ok := claims[claimName].(string)
 			if !ok { // Non string claim value are ignored, concatenating them doesn't really make any sense
 				continue
