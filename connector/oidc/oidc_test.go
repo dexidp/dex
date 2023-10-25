@@ -62,7 +62,7 @@ func TestHandleCallback(t *testing.T) {
 		expectPreferredUsername   string
 		expectedEmailField        string
 		token                     map[string]interface{}
-		newGroupFromClaims       []NewGroupFromClaims
+		newGroupFromClaims        []NewGroupFromClaims
 	}{
 		{
 			name:               "simpleCase",
