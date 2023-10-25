@@ -89,6 +89,27 @@ type Config struct {
 		// Configurable key which contains the groups claims
 		GroupsKey string `json:"groups"` // defaults to "groups"
 	} `json:"claimMapping"`
+
+	// ClaimMutations holds all claim mutations options
+	ClaimMutations struct {
+		NewGroupFromClaims []NewGroupFromClaims `json:"newGroupFromClaims"`
+	} `json:"claimModifications"`
+}
+
+// NewGroupFromClaims creates a new group from a list of claims and appends it to the list of existing groups.
+type NewGroupFromClaims struct {
+	// List of claim to join together
+	Claims []string `json:"claims"`
+
+	// String to separate the claims
+	Delimiter string `json:"delimiter"`
+
+	// Should Dex remove the Delimiter string from claim values
+	// This is done to keep resulting claim structure in full control of the Dex operator
+	ClearDelimiter bool `json:"clearDelimiter"`
+
+	// String to place before the first claim
+	Prefix string `json:"prefix"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -192,6 +213,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
 		emailKey:                  c.ClaimMapping.EmailKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
+		newGroupFromClaims:        c.ClaimMutations.NewGroupFromClaims,
 	}, nil
 }
 
@@ -220,6 +242,7 @@ type oidcConnector struct {
 	preferredUsernameKey      string
 	emailKey                  string
 	groupsKey                 string
+	newGroupFromClaims        []NewGroupFromClaims
 }
 
 func (c *oidcConnector) Close() error {
@@ -440,6 +463,30 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			}
 
 			groups = groupMatches
+		}
+	}
+
+	for _, config := range c.newGroupFromClaims {
+		newGroupSegments := []string{
+			config.Prefix,
+		}
+		for _, claimName := range config.Claims {
+			claimValue, ok := claims[claimName].(string)
+			if !ok { // Non string claim value are ignored, concatenating them doesn't really make any sense
+				continue
+			}
+
+			if config.ClearDelimiter {
+				// Removing the delimiter string from the concatenated claim to ensure resulting claim structure
+				// is in full control of Dex operator
+				claimValue = strings.ReplaceAll(claimValue, config.Delimiter, "")
+			}
+
+			newGroupSegments = append(newGroupSegments, claimValue)
+		}
+
+		if len(newGroupSegments) > 1 {
+			groups = append(groups, strings.Join(newGroupSegments, config.Delimiter))
 		}
 	}
 
