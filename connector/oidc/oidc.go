@@ -94,7 +94,7 @@ type Config struct {
 	} `json:"claimModifications"`
 }
 
-// List of groups claim elements to create by concatenating other claims
+// NewGroupFromClaims creates a new group from a list of claims and appends it to the list of existing groups.
 type NewGroupsFromClaims struct {
 	// List of claim to join together
 	ClaimList []string `json:"claimList"`
@@ -456,15 +456,16 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 		for _, claimName := range config.ClaimList {
 			claimValue, ok := claims[claimName].(string)
-			// Non string claim value are ignored, concatenating them doesn't really make any sense
-			if !ok {
+			if !ok { // Non string claim value are ignored, concatenating them doesn't really make any sense
 				continue
 			}
+
 			if config.ClearDelimiter {
 				// Removing the delimiter string from the concatenated claim to ensure resulting claim structure
 				// is in full control of Dex operator
 				claimValue = strings.ReplaceAll(claimValue, config.Delimiter, "")
 			}
+
 			newGroupSegments = append(newGroupSegments, claimValue)
 		}
 
