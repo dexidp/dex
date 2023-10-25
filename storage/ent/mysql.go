@@ -13,10 +13,7 @@ import (
 	"time"
 
 	entSQL "entgo.io/ent/dialect/sql"
-	"github.com/go-sql-driver/mysql"
-
-	// Register postgres driver.
-	_ "github.com/lib/pq"
+	"github.com/go-sql-driver/mysql" // Register mysql driver.
 
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"

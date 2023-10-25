@@ -1,18 +1,27 @@
-ARG BASEIMAGE=alpine:3.15.0
+ARG BASE_IMAGE=alpine
 
-FROM golang:1.17.7-alpine3.14 AS builder
+FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.3.0@sha256:904fe94f236d36d65aeb5a2462f88f2c537b8360475f6342e7599194f291fb7e AS xx
+
+FROM --platform=$BUILDPLATFORM golang:1.21.3-alpine3.18 AS builder
+
+COPY --from=xx / /
+
+RUN apk add --update alpine-sdk ca-certificates openssl clang lld
+
+ARG TARGETPLATFORM
+
+RUN xx-apk --update add musl-dev gcc
+
+# lld has issues building static binaries for ppc so prefer ld for it
+RUN [ "$(xx-info arch)" != "ppc64le" ] || XX_CC_PREFER_LINKER=ld xx-clang --setup-target-triple
+
+RUN xx-go --wrap
 
 WORKDIR /usr/local/src/dex
 
-RUN apk add --no-cache --update alpine-sdk ca-certificates openssl
-
-ARG TARGETOS
-ARG TARGETARCH
-ARG TARGETVARIANT=""
-
-ENV GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT}
-
 ARG GOPROXY
+
+ENV CGO_ENABLED=1
 
 COPY go.mod go.sum ./
 COPY api/v2/go.mod api/v2/go.sum ./api/v2/
@@ -21,27 +30,31 @@ RUN go mod download
 COPY . .
 
 RUN make release-binary
+RUN xx-verify /go/bin/dex && xx-verify /go/bin/docker-entrypoint
 
-FROM alpine:3.15.0 AS stager
+FROM alpine:3.18.4 AS stager
 
 RUN mkdir -p /var/dex
 RUN mkdir -p /etc/dex
 COPY config.docker.yaml /etc/dex/
 
-FROM alpine:3.15.0 AS gomplate
+FROM alpine:3.18.4 AS gomplate
 
 ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
 
-ENV GOMPLATE_VERSION=v3.10.0
+ENV GOMPLATE_VERSION=v3.11.5
 
 RUN wget -O /usr/local/bin/gomplate \
-    "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT}" \
-    && chmod +x /usr/local/bin/gomplate
+  "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT}" \
+  && chmod +x /usr/local/bin/gomplate
 
+# For Dependabot to detect base image versions
+FROM alpine:3.18.4 AS alpine
+FROM gcr.io/distroless/static:latest AS distroless
 
-FROM $BASEIMAGE
+FROM $BASE_IMAGE
 
 # Dex connectors, such as GitHub and Google logins require root certificates.
 # Proper installations should manage those certificates, but it's a bad user

@@ -7,10 +7,11 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, ... }:
-    flake-utils.lib.eachDefaultSystem (system:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        buildDeps = with pkgs; [ git go_1_17 gnumake ];
+        buildDeps = with pkgs; [ git go_1_20 gnumake ];
         devDeps = with pkgs;
           buildDeps ++ [
             golangci-lint
@@ -21,5 +22,6 @@
             kind
           ];
       in
-      { devShell = pkgs.mkShell { buildInputs = devDeps; }; });
+      { devShell = pkgs.mkShell { buildInputs = devDeps; }; }
+    );
 }

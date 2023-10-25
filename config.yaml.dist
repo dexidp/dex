@@ -85,6 +85,11 @@ web:
 #   deviceRequests: "5m"
 #   signingKeys: "6h"
 #   idTokens: "24h"
+#   refreshTokens:
+#     disableRotation: false
+#     reuseInterval: "3s"
+#     validIfNotUsedFor: "2160h" # 90 days
+#     absoluteLifetime: "3960h" # 165 days
 
 # OAuth2 configuration
 # oauth2:
@@ -113,7 +118,7 @@ web:
 #     name: 'Example App'
 #     secret: ZXhhbXBsZS1hcHAtc2VjcmV0
 
-# Connectors are used to authenticate users agains upstream identity providers.
+# Connectors are used to authenticate users against upstream identity providers.
 #
 # See the documentation (https://dexidp.io/docs/connectors/) for further information.
 # connectors: []

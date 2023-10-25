@@ -46,6 +46,25 @@ type dexAPI struct {
 	version string
 }
 
+func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetClientResp, error) {
+	c, err := d.s.GetClient(req.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.GetClientResp{
+		Client: &api.Client{
+			Id:           c.ID,
+			Name:         c.Name,
+			Secret:       c.Secret,
+			RedirectUris: c.RedirectURIs,
+			TrustedPeers: c.TrustedPeers,
+			Public:       c.Public,
+			LogoUrl:      c.LogoURL,
+		},
+	}, nil
+}
+
 func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*api.CreateClientResp, error) {
 	if req.Client == nil {
 		return nil, errors.New("no client supplied")

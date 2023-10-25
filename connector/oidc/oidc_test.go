@@ -2,6 +2,7 @@ package oidc
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
@@ -271,11 +272,28 @@ func TestHandleCallback(t *testing.T) {
 				"cognito:groups": []string{"group3", "group4"},
 			},
 		},
+		{
+			name:               "singularGroupResponseAsString",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectGroups:       []string{"group1"},
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups":         "group1",
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			testServer, err := setupServer(tc.token)
+			idTokenDesired := true
+			testServer, err := setupServer(tc.token, idTokenDesired)
 			if err != nil {
 				t.Fatal("failed to setup test server", err)
 			}
@@ -331,7 +349,167 @@ func TestHandleCallback(t *testing.T) {
 	}
 }
 
-func setupServer(tok map[string]interface{}) (*httptest.Server, error) {
+func TestRefresh(t *testing.T) {
+	t.Helper()
+
+	tests := []struct {
+		name           string
+		expectUserID   string
+		expectUserName string
+		idTokenDesired bool
+		token          map[string]interface{}
+	}{
+		{
+			name:           "IDTokenOnRefresh",
+			expectUserID:   "subvalue",
+			expectUserName: "namevalue",
+			idTokenDesired: true,
+			token: map[string]interface{}{
+				"sub":  "subvalue",
+				"name": "namevalue",
+			},
+		},
+		{
+			name:           "NoIDTokenOnRefresh",
+			expectUserID:   "subvalue",
+			expectUserName: "namevalue",
+			idTokenDesired: false,
+			token: map[string]interface{}{
+				"sub":  "subvalue",
+				"name": "namevalue",
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			testServer, err := setupServer(tc.token, tc.idTokenDesired)
+			if err != nil {
+				t.Fatal("failed to setup test server", err)
+			}
+			defer testServer.Close()
+
+			scopes := []string{"openid", "offline_access"}
+			serverURL := testServer.URL
+			config := Config{
+				Issuer:       serverURL,
+				ClientID:     "clientID",
+				ClientSecret: "clientSecret",
+				Scopes:       scopes,
+				RedirectURI:  fmt.Sprintf("%s/callback", serverURL),
+				GetUserInfo:  true,
+			}
+
+			conn, err := newConnector(config)
+			if err != nil {
+				t.Fatal("failed to create new connector", err)
+			}
+
+			req, err := newRequestWithAuthCode(testServer.URL, "someCode")
+			if err != nil {
+				t.Fatal("failed to create request", err)
+			}
+
+			refreshTokenStr := "{\"RefreshToken\":\"asdf\"}"
+			refreshToken := []byte(refreshTokenStr)
+
+			identity := connector.Identity{
+				UserID:        tc.expectUserID,
+				Username:      tc.expectUserName,
+				ConnectorData: refreshToken,
+			}
+
+			refreshIdentity, err := conn.Refresh(req.Context(), connector.Scopes{OfflineAccess: true}, identity)
+			if err != nil {
+				t.Fatal("Refresh failed", err)
+			}
+
+			expectEquals(t, refreshIdentity.UserID, tc.expectUserID)
+			expectEquals(t, refreshIdentity.Username, tc.expectUserName)
+		})
+	}
+}
+
+func TestTokenIdentity(t *testing.T) {
+	tokenTypeAccess := "urn:ietf:params:oauth:token-type:access_token"
+	tokenTypeID := "urn:ietf:params:oauth:token-type:id_token"
+	long2short := map[string]string{
+		tokenTypeAccess: "access_token",
+		tokenTypeID:     "id_token",
+	}
+
+	tests := []struct {
+		name        string
+		subjectType string
+		userInfo    bool
+		expectError bool
+	}{
+		{
+			name:        "id_token",
+			subjectType: tokenTypeID,
+		}, {
+			name:        "access_token",
+			subjectType: tokenTypeAccess,
+			expectError: true,
+		}, {
+			name:        "id_token with user info",
+			subjectType: tokenTypeID,
+			userInfo:    true,
+		}, {
+			name:        "access_token with user info",
+			subjectType: tokenTypeAccess,
+			userInfo:    true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+
+			testServer, err := setupServer(map[string]any{
+				"sub":  "subvalue",
+				"name": "namevalue",
+			}, true)
+			if err != nil {
+				t.Fatal("failed to setup test server", err)
+			}
+			conn, err := newConnector(Config{
+				Issuer:      testServer.URL,
+				Scopes:      []string{"openid", "groups"},
+				GetUserInfo: tc.userInfo,
+			})
+			if err != nil {
+				t.Fatal("failed to create new connector", err)
+			}
+
+			res, err := http.Get(testServer.URL + "/token")
+			if err != nil {
+				t.Fatal("failed to get initial token", err)
+			}
+			defer res.Body.Close()
+			var tokenResponse map[string]any
+			err = json.NewDecoder(res.Body).Decode(&tokenResponse)
+			if err != nil {
+				t.Fatal("failed to decode initial token", err)
+			}
+
+			origToken := tokenResponse[long2short[tc.subjectType]].(string)
+			identity, err := conn.TokenIdentity(ctx, tc.subjectType, origToken)
+			if err != nil {
+				if tc.expectError {
+					return
+				}
+				t.Fatal("failed to get token identity", err)
+			}
+
+			// assert identity
+			expectEquals(t, identity.UserID, "subvalue")
+			expectEquals(t, identity.Username, "namevalue")
+		})
+	}
+}
+
+func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Server, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate rsa key: %v", err)
@@ -368,11 +546,23 @@ func setupServer(tok map[string]interface{}) (*httptest.Server, error) {
 		}
 
 		w.Header().Add("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(&map[string]string{
-			"access_token": token,
-			"id_token":     token,
-			"token_type":   "Bearer",
-		})
+		if idTokenDesired {
+			json.NewEncoder(w).Encode(&map[string]string{
+				"access_token": token,
+				"id_token":     token,
+				"token_type":   "Bearer",
+			})
+		} else {
+			json.NewEncoder(w).Encode(&map[string]string{
+				"access_token": token,
+				"token_type":   "Bearer",
+			})
+		}
+	})
+
+	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(tok)
 	})
 
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {

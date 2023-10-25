@@ -6,9 +6,7 @@ import (
 	"strings"
 
 	"entgo.io/ent/dialect/sql"
-
-	// Register sqlite driver.
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3" // Register sqlite driver.
 
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"

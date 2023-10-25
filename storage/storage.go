@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"crypto"
 	"crypto/rand"
 	"encoding/base32"
 	"errors"
@@ -45,6 +46,11 @@ func newSecureID(len int) string {
 	}
 	// Avoid the identifier to begin with number and trim padding
 	return string(buff[0]%26+'a') + strings.TrimRight(encoding.EncodeToString(buff[1:]), "=")
+}
+
+// NewHMACKey returns a random key which can be used in the computation of an HMAC
+func NewHMACKey(h crypto.Hash) []byte {
+	return []byte(newSecureID(h.Size()))
 }
 
 // GCResult returns the number of objects deleted by garbage collection.
@@ -138,8 +144,8 @@ type Storage interface {
 // Client represents an OAuth2 client.
 //
 // For further reading see:
-//   * Trusted peers: https://developers.google.com/identity/protocols/CrossClientAuth
-//   * Public clients: https://developers.google.com/api-client-library/python/auth/installed-app
+//   - Trusted peers: https://developers.google.com/identity/protocols/CrossClientAuth
+//   - Public clients: https://developers.google.com/api-client-library/python/auth/installed-app
 type Client struct {
 	// Client ID and secret used to identify the client.
 	ID        string `json:"id" yaml:"id"`
@@ -223,6 +229,9 @@ type AuthRequest struct {
 
 	// PKCE CodeChallenge and CodeChallengeMethod
 	PKCE PKCE
+
+	// HMACKey is used when generating an AuthRequest-specific HMAC
+	HMACKey []byte
 }
 
 // AuthCode represents a code which can be exchanged for an OAuth2 token response.
@@ -308,7 +317,7 @@ type RefreshTokenRef struct {
 
 // OfflineSessions objects are sessions pertaining to users with refresh tokens.
 type OfflineSessions struct {
-	// UserID of an end user who has logged in to the server.
+	// UserID of an end user who has logged into the server.
 	UserID string
 
 	// The ID of the connector used to login the user.
@@ -359,6 +368,10 @@ type Connector struct {
 	ResourceVersion string `json:"resourceVersion"`
 	// Config holds all the configuration information specific to the connector type. Since there
 	// no generic struct we can use for this purpose, it is stored as a byte stream.
+	//
+	// NOTE: This is a bug. The JSON tag should be `config`.
+	// However, fixing this requires migrating Kubernetes objects for all previously created connectors,
+	// or making Dex reading both tags and act accordingly.
 	Config []byte `json:"email"`
 }
 
@@ -435,4 +448,5 @@ type DeviceToken struct {
 	Expiry              time.Time
 	LastRequestTime     time.Time
 	PollIntervalSeconds int
+	PKCE                PKCE
 }

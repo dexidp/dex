@@ -1,5 +1,7 @@
 run:
-    timeout: 2m
+    timeout: 4m
+    skip-dirs:
+        - storage/ent/db # generated ent code
 
 linters-settings:
     depguard:
@@ -18,8 +20,6 @@ linters-settings:
 linters:
     disable-all: true
     enable:
-        - bodyclose
-        - deadcode
         - depguard
         - dogsled
         - exhaustive
@@ -38,19 +38,25 @@ linters:
         - nakedret
         - nolintlint
         - prealloc
-        - revive
-        - rowserrcheck
-        - sqlclosecheck
+        # - revive
+        # - sqlclosecheck
         - staticcheck
-        - structcheck
         - stylecheck
-        - tparallel
-        - typecheck
         - unconvert
-        - unparam
         - unused
-        - varcheck
         - whitespace
+
+        # Disable temporarily until everything works with Go 1.20
+        # - bodyclose
+        # - rowserrcheck
+        # - tparallel
+        # - unparam
+
+        # Disable temporarily until everything works with Go 1.18
+        - typecheck
+
+        # Disable temporarily until the following issue is resolved: https://github.com/golangci/golangci-lint/issues/3086
+        # - sqlclosecheck
 
         # TODO: fix linter errors before enabling
         # - exhaustivestruct
@@ -60,6 +66,7 @@ linters:
         # - godot
         # - nlreturn
         # - noctx
+        # - revive
         # - wrapcheck
 
         # TODO: fix linter errors before enabling (from original config)

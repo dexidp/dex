@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rsa"
@@ -92,7 +93,6 @@ func tokenErr(w http.ResponseWriter, typ, description string, statusCode int) er
 	return nil
 }
 
-// nolint
 const (
 	errInvalidRequest          = "invalid_request"
 	errUnauthorizedClient      = "unauthorized_client"
@@ -128,14 +128,30 @@ const (
 const (
 	grantTypeAuthorizationCode = "authorization_code"
 	grantTypeRefreshToken      = "refresh_token"
+	grantTypeImplicit          = "implicit"
 	grantTypePassword          = "password"
 	grantTypeDeviceCode        = "urn:ietf:params:oauth:grant-type:device_code"
+	grantTypeTokenExchange     = "urn:ietf:params:oauth:grant-type:token-exchange"
 )
 
 const (
-	responseTypeCode    = "code"     // "Regular" flow
-	responseTypeToken   = "token"    // Implicit flow for frontend apps.
-	responseTypeIDToken = "id_token" // ID Token in url fragment
+	// https://www.rfc-editor.org/rfc/rfc8693.html#section-3
+	tokenTypeAccess  = "urn:ietf:params:oauth:token-type:access_token"
+	tokenTypeRefresh = "urn:ietf:params:oauth:token-type:refresh_token"
+	tokenTypeID      = "urn:ietf:params:oauth:token-type:id_token"
+	tokenTypeSAML1   = "urn:ietf:params:oauth:token-type:saml1"
+	tokenTypeSAML2   = "urn:ietf:params:oauth:token-type:saml2"
+	tokenTypeJWT     = "urn:ietf:params:oauth:token-type:jwt"
+)
+
+const (
+	responseTypeCode             = "code"                // "Regular" flow
+	responseTypeToken            = "token"               // Implicit flow for frontend apps.
+	responseTypeIDToken          = "id_token"            // ID Token in url fragment
+	responseTypeCodeToken        = "code token"          // "Regular" flow + Implicit flow
+	responseTypeCodeIDToken      = "code id_token"       // "Regular" flow + ID Token
+	responseTypeIDTokenToken     = "id_token token"      // ID Token + Implicit flow
+	responseTypeCodeIDTokenToken = "code id_token token" // "Regular" flow + ID Token + Implicit flow
 )
 
 const (
@@ -209,9 +225,9 @@ func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []by
 // The hash algorithm for the at_hash is determined by the signing
 // algorithm used for the id_token. From the spec:
 //
-//    ...the hash algorithm used is the hash algorithm used in the alg Header
-//    Parameter of the ID Token's JOSE Header. For instance, if the alg is RS256,
-//    hash the access_token value with SHA-256
+//	...the hash algorithm used is the hash algorithm used in the alg Header
+//	Parameter of the ID Token's JOSE Header. For instance, if the alg is RS256,
+//	hash the access_token value with SHA-256
 //
 // https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDToken
 var hashForSigAlg = map[jose.SignatureAlgorithm]func() hash.Hash{
@@ -286,9 +302,8 @@ type federatedIDClaims struct {
 	UserID      string `json:"user_id,omitempty"`
 }
 
-func (s *Server) newAccessToken(clientID string, claims storage.Claims, scopes []string, nonce, connID string) (accessToken string, err error) {
-	idToken, _, err := s.newIDToken(clientID, claims, scopes, nonce, storage.NewID(), "", connID)
-	return idToken, err
+func (s *Server) newAccessToken(clientID string, claims storage.Claims, scopes []string, nonce, connID string) (accessToken string, expiry time.Time, err error) {
+	return s.newIDToken(clientID, claims, scopes, nonce, storage.NewID(), "", connID)
 }
 
 func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string) (idToken string, expiry time.Time, err error) {
@@ -575,6 +590,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 			CodeChallenge:       codeChallenge,
 			CodeChallengeMethod: codeChallengeMethod,
 		},
+		HMACKey: storage.NewHMACKey(crypto.SHA256),
 	}, nil
 }
 

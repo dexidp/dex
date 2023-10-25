@@ -15,8 +15,10 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -82,10 +84,24 @@ func offlineTokenName(userID string, connID string, h func() hash.Hash) string {
 	return strings.TrimRight(encoding.EncodeToString(hash.Sum(nil)), "=")
 }
 
-func (cli *client) urlFor(apiVersion, namespace, resource, name string) string {
+const kubeResourceMaxLen = 63
+
+var kubeResourceNameRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
+
+func (cli *client) urlForWithParams(
+	apiVersion, namespace, resource, name string, params url.Values,
+) (string, error) {
 	basePath := "apis/"
 	if apiVersion == "v1" {
 		basePath = "api/"
+	}
+
+	if name != "" && (len(name) > kubeResourceMaxLen || !kubeResourceNameRegex.MatchString(name)) {
+		// The actual name can be found in auth request or auth code objects and equals to the state value
+		return "", fmt.Errorf(
+			"invalid kubernetes resource name: must match the pattern %s and be no longer than %d characters",
+			kubeResourceNameRegex.String(),
+			kubeResourceMaxLen)
 	}
 
 	var p string
@@ -94,10 +110,22 @@ func (cli *client) urlFor(apiVersion, namespace, resource, name string) string {
 	} else {
 		p = path.Join(basePath, apiVersion, resource, name)
 	}
-	if strings.HasSuffix(cli.baseURL, "/") {
-		return cli.baseURL + p
+
+	encodedParams := params.Encode()
+	paramsSuffix := ""
+	if len(encodedParams) > 0 {
+		paramsSuffix = "?" + encodedParams
 	}
-	return cli.baseURL + "/" + p
+
+	if strings.HasSuffix(cli.baseURL, "/") {
+		return cli.baseURL + p + paramsSuffix, nil
+	}
+
+	return cli.baseURL + "/" + p + paramsSuffix, nil
+}
+
+func (cli *client) urlFor(apiVersion, namespace, resource, name string) (string, error) {
+	return cli.urlForWithParams(apiVersion, namespace, resource, name, url.Values{})
 }
 
 // Define an error interface so we can get at the underlying status code if it's
@@ -163,8 +191,7 @@ func (cli *client) get(resource, name string, v interface{}) error {
 	return cli.getResource(cli.apiVersion, cli.namespace, resource, name, v)
 }
 
-func (cli *client) getResource(apiVersion, namespace, resource, name string, v interface{}) error {
-	url := cli.urlFor(apiVersion, namespace, resource, name)
+func (cli *client) getURL(url string, v interface{}) error {
 	resp, err := cli.client.Get(url)
 	if err != nil {
 		return err
@@ -174,6 +201,24 @@ func (cli *client) getResource(apiVersion, namespace, resource, name string, v i
 		return err
 	}
 	return json.NewDecoder(resp.Body).Decode(v)
+}
+
+func (cli *client) getResource(apiVersion, namespace, resource, name string, v interface{}) error {
+	u, err := cli.urlFor(apiVersion, namespace, resource, name)
+	if err != nil {
+		return err
+	}
+	return cli.getURL(u, v)
+}
+
+func (cli *client) listN(resource string, v interface{}, n int) error { //nolint:unparam // In practice, n is the gcResultLimit constant.
+	params := url.Values{}
+	params.Add("limit", fmt.Sprintf("%d", n))
+	u, err := cli.urlForWithParams(cli.apiVersion, cli.namespace, resource, "", params)
+	if err != nil {
+		return err
+	}
+	return cli.getURL(u, v)
 }
 
 func (cli *client) list(resource string, v interface{}) error {
@@ -190,7 +235,10 @@ func (cli *client) postResource(apiVersion, namespace, resource string, v interf
 		return fmt.Errorf("marshal object: %v", err)
 	}
 
-	url := cli.urlFor(apiVersion, namespace, resource, "")
+	url, err := cli.urlFor(apiVersion, namespace, resource, "")
+	if err != nil {
+		return err
+	}
 	resp, err := cli.client.Post(url, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -231,7 +279,10 @@ func (cli *client) detectKubernetesVersion() error {
 }
 
 func (cli *client) delete(resource, name string) error {
-	url := cli.urlFor(cli.apiVersion, cli.namespace, resource, name)
+	url, err := cli.urlFor(cli.apiVersion, cli.namespace, resource, name)
+	if err != nil {
+		return err
+	}
 	req, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
 		return fmt.Errorf("create delete request: %v", err)
@@ -270,7 +321,11 @@ func (cli *client) put(resource, name string, v interface{}) error {
 		return fmt.Errorf("marshal object: %v", err)
 	}
 
-	url := cli.urlFor(cli.apiVersion, cli.namespace, resource, name)
+	url, err := cli.urlFor(cli.apiVersion, cli.namespace, resource, name)
+	if err != nil {
+		return err
+	}
+
 	req, err := http.NewRequest("PUT", url, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("create patch request: %v", err)

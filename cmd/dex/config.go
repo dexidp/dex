@@ -129,6 +129,10 @@ func (p *password) UnmarshalJSON(b []byte) error {
 
 // OAuth2 describes enabled OAuth2 extensions.
 type OAuth2 struct {
+	// list of allowed grant types,
+	// defaults to all supported types
+	GrantTypes []string `json:"grantTypes"`
+
 	ResponseTypes []string `json:"responseTypes"`
 	// If specified, do not prompt the user to approve client authorization. The
 	// act of logging in implies authorization.
@@ -151,6 +155,8 @@ type Web struct {
 // Telemetry is the config format for telemetry including the HTTP server config.
 type Telemetry struct {
 	HTTP string `json:"http"`
+	// EnableProfiling makes profiling endpoints available via web interface host:port/debug/pprof/
+	EnableProfiling bool `json:"enableProfiling"`
 }
 
 // GRPC is the config for the gRPC API.

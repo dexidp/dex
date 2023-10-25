@@ -12,9 +12,7 @@ import (
 	"time"
 
 	entSQL "entgo.io/ent/dialect/sql"
-
-	// Register postgres driver.
-	_ "github.com/lib/pq"
+	_ "github.com/lib/pq" // Register postgres driver.
 
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
@@ -22,7 +20,7 @@ import (
 	"github.com/dexidp/dex/storage/ent/db"
 )
 
-// nolint
+//nolint
 const (
 	// postgres SSL modes
 	pgSSLDisable    = "disable"

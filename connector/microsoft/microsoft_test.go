@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"reflect"
 	"testing"
@@ -16,12 +17,67 @@ type testResponse struct {
 	data interface{}
 }
 
-const tenant = "9b1c3439-a67e-4e92-bb0d-0571d44ca965"
+const (
+	tenant   = "9b1c3439-a67e-4e92-bb0d-0571d44ca965"
+	clientID = "a115ebf3-6020-4384-8eb1-c0c42e667b6f"
+)
 
 var dummyToken = testResponse{data: map[string]interface{}{
 	"access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
 	"expires_in":   "30",
 }}
+
+func TestLoginURL(t *testing.T) {
+	testURL := "https://test.com"
+	testState := "some-state"
+
+	conn := microsoftConnector{
+		apiURL:      testURL,
+		graphURL:    testURL,
+		redirectURI: testURL,
+		clientID:    clientID,
+		tenant:      tenant,
+	}
+
+	loginURL, _ := conn.LoginURL(connector.Scopes{}, conn.redirectURI, testState)
+
+	parsedLoginURL, _ := url.Parse(loginURL)
+	queryParams := parsedLoginURL.Query()
+
+	expectEquals(t, parsedLoginURL.Path, "/"+tenant+"/oauth2/v2.0/authorize")
+	expectEquals(t, queryParams.Get("client_id"), clientID)
+	expectEquals(t, queryParams.Get("redirect_uri"), testURL)
+	expectEquals(t, queryParams.Get("response_type"), "code")
+	expectEquals(t, queryParams.Get("scope"), "user.read")
+	expectEquals(t, queryParams.Get("state"), testState)
+	expectEquals(t, queryParams.Get("prompt"), "")
+	expectEquals(t, queryParams.Get("domain_hint"), "")
+}
+
+func TestLoginURLWithOptions(t *testing.T) {
+	testURL := "https://test.com"
+	promptType := "consent"
+	domainHint := "domain.hint"
+
+	conn := microsoftConnector{
+		apiURL:      testURL,
+		graphURL:    testURL,
+		redirectURI: testURL,
+		clientID:    clientID,
+		tenant:      tenant,
+
+		promptType: promptType,
+		domainHint: domainHint,
+	}
+
+	loginURL, _ := conn.LoginURL(connector.Scopes{}, conn.redirectURI, "some-state")
+
+	parsedLoginURL, _ := url.Parse(loginURL)
+	queryParams := parsedLoginURL.Query()
+
+	expectEquals(t, queryParams.Get("prompt"), promptType)
+	expectEquals(t, queryParams.Get("domain_hint"), domainHint)
+}
 
 func TestUserIdentityFromGraphAPI(t *testing.T) {
 	s := newTestServer(map[string]testResponse{

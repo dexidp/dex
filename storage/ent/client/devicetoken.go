@@ -17,6 +17,8 @@ func (d *Database) CreateDeviceToken(token storage.DeviceToken) error {
 		SetExpiry(token.Expiry.UTC()).
 		SetLastRequest(token.LastRequestTime.UTC()).
 		SetStatus(token.Status).
+		SetCodeChallenge(token.PKCE.CodeChallenge).
+		SetCodeChallengeMethod(token.PKCE.CodeChallengeMethod).
 		Save(context.TODO())
 	if err != nil {
 		return convertDBError("create device token: %w", err)
@@ -63,6 +65,8 @@ func (d *Database) UpdateDeviceToken(deviceCode string, updater func(old storage
 		SetExpiry(newToken.Expiry.UTC()).
 		SetLastRequest(newToken.LastRequestTime.UTC()).
 		SetStatus(newToken.Status).
+		SetCodeChallenge(newToken.PKCE.CodeChallenge).
+		SetCodeChallengeMethod(newToken.PKCE.CodeChallengeMethod).
 		Save(context.TODO())
 	if err != nil {
 		return rollback(tx, "update device token uploading: %w", err)

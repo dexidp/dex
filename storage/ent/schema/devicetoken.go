@@ -8,12 +8,14 @@ import (
 /* Original SQL table:
 create table device_token
 (
-    device_code   text      not null primary key,
-    status        text      not null,
-    token         blob,
-    expiry        timestamp not null,
-    last_request  timestamp not null,
-    poll_interval integer   not null
+    device_code           text            not null primary key,
+    status                text            not null,
+    token                 blob,
+    expiry                timestamp       not null,
+    last_request          timestamp       not null,
+    poll_interval         integer         not null,
+    code_challenge        text default '' not null,
+    code_challenge_method text default '' not null
 );
 */
 
@@ -38,6 +40,12 @@ func (DeviceToken) Fields() []ent.Field {
 		field.Time("last_request").
 			SchemaType(timeSchema),
 		field.Int("poll_interval"),
+		field.Text("code_challenge").
+			SchemaType(textSchema).
+			Default(""),
+		field.Text("code_challenge_method").
+			SchemaType(textSchema).
+			Default(""),
 	}
 }
 

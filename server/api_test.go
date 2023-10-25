@@ -337,7 +337,7 @@ func TestRefreshToken(t *testing.T) {
 	}
 
 	if resp, _ := client.ListRefresh(ctx, &listReq); len(resp.RefreshTokens) != 0 {
-		t.Fatalf("Refresh token returned inspite of revoking it.")
+		t.Fatalf("Refresh token returned in spite of revoking it.")
 	}
 }
 

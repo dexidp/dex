@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kylelemons/godebug/pretty"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	jose "gopkg.in/square/go-jose.v2"
 
@@ -63,7 +64,7 @@ func mustLoadJWK(b string) *jose.JSONWebKey {
 func mustBeErrNotFound(t *testing.T, kind string, err error) {
 	switch {
 	case err == nil:
-		t.Errorf("deleting non-existent %s should return an error", kind)
+		t.Errorf("deleting nonexistent %s should return an error", kind)
 	case err != storage.ErrNotFound:
 		t.Errorf("deleting %s expected storage.ErrNotFound, got %v", kind, err)
 	}
@@ -104,7 +105,8 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 			EmailVerified: true,
 			Groups:        []string{"a", "b"},
 		},
-		PKCE: codeChallenge,
+		PKCE:    codeChallenge,
+		HMACKey: []byte("hmac_key"),
 	}
 
 	identity := storage.Claims{Email: "foobar"}
@@ -137,6 +139,7 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 			EmailVerified: true,
 			Groups:        []string{"a"},
 		},
+		HMACKey: []byte("hmac_key"),
 	}
 
 	if err := s.CreateAuthRequest(a2); err != nil {
@@ -817,6 +820,7 @@ func testGC(t *testing.T, s storage.Storage) {
 			EmailVerified: true,
 			Groups:        []string{"a", "b"},
 		},
+		HMACKey: []byte("hmac_key"),
 	}
 
 	if err := s.CreateAuthRequest(a); err != nil {
@@ -890,6 +894,10 @@ func testGC(t *testing.T, s storage.Storage) {
 		Expiry:              expiry,
 		LastRequestTime:     time.Now(),
 		PollIntervalSeconds: 0,
+		PKCE: storage.PKCE{
+			CodeChallenge:       "challenge",
+			CodeChallengeMethod: "S256",
+		},
 	}
 
 	if err := s.CreateDeviceToken(dt); err != nil {
@@ -973,7 +981,7 @@ func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
 		ClientID:     "client1",
 		ClientSecret: "secret1",
 		Scopes:       []string{"openid", "email"},
-		Expiry:       neverExpire,
+		Expiry:       neverExpire.Round(time.Second),
 	}
 
 	if err := s.CreateDeviceRequest(d1); err != nil {
@@ -984,11 +992,23 @@ func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
 	err := s.CreateDeviceRequest(d1)
 	mustBeErrAlreadyExists(t, "device request", err)
 
+	got, err := s.GetDeviceRequest(d1.UserCode)
+	if err != nil {
+		t.Fatalf("failed to get device request: %v", err)
+	}
+
+	require.Equal(t, d1, got)
+
 	// No manual deletes for device requests, will be handled by garbage collection routines
 	// see testGC
 }
 
 func testDeviceTokenCRUD(t *testing.T, s storage.Storage) {
+	codeChallenge := storage.PKCE{
+		CodeChallenge:       "code_challenge_test",
+		CodeChallengeMethod: "plain",
+	}
+
 	// Create a Token
 	d1 := storage.DeviceToken{
 		DeviceCode:          storage.NewID(),
@@ -997,6 +1017,7 @@ func testDeviceTokenCRUD(t *testing.T, s storage.Storage) {
 		Expiry:              neverExpire,
 		LastRequestTime:     time.Now(),
 		PollIntervalSeconds: 0,
+		PKCE:                codeChallenge,
 	}
 
 	if err := s.CreateDeviceToken(d1); err != nil {
@@ -1028,5 +1049,8 @@ func testDeviceTokenCRUD(t *testing.T, s storage.Storage) {
 	}
 	if got.Token != "token data" {
 		t.Fatalf("update failed, wanted token %v got %v", "token data", got.Token)
+	}
+	if !reflect.DeepEqual(got.PKCE, codeChallenge) {
+		t.Fatalf("storage does not support PKCE, wanted challenge=%#v got %#v", codeChallenge, got.PKCE)
 	}
 }

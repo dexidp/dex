@@ -18,6 +18,7 @@ type conn struct {
 	Host          string
 	AdminUsername string
 	AdminPassword string
+	client        *http.Client
 	Logger        log.Logger
 }
 
@@ -35,6 +36,7 @@ type domainKeystone struct {
 // Config holds the configuration parameters for Keystone connector.
 // Keystone should expose API v3
 // An example config:
+//
 //	connectors:
 //		type: keystone
 //		id: keystone
@@ -111,11 +113,12 @@ var (
 // Open returns an authentication strategy using Keystone.
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	return &conn{
-		c.Domain,
-		c.Host,
-		c.AdminUsername,
-		c.AdminPassword,
-		logger,
+		Domain:        c.Domain,
+		Host:          c.Host,
+		AdminUsername: c.AdminUsername,
+		AdminPassword: c.AdminPassword,
+		Logger:        logger,
+		client:        http.DefaultClient,
 	}, nil
 }
 
@@ -168,7 +171,8 @@ func (p *conn) Login(ctx context.Context, scopes connector.Scopes, username, pas
 func (p *conn) Prompt() string { return "username" }
 
 func (p *conn) Refresh(
-	ctx context.Context, scopes connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+	ctx context.Context, scopes connector.Scopes, identity connector.Identity,
+) (connector.Identity, error) {
 	token, err := p.getAdminToken(ctx)
 	if err != nil {
 		return identity, fmt.Errorf("keystone: failed to obtain admin token: %v", err)
@@ -191,7 +195,6 @@ func (p *conn) Refresh(
 }
 
 func (p *conn) getTokenResponse(ctx context.Context, username, pass string) (response *http.Response, err error) {
-	client := &http.Client{}
 	jsonData := loginRequestData{
 		auth: auth{
 			Identity: identity{
@@ -220,7 +223,7 @@ func (p *conn) getTokenResponse(ctx context.Context, username, pass string) (res
 	req.Header.Set("Content-Type", "application/json")
 	req = req.WithContext(ctx)
 
-	return client.Do(req)
+	return p.client.Do(req)
 }
 
 func (p *conn) getAdminToken(ctx context.Context) (string, error) {
@@ -242,7 +245,6 @@ func (p *conn) checkIfUserExists(ctx context.Context, userID string, token strin
 func (p *conn) getUser(ctx context.Context, userID string, token string) (*userResponse, error) {
 	// https://developer.openstack.org/api-ref/identity/v3/#show-user-details
 	userURL := p.Host + "/v3/users/" + userID
-	client := &http.Client{}
 	req, err := http.NewRequest("GET", userURL, nil)
 	if err != nil {
 		return nil, err
@@ -250,7 +252,7 @@ func (p *conn) getUser(ctx context.Context, userID string, token string) (*userR
 
 	req.Header.Set("X-Auth-Token", token)
 	req = req.WithContext(ctx)
-	resp, err := client.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +277,6 @@ func (p *conn) getUser(ctx context.Context, userID string, token string) (*userR
 }
 
 func (p *conn) getUserGroups(ctx context.Context, userID string, token string) ([]string, error) {
-	client := &http.Client{}
 	// https://developer.openstack.org/api-ref/identity/v3/#list-groups-to-which-a-user-belongs
 	groupsURL := p.Host + "/v3/users/" + userID + "/groups"
 	req, err := http.NewRequest("GET", groupsURL, nil)
@@ -284,7 +285,7 @@ func (p *conn) getUserGroups(ctx context.Context, userID string, token string) (
 	}
 	req.Header.Set("X-Auth-Token", token)
 	req = req.WithContext(ctx)
-	resp, err := client.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		p.Logger.Errorf("keystone: error while fetching user %q groups\n", userID)
 		return nil, err

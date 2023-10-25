@@ -9,11 +9,13 @@ import (
 	"net/url"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/httpclient"
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
 
@@ -69,7 +71,7 @@ func TestGetUser(t *testing.T) {
 	_, err = http.NewRequest("GET", hostURL.String(), nil)
 	expectNil(t, err)
 
-	h, err := newHTTPClient(true, "")
+	h, err := httpclient.NewHTTPClient(nil, true)
 
 	expectNil(t, err)
 
@@ -127,7 +129,7 @@ func TestVerifyGroup(t *testing.T) {
 	_, err = http.NewRequest("GET", hostURL.String(), nil)
 	expectNil(t, err)
 
-	h, err := newHTTPClient(true, "")
+	h, err := httpclient.NewHTTPClient(nil, true)
 
 	expectNil(t, err)
 
@@ -163,7 +165,7 @@ func TestCallbackIdentity(t *testing.T) {
 	req, err := http.NewRequest("GET", hostURL.String(), nil)
 	expectNil(t, err)
 
-	h, err := newHTTPClient(true, "")
+	h, err := httpclient.NewHTTPClient(nil, true)
 
 	expectNil(t, err)
 
@@ -182,6 +184,78 @@ func TestCallbackIdentity(t *testing.T) {
 	expectEquals(t, identity.Email, "jdoe")
 	expectEquals(t, len(identity.Groups), 1)
 	expectEquals(t, identity.Groups[0], "users")
+}
+
+func TestRefreshIdentity(t *testing.T) {
+	s := newTestServer(map[string]interface{}{
+		usersURLPath: user{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "jdoe",
+				UID:  "12345",
+			},
+			FullName: "John Doe",
+			Groups:   []string{"users"},
+		},
+	})
+	defer s.Close()
+
+	h, err := httpclient.NewHTTPClient(nil, true)
+	expectNil(t, err)
+
+	oc := openshiftConnector{apiURL: s.URL, httpClient: h, oauth2Config: &oauth2.Config{
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  fmt.Sprintf("%s/oauth/authorize", s.URL),
+			TokenURL: fmt.Sprintf("%s/oauth/token", s.URL),
+		},
+	}}
+
+	data, err := json.Marshal(oauth2.Token{AccessToken: "fFAGRNJru1FTz70BzhT3Zg"})
+	expectNil(t, err)
+
+	oldID := connector.Identity{ConnectorData: data}
+
+	identity, err := oc.Refresh(context.Background(), connector.Scopes{Groups: true}, oldID)
+
+	expectNil(t, err)
+	expectEquals(t, identity.UserID, "12345")
+	expectEquals(t, identity.Username, "jdoe")
+	expectEquals(t, identity.PreferredUsername, "jdoe")
+	expectEquals(t, identity.Email, "jdoe")
+	expectEquals(t, len(identity.Groups), 1)
+	expectEquals(t, identity.Groups[0], "users")
+}
+
+func TestRefreshIdentityFailure(t *testing.T) {
+	s := newTestServer(map[string]interface{}{
+		usersURLPath: user{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "jdoe",
+				UID:  "12345",
+			},
+			FullName: "John Doe",
+			Groups:   []string{"users"},
+		},
+	})
+	defer s.Close()
+
+	h, err := httpclient.NewHTTPClient(nil, true)
+	expectNil(t, err)
+
+	oc := openshiftConnector{apiURL: s.URL, httpClient: h, oauth2Config: &oauth2.Config{
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  fmt.Sprintf("%s/oauth/authorize", s.URL),
+			TokenURL: fmt.Sprintf("%s/oauth/token", s.URL),
+		},
+	}}
+
+	data, err := json.Marshal(oauth2.Token{AccessToken: "oRzxVjCnohYRHEYEhZshkmakKmoyVoTjfUGC", Expiry: time.Now().Add(-time.Hour)})
+	expectNil(t, err)
+
+	oldID := connector.Identity{ConnectorData: data}
+
+	identity, err := oc.Refresh(context.Background(), connector.Scopes{Groups: true}, oldID)
+	expectNotNil(t, err)
+	expectEquals(t, connector.Identity{}, identity)
 }
 
 func newTestServer(responses map[string]interface{}) *httptest.Server {
@@ -214,5 +288,11 @@ func expectNil(t *testing.T, a interface{}) {
 func expectEquals(t *testing.T, a interface{}, b interface{}) {
 	if !reflect.DeepEqual(a, b) {
 		t.Errorf("Expected %+v to equal %+v", a, b)
+	}
+}
+
+func expectNotNil(t *testing.T, a interface{}) {
+	if a == nil {
+		t.Errorf("Expected %+v to not equal nil", a)
 	}
 }

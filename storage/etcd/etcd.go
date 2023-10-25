@@ -577,8 +577,11 @@ func (c *conn) CreateDeviceRequest(d storage.DeviceRequest) error {
 func (c *conn) GetDeviceRequest(userCode string) (r storage.DeviceRequest, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	err = c.getKey(ctx, keyID(deviceRequestPrefix, userCode), &r)
-	return r, err
+	var dr DeviceRequest
+	if err = c.getKey(ctx, keyID(deviceRequestPrefix, userCode), &dr); err == nil {
+		r = toStorageDeviceRequest(dr)
+	}
+	return
 }
 
 func (c *conn) listDeviceRequests(ctx context.Context) (requests []DeviceRequest, err error) {
@@ -605,8 +608,11 @@ func (c *conn) CreateDeviceToken(t storage.DeviceToken) error {
 func (c *conn) GetDeviceToken(deviceCode string) (t storage.DeviceToken, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	err = c.getKey(ctx, keyID(deviceTokenPrefix, deviceCode), &t)
-	return t, err
+	var dt DeviceToken
+	if err = c.getKey(ctx, keyID(deviceTokenPrefix, deviceCode), &dt); err == nil {
+		t = toStorageDeviceToken(dt)
+	}
+	return
 }
 
 func (c *conn) listDeviceTokens(ctx context.Context) (deviceTokens []DeviceToken, err error) {

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -43,8 +42,6 @@ type groupResponse struct {
 
 func getAdminToken(t *testing.T, adminName, adminPass string) (token, id string) {
 	t.Helper()
-	client := &http.Client{}
-
 	jsonData := loginRequestData{
 		auth: auth{
 			Identity: identity{
@@ -71,7 +68,7 @@ func getAdminToken(t *testing.T, adminName, adminPass string) (token, id string)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +91,6 @@ func getAdminToken(t *testing.T, adminName, adminPass string) (token, id string)
 
 func createUser(t *testing.T, token, userName, userEmail, userPass string) string {
 	t.Helper()
-	client := &http.Client{}
 
 	createUserData := map[string]interface{}{
 		"user": map[string]interface{}{
@@ -117,7 +113,7 @@ func createUser(t *testing.T, token, userName, userEmail, userPass string) strin
 	}
 	req.Header.Set("X-Auth-Token", token)
 	req.Header.Add("Content-Type", "application/json")
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +136,6 @@ func createUser(t *testing.T, token, userName, userEmail, userPass string) strin
 // delete group or user
 func deleteResource(t *testing.T, token, id, uri string) {
 	t.Helper()
-	client := &http.Client{}
 
 	deleteURI := uri + id
 	req, err := http.NewRequest("DELETE", deleteURI, nil)
@@ -149,7 +144,7 @@ func deleteResource(t *testing.T, token, id, uri string) {
 	}
 	req.Header.Set("X-Auth-Token", token)
 
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
@@ -158,7 +153,6 @@ func deleteResource(t *testing.T, token, id, uri string) {
 
 func createGroup(t *testing.T, token, description, name string) string {
 	t.Helper()
-	client := &http.Client{}
 
 	createGroupData := map[string]interface{}{
 		"group": map[string]interface{}{
@@ -178,7 +172,7 @@ func createGroup(t *testing.T, token, description, name string) string {
 	}
 	req.Header.Set("X-Auth-Token", token)
 	req.Header.Add("Content-Type", "application/json")
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,14 +195,13 @@ func createGroup(t *testing.T, token, description, name string) string {
 func addUserToGroup(t *testing.T, token, groupID, userID string) error {
 	t.Helper()
 	uri := groupsURL + groupID + "/users/" + userID
-	client := &http.Client{}
 	req, err := http.NewRequest("PUT", uri, nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("X-Auth-Token", token)
 
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
@@ -220,7 +213,8 @@ func addUserToGroup(t *testing.T, token, groupID, userID string) error {
 func TestIncorrectCredentialsLogin(t *testing.T) {
 	setupVariables(t)
 	c := conn{
-		Host: keystoneURL, Domain: testDomain,
+		client: http.DefaultClient,
+		Host:   keystoneURL, Domain: testDomain,
 		AdminUsername: adminUser, AdminPassword: adminPass,
 	}
 	s := connector.Scopes{OfflineAccess: true, Groups: true}
@@ -297,7 +291,8 @@ func TestValidUserLogin(t *testing.T) {
 			defer deleteResource(t, token, userID, usersURL)
 
 			c := conn{
-				Host: keystoneURL, Domain: tt.input.domain,
+				client: http.DefaultClient,
+				Host:   keystoneURL, Domain: tt.input.domain,
 				AdminUsername: adminUser, AdminPassword: adminPass,
 			}
 			s := connector.Scopes{OfflineAccess: true, Groups: true}
@@ -334,7 +329,8 @@ func TestUseRefreshToken(t *testing.T) {
 	defer deleteResource(t, token, groupID, groupsURL)
 
 	c := conn{
-		Host: keystoneURL, Domain: testDomain,
+		client: http.DefaultClient,
+		Host:   keystoneURL, Domain: testDomain,
 		AdminUsername: adminUser, AdminPassword: adminPass,
 	}
 	s := connector.Scopes{OfflineAccess: true, Groups: true}
@@ -359,7 +355,8 @@ func TestUseRefreshTokenUserDeleted(t *testing.T) {
 	userID := createUser(t, token, testUser, testEmail, testPass)
 
 	c := conn{
-		Host: keystoneURL, Domain: testDomain,
+		client: http.DefaultClient,
+		Host:   keystoneURL, Domain: testDomain,
 		AdminUsername: adminUser, AdminPassword: adminPass,
 	}
 	s := connector.Scopes{OfflineAccess: true, Groups: true}
@@ -389,7 +386,8 @@ func TestUseRefreshTokenGroupsChanged(t *testing.T) {
 	defer deleteResource(t, token, userID, usersURL)
 
 	c := conn{
-		Host: keystoneURL, Domain: testDomain,
+		client: http.DefaultClient,
+		Host:   keystoneURL, Domain: testDomain,
 		AdminUsername: adminUser, AdminPassword: adminPass,
 	}
 	s := connector.Scopes{OfflineAccess: true, Groups: true}
@@ -425,7 +423,8 @@ func TestNoGroupsInScope(t *testing.T) {
 	defer deleteResource(t, token, userID, usersURL)
 
 	c := conn{
-		Host: keystoneURL, Domain: testDomain,
+		client: http.DefaultClient,
+		Host:   keystoneURL, Domain: testDomain,
 		AdminUsername: adminUser, AdminPassword: adminPass,
 	}
 	s := connector.Scopes{OfflineAccess: true, Groups: false}
@@ -454,22 +453,22 @@ func setupVariables(t *testing.T) {
 	keystoneAdminPassEnv := "DEX_KEYSTONE_ADMIN_PASS"
 	keystoneURL = os.Getenv(keystoneURLEnv)
 	if keystoneURL == "" {
-		t.Skip(fmt.Sprintf("variable %q not set, skipping keystone connector tests\n", keystoneURLEnv))
+		t.Skipf("variable %q not set, skipping keystone connector tests\n", keystoneURLEnv)
 		return
 	}
 	keystoneAdminURL = os.Getenv(keystoneAdminURLEnv)
 	if keystoneAdminURL == "" {
-		t.Skip(fmt.Sprintf("variable %q not set, skipping keystone connector tests\n", keystoneAdminURLEnv))
+		t.Skipf("variable %q not set, skipping keystone connector tests\n", keystoneAdminURLEnv)
 		return
 	}
 	adminUser = os.Getenv(keystoneAdminUserEnv)
 	if adminUser == "" {
-		t.Skip(fmt.Sprintf("variable %q not set, skipping keystone connector tests\n", keystoneAdminUserEnv))
+		t.Skipf("variable %q not set, skipping keystone connector tests\n", keystoneAdminUserEnv)
 		return
 	}
 	adminPass = os.Getenv(keystoneAdminPassEnv)
 	if adminPass == "" {
-		t.Skip(fmt.Sprintf("variable %q not set, skipping keystone connector tests\n", keystoneAdminPassEnv))
+		t.Skipf("variable %q not set, skipping keystone connector tests\n", keystoneAdminPassEnv)
 		return
 	}
 	authTokenURL = keystoneURL + "/v3/auth/tokens/"

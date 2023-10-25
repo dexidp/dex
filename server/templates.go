@@ -83,13 +83,12 @@ func getFuncMap(c webConfig) (template.FuncMap, error) {
 //
 // The directory layout is expected to be:
 //
-//    ( web directory )
-//    |- static
-//    |- themes
-//    |  |- (theme name)
-//    |- templates
-//
-func loadWebConfig(c webConfig) (http.Handler, http.Handler, *templates, error) {
+//	( web directory )
+//	|- static
+//	|- themes
+//	|  |- (theme name)
+//	|- templates
+func loadWebConfig(c webConfig) (http.Handler, http.Handler, http.HandlerFunc, *templates, error) {
 	// fallback to the default theme if the legacy theme name is provided
 	if c.theme == "coreos" || c.theme == "tectonic" {
 		c.theme = ""
@@ -106,18 +105,24 @@ func loadWebConfig(c webConfig) (http.Handler, http.Handler, *templates, error) 
 
 	staticFiles, err := fs.Sub(c.webFS, "static")
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("read static dir: %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("read static dir: %v", err)
 	}
 	themeFiles, err := fs.Sub(c.webFS, path.Join("themes", c.theme))
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("read themes dir: %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("read themes dir: %v", err)
+	}
+	robotsContent, err := fs.ReadFile(c.webFS, "robots.txt")
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("read robots.txt dir: %v", err)
 	}
 
 	static := http.FileServer(http.FS(staticFiles))
 	theme := http.FileServer(http.FS(themeFiles))
+	robots := func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, string(robotsContent)) }
 
 	templates, err := loadTemplates(c, "templates")
-	return static, theme, templates, err
+
+	return static, theme, robots, templates, err
 }
 
 // loadTemplates parses the expected templates from the provided directory.
@@ -238,12 +243,15 @@ var scopeDescriptions = map[string]string{
 	"offline_access": "Have offline access",
 	"profile":        "View basic profile information",
 	"email":          "View your email address",
+	// 'groups' is not a standard OIDC scope, and Dex only returns groups only if the upstream provider does too.
+	// This warning is added for convenience to show that the user may expose some sensitive data to the application.
+	"groups": "View your groups",
 }
 
 type connectorInfo struct {
 	ID   string
 	Name string
-	URL  string
+	URL  template.URL
 	Type string
 }
 
@@ -284,6 +292,9 @@ func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []c
 }
 
 func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid bool, backLink string) error {
+	if lastWasInvalid {
+		w.WriteHeader(http.StatusUnauthorized)
+	}
 	data := struct {
 		PostURL        string
 		BackLink       string

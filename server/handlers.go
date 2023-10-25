@@ -1,11 +1,13 @@
 package server
 
 import (
+	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/url"
 	"path"
@@ -154,7 +156,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	if connectorID != "" {
 		for _, c := range connectors {
 			if c.ID == connectorID {
-				connURL.Path = s.absPath("/auth", c.ID)
+				connURL.Path = s.absPath("/auth", url.PathEscape(c.ID))
 				http.Redirect(w, r, connURL.String(), http.StatusFound)
 				return
 			}
@@ -164,18 +166,18 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(connectors) == 1 && !s.alwaysShowLogin {
-		connURL.Path = s.absPath("/auth", connectors[0].ID)
+		connURL.Path = s.absPath("/auth", url.PathEscape(connectors[0].ID))
 		http.Redirect(w, r, connURL.String(), http.StatusFound)
 	}
 
 	connectorInfos := make([]connectorInfo, len(connectors))
 	for index, conn := range connectors {
-		connURL.Path = s.absPath("/auth", conn.ID)
+		connURL.Path = s.absPath("/auth", url.PathEscape(conn.ID))
 		connectorInfos[index] = connectorInfo{
 			ID:   conn.ID,
 			Name: conn.Name,
 			Type: conn.Type,
-			URL:  connURL.String(),
+			URL:  template.URL(connURL.String()),
 		}
 	}
 
@@ -201,7 +203,13 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	connID := mux.Vars(r)["connector"]
+	connID, err := url.PathUnescape(mux.Vars(r)["connector"])
+	if err != nil {
+		s.logger.Errorf("Failed to parse connector: %v", err)
+		s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist")
+		return
+	}
+
 	conn, err := s.getConnector(connID)
 	if err != nil {
 		s.logger.Errorf("Failed to get connector: %v", err)
@@ -317,7 +325,12 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if connID := mux.Vars(r)["connector"]; connID != "" && connID != authReq.ConnectorID {
+	connID, err := url.PathUnescape(mux.Vars(r)["connector"])
+	if err != nil {
+		s.logger.Errorf("Failed to parse connector: %v", err)
+		s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist")
+		return
+	} else if connID != "" && connID != authReq.ConnectorID {
 		s.logger.Errorf("Connector mismatch: authentication started with id %q, but password login for id %q was triggered", authReq.ConnectorID, connID)
 		s.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
@@ -359,10 +372,21 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		redirectURL, err := s.finalizeLogin(identity, authReq, conn.Connector)
+		redirectURL, canSkipApproval, err := s.finalizeLogin(identity, authReq, conn.Connector)
 		if err != nil {
 			s.logger.Errorf("Failed to finalize login: %v", err)
 			s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+			return
+		}
+
+		if canSkipApproval {
+			authReq, err = s.storage.GetAuthRequest(authReq.ID)
+			if err != nil {
+				s.logger.Errorf("Failed to get finalized auth request: %v", err)
+				s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+				return
+			}
+			s.sendCodeResponse(w, r, authReq)
 			return
 		}
 
@@ -402,7 +426,12 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if connID := mux.Vars(r)["connector"]; connID != "" && connID != authReq.ConnectorID {
+	connID, err := url.PathUnescape(mux.Vars(r)["connector"])
+	if err != nil {
+		s.logger.Errorf("Failed to get connector with id %q : %v", authReq.ConnectorID, err)
+		s.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
+		return
+	} else if connID != "" && connID != authReq.ConnectorID {
 		s.logger.Errorf("Connector mismatch: authentication started with id %q, but callback for id %q was triggered", authReq.ConnectorID, connID)
 		s.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
@@ -442,10 +471,21 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	redirectURL, err := s.finalizeLogin(identity, authReq, conn.Connector)
+	redirectURL, canSkipApproval, err := s.finalizeLogin(identity, authReq, conn.Connector)
 	if err != nil {
 		s.logger.Errorf("Failed to finalize login: %v", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+		return
+	}
+
+	if canSkipApproval {
+		authReq, err = s.storage.GetAuthRequest(authReq.ID)
+		if err != nil {
+			s.logger.Errorf("Failed to get finalized auth request: %v", err)
+			s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+			return
+		}
+		s.sendCodeResponse(w, r, authReq)
 		return
 	}
 
@@ -454,7 +494,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 
 // finalizeLogin associates the user's identity with the current AuthRequest, then returns
 // the approval page's path.
-func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (string, error) {
+func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (string, bool, error) {
 	claims := storage.Claims{
 		UserID:            identity.UserID,
 		Username:          identity.Username,
@@ -471,7 +511,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 		return a, nil
 	}
 	if err := s.storage.UpdateAuthRequest(authReq.ID, updater); err != nil {
-		return "", fmt.Errorf("failed to update auth request: %v", err)
+		return "", false, fmt.Errorf("failed to update auth request: %v", err)
 	}
 
 	email := claims.Email
@@ -482,10 +522,32 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 	s.logger.Infof("login successful: connector %q, username=%q, preferred_username=%q, email=%q, groups=%q",
 		authReq.ConnectorID, claims.Username, claims.PreferredUsername, email, claims.Groups)
 
-	returnURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID
+	// we can skip the redirect to /approval and go ahead and send code if it's not required
+	if s.skipApproval && !authReq.ForceApprovalPrompt {
+		return "", true, nil
+	}
+
+	// an HMAC is used here to ensure that the request ID is unpredictable, ensuring that an attacker who intercepted the original
+	// flow would be unable to poll for the result at the /approval endpoint
+	h := hmac.New(sha256.New, authReq.HMACKey)
+	h.Write([]byte(authReq.ID))
+	mac := h.Sum(nil)
+
+	returnURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID + "&hmac=" + base64.RawURLEncoding.EncodeToString(mac)
 	_, ok := conn.(connector.RefreshConnector)
 	if !ok {
-		return returnURL, nil
+		return returnURL, false, nil
+	}
+
+	offlineAccessRequested := false
+	for _, scope := range authReq.Scopes {
+		if scope == scopeOfflineAccess {
+			offlineAccessRequested = true
+			break
+		}
+	}
+	if !offlineAccessRequested {
+		return returnURL, false, nil
 	}
 
 	// Try to retrieve an existing OfflineSession object for the corresponding user.
@@ -493,7 +555,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 	if err != nil {
 		if err != storage.ErrNotFound {
 			s.logger.Errorf("failed to get offline session: %v", err)
-			return "", err
+			return "", false, err
 		}
 		offlineSessions := storage.OfflineSessions{
 			UserID:        identity.UserID,
@@ -506,10 +568,10 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 		// the newly received refreshtoken.
 		if err := s.storage.CreateOfflineSessions(offlineSessions); err != nil {
 			s.logger.Errorf("failed to create offline session: %v", err)
-			return "", err
+			return "", false, err
 		}
 
-		return returnURL, nil
+		return returnURL, false, nil
 	}
 
 	// Update existing OfflineSession obj with new RefreshTokenRef.
@@ -520,13 +582,24 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 		return old, nil
 	}); err != nil {
 		s.logger.Errorf("failed to update offline session: %v", err)
-		return "", err
+		return "", false, err
 	}
 
-	return returnURL, nil
+	return returnURL, false, nil
 }
 
 func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
+	macEncoded := r.FormValue("hmac")
+	if macEncoded == "" {
+		s.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
+		return
+	}
+	mac, err := base64.RawURLEncoding.DecodeString(macEncoded)
+	if err != nil {
+		s.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
+		return
+	}
+
 	authReq, err := s.storage.GetAuthRequest(r.FormValue("req"))
 	if err != nil {
 		s.logger.Errorf("Failed to get auth request: %v", err)
@@ -539,8 +612,20 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// build expected hmac with secret key
+	h := hmac.New(sha256.New, authReq.HMACKey)
+	h.Write([]byte(authReq.ID))
+	expectedMAC := h.Sum(nil)
+	// constant time comparison
+	if !hmac.Equal(mac, expectedMAC) {
+		s.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
+		return
+	}
+
 	switch r.Method {
 	case http.MethodGet:
+		// TODO: `finalizeLogin()` now sends code directly to client without going through this endpoint,
+		//		 the `if skipApproval { ... }` block needs to be removed after a grace period.
 		if s.skipApproval {
 			s.sendCodeResponse(w, r, authReq)
 			return
@@ -636,7 +721,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			implicitOrHybrid = true
 			var err error
 
-			accessToken, err = s.newAccessToken(authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, authReq.ConnectorID)
+			accessToken, _, err = s.newAccessToken(authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, authReq.ConnectorID)
 			if err != nil {
 				s.logger.Errorf("failed to create new access token: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -756,6 +841,11 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	grantType := r.PostFormValue("grant_type")
+	if !contains(s.supportedGrantTypes, grantType) {
+		s.logger.Errorf("unsupported grant type: %v", grantType)
+		s.tokenErrHelper(w, errUnsupportedGrantType, "", http.StatusBadRequest)
+		return
+	}
 	switch grantType {
 	case grantTypeDeviceCode:
 		s.handleDeviceToken(w, r)
@@ -765,6 +855,8 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		s.withClientFromStorage(w, r, s.handleRefreshToken)
 	case grantTypePassword:
 		s.withClientFromStorage(w, r, s.handlePasswordGrant)
+	case grantTypeTokenExchange:
+		s.withClientFromStorage(w, r, s.handleTokenExchange)
 	default:
 		s.tokenErrHelper(w, errUnsupportedGrantType, "", http.StatusBadRequest)
 	}
@@ -843,7 +935,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 }
 
 func (s *Server) exchangeAuthCode(w http.ResponseWriter, authCode storage.AuthCode, client storage.Client) (*accessTokenResponse, error) {
-	accessToken, err := s.newAccessToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID)
+	accessToken, _, err := s.newAccessToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create new access token: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1106,7 +1198,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		Groups:            identity.Groups,
 	}
 
-	accessToken, err := s.newAccessToken(client.ID, claims, scopes, nonce, connID)
+	accessToken, _, err := s.newAccessToken(client.ID, claims, scopes, nonce, connID)
 	if err != nil {
 		s.logger.Errorf("password grant failed to create new access token: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1245,21 +1337,109 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	s.writeAccessToken(w, resp)
 }
 
+func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, client storage.Client) {
+	ctx := r.Context()
+
+	if err := r.ParseForm(); err != nil {
+		s.logger.Errorf("could not parse request body: %v", err)
+		s.tokenErrHelper(w, errInvalidRequest, "", http.StatusBadRequest)
+		return
+	}
+	q := r.Form
+
+	scopes := strings.Fields(q.Get("scope"))            // OPTIONAL, map to issued token scope
+	requestedTokenType := q.Get("requested_token_type") // OPTIONAL, default to access token
+	if requestedTokenType == "" {
+		requestedTokenType = tokenTypeAccess
+	}
+	subjectToken := q.Get("subject_token")          // REQUIRED
+	subjectTokenType := q.Get("subject_token_type") // REQUIRED
+	connID := q.Get("connector_id")                 // REQUIRED, not in RFC
+
+	switch subjectTokenType {
+	case tokenTypeID, tokenTypeAccess: // ok, continue
+	default:
+		s.tokenErrHelper(w, errRequestNotSupported, "Invalid subject_token_type.", http.StatusBadRequest)
+		return
+	}
+
+	if subjectToken == "" {
+		s.tokenErrHelper(w, errInvalidRequest, "Missing subject_token", http.StatusBadRequest)
+		return
+	}
+
+	conn, err := s.getConnector(connID)
+	if err != nil {
+		s.logger.Errorf("failed to get connector: %v", err)
+		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
+		return
+	}
+	teConn, ok := conn.Connector.(connector.TokenIdentityConnector)
+	if !ok {
+		s.logger.Errorf("connector doesn't implement token exchange: %v", connID)
+		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
+		return
+	}
+	identity, err := teConn.TokenIdentity(ctx, subjectTokenType, subjectToken)
+	if err != nil {
+		s.logger.Errorf("failed to verify subject token: %v", err)
+		s.tokenErrHelper(w, errAccessDenied, "", http.StatusUnauthorized)
+		return
+	}
+
+	claims := storage.Claims{
+		UserID:            identity.UserID,
+		Username:          identity.Username,
+		PreferredUsername: identity.PreferredUsername,
+		Email:             identity.Email,
+		EmailVerified:     identity.EmailVerified,
+		Groups:            identity.Groups,
+	}
+	resp := accessTokenResponse{
+		IssuedTokenType: requestedTokenType,
+		TokenType:       "bearer",
+	}
+	var expiry time.Time
+	switch requestedTokenType {
+	case tokenTypeID:
+		resp.AccessToken, expiry, err = s.newIDToken(client.ID, claims, scopes, "", "", "", connID)
+	case tokenTypeAccess:
+		resp.AccessToken, expiry, err = s.newAccessToken(client.ID, claims, scopes, "", connID)
+	default:
+		s.tokenErrHelper(w, errRequestNotSupported, "Invalid requested_token_type.", http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		s.logger.Errorf("token exchange failed to create new %v token: %v", requestedTokenType, err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+	resp.ExpiresIn = int(time.Until(expiry).Seconds())
+
+	// Token response must include cache headers https://tools.ietf.org/html/rfc6749#section-5.1
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
 type accessTokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
-	RefreshToken string `json:"refresh_token,omitempty"`
-	IDToken      string `json:"id_token"`
+	AccessToken     string `json:"access_token"`
+	IssuedTokenType string `json:"issued_token_type,omitempty"`
+	TokenType       string `json:"token_type"`
+	ExpiresIn       int    `json:"expires_in,omitempty"`
+	RefreshToken    string `json:"refresh_token,omitempty"`
+	IDToken         string `json:"id_token,omitempty"`
+	Scope           string `json:"scope,omitempty"`
 }
 
 func (s *Server) toAccessTokenResponse(idToken, accessToken, refreshToken string, expiry time.Time) *accessTokenResponse {
 	return &accessTokenResponse{
-		accessToken,
-		"bearer",
-		int(expiry.Sub(s.now()).Seconds()),
-		refreshToken,
-		idToken,
+		AccessToken:  accessToken,
+		TokenType:    "bearer",
+		ExpiresIn:    int(expiry.Sub(s.now()).Seconds()),
+		RefreshToken: refreshToken,
+		IDToken:      idToken,
 	}
 }
 
@@ -1281,7 +1461,7 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, resp *accessTokenRespon
 
 func (s *Server) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
 	if err := s.templates.err(r, w, status, description); err != nil {
-		s.logger.Errorf("Server template error: %v", err)
+		s.logger.Errorf("server template error: %v", err)
 	}
 }
 

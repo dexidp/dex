@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/html"
+
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
@@ -71,6 +73,17 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 		clientID := r.Form.Get("client_id")
 		clientSecret := r.Form.Get("client_secret")
 		scopes := strings.Fields(r.Form.Get("scope"))
+		codeChallenge := r.Form.Get("code_challenge")
+		codeChallengeMethod := r.Form.Get("code_challenge_method")
+
+		if codeChallengeMethod == "" {
+			codeChallengeMethod = codeChallengeMethodPlain
+		}
+		if codeChallengeMethod != codeChallengeMethodS256 && codeChallengeMethod != codeChallengeMethodPlain {
+			description := fmt.Sprintf("Unsupported PKCE challenge method (%q).", codeChallengeMethod)
+			s.tokenErrHelper(w, errInvalidRequest, description, http.StatusBadRequest)
+			return
+		}
 
 		s.logger.Infof("Received device request for client %v with scopes %v", clientID, scopes)
 
@@ -106,6 +119,10 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 			Expiry:              expireTime,
 			LastRequestTime:     s.now(),
 			PollIntervalSeconds: 0,
+			PKCE: storage.PKCE{
+				CodeChallenge:       codeChallenge,
+				CodeChallengeMethod: codeChallengeMethod,
+			},
 		}
 
 		if err := s.storage.CreateDeviceToken(deviceToken); err != nil {
@@ -140,6 +157,10 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 		// Device Authorization Response can contain cache control header according to
 		// https://tools.ietf.org/html/rfc8628#section-3.2
 		w.Header().Set("Cache-Control", "no-store")
+
+		// Response type should be application/json according to
+		// https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
+		w.Header().Set("Content-Type", "application/json")
 
 		enc := json.NewEncoder(w)
 		enc.SetEscapeHTML(false)
@@ -230,6 +251,30 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 			s.tokenErrHelper(w, deviceTokenPending, "", http.StatusUnauthorized)
 		}
 	case deviceTokenComplete:
+		codeChallengeFromStorage := deviceToken.PKCE.CodeChallenge
+		providedCodeVerifier := r.Form.Get("code_verifier")
+
+		switch {
+		case providedCodeVerifier != "" && codeChallengeFromStorage != "":
+			calculatedCodeChallenge, err := s.calculateCodeChallenge(providedCodeVerifier, deviceToken.PKCE.CodeChallengeMethod)
+			if err != nil {
+				s.logger.Error(err)
+				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+				return
+			}
+			if codeChallengeFromStorage != calculatedCodeChallenge {
+				s.tokenErrHelper(w, errInvalidGrant, "Invalid code_verifier.", http.StatusBadRequest)
+				return
+			}
+		case providedCodeVerifier != "":
+			// Received no code_challenge on /auth, but a code_verifier on /token
+			s.tokenErrHelper(w, errInvalidRequest, "No PKCE flow started. Cannot check code_verifier.", http.StatusBadRequest)
+			return
+		case codeChallengeFromStorage != "":
+			// Received PKCE request on /auth, but no code_verifier on /token
+			s.tokenErrHelper(w, errInvalidGrant, "Expecting parameter code_verifier in PKCE flow.", http.StatusBadRequest)
+			return
+		}
 		w.Write([]byte(deviceToken.Token))
 	}
 }
@@ -247,7 +292,9 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 
 		// Authorization redirect callback from OAuth2 auth flow.
 		if errMsg := r.FormValue("error"); errMsg != "" {
-			http.Error(w, errMsg+": "+r.FormValue("error_description"), http.StatusBadRequest)
+			// escape the message to prevent cross-site scripting
+			msg := html.EscapeString(errMsg + ": " + r.FormValue("error_description"))
+			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
 

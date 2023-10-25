@@ -49,9 +49,11 @@ func TestHandleDeviceCode(t *testing.T) {
 	tests := []struct {
 		testName               string
 		clientID               string
+		codeChallengeMethod    string
 		requestType            string
 		scopes                 []string
 		expectedResponseCode   int
+		expectedContentType    string
 		expectedServerResponse string
 	}{
 		{
@@ -60,6 +62,7 @@ func TestHandleDeviceCode(t *testing.T) {
 			requestType:          "POST",
 			scopes:               []string{"openid", "profile", "email"},
 			expectedResponseCode: http.StatusOK,
+			expectedContentType:  "application/json",
 		},
 		{
 			testName:             "Invalid request Type (GET)",
@@ -67,6 +70,25 @@ func TestHandleDeviceCode(t *testing.T) {
 			requestType:          "GET",
 			scopes:               []string{"openid", "profile", "email"},
 			expectedResponseCode: http.StatusBadRequest,
+			expectedContentType:  "application/json",
+		},
+		{
+			testName:             "New Code with valid PKCE",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{"openid", "profile", "email"},
+			codeChallengeMethod:  "S256",
+			expectedResponseCode: http.StatusOK,
+			expectedContentType:  "application/json",
+		},
+		{
+			testName:             "Invalid code challenge method",
+			clientID:             "test",
+			requestType:          "POST",
+			codeChallengeMethod:  "invalid",
+			scopes:               []string{"openid", "profile", "email"},
+			expectedResponseCode: http.StatusBadRequest,
+			expectedContentType:  "application/json",
 		},
 	}
 	for _, tc := range tests {
@@ -89,6 +111,7 @@ func TestHandleDeviceCode(t *testing.T) {
 
 			data := url.Values{}
 			data.Set("client_id", tc.clientID)
+			data.Set("code_challenge_method", tc.codeChallengeMethod)
 			for _, scope := range tc.scopes {
 				data.Add("scope", scope)
 			}
@@ -99,6 +122,10 @@ func TestHandleDeviceCode(t *testing.T) {
 			s.ServeHTTP(rr, req)
 			if rr.Code != tc.expectedResponseCode {
 				t.Errorf("Unexpected Response Type.  Expected %v got %v", tc.expectedResponseCode, rr.Code)
+			}
+
+			if rr.Header().Get("content-type") != tc.expectedContentType {
+				t.Errorf("Unexpected Response Content Type.  Expected %v got %v", tc.expectedContentType, rr.Header().Get("content-type"))
 			}
 
 			body, err := io.ReadAll(rr.Body)
@@ -160,12 +187,13 @@ func TestDeviceCallback(t *testing.T) {
 	}
 
 	tests := []struct {
-		testName             string
-		expectedResponseCode int
-		values               formValues
-		testAuthCode         storage.AuthCode
-		testDeviceRequest    storage.DeviceRequest
-		testDeviceToken      storage.DeviceToken
+		testName               string
+		expectedResponseCode   int
+		expectedServerResponse string
+		values                 formValues
+		testAuthCode           storage.AuthCode
+		testDeviceRequest      storage.DeviceRequest
+		testDeviceToken        storage.DeviceToken
 	}{
 		{
 			testName: "Missing State",
@@ -192,7 +220,8 @@ func TestDeviceCallback(t *testing.T) {
 				code:  "somecode",
 				error: "Error Condition",
 			},
-			expectedResponseCode: http.StatusBadRequest,
+			expectedResponseCode:   http.StatusBadRequest,
+			expectedServerResponse: "Error Condition: \n",
 		},
 		{
 			testName: "Expired Auth Code",
@@ -314,6 +343,16 @@ func TestDeviceCallback(t *testing.T) {
 			testDeviceToken:      baseDeviceToken,
 			expectedResponseCode: http.StatusOK,
 		},
+		{
+			testName: "Prevent cross-site scripting",
+			values: formValues{
+				state: "XXXX-XXXX",
+				code:  "somecode",
+				error: "<script>console.log(window);</script>",
+			},
+			expectedResponseCode:   http.StatusBadRequest,
+			expectedServerResponse: "&lt;script&gt;console.log(window);&lt;/script&gt;: \n",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.testName, func(t *testing.T) {
@@ -366,6 +405,13 @@ func TestDeviceCallback(t *testing.T) {
 			if rr.Code != tc.expectedResponseCode {
 				t.Errorf("%s: Unexpected Response Type.  Expected %v got %v", tc.testName, tc.expectedResponseCode, rr.Code)
 			}
+
+			if len(tc.expectedServerResponse) > 0 {
+				result, _ := io.ReadAll(rr.Body)
+				if string(result) != tc.expectedServerResponse {
+					t.Errorf("%s: Unexpected Response.  Expected %q got %q", tc.testName, tc.expectedServerResponse, result)
+				}
+			}
 		})
 	}
 }
@@ -374,6 +420,13 @@ func TestDeviceTokenResponse(t *testing.T) {
 	t0 := time.Now()
 
 	now := func() time.Time { return t0 }
+
+	// Base PKCE values
+	// base64-urlencoded, sha256 digest of code_verifier
+	codeChallenge := "L7ZqsT_zNwvrH8E7J0CqPHx1wgBaFiaE-fAZcKUUAbc"
+	codeChallengeMethod := "S256"
+	// "random" string between 43 & 128 ASCII characters
+	codeVerifier := "66114650f56cc45dee7ee03c49f048ddf9aa53cbf5b09985832fa4f790ff2604"
 
 	baseDeviceRequest := storage.DeviceRequest{
 		UserCode:   "ABCD-WXYZ",
@@ -389,6 +442,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 		testDeviceToken        storage.DeviceToken
 		testGrantType          string
 		testDeviceCode         string
+		testCodeVerifier       string
 		expectedServerResponse string
 		expectedResponseCode   int
 	}{
@@ -454,7 +508,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			expectedResponseCode:   http.StatusBadRequest,
 		},
 		{
-			testName:          "Test Non-existent Device Code",
+			testName:          "Test Nonexistent Device Code",
 			testDeviceRequest: baseDeviceRequest,
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "foo",
@@ -498,6 +552,101 @@ func TestDeviceTokenResponse(t *testing.T) {
 			expectedServerResponse: "{\"access_token\": \"foobar\"}",
 			expectedResponseCode:   http.StatusOK,
 		},
+		{
+			testName: "Successful Exchange with PKCE",
+			testDeviceToken: storage.DeviceToken{
+				DeviceCode:          "foo",
+				Status:              deviceTokenComplete,
+				Token:               "{\"access_token\": \"foobar\"}",
+				Expiry:              now().Add(5 * time.Minute),
+				LastRequestTime:     time.Time{},
+				PollIntervalSeconds: 0,
+				PKCE: storage.PKCE{
+					CodeChallenge:       codeChallenge,
+					CodeChallengeMethod: codeChallengeMethod,
+				},
+			},
+			testDeviceCode:         "foo",
+			testCodeVerifier:       codeVerifier,
+			testDeviceRequest:      baseDeviceRequest,
+			expectedServerResponse: "{\"access_token\": \"foobar\"}",
+			expectedResponseCode:   http.StatusOK,
+		},
+		{
+			testName: "Test Exchange started with PKCE but without verifier provided",
+			testDeviceToken: storage.DeviceToken{
+				DeviceCode:          "foo",
+				Status:              deviceTokenComplete,
+				Token:               "{\"access_token\": \"foobar\"}",
+				Expiry:              now().Add(5 * time.Minute),
+				LastRequestTime:     time.Time{},
+				PollIntervalSeconds: 0,
+				PKCE: storage.PKCE{
+					CodeChallenge:       codeChallenge,
+					CodeChallengeMethod: codeChallengeMethod,
+				},
+			},
+			testDeviceCode:         "foo",
+			testDeviceRequest:      baseDeviceRequest,
+			expectedServerResponse: errInvalidGrant,
+			expectedResponseCode:   http.StatusBadRequest,
+		},
+		{
+			testName: "Test Exchange not started with PKCE but verifier provided",
+			testDeviceToken: storage.DeviceToken{
+				DeviceCode:          "foo",
+				Status:              deviceTokenComplete,
+				Token:               "{\"access_token\": \"foobar\"}",
+				Expiry:              now().Add(5 * time.Minute),
+				LastRequestTime:     time.Time{},
+				PollIntervalSeconds: 0,
+			},
+			testDeviceCode:         "foo",
+			testCodeVerifier:       codeVerifier,
+			testDeviceRequest:      baseDeviceRequest,
+			expectedServerResponse: errInvalidRequest,
+			expectedResponseCode:   http.StatusBadRequest,
+		},
+		{
+			testName: "Test with PKCE but incorrect verifier provided",
+			testDeviceToken: storage.DeviceToken{
+				DeviceCode:          "foo",
+				Status:              deviceTokenComplete,
+				Token:               "{\"access_token\": \"foobar\"}",
+				Expiry:              now().Add(5 * time.Minute),
+				LastRequestTime:     time.Time{},
+				PollIntervalSeconds: 0,
+				PKCE: storage.PKCE{
+					CodeChallenge:       codeChallenge,
+					CodeChallengeMethod: codeChallengeMethod,
+				},
+			},
+			testDeviceCode:         "foo",
+			testCodeVerifier:       "invalid",
+			testDeviceRequest:      baseDeviceRequest,
+			expectedServerResponse: errInvalidGrant,
+			expectedResponseCode:   http.StatusBadRequest,
+		},
+		{
+			testName: "Test with PKCE but incorrect challenge provided",
+			testDeviceToken: storage.DeviceToken{
+				DeviceCode:          "foo",
+				Status:              deviceTokenComplete,
+				Token:               "{\"access_token\": \"foobar\"}",
+				Expiry:              now().Add(5 * time.Minute),
+				LastRequestTime:     time.Time{},
+				PollIntervalSeconds: 0,
+				PKCE: storage.PKCE{
+					CodeChallenge:       "invalid",
+					CodeChallengeMethod: codeChallengeMethod,
+				},
+			},
+			testDeviceCode:         "foo",
+			testCodeVerifier:       codeVerifier,
+			testDeviceRequest:      baseDeviceRequest,
+			expectedServerResponse: errInvalidGrant,
+			expectedResponseCode:   http.StatusBadRequest,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.testName, func(t *testing.T) {
@@ -532,6 +681,9 @@ func TestDeviceTokenResponse(t *testing.T) {
 			}
 			data.Set("grant_type", grantType)
 			data.Set("device_code", tc.testDeviceCode)
+			if tc.testCodeVerifier != "" {
+				data.Set("code_verifier", tc.testCodeVerifier)
+			}
 			req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(data.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
 
