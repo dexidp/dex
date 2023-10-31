@@ -647,17 +647,16 @@ func newTLSReloader(logger log.Logger, certFile, keyFile, caFile string, baseCon
 		}
 	}()
 
-	conf := &tls.Config{}
 	// https://pkg.go.dev/crypto/tls#baseConfig
 	// Server configurations must set one of Certificates, GetCertificate or GetConfigForClient.
 	if caFile != "" {
 		// grpc will use this via tls.Server for mTLS
-		conf.GetConfigForClient = func(chi *tls.ClientHelloInfo) (*tls.Config, error) { return ptr.Load(), nil }
+		initialConfig.GetConfigForClient = func(chi *tls.ClientHelloInfo) (*tls.Config, error) { return ptr.Load(), nil }
 	} else {
 		// net/http only uses Certificates or GetCertificate
-		conf.GetCertificate = func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) { return &ptr.Load().Certificates[0], nil }
+		initialConfig.GetCertificate = func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) { return &ptr.Load().Certificates[0], nil }
 	}
-	return conf, nil
+	return initialConfig, nil
 }
 
 // loadTLSConfig loads the given file paths into a [tls.Config]
