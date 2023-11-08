@@ -74,6 +74,9 @@ type Config struct {
 	// PromptType will be used fot the prompt parameter (when offline_access, by default prompt=consent)
 	PromptType string `json:"promptType"`
 
+	// Enable PKCE code challenge with upstream provider
+	EnablePKCE bool `json:"enablePKCE"`
+
 	// OverrideClaimMapping will be used to override the options defined in claimMappings.
 	// i.e. if there are 'email' and `preferred_email` claims available, by default Dex will always use the `email` claim independent of the ClaimMapping.EmailKey.
 	// This setting allows you to override the default behavior of Dex and enforce the mappings defined in `claimMapping`.
@@ -184,6 +187,11 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		c.PromptType = "consent"
 	}
 
+	pkceVerifier := ""
+	if c.EnablePKCE {
+		pkceVerifier = oauth2.GenerateVerifier()
+	}
+
 	clientID := c.ClientID
 	return &oidcConnector{
 		provider:    provider,
@@ -209,6 +217,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		promptType:                c.PromptType,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
+		pkceVerifier:              pkceVerifier,
 		overrideClaimMapping:      c.OverrideClaimMapping,
 		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
 		emailKey:                  c.ClaimMapping.EmailKey,
@@ -243,6 +252,7 @@ type oidcConnector struct {
 	emailKey                  string
 	groupsKey                 string
 	newGroupFromClaims        []NewGroupFromClaims
+	pkceVerifier              string
 }
 
 func (c *oidcConnector) Close() error {
@@ -265,6 +275,12 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 	if s.OfflineAccess {
 		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", c.promptType))
 	}
+
+	if c.pkceVerifier != "" {
+		c.pkceVerifier = oauth2.GenerateVerifier()
+		opts = append(opts, oauth2.S256ChallengeOption(c.pkceVerifier))
+	}
+
 	return c.oauth2Config.AuthCodeURL(state, opts...), nil
 }
 
@@ -296,7 +312,12 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 
 	ctx := context.WithValue(r.Context(), oauth2.HTTPClient, c.httpClient)
 
-	token, err := c.oauth2Config.Exchange(ctx, q.Get("code"))
+	var opts []oauth2.AuthCodeOption
+	if c.pkceVerifier != "" {
+		opts = append(opts, oauth2.VerifierOption(c.pkceVerifier))
+	}
+
+	token, err := c.oauth2Config.Exchange(ctx, q.Get("code"), opts...)
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
 	}
