@@ -19,7 +19,7 @@ import (
 // Headers retrieved to fetch user's email and group can be configured
 // with userHeader and groupHeader.
 type Config struct {
-	UserIdHeader string   `json:"userIdHeader"`
+	UserIDHeader string   `json:"userIDHeader"`
 	UserHeader   string   `json:"userHeader"`
 	EmailHeader  string   `json:"emailHeader"`
 	GroupHeader  string   `json:"groupHeader"`
@@ -28,9 +28,9 @@ type Config struct {
 
 // Open returns an authentication strategy which requires no user interaction.
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
-	userIdHeader := c.UserIdHeader
-	if userIdHeader == "" {
-		userIdHeader = "X-Remote-User-Id"
+	userIDHeader := c.UserIDHeader
+	if userIDHeader == "" {
+		userIDHeader = "X-Remote-User-Id"
 	}
 	userHeader := c.UserHeader
 	if userHeader == "" {
@@ -46,7 +46,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 	}
 
 	return &callback{
-		userIdHeader: userIdHeader,
+		userIDHeader: userIDHeader,
 		userHeader:   userHeader,
 		emailHeader:  emailHeader,
 		groupHeader:  groupHeader,
@@ -59,7 +59,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 // Callback is a connector which returns an identity with the HTTP header
 // X-Remote-User as verified email.
 type callback struct {
-	userIdHeader string
+	userIDHeader string
 	userHeader   string
 	emailHeader  string
 	groupHeader  string
@@ -87,9 +87,9 @@ func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connecto
 	if remoteUser == "" {
 		return connector.Identity{}, fmt.Errorf("required HTTP header %s is not set", m.userHeader)
 	}
-	remoteUserId := r.Header.Get(m.userIdHeader)
-	if remoteUserId == "" {
-		remoteUserId = remoteUser
+	remoteUserID := r.Header.Get(m.userIDHeader)
+	if remoteUserID == "" {
+		remoteUserID = remoteUser
 	}
 	remoteUserEmail := r.Header.Get(m.emailHeader)
 	if remoteUserEmail == "" {
@@ -105,7 +105,7 @@ func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connecto
 		groups = append(splitheaderGroup, groups...)
 	}
 	return connector.Identity{
-		UserID:            remoteUserId,
+		UserID:            remoteUserID,
 		PreferredUsername: remoteUser,
 		Email:             remoteUserEmail,
 		EmailVerified:     true,
