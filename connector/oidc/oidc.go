@@ -336,6 +336,9 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 		if !found {
 			return identity, fmt.Errorf("oidc: received state not in callback cache")
 		}
+		// Only allow one attempt per state.
+		c.callbackCache.Remove(state)
+
 		verifier, ok := v.(string)
 		if !ok {
 			return identity, fmt.Errorf("oidc: invalid state in callback cache")
