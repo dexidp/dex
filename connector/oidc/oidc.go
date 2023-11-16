@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
@@ -26,6 +27,12 @@ type Config struct {
 	ClientID     string `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
 	RedirectURI  string `json:"redirectURI"`
+
+	// Enable S256 PKCE Verifier support
+	Public bool `json:"public"`
+
+	// Maximimum number of concurrent connections when using S256 Verifier.  Default 512.
+	MaxConncurrentPublicConnections int `json:"maxConcurrentPublicConnections"`
 
 	// Causes client_secret to be passed as POST parameters instead of basic
 	// auth. This is specifically "NOT RECOMMENDED" by the OAuth2 RFC, but some
@@ -172,6 +179,19 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		endpoint.AuthStyle = oauth2.AuthStyleInParams
 	}
 
+	var callbackCache *lru.Cache
+	if c.Public {
+		cacheSize := c.MaxConncurrentPublicConnections
+		if cacheSize == 0 {
+			cacheSize = maxConcurrentSessions
+		}
+		callbackCache, err = lru.New(cacheSize)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("unable to create cache: %v", err)
+		}
+	}
+
 	scopes := []string{oidc.ScopeOpenID}
 	if len(c.Scopes) > 0 {
 		scopes = append(scopes, c.Scopes...)
@@ -203,6 +223,8 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		httpClient:                httpClient,
 		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
 		insecureEnableGroups:      c.InsecureEnableGroups,
+		publicApplication:         c.Public,
+		callbackCache:             callbackCache,
 		allowedGroups:             c.AllowedGroups,
 		acrValues:                 c.AcrValues,
 		getUserInfo:               c.GetUserInfo,
@@ -232,6 +254,8 @@ type oidcConnector struct {
 	httpClient                *http.Client
 	insecureSkipEmailVerified bool
 	insecureEnableGroups      bool
+	publicApplication         bool
+	callbackCache             *lru.Cache
 	allowedGroups             []string
 	acrValues                 []string
 	getUserInfo               bool
@@ -262,6 +286,12 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 		opts = append(opts, oauth2.SetAuthURLParam("acr_values", acrValues))
 	}
 
+	if c.publicApplication {
+		verifier := oauth2.GenerateVerifier()
+		c.callbackCache.Add(state, verifier)
+		opts = append(opts, oauth2.S256ChallengeOption(verifier))
+	}
+
 	if s.OfflineAccess {
 		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", c.promptType))
 	}
@@ -283,7 +313,8 @@ func (e *oauth2Error) Error() string {
 type caller uint
 
 const (
-	createCaller caller = iota
+	maxConcurrentSessions int    = 512
+	createCaller          caller = iota
 	refreshCaller
 	exchangeCaller
 )
@@ -295,8 +326,24 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 	}
 
 	ctx := context.WithValue(r.Context(), oauth2.HTTPClient, c.httpClient)
+	var opts []oauth2.AuthCodeOption
+	if c.publicApplication {
+		state := q.Get("state")
+		if state == "" {
+			return identity, fmt.Errorf("oidc: missing state in callback")
+		}
+		v, found := c.callbackCache.Get(state)
+		if !found {
+			return identity, fmt.Errorf("oidc: received state not in callback cache")
+		}
+		verifier, ok := v.(string)
+		if !ok {
+			return identity, fmt.Errorf("oidc: invalid state in callback cache")
+		}
+		opts = append(opts, oauth2.VerifierOption(verifier))
+	}
 
-	token, err := c.oauth2Config.Exchange(ctx, q.Get("code"))
+	token, err := c.oauth2Config.Exchange(ctx, q.Get("code"), opts...)
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
 	}
