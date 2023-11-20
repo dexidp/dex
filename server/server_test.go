@@ -1630,7 +1630,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				// Add the Clients to the test server
 				client := storage.Client{
 					ID:           clientID,
-					RedirectURIs: []string{"/non-root-path" + deviceCallbackURI},
+					RedirectURIs: []string{deviceCallbackURI},
 					Public:       true,
 				}
 				if err := s.storage.CreateClient(client); err != nil {
