@@ -103,6 +103,9 @@ func (p *password) UnmarshalJSON(b []byte) error {
 	})
 	if len(data.Hash) == 0 && len(data.HashFromEnv) > 0 {
 		data.Hash = os.Getenv(data.HashFromEnv)
+		if data.Hash == "" {
+			return fmt.Errorf("invalid config: could not find HashFromEnv %q", data.HashFromEnv)
+		}
 	}
 	if len(data.Hash) == 0 {
 		return fmt.Errorf("no password hash provided")
