@@ -83,6 +83,10 @@ func toStorageClient(c *db.OAuth2Client) storage.Client {
 		Public:       c.Public,
 		Name:         c.Name,
 		LogoURL:      c.LogoURL,
+		SAMLInitiated: storage.SAMLInitiatedConfig{
+			Scopes:      c.SamlInitiated.Scopes,
+			RedirectURI: c.SamlInitiated.RedirectURI,
+		},
 	}
 }
 

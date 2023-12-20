@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/oauth2client"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
+	"github.com/dexidp/dex/storage/ent/schema"
 )
 
 // OAuth2ClientUpdate is the builder for updating OAuth2Client entities.
@@ -85,6 +86,26 @@ func (ou *OAuth2ClientUpdate) SetName(s string) *OAuth2ClientUpdate {
 // SetLogoURL sets the "logo_url" field.
 func (ou *OAuth2ClientUpdate) SetLogoURL(s string) *OAuth2ClientUpdate {
 	ou.mutation.SetLogoURL(s)
+	return ou
+}
+
+// SetSamlInitiated sets the "samlInitiated" field.
+func (ou *OAuth2ClientUpdate) SetSamlInitiated(si schema.SAMLInitiated) *OAuth2ClientUpdate {
+	ou.mutation.SetSamlInitiated(si)
+	return ou
+}
+
+// SetNillableSamlInitiated sets the "samlInitiated" field if the given value is not nil.
+func (ou *OAuth2ClientUpdate) SetNillableSamlInitiated(si *schema.SAMLInitiated) *OAuth2ClientUpdate {
+	if si != nil {
+		ou.SetSamlInitiated(*si)
+	}
+	return ou
+}
+
+// ClearSamlInitiated clears the value of the "samlInitiated" field.
+func (ou *OAuth2ClientUpdate) ClearSamlInitiated() *OAuth2ClientUpdate {
+	ou.mutation.ClearSamlInitiated()
 	return ou
 }
 
@@ -186,6 +207,12 @@ func (ou *OAuth2ClientUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if value, ok := ou.mutation.LogoURL(); ok {
 		_spec.SetField(oauth2client.FieldLogoURL, field.TypeString, value)
 	}
+	if value, ok := ou.mutation.SamlInitiated(); ok {
+		_spec.SetField(oauth2client.FieldSamlInitiated, field.TypeJSON, value)
+	}
+	if ou.mutation.SamlInitiatedCleared() {
+		_spec.ClearField(oauth2client.FieldSamlInitiated, field.TypeJSON)
+	}
 	if n, err = sqlgraph.UpdateNodes(ctx, ou.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{oauth2client.Label}
@@ -263,6 +290,26 @@ func (ouo *OAuth2ClientUpdateOne) SetName(s string) *OAuth2ClientUpdateOne {
 // SetLogoURL sets the "logo_url" field.
 func (ouo *OAuth2ClientUpdateOne) SetLogoURL(s string) *OAuth2ClientUpdateOne {
 	ouo.mutation.SetLogoURL(s)
+	return ouo
+}
+
+// SetSamlInitiated sets the "samlInitiated" field.
+func (ouo *OAuth2ClientUpdateOne) SetSamlInitiated(si schema.SAMLInitiated) *OAuth2ClientUpdateOne {
+	ouo.mutation.SetSamlInitiated(si)
+	return ouo
+}
+
+// SetNillableSamlInitiated sets the "samlInitiated" field if the given value is not nil.
+func (ouo *OAuth2ClientUpdateOne) SetNillableSamlInitiated(si *schema.SAMLInitiated) *OAuth2ClientUpdateOne {
+	if si != nil {
+		ouo.SetSamlInitiated(*si)
+	}
+	return ouo
+}
+
+// ClearSamlInitiated clears the value of the "samlInitiated" field.
+func (ouo *OAuth2ClientUpdateOne) ClearSamlInitiated() *OAuth2ClientUpdateOne {
+	ouo.mutation.ClearSamlInitiated()
 	return ouo
 }
 
@@ -393,6 +440,12 @@ func (ouo *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Cli
 	}
 	if value, ok := ouo.mutation.LogoURL(); ok {
 		_spec.SetField(oauth2client.FieldLogoURL, field.TypeString, value)
+	}
+	if value, ok := ouo.mutation.SamlInitiated(); ok {
+		_spec.SetField(oauth2client.FieldSamlInitiated, field.TypeJSON, value)
+	}
+	if ouo.mutation.SamlInitiatedCleared() {
+		_spec.ClearField(oauth2client.FieldSamlInitiated, field.TypeJSON)
 	}
 	_node = &OAuth2Client{config: ouo.config}
 	_spec.Assign = _node.assignValues

@@ -23,6 +23,7 @@ import (
 	"github.com/dexidp/dex/storage/ent/db/password"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
+	"github.com/dexidp/dex/storage/ent/schema"
 	jose "gopkg.in/square/go-jose.v2"
 )
 
@@ -5132,6 +5133,7 @@ type OAuth2ClientMutation struct {
 	public              *bool
 	name                *string
 	logo_url            *string
+	samlInitiated       *schema.SAMLInitiated
 	clearedFields       map[string]struct{}
 	done                bool
 	oldValue            func(context.Context) (*OAuth2Client, error)
@@ -5516,6 +5518,55 @@ func (m *OAuth2ClientMutation) ResetLogoURL() {
 	m.logo_url = nil
 }
 
+// SetSamlInitiated sets the "samlInitiated" field.
+func (m *OAuth2ClientMutation) SetSamlInitiated(si schema.SAMLInitiated) {
+	m.samlInitiated = &si
+}
+
+// SamlInitiated returns the value of the "samlInitiated" field in the mutation.
+func (m *OAuth2ClientMutation) SamlInitiated() (r schema.SAMLInitiated, exists bool) {
+	v := m.samlInitiated
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSamlInitiated returns the old "samlInitiated" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldSamlInitiated(ctx context.Context) (v schema.SAMLInitiated, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSamlInitiated is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSamlInitiated requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSamlInitiated: %w", err)
+	}
+	return oldValue.SamlInitiated, nil
+}
+
+// ClearSamlInitiated clears the value of the "samlInitiated" field.
+func (m *OAuth2ClientMutation) ClearSamlInitiated() {
+	m.samlInitiated = nil
+	m.clearedFields[oauth2client.FieldSamlInitiated] = struct{}{}
+}
+
+// SamlInitiatedCleared returns if the "samlInitiated" field was cleared in this mutation.
+func (m *OAuth2ClientMutation) SamlInitiatedCleared() bool {
+	_, ok := m.clearedFields[oauth2client.FieldSamlInitiated]
+	return ok
+}
+
+// ResetSamlInitiated resets all changes to the "samlInitiated" field.
+func (m *OAuth2ClientMutation) ResetSamlInitiated() {
+	m.samlInitiated = nil
+	delete(m.clearedFields, oauth2client.FieldSamlInitiated)
+}
+
 // Where appends a list predicates to the OAuth2ClientMutation builder.
 func (m *OAuth2ClientMutation) Where(ps ...predicate.OAuth2Client) {
 	m.predicates = append(m.predicates, ps...)
@@ -5550,7 +5601,7 @@ func (m *OAuth2ClientMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *OAuth2ClientMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 7)
 	if m.secret != nil {
 		fields = append(fields, oauth2client.FieldSecret)
 	}
@@ -5568,6 +5619,9 @@ func (m *OAuth2ClientMutation) Fields() []string {
 	}
 	if m.logo_url != nil {
 		fields = append(fields, oauth2client.FieldLogoURL)
+	}
+	if m.samlInitiated != nil {
+		fields = append(fields, oauth2client.FieldSamlInitiated)
 	}
 	return fields
 }
@@ -5589,6 +5643,8 @@ func (m *OAuth2ClientMutation) Field(name string) (ent.Value, bool) {
 		return m.Name()
 	case oauth2client.FieldLogoURL:
 		return m.LogoURL()
+	case oauth2client.FieldSamlInitiated:
+		return m.SamlInitiated()
 	}
 	return nil, false
 }
@@ -5610,6 +5666,8 @@ func (m *OAuth2ClientMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldName(ctx)
 	case oauth2client.FieldLogoURL:
 		return m.OldLogoURL(ctx)
+	case oauth2client.FieldSamlInitiated:
+		return m.OldSamlInitiated(ctx)
 	}
 	return nil, fmt.Errorf("unknown OAuth2Client field %s", name)
 }
@@ -5661,6 +5719,13 @@ func (m *OAuth2ClientMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetLogoURL(v)
 		return nil
+	case oauth2client.FieldSamlInitiated:
+		v, ok := value.(schema.SAMLInitiated)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSamlInitiated(v)
+		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client field %s", name)
 }
@@ -5697,6 +5762,9 @@ func (m *OAuth2ClientMutation) ClearedFields() []string {
 	if m.FieldCleared(oauth2client.FieldTrustedPeers) {
 		fields = append(fields, oauth2client.FieldTrustedPeers)
 	}
+	if m.FieldCleared(oauth2client.FieldSamlInitiated) {
+		fields = append(fields, oauth2client.FieldSamlInitiated)
+	}
 	return fields
 }
 
@@ -5716,6 +5784,9 @@ func (m *OAuth2ClientMutation) ClearField(name string) error {
 		return nil
 	case oauth2client.FieldTrustedPeers:
 		m.ClearTrustedPeers()
+		return nil
+	case oauth2client.FieldSamlInitiated:
+		m.ClearSamlInitiated()
 		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client nullable field %s", name)
@@ -5742,6 +5813,9 @@ func (m *OAuth2ClientMutation) ResetField(name string) error {
 		return nil
 	case oauth2client.FieldLogoURL:
 		m.ResetLogoURL()
+		return nil
+	case oauth2client.FieldSamlInitiated:
+		m.ResetSamlInitiated()
 		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client field %s", name)

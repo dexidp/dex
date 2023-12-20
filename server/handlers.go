@@ -414,6 +414,8 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 			s.renderError(r, w, code, fmt.Sprintf("Error processing SAML callback: %s.", err))
 			return
 		}
+		// remove before PR
+		s.logger.Infof("SAML callback processed successfully")
 	default:
 		s.renderError(r, w, http.StatusBadRequest, "Method not supported")
 		return
