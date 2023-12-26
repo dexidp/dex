@@ -153,6 +153,14 @@ message DeleteConnectorReq {
   string id = 1;
 }
 
+// ListConnectorReq is a request to enumerate connectors.
+message ListConnectorReq {}
+
+// ListConnectorResp returns a list of connectors.
+message ListConnectorResp {
+  repeated Connector connectors = 1;
+}
+
 // VersionReq is a request to fetch version info.
 message VersionReq {}
 
