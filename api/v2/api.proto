@@ -153,6 +153,11 @@ message DeleteConnectorReq {
   string id = 1;
 }
 
+// DeleteConnectorResp returns the response from deleting a connector.
+message DeleteConnectorResp {
+  bool not_found = 1;
+}
+
 // ListConnectorReq is a request to enumerate connectors.
 message ListConnectorReq {}
 
