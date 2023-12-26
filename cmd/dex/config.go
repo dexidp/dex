@@ -49,6 +49,13 @@ type Config struct {
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
+
+	// If enabled, the server does not initialize connectors when it starts, but
+	// initializes connectors when it handles requests. This allows the server to
+	// start even if some connectors cannot be initialized, for example, because
+	// because it is misconfigured, or because initialization requires a network
+	// service that is unavailable.
+	LazyInitConnectors bool `json:"lazyInitConnectors"`
 }
 
 // Validate the configuration
