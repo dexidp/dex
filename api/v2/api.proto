@@ -116,17 +116,17 @@ message ListPasswordResp {
   repeated Password passwords = 1;
 }
 
-// CreateConnectorReq is a request to make a connector.
-message CreateConnectorReq {
-  Connector connector = 1;
-}
-
-// ---- missing description -----
+// Connector is a strategy used by Dex for authenticating a user against another identity provider
 message Connector {
   string id = 1;
   string type = 2;
   string name = 3;
   string config = 4;
+}
+
+// CreateConnectorReq is a request to make a connector.
+message CreateConnectorReq {
+  Connector connector = 1;
 }
 
 // CreateConnectorResp returns the response from creating a connector.
