@@ -121,7 +121,7 @@ message CreateConnectorReq {
   Connector connector = 1;
 }
 
-// _____________________________________
+// ---- missing description -----
 message Connector {
   string id = 1;
   string type = 2;
