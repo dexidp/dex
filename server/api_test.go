@@ -692,10 +692,7 @@ func TestListConnectors(t *testing.T) {
 	// Test listing connectors
 	if resp, err := client.ListConnectors(ctx, &listReq); err != nil {
 		t.Fatalf("Unable to list connectors: %v", err)
-	} else {
-		// Check the number of connectors in the response
-		if len(resp.Connectors) != 2 {
-			t.Fatalf("Expected 2 connectors, found %d", len(resp.Connectors))
-		}
+	} else if len(resp.Connectors) != 2 { // Check the number of connectors in the response
+		t.Fatalf("Expected 2 connectors, found %d", len(resp.Connectors))
 	}
 }
