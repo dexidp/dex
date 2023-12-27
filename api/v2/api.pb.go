@@ -1007,55 +1007,7 @@ func (x *ListPasswordResp) GetPasswords() []*Password {
 	return nil
 }
 
-// CreateConnectorReq is a request to make a connector.
-type CreateConnectorReq struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Connector *Connector `protobuf:"bytes,1,opt,name=connector,proto3" json:"connector,omitempty"`
-}
-
-func (x *CreateConnectorReq) Reset() {
-	*x = CreateConnectorReq{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v2_api_proto_msgTypes[18]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *CreateConnectorReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreateConnectorReq) ProtoMessage() {}
-
-func (x *CreateConnectorReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v2_api_proto_msgTypes[18]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CreateConnectorReq.ProtoReflect.Descriptor instead.
-func (*CreateConnectorReq) Descriptor() ([]byte, []int) {
-	return file_api_v2_api_proto_rawDescGZIP(), []int{18}
-}
-
-func (x *CreateConnectorReq) GetConnector() *Connector {
-	if x != nil {
-		return x.Connector
-	}
-	return nil
-}
-
-// ---- missing description -----
+// Connector is a strategy used by Dex for authenticating a user against another identity provider
 type Connector struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -1064,13 +1016,13 @@ type Connector struct {
 	Id     string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Type   string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
 	Name   string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Config string `protobuf:"bytes,4,opt,name=config,proto3" json:"config,omitempty"`
+	Config []byte `protobuf:"bytes,4,opt,name=config,proto3" json:"config,omitempty"`
 }
 
 func (x *Connector) Reset() {
 	*x = Connector{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v2_api_proto_msgTypes[19]
+		mi := &file_api_v2_api_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1083,7 +1035,7 @@ func (x *Connector) String() string {
 func (*Connector) ProtoMessage() {}
 
 func (x *Connector) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v2_api_proto_msgTypes[19]
+	mi := &file_api_v2_api_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1096,7 +1048,7 @@ func (x *Connector) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Connector.ProtoReflect.Descriptor instead.
 func (*Connector) Descriptor() ([]byte, []int) {
-	return file_api_v2_api_proto_rawDescGZIP(), []int{19}
+	return file_api_v2_api_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *Connector) GetId() string {
@@ -1120,11 +1072,59 @@ func (x *Connector) GetName() string {
 	return ""
 }
 
-func (x *Connector) GetConfig() string {
+func (x *Connector) GetConfig() []byte {
 	if x != nil {
 		return x.Config
 	}
-	return ""
+	return nil
+}
+
+// CreateConnectorReq is a request to make a connector.
+type CreateConnectorReq struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Connector *Connector `protobuf:"bytes,1,opt,name=connector,proto3" json:"connector,omitempty"`
+}
+
+func (x *CreateConnectorReq) Reset() {
+	*x = CreateConnectorReq{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v2_api_proto_msgTypes[19]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CreateConnectorReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateConnectorReq) ProtoMessage() {}
+
+func (x *CreateConnectorReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v2_api_proto_msgTypes[19]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateConnectorReq.ProtoReflect.Descriptor instead.
+func (*CreateConnectorReq) Descriptor() ([]byte, []int) {
+	return file_api_v2_api_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *CreateConnectorReq) GetConnector() *Connector {
+	if x != nil {
+		return x.Connector
+	}
+	return nil
 }
 
 // CreateConnectorResp returns the response from creating a connector.
@@ -1185,7 +1185,7 @@ type UpdateConnectorReq struct {
 	Id        string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	NewType   string `protobuf:"bytes,2,opt,name=new_type,json=newType,proto3" json:"new_type,omitempty"`
 	NewName   string `protobuf:"bytes,3,opt,name=new_name,json=newName,proto3" json:"new_name,omitempty"`
-	NewConfig string `protobuf:"bytes,4,opt,name=new_config,json=newConfig,proto3" json:"new_config,omitempty"`
+	NewConfig []byte `protobuf:"bytes,4,opt,name=new_config,json=newConfig,proto3" json:"new_config,omitempty"`
 }
 
 func (x *UpdateConnectorReq) Reset() {
@@ -1241,11 +1241,11 @@ func (x *UpdateConnectorReq) GetNewName() string {
 	return ""
 }
 
-func (x *UpdateConnectorReq) GetNewConfig() string {
+func (x *UpdateConnectorReq) GetNewConfig() []byte {
 	if x != nil {
 		return x.NewConfig
 	}
-	return ""
+	return nil
 }
 
 // UpdateConnectorResp returns the response from modifying an existing connector.
@@ -2048,17 +2048,17 @@ var file_api_v2_api_proto_rawDesc = []byte{
 	0x52, 0x65, 0x73, 0x70, 0x12, 0x2b, 0x0a, 0x09, 0x70, 0x61, 0x73, 0x73, 0x77, 0x6f, 0x72, 0x64,
 	0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0d, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x50, 0x61,
 	0x73, 0x73, 0x77, 0x6f, 0x72, 0x64, 0x52, 0x09, 0x70, 0x61, 0x73, 0x73, 0x77, 0x6f, 0x72, 0x64,
-	0x73, 0x22, 0x42, 0x0a, 0x12, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x6f, 0x6e, 0x6e, 0x65,
-	0x63, 0x74, 0x6f, 0x72, 0x52, 0x65, 0x71, 0x12, 0x2c, 0x0a, 0x09, 0x63, 0x6f, 0x6e, 0x6e, 0x65,
-	0x63, 0x74, 0x6f, 0x72, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0e, 0x2e, 0x61, 0x70, 0x69,
-	0x2e, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x52, 0x09, 0x63, 0x6f, 0x6e, 0x6e,
-	0x65, 0x63, 0x74, 0x6f, 0x72, 0x22, 0x5b, 0x0a, 0x09, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74,
-	0x6f, 0x72, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02,
-	0x69, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09,
-	0x52, 0x04, 0x74, 0x79, 0x70, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x03,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x63, 0x6f,
-	0x6e, 0x66, 0x69, 0x67, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x63, 0x6f, 0x6e, 0x66,
-	0x69, 0x67, 0x22, 0x3c, 0x0a, 0x13, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x6f, 0x6e, 0x6e,
+	0x73, 0x22, 0x5b, 0x0a, 0x09, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x12, 0x0e,
+	0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x12, 0x12,
+	0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x74, 0x79,
+	0x70, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67,
+	0x18, 0x04, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x06, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x22, 0x42,
+	0x0a, 0x12, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x6f,
+	0x72, 0x52, 0x65, 0x71, 0x12, 0x2c, 0x0a, 0x09, 0x63, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x6f,
+	0x72, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0e, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x43, 0x6f,
+	0x6e, 0x6e, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x52, 0x09, 0x63, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74,
+	0x6f, 0x72, 0x22, 0x3c, 0x0a, 0x13, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x6f, 0x6e, 0x6e,
 	0x65, 0x63, 0x74, 0x6f, 0x72, 0x52, 0x65, 0x73, 0x70, 0x12, 0x25, 0x0a, 0x0e, 0x61, 0x6c, 0x72,
 	0x65, 0x61, 0x64, 0x79, 0x5f, 0x65, 0x78, 0x69, 0x73, 0x74, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28,
 	0x08, 0x52, 0x0d, 0x61, 0x6c, 0x72, 0x65, 0x61, 0x64, 0x79, 0x45, 0x78, 0x69, 0x73, 0x74, 0x73,
@@ -2068,7 +2068,7 @@ var file_api_v2_api_proto_rawDesc = []byte{
 	0x70, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6e, 0x65, 0x77, 0x54, 0x79, 0x70,
 	0x65, 0x12, 0x19, 0x0a, 0x08, 0x6e, 0x65, 0x77, 0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x03, 0x20,
 	0x01, 0x28, 0x09, 0x52, 0x07, 0x6e, 0x65, 0x77, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x1d, 0x0a, 0x0a,
-	0x6e, 0x65, 0x77, 0x5f, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09,
+	0x6e, 0x65, 0x77, 0x5f, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0c,
 	0x52, 0x09, 0x6e, 0x65, 0x77, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x22, 0x32, 0x0a, 0x13, 0x55,
 	0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x52, 0x65,
 	0x73, 0x70, 0x12, 0x1b, 0x0a, 0x09, 0x6e, 0x6f, 0x74, 0x5f, 0x66, 0x6f, 0x75, 0x6e, 0x64, 0x18,
@@ -2225,8 +2225,8 @@ var file_api_v2_api_proto_goTypes = []interface{}{
 	(*DeletePasswordResp)(nil),  // 15: api.DeletePasswordResp
 	(*ListPasswordReq)(nil),     // 16: api.ListPasswordReq
 	(*ListPasswordResp)(nil),    // 17: api.ListPasswordResp
-	(*CreateConnectorReq)(nil),  // 18: api.CreateConnectorReq
-	(*Connector)(nil),           // 19: api.Connector
+	(*Connector)(nil),           // 18: api.Connector
+	(*CreateConnectorReq)(nil),  // 19: api.CreateConnectorReq
 	(*CreateConnectorResp)(nil), // 20: api.CreateConnectorResp
 	(*UpdateConnectorReq)(nil),  // 21: api.UpdateConnectorReq
 	(*UpdateConnectorResp)(nil), // 22: api.UpdateConnectorResp
@@ -2250,8 +2250,8 @@ var file_api_v2_api_proto_depIdxs = []int32{
 	0,  // 2: api.CreateClientResp.client:type_name -> api.Client
 	9,  // 3: api.CreatePasswordReq.password:type_name -> api.Password
 	9,  // 4: api.ListPasswordResp.passwords:type_name -> api.Password
-	19, // 5: api.CreateConnectorReq.connector:type_name -> api.Connector
-	19, // 6: api.ListConnectorResp.connectors:type_name -> api.Connector
+	18, // 5: api.CreateConnectorReq.connector:type_name -> api.Connector
+	18, // 6: api.ListConnectorResp.connectors:type_name -> api.Connector
 	29, // 7: api.ListRefreshResp.refresh_tokens:type_name -> api.RefreshTokenRef
 	1,  // 8: api.Dex.GetClient:input_type -> api.GetClientReq
 	3,  // 9: api.Dex.CreateClient:input_type -> api.CreateClientReq
@@ -2261,7 +2261,7 @@ var file_api_v2_api_proto_depIdxs = []int32{
 	12, // 13: api.Dex.UpdatePassword:input_type -> api.UpdatePasswordReq
 	14, // 14: api.Dex.DeletePassword:input_type -> api.DeletePasswordReq
 	16, // 15: api.Dex.ListPasswords:input_type -> api.ListPasswordReq
-	18, // 16: api.Dex.CreateConnector:input_type -> api.CreateConnectorReq
+	19, // 16: api.Dex.CreateConnector:input_type -> api.CreateConnectorReq
 	21, // 17: api.Dex.UpdateConnector:input_type -> api.UpdateConnectorReq
 	23, // 18: api.Dex.DeleteConnector:input_type -> api.DeleteConnectorReq
 	25, // 19: api.Dex.ListConnectors:input_type -> api.ListConnectorReq
@@ -2515,7 +2515,7 @@ func file_api_v2_api_proto_init() {
 			}
 		}
 		file_api_v2_api_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateConnectorReq); i {
+			switch v := v.(*Connector); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2527,7 +2527,7 @@ func file_api_v2_api_proto_init() {
 			}
 		}
 		file_api_v2_api_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Connector); i {
+			switch v := v.(*CreateConnectorReq); i {
 			case 0:
 				return &v.state
 			case 1:

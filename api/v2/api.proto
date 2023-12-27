@@ -121,7 +121,7 @@ message Connector {
   string id = 1;
   string type = 2;
   string name = 3;
-  string config = 4;
+  bytes config = 4;
 }
 
 // CreateConnectorReq is a request to make a connector.
@@ -140,7 +140,7 @@ message UpdateConnectorReq {
   string id = 1;
   string new_type = 2;
   string new_name = 3;
-  string new_config = 4;
+  bytes new_config = 4;
 }
 
 // UpdateConnectorResp returns the response from modifying an existing connector.

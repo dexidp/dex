@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -399,15 +400,19 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 		return nil, errors.New("no name supplied")
 	}
 
-	if req.Connector.Config == "" {
+	if len(req.Connector.Config) == 0 {
 		return nil, errors.New("no config supplied")
+	}
+
+	if !json.Valid(req.Connector.Config) {
+		return nil, errors.New("invalid config supplied")
 	}
 
 	c := storage.Connector{
 		ID:     req.Connector.Id,
 		Name:   req.Connector.Name,
 		Type:   req.Connector.Type,
-		Config: []byte(req.Connector.Config),
+		Config: req.Connector.Config,
 	}
 	if err := d.s.CreateConnector(c); err != nil {
 		if err == storage.ErrAlreadyExists {
@@ -424,8 +429,13 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 	if req.Id == "" {
 		return nil, errors.New("no email supplied")
 	}
-	if req.NewConfig == "" && req.NewName == "" && req.NewType == "" {
+
+	if len(req.NewConfig) == 0 && req.NewName == "" && req.NewType == "" {
 		return nil, errors.New("nothing to update")
+	}
+
+	if !json.Valid(req.NewConfig) {
+		return nil, errors.New("invalid config supplied")
 	}
 
 	updater := func(old storage.Connector) (storage.Connector, error) {
@@ -437,8 +447,8 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 			old.Name = req.NewName
 		}
 
-		if req.NewConfig != "" {
-			old.Config = []byte(req.NewConfig)
+		if len(req.NewConfig) == 0 {
+			old.Config = req.NewConfig
 		}
 
 		return old, nil
@@ -484,7 +494,7 @@ func (d dexAPI) ListConnectors(ctx context.Context, req *api.ListConnectorReq) (
 			Id:     connector.ID,
 			Name:   connector.Name,
 			Type:   connector.Type,
-			Config: string(connector.Config),
+			Config: connector.Config,
 		}
 		connectors = append(connectors, &c)
 	}
