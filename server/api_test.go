@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -506,4 +507,195 @@ func find(item string, items []string) bool {
 		}
 	}
 	return false
+}
+
+func TestCreateConnector(t *testing.T) {
+	logger := &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level:     logrus.DebugLevel,
+	}
+
+	s := memory.New(logger)
+	client := newAPI(s, logger, t)
+	defer client.Close()
+
+	ctx := context.Background()
+	connectorID := "connector123"
+	connectorName := "TestConnector"
+	connectorType := "TestType"
+	connectorConfig := []byte(`{"key": "value"}`)
+
+	createReq := api.CreateConnectorReq{
+		Connector: &api.Connector{
+			Id:     connectorID,
+			Name:   connectorName,
+			Type:   connectorType,
+			Config: connectorConfig,
+		},
+	}
+
+	// Test valid connector creation
+	if resp, err := client.CreateConnector(ctx, &createReq); err != nil || resp.AlreadyExists {
+		if resp.AlreadyExists {
+			t.Fatalf("Unable to create connector since %s already exists", connectorID)
+		}
+		t.Fatalf("Unable to create connector: %v", err)
+	}
+
+	// Test creating the same connector again (expecting failure)
+	if resp, _ := client.CreateConnector(ctx, &createReq); !resp.AlreadyExists {
+		t.Fatalf("Created connector %s twice", connectorID)
+	}
+
+	createReq.Connector.Config = []byte("invalid_json")
+
+	// Test invalid JSON config
+	if _, err := client.CreateConnector(ctx, &createReq); err == nil {
+		t.Fatal("Expected an error for invalid JSON config, but none occurred")
+	} else if !strings.Contains(err.Error(), "invalid config supplied") {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestUpdateConnector(t *testing.T) {
+	logger := &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level:     logrus.DebugLevel,
+	}
+
+	s := memory.New(logger)
+	client := newAPI(s, logger, t)
+	defer client.Close()
+
+	ctx := context.Background()
+	connectorID := "connector123"
+	newConnectorName := "UpdatedConnector"
+	newConnectorType := "UpdatedType"
+	newConnectorConfig := []byte(`{"updated_key": "updated_value"}`)
+
+	// Create a connector for testing
+	createReq := api.CreateConnectorReq{
+		Connector: &api.Connector{
+			Id:     connectorID,
+			Name:   "TestConnector",
+			Type:   "TestType",
+			Config: []byte(`{"key": "value"}`),
+		},
+	}
+	client.CreateConnector(ctx, &createReq)
+
+	updateReq := api.UpdateConnectorReq{
+		Id:        connectorID,
+		NewName:   newConnectorName,
+		NewType:   newConnectorType,
+		NewConfig: newConnectorConfig,
+	}
+
+	// Test valid connector update
+	if _, err := client.UpdateConnector(ctx, &updateReq); err != nil {
+		t.Fatalf("Unable to update connector: %v", err)
+	}
+
+	updateReq.NewConfig = []byte("invalid_json")
+
+	// Test invalid JSON config in update request
+	if _, err := client.UpdateConnector(ctx, &updateReq); err == nil {
+		t.Fatal("Expected an error for invalid JSON config in update, but none occurred")
+	} else if !strings.Contains(err.Error(), "invalid config supplied") {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestDeleteConnector(t *testing.T) {
+	logger := &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level:     logrus.DebugLevel,
+	}
+
+	s := memory.New(logger)
+	client := newAPI(s, logger, t)
+	defer client.Close()
+
+	ctx := context.Background()
+	connectorID := "connector123"
+
+	// Create a connector for testing
+	createReq := api.CreateConnectorReq{
+		Connector: &api.Connector{
+			Id:     connectorID,
+			Name:   "TestConnector",
+			Type:   "TestType",
+			Config: []byte(`{"key": "value"}`),
+		},
+	}
+	client.CreateConnector(ctx, &createReq)
+
+	deleteReq := api.DeleteConnectorReq{
+		Id: connectorID,
+	}
+
+	// Test valid connector deletion
+	if _, err := client.DeleteConnector(ctx, &deleteReq); err != nil {
+		t.Fatalf("Unable to delete connector: %v", err)
+	}
+
+	// Test non existent connector deletion
+	resp, err := client.DeleteConnector(ctx, &deleteReq)
+	if err != nil {
+		t.Fatalf("Unable to delete connector: %v", err)
+	}
+
+	if !resp.NotFound {
+		t.Fatal("Should return not found")
+	}
+}
+
+func TestListConnectors(t *testing.T) {
+	logger := &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level:     logrus.DebugLevel,
+	}
+
+	s := memory.New(logger)
+	client := newAPI(s, logger, t)
+	defer client.Close()
+
+	ctx := context.Background()
+
+	// Create connectors for testing
+	createReq1 := api.CreateConnectorReq{
+		Connector: &api.Connector{
+			Id:     "connector1",
+			Name:   "Connector1",
+			Type:   "Type1",
+			Config: []byte(`{"key": "value1"}`),
+		},
+	}
+	client.CreateConnector(ctx, &createReq1)
+
+	createReq2 := api.CreateConnectorReq{
+		Connector: &api.Connector{
+			Id:     "connector2",
+			Name:   "Connector2",
+			Type:   "Type2",
+			Config: []byte(`{"key": "value2"}`),
+		},
+	}
+	client.CreateConnector(ctx, &createReq2)
+
+	listReq := api.ListConnectorReq{}
+
+	// Test listing connectors
+	if resp, err := client.ListConnectors(ctx, &listReq); err != nil {
+		t.Fatalf("Unable to list connectors: %v", err)
+	} else {
+		// Check the number of connectors in the response
+		if len(resp.Connectors) != 2 {
+			t.Fatalf("Expected 2 connectors, found %d", len(resp.Connectors))
+		}
+	}
 }
