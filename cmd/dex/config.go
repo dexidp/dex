@@ -97,7 +97,7 @@ func (c Config) Validate() error {
 	return nil
 }
 
-// findInvalidAdditionalFeatures returns addtional features that are not considered valid
+// findInvalidAdditionalFeatures returns additional features that are not considered valid
 func (c Config) findInvalidAdditionalFeatures() []server.AdditionalFeature {
 	if c.AdditionalFeatures == nil {
 		return []server.AdditionalFeature{}
