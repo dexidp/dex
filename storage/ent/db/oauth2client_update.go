@@ -35,6 +35,14 @@ func (ou *OAuth2ClientUpdate) SetSecret(s string) *OAuth2ClientUpdate {
 	return ou
 }
 
+// SetNillableSecret sets the "secret" field if the given value is not nil.
+func (ou *OAuth2ClientUpdate) SetNillableSecret(s *string) *OAuth2ClientUpdate {
+	if s != nil {
+		ou.SetSecret(*s)
+	}
+	return ou
+}
+
 // SetRedirectUris sets the "redirect_uris" field.
 func (ou *OAuth2ClientUpdate) SetRedirectUris(s []string) *OAuth2ClientUpdate {
 	ou.mutation.SetRedirectUris(s)
@@ -77,9 +85,25 @@ func (ou *OAuth2ClientUpdate) SetPublic(b bool) *OAuth2ClientUpdate {
 	return ou
 }
 
+// SetNillablePublic sets the "public" field if the given value is not nil.
+func (ou *OAuth2ClientUpdate) SetNillablePublic(b *bool) *OAuth2ClientUpdate {
+	if b != nil {
+		ou.SetPublic(*b)
+	}
+	return ou
+}
+
 // SetName sets the "name" field.
 func (ou *OAuth2ClientUpdate) SetName(s string) *OAuth2ClientUpdate {
 	ou.mutation.SetName(s)
+	return ou
+}
+
+// SetNillableName sets the "name" field if the given value is not nil.
+func (ou *OAuth2ClientUpdate) SetNillableName(s *string) *OAuth2ClientUpdate {
+	if s != nil {
+		ou.SetName(*s)
+	}
 	return ou
 }
 
@@ -88,6 +112,7 @@ func (ou *OAuth2ClientUpdate) SetLogoURL(s string) *OAuth2ClientUpdate {
 	ou.mutation.SetLogoURL(s)
 	return ou
 }
+
 
 // SetSamlInitiated sets the "samlInitiated" field.
 func (ou *OAuth2ClientUpdate) SetSamlInitiated(si schema.SAMLInitiated) *OAuth2ClientUpdate {
@@ -99,9 +124,17 @@ func (ou *OAuth2ClientUpdate) SetSamlInitiated(si schema.SAMLInitiated) *OAuth2C
 func (ou *OAuth2ClientUpdate) SetNillableSamlInitiated(si *schema.SAMLInitiated) *OAuth2ClientUpdate {
 	if si != nil {
 		ou.SetSamlInitiated(*si)
+  }
+  return ou
+}
+// SetNillableLogoURL sets the "logo_url" field if the given value is not nil.
+func (ou *OAuth2ClientUpdate) SetNillableLogoURL(s *string) *OAuth2ClientUpdate {
+	if s != nil {
+		ou.SetLogoURL(*s)
 	}
 	return ou
 }
+
 
 // ClearSamlInitiated clears the value of the "samlInitiated" field.
 func (ou *OAuth2ClientUpdate) ClearSamlInitiated() *OAuth2ClientUpdate {
@@ -239,6 +272,14 @@ func (ouo *OAuth2ClientUpdateOne) SetSecret(s string) *OAuth2ClientUpdateOne {
 	return ouo
 }
 
+// SetNillableSecret sets the "secret" field if the given value is not nil.
+func (ouo *OAuth2ClientUpdateOne) SetNillableSecret(s *string) *OAuth2ClientUpdateOne {
+	if s != nil {
+		ouo.SetSecret(*s)
+	}
+	return ouo
+}
+
 // SetRedirectUris sets the "redirect_uris" field.
 func (ouo *OAuth2ClientUpdateOne) SetRedirectUris(s []string) *OAuth2ClientUpdateOne {
 	ouo.mutation.SetRedirectUris(s)
@@ -281,9 +322,25 @@ func (ouo *OAuth2ClientUpdateOne) SetPublic(b bool) *OAuth2ClientUpdateOne {
 	return ouo
 }
 
+// SetNillablePublic sets the "public" field if the given value is not nil.
+func (ouo *OAuth2ClientUpdateOne) SetNillablePublic(b *bool) *OAuth2ClientUpdateOne {
+	if b != nil {
+		ouo.SetPublic(*b)
+	}
+	return ouo
+}
+
 // SetName sets the "name" field.
 func (ouo *OAuth2ClientUpdateOne) SetName(s string) *OAuth2ClientUpdateOne {
 	ouo.mutation.SetName(s)
+	return ouo
+}
+
+// SetNillableName sets the "name" field if the given value is not nil.
+func (ouo *OAuth2ClientUpdateOne) SetNillableName(s *string) *OAuth2ClientUpdateOne {
+	if s != nil {
+		ouo.SetName(*s)
+	}
 	return ouo
 }
 
@@ -292,6 +349,7 @@ func (ouo *OAuth2ClientUpdateOne) SetLogoURL(s string) *OAuth2ClientUpdateOne {
 	ouo.mutation.SetLogoURL(s)
 	return ouo
 }
+
 
 // SetSamlInitiated sets the "samlInitiated" field.
 func (ouo *OAuth2ClientUpdateOne) SetSamlInitiated(si schema.SAMLInitiated) *OAuth2ClientUpdateOne {
