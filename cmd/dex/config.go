@@ -56,7 +56,7 @@ type Config struct {
 
 // Validate the configuration
 func (c Config) Validate() error {
-	badFeatures := c.findBadAdditionalFeatures()
+	badFeatures := c.validateAdditionalFeatures()
 
 	// Fast checks. Perform these first for a more responsive CLI.
 	checks := []struct {
@@ -89,8 +89,10 @@ func (c Config) Validate() error {
 	return nil
 }
 
-func (c Config) findBadAdditionalFeatures() []server.AdditionalFeature {
+// validateAdditionalFeatures parses AdditionalFeatures and returns bad features
+func (c *Config) validateAdditionalFeatures() []server.AdditionalFeature {
 	if c.AdditionalFeatures == nil {
+		c.AdditionalFeatures = []server.AdditionalFeature{}
 		return []server.AdditionalFeature{}
 	}
 
