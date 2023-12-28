@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -19,6 +20,14 @@ import (
 	"github.com/dexidp/dex/storage/memory"
 	"github.com/dexidp/dex/storage/sql"
 )
+
+var (
+	ConnectorsCRUD string = "ConnectorsCRUD"
+)
+
+var AdditionalFeatures []string = []string{
+	ConnectorsCRUD,
+}
 
 // Config is the config format for the main application.
 type Config struct {
@@ -49,10 +58,14 @@ type Config struct {
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
+
+	AdditionalFeatures []string `json:"additionalFeatures"`
 }
 
 // Validate the configuration
 func (c Config) Validate() error {
+	badFeatures := c.findBadAdditionalFeatures()
+
 	// Fast checks. Perform these first for a more responsive CLI.
 	checks := []struct {
 		bad    bool
@@ -68,6 +81,7 @@ func (c Config) Validate() error {
 		{c.GRPC.TLSKey != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
 		{(c.GRPC.TLSCert == "") != (c.GRPC.TLSKey == ""), "must specific both a gRPC TLS cert and key"},
 		{c.GRPC.TLSCert == "" && c.GRPC.TLSClientCA != "", "cannot specify gRPC TLS client CA without a gRPC TLS cert"},
+		{len(badFeatures) > 0, fmt.Sprintf("invalid additionalFeatures supplied: %v. Valid entries: %s", badFeatures, AdditionalFeatures)},
 	}
 
 	var checkErrors []string
@@ -81,6 +95,21 @@ func (c Config) Validate() error {
 		return fmt.Errorf("invalid Config:\n\t-\t%s", strings.Join(checkErrors, "\n\t-\t"))
 	}
 	return nil
+}
+
+func (c Config) findBadAdditionalFeatures() []string {
+	if c.AdditionalFeatures == nil {
+		return []string{}
+	}
+
+	badFeatures := []string{}
+	for _, feature := range c.AdditionalFeatures {
+		if !slices.Contains(AdditionalFeatures, feature) {
+			badFeatures = append(badFeatures, feature)
+		}
+	}
+
+	return badFeatures
 }
 
 type password storage.Password
