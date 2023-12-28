@@ -36,7 +36,7 @@ func TestValidConfiguration(t *testing.T) {
 				Config: &mock.CallbackConfig{},
 			},
 		},
-		AdditionalFeatures: []string{ConnectorsCRUD},
+		AdditionalFeatures: AdditionalFeatures,
 	}
 	if err := configuration.Validate(); err != nil {
 		t.Fatalf("this configuration should have been valid: %v", err)
@@ -218,7 +218,7 @@ additionalFeatures: [
 			Level:  "debug",
 			Format: "json",
 		},
-		AdditionalFeatures: []string{ConnectorsCRUD},
+		AdditionalFeatures: AdditionalFeatures,
 	}
 
 	var c Config

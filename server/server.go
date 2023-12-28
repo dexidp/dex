@@ -47,6 +47,14 @@ import (
 	"github.com/dexidp/dex/web"
 )
 
+// AdditionalFeature allows the extension of Dex server functionalities
+type AdditionalFeature string
+
+var (
+	// ConnectorsCRUD is an additional feature that allows CRUD operations on connectors
+	ConnectorsCRUD AdditionalFeature = "ConnectorsCRUD"
+)
+
 // LocalConnector is the local passwordDB connector which is an internal
 // connector maintained by the server.
 const LocalConnector = "local"

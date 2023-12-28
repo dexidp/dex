@@ -21,12 +21,8 @@ import (
 	"github.com/dexidp/dex/storage/sql"
 )
 
-var (
-	ConnectorsCRUD string = "ConnectorsCRUD"
-)
-
 var AdditionalFeatures []string = []string{
-	ConnectorsCRUD,
+	"ConnectorsCRUD",
 }
 
 // Config is the config format for the main application.
@@ -59,7 +55,7 @@ type Config struct {
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
 
-	AdditionalFeatures []string `json:"additionalFeatures"`
+	AdditionalFeatures []server.AdditionalFeature `json:"additionalFeatures"`
 }
 
 // Validate the configuration

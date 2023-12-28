@@ -31,14 +31,14 @@ type apiClient struct {
 }
 
 // newAPI constructs a gRCP client connected to a backing server.
-func newAPI(s storage.Storage, logger log.Logger, t *testing.T) *apiClient {
+func newAPI(s storage.Storage, logger log.Logger, t *testing.T, addtionalFeatures []AdditionalFeature) *apiClient {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	serv := grpc.NewServer()
-	api.RegisterDexServer(serv, NewAPI(s, logger, "test"))
+	api.RegisterDexServer(serv, NewAPI(s, logger, "test", addtionalFeatures))
 	go serv.Serve(l)
 
 	// Dial will retry automatically if the serv.Serve() goroutine
@@ -67,7 +67,7 @@ func TestPassword(t *testing.T) {
 	}
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+	client := newAPI(s, logger, t, []AdditionalFeature{})
 	defer client.Close()
 
 	ctx := context.Background()
@@ -180,7 +180,7 @@ func TestCheckCost(t *testing.T) {
 	}
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+	client := newAPI(s, logger, t, []AdditionalFeature{})
 	defer client.Close()
 
 	tests := []struct {
@@ -237,7 +237,7 @@ func TestRefreshToken(t *testing.T) {
 	}
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+	client := newAPI(s, logger, t, []AdditionalFeature{})
 	defer client.Close()
 
 	ctx := context.Background()
@@ -350,7 +350,7 @@ func TestUpdateClient(t *testing.T) {
 	}
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+	client := newAPI(s, logger, t, []AdditionalFeature{})
 	defer client.Close()
 	ctx := context.Background()
 
@@ -517,7 +517,7 @@ func TestCreateConnector(t *testing.T) {
 	}
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+	client := newAPI(s, logger, t, []AdditionalFeature{ConnectorsCRUD})
 	defer client.Close()
 
 	ctx := context.Background()
@@ -537,7 +537,9 @@ func TestCreateConnector(t *testing.T) {
 
 	// Test valid connector creation
 	if resp, err := client.CreateConnector(ctx, &createReq); err != nil || resp.AlreadyExists {
-		if resp.AlreadyExists {
+		if err != nil {
+			t.Fatalf("Unable to create connector: %v", err)
+		} else if resp.AlreadyExists {
 			t.Fatalf("Unable to create connector since %s already exists", connectorID)
 		}
 		t.Fatalf("Unable to create connector: %v", err)
@@ -566,7 +568,7 @@ func TestUpdateConnector(t *testing.T) {
 	}
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+	client := newAPI(s, logger, t, []AdditionalFeature{ConnectorsCRUD})
 	defer client.Close()
 
 	ctx := context.Background()
@@ -616,7 +618,7 @@ func TestDeleteConnector(t *testing.T) {
 	}
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+	client := newAPI(s, logger, t, []AdditionalFeature{ConnectorsCRUD})
 	defer client.Close()
 
 	ctx := context.Background()
@@ -661,7 +663,7 @@ func TestListConnectors(t *testing.T) {
 	}
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+	client := newAPI(s, logger, t, []AdditionalFeature{ConnectorsCRUD})
 	defer client.Close()
 
 	ctx := context.Background()
@@ -694,5 +696,46 @@ func TestListConnectors(t *testing.T) {
 		t.Fatalf("Unable to list connectors: %v", err)
 	} else if len(resp.Connectors) != 2 { // Check the number of connectors in the response
 		t.Fatalf("Expected 2 connectors, found %d", len(resp.Connectors))
+	}
+}
+
+func TestMissingAdditionalFeature(t *testing.T) {
+	logger := &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level:     logrus.DebugLevel,
+	}
+
+	s := memory.New(logger)
+	client := newAPI(s, logger, t, []AdditionalFeature{})
+	defer client.Close()
+
+	ctx := context.Background()
+
+	// Create connectors for testing
+	createReq1 := api.CreateConnectorReq{
+		Connector: &api.Connector{
+			Id:     "connector1",
+			Name:   "Connector1",
+			Type:   "Type1",
+			Config: []byte(`{"key": "value1"}`),
+		},
+	}
+	client.CreateConnector(ctx, &createReq1)
+
+	createReq2 := api.CreateConnectorReq{
+		Connector: &api.Connector{
+			Id:     "connector2",
+			Name:   "Connector2",
+			Type:   "Type2",
+			Config: []byte(`{"key": "value2"}`),
+		},
+	}
+	client.CreateConnector(ctx, &createReq2)
+
+	listReq := api.ListConnectorReq{}
+
+	if _, err := client.ListConnectors(ctx, &listReq); err == nil {
+		t.Fatal("ListConnectors should have returned an error")
 	}
 }

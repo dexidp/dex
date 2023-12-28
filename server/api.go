@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -30,11 +31,12 @@ const (
 )
 
 // NewAPI returns a server which implements the gRPC API interface.
-func NewAPI(s storage.Storage, logger log.Logger, version string) api.DexServer {
+func NewAPI(s storage.Storage, logger log.Logger, version string, additionalFeatures []AdditionalFeature) api.DexServer {
 	return dexAPI{
-		s:       s,
-		logger:  logger,
-		version: version,
+		s:                  s,
+		logger:             logger,
+		version:            version,
+		additionalFeatures: additionalFeatures,
 	}
 }
 
@@ -44,6 +46,8 @@ type dexAPI struct {
 	s       storage.Storage
 	logger  log.Logger
 	version string
+
+	additionalFeatures []AdditionalFeature
 }
 
 func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetClientResp, error) {
@@ -388,6 +392,10 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 }
 
 func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq) (*api.CreateConnectorResp, error) {
+	if !slices.Contains(d.additionalFeatures, ConnectorsCRUD) {
+		return nil, fmt.Errorf("%v not provided in addtionalFeatures", ConnectorsCRUD)
+	}
+
 	if req.Connector.Id == "" {
 		return nil, errors.New("no id supplied")
 	}
@@ -426,6 +434,10 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 }
 
 func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq) (*api.UpdateConnectorResp, error) {
+	if !slices.Contains(d.additionalFeatures, ConnectorsCRUD) {
+		return nil, fmt.Errorf("%v not provided in addtionalFeatures", ConnectorsCRUD)
+	}
+
 	if req.Id == "" {
 		return nil, errors.New("no email supplied")
 	}
@@ -466,6 +478,10 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 }
 
 func (d dexAPI) DeleteConnector(ctx context.Context, req *api.DeleteConnectorReq) (*api.DeleteConnectorResp, error) {
+	if !slices.Contains(d.additionalFeatures, ConnectorsCRUD) {
+		return nil, fmt.Errorf("%v not provided in addtionalFeatures", ConnectorsCRUD)
+	}
+
 	if req.Id == "" {
 		return nil, errors.New("no id supplied")
 	}
@@ -482,6 +498,10 @@ func (d dexAPI) DeleteConnector(ctx context.Context, req *api.DeleteConnectorReq
 }
 
 func (d dexAPI) ListConnectors(ctx context.Context, req *api.ListConnectorReq) (*api.ListConnectorResp, error) {
+	if !slices.Contains(d.additionalFeatures, ConnectorsCRUD) {
+		return nil, fmt.Errorf("%v not provided in addtionalFeatures", ConnectorsCRUD)
+	}
+
 	connectorList, err := d.s.ListConnectors()
 	if err != nil {
 		d.logger.Errorf("api: failed to list connectors: %v", err)
