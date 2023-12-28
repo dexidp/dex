@@ -1,5 +1,7 @@
-OS = $(shell uname | tr A-Z a-z)
 export PATH := $(abspath bin/protoc/bin/):$(abspath bin/):${PATH}
+export SHELL := env PATH=$(PATH) /bin/sh
+
+OS = $(shell uname | tr A-Z a-z)
 
 user=$(shell id -u -n)
 group=$(shell id -g -n)
