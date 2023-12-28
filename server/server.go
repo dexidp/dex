@@ -77,6 +77,9 @@ type Config struct {
 	// domain.
 	AllowedOrigins []string
 
+    // List of allowed headers for CORS requests on discovery, token, and keys endpoint.
+    AllowedHeaders []string
+
 	// If enabled, the server won't prompt the user to approve authorization requests.
 	// Logging in implies approval.
 	SkipApprovalScreen bool
@@ -214,6 +217,9 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	if len(c.SupportedResponseTypes) == 0 {
 		c.SupportedResponseTypes = []string{responseTypeCode}
 	}
+    if len(c.AllowedHeaders) == 0 {
+        c.AllowedHeaders = []string{"Authorization"}
+    }
 
 	allSupportedGrants := map[string]bool{
 		grantTypeAuthorizationCode: true,
@@ -353,12 +359,9 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS := func(p string, h http.HandlerFunc) {
 		var handler http.Handler = h
 		if len(c.AllowedOrigins) > 0 {
-			allowedHeaders := []string{
-				"Authorization",
-			}
 			cors := handlers.CORS(
 				handlers.AllowedOrigins(c.AllowedOrigins),
-				handlers.AllowedHeaders(allowedHeaders),
+				handlers.AllowedHeaders(c.AllowedHeaders),
 			)
 			handler = cors(handler)
 		}
