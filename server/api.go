@@ -459,7 +459,7 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 			old.Name = req.NewName
 		}
 
-		if len(req.NewConfig) == 0 {
+		if len(req.NewConfig) != 0 {
 			old.Config = req.NewConfig
 		}
 

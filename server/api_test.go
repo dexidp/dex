@@ -600,6 +600,25 @@ func TestUpdateConnector(t *testing.T) {
 		t.Fatalf("Unable to update connector: %v", err)
 	}
 
+	resp, err := client.ListConnectors(ctx, &api.ListConnectorReq{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	for _, connector := range resp.Connectors {
+		if connector.Id == connectorID {
+			if connector.Name != newConnectorName {
+				t.Fatal("connector name should have been updated")
+			}
+			if string(connector.Config) != string(newConnectorConfig) {
+				t.Fatal("connector config should have been updated")
+			}
+			if connector.Type != newConnectorType {
+				t.Fatal("connector type should have been updated")
+			}
+		}
+	}
+
 	updateReq.NewConfig = []byte("invalid_json")
 
 	// Test invalid JSON config in update request
