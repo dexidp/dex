@@ -50,10 +50,8 @@ import (
 // AdditionalFeature allows the extension of Dex server functionalities
 type AdditionalFeature string
 
-var (
-	// ConnectorsCRUD is an additional feature that allows CRUD operations on connectors
-	ConnectorsCRUD AdditionalFeature = "ConnectorsCRUD"
-)
+// ConnectorsCRUD is an additional feature that allows CRUD operations on connectors
+var ConnectorsCRUD AdditionalFeature = "ConnectorsCRUD"
 
 var ValidAdditionalFeatures []AdditionalFeature = []AdditionalFeature{
 	ConnectorsCRUD,
