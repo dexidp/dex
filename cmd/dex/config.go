@@ -51,6 +51,7 @@ type Config struct {
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
 
+	// AdditionalFeature allow the extension of Dex functionalities
 	AdditionalFeatures []server.AdditionalFeature `json:"additionalFeatures"`
 }
 

@@ -1,7 +1,9 @@
 issuer: http://127.0.0.1:5556/dex
 
 storage:
-  type: memory
+  type: sqlite3
+  config:
+    file: var/sqlite/dex.db
 
 web:
   http: 127.0.0.1:5556
