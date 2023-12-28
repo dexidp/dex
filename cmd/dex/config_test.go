@@ -436,3 +436,12 @@ logger:
 		t.Errorf("got!=want: %s", diff)
 	}
 }
+
+func TestParseConfig(t *testing.T) {
+	configuration := Config{}
+	configuration.Parse()
+
+	if configuration.AdditionalFeatures == nil || len(configuration.AdditionalFeatures) != 0 {
+		t.Fatal("AdditionalFeatures should be an empty slice")
+	}
+}

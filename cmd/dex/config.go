@@ -54,9 +54,16 @@ type Config struct {
 	AdditionalFeatures []server.AdditionalFeature `json:"additionalFeatures"`
 }
 
+// Parse the configuration
+func (c *Config) Parse() {
+	if c.AdditionalFeatures == nil {
+		c.AdditionalFeatures = []server.AdditionalFeature{}
+	}
+}
+
 // Validate the configuration
 func (c Config) Validate() error {
-	badFeatures := c.validateAdditionalFeatures()
+	invalidFeatures := c.findInvalidAdditionalFeatures()
 
 	// Fast checks. Perform these first for a more responsive CLI.
 	checks := []struct {
@@ -73,7 +80,7 @@ func (c Config) Validate() error {
 		{c.GRPC.TLSKey != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
 		{(c.GRPC.TLSCert == "") != (c.GRPC.TLSKey == ""), "must specific both a gRPC TLS cert and key"},
 		{c.GRPC.TLSCert == "" && c.GRPC.TLSClientCA != "", "cannot specify gRPC TLS client CA without a gRPC TLS cert"},
-		{len(badFeatures) > 0, fmt.Sprintf("invalid additionalFeatures supplied: %v. Valid entries: %s", badFeatures, server.ValidAdditionalFeatures)},
+		{len(invalidFeatures) > 0, fmt.Sprintf("invalid additionalFeatures supplied: %v. Valid entries: %s", invalidFeatures, server.ValidAdditionalFeatures)},
 	}
 
 	var checkErrors []string
@@ -89,10 +96,9 @@ func (c Config) Validate() error {
 	return nil
 }
 
-// validateAdditionalFeatures parses AdditionalFeatures and returns bad features
-func (c *Config) validateAdditionalFeatures() []server.AdditionalFeature {
+// findInvalidAdditionalFeatures returns addtional features that are not considered valid
+func (c Config) findInvalidAdditionalFeatures() []server.AdditionalFeature {
 	if c.AdditionalFeatures == nil {
-		c.AdditionalFeatures = []server.AdditionalFeature{}
 		return []server.AdditionalFeature{}
 	}
 
