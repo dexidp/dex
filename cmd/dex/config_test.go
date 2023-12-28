@@ -38,6 +38,9 @@ func TestValidConfiguration(t *testing.T) {
 		},
 		AdditionalFeatures: server.ValidAdditionalFeatures,
 	}
+
+	configuration.Parse()
+
 	if err := configuration.Validate(); err != nil {
 		t.Fatalf("this configuration should have been valid: %v", err)
 	}
@@ -45,6 +48,7 @@ func TestValidConfiguration(t *testing.T) {
 
 func TestInvalidConfiguration(t *testing.T) {
 	configuration := Config{}
+	configuration.Parse()
 	err := configuration.Validate()
 	if err == nil {
 		t.Fatal("this configuration should be invalid")
@@ -225,6 +229,9 @@ additionalFeatures: [
 	if err := yaml.Unmarshal(rawConfig, &c); err != nil {
 		t.Fatalf("failed to decode config: %v", err)
 	}
+
+	c.Parse()
+
 	if diff := pretty.Compare(c, want); diff != "" {
 		t.Errorf("got!=want: %s", diff)
 	}
@@ -432,6 +439,9 @@ logger:
 	if err := yaml.Unmarshal(rawConfig, &c); err != nil {
 		t.Fatalf("failed to decode config: %v", err)
 	}
+
+	c.Parse()
+
 	if diff := pretty.Compare(c, want); diff != "" {
 		t.Errorf("got!=want: %s", diff)
 	}
