@@ -21,10 +21,6 @@ import (
 	"github.com/dexidp/dex/storage/sql"
 )
 
-var AdditionalFeatures []string = []string{
-	"ConnectorsCRUD",
-}
-
 // Config is the config format for the main application.
 type Config struct {
 	Issuer    string    `json:"issuer"`
@@ -77,7 +73,7 @@ func (c Config) Validate() error {
 		{c.GRPC.TLSKey != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
 		{(c.GRPC.TLSCert == "") != (c.GRPC.TLSKey == ""), "must specific both a gRPC TLS cert and key"},
 		{c.GRPC.TLSCert == "" && c.GRPC.TLSClientCA != "", "cannot specify gRPC TLS client CA without a gRPC TLS cert"},
-		{len(badFeatures) > 0, fmt.Sprintf("invalid additionalFeatures supplied: %v. Valid entries: %s", badFeatures, AdditionalFeatures)},
+		{len(badFeatures) > 0, fmt.Sprintf("invalid additionalFeatures supplied: %v. Valid entries: %s", badFeatures, server.ValidAdditionalFeatures)},
 	}
 
 	var checkErrors []string
@@ -93,14 +89,14 @@ func (c Config) Validate() error {
 	return nil
 }
 
-func (c Config) findBadAdditionalFeatures() []string {
+func (c Config) findBadAdditionalFeatures() []server.AdditionalFeature {
 	if c.AdditionalFeatures == nil {
-		return []string{}
+		return []server.AdditionalFeature{}
 	}
 
-	badFeatures := []string{}
+	badFeatures := []server.AdditionalFeature{}
 	for _, feature := range c.AdditionalFeatures {
-		if !slices.Contains(AdditionalFeatures, feature) {
+		if !slices.Contains(server.ValidAdditionalFeatures, feature) {
 			badFeatures = append(badFeatures, feature)
 		}
 	}

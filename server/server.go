@@ -55,6 +55,10 @@ var (
 	ConnectorsCRUD AdditionalFeature = "ConnectorsCRUD"
 )
 
+var ValidAdditionalFeatures []AdditionalFeature = []AdditionalFeature{
+	ConnectorsCRUD,
+}
+
 // LocalConnector is the local passwordDB connector which is an internal
 // connector maintained by the server.
 const LocalConnector = "local"
