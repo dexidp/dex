@@ -23,6 +23,8 @@ const (
 	FieldName = "name"
 	// FieldLogoURL holds the string denoting the logo_url field in the database.
 	FieldLogoURL = "logo_url"
+	// FieldSamlInitiated holds the string denoting the samlinitiated field in the database.
+	FieldSamlInitiated = "saml_initiated"
 	// Table holds the table name of the oauth2client in the database.
 	Table = "oauth2clients"
 )
@@ -36,6 +38,7 @@ var Columns = []string{
 	FieldPublic,
 	FieldName,
 	FieldLogoURL,
+	FieldSamlInitiated,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).

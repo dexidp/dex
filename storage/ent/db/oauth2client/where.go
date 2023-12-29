@@ -307,6 +307,16 @@ func LogoURLContainsFold(v string) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldContainsFold(FieldLogoURL, v))
 }
 
+// SamlInitiatedIsNil applies the IsNil predicate on the "samlInitiated" field.
+func SamlInitiatedIsNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIsNull(FieldSamlInitiated))
+}
+
+// SamlInitiatedNotNil applies the NotNil predicate on the "samlInitiated" field.
+func SamlInitiatedNotNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotNull(FieldSamlInitiated))
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.OAuth2Client) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.AndPredicates(predicates...))

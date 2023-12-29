@@ -14,6 +14,13 @@ message Client {
   bool public = 5;
   string name = 6;
   string logo_url = 7;
+  SamlInitiatedConfig saml_initiated = 8;
+}
+
+// SamlInitiatedConfig provides config options for SAML initiated login on a client
+message SamlInitiatedConfig {
+  string redirect_uri = 1;
+  repeated string scopes =2;
 }
 
 // GetClientReq is a request to retrieve client details.
@@ -56,6 +63,7 @@ message UpdateClientReq {
     repeated string trusted_peers = 3;
     string name = 4;
     string logo_url = 5;
+    SamlInitiatedConfig saml_initiated = 6;
 }
 
 // UpdateClientResp returns the response from updating a client.

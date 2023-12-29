@@ -50,6 +50,10 @@ const (
 )
 
 var (
+	// DefaultIDPInitiatedScopes specifies scopes to use for IdP initiated flows
+	// if the target client does not have any configured
+	DefaultIDPInitiatedScopes = []string{"openid", "profile", "email", "groups"}
+
 	nameIDFormats = []string{
 		nameIDFormatEmailAddress,
 		nameIDFormatUnspecified,
@@ -448,6 +452,25 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 
 	// Otherwise, we're good
 	return ident, nil
+}
+
+// GetSAMLIssuer parses a SAML response and returns its 'Issuer' field.
+func GetSAMLIssuer(samlResponse string) (string, error) {
+	rawResp, err := base64.StdEncoding.DecodeString(samlResponse)
+	if err != nil {
+		return "", err
+	}
+
+	var resp response
+	if err := xml.Unmarshal(rawResp, &resp); err != nil {
+		return "", err
+	}
+
+	if resp.Issuer == nil {
+		return "", errors.New("response is missing issuer")
+	}
+
+	return resp.Issuer.Issuer, nil
 }
 
 // validateStatus verifies that the response has a good status code or

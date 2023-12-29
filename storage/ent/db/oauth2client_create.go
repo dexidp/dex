@@ -10,6 +10,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/oauth2client"
+	"github.com/dexidp/dex/storage/ent/schema"
 )
 
 // OAuth2ClientCreate is the builder for creating a OAuth2Client entity.
@@ -52,6 +53,20 @@ func (oc *OAuth2ClientCreate) SetName(s string) *OAuth2ClientCreate {
 // SetLogoURL sets the "logo_url" field.
 func (oc *OAuth2ClientCreate) SetLogoURL(s string) *OAuth2ClientCreate {
 	oc.mutation.SetLogoURL(s)
+	return oc
+}
+
+// SetSamlInitiated sets the "samlInitiated" field.
+func (oc *OAuth2ClientCreate) SetSamlInitiated(si schema.SAMLInitiated) *OAuth2ClientCreate {
+	oc.mutation.SetSamlInitiated(si)
+	return oc
+}
+
+// SetNillableSamlInitiated sets the "samlInitiated" field if the given value is not nil.
+func (oc *OAuth2ClientCreate) SetNillableSamlInitiated(si *schema.SAMLInitiated) *OAuth2ClientCreate {
+	if si != nil {
+		oc.SetSamlInitiated(*si)
+	}
 	return oc
 }
 
@@ -185,6 +200,10 @@ func (oc *OAuth2ClientCreate) createSpec() (*OAuth2Client, *sqlgraph.CreateSpec)
 	if value, ok := oc.mutation.LogoURL(); ok {
 		_spec.SetField(oauth2client.FieldLogoURL, field.TypeString, value)
 		_node.LogoURL = value
+	}
+	if value, ok := oc.mutation.SamlInitiated(); ok {
+		_spec.SetField(oauth2client.FieldSamlInitiated, field.TypeJSON, value)
+		_node.SamlInitiated = value
 	}
 	return _node, _spec
 }

@@ -18,6 +18,11 @@ create table client
 );
 */
 
+type SAMLInitiated struct {
+	Scopes      []string `json:"scopes,omitempty"`
+	RedirectURI string   `json:"redirect_uri,omitempty"`
+}
+
 // OAuth2Client holds the schema definition for the Client entity.
 type OAuth2Client struct {
 	ent.Schema
@@ -45,6 +50,8 @@ func (OAuth2Client) Fields() []ent.Field {
 		field.Text("logo_url").
 			SchemaType(textSchema).
 			NotEmpty(),
+		field.JSON("samlInitiated", SAMLInitiated{}).
+			Optional(),
 	}
 }
 
