@@ -3,13 +3,11 @@ package web3
 
 import (
 	"fmt"
-
+	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-
-	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 type Config struct {
@@ -56,7 +54,6 @@ func (c *web3Connector) Verify(address, msg, signedMsg string) (identity connect
 	if recoveredAddr != addrb {
 		return identity, fmt.Errorf("given address and address recovered from signed nonce do not match")
 	}
-
 	identity.UserID = address
 	identity.Username = address
 	return identity, nil
