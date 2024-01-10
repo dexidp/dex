@@ -584,6 +584,61 @@ func TestTokenIdentity(t *testing.T) {
 	}
 }
 
+func TestProviderOverride(t *testing.T) {
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	testServer, err := setupServer(map[string]any{
+		"sub":  "subvalue",
+		"name": "namevalue",
+	}, true)
+	if err != nil {
+		t.Fatal("failed to setup test server", err)
+	}
+
+	t.Run("No override", func(t *testing.T) {
+		conn, err := newConnector(Config{
+			Issuer: testServer.URL,
+			Scopes: []string{"openid", "groups"},
+		})
+		if err != nil {
+			t.Fatal("failed to create new connector", err)
+		}
+
+		expAuth := fmt.Sprintf("%s/authorize", testServer.URL)
+		if conn.provider.Endpoint().AuthURL != expAuth {
+			t.Fatalf("unexpected auth URL: %s, expected: %s\n", conn.provider.Endpoint().AuthURL, expAuth)
+		}
+
+		expToken := fmt.Sprintf("%s/token", testServer.URL)
+		if conn.provider.Endpoint().TokenURL != expToken {
+			t.Fatalf("unexpected token URL: %s, expected: %s\n", conn.provider.Endpoint().TokenURL, expToken)
+		}
+	})
+
+	t.Run("Override", func(t *testing.T) {
+		conn, err := newConnector(Config{
+			Issuer:                     testServer.URL,
+			Scopes:                     []string{"openid", "groups"},
+			ProviderDiscoveryOverrides: ProviderDiscoveryOverrides{TokenURL: "/test1", AuthURL: "/test2"},
+		})
+		if err != nil {
+			t.Fatal("failed to create new connector", err)
+		}
+
+		expAuth := "/test2"
+		if conn.provider.Endpoint().AuthURL != expAuth {
+			t.Fatalf("unexpected auth URL: %s, expected: %s\n", conn.provider.Endpoint().AuthURL, expAuth)
+		}
+
+		expToken := "/test1"
+		if conn.provider.Endpoint().TokenURL != expToken {
+			t.Fatalf("unexpected token URL: %s, expected: %s\n", conn.provider.Endpoint().TokenURL, expToken)
+		}
+	})
+}
+
 func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Server, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
