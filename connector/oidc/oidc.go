@@ -219,6 +219,9 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		cancel()
 		return nil, err
 	}
+	if !c.ProviderDiscoveryOverrides.Empty() {
+		logger.Warnf("overrides for connector %q are set, this can be a vulnerability when not properly configured", id)
+	}
 
 	endpoint := provider.Endpoint()
 
