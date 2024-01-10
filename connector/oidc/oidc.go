@@ -211,8 +211,8 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		return nil, err
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	ctx = context.WithValue(ctx, oauth2.HTTPClient, httpClient)
+	bgctx, cancel := context.WithCancel(context.Background())
+	ctx := context.WithValue(bgctx, oauth2.HTTPClient, httpClient)
 
 	provider, err := getProvider(ctx, c.Issuer, c.ProviderDiscoveryOverrides)
 	if err != nil {

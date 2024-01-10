@@ -585,10 +585,6 @@ func TestTokenIdentity(t *testing.T) {
 }
 
 func TestProviderOverride(t *testing.T) {
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	testServer, err := setupServer(map[string]any{
 		"sub":  "subvalue",
 		"name": "namevalue",
