@@ -1,6 +1,7 @@
 package server
 
 import (
+	"container/list"
 	"context"
 	"crypto/rsa"
 	"encoding/json"
@@ -19,6 +20,8 @@ import (
 	"time"
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
+	"github.com/AppsFlyer/go-sundheit/checks"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/felixge/httpsnoop"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -316,11 +319,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		return nil, errors.New("server: no connectors specified")
 	}
 
-	for _, conn := range storageConnectors {
-		if _, err := s.OpenConnector(conn); err != nil {
-			return nil, fmt.Errorf("server: Failed to open connector %s: %v", conn.ID, err)
-		}
-	}
+	s.InitializeConnectors(storageConnectors)
 
 	instrumentHandlerCounter := func(_ string, handler http.Handler) http.HandlerFunc {
 		return handler.ServeHTTP
@@ -342,6 +341,28 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 				m := httpsnoop.CaptureMetrics(handler, w, r)
 				requestCounter.With(prometheus.Labels{"handler": handlerName, "code": strconv.Itoa(m.Code), "method": r.Method}).Inc()
 			}
+		}
+	}
+
+	if c.HealthChecker != nil {
+		err = c.HealthChecker.RegisterCheck(
+			&checks.CustomCheck{
+				CheckName: "connectors",
+				CheckFunc: func(context.Context) (details interface{}, err error) {
+					s.mu.Lock()
+					connectorsLen := len(s.connectors)
+					s.mu.Unlock()
+
+					if connectorsLen > 0 {
+						return nil, nil
+					}
+					return nil, errors.New("no connectors configured")
+				},
+			},
+			gosundheit.ExecutionPeriod(500*time.Millisecond),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to register healthcheck: %v", err)
 		}
 	}
 
@@ -657,4 +678,44 @@ func (s *Server) getConnector(id string) (Connector, error) {
 	}
 
 	return conn, nil
+}
+
+// InitializeConnectors opens all connectors in the storage and adds them to the server.
+// If a connector fails to open, it will be retried until it succeeds.
+//
+// This method prevents dex from failing to start if a connector is temporarily unavailable.
+func (s *Server) InitializeConnectors(connectors []storage.Connector) {
+	b := backoff.NewExponentialBackOff()
+	b.MaxElapsedTime = 0
+	b.InitialInterval = 100 * time.Millisecond
+	b.MaxInterval = 30 * time.Second
+
+	limiter := backoff.NewTicker(b)
+
+	s.logger.Info("start initializing connectors")
+
+	queue := list.New()
+	for _, c := range connectors {
+		queue.PushBack(c)
+	}
+
+	go func() {
+		for queue.Len() > 0 {
+			conn := queue.Remove(queue.Front()).(storage.Connector)
+
+			s.logger.Debugf("initializing %q connector", conn.ID)
+
+			_, err := s.OpenConnector(conn)
+			if err == nil {
+				s.logger.Debugf("connector %q has been initialized successfully", conn.ID)
+				continue
+			}
+			s.logger.Errorf("failed to open connector: %v", err)
+
+			queue.PushBack(conn)
+			<-limiter.C // Wait for the next retry only on fails
+		}
+
+		s.logger.Info("all connectors have been initialized")
+	}()
 }

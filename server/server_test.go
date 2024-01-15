@@ -750,7 +750,10 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			})
 			defer httpServer.Close()
 
+			s.mu.Lock()
 			mockConn := s.connectors["mock"]
+			s.mu.Unlock()
+
 			conn = mockConn.Connector.(*mock.Callback)
 
 			// Query server's provider metadata.
