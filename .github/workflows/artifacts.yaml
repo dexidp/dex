@@ -51,16 +51,16 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@2b82ce82d56a2a04d2637cd93a637ae1b359c0a7 # v2.2.0
+        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4c0219f9ac95b02789c1075625400b2acbff50b1 # v2.9.1
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
 
       - name: Set up Syft
-        uses: anchore/sbom-action/download-syft@78fc58e266e87a38d4194b2137a3d4e9bcaf7ca1 # v0.14.3
+        uses: anchore/sbom-action/download-syft@c7f031d9249a826a082ea14c79d3b686a51d485a # v0.15.3
 
       - name: Set image name
         id: image-name
@@ -68,7 +68,7 @@ jobs:
 
       - name: Gather build metadata
         id: meta
-        uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175 # v4.6.0
+        uses: docker/metadata-action@dbef88086f6cef02e264edb7dbf63250c17cef6c # v5.5.0
         with:
           images: |
             ${{ steps.image-name.outputs.value }}
@@ -98,7 +98,7 @@ jobs:
           if_false: type=oci,dest=image.tar
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2.2.0
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -106,7 +106,7 @@ jobs:
         if: inputs.publish
 
       - name: Login to Docker Hub
-        uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2.2.0
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
@@ -114,10 +114,10 @@ jobs:
 
       - name: Build and push image
         id: build
-        uses: docker/build-push-action@2eb1c1961a95fc15694676618e422e8ba1d63825 # v4.1.1
+        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
         with:
           context: .
-          platforms: linux/amd64,linux/arm/v7,linux/arm64,linux/ppc64le
+          platforms: linux/amd64,linux/arm/v7,linux/arm64,linux/ppc64le,linux/s390x
           tags: ${{ steps.meta.outputs.tags }}
           build-args: |
             BASE_IMAGE=${{ matrix.variant }}
@@ -161,27 +161,27 @@ jobs:
       #   run: syft -o spdx-json=sbom-spdx.json docker-archive:docker.tar
       #
       # - name: Upload SBOM as artifact
-      #   uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # v3.1.2
+      #   uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32 # v3.1.3
       #   with:
       #     name: "[${{ github.job }}] SBOM"
       #     path: sbom-spdx.json
       #     retention-days: 5
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@41f05d9ecffa2ed3f1580af306000f734b733e54 # 0.11.2
+        uses: aquasecurity/trivy-action@d43c1f16c00cfd3978dde6c07f4bbcf9eb6993ca # 0.16.1
         with:
           input: image
           format: sarif
           output: trivy-results.sarif
 
       - name: Upload Trivy scan results as artifact
-        uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # v3.1.2
+        uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32 # v3.1.3
         with:
           name: "[${{ github.job }}] Trivy scan results"
           path: trivy-results.sarif
           retention-days: 5
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@0ba4244466797eb048eb91a6cd43d5c03ca8bd05 # v2.21.2
+        uses: github/codeql-action/upload-sarif@e5f05b81d5b6ff8cfa111c80c22c5fd02a384118 # v3.23.0
         with:
           sarif_file: trivy-results.sarif

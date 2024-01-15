@@ -54,6 +54,9 @@ type Config struct {
 	UseGroupsAsWhitelist bool            `json:"useGroupsAsWhitelist"`
 	EmailToLowercase     bool            `json:"emailToLowercase"`
 
+	APIURL   string `json:"apiURL"`
+	GraphURL string `json:"graphURL"`
+
 	// PromptType is used for the prompt query parameter.
 	// For valid values, see https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow#request-an-authorization-code.
 	PromptType string `json:"promptType"`
@@ -65,8 +68,8 @@ type Config struct {
 // Open returns a strategy for logging in through Microsoft.
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	m := microsoftConnector{
-		apiURL:               "https://login.microsoftonline.com",
-		graphURL:             "https://graph.microsoft.com",
+		apiURL:               strings.TrimSuffix(c.APIURL, "/"),
+		graphURL:             strings.TrimSuffix(c.GraphURL, "/"),
 		redirectURI:          c.RedirectURI,
 		clientID:             c.ClientID,
 		clientSecret:         c.ClientSecret,
@@ -81,6 +84,15 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		domainHint:           c.DomainHint,
 		scopes:               c.Scopes,
 	}
+
+	if m.apiURL == "" {
+		m.apiURL = "https://login.microsoftonline.com"
+	}
+
+	if m.graphURL == "" {
+		m.graphURL = "https://graph.microsoft.com"
+	}
+
 	// By default allow logins from both personal and business/school
 	// accounts.
 	if m.tenant == "" {

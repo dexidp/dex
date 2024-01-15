@@ -16,12 +16,16 @@ jobs:
     services:
       postgres:
         image: postgres:10.8
+        env:
+          TZ: UTC
         ports:
           - 5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
       postgres-ent:
         image: postgres:10.8
+        env:
+          TZ: UTC
         ports:
           - 5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
@@ -62,12 +66,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Set up Go
-        uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753 # v4.0.1
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
-          go-version: "1.20"
+          go-version: "1.21"
 
       - name: Download tool dependencies
         run: make deps
@@ -133,12 +137,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Set up Go
-        uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753 # v4.0.1
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
-          go-version: "1.20"
+          go-version: "1.21"
 
       - name: Download golangci-lint
         run: make bin/golangci-lint
@@ -167,7 +171,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Dependency Review
-        uses: actions/dependency-review-action@1360a344ccb0ab6e9475edef90ad2f46bf8003b1 # v3.0.6
+        uses: actions/dependency-review-action@c74b580d73376b7750d3d2a50bfb8adc2c937507 # v3.1.5
