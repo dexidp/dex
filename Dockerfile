@@ -29,7 +29,10 @@ RUN go mod download
 
 COPY . .
 
-RUN make release-binary
+# Propagate Dex version from build args to the build environment
+ARG VERSION
+RUN ([ "$VERSION" != "" ] || export $VERSION) && make release-binary
+
 RUN xx-verify /go/bin/dex && xx-verify /go/bin/docker-entrypoint
 
 FROM alpine:3.19.0 AS stager
