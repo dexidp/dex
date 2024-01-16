@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
@@ -195,12 +195,10 @@ var (
 
 func getORMBasedSQLStorage(normal, entBased StorageConfig) func() StorageConfig {
 	return func() StorageConfig {
-		switch os.Getenv("DEX_ENT_ENABLED") {
-		case "true", "yes":
+		if featureflags.EntEnabled.Enabled() {
 			return entBased
-		default:
-			return normal
 		}
+		return normal
 	}
 }
 
@@ -211,19 +209,6 @@ var storages = map[string]func() StorageConfig{
 	"sqlite3":    getORMBasedSQLStorage(&sql.SQLite3{}, &ent.SQLite3{}),
 	"postgres":   getORMBasedSQLStorage(&sql.Postgres{}, &ent.Postgres{}),
 	"mysql":      getORMBasedSQLStorage(&sql.MySQL{}, &ent.MySQL{}),
-}
-
-// isExpandEnvEnabled returns if os.ExpandEnv should be used for each storage and connector config.
-// Disabling this feature avoids surprises e.g. if the LDAP bind password contains a dollar character.
-// Returns false if the env variable "DEX_EXPAND_ENV" is a falsy string, e.g. "false".
-// Returns true if the env variable is unset or a truthy string, e.g. "true", or can't be parsed as bool.
-func isExpandEnvEnabled() bool {
-	enabled, err := strconv.ParseBool(os.Getenv("DEX_EXPAND_ENV"))
-	if err != nil {
-		// Unset, empty string or can't be parsed as bool: Default = true.
-		return true
-	}
-	return enabled
 }
 
 // UnmarshalJSON allows Storage to implement the unmarshaler interface to
@@ -244,7 +229,7 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 	storageConfig := f()
 	if len(store.Config) != 0 {
 		data := []byte(store.Config)
-		if isExpandEnvEnabled() {
+		if featureflags.ExpandEnv.Enabled() {
 			// Caution, we're expanding in the raw JSON/YAML source. This may not be what the admin expects.
 			data = []byte(os.ExpandEnv(string(store.Config)))
 		}
@@ -290,7 +275,7 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 	connConfig := f()
 	if len(conn.Config) != 0 {
 		data := []byte(conn.Config)
-		if isExpandEnvEnabled() {
+		if featureflags.ExpandEnv.Enabled() {
 			// Caution, we're expanding in the raw JSON/YAML source. This may not be what the admin expects.
 			data = []byte(os.ExpandEnv(string(conn.Config)))
 		}
