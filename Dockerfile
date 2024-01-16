@@ -4,6 +4,18 @@ FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.3.0@sha256:904fe94f236d36d65aeb5a
 
 FROM --platform=$BUILDPLATFORM golang:1.21.6-alpine3.18 AS builder
 
+RUN apk add --update make
+
+ARG VERSION
+
+WORKDIR /usr/local/src/dex
+
+COPY . .
+
+RUN make release-binary && exit 1
+
+RUN exit 1
+
 COPY --from=xx / /
 
 RUN apk add --update alpine-sdk ca-certificates openssl clang lld
@@ -47,8 +59,8 @@ ARG TARGETVARIANT
 ENV GOMPLATE_VERSION=v3.11.6
 
 RUN wget -O /usr/local/bin/gomplate \
-  "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT}" \
-  && chmod +x /usr/local/bin/gomplate
+    "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT}" \
+    && chmod +x /usr/local/bin/gomplate
 
 # For Dependabot to detect base image versions
 FROM alpine:3.19.0 AS alpine
