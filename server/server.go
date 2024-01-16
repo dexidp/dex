@@ -1,7 +1,6 @@
 package server
 
 import (
-	"container/list"
 	"context"
 	"crypto/rsa"
 	"encoding/json"
@@ -56,6 +55,8 @@ const LocalConnector = "local"
 
 // Connector is a connector with resource version metadata.
 type Connector struct {
+	Type            string
+	Name            string
 	ResourceVersion string
 	Connector       connector.Connector
 }
@@ -359,7 +360,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 					return nil, errors.New("no connectors configured")
 				},
 			},
-			gosundheit.ExecutionPeriod(500*time.Millisecond),
+			gosundheit.ExecutionPeriod(1*time.Millisecond),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to register healthcheck: %v", err)
@@ -643,6 +644,8 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 	}
 
 	connector := Connector{
+		Type:            conn.Type,
+		Name:            conn.Name,
 		ResourceVersion: conn.ResourceVersion,
 		Connector:       c,
 	}
@@ -680,42 +683,39 @@ func (s *Server) getConnector(id string) (Connector, error) {
 	return conn, nil
 }
 
+func newConnectorBackoff() *backoff.ExponentialBackOff {
+	b := backoff.NewExponentialBackOff()
+	b.MaxElapsedTime = 0
+	b.InitialInterval = 500 * time.Millisecond
+	b.MaxInterval = 30 * time.Second
+
+	return b
+}
+
 // InitializeConnectors opens all connectors in the storage and adds them to the server.
 // If a connector fails to open, it will be retried until it succeeds.
 //
 // This method prevents dex from failing to start if a connector is temporarily unavailable.
 func (s *Server) InitializeConnectors(connectors []storage.Connector) {
-	b := backoff.NewExponentialBackOff()
-	b.MaxElapsedTime = 0
-	b.InitialInterval = 100 * time.Millisecond
-	b.MaxInterval = 30 * time.Second
-
-	limiter := backoff.NewTicker(b)
-
 	s.logger.Info("start initializing connectors")
 
-	queue := list.New()
 	for _, c := range connectors {
-		queue.PushBack(c)
-	}
+		go func(conn storage.Connector) {
+			limiter := backoff.NewTicker(newConnectorBackoff())
 
-	go func() {
-		for queue.Len() > 0 {
-			conn := queue.Remove(queue.Front()).(storage.Connector)
+			for {
+				s.logger.Debugf("initializing %q connector", conn.ID)
 
-			s.logger.Debugf("initializing %q connector", conn.ID)
+				_, err := s.OpenConnector(conn)
+				if err == nil {
+					break
+				}
 
-			_, err := s.OpenConnector(conn)
-			if err == nil {
-				s.logger.Debugf("connector %q has been initialized successfully", conn.ID)
-				continue
+				s.logger.Error(err)
+				<-limiter.C // Wait for the next retry only on fails
 			}
-			s.logger.Errorf("failed to open connector: %v", err)
 
-			queue.PushBack(conn)
-			<-limiter.C // Wait for the next retry only on fails
-		}
-
-		s.logger.Info("all connectors have been initialized")
-	}()
+			s.logger.Debugf("connector %q has been initialized successfully", conn.ID)
+		}(c)
+	}
 }

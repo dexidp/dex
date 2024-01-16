@@ -135,28 +135,35 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	connectorID := r.Form.Get("connector_id")
-
-	connectors, err := s.storage.ListConnectors()
-	if err != nil {
-		s.logger.Errorf("Failed to get list of connectors: %v", err)
-		s.renderError(r, w, http.StatusInternalServerError, "Failed to retrieve connector list.")
-		return
-	}
-
-	// We don't need connector_id any more
-	r.Form.Del("connector_id")
-
 	// Construct a URL with all of the arguments in its query
 	connURL := url.URL{
 		RawQuery: r.Form.Encode(),
 	}
 
+	s.mu.Lock()
+	connectorsLen := len(s.connectors)
+	connectorInfos := make([]connectorInfo, 0, connectorsLen)
+
+	for id, conn := range s.connectors {
+		connURL.Path = s.absPath("/auth", url.PathEscape(id))
+		connectorInfos = append(connectorInfos, connectorInfo{
+			ID:   id,
+			Name: conn.Name,
+			Type: conn.Type,
+			URL:  template.URL(connURL.String()),
+		})
+	}
+	s.mu.Unlock()
+
+	connectorID := r.Form.Get("connector_id")
+	// We don't need connector_id any more
+	r.Form.Del("connector_id")
+
 	// Redirect if a client chooses a specific connector_id
 	if connectorID != "" {
-		for _, c := range connectors {
-			if c.ID == connectorID {
-				connURL.Path = s.absPath("/auth", url.PathEscape(c.ID))
+		for _, info := range connectorInfos {
+			if info.ID == connectorID {
+				connURL.Path = s.absPath("/auth", url.PathEscape(info.ID))
 				http.Redirect(w, r, connURL.String(), http.StatusFound)
 				return
 			}
@@ -165,20 +172,9 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(connectors) == 1 && !s.alwaysShowLogin {
-		connURL.Path = s.absPath("/auth", url.PathEscape(connectors[0].ID))
+	if len(connectorInfos) == 1 && !s.alwaysShowLogin {
+		connURL.Path = s.absPath("/auth", url.PathEscape(connectorInfos[0].ID))
 		http.Redirect(w, r, connURL.String(), http.StatusFound)
-	}
-
-	connectorInfos := make([]connectorInfo, len(connectors))
-	for index, conn := range connectors {
-		connURL.Path = s.absPath("/auth", url.PathEscape(conn.ID))
-		connectorInfos[index] = connectorInfo{
-			ID:   conn.ID,
-			Name: conn.Name,
-			Type: conn.Type,
-			URL:  template.URL(connURL.String()),
-		}
 	}
 
 	if err := s.templates.login(r, w, connectorInfos); err != nil {
