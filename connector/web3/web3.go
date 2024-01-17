@@ -3,25 +3,26 @@ package web3
 
 import (
 	"fmt"
-
+	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/log"
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-
-	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 type Config struct {
 	InfuraID string `json:"infuraId"`
+	RPCURL   string `json:"rpcUrl"`
 }
 
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
-	return &web3Connector{infuraID: c.InfuraID}, nil
+	return &web3Connector{infuraID: c.InfuraID, rpcURL: c.RPCURL}, nil
 }
 
 type web3Connector struct {
 	infuraID string
+	rpcURL   string
 }
 
 func (c *web3Connector) InfuraID() string {
@@ -43,6 +44,7 @@ func (c *web3Connector) Verify(address, msg, signedMsg string) (identity connect
 		signb[64] -= 27
 	} else if signb[64] != 0 && signb[64] != 1 {
 		// We allow 0 or 1 because some non-conformant devices like Ledger use it.
+		// TODO - Verify using ERC-1271
 		return identity, fmt.Errorf("byte at index 64 of signed message should be 27 or 28: %s", signedMsg)
 	}
 
@@ -63,6 +65,5 @@ func (c *web3Connector) Verify(address, msg, signedMsg string) (identity connect
 }
 
 func signHash(data []byte) []byte {
-	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(data), data)
-	return crypto.Keccak256([]byte(msg))
+	return accounts.TextHash(data)
 }
