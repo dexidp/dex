@@ -60,7 +60,7 @@ jobs:
         uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
 
       - name: Set up Syft
-        uses: anchore/sbom-action/download-syft@41f7a6c033dbcdf78917f23b652c8b8146298c85 # v0.15.4
+        uses: anchore/sbom-action/download-syft@24b0d5238516480139aa8bc6f92eeb7b54a9eb0a # v0.15.5
 
       - name: Set image name
         id: image-name
