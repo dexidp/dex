@@ -7,11 +7,15 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"html/template"
 	"math/big"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"regexp"
 	"sort"
@@ -520,6 +524,7 @@ func (s *Server) handleVerifyDirect(w http.ResponseWriter, r *http.Request) {
 
 // Handle the usual token request, except instead of the code we look for
 // state (the auth request) and the sugnature.
+
 func (s *Server) handleSubmitChallenge(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		s.renderErrorJSON(w, http.StatusBadRequest, "Couldn't parse form.")
@@ -1886,4 +1891,17 @@ func usernamePrompt(conn connector.PasswordConnector) string {
 		return attr
 	}
 	return "Username"
+}
+
+func createEthClient() (bind.ContractBackend, error) {
+	rpcUrl := os.Getenv("ETH_RPC_CLIENT")
+	if rpcUrl != "" {
+		client, err := ethclient.Dial(rpcUrl)
+		if err != nil {
+			return nil, err
+		}
+		return client, nil
+	}
+
+	return nil, errors.New("could not initialize eth client with url")
 }
