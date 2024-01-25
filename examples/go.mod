@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/coreos/go-oidc/v3 v3.9.0
 	github.com/dexidp/dex/api/v2 v2.1.0
-	github.com/spf13/cobra v1.7.0
+	github.com/spf13/cobra v1.8.0
 	golang.org/x/oauth2 v0.14.0
 	google.golang.org/grpc v1.61.0
 )
