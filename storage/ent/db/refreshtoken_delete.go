@@ -27,7 +27,7 @@ func (rtd *RefreshTokenDelete) Where(ps ...predicate.RefreshToken) *RefreshToken
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (rtd *RefreshTokenDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks[int, RefreshTokenMutation](ctx, rtd.sqlExec, rtd.mutation, rtd.hooks)
+	return withHooks(ctx, rtd.sqlExec, rtd.mutation, rtd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.

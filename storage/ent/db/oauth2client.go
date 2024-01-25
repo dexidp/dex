@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/oauth2client"
 )
@@ -27,7 +28,8 @@ type OAuth2Client struct {
 	// Name holds the value of the "name" field.
 	Name string `json:"name,omitempty"`
 	// LogoURL holds the value of the "logo_url" field.
-	LogoURL string `json:"logo_url,omitempty"`
+	LogoURL      string `json:"logo_url,omitempty"`
+	selectValues sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -42,7 +44,7 @@ func (*OAuth2Client) scanValues(columns []string) ([]any, error) {
 		case oauth2client.FieldID, oauth2client.FieldSecret, oauth2client.FieldName, oauth2client.FieldLogoURL:
 			values[i] = new(sql.NullString)
 		default:
-			return nil, fmt.Errorf("unexpected column %q for type OAuth2Client", columns[i])
+			values[i] = new(sql.UnknownType)
 		}
 	}
 	return values, nil
@@ -102,9 +104,17 @@ func (o *OAuth2Client) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				o.LogoURL = value.String
 			}
+		default:
+			o.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
+}
+
+// Value returns the ent.Value that was dynamically selected and assigned to the OAuth2Client.
+// This includes values selected through modifiers, order, etc.
+func (o *OAuth2Client) Value(name string) (ent.Value, error) {
+	return o.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this OAuth2Client.

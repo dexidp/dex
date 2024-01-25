@@ -18,7 +18,7 @@ import (
 type OAuth2ClientQuery struct {
 	config
 	ctx        *QueryContext
-	order      []OrderFunc
+	order      []oauth2client.OrderOption
 	inters     []Interceptor
 	predicates []predicate.OAuth2Client
 	// intermediate query (i.e. traversal path).
@@ -52,7 +52,7 @@ func (oq *OAuth2ClientQuery) Unique(unique bool) *OAuth2ClientQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (oq *OAuth2ClientQuery) Order(o ...OrderFunc) *OAuth2ClientQuery {
+func (oq *OAuth2ClientQuery) Order(o ...oauth2client.OrderOption) *OAuth2ClientQuery {
 	oq.order = append(oq.order, o...)
 	return oq
 }
@@ -246,7 +246,7 @@ func (oq *OAuth2ClientQuery) Clone() *OAuth2ClientQuery {
 	return &OAuth2ClientQuery{
 		config:     oq.config,
 		ctx:        oq.ctx.Clone(),
-		order:      append([]OrderFunc{}, oq.order...),
+		order:      append([]oauth2client.OrderOption{}, oq.order...),
 		inters:     append([]Interceptor{}, oq.inters...),
 		predicates: append([]predicate.OAuth2Client{}, oq.predicates...),
 		// clone intermediate query.

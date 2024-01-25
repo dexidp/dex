@@ -18,7 +18,7 @@ import (
 type KeysQuery struct {
 	config
 	ctx        *QueryContext
-	order      []OrderFunc
+	order      []keys.OrderOption
 	inters     []Interceptor
 	predicates []predicate.Keys
 	// intermediate query (i.e. traversal path).
@@ -52,7 +52,7 @@ func (kq *KeysQuery) Unique(unique bool) *KeysQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (kq *KeysQuery) Order(o ...OrderFunc) *KeysQuery {
+func (kq *KeysQuery) Order(o ...keys.OrderOption) *KeysQuery {
 	kq.order = append(kq.order, o...)
 	return kq
 }
@@ -246,7 +246,7 @@ func (kq *KeysQuery) Clone() *KeysQuery {
 	return &KeysQuery{
 		config:     kq.config,
 		ctx:        kq.ctx.Clone(),
-		order:      append([]OrderFunc{}, kq.order...),
+		order:      append([]keys.OrderOption{}, kq.order...),
 		inters:     append([]Interceptor{}, kq.inters...),
 		predicates: append([]predicate.Keys{}, kq.predicates...),
 		// clone intermediate query.

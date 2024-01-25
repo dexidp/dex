@@ -543,6 +543,17 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		return returnURL, false, nil
 	}
 
+	offlineAccessRequested := false
+	for _, scope := range authReq.Scopes {
+		if scope == scopeOfflineAccess {
+			offlineAccessRequested = true
+			break
+		}
+	}
+	if !offlineAccessRequested {
+		return returnURL, false, nil
+	}
+
 	// Try to retrieve an existing OfflineSession object for the corresponding user.
 	session, err := s.storage.GetOfflineSessions(identity.UserID, authReq.ConnectorID)
 	if err != nil {
@@ -715,7 +726,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			implicitOrHybrid = true
 			var err error
 
-			accessToken, err = s.newAccessToken(authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, authReq.ConnectorID)
+			accessToken, _, err = s.newAccessToken(authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, authReq.ConnectorID)
 			if err != nil {
 				s.logger.Errorf("failed to create new access token: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -835,6 +846,11 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	grantType := r.PostFormValue("grant_type")
+	if !contains(s.supportedGrantTypes, grantType) {
+		s.logger.Errorf("unsupported grant type: %v", grantType)
+		s.tokenErrHelper(w, errUnsupportedGrantType, "", http.StatusBadRequest)
+		return
+	}
 	switch grantType {
 	case grantTypeDeviceCode:
 		s.handleDeviceToken(w, r)
@@ -844,6 +860,8 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		s.withClientFromStorage(w, r, s.handleRefreshToken)
 	case grantTypePassword:
 		s.withClientFromStorage(w, r, s.handlePasswordGrant)
+	case grantTypeTokenExchange:
+		s.withClientFromStorage(w, r, s.handleTokenExchange)
 	default:
 		s.tokenErrHelper(w, errUnsupportedGrantType, "", http.StatusBadRequest)
 	}
@@ -923,7 +941,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 }
 
 func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, authCode storage.AuthCode, client storage.Client) (*accessTokenResponse, error) {
-	accessToken, err := s.newAccessToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID)
+	accessToken, _, err := s.newAccessToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create new access token: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1188,7 +1206,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		Groups:            identity.Groups,
 	}
 
-	accessToken, err := s.newAccessToken(client.ID, claims, scopes, nonce, connID)
+	accessToken, _, err := s.newAccessToken(client.ID, claims, scopes, nonce, connID)
 	if err != nil {
 		s.logger.Errorf("password grant failed to create new access token: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1327,21 +1345,109 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	s.writeAccessToken(w, resp)
 }
 
+func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, client storage.Client) {
+	ctx := r.Context()
+
+	if err := r.ParseForm(); err != nil {
+		s.logger.Errorf("could not parse request body: %v", err)
+		s.tokenErrHelper(w, errInvalidRequest, "", http.StatusBadRequest)
+		return
+	}
+	q := r.Form
+
+	scopes := strings.Fields(q.Get("scope"))            // OPTIONAL, map to issued token scope
+	requestedTokenType := q.Get("requested_token_type") // OPTIONAL, default to access token
+	if requestedTokenType == "" {
+		requestedTokenType = tokenTypeAccess
+	}
+	subjectToken := q.Get("subject_token")          // REQUIRED
+	subjectTokenType := q.Get("subject_token_type") // REQUIRED
+	connID := q.Get("connector_id")                 // REQUIRED, not in RFC
+
+	switch subjectTokenType {
+	case tokenTypeID, tokenTypeAccess: // ok, continue
+	default:
+		s.tokenErrHelper(w, errRequestNotSupported, "Invalid subject_token_type.", http.StatusBadRequest)
+		return
+	}
+
+	if subjectToken == "" {
+		s.tokenErrHelper(w, errInvalidRequest, "Missing subject_token", http.StatusBadRequest)
+		return
+	}
+
+	conn, err := s.getConnector(connID)
+	if err != nil {
+		s.logger.Errorf("failed to get connector: %v", err)
+		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
+		return
+	}
+	teConn, ok := conn.Connector.(connector.TokenIdentityConnector)
+	if !ok {
+		s.logger.Errorf("connector doesn't implement token exchange: %v", connID)
+		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
+		return
+	}
+	identity, err := teConn.TokenIdentity(ctx, subjectTokenType, subjectToken)
+	if err != nil {
+		s.logger.Errorf("failed to verify subject token: %v", err)
+		s.tokenErrHelper(w, errAccessDenied, "", http.StatusUnauthorized)
+		return
+	}
+
+	claims := storage.Claims{
+		UserID:            identity.UserID,
+		Username:          identity.Username,
+		PreferredUsername: identity.PreferredUsername,
+		Email:             identity.Email,
+		EmailVerified:     identity.EmailVerified,
+		Groups:            identity.Groups,
+	}
+	resp := accessTokenResponse{
+		IssuedTokenType: requestedTokenType,
+		TokenType:       "bearer",
+	}
+	var expiry time.Time
+	switch requestedTokenType {
+	case tokenTypeID:
+		resp.AccessToken, expiry, err = s.newIDToken(client.ID, claims, scopes, "", "", "", connID)
+	case tokenTypeAccess:
+		resp.AccessToken, expiry, err = s.newAccessToken(client.ID, claims, scopes, "", connID)
+	default:
+		s.tokenErrHelper(w, errRequestNotSupported, "Invalid requested_token_type.", http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		s.logger.Errorf("token exchange failed to create new %v token: %v", requestedTokenType, err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+	resp.ExpiresIn = int(time.Until(expiry).Seconds())
+
+	// Token response must include cache headers https://tools.ietf.org/html/rfc6749#section-5.1
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
 type accessTokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
-	RefreshToken string `json:"refresh_token,omitempty"`
-	IDToken      string `json:"id_token"`
+	AccessToken     string `json:"access_token"`
+	IssuedTokenType string `json:"issued_token_type,omitempty"`
+	TokenType       string `json:"token_type"`
+	ExpiresIn       int    `json:"expires_in,omitempty"`
+	RefreshToken    string `json:"refresh_token,omitempty"`
+	IDToken         string `json:"id_token,omitempty"`
+	Scope           string `json:"scope,omitempty"`
 }
 
 func (s *Server) toAccessTokenResponse(idToken, accessToken, refreshToken string, expiry time.Time) *accessTokenResponse {
 	return &accessTokenResponse{
-		accessToken,
-		"bearer",
-		int(expiry.Sub(s.now()).Seconds()),
-		refreshToken,
-		idToken,
+		AccessToken:  accessToken,
+		TokenType:    "bearer",
+		ExpiresIn:    int(expiry.Sub(s.now()).Seconds()),
+		RefreshToken: refreshToken,
+		IDToken:      idToken,
 	}
 }
 
@@ -1363,7 +1469,7 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, resp *accessTokenRespon
 
 func (s *Server) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
 	if err := s.templates.err(r, w, status, description); err != nil {
-		s.logger.Errorf("Server template error: %v", err)
+		s.logger.Errorf("server template error: %v", err)
 	}
 }
 

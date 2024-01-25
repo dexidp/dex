@@ -33,6 +33,14 @@ func (pu *PasswordUpdate) SetEmail(s string) *PasswordUpdate {
 	return pu
 }
 
+// SetNillableEmail sets the "email" field if the given value is not nil.
+func (pu *PasswordUpdate) SetNillableEmail(s *string) *PasswordUpdate {
+	if s != nil {
+		pu.SetEmail(*s)
+	}
+	return pu
+}
+
 // SetHash sets the "hash" field.
 func (pu *PasswordUpdate) SetHash(b []byte) *PasswordUpdate {
 	pu.mutation.SetHash(b)
@@ -45,9 +53,25 @@ func (pu *PasswordUpdate) SetUsername(s string) *PasswordUpdate {
 	return pu
 }
 
+// SetNillableUsername sets the "username" field if the given value is not nil.
+func (pu *PasswordUpdate) SetNillableUsername(s *string) *PasswordUpdate {
+	if s != nil {
+		pu.SetUsername(*s)
+	}
+	return pu
+}
+
 // SetUserID sets the "user_id" field.
 func (pu *PasswordUpdate) SetUserID(s string) *PasswordUpdate {
 	pu.mutation.SetUserID(s)
+	return pu
+}
+
+// SetNillableUserID sets the "user_id" field if the given value is not nil.
+func (pu *PasswordUpdate) SetNillableUserID(s *string) *PasswordUpdate {
+	if s != nil {
+		pu.SetUserID(*s)
+	}
 	return pu
 }
 
@@ -58,7 +82,7 @@ func (pu *PasswordUpdate) Mutation() *PasswordMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (pu *PasswordUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks[int, PasswordMutation](ctx, pu.sqlSave, pu.mutation, pu.hooks)
+	return withHooks(ctx, pu.sqlSave, pu.mutation, pu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -153,6 +177,14 @@ func (puo *PasswordUpdateOne) SetEmail(s string) *PasswordUpdateOne {
 	return puo
 }
 
+// SetNillableEmail sets the "email" field if the given value is not nil.
+func (puo *PasswordUpdateOne) SetNillableEmail(s *string) *PasswordUpdateOne {
+	if s != nil {
+		puo.SetEmail(*s)
+	}
+	return puo
+}
+
 // SetHash sets the "hash" field.
 func (puo *PasswordUpdateOne) SetHash(b []byte) *PasswordUpdateOne {
 	puo.mutation.SetHash(b)
@@ -165,9 +197,25 @@ func (puo *PasswordUpdateOne) SetUsername(s string) *PasswordUpdateOne {
 	return puo
 }
 
+// SetNillableUsername sets the "username" field if the given value is not nil.
+func (puo *PasswordUpdateOne) SetNillableUsername(s *string) *PasswordUpdateOne {
+	if s != nil {
+		puo.SetUsername(*s)
+	}
+	return puo
+}
+
 // SetUserID sets the "user_id" field.
 func (puo *PasswordUpdateOne) SetUserID(s string) *PasswordUpdateOne {
 	puo.mutation.SetUserID(s)
+	return puo
+}
+
+// SetNillableUserID sets the "user_id" field if the given value is not nil.
+func (puo *PasswordUpdateOne) SetNillableUserID(s *string) *PasswordUpdateOne {
+	if s != nil {
+		puo.SetUserID(*s)
+	}
 	return puo
 }
 
@@ -191,7 +239,7 @@ func (puo *PasswordUpdateOne) Select(field string, fields ...string) *PasswordUp
 
 // Save executes the query and returns the updated Password entity.
 func (puo *PasswordUpdateOne) Save(ctx context.Context) (*Password, error) {
-	return withHooks[*Password, PasswordMutation](ctx, puo.sqlSave, puo.mutation, puo.hooks)
+	return withHooks(ctx, puo.sqlSave, puo.mutation, puo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.

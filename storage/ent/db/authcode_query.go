@@ -18,7 +18,7 @@ import (
 type AuthCodeQuery struct {
 	config
 	ctx        *QueryContext
-	order      []OrderFunc
+	order      []authcode.OrderOption
 	inters     []Interceptor
 	predicates []predicate.AuthCode
 	// intermediate query (i.e. traversal path).
@@ -52,7 +52,7 @@ func (acq *AuthCodeQuery) Unique(unique bool) *AuthCodeQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (acq *AuthCodeQuery) Order(o ...OrderFunc) *AuthCodeQuery {
+func (acq *AuthCodeQuery) Order(o ...authcode.OrderOption) *AuthCodeQuery {
 	acq.order = append(acq.order, o...)
 	return acq
 }
@@ -246,7 +246,7 @@ func (acq *AuthCodeQuery) Clone() *AuthCodeQuery {
 	return &AuthCodeQuery{
 		config:     acq.config,
 		ctx:        acq.ctx.Clone(),
-		order:      append([]OrderFunc{}, acq.order...),
+		order:      append([]authcode.OrderOption{}, acq.order...),
 		inters:     append([]Interceptor{}, acq.inters...),
 		predicates: append([]predicate.AuthCode{}, acq.predicates...),
 		// clone intermediate query.

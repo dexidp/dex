@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 
 	"github.com/go-ldap/ldap/v3"
 
@@ -347,21 +348,23 @@ func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error 
 	return f(conn)
 }
 
-func getAttrs(e ldap.Entry, name string) []string {
+func (c *ldapConnector) getAttrs(e ldap.Entry, name string) []string {
 	for _, a := range e.Attributes {
 		if a.Name != name {
 			continue
 		}
 		return a.Values
 	}
-	if name == "DN" {
+	if strings.ToLower(name) == "dn" {
 		return []string{e.DN}
 	}
+
+	c.logger.Debugf("%q attribute is not fround in entry", name)
 	return nil
 }
 
-func getAttr(e ldap.Entry, name string) string {
-	if a := getAttrs(e, name); len(a) > 0 {
+func (c *ldapConnector) getAttr(e ldap.Entry, name string) string {
+	if a := c.getAttrs(e, name); len(a) > 0 {
 		return a[0]
 	}
 	return ""
@@ -373,25 +376,25 @@ func (c *ldapConnector) identityFromEntry(user ldap.Entry) (ident connector.Iden
 	missing := []string{}
 
 	// Fill the identity struct using the attributes from the user entry.
-	if ident.UserID = getAttr(user, c.UserSearch.IDAttr); ident.UserID == "" {
+	if ident.UserID = c.getAttr(user, c.UserSearch.IDAttr); ident.UserID == "" {
 		missing = append(missing, c.UserSearch.IDAttr)
 	}
 
 	if c.UserSearch.NameAttr != "" {
-		if ident.Username = getAttr(user, c.UserSearch.NameAttr); ident.Username == "" {
+		if ident.Username = c.getAttr(user, c.UserSearch.NameAttr); ident.Username == "" {
 			missing = append(missing, c.UserSearch.NameAttr)
 		}
 	}
 
 	if c.UserSearch.PreferredUsernameAttrAttr != "" {
-		if ident.PreferredUsername = getAttr(user, c.UserSearch.PreferredUsernameAttrAttr); ident.PreferredUsername == "" {
+		if ident.PreferredUsername = c.getAttr(user, c.UserSearch.PreferredUsernameAttrAttr); ident.PreferredUsername == "" {
 			missing = append(missing, c.UserSearch.PreferredUsernameAttrAttr)
 		}
 	}
 
 	if c.UserSearch.EmailSuffix != "" {
 		ident.Email = ident.Username + "@" + c.UserSearch.EmailSuffix
-	} else if ident.Email = getAttr(user, c.UserSearch.EmailAttr); ident.Email == "" {
+	} else if ident.Email = c.getAttr(user, c.UserSearch.EmailAttr); ident.Email == "" {
 		missing = append(missing, c.UserSearch.EmailAttr)
 	}
 	// TODO(ericchiang): Let this value be set from an attribute.
@@ -575,13 +578,13 @@ func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident c
 
 func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, error) {
 	if c.GroupSearch.BaseDN == "" {
-		c.logger.Debugf("No groups returned for %q because no groups baseDN has been configured.", getAttr(user, c.UserSearch.NameAttr))
+		c.logger.Debugf("No groups returned for %q because no groups baseDN has been configured.", c.getAttr(user, c.UserSearch.NameAttr))
 		return nil, nil
 	}
 
 	var groups []*ldap.Entry
 	for _, matcher := range c.GroupSearch.UserMatchers {
-		for _, attr := range getAttrs(user, matcher.UserAttr) {
+		for _, attr := range c.getAttrs(user, matcher.UserAttr) {
 			filter := fmt.Sprintf("(%s=%s)", matcher.GroupAttr, ldap.EscapeFilter(attr))
 			if c.GroupSearch.Filter != "" {
 				filter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, filter)
@@ -617,7 +620,7 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 
 	groupNames := make([]string, 0, len(groups))
 	for _, group := range groups {
-		name := getAttr(*group, c.GroupSearch.NameAttr)
+		name := c.getAttr(*group, c.GroupSearch.NameAttr)
 		if name == "" {
 			// Be obnoxious about missing attributes. If the group entry is
 			// missing its name attribute, that indicates a misconfiguration.

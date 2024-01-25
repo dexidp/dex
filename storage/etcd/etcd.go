@@ -563,8 +563,11 @@ func (c *conn) CreateDeviceRequest(ctx context.Context, d storage.DeviceRequest)
 func (c *conn) GetDeviceRequest(userCode string) (r storage.DeviceRequest, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 	defer cancel()
-	err = c.getKey(ctx, keyID(deviceRequestPrefix, userCode), &r)
-	return r, err
+	var dr DeviceRequest
+	if err = c.getKey(ctx, keyID(deviceRequestPrefix, userCode), &dr); err == nil {
+		r = toStorageDeviceRequest(dr)
+	}
+	return
 }
 
 func (c *conn) listDeviceRequests(ctx context.Context) (requests []DeviceRequest, err error) {

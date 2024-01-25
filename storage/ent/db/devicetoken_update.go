@@ -34,9 +34,25 @@ func (dtu *DeviceTokenUpdate) SetDeviceCode(s string) *DeviceTokenUpdate {
 	return dtu
 }
 
+// SetNillableDeviceCode sets the "device_code" field if the given value is not nil.
+func (dtu *DeviceTokenUpdate) SetNillableDeviceCode(s *string) *DeviceTokenUpdate {
+	if s != nil {
+		dtu.SetDeviceCode(*s)
+	}
+	return dtu
+}
+
 // SetStatus sets the "status" field.
 func (dtu *DeviceTokenUpdate) SetStatus(s string) *DeviceTokenUpdate {
 	dtu.mutation.SetStatus(s)
+	return dtu
+}
+
+// SetNillableStatus sets the "status" field if the given value is not nil.
+func (dtu *DeviceTokenUpdate) SetNillableStatus(s *string) *DeviceTokenUpdate {
+	if s != nil {
+		dtu.SetStatus(*s)
+	}
 	return dtu
 }
 
@@ -58,9 +74,25 @@ func (dtu *DeviceTokenUpdate) SetExpiry(t time.Time) *DeviceTokenUpdate {
 	return dtu
 }
 
+// SetNillableExpiry sets the "expiry" field if the given value is not nil.
+func (dtu *DeviceTokenUpdate) SetNillableExpiry(t *time.Time) *DeviceTokenUpdate {
+	if t != nil {
+		dtu.SetExpiry(*t)
+	}
+	return dtu
+}
+
 // SetLastRequest sets the "last_request" field.
 func (dtu *DeviceTokenUpdate) SetLastRequest(t time.Time) *DeviceTokenUpdate {
 	dtu.mutation.SetLastRequest(t)
+	return dtu
+}
+
+// SetNillableLastRequest sets the "last_request" field if the given value is not nil.
+func (dtu *DeviceTokenUpdate) SetNillableLastRequest(t *time.Time) *DeviceTokenUpdate {
+	if t != nil {
+		dtu.SetLastRequest(*t)
+	}
 	return dtu
 }
 
@@ -68,6 +100,14 @@ func (dtu *DeviceTokenUpdate) SetLastRequest(t time.Time) *DeviceTokenUpdate {
 func (dtu *DeviceTokenUpdate) SetPollInterval(i int) *DeviceTokenUpdate {
 	dtu.mutation.ResetPollInterval()
 	dtu.mutation.SetPollInterval(i)
+	return dtu
+}
+
+// SetNillablePollInterval sets the "poll_interval" field if the given value is not nil.
+func (dtu *DeviceTokenUpdate) SetNillablePollInterval(i *int) *DeviceTokenUpdate {
+	if i != nil {
+		dtu.SetPollInterval(*i)
+	}
 	return dtu
 }
 
@@ -112,7 +152,7 @@ func (dtu *DeviceTokenUpdate) Mutation() *DeviceTokenMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (dtu *DeviceTokenUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks[int, DeviceTokenMutation](ctx, dtu.sqlSave, dtu.mutation, dtu.hooks)
+	return withHooks(ctx, dtu.sqlSave, dtu.mutation, dtu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -220,9 +260,25 @@ func (dtuo *DeviceTokenUpdateOne) SetDeviceCode(s string) *DeviceTokenUpdateOne 
 	return dtuo
 }
 
+// SetNillableDeviceCode sets the "device_code" field if the given value is not nil.
+func (dtuo *DeviceTokenUpdateOne) SetNillableDeviceCode(s *string) *DeviceTokenUpdateOne {
+	if s != nil {
+		dtuo.SetDeviceCode(*s)
+	}
+	return dtuo
+}
+
 // SetStatus sets the "status" field.
 func (dtuo *DeviceTokenUpdateOne) SetStatus(s string) *DeviceTokenUpdateOne {
 	dtuo.mutation.SetStatus(s)
+	return dtuo
+}
+
+// SetNillableStatus sets the "status" field if the given value is not nil.
+func (dtuo *DeviceTokenUpdateOne) SetNillableStatus(s *string) *DeviceTokenUpdateOne {
+	if s != nil {
+		dtuo.SetStatus(*s)
+	}
 	return dtuo
 }
 
@@ -244,9 +300,25 @@ func (dtuo *DeviceTokenUpdateOne) SetExpiry(t time.Time) *DeviceTokenUpdateOne {
 	return dtuo
 }
 
+// SetNillableExpiry sets the "expiry" field if the given value is not nil.
+func (dtuo *DeviceTokenUpdateOne) SetNillableExpiry(t *time.Time) *DeviceTokenUpdateOne {
+	if t != nil {
+		dtuo.SetExpiry(*t)
+	}
+	return dtuo
+}
+
 // SetLastRequest sets the "last_request" field.
 func (dtuo *DeviceTokenUpdateOne) SetLastRequest(t time.Time) *DeviceTokenUpdateOne {
 	dtuo.mutation.SetLastRequest(t)
+	return dtuo
+}
+
+// SetNillableLastRequest sets the "last_request" field if the given value is not nil.
+func (dtuo *DeviceTokenUpdateOne) SetNillableLastRequest(t *time.Time) *DeviceTokenUpdateOne {
+	if t != nil {
+		dtuo.SetLastRequest(*t)
+	}
 	return dtuo
 }
 
@@ -254,6 +326,14 @@ func (dtuo *DeviceTokenUpdateOne) SetLastRequest(t time.Time) *DeviceTokenUpdate
 func (dtuo *DeviceTokenUpdateOne) SetPollInterval(i int) *DeviceTokenUpdateOne {
 	dtuo.mutation.ResetPollInterval()
 	dtuo.mutation.SetPollInterval(i)
+	return dtuo
+}
+
+// SetNillablePollInterval sets the "poll_interval" field if the given value is not nil.
+func (dtuo *DeviceTokenUpdateOne) SetNillablePollInterval(i *int) *DeviceTokenUpdateOne {
+	if i != nil {
+		dtuo.SetPollInterval(*i)
+	}
 	return dtuo
 }
 
@@ -311,7 +391,7 @@ func (dtuo *DeviceTokenUpdateOne) Select(field string, fields ...string) *Device
 
 // Save executes the query and returns the updated DeviceToken entity.
 func (dtuo *DeviceTokenUpdateOne) Save(ctx context.Context) (*DeviceToken, error) {
-	return withHooks[*DeviceToken, DeviceTokenMutation](ctx, dtuo.sqlSave, dtuo.mutation, dtuo.hooks)
+	return withHooks(ctx, dtuo.sqlSave, dtuo.mutation, dtuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.

@@ -18,7 +18,7 @@ import (
 type DeviceTokenQuery struct {
 	config
 	ctx        *QueryContext
-	order      []OrderFunc
+	order      []devicetoken.OrderOption
 	inters     []Interceptor
 	predicates []predicate.DeviceToken
 	// intermediate query (i.e. traversal path).
@@ -52,7 +52,7 @@ func (dtq *DeviceTokenQuery) Unique(unique bool) *DeviceTokenQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (dtq *DeviceTokenQuery) Order(o ...OrderFunc) *DeviceTokenQuery {
+func (dtq *DeviceTokenQuery) Order(o ...devicetoken.OrderOption) *DeviceTokenQuery {
 	dtq.order = append(dtq.order, o...)
 	return dtq
 }
@@ -246,7 +246,7 @@ func (dtq *DeviceTokenQuery) Clone() *DeviceTokenQuery {
 	return &DeviceTokenQuery{
 		config:     dtq.config,
 		ctx:        dtq.ctx.Clone(),
-		order:      append([]OrderFunc{}, dtq.order...),
+		order:      append([]devicetoken.OrderOption{}, dtq.order...),
 		inters:     append([]Interceptor{}, dtq.inters...),
 		predicates: append([]predicate.DeviceToken{}, dtq.predicates...),
 		// clone intermediate query.

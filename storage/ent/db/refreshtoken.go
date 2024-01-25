@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
 )
@@ -46,7 +47,8 @@ type RefreshToken struct {
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// LastUsed holds the value of the "last_used" field.
-	LastUsed time.Time `json:"last_used,omitempty"`
+	LastUsed     time.Time `json:"last_used,omitempty"`
+	selectValues sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -63,7 +65,7 @@ func (*RefreshToken) scanValues(columns []string) ([]any, error) {
 		case refreshtoken.FieldCreatedAt, refreshtoken.FieldLastUsed:
 			values[i] = new(sql.NullTime)
 		default:
-			return nil, fmt.Errorf("unexpected column %q for type RefreshToken", columns[i])
+			values[i] = new(sql.UnknownType)
 		}
 	}
 	return values, nil
@@ -177,9 +179,17 @@ func (rt *RefreshToken) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				rt.LastUsed = value.Time
 			}
+		default:
+			rt.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
+}
+
+// Value returns the ent.Value that was dynamically selected and assigned to the RefreshToken.
+// This includes values selected through modifiers, order, etc.
+func (rt *RefreshToken) Value(name string) (ent.Value, error) {
+	return rt.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this RefreshToken.

@@ -33,15 +33,39 @@ func (cu *ConnectorUpdate) SetType(s string) *ConnectorUpdate {
 	return cu
 }
 
+// SetNillableType sets the "type" field if the given value is not nil.
+func (cu *ConnectorUpdate) SetNillableType(s *string) *ConnectorUpdate {
+	if s != nil {
+		cu.SetType(*s)
+	}
+	return cu
+}
+
 // SetName sets the "name" field.
 func (cu *ConnectorUpdate) SetName(s string) *ConnectorUpdate {
 	cu.mutation.SetName(s)
 	return cu
 }
 
+// SetNillableName sets the "name" field if the given value is not nil.
+func (cu *ConnectorUpdate) SetNillableName(s *string) *ConnectorUpdate {
+	if s != nil {
+		cu.SetName(*s)
+	}
+	return cu
+}
+
 // SetResourceVersion sets the "resource_version" field.
 func (cu *ConnectorUpdate) SetResourceVersion(s string) *ConnectorUpdate {
 	cu.mutation.SetResourceVersion(s)
+	return cu
+}
+
+// SetNillableResourceVersion sets the "resource_version" field if the given value is not nil.
+func (cu *ConnectorUpdate) SetNillableResourceVersion(s *string) *ConnectorUpdate {
+	if s != nil {
+		cu.SetResourceVersion(*s)
+	}
 	return cu
 }
 
@@ -58,7 +82,7 @@ func (cu *ConnectorUpdate) Mutation() *ConnectorMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (cu *ConnectorUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks[int, ConnectorMutation](ctx, cu.sqlSave, cu.mutation, cu.hooks)
+	return withHooks(ctx, cu.sqlSave, cu.mutation, cu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -148,15 +172,39 @@ func (cuo *ConnectorUpdateOne) SetType(s string) *ConnectorUpdateOne {
 	return cuo
 }
 
+// SetNillableType sets the "type" field if the given value is not nil.
+func (cuo *ConnectorUpdateOne) SetNillableType(s *string) *ConnectorUpdateOne {
+	if s != nil {
+		cuo.SetType(*s)
+	}
+	return cuo
+}
+
 // SetName sets the "name" field.
 func (cuo *ConnectorUpdateOne) SetName(s string) *ConnectorUpdateOne {
 	cuo.mutation.SetName(s)
 	return cuo
 }
 
+// SetNillableName sets the "name" field if the given value is not nil.
+func (cuo *ConnectorUpdateOne) SetNillableName(s *string) *ConnectorUpdateOne {
+	if s != nil {
+		cuo.SetName(*s)
+	}
+	return cuo
+}
+
 // SetResourceVersion sets the "resource_version" field.
 func (cuo *ConnectorUpdateOne) SetResourceVersion(s string) *ConnectorUpdateOne {
 	cuo.mutation.SetResourceVersion(s)
+	return cuo
+}
+
+// SetNillableResourceVersion sets the "resource_version" field if the given value is not nil.
+func (cuo *ConnectorUpdateOne) SetNillableResourceVersion(s *string) *ConnectorUpdateOne {
+	if s != nil {
+		cuo.SetResourceVersion(*s)
+	}
 	return cuo
 }
 
@@ -186,7 +234,7 @@ func (cuo *ConnectorUpdateOne) Select(field string, fields ...string) *Connector
 
 // Save executes the query and returns the updated Connector entity.
 func (cuo *ConnectorUpdateOne) Save(ctx context.Context) (*Connector, error) {
-	return withHooks[*Connector, ConnectorMutation](ctx, cuo.sqlSave, cuo.mutation, cuo.hooks)
+	return withHooks(ctx, cuo.sqlSave, cuo.mutation, cuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.

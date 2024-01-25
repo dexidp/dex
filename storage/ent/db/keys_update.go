@@ -49,15 +49,39 @@ func (ku *KeysUpdate) SetSigningKey(jwk jose.JSONWebKey) *KeysUpdate {
 	return ku
 }
 
+// SetNillableSigningKey sets the "signing_key" field if the given value is not nil.
+func (ku *KeysUpdate) SetNillableSigningKey(jwk *jose.JSONWebKey) *KeysUpdate {
+	if jwk != nil {
+		ku.SetSigningKey(*jwk)
+	}
+	return ku
+}
+
 // SetSigningKeyPub sets the "signing_key_pub" field.
 func (ku *KeysUpdate) SetSigningKeyPub(jwk jose.JSONWebKey) *KeysUpdate {
 	ku.mutation.SetSigningKeyPub(jwk)
 	return ku
 }
 
+// SetNillableSigningKeyPub sets the "signing_key_pub" field if the given value is not nil.
+func (ku *KeysUpdate) SetNillableSigningKeyPub(jwk *jose.JSONWebKey) *KeysUpdate {
+	if jwk != nil {
+		ku.SetSigningKeyPub(*jwk)
+	}
+	return ku
+}
+
 // SetNextRotation sets the "next_rotation" field.
 func (ku *KeysUpdate) SetNextRotation(t time.Time) *KeysUpdate {
 	ku.mutation.SetNextRotation(t)
+	return ku
+}
+
+// SetNillableNextRotation sets the "next_rotation" field if the given value is not nil.
+func (ku *KeysUpdate) SetNillableNextRotation(t *time.Time) *KeysUpdate {
+	if t != nil {
+		ku.SetNextRotation(*t)
+	}
 	return ku
 }
 
@@ -68,7 +92,7 @@ func (ku *KeysUpdate) Mutation() *KeysMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (ku *KeysUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks[int, KeysMutation](ctx, ku.sqlSave, ku.mutation, ku.hooks)
+	return withHooks(ctx, ku.sqlSave, ku.mutation, ku.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -157,15 +181,39 @@ func (kuo *KeysUpdateOne) SetSigningKey(jwk jose.JSONWebKey) *KeysUpdateOne {
 	return kuo
 }
 
+// SetNillableSigningKey sets the "signing_key" field if the given value is not nil.
+func (kuo *KeysUpdateOne) SetNillableSigningKey(jwk *jose.JSONWebKey) *KeysUpdateOne {
+	if jwk != nil {
+		kuo.SetSigningKey(*jwk)
+	}
+	return kuo
+}
+
 // SetSigningKeyPub sets the "signing_key_pub" field.
 func (kuo *KeysUpdateOne) SetSigningKeyPub(jwk jose.JSONWebKey) *KeysUpdateOne {
 	kuo.mutation.SetSigningKeyPub(jwk)
 	return kuo
 }
 
+// SetNillableSigningKeyPub sets the "signing_key_pub" field if the given value is not nil.
+func (kuo *KeysUpdateOne) SetNillableSigningKeyPub(jwk *jose.JSONWebKey) *KeysUpdateOne {
+	if jwk != nil {
+		kuo.SetSigningKeyPub(*jwk)
+	}
+	return kuo
+}
+
 // SetNextRotation sets the "next_rotation" field.
 func (kuo *KeysUpdateOne) SetNextRotation(t time.Time) *KeysUpdateOne {
 	kuo.mutation.SetNextRotation(t)
+	return kuo
+}
+
+// SetNillableNextRotation sets the "next_rotation" field if the given value is not nil.
+func (kuo *KeysUpdateOne) SetNillableNextRotation(t *time.Time) *KeysUpdateOne {
+	if t != nil {
+		kuo.SetNextRotation(*t)
+	}
 	return kuo
 }
 
@@ -189,7 +237,7 @@ func (kuo *KeysUpdateOne) Select(field string, fields ...string) *KeysUpdateOne 
 
 // Save executes the query and returns the updated Keys entity.
 func (kuo *KeysUpdateOne) Save(ctx context.Context) (*Keys, error) {
-	return withHooks[*Keys, KeysMutation](ctx, kuo.sqlSave, kuo.mutation, kuo.hooks)
+	return withHooks(ctx, kuo.sqlSave, kuo.mutation, kuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
