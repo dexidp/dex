@@ -62,6 +62,11 @@ jobs:
       - name: Set up Syft
         uses: anchore/sbom-action/download-syft@24b0d5238516480139aa8bc6f92eeb7b54a9eb0a # v0.15.5
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@1fc5bd396d372bee37d608f955b336615edf79c8 # v3.2.0
+        with:
+          cosign-release: 'v2.2.1'
+
       - name: Set image name
         id: image-name
         run: echo "value=ghcr.io/${{ github.repository }}" >> "$GITHUB_OUTPUT"
@@ -129,6 +134,11 @@ jobs:
           # cache-to: type=gha,mode=max
           outputs: ${{ steps.build-output.outputs.value }}
           # push: ${{ inputs.publish }}
+
+      - name: Sign the images with GitHub OIDC Token
+        run: |
+          cosign sign --yes ${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}
+        if: inputs.publish
 
       - name: Set image ref
         id: image-ref
