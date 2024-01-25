@@ -7,7 +7,7 @@ import (
 )
 
 // CreateClient saves provided oauth2 client settings into the database.
-func (d *Database) CreateClient(client storage.Client) error {
+func (d *Database) CreateClient(ctx context.Context, client storage.Client) error {
 	_, err := d.client.OAuth2Client.Create().
 		SetID(client.ID).
 		SetName(client.Name).
@@ -16,7 +16,7 @@ func (d *Database) CreateClient(client storage.Client) error {
 		SetLogoURL(client.LogoURL).
 		SetRedirectUris(client.RedirectURIs).
 		SetTrustedPeers(client.TrustedPeers).
-		Save(context.TODO())
+		Save(ctx)
 	if err != nil {
 		return convertDBError("create oauth2 client: %w", err)
 	}
