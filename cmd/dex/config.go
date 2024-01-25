@@ -64,10 +64,16 @@ func (c Config) Validate() error {
 		{c.Web.HTTP == "" && c.Web.HTTPS == "", "must supply a HTTP/HTTPS  address to listen on"},
 		{c.Web.HTTPS != "" && c.Web.TLSCert == "", "no cert specified for HTTPS"},
 		{c.Web.HTTPS != "" && c.Web.TLSKey == "", "no private key specified for HTTPS"},
+		{c.Web.TLSMinVersion != "" && c.Web.TLSMinVersion != "1.2" && c.Web.TLSMinVersion != "1.3", "supported TLS versions are: 1.2, 1.3"},
+		{c.Web.TLSMaxVersion != "" && c.Web.TLSMaxVersion != "1.2" && c.Web.TLSMaxVersion != "1.3", "supported TLS versions are: 1.2, 1.3"},
+		{c.Web.TLSMaxVersion != "" && c.Web.TLSMinVersion != "" && c.Web.TLSMinVersion > c.Web.TLSMaxVersion, "TLSMinVersion greater than TLSMaxVersion"},
 		{c.GRPC.TLSCert != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
 		{c.GRPC.TLSKey != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
 		{(c.GRPC.TLSCert == "") != (c.GRPC.TLSKey == ""), "must specific both a gRPC TLS cert and key"},
 		{c.GRPC.TLSCert == "" && c.GRPC.TLSClientCA != "", "cannot specify gRPC TLS client CA without a gRPC TLS cert"},
+		{c.GRPC.TLSMinVersion != "" && c.GRPC.TLSMinVersion != "1.2" && c.GRPC.TLSMinVersion != "1.3", "supported TLS versions are: 1.2, 1.3"},
+		{c.GRPC.TLSMaxVersion != "" && c.GRPC.TLSMaxVersion != "1.2" && c.GRPC.TLSMaxVersion != "1.3", "supported TLS versions are: 1.2, 1.3"},
+		{c.GRPC.TLSMaxVersion != "" && c.GRPC.TLSMinVersion != "" && c.GRPC.TLSMinVersion > c.GRPC.TLSMaxVersion, "TLSMinVersion greater than TLSMaxVersion"},
 	}
 
 	var checkErrors []string
@@ -149,6 +155,8 @@ type Web struct {
 	HTTPS          string   `json:"https"`
 	TLSCert        string   `json:"tlsCert"`
 	TLSKey         string   `json:"tlsKey"`
+	TLSMinVersion  string   `json:"tlsMinVersion"`
+	TLSMaxVersion  string   `json:"tlsMaxVersion"`
 	AllowedOrigins []string `json:"allowedOrigins"`
 	AllowedHeaders []string `json:"allowedHeaders"`
 }
@@ -163,11 +171,13 @@ type Telemetry struct {
 // GRPC is the config for the gRPC API.
 type GRPC struct {
 	// The port to listen on.
-	Addr        string `json:"addr"`
-	TLSCert     string `json:"tlsCert"`
-	TLSKey      string `json:"tlsKey"`
-	TLSClientCA string `json:"tlsClientCA"`
-	Reflection  bool   `json:"reflection"`
+	Addr          string `json:"addr"`
+	TLSCert       string `json:"tlsCert"`
+	TLSKey        string `json:"tlsKey"`
+	TLSClientCA   string `json:"tlsClientCA"`
+	TLSMinVersion string `json:"tlsMinVersion"`
+	TLSMaxVersion string `json:"tlsMaxVersion"`
+	Reflection    bool   `json:"reflection"`
 }
 
 // Storage holds app's storage configuration.

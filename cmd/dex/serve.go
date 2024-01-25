@@ -145,9 +145,23 @@ func runServe(options serveOptions) error {
 		tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
 	}
 
+	allowedTLSVersions := map[string]int{
+		"1.2": tls.VersionTLS12,
+		"1.3": tls.VersionTLS13,
+	}
+
 	if c.GRPC.TLSCert != "" {
+		tlsMinVersion := tls.VersionTLS12
+		if c.GRPC.TLSMinVersion != "" {
+			tlsMinVersion = allowedTLSVersions[c.GRPC.TLSMinVersion]
+		}
+		tlsMaxVersion := 0 // default for max is whatever Go defaults to
+		if c.GRPC.TLSMaxVersion != "" {
+			tlsMaxVersion = allowedTLSVersions[c.GRPC.TLSMaxVersion]
+		}
 		baseTLSConfig := &tls.Config{
-			MinVersion:               tls.VersionTLS12,
+			MinVersion:               uint16(tlsMinVersion),
+			MaxVersion:               uint16(tlsMaxVersion),
 			CipherSuites:             allowedTLSCiphers,
 			PreferServerCipherSuites: true,
 		}
@@ -422,8 +436,18 @@ func runServe(options serveOptions) error {
 			return fmt.Errorf("listening (%s) on %s: %v", name, c.Web.HTTPS, err)
 		}
 
+		tlsMinVersion := tls.VersionTLS12
+		if c.Web.TLSMinVersion != "" {
+			tlsMinVersion = allowedTLSVersions[c.Web.TLSMinVersion]
+		}
+		tlsMaxVersion := 0 // default for max is whatever Go defaults to
+		if c.Web.TLSMaxVersion != "" {
+			tlsMaxVersion = allowedTLSVersions[c.Web.TLSMaxVersion]
+		}
+
 		baseTLSConfig := &tls.Config{
-			MinVersion:               tls.VersionTLS12,
+			MinVersion:               uint16(tlsMinVersion),
+			MaxVersion:               uint16(tlsMaxVersion),
 			CipherSuites:             allowedTLSCiphers,
 			PreferServerCipherSuites: true,
 		}
