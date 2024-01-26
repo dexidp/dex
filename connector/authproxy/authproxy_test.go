@@ -43,6 +43,7 @@ func TestUser(t *testing.T) {
 	// If not specified, the userID and email should fall back to the remote user
 	expectEquals(t, ident.UserID, testUsername)
 	expectEquals(t, ident.PreferredUsername, testUsername)
+	expectEquals(t, ident.Username, testUsername)
 	expectEquals(t, ident.Email, testUsername)
 	expectEquals(t, len(ident.Groups), 0)
 }
@@ -74,6 +75,7 @@ func TestExtraHeaders(t *testing.T) {
 
 	expectEquals(t, ident.UserID, testUserID)
 	expectEquals(t, ident.PreferredUsername, testUsername)
+	expectEquals(t, ident.Username, testUsername)
 	expectEquals(t, ident.Email, testEmail)
 	expectEquals(t, len(ident.Groups), 0)
 }
