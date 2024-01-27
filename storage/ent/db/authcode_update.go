@@ -35,6 +35,14 @@ func (acu *AuthCodeUpdate) SetClientID(s string) *AuthCodeUpdate {
 	return acu
 }
 
+// SetNillableClientID sets the "client_id" field if the given value is not nil.
+func (acu *AuthCodeUpdate) SetNillableClientID(s *string) *AuthCodeUpdate {
+	if s != nil {
+		acu.SetClientID(*s)
+	}
+	return acu
+}
+
 // SetScopes sets the "scopes" field.
 func (acu *AuthCodeUpdate) SetScopes(s []string) *AuthCodeUpdate {
 	acu.mutation.SetScopes(s)
@@ -59,9 +67,25 @@ func (acu *AuthCodeUpdate) SetNonce(s string) *AuthCodeUpdate {
 	return acu
 }
 
+// SetNillableNonce sets the "nonce" field if the given value is not nil.
+func (acu *AuthCodeUpdate) SetNillableNonce(s *string) *AuthCodeUpdate {
+	if s != nil {
+		acu.SetNonce(*s)
+	}
+	return acu
+}
+
 // SetRedirectURI sets the "redirect_uri" field.
 func (acu *AuthCodeUpdate) SetRedirectURI(s string) *AuthCodeUpdate {
 	acu.mutation.SetRedirectURI(s)
+	return acu
+}
+
+// SetNillableRedirectURI sets the "redirect_uri" field if the given value is not nil.
+func (acu *AuthCodeUpdate) SetNillableRedirectURI(s *string) *AuthCodeUpdate {
+	if s != nil {
+		acu.SetRedirectURI(*s)
+	}
 	return acu
 }
 
@@ -71,9 +95,25 @@ func (acu *AuthCodeUpdate) SetClaimsUserID(s string) *AuthCodeUpdate {
 	return acu
 }
 
+// SetNillableClaimsUserID sets the "claims_user_id" field if the given value is not nil.
+func (acu *AuthCodeUpdate) SetNillableClaimsUserID(s *string) *AuthCodeUpdate {
+	if s != nil {
+		acu.SetClaimsUserID(*s)
+	}
+	return acu
+}
+
 // SetClaimsUsername sets the "claims_username" field.
 func (acu *AuthCodeUpdate) SetClaimsUsername(s string) *AuthCodeUpdate {
 	acu.mutation.SetClaimsUsername(s)
+	return acu
+}
+
+// SetNillableClaimsUsername sets the "claims_username" field if the given value is not nil.
+func (acu *AuthCodeUpdate) SetNillableClaimsUsername(s *string) *AuthCodeUpdate {
+	if s != nil {
+		acu.SetClaimsUsername(*s)
+	}
 	return acu
 }
 
@@ -83,9 +123,25 @@ func (acu *AuthCodeUpdate) SetClaimsEmail(s string) *AuthCodeUpdate {
 	return acu
 }
 
+// SetNillableClaimsEmail sets the "claims_email" field if the given value is not nil.
+func (acu *AuthCodeUpdate) SetNillableClaimsEmail(s *string) *AuthCodeUpdate {
+	if s != nil {
+		acu.SetClaimsEmail(*s)
+	}
+	return acu
+}
+
 // SetClaimsEmailVerified sets the "claims_email_verified" field.
 func (acu *AuthCodeUpdate) SetClaimsEmailVerified(b bool) *AuthCodeUpdate {
 	acu.mutation.SetClaimsEmailVerified(b)
+	return acu
+}
+
+// SetNillableClaimsEmailVerified sets the "claims_email_verified" field if the given value is not nil.
+func (acu *AuthCodeUpdate) SetNillableClaimsEmailVerified(b *bool) *AuthCodeUpdate {
+	if b != nil {
+		acu.SetClaimsEmailVerified(*b)
+	}
 	return acu
 }
 
@@ -127,6 +183,14 @@ func (acu *AuthCodeUpdate) SetConnectorID(s string) *AuthCodeUpdate {
 	return acu
 }
 
+// SetNillableConnectorID sets the "connector_id" field if the given value is not nil.
+func (acu *AuthCodeUpdate) SetNillableConnectorID(s *string) *AuthCodeUpdate {
+	if s != nil {
+		acu.SetConnectorID(*s)
+	}
+	return acu
+}
+
 // SetConnectorData sets the "connector_data" field.
 func (acu *AuthCodeUpdate) SetConnectorData(b []byte) *AuthCodeUpdate {
 	acu.mutation.SetConnectorData(b)
@@ -142,6 +206,14 @@ func (acu *AuthCodeUpdate) ClearConnectorData() *AuthCodeUpdate {
 // SetExpiry sets the "expiry" field.
 func (acu *AuthCodeUpdate) SetExpiry(t time.Time) *AuthCodeUpdate {
 	acu.mutation.SetExpiry(t)
+	return acu
+}
+
+// SetNillableExpiry sets the "expiry" field if the given value is not nil.
+func (acu *AuthCodeUpdate) SetNillableExpiry(t *time.Time) *AuthCodeUpdate {
+	if t != nil {
+		acu.SetExpiry(*t)
+	}
 	return acu
 }
 
@@ -347,6 +419,14 @@ func (acuo *AuthCodeUpdateOne) SetClientID(s string) *AuthCodeUpdateOne {
 	return acuo
 }
 
+// SetNillableClientID sets the "client_id" field if the given value is not nil.
+func (acuo *AuthCodeUpdateOne) SetNillableClientID(s *string) *AuthCodeUpdateOne {
+	if s != nil {
+		acuo.SetClientID(*s)
+	}
+	return acuo
+}
+
 // SetScopes sets the "scopes" field.
 func (acuo *AuthCodeUpdateOne) SetScopes(s []string) *AuthCodeUpdateOne {
 	acuo.mutation.SetScopes(s)
@@ -371,9 +451,25 @@ func (acuo *AuthCodeUpdateOne) SetNonce(s string) *AuthCodeUpdateOne {
 	return acuo
 }
 
+// SetNillableNonce sets the "nonce" field if the given value is not nil.
+func (acuo *AuthCodeUpdateOne) SetNillableNonce(s *string) *AuthCodeUpdateOne {
+	if s != nil {
+		acuo.SetNonce(*s)
+	}
+	return acuo
+}
+
 // SetRedirectURI sets the "redirect_uri" field.
 func (acuo *AuthCodeUpdateOne) SetRedirectURI(s string) *AuthCodeUpdateOne {
 	acuo.mutation.SetRedirectURI(s)
+	return acuo
+}
+
+// SetNillableRedirectURI sets the "redirect_uri" field if the given value is not nil.
+func (acuo *AuthCodeUpdateOne) SetNillableRedirectURI(s *string) *AuthCodeUpdateOne {
+	if s != nil {
+		acuo.SetRedirectURI(*s)
+	}
 	return acuo
 }
 
@@ -383,9 +479,25 @@ func (acuo *AuthCodeUpdateOne) SetClaimsUserID(s string) *AuthCodeUpdateOne {
 	return acuo
 }
 
+// SetNillableClaimsUserID sets the "claims_user_id" field if the given value is not nil.
+func (acuo *AuthCodeUpdateOne) SetNillableClaimsUserID(s *string) *AuthCodeUpdateOne {
+	if s != nil {
+		acuo.SetClaimsUserID(*s)
+	}
+	return acuo
+}
+
 // SetClaimsUsername sets the "claims_username" field.
 func (acuo *AuthCodeUpdateOne) SetClaimsUsername(s string) *AuthCodeUpdateOne {
 	acuo.mutation.SetClaimsUsername(s)
+	return acuo
+}
+
+// SetNillableClaimsUsername sets the "claims_username" field if the given value is not nil.
+func (acuo *AuthCodeUpdateOne) SetNillableClaimsUsername(s *string) *AuthCodeUpdateOne {
+	if s != nil {
+		acuo.SetClaimsUsername(*s)
+	}
 	return acuo
 }
 
@@ -395,9 +507,25 @@ func (acuo *AuthCodeUpdateOne) SetClaimsEmail(s string) *AuthCodeUpdateOne {
 	return acuo
 }
 
+// SetNillableClaimsEmail sets the "claims_email" field if the given value is not nil.
+func (acuo *AuthCodeUpdateOne) SetNillableClaimsEmail(s *string) *AuthCodeUpdateOne {
+	if s != nil {
+		acuo.SetClaimsEmail(*s)
+	}
+	return acuo
+}
+
 // SetClaimsEmailVerified sets the "claims_email_verified" field.
 func (acuo *AuthCodeUpdateOne) SetClaimsEmailVerified(b bool) *AuthCodeUpdateOne {
 	acuo.mutation.SetClaimsEmailVerified(b)
+	return acuo
+}
+
+// SetNillableClaimsEmailVerified sets the "claims_email_verified" field if the given value is not nil.
+func (acuo *AuthCodeUpdateOne) SetNillableClaimsEmailVerified(b *bool) *AuthCodeUpdateOne {
+	if b != nil {
+		acuo.SetClaimsEmailVerified(*b)
+	}
 	return acuo
 }
 
@@ -439,6 +567,14 @@ func (acuo *AuthCodeUpdateOne) SetConnectorID(s string) *AuthCodeUpdateOne {
 	return acuo
 }
 
+// SetNillableConnectorID sets the "connector_id" field if the given value is not nil.
+func (acuo *AuthCodeUpdateOne) SetNillableConnectorID(s *string) *AuthCodeUpdateOne {
+	if s != nil {
+		acuo.SetConnectorID(*s)
+	}
+	return acuo
+}
+
 // SetConnectorData sets the "connector_data" field.
 func (acuo *AuthCodeUpdateOne) SetConnectorData(b []byte) *AuthCodeUpdateOne {
 	acuo.mutation.SetConnectorData(b)
@@ -454,6 +590,14 @@ func (acuo *AuthCodeUpdateOne) ClearConnectorData() *AuthCodeUpdateOne {
 // SetExpiry sets the "expiry" field.
 func (acuo *AuthCodeUpdateOne) SetExpiry(t time.Time) *AuthCodeUpdateOne {
 	acuo.mutation.SetExpiry(t)
+	return acuo
+}
+
+// SetNillableExpiry sets the "expiry" field if the given value is not nil.
+func (acuo *AuthCodeUpdateOne) SetNillableExpiry(t *time.Time) *AuthCodeUpdateOne {
+	if t != nil {
+		acuo.SetExpiry(*t)
+	}
 	return acuo
 }
 

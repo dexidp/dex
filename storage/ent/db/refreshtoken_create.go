@@ -387,11 +387,15 @@ func (rtc *RefreshTokenCreate) createSpec() (*RefreshToken, *sqlgraph.CreateSpec
 // RefreshTokenCreateBulk is the builder for creating many RefreshToken entities in bulk.
 type RefreshTokenCreateBulk struct {
 	config
+	err      error
 	builders []*RefreshTokenCreate
 }
 
 // Save creates the RefreshToken entities in the database.
 func (rtcb *RefreshTokenCreateBulk) Save(ctx context.Context) ([]*RefreshToken, error) {
+	if rtcb.err != nil {
+		return nil, rtcb.err
+	}
 	specs := make([]*sqlgraph.CreateSpec, len(rtcb.builders))
 	nodes := make([]*RefreshToken, len(rtcb.builders))
 	mutators := make([]Mutator, len(rtcb.builders))

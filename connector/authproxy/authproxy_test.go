@@ -19,6 +19,8 @@ const (
 	testGroup4       = "group 4"
 	testStaticGroup1 = "static1"
 	testStaticGroup2 = "static 2"
+	testUsername     = "testuser"
+	testUserID       = "1234567890"
 )
 
 var logger = &logrus.Logger{Out: io.Discard, Formatter: &logrus.TextFormatter{}}
@@ -32,13 +34,48 @@ func TestUser(t *testing.T) {
 	req, err := http.NewRequest("GET", "/", nil)
 	expectNil(t, err)
 	req.Header = map[string][]string{
-		"X-Remote-User": {testEmail},
+		"X-Remote-User": {testUsername},
 	}
 
 	ident, err := conn.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
 	expectNil(t, err)
 
-	expectEquals(t, ident.UserID, testEmail)
+	// If not specified, the userID and email should fall back to the remote user
+	expectEquals(t, ident.UserID, testUsername)
+	expectEquals(t, ident.PreferredUsername, testUsername)
+	expectEquals(t, ident.Username, testUsername)
+	expectEquals(t, ident.Email, testUsername)
+	expectEquals(t, len(ident.Groups), 0)
+}
+
+func TestExtraHeaders(t *testing.T) {
+	config := Config{
+		UserIDHeader: "X-Remote-User-Id",
+		UserHeader:   "X-Remote-User",
+		EmailHeader:  "X-Remote-User-Email",
+	}
+	conn := callback{
+		userHeader:   config.UserHeader,
+		userIDHeader: config.UserIDHeader,
+		emailHeader:  config.EmailHeader,
+		logger:       logger,
+		pathSuffix:   "/test",
+	}
+
+	req, err := http.NewRequest("GET", "/", nil)
+	expectNil(t, err)
+	req.Header = map[string][]string{
+		"X-Remote-User-Id":    {testUserID},
+		"X-Remote-User":       {testUsername},
+		"X-Remote-User-Email": {testEmail},
+	}
+
+	ident, err := conn.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
+	expectNil(t, err)
+
+	expectEquals(t, ident.UserID, testUserID)
+	expectEquals(t, ident.PreferredUsername, testUsername)
+	expectEquals(t, ident.Username, testUsername)
 	expectEquals(t, ident.Email, testEmail)
 	expectEquals(t, len(ident.Groups), 0)
 }

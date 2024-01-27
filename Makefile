@@ -1,5 +1,7 @@
-OS = $(shell uname | tr A-Z a-z)
 export PATH := $(abspath bin/protoc/bin/):$(abspath bin/):${PATH}
+export SHELL := env PATH=$(PATH) /bin/sh
+
+OS = $(shell uname | tr A-Z a-z)
 
 user=$(shell id -u -n)
 group=$(shell id -g -n)
@@ -16,7 +18,7 @@ export GOBIN=$(PWD)/bin
 LD_FLAGS="-w -X main.version=$(VERSION)"
 
 # Dependency versions
-GOLANGCI_VERSION   = 1.52.0
+GOLANGCI_VERSION   = 1.55.2
 GOTESTSUM_VERSION ?= 1.9.0
 
 PROTOC_VERSION             = 21.12

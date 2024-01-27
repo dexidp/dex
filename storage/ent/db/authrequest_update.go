@@ -35,6 +35,14 @@ func (aru *AuthRequestUpdate) SetClientID(s string) *AuthRequestUpdate {
 	return aru
 }
 
+// SetNillableClientID sets the "client_id" field if the given value is not nil.
+func (aru *AuthRequestUpdate) SetNillableClientID(s *string) *AuthRequestUpdate {
+	if s != nil {
+		aru.SetClientID(*s)
+	}
+	return aru
+}
+
 // SetScopes sets the "scopes" field.
 func (aru *AuthRequestUpdate) SetScopes(s []string) *AuthRequestUpdate {
 	aru.mutation.SetScopes(s)
@@ -77,9 +85,25 @@ func (aru *AuthRequestUpdate) SetRedirectURI(s string) *AuthRequestUpdate {
 	return aru
 }
 
+// SetNillableRedirectURI sets the "redirect_uri" field if the given value is not nil.
+func (aru *AuthRequestUpdate) SetNillableRedirectURI(s *string) *AuthRequestUpdate {
+	if s != nil {
+		aru.SetRedirectURI(*s)
+	}
+	return aru
+}
+
 // SetNonce sets the "nonce" field.
 func (aru *AuthRequestUpdate) SetNonce(s string) *AuthRequestUpdate {
 	aru.mutation.SetNonce(s)
+	return aru
+}
+
+// SetNillableNonce sets the "nonce" field if the given value is not nil.
+func (aru *AuthRequestUpdate) SetNillableNonce(s *string) *AuthRequestUpdate {
+	if s != nil {
+		aru.SetNonce(*s)
+	}
 	return aru
 }
 
@@ -89,9 +113,25 @@ func (aru *AuthRequestUpdate) SetState(s string) *AuthRequestUpdate {
 	return aru
 }
 
+// SetNillableState sets the "state" field if the given value is not nil.
+func (aru *AuthRequestUpdate) SetNillableState(s *string) *AuthRequestUpdate {
+	if s != nil {
+		aru.SetState(*s)
+	}
+	return aru
+}
+
 // SetForceApprovalPrompt sets the "force_approval_prompt" field.
 func (aru *AuthRequestUpdate) SetForceApprovalPrompt(b bool) *AuthRequestUpdate {
 	aru.mutation.SetForceApprovalPrompt(b)
+	return aru
+}
+
+// SetNillableForceApprovalPrompt sets the "force_approval_prompt" field if the given value is not nil.
+func (aru *AuthRequestUpdate) SetNillableForceApprovalPrompt(b *bool) *AuthRequestUpdate {
+	if b != nil {
+		aru.SetForceApprovalPrompt(*b)
+	}
 	return aru
 }
 
@@ -101,9 +141,25 @@ func (aru *AuthRequestUpdate) SetLoggedIn(b bool) *AuthRequestUpdate {
 	return aru
 }
 
+// SetNillableLoggedIn sets the "logged_in" field if the given value is not nil.
+func (aru *AuthRequestUpdate) SetNillableLoggedIn(b *bool) *AuthRequestUpdate {
+	if b != nil {
+		aru.SetLoggedIn(*b)
+	}
+	return aru
+}
+
 // SetClaimsUserID sets the "claims_user_id" field.
 func (aru *AuthRequestUpdate) SetClaimsUserID(s string) *AuthRequestUpdate {
 	aru.mutation.SetClaimsUserID(s)
+	return aru
+}
+
+// SetNillableClaimsUserID sets the "claims_user_id" field if the given value is not nil.
+func (aru *AuthRequestUpdate) SetNillableClaimsUserID(s *string) *AuthRequestUpdate {
+	if s != nil {
+		aru.SetClaimsUserID(*s)
+	}
 	return aru
 }
 
@@ -113,15 +169,39 @@ func (aru *AuthRequestUpdate) SetClaimsUsername(s string) *AuthRequestUpdate {
 	return aru
 }
 
+// SetNillableClaimsUsername sets the "claims_username" field if the given value is not nil.
+func (aru *AuthRequestUpdate) SetNillableClaimsUsername(s *string) *AuthRequestUpdate {
+	if s != nil {
+		aru.SetClaimsUsername(*s)
+	}
+	return aru
+}
+
 // SetClaimsEmail sets the "claims_email" field.
 func (aru *AuthRequestUpdate) SetClaimsEmail(s string) *AuthRequestUpdate {
 	aru.mutation.SetClaimsEmail(s)
 	return aru
 }
 
+// SetNillableClaimsEmail sets the "claims_email" field if the given value is not nil.
+func (aru *AuthRequestUpdate) SetNillableClaimsEmail(s *string) *AuthRequestUpdate {
+	if s != nil {
+		aru.SetClaimsEmail(*s)
+	}
+	return aru
+}
+
 // SetClaimsEmailVerified sets the "claims_email_verified" field.
 func (aru *AuthRequestUpdate) SetClaimsEmailVerified(b bool) *AuthRequestUpdate {
 	aru.mutation.SetClaimsEmailVerified(b)
+	return aru
+}
+
+// SetNillableClaimsEmailVerified sets the "claims_email_verified" field if the given value is not nil.
+func (aru *AuthRequestUpdate) SetNillableClaimsEmailVerified(b *bool) *AuthRequestUpdate {
+	if b != nil {
+		aru.SetClaimsEmailVerified(*b)
+	}
 	return aru
 }
 
@@ -163,6 +243,14 @@ func (aru *AuthRequestUpdate) SetConnectorID(s string) *AuthRequestUpdate {
 	return aru
 }
 
+// SetNillableConnectorID sets the "connector_id" field if the given value is not nil.
+func (aru *AuthRequestUpdate) SetNillableConnectorID(s *string) *AuthRequestUpdate {
+	if s != nil {
+		aru.SetConnectorID(*s)
+	}
+	return aru
+}
+
 // SetConnectorData sets the "connector_data" field.
 func (aru *AuthRequestUpdate) SetConnectorData(b []byte) *AuthRequestUpdate {
 	aru.mutation.SetConnectorData(b)
@@ -178,6 +266,14 @@ func (aru *AuthRequestUpdate) ClearConnectorData() *AuthRequestUpdate {
 // SetExpiry sets the "expiry" field.
 func (aru *AuthRequestUpdate) SetExpiry(t time.Time) *AuthRequestUpdate {
 	aru.mutation.SetExpiry(t)
+	return aru
+}
+
+// SetNillableExpiry sets the "expiry" field if the given value is not nil.
+func (aru *AuthRequestUpdate) SetNillableExpiry(t *time.Time) *AuthRequestUpdate {
+	if t != nil {
+		aru.SetExpiry(*t)
+	}
 	return aru
 }
 
@@ -369,6 +465,14 @@ func (aruo *AuthRequestUpdateOne) SetClientID(s string) *AuthRequestUpdateOne {
 	return aruo
 }
 
+// SetNillableClientID sets the "client_id" field if the given value is not nil.
+func (aruo *AuthRequestUpdateOne) SetNillableClientID(s *string) *AuthRequestUpdateOne {
+	if s != nil {
+		aruo.SetClientID(*s)
+	}
+	return aruo
+}
+
 // SetScopes sets the "scopes" field.
 func (aruo *AuthRequestUpdateOne) SetScopes(s []string) *AuthRequestUpdateOne {
 	aruo.mutation.SetScopes(s)
@@ -411,9 +515,25 @@ func (aruo *AuthRequestUpdateOne) SetRedirectURI(s string) *AuthRequestUpdateOne
 	return aruo
 }
 
+// SetNillableRedirectURI sets the "redirect_uri" field if the given value is not nil.
+func (aruo *AuthRequestUpdateOne) SetNillableRedirectURI(s *string) *AuthRequestUpdateOne {
+	if s != nil {
+		aruo.SetRedirectURI(*s)
+	}
+	return aruo
+}
+
 // SetNonce sets the "nonce" field.
 func (aruo *AuthRequestUpdateOne) SetNonce(s string) *AuthRequestUpdateOne {
 	aruo.mutation.SetNonce(s)
+	return aruo
+}
+
+// SetNillableNonce sets the "nonce" field if the given value is not nil.
+func (aruo *AuthRequestUpdateOne) SetNillableNonce(s *string) *AuthRequestUpdateOne {
+	if s != nil {
+		aruo.SetNonce(*s)
+	}
 	return aruo
 }
 
@@ -423,9 +543,25 @@ func (aruo *AuthRequestUpdateOne) SetState(s string) *AuthRequestUpdateOne {
 	return aruo
 }
 
+// SetNillableState sets the "state" field if the given value is not nil.
+func (aruo *AuthRequestUpdateOne) SetNillableState(s *string) *AuthRequestUpdateOne {
+	if s != nil {
+		aruo.SetState(*s)
+	}
+	return aruo
+}
+
 // SetForceApprovalPrompt sets the "force_approval_prompt" field.
 func (aruo *AuthRequestUpdateOne) SetForceApprovalPrompt(b bool) *AuthRequestUpdateOne {
 	aruo.mutation.SetForceApprovalPrompt(b)
+	return aruo
+}
+
+// SetNillableForceApprovalPrompt sets the "force_approval_prompt" field if the given value is not nil.
+func (aruo *AuthRequestUpdateOne) SetNillableForceApprovalPrompt(b *bool) *AuthRequestUpdateOne {
+	if b != nil {
+		aruo.SetForceApprovalPrompt(*b)
+	}
 	return aruo
 }
 
@@ -435,9 +571,25 @@ func (aruo *AuthRequestUpdateOne) SetLoggedIn(b bool) *AuthRequestUpdateOne {
 	return aruo
 }
 
+// SetNillableLoggedIn sets the "logged_in" field if the given value is not nil.
+func (aruo *AuthRequestUpdateOne) SetNillableLoggedIn(b *bool) *AuthRequestUpdateOne {
+	if b != nil {
+		aruo.SetLoggedIn(*b)
+	}
+	return aruo
+}
+
 // SetClaimsUserID sets the "claims_user_id" field.
 func (aruo *AuthRequestUpdateOne) SetClaimsUserID(s string) *AuthRequestUpdateOne {
 	aruo.mutation.SetClaimsUserID(s)
+	return aruo
+}
+
+// SetNillableClaimsUserID sets the "claims_user_id" field if the given value is not nil.
+func (aruo *AuthRequestUpdateOne) SetNillableClaimsUserID(s *string) *AuthRequestUpdateOne {
+	if s != nil {
+		aruo.SetClaimsUserID(*s)
+	}
 	return aruo
 }
 
@@ -447,15 +599,39 @@ func (aruo *AuthRequestUpdateOne) SetClaimsUsername(s string) *AuthRequestUpdate
 	return aruo
 }
 
+// SetNillableClaimsUsername sets the "claims_username" field if the given value is not nil.
+func (aruo *AuthRequestUpdateOne) SetNillableClaimsUsername(s *string) *AuthRequestUpdateOne {
+	if s != nil {
+		aruo.SetClaimsUsername(*s)
+	}
+	return aruo
+}
+
 // SetClaimsEmail sets the "claims_email" field.
 func (aruo *AuthRequestUpdateOne) SetClaimsEmail(s string) *AuthRequestUpdateOne {
 	aruo.mutation.SetClaimsEmail(s)
 	return aruo
 }
 
+// SetNillableClaimsEmail sets the "claims_email" field if the given value is not nil.
+func (aruo *AuthRequestUpdateOne) SetNillableClaimsEmail(s *string) *AuthRequestUpdateOne {
+	if s != nil {
+		aruo.SetClaimsEmail(*s)
+	}
+	return aruo
+}
+
 // SetClaimsEmailVerified sets the "claims_email_verified" field.
 func (aruo *AuthRequestUpdateOne) SetClaimsEmailVerified(b bool) *AuthRequestUpdateOne {
 	aruo.mutation.SetClaimsEmailVerified(b)
+	return aruo
+}
+
+// SetNillableClaimsEmailVerified sets the "claims_email_verified" field if the given value is not nil.
+func (aruo *AuthRequestUpdateOne) SetNillableClaimsEmailVerified(b *bool) *AuthRequestUpdateOne {
+	if b != nil {
+		aruo.SetClaimsEmailVerified(*b)
+	}
 	return aruo
 }
 
@@ -497,6 +673,14 @@ func (aruo *AuthRequestUpdateOne) SetConnectorID(s string) *AuthRequestUpdateOne
 	return aruo
 }
 
+// SetNillableConnectorID sets the "connector_id" field if the given value is not nil.
+func (aruo *AuthRequestUpdateOne) SetNillableConnectorID(s *string) *AuthRequestUpdateOne {
+	if s != nil {
+		aruo.SetConnectorID(*s)
+	}
+	return aruo
+}
+
 // SetConnectorData sets the "connector_data" field.
 func (aruo *AuthRequestUpdateOne) SetConnectorData(b []byte) *AuthRequestUpdateOne {
 	aruo.mutation.SetConnectorData(b)
@@ -512,6 +696,14 @@ func (aruo *AuthRequestUpdateOne) ClearConnectorData() *AuthRequestUpdateOne {
 // SetExpiry sets the "expiry" field.
 func (aruo *AuthRequestUpdateOne) SetExpiry(t time.Time) *AuthRequestUpdateOne {
 	aruo.mutation.SetExpiry(t)
+	return aruo
+}
+
+// SetNillableExpiry sets the "expiry" field if the given value is not nil.
+func (aruo *AuthRequestUpdateOne) SetNillableExpiry(t *time.Time) *AuthRequestUpdateOne {
+	if t != nil {
+		aruo.SetExpiry(*t)
+	}
 	return aruo
 }
 

@@ -181,11 +181,15 @@ func (drc *DeviceRequestCreate) createSpec() (*DeviceRequest, *sqlgraph.CreateSp
 // DeviceRequestCreateBulk is the builder for creating many DeviceRequest entities in bulk.
 type DeviceRequestCreateBulk struct {
 	config
+	err      error
 	builders []*DeviceRequestCreate
 }
 
 // Save creates the DeviceRequest entities in the database.
 func (drcb *DeviceRequestCreateBulk) Save(ctx context.Context) ([]*DeviceRequest, error) {
+	if drcb.err != nil {
+		return nil, drcb.err
+	}
 	specs := make([]*sqlgraph.CreateSpec, len(drcb.builders))
 	nodes := make([]*DeviceRequest, len(drcb.builders))
 	mutators := make([]Mutator, len(drcb.builders))

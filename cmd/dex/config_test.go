@@ -71,7 +71,9 @@ storage:
     connMaxLifetime: 30
     connectionTimeout: 3
 web:
-  http: 127.0.0.1:5556
+  https: 127.0.0.1:5556
+  tlsMinVersion: 1.3
+  tlsMaxVersion: 1.2
 
 frontend:
   dir: ./web
@@ -144,7 +146,9 @@ logger:
 			},
 		},
 		Web: Web{
-			HTTP: "127.0.0.1:5556",
+			HTTPS:         "127.0.0.1:5556",
+			TLSMinVersion: "1.3",
+			TLSMaxVersion: "1.2",
 		},
 		Frontend: server.WebConfig{
 			Dir: "./web",

@@ -85,7 +85,7 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 		Name:         req.Client.Name,
 		LogoURL:      req.Client.LogoUrl,
 	}
-	if err := d.s.CreateClient(c); err != nil {
+	if err := d.s.CreateClient(ctx, c); err != nil {
 		if err == storage.ErrAlreadyExists {
 			return &api.CreateClientResp{AlreadyExists: true}, nil
 		}
@@ -177,7 +177,7 @@ func (d dexAPI) CreatePassword(ctx context.Context, req *api.CreatePasswordReq) 
 		Username: req.Password.Username,
 		UserID:   req.Password.UserId,
 	}
-	if err := d.s.CreatePassword(p); err != nil {
+	if err := d.s.CreatePassword(ctx, p); err != nil {
 		if err == storage.ErrAlreadyExists {
 			return &api.CreatePasswordResp{AlreadyExists: true}, nil
 		}

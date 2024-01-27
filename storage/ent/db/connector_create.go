@@ -167,11 +167,15 @@ func (cc *ConnectorCreate) createSpec() (*Connector, *sqlgraph.CreateSpec) {
 // ConnectorCreateBulk is the builder for creating many Connector entities in bulk.
 type ConnectorCreateBulk struct {
 	config
+	err      error
 	builders []*ConnectorCreate
 }
 
 // Save creates the Connector entities in the database.
 func (ccb *ConnectorCreateBulk) Save(ctx context.Context) ([]*Connector, error) {
+	if ccb.err != nil {
+		return nil, ccb.err
+	}
 	specs := make([]*sqlgraph.CreateSpec, len(ccb.builders))
 	nodes := make([]*Connector, len(ccb.builders))
 	mutators := make([]Mutator, len(ccb.builders))

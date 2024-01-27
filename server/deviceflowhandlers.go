@@ -58,6 +58,7 @@ func (s *Server) handleDeviceExchange(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	pollIntervalSeconds := 5
 
 	switch r.Method {
@@ -106,7 +107,7 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 			Expiry:       expireTime,
 		}
 
-		if err := s.storage.CreateDeviceRequest(deviceReq); err != nil {
+		if err := s.storage.CreateDeviceRequest(ctx, deviceReq); err != nil {
 			s.logger.Errorf("Failed to store device request; %v", err)
 			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusInternalServerError)
 			return
@@ -125,7 +126,7 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 			},
 		}
 
-		if err := s.storage.CreateDeviceToken(deviceToken); err != nil {
+		if err := s.storage.CreateDeviceToken(ctx, deviceToken); err != nil {
 			s.logger.Errorf("Failed to store device token %v", err)
 			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusInternalServerError)
 			return
@@ -280,6 +281,7 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	switch r.Method {
 	case http.MethodGet:
 		userCode := r.FormValue("state")
@@ -336,7 +338,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		resp, err := s.exchangeAuthCode(w, authCode, client)
+		resp, err := s.exchangeAuthCode(ctx, w, authCode, client)
 		if err != nil {
 			s.logger.Errorf("Could not exchange auth code for client %q: %v", deviceReq.ClientID, err)
 			s.renderError(r, w, http.StatusInternalServerError, "Failed to exchange auth code.")

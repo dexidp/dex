@@ -35,9 +35,25 @@ func (dru *DeviceRequestUpdate) SetUserCode(s string) *DeviceRequestUpdate {
 	return dru
 }
 
+// SetNillableUserCode sets the "user_code" field if the given value is not nil.
+func (dru *DeviceRequestUpdate) SetNillableUserCode(s *string) *DeviceRequestUpdate {
+	if s != nil {
+		dru.SetUserCode(*s)
+	}
+	return dru
+}
+
 // SetDeviceCode sets the "device_code" field.
 func (dru *DeviceRequestUpdate) SetDeviceCode(s string) *DeviceRequestUpdate {
 	dru.mutation.SetDeviceCode(s)
+	return dru
+}
+
+// SetNillableDeviceCode sets the "device_code" field if the given value is not nil.
+func (dru *DeviceRequestUpdate) SetNillableDeviceCode(s *string) *DeviceRequestUpdate {
+	if s != nil {
+		dru.SetDeviceCode(*s)
+	}
 	return dru
 }
 
@@ -47,9 +63,25 @@ func (dru *DeviceRequestUpdate) SetClientID(s string) *DeviceRequestUpdate {
 	return dru
 }
 
+// SetNillableClientID sets the "client_id" field if the given value is not nil.
+func (dru *DeviceRequestUpdate) SetNillableClientID(s *string) *DeviceRequestUpdate {
+	if s != nil {
+		dru.SetClientID(*s)
+	}
+	return dru
+}
+
 // SetClientSecret sets the "client_secret" field.
 func (dru *DeviceRequestUpdate) SetClientSecret(s string) *DeviceRequestUpdate {
 	dru.mutation.SetClientSecret(s)
+	return dru
+}
+
+// SetNillableClientSecret sets the "client_secret" field if the given value is not nil.
+func (dru *DeviceRequestUpdate) SetNillableClientSecret(s *string) *DeviceRequestUpdate {
+	if s != nil {
+		dru.SetClientSecret(*s)
+	}
 	return dru
 }
 
@@ -74,6 +106,14 @@ func (dru *DeviceRequestUpdate) ClearScopes() *DeviceRequestUpdate {
 // SetExpiry sets the "expiry" field.
 func (dru *DeviceRequestUpdate) SetExpiry(t time.Time) *DeviceRequestUpdate {
 	dru.mutation.SetExpiry(t)
+	return dru
+}
+
+// SetNillableExpiry sets the "expiry" field if the given value is not nil.
+func (dru *DeviceRequestUpdate) SetNillableExpiry(t *time.Time) *DeviceRequestUpdate {
+	if t != nil {
+		dru.SetExpiry(*t)
+	}
 	return dru
 }
 
@@ -198,9 +238,25 @@ func (druo *DeviceRequestUpdateOne) SetUserCode(s string) *DeviceRequestUpdateOn
 	return druo
 }
 
+// SetNillableUserCode sets the "user_code" field if the given value is not nil.
+func (druo *DeviceRequestUpdateOne) SetNillableUserCode(s *string) *DeviceRequestUpdateOne {
+	if s != nil {
+		druo.SetUserCode(*s)
+	}
+	return druo
+}
+
 // SetDeviceCode sets the "device_code" field.
 func (druo *DeviceRequestUpdateOne) SetDeviceCode(s string) *DeviceRequestUpdateOne {
 	druo.mutation.SetDeviceCode(s)
+	return druo
+}
+
+// SetNillableDeviceCode sets the "device_code" field if the given value is not nil.
+func (druo *DeviceRequestUpdateOne) SetNillableDeviceCode(s *string) *DeviceRequestUpdateOne {
+	if s != nil {
+		druo.SetDeviceCode(*s)
+	}
 	return druo
 }
 
@@ -210,9 +266,25 @@ func (druo *DeviceRequestUpdateOne) SetClientID(s string) *DeviceRequestUpdateOn
 	return druo
 }
 
+// SetNillableClientID sets the "client_id" field if the given value is not nil.
+func (druo *DeviceRequestUpdateOne) SetNillableClientID(s *string) *DeviceRequestUpdateOne {
+	if s != nil {
+		druo.SetClientID(*s)
+	}
+	return druo
+}
+
 // SetClientSecret sets the "client_secret" field.
 func (druo *DeviceRequestUpdateOne) SetClientSecret(s string) *DeviceRequestUpdateOne {
 	druo.mutation.SetClientSecret(s)
+	return druo
+}
+
+// SetNillableClientSecret sets the "client_secret" field if the given value is not nil.
+func (druo *DeviceRequestUpdateOne) SetNillableClientSecret(s *string) *DeviceRequestUpdateOne {
+	if s != nil {
+		druo.SetClientSecret(*s)
+	}
 	return druo
 }
 
@@ -237,6 +309,14 @@ func (druo *DeviceRequestUpdateOne) ClearScopes() *DeviceRequestUpdateOne {
 // SetExpiry sets the "expiry" field.
 func (druo *DeviceRequestUpdateOne) SetExpiry(t time.Time) *DeviceRequestUpdateOne {
 	druo.mutation.SetExpiry(t)
+	return druo
+}
+
+// SetNillableExpiry sets the "expiry" field if the given value is not nil.
+func (druo *DeviceRequestUpdateOne) SetNillableExpiry(t *time.Time) *DeviceRequestUpdateOne {
+	if t != nil {
+		druo.SetExpiry(*t)
+	}
 	return druo
 }
 

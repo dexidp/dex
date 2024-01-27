@@ -226,11 +226,15 @@ func (dtc *DeviceTokenCreate) createSpec() (*DeviceToken, *sqlgraph.CreateSpec) 
 // DeviceTokenCreateBulk is the builder for creating many DeviceToken entities in bulk.
 type DeviceTokenCreateBulk struct {
 	config
+	err      error
 	builders []*DeviceTokenCreate
 }
 
 // Save creates the DeviceToken entities in the database.
 func (dtcb *DeviceTokenCreateBulk) Save(ctx context.Context) ([]*DeviceToken, error) {
+	if dtcb.err != nil {
+		return nil, dtcb.err
+	}
 	specs := make([]*sqlgraph.CreateSpec, len(dtcb.builders))
 	nodes := make([]*DeviceToken, len(dtcb.builders))
 	mutators := make([]Mutator, len(dtcb.builders))

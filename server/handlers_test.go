@@ -213,7 +213,7 @@ func TestHandleAuthCode(t *testing.T) {
 				Secret:       "testclientsecret",
 				RedirectURIs: []string{redirectURL},
 			}
-			err = s.storage.CreateClient(client)
+			err = s.storage.CreateClient(ctx, client)
 			require.NoError(t, err)
 
 			oauth2Client.config = &oauth2.Config{
@@ -233,6 +233,7 @@ func TestHandleAuthCode(t *testing.T) {
 }
 
 func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
+	ctx := context.Background()
 	c := storage.Client{
 		ID:           "test",
 		Secret:       "barfoo",
@@ -241,7 +242,7 @@ func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
 		LogoURL:      "https://goo.gl/JIyzIC",
 	}
 
-	err := s.CreateClient(c)
+	err := s.CreateClient(ctx, c)
 	require.NoError(t, err)
 
 	c1 := storage.Connector{
@@ -254,7 +255,7 @@ func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
 }`),
 	}
 
-	err = s.CreateConnector(c1)
+	err = s.CreateConnector(ctx, c1)
 	require.NoError(t, err)
 
 	c2 := storage.Connector{
@@ -263,66 +264,88 @@ func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
 		Name: "mockURLID",
 	}
 
-	err = s.CreateConnector(c2)
+	err = s.CreateConnector(ctx, c2)
 	require.NoError(t, err)
 }
 
 func TestHandlePassword(t *testing.T) {
-	t0 := time.Now()
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Setup a dex server.
-	httpServer, s := newTestServer(ctx, t, func(c *Config) {
-		c.PasswordConnector = "test"
-		c.Now = func() time.Time { return t0 }
-	})
-	defer httpServer.Close()
-
-	mockConnectorDataTestStorage(t, s.storage)
-
-	makeReq := func(username, password string) *httptest.ResponseRecorder {
-		u, err := url.Parse(s.issuerURL.String())
-		require.NoError(t, err)
-
-		u.Path = path.Join(u.Path, "/token")
-		v := url.Values{}
-		v.Add("scope", "openid offline_access email")
-		v.Add("grant_type", "password")
-		v.Add("username", username)
-		v.Add("password", password)
-
-		req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
-		req.SetBasicAuth("test", "barfoo")
-
-		rr := httptest.NewRecorder()
-		s.ServeHTTP(rr, req)
-
-		return rr
+	tests := []struct {
+		name                  string
+		scopes                string
+		offlineSessionCreated bool
+	}{
+		{
+			name:                  "Password login, request refresh token",
+			scopes:                "openid offline_access email",
+			offlineSessionCreated: true,
+		},
+		{
+			name:                  "Password login",
+			scopes:                "openid email",
+			offlineSessionCreated: false,
+		},
 	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup a dex server.
+			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+				c.PasswordConnector = "test"
+				c.Now = time.Now
+			})
+			defer httpServer.Close()
 
-	// Check unauthorized error
-	{
-		rr := makeReq("test", "invalid")
-		require.Equal(t, 401, rr.Code)
-	}
+			mockConnectorDataTestStorage(t, s.storage)
 
-	// Check that we received expected refresh token
-	{
-		rr := makeReq("test", "test")
-		require.Equal(t, 200, rr.Code)
+			makeReq := func(username, password string) *httptest.ResponseRecorder {
+				u, err := url.Parse(s.issuerURL.String())
+				require.NoError(t, err)
 
-		var ref struct {
-			Token string `json:"refresh_token"`
-		}
-		err := json.Unmarshal(rr.Body.Bytes(), &ref)
-		require.NoError(t, err)
+				u.Path = path.Join(u.Path, "/token")
+				v := url.Values{}
+				v.Add("scope", tc.scopes)
+				v.Add("grant_type", "password")
+				v.Add("username", username)
+				v.Add("password", password)
 
-		newSess, err := s.storage.GetOfflineSessions("0-385-28089-0", "test")
-		require.NoError(t, err)
-		require.Equal(t, `{"test": "true"}`, string(newSess.ConnectorData))
+				req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
+				req.SetBasicAuth("test", "barfoo")
+
+				rr := httptest.NewRecorder()
+				s.ServeHTTP(rr, req)
+
+				return rr
+			}
+
+			// Check unauthorized error
+			{
+				rr := makeReq("test", "invalid")
+				require.Equal(t, 401, rr.Code)
+			}
+
+			// Check that we received expected refresh token
+			{
+				rr := makeReq("test", "test")
+				require.Equal(t, 200, rr.Code)
+
+				var ref struct {
+					Token string `json:"refresh_token"`
+				}
+				err := json.Unmarshal(rr.Body.Bytes(), &ref)
+				require.NoError(t, err)
+
+				newSess, err := s.storage.GetOfflineSessions("0-385-28089-0", "test")
+				if tc.offlineSessionCreated {
+					require.NoError(t, err)
+					require.Equal(t, `{"test": "true"}`, string(newSess.ConnectorData))
+				} else {
+					require.Error(t, storage.ErrNotFound, err)
+				}
+			}
+		})
 	}
 }
 
@@ -336,10 +359,11 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 	resTypes := []string{responseTypeCode}
 
 	tests := []struct {
-		name         string
-		skipApproval bool
-		authReq      storage.AuthRequest
-		expectedRes  string
+		name                  string
+		skipApproval          bool
+		authReq               storage.AuthRequest
+		expectedRes           string
+		offlineSessionCreated bool
 	}{
 		{
 			name:         "Force approval",
@@ -352,7 +376,8 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 				ResponseTypes:       resTypes,
 				ForceApprovalPrompt: true,
 			},
-			expectedRes: "/approval",
+			expectedRes:           "/approval",
+			offlineSessionCreated: false,
 		},
 		{
 			name:         "Skip approval by server config",
@@ -365,7 +390,8 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 				ResponseTypes:       resTypes,
 				ForceApprovalPrompt: true,
 			},
-			expectedRes: "/approval",
+			expectedRes:           "/approval",
+			offlineSessionCreated: false,
 		},
 		{
 			name:         "No skip",
@@ -378,7 +404,8 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 				ResponseTypes:       resTypes,
 				ForceApprovalPrompt: false,
 			},
-			expectedRes: "/approval",
+			expectedRes:           "/approval",
+			offlineSessionCreated: false,
 		},
 		{
 			name:         "Skip approval",
@@ -391,47 +418,88 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 				ResponseTypes:       resTypes,
 				ForceApprovalPrompt: false,
 			},
-			expectedRes: "/auth/mockPw/cb",
+			expectedRes:           "/auth/mockPw/cb",
+			offlineSessionCreated: false,
+		},
+		{
+			name:         "Force approval, request refresh token",
+			skipApproval: false,
+			authReq: storage.AuthRequest{
+				ID:                  authReqID,
+				ConnectorID:         connID,
+				RedirectURI:         "cb",
+				Expiry:              expiry,
+				ResponseTypes:       resTypes,
+				ForceApprovalPrompt: true,
+				Scopes:              []string{"offline_access"},
+			},
+			expectedRes:           "/approval",
+			offlineSessionCreated: true,
+		},
+		{
+			name:         "Skip approval, request refresh token",
+			skipApproval: true,
+			authReq: storage.AuthRequest{
+				ID:                  authReqID,
+				ConnectorID:         connID,
+				RedirectURI:         "cb",
+				Expiry:              expiry,
+				ResponseTypes:       resTypes,
+				ForceApprovalPrompt: false,
+				Scopes:              []string{"offline_access"},
+			},
+			expectedRes:           "/auth/mockPw/cb",
+			offlineSessionCreated: false,
 		},
 	}
 
 	for _, tc := range tests {
-		httpServer, s := newTestServer(ctx, t, func(c *Config) {
-			c.SkipApprovalScreen = tc.skipApproval
-			c.Now = time.Now
+		t.Run(tc.name, func(t *testing.T) {
+			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+				c.SkipApprovalScreen = tc.skipApproval
+				c.Now = time.Now
+			})
+			defer httpServer.Close()
+
+			sc := storage.Connector{
+				ID:              connID,
+				Type:            "mockPassword",
+				Name:            "MockPassword",
+				ResourceVersion: "1",
+				Config:          []byte("{\"username\": \"foo\", \"password\": \"password\"}"),
+			}
+			if err := s.storage.CreateConnector(ctx, sc); err != nil {
+				t.Fatalf("create connector: %v", err)
+			}
+			if _, err := s.OpenConnector(sc); err != nil {
+				t.Fatalf("open connector: %v", err)
+			}
+			if err := s.storage.CreateAuthRequest(ctx, tc.authReq); err != nil {
+				t.Fatalf("failed to create AuthRequest: %v", err)
+			}
+
+			rr := httptest.NewRecorder()
+
+			path := fmt.Sprintf("/auth/%s/login?state=%s&back=&login=foo&password=password", connID, authReqID)
+			s.handlePasswordLogin(rr, httptest.NewRequest("POST", path, nil))
+
+			require.Equal(t, 303, rr.Code)
+
+			resp := rr.Result()
+
+			defer resp.Body.Close()
+
+			cb, _ := url.Parse(resp.Header.Get("Location"))
+			require.Equal(t, tc.expectedRes, cb.Path)
+
+			offlineSession, err := s.storage.GetOfflineSessions("0-385-28089-0", connID)
+			if tc.offlineSessionCreated {
+				require.NoError(t, err)
+				require.NotEmpty(t, offlineSession)
+			} else {
+				require.Error(t, storage.ErrNotFound, err)
+			}
 		})
-		defer httpServer.Close()
-
-		sc := storage.Connector{
-			ID:              connID,
-			Type:            "mockPassword",
-			Name:            "MockPassword",
-			ResourceVersion: "1",
-			Config:          []byte("{\"username\": \"foo\", \"password\": \"password\"}"),
-		}
-		if err := s.storage.CreateConnector(sc); err != nil {
-			t.Fatalf("create connector: %v", err)
-		}
-		if _, err := s.OpenConnector(sc); err != nil {
-			t.Fatalf("open connector: %v", err)
-		}
-		if err := s.storage.CreateAuthRequest(tc.authReq); err != nil {
-			t.Fatalf("failed to create AuthRequest: %v", err)
-		}
-
-		rr := httptest.NewRecorder()
-
-		path := fmt.Sprintf("/auth/%s/login?state=%s&back=&login=foo&password=password", connID, authReqID)
-		s.handlePasswordLogin(rr, httptest.NewRequest("POST", path, nil))
-
-		require.Equal(t, 303, rr.Code)
-
-		resp := rr.Result()
-
-		defer resp.Body.Close()
-
-		cb, _ := url.Parse(resp.Header.Get("Location"))
-		require.Equal(t, tc.expectedRes, cb.Path)
 	}
 }
 
@@ -445,10 +513,11 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 	resTypes := []string{responseTypeCode}
 
 	tests := []struct {
-		name         string
-		skipApproval bool
-		authReq      storage.AuthRequest
-		expectedRes  string
+		name                  string
+		skipApproval          bool
+		authReq               storage.AuthRequest
+		expectedRes           string
+		offlineSessionCreated bool
 	}{
 		{
 			name:         "Force approval",
@@ -461,7 +530,8 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 				ResponseTypes:       resTypes,
 				ForceApprovalPrompt: true,
 			},
-			expectedRes: "/approval",
+			expectedRes:           "/approval",
+			offlineSessionCreated: false,
 		},
 		{
 			name:         "Skip approval by server config",
@@ -474,7 +544,8 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 				ResponseTypes:       resTypes,
 				ForceApprovalPrompt: true,
 			},
-			expectedRes: "/approval",
+			expectedRes:           "/approval",
+			offlineSessionCreated: false,
 		},
 		{
 			name:         "Skip approval by auth request",
@@ -487,7 +558,8 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 				ResponseTypes:       resTypes,
 				ForceApprovalPrompt: false,
 			},
-			expectedRes: "/approval",
+			expectedRes:           "/approval",
+			offlineSessionCreated: false,
 		},
 		{
 			name:         "Skip approval",
@@ -500,32 +572,73 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 				ResponseTypes:       resTypes,
 				ForceApprovalPrompt: false,
 			},
-			expectedRes: "/callback/cb",
+			expectedRes:           "/callback/cb",
+			offlineSessionCreated: false,
+		},
+		{
+			name:         "Force approval, request refresh token",
+			skipApproval: false,
+			authReq: storage.AuthRequest{
+				ID:                  authReqID,
+				ConnectorID:         connID,
+				RedirectURI:         "cb",
+				Expiry:              expiry,
+				ResponseTypes:       resTypes,
+				ForceApprovalPrompt: true,
+				Scopes:              []string{"offline_access"},
+			},
+			expectedRes:           "/approval",
+			offlineSessionCreated: true,
+		},
+		{
+			name:         "Skip approval, request refresh token",
+			skipApproval: true,
+			authReq: storage.AuthRequest{
+				ID:                  authReqID,
+				ConnectorID:         connID,
+				RedirectURI:         "cb",
+				Expiry:              expiry,
+				ResponseTypes:       resTypes,
+				ForceApprovalPrompt: false,
+				Scopes:              []string{"offline_access"},
+			},
+			expectedRes:           "/callback/cb",
+			offlineSessionCreated: false,
 		},
 	}
 
 	for _, tc := range tests {
-		httpServer, s := newTestServer(ctx, t, func(c *Config) {
-			c.SkipApprovalScreen = tc.skipApproval
-			c.Now = time.Now
+		t.Run(tc.name, func(t *testing.T) {
+			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+				c.SkipApprovalScreen = tc.skipApproval
+				c.Now = time.Now
+			})
+			defer httpServer.Close()
+
+			if err := s.storage.CreateAuthRequest(ctx, tc.authReq); err != nil {
+				t.Fatalf("failed to create AuthRequest: %v", err)
+			}
+			rr := httptest.NewRecorder()
+
+			path := fmt.Sprintf("/callback/%s?state=%s", connID, authReqID)
+			s.handleConnectorCallback(rr, httptest.NewRequest("GET", path, nil))
+
+			require.Equal(t, 303, rr.Code)
+
+			resp := rr.Result()
+			defer resp.Body.Close()
+
+			cb, _ := url.Parse(resp.Header.Get("Location"))
+			require.Equal(t, tc.expectedRes, cb.Path)
+
+			offlineSession, err := s.storage.GetOfflineSessions("0-385-28089-0", connID)
+			if tc.offlineSessionCreated {
+				require.NoError(t, err)
+				require.NotEmpty(t, offlineSession)
+			} else {
+				require.Error(t, storage.ErrNotFound, err)
+			}
 		})
-		defer httpServer.Close()
-
-		if err := s.storage.CreateAuthRequest(tc.authReq); err != nil {
-			t.Fatalf("failed to create AuthRequest: %v", err)
-		}
-		rr := httptest.NewRecorder()
-
-		path := fmt.Sprintf("/callback/%s?state=%s", connID, authReqID)
-		s.handleConnectorCallback(rr, httptest.NewRequest("GET", path, nil))
-
-		require.Equal(t, 303, rr.Code)
-
-		resp := rr.Result()
-		defer resp.Body.Close()
-
-		cb, _ := url.Parse(resp.Header.Get("Location"))
-		require.Equal(t, tc.expectedRes, cb.Path)
 	}
 }
 
@@ -600,7 +713,7 @@ func TestHandleTokenExchange(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			httpServer, s := newTestServer(ctx, t, func(c *Config) {
-				c.Storage.CreateClient(storage.Client{
+				c.Storage.CreateClient(ctx, storage.Client{
 					ID:     "client_1",
 					Secret: "secret_1",
 				})
