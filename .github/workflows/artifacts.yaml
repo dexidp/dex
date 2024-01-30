@@ -63,7 +63,7 @@ jobs:
         uses: anchore/sbom-action/download-syft@c6aed38a4323b393d05372c58a74c39ae8386d02 # v0.15.6
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@1fc5bd396d372bee37d608f955b336615edf79c8 # v3.2.0
+        uses: sigstore/cosign-installer@9614fae9e5c5eddabb09f90a270fcb487c9f7149 # v3.3.0
         with:
           cosign-release: 'v2.2.1'
 
