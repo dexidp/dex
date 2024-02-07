@@ -433,7 +433,10 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	// We immediately want to run getUserInfo if configured before we validate the claims.
 	// For token exchanges with access tokens, this is how we verify the token.
 	if c.getUserInfo {
-		userInfo, err := c.provider.UserInfo(ctx, oauth2.StaticTokenSource(token))
+		userInfo, err := c.provider.UserInfo(ctx, oauth2.StaticTokenSource(&oauth2.Token{
+			AccessToken: token.AccessToken,
+			TokenType:   "Bearer", // The UserInfo endpoint requires a bearer token as per RFC6750
+		}))
 		if err != nil {
 			return identity, fmt.Errorf("oidc: error loading userinfo: %v", err)
 		}
