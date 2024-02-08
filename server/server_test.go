@@ -1799,3 +1799,25 @@ func TestServerSupportedGrants(t *testing.T) {
 		})
 	}
 }
+
+func TestHeaders(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	httpServer, _ := newTestServer(ctx, t, func(c *Config) {
+		c.Headers = map[string][]string{
+			"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
+		}
+	})
+	defer httpServer.Close()
+
+	p, err := oidc.NewProvider(ctx, httpServer.URL)
+	if err != nil {
+		t.Fatalf("failed to get provider: %v", err)
+	}
+
+	resp, err := http.Get(p.Endpoint().TokenURL)
+	require.NoError(t, err)
+
+	require.Equal(t, "max-age=31536000; includeSubDomains", resp.Header.Get("Strict-Transport-Security"))
+}

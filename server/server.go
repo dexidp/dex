@@ -72,6 +72,9 @@ type Config struct {
 	// flow. If no response types are supplied this value defaults to "code".
 	SupportedResponseTypes []string
 
+	// Headers is a map of headers to be added to the all responses.
+	Headers http.Header
+
 	// List of allowed origins for CORS requests on discovery, token and keys endpoint.
 	// If none are indicated, CORS requests are disabled. Passing in "*" will allow any
 	// domain.
@@ -345,9 +348,18 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 	}
 
+	handlerWithHeaders := func(handlerName string, handler http.Handler) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			for k, v := range c.Headers {
+				w.Header()[k] = v
+			}
+			instrumentHandlerCounter(handlerName, handler)(w, r)
+		}
+	}
+
 	r := mux.NewRouter().SkipClean(true).UseEncodedPath()
 	handle := func(p string, h http.Handler) {
-		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, h))
+		r.Handle(path.Join(issuerURL.Path, p), handlerWithHeaders(p, h))
 	}
 	handleFunc := func(p string, h http.HandlerFunc) {
 		handle(p, h)
@@ -365,7 +377,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 			)
 			handler = cors(handler)
 		}
-		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, handler))
+		r.Handle(path.Join(issuerURL.Path, p), handlerWithHeaders(p, handler))
 	}
 	r.NotFoundHandler = http.NotFoundHandler()
 
@@ -388,7 +400,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	// TODO(nabokihms): "/device/token" endpoint is deprecated, consider using /token endpoint instead
 	handleFunc("/device/token", s.handleDeviceTokenDeprecated)
 	handleFunc(deviceCallbackURI, s.handleDeviceCallback)
-	r.HandleFunc(path.Join(issuerURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {
+	handleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on
 		// misconfigured authproxy connector setups.
 		for key := range r.Header {
