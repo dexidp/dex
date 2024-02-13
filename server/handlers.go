@@ -373,6 +373,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			if err := s.templates.password(r, w, r.URL.String(), username, usernamePrompt(pwConn), true, backLink); err != nil {
 				s.logger.Errorf("Server template error: %v", err)
 			}
+			s.logger.Errorf("Failed login attempt for user: %q. Invalid credentials.", username)
 			return
 		}
 		redirectURL, canSkipApproval, err := s.finalizeLogin(ctx, identity, authReq, conn.Connector)
