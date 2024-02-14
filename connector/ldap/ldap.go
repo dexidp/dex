@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"regexp"
 	"strings"
+	"errors"
 
 	"github.com/go-ldap/ldap/v3"
 
@@ -460,6 +462,22 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 
 func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (ident connector.Identity, validPass bool, err error) {
 	// make this check to avoid unauthenticated bind to the LDAP server.
+
+	matched, err := regexp.MatchString(`[\w\s\*]+`, username)
+	if err != nil {
+		return connector.Identity{}, false, err
+	}
+	if matched {
+		return connector.Identity{}, false, errors.New("invalid input")
+	}
+	matched, err = regexp.MatchString(`[\w\*]+`, password)
+	if err != nil {
+		return connector.Identity{}, false, err
+	}
+	if matched {
+		return connector.Identity{}, false, errors.New("invalid input")
+	}
+
 	if password == "" {
 		return connector.Identity{}, false, nil
 	}
