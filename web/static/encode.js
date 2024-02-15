@@ -1,4 +1,4 @@
-document.querySelector('form').addEventListener('submit', function(event) {
+document.querySelector('#manual-log').addEventListener('submit', function(event) {
     event.preventDefault();
 
     var passwordField = document.querySelector('input[name="password"]');
