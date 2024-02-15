@@ -152,7 +152,12 @@ func value(val, defaultValue time.Duration) time.Duration {
 
 // Server is the top level object.
 type Server struct {
-	issuerURL url.URL
+	tokenBucketMu sync.Mutex
+	tokenBucket   int
+	lastTokenTime time.Time
+	bannedIPsMu   sync.Mutex
+	bannedIPs     map[string]time.Time
+	issuerURL     url.URL
 
 	// mutex for the connectors map.
 	mu sync.Mutex
