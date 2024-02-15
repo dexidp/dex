@@ -315,7 +315,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 
 func Limiter() *Server {
 	return &Server{
-		tokenBucket: 5, // Initial token count
+		tokenBucket: 3, // Initial token count
 		bannedIPs:   make(map[string]time.Time),
 	}
 }
@@ -330,7 +330,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if time.Since(s.lastTokenTime) >= time.Minute {
+	if time.Since(s.lastTokenTime) >= 3*time.Minute { // if 15 minutes 15*time.Minute
 		s.tokenBucket = 3 // Refill token bucket to 5
 		s.lastTokenTime = time.Now()
 	}
@@ -400,9 +400,6 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Decrement token count
-		s.tokenBucket--
-
 		// Check if IP is banned
 		ipAddress := r.RemoteAddr
 		s.bannedIPsMu.Lock()
@@ -426,6 +423,8 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			if err := s.templates.password(r, w, r.URL.String(), username, usernamePrompt(pwConn), true, backLink); err != nil {
 				s.logger.Errorf("Server template error: %v", err)
 			}
+				// Decrement token count
+			s.tokenBucket--
 			s.logger.Errorf("Failed login attempt for user: %q. Invalid credentials.", username)
 			return
 		}
@@ -446,6 +445,9 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			s.sendCodeResponse(w, r, authReq)
 			return
 		}
+
+		s.tokenBucket = 3 // Refill token bucket to 5
+		s.lastTokenTime = time.Now()
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 	default:
