@@ -360,17 +360,14 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		}
 	case http.MethodPost:
 		username := r.FormValue("login")
-		// password := r.FormValue("password")
 		passwordEncoded := r.FormValue("password")
 		passwordByte, err := base64.StdEncoding.DecodeString(passwordEncoded)
 		if err != nil {
 			s.logger.Errorf("Failed to decode password: %v", err)
-			// handle error
 			return
 		}
 		
 		password := string(passwordByte)
-		fmt.Printf("Password: %s\n", password)
 		scopes := parseScopes(authReq.Scopes)
 
 		identity, ok, err := pwConn.Login(ctx, scopes, username, password)
