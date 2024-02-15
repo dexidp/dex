@@ -127,20 +127,21 @@ staticClients:
 #    name: 'Static Client for Device Flow'
 #    public: true
 connectors:
-- type: mockCallback
-  id: mock
-  name: Example
-# - type: google
-#   id: google
-#   name: Google
-#   config:
-#     issuer: https://accounts.google.com
-#     # Connector config values starting with a "$" will read from the environment.
-#     clientID: $GOOGLE_CLIENT_ID
-#     clientSecret: $GOOGLE_CLIENT_SECRET
-#     redirectURI: http://127.0.0.1:5556/dex/callback
-#     hostedDomains:
-#     - $GOOGLE_HOSTED_DOMAIN
+# - type: mockCallback
+#   id: mock
+#   name: Example
+- type: google
+  id: google
+  name: Google
+  config:
+    issuer: https://accounts.google.com
+    # Connector config values starting with a "$" will read from the environment.
+    clientID: 66825498991-fcjmh52r8b2ajhoj67ii7u2hvqqmvpn8.apps.googleusercontent.com
+    clientSecret: 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
+    redirectURI: http://127.0.0.1:5556/dex/callback
+    hostedDomains:
+    - feedloop.ai
+    - student.pmsbe.ac.id
 
 # Let dex keep a list of passwords which can be used to login to dex.
 enablePasswordDB: true
