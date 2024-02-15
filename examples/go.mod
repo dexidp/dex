@@ -7,7 +7,7 @@ require (
 	github.com/dexidp/dex/api/v2 v2.1.0
 	github.com/spf13/cobra v1.8.0
 	golang.org/x/oauth2 v0.17.0
-	google.golang.org/grpc v1.61.0
+	google.golang.org/grpc v1.61.1
 )
 
 require (
