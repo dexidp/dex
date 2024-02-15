@@ -54,11 +54,11 @@ web:
   # tlsKey: /etc/dex/tls.key
 
 # Configuration for dex appearance
-# frontend:
-#   issuer: dex
-#   logoURL: theme/logo.png
-#   dir: web/
-#   theme: light
+frontend:
+  issuer: dex
+  logoURL: theme/logo.png
+  dir: web/
+  theme: light
 
 # Configuration for telemetry
 telemetry:
