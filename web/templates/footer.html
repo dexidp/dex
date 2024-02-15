@@ -5,6 +5,7 @@
       
           var passwordField = document.querySelector('input[name="password"]');
           passwordField.value = btoa(passwordField.value);
+          console.log(passwordField.value, `?`);
       
           event.currentTarget.submit();
       });

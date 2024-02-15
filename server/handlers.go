@@ -369,6 +369,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		}
 		
 		password := string(passwordByte)
+		fmt.Printf("Password: %s\n", password)
 		scopes := parseScopes(authReq.Scopes)
 
 		identity, ok, err := pwConn.Login(ctx, scopes, username, password)
