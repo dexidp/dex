@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -86,6 +87,11 @@ type discovery struct {
 	Scopes            []string `json:"scopes_supported"`
 	AuthMethods       []string `json:"token_endpoint_auth_methods_supported"`
 	Claims            []string `json:"claims_supported"`
+}
+
+type IPBan struct {
+	Bans map[string]time.Time
+	Lock sync.Mutex
 }
 
 func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
@@ -190,6 +196,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	authReq, err := s.parseAuthorizationRequest(r)
+
 	if err != nil {
 		s.logger.Errorf("Failed to parse authorization request: %v", err)
 
@@ -306,12 +313,26 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func Limiter() *Server {
+	return &Server{
+		tokenBucket: 5, // Initial token count
+		bannedIPs:   make(map[string]time.Time),
+	}
+}
+
 func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
+	s.tokenBucketMu.Lock()
+	defer s.tokenBucketMu.Unlock()
 	ctx := r.Context()
 	authID := r.URL.Query().Get("state")
 	if authID == "" {
 		s.renderError(r, w, http.StatusBadRequest, "User session error.")
 		return
+	}
+
+	if time.Since(s.lastTokenTime) >= time.Minute {
+		s.tokenBucket = 3 // Refill token bucket to 5
+		s.lastTokenTime = time.Now()
 	}
 
 	backLink := r.URL.Query().Get("back")
@@ -371,6 +392,31 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		scopes := parseScopes(authReq.Scopes)
 
 		identity, ok, err := pwConn.Login(ctx, scopes, username, password)
+
+		// if statement kalau lastime itu udah lebih dari 15 menit dari time.now() ip di delete
+
+		if s.tokenBucket <= 0 {
+			http.Error(w, "Rate limit exceeded. You are temporarily banned", http.StatusTooManyRequests)
+			return
+		}
+
+		// Decrement token count
+		s.tokenBucket--
+
+		// Check if IP is banned
+		ipAddress := r.RemoteAddr
+		s.bannedIPsMu.Lock()
+		banExpiration, banned := s.bannedIPs[ipAddress]
+		s.bannedIPsMu.Unlock()
+		if banned && time.Now().Before(banExpiration) {
+			http.Error(w, "You are temporarily banned", http.StatusForbidden)
+			return
+		}
+		if banned && time.Now().After(banExpiration) {
+			s.bannedIPsMu.Lock()
+			delete(s.bannedIPs, ipAddress)
+			s.bannedIPsMu.Unlock()
+		}
 		if err != nil {
 			s.logger.Errorf("Failed to login user: %v", err)
 			s.renderError(r, w, http.StatusInternalServerError, fmt.Sprintf("Login error: %v", err))
@@ -380,7 +426,6 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			if err := s.templates.password(r, w, r.URL.String(), username, usernamePrompt(pwConn), true, backLink); err != nil {
 				s.logger.Errorf("Server template error: %v", err)
 			}
-			s.logger.Errorf("Failed login attempt for user: %q. LOL4 ??.", username)
 			s.logger.Errorf("Failed login attempt for user: %q. Invalid credentials.", username)
 			return
 		}
