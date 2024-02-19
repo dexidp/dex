@@ -15,7 +15,6 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"sort"
 	"strconv"
@@ -325,27 +324,26 @@ func Limiter() *Server {
 	}
 }
 
-func decryptRSA(privateKeyFile string, ciphertext []byte) ([]byte, error) {
-	// Load private key
-	privateKeyData, err := os.ReadFile(privateKeyFile)
-	if err != nil {
-		return nil, err
-	}
-
-	block, _ := pem.Decode(privateKeyData)
+func decryptRSA(privateKey string, ciphertext []byte) ([]byte, error) {
+	block, _ := pem.Decode([]byte(privateKey))
 	if block == nil {
 		return nil, fmt.Errorf("failed to parse PEM block containing the private key")
 	}
 
-	var privateKey interface{}
-	if privateKey, err = x509.ParsePKCS8PrivateKey(block.Bytes); err != nil {
-		if privateKey, err = x509.ParsePKCS1PrivateKey(block.Bytes); err != nil {
+	var parsedKey interface{}
+	var err error
+	if parsedKey, err = x509.ParsePKCS8PrivateKey(block.Bytes); err != nil {
+		if parsedKey, err = x509.ParsePKCS1PrivateKey(block.Bytes); err != nil {
 			return nil, err
 		}
 	}
 
-	// Decrypt using RSA private key
-	plaintext, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey.(*rsa.PrivateKey), ciphertext)
+	privateKeyRSA, ok := parsedKey.(*rsa.PrivateKey)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse RSA private key")
+	}
+
+	plaintext, err := rsa.DecryptPKCS1v15(rand.Reader, privateKeyRSA, ciphertext)
 	if err != nil {
 		return nil, err
 	}
