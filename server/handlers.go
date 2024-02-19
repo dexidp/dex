@@ -3,14 +3,19 @@ package server
 import (
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/subtle"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"html/template"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"sort"
 	"strconv"
@@ -320,6 +325,34 @@ func Limiter() *Server {
 	}
 }
 
+func decryptRSA(privateKeyFile string, ciphertext []byte) ([]byte, error) {
+	// Load private key
+	privateKeyData, err := os.ReadFile(privateKeyFile)
+	if err != nil {
+		return nil, err
+	}
+
+	block, _ := pem.Decode(privateKeyData)
+	if block == nil {
+		return nil, fmt.Errorf("failed to parse PEM block containing the private key")
+	}
+
+	var privateKey interface{}
+	if privateKey, err = x509.ParsePKCS8PrivateKey(block.Bytes); err != nil {
+		if privateKey, err = x509.ParsePKCS1PrivateKey(block.Bytes); err != nil {
+			return nil, err
+		}
+	}
+
+	// Decrypt using RSA private key
+	plaintext, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey.(*rsa.PrivateKey), ciphertext)
+	if err != nil {
+		return nil, err
+	}
+
+	return plaintext, nil
+}
+
 func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 	s.tokenBucketMu.Lock()
 	defer s.tokenBucketMu.Unlock()
@@ -381,19 +414,25 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		}
 	case http.MethodPost:
 		username := r.FormValue("login")
-		passwordEncoded := r.FormValue("password")
-		passwordByte, err := base64.StdEncoding.DecodeString(passwordEncoded)
+		passwordEncrypt := r.FormValue("password")
+		ciphertext, err := base64.StdEncoding.DecodeString(passwordEncrypt)
 		if err != nil {
-			s.logger.Errorf("Failed to decode password: %v", err)
+			fmt.Println("Error decoding ciphertext:", err)
 			return
 		}
-		
-		password := string(passwordByte)
+
+		privateKeyFile := "private_key.pem"
+
+		plaintext, err := decryptRSA(privateKeyFile, ciphertext)
+		if err != nil {
+			http.Error(w, "Decryption error", http.StatusInternalServerError)
+			return
+		}
+
+		password := string(plaintext)
 		scopes := parseScopes(authReq.Scopes)
 
 		identity, ok, err := pwConn.Login(ctx, scopes, username, password)
-
-		// if statement kalau lastime itu udah lebih dari 15 menit dari time.now() ip di delete
 
 		if s.tokenBucket <= 0 {
 			http.Error(w, "Rate limit exceeded. You are temporarily banned", http.StatusTooManyRequests)
@@ -423,7 +462,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			if err := s.templates.password(r, w, r.URL.String(), username, usernamePrompt(pwConn), true, backLink); err != nil {
 				s.logger.Errorf("Server template error: %v", err)
 			}
-				// Decrement token count
+			// Decrement token count
 			s.tokenBucket--
 			s.logger.Errorf("Failed login attempt for user: %q. Invalid credentials.", username)
 			return

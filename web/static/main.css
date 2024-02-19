@@ -274,12 +274,20 @@ body {
     height: 100vh;
 }
 
-.login-form {
+.login-form-layout {
     display: flex;
     justify-content: center;
     align-items: center;
     flex-direction: column;
     height: 100vh;
+    gap: 40px;
+}
+
+.login-form {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
 }
 
 .fullscreen {
@@ -311,12 +319,11 @@ body {
 
 .container-1 {
     display: flex;
-    padding: 64px 108px 0px 108px;
+    padding: 64px 108px 50px 108px;
     flex-direction: column;
     align-items: flex-start;
     gap: 64px;
     align-self: stretch;
-    padding-bottom: 50px;
 }
 
 @media (max-width: 1024px) {
@@ -375,7 +382,6 @@ body {
     flex-direction: column;
     justify-content: center;
     align-items: flex-end;
-    gap: 5px;
     align-self: stretch;
     width: 100%;
 }
@@ -480,6 +486,11 @@ input:focus {
     border: 2px solid var(--primary-blue-80, #1078ca);
 }
 
+.login-image {
+    width: 504px;
+    height: 394px;
+}
+
 .container-2 {
     display: flex;
     flex-direction: column;
@@ -490,6 +501,7 @@ input:focus {
     border-radius: 40px;
     padding: 60px 56px;
     width: 100%;
+    height: 100%;
 }
 .container-2 > .text-title {
     font-size: 1.875rem;
@@ -513,6 +525,7 @@ input:focus {
 }
 .theme-form-input {
     width: 100%;
+    padding: 10px 12px;
 }
 
 .dex-error-box {
@@ -524,11 +537,17 @@ input:focus {
 .theme-link-back {
     width: 100%;
     text-align: center;
-    padding: 6px 12px;
+    padding: 6px 0px;
 }
 
 .dex-subtle-text {
     font-size: 14px;
+    font-weight: 700px;
+    width: 100%;
+    text-align: right;
+    color: #1078ca;
+    cursor: pointer;
+    padding: 16px 0px;
 }
 
 .svg-logo {
@@ -576,6 +595,10 @@ mask {
     text-align: center;
 }
 
+#manual-log {
+    width: 412px;
+}
+
 .dex-list {
     display: flex;
     flex-direction: column;
@@ -596,11 +619,8 @@ mask {
 
 .login-header {
     margin: 30px 0px;
-    font-weight: 700;
-}
-
-#text-right {
-    text-align: right;
+    font-weight: 600;
+    font-size: 28px;
 }
 
 @media (min-width: 1024px) {
@@ -613,8 +633,30 @@ mask {
     }
 }
 
+@media (min-width: 1440px) {
+    .container-1 {
+        width: 40%;
+        padding: 64px 108px 50px 108px;
+    }
+
+    .container-1 > .section {
+        width: 100%;
+    }
+
+    .container-2 {
+        width: 60%;
+    }
+}
+
 @media (max-width: 1024px) {
     /* Styles for screens less than 1024px wide */
+    .login-image {
+        width: 404px;
+        height: 294px;
+    }
+    .container-1 {
+        padding: 64px 20px 40px 20px;
+    }
     @media (max-height: 768px) {
         /* This nested query applies when both width and height conditions are met */
         .container-1 {
