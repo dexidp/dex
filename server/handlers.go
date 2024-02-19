@@ -387,18 +387,16 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			s.logger.Errorf("Failed to decode password: %v", err)
 			return
 		}
-		
+
 		password := string(passwordByte)
 		scopes := parseScopes(authReq.Scopes)
 
 		identity, ok, err := pwConn.Login(ctx, scopes, username, password)
 
-		// if statement kalau lastime itu udah lebih dari 15 menit dari time.now() ip di delete
-
-		if s.tokenBucket <= 0 {
-			http.Error(w, "Rate limit exceeded. You are temporarily banned", http.StatusTooManyRequests)
-			return
-		}
+		// if s.tokenBucket <= 0 {
+		// 	http.Error(w, "Rate limit exceeded. You are temporarily banned", http.StatusTooManyRequests)
+		// 	return
+		// }
 
 		// Check if IP is banned
 		ipAddress := r.RemoteAddr
@@ -423,7 +421,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			if err := s.templates.password(r, w, r.URL.String(), username, usernamePrompt(pwConn), true, backLink); err != nil {
 				s.logger.Errorf("Server template error: %v", err)
 			}
-				// Decrement token count
+			// Decrement token count
 			s.tokenBucket--
 			s.logger.Errorf("Failed login attempt for user: %q. Invalid credentials.", username)
 			return
