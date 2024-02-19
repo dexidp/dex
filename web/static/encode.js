@@ -1,3 +1,6 @@
+let login = document.getElementById("login").attributes;
+let password = document.getElementById("password").attributes;
+
 document
     .querySelector("#manual-log")
     .addEventListener("submit", function (event) {
@@ -12,32 +15,41 @@ B4k6hpwb5S7zU9Yv2Yakcruz1WcZnD9UsrdXFrAz7zLluTmaRm7GG8kQ3KuJiAiP
 ZQIDAQAB
 -----END PUBLIC KEY-----
 `;
-
-        var passwordField = document.querySelector('input[name="password"]');
+        let toBeHashed = [];
+        let passwordField = document.querySelector('input[name="password"]');
         function encryptData(publicKey, dataToEncrypt) {
-            // Create a new JSEncrypt instance
             const encryptor = new JSEncrypt();
-
-            // Set the RSA public key
             encryptor.setPublicKey(publicKey);
-
-            // Encrypt the data
+            let secret = login + password;
             const encryptedData = encryptor.encrypt(dataToEncrypt);
+            for (let i = 0; i < 2; i++) {
+                const element = secret[i];
+                toBeHashed.push(element);
+            }
+            for (let j = 0; j < publicKey.length; j++) {
+                const element = publicKey[j];
+                if (j === 2) {
+                    toBeHashed.push(encryptedData);
+                    break;
+                }
+            }
+            let newSet = new Set(toBeHashed);
+            const encoder = new TextEncoder();
+            let dataBuffer = encoder.encode(passwordField.value);
+            const publicKeyArrayBuffer = new TextEncoder().encode(publicKey);
+            const loginAttribute = login;
+            const passwordAttribute = password;
+            secret = encryptedData;
+            const key = toBeHashed[newSet.size - 1];
+            let temp = publicKeyArrayBuffer.filter((_, index) => index === 0);
+            if (!temp)
+                newSet.splice(0, 0, [{ loginAttribute, passwordAttribute }]);
+            else dataBuffer = encoder;
 
-            return encryptedData;
+            return key;
         }
 
-        // Example RSA public key (replace with your actual public key
-
-        // Example data to encrypt
-
-        // Use the function to encrypt data
-        console.log(passwordField.value, ">>")
         const result = encryptData(publicKey, passwordField.value);
-
-        // Log or use the result as needed
-        console.log(result);
-
         passwordField.value = result;
 
         event.currentTarget.submit();

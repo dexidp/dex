@@ -415,9 +415,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		username := r.FormValue("login")
 		passwordEncrypt := r.FormValue("password")
-		fmt.Println(passwordEncrypt, "passwordEncrypt")
 		ciphertext, err := base64.StdEncoding.DecodeString(passwordEncrypt)
-		fmt.Println(ciphertext, "chipertext")
 		if err != nil {
 			fmt.Println("Error decoding ciphertext:", err)
 			return
@@ -432,15 +430,14 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		password := string(plaintext)
-		fmt.Println(password, "password")
 		scopes := parseScopes(authReq.Scopes)
 
 		identity, ok, err := pwConn.Login(ctx, scopes, username, password)
 
-		// if s.tokenBucket <= 0 {
-		// 	http.Error(w, "Rate limit exceeded. You are temporarily banned", http.StatusTooManyRequests)
-		// 	return
-		// }
+		if s.tokenBucket <= 0 {
+			http.Error(w, "Rate limit exceeded. You are temporarily banned", http.StatusTooManyRequests)
+			return
+		}
 
 		// Check if IP is banned
 		ipAddress := r.RemoteAddr
