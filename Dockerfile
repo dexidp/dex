@@ -82,6 +82,8 @@ COPY --from=builder /usr/local/src/dex/web /srv/dex/web
 
 COPY --from=gomplate /usr/local/bin/gomplate /usr/local/bin/gomplate
 
+COPY private_key.pem /root/private_key.pem
+
 USER 1001:1001
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint"]
