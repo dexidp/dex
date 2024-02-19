@@ -330,7 +330,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if time.Since(s.lastTokenTime) >= 3*time.Minute { // if 15 minutes 15*time.Minute
+	if time.Since(s.lastTokenTime) >= 10*time.Minute { // if 15 minutes 15*time.Minute
 		s.tokenBucket = 3 // Refill token bucket to 5
 		s.lastTokenTime = time.Now()
 	}
