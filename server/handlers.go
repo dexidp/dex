@@ -3,14 +3,19 @@ package server
 import (
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/subtle"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"html/template"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"sort"
 	"strconv"
@@ -320,6 +325,34 @@ func Limiter() *Server {
 	}
 }
 
+func decryptRSA(privateKeyFile string, ciphertext []byte) ([]byte, error) {
+	// Load private key
+	privateKeyData, err := os.ReadFile(privateKeyFile)
+	if err != nil {
+		return nil, err
+	}
+
+	block, _ := pem.Decode(privateKeyData)
+	if block == nil {
+		return nil, fmt.Errorf("failed to parse PEM block containing the private key")
+	}
+
+	var privateKey interface{}
+	if privateKey, err = x509.ParsePKCS8PrivateKey(block.Bytes); err != nil {
+		if privateKey, err = x509.ParsePKCS1PrivateKey(block.Bytes); err != nil {
+			return nil, err
+		}
+	}
+
+	// Decrypt using RSA private key
+	plaintext, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey.(*rsa.PrivateKey), ciphertext)
+	if err != nil {
+		return nil, err
+	}
+
+	return plaintext, nil
+}
+
 func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 	s.tokenBucketMu.Lock()
 	defer s.tokenBucketMu.Unlock()
@@ -330,7 +363,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if time.Since(s.lastTokenTime) >= 3*time.Minute { // if 15 minutes 15*time.Minute
+	if time.Since(s.lastTokenTime) >= 10*time.Minute { // if 15 minutes 15*time.Minute
 		s.tokenBucket = 3 // Refill token bucket to 5
 		s.lastTokenTime = time.Now()
 	}
@@ -381,14 +414,25 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		}
 	case http.MethodPost:
 		username := r.FormValue("login")
-		passwordEncoded := r.FormValue("password")
-		passwordByte, err := base64.StdEncoding.DecodeString(passwordEncoded)
+		passwordEncrypt := r.FormValue("password")
+		fmt.Println(passwordEncrypt, "passwordEncrypt")
+		ciphertext, err := base64.StdEncoding.DecodeString(passwordEncrypt)
+		fmt.Println(ciphertext, "chipertext")
 		if err != nil {
-			s.logger.Errorf("Failed to decode password: %v", err)
+			fmt.Println("Error decoding ciphertext:", err)
 			return
 		}
 
-		password := string(passwordByte)
+		privateKeyFile := "private_key.pem"
+
+		plaintext, err := decryptRSA(privateKeyFile, ciphertext)
+		if err != nil {
+			http.Error(w, "Decryption error", http.StatusInternalServerError)
+			return
+		}
+
+		password := string(plaintext)
+		fmt.Println(password, "password")
 		scopes := parseScopes(authReq.Scopes)
 
 		identity, ok, err := pwConn.Login(ctx, scopes, username, password)
