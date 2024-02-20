@@ -297,8 +297,8 @@ func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, la
 	if lastWasInvalid {
 		w.WriteHeader(http.StatusUnauthorized)
 	}
+
 	envValue := os.Getenv("LOG_DEX_PUBLIC_KEY")
-	fmt.Println(envValue, "envValue")
 	valThemes := base64.StdEncoding.EncodeToString([]byte(envValue))
 
 	data := struct {

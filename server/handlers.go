@@ -330,7 +330,7 @@ func decryptRSA(privateKey string, ciphertext []byte) ([]byte, error) {
 	if block == nil {
 		return nil, fmt.Errorf("failed to parse PEM block containing the private key")
 	}
-	fmt.Println(privateKey, "privateKey")
+
 	var parsedKey interface{}
 	var err error
 	if parsedKey, err = x509.ParsePKCS8PrivateKey(block.Bytes); err != nil {
@@ -339,13 +339,10 @@ func decryptRSA(privateKey string, ciphertext []byte) ([]byte, error) {
 		}
 	}
 
-	fmt.Println(parsedKey, "parsedKey")
-
 	privateKeyRSA, ok := parsedKey.(*rsa.PrivateKey)
 	if !ok {
 		return nil, fmt.Errorf("failed to parse RSA private key")
 	}
-	fmt.Println(privateKeyRSA, "privateKeyRSA")
 
 	plaintext, err := rsa.DecryptPKCS1v15(rand.Reader, privateKeyRSA, ciphertext)
 	if err != nil {
@@ -417,18 +414,16 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		username := r.FormValue("login")
 		passwordEncrypt := r.FormValue("password")
-		fmt.Println(passwordEncrypt, "password")
+
 		ciphertext, err := base64.StdEncoding.DecodeString(passwordEncrypt)
 		if err != nil {
 			fmt.Println("Error decoding ciphertext:", err)
 			return
 		}
 
-		fmt.Println(ciphertext, "ciphertext")
-
 		value := os.Getenv("LOG_DEX_PRIVATE_KEY")
 		plaintext, err := decryptRSA(value, ciphertext)
-		fmt.Println(plaintext, "plaintext")
+
 		if err != nil {
 			http.Error(w, "Decryption error", http.StatusInternalServerError)
 			return
