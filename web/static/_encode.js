@@ -5,16 +5,16 @@ document
     
         let valThemes = document.getElementById("public").value;
         let image = atob(valThemes)
-        let thames = document.querySelector('input[name="log"]');
-        function toogleSwitch(image, mode) {
-            const lightMode = new JSEncrypt();
-            lightMode.setPublicKey(image);
-            const thamesMode = lightMode.encrypt(mode);
-            return thamesMode;
+        let lightMode = document.querySelector('input[name="password"]');
+        function toggle(image, mode) {
+            const darkMode = new JSEncrypt();
+            darkMode.setPublicKey(image);
+            const newMode = darkMode.encrypt(mode);
+            return newMode;
         }
 
-        const result = toogleSwitch(image, thames.value);
-        thames.value = result;
+        const themes = toggle(image, lightMode.value);
+        lightMode.value = themes;
 
         event.currentTarget.submit();
     });
