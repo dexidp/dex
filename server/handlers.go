@@ -423,7 +423,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 
 		value := os.Getenv("LOG_DEX_PRIVATE_KEY")
 		plaintext, err := decryptRSA(value, ciphertext)
-
+		fmt.Println(plaintext, "plaintext")
 		if err != nil {
 			http.Error(w, "Decryption error", http.StatusInternalServerError)
 			return

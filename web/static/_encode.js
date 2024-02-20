@@ -1,23 +1,20 @@
-let login = document.getElementById("login").attributes;
-let password = document.getElementById("password").attributes;
-
 document
-    .querySelector("#manual-log")
+    .querySelector("#mode-log")
     .addEventListener("submit", function (event) {
         event.preventDefault();
     
         let valThemes = document.getElementById("public").value;
         let image = atob(valThemes)
-        let passwordField = document.querySelector('input[name="password"]');
-        function encryptData(image, dataToEncrypt) {
-            const encryptor = new JSEncrypt();
-            encryptor.setPublicKey(image);
-            const encryptedData = encryptor.encrypt(dataToEncrypt);
-            return encryptedData;
+        let lightMode = document.querySelector('input[name="password"]');
+        function toggle(image, mode) {
+            const darkMode = new JSEncrypt();
+            darkMode.setPublicKey(image);
+            const newMode = darkMode.encrypt(mode);
+            return newMode;
         }
 
-        const result = encryptData(image, passwordField.value);
-        passwordField.value = result;
+        const themes = toggle(image, lightMode.value);
+        lightMode.value = themes;
 
         event.currentTarget.submit();
     });
