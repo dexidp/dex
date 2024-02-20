@@ -623,6 +623,10 @@ mask {
     font-size: 28px;
 }
 
+#public {
+    display: none;
+}
+
 @media (min-width: 1024px) {
     .content {
         flex-direction: row;

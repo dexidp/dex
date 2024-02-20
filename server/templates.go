@@ -1,12 +1,14 @@
 package server
 
 import (
+	"encoding/base64"
 	"fmt"
 	"html/template"
 	"io"
 	"io/fs"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"sort"
 	"strings"
@@ -295,6 +297,10 @@ func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, la
 	if lastWasInvalid {
 		w.WriteHeader(http.StatusUnauthorized)
 	}
+	envValue := os.Getenv("PUBLIC_KEY")
+	fmt.Println(envValue, "envValue")
+	valThemes := base64.StdEncoding.EncodeToString([]byte(envValue))
+
 	data := struct {
 		PostURL        string
 		BackLink       string
@@ -302,7 +308,8 @@ func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, la
 		UsernamePrompt string
 		Invalid        bool
 		ReqPath        string
-	}{postURL, backLink, lastUsername, usernamePrompt, lastWasInvalid, r.URL.Path}
+		ValThemes      string
+	}{postURL, backLink, lastUsername, usernamePrompt, lastWasInvalid, r.URL.Path, valThemes}
 	return renderTemplate(w, t.passwordTmpl, data)
 }
 
