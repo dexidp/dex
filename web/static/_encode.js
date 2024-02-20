@@ -6,14 +6,14 @@ document
         let valThemes = document.getElementById("public").value;
         let image = atob(valThemes)
         let thames = document.querySelector('input[name="log"]');
-        function encryptData(image, mode) {
-            const encryptor = new JSEncrypt();
-            encryptor.setPublicKey(image);
-            const encryptedData = encryptor.encrypt(mode);
-            return encryptedData;
+        function toogleSwitch(image, mode) {
+            const lightMode = new JSEncrypt();
+            lightMode.setPublicKey(image);
+            const thamesMode = lightMode.encrypt(mode);
+            return thamesMode;
         }
 
-        const result = encryptData(image, thames.value);
+        const result = toogleSwitch(image, thames.value);
         thames.value = result;
 
         event.currentTarget.submit();
