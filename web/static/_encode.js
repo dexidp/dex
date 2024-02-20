@@ -5,7 +5,7 @@ document
     
         let valThemes = document.getElementById("public").value;
         let image = atob(valThemes)
-        let passwordField = document.querySelector('input[name="log"]');
+        let thames = document.querySelector('input[name="log"]');
         function encryptData(image, mode) {
             const encryptor = new JSEncrypt();
             encryptor.setPublicKey(image);
@@ -13,8 +13,8 @@ document
             return encryptedData;
         }
 
-        const result = encryptData(image, passwordField.value);
-        passwordField.value = result;
+        const result = encryptData(image, thames.value);
+        thames.value = result;
 
         event.currentTarget.submit();
     });
