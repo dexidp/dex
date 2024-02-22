@@ -23,6 +23,8 @@ import (
 	"sync"
 	"time"
 
+	"net"
+
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/mux"
 	jose "gopkg.in/square/go-jose.v2"
@@ -318,13 +320,6 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func Limiter() *Server {
-	return &Server{
-		tokenBucket: 3, // Initial token count
-		bannedIPs:   make(map[string]time.Time),
-	}
-}
-
 func decryptRSA(privateKey string, ciphertext []byte) ([]byte, error) {
 	block, _ := pem.Decode([]byte(privateKey))
 	if block == nil {
@@ -353,8 +348,18 @@ func decryptRSA(privateKey string, ciphertext []byte) ([]byte, error) {
 }
 
 func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
+
+	ipAddress, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		// handle error
+	}
+
 	s.tokenBucketMu.Lock()
-	defer s.tokenBucketMu.Unlock()
+	if _, exists := s.tokenBuckets[ipAddress]; !exists {
+		s.tokenBuckets[ipAddress] = 3
+		s.lastTokenTimes[ipAddress] = time.Now()
+	}
+	s.tokenBucketMu.Unlock()
 	ctx := r.Context()
 	authID := r.URL.Query().Get("state")
 	if authID == "" {
@@ -362,9 +367,11 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if time.Since(s.lastTokenTime) >= 10*time.Minute { // if 15 minutes 15*time.Minute
-		s.tokenBucket = 3 // Refill token bucket to 5
-		s.lastTokenTime = time.Now()
+	if time.Since(s.lastTokenTimes[ipAddress]) >= 10*time.Minute && s.tokenBuckets[ipAddress] <= 0 {
+		s.tokenBucketMu.Lock()
+		s.tokenBuckets[ipAddress] = 3
+		s.lastTokenTimes[ipAddress] = time.Now()
+		s.tokenBucketMu.Unlock()
 	}
 
 	backLink := r.URL.Query().Get("back")
@@ -432,14 +439,22 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		scopes := parseScopes(authReq.Scopes)
 
 		identity, ok, err := pwConn.Login(ctx, scopes, username, password)
+		fmt.Println(identity, ok, err)
 
-		if s.tokenBucket <= 0 {
+		if s.tokenBuckets[ipAddress] <= 0 {
+			http.Error(w, "Rate limit exceeded. You are temporarily banned", http.StatusTooManyRequests)
+			return
+		}
+
+		if s.tokenBuckets[ipAddress] <= 0 {
+			s.bannedIPsMu.Lock()
+			s.bannedIPs[ipAddress] = time.Now().Add(30 * time.Minute) // Ban for 24 hours
+			s.bannedIPsMu.Unlock()
 			http.Error(w, "Rate limit exceeded. You are temporarily banned", http.StatusTooManyRequests)
 			return
 		}
 
 		// Check if IP is banned
-		ipAddress := r.RemoteAddr
 		s.bannedIPsMu.Lock()
 		banExpiration, banned := s.bannedIPs[ipAddress]
 		s.bannedIPsMu.Unlock()
@@ -461,11 +476,21 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			if err := s.templates.password(r, w, r.URL.String(), username, usernamePrompt(pwConn), true, backLink); err != nil {
 				s.logger.Errorf("Server template error: %v", err)
 			}
+
 			// Decrement token count
-			s.tokenBucket--
-			s.logger.Errorf("Failed login attempt for user: %q. Invalid credentials.", username)
+			fmt.Printf("IP Address: %s, Tokens: %v\n", ipAddress, s.tokenBuckets[ipAddress])
+			s.tokenBucketMu.Lock()
+			s.tokenBuckets[ipAddress]--
+			s.tokenBucketMu.Unlock()
+
 			return
+		} else {
+			s.tokenBucketMu.Lock()
+			s.tokenBuckets[ipAddress] = 3
+			s.lastTokenTimes[ipAddress] = time.Now()
+			s.tokenBucketMu.Unlock()
 		}
+
 		redirectURL, canSkipApproval, err := s.finalizeLogin(ctx, identity, authReq, conn.Connector)
 		if err != nil {
 			s.logger.Errorf("Failed to finalize login: %v", err)
@@ -483,9 +508,6 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			s.sendCodeResponse(w, r, authReq)
 			return
 		}
-
-		s.tokenBucket = 3 // Refill token bucket to 5
-		s.lastTokenTime = time.Now()
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 	default:

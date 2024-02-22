@@ -152,12 +152,12 @@ func value(val, defaultValue time.Duration) time.Duration {
 
 // Server is the top level object.
 type Server struct {
-	tokenBucketMu sync.Mutex
-	tokenBucket   int
-	lastTokenTime time.Time
-	bannedIPsMu   sync.Mutex
-	bannedIPs     map[string]time.Time
-	issuerURL     url.URL
+	tokenBucketMu  sync.Mutex
+	tokenBuckets   map[string]int
+	lastTokenTimes map[string]time.Time
+	bannedIPsMu    sync.Mutex
+	bannedIPs      map[string]time.Time
+	issuerURL      url.URL
 
 	// mutex for the connectors map.
 	mu sync.Mutex
@@ -293,6 +293,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 
 	s := &Server{
+		tokenBuckets:           make(map[string]int),
+		lastTokenTimes:         make(map[string]time.Time),
 		issuerURL:              *issuerURL,
 		connectors:             make(map[string]Connector),
 		storage:                newKeyCacher(c.Storage, now),
