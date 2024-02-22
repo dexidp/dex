@@ -7,7 +7,7 @@ require (
 	github.com/dexidp/dex/api/v2 v2.1.0
 	github.com/spf13/cobra v1.8.0
 	golang.org/x/oauth2 v0.17.0
-	google.golang.org/grpc v1.61.1
+	google.golang.org/grpc v1.62.0
 )
 
 require (
@@ -20,6 +20,6 @@ require (
 	golang.org/x/sys v0.17.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20231106174013-bbf56f31fb17 // indirect
-	google.golang.org/protobuf v1.31.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 // indirect
+	google.golang.org/protobuf v1.32.0 // indirect
 )
