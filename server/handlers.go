@@ -23,8 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"net"
-
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/mux"
 	jose "gopkg.in/square/go-jose.v2"
@@ -349,9 +347,11 @@ func decryptRSA(privateKey string, ciphertext []byte) ([]byte, error) {
 
 func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 
-	ipAddress, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
+	ipAddress := r.Header.Get("X-Real-IP")
+	if ipAddress == "" {
 		// handle error
+		fmt.Println("X-Real-IP header is not set")
+		return
 	}
 
 	s.tokenBucketMu.Lock()
@@ -448,7 +448,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 
 		if s.tokenBuckets[ipAddress] <= 0 {
 			s.bannedIPsMu.Lock()
-			s.bannedIPs[ipAddress] = time.Now().Add(30 * time.Minute) // Ban for 24 hours
+			s.bannedIPs[ipAddress] = time.Now().Add(30 * time.Minute)
 			s.bannedIPsMu.Unlock()
 			http.Error(w, "Rate limit exceeded. You are temporarily banned", http.StatusTooManyRequests)
 			return
