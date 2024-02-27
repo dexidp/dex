@@ -11,7 +11,7 @@
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        buildDeps = with pkgs; [ git go_1_20 gnumake ];
+        buildDeps = with pkgs; [ git go_1_21 gnumake ];
         devDeps = with pkgs;
           buildDeps ++ [
             golangci-lint
