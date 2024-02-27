@@ -18,14 +18,14 @@ export GOBIN=$(PWD)/bin
 LD_FLAGS="-w -X main.version=$(VERSION)"
 
 # Dependency versions
-GOLANGCI_VERSION   = 1.55.2
-GOTESTSUM_VERSION ?= 1.9.0
+GOLANGCI_VERSION   = 1.56.2
+GOTESTSUM_VERSION ?= 1.10.1
 
-PROTOC_VERSION             = 21.12
-PROTOC_GEN_GO_VERSION      = 1.28.1
+PROTOC_VERSION             = 24.4
+PROTOC_GEN_GO_VERSION      = 1.32.0
 PROTOC_GEN_GO_GRPC_VERSION = 1.3.0
 
-KIND_VERSION    = 0.17.0
+KIND_VERSION    = 0.22.0
 KIND_NODE_IMAGE = "kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5"
 KIND_TMP_DIR    = "$(PWD)/bin/test/dex-kind-kubeconfig"
 
