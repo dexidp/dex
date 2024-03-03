@@ -34,6 +34,9 @@ type subtest struct {
 	password string
 	groups   bool
 
+	// for simple bind.
+	basedn string
+
 	// Expected result of the login.
 	wantErr   bool
 	wantBadPW bool
@@ -82,6 +85,67 @@ func TestQuery(t *testing.T) {
 			username:  "idontexist",
 			password:  "foo",
 			wantBadPW: true, // Want invalid password, not a query error.
+		},
+	}
+
+	runTests(t, connectLDAP, c, tests)
+}
+
+func TestQueryWithSimpleBind(t *testing.T) {
+	c := &Config{}
+	c.BindDNPrefix = "cn="
+	c.BindDNSuffix = ",ou=People,ou=TestQueryWithSimpleBind,dc=example,dc=org"
+
+	c.UserSearch.NameAttr = "cn"
+	c.UserSearch.EmailAttr = "mail"
+	c.UserSearch.IDAttr = "DN"
+	c.UserSearch.Username = "cn"
+
+	tests := []subtest{
+		{
+			name:     "validpassword",
+			username: "jane",
+			password: "foo",
+			basedn:   "cn=jane,ou=People,ou=TestQueryWithSimpleBind,dc=example,dc=org",
+			want: connector.Identity{
+				UserID:        "cn=jane,ou=People,ou=TestQueryWithSimpleBind,dc=example,dc=org",
+				Username:      "jane",
+				Email:         "janedoe@example.com",
+				EmailVerified: true,
+			},
+		},
+		{
+			name:     "validpassword2",
+			username: "john",
+			password: "bar",
+			basedn:   "cn=john,ou=People,ou=TestQueryWithSimpleBind,dc=example,dc=org",
+			want: connector.Identity{
+				UserID:        "cn=john,ou=People,ou=TestQueryWithSimpleBind,dc=example,dc=org",
+				Username:      "john",
+				Email:         "johndoe@example.com",
+				EmailVerified: true,
+			},
+		},
+		{
+			name:     "invalidbasedn",
+			username: "jane",
+			password: "foo",
+			basedn:   "cn=invaliduser,ou=People,ou=TestQueryWithSimpleBind,dc=example,dc=org",
+			wantErr:  true, // bind error.
+		},
+		{
+			name:     "invalidpassword",
+			username: "jane",
+			password: "badpassword",
+			basedn:   "cn=idontexist,ou=People,ou=TestQueryWithSimpleBind,dc=example,dc=org",
+			wantErr:  true, // bind error.
+		},
+		{
+			name:     "invaliduser",
+			username: "idontexist",
+			password: "foo",
+			basedn:   "cn=idontexist,ou=People,ou=TestQueryWithSimpleBind,dc=example,dc=org",
+			wantErr:  true, // bind error.
 		},
 	}
 
@@ -552,19 +616,27 @@ func runTests(t *testing.T, connMethod connectionMethod, config *Config, tests [
 		c.InsecureNoSSL = true
 	}
 
-	c.BindDN = "cn=admin,dc=example,dc=org"
-	c.BindPW = "admin"
-
-	l := &logrus.Logger{Out: io.Discard, Formatter: &logrus.TextFormatter{}}
-
-	conn, err := c.openConnector(l)
-	if err != nil {
-		t.Errorf("open connector: %v", err)
-	}
-
 	for _, test := range tests {
 		if test.name == "" {
 			t.Fatal("go a subtest with no name")
+		}
+
+		c.BindDN = "cn=admin,dc=example,dc=org"
+		c.BindPW = "admin"
+		if c.BindDNPrefix != "" || c.BindDNSuffix != "" {
+			c.BindDN = "UNSPECIFIED"
+			c.BindPW = "UNSPECIFIED"
+		}
+
+		if test.basedn != "" {
+			c.UserSearch.BaseDN = test.basedn
+		}
+
+		l := &logrus.Logger{Out: io.Discard, Formatter: &logrus.TextFormatter{}}
+
+		conn, err := c.openConnector(l)
+		if err != nil {
+			t.Errorf("open connector: %v", err)
 		}
 
 		// Run the subtest.
