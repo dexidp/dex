@@ -137,6 +137,27 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 		server.refreshTokenPolicy.now = config.Now
 	}
 
+	// Wait for connectors initialization
+	ticker := time.NewTicker(time.Millisecond)
+
+	attempts := 0
+	for {
+		attempts++
+		if attempts > 1000 {
+			t.Fatal("failed waiting for connectors initialization")
+		}
+		<-ticker.C
+
+		server.mu.Lock()
+		containersLen := len(server.connectors)
+		server.mu.Unlock()
+
+		if containersLen > 0 {
+			break
+		}
+	}
+	ticker.Stop()
+
 	return s, server
 }
 
@@ -750,7 +771,10 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			})
 			defer httpServer.Close()
 
+			s.mu.Lock()
 			mockConn := s.connectors["mock"]
+			s.mu.Unlock()
+
 			conn = mockConn.Connector.(*mock.Callback)
 
 			// Query server's provider metadata.
@@ -1620,7 +1644,9 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				})
 				defer httpServer.Close()
 
+				s.mu.Lock()
 				mockConn := s.connectors["mock"]
+				s.mu.Unlock()
 				conn = mockConn.Connector.(*mock.Callback)
 
 				p, err := oidc.NewProvider(ctx, httpServer.URL)
