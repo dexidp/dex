@@ -5,6 +5,6 @@ package runtime
 // The schema-stitching logic is generated in github.com/dexidp/dex/storage/ent/db/runtime.go
 
 const (
-	Version = "v0.12.4"                                         // Version of ent codegen.
-	Sum     = "h1:LddPnAyxls/O7DTXZvUGDj0NZIdGSu317+aoNLJWbD8=" // Sum of ent codegen.
+	Version = "v0.13.1"                                         // Version of ent codegen.
+	Sum     = "h1:uD8QwN1h6SNphdCCzmkMN3feSUzNnVvV/WIkHKMbzOE=" // Sum of ent codegen.
 )

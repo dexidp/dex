@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
@@ -64,10 +64,16 @@ func (c Config) Validate() error {
 		{c.Web.HTTP == "" && c.Web.HTTPS == "", "must supply a HTTP/HTTPS  address to listen on"},
 		{c.Web.HTTPS != "" && c.Web.TLSCert == "", "no cert specified for HTTPS"},
 		{c.Web.HTTPS != "" && c.Web.TLSKey == "", "no private key specified for HTTPS"},
+		{c.Web.TLSMinVersion != "" && c.Web.TLSMinVersion != "1.2" && c.Web.TLSMinVersion != "1.3", "supported TLS versions are: 1.2, 1.3"},
+		{c.Web.TLSMaxVersion != "" && c.Web.TLSMaxVersion != "1.2" && c.Web.TLSMaxVersion != "1.3", "supported TLS versions are: 1.2, 1.3"},
+		{c.Web.TLSMaxVersion != "" && c.Web.TLSMinVersion != "" && c.Web.TLSMinVersion > c.Web.TLSMaxVersion, "TLSMinVersion greater than TLSMaxVersion"},
 		{c.GRPC.TLSCert != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
 		{c.GRPC.TLSKey != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
 		{(c.GRPC.TLSCert == "") != (c.GRPC.TLSKey == ""), "must specific both a gRPC TLS cert and key"},
 		{c.GRPC.TLSCert == "" && c.GRPC.TLSClientCA != "", "cannot specify gRPC TLS client CA without a gRPC TLS cert"},
+		{c.GRPC.TLSMinVersion != "" && c.GRPC.TLSMinVersion != "1.2" && c.GRPC.TLSMinVersion != "1.3", "supported TLS versions are: 1.2, 1.3"},
+		{c.GRPC.TLSMaxVersion != "" && c.GRPC.TLSMaxVersion != "1.2" && c.GRPC.TLSMaxVersion != "1.3", "supported TLS versions are: 1.2, 1.3"},
+		{c.GRPC.TLSMaxVersion != "" && c.GRPC.TLSMinVersion != "" && c.GRPC.TLSMinVersion > c.GRPC.TLSMaxVersion, "TLSMinVersion greater than TLSMaxVersion"},
 	}
 
 	var checkErrors []string
@@ -151,7 +157,10 @@ type Web struct {
 	HTTPS          string   `json:"https"`
 	TLSCert        string   `json:"tlsCert"`
 	TLSKey         string   `json:"tlsKey"`
+	TLSMinVersion  string   `json:"tlsMinVersion"`
+	TLSMaxVersion  string   `json:"tlsMaxVersion"`
 	AllowedOrigins []string `json:"allowedOrigins"`
+	AllowedHeaders []string `json:"allowedHeaders"`
 }
 
 // Telemetry is the config format for telemetry including the HTTP server config.
@@ -164,11 +173,13 @@ type Telemetry struct {
 // GRPC is the config for the gRPC API.
 type GRPC struct {
 	// The port to listen on.
-	Addr        string `json:"addr"`
-	TLSCert     string `json:"tlsCert"`
-	TLSKey      string `json:"tlsKey"`
-	TLSClientCA string `json:"tlsClientCA"`
-	Reflection  bool   `json:"reflection"`
+	Addr          string `json:"addr"`
+	TLSCert       string `json:"tlsCert"`
+	TLSKey        string `json:"tlsKey"`
+	TLSClientCA   string `json:"tlsClientCA"`
+	TLSMinVersion string `json:"tlsMinVersion"`
+	TLSMaxVersion string `json:"tlsMaxVersion"`
+	Reflection    bool   `json:"reflection"`
 }
 
 // Storage holds app's storage configuration.
@@ -196,12 +207,10 @@ var (
 
 func getORMBasedSQLStorage(normal, entBased StorageConfig) func() StorageConfig {
 	return func() StorageConfig {
-		switch os.Getenv("DEX_ENT_ENABLED") {
-		case "true", "yes":
+		if featureflags.EntEnabled.Enabled() {
 			return entBased
-		default:
-			return normal
 		}
+		return normal
 	}
 }
 
@@ -212,19 +221,6 @@ var storages = map[string]func() StorageConfig{
 	"sqlite3":    getORMBasedSQLStorage(&sql.SQLite3{}, &ent.SQLite3{}),
 	"postgres":   getORMBasedSQLStorage(&sql.Postgres{}, &ent.Postgres{}),
 	"mysql":      getORMBasedSQLStorage(&sql.MySQL{}, &ent.MySQL{}),
-}
-
-// isExpandEnvEnabled returns if os.ExpandEnv should be used for each storage and connector config.
-// Disabling this feature avoids surprises e.g. if the LDAP bind password contains a dollar character.
-// Returns false if the env variable "DEX_EXPAND_ENV" is a falsy string, e.g. "false".
-// Returns true if the env variable is unset or a truthy string, e.g. "true", or can't be parsed as bool.
-func isExpandEnvEnabled() bool {
-	enabled, err := strconv.ParseBool(os.Getenv("DEX_EXPAND_ENV"))
-	if err != nil {
-		// Unset, empty string or can't be parsed as bool: Default = true.
-		return true
-	}
-	return enabled
 }
 
 // UnmarshalJSON allows Storage to implement the unmarshaler interface to
@@ -245,7 +241,7 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 	storageConfig := f()
 	if len(store.Config) != 0 {
 		data := []byte(store.Config)
-		if isExpandEnvEnabled() {
+		if featureflags.ExpandEnv.Enabled() {
 			// Caution, we're expanding in the raw JSON/YAML source. This may not be what the admin expects.
 			data = []byte(os.ExpandEnv(string(store.Config)))
 		}
@@ -291,7 +287,7 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 	connConfig := f()
 	if len(conn.Config) != 0 {
 		data := []byte(conn.Config)
-		if isExpandEnvEnabled() {
+		if featureflags.ExpandEnv.Enabled() {
 			// Caution, we're expanding in the raw JSON/YAML source. This may not be what the admin expects.
 			data = []byte(os.ExpandEnv(string(conn.Config)))
 		}
