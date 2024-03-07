@@ -13,6 +13,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/ghodss/yaml v1.0.0
+	github.com/go-jose/go-jose/v4 v4.0.0
 	github.com/go-ldap/ldap/v3 v3.4.6
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/gorilla/handlers v1.5.2
@@ -38,7 +39,6 @@ require (
 	google.golang.org/api v0.167.0
 	google.golang.org/grpc v1.62.0
 	google.golang.org/protobuf v1.32.0
-	gopkg.in/square/go-jose.v2 v2.6.0
 )
 
 require (
