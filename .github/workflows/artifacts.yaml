@@ -60,7 +60,7 @@ jobs:
         uses: docker/setup-buildx-action@0d103c3126aa41d772a8362f6aa67afac040f80c # v3.1.0
 
       - name: Set up Syft
-        uses: anchore/sbom-action/download-syft@b6a39da80722a2cb0ef5d197531764a89b5d48c3 # v0.15.8
+        uses: anchore/sbom-action/download-syft@9fece9e20048ca9590af301449208b2b8861333b # v0.15.9
 
       - name: Install cosign
         uses: sigstore/cosign-installer@e1523de7571e31dbe865fd2e80c5c7c23ae71eb4 # v3.4.0
