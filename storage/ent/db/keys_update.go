@@ -15,7 +15,7 @@ import (
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/keys"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
-	jose "gopkg.in/square/go-jose.v2"
+	jose "github.com/go-jose/go-jose/v4"
 )
 
 // KeysUpdate is the builder for updating Keys entities.
