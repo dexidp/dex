@@ -460,6 +460,7 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 
 func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (ident connector.Identity, validPass bool, err error) {
 	// make this check to avoid unauthenticated bind to the LDAP server.
+
 	if password == "" {
 		return connector.Identity{}, false, nil
 	}
@@ -470,6 +471,9 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 		incorrectPass = false
 		user          ldap.Entry
 	)
+
+	username = ldap.EscapeFilter(username)
+	password = ldap.EscapeFilter(password)
 
 	err = c.do(ctx, func(conn *ldap.Conn) error {
 		entry, found, err := c.userEntry(conn, username)
