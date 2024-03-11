@@ -23,7 +23,7 @@ import (
 	"github.com/dexidp/dex/storage/ent/db/password"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
-	"github.com/go-jose/go-jose/v4"
+	jose "github.com/go-jose/go-jose/v4"
 )
 
 const (
