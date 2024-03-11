@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
@@ -153,12 +154,59 @@ type OAuth2 struct {
 type Web struct {
 	HTTP           string   `json:"http"`
 	HTTPS          string   `json:"https"`
+	Headers        Headers  `json:"headers"`
 	TLSCert        string   `json:"tlsCert"`
 	TLSKey         string   `json:"tlsKey"`
 	TLSMinVersion  string   `json:"tlsMinVersion"`
 	TLSMaxVersion  string   `json:"tlsMaxVersion"`
 	AllowedOrigins []string `json:"allowedOrigins"`
 	AllowedHeaders []string `json:"allowedHeaders"`
+}
+
+type Headers struct {
+	// Set the Content-Security-Policy header to HTTP responses.
+	// Unset if blank.
+	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy
+	ContentSecurityPolicy string `json:"Content-Security-Policy"`
+	// Set the X-Frame-Options header to HTTP responses.
+	// Unset if blank. Accepted values are deny and sameorigin.
+	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options
+	XFrameOptions string `json:"X-Frame-Options"`
+	// Set the X-Content-Type-Options header to HTTP responses.
+	// Unset if blank. Accepted value is nosniff.
+	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Content-Type-Options
+	XContentTypeOptions string `json:"X-Content-Type-Options"`
+	// Set the X-XSS-Protection header to all responses.
+	// Unset if blank.
+	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-XSS-Protection
+	XXSSProtection string `json:"X-XSS-Protection"`
+	// Set the Strict-Transport-Security header to HTTP responses.
+	// Unset if blank.
+	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security
+	StrictTransportSecurity string `json:"Strict-Transport-Security"`
+}
+
+func (h *Headers) ToHTTPHeader() http.Header {
+	if h == nil {
+		return make(map[string][]string)
+	}
+	header := make(map[string][]string)
+	if h.ContentSecurityPolicy != "" {
+		header["Content-Security-Policy"] = []string{h.ContentSecurityPolicy}
+	}
+	if h.XFrameOptions != "" {
+		header["X-Frame-Options"] = []string{h.XFrameOptions}
+	}
+	if h.XContentTypeOptions != "" {
+		header["X-Content-Type-Options"] = []string{h.XContentTypeOptions}
+	}
+	if h.XXSSProtection != "" {
+		header["X-XSS-Protection"] = []string{h.XXSSProtection}
+	}
+	if h.StrictTransportSecurity != "" {
+		header["Strict-Transport-Security"] = []string{h.StrictTransportSecurity}
+	}
+	return header
 }
 
 // Telemetry is the config format for telemetry including the HTTP server config.
