@@ -92,7 +92,7 @@ func TestQuery(t *testing.T) {
 		{
 			name:      "invalid wildcard password",
 			username:  "john",
-			password:  "*",  //wildcard password is not allowed
+			password:  "*",  // wildcard password is not allowed
 			wantBadPW: true, // Want invalid password, not a query error.
 		},
 	}
