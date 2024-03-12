@@ -12,9 +12,9 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/go-jose/go-jose/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
 )
