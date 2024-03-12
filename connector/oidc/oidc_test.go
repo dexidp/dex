@@ -17,8 +17,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/square/go-jose.v2"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/connector"
 )
@@ -582,6 +583,91 @@ func TestTokenIdentity(t *testing.T) {
 			expectEquals(t, identity.Username, "namevalue")
 		})
 	}
+}
+
+func TestPromptType(t *testing.T) {
+	pointer := func(s string) *string {
+		return &s
+	}
+
+	tests := []struct {
+		name       string
+		promptType *string
+		res        string
+	}{
+		{name: "none", promptType: pointer("none"), res: "none"},
+		{name: "provided empty string", promptType: pointer(""), res: ""},
+		{name: "login", promptType: pointer("login"), res: "login"},
+		{name: "consent", promptType: pointer("consent"), res: "consent"},
+		{name: "default value", promptType: nil, res: "consent"},
+	}
+
+	testServer, err := setupServer(nil, true)
+	require.NoError(t, err)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, err := newConnector(Config{
+				Issuer:     testServer.URL,
+				Scopes:     []string{"openid", "groups"},
+				PromptType: tc.promptType,
+			})
+			require.NoError(t, err)
+
+			require.Equal(t, tc.res, conn.promptType)
+		})
+	}
+}
+
+func TestProviderOverride(t *testing.T) {
+	testServer, err := setupServer(map[string]any{
+		"sub":  "subvalue",
+		"name": "namevalue",
+	}, true)
+	if err != nil {
+		t.Fatal("failed to setup test server", err)
+	}
+
+	t.Run("No override", func(t *testing.T) {
+		conn, err := newConnector(Config{
+			Issuer: testServer.URL,
+			Scopes: []string{"openid", "groups"},
+		})
+		if err != nil {
+			t.Fatal("failed to create new connector", err)
+		}
+
+		expAuth := fmt.Sprintf("%s/authorize", testServer.URL)
+		if conn.provider.Endpoint().AuthURL != expAuth {
+			t.Fatalf("unexpected auth URL: %s, expected: %s\n", conn.provider.Endpoint().AuthURL, expAuth)
+		}
+
+		expToken := fmt.Sprintf("%s/token", testServer.URL)
+		if conn.provider.Endpoint().TokenURL != expToken {
+			t.Fatalf("unexpected token URL: %s, expected: %s\n", conn.provider.Endpoint().TokenURL, expToken)
+		}
+	})
+
+	t.Run("Override", func(t *testing.T) {
+		conn, err := newConnector(Config{
+			Issuer:                     testServer.URL,
+			Scopes:                     []string{"openid", "groups"},
+			ProviderDiscoveryOverrides: ProviderDiscoveryOverrides{TokenURL: "/test1", AuthURL: "/test2"},
+		})
+		if err != nil {
+			t.Fatal("failed to create new connector", err)
+		}
+
+		expAuth := "/test2"
+		if conn.provider.Endpoint().AuthURL != expAuth {
+			t.Fatalf("unexpected auth URL: %s, expected: %s\n", conn.provider.Endpoint().AuthURL, expAuth)
+		}
+
+		expToken := "/test1"
+		if conn.provider.Endpoint().TokenURL != expToken {
+			t.Fatalf("unexpected token URL: %s, expected: %s\n", conn.provider.Endpoint().TokenURL, expToken)
+		}
+	})
 }
 
 func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Server, error) {
