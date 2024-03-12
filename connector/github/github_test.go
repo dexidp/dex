@@ -31,17 +31,17 @@ func TestUserGroups(t *testing.T) {
 		},
 		"/user/orgs?since=2": {data: []org{{Login: "org-3"}}},
 		"/user/teams": {
-			data: []team{
-				{Name: "team-1", Org: org{Login: "org-1"}},
-				{Name: "team-2", Org: org{Login: "org-1"}},
+			data: []teamWithParent{
+				{team: team{Name: "team-1", Org: org{Login: "org-1"}}, Parent: &team{Name: "team-0", Org: org{Login: "org-1"}}},
+				{team: team{Name: "team-2", Org: org{Login: "org-1"}}, Parent: &team{Name: "team-0", Org: org{Login: "org-1"}}},
 			},
 			nextLink: "/user/teams?since=2",
 			lastLink: "/user/teams?since=2",
 		},
 		"/user/teams?since=2": {
-			data: []team{
-				{Name: "team-3", Org: org{Login: "org-1"}},
-				{Name: "team-4", Org: org{Login: "org-2"}},
+			data: []teamWithParent{
+				{team: team{Name: "team-3", Org: org{Login: "org-1"}}, Parent: nil},
+				{team: team{Name: "team-4", Org: org{Login: "org-2"}}, Parent: nil},
 			},
 			nextLink: "/user/teams?since=2",
 			lastLink: "/user/teams?since=2",
@@ -55,6 +55,7 @@ func TestUserGroups(t *testing.T) {
 	expectNil(t, err)
 	expectEquals(t, groups, []string{
 		"org-1",
+		"org-1:team-0",
 		"org-1:team-1",
 		"org-1:team-2",
 		"org-1:team-3",
@@ -67,7 +68,7 @@ func TestUserGroups(t *testing.T) {
 func TestUserGroupsWithoutOrgs(t *testing.T) {
 	s := newTestServer(map[string]testResponse{
 		"/user/orgs":  {data: []org{}},
-		"/user/teams": {data: []team{}},
+		"/user/teams": {data: []teamWithParent{}},
 	})
 	defer s.Close()
 
@@ -84,8 +85,8 @@ func TestUserGroupsWithTeamNameFieldConfig(t *testing.T) {
 			data: []org{{Login: "org-1"}},
 		},
 		"/user/teams": {
-			data: []team{
-				{Name: "Team 1", Slug: "team-1", Org: org{Login: "org-1"}},
+			data: []teamWithParent{
+				{team: team{Name: "Team 1", Slug: "team-1", Org: org{Login: "org-1"}}, Parent: nil},
 			},
 		},
 	})
@@ -107,8 +108,8 @@ func TestUserGroupsWithTeamNameAndSlugFieldConfig(t *testing.T) {
 			data: []org{{Login: "org-1"}},
 		},
 		"/user/teams": {
-			data: []team{
-				{Name: "Team 1", Slug: "team-1", Org: org{Login: "org-1"}},
+			data: []teamWithParent{
+				{team: team{Name: "Team 1", Slug: "team-1", Org: org{Login: "org-1"}}, Parent: nil},
 			},
 		},
 	})
