@@ -17,8 +17,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/square/go-jose.v2"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/connector"
 )
@@ -580,6 +581,40 @@ func TestTokenIdentity(t *testing.T) {
 			// assert identity
 			expectEquals(t, identity.UserID, "subvalue")
 			expectEquals(t, identity.Username, "namevalue")
+		})
+	}
+}
+
+func TestPromptType(t *testing.T) {
+	pointer := func(s string) *string {
+		return &s
+	}
+
+	tests := []struct {
+		name       string
+		promptType *string
+		res        string
+	}{
+		{name: "none", promptType: pointer("none"), res: "none"},
+		{name: "provided empty string", promptType: pointer(""), res: ""},
+		{name: "login", promptType: pointer("login"), res: "login"},
+		{name: "consent", promptType: pointer("consent"), res: "consent"},
+		{name: "default value", promptType: nil, res: "consent"},
+	}
+
+	testServer, err := setupServer(nil, true)
+	require.NoError(t, err)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, err := newConnector(Config{
+				Issuer:     testServer.URL,
+				Scopes:     []string{"openid", "groups"},
+				PromptType: tc.promptType,
+			})
+			require.NoError(t, err)
+
+			require.Equal(t, tc.res, conn.promptType)
 		})
 	}
 }

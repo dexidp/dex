@@ -76,7 +76,7 @@ type Config struct {
 	UserNameKey string `json:"userNameKey"`
 
 	// PromptType will be used fot the prompt parameter (when offline_access, by default prompt=consent)
-	PromptType string `json:"promptType"`
+	PromptType *string `json:"promptType"`
 
 	// OverrideClaimMapping will be used to override the options defined in claimMappings.
 	// i.e. if there are 'email' and `preferred_email` claims available, by default Dex will always use the `email` claim independent of the ClaimMapping.EmailKey.
@@ -242,8 +242,9 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 	}
 
 	// PromptType should be "consent" by default, if not set
-	if c.PromptType == "" {
-		c.PromptType = "consent"
+	promptType := "consent"
+	if c.PromptType != nil {
+		promptType = *c.PromptType
 	}
 
 	clientID := c.ClientID
@@ -268,7 +269,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		allowedGroups:             c.AllowedGroups,
 		acrValues:                 c.AcrValues,
 		getUserInfo:               c.GetUserInfo,
-		promptType:                c.PromptType,
+		promptType:                promptType,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
 		overrideClaimMapping:      c.OverrideClaimMapping,

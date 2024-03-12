@@ -23,13 +23,13 @@ import (
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
-	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/mock"
@@ -1798,4 +1798,26 @@ func TestServerSupportedGrants(t *testing.T) {
 			require.Equal(t, tc.resGrants, srv.supportedGrantTypes)
 		})
 	}
+}
+
+func TestHeaders(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	httpServer, _ := newTestServer(ctx, t, func(c *Config) {
+		c.Headers = map[string][]string{
+			"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
+		}
+	})
+	defer httpServer.Close()
+
+	p, err := oidc.NewProvider(ctx, httpServer.URL)
+	if err != nil {
+		t.Fatalf("failed to get provider: %v", err)
+	}
+
+	resp, err := http.Get(p.Endpoint().TokenURL)
+	require.NoError(t, err)
+
+	require.Equal(t, "max-age=31536000; includeSubDomains", resp.Header.Get("Strict-Transport-Security"))
 }
