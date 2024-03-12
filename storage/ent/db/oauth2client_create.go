@@ -192,11 +192,15 @@ func (oc *OAuth2ClientCreate) createSpec() (*OAuth2Client, *sqlgraph.CreateSpec)
 // OAuth2ClientCreateBulk is the builder for creating many OAuth2Client entities in bulk.
 type OAuth2ClientCreateBulk struct {
 	config
+	err      error
 	builders []*OAuth2ClientCreate
 }
 
 // Save creates the OAuth2Client entities in the database.
 func (ocb *OAuth2ClientCreateBulk) Save(ctx context.Context) ([]*OAuth2Client, error) {
+	if ocb.err != nil {
+		return nil, ocb.err
+	}
 	specs := make([]*sqlgraph.CreateSpec, len(ocb.builders))
 	nodes := make([]*OAuth2Client, len(ocb.builders))
 	mutators := make([]Mutator, len(ocb.builders))

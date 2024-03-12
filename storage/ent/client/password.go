@@ -9,13 +9,13 @@ import (
 )
 
 // CreatePassword saves provided password into the database.
-func (d *Database) CreatePassword(password storage.Password) error {
+func (d *Database) CreatePassword(ctx context.Context, password storage.Password) error {
 	_, err := d.client.Password.Create().
 		SetEmail(password.Email).
 		SetHash(password.Hash).
 		SetUsername(password.Username).
 		SetUserID(password.UserID).
-		Save(context.TODO())
+		Save(ctx)
 	if err != nil {
 		return convertDBError("create password: %w", err)
 	}

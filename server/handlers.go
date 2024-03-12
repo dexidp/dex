@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -17,8 +18,8 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/gorilla/mux"
-	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
@@ -187,6 +188,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	authReq, err := s.parseAuthorizationRequest(r)
 	if err != nil {
 		s.logger.Errorf("Failed to parse authorization request: %v", err)
@@ -229,7 +231,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Actually create the auth request
 	authReq.Expiry = s.now().Add(s.authRequestsValidFor)
-	if err := s.storage.CreateAuthRequest(*authReq); err != nil {
+	if err := s.storage.CreateAuthRequest(ctx, *authReq); err != nil {
 		s.logger.Errorf("Failed to create authorization request: %v", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Failed to connect to the database.")
 		return
@@ -305,6 +307,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	authID := r.URL.Query().Get("state")
 	if authID == "" {
 		s.renderError(r, w, http.StatusBadRequest, "User session error.")
@@ -360,7 +363,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		password := r.FormValue("password")
 		scopes := parseScopes(authReq.Scopes)
 
-		identity, ok, err := pwConn.Login(r.Context(), scopes, username, password)
+		identity, ok, err := pwConn.Login(ctx, scopes, username, password)
 		if err != nil {
 			s.logger.Errorf("Failed to login user: %v", err)
 			s.renderError(r, w, http.StatusInternalServerError, fmt.Sprintf("Login error: %v", err))
@@ -370,9 +373,10 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			if err := s.templates.password(r, w, r.URL.String(), username, usernamePrompt(pwConn), true, backLink); err != nil {
 				s.logger.Errorf("Server template error: %v", err)
 			}
+			s.logger.Errorf("Failed login attempt for user: %q. Invalid credentials.", username)
 			return
 		}
-		redirectURL, canSkipApproval, err := s.finalizeLogin(identity, authReq, conn.Connector)
+		redirectURL, canSkipApproval, err := s.finalizeLogin(ctx, identity, authReq, conn.Connector)
 		if err != nil {
 			s.logger.Errorf("Failed to finalize login: %v", err)
 			s.renderError(r, w, http.StatusInternalServerError, "Login error.")
@@ -397,6 +401,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	var authID string
 	switch r.Method {
 	case http.MethodGet: // OAuth2 callback
@@ -471,7 +476,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	redirectURL, canSkipApproval, err := s.finalizeLogin(identity, authReq, conn.Connector)
+	redirectURL, canSkipApproval, err := s.finalizeLogin(ctx, identity, authReq, conn.Connector)
 	if err != nil {
 		s.logger.Errorf("Failed to finalize login: %v", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Login error.")
@@ -494,7 +499,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 
 // finalizeLogin associates the user's identity with the current AuthRequest, then returns
 // the approval page's path.
-func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (string, bool, error) {
+func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (string, bool, error) {
 	claims := storage.Claims{
 		UserID:            identity.UserID,
 		Username:          identity.Username,
@@ -539,6 +544,17 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 		return returnURL, false, nil
 	}
 
+	offlineAccessRequested := false
+	for _, scope := range authReq.Scopes {
+		if scope == scopeOfflineAccess {
+			offlineAccessRequested = true
+			break
+		}
+	}
+	if !offlineAccessRequested {
+		return returnURL, false, nil
+	}
+
 	// Try to retrieve an existing OfflineSession object for the corresponding user.
 	session, err := s.storage.GetOfflineSessions(identity.UserID, authReq.ConnectorID)
 	if err != nil {
@@ -555,7 +571,7 @@ func (s *Server) finalizeLogin(identity connector.Identity, authReq storage.Auth
 
 		// Create a new OfflineSession object for the user and add a reference object for
 		// the newly received refreshtoken.
-		if err := s.storage.CreateOfflineSessions(offlineSessions); err != nil {
+		if err := s.storage.CreateOfflineSessions(ctx, offlineSessions); err != nil {
 			s.logger.Errorf("failed to create offline session: %v", err)
 			return "", false, err
 		}
@@ -613,12 +629,6 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		// TODO: `finalizeLogin()` now sends code directly to client without going through this endpoint,
-		//		 the `if skipApproval { ... }` block needs to be removed after a grace period.
-		if s.skipApproval {
-			s.sendCodeResponse(w, r, authReq)
-			return
-		}
 		client, err := s.storage.GetClient(authReq.ClientID)
 		if err != nil {
 			s.logger.Errorf("Failed to get client %q: %v", authReq.ClientID, err)
@@ -638,6 +648,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest) {
+	ctx := r.Context()
 	if s.now().After(authReq.Expiry) {
 		s.renderError(r, w, http.StatusBadRequest, "User session has expired.")
 		return
@@ -690,7 +701,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 				ConnectorData: authReq.ConnectorData,
 				PKCE:          authReq.PKCE,
 			}
-			if err := s.storage.CreateAuthCode(code); err != nil {
+			if err := s.storage.CreateAuthCode(ctx, code); err != nil {
 				s.logger.Errorf("Failed to create auth code: %v", err)
 				s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 				return
@@ -865,6 +876,7 @@ func (s *Server) calculateCodeChallenge(codeVerifier, codeChallengeMethod string
 
 // handle an access token request https://tools.ietf.org/html/rfc6749#section-4.1.3
 func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client storage.Client) {
+	ctx := r.Context()
 	code := r.PostFormValue("code")
 	redirectURI := r.PostFormValue("redirect_uri")
 
@@ -915,7 +927,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		return
 	}
 
-	tokenResponse, err := s.exchangeAuthCode(w, authCode, client)
+	tokenResponse, err := s.exchangeAuthCode(ctx, w, authCode, client)
 	if err != nil {
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return
@@ -923,8 +935,8 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	s.writeAccessToken(w, tokenResponse)
 }
 
-func (s *Server) exchangeAuthCode(w http.ResponseWriter, authCode storage.AuthCode, client storage.Client) (*accessTokenResponse, error) {
-	accessToken, _, err := s.newAccessToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID, authCode.ConnectorData)
+func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, authCode storage.AuthCode, client storage.Client) (*accessTokenResponse, error) {
+	accessToken, _, err := s.newAccessToken(client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID)
 	if err != nil {
 		s.logger.Errorf("failed to create new access token: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -991,7 +1003,7 @@ func (s *Server) exchangeAuthCode(w http.ResponseWriter, authCode storage.AuthCo
 			return nil, err
 		}
 
-		if err := s.storage.CreateRefresh(refresh); err != nil {
+		if err := s.storage.CreateRefresh(ctx, refresh); err != nil {
 			s.logger.Errorf("failed to create refresh token: %v", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 			return nil, err
@@ -1036,7 +1048,7 @@ func (s *Server) exchangeAuthCode(w http.ResponseWriter, authCode storage.AuthCo
 
 			// Create a new OfflineSession object for the user and add a reference object for
 			// the newly received refreshtoken.
-			if err := s.storage.CreateOfflineSessions(offlineSessions); err != nil {
+			if err := s.storage.CreateOfflineSessions(ctx, offlineSessions); err != nil {
 				s.logger.Errorf("failed to create offline session: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 				deleteToken = true
@@ -1069,6 +1081,7 @@ func (s *Server) exchangeAuthCode(w http.ResponseWriter, authCode storage.AuthCo
 }
 
 func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	const prefix = "Bearer "
 
 	auth := r.Header.Get("authorization")
@@ -1080,7 +1093,7 @@ func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 	rawIDToken := auth[len(prefix):]
 
 	verifier := oidc.NewVerifier(s.issuerURL.String(), &storageKeySet{s.storage}, &oidc.Config{SkipClientIDCheck: true})
-	idToken, err := verifier.Verify(r.Context(), rawIDToken)
+	idToken, err := verifier.Verify(ctx, rawIDToken)
 	if err != nil {
 		s.tokenErrHelper(w, errAccessDenied, err.Error(), http.StatusForbidden)
 		return
@@ -1097,6 +1110,7 @@ func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, client storage.Client) {
+	ctx := r.Context()
 	// Parse the fields
 	if err := r.ParseForm(); err != nil {
 		s.tokenErrHelper(w, errInvalidRequest, "Couldn't parse data", http.StatusBadRequest)
@@ -1166,7 +1180,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	// Login
 	username := q.Get("username")
 	password := q.Get("password")
-	identity, ok, err := passwordConnector.Login(r.Context(), parseScopes(scopes), username, password)
+	identity, ok, err := passwordConnector.Login(ctx, parseScopes(scopes), username, password)
 	if err != nil {
 		s.logger.Errorf("Failed to login user: %v", err)
 		s.tokenErrHelper(w, errInvalidRequest, "Could not login user", http.StatusBadRequest)
@@ -1241,7 +1255,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 			return
 		}
 
-		if err := s.storage.CreateRefresh(refresh); err != nil {
+		if err := s.storage.CreateRefresh(ctx, refresh); err != nil {
 			s.logger.Errorf("failed to create refresh token: %v", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 			return
@@ -1287,7 +1301,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 
 			// Create a new OfflineSession object for the user and add a reference object for
 			// the newly received refreshtoken.
-			if err := s.storage.CreateOfflineSessions(offlineSessions); err != nil {
+			if err := s.storage.CreateOfflineSessions(ctx, offlineSessions); err != nil {
 				s.logger.Errorf("failed to create offline session: %v", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 				deleteToken = true

@@ -3,7 +3,7 @@ package etcd
 import (
 	"time"
 
-	jose "gopkg.in/square/go-jose.v2"
+	"github.com/go-jose/go-jose/v4"
 
 	"github.com/dexidp/dex/storage"
 )
@@ -268,6 +268,17 @@ type DeviceRequest struct {
 
 func fromStorageDeviceRequest(d storage.DeviceRequest) DeviceRequest {
 	return DeviceRequest{
+		UserCode:     d.UserCode,
+		DeviceCode:   d.DeviceCode,
+		ClientID:     d.ClientID,
+		ClientSecret: d.ClientSecret,
+		Scopes:       d.Scopes,
+		Expiry:       d.Expiry,
+	}
+}
+
+func toStorageDeviceRequest(d DeviceRequest) storage.DeviceRequest {
+	return storage.DeviceRequest{
 		UserCode:     d.UserCode,
 		DeviceCode:   d.DeviceCode,
 		ClientID:     d.ClientID,
