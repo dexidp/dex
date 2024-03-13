@@ -2,6 +2,7 @@
 # This is the canonical URL that all clients MUST use to refer to Dex. If a
 # path is provided, Dex's HTTP service will listen at a non-root URL.
 issuer: http://127.0.0.1:5556/dex
+# tokenURL: http://<alternate-token-endpoint-url>
 
 # The storage configuration determines where Dex stores its state.
 # Supported options include:
