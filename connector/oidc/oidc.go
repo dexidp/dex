@@ -2,13 +2,13 @@
 package oidc
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
-	"reflect"
 	"strings"
 	"time"
 
@@ -17,10 +17,10 @@ import (
 	groups_pkg "github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/httpclient"
 	"github.com/dexidp/dex/pkg/log"
-	jsoniter "github.com/json-iterator/go"
-	lua "github.com/yuin/gopher-lua"
 	"golang.org/x/oauth2"
-	luar "layeh.com/gopher-luar"
+
+	"github.com/open-policy-agent/opa/sdk"
+	sdktest "github.com/open-policy-agent/opa/sdk/test"
 )
 
 // Config holds configuration options for OpenID Connect logins.
@@ -97,9 +97,7 @@ type Config struct {
 		GroupsKey string `json:"groups"` // defaults to "groups"
 	} `json:"claimMapping"`
 
-<<<<<<< HEAD
-	TokenFormatter string `json:"tokenMapper.lua"`
-=======
+	TokenPolicy string `json:"policy.rego"`
 	// ClaimMutations holds all claim mutations options
 	ClaimMutations struct {
 		NewGroupFromClaims []NewGroupFromClaims `json:"newGroupFromClaims"`
@@ -175,7 +173,6 @@ type NewGroupFromClaims struct {
 
 	// String to place before the first claim
 	Prefix string `json:"prefix"`
->>>>>>> upstream/master
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -284,7 +281,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
 		emailKey:                  c.ClaimMapping.EmailKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
-		tokenFormatter:            c.TokenFormatter,
+		TokenPolicy:               c.TokenPolicy,
 		newGroupFromClaims:        c.ClaimMutations.NewGroupFromClaims,
 	}, nil
 }
@@ -314,7 +311,7 @@ type oidcConnector struct {
 	preferredUsernameKey      string
 	emailKey                  string
 	groupsKey                 string
-	tokenFormatter            string
+	TokenPolicy               string
 	newGroupFromClaims        []NewGroupFromClaims
 }
 
@@ -597,12 +594,61 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	return identity, nil
 }
 
+type Result struct {
+	Allow bool                   `json:"allow"`
+	Token map[string]interface{} `json:"token"`
+}
+
 func (c *oidcConnector) ExtendPayload(scopes []string, payload []byte, cdata []byte) ([]byte, error) {
+
 	// No-op
-	if c.tokenFormatter == "" {
+	if c.TokenPolicy == "" {
 		return payload, nil
 	}
 
+	ctx := context.Background()
+
+	// create a mock HTTP bundle server
+	server, err := sdktest.NewServer(sdktest.MockBundle("/bundles/bundle.tar.gz", map[string]string{
+		"policy.rego": c.TokenPolicy,
+	}))
+	if err != nil {
+		return nil, err
+	}
+
+	defer server.Stop()
+
+	// provide the OPA configuration which specifies
+	// fetching policy bundles from the mock server
+	// and logging decisions locally to the console
+	config := []byte(fmt.Sprintf(`{
+		"services": {
+			"test": {
+				"url": %q
+			}
+		},
+		"bundles": {
+			"test": {
+				"resource": "/bundles/bundle.tar.gz"
+			}
+		},
+		"decision_logs": {
+			"console": true
+		}
+	}`, server.URL()))
+
+	// create an instance of the OPA object
+	opa, err := sdk.New(ctx, sdk.Options{
+		ID:     "opa-token-evaluate",
+		Config: bytes.NewReader(config),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	defer opa.Stop(ctx)
+
+	// Evaluate inputs
 	var cd connectorData
 	var claims map[string]interface{}
 
@@ -615,121 +661,27 @@ func (c *oidcConnector) ExtendPayload(scopes []string, payload []byte, cdata []b
 		return payload, err
 	}
 
-	L := lua.NewState()
-	defer L.Close()
-
-	L.SetGlobal("token", luar.New(L, claims))
-	L.SetGlobal("subject", luar.New(L, cd.Claims))
-
-	if err := L.DoString(c.tokenFormatter); err != nil {
-		return payload, err
-	}
-
-	// sanitizedClaims, err := castMap(reflect.ValueOf(claims))
-	// if err != nil {
-	// 	return payload, err
-	// }
-
-	sanitized, err := castMap(reflect.ValueOf(claims))
+	// get the named policy decision for the specified input
+	result, err := opa.Decision(ctx, sdk.DecisionOptions{Path: "/token/result", Input: map[string]interface{}{"token": claims, "claims": cd.Claims}})
 	if err != nil {
-		return payload, err
+		return nil, err
 	}
 
-	extendedPayload, err := jsoniter.Marshal(sanitized)
-	if err != nil {
-		return payload, err
-	}
-	return extendedPayload, nil
-}
-
-// "Casts" map values to the desired type recursively
-func castMap(x reflect.Value) (any, error) {
-	for x.Kind() == reflect.Ptr || x.Kind() == reflect.Interface {
-		x = x.Elem()
+	v, ok := result.Result.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("denied")
 	}
 
-	kind := x.Kind()
-
-	//nolint:all // This function is bad and we are aware
-	switch kind {
-	case reflect.Map:
-
-		isArray := true
-		for _, k := range x.MapKeys() {
-			isNumber := false
-			if k.Kind() == reflect.Interface {
-				if _, ok := k.Interface().(int); ok {
-					isNumber = true
-				}
-
-				if _, ok := k.Interface().(float64); ok {
-					isNumber = true
-				}
-			}
-
-			if k.Kind() == reflect.Float64 {
-				isNumber = true
-			}
-
-			if !isNumber {
-				isArray = false
-				break
-			}
-		}
-
-		if isArray {
-			newx := []any{}
-			for _, k := range x.MapKeys() {
-				newval, err := castMap(x.MapIndex(k))
-				if err != nil {
-					return nil, err
-				}
-				newx = append(newx, newval)
-			}
-
-			return newx, nil
-		}
-
-		// Otherwise, regular map
-		newx := map[string]any{}
-		for _, k := range x.MapKeys() {
-			v := x.MapIndex(k)
-
-			newval, err := castMap(v)
-			if err != nil {
-				return nil, err
-			}
-			newx[fmt.Sprintf("%v", k)] = newval
-		}
-
-		return newx, nil
-
-	case reflect.Slice:
-		fallthrough
-	case reflect.Array:
-		newx := []any{}
-		for i := 0; i < x.Len(); i++ {
-			newval, err := castMap(x.Index(i))
-			if err != nil {
-				return nil, err
-			}
-			newx = append(newx, newval)
-		}
-		return newx, nil
-
-	case reflect.Bool:
-		return x.Bool(), nil
-
-	case reflect.String:
-		return x.String(), nil
-
-	case reflect.Int:
-		return x.Int(), nil
-
-	case reflect.Float64:
-		return x.Float(), nil
-
-	default:
-		return nil, fmt.Errorf("failed to match types: %v, %v", x.Kind(), x.Interface())
+	r := Result{
+		Allow: v["allow"].(bool),
+		Token: v["token"].(map[string]interface{}),
 	}
+
+	if !ok || !r.Allow {
+		return nil, fmt.Errorf("denied")
+	}
+
+	output, err := json.Marshal(&r.Token)
+
+	return output, err
 }
