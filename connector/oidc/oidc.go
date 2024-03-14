@@ -2,6 +2,7 @@
 package oidc
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,12 +13,14 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"golang.org/x/oauth2"
-
 	"github.com/dexidp/dex/connector"
 	groups_pkg "github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/httpclient"
 	"github.com/dexidp/dex/pkg/log"
+	"golang.org/x/oauth2"
+
+	"github.com/open-policy-agent/opa/sdk"
+	sdktest "github.com/open-policy-agent/opa/sdk/test"
 )
 
 // Config holds configuration options for OpenID Connect logins.
@@ -94,6 +97,7 @@ type Config struct {
 		GroupsKey string `json:"groups"` // defaults to "groups"
 	} `json:"claimMapping"`
 
+	TokenPolicy string `json:"policy.rego"`
 	// ClaimMutations holds all claim mutations options
 	ClaimMutations struct {
 		NewGroupFromClaims []NewGroupFromClaims `json:"newGroupFromClaims"`
@@ -182,6 +186,7 @@ var brokenAuthHeaderDomains = []string{
 // connectorData stores information for sessions authenticated by this connector
 type connectorData struct {
 	RefreshToken []byte
+	Claims       map[string]interface{}
 }
 
 // Detect auth header provider issues for known providers. This lets users
@@ -276,6 +281,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
 		emailKey:                  c.ClaimMapping.EmailKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
+		TokenPolicy:               c.TokenPolicy,
 		newGroupFromClaims:        c.ClaimMutations.NewGroupFromClaims,
 	}, nil
 }
@@ -305,6 +311,7 @@ type oidcConnector struct {
 	preferredUsernameKey      string
 	emailKey                  string
 	groupsKey                 string
+	TokenPolicy               string
 	newGroupFromClaims        []NewGroupFromClaims
 }
 
@@ -558,6 +565,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 
 	cd := connectorData{
 		RefreshToken: []byte(token.RefreshToken),
+		Claims:       claims,
 	}
 
 	connData, err := json.Marshal(&cd)
@@ -584,4 +592,96 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	return identity, nil
+}
+
+type Result struct {
+	Allow bool                   `json:"allow"`
+	Token map[string]interface{} `json:"token"`
+}
+
+func (c *oidcConnector) ExtendPayload(scopes []string, payload []byte, cdata []byte) ([]byte, error) {
+
+	// No-op
+	if c.TokenPolicy == "" {
+		return payload, nil
+	}
+
+	ctx := context.Background()
+
+	// create a mock HTTP bundle server
+	server, err := sdktest.NewServer(sdktest.MockBundle("/bundles/bundle.tar.gz", map[string]string{
+		"policy.rego": c.TokenPolicy,
+	}))
+	if err != nil {
+		return nil, err
+	}
+
+	defer server.Stop()
+
+	// provide the OPA configuration which specifies
+	// fetching policy bundles from the mock server
+	// and logging decisions locally to the console
+	config := []byte(fmt.Sprintf(`{
+		"services": {
+			"test": {
+				"url": %q
+			}
+		},
+		"bundles": {
+			"test": {
+				"resource": "/bundles/bundle.tar.gz"
+			}
+		},
+		"decision_logs": {
+			"console": true
+		}
+	}`, server.URL()))
+
+	// create an instance of the OPA object
+	opa, err := sdk.New(ctx, sdk.Options{
+		ID:     "opa-token-evaluate",
+		Config: bytes.NewReader(config),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	defer opa.Stop(ctx)
+
+	// Evaluate inputs
+	var cd connectorData
+	var claims map[string]interface{}
+
+	c.logger.Info("ExtendPayload called")
+
+	if err := json.Unmarshal(cdata, &cd); err != nil {
+		return payload, err
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return payload, err
+	}
+
+	// get the named policy decision for the specified input
+	result, err := opa.Decision(ctx, sdk.DecisionOptions{Path: "/token/result", Input: map[string]interface{}{"token": claims, "claims": cd.Claims}})
+	if err != nil {
+		return nil, err
+	}
+
+	v, ok := result.Result.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("denied")
+	}
+
+	r := Result{
+		Allow: v["allow"].(bool),
+		Token: v["token"].(map[string]interface{}),
+	}
+
+	if !ok || !r.Allow {
+		return nil, fmt.Errorf("denied")
+	}
+
+	output, err := json.Marshal(&r.Token)
+
+	return output, err
 }
