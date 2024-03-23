@@ -302,14 +302,20 @@ type federatedIDClaims struct {
 	UserID      string `json:"user_id,omitempty"`
 }
 
-func (s *Server) newAccessToken(clientID string, claims storage.Claims, scopes []string, nonce, connID string) (accessToken string, expiry time.Time, err error) {
-	return s.newIDToken(clientID, claims, scopes, nonce, storage.NewID(), "", connID)
+func (s *Server) newAccessToken(clientID string, claims storage.Claims, scopes []string, nonce, connID string, connectorData []byte) (accessToken string, expiry time.Time, err error) {
+	return s.newIDToken(clientID, claims, scopes, nonce, storage.NewID(), "", connID, connectorData)
 }
 
-func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string) (idToken string, expiry time.Time, err error) {
+func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string, connectorData []byte) (idToken string, expiry time.Time, err error) {
 	keys, err := s.storage.GetKeys()
 	if err != nil {
 		s.logger.Errorf("Failed to get keys: %v", err)
+		return "", expiry, err
+	}
+
+	conn, err := s.getConnector(connID)
+	if err != nil {
+		s.logger.Errorf("Failed to get connector with id %q : %v", connID, err)
 		return "", expiry, err
 	}
 
@@ -414,6 +420,17 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	payload, err := json.Marshal(tok)
 	if err != nil {
 		return "", expiry, fmt.Errorf("could not serialize claims: %v", err)
+	}
+
+	switch c := conn.Connector.(type) {
+	case connector.PayloadExtender:
+		extendedPayload, err := c.ExtendPayload(scopes, payload, connectorData)
+		if err != nil {
+			s.logger.Warnf("failed to enhance payload: %w", err)
+			break
+		}
+		payload = extendedPayload
+	default:
 	}
 
 	if idToken, err = signPayload(signingKey, signingAlg, payload); err != nil {
