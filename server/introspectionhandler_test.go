@@ -149,26 +149,51 @@ func TestGetTokenFromRequestSuccess(t *testing.T) {
 	})
 	defer httpServer.Close()
 
-	expectedToken := "aaa"
-	expectedTokenType := "bbb"
-
-	data := url.Values{}
-	data.Set("token", expectedToken)
-	data.Set("token_type_hint", expectedTokenType)
-	req := httptest.NewRequest(http.MethodPost, "https://test.tech/introspect", bytes.NewBufferString(data.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	token, tokenType, err := s.getTokenFromRequest(req)
-	if err != nil {
-		t.Fatalf("Error returned: %s", err.Error())
+	tests := []struct {
+		testName          string
+		expectedToken     string
+		expectedTokenType TokenTypeEnum
+	}{
+		// Access Token
+		{
+			testName:          "Access Token",
+			expectedToken:     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+			expectedTokenType: AccessToken,
+		},
+		// Refresh Token
+		{
+			testName:          "Refresh token",
+			expectedToken:     "CgR0ZXN0EgNiYXI",
+			expectedTokenType: RefreshToken,
+		},
+		// Unknown token
+		{
+			testName:          "Unknown token",
+			expectedToken:     "AaAaAaA",
+			expectedTokenType: RefreshToken,
+		},
 	}
 
-	if token != expectedToken {
-		t.Fatalf("Wrong token returned.  Expected %v got %v", expectedToken, token)
-	}
+	for _, tc := range tests {
+		t.Run(tc.testName, func(t *testing.T) {
+			data := url.Values{}
+			data.Set("token", tc.expectedToken)
+			req := httptest.NewRequest(http.MethodPost, "https://test.tech/introspect", bytes.NewBufferString(data.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	if tokenType != expectedTokenType {
-		t.Fatalf("Wrong token type returned.  Expected %v got %v", expectedTokenType, tokenType)
+			token, tokenType, err := s.getTokenFromRequest(req)
+			if err != nil {
+				t.Fatalf("Error returned: %s", err.Error())
+			}
+
+			if token != tc.expectedToken {
+				t.Fatalf("Wrong token returned.  Expected %v got %v", tc.expectedToken, token)
+			}
+
+			if tokenType != tc.expectedTokenType {
+				t.Fatalf("Wrong token type returned.  Expected %v got %v", tc.expectedTokenType, tokenType)
+			}
+		})
 	}
 }
 
@@ -248,7 +273,7 @@ func TestHandleIntrospect(t *testing.T) {
 	expiredRefreshToken, err := internal.Marshal(&internal.RefreshToken{RefreshId: "expired", Token: "bar"})
 	require.NoError(t, err)
 
-	inactiveResponse := `{"active":false}`
+	inactiveResponse := "{\"active\":false}\n"
 	badRequestResponse := `{"error":"invalid_request","error_description":"The POST body can not be empty."}`
 
 	tests := []struct {
@@ -272,13 +297,6 @@ func TestHandleIntrospect(t *testing.T) {
 			responseStatusCode: 200,
 		},
 		{
-			testName:           "Access Token: active, typ: refresh_token",
-			token:              activeAccessToken,
-			tokenType:          "refresh_token",
-			response:           inactiveResponse,
-			responseStatusCode: 401,
-		},
-		{
 			testName:           "Access Token: wrong",
 			token:              "fake-token",
 			response:           inactiveResponse,
@@ -290,13 +308,6 @@ func TestHandleIntrospect(t *testing.T) {
 			token:              activeRefreshToken,
 			response:           toJSON(getIntrospectionValue(s.issuerURL, time.Now(), time.Now().Add(s.refreshTokenPolicy.absoluteLifetime), "refresh_token")),
 			responseStatusCode: 200,
-		},
-		{
-			testName:           "Refresh Token: active, typ: access_token",
-			token:              activeRefreshToken,
-			tokenType:          "access_token",
-			response:           inactiveResponse,
-			responseStatusCode: 401,
 		},
 		{
 			testName:           "Refresh Token: expired",
@@ -370,7 +381,7 @@ func TestIntrospectErrHelper(t *testing.T) {
 			testName:      "Inactive Token",
 			err:           newIntrospectInactiveTokenError(),
 			resStatusCode: http.StatusUnauthorized,
-			resBody:       `{"active":false}`,
+			resBody:       "{\"active\":false}\n",
 		},
 		{
 			testName:      "Bad Request",
