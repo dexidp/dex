@@ -91,6 +91,7 @@ func runServe(options serveOptions) error {
 		return fmt.Errorf("error parse config file %s: %v", configFile, err)
 	}
 
+	c.Parse()
 	applyConfigOverrides(options, &c)
 
 	logger, err := newLogger(c.Logger.Level, c.Logger.Format)
@@ -487,7 +488,7 @@ func runServe(options serveOptions) error {
 		}
 
 		grpcSrv := grpc.NewServer(grpcOptions...)
-		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger, version))
+		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger, version, c.AdditionalFeatures))
 
 		grpcMetrics.InitializeMetrics(grpcSrv)
 		if c.GRPC.Reflection {
