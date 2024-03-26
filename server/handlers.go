@@ -97,7 +97,7 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 		Keys:              s.absURL("/keys"),
 		UserInfo:          s.absURL("/userinfo"),
 		DeviceEndpoint:    s.absURL("/device/code"),
-		Introspect:        s.absURL("/introspect"),
+		Introspect:        s.absURL("/token/introspect"),
 		Subjects:          []string{"public"},
 		IDTokenAlgs:       []string{string(jose.RS256)},
 		CodeChallengeAlgs: []string{codeChallengeMethodS256, codeChallengeMethodPlain},

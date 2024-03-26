@@ -178,7 +178,7 @@ func TestGetTokenFromRequestSuccess(t *testing.T) {
 		t.Run(tc.testName, func(t *testing.T) {
 			data := url.Values{}
 			data.Set("token", tc.expectedToken)
-			req := httptest.NewRequest(http.MethodPost, "https://test.tech/introspect", bytes.NewBufferString(data.Encode()))
+			req := httptest.NewRequest(http.MethodPost, "https://test.tech/token/introspect", bytes.NewBufferString(data.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 			token, tokenType, err := s.getTokenFromRequest(req)
@@ -211,21 +211,21 @@ func TestGetTokenFromRequestFailure(t *testing.T) {
 	})
 	defer httpServer.Close()
 
-	_, _, err := s.getTokenFromRequest(httptest.NewRequest(http.MethodGet, "https://test.tech/introspect", nil))
+	_, _, err := s.getTokenFromRequest(httptest.NewRequest(http.MethodGet, "https://test.tech/token/introspect", nil))
 	require.ErrorIs(t, err, &introspectionError{
 		typ:  errInvalidRequest,
 		desc: "HTTP method is \"GET\", expected \"POST\".",
 		code: http.StatusBadRequest,
 	})
 
-	_, _, err = s.getTokenFromRequest(httptest.NewRequest(http.MethodPost, "https://test.tech/introspect", nil))
+	_, _, err = s.getTokenFromRequest(httptest.NewRequest(http.MethodPost, "https://test.tech/token/introspect", nil))
 	require.ErrorIs(t, err, &introspectionError{
 		typ:  errInvalidRequest,
 		desc: "The POST body can not be empty.",
 		code: http.StatusBadRequest,
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "https://test.tech/introspect", strings.NewReader("token_type_hint=access_token"))
+	req := httptest.NewRequest(http.MethodPost, "https://test.tech/token/introspect", strings.NewReader("token_type_hint=access_token"))
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	_, _, err = s.getTokenFromRequest(req)
 	require.ErrorIs(t, err, &introspectionError{
@@ -337,7 +337,7 @@ func TestHandleIntrospect(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Could not parse issuer URL %v", err)
 			}
-			u.Path = path.Join(u.Path, "introspect")
+			u.Path = path.Join(u.Path, "token", "introspect")
 
 			req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(data.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
