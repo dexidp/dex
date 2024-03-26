@@ -56,6 +56,7 @@ func TestHandleCallback(t *testing.T) {
 		emailKey                  string
 		groupsKey                 string
 		insecureSkipEmailVerified bool
+		enablePKCE                bool
 		scopes                    []string
 		expectUserID              string
 		expectUserName            string
@@ -123,6 +124,23 @@ func TestHandleCallback(t *testing.T) {
 				"sub":   "subvalue",
 				"name":  "namevalue",
 				"email": "emailvalue",
+			},
+		},
+		{
+			name:               "withEnablePKCE",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			enablePKCE:         true,
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectGroups:       []string{"group1", "group2"},
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups":         []string{"group1", "group2"},
+				"email":          "emailvalue",
+				"email_verified": true,
 			},
 		},
 		{
@@ -391,6 +409,7 @@ func TestHandleCallback(t *testing.T) {
 				UserIDKey:                 tc.userIDKey,
 				UserNameKey:               tc.userNameKey,
 				InsecureSkipEmailVerified: tc.insecureSkipEmailVerified,
+				EnablePKCE:                tc.enablePKCE,
 				InsecureEnableGroups:      true,
 				BasicAuthUnsupported:      &basicAuth,
 				OverrideClaimMapping:      tc.overrideClaimMapping,
