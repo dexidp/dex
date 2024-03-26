@@ -78,6 +78,7 @@ type discovery struct {
 	Keys              string   `json:"jwks_uri"`
 	UserInfo          string   `json:"userinfo_endpoint"`
 	DeviceEndpoint    string   `json:"device_authorization_endpoint"`
+	Introspect        string   `json:"introspect_endpoint"`
 	GrantTypes        []string `json:"grant_types_supported"`
 	ResponseTypes     []string `json:"response_types_supported"`
 	Subjects          []string `json:"subject_types_supported"`
@@ -96,6 +97,7 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 		Keys:              s.absURL("/keys"),
 		UserInfo:          s.absURL("/userinfo"),
 		DeviceEndpoint:    s.absURL("/device/code"),
+		Introspect:        s.absURL("/introspect"),
 		Subjects:          []string{"public"},
 		IDTokenAlgs:       []string{string(jose.RS256)},
 		CodeChallengeAlgs: []string{codeChallengeMethodS256, codeChallengeMethodPlain},
