@@ -171,7 +171,7 @@ jobs:
       #   run: syft -o spdx-json=sbom-spdx.json docker-archive:docker.tar
       #
       # - name: Upload SBOM as artifact
-      #   uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32 # v3.1.3
+      #   uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
       #   with:
       #     name: "[${{ github.job }}] SBOM"
       #     path: sbom-spdx.json
@@ -185,7 +185,7 @@ jobs:
           output: trivy-results.sarif
 
       - name: Upload Trivy scan results as artifact
-        uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32 # v3.1.3
+        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
         with:
           name: "[${{ github.job }}] Trivy scan results"
           path: trivy-results.sarif
