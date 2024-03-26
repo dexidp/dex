@@ -229,6 +229,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		grantTypeRefreshToken:      true,
 		grantTypeDeviceCode:        true,
 		grantTypeTokenExchange:     true,
+		grantTypeClientCredentials: true,
 	}
 	supportedRes := make(map[string]bool)
 
