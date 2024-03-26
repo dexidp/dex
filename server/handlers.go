@@ -78,7 +78,7 @@ type discovery struct {
 	Keys              string   `json:"jwks_uri"`
 	UserInfo          string   `json:"userinfo_endpoint"`
 	DeviceEndpoint    string   `json:"device_authorization_endpoint"`
-	Introspect        string   `json:"introspect_endpoint"`
+	Introspect        string   `json:"introspection_endpoint"`
 	GrantTypes        []string `json:"grant_types_supported"`
 	ResponseTypes     []string `json:"response_types_supported"`
 	Subjects          []string `json:"subject_types_supported"`
