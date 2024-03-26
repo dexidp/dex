@@ -840,12 +840,12 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grantType := r.PostFormValue("grant_type")
-	if !contains(s.supportedGrantTypes, grantType) {
-		s.logger.Errorf("unsupported grant type: %v", grantType)
-		s.tokenErrHelper(w, errUnsupportedGrantType, "", http.StatusBadRequest)
-		return
+	// Set the connector_id to the default value if it wasn't passed to the query
+	if !r.Form.Has("connector_id") || r.Form.Get("connector_id") == "" {
+		r.Form.Set("connector_id", s.defaultPasswordConnector)
 	}
+
+	grantType := r.PostFormValue("grant_type")
 	switch grantType {
 	case grantTypeDeviceCode:
 		s.handleDeviceToken(w, r)
@@ -1163,10 +1163,19 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		return
 	}
 
-	// Which connector
-	connID := s.passwordConnector
+	// Get the connector
+	connID := q.Get("connector_id")
+	if connID == "" && s.defaultPasswordConnector != "" {
+		connID = s.defaultPasswordConnector
+	}
+
+	// backward compatibility support
+	if s.passwordConnector != "" {
+		connID = s.passwordConnector
+	}
 	conn, err := s.getConnector(connID)
 	if err != nil {
+		s.logger.Errorf("Failed to find connector: %v", err)
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
 		return
 	}
