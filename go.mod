@@ -15,7 +15,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-jose/go-jose/v4 v4.0.1
 	github.com/go-ldap/ldap/v3 v3.4.6
-	github.com/go-sql-driver/mysql v1.8.0
+	github.com/go-sql-driver/mysql v1.8.1
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
