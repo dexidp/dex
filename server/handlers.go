@@ -20,13 +20,14 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/server/internal"
-	"github.com/dexidp/dex/storage"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gorilla/mux"
 	"github.com/spruceid/siwe-go"
 	jose "gopkg.in/square/go-jose.v2"
+
+	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/storage"
 )
 
 const (

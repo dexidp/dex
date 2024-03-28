@@ -7,7 +7,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/dexidp/dex/connector"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
@@ -17,6 +16,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dexidp/dex/connector"
 )
 
 type BkTest struct {
