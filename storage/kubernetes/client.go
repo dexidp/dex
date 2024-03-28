@@ -85,7 +85,7 @@ func offlineTokenName(userID string, connID string, h func() hash.Hash) string {
 }
 
 // https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-subdomain-names
-const kubeResourceMaxLen = 253 
+const kubeResourceMaxLen = 253
 
 var kubeResourceNameRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
 
