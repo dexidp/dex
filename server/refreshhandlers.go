@@ -40,6 +40,11 @@ func newBadRequestError(desc string) *refreshError {
 	return &refreshError{msg: errInvalidRequest, desc: desc, code: http.StatusBadRequest}
 }
 
+var (
+	invalidErr = newBadRequestError("Refresh token is invalid or has already been claimed by another client.")
+	expiredErr = newBadRequestError("Refresh token expired.")
+)
+
 func (s *Server) refreshTokenErrHelper(w http.ResponseWriter, err *refreshError) {
 	s.tokenErrHelper(w, err.msg, err.desc, err.code)
 }
@@ -75,10 +80,8 @@ type refreshContext struct {
 }
 
 // getRefreshTokenFromStorage checks that refresh token is valid and exists in the storage and gets its info
-func (s *Server) getRefreshTokenFromStorage(clientID string, token *internal.RefreshToken) (*refreshContext, *refreshError) {
+func (s *Server) getRefreshTokenFromStorage(clientID *string, token *internal.RefreshToken) (*refreshContext, *refreshError) {
 	refreshCtx := refreshContext{requestToken: token}
-
-	invalidErr := newBadRequestError("Refresh token is invalid or has already been claimed by another client.")
 
 	// Get RefreshToken
 	refresh, err := s.storage.GetRefresh(token.RefreshId)
@@ -90,7 +93,8 @@ func (s *Server) getRefreshTokenFromStorage(clientID string, token *internal.Ref
 		return nil, invalidErr
 	}
 
-	if refresh.ClientID != clientID {
+	// Only check ClientID if it was provided;
+	if clientID != nil && (refresh.ClientID != *clientID) {
 		s.logger.Errorf("client %s trying to claim token for client %s", clientID, refresh.ClientID)
 		// According to https://datatracker.ietf.org/doc/html/rfc6749#section-5.2 Dex should respond with an
 		//  invalid grant error if token has already been claimed by another client.
@@ -109,7 +113,6 @@ func (s *Server) getRefreshTokenFromStorage(clientID string, token *internal.Ref
 		}
 	}
 
-	expiredErr := newBadRequestError("Refresh token expired.")
 	if s.refreshTokenPolicy.CompletelyExpired(refresh.CreatedAt) {
 		s.logger.Errorf("refresh token with id %s expired", refresh.ID)
 		return nil, expiredErr
@@ -334,7 +337,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 
-	rCtx, rerr := s.getRefreshTokenFromStorage(client.ID, token)
+	rCtx, rerr := s.getRefreshTokenFromStorage(&client.ID, token)
 	if rerr != nil {
 		s.refreshTokenErrHelper(w, rerr)
 		return
