@@ -4,6 +4,7 @@ package web3
 import (
 	"errors"
 	"fmt"
+
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -136,6 +137,6 @@ func signHash(data []byte) []byte {
 	return accounts.TextHash(data)
 }
 
-func createEthClient(rpcUrl string) (bind.ContractBackend, error) {
-	return ethclient.Dial(rpcUrl)
+func createEthClient(rpcURL string) (bind.ContractBackend, error) {
+	return ethclient.Dial(rpcURL)
 }
