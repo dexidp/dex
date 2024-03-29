@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"crypto"
 	"crypto/rand"
 	"encoding/base32"
@@ -10,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	jose "gopkg.in/square/go-jose.v2"
+	"github.com/go-jose/go-jose/v4"
 )
 
 var (
@@ -76,15 +77,15 @@ type Storage interface {
 	Close() error
 
 	// TODO(ericchiang): Let the storages set the IDs of these objects.
-	CreateAuthRequest(a AuthRequest) error
-	CreateClient(c Client) error
-	CreateAuthCode(c AuthCode) error
-	CreateRefresh(r RefreshToken) error
-	CreatePassword(p Password) error
-	CreateOfflineSessions(s OfflineSessions) error
-	CreateConnector(c Connector) error
-	CreateDeviceRequest(d DeviceRequest) error
-	CreateDeviceToken(d DeviceToken) error
+	CreateAuthRequest(ctx context.Context, a AuthRequest) error
+	CreateClient(ctx context.Context, c Client) error
+	CreateAuthCode(ctx context.Context, c AuthCode) error
+	CreateRefresh(ctx context.Context, r RefreshToken) error
+	CreatePassword(ctx context.Context, p Password) error
+	CreateOfflineSessions(ctx context.Context, s OfflineSessions) error
+	CreateConnector(ctx context.Context, c Connector) error
+	CreateDeviceRequest(ctx context.Context, d DeviceRequest) error
+	CreateDeviceToken(ctx context.Context, d DeviceToken) error
 
 	// TODO(ericchiang): return (T, bool, error) so we can indicate not found
 	// requests that way instead of using ErrNotFound.

@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	jose "gopkg.in/square/go-jose.v2"
+	"github.com/go-jose/go-jose/v4"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
@@ -105,6 +105,7 @@ const (
 	errUnsupportedGrantType    = "unsupported_grant_type"
 	errInvalidGrant            = "invalid_grant"
 	errInvalidClient           = "invalid_client"
+	errInactiveToken           = "inactive_token"
 )
 
 const (
@@ -306,6 +307,49 @@ func (s *Server) newAccessToken(clientID string, claims storage.Claims, scopes [
 	return s.newIDToken(clientID, claims, scopes, nonce, storage.NewID(), "", connID)
 }
 
+func getClientID(aud audience, azp string) (string, error) {
+	switch len(aud) {
+	case 0:
+		return "", fmt.Errorf("no audience is set, could not find ClientID")
+	case 1:
+		return aud[0], nil
+	default:
+		return azp, nil
+	}
+}
+
+func getAudience(clientID string, scopes []string) audience {
+	var aud audience
+
+	for _, scope := range scopes {
+		if peerID, ok := parseCrossClientScope(scope); ok {
+			aud = append(aud, peerID)
+		}
+	}
+
+	if len(aud) == 0 {
+		// Client didn't ask for cross client audience. Set the current
+		// client as the audience.
+		aud = audience{clientID}
+		// Client asked for cross client audience:
+		// if the current client was not requested explicitly
+	} else if !aud.contains(clientID) {
+		// by default it becomes one of entries in Audience
+		aud = append(aud, clientID)
+	}
+
+	return aud
+}
+
+func genSubject(userID string, connID string) (string, error) {
+	sub := &internal.IDTokenSubject{
+		UserId: userID,
+		ConnId: connID,
+	}
+
+	return internal.Marshal(sub)
+}
+
 func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string) (idToken string, expiry time.Time, err error) {
 	keys, err := s.storage.GetKeys()
 	if err != nil {
@@ -325,12 +369,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	issuedAt := s.now()
 	expiry = issuedAt.Add(s.idTokensValidFor)
 
-	sub := &internal.IDTokenSubject{
-		UserId: claims.UserID,
-		ConnId: connID,
-	}
-
-	subjectString, err := internal.Marshal(sub)
+	subjectString, err := genSubject(claims.UserID, connID)
 	if err != nil {
 		s.logger.Errorf("failed to marshal offline session ID: %v", err)
 		return "", expiry, fmt.Errorf("failed to marshal offline session ID: %v", err)
@@ -392,21 +431,11 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 				// TODO(ericchiang): propagate this error to the client.
 				return "", expiry, fmt.Errorf("peer (%s) does not trust client", peerID)
 			}
-			tok.Audience = append(tok.Audience, peerID)
 		}
 	}
 
-	if len(tok.Audience) == 0 {
-		// Client didn't ask for cross client audience. Set the current
-		// client as the audience.
-		tok.Audience = audience{clientID}
-	} else {
-		// Client asked for cross client audience:
-		// if the current client was not requested explicitly
-		if !tok.Audience.contains(clientID) {
-			// by default it becomes one of entries in Audience
-			tok.Audience = append(tok.Audience, clientID)
-		}
+	tok.Audience = getAudience(clientID, scopes)
+	if len(tok.Audience) > 1 {
 		// The current client becomes the authorizing party.
 		tok.AuthorizingParty = clientID
 	}
@@ -669,7 +698,7 @@ type storageKeySet struct {
 }
 
 func (s *storageKeySet) VerifySignature(_ context.Context, jwt string) (payload []byte, err error) {
-	jws, err := jose.ParseSigned(jwt)
+	jws, err := jose.ParseSigned(jwt, []jose.SignatureAlgorithm{jose.RS256, jose.RS384, jose.RS512, jose.ES256, jose.ES384, jose.ES512})
 	if err != nil {
 		return nil, err
 	}

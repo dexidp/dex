@@ -10,11 +10,43 @@ import (
 	"strings"
 	"testing"
 
-	"gopkg.in/square/go-jose.v2"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
+
+func TestGetClientID(t *testing.T) {
+	cid, err := getClientID(audience{}, "")
+	require.Equal(t, "", cid)
+	require.Equal(t, "no audience is set, could not find ClientID", err.Error())
+
+	cid, err = getClientID(audience{"a"}, "")
+	require.Equal(t, "a", cid)
+	require.NoError(t, err)
+
+	cid, err = getClientID(audience{"a", "b"}, "azp")
+	require.Equal(t, "azp", cid)
+	require.NoError(t, err)
+}
+
+func TestGetAudience(t *testing.T) {
+	aud := getAudience("client-id", []string{})
+	require.Equal(t, aud, audience{"client-id"})
+
+	aud = getAudience("client-id", []string{"ascope"})
+	require.Equal(t, aud, audience{"client-id"})
+
+	aud = getAudience("client-id", []string{"ascope", "audience:server:client_id:aa", "audience:server:client_id:bb"})
+	require.Equal(t, aud, audience{"aa", "bb", "client-id"})
+}
+
+func TestGetSubject(t *testing.T) {
+	sub, err := genSubject("foo", "bar")
+	require.Equal(t, "CgNmb28SA2Jhcg", sub)
+	require.NoError(t, err)
+}
 
 func TestParseAuthorizationRequest(t *testing.T) {
 	tests := []struct {

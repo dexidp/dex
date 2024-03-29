@@ -37,6 +37,76 @@ func TestHandleHealth(t *testing.T) {
 	}
 }
 
+func TestHandleDiscovery(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	httpServer, server := newTestServer(ctx, t, nil)
+	defer httpServer.Close()
+
+	rr := httptest.NewRecorder()
+	server.ServeHTTP(rr, httptest.NewRequest("GET", "/.well-known/openid-configuration", nil))
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 got %d", rr.Code)
+	}
+
+	var res discovery
+	err := json.NewDecoder(rr.Result().Body).Decode(&res)
+	require.NoError(t, err)
+	require.Equal(t, discovery{
+		Issuer:         httpServer.URL,
+		Auth:           fmt.Sprintf("%s/auth", httpServer.URL),
+		Token:          fmt.Sprintf("%s/token", httpServer.URL),
+		Keys:           fmt.Sprintf("%s/keys", httpServer.URL),
+		UserInfo:       fmt.Sprintf("%s/userinfo", httpServer.URL),
+		DeviceEndpoint: fmt.Sprintf("%s/device/code", httpServer.URL),
+		Introspect:     fmt.Sprintf("%s/token/introspect", httpServer.URL),
+		GrantTypes: []string{
+			"authorization_code",
+			"refresh_token",
+			"urn:ietf:params:oauth:grant-type:device_code",
+			"urn:ietf:params:oauth:grant-type:token-exchange",
+		},
+		ResponseTypes: []string{
+			"code",
+		},
+		Subjects: []string{
+			"public",
+		},
+		IDTokenAlgs: []string{
+			"RS256",
+		},
+		CodeChallengeAlgs: []string{
+			"S256",
+			"plain",
+		},
+		Scopes: []string{
+			"openid",
+			"email",
+			"groups",
+			"profile",
+			"offline_access",
+		},
+		AuthMethods: []string{
+			"client_secret_basic",
+			"client_secret_post",
+		},
+		Claims: []string{
+			"iss",
+			"sub",
+			"aud",
+			"iat",
+			"exp",
+			"email",
+			"email_verified",
+			"locale",
+			"name",
+			"preferred_username",
+			"at_hash",
+		},
+	}, res)
+}
+
 func TestHandleHealthFailure(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -213,7 +283,7 @@ func TestHandleAuthCode(t *testing.T) {
 				Secret:       "testclientsecret",
 				RedirectURIs: []string{redirectURL},
 			}
-			err = s.storage.CreateClient(client)
+			err = s.storage.CreateClient(ctx, client)
 			require.NoError(t, err)
 
 			oauth2Client.config = &oauth2.Config{
@@ -233,6 +303,7 @@ func TestHandleAuthCode(t *testing.T) {
 }
 
 func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
+	ctx := context.Background()
 	c := storage.Client{
 		ID:           "test",
 		Secret:       "barfoo",
@@ -241,7 +312,7 @@ func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
 		LogoURL:      "https://goo.gl/JIyzIC",
 	}
 
-	err := s.CreateClient(c)
+	err := s.CreateClient(ctx, c)
 	require.NoError(t, err)
 
 	c1 := storage.Connector{
@@ -254,7 +325,7 @@ func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
 }`),
 	}
 
-	err = s.CreateConnector(c1)
+	err = s.CreateConnector(ctx, c1)
 	require.NoError(t, err)
 
 	c2 := storage.Connector{
@@ -263,7 +334,7 @@ func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
 		Name: "mockURLID",
 	}
 
-	err = s.CreateConnector(c2)
+	err = s.CreateConnector(ctx, c2)
 	require.NoError(t, err)
 }
 
@@ -467,13 +538,13 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 				ResourceVersion: "1",
 				Config:          []byte("{\"username\": \"foo\", \"password\": \"password\"}"),
 			}
-			if err := s.storage.CreateConnector(sc); err != nil {
+			if err := s.storage.CreateConnector(ctx, sc); err != nil {
 				t.Fatalf("create connector: %v", err)
 			}
 			if _, err := s.OpenConnector(sc); err != nil {
 				t.Fatalf("open connector: %v", err)
 			}
-			if err := s.storage.CreateAuthRequest(tc.authReq); err != nil {
+			if err := s.storage.CreateAuthRequest(ctx, tc.authReq); err != nil {
 				t.Fatalf("failed to create AuthRequest: %v", err)
 			}
 
@@ -614,7 +685,7 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 			})
 			defer httpServer.Close()
 
-			if err := s.storage.CreateAuthRequest(tc.authReq); err != nil {
+			if err := s.storage.CreateAuthRequest(ctx, tc.authReq); err != nil {
 				t.Fatalf("failed to create AuthRequest: %v", err)
 			}
 			rr := httptest.NewRecorder()
@@ -712,7 +783,7 @@ func TestHandleTokenExchange(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			httpServer, s := newTestServer(ctx, t, func(c *Config) {
-				c.Storage.CreateClient(storage.Client{
+				c.Storage.CreateClient(ctx, storage.Client{
 					ID:     "client_1",
 					Secret: "secret_1",
 				})

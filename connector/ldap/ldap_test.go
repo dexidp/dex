@@ -83,6 +83,18 @@ func TestQuery(t *testing.T) {
 			password:  "foo",
 			wantBadPW: true, // Want invalid password, not a query error.
 		},
+		{
+			name:      "invalid wildcard username",
+			username:  "a*", // wildcard query is not allowed
+			password:  "foo",
+			wantBadPW: true, // Want invalid password, not a query error.
+		},
+		{
+			name:      "invalid wildcard password",
+			username:  "john",
+			password:  "*",  // wildcard password is not allowed
+			wantBadPW: true, // Want invalid password, not a query error.
+		},
 	}
 
 	runTests(t, connectLDAP, c, tests)

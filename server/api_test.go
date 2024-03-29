@@ -262,7 +262,7 @@ func TestRefreshToken(t *testing.T) {
 		ConnectorData: []byte(`{"some":"data"}`),
 	}
 
-	if err := s.CreateRefresh(r); err != nil {
+	if err := s.CreateRefresh(ctx, r); err != nil {
 		t.Fatalf("create refresh token: %v", err)
 	}
 
@@ -280,7 +280,7 @@ func TestRefreshToken(t *testing.T) {
 	}
 	session.Refresh[tokenRef.ClientID] = &tokenRef
 
-	if err := s.CreateOfflineSessions(session); err != nil {
+	if err := s.CreateOfflineSessions(ctx, session); err != nil {
 		t.Fatalf("create offline session: %v", err)
 	}
 
