@@ -55,7 +55,7 @@ RUN wget -O /usr/local/bin/gomplate \
 
 # For Dependabot to detect base image versions
 FROM alpine:3.19.1@sha256:c5b1261d6d3e43071626931fc004f70149baeba2c8ec672bd4f27761f8e1ad6b AS alpine
-FROM gcr.io/distroless/static-debian12:nonroot@sha256:67686c9070e7179449c73943d89160c4834c0b4a969434022e11c5b9a8dc6131 AS distroless
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:42c88655018248be5b8ed88261fca620f6d0dd55996fbb591de4969f250120e9 AS distroless
 
 FROM $BASE_IMAGE
 
