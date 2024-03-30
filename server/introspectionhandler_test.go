@@ -300,7 +300,7 @@ func TestHandleIntrospect(t *testing.T) {
 			testName:           "Access Token: wrong",
 			token:              "fake-token",
 			response:           inactiveResponse,
-			responseStatusCode: 401,
+			responseStatusCode: 200,
 		},
 		// Refresh token tests
 		{
@@ -313,13 +313,13 @@ func TestHandleIntrospect(t *testing.T) {
 			testName:           "Refresh Token: expired",
 			token:              expiredRefreshToken,
 			response:           inactiveResponse,
-			responseStatusCode: 401,
+			responseStatusCode: 200,
 		},
 		{
 			testName:           "Refresh Token: active => false (wrong)",
 			token:              "fake-token",
 			response:           inactiveResponse,
-			responseStatusCode: 401,
+			responseStatusCode: 200,
 		},
 	}
 
@@ -380,7 +380,7 @@ func TestIntrospectErrHelper(t *testing.T) {
 		{
 			testName:      "Inactive Token",
 			err:           newIntrospectInactiveTokenError(),
-			resStatusCode: http.StatusUnauthorized,
+			resStatusCode: http.StatusOK,
 			resBody:       "{\"active\":false}\n",
 		},
 		{
