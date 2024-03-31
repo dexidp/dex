@@ -340,7 +340,7 @@ func introspectInactiveErr(w http.ResponseWriter) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(401)
+	w.WriteHeader(200)
 	json.NewEncoder(w).Encode(struct {
 		Active bool `json:"active"`
 	}{Active: false})
