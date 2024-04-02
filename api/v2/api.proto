@@ -169,6 +169,7 @@ message SignTokenResp {
 message SignTokenReq {
   string subject = 1;
   google.protobuf.Struct custom_claims = 2;
+  repeated string audience = 3;
 }
 
 // Dex represents the dex gRPC service.

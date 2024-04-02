@@ -7,15 +7,11 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"html/template"
 	"math/big"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"regexp"
 	"sort"
@@ -26,12 +22,12 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gorilla/mux"
+	"github.com/spruceid/siwe-go"
 	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
-	"github.com/spruceid/siwe-go"
 )
 
 const (
@@ -270,7 +266,6 @@ func (s *Server) handleGenerateChallenge(w http.ResponseWriter, r *http.Request)
 
 	siweMessage, err := siwe.InitMessage(s.issuerURL.Host, addr.Hex(), s.issuerURL.String(), nonce, options)
 	if err != nil {
-		//asd
 		s.renderErrorJSON(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -1891,17 +1886,4 @@ func usernamePrompt(conn connector.PasswordConnector) string {
 		return attr
 	}
 	return "Username"
-}
-
-func createEthClient() (bind.ContractBackend, error) {
-	rpcUrl := os.Getenv("ETH_RPC_CLIENT")
-	if rpcUrl != "" {
-		client, err := ethclient.Dial(rpcUrl)
-		if err != nil {
-			return nil, err
-		}
-		return client, nil
-	}
-
-	return nil, errors.New("could not initialize eth client with url")
 }

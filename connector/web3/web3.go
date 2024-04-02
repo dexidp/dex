@@ -4,14 +4,16 @@ package web3
 import (
 	"errors"
 	"fmt"
-	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
+
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+
+	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/log"
 )
 
 type Config struct {
@@ -136,6 +138,6 @@ func signHash(data []byte) []byte {
 	return accounts.TextHash(data)
 }
 
-func createEthClient(rpcUrl string) (bind.ContractBackend, error) {
-	return ethclient.Dial(rpcUrl)
+func createEthClient(rpcURL string) (bind.ContractBackend, error) {
+	return ethclient.Dial(rpcURL)
 }
