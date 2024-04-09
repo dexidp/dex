@@ -389,7 +389,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	// Log the actual attributes we got back from the server. This helps debug
 	// configuration errors on the server side, where the SAML server doesn't
 	// send us the correct attributes.
-	p.logger.Infof("parsed and verified saml response attributes %s", attributes)
+	p.logger.Debugf("parsed and verified saml response attributes %s", attributes)
 
 	// Grab the email.
 	if ident.Email, _ = attributes.get(p.emailAttr); ident.Email == "" {
