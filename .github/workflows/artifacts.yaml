@@ -64,8 +64,6 @@ jobs:
 
       - name: Install cosign
         uses: sigstore/cosign-installer@e1523de7571e31dbe865fd2e80c5c7c23ae71eb4 # v3.4.0
-        with:
-          cosign-release: 'v2.2.1'
 
       - name: Set image name
         id: image-name
