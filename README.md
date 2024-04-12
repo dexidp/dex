@@ -50,7 +50,7 @@ For details on how to request or validate an ID Token, see [_"Writing apps that 
 
 Dex runs natively on top of any Kubernetes cluster using Custom Resource Definitions and can drive API server authentication through the OpenID Connect plugin. Clients, such as the [`kubernetes-dashboard`](https://github.com/kubernetes/dashboard) and `kubectl`, can act on behalf of users who can login to the cluster through any identity provider dex supports.
 
-* More docs for running dex as a Kubernetes authenticator can be found [here](https://dexidp.io/docs/kubernetes/).
+* More docs for running dex as a Kubernetes authenticator can be found [here](https://dexidp.io/docs/guides/kubernetes/).
 * You can find more about companies and projects, which uses dex, [here](./ADOPTERS.md).
 
 ## Connectors
