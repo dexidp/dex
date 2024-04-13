@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
 
+	"github.com/dexidp/dex/connector"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	admin "google.golang.org/api/admin/directory/v1"
@@ -288,6 +290,63 @@ func TestDomainToAdminEmailConfig(t *testing.T) {
 				assert.Nil(err)
 			}
 			t.Logf("[%s] Amount of API calls per userKey: %+v\n", t.Name(), callCounter)
+		})
+	}
+}
+
+func TestPromptTypeConfig(t *testing.T) {
+	promptTypeLogin := "login"
+	cases := []struct {
+		name                    string
+		promptType              *string
+		expectedPromptTypeValue string
+	}{
+		{
+			name:                    "prompt type is nil",
+			promptType:              nil,
+			expectedPromptTypeValue: "consent",
+		},
+		{
+			name:                    "prompt type is empty",
+			promptType:              new(string),
+			expectedPromptTypeValue: "",
+		},
+		{
+			name:                    "prompt type is set",
+			promptType:              &promptTypeLogin,
+			expectedPromptTypeValue: "login",
+		},
+	}
+
+	ts := testSetup()
+	defer ts.Close()
+
+	serviceAccountFilePath, err := tempServiceAccountKey()
+	assert.Nil(t, err)
+
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", serviceAccountFilePath)
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			conn, err := newConnector(&Config{
+				ClientID:           "testClient",
+				ClientSecret:       "testSecret",
+				RedirectURI:        ts.URL + "/callback",
+				Scopes:             []string{"openid", "groups", "offline_access"},
+				DomainToAdminEmail: map[string]string{"dexidp.com": "admin@dexidp.com"},
+				PromptType:         test.promptType,
+			})
+
+			assert.Nil(t, err)
+			assert.Equal(t, test.expectedPromptTypeValue, conn.promptType)
+
+			loginURL, err := conn.LoginURL(connector.Scopes{OfflineAccess: true}, ts.URL+"/callback", "state")
+			assert.Nil(t, err)
+
+			urlp, err := url.Parse(loginURL)
+			assert.Nil(t, err)
+
+			assert.Equal(t, test.expectedPromptTypeValue, urlp.Query().Get("prompt"))
 		})
 	}
 }

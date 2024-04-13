@@ -58,6 +58,10 @@ type Config struct {
 
 	// If this field is true, fetch direct group membership and transitive group membership
 	FetchTransitiveGroupMembership bool `json:"fetchTransitiveGroupMembership"`
+
+	// Optional value for the prompt parameter, defaults to consent when offline_access
+	// scope is requested
+	PromptType *string `json:"promptType"`
 }
 
 // Open returns a connector which can be used to login users through Google.
@@ -107,6 +111,11 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		}
 	}
 
+	promptType := "consent"
+	if c.PromptType != nil {
+		promptType = *c.PromptType
+	}
+
 	clientID := c.ClientID
 	return &googleConnector{
 		redirectURI: c.RedirectURI,
@@ -128,6 +137,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		domainToAdminEmail:             c.DomainToAdminEmail,
 		fetchTransitiveGroupMembership: c.FetchTransitiveGroupMembership,
 		adminSrv:                       adminSrv,
+		promptType:                     promptType,
 	}, nil
 }
 
@@ -148,6 +158,7 @@ type googleConnector struct {
 	domainToAdminEmail             map[string]string
 	fetchTransitiveGroupMembership bool
 	adminSrv                       map[string]*admin.Service
+	promptType                     string
 }
 
 func (c *googleConnector) Close() error {
@@ -170,8 +181,9 @@ func (c *googleConnector) LoginURL(s connector.Scopes, callbackURL, state string
 	}
 
 	if s.OfflineAccess {
-		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "consent"))
+		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", c.promptType))
 	}
+
 	return c.oauth2Config.AuthCodeURL(state, opts...), nil
 }
 

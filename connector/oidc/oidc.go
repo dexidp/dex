@@ -75,7 +75,7 @@ type Config struct {
 
 	UserNameKey string `json:"userNameKey"`
 
-	// PromptType will be used fot the prompt parameter (when offline_access, by default prompt=consent)
+	// PromptType will be used for the prompt parameter (when offline_access, by default prompt=consent)
 	PromptType *string `json:"promptType"`
 
 	// OverrideClaimMapping will be used to override the options defined in claimMappings.
