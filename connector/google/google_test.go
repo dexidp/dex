@@ -10,11 +10,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dexidp/dex/connector"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	admin "google.golang.org/api/admin/directory/v1"
 	"google.golang.org/api/option"
+
+	"github.com/dexidp/dex/connector"
 )
 
 var (
