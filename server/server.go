@@ -42,6 +42,7 @@ import (
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
+	"github.com/dexidp/dex/connector/sql"
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
@@ -577,6 +578,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"keystone":        func() ConnectorConfig { return new(keystone.Config) },
 	"mockCallback":    func() ConnectorConfig { return new(mock.CallbackConfig) },
 	"mockPassword":    func() ConnectorConfig { return new(mock.PasswordConfig) },
+	"sql":             func() ConnectorConfig { return new(sql.Config) },
 	"ldap":            func() ConnectorConfig { return new(ldap.Config) },
 	"gitea":           func() ConnectorConfig { return new(gitea.Config) },
 	"github":          func() ConnectorConfig { return new(github.Config) },
