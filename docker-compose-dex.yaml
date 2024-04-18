@@ -1,0 +1,13 @@
+version: "3.5"
+
+services:
+    dex:
+        image: ghcr.io/dexidp/dex:latest-distroless
+        volumes:
+            - ./config.dev.yaml:/etc/dex/config.yaml
+        ports:
+            - 5556:5556
+        command:
+            - dex
+            - serve
+            - /etc/dex/config.yaml

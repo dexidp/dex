@@ -1,0 +1,18 @@
+{{ template "header.html" . }}
+
+
+<div class="theme-panel">
+  <div class="theme-form-container">
+    {{ range $c := .Connectors }}
+      <div class="theme-form-row">
+        <a href="{{ $c.URL }}" target="_self">
+          <button class="dex-btn">
+            Log in with {{ $c.Name }}
+          </button>
+        </a>
+      </div>
+    {{ end }}
+  </div>
+</div>
+
+{{ template "footer.html" . }}

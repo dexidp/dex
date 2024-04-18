@@ -1,0 +1,35 @@
+.theme-body {
+    background-color: #efefef;
+    font-family: "rawline", sans-serif;
+}
+
+.theme-heading {
+    font-size: 20px;
+    font-weight: 500;
+    margin-bottom: 10px;
+    margin-top: 0;
+}
+
+.theme-panel {
+    display: grid;
+    row-gap: 20px;
+    margin: 20px;
+    padding: 50px;
+    background: white;
+    border-radius: 8px;
+    color: rgb(29, 35, 42);
+}
+
+.theme-form-container {
+    display: grid;
+    width: 320px;
+    row-gap: 20px;
+}
+
+.theme-form-row {
+    display: block;
+}
+
+.theme-link-back {
+    margin-top: 4px;
+}

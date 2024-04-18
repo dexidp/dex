@@ -1,0 +1,9 @@
+{{ template "header.html" . }}
+
+<div class="theme-panel">
+  <h2 class="theme-heading">Login Successful</h2>
+  <p>Please copy this code, switch to your application and paste it there:</p>
+  <input type="text" value="{{ .Code }}" />
+</div>
+
+{{ template "footer.html" . }}

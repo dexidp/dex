@@ -575,7 +575,8 @@ func applyConfigOverrides(options serveOptions, config *Config) {
 	}
 
 	if config.Frontend.Dir == "" {
-		config.Frontend.Dir = os.Getenv("DEX_FRONTEND_DIR")
+		config.Frontend.Dir = "./web-min-styles"
+		// config.Frontend.Dir = os.Getenv("DEX_FRONTEND_DIR")
 	}
 
 	if len(config.OAuth2.GrantTypes) == 0 {

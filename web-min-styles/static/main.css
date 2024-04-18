@@ -1,0 +1,100 @@
+* {
+    box-sizing: border-box;
+    color: #1d232a;
+    font: 12px "rawline", sans-serif;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+}
+
+input {
+    width: 100%;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+button {
+    width: 100%;
+    box-sizing: border-box;
+    cursor: pointer;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-size: 12px;
+    padding: 10px 24px;
+    font-weight: 600;
+}
+
+.dex-container {
+    background-image: linear-gradient(
+        -45deg,
+        var(--login-gradient-start, #f22737),
+        var(--login-gradient-end, #19216c)
+    );
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    text-align: center;
+    gap: 20px;
+}
+
+.dex-btn {
+    border: 2px solid rgb(255, 99, 21);
+    color: rgb(255, 99, 21);
+    background: white;
+}
+
+.dex-btn:active {
+    color: white;
+    border: 0px;
+    padding: 12px 26px;
+    background-image: linear-gradient(
+        to right,
+        rgb(255, 187, 60),
+        rgb(242, 39, 55)
+    );
+}
+
+.dex-btn-cancel {
+    border: solid 2px #868ab1;
+    background-color: #f8f4f4;
+    color: #484886;
+}
+
+.dex-btn-cancel:hover {
+    color: #b5b7d0;
+    border-color: #b5b7d0;
+}
+
+.dex-btn-icon--ldap {
+    background-color: #84b6ef;
+    background-image: url(../static/img/ldap-icon.svg);
+}
+
+.dex-subtle-text {
+    color: #999;
+    font-size: 13px;
+}
+.dex-subtle-text:hover {
+    color: #666666;
+}
+
+.dex-separator {
+    color: #999;
+}
+
+.dex-list {
+    display: inline-block;
+    font-size: 13px;
+    list-style: circle;
+    text-align: left;
+}
+
+.dex-error-box {
+    color: rgb(224, 92, 49);
+    font-size: 14px;
+    font-weight: normal;
+}

@@ -78,7 +78,7 @@ web:
     Strict-Transport-Security: "max-age=31536000; includeSubDomains"
 
 frontend:
-  dir: ./web
+  dir: ./web-min-styles
   extra:
     foo: bar
 

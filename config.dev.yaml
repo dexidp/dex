@@ -1,12 +1,16 @@
 issuer: http://127.0.0.1:5556/dex
 
 storage:
-  type: sqlite3
-  config:
-    file: var/sqlite/dex.db
+  type: memory
 
 web:
   http: 127.0.0.1:5556
+
+frontend:
+  issuer: dex
+  logoURL: theme/logo.png
+  dir: web-min-styles/
+  theme: light
 
 telemetry:
   http: 127.0.0.1:5558
