@@ -35,7 +35,7 @@ jobs:
           publish_results: true
 
       - name: Upload results as artifact
-        uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32 # v3.1.3
+        uses: actions/upload-artifact@1746f4ab65b179e0ea60a494b83293b640dd5bba # v4.3.2
         with:
           name: OpenSSF Scorecard results
           path: results.sarif
