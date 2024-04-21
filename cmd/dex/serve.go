@@ -114,6 +114,9 @@ func runServe(options serveOptions) error {
 	}
 
 	logger.Infof("config issuer: %s", c.Issuer)
+	if len(c.TokenURL) > 0 {
+		logger.Infof("config token_endpoint: %s", c.TokenURL)
+	}
 
 	prometheusRegistry := prometheus.NewRegistry()
 	err = prometheusRegistry.Register(collectors.NewGoCollector())
@@ -282,6 +285,7 @@ func runServe(options serveOptions) error {
 		AllowedOrigins:         c.Web.AllowedOrigins,
 		AllowedHeaders:         c.Web.AllowedHeaders,
 		Issuer:                 c.Issuer,
+		TokenURL:               c.TokenURL,
 		Storage:                s,
 		Web:                    c.Frontend,
 		Logger:                 logger,

@@ -63,6 +63,8 @@ type Connector struct {
 type Config struct {
 	Issuer string
 
+	TokenURL string
+
 	// The backing persistence layer.
 	Storage storage.Storage
 
@@ -156,6 +158,7 @@ func value(val, defaultValue time.Duration) time.Duration {
 // Server is the top level object.
 type Server struct {
 	issuerURL url.URL
+	tokenURL  url.URL
 
 	// mutex for the connectors map.
 	mu sync.Mutex
@@ -211,6 +214,11 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	issuerURL, err := url.Parse(c.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("server: can't parse issuer URL")
+	}
+
+	tokenURL, err := url.Parse(c.TokenURL)
+	if len(c.TokenURL) > 0 && err != nil {
+		return nil, fmt.Errorf("server: can't parse token URL")
 	}
 
 	if c.Storage == nil {
@@ -292,6 +300,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	s := &Server{
 		issuerURL:              *issuerURL,
+		tokenURL:               *tokenURL,
 		connectors:             make(map[string]Connector),
 		storage:                newKeyCacher(c.Storage, now),
 		supportedResponseTypes: supportedRes,
@@ -448,6 +457,17 @@ func (s *Server) absPath(pathItems ...string) string {
 
 func (s *Server) absURL(pathItems ...string) string {
 	u := s.issuerURL
+	u.Path = s.absPath(pathItems...)
+	return u.String()
+}
+
+func (s *Server) absTokenURL(pathItems ...string) string {
+	var u url.URL
+	if len(s.tokenURL.String()) > 0 {
+		u = s.tokenURL
+	} else {
+		u = s.issuerURL
+	}
 	u.Path = s.absPath(pathItems...)
 	return u.String()
 }
