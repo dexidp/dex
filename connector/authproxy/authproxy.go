@@ -4,10 +4,13 @@
 package authproxy
 
 import (
+	"crypto"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/18F/hmacauth"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
@@ -19,11 +22,14 @@ import (
 // Headers retrieved to fetch user's email and group can be configured
 // with userHeader and groupHeader.
 type Config struct {
-	UserIDHeader string   `json:"userIDHeader"`
-	UserHeader   string   `json:"userHeader"`
-	EmailHeader  string   `json:"emailHeader"`
-	GroupHeader  string   `json:"groupHeader"`
-	Groups       []string `json:"staticGroups"`
+	UserIDHeader        string   `json:"userIDHeader"`
+	UserHeader          string   `json:"userHeader"`
+	EmailHeader         string   `json:"emailHeader"`
+	GroupHeader         string   `json:"groupHeader"`
+	Groups              []string `json:"staticGroups"`
+	HMACSignatureHeader string   `json:"hmacSignatureHeader"`
+	HMACSignedHeaders   []string `json:"hmacSignedHeaders"`
+	HMACKey             string   `json:"hmacKey"`
 }
 
 // Open returns an authentication strategy which requires no user interaction.
@@ -44,6 +50,16 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 	if groupHeader == "" {
 		groupHeader = "X-Remote-Group"
 	}
+	hmacHeader := c.HMACSignatureHeader
+	if hmacHeader == "" {
+		hmacHeader = "Gap-Signature"
+	}
+
+	var hasher hmacauth.HmacAuth
+	if c.HMACKey != "" {
+		hasher = hmacauth.NewHmacAuth(crypto.SHA256, []byte(c.HMACKey),
+			hmacHeader, c.HMACSignedHeaders)
+	}
 
 	return &callback{
 		userIDHeader: userIDHeader,
@@ -51,6 +67,8 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		emailHeader:  emailHeader,
 		groupHeader:  groupHeader,
 		groups:       c.Groups,
+		hmacHeader:   hmacHeader,
+		hmacAuth:     hasher,
 		logger:       logger,
 		pathSuffix:   "/" + id,
 	}, nil
@@ -64,6 +82,8 @@ type callback struct {
 	emailHeader  string
 	groupHeader  string
 	groups       []string
+	hmacAuth     hmacauth.HmacAuth
+	hmacHeader   string
 	logger       log.Logger
 	pathSuffix   string
 }
@@ -83,6 +103,13 @@ func (m *callback) LoginURL(s connector.Scopes, callbackURL, state string) (stri
 
 // HandleCallback parses the request and returns the user's identity
 func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connector.Identity, error) {
+	if m.hmacAuth != nil {
+		hmacResult, _, _ := m.hmacAuth.AuthenticateRequest(r)
+		if hmacResult != hmacauth.ResultMatch {
+			return connector.Identity{}, fmt.Errorf("unexpected HMAC signature in header %q", m.hmacHeader)
+		}
+	}
+
 	remoteUser := r.Header.Get(m.userHeader)
 	if remoteUser == "" {
 		return connector.Identity{}, fmt.Errorf("required HTTP header %s is not set", m.userHeader)

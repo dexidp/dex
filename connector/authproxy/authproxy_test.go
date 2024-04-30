@@ -1,11 +1,15 @@
 package authproxy
 
 import (
+	"bytes"
+	"crypto"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 
+	"github.com/18F/hmacauth"
 	"github.com/sirupsen/logrus"
 
 	"github.com/dexidp/dex/connector"
@@ -156,6 +160,43 @@ func TestStaticGroup(t *testing.T) {
 	expectEquals(t, ident.Groups[3], testGroup4)
 	expectEquals(t, ident.Groups[4], testStaticGroup1)
 	expectEquals(t, ident.Groups[5], testStaticGroup2)
+}
+
+func TestHMAC_Valid(t *testing.T) {
+	c := Config{
+		UserHeader:          "X-Remote-User",
+		HMACSignatureHeader: "Gap-Signature",
+		HMACKey:             "key",
+	}
+	hmacAuth := hmacauth.NewHmacAuth(crypto.SHA256, []byte(c.HMACKey), c.HMACSignatureHeader, c.HMACSignedHeaders)
+	conn := callback{userHeader: c.UserHeader, hmacAuth: hmacAuth, hmacHeader: c.HMACSignatureHeader}
+
+	req := httptest.NewRequest(http.MethodGet, "/", bytes.NewBuffer([]byte(`{}`)))
+	hmacAuth.SignRequest(req)
+	req.Header.Set(c.UserHeader, "x")
+
+	scopes := connector.Scopes{}
+	_, err := conn.HandleCallback(scopes, req)
+	expectNil(t, err)
+}
+
+func TestHMAC_Invalid(t *testing.T) {
+	c := Config{
+		UserHeader:          "X-Remote-User",
+		HMACSignatureHeader: "Gap-Signature",
+		HMACKey:             "key",
+	}
+	hmacAuth := hmacauth.NewHmacAuth(crypto.SHA256, []byte(c.HMACKey), c.HMACSignatureHeader, c.HMACSignedHeaders)
+	conn := callback{userHeader: c.UserHeader, hmacAuth: hmacAuth, hmacHeader: c.HMACSignatureHeader}
+
+	req := httptest.NewRequest(http.MethodGet, "/", bytes.NewBuffer([]byte(`{}`)))
+	req.Header.Set(c.UserHeader, "x")
+
+	scopes := connector.Scopes{}
+	_, err := conn.HandleCallback(scopes, req)
+	if err == nil {
+		t.Errorf("expected HMAC error")
+	}
 }
 
 func expectNil(t *testing.T, a interface{}) {
