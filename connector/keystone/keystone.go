@@ -10,11 +10,13 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"github.com/dexidp/dex/connector"
 )
 
 type conn struct {
-	Domain        string
+	Domain        domainKeystone
 	Host          string
 	AdminUsername string
 	AdminPassword string
@@ -29,8 +31,8 @@ type userKeystone struct {
 }
 
 type domainKeystone struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
 }
 
 // Config holds the configuration parameters for Keystone connector.
@@ -71,13 +73,9 @@ type password struct {
 }
 
 type user struct {
-	Name     string `json:"name"`
-	Domain   domain `json:"domain"`
-	Password string `json:"password"`
-}
-
-type domain struct {
-	ID string `json:"id"`
+	Name     string         `json:"name"`
+	Domain   domainKeystone `json:"domain"`
+	Password string         `json:"password"`
 }
 
 type token struct {
@@ -112,8 +110,22 @@ var (
 
 // Open returns an authentication strategy using Keystone.
 func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
+	_, err := uuid.Parse(c.Domain)
+	var domain domainKeystone
+	// check if the supplied domain is a UUID or the special "default" value
+	// which is treated as an ID and not a name
+	if err == nil || c.Domain == "default" {
+		domain = domainKeystone{
+			ID: c.Domain,
+		}
+	} else {
+		domain = domainKeystone{
+			Name: c.Domain,
+		}
+	}
+
 	return &conn{
-		Domain:        c.Domain,
+		Domain:        domain,
 		Host:          c.Host,
 		AdminUsername: c.AdminUsername,
 		AdminPassword: c.AdminPassword,
@@ -202,7 +214,7 @@ func (p *conn) getTokenResponse(ctx context.Context, username, pass string) (res
 				Password: password{
 					User: user{
 						Name:     username,
-						Domain:   domain{ID: p.Domain},
+						Domain:   p.Domain,
 						Password: pass,
 					},
 				},
