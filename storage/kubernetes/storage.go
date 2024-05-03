@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
@@ -53,7 +53,7 @@ type Config struct {
 }
 
 // Open returns a storage using Kubernetes third party resource.
-func (c *Config) Open(logger log.Logger) (storage.Storage, error) {
+func (c *Config) Open(logger *slog.Logger) (storage.Storage, error) {
 	cli, err := c.open(logger, false)
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func (c *Config) Open(logger log.Logger) (storage.Storage, error) {
 //
 // waitForResources controls if errors creating the resources cause this method to return
 // immediately (used during testing), or if the client will asynchronously retry.
-func (c *Config) open(logger log.Logger, waitForResources bool) (*client, error) {
+func (c *Config) open(logger *slog.Logger, waitForResources bool) (*client, error) {
 	if c.InCluster && (c.KubeConfigFile != "") {
 		return nil, errors.New("cannot specify both 'inCluster' and 'kubeConfigFile'")
 	}
@@ -155,12 +155,12 @@ func (cli *client) registerCustomResources() (ok bool) {
 
 		r := definitions[i]
 		var i interface{}
-		cli.logger.Infof("checking if custom resource %s has already been created...", r.ObjectMeta.Name)
+		cli.logger.Info("checking if custom resource has already been created...", "object", r.ObjectMeta.Name)
 		if err := cli.list(r.Spec.Names.Plural, &i); err == nil {
-			cli.logger.Infof("The custom resource %s already available, skipping create", r.ObjectMeta.Name)
+			cli.logger.Info("the custom resource already available, skipping create", "object", r.ObjectMeta.Name)
 			continue
 		} else {
-			cli.logger.Infof("failed to list custom resource %s, attempting to create: %v", r.ObjectMeta.Name, err)
+			cli.logger.Info("failed to list custom resource, attempting to create", "object", r.ObjectMeta.Name, "err", err)
 		}
 
 		err = cli.postResource(cli.crdAPIVersion, "", "customresourcedefinitions", r)
@@ -169,17 +169,17 @@ func (cli *client) registerCustomResources() (ok bool) {
 		if err != nil {
 			switch err {
 			case storage.ErrAlreadyExists:
-				cli.logger.Infof("custom resource already created %s", resourceName)
+				cli.logger.Info("custom resource already created", "object", resourceName)
 			case storage.ErrNotFound:
-				cli.logger.Errorf("custom resources not found, please enable the respective API group")
+				cli.logger.Error("custom resources not found, please enable the respective API group")
 				ok = false
 			default:
-				cli.logger.Errorf("creating custom resource %s: %v", resourceName, err)
+				cli.logger.Error("creating custom resource", "object", resourceName, "err", err)
 				ok = false
 			}
 			continue
 		}
-		cli.logger.Errorf("create custom resource %s", resourceName)
+		cli.logger.Error("create custom resource", "object", resourceName)
 	}
 	return ok
 }
@@ -197,7 +197,7 @@ func (cli *client) waitForCRDs(ctx context.Context) error {
 				break
 			}
 
-			cli.logger.Errorf("checking CRD: %v", err)
+			cli.logger.ErrorContext(ctx, "checking CRD", "err", err)
 
 			select {
 			case <-ctx.Done():
@@ -556,7 +556,7 @@ func (cli *client) UpdateKeys(updater func(old storage.Keys) (storage.Keys, erro
 		err = cli.post(resourceKeys, newKeys)
 		if err != nil && errors.Is(err, storage.ErrAlreadyExists) {
 			// We need to tolerate conflicts here in case of HA mode.
-			cli.logger.Debugf("Keys creation failed: %v. It is possible that keys have already been created by another dex instance.", err)
+			cli.logger.Debug("Keys creation failed. It is possible that keys have already been created by another dex instance.", "err", err)
 			return errors.New("keys already created by another server instance")
 		}
 
@@ -569,7 +569,7 @@ func (cli *client) UpdateKeys(updater func(old storage.Keys) (storage.Keys, erro
 	if isKubernetesAPIConflictError(err) {
 		// We need to tolerate conflicts here in case of HA mode.
 		// Dex instances run keys rotation at the same time because they use SigningKey.nextRotation CR field as a trigger.
-		cli.logger.Debugf("Keys rotation failed: %v. It is possible that keys have already been rotated by another dex instance.", err)
+		cli.logger.Debug("Keys rotation failed. It is possible that keys have already been rotated by another dex instance.", "err", err)
 		return errors.New("keys already rotated by another server instance")
 	}
 
@@ -622,7 +622,7 @@ func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err e
 	for _, authRequest := range authRequests.AuthRequests {
 		if now.After(authRequest.Expiry) {
 			if err := cli.delete(resourceAuthRequest, authRequest.ObjectMeta.Name); err != nil {
-				cli.logger.Errorf("failed to delete auth request: %v", err)
+				cli.logger.Error("failed to delete auth request", "err", err)
 				delErr = fmt.Errorf("failed to delete auth request: %v", err)
 			}
 			result.AuthRequests++
@@ -640,7 +640,7 @@ func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err e
 	for _, authCode := range authCodes.AuthCodes {
 		if now.After(authCode.Expiry) {
 			if err := cli.delete(resourceAuthCode, authCode.ObjectMeta.Name); err != nil {
-				cli.logger.Errorf("failed to delete auth code %v", err)
+				cli.logger.Error("failed to delete auth code", "err", err)
 				delErr = fmt.Errorf("failed to delete auth code: %v", err)
 			}
 			result.AuthCodes++
@@ -655,7 +655,7 @@ func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err e
 	for _, deviceRequest := range deviceRequests.DeviceRequests {
 		if now.After(deviceRequest.Expiry) {
 			if err := cli.delete(resourceDeviceRequest, deviceRequest.ObjectMeta.Name); err != nil {
-				cli.logger.Errorf("failed to delete device request: %v", err)
+				cli.logger.Error("failed to delete device request", "err", err)
 				delErr = fmt.Errorf("failed to delete device request: %v", err)
 			}
 			result.DeviceRequests++
@@ -670,7 +670,7 @@ func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err e
 	for _, deviceToken := range deviceTokens.DeviceTokens {
 		if now.After(deviceToken.Expiry) {
 			if err := cli.delete(resourceDeviceToken, deviceToken.ObjectMeta.Name); err != nil {
-				cli.logger.Errorf("failed to delete device token: %v", err)
+				cli.logger.Error("failed to delete device token", "err", err)
 				delErr = fmt.Errorf("failed to delete device token: %v", err)
 			}
 			result.DeviceTokens++

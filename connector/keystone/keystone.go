@@ -7,10 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 type conn struct {
@@ -19,7 +19,7 @@ type conn struct {
 	AdminUsername string
 	AdminPassword string
 	client        *http.Client
-	Logger        log.Logger
+	Logger        *slog.Logger
 }
 
 type userKeystone struct {
@@ -111,13 +111,13 @@ var (
 )
 
 // Open returns an authentication strategy using Keystone.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
 	return &conn{
 		Domain:        c.Domain,
 		Host:          c.Host,
 		AdminUsername: c.AdminUsername,
 		AdminPassword: c.AdminPassword,
-		Logger:        logger,
+		Logger:        logger.With(slog.Group("connector", "type", "keystone", "id", id)),
 		client:        http.DefaultClient,
 	}, nil
 }
@@ -287,7 +287,7 @@ func (p *conn) getUserGroups(ctx context.Context, userID string, token string) (
 	req = req.WithContext(ctx)
 	resp, err := p.client.Do(req)
 	if err != nil {
-		p.Logger.Errorf("keystone: error while fetching user %q groups\n", userID)
+		p.Logger.Error("error while fetching user groups", "user_id", userID, "err", err)
 		return nil, err
 	}
 

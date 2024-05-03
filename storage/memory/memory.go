@@ -3,18 +3,18 @@ package memory
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
 
 var _ storage.Storage = (*memStorage)(nil)
 
 // New returns an in memory storage.
-func New(logger log.Logger) storage.Storage {
+func New(logger *slog.Logger) storage.Storage {
 	return &memStorage{
 		clients:         make(map[string]storage.Client),
 		authCodes:       make(map[string]storage.AuthCode),
@@ -36,7 +36,7 @@ type Config struct { // The in memory implementation has no config.
 }
 
 // Open always returns a new in memory storage.
-func (c *Config) Open(logger log.Logger) (storage.Storage, error) {
+func (c *Config) Open(logger *slog.Logger) (storage.Storage, error) {
 	return New(logger), nil
 }
 
@@ -55,7 +55,7 @@ type memStorage struct {
 
 	keys storage.Keys
 
-	logger log.Logger
+	logger *slog.Logger
 }
 
 type offlineSessionID struct {

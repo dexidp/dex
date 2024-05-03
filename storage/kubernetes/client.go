@@ -13,6 +13,7 @@ import (
 	"hash"
 	"hash/fnv"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -27,7 +28,6 @@ import (
 	"github.com/ghodss/yaml"
 	"golang.org/x/net/http2"
 
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
@@ -36,7 +36,7 @@ type client struct {
 	client    *http.Client
 	baseURL   string
 	namespace string
-	logger    log.Logger
+	logger    *slog.Logger
 
 	// Hash function to map IDs (which could span a large range) to Kubernetes names.
 	// While this is not currently upgradable, it could be in the future.
@@ -268,7 +268,7 @@ func (cli *client) detectKubernetesVersion() error {
 
 	clusterVersion, err := semver.NewVersion(version.GitVersion)
 	if err != nil {
-		cli.logger.Warnf("cannot detect Kubernetes version (%s): %v", clusterVersion, err)
+		cli.logger.Warn("cannot detect Kubernetes version", "version", clusterVersion, "err", err)
 		return nil
 	}
 
@@ -358,7 +358,7 @@ func defaultTLSConfig() *tls.Config {
 	}
 }
 
-func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, logger log.Logger, inCluster bool) (*client, error) {
+func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, logger *slog.Logger, inCluster bool) (*client, error) {
 	tlsConfig := defaultTLSConfig()
 	data := func(b string, file string) ([]byte, error) {
 		if b != "" {
@@ -418,7 +418,7 @@ func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, l
 
 	apiVersion := "dex.coreos.com/v1"
 
-	logger.Infof("kubernetes client apiVersion = %s", apiVersion)
+	logger.Info("kubernetes client", "api_version", apiVersion)
 	return &client{
 		client: &http.Client{
 			Transport: t,

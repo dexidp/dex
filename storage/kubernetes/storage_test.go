@@ -5,6 +5,8 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -57,11 +58,7 @@ func (s *StorageTestSuite) SetupTest() {
 		KubeConfigFile: kubeconfigPath,
 	}
 
-	logger := &logrus.Logger{
-		Out:       os.Stderr,
-		Formatter: &logrus.TextFormatter{DisableColors: true},
-		Level:     logrus.DebugLevel,
-	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	kubeClient, err := config.open(logger, true)
 	s.Require().NoError(err)
@@ -253,11 +250,7 @@ func newStatusCodesResponseTestClient(getResponseCode, actionResponseCode int) *
 	return &client{
 		client:  &http.Client{Transport: tr},
 		baseURL: s.URL,
-		logger: &logrus.Logger{
-			Out:       os.Stderr,
-			Formatter: &logrus.TextFormatter{DisableColors: true},
-			Level:     logrus.DebugLevel,
-		},
+		logger:  slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{})),
 	}
 }
 
@@ -314,11 +307,7 @@ func TestRefreshTokenLock(t *testing.T) {
 		KubeConfigFile: kubeconfigPath,
 	}
 
-	logger := &logrus.Logger{
-		Out:       os.Stderr,
-		Formatter: &logrus.TextFormatter{DisableColors: true},
-		Level:     logrus.DebugLevel,
-	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	kubeClient, err := config.open(logger, true)
 	require.NoError(t, err)
