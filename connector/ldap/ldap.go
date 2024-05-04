@@ -11,10 +11,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/go-ldap/ldap/v3"
-
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
+	"github.com/go-ldap/ldap/v3"
 )
 
 // Config holds the configuration parameters for the LDAP connector. The LDAP
@@ -116,6 +115,14 @@ type Config struct {
 		// * "one" - only search one level
 		Scope string `json:"scope"`
 
+		// Can be:
+		// * "never"
+		// * "searching"
+		// * "finding"
+		// * "always"
+		// Defaults to "never"
+		Deref string `json:"deref"`
+
 		// A mapping of attributes on the user entry to claims.
 		IDAttr                    string `json:"idAttr"`                // Defaults to "uid"
 		EmailAttr                 string `json:"emailAttr"`             // Defaults to "mail"
@@ -136,6 +143,14 @@ type Config struct {
 		Filter string `json:"filter"`
 
 		Scope string `json:"scope"` // Defaults to "sub"
+
+		// Can be:
+		// * "never"
+		// * "searching"
+		// * "finding"
+		// * "always"
+		// Defaults to "never"
+		Deref string `json:"deref"`
 
 		// DEPRECATED config options. Those are left for backward compatibility.
 		// See "UserMatchers" below for the current group to user matching implementation
@@ -180,6 +195,35 @@ func parseScope(s string) (int, bool) {
 		return ldap.ScopeWholeSubtree, true
 	case "one":
 		return ldap.ScopeSingleLevel, true
+	}
+	return 0, false
+}
+
+func derefString(i int) string {
+	switch i {
+	case ldap.NeverDerefAliases:
+		return "never"
+	case ldap.DerefInSearching:
+		return "searching"
+	case ldap.DerefFindingBaseObj:
+		return "finding"
+	case ldap.DerefAlways:
+		return "always"
+	default:
+		return ""
+	}
+}
+
+func parseDeref(s string) (int, bool) {
+	switch s {
+	case "", "never":
+		return ldap.NeverDerefAliases, true
+	case "searching":
+		return ldap.DerefInSearching, true
+	case "finding":
+		return ldap.DerefFindingBaseObj, true
+	case "always":
+		return ldap.DerefAlways, true
 	}
 	return 0, false
 }
@@ -242,6 +286,11 @@ func (c *Config) openConnector(logger log.Logger) (*ldapConnector, error) {
 		}
 	}
 
+	// Required:  explicit email address OR domain suffix to username
+	if c.UserSearch.EmailAttr == "" && c.UserSearch.EmailSuffix == "" {
+		return nil, fmt.Errorf("ldap: either emailAttr or emailSuffix must be provided")
+	}
+
 	var (
 		host string
 		err  error
@@ -282,21 +331,31 @@ func (c *Config) openConnector(logger log.Logger) (*ldapConnector, error) {
 	if !ok {
 		return nil, fmt.Errorf("userSearch.Scope unknown value %q", c.UserSearch.Scope)
 	}
+	userSearchDeref, ok := parseDeref(c.UserSearch.Deref)
+	if !ok {
+		return nil, fmt.Errorf("userSearch.Deref unknown value %q", c.UserSearch.Deref)
+	}
 	groupSearchScope, ok := parseScope(c.GroupSearch.Scope)
 	if !ok {
 		return nil, fmt.Errorf("groupSearch.Scope unknown value %q", c.GroupSearch.Scope)
 	}
+	groupSearchDeref, ok := parseDeref(c.GroupSearch.Deref)
+	if !ok {
+		return nil, fmt.Errorf("groupSearch.Deref unknown value %q", c.GroupSearch.Deref)
+	}
 
 	// TODO(nabokihms): remove it after deleting deprecated groupSearch options
 	c.GroupSearch.UserMatchers = userMatchers(c, logger)
-	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig, logger}, nil
+	return &ldapConnector{*c, userSearchScope, userSearchDeref, groupSearchScope, groupSearchDeref, tlsConfig, logger}, nil
 }
 
 type ldapConnector struct {
 	Config
 
 	userSearchScope  int
+	userSearchDeref  int
 	groupSearchScope int
+	groupSearchDeref int
 
 	tlsConfig *tls.Config
 
@@ -415,9 +474,10 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 
 	// Initial search.
 	req := &ldap.SearchRequest{
-		BaseDN: c.UserSearch.BaseDN,
-		Filter: filter,
-		Scope:  c.userSearchScope,
+		BaseDN:       c.UserSearch.BaseDN,
+		Filter:       filter,
+		Scope:        c.userSearchScope,
+		DerefAliases: c.userSearchDeref,
 		// We only need to search for these specific requests.
 		Attributes: []string{
 			c.UserSearch.IDAttr,
@@ -438,8 +498,8 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 		req.Attributes = append(req.Attributes, c.UserSearch.PreferredUsernameAttrAttr)
 	}
 
-	c.logger.Infof("performing ldap search %s %s %s",
-		req.BaseDN, scopeString(req.Scope), req.Filter)
+	c.logger.Infof("performing ldap search %s %s %s %s",
+		req.BaseDN, scopeString(req.Scope), derefString(req.DerefAliases), req.Filter)
 	resp, err := conn.Search(req)
 	if err != nil {
 		return ldap.Entry{}, false, fmt.Errorf("ldap: search with filter %q failed: %v", req.Filter, err)
@@ -594,16 +654,17 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 			}
 
 			req := &ldap.SearchRequest{
-				BaseDN:     c.GroupSearch.BaseDN,
-				Filter:     filter,
-				Scope:      c.groupSearchScope,
-				Attributes: []string{c.GroupSearch.NameAttr},
+				BaseDN:       c.GroupSearch.BaseDN,
+				Filter:       filter,
+				Scope:        c.groupSearchScope,
+				DerefAliases: c.groupSearchDeref,
+				Attributes:   []string{c.GroupSearch.NameAttr},
 			}
 
 			gotGroups := false
 			if err := c.do(ctx, func(conn *ldap.Conn) error {
-				c.logger.Infof("performing ldap search %s %s %s",
-					req.BaseDN, scopeString(req.Scope), req.Filter)
+				c.logger.Infof("performing ldap search %s %s %s %s",
+					req.BaseDN, scopeString(req.Scope), derefString(req.DerefAliases), req.Filter)
 				resp, err := conn.Search(req)
 				if err != nil {
 					return fmt.Errorf("ldap: search failed: %v", err)
