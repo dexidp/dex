@@ -3,6 +3,7 @@ package microsoft
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -117,6 +118,66 @@ func TestUserGroupsFromGraphAPI(t *testing.T) {
 	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
 	expectNil(t, err)
 	expectEquals(t, identity.Groups, []string{"a", "b"})
+}
+
+func TestDomainNotAllowed(t *testing.T) {
+	s := newTestServer(map[string]testResponse{
+		"/v1.0/me?$select=id,displayName,userPrincipalName": {
+			data: user{ID: "S56767889", Name: "Jane Doe", Email: "jane.doe@example.com"},
+		},
+		"/" + tenant + "/oauth2/v2.0/token": dummyToken,
+	})
+	defer s.Close()
+
+	req, _ := http.NewRequest("GET", s.URL, nil)
+
+	c := microsoftConnector{apiURL: s.URL, graphURL: s.URL, tenant: tenant, allowedDomains: []string{"dcode.tech"}}
+	identity, err := c.HandleCallback(connector.Scopes{Groups: false}, req)
+
+	assert.Error(t, err, "email (jane.doe@example.com) domain not allowed")
+	assert.Equal(t, connector.Identity{}, identity)
+}
+
+func TestDomainListAllowed(t *testing.T) {
+	testCases := []struct {
+		email   string
+		allowed bool
+		domain  string
+	}{
+		{"jane.doe@dcode.tech", true, "dcode.tech"},              // Allowed domain
+		{"joe.bloggs@example.com", true, "example.com"},          // Allowed domain
+		{"john.smith@otherdomain.com", false, "otherdomain.com"}, // Not allowed domain
+	}
+
+	for _, tc := range testCases {
+		s := newTestServer(map[string]testResponse{
+			"/v1.0/me?$select=id,displayName,userPrincipalName": {
+				data: user{ID: "S56767889", Name: "John Doe", Email: tc.email},
+			},
+			"/" + tenant + "/oauth2/v2.0/token": dummyToken,
+		})
+		defer s.Close()
+
+		req, _ := http.NewRequest("GET", s.URL, nil)
+
+		// Setup the microsoftConnector with allowed domains
+		c := microsoftConnector{
+			apiURL:         s.URL,
+			graphURL:       s.URL,
+			tenant:         tenant,
+			allowedDomains: []string{"dcode.tech", "example.com"},
+		}
+
+		identity, err := c.HandleCallback(connector.Scopes{Groups: false}, req)
+
+		if tc.allowed {
+			assert.NoError(t, err, "Expected no error for allowed domain: "+tc.domain)
+			assert.NotEqual(t, connector.Identity{}, identity, "Expected a non-empty identity struct")
+		} else {
+			assert.Error(t, err, "Expected error for non-allowed domain: "+tc.email)
+			assert.Equal(t, connector.Identity{}, identity, "Expected an empty identity struct")
+		}
+	}
 }
 
 func newTestServer(responses map[string]testResponse) *httptest.Server {
