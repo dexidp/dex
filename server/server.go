@@ -364,6 +364,10 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)
 	handleWithCORS("/auth/{connector}/generate_challenge", s.handleGenerateChallenge)
 	handleWithCORS("/auth/{connector}/submit_challenge", s.handleSubmitChallenge)
+
+	handleWithCORS("/auth/{connector}/nonce", s.handleGenerateNonce)
+	handleWithCORS("/auth/{connector}/submit_siwe", s.handleSubmitSiwe)
+
 	handleWithCORS("/auth/{connector}/challenge", s.handleChallenge)
 	handleWithCORS("/auth/{connector}/verify", s.handleVerify)
 	handleWithCORS("/auth/{connector}/verify_direct", s.handleVerifyDirect)

@@ -4,6 +4,7 @@ package web3
 import (
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -11,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/spruceid/siwe-go"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
@@ -47,6 +49,44 @@ func (c *web3Connector) InfuraID() string {
 }
 
 var erc1271magicValue = [4]byte{0x16, 0x26, 0xba, 0x7e}
+
+// https://gist.github.com/dcb9/385631846097e1f59e3cba3b1d42f3ed#file-eth_sign_verify-go
+func (c *web3Connector) Valid(address, nonce, redirectUri string, message siwe.Message, signature string) (identity connector.Identity, err error) {
+	if message.GetAddress() != common.HexToAddress(address) {
+		return identity, fmt.Errorf("signed message address %s doesn't match the original nonce address %s", message.GetAddress().String(), common.HexToAddress(address).String())
+	}
+
+	if message.GetNonce() != nonce {
+		return identity, fmt.Errorf("signed message nonce %s doesn't match the original nonce %s", message.GetNonce(), nonce)
+	}
+
+	redirect, err := url.Parse(redirectUri)
+	if err != nil {
+		return identity, fmt.Errorf("signed message has invalid URI: %v", err)
+	}
+
+	if message.GetDomain() != redirect.Host {
+		return identity, fmt.Errorf("signed message domain %s doesn't match the original domain %s", message.GetDomain(), redirect.Host)
+	}
+
+	if message.GetURI() != *redirect {
+		return identity, fmt.Errorf("signed message URI %s does not match valid redirect URI %s", message.GetURI().String(), *redirect)
+	}
+
+	_, err = message.ValidNow()
+	if err != nil {
+		return identity, fmt.Errorf("signed message is no longer valid: %v", err)
+	}
+	addrb := common.HexToAddress(address)
+	msgHash := signHash([]byte(message.String()))
+
+	identity, err = c.VerifyEOASignature(addrb, msgHash, signature)
+	if err != nil {
+		return c.VerifyERC1271Signature(addrb, msgHash, signature)
+	}
+
+	return identity, nil
+}
 
 // https://gist.github.com/dcb9/385631846097e1f59e3cba3b1d42f3ed#file-eth_sign_verify-go
 func (c *web3Connector) Verify(address, msg, signedMsg string) (connector.Identity, error) {

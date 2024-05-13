@@ -265,6 +265,8 @@ github.com/hydrogen18/memlistener v0.0.0-20141126152155-54553eb933fb/go.mod h1:q
 github.com/imdario/mergo v0.3.11 h1:3tnifQM4i+fbajXKBHXWEH+KvNHqojZ778UH75j3bGA=
 github.com/imdario/mergo v0.3.11/go.mod h1:jmQim1M+e3UYxmgPu/WyfjB3N3VflVyUjjjwH0dnCYA=
 github.com/imkira/go-interpol v1.1.0/go.mod h1:z0h2/2T3XF8kyEPpRgJ3kmNv+C43p+I/CoI+jC3w2iA=
+github.com/imusmanmalik/randomizer v1.0.2 h1:B0pPHtArc+Vn4ag2MQeDbTn0gwJ+PAtDkALJG7Js/nE=
+github.com/imusmanmalik/randomizer v1.0.2/go.mod h1:US0lZxMWejL+oIP/YmdNsUpHsbwzIK8SQTwxlvS8z+s=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/inconshreveable/mousetrap v1.0.1 h1:U3uMjPSQEBMNp1lFxmllqCPM6P5u/Xq7Pgzkat/bFNc=
 github.com/inconshreveable/mousetrap v1.0.1/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=

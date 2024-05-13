@@ -4,6 +4,8 @@ package connector
 import (
 	"context"
 	"net/http"
+
+	"github.com/spruceid/siwe-go"
 )
 
 // Connector is a mechanism for federating login to a remote identity service.
@@ -131,4 +133,16 @@ type Web3Connector interface {
 	// Verify checks that the given message was signed by the private key of the given
 	// account.
 	Verify(address, msg, signedMsg string) (identity Identity, err error)
+
+	Valid(address, nonce, redirectUri string, message siwe.Message, signature string) (identity Identity, err error)
+}
+
+type SiweConnector interface {
+	// Infura ID returns the configured Infura ID if one was provided, or else the
+	// empty string.
+	InfuraID() string
+
+	// Valid checks that the given message was signed by the private key of the given
+	// account.
+	Valid(address, nonce, redirectUri string, message siwe.Message, signature string) (identity Identity, err error)
 }

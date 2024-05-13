@@ -28,6 +28,7 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
+	"github.com/imusmanmalik/randomizer"
 )
 
 const (
@@ -292,6 +293,96 @@ func (s *Server) handleGenerateChallenge(w http.ResponseWriter, r *http.Request)
 		State     string `json:"state"`
 		Challenge string `json:"challenge"`
 	}{authReq.ID, challenge})
+}
+
+// Create an authorization request and nonce for a web3 login. Return state (the request id)
+// and a random nonce.
+func (s *Server) handleGenerateNonce(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Couldn't parse parameters.")
+		return
+	}
+
+	authReq, err := s.parseAuthorizationRequest(r)
+	if err != nil {
+		s.logger.Errorf("Failed to parse authorization request: %v", err)
+
+		switch authErr := err.(type) {
+		case *redirectedAuthErr:
+			authErr.Handler().ServeHTTP(w, r)
+		case *displayedAuthErr:
+			s.renderError(r, w, authErr.Status, err.Error())
+		default:
+			panic("unsupported error type")
+		}
+
+		return
+	}
+
+	client, err := s.storage.GetClient(authReq.ClientID)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			s.renderErrorJSON(w, http.StatusBadRequest, "Invalid client_id.")
+		}
+		s.logger.Errorf("Failed to get client: %v", err)
+		s.renderErrorJSON(w, http.StatusBadRequest, "Database error.")
+	}
+
+	if !validateRedirectURI(client, authReq.RedirectURI) {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Unregistered redirect_uri.")
+	}
+
+	rawAddr := r.Form.Get("address")
+	if !common.IsHexAddress(rawAddr) {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Invalid Ethereum address.")
+		return
+	}
+	addr := common.HexToAddress(rawAddr)
+
+	connID := mux.Vars(r)["connector"]
+	_, err = s.getConnector(connID)
+	if err != nil {
+		s.logger.Errorf("Failed to get connector: %v", err)
+		s.renderError(r, w, http.StatusBadRequest, "Could not retrieve connector.")
+		return
+	}
+
+	// Set the connector being used for the login.
+	if authReq.ConnectorID != "" && authReq.ConnectorID != connID {
+		s.logger.Errorf("Mismatched connector ID in auth request: %s vs %s",
+			authReq.ConnectorID, connID)
+		s.renderError(r, w, http.StatusBadRequest, "Bad connector ID")
+		return
+	}
+
+	authReq.ConnectorID = connID
+	nonce, err := randomizer.RandomString(32)
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusInternalServerError, "No source of randomness.")
+		return
+	}
+
+	authReq.ConnectorData, err = json.Marshal(web3ConnectorData{Address: addr.Hex(), Nonce: nonce})
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusInternalServerError, "Failed to create auth request.")
+		return
+	}
+
+	// Actually create the auth request
+	authReq.Expiry = s.now().Add(s.authRequestsValidFor)
+	if err := s.storage.CreateAuthRequest(*authReq); err != nil {
+		s.logger.Errorf("Failed to create authorization request: %v", err)
+		s.renderError(r, w, http.StatusInternalServerError, "Failed to connect to the database.")
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+
+	s.renderJSON(w, struct {
+		RequestId string `json:"request_id"`
+		Nonce     string `json:"nonce"`
+	}{authReq.ID, nonce})
 }
 
 func (s *Server) handleChallenge(w http.ResponseWriter, r *http.Request) {
@@ -563,6 +654,108 @@ func (s *Server) handleSubmitChallenge(w http.ResponseWriter, r *http.Request) {
 
 	// Need to pick up the changes made by finalizeLogin. This is pretty gross!
 	authReq, err = s.storage.GetAuthRequest(authReqID)
+	if err != nil {
+		s.logger.Errorf("Failed to get auth request: %v", err)
+		s.renderError(r, w, http.StatusInternalServerError, "Database error.")
+		return
+	}
+
+	if s.now().After(authReq.Expiry) {
+		s.renderErrorJSON(w, http.StatusBadRequest, "User session has expired.")
+		return
+	}
+
+	if err := s.storage.DeleteAuthRequest(authReq.ID); err != nil {
+		if err != storage.ErrNotFound {
+			s.logger.Errorf("Failed to delete authorization request: %v", err)
+			s.renderErrorJSON(w, http.StatusInternalServerError, "Internal server error.")
+		} else {
+			s.renderErrorJSON(w, http.StatusBadRequest, "User session error.")
+		}
+		return
+	}
+
+	code := storage.AuthCode{
+		ID:            storage.NewID(),
+		ClientID:      authReq.ClientID,
+		ConnectorID:   authReq.ConnectorID,
+		Nonce:         authReq.Nonce,
+		Scopes:        authReq.Scopes,
+		Claims:        authReq.Claims,
+		Expiry:        s.now().Add(time.Minute * 30),
+		RedirectURI:   authReq.RedirectURI,
+		ConnectorData: authReq.ConnectorData,
+		PKCE:          authReq.PKCE,
+	}
+	if err := s.storage.CreateAuthCode(code); err != nil {
+		s.logger.Errorf("Failed to create auth code: %v", err)
+		s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
+		return
+	}
+
+	r.PostForm.Set("code", code.ID)
+
+	s.handleToken(w, r)
+}
+
+// Handle the usual token request, except instead of the code we look for
+// state (the auth request) and the sugnature.
+
+func (s *Server) handleSubmitSiwe(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Couldn't parse form.")
+		return
+	}
+
+	signedMessage := r.PostFormValue("message")
+	signedMessageSignature := r.PostFormValue("signature")
+
+	siweMessage, err := siwe.ParseMessage(signedMessage)
+	if err == nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, "No resource id found.")
+	}
+	siweRequestId := siweMessage.GetRequestID()
+
+	r.PostForm.Set("redirect_uri", r.Form.Get("domain"))
+
+	if siweRequestId == nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, "No resource id found.")
+	}
+
+	authReq, err := s.storage.GetAuthRequest(*siweMessage.GetRequestID())
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Requested resource does not exist.")
+		return
+	}
+
+	var data web3ConnectorData
+	json.Unmarshal(authReq.ConnectorData, &data)
+
+	conn, err := s.getConnector(authReq.ConnectorID)
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusInternalServerError, "Requested resource does not exist.")
+		return
+	}
+
+	w3Conn, ok := conn.Connector.(connector.SiweConnector)
+	if !ok {
+		s.renderErrorJSON(w, http.StatusInternalServerError, "Requested resource does not exist.")
+		return
+	}
+
+	identity, err := w3Conn.Valid(data.Address, data.Nonce, authReq.RedirectURI, *siweMessage, signedMessageSignature)
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusBadRequest, "Could not verify signature.")
+		return
+	}
+
+	_, _, err = s.finalizeLogin(identity, authReq, conn)
+	if err != nil {
+		s.renderErrorJSON(w, http.StatusInternalServerError, "Login failure.")
+	}
+
+	// Need to pick up the changes made by finalizeLogin. This is pretty gross!
+	authReq, err = s.storage.GetAuthRequest(*siweRequestId)
 	if err != nil {
 		s.logger.Errorf("Failed to get auth request: %v", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Database error.")
