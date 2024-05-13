@@ -78,7 +78,7 @@ var (
 	columnCheck sql.ColumnCheck
 )
 
-// checkColumn checks if the column exists in the given table.
+// columnChecker checks if the column exists in the given table.
 func checkColumn(table, column string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
