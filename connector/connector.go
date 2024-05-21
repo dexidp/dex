@@ -70,7 +70,8 @@ type CallbackConnector interface {
 }
 
 // SAMLConnector represents SAML connectors which implement the HTTP POST binding.
-//  RelayState is handled by the server.
+//
+//	RelayState is handled by the server.
 //
 // See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
 // "3.5 HTTP POST Binding"
@@ -97,4 +98,8 @@ type RefreshConnector interface {
 	// connector should attempt to update the identity object to reflect any
 	// changes since the token was last refreshed.
 	Refresh(ctx context.Context, s Scopes, identity Identity) (Identity, error)
+}
+
+type TokenIdentityConnector interface {
+	TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (Identity, error)
 }

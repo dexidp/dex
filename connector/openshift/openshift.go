@@ -82,9 +82,13 @@ func (c *Config) OpenWithHTTPClient(id string, logger log.Logger,
 	httpClient *http.Client,
 ) (conn connector.Connector, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	wellKnownURL := strings.TrimSuffix(c.Issuer, "/") + wellKnownURLPath
 	req, err := http.NewRequest(http.MethodGet, wellKnownURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create a request to OpenShift endpoint %w", err)
+	}
 
 	openshiftConnector := openshiftConnector{
 		apiURL:       c.Issuer,
@@ -106,14 +110,12 @@ func (c *Config) OpenWithHTTPClient(id string, logger log.Logger,
 
 	resp, err := openshiftConnector.httpClient.Do(req.WithContext(ctx))
 	if err != nil {
-		cancel()
 		return nil, fmt.Errorf("failed to query OpenShift endpoint %w", err)
 	}
 
 	defer resp.Body.Close()
 
 	if err := json.NewDecoder(resp.Body).Decode(&metadata); err != nil {
-		cancel()
 		return nil, fmt.Errorf("discovery through endpoint %s failed to decode body: %w",
 			wellKnownURL, err)
 	}

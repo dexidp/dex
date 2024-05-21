@@ -24,19 +24,18 @@ import (
 // To add a new test, define a new, unsigned SAML 2.0 response that exercises some
 // case, then sign it using the "testdata/gen.sh" script.
 //
-//     cp testdata/good-resp.tmpl testdata/( testname ).tmpl
-//     vim ( testname ).tmpl # Modify your template for your test case.
-//     vim testdata/gen.sh   # Add a xmlsec1 command to the generation script.
-//     ./testdata/gen.sh     # Sign your template.
+//	cp testdata/good-resp.tmpl testdata/( testname ).tmpl
+//	vim ( testname ).tmpl # Modify your template for your test case.
+//	vim testdata/gen.sh   # Add a xmlsec1 command to the generation script.
+//	./testdata/gen.sh     # Sign your template.
 //
 // To install xmlsec1 on Fedora run:
 //
-//     sudo dnf install xmlsec1 xmlsec1-openssl
+//	sudo dnf install xmlsec1 xmlsec1-openssl
 //
 // On mac:
 //
-//     brew install Libxmlsec1
-//
+//	brew install Libxmlsec1
 type responseTest struct {
 	// CA file and XML file of the response.
 	caFile   string

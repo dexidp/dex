@@ -4,7 +4,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -28,34 +27,7 @@ func (ard *AuthRequestDelete) Where(ps ...predicate.AuthRequest) *AuthRequestDel
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (ard *AuthRequestDelete) Exec(ctx context.Context) (int, error) {
-	var (
-		err      error
-		affected int
-	)
-	if len(ard.hooks) == 0 {
-		affected, err = ard.sqlExec(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*AuthRequestMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			ard.mutation = mutation
-			affected, err = ard.sqlExec(ctx)
-			mutation.done = true
-			return affected, err
-		})
-		for i := len(ard.hooks) - 1; i >= 0; i-- {
-			if ard.hooks[i] == nil {
-				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = ard.hooks[i](mut)
-		}
-		if _, err := mut.Mutate(ctx, ard.mutation); err != nil {
-			return 0, err
-		}
-	}
-	return affected, err
+	return withHooks(ctx, ard.sqlExec, ard.mutation, ard.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -68,15 +40,7 @@ func (ard *AuthRequestDelete) ExecX(ctx context.Context) int {
 }
 
 func (ard *AuthRequestDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := &sqlgraph.DeleteSpec{
-		Node: &sqlgraph.NodeSpec{
-			Table: authrequest.Table,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: authrequest.FieldID,
-			},
-		},
-	}
+	_spec := sqlgraph.NewDeleteSpec(authrequest.Table, sqlgraph.NewFieldSpec(authrequest.FieldID, field.TypeString))
 	if ps := ard.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -88,12 +52,19 @@ func (ard *AuthRequestDelete) sqlExec(ctx context.Context) (int, error) {
 	if err != nil && sqlgraph.IsConstraintError(err) {
 		err = &ConstraintError{msg: err.Error(), wrap: err}
 	}
+	ard.mutation.done = true
 	return affected, err
 }
 
 // AuthRequestDeleteOne is the builder for deleting a single AuthRequest entity.
 type AuthRequestDeleteOne struct {
 	ard *AuthRequestDelete
+}
+
+// Where appends a list predicates to the AuthRequestDelete builder.
+func (ardo *AuthRequestDeleteOne) Where(ps ...predicate.AuthRequest) *AuthRequestDeleteOne {
+	ardo.ard.mutation.Where(ps...)
+	return ardo
 }
 
 // Exec executes the deletion query.
@@ -111,5 +82,7 @@ func (ardo *AuthRequestDeleteOne) Exec(ctx context.Context) error {
 
 // ExecX is like Exec, but panics if an error occurs.
 func (ardo *AuthRequestDeleteOne) ExecX(ctx context.Context) {
-	ardo.ard.ExecX(ctx)
+	if err := ardo.Exec(ctx); err != nil {
+		panic(err)
+	}
 }

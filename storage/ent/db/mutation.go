@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"entgo.io/ent"
+	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/authcode"
 	"github.com/dexidp/dex/storage/ent/db/authrequest"
@@ -21,9 +23,7 @@ import (
 	"github.com/dexidp/dex/storage/ent/db/password"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
-	jose "gopkg.in/square/go-jose.v2"
-
-	"entgo.io/ent"
+	jose "github.com/go-jose/go-jose/v4"
 )
 
 const (
@@ -55,6 +55,7 @@ type AuthCodeMutation struct {
 	id                        *string
 	client_id                 *string
 	scopes                    *[]string
+	appendscopes              []string
 	nonce                     *string
 	redirect_uri              *string
 	claims_user_id            *string
@@ -62,6 +63,7 @@ type AuthCodeMutation struct {
 	claims_email              *string
 	claims_email_verified     *bool
 	claims_groups             *[]string
+	appendclaims_groups       []string
 	claims_preferred_username *string
 	connector_id              *string
 	connector_data            *[]byte
@@ -217,6 +219,7 @@ func (m *AuthCodeMutation) ResetClientID() {
 // SetScopes sets the "scopes" field.
 func (m *AuthCodeMutation) SetScopes(s []string) {
 	m.scopes = &s
+	m.appendscopes = nil
 }
 
 // Scopes returns the value of the "scopes" field in the mutation.
@@ -245,9 +248,23 @@ func (m *AuthCodeMutation) OldScopes(ctx context.Context) (v []string, err error
 	return oldValue.Scopes, nil
 }
 
+// AppendScopes adds s to the "scopes" field.
+func (m *AuthCodeMutation) AppendScopes(s []string) {
+	m.appendscopes = append(m.appendscopes, s...)
+}
+
+// AppendedScopes returns the list of values that were appended to the "scopes" field in this mutation.
+func (m *AuthCodeMutation) AppendedScopes() ([]string, bool) {
+	if len(m.appendscopes) == 0 {
+		return nil, false
+	}
+	return m.appendscopes, true
+}
+
 // ClearScopes clears the value of the "scopes" field.
 func (m *AuthCodeMutation) ClearScopes() {
 	m.scopes = nil
+	m.appendscopes = nil
 	m.clearedFields[authcode.FieldScopes] = struct{}{}
 }
 
@@ -260,6 +277,7 @@ func (m *AuthCodeMutation) ScopesCleared() bool {
 // ResetScopes resets all changes to the "scopes" field.
 func (m *AuthCodeMutation) ResetScopes() {
 	m.scopes = nil
+	m.appendscopes = nil
 	delete(m.clearedFields, authcode.FieldScopes)
 }
 
@@ -482,6 +500,7 @@ func (m *AuthCodeMutation) ResetClaimsEmailVerified() {
 // SetClaimsGroups sets the "claims_groups" field.
 func (m *AuthCodeMutation) SetClaimsGroups(s []string) {
 	m.claims_groups = &s
+	m.appendclaims_groups = nil
 }
 
 // ClaimsGroups returns the value of the "claims_groups" field in the mutation.
@@ -510,9 +529,23 @@ func (m *AuthCodeMutation) OldClaimsGroups(ctx context.Context) (v []string, err
 	return oldValue.ClaimsGroups, nil
 }
 
+// AppendClaimsGroups adds s to the "claims_groups" field.
+func (m *AuthCodeMutation) AppendClaimsGroups(s []string) {
+	m.appendclaims_groups = append(m.appendclaims_groups, s...)
+}
+
+// AppendedClaimsGroups returns the list of values that were appended to the "claims_groups" field in this mutation.
+func (m *AuthCodeMutation) AppendedClaimsGroups() ([]string, bool) {
+	if len(m.appendclaims_groups) == 0 {
+		return nil, false
+	}
+	return m.appendclaims_groups, true
+}
+
 // ClearClaimsGroups clears the value of the "claims_groups" field.
 func (m *AuthCodeMutation) ClearClaimsGroups() {
 	m.claims_groups = nil
+	m.appendclaims_groups = nil
 	m.clearedFields[authcode.FieldClaimsGroups] = struct{}{}
 }
 
@@ -525,6 +558,7 @@ func (m *AuthCodeMutation) ClaimsGroupsCleared() bool {
 // ResetClaimsGroups resets all changes to the "claims_groups" field.
 func (m *AuthCodeMutation) ResetClaimsGroups() {
 	m.claims_groups = nil
+	m.appendclaims_groups = nil
 	delete(m.clearedFields, authcode.FieldClaimsGroups)
 }
 
@@ -762,9 +796,24 @@ func (m *AuthCodeMutation) Where(ps ...predicate.AuthCode) {
 	m.predicates = append(m.predicates, ps...)
 }
 
+// WhereP appends storage-level predicates to the AuthCodeMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *AuthCodeMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.AuthCode, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
 // Op returns the operation name.
 func (m *AuthCodeMutation) Op() Op {
 	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *AuthCodeMutation) SetOp(op Op) {
+	m.op = op
 }
 
 // Type returns the node type of this mutation (AuthCode).
@@ -1188,7 +1237,9 @@ type AuthRequestMutation struct {
 	id                        *string
 	client_id                 *string
 	scopes                    *[]string
+	appendscopes              []string
 	response_types            *[]string
+	appendresponse_types      []string
 	redirect_uri              *string
 	nonce                     *string
 	state                     *string
@@ -1199,6 +1250,7 @@ type AuthRequestMutation struct {
 	claims_email              *string
 	claims_email_verified     *bool
 	claims_groups             *[]string
+	appendclaims_groups       []string
 	claims_preferred_username *string
 	connector_id              *string
 	connector_data            *[]byte
@@ -1355,6 +1407,7 @@ func (m *AuthRequestMutation) ResetClientID() {
 // SetScopes sets the "scopes" field.
 func (m *AuthRequestMutation) SetScopes(s []string) {
 	m.scopes = &s
+	m.appendscopes = nil
 }
 
 // Scopes returns the value of the "scopes" field in the mutation.
@@ -1383,9 +1436,23 @@ func (m *AuthRequestMutation) OldScopes(ctx context.Context) (v []string, err er
 	return oldValue.Scopes, nil
 }
 
+// AppendScopes adds s to the "scopes" field.
+func (m *AuthRequestMutation) AppendScopes(s []string) {
+	m.appendscopes = append(m.appendscopes, s...)
+}
+
+// AppendedScopes returns the list of values that were appended to the "scopes" field in this mutation.
+func (m *AuthRequestMutation) AppendedScopes() ([]string, bool) {
+	if len(m.appendscopes) == 0 {
+		return nil, false
+	}
+	return m.appendscopes, true
+}
+
 // ClearScopes clears the value of the "scopes" field.
 func (m *AuthRequestMutation) ClearScopes() {
 	m.scopes = nil
+	m.appendscopes = nil
 	m.clearedFields[authrequest.FieldScopes] = struct{}{}
 }
 
@@ -1398,12 +1465,14 @@ func (m *AuthRequestMutation) ScopesCleared() bool {
 // ResetScopes resets all changes to the "scopes" field.
 func (m *AuthRequestMutation) ResetScopes() {
 	m.scopes = nil
+	m.appendscopes = nil
 	delete(m.clearedFields, authrequest.FieldScopes)
 }
 
 // SetResponseTypes sets the "response_types" field.
 func (m *AuthRequestMutation) SetResponseTypes(s []string) {
 	m.response_types = &s
+	m.appendresponse_types = nil
 }
 
 // ResponseTypes returns the value of the "response_types" field in the mutation.
@@ -1432,9 +1501,23 @@ func (m *AuthRequestMutation) OldResponseTypes(ctx context.Context) (v []string,
 	return oldValue.ResponseTypes, nil
 }
 
+// AppendResponseTypes adds s to the "response_types" field.
+func (m *AuthRequestMutation) AppendResponseTypes(s []string) {
+	m.appendresponse_types = append(m.appendresponse_types, s...)
+}
+
+// AppendedResponseTypes returns the list of values that were appended to the "response_types" field in this mutation.
+func (m *AuthRequestMutation) AppendedResponseTypes() ([]string, bool) {
+	if len(m.appendresponse_types) == 0 {
+		return nil, false
+	}
+	return m.appendresponse_types, true
+}
+
 // ClearResponseTypes clears the value of the "response_types" field.
 func (m *AuthRequestMutation) ClearResponseTypes() {
 	m.response_types = nil
+	m.appendresponse_types = nil
 	m.clearedFields[authrequest.FieldResponseTypes] = struct{}{}
 }
 
@@ -1447,6 +1530,7 @@ func (m *AuthRequestMutation) ResponseTypesCleared() bool {
 // ResetResponseTypes resets all changes to the "response_types" field.
 func (m *AuthRequestMutation) ResetResponseTypes() {
 	m.response_types = nil
+	m.appendresponse_types = nil
 	delete(m.clearedFields, authrequest.FieldResponseTypes)
 }
 
@@ -1777,6 +1861,7 @@ func (m *AuthRequestMutation) ResetClaimsEmailVerified() {
 // SetClaimsGroups sets the "claims_groups" field.
 func (m *AuthRequestMutation) SetClaimsGroups(s []string) {
 	m.claims_groups = &s
+	m.appendclaims_groups = nil
 }
 
 // ClaimsGroups returns the value of the "claims_groups" field in the mutation.
@@ -1805,9 +1890,23 @@ func (m *AuthRequestMutation) OldClaimsGroups(ctx context.Context) (v []string, 
 	return oldValue.ClaimsGroups, nil
 }
 
+// AppendClaimsGroups adds s to the "claims_groups" field.
+func (m *AuthRequestMutation) AppendClaimsGroups(s []string) {
+	m.appendclaims_groups = append(m.appendclaims_groups, s...)
+}
+
+// AppendedClaimsGroups returns the list of values that were appended to the "claims_groups" field in this mutation.
+func (m *AuthRequestMutation) AppendedClaimsGroups() ([]string, bool) {
+	if len(m.appendclaims_groups) == 0 {
+		return nil, false
+	}
+	return m.appendclaims_groups, true
+}
+
 // ClearClaimsGroups clears the value of the "claims_groups" field.
 func (m *AuthRequestMutation) ClearClaimsGroups() {
 	m.claims_groups = nil
+	m.appendclaims_groups = nil
 	m.clearedFields[authrequest.FieldClaimsGroups] = struct{}{}
 }
 
@@ -1820,6 +1919,7 @@ func (m *AuthRequestMutation) ClaimsGroupsCleared() bool {
 // ResetClaimsGroups resets all changes to the "claims_groups" field.
 func (m *AuthRequestMutation) ResetClaimsGroups() {
 	m.claims_groups = nil
+	m.appendclaims_groups = nil
 	delete(m.clearedFields, authrequest.FieldClaimsGroups)
 }
 
@@ -2093,9 +2193,24 @@ func (m *AuthRequestMutation) Where(ps ...predicate.AuthRequest) {
 	m.predicates = append(m.predicates, ps...)
 }
 
+// WhereP appends storage-level predicates to the AuthRequestMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *AuthRequestMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.AuthRequest, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
 // Op returns the operation name.
 func (m *AuthRequestMutation) Op() Op {
 	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *AuthRequestMutation) SetOp(op Op) {
+	m.op = op
 }
 
 // Type returns the node type of this mutation (AuthRequest).
@@ -2871,9 +2986,24 @@ func (m *ConnectorMutation) Where(ps ...predicate.Connector) {
 	m.predicates = append(m.predicates, ps...)
 }
 
+// WhereP appends storage-level predicates to the ConnectorMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ConnectorMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Connector, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
 // Op returns the operation name.
 func (m *ConnectorMutation) Op() Op {
 	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ConnectorMutation) SetOp(op Op) {
+	m.op = op
 }
 
 // Type returns the node type of this mutation (Connector).
@@ -3092,6 +3222,7 @@ type DeviceRequestMutation struct {
 	client_id     *string
 	client_secret *string
 	scopes        *[]string
+	appendscopes  []string
 	expiry        *time.Time
 	clearedFields map[string]struct{}
 	done          bool
@@ -3344,6 +3475,7 @@ func (m *DeviceRequestMutation) ResetClientSecret() {
 // SetScopes sets the "scopes" field.
 func (m *DeviceRequestMutation) SetScopes(s []string) {
 	m.scopes = &s
+	m.appendscopes = nil
 }
 
 // Scopes returns the value of the "scopes" field in the mutation.
@@ -3372,9 +3504,23 @@ func (m *DeviceRequestMutation) OldScopes(ctx context.Context) (v []string, err 
 	return oldValue.Scopes, nil
 }
 
+// AppendScopes adds s to the "scopes" field.
+func (m *DeviceRequestMutation) AppendScopes(s []string) {
+	m.appendscopes = append(m.appendscopes, s...)
+}
+
+// AppendedScopes returns the list of values that were appended to the "scopes" field in this mutation.
+func (m *DeviceRequestMutation) AppendedScopes() ([]string, bool) {
+	if len(m.appendscopes) == 0 {
+		return nil, false
+	}
+	return m.appendscopes, true
+}
+
 // ClearScopes clears the value of the "scopes" field.
 func (m *DeviceRequestMutation) ClearScopes() {
 	m.scopes = nil
+	m.appendscopes = nil
 	m.clearedFields[devicerequest.FieldScopes] = struct{}{}
 }
 
@@ -3387,6 +3533,7 @@ func (m *DeviceRequestMutation) ScopesCleared() bool {
 // ResetScopes resets all changes to the "scopes" field.
 func (m *DeviceRequestMutation) ResetScopes() {
 	m.scopes = nil
+	m.appendscopes = nil
 	delete(m.clearedFields, devicerequest.FieldScopes)
 }
 
@@ -3431,9 +3578,24 @@ func (m *DeviceRequestMutation) Where(ps ...predicate.DeviceRequest) {
 	m.predicates = append(m.predicates, ps...)
 }
 
+// WhereP appends storage-level predicates to the DeviceRequestMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *DeviceRequestMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.DeviceRequest, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
 // Op returns the operation name.
 func (m *DeviceRequestMutation) Op() Op {
 	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *DeviceRequestMutation) SetOp(op Op) {
+	m.op = op
 }
 
 // Type returns the node type of this mutation (DeviceRequest).
@@ -4129,9 +4291,24 @@ func (m *DeviceTokenMutation) Where(ps ...predicate.DeviceToken) {
 	m.predicates = append(m.predicates, ps...)
 }
 
+// WhereP appends storage-level predicates to the DeviceTokenMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *DeviceTokenMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.DeviceToken, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
 // Op returns the operation name.
 func (m *DeviceTokenMutation) Op() Op {
 	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *DeviceTokenMutation) SetOp(op Op) {
+	m.op = op
 }
 
 // Type returns the node type of this mutation (DeviceToken).
@@ -4434,17 +4611,18 @@ func (m *DeviceTokenMutation) ResetEdge(name string) error {
 // KeysMutation represents an operation that mutates the Keys nodes in the graph.
 type KeysMutation struct {
 	config
-	op                Op
-	typ               string
-	id                *string
-	verification_keys *[]storage.VerificationKey
-	signing_key       *jose.JSONWebKey
-	signing_key_pub   *jose.JSONWebKey
-	next_rotation     *time.Time
-	clearedFields     map[string]struct{}
-	done              bool
-	oldValue          func(context.Context) (*Keys, error)
-	predicates        []predicate.Keys
+	op                      Op
+	typ                     string
+	id                      *string
+	verification_keys       *[]storage.VerificationKey
+	appendverification_keys []storage.VerificationKey
+	signing_key             *jose.JSONWebKey
+	signing_key_pub         *jose.JSONWebKey
+	next_rotation           *time.Time
+	clearedFields           map[string]struct{}
+	done                    bool
+	oldValue                func(context.Context) (*Keys, error)
+	predicates              []predicate.Keys
 }
 
 var _ ent.Mutation = (*KeysMutation)(nil)
@@ -4554,6 +4732,7 @@ func (m *KeysMutation) IDs(ctx context.Context) ([]string, error) {
 // SetVerificationKeys sets the "verification_keys" field.
 func (m *KeysMutation) SetVerificationKeys(sk []storage.VerificationKey) {
 	m.verification_keys = &sk
+	m.appendverification_keys = nil
 }
 
 // VerificationKeys returns the value of the "verification_keys" field in the mutation.
@@ -4582,9 +4761,23 @@ func (m *KeysMutation) OldVerificationKeys(ctx context.Context) (v []storage.Ver
 	return oldValue.VerificationKeys, nil
 }
 
+// AppendVerificationKeys adds sk to the "verification_keys" field.
+func (m *KeysMutation) AppendVerificationKeys(sk []storage.VerificationKey) {
+	m.appendverification_keys = append(m.appendverification_keys, sk...)
+}
+
+// AppendedVerificationKeys returns the list of values that were appended to the "verification_keys" field in this mutation.
+func (m *KeysMutation) AppendedVerificationKeys() ([]storage.VerificationKey, bool) {
+	if len(m.appendverification_keys) == 0 {
+		return nil, false
+	}
+	return m.appendverification_keys, true
+}
+
 // ResetVerificationKeys resets all changes to the "verification_keys" field.
 func (m *KeysMutation) ResetVerificationKeys() {
 	m.verification_keys = nil
+	m.appendverification_keys = nil
 }
 
 // SetSigningKey sets the "signing_key" field.
@@ -4700,9 +4893,24 @@ func (m *KeysMutation) Where(ps ...predicate.Keys) {
 	m.predicates = append(m.predicates, ps...)
 }
 
+// WhereP appends storage-level predicates to the KeysMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *KeysMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Keys, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
 // Op returns the operation name.
 func (m *KeysMutation) Op() Op {
 	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *KeysMutation) SetOp(op Op) {
+	m.op = op
 }
 
 // Type returns the node type of this mutation (Keys).
@@ -4913,19 +5121,21 @@ func (m *KeysMutation) ResetEdge(name string) error {
 // OAuth2ClientMutation represents an operation that mutates the OAuth2Client nodes in the graph.
 type OAuth2ClientMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *string
-	secret        *string
-	redirect_uris *[]string
-	trusted_peers *[]string
-	public        *bool
-	name          *string
-	logo_url      *string
-	clearedFields map[string]struct{}
-	done          bool
-	oldValue      func(context.Context) (*OAuth2Client, error)
-	predicates    []predicate.OAuth2Client
+	op                  Op
+	typ                 string
+	id                  *string
+	secret              *string
+	redirect_uris       *[]string
+	appendredirect_uris []string
+	trusted_peers       *[]string
+	appendtrusted_peers []string
+	public              *bool
+	name                *string
+	logo_url            *string
+	clearedFields       map[string]struct{}
+	done                bool
+	oldValue            func(context.Context) (*OAuth2Client, error)
+	predicates          []predicate.OAuth2Client
 }
 
 var _ ent.Mutation = (*OAuth2ClientMutation)(nil)
@@ -5071,6 +5281,7 @@ func (m *OAuth2ClientMutation) ResetSecret() {
 // SetRedirectUris sets the "redirect_uris" field.
 func (m *OAuth2ClientMutation) SetRedirectUris(s []string) {
 	m.redirect_uris = &s
+	m.appendredirect_uris = nil
 }
 
 // RedirectUris returns the value of the "redirect_uris" field in the mutation.
@@ -5099,9 +5310,23 @@ func (m *OAuth2ClientMutation) OldRedirectUris(ctx context.Context) (v []string,
 	return oldValue.RedirectUris, nil
 }
 
+// AppendRedirectUris adds s to the "redirect_uris" field.
+func (m *OAuth2ClientMutation) AppendRedirectUris(s []string) {
+	m.appendredirect_uris = append(m.appendredirect_uris, s...)
+}
+
+// AppendedRedirectUris returns the list of values that were appended to the "redirect_uris" field in this mutation.
+func (m *OAuth2ClientMutation) AppendedRedirectUris() ([]string, bool) {
+	if len(m.appendredirect_uris) == 0 {
+		return nil, false
+	}
+	return m.appendredirect_uris, true
+}
+
 // ClearRedirectUris clears the value of the "redirect_uris" field.
 func (m *OAuth2ClientMutation) ClearRedirectUris() {
 	m.redirect_uris = nil
+	m.appendredirect_uris = nil
 	m.clearedFields[oauth2client.FieldRedirectUris] = struct{}{}
 }
 
@@ -5114,12 +5339,14 @@ func (m *OAuth2ClientMutation) RedirectUrisCleared() bool {
 // ResetRedirectUris resets all changes to the "redirect_uris" field.
 func (m *OAuth2ClientMutation) ResetRedirectUris() {
 	m.redirect_uris = nil
+	m.appendredirect_uris = nil
 	delete(m.clearedFields, oauth2client.FieldRedirectUris)
 }
 
 // SetTrustedPeers sets the "trusted_peers" field.
 func (m *OAuth2ClientMutation) SetTrustedPeers(s []string) {
 	m.trusted_peers = &s
+	m.appendtrusted_peers = nil
 }
 
 // TrustedPeers returns the value of the "trusted_peers" field in the mutation.
@@ -5148,9 +5375,23 @@ func (m *OAuth2ClientMutation) OldTrustedPeers(ctx context.Context) (v []string,
 	return oldValue.TrustedPeers, nil
 }
 
+// AppendTrustedPeers adds s to the "trusted_peers" field.
+func (m *OAuth2ClientMutation) AppendTrustedPeers(s []string) {
+	m.appendtrusted_peers = append(m.appendtrusted_peers, s...)
+}
+
+// AppendedTrustedPeers returns the list of values that were appended to the "trusted_peers" field in this mutation.
+func (m *OAuth2ClientMutation) AppendedTrustedPeers() ([]string, bool) {
+	if len(m.appendtrusted_peers) == 0 {
+		return nil, false
+	}
+	return m.appendtrusted_peers, true
+}
+
 // ClearTrustedPeers clears the value of the "trusted_peers" field.
 func (m *OAuth2ClientMutation) ClearTrustedPeers() {
 	m.trusted_peers = nil
+	m.appendtrusted_peers = nil
 	m.clearedFields[oauth2client.FieldTrustedPeers] = struct{}{}
 }
 
@@ -5163,6 +5404,7 @@ func (m *OAuth2ClientMutation) TrustedPeersCleared() bool {
 // ResetTrustedPeers resets all changes to the "trusted_peers" field.
 func (m *OAuth2ClientMutation) ResetTrustedPeers() {
 	m.trusted_peers = nil
+	m.appendtrusted_peers = nil
 	delete(m.clearedFields, oauth2client.FieldTrustedPeers)
 }
 
@@ -5279,9 +5521,24 @@ func (m *OAuth2ClientMutation) Where(ps ...predicate.OAuth2Client) {
 	m.predicates = append(m.predicates, ps...)
 }
 
+// WhereP appends storage-level predicates to the OAuth2ClientMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *OAuth2ClientMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.OAuth2Client, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
 // Op returns the operation name.
 func (m *OAuth2ClientMutation) Op() Op {
 	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *OAuth2ClientMutation) SetOp(op Op) {
+	m.op = op
 }
 
 // Type returns the node type of this mutation (OAuth2Client).
@@ -5820,9 +6077,24 @@ func (m *OfflineSessionMutation) Where(ps ...predicate.OfflineSession) {
 	m.predicates = append(m.predicates, ps...)
 }
 
+// WhereP appends storage-level predicates to the OfflineSessionMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *OfflineSessionMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.OfflineSession, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
 // Op returns the operation name.
 func (m *OfflineSessionMutation) Op() Op {
 	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *OfflineSessionMutation) SetOp(op Op) {
+	m.op = op
 }
 
 // Type returns the node type of this mutation (OfflineSession).
@@ -6302,9 +6574,24 @@ func (m *PasswordMutation) Where(ps ...predicate.Password) {
 	m.predicates = append(m.predicates, ps...)
 }
 
+// WhereP appends storage-level predicates to the PasswordMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *PasswordMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Password, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
 // Op returns the operation name.
 func (m *PasswordMutation) Op() Op {
 	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *PasswordMutation) SetOp(op Op) {
+	m.op = op
 }
 
 // Type returns the node type of this mutation (Password).
@@ -6520,12 +6807,14 @@ type RefreshTokenMutation struct {
 	id                        *string
 	client_id                 *string
 	scopes                    *[]string
+	appendscopes              []string
 	nonce                     *string
 	claims_user_id            *string
 	claims_username           *string
 	claims_email              *string
 	claims_email_verified     *bool
 	claims_groups             *[]string
+	appendclaims_groups       []string
 	claims_preferred_username *string
 	connector_id              *string
 	connector_data            *[]byte
@@ -6682,6 +6971,7 @@ func (m *RefreshTokenMutation) ResetClientID() {
 // SetScopes sets the "scopes" field.
 func (m *RefreshTokenMutation) SetScopes(s []string) {
 	m.scopes = &s
+	m.appendscopes = nil
 }
 
 // Scopes returns the value of the "scopes" field in the mutation.
@@ -6710,9 +7000,23 @@ func (m *RefreshTokenMutation) OldScopes(ctx context.Context) (v []string, err e
 	return oldValue.Scopes, nil
 }
 
+// AppendScopes adds s to the "scopes" field.
+func (m *RefreshTokenMutation) AppendScopes(s []string) {
+	m.appendscopes = append(m.appendscopes, s...)
+}
+
+// AppendedScopes returns the list of values that were appended to the "scopes" field in this mutation.
+func (m *RefreshTokenMutation) AppendedScopes() ([]string, bool) {
+	if len(m.appendscopes) == 0 {
+		return nil, false
+	}
+	return m.appendscopes, true
+}
+
 // ClearScopes clears the value of the "scopes" field.
 func (m *RefreshTokenMutation) ClearScopes() {
 	m.scopes = nil
+	m.appendscopes = nil
 	m.clearedFields[refreshtoken.FieldScopes] = struct{}{}
 }
 
@@ -6725,6 +7029,7 @@ func (m *RefreshTokenMutation) ScopesCleared() bool {
 // ResetScopes resets all changes to the "scopes" field.
 func (m *RefreshTokenMutation) ResetScopes() {
 	m.scopes = nil
+	m.appendscopes = nil
 	delete(m.clearedFields, refreshtoken.FieldScopes)
 }
 
@@ -6911,6 +7216,7 @@ func (m *RefreshTokenMutation) ResetClaimsEmailVerified() {
 // SetClaimsGroups sets the "claims_groups" field.
 func (m *RefreshTokenMutation) SetClaimsGroups(s []string) {
 	m.claims_groups = &s
+	m.appendclaims_groups = nil
 }
 
 // ClaimsGroups returns the value of the "claims_groups" field in the mutation.
@@ -6939,9 +7245,23 @@ func (m *RefreshTokenMutation) OldClaimsGroups(ctx context.Context) (v []string,
 	return oldValue.ClaimsGroups, nil
 }
 
+// AppendClaimsGroups adds s to the "claims_groups" field.
+func (m *RefreshTokenMutation) AppendClaimsGroups(s []string) {
+	m.appendclaims_groups = append(m.appendclaims_groups, s...)
+}
+
+// AppendedClaimsGroups returns the list of values that were appended to the "claims_groups" field in this mutation.
+func (m *RefreshTokenMutation) AppendedClaimsGroups() ([]string, bool) {
+	if len(m.appendclaims_groups) == 0 {
+		return nil, false
+	}
+	return m.appendclaims_groups, true
+}
+
 // ClearClaimsGroups clears the value of the "claims_groups" field.
 func (m *RefreshTokenMutation) ClearClaimsGroups() {
 	m.claims_groups = nil
+	m.appendclaims_groups = nil
 	m.clearedFields[refreshtoken.FieldClaimsGroups] = struct{}{}
 }
 
@@ -6954,6 +7274,7 @@ func (m *RefreshTokenMutation) ClaimsGroupsCleared() bool {
 // ResetClaimsGroups resets all changes to the "claims_groups" field.
 func (m *RefreshTokenMutation) ResetClaimsGroups() {
 	m.claims_groups = nil
+	m.appendclaims_groups = nil
 	delete(m.clearedFields, refreshtoken.FieldClaimsGroups)
 }
 
@@ -7227,9 +7548,24 @@ func (m *RefreshTokenMutation) Where(ps ...predicate.RefreshToken) {
 	m.predicates = append(m.predicates, ps...)
 }
 
+// WhereP appends storage-level predicates to the RefreshTokenMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *RefreshTokenMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.RefreshToken, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
 // Op returns the operation name.
 func (m *RefreshTokenMutation) Op() Op {
 	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *RefreshTokenMutation) SetOp(op Op) {
+	m.op = op
 }
 
 // Type returns the node type of this mutation (RefreshToken).

@@ -1,3 +1,4 @@
+//go:build ignore
 // +build ignore
 
 // This file is used to generate static JWKs for tests.
@@ -16,7 +17,7 @@ import (
 	"os"
 	"text/template"
 
-	jose "gopkg.in/square/go-jose.v2"
+	"github.com/go-jose/go-jose/v4"
 )
 
 func newUUID() string {
@@ -36,7 +37,7 @@ var tmpl = template.Must(template.New("jwks.go").Parse(`
 
 package conformance
 
-import jose "gopkg.in/square/go-jose.v2"
+import jose "github.com/go-jose/go-jose/v4"
 
 type keyPair struct {
 	Public  *jose.JSONWebKey

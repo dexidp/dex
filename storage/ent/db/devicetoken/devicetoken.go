@@ -2,6 +2,10 @@
 
 package devicetoken
 
+import (
+	"entgo.io/ent/dialect/sql"
+)
+
 const (
 	// Label holds the string label denoting the devicetoken type in the database.
 	Label = "device_token"
@@ -60,3 +64,46 @@ var (
 	// DefaultCodeChallengeMethod holds the default value on creation for the "code_challenge_method" field.
 	DefaultCodeChallengeMethod string
 )
+
+// OrderOption defines the ordering options for the DeviceToken queries.
+type OrderOption func(*sql.Selector)
+
+// ByID orders the results by the id field.
+func ByID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldID, opts...).ToFunc()
+}
+
+// ByDeviceCode orders the results by the device_code field.
+func ByDeviceCode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDeviceCode, opts...).ToFunc()
+}
+
+// ByStatus orders the results by the status field.
+func ByStatus(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// ByExpiry orders the results by the expiry field.
+func ByExpiry(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldExpiry, opts...).ToFunc()
+}
+
+// ByLastRequest orders the results by the last_request field.
+func ByLastRequest(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLastRequest, opts...).ToFunc()
+}
+
+// ByPollInterval orders the results by the poll_interval field.
+func ByPollInterval(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPollInterval, opts...).ToFunc()
+}
+
+// ByCodeChallenge orders the results by the code_challenge field.
+func ByCodeChallenge(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCodeChallenge, opts...).ToFunc()
+}
+
+// ByCodeChallengeMethod orders the results by the code_challenge_method field.
+func ByCodeChallengeMethod(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCodeChallengeMethod, opts...).ToFunc()
+}

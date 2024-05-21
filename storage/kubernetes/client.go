@@ -84,7 +84,8 @@ func offlineTokenName(userID string, connID string, h func() hash.Hash) string {
 	return strings.TrimRight(encoding.EncodeToString(hash.Sum(nil)), "=")
 }
 
-const kubeResourceMaxLen = 63
+// https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-subdomain-names
+const kubeResourceMaxLen = 253
 
 var kubeResourceNameRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
 
@@ -99,7 +100,7 @@ func (cli *client) urlForWithParams(
 	if name != "" && (len(name) > kubeResourceMaxLen || !kubeResourceNameRegex.MatchString(name)) {
 		// The actual name can be found in auth request or auth code objects and equals to the state value
 		return "", fmt.Errorf(
-			"invalid kubernetes resource name: must match the pattern %s and be no longer than %d charactes",
+			"invalid kubernetes resource name: must match the pattern %s and be no longer than %d characters",
 			kubeResourceNameRegex.String(),
 			kubeResourceMaxLen)
 	}
@@ -211,7 +212,7 @@ func (cli *client) getResource(apiVersion, namespace, resource, name string, v i
 	return cli.getURL(u, v)
 }
 
-func (cli *client) listN(resource string, v interface{}, n int) error {
+func (cli *client) listN(resource string, v interface{}, n int) error { //nolint:unparam // In practice, n is the gcResultLimit constant.
 	params := url.Values{}
 	params.Add("limit", fmt.Sprintf("%d", n))
 	u, err := cli.urlForWithParams(cli.apiVersion, cli.namespace, resource, "", params)

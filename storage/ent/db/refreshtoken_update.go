@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
@@ -34,9 +35,23 @@ func (rtu *RefreshTokenUpdate) SetClientID(s string) *RefreshTokenUpdate {
 	return rtu
 }
 
+// SetNillableClientID sets the "client_id" field if the given value is not nil.
+func (rtu *RefreshTokenUpdate) SetNillableClientID(s *string) *RefreshTokenUpdate {
+	if s != nil {
+		rtu.SetClientID(*s)
+	}
+	return rtu
+}
+
 // SetScopes sets the "scopes" field.
 func (rtu *RefreshTokenUpdate) SetScopes(s []string) *RefreshTokenUpdate {
 	rtu.mutation.SetScopes(s)
+	return rtu
+}
+
+// AppendScopes appends s to the "scopes" field.
+func (rtu *RefreshTokenUpdate) AppendScopes(s []string) *RefreshTokenUpdate {
+	rtu.mutation.AppendScopes(s)
 	return rtu
 }
 
@@ -52,9 +67,25 @@ func (rtu *RefreshTokenUpdate) SetNonce(s string) *RefreshTokenUpdate {
 	return rtu
 }
 
+// SetNillableNonce sets the "nonce" field if the given value is not nil.
+func (rtu *RefreshTokenUpdate) SetNillableNonce(s *string) *RefreshTokenUpdate {
+	if s != nil {
+		rtu.SetNonce(*s)
+	}
+	return rtu
+}
+
 // SetClaimsUserID sets the "claims_user_id" field.
 func (rtu *RefreshTokenUpdate) SetClaimsUserID(s string) *RefreshTokenUpdate {
 	rtu.mutation.SetClaimsUserID(s)
+	return rtu
+}
+
+// SetNillableClaimsUserID sets the "claims_user_id" field if the given value is not nil.
+func (rtu *RefreshTokenUpdate) SetNillableClaimsUserID(s *string) *RefreshTokenUpdate {
+	if s != nil {
+		rtu.SetClaimsUserID(*s)
+	}
 	return rtu
 }
 
@@ -64,9 +95,25 @@ func (rtu *RefreshTokenUpdate) SetClaimsUsername(s string) *RefreshTokenUpdate {
 	return rtu
 }
 
+// SetNillableClaimsUsername sets the "claims_username" field if the given value is not nil.
+func (rtu *RefreshTokenUpdate) SetNillableClaimsUsername(s *string) *RefreshTokenUpdate {
+	if s != nil {
+		rtu.SetClaimsUsername(*s)
+	}
+	return rtu
+}
+
 // SetClaimsEmail sets the "claims_email" field.
 func (rtu *RefreshTokenUpdate) SetClaimsEmail(s string) *RefreshTokenUpdate {
 	rtu.mutation.SetClaimsEmail(s)
+	return rtu
+}
+
+// SetNillableClaimsEmail sets the "claims_email" field if the given value is not nil.
+func (rtu *RefreshTokenUpdate) SetNillableClaimsEmail(s *string) *RefreshTokenUpdate {
+	if s != nil {
+		rtu.SetClaimsEmail(*s)
+	}
 	return rtu
 }
 
@@ -76,9 +123,23 @@ func (rtu *RefreshTokenUpdate) SetClaimsEmailVerified(b bool) *RefreshTokenUpdat
 	return rtu
 }
 
+// SetNillableClaimsEmailVerified sets the "claims_email_verified" field if the given value is not nil.
+func (rtu *RefreshTokenUpdate) SetNillableClaimsEmailVerified(b *bool) *RefreshTokenUpdate {
+	if b != nil {
+		rtu.SetClaimsEmailVerified(*b)
+	}
+	return rtu
+}
+
 // SetClaimsGroups sets the "claims_groups" field.
 func (rtu *RefreshTokenUpdate) SetClaimsGroups(s []string) *RefreshTokenUpdate {
 	rtu.mutation.SetClaimsGroups(s)
+	return rtu
+}
+
+// AppendClaimsGroups appends s to the "claims_groups" field.
+func (rtu *RefreshTokenUpdate) AppendClaimsGroups(s []string) *RefreshTokenUpdate {
+	rtu.mutation.AppendClaimsGroups(s)
 	return rtu
 }
 
@@ -105,6 +166,14 @@ func (rtu *RefreshTokenUpdate) SetNillableClaimsPreferredUsername(s *string) *Re
 // SetConnectorID sets the "connector_id" field.
 func (rtu *RefreshTokenUpdate) SetConnectorID(s string) *RefreshTokenUpdate {
 	rtu.mutation.SetConnectorID(s)
+	return rtu
+}
+
+// SetNillableConnectorID sets the "connector_id" field if the given value is not nil.
+func (rtu *RefreshTokenUpdate) SetNillableConnectorID(s *string) *RefreshTokenUpdate {
+	if s != nil {
+		rtu.SetConnectorID(*s)
+	}
 	return rtu
 }
 
@@ -183,40 +252,7 @@ func (rtu *RefreshTokenUpdate) Mutation() *RefreshTokenMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (rtu *RefreshTokenUpdate) Save(ctx context.Context) (int, error) {
-	var (
-		err      error
-		affected int
-	)
-	if len(rtu.hooks) == 0 {
-		if err = rtu.check(); err != nil {
-			return 0, err
-		}
-		affected, err = rtu.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*RefreshTokenMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = rtu.check(); err != nil {
-				return 0, err
-			}
-			rtu.mutation = mutation
-			affected, err = rtu.sqlSave(ctx)
-			mutation.done = true
-			return affected, err
-		})
-		for i := len(rtu.hooks) - 1; i >= 0; i-- {
-			if rtu.hooks[i] == nil {
-				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = rtu.hooks[i](mut)
-		}
-		if _, err := mut.Mutate(ctx, rtu.mutation); err != nil {
-			return 0, err
-		}
-	}
-	return affected, err
+	return withHooks(ctx, rtu.sqlSave, rtu.mutation, rtu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -277,16 +313,10 @@ func (rtu *RefreshTokenUpdate) check() error {
 }
 
 func (rtu *RefreshTokenUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	_spec := &sqlgraph.UpdateSpec{
-		Node: &sqlgraph.NodeSpec{
-			Table:   refreshtoken.Table,
-			Columns: refreshtoken.Columns,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: refreshtoken.FieldID,
-			},
-		},
+	if err := rtu.check(); err != nil {
+		return n, err
 	}
+	_spec := sqlgraph.NewUpdateSpec(refreshtoken.Table, refreshtoken.Columns, sqlgraph.NewFieldSpec(refreshtoken.FieldID, field.TypeString))
 	if ps := rtu.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -295,127 +325,68 @@ func (rtu *RefreshTokenUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 	}
 	if value, ok := rtu.mutation.ClientID(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldClientID,
-		})
+		_spec.SetField(refreshtoken.FieldClientID, field.TypeString, value)
 	}
 	if value, ok := rtu.mutation.Scopes(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: refreshtoken.FieldScopes,
+		_spec.SetField(refreshtoken.FieldScopes, field.TypeJSON, value)
+	}
+	if value, ok := rtu.mutation.AppendedScopes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, refreshtoken.FieldScopes, value)
 		})
 	}
 	if rtu.mutation.ScopesCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Column: refreshtoken.FieldScopes,
-		})
+		_spec.ClearField(refreshtoken.FieldScopes, field.TypeJSON)
 	}
 	if value, ok := rtu.mutation.Nonce(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldNonce,
-		})
+		_spec.SetField(refreshtoken.FieldNonce, field.TypeString, value)
 	}
 	if value, ok := rtu.mutation.ClaimsUserID(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsUserID,
-		})
+		_spec.SetField(refreshtoken.FieldClaimsUserID, field.TypeString, value)
 	}
 	if value, ok := rtu.mutation.ClaimsUsername(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsUsername,
-		})
+		_spec.SetField(refreshtoken.FieldClaimsUsername, field.TypeString, value)
 	}
 	if value, ok := rtu.mutation.ClaimsEmail(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsEmail,
-		})
+		_spec.SetField(refreshtoken.FieldClaimsEmail, field.TypeString, value)
 	}
 	if value, ok := rtu.mutation.ClaimsEmailVerified(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeBool,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsEmailVerified,
-		})
+		_spec.SetField(refreshtoken.FieldClaimsEmailVerified, field.TypeBool, value)
 	}
 	if value, ok := rtu.mutation.ClaimsGroups(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsGroups,
+		_spec.SetField(refreshtoken.FieldClaimsGroups, field.TypeJSON, value)
+	}
+	if value, ok := rtu.mutation.AppendedClaimsGroups(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, refreshtoken.FieldClaimsGroups, value)
 		})
 	}
 	if rtu.mutation.ClaimsGroupsCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Column: refreshtoken.FieldClaimsGroups,
-		})
+		_spec.ClearField(refreshtoken.FieldClaimsGroups, field.TypeJSON)
 	}
 	if value, ok := rtu.mutation.ClaimsPreferredUsername(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsPreferredUsername,
-		})
+		_spec.SetField(refreshtoken.FieldClaimsPreferredUsername, field.TypeString, value)
 	}
 	if value, ok := rtu.mutation.ConnectorID(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldConnectorID,
-		})
+		_spec.SetField(refreshtoken.FieldConnectorID, field.TypeString, value)
 	}
 	if value, ok := rtu.mutation.ConnectorData(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: refreshtoken.FieldConnectorData,
-		})
+		_spec.SetField(refreshtoken.FieldConnectorData, field.TypeBytes, value)
 	}
 	if rtu.mutation.ConnectorDataCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Column: refreshtoken.FieldConnectorData,
-		})
+		_spec.ClearField(refreshtoken.FieldConnectorData, field.TypeBytes)
 	}
 	if value, ok := rtu.mutation.Token(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldToken,
-		})
+		_spec.SetField(refreshtoken.FieldToken, field.TypeString, value)
 	}
 	if value, ok := rtu.mutation.ObsoleteToken(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldObsoleteToken,
-		})
+		_spec.SetField(refreshtoken.FieldObsoleteToken, field.TypeString, value)
 	}
 	if value, ok := rtu.mutation.CreatedAt(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: refreshtoken.FieldCreatedAt,
-		})
+		_spec.SetField(refreshtoken.FieldCreatedAt, field.TypeTime, value)
 	}
 	if value, ok := rtu.mutation.LastUsed(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: refreshtoken.FieldLastUsed,
-		})
+		_spec.SetField(refreshtoken.FieldLastUsed, field.TypeTime, value)
 	}
 	if n, err = sqlgraph.UpdateNodes(ctx, rtu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -425,6 +396,7 @@ func (rtu *RefreshTokenUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 		return 0, err
 	}
+	rtu.mutation.done = true
 	return n, nil
 }
 
@@ -442,9 +414,23 @@ func (rtuo *RefreshTokenUpdateOne) SetClientID(s string) *RefreshTokenUpdateOne 
 	return rtuo
 }
 
+// SetNillableClientID sets the "client_id" field if the given value is not nil.
+func (rtuo *RefreshTokenUpdateOne) SetNillableClientID(s *string) *RefreshTokenUpdateOne {
+	if s != nil {
+		rtuo.SetClientID(*s)
+	}
+	return rtuo
+}
+
 // SetScopes sets the "scopes" field.
 func (rtuo *RefreshTokenUpdateOne) SetScopes(s []string) *RefreshTokenUpdateOne {
 	rtuo.mutation.SetScopes(s)
+	return rtuo
+}
+
+// AppendScopes appends s to the "scopes" field.
+func (rtuo *RefreshTokenUpdateOne) AppendScopes(s []string) *RefreshTokenUpdateOne {
+	rtuo.mutation.AppendScopes(s)
 	return rtuo
 }
 
@@ -460,9 +446,25 @@ func (rtuo *RefreshTokenUpdateOne) SetNonce(s string) *RefreshTokenUpdateOne {
 	return rtuo
 }
 
+// SetNillableNonce sets the "nonce" field if the given value is not nil.
+func (rtuo *RefreshTokenUpdateOne) SetNillableNonce(s *string) *RefreshTokenUpdateOne {
+	if s != nil {
+		rtuo.SetNonce(*s)
+	}
+	return rtuo
+}
+
 // SetClaimsUserID sets the "claims_user_id" field.
 func (rtuo *RefreshTokenUpdateOne) SetClaimsUserID(s string) *RefreshTokenUpdateOne {
 	rtuo.mutation.SetClaimsUserID(s)
+	return rtuo
+}
+
+// SetNillableClaimsUserID sets the "claims_user_id" field if the given value is not nil.
+func (rtuo *RefreshTokenUpdateOne) SetNillableClaimsUserID(s *string) *RefreshTokenUpdateOne {
+	if s != nil {
+		rtuo.SetClaimsUserID(*s)
+	}
 	return rtuo
 }
 
@@ -472,9 +474,25 @@ func (rtuo *RefreshTokenUpdateOne) SetClaimsUsername(s string) *RefreshTokenUpda
 	return rtuo
 }
 
+// SetNillableClaimsUsername sets the "claims_username" field if the given value is not nil.
+func (rtuo *RefreshTokenUpdateOne) SetNillableClaimsUsername(s *string) *RefreshTokenUpdateOne {
+	if s != nil {
+		rtuo.SetClaimsUsername(*s)
+	}
+	return rtuo
+}
+
 // SetClaimsEmail sets the "claims_email" field.
 func (rtuo *RefreshTokenUpdateOne) SetClaimsEmail(s string) *RefreshTokenUpdateOne {
 	rtuo.mutation.SetClaimsEmail(s)
+	return rtuo
+}
+
+// SetNillableClaimsEmail sets the "claims_email" field if the given value is not nil.
+func (rtuo *RefreshTokenUpdateOne) SetNillableClaimsEmail(s *string) *RefreshTokenUpdateOne {
+	if s != nil {
+		rtuo.SetClaimsEmail(*s)
+	}
 	return rtuo
 }
 
@@ -484,9 +502,23 @@ func (rtuo *RefreshTokenUpdateOne) SetClaimsEmailVerified(b bool) *RefreshTokenU
 	return rtuo
 }
 
+// SetNillableClaimsEmailVerified sets the "claims_email_verified" field if the given value is not nil.
+func (rtuo *RefreshTokenUpdateOne) SetNillableClaimsEmailVerified(b *bool) *RefreshTokenUpdateOne {
+	if b != nil {
+		rtuo.SetClaimsEmailVerified(*b)
+	}
+	return rtuo
+}
+
 // SetClaimsGroups sets the "claims_groups" field.
 func (rtuo *RefreshTokenUpdateOne) SetClaimsGroups(s []string) *RefreshTokenUpdateOne {
 	rtuo.mutation.SetClaimsGroups(s)
+	return rtuo
+}
+
+// AppendClaimsGroups appends s to the "claims_groups" field.
+func (rtuo *RefreshTokenUpdateOne) AppendClaimsGroups(s []string) *RefreshTokenUpdateOne {
+	rtuo.mutation.AppendClaimsGroups(s)
 	return rtuo
 }
 
@@ -513,6 +545,14 @@ func (rtuo *RefreshTokenUpdateOne) SetNillableClaimsPreferredUsername(s *string)
 // SetConnectorID sets the "connector_id" field.
 func (rtuo *RefreshTokenUpdateOne) SetConnectorID(s string) *RefreshTokenUpdateOne {
 	rtuo.mutation.SetConnectorID(s)
+	return rtuo
+}
+
+// SetNillableConnectorID sets the "connector_id" field if the given value is not nil.
+func (rtuo *RefreshTokenUpdateOne) SetNillableConnectorID(s *string) *RefreshTokenUpdateOne {
+	if s != nil {
+		rtuo.SetConnectorID(*s)
+	}
 	return rtuo
 }
 
@@ -589,6 +629,12 @@ func (rtuo *RefreshTokenUpdateOne) Mutation() *RefreshTokenMutation {
 	return rtuo.mutation
 }
 
+// Where appends a list predicates to the RefreshTokenUpdate builder.
+func (rtuo *RefreshTokenUpdateOne) Where(ps ...predicate.RefreshToken) *RefreshTokenUpdateOne {
+	rtuo.mutation.Where(ps...)
+	return rtuo
+}
+
 // Select allows selecting one or more fields (columns) of the returned entity.
 // The default is selecting all fields defined in the entity schema.
 func (rtuo *RefreshTokenUpdateOne) Select(field string, fields ...string) *RefreshTokenUpdateOne {
@@ -598,46 +644,7 @@ func (rtuo *RefreshTokenUpdateOne) Select(field string, fields ...string) *Refre
 
 // Save executes the query and returns the updated RefreshToken entity.
 func (rtuo *RefreshTokenUpdateOne) Save(ctx context.Context) (*RefreshToken, error) {
-	var (
-		err  error
-		node *RefreshToken
-	)
-	if len(rtuo.hooks) == 0 {
-		if err = rtuo.check(); err != nil {
-			return nil, err
-		}
-		node, err = rtuo.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*RefreshTokenMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = rtuo.check(); err != nil {
-				return nil, err
-			}
-			rtuo.mutation = mutation
-			node, err = rtuo.sqlSave(ctx)
-			mutation.done = true
-			return node, err
-		})
-		for i := len(rtuo.hooks) - 1; i >= 0; i-- {
-			if rtuo.hooks[i] == nil {
-				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = rtuo.hooks[i](mut)
-		}
-		v, err := mut.Mutate(ctx, rtuo.mutation)
-		if err != nil {
-			return nil, err
-		}
-		nv, ok := v.(*RefreshToken)
-		if !ok {
-			return nil, fmt.Errorf("unexpected node type %T returned from RefreshTokenMutation", v)
-		}
-		node = nv
-	}
-	return node, err
+	return withHooks(ctx, rtuo.sqlSave, rtuo.mutation, rtuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -698,16 +705,10 @@ func (rtuo *RefreshTokenUpdateOne) check() error {
 }
 
 func (rtuo *RefreshTokenUpdateOne) sqlSave(ctx context.Context) (_node *RefreshToken, err error) {
-	_spec := &sqlgraph.UpdateSpec{
-		Node: &sqlgraph.NodeSpec{
-			Table:   refreshtoken.Table,
-			Columns: refreshtoken.Columns,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: refreshtoken.FieldID,
-			},
-		},
+	if err := rtuo.check(); err != nil {
+		return _node, err
 	}
+	_spec := sqlgraph.NewUpdateSpec(refreshtoken.Table, refreshtoken.Columns, sqlgraph.NewFieldSpec(refreshtoken.FieldID, field.TypeString))
 	id, ok := rtuo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "RefreshToken.id" for update`)}
@@ -733,127 +734,68 @@ func (rtuo *RefreshTokenUpdateOne) sqlSave(ctx context.Context) (_node *RefreshT
 		}
 	}
 	if value, ok := rtuo.mutation.ClientID(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldClientID,
-		})
+		_spec.SetField(refreshtoken.FieldClientID, field.TypeString, value)
 	}
 	if value, ok := rtuo.mutation.Scopes(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: refreshtoken.FieldScopes,
+		_spec.SetField(refreshtoken.FieldScopes, field.TypeJSON, value)
+	}
+	if value, ok := rtuo.mutation.AppendedScopes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, refreshtoken.FieldScopes, value)
 		})
 	}
 	if rtuo.mutation.ScopesCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Column: refreshtoken.FieldScopes,
-		})
+		_spec.ClearField(refreshtoken.FieldScopes, field.TypeJSON)
 	}
 	if value, ok := rtuo.mutation.Nonce(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldNonce,
-		})
+		_spec.SetField(refreshtoken.FieldNonce, field.TypeString, value)
 	}
 	if value, ok := rtuo.mutation.ClaimsUserID(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsUserID,
-		})
+		_spec.SetField(refreshtoken.FieldClaimsUserID, field.TypeString, value)
 	}
 	if value, ok := rtuo.mutation.ClaimsUsername(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsUsername,
-		})
+		_spec.SetField(refreshtoken.FieldClaimsUsername, field.TypeString, value)
 	}
 	if value, ok := rtuo.mutation.ClaimsEmail(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsEmail,
-		})
+		_spec.SetField(refreshtoken.FieldClaimsEmail, field.TypeString, value)
 	}
 	if value, ok := rtuo.mutation.ClaimsEmailVerified(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeBool,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsEmailVerified,
-		})
+		_spec.SetField(refreshtoken.FieldClaimsEmailVerified, field.TypeBool, value)
 	}
 	if value, ok := rtuo.mutation.ClaimsGroups(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsGroups,
+		_spec.SetField(refreshtoken.FieldClaimsGroups, field.TypeJSON, value)
+	}
+	if value, ok := rtuo.mutation.AppendedClaimsGroups(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, refreshtoken.FieldClaimsGroups, value)
 		})
 	}
 	if rtuo.mutation.ClaimsGroupsCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Column: refreshtoken.FieldClaimsGroups,
-		})
+		_spec.ClearField(refreshtoken.FieldClaimsGroups, field.TypeJSON)
 	}
 	if value, ok := rtuo.mutation.ClaimsPreferredUsername(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldClaimsPreferredUsername,
-		})
+		_spec.SetField(refreshtoken.FieldClaimsPreferredUsername, field.TypeString, value)
 	}
 	if value, ok := rtuo.mutation.ConnectorID(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldConnectorID,
-		})
+		_spec.SetField(refreshtoken.FieldConnectorID, field.TypeString, value)
 	}
 	if value, ok := rtuo.mutation.ConnectorData(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: refreshtoken.FieldConnectorData,
-		})
+		_spec.SetField(refreshtoken.FieldConnectorData, field.TypeBytes, value)
 	}
 	if rtuo.mutation.ConnectorDataCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Column: refreshtoken.FieldConnectorData,
-		})
+		_spec.ClearField(refreshtoken.FieldConnectorData, field.TypeBytes)
 	}
 	if value, ok := rtuo.mutation.Token(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldToken,
-		})
+		_spec.SetField(refreshtoken.FieldToken, field.TypeString, value)
 	}
 	if value, ok := rtuo.mutation.ObsoleteToken(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: refreshtoken.FieldObsoleteToken,
-		})
+		_spec.SetField(refreshtoken.FieldObsoleteToken, field.TypeString, value)
 	}
 	if value, ok := rtuo.mutation.CreatedAt(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: refreshtoken.FieldCreatedAt,
-		})
+		_spec.SetField(refreshtoken.FieldCreatedAt, field.TypeTime, value)
 	}
 	if value, ok := rtuo.mutation.LastUsed(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: refreshtoken.FieldLastUsed,
-		})
+		_spec.SetField(refreshtoken.FieldLastUsed, field.TypeTime, value)
 	}
 	_node = &RefreshToken{config: rtuo.config}
 	_spec.Assign = _node.assignValues
@@ -866,5 +808,6 @@ func (rtuo *RefreshTokenUpdateOne) sqlSave(ctx context.Context) (_node *RefreshT
 		}
 		return nil, err
 	}
+	rtuo.mutation.done = true
 	return _node, nil
 }

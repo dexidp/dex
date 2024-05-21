@@ -33,9 +33,25 @@ func (osu *OfflineSessionUpdate) SetUserID(s string) *OfflineSessionUpdate {
 	return osu
 }
 
+// SetNillableUserID sets the "user_id" field if the given value is not nil.
+func (osu *OfflineSessionUpdate) SetNillableUserID(s *string) *OfflineSessionUpdate {
+	if s != nil {
+		osu.SetUserID(*s)
+	}
+	return osu
+}
+
 // SetConnID sets the "conn_id" field.
 func (osu *OfflineSessionUpdate) SetConnID(s string) *OfflineSessionUpdate {
 	osu.mutation.SetConnID(s)
+	return osu
+}
+
+// SetNillableConnID sets the "conn_id" field if the given value is not nil.
+func (osu *OfflineSessionUpdate) SetNillableConnID(s *string) *OfflineSessionUpdate {
+	if s != nil {
+		osu.SetConnID(*s)
+	}
 	return osu
 }
 
@@ -64,40 +80,7 @@ func (osu *OfflineSessionUpdate) Mutation() *OfflineSessionMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (osu *OfflineSessionUpdate) Save(ctx context.Context) (int, error) {
-	var (
-		err      error
-		affected int
-	)
-	if len(osu.hooks) == 0 {
-		if err = osu.check(); err != nil {
-			return 0, err
-		}
-		affected, err = osu.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*OfflineSessionMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = osu.check(); err != nil {
-				return 0, err
-			}
-			osu.mutation = mutation
-			affected, err = osu.sqlSave(ctx)
-			mutation.done = true
-			return affected, err
-		})
-		for i := len(osu.hooks) - 1; i >= 0; i-- {
-			if osu.hooks[i] == nil {
-				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = osu.hooks[i](mut)
-		}
-		if _, err := mut.Mutate(ctx, osu.mutation); err != nil {
-			return 0, err
-		}
-	}
-	return affected, err
+	return withHooks(ctx, osu.sqlSave, osu.mutation, osu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -138,16 +121,10 @@ func (osu *OfflineSessionUpdate) check() error {
 }
 
 func (osu *OfflineSessionUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	_spec := &sqlgraph.UpdateSpec{
-		Node: &sqlgraph.NodeSpec{
-			Table:   offlinesession.Table,
-			Columns: offlinesession.Columns,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: offlinesession.FieldID,
-			},
-		},
+	if err := osu.check(); err != nil {
+		return n, err
 	}
+	_spec := sqlgraph.NewUpdateSpec(offlinesession.Table, offlinesession.Columns, sqlgraph.NewFieldSpec(offlinesession.FieldID, field.TypeString))
 	if ps := osu.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -156,38 +133,19 @@ func (osu *OfflineSessionUpdate) sqlSave(ctx context.Context) (n int, err error)
 		}
 	}
 	if value, ok := osu.mutation.UserID(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: offlinesession.FieldUserID,
-		})
+		_spec.SetField(offlinesession.FieldUserID, field.TypeString, value)
 	}
 	if value, ok := osu.mutation.ConnID(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: offlinesession.FieldConnID,
-		})
+		_spec.SetField(offlinesession.FieldConnID, field.TypeString, value)
 	}
 	if value, ok := osu.mutation.Refresh(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: offlinesession.FieldRefresh,
-		})
+		_spec.SetField(offlinesession.FieldRefresh, field.TypeBytes, value)
 	}
 	if value, ok := osu.mutation.ConnectorData(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: offlinesession.FieldConnectorData,
-		})
+		_spec.SetField(offlinesession.FieldConnectorData, field.TypeBytes, value)
 	}
 	if osu.mutation.ConnectorDataCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Column: offlinesession.FieldConnectorData,
-		})
+		_spec.ClearField(offlinesession.FieldConnectorData, field.TypeBytes)
 	}
 	if n, err = sqlgraph.UpdateNodes(ctx, osu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -197,6 +155,7 @@ func (osu *OfflineSessionUpdate) sqlSave(ctx context.Context) (n int, err error)
 		}
 		return 0, err
 	}
+	osu.mutation.done = true
 	return n, nil
 }
 
@@ -214,9 +173,25 @@ func (osuo *OfflineSessionUpdateOne) SetUserID(s string) *OfflineSessionUpdateOn
 	return osuo
 }
 
+// SetNillableUserID sets the "user_id" field if the given value is not nil.
+func (osuo *OfflineSessionUpdateOne) SetNillableUserID(s *string) *OfflineSessionUpdateOne {
+	if s != nil {
+		osuo.SetUserID(*s)
+	}
+	return osuo
+}
+
 // SetConnID sets the "conn_id" field.
 func (osuo *OfflineSessionUpdateOne) SetConnID(s string) *OfflineSessionUpdateOne {
 	osuo.mutation.SetConnID(s)
+	return osuo
+}
+
+// SetNillableConnID sets the "conn_id" field if the given value is not nil.
+func (osuo *OfflineSessionUpdateOne) SetNillableConnID(s *string) *OfflineSessionUpdateOne {
+	if s != nil {
+		osuo.SetConnID(*s)
+	}
 	return osuo
 }
 
@@ -243,6 +218,12 @@ func (osuo *OfflineSessionUpdateOne) Mutation() *OfflineSessionMutation {
 	return osuo.mutation
 }
 
+// Where appends a list predicates to the OfflineSessionUpdate builder.
+func (osuo *OfflineSessionUpdateOne) Where(ps ...predicate.OfflineSession) *OfflineSessionUpdateOne {
+	osuo.mutation.Where(ps...)
+	return osuo
+}
+
 // Select allows selecting one or more fields (columns) of the returned entity.
 // The default is selecting all fields defined in the entity schema.
 func (osuo *OfflineSessionUpdateOne) Select(field string, fields ...string) *OfflineSessionUpdateOne {
@@ -252,46 +233,7 @@ func (osuo *OfflineSessionUpdateOne) Select(field string, fields ...string) *Off
 
 // Save executes the query and returns the updated OfflineSession entity.
 func (osuo *OfflineSessionUpdateOne) Save(ctx context.Context) (*OfflineSession, error) {
-	var (
-		err  error
-		node *OfflineSession
-	)
-	if len(osuo.hooks) == 0 {
-		if err = osuo.check(); err != nil {
-			return nil, err
-		}
-		node, err = osuo.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*OfflineSessionMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = osuo.check(); err != nil {
-				return nil, err
-			}
-			osuo.mutation = mutation
-			node, err = osuo.sqlSave(ctx)
-			mutation.done = true
-			return node, err
-		})
-		for i := len(osuo.hooks) - 1; i >= 0; i-- {
-			if osuo.hooks[i] == nil {
-				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = osuo.hooks[i](mut)
-		}
-		v, err := mut.Mutate(ctx, osuo.mutation)
-		if err != nil {
-			return nil, err
-		}
-		nv, ok := v.(*OfflineSession)
-		if !ok {
-			return nil, fmt.Errorf("unexpected node type %T returned from OfflineSessionMutation", v)
-		}
-		node = nv
-	}
-	return node, err
+	return withHooks(ctx, osuo.sqlSave, osuo.mutation, osuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -332,16 +274,10 @@ func (osuo *OfflineSessionUpdateOne) check() error {
 }
 
 func (osuo *OfflineSessionUpdateOne) sqlSave(ctx context.Context) (_node *OfflineSession, err error) {
-	_spec := &sqlgraph.UpdateSpec{
-		Node: &sqlgraph.NodeSpec{
-			Table:   offlinesession.Table,
-			Columns: offlinesession.Columns,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: offlinesession.FieldID,
-			},
-		},
+	if err := osuo.check(); err != nil {
+		return _node, err
 	}
+	_spec := sqlgraph.NewUpdateSpec(offlinesession.Table, offlinesession.Columns, sqlgraph.NewFieldSpec(offlinesession.FieldID, field.TypeString))
 	id, ok := osuo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "OfflineSession.id" for update`)}
@@ -367,38 +303,19 @@ func (osuo *OfflineSessionUpdateOne) sqlSave(ctx context.Context) (_node *Offlin
 		}
 	}
 	if value, ok := osuo.mutation.UserID(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: offlinesession.FieldUserID,
-		})
+		_spec.SetField(offlinesession.FieldUserID, field.TypeString, value)
 	}
 	if value, ok := osuo.mutation.ConnID(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: offlinesession.FieldConnID,
-		})
+		_spec.SetField(offlinesession.FieldConnID, field.TypeString, value)
 	}
 	if value, ok := osuo.mutation.Refresh(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: offlinesession.FieldRefresh,
-		})
+		_spec.SetField(offlinesession.FieldRefresh, field.TypeBytes, value)
 	}
 	if value, ok := osuo.mutation.ConnectorData(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Value:  value,
-			Column: offlinesession.FieldConnectorData,
-		})
+		_spec.SetField(offlinesession.FieldConnectorData, field.TypeBytes, value)
 	}
 	if osuo.mutation.ConnectorDataCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeBytes,
-			Column: offlinesession.FieldConnectorData,
-		})
+		_spec.ClearField(offlinesession.FieldConnectorData, field.TypeBytes)
 	}
 	_node = &OfflineSession{config: osuo.config}
 	_spec.Assign = _node.assignValues
@@ -411,5 +328,6 @@ func (osuo *OfflineSessionUpdateOne) sqlSave(ctx context.Context) (_node *Offlin
 		}
 		return nil, err
 	}
+	osuo.mutation.done = true
 	return _node, nil
 }

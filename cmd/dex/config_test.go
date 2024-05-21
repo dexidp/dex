@@ -71,7 +71,11 @@ storage:
     connMaxLifetime: 30
     connectionTimeout: 3
 web:
-  http: 127.0.0.1:5556
+  https: 127.0.0.1:5556
+  tlsMinVersion: 1.3
+  tlsMaxVersion: 1.2
+  headers:
+    Strict-Transport-Security: "max-age=31536000; includeSubDomains"
 
 frontend:
   dir: ./web
@@ -87,6 +91,9 @@ staticClients:
 
 oauth2:
   alwaysShowLoginScreen: true
+  grantTypes:
+  - refresh_token
+  - "urn:ietf:params:oauth:grant-type:token-exchange"
 
 connectors:
 - type: mockCallback
@@ -141,7 +148,12 @@ logger:
 			},
 		},
 		Web: Web{
-			HTTP: "127.0.0.1:5556",
+			HTTPS:         "127.0.0.1:5556",
+			TLSMinVersion: "1.3",
+			TLSMaxVersion: "1.2",
+			Headers: Headers{
+				StrictTransportSecurity: "max-age=31536000; includeSubDomains",
+			},
 		},
 		Frontend: server.WebConfig{
 			Dir: "./web",
@@ -161,6 +173,10 @@ logger:
 		},
 		OAuth2: OAuth2{
 			AlwaysShowLoginScreen: true,
+			GrantTypes: []string{
+				"refresh_token",
+				"urn:ietf:params:oauth:grant-type:token-exchange",
+			},
 		},
 		StaticConnectors: []Connector{
 			{

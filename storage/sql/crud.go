@@ -1,6 +1,7 @@
 package sql
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
@@ -21,19 +22,18 @@ const keysRowID = "keys"
 // encoder wraps the underlying value in a JSON marshaler which is automatically
 // called by the database/sql package.
 //
-//		s := []string{"planes", "bears"}
-//		err := db.Exec(`insert into t1 (id, things) values (1, $1)`, encoder(s))
-//		if err != nil {
-//			// handle error
-//		}
+//	s := []string{"planes", "bears"}
+//	err := db.Exec(`insert into t1 (id, things) values (1, $1)`, encoder(s))
+//	if err != nil {
+//		// handle error
+//	}
 //
-//		var r []byte
-//		err = db.QueryRow(`select things from t1 where id = 1;`).Scan(&r)
-//		if err != nil {
-//			// handle error
-//		}
-//		fmt.Printf("%s\n", r) // ["planes","bears"]
-//
+//	var r []byte
+//	err = db.QueryRow(`select things from t1 where id = 1;`).Scan(&r)
+//	if err != nil {
+//		// handle error
+//	}
+//	fmt.Printf("%s\n", r) // ["planes","bears"]
 func encoder(i interface{}) driver.Valuer {
 	return jsonEncoder{i}
 }
@@ -84,6 +84,8 @@ type scanner interface {
 	Scan(dest ...interface{}) error
 }
 
+var _ storage.Storage = (*conn)(nil)
+
 func (c *conn) GarbageCollect(now time.Time) (storage.GCResult, error) {
 	result := storage.GCResult{}
 
@@ -122,7 +124,7 @@ func (c *conn) GarbageCollect(now time.Time) (storage.GCResult, error) {
 	return result, err
 }
 
-func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
+func (c *conn) CreateAuthRequest(ctx context.Context, a storage.AuthRequest) error {
 	_, err := c.Exec(`
 		insert into auth_request (
 			id, client_id, response_types, scopes, redirect_uri, nonce, state,
@@ -230,7 +232,7 @@ func getAuthRequest(q querier, id string) (a storage.AuthRequest, err error) {
 	return a, nil
 }
 
-func (c *conn) CreateAuthCode(a storage.AuthCode) error {
+func (c *conn) CreateAuthCode(ctx context.Context, a storage.AuthCode) error {
 	_, err := c.Exec(`
 		insert into auth_code (
 			id, client_id, scopes, nonce, redirect_uri,
@@ -281,7 +283,7 @@ func (c *conn) GetAuthCode(id string) (a storage.AuthCode, err error) {
 	return a, nil
 }
 
-func (c *conn) CreateRefresh(r storage.RefreshToken) error {
+func (c *conn) CreateRefresh(ctx context.Context, r storage.RefreshToken) error {
 	_, err := c.Exec(`
 		insert into refresh_token (
 			id, client_id, scopes, nonce,
@@ -522,7 +524,7 @@ func (c *conn) UpdateClient(id string, updater func(old storage.Client) (storage
 	})
 }
 
-func (c *conn) CreateClient(cli storage.Client) error {
+func (c *conn) CreateClient(ctx context.Context, cli storage.Client) error {
 	_, err := c.Exec(`
 		insert into client (
 			id, secret, redirect_uris, trusted_peers, public, name, logo_url
@@ -592,7 +594,7 @@ func scanClient(s scanner) (cli storage.Client, err error) {
 	return cli, nil
 }
 
-func (c *conn) CreatePassword(p storage.Password) error {
+func (c *conn) CreatePassword(ctx context.Context, p storage.Password) error {
 	p.Email = strings.ToLower(p.Email)
 	_, err := c.Exec(`
 		insert into password (
@@ -689,7 +691,7 @@ func scanPassword(s scanner) (p storage.Password, err error) {
 	return p, nil
 }
 
-func (c *conn) CreateOfflineSessions(s storage.OfflineSessions) error {
+func (c *conn) CreateOfflineSessions(ctx context.Context, s storage.OfflineSessions) error {
 	_, err := c.Exec(`
 		insert into offline_session (
 			user_id, conn_id, refresh, connector_data
@@ -762,7 +764,7 @@ func scanOfflineSessions(s scanner) (o storage.OfflineSessions, err error) {
 	return o, nil
 }
 
-func (c *conn) CreateConnector(connector storage.Connector) error {
+func (c *conn) CreateConnector(ctx context.Context, connector storage.Connector) error {
 	_, err := c.Exec(`
 		insert into connector (
 			id, type, name, resource_version, config
@@ -908,7 +910,7 @@ func (c *conn) delete(table, field, id string) error {
 	return nil
 }
 
-func (c *conn) CreateDeviceRequest(d storage.DeviceRequest) error {
+func (c *conn) CreateDeviceRequest(ctx context.Context, d storage.DeviceRequest) error {
 	_, err := c.Exec(`
 		insert into device_request (
 			user_code, device_code, client_id, client_secret, scopes, expiry
@@ -927,7 +929,7 @@ func (c *conn) CreateDeviceRequest(d storage.DeviceRequest) error {
 	return nil
 }
 
-func (c *conn) CreateDeviceToken(t storage.DeviceToken) error {
+func (c *conn) CreateDeviceToken(ctx context.Context, t storage.DeviceToken) error {
 	_, err := c.Exec(`
 		insert into device_token (
 			device_code, status, token, expiry, last_request, poll_interval, code_challenge, code_challenge_method
@@ -1002,7 +1004,7 @@ func (c *conn) UpdateDeviceToken(deviceCode string, updater func(old storage.Dev
 		_, err = tx.Exec(`
 			update device_token
 			set
-				status = $1, 
+				status = $1,
 				token = $2,
 				last_request = $3,
 				poll_interval = $4,

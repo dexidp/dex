@@ -66,14 +66,22 @@ type Config struct {
 	// The backing persistence layer.
 	Storage storage.Storage
 
+	AllowedGrantTypes []string
+
 	// Valid values are "code" to enable the code flow and "token" to enable the implicit
 	// flow. If no response types are supplied this value defaults to "code".
 	SupportedResponseTypes []string
+
+	// Headers is a map of headers to be added to the all responses.
+	Headers http.Header
 
 	// List of allowed origins for CORS requests on discovery, token and keys endpoint.
 	// If none are indicated, CORS requests are disabled. Passing in "*" will allow any
 	// domain.
 	AllowedOrigins []string
+
+	// List of allowed headers for CORS requests on discovery, token, and keys endpoint.
+	AllowedHeaders []string
 
 	// If enabled, the server won't prompt the user to approve authorization requests.
 	// Logging in implies approval.
@@ -118,7 +126,7 @@ type WebConfig struct {
 	//   * themes/(theme) - Static static served at "( issuer URL )/theme".
 	Dir string
 
-	// Alternative way to programatically configure static web assets.
+	// Alternative way to programmatically configure static web assets.
 	// If Dir is specified, WebFS is ignored.
 	// It's expected to contain the same files and directories as mentioned above.
 	//
@@ -212,18 +220,26 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	if len(c.SupportedResponseTypes) == 0 {
 		c.SupportedResponseTypes = []string{responseTypeCode}
 	}
+	if len(c.AllowedHeaders) == 0 {
+		c.AllowedHeaders = []string{"Authorization"}
+	}
 
-	supportedGrant := []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode} // default
+	allSupportedGrants := map[string]bool{
+		grantTypeAuthorizationCode: true,
+		grantTypeRefreshToken:      true,
+		grantTypeDeviceCode:        true,
+		grantTypeTokenExchange:     true,
+	}
 	supportedRes := make(map[string]bool)
 
 	for _, respType := range c.SupportedResponseTypes {
 		switch respType {
-		case responseTypeCode, responseTypeIDToken:
+		case responseTypeCode, responseTypeIDToken, responseTypeCodeIDToken:
 			// continue
-		case responseTypeToken:
+		case responseTypeToken, responseTypeCodeToken, responseTypeIDTokenToken, responseTypeCodeIDTokenToken:
 			// response_type=token is an implicit flow, let's add it to the discovery info
 			// https://datatracker.ietf.org/doc/html/rfc6749#section-4.2.1
-			supportedGrant = append(supportedGrant, grantTypeImplicit)
+			allSupportedGrants[grantTypeImplicit] = true
 		default:
 			return nil, fmt.Errorf("unsupported response_type %q", respType)
 		}
@@ -231,10 +247,22 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 
 	if c.PasswordConnector != "" {
-		supportedGrant = append(supportedGrant, grantTypePassword)
+		allSupportedGrants[grantTypePassword] = true
 	}
 
-	sort.Strings(supportedGrant)
+	var supportedGrants []string
+	if len(c.AllowedGrantTypes) > 0 {
+		for _, grant := range c.AllowedGrantTypes {
+			if allSupportedGrants[grant] {
+				supportedGrants = append(supportedGrants, grant)
+			}
+		}
+	} else {
+		for grant := range allSupportedGrants {
+			supportedGrants = append(supportedGrants, grant)
+		}
+	}
+	sort.Strings(supportedGrants)
 
 	webFS := web.FS()
 	if c.Web.Dir != "" {
@@ -252,7 +280,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		extra:     c.Web.Extra,
 	}
 
-	static, theme, tmpls, err := loadWebConfig(web)
+	static, theme, robots, tmpls, err := loadWebConfig(web)
 	if err != nil {
 		return nil, fmt.Errorf("server: failed to load web static: %v", err)
 	}
@@ -267,7 +295,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		connectors:             make(map[string]Connector),
 		storage:                newKeyCacher(c.Storage, now),
 		supportedResponseTypes: supportedRes,
-		supportedGrantTypes:    supportedGrant,
+		supportedGrantTypes:    supportedGrants,
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
 		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
 		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
@@ -320,9 +348,18 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 	}
 
+	handlerWithHeaders := func(handlerName string, handler http.Handler) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			for k, v := range c.Headers {
+				w.Header()[k] = v
+			}
+			instrumentHandlerCounter(handlerName, handler)(w, r)
+		}
+	}
+
 	r := mux.NewRouter().SkipClean(true).UseEncodedPath()
 	handle := func(p string, h http.Handler) {
-		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, h))
+		r.Handle(path.Join(issuerURL.Path, p), handlerWithHeaders(p, h))
 	}
 	handleFunc := func(p string, h http.HandlerFunc) {
 		handle(p, h)
@@ -334,16 +371,13 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS := func(p string, h http.HandlerFunc) {
 		var handler http.Handler = h
 		if len(c.AllowedOrigins) > 0 {
-			allowedHeaders := []string{
-				"Authorization",
-			}
 			cors := handlers.CORS(
 				handlers.AllowedOrigins(c.AllowedOrigins),
-				handlers.AllowedHeaders(allowedHeaders),
+				handlers.AllowedHeaders(c.AllowedHeaders),
 			)
 			handler = cors(handler)
 		}
-		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, handler))
+		r.Handle(path.Join(issuerURL.Path, p), handlerWithHeaders(p, handler))
 	}
 	r.NotFoundHandler = http.NotFoundHandler()
 
@@ -357,6 +391,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS("/token", s.handleToken)
 	handleWithCORS("/keys", s.handlePublicKeys)
 	handleWithCORS("/userinfo", s.handleUserInfo)
+	handleWithCORS("/token/introspect", s.handleIntrospect)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)
@@ -366,7 +401,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	// TODO(nabokihms): "/device/token" endpoint is deprecated, consider using /token endpoint instead
 	handleFunc("/device/token", s.handleDeviceTokenDeprecated)
 	handleFunc(deviceCallbackURI, s.handleDeviceCallback)
-	r.HandleFunc(path.Join(issuerURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {
+	handleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on
 		// misconfigured authproxy connector setups.
 		for key := range r.Header {
@@ -390,6 +425,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	handlePrefix("/static", static)
 	handlePrefix("/theme", theme)
+	handleFunc("/robots.txt", robots)
+
 	s.mux = r
 
 	s.startKeyRotation(ctx, rotationStrategy, now)

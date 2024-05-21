@@ -7,9 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"reflect"
 
 	"github.com/dexidp/dex/storage/ent/db/migrate"
 
+	"entgo.io/ent"
+	"entgo.io/ent/dialect"
+	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/authcode"
 	"github.com/dexidp/dex/storage/ent/db/authrequest"
 	"github.com/dexidp/dex/storage/ent/db/connector"
@@ -20,9 +24,6 @@ import (
 	"github.com/dexidp/dex/storage/ent/db/offlinesession"
 	"github.com/dexidp/dex/storage/ent/db/password"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
-
-	"entgo.io/ent/dialect"
-	"entgo.io/ent/dialect/sql"
 )
 
 // Client is the client that holds all ent builders.
@@ -54,9 +55,7 @@ type Client struct {
 
 // NewClient creates a new client configured with the given options.
 func NewClient(opts ...Option) *Client {
-	cfg := config{log: log.Println, hooks: &hooks{}}
-	cfg.options(opts...)
-	client := &Client{config: cfg}
+	client := &Client{config: newConfig(opts...)}
 	client.init()
 	return client
 }
@@ -75,6 +74,62 @@ func (c *Client) init() {
 	c.RefreshToken = NewRefreshTokenClient(c.config)
 }
 
+type (
+	// config is the configuration for the client and its builder.
+	config struct {
+		// driver used for executing database requests.
+		driver dialect.Driver
+		// debug enable a debug logging.
+		debug bool
+		// log used for logging on debug mode.
+		log func(...any)
+		// hooks to execute on mutations.
+		hooks *hooks
+		// interceptors to execute on queries.
+		inters *inters
+	}
+	// Option function to configure the client.
+	Option func(*config)
+)
+
+// newConfig creates a new config for the client.
+func newConfig(opts ...Option) config {
+	cfg := config{log: log.Println, hooks: &hooks{}, inters: &inters{}}
+	cfg.options(opts...)
+	return cfg
+}
+
+// options applies the options on the config object.
+func (c *config) options(opts ...Option) {
+	for _, opt := range opts {
+		opt(c)
+	}
+	if c.debug {
+		c.driver = dialect.Debug(c.driver, c.log)
+	}
+}
+
+// Debug enables debug logging on the ent.Driver.
+func Debug() Option {
+	return func(c *config) {
+		c.debug = true
+	}
+}
+
+// Log sets the logging function for debug mode.
+func Log(fn func(...any)) Option {
+	return func(c *config) {
+		c.log = fn
+	}
+}
+
+// Driver configures the client driver.
+func Driver(driver dialect.Driver) Option {
+	return func(c *config) {
+		c.driver = driver
+	}
+}
+
 // Open opens a database/sql.DB specified by the driver name and
 // the data source name, and returns a new client attached to it.
 // Optional parameters can be added for configuring the client.
@@ -91,11 +146,14 @@ func Open(driverName, dataSourceName string, options ...Option) (*Client, error)
 	}
 }
 
+// ErrTxStarted is returned when trying to start a new transaction from a transactional client.
+var ErrTxStarted = errors.New("db: cannot start a transaction within a transaction")
+
 // Tx returns a new transactional client. The provided context
 // is used until the transaction is committed or rolled back.
 func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	if _, ok := c.driver.(*txDriver); ok {
-		return nil, errors.New("db: cannot start a transaction within a transaction")
+		return nil, ErrTxStarted
 	}
 	tx, err := newTx(ctx, c.driver)
 	if err != nil {
@@ -154,7 +212,6 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 //		AuthCode.
 //		Query().
 //		Count(ctx)
-//
 func (c *Client) Debug() *Client {
 	if c.debug {
 		return c
@@ -174,16 +231,51 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.AuthCode.Use(hooks...)
-	c.AuthRequest.Use(hooks...)
-	c.Connector.Use(hooks...)
-	c.DeviceRequest.Use(hooks...)
-	c.DeviceToken.Use(hooks...)
-	c.Keys.Use(hooks...)
-	c.OAuth2Client.Use(hooks...)
-	c.OfflineSession.Use(hooks...)
-	c.Password.Use(hooks...)
-	c.RefreshToken.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.AuthCode, c.AuthRequest, c.Connector, c.DeviceRequest, c.DeviceToken, c.Keys,
+		c.OAuth2Client, c.OfflineSession, c.Password, c.RefreshToken,
+	} {
+		n.Use(hooks...)
+	}
+}
+
+// Intercept adds the query interceptors to all the entity clients.
+// In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
+func (c *Client) Intercept(interceptors ...Interceptor) {
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.AuthCode, c.AuthRequest, c.Connector, c.DeviceRequest, c.DeviceToken, c.Keys,
+		c.OAuth2Client, c.OfflineSession, c.Password, c.RefreshToken,
+	} {
+		n.Intercept(interceptors...)
+	}
+}
+
+// Mutate implements the ent.Mutator interface.
+func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
+	switch m := m.(type) {
+	case *AuthCodeMutation:
+		return c.AuthCode.mutate(ctx, m)
+	case *AuthRequestMutation:
+		return c.AuthRequest.mutate(ctx, m)
+	case *ConnectorMutation:
+		return c.Connector.mutate(ctx, m)
+	case *DeviceRequestMutation:
+		return c.DeviceRequest.mutate(ctx, m)
+	case *DeviceTokenMutation:
+		return c.DeviceToken.mutate(ctx, m)
+	case *KeysMutation:
+		return c.Keys.mutate(ctx, m)
+	case *OAuth2ClientMutation:
+		return c.OAuth2Client.mutate(ctx, m)
+	case *OfflineSessionMutation:
+		return c.OfflineSession.mutate(ctx, m)
+	case *PasswordMutation:
+		return c.Password.mutate(ctx, m)
+	case *RefreshTokenMutation:
+		return c.RefreshToken.mutate(ctx, m)
+	default:
+		return nil, fmt.Errorf("db: unknown mutation type %T", m)
+	}
 }
 
 // AuthCodeClient is a client for the AuthCode schema.
@@ -202,6 +294,12 @@ func (c *AuthCodeClient) Use(hooks ...Hook) {
 	c.hooks.AuthCode = append(c.hooks.AuthCode, hooks...)
 }
 
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `authcode.Intercept(f(g(h())))`.
+func (c *AuthCodeClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AuthCode = append(c.inters.AuthCode, interceptors...)
+}
+
 // Create returns a builder for creating a AuthCode entity.
 func (c *AuthCodeClient) Create() *AuthCodeCreate {
 	mutation := newAuthCodeMutation(c.config, OpCreate)
@@ -210,6 +308,21 @@ func (c *AuthCodeClient) Create() *AuthCodeCreate {
 
 // CreateBulk returns a builder for creating a bulk of AuthCode entities.
 func (c *AuthCodeClient) CreateBulk(builders ...*AuthCodeCreate) *AuthCodeCreateBulk {
+	return &AuthCodeCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AuthCodeClient) MapCreateBulk(slice any, setFunc func(*AuthCodeCreate, int)) *AuthCodeCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AuthCodeCreateBulk{err: fmt.Errorf("calling to AuthCodeClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AuthCodeCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
 	return &AuthCodeCreateBulk{config: c.config, builders: builders}
 }
 
@@ -242,7 +355,7 @@ func (c *AuthCodeClient) DeleteOne(ac *AuthCode) *AuthCodeDeleteOne {
 	return c.DeleteOneID(ac.ID)
 }
 
-// DeleteOne returns a builder for deleting the given entity by its id.
+// DeleteOneID returns a builder for deleting the given entity by its id.
 func (c *AuthCodeClient) DeleteOneID(id string) *AuthCodeDeleteOne {
 	builder := c.Delete().Where(authcode.ID(id))
 	builder.mutation.id = &id
@@ -254,6 +367,8 @@ func (c *AuthCodeClient) DeleteOneID(id string) *AuthCodeDeleteOne {
 func (c *AuthCodeClient) Query() *AuthCodeQuery {
 	return &AuthCodeQuery{
 		config: c.config,
+		ctx:    &QueryContext{Type: TypeAuthCode},
+		inters: c.Interceptors(),
 	}
 }
 
@@ -276,6 +391,26 @@ func (c *AuthCodeClient) Hooks() []Hook {
 	return c.hooks.AuthCode
 }
 
+// Interceptors returns the client interceptors.
+func (c *AuthCodeClient) Interceptors() []Interceptor {
+	return c.inters.AuthCode
+}
+
+func (c *AuthCodeClient) mutate(ctx context.Context, m *AuthCodeMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AuthCodeCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AuthCodeUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AuthCodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AuthCodeDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("db: unknown AuthCode mutation op: %q", m.Op())
+	}
+}
+
 // AuthRequestClient is a client for the AuthRequest schema.
 type AuthRequestClient struct {
 	config
@@ -292,6 +427,12 @@ func (c *AuthRequestClient) Use(hooks ...Hook) {
 	c.hooks.AuthRequest = append(c.hooks.AuthRequest, hooks...)
 }
 
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `authrequest.Intercept(f(g(h())))`.
+func (c *AuthRequestClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AuthRequest = append(c.inters.AuthRequest, interceptors...)
+}
+
 // Create returns a builder for creating a AuthRequest entity.
 func (c *AuthRequestClient) Create() *AuthRequestCreate {
 	mutation := newAuthRequestMutation(c.config, OpCreate)
@@ -300,6 +441,21 @@ func (c *AuthRequestClient) Create() *AuthRequestCreate {
 
 // CreateBulk returns a builder for creating a bulk of AuthRequest entities.
 func (c *AuthRequestClient) CreateBulk(builders ...*AuthRequestCreate) *AuthRequestCreateBulk {
+	return &AuthRequestCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AuthRequestClient) MapCreateBulk(slice any, setFunc func(*AuthRequestCreate, int)) *AuthRequestCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AuthRequestCreateBulk{err: fmt.Errorf("calling to AuthRequestClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AuthRequestCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
 	return &AuthRequestCreateBulk{config: c.config, builders: builders}
 }
 
@@ -332,7 +488,7 @@ func (c *AuthRequestClient) DeleteOne(ar *AuthRequest) *AuthRequestDeleteOne {
 	return c.DeleteOneID(ar.ID)
 }
 
-// DeleteOne returns a builder for deleting the given entity by its id.
+// DeleteOneID returns a builder for deleting the given entity by its id.
 func (c *AuthRequestClient) DeleteOneID(id string) *AuthRequestDeleteOne {
 	builder := c.Delete().Where(authrequest.ID(id))
 	builder.mutation.id = &id
@@ -344,6 +500,8 @@ func (c *AuthRequestClient) DeleteOneID(id string) *AuthRequestDeleteOne {
 func (c *AuthRequestClient) Query() *AuthRequestQuery {
 	return &AuthRequestQuery{
 		config: c.config,
+		ctx:    &QueryContext{Type: TypeAuthRequest},
+		inters: c.Interceptors(),
 	}
 }
 
@@ -366,6 +524,26 @@ func (c *AuthRequestClient) Hooks() []Hook {
 	return c.hooks.AuthRequest
 }
 
+// Interceptors returns the client interceptors.
+func (c *AuthRequestClient) Interceptors() []Interceptor {
+	return c.inters.AuthRequest
+}
+
+func (c *AuthRequestClient) mutate(ctx context.Context, m *AuthRequestMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AuthRequestCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AuthRequestUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AuthRequestUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AuthRequestDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("db: unknown AuthRequest mutation op: %q", m.Op())
+	}
+}
+
 // ConnectorClient is a client for the Connector schema.
 type ConnectorClient struct {
 	config
@@ -382,6 +560,12 @@ func (c *ConnectorClient) Use(hooks ...Hook) {
 	c.hooks.Connector = append(c.hooks.Connector, hooks...)
 }
 
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `connector.Intercept(f(g(h())))`.
+func (c *ConnectorClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Connector = append(c.inters.Connector, interceptors...)
+}
+
 // Create returns a builder for creating a Connector entity.
 func (c *ConnectorClient) Create() *ConnectorCreate {
 	mutation := newConnectorMutation(c.config, OpCreate)
@@ -390,6 +574,21 @@ func (c *ConnectorClient) Create() *ConnectorCreate {
 
 // CreateBulk returns a builder for creating a bulk of Connector entities.
 func (c *ConnectorClient) CreateBulk(builders ...*ConnectorCreate) *ConnectorCreateBulk {
+	return &ConnectorCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ConnectorClient) MapCreateBulk(slice any, setFunc func(*ConnectorCreate, int)) *ConnectorCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ConnectorCreateBulk{err: fmt.Errorf("calling to ConnectorClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ConnectorCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
 	return &ConnectorCreateBulk{config: c.config, builders: builders}
 }
 
@@ -422,7 +621,7 @@ func (c *ConnectorClient) DeleteOne(co *Connector) *ConnectorDeleteOne {
 	return c.DeleteOneID(co.ID)
 }
 
-// DeleteOne returns a builder for deleting the given entity by its id.
+// DeleteOneID returns a builder for deleting the given entity by its id.
 func (c *ConnectorClient) DeleteOneID(id string) *ConnectorDeleteOne {
 	builder := c.Delete().Where(connector.ID(id))
 	builder.mutation.id = &id
@@ -434,6 +633,8 @@ func (c *ConnectorClient) DeleteOneID(id string) *ConnectorDeleteOne {
 func (c *ConnectorClient) Query() *ConnectorQuery {
 	return &ConnectorQuery{
 		config: c.config,
+		ctx:    &QueryContext{Type: TypeConnector},
+		inters: c.Interceptors(),
 	}
 }
 
@@ -456,6 +657,26 @@ func (c *ConnectorClient) Hooks() []Hook {
 	return c.hooks.Connector
 }
 
+// Interceptors returns the client interceptors.
+func (c *ConnectorClient) Interceptors() []Interceptor {
+	return c.inters.Connector
+}
+
+func (c *ConnectorClient) mutate(ctx context.Context, m *ConnectorMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ConnectorCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ConnectorUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ConnectorUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ConnectorDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("db: unknown Connector mutation op: %q", m.Op())
+	}
+}
+
 // DeviceRequestClient is a client for the DeviceRequest schema.
 type DeviceRequestClient struct {
 	config
@@ -472,6 +693,12 @@ func (c *DeviceRequestClient) Use(hooks ...Hook) {
 	c.hooks.DeviceRequest = append(c.hooks.DeviceRequest, hooks...)
 }
 
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `devicerequest.Intercept(f(g(h())))`.
+func (c *DeviceRequestClient) Intercept(interceptors ...Interceptor) {
+	c.inters.DeviceRequest = append(c.inters.DeviceRequest, interceptors...)
+}
+
 // Create returns a builder for creating a DeviceRequest entity.
 func (c *DeviceRequestClient) Create() *DeviceRequestCreate {
 	mutation := newDeviceRequestMutation(c.config, OpCreate)
@@ -480,6 +707,21 @@ func (c *DeviceRequestClient) Create() *DeviceRequestCreate {
 
 // CreateBulk returns a builder for creating a bulk of DeviceRequest entities.
 func (c *DeviceRequestClient) CreateBulk(builders ...*DeviceRequestCreate) *DeviceRequestCreateBulk {
+	return &DeviceRequestCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *DeviceRequestClient) MapCreateBulk(slice any, setFunc func(*DeviceRequestCreate, int)) *DeviceRequestCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &DeviceRequestCreateBulk{err: fmt.Errorf("calling to DeviceRequestClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*DeviceRequestCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
 	return &DeviceRequestCreateBulk{config: c.config, builders: builders}
 }
 
@@ -512,7 +754,7 @@ func (c *DeviceRequestClient) DeleteOne(dr *DeviceRequest) *DeviceRequestDeleteO
 	return c.DeleteOneID(dr.ID)
 }
 
-// DeleteOne returns a builder for deleting the given entity by its id.
+// DeleteOneID returns a builder for deleting the given entity by its id.
 func (c *DeviceRequestClient) DeleteOneID(id int) *DeviceRequestDeleteOne {
 	builder := c.Delete().Where(devicerequest.ID(id))
 	builder.mutation.id = &id
@@ -524,6 +766,8 @@ func (c *DeviceRequestClient) DeleteOneID(id int) *DeviceRequestDeleteOne {
 func (c *DeviceRequestClient) Query() *DeviceRequestQuery {
 	return &DeviceRequestQuery{
 		config: c.config,
+		ctx:    &QueryContext{Type: TypeDeviceRequest},
+		inters: c.Interceptors(),
 	}
 }
 
@@ -546,6 +790,26 @@ func (c *DeviceRequestClient) Hooks() []Hook {
 	return c.hooks.DeviceRequest
 }
 
+// Interceptors returns the client interceptors.
+func (c *DeviceRequestClient) Interceptors() []Interceptor {
+	return c.inters.DeviceRequest
+}
+
+func (c *DeviceRequestClient) mutate(ctx context.Context, m *DeviceRequestMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&DeviceRequestCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&DeviceRequestUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&DeviceRequestUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&DeviceRequestDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("db: unknown DeviceRequest mutation op: %q", m.Op())
+	}
+}
+
 // DeviceTokenClient is a client for the DeviceToken schema.
 type DeviceTokenClient struct {
 	config
@@ -562,6 +826,12 @@ func (c *DeviceTokenClient) Use(hooks ...Hook) {
 	c.hooks.DeviceToken = append(c.hooks.DeviceToken, hooks...)
 }
 
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `devicetoken.Intercept(f(g(h())))`.
+func (c *DeviceTokenClient) Intercept(interceptors ...Interceptor) {
+	c.inters.DeviceToken = append(c.inters.DeviceToken, interceptors...)
+}
+
 // Create returns a builder for creating a DeviceToken entity.
 func (c *DeviceTokenClient) Create() *DeviceTokenCreate {
 	mutation := newDeviceTokenMutation(c.config, OpCreate)
@@ -570,6 +840,21 @@ func (c *DeviceTokenClient) Create() *DeviceTokenCreate {
 
 // CreateBulk returns a builder for creating a bulk of DeviceToken entities.
 func (c *DeviceTokenClient) CreateBulk(builders ...*DeviceTokenCreate) *DeviceTokenCreateBulk {
+	return &DeviceTokenCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *DeviceTokenClient) MapCreateBulk(slice any, setFunc func(*DeviceTokenCreate, int)) *DeviceTokenCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &DeviceTokenCreateBulk{err: fmt.Errorf("calling to DeviceTokenClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*DeviceTokenCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
 	return &DeviceTokenCreateBulk{config: c.config, builders: builders}
 }
 
@@ -602,7 +887,7 @@ func (c *DeviceTokenClient) DeleteOne(dt *DeviceToken) *DeviceTokenDeleteOne {
 	return c.DeleteOneID(dt.ID)
 }
 
-// DeleteOne returns a builder for deleting the given entity by its id.
+// DeleteOneID returns a builder for deleting the given entity by its id.
 func (c *DeviceTokenClient) DeleteOneID(id int) *DeviceTokenDeleteOne {
 	builder := c.Delete().Where(devicetoken.ID(id))
 	builder.mutation.id = &id
@@ -614,6 +899,8 @@ func (c *DeviceTokenClient) DeleteOneID(id int) *DeviceTokenDeleteOne {
 func (c *DeviceTokenClient) Query() *DeviceTokenQuery {
 	return &DeviceTokenQuery{
 		config: c.config,
+		ctx:    &QueryContext{Type: TypeDeviceToken},
+		inters: c.Interceptors(),
 	}
 }
 
@@ -636,6 +923,26 @@ func (c *DeviceTokenClient) Hooks() []Hook {
 	return c.hooks.DeviceToken
 }
 
+// Interceptors returns the client interceptors.
+func (c *DeviceTokenClient) Interceptors() []Interceptor {
+	return c.inters.DeviceToken
+}
+
+func (c *DeviceTokenClient) mutate(ctx context.Context, m *DeviceTokenMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&DeviceTokenCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&DeviceTokenUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&DeviceTokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&DeviceTokenDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("db: unknown DeviceToken mutation op: %q", m.Op())
+	}
+}
+
 // KeysClient is a client for the Keys schema.
 type KeysClient struct {
 	config
@@ -652,6 +959,12 @@ func (c *KeysClient) Use(hooks ...Hook) {
 	c.hooks.Keys = append(c.hooks.Keys, hooks...)
 }
 
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `keys.Intercept(f(g(h())))`.
+func (c *KeysClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Keys = append(c.inters.Keys, interceptors...)
+}
+
 // Create returns a builder for creating a Keys entity.
 func (c *KeysClient) Create() *KeysCreate {
 	mutation := newKeysMutation(c.config, OpCreate)
@@ -660,6 +973,21 @@ func (c *KeysClient) Create() *KeysCreate {
 
 // CreateBulk returns a builder for creating a bulk of Keys entities.
 func (c *KeysClient) CreateBulk(builders ...*KeysCreate) *KeysCreateBulk {
+	return &KeysCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *KeysClient) MapCreateBulk(slice any, setFunc func(*KeysCreate, int)) *KeysCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &KeysCreateBulk{err: fmt.Errorf("calling to KeysClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*KeysCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
 	return &KeysCreateBulk{config: c.config, builders: builders}
 }
 
@@ -692,7 +1020,7 @@ func (c *KeysClient) DeleteOne(k *Keys) *KeysDeleteOne {
 	return c.DeleteOneID(k.ID)
 }
 
-// DeleteOne returns a builder for deleting the given entity by its id.
+// DeleteOneID returns a builder for deleting the given entity by its id.
 func (c *KeysClient) DeleteOneID(id string) *KeysDeleteOne {
 	builder := c.Delete().Where(keys.ID(id))
 	builder.mutation.id = &id
@@ -704,6 +1032,8 @@ func (c *KeysClient) DeleteOneID(id string) *KeysDeleteOne {
 func (c *KeysClient) Query() *KeysQuery {
 	return &KeysQuery{
 		config: c.config,
+		ctx:    &QueryContext{Type: TypeKeys},
+		inters: c.Interceptors(),
 	}
 }
 
@@ -726,6 +1056,26 @@ func (c *KeysClient) Hooks() []Hook {
 	return c.hooks.Keys
 }
 
+// Interceptors returns the client interceptors.
+func (c *KeysClient) Interceptors() []Interceptor {
+	return c.inters.Keys
+}
+
+func (c *KeysClient) mutate(ctx context.Context, m *KeysMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&KeysCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&KeysUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&KeysUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&KeysDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("db: unknown Keys mutation op: %q", m.Op())
+	}
+}
+
 // OAuth2ClientClient is a client for the OAuth2Client schema.
 type OAuth2ClientClient struct {
 	config
@@ -742,6 +1092,12 @@ func (c *OAuth2ClientClient) Use(hooks ...Hook) {
 	c.hooks.OAuth2Client = append(c.hooks.OAuth2Client, hooks...)
 }
 
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `oauth2client.Intercept(f(g(h())))`.
+func (c *OAuth2ClientClient) Intercept(interceptors ...Interceptor) {
+	c.inters.OAuth2Client = append(c.inters.OAuth2Client, interceptors...)
+}
+
 // Create returns a builder for creating a OAuth2Client entity.
 func (c *OAuth2ClientClient) Create() *OAuth2ClientCreate {
 	mutation := newOAuth2ClientMutation(c.config, OpCreate)
@@ -750,6 +1106,21 @@ func (c *OAuth2ClientClient) Create() *OAuth2ClientCreate {
 
 // CreateBulk returns a builder for creating a bulk of OAuth2Client entities.
 func (c *OAuth2ClientClient) CreateBulk(builders ...*OAuth2ClientCreate) *OAuth2ClientCreateBulk {
+	return &OAuth2ClientCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *OAuth2ClientClient) MapCreateBulk(slice any, setFunc func(*OAuth2ClientCreate, int)) *OAuth2ClientCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &OAuth2ClientCreateBulk{err: fmt.Errorf("calling to OAuth2ClientClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*OAuth2ClientCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
 	return &OAuth2ClientCreateBulk{config: c.config, builders: builders}
 }
 
@@ -782,7 +1153,7 @@ func (c *OAuth2ClientClient) DeleteOne(o *OAuth2Client) *OAuth2ClientDeleteOne {
 	return c.DeleteOneID(o.ID)
 }
 
-// DeleteOne returns a builder for deleting the given entity by its id.
+// DeleteOneID returns a builder for deleting the given entity by its id.
 func (c *OAuth2ClientClient) DeleteOneID(id string) *OAuth2ClientDeleteOne {
 	builder := c.Delete().Where(oauth2client.ID(id))
 	builder.mutation.id = &id
@@ -794,6 +1165,8 @@ func (c *OAuth2ClientClient) DeleteOneID(id string) *OAuth2ClientDeleteOne {
 func (c *OAuth2ClientClient) Query() *OAuth2ClientQuery {
 	return &OAuth2ClientQuery{
 		config: c.config,
+		ctx:    &QueryContext{Type: TypeOAuth2Client},
+		inters: c.Interceptors(),
 	}
 }
 
@@ -816,6 +1189,26 @@ func (c *OAuth2ClientClient) Hooks() []Hook {
 	return c.hooks.OAuth2Client
 }
 
+// Interceptors returns the client interceptors.
+func (c *OAuth2ClientClient) Interceptors() []Interceptor {
+	return c.inters.OAuth2Client
+}
+
+func (c *OAuth2ClientClient) mutate(ctx context.Context, m *OAuth2ClientMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&OAuth2ClientCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&OAuth2ClientUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&OAuth2ClientUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&OAuth2ClientDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("db: unknown OAuth2Client mutation op: %q", m.Op())
+	}
+}
+
 // OfflineSessionClient is a client for the OfflineSession schema.
 type OfflineSessionClient struct {
 	config
@@ -832,6 +1225,12 @@ func (c *OfflineSessionClient) Use(hooks ...Hook) {
 	c.hooks.OfflineSession = append(c.hooks.OfflineSession, hooks...)
 }
 
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `offlinesession.Intercept(f(g(h())))`.
+func (c *OfflineSessionClient) Intercept(interceptors ...Interceptor) {
+	c.inters.OfflineSession = append(c.inters.OfflineSession, interceptors...)
+}
+
 // Create returns a builder for creating a OfflineSession entity.
 func (c *OfflineSessionClient) Create() *OfflineSessionCreate {
 	mutation := newOfflineSessionMutation(c.config, OpCreate)
@@ -840,6 +1239,21 @@ func (c *OfflineSessionClient) Create() *OfflineSessionCreate {
 
 // CreateBulk returns a builder for creating a bulk of OfflineSession entities.
 func (c *OfflineSessionClient) CreateBulk(builders ...*OfflineSessionCreate) *OfflineSessionCreateBulk {
+	return &OfflineSessionCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *OfflineSessionClient) MapCreateBulk(slice any, setFunc func(*OfflineSessionCreate, int)) *OfflineSessionCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &OfflineSessionCreateBulk{err: fmt.Errorf("calling to OfflineSessionClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*OfflineSessionCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
 	return &OfflineSessionCreateBulk{config: c.config, builders: builders}
 }
 
@@ -872,7 +1286,7 @@ func (c *OfflineSessionClient) DeleteOne(os *OfflineSession) *OfflineSessionDele
 	return c.DeleteOneID(os.ID)
 }
 
-// DeleteOne returns a builder for deleting the given entity by its id.
+// DeleteOneID returns a builder for deleting the given entity by its id.
 func (c *OfflineSessionClient) DeleteOneID(id string) *OfflineSessionDeleteOne {
 	builder := c.Delete().Where(offlinesession.ID(id))
 	builder.mutation.id = &id
@@ -884,6 +1298,8 @@ func (c *OfflineSessionClient) DeleteOneID(id string) *OfflineSessionDeleteOne {
 func (c *OfflineSessionClient) Query() *OfflineSessionQuery {
 	return &OfflineSessionQuery{
 		config: c.config,
+		ctx:    &QueryContext{Type: TypeOfflineSession},
+		inters: c.Interceptors(),
 	}
 }
 
@@ -906,6 +1322,26 @@ func (c *OfflineSessionClient) Hooks() []Hook {
 	return c.hooks.OfflineSession
 }
 
+// Interceptors returns the client interceptors.
+func (c *OfflineSessionClient) Interceptors() []Interceptor {
+	return c.inters.OfflineSession
+}
+
+func (c *OfflineSessionClient) mutate(ctx context.Context, m *OfflineSessionMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&OfflineSessionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&OfflineSessionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&OfflineSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&OfflineSessionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("db: unknown OfflineSession mutation op: %q", m.Op())
+	}
+}
+
 // PasswordClient is a client for the Password schema.
 type PasswordClient struct {
 	config
@@ -922,6 +1358,12 @@ func (c *PasswordClient) Use(hooks ...Hook) {
 	c.hooks.Password = append(c.hooks.Password, hooks...)
 }
 
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `password.Intercept(f(g(h())))`.
+func (c *PasswordClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Password = append(c.inters.Password, interceptors...)
+}
+
 // Create returns a builder for creating a Password entity.
 func (c *PasswordClient) Create() *PasswordCreate {
 	mutation := newPasswordMutation(c.config, OpCreate)
@@ -930,6 +1372,21 @@ func (c *PasswordClient) Create() *PasswordCreate {
 
 // CreateBulk returns a builder for creating a bulk of Password entities.
 func (c *PasswordClient) CreateBulk(builders ...*PasswordCreate) *PasswordCreateBulk {
+	return &PasswordCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PasswordClient) MapCreateBulk(slice any, setFunc func(*PasswordCreate, int)) *PasswordCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PasswordCreateBulk{err: fmt.Errorf("calling to PasswordClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PasswordCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
 	return &PasswordCreateBulk{config: c.config, builders: builders}
 }
 
@@ -962,7 +1419,7 @@ func (c *PasswordClient) DeleteOne(pa *Password) *PasswordDeleteOne {
 	return c.DeleteOneID(pa.ID)
 }
 
-// DeleteOne returns a builder for deleting the given entity by its id.
+// DeleteOneID returns a builder for deleting the given entity by its id.
 func (c *PasswordClient) DeleteOneID(id int) *PasswordDeleteOne {
 	builder := c.Delete().Where(password.ID(id))
 	builder.mutation.id = &id
@@ -974,6 +1431,8 @@ func (c *PasswordClient) DeleteOneID(id int) *PasswordDeleteOne {
 func (c *PasswordClient) Query() *PasswordQuery {
 	return &PasswordQuery{
 		config: c.config,
+		ctx:    &QueryContext{Type: TypePassword},
+		inters: c.Interceptors(),
 	}
 }
 
@@ -996,6 +1455,26 @@ func (c *PasswordClient) Hooks() []Hook {
 	return c.hooks.Password
 }
 
+// Interceptors returns the client interceptors.
+func (c *PasswordClient) Interceptors() []Interceptor {
+	return c.inters.Password
+}
+
+func (c *PasswordClient) mutate(ctx context.Context, m *PasswordMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PasswordCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PasswordUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PasswordUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PasswordDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("db: unknown Password mutation op: %q", m.Op())
+	}
+}
+
 // RefreshTokenClient is a client for the RefreshToken schema.
 type RefreshTokenClient struct {
 	config
@@ -1012,6 +1491,12 @@ func (c *RefreshTokenClient) Use(hooks ...Hook) {
 	c.hooks.RefreshToken = append(c.hooks.RefreshToken, hooks...)
 }
 
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `refreshtoken.Intercept(f(g(h())))`.
+func (c *RefreshTokenClient) Intercept(interceptors ...Interceptor) {
+	c.inters.RefreshToken = append(c.inters.RefreshToken, interceptors...)
+}
+
 // Create returns a builder for creating a RefreshToken entity.
 func (c *RefreshTokenClient) Create() *RefreshTokenCreate {
 	mutation := newRefreshTokenMutation(c.config, OpCreate)
@@ -1020,6 +1505,21 @@ func (c *RefreshTokenClient) Create() *RefreshTokenCreate {
 
 // CreateBulk returns a builder for creating a bulk of RefreshToken entities.
 func (c *RefreshTokenClient) CreateBulk(builders ...*RefreshTokenCreate) *RefreshTokenCreateBulk {
+	return &RefreshTokenCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *RefreshTokenClient) MapCreateBulk(slice any, setFunc func(*RefreshTokenCreate, int)) *RefreshTokenCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &RefreshTokenCreateBulk{err: fmt.Errorf("calling to RefreshTokenClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*RefreshTokenCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
 	return &RefreshTokenCreateBulk{config: c.config, builders: builders}
 }
 
@@ -1052,7 +1552,7 @@ func (c *RefreshTokenClient) DeleteOne(rt *RefreshToken) *RefreshTokenDeleteOne 
 	return c.DeleteOneID(rt.ID)
 }
 
-// DeleteOne returns a builder for deleting the given entity by its id.
+// DeleteOneID returns a builder for deleting the given entity by its id.
 func (c *RefreshTokenClient) DeleteOneID(id string) *RefreshTokenDeleteOne {
 	builder := c.Delete().Where(refreshtoken.ID(id))
 	builder.mutation.id = &id
@@ -1064,6 +1564,8 @@ func (c *RefreshTokenClient) DeleteOneID(id string) *RefreshTokenDeleteOne {
 func (c *RefreshTokenClient) Query() *RefreshTokenQuery {
 	return &RefreshTokenQuery{
 		config: c.config,
+		ctx:    &QueryContext{Type: TypeRefreshToken},
+		inters: c.Interceptors(),
 	}
 }
 
@@ -1085,3 +1587,35 @@ func (c *RefreshTokenClient) GetX(ctx context.Context, id string) *RefreshToken 
 func (c *RefreshTokenClient) Hooks() []Hook {
 	return c.hooks.RefreshToken
 }
+
+// Interceptors returns the client interceptors.
+func (c *RefreshTokenClient) Interceptors() []Interceptor {
+	return c.inters.RefreshToken
+}
+
+func (c *RefreshTokenClient) mutate(ctx context.Context, m *RefreshTokenMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&RefreshTokenCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&RefreshTokenUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&RefreshTokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&RefreshTokenDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("db: unknown RefreshToken mutation op: %q", m.Op())
+	}
+}
+
+// hooks and interceptors per client, for fast access.
+type (
+	hooks struct {
+		AuthCode, AuthRequest, Connector, DeviceRequest, DeviceToken, Keys,
+		OAuth2Client, OfflineSession, Password, RefreshToken []ent.Hook
+	}
+	inters struct {
+		AuthCode, AuthRequest, Connector, DeviceRequest, DeviceToken, Keys,
+		OAuth2Client, OfflineSession, Password, RefreshToken []ent.Interceptor
+	}
+)

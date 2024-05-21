@@ -4,7 +4,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -28,34 +27,7 @@ func (rtd *RefreshTokenDelete) Where(ps ...predicate.RefreshToken) *RefreshToken
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (rtd *RefreshTokenDelete) Exec(ctx context.Context) (int, error) {
-	var (
-		err      error
-		affected int
-	)
-	if len(rtd.hooks) == 0 {
-		affected, err = rtd.sqlExec(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*RefreshTokenMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			rtd.mutation = mutation
-			affected, err = rtd.sqlExec(ctx)
-			mutation.done = true
-			return affected, err
-		})
-		for i := len(rtd.hooks) - 1; i >= 0; i-- {
-			if rtd.hooks[i] == nil {
-				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = rtd.hooks[i](mut)
-		}
-		if _, err := mut.Mutate(ctx, rtd.mutation); err != nil {
-			return 0, err
-		}
-	}
-	return affected, err
+	return withHooks(ctx, rtd.sqlExec, rtd.mutation, rtd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -68,15 +40,7 @@ func (rtd *RefreshTokenDelete) ExecX(ctx context.Context) int {
 }
 
 func (rtd *RefreshTokenDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := &sqlgraph.DeleteSpec{
-		Node: &sqlgraph.NodeSpec{
-			Table: refreshtoken.Table,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: refreshtoken.FieldID,
-			},
-		},
-	}
+	_spec := sqlgraph.NewDeleteSpec(refreshtoken.Table, sqlgraph.NewFieldSpec(refreshtoken.FieldID, field.TypeString))
 	if ps := rtd.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -88,12 +52,19 @@ func (rtd *RefreshTokenDelete) sqlExec(ctx context.Context) (int, error) {
 	if err != nil && sqlgraph.IsConstraintError(err) {
 		err = &ConstraintError{msg: err.Error(), wrap: err}
 	}
+	rtd.mutation.done = true
 	return affected, err
 }
 
 // RefreshTokenDeleteOne is the builder for deleting a single RefreshToken entity.
 type RefreshTokenDeleteOne struct {
 	rtd *RefreshTokenDelete
+}
+
+// Where appends a list predicates to the RefreshTokenDelete builder.
+func (rtdo *RefreshTokenDeleteOne) Where(ps ...predicate.RefreshToken) *RefreshTokenDeleteOne {
+	rtdo.rtd.mutation.Where(ps...)
+	return rtdo
 }
 
 // Exec executes the deletion query.
@@ -111,5 +82,7 @@ func (rtdo *RefreshTokenDeleteOne) Exec(ctx context.Context) error {
 
 // ExecX is like Exec, but panics if an error occurs.
 func (rtdo *RefreshTokenDeleteOne) ExecX(ctx context.Context) {
-	rtdo.rtd.ExecX(ctx)
+	if err := rtdo.Exec(ctx); err != nil {
+		panic(err)
+	}
 }

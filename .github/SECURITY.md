@@ -11,10 +11,10 @@ to confirm receipt of the issue.
 ## Review Process
 
 Once a maintainer has confirmed the relevance of the report, a draft security
-advisory will be created on Github. The draft advisory will be used to discuss
+advisory will be created on GitHub. The draft advisory will be used to discuss
 the issue with maintainers, the reporter(s).
 If the reporter(s) wishes to participate in this discussion, then provide
-reporter Github username(s) to be invited to the discussion. If the reporter(s)
+reporter GitHub username(s) to be invited to the discussion. If the reporter(s)
 does not wish to participate directly in the discussion, then the reporter(s)
 can request to be updated regularly via email.
 
