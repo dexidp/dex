@@ -40,6 +40,8 @@ const (
 	resourceDeviceToken     = "devicetokens"
 )
 
+var _ storage.Storage = (*client)(nil)
+
 const (
 	gcResultLimit = 500
 )
@@ -232,31 +234,31 @@ func (cli *client) Close() error {
 	return nil
 }
 
-func (cli *client) CreateAuthRequest(a storage.AuthRequest) error {
+func (cli *client) CreateAuthRequest(ctx context.Context, a storage.AuthRequest) error {
 	return cli.post(resourceAuthRequest, cli.fromStorageAuthRequest(a))
 }
 
-func (cli *client) CreateClient(c storage.Client) error {
+func (cli *client) CreateClient(ctx context.Context, c storage.Client) error {
 	return cli.post(resourceClient, cli.fromStorageClient(c))
 }
 
-func (cli *client) CreateAuthCode(c storage.AuthCode) error {
+func (cli *client) CreateAuthCode(ctx context.Context, c storage.AuthCode) error {
 	return cli.post(resourceAuthCode, cli.fromStorageAuthCode(c))
 }
 
-func (cli *client) CreatePassword(p storage.Password) error {
+func (cli *client) CreatePassword(ctx context.Context, p storage.Password) error {
 	return cli.post(resourcePassword, cli.fromStoragePassword(p))
 }
 
-func (cli *client) CreateRefresh(r storage.RefreshToken) error {
+func (cli *client) CreateRefresh(ctx context.Context, r storage.RefreshToken) error {
 	return cli.post(resourceRefreshToken, cli.fromStorageRefreshToken(r))
 }
 
-func (cli *client) CreateOfflineSessions(o storage.OfflineSessions) error {
+func (cli *client) CreateOfflineSessions(ctx context.Context, o storage.OfflineSessions) error {
 	return cli.post(resourceOfflineSessions, cli.fromStorageOfflineSessions(o))
 }
 
-func (cli *client) CreateConnector(c storage.Connector) error {
+func (cli *client) CreateConnector(ctx context.Context, c storage.Connector) error {
 	return cli.post(resourceConnector, cli.fromStorageConnector(c))
 }
 
@@ -681,7 +683,7 @@ func (cli *client) GarbageCollect(now time.Time) (result storage.GCResult, err e
 	return result, delErr
 }
 
-func (cli *client) CreateDeviceRequest(d storage.DeviceRequest) error {
+func (cli *client) CreateDeviceRequest(ctx context.Context, d storage.DeviceRequest) error {
 	return cli.post(resourceDeviceRequest, cli.fromStorageDeviceRequest(d))
 }
 
@@ -693,7 +695,7 @@ func (cli *client) GetDeviceRequest(userCode string) (storage.DeviceRequest, err
 	return toStorageDeviceRequest(req), nil
 }
 
-func (cli *client) CreateDeviceToken(t storage.DeviceToken) error {
+func (cli *client) CreateDeviceToken(ctx context.Context, t storage.DeviceToken) error {
 	return cli.post(resourceDeviceToken, cli.fromStorageDeviceToken(t))
 }
 

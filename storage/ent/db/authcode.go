@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/authcode"
 )
@@ -47,11 +48,12 @@ type AuthCode struct {
 	CodeChallenge string `json:"code_challenge,omitempty"`
 	// CodeChallengeMethod holds the value of the "code_challenge_method" field.
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
+	selectValues        sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*AuthCode) scanValues(columns []string) ([]interface{}, error) {
-	values := make([]interface{}, len(columns))
+func (*AuthCode) scanValues(columns []string) ([]any, error) {
+	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
 		case authcode.FieldScopes, authcode.FieldClaimsGroups, authcode.FieldConnectorData:
@@ -63,7 +65,7 @@ func (*AuthCode) scanValues(columns []string) ([]interface{}, error) {
 		case authcode.FieldExpiry:
 			values[i] = new(sql.NullTime)
 		default:
-			return nil, fmt.Errorf("unexpected column %q for type AuthCode", columns[i])
+			values[i] = new(sql.UnknownType)
 		}
 	}
 	return values, nil
@@ -71,7 +73,7 @@ func (*AuthCode) scanValues(columns []string) ([]interface{}, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the AuthCode fields.
-func (ac *AuthCode) assignValues(columns []string, values []interface{}) error {
+func (ac *AuthCode) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -177,16 +179,24 @@ func (ac *AuthCode) assignValues(columns []string, values []interface{}) error {
 			} else if value.Valid {
 				ac.CodeChallengeMethod = value.String
 			}
+		default:
+			ac.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
+}
+
+// Value returns the ent.Value that was dynamically selected and assigned to the AuthCode.
+// This includes values selected through modifiers, order, etc.
+func (ac *AuthCode) Value(name string) (ent.Value, error) {
+	return ac.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this AuthCode.
 // Note that you need to call AuthCode.Unwrap() before calling this method if this AuthCode
 // was returned from a transaction, and the transaction was committed or rolled back.
 func (ac *AuthCode) Update() *AuthCodeUpdateOne {
-	return (&AuthCodeClient{config: ac.config}).UpdateOne(ac)
+	return NewAuthCodeClient(ac.config).UpdateOne(ac)
 }
 
 // Unwrap unwraps the AuthCode entity that was returned from a transaction after it was closed,
@@ -257,9 +267,3 @@ func (ac *AuthCode) String() string {
 
 // AuthCodes is a parsable slice of AuthCode.
 type AuthCodes []*AuthCode
-
-func (ac AuthCodes) config(cfg config) {
-	for _i := range ac {
-		ac[_i].config = cfg
-	}
-}

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
 )
@@ -46,12 +47,13 @@ type RefreshToken struct {
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// LastUsed holds the value of the "last_used" field.
-	LastUsed time.Time `json:"last_used,omitempty"`
+	LastUsed     time.Time `json:"last_used,omitempty"`
+	selectValues sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*RefreshToken) scanValues(columns []string) ([]interface{}, error) {
-	values := make([]interface{}, len(columns))
+func (*RefreshToken) scanValues(columns []string) ([]any, error) {
+	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
 		case refreshtoken.FieldScopes, refreshtoken.FieldClaimsGroups, refreshtoken.FieldConnectorData:
@@ -63,7 +65,7 @@ func (*RefreshToken) scanValues(columns []string) ([]interface{}, error) {
 		case refreshtoken.FieldCreatedAt, refreshtoken.FieldLastUsed:
 			values[i] = new(sql.NullTime)
 		default:
-			return nil, fmt.Errorf("unexpected column %q for type RefreshToken", columns[i])
+			values[i] = new(sql.UnknownType)
 		}
 	}
 	return values, nil
@@ -71,7 +73,7 @@ func (*RefreshToken) scanValues(columns []string) ([]interface{}, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the RefreshToken fields.
-func (rt *RefreshToken) assignValues(columns []string, values []interface{}) error {
+func (rt *RefreshToken) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -177,16 +179,24 @@ func (rt *RefreshToken) assignValues(columns []string, values []interface{}) err
 			} else if value.Valid {
 				rt.LastUsed = value.Time
 			}
+		default:
+			rt.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
+}
+
+// Value returns the ent.Value that was dynamically selected and assigned to the RefreshToken.
+// This includes values selected through modifiers, order, etc.
+func (rt *RefreshToken) Value(name string) (ent.Value, error) {
+	return rt.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this RefreshToken.
 // Note that you need to call RefreshToken.Unwrap() before calling this method if this RefreshToken
 // was returned from a transaction, and the transaction was committed or rolled back.
 func (rt *RefreshToken) Update() *RefreshTokenUpdateOne {
-	return (&RefreshTokenClient{config: rt.config}).UpdateOne(rt)
+	return NewRefreshTokenClient(rt.config).UpdateOne(rt)
 }
 
 // Unwrap unwraps the RefreshToken entity that was returned from a transaction after it was closed,
@@ -257,9 +267,3 @@ func (rt *RefreshToken) String() string {
 
 // RefreshTokens is a parsable slice of RefreshToken.
 type RefreshTokens []*RefreshToken
-
-func (rt RefreshTokens) config(cfg config) {
-	for _i := range rt {
-		rt[_i].config = cfg
-	}
-}

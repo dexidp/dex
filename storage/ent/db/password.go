@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/password"
 )
@@ -22,12 +23,13 @@ type Password struct {
 	// Username holds the value of the "username" field.
 	Username string `json:"username,omitempty"`
 	// UserID holds the value of the "user_id" field.
-	UserID string `json:"user_id,omitempty"`
+	UserID       string `json:"user_id,omitempty"`
+	selectValues sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*Password) scanValues(columns []string) ([]interface{}, error) {
-	values := make([]interface{}, len(columns))
+func (*Password) scanValues(columns []string) ([]any, error) {
+	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
 		case password.FieldHash:
@@ -37,7 +39,7 @@ func (*Password) scanValues(columns []string) ([]interface{}, error) {
 		case password.FieldEmail, password.FieldUsername, password.FieldUserID:
 			values[i] = new(sql.NullString)
 		default:
-			return nil, fmt.Errorf("unexpected column %q for type Password", columns[i])
+			values[i] = new(sql.UnknownType)
 		}
 	}
 	return values, nil
@@ -45,7 +47,7 @@ func (*Password) scanValues(columns []string) ([]interface{}, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the Password fields.
-func (pa *Password) assignValues(columns []string, values []interface{}) error {
+func (pa *Password) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -81,16 +83,24 @@ func (pa *Password) assignValues(columns []string, values []interface{}) error {
 			} else if value.Valid {
 				pa.UserID = value.String
 			}
+		default:
+			pa.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
+}
+
+// Value returns the ent.Value that was dynamically selected and assigned to the Password.
+// This includes values selected through modifiers, order, etc.
+func (pa *Password) Value(name string) (ent.Value, error) {
+	return pa.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this Password.
 // Note that you need to call Password.Unwrap() before calling this method if this Password
 // was returned from a transaction, and the transaction was committed or rolled back.
 func (pa *Password) Update() *PasswordUpdateOne {
-	return (&PasswordClient{config: pa.config}).UpdateOne(pa)
+	return NewPasswordClient(pa.config).UpdateOne(pa)
 }
 
 // Unwrap unwraps the Password entity that was returned from a transaction after it was closed,
@@ -126,9 +136,3 @@ func (pa *Password) String() string {
 
 // Passwords is a parsable slice of Password.
 type Passwords []*Password
-
-func (pa Passwords) config(cfg config) {
-	for _i := range pa {
-		pa[_i].config = cfg
-	}
-}

@@ -12,7 +12,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/keys"
-	jose "gopkg.in/square/go-jose.v2"
+	jose "github.com/go-jose/go-jose/v4"
 )
 
 // KeysCreate is the builder for creating a Keys entity.
@@ -59,49 +59,7 @@ func (kc *KeysCreate) Mutation() *KeysMutation {
 
 // Save creates the Keys in the database.
 func (kc *KeysCreate) Save(ctx context.Context) (*Keys, error) {
-	var (
-		err  error
-		node *Keys
-	)
-	if len(kc.hooks) == 0 {
-		if err = kc.check(); err != nil {
-			return nil, err
-		}
-		node, err = kc.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*KeysMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = kc.check(); err != nil {
-				return nil, err
-			}
-			kc.mutation = mutation
-			if node, err = kc.sqlSave(ctx); err != nil {
-				return nil, err
-			}
-			mutation.id = &node.ID
-			mutation.done = true
-			return node, err
-		})
-		for i := len(kc.hooks) - 1; i >= 0; i-- {
-			if kc.hooks[i] == nil {
-				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = kc.hooks[i](mut)
-		}
-		v, err := mut.Mutate(ctx, kc.mutation)
-		if err != nil {
-			return nil, err
-		}
-		nv, ok := v.(*Keys)
-		if !ok {
-			return nil, fmt.Errorf("unexpected node type %T returned from KeysMutation", v)
-		}
-		node = nv
-	}
-	return node, err
+	return withHooks(ctx, kc.sqlSave, kc.mutation, kc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -149,6 +107,9 @@ func (kc *KeysCreate) check() error {
 }
 
 func (kc *KeysCreate) sqlSave(ctx context.Context) (*Keys, error) {
+	if err := kc.check(); err != nil {
+		return nil, err
+	}
 	_node, _spec := kc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, kc.driver, _spec); err != nil {
 		if sqlgraph.IsConstraintError(err) {
@@ -163,54 +124,34 @@ func (kc *KeysCreate) sqlSave(ctx context.Context) (*Keys, error) {
 			return nil, fmt.Errorf("unexpected Keys.ID type: %T", _spec.ID.Value)
 		}
 	}
+	kc.mutation.id = &_node.ID
+	kc.mutation.done = true
 	return _node, nil
 }
 
 func (kc *KeysCreate) createSpec() (*Keys, *sqlgraph.CreateSpec) {
 	var (
 		_node = &Keys{config: kc.config}
-		_spec = &sqlgraph.CreateSpec{
-			Table: keys.Table,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: keys.FieldID,
-			},
-		}
+		_spec = sqlgraph.NewCreateSpec(keys.Table, sqlgraph.NewFieldSpec(keys.FieldID, field.TypeString))
 	)
 	if id, ok := kc.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
 	if value, ok := kc.mutation.VerificationKeys(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: keys.FieldVerificationKeys,
-		})
+		_spec.SetField(keys.FieldVerificationKeys, field.TypeJSON, value)
 		_node.VerificationKeys = value
 	}
 	if value, ok := kc.mutation.SigningKey(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: keys.FieldSigningKey,
-		})
+		_spec.SetField(keys.FieldSigningKey, field.TypeJSON, value)
 		_node.SigningKey = value
 	}
 	if value, ok := kc.mutation.SigningKeyPub(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: keys.FieldSigningKeyPub,
-		})
+		_spec.SetField(keys.FieldSigningKeyPub, field.TypeJSON, value)
 		_node.SigningKeyPub = value
 	}
 	if value, ok := kc.mutation.NextRotation(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: keys.FieldNextRotation,
-		})
+		_spec.SetField(keys.FieldNextRotation, field.TypeTime, value)
 		_node.NextRotation = value
 	}
 	return _node, _spec
@@ -219,11 +160,15 @@ func (kc *KeysCreate) createSpec() (*Keys, *sqlgraph.CreateSpec) {
 // KeysCreateBulk is the builder for creating many Keys entities in bulk.
 type KeysCreateBulk struct {
 	config
+	err      error
 	builders []*KeysCreate
 }
 
 // Save creates the Keys entities in the database.
 func (kcb *KeysCreateBulk) Save(ctx context.Context) ([]*Keys, error) {
+	if kcb.err != nil {
+		return nil, kcb.err
+	}
 	specs := make([]*sqlgraph.CreateSpec, len(kcb.builders))
 	nodes := make([]*Keys, len(kcb.builders))
 	mutators := make([]Mutator, len(kcb.builders))
@@ -239,8 +184,8 @@ func (kcb *KeysCreateBulk) Save(ctx context.Context) ([]*Keys, error) {
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, kcb.builders[i+1].mutation)
 				} else {

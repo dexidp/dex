@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/oauth2client"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
@@ -33,9 +34,23 @@ func (ou *OAuth2ClientUpdate) SetSecret(s string) *OAuth2ClientUpdate {
 	return ou
 }
 
+// SetNillableSecret sets the "secret" field if the given value is not nil.
+func (ou *OAuth2ClientUpdate) SetNillableSecret(s *string) *OAuth2ClientUpdate {
+	if s != nil {
+		ou.SetSecret(*s)
+	}
+	return ou
+}
+
 // SetRedirectUris sets the "redirect_uris" field.
 func (ou *OAuth2ClientUpdate) SetRedirectUris(s []string) *OAuth2ClientUpdate {
 	ou.mutation.SetRedirectUris(s)
+	return ou
+}
+
+// AppendRedirectUris appends s to the "redirect_uris" field.
+func (ou *OAuth2ClientUpdate) AppendRedirectUris(s []string) *OAuth2ClientUpdate {
+	ou.mutation.AppendRedirectUris(s)
 	return ou
 }
 
@@ -51,6 +66,12 @@ func (ou *OAuth2ClientUpdate) SetTrustedPeers(s []string) *OAuth2ClientUpdate {
 	return ou
 }
 
+// AppendTrustedPeers appends s to the "trusted_peers" field.
+func (ou *OAuth2ClientUpdate) AppendTrustedPeers(s []string) *OAuth2ClientUpdate {
+	ou.mutation.AppendTrustedPeers(s)
+	return ou
+}
+
 // ClearTrustedPeers clears the value of the "trusted_peers" field.
 func (ou *OAuth2ClientUpdate) ClearTrustedPeers() *OAuth2ClientUpdate {
 	ou.mutation.ClearTrustedPeers()
@@ -63,15 +84,39 @@ func (ou *OAuth2ClientUpdate) SetPublic(b bool) *OAuth2ClientUpdate {
 	return ou
 }
 
+// SetNillablePublic sets the "public" field if the given value is not nil.
+func (ou *OAuth2ClientUpdate) SetNillablePublic(b *bool) *OAuth2ClientUpdate {
+	if b != nil {
+		ou.SetPublic(*b)
+	}
+	return ou
+}
+
 // SetName sets the "name" field.
 func (ou *OAuth2ClientUpdate) SetName(s string) *OAuth2ClientUpdate {
 	ou.mutation.SetName(s)
 	return ou
 }
 
+// SetNillableName sets the "name" field if the given value is not nil.
+func (ou *OAuth2ClientUpdate) SetNillableName(s *string) *OAuth2ClientUpdate {
+	if s != nil {
+		ou.SetName(*s)
+	}
+	return ou
+}
+
 // SetLogoURL sets the "logo_url" field.
 func (ou *OAuth2ClientUpdate) SetLogoURL(s string) *OAuth2ClientUpdate {
 	ou.mutation.SetLogoURL(s)
+	return ou
+}
+
+// SetNillableLogoURL sets the "logo_url" field if the given value is not nil.
+func (ou *OAuth2ClientUpdate) SetNillableLogoURL(s *string) *OAuth2ClientUpdate {
+	if s != nil {
+		ou.SetLogoURL(*s)
+	}
 	return ou
 }
 
@@ -82,40 +127,7 @@ func (ou *OAuth2ClientUpdate) Mutation() *OAuth2ClientMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (ou *OAuth2ClientUpdate) Save(ctx context.Context) (int, error) {
-	var (
-		err      error
-		affected int
-	)
-	if len(ou.hooks) == 0 {
-		if err = ou.check(); err != nil {
-			return 0, err
-		}
-		affected, err = ou.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*OAuth2ClientMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = ou.check(); err != nil {
-				return 0, err
-			}
-			ou.mutation = mutation
-			affected, err = ou.sqlSave(ctx)
-			mutation.done = true
-			return affected, err
-		})
-		for i := len(ou.hooks) - 1; i >= 0; i-- {
-			if ou.hooks[i] == nil {
-				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = ou.hooks[i](mut)
-		}
-		if _, err := mut.Mutate(ctx, ou.mutation); err != nil {
-			return 0, err
-		}
-	}
-	return affected, err
+	return withHooks(ctx, ou.sqlSave, ou.mutation, ou.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -161,16 +173,10 @@ func (ou *OAuth2ClientUpdate) check() error {
 }
 
 func (ou *OAuth2ClientUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	_spec := &sqlgraph.UpdateSpec{
-		Node: &sqlgraph.NodeSpec{
-			Table:   oauth2client.Table,
-			Columns: oauth2client.Columns,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: oauth2client.FieldID,
-			},
-		},
+	if err := ou.check(); err != nil {
+		return n, err
 	}
+	_spec := sqlgraph.NewUpdateSpec(oauth2client.Table, oauth2client.Columns, sqlgraph.NewFieldSpec(oauth2client.FieldID, field.TypeString))
 	if ps := ou.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -179,58 +185,38 @@ func (ou *OAuth2ClientUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 	}
 	if value, ok := ou.mutation.Secret(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: oauth2client.FieldSecret,
-		})
+		_spec.SetField(oauth2client.FieldSecret, field.TypeString, value)
 	}
 	if value, ok := ou.mutation.RedirectUris(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: oauth2client.FieldRedirectUris,
+		_spec.SetField(oauth2client.FieldRedirectUris, field.TypeJSON, value)
+	}
+	if value, ok := ou.mutation.AppendedRedirectUris(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldRedirectUris, value)
 		})
 	}
 	if ou.mutation.RedirectUrisCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Column: oauth2client.FieldRedirectUris,
-		})
+		_spec.ClearField(oauth2client.FieldRedirectUris, field.TypeJSON)
 	}
 	if value, ok := ou.mutation.TrustedPeers(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: oauth2client.FieldTrustedPeers,
+		_spec.SetField(oauth2client.FieldTrustedPeers, field.TypeJSON, value)
+	}
+	if value, ok := ou.mutation.AppendedTrustedPeers(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldTrustedPeers, value)
 		})
 	}
 	if ou.mutation.TrustedPeersCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Column: oauth2client.FieldTrustedPeers,
-		})
+		_spec.ClearField(oauth2client.FieldTrustedPeers, field.TypeJSON)
 	}
 	if value, ok := ou.mutation.Public(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeBool,
-			Value:  value,
-			Column: oauth2client.FieldPublic,
-		})
+		_spec.SetField(oauth2client.FieldPublic, field.TypeBool, value)
 	}
 	if value, ok := ou.mutation.Name(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: oauth2client.FieldName,
-		})
+		_spec.SetField(oauth2client.FieldName, field.TypeString, value)
 	}
 	if value, ok := ou.mutation.LogoURL(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: oauth2client.FieldLogoURL,
-		})
+		_spec.SetField(oauth2client.FieldLogoURL, field.TypeString, value)
 	}
 	if n, err = sqlgraph.UpdateNodes(ctx, ou.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -240,6 +226,7 @@ func (ou *OAuth2ClientUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 		return 0, err
 	}
+	ou.mutation.done = true
 	return n, nil
 }
 
@@ -257,9 +244,23 @@ func (ouo *OAuth2ClientUpdateOne) SetSecret(s string) *OAuth2ClientUpdateOne {
 	return ouo
 }
 
+// SetNillableSecret sets the "secret" field if the given value is not nil.
+func (ouo *OAuth2ClientUpdateOne) SetNillableSecret(s *string) *OAuth2ClientUpdateOne {
+	if s != nil {
+		ouo.SetSecret(*s)
+	}
+	return ouo
+}
+
 // SetRedirectUris sets the "redirect_uris" field.
 func (ouo *OAuth2ClientUpdateOne) SetRedirectUris(s []string) *OAuth2ClientUpdateOne {
 	ouo.mutation.SetRedirectUris(s)
+	return ouo
+}
+
+// AppendRedirectUris appends s to the "redirect_uris" field.
+func (ouo *OAuth2ClientUpdateOne) AppendRedirectUris(s []string) *OAuth2ClientUpdateOne {
+	ouo.mutation.AppendRedirectUris(s)
 	return ouo
 }
 
@@ -275,6 +276,12 @@ func (ouo *OAuth2ClientUpdateOne) SetTrustedPeers(s []string) *OAuth2ClientUpdat
 	return ouo
 }
 
+// AppendTrustedPeers appends s to the "trusted_peers" field.
+func (ouo *OAuth2ClientUpdateOne) AppendTrustedPeers(s []string) *OAuth2ClientUpdateOne {
+	ouo.mutation.AppendTrustedPeers(s)
+	return ouo
+}
+
 // ClearTrustedPeers clears the value of the "trusted_peers" field.
 func (ouo *OAuth2ClientUpdateOne) ClearTrustedPeers() *OAuth2ClientUpdateOne {
 	ouo.mutation.ClearTrustedPeers()
@@ -287,9 +294,25 @@ func (ouo *OAuth2ClientUpdateOne) SetPublic(b bool) *OAuth2ClientUpdateOne {
 	return ouo
 }
 
+// SetNillablePublic sets the "public" field if the given value is not nil.
+func (ouo *OAuth2ClientUpdateOne) SetNillablePublic(b *bool) *OAuth2ClientUpdateOne {
+	if b != nil {
+		ouo.SetPublic(*b)
+	}
+	return ouo
+}
+
 // SetName sets the "name" field.
 func (ouo *OAuth2ClientUpdateOne) SetName(s string) *OAuth2ClientUpdateOne {
 	ouo.mutation.SetName(s)
+	return ouo
+}
+
+// SetNillableName sets the "name" field if the given value is not nil.
+func (ouo *OAuth2ClientUpdateOne) SetNillableName(s *string) *OAuth2ClientUpdateOne {
+	if s != nil {
+		ouo.SetName(*s)
+	}
 	return ouo
 }
 
@@ -299,9 +322,23 @@ func (ouo *OAuth2ClientUpdateOne) SetLogoURL(s string) *OAuth2ClientUpdateOne {
 	return ouo
 }
 
+// SetNillableLogoURL sets the "logo_url" field if the given value is not nil.
+func (ouo *OAuth2ClientUpdateOne) SetNillableLogoURL(s *string) *OAuth2ClientUpdateOne {
+	if s != nil {
+		ouo.SetLogoURL(*s)
+	}
+	return ouo
+}
+
 // Mutation returns the OAuth2ClientMutation object of the builder.
 func (ouo *OAuth2ClientUpdateOne) Mutation() *OAuth2ClientMutation {
 	return ouo.mutation
+}
+
+// Where appends a list predicates to the OAuth2ClientUpdate builder.
+func (ouo *OAuth2ClientUpdateOne) Where(ps ...predicate.OAuth2Client) *OAuth2ClientUpdateOne {
+	ouo.mutation.Where(ps...)
+	return ouo
 }
 
 // Select allows selecting one or more fields (columns) of the returned entity.
@@ -313,46 +350,7 @@ func (ouo *OAuth2ClientUpdateOne) Select(field string, fields ...string) *OAuth2
 
 // Save executes the query and returns the updated OAuth2Client entity.
 func (ouo *OAuth2ClientUpdateOne) Save(ctx context.Context) (*OAuth2Client, error) {
-	var (
-		err  error
-		node *OAuth2Client
-	)
-	if len(ouo.hooks) == 0 {
-		if err = ouo.check(); err != nil {
-			return nil, err
-		}
-		node, err = ouo.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*OAuth2ClientMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = ouo.check(); err != nil {
-				return nil, err
-			}
-			ouo.mutation = mutation
-			node, err = ouo.sqlSave(ctx)
-			mutation.done = true
-			return node, err
-		})
-		for i := len(ouo.hooks) - 1; i >= 0; i-- {
-			if ouo.hooks[i] == nil {
-				return nil, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = ouo.hooks[i](mut)
-		}
-		v, err := mut.Mutate(ctx, ouo.mutation)
-		if err != nil {
-			return nil, err
-		}
-		nv, ok := v.(*OAuth2Client)
-		if !ok {
-			return nil, fmt.Errorf("unexpected node type %T returned from OAuth2ClientMutation", v)
-		}
-		node = nv
-	}
-	return node, err
+	return withHooks(ctx, ouo.sqlSave, ouo.mutation, ouo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -398,16 +396,10 @@ func (ouo *OAuth2ClientUpdateOne) check() error {
 }
 
 func (ouo *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Client, err error) {
-	_spec := &sqlgraph.UpdateSpec{
-		Node: &sqlgraph.NodeSpec{
-			Table:   oauth2client.Table,
-			Columns: oauth2client.Columns,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: oauth2client.FieldID,
-			},
-		},
+	if err := ouo.check(); err != nil {
+		return _node, err
 	}
+	_spec := sqlgraph.NewUpdateSpec(oauth2client.Table, oauth2client.Columns, sqlgraph.NewFieldSpec(oauth2client.FieldID, field.TypeString))
 	id, ok := ouo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "OAuth2Client.id" for update`)}
@@ -433,58 +425,38 @@ func (ouo *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Cli
 		}
 	}
 	if value, ok := ouo.mutation.Secret(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: oauth2client.FieldSecret,
-		})
+		_spec.SetField(oauth2client.FieldSecret, field.TypeString, value)
 	}
 	if value, ok := ouo.mutation.RedirectUris(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: oauth2client.FieldRedirectUris,
+		_spec.SetField(oauth2client.FieldRedirectUris, field.TypeJSON, value)
+	}
+	if value, ok := ouo.mutation.AppendedRedirectUris(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldRedirectUris, value)
 		})
 	}
 	if ouo.mutation.RedirectUrisCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Column: oauth2client.FieldRedirectUris,
-		})
+		_spec.ClearField(oauth2client.FieldRedirectUris, field.TypeJSON)
 	}
 	if value, ok := ouo.mutation.TrustedPeers(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Value:  value,
-			Column: oauth2client.FieldTrustedPeers,
+		_spec.SetField(oauth2client.FieldTrustedPeers, field.TypeJSON, value)
+	}
+	if value, ok := ouo.mutation.AppendedTrustedPeers(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldTrustedPeers, value)
 		})
 	}
 	if ouo.mutation.TrustedPeersCleared() {
-		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
-			Type:   field.TypeJSON,
-			Column: oauth2client.FieldTrustedPeers,
-		})
+		_spec.ClearField(oauth2client.FieldTrustedPeers, field.TypeJSON)
 	}
 	if value, ok := ouo.mutation.Public(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeBool,
-			Value:  value,
-			Column: oauth2client.FieldPublic,
-		})
+		_spec.SetField(oauth2client.FieldPublic, field.TypeBool, value)
 	}
 	if value, ok := ouo.mutation.Name(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: oauth2client.FieldName,
-		})
+		_spec.SetField(oauth2client.FieldName, field.TypeString, value)
 	}
 	if value, ok := ouo.mutation.LogoURL(); ok {
-		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: oauth2client.FieldLogoURL,
-		})
+		_spec.SetField(oauth2client.FieldLogoURL, field.TypeString, value)
 	}
 	_node = &OAuth2Client{config: ouo.config}
 	_spec.Assign = _node.assignValues
@@ -497,5 +469,6 @@ func (ouo *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Cli
 		}
 		return nil, err
 	}
+	ouo.mutation.done = true
 	return _node, nil
 }

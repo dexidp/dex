@@ -45,6 +45,25 @@ type dexAPI struct {
 	version string
 }
 
+func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetClientResp, error) {
+	c, err := d.s.GetClient(req.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.GetClientResp{
+		Client: &api.Client{
+			Id:           c.ID,
+			Name:         c.Name,
+			Secret:       c.Secret,
+			RedirectUris: c.RedirectURIs,
+			TrustedPeers: c.TrustedPeers,
+			Public:       c.Public,
+			LogoUrl:      c.LogoURL,
+		},
+	}, nil
+}
+
 func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*api.CreateClientResp, error) {
 	if req.Client == nil {
 		return nil, errors.New("no client supplied")
@@ -66,7 +85,7 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 		Name:         req.Client.Name,
 		LogoURL:      req.Client.LogoUrl,
 	}
-	if err := d.s.CreateClient(c); err != nil {
+	if err := d.s.CreateClient(ctx, c); err != nil {
 		if err == storage.ErrAlreadyExists {
 			return &api.CreateClientResp{AlreadyExists: true}, nil
 		}
@@ -158,7 +177,7 @@ func (d dexAPI) CreatePassword(ctx context.Context, req *api.CreatePasswordReq) 
 		Username: req.Password.Username,
 		UserID:   req.Password.UserId,
 	}
-	if err := d.s.CreatePassword(p); err != nil {
+	if err := d.s.CreatePassword(ctx, p); err != nil {
 		if err == storage.ErrAlreadyExists {
 			return &api.CreatePasswordResp{AlreadyExists: true}, nil
 		}
