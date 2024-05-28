@@ -39,10 +39,12 @@ jobs:
           - distroless
 
     permissions:
+      attestations: write
       contents: read
       packages: write
       id-token: write
       security-events: write
+
 
     outputs:
       name: ${{ steps.image-name.outputs.value }}
@@ -174,6 +176,22 @@ jobs:
       #     name: "[${{ github.job }}] SBOM"
       #     path: sbom-spdx.json
       #     retention-days: 5
+
+      # TODO: uncomment when the action is working for non ghcr.io pushes. GH Issue: https://github.com/actions/attest-build-provenance/issues/80
+      # - name: Generate build provenance attestation
+      #   uses: actions/attest-build-provenance@173725a1209d09b31f9d30a3890cf2757ebbff0d # v1.1.2
+      #   with:
+      #     subject-name: dexidp/dex
+      #     subject-digest: ${{ steps.build.outputs.digest }}
+      #     push-to-registry: true
+
+      - name: Generate build provenance attestation
+        uses: actions/attest-build-provenance@173725a1209d09b31f9d30a3890cf2757ebbff0d # v1.1.2
+        with:
+          subject-name: ghcr.io/dexidp/dex
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+        if: inputs.publish
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@b2933f565dbc598b29947660e66259e3c7bc8561 # 0.20.0
