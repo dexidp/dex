@@ -40,9 +40,9 @@ func newAPI(s storage.Storage, logger log.Logger, t *testing.T) *apiClient {
 	api.RegisterDexServer(serv, NewAPI(s, logger, "test"))
 	go serv.Serve(l)
 
-	// Dial will retry automatically if the serv.Serve() goroutine
+	// NewClient will retry automatically if the serv.Serve() goroutine
 	// hasn't started yet.
-	conn, err := grpc.Dial(l.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(l.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatal(err)
 	}
