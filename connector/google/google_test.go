@@ -389,10 +389,10 @@ func TestGCEWorkloadIdentity(t *testing.T) {
 			} else {
 				assert.Nil(err)
 			}
-    })
-  }
+		})
+	}
 }
-      
+
 func TestPromptTypeConfig(t *testing.T) {
 	promptTypeLogin := "login"
 	cases := []struct {
