@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -291,6 +292,103 @@ func TestDomainToAdminEmailConfig(t *testing.T) {
 				assert.Nil(err)
 			}
 			t.Logf("[%s] Amount of API calls per userKey: %+v\n", t.Name(), callCounter)
+		})
+	}
+}
+
+var gceMetadataFlags = map[string]bool{
+	"failOnEmailRequest": false,
+}
+
+func mockGCEMetadataServer() *httptest.Server {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/computeMetadata/v1/instance/service-accounts/default/email", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
+		if gceMetadataFlags["failOnEmailRequest"] {
+			w.WriteHeader(http.StatusBadRequest)
+		}
+		json.NewEncoder(w).Encode("my-service-account@example-project.iam.gserviceaccount.com")
+	})
+	mux.HandleFunc("/computeMetadata/v1/instance/service-accounts/default/token", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(struct {
+			AccessToken  string `json:"access_token"`
+			ExpiresInSec int    `json:"expires_in"`
+			TokenType    string `json:"token_type"`
+		}{
+			AccessToken:  "my-example.token",
+			ExpiresInSec: 3600,
+			TokenType:    "Bearer",
+		})
+	})
+
+	return httptest.NewServer(mux)
+}
+
+func TestGCEWorkloadIdentity(t *testing.T) {
+	ts := testSetup()
+	defer ts.Close()
+
+	metadataServer := mockGCEMetadataServer()
+	defer metadataServer.Close()
+	metadataServerHost := strings.Replace(metadataServer.URL, "http://", "", 1)
+
+	os.Setenv("GCE_METADATA_HOST", metadataServerHost)
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+	os.Setenv("HOME", "/tmp")
+
+	gceMetadataFlags["failOnEmailRequest"] = true
+	_, err := newConnector(&Config{
+		ClientID:           "testClient",
+		ClientSecret:       "testSecret",
+		RedirectURI:        ts.URL + "/callback",
+		Scopes:             []string{"openid", "groups"},
+		DomainToAdminEmail: map[string]string{"dexidp.com": "admin@dexidp.com"},
+	})
+	assert.Error(t, err)
+
+	gceMetadataFlags["failOnEmailRequest"] = false
+	conn, err := newConnector(&Config{
+		ClientID:           "testClient",
+		ClientSecret:       "testSecret",
+		RedirectURI:        ts.URL + "/callback",
+		Scopes:             []string{"openid", "groups"},
+		DomainToAdminEmail: map[string]string{"dexidp.com": "admin@dexidp.com"},
+	})
+	assert.Nil(t, err)
+
+	conn.adminSrv["dexidp.com"], err = admin.NewService(context.Background(), option.WithoutAuthentication(), option.WithEndpoint(ts.URL))
+	assert.Nil(t, err)
+	type testCase struct {
+		userKey     string
+		expectedErr string
+	}
+
+	for name, testCase := range map[string]testCase{
+		"correct_user_request": {
+			userKey:     "user_1@dexidp.com",
+			expectedErr: "",
+		},
+		"wrong_user_request": {
+			userKey:     "user_1@foo.bar",
+			expectedErr: "unable to find super admin email",
+		},
+		"wrong_connector_response": {
+			userKey:     "user_1_foo.bar",
+			expectedErr: "unable to find super admin email",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert := assert.New(t)
+			lookup := make(map[string]struct{})
+
+			_, err := conn.getGroups(testCase.userKey, true, lookup)
+			if testCase.expectedErr != "" {
+				assert.ErrorContains(err, testCase.expectedErr)
+			} else {
+				assert.Nil(err)
+			}
 		})
 	}
 }

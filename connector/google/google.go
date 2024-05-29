@@ -10,11 +10,13 @@ import (
 	"strings"
 	"time"
 
+	"cloud.google.com/go/compute/metadata"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	admin "google.golang.org/api/admin/directory/v1"
+	"google.golang.org/api/impersonate"
 	"google.golang.org/api/option"
 
 	"github.com/dexidp/dex/connector"
@@ -98,8 +100,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		return nil, fmt.Errorf("directory service requires the domainToAdminEmail option to be configured")
 	}
 
-	// Fixing a regression caused by default config fallback: https://github.com/dexidp/dex/issues/2699
-	if (c.ServiceAccountFilePath != "" && len(c.DomainToAdminEmail) > 0) || slices.Contains(scopes, "groups") {
+	if (len(c.DomainToAdminEmail) > 0) || slices.Contains(scopes, "groups") {
 		for domain, adminEmail := range c.DomainToAdminEmail {
 			srv, err := createDirectoryService(c.ServiceAccountFilePath, adminEmail, logger)
 			if err != nil {
@@ -362,25 +363,83 @@ func (c *googleConnector) extractDomainFromEmail(email string) string {
 	return wildcardDomainToAdminEmail
 }
 
+// getCredentialsFromFilePath reads and returns the service account credentials from the file at the provided path.
+// If an error occurs during the read, it is returned.
+func getCredentialsFromFilePath(serviceAccountFilePath string) ([]byte, error) {
+	jsonCredentials, err := os.ReadFile(serviceAccountFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading credentials from file: %v", err)
+	}
+	return jsonCredentials, nil
+}
+
+// getCredentialsFromDefault retrieves the application's default credentials.
+// If the default credential is empty, it attempts to create a new service with metadata credentials.
+// If successful, it returns the service and nil error.
+// If unsuccessful, it returns the error and a nil service.
+func getCredentialsFromDefault(ctx context.Context, email string, logger log.Logger) ([]byte, *admin.Service, error) {
+	credential, err := google.FindDefaultCredentials(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch application default credentials: %w", err)
+	}
+
+	if credential.JSON == nil {
+		logger.Info("JSON is empty, using flow for GCE")
+		service, err := createServiceWithMetadataServer(ctx, email, logger)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, service, nil
+	}
+
+	return credential.JSON, nil, nil
+}
+
+// createServiceWithMetadataServer creates a new service using metadata server.
+// If an error occurs during the process, it is returned along with a nil service.
+func createServiceWithMetadataServer(ctx context.Context, adminEmail string, logger log.Logger) (*admin.Service, error) {
+	serviceAccountEmail, err := metadata.Email("default")
+	logger.Infof("discovered serviceAccountEmail: %s", serviceAccountEmail)
+
+	if err != nil {
+		return nil, fmt.Errorf("unable to get service account email from metadata server: %v", err)
+	}
+
+	config := impersonate.CredentialsConfig{
+		TargetPrincipal: serviceAccountEmail,
+		Scopes:          []string{admin.AdminDirectoryGroupReadonlyScope},
+		Lifetime:        0,
+		Subject:         adminEmail,
+	}
+
+	tokenSource, err := impersonate.CredentialsTokenSource(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("unable to impersonate with %s, error: %v", adminEmail, err)
+	}
+
+	return admin.NewService(ctx, option.WithHTTPClient(oauth2.NewClient(ctx, tokenSource)))
+}
+
 // createDirectoryService sets up super user impersonation and creates an admin client for calling
 // the google admin api. If no serviceAccountFilePath is defined, the application default credential
 // is used.
-func createDirectoryService(serviceAccountFilePath, email string, logger log.Logger) (*admin.Service, error) {
+func createDirectoryService(serviceAccountFilePath, email string, logger log.Logger) (service *admin.Service, err error) {
 	var jsonCredentials []byte
-	var err error
 
 	ctx := context.Background()
 	if serviceAccountFilePath == "" {
 		logger.Warn("the application default credential is used since the service account file path is not used")
-		credential, err := google.FindDefaultCredentials(ctx)
+		jsonCredentials, service, err = getCredentialsFromDefault(ctx, email, logger)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch application default credentials: %w", err)
+			return
 		}
-		jsonCredentials = credential.JSON
+		if service != nil {
+			return
+		}
 	} else {
-		jsonCredentials, err = os.ReadFile(serviceAccountFilePath)
+		jsonCredentials, err = getCredentialsFromFilePath(serviceAccountFilePath)
 		if err != nil {
-			return nil, fmt.Errorf("error reading credentials from file: %v", err)
+			return
 		}
 	}
 	config, err := google.JWTConfigFromJSON(jsonCredentials, admin.AdminDirectoryGroupReadonlyScope)
