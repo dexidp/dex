@@ -26,7 +26,7 @@ func TestOpen(t *testing.T) {
 	testServer := testSetup(t, tokenClaims, userInfoClaims)
 	defer testServer.Close()
 
-	conn := newConnector(t, testServer.URL)
+	conn := newConnector(t, testServer.URL, Config{})
 
 	sort.Strings(conn.scopes)
 
@@ -48,7 +48,7 @@ func TestLoginURL(t *testing.T) {
 	testServer := testSetup(t, tokenClaims, userInfoClaims)
 	defer testServer.Close()
 
-	conn := newConnector(t, testServer.URL)
+	conn := newConnector(t, testServer.URL, Config{})
 
 	loginURL, err := conn.LoginURL(connector.Scopes{}, conn.redirectURI, "some-state")
 	assert.Equal(t, err, nil)
@@ -83,7 +83,7 @@ func TestHandleCallBackForGroupsInUserInfo(t *testing.T) {
 	testServer := testSetup(t, tokenClaims, userInfoClaims)
 	defer testServer.Close()
 
-	conn := newConnector(t, testServer.URL)
+	conn := newConnector(t, testServer.URL, Config{})
 	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallBackForGroupsInUserInfo")
 
 	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
@@ -119,7 +119,7 @@ func TestHandleCallBackForGroupMapsInUserInfo(t *testing.T) {
 	testServer := testSetup(t, tokenClaims, userInfoClaims)
 	defer testServer.Close()
 
-	conn := newConnector(t, testServer.URL)
+	conn := newConnector(t, testServer.URL, Config{})
 	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallBackForGroupMapsInUserInfo")
 
 	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
@@ -153,7 +153,7 @@ func TestHandleCallBackForGroupsInToken(t *testing.T) {
 	testServer := testSetup(t, tokenClaims, userInfoClaims)
 	defer testServer.Close()
 
-	conn := newConnector(t, testServer.URL)
+	conn := newConnector(t, testServer.URL, Config{})
 	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallBackForGroupsInToken")
 
 	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
@@ -183,7 +183,7 @@ func TestHandleCallbackForNumericUserID(t *testing.T) {
 	testServer := testSetup(t, tokenClaims, userInfoClaims)
 	defer testServer.Close()
 
-	conn := newConnector(t, testServer.URL)
+	conn := newConnector(t, testServer.URL, Config{})
 	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallbackForNumericUserID")
 
 	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
@@ -194,6 +194,115 @@ func TestHandleCallbackForNumericUserID(t *testing.T) {
 	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
 	assert.Equal(t, identity.Email, "mod_mail")
 	assert.Equal(t, identity.EmailVerified, false)
+}
+
+func TestHandleCallBackForNoEmailVerified(t *testing.T) {
+	tokenClaims := map[string]interface{}{}
+
+	userInfoClaims := map[string]interface{}{
+		"name":               "test-name",
+		"user_id_key":        "test-user-id",
+		"user_name_key":      "test-username",
+		"preferred_username": "test-preferred-username",
+		"mail":               "mod_mail",
+	}
+
+	testServer := testSetup(t, tokenClaims, userInfoClaims)
+	defer testServer.Close()
+
+	conn := newConnector(t, testServer.URL, Config{InsecureSkipEmailVerified: false})
+	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallbackForNumericUserID")
+
+	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
+	assert.Equal(t, err, nil)
+
+	assert.Equal(t, identity.UserID, "test-user-id")
+	assert.Equal(t, identity.Username, "test-username")
+	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.Email, "mod_mail")
+	assert.Equal(t, identity.EmailVerified, false)
+}
+
+func TestHandleCallBackForSkipEmailVerified(t *testing.T) {
+	tokenClaims := map[string]interface{}{}
+
+	userInfoClaims := map[string]interface{}{
+		"name":               "test-name",
+		"user_id_key":        "test-user-id",
+		"user_name_key":      "test-username",
+		"preferred_username": "test-preferred-username",
+		"mail":               "mod_mail",
+	}
+
+	testServer := testSetup(t, tokenClaims, userInfoClaims)
+	defer testServer.Close()
+
+	conn := newConnector(t, testServer.URL, Config{InsecureSkipEmailVerified: true})
+	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallbackForNumericUserID")
+
+	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
+	assert.Equal(t, err, nil)
+
+	assert.Equal(t, identity.UserID, "test-user-id")
+	assert.Equal(t, identity.Username, "test-username")
+	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.Email, "mod_mail")
+	assert.Equal(t, identity.EmailVerified, true)
+}
+
+func TestHandleCallBackForNoEmailVerifiedWithScopeEmail(t *testing.T) {
+	tokenClaims := map[string]interface{}{}
+
+	userInfoClaims := map[string]interface{}{
+		"name":               "test-name",
+		"user_id_key":        "test-user-id",
+		"user_name_key":      "test-username",
+		"preferred_username": "test-preferred-username",
+		"mail":               "mod_mail",
+	}
+
+	testServer := testSetup(t, tokenClaims, userInfoClaims)
+	defer testServer.Close()
+
+	conn := newConnector(t, testServer.URL, Config{Scopes: []string{"email"}})
+	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallbackForNumericUserID")
+
+	identity, err := conn.HandleCallback(connector.Scopes{}, req)
+	assert.Equal(t, err, fmt.Errorf("oidc: missing has_verified_email claim"))
+
+	assert.Equal(t, identity.UserID, "test-user-id")
+	assert.Equal(t, identity.Username, "test-username")
+	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.Email, "mod_mail")
+	assert.Equal(t, identity.EmailVerified, false)
+}
+
+func TestHandleCallBackForEmailVerifiedWithoutScopeEmail(t *testing.T) {
+	tokenClaims := map[string]interface{}{}
+
+	userInfoClaims := map[string]interface{}{
+		"name":               "test-name",
+		"user_id_key":        "test-user-id",
+		"user_name_key":      "test-username",
+		"preferred_username": "test-preferred-username",
+		"mail":               "mod_mail",
+		"has_verified_email": true,
+	}
+
+	testServer := testSetup(t, tokenClaims, userInfoClaims)
+	defer testServer.Close()
+
+	conn := newConnector(t, testServer.URL, Config{Scopes: []string{""}})
+	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallbackForNumericUserID")
+
+	identity, err := conn.HandleCallback(connector.Scopes{}, req)
+	assert.Equal(t, err, nil)
+
+	assert.Equal(t, identity.UserID, "test-user-id")
+	assert.Equal(t, identity.Username, "test-username")
+	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.Email, "mod_mail")
+	assert.Equal(t, identity.EmailVerified, true)
 }
 
 func testSetup(t *testing.T, tokenClaims map[string]interface{}, userInfoClaims map[string]interface{}) *httptest.Server {
@@ -253,18 +362,25 @@ func newToken(key *jose.JSONWebKey, claims map[string]interface{}) (string, erro
 	return signature.CompactSerialize()
 }
 
-func newConnector(t *testing.T, serverURL string) *oauthConnector {
+func newConnector(t *testing.T, serverURL string, extraConfigs Config) *oauthConnector {
 	testConfig := Config{
-		ClientID:         "testClient",
-		ClientSecret:     "testSecret",
-		RedirectURI:      serverURL + "/callback",
-		TokenURL:         serverURL + "/token",
-		AuthorizationURL: serverURL + "/authorize",
-		UserInfoURL:      serverURL + "/userinfo",
-		Scopes:           []string{"openid", "groups"},
-		UserIDKey:        "user_id_key",
+		ClientID:                  "testClient",
+		ClientSecret:              "testSecret",
+		RedirectURI:               serverURL + "/callback",
+		TokenURL:                  serverURL + "/token",
+		AuthorizationURL:          serverURL + "/authorize",
+		UserInfoURL:               serverURL + "/userinfo",
+		Scopes:                    extraConfigs.Scopes,
+		UserIDKey:                 "user_id_key",
+		RootCAs:                   extraConfigs.RootCAs,
+		InsecureSkipVerify:        extraConfigs.InsecureSkipVerify,
+		InsecureSkipEmailVerified: extraConfigs.InsecureSkipEmailVerified,
+		ClaimMapping:              extraConfigs.ClaimMapping,
 	}
 
+	if len(testConfig.Scopes) == 0 {
+		testConfig.Scopes = []string{"openid", "groups"}
+	}
 	testConfig.ClaimMapping.UserNameKey = "user_name_key"
 	testConfig.ClaimMapping.GroupsKey = "groups_key"
 	testConfig.ClaimMapping.EmailKey = "mail"
