@@ -530,7 +530,7 @@ func (p *provider) validateSubject(subject *subject, inResponseTo string) error 
 	return fmt.Errorf("failed to validate subject confirmation: %v", errs)
 }
 
-// validationConditions ensures that dex is the intended audience
+// validateConditions ensures that dex is the intended audience
 // for the request, and not another service provider.
 //
 // See: https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf
