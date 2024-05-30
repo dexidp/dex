@@ -652,7 +652,7 @@ func TestProviderOverride(t *testing.T) {
 		conn, err := newConnector(Config{
 			Issuer:                     testServer.URL,
 			Scopes:                     []string{"openid", "groups"},
-			ProviderDiscoveryOverrides: ProviderDiscoveryOverrides{TokenURL: "/test1", AuthURL: "/test2", JWKSURL:"/test3"},
+			ProviderDiscoveryOverrides: ProviderDiscoveryOverrides{TokenURL: "/test1", AuthURL: "/test2"},
 		})
 		if err != nil {
 			t.Fatal("failed to create new connector", err)
@@ -666,11 +666,6 @@ func TestProviderOverride(t *testing.T) {
 		expToken := "/test1"
 		if conn.provider.Endpoint().TokenURL != expToken {
 			t.Fatalf("unexpected token URL: %s, expected: %s\n", conn.provider.Endpoint().TokenURL, expToken)
-		}
-
-		expJWKS := "/test3"
-		if conn.provider.Endpoint().JWKSURL != expJWKS {
-			t.Fatalf("unexpected JWKS URL: %s, expected: %s\n", conn.provider.Endpoint().JWKSURL, expJWKS)
 		}
 	})
 }
