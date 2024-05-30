@@ -109,7 +109,7 @@ type ProviderDiscoveryOverrides struct {
 	AuthURL string `json:"authURL"`
 	// JWKSURL provides a way to user overwrite the JWKS URL
 	// from the .well-known/openid-configuration jwks_uri
-	JWKSURL string `json:"jwksURL"
+	JWKSURL string `json:"jwksURL"`
 }
 
 func (o *ProviderDiscoveryOverrides) Empty() bool {
