@@ -54,8 +54,9 @@ type serveOptions struct {
 var (
 	buildInfo = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "build_info",
-			Help: "A metric with a constant '1' value labeled by version from which Dex was built.",
+			Name:      "build_info",
+			Namespace: "dex",
+			Help:      "A metric with a constant '1' value labeled by version from which Dex was built.",
 		},
 		[]string{"version", "goversion", "goarch"},
 	)
@@ -126,7 +127,7 @@ func runServe(options serveOptions) error {
 	logger.Infof("config issuer: %s", c.Issuer)
 
 	prometheusRegistry := prometheus.NewRegistry()
-	
+
 	prometheusRegistry.MustRegister(buildInfo)
 	recordBuildInfo()
 
