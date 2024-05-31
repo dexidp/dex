@@ -727,11 +727,3 @@ func loadTLSConfig(certFile, keyFile, caFile string, baseConfig *tls.Config) (*t
 func recordBuildInfo() {
 	buildInfo.WithLabelValues(version, runtime.Version(), runtime.GOARCH).Set(1)
 }
-
-// logger.Infof(
-// 	"Dex Version: %s, Go Version: %s, Go OS/ARCH: %s %s",
-// 	version,
-// 	runtime.Version(),
-// 	runtime.GOOS,
-// 	runtime.GOARCH,
-// )
