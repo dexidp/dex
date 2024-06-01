@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -21,7 +22,6 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	pkg_groups "github.com/dexidp/dex/pkg/groups"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 const (
@@ -67,9 +67,10 @@ type Config struct {
 }
 
 // Open returns a connector which can be used to login users through Google.
-func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
+func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector, err error) {
+	logger = logger.With(slog.Group("connector", "type", "google", "id", id))
 	if c.AdminEmail != "" {
-		log.Deprecated(logger, `google: use "domainToAdminEmail.*: %s" option instead of "adminEmail: %s".`, c.AdminEmail, c.AdminEmail)
+		logger.Warn(`use "domainToAdminEmail.*" option instead of "adminEmail"`, "deprecated", true)
 		if c.DomainToAdminEmail == nil {
 			c.DomainToAdminEmail = make(map[string]string)
 		}
@@ -152,7 +153,7 @@ type googleConnector struct {
 	oauth2Config                   *oauth2.Config
 	verifier                       *oidc.IDTokenVerifier
 	cancel                         context.CancelFunc
-	logger                         log.Logger
+	logger                         *slog.Logger
 	hostedDomains                  []string
 	groups                         []string
 	serviceAccountFilePath         string
@@ -340,7 +341,7 @@ func (c *googleConnector) findAdminService(domain string) (*admin.Service, error
 	adminSrv, ok := c.adminSrv[domain]
 	if !ok {
 		adminSrv, ok = c.adminSrv[wildcardDomainToAdminEmail]
-		c.logger.Debugf("using wildcard (%s) admin email to fetch groups", c.domainToAdminEmail[wildcardDomainToAdminEmail])
+		c.logger.Debug("using wildcard admin email to fetch groups", "admin_email", c.domainToAdminEmail[wildcardDomainToAdminEmail])
 	}
 
 	if !ok {
@@ -377,7 +378,7 @@ func getCredentialsFromFilePath(serviceAccountFilePath string) ([]byte, error) {
 // If the default credential is empty, it attempts to create a new service with metadata credentials.
 // If successful, it returns the service and nil error.
 // If unsuccessful, it returns the error and a nil service.
-func getCredentialsFromDefault(ctx context.Context, email string, logger log.Logger) ([]byte, *admin.Service, error) {
+func getCredentialsFromDefault(ctx context.Context, email string, logger *slog.Logger) ([]byte, *admin.Service, error) {
 	credential, err := google.FindDefaultCredentials(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch application default credentials: %w", err)
@@ -397,9 +398,9 @@ func getCredentialsFromDefault(ctx context.Context, email string, logger log.Log
 
 // createServiceWithMetadataServer creates a new service using metadata server.
 // If an error occurs during the process, it is returned along with a nil service.
-func createServiceWithMetadataServer(ctx context.Context, adminEmail string, logger log.Logger) (*admin.Service, error) {
+func createServiceWithMetadataServer(ctx context.Context, adminEmail string, logger *slog.Logger) (*admin.Service, error) {
 	serviceAccountEmail, err := metadata.Email("default")
-	logger.Infof("discovered serviceAccountEmail: %s", serviceAccountEmail)
+	logger.Info("discovered serviceAccountEmail", "email", serviceAccountEmail)
 
 	if err != nil {
 		return nil, fmt.Errorf("unable to get service account email from metadata server: %v", err)
@@ -423,7 +424,7 @@ func createServiceWithMetadataServer(ctx context.Context, adminEmail string, log
 // createDirectoryService sets up super user impersonation and creates an admin client for calling
 // the google admin api. If no serviceAccountFilePath is defined, the application default credential
 // is used.
-func createDirectoryService(serviceAccountFilePath, email string, logger log.Logger) (service *admin.Service, err error) {
+func createDirectoryService(serviceAccountFilePath, email string, logger *slog.Logger) (service *admin.Service, err error) {
 	var jsonCredentials []byte
 
 	ctx := context.Background()

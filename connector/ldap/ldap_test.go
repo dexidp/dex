@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"testing"
 
 	"github.com/kylelemons/godebug/pretty"
-	"github.com/sirupsen/logrus"
 
 	"github.com/dexidp/dex/connector"
 )
@@ -567,7 +567,7 @@ func runTests(t *testing.T, connMethod connectionMethod, config *Config, tests [
 	c.BindDN = "cn=admin,dc=example,dc=org"
 	c.BindPW = "admin"
 
-	l := &logrus.Logger{Out: io.Discard, Formatter: &logrus.TextFormatter{}}
+	l := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	conn, err := c.openConnector(l)
 	if err != nil {

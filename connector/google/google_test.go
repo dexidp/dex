@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	admin "google.golang.org/api/admin/directory/v1"
 	"google.golang.org/api/option"
@@ -51,7 +52,7 @@ func testSetup() *httptest.Server {
 }
 
 func newConnector(config *Config) (*googleConnector, error) {
-	log := logrus.New()
+	log := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 	conn, err := config.Open("id", log)
 	if err != nil {
 		return nil, err

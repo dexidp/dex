@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"net"
 	"regexp"
 	"strconv"
@@ -14,13 +15,11 @@ import (
 	entSQL "entgo.io/ent/dialect/sql"
 	_ "github.com/lib/pq" // Register postgres driver.
 
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/client"
 	"github.com/dexidp/dex/storage/ent/db"
 )
 
-//nolint
 const (
 	// postgres SSL modes
 	pgSSLDisable    = "disable"
@@ -37,7 +36,7 @@ type Postgres struct {
 }
 
 // Open always returns a new in sqlite3 storage.
-func (p *Postgres) Open(logger log.Logger) (storage.Storage, error) {
+func (p *Postgres) Open(logger *slog.Logger) (storage.Storage, error) {
 	logger.Debug("experimental ent-based storage driver is enabled")
 	drv, err := p.driver()
 	if err != nil {

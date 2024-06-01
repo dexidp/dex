@@ -179,14 +179,14 @@ func (s *Server) getTokenFromRequest(r *http.Request) (string, TokenTypeEnum, er
 	token := r.PostForm.Get("token")
 	tokenType, err := s.guessTokenType(r.Context(), token)
 	if err != nil {
-		s.logger.Error(err)
+		s.logger.Error("failed to guess token type", "err", err)
 		return "", 0, newIntrospectInternalServerError()
 	}
 
 	requestTokenType := r.PostForm.Get("token_type_hint")
 	if requestTokenType != "" {
 		if tokenType.String() != requestTokenType {
-			s.logger.Warnf("Token type hint doesn't match token type: %s != %s", requestTokenType, tokenType)
+			s.logger.Warn("token type hint doesn't match token type", "request_token_type", requestTokenType, "token_type", tokenType)
 		}
 	}
 
@@ -211,13 +211,13 @@ func (s *Server) introspectRefreshToken(_ context.Context, token string) (*Intro
 			return nil, newIntrospectInactiveTokenError()
 		}
 
-		s.logger.Errorf("failed to get refresh token: %v", err)
+		s.logger.Error("failed to get refresh token", "err", err)
 		return nil, newIntrospectInternalServerError()
 	}
 
 	subjectString, sErr := genSubject(rCtx.storageToken.Claims.UserID, rCtx.storageToken.ConnectorID)
 	if sErr != nil {
-		s.logger.Errorf("failed to marshal offline session ID: %v", err)
+		s.logger.Error("failed to marshal offline session ID", "err", err)
 		return nil, newIntrospectInternalServerError()
 	}
 
@@ -253,19 +253,19 @@ func (s *Server) introspectAccessToken(ctx context.Context, token string) (*Intr
 
 	var claims IntrospectionExtra
 	if err := idToken.Claims(&claims); err != nil {
-		s.logger.Errorf("Error while fetching token claims: %s", err.Error())
+		s.logger.Error("error while fetching token claims", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
 	}
 
 	clientID, err := getClientID(idToken.Audience, claims.AuthorizingParty)
 	if err != nil {
-		s.logger.Error("Error while fetching client_id from token: %s", err.Error())
+		s.logger.Error("error while fetching client_id from token:", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
 	}
 
 	client, err := s.storage.GetClient(clientID)
 	if err != nil {
-		s.logger.Error("Error while fetching client from storage: %s", err.Error())
+		s.logger.Error("error while fetching client from storage", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
 	}
 
@@ -299,7 +299,7 @@ func (s *Server) handleIntrospect(w http.ResponseWriter, r *http.Request) {
 			introspect, err = s.introspectRefreshToken(ctx, token)
 		default:
 			// Token type is neither handled token types.
-			s.logger.Errorf("Unknown token type: %s", tokenType)
+			s.logger.Error("unknown token type", "token_type", tokenType)
 			introspectInactiveErr(w)
 			return
 		}
@@ -309,7 +309,7 @@ func (s *Server) handleIntrospect(w http.ResponseWriter, r *http.Request) {
 		if intErr, ok := err.(*introspectionError); ok {
 			s.introspectErrHelper(w, intErr.typ, intErr.desc, intErr.code)
 		} else {
-			s.logger.Errorf("An unknown error occurred: %s", err.Error())
+			s.logger.Error("an unknown error occurred", "err", err.Error())
 			s.introspectErrHelper(w, errServerError, "An unknown error occurred", http.StatusInternalServerError)
 		}
 
@@ -332,7 +332,7 @@ func (s *Server) introspectErrHelper(w http.ResponseWriter, typ string, descript
 	}
 
 	if err := tokenErr(w, typ, description, statusCode); err != nil {
-		s.logger.Errorf("introspect error response: %v", err)
+		s.logger.Error("introspect error response", "err", err)
 	}
 }
 
