@@ -16,13 +16,13 @@ on:
     outputs:
       container-image-name:
         description: Container image name
-        value: ${{ jobs.container-image.outputs.name }}
+        value: ${{ jobs.container-images.outputs.name }}
       container-image-digest:
         description: Container image digest
-        value: ${{ jobs.container-image.outputs.digest }}
+        value: ${{ jobs.container-images.outputs.digest }}
       container-image-ref:
         description: Container image ref
-        value: ${{ jobs.container-image.outputs.ref }}
+        value: ${{ jobs.container-images.outputs.ref }}
 
 permissions:
   contents: read
