@@ -520,11 +520,11 @@ func newLogger(level slog.Level, format string) (*slog.Logger, error) {
 	var handler slog.Handler
 	switch strings.ToLower(format) {
 	case "", "text":
-		slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		handler = slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 			Level: level,
 		})
 	case "json":
-		slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+		handler = slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 			Level: level,
 		})
 	default:
