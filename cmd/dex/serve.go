@@ -58,7 +58,7 @@ var (
 			Namespace: "dex",
 			Help:      "A metric with a constant '1' value labeled by version from which Dex was built.",
 		},
-		[]string{"version", "goversion", "goarch"},
+		[]string{"version", "go_version", "platform"},
 	)
 )
 
@@ -725,5 +725,5 @@ func loadTLSConfig(certFile, keyFile, caFile string, baseConfig *tls.Config) (*t
 
 // recordBuildInfo publishes information about Dex version and runtime info through an info metric (gauge).
 func recordBuildInfo() {
-	buildInfo.WithLabelValues(version, runtime.Version(), runtime.GOARCH).Set(1)
+	buildInfo.WithLabelValues(version, runtime.Version(), fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)).Set(1)
 }
