@@ -36,15 +36,15 @@ require (
 	golang.org/x/crypto v0.23.0
 	golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
 	golang.org/x/net v0.25.0
-	golang.org/x/oauth2 v0.20.0
-	google.golang.org/api v0.182.0
+	golang.org/x/oauth2 v0.21.0
+	google.golang.org/api v0.183.0
 	google.golang.org/grpc v1.64.0
 	google.golang.org/protobuf v1.34.1
 )
 
 require (
 	ariga.io/atlas v0.19.1-0.20240203083654-5948b60a8e43 // indirect
-	cloud.google.com/go/auth v0.4.2 // indirect
+	cloud.google.com/go/auth v0.5.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.2 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
@@ -96,8 +96,8 @@ require (
 	golang.org/x/mod v0.15.0 // indirect
 	golang.org/x/sys v0.20.0 // indirect
 	golang.org/x/text v0.15.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20240506185236-b8a5c65736ae // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240521202816-d264139d666e // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240521202816-d264139d666e // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240528184218-531527333157 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
