@@ -193,7 +193,7 @@ jobs:
         if: inputs.publish
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@fd25fed6972e341ff0007ddb61f77e88103953c2 # 0.21.0
+        uses: aquasecurity/trivy-action@595be6a0f6560a0a8fc419ddf630567fc623531d # 0.22.0
         with:
           input: image
           format: sarif
