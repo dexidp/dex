@@ -680,7 +680,7 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 		return true
 	}
 	host, _, err := net.SplitHostPort(u.Host)
-	return err == nil && host == "localhost"
+	return err == nil && (host == "localhost" || host == "127.0.0.1" || host == "::1")
 }
 
 func validateConnectorID(connectors []storage.Connector, connectorID string) bool {
