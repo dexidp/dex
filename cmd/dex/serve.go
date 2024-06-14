@@ -51,15 +51,13 @@ type serveOptions struct {
 	grpcAddr      string
 }
 
-var (
-	buildInfo = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name:      "build_info",
-			Namespace: "dex",
-			Help:      "A metric with a constant '1' value labeled by version from which Dex was built.",
-		},
-		[]string{"version", "go_version", "platform"},
-	)
+var buildInfo = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name:      "build_info",
+		Namespace: "dex",
+		Help:      "A metric with a constant '1' value labeled by version from which Dex was built.",
+	},
+	[]string{"version", "go_version", "platform"},
 )
 
 func commandServe() *cobra.Command {
