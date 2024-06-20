@@ -17,6 +17,10 @@ func main() {
 	// Note that this docker-entrypoint program is args[0], and it is provided with the true process
 	// args.
 	args := os.Args[1:]
+	if len(args) == 0 {
+		fmt.Println("error: no args passed to entrypoint")
+		os.Exit(1)
+	}
 
 	if err := run(args, realExec, realWhich); err != nil {
 		fmt.Println("error:", err.Error())
