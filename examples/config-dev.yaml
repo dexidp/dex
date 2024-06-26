@@ -59,7 +59,7 @@ frontend:
   issuer: DIMO
 #   logoURL: theme/logo.png
 #   dir: web/
-#   theme: light
+  theme: dark
 
 # Configuration for telemetry
 telemetry:
