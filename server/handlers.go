@@ -1142,7 +1142,7 @@ func (s *Server) handleClientCredentials(w http.ResponseWriter, r *http.Request,
 	// Login
 	identity, err := callbackConnector.HandleCallback(parseScopes(scopes), r)
 	if err != nil {
-		s.logger.Errorf("Failed to login user: %v", err)
+		s.logger.Error("Failed to login user: %v", err)
 		s.tokenErrHelper(w, errInvalidRequest, "Could not login user", http.StatusBadRequest)
 		return
 	}
@@ -1159,14 +1159,14 @@ func (s *Server) handleClientCredentials(w http.ResponseWriter, r *http.Request,
 
 	accessToken, _, err := s.newAccessToken(client.ID, claims, scopes, nonce, connID)
 	if err != nil {
-		s.logger.Errorf("client grant failed to create new access token: %v", err)
+		s.logger.Error("client grant failed to create new access token: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return
 	}
 
 	idToken, expiry, err := s.newIDToken(client.ID, claims, scopes, nonce, accessToken, "", connID)
 	if err != nil {
-		s.logger.Errorf("client grant failed to create new ID token: %v", err)
+		s.logger.Error("client grant failed to create new ID token: %v", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return
 	}
