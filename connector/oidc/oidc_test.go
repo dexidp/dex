@@ -65,6 +65,7 @@ func TestHandleCallback(t *testing.T) {
 		expectedEmailField        string
 		token                     map[string]interface{}
 		newGroupFromClaims        []NewGroupFromClaims
+		pkce                      bool
 	}{
 		{
 			name:               "simpleCase",
@@ -364,6 +365,40 @@ func TestHandleCallback(t *testing.T) {
 				"non-string-claim2": 666,
 			},
 		},
+		{
+			name:               "withPKCE",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectGroups:       []string{"group1", "group2"},
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups":         []string{"group1", "group2"},
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+			pkce: true,
+		},
+		{
+			name:               "withoutPKCE",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectGroups:       []string{"group1", "group2"},
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups":         []string{"group1", "group2"},
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+			pkce: false,
+		},
 	}
 
 	for _, tc := range tests {
@@ -400,6 +435,7 @@ func TestHandleCallback(t *testing.T) {
 			config.ClaimMapping.EmailKey = tc.emailKey
 			config.ClaimMapping.GroupsKey = tc.groupsKey
 			config.ClaimMutations.NewGroupFromClaims = tc.newGroupFromClaims
+			config.PKCE.Enabled = tc.pkce
 
 			conn, err := newConnector(config)
 			if err != nil {

@@ -563,6 +563,7 @@ func applyConfigOverrides(options serveOptions, config *Config) {
 			"refresh_token",
 			"urn:ietf:params:oauth:grant-type:device_code",
 			"urn:ietf:params:oauth:grant-type:token-exchange",
+			"client_credentials",
 		}
 	}
 }
