@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -33,7 +33,7 @@ var _ storage.Storage = (*conn)(nil)
 
 type conn struct {
 	db     *clientv3.Client
-	logger log.Logger
+	logger *slog.Logger
 }
 
 func (c *conn) Close() error {
@@ -52,7 +52,7 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 	for _, authRequest := range authRequests {
 		if now.After(authRequest.Expiry) {
 			if err := c.deleteKey(ctx, keyID(authRequestPrefix, authRequest.ID)); err != nil {
-				c.logger.Errorf("failed to delete auth request: %v", err)
+				c.logger.Error("failed to delete auth request", "err", err)
 				delErr = fmt.Errorf("failed to delete auth request: %v", err)
 			}
 			result.AuthRequests++
@@ -70,7 +70,7 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 	for _, authCode := range authCodes {
 		if now.After(authCode.Expiry) {
 			if err := c.deleteKey(ctx, keyID(authCodePrefix, authCode.ID)); err != nil {
-				c.logger.Errorf("failed to delete auth code %v", err)
+				c.logger.Error("failed to delete auth code", "err", err)
 				delErr = fmt.Errorf("failed to delete auth code: %v", err)
 			}
 			result.AuthCodes++
@@ -85,7 +85,7 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 	for _, deviceRequest := range deviceRequests {
 		if now.After(deviceRequest.Expiry) {
 			if err := c.deleteKey(ctx, keyID(deviceRequestPrefix, deviceRequest.UserCode)); err != nil {
-				c.logger.Errorf("failed to delete device request %v", err)
+				c.logger.Error("failed to delete device request", "err", err)
 				delErr = fmt.Errorf("failed to delete device request: %v", err)
 			}
 			result.DeviceRequests++
@@ -100,7 +100,7 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 	for _, deviceToken := range deviceTokens {
 		if now.After(deviceToken.Expiry) {
 			if err := c.deleteKey(ctx, keyID(deviceTokenPrefix, deviceToken.DeviceCode)); err != nil {
-				c.logger.Errorf("failed to delete device token %v", err)
+				c.logger.Error("failed to delete device token", "err", err)
 				delErr = fmt.Errorf("failed to delete device token: %v", err)
 			}
 			result.DeviceTokens++

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -17,7 +18,6 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	groups_pkg "github.com/dexidp/dex/pkg/groups"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 // GroupNameFormat represents the format of the group identifier
@@ -66,7 +66,7 @@ type Config struct {
 }
 
 // Open returns a strategy for logging in through Microsoft.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
 	m := microsoftConnector{
 		apiURL:               strings.TrimSuffix(c.APIURL, "/"),
 		graphURL:             strings.TrimSuffix(c.GraphURL, "/"),
@@ -78,7 +78,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		groups:               c.Groups,
 		groupNameFormat:      c.GroupNameFormat,
 		useGroupsAsWhitelist: c.UseGroupsAsWhitelist,
-		logger:               logger,
+		logger:               logger.With(slog.Group("connector", "type", "microsoft", "id", id)),
 		emailToLowercase:     c.EmailToLowercase,
 		promptType:           c.PromptType,
 		domainHint:           c.DomainHint,
@@ -133,7 +133,7 @@ type microsoftConnector struct {
 	groupNameFormat      GroupNameFormat
 	groups               []string
 	useGroupsAsWhitelist bool
-	logger               log.Logger
+	logger               *slog.Logger
 	emailToLowercase     bool
 	promptType           string
 	domainHint           string

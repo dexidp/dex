@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -11,7 +12,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/pkg/featureflags"
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent"
@@ -238,7 +238,7 @@ type Storage struct {
 
 // StorageConfig is a configuration that can create a storage.
 type StorageConfig interface {
-	Open(logger log.Logger) (storage.Storage, error)
+	Open(logger *slog.Logger) (storage.Storage, error)
 }
 
 var (
@@ -388,7 +388,7 @@ type Expiry struct {
 // Logger holds configuration required to customize logging for dex.
 type Logger struct {
 	// Level sets logging level severity.
-	Level string `json:"level"`
+	Level slog.Level `json:"level"`
 
 	// Format specifies the format to be used for logging.
 	Format string `json:"format"`

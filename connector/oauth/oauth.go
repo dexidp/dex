@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -13,7 +14,6 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/httpclient"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 type oauthConnector struct {
@@ -31,7 +31,7 @@ type oauthConnector struct {
 	emailVerifiedKey     string
 	groupsKey            string
 	httpClient           *http.Client
-	logger               log.Logger
+	logger               *slog.Logger
 }
 
 type connectorData struct {
@@ -58,7 +58,7 @@ type Config struct {
 	} `json:"claimMapping"`
 }
 
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
 	var err error
 
 	userIDKey := c.UserIDKey
@@ -99,7 +99,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		userInfoURL:          c.UserInfoURL,
 		scopes:               c.Scopes,
 		redirectURI:          c.RedirectURI,
-		logger:               logger,
+		logger:               logger.With(slog.Group("connector", "type", "oauth", "id", id)),
 		userIDKey:            userIDKey,
 		userNameKey:          userNameKey,
 		preferredUsernameKey: preferredUsernameKey,
