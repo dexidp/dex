@@ -358,10 +358,12 @@ func TestHandlePassword(t *testing.T) {
 			offlineSessionCreated: false,
 		},
 	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup a dex server.
 			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+				c.DefaultPasswordConnector = "test"
 				c.PasswordConnector = "test"
 				c.Now = time.Now
 			})
@@ -369,7 +371,7 @@ func TestHandlePassword(t *testing.T) {
 
 			mockConnectorDataTestStorage(t, s.storage)
 
-			makeReq := func(username, password string) *httptest.ResponseRecorder {
+			makeReq := func(username, password string, connID string) *httptest.ResponseRecorder {
 				u, err := url.Parse(s.issuerURL.String())
 				require.NoError(t, err)
 
@@ -379,6 +381,7 @@ func TestHandlePassword(t *testing.T) {
 				v.Add("grant_type", "password")
 				v.Add("username", username)
 				v.Add("password", password)
+				v.Add("connector_id", connID)
 
 				req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
@@ -390,15 +393,39 @@ func TestHandlePassword(t *testing.T) {
 				return rr
 			}
 
-			// Check unauthorized error
+			// Check unauthorized error (using backward compatibility route (passwordConnector): invalid credentials)
 			{
-				rr := makeReq("test", "invalid")
+				rr := makeReq("test", "invalid", "foobar")
 				require.Equal(t, 401, rr.Code)
+			}
+
+			// Check unauthorized error (valid connector & invalid credentials)
+			{
+				rr := makeReq("test", "invalid", "test")
+				require.Equal(t, 401, rr.Code)
+			}
+
+			// Check unauthorized error (default connector & invalid credentials)
+			{
+				rr := makeReq("test", "invalid", "")
+				require.Equal(t, 401, rr.Code)
+			}
+
+			// default connector & valid credentials
+			{
+				rr := makeReq("test", "test", "")
+				require.Equal(t, 200, rr.Code)
+			}
+
+			// backward compatible connector & valid credentials
+			{
+				rr := makeReq("test", "test", "foobar")
+				require.Equal(t, 200, rr.Code)
 			}
 
 			// Check that we received expected refresh token
 			{
-				rr := makeReq("test", "test")
+				rr := makeReq("test", "test", "test")
 				require.Equal(t, 200, rr.Code)
 
 				var ref struct {
