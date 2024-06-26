@@ -262,9 +262,9 @@ func runServe(options serveOptions) error {
 		logger.Info("config skipping approval screen")
 	}
 	if c.OAuth2.DefaultPasswordConnector != "" {
-		logger.Info("config using the default password grant connector: %s", c.OAuth2.DefaultPasswordConnector)
+		logger.Info("config using the default password grant connector", "password_connector", c.OAuth2.DefaultPasswordConnector)
 	} else if c.OAuth2.PasswordConnector != "" {
-		logger.Info("config using the password grant connector: %s", c.OAuth2.PasswordConnector)
+		logger.Info("config using the password grant connector", "password_connector", c.OAuth2.PasswordConnector)
 		logger.Warn("passwordConnector option is deprecated, use defaultPasswordConnector instead")
 	}
 	if len(c.Web.AllowedOrigins) > 0 {

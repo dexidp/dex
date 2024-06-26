@@ -846,6 +846,7 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 	// Set the connector_id to the default value if it wasn't passed to the query
 	if !r.Form.Has("connector_id") || r.Form.Get("connector_id") == "" {
 		r.Form.Set("connector_id", s.defaultPasswordConnector)
+	}
 
 	grantType := r.PostFormValue("grant_type")
 	if !contains(s.supportedGrantTypes, grantType) {
@@ -1183,7 +1184,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	}
 	conn, err := s.getConnector(connID)
 	if err != nil {
-		s.logger.Errorf("Failed to find connector: %v", err)
+		s.logger.Error("Failed to find connector: %v", err)
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
 		return
 	}
