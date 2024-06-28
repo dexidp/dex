@@ -41,6 +41,8 @@ body {
   height: 36px;
   margin-right: 5px;
   width: 36px;
+    display: inline-block;
+    vertical-align: middle;
 }
 
 .dex-btn-icon--google {

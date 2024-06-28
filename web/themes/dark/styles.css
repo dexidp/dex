@@ -19,17 +19,20 @@
 
 /* Logo */
 .dimo-logo {
-    width: 200px;
+    width: 100px;
     margin-bottom: 20px;
 }
 
 .theme-heading {
-    font-size: 24px;
+    font-size: 48px;
     font-weight: 500;
-    margin: 20px 0;
+    margin: 30px 0;
     color: #ffffff;
     text-align: center;
+    white-space: pre-wrap;
+    line-height: 1.2;
 }
+
 
 .theme-panel {
     background-color: transparent;
@@ -37,23 +40,25 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    margin-top: 30px;
 }
 
 .theme-btn-provider {
-    background-color: #2c2c2c;
+    background-color: #333333;
     color: #ffffff;
     border: none;
     width: 300px;
     height: 50px;
     padding: 0 20px;
     border-radius: 25px;
-    font-size: 16px;
+    font-size: 14px;
     font-family: 'Euclid', 'Source Sans Pro', Helvetica, sans-serif;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 10px 0;
+    margin: 5px 0;
     text-align: center;
+    box-shadow: none;
 }
 
 .theme-btn-provider:hover {
