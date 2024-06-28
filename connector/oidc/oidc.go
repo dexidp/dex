@@ -399,6 +399,8 @@ func (c *oidcConnector) TokenIdentity(ctx context.Context, subjectTokenType, sub
 func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token, caller caller) (connector.Identity, error) {
 	var claims map[string]interface{}
 
+	fmt.Println("createIdentity: START")
+
 	if rawIDToken, ok := token.Extra("id_token").(string); ok {
 		idToken, err := c.verifier.Verify(ctx, rawIDToken)
 		if err != nil {
@@ -431,6 +433,8 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		return identity, errors.New("oidc: no id_token in token response")
 	}
 
+
+
 	// We immediately want to run getUserInfo if configured before we validate the claims.
 	// For token exchanges with access tokens, this is how we verify the token.
 	if c.getUserInfo {
@@ -460,6 +464,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	if !found {
 		return identity, fmt.Errorf("missing \"%s\" claim", userNameKey)
 	}
+
 
 	preferredUsername, found := claims["preferred_username"].(string)
 	if (!found || c.overrideClaimMapping) && c.preferredUsernameKey != "" {
@@ -497,15 +502,31 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 
 	var groups []string
 	if c.insecureEnableGroups {
+
+		fmt.Println("Normal Groups processing: START")
+
 		groupsKey := "groups"
 		vs, found := claims[groupsKey].([]interface{})
+
+		fmt.Println("Looking with default groupskey=", groupsKey)
+		fmt.Println("Found with default groupskey: ", found)
+
 		if (!found || c.overrideClaimMapping) && c.groupsKey != "" {
+
 			groupsKey = c.groupsKey
+
+			fmt.Println("Looking with custom groupskey=", groupsKey)
+
 			vs, found = claims[groupsKey].([]interface{})
+
+			fmt.Println("Found with groupskey: ", found)
 		}
 
 		// Fallback when claims[groupsKey] is a string instead of an array of strings.
 		if g, b := claims[groupsKey].(string); b {
+
+			fmt.Println("Groupskey (", groupsKey, ") claim is a string: ", g)
+
 			groups = []string{g}
 		}
 
@@ -521,6 +542,9 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 
 		// Validate that the user is part of allowedGroups
 		if len(c.allowedGroups) > 0 {
+
+			fmt.Printf("allowedGroups filtering: START \n")
+
 			groupMatches := groups_pkg.Filter(groups, c.allowedGroups)
 
 			if len(groupMatches) == 0 {
@@ -530,13 +554,21 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 
 			groups = groupMatches
 		}
+
+		fmt.Println("Normal Groups processing: START")
 	}
+
+	fmt.Println("newGroupFromClaims: START")
 
 	for _, config := range c.newGroupFromClaims {
 		newGroupSegments := []string{
 			config.Prefix,
 		}
 		for _, claimName := range config.Claims {
+
+
+			fmt.Printf("newGroupFromClaims: claimName: %s \n", claimName)
+
 			claimValue, ok := claims[claimName].(string)
 			if !ok { // Non string claim value are ignored, concatenating them doesn't really make any sense
 				continue
@@ -548,6 +580,9 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 				claimValue = strings.ReplaceAll(claimValue, config.Delimiter, "")
 			}
 
+			fmt.Printf("newGroupFromClaims: claimValue: %s \n", claimValue)
+
+
 			newGroupSegments = append(newGroupSegments, claimValue)
 		}
 
@@ -555,6 +590,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			groups = append(groups, strings.Join(newGroupSegments, config.Delimiter))
 		}
 	}
+	fmt.Println("newGroupFromClaims: END")
 
 	cd := connectorData{
 		RefreshToken: []byte(token.RefreshToken),
@@ -564,6 +600,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to encode connector data: %v", err)
 	}
+
 
 	identity = connector.Identity{
 		UserID:            subject,
@@ -575,6 +612,8 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		ConnectorData:     connData,
 	}
 
+	fmt.Println("groups in identity: ", groups)
+
 	if c.userIDKey != "" {
 		userID, found := claims[c.userIDKey].(string)
 		if !found {
@@ -582,6 +621,8 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 		identity.UserID = userID
 	}
+
+	fmt.Println("createIdentity: END")
 
 	return identity, nil
 }
