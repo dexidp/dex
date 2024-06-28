@@ -106,7 +106,7 @@ body {
 }
 
 .dex-btn-icon--web3 {
-  background-image: url(../static/img/metamask-icon.svg);
+  background-image: url(../static/img/wallet-icon.svg);
   background-size: contain;
 }
 
