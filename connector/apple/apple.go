@@ -110,83 +110,88 @@ func knownBrokenAuthHeaderProvider(issuerURL string) bool {
 // Open returns a connector which can be used to login users through an upstream
 // OpenID Connect provider.
 func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
-	secretConfig := secret.Config{
-		TeamID:          c.TeamID,
-		KeyID:           c.KeyID,
-		PrivateKeyFile:  c.PrivateKeyFile,
-		ClientID:        c.ClientID,
-		Issuer:          c.Issuer,
-		SecretDuration:  c.SecretDuration,
-		SecretExpiryMin: c.SecretExpiryMin,
-	}
+	/*
+		secretConfig := secret.Config{
 
-	secretHandler, err := secret.NewSecret(&secretConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build apple secret handler: %v", err)
-	}
+			TeamID:          c.TeamID,
+			KeyID:           c.KeyID,
+			PrivateKeyFile:  c.PrivateKeyFile,
+			ClientID:        c.ClientID,
+			Issuer:          c.Issuer,
+			SecretDuration:  c.SecretDuration,
+			SecretExpiryMin: c.SecretExpiryMin,
+		}
 
-	clientSecret, err := secretHandler.GetSecret()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get a client secret: %v", err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
+		secretHandler, err := secret.NewSecret(&secretConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build apple secret handler: %v", err)
+		}
 
-	provider, err := oidc.NewProvider(ctx, c.Issuer)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to get provider: %v", err)
-	}
+		clientSecret, err := secretHandler.GetSecret()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get a client secret: %v", err)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
 
-	endpoint := provider.Endpoint()
+		provider, err := oidc.NewProvider(ctx, c.Issuer)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("failed to get provider: %v", err)
+		}
 
-	if c.BasicAuthUnsupported != nil {
-		// Setting "basicAuthUnsupported" always overrides our detection.
-		if *c.BasicAuthUnsupported {
+		endpoint := provider.Endpoint()
+
+		if c.BasicAuthUnsupported != nil {
+			// Setting "basicAuthUnsupported" always overrides our detection.
+			if *c.BasicAuthUnsupported {
+				endpoint.AuthStyle = oauth2.AuthStyleInParams
+			}
+		} else if knownBrokenAuthHeaderProvider(c.Issuer) {
 			endpoint.AuthStyle = oauth2.AuthStyleInParams
 		}
-	} else if knownBrokenAuthHeaderProvider(c.Issuer) {
-		endpoint.AuthStyle = oauth2.AuthStyleInParams
-	}
 
-	scopes := []string{oidc.ScopeOpenID}
-	if len(c.Scopes) > 0 {
-		scopes = append(scopes, c.Scopes...)
-	} else {
-		scopes = append(scopes, "email")
-	}
+		scopes := []string{oidc.ScopeOpenID}
+		if len(c.Scopes) > 0 {
+			scopes = append(scopes, c.Scopes...)
+		} else {
+			scopes = append(scopes, "email")
+		}
 
-	// PromptType should be "consent" by default, if not set
-	if c.PromptType == "" {
-		c.PromptType = "consent"
-	}
+		// PromptType should be "consent" by default, if not set
+		if c.PromptType == "" {
+			c.PromptType = "consent"
+		}
+	*/
 
-	clientID := c.ClientID
+	//clientID := c.ClientID
 	return &oidcConnector{
-		provider:    provider,
-		redirectURI: c.RedirectURI,
-		oauth2Config: &oauth2.Config{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			Endpoint:     endpoint,
-			Scopes:       scopes,
-			RedirectURL:  c.RedirectURI,
-		},
-		verifier: provider.Verifier(
-			&oidc.Config{ClientID: clientID},
-		),
-		logger:                    logger,
-		cancel:                    cancel,
-		hostedDomains:             c.HostedDomains,
-		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
-		insecureEnableGroups:      c.InsecureEnableGroups,
-		getUserInfo:               c.GetUserInfo,
-		promptType:                c.PromptType,
-		userIDKey:                 c.UserIDKey,
-		userNameKey:               c.UserNameKey,
-		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
-		emailKey:                  c.ClaimMapping.EmailKey,
-		groupsKey:                 c.ClaimMapping.GroupsKey,
-		secret:                    secretHandler,
+		/*
+			provider:    provider,
+			redirectURI: c.RedirectURI,
+			oauth2Config: &oauth2.Config{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				Endpoint:     endpoint,
+				Scopes:       scopes,
+				RedirectURL:  c.RedirectURI,
+			},
+			verifier: provider.Verifier(
+				&oidc.Config{ClientID: clientID},
+			),
+			logger:                    logger,
+			cancel:                    cancel,
+			hostedDomains:             c.HostedDomains,
+			insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
+			insecureEnableGroups:      c.InsecureEnableGroups,
+			getUserInfo:               c.GetUserInfo,
+			promptType:                c.PromptType,
+			userIDKey:                 c.UserIDKey,
+			userNameKey:               c.UserNameKey,
+			preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
+			emailKey:                  c.ClaimMapping.EmailKey,
+			groupsKey:                 c.ClaimMapping.GroupsKey,
+			secret:                    secretHandler,
+		*/
 	}, nil
 }
 

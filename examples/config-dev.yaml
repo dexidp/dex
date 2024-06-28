@@ -125,12 +125,33 @@ staticClients:
 #    name: 'Static Client for Device Flow'
 #    public: true
 connectors:
-- type: mockCallback
-  id: mock
-  name: Example
-- type: web3
-  id: web3
-  name: Web3
+  - type: google
+    id: google
+    name: Google
+    config:
+        # Connector config values starting with a "$" will read from the environment.
+        clientID: $GOOGLE_CLIENT_ID
+        clientSecret: $GOOGLE_CLIENT_SECRET
+        # Dex's issuer URL + "/callback"
+        redirectURI: https://auth.dev.dimo.zone/callback
+  - type: web3
+    id: web3
+    name: Web3
+    config:
+        infuraId: "2b08cc4ce251460ba1c151e58ffca1c0"
+        rpcUrl: $ETHEREUM_RPC_URL
+  - type: apple
+    id: apple
+    name: Apple
+    config:
+        issuer: https://appleid.apple.com
+        clientID: $APPLE_CLIENT_ID
+        redirectURI: https://auth.dev.dimo.zone/callback
+        key_id: asdf
+        team_id: asdf
+        private_key_file: /etc/dex/secrets/authkey.p8
+        insecureSkipEmailVerified: true
+
 #  config:
 #   infuraId: $INFURA_ID
 # - type: google
@@ -152,9 +173,9 @@ enablePasswordDB: true
 # won't look in its underlying storage for passwords.
 #
 # If this option isn't chosen users may be added through the gRPC API.
-staticPasswords:
-- email: "admin@example.com"
+#staticPasswords:
+#- email: "admin@example.com"
   # bcrypt hash of the string "password": $(echo password | htpasswd -BinC 10 admin | cut -d: -f2)
-  hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
-  username: "admin"
-  userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+#  hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+#  username: "admin"
+#  userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"

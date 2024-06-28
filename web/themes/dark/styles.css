@@ -1,6 +1,6 @@
 @font-face {
     font-family: 'Euclid';
-    src: url('../../static/EuclidCircularA-Regular.otf') format('opentype');
+    src: url('../static/EuclidCircularA-Regular.otf') format('opentype');
     font-weight: normal;
     font-style: normal;
 }
