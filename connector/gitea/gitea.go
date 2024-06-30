@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"sync"
@@ -15,7 +16,6 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 // Config holds configuration options for gitea logins.
@@ -51,7 +51,7 @@ type giteaUser struct {
 }
 
 // Open returns a strategy for logging in through Gitea
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
 	if c.BaseURL == "" {
 		c.BaseURL = "https://gitea.com"
 	}
@@ -61,7 +61,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		orgs:          c.Orgs,
 		clientID:      c.ClientID,
 		clientSecret:  c.ClientSecret,
-		logger:        logger,
+		logger:        logger.With(slog.Group("connector", "type", "gitea", "id", id)),
 		loadAllGroups: c.LoadAllGroups,
 		useLoginAsID:  c.UseLoginAsID,
 	}, nil
@@ -84,7 +84,7 @@ type giteaConnector struct {
 	orgs         []Org
 	clientID     string
 	clientSecret string
-	logger       log.Logger
+	logger       *slog.Logger
 	httpClient   *http.Client
 	// if set to true and no orgs are configured then connector loads all user claims (all orgs and team)
 	loadAllGroups bool

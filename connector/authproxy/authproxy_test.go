@@ -2,11 +2,10 @@ package authproxy
 
 import (
 	"io"
+	"log/slog"
 	"net/http"
 	"reflect"
 	"testing"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/dexidp/dex/connector"
 )
@@ -23,7 +22,7 @@ const (
 	testUserID       = "1234567890"
 )
 
-var logger = &logrus.Logger{Out: io.Discard, Formatter: &logrus.TextFormatter{}}
+var logger = slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 func TestUser(t *testing.T) {
 	config := Config{

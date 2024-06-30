@@ -1,13 +1,13 @@
 package etcd
 
 import (
+	"log/slog"
 	"time"
 
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/namespace"
 
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -34,11 +34,11 @@ type Etcd struct {
 }
 
 // Open creates a new storage implementation backed by Etcd
-func (p *Etcd) Open(logger log.Logger) (storage.Storage, error) {
+func (p *Etcd) Open(logger *slog.Logger) (storage.Storage, error) {
 	return p.open(logger)
 }
 
-func (p *Etcd) open(logger log.Logger) (*conn, error) {
+func (p *Etcd) open(logger *slog.Logger) (*conn, error) {
 	cfg := clientv3.Config{
 		Endpoints:   p.Endpoints,
 		DialTimeout: defaultDialTimeout,

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"os"
 	"testing"
 
@@ -228,7 +229,7 @@ additionalFeatures: [
 			DeviceRequests: "10m",
 		},
 		Logger: Logger{
-			Level:  "debug",
+			Level:  slog.LevelDebug,
 			Format: "json",
 		},
 		AdditionalFeatures: server.ValidAdditionalFeatures,
@@ -439,7 +440,7 @@ logger:
 			AuthRequests: "25h",
 		},
 		Logger: Logger{
-			Level:  "debug",
+			Level:  slog.LevelDebug,
 			Format: "json",
 		},
 	}

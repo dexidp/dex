@@ -3,9 +3,8 @@ package storage
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
-
-	"github.com/dexidp/dex/pkg/log"
 )
 
 // Tests for this code are in the "memory" package, since this package doesn't
@@ -90,17 +89,17 @@ type staticPasswordsStorage struct {
 	// A map of passwords that is indexed by lower-case email ids
 	passwordsByEmail map[string]Password
 
-	logger log.Logger
+	logger *slog.Logger
 }
 
 // WithStaticPasswords returns a storage with a read-only set of passwords.
-func WithStaticPasswords(s Storage, staticPasswords []Password, logger log.Logger) Storage {
+func WithStaticPasswords(s Storage, staticPasswords []Password, logger *slog.Logger) Storage {
 	passwordsByEmail := make(map[string]Password, len(staticPasswords))
 	for _, p := range staticPasswords {
 		// Enable case insensitive email comparison.
 		lowerEmail := strings.ToLower(p.Email)
 		if _, ok := passwordsByEmail[lowerEmail]; ok {
-			logger.Errorf("Attempting to create StaticPasswords with the same email id: %s", p.Email)
+			logger.Error("attempting to create StaticPasswords with the same email id", "email", p.Email)
 		}
 		passwordsByEmail[lowerEmail] = p
 	}

@@ -9,11 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"path"
 	"reflect"
 	"sort"
@@ -26,7 +26,6 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
@@ -77,11 +76,7 @@ FDWV28nTP9sqbtsmU8Tem2jzMvZ7C/Q0AuDoKELFUpux8shm8wfIhyaPnXUGZoAZ
 Np4vUwMSYV5mopESLWOg3loBxKyLGFtgGKVCjGiQvy6zISQ4fQo=
 -----END RSA PRIVATE KEY-----`)
 
-var logger = &logrus.Logger{
-	Out:       os.Stderr,
-	Formatter: &logrus.TextFormatter{DisableColors: true},
-	Level:     logrus.DebugLevel,
-}
+var logger = slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
 	var server *Server

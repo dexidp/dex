@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -42,7 +43,6 @@ import (
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
 )
@@ -118,7 +118,7 @@ type Config struct {
 
 	Web WebConfig
 
-	Logger log.Logger
+	Logger *slog.Logger
 
 	PrometheusRegistry *prometheus.Registry
 
@@ -199,7 +199,7 @@ type Server struct {
 
 	refreshTokenPolicy *RefreshTokenPolicy
 
-	logger log.Logger
+	logger *slog.Logger
 }
 
 // NewServer constructs a server from the provided config.
@@ -401,6 +401,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS("/token", s.handleToken)
 	handleWithCORS("/keys", s.handlePublicKeys)
 	handleWithCORS("/userinfo", s.handleUserInfo)
+	handleWithCORS("/token/introspect", s.handleIntrospect)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)
@@ -565,10 +566,11 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 				return
 			case <-time.After(frequency):
 				if r, err := s.storage.GarbageCollect(now()); err != nil {
-					s.logger.Errorf("garbage collection failed: %v", err)
+					s.logger.ErrorContext(ctx, "garbage collection failed", "err", err)
 				} else if !r.IsEmpty() {
-					s.logger.Infof("garbage collection run, delete auth requests=%d, auth codes=%d, device requests=%d, device tokens=%d",
-						r.AuthRequests, r.AuthCodes, r.DeviceRequests, r.DeviceTokens)
+					s.logger.InfoContext(ctx, "garbage collection run, delete auth",
+						"requests", r.AuthRequests, "auth_codes", r.AuthCodes,
+						"device_requests", r.DeviceRequests, "device_tokens", r.DeviceTokens)
 				}
 			}
 		}
@@ -577,7 +579,7 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 
 // ConnectorConfig is a configuration that can open a connector.
 type ConnectorConfig interface {
-	Open(id string, logger log.Logger) (connector.Connector, error)
+	Open(id string, logger *slog.Logger) (connector.Connector, error)
 }
 
 // ConnectorsConfig variable provides an easy way to return a config struct
@@ -605,7 +607,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 }
 
 // openConnector will parse the connector config and open the connector.
-func openConnector(logger log.Logger, conn storage.Connector) (connector.Connector, error) {
+func openConnector(logger *slog.Logger, conn storage.Connector) (connector.Connector, error) {
 	var c connector.Connector
 
 	f, ok := ConnectorsConfig[conn.Type]

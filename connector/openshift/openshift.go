@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -13,7 +14,6 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/httpclient"
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
 
@@ -44,7 +44,7 @@ type openshiftConnector struct {
 	clientID     string
 	clientSecret string
 	cancel       context.CancelFunc
-	logger       log.Logger
+	logger       *slog.Logger
 	httpClient   *http.Client
 	oauth2Config *oauth2.Config
 	insecureCA   bool
@@ -62,7 +62,7 @@ type user struct {
 
 // Open returns a connector which can be used to login users through an upstream
 // OpenShift OAuth2 provider.
-func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
+func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector, err error) {
 	var rootCAs []string
 	if c.RootCA != "" {
 		rootCAs = append(rootCAs, c.RootCA)
@@ -78,7 +78,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 
 // OpenWithHTTPClient returns a connector which can be used to login users through an upstream
 // OpenShift OAuth2 provider. It provides the ability to inject a http.Client.
-func (c *Config) OpenWithHTTPClient(id string, logger log.Logger,
+func (c *Config) OpenWithHTTPClient(id string, logger *slog.Logger,
 	httpClient *http.Client,
 ) (conn connector.Connector, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -96,7 +96,7 @@ func (c *Config) OpenWithHTTPClient(id string, logger log.Logger,
 		clientID:     c.ClientID,
 		clientSecret: c.ClientSecret,
 		insecureCA:   c.InsecureCA,
-		logger:       logger,
+		logger:       logger.With(slog.Group("connector", "type", "openshift", "id", id)),
 		redirectURI:  c.RedirectURI,
 		rootCA:       c.RootCA,
 		groups:       c.Groups,

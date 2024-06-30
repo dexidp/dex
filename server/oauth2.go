@@ -105,6 +105,7 @@ const (
 	errUnsupportedGrantType    = "unsupported_grant_type"
 	errInvalidGrant            = "invalid_grant"
 	errInvalidClient           = "invalid_client"
+	errInactiveToken           = "inactive_token"
 )
 
 const (
@@ -306,10 +307,53 @@ func (s *Server) newAccessToken(clientID string, claims storage.Claims, scopes [
 	return s.newIDToken(clientID, claims, scopes, nonce, storage.NewID(), "", connID)
 }
 
+func getClientID(aud audience, azp string) (string, error) {
+	switch len(aud) {
+	case 0:
+		return "", fmt.Errorf("no audience is set, could not find ClientID")
+	case 1:
+		return aud[0], nil
+	default:
+		return azp, nil
+	}
+}
+
+func getAudience(clientID string, scopes []string) audience {
+	var aud audience
+
+	for _, scope := range scopes {
+		if peerID, ok := parseCrossClientScope(scope); ok {
+			aud = append(aud, peerID)
+		}
+	}
+
+	if len(aud) == 0 {
+		// Client didn't ask for cross client audience. Set the current
+		// client as the audience.
+		aud = audience{clientID}
+		// Client asked for cross client audience:
+		// if the current client was not requested explicitly
+	} else if !aud.contains(clientID) {
+		// by default it becomes one of entries in Audience
+		aud = append(aud, clientID)
+	}
+
+	return aud
+}
+
+func genSubject(userID string, connID string) (string, error) {
+	sub := &internal.IDTokenSubject{
+		UserId: userID,
+		ConnId: connID,
+	}
+
+	return internal.Marshal(sub)
+}
+
 func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string) (idToken string, expiry time.Time, err error) {
 	keys, err := s.storage.GetKeys()
 	if err != nil {
-		s.logger.Errorf("Failed to get keys: %v", err)
+		s.logger.Error("failed to get keys", "err", err)
 		return "", expiry, err
 	}
 
@@ -325,14 +369,9 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	issuedAt := s.now()
 	expiry = issuedAt.Add(s.idTokensValidFor)
 
-	sub := &internal.IDTokenSubject{
-		UserId: claims.UserID,
-		ConnId: connID,
-	}
-
-	subjectString, err := internal.Marshal(sub)
+	subjectString, err := genSubject(claims.UserID, connID)
 	if err != nil {
-		s.logger.Errorf("failed to marshal offline session ID: %v", err)
+		s.logger.Error("failed to marshal offline session ID", "err", err)
 		return "", expiry, fmt.Errorf("failed to marshal offline session ID: %v", err)
 	}
 
@@ -347,7 +386,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	if accessToken != "" {
 		atHash, err := accessTokenHash(signingAlg, accessToken)
 		if err != nil {
-			s.logger.Errorf("error computing at_hash: %v", err)
+			s.logger.Error("error computing at_hash", "err", err)
 			return "", expiry, fmt.Errorf("error computing at_hash: %v", err)
 		}
 		tok.AccessTokenHash = atHash
@@ -356,7 +395,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	if code != "" {
 		cHash, err := accessTokenHash(signingAlg, code)
 		if err != nil {
-			s.logger.Errorf("error computing c_hash: %v", err)
+			s.logger.Error("error computing c_hash", "err", err)
 			return "", expiry, fmt.Errorf("error computing c_hash: #{err}")
 		}
 		tok.CodeHash = cHash
@@ -392,21 +431,11 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 				// TODO(ericchiang): propagate this error to the client.
 				return "", expiry, fmt.Errorf("peer (%s) does not trust client", peerID)
 			}
-			tok.Audience = append(tok.Audience, peerID)
 		}
 	}
 
-	if len(tok.Audience) == 0 {
-		// Client didn't ask for cross client audience. Set the current
-		// client as the audience.
-		tok.Audience = audience{clientID}
-	} else {
-		// Client asked for cross client audience:
-		// if the current client was not requested explicitly
-		if !tok.Audience.contains(clientID) {
-			// by default it becomes one of entries in Audience
-			tok.Audience = append(tok.Audience, clientID)
-		}
+	tok.Audience = getAudience(clientID, scopes)
+	if len(tok.Audience) > 1 {
 		// The current client becomes the authorizing party.
 		tok.AuthorizingParty = clientID
 	}
@@ -453,7 +482,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		if err == storage.ErrNotFound {
 			return nil, newDisplayedErr(http.StatusNotFound, "Invalid client_id (%q).", clientID)
 		}
-		s.logger.Errorf("Failed to get client: %v", err)
+		s.logger.Error("failed to get client", "err", err)
 		return nil, newDisplayedErr(http.StatusInternalServerError, "Database error.")
 	}
 
@@ -472,7 +501,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	if connectorID != "" {
 		connectors, err := s.storage.ListConnectors()
 		if err != nil {
-			s.logger.Errorf("Failed to list connectors: %v", err)
+			s.logger.Error("failed to list connectors", "err", err)
 			return nil, newRedirectedErr(errServerError, "Unable to retrieve connectors")
 		}
 		if !validateConnectorID(connectors, connectorID) {
@@ -608,7 +637,7 @@ func (s *Server) validateCrossClientTrust(clientID, peerID string) (trusted bool
 	peer, err := s.storage.GetClient(peerID)
 	if err != nil {
 		if err != storage.ErrNotFound {
-			s.logger.Errorf("Failed to get client: %v", err)
+			s.logger.Error("failed to get client", "err", err)
 			return false, err
 		}
 		return false, nil

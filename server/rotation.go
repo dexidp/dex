@@ -8,11 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
 
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -61,7 +61,7 @@ type keyRotator struct {
 	strategy rotationStrategy
 	now      func() time.Time
 
-	logger log.Logger
+	logger *slog.Logger
 }
 
 // startKeyRotation begins key rotation in a new goroutine, closing once the context is canceled.
@@ -74,9 +74,9 @@ func (s *Server) startKeyRotation(ctx context.Context, strategy rotationStrategy
 	// Try to rotate immediately so properly configured storages will have keys.
 	if err := rotator.rotate(); err != nil {
 		if err == errAlreadyRotated {
-			s.logger.Infof("Key rotation not needed: %v", err)
+			s.logger.Info("key rotation not needed", "err", err)
 		} else {
-			s.logger.Errorf("failed to rotate keys: %v", err)
+			s.logger.Error("failed to rotate keys", "err", err)
 		}
 	}
 
@@ -87,7 +87,7 @@ func (s *Server) startKeyRotation(ctx context.Context, strategy rotationStrategy
 				return
 			case <-time.After(time.Second * 30):
 				if err := rotator.rotate(); err != nil {
-					s.logger.Errorf("failed to rotate keys: %v", err)
+					s.logger.Error("failed to rotate keys", "err", err)
 				}
 			}
 		}
@@ -102,7 +102,7 @@ func (k keyRotator) rotate() error {
 	if k.now().Before(keys.NextRotation) {
 		return nil
 	}
-	k.logger.Infof("keys expired, rotating")
+	k.logger.Info("keys expired, rotating")
 
 	// Generate the key outside of a storage transaction.
 	key, err := k.strategy.key()
@@ -174,7 +174,7 @@ func (k keyRotator) rotate() error {
 	if err != nil {
 		return err
 	}
-	k.logger.Infof("keys rotated, next rotation: %s", nextRotation)
+	k.logger.Info("keys rotated", "next_rotation", nextRotation)
 	return nil
 }
 
@@ -187,10 +187,10 @@ type RefreshTokenPolicy struct {
 
 	now func() time.Time
 
-	logger log.Logger
+	logger *slog.Logger
 }
 
-func NewRefreshTokenPolicy(logger log.Logger, rotation bool, validIfNotUsedFor, absoluteLifetime, reuseInterval string) (*RefreshTokenPolicy, error) {
+func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor, absoluteLifetime, reuseInterval string) (*RefreshTokenPolicy, error) {
 	r := RefreshTokenPolicy{now: time.Now, logger: logger}
 	var err error
 
@@ -199,7 +199,7 @@ func NewRefreshTokenPolicy(logger log.Logger, rotation bool, validIfNotUsedFor, 
 		if err != nil {
 			return nil, fmt.Errorf("invalid config value %q for refresh token valid if not used for: %v", validIfNotUsedFor, err)
 		}
-		logger.Infof("config refresh tokens valid if not used for: %v", validIfNotUsedFor)
+		logger.Info("config refresh tokens", "valid_if_not_used_for", validIfNotUsedFor)
 	}
 
 	if absoluteLifetime != "" {
@@ -207,7 +207,7 @@ func NewRefreshTokenPolicy(logger log.Logger, rotation bool, validIfNotUsedFor, 
 		if err != nil {
 			return nil, fmt.Errorf("invalid config value %q for refresh tokens absolute lifetime: %v", absoluteLifetime, err)
 		}
-		logger.Infof("config refresh tokens absolute lifetime: %v", absoluteLifetime)
+		logger.Info("config refresh tokens", "absolute_lifetime", absoluteLifetime)
 	}
 
 	if reuseInterval != "" {
@@ -215,11 +215,11 @@ func NewRefreshTokenPolicy(logger log.Logger, rotation bool, validIfNotUsedFor, 
 		if err != nil {
 			return nil, fmt.Errorf("invalid config value %q for refresh tokens reuse interval: %v", reuseInterval, err)
 		}
-		logger.Infof("config refresh tokens reuse interval: %v", reuseInterval)
+		logger.Info("config refresh tokens", "reuse_interval", reuseInterval)
 	}
 
 	r.rotateRefreshTokens = !rotation
-	logger.Infof("config refresh tokens rotation enabled: %v", r.rotateRefreshTokens)
+	logger.Info("config refresh tokens rotation", "enabled", r.rotateRefreshTokens)
 	return &r, nil
 }
 
