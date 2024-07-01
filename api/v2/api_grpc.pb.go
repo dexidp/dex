@@ -28,6 +28,7 @@ const (
 	Dex_DeletePassword_FullMethodName = "/api.Dex/DeletePassword"
 	Dex_ListPasswords_FullMethodName  = "/api.Dex/ListPasswords"
 	Dex_GetVersion_FullMethodName     = "/api.Dex/GetVersion"
+	Dex_GetDiscovery_FullMethodName   = "/api.Dex/GetDiscovery"
 	Dex_ListRefresh_FullMethodName    = "/api.Dex/ListRefresh"
 	Dex_RevokeRefresh_FullMethodName  = "/api.Dex/RevokeRefresh"
 	Dex_VerifyPassword_FullMethodName = "/api.Dex/VerifyPassword"
@@ -55,6 +56,8 @@ type DexClient interface {
 	ListPasswords(ctx context.Context, in *ListPasswordReq, opts ...grpc.CallOption) (*ListPasswordResp, error)
 	// GetVersion returns version information of the server.
 	GetVersion(ctx context.Context, in *VersionReq, opts ...grpc.CallOption) (*VersionResp, error)
+	// GetVersion returns version information of the server.
+	GetDiscovery(ctx context.Context, in *DiscoveryReq, opts ...grpc.CallOption) (*DiscoveryResp, error)
 	// ListRefresh lists all the refresh token entries for a particular user.
 	ListRefresh(ctx context.Context, in *ListRefreshReq, opts ...grpc.CallOption) (*ListRefreshResp, error)
 	// RevokeRefresh revokes the refresh token for the provided user-client pair.
@@ -154,6 +157,15 @@ func (c *dexClient) GetVersion(ctx context.Context, in *VersionReq, opts ...grpc
 	return out, nil
 }
 
+func (c *dexClient) GetDiscovery(ctx context.Context, in *DiscoveryReq, opts ...grpc.CallOption) (*DiscoveryResp, error) {
+	out := new(DiscoveryResp)
+	err := c.cc.Invoke(ctx, Dex_GetDiscovery_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dexClient) ListRefresh(ctx context.Context, in *ListRefreshReq, opts ...grpc.CallOption) (*ListRefreshResp, error) {
 	out := new(ListRefreshResp)
 	err := c.cc.Invoke(ctx, Dex_ListRefresh_FullMethodName, in, out, opts...)
@@ -203,6 +215,8 @@ type DexServer interface {
 	ListPasswords(context.Context, *ListPasswordReq) (*ListPasswordResp, error)
 	// GetVersion returns version information of the server.
 	GetVersion(context.Context, *VersionReq) (*VersionResp, error)
+	// GetVersion returns version information of the server.
+	GetDiscovery(context.Context, *DiscoveryReq) (*DiscoveryResp, error)
 	// ListRefresh lists all the refresh token entries for a particular user.
 	ListRefresh(context.Context, *ListRefreshReq) (*ListRefreshResp, error)
 	// RevokeRefresh revokes the refresh token for the provided user-client pair.
@@ -244,6 +258,9 @@ func (UnimplementedDexServer) ListPasswords(context.Context, *ListPasswordReq) (
 }
 func (UnimplementedDexServer) GetVersion(context.Context, *VersionReq) (*VersionResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetVersion not implemented")
+}
+func (UnimplementedDexServer) GetDiscovery(context.Context, *DiscoveryReq) (*DiscoveryResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDiscovery not implemented")
 }
 func (UnimplementedDexServer) ListRefresh(context.Context, *ListRefreshReq) (*ListRefreshResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListRefresh not implemented")
@@ -429,6 +446,24 @@ func _Dex_GetVersion_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Dex_GetDiscovery_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DiscoveryReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).GetDiscovery(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_GetDiscovery_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).GetDiscovery(ctx, req.(*DiscoveryReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Dex_ListRefresh_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListRefreshReq)
 	if err := dec(in); err != nil {
@@ -525,6 +560,10 @@ var Dex_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetVersion",
 			Handler:    _Dex_GetVersion_Handler,
+		},
+		{
+			MethodName: "GetDiscovery",
+			Handler:    _Dex_GetDiscovery_Handler,
 		},
 		{
 			MethodName: "ListRefresh",
