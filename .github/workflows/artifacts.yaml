@@ -178,14 +178,14 @@ jobs:
 
       # TODO: uncomment when the action is working for non ghcr.io pushes. GH Issue: https://github.com/actions/attest-build-provenance/issues/80
       # - name: Generate build provenance attestation
-      #   uses: actions/attest-build-provenance@534b352d658f90498fd148d231fdbf88f3886a3a # v1.3.1
+      #   uses: actions/attest-build-provenance@5e9cb68e95676991667494a6a4e59b8a2f13e1d0 # v1.3.3
       #   with:
       #     subject-name: dexidp/dex
       #     subject-digest: ${{ steps.build.outputs.digest }}
       #     push-to-registry: true
 
       - name: Generate build provenance attestation
-        uses: actions/attest-build-provenance@534b352d658f90498fd148d231fdbf88f3886a3a # v1.3.1
+        uses: actions/attest-build-provenance@5e9cb68e95676991667494a6a4e59b8a2f13e1d0 # v1.3.3
         with:
           subject-name: ghcr.io/dexidp/dex
           subject-digest: ${{ steps.build.outputs.digest }}
