@@ -531,9 +531,10 @@ func (c *githubConnector) user(ctx context.Context, client *http.Client) (user, 
 		return u, err
 	}
 
-	// Only public user emails are returned by 'GET /user'. u.Email will be empty
-	// if a users' email is private. We must retrieve private emails explicitly.
-	if u.Email == "" {
+	// Only public user emails are returned by 'GET /user'.
+	// If a user has no public email, we must retrieve private emails explicitly.
+	// If preferredEmailDomain is set, we always need to retrieve all emails.
+	if u.Email == "" || c.preferredEmailDomain != "" {
 		var err error
 		if u.Email, err = c.userEmail(ctx, client); err != nil {
 			return u, err
