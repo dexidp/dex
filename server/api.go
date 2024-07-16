@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"log/slog"
+	"slices"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -33,9 +33,9 @@ const (
 // NewAPI returns a server which implements the gRPC API interface.
 func NewAPI(s storage.Storage, logger *slog.Logger, version string, additionalFeatures []AdditionalFeature) api.DexServer {
 	return dexAPI{
-		s:       s,
-		logger:  logger.With("component", "api"),
-		version: version,
+		s:                  s,
+		logger:             logger.With("component", "api"),
+		version:            version,
 		additionalFeatures: additionalFeatures,
 	}
 }

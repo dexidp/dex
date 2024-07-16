@@ -5,7 +5,6 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -494,11 +493,7 @@ func find(item string, items []string) bool {
 }
 
 func TestCreateConnector(t *testing.T) {
-	logger := &logrus.Logger{
-		Out:       os.Stderr,
-		Formatter: &logrus.TextFormatter{DisableColors: true},
-		Level:     logrus.DebugLevel,
-	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t, []AdditionalFeature{ConnectorsCRUD})
@@ -545,11 +540,7 @@ func TestCreateConnector(t *testing.T) {
 }
 
 func TestUpdateConnector(t *testing.T) {
-	logger := &logrus.Logger{
-		Out:       os.Stderr,
-		Formatter: &logrus.TextFormatter{DisableColors: true},
-		Level:     logrus.DebugLevel,
-	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t, []AdditionalFeature{ConnectorsCRUD})
@@ -614,11 +605,7 @@ func TestUpdateConnector(t *testing.T) {
 }
 
 func TestDeleteConnector(t *testing.T) {
-	logger := &logrus.Logger{
-		Out:       os.Stderr,
-		Formatter: &logrus.TextFormatter{DisableColors: true},
-		Level:     logrus.DebugLevel,
-	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t, []AdditionalFeature{ConnectorsCRUD})
@@ -659,11 +646,7 @@ func TestDeleteConnector(t *testing.T) {
 }
 
 func TestListConnectors(t *testing.T) {
-	logger := &logrus.Logger{
-		Out:       os.Stderr,
-		Formatter: &logrus.TextFormatter{DisableColors: true},
-		Level:     logrus.DebugLevel,
-	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t, []AdditionalFeature{ConnectorsCRUD})
@@ -703,11 +686,7 @@ func TestListConnectors(t *testing.T) {
 }
 
 func TestMissingAdditionalFeature(t *testing.T) {
-	logger := &logrus.Logger{
-		Out:       os.Stderr,
-		Formatter: &logrus.TextFormatter{DisableColors: true},
-		Level:     logrus.DebugLevel,
-	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t, []AdditionalFeature{})
