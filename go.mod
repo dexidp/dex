@@ -3,7 +3,7 @@ module github.com/dexidp/dex
 go 1.21
 
 require (
-	cloud.google.com/go/compute/metadata v0.3.0
+	cloud.google.com/go/compute/metadata v0.5.0
 	entgo.io/ent v0.13.1
 	github.com/AppsFlyer/go-sundheit v0.5.1
 	github.com/Masterminds/semver v1.5.0
