@@ -164,6 +164,6 @@ staticPasswords:
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
 
 # A list of features that extend Dex functionalities
-# additionalFeatures: 
+# additionalFeatures:
 #   # allows CRUD operations on connectors through the gRPC API
 #   - "ConnectorsCRUD"
