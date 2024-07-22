@@ -263,7 +263,8 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 			Scopes:       scopes,
 			RedirectURL:  c.RedirectURI,
 		},
-		verifier: provider.Verifier(
+		verifier: provider.VerifierContext(
+			ctx, // Pass our ctx with customized http.Client
 			&oidc.Config{ClientID: clientID},
 		),
 		logger:                    logger.With(slog.Group("connector", "type", "oidc", "id", id)),
