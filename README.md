@@ -96,7 +96,7 @@ All changes or deprecations of connector features will be announced in the [rele
 * [Getting started](https://dexidp.io/docs/getting-started/)
 * [Intro to OpenID Connect](https://dexidp.io/docs/openid-connect/)
 * [Writing apps that use dex][using-dex]
-* [What's new in v2](https://dexidp.io/docs/v2/)
+* [What's new in v2](https://dexidp.io/docs/archive/v2/)
 * [Custom scopes, claims, and client features](https://dexidp.io/docs/custom-scopes-claims-clients/)
 * [Storage options](https://dexidp.io/docs/storage/)
 * [gRPC API](https://dexidp.io/docs/api/)
