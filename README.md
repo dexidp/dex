@@ -1,4 +1,4 @@
-# giantswarm/dex
+# dex - A federated OpenID Connect provider
 
 This repository is a fork of [dexidp/dex](https://github.com/dexidp/dex).
 
