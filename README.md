@@ -1,3 +1,5 @@
+# dex - A federated OpenID Connect provider
+
 ![logo](docs/logos/dex-horizontal-color.png)
 
 This repository is a fork of [dexidp/dex](https://github.com/dexidp/dex).
