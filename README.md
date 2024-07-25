@@ -6,8 +6,6 @@ This repository is a fork of [dexidp/dex](https://github.com/dexidp/dex).
 
 [Giant Swarm](https://www.giantswarm.io/) uses Dex for [authentication to our Platform API](https://docs.giantswarm.io/overview/architecture/authentication/) and offer it as part of [auth-bundle managed app](https://github.com/giantswarm/auth-bundle) for our customer to enable authentication capabilities in a Giant Swarm cluster.
 
-We have also build an operator called [dex-operator](https://github.com/giantswarm/dex-operator) that uses Dex as library for automating Dex configuration for Giant Swarm cluster.
-
 ## Release Process
 
 We follow same [release process as upstream](https://dexidp.io/docs/development/releases/), so please follow the same.
