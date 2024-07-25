@@ -139,9 +139,7 @@ For the best developer experience, install [Nix](https://builtwithnix.org/) and 
 
 Alternatively, install Go and Docker manually or using a package manager. Install the rest of the dependencies by running `make deps`.
 
-## Releases
-
-Please follow the [release process documented here](https://dexidp.io/docs/development/releases/).
+For release process, please read the [release documentation](https://dexidp.io/docs/development/releases/).
 
 ## License
 
