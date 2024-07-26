@@ -399,7 +399,7 @@ func getCredentialsFromDefault(ctx context.Context, email string, logger *slog.L
 // createServiceWithMetadataServer creates a new service using metadata server.
 // If an error occurs during the process, it is returned along with a nil service.
 func createServiceWithMetadataServer(ctx context.Context, adminEmail string, logger *slog.Logger) (*admin.Service, error) {
-	serviceAccountEmail, err := metadata.Email("default")
+	serviceAccountEmail, err := metadata.EmailWithContext(ctx, "default")
 	logger.Info("discovered serviceAccountEmail", "email", serviceAccountEmail)
 
 	if err != nil {
