@@ -31,7 +31,7 @@ require (
 	github.com/russellhaering/goxmldsig v1.4.0
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.9.0
-	go.etcd.io/etcd/client/pkg/v3 v3.5.14
+	go.etcd.io/etcd/client/pkg/v3 v3.5.15
 	go.etcd.io/etcd/client/v3 v3.5.14
 	golang.org/x/crypto v0.25.0
 	golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
