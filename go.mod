@@ -5,7 +5,7 @@ go 1.21
 require (
 	cloud.google.com/go/compute/metadata v0.5.0
 	entgo.io/ent v0.13.1
-	github.com/AppsFlyer/go-sundheit v0.5.1
+	github.com/AppsFlyer/go-sundheit v0.6.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/beevik/etree v1.4.0
