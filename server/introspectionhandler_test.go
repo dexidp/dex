@@ -259,7 +259,7 @@ func TestHandleIntrospect(t *testing.T) {
 
 	mockTestStorage(t, s.storage)
 
-	activeAccessToken, expiry, err := s.newIDToken("test", storage.Claims{
+	activeAccessToken, expiry, err := s.newIDToken(ctx, "test", storage.Claims{
 		UserID:        "1",
 		Username:      "jane",
 		Email:         "jane.doe@example.com",

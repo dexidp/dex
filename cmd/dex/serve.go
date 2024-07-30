@@ -348,6 +348,12 @@ func runServe(options serveOptions) error {
 	}
 
 	serverConfig.RefreshTokenPolicy = refreshTokenPolicy
+
+	serverConfig.RealIPHeader, serverConfig.TrustedRealIPCIDRs, err = c.Web.ClientRemoteIP.ToParsedCIDRs()
+	if err != nil {
+		return fmt.Errorf("failed to parse client remote IP settings: %v", err)
+	}
+
 	serv, err := server.NewServer(context.Background(), serverConfig)
 	if err != nil {
 		return fmt.Errorf("failed to initialize server: %v", err)
@@ -526,26 +532,6 @@ func runServe(options serveOptions) error {
 		logger.Info("shutdown now", "err", err)
 	}
 	return nil
-}
-
-var logFormats = []string{"json", "text"}
-
-func newLogger(level slog.Level, format string) (*slog.Logger, error) {
-	var handler slog.Handler
-	switch strings.ToLower(format) {
-	case "", "text":
-		handler = slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-			Level: level,
-		})
-	case "json":
-		handler = slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
-			Level: level,
-		})
-	default:
-		return nil, fmt.Errorf("log format is not one of the supported values (%s): %s", strings.Join(logFormats, ", "), format)
-	}
-
-	return slog.New(handler), nil
 }
 
 func applyConfigOverrides(options serveOptions, config *Config) {

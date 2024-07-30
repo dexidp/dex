@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"os"
 	"slices"
 	"strings"
@@ -182,15 +183,36 @@ type OAuth2 struct {
 
 // Web is the config format for the HTTP server.
 type Web struct {
-	HTTP           string   `json:"http"`
-	HTTPS          string   `json:"https"`
-	Headers        Headers  `json:"headers"`
-	TLSCert        string   `json:"tlsCert"`
-	TLSKey         string   `json:"tlsKey"`
-	TLSMinVersion  string   `json:"tlsMinVersion"`
-	TLSMaxVersion  string   `json:"tlsMaxVersion"`
-	AllowedOrigins []string `json:"allowedOrigins"`
-	AllowedHeaders []string `json:"allowedHeaders"`
+	HTTP           string         `json:"http"`
+	HTTPS          string         `json:"https"`
+	Headers        Headers        `json:"headers"`
+	TLSCert        string         `json:"tlsCert"`
+	TLSKey         string         `json:"tlsKey"`
+	TLSMinVersion  string         `json:"tlsMinVersion"`
+	TLSMaxVersion  string         `json:"tlsMaxVersion"`
+	AllowedOrigins []string       `json:"allowedOrigins"`
+	AllowedHeaders []string       `json:"allowedHeaders"`
+	ClientRemoteIP ClientRemoteIP `json:"clientRemoteIP"`
+}
+
+type ClientRemoteIP struct {
+	Header            string   `json:"header"`
+	TrustedProxyCIDRs []string `json:"trustedProxyCIDRs"`
+}
+
+func (cr *ClientRemoteIP) ToParsedCIDRs() (string, []netip.Prefix, error) {
+	if cr == nil {
+		return "", nil, nil
+	}
+	trusted := make([]netip.Prefix, 0, len(cr.TrustedProxyCIDRs))
+	for _, cidr := range cr.TrustedProxyCIDRs {
+		ipNet, err := netip.ParsePrefix(cidr)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to parse CIDR %q: %v", cidr, err)
+		}
+		trusted = append(trusted, ipNet)
+	}
+	return cr.Header, trusted, nil
 }
 
 type Headers struct {
