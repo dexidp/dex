@@ -401,12 +401,12 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 			// Context values are used for logging purposes with the log/slog logger.
 			rCtx := r.Context()
-			rCtx = SetLogRequestID(rCtx)
+			rCtx = WithRequestID(rCtx)
 
 			if c.RealIPHeader != "" {
 				realIP, err := parseRealIP(r)
 				if err == nil {
-					rCtx = SetLogRemoteIP(rCtx, realIP)
+					rCtx = WithRemoteIP(rCtx, realIP)
 				}
 			}
 
@@ -739,9 +739,9 @@ const (
 )
 
 func WithRequestID(ctx context.Context) context.Context {
-	return context.WithValue(ctx, LogRequestKeyRequestID, uuid.NewString())
+	return context.WithValue(ctx, RequestKeyRequestID, uuid.NewString())
 }
 
-func SetLogRemoteIP(ctx context.Context, ip string) context.Context {
-	return context.WithValue(ctx, LogRequestKeyRemoteIP, ip)
+func WithRemoteIP(ctx context.Context, ip string) context.Context {
+	return context.WithValue(ctx, RequestKeyRemoteIP, ip)
 }

@@ -349,7 +349,8 @@ func runServe(options serveOptions) error {
 
 	serverConfig.RefreshTokenPolicy = refreshTokenPolicy
 
-	serverConfig.RealIPHeader, serverConfig.TrustedRealIPCIDRs, err = c.Web.ClientRemoteIP.ToParsedCIDRs()
+	serverConfig.RealIPHeader = c.Web.ClientRemoteIP.Header
+	serverConfig.TrustedRealIPCIDRs, err = c.Web.ClientRemoteIP.ParseTrustedProxies()
 	if err != nil {
 		return fmt.Errorf("failed to parse client remote IP settings: %v", err)
 	}

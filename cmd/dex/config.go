@@ -196,25 +196,25 @@ type Web struct {
 }
 
 type ClientRemoteIP struct {
-	Header            string   `json:"header"`
-	TrustedProxyCIDRs []string `json:"trustedProxyCIDRs"`
+	Header         string   `json:"header"`
+	TrustedProxies []string `json:"trustedProxies"`
 }
 
-func (cr *ClientRemoteIP) ToParsedCIDRs() (string, []netip.Prefix, error) {
+func (cr *ClientRemoteIP) ParseTrustedProxies() ([]netip.Prefix, error) {
 	if cr == nil {
-		return "", nil, nil
+		return nil, nil
 	}
 
-	trusted := make([]netip.Prefix, 0, len(cr.TrustedProxyCIDRs))
-	for _, cidr := range cr.TrustedProxyCIDRs {
+	trusted := make([]netip.Prefix, 0, len(cr.TrustedProxies))
+	for _, cidr := range cr.TrustedProxies {
 		ipNet, err := netip.ParsePrefix(cidr)
 		if err != nil {
-			return "", nil, fmt.Errorf("failed to parse CIDR %q: %v", cidr, err)
+			return nil, fmt.Errorf("failed to parse CIDR %q: %v", cidr, err)
 		}
 		trusted = append(trusted, ipNet)
 	}
 
-	return cr.Header, trusted, nil
+	return trusted, nil
 }
 
 type Headers struct {

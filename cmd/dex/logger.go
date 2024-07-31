@@ -47,12 +47,12 @@ func (h requestContextHandler) Enabled(ctx context.Context, level slog.Level) bo
 }
 
 func (h requestContextHandler) Handle(ctx context.Context, record slog.Record) error {
-	if v, ok := ctx.Value(server.LogRequestKeyRemoteIP).(string); ok {
-		record.AddAttrs(slog.String(string(server.LogRequestKeyRemoteIP), v))
+	if v, ok := ctx.Value(server.RequestKeyRemoteIP).(string); ok {
+		record.AddAttrs(slog.String(string(server.RequestKeyRemoteIP), v))
 	}
 
-	if v, ok := ctx.Value(server.LogRequestKeyRequestID).(string); ok {
-		record.AddAttrs(slog.String(string(server.LogRequestKeyRequestID), v))
+	if v, ok := ctx.Value(server.RequestKeyRequestID).(string); ok {
+		record.AddAttrs(slog.String(string(server.RequestKeyRequestID), v))
 	}
 
 	return h.handler.Handle(ctx, record)
