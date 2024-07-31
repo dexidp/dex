@@ -139,6 +139,8 @@ For the best developer experience, install [Nix](https://builtwithnix.org/) and 
 
 Alternatively, install Go and Docker manually or using a package manager. Install the rest of the dependencies by running `make deps`.
 
+For release process, please read the [release documentation](https://dexidp.io/docs/development/releases/).
+
 ## License
 
 The project is licensed under the [Apache License, Version 2.0](LICENSE).
