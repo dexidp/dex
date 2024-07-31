@@ -87,6 +87,7 @@ type Config struct {
 
 	// Headers is a map of headers to be added to the all responses.
 	Headers http.Header
+
 	// Header to extract real ip from.
 	RealIPHeader       string
 	TrustedRealIPCIDRs []netip.Prefix
@@ -733,11 +734,11 @@ func (s *Server) getConnector(id string) (Connector, error) {
 type logRequestKey string
 
 const (
-	LogRequestKeyRequestID logRequestKey = "request_id"
-	LogRequestKeyRemoteIP  logRequestKey = "client_remote_addr"
+	RequestKeyRequestID logRequestKey = "request_id"
+	RequestKeyRemoteIP  logRequestKey = "client_remote_addr"
 )
 
-func SetLogRequestID(ctx context.Context) context.Context {
+func WithRequestID(ctx context.Context) context.Context {
 	return context.WithValue(ctx, LogRequestKeyRequestID, uuid.NewString())
 }
 

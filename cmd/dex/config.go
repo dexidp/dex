@@ -204,6 +204,7 @@ func (cr *ClientRemoteIP) ToParsedCIDRs() (string, []netip.Prefix, error) {
 	if cr == nil {
 		return "", nil, nil
 	}
+
 	trusted := make([]netip.Prefix, 0, len(cr.TrustedProxyCIDRs))
 	for _, cidr := range cr.TrustedProxyCIDRs {
 		ipNet, err := netip.ParsePrefix(cidr)
@@ -212,6 +213,7 @@ func (cr *ClientRemoteIP) ToParsedCIDRs() (string, []netip.Prefix, error) {
 		}
 		trusted = append(trusted, ipNet)
 	}
+
 	return cr.Header, trusted, nil
 }
 
