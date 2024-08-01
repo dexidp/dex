@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/api/v2"
+	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -31,12 +31,11 @@ const (
 )
 
 // NewAPI returns a server which implements the gRPC API interface.
-func NewAPI(s storage.Storage, logger *slog.Logger, version string, additionalFeatures []AdditionalFeature) api.DexServer {
+func NewAPI(s storage.Storage, logger *slog.Logger, version string) api.DexServer {
 	return dexAPI{
-		s:                  s,
-		logger:             logger.With("component", "api"),
-		version:            version,
-		additionalFeatures: additionalFeatures,
+		s:       s,
+		logger:  logger.With("component", "api"),
+		version: version,
 	}
 }
 
@@ -46,8 +45,6 @@ type dexAPI struct {
 	s       storage.Storage
 	logger  *slog.Logger
 	version string
-
-	additionalFeatures []AdditionalFeature
 }
 
 func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetClientResp, error) {
@@ -392,8 +389,8 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 }
 
 func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq) (*api.CreateConnectorResp, error) {
-	if !slices.Contains(d.additionalFeatures, ConnectorsCRUD) {
-		return nil, fmt.Errorf("%v not provided in addtionalFeatures", ConnectorsCRUD)
+	if !featureflags.APIConnectorsCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
 	}
 
 	if req.Connector.Id == "" {
@@ -434,8 +431,8 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 }
 
 func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq) (*api.UpdateConnectorResp, error) {
-	if !slices.Contains(d.additionalFeatures, ConnectorsCRUD) {
-		return nil, fmt.Errorf("%v not provided in addtionalFeatures", ConnectorsCRUD)
+	if !featureflags.APIConnectorsCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
 	}
 
 	if req.Id == "" {
@@ -478,8 +475,8 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 }
 
 func (d dexAPI) DeleteConnector(ctx context.Context, req *api.DeleteConnectorReq) (*api.DeleteConnectorResp, error) {
-	if !slices.Contains(d.additionalFeatures, ConnectorsCRUD) {
-		return nil, fmt.Errorf("%v not provided in addtionalFeatures", ConnectorsCRUD)
+	if !featureflags.APIConnectorsCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
 	}
 
 	if req.Id == "" {
@@ -498,8 +495,8 @@ func (d dexAPI) DeleteConnector(ctx context.Context, req *api.DeleteConnectorReq
 }
 
 func (d dexAPI) ListConnectors(ctx context.Context, req *api.ListConnectorReq) (*api.ListConnectorResp, error) {
-	if !slices.Contains(d.additionalFeatures, ConnectorsCRUD) {
-		return nil, fmt.Errorf("%v not provided in addtionalFeatures", ConnectorsCRUD)
+	if !featureflags.APIConnectorsCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
 	}
 
 	connectorList, err := d.s.ListConnectors()

@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -30,14 +31,14 @@ type apiClient struct {
 }
 
 // newAPI constructs a gRCP client connected to a backing server.
-func newAPI(s storage.Storage, logger *slog.Logger, t *testing.T, addtionalFeatures []AdditionalFeature) *apiClient {
+func newAPI(s storage.Storage, logger *slog.Logger, t *testing.T) *apiClient {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	serv := grpc.NewServer()
-	api.RegisterDexServer(serv, NewAPI(s, logger, "test", addtionalFeatures))
+	api.RegisterDexServer(serv, NewAPI(s, logger, "test"))
 	go serv.Serve(l)
 
 	// NewClient will retry automatically if the serv.Serve() goroutine
@@ -62,7 +63,7 @@ func TestPassword(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t, []AdditionalFeature{})
+	client := newAPI(s, logger, t)
 	defer client.Close()
 
 	ctx := context.Background()
@@ -171,7 +172,7 @@ func TestCheckCost(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t, []AdditionalFeature{})
+	client := newAPI(s, logger, t)
 	defer client.Close()
 
 	tests := []struct {
@@ -224,7 +225,7 @@ func TestRefreshToken(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t, []AdditionalFeature{})
+	client := newAPI(s, logger, t)
 	defer client.Close()
 
 	ctx := context.Background()
@@ -333,7 +334,7 @@ func TestUpdateClient(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t, []AdditionalFeature{})
+	client := newAPI(s, logger, t)
 	defer client.Close()
 	ctx := context.Background()
 
@@ -493,10 +494,13 @@ func find(item string, items []string) bool {
 }
 
 func TestCreateConnector(t *testing.T) {
+	os.Setenv("DEX_API_CONNECTORS_CRUD", "true")
+	defer os.Unsetenv("DEX_API_CONNECTORS_CRUD")
+
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t, []AdditionalFeature{ConnectorsCRUD})
+	client := newAPI(s, logger, t)
 	defer client.Close()
 
 	ctx := context.Background()
@@ -540,10 +544,13 @@ func TestCreateConnector(t *testing.T) {
 }
 
 func TestUpdateConnector(t *testing.T) {
+	os.Setenv("DEX_API_CONNECTORS_CRUD", "true")
+	defer os.Unsetenv("DEX_API_CONNECTORS_CRUD")
+
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t, []AdditionalFeature{ConnectorsCRUD})
+	client := newAPI(s, logger, t)
 	defer client.Close()
 
 	ctx := context.Background()
@@ -605,10 +612,13 @@ func TestUpdateConnector(t *testing.T) {
 }
 
 func TestDeleteConnector(t *testing.T) {
+	os.Setenv("DEX_API_CONNECTORS_CRUD", "true")
+	defer os.Unsetenv("DEX_API_CONNECTORS_CRUD")
+
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t, []AdditionalFeature{ConnectorsCRUD})
+	client := newAPI(s, logger, t)
 	defer client.Close()
 
 	ctx := context.Background()
@@ -646,10 +656,13 @@ func TestDeleteConnector(t *testing.T) {
 }
 
 func TestListConnectors(t *testing.T) {
+	os.Setenv("DEX_API_CONNECTORS_CRUD", "true")
+	defer os.Unsetenv("DEX_API_CONNECTORS_CRUD")
+
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t, []AdditionalFeature{ConnectorsCRUD})
+	client := newAPI(s, logger, t)
 	defer client.Close()
 
 	ctx := context.Background()
@@ -685,11 +698,11 @@ func TestListConnectors(t *testing.T) {
 	}
 }
 
-func TestMissingAdditionalFeature(t *testing.T) {
+func TestMissingConnectorsCRUDFeatureFlag(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	s := memory.New(logger)
-	client := newAPI(s, logger, t, []AdditionalFeature{})
+	client := newAPI(s, logger, t)
 	defer client.Close()
 
 	ctx := context.Background()

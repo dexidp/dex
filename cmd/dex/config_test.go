@@ -37,10 +37,7 @@ func TestValidConfiguration(t *testing.T) {
 				Config: &mock.CallbackConfig{},
 			},
 		},
-		AdditionalFeatures: server.ValidAdditionalFeatures,
 	}
-
-	configuration.Parse()
 
 	if err := configuration.Validate(); err != nil {
 		t.Fatalf("this configuration should have been valid: %v", err)
@@ -49,7 +46,6 @@ func TestValidConfiguration(t *testing.T) {
 
 func TestInvalidConfiguration(t *testing.T) {
 	configuration := Config{}
-	configuration.Parse()
 	err := configuration.Validate()
 	if err == nil {
 		t.Fatal("this configuration should be invalid")
@@ -232,15 +228,12 @@ additionalFeatures: [
 			Level:  slog.LevelDebug,
 			Format: "json",
 		},
-		AdditionalFeatures: server.ValidAdditionalFeatures,
 	}
 
 	var c Config
 	if err := yaml.Unmarshal(rawConfig, &c); err != nil {
 		t.Fatalf("failed to decode config: %v", err)
 	}
-
-	c.Parse()
 
 	if diff := pretty.Compare(c, want); diff != "" {
 		t.Errorf("got!=want: %s", diff)
@@ -450,18 +443,7 @@ logger:
 		t.Fatalf("failed to decode config: %v", err)
 	}
 
-	c.Parse()
-
 	if diff := pretty.Compare(c, want); diff != "" {
 		t.Errorf("got!=want: %s", diff)
-	}
-}
-
-func TestParseConfig(t *testing.T) {
-	configuration := Config{}
-	configuration.Parse()
-
-	if configuration.AdditionalFeatures == nil || len(configuration.AdditionalFeatures) != 0 {
-		t.Fatal("AdditionalFeatures should be an empty slice")
 	}
 }
