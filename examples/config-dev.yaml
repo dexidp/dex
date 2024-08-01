@@ -58,7 +58,10 @@ web:
   #   X-XSS-Protection: "1; mode=block"
   #   Content-Security-Policy: "default-src 'self'"
   #   Strict-Transport-Security: "max-age=31536000; includeSubDomains"
-
+  # clientRemoteIP:
+  #   header: X-Forwarded-For
+  #   trustedProxies:
+  #   - 10.0.0.0/8
 
 # Configuration for dex appearance
 # frontend:

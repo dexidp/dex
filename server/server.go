@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"path"
@@ -21,6 +23,7 @@ import (
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
 	"github.com/felixge/httpsnoop"
+	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
@@ -84,6 +87,10 @@ type Config struct {
 
 	// Headers is a map of headers to be added to the all responses.
 	Headers http.Header
+
+	// Header to extract real ip from.
+	RealIPHeader       string
+	TrustedRealIPCIDRs []netip.Prefix
 
 	// List of allowed origins for CORS requests on discovery, token and keys endpoint.
 	// If none are indicated, CORS requests are disabled. Passing in "*" will allow any
@@ -358,11 +365,52 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 	}
 
+	parseRealIP := func(r *http.Request) (string, error) {
+		remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			return "", err
+		}
+
+		remoteIP, err := netip.ParseAddr(remoteAddr)
+		if err != nil {
+			return "", err
+		}
+
+		for _, n := range c.TrustedRealIPCIDRs {
+			if !n.Contains(remoteIP) {
+				return remoteAddr, nil // Fallback to the address from the request if the header is provided
+			}
+		}
+
+		ipVal := r.Header.Get(c.RealIPHeader)
+		if ipVal != "" {
+			ip, err := netip.ParseAddr(ipVal)
+			if err == nil {
+				return ip.String(), nil
+			}
+		}
+
+		return remoteAddr, nil
+	}
+
 	handlerWithHeaders := func(handlerName string, handler http.Handler) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			for k, v := range c.Headers {
 				w.Header()[k] = v
 			}
+
+			// Context values are used for logging purposes with the log/slog logger.
+			rCtx := r.Context()
+			rCtx = WithRequestID(rCtx)
+
+			if c.RealIPHeader != "" {
+				realIP, err := parseRealIP(r)
+				if err == nil {
+					rCtx = WithRemoteIP(rCtx, realIP)
+				}
+			}
+
+			r = r.WithContext(rCtx)
 			instrumentHandlerCounter(handlerName, handler)(w, r)
 		}
 	}
@@ -681,4 +729,19 @@ func (s *Server) getConnector(id string) (Connector, error) {
 	}
 
 	return conn, nil
+}
+
+type logRequestKey string
+
+const (
+	RequestKeyRequestID logRequestKey = "request_id"
+	RequestKeyRemoteIP  logRequestKey = "client_remote_addr"
+)
+
+func WithRequestID(ctx context.Context) context.Context {
+	return context.WithValue(ctx, RequestKeyRequestID, uuid.NewString())
+}
+
+func WithRemoteIP(ctx context.Context, ip string) context.Context {
+	return context.WithValue(ctx, RequestKeyRemoteIP, ip)
 }

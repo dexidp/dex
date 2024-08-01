@@ -179,7 +179,7 @@ func (s *Server) getTokenFromRequest(r *http.Request) (string, TokenTypeEnum, er
 	token := r.PostForm.Get("token")
 	tokenType, err := s.guessTokenType(r.Context(), token)
 	if err != nil {
-		s.logger.Error("failed to guess token type", "err", err)
+		s.logger.ErrorContext(r.Context(), "failed to guess token type", "err", err)
 		return "", 0, newIntrospectInternalServerError()
 	}
 
@@ -193,7 +193,7 @@ func (s *Server) getTokenFromRequest(r *http.Request) (string, TokenTypeEnum, er
 	return token, tokenType, nil
 }
 
-func (s *Server) introspectRefreshToken(_ context.Context, token string) (*Introspection, error) {
+func (s *Server) introspectRefreshToken(ctx context.Context, token string) (*Introspection, error) {
 	rToken := new(internal.RefreshToken)
 	if err := internal.Unmarshal(token, rToken); err != nil {
 		// For backward compatibility, assume the refresh_token is a raw refresh token ID
@@ -205,19 +205,19 @@ func (s *Server) introspectRefreshToken(_ context.Context, token string) (*Intro
 		rToken = &internal.RefreshToken{RefreshId: token, Token: ""}
 	}
 
-	rCtx, err := s.getRefreshTokenFromStorage(nil, rToken)
+	rCtx, err := s.getRefreshTokenFromStorage(ctx, nil, rToken)
 	if err != nil {
 		if errors.Is(err, invalidErr) || errors.Is(err, expiredErr) {
 			return nil, newIntrospectInactiveTokenError()
 		}
 
-		s.logger.Error("failed to get refresh token", "err", err)
+		s.logger.ErrorContext(ctx, "failed to get refresh token", "err", err)
 		return nil, newIntrospectInternalServerError()
 	}
 
 	subjectString, sErr := genSubject(rCtx.storageToken.Claims.UserID, rCtx.storageToken.ConnectorID)
 	if sErr != nil {
-		s.logger.Error("failed to marshal offline session ID", "err", err)
+		s.logger.ErrorContext(ctx, "failed to marshal offline session ID", "err", err)
 		return nil, newIntrospectInternalServerError()
 	}
 
@@ -253,19 +253,19 @@ func (s *Server) introspectAccessToken(ctx context.Context, token string) (*Intr
 
 	var claims IntrospectionExtra
 	if err := idToken.Claims(&claims); err != nil {
-		s.logger.Error("error while fetching token claims", "err", err.Error())
+		s.logger.ErrorContext(ctx, "error while fetching token claims", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
 	}
 
 	clientID, err := getClientID(idToken.Audience, claims.AuthorizingParty)
 	if err != nil {
-		s.logger.Error("error while fetching client_id from token:", "err", err.Error())
+		s.logger.ErrorContext(ctx, "error while fetching client_id from token:", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
 	}
 
 	client, err := s.storage.GetClient(clientID)
 	if err != nil {
-		s.logger.Error("error while fetching client from storage", "err", err.Error())
+		s.logger.ErrorContext(ctx, "error while fetching client from storage", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
 	}
 
@@ -299,7 +299,7 @@ func (s *Server) handleIntrospect(w http.ResponseWriter, r *http.Request) {
 			introspect, err = s.introspectRefreshToken(ctx, token)
 		default:
 			// Token type is neither handled token types.
-			s.logger.Error("unknown token type", "token_type", tokenType)
+			s.logger.ErrorContext(r.Context(), "unknown token type", "token_type", tokenType)
 			introspectInactiveErr(w)
 			return
 		}
@@ -309,7 +309,7 @@ func (s *Server) handleIntrospect(w http.ResponseWriter, r *http.Request) {
 		if intErr, ok := err.(*introspectionError); ok {
 			s.introspectErrHelper(w, intErr.typ, intErr.desc, intErr.code)
 		} else {
-			s.logger.Error("an unknown error occurred", "err", err.Error())
+			s.logger.ErrorContext(r.Context(), "an unknown error occurred", "err", err.Error())
 			s.introspectErrHelper(w, errServerError, "An unknown error occurred", http.StatusInternalServerError)
 		}
 
@@ -332,6 +332,7 @@ func (s *Server) introspectErrHelper(w http.ResponseWriter, typ string, descript
 	}
 
 	if err := tokenErr(w, typ, description, statusCode); err != nil {
+		// TODO(nabokihms): error with context
 		s.logger.Error("introspect error response", "err", err)
 	}
 }
