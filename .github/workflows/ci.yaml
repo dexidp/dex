@@ -83,7 +83,7 @@ jobs:
         run: make verify
 
       - name: Start services
-        run: docker-compose -f docker-compose.test.yaml up -d
+        run: docker compose -f docker-compose.test.yaml up -d
 
       - name: Create kind cluster
         uses: helm/kind-action@0025e74a8c7512023d06dc019c617aa3cf561fde # v1.10.0
