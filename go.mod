@@ -1,6 +1,7 @@
 module github.com/dexidp/dex
 
 go 1.21
+toolchain go1.22.5
 
 require (
 	cloud.google.com/go/compute/metadata v0.5.0
@@ -8,7 +9,7 @@ require (
 	github.com/AppsFlyer/go-sundheit v0.6.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig/v3 v3.2.3
-	github.com/beevik/etree v1.4.0
+	github.com/beevik/etree v1.4.1
 	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/dexidp/dex/api/v2 v2.1.0
 	github.com/felixge/httpsnoop v1.0.4
