@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
@@ -60,7 +61,7 @@ func (drq *DeviceRequestQuery) Order(o ...devicerequest.OrderOption) *DeviceRequ
 // First returns the first DeviceRequest entity from the query.
 // Returns a *NotFoundError when no DeviceRequest was found.
 func (drq *DeviceRequestQuery) First(ctx context.Context) (*DeviceRequest, error) {
-	nodes, err := drq.Limit(1).All(setContextOp(ctx, drq.ctx, "First"))
+	nodes, err := drq.Limit(1).All(setContextOp(ctx, drq.ctx, ent.OpQueryFirst))
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +84,7 @@ func (drq *DeviceRequestQuery) FirstX(ctx context.Context) *DeviceRequest {
 // Returns a *NotFoundError when no DeviceRequest ID was found.
 func (drq *DeviceRequestQuery) FirstID(ctx context.Context) (id int, err error) {
 	var ids []int
-	if ids, err = drq.Limit(1).IDs(setContextOp(ctx, drq.ctx, "FirstID")); err != nil {
+	if ids, err = drq.Limit(1).IDs(setContextOp(ctx, drq.ctx, ent.OpQueryFirstID)); err != nil {
 		return
 	}
 	if len(ids) == 0 {
@@ -106,7 +107,7 @@ func (drq *DeviceRequestQuery) FirstIDX(ctx context.Context) int {
 // Returns a *NotSingularError when more than one DeviceRequest entity is found.
 // Returns a *NotFoundError when no DeviceRequest entities are found.
 func (drq *DeviceRequestQuery) Only(ctx context.Context) (*DeviceRequest, error) {
-	nodes, err := drq.Limit(2).All(setContextOp(ctx, drq.ctx, "Only"))
+	nodes, err := drq.Limit(2).All(setContextOp(ctx, drq.ctx, ent.OpQueryOnly))
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +135,7 @@ func (drq *DeviceRequestQuery) OnlyX(ctx context.Context) *DeviceRequest {
 // Returns a *NotFoundError when no entities are found.
 func (drq *DeviceRequestQuery) OnlyID(ctx context.Context) (id int, err error) {
 	var ids []int
-	if ids, err = drq.Limit(2).IDs(setContextOp(ctx, drq.ctx, "OnlyID")); err != nil {
+	if ids, err = drq.Limit(2).IDs(setContextOp(ctx, drq.ctx, ent.OpQueryOnlyID)); err != nil {
 		return
 	}
 	switch len(ids) {
@@ -159,7 +160,7 @@ func (drq *DeviceRequestQuery) OnlyIDX(ctx context.Context) int {
 
 // All executes the query and returns a list of DeviceRequests.
 func (drq *DeviceRequestQuery) All(ctx context.Context) ([]*DeviceRequest, error) {
-	ctx = setContextOp(ctx, drq.ctx, "All")
+	ctx = setContextOp(ctx, drq.ctx, ent.OpQueryAll)
 	if err := drq.prepareQuery(ctx); err != nil {
 		return nil, err
 	}
@@ -181,7 +182,7 @@ func (drq *DeviceRequestQuery) IDs(ctx context.Context) (ids []int, err error) {
 	if drq.ctx.Unique == nil && drq.path != nil {
 		drq.Unique(true)
 	}
-	ctx = setContextOp(ctx, drq.ctx, "IDs")
+	ctx = setContextOp(ctx, drq.ctx, ent.OpQueryIDs)
 	if err = drq.Select(devicerequest.FieldID).Scan(ctx, &ids); err != nil {
 		return nil, err
 	}
@@ -199,7 +200,7 @@ func (drq *DeviceRequestQuery) IDsX(ctx context.Context) []int {
 
 // Count returns the count of the given query.
 func (drq *DeviceRequestQuery) Count(ctx context.Context) (int, error) {
-	ctx = setContextOp(ctx, drq.ctx, "Count")
+	ctx = setContextOp(ctx, drq.ctx, ent.OpQueryCount)
 	if err := drq.prepareQuery(ctx); err != nil {
 		return 0, err
 	}
@@ -217,7 +218,7 @@ func (drq *DeviceRequestQuery) CountX(ctx context.Context) int {
 
 // Exist returns true if the query has elements in the graph.
 func (drq *DeviceRequestQuery) Exist(ctx context.Context) (bool, error) {
-	ctx = setContextOp(ctx, drq.ctx, "Exist")
+	ctx = setContextOp(ctx, drq.ctx, ent.OpQueryExist)
 	switch _, err := drq.FirstID(ctx); {
 	case IsNotFound(err):
 		return false, nil
@@ -449,7 +450,7 @@ func (drgb *DeviceRequestGroupBy) Aggregate(fns ...AggregateFunc) *DeviceRequest
 
 // Scan applies the selector query and scans the result into the given value.
 func (drgb *DeviceRequestGroupBy) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, drgb.build.ctx, "GroupBy")
+	ctx = setContextOp(ctx, drgb.build.ctx, ent.OpQueryGroupBy)
 	if err := drgb.build.prepareQuery(ctx); err != nil {
 		return err
 	}
@@ -497,7 +498,7 @@ func (drs *DeviceRequestSelect) Aggregate(fns ...AggregateFunc) *DeviceRequestSe
 
 // Scan applies the selector query and scans the result into the given value.
 func (drs *DeviceRequestSelect) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, drs.ctx, "Select")
+	ctx = setContextOp(ctx, drs.ctx, ent.OpQuerySelect)
 	if err := drs.prepareQuery(ctx); err != nil {
 		return err
 	}

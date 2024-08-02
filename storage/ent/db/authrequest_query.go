@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
@@ -60,7 +61,7 @@ func (arq *AuthRequestQuery) Order(o ...authrequest.OrderOption) *AuthRequestQue
 // First returns the first AuthRequest entity from the query.
 // Returns a *NotFoundError when no AuthRequest was found.
 func (arq *AuthRequestQuery) First(ctx context.Context) (*AuthRequest, error) {
-	nodes, err := arq.Limit(1).All(setContextOp(ctx, arq.ctx, "First"))
+	nodes, err := arq.Limit(1).All(setContextOp(ctx, arq.ctx, ent.OpQueryFirst))
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +84,7 @@ func (arq *AuthRequestQuery) FirstX(ctx context.Context) *AuthRequest {
 // Returns a *NotFoundError when no AuthRequest ID was found.
 func (arq *AuthRequestQuery) FirstID(ctx context.Context) (id string, err error) {
 	var ids []string
-	if ids, err = arq.Limit(1).IDs(setContextOp(ctx, arq.ctx, "FirstID")); err != nil {
+	if ids, err = arq.Limit(1).IDs(setContextOp(ctx, arq.ctx, ent.OpQueryFirstID)); err != nil {
 		return
 	}
 	if len(ids) == 0 {
@@ -106,7 +107,7 @@ func (arq *AuthRequestQuery) FirstIDX(ctx context.Context) string {
 // Returns a *NotSingularError when more than one AuthRequest entity is found.
 // Returns a *NotFoundError when no AuthRequest entities are found.
 func (arq *AuthRequestQuery) Only(ctx context.Context) (*AuthRequest, error) {
-	nodes, err := arq.Limit(2).All(setContextOp(ctx, arq.ctx, "Only"))
+	nodes, err := arq.Limit(2).All(setContextOp(ctx, arq.ctx, ent.OpQueryOnly))
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +135,7 @@ func (arq *AuthRequestQuery) OnlyX(ctx context.Context) *AuthRequest {
 // Returns a *NotFoundError when no entities are found.
 func (arq *AuthRequestQuery) OnlyID(ctx context.Context) (id string, err error) {
 	var ids []string
-	if ids, err = arq.Limit(2).IDs(setContextOp(ctx, arq.ctx, "OnlyID")); err != nil {
+	if ids, err = arq.Limit(2).IDs(setContextOp(ctx, arq.ctx, ent.OpQueryOnlyID)); err != nil {
 		return
 	}
 	switch len(ids) {
@@ -159,7 +160,7 @@ func (arq *AuthRequestQuery) OnlyIDX(ctx context.Context) string {
 
 // All executes the query and returns a list of AuthRequests.
 func (arq *AuthRequestQuery) All(ctx context.Context) ([]*AuthRequest, error) {
-	ctx = setContextOp(ctx, arq.ctx, "All")
+	ctx = setContextOp(ctx, arq.ctx, ent.OpQueryAll)
 	if err := arq.prepareQuery(ctx); err != nil {
 		return nil, err
 	}
@@ -181,7 +182,7 @@ func (arq *AuthRequestQuery) IDs(ctx context.Context) (ids []string, err error) 
 	if arq.ctx.Unique == nil && arq.path != nil {
 		arq.Unique(true)
 	}
-	ctx = setContextOp(ctx, arq.ctx, "IDs")
+	ctx = setContextOp(ctx, arq.ctx, ent.OpQueryIDs)
 	if err = arq.Select(authrequest.FieldID).Scan(ctx, &ids); err != nil {
 		return nil, err
 	}
@@ -199,7 +200,7 @@ func (arq *AuthRequestQuery) IDsX(ctx context.Context) []string {
 
 // Count returns the count of the given query.
 func (arq *AuthRequestQuery) Count(ctx context.Context) (int, error) {
-	ctx = setContextOp(ctx, arq.ctx, "Count")
+	ctx = setContextOp(ctx, arq.ctx, ent.OpQueryCount)
 	if err := arq.prepareQuery(ctx); err != nil {
 		return 0, err
 	}
@@ -217,7 +218,7 @@ func (arq *AuthRequestQuery) CountX(ctx context.Context) int {
 
 // Exist returns true if the query has elements in the graph.
 func (arq *AuthRequestQuery) Exist(ctx context.Context) (bool, error) {
-	ctx = setContextOp(ctx, arq.ctx, "Exist")
+	ctx = setContextOp(ctx, arq.ctx, ent.OpQueryExist)
 	switch _, err := arq.FirstID(ctx); {
 	case IsNotFound(err):
 		return false, nil
@@ -449,7 +450,7 @@ func (argb *AuthRequestGroupBy) Aggregate(fns ...AggregateFunc) *AuthRequestGrou
 
 // Scan applies the selector query and scans the result into the given value.
 func (argb *AuthRequestGroupBy) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, argb.build.ctx, "GroupBy")
+	ctx = setContextOp(ctx, argb.build.ctx, ent.OpQueryGroupBy)
 	if err := argb.build.prepareQuery(ctx); err != nil {
 		return err
 	}
@@ -497,7 +498,7 @@ func (ars *AuthRequestSelect) Aggregate(fns ...AggregateFunc) *AuthRequestSelect
 
 // Scan applies the selector query and scans the result into the given value.
 func (ars *AuthRequestSelect) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, ars.ctx, "Select")
+	ctx = setContextOp(ctx, ars.ctx, ent.OpQuerySelect)
 	if err := ars.prepareQuery(ctx); err != nil {
 		return err
 	}
