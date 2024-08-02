@@ -264,7 +264,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 	if c.ClaimMutations.FilterGroupClaims.GroupsFilter != "" {
 		groupsFilter, err = regexp.Compile(c.ClaimMutations.FilterGroupClaims.GroupsFilter)
 		if err != nil {
-			logger.Warnf("ignoring invalid regex `%s`", c.ClaimMutations.FilterGroupClaims.GroupsFilter)
+			logger.Warn("ignoring invalid", "invalid_regex", c.ClaimMutations.FilterGroupClaims.GroupsFilter, "connector_id", id)
 		}
 	}
 
