@@ -880,7 +880,11 @@ func (s *Server) calculateCodeChallenge(codeVerifier, codeChallengeMethod string
 func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client storage.Client) {
 	ctx := r.Context()
 	code := r.PostFormValue("code")
-	redirectURI := r.PostFormValue("redirect_uri")
+	redirectURI, err := url.QueryUnescape(r.PostFormValue("redirect_uri"))
+	if err != nil {
+		s.tokenErrHelper(w, errInvalidRequest, "No redirect_uri provided.", http.StatusBadRequest)
+		return
+	}
 
 	if code == "" {
 		s.tokenErrHelper(w, errInvalidRequest, `Required param: code.`, http.StatusBadRequest)
