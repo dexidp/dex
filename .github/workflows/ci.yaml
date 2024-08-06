@@ -121,8 +121,8 @@ jobs:
           DEX_ETCD_ENDPOINTS: http://localhost:${{ job.services.etcd.ports[2379] }}
 
           DEX_LDAP_HOST: localhost
-          DEX_LDAP_PORT: 389
-          DEX_LDAP_TLS_PORT: 636
+          DEX_LDAP_PORT: 3890
+          DEX_LDAP_TLS_PORT: 6360
 
           DEX_KEYSTONE_URL: http://localhost:${{ job.services.keystone.ports[5000] }}
           DEX_KEYSTONE_ADMIN_URL: http://localhost:${{ job.services.keystone.ports[35357] }}
