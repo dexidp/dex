@@ -2,7 +2,7 @@ ARG BASE_IMAGE=alpine
 
 FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.4.0@sha256:0cd3f05c72d6c9b038eb135f91376ee1169ef3a330d34e418e65e2a5c2e9c0d4 AS xx
 
-FROM --platform=$BUILDPLATFORM golang:1.22.5-alpine3.20@sha256:0d3653dd6f35159ec6e3d10263a42372f6f194c3dea0b35235d72aabde86486e AS builder
+FROM --platform=$BUILDPLATFORM golang:1.23rc2-alpine3.20@sha256:4e01b8bb65905d246d7932d6417f6e68b4ad1833940c085917ca2d6dab96933d AS builder
 
 COPY --from=xx / /
 
