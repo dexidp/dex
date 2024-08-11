@@ -8,7 +8,7 @@ import (
 	"time"
 
 	// import third party drivers
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/mattn/go-sqlite3"
 )
 

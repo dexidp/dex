@@ -1,6 +1,7 @@
 package sql
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
@@ -14,7 +15,9 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/dexidp/dex/storage"
 )
@@ -165,20 +168,17 @@ func (p *Postgres) createDataSourceName() string {
 func (p *Postgres) open(logger *slog.Logger) (*conn, error) {
 	dataSourceName := p.createDataSourceName()
 
-	db, err := sql.Open("postgres", dataSourceName)
+	pool, err := pgxpool.New(context.Background(), dataSourceName)
 	if err != nil {
 		return nil, err
 	}
 
+	db := stdlib.OpenDBFromPool(pool)
+
 	// set database/sql tunables if configured
+	// using pool no need maxIdleConns
 	if p.ConnMaxLifetime != 0 {
 		db.SetConnMaxLifetime(time.Duration(p.ConnMaxLifetime) * time.Second)
-	}
-
-	if p.MaxIdleConns == 0 {
-		db.SetMaxIdleConns(5)
-	} else {
-		db.SetMaxIdleConns(p.MaxIdleConns)
 	}
 
 	if p.MaxOpenConns == 0 {
@@ -188,11 +188,11 @@ func (p *Postgres) open(logger *slog.Logger) (*conn, error) {
 	}
 
 	errCheck := func(err error) bool {
-		sqlErr, ok := err.(*pq.Error)
+		sqlErr, ok := err.(*pgconn.PgError)
 		if !ok {
 			return false
 		}
-		return sqlErr.Code == pgErrUniqueViolation
+		return sqlErr.SQLState() == pgErrUniqueViolation
 	}
 
 	c := &conn{db, &flavorPostgres, logger, errCheck}

@@ -12,12 +12,14 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent/dialect"
 	entSQL "entgo.io/ent/dialect/sql"
-	_ "github.com/lib/pq" // Register postgres driver.
 
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/client"
 	"github.com/dexidp/dex/storage/ent/db"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 )
 
 const (
@@ -61,27 +63,27 @@ func (p *Postgres) Open(logger *slog.Logger) (storage.Storage, error) {
 }
 
 func (p *Postgres) driver() (*entSQL.Driver, error) {
-	drv, err := entSQL.Open("postgres", p.dsn())
+	pool, err := pgxpool.New(context.Background(), p.dsn())
 	if err != nil {
 		return nil, err
 	}
 
-	// set database/sql tunables if configured
-	if p.ConnMaxLifetime != 0 {
-		drv.DB().SetConnMaxLifetime(time.Duration(p.ConnMaxLifetime) * time.Second)
-	}
+	db := stdlib.OpenDBFromPool(pool)
 
-	if p.MaxIdleConns == 0 {
-		drv.DB().SetMaxIdleConns(5)
-	} else {
-		drv.DB().SetMaxIdleConns(p.MaxIdleConns)
+	// set database/sql tunables if configured
+	// using pool no need maxIdleConns
+	if p.ConnMaxLifetime != 0 {
+		db.SetConnMaxLifetime(time.Duration(p.ConnMaxLifetime) * time.Second)
 	}
 
 	if p.MaxOpenConns == 0 {
-		drv.DB().SetMaxOpenConns(5)
+		db.SetMaxOpenConns(5)
 	} else {
-		drv.DB().SetMaxOpenConns(p.MaxOpenConns)
+		db.SetMaxOpenConns(p.MaxOpenConns)
 	}
+
+	// Create an ent.Driver from `db`.
+	drv := entSQL.OpenDB(dialect.Postgres, db)
 
 	return drv, nil
 }
