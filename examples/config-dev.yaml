@@ -45,6 +45,11 @@ storage:
   # config:
   #   kubeConfigFile: $HOME/.kube/config
 
+  # Configuration of the retry mechanism upon a failure to storage database
+  # If not defined, the default will apply 5 attempts with 5s timeout
+  # retryAttempts: 5
+  # retryDelay: "5s"
+
 # Configuration for the HTTP endpoints.
 web:
   http: 0.0.0.0:5556

@@ -254,8 +254,10 @@ type GRPC struct {
 
 // Storage holds app's storage configuration.
 type Storage struct {
-	Type   string        `json:"type"`
-	Config StorageConfig `json:"config"`
+	Type          string        `json:"type"`
+	Config        StorageConfig `json:"config"`
+	RetryAttempts int           `json:"retryAttempts"`
+	RetryDelay    string        `json:"retryDelay"`
 }
 
 // StorageConfig is a configuration that can create a storage.
@@ -297,8 +299,10 @@ var storages = map[string]func() StorageConfig{
 // dynamically determine the type of the storage config.
 func (s *Storage) UnmarshalJSON(b []byte) error {
 	var store struct {
-		Type   string          `json:"type"`
-		Config json.RawMessage `json:"config"`
+		Type          string          `json:"type"`
+		Config        json.RawMessage `json:"config"`
+		RetryAttempts int             `json:"retryAttempts"`
+		RetryDelay    string          `json:"retryDelay"`
 	}
 	if err := json.Unmarshal(b, &store); err != nil {
 		return fmt.Errorf("parse storage: %v", err)
@@ -320,8 +324,10 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 		}
 	}
 	*s = Storage{
-		Type:   store.Type,
-		Config: storageConfig,
+		Type:          store.Type,
+		Config:        storageConfig,
+		RetryAttempts: store.RetryAttempts,
+		RetryDelay:    store.RetryDelay,
 	}
 	return nil
 }
