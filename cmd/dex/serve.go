@@ -717,7 +717,7 @@ func initializeStorageWithRetry(storageConfig Storage, logger *slog.Logger) (sto
 
 		if attempt < retryAttempts {
 			logger.Info("Retrying storage initialization",
-				"nextAttemptIn", retryDelay)
+				"nextAttemptIn", retryDelay.String())
 			time.Sleep(retryDelay)
 		}
 	}
