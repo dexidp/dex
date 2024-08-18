@@ -201,7 +201,6 @@ func runServe(options serveOptions) error {
 		return fmt.Errorf("failed to initialize storage: %v", err)
 	}
 	defer s.Close()
-	defer s.Close()
 
 	logger.Info("config storage", "storage_type", c.Storage.Type)
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/kylelemons/godebug/pretty"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/connector/oidc"
@@ -446,4 +447,24 @@ logger:
 	if diff := pretty.Compare(c, want); diff != "" {
 		t.Errorf("got!=want: %s", diff)
 	}
+}
+
+func TestUnmarshalConfigWithRetry(t *testing.T) {
+	rawConfig := []byte(`
+storage:
+  type: postgres
+  config:
+    host: 10.0.0.1
+    port: 65432
+  retryAttempts: 10
+  retryDelay: "1s"
+`)
+
+	var c Config
+	err := yaml.Unmarshal(rawConfig, &c)
+	require.NoError(t, err)
+
+	require.Equal(t, "postgres", c.Storage.Type)
+	require.Equal(t, 10, c.Storage.RetryAttempts)
+	require.Equal(t, "1s", c.Storage.RetryDelay)
 }
