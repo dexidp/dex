@@ -50,7 +50,7 @@ func (pc *PasswordCreate) Mutation() *PasswordMutation {
 
 // Save creates the Password in the database.
 func (pc *PasswordCreate) Save(ctx context.Context) (*Password, error) {
-	return withHooks[*Password, PasswordMutation](ctx, pc.sqlSave, pc.mutation, pc.hooks)
+	return withHooks(ctx, pc.sqlSave, pc.mutation, pc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -152,11 +152,15 @@ func (pc *PasswordCreate) createSpec() (*Password, *sqlgraph.CreateSpec) {
 // PasswordCreateBulk is the builder for creating many Password entities in bulk.
 type PasswordCreateBulk struct {
 	config
+	err      error
 	builders []*PasswordCreate
 }
 
 // Save creates the Password entities in the database.
 func (pcb *PasswordCreateBulk) Save(ctx context.Context) ([]*Password, error) {
+	if pcb.err != nil {
+		return nil, pcb.err
+	}
 	specs := make([]*sqlgraph.CreateSpec, len(pcb.builders))
 	nodes := make([]*Password, len(pcb.builders))
 	mutators := make([]Mutator, len(pcb.builders))
@@ -172,8 +176,8 @@ func (pcb *PasswordCreateBulk) Save(ctx context.Context) ([]*Password, error) {
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, pcb.builders[i+1].mutation)
 				} else {

@@ -32,6 +32,11 @@ body {
   outline: none;
 }
 
+.dex-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .dex-btn-icon {
   background-position: center;
   background-repeat: no-repeat;

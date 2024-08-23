@@ -3,14 +3,13 @@ package sql
 
 import (
 	"database/sql"
+	"log/slog"
 	"regexp"
 	"time"
 
 	// import third party drivers
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
-
-	"github.com/dexidp/dex/pkg/log"
 )
 
 // flavor represents a specific SQL implementation, and is used to translate query strings
@@ -131,7 +130,7 @@ func (c *conn) translateArgs(args []interface{}) []interface{} {
 type conn struct {
 	db                 *sql.DB
 	flavor             *flavor
-	logger             log.Logger
+	logger             *slog.Logger
 	alreadyExistsCheck func(err error) bool
 }
 

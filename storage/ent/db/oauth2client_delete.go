@@ -27,7 +27,7 @@ func (od *OAuth2ClientDelete) Where(ps ...predicate.OAuth2Client) *OAuth2ClientD
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (od *OAuth2ClientDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks[int, OAuth2ClientMutation](ctx, od.sqlExec, od.mutation, od.hooks)
+	return withHooks(ctx, od.sqlExec, od.mutation, od.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.

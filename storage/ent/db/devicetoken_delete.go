@@ -27,7 +27,7 @@ func (dtd *DeviceTokenDelete) Where(ps ...predicate.DeviceToken) *DeviceTokenDel
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (dtd *DeviceTokenDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks[int, DeviceTokenMutation](ctx, dtd.sqlExec, dtd.mutation, dtd.hooks)
+	return withHooks(ctx, dtd.sqlExec, dtd.mutation, dtd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.

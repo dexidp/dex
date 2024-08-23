@@ -92,7 +92,7 @@ func (dtc *DeviceTokenCreate) Mutation() *DeviceTokenMutation {
 // Save creates the DeviceToken in the database.
 func (dtc *DeviceTokenCreate) Save(ctx context.Context) (*DeviceToken, error) {
 	dtc.defaults()
-	return withHooks[*DeviceToken, DeviceTokenMutation](ctx, dtc.sqlSave, dtc.mutation, dtc.hooks)
+	return withHooks(ctx, dtc.sqlSave, dtc.mutation, dtc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -226,11 +226,15 @@ func (dtc *DeviceTokenCreate) createSpec() (*DeviceToken, *sqlgraph.CreateSpec) 
 // DeviceTokenCreateBulk is the builder for creating many DeviceToken entities in bulk.
 type DeviceTokenCreateBulk struct {
 	config
+	err      error
 	builders []*DeviceTokenCreate
 }
 
 // Save creates the DeviceToken entities in the database.
 func (dtcb *DeviceTokenCreateBulk) Save(ctx context.Context) ([]*DeviceToken, error) {
+	if dtcb.err != nil {
+		return nil, dtcb.err
+	}
 	specs := make([]*sqlgraph.CreateSpec, len(dtcb.builders))
 	nodes := make([]*DeviceToken, len(dtcb.builders))
 	mutators := make([]Mutator, len(dtcb.builders))
@@ -247,8 +251,8 @@ func (dtcb *DeviceTokenCreateBulk) Save(ctx context.Context) ([]*DeviceToken, er
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, dtcb.builders[i+1].mutation)
 				} else {

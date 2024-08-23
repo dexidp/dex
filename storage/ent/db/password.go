@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/password"
 )
@@ -22,7 +23,8 @@ type Password struct {
 	// Username holds the value of the "username" field.
 	Username string `json:"username,omitempty"`
 	// UserID holds the value of the "user_id" field.
-	UserID string `json:"user_id,omitempty"`
+	UserID       string `json:"user_id,omitempty"`
+	selectValues sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -37,7 +39,7 @@ func (*Password) scanValues(columns []string) ([]any, error) {
 		case password.FieldEmail, password.FieldUsername, password.FieldUserID:
 			values[i] = new(sql.NullString)
 		default:
-			return nil, fmt.Errorf("unexpected column %q for type Password", columns[i])
+			values[i] = new(sql.UnknownType)
 		}
 	}
 	return values, nil
@@ -81,9 +83,17 @@ func (pa *Password) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				pa.UserID = value.String
 			}
+		default:
+			pa.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
+}
+
+// Value returns the ent.Value that was dynamically selected and assigned to the Password.
+// This includes values selected through modifiers, order, etc.
+func (pa *Password) Value(name string) (ent.Value, error) {
+	return pa.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this Password.

@@ -1,5 +1,9 @@
 blank_issues_enabled: false
 contact_links:
+  - name: 📖 Documentation enhancement
+    url: https://github.com/dexidp/website/issues
+    about: Suggest an improvement to the documentation
+
   - name: ❓ Ask a question
     url: https://github.com/dexidp/dex/discussions/new?category=q-a
     about: Ask and discuss questions with other Dex community members

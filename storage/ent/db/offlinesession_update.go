@@ -33,9 +33,25 @@ func (osu *OfflineSessionUpdate) SetUserID(s string) *OfflineSessionUpdate {
 	return osu
 }
 
+// SetNillableUserID sets the "user_id" field if the given value is not nil.
+func (osu *OfflineSessionUpdate) SetNillableUserID(s *string) *OfflineSessionUpdate {
+	if s != nil {
+		osu.SetUserID(*s)
+	}
+	return osu
+}
+
 // SetConnID sets the "conn_id" field.
 func (osu *OfflineSessionUpdate) SetConnID(s string) *OfflineSessionUpdate {
 	osu.mutation.SetConnID(s)
+	return osu
+}
+
+// SetNillableConnID sets the "conn_id" field if the given value is not nil.
+func (osu *OfflineSessionUpdate) SetNillableConnID(s *string) *OfflineSessionUpdate {
+	if s != nil {
+		osu.SetConnID(*s)
+	}
 	return osu
 }
 
@@ -64,7 +80,7 @@ func (osu *OfflineSessionUpdate) Mutation() *OfflineSessionMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (osu *OfflineSessionUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks[int, OfflineSessionMutation](ctx, osu.sqlSave, osu.mutation, osu.hooks)
+	return withHooks(ctx, osu.sqlSave, osu.mutation, osu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -157,9 +173,25 @@ func (osuo *OfflineSessionUpdateOne) SetUserID(s string) *OfflineSessionUpdateOn
 	return osuo
 }
 
+// SetNillableUserID sets the "user_id" field if the given value is not nil.
+func (osuo *OfflineSessionUpdateOne) SetNillableUserID(s *string) *OfflineSessionUpdateOne {
+	if s != nil {
+		osuo.SetUserID(*s)
+	}
+	return osuo
+}
+
 // SetConnID sets the "conn_id" field.
 func (osuo *OfflineSessionUpdateOne) SetConnID(s string) *OfflineSessionUpdateOne {
 	osuo.mutation.SetConnID(s)
+	return osuo
+}
+
+// SetNillableConnID sets the "conn_id" field if the given value is not nil.
+func (osuo *OfflineSessionUpdateOne) SetNillableConnID(s *string) *OfflineSessionUpdateOne {
+	if s != nil {
+		osuo.SetConnID(*s)
+	}
 	return osuo
 }
 
@@ -201,7 +233,7 @@ func (osuo *OfflineSessionUpdateOne) Select(field string, fields ...string) *Off
 
 // Save executes the query and returns the updated OfflineSession entity.
 func (osuo *OfflineSessionUpdateOne) Save(ctx context.Context) (*OfflineSession, error) {
-	return withHooks[*OfflineSession, OfflineSessionMutation](ctx, osuo.sqlSave, osuo.mutation, osuo.hooks)
+	return withHooks(ctx, osuo.sqlSave, osuo.mutation, osuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.

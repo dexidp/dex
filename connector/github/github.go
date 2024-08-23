@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -18,7 +19,6 @@ import (
 	"github.com/dexidp/dex/connector"
 	groups_pkg "github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/httpclient"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 const (
@@ -66,7 +66,7 @@ type Org struct {
 }
 
 // Open returns a strategy for logging in through GitHub.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
 	if c.Org != "" {
 		// Return error if both 'org' and 'orgs' fields are used.
 		if len(c.Orgs) > 0 {
@@ -82,7 +82,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		clientID:             c.ClientID,
 		clientSecret:         c.ClientSecret,
 		apiURL:               apiURL,
-		logger:               logger,
+		logger:               logger.With(slog.Group("connector", "type", "github", "id", id)),
 		useLoginAsID:         c.UseLoginAsID,
 		preferredEmailDomain: c.PreferredEmailDomain,
 	}
@@ -142,7 +142,7 @@ type githubConnector struct {
 	orgs         []Org
 	clientID     string
 	clientSecret string
-	logger       log.Logger
+	logger       *slog.Logger
 	// apiURL defaults to "https://api.github.com"
 	apiURL string
 	// hostName of the GitHub enterprise account.
@@ -362,7 +362,7 @@ func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client
 		if len(org.Teams) == 0 {
 			inOrgNoTeams = true
 		} else if teams = groups_pkg.Filter(teams, org.Teams); len(teams) == 0 {
-			c.logger.Infof("github: user %q in org %q but no teams", userName, org.Name)
+			c.logger.Info("user in org but no teams", "user", userName, "org", org.Name)
 		}
 
 		for _, teamName := range teams {
@@ -531,9 +531,10 @@ func (c *githubConnector) user(ctx context.Context, client *http.Client) (user, 
 		return u, err
 	}
 
-	// Only public user emails are returned by 'GET /user'. u.Email will be empty
-	// if a users' email is private. We must retrieve private emails explicitly.
-	if u.Email == "" {
+	// Only public user emails are returned by 'GET /user'.
+	// If a user has no public email, we must retrieve private emails explicitly.
+	// If preferredEmailDomain is set, we always need to retrieve all emails.
+	if u.Email == "" || c.preferredEmailDomain != "" {
 		var err error
 		if u.Email, err = c.userEmail(ctx, client); err != nil {
 			return u, err
@@ -667,7 +668,7 @@ func (c *githubConnector) userInOrg(ctx context.Context, client *http.Client, us
 	switch resp.StatusCode {
 	case http.StatusNoContent:
 	case http.StatusFound, http.StatusNotFound:
-		c.logger.Infof("github: user %q not in org %q or application not authorized to read org data", userName, orgName)
+		c.logger.Info("user not in org or application not authorized to read org data", "user", userName, "org", orgName)
 	default:
 		err = fmt.Errorf("github: unexpected return status: %q", resp.Status)
 	}

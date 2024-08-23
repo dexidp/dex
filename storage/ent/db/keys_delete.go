@@ -27,7 +27,7 @@ func (kd *KeysDelete) Where(ps ...predicate.Keys) *KeysDelete {
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (kd *KeysDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks[int, KeysMutation](ctx, kd.sqlExec, kd.mutation, kd.hooks)
+	return withHooks(ctx, kd.sqlExec, kd.mutation, kd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.

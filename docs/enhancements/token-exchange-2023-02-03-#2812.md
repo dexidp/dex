@@ -40,18 +40,18 @@ without issuing long lived API tokens.
 
 Examples of downstream issues:
 
-- [argoproj/argo-cd#11632 Argocd SSO login via Azure AD Auth using OIDC not work for cli sso login]
+- [argoproj/argo-cd#11632 ArgoCD SSO login via Azure AD Auth using OIDC not work for cli sso login]
 
 Other related Dex issues:
 
 - [#2450 Non-OIDC JWT Connector] is a functionally similar request, but expanded to arbitrary JWTs
-- [#1225 GitHub Non-Web application flow support] also asks for an exchange, but for an opaque Github PAT
+- [#1225 GitHub Non-Web application flow support] also asks for an exchange, but for an opaque GitHub PAT
 
 More broadly, this fits into recent movements to issue machine identities:
 
 - [GCP Service Identity](https://cloud.google.com/run/docs/securing/service-identity)
 - [AWS Execution Role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
-- [Github Actions OIDC](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect)
+- [GitHub Actions OIDC](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect)
 - [CircleCI OIDC](https://circleci.com/docs/openid-connect-tokens/)
 - [Kubernetes Service Accounts](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/)
 - [SPIFFE](https://spiffe.io/)
@@ -64,7 +64,7 @@ and granting access to resources based on trusting federated identities:
 [#1484 Token exchange for external tokens]: https://github.com/dexidp/dex/issues/1484
 [#1668 Question: non-web based clients?]: https://github.com/dexidp/dex/issues/1668
 [#2657 Get OIDC token issued by Dex using a token issued by one of the connectors]: https://github.com/dexidp/dex/issues/2657
-[argoproj/argo-cd#11632 Argocd SSO login via Azure AD Auth using OIDC not work for cli sso login]: https://github.com/argoproj/argo-cd/issues/11632
+[argoproj/argo-cd#11632 ArgoCD SSO login via Azure AD Auth using OIDC not work for cli sso login]: https://github.com/argoproj/argo-cd/issues/11632
 [#2450 Non-OIDC JWT Connector]: https://github.com/dexidp/dex/issues/2450
 [#1225 GitHub Non-Web application flow support]: https://github.com/dexidp/dex/issues/1225
 
@@ -166,7 +166,7 @@ Additionally, a new `allowedGrantTypes` would allow for disabling exchanges if t
 - The password connector could be switch to support this new endpoint, submitting passwords as access tokens,
   allowing for multiple password connectors to be configured
 - The `audience` field could be made optional if there is a single connector or the id token is inspected for issuer url
-- The `actor_token` and `actor_token_type` can be checked / validated if a suitable usecase is determined.
+- The `actor_token` and `actor_token_type` can be checked / validated if a suitable use case is determined.
 - A policy language like [cel] or [rego] as mentioned on [#1635 Connector Middleware] 
   would allow for stronger assertions of the provided identity against requested resource access.
 

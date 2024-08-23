@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"os"
 	"testing"
 
@@ -37,6 +38,7 @@ func TestValidConfiguration(t *testing.T) {
 			},
 		},
 	}
+
 	if err := configuration.Validate(); err != nil {
 		t.Fatalf("this configuration should have been valid: %v", err)
 	}
@@ -71,7 +73,11 @@ storage:
     connMaxLifetime: 30
     connectionTimeout: 3
 web:
-  http: 127.0.0.1:5556
+  https: 127.0.0.1:5556
+  tlsMinVersion: 1.3
+  tlsMaxVersion: 1.2
+  headers:
+    Strict-Transport-Security: "max-age=31536000; includeSubDomains"
 
 frontend:
   dir: ./web
@@ -87,6 +93,9 @@ staticClients:
 
 oauth2:
   alwaysShowLoginScreen: true
+  grantTypes:
+  - refresh_token
+  - "urn:ietf:params:oauth:grant-type:token-exchange"
 
 connectors:
 - type: mockCallback
@@ -123,6 +132,10 @@ expiry:
 logger:
   level: "debug"
   format: "json"
+
+additionalFeatures: [
+	"ConnectorsCRUD"
+]
 `)
 
 	want := Config{
@@ -141,7 +154,12 @@ logger:
 			},
 		},
 		Web: Web{
-			HTTP: "127.0.0.1:5556",
+			HTTPS:         "127.0.0.1:5556",
+			TLSMinVersion: "1.3",
+			TLSMaxVersion: "1.2",
+			Headers: Headers{
+				StrictTransportSecurity: "max-age=31536000; includeSubDomains",
+			},
 		},
 		Frontend: server.WebConfig{
 			Dir: "./web",
@@ -161,6 +179,10 @@ logger:
 		},
 		OAuth2: OAuth2{
 			AlwaysShowLoginScreen: true,
+			GrantTypes: []string{
+				"refresh_token",
+				"urn:ietf:params:oauth:grant-type:token-exchange",
+			},
 		},
 		StaticConnectors: []Connector{
 			{
@@ -203,7 +225,7 @@ logger:
 			DeviceRequests: "10m",
 		},
 		Logger: Logger{
-			Level:  "debug",
+			Level:  slog.LevelDebug,
 			Format: "json",
 		},
 	}
@@ -212,6 +234,7 @@ logger:
 	if err := yaml.Unmarshal(rawConfig, &c); err != nil {
 		t.Fatalf("failed to decode config: %v", err)
 	}
+
 	if diff := pretty.Compare(c, want); diff != "" {
 		t.Errorf("got!=want: %s", diff)
 	}
@@ -410,7 +433,7 @@ logger:
 			AuthRequests: "25h",
 		},
 		Logger: Logger{
-			Level:  "debug",
+			Level:  slog.LevelDebug,
 			Format: "json",
 		},
 	}
@@ -419,6 +442,7 @@ logger:
 	if err := yaml.Unmarshal(rawConfig, &c); err != nil {
 		t.Fatalf("failed to decode config: %v", err)
 	}
+
 	if diff := pretty.Compare(c, want); diff != "" {
 		t.Errorf("got!=want: %s", diff)
 	}

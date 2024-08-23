@@ -27,7 +27,7 @@ func (drd *DeviceRequestDelete) Where(ps ...predicate.DeviceRequest) *DeviceRequ
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (drd *DeviceRequestDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks[int, DeviceRequestMutation](ctx, drd.sqlExec, drd.mutation, drd.hooks)
+	return withHooks(ctx, drd.sqlExec, drd.mutation, drd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.

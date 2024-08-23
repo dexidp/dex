@@ -2,15 +2,14 @@ package sql
 
 import (
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"runtime"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/conformance"
 )
@@ -48,14 +47,10 @@ func cleanDB(c *conn) error {
 	return nil
 }
 
-var logger = &logrus.Logger{
-	Out:       os.Stderr,
-	Formatter: &logrus.TextFormatter{DisableColors: true},
-	Level:     logrus.DebugLevel,
-}
+var logger = slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 type opener interface {
-	open(logger log.Logger) (*conn, error)
+	open(logger *slog.Logger) (*conn, error)
 }
 
 func testDB(t *testing.T, o opener, withTransactions bool) {

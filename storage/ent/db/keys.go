@@ -8,10 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/keys"
-	jose "gopkg.in/square/go-jose.v2"
+	jose "github.com/go-jose/go-jose/v4"
 )
 
 // Keys is the model entity for the Keys schema.
@@ -27,6 +28,7 @@ type Keys struct {
 	SigningKeyPub jose.JSONWebKey `json:"signing_key_pub,omitempty"`
 	// NextRotation holds the value of the "next_rotation" field.
 	NextRotation time.Time `json:"next_rotation,omitempty"`
+	selectValues sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -41,7 +43,7 @@ func (*Keys) scanValues(columns []string) ([]any, error) {
 		case keys.FieldNextRotation:
 			values[i] = new(sql.NullTime)
 		default:
-			return nil, fmt.Errorf("unexpected column %q for type Keys", columns[i])
+			values[i] = new(sql.UnknownType)
 		}
 	}
 	return values, nil
@@ -91,9 +93,17 @@ func (k *Keys) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				k.NextRotation = value.Time
 			}
+		default:
+			k.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
+}
+
+// Value returns the ent.Value that was dynamically selected and assigned to the Keys.
+// This includes values selected through modifiers, order, etc.
+func (k *Keys) Value(name string) (ent.Value, error) {
+	return k.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this Keys.

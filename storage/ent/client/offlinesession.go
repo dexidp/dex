@@ -9,7 +9,7 @@ import (
 )
 
 // CreateOfflineSessions saves provided offline session into the database.
-func (d *Database) CreateOfflineSessions(session storage.OfflineSessions) error {
+func (d *Database) CreateOfflineSessions(ctx context.Context, session storage.OfflineSessions) error {
 	encodedRefresh, err := json.Marshal(session.Refresh)
 	if err != nil {
 		return fmt.Errorf("encode refresh offline session: %w", err)
@@ -22,7 +22,7 @@ func (d *Database) CreateOfflineSessions(session storage.OfflineSessions) error 
 		SetConnID(session.ConnID).
 		SetConnectorData(session.ConnectorData).
 		SetRefresh(encodedRefresh).
-		Save(context.TODO())
+		Save(ctx)
 	if err != nil {
 		return convertDBError("create offline session: %w", err)
 	}
