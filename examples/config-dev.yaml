@@ -75,6 +75,12 @@ telemetry:
   http: 0.0.0.0:5558
   # enableProfiling: true
 
+# Configuration for the two-factor authentication
+# twoFactorAuthn:
+#   issuer: "dex"
+#   connectors:
+#   - mock
+
 # Uncomment this block to enable the gRPC API. This values MUST be different
 # from the HTTP endpoints.
 # grpc:

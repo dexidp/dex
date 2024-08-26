@@ -57,8 +57,10 @@ type AuthRequest struct {
 	// CodeChallengeMethod holds the value of the "code_challenge_method" field.
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 	// HmacKey holds the value of the "hmac_key" field.
-	HmacKey      []byte `json:"hmac_key,omitempty"`
-	selectValues sql.SelectValues
+	HmacKey []byte `json:"hmac_key,omitempty"`
+	// TotpValidated holds the value of the "totp_validated" field.
+	TotpValidated bool `json:"totp_validated,omitempty"`
+	selectValues  sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -68,7 +70,7 @@ func (*AuthRequest) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case authrequest.FieldScopes, authrequest.FieldResponseTypes, authrequest.FieldClaimsGroups, authrequest.FieldConnectorData, authrequest.FieldHmacKey:
 			values[i] = new([]byte)
-		case authrequest.FieldForceApprovalPrompt, authrequest.FieldLoggedIn, authrequest.FieldClaimsEmailVerified:
+		case authrequest.FieldForceApprovalPrompt, authrequest.FieldLoggedIn, authrequest.FieldClaimsEmailVerified, authrequest.FieldTotpValidated:
 			values[i] = new(sql.NullBool)
 		case authrequest.FieldID, authrequest.FieldClientID, authrequest.FieldRedirectURI, authrequest.FieldNonce, authrequest.FieldState, authrequest.FieldClaimsUserID, authrequest.FieldClaimsUsername, authrequest.FieldClaimsEmail, authrequest.FieldClaimsPreferredUsername, authrequest.FieldConnectorID, authrequest.FieldCodeChallenge, authrequest.FieldCodeChallengeMethod:
 			values[i] = new(sql.NullString)
@@ -221,6 +223,12 @@ func (ar *AuthRequest) assignValues(columns []string, values []any) error {
 			} else if value != nil {
 				ar.HmacKey = *value
 			}
+		case authrequest.FieldTotpValidated:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field totp_validated", values[i])
+			} else if value.Valid {
+				ar.TotpValidated = value.Bool
+			}
 		default:
 			ar.selectValues.Set(columns[i], values[i])
 		}
@@ -318,6 +326,9 @@ func (ar *AuthRequest) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("hmac_key=")
 	builder.WriteString(fmt.Sprintf("%v", ar.HmacKey))
+	builder.WriteString(", ")
+	builder.WriteString("totp_validated=")
+	builder.WriteString(fmt.Sprintf("%v", ar.TotpValidated))
 	builder.WriteByte(')')
 	return builder.String()
 }

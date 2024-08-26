@@ -19,6 +19,10 @@ const (
 	FieldRefresh = "refresh"
 	// FieldConnectorData holds the string denoting the connector_data field in the database.
 	FieldConnectorData = "connector_data"
+	// FieldTotp holds the string denoting the totp field in the database.
+	FieldTotp = "totp"
+	// FieldTotpConfirmed holds the string denoting the totp_confirmed field in the database.
+	FieldTotpConfirmed = "totp_confirmed"
 	// Table holds the table name of the offlinesession in the database.
 	Table = "offline_sessions"
 )
@@ -30,6 +34,8 @@ var Columns = []string{
 	FieldConnID,
 	FieldRefresh,
 	FieldConnectorData,
+	FieldTotp,
+	FieldTotpConfirmed,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -47,6 +53,8 @@ var (
 	UserIDValidator func(string) error
 	// ConnIDValidator is a validator for the "conn_id" field. It is called by the builders before save.
 	ConnIDValidator func(string) error
+	// DefaultTotpConfirmed holds the default value on creation for the "totp_confirmed" field.
+	DefaultTotpConfirmed bool
 	// IDValidator is a validator for the "id" field. It is called by the builders before save.
 	IDValidator func(string) error
 )
@@ -67,4 +75,14 @@ func ByUserID(opts ...sql.OrderTermOption) OrderOption {
 // ByConnID orders the results by the conn_id field.
 func ByConnID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldConnID, opts...).ToFunc()
+}
+
+// ByTotp orders the results by the totp field.
+func ByTotp(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTotp, opts...).ToFunc()
+}
+
+// ByTotpConfirmed orders the results by the totp_confirmed field.
+func ByTotpConfirmed(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTotpConfirmed, opts...).ToFunc()
 }

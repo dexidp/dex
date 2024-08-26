@@ -86,6 +86,8 @@ type AuthRequest struct {
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 
 	HMACKey []byte `json:"hmac_key"`
+
+	TOTPValidated bool `json:"totp_validated,omitempty"`
 }
 
 func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
@@ -106,6 +108,7 @@ func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		CodeChallenge:       a.PKCE.CodeChallenge,
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
 		HMACKey:             a.HMACKey,
+		TOTPValidated:       a.TOTPValidated,
 	}
 }
 
@@ -128,7 +131,8 @@ func toStorageAuthRequest(a AuthRequest) storage.AuthRequest {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
-		HMACKey: a.HMACKey,
+		HMACKey:       a.HMACKey,
+		TOTPValidated: a.TOTPValidated,
 	}
 }
 
@@ -231,6 +235,8 @@ type OfflineSessions struct {
 	ConnID        string                              `json:"conn_id,omitempty"`
 	Refresh       map[string]*storage.RefreshTokenRef `json:"refresh,omitempty"`
 	ConnectorData []byte                              `json:"connectorData,omitempty"`
+	TOTP          string                              `json:"totp,omitempty"`
+	TOTPConfirmed bool                                `json:"totp_confirmed,omitempty"`
 }
 
 func fromStorageOfflineSessions(o storage.OfflineSessions) OfflineSessions {
@@ -239,6 +245,8 @@ func fromStorageOfflineSessions(o storage.OfflineSessions) OfflineSessions {
 		ConnID:        o.ConnID,
 		Refresh:       o.Refresh,
 		ConnectorData: o.ConnectorData,
+		TOTP:          o.TOTP,
+		TOTPConfirmed: o.TOTPConfirmed,
 	}
 }
 
@@ -248,6 +256,8 @@ func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
 		ConnID:        o.ConnID,
 		Refresh:       o.Refresh,
 		ConnectorData: o.ConnectorData,
+		TOTP:          o.TOTP,
+		TOTPConfirmed: o.TOTPConfirmed,
 	}
 	if s.Refresh == nil {
 		// Server code assumes this will be non-nil.
