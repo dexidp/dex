@@ -1,15 +1,13 @@
 package main
 
 import (
-	"context"
-	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewLogger(t *testing.T) {
@@ -32,11 +30,7 @@ func TestNewLogger(t *testing.T) {
 		require.Equal(t, (*slog.Logger)(nil), logger)
 	})
 }
-
 func TestStorageInitializationRetry(t *testing.T) {
-	_, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	// Create a mock storage that fails a certain number of times before succeeding
 	mockStorage := &mockRetryStorage{
 		failuresLeft: 3,
@@ -45,10 +39,14 @@ func TestStorageInitializationRetry(t *testing.T) {
 	config := Config{
 		Issuer: "http://127.0.0.1:5556/dex",
 		Storage: Storage{
-			Type:          "mock",
-			Config:        mockStorage,
-			RetryAttempts: 5,
-			RetryDelay:    "1s",
+			Type:   "mock",
+			Config: mockStorage,
+			Retry: Retry{
+				MaxAttempts:   5,
+				InitialDelay:  "1s",
+				MaxDelay:      "10s",
+				BackoffFactor: 2,
+			},
 		},
 		Web: Web{
 			HTTP: "127.0.0.1:5556",
@@ -59,7 +57,8 @@ func TestStorageInitializationRetry(t *testing.T) {
 		},
 	}
 
-	logger, _ := newLogger(config.Logger.Level, config.Logger.Format)
+	logger, err := newLogger(config.Logger.Level, config.Logger.Format)
+	require.NoError(t, err)
 
 	s, err := initializeStorageWithRetry(config.Storage, logger)
 	require.NoError(t, err)
@@ -75,7 +74,7 @@ type mockRetryStorage struct {
 func (m *mockRetryStorage) Open(logger *slog.Logger) (storage.Storage, error) {
 	if m.failuresLeft > 0 {
 		m.failuresLeft--
-		return nil, errors.New("mock storage failure")
+		return nil, fmt.Errorf("mock storage failure")
 	}
 	return memory.New(logger), nil
 }

@@ -695,31 +695,34 @@ func initializeStorageWithRetry(storageConfig Storage, logger *slog.Logger) (sto
 	var s storage.Storage
 	var err error
 
-	retryAttempts := storageConfig.RetryAttempts
-	if retryAttempts == 0 {
-		retryAttempts = 5 // Default to 5 attempts
-	}
+	maxAttempts := storageConfig.Retry.MaxAttempts
+	initialDelay, _ := time.ParseDuration(storageConfig.Retry.InitialDelay)
+	maxDelay, _ := time.ParseDuration(storageConfig.Retry.MaxDelay)
+	backoffFactor := storageConfig.Retry.BackoffFactor
 
-	retryDelay, err := time.ParseDuration(storageConfig.RetryDelay)
-	if err != nil {
-		retryDelay = 5 * time.Second // Default to 5 seconds
-	}
+	delay := initialDelay
 
-	for attempt := 1; attempt <= retryAttempts; attempt++ {
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		s, err = storageConfig.Config.Open(logger)
 		if err == nil {
 			return s, nil
 		}
 
 		logger.Error("Failed to initialize storage",
-			"attempt", fmt.Sprintf("%d/%d", attempt, retryAttempts),
+			"attempt", fmt.Sprintf("%d/%d", attempt, maxAttempts),
 			"error", err)
 
-		if attempt < retryAttempts {
+		if attempt < maxAttempts {
 			logger.Info("Retrying storage initialization",
-				"nextAttemptIn", retryDelay.String())
-			time.Sleep(retryDelay)
+				"nextAttemptIn", delay.String())
+			time.Sleep(delay)
+
+			// Calculate next delay using exponential backoff
+			delay = time.Duration(float64(delay) * backoffFactor)
+			if delay > maxDelay {
+				delay = maxDelay
+			}
 		}
 	}
-	return nil, fmt.Errorf("failed to initialize storage after %d attempts: %v", retryAttempts, err)
+	return nil, fmt.Errorf("failed to initialize storage after %d attempts: %v", maxAttempts, err)
 }
