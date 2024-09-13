@@ -11,7 +11,6 @@ require (
 	github.com/beevik/etree v1.4.0
 	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/dexidp/dex/api/v2 v2.1.0
-	github.com/felixge/httpsnoop v1.0.4
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-jose/go-jose/v4 v4.0.4
@@ -57,6 +56,7 @@ require (
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.5 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
