@@ -17,6 +17,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -524,6 +525,15 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		unrecognized  []string
 		invalidScopes []string
 	)
+
+	if len(client.DefaultScopes) > 0 {
+		for _, scope := range client.DefaultScopes {
+			if !slices.Contains(scopes, scope) {
+				scopes = append(scopes, scope)
+			}
+		}
+	}
+
 	hasOpenIDScope := false
 	for _, scope := range scopes {
 		switch scope {
