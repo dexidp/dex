@@ -26,6 +26,15 @@ const (
 	codeChallengeMethodS256  = "S256"
 )
 
+func contains(arr []string, item string) bool {
+	for _, itemFromArray := range arr {
+		if itemFromArray == item {
+			return true
+		}
+	}
+	return false
+}
+
 // Config holds configuration options for OpenID Connect logins.
 type Config struct {
 	Issuer       string `json:"issuer"`
@@ -275,6 +284,26 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		}
 	}
 
+	// Obtain CodeChallengeMethodsSupported from the provider
+	var metadata struct {
+		CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported"`
+	}
+	if err := provider.Claims(&metadata); err != nil {
+		logger.Warn("failed to parse provider metadata")
+	}
+	// if PKCEChallenge method has not been setted in the config, auto-detect the best fit
+	if c.PKCEChallenge == "" {
+		if contains(metadata.CodeChallengeMethodsSupported, codeChallengeMethodS256) {
+			c.PKCEChallenge = codeChallengeMethodS256
+		} else if contains(metadata.CodeChallengeMethodsSupported, codeChallengeMethodPlain) {
+			c.PKCEChallenge = codeChallengeMethodPlain
+		}
+	} else {
+		// if PKCEChallenge method has been setted in the config, check if it is supported
+		if !contains(metadata.CodeChallengeMethodsSupported, c.PKCEChallenge) {
+			logger.Warn("provided PKCEChallenge method not supported by the connector")
+		}
+	}
 	pkceVerifier := ""
 
 	clientID := c.ClientID
