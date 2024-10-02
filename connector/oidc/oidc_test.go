@@ -66,6 +66,7 @@ func TestHandleCallback(t *testing.T) {
 		token                     map[string]interface{}
 		groupsRegex               string
 		newGroupFromClaims        []NewGroupFromClaims
+		pkceChallenge             string
 	}{
 		{
 			name:               "simpleCase",
@@ -382,6 +383,40 @@ func TestHandleCallback(t *testing.T) {
 				"email_verified": true,
 			},
 		},
+		{
+			name:               "S256PKCEChallenge",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			pkceChallenge:      "S256",
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectGroups:       []string{"group1", "group2"},
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups":         []string{"group1", "group2"},
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
+			name:               "plainPKCEChallenge",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			pkceChallenge:      "plain",
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectGroups:       []string{"group1", "group2"},
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups":         []string{"group1", "group2"},
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -413,6 +448,7 @@ func TestHandleCallback(t *testing.T) {
 				InsecureEnableGroups:      true,
 				BasicAuthUnsupported:      &basicAuth,
 				OverrideClaimMapping:      tc.overrideClaimMapping,
+				PKCEChallenge:             tc.pkceChallenge,
 			}
 			config.ClaimMapping.PreferredUsernameKey = tc.preferredUsernameKey
 			config.ClaimMapping.EmailKey = tc.emailKey

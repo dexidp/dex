@@ -21,6 +21,11 @@ import (
 	"github.com/dexidp/dex/pkg/httpclient"
 )
 
+const (
+	codeChallengeMethodPlain = "plain"
+	codeChallengeMethodS256  = "S256"
+)
+
 // Config holds configuration options for OpenID Connect logins.
 type Config struct {
 	Issuer       string `json:"issuer"`
@@ -78,6 +83,8 @@ type Config struct {
 
 	// PromptType will be used for the prompt parameter (when offline_access, by default prompt=consent)
 	PromptType *string `json:"promptType"`
+
+	PKCEChallenge string `json:"pkceChallenge"`
 
 	// OverrideClaimMapping will be used to override the options defined in claimMappings.
 	// i.e. if there are 'email' and `preferred_email` claims available, by default Dex will always use the `email` claim independent of the ClaimMapping.EmailKey.
@@ -268,6 +275,8 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		}
 	}
 
+	pkceVerifier := ""
+
 	clientID := c.ClientID
 	return &oidcConnector{
 		provider:    provider,
@@ -300,6 +309,8 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
 		newGroupFromClaims:        c.ClaimMutations.NewGroupFromClaims,
 		groupsFilter:              groupsFilter,
+		pkceChallenge:             c.PKCEChallenge,
+		pkceVerifier:              pkceVerifier,
 	}, nil
 }
 
@@ -330,6 +341,8 @@ type oidcConnector struct {
 	groupsKey                 string
 	newGroupFromClaims        []NewGroupFromClaims
 	groupsFilter              *regexp.Regexp
+	pkceChallenge             string
+	pkceVerifier              string
 }
 
 func (c *oidcConnector) Close() error {
@@ -352,6 +365,20 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 	if s.OfflineAccess {
 		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", c.promptType))
 	}
+
+	if c.pkceChallenge != "" {
+		switch c.pkceChallenge {
+		case codeChallengeMethodPlain:
+			c.pkceVerifier = oauth2.GenerateVerifier()
+			opts = append(opts, oauth2.VerifierOption(c.pkceVerifier))
+		case codeChallengeMethodS256:
+			c.pkceVerifier = oauth2.GenerateVerifier()
+			opts = append(opts, oauth2.S256ChallengeOption(c.pkceVerifier))
+		default:
+			c.logger.Warn("unknown PKCEChallenge method")
+		}
+	}
+
 	return c.oauth2Config.AuthCodeURL(state, opts...), nil
 }
 
@@ -383,7 +410,12 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 
 	ctx := context.WithValue(r.Context(), oauth2.HTTPClient, c.httpClient)
 
-	token, err := c.oauth2Config.Exchange(ctx, q.Get("code"))
+	var opts []oauth2.AuthCodeOption
+	if c.pkceVerifier != "" {
+		opts = append(opts, oauth2.VerifierOption(c.pkceVerifier))
+	}
+
+	token, err := c.oauth2Config.Exchange(ctx, q.Get("code"), opts...)
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
 	}
