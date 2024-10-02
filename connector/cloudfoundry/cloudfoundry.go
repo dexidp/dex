@@ -349,10 +349,10 @@ func (c *cloudfoundryConnector) HandleCallback(s connector.Scopes, r *http.Reque
 	identity.EmailVerified, _ = userInfoResult["email_verified"].(bool)
 
 	var (
-		devPath     = fmt.Sprintf("/v2/users/%s/spaces", identity.UserID)
-		auditorPath = fmt.Sprintf("/v2/users/%s/audited_spaces", identity.UserID)
-		managerPath = fmt.Sprintf("/v2/users/%s/managed_spaces", identity.UserID)
-		orgsPath    = fmt.Sprintf("/v2/users/%s/organizations", identity.UserID)
+		devPath     = fmt.Sprintf("/v3/users/%s/spaces", identity.UserID)
+		auditorPath = fmt.Sprintf("/v3/users/%s/audited_spaces", identity.UserID)
+		managerPath = fmt.Sprintf("/v3/users/%s/managed_spaces", identity.UserID)
+		orgsPath    = fmt.Sprintf("/v3/users/%s/organizations", identity.UserID)
 	)
 
 	if s.Groups {
