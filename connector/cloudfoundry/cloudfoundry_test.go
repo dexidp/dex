@@ -109,7 +109,7 @@ func testSpaceHandler(reqURL, spaceAPIEndpoint string) (result map[string]interf
 			},
 		}
 	} else {
-		nextURL := fmt.Sprintf("/v2/users/12345/%s?order-direction=asc&page=2&results-per-page=50", spaceAPIEndpoint)
+		nextURL := fmt.Sprintf("/v3/users/12345/%s?order-direction=asc&page=2&results-per-page=50", spaceAPIEndpoint)
 		result = map[string]interface{}{
 			"next_url": nextURL,
 			"resources": []map[string]interface{}{
@@ -139,7 +139,7 @@ func testOrgHandler(reqURL string) (result map[string]interface{}) {
 		}
 	} else {
 		result = map[string]interface{}{
-			"next_url": "/v2/users/12345/organizations?order-direction=asc&page=2&results-per-page=50",
+			"next_url": "/v3/users/12345/organizations?order-direction=asc&page=2&results-per-page=50",
 			"resources": []map[string]interface{}{
 				{
 					"metadata": map[string]string{"guid": "some-org-guid-1"},
@@ -165,7 +165,7 @@ func testSetup() *httptest.Server {
 		})
 	})
 
-	mux.HandleFunc("/v2/info", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v3/info", func(w http.ResponseWriter, r *http.Request) {
 		url := fmt.Sprintf("http://%s", r.Host)
 
 		json.NewEncoder(w).Encode(map[string]string{
@@ -194,7 +194,7 @@ func testSetup() *httptest.Server {
 		})
 	})
 
-	mux.HandleFunc("/v2/users/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v3/users/", func(w http.ResponseWriter, r *http.Request) {
 		var result map[string]interface{}
 
 		reqURL := r.URL.String()
