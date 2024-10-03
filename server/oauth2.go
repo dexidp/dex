@@ -668,7 +668,8 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 		return true
 	}
 
-	// verify that the host is of form "http://localhost:(port)(path)" or "http://localhost(path)"
+	// verify that the host is of form "http://localhost:(port)(path)", "http://localhost(path)" or numeric form like
+	// "http://127.0.0.1:(port)(path)"
 	u, err := url.Parse(redirectURI)
 	if err != nil {
 		return false
@@ -676,11 +677,20 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 	if u.Scheme != "http" {
 		return false
 	}
-	if u.Host == "localhost" {
+	return isHostLocal(u.Host)
+}
+
+func isHostLocal(host string) bool {
+	if host == "localhost" || net.ParseIP(host).IsLoopback() {
 		return true
 	}
-	host, _, err := net.SplitHostPort(u.Host)
-	return err == nil && host == "localhost"
+
+	host, _, err := net.SplitHostPort(host)
+	if err != nil {
+		return false
+	}
+
+	return host == "localhost" || net.ParseIP(host).IsLoopback()
 }
 
 func validateConnectorID(connectors []storage.Connector, connectorID string) bool {
