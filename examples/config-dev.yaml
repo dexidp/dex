@@ -119,7 +119,9 @@ telemetry:
     # go directly to it. For connected IdPs, this redirects the browser away
     # from application to upstream provider such as the Google login page
 #   alwaysShowLoginScreen: false
-    # Uncomment the passwordConnector to use a specific connector for password grants
+    # Uncomment the defaultPasswordConnector to use a specific connector as default for password grants
+#   defaultPasswordConnector: local
+    # Deprecated option
 #   passwordConnector: local
 
 # Instead of reading from an external storage, use this list of clients.
