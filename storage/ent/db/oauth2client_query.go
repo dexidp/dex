@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
@@ -60,7 +61,7 @@ func (oq *OAuth2ClientQuery) Order(o ...oauth2client.OrderOption) *OAuth2ClientQ
 // First returns the first OAuth2Client entity from the query.
 // Returns a *NotFoundError when no OAuth2Client was found.
 func (oq *OAuth2ClientQuery) First(ctx context.Context) (*OAuth2Client, error) {
-	nodes, err := oq.Limit(1).All(setContextOp(ctx, oq.ctx, "First"))
+	nodes, err := oq.Limit(1).All(setContextOp(ctx, oq.ctx, ent.OpQueryFirst))
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +84,7 @@ func (oq *OAuth2ClientQuery) FirstX(ctx context.Context) *OAuth2Client {
 // Returns a *NotFoundError when no OAuth2Client ID was found.
 func (oq *OAuth2ClientQuery) FirstID(ctx context.Context) (id string, err error) {
 	var ids []string
-	if ids, err = oq.Limit(1).IDs(setContextOp(ctx, oq.ctx, "FirstID")); err != nil {
+	if ids, err = oq.Limit(1).IDs(setContextOp(ctx, oq.ctx, ent.OpQueryFirstID)); err != nil {
 		return
 	}
 	if len(ids) == 0 {
@@ -106,7 +107,7 @@ func (oq *OAuth2ClientQuery) FirstIDX(ctx context.Context) string {
 // Returns a *NotSingularError when more than one OAuth2Client entity is found.
 // Returns a *NotFoundError when no OAuth2Client entities are found.
 func (oq *OAuth2ClientQuery) Only(ctx context.Context) (*OAuth2Client, error) {
-	nodes, err := oq.Limit(2).All(setContextOp(ctx, oq.ctx, "Only"))
+	nodes, err := oq.Limit(2).All(setContextOp(ctx, oq.ctx, ent.OpQueryOnly))
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +135,7 @@ func (oq *OAuth2ClientQuery) OnlyX(ctx context.Context) *OAuth2Client {
 // Returns a *NotFoundError when no entities are found.
 func (oq *OAuth2ClientQuery) OnlyID(ctx context.Context) (id string, err error) {
 	var ids []string
-	if ids, err = oq.Limit(2).IDs(setContextOp(ctx, oq.ctx, "OnlyID")); err != nil {
+	if ids, err = oq.Limit(2).IDs(setContextOp(ctx, oq.ctx, ent.OpQueryOnlyID)); err != nil {
 		return
 	}
 	switch len(ids) {
@@ -159,7 +160,7 @@ func (oq *OAuth2ClientQuery) OnlyIDX(ctx context.Context) string {
 
 // All executes the query and returns a list of OAuth2Clients.
 func (oq *OAuth2ClientQuery) All(ctx context.Context) ([]*OAuth2Client, error) {
-	ctx = setContextOp(ctx, oq.ctx, "All")
+	ctx = setContextOp(ctx, oq.ctx, ent.OpQueryAll)
 	if err := oq.prepareQuery(ctx); err != nil {
 		return nil, err
 	}
@@ -181,7 +182,7 @@ func (oq *OAuth2ClientQuery) IDs(ctx context.Context) (ids []string, err error) 
 	if oq.ctx.Unique == nil && oq.path != nil {
 		oq.Unique(true)
 	}
-	ctx = setContextOp(ctx, oq.ctx, "IDs")
+	ctx = setContextOp(ctx, oq.ctx, ent.OpQueryIDs)
 	if err = oq.Select(oauth2client.FieldID).Scan(ctx, &ids); err != nil {
 		return nil, err
 	}
@@ -199,7 +200,7 @@ func (oq *OAuth2ClientQuery) IDsX(ctx context.Context) []string {
 
 // Count returns the count of the given query.
 func (oq *OAuth2ClientQuery) Count(ctx context.Context) (int, error) {
-	ctx = setContextOp(ctx, oq.ctx, "Count")
+	ctx = setContextOp(ctx, oq.ctx, ent.OpQueryCount)
 	if err := oq.prepareQuery(ctx); err != nil {
 		return 0, err
 	}
@@ -217,7 +218,7 @@ func (oq *OAuth2ClientQuery) CountX(ctx context.Context) int {
 
 // Exist returns true if the query has elements in the graph.
 func (oq *OAuth2ClientQuery) Exist(ctx context.Context) (bool, error) {
-	ctx = setContextOp(ctx, oq.ctx, "Exist")
+	ctx = setContextOp(ctx, oq.ctx, ent.OpQueryExist)
 	switch _, err := oq.FirstID(ctx); {
 	case IsNotFound(err):
 		return false, nil
@@ -449,7 +450,7 @@ func (ogb *OAuth2ClientGroupBy) Aggregate(fns ...AggregateFunc) *OAuth2ClientGro
 
 // Scan applies the selector query and scans the result into the given value.
 func (ogb *OAuth2ClientGroupBy) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, ogb.build.ctx, "GroupBy")
+	ctx = setContextOp(ctx, ogb.build.ctx, ent.OpQueryGroupBy)
 	if err := ogb.build.prepareQuery(ctx); err != nil {
 		return err
 	}
@@ -497,7 +498,7 @@ func (os *OAuth2ClientSelect) Aggregate(fns ...AggregateFunc) *OAuth2ClientSelec
 
 // Scan applies the selector query and scans the result into the given value.
 func (os *OAuth2ClientSelect) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, os.ctx, "Select")
+	ctx = setContextOp(ctx, os.ctx, ent.OpQuerySelect)
 	if err := os.prepareQuery(ctx); err != nil {
 		return err
 	}

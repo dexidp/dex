@@ -96,7 +96,7 @@ All changes or deprecations of connector features will be announced in the [rele
 * [Getting started](https://dexidp.io/docs/getting-started/)
 * [Intro to OpenID Connect](https://dexidp.io/docs/openid-connect/)
 * [Writing apps that use dex][using-dex]
-* [What's new in v2](https://dexidp.io/docs/v2/)
+* [What's new in v2](https://dexidp.io/docs/archive/v2/)
 * [Custom scopes, claims, and client features](https://dexidp.io/docs/custom-scopes-claims-clients/)
 * [Storage options](https://dexidp.io/docs/storage/)
 * [gRPC API](https://dexidp.io/docs/api/)
@@ -138,6 +138,8 @@ make testall
 For the best developer experience, install [Nix](https://builtwithnix.org/) and [direnv](https://direnv.net/).
 
 Alternatively, install Go and Docker manually or using a package manager. Install the rest of the dependencies by running `make deps`.
+
+For release process, please read the [release documentation](https://dexidp.io/docs/development/releases/).
 
 ## License
 

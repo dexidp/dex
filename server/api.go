@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -9,6 +10,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/api/v2"
+	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -29,11 +31,12 @@ const (
 )
 
 // NewAPI returns a server which implements the gRPC API interface.
-func NewAPI(s storage.Storage, logger *slog.Logger, version string) api.DexServer {
+func NewAPI(s storage.Storage, logger *slog.Logger, version string, server *Server) api.DexServer {
 	return dexAPI{
 		s:       s,
 		logger:  logger.With("component", "api"),
 		version: version,
+		server:  server,
 	}
 }
 
@@ -43,6 +46,7 @@ type dexAPI struct {
 	s       storage.Storage
 	logger  *slog.Logger
 	version string
+	server  *Server
 }
 
 func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetClientResp, error) {
@@ -248,6 +252,20 @@ func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.Versi
 	}, nil
 }
 
+func (d dexAPI) GetDiscovery(ctx context.Context, req *api.DiscoveryReq) (*api.DiscoveryResp, error) {
+	discoveryDoc := d.server.constructDiscovery()
+	data, err := json.Marshal(discoveryDoc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal discovery data: %v", err)
+	}
+	resp := api.DiscoveryResp{}
+	err = json.Unmarshal(data, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal discovery data: %v", err)
+	}
+	return &resp, nil
+}
+
 func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*api.ListPasswordResp, error) {
 	passwordList, err := d.s.ListPasswords()
 	if err != nil {
@@ -384,4 +402,137 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 	}
 
 	return &api.RevokeRefreshResp{}, nil
+}
+
+func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq) (*api.CreateConnectorResp, error) {
+	if !featureflags.APIConnectorsCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
+	}
+
+	if req.Connector.Id == "" {
+		return nil, errors.New("no id supplied")
+	}
+
+	if req.Connector.Type == "" {
+		return nil, errors.New("no type supplied")
+	}
+
+	if req.Connector.Name == "" {
+		return nil, errors.New("no name supplied")
+	}
+
+	if len(req.Connector.Config) == 0 {
+		return nil, errors.New("no config supplied")
+	}
+
+	if !json.Valid(req.Connector.Config) {
+		return nil, errors.New("invalid config supplied")
+	}
+
+	c := storage.Connector{
+		ID:     req.Connector.Id,
+		Name:   req.Connector.Name,
+		Type:   req.Connector.Type,
+		Config: req.Connector.Config,
+	}
+	if err := d.s.CreateConnector(ctx, c); err != nil {
+		if err == storage.ErrAlreadyExists {
+			return &api.CreateConnectorResp{AlreadyExists: true}, nil
+		}
+		d.logger.Error("api: failed to create connector", "err", err)
+		return nil, fmt.Errorf("create connector: %v", err)
+	}
+
+	return &api.CreateConnectorResp{}, nil
+}
+
+func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq) (*api.UpdateConnectorResp, error) {
+	if !featureflags.APIConnectorsCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
+	}
+
+	if req.Id == "" {
+		return nil, errors.New("no email supplied")
+	}
+
+	if len(req.NewConfig) == 0 && req.NewName == "" && req.NewType == "" {
+		return nil, errors.New("nothing to update")
+	}
+
+	if !json.Valid(req.NewConfig) {
+		return nil, errors.New("invalid config supplied")
+	}
+
+	updater := func(old storage.Connector) (storage.Connector, error) {
+		if req.NewType != "" {
+			old.Type = req.NewType
+		}
+
+		if req.NewName != "" {
+			old.Name = req.NewName
+		}
+
+		if len(req.NewConfig) != 0 {
+			old.Config = req.NewConfig
+		}
+
+		return old, nil
+	}
+
+	if err := d.s.UpdateConnector(req.Id, updater); err != nil {
+		if err == storage.ErrNotFound {
+			return &api.UpdateConnectorResp{NotFound: true}, nil
+		}
+		d.logger.Error("api: failed to update connector", "err", err)
+		return nil, fmt.Errorf("update connector: %v", err)
+	}
+
+	return &api.UpdateConnectorResp{}, nil
+}
+
+func (d dexAPI) DeleteConnector(ctx context.Context, req *api.DeleteConnectorReq) (*api.DeleteConnectorResp, error) {
+	if !featureflags.APIConnectorsCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
+	}
+
+	if req.Id == "" {
+		return nil, errors.New("no id supplied")
+	}
+
+	err := d.s.DeleteConnector(req.Id)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			return &api.DeleteConnectorResp{NotFound: true}, nil
+		}
+		d.logger.Error("api: failed to delete connector", "err", err)
+		return nil, fmt.Errorf("delete connector: %v", err)
+	}
+	return &api.DeleteConnectorResp{}, nil
+}
+
+func (d dexAPI) ListConnectors(ctx context.Context, req *api.ListConnectorReq) (*api.ListConnectorResp, error) {
+	if !featureflags.APIConnectorsCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
+	}
+
+	connectorList, err := d.s.ListConnectors()
+	if err != nil {
+		d.logger.Error("api: failed to list connectors", "err", err)
+		return nil, fmt.Errorf("list connectors: %v", err)
+	}
+
+	connectors := make([]*api.Connector, 0, len(connectorList))
+	for _, connector := range connectorList {
+		c := api.Connector{
+			Id:     connector.ID,
+			Name:   connector.Name,
+			Type:   connector.Type,
+			Config: connector.Config,
+		}
+		connectors = append(connectors, &c)
+	}
+
+	return &api.ListConnectorResp{
+		Connectors: connectors,
+	}, nil
 }

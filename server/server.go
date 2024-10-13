@@ -8,22 +8,24 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"path"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
-	"github.com/felixge/httpsnoop"
+	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/connector"
@@ -74,6 +76,10 @@ type Config struct {
 
 	// Headers is a map of headers to be added to the all responses.
 	Headers http.Header
+
+	// Header to extract real ip from.
+	RealIPHeader       string
+	TrustedRealIPCIDRs []netip.Prefix
 
 	// List of allowed origins for CORS requests on discovery, token and keys endpoint.
 	// If none are indicated, CORS requests are disabled. Passing in "*" will allow any
@@ -325,7 +331,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 	}
 
-	instrumentHandlerCounter := func(_ string, handler http.Handler) http.HandlerFunc {
+	instrumentHandler := func(_ string, handler http.Handler) http.HandlerFunc {
 		return handler.ServeHTTP
 	}
 
@@ -333,19 +339,57 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		requestCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "http_requests_total",
 			Help: "Count of all HTTP requests.",
-		}, []string{"handler", "code", "method"})
+		}, []string{"code", "method", "handler"})
 
-		err = c.PrometheusRegistry.Register(requestCounter)
+		durationHist := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "request_duration_seconds",
+			Help:    "A histogram of latencies for requests.",
+			Buckets: []float64{.25, .5, 1, 2.5, 5, 10},
+		}, []string{"code", "method", "handler"})
+
+		sizeHist := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "response_size_bytes",
+			Help:    "A histogram of response sizes for requests.",
+			Buckets: []float64{200, 500, 900, 1500},
+		}, []string{"code", "method", "handler"})
+
+		c.PrometheusRegistry.MustRegister(requestCounter, durationHist, sizeHist)
+
+		instrumentHandler = func(handlerName string, handler http.Handler) http.HandlerFunc {
+			return promhttp.InstrumentHandlerDuration(durationHist.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+				promhttp.InstrumentHandlerCounter(requestCounter.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+					promhttp.InstrumentHandlerResponseSize(sizeHist.MustCurryWith(prometheus.Labels{"handler": handlerName}), handler),
+				),
+			)
+		}
+	}
+
+	parseRealIP := func(r *http.Request) (string, error) {
+		remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
-			return nil, fmt.Errorf("server: Failed to register Prometheus HTTP metrics: %v", err)
+			return "", err
 		}
 
-		instrumentHandlerCounter = func(handlerName string, handler http.Handler) http.HandlerFunc {
-			return func(w http.ResponseWriter, r *http.Request) {
-				m := httpsnoop.CaptureMetrics(handler, w, r)
-				requestCounter.With(prometheus.Labels{"handler": handlerName, "code": strconv.Itoa(m.Code), "method": r.Method}).Inc()
+		remoteIP, err := netip.ParseAddr(remoteAddr)
+		if err != nil {
+			return "", err
+		}
+
+		for _, n := range c.TrustedRealIPCIDRs {
+			if !n.Contains(remoteIP) {
+				return remoteAddr, nil // Fallback to the address from the request if the header is provided
 			}
 		}
+
+		ipVal := r.Header.Get(c.RealIPHeader)
+		if ipVal != "" {
+			ip, err := netip.ParseAddr(ipVal)
+			if err == nil {
+				return ip.String(), nil
+			}
+		}
+
+		return remoteAddr, nil
 	}
 
 	handlerWithHeaders := func(handlerName string, handler http.Handler) http.HandlerFunc {
@@ -353,7 +397,20 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 			for k, v := range c.Headers {
 				w.Header()[k] = v
 			}
-			instrumentHandlerCounter(handlerName, handler)(w, r)
+
+			// Context values are used for logging purposes with the log/slog logger.
+			rCtx := r.Context()
+			rCtx = WithRequestID(rCtx)
+
+			if c.RealIPHeader != "" {
+				realIP, err := parseRealIP(r)
+				if err == nil {
+					rCtx = WithRemoteIP(rCtx, realIP)
+				}
+			}
+
+			r = r.WithContext(rCtx)
+			instrumentHandler(handlerName, handler)(w, r)
 		}
 	}
 
@@ -671,4 +728,19 @@ func (s *Server) getConnector(id string) (Connector, error) {
 	}
 
 	return conn, nil
+}
+
+type logRequestKey string
+
+const (
+	RequestKeyRequestID logRequestKey = "request_id"
+	RequestKeyRemoteIP  logRequestKey = "client_remote_addr"
+)
+
+func WithRequestID(ctx context.Context) context.Context {
+	return context.WithValue(ctx, RequestKeyRequestID, uuid.NewString())
+}
+
+func WithRemoteIP(ctx context.Context, ip string) context.Context {
+	return context.WithValue(ctx, RequestKeyRemoteIP, ip)
 }

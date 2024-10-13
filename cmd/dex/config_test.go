@@ -38,6 +38,7 @@ func TestValidConfiguration(t *testing.T) {
 			},
 		},
 	}
+
 	if err := configuration.Validate(); err != nil {
 		t.Fatalf("this configuration should have been valid: %v", err)
 	}
@@ -131,6 +132,10 @@ expiry:
 logger:
   level: "debug"
   format: "json"
+
+additionalFeatures: [
+	"ConnectorsCRUD"
+]
 `)
 
 	want := Config{
@@ -229,6 +234,7 @@ logger:
 	if err := yaml.Unmarshal(rawConfig, &c); err != nil {
 		t.Fatalf("failed to decode config: %v", err)
 	}
+
 	if diff := pretty.Compare(c, want); diff != "" {
 		t.Errorf("got!=want: %s", diff)
 	}
@@ -436,6 +442,7 @@ logger:
 	if err := yaml.Unmarshal(rawConfig, &c); err != nil {
 		t.Fatalf("failed to decode config: %v", err)
 	}
+
 	if diff := pretty.Compare(c, want); diff != "" {
 		t.Errorf("got!=want: %s", diff)
 	}

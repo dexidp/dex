@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -97,6 +98,7 @@ type Config struct {
 	// ClaimMutations holds all claim mutations options
 	ClaimMutations struct {
 		NewGroupFromClaims []NewGroupFromClaims `json:"newGroupFromClaims"`
+		FilterGroupClaims  FilterGroupClaims    `json:"filterGroupClaims"`
 	} `json:"claimModifications"`
 }
 
@@ -176,6 +178,12 @@ type NewGroupFromClaims struct {
 	Prefix string `json:"prefix"`
 }
 
+// FilterGroupClaims is a regex filter for to keep only the matching groups.
+// This is useful when the groups list is too large to fit within an HTTP header.
+type FilterGroupClaims struct {
+	GroupsFilter string `json:"groupsFilter"`
+}
+
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
 // list, but it only matches specific URLs, not top level domains.
 var brokenAuthHeaderDomains = []string{
@@ -252,6 +260,14 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		promptType = *c.PromptType
 	}
 
+	var groupsFilter *regexp.Regexp
+	if c.ClaimMutations.FilterGroupClaims.GroupsFilter != "" {
+		groupsFilter, err = regexp.Compile(c.ClaimMutations.FilterGroupClaims.GroupsFilter)
+		if err != nil {
+			logger.Warn("ignoring invalid", "invalid_regex", c.ClaimMutations.FilterGroupClaims.GroupsFilter, "connector_id", id)
+		}
+	}
+
 	clientID := c.ClientID
 	return &oidcConnector{
 		provider:    provider,
@@ -263,7 +279,8 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 			Scopes:       scopes,
 			RedirectURL:  c.RedirectURI,
 		},
-		verifier: provider.Verifier(
+		verifier: provider.VerifierContext(
+			ctx, // Pass our ctx with customized http.Client
 			&oidc.Config{ClientID: clientID},
 		),
 		logger:                    logger.With(slog.Group("connector", "type", "oidc", "id", id)),
@@ -282,6 +299,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		emailKey:                  c.ClaimMapping.EmailKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
 		newGroupFromClaims:        c.ClaimMutations.NewGroupFromClaims,
+		groupsFilter:              groupsFilter,
 	}, nil
 }
 
@@ -311,6 +329,7 @@ type oidcConnector struct {
 	emailKey                  string
 	groupsKey                 string
 	newGroupFromClaims        []NewGroupFromClaims
+	groupsFilter              *regexp.Regexp
 }
 
 func (c *oidcConnector) Close() error {
@@ -517,6 +536,9 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		if found {
 			for _, v := range vs {
 				if s, ok := v.(string); ok {
+					if c.groupsFilter != nil && !c.groupsFilter.MatchString(s) {
+						continue
+					}
 					groups = append(groups, s)
 				} else {
 					return identity, fmt.Errorf("malformed \"%v\" claim", groupsKey)

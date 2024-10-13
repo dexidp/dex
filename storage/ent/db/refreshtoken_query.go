@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
@@ -60,7 +61,7 @@ func (rtq *RefreshTokenQuery) Order(o ...refreshtoken.OrderOption) *RefreshToken
 // First returns the first RefreshToken entity from the query.
 // Returns a *NotFoundError when no RefreshToken was found.
 func (rtq *RefreshTokenQuery) First(ctx context.Context) (*RefreshToken, error) {
-	nodes, err := rtq.Limit(1).All(setContextOp(ctx, rtq.ctx, "First"))
+	nodes, err := rtq.Limit(1).All(setContextOp(ctx, rtq.ctx, ent.OpQueryFirst))
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +84,7 @@ func (rtq *RefreshTokenQuery) FirstX(ctx context.Context) *RefreshToken {
 // Returns a *NotFoundError when no RefreshToken ID was found.
 func (rtq *RefreshTokenQuery) FirstID(ctx context.Context) (id string, err error) {
 	var ids []string
-	if ids, err = rtq.Limit(1).IDs(setContextOp(ctx, rtq.ctx, "FirstID")); err != nil {
+	if ids, err = rtq.Limit(1).IDs(setContextOp(ctx, rtq.ctx, ent.OpQueryFirstID)); err != nil {
 		return
 	}
 	if len(ids) == 0 {
@@ -106,7 +107,7 @@ func (rtq *RefreshTokenQuery) FirstIDX(ctx context.Context) string {
 // Returns a *NotSingularError when more than one RefreshToken entity is found.
 // Returns a *NotFoundError when no RefreshToken entities are found.
 func (rtq *RefreshTokenQuery) Only(ctx context.Context) (*RefreshToken, error) {
-	nodes, err := rtq.Limit(2).All(setContextOp(ctx, rtq.ctx, "Only"))
+	nodes, err := rtq.Limit(2).All(setContextOp(ctx, rtq.ctx, ent.OpQueryOnly))
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +135,7 @@ func (rtq *RefreshTokenQuery) OnlyX(ctx context.Context) *RefreshToken {
 // Returns a *NotFoundError when no entities are found.
 func (rtq *RefreshTokenQuery) OnlyID(ctx context.Context) (id string, err error) {
 	var ids []string
-	if ids, err = rtq.Limit(2).IDs(setContextOp(ctx, rtq.ctx, "OnlyID")); err != nil {
+	if ids, err = rtq.Limit(2).IDs(setContextOp(ctx, rtq.ctx, ent.OpQueryOnlyID)); err != nil {
 		return
 	}
 	switch len(ids) {
@@ -159,7 +160,7 @@ func (rtq *RefreshTokenQuery) OnlyIDX(ctx context.Context) string {
 
 // All executes the query and returns a list of RefreshTokens.
 func (rtq *RefreshTokenQuery) All(ctx context.Context) ([]*RefreshToken, error) {
-	ctx = setContextOp(ctx, rtq.ctx, "All")
+	ctx = setContextOp(ctx, rtq.ctx, ent.OpQueryAll)
 	if err := rtq.prepareQuery(ctx); err != nil {
 		return nil, err
 	}
@@ -181,7 +182,7 @@ func (rtq *RefreshTokenQuery) IDs(ctx context.Context) (ids []string, err error)
 	if rtq.ctx.Unique == nil && rtq.path != nil {
 		rtq.Unique(true)
 	}
-	ctx = setContextOp(ctx, rtq.ctx, "IDs")
+	ctx = setContextOp(ctx, rtq.ctx, ent.OpQueryIDs)
 	if err = rtq.Select(refreshtoken.FieldID).Scan(ctx, &ids); err != nil {
 		return nil, err
 	}
@@ -199,7 +200,7 @@ func (rtq *RefreshTokenQuery) IDsX(ctx context.Context) []string {
 
 // Count returns the count of the given query.
 func (rtq *RefreshTokenQuery) Count(ctx context.Context) (int, error) {
-	ctx = setContextOp(ctx, rtq.ctx, "Count")
+	ctx = setContextOp(ctx, rtq.ctx, ent.OpQueryCount)
 	if err := rtq.prepareQuery(ctx); err != nil {
 		return 0, err
 	}
@@ -217,7 +218,7 @@ func (rtq *RefreshTokenQuery) CountX(ctx context.Context) int {
 
 // Exist returns true if the query has elements in the graph.
 func (rtq *RefreshTokenQuery) Exist(ctx context.Context) (bool, error) {
-	ctx = setContextOp(ctx, rtq.ctx, "Exist")
+	ctx = setContextOp(ctx, rtq.ctx, ent.OpQueryExist)
 	switch _, err := rtq.FirstID(ctx); {
 	case IsNotFound(err):
 		return false, nil
@@ -449,7 +450,7 @@ func (rtgb *RefreshTokenGroupBy) Aggregate(fns ...AggregateFunc) *RefreshTokenGr
 
 // Scan applies the selector query and scans the result into the given value.
 func (rtgb *RefreshTokenGroupBy) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, rtgb.build.ctx, "GroupBy")
+	ctx = setContextOp(ctx, rtgb.build.ctx, ent.OpQueryGroupBy)
 	if err := rtgb.build.prepareQuery(ctx); err != nil {
 		return err
 	}
@@ -497,7 +498,7 @@ func (rts *RefreshTokenSelect) Aggregate(fns ...AggregateFunc) *RefreshTokenSele
 
 // Scan applies the selector query and scans the result into the given value.
 func (rts *RefreshTokenSelect) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, rts.ctx, "Select")
+	ctx = setContextOp(ctx, rts.ctx, ent.OpQuerySelect)
 	if err := rts.prepareQuery(ctx); err != nil {
 		return err
 	}

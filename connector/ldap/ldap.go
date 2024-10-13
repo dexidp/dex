@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/url"
 	"os"
 	"strings"
 
@@ -318,11 +319,14 @@ func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error 
 		conn *ldap.Conn
 		err  error
 	)
+
 	switch {
 	case c.InsecureNoSSL:
-		conn, err = ldap.Dial("tcp", c.Host)
+		u := url.URL{Scheme: "ldap", Host: c.Host}
+		conn, err = ldap.DialURL(u.String())
 	case c.StartTLS:
-		conn, err = ldap.Dial("tcp", c.Host)
+		u := url.URL{Scheme: "ldap", Host: c.Host}
+		conn, err = ldap.DialURL(u.String())
 		if err != nil {
 			return fmt.Errorf("failed to connect: %v", err)
 		}
@@ -330,7 +334,8 @@ func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error 
 			return fmt.Errorf("start TLS failed: %v", err)
 		}
 	default:
-		conn, err = ldap.DialTLS("tcp", c.Host, c.tlsConfig)
+		u := url.URL{Scheme: "ldaps", Host: c.Host}
+		conn, err = ldap.DialURL(u.String(), ldap.DialWithTLSConfig(c.tlsConfig))
 	}
 	if err != nil {
 		return fmt.Errorf("failed to connect: %v", err)

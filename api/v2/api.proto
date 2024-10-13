@@ -116,6 +116,56 @@ message ListPasswordResp {
   repeated Password passwords = 1;
 }
 
+// Connector is a strategy used by Dex for authenticating a user against another identity provider
+message Connector {
+  string id = 1;
+  string type = 2;
+  string name = 3;
+  bytes config = 4;
+}
+
+// CreateConnectorReq is a request to make a connector.
+message CreateConnectorReq {
+  Connector connector = 1;
+}
+
+// CreateConnectorResp returns the response from creating a connector.
+message CreateConnectorResp {
+  bool already_exists = 1;
+}
+
+// UpdateConnectorReq is a request to modify an existing connector.
+message UpdateConnectorReq {
+  // The id used to lookup the connector. This field cannot be modified
+  string id = 1;
+  string new_type = 2;
+  string new_name = 3;
+  bytes new_config = 4;
+}
+
+// UpdateConnectorResp returns the response from modifying an existing connector.
+message UpdateConnectorResp {
+  bool not_found = 1;
+}
+
+// DeleteConnectorReq is a request to delete a connector.
+message DeleteConnectorReq {
+  string id = 1;
+}
+
+// DeleteConnectorResp returns the response from deleting a connector.
+message DeleteConnectorResp {
+  bool not_found = 1;
+}
+
+// ListConnectorReq is a request to enumerate connectors.
+message ListConnectorReq {}
+
+// ListConnectorResp returns a list of connectors.
+message ListConnectorResp {
+  repeated Connector connectors = 1;
+}
+
 // VersionReq is a request to fetch version info.
 message VersionReq {}
 
@@ -126,6 +176,28 @@ message VersionResp {
   // Numeric version of the API. It increases every time a new call is added to the API.
   // Clients should use this info to determine if the server supports specific features.
   int32 api = 2;
+}
+
+// DiscoveryReq is a request to fetch discover information.
+message DiscoveryReq {}
+
+//DiscoverResp holds the version oidc disovery info.
+message DiscoveryResp {
+  string issuer = 1;
+  string authorization_endpoint = 2;
+  string token_endpoint = 3;
+  string jwks_uri = 4;
+  string userinfo_endpoint = 5;
+  string device_authorization_endpoint = 6;
+  string introspection_endpoint = 7;
+  repeated string grant_types_supported = 8;
+  repeated string response_types_supported = 9;
+  repeated string subject_types_supported = 10;
+  repeated string id_token_signing_alg_values_supported = 11;
+  repeated string code_challenge_methods_supported = 12;
+  repeated string scopes_supported = 13;
+  repeated string token_endpoint_auth_methods_supported = 14;
+  repeated string claims_supported = 15;
 }
 
 // RefreshTokenRef contains the metadata for a refresh token that is managed by the storage.
@@ -189,8 +261,18 @@ service Dex {
   rpc DeletePassword(DeletePasswordReq) returns (DeletePasswordResp) {};
   // ListPassword lists all password entries.
   rpc ListPasswords(ListPasswordReq) returns (ListPasswordResp) {};
+  // CreateConnector creates a connector.
+  rpc CreateConnector(CreateConnectorReq) returns (CreateConnectorResp) {};
+  // UpdateConnector modifies existing connector.
+  rpc UpdateConnector(UpdateConnectorReq) returns (UpdateConnectorResp) {};
+  // DeleteConnector deletes the connector.
+  rpc DeleteConnector(DeleteConnectorReq) returns (DeleteConnectorResp) {};
+  // ListConnectors lists all connector entries.
+  rpc ListConnectors(ListConnectorReq) returns (ListConnectorResp) {};
   // GetVersion returns version information of the server.
   rpc GetVersion(VersionReq) returns (VersionResp) {};
+  // GetDiscovery returns discovery information of the server.
+  rpc GetDiscovery(DiscoveryReq) returns (DiscoveryResp) {};
   // ListRefresh lists all the refresh token entries for a particular user.
   rpc ListRefresh(ListRefreshReq) returns (ListRefreshResp) {};
   // RevokeRefresh revokes the refresh token for the provided user-client pair.

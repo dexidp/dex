@@ -50,6 +50,15 @@ type serveOptions struct {
 	grpcAddr      string
 }
 
+var buildInfo = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name:      "build_info",
+		Namespace: "dex",
+		Help:      "A metric with a constant '1' value labeled by version from which Dex was built.",
+	},
+	[]string{"version", "go_version", "platform"},
+)
+
 func commandServe() *cobra.Command {
 	options := serveOptions{}
 
@@ -117,6 +126,10 @@ func runServe(options serveOptions) error {
 	logger.Info("config issuer", "issuer", c.Issuer)
 
 	prometheusRegistry := prometheus.NewRegistry()
+
+	prometheusRegistry.MustRegister(buildInfo)
+	recordBuildInfo()
+
 	err = prometheusRegistry.Register(collectors.NewGoCollector())
 	if err != nil {
 		return fmt.Errorf("failed to register Go runtime metrics: %v", err)
@@ -334,6 +347,13 @@ func runServe(options serveOptions) error {
 	}
 
 	serverConfig.RefreshTokenPolicy = refreshTokenPolicy
+
+	serverConfig.RealIPHeader = c.Web.ClientRemoteIP.Header
+	serverConfig.TrustedRealIPCIDRs, err = c.Web.ClientRemoteIP.ParseTrustedProxies()
+	if err != nil {
+		return fmt.Errorf("failed to parse client remote IP settings: %v", err)
+	}
+
 	serv, err := server.NewServer(context.Background(), serverConfig)
 	if err != nil {
 		return fmt.Errorf("failed to initialize server: %v", err)
@@ -488,7 +508,7 @@ func runServe(options serveOptions) error {
 		}
 
 		grpcSrv := grpc.NewServer(grpcOptions...)
-		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger, version))
+		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger, version, serv))
 
 		grpcMetrics.InitializeMetrics(grpcSrv)
 		if c.GRPC.Reflection {
@@ -512,26 +532,6 @@ func runServe(options serveOptions) error {
 		logger.Info("shutdown now", "err", err)
 	}
 	return nil
-}
-
-var logFormats = []string{"json", "text"}
-
-func newLogger(level slog.Level, format string) (*slog.Logger, error) {
-	var handler slog.Handler
-	switch strings.ToLower(format) {
-	case "", "text":
-		slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-			Level: level,
-		})
-	case "json":
-		slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
-			Level: level,
-		})
-	default:
-		return nil, fmt.Errorf("log format is not one of the supported values (%s): %s", strings.Join(logFormats, ", "), format)
-	}
-
-	return slog.New(handler), nil
 }
 
 func applyConfigOverrides(options serveOptions, config *Config) {
@@ -683,4 +683,9 @@ func loadTLSConfig(certFile, keyFile, caFile string, baseConfig *tls.Config) (*t
 		loadedConfig.ClientCAs = cPool
 	}
 	return loadedConfig, nil
+}
+
+// recordBuildInfo publishes information about Dex version and runtime info through an info metric (gauge).
+func recordBuildInfo() {
+	buildInfo.WithLabelValues(version, runtime.Version(), fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)).Set(1)
 }
