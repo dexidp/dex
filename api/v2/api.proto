@@ -16,6 +16,17 @@ message Client {
   string logo_url = 7;
 }
 
+// GetClientReq is a request to retrieve client details.
+message GetClientReq {
+  // The ID of the client.
+  string id = 1;
+}
+
+// GetClientResp returns the client details.
+message GetClientResp {
+  Client client = 1;
+}
+
 // CreateClientReq is a request to make a client.
 message CreateClientReq {
   Client client = 1;
@@ -105,6 +116,56 @@ message ListPasswordResp {
   repeated Password passwords = 1;
 }
 
+// Connector is a strategy used by Dex for authenticating a user against another identity provider
+message Connector {
+  string id = 1;
+  string type = 2;
+  string name = 3;
+  bytes config = 4;
+}
+
+// CreateConnectorReq is a request to make a connector.
+message CreateConnectorReq {
+  Connector connector = 1;
+}
+
+// CreateConnectorResp returns the response from creating a connector.
+message CreateConnectorResp {
+  bool already_exists = 1;
+}
+
+// UpdateConnectorReq is a request to modify an existing connector.
+message UpdateConnectorReq {
+  // The id used to lookup the connector. This field cannot be modified
+  string id = 1;
+  string new_type = 2;
+  string new_name = 3;
+  bytes new_config = 4;
+}
+
+// UpdateConnectorResp returns the response from modifying an existing connector.
+message UpdateConnectorResp {
+  bool not_found = 1;
+}
+
+// DeleteConnectorReq is a request to delete a connector.
+message DeleteConnectorReq {
+  string id = 1;
+}
+
+// DeleteConnectorResp returns the response from deleting a connector.
+message DeleteConnectorResp {
+  bool not_found = 1;
+}
+
+// ListConnectorReq is a request to enumerate connectors.
+message ListConnectorReq {}
+
+// ListConnectorResp returns a list of connectors.
+message ListConnectorResp {
+  repeated Connector connectors = 1;
+}
+
 // VersionReq is a request to fetch version info.
 message VersionReq {}
 
@@ -112,7 +173,7 @@ message VersionReq {}
 message VersionResp {
   // Semantic version of the server.
   string server = 1;
-  // Numeric version of the API. It increases everytime a new call is added to the API.
+  // Numeric version of the API. It increases every time a new call is added to the API.
   // Clients should use this info to determine if the server supports specific features.
   int32 api = 2;
 }
@@ -162,6 +223,8 @@ message VerifyPasswordResp {
 
 // Dex represents the dex gRPC service.
 service Dex {
+  // GetClient gets a client.
+  rpc GetClient(GetClientReq) returns (GetClientResp) {};
   // CreateClient creates a client.
   rpc CreateClient(CreateClientReq) returns (CreateClientResp) {};
   // UpdateClient updates an existing client
@@ -176,6 +239,14 @@ service Dex {
   rpc DeletePassword(DeletePasswordReq) returns (DeletePasswordResp) {};
   // ListPassword lists all password entries.
   rpc ListPasswords(ListPasswordReq) returns (ListPasswordResp) {};
+  // CreateConnector creates a connector.
+  rpc CreateConnector(CreateConnectorReq) returns (CreateConnectorResp) {};
+  // UpdateConnector modifies existing connector.
+  rpc UpdateConnector(UpdateConnectorReq) returns (UpdateConnectorResp) {};
+  // DeleteConnector deletes the connector.
+  rpc DeleteConnector(DeleteConnectorReq) returns (DeleteConnectorResp) {};
+  // ListConnectors lists all connector entries.
+  rpc ListConnectors(ListConnectorReq) returns (ListConnectorResp) {};
   // GetVersion returns version information of the server.
   rpc GetVersion(VersionReq) returns (VersionResp) {};
   // ListRefresh lists all the refresh token entries for a particular user.

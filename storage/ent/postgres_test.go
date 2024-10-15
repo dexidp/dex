@@ -1,11 +1,12 @@
 package ent
 
 import (
+	"io"
+	"log/slog"
 	"os"
 	"strconv"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/storage"
@@ -36,11 +37,7 @@ func postgresTestConfig(host string, port uint64) *Postgres {
 }
 
 func newPostgresStorage(host string, port uint64) storage.Storage {
-	logger := &logrus.Logger{
-		Out:       os.Stderr,
-		Formatter: &logrus.TextFormatter{DisableColors: true},
-		Level:     logrus.DebugLevel,
-	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	cfg := postgresTestConfig(host, port)
 	s, err := cfg.Open(logger)

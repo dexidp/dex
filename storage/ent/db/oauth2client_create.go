@@ -68,7 +68,7 @@ func (oc *OAuth2ClientCreate) Mutation() *OAuth2ClientMutation {
 
 // Save creates the OAuth2Client in the database.
 func (oc *OAuth2ClientCreate) Save(ctx context.Context) (*OAuth2Client, error) {
-	return withHooks[*OAuth2Client, OAuth2ClientMutation](ctx, oc.sqlSave, oc.mutation, oc.hooks)
+	return withHooks(ctx, oc.sqlSave, oc.mutation, oc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -192,11 +192,15 @@ func (oc *OAuth2ClientCreate) createSpec() (*OAuth2Client, *sqlgraph.CreateSpec)
 // OAuth2ClientCreateBulk is the builder for creating many OAuth2Client entities in bulk.
 type OAuth2ClientCreateBulk struct {
 	config
+	err      error
 	builders []*OAuth2ClientCreate
 }
 
 // Save creates the OAuth2Client entities in the database.
 func (ocb *OAuth2ClientCreateBulk) Save(ctx context.Context) ([]*OAuth2Client, error) {
+	if ocb.err != nil {
+		return nil, ocb.err
+	}
 	specs := make([]*sqlgraph.CreateSpec, len(ocb.builders))
 	nodes := make([]*OAuth2Client, len(ocb.builders))
 	mutators := make([]Mutator, len(ocb.builders))
@@ -212,8 +216,8 @@ func (ocb *OAuth2ClientCreateBulk) Save(ctx context.Context) ([]*OAuth2Client, e
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, ocb.builders[i+1].mutation)
 				} else {

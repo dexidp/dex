@@ -1,5 +1,7 @@
-OS = $(shell uname | tr A-Z a-z)
 export PATH := $(abspath bin/protoc/bin/):$(abspath bin/):${PATH}
+export SHELL := env PATH=$(PATH) /bin/sh
+
+OS = $(shell uname | tr A-Z a-z)
 
 user=$(shell id -u -n)
 group=$(shell id -g -n)
@@ -16,14 +18,14 @@ export GOBIN=$(PWD)/bin
 LD_FLAGS="-w -X main.version=$(VERSION)"
 
 # Dependency versions
-GOLANGCI_VERSION   = 1.52.0
-GOTESTSUM_VERSION ?= 1.9.0
+GOLANGCI_VERSION   = 1.56.2
+GOTESTSUM_VERSION ?= 1.10.1
 
-PROTOC_VERSION             = 21.12
-PROTOC_GEN_GO_VERSION      = 1.28.1
+PROTOC_VERSION             = 24.4
+PROTOC_GEN_GO_VERSION      = 1.32.0
 PROTOC_GEN_GO_GRPC_VERSION = 1.3.0
 
-KIND_VERSION    = 0.17.0
+KIND_VERSION    = 0.22.0
 KIND_NODE_IMAGE = "kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5"
 KIND_TMP_DIR    = "$(PWD)/bin/test/dex-kind-kubeconfig"
 
@@ -100,23 +102,23 @@ bin/protoc-gen-go-grpc:
 ##@ Verify
 
 verify: generate ## Verify that all the code was generated and committed to repository.
-	@./scripts/git-diff
+	@git diff --exit-code
 
 .PHONY: verify-proto
 verify-proto: generate-proto ## Verify that the Dex client's protobuf code was generated.
-	@./scripts/git-diff
+	@git diff --exit-code
 
 .PHONY: verify-proto
 verify-proto-internal: generate-proto-internal ## Verify internal protobuf code for token encoding was generated.
-	@./scripts/git-diff
+	@git diff --exit-code
 
 .PHONY: verify-ent
 verify-ent: generate-ent ## Verify code for database ORM was generated.
-	@./scripts/git-diff
+	@git diff --exit-code
 
 .PHONY: verify-go-mod
 verify-go-mod: go-mod-tidy ## Check that go.mod and go.sum formatted according to the changes.
-	@./scripts/git-diff
+	@git diff --exit-code
 
 ##@ Test and Lint
 

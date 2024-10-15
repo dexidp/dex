@@ -7,7 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"path"
@@ -20,6 +23,7 @@ import (
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
 	"github.com/felixge/httpsnoop"
+	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
@@ -42,7 +46,6 @@ import (
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
 )
@@ -66,14 +69,26 @@ type Config struct {
 	// The backing persistence layer.
 	Storage storage.Storage
 
+	AllowedGrantTypes []string
+
 	// Valid values are "code" to enable the code flow and "token" to enable the implicit
 	// flow. If no response types are supplied this value defaults to "code".
 	SupportedResponseTypes []string
+
+	// Headers is a map of headers to be added to the all responses.
+	Headers http.Header
+
+	// Header to extract real ip from.
+	RealIPHeader       string
+	TrustedRealIPCIDRs []netip.Prefix
 
 	// List of allowed origins for CORS requests on discovery, token and keys endpoint.
 	// If none are indicated, CORS requests are disabled. Passing in "*" will allow any
 	// domain.
 	AllowedOrigins []string
+
+	// List of allowed headers for CORS requests on discovery, token, and keys endpoint.
+	AllowedHeaders []string
 
 	// If enabled, the server won't prompt the user to approve authorization requests.
 	// Logging in implies approval.
@@ -100,7 +115,7 @@ type Config struct {
 
 	Web WebConfig
 
-	Logger log.Logger
+	Logger *slog.Logger
 
 	PrometheusRegistry *prometheus.Registry
 
@@ -118,7 +133,7 @@ type WebConfig struct {
 	//   * themes/(theme) - Static static served at "( issuer URL )/theme".
 	Dir string
 
-	// Alternative way to programatically configure static web assets.
+	// Alternative way to programmatically configure static web assets.
 	// If Dir is specified, WebFS is ignored.
 	// It's expected to contain the same files and directories as mentioned above.
 	//
@@ -181,7 +196,7 @@ type Server struct {
 
 	refreshTokenPolicy *RefreshTokenPolicy
 
-	logger log.Logger
+	logger *slog.Logger
 }
 
 // NewServer constructs a server from the provided config.
@@ -212,24 +227,28 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	if len(c.SupportedResponseTypes) == 0 {
 		c.SupportedResponseTypes = []string{responseTypeCode}
 	}
+	if len(c.AllowedHeaders) == 0 {
+		c.AllowedHeaders = []string{"Authorization"}
+	}
 
-	supportedGrant := []string{
-		grantTypeAuthorizationCode,
-		grantTypeRefreshToken,
-		grantTypeDeviceCode,
-		grantTypeClientCredentials,
-	} // default
+	allSupportedGrants := map[string]bool{
+		grantTypeAuthorizationCode: true,
+		grantTypeRefreshToken:      true,
+		grantTypeDeviceCode:        true,
+		grantTypeTokenExchange:     true,
+		grantTypeClientCredentials: true,
+	}
 
 	supportedRes := make(map[string]bool)
 
 	for _, respType := range c.SupportedResponseTypes {
 		switch respType {
-		case responseTypeCode, responseTypeIDToken:
+		case responseTypeCode, responseTypeIDToken, responseTypeCodeIDToken:
 			// continue
-		case responseTypeToken:
+		case responseTypeToken, responseTypeCodeToken, responseTypeIDTokenToken, responseTypeCodeIDTokenToken:
 			// response_type=token is an implicit flow, let's add it to the discovery info
 			// https://datatracker.ietf.org/doc/html/rfc6749#section-4.2.1
-			supportedGrant = append(supportedGrant, grantTypeImplicit)
+			allSupportedGrants[grantTypeImplicit] = true
 		default:
 			return nil, fmt.Errorf("unsupported response_type %q", respType)
 		}
@@ -237,10 +256,22 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 
 	if c.PasswordConnector != "" {
-		supportedGrant = append(supportedGrant, grantTypePassword)
+		allSupportedGrants[grantTypePassword] = true
 	}
 
-	sort.Strings(supportedGrant)
+	var supportedGrants []string
+	if len(c.AllowedGrantTypes) > 0 {
+		for _, grant := range c.AllowedGrantTypes {
+			if allSupportedGrants[grant] {
+				supportedGrants = append(supportedGrants, grant)
+			}
+		}
+	} else {
+		for grant := range allSupportedGrants {
+			supportedGrants = append(supportedGrants, grant)
+		}
+	}
+	sort.Strings(supportedGrants)
 
 	webFS := web.FS()
 	if c.Web.Dir != "" {
@@ -273,7 +304,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		connectors:             make(map[string]Connector),
 		storage:                newKeyCacher(c.Storage, now),
 		supportedResponseTypes: supportedRes,
-		supportedGrantTypes:    supportedGrant,
+		supportedGrantTypes:    supportedGrants,
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
 		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
 		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
@@ -326,9 +357,59 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 	}
 
+	parseRealIP := func(r *http.Request) (string, error) {
+		remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			return "", err
+		}
+
+		remoteIP, err := netip.ParseAddr(remoteAddr)
+		if err != nil {
+			return "", err
+		}
+
+		for _, n := range c.TrustedRealIPCIDRs {
+			if !n.Contains(remoteIP) {
+				return remoteAddr, nil // Fallback to the address from the request if the header is provided
+			}
+		}
+
+		ipVal := r.Header.Get(c.RealIPHeader)
+		if ipVal != "" {
+			ip, err := netip.ParseAddr(ipVal)
+			if err == nil {
+				return ip.String(), nil
+			}
+		}
+
+		return remoteAddr, nil
+	}
+
+	handlerWithHeaders := func(handlerName string, handler http.Handler) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			for k, v := range c.Headers {
+				w.Header()[k] = v
+			}
+
+			// Context values are used for logging purposes with the log/slog logger.
+			rCtx := r.Context()
+			rCtx = WithRequestID(rCtx)
+
+			if c.RealIPHeader != "" {
+				realIP, err := parseRealIP(r)
+				if err == nil {
+					rCtx = WithRemoteIP(rCtx, realIP)
+				}
+			}
+
+			r = r.WithContext(rCtx)
+			instrumentHandlerCounter(handlerName, handler)(w, r)
+		}
+	}
+
 	r := mux.NewRouter().SkipClean(true).UseEncodedPath()
 	handle := func(p string, h http.Handler) {
-		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, h))
+		r.Handle(path.Join(issuerURL.Path, p), handlerWithHeaders(p, h))
 	}
 	handleFunc := func(p string, h http.HandlerFunc) {
 		handle(p, h)
@@ -340,16 +421,13 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS := func(p string, h http.HandlerFunc) {
 		var handler http.Handler = h
 		if len(c.AllowedOrigins) > 0 {
-			allowedHeaders := []string{
-				"Authorization",
-			}
 			cors := handlers.CORS(
 				handlers.AllowedOrigins(c.AllowedOrigins),
-				handlers.AllowedHeaders(allowedHeaders),
+				handlers.AllowedHeaders(c.AllowedHeaders),
 			)
 			handler = cors(handler)
 		}
-		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, handler))
+		r.Handle(path.Join(issuerURL.Path, p), handlerWithHeaders(p, handler))
 	}
 	r.NotFoundHandler = http.NotFoundHandler()
 
@@ -363,6 +441,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS("/token", s.handleToken)
 	handleWithCORS("/keys", s.handlePublicKeys)
 	handleWithCORS("/userinfo", s.handleUserInfo)
+	handleWithCORS("/token/introspect", s.handleIntrospect)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)
@@ -372,7 +451,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	// TODO(nabokihms): "/device/token" endpoint is deprecated, consider using /token endpoint instead
 	handleFunc("/device/token", s.handleDeviceTokenDeprecated)
 	handleFunc(deviceCallbackURI, s.handleDeviceCallback)
-	r.HandleFunc(path.Join(issuerURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {
+	handleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on
 		// misconfigured authproxy connector setups.
 		for key := range r.Header {
@@ -527,10 +606,11 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 				return
 			case <-time.After(frequency):
 				if r, err := s.storage.GarbageCollect(now()); err != nil {
-					s.logger.Errorf("garbage collection failed: %v", err)
+					s.logger.ErrorContext(ctx, "garbage collection failed", "err", err)
 				} else if !r.IsEmpty() {
-					s.logger.Infof("garbage collection run, delete auth requests=%d, auth codes=%d, device requests=%d, device tokens=%d",
-						r.AuthRequests, r.AuthCodes, r.DeviceRequests, r.DeviceTokens)
+					s.logger.InfoContext(ctx, "garbage collection run, delete auth",
+						"requests", r.AuthRequests, "auth_codes", r.AuthCodes,
+						"device_requests", r.DeviceRequests, "device_tokens", r.DeviceTokens)
 				}
 			}
 		}
@@ -539,7 +619,7 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 
 // ConnectorConfig is a configuration that can open a connector.
 type ConnectorConfig interface {
-	Open(id string, logger log.Logger) (connector.Connector, error)
+	Open(id string, logger *slog.Logger) (connector.Connector, error)
 }
 
 // ConnectorsConfig variable provides an easy way to return a config struct
@@ -567,7 +647,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 }
 
 // openConnector will parse the connector config and open the connector.
-func openConnector(logger log.Logger, conn storage.Connector) (connector.Connector, error) {
+func openConnector(logger *slog.Logger, conn storage.Connector) (connector.Connector, error) {
 	var c connector.Connector
 
 	f, ok := ConnectorsConfig[conn.Type]
@@ -641,4 +721,19 @@ func (s *Server) getConnector(id string) (Connector, error) {
 	}
 
 	return conn, nil
+}
+
+type logRequestKey string
+
+const (
+	RequestKeyRequestID logRequestKey = "request_id"
+	RequestKeyRemoteIP  logRequestKey = "client_remote_addr"
+)
+
+func WithRequestID(ctx context.Context) context.Context {
+	return context.WithValue(ctx, RequestKeyRequestID, uuid.NewString())
+}
+
+func WithRemoteIP(ctx context.Context, ip string) context.Context {
+	return context.WithValue(ctx, RequestKeyRemoteIP, ip)
 }

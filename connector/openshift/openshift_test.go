@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
@@ -37,7 +38,7 @@ func TestOpen(t *testing.T) {
 		InsecureCA:   true,
 	}
 
-	logger := logrus.New()
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	oconfig, err := c.Open("id", logger)
 
