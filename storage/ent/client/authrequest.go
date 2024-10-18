@@ -32,6 +32,7 @@ func (d *Database) CreateAuthRequest(ctx context.Context, authRequest storage.Au
 		SetConnectorID(authRequest.ConnectorID).
 		SetConnectorData(authRequest.ConnectorData).
 		SetHmacKey(authRequest.HMACKey).
+		SetTotpValidated(authRequest.TOTPValidated).
 		Save(ctx)
 	if err != nil {
 		return convertDBError("create auth request: %w", err)
@@ -96,6 +97,7 @@ func (d *Database) UpdateAuthRequest(id string, updater func(old storage.AuthReq
 		SetConnectorID(newAuthRequest.ConnectorID).
 		SetConnectorData(newAuthRequest.ConnectorData).
 		SetHmacKey(newAuthRequest.HMACKey).
+		SetTotpValidated(newAuthRequest.TOTPValidated).
 		Save(context.TODO())
 	if err != nil {
 		return rollback(tx, "update auth request uploading: %w", err)

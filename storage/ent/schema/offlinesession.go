@@ -37,6 +37,8 @@ func (OfflineSession) Fields() []ent.Field {
 			NotEmpty(),
 		field.Bytes("refresh"),
 		field.Bytes("connector_data").Nillable().Optional(),
+		field.Text("totp").Optional(),
+		field.Bool("totp_confirmed").Default(false).Optional(),
 	}
 }
 

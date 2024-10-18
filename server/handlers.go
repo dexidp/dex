@@ -11,7 +11,6 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
-	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -519,6 +518,11 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		a.LoggedIn = true
 		a.Claims = claims
 		a.ConnectorData = identity.ConnectorData
+
+		if !s.totp.enabledForConnector(a.ConnectorID) {
+			a.TOTPValidated = true
+		}
+
 		return a, nil
 	}
 	if err := s.storage.UpdateAuthRequest(authReq.ID, updater); err != nil {
@@ -534,36 +538,11 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		"connector_id", authReq.ConnectorID, "username", claims.Username,
 		"preferred_username", claims.PreferredUsername, "email", email, "groups", claims.Groups)
 
-	// we can skip the redirect to /approval and go ahead and send code if it's not required
-	if s.skipApproval && !authReq.ForceApprovalPrompt {
-		return "", true, nil
-	}
-
-	// an HMAC is used here to ensure that the request ID is unpredictable, ensuring that an attacker who intercepted the original
-	// flow would be unable to poll for the result at the /approval endpoint
-	h := hmac.New(sha256.New, authReq.HMACKey)
-	h.Write([]byte(authReq.ID))
-	mac := h.Sum(nil)
-
-	returnURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID + "&hmac=" + base64.RawURLEncoding.EncodeToString(mac)
-	_, ok := conn.(connector.RefreshConnector)
-	if !ok {
-		return returnURL, false, nil
-	}
-
-	offlineAccessRequested := false
-	for _, scope := range authReq.Scopes {
-		if scope == scopeOfflineAccess {
-			offlineAccessRequested = true
-			break
-		}
-	}
-	if !offlineAccessRequested {
-		return returnURL, false, nil
-	}
-
 	// Try to retrieve an existing OfflineSession object for the corresponding user.
-	session, err := s.storage.GetOfflineSessions(identity.UserID, authReq.ConnectorID)
+	// TODO(nabokihms): We create an offline session even if the offline access is not requested.
+	//   In the future it will be possible to migrate to sessions.
+	//   Sessions may contain attributes like approval status, etc.
+	_, err := s.storage.GetOfflineSessions(identity.UserID, authReq.ConnectorID)
 	if err != nil {
 		if err != storage.ErrNotFound {
 			s.logger.ErrorContext(ctx, "failed to get offline session", "err", err)
@@ -576,18 +555,25 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 			ConnectorData: identity.ConnectorData,
 		}
 
+		if s.totp.enabledForConnector(authReq.ConnectorID) {
+			generated, err := s.totp.generate(authReq.ConnectorID, identity.Email)
+			if err != nil {
+				s.logger.ErrorContext(ctx, "failed to generate totp for offline session", "err", err)
+				return "", false, err
+			}
+			offlineSessions.TOTP = generated.String()
+		}
+
 		// Create a new OfflineSession object for the user and add a reference object for
 		// the newly received refreshtoken.
 		if err := s.storage.CreateOfflineSessions(ctx, offlineSessions); err != nil {
 			s.logger.ErrorContext(ctx, "failed to create offline session", "err", err)
 			return "", false, err
 		}
-
-		return returnURL, false, nil
 	}
 
 	// Update existing OfflineSession obj with new RefreshTokenRef.
-	if err := s.storage.UpdateOfflineSessions(session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+	if err := s.storage.UpdateOfflineSessions(identity.UserID, authReq.ConnectorID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 		if len(identity.ConnectorData) > 0 {
 			old.ConnectorData = identity.ConnectorData
 		}
@@ -597,7 +583,32 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		return "", false, err
 	}
 
-	return returnURL, false, nil
+	// we can skip the redirect to /approval and /totp and go ahead and send code if it's not required
+	if s.skipApproval && !authReq.ForceApprovalPrompt && !s.totp.enabledForConnector(authReq.ConnectorID) {
+		return "", true, nil
+	}
+
+	// an HMAC is used here to ensure that the request ID is unpredictable, ensuring that an attacker who intercepted the original
+	// flow would be unable to poll for the result at the /approval endpoint
+	h := hmac.New(sha256.New, authReq.HMACKey)
+	h.Write([]byte(authReq.ID))
+	mac := h.Sum(nil)
+
+	// Deep copy issuer URL to avoid modifying the global one.
+	returnURL, _ := url.Parse(s.issuerURL.String())
+	values := returnURL.Query()
+	values.Set("req", authReq.ID)
+	values.Set("hmac", base64.RawURLEncoding.EncodeToString(mac))
+
+	if s.totp.enabledForConnector(authReq.ConnectorID) {
+		values.Set("state", identity.UserID)
+		returnURL = returnURL.JoinPath("totp")
+	} else {
+		returnURL = returnURL.JoinPath("approval")
+	}
+
+	returnURL.RawQuery = values.Encode()
+	return returnURL.String(), false, nil
 }
 
 func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
@@ -618,7 +629,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		s.renderError(r, w, http.StatusInternalServerError, "Database error.")
 		return
 	}
-	if !authReq.LoggedIn {
+	if !authReq.LoggedIn || !authReq.TOTPValidated {
 		s.logger.ErrorContext(r.Context(), "auth request does not have an identity for approval")
 		s.renderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
 		return

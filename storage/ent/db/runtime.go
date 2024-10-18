@@ -82,6 +82,10 @@ func init() {
 	authrequestDescCodeChallengeMethod := authrequestFields[19].Descriptor()
 	// authrequest.DefaultCodeChallengeMethod holds the default value on creation for the code_challenge_method field.
 	authrequest.DefaultCodeChallengeMethod = authrequestDescCodeChallengeMethod.Default.(string)
+	// authrequestDescTotpValidated is the schema descriptor for totp_validated field.
+	authrequestDescTotpValidated := authrequestFields[21].Descriptor()
+	// authrequest.DefaultTotpValidated holds the default value on creation for the totp_validated field.
+	authrequest.DefaultTotpValidated = authrequestDescTotpValidated.Default.(bool)
 	// authrequestDescID is the schema descriptor for id field.
 	authrequestDescID := authrequestFields[0].Descriptor()
 	// authrequest.IDValidator is a validator for the "id" field. It is called by the builders before save.
@@ -198,6 +202,10 @@ func init() {
 	offlinesessionDescConnID := offlinesessionFields[2].Descriptor()
 	// offlinesession.ConnIDValidator is a validator for the "conn_id" field. It is called by the builders before save.
 	offlinesession.ConnIDValidator = offlinesessionDescConnID.Validators[0].(func(string) error)
+	// offlinesessionDescTotpConfirmed is the schema descriptor for totp_confirmed field.
+	offlinesessionDescTotpConfirmed := offlinesessionFields[6].Descriptor()
+	// offlinesession.DefaultTotpConfirmed holds the default value on creation for the totp_confirmed field.
+	offlinesession.DefaultTotpConfirmed = offlinesessionDescTotpConfirmed.Default.(bool)
 	// offlinesessionDescID is the schema descriptor for id field.
 	offlinesessionDescID := offlinesessionFields[0].Descriptor()
 	// offlinesession.IDValidator is a validator for the "id" field. It is called by the builders before save.
