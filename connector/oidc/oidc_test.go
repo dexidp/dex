@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -17,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"gopkg.in/square/go-jose.v2"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/connector"
 )
@@ -62,6 +64,7 @@ func TestHandleCallback(t *testing.T) {
 		expectPreferredUsername   string
 		expectedEmailField        string
 		token                     map[string]interface{}
+		groupsRegex               string
 		newGroupFromClaims        []NewGroupFromClaims
 	}{
 		{
@@ -362,6 +365,23 @@ func TestHandleCallback(t *testing.T) {
 				"non-string-claim2": 666,
 			},
 		},
+		{
+			name:               "filterGroupClaims",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			groupsRegex:        `^.*\d$`,
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectGroups:       []string{"group1", "group2"},
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups":         []string{"group1", "group2", "groupA", "groupB"},
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -398,6 +418,7 @@ func TestHandleCallback(t *testing.T) {
 			config.ClaimMapping.EmailKey = tc.emailKey
 			config.ClaimMapping.GroupsKey = tc.groupsKey
 			config.ClaimMutations.NewGroupFromClaims = tc.newGroupFromClaims
+			config.ClaimMutations.FilterGroupClaims.GroupsFilter = tc.groupsRegex
 
 			conn, err := newConnector(config)
 			if err != nil {
@@ -584,6 +605,40 @@ func TestTokenIdentity(t *testing.T) {
 	}
 }
 
+func TestPromptType(t *testing.T) {
+	pointer := func(s string) *string {
+		return &s
+	}
+
+	tests := []struct {
+		name       string
+		promptType *string
+		res        string
+	}{
+		{name: "none", promptType: pointer("none"), res: "none"},
+		{name: "provided empty string", promptType: pointer(""), res: ""},
+		{name: "login", promptType: pointer("login"), res: "login"},
+		{name: "consent", promptType: pointer("consent"), res: "consent"},
+		{name: "default value", promptType: nil, res: "consent"},
+	}
+
+	testServer, err := setupServer(nil, true)
+	require.NoError(t, err)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, err := newConnector(Config{
+				Issuer:     testServer.URL,
+				Scopes:     []string{"openid", "groups"},
+				PromptType: tc.promptType,
+			})
+			require.NoError(t, err)
+
+			require.Equal(t, tc.res, conn.promptType)
+		})
+	}
+}
+
 func TestProviderOverride(t *testing.T) {
 	testServer, err := setupServer(map[string]any{
 		"sub":  "subvalue",
@@ -730,7 +785,7 @@ func newToken(key *jose.JSONWebKey, claims map[string]interface{}) (string, erro
 }
 
 func newConnector(config Config) (*oidcConnector, error) {
-	logger := logrus.New()
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 	conn, err := config.Open("id", logger)
 	if err != nil {
 		return nil, fmt.Errorf("unable to open: %v", err)

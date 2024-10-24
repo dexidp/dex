@@ -9,11 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"path"
 	"reflect"
 	"sort"
@@ -23,13 +23,12 @@ import (
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
-	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/mock"
@@ -77,11 +76,7 @@ FDWV28nTP9sqbtsmU8Tem2jzMvZ7C/Q0AuDoKELFUpux8shm8wfIhyaPnXUGZoAZ
 Np4vUwMSYV5mopESLWOg3loBxKyLGFtgGKVCjGiQvy6zISQ4fQo=
 -----END RSA PRIVATE KEY-----`)
 
-var logger = &logrus.Logger{
-	Out:       os.Stderr,
-	Formatter: &logrus.TextFormatter{DisableColors: true},
-	Level:     logrus.DebugLevel,
-}
+var logger = slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
 	var server *Server
@@ -119,7 +114,7 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 		Name:            "Mock",
 		ResourceVersion: "1",
 	}
-	if err := config.Storage.CreateConnector(connector); err != nil {
+	if err := config.Storage.CreateConnector(ctx, connector); err != nil {
 		t.Fatalf("create connector: %v", err)
 	}
 
@@ -172,10 +167,10 @@ func newTestServerMultipleConnectors(ctx context.Context, t *testing.T, updateCo
 		Name:            "Mock",
 		ResourceVersion: "1",
 	}
-	if err := config.Storage.CreateConnector(connector); err != nil {
+	if err := config.Storage.CreateConnector(ctx, connector); err != nil {
 		t.Fatalf("create connector: %v", err)
 	}
-	if err := config.Storage.CreateConnector(connector2); err != nil {
+	if err := config.Storage.CreateConnector(ctx, connector2); err != nil {
 		t.Fatalf("create connector: %v", err)
 	}
 
@@ -837,11 +832,11 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				Secret:       clientSecret,
 				RedirectURIs: []string{redirectURL},
 			}
-			if err := s.storage.CreateClient(client); err != nil {
+			if err := s.storage.CreateClient(ctx, client); err != nil {
 				t.Fatalf("failed to create client: %v", err)
 			}
 
-			if err := s.storage.CreateRefresh(storage.RefreshToken{
+			if err := s.storage.CreateRefresh(ctx, storage.RefreshToken{
 				ID:       "existedrefrestoken",
 				ClientID: "unexcistedclientid",
 			}); err != nil {
@@ -955,7 +950,7 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 		Secret:       "testclientsecret",
 		RedirectURIs: []string{redirectURL},
 	}
-	if err := s.storage.CreateClient(client); err != nil {
+	if err := s.storage.CreateClient(ctx, client); err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
@@ -1113,7 +1108,7 @@ func TestCrossClientScopes(t *testing.T) {
 		Secret:       "testclientsecret",
 		RedirectURIs: []string{redirectURL},
 	}
-	if err := s.storage.CreateClient(client); err != nil {
+	if err := s.storage.CreateClient(ctx, client); err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
@@ -1123,7 +1118,7 @@ func TestCrossClientScopes(t *testing.T) {
 		TrustedPeers: []string{"testclient"},
 	}
 
-	if err := s.storage.CreateClient(peer); err != nil {
+	if err := s.storage.CreateClient(ctx, peer); err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
@@ -1236,7 +1231,7 @@ func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
 		Secret:       "testclientsecret",
 		RedirectURIs: []string{redirectURL},
 	}
-	if err := s.storage.CreateClient(client); err != nil {
+	if err := s.storage.CreateClient(ctx, client); err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
@@ -1246,7 +1241,7 @@ func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
 		TrustedPeers: []string{"testclient"},
 	}
 
-	if err := s.storage.CreateClient(peer); err != nil {
+	if err := s.storage.CreateClient(ctx, peer); err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
@@ -1276,6 +1271,7 @@ func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
 }
 
 func TestPasswordDB(t *testing.T) {
+	ctx := context.Background()
 	s := memory.New(logger)
 	conn := newPasswordDB(s)
 
@@ -1286,7 +1282,7 @@ func TestPasswordDB(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s.CreatePassword(storage.Password{
+	s.CreatePassword(ctx, storage.Password{
 		Email:    "jane@example.com",
 		Username: "jane",
 		UserID:   "foobar",
@@ -1534,7 +1530,7 @@ func TestRefreshTokenFlow(t *testing.T) {
 		Secret:       "testclientsecret",
 		RedirectURIs: []string{redirectURL},
 	}
-	if err := s.storage.CreateClient(client); err != nil {
+	if err := s.storage.CreateClient(ctx, client); err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
@@ -1633,11 +1629,11 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 					RedirectURIs: []string{deviceCallbackURI},
 					Public:       true,
 				}
-				if err := s.storage.CreateClient(client); err != nil {
+				if err := s.storage.CreateClient(ctx, client); err != nil {
 					t.Fatalf("failed to create client: %v", err)
 				}
 
-				if err := s.storage.CreateRefresh(storage.RefreshToken{
+				if err := s.storage.CreateRefresh(ctx, storage.RefreshToken{
 					ID:       "existedrefrestoken",
 					ClientID: "unexcistedclientid",
 				}); err != nil {
@@ -1797,4 +1793,26 @@ func TestServerSupportedGrants(t *testing.T) {
 			require.Equal(t, tc.resGrants, srv.supportedGrantTypes)
 		})
 	}
+}
+
+func TestHeaders(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	httpServer, _ := newTestServer(ctx, t, func(c *Config) {
+		c.Headers = map[string][]string{
+			"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
+		}
+	})
+	defer httpServer.Close()
+
+	p, err := oidc.NewProvider(ctx, httpServer.URL)
+	if err != nil {
+		t.Fatalf("failed to get provider: %v", err)
+	}
+
+	resp, err := http.Get(p.Endpoint().TokenURL)
+	require.NoError(t, err)
+
+	require.Equal(t, "max-age=31536000; includeSubDomains", resp.Header.Get("Strict-Transport-Security"))
 }

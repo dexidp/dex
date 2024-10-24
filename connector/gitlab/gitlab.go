@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/groups"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 const (
@@ -47,18 +47,18 @@ type gitlabUser struct {
 }
 
 // Open returns a strategy for logging in through GitLab.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
 	if c.BaseURL == "" {
 		c.BaseURL = "https://gitlab.com"
 	}
 	return &gitlabConnector{
-		baseURL:             c.BaseURL,
-		redirectURI:         c.RedirectURI,
-		clientID:            c.ClientID,
-		clientSecret:        c.ClientSecret,
-		logger:              logger,
-		groups:              c.Groups,
-		useLoginAsID:        c.UseLoginAsID,
+		baseURL:      c.BaseURL,
+		redirectURI:  c.RedirectURI,
+		clientID:     c.ClientID,
+		clientSecret: c.ClientSecret,
+		logger:       logger.With(slog.Group("connector", "type", "gitlab", "id", id)),
+		groups:       c.Groups,
+		useLoginAsID: c.UseLoginAsID,
 		getGroupsPermission: c.GetGroupsPermission,
 	}, nil
 }
@@ -80,7 +80,7 @@ type gitlabConnector struct {
 	groups       []string
 	clientID     string
 	clientSecret string
-	logger       log.Logger
+	logger       *slog.Logger
 	httpClient   *http.Client
 	// if set to true will use the user's handle rather than their numeric id as the ID
 	useLoginAsID bool

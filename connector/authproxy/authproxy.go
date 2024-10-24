@@ -5,12 +5,12 @@ package authproxy
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 // Config holds the configuration parameters for a connector which returns an
@@ -27,7 +27,7 @@ type Config struct {
 }
 
 // Open returns an authentication strategy which requires no user interaction.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
 	userIDHeader := c.UserIDHeader
 	if userIDHeader == "" {
 		userIDHeader = "X-Remote-User-Id"
@@ -51,7 +51,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		emailHeader:  emailHeader,
 		groupHeader:  groupHeader,
 		groups:       c.Groups,
-		logger:       logger,
+		logger:       logger.With(slog.Group("connector", "type", "authproxy", "id", id)),
 		pathSuffix:   "/" + id,
 	}, nil
 }
@@ -64,7 +64,7 @@ type callback struct {
 	emailHeader  string
 	groupHeader  string
 	groups       []string
-	logger       log.Logger
+	logger       *slog.Logger
 	pathSuffix   string
 }
 
@@ -106,6 +106,7 @@ func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connecto
 	}
 	return connector.Identity{
 		UserID:            remoteUserID,
+		Username:          remoteUser,
 		PreferredUsername: remoteUser,
 		Email:             remoteUserEmail,
 		EmailVerified:     true,

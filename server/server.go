@@ -7,22 +7,25 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"path"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
-	"github.com/felixge/httpsnoop"
+	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/connector"
@@ -42,7 +45,6 @@ import (
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
 )
@@ -71,6 +73,13 @@ type Config struct {
 	// Valid values are "code" to enable the code flow and "token" to enable the implicit
 	// flow. If no response types are supplied this value defaults to "code".
 	SupportedResponseTypes []string
+
+	// Headers is a map of headers to be added to the all responses.
+	Headers http.Header
+
+	// Header to extract real ip from.
+	RealIPHeader       string
+	TrustedRealIPCIDRs []netip.Prefix
 
 	// List of allowed origins for CORS requests on discovery, token and keys endpoint.
 	// If none are indicated, CORS requests are disabled. Passing in "*" will allow any
@@ -105,7 +114,7 @@ type Config struct {
 
 	Web WebConfig
 
-	Logger log.Logger
+	Logger *slog.Logger
 
 	PrometheusRegistry *prometheus.Registry
 
@@ -186,7 +195,7 @@ type Server struct {
 
 	refreshTokenPolicy *RefreshTokenPolicy
 
-	logger log.Logger
+	logger *slog.Logger
 }
 
 // NewServer constructs a server from the provided config.
@@ -322,7 +331,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 	}
 
-	instrumentHandlerCounter := func(_ string, handler http.Handler) http.HandlerFunc {
+	instrumentHandler := func(_ string, handler http.Handler) http.HandlerFunc {
 		return handler.ServeHTTP
 	}
 
@@ -330,24 +339,84 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		requestCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "http_requests_total",
 			Help: "Count of all HTTP requests.",
-		}, []string{"handler", "code", "method"})
+		}, []string{"code", "method", "handler"})
 
-		err = c.PrometheusRegistry.Register(requestCounter)
+		durationHist := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "request_duration_seconds",
+			Help:    "A histogram of latencies for requests.",
+			Buckets: []float64{.25, .5, 1, 2.5, 5, 10},
+		}, []string{"code", "method", "handler"})
+
+		sizeHist := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "response_size_bytes",
+			Help:    "A histogram of response sizes for requests.",
+			Buckets: []float64{200, 500, 900, 1500},
+		}, []string{"code", "method", "handler"})
+
+		c.PrometheusRegistry.MustRegister(requestCounter, durationHist, sizeHist)
+
+		instrumentHandler = func(handlerName string, handler http.Handler) http.HandlerFunc {
+			return promhttp.InstrumentHandlerDuration(durationHist.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+				promhttp.InstrumentHandlerCounter(requestCounter.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+					promhttp.InstrumentHandlerResponseSize(sizeHist.MustCurryWith(prometheus.Labels{"handler": handlerName}), handler),
+				),
+			)
+		}
+	}
+
+	parseRealIP := func(r *http.Request) (string, error) {
+		remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
-			return nil, fmt.Errorf("server: Failed to register Prometheus HTTP metrics: %v", err)
+			return "", err
 		}
 
-		instrumentHandlerCounter = func(handlerName string, handler http.Handler) http.HandlerFunc {
-			return func(w http.ResponseWriter, r *http.Request) {
-				m := httpsnoop.CaptureMetrics(handler, w, r)
-				requestCounter.With(prometheus.Labels{"handler": handlerName, "code": strconv.Itoa(m.Code), "method": r.Method}).Inc()
+		remoteIP, err := netip.ParseAddr(remoteAddr)
+		if err != nil {
+			return "", err
+		}
+
+		for _, n := range c.TrustedRealIPCIDRs {
+			if !n.Contains(remoteIP) {
+				return remoteAddr, nil // Fallback to the address from the request if the header is provided
 			}
+		}
+
+		ipVal := r.Header.Get(c.RealIPHeader)
+		if ipVal != "" {
+			ip, err := netip.ParseAddr(ipVal)
+			if err == nil {
+				return ip.String(), nil
+			}
+		}
+
+		return remoteAddr, nil
+	}
+
+	handlerWithHeaders := func(handlerName string, handler http.Handler) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			for k, v := range c.Headers {
+				w.Header()[k] = v
+			}
+
+			// Context values are used for logging purposes with the log/slog logger.
+			rCtx := r.Context()
+			rCtx = WithRequestID(rCtx)
+
+			if c.RealIPHeader != "" {
+				realIP, err := parseRealIP(r)
+				if err == nil {
+					rCtx = WithRemoteIP(rCtx, realIP)
+				}
+			}
+
+			r = r.WithContext(rCtx)
+			instrumentHandler(handlerName, handler)(w, r)
 		}
 	}
 
 	r := mux.NewRouter().SkipClean(true).UseEncodedPath()
 	handle := func(p string, h http.Handler) {
-		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, h))
+		r.Handle(path.Join(issuerURL.Path, p), handlerWithHeaders(p, h))
 	}
 	handleFunc := func(p string, h http.HandlerFunc) {
 		handle(p, h)
@@ -365,7 +434,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 			)
 			handler = cors(handler)
 		}
-		r.Handle(path.Join(issuerURL.Path, p), instrumentHandlerCounter(p, handler))
+		r.Handle(path.Join(issuerURL.Path, p), handlerWithHeaders(p, handler))
 	}
 	r.NotFoundHandler = http.NotFoundHandler()
 
@@ -374,11 +443,26 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		return nil, err
 	}
 	handleWithCORS("/.well-known/openid-configuration", discoveryHandler)
+	// Handle the root path for the better user experience.
+	handleWithCORS("/", func(w http.ResponseWriter, r *http.Request) {
+		_, err := fmt.Fprintf(w, `<!DOCTYPE html>
+			<title>Dex</title>
+			<h1>Dex IdP</h1>
+			<h3>A Federated OpenID Connect Provider</h3>
+			<p><a href=%q>Discovery</a></p>`,
+			s.issuerURL.String()+"/.well-known/openid-configuration")
+		if err != nil {
+			s.logger.Error("failed to write response", "err", err)
+			s.renderError(r, w, http.StatusInternalServerError, "Handling the / path error.")
+			return
+		}
+	})
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
 	handleWithCORS("/token", s.handleToken)
 	handleWithCORS("/keys", s.handlePublicKeys)
 	handleWithCORS("/userinfo", s.handleUserInfo)
+	handleWithCORS("/token/introspect", s.handleIntrospect)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)
@@ -388,7 +472,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	// TODO(nabokihms): "/device/token" endpoint is deprecated, consider using /token endpoint instead
 	handleFunc("/device/token", s.handleDeviceTokenDeprecated)
 	handleFunc(deviceCallbackURI, s.handleDeviceCallback)
-	r.HandleFunc(path.Join(issuerURL.Path, "/callback"), func(w http.ResponseWriter, r *http.Request) {
+	handleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on
 		// misconfigured authproxy connector setups.
 		for key := range r.Header {
@@ -543,10 +627,11 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 				return
 			case <-time.After(frequency):
 				if r, err := s.storage.GarbageCollect(now()); err != nil {
-					s.logger.Errorf("garbage collection failed: %v", err)
+					s.logger.ErrorContext(ctx, "garbage collection failed", "err", err)
 				} else if !r.IsEmpty() {
-					s.logger.Infof("garbage collection run, delete auth requests=%d, auth codes=%d, device requests=%d, device tokens=%d",
-						r.AuthRequests, r.AuthCodes, r.DeviceRequests, r.DeviceTokens)
+					s.logger.InfoContext(ctx, "garbage collection run, delete auth",
+						"requests", r.AuthRequests, "auth_codes", r.AuthCodes,
+						"device_requests", r.DeviceRequests, "device_tokens", r.DeviceTokens)
 				}
 			}
 		}
@@ -555,7 +640,7 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 
 // ConnectorConfig is a configuration that can open a connector.
 type ConnectorConfig interface {
-	Open(id string, logger log.Logger) (connector.Connector, error)
+	Open(id string, logger *slog.Logger) (connector.Connector, error)
 }
 
 // ConnectorsConfig variable provides an easy way to return a config struct
@@ -583,7 +668,7 @@ var ConnectorsConfig = map[string]func() ConnectorConfig{
 }
 
 // openConnector will parse the connector config and open the connector.
-func openConnector(logger log.Logger, conn storage.Connector) (connector.Connector, error) {
+func openConnector(logger *slog.Logger, conn storage.Connector) (connector.Connector, error) {
 	var c connector.Connector
 
 	f, ok := ConnectorsConfig[conn.Type]
@@ -657,4 +742,19 @@ func (s *Server) getConnector(id string) (Connector, error) {
 	}
 
 	return conn, nil
+}
+
+type logRequestKey string
+
+const (
+	RequestKeyRequestID logRequestKey = "request_id"
+	RequestKeyRemoteIP  logRequestKey = "client_remote_addr"
+)
+
+func WithRequestID(ctx context.Context) context.Context {
+	return context.WithValue(ctx, RequestKeyRequestID, uuid.NewString())
+}
+
+func WithRemoteIP(ctx context.Context, ip string) context.Context {
+	return context.WithValue(ctx, RequestKeyRemoteIP, ip)
 }

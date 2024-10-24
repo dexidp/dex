@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -29,9 +29,11 @@ const (
 	defaultStorageTimeout = 5 * time.Second
 )
 
+var _ storage.Storage = (*conn)(nil)
+
 type conn struct {
 	db     *clientv3.Client
-	logger log.Logger
+	logger *slog.Logger
 }
 
 func (c *conn) Close() error {
@@ -50,7 +52,7 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 	for _, authRequest := range authRequests {
 		if now.After(authRequest.Expiry) {
 			if err := c.deleteKey(ctx, keyID(authRequestPrefix, authRequest.ID)); err != nil {
-				c.logger.Errorf("failed to delete auth request: %v", err)
+				c.logger.Error("failed to delete auth request", "err", err)
 				delErr = fmt.Errorf("failed to delete auth request: %v", err)
 			}
 			result.AuthRequests++
@@ -68,7 +70,7 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 	for _, authCode := range authCodes {
 		if now.After(authCode.Expiry) {
 			if err := c.deleteKey(ctx, keyID(authCodePrefix, authCode.ID)); err != nil {
-				c.logger.Errorf("failed to delete auth code %v", err)
+				c.logger.Error("failed to delete auth code", "err", err)
 				delErr = fmt.Errorf("failed to delete auth code: %v", err)
 			}
 			result.AuthCodes++
@@ -83,7 +85,7 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 	for _, deviceRequest := range deviceRequests {
 		if now.After(deviceRequest.Expiry) {
 			if err := c.deleteKey(ctx, keyID(deviceRequestPrefix, deviceRequest.UserCode)); err != nil {
-				c.logger.Errorf("failed to delete device request %v", err)
+				c.logger.Error("failed to delete device request", "err", err)
 				delErr = fmt.Errorf("failed to delete device request: %v", err)
 			}
 			result.DeviceRequests++
@@ -98,7 +100,7 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 	for _, deviceToken := range deviceTokens {
 		if now.After(deviceToken.Expiry) {
 			if err := c.deleteKey(ctx, keyID(deviceTokenPrefix, deviceToken.DeviceCode)); err != nil {
-				c.logger.Errorf("failed to delete device token %v", err)
+				c.logger.Error("failed to delete device token", "err", err)
 				delErr = fmt.Errorf("failed to delete device token: %v", err)
 			}
 			result.DeviceTokens++
@@ -107,9 +109,7 @@ func (c *conn) GarbageCollect(now time.Time) (result storage.GCResult, err error
 	return result, delErr
 }
 
-func (c *conn) CreateAuthRequest(a storage.AuthRequest) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
-	defer cancel()
+func (c *conn) CreateAuthRequest(ctx context.Context, a storage.AuthRequest) error {
 	return c.txnCreate(ctx, keyID(authRequestPrefix, a.ID), fromStorageAuthRequest(a))
 }
 
@@ -147,9 +147,7 @@ func (c *conn) DeleteAuthRequest(id string) error {
 	return c.deleteKey(ctx, keyID(authRequestPrefix, id))
 }
 
-func (c *conn) CreateAuthCode(a storage.AuthCode) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
-	defer cancel()
+func (c *conn) CreateAuthCode(ctx context.Context, a storage.AuthCode) error {
 	return c.txnCreate(ctx, keyID(authCodePrefix, a.ID), fromStorageAuthCode(a))
 }
 
@@ -170,9 +168,7 @@ func (c *conn) DeleteAuthCode(id string) error {
 	return c.deleteKey(ctx, keyID(authCodePrefix, id))
 }
 
-func (c *conn) CreateRefresh(r storage.RefreshToken) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
-	defer cancel()
+func (c *conn) CreateRefresh(ctx context.Context, r storage.RefreshToken) error {
 	return c.txnCreate(ctx, keyID(refreshTokenPrefix, r.ID), fromStorageRefreshToken(r))
 }
 
@@ -227,9 +223,7 @@ func (c *conn) ListRefreshTokens() (tokens []storage.RefreshToken, err error) {
 	return tokens, nil
 }
 
-func (c *conn) CreateClient(cli storage.Client) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
-	defer cancel()
+func (c *conn) CreateClient(ctx context.Context, cli storage.Client) error {
 	return c.txnCreate(ctx, keyID(clientPrefix, cli.ID), cli)
 }
 
@@ -281,9 +275,7 @@ func (c *conn) ListClients() (clients []storage.Client, err error) {
 	return clients, nil
 }
 
-func (c *conn) CreatePassword(p storage.Password) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
-	defer cancel()
+func (c *conn) CreatePassword(ctx context.Context, p storage.Password) error {
 	return c.txnCreate(ctx, passwordPrefix+strings.ToLower(p.Email), p)
 }
 
@@ -335,9 +327,7 @@ func (c *conn) ListPasswords() (passwords []storage.Password, err error) {
 	return passwords, nil
 }
 
-func (c *conn) CreateOfflineSessions(s storage.OfflineSessions) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
-	defer cancel()
+func (c *conn) CreateOfflineSessions(ctx context.Context, s storage.OfflineSessions) error {
 	return c.txnCreate(ctx, keySession(s.UserID, s.ConnID), fromStorageOfflineSessions(s))
 }
 
@@ -375,9 +365,7 @@ func (c *conn) DeleteOfflineSessions(userID string, connID string) error {
 	return c.deleteKey(ctx, keySession(userID, connID))
 }
 
-func (c *conn) CreateConnector(connector storage.Connector) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
-	defer cancel()
+func (c *conn) CreateConnector(ctx context.Context, connector storage.Connector) error {
 	return c.txnCreate(ctx, keyID(connectorPrefix, connector.ID), connector)
 }
 
@@ -568,9 +556,7 @@ func keySession(userID, connID string) string {
 	return offlineSessionPrefix + strings.ToLower(userID+"|"+connID)
 }
 
-func (c *conn) CreateDeviceRequest(d storage.DeviceRequest) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
-	defer cancel()
+func (c *conn) CreateDeviceRequest(ctx context.Context, d storage.DeviceRequest) error {
 	return c.txnCreate(ctx, keyID(deviceRequestPrefix, d.UserCode), fromStorageDeviceRequest(d))
 }
 
@@ -599,9 +585,7 @@ func (c *conn) listDeviceRequests(ctx context.Context) (requests []DeviceRequest
 	return requests, nil
 }
 
-func (c *conn) CreateDeviceToken(t storage.DeviceToken) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
-	defer cancel()
+func (c *conn) CreateDeviceToken(ctx context.Context, t storage.DeviceToken) error {
 	return c.txnCreate(ctx, keyID(deviceTokenPrefix, t.DeviceCode), fromStorageDeviceToken(t))
 }
 

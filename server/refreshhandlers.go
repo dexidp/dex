@@ -40,6 +40,11 @@ func newBadRequestError(desc string) *refreshError {
 	return &refreshError{msg: errInvalidRequest, desc: desc, code: http.StatusBadRequest}
 }
 
+var (
+	invalidErr = newBadRequestError("Refresh token is invalid or has already been claimed by another client.")
+	expiredErr = newBadRequestError("Refresh token expired.")
+)
+
 func (s *Server) refreshTokenErrHelper(w http.ResponseWriter, err *refreshError) {
 	s.tokenErrHelper(w, err.msg, err.desc, err.code)
 }
@@ -75,23 +80,22 @@ type refreshContext struct {
 }
 
 // getRefreshTokenFromStorage checks that refresh token is valid and exists in the storage and gets its info
-func (s *Server) getRefreshTokenFromStorage(clientID string, token *internal.RefreshToken) (*refreshContext, *refreshError) {
+func (s *Server) getRefreshTokenFromStorage(ctx context.Context, clientID *string, token *internal.RefreshToken) (*refreshContext, *refreshError) {
 	refreshCtx := refreshContext{requestToken: token}
-
-	invalidErr := newBadRequestError("Refresh token is invalid or has already been claimed by another client.")
 
 	// Get RefreshToken
 	refresh, err := s.storage.GetRefresh(token.RefreshId)
 	if err != nil {
 		if err != storage.ErrNotFound {
-			s.logger.Errorf("failed to get refresh token: %v", err)
+			s.logger.ErrorContext(ctx, "failed to get refresh token", "err", err)
 			return nil, newInternalServerError()
 		}
 		return nil, invalidErr
 	}
 
-	if refresh.ClientID != clientID {
-		s.logger.Errorf("client %s trying to claim token for client %s", clientID, refresh.ClientID)
+	// Only check ClientID if it was provided;
+	if clientID != nil && (refresh.ClientID != *clientID) {
+		s.logger.ErrorContext(ctx, "trying to claim token for different client", "client_id", clientID, "refresh_client_id", refresh.ClientID)
 		// According to https://datatracker.ietf.org/doc/html/rfc6749#section-5.2 Dex should respond with an
 		//  invalid grant error if token has already been claimed by another client.
 		return nil, &refreshError{msg: errInvalidGrant, desc: invalidErr.desc, code: http.StatusBadRequest}
@@ -104,19 +108,18 @@ func (s *Server) getRefreshTokenFromStorage(clientID string, token *internal.Ref
 		case refresh.ObsoleteToken != token.Token:
 			fallthrough
 		case refresh.ObsoleteToken == "":
-			s.logger.Errorf("refresh token with id %s claimed twice", refresh.ID)
+			s.logger.ErrorContext(ctx, "refresh token claimed twice", "token_id", refresh.ID)
 			return nil, invalidErr
 		}
 	}
 
-	expiredErr := newBadRequestError("Refresh token expired.")
 	if s.refreshTokenPolicy.CompletelyExpired(refresh.CreatedAt) {
-		s.logger.Errorf("refresh token with id %s expired", refresh.ID)
+		s.logger.ErrorContext(ctx, "refresh token expired", "token_id", refresh.ID)
 		return nil, expiredErr
 	}
 
 	if s.refreshTokenPolicy.ExpiredBecauseUnused(refresh.LastUsed) {
-		s.logger.Errorf("refresh token with id %s expired due to inactivity", refresh.ID)
+		s.logger.ErrorContext(ctx, "refresh token expired due to inactivity", "token_id", refresh.ID)
 		return nil, expiredErr
 	}
 
@@ -125,7 +128,7 @@ func (s *Server) getRefreshTokenFromStorage(clientID string, token *internal.Ref
 	// Get Connector
 	refreshCtx.connector, err = s.getConnector(refresh.ConnectorID)
 	if err != nil {
-		s.logger.Errorf("connector with ID %q not found: %v", refresh.ConnectorID, err)
+		s.logger.ErrorContext(ctx, "connector not found", "connector_id", refresh.ConnectorID, "err", err)
 		return nil, newInternalServerError()
 	}
 
@@ -134,7 +137,7 @@ func (s *Server) getRefreshTokenFromStorage(clientID string, token *internal.Ref
 	switch {
 	case err != nil:
 		if err != storage.ErrNotFound {
-			s.logger.Errorf("failed to get offline session: %v", err)
+			s.logger.ErrorContext(ctx, "failed to get offline session", "err", err)
 			return nil, newInternalServerError()
 		}
 	case len(refresh.ConnectorData) > 0:
@@ -188,11 +191,11 @@ func (s *Server) refreshWithConnector(ctx context.Context, rCtx *refreshContext,
 	if refreshConn, ok := rCtx.connector.Connector.(connector.RefreshConnector); ok {
 		// Set connector data to the one received from an offline session
 		ident.ConnectorData = rCtx.connectorData
-		s.logger.Debugf("connector data before refresh: %s", ident.ConnectorData)
+		s.logger.Debug("connector data before refresh", "connector_data", ident.ConnectorData)
 
 		newIdent, err := refreshConn.Refresh(ctx, parseScopes(rCtx.scopes), ident)
 		if err != nil {
-			s.logger.Errorf("failed to refresh identity: %v", err)
+			s.logger.ErrorContext(ctx, "failed to refresh identity", "err", err)
 			return ident, newInternalServerError()
 		}
 
@@ -202,7 +205,7 @@ func (s *Server) refreshWithConnector(ctx context.Context, rCtx *refreshContext,
 }
 
 // updateOfflineSession updates offline session in the storage
-func (s *Server) updateOfflineSession(refresh *storage.RefreshToken, ident connector.Identity, lastUsed time.Time) *refreshError {
+func (s *Server) updateOfflineSession(ctx context.Context, refresh *storage.RefreshToken, ident connector.Identity, lastUsed time.Time) *refreshError {
 	offlineSessionUpdater := func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 		if old.Refresh[refresh.ClientID].ID != refresh.ID {
 			return old, errors.New("refresh token invalid")
@@ -213,7 +216,7 @@ func (s *Server) updateOfflineSession(refresh *storage.RefreshToken, ident conne
 			old.ConnectorData = ident.ConnectorData
 		}
 
-		s.logger.Debugf("saved connector data: %s %s", ident.UserID, ident.ConnectorData)
+		s.logger.DebugContext(ctx, "saved connector data", "user_id", ident.UserID, "connector_data", ident.ConnectorData)
 
 		return old, nil
 	}
@@ -222,7 +225,7 @@ func (s *Server) updateOfflineSession(refresh *storage.RefreshToken, ident conne
 	// in offline session for the user.
 	err := s.storage.UpdateOfflineSessions(refresh.Claims.UserID, refresh.ConnectorID, offlineSessionUpdater)
 	if err != nil {
-		s.logger.Errorf("failed to update offline session: %v", err)
+		s.logger.ErrorContext(ctx, "failed to update offline session", "err", err)
 		return newInternalServerError()
 	}
 
@@ -313,11 +316,11 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 	// Update refresh token in the storage.
 	err := s.storage.UpdateRefreshToken(rCtx.storageToken.ID, refreshTokenUpdater)
 	if err != nil {
-		s.logger.Errorf("failed to update refresh token: %v", err)
+		s.logger.ErrorContext(ctx, "failed to update refresh token", "err", err)
 		return nil, ident, newInternalServerError()
 	}
 
-	rerr = s.updateOfflineSession(rCtx.storageToken, ident, lastUsed)
+	rerr = s.updateOfflineSession(ctx, rCtx.storageToken, ident, lastUsed)
 	if rerr != nil {
 		return nil, ident, rerr
 	}
@@ -334,7 +337,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 
-	rCtx, rerr := s.getRefreshTokenFromStorage(client.ID, token)
+	rCtx, rerr := s.getRefreshTokenFromStorage(r.Context(), &client.ID, token)
 	if rerr != nil {
 		s.refreshTokenErrHelper(w, rerr)
 		return
@@ -361,23 +364,23 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		Groups:            ident.Groups,
 	}
 
-	accessToken, _, err := s.newAccessToken(client.ID, claims, rCtx.scopes, rCtx.storageToken.Nonce, rCtx.storageToken.ConnectorID)
+	accessToken, _, err := s.newAccessToken(r.Context(), client.ID, claims, rCtx.scopes, rCtx.storageToken.Nonce, rCtx.storageToken.ConnectorID)
 	if err != nil {
-		s.logger.Errorf("failed to create new access token: %v", err)
+		s.logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
 		s.refreshTokenErrHelper(w, newInternalServerError())
 		return
 	}
 
-	idToken, expiry, err := s.newIDToken(client.ID, claims, rCtx.scopes, rCtx.storageToken.Nonce, accessToken, "", rCtx.storageToken.ConnectorID)
+	idToken, expiry, err := s.newIDToken(r.Context(), client.ID, claims, rCtx.scopes, rCtx.storageToken.Nonce, accessToken, "", rCtx.storageToken.ConnectorID)
 	if err != nil {
-		s.logger.Errorf("failed to create ID token: %v", err)
+		s.logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)
 		s.refreshTokenErrHelper(w, newInternalServerError())
 		return
 	}
 
 	rawNewToken, err := internal.Marshal(newToken)
 	if err != nil {
-		s.logger.Errorf("failed to marshal refresh token: %v", err)
+		s.logger.ErrorContext(r.Context(), "failed to marshal refresh token", "err", err)
 		s.refreshTokenErrHelper(w, newInternalServerError())
 		return
 	}

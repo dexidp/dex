@@ -17,11 +17,13 @@ import (
 const (
 	invalidPass = "WRONG_PASS"
 
-	testUser   = "test_user"
-	testPass   = "test_pass"
-	testEmail  = "test@example.com"
-	testGroup  = "test_group"
-	testDomain = "default"
+	testUser          = "test_user"
+	testPass          = "test_pass"
+	testEmail         = "test@example.com"
+	testGroup         = "test_group"
+	testDomainAltName = "altdomain"
+	testDomainID      = "default"
+	testDomainName    = "Default"
 )
 
 var (
@@ -32,7 +34,25 @@ var (
 	authTokenURL     = ""
 	usersURL         = ""
 	groupsURL        = ""
+	domainsURL       = ""
 )
+
+type userReq struct {
+	Name     string   `json:"name"`
+	Email    string   `json:"email"`
+	Enabled  bool     `json:"enabled"`
+	Password string   `json:"password"`
+	Roles    []string `json:"roles"`
+	DomainID string   `json:"domain_id,omitempty"`
+}
+
+type domainResponse struct {
+	Domain domainKeystone `json:"domain"`
+}
+
+type domainsResponse struct {
+	Domains []domainKeystone `json:"domains"`
+}
 
 type groupResponse struct {
 	Group struct {
@@ -49,7 +69,7 @@ func getAdminToken(t *testing.T, adminName, adminPass string) (token, id string)
 				Password: password{
 					User: user{
 						Name:     adminName,
-						Domain:   domain{ID: testDomain},
+						Domain:   domainKeystone{ID: testDomainID},
 						Password: adminPass,
 					},
 				},
@@ -89,16 +109,91 @@ func getAdminToken(t *testing.T, adminName, adminPass string) (token, id string)
 	return token, tokenResp.Token.User.ID
 }
 
-func createUser(t *testing.T, token, userName, userEmail, userPass string) string {
+func getOrCreateDomain(t *testing.T, token, domainName string) string {
+	t.Helper()
+
+	domainSearchURL := domainsURL + "?name=" + domainName
+	reqGet, err := http.NewRequest("GET", domainSearchURL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reqGet.Header.Set("X-Auth-Token", token)
+	reqGet.Header.Add("Content-Type", "application/json")
+	respGet, err := http.DefaultClient.Do(reqGet)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dataGet, err := io.ReadAll(respGet.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer respGet.Body.Close()
+
+	domainsResp := new(domainsResponse)
+	err = json.Unmarshal(dataGet, &domainsResp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(domainsResp.Domains) >= 1 {
+		return domainsResp.Domains[0].ID
+	}
+
+	createDomainData := map[string]interface{}{
+		"domain": map[string]interface{}{
+			"name":    domainName,
+			"enabled": true,
+		},
+	}
+
+	body, err := json.Marshal(createDomainData)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := http.NewRequest("POST", domainsURL, bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Auth-Token", token)
+	req.Header.Add("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.StatusCode != 201 {
+		t.Fatalf("failed to create domain %s", domainName)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	domainResp := new(domainResponse)
+	err = json.Unmarshal(data, &domainResp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return domainResp.Domain.ID
+}
+
+func createUser(t *testing.T, token, domainID, userName, userEmail, userPass string) string {
 	t.Helper()
 
 	createUserData := map[string]interface{}{
-		"user": map[string]interface{}{
-			"name":     userName,
-			"email":    userEmail,
-			"enabled":  true,
-			"password": userPass,
-			"roles":    []string{"admin"},
+		"user": userReq{
+			DomainID: domainID,
+			Name:     userName,
+			Email:    userEmail,
+			Enabled:  true,
+			Password: userPass,
+			Roles:    []string{"admin"},
 		},
 	}
 
@@ -214,7 +309,7 @@ func TestIncorrectCredentialsLogin(t *testing.T) {
 	setupVariables(t)
 	c := conn{
 		client: http.DefaultClient,
-		Host:   keystoneURL, Domain: testDomain,
+		Host:   keystoneURL, Domain: domainKeystone{ID: testDomainID},
 		AdminUsername: adminUser, AdminPassword: adminPass,
 	}
 	s := connector.Scopes{OfflineAccess: true, Groups: true}
@@ -238,10 +333,11 @@ func TestValidUserLogin(t *testing.T) {
 	token, _ := getAdminToken(t, adminUser, adminPass)
 
 	type tUser struct {
-		username string
-		domain   string
-		email    string
-		password string
+		createDomain bool
+		domain       domainKeystone
+		username     string
+		email        string
+		password     string
 	}
 
 	type expect struct {
@@ -258,10 +354,11 @@ func TestValidUserLogin(t *testing.T) {
 		{
 			name: "test with email address",
 			input: tUser{
-				username: testUser,
-				domain:   testDomain,
-				email:    testEmail,
-				password: testPass,
+				createDomain: false,
+				domain:       domainKeystone{ID: testDomainID},
+				username:     testUser,
+				email:        testEmail,
+				password:     testPass,
 			},
 			expected: expect{
 				username:      testUser,
@@ -272,10 +369,11 @@ func TestValidUserLogin(t *testing.T) {
 		{
 			name: "test without email address",
 			input: tUser{
-				username: testUser,
-				domain:   testDomain,
-				email:    "",
-				password: testPass,
+				createDomain: false,
+				domain:       domainKeystone{ID: testDomainID},
+				username:     testUser,
+				email:        "",
+				password:     testPass,
 			},
 			expected: expect{
 				username:      testUser,
@@ -283,11 +381,66 @@ func TestValidUserLogin(t *testing.T) {
 				verifiedEmail: false,
 			},
 		},
+		{
+			name: "test with default domain Name",
+			input: tUser{
+				createDomain: false,
+				domain:       domainKeystone{Name: testDomainName},
+				username:     testUser,
+				email:        testEmail,
+				password:     testPass,
+			},
+			expected: expect{
+				username:      testUser,
+				email:         testEmail,
+				verifiedEmail: true,
+			},
+		},
+		{
+			name: "test with custom domain Name",
+			input: tUser{
+				createDomain: true,
+				domain:       domainKeystone{Name: testDomainAltName},
+				username:     testUser,
+				email:        testEmail,
+				password:     testPass,
+			},
+			expected: expect{
+				username:      testUser,
+				email:         testEmail,
+				verifiedEmail: true,
+			},
+		},
+		{
+			name: "test with custom domain ID",
+			input: tUser{
+				createDomain: true,
+				domain:       domainKeystone{},
+				username:     testUser,
+				email:        testEmail,
+				password:     testPass,
+			},
+			expected: expect{
+				username:      testUser,
+				email:         testEmail,
+				verifiedEmail: true,
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			userID := createUser(t, token, tt.input.username, tt.input.email, tt.input.password)
+			domainID := ""
+			if tt.input.createDomain == true {
+				domainID = getOrCreateDomain(t, token, testDomainAltName)
+				t.Logf("getOrCreateDomain ID: %s\n", domainID)
+
+				// if there was nothing set then use the dynamically generated domain ID
+				if tt.input.domain.ID == "" && tt.input.domain.Name == "" {
+					tt.input.domain.ID = domainID
+				}
+			}
+			userID := createUser(t, token, domainID, tt.input.username, tt.input.email, tt.input.password)
 			defer deleteResource(t, token, userID, usersURL)
 
 			c := conn{
@@ -298,7 +451,7 @@ func TestValidUserLogin(t *testing.T) {
 			s := connector.Scopes{OfflineAccess: true, Groups: true}
 			identity, validPW, err := c.Login(context.Background(), s, tt.input.username, tt.input.password)
 			if err != nil {
-				t.Fatal(err.Error())
+				t.Fatalf("Login failed for user %s: %v", tt.input.username, err.Error())
 			}
 			t.Log(identity)
 			if identity.Username != tt.expected.username {
@@ -330,7 +483,7 @@ func TestUseRefreshToken(t *testing.T) {
 
 	c := conn{
 		client: http.DefaultClient,
-		Host:   keystoneURL, Domain: testDomain,
+		Host:   keystoneURL, Domain: domainKeystone{ID: testDomainID},
 		AdminUsername: adminUser, AdminPassword: adminPass,
 	}
 	s := connector.Scopes{OfflineAccess: true, Groups: true}
@@ -352,11 +505,11 @@ func TestUseRefreshToken(t *testing.T) {
 func TestUseRefreshTokenUserDeleted(t *testing.T) {
 	setupVariables(t)
 	token, _ := getAdminToken(t, adminUser, adminPass)
-	userID := createUser(t, token, testUser, testEmail, testPass)
+	userID := createUser(t, token, "", testUser, testEmail, testPass)
 
 	c := conn{
 		client: http.DefaultClient,
-		Host:   keystoneURL, Domain: testDomain,
+		Host:   keystoneURL, Domain: domainKeystone{ID: testDomainID},
 		AdminUsername: adminUser, AdminPassword: adminPass,
 	}
 	s := connector.Scopes{OfflineAccess: true, Groups: true}
@@ -382,12 +535,12 @@ func TestUseRefreshTokenUserDeleted(t *testing.T) {
 func TestUseRefreshTokenGroupsChanged(t *testing.T) {
 	setupVariables(t)
 	token, _ := getAdminToken(t, adminUser, adminPass)
-	userID := createUser(t, token, testUser, testEmail, testPass)
+	userID := createUser(t, token, "", testUser, testEmail, testPass)
 	defer deleteResource(t, token, userID, usersURL)
 
 	c := conn{
 		client: http.DefaultClient,
-		Host:   keystoneURL, Domain: testDomain,
+		Host:   keystoneURL, Domain: domainKeystone{ID: testDomainID},
 		AdminUsername: adminUser, AdminPassword: adminPass,
 	}
 	s := connector.Scopes{OfflineAccess: true, Groups: true}
@@ -419,12 +572,12 @@ func TestUseRefreshTokenGroupsChanged(t *testing.T) {
 func TestNoGroupsInScope(t *testing.T) {
 	setupVariables(t)
 	token, _ := getAdminToken(t, adminUser, adminPass)
-	userID := createUser(t, token, testUser, testEmail, testPass)
+	userID := createUser(t, token, "", testUser, testEmail, testPass)
 	defer deleteResource(t, token, userID, usersURL)
 
 	c := conn{
 		client: http.DefaultClient,
-		Host:   keystoneURL, Domain: testDomain,
+		Host:   keystoneURL, Domain: domainKeystone{ID: testDomainID},
 		AdminUsername: adminUser, AdminPassword: adminPass,
 	}
 	s := connector.Scopes{OfflineAccess: true, Groups: false}
@@ -474,6 +627,7 @@ func setupVariables(t *testing.T) {
 	authTokenURL = keystoneURL + "/v3/auth/tokens/"
 	usersURL = keystoneAdminURL + "/v3/users/"
 	groupsURL = keystoneAdminURL + "/v3/groups/"
+	domainsURL = keystoneAdminURL + "/v3/domains/"
 }
 
 func expectEquals(t *testing.T, a interface{}, b interface{}) {

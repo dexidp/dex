@@ -2,11 +2,10 @@ package authproxy
 
 import (
 	"io"
+	"log/slog"
 	"net/http"
 	"reflect"
 	"testing"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/dexidp/dex/connector"
 )
@@ -23,7 +22,7 @@ const (
 	testUserID       = "1234567890"
 )
 
-var logger = &logrus.Logger{Out: io.Discard, Formatter: &logrus.TextFormatter{}}
+var logger = slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 func TestUser(t *testing.T) {
 	config := Config{
@@ -43,6 +42,7 @@ func TestUser(t *testing.T) {
 	// If not specified, the userID and email should fall back to the remote user
 	expectEquals(t, ident.UserID, testUsername)
 	expectEquals(t, ident.PreferredUsername, testUsername)
+	expectEquals(t, ident.Username, testUsername)
 	expectEquals(t, ident.Email, testUsername)
 	expectEquals(t, len(ident.Groups), 0)
 }
@@ -74,6 +74,7 @@ func TestExtraHeaders(t *testing.T) {
 
 	expectEquals(t, ident.UserID, testUserID)
 	expectEquals(t, ident.PreferredUsername, testUsername)
+	expectEquals(t, ident.Username, testUsername)
 	expectEquals(t, ident.Email, testEmail)
 	expectEquals(t, len(ident.Groups), 0)
 }

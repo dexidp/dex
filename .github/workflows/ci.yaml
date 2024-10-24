@@ -66,10 +66,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
 
       - name: Set up Go
-        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           go-version: "1.21"
 
@@ -83,10 +83,10 @@ jobs:
         run: make verify
 
       - name: Start services
-        run: docker-compose -f docker-compose.test.yaml up -d
+        run: docker compose -f docker-compose.test.yaml up -d
 
       - name: Create kind cluster
-        uses: helm/kind-action@v1.8.0
+        uses: helm/kind-action@0025e74a8c7512023d06dc019c617aa3cf561fde # v1.10.0
         with:
           version: "v0.17.0"
           node_image: "kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5"
@@ -121,8 +121,8 @@ jobs:
           DEX_ETCD_ENDPOINTS: http://localhost:${{ job.services.etcd.ports[2379] }}
 
           DEX_LDAP_HOST: localhost
-          DEX_LDAP_PORT: 389
-          DEX_LDAP_TLS_PORT: 636
+          DEX_LDAP_PORT: 3890
+          DEX_LDAP_TLS_PORT: 6360
 
           DEX_KEYSTONE_URL: http://localhost:${{ job.services.keystone.ports[5000] }}
           DEX_KEYSTONE_ADMIN_URL: http://localhost:${{ job.services.keystone.ports[35357] }}
@@ -137,10 +137,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
 
       - name: Set up Go
-        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           go-version: "1.21"
 
@@ -159,6 +159,7 @@ jobs:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
     permissions:
+      attestations: write
       contents: read
       packages: write
       id-token: write
@@ -171,7 +172,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
 
       - name: Dependency Review
-        uses: actions/dependency-review-action@c74b580d73376b7750d3d2a50bfb8adc2c937507 # v3.1.5
+        uses: actions/dependency-review-action@a6993e2c61fd5dc440b409aa1d6904921c5e1894 # v4.3.5

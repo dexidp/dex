@@ -8,7 +8,7 @@ import (
 )
 
 // CreateDeviceToken saves provided token into the database.
-func (d *Database) CreateDeviceToken(token storage.DeviceToken) error {
+func (d *Database) CreateDeviceToken(ctx context.Context, token storage.DeviceToken) error {
 	_, err := d.client.DeviceToken.Create().
 		SetDeviceCode(token.DeviceCode).
 		SetToken([]byte(token.Token)).
@@ -19,7 +19,7 @@ func (d *Database) CreateDeviceToken(token storage.DeviceToken) error {
 		SetStatus(token.Status).
 		SetCodeChallenge(token.PKCE.CodeChallenge).
 		SetCodeChallengeMethod(token.PKCE.CodeChallengeMethod).
-		Save(context.TODO())
+		Save(ctx)
 	if err != nil {
 		return convertDBError("create device token: %w", err)
 	}

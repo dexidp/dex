@@ -6,15 +6,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"sort"
 	"testing"
 
-	"github.com/sirupsen/logrus"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/assert"
-	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/dexidp/dex/connector"
 )
@@ -270,7 +271,7 @@ func newConnector(t *testing.T, serverURL string) *oauthConnector {
 	testConfig.ClaimMapping.EmailKey = "mail"
 	testConfig.ClaimMapping.EmailVerifiedKey = "has_verified_email"
 
-	log := logrus.New()
+	log := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	conn, err := testConfig.Open("id", log)
 	if err != nil {

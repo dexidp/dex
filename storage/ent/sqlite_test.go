@@ -1,21 +1,16 @@
 package ent
 
 import (
-	"os"
+	"io"
+	"log/slog"
 	"testing"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/conformance"
 )
 
 func newSQLiteStorage() storage.Storage {
-	logger := &logrus.Logger{
-		Out:       os.Stderr,
-		Formatter: &logrus.TextFormatter{DisableColors: true},
-		Level:     logrus.DebugLevel,
-	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 	cfg := SQLite3{File: ":memory:"}
 	s, err := cfg.Open(logger)

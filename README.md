@@ -13,7 +13,7 @@ Dex acts as a portal to other identity providers through ["connectors."](#connec
 
 ## ID Tokens
 
-ID Tokens are an OAuth2 extension introduced by OpenID Connect and dex's primary feature. ID Tokens are [JSON Web Tokens][jwt-io] (JWTs) signed by dex and returned as part of the OAuth2 response that attest to the end user's identity. An example JWT might look like:
+ID Tokens are an OAuth2 extension introduced by OpenID Connect and dex's primary feature. ID Tokens are [JSON Web Tokens][jwt-io] (JWTs) signed by dex and returned as part of the OAuth2 response that attests to the end user's identity. An example JWT might look like:
 
 ```
 eyJhbGciOiJSUzI1NiIsImtpZCI6IjlkNDQ3NDFmNzczYjkzOGNmNjVkZDMyNjY4NWI4NjE4MGMzMjRkOTkifQ.eyJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjU1NTYvZGV4Iiwic3ViIjoiQ2djeU16UXlOelE1RWdabmFYUm9kV0kiLCJhdWQiOiJleGFtcGxlLWFwcCIsImV4cCI6MTQ5Mjg4MjA0MiwiaWF0IjoxNDkyNzk1NjQyLCJhdF9oYXNoIjoiYmk5NmdPWFpTaHZsV1l0YWw5RXFpdyIsImVtYWlsIjoiZXJpYy5jaGlhbmdAY29yZW9zLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJncm91cHMiOlsiYWRtaW5zIiwiZGV2ZWxvcGVycyJdLCJuYW1lIjoiRXJpYyBDaGlhbmcifQ.OhROPq_0eP-zsQRjg87KZ4wGkjiQGnTi5QuG877AdJDb3R2ZCOk2Vkf5SdP8cPyb3VMqL32G4hLDayniiv8f1_ZXAde0sKrayfQ10XAXFgZl_P1yilkLdknxn6nbhDRVllpWcB12ki9vmAxklAr0B1C4kr5nI3-BZLrFcUR5sQbxwJj4oW1OuG6jJCNGHXGNTBTNEaM28eD-9nhfBeuBTzzO7BKwPsojjj4C9ogU4JQhGvm_l4yfVi0boSx8c0FX3JsiB0yLa1ZdJVWVl9m90XmbWRSD85pNDQHcWZP9hR6CMgbvGkZsgjG32qeRwUL_eNkNowSBNWLrGNPoON1gMg
@@ -50,8 +50,8 @@ For details on how to request or validate an ID Token, see [_"Writing apps that 
 
 Dex runs natively on top of any Kubernetes cluster using Custom Resource Definitions and can drive API server authentication through the OpenID Connect plugin. Clients, such as the [`kubernetes-dashboard`](https://github.com/kubernetes/dashboard) and `kubectl`, can act on behalf of users who can login to the cluster through any identity provider dex supports.
 
-* More docs for running dex as a Kubernetes authenticator can be found [here](https://dexidp.io/docs/kubernetes/).
-* You can find more about companies and projects, which uses dex, [here](./ADOPTERS.md).
+* More docs for running dex as a Kubernetes authenticator can be found [here](https://dexidp.io/docs/guides/kubernetes/).
+* You can find more about companies and projects which use dex, [here](./ADOPTERS.md).
 
 ## Connectors
 
@@ -96,7 +96,7 @@ All changes or deprecations of connector features will be announced in the [rele
 * [Getting started](https://dexidp.io/docs/getting-started/)
 * [Intro to OpenID Connect](https://dexidp.io/docs/openid-connect/)
 * [Writing apps that use dex][using-dex]
-* [What's new in v2](https://dexidp.io/docs/v2/)
+* [What's new in v2](https://dexidp.io/docs/archive/v2/)
 * [Custom scopes, claims, and client features](https://dexidp.io/docs/custom-scopes-claims-clients/)
 * [Storage options](https://dexidp.io/docs/storage/)
 * [gRPC API](https://dexidp.io/docs/api/)
@@ -138,6 +138,8 @@ make testall
 For the best developer experience, install [Nix](https://builtwithnix.org/) and [direnv](https://direnv.net/).
 
 Alternatively, install Go and Docker manually or using a package manager. Install the rest of the dependencies by running `make deps`.
+
+For release process, please read the [release documentation](https://dexidp.io/docs/development/releases/).
 
 ## License
 

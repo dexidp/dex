@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/groups"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 const (
@@ -42,7 +42,7 @@ type Config struct {
 }
 
 // Open returns a strategy for logging in through Bitbucket.
-func (c *Config) Open(_ string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
 	b := bitbucketConnector{
 		redirectURI:       c.RedirectURI,
 		teams:             c.Teams,
@@ -51,7 +51,7 @@ func (c *Config) Open(_ string, logger log.Logger) (connector.Connector, error) 
 		includeTeamGroups: c.IncludeTeamGroups,
 		apiURL:            apiURL,
 		legacyAPIURL:      legacyAPIURL,
-		logger:            logger,
+		logger:            logger.With(slog.Group("connector", "type", "bitbucketcloud", "id", id)),
 	}
 
 	return &b, nil
@@ -73,7 +73,7 @@ type bitbucketConnector struct {
 	teams        []string
 	clientID     string
 	clientSecret string
-	logger       log.Logger
+	logger       *slog.Logger
 	apiURL       string
 	legacyAPIURL string
 

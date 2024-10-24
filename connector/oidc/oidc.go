@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -17,7 +19,6 @@ import (
 	"github.com/dexidp/dex/connector"
 	groups_pkg "github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/httpclient"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 // Config holds configuration options for OpenID Connect logins.
@@ -75,8 +76,8 @@ type Config struct {
 
 	UserNameKey string `json:"userNameKey"`
 
-	// PromptType will be used fot the prompt parameter (when offline_access, by default prompt=consent)
-	PromptType string `json:"promptType"`
+	// PromptType will be used for the prompt parameter (when offline_access, by default prompt=consent)
+	PromptType *string `json:"promptType"`
 
 	// OverrideClaimMapping will be used to override the options defined in claimMappings.
 	// i.e. if there are 'email' and `preferred_email` claims available, by default Dex will always use the `email` claim independent of the ClaimMapping.EmailKey.
@@ -97,6 +98,7 @@ type Config struct {
 	// ClaimMutations holds all claim mutations options
 	ClaimMutations struct {
 		NewGroupFromClaims []NewGroupFromClaims `json:"newGroupFromClaims"`
+		FilterGroupClaims  FilterGroupClaims    `json:"filterGroupClaims"`
 	} `json:"claimModifications"`
 }
 
@@ -107,10 +109,13 @@ type ProviderDiscoveryOverrides struct {
 	// AuthURL provides a way to user overwrite the Auth URL
 	// from the .well-known/openid-configuration authorization_endpoint
 	AuthURL string `json:"authURL"`
+	// JWKSURL provides a way to user overwrite the JWKS URL
+	// from the .well-known/openid-configuration jwks_uri
+	JWKSURL string `json:"jwksURL"`
 }
 
 func (o *ProviderDiscoveryOverrides) Empty() bool {
-	return o.TokenURL == "" && o.AuthURL == ""
+	return o.TokenURL == "" && o.AuthURL == "" && o.JWKSURL == ""
 }
 
 func getProvider(ctx context.Context, issuer string, overrides ProviderDiscoveryOverrides) (*oidc.Provider, error) {
@@ -151,7 +156,9 @@ func getProvider(ctx context.Context, issuer string, overrides ProviderDiscovery
 	if overrides.AuthURL != "" {
 		config.AuthURL = overrides.AuthURL
 	}
-
+	if overrides.JWKSURL != "" {
+		config.JWKSURL = overrides.JWKSURL
+	}
 	return config.NewProvider(context.Background()), nil
 }
 
@@ -169,6 +176,12 @@ type NewGroupFromClaims struct {
 
 	// String to place before the first claim
 	Prefix string `json:"prefix"`
+}
+
+// FilterGroupClaims is a regex filter for to keep only the matching groups.
+// This is useful when the groups list is too large to fit within an HTTP header.
+type FilterGroupClaims struct {
+	GroupsFilter string `json:"groupsFilter"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -201,7 +214,7 @@ func knownBrokenAuthHeaderProvider(issuerURL string) bool {
 
 // Open returns a connector which can be used to login users through an upstream
 // OpenID Connect provider.
-func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, err error) {
+func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector, err error) {
 	if len(c.HostedDomains) > 0 {
 		return nil, fmt.Errorf("support for the Hosted domains option had been deprecated and removed, consider switching to the Google connector")
 	}
@@ -220,7 +233,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		return nil, err
 	}
 	if !c.ProviderDiscoveryOverrides.Empty() {
-		logger.Warnf("overrides for connector %q are set, this can be a vulnerability when not properly configured", id)
+		logger.Warn("overrides for connector are set, this can be a vulnerability when not properly configured", "connector_id", id)
 	}
 
 	endpoint := provider.Endpoint()
@@ -242,8 +255,17 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 	}
 
 	// PromptType should be "consent" by default, if not set
-	if c.PromptType == "" {
-		c.PromptType = "consent"
+	promptType := "consent"
+	if c.PromptType != nil {
+		promptType = *c.PromptType
+	}
+
+	var groupsFilter *regexp.Regexp
+	if c.ClaimMutations.FilterGroupClaims.GroupsFilter != "" {
+		groupsFilter, err = regexp.Compile(c.ClaimMutations.FilterGroupClaims.GroupsFilter)
+		if err != nil {
+			logger.Warn("ignoring invalid", "invalid_regex", c.ClaimMutations.FilterGroupClaims.GroupsFilter, "connector_id", id)
+		}
 	}
 
 	clientID := c.ClientID
@@ -257,10 +279,11 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 			Scopes:       scopes,
 			RedirectURL:  c.RedirectURI,
 		},
-		verifier: provider.Verifier(
+		verifier: provider.VerifierContext(
+			ctx, // Pass our ctx with customized http.Client
 			&oidc.Config{ClientID: clientID},
 		),
-		logger:                    logger,
+		logger:                    logger.With(slog.Group("connector", "type", "oidc", "id", id)),
 		cancel:                    cancel,
 		httpClient:                httpClient,
 		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
@@ -268,7 +291,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		allowedGroups:             c.AllowedGroups,
 		acrValues:                 c.AcrValues,
 		getUserInfo:               c.GetUserInfo,
-		promptType:                c.PromptType,
+		promptType:                promptType,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
 		overrideClaimMapping:      c.OverrideClaimMapping,
@@ -276,6 +299,7 @@ func (c *Config) Open(id string, logger log.Logger) (conn connector.Connector, e
 		emailKey:                  c.ClaimMapping.EmailKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
 		newGroupFromClaims:        c.ClaimMutations.NewGroupFromClaims,
+		groupsFilter:              groupsFilter,
 	}, nil
 }
 
@@ -290,7 +314,7 @@ type oidcConnector struct {
 	oauth2Config              *oauth2.Config
 	verifier                  *oidc.IDTokenVerifier
 	cancel                    context.CancelFunc
-	logger                    log.Logger
+	logger                    *slog.Logger
 	httpClient                *http.Client
 	insecureSkipEmailVerified bool
 	insecureEnableGroups      bool
@@ -305,6 +329,7 @@ type oidcConnector struct {
 	emailKey                  string
 	groupsKey                 string
 	newGroupFromClaims        []NewGroupFromClaims
+	groupsFilter              *regexp.Regexp
 }
 
 func (c *oidcConnector) Close() error {
@@ -433,7 +458,10 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	// We immediately want to run getUserInfo if configured before we validate the claims.
 	// For token exchanges with access tokens, this is how we verify the token.
 	if c.getUserInfo {
-		userInfo, err := c.provider.UserInfo(ctx, oauth2.StaticTokenSource(token))
+		userInfo, err := c.provider.UserInfo(ctx, oauth2.StaticTokenSource(&oauth2.Token{
+			AccessToken: token.AccessToken,
+			TokenType:   "Bearer", // The UserInfo endpoint requires a bearer token as per RFC6750
+		}))
 		if err != nil {
 			return identity, fmt.Errorf("oidc: error loading userinfo: %v", err)
 		}
@@ -508,6 +536,9 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		if found {
 			for _, v := range vs {
 				if s, ok := v.(string); ok {
+					if c.groupsFilter != nil && !c.groupsFilter.MatchString(s) {
+						continue
+					}
 					groups = append(groups, s)
 				} else {
 					return identity, fmt.Errorf("malformed \"%v\" claim", groupsKey)
