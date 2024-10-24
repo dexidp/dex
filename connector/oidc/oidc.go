@@ -14,12 +14,28 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
 	groups_pkg "github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/httpclient"
 )
+
+const (
+	defaultPkceMaxConcurrentConnections = 256
+	codeChallengeMethodPlain            = "plain"
+	codeChallengeMethodS256             = "S256"
+)
+
+func contains(arr []string, item string) bool {
+	for _, itemFromArray := range arr {
+		if itemFromArray == item {
+			return true
+		}
+	}
+	return false
+}
 
 // Config holds configuration options for OpenID Connect logins.
 type Config struct {
@@ -78,6 +94,13 @@ type Config struct {
 
 	// PromptType will be used for the prompt parameter (when offline_access, by default prompt=consent)
 	PromptType *string `json:"promptType"`
+
+	// PKCEChallenge specifies which PKCE algorithm will be used
+	// If not setted it will be auto-detected the best-fit for the connector.
+	PKCEChallenge string `json:"pkceChallenge"`
+
+	// PKCEMaxConcurrentConnections specifies the maximum number of concurrent connections for the PKCE code verify.
+	PKCEMaxConcurrentConnections int `json:"pkceMaxConcurrentConnections"`
 
 	// OverrideClaimMapping will be used to override the options defined in claimMappings.
 	// i.e. if there are 'email' and `preferred_email` claims available, by default Dex will always use the `email` claim independent of the ClaimMapping.EmailKey.
@@ -268,6 +291,40 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		}
 	}
 
+	// Obtain CodeChallengeMethodsSupported from the provider
+	var metadata struct {
+		CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported"`
+	}
+	if err := provider.Claims(&metadata); err != nil {
+		logger.Warn("failed to parse provider metadata")
+	}
+	// if PKCEChallenge method has not been setted in the config, auto-detect the best fit
+	if c.PKCEChallenge == "" {
+		if contains(metadata.CodeChallengeMethodsSupported, codeChallengeMethodS256) {
+			c.PKCEChallenge = codeChallengeMethodS256
+		} else if contains(metadata.CodeChallengeMethodsSupported, codeChallengeMethodPlain) {
+			c.PKCEChallenge = codeChallengeMethodPlain
+		}
+	} else {
+		// if PKCEChallenge method has been setted in the config, check if it is supported
+		if !contains(metadata.CodeChallengeMethodsSupported, c.PKCEChallenge) {
+			logger.Warn("provided PKCEChallenge method not supported by the connector")
+		}
+	}
+
+	// if PKCE will be used, create a state cache for verifier
+	var pkceVerifierCache *lru.Cache[string, string]
+	if c.PKCEChallenge != "" {
+		pkceCacheSize := c.PKCEMaxConcurrentConnections
+		if pkceCacheSize == 0 {
+			pkceCacheSize = defaultPkceMaxConcurrentConnections
+		}
+		pkceVerifierCache, err = lru.New[string, string](pkceCacheSize)
+		if err != nil {
+			logger.Warn("Unable to create PKCE Verifier cache")
+		}
+	}
+
 	clientID := c.ClientID
 	return &oidcConnector{
 		provider:    provider,
@@ -283,23 +340,26 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 			ctx, // Pass our ctx with customized http.Client
 			&oidc.Config{ClientID: clientID},
 		),
-		logger:                    logger.With(slog.Group("connector", "type", "oidc", "id", id)),
-		cancel:                    cancel,
-		httpClient:                httpClient,
-		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
-		insecureEnableGroups:      c.InsecureEnableGroups,
-		allowedGroups:             c.AllowedGroups,
-		acrValues:                 c.AcrValues,
-		getUserInfo:               c.GetUserInfo,
-		promptType:                promptType,
-		userIDKey:                 c.UserIDKey,
-		userNameKey:               c.UserNameKey,
-		overrideClaimMapping:      c.OverrideClaimMapping,
-		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
-		emailKey:                  c.ClaimMapping.EmailKey,
-		groupsKey:                 c.ClaimMapping.GroupsKey,
-		newGroupFromClaims:        c.ClaimMutations.NewGroupFromClaims,
-		groupsFilter:              groupsFilter,
+		logger:                       logger.With(slog.Group("connector", "type", "oidc", "id", id)),
+		cancel:                       cancel,
+		httpClient:                   httpClient,
+		insecureSkipEmailVerified:    c.InsecureSkipEmailVerified,
+		insecureEnableGroups:         c.InsecureEnableGroups,
+		allowedGroups:                c.AllowedGroups,
+		acrValues:                    c.AcrValues,
+		getUserInfo:                  c.GetUserInfo,
+		promptType:                   promptType,
+		userIDKey:                    c.UserIDKey,
+		userNameKey:                  c.UserNameKey,
+		overrideClaimMapping:         c.OverrideClaimMapping,
+		preferredUsernameKey:         c.ClaimMapping.PreferredUsernameKey,
+		emailKey:                     c.ClaimMapping.EmailKey,
+		groupsKey:                    c.ClaimMapping.GroupsKey,
+		newGroupFromClaims:           c.ClaimMutations.NewGroupFromClaims,
+		groupsFilter:                 groupsFilter,
+		pkceChallenge:                c.PKCEChallenge,
+		pkceMaxConcurrentConnections: c.PKCEMaxConcurrentConnections,
+		pkceVerifierCache:            pkceVerifierCache,
 	}, nil
 }
 
@@ -309,27 +369,30 @@ var (
 )
 
 type oidcConnector struct {
-	provider                  *oidc.Provider
-	redirectURI               string
-	oauth2Config              *oauth2.Config
-	verifier                  *oidc.IDTokenVerifier
-	cancel                    context.CancelFunc
-	logger                    *slog.Logger
-	httpClient                *http.Client
-	insecureSkipEmailVerified bool
-	insecureEnableGroups      bool
-	allowedGroups             []string
-	acrValues                 []string
-	getUserInfo               bool
-	promptType                string
-	userIDKey                 string
-	userNameKey               string
-	overrideClaimMapping      bool
-	preferredUsernameKey      string
-	emailKey                  string
-	groupsKey                 string
-	newGroupFromClaims        []NewGroupFromClaims
-	groupsFilter              *regexp.Regexp
+	provider                     *oidc.Provider
+	redirectURI                  string
+	oauth2Config                 *oauth2.Config
+	verifier                     *oidc.IDTokenVerifier
+	cancel                       context.CancelFunc
+	logger                       *slog.Logger
+	httpClient                   *http.Client
+	insecureSkipEmailVerified    bool
+	insecureEnableGroups         bool
+	allowedGroups                []string
+	acrValues                    []string
+	getUserInfo                  bool
+	promptType                   string
+	userIDKey                    string
+	userNameKey                  string
+	overrideClaimMapping         bool
+	preferredUsernameKey         string
+	emailKey                     string
+	groupsKey                    string
+	newGroupFromClaims           []NewGroupFromClaims
+	groupsFilter                 *regexp.Regexp
+	pkceChallenge                string
+	pkceMaxConcurrentConnections int
+	pkceVerifierCache            *lru.Cache[string, string]
 }
 
 func (c *oidcConnector) Close() error {
@@ -352,6 +415,22 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 	if s.OfflineAccess {
 		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", c.promptType))
 	}
+
+	if c.pkceChallenge != "" {
+		switch c.pkceChallenge {
+		case codeChallengeMethodPlain:
+			pkceVerifier := oauth2.GenerateVerifier()
+			c.pkceVerifierCache.Add(state, pkceVerifier)
+			opts = append(opts, oauth2.VerifierOption(pkceVerifier))
+		case codeChallengeMethodS256:
+			pkceVerifier := oauth2.GenerateVerifier()
+			c.pkceVerifierCache.Add(state, pkceVerifier)
+			opts = append(opts, oauth2.S256ChallengeOption(pkceVerifier))
+		default:
+			c.logger.Warn("unknown PKCEChallenge method")
+		}
+	}
+
 	return c.oauth2Config.AuthCodeURL(state, opts...), nil
 }
 
@@ -383,7 +462,25 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 
 	ctx := context.WithValue(r.Context(), oauth2.HTTPClient, c.httpClient)
 
-	token, err := c.oauth2Config.Exchange(ctx, q.Get("code"))
+	var opts []oauth2.AuthCodeOption
+	if c.pkceChallenge != "" {
+		state := q.Get("state")
+		if state == "" {
+			return identity, fmt.Errorf("oidc: missing state in callback")
+		}
+		pkceVerifier, found := c.pkceVerifierCache.Get(state)
+		if !found {
+			return identity, fmt.Errorf("oidc: received state not in callback cache")
+		}
+
+		c.pkceVerifierCache.Remove(state)
+		if pkceVerifier == "" {
+			return identity, fmt.Errorf("oidc: invalid state in pkce verifier cache")
+		}
+		opts = append(opts, oauth2.VerifierOption(pkceVerifier))
+	}
+
+	token, err := c.oauth2Config.Exchange(ctx, q.Get("code"), opts...)
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
 	}
