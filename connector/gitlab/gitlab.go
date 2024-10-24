@@ -52,13 +52,13 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		c.BaseURL = "https://gitlab.com"
 	}
 	return &gitlabConnector{
-		baseURL:      c.BaseURL,
-		redirectURI:  c.RedirectURI,
-		clientID:     c.ClientID,
-		clientSecret: c.ClientSecret,
-		logger:       logger.With(slog.Group("connector", "type", "gitlab", "id", id)),
-		groups:       c.Groups,
-		useLoginAsID: c.UseLoginAsID,
+		baseURL:             c.BaseURL,
+		redirectURI:         c.RedirectURI,
+		clientID:            c.ClientID,
+		clientSecret:        c.ClientSecret,
+		logger:              logger.With(slog.Group("connector", "type", "gitlab", "id", id)),
+		groups:              c.Groups,
+		useLoginAsID:        c.UseLoginAsID,
 		getGroupsPermission: c.GetGroupsPermission,
 	}, nil
 }
