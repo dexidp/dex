@@ -111,7 +111,7 @@ func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
 		gitlabScopes = []string{scopeUser, scopeOpenID}
 	}
 	if c.getProjects {
-		gitlabScopes = append(gitlabScopes, scopeReadApi)
+		gitlabScopes = append(gitlabScopes, scopeReadAPI)
 	}
 
 	gitlabEndpoint := oauth2.Endpoint{AuthURL: c.baseURL + "/oauth/authorize", TokenURL: c.baseURL + "/oauth/token"}
