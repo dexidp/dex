@@ -39,7 +39,7 @@ func TestLoginURL(t *testing.T) {
 		tenant:      tenant,
 	}
 
-	loginURL, _ := conn.LoginURL(connector.Scopes{}, conn.redirectURI, testState)
+	loginURL, _, _ := conn.LoginURL(connector.Scopes{}, conn.redirectURI, testState)
 
 	parsedLoginURL, _ := url.Parse(loginURL)
 	queryParams := parsedLoginURL.Query()
@@ -70,7 +70,7 @@ func TestLoginURLWithOptions(t *testing.T) {
 		domainHint: domainHint,
 	}
 
-	loginURL, _ := conn.LoginURL(connector.Scopes{}, conn.redirectURI, "some-state")
+	loginURL, _, _ := conn.LoginURL(connector.Scopes{}, conn.redirectURI, "some-state")
 
 	parsedLoginURL, _ := url.Parse(loginURL)
 	queryParams := parsedLoginURL.Query()
@@ -91,7 +91,7 @@ func TestUserIdentityFromGraphAPI(t *testing.T) {
 	req, _ := http.NewRequest("GET", s.URL, nil)
 
 	c := microsoftConnector{apiURL: s.URL, graphURL: s.URL, tenant: tenant}
-	identity, err := c.HandleCallback(connector.Scopes{Groups: false}, req)
+	identity, err := c.HandleCallback(connector.Scopes{Groups: false}, nil, req)
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "Jane Doe")
 	expectEquals(t, identity.UserID, "S56767889")
@@ -114,7 +114,7 @@ func TestUserGroupsFromGraphAPI(t *testing.T) {
 	req, _ := http.NewRequest("GET", s.URL, nil)
 
 	c := microsoftConnector{apiURL: s.URL, graphURL: s.URL, tenant: tenant}
-	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 	expectNil(t, err)
 	expectEquals(t, identity.Groups, []string{"a", "b"})
 }

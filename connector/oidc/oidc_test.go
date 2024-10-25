@@ -466,7 +466,11 @@ func TestHandleCallback(t *testing.T) {
 				t.Fatal("failed to create request", err)
 			}
 
-			identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
+			connectorDataStrTemplate := `{"codeChallenge":"abcdefgh123456qwertuiop89101112uvpwizABC234","codeChallengeMethod":"%s"}`
+			connectorDataStr := fmt.Sprintf(connectorDataStrTemplate, config.PKCEChallenge)
+			connectorData := []byte(connectorDataStr)
+
+			identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, connectorData, req)
 			if err != nil {
 				t.Fatal("handle callback failed", err)
 			}

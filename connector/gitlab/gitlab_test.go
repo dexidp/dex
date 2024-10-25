@@ -84,7 +84,7 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 	expectNil(t, err)
 
 	c := gitlabConnector{baseURL: s.URL, httpClient: newClient()}
-	identity, err := c.HandleCallback(connector.Scopes{Groups: false}, req)
+	identity, err := c.HandleCallback(connector.Scopes{Groups: false}, nil, req)
 
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "some@email.com")
@@ -92,7 +92,7 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 	expectEquals(t, 0, len(identity.Groups))
 
 	c = gitlabConnector{baseURL: s.URL, httpClient: newClient()}
-	identity, err = c.HandleCallback(connector.Scopes{Groups: true}, req)
+	identity, err = c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "some@email.com")
@@ -120,7 +120,7 @@ func TestLoginUsedAsIDWhenConfigured(t *testing.T) {
 	expectNil(t, err)
 
 	c := gitlabConnector{baseURL: s.URL, httpClient: newClient(), useLoginAsID: true}
-	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 
 	expectNil(t, err)
 	expectEquals(t, identity.UserID, "joebloggs")
@@ -147,7 +147,7 @@ func TestLoginWithTeamWhitelisted(t *testing.T) {
 	expectNil(t, err)
 
 	c := gitlabConnector{baseURL: s.URL, httpClient: newClient(), groups: []string{"team-1"}}
-	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 
 	expectNil(t, err)
 	expectEquals(t, identity.UserID, "12345678")
@@ -174,7 +174,7 @@ func TestLoginWithTeamNonWhitelisted(t *testing.T) {
 	expectNil(t, err)
 
 	c := gitlabConnector{baseURL: s.URL, httpClient: newClient(), groups: []string{"team-2"}}
-	_, err = c.HandleCallback(connector.Scopes{Groups: true}, req)
+	_, err = c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 
 	expectNotNil(t, err, "HandleCallback error")
 	expectEquals(t, err.Error(), "gitlab: get groups: gitlab: user \"joebloggs\" is not in any of the required groups")
@@ -208,7 +208,7 @@ func TestRefresh(t *testing.T) {
 	})
 	expectNil(t, err)
 
-	identity, err := c.HandleCallback(connector.Scopes{OfflineAccess: true}, req)
+	identity, err := c.HandleCallback(connector.Scopes{OfflineAccess: true}, nil, req)
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "some@email.com")
 	expectEquals(t, identity.UserID, "12345678")

@@ -63,10 +63,10 @@ type CallbackConnector interface {
 	// requested if one has already been issues. There's no good general answer
 	// for these kind of restrictions, and may require this package to become more
 	// aware of the global set of user/connector interactions.
-	LoginURL(s Scopes, callbackURL, state string) (string, error)
+	LoginURL(s Scopes, callbackURL, state string) (string, []byte, error)
 
 	// Handle the callback to the server and return an identity.
-	HandleCallback(s Scopes, r *http.Request) (identity Identity, err error)
+	HandleCallback(s Scopes, connData []byte, r *http.Request) (identity Identity, err error)
 }
 
 // SAMLConnector represents SAML connectors which implement the HTTP POST binding.

@@ -176,7 +176,7 @@ func TestCallbackIdentity(t *testing.T) {
 			TokenURL: fmt.Sprintf("%s/oauth/token", s.URL),
 		},
 	}}
-	identity, err := oc.HandleCallback(connector.Scopes{Groups: true}, req)
+	identity, err := oc.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 
 	expectNil(t, err)
 	expectEquals(t, identity.UserID, "12345")
