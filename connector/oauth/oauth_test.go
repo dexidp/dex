@@ -215,7 +215,7 @@ func TestHandleCallbackWithInsecureSkipEmailVerifiedWhenKeyFound(t *testing.T) {
 	conn := newConnector(t, testServer.URL)
 	conn.insecureSkipEmailVerified = true
 
-	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallbackForNumericUserID")
+	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallbackWithInsecureSkipEmailVerifiedWhenKeyFound")
 
 	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
 	assert.Equal(t, err, nil)
@@ -244,7 +244,7 @@ func TestHandleCallbackWithInsecureSkipEmailVerifiedWhenKeyNotFound(t *testing.T
 	conn := newConnector(t, testServer.URL)
 	conn.insecureSkipEmailVerified = true
 
-	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallbackForNumericUserID")
+	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallbackWithInsecureSkipEmailVerifiedWhenKeyNotFound")
 
 	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
 	assert.Equal(t, err, nil)
