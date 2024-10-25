@@ -26,7 +26,7 @@ const (
 	// https://docs.gitlab.com/ee/integration/openid_connect_provider.html
 	scopeOpenID = "openid"
 	// used to get user projects from /api/v4/projects
-	scopeReadApi = "read_api"
+	scopeReadAPI = "read_api"
 	// Min Access Level for Gitlab Propects
 	gitlabMinAccessLevel = 30
 )
@@ -424,7 +424,7 @@ func (c *gitlabConnector) getUserProjects(ctx context.Context, client *http.Clie
 		wg.Wait()
 	}
 
-	var projectsPath []string
+	projectsPath := make([]string, 0, len(projects))
 	for _, gp := range projects {
 		projectsPath = append(projectsPath, gp.PathWithNamespace)
 	}
