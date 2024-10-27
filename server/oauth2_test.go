@@ -452,6 +452,27 @@ func TestValidRedirectURI(t *testing.T) {
 			redirectURI: "http://localhost",
 			wantValid:   true,
 		},
+		{
+			client: storage.Client{
+				Public: true,
+			},
+			redirectURI: "http://127.0.0.1:8080/",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				Public: true,
+			},
+			redirectURI: "http://127.0.0.1:991/bar",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				Public: true,
+			},
+			redirectURI: "http://127.0.0.1",
+			wantValid:   true,
+		},
 		// Both Public + RedirectURIs configured: Could e.g. be a PKCE-enabled web app.
 		{
 			client: storage.Client{

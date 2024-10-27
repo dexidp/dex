@@ -31,11 +31,12 @@ const (
 )
 
 // NewAPI returns a server which implements the gRPC API interface.
-func NewAPI(s storage.Storage, logger *slog.Logger, version string) api.DexServer {
+func NewAPI(s storage.Storage, logger *slog.Logger, version string, server *Server) api.DexServer {
 	return dexAPI{
 		s:       s,
 		logger:  logger.With("component", "api"),
 		version: version,
+		server:  server,
 	}
 }
 
@@ -45,6 +46,7 @@ type dexAPI struct {
 	s       storage.Storage
 	logger  *slog.Logger
 	version string
+	server  *Server
 }
 
 func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetClientResp, error) {
@@ -248,6 +250,20 @@ func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.Versi
 		Server: d.version,
 		Api:    apiVersion,
 	}, nil
+}
+
+func (d dexAPI) GetDiscovery(ctx context.Context, req *api.DiscoveryReq) (*api.DiscoveryResp, error) {
+	discoveryDoc := d.server.constructDiscovery()
+	data, err := json.Marshal(discoveryDoc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal discovery data: %v", err)
+	}
+	resp := api.DiscoveryResp{}
+	err = json.Unmarshal(data, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal discovery data: %v", err)
+	}
+	return &resp, nil
 }
 
 func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*api.ListPasswordResp, error) {

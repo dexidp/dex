@@ -28,12 +28,13 @@ const (
 
 // Config holds configuration options for gitlab logins.
 type Config struct {
-	BaseURL      string   `json:"baseURL"`
-	ClientID     string   `json:"clientID"`
-	ClientSecret string   `json:"clientSecret"`
-	RedirectURI  string   `json:"redirectURI"`
-	Groups       []string `json:"groups"`
-	UseLoginAsID bool     `json:"useLoginAsID"`
+	BaseURL             string   `json:"baseURL"`
+	ClientID            string   `json:"clientID"`
+	ClientSecret        string   `json:"clientSecret"`
+	RedirectURI         string   `json:"redirectURI"`
+	Groups              []string `json:"groups"`
+	UseLoginAsID        bool     `json:"useLoginAsID"`
+	GetGroupsPermission bool     `json:"getGroupsPermission"`
 }
 
 type gitlabUser struct {
@@ -51,13 +52,14 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		c.BaseURL = "https://gitlab.com"
 	}
 	return &gitlabConnector{
-		baseURL:      c.BaseURL,
-		redirectURI:  c.RedirectURI,
-		clientID:     c.ClientID,
-		clientSecret: c.ClientSecret,
-		logger:       logger.With(slog.Group("connector", "type", "gitlab", "id", id)),
-		groups:       c.Groups,
-		useLoginAsID: c.UseLoginAsID,
+		baseURL:             c.BaseURL,
+		redirectURI:         c.RedirectURI,
+		clientID:            c.ClientID,
+		clientSecret:        c.ClientSecret,
+		logger:              logger.With(slog.Group("connector", "type", "gitlab", "id", id)),
+		groups:              c.Groups,
+		useLoginAsID:        c.UseLoginAsID,
+		getGroupsPermission: c.GetGroupsPermission,
 	}, nil
 }
 
@@ -82,6 +84,9 @@ type gitlabConnector struct {
 	httpClient   *http.Client
 	// if set to true will use the user's handle rather than their numeric id as the ID
 	useLoginAsID bool
+
+	// if set to true permissions will be added to list of groups
+	getGroupsPermission bool
 }
 
 func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
@@ -256,7 +261,10 @@ func (c *gitlabConnector) user(ctx context.Context, client *http.Client) (gitlab
 }
 
 type userInfo struct {
-	Groups []string
+	Groups               []string `json:"groups"`
+	OwnerPermission      []string `json:"https://gitlab.org/claims/groups/owner"`
+	MaintainerPermission []string `json:"https://gitlab.org/claims/groups/maintainer"`
+	DeveloperPermission  []string `json:"https://gitlab.org/claims/groups/developer"`
 }
 
 // userGroups queries the GitLab API for group membership.
@@ -287,7 +295,60 @@ func (c *gitlabConnector) userGroups(ctx context.Context, client *http.Client) (
 		return nil, fmt.Errorf("failed to decode response: %v", err)
 	}
 
+	if c.getGroupsPermission {
+		groups := c.setGroupsPermission(u)
+		return groups, nil
+	}
+
 	return u.Groups, nil
+}
+
+func (c *gitlabConnector) setGroupsPermission(u userInfo) []string {
+	groups := u.Groups
+
+L1:
+	for _, g := range groups {
+		for _, op := range u.OwnerPermission {
+			if g == op {
+				groups = append(groups, fmt.Sprintf("%s:owner", g))
+				continue L1
+			}
+			if len(g) > len(op) {
+				if g[0:len(op)] == op && string(g[len(op)]) == "/" {
+					groups = append(groups, fmt.Sprintf("%s:owner", g))
+					continue L1
+				}
+			}
+		}
+
+		for _, mp := range u.MaintainerPermission {
+			if g == mp {
+				groups = append(groups, fmt.Sprintf("%s:maintainer", g))
+				continue L1
+			}
+			if len(g) > len(mp) {
+				if g[0:len(mp)] == mp && string(g[len(mp)]) == "/" {
+					groups = append(groups, fmt.Sprintf("%s:maintainer", g))
+					continue L1
+				}
+			}
+		}
+
+		for _, dp := range u.DeveloperPermission {
+			if g == dp {
+				groups = append(groups, fmt.Sprintf("%s:developer", g))
+				continue L1
+			}
+			if len(g) > len(dp) {
+				if g[0:len(dp)] == dp && string(g[len(dp)]) == "/" {
+					groups = append(groups, fmt.Sprintf("%s:developer", g))
+					continue L1
+				}
+			}
+		}
+	}
+
+	return groups
 }
 
 func (c *gitlabConnector) getGroups(ctx context.Context, client *http.Client, groupScope bool, userLogin string) ([]string, error) {

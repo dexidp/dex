@@ -15,18 +15,17 @@ import (
 	"os"
 	"path"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
-	"github.com/felixge/httpsnoop"
 	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/connector"
@@ -332,7 +331,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 	}
 
-	instrumentHandlerCounter := func(_ string, handler http.Handler) http.HandlerFunc {
+	instrumentHandler := func(_ string, handler http.Handler) http.HandlerFunc {
 		return handler.ServeHTTP
 	}
 
@@ -340,18 +339,28 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		requestCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "http_requests_total",
 			Help: "Count of all HTTP requests.",
-		}, []string{"handler", "code", "method"})
+		}, []string{"code", "method", "handler"})
 
-		err = c.PrometheusRegistry.Register(requestCounter)
-		if err != nil {
-			return nil, fmt.Errorf("server: Failed to register Prometheus HTTP metrics: %v", err)
-		}
+		durationHist := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "request_duration_seconds",
+			Help:    "A histogram of latencies for requests.",
+			Buckets: []float64{.25, .5, 1, 2.5, 5, 10},
+		}, []string{"code", "method", "handler"})
 
-		instrumentHandlerCounter = func(handlerName string, handler http.Handler) http.HandlerFunc {
-			return func(w http.ResponseWriter, r *http.Request) {
-				m := httpsnoop.CaptureMetrics(handler, w, r)
-				requestCounter.With(prometheus.Labels{"handler": handlerName, "code": strconv.Itoa(m.Code), "method": r.Method}).Inc()
-			}
+		sizeHist := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "response_size_bytes",
+			Help:    "A histogram of response sizes for requests.",
+			Buckets: []float64{200, 500, 900, 1500},
+		}, []string{"code", "method", "handler"})
+
+		c.PrometheusRegistry.MustRegister(requestCounter, durationHist, sizeHist)
+
+		instrumentHandler = func(handlerName string, handler http.Handler) http.HandlerFunc {
+			return promhttp.InstrumentHandlerDuration(durationHist.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+				promhttp.InstrumentHandlerCounter(requestCounter.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+					promhttp.InstrumentHandlerResponseSize(sizeHist.MustCurryWith(prometheus.Labels{"handler": handlerName}), handler),
+				),
+			)
 		}
 	}
 
@@ -401,7 +410,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 			}
 
 			r = r.WithContext(rCtx)
-			instrumentHandlerCounter(handlerName, handler)(w, r)
+			instrumentHandler(handlerName, handler)(w, r)
 		}
 	}
 
@@ -434,6 +443,20 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		return nil, err
 	}
 	handleWithCORS("/.well-known/openid-configuration", discoveryHandler)
+	// Handle the root path for the better user experience.
+	handleWithCORS("/", func(w http.ResponseWriter, r *http.Request) {
+		_, err := fmt.Fprintf(w, `<!DOCTYPE html>
+			<title>Dex</title>
+			<h1>Dex IdP</h1>
+			<h3>A Federated OpenID Connect Provider</h3>
+			<p><a href=%q>Discovery</a></p>`,
+			s.issuerURL.String()+"/.well-known/openid-configuration")
+		if err != nil {
+			s.logger.Error("failed to write response", "err", err)
+			s.renderError(r, w, http.StatusInternalServerError, "Handling the / path error.")
+			return
+		}
+	})
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
 	handleWithCORS("/token", s.handleToken)

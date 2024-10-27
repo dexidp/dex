@@ -2,10 +2,12 @@ package httpclient_test
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,18 +22,31 @@ func TestRootCAs(t *testing.T) {
 	assert.Nil(t, err)
 	defer ts.Close()
 
-	rootCAs := []string{"testdata/rootCA.pem"}
-	testClient, err := httpclient.NewHTTPClient(rootCAs, false)
-	assert.Nil(t, err)
+	runTest := func(name string, certs []string) {
+		t.Run(name, func(t *testing.T) {
+			rootCAs := certs
+			testClient, err := httpclient.NewHTTPClient(rootCAs, false)
+			assert.Nil(t, err)
 
-	res, err := testClient.Get(ts.URL)
-	assert.Nil(t, err)
+			res, err := testClient.Get(ts.URL)
+			assert.Nil(t, err)
 
-	greeting, err := io.ReadAll(res.Body)
-	res.Body.Close()
-	assert.Nil(t, err)
+			greeting, err := io.ReadAll(res.Body)
+			res.Body.Close()
+			assert.Nil(t, err)
 
-	assert.Equal(t, "Hello, client", string(greeting))
+			assert.Equal(t, "Hello, client", string(greeting))
+		})
+	}
+
+	runTest("From file", []string{"testdata/rootCA.pem"})
+
+	content, err := os.ReadFile("testdata/rootCA.pem")
+	assert.NoError(t, err)
+	runTest("From string", []string{string(content)})
+
+	contentStr := base64.StdEncoding.EncodeToString(content)
+	runTest("From bytes", []string{contentStr})
 }
 
 func TestInsecureSkipVerify(t *testing.T) {

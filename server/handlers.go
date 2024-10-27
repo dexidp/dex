@@ -90,6 +90,21 @@ type discovery struct {
 }
 
 func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
+	d := s.constructDiscovery()
+
+	data, err := json.MarshalIndent(d, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal discovery data: %v", err)
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+		w.Write(data)
+	}), nil
+}
+
+func (s *Server) constructDiscovery() discovery {
 	d := discovery{
 		Issuer:            s.issuerURL.String(),
 		Auth:              s.absURL("/auth"),
@@ -115,17 +130,7 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 	sort.Strings(d.ResponseTypes)
 
 	d.GrantTypes = s.supportedGrantTypes
-
-	data, err := json.MarshalIndent(d, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal discovery data: %v", err)
-	}
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-		w.Write(data)
-	}), nil
+	return d
 }
 
 // handleAuthorization handles the OAuth2 auth endpoint.

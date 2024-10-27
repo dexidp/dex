@@ -337,6 +337,27 @@ func getORMBasedSQLStorage(normal, entBased StorageConfig) func() StorageConfig 
 	}
 }
 
+// Recursively expand environment variables in the map to avoid
+// issues with JSON special characters and escapes
+func expandEnvInMap(m map[string]interface{}) {
+	for k, v := range m {
+		switch vt := v.(type) {
+		case string:
+			m[k] = os.ExpandEnv(vt)
+		case map[string]interface{}:
+			expandEnvInMap(vt)
+		case []interface{}:
+			for i, item := range vt {
+				if itemMap, ok := item.(map[string]interface{}); ok {
+					expandEnvInMap(itemMap)
+				} else if itemString, ok := item.(string); ok {
+					vt[i] = os.ExpandEnv(itemString)
+				}
+			}
+		}
+	}
+}
+
 var storages = map[string]func() StorageConfig{
 	"etcd":       func() StorageConfig { return new(etcd.Etcd) },
 	"kubernetes": func() StorageConfig { return new(kubernetes.Config) },
@@ -366,9 +387,24 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 	if len(store.Config) != 0 {
 		data := []byte(store.Config)
 		if featureflags.ExpandEnv.Enabled() {
-			// Caution, we're expanding in the raw JSON/YAML source. This may not be what the admin expects.
-			data = []byte(os.ExpandEnv(string(store.Config)))
+			var rawMap map[string]interface{}
+			if err := json.Unmarshal(store.Config, &rawMap); err != nil {
+				return fmt.Errorf("unmarshal config for env expansion: %v", err)
+			}
+
+			// Recursively expand environment variables in the map to avoid
+			// issues with JSON special characters and escapes
+			expandEnvInMap(rawMap)
+
+			// Marshal the expanded map back to JSON
+			expandedData, err := json.Marshal(rawMap)
+			if err != nil {
+				return fmt.Errorf("marshal expanded config: %v", err)
+			}
+
+			data = expandedData
 		}
+
 		if err := json.Unmarshal(data, storageConfig); err != nil {
 			return fmt.Errorf("parse storage config: %v", err)
 		}
@@ -419,13 +455,29 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 	if len(conn.Config) != 0 {
 		data := []byte(conn.Config)
 		if featureflags.ExpandEnv.Enabled() {
-			// Caution, we're expanding in the raw JSON/YAML source. This may not be what the admin expects.
-			data = []byte(os.ExpandEnv(string(conn.Config)))
+			var rawMap map[string]interface{}
+			if err := json.Unmarshal(conn.Config, &rawMap); err != nil {
+				return fmt.Errorf("unmarshal config for env expansion: %v", err)
+			}
+
+			// Recursively expand environment variables in the map to avoid
+			// issues with JSON special characters and escapes
+			expandEnvInMap(rawMap)
+
+			// Marshal the expanded map back to JSON
+			expandedData, err := json.Marshal(rawMap)
+			if err != nil {
+				return fmt.Errorf("marshal expanded config: %v", err)
+			}
+
+			data = expandedData
 		}
+
 		if err := json.Unmarshal(data, connConfig); err != nil {
 			return fmt.Errorf("parse connector config: %v", err)
 		}
 	}
+
 	*c = Connector{
 		Type:   conn.Type,
 		Name:   conn.Name,
