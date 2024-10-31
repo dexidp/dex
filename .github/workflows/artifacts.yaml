@@ -199,7 +199,7 @@ jobs:
         run: echo "date=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
 
       - name: Restore trivy cache
-        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # 4.1.2
+        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
         with:
           path: cache/db
           key: trivy-cache-${{ steps.date.outputs.date }}
