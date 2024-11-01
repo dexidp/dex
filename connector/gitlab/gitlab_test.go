@@ -272,7 +272,7 @@ func TestGroupsWithPermission(t *testing.T) {
 	expectNil(t, err)
 
 	c := gitlabConnector{baseURL: s.URL, httpClient: newClient(), getGroupsPermission: true}
-	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 	expectNil(t, err)
 
 	expectEquals(t, identity.Groups, []string{
