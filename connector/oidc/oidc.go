@@ -37,7 +37,12 @@ func contains(arr []string, item string) bool {
 
 // Config holds configuration options for OpenID Connect logins.
 type Config struct {
-	Issuer       string `json:"issuer"`
+	Issuer string `json:"issuer"`
+	// Some offspec providers like Azure, Oracle IDCS have oidc discovery url
+	// different from issuer url which causes issuerValidation to fail
+	// IssuerAlias provides a way to override the Issuer url
+	// from the .well-known/openid-configuration issuer
+	IssuerAlias  string `json:"issuerAlias"`
 	ClientID     string `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
 	RedirectURI  string `json:"redirectURI"`
@@ -263,7 +268,9 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 
 	bgctx, cancel := context.WithCancel(context.Background())
 	ctx := context.WithValue(bgctx, oauth2.HTTPClient, httpClient)
-
+	if c.IssuerAlias != "" {
+		ctx = oidc.InsecureIssuerURLContext(ctx, c.IssuerAlias)
+	}
 	provider, err := getProvider(ctx, c.Issuer, c.ProviderDiscoveryOverrides)
 	if err != nil {
 		cancel()
@@ -631,6 +638,13 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 						continue
 					}
 					groups = append(groups, s)
+				} else if groupMap, ok := v.(map[string]interface{}); ok {
+					if s, ok := groupMap["name"].(string); ok {
+						if c.groupsFilter != nil && !c.groupsFilter.MatchString(s) {
+							continue
+						}
+						groups = append(groups, s)
+					}
 				} else {
 					return identity, fmt.Errorf("malformed \"%v\" claim", groupsKey)
 				}

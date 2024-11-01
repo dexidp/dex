@@ -249,6 +249,47 @@ func TestRefreshWithEmptyConnectorData(t *testing.T) {
 	expectEquals(t, emptyIdentity, identity)
 }
 
+func TestGroupsWithPermission(t *testing.T) {
+	s := newTestServer(map[string]interface{}{
+		"/api/v4/user": gitlabUser{Email: "some@email.com", ID: 12345678, Name: "Joe Bloggs", Username: "joebloggs"},
+		"/oauth/token": map[string]interface{}{
+			"access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
+			"expires_in":   "30",
+		},
+		"/oauth/userinfo": userInfo{
+			Groups:               []string{"ops", "dev", "ops-test", "ops/project", "dev/project1", "dev/project2"},
+			OwnerPermission:      []string{"ops"},
+			DeveloperPermission:  []string{"dev"},
+			MaintainerPermission: []string{"dev/project1"},
+		},
+	})
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	req, err := http.NewRequest("GET", hostURL.String(), nil)
+	expectNil(t, err)
+
+	c := gitlabConnector{baseURL: s.URL, httpClient: newClient(), getGroupsPermission: true}
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
+	expectNil(t, err)
+
+	expectEquals(t, identity.Groups, []string{
+		"ops",
+		"dev",
+		"ops-test",
+		"ops/project",
+		"dev/project1",
+		"dev/project2",
+		"ops:owner",
+		"dev:developer",
+		"ops/project:owner",
+		"dev/project1:maintainer",
+		"dev/project2:developer",
+	})
+}
+
 func newTestServer(responses map[string]interface{}) *httptest.Server {
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response := responses[r.RequestURI]

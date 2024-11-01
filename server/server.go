@@ -443,6 +443,20 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		return nil, err
 	}
 	handleWithCORS("/.well-known/openid-configuration", discoveryHandler)
+	// Handle the root path for the better user experience.
+	handleWithCORS("/", func(w http.ResponseWriter, r *http.Request) {
+		_, err := fmt.Fprintf(w, `<!DOCTYPE html>
+			<title>Dex</title>
+			<h1>Dex IdP</h1>
+			<h3>A Federated OpenID Connect Provider</h3>
+			<p><a href=%q>Discovery</a></p>`,
+			s.issuerURL.String()+"/.well-known/openid-configuration")
+		if err != nil {
+			s.logger.Error("failed to write response", "err", err)
+			s.renderError(r, w, http.StatusInternalServerError, "Handling the / path error.")
+			return
+		}
+	})
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
 	handleWithCORS("/token", s.handleToken)
