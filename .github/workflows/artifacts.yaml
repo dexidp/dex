@@ -215,6 +215,9 @@ jobs:
           scan-type: 'fs'
           scan-ref: '.'
           cache-dir: "./cache"
+        env:
+          TRIVY_SKIP_DB_UPDATE: true
+          TRIVY_SKIP_JAVA_DB_UPDATE: true
 
       ## Trivy-db uses `0600` permissions.
       ## But `action/cache` use `runner` user by default
