@@ -2,6 +2,7 @@ package oidc
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
@@ -773,6 +774,7 @@ func testLoginURL(t *testing.T, config Config, state string) (url.Values, error)
 	}
 	return values, nil
 }
+
 func TestLoginURLCustomerParam(t *testing.T) {
 	cfg := Config{
 		ClientID:    "client",
@@ -783,14 +785,14 @@ func TestLoginURLCustomerParam(t *testing.T) {
 	}
 	values, err := testLoginURL(t, cfg, "1234")
 
-	assert.Nil(t, err)
-	assert.Len(t, values, 6)
-	assertParamValue(t, values, "organization", "myorg")
-	assertParamValue(t, values, "client_id", "client")
-	assertParamValue(t, values, "redirect_uri", "callback")
-	assertParamValue(t, values, "state", "1234")
-	assertParamValue(t, values, "response_type", "code")
-	assertParamValue(t, values, "scope", "openid profile email")
+	require.NoError(t, err)
+	require.Len(t, values, 6)
+	expectEquals(t, values.Get("organization"), "myorg")
+	expectEquals(t, values.Get("client_id"), "client")
+	expectEquals(t, values.Get("redirect_uri"), "callback")
+	expectEquals(t, values.Get("state"), "1234")
+	expectEquals(t, values.Get("response_type"), "code")
+	expectEquals(t, values.Get("scope"), "openid profile email")
 }
 
 func TestCustomLoginURLEmptyParams(t *testing.T) {
@@ -801,114 +803,88 @@ func TestCustomLoginURLEmptyParams(t *testing.T) {
 	}
 	values, err := testLoginURL(t, cfg, "1234")
 
-	assert.Nil(t, err)
-	assert.Len(t, values, 5)
-	assertParamValue(t, values, "client_id", "client")
-	assertParamValue(t, values, "redirect_uri", "callback")
-	assertParamValue(t, values, "state", "1234")
-	assertParamValue(t, values, "response_type", "code")
-	assertParamValue(t, values, "scope", "openid profile email")
+	require.NoError(t, err)
+	require.Len(t, values, 5)
+	expectEquals(t, values.Get("client_id"), "client")
+	expectEquals(t, values.Get("redirect_uri"), "callback")
+	expectEquals(t, values.Get("state"), "1234")
+	expectEquals(t, values.Get("response_type"), "code")
+	expectEquals(t, values.Get("scope"), "openid profile email")
 }
 
-func TestLoginURLClientIdError(t *testing.T) {
-	cfg := Config{
-		ClientID:    "client",
-		RedirectURI: "callback",
-		AdditionalAuthRequestParams: map[string]string{
-			"client_id": "not-so-fast",
+func TestLoginURLParameterProtection(t *testing.T) {
+	tests := []struct {
+		name            string
+		paramToOverride string
+		expectedValue   string
+	}{
+		{
+			name:            "client_id cannot be overridden",
+			paramToOverride: "client_id",
+			expectedValue:   "client", // Should remain the config value
+		},
+		{
+			name:            "redirect_uri cannot be overridden",
+			paramToOverride: "redirect_uri",
+			expectedValue:   "callback", // Should remain the config value
+		},
+		{
+			name:            "state cannot be overridden",
+			paramToOverride: "state",
+			expectedValue:   "1234", // Should remain the state parameter value
+		},
+		{
+			name:            "response_type cannot be overridden",
+			paramToOverride: "response_type",
+			expectedValue:   "code", // Should remain the default OAuth2 value
+		},
+		{
+			name:            "scope cannot be overridden",
+			paramToOverride: "scope",
+			expectedValue:   "openid profile email", // Should remain the default scopes
+		},
+		{
+			name:            "prompt cannot be overridden",
+			paramToOverride: "prompt",
+			expectedValue:   "", // Should not be set unless offline access is requested
+		},
+		{
+			name:            "hd cannot be overridden",
+			paramToOverride: "hd",
+			expectedValue:   "", // Should not be set as hosted domains are not configured
+		},
+		{
+			name:            "acr_values cannot be overridden",
+			paramToOverride: "acr_values",
+			expectedValue:   "", // Should not be set as acr_values are not configured
 		},
 	}
-	_, err := testLoginURL(t, cfg, "1234")
-	assert.EqualErrorf(t, err, "parameter 'client_id' is already managed by this connector", "")
-}
 
-func TestLoginURLRedirectURIError(t *testing.T) {
-	cfg := Config{
-		ClientID:    "client",
-		RedirectURI: "callback",
-		AdditionalAuthRequestParams: map[string]string{
-			"redirect_uri": "not-so-fast",
-		},
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := Config{
+				ClientID:    "client",
+				RedirectURI: "callback",
+				AdditionalAuthRequestParams: map[string]string{
+					tc.paramToOverride: "not-so-fast",
+				},
+			}
+
+			values, err := testLoginURL(t, cfg, "1234")
+			require.NoError(t, err)
+
+			// Check that the parameter contains the expected value, not the override attempt
+			gotValue := values.Get(tc.paramToOverride)
+			if tc.expectedValue == "" {
+				// If we expect no value, the parameter should not be present
+				require.Empty(t, gotValue, "parameter %s should not be present", tc.paramToOverride)
+			} else {
+				require.Equal(t, tc.expectedValue, gotValue,
+					"parameter %s should be %q but got %q",
+					tc.paramToOverride, tc.expectedValue, gotValue)
+			}
+		})
 	}
-	_, err := testLoginURL(t, cfg, "1234")
-	assert.EqualErrorf(t, err, "parameter 'redirect_uri' is already managed by this connector", "")
-}
-
-func TestLoginURLStateError(t *testing.T) {
-	cfg := Config{
-		ClientID:    "client",
-		RedirectURI: "callback",
-		AdditionalAuthRequestParams: map[string]string{
-			"state": "not-so-fast",
-		},
-	}
-	_, err := testLoginURL(t, cfg, "1234")
-	assert.EqualErrorf(t, err, "parameter 'state' is already managed by this connector", "")
-}
-
-func TestLoginURLHostedDomainsError(t *testing.T) {
-	cfg := Config{
-		ClientID:    "client",
-		RedirectURI: "callback",
-		AdditionalAuthRequestParams: map[string]string{
-			"hd": "not-so-fast",
-		},
-	}
-	_, err := testLoginURL(t, cfg, "1234")
-	assert.EqualErrorf(t, err, "parameter 'hd' is already managed by this connector", "")
-}
-
-func TestLoginURLResponseTypeError(t *testing.T) {
-	cfg := Config{
-		ClientID:    "client",
-		RedirectURI: "callback",
-		AdditionalAuthRequestParams: map[string]string{
-			"response_type": "not-so-fast",
-		},
-	}
-	_, err := testLoginURL(t, cfg, "1234")
-	assert.EqualErrorf(t, err, "parameter 'response_type' is already managed by this connector", "")
-}
-
-func TestLoginURLScopeTypeError(t *testing.T) {
-	cfg := Config{
-		ClientID:    "client",
-		RedirectURI: "callback",
-		AdditionalAuthRequestParams: map[string]string{
-			"scope": "not-so-fast",
-		},
-	}
-	_, err := testLoginURL(t, cfg, "1234")
-	assert.EqualErrorf(t, err, "parameter 'scope' is already managed by this connector", "")
-}
-
-func TestLoginURLPromptError(t *testing.T) {
-	cfg := Config{
-		ClientID:    "client",
-		RedirectURI: "callback",
-		AdditionalAuthRequestParams: map[string]string{
-			"prompt": "not-so-fast",
-		},
-	}
-	_, err := testLoginURL(t, cfg, "1234")
-	assert.EqualErrorf(t, err, "parameter 'prompt' is already managed by this connector", "")
-}
-
-func TestLoginURLAcrValuesError(t *testing.T) {
-	cfg := Config{
-		ClientID:    "client",
-		RedirectURI: "callback",
-		AdditionalAuthRequestParams: map[string]string{
-			"acr_values": "not-so-fast",
-		},
-	}
-	_, err := testLoginURL(t, cfg, "1234")
-	assert.EqualErrorf(t, err, "parameter 'acr_values' is already managed by this connector", "")
-}
-
-func assertParamValue(t *testing.T, values url.Values, queryParam string, expectedValue string) {
-	assert.NotNil(t, values[queryParam])
-	assert.Equal(t, expectedValue, values[queryParam][0])
 }
 
 func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Server, error) {

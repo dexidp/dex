@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/exp/slices"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -106,8 +107,7 @@ type Config struct {
 		FilterGroupClaims  FilterGroupClaims    `json:"filterGroupClaims"`
 	} `json:"claimModifications"`
 
-	// Add additional authorization request parameters to acceess IdP specific features.
-	// Take care not to override standard OICD authorization requests parameters.
+	// AdditionalAuthRequestParams allows to add additional authorization request parameters to access IdP specific features.
 	AdditionalAuthRequestParams map[string]string `json:"additionalAuthRequestParams"`
 }
 
@@ -306,23 +306,23 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 			ctx, // Pass our ctx with customized http.Client
 			&oidc.Config{ClientID: clientID},
 		),
-		logger:                    logger.With(slog.Group("connector", "type", "oidc", "id", id)),
-		cancel:                    cancel,
-		httpClient:                httpClient,
-		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
-		insecureEnableGroups:      c.InsecureEnableGroups,
-		allowedGroups:             c.AllowedGroups,
-		acrValues:                 c.AcrValues,
-		getUserInfo:               c.GetUserInfo,
-		promptType:                promptType,
-		userIDKey:                 c.UserIDKey,
-		userNameKey:               c.UserNameKey,
-		overrideClaimMapping:      c.OverrideClaimMapping,
-		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
-		emailKey:                  c.ClaimMapping.EmailKey,
-		groupsKey:                 c.ClaimMapping.GroupsKey,
-		newGroupFromClaims:        c.ClaimMutations.NewGroupFromClaims,
-		groupsFilter:              groupsFilter,
+		logger:                      logger.With(slog.Group("connector", "type", "oidc", "id", id)),
+		cancel:                      cancel,
+		httpClient:                  httpClient,
+		insecureSkipEmailVerified:   c.InsecureSkipEmailVerified,
+		insecureEnableGroups:        c.InsecureEnableGroups,
+		allowedGroups:               c.AllowedGroups,
+		acrValues:                   c.AcrValues,
+		getUserInfo:                 c.GetUserInfo,
+		promptType:                  promptType,
+		userIDKey:                   c.UserIDKey,
+		userNameKey:                 c.UserNameKey,
+		overrideClaimMapping:        c.OverrideClaimMapping,
+		preferredUsernameKey:        c.ClaimMapping.PreferredUsernameKey,
+		emailKey:                    c.ClaimMapping.EmailKey,
+		groupsKey:                   c.ClaimMapping.GroupsKey,
+		newGroupFromClaims:          c.ClaimMutations.NewGroupFromClaims,
+		groupsFilter:                groupsFilter,
 		additionalAuthRequestParams: c.AdditionalAuthRequestParams,
 	}, nil
 }
@@ -333,27 +333,27 @@ var (
 )
 
 type oidcConnector struct {
-	provider                  *oidc.Provider
-	redirectURI               string
-	oauth2Config              *oauth2.Config
-	verifier                  *oidc.IDTokenVerifier
-	cancel                    context.CancelFunc
-	logger                    *slog.Logger
-	httpClient                *http.Client
-	insecureSkipEmailVerified bool
-	insecureEnableGroups      bool
-	allowedGroups             []string
-	acrValues                 []string
-	getUserInfo               bool
-	promptType                string
-	userIDKey                 string
-	userNameKey               string
-	overrideClaimMapping      bool
-	preferredUsernameKey      string
-	emailKey                  string
-	groupsKey                 string
-	newGroupFromClaims        []NewGroupFromClaims
-	groupsFilter              *regexp.Regexp
+	provider                    *oidc.Provider
+	redirectURI                 string
+	oauth2Config                *oauth2.Config
+	verifier                    *oidc.IDTokenVerifier
+	cancel                      context.CancelFunc
+	logger                      *slog.Logger
+	httpClient                  *http.Client
+	insecureSkipEmailVerified   bool
+	insecureEnableGroups        bool
+	allowedGroups               []string
+	acrValues                   []string
+	getUserInfo                 bool
+	promptType                  string
+	userIDKey                   string
+	userNameKey                 string
+	overrideClaimMapping        bool
+	preferredUsernameKey        string
+	emailKey                    string
+	groupsKey                   string
+	newGroupFromClaims          []NewGroupFromClaims
+	groupsFilter                *regexp.Regexp
 	additionalAuthRequestParams map[string]string
 }
 
@@ -378,14 +378,12 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", c.promptType))
 	}
 
-	if len(c.additionalAuthRequestParams) > 0 {
-		for k, v := range c.additionalAuthRequestParams {
-			if contains(managedAuthParams, k) {
-				return "", fmt.Errorf("parameter '%s' is already managed by this connector", k)
-			}
+	for k, v := range c.additionalAuthRequestParams {
+		if !slices.Contains(managedAuthParams, k) {
 			opts = append(opts, oauth2.SetAuthURLParam(k, v))
 		}
 	}
+
 	return c.oauth2Config.AuthCodeURL(state, opts...), nil
 }
 
@@ -652,13 +650,4 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	return identity, nil
-}
-
-func contains(slice []string, value string) bool {
-	for _, v := range slice {
-		if v == value {
-			return true
-		}
-	}
-	return false
 }
