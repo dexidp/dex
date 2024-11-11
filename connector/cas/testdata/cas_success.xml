@@ -1,0 +1,15 @@
+<cas:serviceResponse xmlns:cas="http://www.yale.edu/tp/cas">
+  <cas:authenticationSuccess>
+    <cas:user>123456</cas:user>
+    <cas:attributes>
+      <cas:name>jdoe</cas:name>
+      <cas:username>jdoe</cas:username>
+      <cas:email>jdoe@example.org</cas:email>
+      <cas:affiliation>staff</cas:affiliation>
+      <cas:affiliation>faculty</cas:affiliation>
+      <cas:memberOf>A</cas:memberOf>
+      <cas:memberOf>B</cas:memberOf>
+    </cas:attributes>
+    <cas:proxyGrantingTicket>PGTIOU-84678-8a9d...</cas:proxyGrantingTicket>
+  </cas:authenticationSuccess>
+</cas:serviceResponse>
