@@ -681,7 +681,52 @@ func (c *oidcConnector) ExtendPayload(scopes []string, payload []byte, cdata []b
 		return nil, fmt.Errorf("denied")
 	}
 
+	// these need to be floats, not json.Numbers
+	for _, key := range []string{"iat", "exp", "nbf"} {
+		if _, ok := r.Token[key]; ok {
+			if vv, ok := claims[key]; ok {
+				r.Token[key] = vv
+			} else {
+				delete(r.Token, key)
+			}
+		}
+	}
+
 	output, err := json.Marshal(&r.Token)
 
 	return output, err
 }
+
+//type jsonTime time.Time
+//
+//type tokenTimes struct {
+//	Iat jsonTime `json:"iat"`
+//	Exp jsonTime `json:"exp"`
+//	Nbf jsonTime `json:"nbf"`
+//}
+//
+//func (j *jsonTime) MarshalJSON() ([]byte, error) {
+//	t := time.Time(*j)
+//	return json.Marshal(t.Unix())
+//}
+//
+//func (j *jsonTime) UnmarshalJSON(b []byte) error {
+//	var n json.Number
+//	if err := json.Unmarshal(b, &n); err != nil {
+//		return err
+//	}
+//	var unix int64
+//
+//	if t, err := n.Int64(); err == nil {
+//		unix = t
+//	} else {
+//		f, err := n.Float64()
+//		if err != nil {
+//			return err
+//		}
+//		unix = int64(f)
+//	}
+//	*j = jsonTime(time.Unix(unix, 0))
+//	return nil
+//}
+//
