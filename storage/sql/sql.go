@@ -18,8 +18,10 @@ import (
 type flavor struct {
 	queryReplacers []replacer
 
-	// Optional function to create and finish a transaction.
-	executeTx func(db *sql.DB, fn func(*sql.Tx) error) error
+	// Function for locking specific rows in table, which column has specified value. It must
+	// return error if locking failed. If underlying database doesn't support locking (sqlite3)
+	// just make an empty implementation.
+	lockForUpdate func(tx *trans, table, column, value string) error
 
 	// Does the flavor support timezones?
 	supportsTimezones bool
@@ -42,27 +44,9 @@ var (
 	// The "github.com/lib/pq" driver is the default flavor. All others are
 	// translations of this.
 	flavorPostgres = flavor{
-		// The default behavior for Postgres transactions is consistent reads, not consistent writes.
-		// For each transaction opened, ensure it has the correct isolation level.
-		//
-		// See: https://www.postgresql.org/docs/9.3/static/sql-set-transaction.html
-		//
-		// NOTE(ericchiang): For some reason using `SET SESSION CHARACTERISTICS AS TRANSACTION` at a
-		// session level didn't work for some edge cases. Might be something worth exploring.
-		executeTx: func(db *sql.DB, fn func(sqlTx *sql.Tx) error) error {
-			tx, err := db.Begin()
-			if err != nil {
-				return err
-			}
-			defer tx.Rollback()
-
-			if _, err := tx.Exec(`SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;`); err != nil {
-				return err
-			}
-			if err := fn(tx); err != nil {
-				return err
-			}
-			return tx.Commit()
+		lockForUpdate: func(tx *trans, table, column, value string) error {
+			_, err := tx.Exec("SELECT 1 FROM "+table+" WHERE "+column+" = $1 FOR UPDATE NOWAIT;", value)
+			return err
 		},
 
 		supportsTimezones: true,
@@ -80,6 +64,11 @@ var (
 			{matchLiteral("timestamptz"), "timestamp"},
 			// SQLite doesn't have a "now()" method, replace with "date('now')"
 			{regexp.MustCompile(`\bnow\(\)`), "date('now')"},
+		},
+
+		// There is no requirement for concurrent access for SQLite3
+		lockForUpdate: func(tx *trans, table, column, value string) error {
+			return nil
 		},
 	}
 
@@ -157,12 +146,6 @@ func (c *conn) QueryRow(query string, args ...interface{}) *sql.Row {
 
 // ExecTx runs a method which operates on a transaction.
 func (c *conn) ExecTx(fn func(tx *trans) error) error {
-	if c.flavor.executeTx != nil {
-		return c.flavor.executeTx(c.db, func(sqlTx *sql.Tx) error {
-			return fn(&trans{sqlTx, c})
-		})
-	}
-
 	sqlTx, err := c.db.Begin()
 	if err != nil {
 		return err
