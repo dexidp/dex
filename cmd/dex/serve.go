@@ -280,6 +280,9 @@ func runServe(options serveOptions) error {
 	if len(c.Web.AllowedOrigins) > 0 {
 		logger.Info("config allowed origins", "origins", c.Web.AllowedOrigins)
 	}
+	if len(c.OAuth2.AllowedScopePrefixes) > 0 {
+		logger.Info("config allowed scope prefixes", "prefixes", strings.Join(c.OAuth2.AllowedScopePrefixes, ","))
+	}
 
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
@@ -295,6 +298,7 @@ func runServe(options serveOptions) error {
 		Headers:                c.Web.Headers.ToHTTPHeader(),
 		AllowedOrigins:         c.Web.AllowedOrigins,
 		AllowedHeaders:         c.Web.AllowedHeaders,
+		AllowedScopePrefixes:   c.OAuth2.AllowedScopePrefixes,
 		Issuer:                 c.Issuer,
 		Storage:                s,
 		Web:                    c.Frontend,
