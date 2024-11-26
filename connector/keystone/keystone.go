@@ -15,20 +15,18 @@ import (
 )
 
 type conn struct {
-	Domain           string
-	Host             string
-	AdminUsername    string
-	AdminPassword    string
-	Groups           []group
-	UseRolesAsGroups bool
-	client           *http.Client
-	Logger           log.Logger
+	Domain        domainKeystone
+	Host          string
+	AdminUsername string
+	AdminPassword string
+	client        *http.Client
+	Logger        log.Logger
 }
 
-type group struct {
-	Name    string `json:"name"`
-	Replace string `json:"replace"`
-}
+// type group struct {
+// 	Name    string `json:"name"`
+// 	Replace string `json:"replace"`
+// }
 
 type userKeystone struct {
 	Domain       domainKeystone `json:"domain"`
@@ -65,12 +63,10 @@ type domainKeystone struct {
 //			keystonePassword: DEMO_PASS
 //			useRolesAsGroups: true
 type Config struct {
-	Domain           string  `json:"domain"`
-	Host             string  `json:"keystoneHost"`
-	AdminUsername    string  `json:"keystoneUsername"`
-	AdminPassword    string  `json:"keystonePassword"`
-	UseRolesAsGroups bool    `json:"useRolesAsGroups"`
-	Groups           []group `json:"groups"`
+	Domain        string `json:"domain"`
+	Host          string `json:"keystoneHost"`
+	AdminUsername string `json:"keystoneUsername"`
+	AdminPassword string `json:"keystonePassword"`
 }
 
 type loginRequestData struct {
@@ -91,14 +87,14 @@ type password struct {
 }
 
 type user struct {
-	Name     string `json:"name"`
-	Domain   domain `json:"domain"`
-	Password string `json:"password"`
+	Name     string         `json:"name"`
+	Domain   domainKeystone `json:"domain"`
+	Password string         `json:"password"`
 }
 
-type domain struct {
-	ID string `json:"id"`
-}
+// type domain struct {
+// 	ID string `json:"id"`
+// }
 
 type tokenInfo struct {
 	User  userKeystone `json:"user"`
@@ -133,13 +129,23 @@ type role struct {
 	Description string `json:"description"`
 }
 
+type project struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	DomainID    string `json:"domain_id"`
+	Description string `json:"description"`
+}
 type identifierContainer struct {
 	ID string `json:"id"`
 }
 
+type projectScope struct {
+	Project identifierContainer `json:"project"`
+}
+
 type roleAssignment struct {
+	Scope projectScope        `json:"scope"`
 	User  identifierContainer `json:"user"`
-	Group identifierContainer `json:"group"`
 	Role  identifierContainer `json:"role"`
 }
 
@@ -154,15 +160,16 @@ var (
 
 // Open returns an authentication strategy using Keystone.
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+	domain := domainKeystone{
+		Name: c.Domain,
+	}
 	return &conn{
-		Domain:           c.Domain,
-		Host:             c.Host,
-		AdminUsername:    c.AdminUsername,
-		AdminPassword:    c.AdminPassword,
-		UseRolesAsGroups: c.UseRolesAsGroups,
-		Groups:           c.Groups,
-		Logger:           logger,
-		client:           http.DefaultClient,
+		Domain:        domain,
+		Host:          c.Host,
+		AdminUsername: c.AdminUsername,
+		AdminPassword: c.AdminPassword,
+		Logger:        logger,
+		client:        http.DefaultClient,
 	}, nil
 }
 
@@ -184,7 +191,7 @@ func (p *conn) Login(ctx context.Context, scopes connector.Scopes, username, pas
 		}
 	}
 
-	if p.groupsRequired(scopes.Groups) {
+	if scopes.Groups {
 		var err error
 		identity.Groups, err = p.getGroups(ctx, token, tokenInfo)
 		if err != nil {
@@ -250,7 +257,7 @@ func (p *conn) Refresh(
 		}
 	}
 
-	if p.groupsRequired(scopes.Groups) {
+	if scopes.Groups {
 		var err error
 		identity.Groups, err = p.getGroups(ctx, token, tokenInfo)
 		if err != nil {
@@ -269,7 +276,7 @@ func (p *conn) authenticate(ctx context.Context, username, pass string) (string,
 				Password: password{
 					User: user{
 						Name:     username,
-						Domain:   domain{ID: p.Domain},
+						Domain:   p.Domain,
 						Password: pass,
 					},
 				},
@@ -329,63 +336,59 @@ func (p *conn) checkIfUserExists(ctx context.Context, userID string, token strin
 }
 
 func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo) ([]string, error) {
-	var userGroups []string
-	var userGroupIDs []string
 
-	allGroups, err := p.getAllGroups(ctx, token)
+	// Get user-related role assignments
+	roleAssignments, err := p.getRoleAssignments(ctx, token, getRoleAssignmentsOptions{
+		userID: tokenInfo.User.ID,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	// For SSO users, use the groups passed down through the federation API.
-	if tokenInfo.User.OSFederation != nil {
-		for _, osGroup := range tokenInfo.User.OSFederation.Groups {
-			// In case the group details are missing, fetch the details of it from the list of groups.
-			if len(osGroup.Name) == 0 {
-				var ok bool
-				osGroup, ok = findGroupByID(allGroups, osGroup.ID)
-				if !ok {
-					p.Logger.Warnf("Group with ID '%s' attached to user '%s' could not be found. Skipping.",
-						osGroup.ID, tokenInfo.User.ID)
-					continue
-				}
-			}
-			userGroups = append(userGroups, osGroup.Name)
-			userGroupIDs = append(userGroupIDs, osGroup.ID)
-		}
-	}
-
-	// For local users, fetch the groups stored in Keystone.
-	localGroups, err := p.getUserGroups(ctx, tokenInfo.User.ID, token)
+	roles, err := p.getRoles(ctx, token)
 	if err != nil {
 		return nil, err
 	}
-	for _, localGroup := range localGroups {
-		// In case the group details are missing, fetch the details of it from the list of groups.
-		if len(localGroup.Name) == 0 {
-			var ok bool
-			localGroup, ok = findGroupByID(allGroups, localGroup.ID)
-			if !ok {
-				p.Logger.Warnf("Group with ID '%s' attached to user '%s' could not be found. Skipping.",
-					localGroup.ID, tokenInfo.User.ID)
-				continue
-			}
-		}
-		userGroups = append(userGroups, localGroup.Name)
-		userGroupIDs = append(userGroupIDs, localGroup.ID)
+	roleMap := map[string]role{}
+	for _, role := range roles {
+		roleMap[role.ID] = role
 	}
 
-	// If enabled, also fetch the project roles of the user and groups, and
-	// treat the roles as groups.
-	if p.UseRolesAsGroups {
-		roleGroups, err := p.getUserRolesAsGroups(ctx, token, tokenInfo.User.ID, userGroupIDs, "")
-		if err != nil {
-			return nil, err
-		}
-		userGroups = append(userGroups, roleGroups...)
+	projects, err := p.getProjects(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	projectMap := map[string]project{}
+	for _, project := range projects {
+		projectMap[project.ID] = project
 	}
 
-	return p.filterGroups(pruneDuplicates(userGroups)), nil
+	var groups []string
+	for _, roleAssignment := range roleAssignments {
+		role, ok := roleMap[roleAssignment.Role.ID]
+		if !ok {
+			// Ignore role assignments to non-existent roles (shouldn't happen)
+			continue
+		}
+
+		project, ok := projectMap[roleAssignment.Scope.Project.ID]
+		if !ok {
+			// Ignore role assignments to non-existent projects (shouldn't happen)
+			continue
+		}
+
+		groups = append(groups, p.generateGroupName(roleAssignment, project, role))
+	}
+	return groups, nil
+}
+
+func (p *conn) generateGroupName(roleAssignment roleAssignment, project project, role role) string {
+	roleName := role.Name
+	if roleName == "_member_" {
+		roleName = "member"
+	}
+	// need more character handling here as k8s doesnt allow "_" in the name
+	return p.Domain.Name + "-" + project.Name + "-" + roleName
 }
 
 func (p *conn) getUser(ctx context.Context, userID string, token string) (*userResponse, error) {
@@ -518,9 +521,9 @@ func (p *conn) getUserGroups(ctx context.Context, userID string, token string) (
 	return groupsResp.Groups, nil
 }
 
-func (p *conn) groupsRequired(groupScope bool) bool {
-	return len(p.Groups) > 0 || groupScope
-}
+// func (p *conn) groupsRequired(groupScope bool) bool {
+// 	return len(p.Groups) > 0 || groupScope
+// }
 
 // If project ID is left empty, all roles will be fetched
 func (p *conn) getUserRolesAsGroups(ctx context.Context, token string, userID string, groupIDs []string, projectID string) ([]string, error) {
@@ -571,12 +574,10 @@ type getRoleAssignmentsOptions struct {
 }
 
 func (p *conn) getRoleAssignments(ctx context.Context, token string, opts getRoleAssignmentsOptions) ([]roleAssignment, error) {
-	endpoint := fmt.Sprintf("%s/v3/role_assignments?&scope.project.id=%s", p.Host, opts.projectID)
+	endpoint := fmt.Sprintf("%s/v3/role_assignments?", p.Host)
 	// note: group and user filters are mutually exclusive
 	if len(opts.userID) > 0 {
-		endpoint = fmt.Sprintf("%s&effective&user.id=%s", endpoint, opts.userID)
-	} else if len(opts.groupID) > 0 {
-		endpoint = fmt.Sprintf("%s&group.id=%s", endpoint, opts.groupID)
+		endpoint = fmt.Sprintf("%seffective&user.id=%s", endpoint, opts.userID)
 	}
 
 	// https://docs.openstack.org/api-ref/identity/v3/?expanded=validate-and-show-information-for-token-detail,list-role-assignments-detail#list-role-assignments
@@ -642,25 +643,57 @@ func (p *conn) getRoles(ctx context.Context, token string) ([]role, error) {
 	return rolesResp.Roles, nil
 }
 
-func (p *conn) filterGroups(groups []string) []string {
-	if len(p.Groups) == 0 {
-		return groups
+func (p *conn) getProjects(ctx context.Context, token string) ([]project, error) {
+	// https://docs.openstack.org/api-ref/identity/v3/?expanded=validate-and-show-information-for-token-detail,list-role-assignments-detail,list-roles-detail#list-roles
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/v3/projects", p.Host), nil)
+	if err != nil {
+		return nil, err
 	}
-	var matches []string
-	for _, group := range groups {
-		for _, filter := range p.Groups {
-			// Future: support regexp?
-			if group != filter.Name {
-				continue
-			}
-			if len(filter.Replace) > 0 {
-				group = filter.Replace
-			}
-		}
-		matches = append(matches, group)
+	req.Header.Set("X-Auth-Token", token)
+	req = req.WithContext(ctx)
+	resp, err := p.client.Do(req)
+	if err != nil {
+		p.Logger.Errorf("keystone: error while fetching keystone roles\n")
+		return nil, err
 	}
-	return matches
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	projectsResp := struct {
+		Projects []project `json:"projects"`
+	}{}
+
+	err = json.Unmarshal(data, &projectsResp)
+	if err != nil {
+		return nil, err
+	}
+
+	return projectsResp.Projects, nil
 }
+
+// func (p *conn) filterGroups(groups []string) []string {
+// 	if len(p.Groups) == 0 {
+// 		return groups
+// 	}
+// 	var matches []string
+// 	for _, group := range groups {
+// 		for _, filter := range p.Groups {
+// 			// Future: support regexp?
+// 			if group != filter.Name {
+// 				continue
+// 			}
+// 			if len(filter.Replace) > 0 {
+// 				group = filter.Replace
+// 			}
+// 		}
+// 		matches = append(matches, group)
+// 	}
+// 	return matches
+// }
 
 func pruneDuplicates(ss []string) []string {
 	set := map[string]struct{}{}
