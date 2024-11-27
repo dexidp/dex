@@ -90,6 +90,9 @@ type Config struct {
 	// Refresh token expiration settings
 	RefreshTokenPolicy *RefreshTokenPolicy
 
+	// This is the default connctor the server will use to handle password grants
+	DefaultPasswordConnector string
+
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
 
@@ -166,6 +169,9 @@ type Server struct {
 	// If enabled, show the connector selection screen even if there's only one
 	alwaysShowLogin bool
 
+	// Default connector used for password grant
+	defaultPasswordConnector string
+
 	// Used for password grant
 	passwordConnector string
 
@@ -230,7 +236,11 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		supportedRes[respType] = true
 	}
 
-	if c.PasswordConnector != "" {
+	// if c.PasswordConnector != "" {
+	// 	supportedGrant = append(supportedGrant, grantTypePassword)
+	// }
+
+	if c.DefaultPasswordConnector != "" || c.PasswordConnector != "" {
 		supportedGrant = append(supportedGrant, grantTypePassword)
 	}
 
@@ -263,21 +273,22 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 
 	s := &Server{
-		issuerURL:              *issuerURL,
-		connectors:             make(map[string]Connector),
-		storage:                newKeyCacher(c.Storage, now),
-		supportedResponseTypes: supportedRes,
-		supportedGrantTypes:    supportedGrant,
-		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
-		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
-		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
-		refreshTokenPolicy:     c.RefreshTokenPolicy,
-		skipApproval:           c.SkipApprovalScreen,
-		alwaysShowLogin:        c.AlwaysShowLoginScreen,
-		now:                    now,
-		templates:              tmpls,
-		passwordConnector:      c.PasswordConnector,
-		logger:                 c.Logger,
+		issuerURL:                *issuerURL,
+		connectors:               make(map[string]Connector),
+		storage:                  newKeyCacher(c.Storage, now),
+		supportedResponseTypes:   supportedRes,
+		supportedGrantTypes:      supportedGrant,
+		idTokensValidFor:         value(c.IDTokensValidFor, 24*time.Hour),
+		authRequestsValidFor:     value(c.AuthRequestsValidFor, 24*time.Hour),
+		deviceRequestsValidFor:   value(c.DeviceRequestsValidFor, 5*time.Minute),
+		refreshTokenPolicy:       c.RefreshTokenPolicy,
+		skipApproval:             c.SkipApprovalScreen,
+		alwaysShowLogin:          c.AlwaysShowLoginScreen,
+		now:                      now,
+		templates:                tmpls,
+		passwordConnector:        c.PasswordConnector,
+		defaultPasswordConnector: c.DefaultPasswordConnector,
+		logger:                   c.Logger,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors

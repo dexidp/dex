@@ -75,11 +75,24 @@ type loginRequestData struct {
 
 type auth struct {
 	Identity identity `json:"identity"`
+	//Scope    domainScope `json:"scope"`
+}
+
+type loginRequestDataDomain struct {
+	authDomain `json:"auth"`
+}
+type authDomain struct {
+	Identity identity    `json:"identity"`
+	Scope    domainScope `json:"scope"`
 }
 
 type identity struct {
 	Methods  []string `json:"methods"`
 	Password password `json:"password"`
+}
+
+type domainScope struct {
+	Domain domainKeystone `json:"domain"`
 }
 
 type password struct {
@@ -192,8 +205,13 @@ func (p *conn) Login(ctx context.Context, scopes connector.Scopes, username, pas
 	}
 
 	if scopes.Groups {
+		p.Logger.Infof("groups scope requested, fetching groups")
 		var err error
-		identity.Groups, err = p.getGroups(ctx, token, tokenInfo)
+		adminToken, err := p.getAdminToken(ctx)
+		if err != nil {
+			return identity, false, fmt.Errorf("keystone: failed to obtain admin token: %v", err)
+		}
+		identity.Groups, err = p.getGroups(ctx, adminToken, tokenInfo)
 		if err != nil {
 			return connector.Identity{}, false, err
 		}
@@ -323,11 +341,51 @@ func (p *conn) authenticate(ctx context.Context, username, pass string) (string,
 }
 
 func (p *conn) getAdminToken(ctx context.Context) (string, error) {
-	token, _, err := p.authenticate(ctx, p.AdminUsername, p.AdminPassword)
+	client := &http.Client{}
+	jsonData := loginRequestDataDomain{
+		authDomain: authDomain{
+			Identity: identity{
+				Methods: []string{"password"},
+				Password: password{
+					User: user{
+						Name:     p.AdminUsername,
+						Domain:   p.Domain,
+						Password: p.AdminPassword,
+					},
+				},
+			},
+			Scope: domainScope{
+				Domain: domainKeystone{
+					Name: p.Domain.Name,
+				},
+			},
+		},
+	}
+	jsonValue, err := json.Marshal(jsonData)
 	if err != nil {
 		return "", err
 	}
-	return token, nil
+	// https://developer.openstack.org/api-ref/identity/v3/#password-authentication-with-unscoped-authorization
+	authTokenURL := p.Host + "/v3/auth/tokens/"
+	req, err := http.NewRequest("POST", authTokenURL, bytes.NewBuffer(jsonValue))
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(ctx)
+	resp, err := client.Do(req)
+
+	if err != nil {
+		return "", fmt.Errorf("keystone: error %v", err)
+	}
+	if resp.StatusCode/100 != 2 {
+		return "", fmt.Errorf("keystone login: error %v", resp.StatusCode)
+	}
+	if resp.StatusCode != 201 {
+		return "", nil
+	}
+	return resp.Header.Get("X-Subject-Token"), nil
 }
 
 func (p *conn) checkIfUserExists(ctx context.Context, userID string, token string) (bool, error) {
@@ -338,16 +396,23 @@ func (p *conn) checkIfUserExists(ctx context.Context, userID string, token strin
 func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo) ([]string, error) {
 
 	// Get user-related role assignments
+	var groups []string
 	roleAssignments, err := p.getRoleAssignments(ctx, token, getRoleAssignmentsOptions{
 		userID: tokenInfo.User.ID,
 	})
+
 	if err != nil {
-		return nil, err
+		p.Logger.Errorf("failed to fetch role assignments: %s", err)
+		return groups, err
+	}
+	if len(roleAssignments) == 0 {
+		p.Logger.Warnf("Warning: no role assignments found.")
+		return groups, nil
 	}
 
 	roles, err := p.getRoles(ctx, token)
 	if err != nil {
-		return nil, err
+		return groups, err
 	}
 	roleMap := map[string]role{}
 	for _, role := range roles {
@@ -356,30 +421,29 @@ func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo
 
 	projects, err := p.getProjects(ctx, token)
 	if err != nil {
-		return nil, err
+		return groups, err
 	}
 	projectMap := map[string]project{}
 	for _, project := range projects {
 		projectMap[project.ID] = project
 	}
 
-	var groups []string
 	for _, roleAssignment := range roleAssignments {
 		role, ok := roleMap[roleAssignment.Role.ID]
 		if !ok {
 			// Ignore role assignments to non-existent roles (shouldn't happen)
 			continue
 		}
-
 		project, ok := projectMap[roleAssignment.Scope.Project.ID]
 		if !ok {
 			// Ignore role assignments to non-existent projects (shouldn't happen)
 			continue
 		}
-
-		groups = append(groups, p.generateGroupName(roleAssignment, project, role))
+		groupName := p.generateGroupName(roleAssignment, project, role)
+		groups = append(groups, groupName)
 	}
-	return groups, nil
+
+	return pruneDuplicates(groups), nil
 }
 
 func (p *conn) generateGroupName(roleAssignment roleAssignment, project project, role role) string {
@@ -580,6 +644,7 @@ func (p *conn) getRoleAssignments(ctx context.Context, token string, opts getRol
 		endpoint = fmt.Sprintf("%seffective&user.id=%s", endpoint, opts.userID)
 	}
 
+	p.Logger.Infof("fetching roleassignments from endpoint = %s", endpoint)
 	// https://docs.openstack.org/api-ref/identity/v3/?expanded=validate-and-show-information-for-token-detail,list-role-assignments-detail#list-role-assignments
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -653,7 +718,7 @@ func (p *conn) getProjects(ctx context.Context, token string) ([]project, error)
 	req = req.WithContext(ctx)
 	resp, err := p.client.Do(req)
 	if err != nil {
-		p.Logger.Errorf("keystone: error while fetching keystone roles\n")
+		p.Logger.Errorf("keystone: error while fetching keystone projects\n")
 		return nil, err
 	}
 

@@ -261,7 +261,6 @@ func (rtq *RefreshTokenQuery) Clone() *RefreshTokenQuery {
 //		GroupBy(refreshtoken.FieldClientID).
 //		Aggregate(db.Count()).
 //		Scan(ctx, &v)
-//
 func (rtq *RefreshTokenQuery) GroupBy(field string, fields ...string) *RefreshTokenGroupBy {
 	grbuild := &RefreshTokenGroupBy{config: rtq.config}
 	grbuild.fields = append([]string{field}, fields...)
@@ -288,7 +287,6 @@ func (rtq *RefreshTokenQuery) GroupBy(field string, fields ...string) *RefreshTo
 //	client.RefreshToken.Query().
 //		Select(refreshtoken.FieldClientID).
 //		Scan(ctx, &v)
-//
 func (rtq *RefreshTokenQuery) Select(fields ...string) *RefreshTokenSelect {
 	rtq.fields = append(rtq.fields, fields...)
 	selbuild := &RefreshTokenSelect{RefreshTokenQuery: rtq}
