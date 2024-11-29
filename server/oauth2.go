@@ -477,6 +477,55 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		codeChallengeMethod = codeChallengeMethodPlain
 	}
 
+	var rt struct {
+		code    bool
+		idToken bool
+		token   bool
+	}
+
+	for _, responseType := range responseTypes {
+		switch responseType {
+		case responseTypeCode:
+			rt.code = true
+		case responseTypeIDToken:
+			rt.idToken = true
+		case responseTypeToken:
+			rt.token = true
+		default:
+			return nil, newRedirectedErr(errInvalidRequest, "Invalid response type %q", responseType)
+		}
+
+		if !s.supportedResponseTypes[responseType] {
+			return nil, newRedirectedErr(errUnsupportedResponseType, "Unsupported response type %q", responseType)
+		}
+	}
+
+	if len(responseTypes) == 0 {
+		return nil, newRedirectedErr(errInvalidRequest, "No response_type provided")
+	}
+
+	if rt.token && !rt.code && !rt.idToken {
+		// "token" can't be provided by its own.
+		//
+		// https://openid.net/specs/openid-connect-core-1_0.html#Authentication
+		return nil, newRedirectedErr(errInvalidRequest, "Response type 'token' must be provided with type 'id_token' and/or 'code'")
+	}
+	if !rt.code {
+		// Either "id_token token" or "id_token" has been provided which implies the
+		// implicit flow. Implicit flow requires a nonce value.
+		//
+		// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitAuthRequest
+		if nonce == "" {
+			return nil, newRedirectedErr(errInvalidRequest, "Response type 'token' requires a 'nonce' value.")
+		}
+	}
+	if rt.token {
+		if redirectURI == redirectURIOOB {
+			err := fmt.Sprintf("Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
+			return nil, newRedirectedErr(errInvalidRequest, err)
+		}
+	}	
+
 	client, err := s.storage.GetClient(clientID)
 	if err != nil {
 		if err == storage.ErrNotFound {
@@ -486,7 +535,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		return nil, newDisplayedErr(http.StatusInternalServerError, "Database error.")
 	}
 
-	if !validateRedirectURI(client, redirectURI) {
+	if !validateRedirectURI(client, redirectURI, rt.code && !rt.token && !rt.idToken) {
 		return nil, newDisplayedErr(http.StatusBadRequest, "Unregistered redirect_uri (%q).", redirectURI)
 	}
 	if redirectURI == deviceCallbackURI && client.Public {
@@ -556,55 +605,6 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		return nil, newRedirectedErr(errInvalidScope, "Client can't request scope(s) %q", invalidScopes)
 	}
 
-	var rt struct {
-		code    bool
-		idToken bool
-		token   bool
-	}
-
-	for _, responseType := range responseTypes {
-		switch responseType {
-		case responseTypeCode:
-			rt.code = true
-		case responseTypeIDToken:
-			rt.idToken = true
-		case responseTypeToken:
-			rt.token = true
-		default:
-			return nil, newRedirectedErr(errInvalidRequest, "Invalid response type %q", responseType)
-		}
-
-		if !s.supportedResponseTypes[responseType] {
-			return nil, newRedirectedErr(errUnsupportedResponseType, "Unsupported response type %q", responseType)
-		}
-	}
-
-	if len(responseTypes) == 0 {
-		return nil, newRedirectedErr(errInvalidRequest, "No response_type provided")
-	}
-
-	if rt.token && !rt.code && !rt.idToken {
-		// "token" can't be provided by its own.
-		//
-		// https://openid.net/specs/openid-connect-core-1_0.html#Authentication
-		return nil, newRedirectedErr(errInvalidRequest, "Response type 'token' must be provided with type 'id_token' and/or 'code'")
-	}
-	if !rt.code {
-		// Either "id_token token" or "id_token" has been provided which implies the
-		// implicit flow. Implicit flow requires a nonce value.
-		//
-		// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitAuthRequest
-		if nonce == "" {
-			return nil, newRedirectedErr(errInvalidRequest, "Response type 'token' requires a 'nonce' value.")
-		}
-	}
-	if rt.token {
-		if redirectURI == redirectURIOOB {
-			err := fmt.Sprintf("Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
-			return nil, newRedirectedErr(errInvalidRequest, err)
-		}
-	}
-
 	return &storage.AuthRequest{
 		ID:                  storage.NewID(),
 		ClientID:            client.ID,
@@ -650,7 +650,7 @@ func (s *Server) validateCrossClientTrust(ctx context.Context, clientID, peerID 
 	return false, nil
 }
 
-func validateRedirectURI(client storage.Client, redirectURI string) bool {
+func validateRedirectURI(client storage.Client, redirectURI string, isCode bool) bool {
 	// Allow named RedirectURIs for both public and non-public clients.
 	// This is required make PKCE-enabled web apps work, when configured as public clients.
 	for _, uri := range client.RedirectURIs {
@@ -658,6 +658,12 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 			return true
 		}
 	}
+	
+	// For non-public clients that have no RedirectURIs set, we skip validation for code response types. It is assumed that these clients are safe because they are protected by the client secret and the admin knows what they are doing. This is allowed by RFC6819 section 5.2.3.3 and secion 5.2.3.5 by the langauge "should" and noting that this is for applications that can't necessarily hold a secret.
+	if !client.Public && len(client.RedirectURIs) == 0 && isCode {
+		return true
+	}
+	
 	// For non-public clients or when RedirectURIs is set, we allow only explicitly named RedirectURIs.
 	// Otherwise, we check below for special URIs used for desktop or mobile apps.
 	if !client.Public || len(client.RedirectURIs) > 0 {
