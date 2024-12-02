@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/dexidp/dex/connector"
@@ -451,8 +452,15 @@ func (p *conn) generateGroupName(roleAssignment roleAssignment, project project,
 	if roleName == "_member_" {
 		roleName = "member"
 	}
+	pattern := `\.platform9\.\w+` // Matches `.platform9.<any domain>` (eg: platform9.horse, platform9.net)
+
+	re := regexp.MustCompile(pattern)
+	hostName := re.ReplaceAllString(p.Host, "")
+
 	// need more character handling here as k8s doesnt allow "_" in the name
-	return p.Domain.Name + "-" + project.Name + "-" + roleName
+	// replace any "." from hostname with "-"
+	hostName = strings.ReplaceAll(hostName, ".", "-")
+	return hostName + "-" + p.Domain.Name + "-" + project.Name + "-" + roleName
 }
 
 func (p *conn) getUser(ctx context.Context, userID string, token string) (*userResponse, error) {
@@ -644,7 +652,7 @@ func (p *conn) getRoleAssignments(ctx context.Context, token string, opts getRol
 		endpoint = fmt.Sprintf("%seffective&user.id=%s", endpoint, opts.userID)
 	}
 
-	p.Logger.Infof("fetching roleassignments from endpoint = %s", endpoint)
+	//p.Logger.Infof("fetching roleassignments from endpoint = %s", endpoint)
 	// https://docs.openstack.org/api-ref/identity/v3/?expanded=validate-and-show-information-for-token-detail,list-role-assignments-detail#list-role-assignments
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
