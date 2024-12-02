@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 
 	"github.com/dexidp/dex/connector"
@@ -429,6 +428,11 @@ func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo
 		projectMap[project.ID] = project
 	}
 
+	// get the customer name to be prefixed in the group name
+	hostName, err := p.getHostname()
+	if err != nil {
+		return groups, err
+	}
 	for _, roleAssignment := range roleAssignments {
 		role, ok := roleMap[roleAssignment.Role.ID]
 		if !ok {
@@ -440,27 +444,42 @@ func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo
 			// Ignore role assignments to non-existent projects (shouldn't happen)
 			continue
 		}
-		groupName := p.generateGroupName(roleAssignment, project, role)
+		groupName := p.generateGroupName(project, role, hostName)
 		groups = append(groups, groupName)
 	}
 
 	return pruneDuplicates(groups), nil
 }
 
-func (p *conn) generateGroupName(roleAssignment roleAssignment, project project, role role) string {
+func (p *conn) getHostname() (string, error) {
+	// Removing "https://"
+	host := p.Host
+	host = strings.TrimPrefix(host, "https://")
+
+	// will split at ".platform9." and use the first part as customer name.
+	// Assuming the keystone host url will always be like [https://*.platform9.*/keystone]
+	parts := strings.Split(host, ".platform9.")
+	if len(parts) < 2 {
+		return "", fmt.Errorf("invalid keystone host format: expecting https://*.platform9.*/keystone")
+	}
+
+	hostName := parts[0]
+
+	// need more character handling here as k8s doesnt allow "_" and "." in the name
+	// replace any "." from hostname with "-"
+	hostName = strings.ReplaceAll(hostName, ".", "-")
+	return hostName, nil
+}
+
+func (p *conn) generateGroupName(project project, role role, hostName string) string {
 	roleName := role.Name
 	if roleName == "_member_" {
 		roleName = "member"
 	}
-	pattern := `\.platform9\.\w+` // Matches `.platform9.<any domain>` (eg: platform9.horse, platform9.net)
-
-	re := regexp.MustCompile(pattern)
-	hostName := re.ReplaceAllString(p.Host, "")
-
-	// need more character handling here as k8s doesnt allow "_" in the name
-	// replace any "." from hostname with "-"
-	hostName = strings.ReplaceAll(hostName, ".", "-")
-	return hostName + "-" + p.Domain.Name + "-" + project.Name + "-" + roleName
+	if hostName != "" {
+		return hostName + "-" + p.Domain.Name + "-" + project.Name + "-" + roleName
+	}
+	return p.Domain.Name + "-" + project.Name + "-" + roleName
 }
 
 func (p *conn) getUser(ctx context.Context, userID string, token string) (*userResponse, error) {
