@@ -1769,7 +1769,7 @@ func TestServerSupportedGrants(t *testing.T) {
 		},
 		{
 			name:      "With password connector",
-			config:    func(c *Config) { c.PasswordConnector = "local" },
+			config:    func(c *Config) { c.DefaultPasswordConnector = "local" },
 			resGrants: []string{grantTypeAuthorizationCode, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
 		},
 		{
@@ -1780,7 +1780,7 @@ func TestServerSupportedGrants(t *testing.T) {
 		{
 			name: "All",
 			config: func(c *Config) {
-				c.PasswordConnector = "local"
+				c.DefaultPasswordConnector = "local"
 				c.SupportedResponseTypes = append(c.SupportedResponseTypes, responseTypeToken)
 			},
 			resGrants: []string{grantTypeAuthorizationCode, grantTypeImplicit, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
