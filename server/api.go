@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -430,10 +431,11 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 	}
 
 	c := storage.Connector{
-		ID:     req.Connector.Id,
-		Name:   req.Connector.Name,
-		Type:   req.Connector.Type,
-		Config: req.Connector.Config,
+		ID:              req.Connector.Id,
+		Name:            req.Connector.Name,
+		Type:            req.Connector.Type,
+		ResourceVersion: "1",
+		Config:          req.Connector.Config,
 	}
 	if err := d.s.CreateConnector(ctx, c); err != nil {
 		if err == storage.ErrAlreadyExists {
@@ -446,7 +448,7 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 	return &api.CreateConnectorResp{}, nil
 }
 
-func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq) (*api.UpdateConnectorResp, error) {
+func (d dexAPI) UpdateConnector(_ context.Context, req *api.UpdateConnectorReq) (*api.UpdateConnectorResp, error) {
 	if !featureflags.APIConnectorsCRUD.Enabled() {
 		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
 	}
@@ -474,6 +476,10 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 
 		if len(req.NewConfig) != 0 {
 			old.Config = req.NewConfig
+		}
+
+		if rev, err := strconv.Atoi(defaultTo(old.ResourceVersion, "0")); err == nil {
+			old.ResourceVersion = strconv.Itoa(rev + 1)
 		}
 
 		return old, nil
@@ -535,4 +541,12 @@ func (d dexAPI) ListConnectors(ctx context.Context, req *api.ListConnectorReq) (
 	return &api.ListConnectorResp{
 		Connectors: connectors,
 	}, nil
+}
+
+func defaultTo[T comparable](v, def T) T {
+	var zeroT T
+	if v == zeroT {
+		return def
+	}
+	return v
 }
