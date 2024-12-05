@@ -99,7 +99,6 @@ type AggregateFunc func(*sql.Selector) string
 //	GroupBy(field1, field2).
 //	Aggregate(db.As(db.Sum(field1), "sum_field1"), (db.As(db.Sum(field2), "sum_field2")).
 //	Scan(ctx, &v)
-//
 func As(fn AggregateFunc, end string) AggregateFunc {
 	return func(s *sql.Selector) string {
 		return sql.As(fn(s), end)

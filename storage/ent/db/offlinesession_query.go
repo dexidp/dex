@@ -261,7 +261,6 @@ func (osq *OfflineSessionQuery) Clone() *OfflineSessionQuery {
 //		GroupBy(offlinesession.FieldUserID).
 //		Aggregate(db.Count()).
 //		Scan(ctx, &v)
-//
 func (osq *OfflineSessionQuery) GroupBy(field string, fields ...string) *OfflineSessionGroupBy {
 	grbuild := &OfflineSessionGroupBy{config: osq.config}
 	grbuild.fields = append([]string{field}, fields...)
@@ -288,7 +287,6 @@ func (osq *OfflineSessionQuery) GroupBy(field string, fields ...string) *Offline
 //	client.OfflineSession.Query().
 //		Select(offlinesession.FieldUserID).
 //		Scan(ctx, &v)
-//
 func (osq *OfflineSessionQuery) Select(fields ...string) *OfflineSessionSelect {
 	osq.fields = append(osq.fields, fields...)
 	selbuild := &OfflineSessionSelect{OfflineSessionQuery: osq}

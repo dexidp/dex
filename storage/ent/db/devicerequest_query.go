@@ -261,7 +261,6 @@ func (drq *DeviceRequestQuery) Clone() *DeviceRequestQuery {
 //		GroupBy(devicerequest.FieldUserCode).
 //		Aggregate(db.Count()).
 //		Scan(ctx, &v)
-//
 func (drq *DeviceRequestQuery) GroupBy(field string, fields ...string) *DeviceRequestGroupBy {
 	grbuild := &DeviceRequestGroupBy{config: drq.config}
 	grbuild.fields = append([]string{field}, fields...)
@@ -288,7 +287,6 @@ func (drq *DeviceRequestQuery) GroupBy(field string, fields ...string) *DeviceRe
 //	client.DeviceRequest.Query().
 //		Select(devicerequest.FieldUserCode).
 //		Scan(ctx, &v)
-//
 func (drq *DeviceRequestQuery) Select(fields ...string) *DeviceRequestSelect {
 	drq.fields = append(drq.fields, fields...)
 	selbuild := &DeviceRequestSelect{DeviceRequestQuery: drq}

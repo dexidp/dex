@@ -261,7 +261,6 @@ func (arq *AuthRequestQuery) Clone() *AuthRequestQuery {
 //		GroupBy(authrequest.FieldClientID).
 //		Aggregate(db.Count()).
 //		Scan(ctx, &v)
-//
 func (arq *AuthRequestQuery) GroupBy(field string, fields ...string) *AuthRequestGroupBy {
 	grbuild := &AuthRequestGroupBy{config: arq.config}
 	grbuild.fields = append([]string{field}, fields...)
@@ -288,7 +287,6 @@ func (arq *AuthRequestQuery) GroupBy(field string, fields ...string) *AuthReques
 //	client.AuthRequest.Query().
 //		Select(authrequest.FieldClientID).
 //		Scan(ctx, &v)
-//
 func (arq *AuthRequestQuery) Select(fields ...string) *AuthRequestSelect {
 	arq.fields = append(arq.fields, fields...)
 	selbuild := &AuthRequestSelect{AuthRequestQuery: arq}

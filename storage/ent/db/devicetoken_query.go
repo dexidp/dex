@@ -261,7 +261,6 @@ func (dtq *DeviceTokenQuery) Clone() *DeviceTokenQuery {
 //		GroupBy(devicetoken.FieldDeviceCode).
 //		Aggregate(db.Count()).
 //		Scan(ctx, &v)
-//
 func (dtq *DeviceTokenQuery) GroupBy(field string, fields ...string) *DeviceTokenGroupBy {
 	grbuild := &DeviceTokenGroupBy{config: dtq.config}
 	grbuild.fields = append([]string{field}, fields...)
@@ -288,7 +287,6 @@ func (dtq *DeviceTokenQuery) GroupBy(field string, fields ...string) *DeviceToke
 //	client.DeviceToken.Query().
 //		Select(devicetoken.FieldDeviceCode).
 //		Scan(ctx, &v)
-//
 func (dtq *DeviceTokenQuery) Select(fields ...string) *DeviceTokenSelect {
 	dtq.fields = append(dtq.fields, fields...)
 	selbuild := &DeviceTokenSelect{DeviceTokenQuery: dtq}
