@@ -207,7 +207,7 @@ func (p *conn) Login(ctx context.Context, scopes connector.Scopes, username, pas
 	if scopes.Groups {
 		p.Logger.Infof("groups scope requested, fetching groups")
 		var err error
-		adminToken, err := p.getAdminToken(ctx)
+		adminToken, err := p.getAdminTokenUnscoped(ctx)
 		if err != nil {
 			return identity, false, fmt.Errorf("keystone: failed to obtain admin token: %v", err)
 		}
@@ -243,7 +243,7 @@ func (p *conn) Prompt() string { return "username" }
 func (p *conn) Refresh(
 	ctx context.Context, scopes connector.Scopes, identity connector.Identity,
 ) (connector.Identity, error) {
-	token, err := p.getAdminToken(ctx)
+	token, err := p.getAdminTokenUnscoped(ctx)
 	if err != nil {
 		return identity, fmt.Errorf("keystone: failed to obtain admin token: %v", err)
 	}
@@ -340,7 +340,7 @@ func (p *conn) authenticate(ctx context.Context, username, pass string) (string,
 	return token, &tokenResp.Token, nil
 }
 
-func (p *conn) getAdminToken(ctx context.Context) (string, error) {
+func (p *conn) getAdminTokenScoped(ctx context.Context) (string, error) {
 	client := &http.Client{}
 	jsonData := loginRequestDataDomain{
 		authDomain: authDomain{
@@ -357,6 +357,52 @@ func (p *conn) getAdminToken(ctx context.Context) (string, error) {
 			Scope: domainScope{
 				Domain: domainKeystone{
 					Name: p.Domain.Name,
+				},
+			},
+		},
+	}
+	jsonValue, err := json.Marshal(jsonData)
+	if err != nil {
+		return "", err
+	}
+	// https://developer.openstack.org/api-ref/identity/v3/#password-authentication-with-unscoped-authorization
+	authTokenURL := p.Host + "/v3/auth/tokens/"
+	req, err := http.NewRequest("POST", authTokenURL, bytes.NewBuffer(jsonValue))
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(ctx)
+	resp, err := client.Do(req)
+
+	if err != nil {
+		return "", fmt.Errorf("keystone: error %v", err)
+	}
+	if resp.StatusCode/100 != 2 {
+		return "", fmt.Errorf("keystone login: error %v", resp.StatusCode)
+	}
+	if resp.StatusCode != 201 {
+		return "", nil
+	}
+	return resp.Header.Get("X-Subject-Token"), nil
+}
+
+func (p *conn) getAdminTokenUnscoped(ctx context.Context) (string, error) {
+	client := &http.Client{}
+	domain := domainKeystone{
+		Name: "default",
+	}
+	jsonData := loginRequestData{
+		auth: auth{
+			Identity: identity{
+				Methods: []string{"password"},
+				Password: password{
+					User: user{
+						Name:     p.AdminUsername,
+						Domain:   domain,
+						Password: p.AdminPassword,
+					},
 				},
 			},
 		},
