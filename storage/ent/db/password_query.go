@@ -261,7 +261,6 @@ func (pq *PasswordQuery) Clone() *PasswordQuery {
 //		GroupBy(password.FieldEmail).
 //		Aggregate(db.Count()).
 //		Scan(ctx, &v)
-//
 func (pq *PasswordQuery) GroupBy(field string, fields ...string) *PasswordGroupBy {
 	grbuild := &PasswordGroupBy{config: pq.config}
 	grbuild.fields = append([]string{field}, fields...)
@@ -288,7 +287,6 @@ func (pq *PasswordQuery) GroupBy(field string, fields ...string) *PasswordGroupB
 //	client.Password.Query().
 //		Select(password.FieldEmail).
 //		Scan(ctx, &v)
-//
 func (pq *PasswordQuery) Select(fields ...string) *PasswordSelect {
 	pq.fields = append(pq.fields, fields...)
 	selbuild := &PasswordSelect{PasswordQuery: pq}

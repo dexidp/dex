@@ -261,7 +261,6 @@ func (acq *AuthCodeQuery) Clone() *AuthCodeQuery {
 //		GroupBy(authcode.FieldClientID).
 //		Aggregate(db.Count()).
 //		Scan(ctx, &v)
-//
 func (acq *AuthCodeQuery) GroupBy(field string, fields ...string) *AuthCodeGroupBy {
 	grbuild := &AuthCodeGroupBy{config: acq.config}
 	grbuild.fields = append([]string{field}, fields...)
@@ -288,7 +287,6 @@ func (acq *AuthCodeQuery) GroupBy(field string, fields ...string) *AuthCodeGroup
 //	client.AuthCode.Query().
 //		Select(authcode.FieldClientID).
 //		Scan(ctx, &v)
-//
 func (acq *AuthCodeQuery) Select(fields ...string) *AuthCodeSelect {
 	acq.fields = append(acq.fields, fields...)
 	selbuild := &AuthCodeSelect{AuthCodeQuery: acq}

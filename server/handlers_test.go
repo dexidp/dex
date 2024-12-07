@@ -273,6 +273,7 @@ func TestPasswordConnectorDataNotEmpty(t *testing.T) {
 
 	// Setup a dex server.
 	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+		c.DefaultPasswordConnector = "test"
 		c.PasswordConnector = "test"
 		c.Now = func() time.Time { return t0 }
 	})

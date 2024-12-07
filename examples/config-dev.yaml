@@ -85,23 +85,25 @@ telemetry:
 #     absoluteLifetime: "3960h" # 165 days
 
 # Options for controlling the logger.
-# logger:
-#   level: "debug"
+logger:
+  level: "debug"
 #   format: "text" # can also be "json"
 
 # Default values shown below
-# oauth2:
+oauth2:
     # use ["code", "token", "id_token"] to enable implicit flow for web-only clients
-#   responseTypes: [ "code" ] # also allowed are "token" and "id_token"
+    responseTypes: [ "code", "id_token" ] # also allowed are "token" and "id_token"
     # By default, Dex will ask for approval to share data with application
     # (approval for sharing data from connected IdP to Dex is separate process on IdP)
-#   skipApprovalScreen: false
+    skipApprovalScreen: false
     # If only one authentication method is enabled, the default behavior is to
     # go directly to it. For connected IdPs, this redirects the browser away
     # from application to upstream provider such as the Google login page
 #   alwaysShowLoginScreen: false
     # Uncomment the passwordConnector to use a specific connector for password grants
-#   passwordConnector: local
+    # passwordConnector: uber-cabs
+    defaultPasswordConnector: uber-cabs
+
 
 # Instead of reading from an external storage, use this list of clients.
 #
@@ -118,9 +120,6 @@ staticClients:
 #    name: 'Static Client for Device Flow'
 #    public: true
 connectors:
-- type: mockCallback
-  id: mock
-  name: Example
 # - type: google
 #   id: google
 #   name: Google
@@ -134,15 +133,15 @@ connectors:
 #     - $GOOGLE_HOSTED_DOMAIN
 
 # Let dex keep a list of passwords which can be used to login to dex.
-enablePasswordDB: true
+# enablePasswordDB: true
 
-# A static list of passwords to login the end user. By identifying here, dex
-# won't look in its underlying storage for passwords.
-#
-# If this option isn't chosen users may be added through the gRPC API.
-staticPasswords:
-- email: "admin@example.com"
-  # bcrypt hash of the string "password": $(echo password | htpasswd -BinC 10 admin | cut -d: -f2)
-  hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
-  username: "admin"
-  userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+# # A static list of passwords to login the end user. By identifying here, dex
+# # won't look in its underlying storage for passwords.
+# #
+# # If this option isn't chosen users may be added through the gRPC API.
+# staticPasswords:
+# - email: "admin@example.com"
+#   # bcrypt hash of the string "password": $(echo password | htpasswd -BinC 10 admin | cut -d: -f2)
+#   hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+#   username: "admin"
+#   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
