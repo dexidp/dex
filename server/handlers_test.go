@@ -519,7 +519,7 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 				Scopes:              []string{"offline_access"},
 			},
 			expectedRes:           "/auth/mockPw/cb",
-			offlineSessionCreated: false,
+			offlineSessionCreated: true,
 		},
 	}
 
