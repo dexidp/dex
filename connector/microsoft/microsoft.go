@@ -14,6 +14,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
@@ -46,6 +49,7 @@ const (
 type Config struct {
 	ClientID             string          `json:"clientID"`
 	ClientSecret         string          `json:"clientSecret"`
+	FederatedIdentity    string          `json:"federatedIdentity"`
 	RedirectURI          string          `json:"redirectURI"`
 	Tenant               string          `json:"tenant"`
 	OnlySecurityGroups   bool            `json:"onlySecurityGroups"`
@@ -108,6 +112,15 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		return nil, fmt.Errorf("invalid groupNameFormat: %s", m.groupNameFormat)
 	}
 
+	// Init Federated Identity Credentials if needed
+	// This is only done if there's no client secret
+	if c.ClientSecret == "" && c.FederatedIdentity != "" {
+		err := m.initFederatedIdentity(c.FederatedIdentity)
+		if err != nil {
+			return nil, fmt.Errorf("failed to init federated identity credentials: %w", err)
+		}
+	}
+
 	return &m, nil
 }
 
@@ -138,6 +151,7 @@ type microsoftConnector struct {
 	promptType           string
 	domainHint           string
 	scopes               []string
+	fic                  azcore.TokenCredential
 }
 
 func (c *microsoftConnector) isOrgTenant() bool {
@@ -175,12 +189,43 @@ func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Confi
 	}
 }
 
+func (c *microsoftConnector) initFederatedIdentity(afi string) (err error) {
+	// Crete the federated identity credential object depending on the kind of federated identity
+	afiLc := strings.ToLower(afi)
+	switch {
+	case strings.HasPrefix(afiLc, "managedidentity="):
+		// User-assigned managed identity
+		c.fic, err = azidentity.NewManagedIdentityCredential(&azidentity.ManagedIdentityCredentialOptions{
+			ID: azidentity.ClientID(afiLc[len("managedidentity="):]),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create managed identity credential object: %w", err)
+		}
+	case afiLc == "managedidentity":
+		// System-assigned managed identity
+		c.fic, err = azidentity.NewManagedIdentityCredential(nil)
+		if err != nil {
+			return fmt.Errorf("failed to create managed identity credential object: %w", err)
+		}
+	case afiLc == "workloadidentity":
+		// Workload Identity
+		c.fic, err = azidentity.NewWorkloadIdentityCredential(nil)
+		if err != nil {
+			return fmt.Errorf("failed to create workload identity credential object: %w", err)
+		}
+	default:
+		return fmt.Errorf("invalid value for configuration option 'azureFederatedIdentity': '%s'", afi)
+	}
+
+	return nil
+}
+
 func (c *microsoftConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, error) {
 	if c.redirectURI != callbackURL {
 		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
 
-	var options []oauth2.AuthCodeOption
+	options := make([]oauth2.AuthCodeOption, 0, 2)
 	if c.promptType != "" {
 		options = append(options, oauth2.SetAuthURLParam("prompt", c.promptType))
 	}
@@ -201,7 +246,25 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 
 	ctx := r.Context()
 
-	token, err := oauth2Config.Exchange(ctx, q.Get("code"))
+	opts := make([]oauth2.AuthCodeOption, 0, 2)
+	if c.fic != nil {
+		// Get the client assertion
+		clientAssertion, err := c.fic.GetToken(ctx, policy.TokenRequestOptions{
+			// This is a constant value
+			Scopes: []string{"api://AzureADTokenExchange"},
+		})
+		if err != nil {
+			return identity, fmt.Errorf("failed to obtain client assertion: %w", err)
+		}
+
+		// This is a constant value
+		opts = append(opts,
+			oauth2.SetAuthURLParam("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"),
+			oauth2.SetAuthURLParam("client_assertion", clientAssertion.Token),
+		)
+	}
+
+	token, err := oauth2Config.Exchange(ctx, q.Get("code"), opts...)
 	if err != nil {
 		return identity, fmt.Errorf("microsoft: failed to get token: %v", err)
 	}
