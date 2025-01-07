@@ -94,7 +94,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 	}
 
 	apiURL := strings.TrimRight(c.APIURL, "/")
-	apiResp, err := cloudfoundryConn.httpClient.Get(fmt.Sprintf("%s/v3/info", apiURL))
+	apiResp, err := cloudfoundryConn.httpClient.Get(apiURL)
 	if err != nil {
 		logger.Errorf("failed-to-send-request-to-cloud-controller-api", err)
 		return nil, err
@@ -108,10 +108,17 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		return nil, err
 	}
 
-	var apiResult map[string]interface{}
+	var apiResult struct {
+		Links struct {
+			Login struct {
+				Href string `json:"href"`
+			} `json:"login"`
+		} `json:"links"`
+	}
+
 	json.NewDecoder(apiResp.Body).Decode(&apiResult)
 
-	uaaURL := strings.TrimRight(apiResult["authorization_endpoint"].(string), "/")
+	uaaURL := strings.TrimRight(apiResult.Links.Login.Href, "/")
 	uaaResp, err := cloudfoundryConn.httpClient.Get(fmt.Sprintf("%s/.well-known/openid-configuration", uaaURL))
 	if err != nil {
 		logger.Errorf("failed-to-send-request-to-uaa-api", err)
