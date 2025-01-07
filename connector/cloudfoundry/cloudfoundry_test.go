@@ -165,11 +165,15 @@ func testSetup() *httptest.Server {
 		})
 	})
 
-	mux.HandleFunc("/v3/info", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		url := fmt.Sprintf("http://%s", r.Host)
 
-		json.NewEncoder(w).Encode(map[string]string{
-			"authorization_endpoint": url,
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"links": map[string]interface{}{
+				"login": map[string]string{
+					"href": url,
+				},
+			},
 		})
 	})
 
