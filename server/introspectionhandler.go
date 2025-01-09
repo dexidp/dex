@@ -170,7 +170,7 @@ func (s *Server) getTokenFromRequest(r *http.Request) (string, TokenTypeEnum, er
 		return "", 0, newIntrospectBadRequestError(fmt.Sprintf("HTTP method is \"%s\", expected \"POST\".", r.Method))
 	} else if err := r.ParseForm(); err != nil {
 		return "", 0, newIntrospectBadRequestError("Unable to parse HTTP body, make sure to send a properly formatted form request body.")
-	} else if r.PostForm == nil || len(r.PostForm) == 0 {
+	} else if len(r.PostForm) == 0 {
 		return "", 0, newIntrospectBadRequestError("The POST body can not be empty.")
 	} else if !r.PostForm.Has("token") {
 		return "", 0, newIntrospectBadRequestError("The POST body doesn't contain 'token' parameter.")
