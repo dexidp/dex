@@ -18,8 +18,8 @@ export GOBIN=$(PWD)/bin
 LD_FLAGS="-w -X main.version=$(VERSION)"
 
 # Dependency versions
-GOLANGCI_VERSION   = 1.56.2
-GOTESTSUM_VERSION ?= 1.10.1
+GOLANGCI_VERSION   = 1.63.4
+GOTESTSUM_VERSION ?= 1.12.0
 
 PROTOC_VERSION             = 24.4
 PROTOC_GEN_GO_VERSION      = 1.32.0
