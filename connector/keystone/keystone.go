@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/dexidp/dex/connector"
@@ -498,22 +499,16 @@ func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo
 }
 
 func (p *conn) getHostname() (string, error) {
-	// Removing "https://"
-	host := p.Host
-	host = strings.TrimPrefix(host, "https://")
-
-	// will split at ".platform9." and use the first part as customer name.
-	// Assuming the keystone host url will always be like [https://*.platform9.*/keystone]
-	parts := strings.Split(host, ".platform9.")
-	if len(parts) < 2 {
-		return "", fmt.Errorf("invalid keystone host format: expecting https://*.platform9.*/keystone")
+	keystoneUrl := p.Host
+	parsedURL, err := url.Parse(keystoneUrl)
+	if err != nil {
+		return "", fmt.Errorf("error parsing URL: %v", err)
 	}
-
+	customerFqdn := parsedURL.Hostname()
+	// get customer name and not the full fqdn
+	parts := strings.Split(customerFqdn, ".")
 	hostName := parts[0]
 
-	// need more character handling here as k8s doesnt allow "_" and "." in the name
-	// replace any "." from hostname with "-"
-	hostName = strings.ReplaceAll(hostName, ".", "-")
 	return hostName, nil
 }
 
