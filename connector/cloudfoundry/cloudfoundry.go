@@ -77,6 +77,18 @@ type org struct {
 	GUID string
 }
 
+type infoResp struct {
+	Links links `json:"links"`
+}
+
+type links struct {
+	Login login `json:"login"`
+}
+
+type login struct {
+	Href string `json:"href"`
+}
+
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
 	var err error
 
@@ -108,13 +120,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		return nil, err
 	}
 
-	var apiResult struct {
-		Links struct {
-			Login struct {
-				Href string `json:"href"`
-			} `json:"login"`
-		} `json:"links"`
-	}
+	var apiResult infoResp
 
 	json.NewDecoder(apiResp.Body).Decode(&apiResult)
 
