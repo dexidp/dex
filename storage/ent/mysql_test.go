@@ -31,7 +31,9 @@ func mysqlTestConfig(host string, port uint64) *MySQL {
 			Port:     uint16(port),
 		},
 		SSL: SSL{
-			Mode: mysqlSSLSkipVerify,
+			// This was originally mysqlSSLSkipVerify. It lead to handshake errors.
+			// See https://github.com/go-sql-driver/mysql/issues/1635 for more details.
+			Mode: mysqlSSLFalse,
 		},
 		params: map[string]string{
 			"innodb_lock_wait_timeout": "1",

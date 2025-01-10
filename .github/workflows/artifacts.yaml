@@ -44,7 +44,6 @@ jobs:
       id-token: write
       security-events: write
 
-
     outputs:
       name: ${{ steps.image-name.outputs.value }}
       digest: ${{ steps.build.outputs.digest }}
@@ -203,8 +202,7 @@ jobs:
         with:
           path: cache/db
           key: trivy-cache-${{ steps.date.outputs.date }}
-          restore-keys:
-            trivy-cache-
+          restore-keys: trivy-cache-
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # 0.29.0
@@ -212,12 +210,13 @@ jobs:
           input: image
           format: sarif
           output: trivy-results.sarif
-          scan-type: 'fs'
-          scan-ref: '.'
+          scan-type: "fs"
+          scan-ref: "."
           cache-dir: "./cache"
-        env:
-          TRIVY_SKIP_DB_UPDATE: true
-          TRIVY_SKIP_JAVA_DB_UPDATE: true
+        # Disable skipping trivy cache for now
+        # env:
+        #   TRIVY_SKIP_DB_UPDATE: true
+        #   TRIVY_SKIP_JAVA_DB_UPDATE: true
 
       ## Trivy-db uses `0600` permissions.
       ## But `action/cache` use `runner` user by default
