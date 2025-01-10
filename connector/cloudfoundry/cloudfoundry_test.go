@@ -97,25 +97,51 @@ func TestHandleCallback(t *testing.T) {
 	})
 }
 
-func testSpaceHandler(reqURL, spaceAPIEndpoint string) (result map[string]interface{}) {
-	fullURL := fmt.Sprintf("%s?order-direction=asc&page=2&results-per-page=50", spaceAPIEndpoint)
-	if strings.Contains(reqURL, fullURL) {
+func testSpaceHandler(reqURL string) (result map[string]interface{}) {
+	if strings.Contains(reqURL, "spaces?page=2&per_page=50") {
 		result = map[string]interface{}{
+			"pagination": map[string]interface{}{
+				"next": map[string]interface{}{
+					"href": nil,
+				},
+			},
 			"resources": []map[string]interface{}{
 				{
-					"metadata": map[string]string{"guid": "some-space-guid-2"},
-					"entity":   map[string]string{"name": "some-space-name-2", "organization_guid": "some-org-guid-2"},
+					"guid": "some-space-guid-2",
+					"name": "some-space-name-2",
+					"relationships": map[string]interface{}{
+						"user": nil,
+						"organization": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-org-guid-2",
+							},
+						},
+						"space": nil,
+					},
 				},
 			},
 		}
 	} else {
-		nextURL := fmt.Sprintf("/v3/users/12345/%s?order-direction=asc&page=2&results-per-page=50", spaceAPIEndpoint)
+		nextURL := fmt.Sprintf("%s?page=2&per_page=50", reqURL)
 		result = map[string]interface{}{
-			"next_url": nextURL,
+			"pagination": map[string]interface{}{
+				"next": map[string]interface{}{
+					"href": nextURL,
+				},
+			},
 			"resources": []map[string]interface{}{
 				{
-					"metadata": map[string]string{"guid": "some-space-guid-1"},
-					"entity":   map[string]string{"name": "some-space-name-1", "organization_guid": "some-org-guid-1"},
+					"guid": "some-space-guid-1",
+					"name": "some-space-name-1",
+					"relationships": map[string]interface{}{
+						"user": nil,
+						"organization": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-org-guid-1",
+							},
+						},
+						"space": nil,
+					},
 				},
 			},
 		}
@@ -124,30 +150,290 @@ func testSpaceHandler(reqURL, spaceAPIEndpoint string) (result map[string]interf
 }
 
 func testOrgHandler(reqURL string) (result map[string]interface{}) {
-	if strings.Contains(reqURL, "organizations?order-direction=asc&page=2&results-per-page=50") {
+	if strings.Contains(reqURL, "organizations?page=2&per_page=50") {
 		result = map[string]interface{}{
+			"pagination": map[string]interface{}{
+				"next": map[string]interface{}{
+					"href": nil,
+				},
+			},
 			"resources": []map[string]interface{}{
 				{
-					"metadata": map[string]string{"guid": "some-org-guid-3"},
-					"entity":   map[string]string{"name": "some-org-name-3"},
+					"guid": "some-org-guid-3",
+					"name": "some-org-name-3",
+					"relationships": map[string]interface{}{
+						"user":         nil,
+						"organization": nil,
+						"space":        nil,
+					},
 				},
 				{
-					"metadata": map[string]string{"guid": "some-org-guid-4"},
-					"entity":   map[string]string{"name": "some-org-name-4"},
+					"guid": "some-org-guid-4",
+					"name": "some-org-name-4",
+					"relationships": map[string]interface{}{
+						"user":         nil,
+						"organization": nil,
+						"space":        nil,
+					},
 				},
 			},
 		}
 	} else {
+		nextURL := fmt.Sprintf("%s?page=2&per_page=50", reqURL)
 		result = map[string]interface{}{
-			"next_url": "/v3/users/12345/organizations?order-direction=asc&page=2&results-per-page=50",
+			"pagination": map[string]interface{}{
+				"next": map[string]interface{}{
+					"href": nextURL,
+				},
+			},
 			"resources": []map[string]interface{}{
 				{
-					"metadata": map[string]string{"guid": "some-org-guid-1"},
-					"entity":   map[string]string{"name": "some-org-name-1"},
+					"guid": "some-org-guid-1",
+					"name": "some-org-name-1",
+					"relationships": map[string]interface{}{
+						"user":         nil,
+						"organization": nil,
+						"space": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-space-guid-1",
+							},
+						},
+					},
 				},
 				{
-					"metadata": map[string]string{"guid": "some-org-guid-2"},
-					"entity":   map[string]string{"name": "some-org-name-2"},
+					"guid": "some-org-guid-2",
+					"name": "some-org-name-2",
+					"relationships": map[string]interface{}{
+						"user":         nil,
+						"organization": nil,
+						"space": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-space-guid-2",
+							},
+						},
+					},
+				},
+			},
+		}
+	}
+	return result
+}
+
+func testUserOrgsSpacesHandler(reqURL string) (result map[string]interface{}) {
+	if strings.Contains(reqURL, "page=2&per_page=50") {
+		result = map[string]interface{}{
+			"pagination": map[string]interface{}{
+				"next": map[string]interface{}{
+					"href": nil,
+				},
+			},
+			"resources": []map[string]interface{}{
+				{
+					"guid": "some-type-guid-3",
+					"type": "organization_user",
+					"relationships": map[string]interface{}{
+						"user": nil,
+						"organization": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-org-guid-3",
+							},
+						},
+						"space": nil,
+					},
+				},
+				{
+					"guid": "some-type-guid-4",
+					"type": "organization_user",
+					"relationships": map[string]interface{}{
+						"user": nil,
+						"organization": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-org-guid-4",
+							},
+						},
+						"space": nil,
+					},
+				},
+				{
+					"guid": "some-type-guid-1",
+					"type": "space_manager",
+					"relationships": map[string]interface{}{
+						"user": nil,
+						"organization": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-org-guid-1",
+							},
+						},
+						"space": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-space-guid-1",
+							},
+						},
+					},
+				},
+				{
+					"guid": "some-type-guid-2",
+					"type": "space_developer",
+					"relationships": map[string]interface{}{
+						"user": nil,
+						"organization": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-org-guid-2",
+							},
+						},
+						"space": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-space-guid-2",
+							},
+						},
+					},
+				},
+				{
+					"guid": "some-type-guid-2",
+					"type": "space_auditor",
+					"relationships": map[string]interface{}{
+						"user": nil,
+						"organization": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-org-guid-2",
+							},
+						},
+						"space": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-space-guid-2",
+							},
+						},
+					},
+				},
+				{
+					"guid": "some-type-guid-2",
+					"type": "space_manager",
+					"relationships": map[string]interface{}{
+						"user": nil,
+						"organization": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-org-guid-2",
+							},
+						},
+						"space": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-space-guid-2",
+							},
+						},
+					},
+				},
+			},
+		}
+	} else {
+		nextURL := fmt.Sprintf("%s?page=2&per_page=50", reqURL)
+		result = map[string]interface{}{
+			"pagination": map[string]interface{}{
+				"next": map[string]interface{}{
+					"href": nextURL,
+				},
+			},
+			"resources": []map[string]interface{}{
+				{
+					"guid": "some-type-guid-1",
+					"type": "space_developer",
+					"relationships": map[string]interface{}{
+						"user": nil,
+						"organization": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-org-guid-1",
+							},
+						},
+						"space": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-space-guid-1",
+							},
+						},
+					},
+				},
+				{
+					"guid": "some-type-guid-1",
+					"type": "space_auditor",
+					"relationships": map[string]interface{}{
+						"user": nil,
+						"organization": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-org-guid-1",
+							},
+						},
+						"space": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-space-guid-1",
+							},
+						},
+					},
+				},
+				{
+					"guid": "some-type-guid-1",
+					"type": "space_manager",
+					"relationships": map[string]interface{}{
+						"user": nil,
+						"organization": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-org-guid-1",
+							},
+						},
+						"space": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-space-guid-1",
+							},
+						},
+					},
+				},
+				{
+					"guid": "some-type-guid-2",
+					"type": "space_developer",
+					"relationships": map[string]interface{}{
+						"user": nil,
+						"organization": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-org-guid-2",
+							},
+						},
+						"space": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-space-guid-2",
+							},
+						},
+					},
+				},
+				{
+					"guid": "some-type-guid-2",
+					"type": "space_auditor",
+					"relationships": map[string]interface{}{
+						"user": nil,
+						"organization": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-org-guid-2",
+							},
+						},
+						"space": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-space-guid-2",
+							},
+						},
+					},
+				},
+				{
+					"guid": "some-type-guid-2",
+					"type": "space_manager",
+					"relationships": map[string]interface{}{
+						"user": nil,
+						"organization": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-org-guid-2",
+							},
+						},
+						"space": map[string]interface{}{
+							"data": map[string]interface{}{
+								"guid": "some-space-guid-2",
+							},
+						},
+					},
 				},
 			},
 		}
@@ -198,27 +484,16 @@ func testSetup() *httptest.Server {
 		})
 	})
 
-	mux.HandleFunc("/v3/users/", func(w http.ResponseWriter, r *http.Request) {
-		var result map[string]interface{}
+	mux.HandleFunc("/v3/organizations", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(testOrgHandler(r.URL.String()))
+	})
 
-		reqURL := r.URL.String()
-		if strings.Contains(reqURL, "/spaces") {
-			result = testSpaceHandler(reqURL, "spaces")
-		}
+	mux.HandleFunc("/v3/spaces", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(testSpaceHandler(r.URL.String()))
+	})
 
-		if strings.Contains(reqURL, "/audited_spaces") {
-			result = testSpaceHandler(reqURL, "audited_spaces")
-		}
-
-		if strings.Contains(reqURL, "/managed_spaces") {
-			result = testSpaceHandler(reqURL, "managed_spaces")
-		}
-
-		if strings.Contains(reqURL, "organizations") {
-			result = testOrgHandler(reqURL)
-		}
-
-		json.NewEncoder(w).Encode(result)
+	mux.HandleFunc("/v3/roles", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(testUserOrgsSpacesHandler(r.URL.String()))
 	})
 
 	return httptest.NewServer(mux)

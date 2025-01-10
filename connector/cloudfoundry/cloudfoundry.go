@@ -47,27 +47,27 @@ type Config struct {
 
 type ccResponse struct {
 	Pagination pagination `json:"pagination"`
-    Resources  []resource `json:"resources"`
+	Resources  []resource `json:"resources"`
 }
 
 type pagination struct {
-    Next href `json:"next"`
+	Next href `json:"next"`
 }
 
 type href struct {
-    Href string `json:"href"`
+	Href string `json:"href"`
 }
 
 type resource struct {
-	GUID string `json:"guid"`
-    Name string `json:"name,omitempty"`
-	Type string `json:"type,omitempty"`
+	GUID          string        `json:"guid"`
+	Name          string        `json:"name,omitempty"`
+	Type          string        `json:"type,omitempty"`
 	Relationships relationships `json:"relationships"`
 }
 
 type relationships struct {
 	Organization relOrganization `json:"organization"`
-	Space relSpace `json:"space"`
+	Space        relSpace        `json:"space"`
 }
 
 type relOrganization struct {
@@ -81,7 +81,6 @@ type relSpace struct {
 type data struct {
 	GUID string `json:"guid"`
 }
-
 
 type space struct {
 	Name    string
@@ -379,8 +378,8 @@ func (c *cloudfoundryConnector) HandleCallback(s connector.Scopes, r *http.Reque
 	identity.EmailVerified, _ = userInfoResult["email_verified"].(bool)
 
 	var (
-		orgsPath           = fmt.Sprintf("/v3/organizations")
-		spacesPath         = fmt.Sprintf("/v3/spaces")
+		orgsPath           = "/v3/organizations"
+		spacesPath         = "/v3/spaces"
 		userOrgsSpacesPath = fmt.Sprintf("/v3/roles?user_guids=%s&types=space_developer,space_manager,space_auditor,organization_user", identity.UserID)
 	)
 
