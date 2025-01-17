@@ -31,11 +31,11 @@ func WithStaticClients(s Storage, staticClients []Client) Storage {
 	return staticClientsStorage{s, staticClients, clientsByID}
 }
 
-func (s staticClientsStorage) GetClient(id string) (Client, error) {
+func (s staticClientsStorage) GetClient(ctx context.Context, id string) (Client, error) {
 	if client, ok := s.clientsByID[id]; ok {
 		return client, nil
 	}
-	return s.Storage.GetClient(id)
+	return s.Storage.GetClient(ctx, id)
 }
 
 func (s staticClientsStorage) isStatic(id string) bool {
@@ -43,8 +43,8 @@ func (s staticClientsStorage) isStatic(id string) bool {
 	return ok
 }
 
-func (s staticClientsStorage) ListClients() ([]Client, error) {
-	clients, err := s.Storage.ListClients()
+func (s staticClientsStorage) ListClients(ctx context.Context) ([]Client, error) {
+	clients, err := s.Storage.ListClients(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -112,18 +112,18 @@ func (s staticPasswordsStorage) isStatic(email string) bool {
 	return ok
 }
 
-func (s staticPasswordsStorage) GetPassword(email string) (Password, error) {
+func (s staticPasswordsStorage) GetPassword(ctx context.Context, email string) (Password, error) {
 	// TODO(ericchiang): BLAH. We really need to figure out how to handle
 	// lower cased emails better.
 	email = strings.ToLower(email)
 	if password, ok := s.passwordsByEmail[email]; ok {
 		return password, nil
 	}
-	return s.Storage.GetPassword(email)
+	return s.Storage.GetPassword(ctx, email)
 }
 
-func (s staticPasswordsStorage) ListPasswords() ([]Password, error) {
-	passwords, err := s.Storage.ListPasswords()
+func (s staticPasswordsStorage) ListPasswords(ctx context.Context) ([]Password, error) {
+	passwords, err := s.Storage.ListPasswords(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -185,15 +185,15 @@ func (s staticConnectorsStorage) isStatic(id string) bool {
 	return ok
 }
 
-func (s staticConnectorsStorage) GetConnector(id string) (Connector, error) {
+func (s staticConnectorsStorage) GetConnector(ctx context.Context, id string) (Connector, error) {
 	if connector, ok := s.connectorsByID[id]; ok {
 		return connector, nil
 	}
-	return s.Storage.GetConnector(id)
+	return s.Storage.GetConnector(ctx, id)
 }
 
-func (s staticConnectorsStorage) ListConnectors() ([]Connector, error) {
-	connectors, err := s.Storage.ListConnectors()
+func (s staticConnectorsStorage) ListConnectors(ctx context.Context) ([]Connector, error) {
+	connectors, err := s.Storage.ListConnectors(ctx)
 	if err != nil {
 		return nil, err
 	}

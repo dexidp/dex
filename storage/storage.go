@@ -89,21 +89,21 @@ type Storage interface {
 
 	// TODO(ericchiang): return (T, bool, error) so we can indicate not found
 	// requests that way instead of using ErrNotFound.
-	GetAuthRequest(id string) (AuthRequest, error)
-	GetAuthCode(id string) (AuthCode, error)
-	GetClient(id string) (Client, error)
-	GetKeys() (Keys, error)
-	GetRefresh(id string) (RefreshToken, error)
-	GetPassword(email string) (Password, error)
-	GetOfflineSessions(userID string, connID string) (OfflineSessions, error)
-	GetConnector(id string) (Connector, error)
-	GetDeviceRequest(userCode string) (DeviceRequest, error)
-	GetDeviceToken(deviceCode string) (DeviceToken, error)
+	GetAuthRequest(ctx context.Context, id string) (AuthRequest, error)
+	GetAuthCode(ctx context.Context, id string) (AuthCode, error)
+	GetClient(ctx context.Context, id string) (Client, error)
+	GetKeys(ctx context.Context, ) (Keys, error)
+	GetRefresh(ctx context.Context, id string) (RefreshToken, error)
+	GetPassword(ctx context.Context, email string) (Password, error)
+	GetOfflineSessions(ctx context.Context, userID string, connID string) (OfflineSessions, error)
+	GetConnector(ctx context.Context, id string) (Connector, error)
+	GetDeviceRequest(ctx context.Context, userCode string) (DeviceRequest, error)
+	GetDeviceToken(ctx context.Context, deviceCode string) (DeviceToken, error)
 
-	ListClients() ([]Client, error)
-	ListRefreshTokens() ([]RefreshToken, error)
-	ListPasswords() ([]Password, error)
-	ListConnectors() ([]Connector, error)
+	ListClients(ctx context.Context) ([]Client, error)
+	ListRefreshTokens(ctx context.Context) ([]RefreshToken, error)
+	ListPasswords(ctx context.Context) ([]Password, error)
+	ListConnectors(ctx context.Context) ([]Connector, error)
 
 	// Delete methods MUST be atomic.
 	DeleteAuthRequest(id string) error

@@ -30,10 +30,10 @@ func (d *Database) CreateOfflineSessions(ctx context.Context, session storage.Of
 }
 
 // GetOfflineSessions extracts an offline session from the database by user id and connector id.
-func (d *Database) GetOfflineSessions(userID, connID string) (storage.OfflineSessions, error) {
+func (d *Database) GetOfflineSessions(ctx context.Context, userID, connID string) (storage.OfflineSessions, error) {
 	id := offlineSessionID(userID, connID, d.hasher)
 
-	offlineSession, err := d.client.OfflineSession.Get(context.TODO(), id)
+	offlineSession, err := d.client.OfflineSession.Get(ctx, id)
 	if err != nil {
 		return storage.OfflineSessions{}, convertDBError("get offline session: %w", err)
 	}

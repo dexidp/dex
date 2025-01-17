@@ -24,8 +24,8 @@ func (d *Database) CreateClient(ctx context.Context, client storage.Client) erro
 }
 
 // ListClients extracts an array of oauth2 clients from the database.
-func (d *Database) ListClients() ([]storage.Client, error) {
-	clients, err := d.client.OAuth2Client.Query().All(context.TODO())
+func (d *Database) ListClients(ctx context.Context) ([]storage.Client, error) {
+	clients, err := d.client.OAuth2Client.Query().All(ctx)
 	if err != nil {
 		return nil, convertDBError("list clients: %w", err)
 	}
@@ -38,8 +38,8 @@ func (d *Database) ListClients() ([]storage.Client, error) {
 }
 
 // GetClient extracts an oauth2 client from the database by id.
-func (d *Database) GetClient(id string) (storage.Client, error) {
-	client, err := d.client.OAuth2Client.Get(context.TODO(), id)
+func (d *Database) GetClient(ctx context.Context, id string) (storage.Client, error) {
+	client, err := d.client.OAuth2Client.Get(ctx, id)
 	if err != nil {
 		return storage.Client{}, convertDBError("get client: %w", err)
 	}

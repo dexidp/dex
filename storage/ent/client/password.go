@@ -23,8 +23,8 @@ func (d *Database) CreatePassword(ctx context.Context, password storage.Password
 }
 
 // ListPasswords extracts an array of passwords from the database.
-func (d *Database) ListPasswords() ([]storage.Password, error) {
-	passwords, err := d.client.Password.Query().All(context.TODO())
+func (d *Database) ListPasswords(ctx context.Context) ([]storage.Password, error) {
+	passwords, err := d.client.Password.Query().All(ctx)
 	if err != nil {
 		return nil, convertDBError("list passwords: %w", err)
 	}
@@ -37,11 +37,11 @@ func (d *Database) ListPasswords() ([]storage.Password, error) {
 }
 
 // GetPassword extracts a password from the database by email.
-func (d *Database) GetPassword(email string) (storage.Password, error) {
+func (d *Database) GetPassword(ctx context.Context, email string) (storage.Password, error) {
 	email = strings.ToLower(email)
 	passwordFromStorage, err := d.client.Password.Query().
 		Where(password.Email(email)).
-		Only(context.TODO())
+		Only(ctx)
 	if err != nil {
 		return storage.Password{}, convertDBError("get password: %w", err)
 	}

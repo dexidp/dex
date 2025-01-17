@@ -350,7 +350,7 @@ func TestRefreshTokenLock(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		token, err := kubeClient.GetRefresh(r.ID)
+		token, err := kubeClient.GetRefresh(context.TODO(), r.ID)
 		require.NoError(t, err)
 		require.Equal(t, "update-result-1", token.Token)
 	})
@@ -376,7 +376,7 @@ func TestRefreshTokenLock(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		token, err := kubeClient.GetRefresh(r.ID)
+		token, err := kubeClient.GetRefresh(context.TODO(), r.ID)
 		require.NoError(t, err)
 		// Because concurrent update breaks the lock, the final result will be the value of the first update
 		require.Equal(t, "update-result-2", token.Token)
