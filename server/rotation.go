@@ -95,7 +95,7 @@ func (s *Server) startKeyRotation(ctx context.Context, strategy rotationStrategy
 }
 
 func (k keyRotator) rotate() error {
-	keys, err := k.GetKeys()
+	keys, err := k.GetKeys(context.Background())
 	if err != nil && err != storage.ErrNotFound {
 		return fmt.Errorf("get keys: %v", err)
 	}

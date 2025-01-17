@@ -51,7 +51,7 @@ type dexAPI struct {
 }
 
 func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetClientResp, error) {
-	c, err := d.s.GetClient(req.Id)
+	c, err := d.s.GetClient(ctx, req.Id)
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +268,7 @@ func (d dexAPI) GetDiscovery(ctx context.Context, req *api.DiscoveryReq) (*api.D
 }
 
 func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*api.ListPasswordResp, error) {
-	passwordList, err := d.s.ListPasswords()
+	passwordList, err := d.s.ListPasswords(ctx)
 	if err != nil {
 		d.logger.Error("failed to list passwords", "err", err)
 		return nil, fmt.Errorf("list passwords: %v", err)
@@ -298,7 +298,7 @@ func (d dexAPI) VerifyPassword(ctx context.Context, req *api.VerifyPasswordReq) 
 		return nil, errors.New("no password to verify supplied")
 	}
 
-	password, err := d.s.GetPassword(req.Email)
+	password, err := d.s.GetPassword(ctx, req.Email)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			return &api.VerifyPasswordResp{
@@ -327,7 +327,7 @@ func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.
 		return nil, err
 	}
 
-	offlineSessions, err := d.s.GetOfflineSessions(id.UserId, id.ConnId)
+	offlineSessions, err := d.s.GetOfflineSessions(ctx, id.UserId, id.ConnId)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			// This means that this user-client pair does not have a refresh token yet.
@@ -521,7 +521,7 @@ func (d dexAPI) ListConnectors(ctx context.Context, req *api.ListConnectorReq) (
 		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
 	}
 
-	connectorList, err := d.s.ListConnectors()
+	connectorList, err := d.s.ListConnectors(ctx)
 	if err != nil {
 		d.logger.Error("api: failed to list connectors", "err", err)
 		return nil, fmt.Errorf("list connectors: %v", err)

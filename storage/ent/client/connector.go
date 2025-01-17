@@ -22,8 +22,8 @@ func (d *Database) CreateConnector(ctx context.Context, connector storage.Connec
 }
 
 // ListConnectors extracts an array of connectors from the database.
-func (d *Database) ListConnectors() ([]storage.Connector, error) {
-	connectors, err := d.client.Connector.Query().All(context.TODO())
+func (d *Database) ListConnectors(ctx context.Context) ([]storage.Connector, error) {
+	connectors, err := d.client.Connector.Query().All(ctx)
 	if err != nil {
 		return nil, convertDBError("list connectors: %w", err)
 	}
@@ -36,8 +36,8 @@ func (d *Database) ListConnectors() ([]storage.Connector, error) {
 }
 
 // GetConnector extracts a connector from the database by id.
-func (d *Database) GetConnector(id string) (storage.Connector, error) {
-	connector, err := d.client.Connector.Get(context.TODO(), id)
+func (d *Database) GetConnector(ctx context.Context, id string) (storage.Connector, error) {
+	connector, err := d.client.Connector.Get(ctx, id)
 	if err != nil {
 		return storage.Connector{}, convertDBError("get connector: %w", err)
 	}

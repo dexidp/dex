@@ -34,8 +34,8 @@ func (d *Database) CreateAuthCode(ctx context.Context, code storage.AuthCode) er
 }
 
 // GetAuthCode extracts an auth code from the database by id.
-func (d *Database) GetAuthCode(id string) (storage.AuthCode, error) {
-	authCode, err := d.client.AuthCode.Get(context.TODO(), id)
+func (d *Database) GetAuthCode(ctx context.Context, id string) (storage.AuthCode, error) {
+	authCode, err := d.client.AuthCode.Get(ctx, id)
 	if err != nil {
 		return storage.AuthCode{}, convertDBError("get auth code: %w", err)
 	}

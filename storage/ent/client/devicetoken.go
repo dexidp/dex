@@ -27,10 +27,10 @@ func (d *Database) CreateDeviceToken(ctx context.Context, token storage.DeviceTo
 }
 
 // GetDeviceToken extracts a token from the database by device code.
-func (d *Database) GetDeviceToken(deviceCode string) (storage.DeviceToken, error) {
+func (d *Database) GetDeviceToken(ctx context.Context, deviceCode string) (storage.DeviceToken, error) {
 	deviceToken, err := d.client.DeviceToken.Query().
 		Where(devicetoken.DeviceCode(deviceCode)).
-		Only(context.TODO())
+		Only(ctx)
 	if err != nil {
 		return storage.DeviceToken{}, convertDBError("get device token: %w", err)
 	}

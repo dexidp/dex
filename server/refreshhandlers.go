@@ -84,7 +84,7 @@ func (s *Server) getRefreshTokenFromStorage(ctx context.Context, clientID *strin
 	refreshCtx := refreshContext{requestToken: token}
 
 	// Get RefreshToken
-	refresh, err := s.storage.GetRefresh(token.RefreshId)
+	refresh, err := s.storage.GetRefresh(ctx, token.RefreshId)
 	if err != nil {
 		if err != storage.ErrNotFound {
 			s.logger.ErrorContext(ctx, "failed to get refresh token", "err", err)
@@ -126,14 +126,14 @@ func (s *Server) getRefreshTokenFromStorage(ctx context.Context, clientID *strin
 	refreshCtx.storageToken = &refresh
 
 	// Get Connector
-	refreshCtx.connector, err = s.getConnector(refresh.ConnectorID)
+	refreshCtx.connector, err = s.getConnector(ctx, refresh.ConnectorID)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "connector not found", "connector_id", refresh.ConnectorID, "err", err)
 		return nil, newInternalServerError()
 	}
 
 	// Get Connector Data
-	session, err := s.storage.GetOfflineSessions(refresh.Claims.UserID, refresh.ConnectorID)
+	session, err := s.storage.GetOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID)
 	switch {
 	case err != nil:
 		if err != storage.ErrNotFound {

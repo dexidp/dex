@@ -200,7 +200,7 @@ func (c *conn) UpdateAuthRequest(id string, updater func(a storage.AuthRequest) 
 	})
 }
 
-func (c *conn) GetAuthRequest(id string) (storage.AuthRequest, error) {
+func (c *conn) GetAuthRequest(ctx context.Context, id string) (storage.AuthRequest, error) {
 	return getAuthRequest(c, id)
 }
 
@@ -258,7 +258,7 @@ func (c *conn) CreateAuthCode(ctx context.Context, a storage.AuthCode) error {
 	return nil
 }
 
-func (c *conn) GetAuthCode(id string) (a storage.AuthCode, err error) {
+func (c *conn) GetAuthCode(ctx context.Context, id string) (a storage.AuthCode, err error) {
 	err = c.QueryRow(`
 		select
 			id, client_id, scopes, nonce, redirect_uri,
@@ -354,7 +354,7 @@ func (c *conn) UpdateRefreshToken(id string, updater func(old storage.RefreshTok
 	})
 }
 
-func (c *conn) GetRefresh(id string) (storage.RefreshToken, error) {
+func (c *conn) GetRefresh(ctx context.Context, id string) (storage.RefreshToken, error) {
 	return getRefresh(c, id)
 }
 
@@ -371,7 +371,7 @@ func getRefresh(q querier, id string) (storage.RefreshToken, error) {
 	`, id))
 }
 
-func (c *conn) ListRefreshTokens() ([]storage.RefreshToken, error) {
+func (c *conn) ListRefreshTokens(ctx context.Context) ([]storage.RefreshToken, error) {
 	rows, err := c.Query(`
 		select
 			id, client_id, scopes, nonce,
@@ -471,7 +471,7 @@ func (c *conn) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) 
 	})
 }
 
-func (c *conn) GetKeys() (keys storage.Keys, err error) {
+func (c *conn) GetKeys(ctx context.Context) (keys storage.Keys, err error) {
 	return getKeys(c)
 }
 
@@ -551,11 +551,11 @@ func getClient(q querier, id string) (storage.Client, error) {
 	`, id))
 }
 
-func (c *conn) GetClient(id string) (storage.Client, error) {
+func (c *conn) GetClient(ctx context.Context, id string) (storage.Client, error) {
 	return getClient(c, id)
 }
 
-func (c *conn) ListClients() ([]storage.Client, error) {
+func (c *conn) ListClients(ctx context.Context) ([]storage.Client, error) {
 	rows, err := c.Query(`
 		select
 			id, secret, redirect_uris, trusted_peers, public, name, logo_url
@@ -641,7 +641,7 @@ func (c *conn) UpdatePassword(email string, updater func(p storage.Password) (st
 	})
 }
 
-func (c *conn) GetPassword(email string) (storage.Password, error) {
+func (c *conn) GetPassword(ctx context.Context, email string) (storage.Password, error) {
 	return getPassword(c, email)
 }
 
@@ -653,7 +653,7 @@ func getPassword(q querier, email string) (p storage.Password, err error) {
 	`, strings.ToLower(email)))
 }
 
-func (c *conn) ListPasswords() ([]storage.Password, error) {
+func (c *conn) ListPasswords(ctx context.Context) ([]storage.Password, error) {
 	rows, err := c.Query(`
 		select
 			email, hash, username, user_id
@@ -738,7 +738,7 @@ func (c *conn) UpdateOfflineSessions(userID string, connID string, updater func(
 	})
 }
 
-func (c *conn) GetOfflineSessions(userID string, connID string) (storage.OfflineSessions, error) {
+func (c *conn) GetOfflineSessions(ctx context.Context, userID string, connID string) (storage.OfflineSessions, error) {
 	return getOfflineSessions(c, userID, connID)
 }
 
@@ -813,7 +813,7 @@ func (c *conn) UpdateConnector(id string, updater func(s storage.Connector) (sto
 	})
 }
 
-func (c *conn) GetConnector(id string) (storage.Connector, error) {
+func (c *conn) GetConnector(ctx context.Context, id string) (storage.Connector, error) {
 	return getConnector(c, id)
 }
 
@@ -839,7 +839,7 @@ func scanConnector(s scanner) (c storage.Connector, err error) {
 	return c, nil
 }
 
-func (c *conn) ListConnectors() ([]storage.Connector, error) {
+func (c *conn) ListConnectors(ctx context.Context) ([]storage.Connector, error) {
 	rows, err := c.Query(`
 		select
 			id, type, name, resource_version, config
@@ -948,7 +948,7 @@ func (c *conn) CreateDeviceToken(ctx context.Context, t storage.DeviceToken) err
 	return nil
 }
 
-func (c *conn) GetDeviceRequest(userCode string) (storage.DeviceRequest, error) {
+func (c *conn) GetDeviceRequest(ctx context.Context, userCode string) (storage.DeviceRequest, error) {
 	return getDeviceRequest(c, userCode)
 }
 
@@ -970,7 +970,7 @@ func getDeviceRequest(q querier, userCode string) (d storage.DeviceRequest, err 
 	return d, nil
 }
 
-func (c *conn) GetDeviceToken(deviceCode string) (storage.DeviceToken, error) {
+func (c *conn) GetDeviceToken(ctx context.Context, deviceCode string) (storage.DeviceToken, error) {
 	return getDeviceToken(c, deviceCode)
 }
 

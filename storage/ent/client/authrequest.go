@@ -40,8 +40,8 @@ func (d *Database) CreateAuthRequest(ctx context.Context, authRequest storage.Au
 }
 
 // GetAuthRequest extracts an auth request from the database by id.
-func (d *Database) GetAuthRequest(id string) (storage.AuthRequest, error) {
-	authRequest, err := d.client.AuthRequest.Get(context.TODO(), id)
+func (d *Database) GetAuthRequest(ctx context.Context, id string) (storage.AuthRequest, error) {
+	authRequest, err := d.client.AuthRequest.Get(ctx, id)
 	if err != nil {
 		return storage.AuthRequest{}, convertDBError("get auth request: %w", err)
 	}

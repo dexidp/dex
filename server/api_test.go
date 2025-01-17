@@ -149,7 +149,7 @@ func TestPassword(t *testing.T) {
 		t.Fatalf("Unable to update password: %v", err)
 	}
 
-	pass, err := s.GetPassword(updateReq.Email)
+	pass, err := s.GetPassword(ctx, updateReq.Email)
 	if err != nil {
 		t.Fatalf("Unable to retrieve password: %v", err)
 	}
@@ -449,7 +449,7 @@ func TestUpdateClient(t *testing.T) {
 					t.Errorf("expected in response NotFound: %t", tc.want.NotFound)
 				}
 
-				client, err := s.GetClient(tc.req.Id)
+				client, err := s.GetClient(ctx, tc.req.Id)
 				if err != nil {
 					t.Errorf("no client found in the storage: %v", err)
 				}

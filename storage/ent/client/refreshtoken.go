@@ -34,8 +34,8 @@ func (d *Database) CreateRefresh(ctx context.Context, refresh storage.RefreshTok
 }
 
 // ListRefreshTokens extracts an array of refresh tokens from the database.
-func (d *Database) ListRefreshTokens() ([]storage.RefreshToken, error) {
-	refreshTokens, err := d.client.RefreshToken.Query().All(context.TODO())
+func (d *Database) ListRefreshTokens(ctx context.Context) ([]storage.RefreshToken, error) {
+	refreshTokens, err := d.client.RefreshToken.Query().All(ctx)
 	if err != nil {
 		return nil, convertDBError("list refresh tokens: %w", err)
 	}
@@ -48,8 +48,8 @@ func (d *Database) ListRefreshTokens() ([]storage.RefreshToken, error) {
 }
 
 // GetRefresh extracts a refresh token from the database by id.
-func (d *Database) GetRefresh(id string) (storage.RefreshToken, error) {
-	refreshToken, err := d.client.RefreshToken.Get(context.TODO(), id)
+func (d *Database) GetRefresh(ctx context.Context, id string) (storage.RefreshToken, error) {
+	refreshToken, err := d.client.RefreshToken.Get(ctx, id)
 	if err != nil {
 		return storage.RefreshToken{}, convertDBError("get refresh token: %w", err)
 	}
