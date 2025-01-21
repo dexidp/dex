@@ -3,7 +3,7 @@ module github.com/dexidp/dex/examples
 go 1.23
 
 require (
-	github.com/coreos/go-oidc/v3 v3.11.0
+	github.com/coreos/go-oidc/v3 v3.12.0
 	github.com/dexidp/dex/api/v2 v2.2.0
 	github.com/spf13/cobra v1.8.1
 	golang.org/x/oauth2 v0.24.0
