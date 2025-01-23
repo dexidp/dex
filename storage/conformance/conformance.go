@@ -148,7 +148,7 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 		t.Fatalf("failed creating auth request: %v", err)
 	}
 
-	if err := s.UpdateAuthRequest(a1.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
+	if err := s.UpdateAuthRequest(ctx, a1.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
 		old.Claims = identity
 		old.ConnectorID = "connID"
 		return old, nil
@@ -168,11 +168,11 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 		t.Fatalf("storage does not support PKCE, wanted challenge=%#v got %#v", codeChallenge, got.PKCE)
 	}
 
-	if err := s.DeleteAuthRequest(a1.ID); err != nil {
+	if err := s.DeleteAuthRequest(ctx, a1.ID); err != nil {
 		t.Fatalf("failed to delete auth request: %v", err)
 	}
 
-	if err := s.DeleteAuthRequest(a2.ID); err != nil {
+	if err := s.DeleteAuthRequest(ctx, a2.ID); err != nil {
 		t.Fatalf("failed to delete auth request: %v", err)
 	}
 
@@ -246,11 +246,11 @@ func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 		t.Errorf("auth code retrieved from storage did not match: %s", diff)
 	}
 
-	if err := s.DeleteAuthCode(a1.ID); err != nil {
+	if err := s.DeleteAuthCode(ctx, a1.ID); err != nil {
 		t.Fatalf("delete auth code: %v", err)
 	}
 
-	if err := s.DeleteAuthCode(a2.ID); err != nil {
+	if err := s.DeleteAuthCode(ctx, a2.ID); err != nil {
 		t.Fatalf("delete auth code: %v", err)
 	}
 
@@ -268,7 +268,7 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 		Name:         "dex client",
 		LogoURL:      "https://goo.gl/JIyzIC",
 	}
-	err := s.DeleteClient(id1)
+	err := s.DeleteClient(ctx, id1)
 	mustBeErrNotFound(t, "client", err)
 
 	if err := s.CreateClient(ctx, c1); err != nil {
@@ -306,7 +306,7 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 	getAndCompare(id1, c1)
 
 	newSecret := "barfoo"
-	err = s.UpdateClient(id1, func(old storage.Client) (storage.Client, error) {
+	err = s.UpdateClient(ctx, id1, func(old storage.Client) (storage.Client, error) {
 		old.Secret = newSecret
 		return old, nil
 	})
@@ -316,11 +316,11 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 	c1.Secret = newSecret
 	getAndCompare(id1, c1)
 
-	if err := s.DeleteClient(id1); err != nil {
+	if err := s.DeleteClient(ctx, id1); err != nil {
 		t.Fatalf("delete client: %v", err)
 	}
 
-	if err := s.DeleteClient(id2); err != nil {
+	if err := s.DeleteClient(ctx, id2); err != nil {
 		t.Fatalf("delete client: %v", err)
 	}
 
@@ -419,7 +419,7 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 		r.LastUsed = updatedAt
 		return r, nil
 	}
-	if err := s.UpdateRefreshToken(id, updater); err != nil {
+	if err := s.UpdateRefreshToken(ctx, id, updater); err != nil {
 		t.Errorf("failed to update refresh token: %v", err)
 	}
 	refresh.Token = "spam"
@@ -429,11 +429,11 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 	// Ensure that updating the first token doesn't impact the second. Issue #847.
 	getAndCompare(id2, refresh2)
 
-	if err := s.DeleteRefresh(id); err != nil {
+	if err := s.DeleteRefresh(ctx, id); err != nil {
 		t.Fatalf("failed to delete refresh request: %v", err)
 	}
 
-	if err := s.DeleteRefresh(id2); err != nil {
+	if err := s.DeleteRefresh(ctx, id2); err != nil {
 		t.Fatalf("failed to delete refresh request: %v", err)
 	}
 
@@ -498,7 +498,7 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 	getAndCompare("jane@example.com", password1)
 	getAndCompare("JANE@example.com", password1) // Emails should be case insensitive
 
-	if err := s.UpdatePassword(password1.Email, func(old storage.Password) (storage.Password, error) {
+	if err := s.UpdatePassword(ctx, password1.Email, func(old storage.Password) (storage.Password, error) {
 		old.Username = "jane doe"
 		return old, nil
 	}); err != nil {
@@ -526,11 +526,11 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 
 	listAndCompare(passwordList)
 
-	if err := s.DeletePassword(password1.Email); err != nil {
+	if err := s.DeletePassword(ctx, password1.Email); err != nil {
 		t.Fatalf("failed to delete password: %v", err)
 	}
 
-	if err := s.DeletePassword(password2.Email); err != nil {
+	if err := s.DeletePassword(ctx, password2.Email); err != nil {
 		t.Fatalf("failed to delete password: %v", err)
 	}
 
@@ -592,7 +592,7 @@ func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {
 	}
 	session1.Refresh[tokenRef.ClientID] = &tokenRef
 
-	if err := s.UpdateOfflineSessions(session1.UserID, session1.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+	if err := s.UpdateOfflineSessions(ctx, session1.UserID, session1.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 		old.Refresh[tokenRef.ClientID] = &tokenRef
 		return old, nil
 	}); err != nil {
@@ -601,11 +601,11 @@ func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {
 
 	getAndCompare(userID1, "Conn1", session1)
 
-	if err := s.DeleteOfflineSessions(session1.UserID, session1.ConnID); err != nil {
+	if err := s.DeleteOfflineSessions(ctx, session1.UserID, session1.ConnID); err != nil {
 		t.Fatalf("failed to delete offline session: %v", err)
 	}
 
-	if err := s.DeleteOfflineSessions(session2.UserID, session2.ConnID); err != nil {
+	if err := s.DeleteOfflineSessions(ctx, session2.UserID, session2.ConnID); err != nil {
 		t.Fatalf("failed to delete offline session: %v", err)
 	}
 
@@ -660,7 +660,7 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 
 	getAndCompare(id1, c1)
 
-	if err := s.UpdateConnector(c1.ID, func(old storage.Connector) (storage.Connector, error) {
+	if err := s.UpdateConnector(ctx, c1.ID, func(old storage.Connector) (storage.Connector, error) {
 		old.Type = "oidc"
 		return old, nil
 	}); err != nil {
@@ -690,11 +690,11 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 	}
 	listAndCompare(connectorList)
 
-	if err := s.DeleteConnector(c1.ID); err != nil {
+	if err := s.DeleteConnector(ctx, c1.ID); err != nil {
 		t.Fatalf("failed to delete connector: %v", err)
 	}
 
-	if err := s.DeleteConnector(c2.ID); err != nil {
+	if err := s.DeleteConnector(ctx, c2.ID); err != nil {
 		t.Fatalf("failed to delete connector: %v", err)
 	}
 
@@ -706,7 +706,7 @@ func testKeysCRUD(t *testing.T, s storage.Storage) {
 	ctx := context.TODO()
 
 	updateAndCompare := func(k storage.Keys) {
-		err := s.UpdateKeys(func(oldKeys storage.Keys) (storage.Keys, error) {
+		err := s.UpdateKeys(ctx, func(oldKeys storage.Keys) (storage.Keys, error) {
 			return k, nil
 		})
 		if err != nil {
@@ -788,7 +788,7 @@ func testGC(t *testing.T, s storage.Storage) {
 	}
 
 	for _, tz := range []*time.Location{time.UTC, est, pst} {
-		result, err := s.GarbageCollect(expiry.Add(-time.Hour).In(tz))
+		result, err := s.GarbageCollect(ctx, expiry.Add(-time.Hour).In(tz))
 		if err != nil {
 			t.Errorf("garbage collection failed: %v", err)
 		} else if result.AuthCodes != 0 || result.AuthRequests != 0 {
@@ -799,7 +799,7 @@ func testGC(t *testing.T, s storage.Storage) {
 		}
 	}
 
-	if r, err := s.GarbageCollect(expiry.Add(time.Hour)); err != nil {
+	if r, err := s.GarbageCollect(ctx, expiry.Add(time.Hour)); err != nil {
 		t.Errorf("garbage collection failed: %v", err)
 	} else if r.AuthCodes != 1 {
 		t.Errorf("expected to garbage collect 1 objects, got %d", r.AuthCodes)
@@ -839,7 +839,7 @@ func testGC(t *testing.T, s storage.Storage) {
 	}
 
 	for _, tz := range []*time.Location{time.UTC, est, pst} {
-		result, err := s.GarbageCollect(expiry.Add(-time.Hour).In(tz))
+		result, err := s.GarbageCollect(ctx, expiry.Add(-time.Hour).In(tz))
 		if err != nil {
 			t.Errorf("garbage collection failed: %v", err)
 		} else if result.AuthCodes != 0 || result.AuthRequests != 0 {
@@ -850,7 +850,7 @@ func testGC(t *testing.T, s storage.Storage) {
 		}
 	}
 
-	if r, err := s.GarbageCollect(expiry.Add(time.Hour)); err != nil {
+	if r, err := s.GarbageCollect(ctx, expiry.Add(time.Hour)); err != nil {
 		t.Errorf("garbage collection failed: %v", err)
 	} else if r.AuthRequests != 1 {
 		t.Errorf("expected to garbage collect 1 objects, got %d", r.AuthRequests)
@@ -876,7 +876,7 @@ func testGC(t *testing.T, s storage.Storage) {
 	}
 
 	for _, tz := range []*time.Location{time.UTC, est, pst} {
-		result, err := s.GarbageCollect(expiry.Add(-time.Hour).In(tz))
+		result, err := s.GarbageCollect(ctx, expiry.Add(-time.Hour).In(tz))
 		if err != nil {
 			t.Errorf("garbage collection failed: %v", err)
 		} else if result.DeviceRequests != 0 {
@@ -886,7 +886,7 @@ func testGC(t *testing.T, s storage.Storage) {
 			t.Errorf("expected to be able to get auth request after GC: %v", err)
 		}
 	}
-	if r, err := s.GarbageCollect(expiry.Add(time.Hour)); err != nil {
+	if r, err := s.GarbageCollect(ctx, expiry.Add(time.Hour)); err != nil {
 		t.Errorf("garbage collection failed: %v", err)
 	} else if r.DeviceRequests != 1 {
 		t.Errorf("expected to garbage collect 1 device request, got %d", r.DeviceRequests)
@@ -916,7 +916,7 @@ func testGC(t *testing.T, s storage.Storage) {
 	}
 
 	for _, tz := range []*time.Location{time.UTC, est, pst} {
-		result, err := s.GarbageCollect(expiry.Add(-time.Hour).In(tz))
+		result, err := s.GarbageCollect(ctx, expiry.Add(-time.Hour).In(tz))
 		if err != nil {
 			t.Errorf("garbage collection failed: %v", err)
 		} else if result.DeviceTokens != 0 {
@@ -926,7 +926,7 @@ func testGC(t *testing.T, s storage.Storage) {
 			t.Errorf("expected to be able to get device token after GC: %v", err)
 		}
 	}
-	if r, err := s.GarbageCollect(expiry.Add(time.Hour)); err != nil {
+	if r, err := s.GarbageCollect(ctx, expiry.Add(time.Hour)); err != nil {
 		t.Errorf("garbage collection failed: %v", err)
 	} else if r.DeviceTokens != 1 {
 		t.Errorf("expected to garbage collect 1 device token, got %d", r.DeviceTokens)
@@ -1043,7 +1043,7 @@ func testDeviceTokenCRUD(t *testing.T, s storage.Storage) {
 	mustBeErrAlreadyExists(t, "device token", err)
 
 	// Update the device token, simulate a redemption
-	if err := s.UpdateDeviceToken(d1.DeviceCode, func(old storage.DeviceToken) (storage.DeviceToken, error) {
+	if err := s.UpdateDeviceToken(ctx, d1.DeviceCode, func(old storage.DeviceToken) (storage.DeviceToken, error) {
 		old.Token = "token data"
 		old.Status = "complete"
 		return old, nil

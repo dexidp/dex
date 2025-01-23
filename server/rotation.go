@@ -128,7 +128,7 @@ func (k keyRotator) rotate() error {
 	}
 
 	var nextRotation time.Time
-	err = k.Storage.UpdateKeys(func(keys storage.Keys) (storage.Keys, error) {
+	err = k.Storage.UpdateKeys(context.Background(), func(keys storage.Keys) (storage.Keys, error) {
 		tNow := k.now()
 
 		// if you are running multiple instances of dex, another instance

@@ -49,7 +49,7 @@ func TestStaticClients(t *testing.T) {
 					c.Secret = "new_" + c.Secret
 					return c, nil
 				}
-				return s.UpdateClient(c2.ID, updater)
+				return s.UpdateClient(ctx, c2.ID, updater)
 			},
 			wantErr: true,
 		},
@@ -60,7 +60,7 @@ func TestStaticClients(t *testing.T) {
 					c.Secret = "new_" + c.Secret
 					return c, nil
 				}
-				return s.UpdateClient(c1.ID, updater)
+				return s.UpdateClient(ctx, c1.ID, updater)
 			},
 		},
 		{
@@ -141,7 +141,7 @@ func TestStaticPasswords(t *testing.T) {
 					p.Username = "new_" + p.Username
 					return p, nil
 				}
-				return s.UpdatePassword(p2.Email, updater)
+				return s.UpdatePassword(ctx, p2.Email, updater)
 			},
 			wantErr: true,
 		},
@@ -152,7 +152,7 @@ func TestStaticPasswords(t *testing.T) {
 					p.Username = "new_" + p.Username
 					return p, nil
 				}
-				return s.UpdatePassword(p1.Email, updater)
+				return s.UpdatePassword(ctx, p1.Email, updater)
 			},
 		},
 		{
@@ -246,7 +246,7 @@ func TestStaticConnectors(t *testing.T) {
 					c.Name = "New"
 					return c, nil
 				}
-				return s.UpdateConnector(c2.ID, updater)
+				return s.UpdateConnector(ctx, c2.ID, updater)
 			},
 			wantErr: true,
 		},
@@ -257,7 +257,7 @@ func TestStaticConnectors(t *testing.T) {
 					c.Name = "New"
 					return c, nil
 				}
-				return s.UpdateConnector(c1.ID, updater)
+				return s.UpdateConnector(ctx, c1.ID, updater)
 			},
 		},
 		{

@@ -108,7 +108,7 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 		return nil, errors.New("update client: no client ID supplied")
 	}
 
-	err := d.s.UpdateClient(req.Id, func(old storage.Client) (storage.Client, error) {
+	err := d.s.UpdateClient(ctx, req.Id, func(old storage.Client) (storage.Client, error) {
 		if req.RedirectUris != nil {
 			old.RedirectURIs = req.RedirectUris
 		}
@@ -134,7 +134,7 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 }
 
 func (d dexAPI) DeleteClient(ctx context.Context, req *api.DeleteClientReq) (*api.DeleteClientResp, error) {
-	err := d.s.DeleteClient(req.Id)
+	err := d.s.DeleteClient(ctx, req.Id)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			return &api.DeleteClientResp{NotFound: true}, nil
@@ -219,7 +219,7 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 		return old, nil
 	}
 
-	if err := d.s.UpdatePassword(req.Email, updater); err != nil {
+	if err := d.s.UpdatePassword(ctx, req.Email, updater); err != nil {
 		if err == storage.ErrNotFound {
 			return &api.UpdatePasswordResp{NotFound: true}, nil
 		}
@@ -235,7 +235,7 @@ func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) 
 		return nil, errors.New("no email supplied")
 	}
 
-	err := d.s.DeletePassword(req.Email)
+	err := d.s.DeletePassword(ctx, req.Email)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			return &api.DeletePasswordResp{NotFound: true}, nil
@@ -381,7 +381,7 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 		return old, nil
 	}
 
-	if err := d.s.UpdateOfflineSessions(id.UserId, id.ConnId, updater); err != nil {
+	if err := d.s.UpdateOfflineSessions(ctx, id.UserId, id.ConnId, updater); err != nil {
 		if err == storage.ErrNotFound {
 			return &api.RevokeRefreshResp{NotFound: true}, nil
 		}
@@ -397,7 +397,7 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 	//
 	// TODO(ericchiang): we don't have any good recourse if this call fails.
 	// Consider garbage collection of refresh tokens with no associated ref.
-	if err := d.s.DeleteRefresh(refreshID); err != nil {
+	if err := d.s.DeleteRefresh(ctx, refreshID); err != nil {
 		d.logger.Error("failed to delete refresh token", "err", err)
 		return nil, err
 	}
@@ -448,7 +448,7 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 	return &api.CreateConnectorResp{}, nil
 }
 
-func (d dexAPI) UpdateConnector(_ context.Context, req *api.UpdateConnectorReq) (*api.UpdateConnectorResp, error) {
+func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq) (*api.UpdateConnectorResp, error) {
 	if !featureflags.APIConnectorsCRUD.Enabled() {
 		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
 	}
@@ -485,7 +485,7 @@ func (d dexAPI) UpdateConnector(_ context.Context, req *api.UpdateConnectorReq) 
 		return old, nil
 	}
 
-	if err := d.s.UpdateConnector(req.Id, updater); err != nil {
+	if err := d.s.UpdateConnector(ctx, req.Id, updater); err != nil {
 		if err == storage.ErrNotFound {
 			return &api.UpdateConnectorResp{NotFound: true}, nil
 		}
@@ -505,7 +505,7 @@ func (d dexAPI) DeleteConnector(ctx context.Context, req *api.DeleteConnectorReq
 		return nil, errors.New("no id supplied")
 	}
 
-	err := d.s.DeleteConnector(req.Id)
+	err := d.s.DeleteConnector(ctx, req.Id)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			return &api.DeleteConnectorResp{NotFound: true}, nil

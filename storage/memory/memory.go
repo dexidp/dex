@@ -71,7 +71,7 @@ func (s *memStorage) tx(f func()) {
 
 func (s *memStorage) Close() error { return nil }
 
-func (s *memStorage) GarbageCollect(now time.Time) (result storage.GCResult, err error) {
+func (s *memStorage) GarbageCollect(ctx context.Context, now time.Time) (result storage.GCResult, err error) {
 	s.tx(func() {
 		for id, a := range s.authCodes {
 			if now.After(a.Expiry) {
@@ -303,7 +303,7 @@ func (s *memStorage) ListConnectors(ctx context.Context) (conns []storage.Connec
 	return
 }
 
-func (s *memStorage) DeletePassword(email string) (err error) {
+func (s *memStorage) DeletePassword(ctx context.Context, email string) (err error) {
 	email = strings.ToLower(email)
 	s.tx(func() {
 		if _, ok := s.passwords[email]; !ok {
@@ -315,7 +315,7 @@ func (s *memStorage) DeletePassword(email string) (err error) {
 	return
 }
 
-func (s *memStorage) DeleteClient(id string) (err error) {
+func (s *memStorage) DeleteClient(ctx context.Context, id string) (err error) {
 	s.tx(func() {
 		if _, ok := s.clients[id]; !ok {
 			err = storage.ErrNotFound
@@ -326,7 +326,7 @@ func (s *memStorage) DeleteClient(id string) (err error) {
 	return
 }
 
-func (s *memStorage) DeleteRefresh(id string) (err error) {
+func (s *memStorage) DeleteRefresh(ctx context.Context, id string) (err error) {
 	s.tx(func() {
 		if _, ok := s.refreshTokens[id]; !ok {
 			err = storage.ErrNotFound
@@ -337,7 +337,7 @@ func (s *memStorage) DeleteRefresh(id string) (err error) {
 	return
 }
 
-func (s *memStorage) DeleteAuthCode(id string) (err error) {
+func (s *memStorage) DeleteAuthCode(ctx context.Context, id string) (err error) {
 	s.tx(func() {
 		if _, ok := s.authCodes[id]; !ok {
 			err = storage.ErrNotFound
@@ -348,7 +348,7 @@ func (s *memStorage) DeleteAuthCode(id string) (err error) {
 	return
 }
 
-func (s *memStorage) DeleteAuthRequest(id string) (err error) {
+func (s *memStorage) DeleteAuthRequest(ctx context.Context, id string) (err error) {
 	s.tx(func() {
 		if _, ok := s.authReqs[id]; !ok {
 			err = storage.ErrNotFound
@@ -359,7 +359,7 @@ func (s *memStorage) DeleteAuthRequest(id string) (err error) {
 	return
 }
 
-func (s *memStorage) DeleteOfflineSessions(userID string, connID string) (err error) {
+func (s *memStorage) DeleteOfflineSessions(ctx context.Context, userID string, connID string) (err error) {
 	id := offlineSessionID{
 		userID: userID,
 		connID: connID,
@@ -374,7 +374,7 @@ func (s *memStorage) DeleteOfflineSessions(userID string, connID string) (err er
 	return
 }
 
-func (s *memStorage) DeleteConnector(id string) (err error) {
+func (s *memStorage) DeleteConnector(ctx context.Context, id string) (err error) {
 	s.tx(func() {
 		if _, ok := s.connectors[id]; !ok {
 			err = storage.ErrNotFound
@@ -385,7 +385,7 @@ func (s *memStorage) DeleteConnector(id string) (err error) {
 	return
 }
 
-func (s *memStorage) UpdateClient(id string, updater func(old storage.Client) (storage.Client, error)) (err error) {
+func (s *memStorage) UpdateClient(ctx context.Context, id string, updater func(old storage.Client) (storage.Client, error)) (err error) {
 	s.tx(func() {
 		client, ok := s.clients[id]
 		if !ok {
@@ -399,7 +399,7 @@ func (s *memStorage) UpdateClient(id string, updater func(old storage.Client) (s
 	return
 }
 
-func (s *memStorage) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) (err error) {
+func (s *memStorage) UpdateKeys(ctx context.Context, updater func(old storage.Keys) (storage.Keys, error)) (err error) {
 	s.tx(func() {
 		var keys storage.Keys
 		if keys, err = updater(s.keys); err == nil {
@@ -409,7 +409,7 @@ func (s *memStorage) UpdateKeys(updater func(old storage.Keys) (storage.Keys, er
 	return
 }
 
-func (s *memStorage) UpdateAuthRequest(id string, updater func(old storage.AuthRequest) (storage.AuthRequest, error)) (err error) {
+func (s *memStorage) UpdateAuthRequest(ctx context.Context, id string, updater func(old storage.AuthRequest) (storage.AuthRequest, error)) (err error) {
 	s.tx(func() {
 		req, ok := s.authReqs[id]
 		if !ok {
@@ -423,7 +423,7 @@ func (s *memStorage) UpdateAuthRequest(id string, updater func(old storage.AuthR
 	return
 }
 
-func (s *memStorage) UpdatePassword(email string, updater func(p storage.Password) (storage.Password, error)) (err error) {
+func (s *memStorage) UpdatePassword(ctx context.Context, email string, updater func(p storage.Password) (storage.Password, error)) (err error) {
 	email = strings.ToLower(email)
 	s.tx(func() {
 		req, ok := s.passwords[email]
@@ -438,7 +438,7 @@ func (s *memStorage) UpdatePassword(email string, updater func(p storage.Passwor
 	return
 }
 
-func (s *memStorage) UpdateRefreshToken(id string, updater func(p storage.RefreshToken) (storage.RefreshToken, error)) (err error) {
+func (s *memStorage) UpdateRefreshToken(ctx context.Context, id string, updater func(p storage.RefreshToken) (storage.RefreshToken, error)) (err error) {
 	s.tx(func() {
 		r, ok := s.refreshTokens[id]
 		if !ok {
@@ -452,7 +452,7 @@ func (s *memStorage) UpdateRefreshToken(id string, updater func(p storage.Refres
 	return
 }
 
-func (s *memStorage) UpdateOfflineSessions(userID string, connID string, updater func(o storage.OfflineSessions) (storage.OfflineSessions, error)) (err error) {
+func (s *memStorage) UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(o storage.OfflineSessions) (storage.OfflineSessions, error)) (err error) {
 	id := offlineSessionID{
 		userID: userID,
 		connID: connID,
@@ -470,7 +470,7 @@ func (s *memStorage) UpdateOfflineSessions(userID string, connID string, updater
 	return
 }
 
-func (s *memStorage) UpdateConnector(id string, updater func(c storage.Connector) (storage.Connector, error)) (err error) {
+func (s *memStorage) UpdateConnector(ctx context.Context, id string, updater func(c storage.Connector) (storage.Connector, error)) (err error) {
 	s.tx(func() {
 		r, ok := s.connectors[id]
 		if !ok {
@@ -528,7 +528,7 @@ func (s *memStorage) GetDeviceToken(ctx context.Context, deviceCode string) (t s
 	return
 }
 
-func (s *memStorage) UpdateDeviceToken(deviceCode string, updater func(p storage.DeviceToken) (storage.DeviceToken, error)) (err error) {
+func (s *memStorage) UpdateDeviceToken(ctx context.Context, deviceCode string, updater func(p storage.DeviceToken) (storage.DeviceToken, error)) (err error) {
 	s.tx(func() {
 		r, ok := s.deviceTokens[deviceCode]
 		if !ok {

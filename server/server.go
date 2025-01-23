@@ -626,7 +626,7 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 			case <-ctx.Done():
 				return
 			case <-time.After(frequency):
-				if r, err := s.storage.GarbageCollect(now()); err != nil {
+				if r, err := s.storage.GarbageCollect(ctx, now()); err != nil {
 					s.logger.ErrorContext(ctx, "garbage collection failed", "err", err)
 				} else if !r.IsEmpty() {
 					s.logger.InfoContext(ctx, "garbage collection run, delete auth",

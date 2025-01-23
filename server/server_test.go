@@ -1377,7 +1377,7 @@ func (s storageWithKeysTrigger) GetKeys(ctx context.Context) (storage.Keys, erro
 func TestKeyCacher(t *testing.T) {
 	tNow := time.Now()
 	now := func() time.Time { return tNow }
-
+	ctx := context.TODO()
 	s := memory.New(logger)
 
 	tests := []struct {
@@ -1390,7 +1390,7 @@ func TestKeyCacher(t *testing.T) {
 		},
 		{
 			before: func() {
-				s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
+				s.UpdateKeys(ctx, func(old storage.Keys) (storage.Keys, error) {
 					old.NextRotation = tNow.Add(time.Minute)
 					return old, nil
 				})
@@ -1410,7 +1410,7 @@ func TestKeyCacher(t *testing.T) {
 		{
 			before: func() {
 				tNow = tNow.Add(time.Hour)
-				s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
+				s.UpdateKeys(ctx, func(old storage.Keys) (storage.Keys, error) {
 					old.NextRotation = tNow.Add(time.Minute)
 					return old, nil
 				})
