@@ -875,7 +875,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			tokens, err := s.storage.ListRefreshTokens()
+			tokens, err := s.storage.ListRefreshTokens(ctx)
 			if err != nil {
 				t.Fatalf("failed to get existed refresh token: %v", err)
 			}
@@ -1369,15 +1369,15 @@ type storageWithKeysTrigger struct {
 	f func()
 }
 
-func (s storageWithKeysTrigger) GetKeys() (storage.Keys, error) {
+func (s storageWithKeysTrigger) GetKeys(ctx context.Context) (storage.Keys, error) {
 	s.f()
-	return s.Storage.GetKeys()
+	return s.Storage.GetKeys(ctx)
 }
 
 func TestKeyCacher(t *testing.T) {
 	tNow := time.Now()
 	now := func() time.Time { return tNow }
-
+	ctx := context.TODO()
 	s := memory.New(logger)
 
 	tests := []struct {
@@ -1390,7 +1390,7 @@ func TestKeyCacher(t *testing.T) {
 		},
 		{
 			before: func() {
-				s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
+				s.UpdateKeys(ctx, func(old storage.Keys) (storage.Keys, error) {
 					old.NextRotation = tNow.Add(time.Minute)
 					return old, nil
 				})
@@ -1410,7 +1410,7 @@ func TestKeyCacher(t *testing.T) {
 		{
 			before: func() {
 				tNow = tNow.Add(time.Hour)
-				s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
+				s.UpdateKeys(ctx, func(old storage.Keys) (storage.Keys, error) {
 					old.NextRotation = tNow.Add(time.Minute)
 					return old, nil
 				})
@@ -1428,7 +1428,7 @@ func TestKeyCacher(t *testing.T) {
 	for i, tc := range tests {
 		gotCall = false
 		tc.before()
-		s.GetKeys()
+		s.GetKeys(context.TODO())
 		if gotCall != tc.wantCallToStorage {
 			t.Errorf("case %d: expected call to storage=%t got call to storage=%t", i, tc.wantCallToStorage, gotCall)
 		}

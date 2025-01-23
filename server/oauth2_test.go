@@ -599,7 +599,7 @@ func TestValidRedirectURI(t *testing.T) {
 
 func TestStorageKeySet(t *testing.T) {
 	s := memory.New(logger)
-	if err := s.UpdateKeys(func(keys storage.Keys) (storage.Keys, error) {
+	if err := s.UpdateKeys(context.TODO(), func(keys storage.Keys) (storage.Keys, error) {
 		keys.SigningKey = &jose.JSONWebKey{
 			Key:       testKey,
 			KeyID:     "testkey",

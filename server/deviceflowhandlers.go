@@ -199,6 +199,7 @@ func (s *Server) handleDeviceTokenDeprecated(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	deviceCode := r.Form.Get("device_code")
 	if deviceCode == "" {
 		s.tokenErrHelper(w, errInvalidRequest, "No device code received", http.StatusBadRequest)
@@ -208,7 +209,7 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 	now := s.now()
 
 	// Grab the device token, check validity
-	deviceToken, err := s.storage.GetDeviceToken(deviceCode)
+	deviceToken, err := s.storage.GetDeviceToken(ctx, deviceCode)
 	if err != nil {
 		if err != storage.ErrNotFound {
 			s.logger.ErrorContext(r.Context(), "failed to get device code", "err", err)
@@ -240,7 +241,7 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 			return old, nil
 		}
 		// Update device token last request time in storage
-		if err := s.storage.UpdateDeviceToken(deviceCode, updater); err != nil {
+		if err := s.storage.UpdateDeviceToken(ctx, deviceCode, updater); err != nil {
 			s.logger.ErrorContext(r.Context(), "failed to update device token", "err", err)
 			s.renderError(r, w, http.StatusInternalServerError, "")
 			return
@@ -299,7 +300,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		authCode, err := s.storage.GetAuthCode(code)
+		authCode, err := s.storage.GetAuthCode(ctx, code)
 		if err != nil || s.now().After(authCode.Expiry) {
 			errCode := http.StatusBadRequest
 			if err != nil && err != storage.ErrNotFound {
@@ -311,7 +312,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Grab the device request from storage
-		deviceReq, err := s.storage.GetDeviceRequest(userCode)
+		deviceReq, err := s.storage.GetDeviceRequest(ctx, userCode)
 		if err != nil || s.now().After(deviceReq.Expiry) {
 			errCode := http.StatusBadRequest
 			if err != nil && err != storage.ErrNotFound {
@@ -322,7 +323,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		client, err := s.storage.GetClient(deviceReq.ClientID)
+		client, err := s.storage.GetClient(ctx, deviceReq.ClientID)
 		if err != nil {
 			if err != storage.ErrNotFound {
 				s.logger.ErrorContext(r.Context(), "failed to get client", "err", err)
@@ -345,7 +346,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Grab the device token from storage
-		old, err := s.storage.GetDeviceToken(deviceReq.DeviceCode)
+		old, err := s.storage.GetDeviceToken(ctx, deviceReq.DeviceCode)
 		if err != nil || s.now().After(old.Expiry) {
 			errCode := http.StatusBadRequest
 			if err != nil && err != storage.ErrNotFound {
@@ -373,7 +374,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Update refresh token in the storage, store the token and mark as complete
-		if err := s.storage.UpdateDeviceToken(deviceReq.DeviceCode, updater); err != nil {
+		if err := s.storage.UpdateDeviceToken(ctx, deviceReq.DeviceCode, updater); err != nil {
 			s.logger.ErrorContext(r.Context(), "failed to update device token", "err", err)
 			s.renderError(r, w, http.StatusBadRequest, "")
 			return
@@ -391,6 +392,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	switch r.Method {
 	case http.MethodPost:
 		err := r.ParseForm()
@@ -409,7 +411,7 @@ func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 		userCode = strings.ToUpper(userCode)
 
 		// Find the user code in the available requests
-		deviceRequest, err := s.storage.GetDeviceRequest(userCode)
+		deviceRequest, err := s.storage.GetDeviceRequest(ctx, userCode)
 		if err != nil || s.now().After(deviceRequest.Expiry) {
 			if err != nil && err != storage.ErrNotFound {
 				s.logger.ErrorContext(r.Context(), "failed to get device request", "err", err)

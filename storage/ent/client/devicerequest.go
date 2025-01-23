@@ -25,10 +25,10 @@ func (d *Database) CreateDeviceRequest(ctx context.Context, request storage.Devi
 }
 
 // GetDeviceRequest extracts a device request from the database by user code.
-func (d *Database) GetDeviceRequest(userCode string) (storage.DeviceRequest, error) {
+func (d *Database) GetDeviceRequest(ctx context.Context, userCode string) (storage.DeviceRequest, error) {
 	deviceRequest, err := d.client.DeviceRequest.Query().
 		Where(devicerequest.UserCode(userCode)).
-		Only(context.TODO())
+		Only(ctx)
 	if err != nil {
 		return storage.DeviceRequest{}, convertDBError("get device request: %w", err)
 	}

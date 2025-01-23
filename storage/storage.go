@@ -89,30 +89,30 @@ type Storage interface {
 
 	// TODO(ericchiang): return (T, bool, error) so we can indicate not found
 	// requests that way instead of using ErrNotFound.
-	GetAuthRequest(id string) (AuthRequest, error)
-	GetAuthCode(id string) (AuthCode, error)
-	GetClient(id string) (Client, error)
-	GetKeys() (Keys, error)
-	GetRefresh(id string) (RefreshToken, error)
-	GetPassword(email string) (Password, error)
-	GetOfflineSessions(userID string, connID string) (OfflineSessions, error)
-	GetConnector(id string) (Connector, error)
-	GetDeviceRequest(userCode string) (DeviceRequest, error)
-	GetDeviceToken(deviceCode string) (DeviceToken, error)
+	GetAuthRequest(ctx context.Context, id string) (AuthRequest, error)
+	GetAuthCode(ctx context.Context, id string) (AuthCode, error)
+	GetClient(ctx context.Context, id string) (Client, error)
+	GetKeys(ctx context.Context) (Keys, error)
+	GetRefresh(ctx context.Context, id string) (RefreshToken, error)
+	GetPassword(ctx context.Context, email string) (Password, error)
+	GetOfflineSessions(ctx context.Context, userID string, connID string) (OfflineSessions, error)
+	GetConnector(ctx context.Context, id string) (Connector, error)
+	GetDeviceRequest(ctx context.Context, userCode string) (DeviceRequest, error)
+	GetDeviceToken(ctx context.Context, deviceCode string) (DeviceToken, error)
 
-	ListClients() ([]Client, error)
-	ListRefreshTokens() ([]RefreshToken, error)
-	ListPasswords() ([]Password, error)
-	ListConnectors() ([]Connector, error)
+	ListClients(ctx context.Context) ([]Client, error)
+	ListRefreshTokens(ctx context.Context) ([]RefreshToken, error)
+	ListPasswords(ctx context.Context) ([]Password, error)
+	ListConnectors(ctx context.Context) ([]Connector, error)
 
 	// Delete methods MUST be atomic.
-	DeleteAuthRequest(id string) error
-	DeleteAuthCode(code string) error
-	DeleteClient(id string) error
-	DeleteRefresh(id string) error
-	DeletePassword(email string) error
-	DeleteOfflineSessions(userID string, connID string) error
-	DeleteConnector(id string) error
+	DeleteAuthRequest(ctx context.Context, id string) error
+	DeleteAuthCode(ctx context.Context, code string) error
+	DeleteClient(ctx context.Context, id string) error
+	DeleteRefresh(ctx context.Context, id string) error
+	DeletePassword(ctx context.Context, email string) error
+	DeleteOfflineSessions(ctx context.Context, userID string, connID string) error
+	DeleteConnector(ctx context.Context, id string) error
 
 	// Update methods take a function for updating an object then performs that update within
 	// a transaction. "updater" functions may be called multiple times by a single update call.
@@ -128,18 +128,18 @@ type Storage interface {
 	//			// update failed, handle error
 	//		}
 	//
-	UpdateClient(id string, updater func(old Client) (Client, error)) error
-	UpdateKeys(updater func(old Keys) (Keys, error)) error
-	UpdateAuthRequest(id string, updater func(a AuthRequest) (AuthRequest, error)) error
-	UpdateRefreshToken(id string, updater func(r RefreshToken) (RefreshToken, error)) error
-	UpdatePassword(email string, updater func(p Password) (Password, error)) error
-	UpdateOfflineSessions(userID string, connID string, updater func(s OfflineSessions) (OfflineSessions, error)) error
-	UpdateConnector(id string, updater func(c Connector) (Connector, error)) error
-	UpdateDeviceToken(deviceCode string, updater func(t DeviceToken) (DeviceToken, error)) error
+	UpdateClient(ctx context.Context, id string, updater func(old Client) (Client, error)) error
+	UpdateKeys(ctx context.Context, updater func(old Keys) (Keys, error)) error
+	UpdateAuthRequest(ctx context.Context, id string, updater func(a AuthRequest) (AuthRequest, error)) error
+	UpdateRefreshToken(ctx context.Context, id string, updater func(r RefreshToken) (RefreshToken, error)) error
+	UpdatePassword(ctx context.Context, email string, updater func(p Password) (Password, error)) error
+	UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s OfflineSessions) (OfflineSessions, error)) error
+	UpdateConnector(ctx context.Context, id string, updater func(c Connector) (Connector, error)) error
+	UpdateDeviceToken(ctx context.Context, deviceCode string, updater func(t DeviceToken) (DeviceToken, error)) error
 
 	// GarbageCollect deletes all expired AuthCodes,
 	// AuthRequests, DeviceRequests, and DeviceTokens.
-	GarbageCollect(now time.Time) (GCResult, error)
+	GarbageCollect(ctx context.Context, now time.Time) (GCResult, error)
 }
 
 // Client represents an OAuth2 client.
