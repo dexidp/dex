@@ -38,15 +38,15 @@ func (d *Database) GetDeviceToken(ctx context.Context, deviceCode string) (stora
 }
 
 // UpdateDeviceToken changes a token by device code using an updater function and saves it to the database.
-func (d *Database) UpdateDeviceToken(deviceCode string, updater func(old storage.DeviceToken) (storage.DeviceToken, error)) error {
-	tx, err := d.BeginTx(context.TODO())
+func (d *Database) UpdateDeviceToken(ctx context.Context, deviceCode string, updater func(old storage.DeviceToken) (storage.DeviceToken, error)) error {
+	tx, err := d.BeginTx(ctx)
 	if err != nil {
 		return convertDBError("update device token tx: %w", err)
 	}
 
 	token, err := tx.DeviceToken.Query().
 		Where(devicetoken.DeviceCode(deviceCode)).
-		Only(context.TODO())
+		Only(ctx)
 	if err != nil {
 		return rollback(tx, "update device token database: %w", err)
 	}
@@ -67,7 +67,7 @@ func (d *Database) UpdateDeviceToken(deviceCode string, updater func(old storage
 		SetStatus(newToken.Status).
 		SetCodeChallenge(newToken.PKCE.CodeChallenge).
 		SetCodeChallengeMethod(newToken.PKCE.CodeChallengeMethod).
-		Save(context.TODO())
+		Save(ctx)
 	if err != nil {
 		return rollback(tx, "update device token uploading: %w", err)
 	}

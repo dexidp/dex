@@ -57,8 +57,8 @@ func (d *Database) GetRefresh(ctx context.Context, id string) (storage.RefreshTo
 }
 
 // DeleteRefresh deletes a refresh token from the database by id.
-func (d *Database) DeleteRefresh(id string) error {
-	err := d.client.RefreshToken.DeleteOneID(id).Exec(context.TODO())
+func (d *Database) DeleteRefresh(ctx context.Context, id string) error {
+	err := d.client.RefreshToken.DeleteOneID(id).Exec(ctx)
 	if err != nil {
 		return convertDBError("delete refresh token: %w", err)
 	}
@@ -66,13 +66,13 @@ func (d *Database) DeleteRefresh(id string) error {
 }
 
 // UpdateRefreshToken changes a refresh token by id using an updater function and saves it to the database.
-func (d *Database) UpdateRefreshToken(id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
-	tx, err := d.BeginTx(context.TODO())
+func (d *Database) UpdateRefreshToken(ctx context.Context, id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
+	tx, err := d.BeginTx(ctx)
 	if err != nil {
 		return convertDBError("update refresh token tx: %w", err)
 	}
 
-	token, err := tx.RefreshToken.Get(context.TODO(), id)
+	token, err := tx.RefreshToken.Get(ctx, id)
 	if err != nil {
 		return rollback(tx, "update refresh token database: %w", err)
 	}
@@ -99,7 +99,7 @@ func (d *Database) UpdateRefreshToken(id string, updater func(old storage.Refres
 		// Save utc time into database because ent doesn't support comparing dates with different timezones
 		SetLastUsed(newtToken.LastUsed.UTC()).
 		SetCreatedAt(newtToken.CreatedAt.UTC()).
-		Save(context.TODO())
+		Save(ctx)
 	if err != nil {
 		return rollback(tx, "update refresh token uploading: %w", err)
 	}

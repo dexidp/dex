@@ -67,18 +67,18 @@ func (s staticClientsStorage) CreateClient(ctx context.Context, c Client) error 
 	return s.Storage.CreateClient(ctx, c)
 }
 
-func (s staticClientsStorage) DeleteClient(id string) error {
+func (s staticClientsStorage) DeleteClient(ctx context.Context, id string) error {
 	if s.isStatic(id) {
 		return errors.New("static clients: read-only cannot delete client")
 	}
-	return s.Storage.DeleteClient(id)
+	return s.Storage.DeleteClient(ctx, id)
 }
 
-func (s staticClientsStorage) UpdateClient(id string, updater func(old Client) (Client, error)) error {
+func (s staticClientsStorage) UpdateClient(ctx context.Context, id string, updater func(old Client) (Client, error)) error {
 	if s.isStatic(id) {
 		return errors.New("static clients: read-only cannot update client")
 	}
-	return s.Storage.UpdateClient(id, updater)
+	return s.Storage.UpdateClient(ctx, id, updater)
 }
 
 type staticPasswordsStorage struct {
@@ -147,18 +147,18 @@ func (s staticPasswordsStorage) CreatePassword(ctx context.Context, p Password) 
 	return s.Storage.CreatePassword(ctx, p)
 }
 
-func (s staticPasswordsStorage) DeletePassword(email string) error {
+func (s staticPasswordsStorage) DeletePassword(ctx context.Context, email string) error {
 	if s.isStatic(email) {
 		return errors.New("static passwords: read-only cannot delete password")
 	}
-	return s.Storage.DeletePassword(email)
+	return s.Storage.DeletePassword(ctx, email)
 }
 
-func (s staticPasswordsStorage) UpdatePassword(email string, updater func(old Password) (Password, error)) error {
+func (s staticPasswordsStorage) UpdatePassword(ctx context.Context, email string, updater func(old Password) (Password, error)) error {
 	if s.isStatic(email) {
 		return errors.New("static passwords: read-only cannot update password")
 	}
-	return s.Storage.UpdatePassword(email, updater)
+	return s.Storage.UpdatePassword(ctx, email, updater)
 }
 
 // staticConnectorsStorage represents a storage with read-only set of connectors.
@@ -217,16 +217,16 @@ func (s staticConnectorsStorage) CreateConnector(ctx context.Context, c Connecto
 	return s.Storage.CreateConnector(ctx, c)
 }
 
-func (s staticConnectorsStorage) DeleteConnector(id string) error {
+func (s staticConnectorsStorage) DeleteConnector(ctx context.Context, id string) error {
 	if s.isStatic(id) {
 		return errors.New("static connectors: read-only cannot delete connector")
 	}
-	return s.Storage.DeleteConnector(id)
+	return s.Storage.DeleteConnector(ctx, id)
 }
 
-func (s staticConnectorsStorage) UpdateConnector(id string, updater func(old Connector) (Connector, error)) error {
+func (s staticConnectorsStorage) UpdateConnector(ctx context.Context, id string, updater func(old Connector) (Connector, error)) error {
 	if s.isStatic(id) {
 		return errors.New("static connectors: read-only cannot update connector")
 	}
-	return s.Storage.UpdateConnector(id, updater)
+	return s.Storage.UpdateConnector(ctx, id, updater)
 }

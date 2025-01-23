@@ -523,7 +523,7 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		a.ConnectorData = identity.ConnectorData
 		return a, nil
 	}
-	if err := s.storage.UpdateAuthRequest(authReq.ID, updater); err != nil {
+	if err := s.storage.UpdateAuthRequest(ctx, authReq.ID, updater); err != nil {
 		return "", false, fmt.Errorf("failed to update auth request: %v", err)
 	}
 
@@ -565,7 +565,7 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 			}
 		case err == nil:
 			// Update existing OfflineSession obj with new RefreshTokenRef.
-			if err := s.storage.UpdateOfflineSessions(session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+			if err := s.storage.UpdateOfflineSessions(ctx, session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 				if len(identity.ConnectorData) > 0 {
 					old.ConnectorData = identity.ConnectorData
 				}
@@ -657,7 +657,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		return
 	}
 
-	if err := s.storage.DeleteAuthRequest(authReq.ID); err != nil {
+	if err := s.storage.DeleteAuthRequest(ctx, authReq.ID); err != nil {
 		if err != storage.ErrNotFound {
 			s.logger.ErrorContext(r.Context(), "Failed to delete authorization request", "err", err)
 			s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
@@ -954,7 +954,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 		return nil, err
 	}
 
-	if err := s.storage.DeleteAuthCode(authCode.ID); err != nil {
+	if err := s.storage.DeleteAuthCode(ctx, authCode.ID); err != nil {
 		s.logger.ErrorContext(ctx, "failed to delete auth code", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return nil, err
@@ -1020,7 +1020,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 		defer func() {
 			if deleteToken {
 				// Delete newly created refresh token from storage.
-				if err := s.storage.DeleteRefresh(refresh.ID); err != nil {
+				if err := s.storage.DeleteRefresh(ctx, refresh.ID); err != nil {
 					s.logger.ErrorContext(ctx, "failed to delete refresh token", "err", err)
 					s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 					return
@@ -1061,7 +1061,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 		} else {
 			if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
 				// Delete old refresh token from storage.
-				if err := s.storage.DeleteRefresh(oldTokenRef.ID); err != nil && err != storage.ErrNotFound {
+				if err := s.storage.DeleteRefresh(ctx, oldTokenRef.ID); err != nil && err != storage.ErrNotFound {
 					s.logger.ErrorContext(ctx, "failed to delete refresh token", "err", err)
 					s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 					deleteToken = true
@@ -1070,7 +1070,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 			}
 
 			// Update existing OfflineSession obj with new RefreshTokenRef.
-			if err := s.storage.UpdateOfflineSessions(session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+			if err := s.storage.UpdateOfflineSessions(ctx, session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 				old.Refresh[tokenRef.ClientID] = &tokenRef
 				return old, nil
 			}); err != nil {
@@ -1272,7 +1272,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		defer func() {
 			if deleteToken {
 				// Delete newly created refresh token from storage.
-				if err := s.storage.DeleteRefresh(refresh.ID); err != nil {
+				if err := s.storage.DeleteRefresh(ctx, refresh.ID); err != nil {
 					s.logger.ErrorContext(r.Context(), "failed to delete refresh token", "err", err)
 					s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 					return
@@ -1314,7 +1314,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		} else {
 			if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
 				// Delete old refresh token from storage.
-				if err := s.storage.DeleteRefresh(oldTokenRef.ID); err != nil {
+				if err := s.storage.DeleteRefresh(ctx, oldTokenRef.ID); err != nil {
 					if err == storage.ErrNotFound {
 						s.logger.Warn("database inconsistent, refresh token missing", "token_id", oldTokenRef.ID)
 					} else {
@@ -1327,7 +1327,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 			}
 
 			// Update existing OfflineSession obj with new RefreshTokenRef.
-			if err := s.storage.UpdateOfflineSessions(session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+			if err := s.storage.UpdateOfflineSessions(ctx, session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 				old.Refresh[tokenRef.ClientID] = &tokenRef
 				old.ConnectorData = identity.ConnectorData
 				return old, nil

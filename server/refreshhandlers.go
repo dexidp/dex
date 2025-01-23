@@ -223,7 +223,7 @@ func (s *Server) updateOfflineSession(ctx context.Context, refresh *storage.Refr
 
 	// Update LastUsed time stamp in refresh token reference object
 	// in offline session for the user.
-	err := s.storage.UpdateOfflineSessions(refresh.Claims.UserID, refresh.ConnectorID, offlineSessionUpdater)
+	err := s.storage.UpdateOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID, offlineSessionUpdater)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to update offline session", "err", err)
 		return newInternalServerError()
@@ -314,7 +314,7 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 	}
 
 	// Update refresh token in the storage.
-	err := s.storage.UpdateRefreshToken(rCtx.storageToken.ID, refreshTokenUpdater)
+	err := s.storage.UpdateRefreshToken(ctx, rCtx.storageToken.ID, refreshTokenUpdater)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to update refresh token", "err", err)
 		return nil, ident, newInternalServerError()

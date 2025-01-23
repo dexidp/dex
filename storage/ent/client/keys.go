@@ -23,10 +23,9 @@ func (d *Database) GetKeys(ctx context.Context) (storage.Keys, error) {
 }
 
 // UpdateKeys rotates keys using updater function.
-func (d *Database) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) error {
+func (d *Database) UpdateKeys(ctx context.Context, updater func(old storage.Keys) (storage.Keys, error)) error {
 	firstUpdate := false
 
-	ctx := context.TODO()
 	tx, err := d.BeginTx(ctx)
 	if err != nil {
 		return convertDBError("update keys tx: %w", err)
@@ -54,7 +53,7 @@ func (d *Database) UpdateKeys(updater func(old storage.Keys) (storage.Keys, erro
 			SetSigningKey(*newKeys.SigningKey).
 			SetSigningKeyPub(*newKeys.SigningKeyPub).
 			SetVerificationKeys(newKeys.VerificationKeys).
-			Save(context.TODO())
+			Save(ctx)
 		if err != nil {
 			return rollback(tx, "create keys: %w", err)
 		}
@@ -69,7 +68,7 @@ func (d *Database) UpdateKeys(updater func(old storage.Keys) (storage.Keys, erro
 		SetSigningKey(*newKeys.SigningKey).
 		SetSigningKeyPub(*newKeys.SigningKeyPub).
 		SetVerificationKeys(newKeys.VerificationKeys).
-		Exec(context.TODO())
+		Exec(ctx)
 	if err != nil {
 		return rollback(tx, "update keys uploading: %w", err)
 	}

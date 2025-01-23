@@ -241,7 +241,7 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 			return old, nil
 		}
 		// Update device token last request time in storage
-		if err := s.storage.UpdateDeviceToken(deviceCode, updater); err != nil {
+		if err := s.storage.UpdateDeviceToken(ctx, deviceCode, updater); err != nil {
 			s.logger.ErrorContext(r.Context(), "failed to update device token", "err", err)
 			s.renderError(r, w, http.StatusInternalServerError, "")
 			return
@@ -374,7 +374,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Update refresh token in the storage, store the token and mark as complete
-		if err := s.storage.UpdateDeviceToken(deviceReq.DeviceCode, updater); err != nil {
+		if err := s.storage.UpdateDeviceToken(ctx, deviceReq.DeviceCode, updater); err != nil {
 			s.logger.ErrorContext(r.Context(), "failed to update device token", "err", err)
 			s.renderError(r, w, http.StatusBadRequest, "")
 			return

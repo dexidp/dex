@@ -43,8 +43,8 @@ func (d *Database) GetAuthCode(ctx context.Context, id string) (storage.AuthCode
 }
 
 // DeleteAuthCode deletes an auth code from the database by id.
-func (d *Database) DeleteAuthCode(id string) error {
-	err := d.client.AuthCode.DeleteOneID(id).Exec(context.TODO())
+func (d *Database) DeleteAuthCode(ctx context.Context, id string) error {
+	err := d.client.AuthCode.DeleteOneID(id).Exec(ctx)
 	if err != nil {
 		return convertDBError("delete auth code: %w", err)
 	}

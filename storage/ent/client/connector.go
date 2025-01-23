@@ -45,8 +45,8 @@ func (d *Database) GetConnector(ctx context.Context, id string) (storage.Connect
 }
 
 // DeleteConnector deletes a connector from the database by id.
-func (d *Database) DeleteConnector(id string) error {
-	err := d.client.Connector.DeleteOneID(id).Exec(context.TODO())
+func (d *Database) DeleteConnector(ctx context.Context, id string) error {
+	err := d.client.Connector.DeleteOneID(id).Exec(ctx)
 	if err != nil {
 		return convertDBError("delete connector: %w", err)
 	}
@@ -54,13 +54,13 @@ func (d *Database) DeleteConnector(id string) error {
 }
 
 // UpdateConnector changes a connector by id using an updater function and saves it to the database.
-func (d *Database) UpdateConnector(id string, updater func(old storage.Connector) (storage.Connector, error)) error {
-	tx, err := d.BeginTx(context.TODO())
+func (d *Database) UpdateConnector(ctx context.Context, id string, updater func(old storage.Connector) (storage.Connector, error)) error {
+	tx, err := d.BeginTx(ctx)
 	if err != nil {
 		return convertDBError("update connector tx: %w", err)
 	}
 
-	connector, err := tx.Connector.Get(context.TODO(), id)
+	connector, err := tx.Connector.Get(ctx, id)
 	if err != nil {
 		return rollback(tx, "update connector database: %w", err)
 	}
@@ -75,7 +75,7 @@ func (d *Database) UpdateConnector(id string, updater func(old storage.Connector
 		SetType(newConnector.Type).
 		SetResourceVersion(newConnector.ResourceVersion).
 		SetConfig(newConnector.Config).
-		Save(context.TODO())
+		Save(ctx)
 	if err != nil {
 		return rollback(tx, "update connector uploading: %w", err)
 	}
