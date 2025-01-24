@@ -66,6 +66,7 @@ func TestHandleCallback(t *testing.T) {
 		token                     map[string]interface{}
 		groupsRegex               string
 		newGroupFromClaims        []NewGroupFromClaims
+		pkceChallenge             string
 	}{
 		{
 			name:               "simpleCase",
@@ -431,6 +432,40 @@ func TestHandleCallback(t *testing.T) {
 				"email_verified": true,
 			},
 		},
+		{
+			name:               "S256PKCEChallenge",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			pkceChallenge:      "S256",
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectGroups:       []string{"group1", "group2"},
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups":         []string{"group1", "group2"},
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
+			name:               "plainPKCEChallenge",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			pkceChallenge:      "plain",
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectGroups:       []string{"group1", "group2"},
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups":         []string{"group1", "group2"},
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -462,6 +497,7 @@ func TestHandleCallback(t *testing.T) {
 				InsecureEnableGroups:      true,
 				BasicAuthUnsupported:      &basicAuth,
 				OverrideClaimMapping:      tc.overrideClaimMapping,
+				PKCEChallenge:             tc.pkceChallenge,
 			}
 			config.ClaimMapping.PreferredUsernameKey = tc.preferredUsernameKey
 			config.ClaimMapping.EmailKey = tc.emailKey
@@ -479,7 +515,11 @@ func TestHandleCallback(t *testing.T) {
 				t.Fatal("failed to create request", err)
 			}
 
-			identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
+			connectorDataStrTemplate := `{"codeChallenge":"abcdefgh123456qwertuiop89101112uvpwizABC234","codeChallengeMethod":"%s"}`
+			connectorDataStr := fmt.Sprintf(connectorDataStrTemplate, config.PKCEChallenge)
+			connectorData := []byte(connectorDataStr)
+
+			identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, connectorData, req)
 			if err != nil {
 				t.Fatal("handle callback failed", err)
 			}
