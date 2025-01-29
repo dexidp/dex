@@ -469,6 +469,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	// Some clients, like the old go-oidc, provide extra whitespace. Tolerate this.
 	scopes := strings.Fields(q.Get("scope"))
 	responseTypes := strings.Fields(q.Get("response_type"))
+	tokenHint := q.Get("id_token_hint")
 
 	codeChallenge := q.Get("code_challenge")
 	codeChallengeMethod := q.Get("code_challenge_method")
@@ -496,6 +497,20 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	// From here on out, we want to redirect back to the client with an error.
 	newRedirectedErr := func(typ, format string, a ...interface{}) *redirectedAuthErr {
 		return &redirectedAuthErr{state, redirectURI, typ, fmt.Sprintf(format, a...)}
+	}
+
+	// TODO: we don't currently handle prompt but should verify prompt=none
+	if tokenHint != "" {
+		claims, err := claimsFromJWT(tokenHint)
+		if err != nil {
+			s.logger.Errorf("Failed to get claims from id_token_hint: %s", err)
+			return nil, &authErr{"", "", errInvalidRequest, "Malformed id_token_hint"}
+		}
+		sub := internal.IDTokenSubject{}
+		if err := internal.Unmarshal(claims.Subject, &sub); err != nil {
+			return nil, &authErr{"", "", errServerError, "Failed to unmarshal id_token_hint subject"}
+		}
+		connectorID = sub.ConnId
 	}
 
 	if connectorID != "" {
@@ -621,6 +636,24 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		},
 		HMACKey: storage.NewHMACKey(crypto.SHA256),
 	}, nil
+}
+
+// claimsFromJWT returns the claims of a JWT without verifying the signature.
+// WARNING: without veryifying the signature, the claims should not be trusted.
+func claimsFromJWT(input string) (*idTokenClaims, error) {
+	parts := strings.Split(input, ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("JWT format must have three parts")
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("could not decode JWT payload: %s", err)
+	}
+	claims := &idTokenClaims{}
+	if err := json.Unmarshal(payload, claims); err != nil {
+		return nil, fmt.Errorf("JWT has invalid claims")
+	}
+	return claims, nil
 }
 
 func parseCrossClientScope(scope string) (peerID string, ok bool) {
