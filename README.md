@@ -69,7 +69,7 @@ Dex implements the following connectors:
 | ---- | ----------------------- | --------------------- | --------------------------------- | ------ | ----- |
 | [LDAP](https://dexidp.io/docs/connectors/ldap/) | yes | yes | yes | stable | |
 | [GitHub](https://dexidp.io/docs/connectors/github/) | yes | yes | yes | stable | |
-| [SAML 2.0](https://dexidp.io/docs/connectors/saml/) | no | yes | no | stable | WARNING: Unmaintained and likely vulnerable to auth bypasses ([#1884](https://github.com/dexidp/dex/discussions/1884)) |
+| [SAML 2.0](https://dexidp.io/docs/connectors/saml/) | no | yes | no | stable (Unmaintained) | WARNING: Unmaintained and likely vulnerable to auth bypasses ([#1884](https://github.com/dexidp/dex/discussions/1884)) |
 | [GitLab](https://dexidp.io/docs/connectors/gitlab/) | yes | yes | yes | beta | |
 | [OpenID Connect](https://dexidp.io/docs/connectors/oidc/) | yes | yes | yes | beta | Includes Salesforce, Azure, etc. |
 | [OAuth 2.0](https://dexidp.io/docs/connectors/oauth/) | no | yes | yes | alpha | |
