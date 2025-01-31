@@ -441,25 +441,84 @@ func (p *conn) checkIfUserExists(ctx context.Context, userID string, token strin
 }
 
 func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo) ([]string, error) {
+	var userGroups []string
+	var userGroupIDs []string
+
+	allGroups, err := p.getAllGroups(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+
+	// For SSO users, groups are passed down through the federation API.
+	if tokenInfo.User.OSFederation != nil {
+		for _, osGroup := range tokenInfo.User.OSFederation.Groups {
+			// If grouop name is empty, try to find the group by ID
+			if len(osGroup.Name) == 0 {
+				var ok bool
+				osGroup, ok = findGroupByID(allGroups, osGroup.ID)
+				if !ok {
+					p.Logger.Warnf("Group with ID '%s' attached to user '%s' could not be found. Skipping.",
+						osGroup.ID, tokenInfo.User.ID)
+					continue
+				}
+			}
+			userGroups = append(userGroups, osGroup.Name)
+			userGroupIDs = append(userGroupIDs, osGroup.ID)
+		}
+	}
+
+	// For local users, fetch the groups stored in Keystone.
+	localGroups, err := p.getUserGroups(ctx, tokenInfo.User.ID, token)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, localGroup := range localGroups {
+		// If group name is empty, try to find the group by ID
+		if len(localGroup.Name) == 0 {
+			var ok bool
+			localGroup, ok = findGroupByID(allGroups, localGroup.ID)
+			if !ok {
+				p.Logger.Warnf("Group with ID '%s' attached to user '%s' could not be found. Skipping.",
+					localGroup.ID, tokenInfo.User.ID)
+				continue
+			}
+		}
+		userGroups = append(userGroups, localGroup.Name)
+		userGroupIDs = append(userGroupIDs, localGroup.ID)
+	}
 
 	// Get user-related role assignments
-	var groups []string
-	roleAssignments, err := p.getRoleAssignments(ctx, token, getRoleAssignmentsOptions{
+	roleAssignments := []roleAssignment{}
+	localUserRoleAssignments, err := p.getRoleAssignments(ctx, token, getRoleAssignmentsOptions{
 		userID: tokenInfo.User.ID,
 	})
-
 	if err != nil {
-		p.Logger.Errorf("failed to fetch role assignments: %s", err)
-		return groups, err
+		p.Logger.Errorf("failed to fetch role assignments for userID %s: %s", tokenInfo.User.ID, err)
+		return userGroups, err
 	}
+	roleAssignments = append(roleAssignments, localUserRoleAssignments...)
+
+	// Get group-related role assignments
+	for _, groupID := range userGroupIDs {
+		groupRoleAssignments, err := p.getRoleAssignments(ctx, token, getRoleAssignmentsOptions{
+			groupID: groupID,
+		})
+		if err != nil {
+			p.Logger.Errorf("failed to fetch role assignments for groupID %s: %s", groupID, err)
+			return userGroups, err
+		}
+		roleAssignments = append(roleAssignments, groupRoleAssignments...)
+	}
+
 	if len(roleAssignments) == 0 {
 		p.Logger.Warnf("Warning: no role assignments found.")
-		return groups, nil
+		return userGroups, nil
 	}
 
 	roles, err := p.getRoles(ctx, token)
 	if err != nil {
-		return groups, err
+		return userGroups, err
 	}
 	roleMap := map[string]role{}
 	for _, role := range roles {
@@ -468,17 +527,20 @@ func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo
 
 	projects, err := p.getProjects(ctx, token)
 	if err != nil {
-		return groups, err
+		return userGroups, err
 	}
 	projectMap := map[string]project{}
 	for _, project := range projects {
 		projectMap[project.ID] = project
 	}
 
+	//  Now create groups based on the role assignments
+	var roleGroups []string
+
 	// get the customer name to be prefixed in the group name
 	hostName, err := p.getHostname()
 	if err != nil {
-		return groups, err
+		return userGroups, err
 	}
 	for _, roleAssignment := range roleAssignments {
 		role, ok := roleMap[roleAssignment.Role.ID]
@@ -492,10 +554,12 @@ func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo
 			continue
 		}
 		groupName := p.generateGroupName(project, role, hostName)
-		groups = append(groups, groupName)
+		roleGroups = append(roleGroups, groupName)
 	}
 
-	return pruneDuplicates(groups), nil
+	// combine user-groups and role-groups
+	userGroups = append(userGroups, roleGroups...)
+	return pruneDuplicates(userGroups), nil
 }
 
 func (p *conn) getHostname() (string, error) {
@@ -653,52 +717,6 @@ func (p *conn) getUserGroups(ctx context.Context, userID string, token string) (
 	return groupsResp.Groups, nil
 }
 
-// func (p *conn) groupsRequired(groupScope bool) bool {
-// 	return len(p.Groups) > 0 || groupScope
-// }
-
-// If project ID is left empty, all roles will be fetched
-func (p *conn) getUserRolesAsGroups(ctx context.Context, token string, userID string, groupIDs []string, projectID string) ([]string, error) {
-	// Get user-related role assignments
-	roleAssignments, err := p.getRoleAssignments(ctx, token, getRoleAssignmentsOptions{
-		userID:    userID,
-		projectID: projectID,
-	})
-	if err != nil {
-		return nil, err
-	}
-	// Get group-related role assignments
-	for _, groupID := range groupIDs {
-		groupRoleAssignments, err := p.getRoleAssignments(ctx, token, getRoleAssignmentsOptions{
-			groupID:   groupID,
-			projectID: projectID,
-		})
-		if err != nil {
-			return nil, err
-		}
-		roleAssignments = append(roleAssignments, groupRoleAssignments...)
-	}
-
-	roles, err := p.getRoles(ctx, token)
-	if err != nil {
-		return nil, err
-	}
-	roleMap := map[string]role{}
-	for _, role := range roles {
-		roleMap[role.ID] = role
-	}
-	var groups []string
-	for _, roleAssignment := range roleAssignments {
-		role, ok := roleMap[roleAssignment.Role.ID]
-		if !ok {
-			// Ignore role assignments to non-existent roles (shouldn't happen)
-			continue
-		}
-		groups = append(groups, role.Name)
-	}
-	return groups, nil
-}
-
 type getRoleAssignmentsOptions struct {
 	userID    string
 	groupID   string
@@ -710,9 +728,10 @@ func (p *conn) getRoleAssignments(ctx context.Context, token string, opts getRol
 	// note: group and user filters are mutually exclusive
 	if len(opts.userID) > 0 {
 		endpoint = fmt.Sprintf("%seffective&user.id=%s", endpoint, opts.userID)
+	} else if len(opts.groupID) > 0 {
+		endpoint = fmt.Sprintf("%sgroup.id=%s", endpoint, opts.groupID)
 	}
 
-	//p.Logger.Infof("fetching roleassignments from endpoint = %s", endpoint)
 	// https://docs.openstack.org/api-ref/identity/v3/?expanded=validate-and-show-information-for-token-detail,list-role-assignments-detail#list-role-assignments
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -807,26 +826,6 @@ func (p *conn) getProjects(ctx context.Context, token string) ([]project, error)
 
 	return projectsResp.Projects, nil
 }
-
-// func (p *conn) filterGroups(groups []string) []string {
-// 	if len(p.Groups) == 0 {
-// 		return groups
-// 	}
-// 	var matches []string
-// 	for _, group := range groups {
-// 		for _, filter := range p.Groups {
-// 			// Future: support regexp?
-// 			if group != filter.Name {
-// 				continue
-// 			}
-// 			if len(filter.Replace) > 0 {
-// 				group = filter.Replace
-// 			}
-// 		}
-// 		matches = append(matches, group)
-// 	}
-// 	return matches
-// }
 
 func pruneDuplicates(ss []string) []string {
 	set := map[string]struct{}{}
