@@ -41,7 +41,7 @@ func (c *conn) Close() error {
 }
 
 func (c *conn) GarbageCollect(ctx context.Context, now time.Time) (result storage.GCResult, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	authRequests, err := c.listAuthRequests(ctx)
 	if err != nil {
@@ -125,7 +125,7 @@ func (c *conn) GetAuthRequest(ctx context.Context, id string) (a storage.AuthReq
 }
 
 func (c *conn) UpdateAuthRequest(ctx context.Context, id string, updater func(a storage.AuthRequest) (storage.AuthRequest, error)) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	return c.txnUpdate(ctx, keyID(authRequestPrefix, id), func(currentValue []byte) ([]byte, error) {
 		var current AuthRequest
@@ -143,7 +143,7 @@ func (c *conn) UpdateAuthRequest(ctx context.Context, id string, updater func(a 
 }
 
 func (c *conn) DeleteAuthRequest(ctx context.Context, id string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	return c.deleteKey(ctx, keyID(authRequestPrefix, id))
 }
@@ -164,7 +164,7 @@ func (c *conn) GetAuthCode(ctx context.Context, id string) (a storage.AuthCode, 
 }
 
 func (c *conn) DeleteAuthCode(ctx context.Context, id string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	return c.deleteKey(ctx, keyID(authCodePrefix, id))
 }
@@ -184,7 +184,7 @@ func (c *conn) GetRefresh(ctx context.Context, id string) (r storage.RefreshToke
 }
 
 func (c *conn) UpdateRefreshToken(ctx context.Context, id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	return c.txnUpdate(ctx, keyID(refreshTokenPrefix, id), func(currentValue []byte) ([]byte, error) {
 		var current RefreshToken
@@ -202,7 +202,7 @@ func (c *conn) UpdateRefreshToken(ctx context.Context, id string, updater func(o
 }
 
 func (c *conn) DeleteRefresh(ctx context.Context, id string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	return c.deleteKey(ctx, keyID(refreshTokenPrefix, id))
 }
@@ -236,7 +236,7 @@ func (c *conn) GetClient(ctx context.Context, id string) (cli storage.Client, er
 }
 
 func (c *conn) UpdateClient(ctx context.Context, id string, updater func(old storage.Client) (storage.Client, error)) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	return c.txnUpdate(ctx, keyID(clientPrefix, id), func(currentValue []byte) ([]byte, error) {
 		var current storage.Client
@@ -254,7 +254,7 @@ func (c *conn) UpdateClient(ctx context.Context, id string, updater func(old sto
 }
 
 func (c *conn) DeleteClient(ctx context.Context, id string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	return c.deleteKey(ctx, keyID(clientPrefix, id))
 }
@@ -288,7 +288,7 @@ func (c *conn) GetPassword(ctx context.Context, email string) (p storage.Passwor
 }
 
 func (c *conn) UpdatePassword(ctx context.Context, email string, updater func(p storage.Password) (storage.Password, error)) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	return c.txnUpdate(ctx, keyEmail(passwordPrefix, email), func(currentValue []byte) ([]byte, error) {
 		var current storage.Password
@@ -306,7 +306,7 @@ func (c *conn) UpdatePassword(ctx context.Context, email string, updater func(p 
 }
 
 func (c *conn) DeletePassword(ctx context.Context, email string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	return c.deleteKey(ctx, keyEmail(passwordPrefix, email))
 }
@@ -333,7 +333,7 @@ func (c *conn) CreateOfflineSessions(ctx context.Context, s storage.OfflineSessi
 }
 
 func (c *conn) UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	return c.txnUpdate(ctx, keySession(userID, connID), func(currentValue []byte) ([]byte, error) {
 		var current OfflineSessions
@@ -361,7 +361,7 @@ func (c *conn) GetOfflineSessions(ctx context.Context, userID string, connID str
 }
 
 func (c *conn) DeleteOfflineSessions(ctx context.Context, userID string, connID string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	return c.deleteKey(ctx, keySession(userID, connID))
 }
@@ -378,7 +378,7 @@ func (c *conn) GetConnector(ctx context.Context, id string) (conn storage.Connec
 }
 
 func (c *conn) UpdateConnector(ctx context.Context, id string, updater func(s storage.Connector) (storage.Connector, error)) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	return c.txnUpdate(ctx, keyID(connectorPrefix, id), func(currentValue []byte) ([]byte, error) {
 		var current storage.Connector
@@ -396,7 +396,7 @@ func (c *conn) UpdateConnector(ctx context.Context, id string, updater func(s st
 }
 
 func (c *conn) DeleteConnector(ctx context.Context, id string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	return c.deleteKey(ctx, keyID(connectorPrefix, id))
 }
@@ -432,7 +432,7 @@ func (c *conn) GetKeys(ctx context.Context) (keys storage.Keys, err error) {
 }
 
 func (c *conn) UpdateKeys(ctx context.Context, updater func(old storage.Keys) (storage.Keys, error)) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	return c.txnUpdate(ctx, keysName, func(currentValue []byte) ([]byte, error) {
 		var current storage.Keys
@@ -616,7 +616,7 @@ func (c *conn) listDeviceTokens(ctx context.Context) (deviceTokens []DeviceToken
 }
 
 func (c *conn) UpdateDeviceToken(ctx context.Context, deviceCode string, updater func(old storage.DeviceToken) (storage.DeviceToken, error)) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	return c.txnUpdate(ctx, keyID(deviceTokenPrefix, deviceCode), func(currentValue []byte) ([]byte, error) {
 		var current DeviceToken
