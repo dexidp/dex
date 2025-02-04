@@ -8,7 +8,7 @@ require (
 	github.com/AppsFlyer/go-sundheit v0.6.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig/v3 v3.3.0
-	github.com/beevik/etree v1.4.1
+	github.com/beevik/etree v1.5.0
 	github.com/coreos/go-oidc/v3 v3.12.0
 	github.com/dexidp/dex/api/v2 v2.1.0
 	github.com/fsnotify/fsnotify v1.8.0
