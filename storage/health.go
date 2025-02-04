@@ -23,7 +23,7 @@ func NewCustomHealthCheckFunc(s Storage, now func() time.Time) func(context.Cont
 			return nil, fmt.Errorf("create auth request: %v", err)
 		}
 
-		if err := s.DeleteAuthRequest(a.ID); err != nil {
+		if err := s.DeleteAuthRequest(ctx, a.ID); err != nil {
 			return nil, fmt.Errorf("delete auth request: %v", err)
 		}
 
