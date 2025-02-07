@@ -1,0 +1,72 @@
+<style>
+.login-container { background-color: #fff; display: flex; flex-direction: column; overflow: hidden; align-items: center; padding: 102px 70px 265px; }
+.login-content { display: flex; margin-left: 55px; width: 711px; max-width: 100%; gap: 40px 77px; flex-wrap: wrap; }
+.login-header { display: flex; flex-direction: column; flex-grow: 1; flex-basis: 0; width: fit-content; }
+.logo { aspect-ratio: 1; object-fit: contain; object-position: center; width: 100px; align-self: center; max-width: 100%; }
+.login-form-container { display: flex; margin-top: 48px; width: 100%; flex-direction: column; overflow: hidden; padding: 73px 51px; border: 1px solid #e8e8e8; }
+.form-label { color: #1a1a1a; font: 400 18px/1 Inter, sans-serif; }
+.form-input { border-radius: 5px; background-color: rgba(191, 200, 224, 0.2); height: 40px; margin-top: 13px; width: 100%; padding: 8px; }
+.password-input-wrapper { position: relative; width: 100%; }
+.password-toggle { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; cursor: pointer; }
+.forgot-password { color: #bfc8e0; font: 400 14px/1 Inter, sans-serif; margin-top: 10px; text-decoration: none; }
+.login-button { border-radius: 5px; background-color: #324f9b; color: #fff; padding: 11px 70px; font: 700 20px/1 Inter, sans-serif; border: none; cursor: pointer; margin-top: 27px; width: 100%; }
+.divider { margin: 19px 0; height: 1px; background-color: #e8e8e8; }
+.social-login-container { display: flex; gap: 18px; margin-top: 20px; flex-wrap: wrap; }
+.social-login-button { border-radius: 5px; display: flex; align-items: center; gap: 10px; padding: 5px 10px; border: 1px solid #e8e8e8; font: 400 18px/1 Inter, sans-serif; color: #1a1a1a; text-decoration: none; cursor: pointer; }
+.social-icon { aspect-ratio: 1; object-fit: contain; object-position: center; width: 30px; border-radius: 5px; }
+.signup-prompt { color: #1a1a1a; text-align: center; margin-top: 58px; font: 400 18px/1 Inter, sans-serif; }
+.signup-link { color: #324f9b; text-decoration: underline; cursor: pointer; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+@media (max-width: 991px) {
+    .login-container { padding: 100px 20px; }
+    .login-header { max-width: 100%; }
+    .login-form-container { max-width: 100%; padding: 20px; margin-top: 40px; }
+    .login-button { padding: 11px 20px; }
+    .signup-prompt { margin-top: 40px; }
+}
+</style>
+
+<section class="login-container">
+    <div class="login-content">
+        <header class="login-header">
+            <img src="https://cdn.builder.io/api/v1/image/assets/TEMP/1963901d0e01bf65e5228d28cab7443f7fde8189d7d1c8c26201a025bf5c1ac0?placeholderIfAbsent=true&apiKey=ef3b3cc3bd4b44c2a091db56e91fac84" alt="Company Logo" class="logo" />
+            <form class="login-form-container">
+                <label for="email" class="form-label">Email address</label>
+                <input type="email" id="email" class="form-input" required aria-label="Email address" />
+                
+                <label for="password" class="form-label">Password</label>
+                <div class="password-input-wrapper">
+                    <input type="password" id="password" class="form-input" required aria-label="Password" />
+                    <img src="https://cdn.builder.io/api/v1/image/assets/TEMP/144c4aadd75fbaede268b37438cf8d74e71a97b0e0a8f4e9b064ff97071232c0?placeholderIfAbsent=true&apiKey=ef3b3cc3bd4b44c2a091db56e91fac84" alt="Toggle password visibility" class="password-toggle" role="button" tabindex="0" />
+                </div>
+                
+                <a href="#" class="forgot-password">Forgot my password</a>
+                <button type="submit" class="login-button">Log in</button>
+                
+                <div class="divider" role="separator"></div>
+                
+                <div class="social-login-container">
+                    <button class="social-login-button">
+                        <img src="https://cdn.builder.io/api/v1/image/assets/TEMP/6bd2c976a018a044aa3b361039d33e0ab52f917b3e2153c2a67bb822ac940fca?placeholderIfAbsent=true&apiKey=ef3b3cc3bd4b44c2a091db56e91fac84" alt="Google logo" class="social-icon" />
+                        <span>Sign in with Google</span>
+                    </button>
+                    <button class="social-login-button">
+                        <img src="https://cdn.builder.io/api/v1/image/assets/TEMP/4c261dfb8cb8096098a046c9fb4573e041f9b7057663221040b8c7bdc77e2c2d?placeholderIfAbsent=true&apiKey=ef3b3cc3bd4b44c2a091db56e91fac84" alt="Microsoft logo" class="social-icon" />
+                        <span>Sign in with Microsoft</span>
+                    </button>
+                </div>
+                
+                <button class="social-login-button">
+                    <img src="https://cdn.builder.io/api/v1/image/assets/TEMP/9627b96dc49f7cfcf4c95586bd935fcef9ab9e96a9b68aeeb5c411beeedd8cbc?placeholderIfAbsent=true&apiKey=ef3b3cc3bd4b44c2a091db56e91fac84" alt="GitHub logo" class="social-icon" />
+                    <span>Sign in with GitHub</span>
+                </button>
+                
+                <p class="signup-prompt">
+                    Don't have a account? 
+                    <a href="#" class="signup-link">Talk to the co-founders</a>
+                </p>
+            </form>
+        </header>
+    </div>
+</section>
