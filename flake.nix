@@ -20,12 +20,7 @@
       ];
 
       perSystem =
-        {
-          pkgs,
-          lib,
-          system,
-          ...
-        }:
+        { pkgs, ... }:
         rec {
           devenv.shells = {
             default = {
