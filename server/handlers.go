@@ -275,7 +275,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 					a.ConnectorData = connData
 					return a, nil
 				}
-				err := s.storage.UpdateAuthRequest(authReq.ID, updater)
+				err := s.storage.UpdateAuthRequest(ctx, authReq.ID, updater)
 				if err != nil {
 					s.logger.ErrorContext(r.Context(), "Failed to set connector data on auth request", "connector_id", connID, "err", err)
 					s.renderError(r, w, http.StatusInternalServerError, "Database error.")
