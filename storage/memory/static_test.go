@@ -31,14 +31,14 @@ func TestStaticClients(t *testing.T) {
 		{
 			name: "get client from static storage",
 			action: func() error {
-				_, err := s.GetClient(c2.ID)
+				_, err := s.GetClient(ctx, c2.ID)
 				return err
 			},
 		},
 		{
 			name: "get client from backing storage",
 			action: func() error {
-				_, err := s.GetClient(c1.ID)
+				_, err := s.GetClient(ctx, c1.ID)
 				return err
 			},
 		},
@@ -49,7 +49,7 @@ func TestStaticClients(t *testing.T) {
 					c.Secret = "new_" + c.Secret
 					return c, nil
 				}
-				return s.UpdateClient(c2.ID, updater)
+				return s.UpdateClient(ctx, c2.ID, updater)
 			},
 			wantErr: true,
 		},
@@ -60,13 +60,13 @@ func TestStaticClients(t *testing.T) {
 					c.Secret = "new_" + c.Secret
 					return c, nil
 				}
-				return s.UpdateClient(c1.ID, updater)
+				return s.UpdateClient(ctx, c1.ID, updater)
 			},
 		},
 		{
 			name: "list clients",
 			action: func() error {
-				clients, err := s.ListClients()
+				clients, err := s.ListClients(ctx)
 				if err != nil {
 					return err
 				}
@@ -116,21 +116,21 @@ func TestStaticPasswords(t *testing.T) {
 		{
 			name: "get password from static storage",
 			action: func() error {
-				_, err := s.GetPassword(p2.Email)
+				_, err := s.GetPassword(ctx, p2.Email)
 				return err
 			},
 		},
 		{
 			name: "get password from backing storage",
 			action: func() error {
-				_, err := s.GetPassword(p1.Email)
+				_, err := s.GetPassword(ctx, p1.Email)
 				return err
 			},
 		},
 		{
 			name: "get password from static storage with casing",
 			action: func() error {
-				_, err := s.GetPassword(strings.ToUpper(p2.Email))
+				_, err := s.GetPassword(ctx, strings.ToUpper(p2.Email))
 				return err
 			},
 		},
@@ -141,7 +141,7 @@ func TestStaticPasswords(t *testing.T) {
 					p.Username = "new_" + p.Username
 					return p, nil
 				}
-				return s.UpdatePassword(p2.Email, updater)
+				return s.UpdatePassword(ctx, p2.Email, updater)
 			},
 			wantErr: true,
 		},
@@ -152,7 +152,7 @@ func TestStaticPasswords(t *testing.T) {
 					p.Username = "new_" + p.Username
 					return p, nil
 				}
-				return s.UpdatePassword(p1.Email, updater)
+				return s.UpdatePassword(ctx, p1.Email, updater)
 			},
 		},
 		{
@@ -168,7 +168,7 @@ func TestStaticPasswords(t *testing.T) {
 		{
 			name: "get password",
 			action: func() error {
-				p, err := s.GetPassword(p4.Email)
+				p, err := s.GetPassword(ctx, p4.Email)
 				if err != nil {
 					return err
 				}
@@ -181,7 +181,7 @@ func TestStaticPasswords(t *testing.T) {
 		{
 			name: "list passwords",
 			action: func() error {
-				passwords, err := s.ListPasswords()
+				passwords, err := s.ListPasswords(ctx)
 				if err != nil {
 					return err
 				}
@@ -228,14 +228,14 @@ func TestStaticConnectors(t *testing.T) {
 		{
 			name: "get connector from static storage",
 			action: func() error {
-				_, err := s.GetConnector(c2.ID)
+				_, err := s.GetConnector(ctx, c2.ID)
 				return err
 			},
 		},
 		{
 			name: "get connector from backing storage",
 			action: func() error {
-				_, err := s.GetConnector(c1.ID)
+				_, err := s.GetConnector(ctx, c1.ID)
 				return err
 			},
 		},
@@ -246,7 +246,7 @@ func TestStaticConnectors(t *testing.T) {
 					c.Name = "New"
 					return c, nil
 				}
-				return s.UpdateConnector(c2.ID, updater)
+				return s.UpdateConnector(ctx, c2.ID, updater)
 			},
 			wantErr: true,
 		},
@@ -257,13 +257,13 @@ func TestStaticConnectors(t *testing.T) {
 					c.Name = "New"
 					return c, nil
 				}
-				return s.UpdateConnector(c1.ID, updater)
+				return s.UpdateConnector(ctx, c1.ID, updater)
 			},
 		},
 		{
 			name: "list connectors",
 			action: func() error {
-				connectors, err := s.ListConnectors()
+				connectors, err := s.ListConnectors(ctx)
 				if err != nil {
 					return err
 				}

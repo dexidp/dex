@@ -32,8 +32,9 @@ const (
 )
 
 func (s *Server) handlePublicKeys(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	// TODO(ericchiang): Cache this.
-	keys, err := s.storage.GetKeys()
+	keys, err := s.storage.GetKeys(ctx)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get keys", "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
@@ -135,6 +136,7 @@ func (s *Server) constructDiscovery() discovery {
 
 // handleAuthorization handles the OAuth2 auth endpoint.
 func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	// Extract the arguments
 	if err := r.ParseForm(); err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to parse arguments", "err", err)
@@ -144,8 +146,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 
 	connectorID := r.Form.Get("connector_id")
-
-	connectors, err := s.storage.ListConnectors()
+	connectors, err := s.storage.ListConnectors(ctx)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get list of connectors", "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Failed to retrieve connector list.")
@@ -219,7 +220,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := s.getConnector(connID)
+	conn, err := s.getConnector(ctx, connID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "Failed to get connector", "err", err)
 		s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist")
@@ -326,6 +327,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	authID := r.URL.Query().Get("state")
 	if authID == "" {
 		s.renderError(r, w, http.StatusBadRequest, "User session error.")
@@ -334,7 +336,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 
 	backLink := r.URL.Query().Get("back")
 
-	authReq, err := s.storage.GetAuthRequest(authID)
+	authReq, err := s.storage.GetAuthRequest(ctx, authID)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			s.logger.ErrorContext(r.Context(), "invalid 'state' parameter provided", "err", err)
@@ -357,7 +359,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := s.getConnector(authReq.ConnectorID)
+	conn, err := s.getConnector(ctx, authReq.ConnectorID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "connector_id", authReq.ConnectorID, "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
@@ -402,7 +404,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if canSkipApproval {
-			authReq, err = s.storage.GetAuthRequest(authReq.ID)
+			authReq, err = s.storage.GetAuthRequest(ctx, authReq.ID)
 			if err != nil {
 				s.logger.ErrorContext(r.Context(), "failed to get finalized auth request", "err", err)
 				s.renderError(r, w, http.StatusInternalServerError, "Login error.")
@@ -437,7 +439,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	authReq, err := s.storage.GetAuthRequest(authID)
+	authReq, err := s.storage.GetAuthRequest(ctx, authID)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			s.logger.ErrorContext(r.Context(), "invalid 'state' parameter provided", "err", err)
@@ -460,7 +462,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	conn, err := s.getConnector(authReq.ConnectorID)
+	conn, err := s.getConnector(ctx, authReq.ConnectorID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "connector_id", authReq.ConnectorID, "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
@@ -502,7 +504,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	}
 
 	if canSkipApproval {
-		authReq, err = s.storage.GetAuthRequest(authReq.ID)
+		authReq, err = s.storage.GetAuthRequest(ctx, authReq.ID)
 		if err != nil {
 			s.logger.ErrorContext(r.Context(), "failed to get finalized auth request", "err", err)
 			s.renderError(r, w, http.StatusInternalServerError, "Login error.")
@@ -533,7 +535,7 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		a.ConnectorData = identity.ConnectorData
 		return a, nil
 	}
-	if err := s.storage.UpdateAuthRequest(authReq.ID, updater); err != nil {
+	if err := s.storage.UpdateAuthRequest(ctx, authReq.ID, updater); err != nil {
 		return "", false, fmt.Errorf("failed to update auth request: %v", err)
 	}
 
@@ -557,7 +559,7 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 
 	if offlineAccessRequested && canRefresh {
 		// Try to retrieve an existing OfflineSession object for the corresponding user.
-		session, err := s.storage.GetOfflineSessions(identity.UserID, authReq.ConnectorID)
+		session, err := s.storage.GetOfflineSessions(ctx, identity.UserID, authReq.ConnectorID)
 		switch {
 		case err != nil && err == storage.ErrNotFound:
 			offlineSessions := storage.OfflineSessions{
@@ -575,7 +577,7 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 			}
 		case err == nil:
 			// Update existing OfflineSession obj with new RefreshTokenRef.
-			if err := s.storage.UpdateOfflineSessions(session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+			if err := s.storage.UpdateOfflineSessions(ctx, session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 				if len(identity.ConnectorData) > 0 {
 					old.ConnectorData = identity.ConnectorData
 				}
@@ -606,6 +608,7 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 }
 
 func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	macEncoded := r.FormValue("hmac")
 	if macEncoded == "" {
 		s.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
@@ -617,7 +620,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authReq, err := s.storage.GetAuthRequest(r.FormValue("req"))
+	authReq, err := s.storage.GetAuthRequest(ctx, r.FormValue("req"))
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get auth request", "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Database error.")
@@ -641,7 +644,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		client, err := s.storage.GetClient(authReq.ClientID)
+		client, err := s.storage.GetClient(ctx, authReq.ClientID)
 		if err != nil {
 			s.logger.ErrorContext(r.Context(), "Failed to get client", "client_id", authReq.ClientID, "err", err)
 			s.renderError(r, w, http.StatusInternalServerError, "Failed to retrieve client.")
@@ -666,7 +669,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		return
 	}
 
-	if err := s.storage.DeleteAuthRequest(authReq.ID); err != nil {
+	if err := s.storage.DeleteAuthRequest(ctx, authReq.ID); err != nil {
 		if err != storage.ErrNotFound {
 			s.logger.ErrorContext(r.Context(), "Failed to delete authorization request", "err", err)
 			s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
@@ -798,6 +801,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 }
 
 func (s *Server) withClientFromStorage(w http.ResponseWriter, r *http.Request, handler func(http.ResponseWriter, *http.Request, storage.Client)) {
+	ctx := r.Context()
 	clientID, clientSecret, ok := r.BasicAuth()
 	if ok {
 		var err error
@@ -814,7 +818,7 @@ func (s *Server) withClientFromStorage(w http.ResponseWriter, r *http.Request, h
 		clientSecret = r.PostFormValue("client_secret")
 	}
 
-	client, err := s.storage.GetClient(clientID)
+	client, err := s.storage.GetClient(ctx, clientID)
 	if err != nil {
 		if err != storage.ErrNotFound {
 			s.logger.ErrorContext(r.Context(), "failed to get client", "err", err)
@@ -897,7 +901,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		return
 	}
 
-	authCode, err := s.storage.GetAuthCode(code)
+	authCode, err := s.storage.GetAuthCode(ctx, code)
 	if err != nil || s.now().After(authCode.Expiry) || authCode.ClientID != client.ID {
 		if err != storage.ErrNotFound {
 			s.logger.ErrorContext(r.Context(), "failed to get auth code", "err", err)
@@ -962,7 +966,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 		return nil, err
 	}
 
-	if err := s.storage.DeleteAuthCode(authCode.ID); err != nil {
+	if err := s.storage.DeleteAuthCode(ctx, authCode.ID); err != nil {
 		s.logger.ErrorContext(ctx, "failed to delete auth code", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return nil, err
@@ -972,7 +976,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 		// Ensure the connector supports refresh tokens.
 		//
 		// Connectors like `saml` do not implement RefreshConnector.
-		conn, err := s.getConnector(authCode.ConnectorID)
+		conn, err := s.getConnector(ctx, authCode.ConnectorID)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "connector not found", "connector_id", authCode.ConnectorID, "err", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1028,7 +1032,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 		defer func() {
 			if deleteToken {
 				// Delete newly created refresh token from storage.
-				if err := s.storage.DeleteRefresh(refresh.ID); err != nil {
+				if err := s.storage.DeleteRefresh(ctx, refresh.ID); err != nil {
 					s.logger.ErrorContext(ctx, "failed to delete refresh token", "err", err)
 					s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 					return
@@ -1044,7 +1048,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 		}
 
 		// Try to retrieve an existing OfflineSession object for the corresponding user.
-		if session, err := s.storage.GetOfflineSessions(refresh.Claims.UserID, refresh.ConnectorID); err != nil {
+		if session, err := s.storage.GetOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID); err != nil {
 			if err != storage.ErrNotFound {
 				s.logger.ErrorContext(ctx, "failed to get offline session", "err", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1069,7 +1073,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 		} else {
 			if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
 				// Delete old refresh token from storage.
-				if err := s.storage.DeleteRefresh(oldTokenRef.ID); err != nil && err != storage.ErrNotFound {
+				if err := s.storage.DeleteRefresh(ctx, oldTokenRef.ID); err != nil && err != storage.ErrNotFound {
 					s.logger.ErrorContext(ctx, "failed to delete refresh token", "err", err)
 					s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 					deleteToken = true
@@ -1078,7 +1082,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 			}
 
 			// Update existing OfflineSession obj with new RefreshTokenRef.
-			if err := s.storage.UpdateOfflineSessions(session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+			if err := s.storage.UpdateOfflineSessions(ctx, session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 				old.Refresh[tokenRef.ClientID] = &tokenRef
 				return old, nil
 			}); err != nil {
@@ -1152,7 +1156,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 				continue
 			}
 
-			isTrusted, err := s.validateCrossClientTrust(r.Context(), client.ID, peerID)
+			isTrusted, err := s.validateCrossClientTrust(ctx, client.ID, peerID)
 			if err != nil {
 				s.tokenErrHelper(w, errInvalidClient, fmt.Sprintf("Error validating cross client trust %v.", err), http.StatusBadRequest)
 				return
@@ -1177,7 +1181,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 
 	// Which connector
 	connID := s.passwordConnector
-	conn, err := s.getConnector(connID)
+	conn, err := s.getConnector(ctx, connID)
 	if err != nil {
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
 		return
@@ -1213,14 +1217,14 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		Groups:            identity.Groups,
 	}
 
-	accessToken, _, err := s.newAccessToken(r.Context(), client.ID, claims, scopes, nonce, connID)
+	accessToken, _, err := s.newAccessToken(ctx, client.ID, claims, scopes, nonce, connID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "password grant failed to create new access token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return
 	}
 
-	idToken, expiry, err := s.newIDToken(r.Context(), client.ID, claims, scopes, nonce, accessToken, "", connID)
+	idToken, expiry, err := s.newIDToken(ctx, client.ID, claims, scopes, nonce, accessToken, "", connID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "password grant failed to create new ID token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1280,7 +1284,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		defer func() {
 			if deleteToken {
 				// Delete newly created refresh token from storage.
-				if err := s.storage.DeleteRefresh(refresh.ID); err != nil {
+				if err := s.storage.DeleteRefresh(ctx, refresh.ID); err != nil {
 					s.logger.ErrorContext(r.Context(), "failed to delete refresh token", "err", err)
 					s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 					return
@@ -1296,7 +1300,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		}
 
 		// Try to retrieve an existing OfflineSession object for the corresponding user.
-		if session, err := s.storage.GetOfflineSessions(refresh.Claims.UserID, refresh.ConnectorID); err != nil {
+		if session, err := s.storage.GetOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID); err != nil {
 			if err != storage.ErrNotFound {
 				s.logger.ErrorContext(r.Context(), "failed to get offline session", "err", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1322,7 +1326,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		} else {
 			if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
 				// Delete old refresh token from storage.
-				if err := s.storage.DeleteRefresh(oldTokenRef.ID); err != nil {
+				if err := s.storage.DeleteRefresh(ctx, oldTokenRef.ID); err != nil {
 					if err == storage.ErrNotFound {
 						s.logger.Warn("database inconsistent, refresh token missing", "token_id", oldTokenRef.ID)
 					} else {
@@ -1335,7 +1339,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 			}
 
 			// Update existing OfflineSession obj with new RefreshTokenRef.
-			if err := s.storage.UpdateOfflineSessions(session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+			if err := s.storage.UpdateOfflineSessions(ctx, session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 				old.Refresh[tokenRef.ClientID] = &tokenRef
 				old.ConnectorData = identity.ConnectorData
 				return old, nil
@@ -1383,7 +1387,7 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 		return
 	}
 
-	conn, err := s.getConnector(connID)
+	conn, err := s.getConnector(ctx, connID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "err", err)
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)

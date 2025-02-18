@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"sort"
@@ -14,7 +15,7 @@ import (
 )
 
 func signingKeyID(t *testing.T, s storage.Storage) string {
-	keys, err := s.GetKeys()
+	keys, err := s.GetKeys(context.TODO())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +23,7 @@ func signingKeyID(t *testing.T, s storage.Storage) string {
 }
 
 func verificationKeyIDs(t *testing.T, s storage.Storage) (ids []string) {
-	keys, err := s.GetKeys()
+	keys, err := s.GetKeys(context.TODO())
 	if err != nil {
 		t.Fatal(err)
 	}

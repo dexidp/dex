@@ -40,8 +40,8 @@ func (d *Database) CreateAuthRequest(ctx context.Context, authRequest storage.Au
 }
 
 // GetAuthRequest extracts an auth request from the database by id.
-func (d *Database) GetAuthRequest(id string) (storage.AuthRequest, error) {
-	authRequest, err := d.client.AuthRequest.Get(context.TODO(), id)
+func (d *Database) GetAuthRequest(ctx context.Context, id string) (storage.AuthRequest, error) {
+	authRequest, err := d.client.AuthRequest.Get(ctx, id)
 	if err != nil {
 		return storage.AuthRequest{}, convertDBError("get auth request: %w", err)
 	}
@@ -49,8 +49,8 @@ func (d *Database) GetAuthRequest(id string) (storage.AuthRequest, error) {
 }
 
 // DeleteAuthRequest deletes an auth request from the database by id.
-func (d *Database) DeleteAuthRequest(id string) error {
-	err := d.client.AuthRequest.DeleteOneID(id).Exec(context.TODO())
+func (d *Database) DeleteAuthRequest(ctx context.Context, id string) error {
+	err := d.client.AuthRequest.DeleteOneID(id).Exec(ctx)
 	if err != nil {
 		return convertDBError("delete auth request: %w", err)
 	}
@@ -58,8 +58,8 @@ func (d *Database) DeleteAuthRequest(id string) error {
 }
 
 // UpdateAuthRequest changes an auth request by id using an updater function and saves it to the database.
-func (d *Database) UpdateAuthRequest(id string, updater func(old storage.AuthRequest) (storage.AuthRequest, error)) error {
-	tx, err := d.BeginTx(context.TODO())
+func (d *Database) UpdateAuthRequest(ctx context.Context, id string, updater func(old storage.AuthRequest) (storage.AuthRequest, error)) error {
+	tx, err := d.BeginTx(ctx)
 	if err != nil {
 		return fmt.Errorf("update auth request tx: %w", err)
 	}
