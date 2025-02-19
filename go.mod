@@ -10,7 +10,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/beevik/etree v1.5.0
 	github.com/coreos/go-oidc/v3 v3.12.0
-	github.com/dexidp/dex/api/v2 v2.1.0
+	github.com/dexidp/dex/api/v2 v2.3.0
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-jose/go-jose/v4 v4.0.4
