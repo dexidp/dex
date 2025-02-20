@@ -1,5 +1,5 @@
-export PATH := $(abspath bin/protoc/bin/):$(abspath bin/):${PATH}
-export SHELL := env PATH=$(PATH) /bin/sh
+export PATH := "$(abspath bin/protoc/bin/):$(abspath bin/):${PATH}"
+export SHELL := env PATH="$(PATH)" /bin/sh
 
 OS = $(shell uname | tr A-Z a-z)
 
