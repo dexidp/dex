@@ -87,6 +87,7 @@ ifeq ($(shell uname | tr A-Z a-z), linux)
 	curl -L https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip > bin/protoc.zip
 endif
 	unzip bin/protoc.zip -d bin/protoc
+	chmod +x bin/protoc/bin/protoc
 	rm bin/protoc.zip
 
 bin/protoc-gen-go:
