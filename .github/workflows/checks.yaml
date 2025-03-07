@@ -12,7 +12,7 @@ jobs:
     name: Release note label
     runs-on: ubuntu-latest
 
-    if: github.repository == 'dexidp/dex'
+    if: github.repository == 'iamsauravsingh7/dex'
 
     steps:
       - name: Check minimum labels
