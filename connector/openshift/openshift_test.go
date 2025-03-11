@@ -170,7 +170,7 @@ func TestCallbackIdentity(t *testing.T) {
 
 	expectNil(t, err)
 
-	oc := openshiftConnector{apiURL: s.URL, httpClient: h, oauth2Config: &oauth2.Config{
+	oc := openshiftConnector{apiURL: s.URL, httpClient: h, emailSuffix: "test.example.com", oauth2Config: &oauth2.Config{
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  fmt.Sprintf("%s/oauth/authorize", s.URL),
 			TokenURL: fmt.Sprintf("%s/oauth/token", s.URL),
@@ -182,7 +182,7 @@ func TestCallbackIdentity(t *testing.T) {
 	expectEquals(t, identity.UserID, "12345")
 	expectEquals(t, identity.Username, "jdoe")
 	expectEquals(t, identity.PreferredUsername, "jdoe")
-	expectEquals(t, identity.Email, "jdoe")
+	expectEquals(t, identity.Email, "jdoe@test.example.com")
 	expectEquals(t, len(identity.Groups), 1)
 	expectEquals(t, identity.Groups[0], "users")
 }
