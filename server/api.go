@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -48,6 +49,48 @@ type dexAPI struct {
 	logger  *slog.Logger
 	version string
 	server  *Server
+}
+
+func (d dexAPI) GetExpiration(ctx context.Context, req *api.GetExpirationReq) (*api.GetExpirationResp, error) {
+	return &api.GetExpirationResp{
+		IdTokensValidFor:       d.server.idTokensValidFor.String(),
+		AuthRequestsValidFor:   d.server.authRequestsValidFor.String(),
+		DeviceRequestsValidFor: d.server.deviceRequestsValidFor.String(),
+	}, nil
+}
+
+func (d dexAPI) UpdateExpiration(ctx context.Context, req *api.UpdateExpirationReq) (*api.UpdateExpirationResp, error) {
+
+	var err error
+	var idTokensDuration time.Duration
+
+	if req.IdTokensValidFor != "" {
+		idTokensDuration, err = time.ParseDuration(req.IdTokensValidFor)
+		if err != nil {
+			return nil, err
+		}
+		d.server.idTokensValidFor = idTokensDuration
+	}
+
+	var authRequestsDuration time.Duration
+	if req.AuthRequestsValidFor != "" {
+		authRequestsDuration, err = time.ParseDuration(req.AuthRequestsValidFor)
+		if err != nil {
+			return nil, err
+		}
+		d.server.authRequestsValidFor = authRequestsDuration
+	}
+
+	var deviceRequestsDuration time.Duration
+	if req.DeviceRequestsValidFor != "" {
+		deviceRequestsDuration, err = time.ParseDuration(req.DeviceRequestsValidFor)
+		if err != nil {
+			return nil, err
+		}
+		d.server.deviceRequestsValidFor = deviceRequestsDuration
+	}
+
+	return &api.UpdateExpirationResp{}, nil
 }
 
 func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetClientResp, error) {
