@@ -156,7 +156,7 @@ func (cli *client) registerCustomResources() (ok bool) {
 		r := definitions[i]
 		var i interface{}
 		cli.logger.Info("checking if custom resource has already been created...", "object", r.ObjectMeta.Name)
-		if err := cli.list(r.Spec.Names.Plural, &i); err == nil {
+		if err := cli.listN(r.Spec.Names.Plural, &i, 1); err == nil {
 			cli.logger.Info("the custom resource already available, skipping create", "object", r.ObjectMeta.Name)
 			continue
 		} else {
