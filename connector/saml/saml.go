@@ -21,7 +21,6 @@ import (
 	"github.com/russellhaering/goxmldsig/etreeutils"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/groups"
 )
 
 const (
@@ -379,72 +378,78 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		return ident, fmt.Errorf("subject does not contain an NameID element")
 	}
 
-	// After verifying the assertion, map data in the attribute statements to
-	// various user info.
-	attributes := assertion.AttributeStatement
-	if attributes == nil {
-		return ident, fmt.Errorf("response did not contain a AttributeStatement")
-	}
-
-	// Log the actual attributes we got back from the server. This helps debug
-	// configuration errors on the server side, where the SAML server doesn't
-	// send us the correct attributes.
-	p.logger.Info("parsed and verified saml response attributes", "attributes", attributes)
-
-	// Grab the email.
-	if ident.Email, _ = attributes.get(p.emailAttr); ident.Email == "" {
-		return ident, fmt.Errorf("no attribute with name %q: %s", p.emailAttr, attributes.names())
-	}
-	// TODO(ericchiang): Does SAML have an email_verified equivalent?
+	ident.Email = assertion.Subject.NameID.Value
+	ident.Username = assertion.Subject.NameID.Value
 	ident.EmailVerified = true
+	// p.logger.Info("Assertion: %+x", assertion)
+	// p.logger.Info("AttributeStatement: %+x", assertion.AttributeStatement)
 
-	// Grab the username.
-	if ident.Username, _ = attributes.get(p.usernameAttr); ident.Username == "" {
-		return ident, fmt.Errorf("no attribute with name %q: %s", p.usernameAttr, attributes.names())
-	}
+	// // After verifying the assertion, map data in the attribute statements to
+	// // various user info.
+	// attributes := assertion.AttributeStatement
+	// if attributes == nil {
+	// 	return ident, fmt.Errorf("response did not contain a AttributeStatement")
+	// }
 
-	if len(p.allowedGroups) == 0 && (!s.Groups || p.groupsAttr == "") {
-		// Groups not requested or not configured. We're done.
-		return ident, nil
-	}
+	// // Log the actual attributes we got back from the server. This helps debug
+	// // configuration errors on the server side, where the SAML server doesn't
+	// // send us the correct attributes.
+	// p.logger.Info("parsed and verified saml response attributes", "attributes", attributes)
 
-	if len(p.allowedGroups) > 0 && (!s.Groups || p.groupsAttr == "") {
-		// allowedGroups set but no groups or groupsAttr. Disallowing.
-		return ident, fmt.Errorf("user not a member of allowed groups")
-	}
+	// // Grab the email.
+	// if ident.Email, _ = attributes.get(p.emailAttr); ident.Email == "" {
+	// 	return ident, fmt.Errorf("no attribute with name %q: %s", p.emailAttr, attributes.names())
+	// }
+	// // TODO(ericchiang): Does SAML have an email_verified equivalent?
+	// ident.EmailVerified = true
 
-	// Grab the groups.
-	if p.groupsDelim != "" {
-		groupsStr, ok := attributes.get(p.groupsAttr)
-		if !ok {
-			return ident, fmt.Errorf("no attribute with name %q: %s", p.groupsAttr, attributes.names())
-		}
-		// TODO(ericchiang): Do we need to further trim whitespace?
-		ident.Groups = strings.Split(groupsStr, p.groupsDelim)
-	} else {
-		groups, ok := attributes.all(p.groupsAttr)
-		if !ok {
-			return ident, fmt.Errorf("no attribute with name %q: %s", p.groupsAttr, attributes.names())
-		}
-		ident.Groups = groups
-	}
+	// // Grab the username.
+	// if ident.Username, _ = attributes.get(p.usernameAttr); ident.Username == "" {
+	// 	return ident, fmt.Errorf("no attribute with name %q: %s", p.usernameAttr, attributes.names())
+	// }
 
-	if len(p.allowedGroups) == 0 {
-		// No allowed groups set, just return the ident
-		return ident, nil
-	}
+	// if len(p.allowedGroups) == 0 && (!s.Groups || p.groupsAttr == "") {
+	// 	// Groups not requested or not configured. We're done.
+	// 	return ident, nil
+	// }
 
-	// Look for membership in one of the allowed groups
-	groupMatches := groups.Filter(ident.Groups, p.allowedGroups)
+	// if len(p.allowedGroups) > 0 && (!s.Groups || p.groupsAttr == "") {
+	// 	// allowedGroups set but no groups or groupsAttr. Disallowing.
+	// 	return ident, fmt.Errorf("user not a member of allowed groups")
+	// }
 
-	if len(groupMatches) == 0 {
-		// No group membership matches found, disallowing
-		return ident, fmt.Errorf("user not a member of allowed groups")
-	}
+	// // Grab the groups.
+	// if p.groupsDelim != "" {
+	// 	groupsStr, ok := attributes.get(p.groupsAttr)
+	// 	if !ok {
+	// 		return ident, fmt.Errorf("no attribute with name %q: %s", p.groupsAttr, attributes.names())
+	// 	}
+	// 	// TODO(ericchiang): Do we need to further trim whitespace?
+	// 	ident.Groups = strings.Split(groupsStr, p.groupsDelim)
+	// } else {
+	// 	groups, ok := attributes.all(p.groupsAttr)
+	// 	if !ok {
+	// 		return ident, fmt.Errorf("no attribute with name %q: %s", p.groupsAttr, attributes.names())
+	// 	}
+	// 	ident.Groups = groups
+	// }
 
-	if p.filterGroups {
-		ident.Groups = groupMatches
-	}
+	// if len(p.allowedGroups) == 0 {
+	// 	// No allowed groups set, just return the ident
+	// 	return ident, nil
+	// }
+
+	// // Look for membership in one of the allowed groups
+	// groupMatches := groups.Filter(ident.Groups, p.allowedGroups)
+
+	// if len(groupMatches) == 0 {
+	// 	// No group membership matches found, disallowing
+	// 	return ident, fmt.Errorf("user not a member of allowed groups")
+	// }
+
+	// if p.filterGroups {
+	// 	ident.Groups = groupMatches
+	// }
 
 	// Otherwise, we're good
 	return ident, nil
