@@ -249,10 +249,11 @@ var scopeDescriptions = map[string]string{
 }
 
 type connectorInfo struct {
-	ID   string
-	Name string
-	URL  template.URL
-	Type string
+	ID     string
+	Name   string
+	URL    template.URL
+	Type   string
+	Hidden bool
 }
 
 type byName []connectorInfo
@@ -283,11 +284,17 @@ func (t *templates) deviceSuccess(r *http.Request, w http.ResponseWriter, client
 }
 
 func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []connectorInfo) error {
-	sort.Sort(byName(connectors))
+	var visibleConnectors []connectorInfo
+	for _, connector := range connectors {
+		if !connector.Hidden {
+			visibleConnectors = append(visibleConnectors, connector)
+		}
+	}
+	sort.Sort(byName(visibleConnectors))
 	data := struct {
 		Connectors []connectorInfo
 		ReqPath    string
-	}{connectors, r.URL.Path}
+	}{visibleConnectors, r.URL.Path}
 	return renderTemplate(w, t.loginTmpl, data)
 }
 
