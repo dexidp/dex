@@ -84,7 +84,7 @@ func (s *Server) getRefreshTokenFromStorage(ctx context.Context, clientID *strin
 	refreshCtx := refreshContext{requestToken: token}
 
 	// Get RefreshToken
-	refresh, err := s.storage.GetRefresh(token.RefreshId)
+	refresh, err := s.storage.GetRefresh(ctx, token.RefreshId)
 	if err != nil {
 		if err != storage.ErrNotFound {
 			s.logger.ErrorContext(ctx, "failed to get refresh token", "err", err)
@@ -126,14 +126,14 @@ func (s *Server) getRefreshTokenFromStorage(ctx context.Context, clientID *strin
 	refreshCtx.storageToken = &refresh
 
 	// Get Connector
-	refreshCtx.connector, err = s.getConnector(refresh.ConnectorID)
+	refreshCtx.connector, err = s.getConnector(ctx, refresh.ConnectorID)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "connector not found", "connector_id", refresh.ConnectorID, "err", err)
 		return nil, newInternalServerError()
 	}
 
 	// Get Connector Data
-	session, err := s.storage.GetOfflineSessions(refresh.Claims.UserID, refresh.ConnectorID)
+	session, err := s.storage.GetOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID)
 	switch {
 	case err != nil:
 		if err != storage.ErrNotFound {
@@ -223,7 +223,7 @@ func (s *Server) updateOfflineSession(ctx context.Context, refresh *storage.Refr
 
 	// Update LastUsed time stamp in refresh token reference object
 	// in offline session for the user.
-	err := s.storage.UpdateOfflineSessions(refresh.Claims.UserID, refresh.ConnectorID, offlineSessionUpdater)
+	err := s.storage.UpdateOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID, offlineSessionUpdater)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to update offline session", "err", err)
 		return newInternalServerError()
@@ -314,7 +314,7 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 	}
 
 	// Update refresh token in the storage.
-	err := s.storage.UpdateRefreshToken(rCtx.storageToken.ID, refreshTokenUpdater)
+	err := s.storage.UpdateRefreshToken(ctx, rCtx.storageToken.ID, refreshTokenUpdater)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to update refresh token", "err", err)
 		return nil, ident, newInternalServerError()
