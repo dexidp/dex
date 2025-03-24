@@ -399,7 +399,6 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		return ident, fmt.Errorf("subject does not contain an NameID element")
 	}
 
-
 	// After verifying the assertion, map data in the attribute statements to
 	// various user info.
 	attributes := assertion.AttributeStatement
