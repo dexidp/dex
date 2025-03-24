@@ -22,6 +22,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -281,14 +282,38 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 
 			http.Redirect(w, r, loginURL.String(), http.StatusFound)
 		case connector.SAMLConnector:
-			action, value, err := conn.POSTData(scopes, authReq.ID)
+			action, value, bindingType, err := conn.POSTData(scopes, authReq.ID)
 			if err != nil {
 				s.logger.ErrorContext(r.Context(), "creating SAML data", "err", err)
 				s.renderError(r, w, http.StatusInternalServerError, "Connector Login Error")
 				return
 			}
-			escaped_saml_request := url.QueryEscape(value)
-			http.Redirect(w, r, action+"/saml?SAMLRequest="+escaped_saml_request+"&RelayState="+authReq.ID, http.StatusFound)
+
+			if bindingType == saml.RedirectBinding {
+				escaped_saml_request := url.QueryEscape(value)
+				http.Redirect(w, r, action+"/saml?SAMLRequest="+escaped_saml_request+"&RelayState="+authReq.ID, http.StatusFound)
+			} else if bindingType == saml.PostBinding {
+				// TODO(ericchiang): Don't inline this.
+				fmt.Fprintf(w, `<!DOCTYPE html>
+				<html lang="en">
+				<head>
+				<meta http-equiv="content-type" content="text/html; charset=utf-8">
+				<title>SAML login</title>
+				</head>
+				<body>
+				<form method="post" action="%s" >
+					<input type="hidden" name="SAMLRequest" value="%s" />
+					<input type="hidden" name="RelayState" value="%s" />
+				</form>
+				<script>
+					document.forms[0].submit();
+				</script>
+				</body>
+				</html>`, action, value, authReq.ID)
+			} else {
+				s.renderError(r, w, http.StatusInternalServerError, "Invalid binding type")
+				return
+			}
 		default:
 			s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
 		}
