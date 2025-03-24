@@ -311,7 +311,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 				</body>
 				</html>`, action, value, authReq.ID)
 			} else {
-				s.renderError(r, w, http.StatusInternalServerError, "Invalid binding type")
+				s.renderError(r, w, http.StatusInternalServerError, fmt.Sprintf("Invalid binding type: %s", bindingType))
 				return
 			}
 		default:
