@@ -76,7 +76,7 @@ FDWV28nTP9sqbtsmU8Tem2jzMvZ7C/Q0AuDoKELFUpux8shm8wfIhyaPnXUGZoAZ
 Np4vUwMSYV5mopESLWOg3loBxKyLGFtgGKVCjGiQvy6zISQ4fQo=
 -----END RSA PRIVATE KEY-----`)
 
-var logger = slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+var logger = slog.New(slog.DiscardHandler)
 
 func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
 	var server *Server
