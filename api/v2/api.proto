@@ -6,6 +6,35 @@ option java_package = "com.coreos.dex.api";
 option go_package = "github.com/dexidp/dex/api/v2;api";
 
 // Client represents an OAuth2 client.
+message Expiration {
+  string id_tokens_valid_for = 2;
+  string auth_requests_valid_for = 3;
+  string device_requests_valid_for = 4;
+}
+
+// GetExpirationReq is a TODO
+message GetExpirationReq {
+}
+
+// GetExpirationResp returns TODO
+message GetExpirationResp {
+  string id_tokens_valid_for = 2;
+  string auth_requests_valid_for = 3;
+  string device_requests_valid_for = 4;
+}
+
+// UpdateExpirationReq is a TODO
+message UpdateExpirationReq {
+  string id_tokens_valid_for = 2;
+  string auth_requests_valid_for = 3;
+  string device_requests_valid_for = 4;
+}
+
+// UpdateExpirationResp returns TODO
+message UpdateExpirationResp {
+}
+
+// Client represents an OAuth2 client.
 message Client {
   string id = 1;
   string secret = 2;
@@ -245,6 +274,10 @@ message VerifyPasswordResp {
 
 // Dex represents the dex gRPC service.
 service Dex {
+  // GetExpiration gets TODO.
+  rpc GetExpiration(GetExpirationReq) returns (GetExpirationResp) {};
+  // UpdateExpiration updates TODO.
+  rpc UpdateExpiration(UpdateExpirationReq) returns (UpdateExpirationResp) {};
   // GetClient gets a client.
   rpc GetClient(GetClientReq) returns (GetClientResp) {};
   // CreateClient creates a client.

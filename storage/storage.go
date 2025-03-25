@@ -92,6 +92,7 @@ type Storage interface {
 	GetAuthRequest(ctx context.Context, id string) (AuthRequest, error)
 	GetAuthCode(ctx context.Context, id string) (AuthCode, error)
 	GetClient(ctx context.Context, id string) (Client, error)
+	//GetExpiration(ctx context.Context) (Expiration, error)
 	GetKeys(ctx context.Context) (Keys, error)
 	GetRefresh(ctx context.Context, id string) (RefreshToken, error)
 	GetPassword(ctx context.Context, email string) (Password, error)
@@ -171,6 +172,14 @@ type Client struct {
 	// Name and LogoURL used when displaying this client to the end user.
 	Name    string `json:"name" yaml:"name"`
 	LogoURL string `json:"logoURL" yaml:"logoURL"`
+}
+
+// Expiration represents configured expiration times
+type Expiration struct {
+	RotateKeysAfter        string `json:"rotateKeysAfter" yaml:"rotateKeysAfter"`
+	IDTokensValidFor       string `json:"idTokensValidFor" yaml:"idTokensValidFor"`
+	AuthRequestsValidFor   string `json:"authRequestsValidFor" yaml:"authRequestsValidFor"`
+	DeviceRequestsValidFor string `json:"deviceRequestsValidFor" yaml:"deviceRequestsValidFor"`
 }
 
 // Claims represents the ID Token claims supported by the server.
