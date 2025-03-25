@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"sort"
 	"testing"
@@ -69,7 +68,7 @@ func TestKeyRotator(t *testing.T) {
 	// Only the last 5 verification keys are expected to be kept around.
 	maxVerificationKeys := 5
 
-	l := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	l := slog.New(slog.DiscardHandler)
 
 	r := &keyRotator{
 		Storage:  memory.New(l),
@@ -101,7 +100,7 @@ func TestKeyRotator(t *testing.T) {
 
 func TestRefreshTokenPolicy(t *testing.T) {
 	lastTime := time.Now()
-	l := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	l := slog.New(slog.DiscardHandler)
 
 	r, err := NewRefreshTokenPolicy(l, true, "1m", "1m", "1m")
 	require.NoError(t, err)

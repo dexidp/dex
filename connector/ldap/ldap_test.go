@@ -3,7 +3,6 @@ package ldap
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"testing"
@@ -567,7 +566,7 @@ func runTests(t *testing.T, connMethod connectionMethod, config *Config, tests [
 	c.BindDN = "cn=admin,dc=example,dc=org"
 	c.BindPW = "admin"
 
-	l := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	l := slog.New(slog.DiscardHandler)
 
 	conn, err := c.openConnector(l)
 	if err != nil {

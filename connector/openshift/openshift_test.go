@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -38,7 +37,7 @@ func TestOpen(t *testing.T) {
 		InsecureCA:   true,
 	}
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	oconfig, err := c.Open("id", logger)
 

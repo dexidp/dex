@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
-	"io"
 	"log/slog"
 	"os"
 	"sort"
@@ -421,7 +420,7 @@ func (r responseTest) run(t *testing.T) {
 		t.Fatalf("parse test time: %v", err)
 	}
 
-	conn, err := c.openConnector(slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{})))
+	conn, err := c.openConnector(slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -455,7 +454,7 @@ func (r responseTest) run(t *testing.T) {
 }
 
 func TestConfigCAData(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 	validPEM, err := os.ReadFile("testdata/ca.crt")
 	if err != nil {
 		t.Fatal(err)

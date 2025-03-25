@@ -3,7 +3,6 @@ package kubernetes
 import (
 	"hash"
 	"hash/fnv"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -53,7 +52,7 @@ func TestOfflineTokenName(t *testing.T) {
 }
 
 func TestInClusterTransport(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	user := k8sapi.AuthInfo{Token: "abc"}
 	cli, err := newClient(

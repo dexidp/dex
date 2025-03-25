@@ -2,7 +2,6 @@ package sql
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"runtime"
@@ -47,7 +46,7 @@ func cleanDB(c *conn) error {
 	return nil
 }
 
-var logger = slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+var logger = slog.New(slog.DiscardHandler)
 
 type opener interface {
 	open(logger *slog.Logger) (*conn, error)

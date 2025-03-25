@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -150,7 +149,7 @@ type TestServerResponse struct {
 func newTestCrowdConnector(baseURL string) crowdConnector {
 	connector := crowdConnector{}
 	connector.BaseURL = baseURL
-	connector.logger = slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	connector.logger = slog.New(slog.DiscardHandler)
 	return connector
 }
 

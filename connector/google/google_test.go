@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -52,7 +51,7 @@ func testSetup() *httptest.Server {
 }
 
 func newConnector(config *Config) (*googleConnector, error) {
-	log := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	log := slog.New(slog.DiscardHandler)
 	conn, err := config.Open("id", log)
 	if err != nil {
 		return nil, err

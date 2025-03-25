@@ -1,7 +1,6 @@
 package authproxy
 
 import (
-	"io"
 	"log/slog"
 	"net/http"
 	"reflect"
@@ -23,7 +22,7 @@ const (
 	testUserID            = "1234567890"
 )
 
-var logger = slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+var logger = slog.New(slog.DiscardHandler)
 
 func TestUser(t *testing.T) {
 	config := Config{

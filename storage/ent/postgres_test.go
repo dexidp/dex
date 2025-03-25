@@ -1,7 +1,6 @@
 package ent
 
 import (
-	"io"
 	"log/slog"
 	"os"
 	"strconv"
@@ -37,7 +36,7 @@ func postgresTestConfig(host string, port uint64) *Postgres {
 }
 
 func newPostgresStorage(host string, port uint64) storage.Storage {
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	cfg := postgresTestConfig(host, port)
 	s, err := cfg.Open(logger)
