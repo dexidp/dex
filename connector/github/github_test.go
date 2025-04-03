@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -451,7 +450,7 @@ func Test_isPreferredEmailDomain(t *testing.T) {
 }
 
 func Test_Open_PreferredDomainConfig(t *testing.T) {
-	log := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	log := slog.New(slog.DiscardHandler)
 	tests := []struct {
 		preferredEmailDomain string
 		email                string
