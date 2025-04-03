@@ -34,7 +34,7 @@ require (
 	go.etcd.io/etcd/client/v3 v3.5.18
 	golang.org/x/crypto v0.36.0
 	golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
-	golang.org/x/net v0.37.0
+	golang.org/x/net v0.38.0
 	golang.org/x/oauth2 v0.28.0
 	google.golang.org/api v0.228.0
 	google.golang.org/grpc v1.71.0
