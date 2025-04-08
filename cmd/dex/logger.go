@@ -63,5 +63,5 @@ func (h requestContextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 }
 
 func (h requestContextHandler) WithGroup(name string) slog.Handler {
-	return h.handler.WithGroup(name)
+	return requestContextHandler{h.handler.WithGroup(name)}
 }
