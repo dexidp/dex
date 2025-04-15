@@ -1,12 +1,13 @@
 module github.com/dexidp/dex/examples
 
 go 1.23
+toolchain go1.24.1
 
 require (
 	github.com/coreos/go-oidc/v3 v3.12.0
 	github.com/dexidp/dex/api/v2 v2.3.0
 	github.com/spf13/cobra v1.9.1
-	golang.org/x/oauth2 v0.26.0
+	golang.org/x/oauth2 v0.29.0
 	google.golang.org/grpc v1.70.0
 )
 
