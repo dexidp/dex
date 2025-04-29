@@ -18,7 +18,7 @@ import (
 
 // apiVersion increases every time a new call is added to the API. Clients should use this info
 // to determine if the server supports specific features.
-const apiVersion = 2
+const apiVersion = 3
 
 const (
 	// recCost is the recommended bcrypt cost, which balances hash strength and
