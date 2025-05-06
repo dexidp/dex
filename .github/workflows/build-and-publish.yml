@@ -1,10 +1,10 @@
 name: Build and Push Docker Image
-
+ 
 # Add concurrency group to cancel any in-progress job when new tags are pushed
 # concurrency:
 #   group: ${{ github.workflow }}-${{ github.ref }}
 #   cancel-in-progress: true
-
+ 
 on:
   push:
     branches:
@@ -12,7 +12,7 @@ on:
     tags:
       - 'v*'   # Trigger on version tags
       - 'v*-test'  # Also trigger on test version tags
-
+ 
 jobs:
   debug:
     runs-on: ubuntu-latest
@@ -29,7 +29,7 @@ jobs:
           echo "Condition 1: ${{ contains(github.event.base_ref, github.event.repository.default_branch) && !endsWith(github.ref, '-test') }}"
           echo "Condition 2: ${{ endsWith(github.ref, '-test') }}"
           echo "Full condition: ${{ contains(github.event.base_ref, github.event.repository.default_branch) && !endsWith(github.ref, '-test') || endsWith(github.ref, '-test') }}"
-
+ 
   build:
     # needs: debug  # This ensures debug runs first
     runs-on: ubuntu-latest  # Using the latest Ubuntu LTS version
@@ -40,7 +40,7 @@ jobs:
     # if: |
     #   (contains(github.event.base_ref, github.event.repository.default_branch) && !endsWith(github.ref, '-test')) ||
     #   endsWith(github.ref, '-test')
-
+ 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -49,6 +49,9 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: "1.23.2"
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -77,13 +80,49 @@ jobs:
           else
             echo "set_latest=false" >> $GITHUB_OUTPUT
           fi
-          
-      - name: Build and push
+      
+      # Build and push AMD64 image
+      - name: Build and push AMD64 image
         uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/amd64
           push: true
-          tags: ${{ steps.get_info.outputs.set_latest == 'true' && format('ghcr.io/{0}:{1},ghcr.io/{0}:latest', steps.get_info.outputs.repo_name, steps.get_info.outputs.version) || format('ghcr.io/{0}:{1}', steps.get_info.outputs.repo_name, steps.get_info.outputs.version) }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: ${{ steps.get_info.outputs.set_latest == 'true' && format('ghcr.io/{0}:{1}-amd64,ghcr.io/{0}:latest-amd64', steps.get_info.outputs.repo_name, steps.get_info.outputs.version) || format('ghcr.io/{0}:{1}-amd64', steps.get_info.outputs.repo_name, steps.get_info.outputs.version) }}
+          cache-from: type=gha,scope=amd64
+          cache-to: type=gha,mode=max,scope=amd64
+      
+      # Build and push ARM64 image
+      - name: Build and push ARM64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.get_info.outputs.set_latest == 'true' && format('ghcr.io/{0}:{1}-arm64,ghcr.io/{0}:latest-arm64', steps.get_info.outputs.repo_name, steps.get_info.outputs.version) || format('ghcr.io/{0}:{1}-arm64', steps.get_info.outputs.repo_name, steps.get_info.outputs.version) }}
+          cache-from: type=gha,scope=arm64
+          cache-to: type=gha,mode=max,scope=arm64
+      
+      # Create and push multi-arch manifest
+      - name: Create and push multi-arch manifest
+        if: success()
+        run: |
+          VERSION="${{ steps.get_info.outputs.version }}"
+          REPO_NAME="${{ steps.get_info.outputs.repo_name }}"
+          
+          # Create manifest for specific version
+          docker manifest create "ghcr.io/$REPO_NAME:$VERSION" \
+            "ghcr.io/$REPO_NAME:$VERSION-amd64" \
+            "ghcr.io/$REPO_NAME:$VERSION-arm64"
+          
+          # Push manifest for specific version
+          docker manifest push "ghcr.io/$REPO_NAME:$VERSION"
+          
+          # Create and push manifest for latest if needed
+          if [[ "${{ steps.get_info.outputs.set_latest }}" == "true" ]]; then
+            docker manifest create "ghcr.io/$REPO_NAME:latest" \
+              "ghcr.io/$REPO_NAME:latest-amd64" \
+              "ghcr.io/$REPO_NAME:latest-arm64"
+            
+            docker manifest push "ghcr.io/$REPO_NAME:latest"
+          fi
