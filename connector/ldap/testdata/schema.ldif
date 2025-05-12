@@ -445,3 +445,21 @@ sn: doe
 cn: jane
 mail: janedoe@example.com
 userpassword: foo
+
+########################################################################
+
+dn: ou=TestUsernameWithMultipleAttributes,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestUsernameWithMultipleAttributes
+
+dn: ou=People,ou=TestUsernameWithMultipleAttributes,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=TestUsernameWithMultipleAttributes,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
