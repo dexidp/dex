@@ -4,7 +4,7 @@ go 1.24
 
 require (
 	cloud.google.com/go/compute/metadata v0.7.0
-	entgo.io/ent v0.14.2
+	entgo.io/ent v0.14.4
 	github.com/AppsFlyer/go-sundheit v0.6.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig/v3 v3.3.0
