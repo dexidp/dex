@@ -13,15 +13,15 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/dexidp/dex/connector"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/require"
-
-	"github.com/dexidp/dex/connector"
 )
 
 func TestKnownBrokenAuthHeaderProvider(t *testing.T) {
@@ -48,23 +48,24 @@ func TestHandleCallback(t *testing.T) {
 	t.Helper()
 
 	tests := []struct {
-		name                      string
-		userIDKey                 string
-		userNameKey               string
-		overrideClaimMapping      bool
-		preferredUsernameKey      string
-		emailKey                  string
-		groupsKey                 string
-		insecureSkipEmailVerified bool
-		scopes                    []string
-		expectUserID              string
-		expectUserName            string
-		expectGroups              []string
-		expectPreferredUsername   string
-		expectedEmailField        string
-		token                     map[string]interface{}
-		groupsRegex               string
-		newGroupFromClaims        []NewGroupFromClaims
+		name                        string
+		userIDKey                   string
+		userNameKey                 string
+		overrideClaimMapping        bool
+		preferredUsernameKey        string
+		emailKey                    string
+		groupsKey                   string
+		insecureSkipEmailVerified   bool
+		scopes                      []string
+		expectUserID                string
+		expectUserName              string
+		expectGroups                []string
+		expectPreferredUsername     string
+		expectedEmailField          string
+		token                       map[string]interface{}
+		groupsRegex                 string
+		newGroupFromClaims          []NewGroupFromClaims
+		additionalAuthRequestParams map[string]string
 	}{
 		{
 			name:               "simpleCase",
@@ -736,6 +737,153 @@ func TestProviderOverride(t *testing.T) {
 			t.Fatalf("unexpected token URL: %s, expected: %s\n", conn.provider.Endpoint().TokenURL, expToken)
 		}
 	})
+}
+
+func testLoginURL(t *testing.T, config Config, state string) (url.Values, error) {
+	token := map[string]interface{}{}
+
+	testServer, err := setupServer(token, true)
+	if err != nil {
+		t.Fatal("failed to setup test server", err)
+	}
+	defer testServer.Close()
+
+	serverUrl := testServer.URL
+	config.Issuer = serverUrl
+
+	conn, err := newConnector(config)
+	if err != nil {
+		t.Fatal("failed to create new connector", err)
+	}
+
+	// what we are testing, generation of LoginURL
+	loginUrl, err := conn.LoginURL(connector.Scopes{OfflineAccess: false, Groups: false}, config.RedirectURI, state)
+	if err != nil {
+		return nil, err
+	}
+
+	u, err := url.Parse(loginUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	values, err := url.ParseQuery(u.RawQuery)
+	if err != nil {
+		return nil, err
+	}
+	return values, nil
+}
+
+func TestLoginURLCustomerParam(t *testing.T) {
+	cfg := Config{
+		ClientID:    "client",
+		RedirectURI: "callback",
+		AdditionalAuthRequestParams: map[string]string{
+			"organization": "myorg",
+		},
+	}
+	values, err := testLoginURL(t, cfg, "1234")
+
+	require.NoError(t, err)
+	require.Len(t, values, 6)
+	expectEquals(t, values.Get("organization"), "myorg")
+	expectEquals(t, values.Get("client_id"), "client")
+	expectEquals(t, values.Get("redirect_uri"), "callback")
+	expectEquals(t, values.Get("state"), "1234")
+	expectEquals(t, values.Get("response_type"), "code")
+	expectEquals(t, values.Get("scope"), "openid profile email")
+}
+
+func TestCustomLoginURLEmptyParams(t *testing.T) {
+	cfg := Config{
+		ClientID:                    "client",
+		RedirectURI:                 "callback",
+		AdditionalAuthRequestParams: map[string]string{},
+	}
+	values, err := testLoginURL(t, cfg, "1234")
+
+	require.NoError(t, err)
+	require.Len(t, values, 5)
+	expectEquals(t, values.Get("client_id"), "client")
+	expectEquals(t, values.Get("redirect_uri"), "callback")
+	expectEquals(t, values.Get("state"), "1234")
+	expectEquals(t, values.Get("response_type"), "code")
+	expectEquals(t, values.Get("scope"), "openid profile email")
+}
+
+func TestLoginURLParameterProtection(t *testing.T) {
+	tests := []struct {
+		name            string
+		paramToOverride string
+		expectedValue   string
+	}{
+		{
+			name:            "client_id cannot be overridden",
+			paramToOverride: "client_id",
+			expectedValue:   "client", // Should remain the config value
+		},
+		{
+			name:            "redirect_uri cannot be overridden",
+			paramToOverride: "redirect_uri",
+			expectedValue:   "callback", // Should remain the config value
+		},
+		{
+			name:            "state cannot be overridden",
+			paramToOverride: "state",
+			expectedValue:   "1234", // Should remain the state parameter value
+		},
+		{
+			name:            "response_type cannot be overridden",
+			paramToOverride: "response_type",
+			expectedValue:   "code", // Should remain the default OAuth2 value
+		},
+		{
+			name:            "scope cannot be overridden",
+			paramToOverride: "scope",
+			expectedValue:   "openid profile email", // Should remain the default scopes
+		},
+		{
+			name:            "prompt cannot be overridden",
+			paramToOverride: "prompt",
+			expectedValue:   "", // Should not be set unless offline access is requested
+		},
+		{
+			name:            "hd cannot be overridden",
+			paramToOverride: "hd",
+			expectedValue:   "", // Should not be set as hosted domains are not configured
+		},
+		{
+			name:            "acr_values cannot be overridden",
+			paramToOverride: "acr_values",
+			expectedValue:   "", // Should not be set as acr_values are not configured
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := Config{
+				ClientID:    "client",
+				RedirectURI: "callback",
+				AdditionalAuthRequestParams: map[string]string{
+					tc.paramToOverride: "not-so-fast",
+				},
+			}
+
+			values, err := testLoginURL(t, cfg, "1234")
+			require.NoError(t, err)
+
+			// Check that the parameter contains the expected value, not the override attempt
+			gotValue := values.Get(tc.paramToOverride)
+			if tc.expectedValue == "" {
+				// If we expect no value, the parameter should not be present
+				require.Empty(t, gotValue, "parameter %s should not be present", tc.paramToOverride)
+			} else {
+				require.Equal(t, tc.expectedValue, gotValue,
+					"parameter %s should be %q but got %q",
+					tc.paramToOverride, tc.expectedValue, gotValue)
+			}
+		})
+	}
 }
 
 func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Server, error) {
