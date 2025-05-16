@@ -30,7 +30,7 @@ require (
 	github.com/russellhaering/goxmldsig v1.5.0
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
-	go.etcd.io/etcd/client/pkg/v3 v3.5.21
+	go.etcd.io/etcd/client/pkg/v3 v3.6.0
 	go.etcd.io/etcd/client/v3 v3.5.21
 	golang.org/x/crypto v0.38.0
 	golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
@@ -57,7 +57,7 @@ require (
 	github.com/bmatcuk/doublestar v1.3.4 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
-	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
+	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667 // indirect
@@ -95,9 +95,8 @@ require (
 	go.opentelemetry.io/otel v1.35.0 // indirect
 	go.opentelemetry.io/otel/metric v1.35.0 // indirect
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
-	go.uber.org/atomic v1.7.0 // indirect
-	go.uber.org/multierr v1.6.0 // indirect
-	go.uber.org/zap v1.17.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/mod v0.23.0 // indirect
 	golang.org/x/sync v0.14.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
