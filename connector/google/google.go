@@ -264,7 +264,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	var groups []string
 	if s.Groups && len(c.adminSrv) > 0 {
 		checkedGroups := make(map[string]struct{})
-		groups, err = c.getGroups(claims.Email, c.fetchTransitiveGroupMembership, checkedGroups)
+		groups, err = c.getGroups(ctx, claims.Email, c.fetchTransitiveGroupMembership, checkedGroups)
 		if err != nil {
 			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
 		}
@@ -289,8 +289,8 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 }
 
 // getGroups creates a connection to the admin directory service and lists
-// all groups the user is a member of
-func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership bool, checkedGroups map[string]struct{}) ([]string, error) {
+// all groups the user is a member of.
+func (c *googleConnector) getGroups(ctx context.Context, email string, fetchTransitiveGroupMembership bool, checkedGroups map[string]struct{}) ([]string, error) {
 	var userGroups []string
 	var err error
 	groupsList := &admin.Groups{}
@@ -302,7 +302,7 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 
 	for {
 		groupsList, err = adminSrv.Groups.List().
-			UserKey(email).PageToken(groupsList.NextPageToken).Do()
+			Context(ctx).UserKey(email).PageToken(groupsList.NextPageToken).Do()
 		if err != nil {
 			return nil, fmt.Errorf("could not list groups: %v", err)
 		}
@@ -321,7 +321,7 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 			}
 
 			// getGroups takes a user's email/alias as well as a group's email/alias
-			transitiveGroups, err := c.getGroups(group.Email, fetchTransitiveGroupMembership, checkedGroups)
+			transitiveGroups, err := c.getGroups(ctx, group.Email, fetchTransitiveGroupMembership, checkedGroups)
 			if err != nil {
 				return nil, fmt.Errorf("could not list transitive groups: %v", err)
 			}
