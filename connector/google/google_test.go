@@ -229,7 +229,7 @@ func TestGetGroups(t *testing.T) {
 			assert := assert.New(t)
 			lookup := make(map[string]struct{})
 
-			groups, err := conn.getGroups(testCase.userKey, testCase.fetchTransitiveGroupMembership, lookup)
+			groups, err := conn.getGroups(t.Context(), testCase.userKey, testCase.fetchTransitiveGroupMembership, lookup)
 			if testCase.shouldErr {
 				assert.NotNil(err)
 			} else {
@@ -285,7 +285,7 @@ func TestDomainToAdminEmailConfig(t *testing.T) {
 			assert := assert.New(t)
 			lookup := make(map[string]struct{})
 
-			_, err := conn.getGroups(testCase.userKey, true, lookup)
+			_, err := conn.getGroups(t.Context(), testCase.userKey, true, lookup)
 			if testCase.expectedErr != "" {
 				assert.ErrorContains(err, testCase.expectedErr)
 			} else {
@@ -383,7 +383,7 @@ func TestGCEWorkloadIdentity(t *testing.T) {
 			assert := assert.New(t)
 			lookup := make(map[string]struct{})
 
-			_, err := conn.getGroups(testCase.userKey, true, lookup)
+			_, err := conn.getGroups(t.Context(), testCase.userKey, true, lookup)
 			if testCase.expectedErr != "" {
 				assert.ErrorContains(err, testCase.expectedErr)
 			} else {
