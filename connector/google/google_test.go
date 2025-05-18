@@ -425,6 +425,7 @@ func TestGCEWorkloadIdentity(t *testing.T) {
 	os.Setenv("GCE_METADATA_HOST", metadataServerHost)
 	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "")
 	os.Setenv("HOME", "/tmp")
+	os.Setenv("APPDATA", "/tmp")
 
 	gceMetadataFlags["failOnEmailRequest"] = true
 	_, err := newConnector(&Config{
