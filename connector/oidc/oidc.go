@@ -358,7 +358,7 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 
 	if s.OfflineAccess {
 		opts = append(opts, oauth2.AccessTypeOffline)
-		// Only add prompt parameter if it's not "none"
+		// `promptType: "none"` is used in scenarios where user interaction is not possible or desirable, such as automated workflows or CLI tools. However, the conditional ensures that the parameter is omitted when it is not supported by the identity provider to prevent errors (like OneLogin).
 		if c.promptType != "none" {
 			opts = append(opts, oauth2.SetAuthURLParam("prompt", c.promptType))
 		}
