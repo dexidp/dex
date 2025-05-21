@@ -88,6 +88,17 @@ func commandServe() *cobra.Command {
 	return cmd
 }
 
+// try detect the intended socket type from address string
+func getSocketType(address string) string {
+	_, resErr := net.ResolveTCPAddr("tcp", address)
+	if resErr == nil {
+		return "tcp"
+	} else {
+		// assume UNIX socket
+		return "unix"
+	}
+}
+
 func runServe(options serveOptions) error {
 	configFile := options.config
 	configData, err := os.ReadFile(configFile)
@@ -396,7 +407,7 @@ func runServe(options serveOptions) error {
 
 		logger.Info("listening on", "server", name, "address", c.Telemetry.HTTP)
 
-		l, err := net.Listen("tcp", c.Telemetry.HTTP)
+		l, err := net.Listen(getSocketType(c.Telemetry.HTTP), c.Telemetry.HTTP)
 		if err != nil {
 			return fmt.Errorf("listening (%s) on %s: %v", name, c.Telemetry.HTTP, err)
 		}
@@ -429,7 +440,7 @@ func runServe(options serveOptions) error {
 
 		logger.Info("listening on", "server", name, "address", c.Web.HTTP)
 
-		l, err := net.Listen("tcp", c.Web.HTTP)
+		l, err := net.Listen(getSocketType(c.Web.HTTP), c.Web.HTTP)
 		if err != nil {
 			return fmt.Errorf("listening (%s) on %s: %v", name, c.Web.HTTP, err)
 		}
