@@ -34,10 +34,10 @@ import (
 //       bindDN: uid=serviceaccount,cn=users,dc=example,dc=com
 //       bindPW: password
 //       userSearch:
-//         # Would translate to the query "(&(objectClass=person)(uid=<username>))"
+//         # Would translate to the query "(&(objectClass=person)(!(uid=<username>)|(mail=<username>)))"
 //         baseDN: cn=users,dc=example,dc=com
 //         filter: "(objectClass=person)"
-//         username: uid
+//         username: uid,mail
 //         idAttr: uid
 //         emailAttr: mail
 //         nameAttr: name
@@ -108,8 +108,8 @@ type Config struct {
 		// Optional filter to apply when searching the directory. For example "(objectClass=person)"
 		Filter string `json:"filter"`
 
-		// Attribute to match against the inputted username. This will be translated and combined
-		// with the other filter as "(<attr>=<username>)".
+		// Attributes (comma-separated) to match (OR)against the inputted username. This will be translated and combined
+		// with the other filter as "(!(<attr1>=<username>)|(<attr2>=<username>))".
 		Username string `json:"username"`
 
 		// Can either be:
@@ -414,7 +414,21 @@ func (c *ldapConnector) identityFromEntry(user ldap.Entry) (ident connector.Iden
 }
 
 func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.Entry, found bool, err error) {
-	filter := fmt.Sprintf("(%s=%s)", c.UserSearch.Username, ldap.EscapeFilter(username))
+	var filter string
+	escapedUsername := ldap.EscapeFilter(username)
+
+	// Split username attribute by comma to support multiple search attributes
+	usernameAttrs := strings.Split(c.UserSearch.Username, ",")
+
+	attrFilters := make([]string, 0, len(usernameAttrs))
+	for _, attr := range usernameAttrs {
+		attr = strings.TrimSpace(attr)
+		if attr != "" {
+			attrFilters = append(attrFilters, fmt.Sprintf("(%s=%s)", attr, escapedUsername))
+		}
+	}
+	filter = fmt.Sprintf("(|%s)", strings.Join(attrFilters, ""))
+
 	if c.UserSearch.Filter != "" {
 		filter = fmt.Sprintf("(&%s%s)", c.UserSearch.Filter, filter)
 	}
@@ -430,6 +444,11 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 			c.UserSearch.EmailAttr,
 			// TODO(ericchiang): what if this contains duplicate values?
 		},
+	}
+
+	for _, attr := range usernameAttrs {
+		attr = strings.TrimSpace(attr)
+		req.Attributes = append(req.Attributes, attr)
 	}
 
 	for _, matcher := range c.GroupSearch.UserMatchers {
