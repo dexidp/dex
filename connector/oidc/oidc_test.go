@@ -65,6 +65,8 @@ func TestHandleCallback(t *testing.T) {
 		token                     map[string]interface{}
 		groupsRegex               string
 		newGroupFromClaims        []NewGroupFromClaims
+		groupsPrefix              string
+		groupsSuffix              string
 	}{
 		{
 			name:               "simpleCase",
@@ -397,6 +399,58 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
+			name:               "prefixGroupNames",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectGroups:       []string{"prefix-group1", "prefix-group2", "prefix-groupA", "prefix-groupB"},
+			expectedEmailField: "emailvalue",
+			groupsPrefix:       "prefix-",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups":         []string{"group1", "group2", "groupA", "groupB"},
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
+			name:               "suffixGroupNames",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectGroups:       []string{"group1-suffix", "group2-suffix", "groupA-suffix", "groupB-suffix"},
+			expectedEmailField: "emailvalue",
+			groupsSuffix:       "-suffix",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups":         []string{"group1", "group2", "groupA", "groupB"},
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
+			name:               "preAndSuffixGroupNames",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectGroups:       []string{"prefix-group1-suffix", "prefix-group2-suffix", "prefix-groupA-suffix", "prefix-groupB-suffix"},
+			expectedEmailField: "emailvalue",
+			groupsPrefix:       "prefix-",
+			groupsSuffix:       "-suffix",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups":         []string{"group1", "group2", "groupA", "groupB"},
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
 			name:               "filterGroupClaims",
 			userIDKey:          "", // not configured
 			userNameKey:        "", // not configured
@@ -467,6 +521,8 @@ func TestHandleCallback(t *testing.T) {
 			config.ClaimMapping.GroupsKey = tc.groupsKey
 			config.ClaimMutations.NewGroupFromClaims = tc.newGroupFromClaims
 			config.ClaimMutations.FilterGroupClaims.GroupsFilter = tc.groupsRegex
+			config.ClaimMutations.ModifyGroupNames.Prefix = tc.groupsPrefix
+			config.ClaimMutations.ModifyGroupNames.Suffix = tc.groupsSuffix
 
 			conn, err := newConnector(config)
 			if err != nil {
