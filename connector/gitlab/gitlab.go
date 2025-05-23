@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"time"
-
+	"regexp"
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
@@ -35,6 +35,7 @@ type Config struct {
 	Groups              []string `json:"groups"`
 	UseLoginAsID        bool     `json:"useLoginAsID"`
 	GetGroupsPermission bool     `json:"getGroupsPermission"`
+	GroupsFilter		string 	 `json:"groupsFilter"`
 }
 
 type gitlabUser struct {
@@ -51,6 +52,15 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 	if c.BaseURL == "" {
 		c.BaseURL = "https://gitlab.com"
 	}
+	var groupsFilter *regexp.Regexp
+	var err error
+
+	if c.GroupsFilter != "" {
+		groupsFilter, err = regexp.Compile(c.GroupsFilter)
+		if err != nil {
+			logger.Warn("ignoring invalid", "invalid_regex", c.GroupsFilter, "connector_id", id)
+		}
+	}
 	return &gitlabConnector{
 		baseURL:             c.BaseURL,
 		redirectURI:         c.RedirectURI,
@@ -60,6 +70,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		groups:              c.Groups,
 		useLoginAsID:        c.UseLoginAsID,
 		getGroupsPermission: c.GetGroupsPermission,
+		groupsFilter: 		 groupsFilter,
 	}, nil
 }
 
@@ -87,6 +98,8 @@ type gitlabConnector struct {
 
 	// if set to true permissions will be added to list of groups
 	getGroupsPermission bool
+	// group regex filter
+	groupsFilter *regexp.Regexp
 }
 
 func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
@@ -305,17 +318,18 @@ func (c *gitlabConnector) userGroups(ctx context.Context, client *http.Client) (
 
 func (c *gitlabConnector) setGroupsPermission(u userInfo) []string {
 	groups := u.Groups
+	var gropusPermission []string
 
 L1:
 	for _, g := range groups {
 		for _, op := range u.OwnerPermission {
 			if g == op {
-				groups = append(groups, fmt.Sprintf("%s:owner", g))
+				gropusPermission = append(gropusPermission, fmt.Sprintf("%s:owner", g))
 				continue L1
 			}
 			if len(g) > len(op) {
 				if g[0:len(op)] == op && string(g[len(op)]) == "/" {
-					groups = append(groups, fmt.Sprintf("%s:owner", g))
+					gropusPermission = append(gropusPermission, fmt.Sprintf("%s:owner", g))
 					continue L1
 				}
 			}
@@ -323,12 +337,12 @@ L1:
 
 		for _, mp := range u.MaintainerPermission {
 			if g == mp {
-				groups = append(groups, fmt.Sprintf("%s:maintainer", g))
+				gropusPermission = append(gropusPermission, fmt.Sprintf("%s:maintainer", g))
 				continue L1
 			}
 			if len(g) > len(mp) {
 				if g[0:len(mp)] == mp && string(g[len(mp)]) == "/" {
-					groups = append(groups, fmt.Sprintf("%s:maintainer", g))
+					gropusPermission = append(gropusPermission, fmt.Sprintf("%s:maintainer", g))
 					continue L1
 				}
 			}
@@ -336,19 +350,19 @@ L1:
 
 		for _, dp := range u.DeveloperPermission {
 			if g == dp {
-				groups = append(groups, fmt.Sprintf("%s:developer", g))
+				gropusPermission = append(gropusPermission, fmt.Sprintf("%s:developer", g))
 				continue L1
 			}
 			if len(g) > len(dp) {
 				if g[0:len(dp)] == dp && string(g[len(dp)]) == "/" {
-					groups = append(groups, fmt.Sprintf("%s:developer", g))
+					gropusPermission = append(gropusPermission, fmt.Sprintf("%s:developer", g))
 					continue L1
 				}
 			}
 		}
 	}
 
-	return groups
+	return gropusPermission
 }
 
 func (c *gitlabConnector) getGroups(ctx context.Context, client *http.Client, groupScope bool, userLogin string) ([]string, error) {
@@ -357,8 +371,21 @@ func (c *gitlabConnector) getGroups(ctx context.Context, client *http.Client, gr
 		return nil, err
 	}
 
+	var filteredGroups []string
+
 	if len(c.groups) > 0 {
-		filteredGroups := groups.Filter(gitlabGroups, c.groups)
+		filteredGroups = groups.Filter(filteredGroups, c.groups)
+		if len(filteredGroups) == 0 {
+			return nil, fmt.Errorf("gitlab: user %q is not in any of the required groups", userLogin)
+		}
+		return filteredGroups, nil
+	} else if len(gitlabGroups) > 0 && c.groupsFilter != nil {
+		for _, group := range gitlabGroups {
+			if !c.groupsFilter.MatchString(group) {
+				continue
+			}
+			filteredGroups = append(filteredGroups, group)
+		}
 		if len(filteredGroups) == 0 {
 			return nil, fmt.Errorf("gitlab: user %q is not in any of the required groups", userLogin)
 		}
