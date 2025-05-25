@@ -149,6 +149,8 @@ type OAuth2 struct {
 	AlwaysShowLoginScreen bool `json:"alwaysShowLoginScreen"`
 	// This is the connector that can be used for password grant
 	PasswordConnector string `json:"passwordConnector"`
+	// List of additional scope prefixes to allow
+	AllowedScopePrefixes []string `json:"allowedScopePrefixes"`
 }
 
 // Web is the config format for the HTTP server.
