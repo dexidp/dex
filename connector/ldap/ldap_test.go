@@ -184,6 +184,43 @@ func TestUserFilter(t *testing.T) {
 	runTests(t, connectLDAP, c, tests)
 }
 
+func TestUsernameWithMultipleAttributes(t *testing.T) {
+	c := &Config{}
+	c.UserSearch.BaseDN = "ou=TestUsernameWithMultipleAttributes,dc=example,dc=org"
+	c.UserSearch.NameAttr = "cn"
+	c.UserSearch.EmailAttr = "mail"
+	c.UserSearch.IDAttr = "DN"
+	c.UserSearch.Username = "cn,mail"
+	c.UserSearch.Filter = "(ou:dn:=Seattle)"
+
+	tests := []subtest{
+		{
+			name:     "cn",
+			username: "jane",
+			password: "foo",
+			want: connector.Identity{
+				UserID:        "cn=jane,ou=People,ou=Seattle,ou=TestUsernameWithMultipleAttributes,dc=example,dc=org",
+				Username:      "jane",
+				Email:         "janedoe@example.com",
+				EmailVerified: true,
+			},
+		},
+		{
+			name:     "mail",
+			username: "janedoe@example.com",
+			password: "foo",
+			want: connector.Identity{
+				UserID:        "cn=jane,ou=People,ou=Seattle,ou=TestUsernameWithMultipleAttributes,dc=example,dc=org",
+				Username:      "jane",
+				Email:         "janedoe@example.com",
+				EmailVerified: true,
+			},
+		},
+	}
+
+	runTests(t, connectLDAP, c, tests)
+}
+
 func TestGroupQuery(t *testing.T) {
 	c := &Config{}
 	c.UserSearch.BaseDN = "ou=People,ou=TestGroupQuery,dc=example,dc=org"
