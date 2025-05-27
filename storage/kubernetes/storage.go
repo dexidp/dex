@@ -155,16 +155,16 @@ func (cli *client) registerCustomResources() (ok bool) {
 
 		r := definitions[i]
 		var i interface{}
-		cli.logger.Info("checking if custom resource has already been created...", "object", r.ObjectMeta.Name)
+		cli.logger.Info("checking if custom resource has already been created...", "object", r.Name)
 		if err := cli.listN(r.Spec.Names.Plural, &i, 1); err == nil {
-			cli.logger.Info("the custom resource already available, skipping create", "object", r.ObjectMeta.Name)
+			cli.logger.Info("the custom resource already available, skipping create", "object", r.Name)
 			continue
 		} else {
-			cli.logger.Info("failed to list custom resource, attempting to create", "object", r.ObjectMeta.Name, "err", err)
+			cli.logger.Info("failed to list custom resource, attempting to create", "object", r.Name, "err", err)
 		}
 
 		err = cli.postResource(cli.crdAPIVersion, "", "customresourcedefinitions", r)
-		resourceName = r.ObjectMeta.Name
+		resourceName = r.Name
 
 		if err != nil {
 			switch err {
@@ -417,7 +417,7 @@ func (cli *client) DeleteClient(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	return cli.delete(resourceClient, c.ObjectMeta.Name)
+	return cli.delete(resourceClient, c.Name)
 }
 
 func (cli *client) DeleteRefresh(ctx context.Context, id string) error {
@@ -430,7 +430,7 @@ func (cli *client) DeletePassword(ctx context.Context, email string) error {
 	if err != nil {
 		return err
 	}
-	return cli.delete(resourcePassword, p.ObjectMeta.Name)
+	return cli.delete(resourcePassword, p.Name)
 }
 
 func (cli *client) DeleteOfflineSessions(ctx context.Context, userID string, connID string) error {
@@ -439,7 +439,7 @@ func (cli *client) DeleteOfflineSessions(ctx context.Context, userID string, con
 	if err != nil {
 		return err
 	}
-	return cli.delete(resourceOfflineSessions, o.ObjectMeta.Name)
+	return cli.delete(resourceOfflineSessions, o.Name)
 }
 
 func (cli *client) DeleteConnector(ctx context.Context, id string) error {
@@ -469,7 +469,7 @@ func (cli *client) UpdateRefreshToken(ctx context.Context, id string, updater fu
 		newToken := cli.fromStorageRefreshToken(updated)
 		newToken.ObjectMeta = r.ObjectMeta
 
-		return cli.put(resourceRefreshToken, r.ObjectMeta.Name, newToken)
+		return cli.put(resourceRefreshToken, r.Name, newToken)
 	})
 }
 
@@ -487,7 +487,7 @@ func (cli *client) UpdateClient(ctx context.Context, id string, updater func(old
 
 	newClient := cli.fromStorageClient(updated)
 	newClient.ObjectMeta = c.ObjectMeta
-	return cli.put(resourceClient, c.ObjectMeta.Name, newClient)
+	return cli.put(resourceClient, c.Name, newClient)
 }
 
 func (cli *client) UpdatePassword(ctx context.Context, email string, updater func(old storage.Password) (storage.Password, error)) error {
@@ -504,7 +504,7 @@ func (cli *client) UpdatePassword(ctx context.Context, email string, updater fun
 
 	newPassword := cli.fromStoragePassword(updated)
 	newPassword.ObjectMeta = p.ObjectMeta
-	return cli.put(resourcePassword, p.ObjectMeta.Name, newPassword)
+	return cli.put(resourcePassword, p.Name, newPassword)
 }
 
 func (cli *client) UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(old storage.OfflineSessions) (storage.OfflineSessions, error)) error {
@@ -521,7 +521,7 @@ func (cli *client) UpdateOfflineSessions(ctx context.Context, userID string, con
 
 		newOfflineSessions := cli.fromStorageOfflineSessions(updated)
 		newOfflineSessions.ObjectMeta = o.ObjectMeta
-		return cli.put(resourceOfflineSessions, o.ObjectMeta.Name, newOfflineSessions)
+		return cli.put(resourceOfflineSessions, o.Name, newOfflineSessions)
 	})
 }
 
@@ -615,7 +615,7 @@ func (cli *client) GarbageCollect(ctx context.Context, now time.Time) (result st
 	var delErr error
 	for _, authRequest := range authRequests.AuthRequests {
 		if now.After(authRequest.Expiry) {
-			if err := cli.delete(resourceAuthRequest, authRequest.ObjectMeta.Name); err != nil {
+			if err := cli.delete(resourceAuthRequest, authRequest.Name); err != nil {
 				cli.logger.Error("failed to delete auth request", "err", err)
 				delErr = fmt.Errorf("failed to delete auth request: %v", err)
 			}
@@ -633,7 +633,7 @@ func (cli *client) GarbageCollect(ctx context.Context, now time.Time) (result st
 
 	for _, authCode := range authCodes.AuthCodes {
 		if now.After(authCode.Expiry) {
-			if err := cli.delete(resourceAuthCode, authCode.ObjectMeta.Name); err != nil {
+			if err := cli.delete(resourceAuthCode, authCode.Name); err != nil {
 				cli.logger.Error("failed to delete auth code", "err", err)
 				delErr = fmt.Errorf("failed to delete auth code: %v", err)
 			}
@@ -648,7 +648,7 @@ func (cli *client) GarbageCollect(ctx context.Context, now time.Time) (result st
 
 	for _, deviceRequest := range deviceRequests.DeviceRequests {
 		if now.After(deviceRequest.Expiry) {
-			if err := cli.delete(resourceDeviceRequest, deviceRequest.ObjectMeta.Name); err != nil {
+			if err := cli.delete(resourceDeviceRequest, deviceRequest.Name); err != nil {
 				cli.logger.Error("failed to delete device request", "err", err)
 				delErr = fmt.Errorf("failed to delete device request: %v", err)
 			}
@@ -663,7 +663,7 @@ func (cli *client) GarbageCollect(ctx context.Context, now time.Time) (result st
 
 	for _, deviceToken := range deviceTokens.DeviceTokens {
 		if now.After(deviceToken.Expiry) {
-			if err := cli.delete(resourceDeviceToken, deviceToken.ObjectMeta.Name); err != nil {
+			if err := cli.delete(resourceDeviceToken, deviceToken.Name); err != nil {
 				cli.logger.Error("failed to delete device token", "err", err)
 				delErr = fmt.Errorf("failed to delete device token: %v", err)
 			}
@@ -720,7 +720,7 @@ func (cli *client) UpdateDeviceToken(ctx context.Context, deviceCode string, upd
 
 		newToken := cli.fromStorageDeviceToken(updated)
 		newToken.ObjectMeta = r.ObjectMeta
-		return cli.put(resourceDeviceToken, r.ObjectMeta.Name, newToken)
+		return cli.put(resourceDeviceToken, r.Name, newToken)
 	})
 }
 
