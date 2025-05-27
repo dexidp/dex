@@ -369,7 +369,7 @@ type AuthRequestList struct {
 
 func toStorageAuthRequest(req AuthRequest) storage.AuthRequest {
 	a := storage.AuthRequest{
-		ID:                  req.ObjectMeta.Name,
+		ID:                  req.Name,
 		ClientID:            req.ClientID,
 		ResponseTypes:       req.ResponseTypes,
 		Scopes:              req.Scopes,
@@ -538,7 +538,7 @@ func (cli *client) fromStorageAuthCode(a storage.AuthCode) AuthCode {
 
 func toStorageAuthCode(a AuthCode) storage.AuthCode {
 	return storage.AuthCode{
-		ID:            a.ObjectMeta.Name,
+		ID:            a.Name,
 		ClientID:      a.ClientID,
 		RedirectURI:   a.RedirectURI,
 		ConnectorID:   a.ConnectorID,
@@ -585,7 +585,7 @@ type RefreshList struct {
 
 func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
 	return storage.RefreshToken{
-		ID:            r.ObjectMeta.Name,
+		ID:            r.Name,
 		Token:         r.Token,
 		ObsoleteToken: r.ObsoleteToken,
 		CreatedAt:     r.CreatedAt,
@@ -745,7 +745,7 @@ func toStorageConnector(c Connector) storage.Connector {
 		ID:              c.ID,
 		Type:            c.Type,
 		Name:            c.Name,
-		ResourceVersion: c.ObjectMeta.ResourceVersion,
+		ResourceVersion: c.ResourceVersion,
 		Config:          c.Config,
 	}
 }
@@ -798,7 +798,7 @@ func (cli *client) fromStorageDeviceRequest(a storage.DeviceRequest) DeviceReque
 
 func toStorageDeviceRequest(req DeviceRequest) storage.DeviceRequest {
 	return storage.DeviceRequest{
-		UserCode:     strings.ToUpper(req.ObjectMeta.Name),
+		UserCode:     strings.ToUpper(req.Name),
 		DeviceCode:   req.DeviceCode,
 		ClientID:     req.ClientID,
 		ClientSecret: req.ClientSecret,
@@ -852,7 +852,7 @@ func (cli *client) fromStorageDeviceToken(t storage.DeviceToken) DeviceToken {
 
 func toStorageDeviceToken(t DeviceToken) storage.DeviceToken {
 	return storage.DeviceToken{
-		DeviceCode:          t.ObjectMeta.Name,
+		DeviceCode:          t.Name,
 		Status:              t.Status,
 		Token:               t.Token,
 		Expiry:              t.Expiry,

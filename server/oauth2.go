@@ -3,6 +3,9 @@ package server
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/base64"
@@ -22,7 +25,6 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
-	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -173,6 +175,54 @@ func parseScopes(scopes []string) connector.Scopes {
 	return s
 }
 
+// Determine the signature algorithm for a JWT.
+func signatureAlgorithm(jwk *jose.JSONWebKey) (alg jose.SignatureAlgorithm, err error) {
+	if jwk.Key == nil {
+		return alg, errors.New("no signing key")
+	}
+	switch key := jwk.Key.(type) {
+	case *rsa.PrivateKey:
+		// Because OIDC mandates that we support RS256, we always return that
+		// value. In the future, we might want to make this configurable on a
+		// per client basis. For example allowing PS256 or ECDSA variants.
+		//
+		// See https://github.com/dexidp/dex/issues/692
+		return jose.RS256, nil
+	case *ecdsa.PrivateKey:
+		// We don't actually support ECDSA keys yet, but they're tested for
+		// in case we want to in the future.
+		//
+		// These values are prescribed depending on the ECDSA key type. We
+		// can't return different values.
+		switch key.Params() {
+		case elliptic.P256().Params():
+			return jose.ES256, nil
+		case elliptic.P384().Params():
+			return jose.ES384, nil
+		case elliptic.P521().Params():
+			return jose.ES512, nil
+		default:
+			return alg, errors.New("unsupported ecdsa curve")
+		}
+	default:
+		return alg, fmt.Errorf("unsupported signing key type %T", key)
+	}
+}
+
+func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []byte) (jws string, err error) {
+	signingKey := jose.SigningKey{Key: key, Algorithm: alg}
+
+	signer, err := jose.NewSigner(signingKey, &jose.SignerOptions{})
+	if err != nil {
+		return "", fmt.Errorf("new signer: %v", err)
+	}
+	signature, err := signer.Sign(payload)
+	if err != nil {
+		return "", fmt.Errorf("signing payload: %v", err)
+	}
+	return signature.CompactSerialize()
+}
+
 // The hash algorithm for the at_hash is determined by the signing
 // algorithm used for the id_token. From the spec:
 //
@@ -301,6 +351,21 @@ func genSubject(userID string, connID string) (string, error) {
 }
 
 func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string) (idToken string, expiry time.Time, err error) {
+	keys, err := s.storage.GetKeys(ctx)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get keys", "err", err)
+		return "", expiry, err
+	}
+
+	signingKey := keys.SigningKey
+	if signingKey == nil {
+		return "", expiry, fmt.Errorf("no key to sign payload with")
+	}
+	signingAlg, err := signatureAlgorithm(signingKey)
+	if err != nil {
+		return "", expiry, err
+	}
+
 	issuedAt := s.now()
 	expiry = issuedAt.Add(s.idTokensValidFor)
 
@@ -316,13 +381,6 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 		Nonce:    nonce,
 		Expiry:   expiry.Unix(),
 		IssuedAt: issuedAt.Unix(),
-	}
-
-	// Determine signing algorithm from signer
-	signingAlg, err := s.signer.Algorithm(ctx)
-	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to get signing algorithm", "err", err)
-		return "", expiry, fmt.Errorf("failed to get signing algorithm: %v", err)
 	}
 
 	if accessToken != "" {
@@ -344,16 +402,16 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 	}
 
 	for _, scope := range scopes {
-		switch {
-		case scope == scopeEmail:
+		switch scope {
+		case scopeEmail:
 			tok.Email = claims.Email
 			tok.EmailVerified = &claims.EmailVerified
-		case scope == scopeGroups:
+		case scopeGroups:
 			tok.Groups = claims.Groups
-		case scope == scopeProfile:
+		case scopeProfile:
 			tok.Name = claims.Username
 			tok.PreferredUsername = claims.PreferredUsername
-		case scope == scopeFederatedID:
+		case scopeFederatedID:
 			tok.FederatedIDClaims = &federatedIDClaims{
 				ConnectorID: connID,
 				UserID:      claims.UserID,
@@ -387,7 +445,7 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 		return "", expiry, fmt.Errorf("could not serialize claims: %v", err)
 	}
 
-	if idToken, err = s.signer.Sign(ctx, payload); err != nil {
+	if idToken, err = signPayload(signingKey, signingAlg, payload); err != nil {
 		return "", expiry, fmt.Errorf("failed to sign payload: %v", err)
 	}
 	return idToken, expiry, nil
@@ -647,12 +705,12 @@ func validateConnectorID(connectors []storage.Connector, connectorID string) boo
 	return false
 }
 
-// signerKeySet implements the oidc.KeySet interface backed by the Dex signer
-type signerKeySet struct {
-	signer signer.Signer
+// storageKeySet implements the oidc.KeySet interface backed by Dex storage
+type storageKeySet struct {
+	storage.Storage
 }
 
-func (s *signerKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
+func (s *storageKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
 	jws, err := jose.ParseSigned(jwt, []jose.SignatureAlgorithm{jose.RS256, jose.RS384, jose.RS512, jose.ES256, jose.ES384, jose.ES512})
 	if err != nil {
 		return nil, err
@@ -664,9 +722,14 @@ func (s *signerKeySet) VerifySignature(ctx context.Context, jwt string) (payload
 		break
 	}
 
-	keys, err := s.signer.ValidationKeys(ctx)
+	skeys, err := s.GetKeys(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	keys := []*jose.JSONWebKey{skeys.SigningKeyPub}
+	for _, vk := range skeys.VerificationKeys {
+		keys = append(keys, vk.PublicKey)
 	}
 
 	for _, key := range keys {

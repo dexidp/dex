@@ -58,7 +58,7 @@ func (l *refreshTokenLock) Unlock(id string) {
 	}
 
 	r.Annotations = nil
-	err = l.cli.put(resourceRefreshToken, r.ObjectMeta.Name, r)
+	err = l.cli.put(resourceRefreshToken, r.Name, r)
 	if err != nil {
 		l.cli.logger.Debug("failed to release lock for refresh token", "token_id", id, "err", err)
 	}
@@ -82,7 +82,7 @@ func (l *refreshTokenLock) setLockAnnotation(id string) (bool, error) {
 		}
 
 		r.Annotations = lockData
-		err := l.cli.put(resourceRefreshToken, r.ObjectMeta.Name, r)
+		err := l.cli.put(resourceRefreshToken, r.Name, r)
 		if err == nil {
 			return false, nil
 		}
@@ -108,7 +108,7 @@ func (l *refreshTokenLock) setLockAnnotation(id string) (bool, error) {
 	// Lock time is out, lets break the lock and take the advantage
 	r.Annotations = lockData
 
-	err = l.cli.put(resourceRefreshToken, r.ObjectMeta.Name, r)
+	err = l.cli.put(resourceRefreshToken, r.Name, r)
 	if err == nil {
 		// break lock annotation
 		return false, nil
