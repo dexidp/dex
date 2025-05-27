@@ -1,0 +1,41 @@
+issuer: http://127.0.0.1:5556/dex
+
+storage:
+    type: sqlite3
+    config:
+        file: ":memory:"
+
+web:
+    http: 127.0.0.1:5556
+
+telemetry:
+    http: 127.0.0.1:5558
+
+grpc:
+    addr: 127.0.0.1:5557
+
+staticClients:
+    - id: example-app
+      redirectURIs:
+          - "http://127.0.0.1:5555/callback"
+      name: "Example App"
+      secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+
+connectors:
+    - id: password
+      name: example-password
+      type: plugin
+      config:
+          type: password
+          path: ./bin/example-plugin-password
+          config:
+              username: testuser
+              password: testpassword
+    - id: callback
+      name: example-callback
+      type: plugin
+      config:
+          type: callback
+          path: ./bin/example-plugin-callback
+          config:
+              username: testuser
