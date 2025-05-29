@@ -44,10 +44,11 @@ type serveOptions struct {
 	config string
 
 	// Flags
-	webHTTPAddr   string
-	webHTTPSAddr  string
-	telemetryAddr string
-	grpcAddr      string
+	webHTTPAddr               string
+	webHTTPSAddr              string
+	telemetryAddr             string
+	grpcAddr                  string
+	continueOnConnectorFailure bool
 }
 
 var buildInfo = prometheus.NewGaugeVec(
@@ -83,6 +84,7 @@ func commandServe() *cobra.Command {
 	flags.StringVar(&options.webHTTPSAddr, "web-https-addr", "", "Web HTTPS address")
 	flags.StringVar(&options.telemetryAddr, "telemetry-addr", "", "Telemetry address")
 	flags.StringVar(&options.grpcAddr, "grpc-addr", "", "gRPC API address")
+	flags.BoolVar(&options.continueOnConnectorFailure, "continue-on-connector-failure", false, "Continue server startup even if some connectors fail to initialize")
 
 	return cmd
 }
@@ -300,8 +302,9 @@ func runServe(options serveOptions) error {
 		Web:                    c.Frontend,
 		Logger:                 logger,
 		Now:                    now,
-		PrometheusRegistry:     prometheusRegistry,
-		HealthChecker:          healthChecker,
+		PrometheusRegistry:         prometheusRegistry,
+		HealthChecker:              healthChecker,
+		ContinueOnConnectorFailure: options.continueOnConnectorFailure,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
