@@ -47,6 +47,7 @@ import (
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
+	"github.com/dexidp/dex/web/templates"
 )
 
 // LocalConnector is the local passwordDB connector which is an internal
@@ -270,11 +271,27 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 	sort.Strings(supportedGrants)
 
-	webFS := web.FS()
+	var webFS fs.FS
 	if c.Web.Dir != "" {
 		webFS = os.DirFS(c.Web.Dir)
+		c.Logger.Info("using templates from configured directory", "directory", c.Web.Dir)
 	} else if c.Web.WebFS != nil {
 		webFS = c.Web.WebFS
+		c.Logger.Info("using templates from configured WebFS")
+	} else {
+		dexCustomTemplateEnv := os.Getenv("DEX_CUSTOM_TEMPLATE")
+		if dexCustomTemplateEnv == "1" {
+			webFS = templates.NewDirFS("./web")
+			c.Logger.Info("using custom templates from ./web directory (forced by DEX_CUSTOM_TEMPLATE)")
+		} else {
+			if info, err := os.Stat("./web"); err == nil && info.IsDir() {
+				webFS = templates.NewDirFS("./web")
+				c.Logger.Info("using custom templates from ./web directory")
+			} else {
+				webFS = templates.NewFS()
+				c.Logger.Info("using embedded templates")
+			}
+		}
 	}
 
 	web := webConfig{
