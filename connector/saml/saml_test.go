@@ -232,6 +232,12 @@ func TestOkta(t *testing.T) {
 	test.run(t)
 }
 
+// We expect this test case to NOT err i.e. accept badStatus
+// To simplify logic, we stopped caring about the response since it is not guaranteed to be signed by the IdP
+// https://stackoverflow.com/questions/13234618/should-i-require-idps-to-sign-saml2-sso-responses/13245092#13245092
+// Assertion is required to be signed but not the Response. Therefore an attacker can just remove the response's signature anyway
+// As a result, we removed all the logic checks on the SAML response
+
 func TestBadStatus(t *testing.T) {
 	test := responseTest{
 		caFile:       "testdata/ca.crt",
@@ -241,7 +247,13 @@ func TestBadStatus(t *testing.T) {
 		emailAttr:    "email",
 		inResponseTo: "6zmm5mguyebwvajyf2sdwwcw6m",
 		redirectURI:  "http://127.0.0.1:5556/dex/callback",
-		wantErr:      true,
+		wantErr:      false,
+		wantIdent: connector.Identity{
+			UserID:        "eric.chiang+okta@coreos.com",
+			Username:      "Eric",
+			Email:         "eric.chiang+okta@coreos.com",
+			EmailVerified: true,
+		},
 	}
 	test.run(t)
 }
@@ -555,7 +567,7 @@ func runVerify(t *testing.T, ca string, resp string, shouldSucceed bool) {
 		t.Fatal(err)
 	}
 
-	if _, _, err := verifyResponseSig(validator, data); err != nil {
+	if _, err := verifyResponseSig(validator, data); err != nil {
 		if shouldSucceed {
 			t.Fatal(err)
 		}
