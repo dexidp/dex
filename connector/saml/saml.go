@@ -304,22 +304,30 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	}
 
 	// Root element is allowed to not be signed if the Assertion element is.
-	rootElementSigned := true
+	var rawSignedAssertion []byte
+	var rawSignedResponse []byte
+
 	if p.validator != nil {
-		rawResp, rootElementSigned, err = verifyResponseSig(p.validator, rawResp)
+		// if raw assertion must be
+		rawSignedAssertion, rawSignedResponse, err = verifyResponseSig(p.validator, rawResp)
 		if err != nil {
 			return ident, fmt.Errorf("verify signature: %v", err)
 		}
-	}
+	} else {
+		// no validator? I'm rejecting it for now, because it's unsafe.
 
-	var resp response
-	if err := xml.Unmarshal(rawResp, &resp); err != nil {
-		return ident, fmt.Errorf("unmarshal response: %v", err)
 	}
 
 	// If the root element isn't signed, there's no reason to inspect these
 	// elements. They're not verified.
-	if rootElementSigned {
+
+	// we got a signed response, let's carry about business logic checks on it
+	if rawSignedResponse != nil {
+		var resp response
+		if err := xml.Unmarshal(rawSignedResponse, &resp); err != nil {
+			return ident, fmt.Errorf("unmarshal response: %v", err)
+		}
+
 		if p.ssoIssuer != "" && resp.Issuer != nil && resp.Issuer.Issuer != p.ssoIssuer {
 			return ident, fmt.Errorf("expected Issuer value %s, got %s", p.ssoIssuer, resp.Issuer.Issuer)
 		}
@@ -345,9 +353,15 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		}
 	}
 
-	assertion := resp.Assertion
-	if assertion == nil {
+	if rawSignedAssertion == nil {
 		return ident, fmt.Errorf("response did not contain an assertion")
+	}
+
+	// assertion, use the rawSignedAssertion
+
+	var assertion assertion
+	if err := xml.Unmarshal(rawSignedAssertion, &assertion); err != nil {
+		return ident, fmt.Errorf("unmarshal response: %v", err)
 	}
 
 	// Subject is usually optional, but we need it for the user ID, so complain
@@ -608,8 +622,8 @@ func verifyResponseSig(validator *dsig.ValidationContext, data []byte) (signedAs
 		isolatedDoc := etree.NewDocument()
 		isolatedDoc.SetRoot(transformedResponse)
 		signedResponse, err := isolatedDoc.WriteToBytes()
-		if err != nil || signedResponse != nil {
-			return nil, nil, fmt.Errorf("serialize document: %v", err)
+		if err != nil || signedResponse == nil {
+			return nil, nil, fmt.Errorf("serialize response document: %v", err)
 		}
 
 		// signedAssertionElement part of transformedResponse
@@ -619,10 +633,10 @@ func verifyResponseSig(validator *dsig.ValidationContext, data []byte) (signedAs
 		}
 
 		assertionIsolatedDoc := etree.NewDocument()
-		isolatedDoc.SetRoot(signedAssertionElement)
+		assertionIsolatedDoc.SetRoot(signedAssertionElement)
 		signedAssertion, err := assertionIsolatedDoc.WriteToBytes()
 		if err != nil || signedAssertion == nil {
-			return nil, nil, fmt.Errorf("serialize document: %v", err)
+			return nil, nil, fmt.Errorf("serialize assertion node: %v", err)
 		}
 		return signedAssertion, signedResponse, nil
 	}
@@ -654,7 +668,7 @@ func verifyResponseSig(validator *dsig.ValidationContext, data []byte) (signedAs
 	newDoc.SetRoot(transformedAssertion)
 	signedAssertion, err = newDoc.WriteToBytes()
 	if err != nil || signedAssertion == nil {
-		return nil, nil, fmt.Errorf("serialize document: %v", err)
+		return nil, nil, fmt.Errorf("serialize signed assertion: %v", err)
 	}
 	return signedAssertion, nil, nil
 }
