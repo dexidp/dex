@@ -580,44 +580,68 @@ func (p *provider) validateConditions(conditions *conditions) error {
 
 // verifyResponseSig attempts to verify the signature of a SAML response or
 // the assertion.
+// Using the signed contents from the signature, it attempts to obtain both an assertion and if the response is signed
+// the response
 //
-// If the root element is properly signed, this method returns it.
+// If the root response is signed: returns the first assertion, along with the root response
 //
 // The SAML spec requires supporting responses where the root element is
-// unverified, but the sub <Assertion> elements are signed. In these cases,
-// this method returns rootVerified=false to indicate that the <Assertion>
-// elements should be trusted, but all other elements MUST be ignored.
+// unverified, but the sub <Assertion> elements are signed.
+// In these cases, the method returns the assertion, however, the signedResponse will be nil
 //
 // Note: we still don't support multiple <Assertion> tags. If there are
 // multiple present this code will only process the first.
-func verifyResponseSig(validator *dsig.ValidationContext, data []byte) (signed []byte, rootVerified bool, err error) {
+func verifyResponseSig(validator *dsig.ValidationContext, data []byte) (signedAssertion []byte, signedResponse []byte, err error) {
 	doc := etree.NewDocument()
 	if err = doc.ReadFromBytes(data); err != nil {
-		return nil, false, fmt.Errorf("parse document: %v", err)
+		return nil, nil, fmt.Errorf("parse document: %v", err)
 	}
 
 	response := doc.Root()
 	if response == nil {
-		return nil, false, fmt.Errorf("parse document: empty root")
+		return nil, nil, fmt.Errorf("parse document: empty root")
 	}
+	// transformedResponse is signed, show return value is parsed solely from transformedResponse
 	transformedResponse, err := validator.Validate(response)
 	if err == nil {
-		// Root element is verified, return it.
-		doc.SetRoot(transformedResponse)
-		signed, err = doc.WriteToBytes()
-		return signed, true, err
+		// signedResponse is the serialization of ONLY transformedResponse
+		isolatedDoc := etree.NewDocument()
+		isolatedDoc.SetRoot(transformedResponse)
+		signedResponse, err := isolatedDoc.WriteToBytes()
+		if err != nil || signedResponse != nil {
+			return nil, nil, fmt.Errorf("serialize document: %v", err)
+		}
+
+		// signedAssertionElement part of transformedResponse
+		signedAssertionElement, err := etreeutils.NSSelectOne(transformedResponse, "urn:oasis:names:tc:SAML:2.0:assertion", "Assertion")
+		if err != nil || signedAssertionElement == nil {
+			return nil, nil, fmt.Errorf("response does not contain an Assertion element")
+		}
+
+		assertionIsolatedDoc := etree.NewDocument()
+		isolatedDoc.SetRoot(signedAssertionElement)
+		signedAssertion, err := assertionIsolatedDoc.WriteToBytes()
+		if err != nil || signedAssertion == nil {
+			return nil, nil, fmt.Errorf("serialize document: %v", err)
+		}
+		return signedAssertion, signedResponse, nil
 	}
+
+	// Case 2: Assertion signed
 
 	// Ensures xmlns are copied down to the assertion element when they are defined in the root
 	//
 	// TODO: Only select from child elements of the root.
 	assertion, err := etreeutils.NSSelectOne(response, "urn:oasis:names:tc:SAML:2.0:assertion", "Assertion")
 	if err != nil || assertion == nil {
-		return nil, false, fmt.Errorf("response does not contain an Assertion element")
+		return nil, nil, fmt.Errorf("response does not contain an Assertion element")
 	}
+
+	// transformedAssertion is signed
+
 	transformedAssertion, err := validator.Validate(assertion)
 	if err != nil {
-		return nil, false, fmt.Errorf("response does not contain a valid signature element: %v", err)
+		return nil, nil, fmt.Errorf("response does not contain a valid signature element: %v", err)
 	}
 
 	// Verified an assertion but not the response. Can't trust any child elements,
@@ -626,12 +650,13 @@ func verifyResponseSig(validator *dsig.ValidationContext, data []byte) (signed [
 		response.RemoveChild(el)
 	}
 
-	// We still return the full <Response> element, even though it's unverified
-	// because the <Assertion> element is not a valid XML document on its own.
-	// It still requires the root element to define things like namespaces.
-	response.AddChild(transformedAssertion)
-	signed, err = doc.WriteToBytes()
-	return signed, false, err
+	newDoc := etree.NewDocument()
+	newDoc.SetRoot(transformedAssertion)
+	signedAssertion, err = newDoc.WriteToBytes()
+	if err != nil || signedAssertion == nil {
+		return nil, nil, fmt.Errorf("serialize document: %v", err)
+	}
+	return signedAssertion, nil, nil
 }
 
 // before determines if a given time is before the current time, with an
