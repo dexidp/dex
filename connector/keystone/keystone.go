@@ -4,6 +4,7 @@ package keystone
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,6 +23,7 @@ type conn struct {
 	AdminPassword string
 	client        *http.Client
 	Logger        log.Logger
+	CustomerName  string
 }
 
 // type group struct {
@@ -64,10 +66,12 @@ type domainKeystone struct {
 //			keystonePassword: DEMO_PASS
 //			useRolesAsGroups: true
 type Config struct {
-	Domain        string `json:"domain"`
-	Host          string `json:"keystoneHost"`
-	AdminUsername string `json:"keystoneUsername"`
-	AdminPassword string `json:"keystonePassword"`
+	Domain             string `json:"domain"`
+	Host               string `json:"keystoneHost"`
+	AdminUsername      string `json:"keystoneUsername"`
+	AdminPassword      string `json:"keystonePassword"`
+	InsecureSkipVerify bool   `json:"insecureSkipVerify"`
+	CustomerName       string `json:"customerName"`
 }
 
 type loginRequestData struct {
@@ -177,13 +181,20 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 	domain := domainKeystone{
 		Name: c.Domain,
 	}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: c.InsecureSkipVerify,
+		},
+	}
+	client := &http.Client{Transport: tr}
 	return &conn{
 		Domain:        domain,
 		Host:          c.Host,
 		AdminUsername: c.AdminUsername,
 		AdminPassword: c.AdminPassword,
 		Logger:        logger,
-		client:        http.DefaultClient,
+		client:        client,
+		CustomerName:  c.CustomerName,
 	}, nil
 }
 
@@ -538,9 +549,13 @@ func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo
 	var roleGroups []string
 
 	// get the customer name to be prefixed in the group name
-	hostName, err := p.getHostname()
-	if err != nil {
-		return userGroups, err
+	customerName := p.CustomerName
+	// if customerName is not provided in the keystone config get it from keystone host url.
+	if customerName == "" {
+		customerName, err = p.getHostname()
+		if err != nil {
+			return userGroups, err
+		}
 	}
 	for _, roleAssignment := range roleAssignments {
 		role, ok := roleMap[roleAssignment.Role.ID]
@@ -553,7 +568,7 @@ func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo
 			// Ignore role assignments to non-existent projects (shouldn't happen)
 			continue
 		}
-		groupName := p.generateGroupName(project, role, hostName)
+		groupName := p.generateGroupName(project, role, customerName)
 		roleGroups = append(roleGroups, groupName)
 	}
 
@@ -576,15 +591,14 @@ func (p *conn) getHostname() (string, error) {
 	return hostName, nil
 }
 
-func (p *conn) generateGroupName(project project, role role, hostName string) string {
+func (p *conn) generateGroupName(project project, role role, customerName string) string {
 	roleName := role.Name
 	if roleName == "_member_" {
 		roleName = "member"
 	}
-	if hostName != "" {
-		return hostName + "-" + p.Domain.Name + "-" + project.Name + "-" + roleName
-	}
-	return p.Domain.Name + "-" + project.Name + "-" + roleName
+	domainName := strings.ToLower(strings.ReplaceAll(p.Domain.Name, "_", "-"))
+	projectName := strings.ToLower(strings.ReplaceAll(project.Name, "_", "-"))
+	return customerName + "-" + domainName + "-" + projectName + "-" + roleName
 }
 
 func (p *conn) getUser(ctx context.Context, userID string, token string) (*userResponse, error) {
