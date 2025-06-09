@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -834,7 +833,7 @@ func newToken(key *jose.JSONWebKey, claims map[string]interface{}) (string, erro
 }
 
 func newConnector(config Config) (*oidcConnector, error) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 	conn, err := config.Open("id", logger)
 	if err != nil {
 		return nil, fmt.Errorf("unable to open: %v", err)
