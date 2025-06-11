@@ -269,7 +269,7 @@ func runServe(options serveOptions) error {
 	s = storage.WithStaticConnectors(s, storageConnectors)
 
 	if c.OIDCGroupsPrefix {
-		logger.Infof("config using connector ID as oidc groups prefix")
+		logger.Info("config using connector ID as oidc groups prefix")
 	}
 	if len(c.OAuth2.ResponseTypes) > 0 {
 		logger.Info("config response types accepted", "response_types", c.OAuth2.ResponseTypes)
