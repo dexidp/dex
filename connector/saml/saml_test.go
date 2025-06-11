@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
+	"log/slog"
 	"os"
 	"sort"
 	"testing"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/kylelemons/godebug/pretty"
 	dsig "github.com/russellhaering/goxmldsig"
-	"github.com/sirupsen/logrus"
 
 	"github.com/dexidp/dex/connector"
 )
@@ -420,7 +420,7 @@ func (r responseTest) run(t *testing.T) {
 		t.Fatalf("parse test time: %v", err)
 	}
 
-	conn, err := c.openConnector(logrus.New())
+	conn, err := c.openConnector(slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -454,7 +454,7 @@ func (r responseTest) run(t *testing.T) {
 }
 
 func TestConfigCAData(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	validPEM, err := os.ReadFile("testdata/ca.crt")
 	if err != nil {
 		t.Fatal(err)

@@ -53,14 +53,14 @@ func (l *refreshTokenLock) Unlock(id string) {
 
 	r, err := l.cli.getRefreshToken(id)
 	if err != nil {
-		l.cli.logger.Debugf("failed to get resource to release lock for refresh token %s: %v", id, err)
+		l.cli.logger.Debug("failed to get resource to release lock for refresh token", "token_id", id, "err", err)
 		return
 	}
 
 	r.Annotations = nil
 	err = l.cli.put(resourceRefreshToken, r.ObjectMeta.Name, r)
 	if err != nil {
-		l.cli.logger.Debugf("failed to release lock for refresh token %s: %v", id, err)
+		l.cli.logger.Debug("failed to release lock for refresh token", "token_id", id, "err", err)
 	}
 }
 
@@ -114,7 +114,7 @@ func (l *refreshTokenLock) setLockAnnotation(id string) (bool, error) {
 		return false, nil
 	}
 
-	l.cli.logger.Debugf("break lock annotation error: %v", err)
+	l.cli.logger.Debug("break lock annotation", "error", err)
 	if isKubernetesAPIConflictError(err) {
 		l.waitingState = true
 		// after breaking error waiting for the lock to be released

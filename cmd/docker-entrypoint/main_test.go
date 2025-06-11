@@ -6,7 +6,7 @@ import (
 )
 
 type execArgs struct {
-	fork        bool
+	gomplate    bool
 	argPrefixes []string
 }
 
@@ -16,98 +16,89 @@ func TestRun(t *testing.T) {
 		args         []string
 		execReturns  error
 		whichReturns string
-		wantExecArgs []execArgs
+		wantExecArgs execArgs
 		wantErr      error
 	}{
 		{
 			name:         "executable not dex",
 			args:         []string{"tuna", "fish"},
-			wantExecArgs: []execArgs{{fork: false, argPrefixes: []string{"tuna", "fish"}}},
+			wantExecArgs: execArgs{gomplate: false, argPrefixes: []string{"tuna", "fish"}},
 		},
 		{
 			name:         "executable is full path to dex",
 			args:         []string{"/usr/local/bin/dex", "marshmallow", "zelda"},
 			whichReturns: "/usr/local/bin/dex",
-			wantExecArgs: []execArgs{{fork: false, argPrefixes: []string{"/usr/local/bin/dex", "marshmallow", "zelda"}}},
+			wantExecArgs: execArgs{gomplate: false, argPrefixes: []string{"/usr/local/bin/dex", "marshmallow", "zelda"}},
 		},
 		{
 			name:         "command is not serve",
 			args:         []string{"dex", "marshmallow", "zelda"},
-			wantExecArgs: []execArgs{{fork: false, argPrefixes: []string{"dex", "marshmallow", "zelda"}}},
+			wantExecArgs: execArgs{gomplate: false, argPrefixes: []string{"dex", "marshmallow", "zelda"}},
 		},
 		{
 			name:         "no templates",
 			args:         []string{"dex", "serve", "config.yaml.not-a-template"},
-			wantExecArgs: []execArgs{{fork: false, argPrefixes: []string{"dex", "serve", "config.yaml.not-a-template"}}},
+			wantExecArgs: execArgs{gomplate: false, argPrefixes: []string{"dex", "serve", "config.yaml.not-a-template"}},
 		},
 		{
 			name:         "no templates",
 			args:         []string{"dex", "serve", "config.yaml.not-a-template"},
-			wantExecArgs: []execArgs{{fork: false, argPrefixes: []string{"dex", "serve", "config.yaml.not-a-template"}}},
+			wantExecArgs: execArgs{gomplate: false, argPrefixes: []string{"dex", "serve", "config.yaml.not-a-template"}},
 		},
 		{
-			name: ".tpl template",
-			args: []string{"dex", "serve", "config.tpl"},
-			wantExecArgs: []execArgs{
-				{fork: true, argPrefixes: []string{"gomplate", "-f", "config.tpl", "-o", "/tmp/dex.config.yaml-"}},
-				{fork: false, argPrefixes: []string{"dex", "serve", "/tmp/dex.config.yaml-"}},
-			},
+			name:         ".tpl template",
+			args:         []string{"dex", "serve", "config.tpl"},
+			wantExecArgs: execArgs{gomplate: true, argPrefixes: []string{"dex", "serve", "/tmp/dex.config.yaml-"}},
 		},
 		{
-			name: ".tmpl template",
-			args: []string{"dex", "serve", "config.tmpl"},
-			wantExecArgs: []execArgs{
-				{fork: true, argPrefixes: []string{"gomplate", "-f", "config.tmpl", "-o", "/tmp/dex.config.yaml-"}},
-				{fork: false, argPrefixes: []string{"dex", "serve", "/tmp/dex.config.yaml-"}},
-			},
+			name:         ".tmpl template",
+			args:         []string{"dex", "serve", "config.tmpl"},
+			wantExecArgs: execArgs{gomplate: true, argPrefixes: []string{"dex", "serve", "/tmp/dex.config.yaml-"}},
 		},
 		{
-			name: ".yaml template",
-			args: []string{"dex", "serve", "some/path/config.yaml"},
-			wantExecArgs: []execArgs{
-				{fork: true, argPrefixes: []string{"gomplate", "-f", "some/path/config.yaml", "-o", "/tmp/dex.config.yaml-"}},
-				{fork: false, argPrefixes: []string{"dex", "serve", "/tmp/dex.config.yaml-"}},
-			},
+			name:         ".yaml template",
+			args:         []string{"dex", "serve", "some/path/config.yaml"},
+			wantExecArgs: execArgs{gomplate: true, argPrefixes: []string{"dex", "serve", "/tmp/dex.config.yaml-"}},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var gotExecForks []bool
-			var gotExecArgs [][]string
-			fakeExec := func(fork bool, args ...string) error {
-				gotExecForks = append(gotExecForks, fork)
-				gotExecArgs = append(gotExecArgs, args)
+			var gotExecArgs []string
+			var runsGomplate bool
+
+			fakeExec := func(args ...string) error {
+				gotExecArgs = append(args, gotExecArgs...)
 				return test.execReturns
 			}
 
 			fakeWhich := func(_ string) string { return test.whichReturns }
 
-			gotErr := run(test.args, fakeExec, fakeWhich)
+			fakeGomplate := func(file string) (string, error) {
+				runsGomplate = true
+				return "/tmp/dex.config.yaml-", nil
+			}
+
+			gotErr := run(test.args, fakeExec, fakeWhich, fakeGomplate)
 			if (test.wantErr == nil) != (gotErr == nil) {
 				t.Errorf("wanted error %s, got %s", test.wantErr, gotErr)
 			}
-			if !execArgsMatch(test.wantExecArgs, gotExecForks, gotExecArgs) {
-				t.Errorf("wanted exec args %+v, got %+v %+v", test.wantExecArgs, gotExecForks, gotExecArgs)
+
+			if !execArgsMatch(test.wantExecArgs, runsGomplate, gotExecArgs) {
+				t.Errorf("wanted exec args %+v (running gomplate: %+v), got %+v (running gomplate: %+v)",
+					test.wantExecArgs.argPrefixes, test.wantExecArgs.gomplate, gotExecArgs, runsGomplate)
 			}
 		})
 	}
 }
 
-func execArgsMatch(wantExecArgs []execArgs, gotForks []bool, gotExecArgs [][]string) bool {
-	if len(wantExecArgs) != len(gotForks) {
+func execArgsMatch(wantExecArgs execArgs, gomplate bool, gotExecArgs []string) bool {
+	if wantExecArgs.gomplate != gomplate {
 		return false
 	}
-
-	for i := range wantExecArgs {
-		if wantExecArgs[i].fork != gotForks[i] {
+	for i := range wantExecArgs.argPrefixes {
+		if !strings.HasPrefix(gotExecArgs[i], wantExecArgs.argPrefixes[i]) {
 			return false
 		}
-		for j := range wantExecArgs[i].argPrefixes {
-			if !strings.HasPrefix(gotExecArgs[i][j], wantExecArgs[i].argPrefixes[j]) {
-				return false
-			}
-		}
 	}
-
 	return true
 }

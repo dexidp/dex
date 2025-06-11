@@ -2,7 +2,7 @@
 
 package conformance
 
-import jose "gopkg.in/square/go-jose.v2"
+import "github.com/go-jose/go-jose/v4"
 
 type keyPair struct {
 	Public  *jose.JSONWebKey

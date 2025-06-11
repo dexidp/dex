@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -57,11 +57,7 @@ func (s *StorageTestSuite) SetupTest() {
 		KubeConfigFile: kubeconfigPath,
 	}
 
-	logger := &logrus.Logger{
-		Out:       os.Stderr,
-		Formatter: &logrus.TextFormatter{DisableColors: true},
-		Level:     logrus.DebugLevel,
-	}
+	logger := slog.New(slog.DiscardHandler)
 
 	kubeClient, err := config.open(logger, true)
 	s.Require().NoError(err)
@@ -224,7 +220,7 @@ func TestUpdateKeys(t *testing.T) {
 	for _, test := range tests {
 		client := newStatusCodesResponseTestClient(test.getResponseCode, test.actionResponseCode)
 
-		err := client.UpdateKeys(test.updater)
+		err := client.UpdateKeys(context.TODO(), test.updater)
 		if err != nil {
 			if !test.wantErr {
 				t.Fatalf("Test %q: %v", test.name, err)
@@ -253,11 +249,7 @@ func newStatusCodesResponseTestClient(getResponseCode, actionResponseCode int) *
 	return &client{
 		client:  &http.Client{Transport: tr},
 		baseURL: s.URL,
-		logger: &logrus.Logger{
-			Out:       os.Stderr,
-			Formatter: &logrus.TextFormatter{DisableColors: true},
-			Level:     logrus.DebugLevel,
-		},
+		logger:  slog.New(slog.DiscardHandler),
 	}
 }
 
@@ -302,6 +294,7 @@ func TestRetryOnConflict(t *testing.T) {
 }
 
 func TestRefreshTokenLock(t *testing.T) {
+	ctx := context.Background()
 	if os.Getenv(kubeconfigPathVariableName) == "" {
 		t.Skipf("variable %q not set, skipping kubernetes storage tests\n", kubeconfigPathVariableName)
 	}
@@ -313,11 +306,7 @@ func TestRefreshTokenLock(t *testing.T) {
 		KubeConfigFile: kubeconfigPath,
 	}
 
-	logger := &logrus.Logger{
-		Out:       os.Stderr,
-		Formatter: &logrus.TextFormatter{DisableColors: true},
-		Level:     logrus.DebugLevel,
-	}
+	logger := slog.New(slog.DiscardHandler)
 
 	kubeClient, err := config.open(logger, true)
 	require.NoError(t, err)
@@ -345,13 +334,13 @@ func TestRefreshTokenLock(t *testing.T) {
 		ConnectorData: []byte(`{"some":"data"}`),
 	}
 
-	err = kubeClient.CreateRefresh(r)
+	err = kubeClient.CreateRefresh(ctx, r)
 	require.NoError(t, err)
 
 	t.Run("Timeout lock error", func(t *testing.T) {
-		err = kubeClient.UpdateRefreshToken(r.ID, func(r storage.RefreshToken) (storage.RefreshToken, error) {
+		err = kubeClient.UpdateRefreshToken(ctx, r.ID, func(r storage.RefreshToken) (storage.RefreshToken, error) {
 			r.Token = "update-result-1"
-			err := kubeClient.UpdateRefreshToken(r.ID, func(r storage.RefreshToken) (storage.RefreshToken, error) {
+			err := kubeClient.UpdateRefreshToken(ctx, r.ID, func(r storage.RefreshToken) (storage.RefreshToken, error) {
 				r.Token = "timeout-err"
 				return r, nil
 			})
@@ -360,7 +349,7 @@ func TestRefreshTokenLock(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		token, err := kubeClient.GetRefresh(r.ID)
+		token, err := kubeClient.GetRefresh(context.TODO(), r.ID)
 		require.NoError(t, err)
 		require.Equal(t, "update-result-1", token.Token)
 	})
@@ -369,13 +358,13 @@ func TestRefreshTokenLock(t *testing.T) {
 		var lockBroken bool
 		lockTimeout = -time.Hour
 
-		err = kubeClient.UpdateRefreshToken(r.ID, func(r storage.RefreshToken) (storage.RefreshToken, error) {
+		err = kubeClient.UpdateRefreshToken(ctx, r.ID, func(r storage.RefreshToken) (storage.RefreshToken, error) {
 			r.Token = "update-result-2"
 			if lockBroken {
 				return r, nil
 			}
 
-			err := kubeClient.UpdateRefreshToken(r.ID, func(r storage.RefreshToken) (storage.RefreshToken, error) {
+			err := kubeClient.UpdateRefreshToken(ctx, r.ID, func(r storage.RefreshToken) (storage.RefreshToken, error) {
 				r.Token = "should-break-the-lock-and-finish-updating"
 				return r, nil
 			})
@@ -386,7 +375,7 @@ func TestRefreshTokenLock(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		token, err := kubeClient.GetRefresh(r.ID)
+		token, err := kubeClient.GetRefresh(context.TODO(), r.ID)
 		require.NoError(t, err)
 		// Because concurrent update breaks the lock, the final result will be the value of the first update
 		require.Equal(t, "update-result-2", token.Token)

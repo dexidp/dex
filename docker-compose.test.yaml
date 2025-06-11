@@ -11,8 +11,8 @@ services:
             LDAP_TLS: "true"
             LDAP_TLS_VERIFY_CLIENT: try
         ports:
-            - 389:389
-            - 636:636
+            - 3890:389
+            - 6360:636
         volumes:
             - ./connector/ldap/testdata/certs:/container/service/slapd/assets/certs
             - ./connector/ldap/testdata/schema.ldif:/container/service/slapd/assets/config/bootstrap/ldif/99-schema.ldif

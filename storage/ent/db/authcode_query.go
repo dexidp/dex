@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
@@ -60,7 +61,7 @@ func (acq *AuthCodeQuery) Order(o ...authcode.OrderOption) *AuthCodeQuery {
 // First returns the first AuthCode entity from the query.
 // Returns a *NotFoundError when no AuthCode was found.
 func (acq *AuthCodeQuery) First(ctx context.Context) (*AuthCode, error) {
-	nodes, err := acq.Limit(1).All(setContextOp(ctx, acq.ctx, "First"))
+	nodes, err := acq.Limit(1).All(setContextOp(ctx, acq.ctx, ent.OpQueryFirst))
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +84,7 @@ func (acq *AuthCodeQuery) FirstX(ctx context.Context) *AuthCode {
 // Returns a *NotFoundError when no AuthCode ID was found.
 func (acq *AuthCodeQuery) FirstID(ctx context.Context) (id string, err error) {
 	var ids []string
-	if ids, err = acq.Limit(1).IDs(setContextOp(ctx, acq.ctx, "FirstID")); err != nil {
+	if ids, err = acq.Limit(1).IDs(setContextOp(ctx, acq.ctx, ent.OpQueryFirstID)); err != nil {
 		return
 	}
 	if len(ids) == 0 {
@@ -106,7 +107,7 @@ func (acq *AuthCodeQuery) FirstIDX(ctx context.Context) string {
 // Returns a *NotSingularError when more than one AuthCode entity is found.
 // Returns a *NotFoundError when no AuthCode entities are found.
 func (acq *AuthCodeQuery) Only(ctx context.Context) (*AuthCode, error) {
-	nodes, err := acq.Limit(2).All(setContextOp(ctx, acq.ctx, "Only"))
+	nodes, err := acq.Limit(2).All(setContextOp(ctx, acq.ctx, ent.OpQueryOnly))
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +135,7 @@ func (acq *AuthCodeQuery) OnlyX(ctx context.Context) *AuthCode {
 // Returns a *NotFoundError when no entities are found.
 func (acq *AuthCodeQuery) OnlyID(ctx context.Context) (id string, err error) {
 	var ids []string
-	if ids, err = acq.Limit(2).IDs(setContextOp(ctx, acq.ctx, "OnlyID")); err != nil {
+	if ids, err = acq.Limit(2).IDs(setContextOp(ctx, acq.ctx, ent.OpQueryOnlyID)); err != nil {
 		return
 	}
 	switch len(ids) {
@@ -159,7 +160,7 @@ func (acq *AuthCodeQuery) OnlyIDX(ctx context.Context) string {
 
 // All executes the query and returns a list of AuthCodes.
 func (acq *AuthCodeQuery) All(ctx context.Context) ([]*AuthCode, error) {
-	ctx = setContextOp(ctx, acq.ctx, "All")
+	ctx = setContextOp(ctx, acq.ctx, ent.OpQueryAll)
 	if err := acq.prepareQuery(ctx); err != nil {
 		return nil, err
 	}
@@ -181,7 +182,7 @@ func (acq *AuthCodeQuery) IDs(ctx context.Context) (ids []string, err error) {
 	if acq.ctx.Unique == nil && acq.path != nil {
 		acq.Unique(true)
 	}
-	ctx = setContextOp(ctx, acq.ctx, "IDs")
+	ctx = setContextOp(ctx, acq.ctx, ent.OpQueryIDs)
 	if err = acq.Select(authcode.FieldID).Scan(ctx, &ids); err != nil {
 		return nil, err
 	}
@@ -199,7 +200,7 @@ func (acq *AuthCodeQuery) IDsX(ctx context.Context) []string {
 
 // Count returns the count of the given query.
 func (acq *AuthCodeQuery) Count(ctx context.Context) (int, error) {
-	ctx = setContextOp(ctx, acq.ctx, "Count")
+	ctx = setContextOp(ctx, acq.ctx, ent.OpQueryCount)
 	if err := acq.prepareQuery(ctx); err != nil {
 		return 0, err
 	}
@@ -217,7 +218,7 @@ func (acq *AuthCodeQuery) CountX(ctx context.Context) int {
 
 // Exist returns true if the query has elements in the graph.
 func (acq *AuthCodeQuery) Exist(ctx context.Context) (bool, error) {
-	ctx = setContextOp(ctx, acq.ctx, "Exist")
+	ctx = setContextOp(ctx, acq.ctx, ent.OpQueryExist)
 	switch _, err := acq.FirstID(ctx); {
 	case IsNotFound(err):
 		return false, nil
@@ -449,7 +450,7 @@ func (acgb *AuthCodeGroupBy) Aggregate(fns ...AggregateFunc) *AuthCodeGroupBy {
 
 // Scan applies the selector query and scans the result into the given value.
 func (acgb *AuthCodeGroupBy) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, acgb.build.ctx, "GroupBy")
+	ctx = setContextOp(ctx, acgb.build.ctx, ent.OpQueryGroupBy)
 	if err := acgb.build.prepareQuery(ctx); err != nil {
 		return err
 	}
@@ -497,7 +498,7 @@ func (acs *AuthCodeSelect) Aggregate(fns ...AggregateFunc) *AuthCodeSelect {
 
 // Scan applies the selector query and scans the result into the given value.
 func (acs *AuthCodeSelect) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, acs.ctx, "Select")
+	ctx = setContextOp(ctx, acs.ctx, ent.OpQuerySelect)
 	if err := acs.prepareQuery(ctx); err != nil {
 		return err
 	}

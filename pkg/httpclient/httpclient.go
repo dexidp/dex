@@ -3,12 +3,33 @@ package httpclient
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"time"
 )
+
+func extractCAs(input []string) [][]byte {
+	result := make([][]byte, 0, len(input))
+	for _, ca := range input {
+		if ca == "" {
+			continue
+		}
+
+		pemData, err := os.ReadFile(ca)
+		if err != nil {
+			pemData, err = base64.StdEncoding.DecodeString(ca)
+			if err != nil {
+				pemData = []byte(ca)
+			}
+		}
+
+		result = append(result, pemData)
+	}
+	return result
+}
 
 func NewHTTPClient(rootCAs []string, insecureSkipVerify bool) (*http.Client, error) {
 	pool, err := x509.SystemCertPool()
@@ -17,13 +38,11 @@ func NewHTTPClient(rootCAs []string, insecureSkipVerify bool) (*http.Client, err
 	}
 
 	tlsConfig := tls.Config{RootCAs: pool, InsecureSkipVerify: insecureSkipVerify}
-	for _, rootCA := range rootCAs {
-		rootCABytes, err := os.ReadFile(rootCA)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read root-ca: %v", err)
-		}
+	for index, rootCABytes := range extractCAs(rootCAs) {
 		if !tlsConfig.RootCAs.AppendCertsFromPEM(rootCABytes) {
-			return nil, fmt.Errorf("no certs found in root CA file %q", rootCA)
+			return nil, fmt.Errorf("rootCAs.%d is not in PEM format, certificate must be "+
+				"a PEM encoded string, a base64 encoded bytes that contain PEM encoded string, "+
+				"or a path to a PEM encoded certificate", index)
 		}
 	}
 

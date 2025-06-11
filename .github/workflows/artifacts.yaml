@@ -16,22 +16,21 @@ on:
     outputs:
       container-image-name:
         description: Container image name
-        value: ${{ jobs.container-image.outputs.name }}
+        value: ${{ jobs.container-images.outputs.name }}
       container-image-digest:
         description: Container image digest
-        value: ${{ jobs.container-image.outputs.digest }}
+        value: ${{ jobs.container-images.outputs.digest }}
       container-image-ref:
         description: Container image ref
-        value: ${{ jobs.container-image.outputs.ref }}
+        value: ${{ jobs.container-images.outputs.ref }}
 
 permissions:
   contents: read
 
 jobs:
-  container-image:
-    name: Container image
+  container-images:
+    name: Container images
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         variant:
@@ -39,6 +38,7 @@ jobs:
           - distroless
 
     permissions:
+      attestations: write
       contents: read
       packages: write
       id-token: write
@@ -51,16 +51,19 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@2b82ce82d56a2a04d2637cd93a637ae1b359c0a7 # v2.2.0
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@16c0bc4a6e6ada2cfd8afd41d22d95379cf7c32a # v2.8.0
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
       - name: Set up Syft
-        uses: anchore/sbom-action/download-syft@78fc58e266e87a38d4194b2137a3d4e9bcaf7ca1 # v0.14.3
+        uses: anchore/sbom-action/download-syft@e11c554f704a0b820cbf8c51673f6945e0731532 # v0.20.0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@3454372f43399081ed03b604cb2d021dabca52bb # v3.8.2
 
       - name: Set image name
         id: image-name
@@ -68,7 +71,7 @@ jobs:
 
       - name: Gather build metadata
         id: meta
-        uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175 # v4.6.0
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
         with:
           images: |
             ${{ steps.image-name.outputs.value }}
@@ -90,7 +93,7 @@ jobs:
       # Multiple exporters are not supported yet
       # See https://github.com/moby/buildkit/pull/2760
       - name: Determine build output
-        uses: haya14busa/action-cond@1d6e8a12b20cdb4f1954feef9aa475b9c390cab5 # v1.1.1
+        uses: haya14busa/action-cond@94f77f7a80cd666cb3155084e428254fea4281fd # v1.2.1
         id: build-output
         with:
           cond: ${{ inputs.publish }}
@@ -98,7 +101,7 @@ jobs:
           if_false: type=oci,dest=image.tar
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2.2.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -106,7 +109,7 @@ jobs:
         if: inputs.publish
 
       - name: Login to Docker Hub
-        uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2.2.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
@@ -114,10 +117,10 @@ jobs:
 
       - name: Build and push image
         id: build
-        uses: docker/build-push-action@2eb1c1961a95fc15694676618e422e8ba1d63825 # v4.1.1
+        uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
         with:
           context: .
-          platforms: linux/amd64,linux/arm/v7,linux/arm64,linux/ppc64le
+          platforms: linux/amd64,linux/arm/v7,linux/arm64,linux/ppc64le,linux/s390x
           tags: ${{ steps.meta.outputs.tags }}
           build-args: |
             BASE_IMAGE=${{ matrix.variant }}
@@ -129,6 +132,11 @@ jobs:
           # cache-to: type=gha,mode=max
           outputs: ${{ steps.build-output.outputs.value }}
           # push: ${{ inputs.publish }}
+
+      - name: Sign the images with GitHub OIDC Token
+        run: |
+          cosign sign --yes ${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}
+        if: inputs.publish
 
       - name: Set image ref
         id: image-ref
@@ -161,27 +169,70 @@ jobs:
       #   run: syft -o spdx-json=sbom-spdx.json docker-archive:docker.tar
       #
       # - name: Upload SBOM as artifact
-      #   uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # v3.1.2
+      #   uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32 # v3.1.3
       #   with:
       #     name: "[${{ github.job }}] SBOM"
       #     path: sbom-spdx.json
       #     retention-days: 5
 
+      # TODO: uncomment when the action is working for non ghcr.io pushes. GH Issue: https://github.com/actions/attest-build-provenance/issues/80
+      # - name: Generate build provenance attestation
+      #   uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd # v2.3.0
+      #   with:
+      #     subject-name: dexidp/dex
+      #     subject-digest: ${{ steps.build.outputs.digest }}
+      #     push-to-registry: true
+
+      - name: Generate build provenance attestation
+        uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd # v2.3.0
+        with:
+          subject-name: ghcr.io/dexidp/dex
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+        if: inputs.publish
+
+      ## Use cache for the trivy-db to avoid the TOOMANYREQUESTS error https://github.com/aquasecurity/trivy-action/pull/397
+      ## To avoid the trivy-db becoming outdated, we save the cache for one day
+      - name: Get data
+        id: date
+        run: echo "date=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+
+      - name: Restore trivy cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: cache/db
+          key: trivy-cache-${{ steps.date.outputs.date }}
+          restore-keys: trivy-cache-
+
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@41f05d9ecffa2ed3f1580af306000f734b733e54 # 0.11.2
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
         with:
           input: image
           format: sarif
           output: trivy-results.sarif
+          scan-type: "fs"
+          scan-ref: "."
+          cache-dir: "./cache"
+        # Disable skipping trivy cache for now
+        # env:
+        #   TRIVY_SKIP_DB_UPDATE: true
+        #   TRIVY_SKIP_JAVA_DB_UPDATE: true
+
+      ## Trivy-db uses `0600` permissions.
+      ## But `action/cache` use `runner` user by default
+      ## So we need to change the permissions before caching the database.
+      - name: change permissions for trivy.db
+        run: sudo chmod 0644 ./cache/db/trivy.db
 
       - name: Upload Trivy scan results as artifact
-        uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # v3.1.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: "[${{ github.job }}] Trivy scan results"
           path: trivy-results.sarif
           retention-days: 5
+          overwrite: true
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@f6e388ebf0efc915c6c5b165b019ee61a6746a38 # v2.20.1
+        uses: github/codeql-action/upload-sarif@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3.28.18
         with:
           sarif_file: trivy-results.sarif
