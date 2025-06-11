@@ -7,19 +7,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 type conn struct {
-	Domain        string
+	Domain        domainKeystone
 	Host          string
 	AdminUsername string
 	AdminPassword string
 	client        *http.Client
-	Logger        log.Logger
+	Logger        *slog.Logger
 }
 
 type userKeystone struct {
@@ -29,8 +31,8 @@ type userKeystone struct {
 }
 
 type domainKeystone struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
 }
 
 // Config holds the configuration parameters for Keystone connector.
@@ -71,13 +73,9 @@ type password struct {
 }
 
 type user struct {
-	Name     string `json:"name"`
-	Domain   domain `json:"domain"`
-	Password string `json:"password"`
-}
-
-type domain struct {
-	ID string `json:"id"`
+	Name     string         `json:"name"`
+	Domain   domainKeystone `json:"domain"`
+	Password string         `json:"password"`
 }
 
 type token struct {
@@ -111,13 +109,27 @@ var (
 )
 
 // Open returns an authentication strategy using Keystone.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
+	_, err := uuid.Parse(c.Domain)
+	var domain domainKeystone
+	// check if the supplied domain is a UUID or the special "default" value
+	// which is treated as an ID and not a name
+	if err == nil || c.Domain == "default" {
+		domain = domainKeystone{
+			ID: c.Domain,
+		}
+	} else {
+		domain = domainKeystone{
+			Name: c.Domain,
+		}
+	}
+
 	return &conn{
-		Domain:        c.Domain,
+		Domain:        domain,
 		Host:          c.Host,
 		AdminUsername: c.AdminUsername,
 		AdminPassword: c.AdminPassword,
-		Logger:        logger,
+		Logger:        logger.With(slog.Group("connector", "type", "keystone", "id", id)),
 		client:        http.DefaultClient,
 	}, nil
 }
@@ -202,7 +214,7 @@ func (p *conn) getTokenResponse(ctx context.Context, username, pass string) (res
 				Password: password{
 					User: user{
 						Name:     username,
-						Domain:   domain{ID: p.Domain},
+						Domain:   p.Domain,
 						Password: pass,
 					},
 				},
@@ -287,7 +299,7 @@ func (p *conn) getUserGroups(ctx context.Context, userID string, token string) (
 	req = req.WithContext(ctx)
 	resp, err := p.client.Do(req)
 	if err != nil {
-		p.Logger.Errorf("keystone: error while fetching user %q groups\n", userID)
+		p.Logger.Error("error while fetching user groups", "user_id", userID, "err", err)
 		return nil, err
 	}
 

@@ -368,11 +368,15 @@ func (acc *AuthCodeCreate) createSpec() (*AuthCode, *sqlgraph.CreateSpec) {
 // AuthCodeCreateBulk is the builder for creating many AuthCode entities in bulk.
 type AuthCodeCreateBulk struct {
 	config
+	err      error
 	builders []*AuthCodeCreate
 }
 
 // Save creates the AuthCode entities in the database.
 func (accb *AuthCodeCreateBulk) Save(ctx context.Context) ([]*AuthCode, error) {
+	if accb.err != nil {
+		return nil, accb.err
+	}
 	specs := make([]*sqlgraph.CreateSpec, len(accb.builders))
 	nodes := make([]*AuthCode, len(accb.builders))
 	mutators := make([]Mutator, len(accb.builders))

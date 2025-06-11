@@ -3,12 +3,12 @@ package ent
 import (
 	"context"
 	"crypto/sha256"
+	"log/slog"
 	"strings"
 
 	"entgo.io/ent/dialect/sql"
 	_ "github.com/mattn/go-sqlite3" // Register sqlite driver.
 
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/client"
 	"github.com/dexidp/dex/storage/ent/db"
@@ -20,7 +20,7 @@ type SQLite3 struct {
 }
 
 // Open always returns a new in sqlite3 storage.
-func (s *SQLite3) Open(logger log.Logger) (storage.Storage, error) {
+func (s *SQLite3) Open(logger *slog.Logger) (storage.Storage, error) {
 	logger.Debug("experimental ent-based storage driver is enabled")
 
 	// Implicitly set foreign_keys pragma to "on" because it is required by ent

@@ -12,7 +12,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/keys"
-	jose "gopkg.in/square/go-jose.v2"
+	jose "github.com/go-jose/go-jose/v4"
 )
 
 // KeysCreate is the builder for creating a Keys entity.
@@ -160,11 +160,15 @@ func (kc *KeysCreate) createSpec() (*Keys, *sqlgraph.CreateSpec) {
 // KeysCreateBulk is the builder for creating many Keys entities in bulk.
 type KeysCreateBulk struct {
 	config
+	err      error
 	builders []*KeysCreate
 }
 
 // Save creates the Keys entities in the database.
 func (kcb *KeysCreateBulk) Save(ctx context.Context) ([]*Keys, error) {
+	if kcb.err != nil {
+		return nil, kcb.err
+	}
 	specs := make([]*sqlgraph.CreateSpec, len(kcb.builders))
 	nodes := make([]*Keys, len(kcb.builders))
 	mutators := make([]Mutator, len(kcb.builders))

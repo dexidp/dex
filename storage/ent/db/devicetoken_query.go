@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
@@ -60,7 +61,7 @@ func (dtq *DeviceTokenQuery) Order(o ...devicetoken.OrderOption) *DeviceTokenQue
 // First returns the first DeviceToken entity from the query.
 // Returns a *NotFoundError when no DeviceToken was found.
 func (dtq *DeviceTokenQuery) First(ctx context.Context) (*DeviceToken, error) {
-	nodes, err := dtq.Limit(1).All(setContextOp(ctx, dtq.ctx, "First"))
+	nodes, err := dtq.Limit(1).All(setContextOp(ctx, dtq.ctx, ent.OpQueryFirst))
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +84,7 @@ func (dtq *DeviceTokenQuery) FirstX(ctx context.Context) *DeviceToken {
 // Returns a *NotFoundError when no DeviceToken ID was found.
 func (dtq *DeviceTokenQuery) FirstID(ctx context.Context) (id int, err error) {
 	var ids []int
-	if ids, err = dtq.Limit(1).IDs(setContextOp(ctx, dtq.ctx, "FirstID")); err != nil {
+	if ids, err = dtq.Limit(1).IDs(setContextOp(ctx, dtq.ctx, ent.OpQueryFirstID)); err != nil {
 		return
 	}
 	if len(ids) == 0 {
@@ -106,7 +107,7 @@ func (dtq *DeviceTokenQuery) FirstIDX(ctx context.Context) int {
 // Returns a *NotSingularError when more than one DeviceToken entity is found.
 // Returns a *NotFoundError when no DeviceToken entities are found.
 func (dtq *DeviceTokenQuery) Only(ctx context.Context) (*DeviceToken, error) {
-	nodes, err := dtq.Limit(2).All(setContextOp(ctx, dtq.ctx, "Only"))
+	nodes, err := dtq.Limit(2).All(setContextOp(ctx, dtq.ctx, ent.OpQueryOnly))
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +135,7 @@ func (dtq *DeviceTokenQuery) OnlyX(ctx context.Context) *DeviceToken {
 // Returns a *NotFoundError when no entities are found.
 func (dtq *DeviceTokenQuery) OnlyID(ctx context.Context) (id int, err error) {
 	var ids []int
-	if ids, err = dtq.Limit(2).IDs(setContextOp(ctx, dtq.ctx, "OnlyID")); err != nil {
+	if ids, err = dtq.Limit(2).IDs(setContextOp(ctx, dtq.ctx, ent.OpQueryOnlyID)); err != nil {
 		return
 	}
 	switch len(ids) {
@@ -159,7 +160,7 @@ func (dtq *DeviceTokenQuery) OnlyIDX(ctx context.Context) int {
 
 // All executes the query and returns a list of DeviceTokens.
 func (dtq *DeviceTokenQuery) All(ctx context.Context) ([]*DeviceToken, error) {
-	ctx = setContextOp(ctx, dtq.ctx, "All")
+	ctx = setContextOp(ctx, dtq.ctx, ent.OpQueryAll)
 	if err := dtq.prepareQuery(ctx); err != nil {
 		return nil, err
 	}
@@ -181,7 +182,7 @@ func (dtq *DeviceTokenQuery) IDs(ctx context.Context) (ids []int, err error) {
 	if dtq.ctx.Unique == nil && dtq.path != nil {
 		dtq.Unique(true)
 	}
-	ctx = setContextOp(ctx, dtq.ctx, "IDs")
+	ctx = setContextOp(ctx, dtq.ctx, ent.OpQueryIDs)
 	if err = dtq.Select(devicetoken.FieldID).Scan(ctx, &ids); err != nil {
 		return nil, err
 	}
@@ -199,7 +200,7 @@ func (dtq *DeviceTokenQuery) IDsX(ctx context.Context) []int {
 
 // Count returns the count of the given query.
 func (dtq *DeviceTokenQuery) Count(ctx context.Context) (int, error) {
-	ctx = setContextOp(ctx, dtq.ctx, "Count")
+	ctx = setContextOp(ctx, dtq.ctx, ent.OpQueryCount)
 	if err := dtq.prepareQuery(ctx); err != nil {
 		return 0, err
 	}
@@ -217,7 +218,7 @@ func (dtq *DeviceTokenQuery) CountX(ctx context.Context) int {
 
 // Exist returns true if the query has elements in the graph.
 func (dtq *DeviceTokenQuery) Exist(ctx context.Context) (bool, error) {
-	ctx = setContextOp(ctx, dtq.ctx, "Exist")
+	ctx = setContextOp(ctx, dtq.ctx, ent.OpQueryExist)
 	switch _, err := dtq.FirstID(ctx); {
 	case IsNotFound(err):
 		return false, nil
@@ -449,7 +450,7 @@ func (dtgb *DeviceTokenGroupBy) Aggregate(fns ...AggregateFunc) *DeviceTokenGrou
 
 // Scan applies the selector query and scans the result into the given value.
 func (dtgb *DeviceTokenGroupBy) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, dtgb.build.ctx, "GroupBy")
+	ctx = setContextOp(ctx, dtgb.build.ctx, ent.OpQueryGroupBy)
 	if err := dtgb.build.prepareQuery(ctx); err != nil {
 		return err
 	}
@@ -497,7 +498,7 @@ func (dts *DeviceTokenSelect) Aggregate(fns ...AggregateFunc) *DeviceTokenSelect
 
 // Scan applies the selector query and scans the result into the given value.
 func (dts *DeviceTokenSelect) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, dts.ctx, "Select")
+	ctx = setContextOp(ctx, dts.ctx, ent.OpQuerySelect)
 	if err := dts.prepareQuery(ctx); err != nil {
 		return err
 	}

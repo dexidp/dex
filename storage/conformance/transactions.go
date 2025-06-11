@@ -1,6 +1,7 @@
 package conformance
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -26,6 +27,7 @@ func RunTransactionTests(t *testing.T, newStorage func() storage.Storage) {
 }
 
 func testClientConcurrentUpdate(t *testing.T, s storage.Storage) {
+	ctx := context.Background()
 	c := storage.Client{
 		ID:           storage.NewID(),
 		Secret:       "foobar",
@@ -34,15 +36,15 @@ func testClientConcurrentUpdate(t *testing.T, s storage.Storage) {
 		LogoURL:      "https://goo.gl/JIyzIC",
 	}
 
-	if err := s.CreateClient(c); err != nil {
+	if err := s.CreateClient(ctx, c); err != nil {
 		t.Fatalf("create client: %v", err)
 	}
 
 	var err1, err2 error
 
-	err1 = s.UpdateClient(c.ID, func(old storage.Client) (storage.Client, error) {
+	err1 = s.UpdateClient(ctx, c.ID, func(old storage.Client) (storage.Client, error) {
 		old.Secret = "new secret 1"
-		err2 = s.UpdateClient(c.ID, func(old storage.Client) (storage.Client, error) {
+		err2 = s.UpdateClient(ctx, c.ID, func(old storage.Client) (storage.Client, error) {
 			old.Secret = "new secret 2"
 			return old, nil
 		})
@@ -55,6 +57,7 @@ func testClientConcurrentUpdate(t *testing.T, s storage.Storage) {
 }
 
 func testAuthRequestConcurrentUpdate(t *testing.T, s storage.Storage) {
+	ctx := context.Background()
 	a := storage.AuthRequest{
 		ID:                  storage.NewID(),
 		ClientID:            "foobar",
@@ -78,15 +81,15 @@ func testAuthRequestConcurrentUpdate(t *testing.T, s storage.Storage) {
 		HMACKey: []byte("hmac_key"),
 	}
 
-	if err := s.CreateAuthRequest(a); err != nil {
+	if err := s.CreateAuthRequest(ctx, a); err != nil {
 		t.Fatalf("failed creating auth request: %v", err)
 	}
 
 	var err1, err2 error
 
-	err1 = s.UpdateAuthRequest(a.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
+	err1 = s.UpdateAuthRequest(ctx, a.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
 		old.State = "state 1"
-		err2 = s.UpdateAuthRequest(a.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
+		err2 = s.UpdateAuthRequest(ctx, a.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
 			old.State = "state 2"
 			return old, nil
 		})
@@ -99,6 +102,7 @@ func testAuthRequestConcurrentUpdate(t *testing.T, s storage.Storage) {
 }
 
 func testPasswordConcurrentUpdate(t *testing.T, s storage.Storage) {
+	ctx := context.Background()
 	// Use bcrypt.MinCost to keep the tests short.
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte("secret"), bcrypt.MinCost)
 	if err != nil {
@@ -111,15 +115,15 @@ func testPasswordConcurrentUpdate(t *testing.T, s storage.Storage) {
 		Username: "jane",
 		UserID:   "foobar",
 	}
-	if err := s.CreatePassword(password); err != nil {
+	if err := s.CreatePassword(ctx, password); err != nil {
 		t.Fatalf("create password token: %v", err)
 	}
 
 	var err1, err2 error
 
-	err1 = s.UpdatePassword(password.Email, func(old storage.Password) (storage.Password, error) {
+	err1 = s.UpdatePassword(ctx, password.Email, func(old storage.Password) (storage.Password, error) {
 		old.Username = "user 1"
-		err2 = s.UpdatePassword(password.Email, func(old storage.Password) (storage.Password, error) {
+		err2 = s.UpdatePassword(ctx, password.Email, func(old storage.Password) (storage.Password, error) {
 			old.Username = "user 2"
 			return old, nil
 		})
@@ -159,8 +163,9 @@ func testKeysConcurrentUpdate(t *testing.T, s storage.Storage) {
 
 		var err1, err2 error
 
-		err1 = s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
-			err2 = s.UpdateKeys(func(old storage.Keys) (storage.Keys, error) {
+		ctx := context.TODO()
+		err1 = s.UpdateKeys(ctx, func(old storage.Keys) (storage.Keys, error) {
+			err2 = s.UpdateKeys(ctx, func(old storage.Keys) (storage.Keys, error) {
 				return keys1, nil
 			})
 			return keys2, nil

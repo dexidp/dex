@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
@@ -60,7 +61,7 @@ func (osq *OfflineSessionQuery) Order(o ...offlinesession.OrderOption) *OfflineS
 // First returns the first OfflineSession entity from the query.
 // Returns a *NotFoundError when no OfflineSession was found.
 func (osq *OfflineSessionQuery) First(ctx context.Context) (*OfflineSession, error) {
-	nodes, err := osq.Limit(1).All(setContextOp(ctx, osq.ctx, "First"))
+	nodes, err := osq.Limit(1).All(setContextOp(ctx, osq.ctx, ent.OpQueryFirst))
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +84,7 @@ func (osq *OfflineSessionQuery) FirstX(ctx context.Context) *OfflineSession {
 // Returns a *NotFoundError when no OfflineSession ID was found.
 func (osq *OfflineSessionQuery) FirstID(ctx context.Context) (id string, err error) {
 	var ids []string
-	if ids, err = osq.Limit(1).IDs(setContextOp(ctx, osq.ctx, "FirstID")); err != nil {
+	if ids, err = osq.Limit(1).IDs(setContextOp(ctx, osq.ctx, ent.OpQueryFirstID)); err != nil {
 		return
 	}
 	if len(ids) == 0 {
@@ -106,7 +107,7 @@ func (osq *OfflineSessionQuery) FirstIDX(ctx context.Context) string {
 // Returns a *NotSingularError when more than one OfflineSession entity is found.
 // Returns a *NotFoundError when no OfflineSession entities are found.
 func (osq *OfflineSessionQuery) Only(ctx context.Context) (*OfflineSession, error) {
-	nodes, err := osq.Limit(2).All(setContextOp(ctx, osq.ctx, "Only"))
+	nodes, err := osq.Limit(2).All(setContextOp(ctx, osq.ctx, ent.OpQueryOnly))
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +135,7 @@ func (osq *OfflineSessionQuery) OnlyX(ctx context.Context) *OfflineSession {
 // Returns a *NotFoundError when no entities are found.
 func (osq *OfflineSessionQuery) OnlyID(ctx context.Context) (id string, err error) {
 	var ids []string
-	if ids, err = osq.Limit(2).IDs(setContextOp(ctx, osq.ctx, "OnlyID")); err != nil {
+	if ids, err = osq.Limit(2).IDs(setContextOp(ctx, osq.ctx, ent.OpQueryOnlyID)); err != nil {
 		return
 	}
 	switch len(ids) {
@@ -159,7 +160,7 @@ func (osq *OfflineSessionQuery) OnlyIDX(ctx context.Context) string {
 
 // All executes the query and returns a list of OfflineSessions.
 func (osq *OfflineSessionQuery) All(ctx context.Context) ([]*OfflineSession, error) {
-	ctx = setContextOp(ctx, osq.ctx, "All")
+	ctx = setContextOp(ctx, osq.ctx, ent.OpQueryAll)
 	if err := osq.prepareQuery(ctx); err != nil {
 		return nil, err
 	}
@@ -181,7 +182,7 @@ func (osq *OfflineSessionQuery) IDs(ctx context.Context) (ids []string, err erro
 	if osq.ctx.Unique == nil && osq.path != nil {
 		osq.Unique(true)
 	}
-	ctx = setContextOp(ctx, osq.ctx, "IDs")
+	ctx = setContextOp(ctx, osq.ctx, ent.OpQueryIDs)
 	if err = osq.Select(offlinesession.FieldID).Scan(ctx, &ids); err != nil {
 		return nil, err
 	}
@@ -199,7 +200,7 @@ func (osq *OfflineSessionQuery) IDsX(ctx context.Context) []string {
 
 // Count returns the count of the given query.
 func (osq *OfflineSessionQuery) Count(ctx context.Context) (int, error) {
-	ctx = setContextOp(ctx, osq.ctx, "Count")
+	ctx = setContextOp(ctx, osq.ctx, ent.OpQueryCount)
 	if err := osq.prepareQuery(ctx); err != nil {
 		return 0, err
 	}
@@ -217,7 +218,7 @@ func (osq *OfflineSessionQuery) CountX(ctx context.Context) int {
 
 // Exist returns true if the query has elements in the graph.
 func (osq *OfflineSessionQuery) Exist(ctx context.Context) (bool, error) {
-	ctx = setContextOp(ctx, osq.ctx, "Exist")
+	ctx = setContextOp(ctx, osq.ctx, ent.OpQueryExist)
 	switch _, err := osq.FirstID(ctx); {
 	case IsNotFound(err):
 		return false, nil
@@ -449,7 +450,7 @@ func (osgb *OfflineSessionGroupBy) Aggregate(fns ...AggregateFunc) *OfflineSessi
 
 // Scan applies the selector query and scans the result into the given value.
 func (osgb *OfflineSessionGroupBy) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, osgb.build.ctx, "GroupBy")
+	ctx = setContextOp(ctx, osgb.build.ctx, ent.OpQueryGroupBy)
 	if err := osgb.build.prepareQuery(ctx); err != nil {
 		return err
 	}
@@ -497,7 +498,7 @@ func (oss *OfflineSessionSelect) Aggregate(fns ...AggregateFunc) *OfflineSession
 
 // Scan applies the selector query and scans the result into the given value.
 func (oss *OfflineSessionSelect) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, oss.ctx, "Select")
+	ctx = setContextOp(ctx, oss.ctx, ent.OpQuerySelect)
 	if err := oss.prepareQuery(ctx); err != nil {
 		return err
 	}

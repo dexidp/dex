@@ -6,13 +6,11 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
-
-	"github.com/sirupsen/logrus"
 )
 
 func TestUserGroups(t *testing.T) {
@@ -151,11 +149,7 @@ type TestServerResponse struct {
 func newTestCrowdConnector(baseURL string) crowdConnector {
 	connector := crowdConnector{}
 	connector.BaseURL = baseURL
-	connector.logger = &logrus.Logger{
-		Out:       io.Discard,
-		Level:     logrus.DebugLevel,
-		Formatter: &logrus.TextFormatter{DisableColors: true},
-	}
+	connector.logger = slog.New(slog.DiscardHandler)
 	return connector
 }
 

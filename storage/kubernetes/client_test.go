@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"hash"
 	"hash/fnv"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -10,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
@@ -52,11 +52,7 @@ func TestOfflineTokenName(t *testing.T) {
 }
 
 func TestInClusterTransport(t *testing.T) {
-	logger := &logrus.Logger{
-		Out:       os.Stderr,
-		Formatter: &logrus.TextFormatter{DisableColors: true},
-		Level:     logrus.DebugLevel,
-	}
+	logger := slog.New(slog.DiscardHandler)
 
 	user := k8sapi.AuthInfo{Token: "abc"}
 	cli, err := newClient(

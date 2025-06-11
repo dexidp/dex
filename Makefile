@@ -1,5 +1,6 @@
-OS = $(shell uname | tr A-Z a-z)
 export PATH := $(abspath bin/protoc/bin/):$(abspath bin/):${PATH}
+
+OS = $(shell uname | tr A-Z a-z)
 
 user=$(shell id -u -n)
 group=$(shell id -g -n)
@@ -18,14 +19,14 @@ export GOBIN=$(PWD)/bin
 LD_FLAGS="-w -X main.version=$(VERSION)"
 
 # Dependency versions
-GOLANGCI_VERSION   = 1.52.0
-GOTESTSUM_VERSION ?= 1.9.0
+GOLANGCI_VERSION   = 1.64.5
+GOTESTSUM_VERSION ?= 1.12.0
 
-PROTOC_VERSION             = 21.12
-PROTOC_GEN_GO_VERSION      = 1.28.1
-PROTOC_GEN_GO_GRPC_VERSION = 1.3.0
+PROTOC_VERSION             = 29.3
+PROTOC_GEN_GO_VERSION      = 1.36.5
+PROTOC_GEN_GO_GRPC_VERSION = 1.5.1
 
-KIND_VERSION    = 0.17.0
+KIND_VERSION    = 0.22.0
 KIND_NODE_IMAGE = "kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5"
 KIND_TMP_DIR    = "$(PWD)/bin/test/dex-kind-kubeconfig"
 
