@@ -44,10 +44,11 @@ type serveOptions struct {
 	config string
 
 	// Flags
-	webHTTPAddr   string
-	webHTTPSAddr  string
-	telemetryAddr string
-	grpcAddr      string
+	webHTTPAddr                string
+	webHTTPSAddr               string
+	telemetryAddr              string
+	grpcAddr                   string
+	continueOnConnectorFailure bool
 }
 
 var buildInfo = prometheus.NewGaugeVec(
@@ -83,6 +84,7 @@ func commandServe() *cobra.Command {
 	flags.StringVar(&options.webHTTPSAddr, "web-https-addr", "", "Web HTTPS address")
 	flags.StringVar(&options.telemetryAddr, "telemetry-addr", "", "Telemetry address")
 	flags.StringVar(&options.grpcAddr, "grpc-addr", "", "gRPC API address")
+	flags.BoolVar(&options.continueOnConnectorFailure, "continue-on-connector-failure", false, "Continue server startup even if some connectors fail to initialize")
 
 	return cmd
 }
@@ -287,21 +289,22 @@ func runServe(options serveOptions) error {
 	healthChecker := gosundheit.New()
 
 	serverConfig := server.Config{
-		AllowedGrantTypes:      c.OAuth2.GrantTypes,
-		SupportedResponseTypes: c.OAuth2.ResponseTypes,
-		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
-		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
-		PasswordConnector:      c.OAuth2.PasswordConnector,
-		Headers:                c.Web.Headers.ToHTTPHeader(),
-		AllowedOrigins:         c.Web.AllowedOrigins,
-		AllowedHeaders:         c.Web.AllowedHeaders,
-		Issuer:                 c.Issuer,
-		Storage:                s,
-		Web:                    c.Frontend,
-		Logger:                 logger,
-		Now:                    now,
-		PrometheusRegistry:     prometheusRegistry,
-		HealthChecker:          healthChecker,
+		AllowedGrantTypes:          c.OAuth2.GrantTypes,
+		SupportedResponseTypes:     c.OAuth2.ResponseTypes,
+		SkipApprovalScreen:         c.OAuth2.SkipApprovalScreen,
+		AlwaysShowLoginScreen:      c.OAuth2.AlwaysShowLoginScreen,
+		PasswordConnector:          c.OAuth2.PasswordConnector,
+		Headers:                    c.Web.Headers.ToHTTPHeader(),
+		AllowedOrigins:             c.Web.AllowedOrigins,
+		AllowedHeaders:             c.Web.AllowedHeaders,
+		Issuer:                     c.Issuer,
+		Storage:                    s,
+		Web:                        c.Frontend,
+		Logger:                     logger,
+		Now:                        now,
+		PrometheusRegistry:         prometheusRegistry,
+		HealthChecker:              healthChecker,
+		ContinueOnConnectorFailure: options.continueOnConnectorFailure,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
