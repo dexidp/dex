@@ -319,7 +319,6 @@ func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error 
 		conn *ldap.Conn
 		err  error
 	)
-
 	switch {
 	case c.InsecureNoSSL:
 		u := url.URL{Scheme: "ldap", Host: c.Host}
@@ -342,15 +341,22 @@ func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error 
 	}
 	defer conn.Close()
 
-	// If bindDN and bindPW are empty this will default to an anonymous bind.
-	if c.BindDN == "" && c.BindPW == "" {
+	// If a client certificate is provided, skip the anonymous bind
+	// because it would override the cert-based authentication.
+	hasCertAuth := c.ClientCert != "" && c.ClientKey != "" && len(c.tlsConfig.Certificates) > 0
+
+	// If we're using a client certificate and bindDN/bindPW aren't set,
+	// just move on without doing any bind.
+	if hasCertAuth && c.BindDN == "" && c.BindPW == "" {
+		c.logger.Debug("Using client certificate for authentication, skipping bind")
+	} else if c.BindDN == "" && c.BindPW == "" {
+		// If no bindDN, no bindPW, and no client certificate, do an anonymous bind.
 		if err := conn.UnauthenticatedBind(""); err != nil {
 			return fmt.Errorf("ldap: initial anonymous bind failed: %v", err)
 		}
 	} else if err := conn.Bind(c.BindDN, c.BindPW); err != nil {
 		return fmt.Errorf("ldap: initial bind for user %q failed: %v", c.BindDN, err)
 	}
-
 	return f(conn)
 }
 
