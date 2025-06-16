@@ -223,7 +223,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	conn, err := s.getConnector(ctx, connID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "Failed to get connector", "err", err)
-		s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist")
+		s.renderError(r, w, http.StatusBadRequest, "Connector failed to initialize")
 		return
 	}
 
@@ -350,7 +350,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 	conn, err := s.getConnector(ctx, authReq.ConnectorID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "connector_id", authReq.ConnectorID, "err", err)
-		s.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
+		s.renderError(r, w, http.StatusInternalServerError, "Connector failed to initialize.")
 		return
 	}
 

@@ -35,6 +35,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/dexidp/dex/api/v2"
+	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
 )
@@ -44,11 +45,10 @@ type serveOptions struct {
 	config string
 
 	// Flags
-	webHTTPAddr                string
-	webHTTPSAddr               string
-	telemetryAddr              string
-	grpcAddr                   string
-	continueOnConnectorFailure bool
+	webHTTPAddr   string
+	webHTTPSAddr  string
+	telemetryAddr string
+	grpcAddr      string
 }
 
 var buildInfo = prometheus.NewGaugeVec(
@@ -84,7 +84,6 @@ func commandServe() *cobra.Command {
 	flags.StringVar(&options.webHTTPSAddr, "web-https-addr", "", "Web HTTPS address")
 	flags.StringVar(&options.telemetryAddr, "telemetry-addr", "", "Telemetry address")
 	flags.StringVar(&options.grpcAddr, "grpc-addr", "", "gRPC API address")
-	flags.BoolVar(&options.continueOnConnectorFailure, "continue-on-connector-failure", false, "Continue server startup even if some connectors fail to initialize")
 
 	return cmd
 }
@@ -282,6 +281,9 @@ func runServe(options serveOptions) error {
 	if len(c.Web.AllowedOrigins) > 0 {
 		logger.Info("config allowed origins", "origins", c.Web.AllowedOrigins)
 	}
+	if featureflags.ContinueOnConnectorFailure.Enabled() {
+		logger.Info("continue on connector failure feature flag enabled")
+	}
 
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
@@ -304,7 +306,7 @@ func runServe(options serveOptions) error {
 		Now:                        now,
 		PrometheusRegistry:         prometheusRegistry,
 		HealthChecker:              healthChecker,
-		ContinueOnConnectorFailure: options.continueOnConnectorFailure,
+		ContinueOnConnectorFailure: featureflags.ContinueOnConnectorFailure.Enabled(),
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
