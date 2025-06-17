@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -17,7 +18,6 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	groups_pkg "github.com/dexidp/dex/pkg/groups"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 // GroupNameFormat represents the format of the group identifier
@@ -54,6 +54,9 @@ type Config struct {
 	UseGroupsAsWhitelist bool            `json:"useGroupsAsWhitelist"`
 	EmailToLowercase     bool            `json:"emailToLowercase"`
 
+	APIURL   string `json:"apiURL"`
+	GraphURL string `json:"graphURL"`
+
 	// PromptType is used for the prompt query parameter.
 	// For valid values, see https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow#request-an-authorization-code.
 	PromptType string `json:"promptType"`
@@ -63,10 +66,10 @@ type Config struct {
 }
 
 // Open returns a strategy for logging in through Microsoft.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
 	m := microsoftConnector{
-		apiURL:               "https://login.microsoftonline.com",
-		graphURL:             "https://graph.microsoft.com",
+		apiURL:               strings.TrimSuffix(c.APIURL, "/"),
+		graphURL:             strings.TrimSuffix(c.GraphURL, "/"),
 		redirectURI:          c.RedirectURI,
 		clientID:             c.ClientID,
 		clientSecret:         c.ClientSecret,
@@ -75,12 +78,21 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		groups:               c.Groups,
 		groupNameFormat:      c.GroupNameFormat,
 		useGroupsAsWhitelist: c.UseGroupsAsWhitelist,
-		logger:               logger,
+		logger:               logger.With(slog.Group("connector", "type", "microsoft", "id", id)),
 		emailToLowercase:     c.EmailToLowercase,
 		promptType:           c.PromptType,
 		domainHint:           c.DomainHint,
 		scopes:               c.Scopes,
 	}
+
+	if m.apiURL == "" {
+		m.apiURL = "https://login.microsoftonline.com"
+	}
+
+	if m.graphURL == "" {
+		m.graphURL = "https://graph.microsoft.com"
+	}
+
 	// By default allow logins from both personal and business/school
 	// accounts.
 	if m.tenant == "" {
@@ -121,7 +133,7 @@ type microsoftConnector struct {
 	groupNameFormat      GroupNameFormat
 	groups               []string
 	useGroupsAsWhitelist bool
-	logger               log.Logger
+	logger               *slog.Logger
 	emailToLowercase     bool
 	promptType           string
 	domainHint           string

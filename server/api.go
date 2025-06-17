@@ -2,13 +2,16 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/api/v2"
-	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -29,11 +32,12 @@ const (
 )
 
 // NewAPI returns a server which implements the gRPC API interface.
-func NewAPI(s storage.Storage, logger log.Logger, version string) api.DexServer {
+func NewAPI(s storage.Storage, logger *slog.Logger, version string, server *Server) api.DexServer {
 	return dexAPI{
 		s:       s,
-		logger:  logger,
+		logger:  logger.With("component", "api"),
 		version: version,
+		server:  server,
 	}
 }
 
@@ -41,8 +45,28 @@ type dexAPI struct {
 	api.UnimplementedDexServer
 
 	s       storage.Storage
-	logger  log.Logger
+	logger  *slog.Logger
 	version string
+	server  *Server
+}
+
+func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetClientResp, error) {
+	c, err := d.s.GetClient(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.GetClientResp{
+		Client: &api.Client{
+			Id:           c.ID,
+			Name:         c.Name,
+			Secret:       c.Secret,
+			RedirectUris: c.RedirectURIs,
+			TrustedPeers: c.TrustedPeers,
+			Public:       c.Public,
+			LogoUrl:      c.LogoURL,
+		},
+	}, nil
 }
 
 func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*api.CreateClientResp, error) {
@@ -66,11 +90,11 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 		Name:         req.Client.Name,
 		LogoURL:      req.Client.LogoUrl,
 	}
-	if err := d.s.CreateClient(c); err != nil {
+	if err := d.s.CreateClient(ctx, c); err != nil {
 		if err == storage.ErrAlreadyExists {
 			return &api.CreateClientResp{AlreadyExists: true}, nil
 		}
-		d.logger.Errorf("api: failed to create client: %v", err)
+		d.logger.Error("failed to create client", "err", err)
 		return nil, fmt.Errorf("create client: %v", err)
 	}
 
@@ -84,7 +108,7 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 		return nil, errors.New("update client: no client ID supplied")
 	}
 
-	err := d.s.UpdateClient(req.Id, func(old storage.Client) (storage.Client, error) {
+	err := d.s.UpdateClient(ctx, req.Id, func(old storage.Client) (storage.Client, error) {
 		if req.RedirectUris != nil {
 			old.RedirectURIs = req.RedirectUris
 		}
@@ -103,19 +127,19 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 		if err == storage.ErrNotFound {
 			return &api.UpdateClientResp{NotFound: true}, nil
 		}
-		d.logger.Errorf("api: failed to update the client: %v", err)
+		d.logger.Error("failed to update the client", "err", err)
 		return nil, fmt.Errorf("update client: %v", err)
 	}
 	return &api.UpdateClientResp{}, nil
 }
 
 func (d dexAPI) DeleteClient(ctx context.Context, req *api.DeleteClientReq) (*api.DeleteClientResp, error) {
-	err := d.s.DeleteClient(req.Id)
+	err := d.s.DeleteClient(ctx, req.Id)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			return &api.DeleteClientResp{NotFound: true}, nil
 		}
-		d.logger.Errorf("api: failed to delete client: %v", err)
+		d.logger.Error("failed to delete client", "err", err)
 		return nil, fmt.Errorf("delete client: %v", err)
 	}
 	return &api.DeleteClientResp{}, nil
@@ -158,11 +182,11 @@ func (d dexAPI) CreatePassword(ctx context.Context, req *api.CreatePasswordReq) 
 		Username: req.Password.Username,
 		UserID:   req.Password.UserId,
 	}
-	if err := d.s.CreatePassword(p); err != nil {
+	if err := d.s.CreatePassword(ctx, p); err != nil {
 		if err == storage.ErrAlreadyExists {
 			return &api.CreatePasswordResp{AlreadyExists: true}, nil
 		}
-		d.logger.Errorf("api: failed to create password: %v", err)
+		d.logger.Error("failed to create password", "err", err)
 		return nil, fmt.Errorf("create password: %v", err)
 	}
 
@@ -195,11 +219,11 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 		return old, nil
 	}
 
-	if err := d.s.UpdatePassword(req.Email, updater); err != nil {
+	if err := d.s.UpdatePassword(ctx, req.Email, updater); err != nil {
 		if err == storage.ErrNotFound {
 			return &api.UpdatePasswordResp{NotFound: true}, nil
 		}
-		d.logger.Errorf("api: failed to update password: %v", err)
+		d.logger.Error("failed to update password", "err", err)
 		return nil, fmt.Errorf("update password: %v", err)
 	}
 
@@ -211,12 +235,12 @@ func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) 
 		return nil, errors.New("no email supplied")
 	}
 
-	err := d.s.DeletePassword(req.Email)
+	err := d.s.DeletePassword(ctx, req.Email)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			return &api.DeletePasswordResp{NotFound: true}, nil
 		}
-		d.logger.Errorf("api: failed to delete password: %v", err)
+		d.logger.Error("failed to delete password", "err", err)
 		return nil, fmt.Errorf("delete password: %v", err)
 	}
 	return &api.DeletePasswordResp{}, nil
@@ -229,10 +253,24 @@ func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.Versi
 	}, nil
 }
 
-func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*api.ListPasswordResp, error) {
-	passwordList, err := d.s.ListPasswords()
+func (d dexAPI) GetDiscovery(ctx context.Context, req *api.DiscoveryReq) (*api.DiscoveryResp, error) {
+	discoveryDoc := d.server.constructDiscovery()
+	data, err := json.Marshal(discoveryDoc)
 	if err != nil {
-		d.logger.Errorf("api: failed to list passwords: %v", err)
+		return nil, fmt.Errorf("failed to marshal discovery data: %v", err)
+	}
+	resp := api.DiscoveryResp{}
+	err = json.Unmarshal(data, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal discovery data: %v", err)
+	}
+	return &resp, nil
+}
+
+func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*api.ListPasswordResp, error) {
+	passwordList, err := d.s.ListPasswords(ctx)
+	if err != nil {
+		d.logger.Error("failed to list passwords", "err", err)
 		return nil, fmt.Errorf("list passwords: %v", err)
 	}
 
@@ -260,19 +298,19 @@ func (d dexAPI) VerifyPassword(ctx context.Context, req *api.VerifyPasswordReq) 
 		return nil, errors.New("no password to verify supplied")
 	}
 
-	password, err := d.s.GetPassword(req.Email)
+	password, err := d.s.GetPassword(ctx, req.Email)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			return &api.VerifyPasswordResp{
 				NotFound: true,
 			}, nil
 		}
-		d.logger.Errorf("api: there was an error retrieving the password: %v", err)
+		d.logger.Error("there was an error retrieving the password", "err", err)
 		return nil, fmt.Errorf("verify password: %v", err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword(password.Hash, []byte(req.Password)); err != nil {
-		d.logger.Infof("api: password check failed: %v", err)
+		d.logger.Info("password check failed", "err", err)
 		return &api.VerifyPasswordResp{
 			Verified: false,
 		}, nil
@@ -285,18 +323,18 @@ func (d dexAPI) VerifyPassword(ctx context.Context, req *api.VerifyPasswordReq) 
 func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.ListRefreshResp, error) {
 	id := new(internal.IDTokenSubject)
 	if err := internal.Unmarshal(req.UserId, id); err != nil {
-		d.logger.Errorf("api: failed to unmarshal ID Token subject: %v", err)
+		d.logger.Error("failed to unmarshal ID Token subject", "err", err)
 		return nil, err
 	}
 
-	offlineSessions, err := d.s.GetOfflineSessions(id.UserId, id.ConnId)
+	offlineSessions, err := d.s.GetOfflineSessions(ctx, id.UserId, id.ConnId)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			// This means that this user-client pair does not have a refresh token yet.
 			// An empty list should be returned instead of an error.
 			return &api.ListRefreshResp{}, nil
 		}
-		d.logger.Errorf("api: failed to list refresh tokens %t here : %v", err == storage.ErrNotFound, err)
+		d.logger.Error("failed to list refresh tokens here", "err", err)
 		return nil, err
 	}
 
@@ -319,7 +357,7 @@ func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.
 func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*api.RevokeRefreshResp, error) {
 	id := new(internal.IDTokenSubject)
 	if err := internal.Unmarshal(req.UserId, id); err != nil {
-		d.logger.Errorf("api: failed to unmarshal ID Token subject: %v", err)
+		d.logger.Error("failed to unmarshal ID Token subject", "err", err)
 		return nil, err
 	}
 
@@ -330,7 +368,7 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 	updater := func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 		refreshRef := old.Refresh[req.ClientId]
 		if refreshRef == nil || refreshRef.ID == "" {
-			d.logger.Errorf("api: refresh token issued to client %q for user %q not found for deletion", req.ClientId, id.UserId)
+			d.logger.Error("refresh token issued to client not found for deletion", "client_id", req.ClientId, "user_id", id.UserId)
 			notFound = true
 			return old, storage.ErrNotFound
 		}
@@ -343,11 +381,11 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 		return old, nil
 	}
 
-	if err := d.s.UpdateOfflineSessions(id.UserId, id.ConnId, updater); err != nil {
+	if err := d.s.UpdateOfflineSessions(ctx, id.UserId, id.ConnId, updater); err != nil {
 		if err == storage.ErrNotFound {
 			return &api.RevokeRefreshResp{NotFound: true}, nil
 		}
-		d.logger.Errorf("api: failed to update offline session object: %v", err)
+		d.logger.Error("failed to update offline session object", "err", err)
 		return nil, err
 	}
 
@@ -359,10 +397,156 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 	//
 	// TODO(ericchiang): we don't have any good recourse if this call fails.
 	// Consider garbage collection of refresh tokens with no associated ref.
-	if err := d.s.DeleteRefresh(refreshID); err != nil {
-		d.logger.Errorf("failed to delete refresh token: %v", err)
+	if err := d.s.DeleteRefresh(ctx, refreshID); err != nil {
+		d.logger.Error("failed to delete refresh token", "err", err)
 		return nil, err
 	}
 
 	return &api.RevokeRefreshResp{}, nil
+}
+
+func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq) (*api.CreateConnectorResp, error) {
+	if !featureflags.APIConnectorsCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
+	}
+
+	if req.Connector.Id == "" {
+		return nil, errors.New("no id supplied")
+	}
+
+	if req.Connector.Type == "" {
+		return nil, errors.New("no type supplied")
+	}
+
+	if req.Connector.Name == "" {
+		return nil, errors.New("no name supplied")
+	}
+
+	if len(req.Connector.Config) == 0 {
+		return nil, errors.New("no config supplied")
+	}
+
+	if !json.Valid(req.Connector.Config) {
+		return nil, errors.New("invalid config supplied")
+	}
+
+	c := storage.Connector{
+		ID:              req.Connector.Id,
+		Name:            req.Connector.Name,
+		Type:            req.Connector.Type,
+		ResourceVersion: "1",
+		Config:          req.Connector.Config,
+	}
+	if err := d.s.CreateConnector(ctx, c); err != nil {
+		if err == storage.ErrAlreadyExists {
+			return &api.CreateConnectorResp{AlreadyExists: true}, nil
+		}
+		d.logger.Error("api: failed to create connector", "err", err)
+		return nil, fmt.Errorf("create connector: %v", err)
+	}
+
+	return &api.CreateConnectorResp{}, nil
+}
+
+func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq) (*api.UpdateConnectorResp, error) {
+	if !featureflags.APIConnectorsCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
+	}
+
+	if req.Id == "" {
+		return nil, errors.New("no email supplied")
+	}
+
+	if len(req.NewConfig) == 0 && req.NewName == "" && req.NewType == "" {
+		return nil, errors.New("nothing to update")
+	}
+
+	if !json.Valid(req.NewConfig) {
+		return nil, errors.New("invalid config supplied")
+	}
+
+	updater := func(old storage.Connector) (storage.Connector, error) {
+		if req.NewType != "" {
+			old.Type = req.NewType
+		}
+
+		if req.NewName != "" {
+			old.Name = req.NewName
+		}
+
+		if len(req.NewConfig) != 0 {
+			old.Config = req.NewConfig
+		}
+
+		if rev, err := strconv.Atoi(defaultTo(old.ResourceVersion, "0")); err == nil {
+			old.ResourceVersion = strconv.Itoa(rev + 1)
+		}
+
+		return old, nil
+	}
+
+	if err := d.s.UpdateConnector(ctx, req.Id, updater); err != nil {
+		if err == storage.ErrNotFound {
+			return &api.UpdateConnectorResp{NotFound: true}, nil
+		}
+		d.logger.Error("api: failed to update connector", "err", err)
+		return nil, fmt.Errorf("update connector: %v", err)
+	}
+
+	return &api.UpdateConnectorResp{}, nil
+}
+
+func (d dexAPI) DeleteConnector(ctx context.Context, req *api.DeleteConnectorReq) (*api.DeleteConnectorResp, error) {
+	if !featureflags.APIConnectorsCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
+	}
+
+	if req.Id == "" {
+		return nil, errors.New("no id supplied")
+	}
+
+	err := d.s.DeleteConnector(ctx, req.Id)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			return &api.DeleteConnectorResp{NotFound: true}, nil
+		}
+		d.logger.Error("api: failed to delete connector", "err", err)
+		return nil, fmt.Errorf("delete connector: %v", err)
+	}
+	return &api.DeleteConnectorResp{}, nil
+}
+
+func (d dexAPI) ListConnectors(ctx context.Context, req *api.ListConnectorReq) (*api.ListConnectorResp, error) {
+	if !featureflags.APIConnectorsCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
+	}
+
+	connectorList, err := d.s.ListConnectors(ctx)
+	if err != nil {
+		d.logger.Error("api: failed to list connectors", "err", err)
+		return nil, fmt.Errorf("list connectors: %v", err)
+	}
+
+	connectors := make([]*api.Connector, 0, len(connectorList))
+	for _, connector := range connectorList {
+		c := api.Connector{
+			Id:     connector.ID,
+			Name:   connector.Name,
+			Type:   connector.Type,
+			Config: connector.Config,
+		}
+		connectors = append(connectors, &c)
+	}
+
+	return &api.ListConnectorResp{
+		Connectors: connectors,
+	}, nil
+}
+
+func defaultTo[T comparable](v, def T) T {
+	var zeroT T
+	if v == zeroT {
+		return def
+	}
+	return v
 }

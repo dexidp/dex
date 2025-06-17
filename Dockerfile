@@ -1,8 +1,8 @@
 ARG BASE_IMAGE=alpine
 
-FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.2.1@sha256:8879a398dedf0aadaacfbd332b29ff2f84bc39ae6d4e9c0a1109db27ac5ba012 AS xx
+FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.6.1@sha256:923441d7c25f1e2eb5789f82d987693c47b8ed987c4ab3b075d6ed2b5d6779a3 AS xx
 
-FROM --platform=$BUILDPLATFORM golang:1.21.12-alpine3.19 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.24.3-alpine3.20@sha256:9f98e9893fbc798c710f3432baa1e0ac6127799127c3101d2c263c3a954f0abe AS builder
 
 COPY --from=xx / /
 
@@ -29,30 +29,33 @@ RUN go mod download
 
 COPY . .
 
+# Propagate Dex version from build args to the build environment
+ARG VERSION
 RUN make release-binary
+
 RUN xx-verify /go/bin/dex && xx-verify /go/bin/docker-entrypoint
 
-FROM alpine:3.18.3 AS stager
+FROM alpine:3.21.3@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c AS stager
 
 RUN mkdir -p /var/dex
 RUN mkdir -p /etc/dex
 COPY config.docker.yaml /etc/dex/
 
-FROM alpine:3.18.3 AS gomplate
+FROM alpine:3.21.3@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c AS gomplate
 
 ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
 
-ENV GOMPLATE_VERSION=v4.1.0
+ENV GOMPLATE_VERSION=v4.3.2
 
 RUN wget -O /usr/local/bin/gomplate \
   "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS:-linux}-${TARGETARCH:-amd64}${TARGETVARIANT}" \
   && chmod +x /usr/local/bin/gomplate
 
 # For Dependabot to detect base image versions
-FROM alpine:3.18.3 AS alpine
-FROM gcr.io/distroless/static:latest AS distroless
+FROM alpine:3.21.3@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c AS alpine
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:188ddfb9e497f861177352057cb21913d840ecae6c843d39e00d44fa64daa51c AS distroless
 
 FROM $BASE_IMAGE
 

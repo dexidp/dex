@@ -17,21 +17,18 @@ func main() {
 	// Note that this docker-entrypoint program is args[0], and it is provided with the true process
 	// args.
 	args := os.Args[1:]
+	if len(args) == 0 {
+		fmt.Println("error: no args passed to entrypoint")
+		os.Exit(1)
+	}
 
-	if err := run(args, realExec, realWhich); err != nil {
+	if err := run(args, realExec, realWhich, realGomplate); err != nil {
 		fmt.Println("error:", err.Error())
 		os.Exit(1)
 	}
 }
 
-func realExec(fork bool, args ...string) error {
-	if fork {
-		if output, err := exec.Command(args[0], args[1:]...).CombinedOutput(); err != nil {
-			return fmt.Errorf("cannot fork/exec command %s: %w (output: %q)", args, err, string(output))
-		}
-		return nil
-	}
-
+func realExec(args ...string) error {
 	argv0, err := exec.LookPath(args[0])
 	if err != nil {
 		return fmt.Errorf("cannot lookup path for command %s: %w", args[0], err)
@@ -52,34 +49,49 @@ func realWhich(path string) string {
 	return fullPath
 }
 
-func run(args []string, execFunc func(bool, ...string) error, whichFunc func(string) string) error {
+func realGomplate(path string) (string, error) {
+	tmpFile, err := os.CreateTemp("/tmp", "dex.config.yaml-*")
+	if err != nil {
+		return "", fmt.Errorf("cannot create temp file: %w", err)
+	}
+
+	cmd := exec.Command("gomplate", "-f", path, "-o", tmpFile.Name())
+	// TODO(nabokihms): Workaround to run gomplate from a non-root directory in distroless images
+	//   gomplate tries to access CWD on start, see: https://github.com/hairyhenderson/gomplate/pull/2202
+	cmd.Dir = "/etc/dex"
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("error executing gomplate: %w, (output: %q)", err, string(output))
+	}
+
+	return tmpFile.Name(), nil
+}
+
+func run(args []string, execFunc func(...string) error, whichFunc func(string) string, gomplateFunc func(string) (string, error)) error {
 	if args[0] != "dex" && args[0] != whichFunc("dex") {
-		return execFunc(false, args...)
+		return execFunc(args...)
 	}
 
 	if args[1] != "serve" {
-		return execFunc(false, args...)
+		return execFunc(args...)
 	}
 
 	newArgs := []string{}
 	for _, tplCandidate := range args {
 		if hasSuffixes(tplCandidate, ".tpl", ".tmpl", ".yaml") {
-			tmpFile, err := os.CreateTemp("/tmp", "dex.config.yaml-*")
+			fileName, err := gomplateFunc(tplCandidate)
 			if err != nil {
-				return fmt.Errorf("cannot create temp file: %w", err)
-			}
-
-			if err := execFunc(true, "gomplate", "-f", tplCandidate, "-o", tmpFile.Name()); err != nil {
 				return err
 			}
 
-			newArgs = append(newArgs, tmpFile.Name())
+			newArgs = append(newArgs, fileName)
 		} else {
 			newArgs = append(newArgs, tplCandidate)
 		}
 	}
 
-	return execFunc(false, newArgs...)
+	return execFunc(newArgs...)
 }
 
 func hasSuffixes(s string, suffixes ...string) bool {

@@ -52,6 +52,16 @@ web:
   # https: 127.0.0.1:5554
   # tlsCert: /etc/dex/tls.crt
   # tlsKey: /etc/dex/tls.key
+  # headers:
+  #   X-Frame-Options: "DENY"
+  #   X-Content-Type-Options: "nosniff"
+  #   X-XSS-Protection: "1; mode=block"
+  #   Content-Security-Policy: "default-src 'self'"
+  #   Strict-Transport-Security: "max-age=31536000; includeSubDomains"
+  # clientRemoteIP:
+  #   header: X-Forwarded-For
+  #   trustedProxies:
+  #   - 10.0.0.0/8
 
 # Configuration for dex appearance
 # frontend:
@@ -91,7 +101,16 @@ telemetry:
 
 # Default values shown below
 # oauth2:
-    # use ["code", "token", "id_token"] to enable implicit flow for web-only clients
+    # grantTypes determines the allowed set of authorization flows.
+#   grantTypes:
+#     - "authorization_code"
+#     - "refresh_token"
+#     - "implicit"
+#     - "password"
+#     - "urn:ietf:params:oauth:grant-type:device_code"
+#     - "urn:ietf:params:oauth:grant-type:token-exchange"
+    # responseTypes determines the allowed response contents of a successful authorization flow.
+    # use ["code", "token", "id_token"] to enable implicit flow for web-only clients.
 #   responseTypes: [ "code" ] # also allowed are "token" and "id_token"
     # By default, Dex will ask for approval to share data with application
     # (approval for sharing data from connected IdP to Dex is separate process on IdP)

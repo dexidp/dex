@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 const (
@@ -29,7 +29,7 @@ type Config struct {
 }
 
 // Open returns a strategy for logging in through LinkedIn
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
 	return &linkedInConnector{
 		oauth2Config: &oauth2.Config{
 			ClientID:     c.ClientID,
@@ -41,7 +41,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 			Scopes:      []string{"r_liteprofile", "r_emailaddress"},
 			RedirectURL: c.RedirectURI,
 		},
-		logger: logger,
+		logger: logger.With(slog.Group("connector", "type", "linkedin", "id", id)),
 	}, nil
 }
 
@@ -51,7 +51,7 @@ type connectorData struct {
 
 type linkedInConnector struct {
 	oauth2Config *oauth2.Config
-	logger       log.Logger
+	logger       *slog.Logger
 }
 
 // LinkedIn doesn't provide refresh tokens, so refresh tokens issued by Dex

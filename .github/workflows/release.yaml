@@ -17,6 +17,7 @@ jobs:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
     permissions:
+      attestations: write
       contents: read
       packages: write
       id-token: write

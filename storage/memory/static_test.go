@@ -1,29 +1,25 @@
 package memory
 
 import (
+	"context"
 	"fmt"
-	"os"
+	"log/slog"
 	"strings"
 	"testing"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/dexidp/dex/storage"
 )
 
 func TestStaticClients(t *testing.T) {
-	logger := &logrus.Logger{
-		Out:       os.Stderr,
-		Formatter: &logrus.TextFormatter{DisableColors: true},
-		Level:     logrus.DebugLevel,
-	}
+	ctx := context.Background()
+	logger := slog.New(slog.DiscardHandler)
 	backing := New(logger)
 
 	c1 := storage.Client{ID: "foo", Secret: "foo_secret"}
 	c2 := storage.Client{ID: "bar", Secret: "bar_secret"}
 	c3 := storage.Client{ID: "spam", Secret: "spam_secret"}
 
-	backing.CreateClient(c1)
+	backing.CreateClient(ctx, c1)
 	s := storage.WithStaticClients(backing, []storage.Client{c2})
 
 	tests := []struct {
@@ -34,14 +30,14 @@ func TestStaticClients(t *testing.T) {
 		{
 			name: "get client from static storage",
 			action: func() error {
-				_, err := s.GetClient(c2.ID)
+				_, err := s.GetClient(ctx, c2.ID)
 				return err
 			},
 		},
 		{
 			name: "get client from backing storage",
 			action: func() error {
-				_, err := s.GetClient(c1.ID)
+				_, err := s.GetClient(ctx, c1.ID)
 				return err
 			},
 		},
@@ -52,7 +48,7 @@ func TestStaticClients(t *testing.T) {
 					c.Secret = "new_" + c.Secret
 					return c, nil
 				}
-				return s.UpdateClient(c2.ID, updater)
+				return s.UpdateClient(ctx, c2.ID, updater)
 			},
 			wantErr: true,
 		},
@@ -63,13 +59,13 @@ func TestStaticClients(t *testing.T) {
 					c.Secret = "new_" + c.Secret
 					return c, nil
 				}
-				return s.UpdateClient(c1.ID, updater)
+				return s.UpdateClient(ctx, c1.ID, updater)
 			},
 		},
 		{
 			name: "list clients",
 			action: func() error {
-				clients, err := s.ListClients()
+				clients, err := s.ListClients(ctx)
 				if err != nil {
 					return err
 				}
@@ -82,7 +78,7 @@ func TestStaticClients(t *testing.T) {
 		{
 			name: "create client",
 			action: func() error {
-				return s.CreateClient(c3)
+				return s.CreateClient(ctx, c3)
 			},
 		},
 	}
@@ -99,11 +95,8 @@ func TestStaticClients(t *testing.T) {
 }
 
 func TestStaticPasswords(t *testing.T) {
-	logger := &logrus.Logger{
-		Out:       os.Stderr,
-		Formatter: &logrus.TextFormatter{DisableColors: true},
-		Level:     logrus.DebugLevel,
-	}
+	ctx := context.Background()
+	logger := slog.New(slog.DiscardHandler)
 	backing := New(logger)
 
 	p1 := storage.Password{Email: "foo@example.com", Username: "foo_secret"}
@@ -111,7 +104,7 @@ func TestStaticPasswords(t *testing.T) {
 	p3 := storage.Password{Email: "spam@example.com", Username: "spam_secret"}
 	p4 := storage.Password{Email: "Spam@example.com", Username: "Spam_secret"}
 
-	backing.CreatePassword(p1)
+	backing.CreatePassword(ctx, p1)
 	s := storage.WithStaticPasswords(backing, []storage.Password{p2}, logger)
 
 	tests := []struct {
@@ -122,21 +115,21 @@ func TestStaticPasswords(t *testing.T) {
 		{
 			name: "get password from static storage",
 			action: func() error {
-				_, err := s.GetPassword(p2.Email)
+				_, err := s.GetPassword(ctx, p2.Email)
 				return err
 			},
 		},
 		{
 			name: "get password from backing storage",
 			action: func() error {
-				_, err := s.GetPassword(p1.Email)
+				_, err := s.GetPassword(ctx, p1.Email)
 				return err
 			},
 		},
 		{
 			name: "get password from static storage with casing",
 			action: func() error {
-				_, err := s.GetPassword(strings.ToUpper(p2.Email))
+				_, err := s.GetPassword(ctx, strings.ToUpper(p2.Email))
 				return err
 			},
 		},
@@ -147,7 +140,7 @@ func TestStaticPasswords(t *testing.T) {
 					p.Username = "new_" + p.Username
 					return p, nil
 				}
-				return s.UpdatePassword(p2.Email, updater)
+				return s.UpdatePassword(ctx, p2.Email, updater)
 			},
 			wantErr: true,
 		},
@@ -158,23 +151,23 @@ func TestStaticPasswords(t *testing.T) {
 					p.Username = "new_" + p.Username
 					return p, nil
 				}
-				return s.UpdatePassword(p1.Email, updater)
+				return s.UpdatePassword(ctx, p1.Email, updater)
 			},
 		},
 		{
 			name: "create passwords",
 			action: func() error {
-				if err := s.CreatePassword(p4); err != nil {
+				if err := s.CreatePassword(ctx, p4); err != nil {
 					return err
 				}
-				return s.CreatePassword(p3)
+				return s.CreatePassword(ctx, p3)
 			},
 			wantErr: true,
 		},
 		{
 			name: "get password",
 			action: func() error {
-				p, err := s.GetPassword(p4.Email)
+				p, err := s.GetPassword(ctx, p4.Email)
 				if err != nil {
 					return err
 				}
@@ -187,7 +180,7 @@ func TestStaticPasswords(t *testing.T) {
 		{
 			name: "list passwords",
 			action: func() error {
-				passwords, err := s.ListPasswords()
+				passwords, err := s.ListPasswords(ctx)
 				if err != nil {
 					return err
 				}
@@ -211,11 +204,8 @@ func TestStaticPasswords(t *testing.T) {
 }
 
 func TestStaticConnectors(t *testing.T) {
-	logger := &logrus.Logger{
-		Out:       os.Stderr,
-		Formatter: &logrus.TextFormatter{DisableColors: true},
-		Level:     logrus.DebugLevel,
-	}
+	ctx := context.Background()
+	logger := slog.New(slog.DiscardHandler)
 	backing := New(logger)
 
 	config1 := []byte(`{"issuer": "https://accounts.google.com"}`)
@@ -226,7 +216,7 @@ func TestStaticConnectors(t *testing.T) {
 	c2 := storage.Connector{ID: storage.NewID(), Type: "ldap", Name: "ldap", ResourceVersion: "1", Config: config2}
 	c3 := storage.Connector{ID: storage.NewID(), Type: "saml", Name: "saml", ResourceVersion: "1", Config: config3}
 
-	backing.CreateConnector(c1)
+	backing.CreateConnector(ctx, c1)
 	s := storage.WithStaticConnectors(backing, []storage.Connector{c2})
 
 	tests := []struct {
@@ -237,14 +227,14 @@ func TestStaticConnectors(t *testing.T) {
 		{
 			name: "get connector from static storage",
 			action: func() error {
-				_, err := s.GetConnector(c2.ID)
+				_, err := s.GetConnector(ctx, c2.ID)
 				return err
 			},
 		},
 		{
 			name: "get connector from backing storage",
 			action: func() error {
-				_, err := s.GetConnector(c1.ID)
+				_, err := s.GetConnector(ctx, c1.ID)
 				return err
 			},
 		},
@@ -255,7 +245,7 @@ func TestStaticConnectors(t *testing.T) {
 					c.Name = "New"
 					return c, nil
 				}
-				return s.UpdateConnector(c2.ID, updater)
+				return s.UpdateConnector(ctx, c2.ID, updater)
 			},
 			wantErr: true,
 		},
@@ -266,13 +256,13 @@ func TestStaticConnectors(t *testing.T) {
 					c.Name = "New"
 					return c, nil
 				}
-				return s.UpdateConnector(c1.ID, updater)
+				return s.UpdateConnector(ctx, c1.ID, updater)
 			},
 		},
 		{
 			name: "list connectors",
 			action: func() error {
-				connectors, err := s.ListConnectors()
+				connectors, err := s.ListConnectors(ctx)
 				if err != nil {
 					return err
 				}
@@ -285,7 +275,7 @@ func TestStaticConnectors(t *testing.T) {
 		{
 			name: "create connector",
 			action: func() error {
-				return s.CreateConnector(c3)
+				return s.CreateConnector(ctx, c3)
 			},
 		},
 	}

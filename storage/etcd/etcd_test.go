@@ -3,13 +3,13 @@ package etcd
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/dexidp/dex/storage"
@@ -55,11 +55,7 @@ func cleanDB(c *conn) error {
 	return nil
 }
 
-var logger = &logrus.Logger{
-	Out:       os.Stderr,
-	Formatter: &logrus.TextFormatter{DisableColors: true},
-	Level:     logrus.DebugLevel,
-}
+var logger = slog.New(slog.DiscardHandler)
 
 func TestEtcd(t *testing.T) {
 	testEtcdEnv := "DEX_ETCD_ENDPOINTS"
