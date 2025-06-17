@@ -53,6 +53,13 @@ bin/example-app:
 	@mkdir -p bin/
 	@cd examples/ && go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/example-app
 
+bin/example-plugin-password:
+	@mkdir -p bin/
+	@cd examples/plugins/example-plugin-password && go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/plugins/example-plugin-password
+
+bin/example-plugin-callback:
+		@mkdir -p bin/
+		@cd examples/plugins/example-plugin-callback && go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/plugins/example-plugin-callback
 
 ##@ Generate
 
