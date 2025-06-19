@@ -26,12 +26,6 @@ type Config struct {
 	GroupHeader          string   `json:"groupHeader"`
 	GroupHeaderSeparator string   `json:"groupHeaderSeparator"`
 	Groups               []string `json:"staticGroups"`
-	UserIDHeader   string   `json:"userIDHeader"`
-	UserHeader     string   `json:"userHeader"`
-	UserNameHeader string   `json:"userNameHeader"`
-	EmailHeader    string   `json:"emailHeader"`
-	GroupHeader    string   `json:"groupHeader"`
-	Groups         []string `json:"staticGroups"`
 }
 
 // Open returns an authentication strategy which requires no user interaction.
@@ -71,13 +65,6 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		groups:               c.Groups,
 		logger:               logger.With(slog.Group("connector", "type", "authproxy", "id", id)),
 		pathSuffix:           "/" + id,
-		userIDHeader:   userIDHeader,
-		userHeader:     userHeader,
-		emailHeader:    emailHeader,
-		groupHeader:    groupHeader,
-		groups:         c.Groups,
-		logger:         logger.With(slog.Group("connector", "type", "authproxy", "id", id)),
-		pathSuffix:     "/" + id,
 	}, nil
 }
 
