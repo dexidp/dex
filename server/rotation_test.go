@@ -1,7 +1,7 @@
 package server
 
 import (
-	"io"
+	"context"
 	"log/slog"
 	"sort"
 	"testing"
@@ -14,7 +14,7 @@ import (
 )
 
 func signingKeyID(t *testing.T, s storage.Storage) string {
-	keys, err := s.GetKeys()
+	keys, err := s.GetKeys(context.TODO())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +22,7 @@ func signingKeyID(t *testing.T, s storage.Storage) string {
 }
 
 func verificationKeyIDs(t *testing.T, s storage.Storage) (ids []string) {
-	keys, err := s.GetKeys()
+	keys, err := s.GetKeys(context.TODO())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestKeyRotator(t *testing.T) {
 	// Only the last 5 verification keys are expected to be kept around.
 	maxVerificationKeys := 5
 
-	l := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	l := slog.New(slog.DiscardHandler)
 
 	r := &keyRotator{
 		Storage:  memory.New(l),
@@ -100,7 +100,7 @@ func TestKeyRotator(t *testing.T) {
 
 func TestRefreshTokenPolicy(t *testing.T) {
 	lastTime := time.Now()
-	l := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	l := slog.New(slog.DiscardHandler)
 
 	r, err := NewRefreshTokenPolicy(l, true, "1m", "1m", "1m")
 	require.NoError(t, err)

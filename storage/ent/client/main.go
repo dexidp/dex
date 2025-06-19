@@ -70,13 +70,13 @@ func (d *Database) BeginTx(ctx context.Context) (*db.Tx, error) {
 }
 
 // GarbageCollect removes expired entities from the database.
-func (d *Database) GarbageCollect(now time.Time) (storage.GCResult, error) {
+func (d *Database) GarbageCollect(ctx context.Context, now time.Time) (storage.GCResult, error) {
 	result := storage.GCResult{}
 	utcNow := now.UTC()
 
 	q, err := d.client.AuthRequest.Delete().
 		Where(authrequest.ExpiryLT(utcNow)).
-		Exec(context.TODO())
+		Exec(ctx)
 	if err != nil {
 		return result, convertDBError("gc auth request: %w", err)
 	}
@@ -84,7 +84,7 @@ func (d *Database) GarbageCollect(now time.Time) (storage.GCResult, error) {
 
 	q, err = d.client.AuthCode.Delete().
 		Where(authcode.ExpiryLT(utcNow)).
-		Exec(context.TODO())
+		Exec(ctx)
 	if err != nil {
 		return result, convertDBError("gc auth code: %w", err)
 	}
@@ -92,7 +92,7 @@ func (d *Database) GarbageCollect(now time.Time) (storage.GCResult, error) {
 
 	q, err = d.client.DeviceRequest.Delete().
 		Where(devicerequest.ExpiryLT(utcNow)).
-		Exec(context.TODO())
+		Exec(ctx)
 	if err != nil {
 		return result, convertDBError("gc device request: %w", err)
 	}
@@ -100,7 +100,7 @@ func (d *Database) GarbageCollect(now time.Time) (storage.GCResult, error) {
 
 	q, err = d.client.DeviceToken.Delete().
 		Where(devicetoken.ExpiryLT(utcNow)).
-		Exec(context.TODO())
+		Exec(ctx)
 	if err != nil {
 		return result, convertDBError("gc device token: %w", err)
 	}

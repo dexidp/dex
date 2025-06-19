@@ -15,18 +15,17 @@ import (
 	"os"
 	"path"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
-	"github.com/felixge/httpsnoop"
 	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/connector"
@@ -120,6 +119,10 @@ type Config struct {
 	PrometheusRegistry *prometheus.Registry
 
 	HealthChecker gosundheit.Health
+
+	// If enabled, the server will continue starting even if some connectors fail to initialize.
+	// This allows the server to operate with a subset of connectors if some are misconfigured.
+	ContinueOnConnectorFailure bool
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -317,7 +320,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
 	// defined in the ConfigMap and dynamic connectors retrieved from the storage.
-	storageConnectors, err := c.Storage.ListConnectors()
+	storageConnectors, err := c.Storage.ListConnectors(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("server: failed to list connector objects from storage: %v", err)
 	}
@@ -326,13 +329,23 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		return nil, errors.New("server: no connectors specified")
 	}
 
+	var failedCount int
 	for _, conn := range storageConnectors {
 		if _, err := s.OpenConnector(conn); err != nil {
+			failedCount++
+			if c.ContinueOnConnectorFailure {
+				s.logger.Error("server: Failed to open connector", "id", conn.ID, "err", err)
+				continue
+			}
 			return nil, fmt.Errorf("server: Failed to open connector %s: %v", conn.ID, err)
 		}
 	}
 
-	instrumentHandlerCounter := func(_ string, handler http.Handler) http.HandlerFunc {
+	if c.ContinueOnConnectorFailure && failedCount == len(storageConnectors) {
+		return nil, fmt.Errorf("server: failed to open all connectors (%d/%d)", failedCount, len(storageConnectors))
+	}
+
+	instrumentHandler := func(_ string, handler http.Handler) http.HandlerFunc {
 		return handler.ServeHTTP
 	}
 
@@ -340,18 +353,28 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		requestCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "http_requests_total",
 			Help: "Count of all HTTP requests.",
-		}, []string{"handler", "code", "method"})
+		}, []string{"code", "method", "handler"})
 
-		err = c.PrometheusRegistry.Register(requestCounter)
-		if err != nil {
-			return nil, fmt.Errorf("server: Failed to register Prometheus HTTP metrics: %v", err)
-		}
+		durationHist := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "request_duration_seconds",
+			Help:    "A histogram of latencies for requests.",
+			Buckets: []float64{.25, .5, 1, 2.5, 5, 10},
+		}, []string{"code", "method", "handler"})
 
-		instrumentHandlerCounter = func(handlerName string, handler http.Handler) http.HandlerFunc {
-			return func(w http.ResponseWriter, r *http.Request) {
-				m := httpsnoop.CaptureMetrics(handler, w, r)
-				requestCounter.With(prometheus.Labels{"handler": handlerName, "code": strconv.Itoa(m.Code), "method": r.Method}).Inc()
-			}
+		sizeHist := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "response_size_bytes",
+			Help:    "A histogram of response sizes for requests.",
+			Buckets: []float64{200, 500, 900, 1500},
+		}, []string{"code", "method", "handler"})
+
+		c.PrometheusRegistry.MustRegister(requestCounter, durationHist, sizeHist)
+
+		instrumentHandler = func(handlerName string, handler http.Handler) http.HandlerFunc {
+			return promhttp.InstrumentHandlerDuration(durationHist.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+				promhttp.InstrumentHandlerCounter(requestCounter.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+					promhttp.InstrumentHandlerResponseSize(sizeHist.MustCurryWith(prometheus.Labels{"handler": handlerName}), handler),
+				),
+			)
 		}
 	}
 
@@ -401,7 +424,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 			}
 
 			r = r.WithContext(rCtx)
-			instrumentHandlerCounter(handlerName, handler)(w, r)
+			instrumentHandler(handlerName, handler)(w, r)
 		}
 	}
 
@@ -434,6 +457,20 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		return nil, err
 	}
 	handleWithCORS("/.well-known/openid-configuration", discoveryHandler)
+	// Handle the root path for the better user experience.
+	handleWithCORS("/", func(w http.ResponseWriter, r *http.Request) {
+		_, err := fmt.Fprintf(w, `<!DOCTYPE html>
+			<title>Dex</title>
+			<h1>Dex IdP</h1>
+			<h3>A Federated OpenID Connect Provider</h3>
+			<p><a href=%q>Discovery</a></p>`,
+			s.issuerURL.String()+"/.well-known/openid-configuration")
+		if err != nil {
+			s.logger.Error("failed to write response", "err", err)
+			s.renderError(r, w, http.StatusInternalServerError, "Handling the / path error.")
+			return
+		}
+	})
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
 	handleWithCORS("/token", s.handleToken)
@@ -512,7 +549,7 @@ type passwordDB struct {
 }
 
 func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, password string) (connector.Identity, bool, error) {
-	p, err := db.s.GetPassword(email)
+	p, err := db.s.GetPassword(ctx, email)
 	if err != nil {
 		if err != storage.ErrNotFound {
 			return connector.Identity{}, false, fmt.Errorf("get password: %v", err)
@@ -537,7 +574,7 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 
 func (db passwordDB) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
 	// If the user has been deleted, the refresh token will be rejected.
-	p, err := db.s.GetPassword(identity.Email)
+	p, err := db.s.GetPassword(ctx, identity.Email)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			return connector.Identity{}, errors.New("user not found")
@@ -579,13 +616,13 @@ type keyCacher struct {
 	keys atomic.Value // Always holds nil or type *storage.Keys.
 }
 
-func (k *keyCacher) GetKeys() (storage.Keys, error) {
+func (k *keyCacher) GetKeys(ctx context.Context) (storage.Keys, error) {
 	keys, ok := k.keys.Load().(*storage.Keys)
 	if ok && keys != nil && k.now().Before(keys.NextRotation) {
 		return *keys, nil
 	}
 
-	storageKeys, err := k.Storage.GetKeys()
+	storageKeys, err := k.Storage.GetKeys(ctx)
 	if err != nil {
 		return storageKeys, err
 	}
@@ -603,7 +640,7 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 			case <-ctx.Done():
 				return
 			case <-time.After(frequency):
-				if r, err := s.storage.GarbageCollect(now()); err != nil {
+				if r, err := s.storage.GarbageCollect(ctx, now()); err != nil {
 					s.logger.ErrorContext(ctx, "garbage collection failed", "err", err)
 				} else if !r.IsEmpty() {
 					s.logger.InfoContext(ctx, "garbage collection run, delete auth",
@@ -696,8 +733,8 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 
 // getConnector retrieves the connector object with the given id from the storage
 // and updates the connector list for server if necessary.
-func (s *Server) getConnector(id string) (Connector, error) {
-	storageConnector, err := s.storage.GetConnector(id)
+func (s *Server) getConnector(ctx context.Context, id string) (Connector, error) {
+	storageConnector, err := s.storage.GetConnector(ctx, id)
 	if err != nil {
 		return Connector{}, fmt.Errorf("failed to get connector object from storage: %v", err)
 	}

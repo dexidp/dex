@@ -467,7 +467,7 @@ func (p *provider) validateStatus(status *status) error {
 		if statusMessage != nil && statusMessage.Value != "" {
 			errorMessage += " -> " + statusMessage.Value
 		}
-		return fmt.Errorf(errorMessage)
+		return errors.New(errorMessage)
 	}
 	return nil
 }
@@ -597,6 +597,9 @@ func verifyResponseSig(validator *dsig.ValidationContext, data []byte) (signed [
 	}
 
 	response := doc.Root()
+	if response == nil {
+		return nil, false, fmt.Errorf("parse document: empty root")
+	}
 	transformedResponse, err := validator.Validate(response)
 	if err == nil {
 		// Root element is verified, return it.
@@ -609,7 +612,7 @@ func verifyResponseSig(validator *dsig.ValidationContext, data []byte) (signed [
 	//
 	// TODO: Only select from child elements of the root.
 	assertion, err := etreeutils.NSSelectOne(response, "urn:oasis:names:tc:SAML:2.0:assertion", "Assertion")
-	if err != nil {
+	if err != nil || assertion == nil {
 		return nil, false, fmt.Errorf("response does not contain an Assertion element")
 	}
 	transformedAssertion, err := validator.Validate(assertion)

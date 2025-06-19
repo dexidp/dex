@@ -17,5 +17,5 @@ contact_links:
     about: Please ask and answer questions here
 
   - name: 💡 Dex Enhancement Proposal
-    url: https://github.com/dexidp/dex/tree/master/enhancements/README.md
+    url: https://github.com/dexidp/dex/tree/master/docs/enhancements/README.md
     about: Open a proposal for significant architectural change

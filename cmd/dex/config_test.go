@@ -273,7 +273,8 @@ func checkUnmarshalConfigWithEnv(t *testing.T, dexExpandEnv string, wantExpandEn
 	os.Setenv("DEX_FOO_USER_PASSWORD", "$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy")
 	// For os.ExpandEnv ($VAR -> value_of_VAR):
 	os.Setenv("DEX_FOO_POSTGRES_HOST", "10.0.0.1")
-	os.Setenv("DEX_FOO_OIDC_CLIENT_SECRET", "bar")
+	os.Setenv("DEX_FOO_POSTGRES_PASSWORD", `psql"test\pass`)
+	os.Setenv("DEX_FOO_OIDC_CLIENT_SECRET", `abc"def\ghi`)
 	if dexExpandEnv != "UNSET" {
 		os.Setenv("DEX_EXPAND_ENV", dexExpandEnv)
 	} else {
@@ -288,6 +289,7 @@ storage:
     # Env variables are expanded in raw YAML source.
     # Single quotes work fine, as long as the env variable doesn't contain any.
     host: '$DEX_FOO_POSTGRES_HOST'
+    password: '$DEX_FOO_POSTGRES_PASSWORD'
     port: 65432
     maxOpenConns: 5
     maxIdleConns: 3
@@ -350,10 +352,12 @@ logger:
 
 	// This is not a valid hostname. It's only used to check whether os.ExpandEnv was applied or not.
 	wantPostgresHost := "$DEX_FOO_POSTGRES_HOST"
+	wantPostgresPassword := "$DEX_FOO_POSTGRES_PASSWORD"
 	wantOidcClientSecret := "$DEX_FOO_OIDC_CLIENT_SECRET"
 	if wantExpandEnv {
 		wantPostgresHost = "10.0.0.1"
-		wantOidcClientSecret = "bar"
+		wantPostgresPassword = `psql"test\pass`
+		wantOidcClientSecret = `abc"def\ghi`
 	}
 
 	want := Config{
@@ -363,6 +367,7 @@ logger:
 			Config: &sql.Postgres{
 				NetworkDB: sql.NetworkDB{
 					Host:              wantPostgresHost,
+					Password:          wantPostgresPassword,
 					Port:              65432,
 					MaxOpenConns:      5,
 					MaxIdleConns:      3,

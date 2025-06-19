@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -58,7 +57,7 @@ func (s *StorageTestSuite) SetupTest() {
 		KubeConfigFile: kubeconfigPath,
 	}
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	kubeClient, err := config.open(logger, true)
 	s.Require().NoError(err)
@@ -221,7 +220,7 @@ func TestUpdateKeys(t *testing.T) {
 	for _, test := range tests {
 		client := newStatusCodesResponseTestClient(test.getResponseCode, test.actionResponseCode)
 
-		err := client.UpdateKeys(test.updater)
+		err := client.UpdateKeys(context.TODO(), test.updater)
 		if err != nil {
 			if !test.wantErr {
 				t.Fatalf("Test %q: %v", test.name, err)
@@ -250,7 +249,7 @@ func newStatusCodesResponseTestClient(getResponseCode, actionResponseCode int) *
 	return &client{
 		client:  &http.Client{Transport: tr},
 		baseURL: s.URL,
-		logger:  slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{})),
+		logger:  slog.New(slog.DiscardHandler),
 	}
 }
 
@@ -307,7 +306,7 @@ func TestRefreshTokenLock(t *testing.T) {
 		KubeConfigFile: kubeconfigPath,
 	}
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	kubeClient, err := config.open(logger, true)
 	require.NoError(t, err)
@@ -339,9 +338,9 @@ func TestRefreshTokenLock(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Timeout lock error", func(t *testing.T) {
-		err = kubeClient.UpdateRefreshToken(r.ID, func(r storage.RefreshToken) (storage.RefreshToken, error) {
+		err = kubeClient.UpdateRefreshToken(ctx, r.ID, func(r storage.RefreshToken) (storage.RefreshToken, error) {
 			r.Token = "update-result-1"
-			err := kubeClient.UpdateRefreshToken(r.ID, func(r storage.RefreshToken) (storage.RefreshToken, error) {
+			err := kubeClient.UpdateRefreshToken(ctx, r.ID, func(r storage.RefreshToken) (storage.RefreshToken, error) {
 				r.Token = "timeout-err"
 				return r, nil
 			})
@@ -350,7 +349,7 @@ func TestRefreshTokenLock(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		token, err := kubeClient.GetRefresh(r.ID)
+		token, err := kubeClient.GetRefresh(context.TODO(), r.ID)
 		require.NoError(t, err)
 		require.Equal(t, "update-result-1", token.Token)
 	})
@@ -359,13 +358,13 @@ func TestRefreshTokenLock(t *testing.T) {
 		var lockBroken bool
 		lockTimeout = -time.Hour
 
-		err = kubeClient.UpdateRefreshToken(r.ID, func(r storage.RefreshToken) (storage.RefreshToken, error) {
+		err = kubeClient.UpdateRefreshToken(ctx, r.ID, func(r storage.RefreshToken) (storage.RefreshToken, error) {
 			r.Token = "update-result-2"
 			if lockBroken {
 				return r, nil
 			}
 
-			err := kubeClient.UpdateRefreshToken(r.ID, func(r storage.RefreshToken) (storage.RefreshToken, error) {
+			err := kubeClient.UpdateRefreshToken(ctx, r.ID, func(r storage.RefreshToken) (storage.RefreshToken, error) {
 				r.Token = "should-break-the-lock-and-finish-updating"
 				return r, nil
 			})
@@ -376,7 +375,7 @@ func TestRefreshTokenLock(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		token, err := kubeClient.GetRefresh(r.ID)
+		token, err := kubeClient.GetRefresh(context.TODO(), r.ID)
 		require.NoError(t, err)
 		// Because concurrent update breaks the lock, the final result will be the value of the first update
 		require.Equal(t, "update-result-2", token.Token)

@@ -452,6 +452,27 @@ func TestValidRedirectURI(t *testing.T) {
 			redirectURI: "http://localhost",
 			wantValid:   true,
 		},
+		{
+			client: storage.Client{
+				Public: true,
+			},
+			redirectURI: "http://127.0.0.1:8080/",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				Public: true,
+			},
+			redirectURI: "http://127.0.0.1:991/bar",
+			wantValid:   true,
+		},
+		{
+			client: storage.Client{
+				Public: true,
+			},
+			redirectURI: "http://127.0.0.1",
+			wantValid:   true,
+		},
 		// Both Public + RedirectURIs configured: Could e.g. be a PKCE-enabled web app.
 		{
 			client: storage.Client{
@@ -578,7 +599,7 @@ func TestValidRedirectURI(t *testing.T) {
 
 func TestStorageKeySet(t *testing.T) {
 	s := memory.New(logger)
-	if err := s.UpdateKeys(func(keys storage.Keys) (storage.Keys, error) {
+	if err := s.UpdateKeys(context.TODO(), func(keys storage.Keys) (storage.Keys, error) {
 		keys.SigningKey = &jose.JSONWebKey{
 			Key:       testKey,
 			KeyID:     "testkey",

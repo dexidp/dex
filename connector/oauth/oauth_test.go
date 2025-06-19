@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -271,7 +270,7 @@ func newConnector(t *testing.T, serverURL string) *oauthConnector {
 	testConfig.ClaimMapping.EmailKey = "mail"
 	testConfig.ClaimMapping.EmailVerifiedKey = "has_verified_email"
 
-	log := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	log := slog.New(slog.DiscardHandler)
 
 	conn, err := testConfig.Open("id", log)
 	if err != nil {
