@@ -733,3 +733,99 @@ func TestMissingConnectorsCRUDFeatureFlag(t *testing.T) {
 		t.Fatal("ListConnectors should have returned an error")
 	}
 }
+
+func TestListClients(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+
+	s := memory.New(logger)
+	client := newAPI(s, logger, t)
+	defer client.Close()
+
+	ctx := context.Background()
+
+	listResp, err := client.ListClients(ctx, &api.ListClientReq{})
+	if err != nil {
+		t.Fatalf("Unable to list clients: %v", err)
+	}
+	if len(listResp.Clients) != 0 {
+		t.Fatalf("Expected 0 clients, got %d", len(listResp.Clients))
+	}
+
+	client1 := &api.Client{
+		Id:           "client1",
+		Secret:       "secret1",
+		RedirectUris: []string{"http://localhost:8080/callback"},
+		TrustedPeers: []string{"peer1"},
+		Public:       false,
+		Name:         "Test Client 1",
+		LogoUrl:      "http://example.com/logo1.png",
+	}
+
+	client2 := &api.Client{
+		Id:           "client2",
+		Secret:       "secret2",
+		RedirectUris: []string{"http://localhost:8081/callback"},
+		TrustedPeers: []string{"peer2"},
+		Public:       true,
+		Name:         "Test Client 2",
+		LogoUrl:      "http://example.com/logo2.png",
+	}
+
+	_, err = client.CreateClient(ctx, &api.CreateClientReq{Client: client1})
+	if err != nil {
+		t.Fatalf("Unable to create client1: %v", err)
+	}
+
+	_, err = client.CreateClient(ctx, &api.CreateClientReq{Client: client2})
+	if err != nil {
+		t.Fatalf("Unable to create client2: %v", err)
+	}
+
+	listResp, err = client.ListClients(ctx, &api.ListClientReq{})
+	if err != nil {
+		t.Fatalf("Unable to list clients: %v", err)
+	}
+
+	if len(listResp.Clients) != 2 {
+		t.Fatalf("Expected 2 clients, got %d", len(listResp.Clients))
+	}
+
+	clientMap := make(map[string]*api.ClientInfo)
+	for _, c := range listResp.Clients {
+		clientMap[c.Id] = c
+	}
+
+	if c1, exists := clientMap["client1"]; !exists {
+		t.Fatal("client1 not found in list")
+	} else {
+		if c1.Name != "Test Client 1" {
+			t.Errorf("Expected client1 name 'Test Client 1', got '%s'", c1.Name)
+		}
+		if len(c1.RedirectUris) != 1 || c1.RedirectUris[0] != "http://localhost:8080/callback" {
+			t.Errorf("Expected client1 redirect URIs ['http://localhost:8080/callback'], got %v", c1.RedirectUris)
+		}
+		if c1.Public != false {
+			t.Errorf("Expected client1 public false, got %v", c1.Public)
+		}
+		if c1.LogoUrl != "http://example.com/logo1.png" {
+			t.Errorf("Expected client1 logo URL 'http://example.com/logo1.png', got '%s'", c1.LogoUrl)
+		}
+	}
+
+	if c2, exists := clientMap["client2"]; !exists {
+		t.Fatal("client2 not found in list")
+	} else {
+		if c2.Name != "Test Client 2" {
+			t.Errorf("Expected client2 name 'Test Client 2', got '%s'", c2.Name)
+		}
+		if len(c2.RedirectUris) != 1 || c2.RedirectUris[0] != "http://localhost:8081/callback" {
+			t.Errorf("Expected client2 redirect URIs ['http://localhost:8081/callback'], got %v", c2.RedirectUris)
+		}
+		if c2.Public != true {
+			t.Errorf("Expected client2 public true, got %v", c2.Public)
+		}
+		if c2.LogoUrl != "http://example.com/logo2.png" {
+			t.Errorf("Expected client2 logo URL 'http://example.com/logo2.png', got '%s'", c2.LogoUrl)
+		}
+	}
+}
