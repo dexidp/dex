@@ -312,6 +312,10 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 		return identity, fmt.Errorf("microsoft: get user: %v", err)
 	}
 
+	if c.emailToLowercase {
+		user.Email = strings.ToLower(user.Email)
+	}
+
 	identity.Username = user.Name
 	identity.Email = user.Email
 
