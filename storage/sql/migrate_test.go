@@ -5,7 +5,6 @@ package sql
 
 import (
 	"database/sql"
-	"io"
 	"log/slog"
 	"testing"
 
@@ -19,7 +18,7 @@ func TestMigrate(t *testing.T) {
 	}
 	defer db.Close()
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	errCheck := func(err error) bool {
 		sqlErr, ok := err.(sqlite3.Error)
