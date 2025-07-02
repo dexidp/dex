@@ -85,6 +85,12 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if len(scopes) == 0 {
+			// per RFC8628 section 3.1, https://datatracker.ietf.org/doc/html/rfc8628#section-3.1
+			// scope is optional but dex requires that it is always at least 'openid' so default it
+			scopes = []string{"openid"}
+		}
+
 		s.logger.InfoContext(r.Context(), "received device request", "client_id", clientID, "scoped", scopes)
 
 		// Make device code
