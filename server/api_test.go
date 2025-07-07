@@ -743,6 +743,7 @@ func TestListClients(t *testing.T) {
 
 	ctx := context.Background()
 
+	// List Clients
 	listResp, err := client.ListClients(ctx, &api.ListClientReq{})
 	if err != nil {
 		t.Fatalf("Unable to list clients: %v", err)
