@@ -211,6 +211,7 @@ type AuthRequest struct {
 	// on all requests. The server cannot cache their initial action for subsequent
 	// attempts.
 	ForceApprovalPrompt bool
+	Prompt              string
 
 	Expiry time.Time
 

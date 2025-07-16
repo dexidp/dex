@@ -138,14 +138,27 @@ func (s *Server) constructDiscovery() discovery {
 func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	// Extract the arguments
-	if err := r.ParseForm(); err != nil {
-		s.logger.ErrorContext(r.Context(), "failed to parse arguments", "err", err)
+	authReq, err := s.parseAuthorizationRequest(r)
+	if err != nil {
+		s.logger.ErrorContext(r.Context(), "failed to parse authorization request", "err", err)
 
-		s.renderError(r, w, http.StatusBadRequest, err.Error())
+		switch authErr := err.(type) {
+		case *redirectedAuthErr:
+			authErr.Handler().ServeHTTP(w, r)
+		case *displayedAuthErr:
+			s.renderError(r, w, authErr.Status, err.Error())
+		default:
+			panic("unsupported error type")
+		}
+
 		return
 	}
 
-	connectorID := r.Form.Get("connector_id")
+	if authReq.Prompt == "none" {
+		newRedirectedAuthErr(authReq, "login_required", "").Handler().ServeHTTP(w, r)
+		return
+	}
+
 	connectors, err := s.storage.ListConnectors(ctx)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get list of connectors", "err", err)
@@ -162,9 +175,9 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Redirect if a client chooses a specific connector_id
-	if connectorID != "" {
+	if authReq.ConnectorID != "" {
 		for _, c := range connectors {
-			if c.ID == connectorID {
+			if c.ID == authReq.ConnectorID {
 				connURL.Path = s.absPath("/auth", url.PathEscape(c.ID))
 				http.Redirect(w, r, connURL.String(), http.StatusFound)
 				return
