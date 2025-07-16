@@ -223,7 +223,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	conn, err := s.getConnector(ctx, connID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "Failed to get connector", "err", err)
-		s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist")
+		s.renderError(r, w, http.StatusBadRequest, "Connector failed to initialize")
 		return
 	}
 
@@ -350,7 +350,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 	conn, err := s.getConnector(ctx, authReq.ConnectorID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "connector_id", authReq.ConnectorID, "err", err)
-		s.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
+		s.renderError(r, w, http.StatusInternalServerError, "Connector failed to initialize.")
 		return
 	}
 
@@ -720,8 +720,6 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			}
 		case responseTypeToken:
 			implicitOrHybrid = true
-		case responseTypeIDToken:
-			implicitOrHybrid = true
 			var err error
 
 			accessToken, _, err = s.newAccessToken(r.Context(), authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, authReq.ConnectorID)
@@ -730,6 +728,9 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 				return
 			}
+		case responseTypeIDToken:
+			implicitOrHybrid = true
+			var err error
 
 			idToken, idTokenExpiry, err = s.newIDToken(r.Context(), authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, accessToken, code.ID, authReq.ConnectorID)
 			if err != nil {
@@ -742,12 +743,10 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 
 	if implicitOrHybrid {
 		v := url.Values{}
-		v.Set("access_token", accessToken)
-		v.Set("token_type", "bearer")
-		v.Set("state", authReq.State)
-		if idToken != "" {
-			v.Set("id_token", idToken)
-			// The hybrid flow with only "code token" or "code id_token" doesn't return an
+		if accessToken != "" {
+			v.Set("access_token", accessToken)
+			v.Set("token_type", "bearer")
+			// The hybrid flow with "code token" or "code id_token token" doesn't return an
 			// "expires_in" value. If "code" wasn't provided, indicating the implicit flow,
 			// don't add it.
 			//
@@ -755,6 +754,10 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			if code.ID == "" {
 				v.Set("expires_in", strconv.Itoa(int(idTokenExpiry.Sub(s.now()).Seconds())))
 			}
+		}
+		v.Set("state", authReq.State)
+		if idToken != "" {
+			v.Set("id_token", idToken)
 		}
 		if code.ID != "" {
 			v.Set("code", code.ID)

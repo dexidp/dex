@@ -1,7 +1,6 @@
 package ent
 
 import (
-	"io"
 	"log/slog"
 	"testing"
 
@@ -10,7 +9,7 @@ import (
 )
 
 func newSQLiteStorage() storage.Storage {
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	cfg := SQLite3{File: ":memory:"}
 	s, err := cfg.Open(logger)

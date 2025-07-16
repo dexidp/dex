@@ -20,19 +20,14 @@
       ];
 
       perSystem =
-        {
-          pkgs,
-          lib,
-          system,
-          ...
-        }:
+        { pkgs, ... }:
         rec {
           devenv.shells = {
             default = {
               languages = {
                 go = {
                   enable = true;
-                  package = pkgs.go_1_23;
+                  package = pkgs.go_1_24;
                 };
               };
 

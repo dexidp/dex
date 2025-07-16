@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"io"
 	"log/slog"
 	"testing"
 
@@ -10,7 +9,7 @@ import (
 )
 
 func TestStorage(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	newStorage := func() storage.Storage {
 		return New(logger)
