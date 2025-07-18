@@ -90,6 +90,14 @@ func TestHandleDeviceCode(t *testing.T) {
 			expectedResponseCode: http.StatusBadRequest,
 			expectedContentType:  "application/json",
 		},
+		{
+			testName:             "New Code without scope",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{},
+			expectedResponseCode: http.StatusOK,
+			expectedContentType:  "application/json",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.testName, func(t *testing.T) {
