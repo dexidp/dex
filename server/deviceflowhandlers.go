@@ -249,7 +249,7 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 		if slowDown {
 			s.tokenErrHelper(w, deviceTokenSlowDown, "", http.StatusBadRequest)
 		} else {
-			s.tokenErrHelper(w, deviceTokenPending, "", http.StatusUnauthorized)
+			s.tokenErrHelper(w, deviceTokenPending, "", http.StatusBadRequest)
 		}
 	case deviceTokenComplete:
 		codeChallengeFromStorage := deviceToken.PKCE.CodeChallenge

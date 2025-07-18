@@ -459,7 +459,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			},
 			testDeviceCode:         "f00bar",
 			expectedServerResponse: deviceTokenPending,
-			expectedResponseCode:   http.StatusUnauthorized,
+			expectedResponseCode:   http.StatusBadRequest,
 		},
 		{
 			testName:          "Invalid Grant Type",
