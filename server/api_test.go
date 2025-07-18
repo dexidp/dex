@@ -735,7 +735,7 @@ func TestMissingConnectorsCRUDFeatureFlag(t *testing.T) {
 }
 
 func TestListClients(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)
