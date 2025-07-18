@@ -420,6 +420,9 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 
 func (c *oidcConnector) TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (connector.Identity, error) {
 	var identity connector.Identity
+
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.httpClient)
+
 	token := &oauth2.Token{
 		AccessToken: subjectToken,
 		TokenType:   subjectTokenType,
