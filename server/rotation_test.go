@@ -81,7 +81,7 @@ func TestKeyRotator(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		now = now.Add(rotationFrequency + delta)
-		if err := r.rotate(); err != nil {
+		if err := r.rotate(context.Background()); err != nil {
 			t.Fatal(err)
 		}
 

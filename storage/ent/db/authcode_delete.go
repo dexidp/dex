@@ -20,56 +20,56 @@ type AuthCodeDelete struct {
 }
 
 // Where appends a list predicates to the AuthCodeDelete builder.
-func (acd *AuthCodeDelete) Where(ps ...predicate.AuthCode) *AuthCodeDelete {
-	acd.mutation.Where(ps...)
-	return acd
+func (_d *AuthCodeDelete) Where(ps ...predicate.AuthCode) *AuthCodeDelete {
+	_d.mutation.Where(ps...)
+	return _d
 }
 
 // Exec executes the deletion query and returns how many vertices were deleted.
-func (acd *AuthCodeDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, acd.sqlExec, acd.mutation, acd.hooks)
+func (_d *AuthCodeDelete) Exec(ctx context.Context) (int, error) {
+	return withHooks(ctx, _d.sqlExec, _d.mutation, _d.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (acd *AuthCodeDelete) ExecX(ctx context.Context) int {
-	n, err := acd.Exec(ctx)
+func (_d *AuthCodeDelete) ExecX(ctx context.Context) int {
+	n, err := _d.Exec(ctx)
 	if err != nil {
 		panic(err)
 	}
 	return n
 }
 
-func (acd *AuthCodeDelete) sqlExec(ctx context.Context) (int, error) {
+func (_d *AuthCodeDelete) sqlExec(ctx context.Context) (int, error) {
 	_spec := sqlgraph.NewDeleteSpec(authcode.Table, sqlgraph.NewFieldSpec(authcode.FieldID, field.TypeString))
-	if ps := acd.mutation.predicates; len(ps) > 0 {
+	if ps := _d.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	affected, err := sqlgraph.DeleteNodes(ctx, acd.driver, _spec)
+	affected, err := sqlgraph.DeleteNodes(ctx, _d.driver, _spec)
 	if err != nil && sqlgraph.IsConstraintError(err) {
 		err = &ConstraintError{msg: err.Error(), wrap: err}
 	}
-	acd.mutation.done = true
+	_d.mutation.done = true
 	return affected, err
 }
 
 // AuthCodeDeleteOne is the builder for deleting a single AuthCode entity.
 type AuthCodeDeleteOne struct {
-	acd *AuthCodeDelete
+	_d *AuthCodeDelete
 }
 
 // Where appends a list predicates to the AuthCodeDelete builder.
-func (acdo *AuthCodeDeleteOne) Where(ps ...predicate.AuthCode) *AuthCodeDeleteOne {
-	acdo.acd.mutation.Where(ps...)
-	return acdo
+func (_d *AuthCodeDeleteOne) Where(ps ...predicate.AuthCode) *AuthCodeDeleteOne {
+	_d._d.mutation.Where(ps...)
+	return _d
 }
 
 // Exec executes the deletion query.
-func (acdo *AuthCodeDeleteOne) Exec(ctx context.Context) error {
-	n, err := acdo.acd.Exec(ctx)
+func (_d *AuthCodeDeleteOne) Exec(ctx context.Context) error {
+	n, err := _d._d.Exec(ctx)
 	switch {
 	case err != nil:
 		return err
@@ -81,8 +81,8 @@ func (acdo *AuthCodeDeleteOne) Exec(ctx context.Context) error {
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (acdo *AuthCodeDeleteOne) ExecX(ctx context.Context) {
-	if err := acdo.Exec(ctx); err != nil {
+func (_d *AuthCodeDeleteOne) ExecX(ctx context.Context) {
+	if err := _d.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

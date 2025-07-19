@@ -58,7 +58,7 @@ func (*DeviceToken) scanValues(columns []string) ([]any, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the DeviceToken fields.
-func (dt *DeviceToken) assignValues(columns []string, values []any) error {
+func (_m *DeviceToken) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -69,57 +69,57 @@ func (dt *DeviceToken) assignValues(columns []string, values []any) error {
 			if !ok {
 				return fmt.Errorf("unexpected type %T for field id", value)
 			}
-			dt.ID = int(value.Int64)
+			_m.ID = int(value.Int64)
 		case devicetoken.FieldDeviceCode:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field device_code", values[i])
 			} else if value.Valid {
-				dt.DeviceCode = value.String
+				_m.DeviceCode = value.String
 			}
 		case devicetoken.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field status", values[i])
 			} else if value.Valid {
-				dt.Status = value.String
+				_m.Status = value.String
 			}
 		case devicetoken.FieldToken:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field token", values[i])
 			} else if value != nil {
-				dt.Token = value
+				_m.Token = value
 			}
 		case devicetoken.FieldExpiry:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field expiry", values[i])
 			} else if value.Valid {
-				dt.Expiry = value.Time
+				_m.Expiry = value.Time
 			}
 		case devicetoken.FieldLastRequest:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field last_request", values[i])
 			} else if value.Valid {
-				dt.LastRequest = value.Time
+				_m.LastRequest = value.Time
 			}
 		case devicetoken.FieldPollInterval:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field poll_interval", values[i])
 			} else if value.Valid {
-				dt.PollInterval = int(value.Int64)
+				_m.PollInterval = int(value.Int64)
 			}
 		case devicetoken.FieldCodeChallenge:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field code_challenge", values[i])
 			} else if value.Valid {
-				dt.CodeChallenge = value.String
+				_m.CodeChallenge = value.String
 			}
 		case devicetoken.FieldCodeChallengeMethod:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field code_challenge_method", values[i])
 			} else if value.Valid {
-				dt.CodeChallengeMethod = value.String
+				_m.CodeChallengeMethod = value.String
 			}
 		default:
-			dt.selectValues.Set(columns[i], values[i])
+			_m.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
@@ -127,58 +127,58 @@ func (dt *DeviceToken) assignValues(columns []string, values []any) error {
 
 // Value returns the ent.Value that was dynamically selected and assigned to the DeviceToken.
 // This includes values selected through modifiers, order, etc.
-func (dt *DeviceToken) Value(name string) (ent.Value, error) {
-	return dt.selectValues.Get(name)
+func (_m *DeviceToken) Value(name string) (ent.Value, error) {
+	return _m.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this DeviceToken.
 // Note that you need to call DeviceToken.Unwrap() before calling this method if this DeviceToken
 // was returned from a transaction, and the transaction was committed or rolled back.
-func (dt *DeviceToken) Update() *DeviceTokenUpdateOne {
-	return NewDeviceTokenClient(dt.config).UpdateOne(dt)
+func (_m *DeviceToken) Update() *DeviceTokenUpdateOne {
+	return NewDeviceTokenClient(_m.config).UpdateOne(_m)
 }
 
 // Unwrap unwraps the DeviceToken entity that was returned from a transaction after it was closed,
 // so that all future queries will be executed through the driver which created the transaction.
-func (dt *DeviceToken) Unwrap() *DeviceToken {
-	_tx, ok := dt.config.driver.(*txDriver)
+func (_m *DeviceToken) Unwrap() *DeviceToken {
+	_tx, ok := _m.config.driver.(*txDriver)
 	if !ok {
 		panic("db: DeviceToken is not a transactional entity")
 	}
-	dt.config.driver = _tx.drv
-	return dt
+	_m.config.driver = _tx.drv
+	return _m
 }
 
 // String implements the fmt.Stringer.
-func (dt *DeviceToken) String() string {
+func (_m *DeviceToken) String() string {
 	var builder strings.Builder
 	builder.WriteString("DeviceToken(")
-	builder.WriteString(fmt.Sprintf("id=%v, ", dt.ID))
+	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("device_code=")
-	builder.WriteString(dt.DeviceCode)
+	builder.WriteString(_m.DeviceCode)
 	builder.WriteString(", ")
 	builder.WriteString("status=")
-	builder.WriteString(dt.Status)
+	builder.WriteString(_m.Status)
 	builder.WriteString(", ")
-	if v := dt.Token; v != nil {
+	if v := _m.Token; v != nil {
 		builder.WriteString("token=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")
 	builder.WriteString("expiry=")
-	builder.WriteString(dt.Expiry.Format(time.ANSIC))
+	builder.WriteString(_m.Expiry.Format(time.ANSIC))
 	builder.WriteString(", ")
 	builder.WriteString("last_request=")
-	builder.WriteString(dt.LastRequest.Format(time.ANSIC))
+	builder.WriteString(_m.LastRequest.Format(time.ANSIC))
 	builder.WriteString(", ")
 	builder.WriteString("poll_interval=")
-	builder.WriteString(fmt.Sprintf("%v", dt.PollInterval))
+	builder.WriteString(fmt.Sprintf("%v", _m.PollInterval))
 	builder.WriteString(", ")
 	builder.WriteString("code_challenge=")
-	builder.WriteString(dt.CodeChallenge)
+	builder.WriteString(_m.CodeChallenge)
 	builder.WriteString(", ")
 	builder.WriteString("code_challenge_method=")
-	builder.WriteString(dt.CodeChallengeMethod)
+	builder.WriteString(_m.CodeChallengeMethod)
 	builder.WriteByte(')')
 	return builder.String()
 }

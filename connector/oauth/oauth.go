@@ -14,6 +14,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/httpclient"
+	"github.com/dexidp/dex/pkg/otel/traces"
 )
 
 type oauthConnector struct {
@@ -133,6 +134,8 @@ func (c *oauthConnector) LoginURL(scopes connector.Scopes, callbackURL, state st
 }
 
 func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
+	ctx, span := traces.InstrumentationTracer(r.Context(), "dex.oauth.HandleCallback")
+	defer span.End()
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, errors.New(q.Get("error_description"))
@@ -146,7 +149,7 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 		Scopes:       c.scopes,
 	}
 
-	ctx := context.WithValue(r.Context(), oauth2.HTTPClient, c.httpClient)
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.httpClient)
 
 	token, err := oauth2Config.Exchange(ctx, q.Get("code"))
 	if err != nil {

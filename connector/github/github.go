@@ -19,6 +19,7 @@ import (
 	"github.com/dexidp/dex/connector"
 	groups_pkg "github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/httpclient"
+	"github.com/dexidp/dex/pkg/otel/traces"
 )
 
 const (
@@ -215,6 +216,8 @@ func (e *oauth2Error) Error() string {
 }
 
 func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
+	ctx, span := traces.InstrumentationTracer(r.Context(), "dex.github.callback")
+	defer span.End()
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, &oauth2Error{errType, q.Get("error_description")}
@@ -222,7 +225,6 @@ func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 
 	oauth2Config := c.oauth2Config(s)
 
-	ctx := r.Context()
 	// GitHub Enterprise account
 	if c.httpClient != nil {
 		ctx = context.WithValue(r.Context(), oauth2.HTTPClient, c.httpClient)
@@ -278,6 +280,8 @@ func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (i
 }
 
 func (c *githubConnector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.github.Refresh")
+	defer span.End()
 	if len(identity.ConnectorData) == 0 {
 		return identity, errors.New("no upstream access token found")
 	}
@@ -315,6 +319,8 @@ func (c *githubConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 
 // getGroups retrieves GitHub orgs and teams a user is in, if any.
 func (c *githubConnector) getGroups(ctx context.Context, client *http.Client, groupScope bool, userLogin string) ([]string, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.github.getGroups")
+	defer span.End()
 	switch {
 	case len(c.orgs) > 0:
 		return c.groupsForOrgs(ctx, client, userLogin)
@@ -341,6 +347,8 @@ func formatTeamName(org string, team string) string {
 //
 // from at least 1 org, or member of org with no teams
 func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client, userName string) ([]string, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.github.groupsForOrgs")
+	defer span.End()
 	groups := make([]string, 0)
 	var inOrgNoTeams bool
 	for _, org := range c.orgs {
@@ -376,6 +384,8 @@ func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client
 }
 
 func (c *githubConnector) userGroups(ctx context.Context, client *http.Client) ([]string, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.github.userGroups")
+	defer span.End()
 	orgs, err := c.userOrgs(ctx, client)
 	if err != nil {
 		return nil, err
@@ -401,6 +411,8 @@ func (c *githubConnector) userGroups(ctx context.Context, client *http.Client) (
 
 // userOrgs retrieves list of current user orgs
 func (c *githubConnector) userOrgs(ctx context.Context, client *http.Client) ([]string, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.github.userOrgs")
+	defer span.End()
 	groups := make([]string, 0)
 	apiURL := c.apiURL + "/user/orgs"
 	for {
@@ -428,6 +440,8 @@ func (c *githubConnector) userOrgs(ctx context.Context, client *http.Client) ([]
 // userOrgTeams retrieves teams which current user belongs to.
 // Method returns a map where key is an org name and value list of teams under the org.
 func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client) (map[string][]string, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.github.userOrgTeams")
+	defer span.End()
 	groups := make(map[string][]string)
 	apiURL := c.apiURL + "/user/teams"
 	for {
@@ -457,6 +471,8 @@ func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client)
 // is returned if one exists. Any errors encountered when building requests,
 // sending requests, and reading and decoding response data are returned.
 func get(ctx context.Context, client *http.Client, apiURL string, v interface{}) (string, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.github.get")
+	defer span.End()
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("github: new req: %v", err)
@@ -525,6 +541,8 @@ type user struct {
 // The HTTP client is expected to be constructed by the golang.org/x/oauth2 package,
 // which inserts a bearer token as part of the request.
 func (c *githubConnector) user(ctx context.Context, client *http.Client) (user, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.github.user")
+	defer span.End()
 	// https://developer.github.com/v3/users/#get-the-authenticated-user
 	var u user
 	if _, err := get(ctx, client, c.apiURL+"/user", &u); err != nil {
@@ -559,6 +577,8 @@ type userEmail struct {
 // The HTTP client is expected to be constructed by the golang.org/x/oauth2 package,
 // which inserts a bearer token as part of the request.
 func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (string, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.github.userEmail")
+	defer span.End()
 	var (
 		primaryEmail    userEmail
 		preferredEmails []userEmail
@@ -648,6 +668,8 @@ func (c *githubConnector) isPreferredEmailDomain(domain string) bool {
 // The HTTP passed client is expected to be constructed by the golang.org/x/oauth2 package,
 // which inserts a bearer token as part of the request.
 func (c *githubConnector) userInOrg(ctx context.Context, client *http.Client, userName, orgName string) (bool, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.github.userInOrg")
+	defer span.End()
 	// requester == user, so GET-ing this endpoint should return 404/302 if user
 	// is not a member
 	//
@@ -694,6 +716,8 @@ type org struct {
 // The HTTP passed client is expected to be constructed by the golang.org/x/oauth2 package,
 // which inserts a bearer token as part of the request.
 func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, orgName string) ([]string, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.github.teamsForOrg")
+	defer span.End()
 	apiURL, groups := c.apiURL+"/user/teams", []string{}
 	for {
 		// https://developer.github.com/v3/orgs/teams/#list-user-teams

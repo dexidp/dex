@@ -20,56 +20,56 @@ type AuthRequestDelete struct {
 }
 
 // Where appends a list predicates to the AuthRequestDelete builder.
-func (ard *AuthRequestDelete) Where(ps ...predicate.AuthRequest) *AuthRequestDelete {
-	ard.mutation.Where(ps...)
-	return ard
+func (_d *AuthRequestDelete) Where(ps ...predicate.AuthRequest) *AuthRequestDelete {
+	_d.mutation.Where(ps...)
+	return _d
 }
 
 // Exec executes the deletion query and returns how many vertices were deleted.
-func (ard *AuthRequestDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, ard.sqlExec, ard.mutation, ard.hooks)
+func (_d *AuthRequestDelete) Exec(ctx context.Context) (int, error) {
+	return withHooks(ctx, _d.sqlExec, _d.mutation, _d.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (ard *AuthRequestDelete) ExecX(ctx context.Context) int {
-	n, err := ard.Exec(ctx)
+func (_d *AuthRequestDelete) ExecX(ctx context.Context) int {
+	n, err := _d.Exec(ctx)
 	if err != nil {
 		panic(err)
 	}
 	return n
 }
 
-func (ard *AuthRequestDelete) sqlExec(ctx context.Context) (int, error) {
+func (_d *AuthRequestDelete) sqlExec(ctx context.Context) (int, error) {
 	_spec := sqlgraph.NewDeleteSpec(authrequest.Table, sqlgraph.NewFieldSpec(authrequest.FieldID, field.TypeString))
-	if ps := ard.mutation.predicates; len(ps) > 0 {
+	if ps := _d.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	affected, err := sqlgraph.DeleteNodes(ctx, ard.driver, _spec)
+	affected, err := sqlgraph.DeleteNodes(ctx, _d.driver, _spec)
 	if err != nil && sqlgraph.IsConstraintError(err) {
 		err = &ConstraintError{msg: err.Error(), wrap: err}
 	}
-	ard.mutation.done = true
+	_d.mutation.done = true
 	return affected, err
 }
 
 // AuthRequestDeleteOne is the builder for deleting a single AuthRequest entity.
 type AuthRequestDeleteOne struct {
-	ard *AuthRequestDelete
+	_d *AuthRequestDelete
 }
 
 // Where appends a list predicates to the AuthRequestDelete builder.
-func (ardo *AuthRequestDeleteOne) Where(ps ...predicate.AuthRequest) *AuthRequestDeleteOne {
-	ardo.ard.mutation.Where(ps...)
-	return ardo
+func (_d *AuthRequestDeleteOne) Where(ps ...predicate.AuthRequest) *AuthRequestDeleteOne {
+	_d._d.mutation.Where(ps...)
+	return _d
 }
 
 // Exec executes the deletion query.
-func (ardo *AuthRequestDeleteOne) Exec(ctx context.Context) error {
-	n, err := ardo.ard.Exec(ctx)
+func (_d *AuthRequestDeleteOne) Exec(ctx context.Context) error {
+	n, err := _d._d.Exec(ctx)
 	switch {
 	case err != nil:
 		return err
@@ -81,8 +81,8 @@ func (ardo *AuthRequestDeleteOne) Exec(ctx context.Context) error {
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (ardo *AuthRequestDeleteOne) ExecX(ctx context.Context) {
-	if err := ardo.Exec(ctx); err != nil {
+func (_d *AuthRequestDeleteOne) ExecX(ctx context.Context) {
+	if err := _d.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

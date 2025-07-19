@@ -9,6 +9,7 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
+	"github.com/dexidp/dex/pkg/otel/traces"
 	"github.com/dexidp/dex/server/internal"
 )
 
@@ -145,6 +146,8 @@ func newIntrospectBadRequestError(desc string) *introspectionError {
 }
 
 func (s *Server) guessTokenType(ctx context.Context, token string) (TokenTypeEnum, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.server.guess_token_type")
+	defer span.End()
 	// We skip every checks, we only want to know if it's a valid JWT
 	verifierConfig := oidc.Config{
 		SkipClientIDCheck: true,
@@ -166,6 +169,8 @@ func (s *Server) guessTokenType(ctx context.Context, token string) (TokenTypeEnu
 }
 
 func (s *Server) getTokenFromRequest(r *http.Request) (string, TokenTypeEnum, error) {
+	ctx, span := traces.InstrumentationTracer(r.Context(), "dex.server.get_token_from_request")
+	defer span.End()
 	if r.Method != "POST" {
 		return "", 0, newIntrospectBadRequestError(fmt.Sprintf("HTTP method is \"%s\", expected \"POST\".", r.Method))
 	} else if err := r.ParseForm(); err != nil {
@@ -177,9 +182,9 @@ func (s *Server) getTokenFromRequest(r *http.Request) (string, TokenTypeEnum, er
 	}
 
 	token := r.PostForm.Get("token")
-	tokenType, err := s.guessTokenType(r.Context(), token)
+	tokenType, err := s.guessTokenType(ctx, token)
 	if err != nil {
-		s.logger.ErrorContext(r.Context(), "failed to guess token type", "err", err)
+		s.logger.ErrorContext(ctx, "failed to guess token type", "err", err)
 		return "", 0, newIntrospectInternalServerError()
 	}
 
@@ -194,6 +199,8 @@ func (s *Server) getTokenFromRequest(r *http.Request) (string, TokenTypeEnum, er
 }
 
 func (s *Server) introspectRefreshToken(ctx context.Context, token string) (*Introspection, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.server.introspect_refresh_token")
+	defer span.End()
 	rToken := new(internal.RefreshToken)
 	if err := internal.Unmarshal(token, rToken); err != nil {
 		// For backward compatibility, assume the refresh_token is a raw refresh token ID
@@ -245,6 +252,8 @@ func (s *Server) introspectRefreshToken(ctx context.Context, token string) (*Int
 }
 
 func (s *Server) introspectAccessToken(ctx context.Context, token string) (*Introspection, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.server.introspect_access_token")
+	defer span.End()
 	verifier := oidc.NewVerifier(s.issuerURL.String(), &storageKeySet{s.storage}, &oidc.Config{SkipClientIDCheck: true})
 	idToken, err := verifier.Verify(ctx, token)
 	if err != nil {
@@ -287,8 +296,8 @@ func (s *Server) introspectAccessToken(ctx context.Context, token string) (*Intr
 }
 
 func (s *Server) handleIntrospect(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
+	ctx, span := traces.InstrumentHandler(r)
+	defer span.End()
 	var introspect *Introspection
 	token, tokenType, err := s.getTokenFromRequest(r)
 	if err == nil {
@@ -299,7 +308,7 @@ func (s *Server) handleIntrospect(w http.ResponseWriter, r *http.Request) {
 			introspect, err = s.introspectRefreshToken(ctx, token)
 		default:
 			// Token type is neither handled token types.
-			s.logger.ErrorContext(r.Context(), "unknown token type", "token_type", tokenType)
+			s.logger.ErrorContext(ctx, "unknown token type", "token_type", tokenType)
 			introspectInactiveErr(w)
 			return
 		}
@@ -309,7 +318,7 @@ func (s *Server) handleIntrospect(w http.ResponseWriter, r *http.Request) {
 		if intErr, ok := err.(*introspectionError); ok {
 			s.introspectErrHelper(w, intErr.typ, intErr.desc, intErr.code)
 		} else {
-			s.logger.ErrorContext(r.Context(), "an unknown error occurred", "err", err.Error())
+			s.logger.ErrorContext(ctx, "an unknown error occurred", "err", err.Error())
 			s.introspectErrHelper(w, errServerError, "An unknown error occurred", http.StatusInternalServerError)
 		}
 

@@ -19,6 +19,7 @@ import (
 	"github.com/dexidp/dex/connector"
 	groups_pkg "github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/pkg/httpclient"
+	"github.com/dexidp/dex/pkg/otel/traces"
 )
 
 // Config holds configuration options for OpenID Connect logins.
@@ -125,6 +126,8 @@ func (o *ProviderDiscoveryOverrides) Empty() bool {
 }
 
 func getProvider(ctx context.Context, issuer string, overrides ProviderDiscoveryOverrides) (*oidc.Provider, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.oidc.getProvider")
+	defer span.End()
 	provider, err := oidc.NewProvider(ctx, issuer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider: %v", err)
@@ -237,11 +240,19 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 	}
 
 	bgctx, cancel := context.WithCancel(context.Background())
-	ctx := context.WithValue(bgctx, oauth2.HTTPClient, httpClient)
+	ctx, span := traces.InstrumentationTracer(bgctx, "dex.oidc.Open")
+	defer span.End()
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, httpClient)
 	if c.IssuerAlias != "" {
 		ctx = oidc.InsecureIssuerURLContext(ctx, c.IssuerAlias)
 	}
-	provider, err := getProvider(ctx, c.Issuer, c.ProviderDiscoveryOverrides)
+
+	// Add timeout for provider discovery
+	discoveryTimeout := 10 * time.Second // Adjustable; e.g., based on config if needed
+	discoveryCtx, discoveryCancel := context.WithTimeout(ctx, discoveryTimeout)
+	defer discoveryCancel()
+
+	provider, err := getProvider(discoveryCtx, c.Issuer, c.ProviderDiscoveryOverrides)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -394,12 +405,14 @@ const (
 )
 
 func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
+	ctx, span := traces.InstrumentationTracer(r.Context(), "dex.oidc.HandleCallback")
+	defer span.End()
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, &oauth2Error{errType, q.Get("error_description")}
 	}
 
-	ctx := context.WithValue(r.Context(), oauth2.HTTPClient, c.httpClient)
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.httpClient)
 
 	token, err := c.oauth2Config.Exchange(ctx, q.Get("code"))
 	if err != nil {
@@ -410,6 +423,8 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 
 // Refresh is used to refresh a session with the refresh token provided by the IdP
 func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.oidc.Refresh")
+	defer span.End()
 	cd := connectorData{}
 	err := json.Unmarshal(identity.ConnectorData, &cd)
 	if err != nil {
@@ -430,6 +445,9 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 }
 
 func (c *oidcConnector) TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (connector.Identity, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.oidc.TokenIdentity")
+	defer span.End()
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.httpClient)
 	var identity connector.Identity
 
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.httpClient)
@@ -442,6 +460,8 @@ func (c *oidcConnector) TokenIdentity(ctx context.Context, subjectTokenType, sub
 }
 
 func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token, caller caller) (connector.Identity, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.oidc.createIdentity")
+	defer span.End()
 	var claims map[string]interface{}
 
 	if rawIDToken, ok := token.Extra("id_token").(string); ok {

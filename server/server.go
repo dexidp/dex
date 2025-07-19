@@ -24,8 +24,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/connector"
@@ -45,6 +46,7 @@ import (
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
+	"github.com/dexidp/dex/pkg/otel/traces"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
 )
@@ -114,9 +116,9 @@ type Config struct {
 
 	Web WebConfig
 
-	Logger *slog.Logger
+	Meter metric.Meter
 
-	PrometheusRegistry *prometheus.Registry
+	Logger *slog.Logger
 
 	HealthChecker gosundheit.Health
 
@@ -218,6 +220,8 @@ func NewServerWithKey(ctx context.Context, c Config, privateKey *rsa.PrivateKey)
 }
 
 func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy) (*Server, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.server.new_server")
+	defer span.End()
 	issuerURL, err := url.Parse(c.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("server: can't parse issuer URL")
@@ -349,36 +353,9 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		return handler.ServeHTTP
 	}
 
-	if c.PrometheusRegistry != nil {
-		requestCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "http_requests_total",
-			Help: "Count of all HTTP requests.",
-		}, []string{"code", "method", "handler"})
-
-		durationHist := prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:    "request_duration_seconds",
-			Help:    "A histogram of latencies for requests.",
-			Buckets: []float64{.25, .5, 1, 2.5, 5, 10},
-		}, []string{"code", "method", "handler"})
-
-		sizeHist := prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:    "response_size_bytes",
-			Help:    "A histogram of response sizes for requests.",
-			Buckets: []float64{200, 500, 900, 1500},
-		}, []string{"code", "method", "handler"})
-
-		c.PrometheusRegistry.MustRegister(requestCounter, durationHist, sizeHist)
-
-		instrumentHandler = func(handlerName string, handler http.Handler) http.HandlerFunc {
-			return promhttp.InstrumentHandlerDuration(durationHist.MustCurryWith(prometheus.Labels{"handler": handlerName}),
-				promhttp.InstrumentHandlerCounter(requestCounter.MustCurryWith(prometheus.Labels{"handler": handlerName}),
-					promhttp.InstrumentHandlerResponseSize(sizeHist.MustCurryWith(prometheus.Labels{"handler": handlerName}), handler),
-				),
-			)
-		}
-	}
-
 	parseRealIP := func(r *http.Request) (string, error) {
+		_, span := traces.InstrumentationTracer(r.Context(), "dex.server.parse_real_ip")
+		defer span.End()
 		remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
 			return "", err
@@ -408,12 +385,13 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	handlerWithHeaders := func(handlerName string, handler http.Handler) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
+			rCtx, span := traces.InstrumentationTracer(r.Context(), "middleware - dex.request_context")
+			defer span.End()
 			for k, v := range c.Headers {
 				w.Header()[k] = v
 			}
 
 			// Context values are used for logging purposes with the log/slog logger.
-			rCtx := r.Context()
 			rCtx = WithRequestID(rCtx)
 
 			if c.RealIPHeader != "" {
@@ -459,14 +437,16 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS("/.well-known/openid-configuration", discoveryHandler)
 	// Handle the root path for the better user experience.
 	handleWithCORS("/", func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := traces.InstrumentHandler(r)
+		defer span.End()
 		_, err := fmt.Fprintf(w, `<!DOCTYPE html>
-			<title>Dex</title>
-			<h1>Dex IdP</h1>
-			<h3>A Federated OpenID Connect Provider</h3>
-			<p><a href=%q>Discovery</a></p>`,
+            <title>Dex</title>
+            <h1>Dex IdP</h1>
+            <h3>A Federated OpenID Connect Provider</h3>
+            <p><a href=%q>Discovery</a></p>`,
 			s.issuerURL.String()+"/.well-known/openid-configuration")
 		if err != nil {
-			s.logger.Error("failed to write response", "err", err)
+			s.logger.ErrorContext(ctx, "failed to write response", "err", err)
 			s.renderError(r, w, http.StatusInternalServerError, "Handling the / path error.")
 			return
 		}
@@ -477,7 +457,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleWithCORS("/keys", s.handlePublicKeys)
 	handleWithCORS("/userinfo", s.handleUserInfo)
 	handleWithCORS("/token/introspect", s.handleIntrospect)
-	handleFunc("/auth", s.handleAuthorization)
+	handleFunc("/auth", s.handleAuthorization) // Add custom in handler as below
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)
 	handleFunc("/device", s.handleDeviceExchange)
@@ -487,6 +467,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handleFunc("/device/token", s.handleDeviceTokenDeprecated)
 	handleFunc(deviceCallbackURI, s.handleDeviceCallback)
 	handleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+		_, span := traces.InstrumentHandler(r)
+		defer span.End()
 		// Strip the X-Remote-* headers to prevent security issues on
 		// misconfigured authproxy connector setups.
 		for key := range r.Header {
@@ -512,7 +494,10 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	handlePrefix("/theme", theme)
 	handleFunc("/robots.txt", robots)
 
-	s.mux = r
+	// ADDED FOR METRICS: Wrap mux with OTEL HTTP middleware for auto-instrumentation (complements serve.go's wrapping)
+	s.mux = otelhttp.NewHandler(r, "dex.server.http",
+		otelhttp.WithMeterProvider(otel.GetMeterProvider()),
+	)
 
 	s.startKeyRotation(ctx, rotationStrategy, now)
 	s.startGarbageCollection(ctx, value(c.GCFrequency, 5*time.Minute), now)
@@ -521,6 +506,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	_, span := traces.InstrumentHandler(r)
+	defer span.End()
 	s.mux.ServeHTTP(w, r)
 }
 
@@ -549,6 +536,8 @@ type passwordDB struct {
 }
 
 func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, password string) (connector.Identity, bool, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.password_db.login")
+	defer span.End()
 	p, err := db.s.GetPassword(ctx, email)
 	if err != nil {
 		if err != storage.ErrNotFound {
@@ -573,6 +562,8 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 }
 
 func (db passwordDB) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.password_db.refresh")
+	defer span.End()
 	// If the user has been deleted, the refresh token will be rejected.
 	p, err := db.s.GetPassword(ctx, identity.Email)
 	if err != nil {
@@ -617,6 +608,8 @@ type keyCacher struct {
 }
 
 func (k *keyCacher) GetKeys(ctx context.Context) (storage.Keys, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.get_keys")
+	defer span.End()
 	keys, ok := k.keys.Load().(*storage.Keys)
 	if ok && keys != nil && k.now().Before(keys.NextRotation) {
 		return *keys, nil
@@ -634,6 +627,8 @@ func (k *keyCacher) GetKeys(ctx context.Context) (storage.Keys, error) {
 }
 
 func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Duration, now func() time.Time) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.startGarbageCollection")
+	defer span.End()
 	go func() {
 		for {
 			select {
@@ -734,6 +729,8 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 // getConnector retrieves the connector object with the given id from the storage
 // and updates the connector list for server if necessary.
 func (s *Server) getConnector(ctx context.Context, id string) (Connector, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.Server.get_connector")
+	defer span.End()
 	storageConnector, err := s.storage.GetConnector(ctx, id)
 	if err != nil {
 		return Connector{}, fmt.Errorf("failed to get connector object from storage: %v", err)
@@ -766,9 +763,13 @@ const (
 )
 
 func WithRequestID(ctx context.Context) context.Context {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.request_id")
+	defer span.End()
 	return context.WithValue(ctx, RequestKeyRequestID, uuid.NewString())
 }
 
 func WithRemoteIP(ctx context.Context, ip string) context.Context {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.remote_ip")
+	defer span.End()
 	return context.WithValue(ctx, RequestKeyRemoteIP, ip)
 }

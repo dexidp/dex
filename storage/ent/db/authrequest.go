@@ -83,7 +83,7 @@ func (*AuthRequest) scanValues(columns []string) ([]any, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the AuthRequest fields.
-func (ar *AuthRequest) assignValues(columns []string, values []any) error {
+func (_m *AuthRequest) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -93,19 +93,19 @@ func (ar *AuthRequest) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value.Valid {
-				ar.ID = value.String
+				_m.ID = value.String
 			}
 		case authrequest.FieldClientID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field client_id", values[i])
 			} else if value.Valid {
-				ar.ClientID = value.String
+				_m.ClientID = value.String
 			}
 		case authrequest.FieldScopes:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field scopes", values[i])
 			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &ar.Scopes); err != nil {
+				if err := json.Unmarshal(*value, &_m.Scopes); err != nil {
 					return fmt.Errorf("unmarshal field scopes: %w", err)
 				}
 			}
@@ -113,7 +113,7 @@ func (ar *AuthRequest) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field response_types", values[i])
 			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &ar.ResponseTypes); err != nil {
+				if err := json.Unmarshal(*value, &_m.ResponseTypes); err != nil {
 					return fmt.Errorf("unmarshal field response_types: %w", err)
 				}
 			}
@@ -121,61 +121,61 @@ func (ar *AuthRequest) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field redirect_uri", values[i])
 			} else if value.Valid {
-				ar.RedirectURI = value.String
+				_m.RedirectURI = value.String
 			}
 		case authrequest.FieldNonce:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field nonce", values[i])
 			} else if value.Valid {
-				ar.Nonce = value.String
+				_m.Nonce = value.String
 			}
 		case authrequest.FieldState:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field state", values[i])
 			} else if value.Valid {
-				ar.State = value.String
+				_m.State = value.String
 			}
 		case authrequest.FieldForceApprovalPrompt:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field force_approval_prompt", values[i])
 			} else if value.Valid {
-				ar.ForceApprovalPrompt = value.Bool
+				_m.ForceApprovalPrompt = value.Bool
 			}
 		case authrequest.FieldLoggedIn:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field logged_in", values[i])
 			} else if value.Valid {
-				ar.LoggedIn = value.Bool
+				_m.LoggedIn = value.Bool
 			}
 		case authrequest.FieldClaimsUserID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_user_id", values[i])
 			} else if value.Valid {
-				ar.ClaimsUserID = value.String
+				_m.ClaimsUserID = value.String
 			}
 		case authrequest.FieldClaimsUsername:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_username", values[i])
 			} else if value.Valid {
-				ar.ClaimsUsername = value.String
+				_m.ClaimsUsername = value.String
 			}
 		case authrequest.FieldClaimsEmail:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_email", values[i])
 			} else if value.Valid {
-				ar.ClaimsEmail = value.String
+				_m.ClaimsEmail = value.String
 			}
 		case authrequest.FieldClaimsEmailVerified:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_email_verified", values[i])
 			} else if value.Valid {
-				ar.ClaimsEmailVerified = value.Bool
+				_m.ClaimsEmailVerified = value.Bool
 			}
 		case authrequest.FieldClaimsGroups:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_groups", values[i])
 			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &ar.ClaimsGroups); err != nil {
+				if err := json.Unmarshal(*value, &_m.ClaimsGroups); err != nil {
 					return fmt.Errorf("unmarshal field claims_groups: %w", err)
 				}
 			}
@@ -183,46 +183,46 @@ func (ar *AuthRequest) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_preferred_username", values[i])
 			} else if value.Valid {
-				ar.ClaimsPreferredUsername = value.String
+				_m.ClaimsPreferredUsername = value.String
 			}
 		case authrequest.FieldConnectorID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field connector_id", values[i])
 			} else if value.Valid {
-				ar.ConnectorID = value.String
+				_m.ConnectorID = value.String
 			}
 		case authrequest.FieldConnectorData:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field connector_data", values[i])
 			} else if value != nil {
-				ar.ConnectorData = value
+				_m.ConnectorData = value
 			}
 		case authrequest.FieldExpiry:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field expiry", values[i])
 			} else if value.Valid {
-				ar.Expiry = value.Time
+				_m.Expiry = value.Time
 			}
 		case authrequest.FieldCodeChallenge:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field code_challenge", values[i])
 			} else if value.Valid {
-				ar.CodeChallenge = value.String
+				_m.CodeChallenge = value.String
 			}
 		case authrequest.FieldCodeChallengeMethod:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field code_challenge_method", values[i])
 			} else if value.Valid {
-				ar.CodeChallengeMethod = value.String
+				_m.CodeChallengeMethod = value.String
 			}
 		case authrequest.FieldHmacKey:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field hmac_key", values[i])
 			} else if value != nil {
-				ar.HmacKey = *value
+				_m.HmacKey = *value
 			}
 		default:
-			ar.selectValues.Set(columns[i], values[i])
+			_m.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
@@ -230,94 +230,94 @@ func (ar *AuthRequest) assignValues(columns []string, values []any) error {
 
 // Value returns the ent.Value that was dynamically selected and assigned to the AuthRequest.
 // This includes values selected through modifiers, order, etc.
-func (ar *AuthRequest) Value(name string) (ent.Value, error) {
-	return ar.selectValues.Get(name)
+func (_m *AuthRequest) Value(name string) (ent.Value, error) {
+	return _m.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this AuthRequest.
 // Note that you need to call AuthRequest.Unwrap() before calling this method if this AuthRequest
 // was returned from a transaction, and the transaction was committed or rolled back.
-func (ar *AuthRequest) Update() *AuthRequestUpdateOne {
-	return NewAuthRequestClient(ar.config).UpdateOne(ar)
+func (_m *AuthRequest) Update() *AuthRequestUpdateOne {
+	return NewAuthRequestClient(_m.config).UpdateOne(_m)
 }
 
 // Unwrap unwraps the AuthRequest entity that was returned from a transaction after it was closed,
 // so that all future queries will be executed through the driver which created the transaction.
-func (ar *AuthRequest) Unwrap() *AuthRequest {
-	_tx, ok := ar.config.driver.(*txDriver)
+func (_m *AuthRequest) Unwrap() *AuthRequest {
+	_tx, ok := _m.config.driver.(*txDriver)
 	if !ok {
 		panic("db: AuthRequest is not a transactional entity")
 	}
-	ar.config.driver = _tx.drv
-	return ar
+	_m.config.driver = _tx.drv
+	return _m
 }
 
 // String implements the fmt.Stringer.
-func (ar *AuthRequest) String() string {
+func (_m *AuthRequest) String() string {
 	var builder strings.Builder
 	builder.WriteString("AuthRequest(")
-	builder.WriteString(fmt.Sprintf("id=%v, ", ar.ID))
+	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("client_id=")
-	builder.WriteString(ar.ClientID)
+	builder.WriteString(_m.ClientID)
 	builder.WriteString(", ")
 	builder.WriteString("scopes=")
-	builder.WriteString(fmt.Sprintf("%v", ar.Scopes))
+	builder.WriteString(fmt.Sprintf("%v", _m.Scopes))
 	builder.WriteString(", ")
 	builder.WriteString("response_types=")
-	builder.WriteString(fmt.Sprintf("%v", ar.ResponseTypes))
+	builder.WriteString(fmt.Sprintf("%v", _m.ResponseTypes))
 	builder.WriteString(", ")
 	builder.WriteString("redirect_uri=")
-	builder.WriteString(ar.RedirectURI)
+	builder.WriteString(_m.RedirectURI)
 	builder.WriteString(", ")
 	builder.WriteString("nonce=")
-	builder.WriteString(ar.Nonce)
+	builder.WriteString(_m.Nonce)
 	builder.WriteString(", ")
 	builder.WriteString("state=")
-	builder.WriteString(ar.State)
+	builder.WriteString(_m.State)
 	builder.WriteString(", ")
 	builder.WriteString("force_approval_prompt=")
-	builder.WriteString(fmt.Sprintf("%v", ar.ForceApprovalPrompt))
+	builder.WriteString(fmt.Sprintf("%v", _m.ForceApprovalPrompt))
 	builder.WriteString(", ")
 	builder.WriteString("logged_in=")
-	builder.WriteString(fmt.Sprintf("%v", ar.LoggedIn))
+	builder.WriteString(fmt.Sprintf("%v", _m.LoggedIn))
 	builder.WriteString(", ")
 	builder.WriteString("claims_user_id=")
-	builder.WriteString(ar.ClaimsUserID)
+	builder.WriteString(_m.ClaimsUserID)
 	builder.WriteString(", ")
 	builder.WriteString("claims_username=")
-	builder.WriteString(ar.ClaimsUsername)
+	builder.WriteString(_m.ClaimsUsername)
 	builder.WriteString(", ")
 	builder.WriteString("claims_email=")
-	builder.WriteString(ar.ClaimsEmail)
+	builder.WriteString(_m.ClaimsEmail)
 	builder.WriteString(", ")
 	builder.WriteString("claims_email_verified=")
-	builder.WriteString(fmt.Sprintf("%v", ar.ClaimsEmailVerified))
+	builder.WriteString(fmt.Sprintf("%v", _m.ClaimsEmailVerified))
 	builder.WriteString(", ")
 	builder.WriteString("claims_groups=")
-	builder.WriteString(fmt.Sprintf("%v", ar.ClaimsGroups))
+	builder.WriteString(fmt.Sprintf("%v", _m.ClaimsGroups))
 	builder.WriteString(", ")
 	builder.WriteString("claims_preferred_username=")
-	builder.WriteString(ar.ClaimsPreferredUsername)
+	builder.WriteString(_m.ClaimsPreferredUsername)
 	builder.WriteString(", ")
 	builder.WriteString("connector_id=")
-	builder.WriteString(ar.ConnectorID)
+	builder.WriteString(_m.ConnectorID)
 	builder.WriteString(", ")
-	if v := ar.ConnectorData; v != nil {
+	if v := _m.ConnectorData; v != nil {
 		builder.WriteString("connector_data=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")
 	builder.WriteString("expiry=")
-	builder.WriteString(ar.Expiry.Format(time.ANSIC))
+	builder.WriteString(_m.Expiry.Format(time.ANSIC))
 	builder.WriteString(", ")
 	builder.WriteString("code_challenge=")
-	builder.WriteString(ar.CodeChallenge)
+	builder.WriteString(_m.CodeChallenge)
 	builder.WriteString(", ")
 	builder.WriteString("code_challenge_method=")
-	builder.WriteString(ar.CodeChallengeMethod)
+	builder.WriteString(_m.CodeChallengeMethod)
 	builder.WriteString(", ")
 	builder.WriteString("hmac_key=")
-	builder.WriteString(fmt.Sprintf("%v", ar.HmacKey))
+	builder.WriteString(fmt.Sprintf("%v", _m.HmacKey))
 	builder.WriteByte(')')
 	return builder.String()
 }

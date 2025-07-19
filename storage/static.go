@@ -5,6 +5,10 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/dexidp/dex/pkg/otel/traces"
 )
 
 // Tests for this code are in the "memory" package, since this package doesn't
@@ -186,6 +190,9 @@ func (s staticConnectorsStorage) isStatic(id string) bool {
 }
 
 func (s staticConnectorsStorage) GetConnector(ctx context.Context, id string) (Connector, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.storage.staticConnectorsStorage.GetConnector")
+	defer span.End()
+	span.SetAttributes(attribute.String("dex.connector.id", id))
 	if connector, ok := s.connectorsByID[id]; ok {
 		return connector, nil
 	}

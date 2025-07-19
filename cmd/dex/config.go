@@ -24,14 +24,15 @@ import (
 
 // Config is the config format for the main application.
 type Config struct {
-	Issuer    string    `json:"issuer"`
-	Storage   Storage   `json:"storage"`
-	Web       Web       `json:"web"`
-	Telemetry Telemetry `json:"telemetry"`
-	OAuth2    OAuth2    `json:"oauth2"`
-	GRPC      GRPC      `json:"grpc"`
-	Expiry    Expiry    `json:"expiry"`
-	Logger    Logger    `json:"logger"`
+	Issuer        string        `json:"issuer"`
+	Storage       Storage       `json:"storage"`
+	Web           Web           `json:"web"`
+	Health        Health        `json:"health"`
+	OpenTelemetry OpenTelemetry `json:"opentelemetry"`
+	OAuth2        OAuth2        `json:"oauth2"`
+	GRPC          GRPC          `json:"grpc"`
+	Expiry        Expiry        `json:"expiry"`
+	Logger        Logger        `json:"logger"`
 
 	Frontend server.WebConfig `json:"frontend"`
 
@@ -233,11 +234,24 @@ func (h *Headers) ToHTTPHeader() http.Header {
 	return header
 }
 
-// Telemetry is the config format for telemetry including the HTTP server config.
-type Telemetry struct {
+// Health is the config format for health checks, readiness/liveness probes, profiling, and legacy metrics (e.g., Prometheus endpoint).
+type Health struct {
 	HTTP string `json:"http"`
 	// EnableProfiling makes profiling endpoints available via web interface host:port/debug/pprof/
 	EnableProfiling bool `json:"enableProfiling"`
+}
+
+// OpenTelemetry is the config format for OpenTelemetry instrumentation (traces, metrics, logs).
+type OpenTelemetry struct {
+	// Enabled toggles OpenTelemetry instrumentation on/off. Defaults to false to avoid breaking changes.
+	Enabled bool `json:"enabled"`
+	// ExporterEndpoint is the OTLP collector endpoint (e.g., "localhost:4317" for gRPC).
+	ExporterEndpoint string `json:"exporter_endpoint"`
+	// ServiceName overrides the default service name ("dex").
+	ServiceName string `json:"service_name"`
+	// Sampler configures the trace sampling strategy (e.g., "always_on", "traceidratio:0.5").
+	Sampler string `json:"sampler"`
+	// Additional fields can be added here as needed, e.g., for headers, timeouts, or component-specific settings.
 }
 
 // GRPC is the config for the gRPC API.

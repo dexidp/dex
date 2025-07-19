@@ -20,56 +20,56 @@ type OfflineSessionDelete struct {
 }
 
 // Where appends a list predicates to the OfflineSessionDelete builder.
-func (osd *OfflineSessionDelete) Where(ps ...predicate.OfflineSession) *OfflineSessionDelete {
-	osd.mutation.Where(ps...)
-	return osd
+func (_d *OfflineSessionDelete) Where(ps ...predicate.OfflineSession) *OfflineSessionDelete {
+	_d.mutation.Where(ps...)
+	return _d
 }
 
 // Exec executes the deletion query and returns how many vertices were deleted.
-func (osd *OfflineSessionDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, osd.sqlExec, osd.mutation, osd.hooks)
+func (_d *OfflineSessionDelete) Exec(ctx context.Context) (int, error) {
+	return withHooks(ctx, _d.sqlExec, _d.mutation, _d.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (osd *OfflineSessionDelete) ExecX(ctx context.Context) int {
-	n, err := osd.Exec(ctx)
+func (_d *OfflineSessionDelete) ExecX(ctx context.Context) int {
+	n, err := _d.Exec(ctx)
 	if err != nil {
 		panic(err)
 	}
 	return n
 }
 
-func (osd *OfflineSessionDelete) sqlExec(ctx context.Context) (int, error) {
+func (_d *OfflineSessionDelete) sqlExec(ctx context.Context) (int, error) {
 	_spec := sqlgraph.NewDeleteSpec(offlinesession.Table, sqlgraph.NewFieldSpec(offlinesession.FieldID, field.TypeString))
-	if ps := osd.mutation.predicates; len(ps) > 0 {
+	if ps := _d.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	affected, err := sqlgraph.DeleteNodes(ctx, osd.driver, _spec)
+	affected, err := sqlgraph.DeleteNodes(ctx, _d.driver, _spec)
 	if err != nil && sqlgraph.IsConstraintError(err) {
 		err = &ConstraintError{msg: err.Error(), wrap: err}
 	}
-	osd.mutation.done = true
+	_d.mutation.done = true
 	return affected, err
 }
 
 // OfflineSessionDeleteOne is the builder for deleting a single OfflineSession entity.
 type OfflineSessionDeleteOne struct {
-	osd *OfflineSessionDelete
+	_d *OfflineSessionDelete
 }
 
 // Where appends a list predicates to the OfflineSessionDelete builder.
-func (osdo *OfflineSessionDeleteOne) Where(ps ...predicate.OfflineSession) *OfflineSessionDeleteOne {
-	osdo.osd.mutation.Where(ps...)
-	return osdo
+func (_d *OfflineSessionDeleteOne) Where(ps ...predicate.OfflineSession) *OfflineSessionDeleteOne {
+	_d._d.mutation.Where(ps...)
+	return _d
 }
 
 // Exec executes the deletion query.
-func (osdo *OfflineSessionDeleteOne) Exec(ctx context.Context) error {
-	n, err := osdo.osd.Exec(ctx)
+func (_d *OfflineSessionDeleteOne) Exec(ctx context.Context) error {
+	n, err := _d._d.Exec(ctx)
 	switch {
 	case err != nil:
 		return err
@@ -81,8 +81,8 @@ func (osdo *OfflineSessionDeleteOne) Exec(ctx context.Context) error {
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (osdo *OfflineSessionDeleteOne) ExecX(ctx context.Context) {
-	if err := osdo.Exec(ctx); err != nil {
+func (_d *OfflineSessionDeleteOne) ExecX(ctx context.Context) {
+	if err := _d.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

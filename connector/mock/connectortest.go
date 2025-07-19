@@ -10,6 +10,7 @@ import (
 	"net/url"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/otel/traces"
 )
 
 // NewCallbackConnector returns a mock connector which requires no user interaction. It always returns
@@ -58,15 +59,21 @@ var connectorData = []byte("foobar")
 
 // HandleCallback parses the request and returns the user's identity
 func (m *Callback) HandleCallback(s connector.Scopes, r *http.Request) (connector.Identity, error) {
+	_, span := traces.InstrumentationTracer(r.Context(), "dex.mock.Callback.HandleCallback")
+	defer span.End()
 	return m.Identity, nil
 }
 
 // Refresh updates the identity during a refresh token request.
 func (m *Callback) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+	_, span := traces.InstrumentationTracer(ctx, "dex.mock.Callback.Refresh")
+	defer span.End()
 	return m.Identity, nil
 }
 
 func (m *Callback) TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (connector.Identity, error) {
+	_, span := traces.InstrumentationTracer(ctx, "dex.mock.Callback.TokenIdentity")
+	defer span.End()
 	return m.Identity, nil
 }
 
@@ -106,6 +113,8 @@ type passwordConnector struct {
 func (p passwordConnector) Close() error { return nil }
 
 func (p passwordConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (identity connector.Identity, validPassword bool, err error) {
+	_, span := traces.InstrumentationTracer(ctx, "dex.mock.PasswordConnector.Login")
+	defer span.End()
 	if username == p.username && password == p.password {
 		return connector.Identity{
 			UserID:        "0-385-28089-0",
@@ -120,6 +129,8 @@ func (p passwordConnector) Login(ctx context.Context, s connector.Scopes, userna
 
 func (p passwordConnector) Prompt() string { return "" }
 
-func (p passwordConnector) Refresh(_ context.Context, _ connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+func (p passwordConnector) Refresh(ctx context.Context, _ connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+	_, span := traces.InstrumentationTracer(ctx, "dex.mock.PasswordConnector.Refresh")
+	defer span.End()
 	return identity, nil
 }

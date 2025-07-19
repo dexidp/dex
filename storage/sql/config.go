@@ -1,9 +1,10 @@
 package sql
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"log/slog"
 	"net"
@@ -13,8 +14,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/XSAM/otelsql"
 	"github.com/go-sql-driver/mysql"
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 
 	"github.com/dexidp/dex/storage"
 )
@@ -162,10 +166,96 @@ func (p *Postgres) createDataSourceName() string {
 	return strings.Join(parameters, " ")
 }
 
+// Add this helper function to extract the operation name
+func extractOperationName(query string) string {
+	upperQuery := strings.ToUpper(query)
+	// Regex to match the operation keyword at the start of the query (after optional whitespace)
+	// Captures common SQL operations; extend the list as needed for your use case
+	re := regexp.MustCompile(`^\s*(SELECT|INSERT|UPDATE|DELETE|REPLACE|UPSERT|MERGE|CALL|EXPLAIN|CREATE|ALTER|DROP|TRUNCATE|RENAME|SET|USE|GRANT|REVOKE)\b`)
+	matches := re.FindStringSubmatch(upperQuery)
+	if len(matches) == 2 {
+		// Find indices to extract from original query (preserves case)
+		idx := re.FindStringSubmatchIndex(upperQuery)
+		if len(idx) >= 4 {
+			start := idx[2]
+			end := idx[3]
+			return query[start:end]
+		}
+	}
+	return ""
+}
+
+// Existing helper function to extract the table name (unchanged, but included for completeness)
+func extractTableName(query string) string {
+	upperQuery := strings.ToUpper(query)
+	// Regex to match the table after common SQL keywords (uppercase for case-insensitive matching via ToUpper)
+	// Captures quoted or unquoted table names, possibly with schema (e.g., public.users)
+	re := regexp.MustCompile(`\b(FROM|INTO|UPDATE|DELETE\s+FROM)\s+(["]?[\w.]+\b["]?)\b`)
+	matches := re.FindStringSubmatch(upperQuery)
+	if len(matches) == 3 {
+		// Find indices to extract from original query (preserves case)
+		idx := re.FindStringSubmatchIndex(upperQuery)
+		if len(idx) >= 6 {
+			start := idx[4]
+			end := idx[5]
+			table := query[start:end]
+			// Remove any surrounding quotes
+			table = strings.Trim(table, "\"`")
+			return table
+		}
+	}
+	return ""
+}
+
 func (p *Postgres) open(logger *slog.Logger) (*conn, error) {
 	dataSourceName := p.createDataSourceName()
-
-	db, err := sql.Open("postgres", dataSourceName)
+	db, err := otelsql.Open("postgres", dataSourceName, otelsql.WithAttributes(
+		semconv.DBSystemNamePostgreSQL,
+		semconv.DBNamespace(p.Database),
+		semconv.NetworkPeerPort(int(p.Port)),
+	),
+		otelsql.WithAttributesGetter(func(ctx context.Context, method otelsql.Method, query string, args []driver.NamedValue) []attribute.KeyValue {
+			attrs := []attribute.KeyValue{}
+			operation := extractOperationName(query)
+			if operation != "" {
+				attrs = append(attrs, semconv.DBOperationName(operation))
+			}
+			table := extractTableName(query)
+			if table != "" {
+				attrs = append(attrs, semconv.DBCollectionName(table))
+			}
+			if len(attrs) > 0 {
+				return attrs
+			}
+			// If nothing extracted, return empty (or fallback to other attributes if needed)
+			return nil
+		}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	err = otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(
+		semconv.DBSystemNamePostgreSQL,
+		semconv.DBNamespace(p.Database),
+		semconv.NetworkPeerPort(int(p.Port)),
+	),
+		otelsql.WithAttributesGetter(func(ctx context.Context, method otelsql.Method, query string, args []driver.NamedValue) []attribute.KeyValue {
+			attrs := []attribute.KeyValue{}
+			operation := extractOperationName(query)
+			if operation != "" {
+				attrs = append(attrs, semconv.DBOperationName(operation))
+			}
+			table := extractTableName(query)
+			if table != "" {
+				attrs = append(attrs, semconv.DBCollectionName(table))
+			}
+			if len(attrs) > 0 {
+				return attrs
+			}
+			// If nothing extracted, return empty (or fallback to other attributes if needed)
+			return nil
+		}),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -265,8 +355,15 @@ func (s *MySQL) open(logger *slog.Logger) (*conn, error) {
 	for k, v := range s.params {
 		cfg.Params[k] = v
 	}
-
-	db, err := sql.Open("mysql", cfg.FormatDSN())
+	db, err := otelsql.Open("mysql", cfg.FormatDSN(), otelsql.WithAttributes(
+		semconv.DBSystemNameMySQL,
+	))
+	if err != nil {
+		return nil, err
+	}
+	err = otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(
+		semconv.DBSystemNameMySQL,
+	))
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +386,15 @@ func (s *MySQL) open(logger *slog.Logger) (*conn, error) {
 			delete(cfg.Params, "transaction_isolation")
 			cfg.Params["tx_isolation"] = "'SERIALIZABLE'"
 
-			db, err = sql.Open("mysql", cfg.FormatDSN())
+			db, err = otelsql.Open("mysql", cfg.FormatDSN(), otelsql.WithAttributes(
+				semconv.DBSystemNameMySQL,
+			))
+			if err != nil {
+				return nil, err
+			}
+			err = otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(
+				semconv.DBSystemNameMySQL,
+			))
 			if err != nil {
 				return nil, err
 			}
