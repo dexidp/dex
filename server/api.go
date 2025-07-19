@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/pkg/otel/traces"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -51,6 +52,8 @@ type dexAPI struct {
 }
 
 func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetClientResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.API.GetClient")
+	defer span.End()
 	c, err := d.s.GetClient(ctx, req.Id)
 	if err != nil {
 		return nil, err
@@ -70,6 +73,8 @@ func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetC
 }
 
 func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*api.CreateClientResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.API.CreateClient")
+	defer span.End()
 	if req.Client == nil {
 		return nil, errors.New("no client supplied")
 	}
@@ -104,6 +109,8 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 }
 
 func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*api.UpdateClientResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.API.UpdateClient")
+	defer span.End()
 	if req.Id == "" {
 		return nil, errors.New("update client: no client ID supplied")
 	}
@@ -134,6 +141,8 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 }
 
 func (d dexAPI) DeleteClient(ctx context.Context, req *api.DeleteClientReq) (*api.DeleteClientResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.API.DeleteClient")
+	defer span.End()
 	err := d.s.DeleteClient(ctx, req.Id)
 	if err != nil {
 		if err == storage.ErrNotFound {
@@ -162,6 +171,8 @@ func checkCost(hash []byte) error {
 }
 
 func (d dexAPI) CreatePassword(ctx context.Context, req *api.CreatePasswordReq) (*api.CreatePasswordResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.API.CreatePassword")
+	defer span.End()
 	if req.Password == nil {
 		return nil, errors.New("no password supplied")
 	}
@@ -194,6 +205,8 @@ func (d dexAPI) CreatePassword(ctx context.Context, req *api.CreatePasswordReq) 
 }
 
 func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) (*api.UpdatePasswordResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.API.UpdatePassword")
+	defer span.End()
 	if req.Email == "" {
 		return nil, errors.New("no email supplied")
 	}
@@ -231,6 +244,8 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 }
 
 func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) (*api.DeletePasswordResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.API.DeletePassword")
+	defer span.End()
 	if req.Email == "" {
 		return nil, errors.New("no email supplied")
 	}
@@ -247,6 +262,8 @@ func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) 
 }
 
 func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.VersionResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.API.GetVersion")
+	defer span.End()
 	return &api.VersionResp{
 		Server: d.version,
 		Api:    apiVersion,
@@ -254,6 +271,8 @@ func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.Versi
 }
 
 func (d dexAPI) GetDiscovery(ctx context.Context, req *api.DiscoveryReq) (*api.DiscoveryResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.API.GetDiscovery")
+	defer span.End()
 	discoveryDoc := d.server.constructDiscovery()
 	data, err := json.Marshal(discoveryDoc)
 	if err != nil {
@@ -268,6 +287,8 @@ func (d dexAPI) GetDiscovery(ctx context.Context, req *api.DiscoveryReq) (*api.D
 }
 
 func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*api.ListPasswordResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.API.ListPasswords")
+	defer span.End()
 	passwordList, err := d.s.ListPasswords(ctx)
 	if err != nil {
 		d.logger.Error("failed to list passwords", "err", err)
@@ -290,6 +311,8 @@ func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*a
 }
 
 func (d dexAPI) VerifyPassword(ctx context.Context, req *api.VerifyPasswordReq) (*api.VerifyPasswordResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.verify_password")
+	defer span.End()
 	if req.Email == "" {
 		return nil, errors.New("no email supplied")
 	}
@@ -321,6 +344,8 @@ func (d dexAPI) VerifyPassword(ctx context.Context, req *api.VerifyPasswordReq) 
 }
 
 func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.ListRefreshResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.API.ListRefresh")
+	defer span.End()
 	id := new(internal.IDTokenSubject)
 	if err := internal.Unmarshal(req.UserId, id); err != nil {
 		d.logger.Error("failed to unmarshal ID Token subject", "err", err)
@@ -355,6 +380,8 @@ func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.
 }
 
 func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*api.RevokeRefreshResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.API.RevokeRefresh")
+	defer span.End()
 	id := new(internal.IDTokenSubject)
 	if err := internal.Unmarshal(req.UserId, id); err != nil {
 		d.logger.Error("failed to unmarshal ID Token subject", "err", err)
@@ -406,6 +433,8 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 }
 
 func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq) (*api.CreateConnectorResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.API.CreateConnector")
+	defer span.End()
 	if !featureflags.APIConnectorsCRUD.Enabled() {
 		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
 	}
@@ -449,6 +478,8 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 }
 
 func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq) (*api.UpdateConnectorResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.API.UpdateConnector")
+	defer span.End()
 	if !featureflags.APIConnectorsCRUD.Enabled() {
 		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
 	}
@@ -497,6 +528,8 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 }
 
 func (d dexAPI) DeleteConnector(ctx context.Context, req *api.DeleteConnectorReq) (*api.DeleteConnectorResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.API.DeleteConnector")
+	defer span.End()
 	if !featureflags.APIConnectorsCRUD.Enabled() {
 		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
 	}
@@ -517,6 +550,8 @@ func (d dexAPI) DeleteConnector(ctx context.Context, req *api.DeleteConnectorReq
 }
 
 func (d dexAPI) ListConnectors(ctx context.Context, req *api.ListConnectorReq) (*api.ListConnectorResp, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.API.ListConnectors")
+	defer span.End()
 	if !featureflags.APIConnectorsCRUD.Enabled() {
 		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
 	}

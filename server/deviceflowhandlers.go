@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/dexidp/dex/pkg/otel/traces"
 	"net/http"
 	"net/url"
 	"path"
@@ -36,6 +37,8 @@ func (s *Server) getDeviceVerificationURI() string {
 }
 
 func (s *Server) handleDeviceExchange(w http.ResponseWriter, r *http.Request) {
+	ctx, span := traces.InstrumentHandler(r)
+	defer span.End()
 	switch r.Method {
 	case http.MethodGet:
 		// Grab the parameter(s) from the query.
@@ -48,7 +51,7 @@ func (s *Server) handleDeviceExchange(w http.ResponseWriter, r *http.Request) {
 			invalidAttempt = false
 		}
 		if err := s.templates.device(r, w, s.getDeviceVerificationURI(), userCode, invalidAttempt); err != nil {
-			s.logger.ErrorContext(r.Context(), "server template error", "err", err)
+			s.logger.ErrorContext(ctx, "server template error", "err", err)
 			s.renderError(r, w, http.StatusNotFound, "Page not found")
 		}
 	default:
@@ -57,15 +60,16 @@ func (s *Server) handleDeviceExchange(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, span := traces.InstrumentHandler(r)
+	defer span.End()
 	pollIntervalSeconds := 5
 
 	switch r.Method {
 	case http.MethodPost:
 		err := r.ParseForm()
 		if err != nil {
-			s.logger.ErrorContext(r.Context(), "could not parse Device Request body", "err", err)
-			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusNotFound)
+			s.logger.ErrorContext(ctx, "could not parse Device Request body", "err", err)
+			s.tokenErrHelper(ctx, w, errInvalidRequest, "", http.StatusNotFound)
 			return
 		}
 
@@ -81,11 +85,11 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 		}
 		if codeChallengeMethod != codeChallengeMethodS256 && codeChallengeMethod != codeChallengeMethodPlain {
 			description := fmt.Sprintf("Unsupported PKCE challenge method (%q).", codeChallengeMethod)
-			s.tokenErrHelper(w, errInvalidRequest, description, http.StatusBadRequest)
+			s.tokenErrHelper(ctx, w, errInvalidRequest, description, http.StatusBadRequest)
 			return
 		}
 
-		s.logger.InfoContext(r.Context(), "received device request", "client_id", clientID, "scoped", scopes)
+		s.logger.InfoContext(ctx, "received device request", "client_id", clientID, "scoped", scopes)
 
 		// Make device code
 		deviceCode := storage.NewDeviceCode()
@@ -107,8 +111,8 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := s.storage.CreateDeviceRequest(ctx, deviceReq); err != nil {
-			s.logger.ErrorContext(r.Context(), "failed to store device request", "err", err)
-			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusInternalServerError)
+			s.logger.ErrorContext(ctx, "failed to store device request", "err", err)
+			s.tokenErrHelper(ctx, w, errInvalidRequest, "", http.StatusInternalServerError)
 			return
 		}
 
@@ -126,15 +130,15 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := s.storage.CreateDeviceToken(ctx, deviceToken); err != nil {
-			s.logger.ErrorContext(r.Context(), "failed to store device token", "err", err)
-			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusInternalServerError)
+			s.logger.ErrorContext(ctx, "failed to store device token", "err", err)
+			s.tokenErrHelper(ctx, w, errInvalidRequest, "", http.StatusInternalServerError)
 			return
 		}
 
 		u, err := url.Parse(s.issuerURL.String())
 		if err != nil {
-			s.logger.ErrorContext(r.Context(), "could not parse issuer URL", "err", err)
-			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusInternalServerError)
+			s.logger.ErrorContext(ctx, "could not parse issuer URL", "err", err)
+			s.tokenErrHelper(ctx, w, errInvalidRequest, "", http.StatusInternalServerError)
 			return
 		}
 		u.Path = path.Join(u.Path, "device")
@@ -169,11 +173,13 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 
 	default:
 		s.renderError(r, w, http.StatusBadRequest, "Invalid device code request type")
-		s.tokenErrHelper(w, errInvalidRequest, "", http.StatusBadRequest)
+		s.tokenErrHelper(ctx, w, errInvalidRequest, "", http.StatusBadRequest)
 	}
 }
 
 func (s *Server) handleDeviceTokenDeprecated(w http.ResponseWriter, r *http.Request) {
+	ctx, span := traces.InstrumentHandler(r)
+	defer span.End()
 	s.logger.Warn(`the /device/token endpoint was called. It will be removed, use /token instead.`, "deprecated", true)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -182,13 +188,13 @@ func (s *Server) handleDeviceTokenDeprecated(w http.ResponseWriter, r *http.Requ
 		err := r.ParseForm()
 		if err != nil {
 			s.logger.Warn("could not parse Device Token Request body", "err", err)
-			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusBadRequest)
+			s.tokenErrHelper(ctx, w, errInvalidRequest, "", http.StatusBadRequest)
 			return
 		}
 
 		grantType := r.PostFormValue("grant_type")
 		if grantType != grantTypeDeviceCode {
-			s.tokenErrHelper(w, errInvalidGrant, "", http.StatusBadRequest)
+			s.tokenErrHelper(ctx, w, errInvalidGrant, "", http.StatusBadRequest)
 			return
 		}
 
@@ -199,10 +205,11 @@ func (s *Server) handleDeviceTokenDeprecated(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, span := traces.InstrumentHandler(r)
+	defer span.End()
 	deviceCode := r.Form.Get("device_code")
 	if deviceCode == "" {
-		s.tokenErrHelper(w, errInvalidRequest, "No device code received", http.StatusBadRequest)
+		s.tokenErrHelper(ctx, w, errInvalidRequest, "No device code received", http.StatusBadRequest)
 		return
 	}
 
@@ -212,12 +219,12 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 	deviceToken, err := s.storage.GetDeviceToken(ctx, deviceCode)
 	if err != nil {
 		if err != storage.ErrNotFound {
-			s.logger.ErrorContext(r.Context(), "failed to get device code", "err", err)
+			s.logger.ErrorContext(ctx, "failed to get device code", "err", err)
 		}
-		s.tokenErrHelper(w, errInvalidRequest, "Invalid Device code.", http.StatusBadRequest)
+		s.tokenErrHelper(ctx, w, errInvalidRequest, "Invalid Device code.", http.StatusBadRequest)
 		return
 	} else if now.After(deviceToken.Expiry) {
-		s.tokenErrHelper(w, deviceTokenExpired, "", http.StatusBadRequest)
+		s.tokenErrHelper(ctx, w, deviceTokenExpired, "", http.StatusBadRequest)
 		return
 	}
 
@@ -242,14 +249,14 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 		}
 		// Update device token last request time in storage
 		if err := s.storage.UpdateDeviceToken(ctx, deviceCode, updater); err != nil {
-			s.logger.ErrorContext(r.Context(), "failed to update device token", "err", err)
+			s.logger.ErrorContext(ctx, "failed to update device token", "err", err)
 			s.renderError(r, w, http.StatusInternalServerError, "")
 			return
 		}
 		if slowDown {
-			s.tokenErrHelper(w, deviceTokenSlowDown, "", http.StatusBadRequest)
+			s.tokenErrHelper(ctx, w, deviceTokenSlowDown, "", http.StatusBadRequest)
 		} else {
-			s.tokenErrHelper(w, deviceTokenPending, "", http.StatusUnauthorized)
+			s.tokenErrHelper(ctx, w, deviceTokenPending, "", http.StatusUnauthorized)
 		}
 	case deviceTokenComplete:
 		codeChallengeFromStorage := deviceToken.PKCE.CodeChallenge
@@ -259,21 +266,21 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 		case providedCodeVerifier != "" && codeChallengeFromStorage != "":
 			calculatedCodeChallenge, err := s.calculateCodeChallenge(providedCodeVerifier, deviceToken.PKCE.CodeChallengeMethod)
 			if err != nil {
-				s.logger.ErrorContext(r.Context(), "failed to calculate code challenge", "err", err)
-				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+				s.logger.ErrorContext(ctx, "failed to calculate code challenge", "err", err)
+				s.tokenErrHelper(ctx, w, errServerError, "", http.StatusInternalServerError)
 				return
 			}
 			if codeChallengeFromStorage != calculatedCodeChallenge {
-				s.tokenErrHelper(w, errInvalidGrant, "Invalid code_verifier.", http.StatusBadRequest)
+				s.tokenErrHelper(ctx, w, errInvalidGrant, "Invalid code_verifier.", http.StatusBadRequest)
 				return
 			}
 		case providedCodeVerifier != "":
 			// Received no code_challenge on /auth, but a code_verifier on /token
-			s.tokenErrHelper(w, errInvalidRequest, "No PKCE flow started. Cannot check code_verifier.", http.StatusBadRequest)
+			s.tokenErrHelper(ctx, w, errInvalidRequest, "No PKCE flow started. Cannot check code_verifier.", http.StatusBadRequest)
 			return
 		case codeChallengeFromStorage != "":
 			// Received PKCE request on /auth, but no code_verifier on /token
-			s.tokenErrHelper(w, errInvalidGrant, "Expecting parameter code_verifier in PKCE flow.", http.StatusBadRequest)
+			s.tokenErrHelper(ctx, w, errInvalidGrant, "Expecting parameter code_verifier in PKCE flow.", http.StatusBadRequest)
 			return
 		}
 		w.Write([]byte(deviceToken.Token))
@@ -281,7 +288,8 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, span := traces.InstrumentHandler(r)
+	defer span.End()
 	switch r.Method {
 	case http.MethodGet:
 		userCode := r.FormValue("state")
@@ -304,7 +312,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 		if err != nil || s.now().After(authCode.Expiry) {
 			errCode := http.StatusBadRequest
 			if err != nil && err != storage.ErrNotFound {
-				s.logger.ErrorContext(r.Context(), "failed to get auth code", "err", err)
+				s.logger.ErrorContext(ctx, "failed to get auth code", "err", err)
 				errCode = http.StatusInternalServerError
 			}
 			s.renderError(r, w, errCode, "Invalid or expired auth code.")
@@ -316,7 +324,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 		if err != nil || s.now().After(deviceReq.Expiry) {
 			errCode := http.StatusBadRequest
 			if err != nil && err != storage.ErrNotFound {
-				s.logger.ErrorContext(r.Context(), "failed to get device code", "err", err)
+				s.logger.ErrorContext(ctx, "failed to get device code", "err", err)
 				errCode = http.StatusInternalServerError
 			}
 			s.renderError(r, w, errCode, "Invalid or expired user code.")
@@ -326,21 +334,21 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 		client, err := s.storage.GetClient(ctx, deviceReq.ClientID)
 		if err != nil {
 			if err != storage.ErrNotFound {
-				s.logger.ErrorContext(r.Context(), "failed to get client", "err", err)
-				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+				s.logger.ErrorContext(ctx, "failed to get client", "err", err)
+				s.tokenErrHelper(ctx, w, errServerError, "", http.StatusInternalServerError)
 			} else {
-				s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
+				s.tokenErrHelper(ctx, w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
 			}
 			return
 		}
 		if client.Secret != deviceReq.ClientSecret {
-			s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
+			s.tokenErrHelper(ctx, w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
 			return
 		}
 
 		resp, err := s.exchangeAuthCode(ctx, w, authCode, client)
 		if err != nil {
-			s.logger.ErrorContext(r.Context(), "could not exchange auth code for clien", "client_id", deviceReq.ClientID, "err", err)
+			s.logger.ErrorContext(ctx, "could not exchange auth code for clien", "client_id", deviceReq.ClientID, "err", err)
 			s.renderError(r, w, http.StatusInternalServerError, "Failed to exchange auth code.")
 			return
 		}
@@ -350,7 +358,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 		if err != nil || s.now().After(old.Expiry) {
 			errCode := http.StatusBadRequest
 			if err != nil && err != storage.ErrNotFound {
-				s.logger.ErrorContext(r.Context(), "failed to get device token", "err", err)
+				s.logger.ErrorContext(ctx, "failed to get device token", "err", err)
 				errCode = http.StatusInternalServerError
 			}
 			s.renderError(r, w, errCode, "Invalid or expired device code.")
@@ -363,7 +371,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 			}
 			respStr, err := json.MarshalIndent(resp, "", "  ")
 			if err != nil {
-				s.logger.ErrorContext(r.Context(), "failed to marshal device token response", "err", err)
+				s.logger.ErrorContext(ctx, "failed to marshal device token response", "err", err)
 				s.renderError(r, w, http.StatusInternalServerError, "")
 				return old, err
 			}
@@ -375,13 +383,13 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 
 		// Update refresh token in the storage, store the token and mark as complete
 		if err := s.storage.UpdateDeviceToken(ctx, deviceReq.DeviceCode, updater); err != nil {
-			s.logger.ErrorContext(r.Context(), "failed to update device token", "err", err)
+			s.logger.ErrorContext(ctx, "failed to update device token", "err", err)
 			s.renderError(r, w, http.StatusBadRequest, "")
 			return
 		}
 
 		if err := s.templates.deviceSuccess(r, w, client.Name); err != nil {
-			s.logger.ErrorContext(r.Context(), "Server template error", "err", err)
+			s.logger.ErrorContext(ctx, "Server template error", "err", err)
 			s.renderError(r, w, http.StatusNotFound, "Page not found")
 		}
 
@@ -392,7 +400,8 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, span := traces.InstrumentHandler(r)
+	defer span.End()
 	switch r.Method {
 	case http.MethodPost:
 		err := r.ParseForm()
@@ -414,10 +423,10 @@ func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 		deviceRequest, err := s.storage.GetDeviceRequest(ctx, userCode)
 		if err != nil || s.now().After(deviceRequest.Expiry) {
 			if err != nil && err != storage.ErrNotFound {
-				s.logger.ErrorContext(r.Context(), "failed to get device request", "err", err)
+				s.logger.ErrorContext(ctx, "failed to get device request", "err", err)
 			}
 			if err := s.templates.device(r, w, s.getDeviceVerificationURI(), userCode, true); err != nil {
-				s.logger.ErrorContext(r.Context(), "Server template error", "err", err)
+				s.logger.ErrorContext(ctx, "Server template error", "err", err)
 				s.renderError(r, w, http.StatusNotFound, "Page not found")
 			}
 			return

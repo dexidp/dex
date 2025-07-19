@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 
+	"github.com/dexidp/dex/pkg/otel/traces"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -69,14 +70,16 @@ type keyRotator struct {
 // The method blocks until after the first attempt to rotate keys has completed. That way
 // healthy storages will return from this call with valid keys.
 func (s *Server) startKeyRotation(ctx context.Context, strategy rotationStrategy, now func() time.Time) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.server.startKeyRotation")
+	defer span.End()
 	rotator := keyRotator{s.storage, strategy, now, s.logger}
 
 	// Try to rotate immediately so properly configured storages will have keys.
-	if err := rotator.rotate(); err != nil {
+	if err := rotator.rotate(ctx); err != nil {
 		if err == errAlreadyRotated {
 			s.logger.Info("key rotation not needed", "err", err)
 		} else {
-			s.logger.Error("failed to rotate keys", "err", err)
+			s.logger.ErrorContext(ctx, "failed to rotate keys", "err", err)
 		}
 	}
 
@@ -86,23 +89,25 @@ func (s *Server) startKeyRotation(ctx context.Context, strategy rotationStrategy
 			case <-ctx.Done():
 				return
 			case <-time.After(time.Second * 30):
-				if err := rotator.rotate(); err != nil {
-					s.logger.Error("failed to rotate keys", "err", err)
+				if err := rotator.rotate(ctx); err != nil {
+					s.logger.ErrorContext(ctx, "failed to rotate keys", "err", err)
 				}
 			}
 		}
 	}()
 }
 
-func (k keyRotator) rotate() error {
-	keys, err := k.GetKeys(context.Background())
+func (k keyRotator) rotate(ctx context.Context) error {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.server.keyRotator.rotate")
+	defer span.End()
+	keys, err := k.GetKeys(ctx)
 	if err != nil && err != storage.ErrNotFound {
 		return fmt.Errorf("get keys: %v", err)
 	}
 	if k.now().Before(keys.NextRotation) {
 		return nil
 	}
-	k.logger.Info("keys expired, rotating")
+	k.logger.InfoContext(ctx, "keys expired, rotating")
 
 	// Generate the key outside of a storage transaction.
 	key, err := k.strategy.key()
@@ -174,7 +179,7 @@ func (k keyRotator) rotate() error {
 	if err != nil {
 		return err
 	}
-	k.logger.Info("keys rotated", "next_rotation", nextRotation)
+	k.logger.InfoContext(ctx, "keys rotated", "next_rotation", nextRotation)
 	return nil
 }
 

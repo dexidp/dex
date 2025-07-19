@@ -51,10 +51,7 @@ func TestInvalidConfiguration(t *testing.T) {
 		t.Fatal("this configuration should be invalid")
 	}
 	got := err.Error()
-	wanted := `invalid Config:
-	-	no issuer specified in config file
-	-	no storage supplied in config file
-	-	must supply a HTTP/HTTPS  address to listen on`
+	wanted := "invalid Config:\n\t-\tno issuer specified in config file\n\t-\tno storage supplied in config file\n\t-\tmust supply a HTTP/HTTPS  address to listen on"
 	if got != wanted {
 		t.Fatalf("Expected error message to be %q, got %q", wanted, got)
 	}
@@ -78,6 +75,15 @@ web:
   tlsMaxVersion: 1.2
   headers:
     Strict-Transport-Security: "max-age=31536000; includeSubDomains"
+
+health:
+  http: 127.0.0.1:5557
+  enableProfiling: true
+
+opentelemetry:
+  enabled: true
+  exporter_endpoint: localhost:4317
+  sampler: always_on
 
 frontend:
   dir: ./web
@@ -134,7 +140,7 @@ logger:
   format: "json"
 
 additionalFeatures: [
-	"ConnectorsCRUD"
+    "ConnectorsCRUD"
 ]
 `)
 
@@ -160,6 +166,15 @@ additionalFeatures: [
 			Headers: Headers{
 				StrictTransportSecurity: "max-age=31536000; includeSubDomains",
 			},
+		},
+		Health: Health{
+			HTTP:            "127.0.0.1:5557",
+			EnableProfiling: true,
+		},
+		OpenTelemetry: OpenTelemetry{
+			Enabled:          true,
+			ExporterEndpoint: "localhost:4317",
+			Sampler:          "always_on",
 		},
 		Frontend: server.WebConfig{
 			Dir: "./web",
