@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
+	"github.com/XSAM/otelsql"
+	semconv "go.opentelemetry.io/otel/semconv/v1.28.0"
 	"log/slog"
 	"net"
 	"regexp"
@@ -61,10 +63,19 @@ func (p *Postgres) Open(logger *slog.Logger) (storage.Storage, error) {
 }
 
 func (p *Postgres) driver() (*entSQL.Driver, error) {
-	drv, err := entSQL.Open("postgres", p.dsn())
+	db, err := otelsql.Open("postgres", p.dsn(), otelsql.WithAttributes(
+		semconv.DBSystemPostgreSQL,
+	))
 	if err != nil {
 		return nil, err
 	}
+	err = otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(
+		semconv.DBSystemPostgreSQL,
+	))
+	if err != nil {
+		return nil, err
+	}
+	drv := entSQL.OpenDB("postgres", db)
 
 	// set database/sql tunables if configured
 	if p.ConnMaxLifetime != 0 {

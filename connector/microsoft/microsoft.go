@@ -192,6 +192,8 @@ func (c *microsoftConnector) LoginURL(scopes connector.Scopes, callbackURL, stat
 }
 
 func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
+	ctx := r.Context()
+
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, &oauth2Error{errType, q.Get("error_description")}
@@ -199,13 +201,10 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 
 	oauth2Config := c.oauth2Config(s)
 
-	ctx := r.Context()
-
 	token, err := oauth2Config.Exchange(ctx, q.Get("code"))
 	if err != nil {
 		return identity, fmt.Errorf("microsoft: failed to get token: %v", err)
 	}
-
 	client := oauth2Config.Client(ctx, token)
 
 	user, err := c.user(ctx, client)
@@ -229,6 +228,7 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 		if err != nil {
 			return identity, fmt.Errorf("microsoft: get groups: %v", err)
 		}
+
 		identity.Groups = groups
 	}
 

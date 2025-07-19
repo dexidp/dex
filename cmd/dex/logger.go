@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/go-slog/otelslog"
+	otel "go.opentelemetry.io/contrib/bridges/otelslog"
 	"log/slog"
 	"os"
 	"strings"
@@ -14,6 +16,7 @@ var logFormats = []string{"json", "text"}
 
 func newLogger(level slog.Level, format string) (*slog.Logger, error) {
 	var handler slog.Handler
+	handler = otel.NewHandler("github.com/dexidp/dex/server")
 	switch strings.ToLower(format) {
 	case "", "text":
 		handler = slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
@@ -26,7 +29,7 @@ func newLogger(level slog.Level, format string) (*slog.Logger, error) {
 	default:
 		return nil, fmt.Errorf("log format is not one of the supported values (%s): %s", strings.Join(logFormats, ", "), format)
 	}
-
+	handler = otelslog.NewHandler(handler)
 	return slog.New(newRequestContextHandler(handler)), nil
 }
 

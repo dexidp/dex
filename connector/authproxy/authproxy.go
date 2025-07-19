@@ -5,6 +5,7 @@ package authproxy
 
 import (
 	"fmt"
+	"github.com/dexidp/dex/pkg/otel/traces"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -90,6 +91,8 @@ func (m *callback) LoginURL(s connector.Scopes, callbackURL, state string) (stri
 
 // HandleCallback parses the request and returns the user's identity
 func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connector.Identity, error) {
+	_, span := traces.InstrumentHandler(r)
+	defer span.End()
 	remoteUser := r.Header.Get(m.userHeader)
 	if remoteUser == "" {
 		return connector.Identity{}, fmt.Errorf("required HTTP header %s is not set", m.userHeader)

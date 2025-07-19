@@ -2,6 +2,7 @@
 package sql
 
 import (
+	"context"
 	"database/sql"
 	"log/slog"
 	"regexp"
@@ -10,6 +11,8 @@ import (
 	// import third party drivers
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/dexidp/dex/pkg/otel/traces"
 )
 
 // flavor represents a specific SQL implementation, and is used to translate query strings
@@ -145,9 +148,43 @@ func (c *conn) Exec(query string, args ...interface{}) (sql.Result, error) {
 	return c.db.Exec(query, c.translateArgs(args)...)
 }
 
+func (c *conn) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.db_exec")
+	defer span.End()
+	query = c.flavor.translate(query)
+	// Translate args to the flavor.
+	args = c.translateArgs(args)
+	// Use the context-aware Exec method.
+	result, err := c.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func (c *conn) Query(query string, args ...interface{}) (*sql.Rows, error) {
 	query = c.flavor.translate(query)
 	return c.db.Query(query, c.translateArgs(args)...)
+}
+
+func (c *conn) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.db_query")
+	defer span.End()
+	query = c.flavor.translate(query)
+	// Translate args to the flavor.
+	args = c.translateArgs(args)
+	// Use the context-aware Query method.
+	return c.db.QueryContext(ctx, query, args...)
+}
+
+func (c *conn) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.query_row")
+	defer span.End()
+	query = c.flavor.translate(query)
+	// Translate args to the flavor.
+	args = c.translateArgs(args)
+	// Use the context-aware QueryRow method.
+	return c.db.QueryRowContext(ctx, query, args...)
 }
 
 func (c *conn) QueryRow(query string, args ...interface{}) *sql.Row {
@@ -164,6 +201,27 @@ func (c *conn) ExecTx(fn func(tx *trans) error) error {
 	}
 
 	sqlTx, err := c.db.Begin()
+	if err != nil {
+		return err
+	}
+	if err := fn(&trans{sqlTx, c}); err != nil {
+		sqlTx.Rollback()
+		return err
+	}
+	return sqlTx.Commit()
+}
+
+func (c *conn) ExecTxContext(ctx context.Context, fn func(tx *trans) error) error {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.db_exec_tx")
+	defer span.End()
+
+	if c.flavor.executeTx != nil {
+		return c.flavor.executeTx(c.db, func(sqlTx *sql.Tx) error {
+			return fn(&trans{sqlTx, c})
+		})
+	}
+
+	sqlTx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -194,4 +252,28 @@ func (t *trans) Query(query string, args ...interface{}) (*sql.Rows, error) {
 func (t *trans) QueryRow(query string, args ...interface{}) *sql.Row {
 	query = t.c.flavor.translate(query)
 	return t.tx.QueryRow(query, t.c.translateArgs(args)...)
+}
+
+func (t *trans) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.db_exec")
+	defer span.End()
+	query = t.c.flavor.translate(query)
+	// Translate args to the flavor.
+	args = t.c.translateArgs(args)
+	// Translate args to the flavor.
+	result, err := t.tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (t *trans) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.db_query_row")
+	defer span.End()
+	query = t.c.flavor.translate(query)
+	// Translate args to the flavor.
+	args = t.c.translateArgs(args)
+	// Use the context-aware QueryRow method.
+	return t.tx.QueryRowContext(ctx, query, args...)
 }

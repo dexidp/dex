@@ -25,7 +25,6 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/kylelemons/godebug/pretty"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
@@ -91,7 +90,6 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 			Dir: "../web",
 		},
 		Logger:             logger,
-		PrometheusRegistry: prometheus.NewRegistry(),
 		HealthChecker:      gosundheit.New(),
 		SkipApprovalScreen: true, // Don't prompt for approval, just immediately redirect with code.
 		AllowedGrantTypes: []string{ // all implemented types
@@ -147,8 +145,7 @@ func newTestServerMultipleConnectors(ctx context.Context, t *testing.T, updateCo
 		Web: WebConfig{
 			Dir: "../web",
 		},
-		Logger:             logger,
-		PrometheusRegistry: prometheus.NewRegistry(),
+		Logger: logger,
 	}
 	if updateConfig != nil {
 		updateConfig(&config)
@@ -1966,7 +1963,6 @@ func TestConnectorFailureHandling(t *testing.T) {
 					Dir: "../web",
 				},
 				Logger:                     logger,
-				PrometheusRegistry:         prometheus.NewRegistry(),
 				HealthChecker:              gosundheit.New(),
 				ContinueOnConnectorFailure: tc.continueOnConnectorFailure,
 			}

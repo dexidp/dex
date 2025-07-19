@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-
 	"github.com/dexidp/dex/storage"
 )
 

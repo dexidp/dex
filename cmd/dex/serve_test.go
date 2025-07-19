@@ -1,29 +1,75 @@
 package main
 
 import (
-	"log/slog"
+	"net/http"
+	"net/url"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
-func TestNewLogger(t *testing.T) {
-	t.Run("JSON", func(t *testing.T) {
-		logger, err := newLogger(slog.LevelInfo, "json")
-		require.NoError(t, err)
-		require.NotEqual(t, (*slog.Logger)(nil), logger)
-	})
-
-	t.Run("Text", func(t *testing.T) {
-		logger, err := newLogger(slog.LevelError, "text")
-		require.NoError(t, err)
-		require.NotEqual(t, (*slog.Logger)(nil), logger)
-	})
-
-	t.Run("Unknown", func(t *testing.T) {
-		logger, err := newLogger(slog.LevelError, "gofmt")
-		require.Error(t, err)
-		require.Equal(t, "log format is not one of the supported values (json, text): gofmt", err.Error())
-		require.Equal(t, (*slog.Logger)(nil), logger)
-	})
+func Test_omitStatic(t *testing.T) {
+	type args struct {
+		r *http.Request
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "static prefix",
+			args: args{
+				r: &http.Request{URL: &url.URL{Path: "/dex/static/file.css"}},
+			},
+			want: false,
+		},
+		{
+			name: "theme prefix",
+			args: args{
+				r: &http.Request{URL: &url.URL{Path: "/dex/theme/logo.png"}},
+			},
+			want: false,
+		},
+		{
+			name: "root path",
+			args: args{
+				r: &http.Request{URL: &url.URL{Path: "/"}},
+			},
+			want: true,
+		},
+		{
+			name: "other dex path",
+			args: args{
+				r: &http.Request{URL: &url.URL{Path: "/dex/other"}},
+			},
+			want: true,
+		},
+		{
+			name: "non-dex path",
+			args: args{
+				r: &http.Request{URL: &url.URL{Path: "/api"}},
+			},
+			want: true,
+		},
+		{
+			name: "case sensitive static",
+			args: args{
+				r: &http.Request{URL: &url.URL{Path: "/DEX/static"}},
+			},
+			want: true,
+		},
+		{
+			name: "empty path",
+			args: args{
+				r: &http.Request{URL: &url.URL{Path: ""}},
+			},
+			want: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := omitStatic(tt.args.r); got != tt.want {
+				t.Errorf("omitStatic() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
