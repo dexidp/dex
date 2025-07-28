@@ -57,13 +57,13 @@ jobs:
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
       - name: Set up Syft
-        uses: anchore/sbom-action/download-syft@e11c554f704a0b820cbf8c51673f6945e0731532 # v0.20.0
+        uses: anchore/sbom-action/download-syft@cee1b8e05ae5b2593a75e197229729eabaa9f8ec # v0.20.2
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@3454372f43399081ed03b604cb2d021dabca52bb # v3.8.2
+        uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
 
       - name: Set image name
         id: image-name
@@ -117,7 +117,7 @@ jobs:
 
       - name: Build and push image
         id: build
-        uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
           platforms: linux/amd64,linux/arm/v7,linux/arm64,linux/ppc64le,linux/s390x
@@ -177,14 +177,14 @@ jobs:
 
       # TODO: uncomment when the action is working for non ghcr.io pushes. GH Issue: https://github.com/actions/attest-build-provenance/issues/80
       # - name: Generate build provenance attestation
-      #   uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd # v2.3.0
+      #   uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
       #   with:
       #     subject-name: dexidp/dex
       #     subject-digest: ${{ steps.build.outputs.digest }}
       #     push-to-registry: true
 
       - name: Generate build provenance attestation
-        uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd # v2.3.0
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
           subject-name: ghcr.io/dexidp/dex
           subject-digest: ${{ steps.build.outputs.digest }}
@@ -205,7 +205,7 @@ jobs:
           restore-keys: trivy-cache-
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
+        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # 0.32.0
         with:
           input: image
           format: sarif
@@ -233,6 +233,6 @@ jobs:
           overwrite: true
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3.28.18
+        uses: github/codeql-action/upload-sarif@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858 # v3.29.0
         with:
           sarif_file: trivy-results.sarif

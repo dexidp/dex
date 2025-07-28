@@ -35,6 +35,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/dexidp/dex/api/v2"
+	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
 )
@@ -280,6 +281,9 @@ func runServe(options serveOptions) error {
 	if len(c.Web.AllowedOrigins) > 0 {
 		logger.Info("config allowed origins", "origins", c.Web.AllowedOrigins)
 	}
+	if featureflags.ContinueOnConnectorFailure.Enabled() {
+		logger.Info("continue on connector failure feature flag enabled")
+	}
 
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
@@ -287,21 +291,22 @@ func runServe(options serveOptions) error {
 	healthChecker := gosundheit.New()
 
 	serverConfig := server.Config{
-		AllowedGrantTypes:      c.OAuth2.GrantTypes,
-		SupportedResponseTypes: c.OAuth2.ResponseTypes,
-		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
-		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
-		PasswordConnector:      c.OAuth2.PasswordConnector,
-		Headers:                c.Web.Headers.ToHTTPHeader(),
-		AllowedOrigins:         c.Web.AllowedOrigins,
-		AllowedHeaders:         c.Web.AllowedHeaders,
-		Issuer:                 c.Issuer,
-		Storage:                s,
-		Web:                    c.Frontend,
-		Logger:                 logger,
-		Now:                    now,
-		PrometheusRegistry:     prometheusRegistry,
-		HealthChecker:          healthChecker,
+		AllowedGrantTypes:          c.OAuth2.GrantTypes,
+		SupportedResponseTypes:     c.OAuth2.ResponseTypes,
+		SkipApprovalScreen:         c.OAuth2.SkipApprovalScreen,
+		AlwaysShowLoginScreen:      c.OAuth2.AlwaysShowLoginScreen,
+		PasswordConnector:          c.OAuth2.PasswordConnector,
+		Headers:                    c.Web.Headers.ToHTTPHeader(),
+		AllowedOrigins:             c.Web.AllowedOrigins,
+		AllowedHeaders:             c.Web.AllowedHeaders,
+		Issuer:                     c.Issuer,
+		Storage:                    s,
+		Web:                        c.Frontend,
+		Logger:                     logger,
+		Now:                        now,
+		PrometheusRegistry:         prometheusRegistry,
+		HealthChecker:              healthChecker,
+		ContinueOnConnectorFailure: featureflags.ContinueOnConnectorFailure.Enabled(),
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
