@@ -122,6 +122,7 @@ type Config struct {
 	ClaimMutations struct {
 		NewGroupFromClaims []NewGroupFromClaims `json:"newGroupFromClaims"`
 		FilterGroupClaims  FilterGroupClaims    `json:"filterGroupClaims"`
+		ModifyGroupNames   ModifyGroupNames     `json:"modifyGroupNames"`
 	} `json:"claimModifications"`
 }
 
@@ -205,6 +206,12 @@ type NewGroupFromClaims struct {
 // This is useful when the groups list is too large to fit within an HTTP header.
 type FilterGroupClaims struct {
 	GroupsFilter string `json:"groupsFilter"`
+}
+
+// ModifyGroupNames allows to modify the group claims by adding a prefix and/or suffix to each group.
+type ModifyGroupNames struct {
+	Prefix string `json:"prefix"`
+	Suffix string `json:"suffix"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -365,6 +372,8 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
 		newGroupFromClaims:        c.ClaimMutations.NewGroupFromClaims,
 		groupsFilter:              groupsFilter,
+		groupsPrefix:              c.ClaimMutations.ModifyGroupNames.Prefix,
+		groupsSuffix:              c.ClaimMutations.ModifyGroupNames.Suffix,
 		pkceChallenge:             c.PKCEChallenge,
 	}, nil
 }
@@ -396,6 +405,8 @@ type oidcConnector struct {
 	groupsKey                 string
 	newGroupFromClaims        []NewGroupFromClaims
 	groupsFilter              *regexp.Regexp
+	groupsPrefix              string
+	groupsSuffix              string
 	pkceChallenge             string
 }
 
@@ -511,6 +522,9 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 
 func (c *oidcConnector) TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (connector.Identity, error) {
 	var identity connector.Identity
+
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.httpClient)
+
 	token := &oauth2.Token{
 		AccessToken: subjectToken,
 		TokenType:   subjectTokenType,
@@ -661,6 +675,13 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			}
 
 			groups = groupMatches
+		}
+	}
+
+	// add prefix/suffix to groups
+	if c.groupsPrefix != "" || c.groupsSuffix != "" {
+		for i, group := range groups {
+			groups[i] = c.groupsPrefix + group + c.groupsSuffix
 		}
 	}
 
