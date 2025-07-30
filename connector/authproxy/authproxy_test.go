@@ -25,10 +25,10 @@ const (
 var logger = slog.New(slog.DiscardHandler)
 
 func TestUser(t *testing.T) {
-	config := Config{
-		UserHeader: "X-Remote-User",
-	}
-	conn := callback{userHeader: config.UserHeader, logger: logger, pathSuffix: "/test"}
+	config := Config{}
+
+	conn, _ := config.Open("test", logger)
+	callback := conn.(*callback)
 
 	req, err := http.NewRequest("GET", "/", nil)
 	expectNil(t, err)
@@ -36,7 +36,7 @@ func TestUser(t *testing.T) {
 		"X-Remote-User": {testUsername},
 	}
 
-	ident, err := conn.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
+	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
 	expectNil(t, err)
 
 	// If not specified, the userID and email should fall back to the remote user
@@ -48,20 +48,10 @@ func TestUser(t *testing.T) {
 }
 
 func TestExtraHeaders(t *testing.T) {
-	config := Config{
-		UserIDHeader:   "X-Remote-User-Id",
-		UserHeader:     "X-Remote-User",
-		UserNameHeader: "X-Remote-User-Name",
-		EmailHeader:    "X-Remote-User-Email",
-	}
-	conn := callback{
-		userHeader:     config.UserHeader,
-		userIDHeader:   config.UserIDHeader,
-		userNameHeader: config.UserNameHeader,
-		emailHeader:    config.EmailHeader,
-		logger:         logger,
-		pathSuffix:     "/test",
-	}
+	config := Config{}
+
+	conn, _ := config.Open("test", logger)
+	callback := conn.(*callback)
 
 	req, err := http.NewRequest("GET", "/", nil)
 	expectNil(t, err)
@@ -72,7 +62,7 @@ func TestExtraHeaders(t *testing.T) {
 		"X-Remote-User-Email": {testEmail},
 	}
 
-	ident, err := conn.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
+	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
 	expectNil(t, err)
 
 	expectEquals(t, ident.UserID, testUserID)
@@ -83,12 +73,10 @@ func TestExtraHeaders(t *testing.T) {
 }
 
 func TestSingleGroup(t *testing.T) {
-	config := Config{
-		UserHeader:  "X-Remote-User",
-		GroupHeader: "X-Remote-Group",
-	}
+	config := Config{}
 
-	conn := callback{userHeader: config.UserHeader, groupHeader: config.GroupHeader, logger: logger, pathSuffix: "/test"}
+	conn, _ := config.Open("test", logger)
+	callback := conn.(*callback)
 
 	req, err := http.NewRequest("GET", "/", nil)
 	expectNil(t, err)
@@ -97,7 +85,7 @@ func TestSingleGroup(t *testing.T) {
 		"X-Remote-Group": {testGroup1},
 	}
 
-	ident, err := conn.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
+	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
 	expectNil(t, err)
 
 	expectEquals(t, ident.UserID, testEmail)
@@ -106,12 +94,10 @@ func TestSingleGroup(t *testing.T) {
 }
 
 func TestMultipleGroup(t *testing.T) {
-	config := Config{
-		UserHeader:  "X-Remote-User",
-		GroupHeader: "X-Remote-Group",
-	}
+	config := Config{}
 
-	conn := callback{userHeader: config.UserHeader, groupHeader: config.GroupHeader, logger: logger, pathSuffix: "/test"}
+	conn, _ := config.Open("test", logger)
+	callback := conn.(*callback)
 
 	req, err := http.NewRequest("GET", "/", nil)
 	expectNil(t, err)
@@ -120,7 +106,33 @@ func TestMultipleGroup(t *testing.T) {
 		"X-Remote-Group": {testGroup1 + ", " + testGroup2 + ", " + testGroup3 + ", " + testGroup4},
 	}
 
-	ident, err := conn.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
+	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
+	expectNil(t, err)
+
+	expectEquals(t, ident.UserID, testEmail)
+	expectEquals(t, len(ident.Groups), 4)
+	expectEquals(t, ident.Groups[0], testGroup1)
+	expectEquals(t, ident.Groups[1], testGroup2)
+	expectEquals(t, ident.Groups[2], testGroup3)
+	expectEquals(t, ident.Groups[3], testGroup4)
+}
+
+func TestMultipleGroupWithCustomSeparator(t *testing.T) {
+	config := Config{
+		GroupHeaderSeparator: ";",
+	}
+
+	conn, _ := config.Open("test", logger)
+	callback := conn.(*callback)
+
+	req, err := http.NewRequest("GET", "/", nil)
+	expectNil(t, err)
+	req.Header = map[string][]string{
+		"X-Remote-User":  {testEmail},
+		"X-Remote-Group": {testGroup1 + ";" + testGroup2 + ";" + testGroup3 + ";" + testGroup4},
+	}
+
+	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
 	expectNil(t, err)
 
 	expectEquals(t, ident.UserID, testEmail)
@@ -133,12 +145,11 @@ func TestMultipleGroup(t *testing.T) {
 
 func TestStaticGroup(t *testing.T) {
 	config := Config{
-		UserHeader:  "X-Remote-User",
-		GroupHeader: "X-Remote-Group",
-		Groups:      []string{"static1", "static 2"},
+		Groups: []string{"static1", "static 2"},
 	}
 
-	conn := callback{userHeader: config.UserHeader, groupHeader: config.GroupHeader, groups: config.Groups, logger: logger, pathSuffix: "/test"}
+	conn, _ := config.Open("test", logger)
+	callback := conn.(*callback)
 
 	req, err := http.NewRequest("GET", "/", nil)
 	expectNil(t, err)
@@ -147,7 +158,7 @@ func TestStaticGroup(t *testing.T) {
 		"X-Remote-Group": {testGroup1 + ", " + testGroup2 + ", " + testGroup3 + ", " + testGroup4},
 	}
 
-	ident, err := conn.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
+	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
 	expectNil(t, err)
 
 	expectEquals(t, ident.UserID, testEmail)
