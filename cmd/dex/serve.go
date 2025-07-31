@@ -24,18 +24,20 @@ import (
 	gosundheithttp "github.com/AppsFlyer/go-sundheit/http"
 	"github.com/fsnotify/fsnotify"
 	"github.com/ghodss/yaml"
-	grpcprometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/oklog/run"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
 
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/pkg/otel"
+	"github.com/dexidp/dex/pkg/otel/traces"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
 )
@@ -45,20 +47,11 @@ type serveOptions struct {
 	config string
 
 	// Flags
-	webHTTPAddr   string
-	webHTTPSAddr  string
-	telemetryAddr string
-	grpcAddr      string
+	webHTTPAddr  string
+	webHTTPSAddr string
+	healthAddr   string
+	grpcAddr     string
 }
-
-var buildInfo = prometheus.NewGaugeVec(
-	prometheus.GaugeOpts{
-		Name:      "build_info",
-		Namespace: "dex",
-		Help:      "A metric with a constant '1' value labeled by version from which Dex was built.",
-	},
-	[]string{"version", "go_version", "platform"},
-)
 
 func commandServe() *cobra.Command {
 	options := serveOptions{}
@@ -82,7 +75,7 @@ func commandServe() *cobra.Command {
 
 	flags.StringVar(&options.webHTTPAddr, "web-http-addr", "", "Web HTTP address")
 	flags.StringVar(&options.webHTTPSAddr, "web-https-addr", "", "Web HTTPS address")
-	flags.StringVar(&options.telemetryAddr, "telemetry-addr", "", "Telemetry address")
+	flags.StringVar(&options.healthAddr, "health-addr", "", "Health address")
 	flags.StringVar(&options.grpcAddr, "grpc-addr", "", "gRPC API address")
 
 	return cmd
@@ -101,6 +94,9 @@ func runServe(options serveOptions) error {
 	}
 
 	applyConfigOverrides(options, &c)
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
 
 	logger, err := newLogger(c.Logger.Level, c.Logger.Format)
 	if err != nil {
@@ -126,29 +122,69 @@ func runServe(options serveOptions) error {
 
 	logger.Info("config issuer", "issuer", c.Issuer)
 
-	prometheusRegistry := prometheus.NewRegistry()
+	var shutdownTracerProvider func(context.Context) error
+	var shutdownMeterProvider func(context.Context) error
+	var shutdownLogProvider func(context.Context) error
 
-	prometheusRegistry.MustRegister(buildInfo)
-	recordBuildInfo()
+	if c.OpenTelemetry.Enabled {
+		endpoint := c.OpenTelemetry.ExporterEndpoint
+		if endpoint == "" {
+			endpoint = "localhost:4317"
+		}
+		conn, err := otel.InitConn(endpoint)
+		if err != nil {
+			logger.Error("failed to initialize OTEL connection, disabling OTEL", "err", err)
+		} else {
+			serviceNameVal := semconv.ServiceNameKey.String("dex")
+			if c.OpenTelemetry.ServiceName != "" {
+				serviceNameVal = semconv.ServiceNameKey.String(c.OpenTelemetry.ServiceName)
+			}
 
-	err = prometheusRegistry.Register(collectors.NewGoCollector())
-	if err != nil {
-		return fmt.Errorf("failed to register Go runtime metrics: %v", err)
+			res, err := resource.Merge(resource.Default(), resource.NewWithAttributes(semconv.SchemaURL, serviceNameVal))
+			if err != nil {
+				logger.Error("failed to create OTEL resource, disabling OTEL", "err", err)
+			} else {
+				shutdownTracerProvider, err = traces.InitTracerProvider(ctx, res, conn, c.OpenTelemetry.Sampler)
+				if err != nil {
+					logger.Error("failed to initialize tracer provider, disabling tracing", "err", err)
+					shutdownTracerProvider = nil
+				}
+
+				shutdownMeterProvider, err = otel.InitMeterProvider(ctx, res, conn)
+				if err != nil {
+					logger.Error("failed to initialize meter provider, disabling metrics", "err", err)
+					shutdownMeterProvider = nil
+				}
+
+				shutdownLogProvider, err = otel.InitLogProvider(ctx, res, conn)
+				if err != nil {
+					logger.Error("failed to initialize log provider, disabling logs export", "err", err)
+					shutdownLogProvider = nil
+				}
+			}
+		}
 	}
 
-	err = prometheusRegistry.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-	if err != nil {
-		return fmt.Errorf("failed to register process metrics: %v", err)
-	}
-
-	grpcMetrics := grpcprometheus.NewServerMetrics()
-	err = prometheusRegistry.Register(grpcMetrics)
-	if err != nil {
-		return fmt.Errorf("failed to register gRPC server metrics: %v", err)
-	}
+	defer func() {
+		if shutdownTracerProvider != nil {
+			if err := shutdownTracerProvider(ctx); err != nil {
+				logger.Error("failed to shutdown TracerProvider", "err", err)
+			}
+		}
+		if shutdownMeterProvider != nil {
+			if err := shutdownMeterProvider(ctx); err != nil {
+				logger.Error("failed to shutdown MeterProvider", "err", err)
+			}
+		}
+		if shutdownLogProvider != nil {
+			if err := shutdownLogProvider(ctx); err != nil {
+				logger.Error("failed to shutdown LogProvider", "err", err)
+			}
+		}
+	}()
 
 	var grpcOptions []grpc.ServerOption
-
+	grpcOptions = append(grpcOptions, grpc.StatsHandler(otelgrpc.NewServerHandler()))
 	allowedTLSCiphers := []uint16{
 		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
@@ -185,15 +221,6 @@ func runServe(options serveOptions) error {
 		if err != nil {
 			return fmt.Errorf("invalid config: get gRPC TLS: %v", err)
 		}
-
-		if c.GRPC.TLSClientCA != "" {
-			// Only add metrics if client auth is enabled
-			grpcOptions = append(grpcOptions,
-				grpc.StreamInterceptor(grpcMetrics.StreamServerInterceptor()),
-				grpc.UnaryInterceptor(grpcMetrics.UnaryServerInterceptor()),
-			)
-		}
-
 		grpcOptions = append(grpcOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
 	}
 
@@ -304,7 +331,6 @@ func runServe(options serveOptions) error {
 		Web:                        c.Frontend,
 		Logger:                     logger,
 		Now:                        now,
-		PrometheusRegistry:         prometheusRegistry,
 		HealthChecker:              healthChecker,
 		ContinueOnConnectorFailure: featureflags.ContinueOnConnectorFailure.Enabled(),
 	}
@@ -364,19 +390,18 @@ func runServe(options serveOptions) error {
 		return fmt.Errorf("failed to initialize server: %v", err)
 	}
 
-	telemetryRouter := http.NewServeMux()
-	telemetryRouter.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
+	healthRouter := http.NewServeMux()
 
 	// Configure health checker
 	{
 		handler := gosundheithttp.HandleHealthJSON(healthChecker)
-		telemetryRouter.Handle("/healthz", handler)
+		healthRouter.Handle("/healthz", handler)
 
 		// Kubernetes style health checks
-		telemetryRouter.HandleFunc("/healthz/live", func(w http.ResponseWriter, _ *http.Request) {
+		healthRouter.HandleFunc("/healthz/live", func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte("ok"))
 		})
-		telemetryRouter.Handle("/healthz/ready", handler)
+		healthRouter.Handle("/healthz/ready", handler)
 	}
 
 	healthChecker.RegisterCheck(
@@ -390,23 +415,23 @@ func runServe(options serveOptions) error {
 
 	var group run.Group
 
-	// Set up telemetry server
-	if c.Telemetry.HTTP != "" {
-		const name = "telemetry"
+	// Set up health server
+	if c.Health.HTTP != "" {
+		const name = "health"
 
-		logger.Info("listening on", "server", name, "address", c.Telemetry.HTTP)
+		logger.Info("listening on", "server", name, "address", c.Health.HTTP)
 
-		l, err := net.Listen("tcp", c.Telemetry.HTTP)
+		l, err := net.Listen("tcp", c.Health.HTTP)
 		if err != nil {
-			return fmt.Errorf("listening (%s) on %s: %v", name, c.Telemetry.HTTP, err)
+			return fmt.Errorf("listening (%s) on %s: %v", name, c.Health.HTTP, err)
 		}
 
-		if c.Telemetry.EnableProfiling {
-			pprofHandler(telemetryRouter)
+		if c.Health.EnableProfiling {
+			pprofHandler(healthRouter)
 		}
 
 		server := &http.Server{
-			Handler: telemetryRouter,
+			Handler: healthRouter,
 		}
 		defer server.Close()
 
@@ -435,7 +460,7 @@ func runServe(options serveOptions) error {
 		}
 
 		server := &http.Server{
-			Handler: serv,
+			Handler: otelhttp.NewHandler(serv, "dex-http-server", otelhttp.WithFilter(omitStatic)),
 		}
 		defer server.Close()
 
@@ -485,7 +510,7 @@ func runServe(options serveOptions) error {
 		}
 
 		server := &http.Server{
-			Handler:   serv,
+			Handler:   otelhttp.NewHandler(serv, "dex-https-server", otelhttp.WithFilter(omitStatic)),
 			TLSConfig: tlsConfig,
 		}
 		defer server.Close()
@@ -515,7 +540,6 @@ func runServe(options serveOptions) error {
 		grpcSrv := grpc.NewServer(grpcOptions...)
 		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger, version, serv))
 
-		grpcMetrics.InitializeMetrics(grpcSrv)
 		if c.GRPC.Reflection {
 			logger.Info("enabling reflection in grpc service")
 			reflection.Register(grpcSrv)
@@ -539,6 +563,16 @@ func runServe(options serveOptions) error {
 	return nil
 }
 
+func omitStatic(r *http.Request) bool {
+	if strings.HasPrefix(r.URL.Path, "/dex/static") {
+		return false
+	}
+	if strings.HasPrefix(r.URL.Path, "/dex/theme") {
+		return false
+	}
+	return true
+}
+
 func applyConfigOverrides(options serveOptions, config *Config) {
 	if options.webHTTPAddr != "" {
 		config.Web.HTTP = options.webHTTPAddr
@@ -548,8 +582,8 @@ func applyConfigOverrides(options serveOptions, config *Config) {
 		config.Web.HTTPS = options.webHTTPSAddr
 	}
 
-	if options.telemetryAddr != "" {
-		config.Telemetry.HTTP = options.telemetryAddr
+	if options.healthAddr != "" {
+		config.Health.HTTP = options.healthAddr
 	}
 
 	if options.grpcAddr != "" {
@@ -688,9 +722,4 @@ func loadTLSConfig(certFile, keyFile, caFile string, baseConfig *tls.Config) (*t
 		loadedConfig.ClientCAs = cPool
 	}
 	return loadedConfig, nil
-}
-
-// recordBuildInfo publishes information about Dex version and runtime info through an info metric (gauge).
-func recordBuildInfo() {
-	buildInfo.WithLabelValues(version, runtime.Version(), fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)).Set(1)
 }

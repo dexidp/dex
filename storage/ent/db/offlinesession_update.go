@@ -22,70 +22,70 @@ type OfflineSessionUpdate struct {
 }
 
 // Where appends a list predicates to the OfflineSessionUpdate builder.
-func (osu *OfflineSessionUpdate) Where(ps ...predicate.OfflineSession) *OfflineSessionUpdate {
-	osu.mutation.Where(ps...)
-	return osu
+func (_u *OfflineSessionUpdate) Where(ps ...predicate.OfflineSession) *OfflineSessionUpdate {
+	_u.mutation.Where(ps...)
+	return _u
 }
 
 // SetUserID sets the "user_id" field.
-func (osu *OfflineSessionUpdate) SetUserID(s string) *OfflineSessionUpdate {
-	osu.mutation.SetUserID(s)
-	return osu
+func (_u *OfflineSessionUpdate) SetUserID(v string) *OfflineSessionUpdate {
+	_u.mutation.SetUserID(v)
+	return _u
 }
 
 // SetNillableUserID sets the "user_id" field if the given value is not nil.
-func (osu *OfflineSessionUpdate) SetNillableUserID(s *string) *OfflineSessionUpdate {
-	if s != nil {
-		osu.SetUserID(*s)
+func (_u *OfflineSessionUpdate) SetNillableUserID(v *string) *OfflineSessionUpdate {
+	if v != nil {
+		_u.SetUserID(*v)
 	}
-	return osu
+	return _u
 }
 
 // SetConnID sets the "conn_id" field.
-func (osu *OfflineSessionUpdate) SetConnID(s string) *OfflineSessionUpdate {
-	osu.mutation.SetConnID(s)
-	return osu
+func (_u *OfflineSessionUpdate) SetConnID(v string) *OfflineSessionUpdate {
+	_u.mutation.SetConnID(v)
+	return _u
 }
 
 // SetNillableConnID sets the "conn_id" field if the given value is not nil.
-func (osu *OfflineSessionUpdate) SetNillableConnID(s *string) *OfflineSessionUpdate {
-	if s != nil {
-		osu.SetConnID(*s)
+func (_u *OfflineSessionUpdate) SetNillableConnID(v *string) *OfflineSessionUpdate {
+	if v != nil {
+		_u.SetConnID(*v)
 	}
-	return osu
+	return _u
 }
 
 // SetRefresh sets the "refresh" field.
-func (osu *OfflineSessionUpdate) SetRefresh(b []byte) *OfflineSessionUpdate {
-	osu.mutation.SetRefresh(b)
-	return osu
+func (_u *OfflineSessionUpdate) SetRefresh(v []byte) *OfflineSessionUpdate {
+	_u.mutation.SetRefresh(v)
+	return _u
 }
 
 // SetConnectorData sets the "connector_data" field.
-func (osu *OfflineSessionUpdate) SetConnectorData(b []byte) *OfflineSessionUpdate {
-	osu.mutation.SetConnectorData(b)
-	return osu
+func (_u *OfflineSessionUpdate) SetConnectorData(v []byte) *OfflineSessionUpdate {
+	_u.mutation.SetConnectorData(v)
+	return _u
 }
 
 // ClearConnectorData clears the value of the "connector_data" field.
-func (osu *OfflineSessionUpdate) ClearConnectorData() *OfflineSessionUpdate {
-	osu.mutation.ClearConnectorData()
-	return osu
+func (_u *OfflineSessionUpdate) ClearConnectorData() *OfflineSessionUpdate {
+	_u.mutation.ClearConnectorData()
+	return _u
 }
 
 // Mutation returns the OfflineSessionMutation object of the builder.
-func (osu *OfflineSessionUpdate) Mutation() *OfflineSessionMutation {
-	return osu.mutation
+func (_u *OfflineSessionUpdate) Mutation() *OfflineSessionMutation {
+	return _u.mutation
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
-func (osu *OfflineSessionUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, osu.sqlSave, osu.mutation, osu.hooks)
+func (_u *OfflineSessionUpdate) Save(ctx context.Context) (int, error) {
+	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func (osu *OfflineSessionUpdate) SaveX(ctx context.Context) int {
-	affected, err := osu.Save(ctx)
+func (_u *OfflineSessionUpdate) SaveX(ctx context.Context) int {
+	affected, err := _u.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -93,26 +93,26 @@ func (osu *OfflineSessionUpdate) SaveX(ctx context.Context) int {
 }
 
 // Exec executes the query.
-func (osu *OfflineSessionUpdate) Exec(ctx context.Context) error {
-	_, err := osu.Save(ctx)
+func (_u *OfflineSessionUpdate) Exec(ctx context.Context) error {
+	_, err := _u.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (osu *OfflineSessionUpdate) ExecX(ctx context.Context) {
-	if err := osu.Exec(ctx); err != nil {
+func (_u *OfflineSessionUpdate) ExecX(ctx context.Context) {
+	if err := _u.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
 
 // check runs all checks and user-defined validators on the builder.
-func (osu *OfflineSessionUpdate) check() error {
-	if v, ok := osu.mutation.UserID(); ok {
+func (_u *OfflineSessionUpdate) check() error {
+	if v, ok := _u.mutation.UserID(); ok {
 		if err := offlinesession.UserIDValidator(v); err != nil {
 			return &ValidationError{Name: "user_id", err: fmt.Errorf(`db: validator failed for field "OfflineSession.user_id": %w`, err)}
 		}
 	}
-	if v, ok := osu.mutation.ConnID(); ok {
+	if v, ok := _u.mutation.ConnID(); ok {
 		if err := offlinesession.ConnIDValidator(v); err != nil {
 			return &ValidationError{Name: "conn_id", err: fmt.Errorf(`db: validator failed for field "OfflineSession.conn_id": %w`, err)}
 		}
@@ -120,34 +120,34 @@ func (osu *OfflineSessionUpdate) check() error {
 	return nil
 }
 
-func (osu *OfflineSessionUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	if err := osu.check(); err != nil {
-		return n, err
+func (_u *OfflineSessionUpdate) sqlSave(ctx context.Context) (_node int, err error) {
+	if err := _u.check(); err != nil {
+		return _node, err
 	}
 	_spec := sqlgraph.NewUpdateSpec(offlinesession.Table, offlinesession.Columns, sqlgraph.NewFieldSpec(offlinesession.FieldID, field.TypeString))
-	if ps := osu.mutation.predicates; len(ps) > 0 {
+	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	if value, ok := osu.mutation.UserID(); ok {
+	if value, ok := _u.mutation.UserID(); ok {
 		_spec.SetField(offlinesession.FieldUserID, field.TypeString, value)
 	}
-	if value, ok := osu.mutation.ConnID(); ok {
+	if value, ok := _u.mutation.ConnID(); ok {
 		_spec.SetField(offlinesession.FieldConnID, field.TypeString, value)
 	}
-	if value, ok := osu.mutation.Refresh(); ok {
+	if value, ok := _u.mutation.Refresh(); ok {
 		_spec.SetField(offlinesession.FieldRefresh, field.TypeBytes, value)
 	}
-	if value, ok := osu.mutation.ConnectorData(); ok {
+	if value, ok := _u.mutation.ConnectorData(); ok {
 		_spec.SetField(offlinesession.FieldConnectorData, field.TypeBytes, value)
 	}
-	if osu.mutation.ConnectorDataCleared() {
+	if _u.mutation.ConnectorDataCleared() {
 		_spec.ClearField(offlinesession.FieldConnectorData, field.TypeBytes)
 	}
-	if n, err = sqlgraph.UpdateNodes(ctx, osu.driver, _spec); err != nil {
+	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{offlinesession.Label}
 		} else if sqlgraph.IsConstraintError(err) {
@@ -155,8 +155,8 @@ func (osu *OfflineSessionUpdate) sqlSave(ctx context.Context) (n int, err error)
 		}
 		return 0, err
 	}
-	osu.mutation.done = true
-	return n, nil
+	_u.mutation.done = true
+	return _node, nil
 }
 
 // OfflineSessionUpdateOne is the builder for updating a single OfflineSession entity.
@@ -168,77 +168,77 @@ type OfflineSessionUpdateOne struct {
 }
 
 // SetUserID sets the "user_id" field.
-func (osuo *OfflineSessionUpdateOne) SetUserID(s string) *OfflineSessionUpdateOne {
-	osuo.mutation.SetUserID(s)
-	return osuo
+func (_u *OfflineSessionUpdateOne) SetUserID(v string) *OfflineSessionUpdateOne {
+	_u.mutation.SetUserID(v)
+	return _u
 }
 
 // SetNillableUserID sets the "user_id" field if the given value is not nil.
-func (osuo *OfflineSessionUpdateOne) SetNillableUserID(s *string) *OfflineSessionUpdateOne {
-	if s != nil {
-		osuo.SetUserID(*s)
+func (_u *OfflineSessionUpdateOne) SetNillableUserID(v *string) *OfflineSessionUpdateOne {
+	if v != nil {
+		_u.SetUserID(*v)
 	}
-	return osuo
+	return _u
 }
 
 // SetConnID sets the "conn_id" field.
-func (osuo *OfflineSessionUpdateOne) SetConnID(s string) *OfflineSessionUpdateOne {
-	osuo.mutation.SetConnID(s)
-	return osuo
+func (_u *OfflineSessionUpdateOne) SetConnID(v string) *OfflineSessionUpdateOne {
+	_u.mutation.SetConnID(v)
+	return _u
 }
 
 // SetNillableConnID sets the "conn_id" field if the given value is not nil.
-func (osuo *OfflineSessionUpdateOne) SetNillableConnID(s *string) *OfflineSessionUpdateOne {
-	if s != nil {
-		osuo.SetConnID(*s)
+func (_u *OfflineSessionUpdateOne) SetNillableConnID(v *string) *OfflineSessionUpdateOne {
+	if v != nil {
+		_u.SetConnID(*v)
 	}
-	return osuo
+	return _u
 }
 
 // SetRefresh sets the "refresh" field.
-func (osuo *OfflineSessionUpdateOne) SetRefresh(b []byte) *OfflineSessionUpdateOne {
-	osuo.mutation.SetRefresh(b)
-	return osuo
+func (_u *OfflineSessionUpdateOne) SetRefresh(v []byte) *OfflineSessionUpdateOne {
+	_u.mutation.SetRefresh(v)
+	return _u
 }
 
 // SetConnectorData sets the "connector_data" field.
-func (osuo *OfflineSessionUpdateOne) SetConnectorData(b []byte) *OfflineSessionUpdateOne {
-	osuo.mutation.SetConnectorData(b)
-	return osuo
+func (_u *OfflineSessionUpdateOne) SetConnectorData(v []byte) *OfflineSessionUpdateOne {
+	_u.mutation.SetConnectorData(v)
+	return _u
 }
 
 // ClearConnectorData clears the value of the "connector_data" field.
-func (osuo *OfflineSessionUpdateOne) ClearConnectorData() *OfflineSessionUpdateOne {
-	osuo.mutation.ClearConnectorData()
-	return osuo
+func (_u *OfflineSessionUpdateOne) ClearConnectorData() *OfflineSessionUpdateOne {
+	_u.mutation.ClearConnectorData()
+	return _u
 }
 
 // Mutation returns the OfflineSessionMutation object of the builder.
-func (osuo *OfflineSessionUpdateOne) Mutation() *OfflineSessionMutation {
-	return osuo.mutation
+func (_u *OfflineSessionUpdateOne) Mutation() *OfflineSessionMutation {
+	return _u.mutation
 }
 
 // Where appends a list predicates to the OfflineSessionUpdate builder.
-func (osuo *OfflineSessionUpdateOne) Where(ps ...predicate.OfflineSession) *OfflineSessionUpdateOne {
-	osuo.mutation.Where(ps...)
-	return osuo
+func (_u *OfflineSessionUpdateOne) Where(ps ...predicate.OfflineSession) *OfflineSessionUpdateOne {
+	_u.mutation.Where(ps...)
+	return _u
 }
 
 // Select allows selecting one or more fields (columns) of the returned entity.
 // The default is selecting all fields defined in the entity schema.
-func (osuo *OfflineSessionUpdateOne) Select(field string, fields ...string) *OfflineSessionUpdateOne {
-	osuo.fields = append([]string{field}, fields...)
-	return osuo
+func (_u *OfflineSessionUpdateOne) Select(field string, fields ...string) *OfflineSessionUpdateOne {
+	_u.fields = append([]string{field}, fields...)
+	return _u
 }
 
 // Save executes the query and returns the updated OfflineSession entity.
-func (osuo *OfflineSessionUpdateOne) Save(ctx context.Context) (*OfflineSession, error) {
-	return withHooks(ctx, osuo.sqlSave, osuo.mutation, osuo.hooks)
+func (_u *OfflineSessionUpdateOne) Save(ctx context.Context) (*OfflineSession, error) {
+	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func (osuo *OfflineSessionUpdateOne) SaveX(ctx context.Context) *OfflineSession {
-	node, err := osuo.Save(ctx)
+func (_u *OfflineSessionUpdateOne) SaveX(ctx context.Context) *OfflineSession {
+	node, err := _u.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -246,26 +246,26 @@ func (osuo *OfflineSessionUpdateOne) SaveX(ctx context.Context) *OfflineSession 
 }
 
 // Exec executes the query on the entity.
-func (osuo *OfflineSessionUpdateOne) Exec(ctx context.Context) error {
-	_, err := osuo.Save(ctx)
+func (_u *OfflineSessionUpdateOne) Exec(ctx context.Context) error {
+	_, err := _u.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (osuo *OfflineSessionUpdateOne) ExecX(ctx context.Context) {
-	if err := osuo.Exec(ctx); err != nil {
+func (_u *OfflineSessionUpdateOne) ExecX(ctx context.Context) {
+	if err := _u.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
 
 // check runs all checks and user-defined validators on the builder.
-func (osuo *OfflineSessionUpdateOne) check() error {
-	if v, ok := osuo.mutation.UserID(); ok {
+func (_u *OfflineSessionUpdateOne) check() error {
+	if v, ok := _u.mutation.UserID(); ok {
 		if err := offlinesession.UserIDValidator(v); err != nil {
 			return &ValidationError{Name: "user_id", err: fmt.Errorf(`db: validator failed for field "OfflineSession.user_id": %w`, err)}
 		}
 	}
-	if v, ok := osuo.mutation.ConnID(); ok {
+	if v, ok := _u.mutation.ConnID(); ok {
 		if err := offlinesession.ConnIDValidator(v); err != nil {
 			return &ValidationError{Name: "conn_id", err: fmt.Errorf(`db: validator failed for field "OfflineSession.conn_id": %w`, err)}
 		}
@@ -273,17 +273,17 @@ func (osuo *OfflineSessionUpdateOne) check() error {
 	return nil
 }
 
-func (osuo *OfflineSessionUpdateOne) sqlSave(ctx context.Context) (_node *OfflineSession, err error) {
-	if err := osuo.check(); err != nil {
+func (_u *OfflineSessionUpdateOne) sqlSave(ctx context.Context) (_node *OfflineSession, err error) {
+	if err := _u.check(); err != nil {
 		return _node, err
 	}
 	_spec := sqlgraph.NewUpdateSpec(offlinesession.Table, offlinesession.Columns, sqlgraph.NewFieldSpec(offlinesession.FieldID, field.TypeString))
-	id, ok := osuo.mutation.ID()
+	id, ok := _u.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "OfflineSession.id" for update`)}
 	}
 	_spec.Node.ID.Value = id
-	if fields := osuo.fields; len(fields) > 0 {
+	if fields := _u.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, offlinesession.FieldID)
 		for _, f := range fields {
@@ -295,32 +295,32 @@ func (osuo *OfflineSessionUpdateOne) sqlSave(ctx context.Context) (_node *Offlin
 			}
 		}
 	}
-	if ps := osuo.mutation.predicates; len(ps) > 0 {
+	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	if value, ok := osuo.mutation.UserID(); ok {
+	if value, ok := _u.mutation.UserID(); ok {
 		_spec.SetField(offlinesession.FieldUserID, field.TypeString, value)
 	}
-	if value, ok := osuo.mutation.ConnID(); ok {
+	if value, ok := _u.mutation.ConnID(); ok {
 		_spec.SetField(offlinesession.FieldConnID, field.TypeString, value)
 	}
-	if value, ok := osuo.mutation.Refresh(); ok {
+	if value, ok := _u.mutation.Refresh(); ok {
 		_spec.SetField(offlinesession.FieldRefresh, field.TypeBytes, value)
 	}
-	if value, ok := osuo.mutation.ConnectorData(); ok {
+	if value, ok := _u.mutation.ConnectorData(); ok {
 		_spec.SetField(offlinesession.FieldConnectorData, field.TypeBytes, value)
 	}
-	if osuo.mutation.ConnectorDataCleared() {
+	if _u.mutation.ConnectorDataCleared() {
 		_spec.ClearField(offlinesession.FieldConnectorData, field.TypeBytes)
 	}
-	_node = &OfflineSession{config: osuo.config}
+	_node = &OfflineSession{config: _u.config}
 	_spec.Assign = _node.assignValues
 	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, osuo.driver, _spec); err != nil {
+	if err = sqlgraph.UpdateNode(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{offlinesession.Label}
 		} else if sqlgraph.IsConstraintError(err) {
@@ -328,6 +328,6 @@ func (osuo *OfflineSessionUpdateOne) sqlSave(ctx context.Context) (_node *Offlin
 		}
 		return nil, err
 	}
-	osuo.mutation.done = true
+	_u.mutation.done = true
 	return _node, nil
 }

@@ -14,7 +14,9 @@ import (
 	"time"
 
 	entSQL "entgo.io/ent/dialect/sql"
+	"github.com/XSAM/otelsql"
 	"github.com/go-sql-driver/mysql" // Register mysql driver.
+	semconv "go.opentelemetry.io/otel/semconv/v1.28.0"
 
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/client"
@@ -74,11 +76,19 @@ func (m *MySQL) driver() (*entSQL.Driver, error) {
 	default:
 		tlsConfig = m.SSL.Mode
 	}
-
-	drv, err := entSQL.Open("mysql", m.dsn(tlsConfig))
+	db, err := otelsql.Open("mysql", m.dsn(tlsConfig), otelsql.WithAttributes(
+		semconv.DBSystemMySQL,
+	))
 	if err != nil {
 		return nil, err
 	}
+	err = otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(
+		semconv.DBSystemMySQL,
+	))
+	if err != nil {
+		return nil, err
+	}
+	drv := entSQL.OpenDB("mysql", db)
 
 	if m.MaxIdleConns == 0 {
 		/* Override default behaviour to fix https://github.com/dexidp/dex/issues/1608 */

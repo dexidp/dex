@@ -20,56 +20,56 @@ type DeviceRequestDelete struct {
 }
 
 // Where appends a list predicates to the DeviceRequestDelete builder.
-func (drd *DeviceRequestDelete) Where(ps ...predicate.DeviceRequest) *DeviceRequestDelete {
-	drd.mutation.Where(ps...)
-	return drd
+func (_d *DeviceRequestDelete) Where(ps ...predicate.DeviceRequest) *DeviceRequestDelete {
+	_d.mutation.Where(ps...)
+	return _d
 }
 
 // Exec executes the deletion query and returns how many vertices were deleted.
-func (drd *DeviceRequestDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, drd.sqlExec, drd.mutation, drd.hooks)
+func (_d *DeviceRequestDelete) Exec(ctx context.Context) (int, error) {
+	return withHooks(ctx, _d.sqlExec, _d.mutation, _d.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (drd *DeviceRequestDelete) ExecX(ctx context.Context) int {
-	n, err := drd.Exec(ctx)
+func (_d *DeviceRequestDelete) ExecX(ctx context.Context) int {
+	n, err := _d.Exec(ctx)
 	if err != nil {
 		panic(err)
 	}
 	return n
 }
 
-func (drd *DeviceRequestDelete) sqlExec(ctx context.Context) (int, error) {
+func (_d *DeviceRequestDelete) sqlExec(ctx context.Context) (int, error) {
 	_spec := sqlgraph.NewDeleteSpec(devicerequest.Table, sqlgraph.NewFieldSpec(devicerequest.FieldID, field.TypeInt))
-	if ps := drd.mutation.predicates; len(ps) > 0 {
+	if ps := _d.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	affected, err := sqlgraph.DeleteNodes(ctx, drd.driver, _spec)
+	affected, err := sqlgraph.DeleteNodes(ctx, _d.driver, _spec)
 	if err != nil && sqlgraph.IsConstraintError(err) {
 		err = &ConstraintError{msg: err.Error(), wrap: err}
 	}
-	drd.mutation.done = true
+	_d.mutation.done = true
 	return affected, err
 }
 
 // DeviceRequestDeleteOne is the builder for deleting a single DeviceRequest entity.
 type DeviceRequestDeleteOne struct {
-	drd *DeviceRequestDelete
+	_d *DeviceRequestDelete
 }
 
 // Where appends a list predicates to the DeviceRequestDelete builder.
-func (drdo *DeviceRequestDeleteOne) Where(ps ...predicate.DeviceRequest) *DeviceRequestDeleteOne {
-	drdo.drd.mutation.Where(ps...)
-	return drdo
+func (_d *DeviceRequestDeleteOne) Where(ps ...predicate.DeviceRequest) *DeviceRequestDeleteOne {
+	_d._d.mutation.Where(ps...)
+	return _d
 }
 
 // Exec executes the deletion query.
-func (drdo *DeviceRequestDeleteOne) Exec(ctx context.Context) error {
-	n, err := drdo.drd.Exec(ctx)
+func (_d *DeviceRequestDeleteOne) Exec(ctx context.Context) error {
+	n, err := _d._d.Exec(ctx)
 	switch {
 	case err != nil:
 		return err
@@ -81,8 +81,8 @@ func (drdo *DeviceRequestDeleteOne) Exec(ctx context.Context) error {
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (drdo *DeviceRequestDeleteOne) ExecX(ctx context.Context) {
-	if err := drdo.Exec(ctx); err != nil {
+func (_d *DeviceRequestDeleteOne) ExecX(ctx context.Context) {
+	if err := _d.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

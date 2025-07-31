@@ -7,6 +7,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/go-slog/otelslog"
+	otel "go.opentelemetry.io/contrib/bridges/otelslog"
+
 	"github.com/dexidp/dex/server"
 )
 
@@ -26,24 +29,26 @@ func newLogger(level slog.Level, format string) (*slog.Logger, error) {
 	default:
 		return nil, fmt.Errorf("log format is not one of the supported values (%s): %s", strings.Join(logFormats, ", "), format)
 	}
-
-	return slog.New(newRequestContextHandler(handler)), nil
+	handler = otelslog.NewHandler(handler)
+	return slog.New(newRequestContextHandler(handler, otel.NewHandler("github.com/dexidp/dex/server"))), nil
 }
 
 var _ slog.Handler = requestContextHandler{}
 
 type requestContextHandler struct {
-	handler slog.Handler
+	handler     slog.Handler
+	otelHandler slog.Handler
 }
 
-func newRequestContextHandler(handler slog.Handler) slog.Handler {
+func newRequestContextHandler(handler, otelHandler slog.Handler) slog.Handler {
 	return requestContextHandler{
-		handler: handler,
+		handler:     handler,
+		otelHandler: otelHandler,
 	}
 }
 
 func (h requestContextHandler) Enabled(ctx context.Context, level slog.Level) bool {
-	return h.handler.Enabled(ctx, level)
+	return h.handler.Enabled(ctx, level) && h.otelHandler.Enabled(ctx, level)
 }
 
 func (h requestContextHandler) Handle(ctx context.Context, record slog.Record) error {
@@ -55,13 +60,22 @@ func (h requestContextHandler) Handle(ctx context.Context, record slog.Record) e
 		record.AddAttrs(slog.String(string(server.RequestKeyRequestID), v))
 	}
 
-	return h.handler.Handle(ctx, record)
+	err := h.handler.Handle(ctx, record)
+	if err != nil {
+		return err
+	}
+
+	err = h.otelHandler.Handle(ctx, record)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (h requestContextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return requestContextHandler{h.handler.WithAttrs(attrs)}
+	return requestContextHandler{h.handler.WithAttrs(attrs), h.otelHandler.WithAttrs(attrs)}
 }
 
 func (h requestContextHandler) WithGroup(name string) slog.Handler {
-	return requestContextHandler{h.handler.WithGroup(name)}
+	return requestContextHandler{h.handler.WithGroup(name), h.otelHandler.WithGroup(name)}
 }

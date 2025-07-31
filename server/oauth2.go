@@ -24,6 +24,7 @@ import (
 	"github.com/go-jose/go-jose/v4"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/otel/traces"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -60,6 +61,8 @@ func (err *redirectedAuthErr) Error() string {
 
 func (err *redirectedAuthErr) Handler() http.Handler {
 	hf := func(w http.ResponseWriter, r *http.Request) {
+		_, span := traces.InstrumentHandler(r)
+		defer span.End()
 		v := url.Values{}
 		v.Add("state", err.State)
 		v.Add("error", err.Type)
@@ -304,6 +307,8 @@ type federatedIDClaims struct {
 }
 
 func (s *Server) newAccessToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, connID string) (accessToken string, expiry time.Time, err error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.server.new_access_token")
+	defer span.End()
 	return s.newIDToken(ctx, clientID, claims, scopes, nonce, storage.NewID(), "", connID)
 }
 
@@ -351,12 +356,13 @@ func genSubject(userID string, connID string) (string, error) {
 }
 
 func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string) (idToken string, expiry time.Time, err error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.server.new_id_token")
+	defer span.End()
 	keys, err := s.storage.GetKeys(ctx)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to get keys", "err", err)
 		return "", expiry, err
 	}
-
 	signingKey := keys.SigningKey
 	if signingKey == nil {
 		return "", expiry, fmt.Errorf("no key to sign payload with")
@@ -365,10 +371,8 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 	if err != nil {
 		return "", expiry, err
 	}
-
 	issuedAt := s.now()
 	expiry = issuedAt.Add(s.idTokensValidFor)
-
 	subjectString, err := genSubject(claims.UserID, connID)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to marshal offline session ID", "err", err)
@@ -453,7 +457,8 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 
 // parse the initial request from the OAuth2 client.
 func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthRequest, error) {
-	ctx := r.Context()
+	ctx, span := traces.InstrumentationTracer(r.Context(), "dex.server.parse_authorization_request")
+	defer span.End()
 	if err := r.ParseForm(); err != nil {
 		return nil, newDisplayedErr(http.StatusBadRequest, "Failed to parse request.")
 	}
@@ -483,7 +488,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		if err == storage.ErrNotFound {
 			return nil, newDisplayedErr(http.StatusNotFound, "Invalid client_id (%q).", clientID)
 		}
-		s.logger.ErrorContext(r.Context(), "failed to get client", "err", err)
+		s.logger.ErrorContext(ctx, "failed to get client", "err", err)
 		return nil, newDisplayedErr(http.StatusInternalServerError, "Database error.")
 	}
 
@@ -502,7 +507,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	if connectorID != "" {
 		connectors, err := s.storage.ListConnectors(ctx)
 		if err != nil {
-			s.logger.ErrorContext(r.Context(), "failed to list connectors", "err", err)
+			s.logger.ErrorContext(ctx, "failed to list connectors", "err", err)
 			return nil, newRedirectedErr(errServerError, "Unable to retrieve connectors")
 		}
 		if !validateConnectorID(connectors, connectorID) {
@@ -538,7 +543,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 				continue
 			}
 
-			isTrusted, err := s.validateCrossClientTrust(r.Context(), clientID, peerID)
+			isTrusted, err := s.validateCrossClientTrust(ctx, clientID, peerID)
 			if err != nil {
 				return nil, newRedirectedErr(errServerError, "Internal server error.")
 			}
@@ -632,6 +637,8 @@ func parseCrossClientScope(scope string) (peerID string, ok bool) {
 }
 
 func (s *Server) validateCrossClientTrust(ctx context.Context, clientID, peerID string) (trusted bool, err error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.server.validate_cross_client_trust")
+	defer span.End()
 	if peerID == clientID {
 		return true, nil
 	}
@@ -709,6 +716,8 @@ type storageKeySet struct {
 }
 
 func (s *storageKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
+	ctx, span := traces.InstrumentationTracer(ctx, "dex.server.storage_key_set.VerifySignature")
+	defer span.End()
 	jws, err := jose.ParseSigned(jwt, []jose.SignatureAlgorithm{jose.RS256, jose.RS384, jose.RS512, jose.ES256, jose.ES384, jose.ES512})
 	if err != nil {
 		return nil, err

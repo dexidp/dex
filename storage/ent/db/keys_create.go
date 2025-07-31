@@ -23,48 +23,48 @@ type KeysCreate struct {
 }
 
 // SetVerificationKeys sets the "verification_keys" field.
-func (kc *KeysCreate) SetVerificationKeys(sk []storage.VerificationKey) *KeysCreate {
-	kc.mutation.SetVerificationKeys(sk)
-	return kc
+func (_c *KeysCreate) SetVerificationKeys(v []storage.VerificationKey) *KeysCreate {
+	_c.mutation.SetVerificationKeys(v)
+	return _c
 }
 
 // SetSigningKey sets the "signing_key" field.
-func (kc *KeysCreate) SetSigningKey(jwk jose.JSONWebKey) *KeysCreate {
-	kc.mutation.SetSigningKey(jwk)
-	return kc
+func (_c *KeysCreate) SetSigningKey(v jose.JSONWebKey) *KeysCreate {
+	_c.mutation.SetSigningKey(v)
+	return _c
 }
 
 // SetSigningKeyPub sets the "signing_key_pub" field.
-func (kc *KeysCreate) SetSigningKeyPub(jwk jose.JSONWebKey) *KeysCreate {
-	kc.mutation.SetSigningKeyPub(jwk)
-	return kc
+func (_c *KeysCreate) SetSigningKeyPub(v jose.JSONWebKey) *KeysCreate {
+	_c.mutation.SetSigningKeyPub(v)
+	return _c
 }
 
 // SetNextRotation sets the "next_rotation" field.
-func (kc *KeysCreate) SetNextRotation(t time.Time) *KeysCreate {
-	kc.mutation.SetNextRotation(t)
-	return kc
+func (_c *KeysCreate) SetNextRotation(v time.Time) *KeysCreate {
+	_c.mutation.SetNextRotation(v)
+	return _c
 }
 
 // SetID sets the "id" field.
-func (kc *KeysCreate) SetID(s string) *KeysCreate {
-	kc.mutation.SetID(s)
-	return kc
+func (_c *KeysCreate) SetID(v string) *KeysCreate {
+	_c.mutation.SetID(v)
+	return _c
 }
 
 // Mutation returns the KeysMutation object of the builder.
-func (kc *KeysCreate) Mutation() *KeysMutation {
-	return kc.mutation
+func (_c *KeysCreate) Mutation() *KeysMutation {
+	return _c.mutation
 }
 
 // Save creates the Keys in the database.
-func (kc *KeysCreate) Save(ctx context.Context) (*Keys, error) {
-	return withHooks(ctx, kc.sqlSave, kc.mutation, kc.hooks)
+func (_c *KeysCreate) Save(ctx context.Context) (*Keys, error) {
+	return withHooks(ctx, _c.sqlSave, _c.mutation, _c.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
-func (kc *KeysCreate) SaveX(ctx context.Context) *Keys {
-	v, err := kc.Save(ctx)
+func (_c *KeysCreate) SaveX(ctx context.Context) *Keys {
+	v, err := _c.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -72,33 +72,33 @@ func (kc *KeysCreate) SaveX(ctx context.Context) *Keys {
 }
 
 // Exec executes the query.
-func (kc *KeysCreate) Exec(ctx context.Context) error {
-	_, err := kc.Save(ctx)
+func (_c *KeysCreate) Exec(ctx context.Context) error {
+	_, err := _c.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (kc *KeysCreate) ExecX(ctx context.Context) {
-	if err := kc.Exec(ctx); err != nil {
+func (_c *KeysCreate) ExecX(ctx context.Context) {
+	if err := _c.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
 
 // check runs all checks and user-defined validators on the builder.
-func (kc *KeysCreate) check() error {
-	if _, ok := kc.mutation.VerificationKeys(); !ok {
+func (_c *KeysCreate) check() error {
+	if _, ok := _c.mutation.VerificationKeys(); !ok {
 		return &ValidationError{Name: "verification_keys", err: errors.New(`db: missing required field "Keys.verification_keys"`)}
 	}
-	if _, ok := kc.mutation.SigningKey(); !ok {
+	if _, ok := _c.mutation.SigningKey(); !ok {
 		return &ValidationError{Name: "signing_key", err: errors.New(`db: missing required field "Keys.signing_key"`)}
 	}
-	if _, ok := kc.mutation.SigningKeyPub(); !ok {
+	if _, ok := _c.mutation.SigningKeyPub(); !ok {
 		return &ValidationError{Name: "signing_key_pub", err: errors.New(`db: missing required field "Keys.signing_key_pub"`)}
 	}
-	if _, ok := kc.mutation.NextRotation(); !ok {
+	if _, ok := _c.mutation.NextRotation(); !ok {
 		return &ValidationError{Name: "next_rotation", err: errors.New(`db: missing required field "Keys.next_rotation"`)}
 	}
-	if v, ok := kc.mutation.ID(); ok {
+	if v, ok := _c.mutation.ID(); ok {
 		if err := keys.IDValidator(v); err != nil {
 			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "Keys.id": %w`, err)}
 		}
@@ -106,12 +106,12 @@ func (kc *KeysCreate) check() error {
 	return nil
 }
 
-func (kc *KeysCreate) sqlSave(ctx context.Context) (*Keys, error) {
-	if err := kc.check(); err != nil {
+func (_c *KeysCreate) sqlSave(ctx context.Context) (*Keys, error) {
+	if err := _c.check(); err != nil {
 		return nil, err
 	}
-	_node, _spec := kc.createSpec()
-	if err := sqlgraph.CreateNode(ctx, kc.driver, _spec); err != nil {
+	_node, _spec := _c.createSpec()
+	if err := sqlgraph.CreateNode(ctx, _c.driver, _spec); err != nil {
 		if sqlgraph.IsConstraintError(err) {
 			err = &ConstraintError{msg: err.Error(), wrap: err}
 		}
@@ -124,33 +124,33 @@ func (kc *KeysCreate) sqlSave(ctx context.Context) (*Keys, error) {
 			return nil, fmt.Errorf("unexpected Keys.ID type: %T", _spec.ID.Value)
 		}
 	}
-	kc.mutation.id = &_node.ID
-	kc.mutation.done = true
+	_c.mutation.id = &_node.ID
+	_c.mutation.done = true
 	return _node, nil
 }
 
-func (kc *KeysCreate) createSpec() (*Keys, *sqlgraph.CreateSpec) {
+func (_c *KeysCreate) createSpec() (*Keys, *sqlgraph.CreateSpec) {
 	var (
-		_node = &Keys{config: kc.config}
+		_node = &Keys{config: _c.config}
 		_spec = sqlgraph.NewCreateSpec(keys.Table, sqlgraph.NewFieldSpec(keys.FieldID, field.TypeString))
 	)
-	if id, ok := kc.mutation.ID(); ok {
+	if id, ok := _c.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
-	if value, ok := kc.mutation.VerificationKeys(); ok {
+	if value, ok := _c.mutation.VerificationKeys(); ok {
 		_spec.SetField(keys.FieldVerificationKeys, field.TypeJSON, value)
 		_node.VerificationKeys = value
 	}
-	if value, ok := kc.mutation.SigningKey(); ok {
+	if value, ok := _c.mutation.SigningKey(); ok {
 		_spec.SetField(keys.FieldSigningKey, field.TypeJSON, value)
 		_node.SigningKey = value
 	}
-	if value, ok := kc.mutation.SigningKeyPub(); ok {
+	if value, ok := _c.mutation.SigningKeyPub(); ok {
 		_spec.SetField(keys.FieldSigningKeyPub, field.TypeJSON, value)
 		_node.SigningKeyPub = value
 	}
-	if value, ok := kc.mutation.NextRotation(); ok {
+	if value, ok := _c.mutation.NextRotation(); ok {
 		_spec.SetField(keys.FieldNextRotation, field.TypeTime, value)
 		_node.NextRotation = value
 	}
@@ -165,16 +165,16 @@ type KeysCreateBulk struct {
 }
 
 // Save creates the Keys entities in the database.
-func (kcb *KeysCreateBulk) Save(ctx context.Context) ([]*Keys, error) {
-	if kcb.err != nil {
-		return nil, kcb.err
+func (_c *KeysCreateBulk) Save(ctx context.Context) ([]*Keys, error) {
+	if _c.err != nil {
+		return nil, _c.err
 	}
-	specs := make([]*sqlgraph.CreateSpec, len(kcb.builders))
-	nodes := make([]*Keys, len(kcb.builders))
-	mutators := make([]Mutator, len(kcb.builders))
-	for i := range kcb.builders {
+	specs := make([]*sqlgraph.CreateSpec, len(_c.builders))
+	nodes := make([]*Keys, len(_c.builders))
+	mutators := make([]Mutator, len(_c.builders))
+	for i := range _c.builders {
 		func(i int, root context.Context) {
-			builder := kcb.builders[i]
+			builder := _c.builders[i]
 			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 				mutation, ok := m.(*KeysMutation)
 				if !ok {
@@ -187,11 +187,11 @@ func (kcb *KeysCreateBulk) Save(ctx context.Context) ([]*Keys, error) {
 				var err error
 				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
-					_, err = mutators[i+1].Mutate(root, kcb.builders[i+1].mutation)
+					_, err = mutators[i+1].Mutate(root, _c.builders[i+1].mutation)
 				} else {
 					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
 					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, kcb.driver, spec); err != nil {
+					if err = sqlgraph.BatchCreate(ctx, _c.driver, spec); err != nil {
 						if sqlgraph.IsConstraintError(err) {
 							err = &ConstraintError{msg: err.Error(), wrap: err}
 						}
@@ -211,7 +211,7 @@ func (kcb *KeysCreateBulk) Save(ctx context.Context) ([]*Keys, error) {
 		}(i, ctx)
 	}
 	if len(mutators) > 0 {
-		if _, err := mutators[0].Mutate(ctx, kcb.builders[0].mutation); err != nil {
+		if _, err := mutators[0].Mutate(ctx, _c.builders[0].mutation); err != nil {
 			return nil, err
 		}
 	}
@@ -219,8 +219,8 @@ func (kcb *KeysCreateBulk) Save(ctx context.Context) ([]*Keys, error) {
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func (kcb *KeysCreateBulk) SaveX(ctx context.Context) []*Keys {
-	v, err := kcb.Save(ctx)
+func (_c *KeysCreateBulk) SaveX(ctx context.Context) []*Keys {
+	v, err := _c.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -228,14 +228,14 @@ func (kcb *KeysCreateBulk) SaveX(ctx context.Context) []*Keys {
 }
 
 // Exec executes the query.
-func (kcb *KeysCreateBulk) Exec(ctx context.Context) error {
-	_, err := kcb.Save(ctx)
+func (_c *KeysCreateBulk) Exec(ctx context.Context) error {
+	_, err := _c.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (kcb *KeysCreateBulk) ExecX(ctx context.Context) {
-	if err := kcb.Exec(ctx); err != nil {
+func (_c *KeysCreateBulk) ExecX(ctx context.Context) {
+	if err := _c.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

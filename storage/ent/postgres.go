@@ -13,7 +13,9 @@ import (
 	"time"
 
 	entSQL "entgo.io/ent/dialect/sql"
+	"github.com/XSAM/otelsql"
 	_ "github.com/lib/pq" // Register postgres driver.
+	semconv "go.opentelemetry.io/otel/semconv/v1.28.0"
 
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/client"
@@ -61,10 +63,19 @@ func (p *Postgres) Open(logger *slog.Logger) (storage.Storage, error) {
 }
 
 func (p *Postgres) driver() (*entSQL.Driver, error) {
-	drv, err := entSQL.Open("postgres", p.dsn())
+	db, err := otelsql.Open("postgres", p.dsn(), otelsql.WithAttributes(
+		semconv.DBSystemPostgreSQL,
+	))
 	if err != nil {
 		return nil, err
 	}
+	err = otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(
+		semconv.DBSystemPostgreSQL,
+	))
+	if err != nil {
+		return nil, err
+	}
+	drv := entSQL.OpenDB("postgres", db)
 
 	// set database/sql tunables if configured
 	if p.ConnMaxLifetime != 0 {

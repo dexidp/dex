@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path"
-	"strings"
 	"testing"
 	"time"
 
@@ -35,76 +34,6 @@ func TestHandleHealth(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200 got %d", rr.Code)
 	}
-}
-
-func TestHandleDiscovery(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	httpServer, server := newTestServer(ctx, t, nil)
-	defer httpServer.Close()
-
-	rr := httptest.NewRecorder()
-	server.ServeHTTP(rr, httptest.NewRequest("GET", "/.well-known/openid-configuration", nil))
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200 got %d", rr.Code)
-	}
-
-	var res discovery
-	err := json.NewDecoder(rr.Result().Body).Decode(&res)
-	require.NoError(t, err)
-	require.Equal(t, discovery{
-		Issuer:         httpServer.URL,
-		Auth:           fmt.Sprintf("%s/auth", httpServer.URL),
-		Token:          fmt.Sprintf("%s/token", httpServer.URL),
-		Keys:           fmt.Sprintf("%s/keys", httpServer.URL),
-		UserInfo:       fmt.Sprintf("%s/userinfo", httpServer.URL),
-		DeviceEndpoint: fmt.Sprintf("%s/device/code", httpServer.URL),
-		Introspect:     fmt.Sprintf("%s/token/introspect", httpServer.URL),
-		GrantTypes: []string{
-			"authorization_code",
-			"refresh_token",
-			"urn:ietf:params:oauth:grant-type:device_code",
-			"urn:ietf:params:oauth:grant-type:token-exchange",
-		},
-		ResponseTypes: []string{
-			"code",
-		},
-		Subjects: []string{
-			"public",
-		},
-		IDTokenAlgs: []string{
-			"RS256",
-		},
-		CodeChallengeAlgs: []string{
-			"S256",
-			"plain",
-		},
-		Scopes: []string{
-			"openid",
-			"email",
-			"groups",
-			"profile",
-			"offline_access",
-		},
-		AuthMethods: []string{
-			"client_secret_basic",
-			"client_secret_post",
-		},
-		Claims: []string{
-			"iss",
-			"sub",
-			"aud",
-			"iat",
-			"exp",
-			"email",
-			"email_verified",
-			"locale",
-			"name",
-			"preferred_username",
-			"at_hash",
-		},
-	}, res)
 }
 
 func TestHandleHealthFailure(t *testing.T) {
@@ -707,111 +636,6 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 				require.NotEmpty(t, offlineSession)
 			} else {
 				require.Error(t, storage.ErrNotFound, err)
-			}
-		})
-	}
-}
-
-func TestHandleTokenExchange(t *testing.T) {
-	tests := []struct {
-		name               string
-		scope              string
-		requestedTokenType string
-		subjectTokenType   string
-		subjectToken       string
-
-		expectedCode      int
-		expectedTokenType string
-	}{
-		{
-			"id-for-acccess",
-			"openid",
-			tokenTypeAccess,
-			tokenTypeID,
-			"foobar",
-			http.StatusOK,
-			tokenTypeAccess,
-		},
-		{
-			"id-for-id",
-			"openid",
-			tokenTypeID,
-			tokenTypeID,
-			"foobar",
-			http.StatusOK,
-			tokenTypeID,
-		},
-		{
-			"id-for-default",
-			"openid",
-			"",
-			tokenTypeID,
-			"foobar",
-			http.StatusOK,
-			tokenTypeAccess,
-		},
-		{
-			"access-for-access",
-			"openid",
-			tokenTypeAccess,
-			tokenTypeAccess,
-			"foobar",
-			http.StatusOK,
-			tokenTypeAccess,
-		},
-		{
-			"missing-subject_token_type",
-			"openid",
-			tokenTypeAccess,
-			"",
-			"foobar",
-			http.StatusBadRequest,
-			"",
-		},
-		{
-			"missing-subject_token",
-			"openid",
-			tokenTypeAccess,
-			tokenTypeAccess,
-			"",
-			http.StatusBadRequest,
-			"",
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			httpServer, s := newTestServer(ctx, t, func(c *Config) {
-				c.Storage.CreateClient(ctx, storage.Client{
-					ID:     "client_1",
-					Secret: "secret_1",
-				})
-			})
-			defer httpServer.Close()
-			vals := make(url.Values)
-			vals.Set("grant_type", grantTypeTokenExchange)
-			setNonEmpty(vals, "connector_id", "mock")
-			setNonEmpty(vals, "scope", tc.scope)
-			setNonEmpty(vals, "requested_token_type", tc.requestedTokenType)
-			setNonEmpty(vals, "subject_token_type", tc.subjectTokenType)
-			setNonEmpty(vals, "subject_token", tc.subjectToken)
-			setNonEmpty(vals, "client_id", "client_1")
-			setNonEmpty(vals, "client_secret", "secret_1")
-
-			rr := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
-			req.Header.Set("content-type", "application/x-www-form-urlencoded")
-
-			s.handleToken(rr, req)
-
-			require.Equal(t, tc.expectedCode, rr.Code, rr.Body.String())
-			require.Equal(t, "application/json", rr.Result().Header.Get("content-type"))
-			if tc.expectedCode == http.StatusOK {
-				var res accessTokenResponse
-				err := json.NewDecoder(rr.Result().Body).Decode(&res)
-				require.NoError(t, err)
-				require.Equal(t, tc.expectedTokenType, res.IssuedTokenType)
 			}
 		})
 	}

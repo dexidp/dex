@@ -20,56 +20,56 @@ type PasswordDelete struct {
 }
 
 // Where appends a list predicates to the PasswordDelete builder.
-func (pd *PasswordDelete) Where(ps ...predicate.Password) *PasswordDelete {
-	pd.mutation.Where(ps...)
-	return pd
+func (_d *PasswordDelete) Where(ps ...predicate.Password) *PasswordDelete {
+	_d.mutation.Where(ps...)
+	return _d
 }
 
 // Exec executes the deletion query and returns how many vertices were deleted.
-func (pd *PasswordDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, pd.sqlExec, pd.mutation, pd.hooks)
+func (_d *PasswordDelete) Exec(ctx context.Context) (int, error) {
+	return withHooks(ctx, _d.sqlExec, _d.mutation, _d.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (pd *PasswordDelete) ExecX(ctx context.Context) int {
-	n, err := pd.Exec(ctx)
+func (_d *PasswordDelete) ExecX(ctx context.Context) int {
+	n, err := _d.Exec(ctx)
 	if err != nil {
 		panic(err)
 	}
 	return n
 }
 
-func (pd *PasswordDelete) sqlExec(ctx context.Context) (int, error) {
+func (_d *PasswordDelete) sqlExec(ctx context.Context) (int, error) {
 	_spec := sqlgraph.NewDeleteSpec(password.Table, sqlgraph.NewFieldSpec(password.FieldID, field.TypeInt))
-	if ps := pd.mutation.predicates; len(ps) > 0 {
+	if ps := _d.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	affected, err := sqlgraph.DeleteNodes(ctx, pd.driver, _spec)
+	affected, err := sqlgraph.DeleteNodes(ctx, _d.driver, _spec)
 	if err != nil && sqlgraph.IsConstraintError(err) {
 		err = &ConstraintError{msg: err.Error(), wrap: err}
 	}
-	pd.mutation.done = true
+	_d.mutation.done = true
 	return affected, err
 }
 
 // PasswordDeleteOne is the builder for deleting a single Password entity.
 type PasswordDeleteOne struct {
-	pd *PasswordDelete
+	_d *PasswordDelete
 }
 
 // Where appends a list predicates to the PasswordDelete builder.
-func (pdo *PasswordDeleteOne) Where(ps ...predicate.Password) *PasswordDeleteOne {
-	pdo.pd.mutation.Where(ps...)
-	return pdo
+func (_d *PasswordDeleteOne) Where(ps ...predicate.Password) *PasswordDeleteOne {
+	_d._d.mutation.Where(ps...)
+	return _d
 }
 
 // Exec executes the deletion query.
-func (pdo *PasswordDeleteOne) Exec(ctx context.Context) error {
-	n, err := pdo.pd.Exec(ctx)
+func (_d *PasswordDeleteOne) Exec(ctx context.Context) error {
+	n, err := _d._d.Exec(ctx)
 	switch {
 	case err != nil:
 		return err
@@ -81,8 +81,8 @@ func (pdo *PasswordDeleteOne) Exec(ctx context.Context) error {
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (pdo *PasswordDeleteOne) ExecX(ctx context.Context) {
-	if err := pdo.Exec(ctx); err != nil {
+func (_d *PasswordDeleteOne) ExecX(ctx context.Context) {
+	if err := _d.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

@@ -73,7 +73,7 @@ func (*RefreshToken) scanValues(columns []string) ([]any, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the RefreshToken fields.
-func (rt *RefreshToken) assignValues(columns []string, values []any) error {
+func (_m *RefreshToken) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -83,19 +83,19 @@ func (rt *RefreshToken) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value.Valid {
-				rt.ID = value.String
+				_m.ID = value.String
 			}
 		case refreshtoken.FieldClientID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field client_id", values[i])
 			} else if value.Valid {
-				rt.ClientID = value.String
+				_m.ClientID = value.String
 			}
 		case refreshtoken.FieldScopes:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field scopes", values[i])
 			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &rt.Scopes); err != nil {
+				if err := json.Unmarshal(*value, &_m.Scopes); err != nil {
 					return fmt.Errorf("unmarshal field scopes: %w", err)
 				}
 			}
@@ -103,37 +103,37 @@ func (rt *RefreshToken) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field nonce", values[i])
 			} else if value.Valid {
-				rt.Nonce = value.String
+				_m.Nonce = value.String
 			}
 		case refreshtoken.FieldClaimsUserID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_user_id", values[i])
 			} else if value.Valid {
-				rt.ClaimsUserID = value.String
+				_m.ClaimsUserID = value.String
 			}
 		case refreshtoken.FieldClaimsUsername:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_username", values[i])
 			} else if value.Valid {
-				rt.ClaimsUsername = value.String
+				_m.ClaimsUsername = value.String
 			}
 		case refreshtoken.FieldClaimsEmail:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_email", values[i])
 			} else if value.Valid {
-				rt.ClaimsEmail = value.String
+				_m.ClaimsEmail = value.String
 			}
 		case refreshtoken.FieldClaimsEmailVerified:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_email_verified", values[i])
 			} else if value.Valid {
-				rt.ClaimsEmailVerified = value.Bool
+				_m.ClaimsEmailVerified = value.Bool
 			}
 		case refreshtoken.FieldClaimsGroups:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_groups", values[i])
 			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &rt.ClaimsGroups); err != nil {
+				if err := json.Unmarshal(*value, &_m.ClaimsGroups); err != nil {
 					return fmt.Errorf("unmarshal field claims_groups: %w", err)
 				}
 			}
@@ -141,46 +141,46 @@ func (rt *RefreshToken) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_preferred_username", values[i])
 			} else if value.Valid {
-				rt.ClaimsPreferredUsername = value.String
+				_m.ClaimsPreferredUsername = value.String
 			}
 		case refreshtoken.FieldConnectorID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field connector_id", values[i])
 			} else if value.Valid {
-				rt.ConnectorID = value.String
+				_m.ConnectorID = value.String
 			}
 		case refreshtoken.FieldConnectorData:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field connector_data", values[i])
 			} else if value != nil {
-				rt.ConnectorData = value
+				_m.ConnectorData = value
 			}
 		case refreshtoken.FieldToken:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field token", values[i])
 			} else if value.Valid {
-				rt.Token = value.String
+				_m.Token = value.String
 			}
 		case refreshtoken.FieldObsoleteToken:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field obsolete_token", values[i])
 			} else if value.Valid {
-				rt.ObsoleteToken = value.String
+				_m.ObsoleteToken = value.String
 			}
 		case refreshtoken.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
 			} else if value.Valid {
-				rt.CreatedAt = value.Time
+				_m.CreatedAt = value.Time
 			}
 		case refreshtoken.FieldLastUsed:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field last_used", values[i])
 			} else if value.Valid {
-				rt.LastUsed = value.Time
+				_m.LastUsed = value.Time
 			}
 		default:
-			rt.selectValues.Set(columns[i], values[i])
+			_m.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
@@ -188,79 +188,79 @@ func (rt *RefreshToken) assignValues(columns []string, values []any) error {
 
 // Value returns the ent.Value that was dynamically selected and assigned to the RefreshToken.
 // This includes values selected through modifiers, order, etc.
-func (rt *RefreshToken) Value(name string) (ent.Value, error) {
-	return rt.selectValues.Get(name)
+func (_m *RefreshToken) Value(name string) (ent.Value, error) {
+	return _m.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this RefreshToken.
 // Note that you need to call RefreshToken.Unwrap() before calling this method if this RefreshToken
 // was returned from a transaction, and the transaction was committed or rolled back.
-func (rt *RefreshToken) Update() *RefreshTokenUpdateOne {
-	return NewRefreshTokenClient(rt.config).UpdateOne(rt)
+func (_m *RefreshToken) Update() *RefreshTokenUpdateOne {
+	return NewRefreshTokenClient(_m.config).UpdateOne(_m)
 }
 
 // Unwrap unwraps the RefreshToken entity that was returned from a transaction after it was closed,
 // so that all future queries will be executed through the driver which created the transaction.
-func (rt *RefreshToken) Unwrap() *RefreshToken {
-	_tx, ok := rt.config.driver.(*txDriver)
+func (_m *RefreshToken) Unwrap() *RefreshToken {
+	_tx, ok := _m.config.driver.(*txDriver)
 	if !ok {
 		panic("db: RefreshToken is not a transactional entity")
 	}
-	rt.config.driver = _tx.drv
-	return rt
+	_m.config.driver = _tx.drv
+	return _m
 }
 
 // String implements the fmt.Stringer.
-func (rt *RefreshToken) String() string {
+func (_m *RefreshToken) String() string {
 	var builder strings.Builder
 	builder.WriteString("RefreshToken(")
-	builder.WriteString(fmt.Sprintf("id=%v, ", rt.ID))
+	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("client_id=")
-	builder.WriteString(rt.ClientID)
+	builder.WriteString(_m.ClientID)
 	builder.WriteString(", ")
 	builder.WriteString("scopes=")
-	builder.WriteString(fmt.Sprintf("%v", rt.Scopes))
+	builder.WriteString(fmt.Sprintf("%v", _m.Scopes))
 	builder.WriteString(", ")
 	builder.WriteString("nonce=")
-	builder.WriteString(rt.Nonce)
+	builder.WriteString(_m.Nonce)
 	builder.WriteString(", ")
 	builder.WriteString("claims_user_id=")
-	builder.WriteString(rt.ClaimsUserID)
+	builder.WriteString(_m.ClaimsUserID)
 	builder.WriteString(", ")
 	builder.WriteString("claims_username=")
-	builder.WriteString(rt.ClaimsUsername)
+	builder.WriteString(_m.ClaimsUsername)
 	builder.WriteString(", ")
 	builder.WriteString("claims_email=")
-	builder.WriteString(rt.ClaimsEmail)
+	builder.WriteString(_m.ClaimsEmail)
 	builder.WriteString(", ")
 	builder.WriteString("claims_email_verified=")
-	builder.WriteString(fmt.Sprintf("%v", rt.ClaimsEmailVerified))
+	builder.WriteString(fmt.Sprintf("%v", _m.ClaimsEmailVerified))
 	builder.WriteString(", ")
 	builder.WriteString("claims_groups=")
-	builder.WriteString(fmt.Sprintf("%v", rt.ClaimsGroups))
+	builder.WriteString(fmt.Sprintf("%v", _m.ClaimsGroups))
 	builder.WriteString(", ")
 	builder.WriteString("claims_preferred_username=")
-	builder.WriteString(rt.ClaimsPreferredUsername)
+	builder.WriteString(_m.ClaimsPreferredUsername)
 	builder.WriteString(", ")
 	builder.WriteString("connector_id=")
-	builder.WriteString(rt.ConnectorID)
+	builder.WriteString(_m.ConnectorID)
 	builder.WriteString(", ")
-	if v := rt.ConnectorData; v != nil {
+	if v := _m.ConnectorData; v != nil {
 		builder.WriteString("connector_data=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")
 	builder.WriteString("token=")
-	builder.WriteString(rt.Token)
+	builder.WriteString(_m.Token)
 	builder.WriteString(", ")
 	builder.WriteString("obsolete_token=")
-	builder.WriteString(rt.ObsoleteToken)
+	builder.WriteString(_m.ObsoleteToken)
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
-	builder.WriteString(rt.CreatedAt.Format(time.ANSIC))
+	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))
 	builder.WriteString(", ")
 	builder.WriteString("last_used=")
-	builder.WriteString(rt.LastUsed.Format(time.ANSIC))
+	builder.WriteString(_m.LastUsed.Format(time.ANSIC))
 	builder.WriteByte(')')
 	return builder.String()
 }

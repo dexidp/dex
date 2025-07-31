@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	"entgo.io/ent/dialect/sql"
+	"github.com/XSAM/otelsql"
 	_ "github.com/mattn/go-sqlite3" // Register sqlite driver.
+	semconv "go.opentelemetry.io/otel/semconv/v1.28.0"
 
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/client"
@@ -25,11 +27,13 @@ func (s *SQLite3) Open(logger *slog.Logger) (storage.Storage, error) {
 
 	// Implicitly set foreign_keys pragma to "on" because it is required by ent
 	s.File = addFK(s.File)
-
-	drv, err := sql.Open("sqlite3", s.File)
+	open, err := otelsql.Open("sqlite3", s.File, otelsql.WithAttributes(
+		semconv.DBSystemSqlite,
+	))
 	if err != nil {
 		return nil, err
 	}
+	drv := sql.OpenDB("sqlite3", open)
 
 	// always allow only one connection to sqlite3, any other thread/go-routine
 	// attempting concurrent access will have to wait
