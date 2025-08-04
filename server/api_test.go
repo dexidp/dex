@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -60,7 +59,7 @@ func newAPI(s storage.Storage, logger *slog.Logger, t *testing.T) *apiClient {
 
 // Attempts to create, update and delete a test Password
 func TestPassword(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)
@@ -149,7 +148,7 @@ func TestPassword(t *testing.T) {
 		t.Fatalf("Unable to update password: %v", err)
 	}
 
-	pass, err := s.GetPassword(updateReq.Email)
+	pass, err := s.GetPassword(ctx, updateReq.Email)
 	if err != nil {
 		t.Fatalf("Unable to retrieve password: %v", err)
 	}
@@ -169,7 +168,7 @@ func TestPassword(t *testing.T) {
 
 // Ensures checkCost returns expected values
 func TestCheckCost(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)
@@ -222,7 +221,7 @@ func TestCheckCost(t *testing.T) {
 
 // Attempts to list and revoke an existing refresh token.
 func TestRefreshToken(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)
@@ -331,7 +330,7 @@ func TestRefreshToken(t *testing.T) {
 }
 
 func TestUpdateClient(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)
@@ -449,7 +448,7 @@ func TestUpdateClient(t *testing.T) {
 					t.Errorf("expected in response NotFound: %t", tc.want.NotFound)
 				}
 
-				client, err := s.GetClient(tc.req.Id)
+				client, err := s.GetClient(ctx, tc.req.Id)
 				if err != nil {
 					t.Errorf("no client found in the storage: %v", err)
 				}
@@ -497,7 +496,7 @@ func TestCreateConnector(t *testing.T) {
 	os.Setenv("DEX_API_CONNECTORS_CRUD", "true")
 	defer os.Unsetenv("DEX_API_CONNECTORS_CRUD")
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)
@@ -547,7 +546,7 @@ func TestUpdateConnector(t *testing.T) {
 	os.Setenv("DEX_API_CONNECTORS_CRUD", "true")
 	defer os.Unsetenv("DEX_API_CONNECTORS_CRUD")
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)
@@ -615,7 +614,7 @@ func TestDeleteConnector(t *testing.T) {
 	os.Setenv("DEX_API_CONNECTORS_CRUD", "true")
 	defer os.Unsetenv("DEX_API_CONNECTORS_CRUD")
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)
@@ -659,7 +658,7 @@ func TestListConnectors(t *testing.T) {
 	os.Setenv("DEX_API_CONNECTORS_CRUD", "true")
 	defer os.Unsetenv("DEX_API_CONNECTORS_CRUD")
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)
@@ -699,7 +698,7 @@ func TestListConnectors(t *testing.T) {
 }
 
 func TestMissingConnectorsCRUDFeatureFlag(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	logger := slog.New(slog.DiscardHandler)
 
 	s := memory.New(logger)
 	client := newAPI(s, logger, t)

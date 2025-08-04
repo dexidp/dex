@@ -19,11 +19,12 @@ import (
 // Headers retrieved to fetch user's email and group can be configured
 // with userHeader and groupHeader.
 type Config struct {
-	UserIDHeader string   `json:"userIDHeader"`
-	UserHeader   string   `json:"userHeader"`
-	EmailHeader  string   `json:"emailHeader"`
-	GroupHeader  string   `json:"groupHeader"`
-	Groups       []string `json:"staticGroups"`
+	UserIDHeader   string   `json:"userIDHeader"`
+	UserHeader     string   `json:"userHeader"`
+	UserNameHeader string   `json:"userNameHeader"`
+	EmailHeader    string   `json:"emailHeader"`
+	GroupHeader    string   `json:"groupHeader"`
+	Groups         []string `json:"staticGroups"`
 }
 
 // Open returns an authentication strategy which requires no user interaction.
@@ -36,6 +37,10 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 	if userHeader == "" {
 		userHeader = "X-Remote-User"
 	}
+	userNameHeader := c.UserNameHeader
+	if userNameHeader == "" {
+		userNameHeader = "X-Remote-User-Name"
+	}
 	emailHeader := c.EmailHeader
 	if emailHeader == "" {
 		emailHeader = "X-Remote-User-Email"
@@ -46,26 +51,28 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 	}
 
 	return &callback{
-		userIDHeader: userIDHeader,
-		userHeader:   userHeader,
-		emailHeader:  emailHeader,
-		groupHeader:  groupHeader,
-		groups:       c.Groups,
-		logger:       logger.With(slog.Group("connector", "type", "authproxy", "id", id)),
-		pathSuffix:   "/" + id,
+		userIDHeader:   userIDHeader,
+		userHeader:     userHeader,
+		userNameHeader: userNameHeader,
+		emailHeader:    emailHeader,
+		groupHeader:    groupHeader,
+		groups:         c.Groups,
+		logger:         logger.With(slog.Group("connector", "type", "authproxy", "id", id)),
+		pathSuffix:     "/" + id,
 	}, nil
 }
 
 // Callback is a connector which returns an identity with the HTTP header
 // X-Remote-User as verified email.
 type callback struct {
-	userIDHeader string
-	userHeader   string
-	emailHeader  string
-	groupHeader  string
-	groups       []string
-	logger       *slog.Logger
-	pathSuffix   string
+	userIDHeader   string
+	userNameHeader string
+	userHeader     string
+	emailHeader    string
+	groupHeader    string
+	groups         []string
+	logger         *slog.Logger
+	pathSuffix     string
 }
 
 // LoginURL returns the URL to redirect the user to login with.
@@ -87,6 +94,10 @@ func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connecto
 	if remoteUser == "" {
 		return connector.Identity{}, fmt.Errorf("required HTTP header %s is not set", m.userHeader)
 	}
+	remoteUserName := r.Header.Get(m.userNameHeader)
+	if remoteUserName == "" {
+		remoteUserName = remoteUser
+	}
 	remoteUserID := r.Header.Get(m.userIDHeader)
 	if remoteUserID == "" {
 		remoteUserID = remoteUser
@@ -107,7 +118,7 @@ func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connecto
 	return connector.Identity{
 		UserID:            remoteUserID,
 		Username:          remoteUser,
-		PreferredUsername: remoteUser,
+		PreferredUsername: remoteUserName,
 		Email:             remoteUserEmail,
 		EmailVerified:     true,
 		Groups:            groups,

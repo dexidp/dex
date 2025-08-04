@@ -138,7 +138,7 @@ type emptyStorage struct {
 	storage.Storage
 }
 
-func (*emptyStorage) GetAuthRequest(string) (storage.AuthRequest, error) {
+func (*emptyStorage) GetAuthRequest(context.Context, string) (storage.AuthRequest, error) {
 	return storage.AuthRequest{}, storage.ErrNotFound
 }
 
@@ -407,7 +407,7 @@ func TestHandlePassword(t *testing.T) {
 				err := json.Unmarshal(rr.Body.Bytes(), &ref)
 				require.NoError(t, err)
 
-				newSess, err := s.storage.GetOfflineSessions("0-385-28089-0", "test")
+				newSess, err := s.storage.GetOfflineSessions(ctx, "0-385-28089-0", "test")
 				if tc.offlineSessionCreated {
 					require.NoError(t, err)
 					require.Equal(t, `{"test": "true"}`, string(newSess.ConnectorData))
@@ -519,7 +519,7 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 				Scopes:              []string{"offline_access"},
 			},
 			expectedRes:           "/auth/mockPw/cb",
-			offlineSessionCreated: false,
+			offlineSessionCreated: true,
 		},
 	}
 
@@ -562,7 +562,7 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 			cb, _ := url.Parse(resp.Header.Get("Location"))
 			require.Equal(t, tc.expectedRes, cb.Path)
 
-			offlineSession, err := s.storage.GetOfflineSessions("0-385-28089-0", connID)
+			offlineSession, err := s.storage.GetOfflineSessions(ctx, "0-385-28089-0", connID)
 			if tc.offlineSessionCreated {
 				require.NoError(t, err)
 				require.NotEmpty(t, offlineSession)
@@ -701,7 +701,7 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 			cb, _ := url.Parse(resp.Header.Get("Location"))
 			require.Equal(t, tc.expectedRes, cb.Path)
 
-			offlineSession, err := s.storage.GetOfflineSessions("0-385-28089-0", connID)
+			offlineSession, err := s.storage.GetOfflineSessions(ctx, "0-385-28089-0", connID)
 			if tc.offlineSessionCreated {
 				require.NoError(t, err)
 				require.NotEmpty(t, offlineSession)

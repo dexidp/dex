@@ -23,7 +23,12 @@ import (
 
 // Config holds configuration options for OpenID Connect logins.
 type Config struct {
-	Issuer       string `json:"issuer"`
+	Issuer string `json:"issuer"`
+	// Some offspec providers like Azure, Oracle IDCS have oidc discovery url
+	// different from issuer url which causes issuerValidation to fail
+	// IssuerAlias provides a way to override the Issuer url
+	// from the .well-known/openid-configuration issuer
+	IssuerAlias  string `json:"issuerAlias"`
 	ClientID     string `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
 	RedirectURI  string `json:"redirectURI"`
@@ -99,6 +104,7 @@ type Config struct {
 	ClaimMutations struct {
 		NewGroupFromClaims []NewGroupFromClaims `json:"newGroupFromClaims"`
 		FilterGroupClaims  FilterGroupClaims    `json:"filterGroupClaims"`
+		ModifyGroupNames   ModifyGroupNames     `json:"modifyGroupNames"`
 	} `json:"claimModifications"`
 }
 
@@ -184,6 +190,12 @@ type FilterGroupClaims struct {
 	GroupsFilter string `json:"groupsFilter"`
 }
 
+// ModifyGroupNames allows to modify the group claims by adding a prefix and/or suffix to each group.
+type ModifyGroupNames struct {
+	Prefix string `json:"prefix"`
+	Suffix string `json:"suffix"`
+}
+
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
 // list, but it only matches specific URLs, not top level domains.
 var brokenAuthHeaderDomains = []string{
@@ -226,7 +238,9 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 
 	bgctx, cancel := context.WithCancel(context.Background())
 	ctx := context.WithValue(bgctx, oauth2.HTTPClient, httpClient)
-
+	if c.IssuerAlias != "" {
+		ctx = oidc.InsecureIssuerURLContext(ctx, c.IssuerAlias)
+	}
 	provider, err := getProvider(ctx, c.Issuer, c.ProviderDiscoveryOverrides)
 	if err != nil {
 		cancel()
@@ -300,6 +314,8 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
 		newGroupFromClaims:        c.ClaimMutations.NewGroupFromClaims,
 		groupsFilter:              groupsFilter,
+		groupsPrefix:              c.ClaimMutations.ModifyGroupNames.Prefix,
+		groupsSuffix:              c.ClaimMutations.ModifyGroupNames.Suffix,
 	}, nil
 }
 
@@ -330,6 +346,8 @@ type oidcConnector struct {
 	groupsKey                 string
 	newGroupFromClaims        []NewGroupFromClaims
 	groupsFilter              *regexp.Regexp
+	groupsPrefix              string
+	groupsSuffix              string
 }
 
 func (c *oidcConnector) Close() error {
@@ -413,6 +431,9 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 
 func (c *oidcConnector) TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (connector.Identity, error) {
 	var identity connector.Identity
+
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.httpClient)
+
 	token := &oauth2.Token{
 		AccessToken: subjectToken,
 		TokenType:   subjectTokenType,
@@ -540,6 +561,13 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 						continue
 					}
 					groups = append(groups, s)
+				} else if groupMap, ok := v.(map[string]interface{}); ok {
+					if s, ok := groupMap["name"].(string); ok {
+						if c.groupsFilter != nil && !c.groupsFilter.MatchString(s) {
+							continue
+						}
+						groups = append(groups, s)
+					}
 				} else {
 					return identity, fmt.Errorf("malformed \"%v\" claim", groupsKey)
 				}
@@ -556,6 +584,13 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			}
 
 			groups = groupMatches
+		}
+	}
+
+	// add prefix/suffix to groups
+	if c.groupsPrefix != "" || c.groupsSuffix != "" {
+		for i, group := range groups {
+			groups[i] = c.groupsPrefix + group + c.groupsSuffix
 		}
 	}
 

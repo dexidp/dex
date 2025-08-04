@@ -95,7 +95,7 @@ func (s *Server) startKeyRotation(ctx context.Context, strategy rotationStrategy
 }
 
 func (k keyRotator) rotate() error {
-	keys, err := k.GetKeys()
+	keys, err := k.GetKeys(context.Background())
 	if err != nil && err != storage.ErrNotFound {
 		return fmt.Errorf("get keys: %v", err)
 	}
@@ -128,7 +128,7 @@ func (k keyRotator) rotate() error {
 	}
 
 	var nextRotation time.Time
-	err = k.Storage.UpdateKeys(func(keys storage.Keys) (storage.Keys, error) {
+	err = k.Storage.UpdateKeys(context.Background(), func(keys storage.Keys) (storage.Keys, error) {
 		tNow := k.now()
 
 		// if you are running multiple instances of dex, another instance

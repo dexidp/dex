@@ -8,8 +8,8 @@ import (
 	"github.com/dexidp/dex/storage/ent/db"
 )
 
-func getKeys(client *db.KeysClient) (storage.Keys, error) {
-	rawKeys, err := client.Get(context.TODO(), keysRowID)
+func getKeys(ctx context.Context, client *db.KeysClient) (storage.Keys, error) {
+	rawKeys, err := client.Get(ctx, keysRowID)
 	if err != nil {
 		return storage.Keys{}, convertDBError("get keys: %w", err)
 	}
@@ -18,20 +18,20 @@ func getKeys(client *db.KeysClient) (storage.Keys, error) {
 }
 
 // GetKeys returns signing keys, public keys and verification keys from the database.
-func (d *Database) GetKeys() (storage.Keys, error) {
-	return getKeys(d.client.Keys)
+func (d *Database) GetKeys(ctx context.Context) (storage.Keys, error) {
+	return getKeys(ctx, d.client.Keys)
 }
 
 // UpdateKeys rotates keys using updater function.
-func (d *Database) UpdateKeys(updater func(old storage.Keys) (storage.Keys, error)) error {
+func (d *Database) UpdateKeys(ctx context.Context, updater func(old storage.Keys) (storage.Keys, error)) error {
 	firstUpdate := false
 
-	tx, err := d.BeginTx(context.TODO())
+	tx, err := d.BeginTx(ctx)
 	if err != nil {
 		return convertDBError("update keys tx: %w", err)
 	}
 
-	storageKeys, err := getKeys(tx.Keys)
+	storageKeys, err := getKeys(ctx, tx.Keys)
 	if err != nil {
 		if !errors.Is(err, storage.ErrNotFound) {
 			return rollback(tx, "update keys get: %w", err)
@@ -53,7 +53,7 @@ func (d *Database) UpdateKeys(updater func(old storage.Keys) (storage.Keys, erro
 			SetSigningKey(*newKeys.SigningKey).
 			SetSigningKeyPub(*newKeys.SigningKeyPub).
 			SetVerificationKeys(newKeys.VerificationKeys).
-			Save(context.TODO())
+			Save(ctx)
 		if err != nil {
 			return rollback(tx, "create keys: %w", err)
 		}
@@ -68,7 +68,7 @@ func (d *Database) UpdateKeys(updater func(old storage.Keys) (storage.Keys, erro
 		SetSigningKey(*newKeys.SigningKey).
 		SetSigningKeyPub(*newKeys.SigningKeyPub).
 		SetVerificationKeys(newKeys.VerificationKeys).
-		Exec(context.TODO())
+		Exec(ctx)
 	if err != nil {
 		return rollback(tx, "update keys uploading: %w", err)
 	}

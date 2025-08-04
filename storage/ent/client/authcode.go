@@ -34,8 +34,8 @@ func (d *Database) CreateAuthCode(ctx context.Context, code storage.AuthCode) er
 }
 
 // GetAuthCode extracts an auth code from the database by id.
-func (d *Database) GetAuthCode(id string) (storage.AuthCode, error) {
-	authCode, err := d.client.AuthCode.Get(context.TODO(), id)
+func (d *Database) GetAuthCode(ctx context.Context, id string) (storage.AuthCode, error) {
+	authCode, err := d.client.AuthCode.Get(ctx, id)
 	if err != nil {
 		return storage.AuthCode{}, convertDBError("get auth code: %w", err)
 	}
@@ -43,8 +43,8 @@ func (d *Database) GetAuthCode(id string) (storage.AuthCode, error) {
 }
 
 // DeleteAuthCode deletes an auth code from the database by id.
-func (d *Database) DeleteAuthCode(id string) error {
-	err := d.client.AuthCode.DeleteOneID(id).Exec(context.TODO())
+func (d *Database) DeleteAuthCode(ctx context.Context, id string) error {
+	err := d.client.AuthCode.DeleteOneID(id).Exec(ctx)
 	if err != nil {
 		return convertDBError("delete auth code: %w", err)
 	}

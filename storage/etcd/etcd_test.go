@@ -3,7 +3,6 @@ package etcd
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"runtime"
@@ -56,7 +55,7 @@ func cleanDB(c *conn) error {
 	return nil
 }
 
-var logger = slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+var logger = slog.New(slog.DiscardHandler)
 
 func TestEtcd(t *testing.T) {
 	testEtcdEnv := "DEX_ETCD_ENDPOINTS"
