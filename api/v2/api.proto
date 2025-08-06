@@ -16,6 +16,16 @@ message Client {
   string logo_url = 7;
 }
 
+// ClientInfo represents an OAuth2 client without sensitive information.
+message ClientInfo {
+  string id = 1;
+  repeated string redirect_uris = 2;
+  repeated string trusted_peers = 3;
+  bool public = 4;
+  string name = 5;
+  string logo_url = 6;
+}
+
 // GetClientReq is a request to retrieve client details.
 message GetClientReq {
   // The ID of the client.
@@ -61,6 +71,14 @@ message UpdateClientReq {
 // UpdateClientResp returns the response from updating a client.
 message UpdateClientResp {
     bool not_found = 1;
+}
+
+// ListClientReq is a request to enumerate clients.
+message ListClientReq {}
+
+// ListClientResp returns a list of clients.
+message ListClientResp {
+  repeated ClientInfo clients = 1;
 }
 
 // TODO(ericchiang): expand this.
@@ -253,6 +271,8 @@ service Dex {
   rpc UpdateClient(UpdateClientReq) returns (UpdateClientResp) {};
   // DeleteClient deletes the provided client.
   rpc DeleteClient(DeleteClientReq) returns (DeleteClientResp) {};
+  // ListClients lists all client entries.
+  rpc ListClients(ListClientReq) returns (ListClientResp) {};
   // CreatePassword creates a password.
   rpc CreatePassword(CreatePasswordReq) returns (CreatePasswordResp) {};
   // UpdatePassword modifies existing password.
