@@ -10,10 +10,12 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -90,13 +92,28 @@ func commandServe() *cobra.Command {
 
 // try detect the intended socket type from address string
 func getSocketType(address string) string {
-	_, resErr := net.ResolveTCPAddr("tcp", address)
-	if resErr == nil {
-		return "tcp"
-	} else {
-		// assume UNIX socket
-		return "unix"
+	if h, p, serr := net.SplitHostPort(address); serr == nil {
+		// if port string is a number, assume tcp
+		if _, cerr := strconv.Atoi(p); cerr == nil {
+			return "tcp"
+		}
+		// otherwise results in unix socket path
+		return h
 	}
+
+	if u, perr := url.Parse(address); perr == nil {
+		if len(u.Scheme) > 0 {
+			// if scheme is recognized use that
+			return u.Scheme
+		} else {
+			// when parser gets a file path Scheme is
+			// empty. so default to unix socket.
+			return "unix"
+		}
+	}
+
+	// assume unix file path
+	return "unix"
 }
 
 func runServe(options serveOptions) error {
