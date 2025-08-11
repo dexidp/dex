@@ -15,5 +15,5 @@ import (
 type SQLite3 struct{}
 
 func (s *SQLite3) Open(logger *slog.Logger) (storage.Storage, error) {
-	return nil, fmt.Errorf("Binary was compiled with 'CGO_ENABLED=0', go-sqlite3 requires cgo to work")
+	return nil, fmt.Errorf("SQLite storage is not available: binary compiled without CGO support. Recompile with CGO_ENABLED=1 or use a different storage backend.")
 }
