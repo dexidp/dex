@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/go-ldap/ldap/v3"
@@ -63,7 +64,8 @@ type UserMatcher struct {
 	UserAttr  string `json:"userAttr"`
 	GroupAttr string `json:"groupAttr"`
 	// Work only if UserAttr is 'memberOf' and GroupAttr is dn
-	GroupPrefix string `json:"groupPrefix"`
+	GroupRegexp  string `json:"groupRegexp"`
+	groupMatcher *regexp.Regexp
 }
 
 // Config holds configuration options for LDAP logins.
@@ -293,6 +295,13 @@ func (c *Config) openConnector(logger *slog.Logger) (*ldapConnector, error) {
 
 	// TODO(nabokihms): remove it after deleting deprecated groupSearch options
 	c.GroupSearch.UserMatchers = userMatchers(c, logger)
+	for i, _ := range c.GroupSearch.UserMatchers {
+		c.GroupSearch.UserMatchers[i].groupMatcher, err = regexp.Compile(c.GroupSearch.UserMatchers[i].GroupRegexp)
+		if err != nil {
+			logger.Error("Regular expression compilation error", "user_attr", c.GroupSearch.UserMatchers[i].UserAttr, "group_attr", c.GroupSearch.UserMatchers[i].GroupAttr, "err", err.Error())
+			c.GroupSearch.UserMatchers[i].groupMatcher, _ = regexp.Compile("")
+		}
+	}
 	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig, logger}, nil
 }
 
@@ -617,7 +626,7 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 					fmt.Sprintf(",%s", c.GroupSearch.BaseDN))
 
 				// Is it needed compability with GroupSearch.Filter? (r9odt)
-				if !strings.HasPrefix(groupName, matcher.GroupPrefix) {
+				if !matcher.groupMatcher.MatchString(groupName) {
 					continue
 				}
 
