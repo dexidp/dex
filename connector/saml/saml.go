@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"encoding/xml"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -21,10 +22,8 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/groups"
-	"github.com/dexidp/dex/pkg/log"
 )
 
-// nolint
 const (
 	bindingRedirect = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
 	bindingPOST     = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
@@ -120,11 +119,12 @@ func (c certStore) Certificates() (roots []*x509.Certificate, err error) {
 
 // Open validates the config and returns a connector. It does not actually
 // validate connectivity with the provider.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
+	logger = logger.With(slog.Group("connector", "type", "saml", "id", id))
 	return c.openConnector(logger)
 }
 
-func (c *Config) openConnector(logger log.Logger) (*provider, error) {
+func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 	requiredFields := []struct {
 		name, val string
 	}{
@@ -252,7 +252,7 @@ type provider struct {
 
 	nameIDPolicyFormat string
 
-	logger log.Logger
+	logger *slog.Logger
 }
 
 func (p *provider) POSTData(s connector.Scopes, id string) (action, value string, err error) {
@@ -292,7 +292,6 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 // * Verify signature on XML document (or verify sig on assertion elements).
 // * Verify various parts of the Assertion element. Conditions, audience, etc.
 // * Map the Assertion's attribute elements to user info.
-//
 func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo string) (ident connector.Identity, err error) {
 	rawResp, err := base64.StdEncoding.DecodeString(samlResponse)
 	if err != nil {
@@ -390,7 +389,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	// Log the actual attributes we got back from the server. This helps debug
 	// configuration errors on the server side, where the SAML server doesn't
 	// send us the correct attributes.
-	p.logger.Infof("parsed and verified saml response attributes %s", attributes)
+	p.logger.Info("parsed and verified saml response attributes", "attributes", attributes)
 
 	// Grab the email.
 	if ident.Email, _ = attributes.get(p.emailAttr); ident.Email == "" {
@@ -468,7 +467,7 @@ func (p *provider) validateStatus(status *status) error {
 		if statusMessage != nil && statusMessage.Value != "" {
 			errorMessage += " -> " + statusMessage.Value
 		}
-		return fmt.Errorf(errorMessage)
+		return errors.New(errorMessage)
 	}
 	return nil
 }
@@ -531,7 +530,7 @@ func (p *provider) validateSubject(subject *subject, inResponseTo string) error 
 	return fmt.Errorf("failed to validate subject confirmation: %v", errs)
 }
 
-// validationConditions ensures that dex is the intended audience
+// validateConditions ensures that dex is the intended audience
 // for the request, and not another service provider.
 //
 // See: https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf
@@ -598,6 +597,9 @@ func verifyResponseSig(validator *dsig.ValidationContext, data []byte) (signed [
 	}
 
 	response := doc.Root()
+	if response == nil {
+		return nil, false, fmt.Errorf("parse document: empty root")
+	}
 	transformedResponse, err := validator.Validate(response)
 	if err == nil {
 		// Root element is verified, return it.
@@ -610,7 +612,7 @@ func verifyResponseSig(validator *dsig.ValidationContext, data []byte) (signed [
 	//
 	// TODO: Only select from child elements of the root.
 	assertion, err := etreeutils.NSSelectOne(response, "urn:oasis:names:tc:SAML:2.0:assertion", "Assertion")
-	if err != nil {
+	if err != nil || assertion == nil {
 		return nil, false, fmt.Errorf("response does not contain an Assertion element")
 	}
 	transformedAssertion, err := validator.Validate(assertion)

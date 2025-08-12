@@ -4,7 +4,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -28,34 +27,7 @@ func (acd *AuthCodeDelete) Where(ps ...predicate.AuthCode) *AuthCodeDelete {
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (acd *AuthCodeDelete) Exec(ctx context.Context) (int, error) {
-	var (
-		err      error
-		affected int
-	)
-	if len(acd.hooks) == 0 {
-		affected, err = acd.sqlExec(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*AuthCodeMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			acd.mutation = mutation
-			affected, err = acd.sqlExec(ctx)
-			mutation.done = true
-			return affected, err
-		})
-		for i := len(acd.hooks) - 1; i >= 0; i-- {
-			if acd.hooks[i] == nil {
-				return 0, fmt.Errorf("db: uninitialized hook (forgotten import db/runtime?)")
-			}
-			mut = acd.hooks[i](mut)
-		}
-		if _, err := mut.Mutate(ctx, acd.mutation); err != nil {
-			return 0, err
-		}
-	}
-	return affected, err
+	return withHooks(ctx, acd.sqlExec, acd.mutation, acd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -68,15 +40,7 @@ func (acd *AuthCodeDelete) ExecX(ctx context.Context) int {
 }
 
 func (acd *AuthCodeDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := &sqlgraph.DeleteSpec{
-		Node: &sqlgraph.NodeSpec{
-			Table: authcode.Table,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeString,
-				Column: authcode.FieldID,
-			},
-		},
-	}
+	_spec := sqlgraph.NewDeleteSpec(authcode.Table, sqlgraph.NewFieldSpec(authcode.FieldID, field.TypeString))
 	if ps := acd.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -88,12 +52,19 @@ func (acd *AuthCodeDelete) sqlExec(ctx context.Context) (int, error) {
 	if err != nil && sqlgraph.IsConstraintError(err) {
 		err = &ConstraintError{msg: err.Error(), wrap: err}
 	}
+	acd.mutation.done = true
 	return affected, err
 }
 
 // AuthCodeDeleteOne is the builder for deleting a single AuthCode entity.
 type AuthCodeDeleteOne struct {
 	acd *AuthCodeDelete
+}
+
+// Where appends a list predicates to the AuthCodeDelete builder.
+func (acdo *AuthCodeDeleteOne) Where(ps ...predicate.AuthCode) *AuthCodeDeleteOne {
+	acdo.acd.mutation.Where(ps...)
+	return acdo
 }
 
 // Exec executes the deletion query.
@@ -111,5 +82,7 @@ func (acdo *AuthCodeDeleteOne) Exec(ctx context.Context) error {
 
 // ExecX is like Exec, but panics if an error occurs.
 func (acdo *AuthCodeDeleteOne) ExecX(ctx context.Context) {
-	acdo.acd.ExecX(ctx)
+	if err := acdo.Exec(ctx); err != nil {
+		panic(err)
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
@@ -17,11 +18,9 @@ import (
 // PasswordQuery is the builder for querying Password entities.
 type PasswordQuery struct {
 	config
-	limit      *int
-	offset     *int
-	unique     *bool
-	order      []OrderFunc
-	fields     []string
+	ctx        *QueryContext
+	order      []password.OrderOption
+	inters     []Interceptor
 	predicates []predicate.Password
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -34,27 +33,27 @@ func (pq *PasswordQuery) Where(ps ...predicate.Password) *PasswordQuery {
 	return pq
 }
 
-// Limit adds a limit step to the query.
+// Limit the number of records to be returned by this query.
 func (pq *PasswordQuery) Limit(limit int) *PasswordQuery {
-	pq.limit = &limit
+	pq.ctx.Limit = &limit
 	return pq
 }
 
-// Offset adds an offset step to the query.
+// Offset to start from.
 func (pq *PasswordQuery) Offset(offset int) *PasswordQuery {
-	pq.offset = &offset
+	pq.ctx.Offset = &offset
 	return pq
 }
 
 // Unique configures the query builder to filter duplicate records on query.
 // By default, unique is set to true, and can be disabled using this method.
 func (pq *PasswordQuery) Unique(unique bool) *PasswordQuery {
-	pq.unique = &unique
+	pq.ctx.Unique = &unique
 	return pq
 }
 
-// Order adds an order step to the query.
-func (pq *PasswordQuery) Order(o ...OrderFunc) *PasswordQuery {
+// Order specifies how the records should be ordered.
+func (pq *PasswordQuery) Order(o ...password.OrderOption) *PasswordQuery {
 	pq.order = append(pq.order, o...)
 	return pq
 }
@@ -62,7 +61,7 @@ func (pq *PasswordQuery) Order(o ...OrderFunc) *PasswordQuery {
 // First returns the first Password entity from the query.
 // Returns a *NotFoundError when no Password was found.
 func (pq *PasswordQuery) First(ctx context.Context) (*Password, error) {
-	nodes, err := pq.Limit(1).All(ctx)
+	nodes, err := pq.Limit(1).All(setContextOp(ctx, pq.ctx, ent.OpQueryFirst))
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +84,7 @@ func (pq *PasswordQuery) FirstX(ctx context.Context) *Password {
 // Returns a *NotFoundError when no Password ID was found.
 func (pq *PasswordQuery) FirstID(ctx context.Context) (id int, err error) {
 	var ids []int
-	if ids, err = pq.Limit(1).IDs(ctx); err != nil {
+	if ids, err = pq.Limit(1).IDs(setContextOp(ctx, pq.ctx, ent.OpQueryFirstID)); err != nil {
 		return
 	}
 	if len(ids) == 0 {
@@ -108,7 +107,7 @@ func (pq *PasswordQuery) FirstIDX(ctx context.Context) int {
 // Returns a *NotSingularError when more than one Password entity is found.
 // Returns a *NotFoundError when no Password entities are found.
 func (pq *PasswordQuery) Only(ctx context.Context) (*Password, error) {
-	nodes, err := pq.Limit(2).All(ctx)
+	nodes, err := pq.Limit(2).All(setContextOp(ctx, pq.ctx, ent.OpQueryOnly))
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +135,7 @@ func (pq *PasswordQuery) OnlyX(ctx context.Context) *Password {
 // Returns a *NotFoundError when no entities are found.
 func (pq *PasswordQuery) OnlyID(ctx context.Context) (id int, err error) {
 	var ids []int
-	if ids, err = pq.Limit(2).IDs(ctx); err != nil {
+	if ids, err = pq.Limit(2).IDs(setContextOp(ctx, pq.ctx, ent.OpQueryOnlyID)); err != nil {
 		return
 	}
 	switch len(ids) {
@@ -161,10 +160,12 @@ func (pq *PasswordQuery) OnlyIDX(ctx context.Context) int {
 
 // All executes the query and returns a list of Passwords.
 func (pq *PasswordQuery) All(ctx context.Context) ([]*Password, error) {
+	ctx = setContextOp(ctx, pq.ctx, ent.OpQueryAll)
 	if err := pq.prepareQuery(ctx); err != nil {
 		return nil, err
 	}
-	return pq.sqlAll(ctx)
+	qr := querierAll[[]*Password, *PasswordQuery]()
+	return withInterceptors[[]*Password](ctx, pq, qr, pq.inters)
 }
 
 // AllX is like All, but panics if an error occurs.
@@ -177,9 +178,12 @@ func (pq *PasswordQuery) AllX(ctx context.Context) []*Password {
 }
 
 // IDs executes the query and returns a list of Password IDs.
-func (pq *PasswordQuery) IDs(ctx context.Context) ([]int, error) {
-	var ids []int
-	if err := pq.Select(password.FieldID).Scan(ctx, &ids); err != nil {
+func (pq *PasswordQuery) IDs(ctx context.Context) (ids []int, err error) {
+	if pq.ctx.Unique == nil && pq.path != nil {
+		pq.Unique(true)
+	}
+	ctx = setContextOp(ctx, pq.ctx, ent.OpQueryIDs)
+	if err = pq.Select(password.FieldID).Scan(ctx, &ids); err != nil {
 		return nil, err
 	}
 	return ids, nil
@@ -196,10 +200,11 @@ func (pq *PasswordQuery) IDsX(ctx context.Context) []int {
 
 // Count returns the count of the given query.
 func (pq *PasswordQuery) Count(ctx context.Context) (int, error) {
+	ctx = setContextOp(ctx, pq.ctx, ent.OpQueryCount)
 	if err := pq.prepareQuery(ctx); err != nil {
 		return 0, err
 	}
-	return pq.sqlCount(ctx)
+	return withInterceptors[int](ctx, pq, querierCount[*PasswordQuery](), pq.inters)
 }
 
 // CountX is like Count, but panics if an error occurs.
@@ -213,10 +218,15 @@ func (pq *PasswordQuery) CountX(ctx context.Context) int {
 
 // Exist returns true if the query has elements in the graph.
 func (pq *PasswordQuery) Exist(ctx context.Context) (bool, error) {
-	if err := pq.prepareQuery(ctx); err != nil {
-		return false, err
+	ctx = setContextOp(ctx, pq.ctx, ent.OpQueryExist)
+	switch _, err := pq.FirstID(ctx); {
+	case IsNotFound(err):
+		return false, nil
+	case err != nil:
+		return false, fmt.Errorf("db: check existence: %w", err)
+	default:
+		return true, nil
 	}
-	return pq.sqlExist(ctx)
 }
 
 // ExistX is like Exist, but panics if an error occurs.
@@ -236,14 +246,13 @@ func (pq *PasswordQuery) Clone() *PasswordQuery {
 	}
 	return &PasswordQuery{
 		config:     pq.config,
-		limit:      pq.limit,
-		offset:     pq.offset,
-		order:      append([]OrderFunc{}, pq.order...),
+		ctx:        pq.ctx.Clone(),
+		order:      append([]password.OrderOption{}, pq.order...),
+		inters:     append([]Interceptor{}, pq.inters...),
 		predicates: append([]predicate.Password{}, pq.predicates...),
 		// clone intermediate query.
-		sql:    pq.sql.Clone(),
-		path:   pq.path,
-		unique: pq.unique,
+		sql:  pq.sql.Clone(),
+		path: pq.path,
 	}
 }
 
@@ -262,16 +271,11 @@ func (pq *PasswordQuery) Clone() *PasswordQuery {
 //		Aggregate(db.Count()).
 //		Scan(ctx, &v)
 func (pq *PasswordQuery) GroupBy(field string, fields ...string) *PasswordGroupBy {
-	grbuild := &PasswordGroupBy{config: pq.config}
-	grbuild.fields = append([]string{field}, fields...)
-	grbuild.path = func(ctx context.Context) (prev *sql.Selector, err error) {
-		if err := pq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		return pq.sqlQuery(ctx), nil
-	}
+	pq.ctx.Fields = append([]string{field}, fields...)
+	grbuild := &PasswordGroupBy{build: pq}
+	grbuild.flds = &pq.ctx.Fields
 	grbuild.label = password.Label
-	grbuild.flds, grbuild.scan = &grbuild.fields, grbuild.Scan
+	grbuild.scan = grbuild.Scan
 	return grbuild
 }
 
@@ -288,15 +292,30 @@ func (pq *PasswordQuery) GroupBy(field string, fields ...string) *PasswordGroupB
 //		Select(password.FieldEmail).
 //		Scan(ctx, &v)
 func (pq *PasswordQuery) Select(fields ...string) *PasswordSelect {
-	pq.fields = append(pq.fields, fields...)
-	selbuild := &PasswordSelect{PasswordQuery: pq}
-	selbuild.label = password.Label
-	selbuild.flds, selbuild.scan = &pq.fields, selbuild.Scan
-	return selbuild
+	pq.ctx.Fields = append(pq.ctx.Fields, fields...)
+	sbuild := &PasswordSelect{PasswordQuery: pq}
+	sbuild.label = password.Label
+	sbuild.flds, sbuild.scan = &pq.ctx.Fields, sbuild.Scan
+	return sbuild
+}
+
+// Aggregate returns a PasswordSelect configured with the given aggregations.
+func (pq *PasswordQuery) Aggregate(fns ...AggregateFunc) *PasswordSelect {
+	return pq.Select().Aggregate(fns...)
 }
 
 func (pq *PasswordQuery) prepareQuery(ctx context.Context) error {
-	for _, f := range pq.fields {
+	for _, inter := range pq.inters {
+		if inter == nil {
+			return fmt.Errorf("db: uninitialized interceptor (forgotten import db/runtime?)")
+		}
+		if trv, ok := inter.(Traverser); ok {
+			if err := trv.Traverse(ctx, pq); err != nil {
+				return err
+			}
+		}
+	}
+	for _, f := range pq.ctx.Fields {
 		if !password.ValidColumn(f) {
 			return &ValidationError{Name: f, err: fmt.Errorf("db: invalid field %q for query", f)}
 		}
@@ -316,10 +335,10 @@ func (pq *PasswordQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Pas
 		nodes = []*Password{}
 		_spec = pq.querySpec()
 	)
-	_spec.ScanValues = func(columns []string) ([]interface{}, error) {
+	_spec.ScanValues = func(columns []string) ([]any, error) {
 		return (*Password).scanValues(nil, columns)
 	}
-	_spec.Assign = func(columns []string, values []interface{}) error {
+	_spec.Assign = func(columns []string, values []any) error {
 		node := &Password{config: pq.config}
 		nodes = append(nodes, node)
 		return node.assignValues(columns, values)
@@ -338,38 +357,22 @@ func (pq *PasswordQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Pas
 
 func (pq *PasswordQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := pq.querySpec()
-	_spec.Node.Columns = pq.fields
-	if len(pq.fields) > 0 {
-		_spec.Unique = pq.unique != nil && *pq.unique
+	_spec.Node.Columns = pq.ctx.Fields
+	if len(pq.ctx.Fields) > 0 {
+		_spec.Unique = pq.ctx.Unique != nil && *pq.ctx.Unique
 	}
 	return sqlgraph.CountNodes(ctx, pq.driver, _spec)
 }
 
-func (pq *PasswordQuery) sqlExist(ctx context.Context) (bool, error) {
-	n, err := pq.sqlCount(ctx)
-	if err != nil {
-		return false, fmt.Errorf("db: check existence: %w", err)
-	}
-	return n > 0, nil
-}
-
 func (pq *PasswordQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := &sqlgraph.QuerySpec{
-		Node: &sqlgraph.NodeSpec{
-			Table:   password.Table,
-			Columns: password.Columns,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeInt,
-				Column: password.FieldID,
-			},
-		},
-		From:   pq.sql,
-		Unique: true,
-	}
-	if unique := pq.unique; unique != nil {
+	_spec := sqlgraph.NewQuerySpec(password.Table, password.Columns, sqlgraph.NewFieldSpec(password.FieldID, field.TypeInt))
+	_spec.From = pq.sql
+	if unique := pq.ctx.Unique; unique != nil {
 		_spec.Unique = *unique
+	} else if pq.path != nil {
+		_spec.Unique = true
 	}
-	if fields := pq.fields; len(fields) > 0 {
+	if fields := pq.ctx.Fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, password.FieldID)
 		for i := range fields {
@@ -385,10 +388,10 @@ func (pq *PasswordQuery) querySpec() *sqlgraph.QuerySpec {
 			}
 		}
 	}
-	if limit := pq.limit; limit != nil {
+	if limit := pq.ctx.Limit; limit != nil {
 		_spec.Limit = *limit
 	}
-	if offset := pq.offset; offset != nil {
+	if offset := pq.ctx.Offset; offset != nil {
 		_spec.Offset = *offset
 	}
 	if ps := pq.order; len(ps) > 0 {
@@ -404,7 +407,7 @@ func (pq *PasswordQuery) querySpec() *sqlgraph.QuerySpec {
 func (pq *PasswordQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(pq.driver.Dialect())
 	t1 := builder.Table(password.Table)
-	columns := pq.fields
+	columns := pq.ctx.Fields
 	if len(columns) == 0 {
 		columns = password.Columns
 	}
@@ -413,7 +416,7 @@ func (pq *PasswordQuery) sqlQuery(ctx context.Context) *sql.Selector {
 		selector = pq.sql
 		selector.Select(selector.Columns(columns...)...)
 	}
-	if pq.unique != nil && *pq.unique {
+	if pq.ctx.Unique != nil && *pq.ctx.Unique {
 		selector.Distinct()
 	}
 	for _, p := range pq.predicates {
@@ -422,12 +425,12 @@ func (pq *PasswordQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	for _, p := range pq.order {
 		p(selector)
 	}
-	if offset := pq.offset; offset != nil {
+	if offset := pq.ctx.Offset; offset != nil {
 		// limit is mandatory for offset clause. We start
 		// with default value, and override it below if needed.
 		selector.Offset(*offset).Limit(math.MaxInt32)
 	}
-	if limit := pq.limit; limit != nil {
+	if limit := pq.ctx.Limit; limit != nil {
 		selector.Limit(*limit)
 	}
 	return selector
@@ -435,13 +438,8 @@ func (pq *PasswordQuery) sqlQuery(ctx context.Context) *sql.Selector {
 
 // PasswordGroupBy is the group-by builder for Password entities.
 type PasswordGroupBy struct {
-	config
 	selector
-	fields []string
-	fns    []AggregateFunc
-	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	build *PasswordQuery
 }
 
 // Aggregate adds the given aggregation functions to the group-by query.
@@ -450,74 +448,77 @@ func (pgb *PasswordGroupBy) Aggregate(fns ...AggregateFunc) *PasswordGroupBy {
 	return pgb
 }
 
-// Scan applies the group-by query and scans the result into the given value.
-func (pgb *PasswordGroupBy) Scan(ctx context.Context, v interface{}) error {
-	query, err := pgb.path(ctx)
-	if err != nil {
+// Scan applies the selector query and scans the result into the given value.
+func (pgb *PasswordGroupBy) Scan(ctx context.Context, v any) error {
+	ctx = setContextOp(ctx, pgb.build.ctx, ent.OpQueryGroupBy)
+	if err := pgb.build.prepareQuery(ctx); err != nil {
 		return err
 	}
-	pgb.sql = query
-	return pgb.sqlScan(ctx, v)
+	return scanWithInterceptors[*PasswordQuery, *PasswordGroupBy](ctx, pgb.build, pgb, pgb.build.inters, v)
 }
 
-func (pgb *PasswordGroupBy) sqlScan(ctx context.Context, v interface{}) error {
-	for _, f := range pgb.fields {
-		if !password.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("invalid field %q for group-by", f)}
-		}
+func (pgb *PasswordGroupBy) sqlScan(ctx context.Context, root *PasswordQuery, v any) error {
+	selector := root.sqlQuery(ctx).Select()
+	aggregation := make([]string, 0, len(pgb.fns))
+	for _, fn := range pgb.fns {
+		aggregation = append(aggregation, fn(selector))
 	}
-	selector := pgb.sqlQuery()
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(*pgb.flds)+len(pgb.fns))
+		for _, f := range *pgb.flds {
+			columns = append(columns, selector.C(f))
+		}
+		columns = append(columns, aggregation...)
+		selector.Select(columns...)
+	}
+	selector.GroupBy(selector.Columns(*pgb.flds...)...)
 	if err := selector.Err(); err != nil {
 		return err
 	}
 	rows := &sql.Rows{}
 	query, args := selector.Query()
-	if err := pgb.driver.Query(ctx, query, args, rows); err != nil {
+	if err := pgb.build.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
 }
 
-func (pgb *PasswordGroupBy) sqlQuery() *sql.Selector {
-	selector := pgb.sql.Select()
-	aggregation := make([]string, 0, len(pgb.fns))
-	for _, fn := range pgb.fns {
-		aggregation = append(aggregation, fn(selector))
-	}
-	// If no columns were selected in a custom aggregation function, the default
-	// selection is the fields used for "group-by", and the aggregation functions.
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(pgb.fields)+len(pgb.fns))
-		for _, f := range pgb.fields {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
-	}
-	return selector.GroupBy(selector.Columns(pgb.fields...)...)
-}
-
 // PasswordSelect is the builder for selecting fields of Password entities.
 type PasswordSelect struct {
 	*PasswordQuery
 	selector
-	// intermediate query (i.e. traversal path).
-	sql *sql.Selector
+}
+
+// Aggregate adds the given aggregation functions to the selector query.
+func (ps *PasswordSelect) Aggregate(fns ...AggregateFunc) *PasswordSelect {
+	ps.fns = append(ps.fns, fns...)
+	return ps
 }
 
 // Scan applies the selector query and scans the result into the given value.
-func (ps *PasswordSelect) Scan(ctx context.Context, v interface{}) error {
+func (ps *PasswordSelect) Scan(ctx context.Context, v any) error {
+	ctx = setContextOp(ctx, ps.ctx, ent.OpQuerySelect)
 	if err := ps.prepareQuery(ctx); err != nil {
 		return err
 	}
-	ps.sql = ps.PasswordQuery.sqlQuery(ctx)
-	return ps.sqlScan(ctx, v)
+	return scanWithInterceptors[*PasswordQuery, *PasswordSelect](ctx, ps.PasswordQuery, ps, ps.inters, v)
 }
 
-func (ps *PasswordSelect) sqlScan(ctx context.Context, v interface{}) error {
+func (ps *PasswordSelect) sqlScan(ctx context.Context, root *PasswordQuery, v any) error {
+	selector := root.sqlQuery(ctx)
+	aggregation := make([]string, 0, len(ps.fns))
+	for _, fn := range ps.fns {
+		aggregation = append(aggregation, fn(selector))
+	}
+	switch n := len(*ps.selector.flds); {
+	case n == 0 && len(aggregation) > 0:
+		selector.Select(aggregation...)
+	case n != 0 && len(aggregation) > 0:
+		selector.AppendSelect(aggregation...)
+	}
 	rows := &sql.Rows{}
-	query, args := ps.sql.Query()
+	query, args := selector.Query()
 	if err := ps.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}

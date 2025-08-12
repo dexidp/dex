@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rsa"
@@ -20,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	jose "gopkg.in/square/go-jose.v2"
+	"github.com/go-jose/go-jose/v4"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
@@ -92,7 +93,6 @@ func tokenErr(w http.ResponseWriter, typ, description string, statusCode int) er
 	return nil
 }
 
-// nolint
 const (
 	errInvalidRequest          = "invalid_request"
 	errUnauthorizedClient      = "unauthorized_client"
@@ -105,6 +105,7 @@ const (
 	errUnsupportedGrantType    = "unsupported_grant_type"
 	errInvalidGrant            = "invalid_grant"
 	errInvalidClient           = "invalid_client"
+	errInactiveToken           = "inactive_token"
 )
 
 const (
@@ -131,12 +132,27 @@ const (
 	grantTypeImplicit          = "implicit"
 	grantTypePassword          = "password"
 	grantTypeDeviceCode        = "urn:ietf:params:oauth:grant-type:device_code"
+	grantTypeTokenExchange     = "urn:ietf:params:oauth:grant-type:token-exchange"
 )
 
 const (
-	responseTypeCode    = "code"     // "Regular" flow
-	responseTypeToken   = "token"    // Implicit flow for frontend apps.
-	responseTypeIDToken = "id_token" // ID Token in url fragment
+	// https://www.rfc-editor.org/rfc/rfc8693.html#section-3
+	tokenTypeAccess  = "urn:ietf:params:oauth:token-type:access_token"
+	tokenTypeRefresh = "urn:ietf:params:oauth:token-type:refresh_token"
+	tokenTypeID      = "urn:ietf:params:oauth:token-type:id_token"
+	tokenTypeSAML1   = "urn:ietf:params:oauth:token-type:saml1"
+	tokenTypeSAML2   = "urn:ietf:params:oauth:token-type:saml2"
+	tokenTypeJWT     = "urn:ietf:params:oauth:token-type:jwt"
+)
+
+const (
+	responseTypeCode             = "code"                // "Regular" flow
+	responseTypeToken            = "token"               // Implicit flow for frontend apps.
+	responseTypeIDToken          = "id_token"            // ID Token in url fragment
+	responseTypeCodeToken        = "code token"          // "Regular" flow + Implicit flow
+	responseTypeCodeIDToken      = "code id_token"       // "Regular" flow + ID Token
+	responseTypeIDTokenToken     = "id_token token"      // ID Token + Implicit flow
+	responseTypeCodeIDTokenToken = "code id_token token" // "Regular" flow + ID Token + Implicit flow
 )
 
 const (
@@ -210,9 +226,9 @@ func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []by
 // The hash algorithm for the at_hash is determined by the signing
 // algorithm used for the id_token. From the spec:
 //
-//    ...the hash algorithm used is the hash algorithm used in the alg Header
-//    Parameter of the ID Token's JOSE Header. For instance, if the alg is RS256,
-//    hash the access_token value with SHA-256
+//	...the hash algorithm used is the hash algorithm used in the alg Header
+//	Parameter of the ID Token's JOSE Header. For instance, if the alg is RS256,
+//	hash the access_token value with SHA-256
 //
 // https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDToken
 var hashForSigAlg = map[jose.SignatureAlgorithm]func() hash.Hash{
@@ -287,15 +303,57 @@ type federatedIDClaims struct {
 	UserID      string `json:"user_id,omitempty"`
 }
 
-func (s *Server) newAccessToken(clientID string, claims storage.Claims, scopes []string, nonce, connID string) (accessToken string, err error) {
-	idToken, _, err := s.newIDToken(clientID, claims, scopes, nonce, storage.NewID(), "", connID)
-	return idToken, err
+func (s *Server) newAccessToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, connID string) (accessToken string, expiry time.Time, err error) {
+	return s.newIDToken(ctx, clientID, claims, scopes, nonce, storage.NewID(), "", connID)
 }
 
-func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string) (idToken string, expiry time.Time, err error) {
-	keys, err := s.storage.GetKeys()
+func getClientID(aud audience, azp string) (string, error) {
+	switch len(aud) {
+	case 0:
+		return "", fmt.Errorf("no audience is set, could not find ClientID")
+	case 1:
+		return aud[0], nil
+	default:
+		return azp, nil
+	}
+}
+
+func getAudience(clientID string, scopes []string) audience {
+	var aud audience
+
+	for _, scope := range scopes {
+		if peerID, ok := parseCrossClientScope(scope); ok {
+			aud = append(aud, peerID)
+		}
+	}
+
+	if len(aud) == 0 {
+		// Client didn't ask for cross client audience. Set the current
+		// client as the audience.
+		aud = audience{clientID}
+		// Client asked for cross client audience:
+		// if the current client was not requested explicitly
+	} else if !aud.contains(clientID) {
+		// by default it becomes one of entries in Audience
+		aud = append(aud, clientID)
+	}
+
+	return aud
+}
+
+func genSubject(userID string, connID string) (string, error) {
+	sub := &internal.IDTokenSubject{
+		UserId: userID,
+		ConnId: connID,
+	}
+
+	return internal.Marshal(sub)
+}
+
+func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string) (idToken string, expiry time.Time, err error) {
+	keys, err := s.storage.GetKeys(ctx)
 	if err != nil {
-		s.logger.Errorf("Failed to get keys: %v", err)
+		s.logger.ErrorContext(ctx, "failed to get keys", "err", err)
 		return "", expiry, err
 	}
 
@@ -311,14 +369,9 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	issuedAt := s.now()
 	expiry = issuedAt.Add(s.idTokensValidFor)
 
-	sub := &internal.IDTokenSubject{
-		UserId: claims.UserID,
-		ConnId: connID,
-	}
-
-	subjectString, err := internal.Marshal(sub)
+	subjectString, err := genSubject(claims.UserID, connID)
 	if err != nil {
-		s.logger.Errorf("failed to marshal offline session ID: %v", err)
+		s.logger.ErrorContext(ctx, "failed to marshal offline session ID", "err", err)
 		return "", expiry, fmt.Errorf("failed to marshal offline session ID: %v", err)
 	}
 
@@ -333,7 +386,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	if accessToken != "" {
 		atHash, err := accessTokenHash(signingAlg, accessToken)
 		if err != nil {
-			s.logger.Errorf("error computing at_hash: %v", err)
+			s.logger.ErrorContext(ctx, "error computing at_hash", "err", err)
 			return "", expiry, fmt.Errorf("error computing at_hash: %v", err)
 		}
 		tok.AccessTokenHash = atHash
@@ -342,7 +395,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 	if code != "" {
 		cHash, err := accessTokenHash(signingAlg, code)
 		if err != nil {
-			s.logger.Errorf("error computing c_hash: %v", err)
+			s.logger.ErrorContext(ctx, "error computing c_hash", "err", err)
 			return "", expiry, fmt.Errorf("error computing c_hash: #{err}")
 		}
 		tok.CodeHash = cHash
@@ -370,7 +423,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 				// initial auth request.
 				continue
 			}
-			isTrusted, err := s.validateCrossClientTrust(clientID, peerID)
+			isTrusted, err := s.validateCrossClientTrust(ctx, clientID, peerID)
 			if err != nil {
 				return "", expiry, err
 			}
@@ -378,21 +431,11 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 				// TODO(ericchiang): propagate this error to the client.
 				return "", expiry, fmt.Errorf("peer (%s) does not trust client", peerID)
 			}
-			tok.Audience = append(tok.Audience, peerID)
 		}
 	}
 
-	if len(tok.Audience) == 0 {
-		// Client didn't ask for cross client audience. Set the current
-		// client as the audience.
-		tok.Audience = audience{clientID}
-	} else {
-		// Client asked for cross client audience:
-		// if the current client was not requested explicitly
-		if !tok.Audience.contains(clientID) {
-			// by default it becomes one of entries in Audience
-			tok.Audience = append(tok.Audience, clientID)
-		}
+	tok.Audience = getAudience(clientID, scopes)
+	if len(tok.Audience) > 1 {
 		// The current client becomes the authorizing party.
 		tok.AuthorizingParty = clientID
 	}
@@ -410,6 +453,7 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 
 // parse the initial request from the OAuth2 client.
 func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthRequest, error) {
+	ctx := r.Context()
 	if err := r.ParseForm(); err != nil {
 		return nil, newDisplayedErr(http.StatusBadRequest, "Failed to parse request.")
 	}
@@ -434,12 +478,12 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		codeChallengeMethod = codeChallengeMethodPlain
 	}
 
-	client, err := s.storage.GetClient(clientID)
+	client, err := s.storage.GetClient(ctx, clientID)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			return nil, newDisplayedErr(http.StatusNotFound, "Invalid client_id (%q).", clientID)
 		}
-		s.logger.Errorf("Failed to get client: %v", err)
+		s.logger.ErrorContext(r.Context(), "failed to get client", "err", err)
 		return nil, newDisplayedErr(http.StatusInternalServerError, "Database error.")
 	}
 
@@ -456,9 +500,9 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	}
 
 	if connectorID != "" {
-		connectors, err := s.storage.ListConnectors()
+		connectors, err := s.storage.ListConnectors(ctx)
 		if err != nil {
-			s.logger.Errorf("Failed to list connectors: %v", err)
+			s.logger.ErrorContext(r.Context(), "failed to list connectors", "err", err)
 			return nil, newRedirectedErr(errServerError, "Unable to retrieve connectors")
 		}
 		if !validateConnectorID(connectors, connectorID) {
@@ -494,7 +538,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 				continue
 			}
 
-			isTrusted, err := s.validateCrossClientTrust(clientID, peerID)
+			isTrusted, err := s.validateCrossClientTrust(r.Context(), clientID, peerID)
 			if err != nil {
 				return nil, newRedirectedErr(errServerError, "Internal server error.")
 			}
@@ -576,6 +620,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 			CodeChallenge:       codeChallenge,
 			CodeChallengeMethod: codeChallengeMethod,
 		},
+		HMACKey: storage.NewHMACKey(crypto.SHA256),
 	}, nil
 }
 
@@ -586,14 +631,14 @@ func parseCrossClientScope(scope string) (peerID string, ok bool) {
 	return
 }
 
-func (s *Server) validateCrossClientTrust(clientID, peerID string) (trusted bool, err error) {
+func (s *Server) validateCrossClientTrust(ctx context.Context, clientID, peerID string) (trusted bool, err error) {
 	if peerID == clientID {
 		return true, nil
 	}
-	peer, err := s.storage.GetClient(peerID)
+	peer, err := s.storage.GetClient(ctx, peerID)
 	if err != nil {
 		if err != storage.ErrNotFound {
-			s.logger.Errorf("Failed to get client: %v", err)
+			s.logger.ErrorContext(ctx, "failed to get client", "err", err)
 			return false, err
 		}
 		return false, nil
@@ -624,7 +669,8 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 		return true
 	}
 
-	// verify that the host is of form "http://localhost:(port)(path)" or "http://localhost(path)"
+	// verify that the host is of form "http://localhost:(port)(path)", "http://localhost(path)" or numeric form like
+	// "http://127.0.0.1:(port)(path)"
 	u, err := url.Parse(redirectURI)
 	if err != nil {
 		return false
@@ -632,11 +678,20 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 	if u.Scheme != "http" {
 		return false
 	}
-	if u.Host == "localhost" {
+	return isHostLocal(u.Host)
+}
+
+func isHostLocal(host string) bool {
+	if host == "localhost" || net.ParseIP(host).IsLoopback() {
 		return true
 	}
-	host, _, err := net.SplitHostPort(u.Host)
-	return err == nil && host == "localhost"
+
+	host, _, err := net.SplitHostPort(host)
+	if err != nil {
+		return false
+	}
+
+	return host == "localhost" || net.ParseIP(host).IsLoopback()
 }
 
 func validateConnectorID(connectors []storage.Connector, connectorID string) bool {
@@ -653,8 +708,8 @@ type storageKeySet struct {
 	storage.Storage
 }
 
-func (s *storageKeySet) VerifySignature(_ context.Context, jwt string) (payload []byte, err error) {
-	jws, err := jose.ParseSigned(jwt)
+func (s *storageKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
+	jws, err := jose.ParseSigned(jwt, []jose.SignatureAlgorithm{jose.RS256, jose.RS384, jose.RS512, jose.ES256, jose.ES384, jose.ES512})
 	if err != nil {
 		return nil, err
 	}
@@ -665,7 +720,7 @@ func (s *storageKeySet) VerifySignature(_ context.Context, jwt string) (payload 
 		break
 	}
 
-	skeys, err := s.Storage.GetKeys()
+	skeys, err := s.Storage.GetKeys(ctx)
 	if err != nil {
 		return nil, err
 	}

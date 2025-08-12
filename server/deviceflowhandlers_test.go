@@ -90,6 +90,14 @@ func TestHandleDeviceCode(t *testing.T) {
 			expectedResponseCode: http.StatusBadRequest,
 			expectedContentType:  "application/json",
 		},
+		{
+			testName:             "New Code without scope",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{},
+			expectedResponseCode: http.StatusOK,
+			expectedContentType:  "application/json",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.testName, func(t *testing.T) {
@@ -366,15 +374,15 @@ func TestDeviceCallback(t *testing.T) {
 			})
 			defer httpServer.Close()
 
-			if err := s.storage.CreateAuthCode(tc.testAuthCode); err != nil {
+			if err := s.storage.CreateAuthCode(ctx, tc.testAuthCode); err != nil {
 				t.Fatalf("failed to create auth code: %v", err)
 			}
 
-			if err := s.storage.CreateDeviceRequest(tc.testDeviceRequest); err != nil {
+			if err := s.storage.CreateDeviceRequest(ctx, tc.testDeviceRequest); err != nil {
 				t.Fatalf("failed to create device request: %v", err)
 			}
 
-			if err := s.storage.CreateDeviceToken(tc.testDeviceToken); err != nil {
+			if err := s.storage.CreateDeviceToken(ctx, tc.testDeviceToken); err != nil {
 				t.Fatalf("failed to create device token: %v", err)
 			}
 
@@ -383,7 +391,7 @@ func TestDeviceCallback(t *testing.T) {
 				Secret:       "",
 				RedirectURIs: []string{deviceCallbackURI},
 			}
-			if err := s.storage.CreateClient(client); err != nil {
+			if err := s.storage.CreateClient(ctx, client); err != nil {
 				t.Fatalf("failed to create client: %v", err)
 			}
 
@@ -459,7 +467,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			},
 			testDeviceCode:         "f00bar",
 			expectedServerResponse: deviceTokenPending,
-			expectedResponseCode:   http.StatusUnauthorized,
+			expectedResponseCode:   http.StatusBadRequest,
 		},
 		{
 			testName:          "Invalid Grant Type",
@@ -508,7 +516,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			expectedResponseCode:   http.StatusBadRequest,
 		},
 		{
-			testName:          "Test Non-existent Device Code",
+			testName:          "Test Nonexistent Device Code",
 			testDeviceRequest: baseDeviceRequest,
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "foo",
@@ -660,11 +668,11 @@ func TestDeviceTokenResponse(t *testing.T) {
 			})
 			defer httpServer.Close()
 
-			if err := s.storage.CreateDeviceRequest(tc.testDeviceRequest); err != nil {
+			if err := s.storage.CreateDeviceRequest(ctx, tc.testDeviceRequest); err != nil {
 				t.Fatalf("Failed to store device token %v", err)
 			}
 
-			if err := s.storage.CreateDeviceToken(tc.testDeviceToken); err != nil {
+			if err := s.storage.CreateDeviceToken(ctx, tc.testDeviceToken); err != nil {
 				t.Fatalf("Failed to store device token %v", err)
 			}
 
@@ -794,7 +802,7 @@ func TestVerifyCodeResponse(t *testing.T) {
 			})
 			defer httpServer.Close()
 
-			if err := s.storage.CreateDeviceRequest(tc.testDeviceRequest); err != nil {
+			if err := s.storage.CreateDeviceRequest(ctx, tc.testDeviceRequest); err != nil {
 				t.Fatalf("Failed to store device token %v", err)
 			}
 

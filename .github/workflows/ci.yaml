@@ -2,26 +2,30 @@ name: CI
 
 on:
   push:
-    branches:
-      - master
+    branches: [master]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  build:
-    name: Build
+  test:
+    name: Test
     runs-on: ubuntu-latest
-    env:
-      GOFLAGS: -mod=readonly
 
     services:
       postgres:
         image: postgres:10.8
+        env:
+          TZ: UTC
         ports:
           - 5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
       postgres-ent:
         image: postgres:10.8
+        env:
+          TZ: UTC
         ports:
           - 5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
@@ -61,25 +65,31 @@ jobs:
         options: --health-cmd "curl --fail http://localhost:5000/v3" --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
-          go-version: 1.18
-
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Start services
-        run: docker-compose -f docker-compose.test.yaml up -d
-
-      - name: Create kind cluster
-        uses: helm/kind-action@v1.3.0
-        with:
-          version: v0.11.1
-          node_image: kindest/node:v1.19.11@sha256:07db187ae84b4b7de440a73886f008cf903fcf5764ba8106a9fd5243d6f32729
+          go-version: "1.24"
 
       - name: Download tool dependencies
         run: make deps
+
+      # Ensure that generated files were committed.
+      # It can help us determine, that the code is in the intermediate state, which should not be tested.
+      # Thus, heavy jobs like creating a kind cluster and testing / linting will be skipped.
+      - name: Verify
+        run: make verify
+
+      - name: Start services
+        run: docker compose -f docker-compose.test.yaml up -d
+
+      - name: Create kind cluster
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          version: "v0.17.0"
+          node_image: "kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5"
 
       - name: Test
         run: make testall
@@ -111,8 +121,8 @@ jobs:
           DEX_ETCD_ENDPOINTS: http://localhost:${{ job.services.etcd.ports[2379] }}
 
           DEX_LDAP_HOST: localhost
-          DEX_LDAP_PORT: 389
-          DEX_LDAP_TLS_PORT: 636
+          DEX_LDAP_PORT: 3890
+          DEX_LDAP_TLS_PORT: 6360
 
           DEX_KEYSTONE_URL: http://localhost:${{ job.services.keystone.ports[5000] }}
           DEX_KEYSTONE_ADMIN_URL: http://localhost:${{ job.services.keystone.ports[35357] }}
@@ -121,9 +131,48 @@ jobs:
 
           DEX_KUBERNETES_CONFIG_PATH: ~/.kube/config
 
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: "1.24"
+
+      - name: Download golangci-lint
+        run: make bin/golangci-lint
+
       - name: Lint
         run: make lint
 
-      # Ensure proto generation doesn't depend on external packages.
-      - name: Verify proto
-        run: make verify-proto
+  artifacts:
+    name: Artifacts
+    uses: ./.github/workflows/artifacts.yaml
+    with:
+      publish: ${{ github.event_name == 'push' }}
+    secrets:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    permissions:
+      attestations: write
+      contents: read
+      packages: write
+      id-token: write
+      security-events: write
+
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@da24556b548a50705dd671f47852072ea4c105d9 # v4.7.1

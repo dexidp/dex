@@ -32,6 +32,11 @@ body {
   outline: none;
 }
 
+.dex-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .dex-btn-icon {
   background-position: center;
   background-repeat: no-repeat;
@@ -51,6 +56,11 @@ body {
 .dex-btn-icon--local {
   background-color: #84B6EF;
   background-image: url(../static/img/email-icon.svg);
+}
+
+.dex-btn-icon--gitea {
+  background-color: #F5F5F5;
+  background-image: url(../static/img/gitea-icon.svg);
 }
 
 .dex-btn-icon--github {

@@ -3,27 +3,25 @@ run:
 
 linters-settings:
     depguard:
-        list-type: blacklist
-        include-go-root: true
-        packages:
-            - io/ioutil
-        packages-with-error-message:
-            - io/ioutil: "The 'io/ioutil' package is deprecated. Use corresponding 'os' or 'io' functions instead."
+        rules:
+            deprecated:
+                deny:
+                    - pkg: "io/ioutil"
+                      desc: "The 'io/ioutil' package is deprecated. Use corresponding 'os' or 'io' functions instead."
     gci:
-        local-prefixes: github.com/dexidp/dex
+        sections:
+            - standard
+            - default
+            - prefix(github.com/dexidp/dex)
     goimports:
         local-prefixes: github.com/dexidp/dex
-
 
 linters:
     disable-all: true
     enable:
-        - bodyclose
-        - deadcode
         - depguard
         - dogsled
         - exhaustive
-        - exportloopref
         - gci
         - gochecknoinits
         - gocritic
@@ -38,21 +36,25 @@ linters:
         - nakedret
         - nolintlint
         - prealloc
-        - revive
-        - rowserrcheck
-        - sqlclosecheck
+        # - revive
+        # - sqlclosecheck
         - staticcheck
-        - structcheck
         - stylecheck
-        - tparallel
         - unconvert
-        - unparam
         - unused
-        - varcheck
         - whitespace
 
+        # Disable temporarily until everything works with Go 1.20
+        # - bodyclose
+        # - rowserrcheck
+        # - tparallel
+        # - unparam
+
         # Disable temporarily until everything works with Go 1.18
-        # - typecheck
+        - typecheck
+
+        # Disable temporarily until the following issue is resolved: https://github.com/golangci/golangci-lint/issues/3086
+        # - sqlclosecheck
 
         # TODO: fix linter errors before enabling
         # - exhaustivestruct
@@ -62,6 +64,7 @@ linters:
         # - godot
         # - nlreturn
         # - noctx
+        # - revive
         # - wrapcheck
 
         # TODO: fix linter errors before enabling (from original config)
@@ -88,3 +91,7 @@ linters:
         # - nestif
         # - testpackage
         # - wsl
+
+issues:
+    exclude-dirs:
+        - storage/ent/db # generated ent code

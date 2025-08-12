@@ -7,13 +7,15 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
+	"net/url"
 	"os"
+	"strings"
 
 	"github.com/go-ldap/ldap/v3"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 // Config holds the configuration parameters for the LDAP connector. The LDAP
@@ -60,6 +62,8 @@ import (
 type UserMatcher struct {
 	UserAttr  string `json:"userAttr"`
 	GroupAttr string `json:"groupAttr"`
+	// Look for parent groups
+	RecursionGroupAttr string `json:"recursionGroupAttr"`
 }
 
 // Config holds configuration options for LDAP logins.
@@ -142,6 +146,8 @@ type Config struct {
 		UserAttr  string `json:"userAttr"`
 		GroupAttr string `json:"groupAttr"`
 
+		RecursionGroupAttr string `json:"recursionGroupAttr"`
+
 		// Array of the field pairs used to match a user to a group.
 		// See the "UserMatcher" struct for the exact field names
 		//
@@ -187,22 +193,24 @@ func parseScope(s string) (int, bool) {
 // Function exists here to allow backward compatibility between old and new
 // group to user matching implementations.
 // See "Config.GroupSearch.UserMatchers" comments for the details
-func userMatchers(c *Config, logger log.Logger) []UserMatcher {
+func userMatchers(c *Config, logger *slog.Logger) []UserMatcher {
 	if len(c.GroupSearch.UserMatchers) > 0 && c.GroupSearch.UserMatchers[0].UserAttr != "" {
 		return c.GroupSearch.UserMatchers
 	}
 
-	log.Deprecated(logger, `LDAP: use groupSearch.userMatchers option instead of "userAttr/groupAttr" fields.`)
+	logger.Warn(`use "groupSearch.userMatchers" option instead of "userAttr/groupAttr" fields`, "deprecated", true)
 	return []UserMatcher{
 		{
-			UserAttr:  c.GroupSearch.UserAttr,
-			GroupAttr: c.GroupSearch.GroupAttr,
+			UserAttr:           c.GroupSearch.UserAttr,
+			GroupAttr:          c.GroupSearch.GroupAttr,
+			RecursionGroupAttr: c.GroupSearch.RecursionGroupAttr,
 		},
 	}
 }
 
 // Open returns an authentication strategy using LDAP.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
+	logger = logger.With(slog.Group("connector", "type", "ldap", "id", id))
 	conn, err := c.OpenConnector(logger)
 	if err != nil {
 		return nil, err
@@ -216,7 +224,7 @@ type refreshData struct {
 }
 
 // OpenConnector is the same as Open but returns a type with all implemented connector interfaces.
-func (c *Config) OpenConnector(logger log.Logger) (interface {
+func (c *Config) OpenConnector(logger *slog.Logger) (interface {
 	connector.Connector
 	connector.PasswordConnector
 	connector.RefreshConnector
@@ -225,7 +233,7 @@ func (c *Config) OpenConnector(logger log.Logger) (interface {
 	return c.openConnector(logger)
 }
 
-func (c *Config) openConnector(logger log.Logger) (*ldapConnector, error) {
+func (c *Config) openConnector(logger *slog.Logger) (*ldapConnector, error) {
 	requiredFields := []struct {
 		name string
 		val  string
@@ -299,7 +307,7 @@ type ldapConnector struct {
 
 	tlsConfig *tls.Config
 
-	logger log.Logger
+	logger *slog.Logger
 }
 
 var (
@@ -316,11 +324,14 @@ func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error 
 		conn *ldap.Conn
 		err  error
 	)
+
 	switch {
 	case c.InsecureNoSSL:
-		conn, err = ldap.Dial("tcp", c.Host)
+		u := url.URL{Scheme: "ldap", Host: c.Host}
+		conn, err = ldap.DialURL(u.String())
 	case c.StartTLS:
-		conn, err = ldap.Dial("tcp", c.Host)
+		u := url.URL{Scheme: "ldap", Host: c.Host}
+		conn, err = ldap.DialURL(u.String())
 		if err != nil {
 			return fmt.Errorf("failed to connect: %v", err)
 		}
@@ -328,7 +339,8 @@ func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error 
 			return fmt.Errorf("start TLS failed: %v", err)
 		}
 	default:
-		conn, err = ldap.DialTLS("tcp", c.Host, c.tlsConfig)
+		u := url.URL{Scheme: "ldaps", Host: c.Host}
+		conn, err = ldap.DialURL(u.String(), ldap.DialWithTLSConfig(c.tlsConfig))
 	}
 	if err != nil {
 		return fmt.Errorf("failed to connect: %v", err)
@@ -347,21 +359,23 @@ func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error 
 	return f(conn)
 }
 
-func getAttrs(e ldap.Entry, name string) []string {
+func (c *ldapConnector) getAttrs(e ldap.Entry, name string) []string {
 	for _, a := range e.Attributes {
 		if a.Name != name {
 			continue
 		}
 		return a.Values
 	}
-	if name == "DN" {
+	if strings.ToLower(name) == "dn" {
 		return []string{e.DN}
 	}
+
+	c.logger.Debug("attribute is not fround in entry", "attribute", name)
 	return nil
 }
 
-func getAttr(e ldap.Entry, name string) string {
-	if a := getAttrs(e, name); len(a) > 0 {
+func (c *ldapConnector) getAttr(e ldap.Entry, name string) string {
+	if a := c.getAttrs(e, name); len(a) > 0 {
 		return a[0]
 	}
 	return ""
@@ -373,25 +387,25 @@ func (c *ldapConnector) identityFromEntry(user ldap.Entry) (ident connector.Iden
 	missing := []string{}
 
 	// Fill the identity struct using the attributes from the user entry.
-	if ident.UserID = getAttr(user, c.UserSearch.IDAttr); ident.UserID == "" {
+	if ident.UserID = c.getAttr(user, c.UserSearch.IDAttr); ident.UserID == "" {
 		missing = append(missing, c.UserSearch.IDAttr)
 	}
 
 	if c.UserSearch.NameAttr != "" {
-		if ident.Username = getAttr(user, c.UserSearch.NameAttr); ident.Username == "" {
+		if ident.Username = c.getAttr(user, c.UserSearch.NameAttr); ident.Username == "" {
 			missing = append(missing, c.UserSearch.NameAttr)
 		}
 	}
 
 	if c.UserSearch.PreferredUsernameAttrAttr != "" {
-		if ident.PreferredUsername = getAttr(user, c.UserSearch.PreferredUsernameAttrAttr); ident.PreferredUsername == "" {
+		if ident.PreferredUsername = c.getAttr(user, c.UserSearch.PreferredUsernameAttrAttr); ident.PreferredUsername == "" {
 			missing = append(missing, c.UserSearch.PreferredUsernameAttrAttr)
 		}
 	}
 
 	if c.UserSearch.EmailSuffix != "" {
 		ident.Email = ident.Username + "@" + c.UserSearch.EmailSuffix
-	} else if ident.Email = getAttr(user, c.UserSearch.EmailAttr); ident.Email == "" {
+	} else if ident.Email = c.getAttr(user, c.UserSearch.EmailAttr); ident.Email == "" {
 		missing = append(missing, c.UserSearch.EmailAttr)
 	}
 	// TODO(ericchiang): Let this value be set from an attribute.
@@ -435,8 +449,8 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 		req.Attributes = append(req.Attributes, c.UserSearch.PreferredUsernameAttrAttr)
 	}
 
-	c.logger.Infof("performing ldap search %s %s %s",
-		req.BaseDN, scopeString(req.Scope), req.Filter)
+	c.logger.Info("performing ldap search",
+		"base_dn", req.BaseDN, "scope", scopeString(req.Scope), "filter", req.Filter)
 	resp, err := conn.Search(req)
 	if err != nil {
 		return ldap.Entry{}, false, fmt.Errorf("ldap: search with filter %q failed: %v", req.Filter, err)
@@ -444,11 +458,11 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 
 	switch n := len(resp.Entries); n {
 	case 0:
-		c.logger.Errorf("ldap: no results returned for filter: %q", filter)
+		c.logger.Error("no results returned for filter", "filter", filter)
 		return ldap.Entry{}, false, nil
 	case 1:
 		user = *resp.Entries[0]
-		c.logger.Infof("username %q mapped to entry %s", username, user.DN)
+		c.logger.Info("username mapped to entry", "username", username, "user_dn", user.DN)
 		return user, true, nil
 	default:
 		return ldap.Entry{}, false, fmt.Errorf("ldap: filter returned multiple (%d) results: %q", n, filter)
@@ -457,6 +471,7 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 
 func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (ident connector.Identity, validPass bool, err error) {
 	// make this check to avoid unauthenticated bind to the LDAP server.
+
 	if password == "" {
 		return connector.Identity{}, false, nil
 	}
@@ -467,6 +482,8 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 		incorrectPass = false
 		user          ldap.Entry
 	)
+
+	username = ldap.EscapeFilter(username)
 
 	err = c.do(ctx, func(conn *ldap.Conn) error {
 		entry, found, err := c.userEntry(conn, username)
@@ -485,11 +502,11 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 			if ldapErr, ok := err.(*ldap.Error); ok {
 				switch ldapErr.ResultCode {
 				case ldap.LDAPResultInvalidCredentials:
-					c.logger.Errorf("ldap: invalid password for user %q", user.DN)
+					c.logger.Error("invalid password for user", "user_dn", user.DN)
 					incorrectPass = true
 					return nil
 				case ldap.LDAPResultConstraintViolation:
-					c.logger.Errorf("ldap: constraint violation for user %q: %s", user.DN, ldapErr.Error())
+					c.logger.Error("constraint violation for user", "user_dn", user.DN, "err", ldapErr.Error())
 					incorrectPass = true
 					return nil
 				}
@@ -575,61 +592,124 @@ func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident c
 
 func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, error) {
 	if c.GroupSearch.BaseDN == "" {
-		c.logger.Debugf("No groups returned for %q because no groups baseDN has been configured.", getAttr(user, c.UserSearch.NameAttr))
+		c.logger.Debug("No groups returned because no groups baseDN has been configured.", "base_dn", c.getAttr(user, c.UserSearch.NameAttr))
 		return nil, nil
 	}
 
-	var groups []*ldap.Entry
+	var groupNames []string
+
 	for _, matcher := range c.GroupSearch.UserMatchers {
-		for _, attr := range getAttrs(user, matcher.UserAttr) {
-			filter := fmt.Sprintf("(%s=%s)", matcher.GroupAttr, ldap.EscapeFilter(attr))
-			if c.GroupSearch.Filter != "" {
-				filter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, filter)
-			}
-
-			req := &ldap.SearchRequest{
-				BaseDN:     c.GroupSearch.BaseDN,
-				Filter:     filter,
-				Scope:      c.groupSearchScope,
-				Attributes: []string{c.GroupSearch.NameAttr},
-			}
-
-			gotGroups := false
-			if err := c.do(ctx, func(conn *ldap.Conn) error {
-				c.logger.Infof("performing ldap search %s %s %s",
-					req.BaseDN, scopeString(req.Scope), req.Filter)
-				resp, err := conn.Search(req)
-				if err != nil {
-					return fmt.Errorf("ldap: search failed: %v", err)
-				}
-				gotGroups = len(resp.Entries) != 0
-				groups = append(groups, resp.Entries...)
-				return nil
-			}); err != nil {
+		// Initial Search
+		var groups []*ldap.Entry
+		for _, attr := range c.getAttrs(user, matcher.UserAttr) {
+			obtained, filter, err := c.queryGroups(ctx, matcher.GroupAttr, attr)
+			if err != nil {
 				return nil, err
 			}
+			gotGroups := len(obtained) != 0
 			if !gotGroups {
 				// TODO(ericchiang): Is this going to spam the logs?
-				c.logger.Errorf("ldap: groups search with filter %q returned no groups", filter)
+				c.logger.Error("ldap: groups search returned no groups", "filter", filter)
 			}
-		}
-	}
-
-	groupNames := make([]string, 0, len(groups))
-	for _, group := range groups {
-		name := getAttr(*group, c.GroupSearch.NameAttr)
-		if name == "" {
-			// Be obnoxious about missing missing attributes. If the group entry is
-			// missing its name attribute, that indicates a misconfiguration.
-			//
-			// In the future we can add configuration options to just log these errors.
-			return nil, fmt.Errorf("ldap: group entity %q missing required attribute %q",
-				group.DN, c.GroupSearch.NameAttr)
+			groups = append(groups, obtained...)
 		}
 
-		groupNames = append(groupNames, name)
+		// If RecursionGroupAttr is not set, convert direct groups into names and return
+		if matcher.RecursionGroupAttr == "" {
+			for _, group := range groups {
+				name := c.getAttr(*group, c.GroupSearch.NameAttr)
+				if name == "" {
+					return nil, fmt.Errorf(
+						"ldap: group entity %q missing required attribute %q",
+						group.DN, c.GroupSearch.NameAttr,
+					)
+				}
+				groupNames = append(groupNames, name)
+			}
+			continue
+		}
+
+		// Recursive Search
+		c.logger.Info("Recursive group search enabled", "groupAttr", matcher.GroupAttr, "recursionAttr", matcher.RecursionGroupAttr)
+		for {
+			var nextLevel []*ldap.Entry
+			for _, group := range groups {
+				name := c.getAttr(*group, c.GroupSearch.NameAttr)
+				if name == "" {
+					return nil, fmt.Errorf("ldap: group entity %q missing required attribute %q",
+						group.DN, c.GroupSearch.NameAttr)
+				}
+
+				// Prevent duplicates and circular references.
+				duplicate := false
+				for _, existingName := range groupNames {
+					if name == existingName {
+						c.logger.Debug("Found duplicate group", "name", name)
+						duplicate = true
+						break
+					}
+				}
+				if duplicate {
+					continue
+				}
+
+				groupNames = append(groupNames, name)
+
+				// Search for parent groups using the group's DN.
+				parents, filter, err := c.queryGroups(ctx, matcher.RecursionGroupAttr, group.DN)
+				if err != nil {
+					return nil, err
+				}
+				if len(parents) == 0 {
+					c.logger.Debug("No parent groups found", "filter", filter)
+				} else {
+					nextLevel = append(nextLevel, parents...)
+				}
+			}
+			if len(nextLevel) == 0 {
+				break
+			}
+			groups = nextLevel
+		}
 	}
 	return groupNames, nil
+}
+
+func (c *ldapConnector) queryGroups(ctx context.Context, memberAttr, dn string) ([]*ldap.Entry, string, error) {
+	filter := fmt.Sprintf("(%s=%s)", memberAttr, ldap.EscapeFilter(dn))
+	if c.GroupSearch.Filter != "" {
+		filter = fmt.Sprintf("(&%s%s)", c.GroupSearch.Filter, filter)
+	}
+
+	req := &ldap.SearchRequest{
+		BaseDN:     c.GroupSearch.BaseDN,
+		Filter:     filter,
+		Scope:      c.groupSearchScope,
+		Attributes: []string{c.GroupSearch.NameAttr},
+	}
+
+	var entries []*ldap.Entry
+	if err := c.do(ctx, func(conn *ldap.Conn) error {
+		c.logger.Info(
+			"performing ldap search",
+			"base_dn", req.BaseDN,
+			"scope", scopeString(req.Scope),
+			"filter", req.Filter,
+		)
+		resp, err := conn.Search(req)
+		if err != nil {
+			if ldapErr, ok := err.(*ldap.Error); ok && ldapErr.ResultCode == ldap.LDAPResultNoSuchObject {
+				c.logger.Info("LDAP search returned no groups", "filter", filter)
+				return nil
+			}
+			return fmt.Errorf("ldap: search failed: %v", err)
+		}
+		entries = append(entries, resp.Entries...)
+		return nil
+	}); err != nil {
+		return nil, filter, err
+	}
+	return entries, filter, nil
 }
 
 func (c *ldapConnector) Prompt() string {

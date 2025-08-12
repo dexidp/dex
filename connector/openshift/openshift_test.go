@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/httpclient"
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
 
@@ -36,7 +37,7 @@ func TestOpen(t *testing.T) {
 		InsecureCA:   true,
 	}
 
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	oconfig, err := c.Open("id", logger)
 
@@ -70,7 +71,7 @@ func TestGetUser(t *testing.T) {
 	_, err = http.NewRequest("GET", hostURL.String(), nil)
 	expectNil(t, err)
 
-	h, err := newHTTPClient(true, "")
+	h, err := httpclient.NewHTTPClient(nil, true)
 
 	expectNil(t, err)
 
@@ -128,7 +129,7 @@ func TestVerifyGroup(t *testing.T) {
 	_, err = http.NewRequest("GET", hostURL.String(), nil)
 	expectNil(t, err)
 
-	h, err := newHTTPClient(true, "")
+	h, err := httpclient.NewHTTPClient(nil, true)
 
 	expectNil(t, err)
 
@@ -164,7 +165,7 @@ func TestCallbackIdentity(t *testing.T) {
 	req, err := http.NewRequest("GET", hostURL.String(), nil)
 	expectNil(t, err)
 
-	h, err := newHTTPClient(true, "")
+	h, err := httpclient.NewHTTPClient(nil, true)
 
 	expectNil(t, err)
 
@@ -198,7 +199,7 @@ func TestRefreshIdentity(t *testing.T) {
 	})
 	defer s.Close()
 
-	h, err := newHTTPClient(true, "")
+	h, err := httpclient.NewHTTPClient(nil, true)
 	expectNil(t, err)
 
 	oc := openshiftConnector{apiURL: s.URL, httpClient: h, oauth2Config: &oauth2.Config{
@@ -237,7 +238,7 @@ func TestRefreshIdentityFailure(t *testing.T) {
 	})
 	defer s.Close()
 
-	h, err := newHTTPClient(true, "")
+	h, err := httpclient.NewHTTPClient(nil, true)
 	expectNil(t, err)
 
 	oc := openshiftConnector{apiURL: s.URL, httpClient: h, oauth2Config: &oauth2.Config{

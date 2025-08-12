@@ -4,13 +4,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"net/http"
+	"net/netip"
 	"os"
-	"strconv"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/dexidp/dex/pkg/log"
+	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent"
@@ -64,10 +66,16 @@ func (c Config) Validate() error {
 		{c.Web.HTTP == "" && c.Web.HTTPS == "", "must supply a HTTP/HTTPS  address to listen on"},
 		{c.Web.HTTPS != "" && c.Web.TLSCert == "", "no cert specified for HTTPS"},
 		{c.Web.HTTPS != "" && c.Web.TLSKey == "", "no private key specified for HTTPS"},
+		{c.Web.TLSMinVersion != "" && c.Web.TLSMinVersion != "1.2" && c.Web.TLSMinVersion != "1.3", "supported TLS versions are: 1.2, 1.3"},
+		{c.Web.TLSMaxVersion != "" && c.Web.TLSMaxVersion != "1.2" && c.Web.TLSMaxVersion != "1.3", "supported TLS versions are: 1.2, 1.3"},
+		{c.Web.TLSMaxVersion != "" && c.Web.TLSMinVersion != "" && c.Web.TLSMinVersion > c.Web.TLSMaxVersion, "TLSMinVersion greater than TLSMaxVersion"},
 		{c.GRPC.TLSCert != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
 		{c.GRPC.TLSKey != "" && c.GRPC.Addr == "", "no address specified for gRPC"},
 		{(c.GRPC.TLSCert == "") != (c.GRPC.TLSKey == ""), "must specific both a gRPC TLS cert and key"},
 		{c.GRPC.TLSCert == "" && c.GRPC.TLSClientCA != "", "cannot specify gRPC TLS client CA without a gRPC TLS cert"},
+		{c.GRPC.TLSMinVersion != "" && c.GRPC.TLSMinVersion != "1.2" && c.GRPC.TLSMinVersion != "1.3", "supported TLS versions are: 1.2, 1.3"},
+		{c.GRPC.TLSMaxVersion != "" && c.GRPC.TLSMaxVersion != "1.2" && c.GRPC.TLSMaxVersion != "1.3", "supported TLS versions are: 1.2, 1.3"},
+		{c.GRPC.TLSMaxVersion != "" && c.GRPC.TLSMinVersion != "" && c.GRPC.TLSMinVersion > c.GRPC.TLSMaxVersion, "TLSMinVersion greater than TLSMaxVersion"},
 	}
 
 	var checkErrors []string
@@ -129,6 +137,10 @@ func (p *password) UnmarshalJSON(b []byte) error {
 
 // OAuth2 describes enabled OAuth2 extensions.
 type OAuth2 struct {
+	// list of allowed grant types,
+	// defaults to all supported types
+	GrantTypes []string `json:"grantTypes"`
+
 	ResponseTypes []string `json:"responseTypes"`
 	// If specified, do not prompt the user to approve client authorization. The
 	// act of logging in implies authorization.
@@ -143,11 +155,84 @@ type OAuth2 struct {
 
 // Web is the config format for the HTTP server.
 type Web struct {
-	HTTP           string   `json:"http"`
-	HTTPS          string   `json:"https"`
-	TLSCert        string   `json:"tlsCert"`
-	TLSKey         string   `json:"tlsKey"`
-	AllowedOrigins []string `json:"allowedOrigins"`
+	HTTP           string         `json:"http"`
+	HTTPS          string         `json:"https"`
+	Headers        Headers        `json:"headers"`
+	TLSCert        string         `json:"tlsCert"`
+	TLSKey         string         `json:"tlsKey"`
+	TLSMinVersion  string         `json:"tlsMinVersion"`
+	TLSMaxVersion  string         `json:"tlsMaxVersion"`
+	AllowedOrigins []string       `json:"allowedOrigins"`
+	AllowedHeaders []string       `json:"allowedHeaders"`
+	ClientRemoteIP ClientRemoteIP `json:"clientRemoteIP"`
+}
+
+type ClientRemoteIP struct {
+	Header         string   `json:"header"`
+	TrustedProxies []string `json:"trustedProxies"`
+}
+
+func (cr *ClientRemoteIP) ParseTrustedProxies() ([]netip.Prefix, error) {
+	if cr == nil {
+		return nil, nil
+	}
+
+	trusted := make([]netip.Prefix, 0, len(cr.TrustedProxies))
+	for _, cidr := range cr.TrustedProxies {
+		ipNet, err := netip.ParsePrefix(cidr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse CIDR %q: %v", cidr, err)
+		}
+		trusted = append(trusted, ipNet)
+	}
+
+	return trusted, nil
+}
+
+type Headers struct {
+	// Set the Content-Security-Policy header to HTTP responses.
+	// Unset if blank.
+	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy
+	ContentSecurityPolicy string `json:"Content-Security-Policy"`
+	// Set the X-Frame-Options header to HTTP responses.
+	// Unset if blank. Accepted values are deny and sameorigin.
+	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options
+	XFrameOptions string `json:"X-Frame-Options"`
+	// Set the X-Content-Type-Options header to HTTP responses.
+	// Unset if blank. Accepted value is nosniff.
+	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Content-Type-Options
+	XContentTypeOptions string `json:"X-Content-Type-Options"`
+	// Set the X-XSS-Protection header to all responses.
+	// Unset if blank.
+	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-XSS-Protection
+	XXSSProtection string `json:"X-XSS-Protection"`
+	// Set the Strict-Transport-Security header to HTTP responses.
+	// Unset if blank.
+	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security
+	StrictTransportSecurity string `json:"Strict-Transport-Security"`
+}
+
+func (h *Headers) ToHTTPHeader() http.Header {
+	if h == nil {
+		return make(map[string][]string)
+	}
+	header := make(map[string][]string)
+	if h.ContentSecurityPolicy != "" {
+		header["Content-Security-Policy"] = []string{h.ContentSecurityPolicy}
+	}
+	if h.XFrameOptions != "" {
+		header["X-Frame-Options"] = []string{h.XFrameOptions}
+	}
+	if h.XContentTypeOptions != "" {
+		header["X-Content-Type-Options"] = []string{h.XContentTypeOptions}
+	}
+	if h.XXSSProtection != "" {
+		header["X-XSS-Protection"] = []string{h.XXSSProtection}
+	}
+	if h.StrictTransportSecurity != "" {
+		header["Strict-Transport-Security"] = []string{h.StrictTransportSecurity}
+	}
+	return header
 }
 
 // Telemetry is the config format for telemetry including the HTTP server config.
@@ -160,11 +245,13 @@ type Telemetry struct {
 // GRPC is the config for the gRPC API.
 type GRPC struct {
 	// The port to listen on.
-	Addr        string `json:"addr"`
-	TLSCert     string `json:"tlsCert"`
-	TLSKey      string `json:"tlsKey"`
-	TLSClientCA string `json:"tlsClientCA"`
-	Reflection  bool   `json:"reflection"`
+	Addr          string `json:"addr"`
+	TLSCert       string `json:"tlsCert"`
+	TLSKey        string `json:"tlsKey"`
+	TLSClientCA   string `json:"tlsClientCA"`
+	TLSMinVersion string `json:"tlsMinVersion"`
+	TLSMaxVersion string `json:"tlsMaxVersion"`
+	Reflection    bool   `json:"reflection"`
 }
 
 // Storage holds app's storage configuration.
@@ -175,7 +262,7 @@ type Storage struct {
 
 // StorageConfig is a configuration that can create a storage.
 type StorageConfig interface {
-	Open(logger log.Logger) (storage.Storage, error)
+	Open(logger *slog.Logger) (storage.Storage, error)
 }
 
 var (
@@ -192,11 +279,30 @@ var (
 
 func getORMBasedSQLStorage(normal, entBased StorageConfig) func() StorageConfig {
 	return func() StorageConfig {
-		switch os.Getenv("DEX_ENT_ENABLED") {
-		case "true", "yes":
+		if featureflags.EntEnabled.Enabled() {
 			return entBased
-		default:
-			return normal
+		}
+		return normal
+	}
+}
+
+// Recursively expand environment variables in the map to avoid
+// issues with JSON special characters and escapes
+func expandEnvInMap(m map[string]interface{}) {
+	for k, v := range m {
+		switch vt := v.(type) {
+		case string:
+			m[k] = os.ExpandEnv(vt)
+		case map[string]interface{}:
+			expandEnvInMap(vt)
+		case []interface{}:
+			for i, item := range vt {
+				if itemMap, ok := item.(map[string]interface{}); ok {
+					expandEnvInMap(itemMap)
+				} else if itemString, ok := item.(string); ok {
+					vt[i] = os.ExpandEnv(itemString)
+				}
+			}
 		}
 	}
 }
@@ -208,19 +314,6 @@ var storages = map[string]func() StorageConfig{
 	"sqlite3":    getORMBasedSQLStorage(&sql.SQLite3{}, &ent.SQLite3{}),
 	"postgres":   getORMBasedSQLStorage(&sql.Postgres{}, &ent.Postgres{}),
 	"mysql":      getORMBasedSQLStorage(&sql.MySQL{}, &ent.MySQL{}),
-}
-
-// isExpandEnvEnabled returns if os.ExpandEnv should be used for each storage and connector config.
-// Disabling this feature avoids surprises e.g. if the LDAP bind password contains a dollar character.
-// Returns false if the env variable "DEX_EXPAND_ENV" is a falsy string, e.g. "false".
-// Returns true if the env variable is unset or a truthy string, e.g. "true", or can't be parsed as bool.
-func isExpandEnvEnabled() bool {
-	enabled, err := strconv.ParseBool(os.Getenv("DEX_EXPAND_ENV"))
-	if err != nil {
-		// Unset, empty string or can't be parsed as bool: Default = true.
-		return true
-	}
-	return enabled
 }
 
 // UnmarshalJSON allows Storage to implement the unmarshaler interface to
@@ -241,10 +334,25 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 	storageConfig := f()
 	if len(store.Config) != 0 {
 		data := []byte(store.Config)
-		if isExpandEnvEnabled() {
-			// Caution, we're expanding in the raw JSON/YAML source. This may not be what the admin expects.
-			data = []byte(os.ExpandEnv(string(store.Config)))
+		if featureflags.ExpandEnv.Enabled() {
+			var rawMap map[string]interface{}
+			if err := json.Unmarshal(store.Config, &rawMap); err != nil {
+				return fmt.Errorf("unmarshal config for env expansion: %v", err)
+			}
+
+			// Recursively expand environment variables in the map to avoid
+			// issues with JSON special characters and escapes
+			expandEnvInMap(rawMap)
+
+			// Marshal the expanded map back to JSON
+			expandedData, err := json.Marshal(rawMap)
+			if err != nil {
+				return fmt.Errorf("marshal expanded config: %v", err)
+			}
+
+			data = expandedData
 		}
+
 		if err := json.Unmarshal(data, storageConfig); err != nil {
 			return fmt.Errorf("parse storage config: %v", err)
 		}
@@ -287,14 +395,30 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 	connConfig := f()
 	if len(conn.Config) != 0 {
 		data := []byte(conn.Config)
-		if isExpandEnvEnabled() {
-			// Caution, we're expanding in the raw JSON/YAML source. This may not be what the admin expects.
-			data = []byte(os.ExpandEnv(string(conn.Config)))
+		if featureflags.ExpandEnv.Enabled() {
+			var rawMap map[string]interface{}
+			if err := json.Unmarshal(conn.Config, &rawMap); err != nil {
+				return fmt.Errorf("unmarshal config for env expansion: %v", err)
+			}
+
+			// Recursively expand environment variables in the map to avoid
+			// issues with JSON special characters and escapes
+			expandEnvInMap(rawMap)
+
+			// Marshal the expanded map back to JSON
+			expandedData, err := json.Marshal(rawMap)
+			if err != nil {
+				return fmt.Errorf("marshal expanded config: %v", err)
+			}
+
+			data = expandedData
 		}
+
 		if err := json.Unmarshal(data, connConfig); err != nil {
 			return fmt.Errorf("parse connector config: %v", err)
 		}
 	}
+
 	*c = Connector{
 		Type:   conn.Type,
 		Name:   conn.Name,
@@ -340,7 +464,7 @@ type Expiry struct {
 // Logger holds configuration required to customize logging for dex.
 type Logger struct {
 	// Level sets logging level severity.
-	Level string `json:"level"`
+	Level slog.Level `json:"level"`
 
 	// Format specifies the format to be used for logging.
 	Format string `json:"format"`

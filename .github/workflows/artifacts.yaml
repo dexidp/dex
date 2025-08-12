@@ -1,12 +1,31 @@
 name: Artifacts
 
 on:
-  push:
-    branches:
-      - master
-    tags:
-      - v[0-9]+.[0-9]+.[0-9]+
-  pull_request:
+  workflow_call:
+    inputs:
+      publish:
+        description: Publish artifacts to the artifact store
+        default: false
+        required: false
+        type: boolean
+    secrets:
+      DOCKER_USERNAME:
+        required: true
+      DOCKER_PASSWORD:
+        required: true
+    outputs:
+      container-image-name:
+        description: Container image name
+        value: ${{ jobs.container-images.outputs.name }}
+      container-image-digest:
+        description: Container image digest
+        value: ${{ jobs.container-images.outputs.digest }}
+      container-image-ref:
+        description: Container image ref
+        value: ${{ jobs.container-images.outputs.ref }}
+
+permissions:
+  contents: read
 
 jobs:
   container-images:
@@ -18,62 +37,90 @@ jobs:
           - alpine
           - distroless
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+    permissions:
+      attestations: write
+      contents: read
+      packages: write
+      id-token: write
+      security-events: write
 
-      - name: Gather metadata
+    outputs:
+      name: ${{ steps.image-name.outputs.value }}
+      digest: ${{ steps.build.outputs.digest }}
+      ref: ${{ steps.image-ref.outputs.value }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Set up Syft
+        uses: anchore/sbom-action/download-syft@7b36ad622f042cab6f59a75c2ac24ccb256e9b45 # v0.20.4
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
+
+      - name: Set image name
+        id: image-name
+        run: echo "value=ghcr.io/${{ github.repository }}" >> "$GITHUB_OUTPUT"
+
+      - name: Gather build metadata
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
         with:
           images: |
-            ghcr.io/dexidp/dex
+            ${{ steps.image-name.outputs.value }}
             dexidp/dex
           flavor: |
             latest = false
           tags: |
             type=ref,event=branch,enable=${{ matrix.variant == 'alpine' }}
-            type=ref,event=pr,enable=${{ matrix.variant == 'alpine' }}
+            type=ref,event=pr,prefix=pr-,enable=${{ matrix.variant == 'alpine' }}
             type=semver,pattern={{raw}},enable=${{ matrix.variant == 'alpine' }}
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && matrix.variant == 'alpine' }}
+            type=raw,value=latest,enable=${{ github.ref_name == github.event.repository.default_branch && matrix.variant == 'alpine' }}
             type=ref,event=branch,suffix=-${{ matrix.variant }}
-            type=ref,event=pr,suffix=-${{ matrix.variant }}
+            type=ref,event=pr,prefix=pr-,suffix=-${{ matrix.variant }}
             type=semver,pattern={{raw}},suffix=-${{ matrix.variant }}
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }},suffix=-${{ matrix.variant }}
+            type=raw,value=latest,enable={{is_default_branch}},suffix=-${{ matrix.variant }}
           labels: |
             org.opencontainers.image.documentation=https://dexidp.io/docs/
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+      # Multiple exporters are not supported yet
+      # See https://github.com/moby/buildkit/pull/2760
+      - name: Determine build output
+        uses: haya14busa/action-cond@94f77f7a80cd666cb3155084e428254fea4281fd # v1.2.1
+        id: build-output
         with:
-          platforms: all
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+          cond: ${{ inputs.publish }}
+          if_true: type=image,push=true
+          if_false: type=oci,dest=image.tar
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: ${{ github.actor }}
           password: ${{ github.token }}
-        if: github.event_name == 'push'
+        if: inputs.publish
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-        if: github.event_name == 'push'
+        if: inputs.publish
 
-      - name: Build and push
-        uses: docker/build-push-action@v3
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
-          platforms: linux/amd64,linux/arm/v7,linux/arm64,linux/ppc64le
-          # cache-from: type=gha
-          # cache-to: type=gha,mode=max
-          push: ${{ github.event_name == 'push' }}
+          platforms: linux/amd64,linux/arm/v7,linux/arm64,linux/ppc64le,linux/s390x
           tags: ${{ steps.meta.outputs.tags }}
           build-args: |
             BASE_IMAGE=${{ matrix.variant }}
@@ -81,17 +128,111 @@ jobs:
             COMMIT_HASH=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
             BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
           labels: ${{ steps.meta.outputs.labels }}
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
+          outputs: ${{ steps.build-output.outputs.value }}
+          # push: ${{ inputs.publish }}
+
+      - name: Sign the images with GitHub OIDC Token
+        run: |
+          cosign sign --yes ${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}
+        if: inputs.publish
+
+      - name: Set image ref
+        id: image-ref
+        run: echo "value=${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch image
+        run: skopeo --insecure-policy copy docker://${{ steps.image-ref.outputs.value }} oci-archive:image.tar
+        if: inputs.publish
+
+      # Uncomment the following lines for debugging:
+      # - name: Upload image as artifact
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: "[${{ github.job }}] OCI tarball"
+      #     path: image.tar
+
+      - name: Extract OCI tarball
+        run: |
+          mkdir -p image
+          tar -xf image.tar -C image
+
+      # - name: List tags
+      #   run: skopeo --insecure-policy list-tags oci:image
+      #
+      # # See https://github.com/anchore/syft/issues/1545
+      # - name: Extract image from multi-arch image
+      #   run: skopeo --override-os linux --override-arch amd64 --insecure-policy copy oci:image:${{ steps.image-name.outputs.value }}:${{ steps.meta.outputs.version }} docker-archive:docker.tar
+      #
+      # - name: Generate SBOM
+      #   run: syft -o spdx-json=sbom-spdx.json docker-archive:docker.tar
+      #
+      # - name: Upload SBOM as artifact
+      #   uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32 # v3.1.3
+      #   with:
+      #     name: "[${{ github.job }}] SBOM"
+      #     path: sbom-spdx.json
+      #     retention-days: 5
+
+      # TODO: uncomment when the action is working for non ghcr.io pushes. GH Issue: https://github.com/actions/attest-build-provenance/issues/80
+      # - name: Generate build provenance attestation
+      #   uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+      #   with:
+      #     subject-name: dexidp/dex
+      #     subject-digest: ${{ steps.build.outputs.digest }}
+      #     push-to-registry: true
+
+      - name: Generate build provenance attestation
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-name: ghcr.io/dexidp/dex
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+        if: inputs.publish
+
+      ## Use cache for the trivy-db to avoid the TOOMANYREQUESTS error https://github.com/aquasecurity/trivy-action/pull/397
+      ## To avoid the trivy-db becoming outdated, we save the cache for one day
+      - name: Get data
+        id: date
+        run: echo "date=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+
+      - name: Restore trivy cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: cache/db
+          key: trivy-cache-${{ steps.date.outputs.date }}
+          restore-keys: trivy-cache-
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.7.1
+        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # 0.32.0
         with:
-          image-ref: "ghcr.io/dexidp/dex:${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}"
-          format: "sarif"
-          output: "trivy-results.sarif"
-        if: github.event_name == 'push'
+          input: image
+          format: sarif
+          output: trivy-results.sarif
+          scan-type: "fs"
+          scan-ref: "."
+          cache-dir: "./cache"
+        # Disable skipping trivy cache for now
+        # env:
+        #   TRIVY_SKIP_DB_UPDATE: true
+        #   TRIVY_SKIP_JAVA_DB_UPDATE: true
+
+      ## Trivy-db uses `0600` permissions.
+      ## But `action/cache` use `runner` user by default
+      ## So we need to change the permissions before caching the database.
+      - name: change permissions for trivy.db
+        run: sudo chmod 0644 ./cache/db/trivy.db
+
+      - name: Upload Trivy scan results as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: "[${{ github.job }}] Trivy scan results"
+          path: trivy-results.sarif
+          retention-days: 5
+          overwrite: true
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3.29.4
         with:
-          sarif_file: "trivy-results.sarif"
-        if: github.event_name == 'push'
+          sarif_file: trivy-results.sarif

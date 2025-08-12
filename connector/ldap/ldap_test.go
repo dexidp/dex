@@ -3,12 +3,11 @@ package ldap
 import (
 	"context"
 	"fmt"
-	"io"
+	"log/slog"
 	"os"
 	"testing"
 
 	"github.com/kylelemons/godebug/pretty"
-	"github.com/sirupsen/logrus"
 
 	"github.com/dexidp/dex/connector"
 )
@@ -81,6 +80,18 @@ func TestQuery(t *testing.T) {
 			name:      "invaliduser",
 			username:  "idontexist",
 			password:  "foo",
+			wantBadPW: true, // Want invalid password, not a query error.
+		},
+		{
+			name:      "invalid wildcard username",
+			username:  "a*", // wildcard query is not allowed
+			password:  "foo",
+			wantBadPW: true, // Want invalid password, not a query error.
+		},
+		{
+			name:      "invalid wildcard password",
+			username:  "john",
+			password:  "*",  // wildcard password is not allowed
 			wantBadPW: true, // Want invalid password, not a query error.
 		},
 	}
@@ -277,7 +288,7 @@ func TestGroupFilter(t *testing.T) {
 	c.GroupSearch.BaseDN = "ou=TestGroupFilter,dc=example,dc=org"
 	c.GroupSearch.UserMatchers = []UserMatcher{
 		{
-			UserAttr:  "DN",
+			UserAttr:  "dn",
 			GroupAttr: "member",
 		},
 	}
@@ -514,6 +525,56 @@ func TestUsernamePrompt(t *testing.T) {
 	}
 }
 
+func TestNestedGroups(t *testing.T) {
+	c := &Config{}
+	c.UserSearch.BaseDN = "ou=People,ou=TestNestedGroups,dc=example,dc=org"
+	c.UserSearch.NameAttr = "cn"
+	c.UserSearch.EmailAttr = "mail"
+	c.UserSearch.IDAttr = "DN"
+	c.UserSearch.Username = "cn"
+
+	c.GroupSearch.BaseDN = "ou=TestNestedGroups,dc=example,dc=org"
+	c.GroupSearch.UserMatchers = []UserMatcher{
+		{
+			UserAttr:  "DN",
+			GroupAttr: "member",
+			// Enable Recursive Search
+			RecursionGroupAttr: "member",
+		},
+	}
+	c.GroupSearch.NameAttr = "cn"
+
+	tests := []subtest{
+		{
+			name:     "nestedgroups_jane",
+			username: "jane",
+			password: "foo",
+			groups:   true,
+			want: connector.Identity{
+				UserID:        "cn=jane,ou=People,ou=TestNestedGroups,dc=example,dc=org",
+				Username:      "jane",
+				Email:         "janedoe@example.com",
+				EmailVerified: true,
+				Groups:        []string{"childGroup", "circularGroup1", "intermediateGroup", "circularGroup2", "parentGroup"},
+			},
+		},
+		{
+			name:     "nestedgroups_john",
+			username: "john",
+			password: "bar",
+			groups:   true,
+			want: connector.Identity{
+				UserID:        "cn=john,ou=People,ou=TestNestedGroups,dc=example,dc=org",
+				Username:      "john",
+				Email:         "johndoe@example.com",
+				EmailVerified: true,
+				Groups:        []string{"circularGroup2", "intermediateGroup", "circularGroup1", "parentGroup"},
+			},
+		},
+	}
+	runTests(t, connectLDAP, c, tests)
+}
+
 func getenv(key, defaultVal string) string {
 	if val := os.Getenv(key); val != "" {
 		return val
@@ -523,7 +584,7 @@ func getenv(key, defaultVal string) string {
 
 // runTests runs a set of tests against an LDAP schema.
 //
-// The tests require LDAP to be runnning.
+// The tests require LDAP to be running.
 // You can use the provided docker-compose file to setup an LDAP server.
 func runTests(t *testing.T, connMethod connectionMethod, config *Config, tests []subtest) {
 	ldapHost := os.Getenv("DEX_LDAP_HOST")
@@ -555,7 +616,7 @@ func runTests(t *testing.T, connMethod connectionMethod, config *Config, tests [
 	c.BindDN = "cn=admin,dc=example,dc=org"
 	c.BindPW = "admin"
 
-	l := &logrus.Logger{Out: io.Discard, Formatter: &logrus.TextFormatter{}}
+	l := slog.New(slog.DiscardHandler)
 
 	conn, err := c.openConnector(l)
 	if err != nil {

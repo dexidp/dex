@@ -3,7 +3,7 @@ package etcd
 import (
 	"time"
 
-	jose "gopkg.in/square/go-jose.v2"
+	"github.com/go-jose/go-jose/v4"
 
 	"github.com/dexidp/dex/storage"
 )
@@ -84,6 +84,8 @@ type AuthRequest struct {
 
 	CodeChallenge       string `json:"code_challenge,omitempty"`
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
+
+	HMACKey []byte `json:"hmac_key"`
 }
 
 func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
@@ -103,6 +105,7 @@ func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		ConnectorData:       a.ConnectorData,
 		CodeChallenge:       a.PKCE.CodeChallenge,
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
+		HMACKey:             a.HMACKey,
 	}
 }
 
@@ -125,6 +128,7 @@ func toStorageAuthRequest(a AuthRequest) storage.AuthRequest {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
+		HMACKey: a.HMACKey,
 	}
 }
 
@@ -264,6 +268,17 @@ type DeviceRequest struct {
 
 func fromStorageDeviceRequest(d storage.DeviceRequest) DeviceRequest {
 	return DeviceRequest{
+		UserCode:     d.UserCode,
+		DeviceCode:   d.DeviceCode,
+		ClientID:     d.ClientID,
+		ClientSecret: d.ClientSecret,
+		Scopes:       d.Scopes,
+		Expiry:       d.Expiry,
+	}
+}
+
+func toStorageDeviceRequest(d DeviceRequest) storage.DeviceRequest {
+	return storage.DeviceRequest{
 		UserCode:     d.UserCode,
 		DeviceCode:   d.DeviceCode,
 		ClientID:     d.ClientID,

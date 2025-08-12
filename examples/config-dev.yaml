@@ -52,6 +52,16 @@ web:
   # https: 127.0.0.1:5554
   # tlsCert: /etc/dex/tls.crt
   # tlsKey: /etc/dex/tls.key
+  # headers:
+  #   X-Frame-Options: "DENY"
+  #   X-Content-Type-Options: "nosniff"
+  #   X-XSS-Protection: "1; mode=block"
+  #   Content-Security-Policy: "default-src 'self'"
+  #   Strict-Transport-Security: "max-age=31536000; includeSubDomains"
+  # clientRemoteIP:
+  #   header: X-Forwarded-For
+  #   trustedProxies:
+  #   - 10.0.0.0/8
 
 # Configuration for dex appearance
 # frontend:
@@ -90,19 +100,28 @@ logger:
 #   format: "text" # can also be "json"
 
 # Default values shown below
-oauth2:
-    # use ["code", "token", "id_token"] to enable implicit flow for web-only clients
-    responseTypes: [ "code", "id_token" ] # also allowed are "token" and "id_token"
+# oauth2:
+    # grantTypes determines the allowed set of authorization flows.
+#   grantTypes:
+#     - "authorization_code"
+#     - "refresh_token"
+#     - "implicit"
+#     - "password"
+#     - "urn:ietf:params:oauth:grant-type:device_code"
+#     - "urn:ietf:params:oauth:grant-type:token-exchange"
+    # responseTypes determines the allowed response contents of a successful authorization flow.
+    # use ["code", "token", "id_token"] to enable implicit flow for web-only clients.
+#   responseTypes: [ "code" ] # also allowed are "token" and "id_token"
     # By default, Dex will ask for approval to share data with application
     # (approval for sharing data from connected IdP to Dex is separate process on IdP)
-    skipApprovalScreen: false
+    # skipApprovalScreen: false
     # If only one authentication method is enabled, the default behavior is to
     # go directly to it. For connected IdPs, this redirects the browser away
     # from application to upstream provider such as the Google login page
 #   alwaysShowLoginScreen: false
     # Uncomment the passwordConnector to use a specific connector for password grants
     # passwordConnector: uber-cabs
-    defaultPasswordConnector: uber-cabs
+    # defaultPasswordConnector: uber-cabs
 
 
 # Instead of reading from an external storage, use this list of clients.

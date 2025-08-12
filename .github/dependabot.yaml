@@ -7,9 +7,20 @@ updates:
       - "area/dependencies"
     schedule:
       interval: "daily"
+    groups:
+      etcd:
+        patterns:
+          - "go.etcd.io/*"
 
   - package-ecosystem: "gomod"
     directory: "/api/v2"
+    labels:
+      - "area/dependencies"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "gomod"
+    directory: "/examples"
     labels:
       - "area/dependencies"
     schedule:

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/dexidp/dex/storage/ent/db/authrequest"
 )
@@ -55,14 +56,17 @@ type AuthRequest struct {
 	CodeChallenge string `json:"code_challenge,omitempty"`
 	// CodeChallengeMethod holds the value of the "code_challenge_method" field.
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
+	// HmacKey holds the value of the "hmac_key" field.
+	HmacKey      []byte `json:"hmac_key,omitempty"`
+	selectValues sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*AuthRequest) scanValues(columns []string) ([]interface{}, error) {
-	values := make([]interface{}, len(columns))
+func (*AuthRequest) scanValues(columns []string) ([]any, error) {
+	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case authrequest.FieldScopes, authrequest.FieldResponseTypes, authrequest.FieldClaimsGroups, authrequest.FieldConnectorData:
+		case authrequest.FieldScopes, authrequest.FieldResponseTypes, authrequest.FieldClaimsGroups, authrequest.FieldConnectorData, authrequest.FieldHmacKey:
 			values[i] = new([]byte)
 		case authrequest.FieldForceApprovalPrompt, authrequest.FieldLoggedIn, authrequest.FieldClaimsEmailVerified:
 			values[i] = new(sql.NullBool)
@@ -71,7 +75,7 @@ func (*AuthRequest) scanValues(columns []string) ([]interface{}, error) {
 		case authrequest.FieldExpiry:
 			values[i] = new(sql.NullTime)
 		default:
-			return nil, fmt.Errorf("unexpected column %q for type AuthRequest", columns[i])
+			values[i] = new(sql.UnknownType)
 		}
 	}
 	return values, nil
@@ -79,7 +83,7 @@ func (*AuthRequest) scanValues(columns []string) ([]interface{}, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the AuthRequest fields.
-func (ar *AuthRequest) assignValues(columns []string, values []interface{}) error {
+func (ar *AuthRequest) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -211,16 +215,30 @@ func (ar *AuthRequest) assignValues(columns []string, values []interface{}) erro
 			} else if value.Valid {
 				ar.CodeChallengeMethod = value.String
 			}
+		case authrequest.FieldHmacKey:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field hmac_key", values[i])
+			} else if value != nil {
+				ar.HmacKey = *value
+			}
+		default:
+			ar.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
+}
+
+// Value returns the ent.Value that was dynamically selected and assigned to the AuthRequest.
+// This includes values selected through modifiers, order, etc.
+func (ar *AuthRequest) Value(name string) (ent.Value, error) {
+	return ar.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this AuthRequest.
 // Note that you need to call AuthRequest.Unwrap() before calling this method if this AuthRequest
 // was returned from a transaction, and the transaction was committed or rolled back.
 func (ar *AuthRequest) Update() *AuthRequestUpdateOne {
-	return (&AuthRequestClient{config: ar.config}).UpdateOne(ar)
+	return NewAuthRequestClient(ar.config).UpdateOne(ar)
 }
 
 // Unwrap unwraps the AuthRequest entity that was returned from a transaction after it was closed,
@@ -297,15 +315,12 @@ func (ar *AuthRequest) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("code_challenge_method=")
 	builder.WriteString(ar.CodeChallengeMethod)
+	builder.WriteString(", ")
+	builder.WriteString("hmac_key=")
+	builder.WriteString(fmt.Sprintf("%v", ar.HmacKey))
 	builder.WriteByte(')')
 	return builder.String()
 }
 
 // AuthRequests is a parsable slice of AuthRequest.
 type AuthRequests []*AuthRequest
-
-func (ar AuthRequests) config(cfg config) {
-	for _i := range ar {
-		ar[_i].config = cfg
-	}
-}

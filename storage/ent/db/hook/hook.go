@@ -15,11 +15,10 @@ type AuthCodeFunc func(context.Context, *db.AuthCodeMutation) (db.Value, error)
 
 // Mutate calls f(ctx, m).
 func (f AuthCodeFunc) Mutate(ctx context.Context, m db.Mutation) (db.Value, error) {
-	mv, ok := m.(*db.AuthCodeMutation)
-	if !ok {
-		return nil, fmt.Errorf("unexpected mutation type %T. expect *db.AuthCodeMutation", m)
+	if mv, ok := m.(*db.AuthCodeMutation); ok {
+		return f(ctx, mv)
 	}
-	return f(ctx, mv)
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *db.AuthCodeMutation", m)
 }
 
 // The AuthRequestFunc type is an adapter to allow the use of ordinary
@@ -28,11 +27,10 @@ type AuthRequestFunc func(context.Context, *db.AuthRequestMutation) (db.Value, e
 
 // Mutate calls f(ctx, m).
 func (f AuthRequestFunc) Mutate(ctx context.Context, m db.Mutation) (db.Value, error) {
-	mv, ok := m.(*db.AuthRequestMutation)
-	if !ok {
-		return nil, fmt.Errorf("unexpected mutation type %T. expect *db.AuthRequestMutation", m)
+	if mv, ok := m.(*db.AuthRequestMutation); ok {
+		return f(ctx, mv)
 	}
-	return f(ctx, mv)
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *db.AuthRequestMutation", m)
 }
 
 // The ConnectorFunc type is an adapter to allow the use of ordinary
@@ -41,11 +39,10 @@ type ConnectorFunc func(context.Context, *db.ConnectorMutation) (db.Value, error
 
 // Mutate calls f(ctx, m).
 func (f ConnectorFunc) Mutate(ctx context.Context, m db.Mutation) (db.Value, error) {
-	mv, ok := m.(*db.ConnectorMutation)
-	if !ok {
-		return nil, fmt.Errorf("unexpected mutation type %T. expect *db.ConnectorMutation", m)
+	if mv, ok := m.(*db.ConnectorMutation); ok {
+		return f(ctx, mv)
 	}
-	return f(ctx, mv)
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *db.ConnectorMutation", m)
 }
 
 // The DeviceRequestFunc type is an adapter to allow the use of ordinary
@@ -54,11 +51,10 @@ type DeviceRequestFunc func(context.Context, *db.DeviceRequestMutation) (db.Valu
 
 // Mutate calls f(ctx, m).
 func (f DeviceRequestFunc) Mutate(ctx context.Context, m db.Mutation) (db.Value, error) {
-	mv, ok := m.(*db.DeviceRequestMutation)
-	if !ok {
-		return nil, fmt.Errorf("unexpected mutation type %T. expect *db.DeviceRequestMutation", m)
+	if mv, ok := m.(*db.DeviceRequestMutation); ok {
+		return f(ctx, mv)
 	}
-	return f(ctx, mv)
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *db.DeviceRequestMutation", m)
 }
 
 // The DeviceTokenFunc type is an adapter to allow the use of ordinary
@@ -67,11 +63,10 @@ type DeviceTokenFunc func(context.Context, *db.DeviceTokenMutation) (db.Value, e
 
 // Mutate calls f(ctx, m).
 func (f DeviceTokenFunc) Mutate(ctx context.Context, m db.Mutation) (db.Value, error) {
-	mv, ok := m.(*db.DeviceTokenMutation)
-	if !ok {
-		return nil, fmt.Errorf("unexpected mutation type %T. expect *db.DeviceTokenMutation", m)
+	if mv, ok := m.(*db.DeviceTokenMutation); ok {
+		return f(ctx, mv)
 	}
-	return f(ctx, mv)
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *db.DeviceTokenMutation", m)
 }
 
 // The KeysFunc type is an adapter to allow the use of ordinary
@@ -80,11 +75,10 @@ type KeysFunc func(context.Context, *db.KeysMutation) (db.Value, error)
 
 // Mutate calls f(ctx, m).
 func (f KeysFunc) Mutate(ctx context.Context, m db.Mutation) (db.Value, error) {
-	mv, ok := m.(*db.KeysMutation)
-	if !ok {
-		return nil, fmt.Errorf("unexpected mutation type %T. expect *db.KeysMutation", m)
+	if mv, ok := m.(*db.KeysMutation); ok {
+		return f(ctx, mv)
 	}
-	return f(ctx, mv)
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *db.KeysMutation", m)
 }
 
 // The OAuth2ClientFunc type is an adapter to allow the use of ordinary
@@ -93,11 +87,10 @@ type OAuth2ClientFunc func(context.Context, *db.OAuth2ClientMutation) (db.Value,
 
 // Mutate calls f(ctx, m).
 func (f OAuth2ClientFunc) Mutate(ctx context.Context, m db.Mutation) (db.Value, error) {
-	mv, ok := m.(*db.OAuth2ClientMutation)
-	if !ok {
-		return nil, fmt.Errorf("unexpected mutation type %T. expect *db.OAuth2ClientMutation", m)
+	if mv, ok := m.(*db.OAuth2ClientMutation); ok {
+		return f(ctx, mv)
 	}
-	return f(ctx, mv)
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *db.OAuth2ClientMutation", m)
 }
 
 // The OfflineSessionFunc type is an adapter to allow the use of ordinary
@@ -106,11 +99,10 @@ type OfflineSessionFunc func(context.Context, *db.OfflineSessionMutation) (db.Va
 
 // Mutate calls f(ctx, m).
 func (f OfflineSessionFunc) Mutate(ctx context.Context, m db.Mutation) (db.Value, error) {
-	mv, ok := m.(*db.OfflineSessionMutation)
-	if !ok {
-		return nil, fmt.Errorf("unexpected mutation type %T. expect *db.OfflineSessionMutation", m)
+	if mv, ok := m.(*db.OfflineSessionMutation); ok {
+		return f(ctx, mv)
 	}
-	return f(ctx, mv)
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *db.OfflineSessionMutation", m)
 }
 
 // The PasswordFunc type is an adapter to allow the use of ordinary
@@ -119,11 +111,10 @@ type PasswordFunc func(context.Context, *db.PasswordMutation) (db.Value, error)
 
 // Mutate calls f(ctx, m).
 func (f PasswordFunc) Mutate(ctx context.Context, m db.Mutation) (db.Value, error) {
-	mv, ok := m.(*db.PasswordMutation)
-	if !ok {
-		return nil, fmt.Errorf("unexpected mutation type %T. expect *db.PasswordMutation", m)
+	if mv, ok := m.(*db.PasswordMutation); ok {
+		return f(ctx, mv)
 	}
-	return f(ctx, mv)
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *db.PasswordMutation", m)
 }
 
 // The RefreshTokenFunc type is an adapter to allow the use of ordinary
@@ -132,11 +123,10 @@ type RefreshTokenFunc func(context.Context, *db.RefreshTokenMutation) (db.Value,
 
 // Mutate calls f(ctx, m).
 func (f RefreshTokenFunc) Mutate(ctx context.Context, m db.Mutation) (db.Value, error) {
-	mv, ok := m.(*db.RefreshTokenMutation)
-	if !ok {
-		return nil, fmt.Errorf("unexpected mutation type %T. expect *db.RefreshTokenMutation", m)
+	if mv, ok := m.(*db.RefreshTokenMutation); ok {
+		return f(ctx, mv)
 	}
-	return f(ctx, mv)
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *db.RefreshTokenMutation", m)
 }
 
 // Condition is a hook condition function.

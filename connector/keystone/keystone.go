@@ -8,12 +8,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 type conn struct {
@@ -22,7 +22,7 @@ type conn struct {
 	AdminUsername string
 	AdminPassword string
 	client        *http.Client
-	Logger        log.Logger
+	Logger        *slog.Logger
 	CustomerName  string
 }
 
@@ -47,8 +47,8 @@ type userKeystone struct {
 }
 
 type domainKeystone struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
 }
 
 // Config holds the configuration parameters for Keystone connector.
@@ -80,24 +80,11 @@ type loginRequestData struct {
 
 type auth struct {
 	Identity identity `json:"identity"`
-	//Scope    domainScope `json:"scope"`
-}
-
-type loginRequestDataDomain struct {
-	authDomain `json:"auth"`
-}
-type authDomain struct {
-	Identity identity    `json:"identity"`
-	Scope    domainScope `json:"scope"`
 }
 
 type identity struct {
 	Methods  []string `json:"methods"`
 	Password password `json:"password"`
-}
-
-type domainScope struct {
-	Domain domainKeystone `json:"domain"`
 }
 
 type password struct {
@@ -177,7 +164,7 @@ var (
 )
 
 // Open returns an authentication strategy using Keystone.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
 	domain := domainKeystone{
 		Name: c.Domain,
 	}
@@ -192,7 +179,7 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		Host:          c.Host,
 		AdminUsername: c.AdminUsername,
 		AdminPassword: c.AdminPassword,
-		Logger:        logger,
+		Logger:        logger.With(slog.Group("connector", "type", "keystone", "id", id)),
 		client:        client,
 		CustomerName:  c.CustomerName,
 	}, nil
@@ -217,7 +204,7 @@ func (p *conn) Login(ctx context.Context, scopes connector.Scopes, username, pas
 	}
 
 	if scopes.Groups {
-		p.Logger.Infof("groups scope requested, fetching groups")
+		p.Logger.Info("groups scope requested, fetching groups")
 		var err error
 		adminToken, err := p.getAdminTokenUnscoped(ctx)
 		if err != nil {
@@ -298,7 +285,6 @@ func (p *conn) Refresh(
 }
 
 func (p *conn) authenticate(ctx context.Context, username, pass string) (string, *tokenInfo, error) {
-	client := &http.Client{}
 	jsonData := loginRequestData{
 		auth: auth{
 			Identity: identity{
@@ -327,8 +313,7 @@ func (p *conn) authenticate(ctx context.Context, username, pass string) (string,
 	req.Header.Set("Content-Type", "application/json")
 	req = req.WithContext(ctx)
 
-	resp, err := client.Do(req)
-
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return "", nil, fmt.Errorf("keystone: error %v", err)
 	}
@@ -352,58 +337,9 @@ func (p *conn) authenticate(ctx context.Context, username, pass string) (string,
 	return token, &tokenResp.Token, nil
 }
 
-func (p *conn) getAdminTokenScoped(ctx context.Context) (string, error) {
-	client := &http.Client{}
-	jsonData := loginRequestDataDomain{
-		authDomain: authDomain{
-			Identity: identity{
-				Methods: []string{"password"},
-				Password: password{
-					User: user{
-						Name:     p.AdminUsername,
-						Domain:   p.Domain,
-						Password: p.AdminPassword,
-					},
-				},
-			},
-			Scope: domainScope{
-				Domain: domainKeystone{
-					Name: p.Domain.Name,
-				},
-			},
-		},
-	}
-	jsonValue, err := json.Marshal(jsonData)
-	if err != nil {
-		return "", err
-	}
-	// https://developer.openstack.org/api-ref/identity/v3/#password-authentication-with-unscoped-authorization
-	authTokenURL := p.Host + "/v3/auth/tokens/"
-	req, err := http.NewRequest("POST", authTokenURL, bytes.NewBuffer(jsonValue))
-	if err != nil {
-		return "", err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(ctx)
-	resp, err := client.Do(req)
-
-	if err != nil {
-		return "", fmt.Errorf("keystone: error %v", err)
-	}
-	if resp.StatusCode/100 != 2 {
-		return "", fmt.Errorf("keystone login: error %v", resp.StatusCode)
-	}
-	if resp.StatusCode != 201 {
-		return "", nil
-	}
-	return resp.Header.Get("X-Subject-Token"), nil
-}
-
 func (p *conn) getAdminTokenUnscoped(ctx context.Context) (string, error) {
-	client := &http.Client{}
 	domain := domainKeystone{
-		Name: "default",
+		Name: "Default",
 	}
 	jsonData := loginRequestData{
 		auth: auth{
@@ -432,8 +368,7 @@ func (p *conn) getAdminTokenUnscoped(ctx context.Context) (string, error) {
 
 	req.Header.Set("Content-Type", "application/json")
 	req = req.WithContext(ctx)
-	resp, err := client.Do(req)
-
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("keystone: error %v", err)
 	}
@@ -452,8 +387,8 @@ func (p *conn) checkIfUserExists(ctx context.Context, userID string, token strin
 }
 
 func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo) ([]string, error) {
-	var userGroups []string
-	var userGroupIDs []string
+	var userGroups []string   //nolint:prealloc
+	var userGroupIDs []string //nolint:prealloc
 
 	allGroups, err := p.getAllGroups(ctx, token)
 	if err != nil {
@@ -468,8 +403,7 @@ func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo
 				var ok bool
 				osGroup, ok = findGroupByID(allGroups, osGroup.ID)
 				if !ok {
-					p.Logger.Warnf("Group with ID '%s' attached to user '%s' could not be found. Skipping.",
-						osGroup.ID, tokenInfo.User.ID)
+					p.Logger.Warn("GroupID attached to user could not be found. Skipping.", "group_id", osGroup.ID, "user_id", tokenInfo.User.ID)
 					continue
 				}
 			}
@@ -490,8 +424,7 @@ func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo
 			var ok bool
 			localGroup, ok = findGroupByID(allGroups, localGroup.ID)
 			if !ok {
-				p.Logger.Warnf("Group with ID '%s' attached to user '%s' could not be found. Skipping.",
-					localGroup.ID, tokenInfo.User.ID)
+				p.Logger.Warn("Group with ID attached to user could not be found. Skipping.", "group_id", localGroup.ID, "user_id", tokenInfo.User.ID)
 				continue
 			}
 		}
@@ -505,7 +438,7 @@ func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo
 		userID: tokenInfo.User.ID,
 	})
 	if err != nil {
-		p.Logger.Errorf("failed to fetch role assignments for userID %s: %s", tokenInfo.User.ID, err)
+		p.Logger.Error("failed to fetch role assignments for userID", "userID", tokenInfo.User.ID, "error", err)
 		return userGroups, err
 	}
 	roleAssignments = append(roleAssignments, localUserRoleAssignments...)
@@ -516,14 +449,14 @@ func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo
 			groupID: groupID,
 		})
 		if err != nil {
-			p.Logger.Errorf("failed to fetch role assignments for groupID %s: %s", groupID, err)
+			p.Logger.Error("failed to fetch role assignments for groupID", "groupID", groupID, "error", err)
 			return userGroups, err
 		}
 		roleAssignments = append(roleAssignments, groupRoleAssignments...)
 	}
 
 	if len(roleAssignments) == 0 {
-		p.Logger.Warnf("Warning: no role assignments found.")
+		p.Logger.Warn("Warning: no role assignments found.")
 		return userGroups, nil
 	}
 
@@ -546,7 +479,7 @@ func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo
 	}
 
 	//  Now create groups based on the role assignments
-	var roleGroups []string
+	roleGroups := make([]string, 0, len(roleAssignments))
 
 	// get the customer name to be prefixed in the group name
 	customerName := p.CustomerName
@@ -578,8 +511,8 @@ func (p *conn) getGroups(ctx context.Context, token string, tokenInfo *tokenInfo
 }
 
 func (p *conn) getHostname() (string, error) {
-	keystoneUrl := p.Host
-	parsedURL, err := url.Parse(keystoneUrl)
+	keystoneURL := p.Host
+	parsedURL, err := url.Parse(keystoneURL)
 	if err != nil {
 		return "", fmt.Errorf("error parsing URL: %v", err)
 	}
@@ -604,7 +537,6 @@ func (p *conn) generateGroupName(project project, role role, customerName string
 func (p *conn) getUser(ctx context.Context, userID string, token string) (*userResponse, error) {
 	// https://developer.openstack.org/api-ref/identity/v3/#show-user-details
 	userURL := p.Host + "/v3/users/" + userID
-	client := &http.Client{}
 	req, err := http.NewRequest("GET", userURL, nil)
 	if err != nil {
 		return nil, err
@@ -612,7 +544,7 @@ func (p *conn) getUser(ctx context.Context, userID string, token string) (*userR
 
 	req.Header.Set("X-Auth-Token", token)
 	req = req.WithContext(ctx)
-	resp, err := client.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -639,7 +571,7 @@ func (p *conn) getUser(ctx context.Context, userID string, token string) (*userR
 func (p *conn) getTokenInfo(ctx context.Context, token string) (*tokenInfo, error) {
 	// https://developer.openstack.org/api-ref/identity/v3/#password-authentication-with-unscoped-authorization
 	authTokenURL := p.Host + "/v3/auth/tokens"
-	p.Logger.Infof("Fetching Keystone token info: %s", authTokenURL)
+	p.Logger.Info("Fetching Keystone token info", "url", authTokenURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, authTokenURL, nil)
 	if err != nil {
 		return nil, err
@@ -657,7 +589,7 @@ func (p *conn) getTokenInfo(ctx context.Context, token string) (*tokenInfo, erro
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		p.Logger.Errorf("keystone: get token info: error status code %d: %s\n", resp.StatusCode, strings.ReplaceAll(string(data), "\n", ""))
+		p.Logger.Error("keystone: failed to get token info", "error_status_code", resp.StatusCode, "response", strings.ReplaceAll(string(data), "\n", ""))
 		return nil, fmt.Errorf("keystone: get token info: error status code %d", resp.StatusCode)
 	}
 
@@ -681,7 +613,7 @@ func (p *conn) getAllGroups(ctx context.Context, token string) ([]keystoneGroup,
 	req = req.WithContext(ctx)
 	resp, err := p.client.Do(req)
 	if err != nil {
-		p.Logger.Errorf("keystone: error while fetching groups\n")
+		p.Logger.Error("keystone: error while fetching groups")
 		return nil, err
 	}
 
@@ -701,7 +633,6 @@ func (p *conn) getAllGroups(ctx context.Context, token string) ([]keystoneGroup,
 }
 
 func (p *conn) getUserGroups(ctx context.Context, userID string, token string) ([]keystoneGroup, error) {
-	client := &http.Client{}
 	// https://developer.openstack.org/api-ref/identity/v3/#list-groups-to-which-a-user-belongs
 	groupsURL := p.Host + "/v3/users/" + userID + "/groups"
 	req, err := http.NewRequest("GET", groupsURL, nil)
@@ -710,9 +641,9 @@ func (p *conn) getUserGroups(ctx context.Context, userID string, token string) (
 	}
 	req.Header.Set("X-Auth-Token", token)
 	req = req.WithContext(ctx)
-	resp, err := client.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
-		p.Logger.Errorf("keystone: error while fetching user %q groups\n", userID)
+		p.Logger.Error("error while fetching user groups", "user_id", userID, "err", err)
 		return nil, err
 	}
 
@@ -732,9 +663,8 @@ func (p *conn) getUserGroups(ctx context.Context, userID string, token string) (
 }
 
 type getRoleAssignmentsOptions struct {
-	userID    string
-	groupID   string
-	projectID string
+	userID  string
+	groupID string
 }
 
 func (p *conn) getRoleAssignments(ctx context.Context, token string, opts getRoleAssignmentsOptions) ([]roleAssignment, error) {
@@ -755,7 +685,7 @@ func (p *conn) getRoleAssignments(ctx context.Context, token string, opts getRol
 	req = req.WithContext(ctx)
 	resp, err := p.client.Do(req)
 	if err != nil {
-		p.Logger.Errorf("keystone: error while fetching role assignments: %v", err)
+		p.Logger.Error("keystone: error while fetching role assignments", "error", err)
 		return nil, err
 	}
 
@@ -787,7 +717,7 @@ func (p *conn) getRoles(ctx context.Context, token string) ([]role, error) {
 	req = req.WithContext(ctx)
 	resp, err := p.client.Do(req)
 	if err != nil {
-		p.Logger.Errorf("keystone: error while fetching keystone roles\n")
+		p.Logger.Error("keystone: error while fetching keystone roles", "error", err)
 		return nil, err
 	}
 
@@ -819,7 +749,7 @@ func (p *conn) getProjects(ctx context.Context, token string) ([]project, error)
 	req = req.WithContext(ctx)
 	resp, err := p.client.Do(req)
 	if err != nil {
-		p.Logger.Errorf("keystone: error while fetching keystone projects\n")
+		p.Logger.Error("keystone: error while fetching keystone projects", "error", err)
 		return nil, err
 	}
 
@@ -843,7 +773,7 @@ func (p *conn) getProjects(ctx context.Context, token string) ([]project, error)
 
 func pruneDuplicates(ss []string) []string {
 	set := map[string]struct{}{}
-	var ns []string
+	ns := make([]string, 0, len(ss))
 	for _, s := range ss {
 		if _, ok := set[s]; ok {
 			continue

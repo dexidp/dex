@@ -13,11 +13,13 @@ import (
 	"hash"
 	"hash/fnv"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -26,7 +28,6 @@ import (
 	"github.com/ghodss/yaml"
 	"golang.org/x/net/http2"
 
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
@@ -35,7 +36,7 @@ type client struct {
 	client    *http.Client
 	baseURL   string
 	namespace string
-	logger    log.Logger
+	logger    *slog.Logger
 
 	// Hash function to map IDs (which could span a large range) to Kubernetes names.
 	// While this is not currently upgradable, it could be in the future.
@@ -83,12 +84,25 @@ func offlineTokenName(userID string, connID string, h func() hash.Hash) string {
 	return strings.TrimRight(encoding.EncodeToString(hash.Sum(nil)), "=")
 }
 
+// https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-subdomain-names
+const kubeResourceMaxLen = 253
+
+var kubeResourceNameRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
+
 func (cli *client) urlForWithParams(
 	apiVersion, namespace, resource, name string, params url.Values,
-) string {
+) (string, error) {
 	basePath := "apis/"
 	if apiVersion == "v1" {
 		basePath = "api/"
+	}
+
+	if name != "" && (len(name) > kubeResourceMaxLen || !kubeResourceNameRegex.MatchString(name)) {
+		// The actual name can be found in auth request or auth code objects and equals to the state value
+		return "", fmt.Errorf(
+			"invalid kubernetes resource name: must match the pattern %s and be no longer than %d characters",
+			kubeResourceNameRegex.String(),
+			kubeResourceMaxLen)
 	}
 
 	var p string
@@ -105,13 +119,13 @@ func (cli *client) urlForWithParams(
 	}
 
 	if strings.HasSuffix(cli.baseURL, "/") {
-		return cli.baseURL + p + paramsSuffix
+		return cli.baseURL + p + paramsSuffix, nil
 	}
 
-	return cli.baseURL + "/" + p + paramsSuffix
+	return cli.baseURL + "/" + p + paramsSuffix, nil
 }
 
-func (cli *client) urlFor(apiVersion, namespace, resource, name string) string {
+func (cli *client) urlFor(apiVersion, namespace, resource, name string) (string, error) {
 	return cli.urlForWithParams(apiVersion, namespace, resource, name, url.Values{})
 }
 
@@ -191,13 +205,20 @@ func (cli *client) getURL(url string, v interface{}) error {
 }
 
 func (cli *client) getResource(apiVersion, namespace, resource, name string, v interface{}) error {
-	return cli.getURL(cli.urlFor(apiVersion, namespace, resource, name), v)
+	u, err := cli.urlFor(apiVersion, namespace, resource, name)
+	if err != nil {
+		return err
+	}
+	return cli.getURL(u, v)
 }
 
-func (cli *client) listN(resource string, v interface{}, n int) error {
+func (cli *client) listN(resource string, v interface{}, n int) error { //nolint:unparam // In practice, n is the gcResultLimit constant.
 	params := url.Values{}
 	params.Add("limit", fmt.Sprintf("%d", n))
-	u := cli.urlForWithParams(cli.apiVersion, cli.namespace, resource, "", params)
+	u, err := cli.urlForWithParams(cli.apiVersion, cli.namespace, resource, "", params)
+	if err != nil {
+		return err
+	}
 	return cli.getURL(u, v)
 }
 
@@ -215,7 +236,10 @@ func (cli *client) postResource(apiVersion, namespace, resource string, v interf
 		return fmt.Errorf("marshal object: %v", err)
 	}
 
-	url := cli.urlFor(apiVersion, namespace, resource, "")
+	url, err := cli.urlFor(apiVersion, namespace, resource, "")
+	if err != nil {
+		return err
+	}
 	resp, err := cli.client.Post(url, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -244,7 +268,7 @@ func (cli *client) detectKubernetesVersion() error {
 
 	clusterVersion, err := semver.NewVersion(version.GitVersion)
 	if err != nil {
-		cli.logger.Warnf("cannot detect Kubernetes version (%s): %v", clusterVersion, err)
+		cli.logger.Warn("cannot detect Kubernetes version", "version", clusterVersion, "err", err)
 		return nil
 	}
 
@@ -256,7 +280,10 @@ func (cli *client) detectKubernetesVersion() error {
 }
 
 func (cli *client) delete(resource, name string) error {
-	url := cli.urlFor(cli.apiVersion, cli.namespace, resource, name)
+	url, err := cli.urlFor(cli.apiVersion, cli.namespace, resource, name)
+	if err != nil {
+		return err
+	}
 	req, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
 		return fmt.Errorf("create delete request: %v", err)
@@ -295,7 +322,11 @@ func (cli *client) put(resource, name string, v interface{}) error {
 		return fmt.Errorf("marshal object: %v", err)
 	}
 
-	url := cli.urlFor(cli.apiVersion, cli.namespace, resource, name)
+	url, err := cli.urlFor(cli.apiVersion, cli.namespace, resource, name)
+	if err != nil {
+		return err
+	}
+
 	req, err := http.NewRequest("PUT", url, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("create patch request: %v", err)
@@ -327,7 +358,7 @@ func defaultTLSConfig() *tls.Config {
 	}
 }
 
-func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, logger log.Logger, inCluster bool) (*client, error) {
+func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, logger *slog.Logger, inCluster bool) (*client, error) {
 	tlsConfig := defaultTLSConfig()
 	data := func(b string, file string) ([]byte, error) {
 		if b != "" {
@@ -387,7 +418,7 @@ func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, l
 
 	apiVersion := "dex.coreos.com/v1"
 
-	logger.Infof("kubernetes client apiVersion = %s", apiVersion)
+	logger.Info("kubernetes client", "api_version", apiVersion)
 	return &client{
 		client: &http.Client{
 			Transport: t,

@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"regexp"
@@ -15,7 +16,6 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/lib/pq"
 
-	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -31,7 +31,6 @@ const (
 	mysqlErrUnknownSysVar       = 1193
 )
 
-// nolint
 const (
 	// postgres SSL modes
 	pgSSLDisable    = "disable"
@@ -40,7 +39,6 @@ const (
 	pgSSLVerifyFull = "verify-full"
 )
 
-// nolint
 const (
 	// MySQL SSL modes
 	mysqlSSLTrue       = "true"
@@ -84,7 +82,7 @@ type Postgres struct {
 }
 
 // Open creates a new storage implementation backed by Postgres.
-func (p *Postgres) Open(logger log.Logger) (storage.Storage, error) {
+func (p *Postgres) Open(logger *slog.Logger) (storage.Storage, error) {
 	conn, err := p.open(logger)
 	if err != nil {
 		return nil, err
@@ -164,7 +162,7 @@ func (p *Postgres) createDataSourceName() string {
 	return strings.Join(parameters, " ")
 }
 
-func (p *Postgres) open(logger log.Logger) (*conn, error) {
+func (p *Postgres) open(logger *slog.Logger) (*conn, error) {
 	dataSourceName := p.createDataSourceName()
 
 	db, err := sql.Open("postgres", dataSourceName)
@@ -216,7 +214,7 @@ type MySQL struct {
 }
 
 // Open creates a new storage implementation backed by MySQL.
-func (s *MySQL) Open(logger log.Logger) (storage.Storage, error) {
+func (s *MySQL) Open(logger *slog.Logger) (storage.Storage, error) {
 	conn, err := s.open(logger)
 	if err != nil {
 		return nil, err
@@ -224,7 +222,7 @@ func (s *MySQL) Open(logger log.Logger) (storage.Storage, error) {
 	return conn, nil
 }
 
-func (s *MySQL) open(logger log.Logger) (*conn, error) {
+func (s *MySQL) open(logger *slog.Logger) (*conn, error) {
 	cfg := mysql.Config{
 		User:                 s.User,
 		Passwd:               s.Password,

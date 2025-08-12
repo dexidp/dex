@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -17,7 +18,6 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	groups_pkg "github.com/dexidp/dex/pkg/groups"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 // GroupNameFormat represents the format of the group identifier
@@ -54,6 +54,9 @@ type Config struct {
 	UseGroupsAsWhitelist bool            `json:"useGroupsAsWhitelist"`
 	EmailToLowercase     bool            `json:"emailToLowercase"`
 
+	APIURL   string `json:"apiURL"`
+	GraphURL string `json:"graphURL"`
+
 	// PromptType is used for the prompt query parameter.
 	// For valid values, see https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow#request-an-authorization-code.
 	PromptType string `json:"promptType"`
@@ -63,10 +66,10 @@ type Config struct {
 }
 
 // Open returns a strategy for logging in through Microsoft.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
 	m := microsoftConnector{
-		apiURL:               "https://login.microsoftonline.com",
-		graphURL:             "https://graph.microsoft.com",
+		apiURL:               strings.TrimSuffix(c.APIURL, "/"),
+		graphURL:             strings.TrimSuffix(c.GraphURL, "/"),
 		redirectURI:          c.RedirectURI,
 		clientID:             c.ClientID,
 		clientSecret:         c.ClientSecret,
@@ -75,12 +78,21 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 		groups:               c.Groups,
 		groupNameFormat:      c.GroupNameFormat,
 		useGroupsAsWhitelist: c.UseGroupsAsWhitelist,
-		logger:               logger,
+		logger:               logger.With(slog.Group("connector", "type", "microsoft", "id", id)),
 		emailToLowercase:     c.EmailToLowercase,
 		promptType:           c.PromptType,
 		domainHint:           c.DomainHint,
 		scopes:               c.Scopes,
 	}
+
+	if m.apiURL == "" {
+		m.apiURL = "https://login.microsoftonline.com"
+	}
+
+	if m.graphURL == "" {
+		m.graphURL = "https://graph.microsoft.com"
+	}
+
 	// By default allow logins from both personal and business/school
 	// accounts.
 	if m.tenant == "" {
@@ -121,7 +133,7 @@ type microsoftConnector struct {
 	groupNameFormat      GroupNameFormat
 	groups               []string
 	useGroupsAsWhitelist bool
-	logger               log.Logger
+	logger               *slog.Logger
 	emailToLowercase     bool
 	promptType           string
 	domainHint           string
@@ -316,22 +328,27 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 
 // https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/resources/user
 // id                - The unique identifier for the user. Inherited from
-//                     directoryObject. Key. Not nullable. Read-only.
+//
+//	directoryObject. Key. Not nullable. Read-only.
+//
 // displayName       - The name displayed in the address book for the user.
-//                     This is usually the combination of the user's first name,
-//                     middle initial and last name. This property is required
-//                     when a user is created and it cannot be cleared during
-//                     updates. Supports $filter and $orderby.
+//
+//	This is usually the combination of the user's first name,
+//	middle initial and last name. This property is required
+//	when a user is created and it cannot be cleared during
+//	updates. Supports $filter and $orderby.
+//
 // userPrincipalName - The user principal name (UPN) of the user.
-//                     The UPN is an Internet-style login name for the user
-//                     based on the Internet standard RFC 822. By convention,
-//                     this should map to the user's email name. The general
-//                     format is alias@domain, where domain must be present in
-//                     the tenant’s collection of verified domains. This
-//                     property is required when a user is created. The
-//                     verified domains for the tenant can be accessed from the
-//                     verifiedDomains property of organization. Supports
-//                     $filter and $orderby.
+//
+//	The UPN is an Internet-style login name for the user
+//	based on the Internet standard RFC 822. By convention,
+//	this should map to the user's email name. The general
+//	format is alias@domain, where domain must be present in
+//	the tenant’s collection of verified domains. This
+//	property is required when a user is created. The
+//	verified domains for the tenant can be accessed from the
+//	verifiedDomains property of organization. Supports
+//	$filter and $orderby.
 type user struct {
 	ID    string `json:"id"`
 	Name  string `json:"displayName"`
@@ -364,8 +381,9 @@ func (c *microsoftConnector) user(ctx context.Context, client *http.Client) (u u
 
 // https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/resources/group
 // displayName - The display name for the group. This property is required when
-//               a group is created and it cannot be cleared during updates.
-//               Supports $filter and $orderby.
+//
+//	a group is created and it cannot be cleared during updates.
+//	Supports $filter and $orderby.
 type group struct {
 	Name string `json:"displayName"`
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
+	"log/slog"
 	"os"
 	"sort"
 	"testing"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/kylelemons/godebug/pretty"
 	dsig "github.com/russellhaering/goxmldsig"
-	"github.com/sirupsen/logrus"
 
 	"github.com/dexidp/dex/connector"
 )
@@ -24,19 +24,18 @@ import (
 // To add a new test, define a new, unsigned SAML 2.0 response that exercises some
 // case, then sign it using the "testdata/gen.sh" script.
 //
-//     cp testdata/good-resp.tmpl testdata/( testname ).tmpl
-//     vim ( testname ).tmpl # Modify your template for your test case.
-//     vim testdata/gen.sh   # Add a xmlsec1 command to the generation script.
-//     ./testdata/gen.sh     # Sign your template.
+//	cp testdata/good-resp.tmpl testdata/( testname ).tmpl
+//	vim ( testname ).tmpl # Modify your template for your test case.
+//	vim testdata/gen.sh   # Add a xmlsec1 command to the generation script.
+//	./testdata/gen.sh     # Sign your template.
 //
 // To install xmlsec1 on Fedora run:
 //
-//     sudo dnf install xmlsec1 xmlsec1-openssl
+//	sudo dnf install xmlsec1 xmlsec1-openssl
 //
 // On mac:
 //
-//     brew install Libxmlsec1
-//
+//	brew install Libxmlsec1
 type responseTest struct {
 	// CA file and XML file of the response.
 	caFile   string
@@ -421,7 +420,7 @@ func (r responseTest) run(t *testing.T) {
 		t.Fatalf("parse test time: %v", err)
 	}
 
-	conn, err := c.openConnector(logrus.New())
+	conn, err := c.openConnector(slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -455,7 +454,7 @@ func (r responseTest) run(t *testing.T) {
 }
 
 func TestConfigCAData(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	validPEM, err := os.ReadFile("testdata/ca.crt")
 	if err != nil {
 		t.Fatal(err)

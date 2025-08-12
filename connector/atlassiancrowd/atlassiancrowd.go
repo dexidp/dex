@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/groups"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 // Config holds configuration options for Atlassian Crowd connector.
@@ -24,18 +24,17 @@ import (
 //
 // An example config:
 //
-//     type: atlassian-crowd
-//     config:
-//       baseURL: https://crowd.example.com/context
-//       clientID: applogin
-//       clientSecret: appP4$$w0rd
-//       # users can be restricted by a list of groups
-//       groups:
-//       - admin
-//       # Prompt for username field
-//       usernamePrompt: Login
-//		 preferredUsernameField: name
-//
+//	    type: atlassian-crowd
+//	    config:
+//	      baseURL: https://crowd.example.com/context
+//	      clientID: applogin
+//	      clientSecret: appP4$$w0rd
+//	      # users can be restricted by a list of groups
+//	      groups:
+//	      - admin
+//	      # Prompt for username field
+//	      usernamePrompt: Login
+//			 preferredUsernameField: name
 type Config struct {
 	BaseURL      string   `json:"baseURL"`
 	ClientID     string   `json:"clientID"`
@@ -81,16 +80,16 @@ type crowdAuthenticationError struct {
 }
 
 // Open returns a strategy for logging in through Atlassian Crowd
-func (c *Config) Open(_ string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
 	if c.BaseURL == "" {
 		return nil, fmt.Errorf("crowd: no baseURL provided for crowd connector")
 	}
-	return &crowdConnector{Config: *c, logger: logger}, nil
+	return &crowdConnector{Config: *c, logger: logger.With(slog.Group("connector", "type", "atlassiancrowd", "id", id))}, nil
 }
 
 type crowdConnector struct {
 	Config
-	logger log.Logger
+	logger *slog.Logger
 }
 
 var (
@@ -376,7 +375,7 @@ func (c *crowdConnector) identityFromCrowdUser(user crowdUser) connector.Identit
 		identity.PreferredUsername = user.Email
 	default:
 		if c.PreferredUsernameField != "" {
-			c.logger.Warnf("preferred_username left empty. Invalid crowd field mapped to preferred_username: %s", c.PreferredUsernameField)
+			c.logger.Warn("preferred_username left empty. Invalid crowd field mapped to preferred_username", "field", c.PreferredUsernameField)
 		}
 	}
 
@@ -437,12 +436,12 @@ func (c *crowdConnector) validateCrowdResponse(resp *http.Response) ([]byte, err
 	}
 
 	if resp.StatusCode == http.StatusForbidden && strings.Contains(string(body), "The server understood the request but refuses to authorize it.") {
-		c.logger.Debugf("crowd response validation failed: %s", string(body))
+		c.logger.Debug("crowd response validation failed", "response", string(body))
 		return nil, fmt.Errorf("dex is forbidden from making requests to the Atlassian Crowd application by URL %q", c.BaseURL)
 	}
 
 	if resp.StatusCode == http.StatusUnauthorized && string(body) == "Application failed to authenticate" {
-		c.logger.Debugf("crowd response validation failed: %s", string(body))
+		c.logger.Debug("crowd response validation failed", "response", string(body))
 		return nil, fmt.Errorf("dex failed to authenticate Crowd Application with ID %q", c.ClientID)
 	}
 	return body, nil

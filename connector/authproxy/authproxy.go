@@ -5,12 +5,12 @@ package authproxy
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/log"
 )
 
 // Config holds the configuration parameters for a connector which returns an
@@ -19,33 +19,60 @@ import (
 // Headers retrieved to fetch user's email and group can be configured
 // with userHeader and groupHeader.
 type Config struct {
-	UserHeader  string   `json:"userHeader"`
-	GroupHeader string   `json:"groupHeader"`
-	Groups      []string `json:"staticGroups"`
+	UserIDHeader   string   `json:"userIDHeader"`
+	UserHeader     string   `json:"userHeader"`
+	UserNameHeader string   `json:"userNameHeader"`
+	EmailHeader    string   `json:"emailHeader"`
+	GroupHeader    string   `json:"groupHeader"`
+	Groups         []string `json:"staticGroups"`
 }
 
 // Open returns an authentication strategy which requires no user interaction.
-func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
+	userIDHeader := c.UserIDHeader
+	if userIDHeader == "" {
+		userIDHeader = "X-Remote-User-Id"
+	}
 	userHeader := c.UserHeader
 	if userHeader == "" {
 		userHeader = "X-Remote-User"
+	}
+	userNameHeader := c.UserNameHeader
+	if userNameHeader == "" {
+		userNameHeader = "X-Remote-User-Name"
+	}
+	emailHeader := c.EmailHeader
+	if emailHeader == "" {
+		emailHeader = "X-Remote-User-Email"
 	}
 	groupHeader := c.GroupHeader
 	if groupHeader == "" {
 		groupHeader = "X-Remote-Group"
 	}
 
-	return &callback{userHeader: userHeader, groupHeader: groupHeader, logger: logger, pathSuffix: "/" + id, groups: c.Groups}, nil
+	return &callback{
+		userIDHeader:   userIDHeader,
+		userHeader:     userHeader,
+		userNameHeader: userNameHeader,
+		emailHeader:    emailHeader,
+		groupHeader:    groupHeader,
+		groups:         c.Groups,
+		logger:         logger.With(slog.Group("connector", "type", "authproxy", "id", id)),
+		pathSuffix:     "/" + id,
+	}, nil
 }
 
 // Callback is a connector which returns an identity with the HTTP header
 // X-Remote-User as verified email.
 type callback struct {
-	userHeader  string
-	groupHeader string
-	groups      []string
-	logger      log.Logger
-	pathSuffix  string
+	userIDHeader   string
+	userNameHeader string
+	userHeader     string
+	emailHeader    string
+	groupHeader    string
+	groups         []string
+	logger         *slog.Logger
+	pathSuffix     string
 }
 
 // LoginURL returns the URL to redirect the user to login with.
@@ -67,6 +94,18 @@ func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connecto
 	if remoteUser == "" {
 		return connector.Identity{}, fmt.Errorf("required HTTP header %s is not set", m.userHeader)
 	}
+	remoteUserName := r.Header.Get(m.userNameHeader)
+	if remoteUserName == "" {
+		remoteUserName = remoteUser
+	}
+	remoteUserID := r.Header.Get(m.userIDHeader)
+	if remoteUserID == "" {
+		remoteUserID = remoteUser
+	}
+	remoteUserEmail := r.Header.Get(m.emailHeader)
+	if remoteUserEmail == "" {
+		remoteUserEmail = remoteUser
+	}
 	groups := m.groups
 	headerGroup := r.Header.Get(m.groupHeader)
 	if headerGroup != "" {
@@ -77,9 +116,11 @@ func (m *callback) HandleCallback(s connector.Scopes, r *http.Request) (connecto
 		groups = append(splitheaderGroup, groups...)
 	}
 	return connector.Identity{
-		UserID:        remoteUser, // TODO: figure out if this is a bad ID value.
-		Email:         remoteUser,
-		EmailVerified: true,
-		Groups:        groups,
+		UserID:            remoteUserID,
+		Username:          remoteUser,
+		PreferredUsername: remoteUserName,
+		Email:             remoteUserEmail,
+		EmailVerified:     true,
+		Groups:            groups,
 	}, nil
 }

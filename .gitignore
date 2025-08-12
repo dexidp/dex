@@ -1,3 +1,4 @@
+/.devenv/
 /.direnv/
 /.idea/
 /bin/
@@ -5,3 +6,5 @@
 /docker-compose.override.yaml
 /var/
 /vendor/
+/api/v2/vendor/
+
