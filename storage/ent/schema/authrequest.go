@@ -88,6 +88,7 @@ func (AuthRequest) Fields() []ent.Field {
 			SchemaType(textSchema).
 			Default(""),
 		field.Bytes("hmac_key"),
+		field.Bool("totp_validated").Default(false),
 	}
 }
 

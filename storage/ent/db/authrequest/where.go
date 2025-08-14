@@ -149,6 +149,11 @@ func HmacKey(v []byte) predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldEQ(FieldHmacKey, v))
 }
 
+// TotpValidated applies equality check predicate on the "totp_validated" field. It's identical to TotpValidatedEQ.
+func TotpValidated(v bool) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEQ(FieldTotpValidated, v))
+}
+
 // ClientIDEQ applies the EQ predicate on the "client_id" field.
 func ClientIDEQ(v string) predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldEQ(FieldClientID, v))
@@ -1052,6 +1057,16 @@ func HmacKeyLT(v []byte) predicate.AuthRequest {
 // HmacKeyLTE applies the LTE predicate on the "hmac_key" field.
 func HmacKeyLTE(v []byte) predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldLTE(FieldHmacKey, v))
+}
+
+// TotpValidatedEQ applies the EQ predicate on the "totp_validated" field.
+func TotpValidatedEQ(v bool) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEQ(FieldTotpValidated, v))
+}
+
+// TotpValidatedNEQ applies the NEQ predicate on the "totp_validated" field.
+func TotpValidatedNEQ(v bool) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldNEQ(FieldTotpValidated, v))
 }
 
 // And groups predicates with the AND operator between them.

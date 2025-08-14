@@ -119,6 +119,9 @@ type Config struct {
 	PrometheusRegistry *prometheus.Registry
 
 	HealthChecker gosundheit.Health
+
+	TOTPIssuer     string
+	TOTPConnectors []string
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -196,6 +199,8 @@ type Server struct {
 	refreshTokenPolicy *RefreshTokenPolicy
 
 	logger *slog.Logger
+
+	totp *secondFactorAuthenticator
 }
 
 // NewServer constructs a server from the provided config.
@@ -311,6 +316,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		now:                    now,
 		templates:              tmpls,
 		passwordConnector:      c.PasswordConnector,
+		totp:                   newSecondFactorAuthenticator(c.TOTPIssuer, c.TOTPConnectors),
 		logger:                 c.Logger,
 	}
 
@@ -486,6 +492,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	// "authproxy" connector.
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
+	handleFunc("/totp", s.handleTOTPVerify)
 	handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !c.HealthChecker.IsHealthy() {
 			s.renderError(r, w, http.StatusInternalServerError, "Health check failed.")
@@ -555,6 +562,7 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 		Username:      p.Username,
 		Email:         p.Email,
 		EmailVerified: true,
+		Groups:        p.Groups,
 	}, true, nil
 }
 
@@ -579,6 +587,7 @@ func (db passwordDB) Refresh(ctx context.Context, s connector.Scopes, identity c
 	// No other fields are expected to be refreshable as email is effectively used
 	// as an ID and this implementation doesn't deal with groups.
 	identity.Username = p.Username
+	identity.Groups = p.Groups
 
 	return identity, nil
 }

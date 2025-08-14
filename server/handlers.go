@@ -11,7 +11,6 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
-	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,7 +20,10 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/gorilla/mux"
 
+	"slices"
+
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -517,10 +519,34 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		Groups:            identity.Groups,
 	}
 
+	client, err := s.storage.GetClient(ctx, authReq.ClientID)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to retrieve client")
+	}
+
+	if len(client.AllowedEmails) > 0 {
+		allowed := slices.Contains(client.AllowedEmails, claims.Email)
+		if !allowed {
+			return "", false, fmt.Errorf("user %q not in allowed emails: %v", claims.Username, claims.Email)
+		}
+	}
+
+	if len(client.AllowedGroups) > 0 {
+		claims.Groups = groups.Filter(claims.Groups, client.AllowedGroups)
+		if len(claims.Groups) == 0 {
+			return "", false, fmt.Errorf("user %q not in allowed groups: %v", claims.Username, claims.Groups)
+		}
+	}
+
 	updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
 		a.LoggedIn = true
 		a.Claims = claims
 		a.ConnectorData = identity.ConnectorData
+
+		if !s.totp.enabledForConnector(a.ConnectorID) {
+			a.TOTPValidated = true
+		}
+
 		return a, nil
 	}
 	if err := s.storage.UpdateAuthRequest(ctx, authReq.ID, updater); err != nil {
@@ -536,52 +562,57 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		"connector_id", authReq.ConnectorID, "username", claims.Username,
 		"preferred_username", claims.PreferredUsername, "email", email, "groups", claims.Groups)
 
-	offlineAccessRequested := false
-	for _, scope := range authReq.Scopes {
-		if scope == scopeOfflineAccess {
-			offlineAccessRequested = true
-			break
-		}
-	}
-	_, canRefresh := conn.(connector.RefreshConnector)
-
-	if offlineAccessRequested && canRefresh {
-		// Try to retrieve an existing OfflineSession object for the corresponding user.
-		session, err := s.storage.GetOfflineSessions(ctx, identity.UserID, authReq.ConnectorID)
-		switch {
-		case err != nil && err == storage.ErrNotFound:
-			offlineSessions := storage.OfflineSessions{
-				UserID:        identity.UserID,
-				ConnID:        authReq.ConnectorID,
-				Refresh:       make(map[string]*storage.RefreshTokenRef),
-				ConnectorData: identity.ConnectorData,
-			}
-
-			// Create a new OfflineSession object for the user and add a reference object for
-			// the newly received refreshtoken.
-			if err := s.storage.CreateOfflineSessions(ctx, offlineSessions); err != nil {
-				s.logger.ErrorContext(ctx, "failed to create offline session", "err", err)
-				return "", false, err
-			}
-		case err == nil:
-			// Update existing OfflineSession obj with new RefreshTokenRef.
-			if err := s.storage.UpdateOfflineSessions(ctx, session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
-				if len(identity.ConnectorData) > 0 {
-					old.ConnectorData = identity.ConnectorData
-				}
-				return old, nil
-			}); err != nil {
-				s.logger.ErrorContext(ctx, "failed to update offline session", "err", err)
-				return "", false, err
-			}
-		default:
+	// Try to retrieve an existing OfflineSession object for the corresponding user.
+	// TODO(nabokihms): We create an offline session even if the offline access is not requested.
+	//   In the future it will be possible to migrate to sessions.
+	//   Sessions may contain attributes like approval status, etc.
+	if _, err := s.storage.GetOfflineSessions(ctx, identity.UserID, authReq.ConnectorID); err != nil {
+		if err != storage.ErrNotFound {
 			s.logger.ErrorContext(ctx, "failed to get offline session", "err", err)
+			return "", false, err
+		}
+		offlineSessions := storage.OfflineSessions{
+			UserID:        identity.UserID,
+			ConnID:        authReq.ConnectorID,
+			Refresh:       make(map[string]*storage.RefreshTokenRef),
+			ConnectorData: identity.ConnectorData,
+		}
+
+		if s.totp.enabledForConnector(authReq.ConnectorID) {
+			generated, err := s.totp.generate(authReq.ConnectorID, identity.Email)
+			if err != nil {
+				s.logger.ErrorContext(ctx, "failed to generate totp for offline session", "err", err)
+				return "", false, err
+			}
+			offlineSessions.TOTP = generated.String()
+		}
+
+		// Create a new OfflineSession object for the user and add a reference object for
+		// the newly received refreshtoken.
+		if err := s.storage.CreateOfflineSessions(ctx, offlineSessions); err != nil {
+			s.logger.ErrorContext(ctx, "failed to create offline session", "err", err)
 			return "", false, err
 		}
 	}
 
+	// Update existing OfflineSession obj with new RefreshTokenRef.
+	if err := s.storage.UpdateOfflineSessions(ctx, identity.UserID, authReq.ConnectorID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+		if len(identity.ConnectorData) > 0 {
+			old.ConnectorData = identity.ConnectorData
+		}
+		return old, nil
+	}); err != nil {
+		s.logger.ErrorContext(ctx, "failed to update offline session", "err", err)
+		return "", false, err
+	}
+
 	// we can skip the redirect to /approval and go ahead and send code if it's not required
 	if s.skipApproval && !authReq.ForceApprovalPrompt {
+		return "", true, nil
+	}
+
+	// we can skip the redirect to /approval and /totp and go ahead and send code if it's not required
+	if s.skipApproval && !authReq.ForceApprovalPrompt && !s.totp.enabledForConnector(authReq.ConnectorID) {
 		return "", true, nil
 	}
 
@@ -591,8 +622,21 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 	h.Write([]byte(authReq.ID))
 	mac := h.Sum(nil)
 
-	returnURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID + "&hmac=" + base64.RawURLEncoding.EncodeToString(mac)
-	return returnURL, false, nil
+	// Deep copy issuer URL to avoid modifying the global one.
+	returnURL, _ := url.Parse(s.issuerURL.String())
+	values := returnURL.Query()
+	values.Set("req", authReq.ID)
+	values.Set("hmac", base64.RawURLEncoding.EncodeToString(mac))
+
+	if s.totp.enabledForConnector(authReq.ConnectorID) {
+		values.Set("state", identity.UserID)
+		returnURL = returnURL.JoinPath("totp")
+	} else {
+		returnURL = returnURL.JoinPath("approval")
+	}
+
+	returnURL.RawQuery = values.Encode()
+	return returnURL.String(), false, nil
 }
 
 func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
@@ -614,7 +658,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		s.renderError(r, w, http.StatusInternalServerError, "Database error.")
 		return
 	}
-	if !authReq.LoggedIn {
+	if !authReq.LoggedIn || !authReq.TOTPValidated {
 		s.logger.ErrorContext(r.Context(), "auth request does not have an identity for approval")
 		s.renderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
 		return

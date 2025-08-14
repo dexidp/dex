@@ -51,6 +51,9 @@ type Config struct {
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
+
+	// TOTP represents the configuration for two-factor authentication.
+	TOTP TOTP `json:"twoFactorAuthn"`
 }
 
 // Validate the configuration
@@ -95,11 +98,12 @@ type password storage.Password
 
 func (p *password) UnmarshalJSON(b []byte) error {
 	var data struct {
-		Email       string `json:"email"`
-		Username    string `json:"username"`
-		UserID      string `json:"userID"`
-		Hash        string `json:"hash"`
-		HashFromEnv string `json:"hashFromEnv"`
+		Email       string   `json:"email"`
+		Username    string   `json:"username"`
+		UserID      string   `json:"userID"`
+		Hash        string   `json:"hash"`
+		HashFromEnv string   `json:"hashFromEnv"`
+		Groups      []string `json:"groups"`
 	}
 	if err := json.Unmarshal(b, &data); err != nil {
 		return err
@@ -108,6 +112,7 @@ func (p *password) UnmarshalJSON(b []byte) error {
 		Email:    data.Email,
 		Username: data.Username,
 		UserID:   data.UserID,
+		Groups:   data.Groups,
 	})
 	if len(data.Hash) == 0 && len(data.HashFromEnv) > 0 {
 		data.Hash = os.Getenv(data.HashFromEnv)
@@ -473,4 +478,11 @@ type RefreshToken struct {
 	ReuseInterval     string `json:"reuseInterval"`
 	AbsoluteLifetime  string `json:"absoluteLifetime"`
 	ValidIfNotUsedFor string `json:"validIfNotUsedFor"`
+}
+
+type TOTP struct {
+	// Issuer is the name of the service (will be shown in the authenticator app).
+	Issuer string `json:"issuer"`
+	// Connectors is a list of connectors that will use TOTP.
+	Connectors []string `json:"connectors"`
 }

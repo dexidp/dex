@@ -45,7 +45,8 @@ func toStorageAuthRequest(a *db.AuthRequest) storage.AuthRequest {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
-		HMACKey: a.HmacKey,
+		HMACKey:       a.HmacKey,
+		TOTPValidated: a.TotpValidated,
 	}
 }
 
@@ -100,6 +101,8 @@ func toStorageOfflineSession(o *db.OfflineSession) storage.OfflineSessions {
 		UserID:        o.UserID,
 		ConnID:        o.ConnID,
 		ConnectorData: *o.ConnectorData,
+		TOTP:          o.Totp,
+		TOTPConfirmed: o.TotpConfirmed,
 	}
 
 	if o.Refresh != nil {

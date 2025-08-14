@@ -251,6 +251,9 @@ type Client struct {
 
 	Name    string `json:"name,omitempty"`
 	LogoURL string `json:"logoURL,omitempty"`
+
+	AllowedEmails []string `json:"allowedEmails,omitempty"`
+	AllowedGroups []string `json:"allowedGroups,omitempty"`
 }
 
 // ClientList is a list of Clients.
@@ -270,25 +273,29 @@ func (cli *client) fromStorageClient(c storage.Client) Client {
 			Name:      cli.idToName(c.ID),
 			Namespace: cli.namespace,
 		},
-		ID:           c.ID,
-		Secret:       c.Secret,
-		RedirectURIs: c.RedirectURIs,
-		TrustedPeers: c.TrustedPeers,
-		Public:       c.Public,
-		Name:         c.Name,
-		LogoURL:      c.LogoURL,
+		ID:            c.ID,
+		Secret:        c.Secret,
+		RedirectURIs:  c.RedirectURIs,
+		TrustedPeers:  c.TrustedPeers,
+		Public:        c.Public,
+		Name:          c.Name,
+		LogoURL:       c.LogoURL,
+		AllowedEmails: c.AllowedEmails,
+		AllowedGroups: c.AllowedGroups,
 	}
 }
 
 func toStorageClient(c Client) storage.Client {
 	return storage.Client{
-		ID:           c.ID,
-		Secret:       c.Secret,
-		RedirectURIs: c.RedirectURIs,
-		TrustedPeers: c.TrustedPeers,
-		Public:       c.Public,
-		Name:         c.Name,
-		LogoURL:      c.LogoURL,
+		ID:            c.ID,
+		Secret:        c.Secret,
+		RedirectURIs:  c.RedirectURIs,
+		TrustedPeers:  c.TrustedPeers,
+		Public:        c.Public,
+		Name:          c.Name,
+		LogoURL:       c.LogoURL,
+		AllowedEmails: c.AllowedEmails,
+		AllowedGroups: c.AllowedGroups,
 	}
 }
 
@@ -358,6 +365,8 @@ type AuthRequest struct {
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 
 	HMACKey []byte `json:"hmac_key"`
+
+	TOTPValidated bool `json:"totp_validated,omitempty"`
 }
 
 // AuthRequestList is a list of AuthRequests.
@@ -386,7 +395,8 @@ func toStorageAuthRequest(req AuthRequest) storage.AuthRequest {
 			CodeChallenge:       req.CodeChallenge,
 			CodeChallengeMethod: req.CodeChallengeMethod,
 		},
-		HMACKey: req.HMACKey,
+		HMACKey:       req.HMACKey,
+		TOTPValidated: req.TOTPValidated,
 	}
 	return a
 }
@@ -416,6 +426,7 @@ func (cli *client) fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		CodeChallenge:       a.PKCE.CodeChallenge,
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
 		HMACKey:             a.HMACKey,
+		TOTPValidated:       a.TOTPValidated,
 	}
 	return req
 }
@@ -431,9 +442,10 @@ type Password struct {
 	// This field is IMMUTABLE. Do not change.
 	Email string `json:"email,omitempty"`
 
-	Hash     []byte `json:"hash,omitempty"`
-	Username string `json:"username,omitempty"`
-	UserID   string `json:"userID,omitempty"`
+	Hash     []byte   `json:"hash,omitempty"`
+	Username string   `json:"username,omitempty"`
+	UserID   string   `json:"userID,omitempty"`
+	Groups   []string `json:"groups,omitempty"`
 }
 
 // PasswordList is a list of Passwords.
@@ -458,6 +470,7 @@ func (cli *client) fromStoragePassword(p storage.Password) Password {
 		Hash:     p.Hash,
 		Username: p.Username,
 		UserID:   p.UserID,
+		Groups:   p.Groups,
 	}
 }
 
@@ -467,6 +480,7 @@ func toStoragePassword(p Password) storage.Password {
 		Hash:     p.Hash,
 		Username: p.Username,
 		UserID:   p.UserID,
+		Groups:   p.Groups,
 	}
 }
 
@@ -665,6 +679,8 @@ type OfflineSessions struct {
 	ConnID        string                              `json:"connID,omitempty"`
 	Refresh       map[string]*storage.RefreshTokenRef `json:"refresh,omitempty"`
 	ConnectorData []byte                              `json:"connectorData,omitempty"`
+	TOTP          string                              `json:"totp,omitempty"`
+	TOTPConfirmed bool                                `json:"totpConfirmed,omitempty"`
 }
 
 func (cli *client) fromStorageOfflineSessions(o storage.OfflineSessions) OfflineSessions {
@@ -681,6 +697,8 @@ func (cli *client) fromStorageOfflineSessions(o storage.OfflineSessions) Offline
 		ConnID:        o.ConnID,
 		Refresh:       o.Refresh,
 		ConnectorData: o.ConnectorData,
+		TOTP:          o.TOTP,
+		TOTPConfirmed: o.TOTPConfirmed,
 	}
 }
 
@@ -690,6 +708,8 @@ func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
 		ConnID:        o.ConnID,
 		Refresh:       o.Refresh,
 		ConnectorData: o.ConnectorData,
+		TOTP:          o.TOTP,
+		TOTPConfirmed: o.TOTPConfirmed,
 	}
 	if s.Refresh == nil {
 		// Server code assumes this will be non-nil.

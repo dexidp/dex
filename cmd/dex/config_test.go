@@ -345,6 +345,11 @@ expiry:
   idTokens: "25h"
   authRequests: "25h"
 
+twoFactorAuthn:
+  issuer: dex
+  connectors:
+  - mock
+
 logger:
   level: "debug"
   format: "json"
@@ -436,6 +441,10 @@ logger:
 			SigningKeys:  "7h",
 			IDTokens:     "25h",
 			AuthRequests: "25h",
+		},
+		TOTP: TOTP{
+			Issuer:     "dex",
+			Connectors: []string{"mock"},
 		},
 		Logger: Logger{
 			Level:  slog.LevelDebug,

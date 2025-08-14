@@ -311,6 +311,20 @@ func (aru *AuthRequestUpdate) SetHmacKey(b []byte) *AuthRequestUpdate {
 	return aru
 }
 
+// SetTotpValidated sets the "totp_validated" field.
+func (aru *AuthRequestUpdate) SetTotpValidated(b bool) *AuthRequestUpdate {
+	aru.mutation.SetTotpValidated(b)
+	return aru
+}
+
+// SetNillableTotpValidated sets the "totp_validated" field if the given value is not nil.
+func (aru *AuthRequestUpdate) SetNillableTotpValidated(b *bool) *AuthRequestUpdate {
+	if b != nil {
+		aru.SetTotpValidated(*b)
+	}
+	return aru
+}
+
 // Mutation returns the AuthRequestMutation object of the builder.
 func (aru *AuthRequestUpdate) Mutation() *AuthRequestMutation {
 	return aru.mutation
@@ -438,6 +452,9 @@ func (aru *AuthRequestUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	}
 	if value, ok := aru.mutation.HmacKey(); ok {
 		_spec.SetField(authrequest.FieldHmacKey, field.TypeBytes, value)
+	}
+	if value, ok := aru.mutation.TotpValidated(); ok {
+		_spec.SetField(authrequest.FieldTotpValidated, field.TypeBool, value)
 	}
 	if n, err = sqlgraph.UpdateNodes(ctx, aru.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -741,6 +758,20 @@ func (aruo *AuthRequestUpdateOne) SetHmacKey(b []byte) *AuthRequestUpdateOne {
 	return aruo
 }
 
+// SetTotpValidated sets the "totp_validated" field.
+func (aruo *AuthRequestUpdateOne) SetTotpValidated(b bool) *AuthRequestUpdateOne {
+	aruo.mutation.SetTotpValidated(b)
+	return aruo
+}
+
+// SetNillableTotpValidated sets the "totp_validated" field if the given value is not nil.
+func (aruo *AuthRequestUpdateOne) SetNillableTotpValidated(b *bool) *AuthRequestUpdateOne {
+	if b != nil {
+		aruo.SetTotpValidated(*b)
+	}
+	return aruo
+}
+
 // Mutation returns the AuthRequestMutation object of the builder.
 func (aruo *AuthRequestUpdateOne) Mutation() *AuthRequestMutation {
 	return aruo.mutation
@@ -898,6 +929,9 @@ func (aruo *AuthRequestUpdateOne) sqlSave(ctx context.Context) (_node *AuthReque
 	}
 	if value, ok := aruo.mutation.HmacKey(); ok {
 		_spec.SetField(authrequest.FieldHmacKey, field.TypeBytes, value)
+	}
+	if value, ok := aruo.mutation.TotpValidated(); ok {
+		_spec.SetField(authrequest.FieldTotpValidated, field.TypeBool, value)
 	}
 	_node = &AuthRequest{config: aruo.config}
 	_spec.Assign = _node.assignValues

@@ -287,21 +287,23 @@ func runServe(options serveOptions) error {
 	healthChecker := gosundheit.New()
 
 	serverConfig := server.Config{
-		AllowedGrantTypes:      c.OAuth2.GrantTypes,
-		SupportedResponseTypes: c.OAuth2.ResponseTypes,
-		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
-		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
-		PasswordConnector:      c.OAuth2.PasswordConnector,
-		Headers:                c.Web.Headers.ToHTTPHeader(),
-		AllowedOrigins:         c.Web.AllowedOrigins,
-		AllowedHeaders:         c.Web.AllowedHeaders,
-		Issuer:                 c.Issuer,
-		Storage:                s,
-		Web:                    c.Frontend,
-		Logger:                 logger,
-		Now:                    now,
-		PrometheusRegistry:     prometheusRegistry,
-		HealthChecker:          healthChecker,
+		AllowedGrantTypes:          c.OAuth2.GrantTypes,
+		SupportedResponseTypes:     c.OAuth2.ResponseTypes,
+		SkipApprovalScreen:         c.OAuth2.SkipApprovalScreen,
+		AlwaysShowLoginScreen:      c.OAuth2.AlwaysShowLoginScreen,
+		PasswordConnector:          c.OAuth2.PasswordConnector,
+		Headers:                    c.Web.Headers.ToHTTPHeader(),
+		AllowedOrigins:             c.Web.AllowedOrigins,
+		AllowedHeaders:             c.Web.AllowedHeaders,
+		Issuer:                     c.Issuer,
+		Storage:                    s,
+		Web:                        c.Frontend,
+		Logger:                     logger,
+		Now:                        now,
+		PrometheusRegistry:         prometheusRegistry,
+		HealthChecker:              healthChecker,
+		TOTPIssuer:                 c.TOTP.Issuer,
+		TOTPConnectors:             c.TOTP.Connectors,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
