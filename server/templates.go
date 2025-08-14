@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -15,14 +16,15 @@ import (
 )
 
 const (
-	tmplApproval      = "approval.html"
-	tmplLogin         = "login.html"
-	tmplPassword      = "password.html"
-	tmplOOB           = "oob.html"
-	tmplError         = "error.html"
-	tmplDevice        = "device.html"
-	tmplDeviceSuccess = "device_success.html"
-	tmplTOTPVerify    = "totp_verify.html"
+	tmplApproval       = "approval.html"
+	tmplLogin          = "login.html"
+	tmplPassword       = "password.html"
+	tmplPasswordChange = "password_change.html"
+	tmplOOB            = "oob.html"
+	tmplError          = "error.html"
+	tmplDevice         = "device.html"
+	tmplDeviceSuccess  = "device_success.html"
+	tmplTOTPVerify     = "totp_verify.html"
 )
 
 var requiredTmpls = []string{
@@ -37,14 +39,15 @@ var requiredTmpls = []string{
 }
 
 type templates struct {
-	loginTmpl         *template.Template
-	approvalTmpl      *template.Template
-	passwordTmpl      *template.Template
-	oobTmpl           *template.Template
-	errorTmpl         *template.Template
-	deviceTmpl        *template.Template
-	deviceSuccessTmpl *template.Template
-	tmplTOTPVerify    *template.Template
+	loginTmpl          *template.Template
+	approvalTmpl       *template.Template
+	passwordTmpl       *template.Template
+	passwordChangeTmpl *template.Template
+	oobTmpl            *template.Template
+	errorTmpl          *template.Template
+	deviceTmpl         *template.Template
+	deviceSuccessTmpl  *template.Template
+	tmplTOTPVerify     *template.Template
 }
 
 type webConfig struct {
@@ -165,14 +168,15 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		return nil, fmt.Errorf("missing template(s): %s", missingTmpls)
 	}
 	return &templates{
-		loginTmpl:         tmpls.Lookup(tmplLogin),
-		approvalTmpl:      tmpls.Lookup(tmplApproval),
-		passwordTmpl:      tmpls.Lookup(tmplPassword),
-		oobTmpl:           tmpls.Lookup(tmplOOB),
-		errorTmpl:         tmpls.Lookup(tmplError),
-		deviceTmpl:        tmpls.Lookup(tmplDevice),
-		deviceSuccessTmpl: tmpls.Lookup(tmplDeviceSuccess),
-		tmplTOTPVerify:    tmpls.Lookup(tmplTOTPVerify),
+		loginTmpl:          tmpls.Lookup(tmplLogin),
+		approvalTmpl:       tmpls.Lookup(tmplApproval),
+		passwordTmpl:       tmpls.Lookup(tmplPassword),
+		passwordChangeTmpl: tmpls.Lookup(tmplPasswordChange),
+		oobTmpl:            tmpls.Lookup(tmplOOB),
+		errorTmpl:          tmpls.Lookup(tmplError),
+		deviceTmpl:         tmpls.Lookup(tmplDevice),
+		deviceSuccessTmpl:  tmpls.Lookup(tmplDeviceSuccess),
+		tmplTOTPVerify:     tmpls.Lookup(tmplTOTPVerify),
 	}, nil
 }
 
@@ -323,6 +327,96 @@ func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, la
 		ReqPath        string
 	}{postURL, backLink, lastUsername, usernamePrompt, lastWasInvalid, r.URL.Path}
 	return renderTemplate(w, t.passwordTmpl, data)
+}
+
+var (
+	ErrReusedPassword                   = errors.New("cannot use one of previous passwords")
+	ErrCurrentPasswordInvalid           = errors.New("current password is invalid")
+	ErrPasswordTooWeak                  = errors.New("")
+	ErrOldAndNewPassAreEq               = errors.New("old and new passwords are equal")
+	ErrNewPasswordContainsForbiddenChar = errors.New("new password contains forbidden character")
+)
+
+type passwordChangeReason string
+
+const (
+	complexityPolicyReason passwordChangeReason = "complexity"
+	rotationPolicyReason   passwordChangeReason = "rotation"
+)
+
+type passwordChangeParams struct {
+	Username        string
+	NewPasswordHint string
+	IssuerURL       string
+	ChangeReason    passwordChangeReason
+
+	Err error
+}
+
+func (t *templates) passwordChange(r *http.Request, w http.ResponseWriter, params passwordChangeParams) error {
+	postURL, err := url.JoinPath(params.IssuerURL, passwordChangeURI)
+	if err != nil {
+		return err
+	}
+
+	data := struct {
+		PostURL      string
+		Username     string
+		ChangeReason struct {
+			WeakComplexity bool
+			Rotation       bool
+		}
+		Error struct {
+			Exists bool
+			List   struct {
+				OldAndNewPassAreEqual  bool
+				CurrentPasswordInvalid bool
+				PasswordTooWeak        struct {
+					Exists      bool
+					Description string
+				}
+				ReusedPassword      bool
+				PasswordTooWeakDesc string
+			}
+		}
+		PasswordPolicy struct {
+			ComplexityRequirements string
+		}
+		ReqPath string
+	}{
+		Username: params.Username,
+		PostURL:  postURL,
+		ReqPath:  r.URL.Path,
+	}
+
+	switch params.ChangeReason {
+	case complexityPolicyReason:
+		data.ChangeReason.WeakComplexity = true
+	case rotationPolicyReason:
+		data.ChangeReason.Rotation = true
+	}
+
+	data.PasswordPolicy.ComplexityRequirements = params.NewPasswordHint
+
+	if params.Err != nil {
+		data.Error.Exists = true
+
+		if errors.Is(params.Err, ErrCurrentPasswordInvalid) {
+			data.Error.List.CurrentPasswordInvalid = true
+		}
+		if errors.Is(params.Err, ErrPasswordTooWeak) {
+			data.Error.List.PasswordTooWeak.Exists = true
+			data.Error.List.PasswordTooWeak.Description = params.Err.Error()
+		}
+		if errors.Is(params.Err, ErrOldAndNewPassAreEq) {
+			data.Error.List.OldAndNewPassAreEqual = true
+		}
+		if errors.Is(params.Err, ErrReusedPassword) {
+			data.Error.List.ReusedPassword = true
+		}
+	}
+
+	return renderTemplate(w, t.passwordChangeTmpl, data)
 }
 
 func (t *templates) approval(r *http.Request, w http.ResponseWriter, authReqID, username, clientName string, scopes []string) error {

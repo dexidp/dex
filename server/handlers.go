@@ -373,6 +373,24 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		password := r.FormValue("password")
 		scopes := parseScopes(authReq.Scopes)
 
+		p, err := s.storage.GetPassword(ctx, username)
+		if err != nil {
+			s.logger.ErrorContext(r.Context(), "failed to get password", "err", err)
+			s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+			return
+		}
+
+		if s.passwordPolicy != nil && s.passwordPolicy.IsPasswordLocked(p) {
+			s.logger.WarnContext(r.Context(),
+				"login attempt for locked account",
+				"username", username,
+				"locked_until", p.LockedUntil,
+			)
+			// TODO: maybe need to render error field in the login page (like incorrect pass error)
+			s.renderError(r, w, http.StatusTooManyRequests, "Account temporarily locked")
+			return
+		}
+
 		identity, ok, err := pwConn.Login(r.Context(), scopes, username, password)
 		if err != nil {
 			s.logger.ErrorContext(r.Context(), "failed to login user", "err", err)
@@ -380,12 +398,71 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !ok {
+			if s.passwordPolicy != nil && s.passwordPolicy.IsMaxLoginAttemptsExeeded(p.IncorrectPasswordLoginAttempts+1) {
+				lockedUntil := time.Now().Add(s.passwordPolicy.lockout.lockDuration)
+				updader := func(p storage.Password) (storage.Password, error) {
+					p.LockedUntil = &lockedUntil
+					p.IncorrectPasswordLoginAttempts = 0
+					return p, nil
+				}
+
+				// Update locked status in storage
+				if err := s.storage.UpdatePassword(ctx, username, updader); err != nil {
+					s.logger.ErrorContext(r.Context(),
+						"failed to lock account",
+						"username", username,
+						"error", err,
+					)
+				}
+
+				s.logger.WarnContext(r.Context(),
+					"account locked due to too many failed attempts",
+					"username", username,
+					"attempts", p.IncorrectPasswordLoginAttempts+1,
+					"locked_until", lockedUntil,
+				)
+				s.renderError(r, w, http.StatusTooManyRequests, "Account temporarily locked")
+				return
+			}
+
 			if err := s.templates.password(r, w, r.URL.String(), username, usernamePrompt(pwConn), true, backLink); err != nil {
 				s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 			}
 			s.logger.ErrorContext(r.Context(), "failed login attempt: Invalid credentials.", "user", username)
 			return
 		}
+
+		if s.passwordPolicy != nil {
+			// TODO: move to password policy method
+			cl, err := GetComplexity(p.ComplexityLevel)
+			if err == nil {
+				if cl.level < s.passwordPolicy.complexity.level {
+					redirectURL, err := buildPasswordChangeURI(s.issuerURL.String(), username, r.URL.String(), complexityPolicyReason)
+					if err != nil {
+						s.logger.ErrorContext(r.Context(), "cannot build password change redirect URL", "err", err)
+						s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+						return
+					}
+					http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+					s.logger.InfoContext(r.Context(), "user was forced to change password due to password complexity policy settings", "user", username)
+				}
+			} else {
+				s.logger.ErrorContext(ctx, "wrong password complexity level", "err", err)
+			}
+		}
+
+		if s.passwordPolicy != nil && s.passwordPolicy.IsPasswordExpired(p.HashUpdatedAt) {
+			redirectURL, err := buildPasswordChangeURI(s.issuerURL.String(), username, r.URL.String(), rotationPolicyReason)
+			if err != nil {
+				s.logger.ErrorContext(r.Context(), "cannot build password change redirect URL", "err", err)
+				s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+				return
+			}
+			http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+			s.logger.InfoContext(r.Context(), "user was forced to change password due to password rotation policy settings", "user", username)
+			return
+		}
+
 		redirectURL, canSkipApproval, err := s.finalizeLogin(r.Context(), identity, authReq, conn.Connector)
 		if err != nil {
 			s.logger.ErrorContext(r.Context(), "failed to finalize login", "err", err)

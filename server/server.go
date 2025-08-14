@@ -104,6 +104,9 @@ type Config struct {
 	// Refresh token expiration settings
 	RefreshTokenPolicy *RefreshTokenPolicy
 
+	// Password policy settings
+	PasswordPolicy *PasswordPolicy
+
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
 
@@ -197,6 +200,7 @@ type Server struct {
 	deviceRequestsValidFor time.Duration
 
 	refreshTokenPolicy *RefreshTokenPolicy
+	passwordPolicy     *PasswordPolicy
 
 	logger *slog.Logger
 
@@ -311,6 +315,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
 		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
 		refreshTokenPolicy:     c.RefreshTokenPolicy,
+		passwordPolicy:         c.PasswordPolicy,
 		skipApproval:           c.SkipApprovalScreen,
 		alwaysShowLogin:        c.AlwaysShowLoginScreen,
 		now:                    now,
@@ -488,6 +493,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		}
 		s.handleConnectorCallback(w, r)
 	})
+	handleFunc(passwordChangeURI, s.handlePasswordChange)
 	// For easier connector-specific web server configuration, e.g. for the
 	// "authproxy" connector.
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
@@ -555,7 +561,19 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 		return connector.Identity{}, false, err
 	}
 	if err := bcrypt.CompareHashAndPassword(p.Hash, []byte(password)); err != nil {
+		if err := db.s.UpdatePassword(ctx, email, func(p storage.Password) (storage.Password, error) {
+			p.IncorrectPasswordLoginAttempts += 1
+			return p, nil
+		}); err != nil {
+			return connector.Identity{}, false, err
+		}
 		return connector.Identity{}, false, nil
+	}
+	if err := db.s.UpdatePassword(ctx, email, func(p storage.Password) (storage.Password, error) {
+		p.IncorrectPasswordLoginAttempts = 0
+		return p, nil
+	}); err != nil {
+		return connector.Identity{}, true, err
 	}
 	return connector.Identity{
 		UserID:        p.UserID,
