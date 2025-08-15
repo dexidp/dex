@@ -23,6 +23,7 @@ const (
 	Dex_CreateClient_FullMethodName    = "/api.Dex/CreateClient"
 	Dex_UpdateClient_FullMethodName    = "/api.Dex/UpdateClient"
 	Dex_DeleteClient_FullMethodName    = "/api.Dex/DeleteClient"
+	Dex_ListClients_FullMethodName     = "/api.Dex/ListClients"
 	Dex_CreatePassword_FullMethodName  = "/api.Dex/CreatePassword"
 	Dex_UpdatePassword_FullMethodName  = "/api.Dex/UpdatePassword"
 	Dex_DeletePassword_FullMethodName  = "/api.Dex/DeletePassword"
@@ -52,6 +53,8 @@ type DexClient interface {
 	UpdateClient(ctx context.Context, in *UpdateClientReq, opts ...grpc.CallOption) (*UpdateClientResp, error)
 	// DeleteClient deletes the provided client.
 	DeleteClient(ctx context.Context, in *DeleteClientReq, opts ...grpc.CallOption) (*DeleteClientResp, error)
+	// ListClients lists all client entries.
+	ListClients(ctx context.Context, in *ListClientReq, opts ...grpc.CallOption) (*ListClientResp, error)
 	// CreatePassword creates a password.
 	CreatePassword(ctx context.Context, in *CreatePasswordReq, opts ...grpc.CallOption) (*CreatePasswordResp, error)
 	// UpdatePassword modifies existing password.
@@ -124,6 +127,16 @@ func (c *dexClient) DeleteClient(ctx context.Context, in *DeleteClientReq, opts 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteClientResp)
 	err := c.cc.Invoke(ctx, Dex_DeleteClient_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) ListClients(ctx context.Context, in *ListClientReq, opts ...grpc.CallOption) (*ListClientResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListClientResp)
+	err := c.cc.Invoke(ctx, Dex_ListClients_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -274,6 +287,8 @@ type DexServer interface {
 	UpdateClient(context.Context, *UpdateClientReq) (*UpdateClientResp, error)
 	// DeleteClient deletes the provided client.
 	DeleteClient(context.Context, *DeleteClientReq) (*DeleteClientResp, error)
+	// ListClients lists all client entries.
+	ListClients(context.Context, *ListClientReq) (*ListClientResp, error)
 	// CreatePassword creates a password.
 	CreatePassword(context.Context, *CreatePasswordReq) (*CreatePasswordResp, error)
 	// UpdatePassword modifies existing password.
@@ -323,6 +338,9 @@ func (UnimplementedDexServer) UpdateClient(context.Context, *UpdateClientReq) (*
 }
 func (UnimplementedDexServer) DeleteClient(context.Context, *DeleteClientReq) (*DeleteClientResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteClient not implemented")
+}
+func (UnimplementedDexServer) ListClients(context.Context, *ListClientReq) (*ListClientResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListClients not implemented")
 }
 func (UnimplementedDexServer) CreatePassword(context.Context, *CreatePasswordReq) (*CreatePasswordResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreatePassword not implemented")
@@ -452,6 +470,24 @@ func _Dex_DeleteClient_Handler(srv interface{}, ctx context.Context, dec func(in
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DexServer).DeleteClient(ctx, req.(*DeleteClientReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_ListClients_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListClientReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).ListClients(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_ListClients_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).ListClients(ctx, req.(*ListClientReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -712,6 +748,10 @@ var Dex_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteClient",
 			Handler:    _Dex_DeleteClient_Handler,
+		},
+		{
+			MethodName: "ListClients",
+			Handler:    _Dex_ListClients_Handler,
 		},
 		{
 			MethodName: "CreatePassword",

@@ -50,6 +50,9 @@ Running the gRPC client will cause the following API calls to be made to the ser
 2. ListPasswords
 3. VerifyPassword
 4. DeletePassword
+5. CreateClient
+6. ListClients
+7. DeleteClient
 
 ## Cleaning up
 
