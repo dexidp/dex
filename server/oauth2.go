@@ -402,16 +402,16 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 	}
 
 	for _, scope := range scopes {
-		switch {
-		case scope == scopeEmail:
+		switch scope {
+		case scopeEmail:
 			tok.Email = claims.Email
 			tok.EmailVerified = &claims.EmailVerified
-		case scope == scopeGroups:
+		case scopeGroups:
 			tok.Groups = claims.Groups
-		case scope == scopeProfile:
+		case scopeProfile:
 			tok.Name = claims.Username
 			tok.PreferredUsername = claims.PreferredUsername
-		case scope == scopeFederatedID:
+		case scopeFederatedID:
 			tok.FederatedIDClaims = &federatedIDClaims{
 				ConnectorID: connID,
 				UserID:      claims.UserID,
@@ -720,7 +720,7 @@ func (s *storageKeySet) VerifySignature(ctx context.Context, jwt string) (payloa
 		break
 	}
 
-	skeys, err := s.Storage.GetKeys(ctx)
+	skeys, err := s.GetKeys(ctx)
 	if err != nil {
 		return nil, err
 	}
