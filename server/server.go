@@ -464,7 +464,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 			<h1>Dex IdP</h1>
 			<h3>A Federated OpenID Connect Provider</h3>
 			<p><a href=%q>Discovery</a></p>`,
-			s.issuerURL.String()+"/.well-known/openid-configuration")
+			s.issuerURL.JoinPath(".well-known", "openid-configuration").String())
 		if err != nil {
 			s.logger.Error("failed to write response", "err", err)
 			s.renderError(r, w, http.StatusInternalServerError, "Handling the / path error.")
