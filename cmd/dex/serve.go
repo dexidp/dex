@@ -287,23 +287,23 @@ func runServe(options serveOptions) error {
 	healthChecker := gosundheit.New()
 
 	serverConfig := server.Config{
-		AllowedGrantTypes:          c.OAuth2.GrantTypes,
-		SupportedResponseTypes:     c.OAuth2.ResponseTypes,
-		SkipApprovalScreen:         c.OAuth2.SkipApprovalScreen,
-		AlwaysShowLoginScreen:      c.OAuth2.AlwaysShowLoginScreen,
-		PasswordConnector:          c.OAuth2.PasswordConnector,
-		Headers:                    c.Web.Headers.ToHTTPHeader(),
-		AllowedOrigins:             c.Web.AllowedOrigins,
-		AllowedHeaders:             c.Web.AllowedHeaders,
-		Issuer:                     c.Issuer,
-		Storage:                    s,
-		Web:                        c.Frontend,
-		Logger:                     logger,
-		Now:                        now,
-		PrometheusRegistry:         prometheusRegistry,
-		HealthChecker:              healthChecker,
-		TOTPIssuer:                 c.TOTP.Issuer,
-		TOTPConnectors:             c.TOTP.Connectors,
+		AllowedGrantTypes:      c.OAuth2.GrantTypes,
+		SupportedResponseTypes: c.OAuth2.ResponseTypes,
+		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
+		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
+		PasswordConnector:      c.OAuth2.PasswordConnector,
+		Headers:                c.Web.Headers.ToHTTPHeader(),
+		AllowedOrigins:         c.Web.AllowedOrigins,
+		AllowedHeaders:         c.Web.AllowedHeaders,
+		Issuer:                 c.Issuer,
+		Storage:                s,
+		Web:                    c.Frontend,
+		Logger:                 logger,
+		Now:                    now,
+		PrometheusRegistry:     prometheusRegistry,
+		HealthChecker:          healthChecker,
+		TOTPIssuer:             c.TOTP.Issuer,
+		TOTPConnectors:         c.TOTP.Connectors,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
@@ -349,6 +349,32 @@ func runServe(options serveOptions) error {
 	}
 
 	serverConfig.RefreshTokenPolicy = refreshTokenPolicy
+
+	if c.PasswordPolicy != nil {
+		var opts []server.PasswordPolicyOption
+		if c.PasswordPolicy.ComplexityLevel != nil {
+			opts = append(opts, server.WithComplexityLevel(*c.PasswordPolicy.ComplexityLevel))
+		}
+		if c.PasswordPolicy.Lockout != nil {
+			opts = append(opts, server.WithLockoutSettings(
+				c.PasswordPolicy.Lockout.MaxAttempts, c.PasswordPolicy.Lockout.LockDuration,
+			))
+		}
+		if c.PasswordPolicy.Rotation != nil {
+			opts = append(opts, server.WithRotationSettings(
+				c.PasswordPolicy.Rotation.Interval, c.PasswordPolicy.Rotation.RedirectURL,
+			))
+		}
+
+		opts = append(opts, server.WithPasswordHistoryLimit(c.PasswordPolicy.PasswordHistoryLimit))
+
+		passwordPolicy, err := server.NewPasswordPolicy(c.PasswordPolicy.ID, opts...)
+		if err != nil {
+			return fmt.Errorf("invalid password policy config: %v", err)
+		}
+
+		serverConfig.PasswordPolicy = passwordPolicy
+	}
 
 	serverConfig.RealIPHeader = c.Web.ClientRemoteIP.Header
 	serverConfig.TrustedRealIPCIDRs, err = c.Web.ClientRemoteIP.ParseTrustedProxies()

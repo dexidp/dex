@@ -298,4 +298,18 @@ var migrations = []migration{
 				add column hmac_key bytea;`,
 		},
 	},
+	{
+		stmts: []string{
+			`alter table password
+				add column incorrect_password_login_attempts int default 0 not null`,
+			`alter table password
+				add column locked_until timestamptz default null`,
+			`alter table password
+				add column hash_updated_at timestamptz default current_timestamp`,
+			`alter table password
+				add column previous_hashes text default "" not null`,
+			`alter table password
+				add column complexity_level text default "none" not null`,
+		},
+	},
 }

@@ -442,10 +442,17 @@ type Password struct {
 	// This field is IMMUTABLE. Do not change.
 	Email string `json:"email,omitempty"`
 
-	Hash     []byte   `json:"hash,omitempty"`
-	Username string   `json:"username,omitempty"`
-	UserID   string   `json:"userID,omitempty"`
-	Groups   []string `json:"groups,omitempty"`
+	Hash            []byte    `json:"hash,omitempty"`
+	HashUpdatedAt   time.Time `json:"hashUpdatedAt"`
+	PreviousHashes  [][]byte  `json:"previousHashes,omitempty"`
+	ComplexityLevel string    `json:"complexityLevel,omitempty"`
+	Username        string    `json:"username,omitempty"`
+	UserID          string    `json:"userID,omitempty"`
+
+	IncorrectPasswordLoginAttempts uint64     `json:"incorrectPasswordLoginAttempts"`
+	LockedUntil                    *time.Time `json:"lockedUntil"`
+
+	Groups []string `json:"groups,omitempty"`
 }
 
 // PasswordList is a list of Passwords.
@@ -466,21 +473,31 @@ func (cli *client) fromStoragePassword(p storage.Password) Password {
 			Name:      cli.idToName(email),
 			Namespace: cli.namespace,
 		},
-		Email:    email,
-		Hash:     p.Hash,
-		Username: p.Username,
-		UserID:   p.UserID,
-		Groups:   p.Groups,
+		Email:                          email,
+		Hash:                           p.Hash,
+		HashUpdatedAt:                  p.HashUpdatedAt,
+		PreviousHashes:                 p.PreviousHashes,
+		ComplexityLevel:                p.ComplexityLevel,
+		Username:                       p.Username,
+		UserID:                         p.UserID,
+		IncorrectPasswordLoginAttempts: p.IncorrectPasswordLoginAttempts,
+		LockedUntil:                    p.LockedUntil,
+		Groups:                         p.Groups,
 	}
 }
 
 func toStoragePassword(p Password) storage.Password {
 	return storage.Password{
-		Email:    p.Email,
-		Hash:     p.Hash,
-		Username: p.Username,
-		UserID:   p.UserID,
-		Groups:   p.Groups,
+		Email:                          p.Email,
+		Hash:                           p.Hash,
+		HashUpdatedAt:                  p.HashUpdatedAt,
+		PreviousHashes:                 p.PreviousHashes,
+		ComplexityLevel:                p.ComplexityLevel,
+		Username:                       p.Username,
+		UserID:                         p.UserID,
+		IncorrectPasswordLoginAttempts: p.IncorrectPasswordLoginAttempts,
+		LockedUntil:                    p.LockedUntil,
+		Groups:                         p.Groups,
 	}
 }
 

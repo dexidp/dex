@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -24,14 +25,15 @@ import (
 
 // Config is the config format for the main application.
 type Config struct {
-	Issuer    string    `json:"issuer"`
-	Storage   Storage   `json:"storage"`
-	Web       Web       `json:"web"`
-	Telemetry Telemetry `json:"telemetry"`
-	OAuth2    OAuth2    `json:"oauth2"`
-	GRPC      GRPC      `json:"grpc"`
-	Expiry    Expiry    `json:"expiry"`
-	Logger    Logger    `json:"logger"`
+	Issuer         string          `json:"issuer"`
+	Storage        Storage         `json:"storage"`
+	Web            Web             `json:"web"`
+	Telemetry      Telemetry       `json:"telemetry"`
+	OAuth2         OAuth2          `json:"oauth2"`
+	GRPC           GRPC            `json:"grpc"`
+	Expiry         Expiry          `json:"expiry"`
+	PasswordPolicy *PasswordPolicy `json:"passwordPolicy"`
+	Logger         Logger          `json:"logger"`
 
 	Frontend server.WebConfig `json:"frontend"`
 
@@ -485,4 +487,75 @@ type TOTP struct {
 	Issuer string `json:"issuer"`
 	// Connectors is a list of connectors that will use TOTP.
 	Connectors []string `json:"connectors"`
+}
+
+// PasswordPolicy Defines security requirements for user passwords within the system.
+// This policy enforces password complexity rules, expiration intervals and rotation period.
+type PasswordPolicy struct {
+	ID              string  `json:"id"`
+	ComplexityLevel *string `json:"complexityLevel,omitempty"`
+	Lockout         *struct {
+		MaxAttempts  uint64        `json:"maxAttempts"`
+		LockDuration time.Duration `json:"lockDuration"`
+	} `json:"lockout,omitempty"`
+	Rotation *struct {
+		Interval    time.Duration `json:"interval"`
+		RedirectURL *string       `json:"redirectURL,omitempty"`
+	} `json:"rotation,omitempty"`
+	PasswordHistoryLimit uint64 `json:"passwordHistoryLimit"`
+}
+
+func (p *PasswordPolicy) UnmarshalJSON(data []byte) error {
+	type Alias PasswordPolicy
+	aux := &struct {
+		Lockout *struct {
+			MaxAttempts uint64 `json:"maxAttempts"`
+			DurationStr string `json:"lockDuration"`
+		} `json:"lockout,omitempty"`
+		Rotation *struct {
+			IntervalStr string  `json:"interval"`
+			RedirectURL *string `json:"redirectURL,omitempty"`
+		} `json:"rotation,omitempty"`
+		*Alias
+	}{
+		Alias: (*Alias)(p),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	// Parse lockout duration
+	if aux.Lockout != nil {
+		duration, err := time.ParseDuration(aux.Lockout.DurationStr)
+		if err != nil {
+			return fmt.Errorf("invalid lockout duration: %w", err)
+		}
+		if p.Lockout == nil {
+			p.Lockout = &struct {
+				MaxAttempts  uint64        `json:"maxAttempts"`
+				LockDuration time.Duration `json:"lockDuration"`
+			}{}
+		}
+		p.Lockout.MaxAttempts = aux.Lockout.MaxAttempts
+		p.Lockout.LockDuration = duration
+	}
+
+	// Parse rotation interval
+	if aux.Rotation != nil {
+		interval, err := time.ParseDuration(aux.Rotation.IntervalStr)
+		if err != nil {
+			return fmt.Errorf("invalid rotation interval: %w", err)
+		}
+		if p.Rotation == nil {
+			p.Rotation = &struct {
+				Interval    time.Duration `json:"interval"`
+				RedirectURL *string       `json:"redirectURL,omitempty"`
+			}{}
+		}
+		p.Rotation.Interval = interval
+		p.Rotation.RedirectURL = aux.Rotation.RedirectURL
+	}
+
+	return nil
 }
