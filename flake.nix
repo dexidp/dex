@@ -34,7 +34,10 @@
               packages = with pkgs; [
                 gnumake
 
-                golangci-lint
+                # golangci-lint
+                (golangci-lint.override (o: {
+                  buildGoModule = pkgs.buildGo125Module;
+                }))
                 gotestsum
                 protobuf
                 protoc-gen-go

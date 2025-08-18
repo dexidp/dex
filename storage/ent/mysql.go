@@ -81,7 +81,7 @@ func (m *MySQL) driver() (*entSQL.Driver, error) {
 	}
 
 	if m.MaxIdleConns == 0 {
-		/* Override default behaviour to fix https://github.com/dexidp/dex/issues/1608 */
+		/* Override default behavior to fix https://github.com/dexidp/dex/issues/1608 */
 		drv.DB().SetMaxIdleConns(0)
 	} else {
 		drv.DB().SetMaxIdleConns(m.MaxIdleConns)
