@@ -4,6 +4,7 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/dexidp/dex/badge?style=flat-square)](https://api.securityscorecards.dev/projects/github.com/dexidp/dex)
 [![Go Report Card](https://goreportcard.com/badge/github.com/dexidp/dex?style=flat-square)](https://goreportcard.com/report/github.com/dexidp/dex)
 [![Gitpod ready-to-code](https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod&style=flat-square)](https://gitpod.io/#https://github.com/dexidp/dex)
+[![Gurubase](https://img.shields.io/badge/Gurubase-Ask%20Dex%20Guru-006BFF?style=flat-square)](https://gurubase.io/g/dex)
 
 ![logo](docs/logos/dex-horizontal-color.png)
 
