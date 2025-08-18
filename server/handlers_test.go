@@ -24,10 +24,7 @@ import (
 )
 
 func TestHandleHealth(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	httpServer, server := newTestServer(ctx, t, nil)
+	httpServer, server := newTestServer(t, nil)
 	defer httpServer.Close()
 
 	rr := httptest.NewRecorder()
@@ -38,10 +35,7 @@ func TestHandleHealth(t *testing.T) {
 }
 
 func TestHandleDiscovery(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	httpServer, server := newTestServer(ctx, t, nil)
+	httpServer, server := newTestServer(t, nil)
 	defer httpServer.Close()
 
 	rr := httptest.NewRecorder()
@@ -108,10 +102,7 @@ func TestHandleDiscovery(t *testing.T) {
 }
 
 func TestHandleHealthFailure(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	httpServer, server := newTestServer(ctx, t, func(c *Config) {
+	httpServer, server := newTestServer(t, func(c *Config) {
 		c.HealthChecker = gosundheit.New()
 
 		c.HealthChecker.RegisterCheck(
@@ -143,10 +134,7 @@ func (*emptyStorage) GetAuthRequest(context.Context, string) (storage.AuthReques
 }
 
 func TestHandleInvalidOAuth2Callbacks(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	httpServer, server := newTestServer(ctx, t, func(c *Config) {
+	httpServer, server := newTestServer(t, func(c *Config) {
 		c.Storage = &emptyStorage{c.Storage}
 	})
 	defer httpServer.Close()
@@ -171,10 +159,7 @@ func TestHandleInvalidOAuth2Callbacks(t *testing.T) {
 }
 
 func TestHandleInvalidSAMLCallbacks(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	httpServer, server := newTestServer(ctx, t, func(c *Config) {
+	httpServer, server := newTestServer(t, func(c *Config) {
 		c.Storage = &emptyStorage{c.Storage}
 	})
 	defer httpServer.Close()
@@ -251,10 +236,9 @@ func TestHandleAuthCode(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
-			httpServer, s := newTestServer(ctx, t, func(c *Config) { c.Issuer += "/non-root-path" })
+			httpServer, s := newTestServer(t, func(c *Config) { c.Issuer += "/non-root-path" })
 			defer httpServer.Close()
 
 			p, err := oidc.NewProvider(ctx, httpServer.URL)
@@ -303,7 +287,7 @@ func TestHandleAuthCode(t *testing.T) {
 }
 
 func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
-	ctx := context.Background()
+	ctx := t.Context()
 	c := storage.Client{
 		ID:           "test",
 		Secret:       "barfoo",
@@ -339,8 +323,7 @@ func mockConnectorDataTestStorage(t *testing.T, s storage.Storage) {
 }
 
 func TestHandlePassword(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	tests := []struct {
 		name                  string
@@ -361,7 +344,7 @@ func TestHandlePassword(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup a dex server.
-			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+			httpServer, s := newTestServer(t, func(c *Config) {
 				c.PasswordConnector = "test"
 				c.Now = time.Now
 			})
@@ -420,8 +403,7 @@ func TestHandlePassword(t *testing.T) {
 }
 
 func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	connID := "mockPw"
 	authReqID := "test"
@@ -525,7 +507,7 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+			httpServer, s := newTestServer(t, func(c *Config) {
 				c.SkipApprovalScreen = tc.skipApproval
 				c.Now = time.Now
 			})
@@ -574,8 +556,7 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 }
 
 func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	connID := "mock"
 	authReqID := "test"
@@ -679,7 +660,7 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+			httpServer, s := newTestServer(t, func(c *Config) {
 				c.SkipApprovalScreen = tc.skipApproval
 				c.Now = time.Now
 			})
@@ -780,9 +761,8 @@ func TestHandleTokenExchange(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+			ctx := t.Context()
+			httpServer, s := newTestServer(t, func(c *Config) {
 				c.Storage.CreateClient(ctx, storage.Client{
 					ID:     "client_1",
 					Secret: "secret_1",

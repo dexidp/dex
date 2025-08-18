@@ -8,8 +8,8 @@ import (
 	"github.com/dexidp/dex/storage/conformance"
 )
 
-func newSQLiteStorage() storage.Storage {
-	logger := slog.New(slog.DiscardHandler)
+func newSQLiteStorage(t *testing.T) storage.Storage {
+	logger := slog.New(slog.NewTextHandler(t.Output(), &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	cfg := SQLite3{File: ":memory:"}
 	s, err := cfg.Open(logger)

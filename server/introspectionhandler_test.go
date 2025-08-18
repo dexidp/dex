@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -29,7 +28,7 @@ func toJSON(a interface{}) string {
 }
 
 func mockTestStorage(t *testing.T, s storage.Storage) {
-	ctx := context.Background()
+	ctx := t.Context()
 	c := storage.Client{
 		ID:           "test",
 		Secret:       "barfoo",
@@ -139,11 +138,8 @@ func TestGetTokenFromRequestSuccess(t *testing.T) {
 	t0 := time.Now()
 
 	now := func() time.Time { return t0 }
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	// Setup a dex server.
-	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+	httpServer, s := newTestServer(t, func(c *Config) {
 		c.Issuer += "/non-root-path"
 		c.Now = now
 	})
@@ -201,11 +197,9 @@ func TestGetTokenFromRequestFailure(t *testing.T) {
 	t0 := time.Now()
 
 	now := func() time.Time { return t0 }
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// Setup a dex server.
-	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+	httpServer, s := newTestServer(t, func(c *Config) {
 		c.Issuer += "/non-root-path"
 		c.Now = now
 	})
@@ -238,11 +232,12 @@ func TestGetTokenFromRequestFailure(t *testing.T) {
 func TestHandleIntrospect(t *testing.T) {
 	t0 := time.Now()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Setup a dex server.
 	now := func() time.Time { return t0 }
+
+	logger := newLogger(t)
 
 	refreshTokenPolicy, err := NewRefreshTokenPolicy(logger, false, "", "24h", "")
 	if err != nil {
@@ -250,7 +245,7 @@ func TestHandleIntrospect(t *testing.T) {
 	}
 	refreshTokenPolicy.now = now
 
-	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+	httpServer, s := newTestServer(t, func(c *Config) {
 		c.Issuer += "/non-root-path"
 		c.RefreshTokenPolicy = refreshTokenPolicy
 		c.Now = now
@@ -361,11 +356,9 @@ func TestIntrospectErrHelper(t *testing.T) {
 	t0 := time.Now()
 
 	now := func() time.Time { return t0 }
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// Setup a dex server.
-	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+	httpServer, s := newTestServer(t, func(c *Config) {
 		c.Issuer += "/non-root-path"
 		c.Now = now
 	})

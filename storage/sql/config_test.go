@@ -46,20 +46,19 @@ func cleanDB(c *conn) error {
 	return nil
 }
 
-var logger = slog.New(slog.DiscardHandler)
-
 type opener interface {
 	open(logger *slog.Logger) (*conn, error)
 }
 
 func testDB(t *testing.T, o opener, withTransactions bool) {
 	// t.Fatal has a bad habit of not actually printing the error
-	fatal := func(i interface{}) {
+	fatal := func(i any) {
 		fmt.Fprintln(os.Stdout, i)
 		t.Fatal(i)
 	}
 
-	newStorage := func() storage.Storage {
+	newStorage := func(t *testing.T) storage.Storage {
+		logger := slog.New(slog.NewTextHandler(t.Output(), &slog.HandlerOptions{Level: slog.LevelDebug}))
 		conn, err := o.open(logger)
 		if err != nil {
 			fatal(err)

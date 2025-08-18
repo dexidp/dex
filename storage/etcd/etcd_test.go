@@ -55,8 +55,6 @@ func cleanDB(c *conn) error {
 	return nil
 }
 
-var logger = slog.New(slog.DiscardHandler)
-
 func TestEtcd(t *testing.T) {
 	testEtcdEnv := "DEX_ETCD_ENDPOINTS"
 	endpointsStr := os.Getenv(testEtcdEnv)
@@ -66,10 +64,11 @@ func TestEtcd(t *testing.T) {
 	}
 	endpoints := strings.Split(endpointsStr, ",")
 
-	newStorage := func() storage.Storage {
+	newStorage := func(t *testing.T) storage.Storage {
 		s := &Etcd{
 			Endpoints: endpoints,
 		}
+		logger := slog.New(slog.NewTextHandler(t.Output(), &slog.HandlerOptions{Level: slog.LevelDebug}))
 		conn, err := s.open(logger)
 		if err != nil {
 			fmt.Fprintln(os.Stdout, err)

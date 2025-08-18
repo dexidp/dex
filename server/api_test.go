@@ -1,10 +1,9 @@
 package server
 
 import (
-	"context"
 	"log/slog"
 	"net"
-	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -29,8 +28,12 @@ type apiClient struct {
 	Close func()
 }
 
+func newLogger(t *testing.T) *slog.Logger {
+	return slog.New(slog.NewTextHandler(t.Output(), &slog.HandlerOptions{Level: slog.LevelDebug}))
+}
+
 // newAPI constructs a gRCP client connected to a backing server.
-func newAPI(s storage.Storage, logger *slog.Logger, t *testing.T) *apiClient {
+func newAPI(t *testing.T, s storage.Storage, logger *slog.Logger) *apiClient {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -59,13 +62,14 @@ func newAPI(s storage.Storage, logger *slog.Logger, t *testing.T) *apiClient {
 
 // Attempts to create, update and delete a test Password
 func TestPassword(t *testing.T) {
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
+
 	email := "test@example.com"
 	p := api.Password{
 		Email: email,
@@ -168,10 +172,10 @@ func TestPassword(t *testing.T) {
 
 // Ensures checkCost returns expected values
 func TestCheckCost(t *testing.T) {
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
 	tests := []struct {
@@ -221,13 +225,13 @@ func TestCheckCost(t *testing.T) {
 
 // Attempts to list and revoke an existing refresh token.
 func TestRefreshToken(t *testing.T) {
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Creating a storage with an existing refresh token and offline session for the user.
 	id := storage.NewID()
@@ -330,12 +334,13 @@ func TestRefreshToken(t *testing.T) {
 }
 
 func TestUpdateClient(t *testing.T) {
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
-	ctx := context.Background()
+
+	ctx := t.Context()
 
 	createClient := func(t *testing.T, clientId string) {
 		resp, err := client.CreateClient(ctx, &api.CreateClientReq{
@@ -463,13 +468,13 @@ func TestUpdateClient(t *testing.T) {
 					t.Errorf("expected stored client with LogoURL: %s, found %s", tc.req.LogoUrl, client.LogoURL)
 				}
 				for _, redirectURI := range tc.req.RedirectUris {
-					found := find(redirectURI, client.RedirectURIs)
+					found := slices.Contains(client.RedirectURIs, redirectURI)
 					if !found {
 						t.Errorf("expected redirect URI: %s", redirectURI)
 					}
 				}
 				for _, peer := range tc.req.TrustedPeers {
-					found := find(peer, client.TrustedPeers)
+					found := slices.Contains(client.TrustedPeers, peer)
 					if !found {
 						t.Errorf("expected trusted peer: %s", peer)
 					}
@@ -483,26 +488,17 @@ func TestUpdateClient(t *testing.T) {
 	}
 }
 
-func find(item string, items []string) bool {
-	for _, i := range items {
-		if item == i {
-			return true
-		}
-	}
-	return false
-}
-
 func TestCreateConnector(t *testing.T) {
-	os.Setenv("DEX_API_CONNECTORS_CRUD", "true")
-	defer os.Unsetenv("DEX_API_CONNECTORS_CRUD")
+	t.Setenv("DEX_API_CONNECTORS_CRUD", "true")
 
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
+
 	connectorID := "connector123"
 	connectorName := "TestConnector"
 	connectorType := "TestType"
@@ -543,16 +539,16 @@ func TestCreateConnector(t *testing.T) {
 }
 
 func TestUpdateConnector(t *testing.T) {
-	os.Setenv("DEX_API_CONNECTORS_CRUD", "true")
-	defer os.Unsetenv("DEX_API_CONNECTORS_CRUD")
+	t.Setenv("DEX_API_CONNECTORS_CRUD", "true")
 
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
+
 	connectorID := "connector123"
 	newConnectorName := "UpdatedConnector"
 	newConnectorType := "UpdatedType"
@@ -611,16 +607,16 @@ func TestUpdateConnector(t *testing.T) {
 }
 
 func TestDeleteConnector(t *testing.T) {
-	os.Setenv("DEX_API_CONNECTORS_CRUD", "true")
-	defer os.Unsetenv("DEX_API_CONNECTORS_CRUD")
+	t.Setenv("DEX_API_CONNECTORS_CRUD", "true")
 
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
+
 	connectorID := "connector123"
 
 	// Create a connector for testing
@@ -655,16 +651,15 @@ func TestDeleteConnector(t *testing.T) {
 }
 
 func TestListConnectors(t *testing.T) {
-	os.Setenv("DEX_API_CONNECTORS_CRUD", "true")
-	defer os.Unsetenv("DEX_API_CONNECTORS_CRUD")
+	t.Setenv("DEX_API_CONNECTORS_CRUD", "true")
 
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create connectors for testing
 	createReq1 := api.CreateConnectorReq{
@@ -698,13 +693,13 @@ func TestListConnectors(t *testing.T) {
 }
 
 func TestMissingConnectorsCRUDFeatureFlag(t *testing.T) {
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create connectors for testing
 	createReq1 := api.CreateConnectorReq{
@@ -735,13 +730,13 @@ func TestMissingConnectorsCRUDFeatureFlag(t *testing.T) {
 }
 
 func TestListClients(t *testing.T) {
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// List Clients
 	listResp, err := client.ListClients(ctx, &api.ListClientReq{})

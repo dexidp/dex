@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -20,10 +19,8 @@ func TestDeviceVerificationURI(t *testing.T) {
 	t0 := time.Now()
 
 	now := func() time.Time { return t0 }
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	// Setup a dex server.
-	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+	httpServer, s := newTestServer(t, func(c *Config) {
 		c.Issuer += "/non-root-path"
 		c.Now = now
 	})
@@ -101,11 +98,8 @@ func TestHandleDeviceCode(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.testName, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
 			// Setup a dex server.
-			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+			httpServer, s := newTestServer(t, func(c *Config) {
 				c.Issuer += "/non-root-path"
 				c.Now = now
 			})
@@ -364,11 +358,10 @@ func TestDeviceCallback(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.testName, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			// Setup a dex server.
-			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+			httpServer, s := newTestServer(t, func(c *Config) {
 				// c.Issuer = c.Issuer + "/non-root-path"
 				c.Now = now
 			})
@@ -658,11 +651,10 @@ func TestDeviceTokenResponse(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.testName, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			// Setup a dex server.
-			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+			httpServer, s := newTestServer(t, func(c *Config) {
 				c.Issuer += "/non-root-path"
 				c.Now = now
 			})
@@ -715,7 +707,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 }
 
 func expectJSONErrorResponse(testCase string, body []byte, expectedError string, t *testing.T) {
-	jsonMap := make(map[string]interface{})
+	jsonMap := make(map[string]any)
 	err := json.Unmarshal(body, &jsonMap)
 	if err != nil {
 		t.Errorf("Unexpected error unmarshalling response: %v", err)
@@ -792,11 +784,10 @@ func TestVerifyCodeResponse(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.testName, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			// Setup a dex server.
-			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+			httpServer, s := newTestServer(t, func(c *Config) {
 				c.Issuer += "/non-root-path"
 				c.Now = now
 			})
