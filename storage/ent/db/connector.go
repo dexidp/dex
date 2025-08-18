@@ -45,7 +45,7 @@ func (*Connector) scanValues(columns []string) ([]any, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the Connector fields.
-func (c *Connector) assignValues(columns []string, values []any) error {
+func (_m *Connector) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -55,34 +55,34 @@ func (c *Connector) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value.Valid {
-				c.ID = value.String
+				_m.ID = value.String
 			}
 		case connector.FieldType:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field type", values[i])
 			} else if value.Valid {
-				c.Type = value.String
+				_m.Type = value.String
 			}
 		case connector.FieldName:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field name", values[i])
 			} else if value.Valid {
-				c.Name = value.String
+				_m.Name = value.String
 			}
 		case connector.FieldResourceVersion:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field resource_version", values[i])
 			} else if value.Valid {
-				c.ResourceVersion = value.String
+				_m.ResourceVersion = value.String
 			}
 		case connector.FieldConfig:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field config", values[i])
 			} else if value != nil {
-				c.Config = *value
+				_m.Config = *value
 			}
 		default:
-			c.selectValues.Set(columns[i], values[i])
+			_m.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
@@ -90,44 +90,44 @@ func (c *Connector) assignValues(columns []string, values []any) error {
 
 // Value returns the ent.Value that was dynamically selected and assigned to the Connector.
 // This includes values selected through modifiers, order, etc.
-func (c *Connector) Value(name string) (ent.Value, error) {
-	return c.selectValues.Get(name)
+func (_m *Connector) Value(name string) (ent.Value, error) {
+	return _m.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this Connector.
 // Note that you need to call Connector.Unwrap() before calling this method if this Connector
 // was returned from a transaction, and the transaction was committed or rolled back.
-func (c *Connector) Update() *ConnectorUpdateOne {
-	return NewConnectorClient(c.config).UpdateOne(c)
+func (_m *Connector) Update() *ConnectorUpdateOne {
+	return NewConnectorClient(_m.config).UpdateOne(_m)
 }
 
 // Unwrap unwraps the Connector entity that was returned from a transaction after it was closed,
 // so that all future queries will be executed through the driver which created the transaction.
-func (c *Connector) Unwrap() *Connector {
-	_tx, ok := c.config.driver.(*txDriver)
+func (_m *Connector) Unwrap() *Connector {
+	_tx, ok := _m.config.driver.(*txDriver)
 	if !ok {
 		panic("db: Connector is not a transactional entity")
 	}
-	c.config.driver = _tx.drv
-	return c
+	_m.config.driver = _tx.drv
+	return _m
 }
 
 // String implements the fmt.Stringer.
-func (c *Connector) String() string {
+func (_m *Connector) String() string {
 	var builder strings.Builder
 	builder.WriteString("Connector(")
-	builder.WriteString(fmt.Sprintf("id=%v, ", c.ID))
+	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("type=")
-	builder.WriteString(c.Type)
+	builder.WriteString(_m.Type)
 	builder.WriteString(", ")
 	builder.WriteString("name=")
-	builder.WriteString(c.Name)
+	builder.WriteString(_m.Name)
 	builder.WriteString(", ")
 	builder.WriteString("resource_version=")
-	builder.WriteString(c.ResourceVersion)
+	builder.WriteString(_m.ResourceVersion)
 	builder.WriteString(", ")
 	builder.WriteString("config=")
-	builder.WriteString(fmt.Sprintf("%v", c.Config))
+	builder.WriteString(fmt.Sprintf("%v", _m.Config))
 	builder.WriteByte(')')
 	return builder.String()
 }

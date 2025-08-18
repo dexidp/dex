@@ -55,7 +55,7 @@ func (*DeviceRequest) scanValues(columns []string) ([]any, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the DeviceRequest fields.
-func (dr *DeviceRequest) assignValues(columns []string, values []any) error {
+func (_m *DeviceRequest) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -66,36 +66,36 @@ func (dr *DeviceRequest) assignValues(columns []string, values []any) error {
 			if !ok {
 				return fmt.Errorf("unexpected type %T for field id", value)
 			}
-			dr.ID = int(value.Int64)
+			_m.ID = int(value.Int64)
 		case devicerequest.FieldUserCode:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field user_code", values[i])
 			} else if value.Valid {
-				dr.UserCode = value.String
+				_m.UserCode = value.String
 			}
 		case devicerequest.FieldDeviceCode:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field device_code", values[i])
 			} else if value.Valid {
-				dr.DeviceCode = value.String
+				_m.DeviceCode = value.String
 			}
 		case devicerequest.FieldClientID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field client_id", values[i])
 			} else if value.Valid {
-				dr.ClientID = value.String
+				_m.ClientID = value.String
 			}
 		case devicerequest.FieldClientSecret:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field client_secret", values[i])
 			} else if value.Valid {
-				dr.ClientSecret = value.String
+				_m.ClientSecret = value.String
 			}
 		case devicerequest.FieldScopes:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field scopes", values[i])
 			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &dr.Scopes); err != nil {
+				if err := json.Unmarshal(*value, &_m.Scopes); err != nil {
 					return fmt.Errorf("unmarshal field scopes: %w", err)
 				}
 			}
@@ -103,10 +103,10 @@ func (dr *DeviceRequest) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field expiry", values[i])
 			} else if value.Valid {
-				dr.Expiry = value.Time
+				_m.Expiry = value.Time
 			}
 		default:
-			dr.selectValues.Set(columns[i], values[i])
+			_m.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
@@ -114,50 +114,50 @@ func (dr *DeviceRequest) assignValues(columns []string, values []any) error {
 
 // Value returns the ent.Value that was dynamically selected and assigned to the DeviceRequest.
 // This includes values selected through modifiers, order, etc.
-func (dr *DeviceRequest) Value(name string) (ent.Value, error) {
-	return dr.selectValues.Get(name)
+func (_m *DeviceRequest) Value(name string) (ent.Value, error) {
+	return _m.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this DeviceRequest.
 // Note that you need to call DeviceRequest.Unwrap() before calling this method if this DeviceRequest
 // was returned from a transaction, and the transaction was committed or rolled back.
-func (dr *DeviceRequest) Update() *DeviceRequestUpdateOne {
-	return NewDeviceRequestClient(dr.config).UpdateOne(dr)
+func (_m *DeviceRequest) Update() *DeviceRequestUpdateOne {
+	return NewDeviceRequestClient(_m.config).UpdateOne(_m)
 }
 
 // Unwrap unwraps the DeviceRequest entity that was returned from a transaction after it was closed,
 // so that all future queries will be executed through the driver which created the transaction.
-func (dr *DeviceRequest) Unwrap() *DeviceRequest {
-	_tx, ok := dr.config.driver.(*txDriver)
+func (_m *DeviceRequest) Unwrap() *DeviceRequest {
+	_tx, ok := _m.config.driver.(*txDriver)
 	if !ok {
 		panic("db: DeviceRequest is not a transactional entity")
 	}
-	dr.config.driver = _tx.drv
-	return dr
+	_m.config.driver = _tx.drv
+	return _m
 }
 
 // String implements the fmt.Stringer.
-func (dr *DeviceRequest) String() string {
+func (_m *DeviceRequest) String() string {
 	var builder strings.Builder
 	builder.WriteString("DeviceRequest(")
-	builder.WriteString(fmt.Sprintf("id=%v, ", dr.ID))
+	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("user_code=")
-	builder.WriteString(dr.UserCode)
+	builder.WriteString(_m.UserCode)
 	builder.WriteString(", ")
 	builder.WriteString("device_code=")
-	builder.WriteString(dr.DeviceCode)
+	builder.WriteString(_m.DeviceCode)
 	builder.WriteString(", ")
 	builder.WriteString("client_id=")
-	builder.WriteString(dr.ClientID)
+	builder.WriteString(_m.ClientID)
 	builder.WriteString(", ")
 	builder.WriteString("client_secret=")
-	builder.WriteString(dr.ClientSecret)
+	builder.WriteString(_m.ClientSecret)
 	builder.WriteString(", ")
 	builder.WriteString("scopes=")
-	builder.WriteString(fmt.Sprintf("%v", dr.Scopes))
+	builder.WriteString(fmt.Sprintf("%v", _m.Scopes))
 	builder.WriteString(", ")
 	builder.WriteString("expiry=")
-	builder.WriteString(dr.Expiry.Format(time.ANSIC))
+	builder.WriteString(_m.Expiry.Format(time.ANSIC))
 	builder.WriteByte(')')
 	return builder.String()
 }

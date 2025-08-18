@@ -20,48 +20,48 @@ type ConnectorCreate struct {
 }
 
 // SetType sets the "type" field.
-func (cc *ConnectorCreate) SetType(s string) *ConnectorCreate {
-	cc.mutation.SetType(s)
-	return cc
+func (_c *ConnectorCreate) SetType(v string) *ConnectorCreate {
+	_c.mutation.SetType(v)
+	return _c
 }
 
 // SetName sets the "name" field.
-func (cc *ConnectorCreate) SetName(s string) *ConnectorCreate {
-	cc.mutation.SetName(s)
-	return cc
+func (_c *ConnectorCreate) SetName(v string) *ConnectorCreate {
+	_c.mutation.SetName(v)
+	return _c
 }
 
 // SetResourceVersion sets the "resource_version" field.
-func (cc *ConnectorCreate) SetResourceVersion(s string) *ConnectorCreate {
-	cc.mutation.SetResourceVersion(s)
-	return cc
+func (_c *ConnectorCreate) SetResourceVersion(v string) *ConnectorCreate {
+	_c.mutation.SetResourceVersion(v)
+	return _c
 }
 
 // SetConfig sets the "config" field.
-func (cc *ConnectorCreate) SetConfig(b []byte) *ConnectorCreate {
-	cc.mutation.SetConfig(b)
-	return cc
+func (_c *ConnectorCreate) SetConfig(v []byte) *ConnectorCreate {
+	_c.mutation.SetConfig(v)
+	return _c
 }
 
 // SetID sets the "id" field.
-func (cc *ConnectorCreate) SetID(s string) *ConnectorCreate {
-	cc.mutation.SetID(s)
-	return cc
+func (_c *ConnectorCreate) SetID(v string) *ConnectorCreate {
+	_c.mutation.SetID(v)
+	return _c
 }
 
 // Mutation returns the ConnectorMutation object of the builder.
-func (cc *ConnectorCreate) Mutation() *ConnectorMutation {
-	return cc.mutation
+func (_c *ConnectorCreate) Mutation() *ConnectorMutation {
+	return _c.mutation
 }
 
 // Save creates the Connector in the database.
-func (cc *ConnectorCreate) Save(ctx context.Context) (*Connector, error) {
-	return withHooks(ctx, cc.sqlSave, cc.mutation, cc.hooks)
+func (_c *ConnectorCreate) Save(ctx context.Context) (*Connector, error) {
+	return withHooks(ctx, _c.sqlSave, _c.mutation, _c.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
-func (cc *ConnectorCreate) SaveX(ctx context.Context) *Connector {
-	v, err := cc.Save(ctx)
+func (_c *ConnectorCreate) SaveX(ctx context.Context) *Connector {
+	v, err := _c.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -69,43 +69,43 @@ func (cc *ConnectorCreate) SaveX(ctx context.Context) *Connector {
 }
 
 // Exec executes the query.
-func (cc *ConnectorCreate) Exec(ctx context.Context) error {
-	_, err := cc.Save(ctx)
+func (_c *ConnectorCreate) Exec(ctx context.Context) error {
+	_, err := _c.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (cc *ConnectorCreate) ExecX(ctx context.Context) {
-	if err := cc.Exec(ctx); err != nil {
+func (_c *ConnectorCreate) ExecX(ctx context.Context) {
+	if err := _c.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
 
 // check runs all checks and user-defined validators on the builder.
-func (cc *ConnectorCreate) check() error {
-	if _, ok := cc.mutation.GetType(); !ok {
+func (_c *ConnectorCreate) check() error {
+	if _, ok := _c.mutation.GetType(); !ok {
 		return &ValidationError{Name: "type", err: errors.New(`db: missing required field "Connector.type"`)}
 	}
-	if v, ok := cc.mutation.GetType(); ok {
+	if v, ok := _c.mutation.GetType(); ok {
 		if err := connector.TypeValidator(v); err != nil {
 			return &ValidationError{Name: "type", err: fmt.Errorf(`db: validator failed for field "Connector.type": %w`, err)}
 		}
 	}
-	if _, ok := cc.mutation.Name(); !ok {
+	if _, ok := _c.mutation.Name(); !ok {
 		return &ValidationError{Name: "name", err: errors.New(`db: missing required field "Connector.name"`)}
 	}
-	if v, ok := cc.mutation.Name(); ok {
+	if v, ok := _c.mutation.Name(); ok {
 		if err := connector.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "Connector.name": %w`, err)}
 		}
 	}
-	if _, ok := cc.mutation.ResourceVersion(); !ok {
+	if _, ok := _c.mutation.ResourceVersion(); !ok {
 		return &ValidationError{Name: "resource_version", err: errors.New(`db: missing required field "Connector.resource_version"`)}
 	}
-	if _, ok := cc.mutation.Config(); !ok {
+	if _, ok := _c.mutation.Config(); !ok {
 		return &ValidationError{Name: "config", err: errors.New(`db: missing required field "Connector.config"`)}
 	}
-	if v, ok := cc.mutation.ID(); ok {
+	if v, ok := _c.mutation.ID(); ok {
 		if err := connector.IDValidator(v); err != nil {
 			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "Connector.id": %w`, err)}
 		}
@@ -113,12 +113,12 @@ func (cc *ConnectorCreate) check() error {
 	return nil
 }
 
-func (cc *ConnectorCreate) sqlSave(ctx context.Context) (*Connector, error) {
-	if err := cc.check(); err != nil {
+func (_c *ConnectorCreate) sqlSave(ctx context.Context) (*Connector, error) {
+	if err := _c.check(); err != nil {
 		return nil, err
 	}
-	_node, _spec := cc.createSpec()
-	if err := sqlgraph.CreateNode(ctx, cc.driver, _spec); err != nil {
+	_node, _spec := _c.createSpec()
+	if err := sqlgraph.CreateNode(ctx, _c.driver, _spec); err != nil {
 		if sqlgraph.IsConstraintError(err) {
 			err = &ConstraintError{msg: err.Error(), wrap: err}
 		}
@@ -131,33 +131,33 @@ func (cc *ConnectorCreate) sqlSave(ctx context.Context) (*Connector, error) {
 			return nil, fmt.Errorf("unexpected Connector.ID type: %T", _spec.ID.Value)
 		}
 	}
-	cc.mutation.id = &_node.ID
-	cc.mutation.done = true
+	_c.mutation.id = &_node.ID
+	_c.mutation.done = true
 	return _node, nil
 }
 
-func (cc *ConnectorCreate) createSpec() (*Connector, *sqlgraph.CreateSpec) {
+func (_c *ConnectorCreate) createSpec() (*Connector, *sqlgraph.CreateSpec) {
 	var (
-		_node = &Connector{config: cc.config}
+		_node = &Connector{config: _c.config}
 		_spec = sqlgraph.NewCreateSpec(connector.Table, sqlgraph.NewFieldSpec(connector.FieldID, field.TypeString))
 	)
-	if id, ok := cc.mutation.ID(); ok {
+	if id, ok := _c.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
-	if value, ok := cc.mutation.GetType(); ok {
+	if value, ok := _c.mutation.GetType(); ok {
 		_spec.SetField(connector.FieldType, field.TypeString, value)
 		_node.Type = value
 	}
-	if value, ok := cc.mutation.Name(); ok {
+	if value, ok := _c.mutation.Name(); ok {
 		_spec.SetField(connector.FieldName, field.TypeString, value)
 		_node.Name = value
 	}
-	if value, ok := cc.mutation.ResourceVersion(); ok {
+	if value, ok := _c.mutation.ResourceVersion(); ok {
 		_spec.SetField(connector.FieldResourceVersion, field.TypeString, value)
 		_node.ResourceVersion = value
 	}
-	if value, ok := cc.mutation.Config(); ok {
+	if value, ok := _c.mutation.Config(); ok {
 		_spec.SetField(connector.FieldConfig, field.TypeBytes, value)
 		_node.Config = value
 	}
@@ -172,16 +172,16 @@ type ConnectorCreateBulk struct {
 }
 
 // Save creates the Connector entities in the database.
-func (ccb *ConnectorCreateBulk) Save(ctx context.Context) ([]*Connector, error) {
-	if ccb.err != nil {
-		return nil, ccb.err
+func (_c *ConnectorCreateBulk) Save(ctx context.Context) ([]*Connector, error) {
+	if _c.err != nil {
+		return nil, _c.err
 	}
-	specs := make([]*sqlgraph.CreateSpec, len(ccb.builders))
-	nodes := make([]*Connector, len(ccb.builders))
-	mutators := make([]Mutator, len(ccb.builders))
-	for i := range ccb.builders {
+	specs := make([]*sqlgraph.CreateSpec, len(_c.builders))
+	nodes := make([]*Connector, len(_c.builders))
+	mutators := make([]Mutator, len(_c.builders))
+	for i := range _c.builders {
 		func(i int, root context.Context) {
-			builder := ccb.builders[i]
+			builder := _c.builders[i]
 			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 				mutation, ok := m.(*ConnectorMutation)
 				if !ok {
@@ -194,11 +194,11 @@ func (ccb *ConnectorCreateBulk) Save(ctx context.Context) ([]*Connector, error) 
 				var err error
 				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
-					_, err = mutators[i+1].Mutate(root, ccb.builders[i+1].mutation)
+					_, err = mutators[i+1].Mutate(root, _c.builders[i+1].mutation)
 				} else {
 					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
 					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, ccb.driver, spec); err != nil {
+					if err = sqlgraph.BatchCreate(ctx, _c.driver, spec); err != nil {
 						if sqlgraph.IsConstraintError(err) {
 							err = &ConstraintError{msg: err.Error(), wrap: err}
 						}
@@ -218,7 +218,7 @@ func (ccb *ConnectorCreateBulk) Save(ctx context.Context) ([]*Connector, error) 
 		}(i, ctx)
 	}
 	if len(mutators) > 0 {
-		if _, err := mutators[0].Mutate(ctx, ccb.builders[0].mutation); err != nil {
+		if _, err := mutators[0].Mutate(ctx, _c.builders[0].mutation); err != nil {
 			return nil, err
 		}
 	}
@@ -226,8 +226,8 @@ func (ccb *ConnectorCreateBulk) Save(ctx context.Context) ([]*Connector, error) 
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func (ccb *ConnectorCreateBulk) SaveX(ctx context.Context) []*Connector {
-	v, err := ccb.Save(ctx)
+func (_c *ConnectorCreateBulk) SaveX(ctx context.Context) []*Connector {
+	v, err := _c.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -235,14 +235,14 @@ func (ccb *ConnectorCreateBulk) SaveX(ctx context.Context) []*Connector {
 }
 
 // Exec executes the query.
-func (ccb *ConnectorCreateBulk) Exec(ctx context.Context) error {
-	_, err := ccb.Save(ctx)
+func (_c *ConnectorCreateBulk) Exec(ctx context.Context) error {
+	_, err := _c.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (ccb *ConnectorCreateBulk) ExecX(ctx context.Context) {
-	if err := ccb.Exec(ctx); err != nil {
+func (_c *ConnectorCreateBulk) ExecX(ctx context.Context) {
+	if err := _c.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

@@ -73,7 +73,7 @@ func (*AuthCode) scanValues(columns []string) ([]any, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the AuthCode fields.
-func (ac *AuthCode) assignValues(columns []string, values []any) error {
+func (_m *AuthCode) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -83,19 +83,19 @@ func (ac *AuthCode) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value.Valid {
-				ac.ID = value.String
+				_m.ID = value.String
 			}
 		case authcode.FieldClientID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field client_id", values[i])
 			} else if value.Valid {
-				ac.ClientID = value.String
+				_m.ClientID = value.String
 			}
 		case authcode.FieldScopes:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field scopes", values[i])
 			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &ac.Scopes); err != nil {
+				if err := json.Unmarshal(*value, &_m.Scopes); err != nil {
 					return fmt.Errorf("unmarshal field scopes: %w", err)
 				}
 			}
@@ -103,43 +103,43 @@ func (ac *AuthCode) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field nonce", values[i])
 			} else if value.Valid {
-				ac.Nonce = value.String
+				_m.Nonce = value.String
 			}
 		case authcode.FieldRedirectURI:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field redirect_uri", values[i])
 			} else if value.Valid {
-				ac.RedirectURI = value.String
+				_m.RedirectURI = value.String
 			}
 		case authcode.FieldClaimsUserID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_user_id", values[i])
 			} else if value.Valid {
-				ac.ClaimsUserID = value.String
+				_m.ClaimsUserID = value.String
 			}
 		case authcode.FieldClaimsUsername:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_username", values[i])
 			} else if value.Valid {
-				ac.ClaimsUsername = value.String
+				_m.ClaimsUsername = value.String
 			}
 		case authcode.FieldClaimsEmail:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_email", values[i])
 			} else if value.Valid {
-				ac.ClaimsEmail = value.String
+				_m.ClaimsEmail = value.String
 			}
 		case authcode.FieldClaimsEmailVerified:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_email_verified", values[i])
 			} else if value.Valid {
-				ac.ClaimsEmailVerified = value.Bool
+				_m.ClaimsEmailVerified = value.Bool
 			}
 		case authcode.FieldClaimsGroups:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_groups", values[i])
 			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &ac.ClaimsGroups); err != nil {
+				if err := json.Unmarshal(*value, &_m.ClaimsGroups); err != nil {
 					return fmt.Errorf("unmarshal field claims_groups: %w", err)
 				}
 			}
@@ -147,40 +147,40 @@ func (ac *AuthCode) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field claims_preferred_username", values[i])
 			} else if value.Valid {
-				ac.ClaimsPreferredUsername = value.String
+				_m.ClaimsPreferredUsername = value.String
 			}
 		case authcode.FieldConnectorID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field connector_id", values[i])
 			} else if value.Valid {
-				ac.ConnectorID = value.String
+				_m.ConnectorID = value.String
 			}
 		case authcode.FieldConnectorData:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field connector_data", values[i])
 			} else if value != nil {
-				ac.ConnectorData = value
+				_m.ConnectorData = value
 			}
 		case authcode.FieldExpiry:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field expiry", values[i])
 			} else if value.Valid {
-				ac.Expiry = value.Time
+				_m.Expiry = value.Time
 			}
 		case authcode.FieldCodeChallenge:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field code_challenge", values[i])
 			} else if value.Valid {
-				ac.CodeChallenge = value.String
+				_m.CodeChallenge = value.String
 			}
 		case authcode.FieldCodeChallengeMethod:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field code_challenge_method", values[i])
 			} else if value.Valid {
-				ac.CodeChallengeMethod = value.String
+				_m.CodeChallengeMethod = value.String
 			}
 		default:
-			ac.selectValues.Set(columns[i], values[i])
+			_m.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
@@ -188,79 +188,79 @@ func (ac *AuthCode) assignValues(columns []string, values []any) error {
 
 // Value returns the ent.Value that was dynamically selected and assigned to the AuthCode.
 // This includes values selected through modifiers, order, etc.
-func (ac *AuthCode) Value(name string) (ent.Value, error) {
-	return ac.selectValues.Get(name)
+func (_m *AuthCode) Value(name string) (ent.Value, error) {
+	return _m.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this AuthCode.
 // Note that you need to call AuthCode.Unwrap() before calling this method if this AuthCode
 // was returned from a transaction, and the transaction was committed or rolled back.
-func (ac *AuthCode) Update() *AuthCodeUpdateOne {
-	return NewAuthCodeClient(ac.config).UpdateOne(ac)
+func (_m *AuthCode) Update() *AuthCodeUpdateOne {
+	return NewAuthCodeClient(_m.config).UpdateOne(_m)
 }
 
 // Unwrap unwraps the AuthCode entity that was returned from a transaction after it was closed,
 // so that all future queries will be executed through the driver which created the transaction.
-func (ac *AuthCode) Unwrap() *AuthCode {
-	_tx, ok := ac.config.driver.(*txDriver)
+func (_m *AuthCode) Unwrap() *AuthCode {
+	_tx, ok := _m.config.driver.(*txDriver)
 	if !ok {
 		panic("db: AuthCode is not a transactional entity")
 	}
-	ac.config.driver = _tx.drv
-	return ac
+	_m.config.driver = _tx.drv
+	return _m
 }
 
 // String implements the fmt.Stringer.
-func (ac *AuthCode) String() string {
+func (_m *AuthCode) String() string {
 	var builder strings.Builder
 	builder.WriteString("AuthCode(")
-	builder.WriteString(fmt.Sprintf("id=%v, ", ac.ID))
+	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("client_id=")
-	builder.WriteString(ac.ClientID)
+	builder.WriteString(_m.ClientID)
 	builder.WriteString(", ")
 	builder.WriteString("scopes=")
-	builder.WriteString(fmt.Sprintf("%v", ac.Scopes))
+	builder.WriteString(fmt.Sprintf("%v", _m.Scopes))
 	builder.WriteString(", ")
 	builder.WriteString("nonce=")
-	builder.WriteString(ac.Nonce)
+	builder.WriteString(_m.Nonce)
 	builder.WriteString(", ")
 	builder.WriteString("redirect_uri=")
-	builder.WriteString(ac.RedirectURI)
+	builder.WriteString(_m.RedirectURI)
 	builder.WriteString(", ")
 	builder.WriteString("claims_user_id=")
-	builder.WriteString(ac.ClaimsUserID)
+	builder.WriteString(_m.ClaimsUserID)
 	builder.WriteString(", ")
 	builder.WriteString("claims_username=")
-	builder.WriteString(ac.ClaimsUsername)
+	builder.WriteString(_m.ClaimsUsername)
 	builder.WriteString(", ")
 	builder.WriteString("claims_email=")
-	builder.WriteString(ac.ClaimsEmail)
+	builder.WriteString(_m.ClaimsEmail)
 	builder.WriteString(", ")
 	builder.WriteString("claims_email_verified=")
-	builder.WriteString(fmt.Sprintf("%v", ac.ClaimsEmailVerified))
+	builder.WriteString(fmt.Sprintf("%v", _m.ClaimsEmailVerified))
 	builder.WriteString(", ")
 	builder.WriteString("claims_groups=")
-	builder.WriteString(fmt.Sprintf("%v", ac.ClaimsGroups))
+	builder.WriteString(fmt.Sprintf("%v", _m.ClaimsGroups))
 	builder.WriteString(", ")
 	builder.WriteString("claims_preferred_username=")
-	builder.WriteString(ac.ClaimsPreferredUsername)
+	builder.WriteString(_m.ClaimsPreferredUsername)
 	builder.WriteString(", ")
 	builder.WriteString("connector_id=")
-	builder.WriteString(ac.ConnectorID)
+	builder.WriteString(_m.ConnectorID)
 	builder.WriteString(", ")
-	if v := ac.ConnectorData; v != nil {
+	if v := _m.ConnectorData; v != nil {
 		builder.WriteString("connector_data=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")
 	builder.WriteString("expiry=")
-	builder.WriteString(ac.Expiry.Format(time.ANSIC))
+	builder.WriteString(_m.Expiry.Format(time.ANSIC))
 	builder.WriteString(", ")
 	builder.WriteString("code_challenge=")
-	builder.WriteString(ac.CodeChallenge)
+	builder.WriteString(_m.CodeChallenge)
 	builder.WriteString(", ")
 	builder.WriteString("code_challenge_method=")
-	builder.WriteString(ac.CodeChallengeMethod)
+	builder.WriteString(_m.CodeChallengeMethod)
 	builder.WriteByte(')')
 	return builder.String()
 }
