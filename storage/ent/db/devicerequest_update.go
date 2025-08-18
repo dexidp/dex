@@ -24,112 +24,112 @@ type DeviceRequestUpdate struct {
 }
 
 // Where appends a list predicates to the DeviceRequestUpdate builder.
-func (dru *DeviceRequestUpdate) Where(ps ...predicate.DeviceRequest) *DeviceRequestUpdate {
-	dru.mutation.Where(ps...)
-	return dru
+func (_u *DeviceRequestUpdate) Where(ps ...predicate.DeviceRequest) *DeviceRequestUpdate {
+	_u.mutation.Where(ps...)
+	return _u
 }
 
 // SetUserCode sets the "user_code" field.
-func (dru *DeviceRequestUpdate) SetUserCode(s string) *DeviceRequestUpdate {
-	dru.mutation.SetUserCode(s)
-	return dru
+func (_u *DeviceRequestUpdate) SetUserCode(v string) *DeviceRequestUpdate {
+	_u.mutation.SetUserCode(v)
+	return _u
 }
 
 // SetNillableUserCode sets the "user_code" field if the given value is not nil.
-func (dru *DeviceRequestUpdate) SetNillableUserCode(s *string) *DeviceRequestUpdate {
-	if s != nil {
-		dru.SetUserCode(*s)
+func (_u *DeviceRequestUpdate) SetNillableUserCode(v *string) *DeviceRequestUpdate {
+	if v != nil {
+		_u.SetUserCode(*v)
 	}
-	return dru
+	return _u
 }
 
 // SetDeviceCode sets the "device_code" field.
-func (dru *DeviceRequestUpdate) SetDeviceCode(s string) *DeviceRequestUpdate {
-	dru.mutation.SetDeviceCode(s)
-	return dru
+func (_u *DeviceRequestUpdate) SetDeviceCode(v string) *DeviceRequestUpdate {
+	_u.mutation.SetDeviceCode(v)
+	return _u
 }
 
 // SetNillableDeviceCode sets the "device_code" field if the given value is not nil.
-func (dru *DeviceRequestUpdate) SetNillableDeviceCode(s *string) *DeviceRequestUpdate {
-	if s != nil {
-		dru.SetDeviceCode(*s)
+func (_u *DeviceRequestUpdate) SetNillableDeviceCode(v *string) *DeviceRequestUpdate {
+	if v != nil {
+		_u.SetDeviceCode(*v)
 	}
-	return dru
+	return _u
 }
 
 // SetClientID sets the "client_id" field.
-func (dru *DeviceRequestUpdate) SetClientID(s string) *DeviceRequestUpdate {
-	dru.mutation.SetClientID(s)
-	return dru
+func (_u *DeviceRequestUpdate) SetClientID(v string) *DeviceRequestUpdate {
+	_u.mutation.SetClientID(v)
+	return _u
 }
 
 // SetNillableClientID sets the "client_id" field if the given value is not nil.
-func (dru *DeviceRequestUpdate) SetNillableClientID(s *string) *DeviceRequestUpdate {
-	if s != nil {
-		dru.SetClientID(*s)
+func (_u *DeviceRequestUpdate) SetNillableClientID(v *string) *DeviceRequestUpdate {
+	if v != nil {
+		_u.SetClientID(*v)
 	}
-	return dru
+	return _u
 }
 
 // SetClientSecret sets the "client_secret" field.
-func (dru *DeviceRequestUpdate) SetClientSecret(s string) *DeviceRequestUpdate {
-	dru.mutation.SetClientSecret(s)
-	return dru
+func (_u *DeviceRequestUpdate) SetClientSecret(v string) *DeviceRequestUpdate {
+	_u.mutation.SetClientSecret(v)
+	return _u
 }
 
 // SetNillableClientSecret sets the "client_secret" field if the given value is not nil.
-func (dru *DeviceRequestUpdate) SetNillableClientSecret(s *string) *DeviceRequestUpdate {
-	if s != nil {
-		dru.SetClientSecret(*s)
+func (_u *DeviceRequestUpdate) SetNillableClientSecret(v *string) *DeviceRequestUpdate {
+	if v != nil {
+		_u.SetClientSecret(*v)
 	}
-	return dru
+	return _u
 }
 
 // SetScopes sets the "scopes" field.
-func (dru *DeviceRequestUpdate) SetScopes(s []string) *DeviceRequestUpdate {
-	dru.mutation.SetScopes(s)
-	return dru
+func (_u *DeviceRequestUpdate) SetScopes(v []string) *DeviceRequestUpdate {
+	_u.mutation.SetScopes(v)
+	return _u
 }
 
-// AppendScopes appends s to the "scopes" field.
-func (dru *DeviceRequestUpdate) AppendScopes(s []string) *DeviceRequestUpdate {
-	dru.mutation.AppendScopes(s)
-	return dru
+// AppendScopes appends value to the "scopes" field.
+func (_u *DeviceRequestUpdate) AppendScopes(v []string) *DeviceRequestUpdate {
+	_u.mutation.AppendScopes(v)
+	return _u
 }
 
 // ClearScopes clears the value of the "scopes" field.
-func (dru *DeviceRequestUpdate) ClearScopes() *DeviceRequestUpdate {
-	dru.mutation.ClearScopes()
-	return dru
+func (_u *DeviceRequestUpdate) ClearScopes() *DeviceRequestUpdate {
+	_u.mutation.ClearScopes()
+	return _u
 }
 
 // SetExpiry sets the "expiry" field.
-func (dru *DeviceRequestUpdate) SetExpiry(t time.Time) *DeviceRequestUpdate {
-	dru.mutation.SetExpiry(t)
-	return dru
+func (_u *DeviceRequestUpdate) SetExpiry(v time.Time) *DeviceRequestUpdate {
+	_u.mutation.SetExpiry(v)
+	return _u
 }
 
 // SetNillableExpiry sets the "expiry" field if the given value is not nil.
-func (dru *DeviceRequestUpdate) SetNillableExpiry(t *time.Time) *DeviceRequestUpdate {
-	if t != nil {
-		dru.SetExpiry(*t)
+func (_u *DeviceRequestUpdate) SetNillableExpiry(v *time.Time) *DeviceRequestUpdate {
+	if v != nil {
+		_u.SetExpiry(*v)
 	}
-	return dru
+	return _u
 }
 
 // Mutation returns the DeviceRequestMutation object of the builder.
-func (dru *DeviceRequestUpdate) Mutation() *DeviceRequestMutation {
-	return dru.mutation
+func (_u *DeviceRequestUpdate) Mutation() *DeviceRequestMutation {
+	return _u.mutation
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
-func (dru *DeviceRequestUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, dru.sqlSave, dru.mutation, dru.hooks)
+func (_u *DeviceRequestUpdate) Save(ctx context.Context) (int, error) {
+	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func (dru *DeviceRequestUpdate) SaveX(ctx context.Context) int {
-	affected, err := dru.Save(ctx)
+func (_u *DeviceRequestUpdate) SaveX(ctx context.Context) int {
+	affected, err := _u.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -137,36 +137,36 @@ func (dru *DeviceRequestUpdate) SaveX(ctx context.Context) int {
 }
 
 // Exec executes the query.
-func (dru *DeviceRequestUpdate) Exec(ctx context.Context) error {
-	_, err := dru.Save(ctx)
+func (_u *DeviceRequestUpdate) Exec(ctx context.Context) error {
+	_, err := _u.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (dru *DeviceRequestUpdate) ExecX(ctx context.Context) {
-	if err := dru.Exec(ctx); err != nil {
+func (_u *DeviceRequestUpdate) ExecX(ctx context.Context) {
+	if err := _u.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
 
 // check runs all checks and user-defined validators on the builder.
-func (dru *DeviceRequestUpdate) check() error {
-	if v, ok := dru.mutation.UserCode(); ok {
+func (_u *DeviceRequestUpdate) check() error {
+	if v, ok := _u.mutation.UserCode(); ok {
 		if err := devicerequest.UserCodeValidator(v); err != nil {
 			return &ValidationError{Name: "user_code", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.user_code": %w`, err)}
 		}
 	}
-	if v, ok := dru.mutation.DeviceCode(); ok {
+	if v, ok := _u.mutation.DeviceCode(); ok {
 		if err := devicerequest.DeviceCodeValidator(v); err != nil {
 			return &ValidationError{Name: "device_code", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.device_code": %w`, err)}
 		}
 	}
-	if v, ok := dru.mutation.ClientID(); ok {
+	if v, ok := _u.mutation.ClientID(); ok {
 		if err := devicerequest.ClientIDValidator(v); err != nil {
 			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.client_id": %w`, err)}
 		}
 	}
-	if v, ok := dru.mutation.ClientSecret(); ok {
+	if v, ok := _u.mutation.ClientSecret(); ok {
 		if err := devicerequest.ClientSecretValidator(v); err != nil {
 			return &ValidationError{Name: "client_secret", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.client_secret": %w`, err)}
 		}
@@ -174,45 +174,45 @@ func (dru *DeviceRequestUpdate) check() error {
 	return nil
 }
 
-func (dru *DeviceRequestUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	if err := dru.check(); err != nil {
-		return n, err
+func (_u *DeviceRequestUpdate) sqlSave(ctx context.Context) (_node int, err error) {
+	if err := _u.check(); err != nil {
+		return _node, err
 	}
 	_spec := sqlgraph.NewUpdateSpec(devicerequest.Table, devicerequest.Columns, sqlgraph.NewFieldSpec(devicerequest.FieldID, field.TypeInt))
-	if ps := dru.mutation.predicates; len(ps) > 0 {
+	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	if value, ok := dru.mutation.UserCode(); ok {
+	if value, ok := _u.mutation.UserCode(); ok {
 		_spec.SetField(devicerequest.FieldUserCode, field.TypeString, value)
 	}
-	if value, ok := dru.mutation.DeviceCode(); ok {
+	if value, ok := _u.mutation.DeviceCode(); ok {
 		_spec.SetField(devicerequest.FieldDeviceCode, field.TypeString, value)
 	}
-	if value, ok := dru.mutation.ClientID(); ok {
+	if value, ok := _u.mutation.ClientID(); ok {
 		_spec.SetField(devicerequest.FieldClientID, field.TypeString, value)
 	}
-	if value, ok := dru.mutation.ClientSecret(); ok {
+	if value, ok := _u.mutation.ClientSecret(); ok {
 		_spec.SetField(devicerequest.FieldClientSecret, field.TypeString, value)
 	}
-	if value, ok := dru.mutation.Scopes(); ok {
+	if value, ok := _u.mutation.Scopes(); ok {
 		_spec.SetField(devicerequest.FieldScopes, field.TypeJSON, value)
 	}
-	if value, ok := dru.mutation.AppendedScopes(); ok {
+	if value, ok := _u.mutation.AppendedScopes(); ok {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, devicerequest.FieldScopes, value)
 		})
 	}
-	if dru.mutation.ScopesCleared() {
+	if _u.mutation.ScopesCleared() {
 		_spec.ClearField(devicerequest.FieldScopes, field.TypeJSON)
 	}
-	if value, ok := dru.mutation.Expiry(); ok {
+	if value, ok := _u.mutation.Expiry(); ok {
 		_spec.SetField(devicerequest.FieldExpiry, field.TypeTime, value)
 	}
-	if n, err = sqlgraph.UpdateNodes(ctx, dru.driver, _spec); err != nil {
+	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{devicerequest.Label}
 		} else if sqlgraph.IsConstraintError(err) {
@@ -220,8 +220,8 @@ func (dru *DeviceRequestUpdate) sqlSave(ctx context.Context) (n int, err error) 
 		}
 		return 0, err
 	}
-	dru.mutation.done = true
-	return n, nil
+	_u.mutation.done = true
+	return _node, nil
 }
 
 // DeviceRequestUpdateOne is the builder for updating a single DeviceRequest entity.
@@ -233,119 +233,119 @@ type DeviceRequestUpdateOne struct {
 }
 
 // SetUserCode sets the "user_code" field.
-func (druo *DeviceRequestUpdateOne) SetUserCode(s string) *DeviceRequestUpdateOne {
-	druo.mutation.SetUserCode(s)
-	return druo
+func (_u *DeviceRequestUpdateOne) SetUserCode(v string) *DeviceRequestUpdateOne {
+	_u.mutation.SetUserCode(v)
+	return _u
 }
 
 // SetNillableUserCode sets the "user_code" field if the given value is not nil.
-func (druo *DeviceRequestUpdateOne) SetNillableUserCode(s *string) *DeviceRequestUpdateOne {
-	if s != nil {
-		druo.SetUserCode(*s)
+func (_u *DeviceRequestUpdateOne) SetNillableUserCode(v *string) *DeviceRequestUpdateOne {
+	if v != nil {
+		_u.SetUserCode(*v)
 	}
-	return druo
+	return _u
 }
 
 // SetDeviceCode sets the "device_code" field.
-func (druo *DeviceRequestUpdateOne) SetDeviceCode(s string) *DeviceRequestUpdateOne {
-	druo.mutation.SetDeviceCode(s)
-	return druo
+func (_u *DeviceRequestUpdateOne) SetDeviceCode(v string) *DeviceRequestUpdateOne {
+	_u.mutation.SetDeviceCode(v)
+	return _u
 }
 
 // SetNillableDeviceCode sets the "device_code" field if the given value is not nil.
-func (druo *DeviceRequestUpdateOne) SetNillableDeviceCode(s *string) *DeviceRequestUpdateOne {
-	if s != nil {
-		druo.SetDeviceCode(*s)
+func (_u *DeviceRequestUpdateOne) SetNillableDeviceCode(v *string) *DeviceRequestUpdateOne {
+	if v != nil {
+		_u.SetDeviceCode(*v)
 	}
-	return druo
+	return _u
 }
 
 // SetClientID sets the "client_id" field.
-func (druo *DeviceRequestUpdateOne) SetClientID(s string) *DeviceRequestUpdateOne {
-	druo.mutation.SetClientID(s)
-	return druo
+func (_u *DeviceRequestUpdateOne) SetClientID(v string) *DeviceRequestUpdateOne {
+	_u.mutation.SetClientID(v)
+	return _u
 }
 
 // SetNillableClientID sets the "client_id" field if the given value is not nil.
-func (druo *DeviceRequestUpdateOne) SetNillableClientID(s *string) *DeviceRequestUpdateOne {
-	if s != nil {
-		druo.SetClientID(*s)
+func (_u *DeviceRequestUpdateOne) SetNillableClientID(v *string) *DeviceRequestUpdateOne {
+	if v != nil {
+		_u.SetClientID(*v)
 	}
-	return druo
+	return _u
 }
 
 // SetClientSecret sets the "client_secret" field.
-func (druo *DeviceRequestUpdateOne) SetClientSecret(s string) *DeviceRequestUpdateOne {
-	druo.mutation.SetClientSecret(s)
-	return druo
+func (_u *DeviceRequestUpdateOne) SetClientSecret(v string) *DeviceRequestUpdateOne {
+	_u.mutation.SetClientSecret(v)
+	return _u
 }
 
 // SetNillableClientSecret sets the "client_secret" field if the given value is not nil.
-func (druo *DeviceRequestUpdateOne) SetNillableClientSecret(s *string) *DeviceRequestUpdateOne {
-	if s != nil {
-		druo.SetClientSecret(*s)
+func (_u *DeviceRequestUpdateOne) SetNillableClientSecret(v *string) *DeviceRequestUpdateOne {
+	if v != nil {
+		_u.SetClientSecret(*v)
 	}
-	return druo
+	return _u
 }
 
 // SetScopes sets the "scopes" field.
-func (druo *DeviceRequestUpdateOne) SetScopes(s []string) *DeviceRequestUpdateOne {
-	druo.mutation.SetScopes(s)
-	return druo
+func (_u *DeviceRequestUpdateOne) SetScopes(v []string) *DeviceRequestUpdateOne {
+	_u.mutation.SetScopes(v)
+	return _u
 }
 
-// AppendScopes appends s to the "scopes" field.
-func (druo *DeviceRequestUpdateOne) AppendScopes(s []string) *DeviceRequestUpdateOne {
-	druo.mutation.AppendScopes(s)
-	return druo
+// AppendScopes appends value to the "scopes" field.
+func (_u *DeviceRequestUpdateOne) AppendScopes(v []string) *DeviceRequestUpdateOne {
+	_u.mutation.AppendScopes(v)
+	return _u
 }
 
 // ClearScopes clears the value of the "scopes" field.
-func (druo *DeviceRequestUpdateOne) ClearScopes() *DeviceRequestUpdateOne {
-	druo.mutation.ClearScopes()
-	return druo
+func (_u *DeviceRequestUpdateOne) ClearScopes() *DeviceRequestUpdateOne {
+	_u.mutation.ClearScopes()
+	return _u
 }
 
 // SetExpiry sets the "expiry" field.
-func (druo *DeviceRequestUpdateOne) SetExpiry(t time.Time) *DeviceRequestUpdateOne {
-	druo.mutation.SetExpiry(t)
-	return druo
+func (_u *DeviceRequestUpdateOne) SetExpiry(v time.Time) *DeviceRequestUpdateOne {
+	_u.mutation.SetExpiry(v)
+	return _u
 }
 
 // SetNillableExpiry sets the "expiry" field if the given value is not nil.
-func (druo *DeviceRequestUpdateOne) SetNillableExpiry(t *time.Time) *DeviceRequestUpdateOne {
-	if t != nil {
-		druo.SetExpiry(*t)
+func (_u *DeviceRequestUpdateOne) SetNillableExpiry(v *time.Time) *DeviceRequestUpdateOne {
+	if v != nil {
+		_u.SetExpiry(*v)
 	}
-	return druo
+	return _u
 }
 
 // Mutation returns the DeviceRequestMutation object of the builder.
-func (druo *DeviceRequestUpdateOne) Mutation() *DeviceRequestMutation {
-	return druo.mutation
+func (_u *DeviceRequestUpdateOne) Mutation() *DeviceRequestMutation {
+	return _u.mutation
 }
 
 // Where appends a list predicates to the DeviceRequestUpdate builder.
-func (druo *DeviceRequestUpdateOne) Where(ps ...predicate.DeviceRequest) *DeviceRequestUpdateOne {
-	druo.mutation.Where(ps...)
-	return druo
+func (_u *DeviceRequestUpdateOne) Where(ps ...predicate.DeviceRequest) *DeviceRequestUpdateOne {
+	_u.mutation.Where(ps...)
+	return _u
 }
 
 // Select allows selecting one or more fields (columns) of the returned entity.
 // The default is selecting all fields defined in the entity schema.
-func (druo *DeviceRequestUpdateOne) Select(field string, fields ...string) *DeviceRequestUpdateOne {
-	druo.fields = append([]string{field}, fields...)
-	return druo
+func (_u *DeviceRequestUpdateOne) Select(field string, fields ...string) *DeviceRequestUpdateOne {
+	_u.fields = append([]string{field}, fields...)
+	return _u
 }
 
 // Save executes the query and returns the updated DeviceRequest entity.
-func (druo *DeviceRequestUpdateOne) Save(ctx context.Context) (*DeviceRequest, error) {
-	return withHooks(ctx, druo.sqlSave, druo.mutation, druo.hooks)
+func (_u *DeviceRequestUpdateOne) Save(ctx context.Context) (*DeviceRequest, error) {
+	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func (druo *DeviceRequestUpdateOne) SaveX(ctx context.Context) *DeviceRequest {
-	node, err := druo.Save(ctx)
+func (_u *DeviceRequestUpdateOne) SaveX(ctx context.Context) *DeviceRequest {
+	node, err := _u.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -353,36 +353,36 @@ func (druo *DeviceRequestUpdateOne) SaveX(ctx context.Context) *DeviceRequest {
 }
 
 // Exec executes the query on the entity.
-func (druo *DeviceRequestUpdateOne) Exec(ctx context.Context) error {
-	_, err := druo.Save(ctx)
+func (_u *DeviceRequestUpdateOne) Exec(ctx context.Context) error {
+	_, err := _u.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (druo *DeviceRequestUpdateOne) ExecX(ctx context.Context) {
-	if err := druo.Exec(ctx); err != nil {
+func (_u *DeviceRequestUpdateOne) ExecX(ctx context.Context) {
+	if err := _u.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
 
 // check runs all checks and user-defined validators on the builder.
-func (druo *DeviceRequestUpdateOne) check() error {
-	if v, ok := druo.mutation.UserCode(); ok {
+func (_u *DeviceRequestUpdateOne) check() error {
+	if v, ok := _u.mutation.UserCode(); ok {
 		if err := devicerequest.UserCodeValidator(v); err != nil {
 			return &ValidationError{Name: "user_code", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.user_code": %w`, err)}
 		}
 	}
-	if v, ok := druo.mutation.DeviceCode(); ok {
+	if v, ok := _u.mutation.DeviceCode(); ok {
 		if err := devicerequest.DeviceCodeValidator(v); err != nil {
 			return &ValidationError{Name: "device_code", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.device_code": %w`, err)}
 		}
 	}
-	if v, ok := druo.mutation.ClientID(); ok {
+	if v, ok := _u.mutation.ClientID(); ok {
 		if err := devicerequest.ClientIDValidator(v); err != nil {
 			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.client_id": %w`, err)}
 		}
 	}
-	if v, ok := druo.mutation.ClientSecret(); ok {
+	if v, ok := _u.mutation.ClientSecret(); ok {
 		if err := devicerequest.ClientSecretValidator(v); err != nil {
 			return &ValidationError{Name: "client_secret", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.client_secret": %w`, err)}
 		}
@@ -390,17 +390,17 @@ func (druo *DeviceRequestUpdateOne) check() error {
 	return nil
 }
 
-func (druo *DeviceRequestUpdateOne) sqlSave(ctx context.Context) (_node *DeviceRequest, err error) {
-	if err := druo.check(); err != nil {
+func (_u *DeviceRequestUpdateOne) sqlSave(ctx context.Context) (_node *DeviceRequest, err error) {
+	if err := _u.check(); err != nil {
 		return _node, err
 	}
 	_spec := sqlgraph.NewUpdateSpec(devicerequest.Table, devicerequest.Columns, sqlgraph.NewFieldSpec(devicerequest.FieldID, field.TypeInt))
-	id, ok := druo.mutation.ID()
+	id, ok := _u.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "DeviceRequest.id" for update`)}
 	}
 	_spec.Node.ID.Value = id
-	if fields := druo.fields; len(fields) > 0 {
+	if fields := _u.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, devicerequest.FieldID)
 		for _, f := range fields {
@@ -412,43 +412,43 @@ func (druo *DeviceRequestUpdateOne) sqlSave(ctx context.Context) (_node *DeviceR
 			}
 		}
 	}
-	if ps := druo.mutation.predicates; len(ps) > 0 {
+	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	if value, ok := druo.mutation.UserCode(); ok {
+	if value, ok := _u.mutation.UserCode(); ok {
 		_spec.SetField(devicerequest.FieldUserCode, field.TypeString, value)
 	}
-	if value, ok := druo.mutation.DeviceCode(); ok {
+	if value, ok := _u.mutation.DeviceCode(); ok {
 		_spec.SetField(devicerequest.FieldDeviceCode, field.TypeString, value)
 	}
-	if value, ok := druo.mutation.ClientID(); ok {
+	if value, ok := _u.mutation.ClientID(); ok {
 		_spec.SetField(devicerequest.FieldClientID, field.TypeString, value)
 	}
-	if value, ok := druo.mutation.ClientSecret(); ok {
+	if value, ok := _u.mutation.ClientSecret(); ok {
 		_spec.SetField(devicerequest.FieldClientSecret, field.TypeString, value)
 	}
-	if value, ok := druo.mutation.Scopes(); ok {
+	if value, ok := _u.mutation.Scopes(); ok {
 		_spec.SetField(devicerequest.FieldScopes, field.TypeJSON, value)
 	}
-	if value, ok := druo.mutation.AppendedScopes(); ok {
+	if value, ok := _u.mutation.AppendedScopes(); ok {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, devicerequest.FieldScopes, value)
 		})
 	}
-	if druo.mutation.ScopesCleared() {
+	if _u.mutation.ScopesCleared() {
 		_spec.ClearField(devicerequest.FieldScopes, field.TypeJSON)
 	}
-	if value, ok := druo.mutation.Expiry(); ok {
+	if value, ok := _u.mutation.Expiry(); ok {
 		_spec.SetField(devicerequest.FieldExpiry, field.TypeTime, value)
 	}
-	_node = &DeviceRequest{config: druo.config}
+	_node = &DeviceRequest{config: _u.config}
 	_spec.Assign = _node.assignValues
 	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, druo.driver, _spec); err != nil {
+	if err = sqlgraph.UpdateNode(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{devicerequest.Label}
 		} else if sqlgraph.IsConstraintError(err) {
@@ -456,6 +456,6 @@ func (druo *DeviceRequestUpdateOne) sqlSave(ctx context.Context) (_node *DeviceR
 		}
 		return nil, err
 	}
-	druo.mutation.done = true
+	_u.mutation.done = true
 	return _node, nil
 }

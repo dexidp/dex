@@ -20,56 +20,56 @@ type ConnectorDelete struct {
 }
 
 // Where appends a list predicates to the ConnectorDelete builder.
-func (cd *ConnectorDelete) Where(ps ...predicate.Connector) *ConnectorDelete {
-	cd.mutation.Where(ps...)
-	return cd
+func (_d *ConnectorDelete) Where(ps ...predicate.Connector) *ConnectorDelete {
+	_d.mutation.Where(ps...)
+	return _d
 }
 
 // Exec executes the deletion query and returns how many vertices were deleted.
-func (cd *ConnectorDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, cd.sqlExec, cd.mutation, cd.hooks)
+func (_d *ConnectorDelete) Exec(ctx context.Context) (int, error) {
+	return withHooks(ctx, _d.sqlExec, _d.mutation, _d.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (cd *ConnectorDelete) ExecX(ctx context.Context) int {
-	n, err := cd.Exec(ctx)
+func (_d *ConnectorDelete) ExecX(ctx context.Context) int {
+	n, err := _d.Exec(ctx)
 	if err != nil {
 		panic(err)
 	}
 	return n
 }
 
-func (cd *ConnectorDelete) sqlExec(ctx context.Context) (int, error) {
+func (_d *ConnectorDelete) sqlExec(ctx context.Context) (int, error) {
 	_spec := sqlgraph.NewDeleteSpec(connector.Table, sqlgraph.NewFieldSpec(connector.FieldID, field.TypeString))
-	if ps := cd.mutation.predicates; len(ps) > 0 {
+	if ps := _d.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	affected, err := sqlgraph.DeleteNodes(ctx, cd.driver, _spec)
+	affected, err := sqlgraph.DeleteNodes(ctx, _d.driver, _spec)
 	if err != nil && sqlgraph.IsConstraintError(err) {
 		err = &ConstraintError{msg: err.Error(), wrap: err}
 	}
-	cd.mutation.done = true
+	_d.mutation.done = true
 	return affected, err
 }
 
 // ConnectorDeleteOne is the builder for deleting a single Connector entity.
 type ConnectorDeleteOne struct {
-	cd *ConnectorDelete
+	_d *ConnectorDelete
 }
 
 // Where appends a list predicates to the ConnectorDelete builder.
-func (cdo *ConnectorDeleteOne) Where(ps ...predicate.Connector) *ConnectorDeleteOne {
-	cdo.cd.mutation.Where(ps...)
-	return cdo
+func (_d *ConnectorDeleteOne) Where(ps ...predicate.Connector) *ConnectorDeleteOne {
+	_d._d.mutation.Where(ps...)
+	return _d
 }
 
 // Exec executes the deletion query.
-func (cdo *ConnectorDeleteOne) Exec(ctx context.Context) error {
-	n, err := cdo.cd.Exec(ctx)
+func (_d *ConnectorDeleteOne) Exec(ctx context.Context) error {
+	n, err := _d._d.Exec(ctx)
 	switch {
 	case err != nil:
 		return err
@@ -81,8 +81,8 @@ func (cdo *ConnectorDeleteOne) Exec(ctx context.Context) error {
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (cdo *ConnectorDeleteOne) ExecX(ctx context.Context) {
-	if err := cdo.Exec(ctx); err != nil {
+func (_d *ConnectorDeleteOne) ExecX(ctx context.Context) {
+	if err := _d.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

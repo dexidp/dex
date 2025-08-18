@@ -22,72 +22,72 @@ type ConnectorUpdate struct {
 }
 
 // Where appends a list predicates to the ConnectorUpdate builder.
-func (cu *ConnectorUpdate) Where(ps ...predicate.Connector) *ConnectorUpdate {
-	cu.mutation.Where(ps...)
-	return cu
+func (_u *ConnectorUpdate) Where(ps ...predicate.Connector) *ConnectorUpdate {
+	_u.mutation.Where(ps...)
+	return _u
 }
 
 // SetType sets the "type" field.
-func (cu *ConnectorUpdate) SetType(s string) *ConnectorUpdate {
-	cu.mutation.SetType(s)
-	return cu
+func (_u *ConnectorUpdate) SetType(v string) *ConnectorUpdate {
+	_u.mutation.SetType(v)
+	return _u
 }
 
 // SetNillableType sets the "type" field if the given value is not nil.
-func (cu *ConnectorUpdate) SetNillableType(s *string) *ConnectorUpdate {
-	if s != nil {
-		cu.SetType(*s)
+func (_u *ConnectorUpdate) SetNillableType(v *string) *ConnectorUpdate {
+	if v != nil {
+		_u.SetType(*v)
 	}
-	return cu
+	return _u
 }
 
 // SetName sets the "name" field.
-func (cu *ConnectorUpdate) SetName(s string) *ConnectorUpdate {
-	cu.mutation.SetName(s)
-	return cu
+func (_u *ConnectorUpdate) SetName(v string) *ConnectorUpdate {
+	_u.mutation.SetName(v)
+	return _u
 }
 
 // SetNillableName sets the "name" field if the given value is not nil.
-func (cu *ConnectorUpdate) SetNillableName(s *string) *ConnectorUpdate {
-	if s != nil {
-		cu.SetName(*s)
+func (_u *ConnectorUpdate) SetNillableName(v *string) *ConnectorUpdate {
+	if v != nil {
+		_u.SetName(*v)
 	}
-	return cu
+	return _u
 }
 
 // SetResourceVersion sets the "resource_version" field.
-func (cu *ConnectorUpdate) SetResourceVersion(s string) *ConnectorUpdate {
-	cu.mutation.SetResourceVersion(s)
-	return cu
+func (_u *ConnectorUpdate) SetResourceVersion(v string) *ConnectorUpdate {
+	_u.mutation.SetResourceVersion(v)
+	return _u
 }
 
 // SetNillableResourceVersion sets the "resource_version" field if the given value is not nil.
-func (cu *ConnectorUpdate) SetNillableResourceVersion(s *string) *ConnectorUpdate {
-	if s != nil {
-		cu.SetResourceVersion(*s)
+func (_u *ConnectorUpdate) SetNillableResourceVersion(v *string) *ConnectorUpdate {
+	if v != nil {
+		_u.SetResourceVersion(*v)
 	}
-	return cu
+	return _u
 }
 
 // SetConfig sets the "config" field.
-func (cu *ConnectorUpdate) SetConfig(b []byte) *ConnectorUpdate {
-	cu.mutation.SetConfig(b)
-	return cu
+func (_u *ConnectorUpdate) SetConfig(v []byte) *ConnectorUpdate {
+	_u.mutation.SetConfig(v)
+	return _u
 }
 
 // Mutation returns the ConnectorMutation object of the builder.
-func (cu *ConnectorUpdate) Mutation() *ConnectorMutation {
-	return cu.mutation
+func (_u *ConnectorUpdate) Mutation() *ConnectorMutation {
+	return _u.mutation
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
-func (cu *ConnectorUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, cu.sqlSave, cu.mutation, cu.hooks)
+func (_u *ConnectorUpdate) Save(ctx context.Context) (int, error) {
+	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func (cu *ConnectorUpdate) SaveX(ctx context.Context) int {
-	affected, err := cu.Save(ctx)
+func (_u *ConnectorUpdate) SaveX(ctx context.Context) int {
+	affected, err := _u.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -95,26 +95,26 @@ func (cu *ConnectorUpdate) SaveX(ctx context.Context) int {
 }
 
 // Exec executes the query.
-func (cu *ConnectorUpdate) Exec(ctx context.Context) error {
-	_, err := cu.Save(ctx)
+func (_u *ConnectorUpdate) Exec(ctx context.Context) error {
+	_, err := _u.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (cu *ConnectorUpdate) ExecX(ctx context.Context) {
-	if err := cu.Exec(ctx); err != nil {
+func (_u *ConnectorUpdate) ExecX(ctx context.Context) {
+	if err := _u.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
 
 // check runs all checks and user-defined validators on the builder.
-func (cu *ConnectorUpdate) check() error {
-	if v, ok := cu.mutation.GetType(); ok {
+func (_u *ConnectorUpdate) check() error {
+	if v, ok := _u.mutation.GetType(); ok {
 		if err := connector.TypeValidator(v); err != nil {
 			return &ValidationError{Name: "type", err: fmt.Errorf(`db: validator failed for field "Connector.type": %w`, err)}
 		}
 	}
-	if v, ok := cu.mutation.Name(); ok {
+	if v, ok := _u.mutation.Name(); ok {
 		if err := connector.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "Connector.name": %w`, err)}
 		}
@@ -122,31 +122,31 @@ func (cu *ConnectorUpdate) check() error {
 	return nil
 }
 
-func (cu *ConnectorUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	if err := cu.check(); err != nil {
-		return n, err
+func (_u *ConnectorUpdate) sqlSave(ctx context.Context) (_node int, err error) {
+	if err := _u.check(); err != nil {
+		return _node, err
 	}
 	_spec := sqlgraph.NewUpdateSpec(connector.Table, connector.Columns, sqlgraph.NewFieldSpec(connector.FieldID, field.TypeString))
-	if ps := cu.mutation.predicates; len(ps) > 0 {
+	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	if value, ok := cu.mutation.GetType(); ok {
+	if value, ok := _u.mutation.GetType(); ok {
 		_spec.SetField(connector.FieldType, field.TypeString, value)
 	}
-	if value, ok := cu.mutation.Name(); ok {
+	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(connector.FieldName, field.TypeString, value)
 	}
-	if value, ok := cu.mutation.ResourceVersion(); ok {
+	if value, ok := _u.mutation.ResourceVersion(); ok {
 		_spec.SetField(connector.FieldResourceVersion, field.TypeString, value)
 	}
-	if value, ok := cu.mutation.Config(); ok {
+	if value, ok := _u.mutation.Config(); ok {
 		_spec.SetField(connector.FieldConfig, field.TypeBytes, value)
 	}
-	if n, err = sqlgraph.UpdateNodes(ctx, cu.driver, _spec); err != nil {
+	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{connector.Label}
 		} else if sqlgraph.IsConstraintError(err) {
@@ -154,8 +154,8 @@ func (cu *ConnectorUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 		return 0, err
 	}
-	cu.mutation.done = true
-	return n, nil
+	_u.mutation.done = true
+	return _node, nil
 }
 
 // ConnectorUpdateOne is the builder for updating a single Connector entity.
@@ -167,79 +167,79 @@ type ConnectorUpdateOne struct {
 }
 
 // SetType sets the "type" field.
-func (cuo *ConnectorUpdateOne) SetType(s string) *ConnectorUpdateOne {
-	cuo.mutation.SetType(s)
-	return cuo
+func (_u *ConnectorUpdateOne) SetType(v string) *ConnectorUpdateOne {
+	_u.mutation.SetType(v)
+	return _u
 }
 
 // SetNillableType sets the "type" field if the given value is not nil.
-func (cuo *ConnectorUpdateOne) SetNillableType(s *string) *ConnectorUpdateOne {
-	if s != nil {
-		cuo.SetType(*s)
+func (_u *ConnectorUpdateOne) SetNillableType(v *string) *ConnectorUpdateOne {
+	if v != nil {
+		_u.SetType(*v)
 	}
-	return cuo
+	return _u
 }
 
 // SetName sets the "name" field.
-func (cuo *ConnectorUpdateOne) SetName(s string) *ConnectorUpdateOne {
-	cuo.mutation.SetName(s)
-	return cuo
+func (_u *ConnectorUpdateOne) SetName(v string) *ConnectorUpdateOne {
+	_u.mutation.SetName(v)
+	return _u
 }
 
 // SetNillableName sets the "name" field if the given value is not nil.
-func (cuo *ConnectorUpdateOne) SetNillableName(s *string) *ConnectorUpdateOne {
-	if s != nil {
-		cuo.SetName(*s)
+func (_u *ConnectorUpdateOne) SetNillableName(v *string) *ConnectorUpdateOne {
+	if v != nil {
+		_u.SetName(*v)
 	}
-	return cuo
+	return _u
 }
 
 // SetResourceVersion sets the "resource_version" field.
-func (cuo *ConnectorUpdateOne) SetResourceVersion(s string) *ConnectorUpdateOne {
-	cuo.mutation.SetResourceVersion(s)
-	return cuo
+func (_u *ConnectorUpdateOne) SetResourceVersion(v string) *ConnectorUpdateOne {
+	_u.mutation.SetResourceVersion(v)
+	return _u
 }
 
 // SetNillableResourceVersion sets the "resource_version" field if the given value is not nil.
-func (cuo *ConnectorUpdateOne) SetNillableResourceVersion(s *string) *ConnectorUpdateOne {
-	if s != nil {
-		cuo.SetResourceVersion(*s)
+func (_u *ConnectorUpdateOne) SetNillableResourceVersion(v *string) *ConnectorUpdateOne {
+	if v != nil {
+		_u.SetResourceVersion(*v)
 	}
-	return cuo
+	return _u
 }
 
 // SetConfig sets the "config" field.
-func (cuo *ConnectorUpdateOne) SetConfig(b []byte) *ConnectorUpdateOne {
-	cuo.mutation.SetConfig(b)
-	return cuo
+func (_u *ConnectorUpdateOne) SetConfig(v []byte) *ConnectorUpdateOne {
+	_u.mutation.SetConfig(v)
+	return _u
 }
 
 // Mutation returns the ConnectorMutation object of the builder.
-func (cuo *ConnectorUpdateOne) Mutation() *ConnectorMutation {
-	return cuo.mutation
+func (_u *ConnectorUpdateOne) Mutation() *ConnectorMutation {
+	return _u.mutation
 }
 
 // Where appends a list predicates to the ConnectorUpdate builder.
-func (cuo *ConnectorUpdateOne) Where(ps ...predicate.Connector) *ConnectorUpdateOne {
-	cuo.mutation.Where(ps...)
-	return cuo
+func (_u *ConnectorUpdateOne) Where(ps ...predicate.Connector) *ConnectorUpdateOne {
+	_u.mutation.Where(ps...)
+	return _u
 }
 
 // Select allows selecting one or more fields (columns) of the returned entity.
 // The default is selecting all fields defined in the entity schema.
-func (cuo *ConnectorUpdateOne) Select(field string, fields ...string) *ConnectorUpdateOne {
-	cuo.fields = append([]string{field}, fields...)
-	return cuo
+func (_u *ConnectorUpdateOne) Select(field string, fields ...string) *ConnectorUpdateOne {
+	_u.fields = append([]string{field}, fields...)
+	return _u
 }
 
 // Save executes the query and returns the updated Connector entity.
-func (cuo *ConnectorUpdateOne) Save(ctx context.Context) (*Connector, error) {
-	return withHooks(ctx, cuo.sqlSave, cuo.mutation, cuo.hooks)
+func (_u *ConnectorUpdateOne) Save(ctx context.Context) (*Connector, error) {
+	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func (cuo *ConnectorUpdateOne) SaveX(ctx context.Context) *Connector {
-	node, err := cuo.Save(ctx)
+func (_u *ConnectorUpdateOne) SaveX(ctx context.Context) *Connector {
+	node, err := _u.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -247,26 +247,26 @@ func (cuo *ConnectorUpdateOne) SaveX(ctx context.Context) *Connector {
 }
 
 // Exec executes the query on the entity.
-func (cuo *ConnectorUpdateOne) Exec(ctx context.Context) error {
-	_, err := cuo.Save(ctx)
+func (_u *ConnectorUpdateOne) Exec(ctx context.Context) error {
+	_, err := _u.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (cuo *ConnectorUpdateOne) ExecX(ctx context.Context) {
-	if err := cuo.Exec(ctx); err != nil {
+func (_u *ConnectorUpdateOne) ExecX(ctx context.Context) {
+	if err := _u.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
 
 // check runs all checks and user-defined validators on the builder.
-func (cuo *ConnectorUpdateOne) check() error {
-	if v, ok := cuo.mutation.GetType(); ok {
+func (_u *ConnectorUpdateOne) check() error {
+	if v, ok := _u.mutation.GetType(); ok {
 		if err := connector.TypeValidator(v); err != nil {
 			return &ValidationError{Name: "type", err: fmt.Errorf(`db: validator failed for field "Connector.type": %w`, err)}
 		}
 	}
-	if v, ok := cuo.mutation.Name(); ok {
+	if v, ok := _u.mutation.Name(); ok {
 		if err := connector.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "Connector.name": %w`, err)}
 		}
@@ -274,17 +274,17 @@ func (cuo *ConnectorUpdateOne) check() error {
 	return nil
 }
 
-func (cuo *ConnectorUpdateOne) sqlSave(ctx context.Context) (_node *Connector, err error) {
-	if err := cuo.check(); err != nil {
+func (_u *ConnectorUpdateOne) sqlSave(ctx context.Context) (_node *Connector, err error) {
+	if err := _u.check(); err != nil {
 		return _node, err
 	}
 	_spec := sqlgraph.NewUpdateSpec(connector.Table, connector.Columns, sqlgraph.NewFieldSpec(connector.FieldID, field.TypeString))
-	id, ok := cuo.mutation.ID()
+	id, ok := _u.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "Connector.id" for update`)}
 	}
 	_spec.Node.ID.Value = id
-	if fields := cuo.fields; len(fields) > 0 {
+	if fields := _u.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, connector.FieldID)
 		for _, f := range fields {
@@ -296,29 +296,29 @@ func (cuo *ConnectorUpdateOne) sqlSave(ctx context.Context) (_node *Connector, e
 			}
 		}
 	}
-	if ps := cuo.mutation.predicates; len(ps) > 0 {
+	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	if value, ok := cuo.mutation.GetType(); ok {
+	if value, ok := _u.mutation.GetType(); ok {
 		_spec.SetField(connector.FieldType, field.TypeString, value)
 	}
-	if value, ok := cuo.mutation.Name(); ok {
+	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(connector.FieldName, field.TypeString, value)
 	}
-	if value, ok := cuo.mutation.ResourceVersion(); ok {
+	if value, ok := _u.mutation.ResourceVersion(); ok {
 		_spec.SetField(connector.FieldResourceVersion, field.TypeString, value)
 	}
-	if value, ok := cuo.mutation.Config(); ok {
+	if value, ok := _u.mutation.Config(); ok {
 		_spec.SetField(connector.FieldConfig, field.TypeBytes, value)
 	}
-	_node = &Connector{config: cuo.config}
+	_node = &Connector{config: _u.config}
 	_spec.Assign = _node.assignValues
 	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, cuo.driver, _spec); err != nil {
+	if err = sqlgraph.UpdateNode(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{connector.Label}
 		} else if sqlgraph.IsConstraintError(err) {
@@ -326,6 +326,6 @@ func (cuo *ConnectorUpdateOne) sqlSave(ctx context.Context) (_node *Connector, e
 		}
 		return nil, err
 	}
-	cuo.mutation.done = true
+	_u.mutation.done = true
 	return _node, nil
 }
