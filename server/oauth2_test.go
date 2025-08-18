@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"net/http"
@@ -323,10 +322,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
-			httpServer, server := newTestServerMultipleConnectors(ctx, t, func(c *Config) {
+			httpServer, server := newTestServerMultipleConnectors(t, func(c *Config) {
 				c.SupportedResponseTypes = tc.supportedResponseTypes
 				c.Storage = storage.WithStaticClients(c.Storage, tc.clients)
 			})
@@ -598,8 +594,9 @@ func TestValidRedirectURI(t *testing.T) {
 }
 
 func TestStorageKeySet(t *testing.T) {
+	logger := newLogger(t)
 	s := memory.New(logger)
-	if err := s.UpdateKeys(context.TODO(), func(keys storage.Keys) (storage.Keys, error) {
+	if err := s.UpdateKeys(t.Context(), func(keys storage.Keys) (storage.Keys, error) {
 		keys.SigningKey = &jose.JSONWebKey{
 			Key:       testKey,
 			KeyID:     "testkey",
@@ -673,7 +670,7 @@ func TestStorageKeySet(t *testing.T) {
 
 			keySet := &storageKeySet{s}
 
-			_, err = keySet.VerifySignature(context.Background(), jwt)
+			_, err = keySet.VerifySignature(t.Context(), jwt)
 			if (err != nil && !tc.wantErr) || (err == nil && tc.wantErr) {
 				t.Fatalf("wantErr = %v, but got err = %v", tc.wantErr, err)
 			}

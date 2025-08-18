@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -76,13 +75,14 @@ FDWV28nTP9sqbtsmU8Tem2jzMvZ7C/Q0AuDoKELFUpux8shm8wfIhyaPnXUGZoAZ
 Np4vUwMSYV5mopESLWOg3loBxKyLGFtgGKVCjGiQvy6zISQ4fQo=
 -----END RSA PRIVATE KEY-----`)
 
-var logger = slog.New(slog.DiscardHandler)
-
-func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
+func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
 	var server *Server
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		server.ServeHTTP(w, r)
 	}))
+
+	logger := newLogger(t)
+	ctx := t.Context()
 
 	config := Config{
 		Issuer:  s.URL,
@@ -135,11 +135,14 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 	return s, server
 }
 
-func newTestServerMultipleConnectors(ctx context.Context, t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
+func newTestServerMultipleConnectors(t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
 	var server *Server
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		server.ServeHTTP(w, r)
 	}))
+
+	logger := newLogger(t)
+	ctx := t.Context()
 
 	config := Config{
 		Issuer:  s.URL,
@@ -183,21 +186,16 @@ func newTestServerMultipleConnectors(ctx context.Context, t *testing.T, updateCo
 }
 
 func TestNewTestServer(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	newTestServer(ctx, t, nil)
+	newTestServer(t, nil)
 }
 
 func TestDiscovery(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	httpServer, _ := newTestServer(ctx, t, func(c *Config) {
+	httpServer, _ := newTestServer(t, func(c *Config) {
 		c.Issuer += "/non-root-path"
 	})
 	defer httpServer.Close()
 
-	p, err := oidc.NewProvider(ctx, httpServer.URL)
+	p, err := oidc.NewProvider(t.Context(), httpServer.URL)
 	if err != nil {
 		t.Fatalf("failed to get provider: %v", err)
 	}
@@ -734,11 +732,10 @@ func TestOAuth2CodeFlow(t *testing.T) {
 	tests := makeOAuth2Tests(clientID, clientSecret, now)
 	for _, tc := range tests.tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			// Setup a dex server.
-			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+			httpServer, s := newTestServer(t, func(c *Config) {
 				c.Issuer += "/non-root-path"
 				c.Now = now
 				c.IDTokensValidFor = idTokensValidFor
@@ -890,10 +887,9 @@ func TestOAuth2CodeFlow(t *testing.T) {
 }
 
 func TestOAuth2ImplicitFlow(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
-	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+	httpServer, s := newTestServer(t, func(c *Config) {
 		// Enable support for the implicit flow.
 		c.SupportedResponseTypes = []string{"code", "token", "id_token"}
 	})
@@ -1026,10 +1022,9 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 }
 
 func TestCrossClientScopes(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
-	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+	httpServer, s := newTestServer(t, func(c *Config) {
 		c.Issuer += "/non-root-path"
 	})
 	defer httpServer.Close()
@@ -1149,10 +1144,9 @@ func TestCrossClientScopes(t *testing.T) {
 }
 
 func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
-	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+	httpServer, s := newTestServer(t, func(c *Config) {
 		c.Issuer += "/non-root-path"
 	})
 	defer httpServer.Close()
@@ -1271,7 +1265,9 @@ func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
 }
 
 func TestPasswordDB(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
+
+	logger := newLogger(t)
 	s := memory.New(logger)
 	conn := newPasswordDB(s)
 
@@ -1323,7 +1319,7 @@ func TestPasswordDB(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		ident, valid, err := conn.Login(context.Background(), connector.Scopes{}, tc.username, tc.password)
+		ident, valid, err := conn.Login(t.Context(), connector.Scopes{}, tc.username, tc.password)
 		if err != nil {
 			if !tc.wantErr {
 				t.Errorf("%s: %v", tc.name, err)
@@ -1355,6 +1351,7 @@ func TestPasswordDB(t *testing.T) {
 }
 
 func TestPasswordDBUsernamePrompt(t *testing.T) {
+	logger := newLogger(t)
 	s := memory.New(logger)
 	conn := newPasswordDB(s)
 
@@ -1377,7 +1374,8 @@ func (s storageWithKeysTrigger) GetKeys(ctx context.Context) (storage.Keys, erro
 func TestKeyCacher(t *testing.T) {
 	tNow := time.Now()
 	now := func() time.Time { return tNow }
-	ctx := context.TODO()
+	ctx := t.Context()
+	logger := newLogger(t)
 	s := memory.New(logger)
 
 	tests := []struct {
@@ -1428,7 +1426,7 @@ func TestKeyCacher(t *testing.T) {
 	for i, tc := range tests {
 		gotCall = false
 		tc.before()
-		s.GetKeys(context.TODO())
+		s.GetKeys(t.Context())
 		if gotCall != tc.wantCallToStorage {
 			t.Errorf("case %d: expected call to storage=%t got call to storage=%t", i, tc.wantCallToStorage, gotCall)
 		}
@@ -1470,10 +1468,10 @@ type oauth2Client struct {
 func TestRefreshTokenFlow(t *testing.T) {
 	state := "state"
 	now := time.Now
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
-	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+	ctx := t.Context()
+
+	httpServer, s := newTestServer(t, func(c *Config) {
 		c.Now = now
 	})
 	defer httpServer.Close()
@@ -1604,11 +1602,10 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 	for _, testCase := range testCases {
 		for _, tc := range testCase.oauth2Tests.tests {
 			t.Run(tc.name, func(t *testing.T) {
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
+				ctx := t.Context()
 
 				// Setup a dex server.
-				httpServer, s := newTestServer(ctx, t, func(c *Config) {
+				httpServer, s := newTestServer(t, func(c *Config) {
 					c.Issuer += "/non-root-path"
 					c.Now = now
 					c.IDTokensValidFor = idTokensValidFor
@@ -1789,17 +1786,16 @@ func TestServerSupportedGrants(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, srv := newTestServer(context.TODO(), t, tc.config)
+			_, srv := newTestServer(t, tc.config)
 			require.Equal(t, tc.resGrants, srv.supportedGrantTypes)
 		})
 	}
 }
 
 func TestHeaders(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
-	httpServer, _ := newTestServer(ctx, t, func(c *Config) {
+	httpServer, _ := newTestServer(t, func(c *Config) {
 		c.Headers = map[string][]string{
 			"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
 		}
@@ -1818,8 +1814,7 @@ func TestHeaders(t *testing.T) {
 }
 
 func TestConnectorFailureHandling(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	tests := []struct {
 		name                       string
@@ -1959,6 +1954,8 @@ func TestConnectorFailureHandling(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			logger := newLogger(t)
+
 			config := Config{
 				Issuer:  "http://localhost",
 				Storage: memory.New(logger),

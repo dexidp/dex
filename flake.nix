@@ -27,14 +27,17 @@
               languages = {
                 go = {
                   enable = true;
-                  package = pkgs.go_1_24;
+                  package = pkgs.go_1_25;
                 };
               };
 
               packages = with pkgs; [
                 gnumake
 
-                golangci-lint
+                # golangci-lint
+                (golangci-lint.override (o: {
+                  buildGoModule = pkgs.buildGo125Module;
+                }))
                 gotestsum
                 protobuf
                 protoc-gen-go

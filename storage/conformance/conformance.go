@@ -24,10 +24,10 @@ type subTest struct {
 	run  func(t *testing.T, s storage.Storage)
 }
 
-func runTests(t *testing.T, newStorage func() storage.Storage, tests []subTest) {
+func runTests(t *testing.T, newStorage func(t *testing.T) storage.Storage, tests []subTest) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			s := newStorage()
+			s := newStorage(t)
 			test.run(t, s)
 			s.Close()
 		})
@@ -37,7 +37,7 @@ func runTests(t *testing.T, newStorage func() storage.Storage, tests []subTest) 
 // RunTests runs a set of conformance tests against a storage. newStorage should
 // return an initialized but empty storage. The storage will be closed at the
 // end of each test run.
-func RunTests(t *testing.T, newStorage func() storage.Storage) {
+func RunTests(t *testing.T, newStorage func(t *testing.T) storage.Storage) {
 	runTests(t, newStorage, []subTest{
 		{"AuthCodeCRUD", testAuthCodeCRUD},
 		{"AuthRequestCRUD", testAuthRequestCRUD},
@@ -81,7 +81,7 @@ func mustBeErrAlreadyExists(t *testing.T, kind string, err error) {
 }
 
 func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
-	ctx := context.Background()
+	ctx := t.Context()
 	codeChallenge := storage.PKCE{
 		CodeChallenge:       "code_challenge_test",
 		CodeChallengeMethod: "plain",
@@ -181,7 +181,7 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 }
 
 func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
-	ctx := context.Background()
+	ctx := t.Context()
 	a1 := storage.AuthCode{
 		ID:            storage.NewID(),
 		ClientID:      "client1",
@@ -259,7 +259,7 @@ func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 }
 
 func testClientCRUD(t *testing.T, s storage.Storage) {
-	ctx := context.Background()
+	ctx := t.Context()
 	id1 := storage.NewID()
 	c1 := storage.Client{
 		ID:           id1,
@@ -329,7 +329,7 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 }
 
 func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
-	ctx := context.Background()
+	ctx := t.Context()
 	id := storage.NewID()
 	refresh := storage.RefreshToken{
 		ID:            id,
@@ -448,7 +448,7 @@ func (n byEmail) Less(i, j int) bool { return n[i].Email < n[j].Email }
 func (n byEmail) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
 
 func testPasswordCRUD(t *testing.T, s storage.Storage) {
-	ctx := context.Background()
+	ctx := t.Context()
 	// Use bcrypt.MinCost to keep the tests short.
 	passwordHash1, err := bcrypt.GenerateFromPassword([]byte("secret"), bcrypt.MinCost)
 	if err != nil {
@@ -539,7 +539,7 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 }
 
 func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {
-	ctx := context.Background()
+	ctx := t.Context()
 	userID1 := storage.NewID()
 	session1 := storage.OfflineSessions{
 		UserID:        userID1,
@@ -614,7 +614,7 @@ func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {
 }
 
 func testConnectorCRUD(t *testing.T, s storage.Storage) {
-	ctx := context.Background()
+	ctx := t.Context()
 	id1 := storage.NewID()
 	config1 := []byte(`{"issuer": "https://accounts.google.com"}`)
 	c1 := storage.Connector{
@@ -754,7 +754,7 @@ func testKeysCRUD(t *testing.T, s storage.Storage) {
 }
 
 func testGC(t *testing.T, s storage.Storage) {
-	ctx := context.Background()
+	ctx := t.Context()
 	est, err := time.LoadLocation("America/New_York")
 	if err != nil {
 		t.Fatal(err)
@@ -942,7 +942,7 @@ func testGC(t *testing.T, s storage.Storage) {
 // testTimezones tests that backends either fully support timezones or
 // do the correct standardization.
 func testTimezones(t *testing.T, s storage.Storage) {
-	ctx := context.Background()
+	ctx := t.Context()
 	est, err := time.LoadLocation("America/New_York")
 	if err != nil {
 		t.Fatal(err)
@@ -987,7 +987,7 @@ func testTimezones(t *testing.T, s storage.Storage) {
 }
 
 func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d1 := storage.DeviceRequest{
 		UserCode:     storage.NewUserCode(),
 		DeviceCode:   storage.NewID(),
@@ -1017,7 +1017,7 @@ func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
 }
 
 func testDeviceTokenCRUD(t *testing.T, s storage.Storage) {
-	ctx := context.Background()
+	ctx := t.Context()
 	codeChallenge := storage.PKCE{
 		CodeChallenge:       "code_challenge_test",
 		CodeChallengeMethod: "plain",
