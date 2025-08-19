@@ -668,6 +668,7 @@ type ConnectorConfig interface {
 // depending on the connector type.
 var ConnectorsConfig = map[string]func() ConnectorConfig{
 	"keystone":        func() ConnectorConfig { return new(keystone.Config) },
+	"keystonefed":     func() ConnectorConfig { return new(keystone.FederationConfig) },
 	"mockCallback":    func() ConnectorConfig { return new(mock.CallbackConfig) },
 	"mockPassword":    func() ConnectorConfig { return new(mock.PasswordConfig) },
 	"ldap":            func() ConnectorConfig { return new(ldap.Config) },
