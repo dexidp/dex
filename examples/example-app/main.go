@@ -368,7 +368,7 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func generateCodeVerifier() string {
-	bytes := make([]byte, 64) // 64 байта ~ 86 символов Base64URL
+	bytes := make([]byte, 64) // 86 symbols Base64URL
 	if _, err := rand.Read(bytes); err != nil {
 		log.Fatalf("rand.Read error: %v", err)
 	}
