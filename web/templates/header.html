@@ -6,14 +6,15 @@
     <title>{{ issuer }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="{{ url .ReqPath "static/main.css" }}" rel="stylesheet">
+    <link href="{{ url .ReqPath "static/fonts.css" }}" rel="stylesheet" />
     <link href="{{ url .ReqPath "theme/styles.css" }}" rel="stylesheet">
-    <link rel="icon" href="{{ url .ReqPath "theme/favicon.png" }}">
+    <link rel="icon" href="{{ url .ReqPath "theme/favicon.ico" }}">
   </head>
 
   <body class="theme-body">
     <div class="theme-navbar">
       <div class="theme-navbar__logo-wrap">
-        <img class="theme-navbar__logo" src="{{ url .ReqPath logo }}">
+        <img class="theme-navbar__logo" src="{{ url .ReqPath logo }}" hight="29px" width="190px">
       </div>
     </div>
 

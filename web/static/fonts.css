@@ -1,0 +1,63 @@
+@font-face {
+  font-family: Eina04;
+  src: local(Eina04-Light),
+    url('fonts/Eina-04/Extratype\ -\ Eina04-Light.otf') format('opentype');
+  font-weight: lighter;
+  font-style: normal;
+  font-stretch: normal;
+}
+@font-face {
+  font-family: Eina04;
+  src: local(Eina04-LightItalic),
+    url('fonts/Eina-04/Extratype\ -\ Eina04-LightItalic.otf') format('opentype');
+  font-weight: lighter;
+  font-style: italic;
+  font-stretch: normal;
+}
+@font-face {
+  font-family: Eina04;
+  src: local(Eina04-Regular),
+    url('fonts/Eina-04/Extratype\ -\ Eina04-Regular.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-stretch: normal;
+}
+@font-face {
+  font-family: Eina04;
+  src: local(Eina04-RegularItalic),
+    url('fonts/Eina-04/Extratype\ -\ Eina04-RegularItalic.otf') format('opentype');
+  font-weight: normal;
+  font-style: italic;
+  font-stretch: normal;
+}
+@font-face {
+  font-family: Eina04;
+  src: local(Eina04-SemiBold),
+    url('fonts/Eina-04/Extratype\ -\ Eina04-SemiBold.otf') format('opentype');
+  font-weight: 600;
+  font-style: normal;
+  font-stretch: normal;
+}
+@font-face {
+  font-family: Eina04;
+  src: local(Eina04-SemiBoldItalic),
+    url('fonts/Eina-04/Extratype\ -\ Eina04-SemiBoldItalic.otf') format('opentype');
+  font-weight: 600;
+  font-style: italic;
+  font-stretch: normal;
+}
+@font-face {
+  font-family: Eina04;
+  src: local(Eina04-Bold), url('fonts/Eina-04/Extratype\ -\ Eina04-Bold.otf') format('opentype');
+  font-weight: bold;
+  font-style: normal;
+  font-stretch: normal;
+}
+@font-face {
+  font-family: Eina04;
+  src: local(Eina04-BoldItalic),
+    url('fonts/Eina-04/Extratype\ -\ Eina04-BoldItalic.otf') format('opentype');
+  font-weight: bold;
+  font-style: italic;
+  font-stretch: normal;
+}

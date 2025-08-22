@@ -2,14 +2,19 @@
   box-sizing: border-box;
 }
 
+html, body, input, button, select, textarea {
+  font-family: "Eina04";
+}
+
 body {
   margin: 0;
+  font-family: "Eina04";
 }
 
 .dex-container {
-  color: #333;
+  color: #3d3d57;
   margin: 45px auto;
-  max-width: 500px;
+  max-width: 400px;
   min-width: 320px;
   text-align: center;
 }
@@ -19,7 +24,7 @@ body {
   border: 0;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 2px rgba(0, 0, 0, 0.25), 0 0 1px rgba(0, 0, 0, 0.25);
   cursor: pointer;
-  font-size: 16px;
+  font-size: 14px;
   padding: 0;
 }
 
@@ -77,7 +82,6 @@ body {
 .dex-btn-icon--keystone {
   background-color: #F5F5F5;
   background-image: url(../static/img/keystone-icon.svg);
-  background-size: contain;
 }
 
 .dex-btn-icon--oidc {
@@ -123,7 +127,7 @@ body {
 }
 
 .dex-subtle-text {
-  color: #999;
+  color: #005992;
   font-size: 12px;
 }
 
@@ -150,4 +154,11 @@ body {
 
 .dex-error-box {
   margin: 20px auto;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active{
+    -webkit-box-shadow: 0 0 0 30px white inset !important;
 }

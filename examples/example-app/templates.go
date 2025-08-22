@@ -8,7 +8,7 @@ import (
 
 const css = `
 	body {
-		font-family: Arial, sans-serif;
+		font-family: "Eina04";
 		background-color: #f2f2f2;
 		margin: 0;
 	}
@@ -46,7 +46,7 @@ const css = `
 	label {
 		flex: 1;
 		font-weight: bold;
-		color: #333;
+		color: #3d3d57;
 	}
 
 	p {
@@ -132,7 +132,7 @@ const css = `
 		border-radius: 4px;
 		border: 1px solid #ddd;
 		margin: 0;
-		font-family: 'Courier New', Courier, monospace;
+		font-family: "Eina04";
 		overflow-x: auto;
 		font-size: 0.9em;
 		position: relative;
@@ -249,7 +249,7 @@ var tokenTmpl = template.Must(template.New("token.html").Parse(`<html>
     <style>
 ` + css + `
         body {
-            color: #333;
+            color: #3d3d57;
             margin: 0;
             padding: 20px;
             position: relative;
