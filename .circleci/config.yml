@@ -13,7 +13,7 @@ jobs:
             echo "CIRCLE_TAG=${CIRCLE_TAG}"
       - run:
           environment:
-            DOCKER_REPO: quay.io/giantswarm/dex
+            DOCKER_REPO: gsoci.azurecr.io/giantswarm/dex
             ORG_PATH: github.com/giantswarm
           name: Build dex docker image
           command: |
@@ -21,23 +21,23 @@ jobs:
       - run:
           name: Re-tag images for aliyun
           command: |
-            if ! [[ -n $CIRCLE_TAG ]]; then docker tag quay.io/giantswarm/dex:$CIRCLE_SHA1 giantswarm-registry.cn-shanghai.cr.aliyuncs.com/giantswarm/dex:$CIRCLE_SHA1; fi
+            if ! [[ -n $CIRCLE_TAG ]]; then docker tag gsoci.azurecr.io/giantswarm/dex:$CIRCLE_SHA1 giantswarm-registry.cn-shanghai.cr.aliyuncs.com/giantswarm/dex:$CIRCLE_SHA1; fi
       - run:
           name: Re-tag images for git tags
           command: |
-            if [[ -n $CIRCLE_TAG ]]; then docker tag quay.io/giantswarm/dex:$CIRCLE_TAG giantswarm-registry.cn-shanghai.cr.aliyuncs.com/giantswarm/dex:$CIRCLE_TAG; fi
+            if [[ -n $CIRCLE_TAG ]]; then docker tag gsoci.azurecr.io/giantswarm/dex:$CIRCLE_TAG giantswarm-registry.cn-shanghai.cr.aliyuncs.com/giantswarm/dex:$CIRCLE_TAG; fi
       - run:
           name: Login to quay
           command: |
-            docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io
+            docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD gsoci.azurecr.io
       - run:
           name: Push image to quay
           command: |
-            if ! [[ -n $CIRCLE_TAG ]]; then docker push quay.io/giantswarm/dex:$CIRCLE_SHA1; fi
+            if ! [[ -n $CIRCLE_TAG ]]; then docker push gsoci.azurecr.io/giantswarm/dex:$CIRCLE_SHA1; fi
       - run:
           name: Push images for git tags to quay
           command: |
-            if [[ -n $CIRCLE_TAG ]]; then docker push quay.io/giantswarm/dex:$CIRCLE_TAG; fi
+            if [[ -n $CIRCLE_TAG ]]; then docker push gsoci.azurecr.io/giantswarm/dex:$CIRCLE_TAG; fi
       - run:
           name: Login to aliyun
           command: |

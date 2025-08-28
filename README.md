@@ -13,7 +13,7 @@ ID Tokens are an OAuth2 extension introduced by OpenID Connect and dex's primary
 Upon completing these release steps, the final tagged image will be available:
 
 ```sh
-docker pull quay.io/giantswarm/dex:vX.Y.Z-gsN
+docker pull gsoci.azurecr.io/giantswarm/dex:vX.Y.Z-gsN
 ```
 
 ### Post-Release Actions
