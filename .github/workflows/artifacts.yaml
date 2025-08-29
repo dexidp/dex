@@ -75,7 +75,7 @@ jobs:
         with:
           images: |
             ${{ steps.image-name.outputs.value }}
-            dexidp/dex
+            ${{ github.repository == 'dexidp/dex' && 'dexidp/dex' || '' }}
           flavor: |
             latest = false
           tags: |
@@ -186,7 +186,7 @@ jobs:
       - name: Generate build provenance attestation
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
-          subject-name: ghcr.io/dexidp/dex
+          subject-name: ghcr.io/${{ github.repository }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
         if: inputs.publish
