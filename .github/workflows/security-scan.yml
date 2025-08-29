@@ -1,0 +1,173 @@
+name: Go Security scan
+
+on:
+  push:
+    branches:
+      - master
+      - private/harsh/soc2-scan
+  pull_request:
+
+jobs:
+  setup:
+    name: Shared Setup
+    runs-on: ubuntu-latest
+    outputs:
+      go-version: '1.22'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+      - name: Export Go Version
+        run: echo "go-version=1.22" >> $GITHUB_OUTPUT
+
+  gosec_scan:
+    name: Gosec Security Scan (Full)
+    needs: setup
+    runs-on: ubuntu-latest
+    outputs:
+      gosec_high_found: ${{ steps.scan.outputs.gosec_high_found }}
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '${{ needs.setup.outputs.go-version }}'
+
+      - name: Install gosec
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Sanitize branch name
+        run: echo "SAFE_REF_NAME=${GITHUB_REF_NAME//\//-}" >> $GITHUB_ENV
+
+      - name: Run Gosec Scan
+        id: scan
+        run: |
+          echo "Running Gosec scan..."
+          mkdir -p tmp
+          gosec -fmt=json -severity=medium -out=tmp/gosec-report.json ./... || true
+          cat tmp/gosec-report.json || echo '{"Issues":[]}'
+          count=$(jq '[.Issues[] | select(.severity == "HIGH" or .severity == "CRITICAL")] | length' tmp/gosec-report.json || echo 0)
+
+          if [[ "$count" -gt 0 ]]; then
+            echo "gosec_high_found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "gosec_high_found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload Gosec Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: gosec-json-${{ env.SAFE_REF_NAME }}
+          path: tmp/gosec-report.json
+
+      - name: Generate PR Body (if vulnerabilities found)
+        if: ${{ steps.scan.outputs.gosec_high_found == 'true' }}
+        run: |
+          echo "# 🚨 Gosec Vulnerability Report for branch \`${GITHUB_REF_NAME}\`" > tmp/pr-body.md
+          jq -r '
+            .Issues[]
+            | select(.severity == "HIGH" or .severity == "CRITICAL")
+            | "* File: \(.file)\n  • Line: \(.line)\n  • Rule ID: \(.rule_id)\n  • Details: \(.details)\n  • Confidence: \(.confidence)\n  • Severity: \(.severity)\n"
+          ' tmp/gosec-report.json >> tmp/pr-body.md
+
+      - name: Create Pull Request (if vulnerabilities found)
+        if: ${{ github.event_name == 'push' && steps.scan.outputs.gosec_high_found == 'true' }}
+        uses: peter-evans/create-pull-request@v5
+        with:
+          commit-message: 'chore: vulnerabilities detected by Gosec (HIGH/CRITICAL)'
+          title: 'Gosec Vulnerability Report for branch ${{ github.ref_name }}'
+          body-path: tmp/pr-body.md
+          branch: auto/gosec-scan/${{ env.SAFE_REF_NAME }}
+          base: ${{ github.ref_name }}
+          delete-branch: true
+
+      - name: Fail Job If Vulnerabilities Found
+        if: ${{ steps.scan.outputs.gosec_high_found == 'true' }}
+        run: exit 1
+
+  trivy_scan:
+    name: Trivy Security Scan (Full)
+    needs: setup
+    runs-on: ubuntu-latest
+    outputs:
+      trivy_high_found: ${{ steps.scan.outputs.trivy_high_found }}
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Install Trivy
+        run: |
+          sudo apt update
+          sudo apt install wget -y
+          wget -qO- https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo tee /etc/apt/trusted.gpg.d/trivy.asc
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt update
+          sudo apt install -y trivy jq
+
+      - name: Sanitize branch name
+        run: echo "SAFE_REF_NAME=${GITHUB_REF_NAME//\//-}" >> $GITHUB_ENV
+
+      - name: Run Trivy Filesystem Scan
+        id: scan
+        run: |
+          echo "Running Trivy scan (HIGH/CRITICAL)..."
+          mkdir -p tmp
+          trivy fs --format json --severity HIGH,CRITICAL --output tmp/trivy-report.json .
+          [[ -f tmp/trivy-report.json ]] || echo '{"Results":[]}' > tmp/trivy-report.json
+          count=$(jq -e '
+            (.Results // [])
+            | map(.Vulnerabilities? // [])
+            | add
+            | map(select(.Severity=="HIGH" or .Severity=="CRITICAL"))
+            | length
+          ' tmp/trivy-report.json || echo 0)
+
+          if [[ "$count" -gt 0 ]]; then
+            echo "trivy_high_found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "trivy_high_found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload Trivy Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-json-${{ env.SAFE_REF_NAME }}
+          path: tmp/trivy-report.json
+
+      - name: Generate PR Body (if vulnerabilities found)
+        if: ${{ steps.scan.outputs.trivy_high_found == 'true' }}
+        run: |
+          echo "# 🛡️ Trivy Scan Report for branch \`${GITHUB_REF_NAME}\`" > tmp/pr-body.md
+          jq -r '
+            (.Results // [])
+            | .[]
+            | .Target as $file
+            | (.Vulnerabilities? // [])
+            | map(select(.Severity=="HIGH" or .Severity=="CRITICAL"))
+            | .[]
+            | "* File: \($file)\n  • Vulnerability ID: \(.VulnerabilityID)\n  • Pkg: \(.PkgName) \(.InstalledVersion)\n  • Severity: \(.Severity)\n  • Title: \(.Title)\n"
+          ' tmp/trivy-report.json >> tmp/pr-body.md
+
+      - name: Create Pull Request (if vulnerabilities found)
+        if: ${{ github.event_name == 'push' && steps.scan.outputs.trivy_high_found == 'true' }}
+        uses: peter-evans/create-pull-request@v5
+        with:
+          commit-message: 'chore: vulnerabilities detected by Trivy (HIGH/CRITICAL)'
+          title: 'Trivy Vulnerability Report for branch ${{ github.ref_name }}'
+          body-path: tmp/pr-body.md
+          branch: auto/trivy-scan/${{ env.SAFE_REF_NAME }}
+          base: ${{ github.ref_name }}
+          delete-branch: true
+
+      - name: Fail Job If Vulnerabilities Found
+        if: ${{ steps.scan.outputs.trivy_high_found == 'true' }}
+        run: exit 1
