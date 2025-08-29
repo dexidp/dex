@@ -17,6 +17,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	admin "google.golang.org/api/admin/directory/v1"
+	"google.golang.org/api/cloudidentity/v1"
 	"google.golang.org/api/impersonate"
 	"google.golang.org/api/option"
 
@@ -53,10 +54,16 @@ type Config struct {
 	// Deprecated: Use DomainToAdminEmail
 	AdminEmail string
 
-	// Required if ServiceAccountFilePath
+	// If ServiceAccountFilePath is set, this value is ignored if UseCloudIdentityAPI is set. Otherwise, it's required.
 	// The map workspace domain to email of a GSuite super user which the service account will impersonate
 	// when listing groups
 	DomainToAdminEmail map[string]string
+
+	// If set, Cloud Identity API is used to fetch groups for a user. In particular, no user impersonation takes place.
+	// If ServiceAccountFilePath is not set, Application Default Credentials will be used. Otherwise, credentials will
+	// be generated from the file placed at the specified path.
+	// Defaults to false.
+	UseCloudIdentityAPI bool `json:"useCloudIdentityAPI"`
 
 	// If this field is true, fetch direct group membership and transitive group membership
 	FetchTransitiveGroupMembership bool `json:"fetchTransitiveGroupMembership"`
@@ -64,6 +71,14 @@ type Config struct {
 	// Optional value for the prompt parameter, defaults to consent when offline_access
 	// scope is requested
 	PromptType *string `json:"promptType"`
+}
+
+func validateConfigForCloudIdentity(c *Config, logger *slog.Logger) error {
+	if len(c.DomainToAdminEmail) > 0 || len(c.AdminEmail) > 0 {
+		logger.Warn("For cloud identity calls \"DomainToAdminEmail\" and \"AdminEmail\" are ignored. It's safe to remove both configuration options.")
+	}
+
+	return nil
 }
 
 // Open returns a connector which can be used to login users through Google.
@@ -94,22 +109,38 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 
 	adminSrv := make(map[string]*admin.Service)
 
-	// We know impersonation is required when using a service account credential
-	// TODO: or is it?
-	if len(c.DomainToAdminEmail) == 0 && c.ServiceAccountFilePath != "" {
-		cancel()
-		return nil, fmt.Errorf("directory service requires the domainToAdminEmail option to be configured")
-	}
+	var groupsMembershipsService *cloudidentity.GroupsMembershipsService
 
-	if (len(c.DomainToAdminEmail) > 0) || slices.Contains(scopes, "groups") {
-		for domain, adminEmail := range c.DomainToAdminEmail {
-			srv, err := createDirectoryService(c.ServiceAccountFilePath, adminEmail, logger)
-			if err != nil {
-				cancel()
-				return nil, fmt.Errorf("could not create directory service: %v", err)
+	if c.UseCloudIdentityAPI {
+		err = validateConfigForCloudIdentity(c, logger)
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+
+		groupsMembershipsService, err = createGroupsMembershipsService(c.ServiceAccountFilePath, logger)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("could not create groups memebership service: %v", err)
+		}
+	} else {
+		// We know impersonation is required when using a service account credential
+		// TODO: or is it?
+		if len(c.DomainToAdminEmail) == 0 && c.ServiceAccountFilePath != "" {
+			cancel()
+			return nil, fmt.Errorf("directory service requires the domainToAdminEmail option to be configured")
+		}
+
+		if (len(c.DomainToAdminEmail) > 0) || slices.Contains(scopes, "groups") {
+			for domain, adminEmail := range c.DomainToAdminEmail {
+				srv, err := createDirectoryService(c.ServiceAccountFilePath, adminEmail, logger)
+				if err != nil {
+					cancel()
+					return nil, fmt.Errorf("could not create directory service: %v", err)
+				}
+
+				adminSrv[domain] = srv
 			}
-
-			adminSrv[domain] = srv
 		}
 	}
 
@@ -137,8 +168,10 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		groups:                         c.Groups,
 		serviceAccountFilePath:         c.ServiceAccountFilePath,
 		domainToAdminEmail:             c.DomainToAdminEmail,
+		useCloudIdentityAPI:            c.UseCloudIdentityAPI,
 		fetchTransitiveGroupMembership: c.FetchTransitiveGroupMembership,
 		adminSrv:                       adminSrv,
+		groupsMembershipsService:       groupsMembershipsService,
 		promptType:                     promptType,
 	}, nil
 }
@@ -158,8 +191,10 @@ type googleConnector struct {
 	groups                         []string
 	serviceAccountFilePath         string
 	domainToAdminEmail             map[string]string
+	useCloudIdentityAPI            bool
 	fetchTransitiveGroupMembership bool
 	adminSrv                       map[string]*admin.Service
+	groupsMembershipsService       *cloudidentity.GroupsMembershipsService
 	promptType                     string
 }
 
@@ -262,11 +297,22 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	}
 
 	var groups []string
-	if s.Groups && len(c.adminSrv) > 0 {
+	if s.Groups {
 		checkedGroups := make(map[string]struct{})
-		groups, err = c.getGroups(claims.Email, c.fetchTransitiveGroupMembership, checkedGroups)
-		if err != nil {
-			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
+		if c.useCloudIdentityAPI {
+			if c.groupsMembershipsService != nil {
+				groups, err = c.getGroupsFromCloudIdentityAPI(claims.Email, c.fetchTransitiveGroupMembership, checkedGroups)
+				if err != nil {
+					return identity, fmt.Errorf("google: could not retrieve groups from Cloud Identity API: %v", err)
+				}
+			}
+		} else {
+			if len(c.adminSrv) > 0 {
+				groups, err = c.getGroupsFromAdminAPI(claims.Email, c.fetchTransitiveGroupMembership, checkedGroups)
+				if err != nil {
+					return identity, fmt.Errorf("google: could not retrieve groups form Admin API: %v", err)
+				}
+			}
 		}
 
 		if len(c.groups) > 0 {
@@ -288,9 +334,9 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	return identity, nil
 }
 
-// getGroups creates a connection to the admin directory service and lists
+// getGroupsFromAdminAPI creates a connection to the admin directory service and lists
 // all groups the user is a member of
-func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership bool, checkedGroups map[string]struct{}) ([]string, error) {
+func (c *googleConnector) getGroupsFromAdminAPI(email string, fetchTransitiveGroupMembership bool, checkedGroups map[string]struct{}) ([]string, error) {
 	var userGroups []string
 	var err error
 	groupsList := &admin.Groups{}
@@ -321,7 +367,53 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 			}
 
 			// getGroups takes a user's email/alias as well as a group's email/alias
-			transitiveGroups, err := c.getGroups(group.Email, fetchTransitiveGroupMembership, checkedGroups)
+			transitiveGroups, err := c.getGroupsFromAdminAPI(group.Email, fetchTransitiveGroupMembership, checkedGroups)
+			if err != nil {
+				return nil, fmt.Errorf("could not list transitive groups: %v", err)
+			}
+
+			userGroups = append(userGroups, transitiveGroups...)
+		}
+
+		if groupsList.NextPageToken == "" {
+			break
+		}
+	}
+
+	return userGroups, nil
+}
+
+// getGroupsFromCloudIdentityAPI creates a connection to the cloud identity service and lists
+// all groups the user is a member of
+func (c *googleConnector) getGroupsFromCloudIdentityAPI(email string, fetchTransitiveGroupMembership bool, checkedGroups map[string]struct{}) ([]string, error) {
+	var userGroups []string
+	var err error
+	groupsList := &cloudidentity.SearchDirectGroupsResponse{}
+	groupsMembershipService := c.groupsMembershipsService
+
+	for {
+		query := fmt.Sprintf("member_key_id=='%s'", email)
+		groupsList, err = groupsMembershipService.SearchDirectGroups("groups/-").
+			Query(query).PageToken(groupsList.NextPageToken).Do()
+		if err != nil {
+			return nil, fmt.Errorf("could not list groups: %v", err)
+		}
+
+		for _, membership := range groupsList.Memberships {
+			groupEmail := strings.ToLower(membership.GroupKey.Id)
+			if _, exists := checkedGroups[groupEmail]; exists {
+				continue
+			}
+
+			checkedGroups[groupEmail] = struct{}{}
+			// TODO (joelspeed): Make desired group key configurable
+			userGroups = append(userGroups, groupEmail)
+
+			if !fetchTransitiveGroupMembership {
+				continue
+			}
+
+			transitiveGroups, err := c.getGroupsFromCloudIdentityAPI(groupEmail, fetchTransitiveGroupMembership, checkedGroups)
 			if err != nil {
 				return nil, fmt.Errorf("could not list transitive groups: %v", err)
 			}
@@ -454,4 +546,38 @@ func createDirectoryService(serviceAccountFilePath, email string, logger *slog.L
 	}
 
 	return admin.NewService(ctx, option.WithHTTPClient(config.Client(ctx)))
+}
+
+func createGroupsMembershipsService(serviceAccountFilePath string, logger *slog.Logger) (service *cloudidentity.GroupsMembershipsService, err error) {
+	ctx := context.Background()
+	var credentials *google.Credentials
+
+	var cloudIdentityService *cloudidentity.Service
+
+	if serviceAccountFilePath == "" {
+		logger.Info("Using Application Default Credentials")
+		cloudIdentityService, err = cloudidentity.NewService(ctx, option.WithScopes(cloudidentity.CloudIdentityGroupsReadonlyScope))
+		if err != nil {
+			return nil, fmt.Errorf("error creating cloud identity service: %v", err)
+		}
+	} else {
+		logger.Info("Using credentials file at", "sa_path", serviceAccountFilePath)
+
+		jsonCredentials, err := os.ReadFile(serviceAccountFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("error reading credentials from file: %v", err)
+		}
+
+		credentials, err = google.CredentialsFromJSON(ctx, jsonCredentials, cloudidentity.CloudIdentityGroupsReadonlyScope)
+		if err != nil {
+			return nil, fmt.Errorf("failed creating credentials from file: %w", err)
+		}
+
+		cloudIdentityService, err = cloudidentity.NewService(ctx, option.WithCredentials(credentials))
+		if err != nil {
+			return nil, fmt.Errorf("error creating cloud identity service: %v", err)
+		}
+	}
+
+	return cloudidentity.NewGroupsMembershipsService(cloudIdentityService), nil
 }
