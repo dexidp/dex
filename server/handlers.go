@@ -480,7 +480,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to authenticate", "err", err)
-		s.renderError(r, w, http.StatusInternalServerError, fmt.Sprintf("Failed to authenticate: %v", err))
+		s.renderError(r, w, http.StatusUnauthorized, fmt.Sprintf("Failed to authenticate: %v", err))
 		return
 	}
 
