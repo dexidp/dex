@@ -6,7 +6,7 @@ require (
 	github.com/coreos/go-oidc/v3 v3.15.0
 	github.com/dexidp/dex/api/v2 v2.3.0
 	github.com/spf13/cobra v1.9.1
-	golang.org/x/oauth2 v0.30.0
+	golang.org/x/oauth2 v0.31.0
 	google.golang.org/grpc v1.75.0
 )
 
