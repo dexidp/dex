@@ -232,17 +232,17 @@ func (s *Server) updateOfflineSession(ctx context.Context, refresh *storage.Refr
 	return nil
 }
 
-// updateRefreshToken updates refresh token and offline session in the storage
+// updateRefreshToken updates refresh token and offline session in the storage.
+// Connector refresh is guarded by a per-refresh-ID mutex so only one concurrent
+// caller hits the IdP.
 func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (*internal.RefreshToken, connector.Identity, *refreshError) {
-	var rerr *refreshError
-
 	newToken := &internal.RefreshToken{
 		Token:     rCtx.requestToken.Token,
 		RefreshId: rCtx.requestToken.RefreshId,
 	}
-
 	lastUsed := s.now()
 
+	// Base identity
 	ident := connector.Identity{
 		UserID:            rCtx.storageToken.Claims.UserID,
 		Username:          rCtx.storageToken.Claims.Username,
@@ -250,6 +250,32 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		Email:             rCtx.storageToken.Claims.Email,
 		EmailVerified:     rCtx.storageToken.Claims.EmailVerified,
 		Groups:            rCtx.storageToken.Claims.Groups,
+		ConnectorData:     rCtx.connectorData,
+	}
+
+	rotationEnabled := s.refreshTokenPolicy.RotationEnabled()
+	reusingAllowed := s.refreshTokenPolicy.AllowedToReuse(rCtx.storageToken.LastUsed)
+	needConnectorRefresh := rotationEnabled && !reusingAllowed
+
+	if needConnectorRefresh {
+		// Serialize concurrent refreshes for the same refresh ID.
+		lock := s.getRefreshLock(rCtx.storageToken.ID)
+		lock.Lock()
+		s.logger.Debug("Acquired refresh lock", "refreshID", rCtx.storageToken.ID)
+		defer func() {
+			lock.Unlock()
+			s.logger.Debug("Released refresh lock", "refreshID", rCtx.storageToken.ID)
+		}()
+
+		// Double-check if another goroutine already refreshed while we waited:
+		if !s.refreshTokenPolicy.AllowedToReuse(rCtx.storageToken.LastUsed) {
+			s.logger.Debug("Calling refreshWithConnector", "ident", ident)
+			var rerr *refreshError
+			ident, rerr = s.refreshWithConnector(ctx, rCtx, ident)
+			if rerr != nil {
+				return nil, ident, rerr
+			}
+		}
 	}
 
 	refreshTokenUpdater := func(old storage.RefreshToken) (storage.RefreshToken, error) {
@@ -258,7 +284,6 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 
 		switch {
 		case !rotationEnabled && reusingAllowed:
-			// If rotation is disabled and the offline session was updated not so long ago - skip further actions.
 			old.ConnectorData = nil
 			return old, nil
 
@@ -266,13 +291,9 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 			if old.Token != rCtx.requestToken.Token && old.ObsoleteToken != rCtx.requestToken.Token {
 				return old, errors.New("refresh token claimed twice")
 			}
-
-			// Return previously generated token for all requests with an obsolete tokens
 			if old.ObsoleteToken == rCtx.requestToken.Token {
 				newToken.Token = old.Token
 			}
-
-			// Do not update last used time for offline session if token is allowed to be reused
 			lastUsed = old.LastUsed
 			old.ConnectorData = nil
 			return old, nil
@@ -281,29 +302,15 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 			if old.Token != rCtx.requestToken.Token {
 				return old, errors.New("refresh token claimed twice")
 			}
-
-			// Issue new refresh token
 			old.ObsoleteToken = old.Token
 			newToken.Token = storage.NewID()
 		}
 
 		old.Token = newToken.Token
 		old.LastUsed = lastUsed
-
-		// ConnectorData has been moved to OfflineSession
 		old.ConnectorData = nil
 
-		// Call  only once if there is a request which is not in the reuse interval.
-		// This is required to avoid multiple calls to the external IdP for concurrent requests.
-		// Dex will call the connector's Refresh method only once if request is not in reuse interval.
-		ident, rerr = s.refreshWithConnector(ctx, rCtx, ident)
-		if rerr != nil {
-			return old, rerr
-		}
-
-		// Update the claims of the refresh token.
-		//
-		// UserID intentionally ignored for now.
+		// Always update claims
 		old.Claims.Username = ident.Username
 		old.Claims.PreferredUsername = ident.PreferredUsername
 		old.Claims.Email = ident.Email
@@ -313,15 +320,12 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		return old, nil
 	}
 
-	// Update refresh token in the storage.
-	err := s.storage.UpdateRefreshToken(ctx, rCtx.storageToken.ID, refreshTokenUpdater)
-	if err != nil {
+	if err := s.storage.UpdateRefreshToken(ctx, rCtx.storageToken.ID, refreshTokenUpdater); err != nil {
 		s.logger.ErrorContext(ctx, "failed to update refresh token", "err", err)
 		return nil, ident, newInternalServerError()
 	}
 
-	rerr = s.updateOfflineSession(ctx, rCtx.storageToken, ident, lastUsed)
-	if rerr != nil {
+	if rerr := s.updateOfflineSession(ctx, rCtx.storageToken, ident, lastUsed); rerr != nil {
 		return nil, ident, rerr
 	}
 
