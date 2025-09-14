@@ -192,8 +192,11 @@ type FilterGroupClaims struct {
 
 // ModifyGroupNames allows to modify the group claims by adding a prefix and/or suffix to each group.
 type ModifyGroupNames struct {
-	Prefix string `json:"prefix"`
-	Suffix string `json:"suffix"`
+	Prefix             string `json:"prefix"`
+	Suffix             string `json:"suffix"`
+	RewriteRegex       string `json:"rewriteRegex"`
+	RewriteReplacement string `json:"rewriteReplacement"`
+	CaseConversion     string `json:"caseConversion"` // "lower", "upper", or ""
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -282,6 +285,14 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		}
 	}
 
+	var groupsRewriteRegex *regexp.Regexp
+	if c.ClaimMutations.ModifyGroupNames.RewriteRegex != "" {
+		groupsRewriteRegex, err = regexp.Compile(c.ClaimMutations.ModifyGroupNames.RewriteRegex)
+		if err != nil {
+			logger.Warn("invalid group rewrite regex", "regex", c.ClaimMutations.ModifyGroupNames.RewriteRegex, "connector_id", id)
+		}
+	}
+
 	clientID := c.ClientID
 	return &oidcConnector{
 		provider:    provider,
@@ -316,6 +327,9 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		groupsFilter:              groupsFilter,
 		groupsPrefix:              c.ClaimMutations.ModifyGroupNames.Prefix,
 		groupsSuffix:              c.ClaimMutations.ModifyGroupNames.Suffix,
+		groupsRewriteRegex:        groupsRewriteRegex,
+		groupsRewriteReplacement:  c.ClaimMutations.ModifyGroupNames.RewriteReplacement,
+		caseConversion:            c.ClaimMutations.ModifyGroupNames.CaseConversion,
 	}, nil
 }
 
@@ -348,6 +362,9 @@ type oidcConnector struct {
 	groupsFilter              *regexp.Regexp
 	groupsPrefix              string
 	groupsSuffix              string
+	groupsRewriteRegex        *regexp.Regexp
+	groupsRewriteReplacement  string
+	caseConversion            string
 }
 
 func (c *oidcConnector) Close() error {
@@ -584,6 +601,19 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			}
 
 			groups = groupMatches
+		}
+
+		for i, g := range groups {
+			if c.groupsRewriteRegex != nil {
+				g = c.groupsRewriteRegex.ReplaceAllString(g, c.groupsRewriteReplacement)
+			}
+			switch strings.ToLower(c.caseConversion) {
+			case "lower":
+				g = strings.ToLower(g)
+			case "upper":
+				g = strings.ToUpper(g)
+			}
+			groups[i] = g
 		}
 	}
 
