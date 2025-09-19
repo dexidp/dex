@@ -23,3 +23,4 @@ This is a list of production adopters of Dex (in alphabetical order).
 - [LLMariner](https://llmariner.ai/) uses Dex for [user management](https://llmariner.ai/docs/features/user_management/).
 - [Pydio](https://pydio.com/) Pydio Cells is an open source sync & share platform written in Go. Cells is using Dex as an OIDC service for authentication and authorizations. Check out [Pydio Cells repository](https://github.com/pydio/cells) for more information and/or to contribute.
 - [sigstore](https://sigstore.dev) uses Dex for authentication in their public Fulcio instance, which is a certificate authority for code signing certificates bound to OIDC-based identities.
+- [Terrakube](https://docs.terrakube.io/) relies on Dex for [user authentication](https://docs.terrakube.io/getting-started/deployment/user-authentication-dex). Its Helm chart uses Dex as a dependency.
