@@ -3,8 +3,10 @@ package ssh
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/base64"
 	"log/slog"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -460,4 +462,391 @@ func BenchmarkFindUserByUsernameAndKey(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+// =========================
+// Challenge/Response Tests
+// =========================
+
+func TestSSHConnector_LoginURL_ChallengeResponse(t *testing.T) {
+	config := Config{
+		Users: map[string]UserConfig{
+			"testuser": {
+				Keys: []string{"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample testuser@example"},
+				UserInfo: UserInfo{
+					Username: "testuser",
+					Email:    "test@example.com",
+					Groups:   []string{"admin"},
+				},
+			},
+		},
+		AllowedIssuers: []string{"test-issuer"},
+	}
+
+	conn, err := config.Open("ssh", slog.Default())
+	require.NoError(t, err)
+
+	sshConn := conn.(*SSHConnector)
+
+	tests := []struct {
+		name        string
+		callbackURL string
+		state       string
+		expectError bool
+		expectType  string // "challenge" or "jwt"
+	}{
+		{
+			name:        "challenge_request_valid_user",
+			callbackURL: "https://dex.example.com/callback?ssh_challenge=true&username=testuser",
+			state:       "test-state-123",
+			expectError: false,
+			expectType:  "challenge",
+		},
+		{
+			name:        "challenge_request_nonexistent_user",
+			callbackURL: "https://dex.example.com/callback?ssh_challenge=true&username=nonexistent",
+			state:       "test-state-456",
+			expectError: true,
+			expectType:  "challenge",
+		},
+		{
+			name:        "challenge_request_missing_username",
+			callbackURL: "https://dex.example.com/callback?ssh_challenge=true",
+			state:       "test-state-789",
+			expectError: true,
+			expectType:  "challenge",
+		},
+		{
+			name:        "jwt_request_default",
+			callbackURL: "https://dex.example.com/callback",
+			state:       "test-state-jwt",
+			expectError: false,
+			expectType:  "jwt",
+		},
+		{
+			name:        "invalid_callback_url",
+			callbackURL: "http://[::1]:namedport", // Actually invalid URL
+			state:       "test-state-invalid",
+			expectError: true,
+			expectType:  "unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loginURL, err := sshConn.LoginURL(connector.Scopes{}, tt.callbackURL, tt.state)
+
+			if tt.expectError {
+				require.Error(t, err, "Expected error for test case: "+tt.name)
+				return
+			}
+
+			require.NoError(t, err, "Unexpected error for test case: "+tt.name)
+			require.NotEmpty(t, loginURL, "LoginURL should not be empty")
+
+			switch tt.expectType {
+			case "challenge":
+				require.Contains(t, loginURL, "ssh_challenge=", "Challenge URL should contain challenge parameter")
+				require.Contains(t, loginURL, tt.state, "Challenge URL should contain state")
+			case "jwt":
+				require.Contains(t, loginURL, "ssh_auth=true", "JWT URL should contain ssh_auth flag")
+				require.Contains(t, loginURL, tt.state, "JWT URL should contain state")
+			}
+		})
+	}
+}
+
+func TestSSHConnector_HandleCallback_ChallengeResponse(t *testing.T) {
+	// Generate test SSH key
+	_, privKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	pubKey, err := ssh.NewPublicKey(privKey.Public().(ed25519.PublicKey))
+	require.NoError(t, err)
+
+	signer, err := ssh.NewSignerFromKey(privKey)
+	require.NoError(t, err)
+
+	pubKeyStr := string(ssh.MarshalAuthorizedKey(pubKey))
+
+	config := Config{
+		Users: map[string]UserConfig{
+			"testuser": {
+				Keys: []string{strings.TrimSpace(pubKeyStr)},
+				UserInfo: UserInfo{
+					Username: "testuser",
+					Email:    "test@example.com",
+					Groups:   []string{"admin"},
+				},
+			},
+		},
+		AllowedIssuers: []string{"test-issuer"},
+	}
+
+	conn, err := config.Open("ssh", slog.Default())
+	require.NoError(t, err)
+
+	sshConn := conn.(*SSHConnector)
+
+	// Generate a challenge for testing
+	challengeData := make([]byte, 32)
+	_, err = rand.Read(challengeData)
+	require.NoError(t, err)
+
+	challengeID := "test-challenge-id"
+	challenge := &Challenge{
+		Data:      challengeData,
+		Username:  "testuser",
+		CreatedAt: time.Now(),
+	}
+	sshConn.challenges.store(challengeID, challenge)
+
+	// Sign the challenge
+	signature, err := signer.Sign(rand.Reader, challengeData)
+	require.NoError(t, err)
+
+	signatureB64 := base64.StdEncoding.EncodeToString(ssh.Marshal(signature))
+
+	tests := []struct {
+		name          string
+		formData      map[string]string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "valid_challenge_response",
+			formData: map[string]string{
+				"ssh_challenge": "present",
+				"username":      "testuser",
+				"signature":     signatureB64,
+				"state":         "test-state:" + challengeID,
+			},
+			expectError: false,
+		},
+		{
+			name: "missing_username",
+			formData: map[string]string{
+				"ssh_challenge": "present",
+				"signature":     signatureB64,
+				"state":         "test-state:" + challengeID,
+			},
+			expectError:   true,
+			errorContains: "missing required parameters",
+		},
+		{
+			name: "missing_signature",
+			formData: map[string]string{
+				"ssh_challenge": "present",
+				"username":      "testuser",
+				"state":         "test-state:" + challengeID,
+			},
+			expectError:   true,
+			errorContains: "missing required parameters",
+		},
+		{
+			name: "invalid_state_format",
+			formData: map[string]string{
+				"ssh_challenge": "present",
+				"username":      "testuser",
+				"signature":     signatureB64,
+				"state":         "invalid-state",
+			},
+			expectError:   true,
+			errorContains: "invalid state format",
+		},
+		{
+			name: "nonexistent_user",
+			formData: map[string]string{
+				"ssh_challenge": "present",
+				"username":      "nonexistent",
+				"signature":     signatureB64,
+				"state":         "test-state:" + challengeID,
+			},
+			expectError:   true,
+			errorContains: "invalid or expired challenge", // Challenge is consumed in previous test
+		},
+		{
+			name: "expired_challenge",
+			formData: map[string]string{
+				"ssh_challenge": "present",
+				"username":      "testuser",
+				"signature":     signatureB64,
+				"state":         "test-state:nonexistent-challenge",
+			},
+			expectError:   true,
+			errorContains: "invalid or expired challenge",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create mock HTTP request
+			req := httptest.NewRequest("POST", "/callback", strings.NewReader(""))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			// Add form data
+			values := req.URL.Query()
+			for key, value := range tt.formData {
+				values.Set(key, value)
+			}
+			req.URL.RawQuery = values.Encode()
+
+			// For POST data, we need to set form values
+			req.Form = values
+
+			identity, err := sshConn.HandleCallback(connector.Scopes{}, req)
+
+			if tt.expectError {
+				require.Error(t, err, "Expected error for test case: "+tt.name)
+				if tt.errorContains != "" {
+					require.Contains(t, err.Error(), tt.errorContains,
+						"Error should contain expected message for test case: "+tt.name)
+				}
+				return
+			}
+
+			require.NoError(t, err, "Unexpected error for test case: "+tt.name)
+			require.Equal(t, "testuser", identity.UserID, "UserID should match")
+			require.Equal(t, "testuser", identity.Username, "Username should match")
+			require.Equal(t, "test@example.com", identity.Email, "Email should match")
+			require.Contains(t, identity.Groups, "admin", "Groups should contain admin")
+		})
+	}
+}
+
+func TestChallengeStore(t *testing.T) {
+	store := newChallengeStore(50 * time.Millisecond) // Very short TTL for testing
+
+	// Test storing and retrieving challenges
+	challengeData := []byte("test-challenge-data")
+	challenge := &Challenge{
+		Data:      challengeData,
+		Username:  "testuser",
+		CreatedAt: time.Now(),
+	}
+
+	// Store challenge
+	store.store("test-id", challenge)
+
+	// Retrieve challenge
+	retrieved, exists := store.get("test-id")
+	require.True(t, exists, "Challenge should exist after storing")
+	require.Equal(t, challengeData, retrieved.Data, "Challenge data should match")
+	require.Equal(t, "testuser", retrieved.Username, "Username should match")
+
+	// Challenge should be removed after retrieval (one-time use)
+	_, exists = store.get("test-id")
+	require.False(t, exists, "Challenge should be removed after retrieval")
+
+	// Test manual TTL check
+	expiredChallenge := &Challenge{
+		Data:      []byte("expired-data"),
+		Username:  "testuser",
+		CreatedAt: time.Now().Add(-100 * time.Millisecond), // Already expired
+	}
+	store.store("expired-id", expiredChallenge)
+
+	// Manually run cleanup logic
+	store.mutex.Lock()
+	now := time.Now()
+	for id, challenge := range store.challenges {
+		if now.Sub(challenge.CreatedAt) > store.ttl {
+			delete(store.challenges, id)
+		}
+	}
+	store.mutex.Unlock()
+
+	// Challenge should be cleaned up
+	_, exists = store.get("expired-id")
+	require.False(t, exists, "Expired challenge should be cleaned up")
+}
+
+func TestSSHConnector_ChallengeResponse_Integration(t *testing.T) {
+	// Generate test SSH key
+	_, privKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	pubKey, err := ssh.NewPublicKey(privKey.Public().(ed25519.PublicKey))
+	require.NoError(t, err)
+
+	signer, err := ssh.NewSignerFromKey(privKey)
+	require.NoError(t, err)
+
+	pubKeyStr := string(ssh.MarshalAuthorizedKey(pubKey))
+
+	config := Config{
+		Users: map[string]UserConfig{
+			"integrationuser": {
+				Keys: []string{strings.TrimSpace(pubKeyStr)},
+				UserInfo: UserInfo{
+					Username: "integrationuser",
+					Email:    "integration@example.com",
+					Groups:   []string{"developers", "testers"},
+				},
+			},
+		},
+		DefaultGroups:  []string{"authenticated"},
+		AllowedIssuers: []string{"test-issuer"},
+		TokenTTL:       3600,
+	}
+
+	conn, err := config.Open("ssh", slog.Default())
+	require.NoError(t, err)
+
+	sshConn := conn.(*SSHConnector)
+
+	// Step 1: Request challenge URL
+	callbackURL := "https://dex.example.com/callback?ssh_challenge=true&username=integrationuser"
+	state := "integration-test-state"
+
+	loginURL, err := sshConn.LoginURL(connector.Scopes{Groups: true}, callbackURL, state)
+	require.NoError(t, err, "LoginURL should succeed")
+	require.Contains(t, loginURL, "ssh_challenge=", "Login URL should contain challenge")
+
+	// Step 2: Extract challenge from URL
+	parsedURL, err := url.Parse(loginURL)
+	require.NoError(t, err, "Should parse login URL")
+
+	challengeB64 := parsedURL.Query().Get("ssh_challenge")
+	require.NotEmpty(t, challengeB64, "Challenge should be present in URL")
+
+	stateWithChallenge := parsedURL.Query().Get("state")
+	require.NotEmpty(t, stateWithChallenge, "State should be present")
+
+	challengeData, err := base64.URLEncoding.DecodeString(challengeB64)
+	require.NoError(t, err, "Should decode challenge")
+
+	// Step 3: Sign challenge with SSH key
+	signature, err := signer.Sign(rand.Reader, challengeData)
+	require.NoError(t, err)
+
+	signatureB64 := base64.StdEncoding.EncodeToString(ssh.Marshal(signature))
+
+	// Step 4: Submit signed challenge
+	req := httptest.NewRequest("POST", "/callback", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	values := url.Values{}
+	values.Set("ssh_challenge", challengeB64)
+	values.Set("username", "integrationuser")
+	values.Set("signature", signatureB64)
+	values.Set("state", stateWithChallenge)
+	req.Form = values
+
+	identity, err := sshConn.HandleCallback(connector.Scopes{Groups: true}, req)
+	require.NoError(t, err, "HandleCallback should succeed")
+
+	// Step 5: Verify identity
+	require.Equal(t, "integrationuser", identity.UserID, "UserID should match")
+	require.Equal(t, "integrationuser", identity.Username, "Username should match")
+	require.Equal(t, "integration@example.com", identity.Email, "Email should match")
+	require.Equal(t, true, identity.EmailVerified, "Email should be verified")
+
+	// Check groups (should include both user groups and default groups)
+	expectedGroups := []string{"authenticated", "developers", "testers"}
+	for _, expectedGroup := range expectedGroups {
+		require.Contains(t, identity.Groups, expectedGroup, "Should contain group: "+expectedGroup)
+	}
+
+	t.Log("✓ Challenge/response integration test successful")
 }

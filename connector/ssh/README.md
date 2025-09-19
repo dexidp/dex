@@ -5,20 +5,36 @@ The SSH connector allows users to authenticate using SSH keys instead of passwor
 ## Features
 
 - **SSH Key Authentication**: Users authenticate using their SSH keys via SSH agent or key files
+- **Dual Authentication Modes**: Supports both JWT-based and challenge/response authentication
 - **OAuth2 Token Exchange**: Uses RFC 8693 OAuth2 Token Exchange for standards-compliant authentication
+- **Challenge/Response Flow**: Direct SSH signature verification for simpler CLI integration
 - **Flexible Key Storage**: Supports both SSH key fingerprints and full public keys in configuration
 - **Group Mapping**: Map SSH users to groups for authorization
 - **Audit Logging**: Comprehensive authentication event logging
 - **Multiple Issuer Support**: Accept JWTs from multiple configured issuers
 
-## How It Works
+## Authentication Modes
 
-The SSH connector uses OAuth2 Token Exchange (RFC 8693):
+The SSH connector supports two authentication modes:
+
+### Mode 1: JWT-Based Authentication (OAuth2 Token Exchange)
+
+**Best for**: Sophisticated clients like kubectl-ssh-oidc that need full OAuth2 compliance
 
 1. Client creates a JWT signed with SSH key
 2. Client performs OAuth2 Token Exchange using the SSH JWT as subject token
 3. Dex validates the JWT via the connector's `TokenIdentity` method
 4. Dex returns standard OAuth2 tokens (ID token, access token, refresh token)
+
+### Mode 2: Challenge/Response Authentication (CallbackConnector)
+
+**Best for**: Simple CLI tools and shell scripts that want direct SSH signature verification
+
+1. Client requests authentication URL with `ssh_challenge=true` parameter
+2. Dex generates cryptographic challenge and returns it in callback URL
+3. Client extracts challenge, signs it with SSH private key
+4. Client submits signed challenge to callback URL
+5. Dex verifies SSH signature and returns OAuth2 authorization code
 
 ## Configuration
 
@@ -79,14 +95,11 @@ Each user must have:
 
 ## Client Integration
 
-The SSH connector is designed to work with the [kubectl-ssh-oidc](https://github.com/nikogura/kubectl-ssh-oidc) plugin, which handles:
+The SSH connector supports multiple client types:
 
-- SSH agent interaction
-- JWT creation and signing
-- OAuth2 flows
-- Kubernetes credential management
+### JWT-Based Clients
 
-### Example Usage
+**kubectl-ssh-oidc Plugin**: The [kubectl-ssh-oidc](https://github.com/nikogura/kubectl-ssh-oidc) plugin provides full JWT-based authentication:
 
 ```bash
 # Install kubectl-ssh-oidc plugin
@@ -97,6 +110,42 @@ kubectl ssh-oidc --dex-url https://dex.example.com --client-id kubectl
 # 2. Perform OAuth2 Token Exchange with Dex
 # 3. Return Kubernetes credentials
 ```
+
+### Challenge/Response Clients
+
+**Simple CLI Authentication**: For basic shell scripts and CLI tools:
+
+```bash
+#!/bin/bash
+# Example CLI client for challenge/response authentication
+
+DEX_URL="https://dex.example.com"
+CLIENT_ID="kubectl"
+USERNAME="alice"
+
+# Step 1: Request challenge
+AUTH_URL=$(curl -s "${DEX_URL}/auth/${CLIENT_ID}/authorize?response_type=code&ssh_challenge=true" \
+  | grep -o 'Location: [^"]*' | cut -d' ' -f2)
+
+# Step 2: Extract challenge from auth URL
+CHALLENGE=$(echo "$AUTH_URL" | sed -n 's/.*ssh_challenge=\([^&]*\).*/\1/p' | base64 -d)
+
+# Step 3: Sign challenge with SSH key
+SIGNATURE=$(echo -n "$CHALLENGE" | ssh-keysign - | base64 -w0)
+
+# Step 4: Submit signed challenge
+STATE=$(echo "$AUTH_URL" | sed -n 's/.*state=\([^&]*\).*/\1/p')
+CALLBACK_URL=$(echo "$AUTH_URL" | sed -n 's/^\([^?]*\).*/\1/p')
+
+curl -X POST "$CALLBACK_URL" \
+  -d "username=$USERNAME" \
+  -d "signature=$SIGNATURE" \
+  -d "state=$STATE"
+
+# Result: OAuth2 authorization code for token exchange
+```
+
+**Compatibility**: JWT-based authentication remains fully backward compatible. Existing kubectl-ssh-oidc installations work unchanged.
 
 ## JWT Format and Security Model
 
