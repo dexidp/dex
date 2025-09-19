@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -41,6 +42,91 @@ func TestKnownBrokenAuthHeaderProvider(t *testing.T) {
 		if got != tc.expect {
 			t.Errorf("knownBrokenAuthHeaderProvider(%q), want=%t, got=%t", tc.issuerURL, tc.expect, got)
 		}
+	}
+}
+
+func TestLoginURL(t *testing.T) {
+	t.Helper()
+
+	tests := []struct {
+		name                         string
+		forceQueryResponseModeSet    bool
+		expectedURLValues            map[string]string
+		expectedNonExistingURLValues []string
+	}{
+		{
+			name: "default",
+			expectedURLValues: map[string]string{
+				"scope": "openid email groups",
+			},
+			expectedNonExistingURLValues: []string{"response_mode"},
+		},
+		{
+			name:                      "forceResponseMode",
+			forceQueryResponseModeSet: true,
+			expectedURLValues: map[string]string{
+				"scope":         "openid email groups",
+				"response_mode": "query",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			idTokenDesired := true
+			testServer, err := setupServer(nil, idTokenDesired)
+			if err != nil {
+				t.Fatal("failed to setup test server", err)
+			}
+			defer testServer.Close()
+
+			scopes := []string{"email", "groups"}
+
+			serverURL := testServer.URL
+			config := Config{
+				Issuer:               serverURL,
+				ClientID:             "clientID",
+				ClientSecret:         "clientSecret",
+				Scopes:               scopes,
+				RedirectURI:          fmt.Sprintf("%s/callback", serverURL),
+				InsecureEnableGroups: true,
+			}
+			if tc.forceQueryResponseModeSet {
+				config.ForceQueryResponseMode = true
+			}
+
+			conn, err := newConnector(config)
+			if err != nil {
+				t.Fatal("failed to create new connector", err)
+			}
+
+			state := "" // state is handled by the oAuth library, so no need to test it
+			loginURL, err := conn.LoginURL(connector.Scopes{}, config.RedirectURI, state)
+			if err != nil {
+				t.Error("unable to get login url", err)
+			}
+
+			u, err := url.Parse(loginURL)
+			if err != nil {
+				t.Fatal("failed to parse login url", err)
+			}
+
+			actualQueryParams := u.Query()
+
+			if tc.expectedURLValues != nil {
+				for param, values := range tc.expectedURLValues {
+					expectEquals(t, actualQueryParams.Get(param), values)
+				}
+			}
+
+			if tc.expectedNonExistingURLValues != nil {
+				for _, param := range tc.expectedNonExistingURLValues {
+					if actualQueryParams.Has(param) {
+						t.Error("Unexpected query param found", param)
+					}
+				}
+			}
+		})
 	}
 }
 
