@@ -42,11 +42,13 @@ type UserConfig struct {
 	// Note: Per SSH spec, the comment (user@host) part is optional
 	Keys []string `json:"keys"`
 
-	// UserInfo contains the user's identity information
+	// UserInfo contains the user's identity information returned in OIDC tokens.
+	// This information is configured by administrators and cannot be influenced by clients.
 	UserInfo `json:",inline"`
 }
 
-// UserInfo contains user identity information.
+// UserInfo contains user identity information for OIDC token claims.
+// All fields are configured administratively to prevent privilege escalation attacks.
 type UserInfo struct {
 	Username string   `json:"username"`
 	Email    string   `json:"email"`
@@ -54,7 +56,8 @@ type UserInfo struct {
 	FullName string   `json:"full_name"`
 }
 
-// Challenge represents a temporary SSH challenge for authentication
+// Challenge represents a temporary SSH challenge for challenge/response authentication.
+// Challenges are single-use and expire after a configurable TTL to prevent replay attacks.
 type Challenge struct {
 	Data      []byte
 	Username  string
@@ -149,8 +152,17 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 	}, nil
 }
 
-// LoginURL returns the URL for SSH-based login.
-// Supports both JWT-based and challenge/response authentication flows.
+// LoginURL generates the OAuth2 authorization URL for SSH authentication.
+// The implementation supports two authentication modes:
+//
+//  1. JWT-based authentication: Returns URL with ssh_auth=true parameter for clients
+//     that will perform OAuth2 Token Exchange with SSH-signed JWTs
+//
+//  2. Challenge/response authentication: Generates cryptographic challenge when
+//     ssh_challenge=true parameter is present, embeds challenge in callback URL
+//
+// The URL format follows standard OAuth2 authorization code flow patterns.
+// Clients determine the authentication mode via query parameters.
 func (c *SSHConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (loginURL string, err error) {
 	// Check if this is a challenge/response request (indicated by specific parameter)
 	parsedCallback, err := url.Parse(callbackURL)
@@ -170,8 +182,18 @@ func (c *SSHConnector) LoginURL(scopes connector.Scopes, callbackURL, state stri
 	return loginURL, err
 }
 
-// generateChallengeURL creates a challenge and returns a URL containing it
-// SECURITY: Validates user exists before generating challenge to prevent user enumeration
+// generateChallengeURL creates a callback URL with an embedded SSH challenge.
+// This method implements the challenge generation phase of challenge/response authentication.
+//
+// The process:
+// 1. Validates the requested username exists in configuration
+// 2. Generates cryptographically random challenge data
+// 3. Stores challenge temporarily with expiration
+// 4. Encodes challenge in base64 and embeds in callback URL
+// 5. Returns URL that clients can extract challenge from
+//
+// Security: Challenges are single-use and time-limited to prevent replay attacks.
+// User enumeration is prevented by validating usernames before challenge generation.
 func (c *SSHConnector) generateChallengeURL(callbackURL, state, username string) (challengeURL string, err error) {
 	// Security check: Validate user exists to prevent user enumeration
 	if username == "" {
@@ -222,8 +244,23 @@ func (c *SSHConnector) generateChallengeURL(callbackURL, state, username string)
 	return challengeURL, err
 }
 
-// HandleCallback processes the SSH authentication callback.
-// Supports both JWT-based and challenge/response authentication flows.
+// HandleCallback processes OAuth2 callbacks for SSH authentication.
+// This method implements the callback phase of the OAuth2 authorization code flow.
+//
+// The connector supports two distinct authentication flows:
+//
+// 1. JWT-based authentication:
+//   - Clients provide SSH-signed JWTs as authorization codes
+//   - JWTs are verified against administratively configured SSH keys
+//   - Supports OAuth2 Token Exchange (RFC 8693) pattern
+//
+// 2. Challenge/response authentication:
+//   - Clients provide signatures of previously issued challenges
+//   - Signatures are verified against SSH keys for the claimed user
+//   - Follows standard OAuth2 authorization code pattern
+//
+// Both flows result in connector.Identity objects containing user attributes
+// configured administratively, preventing client-controlled privilege escalation.
 func (c *SSHConnector) HandleCallback(scopes connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
 	// Check if this is a challenge/response flow
 	if challengeB64 := r.FormValue("ssh_challenge"); challengeB64 != "" {
@@ -234,7 +271,18 @@ func (c *SSHConnector) HandleCallback(scopes connector.Scopes, r *http.Request) 
 	return c.handleJWTCallback(r)
 }
 
-// handleJWTCallback processes JWT-based authentication (existing logic)
+// handleJWTCallback processes JWT-based authentication via OAuth2 Token Exchange.
+// This method validates SSH-signed JWTs submitted as OAuth2 authorization codes.
+//
+// The JWT verification process:
+// 1. Extracts JWT from either direct submission or authorization code
+// 2. Parses JWT headers to identify signing key requirements
+// 3. Validates JWT signature against administratively configured SSH keys
+// 4. Verifies JWT claims (issuer, expiration, audience)
+// 5. Maps authenticated user to configured identity attributes
+//
+// Security: Only SSH keys configured by administrators can verify JWTs.
+// No cryptographic material from JWTs is trusted until signature verification succeeds.
 func (c *SSHConnector) handleJWTCallback(r *http.Request) (identity connector.Identity, err error) {
 	// Handle both SSH JWT directly and as authorization code
 	var sshJWT string
@@ -256,7 +304,17 @@ func (c *SSHConnector) handleJWTCallback(r *http.Request) (identity connector.Id
 	return c.validateSSHJWT(sshJWT)
 }
 
-// handleChallengeResponse processes challenge/response authentication
+// handleChallengeResponse processes challenge/response authentication flows.
+// This method validates SSH signatures of previously issued challenges.
+//
+// The verification process:
+// 1. Extracts challenge, signature, and username from callback request
+// 2. Retrieves stored challenge data and validates expiration
+// 3. Verifies SSH signature against user's configured public keys
+// 4. Returns user identity attributes from administrative configuration
+//
+// Security: Challenges are single-use and time-limited. User enumeration is
+// prevented by only generating challenges for valid configured users.
 func (c *SSHConnector) handleChallengeResponse(r *http.Request) (identity connector.Identity, err error) {
 	// Extract parameters
 	username := r.FormValue("username")
@@ -673,8 +731,24 @@ func (c *SSHConnector) logAuditEvent(eventType, username, keyFingerprint, issuer
 	}
 }
 
-// TokenIdentity implements the TokenIdentityConnector interface.
-// This method validates an SSH JWT token and returns the user identity.
+// TokenIdentity validates SSH JWT tokens via OAuth2 Token Exchange (RFC 8693).
+// This method implements the TokenIdentityConnector interface, enabling clients
+// to exchange SSH-signed JWTs for Dex identity tokens.
+//
+// The OAuth2 Token Exchange flow:
+// 1. Client creates JWT signed with SSH private key
+// 2. Client calls Dex token exchange endpoint with SSH JWT as subject token
+// 3. Dex validates JWT signature against administratively configured SSH keys
+// 4. Dex returns standard OAuth2 tokens (ID token, access token, refresh token)
+//
+// Supported subject token types:
+// - "ssh_jwt" (custom type for SSH-signed JWTs)
+// - "urn:ietf:params:oauth:token-type:jwt" (RFC 8693 standard)
+// - "urn:ietf:params:oauth:token-type:access_token" (compatibility)
+// - "urn:ietf:params:oauth:token-type:id_token" (compatibility)
+//
+// Security: JWT verification follows a secure 2-pass process where no JWT content
+// is trusted until cryptographic signature verification against configured SSH keys succeeds.
 func (c *SSHConnector) TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (identity connector.Identity, err error) {
 	if c.logger != nil {
 		c.logger.InfoContext(ctx, "TokenIdentity method called", "tokenType", subjectTokenType)
