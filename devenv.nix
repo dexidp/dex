@@ -3,7 +3,7 @@
 {
   overlays = [
     (final: prev: {
-      dagger = inputs.dagger.packages.${final.system}.dagger;
+      go_1_25 = inputs.unstable.legacyPackages.${final.system}.go_1_25;
     })
   ];
 

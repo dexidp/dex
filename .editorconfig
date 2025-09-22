@@ -28,3 +28,6 @@ indent_size = 2
 
 [*.nix]
 indent_size = 2
+
+[dagger.json]
+indent_size = 2

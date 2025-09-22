@@ -5,10 +5,10 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1758429333,
+        "lastModified": 1758557291,
         "owner": "dagger",
         "repo": "nix",
-        "rev": "7ae43c1f7b9a78ceb3e6662e712b412b50e6f19d",
+        "rev": "7a879509f6467ce4e023ed2d8fe1ef42ecfcb69c",
         "type": "github"
       },
       "original": {
@@ -20,10 +20,10 @@
     "devenv": {
       "locked": {
         "dir": "src/modules",
-        "lastModified": 1758514534,
+        "lastModified": 1758555931,
         "owner": "cachix",
         "repo": "devenv",
-        "rev": "b162818c2748c34eca873482cf677820a8cddb61",
+        "rev": "bfa88a4d33fbeb3c7b84af8108c50b13624e8097",
         "type": "github"
       },
       "original": {
@@ -127,7 +127,23 @@
         "nixpkgs": "nixpkgs_2",
         "pre-commit-hooks": [
           "git-hooks"
-        ]
+        ],
+        "unstable": "unstable"
+      }
+    },
+    "unstable": {
+      "locked": {
+        "lastModified": 1758446476,
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "a1f79a1770d05af18111fbbe2a3ab2c42c0f6cd0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixpkgs-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
       }
     }
   },
