@@ -4,6 +4,8 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http/httptest"
 	"net/url"
@@ -506,7 +508,7 @@ func TestSSHConnector_LoginURL_ChallengeResponse(t *testing.T) {
 			name:        "challenge_request_nonexistent_user",
 			callbackURL: "https://dex.example.com/callback?ssh_challenge=true&username=nonexistent",
 			state:       "test-state-456",
-			expectError: true,
+			expectError: false, // SECURITY: No error to prevent user enumeration
 			expectType:  "challenge",
 		},
 		{
@@ -598,6 +600,7 @@ func TestSSHConnector_HandleCallback_ChallengeResponse(t *testing.T) {
 		Data:      challengeData,
 		Username:  "testuser",
 		CreatedAt: time.Now(),
+		IsValid:   true, // Valid user for enumeration prevention testing
 	}
 	sshConn.challenges.store(challengeID, challenge)
 
@@ -723,6 +726,7 @@ func TestChallengeStore(t *testing.T) {
 		Data:      challengeData,
 		Username:  "testuser",
 		CreatedAt: time.Now(),
+		IsValid:   true, // Valid user for testing
 	}
 
 	// Store challenge
@@ -743,6 +747,7 @@ func TestChallengeStore(t *testing.T) {
 		Data:      []byte("expired-data"),
 		Username:  "testuser",
 		CreatedAt: time.Now().Add(-100 * time.Millisecond), // Already expired
+		IsValid:   true,                                    // Valid user but expired challenge
 	}
 	store.store("expired-id", expiredChallenge)
 
@@ -759,6 +764,117 @@ func TestChallengeStore(t *testing.T) {
 	// Challenge should be cleaned up
 	_, exists = store.get("expired-id")
 	require.False(t, exists, "Expired challenge should be cleaned up")
+}
+
+// TestUserEnumerationPrevention verifies that the SSH connector prevents user enumeration attacks
+func TestUserEnumerationPrevention(t *testing.T) {
+	config := Config{
+		Users: map[string]UserConfig{
+			"validuser": {
+				Keys: []string{"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKey validuser@example.com"},
+				UserInfo: UserInfo{
+					Username: "validuser",
+					Email:    "validuser@example.com",
+					Groups:   []string{"users"},
+				},
+			},
+		},
+		AllowedIssuers: []string{"test-issuer"},
+		DefaultGroups:  []string{"authenticated"},
+		TokenTTL:       3600,
+		ChallengeTTL:   300,
+	}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	conn, err := config.Open("ssh", logger)
+	require.NoError(t, err)
+	sshConn := conn.(*SSHConnector)
+
+	// Test cases: valid user vs invalid user should have identical responses
+	testCases := []struct {
+		name             string
+		username         string
+		expectedBehavior string
+	}{
+		{"valid_user", "validuser", "should_generate_valid_challenge"},
+		{"invalid_user", "attackeruser", "should_generate_invalid_challenge"},
+		{"another_invalid", "nonexistent", "should_generate_invalid_challenge"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			callbackURL := fmt.Sprintf("https://dex.example.com/callback?ssh_challenge=true&username=%s", tc.username)
+			state := "test-state"
+
+			// Both valid and invalid users should get challenge URLs (no error)
+			challengeURL, err := sshConn.LoginURL(connector.Scopes{}, callbackURL, state)
+			require.NoError(t, err, "Both valid and invalid users should get challenge URLs")
+			require.Contains(t, challengeURL, "ssh_challenge=", "Challenge should be embedded in URL")
+
+			// Extract challenge from URL to verify it was stored
+			parsedURL, err := url.Parse(challengeURL)
+			require.NoError(t, err)
+			challengeB64 := parsedURL.Query().Get("ssh_challenge")
+			require.NotEmpty(t, challengeB64, "Challenge should be present in URL")
+
+			// Extract state to get challenge ID
+			stateWithID := parsedURL.Query().Get("state")
+			parts := strings.Split(stateWithID, ":")
+			require.Len(t, parts, 2, "State should contain challenge ID")
+			challengeID := parts[1]
+
+			// Verify challenge was stored (should exist for both valid and invalid users)
+			challenge, found := sshConn.challenges.get(challengeID)
+			require.True(t, found, "Challenge should be stored for enumeration prevention")
+			require.Equal(t, tc.username, challenge.Username, "Username should match")
+
+			// Check the IsValid flag (this is the key difference)
+			if tc.expectedBehavior == "should_generate_valid_challenge" {
+				require.True(t, challenge.IsValid, "Valid user should have IsValid=true")
+			} else {
+				require.False(t, challenge.IsValid, "Invalid user should have IsValid=false")
+			}
+		})
+	}
+
+	t.Run("identical_response_timing", func(t *testing.T) {
+		// Measure response times to ensure they're similar (basic timing attack prevention)
+		measureTime := func(username string) (duration time.Duration) {
+			start := time.Now()
+			callbackURL := fmt.Sprintf("https://dex.example.com/callback?ssh_challenge=true&username=%s", username)
+			_, err := sshConn.LoginURL(connector.Scopes{}, callbackURL, "test-state")
+			require.NoError(t, err)
+			duration = time.Since(start)
+			return
+		}
+
+		// Measure multiple times for statistical significance
+		validTimes := make([]time.Duration, 5)
+		invalidTimes := make([]time.Duration, 5)
+
+		for i := 0; i < 5; i++ {
+			validTimes[i] = measureTime("validuser")
+			invalidTimes[i] = measureTime("nonexistentuser")
+		}
+
+		// Calculate averages
+		var validTotal, invalidTotal time.Duration
+		for i := 0; i < 5; i++ {
+			validTotal += validTimes[i]
+			invalidTotal += invalidTimes[i]
+		}
+		validAvg := validTotal / 5
+		invalidAvg := invalidTotal / 5
+
+		// Response times should be similar (within 50% of each other)
+		// This is a basic test - sophisticated timing attacks may still be possible
+		ratio := float64(validAvg) / float64(invalidAvg)
+		if ratio > 1 {
+			ratio = 1 / ratio // Ensure ratio is <= 1
+		}
+		require.GreaterOrEqual(t, ratio, 0.5, "Response times should be similar to prevent timing attacks")
+		t.Logf("✓ Timing test passed: valid_avg=%v, invalid_avg=%v, ratio=%.2f", validAvg, invalidAvg, ratio)
+	})
 }
 
 func TestSSHConnector_ChallengeResponse_Integration(t *testing.T) {

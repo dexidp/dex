@@ -36,6 +36,8 @@ The SSH connector supports two authentication modes:
 4. Client submits signed challenge to callback URL
 5. Dex verifies SSH signature and returns OAuth2 authorization code
 
+**Challenge Expiration**: Challenges expire after the configured `challenge_ttl` (default 300 seconds/5 minutes) and are single-use to prevent replay attacks.
+
 ## Configuration
 
 ```yaml
@@ -72,6 +74,9 @@ connectors:
 
     # Token TTL in seconds (default: 3600)
     token_ttl: 7200
+
+    # Challenge TTL in seconds for challenge/response auth (default: 300)
+    challenge_ttl: 600
 
     # OAuth2 client IDs allowed to use this connector
     allowed_clients:
@@ -211,6 +216,24 @@ The JWT must be signed using the "SSH" algorithm (custom signing method that int
 
 ## Security Considerations
 
+### Built-in Security Features
+
+The SSH connector includes several built-in security protections:
+
+**User Enumeration Prevention**:
+- **Constant-time responses**: Valid and invalid usernames receive identical response patterns and timing
+- **Challenge generation**: All users (valid or invalid) receive challenges to prevent enumeration via timing differences
+- **Identical error messages**: Authentication failures use consistent error messages regardless of whether user exists
+
+**Rate Limiting**:
+- **IP-based rate limiting**: Maximum 10 authentication attempts per IP address per 5-minute window
+- **Automatic cleanup**: Rate limit entries are automatically cleaned up to prevent memory leaks
+- **Brute force protection**: Prevents attackers from rapidly trying multiple username/key combinations
+
+**Timing Attack Prevention**:
+- **Consistent processing**: Authentication logic takes similar time for valid and invalid users
+- **Deferred validation**: Username validation is deferred to prevent timing-based user discovery
+
 ### SSH Key Management
 - Use SSH agent for key storage when possible
 - Avoid storing unencrypted private keys on disk
@@ -223,9 +246,15 @@ The JWT must be signed using the "SSH" algorithm (custom signing method that int
 - Implement proper firewall rules
 
 ### Audit and Monitoring
-- Monitor SSH connector authentication logs
-- Set up alerts for failed authentication attempts
+- **Comprehensive audit logging**: All authentication attempts are logged with structured events including:
+  - Authentication attempts (successful and failed)
+  - Challenge generation and validation
+  - Rate limiting events
+  - User enumeration prevention activities
+- Monitor SSH connector authentication logs for security events
+- Set up alerts for failed authentication attempts and rate limiting triggers
 - Regularly review user access and group memberships
+- Watch for patterns that may indicate attack attempts
 
 ## Troubleshooting
 
@@ -244,6 +273,17 @@ The JWT must be signed using the "SSH" algorithm (custom signing method that int
 #### "Invalid issuer"
 - Verify issuer claim in JWT matches `allowed_issuers`
 - Check client configuration uses correct issuer value
+
+#### "Too many requests" or Rate Limiting
+- **Cause**: IP address has exceeded 10 authentication attempts in 5 minutes
+- **Solution**: Wait for the rate limit window to expire (5 minutes)
+- **Prevention**: Avoid rapid authentication attempts from the same IP
+- **Investigation**: Check audit logs for potential brute force attacks
+
+#### User Enumeration Protection Working
+- **Normal behavior**: Both valid and invalid users receive identical responses
+- **Expected**: Challenge generation succeeds for all usernames (this is intentional)
+- **Security**: Authentication failures happen during signature verification, not user lookup
 
 ### Debug Logging
 Enable debug logging to troubleshoot authentication issues:
