@@ -28,6 +28,17 @@ type Config struct {
 	// AllowedIssuers specifies which JWT issuers are accepted
 	AllowedIssuers []string `json:"allowed_issuers"`
 
+	// DexInstanceID is the required audience value for JWT validation.
+	// This ensures JWTs are created specifically for this Dex instance.
+	// Example: "https://dex.example.com" or "dex-cluster-1"
+	DexInstanceID string `json:"dex_instance_id"`
+
+	// AllowedTargetAudiences specifies which target_audience values are accepted.
+	// This controls what audiences can be requested for the final OIDC tokens.
+	// For Kubernetes OIDC, this should typically be client IDs (e.g., "kubectl").
+	// If empty, any target_audience is allowed.
+	AllowedTargetAudiences []string `json:"allowed_target_audiences"`
+
 	// DefaultGroups are assigned to all authenticated users
 	DefaultGroups []string `json:"default_groups"`
 
@@ -92,7 +103,7 @@ func newRateLimiter(maxAttempts int, window time.Duration) (limiter *rateLimiter
 	}
 	// Start cleanup goroutine
 	go limiter.cleanup()
-	return
+	return limiter
 }
 
 // isAllowed checks if an IP can make another attempt
@@ -115,7 +126,7 @@ func (rl *rateLimiter) isAllowed(ip string) (allowed bool) {
 	if len(validAttempts) >= rl.maxAttempts {
 		rl.attempts[ip] = validAttempts
 		allowed = false
-		return
+		return allowed
 	}
 
 	// Record this attempt
@@ -156,7 +167,7 @@ func newChallengeStore(ttl time.Duration) (store *challengeStore) {
 	}
 	// Start cleanup goroutine
 	go store.cleanup()
-	return
+	return store
 }
 
 // store saves a challenge with expiration
@@ -174,7 +185,7 @@ func (cs *challengeStore) get(id string) (challenge *Challenge, found bool) {
 	if found {
 		delete(cs.challenges, id) // One-time use
 	}
-	return
+	return challenge, found
 }
 
 // cleanup removes expired challenges
@@ -232,7 +243,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		challenges:  newChallengeStore(time.Duration(config.ChallengeTTL) * time.Second),
 		rateLimiter: newRateLimiter(10, time.Minute*5), // 10 attempts per 5 minutes per IP
 	}
-	return
+	return conn, err
 }
 
 // LoginURL generates the OAuth2 authorization URL for SSH authentication.
@@ -254,7 +265,7 @@ func (c *SSHConnector) LoginURL(scopes connector.Scopes, callbackURL, state stri
 	parsedCallback, err = url.Parse(callbackURL)
 	if err != nil {
 		err = fmt.Errorf("invalid callback URL: %w", err)
-		return
+		return loginURL, err
 	}
 
 	// If this is a challenge request without request context, we can't rate limit
@@ -263,13 +274,13 @@ func (c *SSHConnector) LoginURL(scopes connector.Scopes, callbackURL, state stri
 		c.logAuditEvent("auth_attempt", username, "unknown", "challenge", "warning", "challenge request without rate limiting context")
 		// Proceed without rate limiting (not ideal but maintains compatibility)
 		loginURL, err = c.generateChallengeURL(callbackURL, state, username, "unknown")
-		return
+		return loginURL, err
 	}
 
 	// Default: JWT-based authentication (backward compatibility)
 	// For JWT clients, return callback URL with SSH auth flag
 	loginURL = fmt.Sprintf("%s?state=%s&ssh_auth=true", callbackURL, state)
-	return
+	return loginURL, err
 }
 
 // generateChallengeURL creates a callback URL with an embedded SSH challenge.
@@ -289,6 +300,7 @@ func (c *SSHConnector) generateChallengeURL(callbackURL, state, username, client
 	// SECURITY: Rate limiting to prevent brute force user enumeration (skip if IP unknown)
 	if clientIP != "unknown" && !c.rateLimiter.isAllowed(clientIP) {
 		c.logAuditEvent("auth_attempt", username, "unknown", "challenge", "failed", fmt.Sprintf("rate limit exceeded for IP %s", clientIP))
+		challengeURL = ""
 		err = errors.New("too many requests")
 		return challengeURL, err
 	}
@@ -296,6 +308,7 @@ func (c *SSHConnector) generateChallengeURL(callbackURL, state, username, client
 	// Valid and invalid users get identical responses - authentication fails later
 	if username == "" {
 		c.logAuditEvent("auth_attempt", "", "unknown", "challenge", "failed", "missing username in challenge request")
+		challengeURL = ""
 		err = errors.New("username required for challenge generation")
 		return challengeURL, err
 	}
@@ -308,8 +321,10 @@ func (c *SSHConnector) generateChallengeURL(callbackURL, state, username, client
 
 	// ALWAYS generate cryptographic challenge (prevents timing attacks)
 	challengeData := make([]byte, 32)
-	if _, err = rand.Read(challengeData); err != nil {
-		return challengeURL, fmt.Errorf("failed to generate challenge: %w", err)
+	if _, randErr := rand.Read(challengeData); randErr != nil {
+		challengeURL = ""
+		err = fmt.Errorf("failed to generate challenge: %w", randErr)
+		return challengeURL, err
 	}
 
 	// Create unique challenge ID
@@ -332,6 +347,7 @@ func (c *SSHConnector) generateChallengeURL(callbackURL, state, username, client
 	var parsedCallback *url.URL
 	parsedCallback, err = url.Parse(callbackURL)
 	if err != nil {
+		challengeURL = ""
 		err = fmt.Errorf("invalid callback URL: %w", err)
 		return challengeURL, err
 	}
@@ -346,7 +362,6 @@ func (c *SSHConnector) generateChallengeURL(callbackURL, state, username, client
 	// Real validation happens during signature verification
 	c.logAuditEvent("challenge_generated", username, "unknown", "challenge", "success", "challenge generated successfully")
 	challengeURL = parsedCallback.String()
-	err = nil
 	return challengeURL, err
 }
 
@@ -371,12 +386,12 @@ func (c *SSHConnector) HandleCallback(scopes connector.Scopes, r *http.Request) 
 	// Check if this is a challenge/response flow
 	if challengeB64 := r.FormValue("ssh_challenge"); challengeB64 != "" {
 		identity, err = c.handleChallengeResponse(r)
-		return
+		return identity, err
 	}
 
 	// Handle JWT-based authentication (existing flow)
 	identity, err = c.handleJWTCallback(r)
-	return
+	return identity, err
 }
 
 // handleJWTCallback processes JWT-based authentication via OAuth2 Token Exchange.
@@ -406,12 +421,12 @@ func (c *SSHConnector) handleJWTCallback(r *http.Request) (identity connector.Id
 	if sshJWT == "" {
 		c.logAuditEvent("auth_attempt", "", "", "", "failed", "no SSH JWT or authorization code provided")
 		err = errors.New("no SSH JWT or authorization code provided")
-		return
+		return identity, err
 	}
 
 	// Validate and extract identity using existing JWT logic
 	identity, err = c.validateSSHJWT(sshJWT)
-	return
+	return identity, err
 }
 
 // handleChallengeResponse processes challenge/response authentication flows.
@@ -433,6 +448,7 @@ func (c *SSHConnector) handleChallengeResponse(r *http.Request) (identity connec
 
 	if username == "" || signature == "" || state == "" {
 		c.logAuditEvent("auth_attempt", username, "unknown", "challenge", "failed", "missing required parameters")
+		identity = connector.Identity{}
 		err = errors.New("missing required parameters: username, signature, or state")
 		return identity, err
 	}
@@ -441,6 +457,7 @@ func (c *SSHConnector) handleChallengeResponse(r *http.Request) (identity connec
 	parts := strings.Split(state, ":")
 	if len(parts) < 2 {
 		c.logAuditEvent("auth_attempt", username, "unknown", "challenge", "failed", "invalid state format")
+		identity = connector.Identity{}
 		err = errors.New("invalid state format")
 		return identity, err
 	}
@@ -450,6 +467,7 @@ func (c *SSHConnector) handleChallengeResponse(r *http.Request) (identity connec
 	challenge, exists := c.challenges.get(challengeID)
 	if !exists {
 		c.logAuditEvent("auth_attempt", username, "unknown", "challenge", "failed", "invalid or expired challenge")
+		identity = connector.Identity{}
 		err = errors.New("invalid or expired challenge")
 		return identity, err
 	}
@@ -459,6 +477,7 @@ func (c *SSHConnector) handleChallengeResponse(r *http.Request) (identity connec
 	if challenge.Username != username {
 		c.logAuditEvent("auth_attempt", username, "unknown", "challenge", "failed",
 			fmt.Sprintf("username mismatch: challenge for %s, request for %s", challenge.Username, username))
+		identity = connector.Identity{}
 		err = errors.New("challenge username mismatch")
 		return identity, err
 	}
@@ -466,6 +485,7 @@ func (c *SSHConnector) handleChallengeResponse(r *http.Request) (identity connec
 	// SECURITY: Check if this was a valid user challenge (prevents enumeration)
 	if !challenge.IsValid {
 		c.logAuditEvent("auth_attempt", username, "unknown", "challenge", "failed", "invalid user challenge")
+		identity = connector.Identity{}
 		err = errors.New("authentication failed")
 		return identity, err
 	}
@@ -475,6 +495,7 @@ func (c *SSHConnector) handleChallengeResponse(r *http.Request) (identity connec
 	if !exists {
 		// This should never happen if IsValid=true, but defensive programming
 		c.logAuditEvent("auth_attempt", username, "unknown", "challenge", "failed", "user config missing")
+		identity = connector.Identity{}
 		err = errors.New("authentication failed")
 		return identity, err
 	}
@@ -484,14 +505,17 @@ func (c *SSHConnector) handleChallengeResponse(r *http.Request) (identity connec
 	signatureBytes, err = base64.StdEncoding.DecodeString(signature)
 	if err != nil {
 		c.logAuditEvent("auth_attempt", username, "unknown", "challenge", "failed", "invalid signature encoding")
-		return identity, fmt.Errorf("invalid signature encoding: %w", err)
+		identity = connector.Identity{}
+		err = fmt.Errorf("invalid signature encoding: %w", err)
+		return identity, err
 	}
 
 	// Try each configured SSH key for the user
 	var verifiedKey ssh.PublicKey
 	for _, keyStr := range userConfig.Keys {
 		var pubKey ssh.PublicKey
-		if pubKey, err = c.parseSSHKey(keyStr); err == nil {
+		pubKey, err = c.parseSSHKey(keyStr)
+		if err == nil {
 			if c.verifySSHSignature(pubKey, challenge.Data, signatureBytes) {
 				verifiedKey = pubKey
 				break
@@ -502,6 +526,7 @@ func (c *SSHConnector) handleChallengeResponse(r *http.Request) (identity connec
 	if verifiedKey == nil {
 		keyFingerprint := "unknown"
 		c.logAuditEvent("auth_attempt", username, keyFingerprint, "challenge", "failed", "signature verification failed")
+		identity = connector.Identity{}
 		err = errors.New("signature verification failed")
 		return identity, err
 	}
@@ -530,7 +555,6 @@ func (c *SSHConnector) handleChallengeResponse(r *http.Request) (identity connec
 	c.logAuditEvent("auth_success", username, keyFingerprint, "challenge", "success",
 		fmt.Sprintf("user %s authenticated with SSH key %s via challenge/response", username, keyFingerprint))
 
-	err = nil
 	return identity, err
 }
 
@@ -545,9 +569,9 @@ func (c *SSHConnector) parseSSHKey(keyStr string) (pubKey ssh.PublicKey, err err
 	_ = rest    // Rest not used in this context
 	if err != nil {
 		err = fmt.Errorf("invalid SSH public key format: %w", err)
-		return
+		return pubKey, err
 	}
-	return
+	return pubKey, err
 }
 
 // verifySSHSignature verifies an SSH signature against data using a public key
@@ -562,17 +586,16 @@ func (c *SSHConnector) verifySSHSignature(pubKey ssh.PublicKey, data, signature 
 			c.logger.Debug("Failed to unmarshal SSH signature", "error", err)
 		}
 		valid = false
-		return
+		return valid
 	}
 
 	// Verify the signature against the data
 	err := pubKey.Verify(data, sig)
 	valid = err == nil
-	return
+	return valid
 }
 
 // validateSSHJWT validates an SSH-signed JWT and extracts user identity.
-// SECURITY FIX: Now uses configured keys for verification instead of trusting keys from JWT claims.
 func (c *SSHConnector) validateSSHJWT(sshJWTString string) (identity connector.Identity, err error) {
 	// Register our custom SSH signing method for JWT parsing
 	jwt.RegisterSigningMethod("SSH", func() (method jwt.SigningMethod) {
@@ -587,6 +610,7 @@ func (c *SSHConnector) validateSSHJWT(sshJWTString string) (identity connector.I
 	token, verifiedUser, verifiedKey, err = c.parseAndVerifyJWTSecurely(sshJWTString)
 	if err != nil {
 		c.logAuditEvent("auth_attempt", "unknown", "unknown", "unknown", "failed", fmt.Sprintf("JWT parse error: %s", err.Error()))
+		identity = connector.Identity{}
 		err = fmt.Errorf("failed to parse JWT: %w", err)
 		return identity, err
 	}
@@ -594,6 +618,7 @@ func (c *SSHConnector) validateSSHJWT(sshJWTString string) (identity connector.I
 	// Extract claims
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
+		identity = connector.Identity{}
 		err = errors.New("invalid JWT claims format")
 		return identity, err
 	}
@@ -604,6 +629,7 @@ func (c *SSHConnector) validateSSHJWT(sshJWTString string) (identity connector.I
 	if err != nil {
 		keyFingerprint := ssh.FingerprintSHA256(verifiedKey)
 		c.logAuditEvent("auth_attempt", sub, keyFingerprint, iss, "failed", err.Error())
+		identity = connector.Identity{}
 		return identity, err
 	}
 
@@ -626,7 +652,6 @@ func (c *SSHConnector) validateSSHJWT(sshJWTString string) (identity connector.I
 	keyFingerprint := ssh.FingerprintSHA256(verifiedKey)
 	c.logAuditEvent("auth_success", sub, keyFingerprint, iss, "success", fmt.Sprintf("user %s authenticated with key %s", sub, keyFingerprint))
 
-	err = nil
 	return identity, err
 }
 
@@ -639,7 +664,7 @@ func (c *SSHConnector) validateSSHJWT(sshJWTString string) (identity connector.I
 // - This prevents key injection attacks where clients could embed their own verification keys
 //
 // Returns the parsed token, verified username, verified public key, and any error.
-func (c *SSHConnector) parseAndVerifyJWTSecurely(sshJWTString string) (token *jwt.Token, username string, pubKey ssh.PublicKey, err error) {
+func (c *SSHConnector) parseAndVerifyJWTSecurely(sshJWTString string) (token *jwt.Token, username string, publicKey ssh.PublicKey, err error) {
 	// PASS 1: Parse JWT structure without verification to extract claims
 	// This is tricky - we need to get the subject to know which keys to try for verification,
 	// but we're NOT ready to trust this data yet. The claims are UNTRUSTED until verification succeeds.
@@ -648,7 +673,7 @@ func (c *SSHConnector) parseAndVerifyJWTSecurely(sshJWTString string) (token *jw
 	unverifiedToken, _, err = parser.ParseUnverified(sshJWTString, jwt.MapClaims{})
 	if err != nil {
 		err = fmt.Errorf("failed to parse JWT structure: %w", err)
-		return token, username, pubKey, err
+		return token, username, publicKey, err
 	}
 
 	// Extract the subject claim - this tells us which user is CLAIMING to authenticate
@@ -656,13 +681,13 @@ func (c *SSHConnector) parseAndVerifyJWTSecurely(sshJWTString string) (token *jw
 	claims, ok := unverifiedToken.Claims.(jwt.MapClaims)
 	if !ok {
 		err = errors.New("invalid claims format")
-		return token, username, pubKey, err
+		return token, username, publicKey, err
 	}
 
 	sub, ok := claims["sub"].(string)
 	if !ok || sub == "" {
 		err = errors.New("missing or invalid sub claim")
-		return token, username, pubKey, err
+		return token, username, publicKey, err
 	}
 
 	// Now we have the subject from the JWT - i.e. the user trying to auth.
@@ -676,11 +701,11 @@ func (c *SSHConnector) parseAndVerifyJWTSecurely(sshJWTString string) (token *jw
 	for configUsername, userConfig := range c.config.Users {
 		for _, authorizedKeyStr := range userConfig.Keys {
 			// Parse the configured public key (trusted, set by administrators)
-			var publicKey ssh.PublicKey
+			var configPublicKey ssh.PublicKey
 			var comment string
 			var options []string
 			var rest []byte
-			publicKey, comment, options, rest, err = ssh.ParseAuthorizedKey([]byte(authorizedKeyStr))
+			configPublicKey, comment, options, rest, err = ssh.ParseAuthorizedKey([]byte(authorizedKeyStr))
 			_, _, _ = comment, options, rest // Explicitly ignore unused return values
 			if err != nil {
 				continue // Skip invalid keys
@@ -695,7 +720,7 @@ func (c *SSHConnector) parseAndVerifyJWTSecurely(sshJWTString string) (token *jw
 					return key, keyErr
 				}
 				// Return the configured public key for verification - NOT any key from JWT claims
-				key = publicKey
+				key = configPublicKey
 				return key, keyErr
 			})
 
@@ -709,15 +734,14 @@ func (c *SSHConnector) parseAndVerifyJWTSecurely(sshJWTString string) (token *jw
 				// Return the username from our configuration (trusted), not from JWT claims
 				token = verifiedToken
 				username = configUsername
-				pubKey = publicKey
-				err = nil
-				return token, username, pubKey, err
+				publicKey = configPublicKey
+				return token, username, publicKey, err
 			}
 		}
 	}
 
 	err = fmt.Errorf("no configured key could verify the JWT signature")
-	return token, username, pubKey, err
+	return token, username, publicKey, err
 }
 
 // validateJWTClaims validates the standard JWT claims (sub, aud, iss, exp, nbf).
@@ -744,13 +768,42 @@ func (c *SSHConnector) validateJWTClaims(claims jwt.MapClaims) (username string,
 		return username, issuer, err
 	}
 
-	// Validate audience - ensure this token is intended for our Dex instance
-	if aud != "kubernetes" {
+	// DUAL AUDIENCE MODEL (legacy support removed)
+	// Require target_audience claim - only new dual-audience tokens are supported
+	targetAudClaim, hasTargetAudience := claims["target_audience"]
+	if !hasTargetAudience {
 		username = sub
 		issuer = iss
-		err = fmt.Errorf("invalid audience: %s", aud)
+		err = errors.New("missing target_audience claim - legacy tokens no longer supported")
 		return username, issuer, err
 	}
+
+	// Validate Dex instance audience
+	if !c.isValidDexInstanceAudience(aud) {
+		username = sub
+		issuer = iss
+		err = fmt.Errorf("JWT not intended for this Dex instance, audience: %s", aud)
+		return username, issuer, err
+	}
+
+	targetAudStr, ok := targetAudClaim.(string)
+	if !ok {
+		username = sub
+		issuer = iss
+		err = errors.New("target_audience claim must be a string")
+		return username, issuer, err
+	}
+
+	if !c.isAllowedTargetAudience(targetAudStr) {
+		username = sub
+		issuer = iss
+		err = fmt.Errorf("invalid target_audience: %s", targetAudStr)
+		return username, issuer, err
+	}
+
+	// Log successful dual audience validation
+	c.logAuditEvent("token_validation", username, "unknown", issuer, "info",
+		fmt.Sprintf("validated dual audience token: dex_instance=%s, target_audience=%s", aud, targetAudStr))
 
 	// Validate issuer
 	if !c.isAllowedIssuer(iss) {
@@ -805,15 +858,15 @@ func (c *SSHConnector) findUserByUsernameAndKey(username, keyFingerprint string)
 				if userInfo.Username == "" {
 					userInfo.Username = username
 				}
-				return
+				return userInfo, err
 			}
 		}
 		err = fmt.Errorf("key %s not authorized for user %s", keyFingerprint, username)
-		return
+		return userInfo, err
 	}
 
 	err = fmt.Errorf("user %s not found or key %s not authorized", username, keyFingerprint)
-	return
+	return userInfo, err
 }
 
 // isKeyMatch checks if an authorized key (from config) matches the presented key fingerprint.
@@ -829,26 +882,55 @@ func (c *SSHConnector) isKeyMatch(authorizedKey, presentedKeyFingerprint string)
 		// Invalid public key format
 		c.logger.Warn("Invalid public key format in configuration", "key", authorizedKey, "error", err)
 		matches = false
-		return
+		return matches
 	}
 
 	// Generate fingerprint from the public key and compare
 	authorizedKeyFingerprint := ssh.FingerprintSHA256(publicKey)
 	matches = authorizedKeyFingerprint == presentedKeyFingerprint
-	return
+	return matches
 }
 
 // isAllowedIssuer checks if the JWT issuer is allowed.
 func (c *SSHConnector) isAllowedIssuer(issuer string) (allowed bool) {
 	if len(c.config.AllowedIssuers) == 0 {
 		allowed = true // Allow all if none specified
-		return
+		return allowed
 	}
 
 	for _, allowedIssuer := range c.config.AllowedIssuers {
 		if issuer == allowedIssuer {
 			allowed = true
-			return
+			return allowed
+		}
+	}
+
+	allowed = false
+	return allowed
+}
+
+// isValidDexInstanceAudience checks if the JWT audience matches this Dex instance.
+func (c *SSHConnector) isValidDexInstanceAudience(audience string) (valid bool) {
+	if c.config.DexInstanceID == "" {
+		valid = true // Allow all if not configured (backward compatibility)
+		return valid
+	}
+
+	valid = audience == c.config.DexInstanceID
+	return valid
+}
+
+// isAllowedTargetAudience checks if the target_audience claim is allowed.
+func (c *SSHConnector) isAllowedTargetAudience(targetAudience string) (allowed bool) {
+	if len(c.config.AllowedTargetAudiences) == 0 {
+		allowed = true // Allow all if none specified
+		return allowed
+	}
+
+	for _, allowedTargetAudience := range c.config.AllowedTargetAudiences {
+		if targetAudience == allowedTargetAudience {
+			allowed = true
+			return allowed
 		}
 	}
 
@@ -862,13 +944,13 @@ type SSHSigningMethodServer struct{}
 // Alg returns the signing method algorithm identifier.
 func (m *SSHSigningMethodServer) Alg() (algorithm string) {
 	algorithm = "SSH"
-	return
+	return algorithm
 }
 
 // Sign is not implemented on server side (client-only operation).
 func (m *SSHSigningMethodServer) Sign(signingString string, key interface{}) (signature []byte, err error) {
 	err = errors.New("SSH signing not supported on server side")
-	return
+	return signature, err
 }
 
 // Verify verifies the JWT signature using the SSH public key.
@@ -876,15 +958,16 @@ func (m *SSHSigningMethodServer) Verify(signingString string, signature []byte, 
 	// Parse SSH public key
 	publicKey, ok := key.(ssh.PublicKey)
 	if !ok {
-		return fmt.Errorf("SSH verification requires ssh.PublicKey, got %T", key)
+		err = fmt.Errorf("SSH verification requires ssh.PublicKey, got %T", key)
+		return err
 	}
 
 	// Decode the base64-encoded signature
 	signatureStr := string(signature)
-	var signatureBytes []byte
-	signatureBytes, err = base64.StdEncoding.DecodeString(signatureStr)
-	if err != nil {
-		return fmt.Errorf("failed to decode signature: %w", err)
+	signatureBytes, decodeErr := base64.StdEncoding.DecodeString(signatureStr)
+	if decodeErr != nil {
+		err = fmt.Errorf("failed to decode signature: %w", decodeErr)
+		return err
 	}
 
 	// For SSH signature verification, we need to construct the signature structure
@@ -898,10 +981,7 @@ func (m *SSHSigningMethodServer) Verify(signingString string, signature []byte, 
 	err = publicKey.Verify([]byte(signingString), sshSignature)
 	if err != nil {
 		err = fmt.Errorf("SSH signature verification failed: %w", err)
-		return err
 	}
-
-	err = nil
 	return err
 }
 
@@ -951,7 +1031,7 @@ func (c *SSHConnector) TokenIdentity(ctx context.Context, subjectTokenType, subj
 		// Supported token types
 	default:
 		err = fmt.Errorf("unsupported token type: %s", subjectTokenType)
-		return
+		return identity, err
 	}
 
 	// Use existing SSH JWT validation logic
@@ -962,11 +1042,11 @@ func (c *SSHConnector) TokenIdentity(ctx context.Context, subjectTokenType, subj
 			c.logger.DebugContext(ctx, "SSH JWT validation failed in TokenIdentity", "error", err)
 		}
 		err = fmt.Errorf("SSH JWT validation failed: %w", err)
-		return
+		return identity, err
 	}
 
 	if c.logger != nil {
 		c.logger.InfoContext(ctx, "TokenIdentity successful", "user", identity.UserID)
 	}
-	return
+	return identity, err
 }

@@ -106,7 +106,9 @@ func TestSSHConnector_HandleCallback(t *testing.T) {
 
 func TestValidateJWTClaims(t *testing.T) {
 	config := Config{
-		AllowedIssuers: []string{"test-issuer", "another-issuer"},
+		AllowedIssuers:         []string{"test-issuer", "another-issuer"},
+		DexInstanceID:          "https://dex.test.com",
+		AllowedTargetAudiences: []string{"kubectl", "test-client"},
 	}
 	conn, err := config.Open("ssh", slog.Default())
 	require.NoError(t, err)
@@ -121,24 +123,39 @@ func TestValidateJWTClaims(t *testing.T) {
 		expectErr bool
 	}{
 		{
-			name: "valid_claims",
+			name: "valid_claims_with_target_audience",
 			claims: jwt.MapClaims{
-				"sub": "testuser",
-				"iss": "test-issuer",
-				"aud": "kubernetes",
-				"exp": float64(time.Now().Add(time.Hour).Unix()),
-				"iat": float64(time.Now().Unix()),
-				"jti": "unique-token-id",
+				"sub":             "testuser",
+				"iss":             "test-issuer",
+				"aud":             "https://dex.test.com",
+				"target_audience": "kubectl",
+				"exp":             float64(time.Now().Add(time.Hour).Unix()),
+				"iat":             float64(time.Now().Unix()),
+				"jti":             "unique-token-id",
 			},
 			expectSub: "testuser",
 			expectIss: "test-issuer",
 			expectErr: false,
 		},
 		{
+			name: "legacy_token_rejected",
+			claims: jwt.MapClaims{
+				"sub": "testuser",
+				"iss": "test-issuer",
+				"aud": "kubectl", // Legacy tokens: no longer supported (missing target_audience)
+				"exp": float64(time.Now().Add(time.Hour).Unix()),
+				"iat": float64(time.Now().Unix()),
+				"jti": "unique-token-id",
+			},
+			expectSub: "testuser",
+			expectIss: "test-issuer",
+			expectErr: true, // Should fail: legacy tokens no longer supported
+		},
+		{
 			name: "missing_sub",
 			claims: jwt.MapClaims{
 				"iss": "test-issuer",
-				"aud": "kubernetes",
+				"aud": "https://dex.test.com",
 				"exp": float64(time.Now().Add(time.Hour).Unix()),
 			},
 			expectErr: true,
@@ -148,7 +165,7 @@ func TestValidateJWTClaims(t *testing.T) {
 			claims: jwt.MapClaims{
 				"sub": "testuser",
 				"iss": "test-issuer",
-				"aud": "kubernetes",
+				"aud": "https://dex.test.com",
 				"exp": float64(time.Now().Add(-time.Hour).Unix()), // Expired
 				"iat": float64(time.Now().Add(-2 * time.Hour).Unix()),
 			},
@@ -159,7 +176,52 @@ func TestValidateJWTClaims(t *testing.T) {
 			claims: jwt.MapClaims{
 				"sub": "testuser",
 				"iss": "invalid-issuer",
-				"aud": "kubernetes",
+				"aud": "https://dex.test.com",
+				"exp": float64(time.Now().Add(time.Hour).Unix()),
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid_dex_instance_audience",
+			claims: jwt.MapClaims{
+				"sub": "testuser",
+				"iss": "test-issuer",
+				"aud": "wrong-dex-instance",
+				"exp": float64(time.Now().Add(time.Hour).Unix()),
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid_target_audience",
+			claims: jwt.MapClaims{
+				"sub":             "testuser",
+				"iss":             "test-issuer",
+				"aud":             "https://dex.test.com",
+				"target_audience": "unauthorized-client",
+				"exp":             float64(time.Now().Add(time.Hour).Unix()),
+			},
+			expectErr: true,
+		},
+		{
+			name: "legacy_token_rejected_2",
+			claims: jwt.MapClaims{
+				"sub": "testuser",
+				"iss": "test-issuer",
+				"aud": "test-client", // Legacy tokens: no longer supported (missing target_audience)
+				"exp": float64(time.Now().Add(time.Hour).Unix()),
+				"iat": float64(time.Now().Unix()),
+				"jti": "unique-token-id",
+			},
+			expectSub: "testuser",
+			expectIss: "test-issuer",
+			expectErr: true, // Should fail: legacy tokens no longer supported
+		},
+		{
+			name: "legacy_token_invalid_audience",
+			claims: jwt.MapClaims{
+				"sub": "testuser",
+				"iss": "test-issuer",
+				"aud": "unauthorized-legacy-client", // Not in allowed_target_audiences
 				"exp": float64(time.Now().Add(time.Hour).Unix()),
 			},
 			expectErr: true,

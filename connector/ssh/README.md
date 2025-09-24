@@ -64,10 +64,25 @@ connectors:
           email: "bob@example.com"
           groups: ["developers"]
 
-    # JWT issuer configuration
+    # Input JWT issuer configuration - controls which JWTs Dex will ACCEPT
+    # IMPORTANT: These are NOT the same as the issuer of JWTs that Dex produces
+    # Dex accepts JWTs with these issuers, but issues its own JWTs with Dex's configured issuer
     allowed_issuers:
-      - "kubectl-ssh-oidc"
-      - "my-custom-issuer"
+      - "kubectl-ssh-oidc"      # Accept JWTs from kubectl-ssh-oidc tool
+      - "my-custom-issuer"      # Accept JWTs from custom client tools
+      - "ssh-agent-helper"      # Accept JWTs from other SSH authentication tools
+
+    # Dex instance ID for JWT audience validation (SECURITY)
+    # This ensures JWTs are created specifically for this Dex instance
+    # Should match your Dex issuer URL or a unique instance identifier
+    dex_instance_id: "https://dex.example.com"
+
+    # Target audience configuration (for final OIDC tokens)
+    # Controls what audiences can be requested in JWT target_audience claim
+    # For Kubernetes OIDC, use client IDs as target audiences
+    allowed_target_audiences:
+      - "kubectl"           # Standard kubectl client ID
+      - "example-app"       # Custom application client ID
 
     # Default groups assigned to all authenticated users
     default_groups: ["authenticated"]
@@ -78,7 +93,7 @@ connectors:
     # Challenge TTL in seconds for challenge/response auth (default: 300)
     challenge_ttl: 600
 
-    # OAuth2 client IDs allowed to use this connector
+    # OAuth2 client IDs allowed to use this connector (legacy - use allowed_audiences instead)
     allowed_clients:
       - "kubectl"
       - "my-k8s-client"
@@ -150,7 +165,52 @@ curl -X POST "$CALLBACK_URL" \
 # Result: OAuth2 authorization code for token exchange
 ```
 
-**Compatibility**: JWT-based authentication remains fully backward compatible. Existing kubectl-ssh-oidc installations work unchanged.
+**JWT-Based Clients**: Must use the dual-audience JWT format with both `aud` and `target_audience` claims.
+
+**Challenge/Response Clients**: Use direct SSH signature verification - no JWT required.
+
+## Issuer Configuration: Input vs Output
+
+**CRITICAL DISTINCTION**: The SSH connector configuration deals with **input issuers** (JWTs Dex accepts), which are completely separate from **output issuers** (JWTs Dex produces).
+
+### Input Issuers (`allowed_issuers`)
+These control which external JWTs the SSH connector will **accept** for authentication:
+
+```yaml
+allowed_issuers:
+  - "kubectl-ssh-oidc"      # Accept JWTs from kubectl-ssh-oidc client
+  - "ssh-agent-helper"      # Accept JWTs from custom SSH helper tools
+  - "my-company-ssh-tool"   # Accept JWTs from internal tools
+```
+
+- **Purpose**: Validates the `iss` claim in incoming SSH-signed JWTs
+- **Security**: Prevents arbitrary clients from claiming to be trusted issuers
+- **Multiple Support**: Can accept JWTs from multiple different client tools
+- **Empty List Behavior**: If empty, accepts JWTs from **any** issuer (less secure)
+
+### Output Issuer (Dex Configuration)
+This is configured in Dex's main configuration file, **NOT** in the SSH connector:
+
+```yaml
+# In dex.yaml (main Dex config)
+issuer: https://dex.example.com
+
+connectors:
+- type: ssh
+  # SSH connector config has NO control over output issuer
+```
+
+- **Purpose**: All JWTs that Dex **produces** will have `iss: "https://dex.example.com"`
+- **Control**: Completely separate from SSH connector configuration
+- **Single Value**: Dex can only have one output issuer URL
+
+### Example Flow
+1. **Client creates JWT**: `{"iss": "kubectl-ssh-oidc", "sub": "alice", ...}`
+2. **SSH connector validates**: Checks if "kubectl-ssh-oidc" is in `allowed_issuers`
+3. **Dex authenticates user**: Verifies SSH signature, creates user session
+4. **Dex issues tokens**: `{"iss": "https://dex.example.com", "sub": "alice", ...}`
+
+**Key Point**: The SSH connector accepts JWTs with issuer "kubectl-ssh-oidc" but Dex produces JWTs with issuer "https://dex.example.com". These are completely different values serving different purposes.
 
 ## JWT Format and Security Model
 
@@ -160,17 +220,40 @@ curl -X POST "$CALLBACK_URL" \
 
 The SSH connector expects JWTs with the following standard claims:
 
+**Input JWT (from client to Dex)**:
 ```json
 {
   "sub": "alice",                          // Username (UNTRUSTED until verification)
-  "iss": "kubectl-ssh-oidc",              // Configured issuer (UNTRUSTED until verification)
-  "aud": "kubernetes",                     // Audience (UNTRUSTED until verification)
+  "iss": "kubectl-ssh-oidc",              // INPUT issuer - must be in allowed_issuers (UNTRUSTED until verification)
+  "aud": "https://dex.example.com",        // Dex instance ID (UNTRUSTED until verification)
+  "target_audience": "kubectl",            // Desired token audience (UNTRUSTED until verification)
   "exp": 1234567890,                      // Expiration time (UNTRUSTED until verification)
   "iat": 1234567890,                      // Issued at time (UNTRUSTED until verification)
   "nbf": 1234567890,                      // Not before time (UNTRUSTED until verification)
   "jti": "unique-token-id"                // JWT ID (UNTRUSTED until verification)
 }
 ```
+
+**Output JWT (from Dex to clients)**:
+```json
+{
+  "sub": "alice",                          // Same user, now trusted after SSH verification
+  "iss": "https://dex.example.com",        // OUTPUT issuer - from main Dex configuration
+  "aud": "kubectl",                        // Final audience (from target_audience above)
+  "exp": 1234567890,                      // New expiration time
+  "iat": 1234567890,                      // New issued time
+  // ... standard OIDC claims
+}
+```
+
+**Notice**: The `iss` field changes from input ("kubectl-ssh-oidc") to output ("https://dex.example.com"). This is normal and expected.
+
+**Dual Audience Model**
+- `aud`: Must match the configured `dex_instance_id` - ensures JWT is for this Dex instance
+- `target_audience`: Required claim specifying desired audience for final OIDC tokens
+
+**REQUIRED FORMAT**: All JWTs must use the dual-audience model:
+- JWTs **must** include both `aud` and `target_audience` claims
 
 **IMPORTANT**: The JWT does NOT contain SSH keys, fingerprints, or any cryptographic material. These would be security vulnerabilities allowing key injection attacks. SSH keys and fingerprints are only used in the Dex administrative configuration, never in JWT tokens sent by clients.
 
@@ -271,8 +354,14 @@ The SSH connector includes several built-in security protections:
 - Confirm user has required SSH key loaded in agent
 
 #### "Invalid issuer"
-- Verify issuer claim in JWT matches `allowed_issuers`
-- Check client configuration uses correct issuer value
+**Problem**: The `iss` claim in the INPUT JWT doesn't match any value in `allowed_issuers`
+
+**Solutions**:
+- Verify the client's JWT has `iss` claim matching one of the `allowed_issuers` values
+- Check client configuration uses correct issuer value (e.g., "kubectl-ssh-oidc")
+- Add the client's issuer to the `allowed_issuers` list in SSH connector configuration
+
+**Note**: This error is about INPUT JWTs (client→Dex), not OUTPUT JWTs (Dex→client). The OUTPUT issuer is always Dex's main `issuer` configuration and cannot be changed by the SSH connector.
 
 #### "Too many requests" or Rate Limiting
 - **Cause**: IP address has exceeded 10 authentication attempts in 5 minutes
@@ -294,6 +383,39 @@ logger:
 ```
 
 This will show detailed authentication flow information and help identify configuration issues.
+
+## Client Requirements
+
+The SSH connector supports two distinct client authentication methods:
+
+### JWT-Based Client Requirements
+
+For clients using JWT-based authentication (OAuth2 Token Exchange):
+
+1. **Required JWT Claims**
+   ```json
+   {
+     "aud": "https://dex.example.com",     // Must match dex_instance_id
+     "target_audience": "kubectl"          // Must be in allowed_target_audiences
+   }
+   ```
+
+2. **Client Configuration**
+   Update kubectl-ssh-oidc clients to include:
+   ```json
+   {
+     "dex_instance_id": "https://dex.example.com",
+     "target_audience": "kubectl"
+   }
+   ```
+
+### Challenge/Response Client Requirements
+
+For clients using challenge/response authentication:
+
+1. **No JWT Required** - Uses direct SSH signature verification
+2. **Authentication Flow** - Follow the bash example above
+3. **SSH Key Access** - Requires access to SSH private key or SSH agent
 
 ## Status
 
