@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -64,12 +65,23 @@ func (j jsonDecoder) Scan(dest interface{}) error {
 	if dest == nil {
 		return errors.New("nil value")
 	}
-	b, ok := dest.([]byte)
-	if !ok {
-		return fmt.Errorf("expected []byte got %T", dest)
-	}
-	if err := json.Unmarshal(b, &j.i); err != nil {
-		return fmt.Errorf("unmarshal: %v", err)
+
+	switch b := dest.(type) {
+	case []byte:
+		if err := json.Unmarshal(b, &j.i); err != nil {
+			return fmt.Errorf("unmarshal: %v", err)
+		}
+	case string:
+		bb, err := base64.StdEncoding.DecodeString(b)
+		if err != nil {
+			return fmt.Errorf("decodeString: %v", err)
+		}
+
+		if err := json.Unmarshal(bb, &j.i); err != nil {
+			return fmt.Errorf("unmarshal: %v", err)
+		}
+	default:
+		return fmt.Errorf("expected []byte or string got %T", dest)
 	}
 	return nil
 }
@@ -630,10 +642,14 @@ func (c *conn) UpdatePassword(ctx context.Context, email string, updater func(p 
 		_, err = tx.Exec(`
 			update password
 			set
-				hash = $1, username = $2, user_id = $3, groups = $4
-			where email = $5;
+				hash = $1, username = $2, user_id = $3, groups = $4,
+				incorrect_password_login_attempts = $5, locked_until = $6, hash_updated_at = $7,
+				previous_hashes = $8
+			where email = $9;
 		`,
-			np.Hash, np.Username, np.UserID, encoder(p.Groups), p.Email,
+			np.Hash, np.Username, np.UserID, encoder(p.Groups),
+			np.IncorrectPasswordLoginAttempts, np.LockedUntil, np.HashUpdatedAt,
+			encoder(np.PreviousHashes), p.Email,
 		)
 		if err != nil {
 			return fmt.Errorf("update password: %v", err)
@@ -649,7 +665,7 @@ func (c *conn) GetPassword(ctx context.Context, email string) (storage.Password,
 func getPassword(ctx context.Context, q querier, email string) (p storage.Password, err error) {
 	return scanPassword(q.QueryRow(`
 		select
-			email, hash, username, user_id, groups
+			email, hash, username, user_id, groups, incorrect_password_login_attempts, locked_until, hash_updated_at, previous_hashes
 		from password where email = $1;
 	`, strings.ToLower(email)))
 }
@@ -657,7 +673,7 @@ func getPassword(ctx context.Context, q querier, email string) (p storage.Passwo
 func (c *conn) ListPasswords(ctx context.Context) ([]storage.Password, error) {
 	rows, err := c.Query(`
 		select
-			email, hash, username, user_id, groups
+			email, hash, username, user_id, groups, incorrect_password_login_attempts, locked_until, hash_updated_at, previous_hashes
 		from password;
 	`)
 	if err != nil {
@@ -681,7 +697,9 @@ func (c *conn) ListPasswords(ctx context.Context) ([]storage.Password, error) {
 
 func scanPassword(s scanner) (p storage.Password, err error) {
 	err = s.Scan(
-		&p.Email, &p.Hash, &p.Username, &p.UserID, decoder(&p.Groups),
+		&p.Email, &p.Hash, &p.Username,
+		&p.UserID, decoder(&p.Groups), &p.IncorrectPasswordLoginAttempts, &p.LockedUntil,
+		&p.HashUpdatedAt, decoder(&p.PreviousHashes),
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -689,6 +707,7 @@ func scanPassword(s scanner) (p storage.Password, err error) {
 		}
 		return p, fmt.Errorf("select password: %v", err)
 	}
+
 	return p, nil
 }
 

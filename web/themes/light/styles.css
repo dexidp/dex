@@ -111,3 +111,9 @@
 .theme-link-back {
   margin-top: 4px;
 }
+
+.theme-form-input[readonly] {
+  background-color: #f8f9fa;
+  border-color: #ddd;
+  cursor: not-allowed;
+}

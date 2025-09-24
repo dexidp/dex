@@ -77,8 +77,8 @@ telemetry:
 
 # Uncomment this block to enable the gRPC API. This values MUST be different
 # from the HTTP endpoints.
-# grpc:
-#   addr: 127.0.0.1:5557
+grpc:
+  addr: 127.0.0.1:5557
 #   tlsCert: examples/grpc-client/server.crt
 #   tlsKey: examples/grpc-client/server.key
 #   tlsClientCA: examples/grpc-client/ca.crt
@@ -154,6 +154,15 @@ connectors:
 
 # Let dex keep a list of passwords which can be used to login to dex.
 enablePasswordDB: true
+
+passwordPolicy:
+  id: hello-kitty
+  complexityLevel: low
+  lockout:
+    maxAttempts: 3
+    lockDuration: "1d2h3s"
+  rotation:
+    interval: "1s"
 
 # A static list of passwords to login the end user. By identifying here, dex
 # won't look in its underlying storage for passwords.

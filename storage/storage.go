@@ -355,7 +355,9 @@ type Password struct {
 	Email string `json:"email"`
 
 	// Bcrypt encoded hash of the password. This package enforces a min cost value of 10
-	Hash []byte `json:"hash"`
+	Hash           []byte    `json:"hash"`
+	PreviousHashes [][]byte  `json:"previousHashes"`
+	HashUpdatedAt  time.Time `json:"hashUpdatedAt"`
 
 	// Bcrypt encoded hash of the password set in environment variable of this name.
 	HashFromEnv string `json:"hashFromEnv"`
@@ -365,6 +367,12 @@ type Password struct {
 
 	// Randomly generated user ID. This is NOT the primary ID of the Password object.
 	UserID string `json:"userID"`
+
+	// IncorrectPasswordLoginAttempts tracks the number of consecutive failed login attempts
+	IncorrectPasswordLoginAttempts uint64 `json:"incorrectPasswordLoginAttempts"`
+	// LockedUntil indicates timing when user will be able to login next time after lockout
+	// cuz of exceeding login attempts with password policy setting
+	LockedUntil *time.Time `json:"lockedUntil"`
 
 	// Groups assigned to the user
 	Groups []string `json:"groups"`

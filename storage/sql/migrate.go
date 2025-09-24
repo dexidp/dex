@@ -225,6 +225,14 @@ var migrations = []migration{
 			alter table offline_session
 				add column connector_data bytea;
 			`,
+			`
+			alter table offline_session
+				add column totp text;
+			`,
+			`
+			alter table offline_session
+				add column totp_confirmed boolean;
+			`,
 		},
 	},
 	{
@@ -296,6 +304,35 @@ var migrations = []migration{
 			`
 			alter table auth_request
 				add column hmac_key bytea;`,
+			`alter table auth_request
+				add column totp_validated boolean;`,
+		},
+	},
+	{
+		stmts: []string{
+			`alter table password
+				add column incorrect_password_login_attempts int default 0 not null`,
+			`alter table password
+				add column locked_until timestamptz default null`,
+			`alter table password
+				add column hash_updated_at timestamptz default current_timestamp`,
+			`-- DEFAULT 'W10=' - base64 encoded []
+			alter table password
+				add column previous_hashes text default "W10=" not null`,
+			`alter table password
+				add column complexity_level text default "none" not null`,
+		},
+	},
+	{
+		stmts: []string{
+			`alter table password
+				drop column complexity_level`,
+		},
+	},
+	{
+		stmts: []string{
+			`alter table password
+				add column groups bytea`,
 		},
 	},
 }
