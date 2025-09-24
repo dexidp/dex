@@ -56,6 +56,7 @@ var (
 		{Name: "code_challenge", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "code_challenge_method", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "hmac_key", Type: field.TypeBytes},
+		{Name: "totp_validated", Type: field.TypeBool, Default: false},
 	}
 	// AuthRequestsTable holds the schema information for the "auth_requests" table.
 	AuthRequestsTable = &schema.Table{
@@ -148,6 +149,8 @@ var (
 		{Name: "conn_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "refresh", Type: field.TypeBytes},
 		{Name: "connector_data", Type: field.TypeBytes, Nullable: true},
+		{Name: "totp", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "totp_confirmed", Type: field.TypeBool, Nullable: true, Default: false},
 	}
 	// OfflineSessionsTable holds the schema information for the "offline_sessions" table.
 	OfflineSessionsTable = &schema.Table{

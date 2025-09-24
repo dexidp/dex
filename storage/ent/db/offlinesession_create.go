@@ -43,6 +43,34 @@ func (_c *OfflineSessionCreate) SetConnectorData(v []byte) *OfflineSessionCreate
 	return _c
 }
 
+// SetTotp sets the "totp" field.
+func (_c *OfflineSessionCreate) SetTotp(v string) *OfflineSessionCreate {
+	_c.mutation.SetTotp(v)
+	return _c
+}
+
+// SetNillableTotp sets the "totp" field if the given value is not nil.
+func (_c *OfflineSessionCreate) SetNillableTotp(v *string) *OfflineSessionCreate {
+	if v != nil {
+		_c.SetTotp(*v)
+	}
+	return _c
+}
+
+// SetTotpConfirmed sets the "totp_confirmed" field.
+func (_c *OfflineSessionCreate) SetTotpConfirmed(v bool) *OfflineSessionCreate {
+	_c.mutation.SetTotpConfirmed(v)
+	return _c
+}
+
+// SetNillableTotpConfirmed sets the "totp_confirmed" field if the given value is not nil.
+func (_c *OfflineSessionCreate) SetNillableTotpConfirmed(v *bool) *OfflineSessionCreate {
+	if v != nil {
+		_c.SetTotpConfirmed(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *OfflineSessionCreate) SetID(v string) *OfflineSessionCreate {
 	_c.mutation.SetID(v)
@@ -56,6 +84,7 @@ func (_c *OfflineSessionCreate) Mutation() *OfflineSessionMutation {
 
 // Save creates the OfflineSession in the database.
 func (_c *OfflineSessionCreate) Save(ctx context.Context) (*OfflineSession, error) {
+	_c.defaults()
 	return withHooks(ctx, _c.sqlSave, _c.mutation, _c.hooks)
 }
 
@@ -78,6 +107,14 @@ func (_c *OfflineSessionCreate) Exec(ctx context.Context) error {
 func (_c *OfflineSessionCreate) ExecX(ctx context.Context) {
 	if err := _c.Exec(ctx); err != nil {
 		panic(err)
+	}
+}
+
+// defaults sets the default values of the builder before save.
+func (_c *OfflineSessionCreate) defaults() {
+	if _, ok := _c.mutation.TotpConfirmed(); !ok {
+		v := offlinesession.DefaultTotpConfirmed
+		_c.mutation.SetTotpConfirmed(v)
 	}
 }
 
@@ -158,6 +195,14 @@ func (_c *OfflineSessionCreate) createSpec() (*OfflineSession, *sqlgraph.CreateS
 		_spec.SetField(offlinesession.FieldConnectorData, field.TypeBytes, value)
 		_node.ConnectorData = &value
 	}
+	if value, ok := _c.mutation.Totp(); ok {
+		_spec.SetField(offlinesession.FieldTotp, field.TypeString, value)
+		_node.Totp = value
+	}
+	if value, ok := _c.mutation.TotpConfirmed(); ok {
+		_spec.SetField(offlinesession.FieldTotpConfirmed, field.TypeBool, value)
+		_node.TotpConfirmed = value
+	}
 	return _node, _spec
 }
 
@@ -179,6 +224,7 @@ func (_c *OfflineSessionCreateBulk) Save(ctx context.Context) ([]*OfflineSession
 	for i := range _c.builders {
 		func(i int, root context.Context) {
 			builder := _c.builders[i]
+			builder.defaults()
 			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 				mutation, ok := m.(*OfflineSessionMutation)
 				if !ok {

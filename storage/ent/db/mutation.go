@@ -1258,6 +1258,7 @@ type AuthRequestMutation struct {
 	code_challenge            *string
 	code_challenge_method     *string
 	hmac_key                  *[]byte
+	totp_validated            *bool
 	clearedFields             map[string]struct{}
 	done                      bool
 	oldValue                  func(context.Context) (*AuthRequest, error)
@@ -2188,6 +2189,42 @@ func (m *AuthRequestMutation) ResetHmacKey() {
 	m.hmac_key = nil
 }
 
+// SetTotpValidated sets the "totp_validated" field.
+func (m *AuthRequestMutation) SetTotpValidated(b bool) {
+	m.totp_validated = &b
+}
+
+// TotpValidated returns the value of the "totp_validated" field in the mutation.
+func (m *AuthRequestMutation) TotpValidated() (r bool, exists bool) {
+	v := m.totp_validated
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTotpValidated returns the old "totp_validated" field's value of the AuthRequest entity.
+// If the AuthRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthRequestMutation) OldTotpValidated(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTotpValidated is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTotpValidated requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTotpValidated: %w", err)
+	}
+	return oldValue.TotpValidated, nil
+}
+
+// ResetTotpValidated resets all changes to the "totp_validated" field.
+func (m *AuthRequestMutation) ResetTotpValidated() {
+	m.totp_validated = nil
+}
+
 // Where appends a list predicates to the AuthRequestMutation builder.
 func (m *AuthRequestMutation) Where(ps ...predicate.AuthRequest) {
 	m.predicates = append(m.predicates, ps...)
@@ -2222,7 +2259,7 @@ func (m *AuthRequestMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthRequestMutation) Fields() []string {
-	fields := make([]string, 0, 20)
+	fields := make([]string, 0, 21)
 	if m.client_id != nil {
 		fields = append(fields, authrequest.FieldClientID)
 	}
@@ -2283,6 +2320,9 @@ func (m *AuthRequestMutation) Fields() []string {
 	if m.hmac_key != nil {
 		fields = append(fields, authrequest.FieldHmacKey)
 	}
+	if m.totp_validated != nil {
+		fields = append(fields, authrequest.FieldTotpValidated)
+	}
 	return fields
 }
 
@@ -2331,6 +2371,8 @@ func (m *AuthRequestMutation) Field(name string) (ent.Value, bool) {
 		return m.CodeChallengeMethod()
 	case authrequest.FieldHmacKey:
 		return m.HmacKey()
+	case authrequest.FieldTotpValidated:
+		return m.TotpValidated()
 	}
 	return nil, false
 }
@@ -2380,6 +2422,8 @@ func (m *AuthRequestMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldCodeChallengeMethod(ctx)
 	case authrequest.FieldHmacKey:
 		return m.OldHmacKey(ctx)
+	case authrequest.FieldTotpValidated:
+		return m.OldTotpValidated(ctx)
 	}
 	return nil, fmt.Errorf("unknown AuthRequest field %s", name)
 }
@@ -2529,6 +2573,13 @@ func (m *AuthRequestMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetHmacKey(v)
 		return nil
+	case authrequest.FieldTotpValidated:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTotpValidated(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AuthRequest field %s", name)
 }
@@ -2664,6 +2715,9 @@ func (m *AuthRequestMutation) ResetField(name string) error {
 		return nil
 	case authrequest.FieldHmacKey:
 		m.ResetHmacKey()
+		return nil
+	case authrequest.FieldTotpValidated:
+		m.ResetTotpValidated()
 		return nil
 	}
 	return fmt.Errorf("unknown AuthRequest field %s", name)
@@ -5805,6 +5859,8 @@ type OfflineSessionMutation struct {
 	conn_id        *string
 	refresh        *[]byte
 	connector_data *[]byte
+	totp           *string
+	totp_confirmed *bool
 	clearedFields  map[string]struct{}
 	done           bool
 	oldValue       func(context.Context) (*OfflineSession, error)
@@ -6072,6 +6128,104 @@ func (m *OfflineSessionMutation) ResetConnectorData() {
 	delete(m.clearedFields, offlinesession.FieldConnectorData)
 }
 
+// SetTotp sets the "totp" field.
+func (m *OfflineSessionMutation) SetTotp(s string) {
+	m.totp = &s
+}
+
+// Totp returns the value of the "totp" field in the mutation.
+func (m *OfflineSessionMutation) Totp() (r string, exists bool) {
+	v := m.totp
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTotp returns the old "totp" field's value of the OfflineSession entity.
+// If the OfflineSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OfflineSessionMutation) OldTotp(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTotp is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTotp requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTotp: %w", err)
+	}
+	return oldValue.Totp, nil
+}
+
+// ClearTotp clears the value of the "totp" field.
+func (m *OfflineSessionMutation) ClearTotp() {
+	m.totp = nil
+	m.clearedFields[offlinesession.FieldTotp] = struct{}{}
+}
+
+// TotpCleared returns if the "totp" field was cleared in this mutation.
+func (m *OfflineSessionMutation) TotpCleared() bool {
+	_, ok := m.clearedFields[offlinesession.FieldTotp]
+	return ok
+}
+
+// ResetTotp resets all changes to the "totp" field.
+func (m *OfflineSessionMutation) ResetTotp() {
+	m.totp = nil
+	delete(m.clearedFields, offlinesession.FieldTotp)
+}
+
+// SetTotpConfirmed sets the "totp_confirmed" field.
+func (m *OfflineSessionMutation) SetTotpConfirmed(b bool) {
+	m.totp_confirmed = &b
+}
+
+// TotpConfirmed returns the value of the "totp_confirmed" field in the mutation.
+func (m *OfflineSessionMutation) TotpConfirmed() (r bool, exists bool) {
+	v := m.totp_confirmed
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTotpConfirmed returns the old "totp_confirmed" field's value of the OfflineSession entity.
+// If the OfflineSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OfflineSessionMutation) OldTotpConfirmed(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTotpConfirmed is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTotpConfirmed requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTotpConfirmed: %w", err)
+	}
+	return oldValue.TotpConfirmed, nil
+}
+
+// ClearTotpConfirmed clears the value of the "totp_confirmed" field.
+func (m *OfflineSessionMutation) ClearTotpConfirmed() {
+	m.totp_confirmed = nil
+	m.clearedFields[offlinesession.FieldTotpConfirmed] = struct{}{}
+}
+
+// TotpConfirmedCleared returns if the "totp_confirmed" field was cleared in this mutation.
+func (m *OfflineSessionMutation) TotpConfirmedCleared() bool {
+	_, ok := m.clearedFields[offlinesession.FieldTotpConfirmed]
+	return ok
+}
+
+// ResetTotpConfirmed resets all changes to the "totp_confirmed" field.
+func (m *OfflineSessionMutation) ResetTotpConfirmed() {
+	m.totp_confirmed = nil
+	delete(m.clearedFields, offlinesession.FieldTotpConfirmed)
+}
+
 // Where appends a list predicates to the OfflineSessionMutation builder.
 func (m *OfflineSessionMutation) Where(ps ...predicate.OfflineSession) {
 	m.predicates = append(m.predicates, ps...)
@@ -6106,7 +6260,7 @@ func (m *OfflineSessionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *OfflineSessionMutation) Fields() []string {
-	fields := make([]string, 0, 4)
+	fields := make([]string, 0, 6)
 	if m.user_id != nil {
 		fields = append(fields, offlinesession.FieldUserID)
 	}
@@ -6118,6 +6272,12 @@ func (m *OfflineSessionMutation) Fields() []string {
 	}
 	if m.connector_data != nil {
 		fields = append(fields, offlinesession.FieldConnectorData)
+	}
+	if m.totp != nil {
+		fields = append(fields, offlinesession.FieldTotp)
+	}
+	if m.totp_confirmed != nil {
+		fields = append(fields, offlinesession.FieldTotpConfirmed)
 	}
 	return fields
 }
@@ -6135,6 +6295,10 @@ func (m *OfflineSessionMutation) Field(name string) (ent.Value, bool) {
 		return m.Refresh()
 	case offlinesession.FieldConnectorData:
 		return m.ConnectorData()
+	case offlinesession.FieldTotp:
+		return m.Totp()
+	case offlinesession.FieldTotpConfirmed:
+		return m.TotpConfirmed()
 	}
 	return nil, false
 }
@@ -6152,6 +6316,10 @@ func (m *OfflineSessionMutation) OldField(ctx context.Context, name string) (ent
 		return m.OldRefresh(ctx)
 	case offlinesession.FieldConnectorData:
 		return m.OldConnectorData(ctx)
+	case offlinesession.FieldTotp:
+		return m.OldTotp(ctx)
+	case offlinesession.FieldTotpConfirmed:
+		return m.OldTotpConfirmed(ctx)
 	}
 	return nil, fmt.Errorf("unknown OfflineSession field %s", name)
 }
@@ -6189,6 +6357,20 @@ func (m *OfflineSessionMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetConnectorData(v)
 		return nil
+	case offlinesession.FieldTotp:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTotp(v)
+		return nil
+	case offlinesession.FieldTotpConfirmed:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTotpConfirmed(v)
+		return nil
 	}
 	return fmt.Errorf("unknown OfflineSession field %s", name)
 }
@@ -6222,6 +6404,12 @@ func (m *OfflineSessionMutation) ClearedFields() []string {
 	if m.FieldCleared(offlinesession.FieldConnectorData) {
 		fields = append(fields, offlinesession.FieldConnectorData)
 	}
+	if m.FieldCleared(offlinesession.FieldTotp) {
+		fields = append(fields, offlinesession.FieldTotp)
+	}
+	if m.FieldCleared(offlinesession.FieldTotpConfirmed) {
+		fields = append(fields, offlinesession.FieldTotpConfirmed)
+	}
 	return fields
 }
 
@@ -6238,6 +6426,12 @@ func (m *OfflineSessionMutation) ClearField(name string) error {
 	switch name {
 	case offlinesession.FieldConnectorData:
 		m.ClearConnectorData()
+		return nil
+	case offlinesession.FieldTotp:
+		m.ClearTotp()
+		return nil
+	case offlinesession.FieldTotpConfirmed:
+		m.ClearTotpConfirmed()
 		return nil
 	}
 	return fmt.Errorf("unknown OfflineSession nullable field %s", name)
@@ -6258,6 +6452,12 @@ func (m *OfflineSessionMutation) ResetField(name string) error {
 		return nil
 	case offlinesession.FieldConnectorData:
 		m.ResetConnectorData()
+		return nil
+	case offlinesession.FieldTotp:
+		m.ResetTotp()
+		return nil
+	case offlinesession.FieldTotpConfirmed:
+		m.ResetTotpConfirmed()
 		return nil
 	}
 	return fmt.Errorf("unknown OfflineSession field %s", name)

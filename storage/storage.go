@@ -236,6 +236,9 @@ type AuthRequest struct {
 
 	// HMACKey is used when generating an AuthRequest-specific HMAC
 	HMACKey []byte
+
+	// TOTPValidated is set to true if the user has validated their second authentication factor.
+	TOTPValidated bool
 }
 
 // AuthCode represents a code which can be exchanged for an OAuth2 token response.
@@ -333,6 +336,11 @@ type OfflineSessions struct {
 
 	// Authentication data provided by an upstream source.
 	ConnectorData []byte
+
+	// TOTP is the otp key used to generate TOTP codes for the user.
+	// The second factor is ignored if the field is empty.
+	TOTP          string
+	TOTPConfirmed bool
 }
 
 // Password is an email to password mapping managed by the storage.

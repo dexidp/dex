@@ -134,10 +134,10 @@ func (c *conn) CreateAuthRequest(ctx context.Context, a storage.AuthRequest) err
 			connector_id, connector_data,
 			expiry,
 			code_challenge, code_challenge_method,
-			hmac_key
+			hmac_key, totp_validated
 		)
 		values (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
 		);
 	`,
 		a.ID, a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
@@ -147,7 +147,7 @@ func (c *conn) CreateAuthRequest(ctx context.Context, a storage.AuthRequest) err
 		a.ConnectorID, a.ConnectorData,
 		a.Expiry,
 		a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod,
-		a.HMACKey,
+		a.HMACKey, a.TOTPValidated,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -180,8 +180,9 @@ func (c *conn) UpdateAuthRequest(ctx context.Context, id string, updater func(a 
 				connector_id = $15, connector_data = $16,
 				expiry = $17,
 				code_challenge = $18, code_challenge_method = $19,
-				hmac_key = $20
-			where id = $21;
+				hmac_key = $20,
+				totp_validated = $21
+			where id = $22;
 		`,
 			a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
 			a.ForceApprovalPrompt, a.LoggedIn,
@@ -190,7 +191,7 @@ func (c *conn) UpdateAuthRequest(ctx context.Context, id string, updater func(a 
 			encoder(a.Claims.Groups),
 			a.ConnectorID, a.ConnectorData,
 			a.Expiry,
-			a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod, a.HMACKey,
+			a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod, a.HMACKey, a.TOTPValidated,
 			r.ID,
 		)
 		if err != nil {
@@ -212,7 +213,7 @@ func getAuthRequest(ctx context.Context, q querier, id string) (a storage.AuthRe
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data, expiry,
-			code_challenge, code_challenge_method, hmac_key
+			code_challenge, code_challenge_method, hmac_key, totp_validated
 		from auth_request where id = $1;
 	`, id).Scan(
 		&a.ID, &a.ClientID, decoder(&a.ResponseTypes), decoder(&a.Scopes), &a.RedirectURI, &a.Nonce, &a.State,
@@ -221,7 +222,7 @@ func getAuthRequest(ctx context.Context, q querier, id string) (a storage.AuthRe
 		&a.Claims.Email, &a.Claims.EmailVerified,
 		decoder(&a.Claims.Groups),
 		&a.ConnectorID, &a.ConnectorData, &a.Expiry,
-		&a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod, &a.HMACKey,
+		&a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod, &a.HMACKey, &a.TOTPValidated,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -694,13 +695,13 @@ func scanPassword(s scanner) (p storage.Password, err error) {
 func (c *conn) CreateOfflineSessions(ctx context.Context, s storage.OfflineSessions) error {
 	_, err := c.Exec(`
 		insert into offline_session (
-			user_id, conn_id, refresh, connector_data
+			user_id, conn_id, refresh, connector_data, totp, totp_confirmed
 		)
 		values (
-			$1, $2, $3, $4
+			$1, $2, $3, $4, $5, $6
 		);
 	`,
-		s.UserID, s.ConnID, encoder(s.Refresh), s.ConnectorData,
+		s.UserID, s.ConnID, encoder(s.Refresh), s.ConnectorData, s.TOTP, s.TOTPConfirmed,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -726,10 +727,12 @@ func (c *conn) UpdateOfflineSessions(ctx context.Context, userID string, connID 
 			update offline_session
 			set
 				refresh = $1,
-				connector_data = $2
-			where user_id = $3 AND conn_id = $4;
+				connector_data = $2,
+				totp = $3,
+				totp_confirmed = $4
+			where user_id = $5 AND conn_id = $6;
 		`,
-			encoder(newSession.Refresh), newSession.ConnectorData, s.UserID, s.ConnID,
+			encoder(newSession.Refresh), newSession.ConnectorData, newSession.TOTP, newSession.TOTPConfirmed, s.UserID, s.ConnID,
 		)
 		if err != nil {
 			return fmt.Errorf("update offline session: %v", err)
@@ -745,7 +748,7 @@ func (c *conn) GetOfflineSessions(ctx context.Context, userID string, connID str
 func getOfflineSessions(ctx context.Context, q querier, userID string, connID string) (storage.OfflineSessions, error) {
 	return scanOfflineSessions(q.QueryRow(`
 		select
-			user_id, conn_id, refresh, connector_data
+			user_id, conn_id, refresh, connector_data, totp, totp_confirmed
 		from offline_session
 		where user_id = $1 AND conn_id = $2;
 		`, userID, connID))
@@ -753,7 +756,7 @@ func getOfflineSessions(ctx context.Context, q querier, userID string, connID st
 
 func scanOfflineSessions(s scanner) (o storage.OfflineSessions, err error) {
 	err = s.Scan(
-		&o.UserID, &o.ConnID, decoder(&o.Refresh), &o.ConnectorData,
+		&o.UserID, &o.ConnID, decoder(&o.Refresh), &o.ConnectorData, &o.TOTP, &o.TOTPConfirmed,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {

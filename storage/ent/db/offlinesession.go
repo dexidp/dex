@@ -24,6 +24,10 @@ type OfflineSession struct {
 	Refresh []byte `json:"refresh,omitempty"`
 	// ConnectorData holds the value of the "connector_data" field.
 	ConnectorData *[]byte `json:"connector_data,omitempty"`
+	// Totp holds the value of the "totp" field.
+	Totp string `json:"totp,omitempty"`
+	// TotpConfirmed holds the value of the "totp_confirmed" field.
+	TotpConfirmed bool `json:"totp_confirmed,omitempty"`
 	selectValues  sql.SelectValues
 }
 
@@ -34,7 +38,9 @@ func (*OfflineSession) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case offlinesession.FieldRefresh, offlinesession.FieldConnectorData:
 			values[i] = new([]byte)
-		case offlinesession.FieldID, offlinesession.FieldUserID, offlinesession.FieldConnID:
+		case offlinesession.FieldTotpConfirmed:
+			values[i] = new(sql.NullBool)
+		case offlinesession.FieldID, offlinesession.FieldUserID, offlinesession.FieldConnID, offlinesession.FieldTotp:
 			values[i] = new(sql.NullString)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -80,6 +86,18 @@ func (_m *OfflineSession) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field connector_data", values[i])
 			} else if value != nil {
 				_m.ConnectorData = value
+			}
+		case offlinesession.FieldTotp:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field totp", values[i])
+			} else if value.Valid {
+				_m.Totp = value.String
+			}
+		case offlinesession.FieldTotpConfirmed:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field totp_confirmed", values[i])
+			} else if value.Valid {
+				_m.TotpConfirmed = value.Bool
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -130,6 +148,12 @@ func (_m *OfflineSession) String() string {
 		builder.WriteString("connector_data=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("totp=")
+	builder.WriteString(_m.Totp)
+	builder.WriteString(", ")
+	builder.WriteString("totp_confirmed=")
+	builder.WriteString(fmt.Sprintf("%v", _m.TotpConfirmed))
 	builder.WriteByte(')')
 	return builder.String()
 }

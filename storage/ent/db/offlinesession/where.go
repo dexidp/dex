@@ -82,6 +82,16 @@ func ConnectorData(v []byte) predicate.OfflineSession {
 	return predicate.OfflineSession(sql.FieldEQ(FieldConnectorData, v))
 }
 
+// Totp applies equality check predicate on the "totp" field. It's identical to TotpEQ.
+func Totp(v string) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldEQ(FieldTotp, v))
+}
+
+// TotpConfirmed applies equality check predicate on the "totp_confirmed" field. It's identical to TotpConfirmedEQ.
+func TotpConfirmed(v bool) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldEQ(FieldTotpConfirmed, v))
+}
+
 // UserIDEQ applies the EQ predicate on the "user_id" field.
 func UserIDEQ(v string) predicate.OfflineSession {
 	return predicate.OfflineSession(sql.FieldEQ(FieldUserID, v))
@@ -300,6 +310,101 @@ func ConnectorDataIsNil() predicate.OfflineSession {
 // ConnectorDataNotNil applies the NotNil predicate on the "connector_data" field.
 func ConnectorDataNotNil() predicate.OfflineSession {
 	return predicate.OfflineSession(sql.FieldNotNull(FieldConnectorData))
+}
+
+// TotpEQ applies the EQ predicate on the "totp" field.
+func TotpEQ(v string) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldEQ(FieldTotp, v))
+}
+
+// TotpNEQ applies the NEQ predicate on the "totp" field.
+func TotpNEQ(v string) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldNEQ(FieldTotp, v))
+}
+
+// TotpIn applies the In predicate on the "totp" field.
+func TotpIn(vs ...string) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldIn(FieldTotp, vs...))
+}
+
+// TotpNotIn applies the NotIn predicate on the "totp" field.
+func TotpNotIn(vs ...string) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldNotIn(FieldTotp, vs...))
+}
+
+// TotpGT applies the GT predicate on the "totp" field.
+func TotpGT(v string) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldGT(FieldTotp, v))
+}
+
+// TotpGTE applies the GTE predicate on the "totp" field.
+func TotpGTE(v string) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldGTE(FieldTotp, v))
+}
+
+// TotpLT applies the LT predicate on the "totp" field.
+func TotpLT(v string) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldLT(FieldTotp, v))
+}
+
+// TotpLTE applies the LTE predicate on the "totp" field.
+func TotpLTE(v string) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldLTE(FieldTotp, v))
+}
+
+// TotpContains applies the Contains predicate on the "totp" field.
+func TotpContains(v string) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldContains(FieldTotp, v))
+}
+
+// TotpHasPrefix applies the HasPrefix predicate on the "totp" field.
+func TotpHasPrefix(v string) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldHasPrefix(FieldTotp, v))
+}
+
+// TotpHasSuffix applies the HasSuffix predicate on the "totp" field.
+func TotpHasSuffix(v string) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldHasSuffix(FieldTotp, v))
+}
+
+// TotpIsNil applies the IsNil predicate on the "totp" field.
+func TotpIsNil() predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldIsNull(FieldTotp))
+}
+
+// TotpNotNil applies the NotNil predicate on the "totp" field.
+func TotpNotNil() predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldNotNull(FieldTotp))
+}
+
+// TotpEqualFold applies the EqualFold predicate on the "totp" field.
+func TotpEqualFold(v string) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldEqualFold(FieldTotp, v))
+}
+
+// TotpContainsFold applies the ContainsFold predicate on the "totp" field.
+func TotpContainsFold(v string) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldContainsFold(FieldTotp, v))
+}
+
+// TotpConfirmedEQ applies the EQ predicate on the "totp_confirmed" field.
+func TotpConfirmedEQ(v bool) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldEQ(FieldTotpConfirmed, v))
+}
+
+// TotpConfirmedNEQ applies the NEQ predicate on the "totp_confirmed" field.
+func TotpConfirmedNEQ(v bool) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldNEQ(FieldTotpConfirmed, v))
+}
+
+// TotpConfirmedIsNil applies the IsNil predicate on the "totp_confirmed" field.
+func TotpConfirmedIsNil() predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldIsNull(FieldTotpConfirmed))
+}
+
+// TotpConfirmedNotNil applies the NotNil predicate on the "totp_confirmed" field.
+func TotpConfirmedNotNil() predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldNotNull(FieldTotpConfirmed))
 }
 
 // And groups predicates with the AND operator between them.

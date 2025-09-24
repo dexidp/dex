@@ -311,6 +311,20 @@ func (_u *AuthRequestUpdate) SetHmacKey(v []byte) *AuthRequestUpdate {
 	return _u
 }
 
+// SetTotpValidated sets the "totp_validated" field.
+func (_u *AuthRequestUpdate) SetTotpValidated(v bool) *AuthRequestUpdate {
+	_u.mutation.SetTotpValidated(v)
+	return _u
+}
+
+// SetNillableTotpValidated sets the "totp_validated" field if the given value is not nil.
+func (_u *AuthRequestUpdate) SetNillableTotpValidated(v *bool) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetTotpValidated(*v)
+	}
+	return _u
+}
+
 // Mutation returns the AuthRequestMutation object of the builder.
 func (_u *AuthRequestUpdate) Mutation() *AuthRequestMutation {
 	return _u.mutation
@@ -438,6 +452,9 @@ func (_u *AuthRequestUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	}
 	if value, ok := _u.mutation.HmacKey(); ok {
 		_spec.SetField(authrequest.FieldHmacKey, field.TypeBytes, value)
+	}
+	if value, ok := _u.mutation.TotpValidated(); ok {
+		_spec.SetField(authrequest.FieldTotpValidated, field.TypeBool, value)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -741,6 +758,20 @@ func (_u *AuthRequestUpdateOne) SetHmacKey(v []byte) *AuthRequestUpdateOne {
 	return _u
 }
 
+// SetTotpValidated sets the "totp_validated" field.
+func (_u *AuthRequestUpdateOne) SetTotpValidated(v bool) *AuthRequestUpdateOne {
+	_u.mutation.SetTotpValidated(v)
+	return _u
+}
+
+// SetNillableTotpValidated sets the "totp_validated" field if the given value is not nil.
+func (_u *AuthRequestUpdateOne) SetNillableTotpValidated(v *bool) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetTotpValidated(*v)
+	}
+	return _u
+}
+
 // Mutation returns the AuthRequestMutation object of the builder.
 func (_u *AuthRequestUpdateOne) Mutation() *AuthRequestMutation {
 	return _u.mutation
@@ -898,6 +929,9 @@ func (_u *AuthRequestUpdateOne) sqlSave(ctx context.Context) (_node *AuthRequest
 	}
 	if value, ok := _u.mutation.HmacKey(); ok {
 		_spec.SetField(authrequest.FieldHmacKey, field.TypeBytes, value)
+	}
+	if value, ok := _u.mutation.TotpValidated(); ok {
+		_spec.SetField(authrequest.FieldTotpValidated, field.TypeBool, value)
 	}
 	_node = &AuthRequest{config: _u.config}
 	_spec.Assign = _node.assignValues

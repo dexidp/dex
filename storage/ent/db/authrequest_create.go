@@ -164,6 +164,20 @@ func (_c *AuthRequestCreate) SetHmacKey(v []byte) *AuthRequestCreate {
 	return _c
 }
 
+// SetTotpValidated sets the "totp_validated" field.
+func (_c *AuthRequestCreate) SetTotpValidated(v bool) *AuthRequestCreate {
+	_c.mutation.SetTotpValidated(v)
+	return _c
+}
+
+// SetNillableTotpValidated sets the "totp_validated" field if the given value is not nil.
+func (_c *AuthRequestCreate) SetNillableTotpValidated(v *bool) *AuthRequestCreate {
+	if v != nil {
+		_c.SetTotpValidated(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *AuthRequestCreate) SetID(v string) *AuthRequestCreate {
 	_c.mutation.SetID(v)
@@ -217,6 +231,10 @@ func (_c *AuthRequestCreate) defaults() {
 		v := authrequest.DefaultCodeChallengeMethod
 		_c.mutation.SetCodeChallengeMethod(v)
 	}
+	if _, ok := _c.mutation.TotpValidated(); !ok {
+		v := authrequest.DefaultTotpValidated
+		_c.mutation.SetTotpValidated(v)
+	}
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -268,6 +286,9 @@ func (_c *AuthRequestCreate) check() error {
 	}
 	if _, ok := _c.mutation.HmacKey(); !ok {
 		return &ValidationError{Name: "hmac_key", err: errors.New(`db: missing required field "AuthRequest.hmac_key"`)}
+	}
+	if _, ok := _c.mutation.TotpValidated(); !ok {
+		return &ValidationError{Name: "totp_validated", err: errors.New(`db: missing required field "AuthRequest.totp_validated"`)}
 	}
 	if v, ok := _c.mutation.ID(); ok {
 		if err := authrequest.IDValidator(v); err != nil {
@@ -388,6 +409,10 @@ func (_c *AuthRequestCreate) createSpec() (*AuthRequest, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.HmacKey(); ok {
 		_spec.SetField(authrequest.FieldHmacKey, field.TypeBytes, value)
 		_node.HmacKey = value
+	}
+	if value, ok := _c.mutation.TotpValidated(); ok {
+		_spec.SetField(authrequest.FieldTotpValidated, field.TypeBool, value)
+		_node.TotpValidated = value
 	}
 	return _node, _spec
 }

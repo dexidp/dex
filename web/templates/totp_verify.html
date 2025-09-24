@@ -1,0 +1,28 @@
+{{ template "header.html" . }}
+
+<div class="theme-panel">
+    <h2 class="theme-heading">Two-factor authentication</h2>
+    {{ if not (eq .QRCode "") }}
+    <p>Scan the QR code below using your preferred authenticator app for future authentications</p>
+    <img src="data:image/png;base64, {{ .QRCode }}" alt="QR code"/>
+    {{ else }}
+    <p>Open your authenticator app and enter the code <br/>for <b>{{ .Issuer }}: ({{ .Connector }})</b></p>
+    {{ end }}
+    <form method="post" action="{{ .PostURL }}">
+      <div class="theme-form-row">
+        <div class="theme-form-label">
+            <label for="totp">One-time password</label>
+        </div>
+        <input tabindex="1" required id="totp" name="totp" type="password" class="theme-form-input" placeholder="password" {{ if .Invalid }} autofocus {{ end }}/>
+      </div>
+        {{ if .Invalid }}
+        <div id="login-error" class="dex-error-box">
+            The code is invalid.
+        </div>
+        {{ end }}
+
+        <button tabindex="2" id="submit-login" type="submit" class="dex-btn theme-btn--primary">Send</button>
+    </form>
+</div>
+
+{{ template "footer.html" . }}

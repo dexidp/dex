@@ -120,6 +120,9 @@ type Config struct {
 
 	HealthChecker gosundheit.Health
 
+	TOTPIssuer     string
+	TOTPConnectors []string
+
 	// If enabled, the server will continue starting even if some connectors fail to initialize.
 	// This allows the server to operate with a subset of connectors if some are misconfigured.
 	ContinueOnConnectorFailure bool
@@ -200,6 +203,8 @@ type Server struct {
 	refreshTokenPolicy *RefreshTokenPolicy
 
 	logger *slog.Logger
+
+	totp *secondFactorAuthenticator
 }
 
 // NewServer constructs a server from the provided config.
@@ -315,6 +320,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		now:                    now,
 		templates:              tmpls,
 		passwordConnector:      c.PasswordConnector,
+		totp:                   newSecondFactorAuthenticator(c.TOTPIssuer, c.TOTPConnectors),
 		logger:                 c.Logger,
 	}
 
@@ -500,6 +506,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	// "authproxy" connector.
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
+	handleFunc("/totp", s.handleTOTPVerify)
 	handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !c.HealthChecker.IsHealthy() {
 			s.renderError(r, w, http.StatusInternalServerError, "Health check failed.")

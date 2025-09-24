@@ -73,6 +73,46 @@ func (_u *OfflineSessionUpdate) ClearConnectorData() *OfflineSessionUpdate {
 	return _u
 }
 
+// SetTotp sets the "totp" field.
+func (_u *OfflineSessionUpdate) SetTotp(v string) *OfflineSessionUpdate {
+	_u.mutation.SetTotp(v)
+	return _u
+}
+
+// SetNillableTotp sets the "totp" field if the given value is not nil.
+func (_u *OfflineSessionUpdate) SetNillableTotp(v *string) *OfflineSessionUpdate {
+	if v != nil {
+		_u.SetTotp(*v)
+	}
+	return _u
+}
+
+// ClearTotp clears the value of the "totp" field.
+func (_u *OfflineSessionUpdate) ClearTotp() *OfflineSessionUpdate {
+	_u.mutation.ClearTotp()
+	return _u
+}
+
+// SetTotpConfirmed sets the "totp_confirmed" field.
+func (_u *OfflineSessionUpdate) SetTotpConfirmed(v bool) *OfflineSessionUpdate {
+	_u.mutation.SetTotpConfirmed(v)
+	return _u
+}
+
+// SetNillableTotpConfirmed sets the "totp_confirmed" field if the given value is not nil.
+func (_u *OfflineSessionUpdate) SetNillableTotpConfirmed(v *bool) *OfflineSessionUpdate {
+	if v != nil {
+		_u.SetTotpConfirmed(*v)
+	}
+	return _u
+}
+
+// ClearTotpConfirmed clears the value of the "totp_confirmed" field.
+func (_u *OfflineSessionUpdate) ClearTotpConfirmed() *OfflineSessionUpdate {
+	_u.mutation.ClearTotpConfirmed()
+	return _u
+}
+
 // Mutation returns the OfflineSessionMutation object of the builder.
 func (_u *OfflineSessionUpdate) Mutation() *OfflineSessionMutation {
 	return _u.mutation
@@ -147,6 +187,18 @@ func (_u *OfflineSessionUpdate) sqlSave(ctx context.Context) (_node int, err err
 	if _u.mutation.ConnectorDataCleared() {
 		_spec.ClearField(offlinesession.FieldConnectorData, field.TypeBytes)
 	}
+	if value, ok := _u.mutation.Totp(); ok {
+		_spec.SetField(offlinesession.FieldTotp, field.TypeString, value)
+	}
+	if _u.mutation.TotpCleared() {
+		_spec.ClearField(offlinesession.FieldTotp, field.TypeString)
+	}
+	if value, ok := _u.mutation.TotpConfirmed(); ok {
+		_spec.SetField(offlinesession.FieldTotpConfirmed, field.TypeBool, value)
+	}
+	if _u.mutation.TotpConfirmedCleared() {
+		_spec.ClearField(offlinesession.FieldTotpConfirmed, field.TypeBool)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{offlinesession.Label}
@@ -210,6 +262,46 @@ func (_u *OfflineSessionUpdateOne) SetConnectorData(v []byte) *OfflineSessionUpd
 // ClearConnectorData clears the value of the "connector_data" field.
 func (_u *OfflineSessionUpdateOne) ClearConnectorData() *OfflineSessionUpdateOne {
 	_u.mutation.ClearConnectorData()
+	return _u
+}
+
+// SetTotp sets the "totp" field.
+func (_u *OfflineSessionUpdateOne) SetTotp(v string) *OfflineSessionUpdateOne {
+	_u.mutation.SetTotp(v)
+	return _u
+}
+
+// SetNillableTotp sets the "totp" field if the given value is not nil.
+func (_u *OfflineSessionUpdateOne) SetNillableTotp(v *string) *OfflineSessionUpdateOne {
+	if v != nil {
+		_u.SetTotp(*v)
+	}
+	return _u
+}
+
+// ClearTotp clears the value of the "totp" field.
+func (_u *OfflineSessionUpdateOne) ClearTotp() *OfflineSessionUpdateOne {
+	_u.mutation.ClearTotp()
+	return _u
+}
+
+// SetTotpConfirmed sets the "totp_confirmed" field.
+func (_u *OfflineSessionUpdateOne) SetTotpConfirmed(v bool) *OfflineSessionUpdateOne {
+	_u.mutation.SetTotpConfirmed(v)
+	return _u
+}
+
+// SetNillableTotpConfirmed sets the "totp_confirmed" field if the given value is not nil.
+func (_u *OfflineSessionUpdateOne) SetNillableTotpConfirmed(v *bool) *OfflineSessionUpdateOne {
+	if v != nil {
+		_u.SetTotpConfirmed(*v)
+	}
+	return _u
+}
+
+// ClearTotpConfirmed clears the value of the "totp_confirmed" field.
+func (_u *OfflineSessionUpdateOne) ClearTotpConfirmed() *OfflineSessionUpdateOne {
+	_u.mutation.ClearTotpConfirmed()
 	return _u
 }
 
@@ -316,6 +408,18 @@ func (_u *OfflineSessionUpdateOne) sqlSave(ctx context.Context) (_node *OfflineS
 	}
 	if _u.mutation.ConnectorDataCleared() {
 		_spec.ClearField(offlinesession.FieldConnectorData, field.TypeBytes)
+	}
+	if value, ok := _u.mutation.Totp(); ok {
+		_spec.SetField(offlinesession.FieldTotp, field.TypeString, value)
+	}
+	if _u.mutation.TotpCleared() {
+		_spec.ClearField(offlinesession.FieldTotp, field.TypeString)
+	}
+	if value, ok := _u.mutation.TotpConfirmed(); ok {
+		_spec.SetField(offlinesession.FieldTotpConfirmed, field.TypeBool, value)
+	}
+	if _u.mutation.TotpConfirmedCleared() {
+		_spec.ClearField(offlinesession.FieldTotpConfirmed, field.TypeBool)
 	}
 	_node = &OfflineSession{config: _u.config}
 	_spec.Assign = _node.assignValues
