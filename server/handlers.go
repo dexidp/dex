@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -473,6 +474,10 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		redirectURL, canSkipApproval, err := s.finalizeLogin(r.Context(), identity, authReq, conn.Connector)
 		if err != nil {
 			s.logger.ErrorContext(r.Context(), "failed to finalize login", "err", err)
+			if errors.Is(err, ErrNotAllowed) {
+				s.renderError(r, w, http.StatusUnauthorized, "Access denied.")
+				return
+			}
 			s.renderError(r, w, http.StatusInternalServerError, "Login error.")
 			return
 		}
@@ -573,6 +578,10 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	redirectURL, canSkipApproval, err := s.finalizeLogin(ctx, identity, authReq, conn.Connector)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to finalize login", "err", err)
+		if errors.Is(err, ErrNotAllowed) {
+			s.renderError(r, w, http.StatusUnauthorized, "Access denied.")
+			return
+		}
 		s.renderError(r, w, http.StatusInternalServerError, "Login error.")
 		return
 	}
@@ -590,6 +599,10 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 
 	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
+
+// ErrNotAllowed is returned when a user is not allowed to log in
+// due to allowedEmail or allowedGroup restrictions.
+var ErrNotAllowed = errors.New("not allowed")
 
 // finalizeLogin associates the user's identity with the current AuthRequest, then returns
 // the approval page's path.
@@ -611,14 +624,14 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 	if len(client.AllowedEmails) > 0 {
 		allowed := slices.Contains(client.AllowedEmails, claims.Email)
 		if !allowed {
-			return "", false, fmt.Errorf("user %q not in allowed emails: %v", claims.Username, claims.Email)
+			return "", false, fmt.Errorf("%w: user %q not in allowed emails: %v", ErrNotAllowed, claims.Username, claims.Email)
 		}
 	}
 
 	if len(client.AllowedGroups) > 0 {
 		claims.Groups = groups.Filter(claims.Groups, client.AllowedGroups)
 		if len(claims.Groups) == 0 {
-			return "", false, fmt.Errorf("user %q not in allowed groups: %v", claims.Username, claims.Groups)
+			return "", false, fmt.Errorf("%w: user %q not in allowed groups: %v", ErrNotAllowed, claims.Username, claims.Groups)
 		}
 	}
 
