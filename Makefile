@@ -179,6 +179,31 @@ bin/kind:
 	curl -L https://github.com/kubernetes-sigs/kind/releases/download/v${KIND_VERSION}/kind-$(shell uname | tr A-Z a-z)-amd64 > ./bin/kind
 	@chmod +x ./bin/kind
 
+##@ Docker
+
+# We want to tag all image builds in the following format:
+# <latest-known-release-tag>-<number-of-commits-ahead-from-that-tag>-<commit-sha-of-build>-<whether-the-worktree-is-dirty>.
+# Some examples include:
+# v1.5.0-2-gb4c7af7-dirty
+# v1.5.0-3-gbb39077
+# v1.5.0
+GIT_COMMIT := $(shell git describe --dirty --tags --match='v*')
+
+# Image URL to use all building/pushing image targets
+#
+# By default, use the latest commit's SHA as the image tag (first 7 characters).
+# But if an value is set for IMG_TAG in the env, use that instead.
+# And finally add a "-dirty" suffix if the worktree has unstaged changes.
+TAG ?= $(or $(IMG_TAG),$(GIT_COMMIT))
+IMG ?= quay.io/platform9/pf9-dex:${TAG}
+.PHONY: docker-build
+docker-build: ## Build docker image with the manager.
+	docker build -t ${IMG} .
+
+.PHONY: docker-push
+docker-push: ## Push docker image with the manager.
+	docker push ${IMG}
+
 ##@ Clean
 clean: ## Delete all builds and downloaded dependencies.
 	@rm -rf bin/
