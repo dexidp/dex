@@ -1366,6 +1366,11 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 	subjectTokenType := q.Get("subject_token_type") // REQUIRED
 	connID := q.Get("connector_id")                 // REQUIRED, not in RFC
 
+	// RFC 8693 Section 2.1: "audience" parameter (OPTIONAL)
+	// "The logical name of the target service where the client intends to use the requested token"
+	// When present, should be used as the audience of the issued token
+	audience := q.Get("audience")
+
 	switch subjectTokenType {
 	case tokenTypeID, tokenTypeAccess: // ok, continue
 	default:
@@ -1409,12 +1414,22 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 		IssuedTokenType: requestedTokenType,
 		TokenType:       "bearer",
 	}
+	// RFC 8693 Section 2.1: Use audience parameter if provided, otherwise default to client.ID
+	// "The service can then use the aud claim to verify that it is an intended audience for the token"
+	tokenAudience := client.ID
+	if audience != "" {
+		s.logger.InfoContext(r.Context(), "Using custom audience from request", "audience", audience, "clientID", client.ID)
+		tokenAudience = audience
+	} else {
+		s.logger.InfoContext(r.Context(), "No audience parameter provided, using client ID", "clientID", client.ID)
+	}
+
 	var expiry time.Time
 	switch requestedTokenType {
 	case tokenTypeID:
-		resp.AccessToken, expiry, err = s.newIDToken(r.Context(), client.ID, claims, scopes, "", "", "", connID)
+		resp.AccessToken, expiry, err = s.newIDToken(r.Context(), tokenAudience, claims, scopes, "", "", "", connID)
 	case tokenTypeAccess:
-		resp.AccessToken, expiry, err = s.newAccessToken(r.Context(), client.ID, claims, scopes, "", connID)
+		resp.AccessToken, expiry, err = s.newAccessToken(r.Context(), tokenAudience, claims, scopes, "", connID)
 	default:
 		s.tokenErrHelper(w, errRequestNotSupported, "Invalid requested_token_type.", http.StatusBadRequest)
 		return
