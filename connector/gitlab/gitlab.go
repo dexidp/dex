@@ -190,7 +190,10 @@ func (c *gitlabConnector) identity(ctx context.Context, s connector.Scopes, toke
 	return identity, nil
 }
 
-func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
+func (c *gitlabConnector) Refresh(_ context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
 	var data connectorData
 	if err := json.Unmarshal(ident.ConnectorData, &data); err != nil {
 		return ident, fmt.Errorf("gitlab: unmarshal connector data: %v", err)
