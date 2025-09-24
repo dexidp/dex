@@ -598,13 +598,13 @@ func (c *conn) CreatePassword(ctx context.Context, p storage.Password) error {
 	p.Email = strings.ToLower(p.Email)
 	_, err := c.Exec(`
 		insert into password (
-			email, hash, username, user_id
+			email, hash, username, user_id, groups
 		)
 		values (
-			$1, $2, $3, $4
+			$1, $2, $3, $4, $5
 		);
 	`,
-		p.Email, p.Hash, p.Username, p.UserID,
+		p.Email, p.Hash, p.Username, p.UserID, encoder(p.Groups),
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -629,10 +629,10 @@ func (c *conn) UpdatePassword(ctx context.Context, email string, updater func(p 
 		_, err = tx.Exec(`
 			update password
 			set
-				hash = $1, username = $2, user_id = $3
-			where email = $4;
+				hash = $1, username = $2, user_id = $3, groups = $4
+			where email = $5;
 		`,
-			np.Hash, np.Username, np.UserID, p.Email,
+			np.Hash, np.Username, np.UserID, encoder(p.Groups), p.Email,
 		)
 		if err != nil {
 			return fmt.Errorf("update password: %v", err)
@@ -648,7 +648,7 @@ func (c *conn) GetPassword(ctx context.Context, email string) (storage.Password,
 func getPassword(ctx context.Context, q querier, email string) (p storage.Password, err error) {
 	return scanPassword(q.QueryRow(`
 		select
-			email, hash, username, user_id
+			email, hash, username, user_id, groups
 		from password where email = $1;
 	`, strings.ToLower(email)))
 }
@@ -656,7 +656,7 @@ func getPassword(ctx context.Context, q querier, email string) (p storage.Passwo
 func (c *conn) ListPasswords(ctx context.Context) ([]storage.Password, error) {
 	rows, err := c.Query(`
 		select
-			email, hash, username, user_id
+			email, hash, username, user_id, groups
 		from password;
 	`)
 	if err != nil {
@@ -680,7 +680,7 @@ func (c *conn) ListPasswords(ctx context.Context) ([]storage.Password, error) {
 
 func scanPassword(s scanner) (p storage.Password, err error) {
 	err = s.Scan(
-		&p.Email, &p.Hash, &p.Username, &p.UserID,
+		&p.Email, &p.Hash, &p.Username, &p.UserID, decoder(&p.Groups),
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
