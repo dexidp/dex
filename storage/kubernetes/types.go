@@ -251,6 +251,9 @@ type Client struct {
 
 	Name    string `json:"name,omitempty"`
 	LogoURL string `json:"logoURL,omitempty"`
+
+	AllowedEmails []string `json:"allowedEmails,omitempty"`
+	AllowedGroups []string `json:"allowedGroups,omitempty"`
 }
 
 // ClientList is a list of Clients.
@@ -270,25 +273,29 @@ func (cli *client) fromStorageClient(c storage.Client) Client {
 			Name:      cli.idToName(c.ID),
 			Namespace: cli.namespace,
 		},
-		ID:           c.ID,
-		Secret:       c.Secret,
-		RedirectURIs: c.RedirectURIs,
-		TrustedPeers: c.TrustedPeers,
-		Public:       c.Public,
-		Name:         c.Name,
-		LogoURL:      c.LogoURL,
+		ID:            c.ID,
+		Secret:        c.Secret,
+		RedirectURIs:  c.RedirectURIs,
+		TrustedPeers:  c.TrustedPeers,
+		Public:        c.Public,
+		Name:          c.Name,
+		LogoURL:       c.LogoURL,
+		AllowedEmails: c.AllowedEmails,
+		AllowedGroups: c.AllowedGroups,
 	}
 }
 
 func toStorageClient(c Client) storage.Client {
 	return storage.Client{
-		ID:           c.ID,
-		Secret:       c.Secret,
-		RedirectURIs: c.RedirectURIs,
-		TrustedPeers: c.TrustedPeers,
-		Public:       c.Public,
-		Name:         c.Name,
-		LogoURL:      c.LogoURL,
+		ID:            c.ID,
+		Secret:        c.Secret,
+		RedirectURIs:  c.RedirectURIs,
+		TrustedPeers:  c.TrustedPeers,
+		Public:        c.Public,
+		Name:          c.Name,
+		LogoURL:       c.LogoURL,
+		AllowedEmails: c.AllowedEmails,
+		AllowedGroups: c.AllowedGroups,
 	}
 }
 

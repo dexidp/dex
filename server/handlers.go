@@ -21,7 +21,10 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/gorilla/mux"
 
+	"slices"
+
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -515,6 +518,25 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		Email:             identity.Email,
 		EmailVerified:     identity.EmailVerified,
 		Groups:            identity.Groups,
+	}
+
+	client, err := s.storage.GetClient(ctx, authReq.ClientID)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to retrieve client")
+	}
+
+	if len(client.AllowedEmails) > 0 {
+		allowed := slices.Contains(client.AllowedEmails, claims.Email)
+		if !allowed {
+			return "", false, fmt.Errorf("user %q not in allowed emails: %v", claims.Username, claims.Email)
+		}
+	}
+
+	if len(client.AllowedGroups) > 0 {
+		claims.Groups = groups.Filter(claims.Groups, client.AllowedGroups)
+		if len(claims.Groups) == 0 {
+			return "", false, fmt.Errorf("user %q not in allowed groups: %v", claims.Username, claims.Groups)
+		}
 	}
 
 	updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
