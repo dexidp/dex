@@ -5,7 +5,7 @@ on:
       - "v*"
       - "publish-image*"
     branches:
-      - main
+      - master
 
 env:
   REGISTRY: quay.io
