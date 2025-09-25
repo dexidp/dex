@@ -198,6 +198,8 @@ type Server struct {
 	deviceRequestsValidFor time.Duration
 
 	refreshTokenPolicy *RefreshTokenPolicy
+	// mutex to refresh the same token only once for concurrent requests
+	refreshLocks sync.Map
 
 	logger *slog.Logger
 }
@@ -756,6 +758,12 @@ func (s *Server) getConnector(ctx context.Context, id string) (Connector, error)
 	}
 
 	return conn, nil
+}
+
+// getRefreshLock returns a per-refresh-ID mutex.
+func (s *Server) getRefreshLock(refreshID string) *sync.Mutex {
+	m, _ := s.refreshLocks.LoadOrStore(refreshID, &sync.Mutex{})
+	return m.(*sync.Mutex)
 }
 
 type logRequestKey string
