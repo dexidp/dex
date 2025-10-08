@@ -3,7 +3,7 @@ module github.com/dexidp/dex
 go 1.25.0
 
 require (
-	cloud.google.com/go/compute/metadata v0.8.0
+	cloud.google.com/go/compute/metadata v0.9.0
 	entgo.io/ent v0.14.5
 	github.com/AppsFlyer/go-sundheit v0.6.0
 	github.com/Masterminds/semver v1.5.0
@@ -36,14 +36,14 @@ require (
 	golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
 	golang.org/x/net v0.44.0
 	golang.org/x/oauth2 v0.31.0
-	google.golang.org/api v0.248.0
-	google.golang.org/grpc v1.75.0
-	google.golang.org/protobuf v1.36.9
+	google.golang.org/api v0.252.0
+	google.golang.org/grpc v1.75.1
+	google.golang.org/protobuf v1.36.10
 )
 
 require (
 	ariga.io/atlas v0.32.1-0.20250325101103-175b25e1c1b9 // indirect
-	cloud.google.com/go/auth v0.16.5 // indirect
+	cloud.google.com/go/auth v0.17.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	dario.cat/mergo v1.0.1 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
@@ -105,7 +105,7 @@ require (
 	golang.org/x/tools v0.36.0 // indirect
 	golang.org/x/tools/go/packages/packagestest v0.1.1-deprecated // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250818200422-3122310a409c // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251002232023-7c0ddcbb5797 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
