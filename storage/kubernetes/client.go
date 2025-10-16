@@ -32,6 +32,17 @@ import (
 	"github.com/dexidp/dex/storage/kubernetes/k8sapi"
 )
 
+const (
+	serviceAccountPath          = "/var/run/secrets/kubernetes.io/serviceaccount/"
+	serviceAccountTokenPath     = serviceAccountPath + "token"
+	serviceAccountCAPath        = serviceAccountPath + "ca.crt"
+	serviceAccountNamespacePath = serviceAccountPath + "namespace"
+
+	kubernetesServiceHostENV  = "KUBERNETES_SERVICE_HOST"
+	kubernetesServicePortENV  = "KUBERNETES_SERVICE_PORT"
+	kubernetesPodNamespaceENV = "KUBERNETES_POD_NAMESPACE"
+)
+
 type client struct {
 	client    *http.Client
 	baseURL   string
@@ -508,32 +519,34 @@ func getInClusterConfigNamespace(token, namespaceENV, namespacePath string) (str
 	return "", fmt.Errorf("%v: trying to get namespace from file: %v", err, fileErr)
 }
 
-func inClusterConfig() (k8sapi.Cluster, k8sapi.AuthInfo, string, error) {
-	const (
-		serviceAccountPath          = "/var/run/secrets/kubernetes.io/serviceaccount/"
-		serviceAccountTokenPath     = serviceAccountPath + "token"
-		serviceAccountCAPath        = serviceAccountPath + "ca.crt"
-		serviceAccountNamespacePath = serviceAccountPath + "namespace"
-
-		kubernetesServiceHostENV  = "KUBERNETES_SERVICE_HOST"
-		kubernetesServicePortENV  = "KUBERNETES_SERVICE_PORT"
-		kubernetesPodNamespaceENV = "KUBERNETES_POD_NAMESPACE"
-	)
-
-	host, port := os.Getenv(kubernetesServiceHostENV), os.Getenv(kubernetesServicePortENV)
+func getInClusterConnectOptions(host, port string) (k8sapi.Cluster, error) {
 	if len(host) == 0 || len(port) == 0 {
-		return k8sapi.Cluster{}, k8sapi.AuthInfo{}, "", fmt.Errorf(
+		return k8sapi.Cluster{}, fmt.Errorf(
 			"unable to load in-cluster configuration, %s and %s must be defined",
 			kubernetesServiceHostENV,
 			kubernetesServicePortENV,
 		)
 	}
+
 	// we need to wrap IPv6 addresses in square brackets
-	// IPv4 also works with square brackets
-	host = "[" + host + "]"
+	// IPv4 used to work with square brackets, but it was fixed in the latest Go versions
+	// https://github.com/golang/go/issues/75712
+	ipAddr := net.ParseIP(host)
+	if ipAddr != nil && ipAddr.To4() == nil {
+		host = "[" + host + "]"
+	}
+
 	cluster := k8sapi.Cluster{
 		Server:               "https://" + host + ":" + port,
 		CertificateAuthority: serviceAccountCAPath,
+	}
+	return cluster, nil
+}
+
+func inClusterConfig() (k8sapi.Cluster, k8sapi.AuthInfo, string, error) {
+	cluster, err := getInClusterConnectOptions(os.Getenv(kubernetesServiceHostENV), os.Getenv(kubernetesServicePortENV))
+	if err != nil {
+		return cluster, k8sapi.AuthInfo{}, "", err
 	}
 
 	token, err := os.ReadFile(serviceAccountTokenPath)
