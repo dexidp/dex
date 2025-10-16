@@ -528,9 +528,10 @@ func inClusterConfig() (k8sapi.Cluster, k8sapi.AuthInfo, string, error) {
 			kubernetesServicePortENV,
 		)
 	}
-	// we need to wrap IPv6 addresses in square brackets
-	// IPv4 also works with square brackets
-	host = "[" + host + "]"
+	// Wrap IPv6 addresses in square brackets for URL formatting
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
 	cluster := k8sapi.Cluster{
 		Server:               "https://" + host + ":" + port,
 		CertificateAuthority: serviceAccountCAPath,
