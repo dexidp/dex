@@ -266,11 +266,12 @@ func (t *templates) device(r *http.Request, w http.ResponseWriter, postURL strin
 		w.WriteHeader(http.StatusBadRequest)
 	}
 	data := struct {
-		PostURL  string
-		UserCode string
-		Invalid  bool
-		ReqPath  string
-	}{postURL, userCode, lastWasInvalid, r.URL.Path}
+		PostURL     string
+		UserCode    string
+		Invalid     bool
+		ReqPath     string
+		ConnectorID string
+	}{postURL, userCode, lastWasInvalid, r.URL.Path, r.URL.Query().Get("connector_id")}
 	return renderTemplate(w, t.deviceTmpl, data)
 }
 

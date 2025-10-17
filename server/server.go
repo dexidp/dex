@@ -108,6 +108,9 @@ type Config struct {
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
 
+	// Used for specifying a default connector for certain client IDs
+	DefaultConnectorByClientID map[string]string
+
 	GCFrequency time.Duration // Defaults to 5 minutes
 
 	// If specified, the server will use this function for determining time.
@@ -183,6 +186,9 @@ type Server struct {
 
 	// Used for password grant
 	passwordConnector string
+
+	// Used for specifying a default connector for certain client IDs
+	defaultConnectorByClientID map[string]string
 
 	supportedResponseTypes map[string]bool
 
@@ -300,21 +306,22 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 
 	s := &Server{
-		issuerURL:              *issuerURL,
-		connectors:             make(map[string]Connector),
-		storage:                newKeyCacher(c.Storage, now),
-		supportedResponseTypes: supportedRes,
-		supportedGrantTypes:    supportedGrants,
-		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
-		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
-		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
-		refreshTokenPolicy:     c.RefreshTokenPolicy,
-		skipApproval:           c.SkipApprovalScreen,
-		alwaysShowLogin:        c.AlwaysShowLoginScreen,
-		now:                    now,
-		templates:              tmpls,
-		passwordConnector:      c.PasswordConnector,
-		logger:                 c.Logger,
+		issuerURL:                  *issuerURL,
+		connectors:                 make(map[string]Connector),
+		storage:                    newKeyCacher(c.Storage, now),
+		supportedResponseTypes:     supportedRes,
+		supportedGrantTypes:        supportedGrants,
+		idTokensValidFor:           value(c.IDTokensValidFor, 24*time.Hour),
+		authRequestsValidFor:       value(c.AuthRequestsValidFor, 24*time.Hour),
+		deviceRequestsValidFor:     value(c.DeviceRequestsValidFor, 5*time.Minute),
+		refreshTokenPolicy:         c.RefreshTokenPolicy,
+		skipApproval:               c.SkipApprovalScreen,
+		alwaysShowLogin:            c.AlwaysShowLoginScreen,
+		now:                        now,
+		templates:                  tmpls,
+		passwordConnector:          c.PasswordConnector,
+		logger:                     c.Logger,
+		defaultConnectorByClientID: c.DefaultConnectorByClientID,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors

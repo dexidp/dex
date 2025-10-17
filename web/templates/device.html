@@ -9,6 +9,7 @@
       {{ else }}
       <input tabindex="2" required id="user_code" name="user_code" type="text" class="theme-form-input" placeholder="XXXX-XXXX" autocomplete="off"  {{ if .Invalid }} autofocus {{ end }}/>
       {{ end }}
+      <input type="hidden" name="connector_id" value="{{.ConnectorID}}" />
     </div>
 
     {{ if .Invalid }}

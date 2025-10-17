@@ -154,6 +154,13 @@ func runServe(options serveOptions) error {
 		return fmt.Errorf("failed to register gRPC server metrics: %v", err)
 	}
 
+	var defaultConnectorByClientID map[string]string
+	if filePath := os.Getenv(defaultConnectorsFileEnv); filePath != "" {
+		if defaultConnectorByClientID, err = loadDefaultConnectors(filePath); err != nil {
+			return fmt.Errorf("failed to load client default connectors: %v", err)
+		}
+	}
+
 	var grpcOptions []grpc.ServerOption
 
 	allowedTLSCiphers := []uint16{
@@ -307,21 +314,22 @@ func runServe(options serveOptions) error {
 	healthChecker := gosundheit.New()
 
 	serverConfig := server.Config{
-		AllowedGrantTypes:      c.OAuth2.GrantTypes,
-		SupportedResponseTypes: c.OAuth2.ResponseTypes,
-		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
-		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
-		PasswordConnector:      c.OAuth2.PasswordConnector,
-		Headers:                c.Web.Headers.ToHTTPHeader(),
-		AllowedOrigins:         c.Web.AllowedOrigins,
-		AllowedHeaders:         c.Web.AllowedHeaders,
-		Issuer:                 c.Issuer,
-		Storage:                s,
-		Web:                    c.Frontend,
-		Logger:                 logger,
-		Now:                    now,
-		PrometheusRegistry:     prometheusRegistry,
-		HealthChecker:          healthChecker,
+		AllowedGrantTypes:          c.OAuth2.GrantTypes,
+		SupportedResponseTypes:     c.OAuth2.ResponseTypes,
+		SkipApprovalScreen:         c.OAuth2.SkipApprovalScreen,
+		AlwaysShowLoginScreen:      c.OAuth2.AlwaysShowLoginScreen,
+		PasswordConnector:          c.OAuth2.PasswordConnector,
+		Headers:                    c.Web.Headers.ToHTTPHeader(),
+		AllowedOrigins:             c.Web.AllowedOrigins,
+		AllowedHeaders:             c.Web.AllowedHeaders,
+		Issuer:                     c.Issuer,
+		Storage:                    s,
+		Web:                        c.Frontend,
+		Logger:                     logger,
+		Now:                        now,
+		PrometheusRegistry:         prometheusRegistry,
+		HealthChecker:              healthChecker,
+		DefaultConnectorByClientID: defaultConnectorByClientID,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
@@ -709,4 +717,14 @@ func loadTLSConfig(certFile, keyFile, caFile string, baseConfig *tls.Config) (*t
 // recordBuildInfo publishes information about Dex version and runtime info through an info metric (gauge).
 func recordBuildInfo() {
 	buildInfo.WithLabelValues(version, runtime.Version(), fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)).Set(1)
+}
+
+func loadDefaultConnectors(filePath string) (map[string]string, error) {
+	fileData, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+	var defaultConnectorByClientID map[string]string
+	err = yaml.Unmarshal(fileData, &defaultConnectorByClientID)
+	return defaultConnectorByClientID, err
 }

@@ -22,6 +22,8 @@ import (
 	"github.com/dexidp/dex/storage/sql"
 )
 
+const defaultConnectorsFileEnv string = "DEFAULT_CONNECTORS_FILE"
+
 // Config is the config format for the main application.
 type Config struct {
 	Issuer    string    `json:"issuer"`

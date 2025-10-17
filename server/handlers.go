@@ -155,6 +155,12 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		RawQuery: r.Form.Encode(),
 	}
 
+	// Use the default connector, if one is configured for the client, else use empty string.
+	if s.defaultConnectorByClientID != nil && connectorID == "" {
+		clientID := r.Form.Get("client_id")
+		connectorID = s.defaultConnectorByClientID[clientID]
+	}
+
 	// Redirect if a client chooses a specific connector_id
 	if connectorID != "" {
 		for _, c := range connectors {

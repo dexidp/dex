@@ -407,6 +407,7 @@ func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 		}
 
 		userCode = strings.ToUpper(userCode)
+		connectorID := r.Form.Get("connector_id")
 
 		// Find the user code in the available requests
 		deviceRequest, err := s.storage.GetDeviceRequest(userCode)
@@ -435,6 +436,9 @@ func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 		q.Set("response_type", "code")
 		q.Set("redirect_uri", "/device/callback")
 		q.Set("scope", strings.Join(deviceRequest.Scopes, " "))
+		if connectorID != "" {
+			q.Set("connector_id", connectorID)
+		}
 		u.RawQuery = q.Encode()
 
 		http.Redirect(w, r, u.String(), http.StatusFound)
