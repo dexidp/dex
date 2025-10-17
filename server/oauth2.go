@@ -17,6 +17,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -259,15 +260,6 @@ func accessTokenHash(alg jose.SignatureAlgorithm, accessToken string) (string, e
 
 type audience []string
 
-func (a audience) contains(aud string) bool {
-	for _, e := range a {
-		if aud == e {
-			return true
-		}
-	}
-	return false
-}
-
 func (a audience) MarshalJSON() ([]byte, error) {
 	if len(a) == 1 {
 		return json.Marshal(a[0])
@@ -333,7 +325,7 @@ func getAudience(clientID string, scopes []string) audience {
 		aud = audience{clientID}
 		// Client asked for cross client audience:
 		// if the current client was not requested explicitly
-	} else if !aud.contains(clientID) {
+	} else if !slices.Contains(aud, clientID) {
 		// by default it becomes one of entries in Audience
 		aud = append(aud, clientID)
 	}

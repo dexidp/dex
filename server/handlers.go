@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/dexidp/dex/connector"
+	rememberme "github.com/dexidp/dex/remember-me"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -321,6 +323,11 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		s.renderError(r, w, http.StatusBadRequest, "User session error.")
 		return
 	}
+	if s.enableRememberMe {
+		s.logger.InfoContext(r.Context(), "enableRememberMe enabled")
+	} else {
+		s.logger.InfoContext(r.Context(), "enableRememberMe disabled")
+	}
 
 	backLink := r.URL.Query().Get("back")
 
@@ -363,6 +370,48 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
+		if s.enableRememberMe {
+			rememberData, err := rememberme.HandleRememberMe(ctx, s.logger, r, rememberme.NewAnonymousAuthContext(authReq.ConnectorID, s.idTokensValidFor), s.storage, s.sessionStorage)
+			if err != nil {
+				if !errors.Is(err, storage.ErrNotFound) {
+					s.logger.ErrorContext(r.Context(), "failed to call HandleRememberMe handler", "err", err)
+					s.renderError(r, w, http.StatusInternalServerError, "TODO")
+					return
+				}
+			}
+			if !errors.Is(err, storage.ErrNotFound) {
+				s.logger.DebugContext(r.Context(), "returning user session was found")
+				if !rememberData.Cookie.Empty() {
+					cookie, unset := rememberData.Cookie.Get()
+					if unset {
+						s.logger.DebugContext(r.Context(), "unsetting cookie", "cookie", *cookie)
+						http.SetCookie(w, cookie)
+					}
+				}
+				if rememberData.IsValid() {
+					redirectURL, canSkipApproval, err := s.finalizeLogin(ctx, rememberData.Session.Identity, authReq, conn)
+					if err != nil {
+						s.logger.ErrorContext(r.Context(), "failed to finalize login using rememberme", "err", err)
+						s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+						return
+					}
+
+					if canSkipApproval {
+						authReq, err = s.storage.GetAuthRequest(ctx, authReq.ID)
+						if err != nil {
+							s.logger.ErrorContext(r.Context(), "failed to get finalized auth request using rememberme", "err", err)
+							s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+							return
+						}
+						s.sendCodeResponse(w, r, authReq)
+						return
+					}
+
+					http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+					return
+				}
+			}
+		}
 		if err := s.templates.password(r, w, r.URL.String(), "", usernamePrompt(pwConn), false, backLink); err != nil {
 			s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 		}
@@ -389,6 +438,23 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			s.logger.ErrorContext(r.Context(), "failed to finalize login", "err", err)
 			s.renderError(r, w, http.StatusInternalServerError, "Login error.")
 			return
+		}
+		if s.enableRememberMe {
+			rememberData, err := rememberme.HandleRememberMe(ctx, s.logger, r, rememberme.NewAuthContextWithIdentity(authReq.ConnectorID, identity, s.idTokensValidFor), s.storage, s.sessionStorage)
+			if err != nil {
+				if !errors.Is(err, storage.ErrNotFound) {
+					s.logger.ErrorContext(r.Context(), "failed to call HandleRememberMe handler", "err", err)
+					s.renderError(r, w, http.StatusInternalServerError, "TODO")
+					return
+				}
+			}
+			if !errors.Is(err, storage.ErrNotFound) {
+				s.logger.ErrorContext(r.Context(), "did find returning user")
+				if !rememberData.Cookie.Empty() {
+					cookie, _ := rememberData.Cookie.Get()
+					http.SetCookie(w, cookie) // this sets or unsets the cookie based on it's content
+				}
+			}
 		}
 
 		if canSkipApproval {
