@@ -33,6 +33,9 @@ type Config struct {
 	Expiry    Expiry    `json:"expiry"`
 	Logger    Logger    `json:"logger"`
 
+	// Experimental Feature to remember users when they authenticated using a password-based connector
+	Sessions Sessions `json:"sessions"`
+
 	Frontend server.WebConfig `json:"frontend"`
 
 	// StaticConnectors are user defined connectors specified in the ConfigMap
@@ -51,6 +54,10 @@ type Config struct {
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
+
+	// If enabled, the server will maintain a active sessions for password connectors
+	// to identify returning users to avoid re-entering credentials if the session is still valid.
+	ExperimentalEnableRememberMe bool `json:"experimentalEnableRememberMe"`
 }
 
 // Validate the configuration
@@ -163,6 +170,10 @@ type Web struct {
 	AllowedOrigins []string       `json:"allowedOrigins"`
 	AllowedHeaders []string       `json:"allowedHeaders"`
 	ClientRemoteIP ClientRemoteIP `json:"clientRemoteIP"`
+}
+
+type Sessions struct {
+	Enable bool `json:"enable"`
 }
 
 type ClientRemoteIP struct {

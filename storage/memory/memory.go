@@ -12,6 +12,7 @@ import (
 )
 
 var _ storage.Storage = (*memStorage)(nil)
+var _ storage.ActiveSessionStorage = (*memStorage)(nil)
 
 // New returns an in memory storage.
 func New(logger *slog.Logger) storage.Storage {
@@ -25,7 +26,15 @@ func New(logger *slog.Logger) storage.Storage {
 		connectors:      make(map[string]storage.Connector),
 		deviceRequests:  make(map[string]storage.DeviceRequest),
 		deviceTokens:    make(map[string]storage.DeviceToken),
+		sessions:        make(map[string]storage.ActiveSession),
 		logger:          logger,
+	}
+}
+
+func NewSessionStore(logger *slog.Logger) *memStorage {
+	return &memStorage{
+		sessions: make(map[string]storage.ActiveSession),
+		logger:   logger,
 	}
 }
 
@@ -52,10 +61,35 @@ type memStorage struct {
 	connectors      map[string]storage.Connector
 	deviceRequests  map[string]storage.DeviceRequest
 	deviceTokens    map[string]storage.DeviceToken
+	sessions        map[string]storage.ActiveSession
 
 	keys storage.Keys
 
 	logger *slog.Logger
+}
+
+// CreateSession implements storage.ActiveSessionStorage.
+func (s *memStorage) CreateSession(ctx context.Context, identifier string, data storage.ActiveSession) (err error) {
+	s.tx(func() {
+		if _, ok := s.sessions[identifier]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.sessions[identifier] = data
+		}
+	})
+	return
+}
+
+// GetSession implements storage.ActiveSessionStorage.
+func (s *memStorage) GetSession(ctx context.Context, identifier string) (session storage.ActiveSession, err error) {
+	s.tx(func() {
+		var ok bool
+		if session, ok = s.sessions[identifier]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+	})
+	return
 }
 
 type offlineSessionID struct {
@@ -95,6 +129,12 @@ func (s *memStorage) GarbageCollect(ctx context.Context, now time.Time) (result 
 			if now.After(a.Expiry) {
 				delete(s.deviceTokens, id)
 				result.DeviceTokens++
+			}
+		}
+		for id, a := range s.sessions {
+			if now.After(a.Expiry) {
+				delete(s.sessions, id)
+				result.Sessions++
 			}
 		}
 	})
