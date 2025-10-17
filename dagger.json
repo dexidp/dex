@@ -1,0 +1,30 @@
+{
+  "name": "dex",
+  "engineVersion": "v0.18.19",
+  "sdk": {
+    "source": "go"
+  },
+  "dependencies": [
+    {
+      "name": "helm",
+      "source": "github.com/sagikazarmark/daggerverse/helm@helm/v0.14.0",
+      "pin": "4981f49ead356d64a860ef85caec9b0622933ad7"
+    },
+    {
+      "name": "helm-docs",
+      "source": "github.com/sagikazarmark/daggerverse/helm-docs@helm-docs/v0.3.0",
+      "pin": "d814d0d7c421348f51cdda96870a05ca2aa8e96a"
+    },
+    {
+      "name": "k3s",
+      "source": "github.com/marcosnils/daggerverse/k3s@k3s/v0.1.10",
+      "pin": "28eea1fcf3b6ecb38a628186107760acd717442f"
+    },
+    {
+      "name": "registry",
+      "source": "github.com/sagikazarmark/daggerverse/registry",
+      "pin": "88056b48085a170fbf7638e106efbecd26c6573d"
+    }
+  ],
+  "source": ".dagger"
+}
