@@ -24,7 +24,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/internal/jwt"
-	rememberme "github.com/dexidp/dex/remember-me"
+	rememberme "github.com/dexidp/dex/internal/remember-me"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
