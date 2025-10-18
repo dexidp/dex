@@ -16,6 +16,8 @@ import (
 
 const ACTIVE_SESSION_COOKIE_NAME = "dex_active_session_cookie"
 
+var emptySession = storage.ActiveSession{}
+
 type AuthContext struct {
 	connectorName            string
 	identity                 *connector.Identity
@@ -72,6 +74,10 @@ func connector_cookie_name(connName string) string {
 	return fmt.Sprintf("%s_%s", ACTIVE_SESSION_COOKIE_NAME, connName)
 }
 
+// HandleRememberMe either retrieves or creates a Session based on the cookie for the respective connector present in the http.Request.
+// It is also responsible for issuing the unsetting / expiration of either an invalid or expired cookie.
+//
+// The current "design" of the cookie is a sha3 hash of the connector.Identity object as JWK signed payload.
 func HandleRememberMe(ctx context.Context, logger *slog.Logger, req *http.Request, data AuthContext, store storage.Storage, sessionStore storage.ActiveSessionStorage) (*RememberMeCtx, error) {
 	keys, err := store.GetKeys(ctx)
 	if err != nil {
@@ -86,6 +92,15 @@ func HandleRememberMe(ctx context.Context, logger *slog.Logger, req *http.Reques
 	if val, found := extractCookie(req, data.connectorName); found {
 		cookieName := connector_cookie_name(data.connectorName)
 		logger.DebugContext(req.Context(), "returning user cookie found, checking for active session", "connectorName", data.connectorName)
+		keyset := jwt.NewStorageKeySet(store)
+		logger.DebugContext(req.Context(), "verifying cookie", "connectorName", data.connectorName)
+		_, err := keyset.VerifySignature(ctx, val)
+		if err != nil {
+			return &RememberMeCtx{
+				Session: emptySession,
+				Cookie:  RequestUnsetCookie(cookieName),
+			}, err
+		}
 		session, err := sessionStore.GetSession(ctx, val)
 		if err != nil {
 			if errors.Is(err, storage.ErrNotFound) {
@@ -141,7 +156,6 @@ func HandleRememberMe(ctx context.Context, logger *slog.Logger, req *http.Reques
 			return nil, err
 		}
 
-		// TODO(juf): SET COOKIE
 		return &RememberMeCtx{
 			Session: session,
 			Cookie: RequestSetCookie(http.Cookie{
