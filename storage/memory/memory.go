@@ -11,8 +11,10 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-var _ storage.Storage = (*memStorage)(nil)
-var _ storage.ActiveSessionStorage = (*memStorage)(nil)
+var (
+	_ storage.Storage              = (*memStorage)(nil)
+	_ storage.ActiveSessionStorage = (*memStorage)(nil)
+)
 
 // New returns an in memory storage.
 func New(logger *slog.Logger) storage.Storage {

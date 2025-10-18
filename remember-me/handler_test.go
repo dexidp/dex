@@ -15,14 +15,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
+
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/internal/jwt"
 	"github.com/dexidp/dex/storage"
-	"github.com/go-jose/go-jose/v4"
 )
 
-var _ storage.Storage = (*mockStorage)(nil)
-var _ storage.ActiveSessionStorage = (*mockStorage)(nil)
+var (
+	_ storage.Storage              = (*mockStorage)(nil)
+	_ storage.ActiveSessionStorage = (*mockStorage)(nil)
+)
 
 // mockStorage implements storage.Storage for testing key retrieval.
 type mockStorage struct {
@@ -241,7 +244,6 @@ type mockSessionStorage struct {
 	sessions  map[string]storage.ActiveSession
 	getErr    error
 	createErr error
-	gcErr     error
 }
 
 // GarbageCollect implements storage.ActiveSessionStorage.
@@ -268,8 +270,7 @@ func (m *mockSessionStorage) CreateSession(ctx context.Context, id string, sessi
 	return nil
 }
 
-// noOpLogger is a silent logger for tests (level higher than Error to suppress output).
-var noOpLogger = slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.Level(slog.LevelError) + 1}))
+var testLogger = slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
 
 // fixedNow returns a fixed time for deterministic testing.
 func fixedNow() time.Time {
@@ -341,7 +342,7 @@ func TestHandleRememberMe(t *testing.T) {
 	t.Run("No cookie, anonymous context", func(t *testing.T) {
 		req := newRequest("") // No cookie.
 		data := NewAnonymousAuthContext(connectorName, expiryDuration)
-		ctx, err := HandleRememberMe(ctx, noOpLogger, req, data, mockStore, mockSessionStore)
+		ctx, err := HandleRememberMe(ctx, testLogger, req, data, mockStore, mockSessionStore)
 		if !errors.Is(err, storage.ErrNotFound) {
 			t.Errorf("Expected ErrNotFound, got: %v", err)
 		}
@@ -353,7 +354,7 @@ func TestHandleRememberMe(t *testing.T) {
 	t.Run("No cookie, with identity: Create new session and set cookie", func(t *testing.T) {
 		req := newRequest("") // No cookie.
 		data := NewAuthContextWithIdentity(connectorName, identity, expiryDuration)
-		rmCtx, err := HandleRememberMe(ctx, noOpLogger, req, data, mockStore, mockSessionStore)
+		rmCtx, err := HandleRememberMe(ctx, testLogger, req, data, mockStore, mockSessionStore)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -397,7 +398,7 @@ func TestHandleRememberMe(t *testing.T) {
 
 		req := newRequest(signedHash)
 		data := NewAnonymousAuthContext(connectorName, expiryDuration)
-		rmCtx, err := HandleRememberMe(ctx, noOpLogger, req, data, mockStore, mockSessionStore)
+		rmCtx, err := HandleRememberMe(ctx, testLogger, req, data, mockStore, mockSessionStore)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -426,7 +427,7 @@ func TestHandleRememberMe(t *testing.T) {
 
 		req := newRequest(signedHash)
 		data := NewAnonymousAuthContext(connectorName, expiryDuration)
-		rmCtx, err := HandleRememberMe(ctx, noOpLogger, req, data, mockStore, mockSessionStore)
+		rmCtx, err := HandleRememberMe(ctx, testLogger, req, data, mockStore, mockSessionStore)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -446,7 +447,7 @@ func TestHandleRememberMe(t *testing.T) {
 		signedHash := "invalid-hash"
 		req := newRequest(signedHash)
 		data := NewAnonymousAuthContext(connectorName, expiryDuration)
-		rmCtx, err := HandleRememberMe(ctx, noOpLogger, req, data, mockStore, mockSessionStore)
+		rmCtx, err := HandleRememberMe(ctx, testLogger, req, data, mockStore, mockSessionStore)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -462,7 +463,7 @@ func TestHandleRememberMe(t *testing.T) {
 		mockStore.err = errors.New("key error")
 		req := newRequest("")
 		data := NewAuthContextWithIdentity(connectorName, identity, expiryDuration)
-		_, err := HandleRememberMe(ctx, noOpLogger, req, data, mockStore, mockSessionStore)
+		_, err := HandleRememberMe(ctx, testLogger, req, data, mockStore, mockSessionStore)
 		if err == nil || !errors.Is(err, mockStore.err) {
 			t.Errorf("Expected key error, got: %v", err)
 		}
@@ -473,7 +474,7 @@ func TestHandleRememberMe(t *testing.T) {
 		mockSessionStore.createErr = errors.New("create error")
 		req := newRequest("")
 		data := NewAuthContextWithIdentity(connectorName, identity, expiryDuration)
-		_, err := HandleRememberMe(ctx, noOpLogger, req, data, mockStore, mockSessionStore)
+		_, err := HandleRememberMe(ctx, testLogger, req, data, mockStore, mockSessionStore)
 		if err == nil || !errors.Is(err, mockSessionStore.createErr) {
 			t.Errorf("Expected create error, got: %v", err)
 		}
@@ -485,7 +486,7 @@ func TestHandleRememberMe(t *testing.T) {
 		signedHash, _ := generateSignedHash(identity, testKey)
 		req := newRequest(signedHash)
 		data := NewAnonymousAuthContext(connectorName, expiryDuration)
-		_, err := HandleRememberMe(ctx, noOpLogger, req, data, mockStore, mockSessionStore)
+		_, err := HandleRememberMe(ctx, testLogger, req, data, mockStore, mockSessionStore)
 		if err == nil || !errors.Is(err, mockSessionStore.getErr) {
 			t.Errorf("Expected get error, got: %v", err)
 		}

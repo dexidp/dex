@@ -23,6 +23,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/internal/jwt"
 	rememberme "github.com/dexidp/dex/remember-me"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
@@ -374,6 +375,12 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			rememberData, err := rememberme.HandleRememberMe(ctx, s.logger, r, rememberme.NewAnonymousAuthContext(authReq.ConnectorID, s.idTokensValidFor), s.storage, s.sessionStorage)
 			if err != nil {
 				if !errors.Is(err, storage.ErrNotFound) {
+					if rememberData != nil && !rememberData.Cookie.Empty() {
+						// Overwrite or unset the cookie in certain error cases to allow for "natural"
+						// recovery, e.g., the cookie is present but malformatted, then it should be unset.
+						cookie, _ := rememberData.Cookie.Get()
+						http.SetCookie(w, cookie)
+					}
 					s.logger.ErrorContext(r.Context(), "failed to call HandleRememberMe handler", "err", err)
 					s.renderError(r, w, http.StatusInternalServerError, "TODO")
 					return
@@ -1165,7 +1172,7 @@ func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	rawIDToken := auth[len(prefix):]
 
-	verifier := oidc.NewVerifier(s.issuerURL.String(), &storageKeySet{s.storage}, &oidc.Config{SkipClientIDCheck: true})
+	verifier := oidc.NewVerifier(s.issuerURL.String(), jwt.NewStorageKeySet(s.storage), &oidc.Config{SkipClientIDCheck: true})
 	idToken, err := verifier.Verify(ctx, rawIDToken)
 	if err != nil {
 		s.tokenErrHelper(w, errAccessDenied, err.Error(), http.StatusForbidden)
