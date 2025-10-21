@@ -8,5 +8,8 @@ import (
 )
 
 func TestSQLite3(t *testing.T) {
-	testDB(t, &SQLite3{":memory:"}, false)
+	testDB(t, &SQLite3{
+		File: ":memory:",
+		// EncryptionConfig has zero-value, disabled
+	}, false)
 }

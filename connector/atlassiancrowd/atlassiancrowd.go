@@ -38,7 +38,7 @@ import (
 type Config struct {
 	BaseURL      string   `json:"baseURL"`
 	ClientID     string   `json:"clientID"`
-	ClientSecret string   `json:"clientSecret"`
+	ClientSecret string   `json:"clientSecret" sensitive:"true"`
 	Groups       []string `json:"groups"`
 
 	// PreferredUsernameField allows users to set the field to any of the

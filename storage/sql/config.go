@@ -74,11 +74,17 @@ type SSL struct {
 	CertFile string
 }
 
+type EncryptionConfig struct {
+	Enabled   bool   `json:"enabled" yaml:"enabled"`
+	KeyEnvVar string `json:"keyEnvVar" yaml:"keyEnvVar"`
+}
+
 // Postgres options for creating an SQL db.
 type Postgres struct {
 	NetworkDB
 
-	SSL SSL `json:"ssl" yaml:"ssl"`
+	SSL        SSL              `json:"ssl" yaml:"ssl"`
+	Encryption EncryptionConfig `json:"encryption" yaml:"encryption"`
 }
 
 // Open creates a new storage implementation backed by Postgres.
@@ -195,9 +201,23 @@ func (p *Postgres) open(logger *slog.Logger) (*conn, error) {
 		return sqlErr.Code == pgErrUniqueViolation
 	}
 
-	c := &conn{db, &flavorPostgres, logger, errCheck}
+	encSvc, err := setupEncryption(&p.Encryption, logger)
+	if err != nil {
+		return nil, fmt.Errorf("encryption setup failed: %v", err)
+	}
+
+	c := &conn{db, &flavorPostgres, logger, errCheck, encSvc}
+
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
+	}
+
+	if encSvc.IsEnabled() {
+		logger.Info("checking for unencrypted connectors to migrate")
+		if err := c.migrateUnencryptedConnectors(); err != nil {
+			logger.Warn("connector encryption migration had errors", "error", err)
+			// Don't fail startup - log and continue
+		}
 	}
 	return c, nil
 }
@@ -307,7 +327,13 @@ func (s *MySQL) open(logger *slog.Logger) (*conn, error) {
 			sqlErr.Number == mysqlErrDupEntryWithKeyName
 	}
 
-	c := &conn{db, &flavorMySQL, logger, errCheck}
+	c := &conn{
+		db:                 db,
+		flavor:             &flavorSQLite3,
+		logger:             logger,
+		alreadyExistsCheck: errCheck,
+	}
+
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}
@@ -339,4 +365,28 @@ func (s *MySQL) makeTLSConfig() error {
 
 	mysql.RegisterTLSConfig(mysqlSSLCustom, cfg)
 	return nil
+}
+
+func setupEncryption(cfg *EncryptionConfig, logger *slog.Logger) (*encryptionService, error) {
+	if !cfg.Enabled {
+		return newEncryptionService(nil, false, logger)
+	}
+
+	envVarName := cfg.KeyEnvVar
+	if envVarName == "" {
+		envVarName = "DEX_FERNET_KEY"
+	}
+
+	keyValue := os.Getenv(envVarName)
+	if keyValue == "" {
+		return nil, fmt.Errorf("encryption enabled but %s is not set", envVarName)
+	}
+
+	// Split on comma to support key rotation
+	keyList := strings.Split(keyValue, ",")
+	for idx := range keyList {
+		keyList[idx] = strings.TrimSpace(keyList[idx])
+	}
+
+	return newEncryptionService(keyList, true, logger)
 }

@@ -24,7 +24,7 @@ const (
 // Config holds configuration options for LinkedIn logins.
 type Config struct {
 	ClientID     string `json:"clientID"`
-	ClientSecret string `json:"clientSecret"`
+	ClientSecret string `json:"clientSecret" sensitive:"true"`
 	RedirectURI  string `json:"redirectURI"`
 }
 

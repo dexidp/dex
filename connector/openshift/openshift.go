@@ -26,7 +26,7 @@ const (
 type Config struct {
 	Issuer       string   `json:"issuer"`
 	ClientID     string   `json:"clientID"`
-	ClientSecret string   `json:"clientSecret"`
+	ClientSecret string   `json:"clientSecret" sensitive:"true"`
 	RedirectURI  string   `json:"redirectURI"`
 	Groups       []string `json:"groups"`
 	InsecureCA   bool     `json:"insecureCA"`

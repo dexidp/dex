@@ -79,12 +79,21 @@ type querier interface {
 	QueryRow(query string, args ...interface{}) *sql.Row
 }
 
+type queryerWithEncryption interface {
+	querier
+	getEncryption() *encryptionService
+}
+
 // Abstract row vs rows.
 type scanner interface {
 	Scan(dest ...interface{}) error
 }
 
 var _ storage.Storage = (*conn)(nil)
+
+func (c *conn) getEncryption() *encryptionService {
+	return c.encryption
+}
 
 func (c *conn) GarbageCollect(ctc context.Context, now time.Time) (storage.GCResult, error) {
 	result := storage.GCResult{}
@@ -765,7 +774,12 @@ func scanOfflineSessions(s scanner) (o storage.OfflineSessions, err error) {
 }
 
 func (c *conn) CreateConnector(ctx context.Context, connector storage.Connector) error {
-	_, err := c.Exec(`
+	encryptedConfig, err := c.encryption.encryptFields(connector.Type, connector.Config)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt connector fields: %w", err)
+	}
+
+	_, err = c.Exec(`
 		insert into connector (
 			id, type, name, resource_version, config
 		)
@@ -773,7 +787,7 @@ func (c *conn) CreateConnector(ctx context.Context, connector storage.Connector)
 			$1, $2, $3, $4, $5
 		);
 	`,
-		connector.ID, connector.Type, connector.Name, connector.ResourceVersion, connector.Config,
+		connector.ID, connector.Type, connector.Name, connector.ResourceVersion, encryptedConfig,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -795,6 +809,17 @@ func (c *conn) UpdateConnector(ctx context.Context, id string, updater func(s st
 		if err != nil {
 			return err
 		}
+
+		enc := tx.getEncryption()
+		configToSave := newConn.Config
+		if enc != nil && enc.IsEnabled() {
+			encryptedConfig, err := enc.encryptFields(newConn.Type, newConn.Config)
+			if err != nil {
+				return fmt.Errorf("failed to encrypt connector fields: %w", err)
+			}
+			configToSave = encryptedConfig
+		}
+
 		_, err = tx.Exec(`
 			update connector
 			set
@@ -804,7 +829,7 @@ func (c *conn) UpdateConnector(ctx context.Context, id string, updater func(s st
 			    config = $4
 			where id = $5;
 		`,
-			newConn.Type, newConn.Name, newConn.ResourceVersion, newConn.Config, connector.ID,
+			newConn.Type, newConn.Name, newConn.ResourceVersion, configToSave, connector.ID,
 		)
 		if err != nil {
 			return fmt.Errorf("update connector: %v", err)
@@ -814,16 +839,41 @@ func (c *conn) UpdateConnector(ctx context.Context, id string, updater func(s st
 }
 
 func (c *conn) GetConnector(ctx context.Context, id string) (storage.Connector, error) {
-	return getConnector(ctx, c, id)
+	connector, err := getConnector(ctx, c, id)
+	if err != nil {
+		return connector, err
+	}
+
+	if c.encryption.IsEnabled() && isEncrypted(string(connector.Config)) {
+		c.logger.Warn("connector config may not be decrypted properly",
+			"id", id,
+			"type", connector.Type)
+	}
+
+	return connector, nil
 }
 
-func getConnector(ctx context.Context, q querier, id string) (storage.Connector, error) {
-	return scanConnector(q.QueryRow(`
+func getConnector(ctx context.Context, q queryerWithEncryption, id string) (storage.Connector, error) {
+	connector, err := scanConnector(q.QueryRow(`
 		select
 			id, type, name, resource_version, config
 		from connector
 		where id = $1;
 		`, id))
+	if err != nil {
+		return connector, err
+	}
+
+	enc := q.getEncryption()
+	if enc != nil && enc.IsEnabled() {
+		decryptedConfig, err := enc.decryptFields(connector.Type, connector.Config)
+		if err == nil {
+			connector.Config = decryptedConfig
+		}
+		// in error cases, return as-is to support backward-compatibility during migration
+	}
+
+	return connector, nil
 }
 
 func scanConnector(s scanner) (c storage.Connector, err error) {
@@ -856,6 +906,19 @@ func (c *conn) ListConnectors(ctx context.Context) ([]storage.Connector, error) 
 		if err != nil {
 			return nil, err
 		}
+
+		if c.encryption != nil && c.encryption.IsEnabled() {
+			decryptedConfig, err := c.encryption.decryptFields(conn.Type, conn.Config)
+			if err != nil {
+				c.logger.Warn("failed to decrypt connector config",
+					"id", conn.ID,
+					"type", conn.Type,
+					"error", err)
+			} else {
+				conn.Config = decryptedConfig
+			}
+		}
+
 		connectors = append(connectors, conn)
 	}
 	if err := rows.Err(); err != nil {

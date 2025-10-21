@@ -132,6 +132,7 @@ type conn struct {
 	flavor             *flavor
 	logger             *slog.Logger
 	alreadyExistsCheck func(err error) bool
+	encryption         *encryptionService
 }
 
 func (c *conn) Close() error {
@@ -194,4 +195,8 @@ func (t *trans) Query(query string, args ...interface{}) (*sql.Rows, error) {
 func (t *trans) QueryRow(query string, args ...interface{}) *sql.Row {
 	query = t.c.flavor.translate(query)
 	return t.tx.QueryRow(query, t.c.translateArgs(args)...)
+}
+
+func (t *trans) getEncryption() *encryptionService {
+	return t.c.encryption
 }

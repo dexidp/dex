@@ -52,7 +52,7 @@ type Config struct {
 	Domain        string `json:"domain"`
 	Host          string `json:"keystoneHost"`
 	AdminUsername string `json:"keystoneUsername"`
-	AdminPassword string `json:"keystonePassword"`
+	AdminPassword string `json:"keystonePassword" sensitive:"true"`
 }
 
 type loginRequestData struct {

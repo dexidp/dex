@@ -35,7 +35,7 @@ const (
 // Config holds configuration options for Bitbucket logins.
 type Config struct {
 	ClientID          string   `json:"clientID"`
-	ClientSecret      string   `json:"clientSecret"`
+	ClientSecret      string   `json:"clientSecret" sensitive:"true"`
 	RedirectURI       string   `json:"redirectURI"`
 	Teams             []string `json:"teams"`
 	IncludeTeamGroups bool     `json:"includeTeamGroups,omitempty"`

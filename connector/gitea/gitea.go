@@ -22,7 +22,7 @@ import (
 type Config struct {
 	BaseURL       string `json:"baseURL"`
 	ClientID      string `json:"clientID"`
-	ClientSecret  string `json:"clientSecret"`
+	ClientSecret  string `json:"clientSecret" sensitive:"true"`
 	RedirectURI   string `json:"redirectURI"`
 	Orgs          []Org  `json:"orgs"`
 	LoadAllGroups bool   `json:"loadAllGroups"`

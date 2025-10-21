@@ -30,7 +30,7 @@ type Config struct {
 	// from the .well-known/openid-configuration issuer
 	IssuerAlias  string `json:"issuerAlias"`
 	ClientID     string `json:"clientID"`
-	ClientSecret string `json:"clientSecret"`
+	ClientSecret string `json:"clientSecret" sensitive:"true"`
 	RedirectURI  string `json:"redirectURI"`
 
 	// The section to override options discovered automatically from

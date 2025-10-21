@@ -30,7 +30,7 @@ const (
 type Config struct {
 	BaseURL             string   `json:"baseURL"`
 	ClientID            string   `json:"clientID"`
-	ClientSecret        string   `json:"clientSecret"`
+	ClientSecret        string   `json:"clientSecret" sensitive:"true"`
 	RedirectURI         string   `json:"redirectURI"`
 	Groups              []string `json:"groups"`
 	UseLoginAsID        bool     `json:"useLoginAsID"`

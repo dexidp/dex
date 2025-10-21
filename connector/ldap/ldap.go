@@ -95,7 +95,7 @@ type Config struct {
 	// BindDN and BindPW for an application service account. The connector uses these
 	// credentials to search for users and groups.
 	BindDN string `json:"bindDN"`
-	BindPW string `json:"bindPW"`
+	BindPW string `json:"bindPW" sensitive:"true"`
 
 	// UsernamePrompt allows users to override the username attribute (displayed
 	// in the username/password prompt). If unset, the handler will use

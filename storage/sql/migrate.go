@@ -299,3 +299,104 @@ var migrations = []migration{
 		},
 	},
 }
+
+// migrateUnencryptedConnectors encrypts any existing unencrypted connector configs
+// This is called when a new storage is created at startup and when encryption is enabled
+func (c *conn) migrateUnencryptedConnectors() error {
+	if !c.encryption.IsEnabled() {
+		return nil
+	}
+
+	c.logger.Info("starting automatic connector encryption migration")
+
+	// Query all connectors
+	rows, err := c.Query(`
+        SELECT id, type, config
+        FROM connector;
+    `)
+	if err != nil {
+		return fmt.Errorf("failed to query connectors: %w", err)
+	}
+	defer rows.Close()
+
+	type connectorData struct {
+		id            string
+		connectorType string
+		config        []byte
+	}
+
+	var toMigrate []connectorData
+
+	// First pass: identify connectors that need migration
+	for rows.Next() {
+		var cd connectorData
+		if err := rows.Scan(&cd.id, &cd.connectorType, &cd.config); err != nil {
+			c.logger.Error("failed to scan connector", "error", err)
+			continue
+		}
+
+		// Check if already encrypted
+		if isEncrypted(string(cd.config)) {
+			c.logger.Debug("connector already encrypted", "id", cd.id)
+			continue
+		}
+
+		toMigrate = append(toMigrate, cd)
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error scanning connectors: %w", err)
+	}
+
+	if len(toMigrate) == 0 {
+		c.logger.Info("no unencrypted connectors found, migration not needed")
+		return nil
+	}
+
+	c.logger.Info("found unencrypted connectors", "count", len(toMigrate))
+
+	// Second pass: encrypt and update
+	var migratedCount, errorCount int
+	for _, cd := range toMigrate {
+		// Encrypt the config
+		encryptedConfig, err := c.encryption.encryptFields(cd.connectorType, cd.config)
+		if err != nil {
+			c.logger.Error("failed to encrypt connector config",
+				"id", cd.id,
+				"type", cd.connectorType,
+				"error", err)
+			errorCount++
+			continue
+		}
+
+		// Update in database
+		_, err = c.Exec(`
+            UPDATE connector
+            SET config = $1
+            WHERE id = $2;
+        `, encryptedConfig, cd.id)
+		if err != nil {
+			c.logger.Error("failed to update connector with encrypted config",
+				"id", cd.id,
+				"error", err)
+			errorCount++
+			continue
+		}
+
+		c.logger.Info("migrated connector to encrypted format",
+			"id", cd.id,
+			"type", cd.connectorType)
+		migratedCount++
+	}
+
+	c.logger.Info("connector encryption migration completed",
+		"total", len(toMigrate),
+		"migrated", migratedCount,
+		"errors", errorCount)
+
+	if errorCount > 0 {
+		return fmt.Errorf("migration completed with %d errors out of %d connectors", errorCount, len(toMigrate))
+	}
+
+	return nil
+}

@@ -32,7 +32,7 @@ const (
 // Config holds configuration options for Google logins.
 type Config struct {
 	ClientID     string `json:"clientID"`
-	ClientSecret string `json:"clientSecret"`
+	ClientSecret string `json:"clientSecret" sensitive:"true"`
 	RedirectURI  string `json:"redirectURI"`
 
 	Scopes []string `json:"scopes"` // defaults to "profile" and "email"

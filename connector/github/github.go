@@ -40,7 +40,7 @@ var (
 // Config holds configuration options for github logins.
 type Config struct {
 	ClientID             string `json:"clientID"`
-	ClientSecret         string `json:"clientSecret"`
+	ClientSecret         string `json:"clientSecret" sensitive:"true"`
 	RedirectURI          string `json:"redirectURI"`
 	Org                  string `json:"org"`
 	Orgs                 []Org  `json:"orgs"`

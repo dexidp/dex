@@ -45,7 +45,7 @@ const (
 // Config holds configuration options for microsoft logins.
 type Config struct {
 	ClientID             string          `json:"clientID"`
-	ClientSecret         string          `json:"clientSecret"`
+	ClientSecret         string          `json:"clientSecret" sensitive:"true"`
 	RedirectURI          string          `json:"redirectURI"`
 	Tenant               string          `json:"tenant"`
 	OnlySecurityGroups   bool            `json:"onlySecurityGroups"`
