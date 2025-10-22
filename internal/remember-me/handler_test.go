@@ -360,7 +360,7 @@ func TestConnectorCookieName(t *testing.T) {
 		expected  string
 	}{
 		{"test", "dex_active_session_cookie_test"},
-		{"google", "dex_active_session_cookie_google"},
+		{"google", "dex_active_session_cookie_google"}, // just an example, google would not be use-case for this feature
 		{"ldap-local", "dex_active_session_cookie_ldap-local"},
 	}
 
