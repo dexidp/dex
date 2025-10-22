@@ -24,11 +24,11 @@ import (
 func setupTestEnvironment(t *testing.T) (storage.Storage, storage.ActiveSessionStorage, *slog.Logger) {
 	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	// Use dex's standard in-memory storage
+	// Use in-memory storage
 	store := memory.New(logger)
 	sessionStore := memory.NewSessionStore(logger)
 
-	// Initialize with real keys like dex does
+	// Initialize with real keys
 	ctx := context.Background()
 	err := store.UpdateKeys(ctx, func(old storage.Keys) (storage.Keys, error) {
 		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
