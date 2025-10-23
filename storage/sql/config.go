@@ -75,8 +75,8 @@ type SSL struct {
 }
 
 type EncryptionConfig struct {
-	Enabled   bool   `json:"enabled" yaml:"enabled"`
-	KeyEnvVar string `json:"keyEnvVar" yaml:"keyEnvVar"`
+	Enabled bool   `json:"enabled" yaml:"enabled"`
+	Key     string `json:"key" yaml:"key"`
 }
 
 // Postgres options for creating an SQL db.
@@ -372,7 +372,7 @@ func setupEncryption(cfg *EncryptionConfig, logger *slog.Logger) (*encryptionSer
 		return newEncryptionService(nil, false, logger)
 	}
 
-	envVarName := cfg.KeyEnvVar
+	envVarName := cfg.Key
 	if envVarName == "" {
 		envVarName = "DEX_FERNET_KEY"
 	}

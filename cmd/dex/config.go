@@ -305,6 +305,38 @@ func expandEnvInMap(m map[string]interface{}) {
 	}
 }
 
+// validateStorageEncryption checks if encryption configuration is being used
+// with storage types that don't support it
+func validateStorageEncryption(storageType string, configData []byte) error {
+	// Only postgres and sqlite3 support encryption
+	supportsEncryption := storageType == "postgres" || storageType == "sqlite3"
+
+	if supportsEncryption {
+		return nil
+	}
+
+	// Check if the config contains encryption settings
+	var configMap map[string]interface{}
+	if err := json.Unmarshal(configData, &configMap); err != nil {
+		return fmt.Errorf("failed to parse storage config for encryption validation: %v", err)
+	}
+
+	// Check if encryption is configured
+	if encryptionConfig, hasEncryption := configMap["encryption"]; hasEncryption {
+		// Check if encryption is enabled
+		if encMap, ok := encryptionConfig.(map[string]interface{}); ok {
+			if enabled, hasEnabled := encMap["enabled"]; hasEnabled {
+				if enabledBool, ok := enabled.(bool); ok && enabledBool {
+					return fmt.Errorf("encryption is only supported for 'postgres' and 'sqlite3' storage types, but encryption is enabled for storage type '%s'. "+
+						"Either change the storage type to 'postgres' or 'sqlite3', or remove the encryption configuration", storageType)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 var storages = map[string]func() StorageConfig{
 	"etcd":       func() StorageConfig { return new(etcd.Etcd) },
 	"kubernetes": func() StorageConfig { return new(kubernetes.Config) },
@@ -349,6 +381,11 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 			}
 
 			data = expandedData
+		}
+
+		// Check for encryption configuration on unsupported storage types
+		if err := validateStorageEncryption(store.Type, data); err != nil {
+			return err
 		}
 
 		if err := json.Unmarshal(data, storageConfig); err != nil {

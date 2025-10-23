@@ -126,8 +126,8 @@ func TestMigrateUnencryptedConnectors(t *testing.T) {
 	s2 := &SQLite3{
 		File: dbFile.Name(),
 		Encryption: EncryptionConfig{
-			Enabled:   true,
-			KeyEnvVar: "DEX_FERNET_KEY",
+			Enabled: true,
+			Key:     "DEX_FERNET_KEY",
 		},
 	}
 	conn2, err := s2.open(logger)

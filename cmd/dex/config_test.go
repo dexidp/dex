@@ -452,3 +452,73 @@ logger:
 		t.Errorf("got!=want: %s", diff)
 	}
 }
+
+func TestEncryptionModuleConfiguration(t *testing.T) {
+	rawInvalidConfig := []byte(`
+issuer: http://127.0.0.1:5556/dex
+storage:
+  type: mysql
+  config:
+    host: 10.0.0.1
+    port: 3306
+    database: db
+    user: user
+    password: pass
+    encryption:
+      enabled: true
+      key: DEX_FERNET_KEY
+web:
+  http: 127.0.0.1:5556`)
+
+	rawValidConfig := []byte(`
+issuer: http://127.0.0.1:5556/dex
+storage:
+  type: postgres
+  config:
+    host: 10.0.0.1
+    port: 5432
+    database: db
+    user: user
+    password: pass
+    encryption:
+      enabled: true
+      key: DEX_FERNET_KEY
+    ssl:
+      mode: require
+web:
+  http: 127.0.0.1:5556`)
+
+	testCases := []struct {
+		name             string
+		inputConfig      []byte
+		expectedErrorMsg string
+		shouldValidate   bool
+	}{
+		{
+			name:             "invalid config - encryption module enabled in mysql",
+			inputConfig:      rawInvalidConfig,
+			expectedErrorMsg: "error unmarshaling JSON: encryption is only supported for 'postgres' and 'sqlite3' storage types, but encryption is enabled for storage type 'mysql'. Either change the storage type to 'postgres' or 'sqlite3', or remove the encryption configuration",
+		},
+		{
+			name:             "valid config - encryption module enabled in postgresql",
+			inputConfig:      rawValidConfig,
+			expectedErrorMsg: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var c Config
+			err := yaml.Unmarshal(tc.inputConfig, &c)
+
+			// Check error message
+			var errMsg string
+			if err != nil {
+				errMsg = err.Error()
+			}
+			if errMsg != tc.expectedErrorMsg {
+				t.Errorf("Error message mismatch:\ngot:  %q\nwant: %q", errMsg, tc.expectedErrorMsg)
+			}
+		})
+	}
+}

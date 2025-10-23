@@ -81,8 +81,8 @@ func TestGetConnectorMixedEncryption(t *testing.T) {
 	s := &SQLite3{
 		File: dbFile.Name(),
 		Encryption: EncryptionConfig{
-			Enabled:   true,
-			KeyEnvVar: "DEX_FERNET_KEY",
+			Enabled: true,
+			Key:     "DEX_FERNET_KEY",
 		},
 	}
 	conn, err := s.open(logger)
