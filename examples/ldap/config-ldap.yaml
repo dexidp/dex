@@ -6,6 +6,11 @@ storage:
 web:
   http: 0.0.0.0:5556
 
+# Uncomment this section if you want to use the remember me / action sessions
+# feature. For more details search for remember-me-2025-10-19-#32.md
+#sessions:
+#  enable: true
+
 connectors:
 - type: ldap
   name: OpenLDAP
