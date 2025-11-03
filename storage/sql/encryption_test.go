@@ -1,6 +1,7 @@
 package sql
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -59,4 +60,68 @@ func TestFernetEncryptor_DecryptPlaintextBackwardCompatibility(t *testing.T) {
 	}
 
 	t.Log("✓ Backward compatibility - plaintext values pass through unchanged")
+}
+
+func TestHasEncryptedFields(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   map[string]any
+		expected bool
+	}{
+		{
+			name: "no encrypted fields",
+			config: map[string]any{
+				"clientID":     "test-id",
+				"clientSecret": "plain-secret",
+				"redirectURI":  "https://example.com/callback",
+			},
+			expected: false,
+		},
+		{
+			name: "has encrypted field",
+			config: map[string]any{
+				"clientID":     "test-id",
+				"clientSecret": "encrypted:gAAAAABh...",
+				"redirectURI":  "https://example.com/callback",
+			},
+			expected: true,
+		},
+		{
+			name: "all fields encrypted",
+			config: map[string]any{
+				"bindPW": "encrypted:gAAAAABh123...",
+				"bindDN": "encrypted:gAAAAABh456...",
+			},
+			expected: true,
+		},
+		{
+			name:     "empty config",
+			config:   map[string]any{},
+			expected: false,
+		},
+		{
+			name: "non-string values",
+			config: map[string]any{
+				"port":    5432,
+				"enabled": true,
+			},
+			expected: false,
+		},
+	}
+
+	svc := &encryptionService{}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configJSON, err := json.Marshal(tt.config)
+			if err != nil {
+				t.Fatalf("failed to marshal config: %v", err)
+			}
+
+			result := svc.hasEncryptedFields(configJSON)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
 }

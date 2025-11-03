@@ -1,6 +1,7 @@
 package sql
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -139,6 +140,24 @@ func isEncrypted(value string) bool {
 // IsEnabled returns whether encryption is enabled
 func (svc *encryptionService) IsEnabled() bool {
 	return svc.enabled
+}
+
+// hasEncryptedFields checks if a connector config JSON contains any encrypted field values
+func (svc *encryptionService) hasEncryptedFields(configJSON []byte) bool {
+	// Parse JSON config
+	var config map[string]any
+	if err := json.Unmarshal(configJSON, &config); err != nil {
+		return false
+	}
+
+	// Check if any field value has the encrypted prefix
+	for _, value := range config {
+		if strValue, ok := value.(string); ok && isEncrypted(strValue) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (svc *encryptionService) registerConnectors() {

@@ -844,7 +844,7 @@ func (c *conn) GetConnector(ctx context.Context, id string) (storage.Connector, 
 		return connector, err
 	}
 
-	if c.encryption.IsEnabled() && isEncrypted(string(connector.Config)) {
+	if c.encryption.IsEnabled() && c.encryption.hasEncryptedFields(connector.Config) {
 		c.logger.Warn("connector config may not be decrypted properly",
 			"id", id,
 			"type", connector.Type)

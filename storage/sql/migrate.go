@@ -336,7 +336,7 @@ func (c *conn) migrateUnencryptedConnectors() error {
 		}
 
 		// Check if already encrypted
-		if isEncrypted(string(cd.config)) {
+		if c.encryption.hasEncryptedFields(cd.config) {
 			c.logger.Debug("connector already encrypted", "id", cd.id)
 			continue
 		}
