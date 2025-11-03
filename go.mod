@@ -35,7 +35,7 @@ require (
 	golang.org/x/crypto v0.43.0
 	golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
 	golang.org/x/net v0.46.0
-	golang.org/x/oauth2 v0.31.0
+	golang.org/x/oauth2 v0.32.0
 	google.golang.org/api v0.252.0
 	google.golang.org/grpc v1.76.0
 	google.golang.org/protobuf v1.36.10
