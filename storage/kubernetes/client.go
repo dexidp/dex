@@ -528,16 +528,8 @@ func getInClusterConnectOptions(host, port string) (k8sapi.Cluster, error) {
 		)
 	}
 
-	// we need to wrap IPv6 addresses in square brackets
-	// IPv4 used to work with square brackets, but it was fixed in the latest Go versions
-	// https://github.com/golang/go/issues/75712
-	ipAddr := net.ParseIP(host)
-	if ipAddr != nil && ipAddr.To4() == nil {
-		host = "[" + host + "]"
-	}
-
 	cluster := k8sapi.Cluster{
-		Server:               "https://" + host + ":" + port,
+		Server:               "https://" + net.JoinHostPort(host, port),
 		CertificateAuthority: serviceAccountCAPath,
 	}
 	return cluster, nil
