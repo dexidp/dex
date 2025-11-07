@@ -12,9 +12,10 @@ import (
 	"strconv"
 	"time"
 
+	"golang.org/x/oauth2"
+
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/groups"
-	"golang.org/x/oauth2"
 )
 
 const (
@@ -261,13 +262,6 @@ func (c *gitlabConnector) user(ctx context.Context, client *http.Client) (gitlab
 	return u, nil
 }
 
-type userInfo struct {
-	Groups               []string `json:"groups"`
-	OwnerPermission      []string `json:"https://gitlab.org/claims/groups/owner"`
-	MaintainerPermission []string `json:"https://gitlab.org/claims/groups/maintainer"`
-	DeveloperPermission  []string `json:"https://gitlab.org/claims/groups/developer"`
-}
-
 type group struct {
 	ID       int    `json:"id"`
 	Name     string `json:"name"`
@@ -285,19 +279,23 @@ func (c *gitlabConnector) userGroups(ctx context.Context, client *http.Client, u
 	if err != nil {
 		return []string{}, err
 	}
-	var groups []string
+	groups := []string{}
 	for _, group := range groupsRaw {
 		groupMembership, notMember, err := c.getGroupsMembership(ctx, client, group.ID, userId)
 		if err != nil {
 			return []string{}, fmt.Errorf("gitlab: get group membership: %v", err)
 		}
-		if notMember {
+
+		if _, ok := groupMembership["access_level"]; notMember || !ok {
 			continue
 		}
+
+		groups = append(groups, group.FullPath)
+
 		if !c.getGroupsPermission {
-			groups = append(groups, group.FullPath)
 			continue
 		}
+
 		switch groupMembership["access_level"].(float64) {
 		case 10:
 			groups = append(groups, fmt.Sprintf("%s:guest", group.FullPath))
