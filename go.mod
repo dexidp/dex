@@ -10,7 +10,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/beevik/etree v1.6.0
 	github.com/coreos/go-oidc/v3 v3.14.1
-	github.com/dexidp/dex/api/v2 v2.3.0
+	github.com/dexidp/dex/api/v2 v2.4.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-jose/go-jose/v4 v4.1.3
@@ -109,7 +109,5 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/dexidp/dex/api/v2 => ./api/v2
 
 tool entgo.io/ent/cmd/ent
