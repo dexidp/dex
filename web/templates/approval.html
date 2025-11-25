@@ -39,8 +39,8 @@
       </form>
     </div>
     <div class="theme-form-row" style="margin-bottom: 0px;">
-      <a href="https://egp.asama.cloud" >
-        <button type="button" class="action-button cancel-button">
+        <a href="https://{{ if extra "tenantURL" }}{{ extra "tenantURL" | js }}{{ else }}egp.asama.cloud{{ end }}" >
+          <button type="button" class="action-button cancel-button">
           Cancel
         </button>
       </a>

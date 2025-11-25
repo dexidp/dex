@@ -565,10 +565,10 @@ func applyConfigOverrides(options serveOptions, config *Config) {
 		config.Frontend.Extra = make(map[string]string)
 	}
 
-	// Support DEX_CONSOLE_URL environment variable for Docker
-	if consoleURL := os.Getenv("DEX_CONSOLE_URL"); consoleURL != "" {
-		if _, exists := config.Frontend.Extra["consoleURL"]; !exists {
-			config.Frontend.Extra["consoleURL"] = consoleURL
+	// Support DEX_TENANT_URL environment variable for Docker
+	if tenantURL := os.Getenv("DEX_CONSOLE_URL"); tenantURL != "" {
+		if _, exists := config.Frontend.Extra["tenantURL"]; !exists {
+			config.Frontend.Extra["tenantURL"] = tenantURL
 		}
 	}
 
