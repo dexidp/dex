@@ -91,6 +91,7 @@ jobs:
           tags: ${{ steps.get_info.outputs.set_latest == 'true' && format('ghcr.io/{0}:{1}-amd64,ghcr.io/{0}:latest-amd64', steps.get_info.outputs.repo_name, steps.get_info.outputs.version) || format('ghcr.io/{0}:{1}-amd64', steps.get_info.outputs.repo_name, steps.get_info.outputs.version) }}
           cache-from: type=gha,scope=amd64
           cache-to: type=gha,mode=max,scope=amd64
+          outputs: type=image,push=true
       
       # Build and push ARM64 image
       - name: Build and push ARM64 image
@@ -102,6 +103,7 @@ jobs:
           tags: ${{ steps.get_info.outputs.set_latest == 'true' && format('ghcr.io/{0}:{1}-arm64,ghcr.io/{0}:latest-arm64', steps.get_info.outputs.repo_name, steps.get_info.outputs.version) || format('ghcr.io/{0}:{1}-arm64', steps.get_info.outputs.repo_name, steps.get_info.outputs.version) }}
           cache-from: type=gha,scope=arm64
           cache-to: type=gha,mode=max,scope=arm64
+          outputs: type=image,push=true
       
       # Create and push multi-arch manifest
       - name: Create and push multi-arch manifest
@@ -110,19 +112,15 @@ jobs:
           VERSION="${{ steps.get_info.outputs.version }}"
           REPO_NAME="${{ steps.get_info.outputs.repo_name }}"
           
-          # Create manifest for specific version
-          docker manifest create "ghcr.io/$REPO_NAME:$VERSION" \
+          # Use buildx imagetools to create multi-arch manifest
+          # This handles both single-arch images and manifest lists correctly
+          docker buildx imagetools create -t "ghcr.io/$REPO_NAME:$VERSION" \
             "ghcr.io/$REPO_NAME:$VERSION-amd64" \
             "ghcr.io/$REPO_NAME:$VERSION-arm64"
           
-          # Push manifest for specific version
-          docker manifest push "ghcr.io/$REPO_NAME:$VERSION"
-          
           # Create and push manifest for latest if needed
           if [[ "${{ steps.get_info.outputs.set_latest }}" == "true" ]]; then
-            docker manifest create "ghcr.io/$REPO_NAME:latest" \
+            docker buildx imagetools create -t "ghcr.io/$REPO_NAME:latest" \
               "ghcr.io/$REPO_NAME:latest-amd64" \
               "ghcr.io/$REPO_NAME:latest-arm64"
-            
-            docker manifest push "ghcr.io/$REPO_NAME:latest"
           fi
