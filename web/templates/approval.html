@@ -39,7 +39,7 @@
       </form>
     </div>
     <div class="theme-form-row" style="margin-bottom: 0px;">
-      <a href="https://console.asama.cloud" >
+      <a href="{{ if extra "consoleURL" }}{{ extra "consoleURL" }}{{ else }}https://console.asama.cloud{{ end }}" >
         <button type="button" class="action-button cancel-button">
           Cancel
         </button>

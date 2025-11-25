@@ -560,6 +560,18 @@ func applyConfigOverrides(options serveOptions, config *Config) {
 		config.Frontend.Dir = os.Getenv("DEX_FRONTEND_DIR")
 	}
 
+	// Initialize Frontend.Extra if nil
+	if config.Frontend.Extra == nil {
+		config.Frontend.Extra = make(map[string]string)
+	}
+
+	// Support DEX_CONSOLE_URL environment variable for Docker
+	if consoleURL := os.Getenv("DEX_CONSOLE_URL"); consoleURL != "" {
+		if _, exists := config.Frontend.Extra["consoleURL"]; !exists {
+			config.Frontend.Extra["consoleURL"] = consoleURL
+		}
+	}
+
 	if len(config.OAuth2.GrantTypes) == 0 {
 		config.OAuth2.GrantTypes = []string{
 			"authorization_code",
