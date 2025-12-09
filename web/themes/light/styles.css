@@ -1,38 +1,38 @@
 .theme-body {
-  background-color: #f5f5f9;
-  color: #3d3d57;
-  font-family: "Eina04";
+    background-color: #f5f5f9;
+    color: #3d3d57;
+    font-family: "Eina04";
 }
 
 .theme-navbar {
-  text-align: center;
-  margin-top: 20px;
-  color: #3d3d57;
-  font-size: 13px;
-  font-weight: 100;
-  height: 46px;
-  overflow: hidden;
-  padding: 0 10px;
+    text-align: center;
+    margin-top: 20px;
+    color: #3d3d57;
+    font-size: 13px;
+    font-weight: 100;
+    height: 46px;
+    overflow: hidden;
+    padding: 0 10px;
 }
 
 .theme-navbar__logo-wrap {
-  display: inline-block;
-  height: 100%;
-  overflow: hidden;
-  padding: 10px 15px;
-  width: 300px;
+    display: inline-block;
+    height: 100%;
+    overflow: hidden;
+    padding: 10px 15px;
+    width: 300px;
 }
 
 .theme-navbar__logo {
-  height: 100%;
-  height: 29px;
+    height: 100%;
+    height: 29px;
 }
 
 .theme-heading {
-  font-size: 20px;
-  font-weight: 500;
-  margin-bottom: 10px;
-  margin-top: 0;
+    font-size: 20px;
+    font-weight: 500;
+    margin-bottom: 10px;
+    margin-top: 0;
 }
 
 .theme-heading--signin {
@@ -42,144 +42,145 @@
 }
 
 .theme-panel {
-  background-color: #fff;
-  border: 1px solid #CDD0D4;
-  padding: 30px;
-  border-radius: 16px;
+    background-color: #fff;
+    border: 1px solid #cdd0d4;
+    padding: 30px;
+    border-radius: 16px;
 }
 
 .theme-btn-provider {
-  background-color: #fff;
-  color: #3d3d57;
-  min-width: 250px;
+    background-color: #fff;
+    color: #3d3d57;
+    min-width: 250px;
 }
 
 .theme-btn-provider:hover {
-  background-color: #e6e6ea;
+    background-color: #e6e6ea;
 }
 
 .theme-btn--primary {
-  background-color: #0089c7;
-  border: none;
-  color: #fff;
-  min-width: 200px;
-  padding: 6px 12px;
+    background-color: #d3f94a;
+    border: none;
+    color: #000;
+    min-width: 200px;
+    padding: 6px 12px;
 }
 
 .theme-btn--primary:hover {
-  background-color: #005992;
-  color: #fff;
+    background-color: #d3f94a;
+    color: #000;
 }
 
 .theme-btn--success {
-  background-color: #0089c7;
-  color: #fff;
-  width: 250px;
+    background-color: #d3f94a;
+    color: #000;
+    width: 250px;
 }
 
 .theme-btn--success:hover {
-  background-color: #005992;
+    background-color: #d3f94a;
 }
 
 .theme-form-row {
-  display: block;
-  margin: 20px auto;
+    display: block;
+    margin: 20px auto;
 }
 
 .theme-form-input {
-  border-radius: 4px;
-  border: 1px solid #e6e6ea;
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
-  color: #3d3d57;
-  display: block;
-  font-size: 14px;
-  height: 36px;
-  line-height: 1.42857143;
-  margin: auto;
-  padding: 6px 12px;
-  width: 350px;
+    border-radius: 4px;
+    border: 1px solid #e6e6ea;
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+    color: #3d3d57;
+    display: block;
+    font-size: 14px;
+    height: 36px;
+    line-height: 1.42857143;
+    margin: auto;
+    padding: 6px 12px;
+    width: 350px;
 }
 
 .custom-input {
-  width: 100%;
+    width: 100%;
 }
 
 .password-field-wrapper {
-  position: relative; 
-  display: inline-block; 
-  width: 100%;
+    position: relative;
+    display: inline-block;
+    width: 100%;
 }
 
 .toggle-password-button {
-  position: absolute; 
-  right: 10px; 
-  top: 50%; 
-  transform: translateY(-50%); 
-  background: transparent; 
-  border: 0; 
-  cursor: pointer; 
-  color: inherit;
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    color: inherit;
 }
 
 .theme-form-input:focus,
 .theme-form-input:active {
-  border-color: #CDD0D4;
-  outline: none;
+    border-color: #cdd0d4;
+    outline: none;
 }
 
 .theme-form-label {
-  font-size: 14px;
-  font-weight: 600;
-  margin: 4px auto;
-  position: relative;
-  text-align: left;
-  width: 330px;
-  margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    margin: 4px auto;
+    position: relative;
+    text-align: left;
+    width: 330px;
+    margin-bottom: 8px;
 }
 
 .theme-link-back {
-  margin-top: 24px;
-  margin-bottom: 16px;
+    margin-top: 24px;
+    margin-bottom: 16px;
 }
 
 .login-button {
-  width: 100%;
-  font-size: 14px;
-  font-weight: 600;
-  margin-top: 10px;
-  margin-bottom: 8px;
+    width: 100%;
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 10px;
+    margin-bottom: 8px;
 }
 
 /* Password visibility toggle (light theme) */
 .password-field-wrapper {
-  position: relative;
-  display: inline-block;
-  width: 100%;
+    position: relative;
+    display: inline-block;
+    width: 100%;
 }
 
 .password-field-wrapper .theme-form-input.custom-input {
-  padding-right: 36px;
+    padding-right: 36px;
 }
 
 .toggle-password-button {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  color: inherit;
-  padding: 0;
-  height: 24px;
-  width: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    color: inherit;
+    padding: 0;
+    height: 24px;
+    width: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .toggle-password-button img {
-  height: 18px;
-  width: 18px;
-  filter: brightness(0) saturate(100%) invert(25%) sepia(8%) saturate(1034%) hue-rotate(201deg) brightness(95%) contrast(89%);
+    height: 18px;
+    width: 18px;
+    filter: brightness(0) saturate(100%) invert(25%) sepia(8%) saturate(1034%)
+        hue-rotate(201deg) brightness(95%) contrast(89%);
 }

@@ -1,164 +1,170 @@
 * {
-  box-sizing: border-box;
+    box-sizing: border-box;
 }
 
-html, body, input, button, select, textarea {
-  font-family: "Eina04";
+html,
+body,
+input,
+button,
+select,
+textarea {
+    font-family: "Eina04";
 }
 
 body {
-  margin: 0;
-  font-family: "Eina04";
+    margin: 0;
+    font-family: "Eina04";
 }
 
 .dex-container {
-  color: #3d3d57;
-  margin: 45px auto;
-  max-width: 400px;
-  min-width: 320px;
-  text-align: center;
+    color: #3d3d57;
+    margin: 45px auto;
+    max-width: 400px;
+    min-width: 320px;
+    text-align: center;
 }
 
 .dex-btn {
-  border-radius: 4px;
-  border: 0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 2px rgba(0, 0, 0, 0.25), 0 0 1px rgba(0, 0, 0, 0.25);
-  cursor: pointer;
-  font-size: 14px;
-  padding: 0;
+    border-radius: 4px;
+    border: 0;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2),
+        0 1px 2px rgba(0, 0, 0, 0.25), 0 0 1px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
 }
 
 .dex-btn:focus {
-  outline: none;
+    outline: none;
 }
 
 .dex-btn:active {
-  box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
-  outline: none;
+    box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
+    outline: none;
 }
 
 .dex-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
+    cursor: not-allowed;
+    opacity: 0.5;
 }
 
 .dex-btn-icon {
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: 24px;
-  border-radius: 4px 0 0 4px;
-  float: left;
-  height: 36px;
-  margin-right: 5px;
-  width: 36px;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 24px;
+    border-radius: 4px 0 0 4px;
+    float: left;
+    height: 36px;
+    margin-right: 5px;
+    width: 36px;
 }
 
 .dex-btn-icon--google {
-  background-color: #FFFFFF;
-  background-image: url(../static/img/google-icon.svg);;
+    background-color: #ffffff;
+    background-image: url(../static/img/google-icon.svg);
 }
 
 .dex-btn-icon--local {
-  background-color: #84B6EF;
-  background-image: url(../static/img/email-icon.svg);
+    background-color: #84b6ef;
+    background-image: url(../static/img/email-icon.svg);
 }
 
 .dex-btn-icon--gitea {
-  background-color: #F5F5F5;
-  background-image: url(../static/img/gitea-icon.svg);
+    background-color: #f5f5f5;
+    background-image: url(../static/img/gitea-icon.svg);
 }
 
 .dex-btn-icon--github {
-  background-color: #F5F5F5;
-  background-image: url(../static/img/github-icon.svg);
+    background-color: #f5f5f5;
+    background-image: url(../static/img/github-icon.svg);
 }
 
 .dex-btn-icon--gitlab {
-  background-color: #F5F5F5;
-  background-image: url(../static/img/gitlab-icon.svg);
-  background-size: contain;
+    background-color: #f5f5f5;
+    background-image: url(../static/img/gitlab-icon.svg);
+    background-size: contain;
 }
 
 .dex-btn-icon--keystone {
-  background-color: #F5F5F5;
-  background-image: url(../static/img/keystone-icon.svg);
+    background-color: #f5f5f5;
+    background-image: url(../static/img/keystone-icon.svg);
 }
 
 .dex-btn-icon--oidc {
-  background-color: #EBEBEE;
-  background-image: url(../static/img/oidc-icon.svg);
-  background-size: contain;
+    background-color: #ebebee;
+    background-image: url(../static/img/oidc-icon.svg);
+    background-size: contain;
 }
 
 .dex-btn-icon--bitbucket-cloud {
-  background-color: #205081;
-  background-image: url(../static/img/bitbucket-icon.svg);
+    background-color: #205081;
+    background-image: url(../static/img/bitbucket-icon.svg);
 }
 
 .dex-btn-icon--atlassian-crowd {
-  background-color: #CFDCEA;
-  background-image: url(../static/img/atlassian-crowd-icon.svg);
+    background-color: #cfdcea;
+    background-image: url(../static/img/atlassian-crowd-icon.svg);
 }
 
 .dex-btn-icon--ldap {
-  background-color: #84B6EF;
-  background-image: url(../static/img/ldap-icon.svg);
+    background-color: #84b6ef;
+    background-image: url(../static/img/ldap-icon.svg);
 }
 
 .dex-btn-icon--saml {
-  background-color: #84B6EF;
-  background-image: url(../static/img/saml-icon.svg);
+    background-color: #84b6ef;
+    background-image: url(../static/img/saml-icon.svg);
 }
 
 .dex-btn-icon--linkedin {
-  background-image: url(../static/img/linkedin-icon.svg);
-  background-size: contain;
+    background-image: url(../static/img/linkedin-icon.svg);
+    background-size: contain;
 }
 
 .dex-btn-icon--microsoft {
-  background-image: url(../static/img/microsoft-icon.svg);
+    background-image: url(../static/img/microsoft-icon.svg);
 }
 
 .dex-btn-text {
-  font-weight: 600;
-  line-height: 36px;
-  padding: 6px 12px;
-  text-align: center;
+    font-weight: 600;
+    line-height: 36px;
+    padding: 6px 12px;
+    text-align: center;
 }
 
 .dex-subtle-text {
-  color: #005992;
-  font-size: 12px;
+    color: #000;
+    font-size: 12px;
 }
 
 .dex-separator {
-  color: #999;
+    color: #999;
 }
 
 .dex-list {
-  color: #999;
-  display: inline-block;
-  font-size: 12px;
-  list-style: circle;
-  text-align: left;
+    color: #999;
+    display: inline-block;
+    font-size: 12px;
+    list-style: circle;
+    text-align: left;
 }
 
 .dex-error-box {
-  background-color: #DD1327;
-  color: #fff;
-  font-size: 14px;
-  font-weight: normal;
-  max-width: 320px;
-  padding: 4px 0;
+    background-color: #dd1327;
+    color: #fff;
+    font-size: 14px;
+    font-weight: normal;
+    max-width: 320px;
+    padding: 4px 0;
 }
 
 .dex-error-box {
-  margin: 20px auto;
+    margin: 20px auto;
 }
 
 input:-webkit-autofill,
-input:-webkit-autofill:hover, 
-input:-webkit-autofill:focus, 
-input:-webkit-autofill:active{
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
     -webkit-box-shadow: 0 0 0 30px white inset !important;
 }
