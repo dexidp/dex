@@ -119,6 +119,21 @@ web:
 #       - 'http://127.0.0.1:5555/callback'
 #     name: 'Example App'
 #     secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+#
+#   # Example using environment variables
+#   # These fields are mutually exclusive with id and secret respectively.
+#   - idEnv: DEX_CLIENT_ID
+#     secretEnv: DEX_CLIENT_SECRET
+#     redirectURIs:
+#       - 'https://app.example.com/callback'
+#     name: 'Production App'
+#
+#   # Example of a public client (no secret required)
+#   - id: example-device-client
+#     redirectURIs:
+#       - /device/callback
+#     name: 'Static Client for Device Flow'
+#     public: true
 
 # Connectors are used to authenticate users against upstream identity providers.
 #
