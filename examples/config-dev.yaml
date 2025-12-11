@@ -131,6 +131,15 @@ staticClients:
   - 'http://127.0.0.1:5555/callback'
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+
+# Example using environment variables
+# Set DEX_CLIENT_ID and DEX_SECURE_CLIENT_SECRET before starting Dex
+# - idEnv: DEX_CLIENT_ID
+#   secretEnv: DEX_CLIENT_SECRET
+#   redirectURIs:
+#   - 'http://127.0.0.1:5556/callback'
+#   name: 'Secure Example App'
+
 #  - id: example-device-client
 #    redirectURIs:
 #      - /device/callback
