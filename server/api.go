@@ -18,7 +18,7 @@ import (
 
 // apiVersion increases every time a new call is added to the API. Clients should use this info
 // to determine if the server supports specific features.
-const apiVersion = 2
+const apiVersion = 3
 
 const (
 	// recCost is the recommended bcrypt cost, which balances hash strength and
@@ -143,6 +143,31 @@ func (d dexAPI) DeleteClient(ctx context.Context, req *api.DeleteClientReq) (*ap
 		return nil, fmt.Errorf("delete client: %v", err)
 	}
 	return &api.DeleteClientResp{}, nil
+}
+
+func (d dexAPI) ListClients(ctx context.Context, req *api.ListClientReq) (*api.ListClientResp, error) {
+	clientList, err := d.s.ListClients(ctx)
+	if err != nil {
+		d.logger.Error("failed to list clients", "err", err)
+		return nil, fmt.Errorf("list clients: %v", err)
+	}
+
+	clients := make([]*api.ClientInfo, 0, len(clientList))
+	for _, client := range clientList {
+		c := api.ClientInfo{
+			Id:           client.ID,
+			Name:         client.Name,
+			RedirectUris: client.RedirectURIs,
+			TrustedPeers: client.TrustedPeers,
+			Public:       client.Public,
+			LogoUrl:      client.LogoURL,
+		}
+		clients = append(clients, &c)
+	}
+
+	return &api.ListClientResp{
+		Clients: clients,
+	}, nil
 }
 
 // checkCost returns an error if the hash provided does not meet lower or upper

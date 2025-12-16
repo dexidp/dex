@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -76,13 +75,14 @@ FDWV28nTP9sqbtsmU8Tem2jzMvZ7C/Q0AuDoKELFUpux8shm8wfIhyaPnXUGZoAZ
 Np4vUwMSYV5mopESLWOg3loBxKyLGFtgGKVCjGiQvy6zISQ4fQo=
 -----END RSA PRIVATE KEY-----`)
 
-var logger = slog.New(slog.DiscardHandler)
-
-func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
+func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
 	var server *Server
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		server.ServeHTTP(w, r)
 	}))
+
+	logger := newLogger(t)
+	ctx := t.Context()
 
 	config := Config{
 		Issuer:  s.URL,
@@ -135,11 +135,14 @@ func newTestServer(ctx context.Context, t *testing.T, updateConfig func(c *Confi
 	return s, server
 }
 
-func newTestServerMultipleConnectors(ctx context.Context, t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
+func newTestServerMultipleConnectors(t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
 	var server *Server
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		server.ServeHTTP(w, r)
 	}))
+
+	logger := newLogger(t)
+	ctx := t.Context()
 
 	config := Config{
 		Issuer:  s.URL,
@@ -183,21 +186,16 @@ func newTestServerMultipleConnectors(ctx context.Context, t *testing.T, updateCo
 }
 
 func TestNewTestServer(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	newTestServer(ctx, t, nil)
+	newTestServer(t, nil)
 }
 
 func TestDiscovery(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	httpServer, _ := newTestServer(ctx, t, func(c *Config) {
+	httpServer, _ := newTestServer(t, func(c *Config) {
 		c.Issuer += "/non-root-path"
 	})
 	defer httpServer.Close()
 
-	p, err := oidc.NewProvider(ctx, httpServer.URL)
+	p, err := oidc.NewProvider(t.Context(), httpServer.URL)
 	if err != nil {
 		t.Fatalf("failed to get provider: %v", err)
 	}
@@ -734,11 +732,10 @@ func TestOAuth2CodeFlow(t *testing.T) {
 	tests := makeOAuth2Tests(clientID, clientSecret, now)
 	for _, tc := range tests.tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			// Setup a dex server.
-			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+			httpServer, s := newTestServer(t, func(c *Config) {
 				c.Issuer += "/non-root-path"
 				c.Now = now
 				c.IDTokensValidFor = idTokensValidFor
@@ -890,10 +887,9 @@ func TestOAuth2CodeFlow(t *testing.T) {
 }
 
 func TestOAuth2ImplicitFlow(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
-	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+	httpServer, s := newTestServer(t, func(c *Config) {
 		// Enable support for the implicit flow.
 		c.SupportedResponseTypes = []string{"code", "token", "id_token"}
 	})
@@ -1026,10 +1022,9 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 }
 
 func TestCrossClientScopes(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
-	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+	httpServer, s := newTestServer(t, func(c *Config) {
 		c.Issuer += "/non-root-path"
 	})
 	defer httpServer.Close()
@@ -1149,10 +1144,9 @@ func TestCrossClientScopes(t *testing.T) {
 }
 
 func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
-	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+	httpServer, s := newTestServer(t, func(c *Config) {
 		c.Issuer += "/non-root-path"
 	})
 	defer httpServer.Close()
@@ -1271,7 +1265,9 @@ func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
 }
 
 func TestPasswordDB(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
+
+	logger := newLogger(t)
 	s := memory.New(logger)
 	conn := newPasswordDB(s)
 
@@ -1323,7 +1319,7 @@ func TestPasswordDB(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		ident, valid, err := conn.Login(context.Background(), connector.Scopes{}, tc.username, tc.password)
+		ident, valid, err := conn.Login(t.Context(), connector.Scopes{}, tc.username, tc.password)
 		if err != nil {
 			if !tc.wantErr {
 				t.Errorf("%s: %v", tc.name, err)
@@ -1355,6 +1351,7 @@ func TestPasswordDB(t *testing.T) {
 }
 
 func TestPasswordDBUsernamePrompt(t *testing.T) {
+	logger := newLogger(t)
 	s := memory.New(logger)
 	conn := newPasswordDB(s)
 
@@ -1377,7 +1374,8 @@ func (s storageWithKeysTrigger) GetKeys(ctx context.Context) (storage.Keys, erro
 func TestKeyCacher(t *testing.T) {
 	tNow := time.Now()
 	now := func() time.Time { return tNow }
-	ctx := context.TODO()
+	ctx := t.Context()
+	logger := newLogger(t)
 	s := memory.New(logger)
 
 	tests := []struct {
@@ -1428,7 +1426,7 @@ func TestKeyCacher(t *testing.T) {
 	for i, tc := range tests {
 		gotCall = false
 		tc.before()
-		s.GetKeys(context.TODO())
+		s.GetKeys(t.Context())
 		if gotCall != tc.wantCallToStorage {
 			t.Errorf("case %d: expected call to storage=%t got call to storage=%t", i, tc.wantCallToStorage, gotCall)
 		}
@@ -1470,10 +1468,10 @@ type oauth2Client struct {
 func TestRefreshTokenFlow(t *testing.T) {
 	state := "state"
 	now := time.Now
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
-	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+	ctx := t.Context()
+
+	httpServer, s := newTestServer(t, func(c *Config) {
 		c.Now = now
 	})
 	defer httpServer.Close()
@@ -1604,11 +1602,10 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 	for _, testCase := range testCases {
 		for _, tc := range testCase.oauth2Tests.tests {
 			t.Run(tc.name, func(t *testing.T) {
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
+				ctx := t.Context()
 
 				// Setup a dex server.
-				httpServer, s := newTestServer(ctx, t, func(c *Config) {
+				httpServer, s := newTestServer(t, func(c *Config) {
 					c.Issuer += "/non-root-path"
 					c.Now = now
 					c.IDTokensValidFor = idTokensValidFor
@@ -1789,17 +1786,16 @@ func TestServerSupportedGrants(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, srv := newTestServer(context.TODO(), t, tc.config)
+			_, srv := newTestServer(t, tc.config)
 			require.Equal(t, tc.resGrants, srv.supportedGrantTypes)
 		})
 	}
 }
 
 func TestHeaders(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
-	httpServer, _ := newTestServer(ctx, t, func(c *Config) {
+	httpServer, _ := newTestServer(t, func(c *Config) {
 		c.Headers = map[string][]string{
 			"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
 		}
@@ -1815,4 +1811,207 @@ func TestHeaders(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "max-age=31536000; includeSubDomains", resp.Header.Get("Strict-Transport-Security"))
+}
+
+func TestConnectorFailureHandling(t *testing.T) {
+	ctx := t.Context()
+
+	tests := []struct {
+		name                       string
+		connectors                 []storage.Connector
+		continueOnConnectorFailure bool
+		wantErr                    bool
+		wantErrContains            string
+		expectConnectors           []string // IDs of connectors that should be loaded successfully
+	}{
+		{
+			name: "all connectors succeed with flag enabled",
+			connectors: []storage.Connector{
+				{
+					ID:   "mock1",
+					Type: "mockCallback",
+					Name: "Mock1",
+				},
+				{
+					ID:   "mock2",
+					Type: "mockCallback",
+					Name: "Mock2",
+				},
+			},
+			continueOnConnectorFailure: true,
+			wantErr:                    false,
+			expectConnectors:           []string{"mock1", "mock2"},
+		},
+		{
+			name: "all connectors succeed with flag disabled",
+			connectors: []storage.Connector{
+				{
+					ID:   "mock1",
+					Type: "mockCallback",
+					Name: "Mock1",
+				},
+				{
+					ID:   "mock2",
+					Type: "mockCallback",
+					Name: "Mock2",
+				},
+			},
+			continueOnConnectorFailure: false,
+			wantErr:                    false,
+			expectConnectors:           []string{"mock1", "mock2"},
+		},
+		{
+			name: "partial connector failure with flag enabled",
+			connectors: []storage.Connector{
+				{
+					ID:   "mock-good",
+					Type: "mockCallback",
+					Name: "Good Mock",
+				},
+				{
+					ID:   "bad-connector",
+					Type: "nonexistent",
+					Name: "Bad Connector",
+				},
+				{
+					ID:   "mock-good2",
+					Type: "mockCallback",
+					Name: "Good Mock 2",
+				},
+			},
+			continueOnConnectorFailure: true,
+			wantErr:                    false,
+			expectConnectors:           []string{"mock-good", "mock-good2"},
+		},
+		{
+			name: "partial connector failure with flag disabled",
+			connectors: []storage.Connector{
+				{
+					ID:   "mock-good",
+					Type: "mockCallback",
+					Name: "Good Mock",
+				},
+				{
+					ID:   "bad-connector",
+					Type: "nonexistent",
+					Name: "Bad Connector",
+				},
+				{
+					ID:   "mock-good2",
+					Type: "mockCallback",
+					Name: "Good Mock 2",
+				},
+			},
+			continueOnConnectorFailure: false,
+			wantErr:                    true,
+			wantErrContains:            "Failed to open connector bad-connector",
+			expectConnectors:           []string{}, // Server creation should fail
+		},
+		{
+			name: "all connectors fail with flag enabled",
+			connectors: []storage.Connector{
+				{
+					ID:   "bad1",
+					Type: "nonexistent1",
+					Name: "Bad 1",
+				},
+				{
+					ID:   "bad2",
+					Type: "nonexistent2",
+					Name: "Bad 2",
+				},
+			},
+			continueOnConnectorFailure: true,
+			wantErr:                    true,
+			wantErrContains:            "failed to open all connectors (2/2)",
+		},
+		{
+			name: "all connectors fail with flag disabled",
+			connectors: []storage.Connector{
+				{
+					ID:   "bad1",
+					Type: "nonexistent1",
+					Name: "Bad 1",
+				},
+				{
+					ID:   "bad2",
+					Type: "nonexistent2",
+					Name: "Bad 2",
+				},
+			},
+			continueOnConnectorFailure: false,
+			wantErr:                    true,
+			wantErrContains:            "Failed to open connector",
+		},
+		{
+			name:                       "no connectors",
+			connectors:                 []storage.Connector{},
+			continueOnConnectorFailure: true,
+			wantErr:                    true,
+			wantErrContains:            "no connectors specified",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			logger := newLogger(t)
+
+			config := Config{
+				Issuer:  "http://localhost",
+				Storage: memory.New(logger),
+				Web: WebConfig{
+					Dir: "../web",
+				},
+				Logger:                     logger,
+				PrometheusRegistry:         prometheus.NewRegistry(),
+				HealthChecker:              gosundheit.New(),
+				ContinueOnConnectorFailure: tc.continueOnConnectorFailure,
+			}
+
+			// Create connectors in storage
+			for _, conn := range tc.connectors {
+				if err := config.Storage.CreateConnector(ctx, conn); err != nil {
+					t.Fatalf("failed to create connector: %v", err)
+				}
+			}
+
+			server, err := newServer(ctx, config, staticRotationStrategy(testKey))
+
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("expected error but got none")
+				} else if tc.wantErrContains != "" && !strings.Contains(err.Error(), tc.wantErrContains) {
+					t.Errorf("expected error containing %q, got %q", tc.wantErrContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				} else {
+					// Verify expected connectors are loaded
+					for _, id := range tc.expectConnectors {
+						if _, exists := server.connectors[id]; !exists {
+							t.Errorf("expected connector %q to be loaded", id)
+						}
+					}
+
+					// Verify failed connectors are not loaded
+					for _, conn := range tc.connectors {
+						_, shouldExist := false, false
+						for _, expectedID := range tc.expectConnectors {
+							if conn.ID == expectedID {
+								shouldExist = true
+								break
+							}
+						}
+						_, exists := server.connectors[conn.ID]
+						if shouldExist && !exists {
+							t.Errorf("connector %q should have been loaded but wasn't", conn.ID)
+						} else if !shouldExist && exists {
+							t.Errorf("connector %q should not have been loaded but was", conn.ID)
+						}
+					}
+				}
+			}
+		})
+	}
 }

@@ -28,40 +28,40 @@ type ConnectorQuery struct {
 }
 
 // Where adds a new predicate for the ConnectorQuery builder.
-func (cq *ConnectorQuery) Where(ps ...predicate.Connector) *ConnectorQuery {
-	cq.predicates = append(cq.predicates, ps...)
-	return cq
+func (_q *ConnectorQuery) Where(ps ...predicate.Connector) *ConnectorQuery {
+	_q.predicates = append(_q.predicates, ps...)
+	return _q
 }
 
 // Limit the number of records to be returned by this query.
-func (cq *ConnectorQuery) Limit(limit int) *ConnectorQuery {
-	cq.ctx.Limit = &limit
-	return cq
+func (_q *ConnectorQuery) Limit(limit int) *ConnectorQuery {
+	_q.ctx.Limit = &limit
+	return _q
 }
 
 // Offset to start from.
-func (cq *ConnectorQuery) Offset(offset int) *ConnectorQuery {
-	cq.ctx.Offset = &offset
-	return cq
+func (_q *ConnectorQuery) Offset(offset int) *ConnectorQuery {
+	_q.ctx.Offset = &offset
+	return _q
 }
 
 // Unique configures the query builder to filter duplicate records on query.
 // By default, unique is set to true, and can be disabled using this method.
-func (cq *ConnectorQuery) Unique(unique bool) *ConnectorQuery {
-	cq.ctx.Unique = &unique
-	return cq
+func (_q *ConnectorQuery) Unique(unique bool) *ConnectorQuery {
+	_q.ctx.Unique = &unique
+	return _q
 }
 
 // Order specifies how the records should be ordered.
-func (cq *ConnectorQuery) Order(o ...connector.OrderOption) *ConnectorQuery {
-	cq.order = append(cq.order, o...)
-	return cq
+func (_q *ConnectorQuery) Order(o ...connector.OrderOption) *ConnectorQuery {
+	_q.order = append(_q.order, o...)
+	return _q
 }
 
 // First returns the first Connector entity from the query.
 // Returns a *NotFoundError when no Connector was found.
-func (cq *ConnectorQuery) First(ctx context.Context) (*Connector, error) {
-	nodes, err := cq.Limit(1).All(setContextOp(ctx, cq.ctx, ent.OpQueryFirst))
+func (_q *ConnectorQuery) First(ctx context.Context) (*Connector, error) {
+	nodes, err := _q.Limit(1).All(setContextOp(ctx, _q.ctx, ent.OpQueryFirst))
 	if err != nil {
 		return nil, err
 	}
@@ -72,8 +72,8 @@ func (cq *ConnectorQuery) First(ctx context.Context) (*Connector, error) {
 }
 
 // FirstX is like First, but panics if an error occurs.
-func (cq *ConnectorQuery) FirstX(ctx context.Context) *Connector {
-	node, err := cq.First(ctx)
+func (_q *ConnectorQuery) FirstX(ctx context.Context) *Connector {
+	node, err := _q.First(ctx)
 	if err != nil && !IsNotFound(err) {
 		panic(err)
 	}
@@ -82,9 +82,9 @@ func (cq *ConnectorQuery) FirstX(ctx context.Context) *Connector {
 
 // FirstID returns the first Connector ID from the query.
 // Returns a *NotFoundError when no Connector ID was found.
-func (cq *ConnectorQuery) FirstID(ctx context.Context) (id string, err error) {
+func (_q *ConnectorQuery) FirstID(ctx context.Context) (id string, err error) {
 	var ids []string
-	if ids, err = cq.Limit(1).IDs(setContextOp(ctx, cq.ctx, ent.OpQueryFirstID)); err != nil {
+	if ids, err = _q.Limit(1).IDs(setContextOp(ctx, _q.ctx, ent.OpQueryFirstID)); err != nil {
 		return
 	}
 	if len(ids) == 0 {
@@ -95,8 +95,8 @@ func (cq *ConnectorQuery) FirstID(ctx context.Context) (id string, err error) {
 }
 
 // FirstIDX is like FirstID, but panics if an error occurs.
-func (cq *ConnectorQuery) FirstIDX(ctx context.Context) string {
-	id, err := cq.FirstID(ctx)
+func (_q *ConnectorQuery) FirstIDX(ctx context.Context) string {
+	id, err := _q.FirstID(ctx)
 	if err != nil && !IsNotFound(err) {
 		panic(err)
 	}
@@ -106,8 +106,8 @@ func (cq *ConnectorQuery) FirstIDX(ctx context.Context) string {
 // Only returns a single Connector entity found by the query, ensuring it only returns one.
 // Returns a *NotSingularError when more than one Connector entity is found.
 // Returns a *NotFoundError when no Connector entities are found.
-func (cq *ConnectorQuery) Only(ctx context.Context) (*Connector, error) {
-	nodes, err := cq.Limit(2).All(setContextOp(ctx, cq.ctx, ent.OpQueryOnly))
+func (_q *ConnectorQuery) Only(ctx context.Context) (*Connector, error) {
+	nodes, err := _q.Limit(2).All(setContextOp(ctx, _q.ctx, ent.OpQueryOnly))
 	if err != nil {
 		return nil, err
 	}
@@ -122,8 +122,8 @@ func (cq *ConnectorQuery) Only(ctx context.Context) (*Connector, error) {
 }
 
 // OnlyX is like Only, but panics if an error occurs.
-func (cq *ConnectorQuery) OnlyX(ctx context.Context) *Connector {
-	node, err := cq.Only(ctx)
+func (_q *ConnectorQuery) OnlyX(ctx context.Context) *Connector {
+	node, err := _q.Only(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -133,9 +133,9 @@ func (cq *ConnectorQuery) OnlyX(ctx context.Context) *Connector {
 // OnlyID is like Only, but returns the only Connector ID in the query.
 // Returns a *NotSingularError when more than one Connector ID is found.
 // Returns a *NotFoundError when no entities are found.
-func (cq *ConnectorQuery) OnlyID(ctx context.Context) (id string, err error) {
+func (_q *ConnectorQuery) OnlyID(ctx context.Context) (id string, err error) {
 	var ids []string
-	if ids, err = cq.Limit(2).IDs(setContextOp(ctx, cq.ctx, ent.OpQueryOnlyID)); err != nil {
+	if ids, err = _q.Limit(2).IDs(setContextOp(ctx, _q.ctx, ent.OpQueryOnlyID)); err != nil {
 		return
 	}
 	switch len(ids) {
@@ -150,8 +150,8 @@ func (cq *ConnectorQuery) OnlyID(ctx context.Context) (id string, err error) {
 }
 
 // OnlyIDX is like OnlyID, but panics if an error occurs.
-func (cq *ConnectorQuery) OnlyIDX(ctx context.Context) string {
-	id, err := cq.OnlyID(ctx)
+func (_q *ConnectorQuery) OnlyIDX(ctx context.Context) string {
+	id, err := _q.OnlyID(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -159,18 +159,18 @@ func (cq *ConnectorQuery) OnlyIDX(ctx context.Context) string {
 }
 
 // All executes the query and returns a list of Connectors.
-func (cq *ConnectorQuery) All(ctx context.Context) ([]*Connector, error) {
-	ctx = setContextOp(ctx, cq.ctx, ent.OpQueryAll)
-	if err := cq.prepareQuery(ctx); err != nil {
+func (_q *ConnectorQuery) All(ctx context.Context) ([]*Connector, error) {
+	ctx = setContextOp(ctx, _q.ctx, ent.OpQueryAll)
+	if err := _q.prepareQuery(ctx); err != nil {
 		return nil, err
 	}
 	qr := querierAll[[]*Connector, *ConnectorQuery]()
-	return withInterceptors[[]*Connector](ctx, cq, qr, cq.inters)
+	return withInterceptors[[]*Connector](ctx, _q, qr, _q.inters)
 }
 
 // AllX is like All, but panics if an error occurs.
-func (cq *ConnectorQuery) AllX(ctx context.Context) []*Connector {
-	nodes, err := cq.All(ctx)
+func (_q *ConnectorQuery) AllX(ctx context.Context) []*Connector {
+	nodes, err := _q.All(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -178,20 +178,20 @@ func (cq *ConnectorQuery) AllX(ctx context.Context) []*Connector {
 }
 
 // IDs executes the query and returns a list of Connector IDs.
-func (cq *ConnectorQuery) IDs(ctx context.Context) (ids []string, err error) {
-	if cq.ctx.Unique == nil && cq.path != nil {
-		cq.Unique(true)
+func (_q *ConnectorQuery) IDs(ctx context.Context) (ids []string, err error) {
+	if _q.ctx.Unique == nil && _q.path != nil {
+		_q.Unique(true)
 	}
-	ctx = setContextOp(ctx, cq.ctx, ent.OpQueryIDs)
-	if err = cq.Select(connector.FieldID).Scan(ctx, &ids); err != nil {
+	ctx = setContextOp(ctx, _q.ctx, ent.OpQueryIDs)
+	if err = _q.Select(connector.FieldID).Scan(ctx, &ids); err != nil {
 		return nil, err
 	}
 	return ids, nil
 }
 
 // IDsX is like IDs, but panics if an error occurs.
-func (cq *ConnectorQuery) IDsX(ctx context.Context) []string {
-	ids, err := cq.IDs(ctx)
+func (_q *ConnectorQuery) IDsX(ctx context.Context) []string {
+	ids, err := _q.IDs(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -199,17 +199,17 @@ func (cq *ConnectorQuery) IDsX(ctx context.Context) []string {
 }
 
 // Count returns the count of the given query.
-func (cq *ConnectorQuery) Count(ctx context.Context) (int, error) {
-	ctx = setContextOp(ctx, cq.ctx, ent.OpQueryCount)
-	if err := cq.prepareQuery(ctx); err != nil {
+func (_q *ConnectorQuery) Count(ctx context.Context) (int, error) {
+	ctx = setContextOp(ctx, _q.ctx, ent.OpQueryCount)
+	if err := _q.prepareQuery(ctx); err != nil {
 		return 0, err
 	}
-	return withInterceptors[int](ctx, cq, querierCount[*ConnectorQuery](), cq.inters)
+	return withInterceptors[int](ctx, _q, querierCount[*ConnectorQuery](), _q.inters)
 }
 
 // CountX is like Count, but panics if an error occurs.
-func (cq *ConnectorQuery) CountX(ctx context.Context) int {
-	count, err := cq.Count(ctx)
+func (_q *ConnectorQuery) CountX(ctx context.Context) int {
+	count, err := _q.Count(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -217,9 +217,9 @@ func (cq *ConnectorQuery) CountX(ctx context.Context) int {
 }
 
 // Exist returns true if the query has elements in the graph.
-func (cq *ConnectorQuery) Exist(ctx context.Context) (bool, error) {
-	ctx = setContextOp(ctx, cq.ctx, ent.OpQueryExist)
-	switch _, err := cq.FirstID(ctx); {
+func (_q *ConnectorQuery) Exist(ctx context.Context) (bool, error) {
+	ctx = setContextOp(ctx, _q.ctx, ent.OpQueryExist)
+	switch _, err := _q.FirstID(ctx); {
 	case IsNotFound(err):
 		return false, nil
 	case err != nil:
@@ -230,8 +230,8 @@ func (cq *ConnectorQuery) Exist(ctx context.Context) (bool, error) {
 }
 
 // ExistX is like Exist, but panics if an error occurs.
-func (cq *ConnectorQuery) ExistX(ctx context.Context) bool {
-	exist, err := cq.Exist(ctx)
+func (_q *ConnectorQuery) ExistX(ctx context.Context) bool {
+	exist, err := _q.Exist(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -240,19 +240,19 @@ func (cq *ConnectorQuery) ExistX(ctx context.Context) bool {
 
 // Clone returns a duplicate of the ConnectorQuery builder, including all associated steps. It can be
 // used to prepare common query builders and use them differently after the clone is made.
-func (cq *ConnectorQuery) Clone() *ConnectorQuery {
-	if cq == nil {
+func (_q *ConnectorQuery) Clone() *ConnectorQuery {
+	if _q == nil {
 		return nil
 	}
 	return &ConnectorQuery{
-		config:     cq.config,
-		ctx:        cq.ctx.Clone(),
-		order:      append([]connector.OrderOption{}, cq.order...),
-		inters:     append([]Interceptor{}, cq.inters...),
-		predicates: append([]predicate.Connector{}, cq.predicates...),
+		config:     _q.config,
+		ctx:        _q.ctx.Clone(),
+		order:      append([]connector.OrderOption{}, _q.order...),
+		inters:     append([]Interceptor{}, _q.inters...),
+		predicates: append([]predicate.Connector{}, _q.predicates...),
 		// clone intermediate query.
-		sql:  cq.sql.Clone(),
-		path: cq.path,
+		sql:  _q.sql.Clone(),
+		path: _q.path,
 	}
 }
 
@@ -270,10 +270,10 @@ func (cq *ConnectorQuery) Clone() *ConnectorQuery {
 //		GroupBy(connector.FieldType).
 //		Aggregate(db.Count()).
 //		Scan(ctx, &v)
-func (cq *ConnectorQuery) GroupBy(field string, fields ...string) *ConnectorGroupBy {
-	cq.ctx.Fields = append([]string{field}, fields...)
-	grbuild := &ConnectorGroupBy{build: cq}
-	grbuild.flds = &cq.ctx.Fields
+func (_q *ConnectorQuery) GroupBy(field string, fields ...string) *ConnectorGroupBy {
+	_q.ctx.Fields = append([]string{field}, fields...)
+	grbuild := &ConnectorGroupBy{build: _q}
+	grbuild.flds = &_q.ctx.Fields
 	grbuild.label = connector.Label
 	grbuild.scan = grbuild.Scan
 	return grbuild
@@ -291,62 +291,62 @@ func (cq *ConnectorQuery) GroupBy(field string, fields ...string) *ConnectorGrou
 //	client.Connector.Query().
 //		Select(connector.FieldType).
 //		Scan(ctx, &v)
-func (cq *ConnectorQuery) Select(fields ...string) *ConnectorSelect {
-	cq.ctx.Fields = append(cq.ctx.Fields, fields...)
-	sbuild := &ConnectorSelect{ConnectorQuery: cq}
+func (_q *ConnectorQuery) Select(fields ...string) *ConnectorSelect {
+	_q.ctx.Fields = append(_q.ctx.Fields, fields...)
+	sbuild := &ConnectorSelect{ConnectorQuery: _q}
 	sbuild.label = connector.Label
-	sbuild.flds, sbuild.scan = &cq.ctx.Fields, sbuild.Scan
+	sbuild.flds, sbuild.scan = &_q.ctx.Fields, sbuild.Scan
 	return sbuild
 }
 
 // Aggregate returns a ConnectorSelect configured with the given aggregations.
-func (cq *ConnectorQuery) Aggregate(fns ...AggregateFunc) *ConnectorSelect {
-	return cq.Select().Aggregate(fns...)
+func (_q *ConnectorQuery) Aggregate(fns ...AggregateFunc) *ConnectorSelect {
+	return _q.Select().Aggregate(fns...)
 }
 
-func (cq *ConnectorQuery) prepareQuery(ctx context.Context) error {
-	for _, inter := range cq.inters {
+func (_q *ConnectorQuery) prepareQuery(ctx context.Context) error {
+	for _, inter := range _q.inters {
 		if inter == nil {
 			return fmt.Errorf("db: uninitialized interceptor (forgotten import db/runtime?)")
 		}
 		if trv, ok := inter.(Traverser); ok {
-			if err := trv.Traverse(ctx, cq); err != nil {
+			if err := trv.Traverse(ctx, _q); err != nil {
 				return err
 			}
 		}
 	}
-	for _, f := range cq.ctx.Fields {
+	for _, f := range _q.ctx.Fields {
 		if !connector.ValidColumn(f) {
 			return &ValidationError{Name: f, err: fmt.Errorf("db: invalid field %q for query", f)}
 		}
 	}
-	if cq.path != nil {
-		prev, err := cq.path(ctx)
+	if _q.path != nil {
+		prev, err := _q.path(ctx)
 		if err != nil {
 			return err
 		}
-		cq.sql = prev
+		_q.sql = prev
 	}
 	return nil
 }
 
-func (cq *ConnectorQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Connector, error) {
+func (_q *ConnectorQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Connector, error) {
 	var (
 		nodes = []*Connector{}
-		_spec = cq.querySpec()
+		_spec = _q.querySpec()
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
 		return (*Connector).scanValues(nil, columns)
 	}
 	_spec.Assign = func(columns []string, values []any) error {
-		node := &Connector{config: cq.config}
+		node := &Connector{config: _q.config}
 		nodes = append(nodes, node)
 		return node.assignValues(columns, values)
 	}
 	for i := range hooks {
 		hooks[i](ctx, _spec)
 	}
-	if err := sqlgraph.QueryNodes(ctx, cq.driver, _spec); err != nil {
+	if err := sqlgraph.QueryNodes(ctx, _q.driver, _spec); err != nil {
 		return nil, err
 	}
 	if len(nodes) == 0 {
@@ -355,24 +355,24 @@ func (cq *ConnectorQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Co
 	return nodes, nil
 }
 
-func (cq *ConnectorQuery) sqlCount(ctx context.Context) (int, error) {
-	_spec := cq.querySpec()
-	_spec.Node.Columns = cq.ctx.Fields
-	if len(cq.ctx.Fields) > 0 {
-		_spec.Unique = cq.ctx.Unique != nil && *cq.ctx.Unique
+func (_q *ConnectorQuery) sqlCount(ctx context.Context) (int, error) {
+	_spec := _q.querySpec()
+	_spec.Node.Columns = _q.ctx.Fields
+	if len(_q.ctx.Fields) > 0 {
+		_spec.Unique = _q.ctx.Unique != nil && *_q.ctx.Unique
 	}
-	return sqlgraph.CountNodes(ctx, cq.driver, _spec)
+	return sqlgraph.CountNodes(ctx, _q.driver, _spec)
 }
 
-func (cq *ConnectorQuery) querySpec() *sqlgraph.QuerySpec {
+func (_q *ConnectorQuery) querySpec() *sqlgraph.QuerySpec {
 	_spec := sqlgraph.NewQuerySpec(connector.Table, connector.Columns, sqlgraph.NewFieldSpec(connector.FieldID, field.TypeString))
-	_spec.From = cq.sql
-	if unique := cq.ctx.Unique; unique != nil {
+	_spec.From = _q.sql
+	if unique := _q.ctx.Unique; unique != nil {
 		_spec.Unique = *unique
-	} else if cq.path != nil {
+	} else if _q.path != nil {
 		_spec.Unique = true
 	}
-	if fields := cq.ctx.Fields; len(fields) > 0 {
+	if fields := _q.ctx.Fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, connector.FieldID)
 		for i := range fields {
@@ -381,20 +381,20 @@ func (cq *ConnectorQuery) querySpec() *sqlgraph.QuerySpec {
 			}
 		}
 	}
-	if ps := cq.predicates; len(ps) > 0 {
+	if ps := _q.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	if limit := cq.ctx.Limit; limit != nil {
+	if limit := _q.ctx.Limit; limit != nil {
 		_spec.Limit = *limit
 	}
-	if offset := cq.ctx.Offset; offset != nil {
+	if offset := _q.ctx.Offset; offset != nil {
 		_spec.Offset = *offset
 	}
-	if ps := cq.order; len(ps) > 0 {
+	if ps := _q.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
@@ -404,33 +404,33 @@ func (cq *ConnectorQuery) querySpec() *sqlgraph.QuerySpec {
 	return _spec
 }
 
-func (cq *ConnectorQuery) sqlQuery(ctx context.Context) *sql.Selector {
-	builder := sql.Dialect(cq.driver.Dialect())
+func (_q *ConnectorQuery) sqlQuery(ctx context.Context) *sql.Selector {
+	builder := sql.Dialect(_q.driver.Dialect())
 	t1 := builder.Table(connector.Table)
-	columns := cq.ctx.Fields
+	columns := _q.ctx.Fields
 	if len(columns) == 0 {
 		columns = connector.Columns
 	}
 	selector := builder.Select(t1.Columns(columns...)...).From(t1)
-	if cq.sql != nil {
-		selector = cq.sql
+	if _q.sql != nil {
+		selector = _q.sql
 		selector.Select(selector.Columns(columns...)...)
 	}
-	if cq.ctx.Unique != nil && *cq.ctx.Unique {
+	if _q.ctx.Unique != nil && *_q.ctx.Unique {
 		selector.Distinct()
 	}
-	for _, p := range cq.predicates {
+	for _, p := range _q.predicates {
 		p(selector)
 	}
-	for _, p := range cq.order {
+	for _, p := range _q.order {
 		p(selector)
 	}
-	if offset := cq.ctx.Offset; offset != nil {
+	if offset := _q.ctx.Offset; offset != nil {
 		// limit is mandatory for offset clause. We start
 		// with default value, and override it below if needed.
 		selector.Offset(*offset).Limit(math.MaxInt32)
 	}
-	if limit := cq.ctx.Limit; limit != nil {
+	if limit := _q.ctx.Limit; limit != nil {
 		selector.Limit(*limit)
 	}
 	return selector
@@ -443,41 +443,41 @@ type ConnectorGroupBy struct {
 }
 
 // Aggregate adds the given aggregation functions to the group-by query.
-func (cgb *ConnectorGroupBy) Aggregate(fns ...AggregateFunc) *ConnectorGroupBy {
-	cgb.fns = append(cgb.fns, fns...)
-	return cgb
+func (_g *ConnectorGroupBy) Aggregate(fns ...AggregateFunc) *ConnectorGroupBy {
+	_g.fns = append(_g.fns, fns...)
+	return _g
 }
 
 // Scan applies the selector query and scans the result into the given value.
-func (cgb *ConnectorGroupBy) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, cgb.build.ctx, ent.OpQueryGroupBy)
-	if err := cgb.build.prepareQuery(ctx); err != nil {
+func (_g *ConnectorGroupBy) Scan(ctx context.Context, v any) error {
+	ctx = setContextOp(ctx, _g.build.ctx, ent.OpQueryGroupBy)
+	if err := _g.build.prepareQuery(ctx); err != nil {
 		return err
 	}
-	return scanWithInterceptors[*ConnectorQuery, *ConnectorGroupBy](ctx, cgb.build, cgb, cgb.build.inters, v)
+	return scanWithInterceptors[*ConnectorQuery, *ConnectorGroupBy](ctx, _g.build, _g, _g.build.inters, v)
 }
 
-func (cgb *ConnectorGroupBy) sqlScan(ctx context.Context, root *ConnectorQuery, v any) error {
+func (_g *ConnectorGroupBy) sqlScan(ctx context.Context, root *ConnectorQuery, v any) error {
 	selector := root.sqlQuery(ctx).Select()
-	aggregation := make([]string, 0, len(cgb.fns))
-	for _, fn := range cgb.fns {
+	aggregation := make([]string, 0, len(_g.fns))
+	for _, fn := range _g.fns {
 		aggregation = append(aggregation, fn(selector))
 	}
 	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(*cgb.flds)+len(cgb.fns))
-		for _, f := range *cgb.flds {
+		columns := make([]string, 0, len(*_g.flds)+len(_g.fns))
+		for _, f := range *_g.flds {
 			columns = append(columns, selector.C(f))
 		}
 		columns = append(columns, aggregation...)
 		selector.Select(columns...)
 	}
-	selector.GroupBy(selector.Columns(*cgb.flds...)...)
+	selector.GroupBy(selector.Columns(*_g.flds...)...)
 	if err := selector.Err(); err != nil {
 		return err
 	}
 	rows := &sql.Rows{}
 	query, args := selector.Query()
-	if err := cgb.build.driver.Query(ctx, query, args, rows); err != nil {
+	if err := _g.build.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
@@ -491,27 +491,27 @@ type ConnectorSelect struct {
 }
 
 // Aggregate adds the given aggregation functions to the selector query.
-func (cs *ConnectorSelect) Aggregate(fns ...AggregateFunc) *ConnectorSelect {
-	cs.fns = append(cs.fns, fns...)
-	return cs
+func (_s *ConnectorSelect) Aggregate(fns ...AggregateFunc) *ConnectorSelect {
+	_s.fns = append(_s.fns, fns...)
+	return _s
 }
 
 // Scan applies the selector query and scans the result into the given value.
-func (cs *ConnectorSelect) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, cs.ctx, ent.OpQuerySelect)
-	if err := cs.prepareQuery(ctx); err != nil {
+func (_s *ConnectorSelect) Scan(ctx context.Context, v any) error {
+	ctx = setContextOp(ctx, _s.ctx, ent.OpQuerySelect)
+	if err := _s.prepareQuery(ctx); err != nil {
 		return err
 	}
-	return scanWithInterceptors[*ConnectorQuery, *ConnectorSelect](ctx, cs.ConnectorQuery, cs, cs.inters, v)
+	return scanWithInterceptors[*ConnectorQuery, *ConnectorSelect](ctx, _s.ConnectorQuery, _s, _s.inters, v)
 }
 
-func (cs *ConnectorSelect) sqlScan(ctx context.Context, root *ConnectorQuery, v any) error {
+func (_s *ConnectorSelect) sqlScan(ctx context.Context, root *ConnectorQuery, v any) error {
 	selector := root.sqlQuery(ctx)
-	aggregation := make([]string, 0, len(cs.fns))
-	for _, fn := range cs.fns {
+	aggregation := make([]string, 0, len(_s.fns))
+	for _, fn := range _s.fns {
 		aggregation = append(aggregation, fn(selector))
 	}
-	switch n := len(*cs.selector.flds); {
+	switch n := len(*_s.selector.flds); {
 	case n == 0 && len(aggregation) > 0:
 		selector.Select(aggregation...)
 	case n != 0 && len(aggregation) > 0:
@@ -519,7 +519,7 @@ func (cs *ConnectorSelect) sqlScan(ctx context.Context, root *ConnectorQuery, v 
 	}
 	rows := &sql.Rows{}
 	query, args := selector.Query()
-	if err := cs.driver.Query(ctx, query, args, rows); err != nil {
+	if err := _s.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()

@@ -51,7 +51,7 @@ func (*Keys) scanValues(columns []string) ([]any, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the Keys fields.
-func (k *Keys) assignValues(columns []string, values []any) error {
+func (_m *Keys) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -61,13 +61,13 @@ func (k *Keys) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value.Valid {
-				k.ID = value.String
+				_m.ID = value.String
 			}
 		case keys.FieldVerificationKeys:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field verification_keys", values[i])
 			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &k.VerificationKeys); err != nil {
+				if err := json.Unmarshal(*value, &_m.VerificationKeys); err != nil {
 					return fmt.Errorf("unmarshal field verification_keys: %w", err)
 				}
 			}
@@ -75,7 +75,7 @@ func (k *Keys) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field signing_key", values[i])
 			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &k.SigningKey); err != nil {
+				if err := json.Unmarshal(*value, &_m.SigningKey); err != nil {
 					return fmt.Errorf("unmarshal field signing_key: %w", err)
 				}
 			}
@@ -83,7 +83,7 @@ func (k *Keys) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field signing_key_pub", values[i])
 			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &k.SigningKeyPub); err != nil {
+				if err := json.Unmarshal(*value, &_m.SigningKeyPub); err != nil {
 					return fmt.Errorf("unmarshal field signing_key_pub: %w", err)
 				}
 			}
@@ -91,10 +91,10 @@ func (k *Keys) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field next_rotation", values[i])
 			} else if value.Valid {
-				k.NextRotation = value.Time
+				_m.NextRotation = value.Time
 			}
 		default:
-			k.selectValues.Set(columns[i], values[i])
+			_m.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
@@ -102,44 +102,44 @@ func (k *Keys) assignValues(columns []string, values []any) error {
 
 // Value returns the ent.Value that was dynamically selected and assigned to the Keys.
 // This includes values selected through modifiers, order, etc.
-func (k *Keys) Value(name string) (ent.Value, error) {
-	return k.selectValues.Get(name)
+func (_m *Keys) Value(name string) (ent.Value, error) {
+	return _m.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this Keys.
 // Note that you need to call Keys.Unwrap() before calling this method if this Keys
 // was returned from a transaction, and the transaction was committed or rolled back.
-func (k *Keys) Update() *KeysUpdateOne {
-	return NewKeysClient(k.config).UpdateOne(k)
+func (_m *Keys) Update() *KeysUpdateOne {
+	return NewKeysClient(_m.config).UpdateOne(_m)
 }
 
 // Unwrap unwraps the Keys entity that was returned from a transaction after it was closed,
 // so that all future queries will be executed through the driver which created the transaction.
-func (k *Keys) Unwrap() *Keys {
-	_tx, ok := k.config.driver.(*txDriver)
+func (_m *Keys) Unwrap() *Keys {
+	_tx, ok := _m.config.driver.(*txDriver)
 	if !ok {
 		panic("db: Keys is not a transactional entity")
 	}
-	k.config.driver = _tx.drv
-	return k
+	_m.config.driver = _tx.drv
+	return _m
 }
 
 // String implements the fmt.Stringer.
-func (k *Keys) String() string {
+func (_m *Keys) String() string {
 	var builder strings.Builder
 	builder.WriteString("Keys(")
-	builder.WriteString(fmt.Sprintf("id=%v, ", k.ID))
+	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("verification_keys=")
-	builder.WriteString(fmt.Sprintf("%v", k.VerificationKeys))
+	builder.WriteString(fmt.Sprintf("%v", _m.VerificationKeys))
 	builder.WriteString(", ")
 	builder.WriteString("signing_key=")
-	builder.WriteString(fmt.Sprintf("%v", k.SigningKey))
+	builder.WriteString(fmt.Sprintf("%v", _m.SigningKey))
 	builder.WriteString(", ")
 	builder.WriteString("signing_key_pub=")
-	builder.WriteString(fmt.Sprintf("%v", k.SigningKeyPub))
+	builder.WriteString(fmt.Sprintf("%v", _m.SigningKeyPub))
 	builder.WriteString(", ")
 	builder.WriteString("next_rotation=")
-	builder.WriteString(k.NextRotation.Format(time.ANSIC))
+	builder.WriteString(_m.NextRotation.Format(time.ANSIC))
 	builder.WriteByte(')')
 	return builder.String()
 }

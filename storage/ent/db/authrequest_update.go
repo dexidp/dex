@@ -24,306 +24,306 @@ type AuthRequestUpdate struct {
 }
 
 // Where appends a list predicates to the AuthRequestUpdate builder.
-func (aru *AuthRequestUpdate) Where(ps ...predicate.AuthRequest) *AuthRequestUpdate {
-	aru.mutation.Where(ps...)
-	return aru
+func (_u *AuthRequestUpdate) Where(ps ...predicate.AuthRequest) *AuthRequestUpdate {
+	_u.mutation.Where(ps...)
+	return _u
 }
 
 // SetClientID sets the "client_id" field.
-func (aru *AuthRequestUpdate) SetClientID(s string) *AuthRequestUpdate {
-	aru.mutation.SetClientID(s)
-	return aru
+func (_u *AuthRequestUpdate) SetClientID(v string) *AuthRequestUpdate {
+	_u.mutation.SetClientID(v)
+	return _u
 }
 
 // SetNillableClientID sets the "client_id" field if the given value is not nil.
-func (aru *AuthRequestUpdate) SetNillableClientID(s *string) *AuthRequestUpdate {
-	if s != nil {
-		aru.SetClientID(*s)
+func (_u *AuthRequestUpdate) SetNillableClientID(v *string) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetClientID(*v)
 	}
-	return aru
+	return _u
 }
 
 // SetScopes sets the "scopes" field.
-func (aru *AuthRequestUpdate) SetScopes(s []string) *AuthRequestUpdate {
-	aru.mutation.SetScopes(s)
-	return aru
+func (_u *AuthRequestUpdate) SetScopes(v []string) *AuthRequestUpdate {
+	_u.mutation.SetScopes(v)
+	return _u
 }
 
-// AppendScopes appends s to the "scopes" field.
-func (aru *AuthRequestUpdate) AppendScopes(s []string) *AuthRequestUpdate {
-	aru.mutation.AppendScopes(s)
-	return aru
+// AppendScopes appends value to the "scopes" field.
+func (_u *AuthRequestUpdate) AppendScopes(v []string) *AuthRequestUpdate {
+	_u.mutation.AppendScopes(v)
+	return _u
 }
 
 // ClearScopes clears the value of the "scopes" field.
-func (aru *AuthRequestUpdate) ClearScopes() *AuthRequestUpdate {
-	aru.mutation.ClearScopes()
-	return aru
+func (_u *AuthRequestUpdate) ClearScopes() *AuthRequestUpdate {
+	_u.mutation.ClearScopes()
+	return _u
 }
 
 // SetResponseTypes sets the "response_types" field.
-func (aru *AuthRequestUpdate) SetResponseTypes(s []string) *AuthRequestUpdate {
-	aru.mutation.SetResponseTypes(s)
-	return aru
+func (_u *AuthRequestUpdate) SetResponseTypes(v []string) *AuthRequestUpdate {
+	_u.mutation.SetResponseTypes(v)
+	return _u
 }
 
-// AppendResponseTypes appends s to the "response_types" field.
-func (aru *AuthRequestUpdate) AppendResponseTypes(s []string) *AuthRequestUpdate {
-	aru.mutation.AppendResponseTypes(s)
-	return aru
+// AppendResponseTypes appends value to the "response_types" field.
+func (_u *AuthRequestUpdate) AppendResponseTypes(v []string) *AuthRequestUpdate {
+	_u.mutation.AppendResponseTypes(v)
+	return _u
 }
 
 // ClearResponseTypes clears the value of the "response_types" field.
-func (aru *AuthRequestUpdate) ClearResponseTypes() *AuthRequestUpdate {
-	aru.mutation.ClearResponseTypes()
-	return aru
+func (_u *AuthRequestUpdate) ClearResponseTypes() *AuthRequestUpdate {
+	_u.mutation.ClearResponseTypes()
+	return _u
 }
 
 // SetRedirectURI sets the "redirect_uri" field.
-func (aru *AuthRequestUpdate) SetRedirectURI(s string) *AuthRequestUpdate {
-	aru.mutation.SetRedirectURI(s)
-	return aru
+func (_u *AuthRequestUpdate) SetRedirectURI(v string) *AuthRequestUpdate {
+	_u.mutation.SetRedirectURI(v)
+	return _u
 }
 
 // SetNillableRedirectURI sets the "redirect_uri" field if the given value is not nil.
-func (aru *AuthRequestUpdate) SetNillableRedirectURI(s *string) *AuthRequestUpdate {
-	if s != nil {
-		aru.SetRedirectURI(*s)
+func (_u *AuthRequestUpdate) SetNillableRedirectURI(v *string) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetRedirectURI(*v)
 	}
-	return aru
+	return _u
 }
 
 // SetNonce sets the "nonce" field.
-func (aru *AuthRequestUpdate) SetNonce(s string) *AuthRequestUpdate {
-	aru.mutation.SetNonce(s)
-	return aru
+func (_u *AuthRequestUpdate) SetNonce(v string) *AuthRequestUpdate {
+	_u.mutation.SetNonce(v)
+	return _u
 }
 
 // SetNillableNonce sets the "nonce" field if the given value is not nil.
-func (aru *AuthRequestUpdate) SetNillableNonce(s *string) *AuthRequestUpdate {
-	if s != nil {
-		aru.SetNonce(*s)
+func (_u *AuthRequestUpdate) SetNillableNonce(v *string) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetNonce(*v)
 	}
-	return aru
+	return _u
 }
 
 // SetState sets the "state" field.
-func (aru *AuthRequestUpdate) SetState(s string) *AuthRequestUpdate {
-	aru.mutation.SetState(s)
-	return aru
+func (_u *AuthRequestUpdate) SetState(v string) *AuthRequestUpdate {
+	_u.mutation.SetState(v)
+	return _u
 }
 
 // SetNillableState sets the "state" field if the given value is not nil.
-func (aru *AuthRequestUpdate) SetNillableState(s *string) *AuthRequestUpdate {
-	if s != nil {
-		aru.SetState(*s)
+func (_u *AuthRequestUpdate) SetNillableState(v *string) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetState(*v)
 	}
-	return aru
+	return _u
 }
 
 // SetForceApprovalPrompt sets the "force_approval_prompt" field.
-func (aru *AuthRequestUpdate) SetForceApprovalPrompt(b bool) *AuthRequestUpdate {
-	aru.mutation.SetForceApprovalPrompt(b)
-	return aru
+func (_u *AuthRequestUpdate) SetForceApprovalPrompt(v bool) *AuthRequestUpdate {
+	_u.mutation.SetForceApprovalPrompt(v)
+	return _u
 }
 
 // SetNillableForceApprovalPrompt sets the "force_approval_prompt" field if the given value is not nil.
-func (aru *AuthRequestUpdate) SetNillableForceApprovalPrompt(b *bool) *AuthRequestUpdate {
-	if b != nil {
-		aru.SetForceApprovalPrompt(*b)
+func (_u *AuthRequestUpdate) SetNillableForceApprovalPrompt(v *bool) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetForceApprovalPrompt(*v)
 	}
-	return aru
+	return _u
 }
 
 // SetLoggedIn sets the "logged_in" field.
-func (aru *AuthRequestUpdate) SetLoggedIn(b bool) *AuthRequestUpdate {
-	aru.mutation.SetLoggedIn(b)
-	return aru
+func (_u *AuthRequestUpdate) SetLoggedIn(v bool) *AuthRequestUpdate {
+	_u.mutation.SetLoggedIn(v)
+	return _u
 }
 
 // SetNillableLoggedIn sets the "logged_in" field if the given value is not nil.
-func (aru *AuthRequestUpdate) SetNillableLoggedIn(b *bool) *AuthRequestUpdate {
-	if b != nil {
-		aru.SetLoggedIn(*b)
+func (_u *AuthRequestUpdate) SetNillableLoggedIn(v *bool) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetLoggedIn(*v)
 	}
-	return aru
+	return _u
 }
 
 // SetClaimsUserID sets the "claims_user_id" field.
-func (aru *AuthRequestUpdate) SetClaimsUserID(s string) *AuthRequestUpdate {
-	aru.mutation.SetClaimsUserID(s)
-	return aru
+func (_u *AuthRequestUpdate) SetClaimsUserID(v string) *AuthRequestUpdate {
+	_u.mutation.SetClaimsUserID(v)
+	return _u
 }
 
 // SetNillableClaimsUserID sets the "claims_user_id" field if the given value is not nil.
-func (aru *AuthRequestUpdate) SetNillableClaimsUserID(s *string) *AuthRequestUpdate {
-	if s != nil {
-		aru.SetClaimsUserID(*s)
+func (_u *AuthRequestUpdate) SetNillableClaimsUserID(v *string) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetClaimsUserID(*v)
 	}
-	return aru
+	return _u
 }
 
 // SetClaimsUsername sets the "claims_username" field.
-func (aru *AuthRequestUpdate) SetClaimsUsername(s string) *AuthRequestUpdate {
-	aru.mutation.SetClaimsUsername(s)
-	return aru
+func (_u *AuthRequestUpdate) SetClaimsUsername(v string) *AuthRequestUpdate {
+	_u.mutation.SetClaimsUsername(v)
+	return _u
 }
 
 // SetNillableClaimsUsername sets the "claims_username" field if the given value is not nil.
-func (aru *AuthRequestUpdate) SetNillableClaimsUsername(s *string) *AuthRequestUpdate {
-	if s != nil {
-		aru.SetClaimsUsername(*s)
+func (_u *AuthRequestUpdate) SetNillableClaimsUsername(v *string) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetClaimsUsername(*v)
 	}
-	return aru
+	return _u
 }
 
 // SetClaimsEmail sets the "claims_email" field.
-func (aru *AuthRequestUpdate) SetClaimsEmail(s string) *AuthRequestUpdate {
-	aru.mutation.SetClaimsEmail(s)
-	return aru
+func (_u *AuthRequestUpdate) SetClaimsEmail(v string) *AuthRequestUpdate {
+	_u.mutation.SetClaimsEmail(v)
+	return _u
 }
 
 // SetNillableClaimsEmail sets the "claims_email" field if the given value is not nil.
-func (aru *AuthRequestUpdate) SetNillableClaimsEmail(s *string) *AuthRequestUpdate {
-	if s != nil {
-		aru.SetClaimsEmail(*s)
+func (_u *AuthRequestUpdate) SetNillableClaimsEmail(v *string) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetClaimsEmail(*v)
 	}
-	return aru
+	return _u
 }
 
 // SetClaimsEmailVerified sets the "claims_email_verified" field.
-func (aru *AuthRequestUpdate) SetClaimsEmailVerified(b bool) *AuthRequestUpdate {
-	aru.mutation.SetClaimsEmailVerified(b)
-	return aru
+func (_u *AuthRequestUpdate) SetClaimsEmailVerified(v bool) *AuthRequestUpdate {
+	_u.mutation.SetClaimsEmailVerified(v)
+	return _u
 }
 
 // SetNillableClaimsEmailVerified sets the "claims_email_verified" field if the given value is not nil.
-func (aru *AuthRequestUpdate) SetNillableClaimsEmailVerified(b *bool) *AuthRequestUpdate {
-	if b != nil {
-		aru.SetClaimsEmailVerified(*b)
+func (_u *AuthRequestUpdate) SetNillableClaimsEmailVerified(v *bool) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetClaimsEmailVerified(*v)
 	}
-	return aru
+	return _u
 }
 
 // SetClaimsGroups sets the "claims_groups" field.
-func (aru *AuthRequestUpdate) SetClaimsGroups(s []string) *AuthRequestUpdate {
-	aru.mutation.SetClaimsGroups(s)
-	return aru
+func (_u *AuthRequestUpdate) SetClaimsGroups(v []string) *AuthRequestUpdate {
+	_u.mutation.SetClaimsGroups(v)
+	return _u
 }
 
-// AppendClaimsGroups appends s to the "claims_groups" field.
-func (aru *AuthRequestUpdate) AppendClaimsGroups(s []string) *AuthRequestUpdate {
-	aru.mutation.AppendClaimsGroups(s)
-	return aru
+// AppendClaimsGroups appends value to the "claims_groups" field.
+func (_u *AuthRequestUpdate) AppendClaimsGroups(v []string) *AuthRequestUpdate {
+	_u.mutation.AppendClaimsGroups(v)
+	return _u
 }
 
 // ClearClaimsGroups clears the value of the "claims_groups" field.
-func (aru *AuthRequestUpdate) ClearClaimsGroups() *AuthRequestUpdate {
-	aru.mutation.ClearClaimsGroups()
-	return aru
+func (_u *AuthRequestUpdate) ClearClaimsGroups() *AuthRequestUpdate {
+	_u.mutation.ClearClaimsGroups()
+	return _u
 }
 
 // SetClaimsPreferredUsername sets the "claims_preferred_username" field.
-func (aru *AuthRequestUpdate) SetClaimsPreferredUsername(s string) *AuthRequestUpdate {
-	aru.mutation.SetClaimsPreferredUsername(s)
-	return aru
+func (_u *AuthRequestUpdate) SetClaimsPreferredUsername(v string) *AuthRequestUpdate {
+	_u.mutation.SetClaimsPreferredUsername(v)
+	return _u
 }
 
 // SetNillableClaimsPreferredUsername sets the "claims_preferred_username" field if the given value is not nil.
-func (aru *AuthRequestUpdate) SetNillableClaimsPreferredUsername(s *string) *AuthRequestUpdate {
-	if s != nil {
-		aru.SetClaimsPreferredUsername(*s)
+func (_u *AuthRequestUpdate) SetNillableClaimsPreferredUsername(v *string) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetClaimsPreferredUsername(*v)
 	}
-	return aru
+	return _u
 }
 
 // SetConnectorID sets the "connector_id" field.
-func (aru *AuthRequestUpdate) SetConnectorID(s string) *AuthRequestUpdate {
-	aru.mutation.SetConnectorID(s)
-	return aru
+func (_u *AuthRequestUpdate) SetConnectorID(v string) *AuthRequestUpdate {
+	_u.mutation.SetConnectorID(v)
+	return _u
 }
 
 // SetNillableConnectorID sets the "connector_id" field if the given value is not nil.
-func (aru *AuthRequestUpdate) SetNillableConnectorID(s *string) *AuthRequestUpdate {
-	if s != nil {
-		aru.SetConnectorID(*s)
+func (_u *AuthRequestUpdate) SetNillableConnectorID(v *string) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetConnectorID(*v)
 	}
-	return aru
+	return _u
 }
 
 // SetConnectorData sets the "connector_data" field.
-func (aru *AuthRequestUpdate) SetConnectorData(b []byte) *AuthRequestUpdate {
-	aru.mutation.SetConnectorData(b)
-	return aru
+func (_u *AuthRequestUpdate) SetConnectorData(v []byte) *AuthRequestUpdate {
+	_u.mutation.SetConnectorData(v)
+	return _u
 }
 
 // ClearConnectorData clears the value of the "connector_data" field.
-func (aru *AuthRequestUpdate) ClearConnectorData() *AuthRequestUpdate {
-	aru.mutation.ClearConnectorData()
-	return aru
+func (_u *AuthRequestUpdate) ClearConnectorData() *AuthRequestUpdate {
+	_u.mutation.ClearConnectorData()
+	return _u
 }
 
 // SetExpiry sets the "expiry" field.
-func (aru *AuthRequestUpdate) SetExpiry(t time.Time) *AuthRequestUpdate {
-	aru.mutation.SetExpiry(t)
-	return aru
+func (_u *AuthRequestUpdate) SetExpiry(v time.Time) *AuthRequestUpdate {
+	_u.mutation.SetExpiry(v)
+	return _u
 }
 
 // SetNillableExpiry sets the "expiry" field if the given value is not nil.
-func (aru *AuthRequestUpdate) SetNillableExpiry(t *time.Time) *AuthRequestUpdate {
-	if t != nil {
-		aru.SetExpiry(*t)
+func (_u *AuthRequestUpdate) SetNillableExpiry(v *time.Time) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetExpiry(*v)
 	}
-	return aru
+	return _u
 }
 
 // SetCodeChallenge sets the "code_challenge" field.
-func (aru *AuthRequestUpdate) SetCodeChallenge(s string) *AuthRequestUpdate {
-	aru.mutation.SetCodeChallenge(s)
-	return aru
+func (_u *AuthRequestUpdate) SetCodeChallenge(v string) *AuthRequestUpdate {
+	_u.mutation.SetCodeChallenge(v)
+	return _u
 }
 
 // SetNillableCodeChallenge sets the "code_challenge" field if the given value is not nil.
-func (aru *AuthRequestUpdate) SetNillableCodeChallenge(s *string) *AuthRequestUpdate {
-	if s != nil {
-		aru.SetCodeChallenge(*s)
+func (_u *AuthRequestUpdate) SetNillableCodeChallenge(v *string) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetCodeChallenge(*v)
 	}
-	return aru
+	return _u
 }
 
 // SetCodeChallengeMethod sets the "code_challenge_method" field.
-func (aru *AuthRequestUpdate) SetCodeChallengeMethod(s string) *AuthRequestUpdate {
-	aru.mutation.SetCodeChallengeMethod(s)
-	return aru
+func (_u *AuthRequestUpdate) SetCodeChallengeMethod(v string) *AuthRequestUpdate {
+	_u.mutation.SetCodeChallengeMethod(v)
+	return _u
 }
 
 // SetNillableCodeChallengeMethod sets the "code_challenge_method" field if the given value is not nil.
-func (aru *AuthRequestUpdate) SetNillableCodeChallengeMethod(s *string) *AuthRequestUpdate {
-	if s != nil {
-		aru.SetCodeChallengeMethod(*s)
+func (_u *AuthRequestUpdate) SetNillableCodeChallengeMethod(v *string) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetCodeChallengeMethod(*v)
 	}
-	return aru
+	return _u
 }
 
 // SetHmacKey sets the "hmac_key" field.
-func (aru *AuthRequestUpdate) SetHmacKey(b []byte) *AuthRequestUpdate {
-	aru.mutation.SetHmacKey(b)
-	return aru
+func (_u *AuthRequestUpdate) SetHmacKey(v []byte) *AuthRequestUpdate {
+	_u.mutation.SetHmacKey(v)
+	return _u
 }
 
 // Mutation returns the AuthRequestMutation object of the builder.
-func (aru *AuthRequestUpdate) Mutation() *AuthRequestMutation {
-	return aru.mutation
+func (_u *AuthRequestUpdate) Mutation() *AuthRequestMutation {
+	return _u.mutation
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
-func (aru *AuthRequestUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, aru.sqlSave, aru.mutation, aru.hooks)
+func (_u *AuthRequestUpdate) Save(ctx context.Context) (int, error) {
+	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func (aru *AuthRequestUpdate) SaveX(ctx context.Context) int {
-	affected, err := aru.Save(ctx)
+func (_u *AuthRequestUpdate) SaveX(ctx context.Context) int {
+	affected, err := _u.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -331,115 +331,115 @@ func (aru *AuthRequestUpdate) SaveX(ctx context.Context) int {
 }
 
 // Exec executes the query.
-func (aru *AuthRequestUpdate) Exec(ctx context.Context) error {
-	_, err := aru.Save(ctx)
+func (_u *AuthRequestUpdate) Exec(ctx context.Context) error {
+	_, err := _u.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (aru *AuthRequestUpdate) ExecX(ctx context.Context) {
-	if err := aru.Exec(ctx); err != nil {
+func (_u *AuthRequestUpdate) ExecX(ctx context.Context) {
+	if err := _u.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
 
-func (aru *AuthRequestUpdate) sqlSave(ctx context.Context) (n int, err error) {
+func (_u *AuthRequestUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	_spec := sqlgraph.NewUpdateSpec(authrequest.Table, authrequest.Columns, sqlgraph.NewFieldSpec(authrequest.FieldID, field.TypeString))
-	if ps := aru.mutation.predicates; len(ps) > 0 {
+	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	if value, ok := aru.mutation.ClientID(); ok {
+	if value, ok := _u.mutation.ClientID(); ok {
 		_spec.SetField(authrequest.FieldClientID, field.TypeString, value)
 	}
-	if value, ok := aru.mutation.Scopes(); ok {
+	if value, ok := _u.mutation.Scopes(); ok {
 		_spec.SetField(authrequest.FieldScopes, field.TypeJSON, value)
 	}
-	if value, ok := aru.mutation.AppendedScopes(); ok {
+	if value, ok := _u.mutation.AppendedScopes(); ok {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, authrequest.FieldScopes, value)
 		})
 	}
-	if aru.mutation.ScopesCleared() {
+	if _u.mutation.ScopesCleared() {
 		_spec.ClearField(authrequest.FieldScopes, field.TypeJSON)
 	}
-	if value, ok := aru.mutation.ResponseTypes(); ok {
+	if value, ok := _u.mutation.ResponseTypes(); ok {
 		_spec.SetField(authrequest.FieldResponseTypes, field.TypeJSON, value)
 	}
-	if value, ok := aru.mutation.AppendedResponseTypes(); ok {
+	if value, ok := _u.mutation.AppendedResponseTypes(); ok {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, authrequest.FieldResponseTypes, value)
 		})
 	}
-	if aru.mutation.ResponseTypesCleared() {
+	if _u.mutation.ResponseTypesCleared() {
 		_spec.ClearField(authrequest.FieldResponseTypes, field.TypeJSON)
 	}
-	if value, ok := aru.mutation.RedirectURI(); ok {
+	if value, ok := _u.mutation.RedirectURI(); ok {
 		_spec.SetField(authrequest.FieldRedirectURI, field.TypeString, value)
 	}
-	if value, ok := aru.mutation.Nonce(); ok {
+	if value, ok := _u.mutation.Nonce(); ok {
 		_spec.SetField(authrequest.FieldNonce, field.TypeString, value)
 	}
-	if value, ok := aru.mutation.State(); ok {
+	if value, ok := _u.mutation.State(); ok {
 		_spec.SetField(authrequest.FieldState, field.TypeString, value)
 	}
-	if value, ok := aru.mutation.ForceApprovalPrompt(); ok {
+	if value, ok := _u.mutation.ForceApprovalPrompt(); ok {
 		_spec.SetField(authrequest.FieldForceApprovalPrompt, field.TypeBool, value)
 	}
-	if value, ok := aru.mutation.LoggedIn(); ok {
+	if value, ok := _u.mutation.LoggedIn(); ok {
 		_spec.SetField(authrequest.FieldLoggedIn, field.TypeBool, value)
 	}
-	if value, ok := aru.mutation.ClaimsUserID(); ok {
+	if value, ok := _u.mutation.ClaimsUserID(); ok {
 		_spec.SetField(authrequest.FieldClaimsUserID, field.TypeString, value)
 	}
-	if value, ok := aru.mutation.ClaimsUsername(); ok {
+	if value, ok := _u.mutation.ClaimsUsername(); ok {
 		_spec.SetField(authrequest.FieldClaimsUsername, field.TypeString, value)
 	}
-	if value, ok := aru.mutation.ClaimsEmail(); ok {
+	if value, ok := _u.mutation.ClaimsEmail(); ok {
 		_spec.SetField(authrequest.FieldClaimsEmail, field.TypeString, value)
 	}
-	if value, ok := aru.mutation.ClaimsEmailVerified(); ok {
+	if value, ok := _u.mutation.ClaimsEmailVerified(); ok {
 		_spec.SetField(authrequest.FieldClaimsEmailVerified, field.TypeBool, value)
 	}
-	if value, ok := aru.mutation.ClaimsGroups(); ok {
+	if value, ok := _u.mutation.ClaimsGroups(); ok {
 		_spec.SetField(authrequest.FieldClaimsGroups, field.TypeJSON, value)
 	}
-	if value, ok := aru.mutation.AppendedClaimsGroups(); ok {
+	if value, ok := _u.mutation.AppendedClaimsGroups(); ok {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, authrequest.FieldClaimsGroups, value)
 		})
 	}
-	if aru.mutation.ClaimsGroupsCleared() {
+	if _u.mutation.ClaimsGroupsCleared() {
 		_spec.ClearField(authrequest.FieldClaimsGroups, field.TypeJSON)
 	}
-	if value, ok := aru.mutation.ClaimsPreferredUsername(); ok {
+	if value, ok := _u.mutation.ClaimsPreferredUsername(); ok {
 		_spec.SetField(authrequest.FieldClaimsPreferredUsername, field.TypeString, value)
 	}
-	if value, ok := aru.mutation.ConnectorID(); ok {
+	if value, ok := _u.mutation.ConnectorID(); ok {
 		_spec.SetField(authrequest.FieldConnectorID, field.TypeString, value)
 	}
-	if value, ok := aru.mutation.ConnectorData(); ok {
+	if value, ok := _u.mutation.ConnectorData(); ok {
 		_spec.SetField(authrequest.FieldConnectorData, field.TypeBytes, value)
 	}
-	if aru.mutation.ConnectorDataCleared() {
+	if _u.mutation.ConnectorDataCleared() {
 		_spec.ClearField(authrequest.FieldConnectorData, field.TypeBytes)
 	}
-	if value, ok := aru.mutation.Expiry(); ok {
+	if value, ok := _u.mutation.Expiry(); ok {
 		_spec.SetField(authrequest.FieldExpiry, field.TypeTime, value)
 	}
-	if value, ok := aru.mutation.CodeChallenge(); ok {
+	if value, ok := _u.mutation.CodeChallenge(); ok {
 		_spec.SetField(authrequest.FieldCodeChallenge, field.TypeString, value)
 	}
-	if value, ok := aru.mutation.CodeChallengeMethod(); ok {
+	if value, ok := _u.mutation.CodeChallengeMethod(); ok {
 		_spec.SetField(authrequest.FieldCodeChallengeMethod, field.TypeString, value)
 	}
-	if value, ok := aru.mutation.HmacKey(); ok {
+	if value, ok := _u.mutation.HmacKey(); ok {
 		_spec.SetField(authrequest.FieldHmacKey, field.TypeBytes, value)
 	}
-	if n, err = sqlgraph.UpdateNodes(ctx, aru.driver, _spec); err != nil {
+	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{authrequest.Label}
 		} else if sqlgraph.IsConstraintError(err) {
@@ -447,8 +447,8 @@ func (aru *AuthRequestUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 		return 0, err
 	}
-	aru.mutation.done = true
-	return n, nil
+	_u.mutation.done = true
+	return _node, nil
 }
 
 // AuthRequestUpdateOne is the builder for updating a single AuthRequest entity.
@@ -460,313 +460,313 @@ type AuthRequestUpdateOne struct {
 }
 
 // SetClientID sets the "client_id" field.
-func (aruo *AuthRequestUpdateOne) SetClientID(s string) *AuthRequestUpdateOne {
-	aruo.mutation.SetClientID(s)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetClientID(v string) *AuthRequestUpdateOne {
+	_u.mutation.SetClientID(v)
+	return _u
 }
 
 // SetNillableClientID sets the "client_id" field if the given value is not nil.
-func (aruo *AuthRequestUpdateOne) SetNillableClientID(s *string) *AuthRequestUpdateOne {
-	if s != nil {
-		aruo.SetClientID(*s)
+func (_u *AuthRequestUpdateOne) SetNillableClientID(v *string) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetClientID(*v)
 	}
-	return aruo
+	return _u
 }
 
 // SetScopes sets the "scopes" field.
-func (aruo *AuthRequestUpdateOne) SetScopes(s []string) *AuthRequestUpdateOne {
-	aruo.mutation.SetScopes(s)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetScopes(v []string) *AuthRequestUpdateOne {
+	_u.mutation.SetScopes(v)
+	return _u
 }
 
-// AppendScopes appends s to the "scopes" field.
-func (aruo *AuthRequestUpdateOne) AppendScopes(s []string) *AuthRequestUpdateOne {
-	aruo.mutation.AppendScopes(s)
-	return aruo
+// AppendScopes appends value to the "scopes" field.
+func (_u *AuthRequestUpdateOne) AppendScopes(v []string) *AuthRequestUpdateOne {
+	_u.mutation.AppendScopes(v)
+	return _u
 }
 
 // ClearScopes clears the value of the "scopes" field.
-func (aruo *AuthRequestUpdateOne) ClearScopes() *AuthRequestUpdateOne {
-	aruo.mutation.ClearScopes()
-	return aruo
+func (_u *AuthRequestUpdateOne) ClearScopes() *AuthRequestUpdateOne {
+	_u.mutation.ClearScopes()
+	return _u
 }
 
 // SetResponseTypes sets the "response_types" field.
-func (aruo *AuthRequestUpdateOne) SetResponseTypes(s []string) *AuthRequestUpdateOne {
-	aruo.mutation.SetResponseTypes(s)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetResponseTypes(v []string) *AuthRequestUpdateOne {
+	_u.mutation.SetResponseTypes(v)
+	return _u
 }
 
-// AppendResponseTypes appends s to the "response_types" field.
-func (aruo *AuthRequestUpdateOne) AppendResponseTypes(s []string) *AuthRequestUpdateOne {
-	aruo.mutation.AppendResponseTypes(s)
-	return aruo
+// AppendResponseTypes appends value to the "response_types" field.
+func (_u *AuthRequestUpdateOne) AppendResponseTypes(v []string) *AuthRequestUpdateOne {
+	_u.mutation.AppendResponseTypes(v)
+	return _u
 }
 
 // ClearResponseTypes clears the value of the "response_types" field.
-func (aruo *AuthRequestUpdateOne) ClearResponseTypes() *AuthRequestUpdateOne {
-	aruo.mutation.ClearResponseTypes()
-	return aruo
+func (_u *AuthRequestUpdateOne) ClearResponseTypes() *AuthRequestUpdateOne {
+	_u.mutation.ClearResponseTypes()
+	return _u
 }
 
 // SetRedirectURI sets the "redirect_uri" field.
-func (aruo *AuthRequestUpdateOne) SetRedirectURI(s string) *AuthRequestUpdateOne {
-	aruo.mutation.SetRedirectURI(s)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetRedirectURI(v string) *AuthRequestUpdateOne {
+	_u.mutation.SetRedirectURI(v)
+	return _u
 }
 
 // SetNillableRedirectURI sets the "redirect_uri" field if the given value is not nil.
-func (aruo *AuthRequestUpdateOne) SetNillableRedirectURI(s *string) *AuthRequestUpdateOne {
-	if s != nil {
-		aruo.SetRedirectURI(*s)
+func (_u *AuthRequestUpdateOne) SetNillableRedirectURI(v *string) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetRedirectURI(*v)
 	}
-	return aruo
+	return _u
 }
 
 // SetNonce sets the "nonce" field.
-func (aruo *AuthRequestUpdateOne) SetNonce(s string) *AuthRequestUpdateOne {
-	aruo.mutation.SetNonce(s)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetNonce(v string) *AuthRequestUpdateOne {
+	_u.mutation.SetNonce(v)
+	return _u
 }
 
 // SetNillableNonce sets the "nonce" field if the given value is not nil.
-func (aruo *AuthRequestUpdateOne) SetNillableNonce(s *string) *AuthRequestUpdateOne {
-	if s != nil {
-		aruo.SetNonce(*s)
+func (_u *AuthRequestUpdateOne) SetNillableNonce(v *string) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetNonce(*v)
 	}
-	return aruo
+	return _u
 }
 
 // SetState sets the "state" field.
-func (aruo *AuthRequestUpdateOne) SetState(s string) *AuthRequestUpdateOne {
-	aruo.mutation.SetState(s)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetState(v string) *AuthRequestUpdateOne {
+	_u.mutation.SetState(v)
+	return _u
 }
 
 // SetNillableState sets the "state" field if the given value is not nil.
-func (aruo *AuthRequestUpdateOne) SetNillableState(s *string) *AuthRequestUpdateOne {
-	if s != nil {
-		aruo.SetState(*s)
+func (_u *AuthRequestUpdateOne) SetNillableState(v *string) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetState(*v)
 	}
-	return aruo
+	return _u
 }
 
 // SetForceApprovalPrompt sets the "force_approval_prompt" field.
-func (aruo *AuthRequestUpdateOne) SetForceApprovalPrompt(b bool) *AuthRequestUpdateOne {
-	aruo.mutation.SetForceApprovalPrompt(b)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetForceApprovalPrompt(v bool) *AuthRequestUpdateOne {
+	_u.mutation.SetForceApprovalPrompt(v)
+	return _u
 }
 
 // SetNillableForceApprovalPrompt sets the "force_approval_prompt" field if the given value is not nil.
-func (aruo *AuthRequestUpdateOne) SetNillableForceApprovalPrompt(b *bool) *AuthRequestUpdateOne {
-	if b != nil {
-		aruo.SetForceApprovalPrompt(*b)
+func (_u *AuthRequestUpdateOne) SetNillableForceApprovalPrompt(v *bool) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetForceApprovalPrompt(*v)
 	}
-	return aruo
+	return _u
 }
 
 // SetLoggedIn sets the "logged_in" field.
-func (aruo *AuthRequestUpdateOne) SetLoggedIn(b bool) *AuthRequestUpdateOne {
-	aruo.mutation.SetLoggedIn(b)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetLoggedIn(v bool) *AuthRequestUpdateOne {
+	_u.mutation.SetLoggedIn(v)
+	return _u
 }
 
 // SetNillableLoggedIn sets the "logged_in" field if the given value is not nil.
-func (aruo *AuthRequestUpdateOne) SetNillableLoggedIn(b *bool) *AuthRequestUpdateOne {
-	if b != nil {
-		aruo.SetLoggedIn(*b)
+func (_u *AuthRequestUpdateOne) SetNillableLoggedIn(v *bool) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetLoggedIn(*v)
 	}
-	return aruo
+	return _u
 }
 
 // SetClaimsUserID sets the "claims_user_id" field.
-func (aruo *AuthRequestUpdateOne) SetClaimsUserID(s string) *AuthRequestUpdateOne {
-	aruo.mutation.SetClaimsUserID(s)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetClaimsUserID(v string) *AuthRequestUpdateOne {
+	_u.mutation.SetClaimsUserID(v)
+	return _u
 }
 
 // SetNillableClaimsUserID sets the "claims_user_id" field if the given value is not nil.
-func (aruo *AuthRequestUpdateOne) SetNillableClaimsUserID(s *string) *AuthRequestUpdateOne {
-	if s != nil {
-		aruo.SetClaimsUserID(*s)
+func (_u *AuthRequestUpdateOne) SetNillableClaimsUserID(v *string) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetClaimsUserID(*v)
 	}
-	return aruo
+	return _u
 }
 
 // SetClaimsUsername sets the "claims_username" field.
-func (aruo *AuthRequestUpdateOne) SetClaimsUsername(s string) *AuthRequestUpdateOne {
-	aruo.mutation.SetClaimsUsername(s)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetClaimsUsername(v string) *AuthRequestUpdateOne {
+	_u.mutation.SetClaimsUsername(v)
+	return _u
 }
 
 // SetNillableClaimsUsername sets the "claims_username" field if the given value is not nil.
-func (aruo *AuthRequestUpdateOne) SetNillableClaimsUsername(s *string) *AuthRequestUpdateOne {
-	if s != nil {
-		aruo.SetClaimsUsername(*s)
+func (_u *AuthRequestUpdateOne) SetNillableClaimsUsername(v *string) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetClaimsUsername(*v)
 	}
-	return aruo
+	return _u
 }
 
 // SetClaimsEmail sets the "claims_email" field.
-func (aruo *AuthRequestUpdateOne) SetClaimsEmail(s string) *AuthRequestUpdateOne {
-	aruo.mutation.SetClaimsEmail(s)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetClaimsEmail(v string) *AuthRequestUpdateOne {
+	_u.mutation.SetClaimsEmail(v)
+	return _u
 }
 
 // SetNillableClaimsEmail sets the "claims_email" field if the given value is not nil.
-func (aruo *AuthRequestUpdateOne) SetNillableClaimsEmail(s *string) *AuthRequestUpdateOne {
-	if s != nil {
-		aruo.SetClaimsEmail(*s)
+func (_u *AuthRequestUpdateOne) SetNillableClaimsEmail(v *string) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetClaimsEmail(*v)
 	}
-	return aruo
+	return _u
 }
 
 // SetClaimsEmailVerified sets the "claims_email_verified" field.
-func (aruo *AuthRequestUpdateOne) SetClaimsEmailVerified(b bool) *AuthRequestUpdateOne {
-	aruo.mutation.SetClaimsEmailVerified(b)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetClaimsEmailVerified(v bool) *AuthRequestUpdateOne {
+	_u.mutation.SetClaimsEmailVerified(v)
+	return _u
 }
 
 // SetNillableClaimsEmailVerified sets the "claims_email_verified" field if the given value is not nil.
-func (aruo *AuthRequestUpdateOne) SetNillableClaimsEmailVerified(b *bool) *AuthRequestUpdateOne {
-	if b != nil {
-		aruo.SetClaimsEmailVerified(*b)
+func (_u *AuthRequestUpdateOne) SetNillableClaimsEmailVerified(v *bool) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetClaimsEmailVerified(*v)
 	}
-	return aruo
+	return _u
 }
 
 // SetClaimsGroups sets the "claims_groups" field.
-func (aruo *AuthRequestUpdateOne) SetClaimsGroups(s []string) *AuthRequestUpdateOne {
-	aruo.mutation.SetClaimsGroups(s)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetClaimsGroups(v []string) *AuthRequestUpdateOne {
+	_u.mutation.SetClaimsGroups(v)
+	return _u
 }
 
-// AppendClaimsGroups appends s to the "claims_groups" field.
-func (aruo *AuthRequestUpdateOne) AppendClaimsGroups(s []string) *AuthRequestUpdateOne {
-	aruo.mutation.AppendClaimsGroups(s)
-	return aruo
+// AppendClaimsGroups appends value to the "claims_groups" field.
+func (_u *AuthRequestUpdateOne) AppendClaimsGroups(v []string) *AuthRequestUpdateOne {
+	_u.mutation.AppendClaimsGroups(v)
+	return _u
 }
 
 // ClearClaimsGroups clears the value of the "claims_groups" field.
-func (aruo *AuthRequestUpdateOne) ClearClaimsGroups() *AuthRequestUpdateOne {
-	aruo.mutation.ClearClaimsGroups()
-	return aruo
+func (_u *AuthRequestUpdateOne) ClearClaimsGroups() *AuthRequestUpdateOne {
+	_u.mutation.ClearClaimsGroups()
+	return _u
 }
 
 // SetClaimsPreferredUsername sets the "claims_preferred_username" field.
-func (aruo *AuthRequestUpdateOne) SetClaimsPreferredUsername(s string) *AuthRequestUpdateOne {
-	aruo.mutation.SetClaimsPreferredUsername(s)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetClaimsPreferredUsername(v string) *AuthRequestUpdateOne {
+	_u.mutation.SetClaimsPreferredUsername(v)
+	return _u
 }
 
 // SetNillableClaimsPreferredUsername sets the "claims_preferred_username" field if the given value is not nil.
-func (aruo *AuthRequestUpdateOne) SetNillableClaimsPreferredUsername(s *string) *AuthRequestUpdateOne {
-	if s != nil {
-		aruo.SetClaimsPreferredUsername(*s)
+func (_u *AuthRequestUpdateOne) SetNillableClaimsPreferredUsername(v *string) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetClaimsPreferredUsername(*v)
 	}
-	return aruo
+	return _u
 }
 
 // SetConnectorID sets the "connector_id" field.
-func (aruo *AuthRequestUpdateOne) SetConnectorID(s string) *AuthRequestUpdateOne {
-	aruo.mutation.SetConnectorID(s)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetConnectorID(v string) *AuthRequestUpdateOne {
+	_u.mutation.SetConnectorID(v)
+	return _u
 }
 
 // SetNillableConnectorID sets the "connector_id" field if the given value is not nil.
-func (aruo *AuthRequestUpdateOne) SetNillableConnectorID(s *string) *AuthRequestUpdateOne {
-	if s != nil {
-		aruo.SetConnectorID(*s)
+func (_u *AuthRequestUpdateOne) SetNillableConnectorID(v *string) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetConnectorID(*v)
 	}
-	return aruo
+	return _u
 }
 
 // SetConnectorData sets the "connector_data" field.
-func (aruo *AuthRequestUpdateOne) SetConnectorData(b []byte) *AuthRequestUpdateOne {
-	aruo.mutation.SetConnectorData(b)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetConnectorData(v []byte) *AuthRequestUpdateOne {
+	_u.mutation.SetConnectorData(v)
+	return _u
 }
 
 // ClearConnectorData clears the value of the "connector_data" field.
-func (aruo *AuthRequestUpdateOne) ClearConnectorData() *AuthRequestUpdateOne {
-	aruo.mutation.ClearConnectorData()
-	return aruo
+func (_u *AuthRequestUpdateOne) ClearConnectorData() *AuthRequestUpdateOne {
+	_u.mutation.ClearConnectorData()
+	return _u
 }
 
 // SetExpiry sets the "expiry" field.
-func (aruo *AuthRequestUpdateOne) SetExpiry(t time.Time) *AuthRequestUpdateOne {
-	aruo.mutation.SetExpiry(t)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetExpiry(v time.Time) *AuthRequestUpdateOne {
+	_u.mutation.SetExpiry(v)
+	return _u
 }
 
 // SetNillableExpiry sets the "expiry" field if the given value is not nil.
-func (aruo *AuthRequestUpdateOne) SetNillableExpiry(t *time.Time) *AuthRequestUpdateOne {
-	if t != nil {
-		aruo.SetExpiry(*t)
+func (_u *AuthRequestUpdateOne) SetNillableExpiry(v *time.Time) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetExpiry(*v)
 	}
-	return aruo
+	return _u
 }
 
 // SetCodeChallenge sets the "code_challenge" field.
-func (aruo *AuthRequestUpdateOne) SetCodeChallenge(s string) *AuthRequestUpdateOne {
-	aruo.mutation.SetCodeChallenge(s)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetCodeChallenge(v string) *AuthRequestUpdateOne {
+	_u.mutation.SetCodeChallenge(v)
+	return _u
 }
 
 // SetNillableCodeChallenge sets the "code_challenge" field if the given value is not nil.
-func (aruo *AuthRequestUpdateOne) SetNillableCodeChallenge(s *string) *AuthRequestUpdateOne {
-	if s != nil {
-		aruo.SetCodeChallenge(*s)
+func (_u *AuthRequestUpdateOne) SetNillableCodeChallenge(v *string) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetCodeChallenge(*v)
 	}
-	return aruo
+	return _u
 }
 
 // SetCodeChallengeMethod sets the "code_challenge_method" field.
-func (aruo *AuthRequestUpdateOne) SetCodeChallengeMethod(s string) *AuthRequestUpdateOne {
-	aruo.mutation.SetCodeChallengeMethod(s)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetCodeChallengeMethod(v string) *AuthRequestUpdateOne {
+	_u.mutation.SetCodeChallengeMethod(v)
+	return _u
 }
 
 // SetNillableCodeChallengeMethod sets the "code_challenge_method" field if the given value is not nil.
-func (aruo *AuthRequestUpdateOne) SetNillableCodeChallengeMethod(s *string) *AuthRequestUpdateOne {
-	if s != nil {
-		aruo.SetCodeChallengeMethod(*s)
+func (_u *AuthRequestUpdateOne) SetNillableCodeChallengeMethod(v *string) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetCodeChallengeMethod(*v)
 	}
-	return aruo
+	return _u
 }
 
 // SetHmacKey sets the "hmac_key" field.
-func (aruo *AuthRequestUpdateOne) SetHmacKey(b []byte) *AuthRequestUpdateOne {
-	aruo.mutation.SetHmacKey(b)
-	return aruo
+func (_u *AuthRequestUpdateOne) SetHmacKey(v []byte) *AuthRequestUpdateOne {
+	_u.mutation.SetHmacKey(v)
+	return _u
 }
 
 // Mutation returns the AuthRequestMutation object of the builder.
-func (aruo *AuthRequestUpdateOne) Mutation() *AuthRequestMutation {
-	return aruo.mutation
+func (_u *AuthRequestUpdateOne) Mutation() *AuthRequestMutation {
+	return _u.mutation
 }
 
 // Where appends a list predicates to the AuthRequestUpdate builder.
-func (aruo *AuthRequestUpdateOne) Where(ps ...predicate.AuthRequest) *AuthRequestUpdateOne {
-	aruo.mutation.Where(ps...)
-	return aruo
+func (_u *AuthRequestUpdateOne) Where(ps ...predicate.AuthRequest) *AuthRequestUpdateOne {
+	_u.mutation.Where(ps...)
+	return _u
 }
 
 // Select allows selecting one or more fields (columns) of the returned entity.
 // The default is selecting all fields defined in the entity schema.
-func (aruo *AuthRequestUpdateOne) Select(field string, fields ...string) *AuthRequestUpdateOne {
-	aruo.fields = append([]string{field}, fields...)
-	return aruo
+func (_u *AuthRequestUpdateOne) Select(field string, fields ...string) *AuthRequestUpdateOne {
+	_u.fields = append([]string{field}, fields...)
+	return _u
 }
 
 // Save executes the query and returns the updated AuthRequest entity.
-func (aruo *AuthRequestUpdateOne) Save(ctx context.Context) (*AuthRequest, error) {
-	return withHooks(ctx, aruo.sqlSave, aruo.mutation, aruo.hooks)
+func (_u *AuthRequestUpdateOne) Save(ctx context.Context) (*AuthRequest, error) {
+	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func (aruo *AuthRequestUpdateOne) SaveX(ctx context.Context) *AuthRequest {
-	node, err := aruo.Save(ctx)
+func (_u *AuthRequestUpdateOne) SaveX(ctx context.Context) *AuthRequest {
+	node, err := _u.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -774,26 +774,26 @@ func (aruo *AuthRequestUpdateOne) SaveX(ctx context.Context) *AuthRequest {
 }
 
 // Exec executes the query on the entity.
-func (aruo *AuthRequestUpdateOne) Exec(ctx context.Context) error {
-	_, err := aruo.Save(ctx)
+func (_u *AuthRequestUpdateOne) Exec(ctx context.Context) error {
+	_, err := _u.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (aruo *AuthRequestUpdateOne) ExecX(ctx context.Context) {
-	if err := aruo.Exec(ctx); err != nil {
+func (_u *AuthRequestUpdateOne) ExecX(ctx context.Context) {
+	if err := _u.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
 
-func (aruo *AuthRequestUpdateOne) sqlSave(ctx context.Context) (_node *AuthRequest, err error) {
+func (_u *AuthRequestUpdateOne) sqlSave(ctx context.Context) (_node *AuthRequest, err error) {
 	_spec := sqlgraph.NewUpdateSpec(authrequest.Table, authrequest.Columns, sqlgraph.NewFieldSpec(authrequest.FieldID, field.TypeString))
-	id, ok := aruo.mutation.ID()
+	id, ok := _u.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "AuthRequest.id" for update`)}
 	}
 	_spec.Node.ID.Value = id
-	if fields := aruo.fields; len(fields) > 0 {
+	if fields := _u.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, authrequest.FieldID)
 		for _, f := range fields {
@@ -805,104 +805,104 @@ func (aruo *AuthRequestUpdateOne) sqlSave(ctx context.Context) (_node *AuthReque
 			}
 		}
 	}
-	if ps := aruo.mutation.predicates; len(ps) > 0 {
+	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	if value, ok := aruo.mutation.ClientID(); ok {
+	if value, ok := _u.mutation.ClientID(); ok {
 		_spec.SetField(authrequest.FieldClientID, field.TypeString, value)
 	}
-	if value, ok := aruo.mutation.Scopes(); ok {
+	if value, ok := _u.mutation.Scopes(); ok {
 		_spec.SetField(authrequest.FieldScopes, field.TypeJSON, value)
 	}
-	if value, ok := aruo.mutation.AppendedScopes(); ok {
+	if value, ok := _u.mutation.AppendedScopes(); ok {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, authrequest.FieldScopes, value)
 		})
 	}
-	if aruo.mutation.ScopesCleared() {
+	if _u.mutation.ScopesCleared() {
 		_spec.ClearField(authrequest.FieldScopes, field.TypeJSON)
 	}
-	if value, ok := aruo.mutation.ResponseTypes(); ok {
+	if value, ok := _u.mutation.ResponseTypes(); ok {
 		_spec.SetField(authrequest.FieldResponseTypes, field.TypeJSON, value)
 	}
-	if value, ok := aruo.mutation.AppendedResponseTypes(); ok {
+	if value, ok := _u.mutation.AppendedResponseTypes(); ok {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, authrequest.FieldResponseTypes, value)
 		})
 	}
-	if aruo.mutation.ResponseTypesCleared() {
+	if _u.mutation.ResponseTypesCleared() {
 		_spec.ClearField(authrequest.FieldResponseTypes, field.TypeJSON)
 	}
-	if value, ok := aruo.mutation.RedirectURI(); ok {
+	if value, ok := _u.mutation.RedirectURI(); ok {
 		_spec.SetField(authrequest.FieldRedirectURI, field.TypeString, value)
 	}
-	if value, ok := aruo.mutation.Nonce(); ok {
+	if value, ok := _u.mutation.Nonce(); ok {
 		_spec.SetField(authrequest.FieldNonce, field.TypeString, value)
 	}
-	if value, ok := aruo.mutation.State(); ok {
+	if value, ok := _u.mutation.State(); ok {
 		_spec.SetField(authrequest.FieldState, field.TypeString, value)
 	}
-	if value, ok := aruo.mutation.ForceApprovalPrompt(); ok {
+	if value, ok := _u.mutation.ForceApprovalPrompt(); ok {
 		_spec.SetField(authrequest.FieldForceApprovalPrompt, field.TypeBool, value)
 	}
-	if value, ok := aruo.mutation.LoggedIn(); ok {
+	if value, ok := _u.mutation.LoggedIn(); ok {
 		_spec.SetField(authrequest.FieldLoggedIn, field.TypeBool, value)
 	}
-	if value, ok := aruo.mutation.ClaimsUserID(); ok {
+	if value, ok := _u.mutation.ClaimsUserID(); ok {
 		_spec.SetField(authrequest.FieldClaimsUserID, field.TypeString, value)
 	}
-	if value, ok := aruo.mutation.ClaimsUsername(); ok {
+	if value, ok := _u.mutation.ClaimsUsername(); ok {
 		_spec.SetField(authrequest.FieldClaimsUsername, field.TypeString, value)
 	}
-	if value, ok := aruo.mutation.ClaimsEmail(); ok {
+	if value, ok := _u.mutation.ClaimsEmail(); ok {
 		_spec.SetField(authrequest.FieldClaimsEmail, field.TypeString, value)
 	}
-	if value, ok := aruo.mutation.ClaimsEmailVerified(); ok {
+	if value, ok := _u.mutation.ClaimsEmailVerified(); ok {
 		_spec.SetField(authrequest.FieldClaimsEmailVerified, field.TypeBool, value)
 	}
-	if value, ok := aruo.mutation.ClaimsGroups(); ok {
+	if value, ok := _u.mutation.ClaimsGroups(); ok {
 		_spec.SetField(authrequest.FieldClaimsGroups, field.TypeJSON, value)
 	}
-	if value, ok := aruo.mutation.AppendedClaimsGroups(); ok {
+	if value, ok := _u.mutation.AppendedClaimsGroups(); ok {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, authrequest.FieldClaimsGroups, value)
 		})
 	}
-	if aruo.mutation.ClaimsGroupsCleared() {
+	if _u.mutation.ClaimsGroupsCleared() {
 		_spec.ClearField(authrequest.FieldClaimsGroups, field.TypeJSON)
 	}
-	if value, ok := aruo.mutation.ClaimsPreferredUsername(); ok {
+	if value, ok := _u.mutation.ClaimsPreferredUsername(); ok {
 		_spec.SetField(authrequest.FieldClaimsPreferredUsername, field.TypeString, value)
 	}
-	if value, ok := aruo.mutation.ConnectorID(); ok {
+	if value, ok := _u.mutation.ConnectorID(); ok {
 		_spec.SetField(authrequest.FieldConnectorID, field.TypeString, value)
 	}
-	if value, ok := aruo.mutation.ConnectorData(); ok {
+	if value, ok := _u.mutation.ConnectorData(); ok {
 		_spec.SetField(authrequest.FieldConnectorData, field.TypeBytes, value)
 	}
-	if aruo.mutation.ConnectorDataCleared() {
+	if _u.mutation.ConnectorDataCleared() {
 		_spec.ClearField(authrequest.FieldConnectorData, field.TypeBytes)
 	}
-	if value, ok := aruo.mutation.Expiry(); ok {
+	if value, ok := _u.mutation.Expiry(); ok {
 		_spec.SetField(authrequest.FieldExpiry, field.TypeTime, value)
 	}
-	if value, ok := aruo.mutation.CodeChallenge(); ok {
+	if value, ok := _u.mutation.CodeChallenge(); ok {
 		_spec.SetField(authrequest.FieldCodeChallenge, field.TypeString, value)
 	}
-	if value, ok := aruo.mutation.CodeChallengeMethod(); ok {
+	if value, ok := _u.mutation.CodeChallengeMethod(); ok {
 		_spec.SetField(authrequest.FieldCodeChallengeMethod, field.TypeString, value)
 	}
-	if value, ok := aruo.mutation.HmacKey(); ok {
+	if value, ok := _u.mutation.HmacKey(); ok {
 		_spec.SetField(authrequest.FieldHmacKey, field.TypeBytes, value)
 	}
-	_node = &AuthRequest{config: aruo.config}
+	_node = &AuthRequest{config: _u.config}
 	_spec.Assign = _node.assignValues
 	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, aruo.driver, _spec); err != nil {
+	if err = sqlgraph.UpdateNode(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{authrequest.Label}
 		} else if sqlgraph.IsConstraintError(err) {
@@ -910,6 +910,6 @@ func (aruo *AuthRequestUpdateOne) sqlSave(ctx context.Context) (_node *AuthReque
 		}
 		return nil, err
 	}
-	aruo.mutation.done = true
+	_u.mutation.done = true
 	return _node, nil
 }

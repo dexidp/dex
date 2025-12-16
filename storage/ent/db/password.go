@@ -47,7 +47,7 @@ func (*Password) scanValues(columns []string) ([]any, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the Password fields.
-func (pa *Password) assignValues(columns []string, values []any) error {
+func (_m *Password) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -58,33 +58,33 @@ func (pa *Password) assignValues(columns []string, values []any) error {
 			if !ok {
 				return fmt.Errorf("unexpected type %T for field id", value)
 			}
-			pa.ID = int(value.Int64)
+			_m.ID = int(value.Int64)
 		case password.FieldEmail:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field email", values[i])
 			} else if value.Valid {
-				pa.Email = value.String
+				_m.Email = value.String
 			}
 		case password.FieldHash:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field hash", values[i])
 			} else if value != nil {
-				pa.Hash = *value
+				_m.Hash = *value
 			}
 		case password.FieldUsername:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field username", values[i])
 			} else if value.Valid {
-				pa.Username = value.String
+				_m.Username = value.String
 			}
 		case password.FieldUserID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field user_id", values[i])
 			} else if value.Valid {
-				pa.UserID = value.String
+				_m.UserID = value.String
 			}
 		default:
-			pa.selectValues.Set(columns[i], values[i])
+			_m.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
@@ -92,44 +92,44 @@ func (pa *Password) assignValues(columns []string, values []any) error {
 
 // Value returns the ent.Value that was dynamically selected and assigned to the Password.
 // This includes values selected through modifiers, order, etc.
-func (pa *Password) Value(name string) (ent.Value, error) {
-	return pa.selectValues.Get(name)
+func (_m *Password) Value(name string) (ent.Value, error) {
+	return _m.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this Password.
 // Note that you need to call Password.Unwrap() before calling this method if this Password
 // was returned from a transaction, and the transaction was committed or rolled back.
-func (pa *Password) Update() *PasswordUpdateOne {
-	return NewPasswordClient(pa.config).UpdateOne(pa)
+func (_m *Password) Update() *PasswordUpdateOne {
+	return NewPasswordClient(_m.config).UpdateOne(_m)
 }
 
 // Unwrap unwraps the Password entity that was returned from a transaction after it was closed,
 // so that all future queries will be executed through the driver which created the transaction.
-func (pa *Password) Unwrap() *Password {
-	_tx, ok := pa.config.driver.(*txDriver)
+func (_m *Password) Unwrap() *Password {
+	_tx, ok := _m.config.driver.(*txDriver)
 	if !ok {
 		panic("db: Password is not a transactional entity")
 	}
-	pa.config.driver = _tx.drv
-	return pa
+	_m.config.driver = _tx.drv
+	return _m
 }
 
 // String implements the fmt.Stringer.
-func (pa *Password) String() string {
+func (_m *Password) String() string {
 	var builder strings.Builder
 	builder.WriteString("Password(")
-	builder.WriteString(fmt.Sprintf("id=%v, ", pa.ID))
+	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("email=")
-	builder.WriteString(pa.Email)
+	builder.WriteString(_m.Email)
 	builder.WriteString(", ")
 	builder.WriteString("hash=")
-	builder.WriteString(fmt.Sprintf("%v", pa.Hash))
+	builder.WriteString(fmt.Sprintf("%v", _m.Hash))
 	builder.WriteString(", ")
 	builder.WriteString("username=")
-	builder.WriteString(pa.Username)
+	builder.WriteString(_m.Username)
 	builder.WriteString(", ")
 	builder.WriteString("user_id=")
-	builder.WriteString(pa.UserID)
+	builder.WriteString(_m.UserID)
 	builder.WriteByte(')')
 	return builder.String()
 }

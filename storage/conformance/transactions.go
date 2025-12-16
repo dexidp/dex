@@ -17,7 +17,7 @@ import (
 // This call is separate from RunTests because some storage perform extremely
 // poorly under deadlocks, such as SQLite3, while others may be working towards
 // conformance.
-func RunTransactionTests(t *testing.T, newStorage func() storage.Storage) {
+func RunTransactionTests(t *testing.T, newStorage func(t *testing.T) storage.Storage) {
 	runTests(t, newStorage, []subTest{
 		{"AuthRequestConcurrentUpdate", testAuthRequestConcurrentUpdate},
 		{"ClientConcurrentUpdate", testClientConcurrentUpdate},
@@ -27,7 +27,7 @@ func RunTransactionTests(t *testing.T, newStorage func() storage.Storage) {
 }
 
 func testClientConcurrentUpdate(t *testing.T, s storage.Storage) {
-	ctx := context.Background()
+	ctx := t.Context()
 	c := storage.Client{
 		ID:           storage.NewID(),
 		Secret:       "foobar",
@@ -57,7 +57,7 @@ func testClientConcurrentUpdate(t *testing.T, s storage.Storage) {
 }
 
 func testAuthRequestConcurrentUpdate(t *testing.T, s storage.Storage) {
-	ctx := context.Background()
+	ctx := t.Context()
 	a := storage.AuthRequest{
 		ID:                  storage.NewID(),
 		ClientID:            "foobar",
@@ -102,7 +102,7 @@ func testAuthRequestConcurrentUpdate(t *testing.T, s storage.Storage) {
 }
 
 func testPasswordConcurrentUpdate(t *testing.T, s storage.Storage) {
-	ctx := context.Background()
+	ctx := t.Context()
 	// Use bcrypt.MinCost to keep the tests short.
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte("secret"), bcrypt.MinCost)
 	if err != nil {

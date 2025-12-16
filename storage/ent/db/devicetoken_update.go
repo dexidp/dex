@@ -23,141 +23,141 @@ type DeviceTokenUpdate struct {
 }
 
 // Where appends a list predicates to the DeviceTokenUpdate builder.
-func (dtu *DeviceTokenUpdate) Where(ps ...predicate.DeviceToken) *DeviceTokenUpdate {
-	dtu.mutation.Where(ps...)
-	return dtu
+func (_u *DeviceTokenUpdate) Where(ps ...predicate.DeviceToken) *DeviceTokenUpdate {
+	_u.mutation.Where(ps...)
+	return _u
 }
 
 // SetDeviceCode sets the "device_code" field.
-func (dtu *DeviceTokenUpdate) SetDeviceCode(s string) *DeviceTokenUpdate {
-	dtu.mutation.SetDeviceCode(s)
-	return dtu
+func (_u *DeviceTokenUpdate) SetDeviceCode(v string) *DeviceTokenUpdate {
+	_u.mutation.SetDeviceCode(v)
+	return _u
 }
 
 // SetNillableDeviceCode sets the "device_code" field if the given value is not nil.
-func (dtu *DeviceTokenUpdate) SetNillableDeviceCode(s *string) *DeviceTokenUpdate {
-	if s != nil {
-		dtu.SetDeviceCode(*s)
+func (_u *DeviceTokenUpdate) SetNillableDeviceCode(v *string) *DeviceTokenUpdate {
+	if v != nil {
+		_u.SetDeviceCode(*v)
 	}
-	return dtu
+	return _u
 }
 
 // SetStatus sets the "status" field.
-func (dtu *DeviceTokenUpdate) SetStatus(s string) *DeviceTokenUpdate {
-	dtu.mutation.SetStatus(s)
-	return dtu
+func (_u *DeviceTokenUpdate) SetStatus(v string) *DeviceTokenUpdate {
+	_u.mutation.SetStatus(v)
+	return _u
 }
 
 // SetNillableStatus sets the "status" field if the given value is not nil.
-func (dtu *DeviceTokenUpdate) SetNillableStatus(s *string) *DeviceTokenUpdate {
-	if s != nil {
-		dtu.SetStatus(*s)
+func (_u *DeviceTokenUpdate) SetNillableStatus(v *string) *DeviceTokenUpdate {
+	if v != nil {
+		_u.SetStatus(*v)
 	}
-	return dtu
+	return _u
 }
 
 // SetToken sets the "token" field.
-func (dtu *DeviceTokenUpdate) SetToken(b []byte) *DeviceTokenUpdate {
-	dtu.mutation.SetToken(b)
-	return dtu
+func (_u *DeviceTokenUpdate) SetToken(v []byte) *DeviceTokenUpdate {
+	_u.mutation.SetToken(v)
+	return _u
 }
 
 // ClearToken clears the value of the "token" field.
-func (dtu *DeviceTokenUpdate) ClearToken() *DeviceTokenUpdate {
-	dtu.mutation.ClearToken()
-	return dtu
+func (_u *DeviceTokenUpdate) ClearToken() *DeviceTokenUpdate {
+	_u.mutation.ClearToken()
+	return _u
 }
 
 // SetExpiry sets the "expiry" field.
-func (dtu *DeviceTokenUpdate) SetExpiry(t time.Time) *DeviceTokenUpdate {
-	dtu.mutation.SetExpiry(t)
-	return dtu
+func (_u *DeviceTokenUpdate) SetExpiry(v time.Time) *DeviceTokenUpdate {
+	_u.mutation.SetExpiry(v)
+	return _u
 }
 
 // SetNillableExpiry sets the "expiry" field if the given value is not nil.
-func (dtu *DeviceTokenUpdate) SetNillableExpiry(t *time.Time) *DeviceTokenUpdate {
-	if t != nil {
-		dtu.SetExpiry(*t)
+func (_u *DeviceTokenUpdate) SetNillableExpiry(v *time.Time) *DeviceTokenUpdate {
+	if v != nil {
+		_u.SetExpiry(*v)
 	}
-	return dtu
+	return _u
 }
 
 // SetLastRequest sets the "last_request" field.
-func (dtu *DeviceTokenUpdate) SetLastRequest(t time.Time) *DeviceTokenUpdate {
-	dtu.mutation.SetLastRequest(t)
-	return dtu
+func (_u *DeviceTokenUpdate) SetLastRequest(v time.Time) *DeviceTokenUpdate {
+	_u.mutation.SetLastRequest(v)
+	return _u
 }
 
 // SetNillableLastRequest sets the "last_request" field if the given value is not nil.
-func (dtu *DeviceTokenUpdate) SetNillableLastRequest(t *time.Time) *DeviceTokenUpdate {
-	if t != nil {
-		dtu.SetLastRequest(*t)
+func (_u *DeviceTokenUpdate) SetNillableLastRequest(v *time.Time) *DeviceTokenUpdate {
+	if v != nil {
+		_u.SetLastRequest(*v)
 	}
-	return dtu
+	return _u
 }
 
 // SetPollInterval sets the "poll_interval" field.
-func (dtu *DeviceTokenUpdate) SetPollInterval(i int) *DeviceTokenUpdate {
-	dtu.mutation.ResetPollInterval()
-	dtu.mutation.SetPollInterval(i)
-	return dtu
+func (_u *DeviceTokenUpdate) SetPollInterval(v int) *DeviceTokenUpdate {
+	_u.mutation.ResetPollInterval()
+	_u.mutation.SetPollInterval(v)
+	return _u
 }
 
 // SetNillablePollInterval sets the "poll_interval" field if the given value is not nil.
-func (dtu *DeviceTokenUpdate) SetNillablePollInterval(i *int) *DeviceTokenUpdate {
-	if i != nil {
-		dtu.SetPollInterval(*i)
+func (_u *DeviceTokenUpdate) SetNillablePollInterval(v *int) *DeviceTokenUpdate {
+	if v != nil {
+		_u.SetPollInterval(*v)
 	}
-	return dtu
+	return _u
 }
 
-// AddPollInterval adds i to the "poll_interval" field.
-func (dtu *DeviceTokenUpdate) AddPollInterval(i int) *DeviceTokenUpdate {
-	dtu.mutation.AddPollInterval(i)
-	return dtu
+// AddPollInterval adds value to the "poll_interval" field.
+func (_u *DeviceTokenUpdate) AddPollInterval(v int) *DeviceTokenUpdate {
+	_u.mutation.AddPollInterval(v)
+	return _u
 }
 
 // SetCodeChallenge sets the "code_challenge" field.
-func (dtu *DeviceTokenUpdate) SetCodeChallenge(s string) *DeviceTokenUpdate {
-	dtu.mutation.SetCodeChallenge(s)
-	return dtu
+func (_u *DeviceTokenUpdate) SetCodeChallenge(v string) *DeviceTokenUpdate {
+	_u.mutation.SetCodeChallenge(v)
+	return _u
 }
 
 // SetNillableCodeChallenge sets the "code_challenge" field if the given value is not nil.
-func (dtu *DeviceTokenUpdate) SetNillableCodeChallenge(s *string) *DeviceTokenUpdate {
-	if s != nil {
-		dtu.SetCodeChallenge(*s)
+func (_u *DeviceTokenUpdate) SetNillableCodeChallenge(v *string) *DeviceTokenUpdate {
+	if v != nil {
+		_u.SetCodeChallenge(*v)
 	}
-	return dtu
+	return _u
 }
 
 // SetCodeChallengeMethod sets the "code_challenge_method" field.
-func (dtu *DeviceTokenUpdate) SetCodeChallengeMethod(s string) *DeviceTokenUpdate {
-	dtu.mutation.SetCodeChallengeMethod(s)
-	return dtu
+func (_u *DeviceTokenUpdate) SetCodeChallengeMethod(v string) *DeviceTokenUpdate {
+	_u.mutation.SetCodeChallengeMethod(v)
+	return _u
 }
 
 // SetNillableCodeChallengeMethod sets the "code_challenge_method" field if the given value is not nil.
-func (dtu *DeviceTokenUpdate) SetNillableCodeChallengeMethod(s *string) *DeviceTokenUpdate {
-	if s != nil {
-		dtu.SetCodeChallengeMethod(*s)
+func (_u *DeviceTokenUpdate) SetNillableCodeChallengeMethod(v *string) *DeviceTokenUpdate {
+	if v != nil {
+		_u.SetCodeChallengeMethod(*v)
 	}
-	return dtu
+	return _u
 }
 
 // Mutation returns the DeviceTokenMutation object of the builder.
-func (dtu *DeviceTokenUpdate) Mutation() *DeviceTokenMutation {
-	return dtu.mutation
+func (_u *DeviceTokenUpdate) Mutation() *DeviceTokenMutation {
+	return _u.mutation
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
-func (dtu *DeviceTokenUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, dtu.sqlSave, dtu.mutation, dtu.hooks)
+func (_u *DeviceTokenUpdate) Save(ctx context.Context) (int, error) {
+	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func (dtu *DeviceTokenUpdate) SaveX(ctx context.Context) int {
-	affected, err := dtu.Save(ctx)
+func (_u *DeviceTokenUpdate) SaveX(ctx context.Context) int {
+	affected, err := _u.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -165,26 +165,26 @@ func (dtu *DeviceTokenUpdate) SaveX(ctx context.Context) int {
 }
 
 // Exec executes the query.
-func (dtu *DeviceTokenUpdate) Exec(ctx context.Context) error {
-	_, err := dtu.Save(ctx)
+func (_u *DeviceTokenUpdate) Exec(ctx context.Context) error {
+	_, err := _u.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (dtu *DeviceTokenUpdate) ExecX(ctx context.Context) {
-	if err := dtu.Exec(ctx); err != nil {
+func (_u *DeviceTokenUpdate) ExecX(ctx context.Context) {
+	if err := _u.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
 
 // check runs all checks and user-defined validators on the builder.
-func (dtu *DeviceTokenUpdate) check() error {
-	if v, ok := dtu.mutation.DeviceCode(); ok {
+func (_u *DeviceTokenUpdate) check() error {
+	if v, ok := _u.mutation.DeviceCode(); ok {
 		if err := devicetoken.DeviceCodeValidator(v); err != nil {
 			return &ValidationError{Name: "device_code", err: fmt.Errorf(`db: validator failed for field "DeviceToken.device_code": %w`, err)}
 		}
 	}
-	if v, ok := dtu.mutation.Status(); ok {
+	if v, ok := _u.mutation.Status(); ok {
 		if err := devicetoken.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`db: validator failed for field "DeviceToken.status": %w`, err)}
 		}
@@ -192,49 +192,49 @@ func (dtu *DeviceTokenUpdate) check() error {
 	return nil
 }
 
-func (dtu *DeviceTokenUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	if err := dtu.check(); err != nil {
-		return n, err
+func (_u *DeviceTokenUpdate) sqlSave(ctx context.Context) (_node int, err error) {
+	if err := _u.check(); err != nil {
+		return _node, err
 	}
 	_spec := sqlgraph.NewUpdateSpec(devicetoken.Table, devicetoken.Columns, sqlgraph.NewFieldSpec(devicetoken.FieldID, field.TypeInt))
-	if ps := dtu.mutation.predicates; len(ps) > 0 {
+	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	if value, ok := dtu.mutation.DeviceCode(); ok {
+	if value, ok := _u.mutation.DeviceCode(); ok {
 		_spec.SetField(devicetoken.FieldDeviceCode, field.TypeString, value)
 	}
-	if value, ok := dtu.mutation.Status(); ok {
+	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(devicetoken.FieldStatus, field.TypeString, value)
 	}
-	if value, ok := dtu.mutation.Token(); ok {
+	if value, ok := _u.mutation.Token(); ok {
 		_spec.SetField(devicetoken.FieldToken, field.TypeBytes, value)
 	}
-	if dtu.mutation.TokenCleared() {
+	if _u.mutation.TokenCleared() {
 		_spec.ClearField(devicetoken.FieldToken, field.TypeBytes)
 	}
-	if value, ok := dtu.mutation.Expiry(); ok {
+	if value, ok := _u.mutation.Expiry(); ok {
 		_spec.SetField(devicetoken.FieldExpiry, field.TypeTime, value)
 	}
-	if value, ok := dtu.mutation.LastRequest(); ok {
+	if value, ok := _u.mutation.LastRequest(); ok {
 		_spec.SetField(devicetoken.FieldLastRequest, field.TypeTime, value)
 	}
-	if value, ok := dtu.mutation.PollInterval(); ok {
+	if value, ok := _u.mutation.PollInterval(); ok {
 		_spec.SetField(devicetoken.FieldPollInterval, field.TypeInt, value)
 	}
-	if value, ok := dtu.mutation.AddedPollInterval(); ok {
+	if value, ok := _u.mutation.AddedPollInterval(); ok {
 		_spec.AddField(devicetoken.FieldPollInterval, field.TypeInt, value)
 	}
-	if value, ok := dtu.mutation.CodeChallenge(); ok {
+	if value, ok := _u.mutation.CodeChallenge(); ok {
 		_spec.SetField(devicetoken.FieldCodeChallenge, field.TypeString, value)
 	}
-	if value, ok := dtu.mutation.CodeChallengeMethod(); ok {
+	if value, ok := _u.mutation.CodeChallengeMethod(); ok {
 		_spec.SetField(devicetoken.FieldCodeChallengeMethod, field.TypeString, value)
 	}
-	if n, err = sqlgraph.UpdateNodes(ctx, dtu.driver, _spec); err != nil {
+	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{devicetoken.Label}
 		} else if sqlgraph.IsConstraintError(err) {
@@ -242,8 +242,8 @@ func (dtu *DeviceTokenUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 		return 0, err
 	}
-	dtu.mutation.done = true
-	return n, nil
+	_u.mutation.done = true
+	return _node, nil
 }
 
 // DeviceTokenUpdateOne is the builder for updating a single DeviceToken entity.
@@ -255,148 +255,148 @@ type DeviceTokenUpdateOne struct {
 }
 
 // SetDeviceCode sets the "device_code" field.
-func (dtuo *DeviceTokenUpdateOne) SetDeviceCode(s string) *DeviceTokenUpdateOne {
-	dtuo.mutation.SetDeviceCode(s)
-	return dtuo
+func (_u *DeviceTokenUpdateOne) SetDeviceCode(v string) *DeviceTokenUpdateOne {
+	_u.mutation.SetDeviceCode(v)
+	return _u
 }
 
 // SetNillableDeviceCode sets the "device_code" field if the given value is not nil.
-func (dtuo *DeviceTokenUpdateOne) SetNillableDeviceCode(s *string) *DeviceTokenUpdateOne {
-	if s != nil {
-		dtuo.SetDeviceCode(*s)
+func (_u *DeviceTokenUpdateOne) SetNillableDeviceCode(v *string) *DeviceTokenUpdateOne {
+	if v != nil {
+		_u.SetDeviceCode(*v)
 	}
-	return dtuo
+	return _u
 }
 
 // SetStatus sets the "status" field.
-func (dtuo *DeviceTokenUpdateOne) SetStatus(s string) *DeviceTokenUpdateOne {
-	dtuo.mutation.SetStatus(s)
-	return dtuo
+func (_u *DeviceTokenUpdateOne) SetStatus(v string) *DeviceTokenUpdateOne {
+	_u.mutation.SetStatus(v)
+	return _u
 }
 
 // SetNillableStatus sets the "status" field if the given value is not nil.
-func (dtuo *DeviceTokenUpdateOne) SetNillableStatus(s *string) *DeviceTokenUpdateOne {
-	if s != nil {
-		dtuo.SetStatus(*s)
+func (_u *DeviceTokenUpdateOne) SetNillableStatus(v *string) *DeviceTokenUpdateOne {
+	if v != nil {
+		_u.SetStatus(*v)
 	}
-	return dtuo
+	return _u
 }
 
 // SetToken sets the "token" field.
-func (dtuo *DeviceTokenUpdateOne) SetToken(b []byte) *DeviceTokenUpdateOne {
-	dtuo.mutation.SetToken(b)
-	return dtuo
+func (_u *DeviceTokenUpdateOne) SetToken(v []byte) *DeviceTokenUpdateOne {
+	_u.mutation.SetToken(v)
+	return _u
 }
 
 // ClearToken clears the value of the "token" field.
-func (dtuo *DeviceTokenUpdateOne) ClearToken() *DeviceTokenUpdateOne {
-	dtuo.mutation.ClearToken()
-	return dtuo
+func (_u *DeviceTokenUpdateOne) ClearToken() *DeviceTokenUpdateOne {
+	_u.mutation.ClearToken()
+	return _u
 }
 
 // SetExpiry sets the "expiry" field.
-func (dtuo *DeviceTokenUpdateOne) SetExpiry(t time.Time) *DeviceTokenUpdateOne {
-	dtuo.mutation.SetExpiry(t)
-	return dtuo
+func (_u *DeviceTokenUpdateOne) SetExpiry(v time.Time) *DeviceTokenUpdateOne {
+	_u.mutation.SetExpiry(v)
+	return _u
 }
 
 // SetNillableExpiry sets the "expiry" field if the given value is not nil.
-func (dtuo *DeviceTokenUpdateOne) SetNillableExpiry(t *time.Time) *DeviceTokenUpdateOne {
-	if t != nil {
-		dtuo.SetExpiry(*t)
+func (_u *DeviceTokenUpdateOne) SetNillableExpiry(v *time.Time) *DeviceTokenUpdateOne {
+	if v != nil {
+		_u.SetExpiry(*v)
 	}
-	return dtuo
+	return _u
 }
 
 // SetLastRequest sets the "last_request" field.
-func (dtuo *DeviceTokenUpdateOne) SetLastRequest(t time.Time) *DeviceTokenUpdateOne {
-	dtuo.mutation.SetLastRequest(t)
-	return dtuo
+func (_u *DeviceTokenUpdateOne) SetLastRequest(v time.Time) *DeviceTokenUpdateOne {
+	_u.mutation.SetLastRequest(v)
+	return _u
 }
 
 // SetNillableLastRequest sets the "last_request" field if the given value is not nil.
-func (dtuo *DeviceTokenUpdateOne) SetNillableLastRequest(t *time.Time) *DeviceTokenUpdateOne {
-	if t != nil {
-		dtuo.SetLastRequest(*t)
+func (_u *DeviceTokenUpdateOne) SetNillableLastRequest(v *time.Time) *DeviceTokenUpdateOne {
+	if v != nil {
+		_u.SetLastRequest(*v)
 	}
-	return dtuo
+	return _u
 }
 
 // SetPollInterval sets the "poll_interval" field.
-func (dtuo *DeviceTokenUpdateOne) SetPollInterval(i int) *DeviceTokenUpdateOne {
-	dtuo.mutation.ResetPollInterval()
-	dtuo.mutation.SetPollInterval(i)
-	return dtuo
+func (_u *DeviceTokenUpdateOne) SetPollInterval(v int) *DeviceTokenUpdateOne {
+	_u.mutation.ResetPollInterval()
+	_u.mutation.SetPollInterval(v)
+	return _u
 }
 
 // SetNillablePollInterval sets the "poll_interval" field if the given value is not nil.
-func (dtuo *DeviceTokenUpdateOne) SetNillablePollInterval(i *int) *DeviceTokenUpdateOne {
-	if i != nil {
-		dtuo.SetPollInterval(*i)
+func (_u *DeviceTokenUpdateOne) SetNillablePollInterval(v *int) *DeviceTokenUpdateOne {
+	if v != nil {
+		_u.SetPollInterval(*v)
 	}
-	return dtuo
+	return _u
 }
 
-// AddPollInterval adds i to the "poll_interval" field.
-func (dtuo *DeviceTokenUpdateOne) AddPollInterval(i int) *DeviceTokenUpdateOne {
-	dtuo.mutation.AddPollInterval(i)
-	return dtuo
+// AddPollInterval adds value to the "poll_interval" field.
+func (_u *DeviceTokenUpdateOne) AddPollInterval(v int) *DeviceTokenUpdateOne {
+	_u.mutation.AddPollInterval(v)
+	return _u
 }
 
 // SetCodeChallenge sets the "code_challenge" field.
-func (dtuo *DeviceTokenUpdateOne) SetCodeChallenge(s string) *DeviceTokenUpdateOne {
-	dtuo.mutation.SetCodeChallenge(s)
-	return dtuo
+func (_u *DeviceTokenUpdateOne) SetCodeChallenge(v string) *DeviceTokenUpdateOne {
+	_u.mutation.SetCodeChallenge(v)
+	return _u
 }
 
 // SetNillableCodeChallenge sets the "code_challenge" field if the given value is not nil.
-func (dtuo *DeviceTokenUpdateOne) SetNillableCodeChallenge(s *string) *DeviceTokenUpdateOne {
-	if s != nil {
-		dtuo.SetCodeChallenge(*s)
+func (_u *DeviceTokenUpdateOne) SetNillableCodeChallenge(v *string) *DeviceTokenUpdateOne {
+	if v != nil {
+		_u.SetCodeChallenge(*v)
 	}
-	return dtuo
+	return _u
 }
 
 // SetCodeChallengeMethod sets the "code_challenge_method" field.
-func (dtuo *DeviceTokenUpdateOne) SetCodeChallengeMethod(s string) *DeviceTokenUpdateOne {
-	dtuo.mutation.SetCodeChallengeMethod(s)
-	return dtuo
+func (_u *DeviceTokenUpdateOne) SetCodeChallengeMethod(v string) *DeviceTokenUpdateOne {
+	_u.mutation.SetCodeChallengeMethod(v)
+	return _u
 }
 
 // SetNillableCodeChallengeMethod sets the "code_challenge_method" field if the given value is not nil.
-func (dtuo *DeviceTokenUpdateOne) SetNillableCodeChallengeMethod(s *string) *DeviceTokenUpdateOne {
-	if s != nil {
-		dtuo.SetCodeChallengeMethod(*s)
+func (_u *DeviceTokenUpdateOne) SetNillableCodeChallengeMethod(v *string) *DeviceTokenUpdateOne {
+	if v != nil {
+		_u.SetCodeChallengeMethod(*v)
 	}
-	return dtuo
+	return _u
 }
 
 // Mutation returns the DeviceTokenMutation object of the builder.
-func (dtuo *DeviceTokenUpdateOne) Mutation() *DeviceTokenMutation {
-	return dtuo.mutation
+func (_u *DeviceTokenUpdateOne) Mutation() *DeviceTokenMutation {
+	return _u.mutation
 }
 
 // Where appends a list predicates to the DeviceTokenUpdate builder.
-func (dtuo *DeviceTokenUpdateOne) Where(ps ...predicate.DeviceToken) *DeviceTokenUpdateOne {
-	dtuo.mutation.Where(ps...)
-	return dtuo
+func (_u *DeviceTokenUpdateOne) Where(ps ...predicate.DeviceToken) *DeviceTokenUpdateOne {
+	_u.mutation.Where(ps...)
+	return _u
 }
 
 // Select allows selecting one or more fields (columns) of the returned entity.
 // The default is selecting all fields defined in the entity schema.
-func (dtuo *DeviceTokenUpdateOne) Select(field string, fields ...string) *DeviceTokenUpdateOne {
-	dtuo.fields = append([]string{field}, fields...)
-	return dtuo
+func (_u *DeviceTokenUpdateOne) Select(field string, fields ...string) *DeviceTokenUpdateOne {
+	_u.fields = append([]string{field}, fields...)
+	return _u
 }
 
 // Save executes the query and returns the updated DeviceToken entity.
-func (dtuo *DeviceTokenUpdateOne) Save(ctx context.Context) (*DeviceToken, error) {
-	return withHooks(ctx, dtuo.sqlSave, dtuo.mutation, dtuo.hooks)
+func (_u *DeviceTokenUpdateOne) Save(ctx context.Context) (*DeviceToken, error) {
+	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func (dtuo *DeviceTokenUpdateOne) SaveX(ctx context.Context) *DeviceToken {
-	node, err := dtuo.Save(ctx)
+func (_u *DeviceTokenUpdateOne) SaveX(ctx context.Context) *DeviceToken {
+	node, err := _u.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -404,26 +404,26 @@ func (dtuo *DeviceTokenUpdateOne) SaveX(ctx context.Context) *DeviceToken {
 }
 
 // Exec executes the query on the entity.
-func (dtuo *DeviceTokenUpdateOne) Exec(ctx context.Context) error {
-	_, err := dtuo.Save(ctx)
+func (_u *DeviceTokenUpdateOne) Exec(ctx context.Context) error {
+	_, err := _u.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (dtuo *DeviceTokenUpdateOne) ExecX(ctx context.Context) {
-	if err := dtuo.Exec(ctx); err != nil {
+func (_u *DeviceTokenUpdateOne) ExecX(ctx context.Context) {
+	if err := _u.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
 
 // check runs all checks and user-defined validators on the builder.
-func (dtuo *DeviceTokenUpdateOne) check() error {
-	if v, ok := dtuo.mutation.DeviceCode(); ok {
+func (_u *DeviceTokenUpdateOne) check() error {
+	if v, ok := _u.mutation.DeviceCode(); ok {
 		if err := devicetoken.DeviceCodeValidator(v); err != nil {
 			return &ValidationError{Name: "device_code", err: fmt.Errorf(`db: validator failed for field "DeviceToken.device_code": %w`, err)}
 		}
 	}
-	if v, ok := dtuo.mutation.Status(); ok {
+	if v, ok := _u.mutation.Status(); ok {
 		if err := devicetoken.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`db: validator failed for field "DeviceToken.status": %w`, err)}
 		}
@@ -431,17 +431,17 @@ func (dtuo *DeviceTokenUpdateOne) check() error {
 	return nil
 }
 
-func (dtuo *DeviceTokenUpdateOne) sqlSave(ctx context.Context) (_node *DeviceToken, err error) {
-	if err := dtuo.check(); err != nil {
+func (_u *DeviceTokenUpdateOne) sqlSave(ctx context.Context) (_node *DeviceToken, err error) {
+	if err := _u.check(); err != nil {
 		return _node, err
 	}
 	_spec := sqlgraph.NewUpdateSpec(devicetoken.Table, devicetoken.Columns, sqlgraph.NewFieldSpec(devicetoken.FieldID, field.TypeInt))
-	id, ok := dtuo.mutation.ID()
+	id, ok := _u.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "DeviceToken.id" for update`)}
 	}
 	_spec.Node.ID.Value = id
-	if fields := dtuo.fields; len(fields) > 0 {
+	if fields := _u.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, devicetoken.FieldID)
 		for _, f := range fields {
@@ -453,47 +453,47 @@ func (dtuo *DeviceTokenUpdateOne) sqlSave(ctx context.Context) (_node *DeviceTok
 			}
 		}
 	}
-	if ps := dtuo.mutation.predicates; len(ps) > 0 {
+	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	if value, ok := dtuo.mutation.DeviceCode(); ok {
+	if value, ok := _u.mutation.DeviceCode(); ok {
 		_spec.SetField(devicetoken.FieldDeviceCode, field.TypeString, value)
 	}
-	if value, ok := dtuo.mutation.Status(); ok {
+	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(devicetoken.FieldStatus, field.TypeString, value)
 	}
-	if value, ok := dtuo.mutation.Token(); ok {
+	if value, ok := _u.mutation.Token(); ok {
 		_spec.SetField(devicetoken.FieldToken, field.TypeBytes, value)
 	}
-	if dtuo.mutation.TokenCleared() {
+	if _u.mutation.TokenCleared() {
 		_spec.ClearField(devicetoken.FieldToken, field.TypeBytes)
 	}
-	if value, ok := dtuo.mutation.Expiry(); ok {
+	if value, ok := _u.mutation.Expiry(); ok {
 		_spec.SetField(devicetoken.FieldExpiry, field.TypeTime, value)
 	}
-	if value, ok := dtuo.mutation.LastRequest(); ok {
+	if value, ok := _u.mutation.LastRequest(); ok {
 		_spec.SetField(devicetoken.FieldLastRequest, field.TypeTime, value)
 	}
-	if value, ok := dtuo.mutation.PollInterval(); ok {
+	if value, ok := _u.mutation.PollInterval(); ok {
 		_spec.SetField(devicetoken.FieldPollInterval, field.TypeInt, value)
 	}
-	if value, ok := dtuo.mutation.AddedPollInterval(); ok {
+	if value, ok := _u.mutation.AddedPollInterval(); ok {
 		_spec.AddField(devicetoken.FieldPollInterval, field.TypeInt, value)
 	}
-	if value, ok := dtuo.mutation.CodeChallenge(); ok {
+	if value, ok := _u.mutation.CodeChallenge(); ok {
 		_spec.SetField(devicetoken.FieldCodeChallenge, field.TypeString, value)
 	}
-	if value, ok := dtuo.mutation.CodeChallengeMethod(); ok {
+	if value, ok := _u.mutation.CodeChallengeMethod(); ok {
 		_spec.SetField(devicetoken.FieldCodeChallengeMethod, field.TypeString, value)
 	}
-	_node = &DeviceToken{config: dtuo.config}
+	_node = &DeviceToken{config: _u.config}
 	_spec.Assign = _node.assignValues
 	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, dtuo.driver, _spec); err != nil {
+	if err = sqlgraph.UpdateNode(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{devicetoken.Label}
 		} else if sqlgraph.IsConstraintError(err) {
@@ -501,6 +501,6 @@ func (dtuo *DeviceTokenUpdateOne) sqlSave(ctx context.Context) (_node *DeviceTok
 		}
 		return nil, err
 	}
-	dtuo.mutation.done = true
+	_u.mutation.done = true
 	return _node, nil
 }

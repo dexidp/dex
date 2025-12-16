@@ -119,6 +119,10 @@ type Config struct {
 	PrometheusRegistry *prometheus.Registry
 
 	HealthChecker gosundheit.Health
+
+	// If enabled, the server will continue starting even if some connectors fail to initialize.
+	// This allows the server to operate with a subset of connectors if some are misconfigured.
+	ContinueOnConnectorFailure bool
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -325,10 +329,20 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		return nil, errors.New("server: no connectors specified")
 	}
 
+	var failedCount int
 	for _, conn := range storageConnectors {
 		if _, err := s.OpenConnector(conn); err != nil {
+			failedCount++
+			if c.ContinueOnConnectorFailure {
+				s.logger.Error("server: Failed to open connector", "id", conn.ID, "err", err)
+				continue
+			}
 			return nil, fmt.Errorf("server: Failed to open connector %s: %v", conn.ID, err)
 		}
+	}
+
+	if c.ContinueOnConnectorFailure && failedCount == len(storageConnectors) {
+		return nil, fmt.Errorf("server: failed to open all connectors (%d/%d)", failedCount, len(storageConnectors))
 	}
 
 	instrumentHandler := func(_ string, handler http.Handler) http.HandlerFunc {
@@ -450,7 +464,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 			<h1>Dex IdP</h1>
 			<h3>A Federated OpenID Connect Provider</h3>
 			<p><a href=%q>Discovery</a></p>`,
-			s.issuerURL.String()+"/.well-known/openid-configuration")
+			s.issuerURL.JoinPath(".well-known", "openid-configuration").String())
 		if err != nil {
 			s.logger.Error("failed to write response", "err", err)
 			s.renderError(r, w, http.StatusInternalServerError, "Handling the / path error.")

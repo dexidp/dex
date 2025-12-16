@@ -1,10 +1,9 @@
 package server
 
 import (
-	"context"
 	"log/slog"
 	"net"
-	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -29,8 +28,12 @@ type apiClient struct {
 	Close func()
 }
 
+func newLogger(t *testing.T) *slog.Logger {
+	return slog.New(slog.NewTextHandler(t.Output(), &slog.HandlerOptions{Level: slog.LevelDebug}))
+}
+
 // newAPI constructs a gRCP client connected to a backing server.
-func newAPI(s storage.Storage, logger *slog.Logger, t *testing.T) *apiClient {
+func newAPI(t *testing.T, s storage.Storage, logger *slog.Logger) *apiClient {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -59,13 +62,14 @@ func newAPI(s storage.Storage, logger *slog.Logger, t *testing.T) *apiClient {
 
 // Attempts to create, update and delete a test Password
 func TestPassword(t *testing.T) {
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
+
 	email := "test@example.com"
 	p := api.Password{
 		Email: email,
@@ -168,10 +172,10 @@ func TestPassword(t *testing.T) {
 
 // Ensures checkCost returns expected values
 func TestCheckCost(t *testing.T) {
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
 	tests := []struct {
@@ -221,13 +225,13 @@ func TestCheckCost(t *testing.T) {
 
 // Attempts to list and revoke an existing refresh token.
 func TestRefreshToken(t *testing.T) {
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Creating a storage with an existing refresh token and offline session for the user.
 	id := storage.NewID()
@@ -330,12 +334,13 @@ func TestRefreshToken(t *testing.T) {
 }
 
 func TestUpdateClient(t *testing.T) {
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
-	ctx := context.Background()
+
+	ctx := t.Context()
 
 	createClient := func(t *testing.T, clientId string) {
 		resp, err := client.CreateClient(ctx, &api.CreateClientReq{
@@ -463,13 +468,13 @@ func TestUpdateClient(t *testing.T) {
 					t.Errorf("expected stored client with LogoURL: %s, found %s", tc.req.LogoUrl, client.LogoURL)
 				}
 				for _, redirectURI := range tc.req.RedirectUris {
-					found := find(redirectURI, client.RedirectURIs)
+					found := slices.Contains(client.RedirectURIs, redirectURI)
 					if !found {
 						t.Errorf("expected redirect URI: %s", redirectURI)
 					}
 				}
 				for _, peer := range tc.req.TrustedPeers {
-					found := find(peer, client.TrustedPeers)
+					found := slices.Contains(client.TrustedPeers, peer)
 					if !found {
 						t.Errorf("expected trusted peer: %s", peer)
 					}
@@ -483,26 +488,17 @@ func TestUpdateClient(t *testing.T) {
 	}
 }
 
-func find(item string, items []string) bool {
-	for _, i := range items {
-		if item == i {
-			return true
-		}
-	}
-	return false
-}
-
 func TestCreateConnector(t *testing.T) {
-	os.Setenv("DEX_API_CONNECTORS_CRUD", "true")
-	defer os.Unsetenv("DEX_API_CONNECTORS_CRUD")
+	t.Setenv("DEX_API_CONNECTORS_CRUD", "true")
 
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
+
 	connectorID := "connector123"
 	connectorName := "TestConnector"
 	connectorType := "TestType"
@@ -543,16 +539,16 @@ func TestCreateConnector(t *testing.T) {
 }
 
 func TestUpdateConnector(t *testing.T) {
-	os.Setenv("DEX_API_CONNECTORS_CRUD", "true")
-	defer os.Unsetenv("DEX_API_CONNECTORS_CRUD")
+	t.Setenv("DEX_API_CONNECTORS_CRUD", "true")
 
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
+
 	connectorID := "connector123"
 	newConnectorName := "UpdatedConnector"
 	newConnectorType := "UpdatedType"
@@ -611,16 +607,16 @@ func TestUpdateConnector(t *testing.T) {
 }
 
 func TestDeleteConnector(t *testing.T) {
-	os.Setenv("DEX_API_CONNECTORS_CRUD", "true")
-	defer os.Unsetenv("DEX_API_CONNECTORS_CRUD")
+	t.Setenv("DEX_API_CONNECTORS_CRUD", "true")
 
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
+
 	connectorID := "connector123"
 
 	// Create a connector for testing
@@ -655,16 +651,15 @@ func TestDeleteConnector(t *testing.T) {
 }
 
 func TestListConnectors(t *testing.T) {
-	os.Setenv("DEX_API_CONNECTORS_CRUD", "true")
-	defer os.Unsetenv("DEX_API_CONNECTORS_CRUD")
+	t.Setenv("DEX_API_CONNECTORS_CRUD", "true")
 
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create connectors for testing
 	createReq1 := api.CreateConnectorReq{
@@ -698,13 +693,13 @@ func TestListConnectors(t *testing.T) {
 }
 
 func TestMissingConnectorsCRUDFeatureFlag(t *testing.T) {
-	logger := slog.New(slog.DiscardHandler)
-
+	logger := newLogger(t)
 	s := memory.New(logger)
-	client := newAPI(s, logger, t)
+
+	client := newAPI(t, s, logger)
 	defer client.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create connectors for testing
 	createReq1 := api.CreateConnectorReq{
@@ -731,5 +726,102 @@ func TestMissingConnectorsCRUDFeatureFlag(t *testing.T) {
 
 	if _, err := client.ListConnectors(ctx, &listReq); err == nil {
 		t.Fatal("ListConnectors should have returned an error")
+	}
+}
+
+func TestListClients(t *testing.T) {
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	// List Clients
+	listResp, err := client.ListClients(ctx, &api.ListClientReq{})
+	if err != nil {
+		t.Fatalf("Unable to list clients: %v", err)
+	}
+	if len(listResp.Clients) != 0 {
+		t.Fatalf("Expected 0 clients, got %d", len(listResp.Clients))
+	}
+
+	client1 := &api.Client{
+		Id:           "client1",
+		Secret:       "secret1",
+		RedirectUris: []string{"http://localhost:8080/callback"},
+		TrustedPeers: []string{"peer1"},
+		Public:       false,
+		Name:         "Test Client 1",
+		LogoUrl:      "http://example.com/logo1.png",
+	}
+
+	client2 := &api.Client{
+		Id:           "client2",
+		Secret:       "secret2",
+		RedirectUris: []string{"http://localhost:8081/callback"},
+		TrustedPeers: []string{"peer2"},
+		Public:       true,
+		Name:         "Test Client 2",
+		LogoUrl:      "http://example.com/logo2.png",
+	}
+
+	_, err = client.CreateClient(ctx, &api.CreateClientReq{Client: client1})
+	if err != nil {
+		t.Fatalf("Unable to create client1: %v", err)
+	}
+
+	_, err = client.CreateClient(ctx, &api.CreateClientReq{Client: client2})
+	if err != nil {
+		t.Fatalf("Unable to create client2: %v", err)
+	}
+
+	listResp, err = client.ListClients(ctx, &api.ListClientReq{})
+	if err != nil {
+		t.Fatalf("Unable to list clients: %v", err)
+	}
+
+	if len(listResp.Clients) != 2 {
+		t.Fatalf("Expected 2 clients, got %d", len(listResp.Clients))
+	}
+
+	clientMap := make(map[string]*api.ClientInfo)
+	for _, c := range listResp.Clients {
+		clientMap[c.Id] = c
+	}
+
+	if c1, exists := clientMap["client1"]; !exists {
+		t.Fatal("client1 not found in list")
+	} else {
+		if c1.Name != "Test Client 1" {
+			t.Errorf("Expected client1 name 'Test Client 1', got '%s'", c1.Name)
+		}
+		if len(c1.RedirectUris) != 1 || c1.RedirectUris[0] != "http://localhost:8080/callback" {
+			t.Errorf("Expected client1 redirect URIs ['http://localhost:8080/callback'], got %v", c1.RedirectUris)
+		}
+		if c1.Public != false {
+			t.Errorf("Expected client1 public false, got %v", c1.Public)
+		}
+		if c1.LogoUrl != "http://example.com/logo1.png" {
+			t.Errorf("Expected client1 logo URL 'http://example.com/logo1.png', got '%s'", c1.LogoUrl)
+		}
+	}
+
+	if c2, exists := clientMap["client2"]; !exists {
+		t.Fatal("client2 not found in list")
+	} else {
+		if c2.Name != "Test Client 2" {
+			t.Errorf("Expected client2 name 'Test Client 2', got '%s'", c2.Name)
+		}
+		if len(c2.RedirectUris) != 1 || c2.RedirectUris[0] != "http://localhost:8081/callback" {
+			t.Errorf("Expected client2 redirect URIs ['http://localhost:8081/callback'], got %v", c2.RedirectUris)
+		}
+		if c2.Public != true {
+			t.Errorf("Expected client2 public true, got %v", c2.Public)
+		}
+		if c2.LogoUrl != "http://example.com/logo2.png" {
+			t.Errorf("Expected client2 logo URL 'http://example.com/logo2.png', got '%s'", c2.LogoUrl)
+		}
 	}
 }
