@@ -116,8 +116,13 @@ staticPasswords:
   # bcrypt hash of the string "password"
   hash: "$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"
   username: "admin"
+  groups:
+    - "administrators"
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
 - email: "foo@example.com"
+  groups:
+    - "developers"
+    - "testers"
   # base64'd value of the same bcrypt hash above. We want to be able to parse both of these
   hash: "JDJhJDEwJDMzRU1UMGNWWVZsUHk2V0FNQ0xzY2VMWWpXaHVIcGJ6NXl1Wnh1L0dBRmowM0o5THl0anV5"
   username: "foo"
@@ -134,7 +139,7 @@ logger:
   format: "json"
 
 additionalFeatures: [
-	"ConnectorsCRUD"
+    "ConnectorsCRUD"
 ]
 `)
 
@@ -207,12 +212,14 @@ additionalFeatures: [
 		StaticPasswords: []password{
 			{
 				Email:    "admin@example.com",
+				Groups:   []string{"administrators"},
 				Hash:     []byte("$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"),
 				Username: "admin",
 				UserID:   "08a8684b-db88-4b73-90a9-3cd1661f5466",
 			},
 			{
 				Email:    "foo@example.com",
+				Groups:   []string{"developers", "testers"},
 				Hash:     []byte("$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"),
 				Username: "foo",
 				UserID:   "41331323-6f44-45e6-b3b9-2c4b60c02be5",
@@ -331,11 +338,17 @@ connectors:
 enablePasswordDB: true
 staticPasswords:
 - email: "admin@example.com"
+  groups:
+    - "administrators"
   # bcrypt hash of the string "password"
   hash: "$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"
   username: "admin"
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
 - email: "foo@example.com"
+  groups:
+    - "developers"
+    - "testers"
+  # hash is read from environment variable DEX_FOO_USER_PASSWORD
   hashFromEnv: "DEX_FOO_USER_PASSWORD"
   username: "foo"
   userID: "41331323-6f44-45e6-b3b9-2c4b60c02be5"
@@ -421,12 +434,14 @@ logger:
 		StaticPasswords: []password{
 			{
 				Email:    "admin@example.com",
+				Groups:   []string{"administrators"},
 				Hash:     []byte("$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"),
 				Username: "admin",
 				UserID:   "08a8684b-db88-4b73-90a9-3cd1661f5466",
 			},
 			{
 				Email:    "foo@example.com",
+				Groups:   []string{"developers", "testers"},
 				Hash:     []byte("$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"),
 				Username: "foo",
 				UserID:   "41331323-6f44-45e6-b3b9-2c4b60c02be5",
