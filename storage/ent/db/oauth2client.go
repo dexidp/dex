@@ -52,7 +52,7 @@ func (*OAuth2Client) scanValues(columns []string) ([]any, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the OAuth2Client fields.
-func (o *OAuth2Client) assignValues(columns []string, values []any) error {
+func (_m *OAuth2Client) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -62,19 +62,19 @@ func (o *OAuth2Client) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value.Valid {
-				o.ID = value.String
+				_m.ID = value.String
 			}
 		case oauth2client.FieldSecret:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field secret", values[i])
 			} else if value.Valid {
-				o.Secret = value.String
+				_m.Secret = value.String
 			}
 		case oauth2client.FieldRedirectUris:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field redirect_uris", values[i])
 			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &o.RedirectUris); err != nil {
+				if err := json.Unmarshal(*value, &_m.RedirectUris); err != nil {
 					return fmt.Errorf("unmarshal field redirect_uris: %w", err)
 				}
 			}
@@ -82,7 +82,7 @@ func (o *OAuth2Client) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field trusted_peers", values[i])
 			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &o.TrustedPeers); err != nil {
+				if err := json.Unmarshal(*value, &_m.TrustedPeers); err != nil {
 					return fmt.Errorf("unmarshal field trusted_peers: %w", err)
 				}
 			}
@@ -90,22 +90,22 @@ func (o *OAuth2Client) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field public", values[i])
 			} else if value.Valid {
-				o.Public = value.Bool
+				_m.Public = value.Bool
 			}
 		case oauth2client.FieldName:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field name", values[i])
 			} else if value.Valid {
-				o.Name = value.String
+				_m.Name = value.String
 			}
 		case oauth2client.FieldLogoURL:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field logo_url", values[i])
 			} else if value.Valid {
-				o.LogoURL = value.String
+				_m.LogoURL = value.String
 			}
 		default:
-			o.selectValues.Set(columns[i], values[i])
+			_m.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
@@ -113,50 +113,50 @@ func (o *OAuth2Client) assignValues(columns []string, values []any) error {
 
 // Value returns the ent.Value that was dynamically selected and assigned to the OAuth2Client.
 // This includes values selected through modifiers, order, etc.
-func (o *OAuth2Client) Value(name string) (ent.Value, error) {
-	return o.selectValues.Get(name)
+func (_m *OAuth2Client) Value(name string) (ent.Value, error) {
+	return _m.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this OAuth2Client.
 // Note that you need to call OAuth2Client.Unwrap() before calling this method if this OAuth2Client
 // was returned from a transaction, and the transaction was committed or rolled back.
-func (o *OAuth2Client) Update() *OAuth2ClientUpdateOne {
-	return NewOAuth2ClientClient(o.config).UpdateOne(o)
+func (_m *OAuth2Client) Update() *OAuth2ClientUpdateOne {
+	return NewOAuth2ClientClient(_m.config).UpdateOne(_m)
 }
 
 // Unwrap unwraps the OAuth2Client entity that was returned from a transaction after it was closed,
 // so that all future queries will be executed through the driver which created the transaction.
-func (o *OAuth2Client) Unwrap() *OAuth2Client {
-	_tx, ok := o.config.driver.(*txDriver)
+func (_m *OAuth2Client) Unwrap() *OAuth2Client {
+	_tx, ok := _m.config.driver.(*txDriver)
 	if !ok {
 		panic("db: OAuth2Client is not a transactional entity")
 	}
-	o.config.driver = _tx.drv
-	return o
+	_m.config.driver = _tx.drv
+	return _m
 }
 
 // String implements the fmt.Stringer.
-func (o *OAuth2Client) String() string {
+func (_m *OAuth2Client) String() string {
 	var builder strings.Builder
 	builder.WriteString("OAuth2Client(")
-	builder.WriteString(fmt.Sprintf("id=%v, ", o.ID))
+	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("secret=")
-	builder.WriteString(o.Secret)
+	builder.WriteString(_m.Secret)
 	builder.WriteString(", ")
 	builder.WriteString("redirect_uris=")
-	builder.WriteString(fmt.Sprintf("%v", o.RedirectUris))
+	builder.WriteString(fmt.Sprintf("%v", _m.RedirectUris))
 	builder.WriteString(", ")
 	builder.WriteString("trusted_peers=")
-	builder.WriteString(fmt.Sprintf("%v", o.TrustedPeers))
+	builder.WriteString(fmt.Sprintf("%v", _m.TrustedPeers))
 	builder.WriteString(", ")
 	builder.WriteString("public=")
-	builder.WriteString(fmt.Sprintf("%v", o.Public))
+	builder.WriteString(fmt.Sprintf("%v", _m.Public))
 	builder.WriteString(", ")
 	builder.WriteString("name=")
-	builder.WriteString(o.Name)
+	builder.WriteString(_m.Name)
 	builder.WriteString(", ")
 	builder.WriteString("logo_url=")
-	builder.WriteString(o.LogoURL)
+	builder.WriteString(_m.LogoURL)
 	builder.WriteByte(')')
 	return builder.String()
 }

@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -18,7 +17,7 @@ import (
 )
 
 func mockRefreshTokenTestStorage(t *testing.T, s storage.Storage, useObsolete bool) {
-	ctx := context.Background()
+	ctx := t.Context()
 	c := storage.Client{
 		ID:           "test",
 		Secret:       "barfoo",
@@ -153,11 +152,8 @@ func TestRefreshTokenExpirationScenarios(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(*testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
 			// Setup a dex server.
-			httpServer, s := newTestServer(ctx, t, func(c *Config) {
+			httpServer, s := newTestServer(t, func(c *Config) {
 				c.RefreshTokenPolicy = tc.policy
 				c.Now = func() time.Time { return t0 }
 			})

@@ -113,7 +113,7 @@ func TestIdentityFromCrowdUser(t *testing.T) {
 	expectEquals(t, user.Name, "testuser")
 	expectEquals(t, user.Email, "testuser@example.com")
 
-	// Test unconfigured behaviour
+	// Test unconfigured behavior
 	i := c.identityFromCrowdUser(user)
 	expectEquals(t, i.UserID, "12345")
 	expectEquals(t, i.Username, "testuser")

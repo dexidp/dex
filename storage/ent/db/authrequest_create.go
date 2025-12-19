@@ -21,169 +21,169 @@ type AuthRequestCreate struct {
 }
 
 // SetClientID sets the "client_id" field.
-func (arc *AuthRequestCreate) SetClientID(s string) *AuthRequestCreate {
-	arc.mutation.SetClientID(s)
-	return arc
+func (_c *AuthRequestCreate) SetClientID(v string) *AuthRequestCreate {
+	_c.mutation.SetClientID(v)
+	return _c
 }
 
 // SetScopes sets the "scopes" field.
-func (arc *AuthRequestCreate) SetScopes(s []string) *AuthRequestCreate {
-	arc.mutation.SetScopes(s)
-	return arc
+func (_c *AuthRequestCreate) SetScopes(v []string) *AuthRequestCreate {
+	_c.mutation.SetScopes(v)
+	return _c
 }
 
 // SetResponseTypes sets the "response_types" field.
-func (arc *AuthRequestCreate) SetResponseTypes(s []string) *AuthRequestCreate {
-	arc.mutation.SetResponseTypes(s)
-	return arc
+func (_c *AuthRequestCreate) SetResponseTypes(v []string) *AuthRequestCreate {
+	_c.mutation.SetResponseTypes(v)
+	return _c
 }
 
 // SetRedirectURI sets the "redirect_uri" field.
-func (arc *AuthRequestCreate) SetRedirectURI(s string) *AuthRequestCreate {
-	arc.mutation.SetRedirectURI(s)
-	return arc
+func (_c *AuthRequestCreate) SetRedirectURI(v string) *AuthRequestCreate {
+	_c.mutation.SetRedirectURI(v)
+	return _c
 }
 
 // SetNonce sets the "nonce" field.
-func (arc *AuthRequestCreate) SetNonce(s string) *AuthRequestCreate {
-	arc.mutation.SetNonce(s)
-	return arc
+func (_c *AuthRequestCreate) SetNonce(v string) *AuthRequestCreate {
+	_c.mutation.SetNonce(v)
+	return _c
 }
 
 // SetState sets the "state" field.
-func (arc *AuthRequestCreate) SetState(s string) *AuthRequestCreate {
-	arc.mutation.SetState(s)
-	return arc
+func (_c *AuthRequestCreate) SetState(v string) *AuthRequestCreate {
+	_c.mutation.SetState(v)
+	return _c
 }
 
 // SetForceApprovalPrompt sets the "force_approval_prompt" field.
-func (arc *AuthRequestCreate) SetForceApprovalPrompt(b bool) *AuthRequestCreate {
-	arc.mutation.SetForceApprovalPrompt(b)
-	return arc
+func (_c *AuthRequestCreate) SetForceApprovalPrompt(v bool) *AuthRequestCreate {
+	_c.mutation.SetForceApprovalPrompt(v)
+	return _c
 }
 
 // SetLoggedIn sets the "logged_in" field.
-func (arc *AuthRequestCreate) SetLoggedIn(b bool) *AuthRequestCreate {
-	arc.mutation.SetLoggedIn(b)
-	return arc
+func (_c *AuthRequestCreate) SetLoggedIn(v bool) *AuthRequestCreate {
+	_c.mutation.SetLoggedIn(v)
+	return _c
 }
 
 // SetClaimsUserID sets the "claims_user_id" field.
-func (arc *AuthRequestCreate) SetClaimsUserID(s string) *AuthRequestCreate {
-	arc.mutation.SetClaimsUserID(s)
-	return arc
+func (_c *AuthRequestCreate) SetClaimsUserID(v string) *AuthRequestCreate {
+	_c.mutation.SetClaimsUserID(v)
+	return _c
 }
 
 // SetClaimsUsername sets the "claims_username" field.
-func (arc *AuthRequestCreate) SetClaimsUsername(s string) *AuthRequestCreate {
-	arc.mutation.SetClaimsUsername(s)
-	return arc
+func (_c *AuthRequestCreate) SetClaimsUsername(v string) *AuthRequestCreate {
+	_c.mutation.SetClaimsUsername(v)
+	return _c
 }
 
 // SetClaimsEmail sets the "claims_email" field.
-func (arc *AuthRequestCreate) SetClaimsEmail(s string) *AuthRequestCreate {
-	arc.mutation.SetClaimsEmail(s)
-	return arc
+func (_c *AuthRequestCreate) SetClaimsEmail(v string) *AuthRequestCreate {
+	_c.mutation.SetClaimsEmail(v)
+	return _c
 }
 
 // SetClaimsEmailVerified sets the "claims_email_verified" field.
-func (arc *AuthRequestCreate) SetClaimsEmailVerified(b bool) *AuthRequestCreate {
-	arc.mutation.SetClaimsEmailVerified(b)
-	return arc
+func (_c *AuthRequestCreate) SetClaimsEmailVerified(v bool) *AuthRequestCreate {
+	_c.mutation.SetClaimsEmailVerified(v)
+	return _c
 }
 
 // SetClaimsGroups sets the "claims_groups" field.
-func (arc *AuthRequestCreate) SetClaimsGroups(s []string) *AuthRequestCreate {
-	arc.mutation.SetClaimsGroups(s)
-	return arc
+func (_c *AuthRequestCreate) SetClaimsGroups(v []string) *AuthRequestCreate {
+	_c.mutation.SetClaimsGroups(v)
+	return _c
 }
 
 // SetClaimsPreferredUsername sets the "claims_preferred_username" field.
-func (arc *AuthRequestCreate) SetClaimsPreferredUsername(s string) *AuthRequestCreate {
-	arc.mutation.SetClaimsPreferredUsername(s)
-	return arc
+func (_c *AuthRequestCreate) SetClaimsPreferredUsername(v string) *AuthRequestCreate {
+	_c.mutation.SetClaimsPreferredUsername(v)
+	return _c
 }
 
 // SetNillableClaimsPreferredUsername sets the "claims_preferred_username" field if the given value is not nil.
-func (arc *AuthRequestCreate) SetNillableClaimsPreferredUsername(s *string) *AuthRequestCreate {
-	if s != nil {
-		arc.SetClaimsPreferredUsername(*s)
+func (_c *AuthRequestCreate) SetNillableClaimsPreferredUsername(v *string) *AuthRequestCreate {
+	if v != nil {
+		_c.SetClaimsPreferredUsername(*v)
 	}
-	return arc
+	return _c
 }
 
 // SetConnectorID sets the "connector_id" field.
-func (arc *AuthRequestCreate) SetConnectorID(s string) *AuthRequestCreate {
-	arc.mutation.SetConnectorID(s)
-	return arc
+func (_c *AuthRequestCreate) SetConnectorID(v string) *AuthRequestCreate {
+	_c.mutation.SetConnectorID(v)
+	return _c
 }
 
 // SetConnectorData sets the "connector_data" field.
-func (arc *AuthRequestCreate) SetConnectorData(b []byte) *AuthRequestCreate {
-	arc.mutation.SetConnectorData(b)
-	return arc
+func (_c *AuthRequestCreate) SetConnectorData(v []byte) *AuthRequestCreate {
+	_c.mutation.SetConnectorData(v)
+	return _c
 }
 
 // SetExpiry sets the "expiry" field.
-func (arc *AuthRequestCreate) SetExpiry(t time.Time) *AuthRequestCreate {
-	arc.mutation.SetExpiry(t)
-	return arc
+func (_c *AuthRequestCreate) SetExpiry(v time.Time) *AuthRequestCreate {
+	_c.mutation.SetExpiry(v)
+	return _c
 }
 
 // SetCodeChallenge sets the "code_challenge" field.
-func (arc *AuthRequestCreate) SetCodeChallenge(s string) *AuthRequestCreate {
-	arc.mutation.SetCodeChallenge(s)
-	return arc
+func (_c *AuthRequestCreate) SetCodeChallenge(v string) *AuthRequestCreate {
+	_c.mutation.SetCodeChallenge(v)
+	return _c
 }
 
 // SetNillableCodeChallenge sets the "code_challenge" field if the given value is not nil.
-func (arc *AuthRequestCreate) SetNillableCodeChallenge(s *string) *AuthRequestCreate {
-	if s != nil {
-		arc.SetCodeChallenge(*s)
+func (_c *AuthRequestCreate) SetNillableCodeChallenge(v *string) *AuthRequestCreate {
+	if v != nil {
+		_c.SetCodeChallenge(*v)
 	}
-	return arc
+	return _c
 }
 
 // SetCodeChallengeMethod sets the "code_challenge_method" field.
-func (arc *AuthRequestCreate) SetCodeChallengeMethod(s string) *AuthRequestCreate {
-	arc.mutation.SetCodeChallengeMethod(s)
-	return arc
+func (_c *AuthRequestCreate) SetCodeChallengeMethod(v string) *AuthRequestCreate {
+	_c.mutation.SetCodeChallengeMethod(v)
+	return _c
 }
 
 // SetNillableCodeChallengeMethod sets the "code_challenge_method" field if the given value is not nil.
-func (arc *AuthRequestCreate) SetNillableCodeChallengeMethod(s *string) *AuthRequestCreate {
-	if s != nil {
-		arc.SetCodeChallengeMethod(*s)
+func (_c *AuthRequestCreate) SetNillableCodeChallengeMethod(v *string) *AuthRequestCreate {
+	if v != nil {
+		_c.SetCodeChallengeMethod(*v)
 	}
-	return arc
+	return _c
 }
 
 // SetHmacKey sets the "hmac_key" field.
-func (arc *AuthRequestCreate) SetHmacKey(b []byte) *AuthRequestCreate {
-	arc.mutation.SetHmacKey(b)
-	return arc
+func (_c *AuthRequestCreate) SetHmacKey(v []byte) *AuthRequestCreate {
+	_c.mutation.SetHmacKey(v)
+	return _c
 }
 
 // SetID sets the "id" field.
-func (arc *AuthRequestCreate) SetID(s string) *AuthRequestCreate {
-	arc.mutation.SetID(s)
-	return arc
+func (_c *AuthRequestCreate) SetID(v string) *AuthRequestCreate {
+	_c.mutation.SetID(v)
+	return _c
 }
 
 // Mutation returns the AuthRequestMutation object of the builder.
-func (arc *AuthRequestCreate) Mutation() *AuthRequestMutation {
-	return arc.mutation
+func (_c *AuthRequestCreate) Mutation() *AuthRequestMutation {
+	return _c.mutation
 }
 
 // Save creates the AuthRequest in the database.
-func (arc *AuthRequestCreate) Save(ctx context.Context) (*AuthRequest, error) {
-	arc.defaults()
-	return withHooks(ctx, arc.sqlSave, arc.mutation, arc.hooks)
+func (_c *AuthRequestCreate) Save(ctx context.Context) (*AuthRequest, error) {
+	_c.defaults()
+	return withHooks(ctx, _c.sqlSave, _c.mutation, _c.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
-func (arc *AuthRequestCreate) SaveX(ctx context.Context) *AuthRequest {
-	v, err := arc.Save(ctx)
+func (_c *AuthRequestCreate) SaveX(ctx context.Context) *AuthRequest {
+	v, err := _c.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -191,85 +191,85 @@ func (arc *AuthRequestCreate) SaveX(ctx context.Context) *AuthRequest {
 }
 
 // Exec executes the query.
-func (arc *AuthRequestCreate) Exec(ctx context.Context) error {
-	_, err := arc.Save(ctx)
+func (_c *AuthRequestCreate) Exec(ctx context.Context) error {
+	_, err := _c.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (arc *AuthRequestCreate) ExecX(ctx context.Context) {
-	if err := arc.Exec(ctx); err != nil {
+func (_c *AuthRequestCreate) ExecX(ctx context.Context) {
+	if err := _c.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
 
 // defaults sets the default values of the builder before save.
-func (arc *AuthRequestCreate) defaults() {
-	if _, ok := arc.mutation.ClaimsPreferredUsername(); !ok {
+func (_c *AuthRequestCreate) defaults() {
+	if _, ok := _c.mutation.ClaimsPreferredUsername(); !ok {
 		v := authrequest.DefaultClaimsPreferredUsername
-		arc.mutation.SetClaimsPreferredUsername(v)
+		_c.mutation.SetClaimsPreferredUsername(v)
 	}
-	if _, ok := arc.mutation.CodeChallenge(); !ok {
+	if _, ok := _c.mutation.CodeChallenge(); !ok {
 		v := authrequest.DefaultCodeChallenge
-		arc.mutation.SetCodeChallenge(v)
+		_c.mutation.SetCodeChallenge(v)
 	}
-	if _, ok := arc.mutation.CodeChallengeMethod(); !ok {
+	if _, ok := _c.mutation.CodeChallengeMethod(); !ok {
 		v := authrequest.DefaultCodeChallengeMethod
-		arc.mutation.SetCodeChallengeMethod(v)
+		_c.mutation.SetCodeChallengeMethod(v)
 	}
 }
 
 // check runs all checks and user-defined validators on the builder.
-func (arc *AuthRequestCreate) check() error {
-	if _, ok := arc.mutation.ClientID(); !ok {
+func (_c *AuthRequestCreate) check() error {
+	if _, ok := _c.mutation.ClientID(); !ok {
 		return &ValidationError{Name: "client_id", err: errors.New(`db: missing required field "AuthRequest.client_id"`)}
 	}
-	if _, ok := arc.mutation.RedirectURI(); !ok {
+	if _, ok := _c.mutation.RedirectURI(); !ok {
 		return &ValidationError{Name: "redirect_uri", err: errors.New(`db: missing required field "AuthRequest.redirect_uri"`)}
 	}
-	if _, ok := arc.mutation.Nonce(); !ok {
+	if _, ok := _c.mutation.Nonce(); !ok {
 		return &ValidationError{Name: "nonce", err: errors.New(`db: missing required field "AuthRequest.nonce"`)}
 	}
-	if _, ok := arc.mutation.State(); !ok {
+	if _, ok := _c.mutation.State(); !ok {
 		return &ValidationError{Name: "state", err: errors.New(`db: missing required field "AuthRequest.state"`)}
 	}
-	if _, ok := arc.mutation.ForceApprovalPrompt(); !ok {
+	if _, ok := _c.mutation.ForceApprovalPrompt(); !ok {
 		return &ValidationError{Name: "force_approval_prompt", err: errors.New(`db: missing required field "AuthRequest.force_approval_prompt"`)}
 	}
-	if _, ok := arc.mutation.LoggedIn(); !ok {
+	if _, ok := _c.mutation.LoggedIn(); !ok {
 		return &ValidationError{Name: "logged_in", err: errors.New(`db: missing required field "AuthRequest.logged_in"`)}
 	}
-	if _, ok := arc.mutation.ClaimsUserID(); !ok {
+	if _, ok := _c.mutation.ClaimsUserID(); !ok {
 		return &ValidationError{Name: "claims_user_id", err: errors.New(`db: missing required field "AuthRequest.claims_user_id"`)}
 	}
-	if _, ok := arc.mutation.ClaimsUsername(); !ok {
+	if _, ok := _c.mutation.ClaimsUsername(); !ok {
 		return &ValidationError{Name: "claims_username", err: errors.New(`db: missing required field "AuthRequest.claims_username"`)}
 	}
-	if _, ok := arc.mutation.ClaimsEmail(); !ok {
+	if _, ok := _c.mutation.ClaimsEmail(); !ok {
 		return &ValidationError{Name: "claims_email", err: errors.New(`db: missing required field "AuthRequest.claims_email"`)}
 	}
-	if _, ok := arc.mutation.ClaimsEmailVerified(); !ok {
+	if _, ok := _c.mutation.ClaimsEmailVerified(); !ok {
 		return &ValidationError{Name: "claims_email_verified", err: errors.New(`db: missing required field "AuthRequest.claims_email_verified"`)}
 	}
-	if _, ok := arc.mutation.ClaimsPreferredUsername(); !ok {
+	if _, ok := _c.mutation.ClaimsPreferredUsername(); !ok {
 		return &ValidationError{Name: "claims_preferred_username", err: errors.New(`db: missing required field "AuthRequest.claims_preferred_username"`)}
 	}
-	if _, ok := arc.mutation.ConnectorID(); !ok {
+	if _, ok := _c.mutation.ConnectorID(); !ok {
 		return &ValidationError{Name: "connector_id", err: errors.New(`db: missing required field "AuthRequest.connector_id"`)}
 	}
-	if _, ok := arc.mutation.Expiry(); !ok {
+	if _, ok := _c.mutation.Expiry(); !ok {
 		return &ValidationError{Name: "expiry", err: errors.New(`db: missing required field "AuthRequest.expiry"`)}
 	}
-	if _, ok := arc.mutation.CodeChallenge(); !ok {
+	if _, ok := _c.mutation.CodeChallenge(); !ok {
 		return &ValidationError{Name: "code_challenge", err: errors.New(`db: missing required field "AuthRequest.code_challenge"`)}
 	}
-	if _, ok := arc.mutation.CodeChallengeMethod(); !ok {
+	if _, ok := _c.mutation.CodeChallengeMethod(); !ok {
 		return &ValidationError{Name: "code_challenge_method", err: errors.New(`db: missing required field "AuthRequest.code_challenge_method"`)}
 	}
-	if _, ok := arc.mutation.HmacKey(); !ok {
+	if _, ok := _c.mutation.HmacKey(); !ok {
 		return &ValidationError{Name: "hmac_key", err: errors.New(`db: missing required field "AuthRequest.hmac_key"`)}
 	}
-	if v, ok := arc.mutation.ID(); ok {
+	if v, ok := _c.mutation.ID(); ok {
 		if err := authrequest.IDValidator(v); err != nil {
 			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "AuthRequest.id": %w`, err)}
 		}
@@ -277,12 +277,12 @@ func (arc *AuthRequestCreate) check() error {
 	return nil
 }
 
-func (arc *AuthRequestCreate) sqlSave(ctx context.Context) (*AuthRequest, error) {
-	if err := arc.check(); err != nil {
+func (_c *AuthRequestCreate) sqlSave(ctx context.Context) (*AuthRequest, error) {
+	if err := _c.check(); err != nil {
 		return nil, err
 	}
-	_node, _spec := arc.createSpec()
-	if err := sqlgraph.CreateNode(ctx, arc.driver, _spec); err != nil {
+	_node, _spec := _c.createSpec()
+	if err := sqlgraph.CreateNode(ctx, _c.driver, _spec); err != nil {
 		if sqlgraph.IsConstraintError(err) {
 			err = &ConstraintError{msg: err.Error(), wrap: err}
 		}
@@ -295,97 +295,97 @@ func (arc *AuthRequestCreate) sqlSave(ctx context.Context) (*AuthRequest, error)
 			return nil, fmt.Errorf("unexpected AuthRequest.ID type: %T", _spec.ID.Value)
 		}
 	}
-	arc.mutation.id = &_node.ID
-	arc.mutation.done = true
+	_c.mutation.id = &_node.ID
+	_c.mutation.done = true
 	return _node, nil
 }
 
-func (arc *AuthRequestCreate) createSpec() (*AuthRequest, *sqlgraph.CreateSpec) {
+func (_c *AuthRequestCreate) createSpec() (*AuthRequest, *sqlgraph.CreateSpec) {
 	var (
-		_node = &AuthRequest{config: arc.config}
+		_node = &AuthRequest{config: _c.config}
 		_spec = sqlgraph.NewCreateSpec(authrequest.Table, sqlgraph.NewFieldSpec(authrequest.FieldID, field.TypeString))
 	)
-	if id, ok := arc.mutation.ID(); ok {
+	if id, ok := _c.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
-	if value, ok := arc.mutation.ClientID(); ok {
+	if value, ok := _c.mutation.ClientID(); ok {
 		_spec.SetField(authrequest.FieldClientID, field.TypeString, value)
 		_node.ClientID = value
 	}
-	if value, ok := arc.mutation.Scopes(); ok {
+	if value, ok := _c.mutation.Scopes(); ok {
 		_spec.SetField(authrequest.FieldScopes, field.TypeJSON, value)
 		_node.Scopes = value
 	}
-	if value, ok := arc.mutation.ResponseTypes(); ok {
+	if value, ok := _c.mutation.ResponseTypes(); ok {
 		_spec.SetField(authrequest.FieldResponseTypes, field.TypeJSON, value)
 		_node.ResponseTypes = value
 	}
-	if value, ok := arc.mutation.RedirectURI(); ok {
+	if value, ok := _c.mutation.RedirectURI(); ok {
 		_spec.SetField(authrequest.FieldRedirectURI, field.TypeString, value)
 		_node.RedirectURI = value
 	}
-	if value, ok := arc.mutation.Nonce(); ok {
+	if value, ok := _c.mutation.Nonce(); ok {
 		_spec.SetField(authrequest.FieldNonce, field.TypeString, value)
 		_node.Nonce = value
 	}
-	if value, ok := arc.mutation.State(); ok {
+	if value, ok := _c.mutation.State(); ok {
 		_spec.SetField(authrequest.FieldState, field.TypeString, value)
 		_node.State = value
 	}
-	if value, ok := arc.mutation.ForceApprovalPrompt(); ok {
+	if value, ok := _c.mutation.ForceApprovalPrompt(); ok {
 		_spec.SetField(authrequest.FieldForceApprovalPrompt, field.TypeBool, value)
 		_node.ForceApprovalPrompt = value
 	}
-	if value, ok := arc.mutation.LoggedIn(); ok {
+	if value, ok := _c.mutation.LoggedIn(); ok {
 		_spec.SetField(authrequest.FieldLoggedIn, field.TypeBool, value)
 		_node.LoggedIn = value
 	}
-	if value, ok := arc.mutation.ClaimsUserID(); ok {
+	if value, ok := _c.mutation.ClaimsUserID(); ok {
 		_spec.SetField(authrequest.FieldClaimsUserID, field.TypeString, value)
 		_node.ClaimsUserID = value
 	}
-	if value, ok := arc.mutation.ClaimsUsername(); ok {
+	if value, ok := _c.mutation.ClaimsUsername(); ok {
 		_spec.SetField(authrequest.FieldClaimsUsername, field.TypeString, value)
 		_node.ClaimsUsername = value
 	}
-	if value, ok := arc.mutation.ClaimsEmail(); ok {
+	if value, ok := _c.mutation.ClaimsEmail(); ok {
 		_spec.SetField(authrequest.FieldClaimsEmail, field.TypeString, value)
 		_node.ClaimsEmail = value
 	}
-	if value, ok := arc.mutation.ClaimsEmailVerified(); ok {
+	if value, ok := _c.mutation.ClaimsEmailVerified(); ok {
 		_spec.SetField(authrequest.FieldClaimsEmailVerified, field.TypeBool, value)
 		_node.ClaimsEmailVerified = value
 	}
-	if value, ok := arc.mutation.ClaimsGroups(); ok {
+	if value, ok := _c.mutation.ClaimsGroups(); ok {
 		_spec.SetField(authrequest.FieldClaimsGroups, field.TypeJSON, value)
 		_node.ClaimsGroups = value
 	}
-	if value, ok := arc.mutation.ClaimsPreferredUsername(); ok {
+	if value, ok := _c.mutation.ClaimsPreferredUsername(); ok {
 		_spec.SetField(authrequest.FieldClaimsPreferredUsername, field.TypeString, value)
 		_node.ClaimsPreferredUsername = value
 	}
-	if value, ok := arc.mutation.ConnectorID(); ok {
+	if value, ok := _c.mutation.ConnectorID(); ok {
 		_spec.SetField(authrequest.FieldConnectorID, field.TypeString, value)
 		_node.ConnectorID = value
 	}
-	if value, ok := arc.mutation.ConnectorData(); ok {
+	if value, ok := _c.mutation.ConnectorData(); ok {
 		_spec.SetField(authrequest.FieldConnectorData, field.TypeBytes, value)
 		_node.ConnectorData = &value
 	}
-	if value, ok := arc.mutation.Expiry(); ok {
+	if value, ok := _c.mutation.Expiry(); ok {
 		_spec.SetField(authrequest.FieldExpiry, field.TypeTime, value)
 		_node.Expiry = value
 	}
-	if value, ok := arc.mutation.CodeChallenge(); ok {
+	if value, ok := _c.mutation.CodeChallenge(); ok {
 		_spec.SetField(authrequest.FieldCodeChallenge, field.TypeString, value)
 		_node.CodeChallenge = value
 	}
-	if value, ok := arc.mutation.CodeChallengeMethod(); ok {
+	if value, ok := _c.mutation.CodeChallengeMethod(); ok {
 		_spec.SetField(authrequest.FieldCodeChallengeMethod, field.TypeString, value)
 		_node.CodeChallengeMethod = value
 	}
-	if value, ok := arc.mutation.HmacKey(); ok {
+	if value, ok := _c.mutation.HmacKey(); ok {
 		_spec.SetField(authrequest.FieldHmacKey, field.TypeBytes, value)
 		_node.HmacKey = value
 	}
@@ -400,16 +400,16 @@ type AuthRequestCreateBulk struct {
 }
 
 // Save creates the AuthRequest entities in the database.
-func (arcb *AuthRequestCreateBulk) Save(ctx context.Context) ([]*AuthRequest, error) {
-	if arcb.err != nil {
-		return nil, arcb.err
+func (_c *AuthRequestCreateBulk) Save(ctx context.Context) ([]*AuthRequest, error) {
+	if _c.err != nil {
+		return nil, _c.err
 	}
-	specs := make([]*sqlgraph.CreateSpec, len(arcb.builders))
-	nodes := make([]*AuthRequest, len(arcb.builders))
-	mutators := make([]Mutator, len(arcb.builders))
-	for i := range arcb.builders {
+	specs := make([]*sqlgraph.CreateSpec, len(_c.builders))
+	nodes := make([]*AuthRequest, len(_c.builders))
+	mutators := make([]Mutator, len(_c.builders))
+	for i := range _c.builders {
 		func(i int, root context.Context) {
-			builder := arcb.builders[i]
+			builder := _c.builders[i]
 			builder.defaults()
 			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 				mutation, ok := m.(*AuthRequestMutation)
@@ -423,11 +423,11 @@ func (arcb *AuthRequestCreateBulk) Save(ctx context.Context) ([]*AuthRequest, er
 				var err error
 				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
-					_, err = mutators[i+1].Mutate(root, arcb.builders[i+1].mutation)
+					_, err = mutators[i+1].Mutate(root, _c.builders[i+1].mutation)
 				} else {
 					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
 					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, arcb.driver, spec); err != nil {
+					if err = sqlgraph.BatchCreate(ctx, _c.driver, spec); err != nil {
 						if sqlgraph.IsConstraintError(err) {
 							err = &ConstraintError{msg: err.Error(), wrap: err}
 						}
@@ -447,7 +447,7 @@ func (arcb *AuthRequestCreateBulk) Save(ctx context.Context) ([]*AuthRequest, er
 		}(i, ctx)
 	}
 	if len(mutators) > 0 {
-		if _, err := mutators[0].Mutate(ctx, arcb.builders[0].mutation); err != nil {
+		if _, err := mutators[0].Mutate(ctx, _c.builders[0].mutation); err != nil {
 			return nil, err
 		}
 	}
@@ -455,8 +455,8 @@ func (arcb *AuthRequestCreateBulk) Save(ctx context.Context) ([]*AuthRequest, er
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func (arcb *AuthRequestCreateBulk) SaveX(ctx context.Context) []*AuthRequest {
-	v, err := arcb.Save(ctx)
+func (_c *AuthRequestCreateBulk) SaveX(ctx context.Context) []*AuthRequest {
+	v, err := _c.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -464,14 +464,14 @@ func (arcb *AuthRequestCreateBulk) SaveX(ctx context.Context) []*AuthRequest {
 }
 
 // Exec executes the query.
-func (arcb *AuthRequestCreateBulk) Exec(ctx context.Context) error {
-	_, err := arcb.Save(ctx)
+func (_c *AuthRequestCreateBulk) Exec(ctx context.Context) error {
+	_, err := _c.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (arcb *AuthRequestCreateBulk) ExecX(ctx context.Context) {
-	if err := arcb.Exec(ctx); err != nil {
+func (_c *AuthRequestCreateBulk) ExecX(ctx context.Context) {
+	if err := _c.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

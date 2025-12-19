@@ -20,48 +20,48 @@ type OfflineSessionCreate struct {
 }
 
 // SetUserID sets the "user_id" field.
-func (osc *OfflineSessionCreate) SetUserID(s string) *OfflineSessionCreate {
-	osc.mutation.SetUserID(s)
-	return osc
+func (_c *OfflineSessionCreate) SetUserID(v string) *OfflineSessionCreate {
+	_c.mutation.SetUserID(v)
+	return _c
 }
 
 // SetConnID sets the "conn_id" field.
-func (osc *OfflineSessionCreate) SetConnID(s string) *OfflineSessionCreate {
-	osc.mutation.SetConnID(s)
-	return osc
+func (_c *OfflineSessionCreate) SetConnID(v string) *OfflineSessionCreate {
+	_c.mutation.SetConnID(v)
+	return _c
 }
 
 // SetRefresh sets the "refresh" field.
-func (osc *OfflineSessionCreate) SetRefresh(b []byte) *OfflineSessionCreate {
-	osc.mutation.SetRefresh(b)
-	return osc
+func (_c *OfflineSessionCreate) SetRefresh(v []byte) *OfflineSessionCreate {
+	_c.mutation.SetRefresh(v)
+	return _c
 }
 
 // SetConnectorData sets the "connector_data" field.
-func (osc *OfflineSessionCreate) SetConnectorData(b []byte) *OfflineSessionCreate {
-	osc.mutation.SetConnectorData(b)
-	return osc
+func (_c *OfflineSessionCreate) SetConnectorData(v []byte) *OfflineSessionCreate {
+	_c.mutation.SetConnectorData(v)
+	return _c
 }
 
 // SetID sets the "id" field.
-func (osc *OfflineSessionCreate) SetID(s string) *OfflineSessionCreate {
-	osc.mutation.SetID(s)
-	return osc
+func (_c *OfflineSessionCreate) SetID(v string) *OfflineSessionCreate {
+	_c.mutation.SetID(v)
+	return _c
 }
 
 // Mutation returns the OfflineSessionMutation object of the builder.
-func (osc *OfflineSessionCreate) Mutation() *OfflineSessionMutation {
-	return osc.mutation
+func (_c *OfflineSessionCreate) Mutation() *OfflineSessionMutation {
+	return _c.mutation
 }
 
 // Save creates the OfflineSession in the database.
-func (osc *OfflineSessionCreate) Save(ctx context.Context) (*OfflineSession, error) {
-	return withHooks(ctx, osc.sqlSave, osc.mutation, osc.hooks)
+func (_c *OfflineSessionCreate) Save(ctx context.Context) (*OfflineSession, error) {
+	return withHooks(ctx, _c.sqlSave, _c.mutation, _c.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
-func (osc *OfflineSessionCreate) SaveX(ctx context.Context) *OfflineSession {
-	v, err := osc.Save(ctx)
+func (_c *OfflineSessionCreate) SaveX(ctx context.Context) *OfflineSession {
+	v, err := _c.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -69,40 +69,40 @@ func (osc *OfflineSessionCreate) SaveX(ctx context.Context) *OfflineSession {
 }
 
 // Exec executes the query.
-func (osc *OfflineSessionCreate) Exec(ctx context.Context) error {
-	_, err := osc.Save(ctx)
+func (_c *OfflineSessionCreate) Exec(ctx context.Context) error {
+	_, err := _c.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (osc *OfflineSessionCreate) ExecX(ctx context.Context) {
-	if err := osc.Exec(ctx); err != nil {
+func (_c *OfflineSessionCreate) ExecX(ctx context.Context) {
+	if err := _c.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
 
 // check runs all checks and user-defined validators on the builder.
-func (osc *OfflineSessionCreate) check() error {
-	if _, ok := osc.mutation.UserID(); !ok {
+func (_c *OfflineSessionCreate) check() error {
+	if _, ok := _c.mutation.UserID(); !ok {
 		return &ValidationError{Name: "user_id", err: errors.New(`db: missing required field "OfflineSession.user_id"`)}
 	}
-	if v, ok := osc.mutation.UserID(); ok {
+	if v, ok := _c.mutation.UserID(); ok {
 		if err := offlinesession.UserIDValidator(v); err != nil {
 			return &ValidationError{Name: "user_id", err: fmt.Errorf(`db: validator failed for field "OfflineSession.user_id": %w`, err)}
 		}
 	}
-	if _, ok := osc.mutation.ConnID(); !ok {
+	if _, ok := _c.mutation.ConnID(); !ok {
 		return &ValidationError{Name: "conn_id", err: errors.New(`db: missing required field "OfflineSession.conn_id"`)}
 	}
-	if v, ok := osc.mutation.ConnID(); ok {
+	if v, ok := _c.mutation.ConnID(); ok {
 		if err := offlinesession.ConnIDValidator(v); err != nil {
 			return &ValidationError{Name: "conn_id", err: fmt.Errorf(`db: validator failed for field "OfflineSession.conn_id": %w`, err)}
 		}
 	}
-	if _, ok := osc.mutation.Refresh(); !ok {
+	if _, ok := _c.mutation.Refresh(); !ok {
 		return &ValidationError{Name: "refresh", err: errors.New(`db: missing required field "OfflineSession.refresh"`)}
 	}
-	if v, ok := osc.mutation.ID(); ok {
+	if v, ok := _c.mutation.ID(); ok {
 		if err := offlinesession.IDValidator(v); err != nil {
 			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "OfflineSession.id": %w`, err)}
 		}
@@ -110,12 +110,12 @@ func (osc *OfflineSessionCreate) check() error {
 	return nil
 }
 
-func (osc *OfflineSessionCreate) sqlSave(ctx context.Context) (*OfflineSession, error) {
-	if err := osc.check(); err != nil {
+func (_c *OfflineSessionCreate) sqlSave(ctx context.Context) (*OfflineSession, error) {
+	if err := _c.check(); err != nil {
 		return nil, err
 	}
-	_node, _spec := osc.createSpec()
-	if err := sqlgraph.CreateNode(ctx, osc.driver, _spec); err != nil {
+	_node, _spec := _c.createSpec()
+	if err := sqlgraph.CreateNode(ctx, _c.driver, _spec); err != nil {
 		if sqlgraph.IsConstraintError(err) {
 			err = &ConstraintError{msg: err.Error(), wrap: err}
 		}
@@ -128,33 +128,33 @@ func (osc *OfflineSessionCreate) sqlSave(ctx context.Context) (*OfflineSession, 
 			return nil, fmt.Errorf("unexpected OfflineSession.ID type: %T", _spec.ID.Value)
 		}
 	}
-	osc.mutation.id = &_node.ID
-	osc.mutation.done = true
+	_c.mutation.id = &_node.ID
+	_c.mutation.done = true
 	return _node, nil
 }
 
-func (osc *OfflineSessionCreate) createSpec() (*OfflineSession, *sqlgraph.CreateSpec) {
+func (_c *OfflineSessionCreate) createSpec() (*OfflineSession, *sqlgraph.CreateSpec) {
 	var (
-		_node = &OfflineSession{config: osc.config}
+		_node = &OfflineSession{config: _c.config}
 		_spec = sqlgraph.NewCreateSpec(offlinesession.Table, sqlgraph.NewFieldSpec(offlinesession.FieldID, field.TypeString))
 	)
-	if id, ok := osc.mutation.ID(); ok {
+	if id, ok := _c.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
-	if value, ok := osc.mutation.UserID(); ok {
+	if value, ok := _c.mutation.UserID(); ok {
 		_spec.SetField(offlinesession.FieldUserID, field.TypeString, value)
 		_node.UserID = value
 	}
-	if value, ok := osc.mutation.ConnID(); ok {
+	if value, ok := _c.mutation.ConnID(); ok {
 		_spec.SetField(offlinesession.FieldConnID, field.TypeString, value)
 		_node.ConnID = value
 	}
-	if value, ok := osc.mutation.Refresh(); ok {
+	if value, ok := _c.mutation.Refresh(); ok {
 		_spec.SetField(offlinesession.FieldRefresh, field.TypeBytes, value)
 		_node.Refresh = value
 	}
-	if value, ok := osc.mutation.ConnectorData(); ok {
+	if value, ok := _c.mutation.ConnectorData(); ok {
 		_spec.SetField(offlinesession.FieldConnectorData, field.TypeBytes, value)
 		_node.ConnectorData = &value
 	}
@@ -169,16 +169,16 @@ type OfflineSessionCreateBulk struct {
 }
 
 // Save creates the OfflineSession entities in the database.
-func (oscb *OfflineSessionCreateBulk) Save(ctx context.Context) ([]*OfflineSession, error) {
-	if oscb.err != nil {
-		return nil, oscb.err
+func (_c *OfflineSessionCreateBulk) Save(ctx context.Context) ([]*OfflineSession, error) {
+	if _c.err != nil {
+		return nil, _c.err
 	}
-	specs := make([]*sqlgraph.CreateSpec, len(oscb.builders))
-	nodes := make([]*OfflineSession, len(oscb.builders))
-	mutators := make([]Mutator, len(oscb.builders))
-	for i := range oscb.builders {
+	specs := make([]*sqlgraph.CreateSpec, len(_c.builders))
+	nodes := make([]*OfflineSession, len(_c.builders))
+	mutators := make([]Mutator, len(_c.builders))
+	for i := range _c.builders {
 		func(i int, root context.Context) {
-			builder := oscb.builders[i]
+			builder := _c.builders[i]
 			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 				mutation, ok := m.(*OfflineSessionMutation)
 				if !ok {
@@ -191,11 +191,11 @@ func (oscb *OfflineSessionCreateBulk) Save(ctx context.Context) ([]*OfflineSessi
 				var err error
 				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
-					_, err = mutators[i+1].Mutate(root, oscb.builders[i+1].mutation)
+					_, err = mutators[i+1].Mutate(root, _c.builders[i+1].mutation)
 				} else {
 					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
 					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, oscb.driver, spec); err != nil {
+					if err = sqlgraph.BatchCreate(ctx, _c.driver, spec); err != nil {
 						if sqlgraph.IsConstraintError(err) {
 							err = &ConstraintError{msg: err.Error(), wrap: err}
 						}
@@ -215,7 +215,7 @@ func (oscb *OfflineSessionCreateBulk) Save(ctx context.Context) ([]*OfflineSessi
 		}(i, ctx)
 	}
 	if len(mutators) > 0 {
-		if _, err := mutators[0].Mutate(ctx, oscb.builders[0].mutation); err != nil {
+		if _, err := mutators[0].Mutate(ctx, _c.builders[0].mutation); err != nil {
 			return nil, err
 		}
 	}
@@ -223,8 +223,8 @@ func (oscb *OfflineSessionCreateBulk) Save(ctx context.Context) ([]*OfflineSessi
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func (oscb *OfflineSessionCreateBulk) SaveX(ctx context.Context) []*OfflineSession {
-	v, err := oscb.Save(ctx)
+func (_c *OfflineSessionCreateBulk) SaveX(ctx context.Context) []*OfflineSession {
+	v, err := _c.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -232,14 +232,14 @@ func (oscb *OfflineSessionCreateBulk) SaveX(ctx context.Context) []*OfflineSessi
 }
 
 // Exec executes the query.
-func (oscb *OfflineSessionCreateBulk) Exec(ctx context.Context) error {
-	_, err := oscb.Save(ctx)
+func (_c *OfflineSessionCreateBulk) Exec(ctx context.Context) error {
+	_, err := _c.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (oscb *OfflineSessionCreateBulk) ExecX(ctx context.Context) {
-	if err := oscb.Exec(ctx); err != nil {
+func (_c *OfflineSessionCreateBulk) ExecX(ctx context.Context) {
+	if err := _c.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

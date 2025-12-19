@@ -333,8 +333,8 @@ func (c *AuthCodeClient) Update() *AuthCodeUpdate {
 }
 
 // UpdateOne returns an update builder for the given entity.
-func (c *AuthCodeClient) UpdateOne(ac *AuthCode) *AuthCodeUpdateOne {
-	mutation := newAuthCodeMutation(c.config, OpUpdateOne, withAuthCode(ac))
+func (c *AuthCodeClient) UpdateOne(_m *AuthCode) *AuthCodeUpdateOne {
+	mutation := newAuthCodeMutation(c.config, OpUpdateOne, withAuthCode(_m))
 	return &AuthCodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
@@ -351,8 +351,8 @@ func (c *AuthCodeClient) Delete() *AuthCodeDelete {
 }
 
 // DeleteOne returns a builder for deleting the given entity.
-func (c *AuthCodeClient) DeleteOne(ac *AuthCode) *AuthCodeDeleteOne {
-	return c.DeleteOneID(ac.ID)
+func (c *AuthCodeClient) DeleteOne(_m *AuthCode) *AuthCodeDeleteOne {
+	return c.DeleteOneID(_m.ID)
 }
 
 // DeleteOneID returns a builder for deleting the given entity by its id.
@@ -466,8 +466,8 @@ func (c *AuthRequestClient) Update() *AuthRequestUpdate {
 }
 
 // UpdateOne returns an update builder for the given entity.
-func (c *AuthRequestClient) UpdateOne(ar *AuthRequest) *AuthRequestUpdateOne {
-	mutation := newAuthRequestMutation(c.config, OpUpdateOne, withAuthRequest(ar))
+func (c *AuthRequestClient) UpdateOne(_m *AuthRequest) *AuthRequestUpdateOne {
+	mutation := newAuthRequestMutation(c.config, OpUpdateOne, withAuthRequest(_m))
 	return &AuthRequestUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
@@ -484,8 +484,8 @@ func (c *AuthRequestClient) Delete() *AuthRequestDelete {
 }
 
 // DeleteOne returns a builder for deleting the given entity.
-func (c *AuthRequestClient) DeleteOne(ar *AuthRequest) *AuthRequestDeleteOne {
-	return c.DeleteOneID(ar.ID)
+func (c *AuthRequestClient) DeleteOne(_m *AuthRequest) *AuthRequestDeleteOne {
+	return c.DeleteOneID(_m.ID)
 }
 
 // DeleteOneID returns a builder for deleting the given entity by its id.
@@ -599,8 +599,8 @@ func (c *ConnectorClient) Update() *ConnectorUpdate {
 }
 
 // UpdateOne returns an update builder for the given entity.
-func (c *ConnectorClient) UpdateOne(co *Connector) *ConnectorUpdateOne {
-	mutation := newConnectorMutation(c.config, OpUpdateOne, withConnector(co))
+func (c *ConnectorClient) UpdateOne(_m *Connector) *ConnectorUpdateOne {
+	mutation := newConnectorMutation(c.config, OpUpdateOne, withConnector(_m))
 	return &ConnectorUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
@@ -617,8 +617,8 @@ func (c *ConnectorClient) Delete() *ConnectorDelete {
 }
 
 // DeleteOne returns a builder for deleting the given entity.
-func (c *ConnectorClient) DeleteOne(co *Connector) *ConnectorDeleteOne {
-	return c.DeleteOneID(co.ID)
+func (c *ConnectorClient) DeleteOne(_m *Connector) *ConnectorDeleteOne {
+	return c.DeleteOneID(_m.ID)
 }
 
 // DeleteOneID returns a builder for deleting the given entity by its id.
@@ -732,8 +732,8 @@ func (c *DeviceRequestClient) Update() *DeviceRequestUpdate {
 }
 
 // UpdateOne returns an update builder for the given entity.
-func (c *DeviceRequestClient) UpdateOne(dr *DeviceRequest) *DeviceRequestUpdateOne {
-	mutation := newDeviceRequestMutation(c.config, OpUpdateOne, withDeviceRequest(dr))
+func (c *DeviceRequestClient) UpdateOne(_m *DeviceRequest) *DeviceRequestUpdateOne {
+	mutation := newDeviceRequestMutation(c.config, OpUpdateOne, withDeviceRequest(_m))
 	return &DeviceRequestUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
@@ -750,8 +750,8 @@ func (c *DeviceRequestClient) Delete() *DeviceRequestDelete {
 }
 
 // DeleteOne returns a builder for deleting the given entity.
-func (c *DeviceRequestClient) DeleteOne(dr *DeviceRequest) *DeviceRequestDeleteOne {
-	return c.DeleteOneID(dr.ID)
+func (c *DeviceRequestClient) DeleteOne(_m *DeviceRequest) *DeviceRequestDeleteOne {
+	return c.DeleteOneID(_m.ID)
 }
 
 // DeleteOneID returns a builder for deleting the given entity by its id.
@@ -865,8 +865,8 @@ func (c *DeviceTokenClient) Update() *DeviceTokenUpdate {
 }
 
 // UpdateOne returns an update builder for the given entity.
-func (c *DeviceTokenClient) UpdateOne(dt *DeviceToken) *DeviceTokenUpdateOne {
-	mutation := newDeviceTokenMutation(c.config, OpUpdateOne, withDeviceToken(dt))
+func (c *DeviceTokenClient) UpdateOne(_m *DeviceToken) *DeviceTokenUpdateOne {
+	mutation := newDeviceTokenMutation(c.config, OpUpdateOne, withDeviceToken(_m))
 	return &DeviceTokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
@@ -883,8 +883,8 @@ func (c *DeviceTokenClient) Delete() *DeviceTokenDelete {
 }
 
 // DeleteOne returns a builder for deleting the given entity.
-func (c *DeviceTokenClient) DeleteOne(dt *DeviceToken) *DeviceTokenDeleteOne {
-	return c.DeleteOneID(dt.ID)
+func (c *DeviceTokenClient) DeleteOne(_m *DeviceToken) *DeviceTokenDeleteOne {
+	return c.DeleteOneID(_m.ID)
 }
 
 // DeleteOneID returns a builder for deleting the given entity by its id.
@@ -998,8 +998,8 @@ func (c *KeysClient) Update() *KeysUpdate {
 }
 
 // UpdateOne returns an update builder for the given entity.
-func (c *KeysClient) UpdateOne(k *Keys) *KeysUpdateOne {
-	mutation := newKeysMutation(c.config, OpUpdateOne, withKeys(k))
+func (c *KeysClient) UpdateOne(_m *Keys) *KeysUpdateOne {
+	mutation := newKeysMutation(c.config, OpUpdateOne, withKeys(_m))
 	return &KeysUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
@@ -1016,8 +1016,8 @@ func (c *KeysClient) Delete() *KeysDelete {
 }
 
 // DeleteOne returns a builder for deleting the given entity.
-func (c *KeysClient) DeleteOne(k *Keys) *KeysDeleteOne {
-	return c.DeleteOneID(k.ID)
+func (c *KeysClient) DeleteOne(_m *Keys) *KeysDeleteOne {
+	return c.DeleteOneID(_m.ID)
 }
 
 // DeleteOneID returns a builder for deleting the given entity by its id.
@@ -1131,8 +1131,8 @@ func (c *OAuth2ClientClient) Update() *OAuth2ClientUpdate {
 }
 
 // UpdateOne returns an update builder for the given entity.
-func (c *OAuth2ClientClient) UpdateOne(o *OAuth2Client) *OAuth2ClientUpdateOne {
-	mutation := newOAuth2ClientMutation(c.config, OpUpdateOne, withOAuth2Client(o))
+func (c *OAuth2ClientClient) UpdateOne(_m *OAuth2Client) *OAuth2ClientUpdateOne {
+	mutation := newOAuth2ClientMutation(c.config, OpUpdateOne, withOAuth2Client(_m))
 	return &OAuth2ClientUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
@@ -1149,8 +1149,8 @@ func (c *OAuth2ClientClient) Delete() *OAuth2ClientDelete {
 }
 
 // DeleteOne returns a builder for deleting the given entity.
-func (c *OAuth2ClientClient) DeleteOne(o *OAuth2Client) *OAuth2ClientDeleteOne {
-	return c.DeleteOneID(o.ID)
+func (c *OAuth2ClientClient) DeleteOne(_m *OAuth2Client) *OAuth2ClientDeleteOne {
+	return c.DeleteOneID(_m.ID)
 }
 
 // DeleteOneID returns a builder for deleting the given entity by its id.
@@ -1264,8 +1264,8 @@ func (c *OfflineSessionClient) Update() *OfflineSessionUpdate {
 }
 
 // UpdateOne returns an update builder for the given entity.
-func (c *OfflineSessionClient) UpdateOne(os *OfflineSession) *OfflineSessionUpdateOne {
-	mutation := newOfflineSessionMutation(c.config, OpUpdateOne, withOfflineSession(os))
+func (c *OfflineSessionClient) UpdateOne(_m *OfflineSession) *OfflineSessionUpdateOne {
+	mutation := newOfflineSessionMutation(c.config, OpUpdateOne, withOfflineSession(_m))
 	return &OfflineSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
@@ -1282,8 +1282,8 @@ func (c *OfflineSessionClient) Delete() *OfflineSessionDelete {
 }
 
 // DeleteOne returns a builder for deleting the given entity.
-func (c *OfflineSessionClient) DeleteOne(os *OfflineSession) *OfflineSessionDeleteOne {
-	return c.DeleteOneID(os.ID)
+func (c *OfflineSessionClient) DeleteOne(_m *OfflineSession) *OfflineSessionDeleteOne {
+	return c.DeleteOneID(_m.ID)
 }
 
 // DeleteOneID returns a builder for deleting the given entity by its id.
@@ -1397,8 +1397,8 @@ func (c *PasswordClient) Update() *PasswordUpdate {
 }
 
 // UpdateOne returns an update builder for the given entity.
-func (c *PasswordClient) UpdateOne(pa *Password) *PasswordUpdateOne {
-	mutation := newPasswordMutation(c.config, OpUpdateOne, withPassword(pa))
+func (c *PasswordClient) UpdateOne(_m *Password) *PasswordUpdateOne {
+	mutation := newPasswordMutation(c.config, OpUpdateOne, withPassword(_m))
 	return &PasswordUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
@@ -1415,8 +1415,8 @@ func (c *PasswordClient) Delete() *PasswordDelete {
 }
 
 // DeleteOne returns a builder for deleting the given entity.
-func (c *PasswordClient) DeleteOne(pa *Password) *PasswordDeleteOne {
-	return c.DeleteOneID(pa.ID)
+func (c *PasswordClient) DeleteOne(_m *Password) *PasswordDeleteOne {
+	return c.DeleteOneID(_m.ID)
 }
 
 // DeleteOneID returns a builder for deleting the given entity by its id.
@@ -1530,8 +1530,8 @@ func (c *RefreshTokenClient) Update() *RefreshTokenUpdate {
 }
 
 // UpdateOne returns an update builder for the given entity.
-func (c *RefreshTokenClient) UpdateOne(rt *RefreshToken) *RefreshTokenUpdateOne {
-	mutation := newRefreshTokenMutation(c.config, OpUpdateOne, withRefreshToken(rt))
+func (c *RefreshTokenClient) UpdateOne(_m *RefreshToken) *RefreshTokenUpdateOne {
+	mutation := newRefreshTokenMutation(c.config, OpUpdateOne, withRefreshToken(_m))
 	return &RefreshTokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
@@ -1548,8 +1548,8 @@ func (c *RefreshTokenClient) Delete() *RefreshTokenDelete {
 }
 
 // DeleteOne returns a builder for deleting the given entity.
-func (c *RefreshTokenClient) DeleteOne(rt *RefreshToken) *RefreshTokenDeleteOne {
-	return c.DeleteOneID(rt.ID)
+func (c *RefreshTokenClient) DeleteOne(_m *RefreshToken) *RefreshTokenDeleteOne {
+	return c.DeleteOneID(_m.ID)
 }
 
 // DeleteOneID returns a builder for deleting the given entity by its id.

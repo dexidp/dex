@@ -22,72 +22,72 @@ type PasswordUpdate struct {
 }
 
 // Where appends a list predicates to the PasswordUpdate builder.
-func (pu *PasswordUpdate) Where(ps ...predicate.Password) *PasswordUpdate {
-	pu.mutation.Where(ps...)
-	return pu
+func (_u *PasswordUpdate) Where(ps ...predicate.Password) *PasswordUpdate {
+	_u.mutation.Where(ps...)
+	return _u
 }
 
 // SetEmail sets the "email" field.
-func (pu *PasswordUpdate) SetEmail(s string) *PasswordUpdate {
-	pu.mutation.SetEmail(s)
-	return pu
+func (_u *PasswordUpdate) SetEmail(v string) *PasswordUpdate {
+	_u.mutation.SetEmail(v)
+	return _u
 }
 
 // SetNillableEmail sets the "email" field if the given value is not nil.
-func (pu *PasswordUpdate) SetNillableEmail(s *string) *PasswordUpdate {
-	if s != nil {
-		pu.SetEmail(*s)
+func (_u *PasswordUpdate) SetNillableEmail(v *string) *PasswordUpdate {
+	if v != nil {
+		_u.SetEmail(*v)
 	}
-	return pu
+	return _u
 }
 
 // SetHash sets the "hash" field.
-func (pu *PasswordUpdate) SetHash(b []byte) *PasswordUpdate {
-	pu.mutation.SetHash(b)
-	return pu
+func (_u *PasswordUpdate) SetHash(v []byte) *PasswordUpdate {
+	_u.mutation.SetHash(v)
+	return _u
 }
 
 // SetUsername sets the "username" field.
-func (pu *PasswordUpdate) SetUsername(s string) *PasswordUpdate {
-	pu.mutation.SetUsername(s)
-	return pu
+func (_u *PasswordUpdate) SetUsername(v string) *PasswordUpdate {
+	_u.mutation.SetUsername(v)
+	return _u
 }
 
 // SetNillableUsername sets the "username" field if the given value is not nil.
-func (pu *PasswordUpdate) SetNillableUsername(s *string) *PasswordUpdate {
-	if s != nil {
-		pu.SetUsername(*s)
+func (_u *PasswordUpdate) SetNillableUsername(v *string) *PasswordUpdate {
+	if v != nil {
+		_u.SetUsername(*v)
 	}
-	return pu
+	return _u
 }
 
 // SetUserID sets the "user_id" field.
-func (pu *PasswordUpdate) SetUserID(s string) *PasswordUpdate {
-	pu.mutation.SetUserID(s)
-	return pu
+func (_u *PasswordUpdate) SetUserID(v string) *PasswordUpdate {
+	_u.mutation.SetUserID(v)
+	return _u
 }
 
 // SetNillableUserID sets the "user_id" field if the given value is not nil.
-func (pu *PasswordUpdate) SetNillableUserID(s *string) *PasswordUpdate {
-	if s != nil {
-		pu.SetUserID(*s)
+func (_u *PasswordUpdate) SetNillableUserID(v *string) *PasswordUpdate {
+	if v != nil {
+		_u.SetUserID(*v)
 	}
-	return pu
+	return _u
 }
 
 // Mutation returns the PasswordMutation object of the builder.
-func (pu *PasswordUpdate) Mutation() *PasswordMutation {
-	return pu.mutation
+func (_u *PasswordUpdate) Mutation() *PasswordMutation {
+	return _u.mutation
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
-func (pu *PasswordUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, pu.sqlSave, pu.mutation, pu.hooks)
+func (_u *PasswordUpdate) Save(ctx context.Context) (int, error) {
+	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func (pu *PasswordUpdate) SaveX(ctx context.Context) int {
-	affected, err := pu.Save(ctx)
+func (_u *PasswordUpdate) SaveX(ctx context.Context) int {
+	affected, err := _u.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -95,31 +95,31 @@ func (pu *PasswordUpdate) SaveX(ctx context.Context) int {
 }
 
 // Exec executes the query.
-func (pu *PasswordUpdate) Exec(ctx context.Context) error {
-	_, err := pu.Save(ctx)
+func (_u *PasswordUpdate) Exec(ctx context.Context) error {
+	_, err := _u.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (pu *PasswordUpdate) ExecX(ctx context.Context) {
-	if err := pu.Exec(ctx); err != nil {
+func (_u *PasswordUpdate) ExecX(ctx context.Context) {
+	if err := _u.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
 
 // check runs all checks and user-defined validators on the builder.
-func (pu *PasswordUpdate) check() error {
-	if v, ok := pu.mutation.Email(); ok {
+func (_u *PasswordUpdate) check() error {
+	if v, ok := _u.mutation.Email(); ok {
 		if err := password.EmailValidator(v); err != nil {
 			return &ValidationError{Name: "email", err: fmt.Errorf(`db: validator failed for field "Password.email": %w`, err)}
 		}
 	}
-	if v, ok := pu.mutation.Username(); ok {
+	if v, ok := _u.mutation.Username(); ok {
 		if err := password.UsernameValidator(v); err != nil {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`db: validator failed for field "Password.username": %w`, err)}
 		}
 	}
-	if v, ok := pu.mutation.UserID(); ok {
+	if v, ok := _u.mutation.UserID(); ok {
 		if err := password.UserIDValidator(v); err != nil {
 			return &ValidationError{Name: "user_id", err: fmt.Errorf(`db: validator failed for field "Password.user_id": %w`, err)}
 		}
@@ -127,31 +127,31 @@ func (pu *PasswordUpdate) check() error {
 	return nil
 }
 
-func (pu *PasswordUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	if err := pu.check(); err != nil {
-		return n, err
+func (_u *PasswordUpdate) sqlSave(ctx context.Context) (_node int, err error) {
+	if err := _u.check(); err != nil {
+		return _node, err
 	}
 	_spec := sqlgraph.NewUpdateSpec(password.Table, password.Columns, sqlgraph.NewFieldSpec(password.FieldID, field.TypeInt))
-	if ps := pu.mutation.predicates; len(ps) > 0 {
+	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	if value, ok := pu.mutation.Email(); ok {
+	if value, ok := _u.mutation.Email(); ok {
 		_spec.SetField(password.FieldEmail, field.TypeString, value)
 	}
-	if value, ok := pu.mutation.Hash(); ok {
+	if value, ok := _u.mutation.Hash(); ok {
 		_spec.SetField(password.FieldHash, field.TypeBytes, value)
 	}
-	if value, ok := pu.mutation.Username(); ok {
+	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(password.FieldUsername, field.TypeString, value)
 	}
-	if value, ok := pu.mutation.UserID(); ok {
+	if value, ok := _u.mutation.UserID(); ok {
 		_spec.SetField(password.FieldUserID, field.TypeString, value)
 	}
-	if n, err = sqlgraph.UpdateNodes(ctx, pu.driver, _spec); err != nil {
+	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{password.Label}
 		} else if sqlgraph.IsConstraintError(err) {
@@ -159,8 +159,8 @@ func (pu *PasswordUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 		return 0, err
 	}
-	pu.mutation.done = true
-	return n, nil
+	_u.mutation.done = true
+	return _node, nil
 }
 
 // PasswordUpdateOne is the builder for updating a single Password entity.
@@ -172,79 +172,79 @@ type PasswordUpdateOne struct {
 }
 
 // SetEmail sets the "email" field.
-func (puo *PasswordUpdateOne) SetEmail(s string) *PasswordUpdateOne {
-	puo.mutation.SetEmail(s)
-	return puo
+func (_u *PasswordUpdateOne) SetEmail(v string) *PasswordUpdateOne {
+	_u.mutation.SetEmail(v)
+	return _u
 }
 
 // SetNillableEmail sets the "email" field if the given value is not nil.
-func (puo *PasswordUpdateOne) SetNillableEmail(s *string) *PasswordUpdateOne {
-	if s != nil {
-		puo.SetEmail(*s)
+func (_u *PasswordUpdateOne) SetNillableEmail(v *string) *PasswordUpdateOne {
+	if v != nil {
+		_u.SetEmail(*v)
 	}
-	return puo
+	return _u
 }
 
 // SetHash sets the "hash" field.
-func (puo *PasswordUpdateOne) SetHash(b []byte) *PasswordUpdateOne {
-	puo.mutation.SetHash(b)
-	return puo
+func (_u *PasswordUpdateOne) SetHash(v []byte) *PasswordUpdateOne {
+	_u.mutation.SetHash(v)
+	return _u
 }
 
 // SetUsername sets the "username" field.
-func (puo *PasswordUpdateOne) SetUsername(s string) *PasswordUpdateOne {
-	puo.mutation.SetUsername(s)
-	return puo
+func (_u *PasswordUpdateOne) SetUsername(v string) *PasswordUpdateOne {
+	_u.mutation.SetUsername(v)
+	return _u
 }
 
 // SetNillableUsername sets the "username" field if the given value is not nil.
-func (puo *PasswordUpdateOne) SetNillableUsername(s *string) *PasswordUpdateOne {
-	if s != nil {
-		puo.SetUsername(*s)
+func (_u *PasswordUpdateOne) SetNillableUsername(v *string) *PasswordUpdateOne {
+	if v != nil {
+		_u.SetUsername(*v)
 	}
-	return puo
+	return _u
 }
 
 // SetUserID sets the "user_id" field.
-func (puo *PasswordUpdateOne) SetUserID(s string) *PasswordUpdateOne {
-	puo.mutation.SetUserID(s)
-	return puo
+func (_u *PasswordUpdateOne) SetUserID(v string) *PasswordUpdateOne {
+	_u.mutation.SetUserID(v)
+	return _u
 }
 
 // SetNillableUserID sets the "user_id" field if the given value is not nil.
-func (puo *PasswordUpdateOne) SetNillableUserID(s *string) *PasswordUpdateOne {
-	if s != nil {
-		puo.SetUserID(*s)
+func (_u *PasswordUpdateOne) SetNillableUserID(v *string) *PasswordUpdateOne {
+	if v != nil {
+		_u.SetUserID(*v)
 	}
-	return puo
+	return _u
 }
 
 // Mutation returns the PasswordMutation object of the builder.
-func (puo *PasswordUpdateOne) Mutation() *PasswordMutation {
-	return puo.mutation
+func (_u *PasswordUpdateOne) Mutation() *PasswordMutation {
+	return _u.mutation
 }
 
 // Where appends a list predicates to the PasswordUpdate builder.
-func (puo *PasswordUpdateOne) Where(ps ...predicate.Password) *PasswordUpdateOne {
-	puo.mutation.Where(ps...)
-	return puo
+func (_u *PasswordUpdateOne) Where(ps ...predicate.Password) *PasswordUpdateOne {
+	_u.mutation.Where(ps...)
+	return _u
 }
 
 // Select allows selecting one or more fields (columns) of the returned entity.
 // The default is selecting all fields defined in the entity schema.
-func (puo *PasswordUpdateOne) Select(field string, fields ...string) *PasswordUpdateOne {
-	puo.fields = append([]string{field}, fields...)
-	return puo
+func (_u *PasswordUpdateOne) Select(field string, fields ...string) *PasswordUpdateOne {
+	_u.fields = append([]string{field}, fields...)
+	return _u
 }
 
 // Save executes the query and returns the updated Password entity.
-func (puo *PasswordUpdateOne) Save(ctx context.Context) (*Password, error) {
-	return withHooks(ctx, puo.sqlSave, puo.mutation, puo.hooks)
+func (_u *PasswordUpdateOne) Save(ctx context.Context) (*Password, error) {
+	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func (puo *PasswordUpdateOne) SaveX(ctx context.Context) *Password {
-	node, err := puo.Save(ctx)
+func (_u *PasswordUpdateOne) SaveX(ctx context.Context) *Password {
+	node, err := _u.Save(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -252,31 +252,31 @@ func (puo *PasswordUpdateOne) SaveX(ctx context.Context) *Password {
 }
 
 // Exec executes the query on the entity.
-func (puo *PasswordUpdateOne) Exec(ctx context.Context) error {
-	_, err := puo.Save(ctx)
+func (_u *PasswordUpdateOne) Exec(ctx context.Context) error {
+	_, err := _u.Save(ctx)
 	return err
 }
 
 // ExecX is like Exec, but panics if an error occurs.
-func (puo *PasswordUpdateOne) ExecX(ctx context.Context) {
-	if err := puo.Exec(ctx); err != nil {
+func (_u *PasswordUpdateOne) ExecX(ctx context.Context) {
+	if err := _u.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
 
 // check runs all checks and user-defined validators on the builder.
-func (puo *PasswordUpdateOne) check() error {
-	if v, ok := puo.mutation.Email(); ok {
+func (_u *PasswordUpdateOne) check() error {
+	if v, ok := _u.mutation.Email(); ok {
 		if err := password.EmailValidator(v); err != nil {
 			return &ValidationError{Name: "email", err: fmt.Errorf(`db: validator failed for field "Password.email": %w`, err)}
 		}
 	}
-	if v, ok := puo.mutation.Username(); ok {
+	if v, ok := _u.mutation.Username(); ok {
 		if err := password.UsernameValidator(v); err != nil {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`db: validator failed for field "Password.username": %w`, err)}
 		}
 	}
-	if v, ok := puo.mutation.UserID(); ok {
+	if v, ok := _u.mutation.UserID(); ok {
 		if err := password.UserIDValidator(v); err != nil {
 			return &ValidationError{Name: "user_id", err: fmt.Errorf(`db: validator failed for field "Password.user_id": %w`, err)}
 		}
@@ -284,17 +284,17 @@ func (puo *PasswordUpdateOne) check() error {
 	return nil
 }
 
-func (puo *PasswordUpdateOne) sqlSave(ctx context.Context) (_node *Password, err error) {
-	if err := puo.check(); err != nil {
+func (_u *PasswordUpdateOne) sqlSave(ctx context.Context) (_node *Password, err error) {
+	if err := _u.check(); err != nil {
 		return _node, err
 	}
 	_spec := sqlgraph.NewUpdateSpec(password.Table, password.Columns, sqlgraph.NewFieldSpec(password.FieldID, field.TypeInt))
-	id, ok := puo.mutation.ID()
+	id, ok := _u.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`db: missing "Password.id" for update`)}
 	}
 	_spec.Node.ID.Value = id
-	if fields := puo.fields; len(fields) > 0 {
+	if fields := _u.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, password.FieldID)
 		for _, f := range fields {
@@ -306,29 +306,29 @@ func (puo *PasswordUpdateOne) sqlSave(ctx context.Context) (_node *Password, err
 			}
 		}
 	}
-	if ps := puo.mutation.predicates; len(ps) > 0 {
+	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
 	}
-	if value, ok := puo.mutation.Email(); ok {
+	if value, ok := _u.mutation.Email(); ok {
 		_spec.SetField(password.FieldEmail, field.TypeString, value)
 	}
-	if value, ok := puo.mutation.Hash(); ok {
+	if value, ok := _u.mutation.Hash(); ok {
 		_spec.SetField(password.FieldHash, field.TypeBytes, value)
 	}
-	if value, ok := puo.mutation.Username(); ok {
+	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(password.FieldUsername, field.TypeString, value)
 	}
-	if value, ok := puo.mutation.UserID(); ok {
+	if value, ok := _u.mutation.UserID(); ok {
 		_spec.SetField(password.FieldUserID, field.TypeString, value)
 	}
-	_node = &Password{config: puo.config}
+	_node = &Password{config: _u.config}
 	_spec.Assign = _node.assignValues
 	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, puo.driver, _spec); err != nil {
+	if err = sqlgraph.UpdateNode(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{password.Label}
 		} else if sqlgraph.IsConstraintError(err) {
@@ -336,6 +336,6 @@ func (puo *PasswordUpdateOne) sqlSave(ctx context.Context) (_node *Password, err
 		}
 		return nil, err
 	}
-	puo.mutation.done = true
+	_u.mutation.done = true
 	return _node, nil
 }
