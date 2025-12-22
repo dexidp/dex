@@ -1279,10 +1279,12 @@ func TestPasswordDB(t *testing.T) {
 	}
 
 	s.CreatePassword(ctx, storage.Password{
-		Email:    "jane@example.com",
-		Username: "jane",
-		UserID:   "foobar",
-		Hash:     h,
+		Email:             "jane@example.com",
+		Username:          "jane",
+		PreferredUsername: "jane-public",
+		UserID:            "foobar",
+		Groups:            []string{"team-a", "team-a/admins"},
+		Hash:              h,
 	})
 
 	tests := []struct {
@@ -1298,10 +1300,12 @@ func TestPasswordDB(t *testing.T) {
 			username: "jane@example.com",
 			password: pw,
 			wantIdentity: connector.Identity{
-				Email:         "jane@example.com",
-				Username:      "jane",
-				UserID:        "foobar",
-				EmailVerified: true,
+				Email:             "jane@example.com",
+				Username:          "jane",
+				PreferredUsername: "jane-public",
+				UserID:            "foobar",
+				EmailVerified:     true,
+				Groups:            []string{"team-a", "team-a/admins"},
 			},
 		},
 		{

@@ -298,4 +298,44 @@ var migrations = []migration{
 				add column hmac_key bytea;`,
 		},
 	},
+	{
+		stmts: []string{
+			`
+			alter table password
+				add column preferred_username text not null default '';`,
+			`
+			alter table password
+				add column groups bytea not null default convert_to('[]', 'UTF8');`,
+		},
+		flavor: &flavorPostgres,
+	},
+	{
+		stmts: []string{
+			`
+			alter table password
+				add column preferred_username text not null default '';`,
+			`
+			alter table password
+				add column groups bytea not null default '[]';`,
+		},
+		flavor: &flavorSQLite3,
+	},
+	{
+		stmts: []string{
+			`
+			alter table password
+				add column preferred_username text not null default '';`,
+			`
+			alter table password
+				add column groups bytea;`,
+			`
+			update password
+				set groups = '[]'
+				where groups is null;`,
+			`
+			alter table password
+				modify column groups bytea not null;`,
+		},
+		flavor: &flavorMySQL,
+	},
 }

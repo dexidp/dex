@@ -3,6 +3,7 @@
 package db
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -22,8 +23,12 @@ type Password struct {
 	Hash []byte `json:"hash,omitempty"`
 	// Username holds the value of the "username" field.
 	Username string `json:"username,omitempty"`
+	// PreferredUsername holds the value of the "preferred_username" field.
+	PreferredUsername string `json:"preferred_username,omitempty"`
 	// UserID holds the value of the "user_id" field.
-	UserID       string `json:"user_id,omitempty"`
+	UserID string `json:"user_id,omitempty"`
+	// Groups holds the value of the "groups" field.
+	Groups       []string `json:"groups,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -32,11 +37,11 @@ func (*Password) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case password.FieldHash:
+		case password.FieldHash, password.FieldGroups:
 			values[i] = new([]byte)
 		case password.FieldID:
 			values[i] = new(sql.NullInt64)
-		case password.FieldEmail, password.FieldUsername, password.FieldUserID:
+		case password.FieldEmail, password.FieldUsername, password.FieldPreferredUsername, password.FieldUserID:
 			values[i] = new(sql.NullString)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -77,11 +82,25 @@ func (_m *Password) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Username = value.String
 			}
+		case password.FieldPreferredUsername:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field preferred_username", values[i])
+			} else if value.Valid {
+				_m.PreferredUsername = value.String
+			}
 		case password.FieldUserID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field user_id", values[i])
 			} else if value.Valid {
 				_m.UserID = value.String
+			}
+		case password.FieldGroups:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field groups", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.Groups); err != nil {
+					return fmt.Errorf("unmarshal field groups: %w", err)
+				}
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -128,8 +147,14 @@ func (_m *Password) String() string {
 	builder.WriteString("username=")
 	builder.WriteString(_m.Username)
 	builder.WriteString(", ")
+	builder.WriteString("preferred_username=")
+	builder.WriteString(_m.PreferredUsername)
+	builder.WriteString(", ")
 	builder.WriteString("user_id=")
 	builder.WriteString(_m.UserID)
+	builder.WriteString(", ")
+	builder.WriteString("groups=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Groups))
 	builder.WriteByte(')')
 	return builder.String()
 }

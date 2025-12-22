@@ -116,6 +116,10 @@ staticPasswords:
   # bcrypt hash of the string "password"
   hash: "$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"
   username: "admin"
+  preferredUsername: "admin-public"
+  groups:
+  - "team-a"
+  - "team-a/admins"
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
 - email: "foo@example.com"
   # base64'd value of the same bcrypt hash above. We want to be able to parse both of these
@@ -206,10 +210,15 @@ additionalFeatures: [
 		EnablePasswordDB: true,
 		StaticPasswords: []password{
 			{
-				Email:    "admin@example.com",
-				Hash:     []byte("$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"),
-				Username: "admin",
-				UserID:   "08a8684b-db88-4b73-90a9-3cd1661f5466",
+				Email:             "admin@example.com",
+				Hash:              []byte("$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"),
+				Username:          "admin",
+				PreferredUsername: "admin-public",
+				UserID:            "08a8684b-db88-4b73-90a9-3cd1661f5466",
+				Groups: []string{
+					"team-a",
+					"team-a/admins",
+				},
 			},
 			{
 				Email:    "foo@example.com",

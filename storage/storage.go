@@ -352,8 +352,14 @@ type Password struct {
 	// Optional username to display. NOT used during login.
 	Username string `json:"username"`
 
+	// Optional preferred username for OIDC "preferred_username" claim.
+	PreferredUsername string `json:"preferredUsername"`
+
 	// Randomly generated user ID. This is NOT the primary ID of the Password object.
 	UserID string `json:"userID"`
+
+	// Groups assigned to the user
+	Groups []string `json:"groups"`
 }
 
 // Connector is an object that contains the metadata about connectors used to login to Dex.
