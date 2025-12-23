@@ -481,14 +481,16 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	client, err := s.storage.GetClient(ctx, clientID)
 	if err != nil {
 		if err == storage.ErrNotFound {
-			return nil, newDisplayedErr(http.StatusNotFound, "Invalid client_id (%q).", clientID)
+			s.logger.ErrorContext(r.Context(), "invalid client_id provided", "client_id", clientID)
+			return nil, newDisplayedErr(http.StatusNotFound, "Invalid client_id.")
 		}
 		s.logger.ErrorContext(r.Context(), "failed to get client", "err", err)
 		return nil, newDisplayedErr(http.StatusInternalServerError, "Database error.")
 	}
 
 	if !validateRedirectURI(client, redirectURI) {
-		return nil, newDisplayedErr(http.StatusBadRequest, "Unregistered redirect_uri (%q).", redirectURI)
+		s.logger.ErrorContext(r.Context(), "unregistered redirect_uri", "redirect_uri", redirectURI, "client_id", clientID)
+		return nil, newDisplayedErr(http.StatusBadRequest, "Unregistered redirect_uri.")
 	}
 	if redirectURI == deviceCallbackURI && client.Public {
 		redirectURI = s.absPath(deviceCallbackURI)
