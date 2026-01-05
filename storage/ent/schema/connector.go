@@ -13,6 +13,7 @@ create table connector
     name             text not null,
     resource_version text not null,
     config           blob
+	hidden           boolean default false not null
 );
 */
 
@@ -38,6 +39,8 @@ func (Connector) Fields() []ent.Field {
 		field.Text("resource_version").
 			SchemaType(textSchema),
 		field.Bytes("config"),
+		field.Bool("hidden").
+			Default(false),
 	}
 }
 

@@ -75,6 +75,20 @@ func (_u *ConnectorUpdate) SetConfig(v []byte) *ConnectorUpdate {
 	return _u
 }
 
+// SetHidden sets the "hidden" field.
+func (_u *ConnectorUpdate) SetHidden(v bool) *ConnectorUpdate {
+	_u.mutation.SetHidden(v)
+	return _u
+}
+
+// SetNillableHidden sets the "hidden" field if the given value is not nil.
+func (_u *ConnectorUpdate) SetNillableHidden(v *bool) *ConnectorUpdate {
+	if v != nil {
+		_u.SetHidden(*v)
+	}
+	return _u
+}
+
 // Mutation returns the ConnectorMutation object of the builder.
 func (_u *ConnectorUpdate) Mutation() *ConnectorMutation {
 	return _u.mutation
@@ -146,6 +160,9 @@ func (_u *ConnectorUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Config(); ok {
 		_spec.SetField(connector.FieldConfig, field.TypeBytes, value)
 	}
+	if value, ok := _u.mutation.Hidden(); ok {
+		_spec.SetField(connector.FieldHidden, field.TypeBool, value)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{connector.Label}
@@ -211,6 +228,20 @@ func (_u *ConnectorUpdateOne) SetNillableResourceVersion(v *string) *ConnectorUp
 // SetConfig sets the "config" field.
 func (_u *ConnectorUpdateOne) SetConfig(v []byte) *ConnectorUpdateOne {
 	_u.mutation.SetConfig(v)
+	return _u
+}
+
+// SetHidden sets the "hidden" field.
+func (_u *ConnectorUpdateOne) SetHidden(v bool) *ConnectorUpdateOne {
+	_u.mutation.SetHidden(v)
+	return _u
+}
+
+// SetNillableHidden sets the "hidden" field if the given value is not nil.
+func (_u *ConnectorUpdateOne) SetNillableHidden(v *bool) *ConnectorUpdateOne {
+	if v != nil {
+		_u.SetHidden(*v)
+	}
 	return _u
 }
 
@@ -314,6 +345,9 @@ func (_u *ConnectorUpdateOne) sqlSave(ctx context.Context) (_node *Connector, er
 	}
 	if value, ok := _u.mutation.Config(); ok {
 		_spec.SetField(connector.FieldConfig, field.TypeBytes, value)
+	}
+	if value, ok := _u.mutation.Hidden(); ok {
+		_spec.SetField(connector.FieldHidden, field.TypeBool, value)
 	}
 	_node = &Connector{config: _u.config}
 	_spec.Assign = _node.assignValues
