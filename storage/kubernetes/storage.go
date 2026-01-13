@@ -383,13 +383,7 @@ func (cli *client) ListPasswords(ctx context.Context) (passwords []storage.Passw
 	}
 
 	for _, password := range passwordList.Passwords {
-		p := storage.Password{
-			Email:    password.Email,
-			Hash:     password.Hash,
-			Username: password.Username,
-			UserID:   password.UserID,
-		}
-		passwords = append(passwords, p)
+		passwords = append(passwords, toStoragePassword(password))
 	}
 
 	return
