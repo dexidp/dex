@@ -318,7 +318,9 @@ func (s *Server) handleIntrospect(w http.ResponseWriter, r *http.Request) {
 
 	rawJSON, jsonErr := json.Marshal(introspect)
 	if jsonErr != nil {
-		s.introspectErrHelper(w, errServerError, jsonErr.Error(), 500)
+		s.logger.ErrorContext(r.Context(), "failed to marshal introspection response", "err", jsonErr)
+		s.introspectErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
