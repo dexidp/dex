@@ -32,10 +32,11 @@ func (m *Test) Lint(ctx context.Context) (string, error) {
 var k3sVersions = map[string]string{
 	"latest": "latest",
 	"1.30":   "v1.30.13-k3s1",
-	"1.31":   "v1.31.12-k3s1",
-	"1.32":   "v1.32.8-k3s1",
-	"1.33":   "v1.33.4-k3s1",
-	"1.34":   "v1.34.1-rc1-k3s1",
+	"1.31":   "v1.31.14-k3s1",
+	"1.32":   "v1.32.11-k3s1",
+	"1.33":   "v1.33.7-k3s1",
+	"1.34":   "v1.34.3-k3s1",
+	"1.35":   "v1.35.0-k3s1",
 }
 
 func (m *Test) HelmChart(
