@@ -1,6 +1,6 @@
 {
   "name": "dex",
-  "engineVersion": "v0.18.19",
+  "engineVersion": "v0.19.9",
   "sdk": {
     "source": "go"
   },
@@ -22,9 +22,10 @@
     },
     {
       "name": "registry",
-      "source": "github.com/sagikazarmark/daggerverse/registry",
+      "source": "github.com/sagikazarmark/daggerverse/registry@main",
       "pin": "88056b48085a170fbf7638e106efbecd26c6573d"
     }
   ],
-  "source": ".dagger"
+  "source": ".dagger",
+  "disableDefaultFunctionCaching": true
 }
