@@ -279,12 +279,12 @@ var (
 	_ StorageConfig = (*ent.MySQL)(nil)
 )
 
-func getORMBasedSQLStorage(normal, entBased StorageConfig) func() StorageConfig {
+func getORMBasedSQLStorage(normal, entBased func() StorageConfig) func() StorageConfig {
 	return func() StorageConfig {
 		if featureflags.EntEnabled.Enabled() {
-			return entBased
+			return entBased()
 		}
-		return normal
+		return normal()
 	}
 }
 
@@ -313,9 +313,9 @@ var storages = map[string]func() StorageConfig{
 	"etcd":       func() StorageConfig { return new(etcd.Etcd) },
 	"kubernetes": func() StorageConfig { return new(kubernetes.Config) },
 	"memory":     func() StorageConfig { return new(memory.Config) },
-	"sqlite3":    getORMBasedSQLStorage(&sql.SQLite3{}, &ent.SQLite3{}),
-	"postgres":   getORMBasedSQLStorage(&sql.Postgres{}, &ent.Postgres{}),
-	"mysql":      getORMBasedSQLStorage(&sql.MySQL{}, &ent.MySQL{}),
+	"sqlite3":    getORMBasedSQLStorage(func() StorageConfig { return new(sql.SQLite3) }, func() StorageConfig { return new(ent.SQLite3) }),
+	"postgres":   getORMBasedSQLStorage(func() StorageConfig { return new(sql.Postgres) }, func() StorageConfig { return new(ent.Postgres) }),
+	"mysql":      getORMBasedSQLStorage(func() StorageConfig { return new(sql.MySQL) }, func() StorageConfig { return new(ent.MySQL) }),
 }
 
 // UnmarshalJSON allows Storage to implement the unmarshaler interface to
