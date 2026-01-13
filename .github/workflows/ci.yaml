@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  DAGGER_VERSION: 0.18.19
+  DAGGER_VERSION: 0.19.9
 
 jobs:
   test:
@@ -174,14 +174,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kube-version: ["1.30", "1.31", "1.32", "1.33", "1.34"]
+        kube-version: ["1.30", "1.31", "1.32", "1.33", "1.34", "1.35"]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Run pipeline
-        uses: dagger/dagger-for-github@847ae4458ef34fe9b5f566655957bde6d4891112 # v7.0.3
+        uses: dagger/dagger-for-github@d913e70051faf3b907d4dd96ef1161083c88c644 # v8.2.0
         with:
           verb: call
           args: test helm-chart --kube-version ${{ matrix.kube-version }}
